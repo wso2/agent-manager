@@ -392,6 +392,25 @@ type ClientInterface interface {
 	// GetAgentEndpoints request
 	GetAgentEndpoints(ctx context.Context, orgName string, projName string, agentName string, params *GetAgentEndpointsParams, reqEditors ...RequestEditorFn) (*http.Response, error)
 
+	// ListAgentAPIKeys request
+	ListAgentAPIKeys(ctx context.Context, orgName string, projName string, agentName string, envID string, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// CreateAgentAPIKeyWithBody request with any body
+	CreateAgentAPIKeyWithBody(ctx context.Context, orgName string, projName string, agentName string, envID string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	CreateAgentAPIKey(ctx context.Context, orgName string, projName string, agentName string, envID string, body CreateAgentAPIKeyJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// IssueTestAgentAPIKey request
+	IssueTestAgentAPIKey(ctx context.Context, orgName string, projName string, agentName string, envID string, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// RevokeAgentAPIKey request
+	RevokeAgentAPIKey(ctx context.Context, orgName string, projName string, agentName string, envID string, keyName string, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// RotateAgentAPIKeyWithBody request with any body
+	RotateAgentAPIKeyWithBody(ctx context.Context, orgName string, projName string, agentName string, envID string, keyName string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	RotateAgentAPIKey(ctx context.Context, orgName string, projName string, agentName string, envID string, keyName string, body RotateAgentAPIKeyJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
+
 	// GetAgentMetricsWithBody request with any body
 	GetAgentMetricsWithBody(ctx context.Context, orgName string, projName string, agentName string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
 
@@ -1840,6 +1859,90 @@ func (c *Client) UpdateAgentDeploymentState(ctx context.Context, orgName string,
 
 func (c *Client) GetAgentEndpoints(ctx context.Context, orgName string, projName string, agentName string, params *GetAgentEndpointsParams, reqEditors ...RequestEditorFn) (*http.Response, error) {
 	req, err := NewGetAgentEndpointsRequest(c.Server, orgName, projName, agentName, params)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) ListAgentAPIKeys(ctx context.Context, orgName string, projName string, agentName string, envID string, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewListAgentAPIKeysRequest(c.Server, orgName, projName, agentName, envID)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) CreateAgentAPIKeyWithBody(ctx context.Context, orgName string, projName string, agentName string, envID string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewCreateAgentAPIKeyRequestWithBody(c.Server, orgName, projName, agentName, envID, contentType, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) CreateAgentAPIKey(ctx context.Context, orgName string, projName string, agentName string, envID string, body CreateAgentAPIKeyJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewCreateAgentAPIKeyRequest(c.Server, orgName, projName, agentName, envID, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) IssueTestAgentAPIKey(ctx context.Context, orgName string, projName string, agentName string, envID string, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewIssueTestAgentAPIKeyRequest(c.Server, orgName, projName, agentName, envID)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) RevokeAgentAPIKey(ctx context.Context, orgName string, projName string, agentName string, envID string, keyName string, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewRevokeAgentAPIKeyRequest(c.Server, orgName, projName, agentName, envID, keyName)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) RotateAgentAPIKeyWithBody(ctx context.Context, orgName string, projName string, agentName string, envID string, keyName string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewRotateAgentAPIKeyRequestWithBody(c.Server, orgName, projName, agentName, envID, keyName, contentType, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) RotateAgentAPIKey(ctx context.Context, orgName string, projName string, agentName string, envID string, keyName string, body RotateAgentAPIKeyJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewRotateAgentAPIKeyRequest(c.Server, orgName, projName, agentName, envID, keyName, body)
 	if err != nil {
 		return nil, err
 	}
@@ -6988,6 +7091,321 @@ func NewGetAgentEndpointsRequest(server string, orgName string, projName string,
 	return req, nil
 }
 
+// NewListAgentAPIKeysRequest generates requests for ListAgentAPIKeys
+func NewListAgentAPIKeysRequest(server string, orgName string, projName string, agentName string, envID string) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithOptions("simple", false, "orgName", orgName, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: ""})
+	if err != nil {
+		return nil, err
+	}
+
+	var pathParam1 string
+
+	pathParam1, err = runtime.StyleParamWithOptions("simple", false, "projName", projName, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: ""})
+	if err != nil {
+		return nil, err
+	}
+
+	var pathParam2 string
+
+	pathParam2, err = runtime.StyleParamWithOptions("simple", false, "agentName", agentName, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: ""})
+	if err != nil {
+		return nil, err
+	}
+
+	var pathParam3 string
+
+	pathParam3, err = runtime.StyleParamWithOptions("simple", false, "envID", envID, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: ""})
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/orgs/%s/projects/%s/agents/%s/environments/%s/api-keys", pathParam0, pathParam1, pathParam2, pathParam3)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest("GET", queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return req, nil
+}
+
+// NewCreateAgentAPIKeyRequest calls the generic CreateAgentAPIKey builder with application/json body
+func NewCreateAgentAPIKeyRequest(server string, orgName string, projName string, agentName string, envID string, body CreateAgentAPIKeyJSONRequestBody) (*http.Request, error) {
+	var bodyReader io.Reader
+	buf, err := json.Marshal(body)
+	if err != nil {
+		return nil, err
+	}
+	bodyReader = bytes.NewReader(buf)
+	return NewCreateAgentAPIKeyRequestWithBody(server, orgName, projName, agentName, envID, "application/json", bodyReader)
+}
+
+// NewCreateAgentAPIKeyRequestWithBody generates requests for CreateAgentAPIKey with any type of body
+func NewCreateAgentAPIKeyRequestWithBody(server string, orgName string, projName string, agentName string, envID string, contentType string, body io.Reader) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithOptions("simple", false, "orgName", orgName, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: ""})
+	if err != nil {
+		return nil, err
+	}
+
+	var pathParam1 string
+
+	pathParam1, err = runtime.StyleParamWithOptions("simple", false, "projName", projName, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: ""})
+	if err != nil {
+		return nil, err
+	}
+
+	var pathParam2 string
+
+	pathParam2, err = runtime.StyleParamWithOptions("simple", false, "agentName", agentName, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: ""})
+	if err != nil {
+		return nil, err
+	}
+
+	var pathParam3 string
+
+	pathParam3, err = runtime.StyleParamWithOptions("simple", false, "envID", envID, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: ""})
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/orgs/%s/projects/%s/agents/%s/environments/%s/api-keys", pathParam0, pathParam1, pathParam2, pathParam3)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest("POST", queryURL.String(), body)
+	if err != nil {
+		return nil, err
+	}
+
+	req.Header.Add("Content-Type", contentType)
+
+	return req, nil
+}
+
+// NewIssueTestAgentAPIKeyRequest generates requests for IssueTestAgentAPIKey
+func NewIssueTestAgentAPIKeyRequest(server string, orgName string, projName string, agentName string, envID string) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithOptions("simple", false, "orgName", orgName, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: ""})
+	if err != nil {
+		return nil, err
+	}
+
+	var pathParam1 string
+
+	pathParam1, err = runtime.StyleParamWithOptions("simple", false, "projName", projName, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: ""})
+	if err != nil {
+		return nil, err
+	}
+
+	var pathParam2 string
+
+	pathParam2, err = runtime.StyleParamWithOptions("simple", false, "agentName", agentName, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: ""})
+	if err != nil {
+		return nil, err
+	}
+
+	var pathParam3 string
+
+	pathParam3, err = runtime.StyleParamWithOptions("simple", false, "envID", envID, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: ""})
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/orgs/%s/projects/%s/agents/%s/environments/%s/api-keys/test", pathParam0, pathParam1, pathParam2, pathParam3)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest("POST", queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return req, nil
+}
+
+// NewRevokeAgentAPIKeyRequest generates requests for RevokeAgentAPIKey
+func NewRevokeAgentAPIKeyRequest(server string, orgName string, projName string, agentName string, envID string, keyName string) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithOptions("simple", false, "orgName", orgName, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: ""})
+	if err != nil {
+		return nil, err
+	}
+
+	var pathParam1 string
+
+	pathParam1, err = runtime.StyleParamWithOptions("simple", false, "projName", projName, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: ""})
+	if err != nil {
+		return nil, err
+	}
+
+	var pathParam2 string
+
+	pathParam2, err = runtime.StyleParamWithOptions("simple", false, "agentName", agentName, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: ""})
+	if err != nil {
+		return nil, err
+	}
+
+	var pathParam3 string
+
+	pathParam3, err = runtime.StyleParamWithOptions("simple", false, "envID", envID, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: ""})
+	if err != nil {
+		return nil, err
+	}
+
+	var pathParam4 string
+
+	pathParam4, err = runtime.StyleParamWithOptions("simple", false, "keyName", keyName, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: ""})
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/orgs/%s/projects/%s/agents/%s/environments/%s/api-keys/%s", pathParam0, pathParam1, pathParam2, pathParam3, pathParam4)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest("DELETE", queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return req, nil
+}
+
+// NewRotateAgentAPIKeyRequest calls the generic RotateAgentAPIKey builder with application/json body
+func NewRotateAgentAPIKeyRequest(server string, orgName string, projName string, agentName string, envID string, keyName string, body RotateAgentAPIKeyJSONRequestBody) (*http.Request, error) {
+	var bodyReader io.Reader
+	buf, err := json.Marshal(body)
+	if err != nil {
+		return nil, err
+	}
+	bodyReader = bytes.NewReader(buf)
+	return NewRotateAgentAPIKeyRequestWithBody(server, orgName, projName, agentName, envID, keyName, "application/json", bodyReader)
+}
+
+// NewRotateAgentAPIKeyRequestWithBody generates requests for RotateAgentAPIKey with any type of body
+func NewRotateAgentAPIKeyRequestWithBody(server string, orgName string, projName string, agentName string, envID string, keyName string, contentType string, body io.Reader) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithOptions("simple", false, "orgName", orgName, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: ""})
+	if err != nil {
+		return nil, err
+	}
+
+	var pathParam1 string
+
+	pathParam1, err = runtime.StyleParamWithOptions("simple", false, "projName", projName, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: ""})
+	if err != nil {
+		return nil, err
+	}
+
+	var pathParam2 string
+
+	pathParam2, err = runtime.StyleParamWithOptions("simple", false, "agentName", agentName, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: ""})
+	if err != nil {
+		return nil, err
+	}
+
+	var pathParam3 string
+
+	pathParam3, err = runtime.StyleParamWithOptions("simple", false, "envID", envID, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: ""})
+	if err != nil {
+		return nil, err
+	}
+
+	var pathParam4 string
+
+	pathParam4, err = runtime.StyleParamWithOptions("simple", false, "keyName", keyName, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: ""})
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/orgs/%s/projects/%s/agents/%s/environments/%s/api-keys/%s", pathParam0, pathParam1, pathParam2, pathParam3, pathParam4)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest("PUT", queryURL.String(), body)
+	if err != nil {
+		return nil, err
+	}
+
+	req.Header.Add("Content-Type", contentType)
+
+	return req, nil
+}
+
 // NewGetAgentMetricsRequest calls the generic GetAgentMetrics builder with application/json body
 func NewGetAgentMetricsRequest(server string, orgName string, projName string, agentName string, body GetAgentMetricsJSONRequestBody) (*http.Request, error) {
 	var bodyReader io.Reader
@@ -9979,6 +10397,25 @@ type ClientWithResponsesInterface interface {
 	// GetAgentEndpointsWithResponse request
 	GetAgentEndpointsWithResponse(ctx context.Context, orgName string, projName string, agentName string, params *GetAgentEndpointsParams, reqEditors ...RequestEditorFn) (*GetAgentEndpointsResp, error)
 
+	// ListAgentAPIKeysWithResponse request
+	ListAgentAPIKeysWithResponse(ctx context.Context, orgName string, projName string, agentName string, envID string, reqEditors ...RequestEditorFn) (*ListAgentAPIKeysResp, error)
+
+	// CreateAgentAPIKeyWithBodyWithResponse request with any body
+	CreateAgentAPIKeyWithBodyWithResponse(ctx context.Context, orgName string, projName string, agentName string, envID string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*CreateAgentAPIKeyResp, error)
+
+	CreateAgentAPIKeyWithResponse(ctx context.Context, orgName string, projName string, agentName string, envID string, body CreateAgentAPIKeyJSONRequestBody, reqEditors ...RequestEditorFn) (*CreateAgentAPIKeyResp, error)
+
+	// IssueTestAgentAPIKeyWithResponse request
+	IssueTestAgentAPIKeyWithResponse(ctx context.Context, orgName string, projName string, agentName string, envID string, reqEditors ...RequestEditorFn) (*IssueTestAgentAPIKeyResp, error)
+
+	// RevokeAgentAPIKeyWithResponse request
+	RevokeAgentAPIKeyWithResponse(ctx context.Context, orgName string, projName string, agentName string, envID string, keyName string, reqEditors ...RequestEditorFn) (*RevokeAgentAPIKeyResp, error)
+
+	// RotateAgentAPIKeyWithBodyWithResponse request with any body
+	RotateAgentAPIKeyWithBodyWithResponse(ctx context.Context, orgName string, projName string, agentName string, envID string, keyName string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*RotateAgentAPIKeyResp, error)
+
+	RotateAgentAPIKeyWithResponse(ctx context.Context, orgName string, projName string, agentName string, envID string, keyName string, body RotateAgentAPIKeyJSONRequestBody, reqEditors ...RequestEditorFn) (*RotateAgentAPIKeyResp, error)
+
 	// GetAgentMetricsWithBodyWithResponse request with any body
 	GetAgentMetricsWithBodyWithResponse(ctx context.Context, orgName string, projName string, agentName string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*GetAgentMetricsResp, error)
 
@@ -12232,6 +12669,136 @@ func (r GetAgentEndpointsResp) StatusCode() int {
 	return 0
 }
 
+type ListAgentAPIKeysResp struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON200      *[]StoredAPIKey
+	JSON401      *ErrorResponse
+	JSON404      *ErrorResponse
+	JSON500      *ErrorResponse
+}
+
+// Status returns HTTPResponse.Status
+func (r ListAgentAPIKeysResp) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r ListAgentAPIKeysResp) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+type CreateAgentAPIKeyResp struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON201      *CreateLLMAPIKeyResponse
+	JSON400      *ErrorResponse
+	JSON401      *ErrorResponse
+	JSON404      *ErrorResponse
+	JSON500      *ErrorResponse
+	JSON503      *ErrorResponse
+}
+
+// Status returns HTTPResponse.Status
+func (r CreateAgentAPIKeyResp) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r CreateAgentAPIKeyResp) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+type IssueTestAgentAPIKeyResp struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON200      *IssueTestAPIKeyResponse
+	JSON401      *ErrorResponse
+	JSON404      *ErrorResponse
+	JSON500      *ErrorResponse
+	JSON503      *ErrorResponse
+}
+
+// Status returns HTTPResponse.Status
+func (r IssueTestAgentAPIKeyResp) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r IssueTestAgentAPIKeyResp) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+type RevokeAgentAPIKeyResp struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON401      *ErrorResponse
+	JSON404      *ErrorResponse
+	JSON500      *ErrorResponse
+	JSON503      *ErrorResponse
+}
+
+// Status returns HTTPResponse.Status
+func (r RevokeAgentAPIKeyResp) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r RevokeAgentAPIKeyResp) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+type RotateAgentAPIKeyResp struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON200      *RotateLLMAPIKeyResponse
+	JSON400      *ErrorResponse
+	JSON401      *ErrorResponse
+	JSON404      *ErrorResponse
+	JSON500      *ErrorResponse
+	JSON503      *ErrorResponse
+}
+
+// Status returns HTTPResponse.Status
+func (r RotateAgentAPIKeyResp) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r RotateAgentAPIKeyResp) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
 type GetAgentMetricsResp struct {
 	Body         []byte
 	HTTPResponse *http.Response
@@ -14164,6 +14731,67 @@ func (c *ClientWithResponses) GetAgentEndpointsWithResponse(ctx context.Context,
 		return nil, err
 	}
 	return ParseGetAgentEndpointsResp(rsp)
+}
+
+// ListAgentAPIKeysWithResponse request returning *ListAgentAPIKeysResp
+func (c *ClientWithResponses) ListAgentAPIKeysWithResponse(ctx context.Context, orgName string, projName string, agentName string, envID string, reqEditors ...RequestEditorFn) (*ListAgentAPIKeysResp, error) {
+	rsp, err := c.ListAgentAPIKeys(ctx, orgName, projName, agentName, envID, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseListAgentAPIKeysResp(rsp)
+}
+
+// CreateAgentAPIKeyWithBodyWithResponse request with arbitrary body returning *CreateAgentAPIKeyResp
+func (c *ClientWithResponses) CreateAgentAPIKeyWithBodyWithResponse(ctx context.Context, orgName string, projName string, agentName string, envID string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*CreateAgentAPIKeyResp, error) {
+	rsp, err := c.CreateAgentAPIKeyWithBody(ctx, orgName, projName, agentName, envID, contentType, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseCreateAgentAPIKeyResp(rsp)
+}
+
+func (c *ClientWithResponses) CreateAgentAPIKeyWithResponse(ctx context.Context, orgName string, projName string, agentName string, envID string, body CreateAgentAPIKeyJSONRequestBody, reqEditors ...RequestEditorFn) (*CreateAgentAPIKeyResp, error) {
+	rsp, err := c.CreateAgentAPIKey(ctx, orgName, projName, agentName, envID, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseCreateAgentAPIKeyResp(rsp)
+}
+
+// IssueTestAgentAPIKeyWithResponse request returning *IssueTestAgentAPIKeyResp
+func (c *ClientWithResponses) IssueTestAgentAPIKeyWithResponse(ctx context.Context, orgName string, projName string, agentName string, envID string, reqEditors ...RequestEditorFn) (*IssueTestAgentAPIKeyResp, error) {
+	rsp, err := c.IssueTestAgentAPIKey(ctx, orgName, projName, agentName, envID, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseIssueTestAgentAPIKeyResp(rsp)
+}
+
+// RevokeAgentAPIKeyWithResponse request returning *RevokeAgentAPIKeyResp
+func (c *ClientWithResponses) RevokeAgentAPIKeyWithResponse(ctx context.Context, orgName string, projName string, agentName string, envID string, keyName string, reqEditors ...RequestEditorFn) (*RevokeAgentAPIKeyResp, error) {
+	rsp, err := c.RevokeAgentAPIKey(ctx, orgName, projName, agentName, envID, keyName, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseRevokeAgentAPIKeyResp(rsp)
+}
+
+// RotateAgentAPIKeyWithBodyWithResponse request with arbitrary body returning *RotateAgentAPIKeyResp
+func (c *ClientWithResponses) RotateAgentAPIKeyWithBodyWithResponse(ctx context.Context, orgName string, projName string, agentName string, envID string, keyName string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*RotateAgentAPIKeyResp, error) {
+	rsp, err := c.RotateAgentAPIKeyWithBody(ctx, orgName, projName, agentName, envID, keyName, contentType, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseRotateAgentAPIKeyResp(rsp)
+}
+
+func (c *ClientWithResponses) RotateAgentAPIKeyWithResponse(ctx context.Context, orgName string, projName string, agentName string, envID string, keyName string, body RotateAgentAPIKeyJSONRequestBody, reqEditors ...RequestEditorFn) (*RotateAgentAPIKeyResp, error) {
+	rsp, err := c.RotateAgentAPIKey(ctx, orgName, projName, agentName, envID, keyName, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseRotateAgentAPIKeyResp(rsp)
 }
 
 // GetAgentMetricsWithBodyWithResponse request with arbitrary body returning *GetAgentMetricsResp
@@ -18572,6 +19200,276 @@ func ParseGetAgentEndpointsResp(rsp *http.Response) (*GetAgentEndpointsResp, err
 			return nil, err
 		}
 		response.JSON500 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseListAgentAPIKeysResp parses an HTTP response from a ListAgentAPIKeysWithResponse call
+func ParseListAgentAPIKeysResp(rsp *http.Response) (*ListAgentAPIKeysResp, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &ListAgentAPIKeysResp{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest []StoredAPIKey
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
+		var dest ErrorResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON401 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
+		var dest ErrorResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON404 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
+		var dest ErrorResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON500 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseCreateAgentAPIKeyResp parses an HTTP response from a CreateAgentAPIKeyWithResponse call
+func ParseCreateAgentAPIKeyResp(rsp *http.Response) (*CreateAgentAPIKeyResp, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &CreateAgentAPIKeyResp{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 201:
+		var dest CreateLLMAPIKeyResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON201 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
+		var dest ErrorResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON400 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
+		var dest ErrorResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON401 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
+		var dest ErrorResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON404 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
+		var dest ErrorResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON500 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 503:
+		var dest ErrorResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON503 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseIssueTestAgentAPIKeyResp parses an HTTP response from a IssueTestAgentAPIKeyWithResponse call
+func ParseIssueTestAgentAPIKeyResp(rsp *http.Response) (*IssueTestAgentAPIKeyResp, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &IssueTestAgentAPIKeyResp{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest IssueTestAPIKeyResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
+		var dest ErrorResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON401 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
+		var dest ErrorResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON404 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
+		var dest ErrorResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON500 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 503:
+		var dest ErrorResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON503 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseRevokeAgentAPIKeyResp parses an HTTP response from a RevokeAgentAPIKeyWithResponse call
+func ParseRevokeAgentAPIKeyResp(rsp *http.Response) (*RevokeAgentAPIKeyResp, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &RevokeAgentAPIKeyResp{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
+		var dest ErrorResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON401 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
+		var dest ErrorResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON404 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
+		var dest ErrorResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON500 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 503:
+		var dest ErrorResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON503 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseRotateAgentAPIKeyResp parses an HTTP response from a RotateAgentAPIKeyWithResponse call
+func ParseRotateAgentAPIKeyResp(rsp *http.Response) (*RotateAgentAPIKeyResp, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &RotateAgentAPIKeyResp{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest RotateLLMAPIKeyResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
+		var dest ErrorResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON400 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
+		var dest ErrorResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON401 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
+		var dest ErrorResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON404 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
+		var dest ErrorResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON500 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 503:
+		var dest ErrorResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON503 = &dest
 
 	}
 

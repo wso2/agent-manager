@@ -1657,11 +1657,22 @@ type ConfigurationResponse struct {
 
 // Configurations defines model for Configurations.
 type Configurations struct {
+	// EnableApiKeySecurity Enable API key security for the agent endpoint
+	EnableApiKeySecurity *bool `json:"enableApiKeySecurity,omitempty"`
+
 	// EnableAutoInstrumentation Enable automatic OTEL instrumentation for the agent
 	EnableAutoInstrumentation *bool `json:"enableAutoInstrumentation,omitempty"`
 
 	// Env Environment variables
 	Env *[]EnvironmentVariable `json:"env,omitempty"`
+
+	// InstrumentationVersion AMP instrumentation version to use for the agent. Selects the
+	// pre-built init-container image
+	// (`amp-python-instrumentation-provider:<version>-python<X.Y>`) and the
+	// `traceloop-sdk` it pins. Omit (or send null) to use the platform
+	// default. Must be one of the versions supported by the deployment;
+	// unknown values are rejected.
+	InstrumentationVersion *string `json:"instrumentationVersion,omitempty"`
 }
 
 // CostRateLimit defines model for CostRateLimit.
@@ -1987,6 +1998,9 @@ type DataPlaneListResponse = []DataPlane
 
 // DeployAgentRequest defines model for DeployAgentRequest.
 type DeployAgentRequest struct {
+	// EnableApiKeySecurity Enable API key security for the agent endpoint
+	EnableApiKeySecurity *bool `json:"enableApiKeySecurity,omitempty"`
+
 	// EnableAutoInstrumentation Enable auto instrumentation for observability
 	EnableAutoInstrumentation *bool `json:"enableAutoInstrumentation,omitempty"`
 
@@ -2581,6 +2595,20 @@ type InputInterface struct {
 type InputInterfaceSchema struct {
 	// Path Path to OpenAPI schema file
 	Path string `json:"path"`
+}
+
+// IssueTestAPIKeyResponse defines model for IssueTestAPIKeyResponse.
+type IssueTestAPIKeyResponse struct {
+	// ApiKey The test API key value to send as the X-API-Key header.
+	ApiKey *string `json:"apiKey,omitempty"`
+
+	// ExpiresAt Expiry timestamp (RFC3339); the console rotates the key before this elapses.
+	ExpiresAt time.Time `json:"expiresAt"`
+
+	// KeyId The fixed name "console-test".
+	KeyId   *string `json:"keyId,omitempty"`
+	Message *string `json:"message,omitempty"`
+	Status  string  `json:"status"`
 }
 
 // JWK defines model for JWK.
@@ -3614,6 +3642,38 @@ type SecuritySummary struct {
 	Enabled *bool `json:"enabled,omitempty"`
 }
 
+// StoredAPIKey defines model for StoredAPIKey.
+type StoredAPIKey struct {
+	// ArtifactUuid UUID of the artifact this key is bound to.
+	ArtifactUuid openapi_types.UUID `json:"artifactUuid"`
+	CreatedAt    time.Time          `json:"createdAt"`
+
+	// DisplayName Human-readable name shown in the console.
+	DisplayName string `json:"displayName"`
+
+	// ExpiresAt Expiration timestamp if set.
+	ExpiresAt *time.Time `json:"expiresAt,omitempty"`
+
+	// MaskedApiKey Masked representation of the API key (full value is shown only once at creation).
+	MaskedApiKey string `json:"maskedApiKey"`
+
+	// Name Unique name of the API key within the agent.
+	Name string `json:"name"`
+
+	// OrganizationName Organization name the key belongs to.
+	OrganizationName string `json:"organizationName"`
+
+	// Purpose Internal purpose code of the API key.
+	Purpose int32 `json:"purpose"`
+
+	// Status Current lifecycle status of the API key (e.g. active, revoked).
+	Status    string    `json:"status"`
+	UpdatedAt time.Time `json:"updatedAt"`
+
+	// Uuid Stable API key identifier.
+	Uuid openapi_types.UUID `json:"uuid"`
+}
+
 // TargetEnvironmentRef defines model for TargetEnvironmentRef.
 type TargetEnvironmentRef struct {
 	// Name Name of the target environment
@@ -4387,6 +4447,12 @@ type DeployAgentJSONRequestBody = DeployAgentRequest
 
 // UpdateAgentDeploymentStateJSONRequestBody defines body for UpdateAgentDeploymentState for application/json ContentType.
 type UpdateAgentDeploymentStateJSONRequestBody = UpdateDeploymentStateRequest
+
+// CreateAgentAPIKeyJSONRequestBody defines body for CreateAgentAPIKey for application/json ContentType.
+type CreateAgentAPIKeyJSONRequestBody = CreateLLMAPIKeyRequest
+
+// RotateAgentAPIKeyJSONRequestBody defines body for RotateAgentAPIKey for application/json ContentType.
+type RotateAgentAPIKeyJSONRequestBody = RotateLLMAPIKeyRequest
 
 // GetAgentMetricsJSONRequestBody defines body for GetAgentMetrics for application/json ContentType.
 type GetAgentMetricsJSONRequestBody = MetricsFilterRequest
