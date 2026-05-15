@@ -1,0 +1,12 @@
+[
+  {"id": "E-1001", "email": "alice.chen@acmecorp.com", "name": "Alice Chen", "role": "Software Engineer", "department": "Engineering", "manager_id": "E-1007", "is_admin": false, "verified": false},
+  {"id": "E-1002", "email": "bob.martinez@acmecorp.com", "name": "Bob Martinez", "role": "Product Manager", "department": "Product", "manager_id": "E-1007", "is_admin": false, "verified": false},
+  {"id": "E-1003", "email": "carol.jones@acmecorp.com", "name": "Carol Jones", "role": "Data Analyst", "department": "Analytics", "manager_id": "E-1008", "is_admin": false, "verified": false},
+  {"id": "E-1004", "email": "david.kim@acmecorp.com", "name": "David Kim", "role": "DevOps Engineer", "department": "Engineering", "manager_id": "E-1007", "is_admin": true, "verified": false},
+  {"id": "E-1005", "email": "elena.ross@acmecorp.com", "name": "Elena Ross", "role": "UX Designer", "department": "Design", "manager_id": "E-1008", "is_admin": false, "verified": false},
+  {"id": "E-1006", "email": "frank.wu@acmecorp.com", "name": "Frank Wu", "role": "Security Analyst", "department": "Security", "manager_id": "E-1009", "is_admin": true, "verified": false},
+  {"id": "E-1007", "email": "grace.patel@acmecorp.com", "name": "Grace Patel", "role": "Engineering Manager", "department": "Engineering", "manager_id": "E-1010", "is_admin": false, "verified": false},
+  {"id": "E-1008", "email": "henry.blake@acmecorp.com", "name": "Henry Blake", "role": "Director of Analytics", "department": "Analytics", "manager_id": "E-1010", "is_admin": false, "verified": false},
+  {"id": "E-1009", "email": "irene.silva@acmecorp.com", "name": "Irene Silva", "role": "CISO", "department": "Security", "manager_id": "E-1010", "is_admin": true, "verified": false},
+  {"id": "E-1010", "email": "james.norton@acmecorp.com", "name": "James Norton", "role": "CTO", "department": "Executive", "manager_id": null, "is_admin": true, "verified": false}
+]
