@@ -29,11 +29,13 @@ import {
   getAgentKindVersion,
   deleteAgentKindVersion,
   publishAgentKind,
+  listKindAgents,
 } from "../apis";
 import type {
   AgentKindListResponse,
   AgentKindResponse,
   AgentKindVersionResponse,
+  AgentResponse,
   AddAgentKindVersionPathParams,
   AddAgentKindVersionRequest,
   DeleteAgentKindPathParams,
@@ -43,6 +45,7 @@ import type {
   ListAgentKindsPathParams,
   ListAgentKindsQuery,
   ListAgentKindVersionsPathParams,
+  ListKindAgentsPathParams,
   PublishAgentKindPathParams,
   PublishAgentKindRequest,
   UpdateAgentKindPathParams,
@@ -58,6 +61,8 @@ export const agentKindKeys = {
   versionList: (params: ListAgentKindVersionsPathParams) => ['agent-kind-versions', params] as const,
   versionDetails: () => ['agent-kind-version'] as const,
   versionDetail: (params: GetAgentKindVersionPathParams) => ['agent-kind-version', params] as const,
+  kindAgentLists: () => ['agent-kind-agents'] as const,
+  kindAgentList: (params: ListKindAgentsPathParams) => ['agent-kind-agents', params] as const,
 };
 
 /**
@@ -207,5 +212,17 @@ export function usePublishAgentKind() {
       queryClient.invalidateQueries({ queryKey: agentKindKeys.details() });
       queryClient.invalidateQueries({ queryKey: agentKindKeys.versionLists() });
     },
+  });
+}
+
+/**
+ * Hook to list all agents deployed from a given Agent Kind across all projects in the org
+ */
+export function useListKindAgents(params: ListKindAgentsPathParams) {
+  const { getToken } = useAuthHooks();
+  return useApiQuery<AgentResponse[]>({
+    queryKey: agentKindKeys.kindAgentList(params),
+    queryFn: () => listKindAgents(params, getToken),
+    enabled: !!params.orgName && !!params.kindName,
   });
 }

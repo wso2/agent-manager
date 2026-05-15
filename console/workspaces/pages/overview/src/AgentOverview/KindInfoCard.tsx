@@ -18,8 +18,8 @@
 
 import { useGetAgentKind } from "@agent-management-platform/api-client";
 import { absoluteRouteMap } from "@agent-management-platform/types";
-import { Box, Button, Card, CardContent, Skeleton, Typography, useTheme } from "@wso2/oxygen-ui";
-import { Tag } from "@wso2/oxygen-ui-icons-react";
+import { Box, Button, Card, CardContent, Skeleton, Typography } from "@wso2/oxygen-ui";
+import { ExternalLink } from "@wso2/oxygen-ui-icons-react";
 import React from "react";
 import { generatePath, Link } from "react-router-dom";
 
@@ -30,7 +30,6 @@ interface KindInfoCardProps {
 }
 
 export const KindInfoCard: React.FC<KindInfoCardProps> = ({ orgId, kindName }) => {
-    const theme = useTheme();
     const { data: kind, isLoading } = useGetAgentKind({ orgName: orgId, kindName });
 
     const kindHref = generatePath(
@@ -46,7 +45,7 @@ export const KindInfoCard: React.FC<KindInfoCardProps> = ({ orgId, kindName }) =
         <Card variant="outlined" sx={{ maxWidth: 400, minWidth: 275 }}>
             <CardContent sx={{ display: "flex", flexDirection: "column", gap: 0.75, "&:last-child": { pb: 1.5 }, pt: 1.5, px: 1.5, pb: 1.5 }}>
                 <Box display="flex" flexDirection="row" gap={1} alignItems="center">
-                    <Tag size={16} color={theme.palette.text.secondary} />
+                    Agent Kind:
                     <Button
                         component={Link}
                         to={kindHref}
@@ -54,6 +53,7 @@ export const KindInfoCard: React.FC<KindInfoCardProps> = ({ orgId, kindName }) =
                         color="inherit"
                         size="small"
                         sx={{ p: 0, minWidth: 0, fontWeight: 600 }}
+                        endIcon={<ExternalLink size={12} />}
                     >
                         <Typography variant="body2" fontWeight={600} noWrap>
                             {kind?.displayName ?? kindName}

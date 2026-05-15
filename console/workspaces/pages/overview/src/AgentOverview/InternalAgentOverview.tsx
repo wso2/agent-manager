@@ -92,7 +92,7 @@ export const InternalAgentOverview = () => {
   }, [buildList]);
 
   return (
-    <Box display="flex" flexDirection="column" gap={4}>
+    <Box display="flex" flexDirection="column" gap={2}>
       <Box
         sx={{
           maxWidth: "fit-content",

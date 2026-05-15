@@ -110,6 +110,7 @@ export type DeleteAgentKindVersionPathParams = OrgPathParams & {
   versionTag: string;
 };
 export type PublishAgentKindPathParams = AgentPathParams;
+export type ListKindAgentsPathParams = OrgPathParams & { kindName: string };
 
 // ============================================
 // Query params

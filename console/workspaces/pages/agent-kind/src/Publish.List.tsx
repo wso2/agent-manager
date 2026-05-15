@@ -40,7 +40,7 @@ import {
 } from "@agent-management-platform/types";
 import { useConfirmationDialog } from "@agent-management-platform/shared-component";
 import { RuntimeConfigEditor, createRuntimeConfigRow, type RuntimeConfigRow } from "./RuntimeConfigEditor";
-import { useGetAgentBuilds, useGetAgentKind, useListAgentKindVersions, usePublishAgentKind } from "@agent-management-platform/api-client";
+import { useGetAgent, useGetAgentBuilds, useGetAgentKind, useListAgentKindVersions, usePublishAgentKind } from "@agent-management-platform/api-client";
 
 
 export const PublishedList: React.FC = () => {
@@ -59,6 +59,11 @@ export const PublishedList: React.FC = () => {
     kindName: agentId!,
   });
 
+  const { data:agent } = useGetAgent({
+    orgName: orgId, 
+    projName: projectId,
+    agentName: agentId,
+  });
   const { data: existingKind } = useGetAgentKind({ orgName: orgId!, kindName: agentId! });
 
   const listPath = generatePath(
@@ -88,9 +93,11 @@ export const PublishedList: React.FC = () => {
     if (isCreateOpen && existingKind) {
       setKindDisplayName(existingKind.displayName ?? "");
       setKindDescription(existingKind.description ?? "");
+    } else if (!existingKind && agent) {
+      setKindDisplayName(agent.displayName ?? "");
+      setKindDescription(agent.description ?? "");
     }
-   
-  }, [isCreateOpen, existingKind]);
+  }, [isCreateOpen, existingKind, agent]);
 
   const { mutateAsync: publishAgentKind, isPending: isCreating } = usePublishAgentKind();
 

@@ -23,6 +23,7 @@ import type {
   AgentKindVersionResponse,
   AddAgentKindVersionRequest,
   AddAgentKindVersionPathParams,
+  AgentResponse,
   DeleteAgentKindPathParams,
   DeleteAgentKindVersionPathParams,
   GetAgentKindPathParams,
@@ -30,6 +31,7 @@ import type {
   ListAgentKindsPathParams,
   ListAgentKindsQuery,
   ListAgentKindVersionsPathParams,
+  ListKindAgentsPathParams,
   PublishAgentKindPathParams,
   PublishAgentKindRequest,
   UpdateAgentKindPathParams,
@@ -239,6 +241,27 @@ export async function publishAgentKind(
   const res = await httpPOST(
     `${SERVICE_BASE}/orgs/${encodeURIComponent(orgName)}/projects/${encodeURIComponent(projName)}/agents/${encodeURIComponent(agentName)}/publish-kind`,
     body,
+    { token }
+  );
+
+  if (!res.ok) {
+    await throwHttpError(res);
+  }
+  return res.json();
+}
+
+/**
+ * List all agents deployed from a given Agent Kind across all projects in the org
+ */
+export async function listKindAgents(
+  params: ListKindAgentsPathParams,
+  getToken?: () => Promise<string>,
+): Promise<AgentResponse[]> {
+  const { orgName = "default", kindName } = params;
+
+  const token = getToken ? await getToken() : undefined;
+  const res = await httpGET(
+    `${SERVICE_BASE}/orgs/${encodeURIComponent(orgName)}/agent-kinds/${encodeURIComponent(kindName!)}/agents`,
     { token }
   );
 

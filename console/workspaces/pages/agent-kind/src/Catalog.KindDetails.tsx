@@ -18,10 +18,12 @@
 
 
 import React, { useMemo } from "react";
+import { formatDistanceToNow } from "date-fns";
 import { generatePath, useParams, useSearchParams } from "react-router-dom";
 import {
   Alert,
   Box,
+  Button,
   Divider,
   ListingTable,
   MenuItem,
@@ -34,7 +36,8 @@ import {
 import { PageLayout } from "@agent-management-platform/views";
 import { absoluteRouteMap } from "@agent-management-platform/types";
 import { SwaggerSpecViewer } from "@agent-management-platform/shared-component";
-import { useGetAgentKind, useGetAgentEndpoints } from "@agent-management-platform/api-client";
+import { useGetAgentKind, useGetAgentEndpoints, useListKindAgents } from "@agent-management-platform/api-client";
+import { ExternalLink } from "@wso2/oxygen-ui-icons-react";
 
 export const CatalogKindDetails: React.FC = () => {
   const { kindId, orgId } = useParams<{ kindId: string; orgId: string }>();
@@ -63,6 +66,11 @@ export const CatalogKindDetails: React.FC = () => {
     },
     { environment: "default" },
   );
+
+  const { data: kindAgents, isLoading: isKindAgentsLoading } = useListKindAgents({
+    orgName: orgId ?? "",
+    kindName: kindId ?? "",
+  });
 
   const endpointKey = useMemo(() => Object.keys(endpointsData ?? {})[0] ?? "", [endpointsData]);
   const apiSpec = useMemo(
@@ -184,6 +192,78 @@ export const CatalogKindDetails: React.FC = () => {
             </ListingTable.Container>
           ) : (
             <Alert severity="info">No configuration schema defined for this version.</Alert>
+          )}
+        </Stack>
+
+        <Divider />
+
+        {/* Usage — agents deployed from this kind */}
+        <Stack spacing={1.5}>
+          <Typography variant="overline" color="text.secondary">
+            Usage
+          </Typography>
+          {isKindAgentsLoading ? (
+            <Skeleton variant="rounded" height={120} />
+          ) : kindAgents && kindAgents.length > 0 ? (
+            <ListingTable.Container>
+              <ListingTable>
+                <ListingTable.Head>
+                  <ListingTable.Row>
+                    <ListingTable.Cell>Agent</ListingTable.Cell>
+                    <ListingTable.Cell>Project</ListingTable.Cell>
+                    <ListingTable.Cell>Created</ListingTable.Cell>
+                    <ListingTable.Cell />
+                  </ListingTable.Row>
+                </ListingTable.Head>
+                <ListingTable.Body>
+                  {kindAgents.map((agent) => {
+                    const agentHref = generatePath(
+                      absoluteRouteMap.children.org.children.projects.children.agents.path,
+                      { orgId: orgId ?? "", projectId: agent.projectName, agentId: agent.name },
+                    );
+                    return (
+                      <ListingTable.Row
+                        key={`${agent.projectName}/${agent.name}`}
+                        onClick={() => window.open(agentHref, "_blank", "noopener,noreferrer")}
+                        sx={{ cursor: "pointer", "&:hover": { bgcolor: "action.hover" } }}
+                      >
+                        <ListingTable.Cell>
+                          <Typography variant="body2" fontWeight={500}>
+                            {agent.displayName || agent.name}
+                          </Typography>
+                        </ListingTable.Cell>
+                        <ListingTable.Cell>
+                          <Typography variant="body2" color="text.secondary">
+                            {agent.projectName}
+                          </Typography>
+                        </ListingTable.Cell>
+                        <ListingTable.Cell>
+                          {agent.createdAt ? (
+                            <Typography variant="body2" color="text.secondary">
+                              {formatDistanceToNow(new Date(agent.createdAt), { addSuffix: true })}
+                            </Typography>
+                          ) : (
+                            <Typography variant="body2" color="text.secondary">—</Typography>
+                          )}
+                        </ListingTable.Cell>
+                        <ListingTable.Cell align="right">
+                          <Button
+                            size="small"
+                            variant="text"
+                            endIcon={<ExternalLink size={16} />}
+                            onClick={(e) => { e.stopPropagation(); window.open(agentHref, "_blank", "noopener,noreferrer"); }}
+                          >
+                            View Agent
+                          </Button>
+                        </ListingTable.Cell>
+                      </ListingTable.Row>
+                    );
+                  })}
+                </ListingTable.Body>
+              </ListingTable>
+            </ListingTable.Container>
+          ) : (
+            <Alert severity="info">No agents are currently using this kind.</Alert>
           )}
         </Stack>
 

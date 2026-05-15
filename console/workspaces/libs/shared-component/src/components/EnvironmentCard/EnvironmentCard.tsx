@@ -26,6 +26,7 @@ import {
   Environment,
 } from "@agent-management-platform/types";
 import {
+  Alert,
   Box,
   Button,
   Card,
@@ -170,12 +171,25 @@ export const EnvironmentCard = (props: EnvironmentCardProps) => {
   const currentDiployment = deployments?.[environment?.name ?? "default"];
   const theme = useTheme();
 
-  const deployedVersionLabel = (() => {
-    if (!currentDiployment?.imageId) return null;
-    if (!fromKind) return null;
+  const deployedVersion = (() => {
+    if (!currentDiployment?.imageId || !fromKind) return null;
     const matched = kindVersions?.find((v) => v.imageId === currentDiployment.imageId);
-    return matched ? `v${matched.version}` : `v${fromKind.version}`;
+    return matched?.version ?? fromKind.version;
   })();
+
+  const deployedVersionLabel = deployedVersion ? `v${deployedVersion}` : null;
+
+  const latestKindVersion = kindVersions?.length
+    ? [...kindVersions].sort(
+        (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime(),
+      )[0]
+    : undefined;
+
+  const isKindOutdated =
+    !!fromKind &&
+    !!latestKindVersion &&
+    !!deployedVersion &&
+    deployedVersion !== latestKindVersion.version;
   if (isDeploymentsLoading) {
     return <Skeleton variant="rounded" height={100} />;
   }
@@ -373,9 +387,16 @@ export const EnvironmentCard = (props: EnvironmentCardProps) => {
               flexGrow={1}
               flexDirection="column"
               width="100%"
-              gap={4}
+              gap={isKindOutdated ? 2 : 4}
               alignItems="flex-start"
             >
+              {isKindOutdated && (
+                <Alert severity="warning" sx={{ width: "100%" }}>
+                  A newer version of this agent kind is available:{" "}
+                  <strong>v{latestKindVersion!.version}</strong>. Currently
+                  deployed: <strong>v{deployedVersion}</strong>.
+                </Alert>
+              )}
               {currentDiployment?.endpoints?.map((endpoint) => (
                 <TextInput
                   slotProps={{
