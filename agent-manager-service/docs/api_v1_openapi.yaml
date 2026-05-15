@@ -979,6 +979,7 @@ paths:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
 
+
   /orgs/{orgName}/projects/{projName}/agents/{agentName}/publish-kind:
     post:
       summary: Publish agent as an Agent Kind version
@@ -1046,6 +1047,7 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
+
 
   /orgs/{orgName}/projects/{projName}/agents/{agentName}/deployments:
     post:
@@ -7196,8 +7198,9 @@ components:
           $ref: "#/components/schemas/InputInterface"
         build:
           $ref: "#/components/schemas/Build"
-        fromKind:
-          $ref: "#/components/schemas/AgentFromKind"
+        kindName:
+          type: string
+          description: Name of the Agent Kind this agent was instantiated from (absent for source-built agents)
       required:
         - uuid
         - name
@@ -7207,17 +7210,6 @@ components:
         - description
         - provisioning
         - agentType
-    AgentFromKind:
-      type: object
-      description: Identifies the Agent Kind this agent was instantiated from.
-      properties:
-        kindName:
-          type: string
-        version:
-          type: string
-      required:
-        - kindName
-        - version
     ResourceNameRequest:
       type: object
       properties:
@@ -7489,6 +7481,7 @@ components:
           default: true
       required:
         - imageId
+
 
     UpdateDeploymentStateRequest:
       type: object
@@ -12196,6 +12189,11 @@ components:
           description: Configuration schema defining the parameters users must supply when creating an agent from this kind
           items:
             $ref: "#/components/schemas/AgentKindConfigSchemaItem"
+        metadata:
+          type: object
+          description: Optional interface metadata for this version (e.g. OpenAPI spec). Only returned on single-version fetch.
+          additionalProperties: true
+          nullable: true
         createdAt:
           type: string
           format: date-time
@@ -12307,6 +12305,11 @@ components:
           description: Configuration schema for this version
           items:
             $ref: "#/components/schemas/AgentKindConfigSchemaItem"
+        metadata:
+          type: object
+          description: Optional interface metadata (e.g. OpenAPI spec)
+          additionalProperties: true
+          nullable: true
 
     PublishAgentKindRequest:
       type: object
@@ -12342,3 +12345,9 @@ components:
           description: Configuration schema for this version
           items:
             $ref: "#/components/schemas/AgentKindConfigSchemaItem"
+        metadata:
+          type: object
+          description: Optional interface metadata (e.g. OpenAPI spec)
+          additionalProperties: true
+          nullable: true
+

@@ -79,7 +79,6 @@ func buildInternalAgentFromKindComponentRequestBody(namespaceName, projectName s
 		string(LabelKeyAgentSubType):     req.AgentType.SubType,
 		string(LabelKeyBuildSource):      BuildSourceKind,
 		string(LabelKeyAgentKindName):    req.AgentKind.Name,
-		string(LabelKeyAgentKindVersion): req.AgentKind.Version,
 	}
 
 	// Mirror the same language label logic as buildInternalAgentFromSourceComponentRequestBody
@@ -2457,10 +2456,7 @@ func convertComponentFromTyped(comp *gen.Component) (*models.AgentResponse, erro
 	}
 
 	if getLabel(comp.Metadata.Labels, string(LabelKeyBuildSource)) == BuildSourceKind {
-		agent.FromKind = &models.AgentFromKindInfo{
-			KindName: getLabel(comp.Metadata.Labels, string(LabelKeyAgentKindName)),
-			Version:  getLabel(comp.Metadata.Labels, string(LabelKeyAgentKindVersion)),
-		}
+		agent.KindName = getLabel(comp.Metadata.Labels, string(LabelKeyAgentKindName))
 		// Enrich agent.Build from labels — kind agents have no workflow, so extractBuildParams
 		// is never called above, but the build source info is stored in labels at creation time.
 		language := getLabel(comp.Metadata.Labels, string(LabelKeyAgentLanguage))

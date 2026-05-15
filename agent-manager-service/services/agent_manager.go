@@ -1749,7 +1749,7 @@ func (s *agentManagerService) BuildAgent(ctx context.Context, orgName string, pr
 		s.logger.Error("Failed to fetch agent from OpenChoreo", "agentName", agentName, "error", err)
 		return nil, translateAgentError(err)
 	}
-	if agent.FromKind != nil {
+	if agent.KindName != "" {
 		return nil, fmt.Errorf("build operation is not supported for kind-sourced agents")
 	}
 	if agent.Provisioning.Type != string(utils.InternalAgent) {
@@ -1782,6 +1782,7 @@ func (s *agentManagerService) DeployAgent(ctx context.Context, orgName string, p
 	if agent.Provisioning.Type != string(utils.InternalAgent) {
 		return "", fmt.Errorf("deploy operation is not supported for agent type: '%s'", agent.Provisioning.Type)
 	}
+
 	pipeline, err := s.ocClient.GetProjectDeploymentPipeline(ctx, orgName, projectName)
 	if err != nil {
 		s.logger.Error("Failed to fetch deployment pipeline", "orgName", orgName, "projectName", projectName, "error", err)

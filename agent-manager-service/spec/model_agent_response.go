@@ -33,7 +33,8 @@ type AgentResponse struct {
 	Configurations *Configurations `json:"configurations,omitempty"`
 	InputInterface *InputInterface `json:"inputInterface,omitempty"`
 	Build          *Build          `json:"build,omitempty"`
-	FromKind       *AgentFromKind  `json:"fromKind,omitempty"`
+	// Name of the Agent Kind this agent was instantiated from (absent for source-built agents)
+	KindName *string `json:"kindName,omitempty"`
 }
 
 // NewAgentResponse instantiates a new AgentResponse object
@@ -381,36 +382,36 @@ func (o *AgentResponse) SetBuild(v Build) {
 	o.Build = &v
 }
 
-// GetFromKind returns the FromKind field value if set, zero value otherwise.
-func (o *AgentResponse) GetFromKind() AgentFromKind {
-	if o == nil || IsNil(o.FromKind) {
-		var ret AgentFromKind
+// GetKindName returns the KindName field value if set, zero value otherwise.
+func (o *AgentResponse) GetKindName() string {
+	if o == nil || IsNil(o.KindName) {
+		var ret string
 		return ret
 	}
-	return *o.FromKind
+	return *o.KindName
 }
 
-// GetFromKindOk returns a tuple with the FromKind field value if set, nil otherwise
+// GetKindNameOk returns a tuple with the KindName field value if set, nil otherwise
 // and a boolean to check if the value has been set.
-func (o *AgentResponse) GetFromKindOk() (*AgentFromKind, bool) {
-	if o == nil || IsNil(o.FromKind) {
+func (o *AgentResponse) GetKindNameOk() (*string, bool) {
+	if o == nil || IsNil(o.KindName) {
 		return nil, false
 	}
-	return o.FromKind, true
+	return o.KindName, true
 }
 
-// HasFromKind returns a boolean if a field has been set.
-func (o *AgentResponse) HasFromKind() bool {
-	if o != nil && !IsNil(o.FromKind) {
+// HasKindName returns a boolean if a field has been set.
+func (o *AgentResponse) HasKindName() bool {
+	if o != nil && !IsNil(o.KindName) {
 		return true
 	}
 
 	return false
 }
 
-// SetFromKind gets a reference to the given AgentFromKind and assigns it to the FromKind field.
-func (o *AgentResponse) SetFromKind(v AgentFromKind) {
-	o.FromKind = &v
+// SetKindName gets a reference to the given string and assigns it to the KindName field.
+func (o *AgentResponse) SetKindName(v string) {
+	o.KindName = &v
 }
 
 func (o AgentResponse) MarshalJSON() ([]byte, error) {
@@ -443,8 +444,8 @@ func (o AgentResponse) ToMap() (map[string]interface{}, error) {
 	if !IsNil(o.Build) {
 		toSerialize["build"] = o.Build
 	}
-	if !IsNil(o.FromKind) {
-		toSerialize["fromKind"] = o.FromKind
+	if !IsNil(o.KindName) {
+		toSerialize["kindName"] = o.KindName
 	}
 	return toSerialize, nil
 }
