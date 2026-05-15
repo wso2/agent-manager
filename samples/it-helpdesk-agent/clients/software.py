@@ -59,7 +59,7 @@ def request_access(
             "employee_id": employee_id,
             "software": sw["name"],
             "status": "pending_approval",
-            "approver": manager_id,
+            "approver": manager_id or "unknown",
             "requested_at": datetime.now(timezone.utc).isoformat(),
         }
         _LOG.append(ticket)

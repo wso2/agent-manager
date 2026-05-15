@@ -43,7 +43,7 @@ def create(
     description: str,
 ) -> dict[str, Any]:
     ticket = {
-        "id": f"TKT-{uuid.uuid4().hex[:4].upper()}",
+        "id": f"TKT-{uuid.uuid4().hex[:8].upper()}",
         "employee_id": employee_id,
         "subject": subject,
         "category": category,
@@ -51,7 +51,7 @@ def create(
         "status": "open",
         "assigned_to": "L1",
         "description": description,
-        "created_at": datetime.now(timezone.utc).strftime("%Y-%m-%d"),
+        "created_at": datetime.now(timezone.utc).isoformat(),
     }
     _CREATED.append(ticket)
     return deepcopy(ticket)

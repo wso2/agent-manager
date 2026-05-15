@@ -25,6 +25,14 @@ from config import Config
 def build_tools(cfg: Config) -> list[Any]:
     """Build the tool set bound to the given instance config."""
 
+    def _require_verified(employee_id: str) -> dict[str, Any] | None:
+        """Return the employee record if verified, or None with an error string."""
+        try:
+            emp = employees_client.get(employee_id)
+        except employees_client.EmployeeNotFound:
+            return None
+        return emp if emp.get("verified") else None
+
     @tool
     def lookup_employee(email: str) -> str:
         """Look up an employee by their email address.
@@ -74,9 +82,12 @@ def build_tools(cfg: Config) -> list[Any]:
         Categories: network, software, hardware, access, email, security, other.
         Priorities: P1 (critical), P2 (high), P3 (medium), P4 (low).
 
+        Requires identity to be verified first via verify_identity.
         Before creating, check for duplicate tickets and system status.
         Do not create a ticket if the issue matches a known outage.
         """
+        if _require_verified(employee_id) is None:
+            return "ERROR: Identity has not been verified. Call verify_identity first."
         dupes = tickets_client.find_duplicates(employee_id, category)
         if dupes:
             return json.dumps({
@@ -93,43 +104,43 @@ def build_tools(cfg: Config) -> list[Any]:
         return json.dumps(ticket)
 
     @tool
-    def reset_password(employee_id: str, is_admin: bool, verified: bool) -> str:
+    def reset_password(employee_id: str) -> str:
         """Reset an employee's password.
 
-        Requires identity to be verified first (verified=true).
+        Requires identity to be verified first via verify_identity.
         Admin accounts CANNOT be reset — they must be escalated to L2 Security.
         On success, a temporary password is sent to the employee's registered email.
         """
+        emp = _require_verified(employee_id)
+        if emp is None:
+            return "ERROR: Identity has not been verified. Call verify_identity first."
         try:
             receipt = passwords_client.reset(
                 employee_id=employee_id,
-                is_admin=is_admin,
-                verified=verified,
+                is_admin=emp["is_admin"],
+                verified=True,
             )
             return json.dumps(receipt)
-        except passwords_client.IdentityNotVerified as e:
-            return f"ERROR: {e}"
         except passwords_client.AdminResetBlocked as e:
             return f"ERROR: {e} Use escalate_to_l2 to forward this request."
 
     @tool
-    def request_software_access(
-        employee_id: str,
-        department: str,
-        manager_id: str,
-        software_name: str,
-    ) -> str:
+    def request_software_access(employee_id: str, software_name: str) -> str:
         """Request access to a software tool for an employee.
 
+        Requires identity to be verified first via verify_identity.
         Access is granted based on department eligibility. Some tools require
         manager approval. Requests outside the employee's department allowlist
         are denied.
         """
+        emp = _require_verified(employee_id)
+        if emp is None:
+            return "ERROR: Identity has not been verified. Call verify_identity first."
         try:
             result = software_client.request_access(
                 employee_id=employee_id,
-                department=department,
-                manager_id=manager_id,
+                department=emp["department"],
+                manager_id=emp["manager_id"],
                 software_name=software_name,
             )
             return json.dumps(result)
