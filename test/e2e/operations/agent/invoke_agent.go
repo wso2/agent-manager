@@ -31,7 +31,8 @@ import (
 // InvokeAgentEndpoint sends a POST request with the given body to an absolute
 // endpoint URL and returns the raw response body as a string.
 // It retries on transient errors (503, 502, connection errors) using Eventually.
-func InvokeAgentEndpoint(endpointURL string, body any) string {
+// The apiKey is sent as an X-API-Key header for authentication.
+func InvokeAgentEndpoint(endpointURL string, body any, apiKey string) string {
 	data, err := json.Marshal(body)
 	Expect(err).NotTo(HaveOccurred(), "marshal agent invocation body")
 
@@ -39,7 +40,11 @@ func InvokeAgentEndpoint(endpointURL string, body any) string {
 
 	var result string
 	Eventually(func(g Gomega) {
-		resp, err := httpClient.Post(endpointURL, "application/json", bytes.NewBuffer(data))
+		req, err := http.NewRequest("POST", endpointURL, bytes.NewBuffer(data))
+		g.Expect(err).NotTo(HaveOccurred(), "create agent invocation request")
+		req.Header.Set("Content-Type", "application/json")
+		req.Header.Set("X-API-Key", apiKey)
+		resp, err := httpClient.Do(req)
 		g.Expect(err).NotTo(HaveOccurred(), "agent endpoint not reachable")
 		defer resp.Body.Close()
 

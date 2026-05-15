@@ -125,6 +125,16 @@ func SetupSharedAgent(client *framework.AMPClient, cfg *framework.Config) *frame
 
 	shared.InvokeReq = framework.DefaultInvokeRequest()
 
+	ginkgo.By("Creating shared agent API key")
+	apiKeyResp := agentops.CreateAgentAPIKey(Default, client,
+		cfg.DefaultOrg, shared.ProjectName, shared.AgentName, cfg.DefaultEnv,
+		framework.CreateAgentAPIKeyRequest{
+			DisplayName: "e2e-test-key",
+			ExpiresAt:   time.Now().Add(24 * time.Hour).Format(time.RFC3339),
+		})
+	shared.APIKey = apiKeyResp.ApiKey
+	Expect(shared.APIKey).NotTo(BeEmpty(), "shared agent API key should not be empty")
+
 	ginkgo.GinkgoWriter.Printf("Shared agent ready: project=%s agent=%s endpoint=%s\n",
 		shared.ProjectName, shared.AgentName, shared.EndpointURL)
 

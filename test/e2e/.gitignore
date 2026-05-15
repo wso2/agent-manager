@@ -1,2 +1,4 @@
 .env
+tests_e2e-report.xml
 e2e-report.xml
+
