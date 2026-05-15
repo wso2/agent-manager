@@ -58,6 +58,14 @@ const sidebars: SidebarsConfig = {
     },
     {
       type: 'category',
+      label: 'Reference',
+      collapsed: false,
+      items: [
+        'reference/mcp-server',
+      ],
+    },
+    {
+      type: 'category',
       label: 'Tutorials',
       collapsed: false,
       items: [

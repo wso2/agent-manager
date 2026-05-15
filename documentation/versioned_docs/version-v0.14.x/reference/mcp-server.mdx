@@ -1,0 +1,147 @@
+# MCP Server
+
+WSO2 Agent Manager (AMP) ships a Model Context Protocol (MCP) server that lets MCP-capable AI assistants — Claude Code, Codex, Cursor, and others — drive the platform directly from the developer's terminal. Through the server, an assistant can list projects, register agents, trigger builds, deploy images, and inspect runtime traces and logs without leaving the conversation.
+
+## Overview
+
+The MCP server is exposed by `agent-manager-service` at the `/mcp` path on the public API URL. It speaks MCP over Streamable HTTP and is protected by the same OAuth 2.0 Authorization Code + PKCE flow that secures the rest of the AMP API, against the bundled Thunder identity provider.
+
+A single OAuth client (`am-mcp`) is pre-registered in Thunder out of the box, so most users do not need to provision their own client to get started.
+
+## Available Tools
+
+The MCP server provides **19 tools** organized into five toolsets covering the agent lifecycle — from creating a project through observing a deployed agent's traces.
+
+<details>
+<summary><strong>Project Toolset (3 tools)</strong></summary>
+
+- `list_projects` — List projects in an organization. Supports pagination via `limit` and `offset`.
+- `create_project` — Create a new project (the logical container for agents and related resources).
+- `list_project_agent_pairs` — Walk every project in the organization and return `(project, agent)` name pairs, with optional case-insensitive substring filters on project and agent names. Useful when an assistant needs to locate an agent without knowing which project it lives in.
+
+</details>
+
+<details>
+<summary><strong>Agent Toolset (3 tools)</strong></summary>
+
+- `list_agents` — List agents in a project. Each entry includes the provisioning type (`internal` or `external`) so the assistant can tell platform-hosted agents apart from externally-hosted ones.
+- `create_external_agent` — Register an externally-hosted agent. Returns the agent identity, a long-lived API token, and language-specific zero-code instrumentation instructions (Python or Ballerina) the assistant can hand back to the user.
+- `create_internal_agent_python` — Create a platform-hosted Python agent from a GitHub repository. Accepts repo URL, branch, app path, Python version, run command, interface type (`DEFAULT` chat-on-`/chat:8000` or `CUSTOM` with port + OpenAPI), environment variables, and an optional auto-instrumentation toggle. Creating the agent automatically triggers its initial build.
+
+</details>
+
+<details>
+<summary><strong>Build Toolset (4 tools)</strong></summary>
+
+Internal agents only — external agents are never built by the platform.
+
+- `list_builds` — Paginated list of builds for an agent, including status, image ID, and timestamps. Includes a `retry_after_seconds` hint when a build is still in progress.
+- `get_build_details` — Detailed view of a single build: steps, durations, commit, and build parameters.
+- `get_build_logs` — Step-by-step stdout/stderr produced while packaging the agent source into a runnable image.
+- `build_agent` — Trigger a fresh build from a specific commit (defaults to the latest commit on the configured branch). Returns immediately — successful builds trigger deployment automatically, so the assistant only needs to poll `get_build_details` for completion.
+
+</details>
+
+<details>
+<summary><strong>Deployment Toolset (3 tools)</strong></summary>
+
+- `list_deployments` — An agent's deployments across all environments, keyed by environment name, with current state (`active`, `in-progress`, `failed`, `not-deployed`, or `suspended`) and image.
+- `deploy_agent` — Deploy a built image to the lowest environment in the deployment pipeline. Accepts runtime environment variables (plain values, sensitive flags, or references to existing secrets) and an `enable_auto_instrumentation` toggle.
+- `update_deployment_state` — Transition a deployment in a specific environment: `redeploy` (fresh rollout of the current deployment) or `undeploy` (remove the deployment from that environment).
+
+</details>
+
+<details>
+<summary><strong>Observability Toolset (6 tools)</strong></summary>
+
+- `get_runtime_logs` — Application logs emitted by a deployed agent. Filter by time window (RFC3339, max 14 days), log levels (`DEBUG`, `INFO`, `WARN`, `ERROR`), sort order, and free-text search.
+- `get_metrics` — CPU and memory usage, request, and limit metrics for a deployment over a time range.
+- `list_traces` — Summary view of recent traces for an agent (trace ID, root span, duration, span count, token usage, status). Optional `include_io` flag attaches input/output payloads.
+- `get_traces` — Traces with full span details. Supports server-side condition filters: `error_status`, `high_latency`, `high_token_usage`, `tool_call_fails`, and `excessive_steps` — each with a tunable threshold parameter.
+- `get_trace_details` — Metadata and span list for a single trace by trace ID.
+- `get_span_details` — Full execution details for a single span: timing, inputs, outputs, attributes — useful for inspecting one LLM call, tool invocation, or retriever lookup inside a trace.
+
+</details>
+
+## Finding the MCP Server URL
+
+The MCP server URL follows the public URL of the `agent-manager-service`:
+
+```
+<server-public-url>/mcp
+```
+
+For a stock local installation (Quick Start, docker-compose, or k3d via the bundled Helm chart), the service binds to `localhost:9000`, so the MCP server URL is:
+
+```
+http://localhost:9000/mcp
+```
+
+If you have changed `serverPublicURL` (Helm) or `SERVER_PUBLIC_URL` (docker-compose), substitute that value.
+
+## Default OAuth Client
+
+AMP ships a pre-registered OAuth application in Thunder for MCP clients:
+
+| Client ID | Grant Type                | Redirect URIs                                                              | Use Case                                                                                |
+| --------- | ------------------------- | -------------------------------------------------------------------------- | --------------------------------------------------------------------------------------- |
+| `am-mcp`  | Authorization Code + PKCE | `http://127.0.0.1:33418/callback`, `http://localhost:33418/callback`       | Interactive use with AI assistants that support browser-based OAuth (Claude Code, etc.) |
+
+The client is public (no secret), PKCE is required, and the callback port is pinned to **33418**. Because the redirect URIs are baked into the OAuth client registration, every MCP client must run its local OAuth listener on port `33418` to complete the login.
+
+The `am-mcp` client is provisioned automatically by the `wso2-amp-thunder-extension` Helm chart (script `58-am-mcp-client.sh`) and is already wired into `KEY_MANAGER_AUDIENCE` on the docker-compose setup, so no manual registration is required for the default installations.
+
+## Configuring AI Assistants
+
+The examples below assume the default local URL `http://localhost:9000/mcp`. Replace it with your deployment's value if different.
+
+### Claude Code
+
+Register the MCP server with Claude Code using the `am-mcp` client and the pinned callback port:
+
+```bash
+claude mcp add --transport http agent-manager http://localhost:9000/mcp \
+  --client-id am-mcp \
+  --callback-port 33418
+```
+
+- `--transport http` selects MCP Streamable HTTP transport.
+- `--client-id am-mcp` matches the pre-registered Thunder OAuth client.
+- `--callback-port 33418` pins Claude Code's local OAuth listener to the port registered as a redirect URI in Thunder.
+
+Verify the registration from within a Claude Code session:
+
+```
+/mcp
+```
+
+The first tool call in any session opens a browser to the Thunder login page. Subsequent calls reuse the cached token until it expires; Claude Code refreshes it transparently.
+
+### Codex
+
+Codex CLI consumes MCP servers through its `~/.codex/config.toml` file. Because Codex's native MCP transport does not currently drive a browser-based OAuth flow, use [`mcp-remote`](https://www.npmjs.com/package/mcp-remote) to bridge Codex's stdio transport to the AMP server's HTTP endpoint — it will open the browser for OAuth on the first call and cache the token.
+
+Add this block to `~/.codex/config.toml`:
+
+```toml
+[mcp_servers.agent-manager]
+command = "npx"
+args = [
+  "-y",
+  "mcp-remote@latest",
+  "http://localhost:9000/mcp",
+  "--client-id", "am-mcp",
+  "--callback-port", "33418",
+]
+```
+
+Restart Codex (or start a new session). On the first tool call, `mcp-remote` opens the Thunder login page; after authenticating, the token is cached under `~/.mcp-auth/` and reused until it expires.
+
+:::tip
+`mcp-remote` requires Node.js (and `npx`) on `PATH`. If you'd rather install the bridge globally instead of running it via `npx -y`, run `npm install -g mcp-remote` and replace `command = "npx"` / `args = ["-y", "mcp-remote@latest", ...]` with `command = "mcp-remote"` / `args = [...]`.
+:::
+
+## Next Steps
+
+- Try a few prompts in Claude Code, e.g. *"List the projects in my org"*, *"Create a new Python agent from this repo"*, *"Show me the last 10 traces for agent X"*.
+- See [Observe Your First Agent](../tutorials/observe-first-agent.mdx) for an end-to-end walkthrough of registering and instrumenting an agent — the same flow the MCP `create_external_agent` tool automates.
