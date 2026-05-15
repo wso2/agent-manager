@@ -22,17 +22,14 @@ import (
 
 	"github.com/wso2/agent-manager/agent-manager-service/config"
 	"github.com/wso2/agent-manager/agent-manager-service/middleware/logger"
+	"github.com/wso2/agent-manager/agent-manager-service/spec"
 )
-
-type configResponse struct {
-	TraceObserverBaseUrl string `json:"traceObserverBaseUrl"`
-}
 
 func registerConfigRoutes(mux *http.ServeMux) {
 	mux.HandleFunc("GET /api/v1/config", func(w http.ResponseWriter, r *http.Request) {
 		cfg := config.GetConfig()
 		w.Header().Set("Content-Type", "application/json")
-		if err := json.NewEncoder(w).Encode(configResponse{
+		if err := json.NewEncoder(w).Encode(spec.ConfigResponse{
 			TraceObserverBaseUrl: cfg.TraceObserver.URL,
 		}); err != nil {
 			logger.GetLogger(r.Context()).Error("failed to encode config response", "error", err)
