@@ -56,6 +56,7 @@ export function OxygenLayout() {
 
   const externalTopRightComponentModules =
     useExternalComponentModules(MountPoints.TopRightPanel);
+  const externalLogoComponentModules = useExternalComponentModules(MountPoints.TopLogo);
   const externalTopLeftComponentModules =
     useExternalComponentModules(MountPoints.TopLeftPanel);
   const externalBottomLeftComponentModules =
@@ -108,6 +109,11 @@ export function OxygenLayout() {
           <Header.Brand onClick={() => navigate(homePath)}>
             <Header.BrandLogo>
               <Logo  />
+              {externalLogoComponentModules?.map((module) => (
+                <div key={module.moduleName}>
+                  <module.component />
+                </div>
+              ))}
             </Header.BrandLogo>
           </Header.Brand>
           <TopNavigation />
