@@ -1,7 +1,8 @@
 """LangGraph IT helpdesk agent construction.
 
-Builds a ReAct-style agent bound to the instance config. Uses OpenAI via
-``ChatOpenAI``; the API key is read from ``OPENAI_API_KEY`` at startup.
+Builds a ReAct-style agent bound to the instance config. When
+``LLM_PROVIDER=agent-manager``, requests are routed through the AM LLM
+provider (which applies guardrails). Otherwise calls OpenAI directly.
 """
 
 from __future__ import annotations
@@ -46,7 +47,19 @@ SYSTEM_PROMPT_TEMPLATE = (
 
 
 def build_agent(cfg: Config) -> Any:
-    llm = ChatOpenAI(model=MODEL, temperature=0)
+    if cfg.use_llm_provider:
+        llm = ChatOpenAI(
+            model=MODEL,
+            temperature=0,
+            base_url=cfg.llm_provider_url,
+            api_key="not-used",
+            default_headers={
+                "API-Key": cfg.llm_provider_key,
+                "Authorization": "",
+            },
+        )
+    else:
+        llm = ChatOpenAI(model=MODEL, temperature=0)
     tools = build_tools(cfg)
     system_prompt = SYSTEM_PROMPT_TEMPLATE.format(
         company_name=cfg.company_name,

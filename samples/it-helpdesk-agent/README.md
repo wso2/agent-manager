@@ -18,8 +18,8 @@ Before deploying this agent, ensure you have:
 ### Step 1: Access Agent Manager
 
 1. Navigate to the **Default** project
-2. Click **"Add Agent"**
-3. Select **Platform-Hosted Agent** Card
+2. Select **Platform-Hosted Agent** Card
+3. Pick **Source Code** as the source type of the agent
 
 ### Step 2: Configure Agent Details
 
@@ -31,11 +31,10 @@ Fill in the agent creation form with these exact values:
 | **Description**       | `AI-powered IT helpdesk agent for employee technical support` |
 | **GitHub Repository** | `https://github.com/wso2/agent-manager`                      |
 | **Branch**            | `main`                                                       |
-| **App Path**          | `samples/it-helpdesk-agent`                                  |
+| **App Path**          | `/samples/it-helpdesk-agent`                                  |
 | **Language**          | `Python`                                                     |
 | **Language Version**  | `3.11`                                                       |
 | **Start Command**     | `python main.py`                                             |
-| **Port**              | `8000`                                                       |
 
 ### Step 3: Select Agent Interface
 
@@ -80,22 +79,32 @@ Hi, david.kim@acmecorp.com here, employee ID E-1004. I need my password reset ur
 **Known outage detection (agent checks status, no ticket created):**
 
 ```text
-Hi, I am bob.martinez@acmecorp.com. My email is not syncing — is something wrong?
+Hi, I am bob.martinez@acmecorp.com, employee ID E-1002. My email is not syncing — is something wrong?
 ```
 
 ### Step 3: Observe Traces
 
-1. Click on the **"Observability"** tab on left navigation and select **Traces**
-2. View traces
+1. Navigate to **Observability** > **Traces** on the left navigation
+2. Click on a trace to view the tool call chain for each interaction
 
 ## Testing Guardrails
 
-After configuring an LLM provider with guardrails enabled, test the following query to verify PII detection:
+After configuring an LLM provider with the **PII Masking Regex** guardrail (with **SSN** detection enabled):
 
-**PII in input (user exposes a password):**
+1. In the LLM provider's **Environment Variables References**, rename the variables to match the agent's code:
+   - `Base URL of the LLM provider` → `LLM_PROVIDER_URL`
+   - `API Key for authentication` → `LLM_PROVIDER_KEY`
+2. Add the following environment variable to the agent:
+   ```env
+   USE_LLM_PROVIDER=true
+   ```
+
+Then test the following query:
+
+**PII in input (user exposes their SSN):**
 
 ```text
-My password is P@ssw0rd123! and it's not working. My email is alice.chen@acmecorp.com.
+Hi, I am alice.chen@acmecorp.com, employee ID E-1001. My SSN is 123-45-6789. I need to update my payroll info, can you help?
 ```
 
-Without guardrails, the agent accepts this message and the password gets logged in traces. With a PII detection guardrail configured, the platform should intercept and block or redact the sensitive content before it reaches the agent.
+Without guardrails, the agent accepts this message and the SSN gets logged in traces. With the SSN guardrail enabled, the platform redacts the SSN before it reaches the agent.
