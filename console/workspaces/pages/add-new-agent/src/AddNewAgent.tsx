@@ -18,9 +18,12 @@
 
 import React, { useCallback } from "react";
 import { Route, Routes, generatePath, useNavigate, useParams } from "react-router-dom";
-import { absoluteRouteMap } from "@agent-management-platform/types";
+import { absoluteRouteMap, relativeRouteMap } from "@agent-management-platform/types";
 import { NewAgentOptions } from "./components/NewAgentOptions";
+import { NewAgentSourceOptions } from "./components/NewAgentSourceOptions";
 import { InternalAgentFlow } from "./components/InternalAgentFlow";
+import { CatalogAgentFlow } from "./components/CatalogAgentFlow";
+import { CatalogKindSelect } from "./components/CatalogKindSelect";
 import { ExternalAgentFlow } from "./components/ExternalAgentFlow";
 
 export const AddNewAgent: React.FC = () => {
@@ -42,10 +45,46 @@ export const AddNewAgent: React.FC = () => {
     }));
   }, [navigate, orgId, projectId, CREATE_PATTERN, CONNECT_PATTERN]);
 
+  const handleSourceSelect = useCallback((option: 'source' | 'catalog') => {
+    navigate(generatePath(`${CREATE_PATTERN}/${option}`, {
+      orgId: orgId ?? '',
+      projectId: projectId ?? 'default',
+    }));
+  }, [navigate, orgId, projectId, CREATE_PATTERN]);
+
   return (
     <Routes>
       <Route index element={<NewAgentOptions onSelect={handleSelect} />} />
-      <Route path="create" element={<InternalAgentFlow />} />
+        <Route
+          path={
+            relativeRouteMap.children.org.children.projects.children.newAgent
+              .children.create.path
+          }
+        >
+          <Route index element={<NewAgentSourceOptions onSelect={handleSourceSelect} />} />
+          <Route
+            path={
+              relativeRouteMap.children.org.children.projects.children.newAgent
+                .children.create.children.catalog.path
+            }
+          >
+            <Route index element={<CatalogKindSelect />} />
+            <Route
+              path={
+                relativeRouteMap.children.org.children.projects.children.newAgent
+                  .children.create.children.catalog.children.withKind.path
+              }
+              element={<CatalogAgentFlow />}
+            />
+          </Route>
+          <Route
+            path={
+              relativeRouteMap.children.org.children.projects.children.newAgent
+                .children.create.children.source.path
+            }
+            element={<InternalAgentFlow />}
+          />
+      </Route>
       <Route path="connect" element={<ExternalAgentFlow />} />
     </Routes>
   );

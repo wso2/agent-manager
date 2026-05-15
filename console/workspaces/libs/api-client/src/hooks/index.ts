@@ -35,3 +35,4 @@ export * from './llm-providers';
 export * from './gateways';
 export * from './guardrails';
 export * from './git-secrets';
+export * from './agent-kinds';

@@ -25,7 +25,6 @@ import { getErrorMessage } from "@agent-management-platform/shared-component";
 import { Alert, Box, Skeleton } from "@wso2/oxygen-ui";
 import { useParams } from "react-router-dom";
 import { useMemo, lazy, Suspense } from "react";
-import "swagger-ui-react/swagger-ui.css";
 
 const SwaggerUI = lazy(() => import("swagger-ui-react"));
 

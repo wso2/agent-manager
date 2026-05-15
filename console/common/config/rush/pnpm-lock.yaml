@@ -37,14 +37,14 @@ importers:
         specifier: 5.90.5
         version: 5.90.5(react@19.1.1)
       '@wso2/oxygen-ui':
-        specifier: 0.8.3
-        version: 0.8.3(@mui/system@7.3.11(@emotion/react@11.13.5(@types/react@19.2.14)(react@19.1.1))(@emotion/styled@11.13.5(@emotion/react@11.13.5(@types/react@19.2.14)(react@19.1.1))(@types/react@19.2.14)(react@19.1.1))(@types/react@19.2.14)(react@19.1.1))(@types/react@19.2.14)(@wso2/oxygen-ui-icons-react@0.8.3(react@19.1.1))(react-dom@19.1.1(react@19.1.1))(react@19.1.1)
+        specifier: 0.10.1
+        version: 0.10.1(@mui/system@7.3.11(@emotion/react@11.13.5(@types/react@19.2.14)(react@19.1.1))(@emotion/styled@11.13.5(@emotion/react@11.13.5(@types/react@19.2.14)(react@19.1.1))(@types/react@19.2.14)(react@19.1.1))(@types/react@19.2.14)(react@19.1.1))(@types/react@19.2.14)(@wso2/oxygen-ui-icons-react@0.10.1(react@19.1.1))(react-dom@19.1.1(react@19.1.1))(react@19.1.1)
       '@wso2/oxygen-ui-charts-react':
-        specifier: 0.8.3
-        version: 0.8.3(@types/react@19.2.14)(@wso2/oxygen-ui@0.8.3(@mui/system@7.3.11(@emotion/react@11.13.5(@types/react@19.2.14)(react@19.1.1))(@emotion/styled@11.13.5(@emotion/react@11.13.5(@types/react@19.2.14)(react@19.1.1))(@types/react@19.2.14)(react@19.1.1))(@types/react@19.2.14)(react@19.1.1))(@types/react@19.2.14)(@wso2/oxygen-ui-icons-react@0.8.3(react@19.1.1))(react-dom@19.1.1(react@19.1.1))(react@19.1.1))(react-dom@19.1.1(react@19.1.1))(react-is@19.2.6)(react@19.1.1)(redux@5.0.1)
+        specifier: 0.10.1
+        version: 0.10.1(@types/react@19.2.14)(@wso2/oxygen-ui@0.10.1(@mui/system@7.3.11(@emotion/react@11.13.5(@types/react@19.2.14)(react@19.1.1))(@emotion/styled@11.13.5(@emotion/react@11.13.5(@types/react@19.2.14)(react@19.1.1))(@types/react@19.2.14)(react@19.1.1))(@types/react@19.2.14)(react@19.1.1))(@types/react@19.2.14)(@wso2/oxygen-ui-icons-react@0.10.1(react@19.1.1))(react-dom@19.1.1(react@19.1.1))(react@19.1.1))(react-dom@19.1.1(react@19.1.1))(react-is@19.2.6)(react@19.1.1)(redux@5.0.1)
       '@wso2/oxygen-ui-icons-react':
-        specifier: 0.8.3
-        version: 0.8.3(react@19.1.1)
+        specifier: 0.10.1
+        version: 0.10.1(react@19.1.1)
       react:
         specifier: 19.1.1
         version: 19.1.1
@@ -54,13 +54,16 @@ importers:
       react-router-dom:
         specifier: 6.28.0
         version: 6.28.0(react-dom@19.1.1(react@19.1.1))(react@19.1.1)
+      swagger-ui-react:
+        specifier: 5.19.0
+        version: 5.19.0(@types/react@19.2.14)(react-dom@19.1.1(react@19.1.1))(react@19.1.1)
     devDependencies:
       '@eslint/js':
         specifier: ^10.0.1
         version: 10.0.1(eslint@10.3.0)
       '@types/node':
         specifier: ^24.12.2
-        version: 24.12.3
+        version: 24.12.4
       '@types/react':
         specifier: 19.2.14
         version: 19.2.14
@@ -69,7 +72,7 @@ importers:
         version: 19.2.3(@types/react@19.2.14)
       '@vitejs/plugin-react':
         specifier: ^6.0.1
-        version: 6.0.1(vite@8.0.12(@types/node@24.12.3)(less@4.3.0))
+        version: 6.0.2(vite@8.0.13(@types/node@24.12.4)(less@4.3.0))
       eslint:
         specifier: ^10.2.1
         version: 10.3.0
@@ -90,7 +93,7 @@ importers:
         version: 8.59.3(eslint@10.3.0)(typescript@6.0.3)
       vite:
         specifier: ^8.0.10
-        version: 8.0.12(@types/node@24.12.3)(less@4.3.0)
+        version: 8.0.13(@types/node@24.12.4)(less@4.3.0)
 
   ../../workspaces/core-ui:
     dependencies:
@@ -100,6 +103,9 @@ importers:
       '@agent-management-platform/add-new-project':
         specifier: workspace:*
         version: link:../pages/add-new-project
+      '@agent-management-platform/agent-kind':
+        specifier: workspace:*
+        version: link:../pages/agent-kind
       '@agent-management-platform/agent-security':
         specifier: workspace:*
         version: link:../pages/agent-security
@@ -219,14 +225,14 @@ importers:
         specifier: 5.0.4
         version: 5.0.4(vite@7.1.7(@types/node@24.6.0)(less@4.3.0)(lightningcss@1.32.0)(tsx@4.7.0))
       '@wso2/oxygen-ui':
-        specifier: 0.8.3
-        version: 0.8.3(@mui/system@7.3.11(@emotion/react@11.13.5(@types/react@19.2.14)(react@19.1.1))(@emotion/styled@11.13.5(@emotion/react@11.13.5(@types/react@19.2.14)(react@19.1.1))(@types/react@19.2.14)(react@19.1.1))(@types/react@19.2.14)(react@19.1.1))(@types/react@19.2.14)(@wso2/oxygen-ui-icons-react@0.8.3(react@19.1.1))(react-dom@19.1.1(react@19.1.1))(react@19.1.1)
+        specifier: 0.10.1
+        version: 0.10.1(@mui/system@7.3.11(@emotion/react@11.13.5(@types/react@19.2.14)(react@19.1.1))(@emotion/styled@11.13.5(@emotion/react@11.13.5(@types/react@19.2.14)(react@19.1.1))(@types/react@19.2.14)(react@19.1.1))(@types/react@19.2.14)(react@19.1.1))(@types/react@19.2.14)(@wso2/oxygen-ui-icons-react@0.10.1(react@19.1.1))(react-dom@19.1.1(react@19.1.1))(react@19.1.1)
       '@wso2/oxygen-ui-charts-react':
-        specifier: 0.8.3
-        version: 0.8.3(@types/react@19.2.14)(@wso2/oxygen-ui@0.8.3(@mui/system@7.3.11(@emotion/react@11.13.5(@types/react@19.2.14)(react@19.1.1))(@emotion/styled@11.13.5(@emotion/react@11.13.5(@types/react@19.2.14)(react@19.1.1))(@types/react@19.2.14)(react@19.1.1))(@types/react@19.2.14)(react@19.1.1))(@types/react@19.2.14)(@wso2/oxygen-ui-icons-react@0.8.3(react@19.1.1))(react-dom@19.1.1(react@19.1.1))(react@19.1.1))(react-dom@19.1.1(react@19.1.1))(react-is@19.2.6)(react@19.1.1)(redux@5.0.1)
+        specifier: 0.10.1
+        version: 0.10.1(@types/react@19.2.14)(@wso2/oxygen-ui@0.10.1(@mui/system@7.3.11(@emotion/react@11.13.5(@types/react@19.2.14)(react@19.1.1))(@emotion/styled@11.13.5(@emotion/react@11.13.5(@types/react@19.2.14)(react@19.1.1))(@types/react@19.2.14)(react@19.1.1))(@types/react@19.2.14)(react@19.1.1))(@types/react@19.2.14)(@wso2/oxygen-ui-icons-react@0.10.1(react@19.1.1))(react-dom@19.1.1(react@19.1.1))(react@19.1.1))(react-dom@19.1.1(react@19.1.1))(react-is@19.2.6)(react@19.1.1)(redux@5.0.1)
       '@wso2/oxygen-ui-icons-react':
-        specifier: 0.8.3
-        version: 0.8.3(react@19.1.1)
+        specifier: 0.10.1
+        version: 0.10.1(react@19.1.1)
       babel-plugin-react-compiler:
         specifier: 19.1.0-rc.3
         version: 19.1.0-rc.3
@@ -256,7 +262,7 @@ importers:
         version: 7.1.7(@types/node@24.6.0)(less@4.3.0)(lightningcss@1.32.0)(tsx@4.7.0)
       vite-plugin-dts:
         specifier: ^4.5.4
-        version: 4.5.4(@types/node@24.6.0)(rollup@4.60.3)(typescript@5.9.3)(vite@7.1.7(@types/node@24.6.0)(less@4.3.0)(lightningcss@1.32.0)(tsx@4.7.0))
+        version: 4.5.4(@types/node@24.6.0)(rollup@4.60.4)(typescript@5.9.3)(vite@7.1.7(@types/node@24.6.0)(less@4.3.0)(lightningcss@1.32.0)(tsx@4.7.0))
 
   ../../workspaces/libs/api-client:
     dependencies:
@@ -420,11 +426,11 @@ importers:
         specifier: 7.0.0
         version: 7.0.0(@emotion/react@11.13.5(@types/react@19.2.14)(react@19.1.1))(@emotion/styled@11.13.5(@emotion/react@11.13.5(@types/react@19.2.14)(react@19.1.1))(@types/react@19.2.14)(react@19.1.1))(@types/react@19.2.14)(react-dom@19.1.1(react@19.1.1))(react@19.1.1)
       '@wso2/oxygen-ui':
-        specifier: 0.8.3
-        version: 0.8.3(@mui/system@7.3.11(@emotion/react@11.13.5(@types/react@19.2.14)(react@19.1.1))(@emotion/styled@11.13.5(@emotion/react@11.13.5(@types/react@19.2.14)(react@19.1.1))(@types/react@19.2.14)(react@19.1.1))(@types/react@19.2.14)(react@19.1.1))(@types/react@19.2.14)(@wso2/oxygen-ui-icons-react@0.8.3(react@19.1.1))(react-dom@19.1.1(react@19.1.1))(react@19.1.1)
+        specifier: 0.10.1
+        version: 0.10.1(@mui/system@7.3.11(@emotion/react@11.13.5(@types/react@19.2.14)(react@19.1.1))(@emotion/styled@11.13.5(@emotion/react@11.13.5(@types/react@19.2.14)(react@19.1.1))(@types/react@19.2.14)(react@19.1.1))(@types/react@19.2.14)(react@19.1.1))(@types/react@19.2.14)(@wso2/oxygen-ui-icons-react@0.10.1(react@19.1.1))(react-dom@19.1.1(react@19.1.1))(react@19.1.1)
       '@wso2/oxygen-ui-icons-react':
-        specifier: 0.8.3
-        version: 0.8.3(react@19.1.1)
+        specifier: 0.10.1
+        version: 0.10.1(react@19.1.1)
       clsx:
         specifier: 2.1.1
         version: 2.1.1
@@ -440,6 +446,9 @@ importers:
       react-syntax-highlighter:
         specifier: 15.6.1
         version: 15.6.1(react@19.1.1)
+      swagger-ui-react:
+        specifier: 5.19.0
+        version: 5.19.0(@types/react@19.2.14)(react-dom@19.1.1(react@19.1.1))(react@19.1.1)
       zod:
         specifier: 4.3.6
         version: 4.3.6
@@ -470,7 +479,7 @@ importers:
         version: 8.6.13(@storybook/test@8.6.13(storybook@8.6.13(prettier@3.5.3)))(react-dom@19.1.1(react@19.1.1))(react@19.1.1)(storybook@8.6.13(prettier@3.5.3))(typescript@5.9.3)
       '@storybook/react-vite':
         specifier: 8.6.13
-        version: 8.6.13(@storybook/test@8.6.13(storybook@8.6.13(prettier@3.5.3)))(react-dom@19.1.1(react@19.1.1))(react@19.1.1)(rollup@4.60.3)(storybook@8.6.13(prettier@3.5.3))(typescript@5.9.3)(vite@6.3.5(@types/node@24.6.0)(less@4.3.0)(lightningcss@1.32.0))
+        version: 8.6.13(@storybook/test@8.6.13(storybook@8.6.13(prettier@3.5.3)))(react-dom@19.1.1(react@19.1.1))(react@19.1.1)(rollup@4.60.4)(storybook@8.6.13(prettier@3.5.3))(typescript@5.9.3)(vite@6.3.5(@types/node@24.6.0)(less@4.3.0)(lightningcss@1.32.0))
       '@storybook/test':
         specifier: 8.6.13
         version: 8.6.13(storybook@8.6.13(prettier@3.5.3))
@@ -495,6 +504,9 @@ importers:
       '@types/react-syntax-highlighter':
         specifier: 15.5.13
         version: 15.5.13
+      '@types/swagger-ui-react':
+        specifier: 5.18.0
+        version: 5.18.0
       '@typescript-eslint/eslint-plugin':
         specifier: 8.33.1
         version: 8.33.1(@typescript-eslint/parser@8.33.1(eslint@9.36.0)(typescript@5.9.3))(eslint@9.36.0)(typescript@5.9.3)
@@ -566,7 +578,7 @@ importers:
         version: 6.3.5(@types/node@24.6.0)(less@4.3.0)(lightningcss@1.32.0)
       vite-plugin-dts:
         specifier: 4.5.4
-        version: 4.5.4(@types/node@24.6.0)(rollup@4.60.3)(typescript@5.9.3)(vite@6.3.5(@types/node@24.6.0)(less@4.3.0)(lightningcss@1.32.0))
+        version: 4.5.4(@types/node@24.6.0)(rollup@4.60.4)(typescript@5.9.3)(vite@6.3.5(@types/node@24.6.0)(less@4.3.0)(lightningcss@1.32.0))
       vitest:
         specifier: 3.1.3
         version: 3.1.3(@types/debug@4.1.13)(@types/node@24.6.0)(jsdom@26.1.0)(less@4.3.0)(lightningcss@1.32.0)
@@ -629,11 +641,11 @@ importers:
         specifier: 8.14.0
         version: 8.14.0(@emotion/react@11.13.5(@types/react@19.2.14)(react@19.1.1))(@emotion/styled@11.13.5(@emotion/react@11.13.5(@types/react@19.2.14)(react@19.1.1))(@types/react@19.2.14)(react@19.1.1))(@mui/material@7.0.0(@emotion/react@11.13.5(@types/react@19.2.14)(react@19.1.1))(@emotion/styled@11.13.5(@emotion/react@11.13.5(@types/react@19.2.14)(react@19.1.1))(@types/react@19.2.14)(react@19.1.1))(@types/react@19.2.14)(react-dom@19.1.1(react@19.1.1))(react@19.1.1))(@mui/system@7.3.11(@emotion/react@11.13.5(@types/react@19.2.14)(react@19.1.1))(@emotion/styled@11.13.5(@emotion/react@11.13.5(@types/react@19.2.14)(react@19.1.1))(@types/react@19.2.14)(react@19.1.1))(@types/react@19.2.14)(react@19.1.1))(@types/react@19.2.14)(react-dom@19.1.1(react@19.1.1))(react@19.1.1)
       '@wso2/oxygen-ui':
-        specifier: 0.8.3
-        version: 0.8.3(@mui/system@7.3.11(@emotion/react@11.13.5(@types/react@19.2.14)(react@19.1.1))(@emotion/styled@11.13.5(@emotion/react@11.13.5(@types/react@19.2.14)(react@19.1.1))(@types/react@19.2.14)(react@19.1.1))(@types/react@19.2.14)(react@19.1.1))(@types/react@19.2.14)(@wso2/oxygen-ui-icons-react@0.8.3(react@19.1.1))(react-dom@19.1.1(react@19.1.1))(react@19.1.1)
+        specifier: 0.10.1
+        version: 0.10.1(@mui/system@7.3.11(@emotion/react@11.13.5(@types/react@19.2.14)(react@19.1.1))(@emotion/styled@11.13.5(@emotion/react@11.13.5(@types/react@19.2.14)(react@19.1.1))(@types/react@19.2.14)(react@19.1.1))(@types/react@19.2.14)(react@19.1.1))(@types/react@19.2.14)(@wso2/oxygen-ui-icons-react@0.10.1(react@19.1.1))(react-dom@19.1.1(react@19.1.1))(react@19.1.1)
       '@wso2/oxygen-ui-icons-react':
-        specifier: 0.8.3
-        version: 0.8.3(react@19.1.1)
+        specifier: 0.10.1
+        version: 0.10.1(react@19.1.1)
       clsx:
         specifier: 2.1.1
         version: 2.1.1
@@ -703,7 +715,7 @@ importers:
         version: 8.6.13(@storybook/test@8.6.13(storybook@8.6.13(prettier@3.5.3)))(react-dom@19.1.1(react@19.1.1))(react@19.1.1)(storybook@8.6.13(prettier@3.5.3))(typescript@5.9.3)
       '@storybook/react-vite':
         specifier: 8.6.13
-        version: 8.6.13(@storybook/test@8.6.13(storybook@8.6.13(prettier@3.5.3)))(react-dom@19.1.1(react@19.1.1))(react@19.1.1)(rollup@4.60.3)(storybook@8.6.13(prettier@3.5.3))(typescript@5.9.3)(vite@6.3.5(@types/node@24.6.0)(less@4.3.0)(lightningcss@1.32.0))
+        version: 8.6.13(@storybook/test@8.6.13(storybook@8.6.13(prettier@3.5.3)))(react-dom@19.1.1(react@19.1.1))(react@19.1.1)(rollup@4.60.4)(storybook@8.6.13(prettier@3.5.3))(typescript@5.9.3)(vite@6.3.5(@types/node@24.6.0)(less@4.3.0)(lightningcss@1.32.0))
       '@storybook/test':
         specifier: 8.6.13
         version: 8.6.13(storybook@8.6.13(prettier@3.5.3))
@@ -817,13 +829,16 @@ importers:
         version: 0.0.1(@babel/generator@7.27.3)(@babel/parser@7.27.3)(@babel/traverse@7.27.3)(less@4.3.0)(postcss@8.5.3)(vite@6.3.5(@types/node@24.6.0)(less@4.3.0)(lightningcss@1.32.0))
       vite-plugin-dts:
         specifier: 4.5.4
-        version: 4.5.4(@types/node@24.6.0)(rollup@4.60.3)(typescript@5.9.3)(vite@6.3.5(@types/node@24.6.0)(less@4.3.0)(lightningcss@1.32.0))
+        version: 4.5.4(@types/node@24.6.0)(rollup@4.60.4)(typescript@5.9.3)(vite@6.3.5(@types/node@24.6.0)(less@4.3.0)(lightningcss@1.32.0))
       vitest:
         specifier: 3.1.3
         version: 3.1.3(@types/debug@4.1.13)(@types/node@24.6.0)(jsdom@26.1.0)(less@4.3.0)(lightningcss@1.32.0)
 
   ../../workspaces/pages/add-new-agent:
     dependencies:
+      '@agent-management-platform/agent-kind':
+        specifier: workspace:*
+        version: link:../agent-kind
       '@agent-management-platform/api-client':
         specifier: workspace:*
         version: link:../../libs/api-client
@@ -849,11 +864,11 @@ importers:
         specifier: 7.0.0
         version: 7.0.0(@emotion/react@11.13.5(@types/react@19.2.14)(react@19.1.1))(@emotion/styled@11.13.5(@emotion/react@11.13.5(@types/react@19.2.14)(react@19.1.1))(@types/react@19.2.14)(react@19.1.1))(@types/react@19.2.14)(react-dom@19.1.1(react@19.1.1))(react@19.1.1)
       '@wso2/oxygen-ui':
-        specifier: 0.8.3
-        version: 0.8.3(@mui/system@7.3.11(@emotion/react@11.13.5(@types/react@19.2.14)(react@19.1.1))(@emotion/styled@11.13.5(@emotion/react@11.13.5(@types/react@19.2.14)(react@19.1.1))(@types/react@19.2.14)(react@19.1.1))(@types/react@19.2.14)(react@19.1.1))(@types/react@19.2.14)(@wso2/oxygen-ui-icons-react@0.8.3(react@19.1.1))(react-dom@19.1.1(react@19.1.1))(react@19.1.1)
+        specifier: 0.10.1
+        version: 0.10.1(@mui/system@7.3.11(@emotion/react@11.13.5(@types/react@19.2.14)(react@19.1.1))(@emotion/styled@11.13.5(@emotion/react@11.13.5(@types/react@19.2.14)(react@19.1.1))(@types/react@19.2.14)(react@19.1.1))(@types/react@19.2.14)(react@19.1.1))(@types/react@19.2.14)(@wso2/oxygen-ui-icons-react@0.10.1(react@19.1.1))(react-dom@19.1.1(react@19.1.1))(react@19.1.1)
       '@wso2/oxygen-ui-icons-react':
-        specifier: 0.8.3
-        version: 0.8.3(react@19.1.1)
+        specifier: 0.10.1
+        version: 0.10.1(react@19.1.1)
       clsx:
         specifier: 2.1.1
         version: 2.1.1
@@ -899,7 +914,7 @@ importers:
         version: 8.6.13(@storybook/test@8.6.13(storybook@8.6.13(prettier@3.5.3)))(react-dom@19.1.1(react@19.1.1))(react@19.1.1)(storybook@8.6.13(prettier@3.5.3))(typescript@5.9.3)
       '@storybook/react-vite':
         specifier: 8.6.13
-        version: 8.6.13(@storybook/test@8.6.13(storybook@8.6.13(prettier@3.5.3)))(react-dom@19.1.1(react@19.1.1))(react@19.1.1)(rollup@4.60.3)(storybook@8.6.13(prettier@3.5.3))(typescript@5.9.3)(vite@6.3.5(@types/node@24.6.0)(less@4.3.0)(lightningcss@1.32.0))
+        version: 8.6.13(@storybook/test@8.6.13(storybook@8.6.13(prettier@3.5.3)))(react-dom@19.1.1(react@19.1.1))(react@19.1.1)(rollup@4.60.4)(storybook@8.6.13(prettier@3.5.3))(typescript@5.9.3)(vite@6.3.5(@types/node@24.6.0)(less@4.3.0)(lightningcss@1.32.0))
       '@storybook/test':
         specifier: 8.6.13
         version: 8.6.13(storybook@8.6.13(prettier@3.5.3))
@@ -995,7 +1010,7 @@ importers:
         version: 6.3.5(@types/node@24.6.0)(less@4.3.0)(lightningcss@1.32.0)
       vite-plugin-dts:
         specifier: 4.5.4
-        version: 4.5.4(@types/node@24.6.0)(rollup@4.60.3)(typescript@5.9.3)(vite@6.3.5(@types/node@24.6.0)(less@4.3.0)(lightningcss@1.32.0))
+        version: 4.5.4(@types/node@24.6.0)(rollup@4.60.4)(typescript@5.9.3)(vite@6.3.5(@types/node@24.6.0)(less@4.3.0)(lightningcss@1.32.0))
       vitest:
         specifier: 3.1.3
         version: 3.1.3(@types/debug@4.1.13)(@types/node@24.6.0)(jsdom@26.1.0)(less@4.3.0)(lightningcss@1.32.0)
@@ -1024,11 +1039,11 @@ importers:
         specifier: 7.0.0
         version: 7.0.0(@emotion/react@11.13.5(@types/react@19.2.14)(react@19.1.1))(@emotion/styled@11.13.5(@emotion/react@11.13.5(@types/react@19.2.14)(react@19.1.1))(@types/react@19.2.14)(react@19.1.1))(@types/react@19.2.14)(react-dom@19.1.1(react@19.1.1))(react@19.1.1)
       '@wso2/oxygen-ui':
-        specifier: 0.8.3
-        version: 0.8.3(@mui/system@7.3.11(@emotion/react@11.13.5(@types/react@19.2.14)(react@19.1.1))(@emotion/styled@11.13.5(@emotion/react@11.13.5(@types/react@19.2.14)(react@19.1.1))(@types/react@19.2.14)(react@19.1.1))(@types/react@19.2.14)(react@19.1.1))(@types/react@19.2.14)(@wso2/oxygen-ui-icons-react@0.8.3(react@19.1.1))(react-dom@19.1.1(react@19.1.1))(react@19.1.1)
+        specifier: 0.10.1
+        version: 0.10.1(@mui/system@7.3.11(@emotion/react@11.13.5(@types/react@19.2.14)(react@19.1.1))(@emotion/styled@11.13.5(@emotion/react@11.13.5(@types/react@19.2.14)(react@19.1.1))(@types/react@19.2.14)(react@19.1.1))(@types/react@19.2.14)(react@19.1.1))(@types/react@19.2.14)(@wso2/oxygen-ui-icons-react@0.10.1(react@19.1.1))(react-dom@19.1.1(react@19.1.1))(react@19.1.1)
       '@wso2/oxygen-ui-icons-react':
-        specifier: 0.8.3
-        version: 0.8.3(react@19.1.1)
+        specifier: 0.10.1
+        version: 0.10.1(react@19.1.1)
       clsx:
         specifier: 2.1.1
         version: 2.1.1
@@ -1074,7 +1089,7 @@ importers:
         version: 8.6.13(@storybook/test@8.6.13(storybook@8.6.13(prettier@3.5.3)))(react-dom@19.1.1(react@19.1.1))(react@19.1.1)(storybook@8.6.13(prettier@3.5.3))(typescript@5.9.3)
       '@storybook/react-vite':
         specifier: 8.6.13
-        version: 8.6.13(@storybook/test@8.6.13(storybook@8.6.13(prettier@3.5.3)))(react-dom@19.1.1(react@19.1.1))(react@19.1.1)(rollup@4.60.3)(storybook@8.6.13(prettier@3.5.3))(typescript@5.9.3)(vite@6.3.5(@types/node@24.6.0)(less@4.3.0)(lightningcss@1.32.0))
+        version: 8.6.13(@storybook/test@8.6.13(storybook@8.6.13(prettier@3.5.3)))(react-dom@19.1.1(react@19.1.1))(react@19.1.1)(rollup@4.60.4)(storybook@8.6.13(prettier@3.5.3))(typescript@5.9.3)(vite@6.3.5(@types/node@24.6.0)(less@4.3.0)(lightningcss@1.32.0))
       '@storybook/test':
         specifier: 8.6.13
         version: 8.6.13(storybook@8.6.13(prettier@3.5.3))
@@ -1170,7 +1185,92 @@ importers:
         version: 6.3.5(@types/node@24.6.0)(less@4.3.0)(lightningcss@1.32.0)
       vite-plugin-dts:
         specifier: 4.5.4
-        version: 4.5.4(@types/node@24.6.0)(rollup@4.60.3)(typescript@5.9.3)(vite@6.3.5(@types/node@24.6.0)(less@4.3.0)(lightningcss@1.32.0))
+        version: 4.5.4(@types/node@24.6.0)(rollup@4.60.4)(typescript@5.9.3)(vite@6.3.5(@types/node@24.6.0)(less@4.3.0)(lightningcss@1.32.0))
+      vitest:
+        specifier: 3.1.3
+        version: 3.1.3(@types/debug@4.1.13)(@types/node@24.6.0)(jsdom@26.1.0)(less@4.3.0)(lightningcss@1.32.0)
+
+  ../../workspaces/pages/agent-kind:
+    dependencies:
+      '@agent-management-platform/api-client':
+        specifier: workspace:*
+        version: link:../../libs/api-client
+      '@agent-management-platform/shared-component':
+        specifier: workspace:*
+        version: link:../../libs/shared-component
+      '@agent-management-platform/types':
+        specifier: workspace:*
+        version: link:../../libs/types
+      '@agent-management-platform/views':
+        specifier: workspace:*
+        version: link:../../libs/views
+      '@emotion/react':
+        specifier: 11.13.5
+        version: 11.13.5(@types/react@19.2.14)(react@19.1.1)
+      '@emotion/styled':
+        specifier: 11.13.5
+        version: 11.13.5(@emotion/react@11.13.5(@types/react@19.2.14)(react@19.1.1))(@types/react@19.2.14)(react@19.1.1)
+      '@monaco-editor/react':
+        specifier: 4.7.0
+        version: 4.7.0(react-dom@19.1.1(react@19.1.1))(react@19.1.1)
+      '@mui/icons-material':
+        specifier: 7.0.0
+        version: 7.0.0(@mui/material@7.0.0(@emotion/react@11.13.5(@types/react@19.2.14)(react@19.1.1))(@emotion/styled@11.13.5(@emotion/react@11.13.5(@types/react@19.2.14)(react@19.1.1))(@types/react@19.2.14)(react@19.1.1))(@types/react@19.2.14)(react-dom@19.1.1(react@19.1.1))(react@19.1.1))(@types/react@19.2.14)(react@19.1.1)
+      '@mui/material':
+        specifier: 7.0.0
+        version: 7.0.0(@emotion/react@11.13.5(@types/react@19.2.14)(react@19.1.1))(@emotion/styled@11.13.5(@emotion/react@11.13.5(@types/react@19.2.14)(react@19.1.1))(@types/react@19.2.14)(react@19.1.1))(@types/react@19.2.14)(react-dom@19.1.1(react@19.1.1))(react@19.1.1)
+      '@wso2/oxygen-ui':
+        specifier: 0.10.1
+        version: 0.10.1(@mui/system@7.3.11(@emotion/react@11.13.5(@types/react@19.2.14)(react@19.1.1))(@emotion/styled@11.13.5(@emotion/react@11.13.5(@types/react@19.2.14)(react@19.1.1))(@types/react@19.2.14)(react@19.1.1))(@types/react@19.2.14)(react@19.1.1))(@types/react@19.2.14)(@wso2/oxygen-ui-icons-react@0.10.1(react@19.1.1))(react-dom@19.1.1(react@19.1.1))(react@19.1.1)
+      '@wso2/oxygen-ui-icons-react':
+        specifier: 0.10.1
+        version: 0.10.1(react@19.1.1)
+      date-fns:
+        specifier: 4.1.0
+        version: 4.1.0
+      react-dom:
+        specifier: 19.1.1
+        version: 19.1.1(react@19.1.1)
+      react-router-dom:
+        specifier: 6.28.0
+        version: 6.28.0(react-dom@19.1.1(react@19.1.1))(react@19.1.1)
+    devDependencies:
+      '@agent-management-platform/eslint-config':
+        specifier: workspace:*
+        version: link:../../libs/eslint-config
+      '@eslint/eslintrc':
+        specifier: 3.3.1
+        version: 3.3.1
+      '@testing-library/jest-dom':
+        specifier: 6.6.3
+        version: 6.6.3
+      '@types/jest':
+        specifier: 29.5.14
+        version: 29.5.14
+      '@types/node':
+        specifier: 24.6.0
+        version: 24.6.0
+      '@types/react':
+        specifier: 19.2.14
+        version: 19.2.14
+      '@types/react-dom':
+        specifier: 19.1.9
+        version: 19.1.9(@types/react@19.2.14)
+      '@vitejs/plugin-react':
+        specifier: 5.0.4
+        version: 5.0.4(vite@6.3.5(@types/node@24.6.0)(less@4.3.0)(lightningcss@1.32.0))
+      eslint:
+        specifier: 9.36.0
+        version: 9.36.0
+      typescript:
+        specifier: 5.9.3
+        version: 5.9.3
+      vite:
+        specifier: 6.3.5
+        version: 6.3.5(@types/node@24.6.0)(less@4.3.0)(lightningcss@1.32.0)
+      vite-plugin-dts:
+        specifier: 4.5.4
+        version: 4.5.4(@types/node@24.6.0)(rollup@4.60.4)(typescript@5.9.3)(vite@6.3.5(@types/node@24.6.0)(less@4.3.0)(lightningcss@1.32.0))
       vitest:
         specifier: 3.1.3
         version: 3.1.3(@types/debug@4.1.13)(@types/node@24.6.0)(jsdom@26.1.0)(less@4.3.0)(lightningcss@1.32.0)
@@ -1315,7 +1415,7 @@ importers:
         version: 6.3.5(@types/node@24.6.0)(less@4.3.0)(lightningcss@1.32.0)
       vite-plugin-dts:
         specifier: 4.5.4
-        version: 4.5.4(@types/node@24.6.0)(rollup@4.60.3)(typescript@5.9.3)(vite@6.3.5(@types/node@24.6.0)(less@4.3.0)(lightningcss@1.32.0))
+        version: 4.5.4(@types/node@24.6.0)(rollup@4.60.4)(typescript@5.9.3)(vite@6.3.5(@types/node@24.6.0)(less@4.3.0)(lightningcss@1.32.0))
       vitest:
         specifier: 3.1.3
         version: 3.1.3(@types/debug@4.1.13)(@types/node@24.6.0)(jsdom@26.1.0)(less@4.3.0)(lightningcss@1.32.0)
@@ -1347,11 +1447,11 @@ importers:
         specifier: 7.0.0
         version: 7.0.0(@emotion/react@11.13.5(@types/react@19.2.14)(react@19.1.1))(@emotion/styled@11.13.5(@emotion/react@11.13.5(@types/react@19.2.14)(react@19.1.1))(@types/react@19.2.14)(react@19.1.1))(@types/react@19.2.14)(react-dom@19.1.1(react@19.1.1))(react@19.1.1)
       '@wso2/oxygen-ui':
-        specifier: 0.8.3
-        version: 0.8.3(@mui/system@7.3.11(@emotion/react@11.13.5(@types/react@19.2.14)(react@19.1.1))(@emotion/styled@11.13.5(@emotion/react@11.13.5(@types/react@19.2.14)(react@19.1.1))(@types/react@19.2.14)(react@19.1.1))(@types/react@19.2.14)(react@19.1.1))(@types/react@19.2.14)(@wso2/oxygen-ui-icons-react@0.8.3(react@19.1.1))(react-dom@19.1.1(react@19.1.1))(react@19.1.1)
+        specifier: 0.10.1
+        version: 0.10.1(@mui/system@7.3.11(@emotion/react@11.13.5(@types/react@19.2.14)(react@19.1.1))(@emotion/styled@11.13.5(@emotion/react@11.13.5(@types/react@19.2.14)(react@19.1.1))(@types/react@19.2.14)(react@19.1.1))(@types/react@19.2.14)(react@19.1.1))(@types/react@19.2.14)(@wso2/oxygen-ui-icons-react@0.10.1(react@19.1.1))(react-dom@19.1.1(react@19.1.1))(react@19.1.1)
       '@wso2/oxygen-ui-icons-react':
-        specifier: 0.8.3
-        version: 0.8.3(react@19.1.1)
+        specifier: 0.10.1
+        version: 0.10.1(react@19.1.1)
       clsx:
         specifier: 2.1.1
         version: 2.1.1
@@ -1394,7 +1494,7 @@ importers:
         version: 8.6.13(@storybook/test@8.6.13(storybook@8.6.13(prettier@3.5.3)))(react-dom@19.1.1(react@19.1.1))(react@19.1.1)(storybook@8.6.13(prettier@3.5.3))(typescript@5.9.3)
       '@storybook/react-vite':
         specifier: 8.6.13
-        version: 8.6.13(@storybook/test@8.6.13(storybook@8.6.13(prettier@3.5.3)))(react-dom@19.1.1(react@19.1.1))(react@19.1.1)(rollup@4.60.3)(storybook@8.6.13(prettier@3.5.3))(typescript@5.9.3)(vite@6.3.5(@types/node@24.6.0)(less@4.3.0)(lightningcss@1.32.0))
+        version: 8.6.13(@storybook/test@8.6.13(storybook@8.6.13(prettier@3.5.3)))(react-dom@19.1.1(react@19.1.1))(react@19.1.1)(rollup@4.60.4)(storybook@8.6.13(prettier@3.5.3))(typescript@5.9.3)(vite@6.3.5(@types/node@24.6.0)(less@4.3.0)(lightningcss@1.32.0))
       '@storybook/test':
         specifier: 8.6.13
         version: 8.6.13(storybook@8.6.13(prettier@3.5.3))
@@ -1487,7 +1587,7 @@ importers:
         version: 6.3.5(@types/node@24.6.0)(less@4.3.0)(lightningcss@1.32.0)
       vite-plugin-dts:
         specifier: 4.5.4
-        version: 4.5.4(@types/node@24.6.0)(rollup@4.60.3)(typescript@5.9.3)(vite@6.3.5(@types/node@24.6.0)(less@4.3.0)(lightningcss@1.32.0))
+        version: 4.5.4(@types/node@24.6.0)(rollup@4.60.4)(typescript@5.9.3)(vite@6.3.5(@types/node@24.6.0)(less@4.3.0)(lightningcss@1.32.0))
       vitest:
         specifier: 3.1.3
         version: 3.1.3(@types/debug@4.1.13)(@types/node@24.6.0)(jsdom@26.1.0)(less@4.3.0)(lightningcss@1.32.0)
@@ -1519,11 +1619,11 @@ importers:
         specifier: 11.13.5
         version: 11.13.5(@emotion/react@11.13.5(@types/react@19.2.14)(react@19.1.1))(@types/react@19.2.14)(react@19.1.1)
       '@wso2/oxygen-ui':
-        specifier: 0.8.3
-        version: 0.8.3(@mui/system@7.3.11(@emotion/react@11.13.5(@types/react@19.2.14)(react@19.1.1))(@emotion/styled@11.13.5(@emotion/react@11.13.5(@types/react@19.2.14)(react@19.1.1))(@types/react@19.2.14)(react@19.1.1))(@types/react@19.2.14)(react@19.1.1))(@types/react@19.2.14)(@wso2/oxygen-ui-icons-react@0.8.3(react@19.1.1))(react-dom@19.1.1(react@19.1.1))(react@19.1.1)
+        specifier: 0.10.1
+        version: 0.10.1(@mui/system@7.3.11(@emotion/react@11.13.5(@types/react@19.2.14)(react@19.1.1))(@emotion/styled@11.13.5(@emotion/react@11.13.5(@types/react@19.2.14)(react@19.1.1))(@types/react@19.2.14)(react@19.1.1))(@types/react@19.2.14)(react@19.1.1))(@types/react@19.2.14)(@wso2/oxygen-ui-icons-react@0.10.1(react@19.1.1))(react-dom@19.1.1(react@19.1.1))(react@19.1.1)
       '@wso2/oxygen-ui-icons-react':
-        specifier: 0.8.3
-        version: 0.8.3(react@19.1.1)
+        specifier: 0.10.1
+        version: 0.10.1(react@19.1.1)
       clsx:
         specifier: 2.1.1
         version: 2.1.1
@@ -1632,7 +1732,7 @@ importers:
         version: 6.3.5(@types/node@24.6.0)(less@4.3.0)(lightningcss@1.32.0)
       vite-plugin-dts:
         specifier: 4.5.4
-        version: 4.5.4(@types/node@24.6.0)(rollup@4.60.3)(typescript@5.9.3)(vite@6.3.5(@types/node@24.6.0)(less@4.3.0)(lightningcss@1.32.0))
+        version: 4.5.4(@types/node@24.6.0)(rollup@4.60.4)(typescript@5.9.3)(vite@6.3.5(@types/node@24.6.0)(less@4.3.0)(lightningcss@1.32.0))
       vitest:
         specifier: 3.1.3
         version: 3.1.3(@types/debug@4.1.13)(@types/node@24.6.0)(jsdom@26.1.0)(less@4.3.0)(lightningcss@1.32.0)
@@ -1667,11 +1767,11 @@ importers:
         specifier: 7.0.0
         version: 7.0.0(@emotion/react@11.13.5(@types/react@19.2.14)(react@19.1.1))(@emotion/styled@11.13.5(@emotion/react@11.13.5(@types/react@19.2.14)(react@19.1.1))(@types/react@19.2.14)(react@19.1.1))(@types/react@19.2.14)(react-dom@19.1.1(react@19.1.1))(react@19.1.1)
       '@wso2/oxygen-ui':
-        specifier: 0.8.3
-        version: 0.8.3(@mui/system@7.3.11(@emotion/react@11.13.5(@types/react@19.2.14)(react@19.1.1))(@emotion/styled@11.13.5(@emotion/react@11.13.5(@types/react@19.2.14)(react@19.1.1))(@types/react@19.2.14)(react@19.1.1))(@types/react@19.2.14)(react@19.1.1))(@types/react@19.2.14)(@wso2/oxygen-ui-icons-react@0.8.3(react@19.1.1))(react-dom@19.1.1(react@19.1.1))(react@19.1.1)
+        specifier: 0.10.1
+        version: 0.10.1(@mui/system@7.3.11(@emotion/react@11.13.5(@types/react@19.2.14)(react@19.1.1))(@emotion/styled@11.13.5(@emotion/react@11.13.5(@types/react@19.2.14)(react@19.1.1))(@types/react@19.2.14)(react@19.1.1))(@types/react@19.2.14)(react@19.1.1))(@types/react@19.2.14)(@wso2/oxygen-ui-icons-react@0.10.1(react@19.1.1))(react-dom@19.1.1(react@19.1.1))(react@19.1.1)
       '@wso2/oxygen-ui-icons-react':
-        specifier: 0.8.3
-        version: 0.8.3(react@19.1.1)
+        specifier: 0.10.1
+        version: 0.10.1(react@19.1.1)
       clsx:
         specifier: 2.1.1
         version: 2.1.1
@@ -1714,7 +1814,7 @@ importers:
         version: 8.6.13(@storybook/test@8.6.13(storybook@8.6.13(prettier@3.5.3)))(react-dom@19.1.1(react@19.1.1))(react@19.1.1)(storybook@8.6.13(prettier@3.5.3))(typescript@5.9.3)
       '@storybook/react-vite':
         specifier: 8.6.13
-        version: 8.6.13(@storybook/test@8.6.13(storybook@8.6.13(prettier@3.5.3)))(react-dom@19.1.1(react@19.1.1))(react@19.1.1)(rollup@4.60.3)(storybook@8.6.13(prettier@3.5.3))(typescript@5.9.3)(vite@6.3.5(@types/node@24.6.0)(less@4.3.0)(lightningcss@1.32.0))
+        version: 8.6.13(@storybook/test@8.6.13(storybook@8.6.13(prettier@3.5.3)))(react-dom@19.1.1(react@19.1.1))(react@19.1.1)(rollup@4.60.4)(storybook@8.6.13(prettier@3.5.3))(typescript@5.9.3)(vite@6.3.5(@types/node@24.6.0)(less@4.3.0)(lightningcss@1.32.0))
       '@storybook/test':
         specifier: 8.6.13
         version: 8.6.13(storybook@8.6.13(prettier@3.5.3))
@@ -1807,7 +1907,7 @@ importers:
         version: 6.3.5(@types/node@24.6.0)(less@4.3.0)(lightningcss@1.32.0)
       vite-plugin-dts:
         specifier: 4.5.4
-        version: 4.5.4(@types/node@24.6.0)(rollup@4.60.3)(typescript@5.9.3)(vite@6.3.5(@types/node@24.6.0)(less@4.3.0)(lightningcss@1.32.0))
+        version: 4.5.4(@types/node@24.6.0)(rollup@4.60.4)(typescript@5.9.3)(vite@6.3.5(@types/node@24.6.0)(less@4.3.0)(lightningcss@1.32.0))
       vitest:
         specifier: 3.1.3
         version: 3.1.3(@types/debug@4.1.13)(@types/node@24.6.0)(jsdom@26.1.0)(less@4.3.0)(lightningcss@1.32.0)
@@ -1845,14 +1945,14 @@ importers:
         specifier: 5.90.5
         version: 5.90.5(react@19.1.1)
       '@wso2/oxygen-ui':
-        specifier: 0.8.3
-        version: 0.8.3(@mui/system@7.3.11(@emotion/react@11.13.5(@types/react@19.2.14)(react@19.1.1))(@emotion/styled@11.13.5(@emotion/react@11.13.5(@types/react@19.2.14)(react@19.1.1))(@types/react@19.2.14)(react@19.1.1))(@types/react@19.2.14)(react@19.1.1))(@types/react@19.2.14)(@wso2/oxygen-ui-icons-react@0.8.3(react@19.1.1))(react-dom@19.1.1(react@19.1.1))(react@19.1.1)
+        specifier: 0.10.1
+        version: 0.10.1(@mui/system@7.3.11(@emotion/react@11.13.5(@types/react@19.2.14)(react@19.1.1))(@emotion/styled@11.13.5(@emotion/react@11.13.5(@types/react@19.2.14)(react@19.1.1))(@types/react@19.2.14)(react@19.1.1))(@types/react@19.2.14)(react@19.1.1))(@types/react@19.2.14)(@wso2/oxygen-ui-icons-react@0.10.1(react@19.1.1))(react-dom@19.1.1(react@19.1.1))(react@19.1.1)
       '@wso2/oxygen-ui-charts-react':
-        specifier: 0.8.3
-        version: 0.8.3(@types/react@19.2.14)(@wso2/oxygen-ui@0.8.3(@mui/system@7.3.11(@emotion/react@11.13.5(@types/react@19.2.14)(react@19.1.1))(@emotion/styled@11.13.5(@emotion/react@11.13.5(@types/react@19.2.14)(react@19.1.1))(@types/react@19.2.14)(react@19.1.1))(@types/react@19.2.14)(react@19.1.1))(@types/react@19.2.14)(@wso2/oxygen-ui-icons-react@0.8.3(react@19.1.1))(react-dom@19.1.1(react@19.1.1))(react@19.1.1))(react-dom@19.1.1(react@19.1.1))(react-is@19.2.6)(react@19.1.1)(redux@5.0.1)
+        specifier: 0.10.1
+        version: 0.10.1(@types/react@19.2.14)(@wso2/oxygen-ui@0.10.1(@mui/system@7.3.11(@emotion/react@11.13.5(@types/react@19.2.14)(react@19.1.1))(@emotion/styled@11.13.5(@emotion/react@11.13.5(@types/react@19.2.14)(react@19.1.1))(@types/react@19.2.14)(react@19.1.1))(@types/react@19.2.14)(react@19.1.1))(@types/react@19.2.14)(@wso2/oxygen-ui-icons-react@0.10.1(react@19.1.1))(react-dom@19.1.1(react@19.1.1))(react@19.1.1))(react-dom@19.1.1(react@19.1.1))(react-is@19.2.6)(react@19.1.1)(redux@5.0.1)
       '@wso2/oxygen-ui-icons-react':
-        specifier: 0.8.3
-        version: 0.8.3(react@19.1.1)
+        specifier: 0.10.1
+        version: 0.10.1(react@19.1.1)
       clsx:
         specifier: 2.1.1
         version: 2.1.1
@@ -1898,7 +1998,7 @@ importers:
         version: 8.6.13(@storybook/test@8.6.13(storybook@8.6.13(prettier@3.5.3)))(react-dom@19.1.1(react@19.1.1))(react@19.1.1)(storybook@8.6.13(prettier@3.5.3))(typescript@5.9.3)
       '@storybook/react-vite':
         specifier: 8.6.13
-        version: 8.6.13(@storybook/test@8.6.13(storybook@8.6.13(prettier@3.5.3)))(react-dom@19.1.1(react@19.1.1))(react@19.1.1)(rollup@4.60.3)(storybook@8.6.13(prettier@3.5.3))(typescript@5.9.3)(vite@6.3.5(@types/node@24.6.0)(less@4.3.0)(lightningcss@1.32.0))
+        version: 8.6.13(@storybook/test@8.6.13(storybook@8.6.13(prettier@3.5.3)))(react-dom@19.1.1(react@19.1.1))(react@19.1.1)(rollup@4.60.4)(storybook@8.6.13(prettier@3.5.3))(typescript@5.9.3)(vite@6.3.5(@types/node@24.6.0)(less@4.3.0)(lightningcss@1.32.0))
       '@storybook/test':
         specifier: 8.6.13
         version: 8.6.13(storybook@8.6.13(prettier@3.5.3))
@@ -1994,7 +2094,7 @@ importers:
         version: 6.3.5(@types/node@24.6.0)(less@4.3.0)(lightningcss@1.32.0)
       vite-plugin-dts:
         specifier: 4.5.4
-        version: 4.5.4(@types/node@24.6.0)(rollup@4.60.3)(typescript@5.9.3)(vite@6.3.5(@types/node@24.6.0)(less@4.3.0)(lightningcss@1.32.0))
+        version: 4.5.4(@types/node@24.6.0)(rollup@4.60.4)(typescript@5.9.3)(vite@6.3.5(@types/node@24.6.0)(less@4.3.0)(lightningcss@1.32.0))
       vitest:
         specifier: 3.1.3
         version: 3.1.3(@types/debug@4.1.13)(@types/node@24.6.0)(jsdom@26.1.0)(less@4.3.0)(lightningcss@1.32.0)
@@ -2026,11 +2126,11 @@ importers:
         specifier: 7.0.0
         version: 7.0.0(@emotion/react@11.13.5(@types/react@19.2.14)(react@19.1.1))(@emotion/styled@11.13.5(@emotion/react@11.13.5(@types/react@19.2.14)(react@19.1.1))(@types/react@19.2.14)(react@19.1.1))(@types/react@19.2.14)(react-dom@19.1.1(react@19.1.1))(react@19.1.1)
       '@wso2/oxygen-ui':
-        specifier: 0.8.3
-        version: 0.8.3(@mui/system@7.3.11(@emotion/react@11.13.5(@types/react@19.2.14)(react@19.1.1))(@emotion/styled@11.13.5(@emotion/react@11.13.5(@types/react@19.2.14)(react@19.1.1))(@types/react@19.2.14)(react@19.1.1))(@types/react@19.2.14)(react@19.1.1))(@types/react@19.2.14)(@wso2/oxygen-ui-icons-react@0.8.3(react@19.1.1))(react-dom@19.1.1(react@19.1.1))(react@19.1.1)
+        specifier: 0.10.1
+        version: 0.10.1(@mui/system@7.3.11(@emotion/react@11.13.5(@types/react@19.2.14)(react@19.1.1))(@emotion/styled@11.13.5(@emotion/react@11.13.5(@types/react@19.2.14)(react@19.1.1))(@types/react@19.2.14)(react@19.1.1))(@types/react@19.2.14)(react@19.1.1))(@types/react@19.2.14)(@wso2/oxygen-ui-icons-react@0.10.1(react@19.1.1))(react-dom@19.1.1(react@19.1.1))(react@19.1.1)
       '@wso2/oxygen-ui-icons-react':
-        specifier: 0.8.3
-        version: 0.8.3(react@19.1.1)
+        specifier: 0.10.1
+        version: 0.10.1(react@19.1.1)
       clsx:
         specifier: 2.1.1
         version: 2.1.1
@@ -2174,11 +2274,11 @@ importers:
         specifier: 7.0.0
         version: 7.0.0(@emotion/react@11.13.5(@types/react@19.2.14)(react@19.1.1))(@emotion/styled@11.13.5(@emotion/react@11.13.5(@types/react@19.2.14)(react@19.1.1))(@types/react@19.2.14)(react@19.1.1))(@types/react@19.2.14)(react-dom@19.1.1(react@19.1.1))(react@19.1.1)
       '@wso2/oxygen-ui':
-        specifier: 0.8.3
-        version: 0.8.3(@mui/system@7.3.11(@emotion/react@11.13.5(@types/react@19.2.14)(react@19.1.1))(@emotion/styled@11.13.5(@emotion/react@11.13.5(@types/react@19.2.14)(react@19.1.1))(@types/react@19.2.14)(react@19.1.1))(@types/react@19.2.14)(react@19.1.1))(@types/react@19.2.14)(@wso2/oxygen-ui-icons-react@0.8.3(react@19.1.1))(react-dom@19.1.1(react@19.1.1))(react@19.1.1)
+        specifier: 0.10.1
+        version: 0.10.1(@mui/system@7.3.11(@emotion/react@11.13.5(@types/react@19.2.14)(react@19.1.1))(@emotion/styled@11.13.5(@emotion/react@11.13.5(@types/react@19.2.14)(react@19.1.1))(@types/react@19.2.14)(react@19.1.1))(@types/react@19.2.14)(react@19.1.1))(@types/react@19.2.14)(@wso2/oxygen-ui-icons-react@0.10.1(react@19.1.1))(react-dom@19.1.1(react@19.1.1))(react@19.1.1)
       '@wso2/oxygen-ui-icons-react':
-        specifier: 0.8.3
-        version: 0.8.3(react@19.1.1)
+        specifier: 0.10.1
+        version: 0.10.1(react@19.1.1)
       clsx:
         specifier: 2.1.1
         version: 2.1.1
@@ -2194,9 +2294,6 @@ importers:
       react-router-dom:
         specifier: 6.28.0
         version: 6.28.0(react-dom@19.1.1(react@19.1.1))(react@19.1.1)
-      swagger-ui-react:
-        specifier: 5.19.0
-        version: 5.19.0(@types/react@19.2.14)(react-dom@19.1.1(react@19.1.1))(react@19.1.1)
       zod:
         specifier: 4.3.6
         version: 4.3.6
@@ -2227,7 +2324,7 @@ importers:
         version: 8.6.13(@storybook/test@8.6.13(storybook@8.6.13(prettier@3.5.3)))(react-dom@19.1.1(react@19.1.1))(react@19.1.1)(storybook@8.6.13(prettier@3.5.3))(typescript@5.9.3)
       '@storybook/react-vite':
         specifier: 8.6.13
-        version: 8.6.13(@storybook/test@8.6.13(storybook@8.6.13(prettier@3.5.3)))(react-dom@19.1.1(react@19.1.1))(react@19.1.1)(rollup@4.60.3)(storybook@8.6.13(prettier@3.5.3))(typescript@5.9.3)(vite@6.3.5(@types/node@24.6.0)(less@4.3.0)(lightningcss@1.32.0))
+        version: 8.6.13(@storybook/test@8.6.13(storybook@8.6.13(prettier@3.5.3)))(react-dom@19.1.1(react@19.1.1))(react@19.1.1)(rollup@4.60.4)(storybook@8.6.13(prettier@3.5.3))(typescript@5.9.3)(vite@6.3.5(@types/node@24.6.0)(less@4.3.0)(lightningcss@1.32.0))
       '@storybook/test':
         specifier: 8.6.13
         version: 8.6.13(storybook@8.6.13(prettier@3.5.3))
@@ -2252,9 +2349,6 @@ importers:
       '@types/react-dom':
         specifier: 19.1.9
         version: 19.1.9(@types/react@19.2.14)
-      '@types/swagger-ui-react':
-        specifier: 5.18.0
-        version: 5.18.0
       '@typescript-eslint/eslint-plugin':
         specifier: 8.33.1
         version: 8.33.1(@typescript-eslint/parser@8.33.1(eslint@9.36.0)(typescript@5.9.3))(eslint@9.36.0)(typescript@5.9.3)
@@ -2326,7 +2420,7 @@ importers:
         version: 6.3.5(@types/node@24.6.0)(less@4.3.0)(lightningcss@1.32.0)
       vite-plugin-dts:
         specifier: 4.5.4
-        version: 4.5.4(@types/node@24.6.0)(rollup@4.60.3)(typescript@5.9.3)(vite@6.3.5(@types/node@24.6.0)(less@4.3.0)(lightningcss@1.32.0))
+        version: 4.5.4(@types/node@24.6.0)(rollup@4.60.4)(typescript@5.9.3)(vite@6.3.5(@types/node@24.6.0)(less@4.3.0)(lightningcss@1.32.0))
       vitest:
         specifier: 3.1.3
         version: 3.1.3(@types/debug@4.1.13)(@types/node@24.6.0)(jsdom@26.1.0)(less@4.3.0)(lightningcss@1.32.0)
@@ -2355,11 +2449,11 @@ importers:
         specifier: 7.0.0
         version: 7.0.0(@emotion/react@11.13.5(@types/react@19.2.14)(react@19.1.1))(@emotion/styled@11.13.5(@emotion/react@11.13.5(@types/react@19.2.14)(react@19.1.1))(@types/react@19.2.14)(react@19.1.1))(@types/react@19.2.14)(react-dom@19.1.1(react@19.1.1))(react@19.1.1)
       '@wso2/oxygen-ui':
-        specifier: 0.8.3
-        version: 0.8.3(@mui/system@7.3.11(@emotion/react@11.13.5(@types/react@19.2.14)(react@19.1.1))(@emotion/styled@11.13.5(@emotion/react@11.13.5(@types/react@19.2.14)(react@19.1.1))(@types/react@19.2.14)(react@19.1.1))(@types/react@19.2.14)(react@19.1.1))(@types/react@19.2.14)(@wso2/oxygen-ui-icons-react@0.8.3(react@19.1.1))(react-dom@19.1.1(react@19.1.1))(react@19.1.1)
+        specifier: 0.10.1
+        version: 0.10.1(@mui/system@7.3.11(@emotion/react@11.13.5(@types/react@19.2.14)(react@19.1.1))(@emotion/styled@11.13.5(@emotion/react@11.13.5(@types/react@19.2.14)(react@19.1.1))(@types/react@19.2.14)(react@19.1.1))(@types/react@19.2.14)(react@19.1.1))(@types/react@19.2.14)(@wso2/oxygen-ui-icons-react@0.10.1(react@19.1.1))(react-dom@19.1.1(react@19.1.1))(react@19.1.1)
       '@wso2/oxygen-ui-icons-react':
-        specifier: 0.8.3
-        version: 0.8.3(react@19.1.1)
+        specifier: 0.10.1
+        version: 0.10.1(react@19.1.1)
       clsx:
         specifier: 2.1.1
         version: 2.1.1
@@ -2405,7 +2499,7 @@ importers:
         version: 8.6.13(@storybook/test@8.6.13(storybook@8.6.13(prettier@3.5.3)))(react-dom@19.1.1(react@19.1.1))(react@19.1.1)(storybook@8.6.13(prettier@3.5.3))(typescript@5.9.3)
       '@storybook/react-vite':
         specifier: 8.6.13
-        version: 8.6.13(@storybook/test@8.6.13(storybook@8.6.13(prettier@3.5.3)))(react-dom@19.1.1(react@19.1.1))(react@19.1.1)(rollup@4.60.3)(storybook@8.6.13(prettier@3.5.3))(typescript@5.9.3)(vite@6.3.5(@types/node@24.6.0)(less@4.3.0)(lightningcss@1.32.0))
+        version: 8.6.13(@storybook/test@8.6.13(storybook@8.6.13(prettier@3.5.3)))(react-dom@19.1.1(react@19.1.1))(react@19.1.1)(rollup@4.60.4)(storybook@8.6.13(prettier@3.5.3))(typescript@5.9.3)(vite@6.3.5(@types/node@24.6.0)(less@4.3.0)(lightningcss@1.32.0))
       '@storybook/test':
         specifier: 8.6.13
         version: 8.6.13(storybook@8.6.13(prettier@3.5.3))
@@ -2501,7 +2595,7 @@ importers:
         version: 6.3.5(@types/node@24.6.0)(less@4.3.0)(lightningcss@1.32.0)
       vite-plugin-dts:
         specifier: 4.5.4
-        version: 4.5.4(@types/node@24.6.0)(rollup@4.60.3)(typescript@5.9.3)(vite@6.3.5(@types/node@24.6.0)(less@4.3.0)(lightningcss@1.32.0))
+        version: 4.5.4(@types/node@24.6.0)(rollup@4.60.4)(typescript@5.9.3)(vite@6.3.5(@types/node@24.6.0)(less@4.3.0)(lightningcss@1.32.0))
       vitest:
         specifier: 3.1.3
         version: 3.1.3(@types/debug@4.1.13)(@types/node@24.6.0)(jsdom@26.1.0)(less@4.3.0)(lightningcss@1.32.0)
@@ -2530,14 +2624,14 @@ importers:
         specifier: 7.0.0
         version: 7.0.0(@emotion/react@11.13.5(@types/react@19.2.14)(react@19.1.1))(@emotion/styled@11.13.5(@emotion/react@11.13.5(@types/react@19.2.14)(react@19.1.1))(@types/react@19.2.14)(react@19.1.1))(@types/react@19.2.14)(react-dom@19.1.1(react@19.1.1))(react@19.1.1)
       '@wso2/oxygen-ui':
-        specifier: 0.8.3
-        version: 0.8.3(@mui/system@7.3.11(@emotion/react@11.13.5(@types/react@19.2.14)(react@19.1.1))(@emotion/styled@11.13.5(@emotion/react@11.13.5(@types/react@19.2.14)(react@19.1.1))(@types/react@19.2.14)(react@19.1.1))(@types/react@19.2.14)(react@19.1.1))(@types/react@19.2.14)(@wso2/oxygen-ui-icons-react@0.8.3(react@19.1.1))(react-dom@19.1.1(react@19.1.1))(react@19.1.1)
+        specifier: 0.10.1
+        version: 0.10.1(@mui/system@7.3.11(@emotion/react@11.13.5(@types/react@19.2.14)(react@19.1.1))(@emotion/styled@11.13.5(@emotion/react@11.13.5(@types/react@19.2.14)(react@19.1.1))(@types/react@19.2.14)(react@19.1.1))(@types/react@19.2.14)(react@19.1.1))(@types/react@19.2.14)(@wso2/oxygen-ui-icons-react@0.10.1(react@19.1.1))(react-dom@19.1.1(react@19.1.1))(react@19.1.1)
       '@wso2/oxygen-ui-charts-react':
-        specifier: 0.8.3
-        version: 0.8.3(@types/react@19.2.14)(@wso2/oxygen-ui@0.8.3(@mui/system@7.3.11(@emotion/react@11.13.5(@types/react@19.2.14)(react@19.1.1))(@emotion/styled@11.13.5(@emotion/react@11.13.5(@types/react@19.2.14)(react@19.1.1))(@types/react@19.2.14)(react@19.1.1))(@types/react@19.2.14)(react@19.1.1))(@types/react@19.2.14)(@wso2/oxygen-ui-icons-react@0.8.3(react@19.1.1))(react-dom@19.1.1(react@19.1.1))(react@19.1.1))(react-dom@19.1.1(react@19.1.1))(react-is@19.2.6)(react@19.1.1)(redux@5.0.1)
+        specifier: 0.10.1
+        version: 0.10.1(@types/react@19.2.14)(@wso2/oxygen-ui@0.10.1(@mui/system@7.3.11(@emotion/react@11.13.5(@types/react@19.2.14)(react@19.1.1))(@emotion/styled@11.13.5(@emotion/react@11.13.5(@types/react@19.2.14)(react@19.1.1))(@types/react@19.2.14)(react@19.1.1))(@types/react@19.2.14)(react@19.1.1))(@types/react@19.2.14)(@wso2/oxygen-ui-icons-react@0.10.1(react@19.1.1))(react-dom@19.1.1(react@19.1.1))(react@19.1.1))(react-dom@19.1.1(react@19.1.1))(react-is@19.2.6)(react@19.1.1)(redux@5.0.1)
       '@wso2/oxygen-ui-icons-react':
-        specifier: 0.8.3
-        version: 0.8.3(react@19.1.1)
+        specifier: 0.10.1
+        version: 0.10.1(react@19.1.1)
       clsx:
         specifier: 2.1.1
         version: 2.1.1
@@ -2583,7 +2677,7 @@ importers:
         version: 8.6.13(@storybook/test@8.6.13(storybook@8.6.13(prettier@3.5.3)))(react-dom@19.1.1(react@19.1.1))(react@19.1.1)(storybook@8.6.13(prettier@3.5.3))(typescript@5.9.3)
       '@storybook/react-vite':
         specifier: 8.6.13
-        version: 8.6.13(@storybook/test@8.6.13(storybook@8.6.13(prettier@3.5.3)))(react-dom@19.1.1(react@19.1.1))(react@19.1.1)(rollup@4.60.3)(storybook@8.6.13(prettier@3.5.3))(typescript@5.9.3)(vite@6.3.5(@types/node@24.6.0)(less@4.3.0)(lightningcss@1.32.0))
+        version: 8.6.13(@storybook/test@8.6.13(storybook@8.6.13(prettier@3.5.3)))(react-dom@19.1.1(react@19.1.1))(react@19.1.1)(rollup@4.60.4)(storybook@8.6.13(prettier@3.5.3))(typescript@5.9.3)(vite@6.3.5(@types/node@24.6.0)(less@4.3.0)(lightningcss@1.32.0))
       '@storybook/test':
         specifier: 8.6.13
         version: 8.6.13(storybook@8.6.13(prettier@3.5.3))
@@ -2679,7 +2773,7 @@ importers:
         version: 6.3.5(@types/node@24.6.0)(less@4.3.0)(lightningcss@1.32.0)
       vite-plugin-dts:
         specifier: 4.5.4
-        version: 4.5.4(@types/node@24.6.0)(rollup@4.60.3)(typescript@5.9.3)(vite@6.3.5(@types/node@24.6.0)(less@4.3.0)(lightningcss@1.32.0))
+        version: 4.5.4(@types/node@24.6.0)(rollup@4.60.4)(typescript@5.9.3)(vite@6.3.5(@types/node@24.6.0)(less@4.3.0)(lightningcss@1.32.0))
       vitest:
         specifier: 3.1.3
         version: 3.1.3(@types/debug@4.1.13)(@types/node@24.6.0)(jsdom@26.1.0)(less@4.3.0)(lightningcss@1.32.0)
@@ -2714,11 +2808,11 @@ importers:
         specifier: 7.0.0
         version: 7.0.0(@emotion/react@11.13.5(@types/react@19.2.14)(react@19.1.1))(@emotion/styled@11.13.5(@emotion/react@11.13.5(@types/react@19.2.14)(react@19.1.1))(@types/react@19.2.14)(react@19.1.1))(@types/react@19.2.14)(react-dom@19.1.1(react@19.1.1))(react@19.1.1)
       '@wso2/oxygen-ui':
-        specifier: 0.8.3
-        version: 0.8.3(@mui/system@7.3.11(@emotion/react@11.13.5(@types/react@19.2.14)(react@19.1.1))(@emotion/styled@11.13.5(@emotion/react@11.13.5(@types/react@19.2.14)(react@19.1.1))(@types/react@19.2.14)(react@19.1.1))(@types/react@19.2.14)(react@19.1.1))(@types/react@19.2.14)(@wso2/oxygen-ui-icons-react@0.8.3(react@19.1.1))(react-dom@19.1.1(react@19.1.1))(react@19.1.1)
+        specifier: 0.10.1
+        version: 0.10.1(@mui/system@7.3.11(@emotion/react@11.13.5(@types/react@19.2.14)(react@19.1.1))(@emotion/styled@11.13.5(@emotion/react@11.13.5(@types/react@19.2.14)(react@19.1.1))(@types/react@19.2.14)(react@19.1.1))(@types/react@19.2.14)(react@19.1.1))(@types/react@19.2.14)(@wso2/oxygen-ui-icons-react@0.10.1(react@19.1.1))(react-dom@19.1.1(react@19.1.1))(react@19.1.1)
       '@wso2/oxygen-ui-icons-react':
-        specifier: 0.8.3
-        version: 0.8.3(react@19.1.1)
+        specifier: 0.10.1
+        version: 0.10.1(react@19.1.1)
       clsx:
         specifier: 2.1.1
         version: 2.1.1
@@ -2761,7 +2855,7 @@ importers:
         version: 8.6.13(@storybook/test@8.6.13(storybook@8.6.13(prettier@3.5.3)))(react-dom@19.1.1(react@19.1.1))(react@19.1.1)(storybook@8.6.13(prettier@3.5.3))(typescript@5.9.3)
       '@storybook/react-vite':
         specifier: 8.6.13
-        version: 8.6.13(@storybook/test@8.6.13(storybook@8.6.13(prettier@3.5.3)))(react-dom@19.1.1(react@19.1.1))(react@19.1.1)(rollup@4.60.3)(storybook@8.6.13(prettier@3.5.3))(typescript@5.9.3)(vite@6.3.5(@types/node@24.6.0)(less@4.3.0)(lightningcss@1.32.0))
+        version: 8.6.13(@storybook/test@8.6.13(storybook@8.6.13(prettier@3.5.3)))(react-dom@19.1.1(react@19.1.1))(react@19.1.1)(rollup@4.60.4)(storybook@8.6.13(prettier@3.5.3))(typescript@5.9.3)(vite@6.3.5(@types/node@24.6.0)(less@4.3.0)(lightningcss@1.32.0))
       '@storybook/test':
         specifier: 8.6.13
         version: 8.6.13(storybook@8.6.13(prettier@3.5.3))
@@ -2854,7 +2948,7 @@ importers:
         version: 6.3.5(@types/node@24.6.0)(less@4.3.0)(lightningcss@1.32.0)
       vite-plugin-dts:
         specifier: 4.5.4
-        version: 4.5.4(@types/node@24.6.0)(rollup@4.60.3)(typescript@5.9.3)(vite@6.3.5(@types/node@24.6.0)(less@4.3.0)(lightningcss@1.32.0))
+        version: 4.5.4(@types/node@24.6.0)(rollup@4.60.4)(typescript@5.9.3)(vite@6.3.5(@types/node@24.6.0)(less@4.3.0)(lightningcss@1.32.0))
       vitest:
         specifier: 3.1.3
         version: 3.1.3(@types/debug@4.1.13)(@types/node@24.6.0)(jsdom@26.1.0)(less@4.3.0)(lightningcss@1.32.0)
@@ -2886,11 +2980,11 @@ importers:
         specifier: 7.0.0
         version: 7.0.0(@emotion/react@11.13.5(@types/react@19.2.14)(react@19.1.1))(@emotion/styled@11.13.5(@emotion/react@11.13.5(@types/react@19.2.14)(react@19.1.1))(@types/react@19.2.14)(react@19.1.1))(@types/react@19.2.14)(react-dom@19.1.1(react@19.1.1))(react@19.1.1)
       '@wso2/oxygen-ui':
-        specifier: 0.8.3
-        version: 0.8.3(@mui/system@7.3.11(@emotion/react@11.13.5(@types/react@19.2.14)(react@19.1.1))(@emotion/styled@11.13.5(@emotion/react@11.13.5(@types/react@19.2.14)(react@19.1.1))(@types/react@19.2.14)(react@19.1.1))(@types/react@19.2.14)(react@19.1.1))(@types/react@19.2.14)(@wso2/oxygen-ui-icons-react@0.8.3(react@19.1.1))(react-dom@19.1.1(react@19.1.1))(react@19.1.1)
+        specifier: 0.10.1
+        version: 0.10.1(@mui/system@7.3.11(@emotion/react@11.13.5(@types/react@19.2.14)(react@19.1.1))(@emotion/styled@11.13.5(@emotion/react@11.13.5(@types/react@19.2.14)(react@19.1.1))(@types/react@19.2.14)(react@19.1.1))(@types/react@19.2.14)(react@19.1.1))(@types/react@19.2.14)(@wso2/oxygen-ui-icons-react@0.10.1(react@19.1.1))(react-dom@19.1.1(react@19.1.1))(react@19.1.1)
       '@wso2/oxygen-ui-icons-react':
-        specifier: 0.8.3
-        version: 0.8.3(react@19.1.1)
+        specifier: 0.10.1
+        version: 0.10.1(react@19.1.1)
       clsx:
         specifier: 2.1.1
         version: 2.1.1
@@ -2936,7 +3030,7 @@ importers:
         version: 8.6.13(@storybook/test@8.6.13(storybook@8.6.13(prettier@3.5.3)))(react-dom@19.1.1(react@19.1.1))(react@19.1.1)(storybook@8.6.13(prettier@3.5.3))(typescript@5.9.3)
       '@storybook/react-vite':
         specifier: 8.6.13
-        version: 8.6.13(@storybook/test@8.6.13(storybook@8.6.13(prettier@3.5.3)))(react-dom@19.1.1(react@19.1.1))(react@19.1.1)(rollup@4.60.3)(storybook@8.6.13(prettier@3.5.3))(typescript@5.9.3)(vite@6.3.5(@types/node@24.6.0)(less@4.3.0)(lightningcss@1.32.0))
+        version: 8.6.13(@storybook/test@8.6.13(storybook@8.6.13(prettier@3.5.3)))(react-dom@19.1.1(react@19.1.1))(react@19.1.1)(rollup@4.60.4)(storybook@8.6.13(prettier@3.5.3))(typescript@5.9.3)(vite@6.3.5(@types/node@24.6.0)(less@4.3.0)(lightningcss@1.32.0))
       '@storybook/test':
         specifier: 8.6.13
         version: 8.6.13(storybook@8.6.13(prettier@3.5.3))
@@ -3032,7 +3126,7 @@ importers:
         version: 6.3.5(@types/node@24.6.0)(less@4.3.0)(lightningcss@1.32.0)
       vite-plugin-dts:
         specifier: 4.5.4
-        version: 4.5.4(@types/node@24.6.0)(rollup@4.60.3)(typescript@5.9.3)(vite@6.3.5(@types/node@24.6.0)(less@4.3.0)(lightningcss@1.32.0))
+        version: 4.5.4(@types/node@24.6.0)(rollup@4.60.4)(typescript@5.9.3)(vite@6.3.5(@types/node@24.6.0)(less@4.3.0)(lightningcss@1.32.0))
       vitest:
         specifier: 3.1.3
         version: 3.1.3(@types/debug@4.1.13)(@types/node@24.6.0)(jsdom@26.1.0)(less@4.3.0)(lightningcss@1.32.0)
@@ -3067,11 +3161,11 @@ importers:
         specifier: 7.0.0
         version: 7.0.0(@emotion/react@11.13.5(@types/react@19.2.14)(react@19.1.1))(@emotion/styled@11.13.5(@emotion/react@11.13.5(@types/react@19.2.14)(react@19.1.1))(@types/react@19.2.14)(react@19.1.1))(@types/react@19.2.14)(react-dom@19.1.1(react@19.1.1))(react@19.1.1)
       '@wso2/oxygen-ui':
-        specifier: 0.8.3
-        version: 0.8.3(@mui/system@7.3.11(@emotion/react@11.13.5(@types/react@19.2.14)(react@19.1.1))(@emotion/styled@11.13.5(@emotion/react@11.13.5(@types/react@19.2.14)(react@19.1.1))(@types/react@19.2.14)(react@19.1.1))(@types/react@19.2.14)(react@19.1.1))(@types/react@19.2.14)(@wso2/oxygen-ui-icons-react@0.8.3(react@19.1.1))(react-dom@19.1.1(react@19.1.1))(react@19.1.1)
+        specifier: 0.10.1
+        version: 0.10.1(@mui/system@7.3.11(@emotion/react@11.13.5(@types/react@19.2.14)(react@19.1.1))(@emotion/styled@11.13.5(@emotion/react@11.13.5(@types/react@19.2.14)(react@19.1.1))(@types/react@19.2.14)(react@19.1.1))(@types/react@19.2.14)(react@19.1.1))(@types/react@19.2.14)(@wso2/oxygen-ui-icons-react@0.10.1(react@19.1.1))(react-dom@19.1.1(react@19.1.1))(react@19.1.1)
       '@wso2/oxygen-ui-icons-react':
-        specifier: 0.8.3
-        version: 0.8.3(react@19.1.1)
+        specifier: 0.10.1
+        version: 0.10.1(react@19.1.1)
       clsx:
         specifier: 2.1.1
         version: 2.1.1
@@ -3117,7 +3211,7 @@ importers:
         version: 8.6.13(@storybook/test@8.6.13(storybook@8.6.13(prettier@3.5.3)))(react-dom@19.1.1(react@19.1.1))(react@19.1.1)(storybook@8.6.13(prettier@3.5.3))(typescript@5.9.3)
       '@storybook/react-vite':
         specifier: 8.6.13
-        version: 8.6.13(@storybook/test@8.6.13(storybook@8.6.13(prettier@3.5.3)))(react-dom@19.1.1(react@19.1.1))(react@19.1.1)(rollup@4.60.3)(storybook@8.6.13(prettier@3.5.3))(typescript@5.9.3)(vite@6.3.5(@types/node@24.6.0)(less@4.3.0)(lightningcss@1.32.0))
+        version: 8.6.13(@storybook/test@8.6.13(storybook@8.6.13(prettier@3.5.3)))(react-dom@19.1.1(react@19.1.1))(react@19.1.1)(rollup@4.60.4)(storybook@8.6.13(prettier@3.5.3))(typescript@5.9.3)(vite@6.3.5(@types/node@24.6.0)(less@4.3.0)(lightningcss@1.32.0))
       '@storybook/test':
         specifier: 8.6.13
         version: 8.6.13(storybook@8.6.13(prettier@3.5.3))
@@ -3210,7 +3304,7 @@ importers:
         version: 6.3.5(@types/node@24.6.0)(less@4.3.0)(lightningcss@1.32.0)
       vite-plugin-dts:
         specifier: 4.5.4
-        version: 4.5.4(@types/node@24.6.0)(rollup@4.60.3)(typescript@5.9.3)(vite@6.3.5(@types/node@24.6.0)(less@4.3.0)(lightningcss@1.32.0))
+        version: 4.5.4(@types/node@24.6.0)(rollup@4.60.4)(typescript@5.9.3)(vite@6.3.5(@types/node@24.6.0)(less@4.3.0)(lightningcss@1.32.0))
       vitest:
         specifier: 3.1.3
         version: 3.1.3(@types/debug@4.1.13)(@types/node@24.6.0)(jsdom@26.1.0)(less@4.3.0)(lightningcss@1.32.0)
@@ -4109,8 +4203,26 @@ packages:
       '@types/react':
         optional: true
 
+  '@mui/types@9.0.0':
+    resolution: {integrity: sha512-i1cuFCAWN44b3AJWO7mh7tuh1sqbQSeVr/94oG0TX5uXivac8XalgE4/6fQZcmGZigzbQ35IXxj/4jLpRIBYZg==}
+    peerDependencies:
+      '@types/react': ^17.0.0 || ^18.0.0 || ^19.0.0
+    peerDependenciesMeta:
+      '@types/react':
+        optional: true
+
   '@mui/utils@7.3.11':
     resolution: {integrity: sha512-XTjGnifwteg71/ij+0e7Y7d+hwyntMYP5wPoA/g2drdGH+Flkvjwy0OfrVpKBbaOvofq4zU/LIyUZyKgmWu18g==}
+    engines: {node: '>=14.0.0'}
+    peerDependencies:
+      '@types/react': ^17.0.0 || ^18.0.0 || ^19.0.0
+      react: ^17.0.0 || ^18.0.0 || ^19.0.0
+    peerDependenciesMeta:
+      '@types/react':
+        optional: true
+
+  '@mui/utils@9.0.0':
+    resolution: {integrity: sha512-bQcqyg/gjULUqTuyUjSAFr6LQGLvtkNtDbJerAtoUn9kGZ0hg5QJiN1PLHMLbeFpe3te1831uq7GFl2ITokGdg==}
     engines: {node: '>=14.0.0'}
     peerDependencies:
       '@types/react': ^17.0.0 || ^18.0.0 || ^19.0.0
@@ -4250,8 +4362,8 @@ packages:
     resolution: {integrity: sha512-oGB+UxlgWcgQkgwo8GcEGwemoTFt3FIO9ababBmaGwXIoBKZ+GTy0pP185beGg7Llih/NSHSV2XAs1lnznocSg==}
     engines: {node: '>= 8'}
 
-  '@oxc-project/types@0.129.0':
-    resolution: {integrity: sha512-3oz8m3FGdr2nDXVqmFUw7jolKliC4MoyXYIG2c7gpjBnzUWQpUGIYcXYKxTdTi+N2jusvt610ckTMkxdwHkYEg==}
+  '@oxc-project/types@0.130.0':
+    resolution: {integrity: sha512-ibD2usx9JRu7f5pu2tMKMI4cpA4NgXJQoYRP4pQ7Pxmn1l6k/53qWtQWZayhYy3X4QZkt90Ot+mJEaeXouio6Q==}
 
   '@pkgjs/parseargs@0.11.0':
     resolution: {integrity: sha512-+1VkjdD0QBLPodGrJUeqarH8VAIvQODIbwh9XpP5Syisf7YoQgsJKPNFoqqLQlu+VQ/tVSshMR6loPMn8U+dPg==}
@@ -4279,106 +4391,100 @@ packages:
     resolution: {integrity: sha512-xfSkCAchbdG5PnbrKqFWwia4Bi61nH+wm8wLEqfHDyp7Y3dZzgqS2itV8i4gAq9pC2HsTpwyBC6Ds8VHZ96JlA==}
     engines: {node: '>=14.0.0'}
 
-  '@rolldown/binding-android-arm64@1.0.0-rc.18':
-    resolution: {integrity: sha512-lIDyUAfD7U3+BWKzdxMbJcsYHuqXqmGz40aeRqvuAm3y5TkJSYTBW2RDrn65DJFPQqVjUAUqq5uz8urzQ8aBdQ==}
+  '@rolldown/binding-android-arm64@1.0.1':
+    resolution: {integrity: sha512-fJI3I0r3C3Oj/zdBCpaCmBRZYf07xpaq4yCfDDoSFm+beWNzbIl26puW8RraUdugoJw/95zerNOn6jasAhzSmg==}
     engines: {node: ^20.19.0 || >=22.12.0}
     cpu: [arm64]
     os: [android]
 
-  '@rolldown/binding-darwin-arm64@1.0.0-rc.18':
-    resolution: {integrity: sha512-apJq2ktnGp27nSInMR5Vcj8kY6xJzDAvfdIFlpDcAK/w4cDO58qVoi1YQsES/SKiFNge/6e4CUzgjfHduYqWpQ==}
+  '@rolldown/binding-darwin-arm64@1.0.1':
+    resolution: {integrity: sha512-cKnAhWEsV7TPcA/5EAteDp6KcJZBQ2G+BqE7zayMMi7kMvwRsbv7WT9aOnn0WNl4SKEIf43vjS31iUPu80nzXg==}
     engines: {node: ^20.19.0 || >=22.12.0}
     cpu: [arm64]
     os: [darwin]
 
-  '@rolldown/binding-darwin-x64@1.0.0-rc.18':
-    resolution: {integrity: sha512-5Ofot8xbs+pxRHJqm9/9N/4sTQOvdrwEsmPE9pdLEEoAbdZtG6F2LMDfO1sp6ZAtXJuJV/21ew2srq3W8NXB5g==}
+  '@rolldown/binding-darwin-x64@1.0.1':
+    resolution: {integrity: sha512-YKrVwQjIRBPo+5G/u03wGjbdy4q7pyzCe93DK9VJ7zkVmeg8LJ7GbgsiHWdR4xSoe4CAXRD7Bcjgbtr64bkXNg==}
     engines: {node: ^20.19.0 || >=22.12.0}
     cpu: [x64]
     os: [darwin]
 
-  '@rolldown/binding-freebsd-x64@1.0.0-rc.18':
-    resolution: {integrity: sha512-7h8eeOTT1eyqJyx64BFCnWZpNm486hGWt2sqeLLgDxA0xI1oGZ9H7gK1S85uNGmBhkdPwa/6reTxfFFKvIsebw==}
+  '@rolldown/binding-freebsd-x64@1.0.1':
+    resolution: {integrity: sha512-z/oBsREo46SsFqBwYtFe0kpJeBijAT48O/WXLI4suiCLBkr03RTtTJMCzSdDd2znlh8VJizL09XVkQgk8IZonw==}
     engines: {node: ^20.19.0 || >=22.12.0}
     cpu: [x64]
     os: [freebsd]
 
-  '@rolldown/binding-linux-arm-gnueabihf@1.0.0-rc.18':
-    resolution: {integrity: sha512-eRcm/HVt9U/JFu5RKAEKwGQYtDCKWLiaH6wOnsSEp6NMBb/3Os8LgHZlNyzMpFVNmiiMFlfb2zEnebfzJrHFmg==}
+  '@rolldown/binding-linux-arm-gnueabihf@1.0.1':
+    resolution: {integrity: sha512-ik8q7GM11zxvYxFc2PeDcT6TBvhCQMaUxfph/M5l9sKuTs/Sjg3L+Byw0F7w0ZVLBZmx30P+gG0ECzzN+MFcmQ==}
     engines: {node: ^20.19.0 || >=22.12.0}
     cpu: [arm]
     os: [linux]
 
-  '@rolldown/binding-linux-arm64-gnu@1.0.0-rc.18':
-    resolution: {integrity: sha512-SOrT/cT4ukTmgnrEz/Hg3m7LBnuCLW9psDeMKrimRWY4I8DmnO7Lco8W2vtqPmMkbVu8iJ+g4GFLVLLOVjJ9DQ==}
+  '@rolldown/binding-linux-arm64-gnu@1.0.1':
+    resolution: {integrity: sha512-QoSx2EkyrrdZ6kcyE8stqZ62t0Yra8Fs5ia9lOxJrh6TMQJK7gQKmscdTHf7pOXKREKrVwOtJcQG3qVSfc866A==}
     engines: {node: ^20.19.0 || >=22.12.0}
     cpu: [arm64]
     os: [linux]
 
-  '@rolldown/binding-linux-arm64-musl@1.0.0-rc.18':
-    resolution: {integrity: sha512-QWjdxN1HJCpBTAcZ5N5F7wju3gVPzRzSpmGzx7na0c/1qpN9CFil+xt+l9lV/1M6/gqHSNXCiqPfwhVJPeLnug==}
+  '@rolldown/binding-linux-arm64-musl@1.0.1':
+    resolution: {integrity: sha512-uwNwFpwKeNiZawfAWBgg0VIztPTV3ihhh1vV334h9ivnNLorxnQMU6Fz8wG1Zb4Qh9LC1/MkcyT3YlDXG3Rsgg==}
     engines: {node: ^20.19.0 || >=22.12.0}
     cpu: [arm64]
     os: [linux]
 
-  '@rolldown/binding-linux-ppc64-gnu@1.0.0-rc.18':
-    resolution: {integrity: sha512-ugCOyj7a4d9h3q9B+wXmf6g3a68UsjGh6dob5DHevHGMwDUbhsYNbSPxJsENcIttJZ9jv7qGM2UesLw5jqIhdg==}
+  '@rolldown/binding-linux-ppc64-gnu@1.0.1':
+    resolution: {integrity: sha512-zY1bul7OWr7DFBiJ++wofXvnr8B45ce3QsQUhKrIhXsygAh7bTkwyeM1bi1a2g5C/yC/N8TZyGDEoMfm/l9mpg==}
     engines: {node: ^20.19.0 || >=22.12.0}
     cpu: [ppc64]
     os: [linux]
 
-  '@rolldown/binding-linux-s390x-gnu@1.0.0-rc.18':
-    resolution: {integrity: sha512-kKWRhbsotpXkGbcd5dllUWg5gEXcDAa8u5YnP9AV5DYNbvJHGzzuwv7dpmhc8NqKMJldl0a+x76IHbspEpEmdA==}
+  '@rolldown/binding-linux-s390x-gnu@1.0.1':
+    resolution: {integrity: sha512-0frlsT/f4Ft6I7SMESTKnF3cZsdicQn1dCMkF/jT9wDLE+gGoiQfv1nmT9e+s7s/fekvvy6tZM2jHvI2tkbJDQ==}
     engines: {node: ^20.19.0 || >=22.12.0}
     cpu: [s390x]
     os: [linux]
 
-  '@rolldown/binding-linux-x64-gnu@1.0.0-rc.18':
-    resolution: {integrity: sha512-uCo8ElcCIAMyYAZyuIZ81oFkhTSIllNvUCHCAlbhlN4ji3uC28h7IIdlXyIvGO7HsuqnV9p3rD/bpH7XhIyhRw==}
+  '@rolldown/binding-linux-x64-gnu@1.0.1':
+    resolution: {integrity: sha512-XABVmGp9Tg0WspTVvwduTc4fpqy6JnAUrSQe6OuyqD/03nI7r0O9OWUkMIwFrjKAIqolvqoA4ZrJppgwE0Gxmw==}
     engines: {node: ^20.19.0 || >=22.12.0}
     cpu: [x64]
     os: [linux]
 
-  '@rolldown/binding-linux-x64-musl@1.0.0-rc.18':
-    resolution: {integrity: sha512-XNOQZtuE6yUIvx4rwGemwh8kpL1xvU41FXy/s9K7T/3JVcqGzo3NfKM2HrbrGgfPYGFW42f07Wk++aOC6B9NWA==}
+  '@rolldown/binding-linux-x64-musl@1.0.1':
+    resolution: {integrity: sha512-bV4fzswuzVcKD90o/VM6QqKxnxlDq0g2BISDLNVmxrnhpv1DDbyPhCIjYfvzYLV+MvkKKnQt2Q6AO86SEBULUQ==}
     engines: {node: ^20.19.0 || >=22.12.0}
     cpu: [x64]
     os: [linux]
 
-  '@rolldown/binding-openharmony-arm64@1.0.0-rc.18':
-    resolution: {integrity: sha512-tSn/kzrfa7tNOXr7sEacDBN4YsIqTyLqh45IO0nHDwtpKIDNDJr+VFojt+4klSpChxB29JLyduSsE0MKEwa65A==}
+  '@rolldown/binding-openharmony-arm64@1.0.1':
+    resolution: {integrity: sha512-/Mh0Zhq3OP7fVs0kcQHZP6lZEthMGTaSf8UBQYSFEZDWGXXlEC+nJ6EqenaK2t4LBXMe3A+K/G2BVXXdtOr4PQ==}
     engines: {node: ^20.19.0 || >=22.12.0}
     cpu: [arm64]
     os: [openharmony]
 
-  '@rolldown/binding-wasm32-wasi@1.0.0-rc.18':
-    resolution: {integrity: sha512-+J9YGmc+czgqlhYmwun3S3O0FIZhsH8ep2456xwjAdIOmuJxM7xz4P4PtrxU+Bz17a/5bqPA8o3HAAoX0teUdg==}
+  '@rolldown/binding-wasm32-wasi@1.0.1':
+    resolution: {integrity: sha512-+1xc9X45l8ufsBAm6Gjvx2qDRIY9lTVt0cgWNcJ+1gdhXvkbxePA60yRTwSTuXL09CMhyJmjpV7E3NoyxbqFQQ==}
     engines: {node: ^20.19.0 || >=22.12.0}
     cpu: [wasm32]
 
-  '@rolldown/binding-win32-arm64-msvc@1.0.0-rc.18':
-    resolution: {integrity: sha512-zsu47DgU0FQzSwi6sU9dZoEdUv7pc1AptSEz/Z8HBg54sV0Pbs3N0+CrIbTsgiu6EyoaNN9CHboqbLaz9lhOyQ==}
+  '@rolldown/binding-win32-arm64-msvc@1.0.1':
+    resolution: {integrity: sha512-1D+UqZdfnuR+Jy1GgMJwi85bD40H21uNmOPRWQhw4oRSuolZ/B5rixZ45DK2KXOTCvmVCecauWgEhbw8bI7tOw==}
     engines: {node: ^20.19.0 || >=22.12.0}
     cpu: [arm64]
     os: [win32]
 
-  '@rolldown/binding-win32-x64-msvc@1.0.0-rc.18':
-    resolution: {integrity: sha512-7H+3yqGgmnlDTRRhw/xpYY9J1kf4GC681nVc4GqKhExZTDrVVrV2tsOR9kso0fvgBdcTCcQShx4SLLoHgaLwhg==}
+  '@rolldown/binding-win32-x64-msvc@1.0.1':
+    resolution: {integrity: sha512-INAycaWuhlOK3wk4mRHGsdgwYWmd9cChdPdE9bwWmy6rn9VqVNYNFGhOdXrofXUxwHIncSiPNb8tNm8knDVIeQ==}
     engines: {node: ^20.19.0 || >=22.12.0}
     cpu: [x64]
     os: [win32]
 
-  '@rolldown/pluginutils@1.0.0':
-    resolution: {integrity: sha512-aKs/3GSWyV0mrhNmt/96/Z3yczC3yvrzYATCiCXQebBsGyYzjNdUphRVLeJQ67ySKVXRfMxt2lm12pmXvbPFQQ==}
-
   '@rolldown/pluginutils@1.0.0-beta.38':
     resolution: {integrity: sha512-N/ICGKleNhA5nc9XXQG/kkKHJ7S55u0x0XUJbbkmdCnFuoRkM1Il12q9q0eX19+M7KKUEPw/daUPIRnxhcxAIw==}
 
-  '@rolldown/pluginutils@1.0.0-rc.18':
-    resolution: {integrity: sha512-CUY5Mnhe64xQBGZEEXQ5WyZwsc1JU3vAZLIxtrsBt3LO6UOb+C8GunVKqe9sT8NeWb4lqSaoJtp2xo6GxT1MNw==}
-
-  '@rolldown/pluginutils@1.0.0-rc.7':
-    resolution: {integrity: sha512-qujRfC8sFVInYSPPMLQByRh7zhwkGFS4+tyMQ83srV1qrxL4g8E2tyxVVyxd0+8QeBM1mIk9KbWxkegRr76XzA==}
+  '@rolldown/pluginutils@1.0.1':
+    resolution: {integrity: sha512-2j9bGt5Jh8hj+vPtgzPtl72j0yRxHAyumoo6TNfAjsLB04UtpSvPbPcDcBMxz7n+9CYB0c1GxQFxYRg2jimqGw==}
 
   '@rollup/pluginutils@5.3.0':
     resolution: {integrity: sha512-5EdhGZtnu3V88ces7s53hhfK5KSASnJZv8Lulpc04cWO3REESroJXg73DFsOmgbU2BhwV0E20bu2IDZb3VKW4Q==}
@@ -4389,128 +4495,128 @@ packages:
       rollup:
         optional: true
 
-  '@rollup/rollup-android-arm-eabi@4.60.3':
-    resolution: {integrity: sha512-x35CNW/ANXG3hE/EZpRU8MXX1JDN86hBb2wMGAtltkz7pc6cxgjpy1OMMfDosOQ+2hWqIkag/fGok1Yady9nGw==}
+  '@rollup/rollup-android-arm-eabi@4.60.4':
+    resolution: {integrity: sha512-F5QXMSiFebS9hKZj02XhWLLnRpJ3B3AROP0tWbFBSj+6kCbg5m9j5JoHKd4mmSVy5mS/IMQloYgYxCuJC0fxEQ==}
     cpu: [arm]
     os: [android]
 
-  '@rollup/rollup-android-arm64@4.60.3':
-    resolution: {integrity: sha512-xw3xtkDApIOGayehp2+Rz4zimfkaX65r4t47iy+ymQB2G4iJCBBfj0ogVg5jpvjpn8UWn/+q9tprxleYeNp3Hw==}
+  '@rollup/rollup-android-arm64@4.60.4':
+    resolution: {integrity: sha512-GxxTKApUpzRhof7poWvCJHRF51C67u1R7D6DiluBE8wKU1u5GWE8t+v81JvJYtbawoBFX1hLv5Ei4eVjkWokaw==}
     cpu: [arm64]
     os: [android]
 
-  '@rollup/rollup-darwin-arm64@4.60.3':
-    resolution: {integrity: sha512-vo6Y5Qfpx7/5EaamIwi0WqW2+zfiusVihKatLvtN1VFVy3D13uERk/6gZLU1UiHRL6fDXqj/ELIeVRGnvcTE1g==}
+  '@rollup/rollup-darwin-arm64@4.60.4':
+    resolution: {integrity: sha512-tua0TaJxMOB1R0V0RS1jFZ/RpURFDJIOR2A6jWwQeawuFyS4gBW+rntLRaQd0EQ4bd6Vp44Z2rXW+YYDBsj6IA==}
     cpu: [arm64]
     os: [darwin]
 
-  '@rollup/rollup-darwin-x64@4.60.3':
-    resolution: {integrity: sha512-D+0QGcZhBzTN82weOnsSlY7V7+RMmPuF1CkbxyMAGE8+ZHeUjyb76ZiWmBlCu//AQQONvxcqRbwZTajZKqjuOw==}
+  '@rollup/rollup-darwin-x64@4.60.4':
+    resolution: {integrity: sha512-CSKq7MsP+5PFIcydhAiR1K0UhEI1A2jWXVKHPCBZ151yOutENwvnPocgVHkivu2kviURtCEB6zUQw0vs8RrhMg==}
     cpu: [x64]
     os: [darwin]
 
-  '@rollup/rollup-freebsd-arm64@4.60.3':
-    resolution: {integrity: sha512-6HnvHCT7fDyj6R0Ph7A6x8dQS/S38MClRWeDLqc0MdfWkxjiu1HSDYrdPhqSILzjTIC/pnXbbJbo+ft+gy/9hQ==}
+  '@rollup/rollup-freebsd-arm64@4.60.4':
+    resolution: {integrity: sha512-+O8OkVdyvXMtJEciu2wS/pzm1IxntEEQx3z5TAVy4l32G0etZn+RsA48ARRrFm6Ri8fvqPQfgrvNxSjKAbnd3g==}
     cpu: [arm64]
     os: [freebsd]
 
-  '@rollup/rollup-freebsd-x64@4.60.3':
-    resolution: {integrity: sha512-KHLgC3WKlUYW3ShFKnnosZDOJ0xjg9zp7au3sIm2bs/tGBeC2ipmvRh/N7JKi0t9Ue20C0dpEshi8WUubg+cnA==}
+  '@rollup/rollup-freebsd-x64@4.60.4':
+    resolution: {integrity: sha512-Iw3oMskH3AfNuhU0MSN7vNbdi4me/NiYo2azqPz/Le16zHSa+3RRmliCMWWQmh4lcndccU40xcJuTYJZxNo/lw==}
     cpu: [x64]
     os: [freebsd]
 
-  '@rollup/rollup-linux-arm-gnueabihf@4.60.3':
-    resolution: {integrity: sha512-DV6fJoxEYWJOvaZIsok7KrYl0tPvga5OZ2yvKHNNYyk/2roMLqQAbGhr78EQ5YhHpnhLKJD3S1WFusAkmUuV5g==}
+  '@rollup/rollup-linux-arm-gnueabihf@4.60.4':
+    resolution: {integrity: sha512-EIPRXTVQpHyF8WOo219AD2yEltPehLTcTMz2fn6JsatLYSzQf00hj3rulF+yauOlF9/FtM2WpkT/hJh/KJFGhA==}
     cpu: [arm]
     os: [linux]
 
-  '@rollup/rollup-linux-arm-musleabihf@4.60.3':
-    resolution: {integrity: sha512-mQKoJAzvuOs6F+TZybQO4GOTSMUu7v0WdxEk24krQ/uUxXoPTtHjuaUuPmFhtBcM4K0ons8nrE3JyhTuCFtT/w==}
+  '@rollup/rollup-linux-arm-musleabihf@4.60.4':
+    resolution: {integrity: sha512-J3Yh9PzzF1Ovah2At+lHiGQdsYgArxBbXv/zHfSyaiFQEqvNv7DcW98pCrmdjCZBrqBiKrKKe2V+aaSGWuBe/w==}
     cpu: [arm]
     os: [linux]
 
-  '@rollup/rollup-linux-arm64-gnu@4.60.3':
-    resolution: {integrity: sha512-Whjj2qoiJ6+OOJMGptTYazaJvjOJm+iKHpXQM1P3LzGjt7Ff++Tp7nH4N8J/BUA7R9IHfDyx4DJIflifwnbmIA==}
+  '@rollup/rollup-linux-arm64-gnu@4.60.4':
+    resolution: {integrity: sha512-BFDEZMYfUvLn37ONE1yMBojPxnMlTFsdyNoqncT0qFq1mAfllL+ATMMJd8TeuVMiX84s1KbcxcZbXInmcO2mRg==}
     cpu: [arm64]
     os: [linux]
 
-  '@rollup/rollup-linux-arm64-musl@4.60.3':
-    resolution: {integrity: sha512-4YTNHKqGng5+yiZt3mg77nmyuCfmNfX4fPmyUapBcIk+BdwSwmCWGXOUxhXbBEkFHtoN5boLj/5NON+u5QC9tg==}
+  '@rollup/rollup-linux-arm64-musl@4.60.4':
+    resolution: {integrity: sha512-pc9EYOSlOgdQ2uPl1o9PF6/kLSgaUosia7gOuS8mB69IxJvlclko1MECXysjs5ryez1/5zjYqx3+xYU0TU6R1A==}
     cpu: [arm64]
     os: [linux]
 
-  '@rollup/rollup-linux-loong64-gnu@4.60.3':
-    resolution: {integrity: sha512-SU3kNlhkpI4UqlUc2VXPGK9o886ZsSeGfMAX2ba2b8DKmMXq4AL7KUrkSWVbb7koVqx41Yczx6dx5PNargIrEA==}
+  '@rollup/rollup-linux-loong64-gnu@4.60.4':
+    resolution: {integrity: sha512-NxnomyxYerDh5n4iLrNa+sH+Z+U4BMEE46V2PgQ/hoB909i8gV1M5wPojWg9fk1jWpO3IQnOs20K4wyZuFLEFQ==}
     cpu: [loong64]
     os: [linux]
 
-  '@rollup/rollup-linux-loong64-musl@4.60.3':
-    resolution: {integrity: sha512-6lDLl5h4TXpB1mTf2rQWnAk/LcXrx9vBfu/DT5TIPhvMhRWaZ5MxkIc8u4lJAmBo6klTe1ywXIUHFjylW505sg==}
+  '@rollup/rollup-linux-loong64-musl@4.60.4':
+    resolution: {integrity: sha512-nbJnQ8a3z1mtmrwImCYhc6BGpThAyYVRQxw9uKSKG4wR6aAYno9sVjJ0zaZcW9BPJX1GbrDPf+SvdWjgTuDmnw==}
     cpu: [loong64]
     os: [linux]
 
-  '@rollup/rollup-linux-ppc64-gnu@4.60.3':
-    resolution: {integrity: sha512-BMo8bOw8evlup/8G+cj5xWtPyp93xPdyoSN16Zy90Q2QZ0ZYRhCt6ZJSwbrRzG9HApFabjwj2p25TUPDWrhzqQ==}
+  '@rollup/rollup-linux-ppc64-gnu@4.60.4':
+    resolution: {integrity: sha512-2EU6acNrQLd8tYvo/LXW535wupT3m6fo7HKo6lr7ktQoItxTyOL1ZCR/GfGCuXl2vR+zmfI6eRXkSemafv+iVg==}
     cpu: [ppc64]
     os: [linux]
 
-  '@rollup/rollup-linux-ppc64-musl@4.60.3':
-    resolution: {integrity: sha512-E0L8X1dZN1/Rph+5VPF6Xj2G7JJvMACVXtamTJIDrVI44Y3K+G8gQaMEAavbqCGTa16InptiVrX6eM6pmJ+7qA==}
+  '@rollup/rollup-linux-ppc64-musl@4.60.4':
+    resolution: {integrity: sha512-WeBtoMuaMxiiIrO2IYP3xs6GMWkJP2C0EoT8beTLkUPmzV1i/UcOSVw1d5r9KBODtHKilG5yFxsGRnBbK3wJ4A==}
     cpu: [ppc64]
     os: [linux]
 
-  '@rollup/rollup-linux-riscv64-gnu@4.60.3':
-    resolution: {integrity: sha512-oZJ/WHaVfHUiRAtmTAeo3DcevNsVvH8mbvodjZy7D5QKvCefO371SiKRpxoDcCxB3PTRTLayWBkvmDQKTcX/sw==}
+  '@rollup/rollup-linux-riscv64-gnu@4.60.4':
+    resolution: {integrity: sha512-FJHFfqpKUI3A10WrWKiFbBZ7yVbGT4q4B5o1qKFFojqpaYoh9LrQgqWCmmcxQzVSXYtyB5bzkXrYzlHTs21MYA==}
     cpu: [riscv64]
     os: [linux]
 
-  '@rollup/rollup-linux-riscv64-musl@4.60.3':
-    resolution: {integrity: sha512-Dhbyh7j9FybM3YaTgaHmVALwA8AkUwTPccyCQ79TG9AJUsMQqgN1DDEZNr4+QUfwiWvLDumW5vdwzoeUF+TNxQ==}
+  '@rollup/rollup-linux-riscv64-musl@4.60.4':
+    resolution: {integrity: sha512-mcEl6CUT5IAUmQf1m9FYSmVqCJlpQ8r8eyftFUHG8i9OhY7BkBXSUdnLH5DOf0wCOjcP9v/QO93zpmF1SptCCw==}
     cpu: [riscv64]
     os: [linux]
 
-  '@rollup/rollup-linux-s390x-gnu@4.60.3':
-    resolution: {integrity: sha512-cJd1X5XhHHlltkaypz1UcWLA8AcoIi1aWhsvaWDskD1oz2eKCypnqvTQ8ykMNI0RSmm7NkTdSqSSD7zM0xa6Ig==}
+  '@rollup/rollup-linux-s390x-gnu@4.60.4':
+    resolution: {integrity: sha512-ynt3JxVd2w2buzoKDWIyiV1pJW93xlQic1THVLXilz429oijRpSHivZAgp65KBu+cMcgf1eVVjdnTLvPxgCuoQ==}
     cpu: [s390x]
     os: [linux]
 
-  '@rollup/rollup-linux-x64-gnu@4.60.3':
-    resolution: {integrity: sha512-DAZDBHQfG2oQuhY7mc6I3/qB4LU2fQCjRvxbDwd/Jdvb9fypP4IJ4qmtu6lNjes6B531AI8cg1aKC2di97bUxA==}
+  '@rollup/rollup-linux-x64-gnu@4.60.4':
+    resolution: {integrity: sha512-Boiz5+MsaROEWDf+GGEwF8VMHGhlUoQMtIPjOgA5fv4osupqTVnJteQNKJwUcnUog2G55jYXH7KZFFiJe0TEzQ==}
     cpu: [x64]
     os: [linux]
 
-  '@rollup/rollup-linux-x64-musl@4.60.3':
-    resolution: {integrity: sha512-cRxsE8c13mZOh3vP+wLDxpQBRrOHDIGOWyDL93Sy0Ga8y515fBcC2pjUfFwUe5T7tqvTvWbCpg1URM/AXdWIXA==}
+  '@rollup/rollup-linux-x64-musl@4.60.4':
+    resolution: {integrity: sha512-+qfSY27qIrFfI/Hom04KYFw3GKZSGU4lXus51wsb5EuySfFlWRwjkKWoE9emgRw/ukoT4Udsj4W/+xxG8VbPKg==}
     cpu: [x64]
     os: [linux]
 
-  '@rollup/rollup-openbsd-x64@4.60.3':
-    resolution: {integrity: sha512-QaWcIgRxqEdQdhJqW4DJctsH6HCmo5vHxY0krHSX4jMtOqfzC+dqDGuHM87bu4H8JBeibWx7jFz+h6/4C8wA5Q==}
+  '@rollup/rollup-openbsd-x64@4.60.4':
+    resolution: {integrity: sha512-VpTfOPHgVXEBeeR8hZ2O0F3aSso+JDWqTWmTmzcQKted54IAdUVbxE+j/MVxUsKa8L20HJhv3vUezVPoquqWjA==}
     cpu: [x64]
     os: [openbsd]
 
-  '@rollup/rollup-openharmony-arm64@4.60.3':
-    resolution: {integrity: sha512-AaXwSvUi3QIPtroAUw1t5yHGIyqKEXwH54WUocFolZhpGDruJcs8c+xPNDRn4XiQsS7MEwnYsHW2l0MBLDMkWg==}
+  '@rollup/rollup-openharmony-arm64@4.60.4':
+    resolution: {integrity: sha512-IPOsh5aRYuLv/nkU51X10Bf75Bsf6+gZdx1X+QP5QM6lIJFHHqbHLG0uJn/hWthzo13UAc2umiUorqZy3axoZg==}
     cpu: [arm64]
     os: [openharmony]
 
-  '@rollup/rollup-win32-arm64-msvc@4.60.3':
-    resolution: {integrity: sha512-65LAKM/bAWDqKNEelHlcHvm2V+Vfb8C6INFxQXRHCvaVN1rJfwr4NvdP4FyzUaLqWfaCGaadf6UbTm8xJeYfEg==}
+  '@rollup/rollup-win32-arm64-msvc@4.60.4':
+    resolution: {integrity: sha512-4QzE9E81OohJ/HKzHhsqU+zcYYojVOXlFMs1DdyMT6qXl/niOH7AVElmmEdUNHHS/oRkc++d5k6Vy85zFs0DEw==}
     cpu: [arm64]
     os: [win32]
 
-  '@rollup/rollup-win32-ia32-msvc@4.60.3':
-    resolution: {integrity: sha512-EEM2gyhBF5MFnI6vMKdX1LAosE627RGBzIoGMdLloPZkXrUN0Ckqgr2Qi8+J3zip/8NVVro3/FjB+tjhZUgUHA==}
+  '@rollup/rollup-win32-ia32-msvc@4.60.4':
+    resolution: {integrity: sha512-zTPgT1YuHHcd+Tmx7h8aml0FWFVelV5N54oHow9SLj+GfoDy/huQ+UV396N/C7KpMDMiPspRktzM1/0r1usYEA==}
     cpu: [ia32]
     os: [win32]
 
-  '@rollup/rollup-win32-x64-gnu@4.60.3':
-    resolution: {integrity: sha512-E5Eb5H/DpxaoXH++Qkv28RcUJboMopmdDUALBczvHMf7hNIxaDZqwY5lK12UK1BHacSmvupoEWGu+n993Z0y1A==}
+  '@rollup/rollup-win32-x64-gnu@4.60.4':
+    resolution: {integrity: sha512-DRS4G7mi9lJxqEDezIkKCaUIKCrLUUDCUaCsTPCi/rtqaC6D/jjwslMQyiDU50Ka0JKpeXeRBFBAXwArY52vBw==}
     cpu: [x64]
     os: [win32]
 
-  '@rollup/rollup-win32-x64-msvc@4.60.3':
-    resolution: {integrity: sha512-hPt/bgL5cE+Qp+/TPHBqptcAgPzgj46mPcg/16zNUmbQk0j+mOEQV/+Lqu8QRtDV3Ek95Q6FeFITpuhl6OTsAA==}
+  '@rollup/rollup-win32-x64-msvc@4.60.4':
+    resolution: {integrity: sha512-QVTUovf40zgTqlFVrKA1uXMVvU2QWEFWfAH8Wdc48IxLvrJMQVMBRjuQyUpzZCDkakImib9eVazbWlC6ksWtJw==}
     cpu: [x64]
     os: [win32]
 
@@ -4748,113 +4854,113 @@ packages:
     peerDependencies:
       storybook: ^8.2.0 || ^8.3.0-0 || ^8.4.0-0 || ^8.5.0-0 || ^8.6.0-0
 
-  '@swagger-api/apidom-ast@1.11.0':
-    resolution: {integrity: sha512-poLd6eNipLCFCrxjZD+E9E0Z85CLfFzueNiVcYj86rwMp2OszYsTzZS2jz82yR/usNCjXCpkQ2xEXWSmDhefPg==}
+  '@swagger-api/apidom-ast@1.11.1':
+    resolution: {integrity: sha512-5vcFzXltmIpCsjQouVKzjj7pPPUxYmwIARHuenim96GDnmqqVTtAoBXpIX++cD5RcJA72EBEqepQ+VSAA12RPA==}
 
-  '@swagger-api/apidom-core@1.11.0':
-    resolution: {integrity: sha512-7TvbbC3dG3yM8cjqyrFXoTOpwgOC68+Z17Ro36drJwZ0k/c7QQc0dI/KvTSPHn9UfimEMdZ0q+yIIzqrAiEmww==}
+  '@swagger-api/apidom-core@1.11.1':
+    resolution: {integrity: sha512-KsN0dZBsutUGWtbsqBMvQ+3pJUjq/wRRABCNIG2Ys/1Ctq8FaQaA0MoICPuYgDZCUNsZuJYbw6Swm6e0GaHWtA==}
 
-  '@swagger-api/apidom-error@1.11.0':
-    resolution: {integrity: sha512-JPt37oOrf73CAZNQBPffnLzU5iEUs8cT9pFmc9vy2gHQp+vjSKxeJ9F6zagTp8VnLPUq0gVjIvCQvcX8NPW2jA==}
+  '@swagger-api/apidom-error@1.11.1':
+    resolution: {integrity: sha512-7KV2Ac4BOcrv4yJz7T5DbZiTdqbnVUT+g68Hjhabl5zhD28mfEEn9V8Zq2D6rtjlCYkqWAMFb8Y6Y+9ssH5wgA==}
 
-  '@swagger-api/apidom-json-pointer@1.11.0':
-    resolution: {integrity: sha512-11JWHr55FciYGTbcicNZrBsFEwNuLLZybi00YHJ3OBcuXcFJPKmKluLnVL7GhZYEqvLYOcVsCfInYW5MXoj00w==}
+  '@swagger-api/apidom-json-pointer@1.11.1':
+    resolution: {integrity: sha512-c8QSUgQxDolTO+rP2bvX4CrZOrnTMTAMh0xGq8LaYvzVzs0bQT7ZApsbcA/4bzWlwcg6wy2Uuw+qMadl1FNR3w==}
 
-  '@swagger-api/apidom-ns-api-design-systems@1.11.0':
-    resolution: {integrity: sha512-IskDsUkUtNas4guoChRKKkw0wOst64nRA24WuIjLf8ztfBdcl/oqx/cgy8pwWCUqNYvL9L3+sD5HeuokqMrySw==}
+  '@swagger-api/apidom-ns-api-design-systems@1.11.1':
+    resolution: {integrity: sha512-2K3Ix+nRHDkuixkZ4FAMWY5MAJHipzpFvZrRtneZ7hsx7nObw9HYEXZw/yXuYrvnhC8jsE4z91Gwuvvz7ZjfPw==}
 
-  '@swagger-api/apidom-ns-arazzo-1@1.11.0':
-    resolution: {integrity: sha512-n+aGSlLHyrpmCaBa9DBZkIqnNVzYAYSa010MvAwhlwtW3EbFYNwYWinbTwLqCd3leN6XWTvQYCvk0/k7/9Cq4A==}
+  '@swagger-api/apidom-ns-arazzo-1@1.11.1':
+    resolution: {integrity: sha512-rnICw0uXnKeNHUaS+Ip7lxtVXqH1iA3zFlX446e4XAamJd6yU28sujIsGiZ71qPQ217teidkfK7Bx7MktHdiEw==}
 
-  '@swagger-api/apidom-ns-asyncapi-2@1.11.0':
-    resolution: {integrity: sha512-SHh3naFZlXFI0gG36tNYvJ/VO8aZsjnXIQAqJHfOE6rrpl5msJrdDatmNczh+57WPZxEZA+KTXWCqNKdeu3G3Q==}
+  '@swagger-api/apidom-ns-asyncapi-2@1.11.1':
+    resolution: {integrity: sha512-syABiWLeWRfKoonUhPriPVwDDeEOlN5RD20Dj/MS9DT5r1BJUrAB1BfRRRHsVhzaXVdUcKKH99iC9C842J9kvA==}
 
-  '@swagger-api/apidom-ns-asyncapi-3@1.11.0':
-    resolution: {integrity: sha512-4vrgNYDj68hgmgZj1eGBaBr5xqIETWn4jAioiRHek4jV1FLvmxCs3nC2nYs8CzQqqJ1bqirdiirrUpqhaQvTEA==}
+  '@swagger-api/apidom-ns-asyncapi-3@1.11.1':
+    resolution: {integrity: sha512-y4syE8jOEGuSirc3YaeI0dh3rEvHfc/pERQOTj3KofS2IABpBXTmtg+oDfG2zte1/Cyc/eJ6qecVAns5mhBpow==}
 
-  '@swagger-api/apidom-ns-json-schema-2019-09@1.11.0':
-    resolution: {integrity: sha512-5avPMY1YbQmJIqXlu7rm3yftf4xhT2REBxpEgw8Nc7Zlbn4Z5iGXBsHr60982MwqeE6W8wA+HHQMKHM5siuhdQ==}
+  '@swagger-api/apidom-ns-json-schema-2019-09@1.11.1':
+    resolution: {integrity: sha512-1SNXikZN2uQ1YZ3A4dzWBoMN6wTkba1qZdy/NOkweFtoLuBb63KKN/gD1e6chQV8+ikqGn8TTUZnYvX6SVBZ6g==}
 
-  '@swagger-api/apidom-ns-json-schema-2020-12@1.11.0':
-    resolution: {integrity: sha512-zddyOxWKlQ9WPaZR0e8ykmy8AbGnDvqCqqy6BdYqKZ9Ts8ZK1XwOB2j9ruccZpoiy/rp2tow+CUf3XE5rricmQ==}
+  '@swagger-api/apidom-ns-json-schema-2020-12@1.11.1':
+    resolution: {integrity: sha512-oyvTkjDXI9k3G8oVHOvpL/t1MfZmx8d7rgeNqsm6j/vK6WlOXIOHdN9LTYRo8YdACaWq/JV5B30grkio/HRMKQ==}
 
-  '@swagger-api/apidom-ns-json-schema-draft-4@1.11.0':
-    resolution: {integrity: sha512-upc0xKb3nxsYPECRDf5UygnZHTSj78xHj5+SBIHNDXoaGDhvMCtWoDVGAKFtZ+jZlIkyJt7cGAeOX0w9IV3XkA==}
+  '@swagger-api/apidom-ns-json-schema-draft-4@1.11.1':
+    resolution: {integrity: sha512-Ha23zkVSItmFZbAoSKMI7hwYJT7yTMWO+EcNzDBEClsqRrkcCtvF2YsiQZcyUt5SrEwV8rW0TWE0CVG+WEs2zg==}
 
-  '@swagger-api/apidom-ns-json-schema-draft-6@1.11.0':
-    resolution: {integrity: sha512-sd/U6Y34uRqdgd3Phz1oEhO7UBCn60+OfIasFFpHZcKe7O0jTmayiaJqbpwirhwt7Fv5Ev5m58+y1nVomLnhQw==}
+  '@swagger-api/apidom-ns-json-schema-draft-6@1.11.1':
+    resolution: {integrity: sha512-Gm4ULCg4yulfjZiMIbH1XiiKHI/BqK0zc1GexViiLShXS35/2dc27GmpI0YgV7S+DqvivNrwAkqojeN7ho9/NA==}
 
-  '@swagger-api/apidom-ns-json-schema-draft-7@1.11.0':
-    resolution: {integrity: sha512-7ptuxmuh2vN1hDr3cLkYm2rl+ak2J1byoGxswucKfSb+7IaFoA36/t7kcOsE/hIO4yI7T3ZPOuNSpeg1NBVjEw==}
+  '@swagger-api/apidom-ns-json-schema-draft-7@1.11.1':
+    resolution: {integrity: sha512-OHW4Qb0BqbHJ3QoQcGREE5bobMeBkZzSQe/0RFGayhI1HJZqrmwtot2nLAuie9sQJoj/xeUprOsA/he06NVFEw==}
 
-  '@swagger-api/apidom-ns-openapi-2@1.11.0':
-    resolution: {integrity: sha512-cAIPJhLxm/nj1kzneNySeaTahY+hH5gkGNsgbmifGnLPsC5YOOfEVMKLj18IREdXqdnxJgRbsI9Azl4g09TPkg==}
+  '@swagger-api/apidom-ns-openapi-2@1.11.1':
+    resolution: {integrity: sha512-yXHJmyN+NyF2xBD6KlFmGuMrf1hKqK9pm/FwStepIUqvn6bfTGgEdUi5BivQuErRrN6NtQczFF21Jlu6jjg86Q==}
 
-  '@swagger-api/apidom-ns-openapi-3-0@1.11.0':
-    resolution: {integrity: sha512-IUEWVSuETE5DdgTJhIt6oZyRTYUV892/I9UdyTResR0Bypc7gy3YXwlzMlUZx73S2klaiFo1dL4iu/fqzA2fEg==}
+  '@swagger-api/apidom-ns-openapi-3-0@1.11.1':
+    resolution: {integrity: sha512-R2zHd33OiVT5eTlYKS1FyVDP0G76ymdP2EIrBPbM1FDKam1kRIRdgZA2StCd9PY4oNp/LqQKMnfe9wdLWZS3AA==}
 
-  '@swagger-api/apidom-ns-openapi-3-1@1.11.0':
-    resolution: {integrity: sha512-WpUvFgOs4YMUmyeJRQEADps+U5o71YTtzKMPNr1cF1ZHKKkcRMUJL9QlJ4Y9cxAdjo6oXzXZa5922XOpwMYhxA==}
+  '@swagger-api/apidom-ns-openapi-3-1@1.11.1':
+    resolution: {integrity: sha512-FtoW4wkFO1VSHu6G+wUZ71hQhIOuastJPyWEePbfySE4Uiz+01t/X/ODnl2OHRGVUYFoJa7kJi5/xqcsprdxtA==}
 
-  '@swagger-api/apidom-ns-openapi-3-2@1.11.0':
-    resolution: {integrity: sha512-mUErHIq8rHVoOrkHnRj3mhoNYVIl8th474/m0+E8OB2wBAe0KgiczaJX9KkBQoAo5XIxoRfmI5T3bp+fRabwCA==}
+  '@swagger-api/apidom-ns-openapi-3-2@1.11.1':
+    resolution: {integrity: sha512-ILJAgp6mHwoV8rRuKYD3QuvPdcRcmK9YmAfrsjgC7fJM7irqzC+nBOKhrWVpTAee7r3b+B3HpV5MG8aKGd9qNQ==}
 
-  '@swagger-api/apidom-parser-adapter-api-design-systems-json@1.11.0':
-    resolution: {integrity: sha512-0OdwcnV/QF+Vs3Vj0dTmlRHEp9WQg9aBvWWl8Fq25OviyDhGGRpqgkEAOjtVYCH3XyZ1Xz+jhIDOdd5pxBajsA==}
+  '@swagger-api/apidom-parser-adapter-api-design-systems-json@1.11.1':
+    resolution: {integrity: sha512-bCt1/7NPfCznhq2D3Y1UcZowdxMtr6wGCISMSPf3ziaCcOQhy7sG/nWEzS/rwcKCVNefVft833Ab3jaCWGivJw==}
 
-  '@swagger-api/apidom-parser-adapter-api-design-systems-yaml@1.11.0':
-    resolution: {integrity: sha512-K714DT6nFW+ZM9LTo+c120zkUjsEcIFO2DU+0cnzReRyenb1x6RZe+uOqTt7iWohnnWp2FV/j0exd/mCsxW65Q==}
+  '@swagger-api/apidom-parser-adapter-api-design-systems-yaml@1.11.1':
+    resolution: {integrity: sha512-hUcshr5ydn/L4VsgP5nyrFDp4QqIADrx5nQnFddw/OWCNi1Al19ccPxuBh1Qlf421AAmk1oUiybeGyduvRsVPQ==}
 
-  '@swagger-api/apidom-parser-adapter-arazzo-json-1@1.11.0':
-    resolution: {integrity: sha512-z9K6XEr3AafV2EA+1pfW+8VoMCCSSpm2IU7oUTjSnhxRb5t/DZR4Qg8FEK8tRKdS2BO2kFFLb2xikrY3Qx8B+g==}
+  '@swagger-api/apidom-parser-adapter-arazzo-json-1@1.11.1':
+    resolution: {integrity: sha512-8ydiEnlSJ7DPhFqg9Z11u4Vda16yaOuIGLablI0mOnYoAMTlqnteGk5CDPlVb970VBTYvsNlgW+164XfHAU/6w==}
 
-  '@swagger-api/apidom-parser-adapter-arazzo-yaml-1@1.11.0':
-    resolution: {integrity: sha512-HPb7Wzr+cj0IJkRRlqsK1tNCQXivuGRP4iB2yek16sQZXo2eqSUZ3j3Lz/WwWgnN/FWGAODm4bj9+EhGQ11TnA==}
+  '@swagger-api/apidom-parser-adapter-arazzo-yaml-1@1.11.1':
+    resolution: {integrity: sha512-G4++rZDMKokEfq78EJ2aE7pgd1Xo70XIn1/ikSiT5awfuhPJzNcV99ZdzQI2xVVU/pbKIL2Vc/b5SP1IRlfCwA==}
 
-  '@swagger-api/apidom-parser-adapter-asyncapi-json-2@1.11.0':
-    resolution: {integrity: sha512-sQenLXZRmTDQehe3JCSQpz6jpE3DhMQ0aoe2gpNqo23Gt/4oeW6nAP2h49q9Ne+CHPp0ApFUUyIXF7UTmbUWqA==}
+  '@swagger-api/apidom-parser-adapter-asyncapi-json-2@1.11.1':
+    resolution: {integrity: sha512-7Npn4LkG4q95b2VimG3SV0lqgG3xPeF5Srq+sVbG7iFd4yDubvEVy5zzqx5QH4tOtATdarhv6glA9j3hTfWBdQ==}
 
-  '@swagger-api/apidom-parser-adapter-asyncapi-json-3@1.11.0':
-    resolution: {integrity: sha512-aGnG3AYp4Qsimn1FOP0B9leYCJAQVockzHqyJj30xiNAXquBMXr6lq3L2/AEsmpDGv/x/++YJ4p2ggSxy12QNw==}
+  '@swagger-api/apidom-parser-adapter-asyncapi-json-3@1.11.1':
+    resolution: {integrity: sha512-/C1CzsnUW2ZMBg4kWYrhrfqmyjb4aGo9+YaySQwdArLfM8l2HCOQqDEteGIivedVEsmTpVdhC60gdb6N2VzSaQ==}
 
-  '@swagger-api/apidom-parser-adapter-asyncapi-yaml-2@1.11.0':
-    resolution: {integrity: sha512-iIRlB8B46UPiu0EkKhq1TvwloBgObASJ5ROx8rhT5+Pj+BBegE+KIY02EUKwcz5FgXJrH3XcltLiI7ZA68347Q==}
+  '@swagger-api/apidom-parser-adapter-asyncapi-yaml-2@1.11.1':
+    resolution: {integrity: sha512-0Xfu8PLM787el0R7lwjFfQYe0Bpv3Jz0YlkEiQqAVvftVb0oNi8tg9FhDTR8ju/N94gpNXIfaH/5Ahgz5G+NKg==}
 
-  '@swagger-api/apidom-parser-adapter-asyncapi-yaml-3@1.11.0':
-    resolution: {integrity: sha512-BF2ZyQYMUNrjP1nMneX6ZD2IWBLycWpxg3yllXDCJtfdQT/IMzldIPKCNI9qoBE57lM6j2hpy+Jd86QJk20t2w==}
+  '@swagger-api/apidom-parser-adapter-asyncapi-yaml-3@1.11.1':
+    resolution: {integrity: sha512-DqoR43NsFBmiJW1h2Xg3n2V6NQx+95qJ3ziA9rIbKJHGCidHtjNJgi4I7sWGnaIApIHijYY2bW22MKXaT0a0cQ==}
 
-  '@swagger-api/apidom-parser-adapter-json@1.11.0':
-    resolution: {integrity: sha512-DObW0LxYwif0erzGoXiEAZ6ecc/18LIEKxjEAc5Bw2M5I0C/iGW4y/UxAywihGvhMEo1gOvdO6w9Jh6UnuPVmA==}
+  '@swagger-api/apidom-parser-adapter-json@1.11.1':
+    resolution: {integrity: sha512-L8XFzTbEknHDhD40M/pSoDlimjlYaXXWZS4AmyD3i+XRfiDWWVhEWHPE9OTNk6UL8R6DOBm3RSDxAd5xpLoPjg==}
 
-  '@swagger-api/apidom-parser-adapter-openapi-json-2@1.11.0':
-    resolution: {integrity: sha512-dREUHAEHVry9aSGjqDpYF9Wzm1lgUkV6EgoYDflyQ9HxgCwhucDPFmUgI7UaR0G6bplnJumMcZXh1I1TGn1v7Q==}
+  '@swagger-api/apidom-parser-adapter-openapi-json-2@1.11.1':
+    resolution: {integrity: sha512-s9xZa/h4Yiz+Qc304s+9JSTPFsToYtSWQCeyA9jkHOWy/Oq8ZjD9wg34IjENS3yBqM1YLz6Dk+PX06DcyAOnnw==}
 
-  '@swagger-api/apidom-parser-adapter-openapi-json-3-0@1.11.0':
-    resolution: {integrity: sha512-U/NZpvuj9IpUS48zF2tYbgW2AtTw6Yi6kXNiHUtgUEomxYdb6XQeKLDGvgeWjgAgfUROohakcH+wx713VCGxfQ==}
+  '@swagger-api/apidom-parser-adapter-openapi-json-3-0@1.11.1':
+    resolution: {integrity: sha512-dLGaVn24N+YZRB0vzQMC4R+aiSNfD81Xcp5TwdEbE+jOeOnoOe5NqzqCWjaDpSMChDsK/NdaSDjQj4uiYfWpug==}
 
-  '@swagger-api/apidom-parser-adapter-openapi-json-3-1@1.11.0':
-    resolution: {integrity: sha512-fYarNeaz39oKZ6VwqwON+IeJszidZGPvUYDfggLaar81NGimrz07y1U+DhAf96IX3qgUa2J6Fu3Bv1r57hs6Ng==}
+  '@swagger-api/apidom-parser-adapter-openapi-json-3-1@1.11.1':
+    resolution: {integrity: sha512-EnYF3rzPZoiCYDnp4ChB6K15RUV4rE6QfEh7fTEwIlkWMUKv4oVwZd8aqz2i9laRZiBH6S2uUoED8YNtCNbeIg==}
 
-  '@swagger-api/apidom-parser-adapter-openapi-json-3-2@1.11.0':
-    resolution: {integrity: sha512-jtMoAH3R73bQUc4D2cJTUUvO4iJz9CV1W4+zoU/gT2l6h8Ji5EhZH0/VyynUk4J6mW/GdwxUN/q5z2P/DtSmfA==}
+  '@swagger-api/apidom-parser-adapter-openapi-json-3-2@1.11.1':
+    resolution: {integrity: sha512-digw37g+k/rg87HHMUHuSZVWH1Kh8OjC8SmQflIh1Oot9fGhmnZWddsws+sKWSVy6/HveuZPykL8bxtSV3Nc/A==}
 
-  '@swagger-api/apidom-parser-adapter-openapi-yaml-2@1.11.0':
-    resolution: {integrity: sha512-e8L4kHahgkOIzCCSGs5jTahXLInERNr37teSLS4SuqYgSVWr9AVXuNvpHNYGeMECD8briGIGfAAtnZChCGYrEA==}
+  '@swagger-api/apidom-parser-adapter-openapi-yaml-2@1.11.1':
+    resolution: {integrity: sha512-b38GFur/NjjLFBCVR/wo7DRF6EW5h8B5jBe7C17EVaJvg9eRzknnr9/KMnxYeTtjQVO8W/JeY7LlLad1/j0pcA==}
 
-  '@swagger-api/apidom-parser-adapter-openapi-yaml-3-0@1.11.0':
-    resolution: {integrity: sha512-s+AXnNzLeAk28jUAeXwTSR1AlX+TXIAt2GfFgWUAV+SFw2OhRpoKYLzItN3n2UsHselqHvfyUL9xNCJBZleQtQ==}
+  '@swagger-api/apidom-parser-adapter-openapi-yaml-3-0@1.11.1':
+    resolution: {integrity: sha512-dza6Bwe5kLL+4jANuaScxvYh3o7RxESp6Riz6M09cXRysyRrHFQ7UYuUhxepSD4jSiSxJQS8nu0i547i6Z7W7Q==}
 
-  '@swagger-api/apidom-parser-adapter-openapi-yaml-3-1@1.11.0':
-    resolution: {integrity: sha512-xyUyehHhB+BSOAT7mYGqmcEozuLKxmx1Hug97O9SVgNU8QTClc95+VWrAHhJbn8juPR6y2vSwm/wrQDwb4yq7w==}
+  '@swagger-api/apidom-parser-adapter-openapi-yaml-3-1@1.11.1':
+    resolution: {integrity: sha512-PgmolQN1PYdROSo/cHNyXINVD+aLmW6VqfwT7potNo08c4aWj+QQ/a0Az+mldfJ+G98WjNRvEKr8dhEw8zfqmw==}
 
-  '@swagger-api/apidom-parser-adapter-openapi-yaml-3-2@1.11.0':
-    resolution: {integrity: sha512-u7Y98zdjEs+0Upa8TdxOsb7z8hYJmLz9lVleRiB7rqysVga6oSDI5NAFdLVqMB6uAUuFi/tyiuiFT4Qosfd6Vw==}
+  '@swagger-api/apidom-parser-adapter-openapi-yaml-3-2@1.11.1':
+    resolution: {integrity: sha512-+nmtJ3/wPLBBN6d8xI8rD0mOz80V4iSRe6rYYOQ/skel673N1SY4B58Ufnc7KnMNV4cOce/a52ASQ1Qd1csLvQ==}
 
-  '@swagger-api/apidom-parser-adapter-yaml-1-2@1.11.0':
-    resolution: {integrity: sha512-FZK9KfwiTnNc+imxg7Wu2ktKhXCYPeFQZ1uZJzJL/hk1n+zyPfRY/4Aue4HzDcG8+wbItd3dRjKClFanVZAXoA==}
+  '@swagger-api/apidom-parser-adapter-yaml-1-2@1.11.1':
+    resolution: {integrity: sha512-KEgk5PoSmmLC7ZvH0+RF4FPyWAj0NyrPFbTr04DmNPznfr2qpGqvt3ZBmAJm82jrWoI1dc8EH1ugT1YX69N8ww==}
 
-  '@swagger-api/apidom-reference@1.11.0':
-    resolution: {integrity: sha512-ftqegYrxxl9UwQFbdVOtXIqNolVd25M5u53X8fP96Wx6lEVr5Ed7B6+dzch8ttCUmKeoLIeagvt76b6BoYtnLw==}
+  '@swagger-api/apidom-reference@1.11.1':
+    resolution: {integrity: sha512-wxsRo12YVc2Q4o81K9EGzX5oM1htNDkeCIRkLyg1wPvzFQUH4khd6aOWYaX/0V0L+7yqwwmeW/t80xV8qLEGAQ==}
 
   '@swaggerexpert/cookie@2.0.2':
     resolution: {integrity: sha512-DPI8YJ0Vznk4CT+ekn3rcFNq1uQwvUHZhH6WvTSPD0YKBIlMS9ur2RYKghXuxxOiqOam/i4lHJH4xTIiTgs3Mg==}
@@ -5050,8 +5156,8 @@ packages:
   '@types/ms@2.1.0':
     resolution: {integrity: sha512-GsCCIZDE/p3i96vtEqx+7dBUGXrc7zeSK3wwPHIaRThS+9OhWIXRqzs4d6k1SVU8g91DrNRWxWUGhp5KXQb2VA==}
 
-  '@types/node@24.12.3':
-    resolution: {integrity: sha512-8oljBDGun9cIsZRJR6fkihn0TSXJI0UDOOhncYaERq6M0JMDoPLxyscwruJcb4GKS6dvK/d8xebYBg27h/duaQ==}
+  '@types/node@24.12.4':
+    resolution: {integrity: sha512-GUUEShf+PBCGW2KaXwcIt3Yk+e3pkKwWKb9GSyM9WQVE+ep2jzmHdGsHzu4wgcZy5fN9FBdVzjpBQsYlpfpgLA==}
 
   '@types/node@24.6.0':
     resolution: {integrity: sha512-F1CBxgqwOMc4GKJ7eY22hWhBVQuMYTtqI8L0FcszYcpYX0fzfDGpez22Xau8Mgm7O9fI+zA/TYIdq3tGWfweBA==}
@@ -5397,8 +5503,8 @@ packages:
     peerDependencies:
       vite: ^4.2.0 || ^5.0.0 || ^6.0.0 || ^7.0.0
 
-  '@vitejs/plugin-react@6.0.1':
-    resolution: {integrity: sha512-l9X/E3cDb+xY3SWzlG1MOGt2usfEHGMNIaegaUGFsLkb3RCn/k8/TOXBcab+OndDI4TBtktT8/9BwwW8Vi9KUQ==}
+  '@vitejs/plugin-react@6.0.2':
+    resolution: {integrity: sha512-DlSMqo4WhThw4vB8Mpn0Woe9J+Jfq1geJ61AKW0QEgLzGMNwtIMdxbDUzLxcun8W7NbJO0e2Jg/Nxm3cCSVzzg==}
     engines: {node: ^20.19.0 || >=22.12.0}
     peerDependencies:
       '@rolldown/plugin-babel': ^0.1.7 || ^0.2.0
@@ -5489,18 +5595,31 @@ packages:
   '@vue/shared@3.5.34':
     resolution: {integrity: sha512-24uqU4OIiX29ryC3MeWid/Xf2fa2EFRUVLb77nRhk+UrTVrh/XiGtFAFmJBAtBRbjwNdsPRP+jj/OL27Eg1NDA==}
 
-  '@wso2/oxygen-ui-charts-react@0.8.3':
-    resolution: {integrity: sha512-9cTRKUd0F41FObbQz/cIjOhsJ2f11HdAlAkCylxxou0qLOA2W0lkgACCjKNNu5iXeVZEiueeEQl/RCKh3TUiJA==}
+  '@wso2/oxygen-ui-charts-react@0.10.1':
+    resolution: {integrity: sha512-GUTbHfEbH7ogZ7oijmEwUYT1PPCPAPsVuOnXqHtQ+XvSEWCXRxFvufEXc3pLPhNIeVTh9f4ik45xooaiiPVbsw==}
     peerDependencies:
       '@wso2/oxygen-ui': '>=0.1.0'
       react: 19.2.3
       react-dom: 19.2.3
       react-is: 19.0.0
 
+  '@wso2/oxygen-ui-icons-react@0.10.1':
+    resolution: {integrity: sha512-quE6Fvxddi09rRYcnBTp/iyYE40gWx7QDkFrPB4fTOw4MfnJuPQnsRsdrwzt2kVdD6n+RI19D/pobh44FSko9g==}
+    peerDependencies:
+      react: 19.2.3
+
   '@wso2/oxygen-ui-icons-react@0.8.3':
     resolution: {integrity: sha512-CPGEaqlM59KJUg51xP43bITbahO3BTxcEvYSZe2O+Lfpd6AyyWK9g8rZ26RuQOpdFj3kN3q1wwQcbMkJauVZVQ==}
     peerDependencies:
       react: 19.2.3
+
+  '@wso2/oxygen-ui@0.10.1':
+    resolution: {integrity: sha512-iFAzDAALHNn64l9apxqJuB72Y/qATpW/h1RVsD+IOj+WBrFqU5SYlPAp6cVsy3Ok9NrmApASlXgdRWybME1z2g==}
+    hasBin: true
+    peerDependencies:
+      '@wso2/oxygen-ui-icons-react': '>=0.1.0'
+      react: 19.2.3
+      react-dom: 19.2.3
 
   '@wso2/oxygen-ui@0.8.3':
     resolution: {integrity: sha512-7kv3syNq+6JDMd27SHKCKvAGmeZdffx93ztkbda46SpaiVMipVhPnIaPXWd/0sA0WupgQLRW/RxR/bPFtzq4yQ==}
@@ -5523,6 +5642,10 @@ packages:
     resolution: {integrity: sha512-UVJyE9MttOsBQIDKw1skb9nAwQuR5wuGD3+82K6JgJlm/Y+KI92oNsMNGZCYdDsVtRHSak0pcV5Dno5+4jh9sw==}
     engines: {node: '>=0.4.0'}
     hasBin: true
+
+  agent-base@6.0.2:
+    resolution: {integrity: sha512-RZNwNclF7+MS/8bDg70amg32dyeZGZxiDuQmZxKLAlQjr3jGyLx+4Kkk58UO7D2QdgFIQCovuSuZESne6RG6XQ==}
+    engines: {node: '>= 6.0.0'}
 
   agent-base@7.1.4:
     resolution: {integrity: sha512-MnA+YT8fwfJPgBx3m60MNqakm30XOkyIoH1y6huTQvC0PwZG7ki8NacLBcrPbNoo8vEZy7Jpuk7+jMO+CUovTQ==}
@@ -5644,8 +5767,8 @@ packages:
     resolution: {integrity: sha512-wvUjBtSGN7+7SjNpq/9M2Tg350UZD3q62IFZLbRAR1bSMlCo1ZaeW+BJ+D090e4hIIZLBcTDWe4Mh4jvUDajzQ==}
     engines: {node: '>= 0.4'}
 
-  axios@1.16.0:
-    resolution: {integrity: sha512-6hp5CwvTPlN2A31g5dxnwAX0orzM7pmCRDLnZSX772mv8WDqICwFjowHuPs04Mc8deIld1+ejhtaMn5vp6b+1w==}
+  axios@1.16.1:
+    resolution: {integrity: sha512-caYkukvroVPO8KrzuJEb50Hm07KwfBZPEC3VeFHTsqWHvKTsy54hjJz9BS/cdaypROE2rH6xvm9mHX4fgWkr3A==}
 
   babel-plugin-macros@3.1.0:
     resolution: {integrity: sha512-Cg7TFGpIr01vOQNODXOOaGz2NpCU5gl8x1qJFbb6hbZxR7XrcE2vtbAsTAbJ7/xwJtUuJEw8K8Zr/AE0LHlesg==}
@@ -6104,8 +6227,8 @@ packages:
   eastasianwidth@0.2.0:
     resolution: {integrity: sha512-I88TYZWc9XiYHRQ4/3c5rjjfgkjhLyW2luGIheGERbNQ6OY7yTybanSpDXZa8y7VUP9YmDcYa+eyq4ca7iLqWA==}
 
-  electron-to-chromium@1.5.352:
-    resolution: {integrity: sha512-9wHk8x6dyuimoe18EdiDPWKExNdxYqo4fn4FwOVVper6RxT3cmpBwBkWWfSOCYJjQdIco/nPhJhNLmn4Ufg1Yg==}
+  electron-to-chromium@1.5.356:
+    resolution: {integrity: sha512-9NgFd7m5t5MCJ5rUSjJITUXAH9mEGlrlofnMf4YEr+pz6JlP7cWmTAH+JFmbPnaSW8koVTkuW7pacORWAnA5Yw==}
 
   elliptic@6.6.1:
     resolution: {integrity: sha512-RaddvvMatK2LJHqFJ+YA4WysVN5Ita9E35botqIYspQ4TkRAlCicdzKOjlyv/1Za5RyTNn7di//eEV0uTAfe3g==}
@@ -6658,6 +6781,10 @@ packages:
     resolution: {integrity: sha512-T1gkAiYYDWYx3V5Bmyu7HcfcvL7mUrTWiM6yOfa3PIphViJ/gFPbvidQ+veqSOHci/PxBcDabeUNCzpOODJZig==}
     engines: {node: '>= 14'}
 
+  https-proxy-agent@5.0.1:
+    resolution: {integrity: sha512-dFcAjpTQFgoLMzC2VwU+C/CbS7uRL0lWmxDITmqm7C+7F0Odmj6s9l6alZc6AELXhrnggM2CeWSXHGOdX2YtwA==}
+    engines: {node: '>= 6'}
+
   https-proxy-agent@7.0.6:
     resolution: {integrity: sha512-vK9P5/iUfdl95AI+JVyUuIcVtd4ofvtrOr3HNtM2yxC9bnMbEdp3x01OhQNnjb8IJYi38VlTE3mBXwcfvywuSw==}
     engines: {node: '>= 14'}
@@ -6694,8 +6821,8 @@ packages:
   immer@10.2.0:
     resolution: {integrity: sha512-d/+XTN3zfODyjr89gM3mPq1WNX2B8pYsu7eORitdwyA2sBubnTl3laYlBk4sXY5FUa5qTZGBDPJICVbvqzjlbw==}
 
-  immer@11.1.7:
-    resolution: {integrity: sha512-LFVFtAROHcDy1er5UI6nodRFnZ2SgdCXhfNSI+DpObO8N7Pur/muBGsjzH5wpnFHCYhYVQxZskCkV4koQ//3/Q==}
+  immer@11.1.8:
+    resolution: {integrity: sha512-/tbkHMW7y10Lx6i1crLjD4/OhNkRG+Fo7byZHtah0547nIeXYcpIXaUh0IAQY6gO5459qpGGYapcEOHtFXkIuA==}
 
   immutable@3.8.3:
     resolution: {integrity: sha512-AUY/VyX0E5XlibOmWt10uabJzam1zlYjwiEgQSDc5+UIkFNaF9WM0JxXKaNMGf+F/ffUF+7kRKXM9A7C0xXqMg==}
@@ -7367,8 +7494,8 @@ packages:
     resolution: {integrity: sha512-LA4ZjwlnUblHVgq0oBF3Jl/6h/Nvs5fzBLwdEF4nuxnFdsfajde4WfxtJr3CaiH+F6ewcIB/q4jQ4UzPyid+CQ==}
     hasBin: true
 
-  node-releases@2.0.38:
-    resolution: {integrity: sha512-3qT/88Y3FbH/Kx4szpQQ4HzUbVrHPKTLVpVocKiLfoYvw9XSGOX2FmD2d6DrXbVYyAQTF2HeF6My8jmzx7/CRw==}
+  node-releases@2.0.44:
+    resolution: {integrity: sha512-5WUyunoPMsvvEhS8AxHtRzP+oA8UCkJ7YRxatWKjngndhDGLiqEVAQKWjFAiAiuL8zMRGzGSJxFnLetoa43qGQ==}
 
   nwsapi@2.2.23:
     resolution: {integrity: sha512-7wfH4sLbt4M0gCDzGE6vzQBo0bfTKjU7Sfpqy/7gs1qBfYz2vEJH6vXcBKpO3+6Yu1telwd0t9HpyOoLEQQbIQ==}
@@ -7888,13 +8015,13 @@ packages:
   robust-predicates@3.0.3:
     resolution: {integrity: sha512-NS3levdsRIUOmiJ8FZWCP7LG3QpJyrs/TE0Zpf1yvZu8cAJJ6QMW92H1c7kWpdIHo8RvmLxN/o2JXTKHp74lUA==}
 
-  rolldown@1.0.0-rc.18:
-    resolution: {integrity: sha512-phmyKBpuBdRYDf4hgyynGAYn/rDDe+iZXKVJ7WX5b1zQzpLkP5oJRPGsfJuHdzPMlyyEO/4sPW6yfSx2gf7lVg==}
+  rolldown@1.0.1:
+    resolution: {integrity: sha512-X0KQHljNnEkWNqqiz9zJrGunh1B0HgOxLXvnFpCOcadzcy5qohZ3tqMEUg00vncoRovXuK3ZqCT9KnnKzoInFQ==}
     engines: {node: ^20.19.0 || >=22.12.0}
     hasBin: true
 
-  rollup@4.60.3:
-    resolution: {integrity: sha512-pAQK9HalE84QSm4Po3EmWIZPd3FnjkShVkiMlz1iligWYkWQ7wHYd1PF/T7QZ5TVSD6uSTon5gBVMSM4JfBV+A==}
+  rollup@4.60.4:
+    resolution: {integrity: sha512-WHeFSbZYsPu3+bLoNRUuAO+wavNlocOPf3wSHTP7hcFKVnJeWsYlCDbr3mTS14FCizf9ccIxXA8sGL8zKeQN3g==}
     engines: {node: '>=18.0.0', npm: '>=8.0.0'}
     hasBin: true
 
@@ -8550,8 +8677,8 @@ packages:
       yaml:
         optional: true
 
-  vite@8.0.12:
-    resolution: {integrity: sha512-w2dDofOWv2QB09ZITZBsvKTVAlYvPR4IAmrY/v0ir9KvLs0xybR7i48wxhM1/oyBWO34wPns+bPGw5ZrZqDpZg==}
+  vite@8.0.13:
+    resolution: {integrity: sha512-MFtjBYgzmSxmgA4RAfjIyXWpGe1oALnjgUTzzV7QLx/TKxCzjtMH6Fd9/eVK+5Fg1qNoz5VAwsmMs/NofrmJvw==}
     engines: {node: ^20.19.0 || >=22.12.0}
     hasBin: true
     peerDependencies:
@@ -8689,8 +8816,8 @@ packages:
     resolution: {integrity: sha512-si7QWI6zUMq56bESFvagtmzMdGOtoxfR+Sez11Mobfc7tm+VkUckk9bW2UeffTGVUbOksxmSw0AA2gs8g71NCQ==}
     engines: {node: '>=12'}
 
-  ws@8.20.0:
-    resolution: {integrity: sha512-sAt8BhgNbzCtgGbt2OxmpuryO63ZoDk/sqaB/znQm94T4fCEsy/yV+7CdC1kJhOU9lboAEU7R3kquuycDoibVA==}
+  ws@8.20.1:
+    resolution: {integrity: sha512-It4dO0K5v//JtTXuPkfEOaI3uUN87iYPnqo/ZzqCoG3g8uhA66QUMs/SrM0YK7/NAu+r4LMh/9dq2A7k+rHs+w==}
     engines: {node: '>=10.0.0'}
     peerDependencies:
       bufferutil: ^4.0.1
@@ -9448,7 +9575,7 @@ snapshots:
       '@jest/schemas': 29.6.3
       '@types/istanbul-lib-coverage': 2.0.6
       '@types/istanbul-reports': 3.0.4
-      '@types/node': 24.12.3
+      '@types/node': 24.12.4
       '@types/yargs': 17.0.35
       chalk: 4.1.2
 
@@ -9661,10 +9788,28 @@ snapshots:
     optionalDependencies:
       '@types/react': 19.2.14
 
+  '@mui/types@9.0.0(@types/react@19.2.14)':
+    dependencies:
+      '@babel/runtime': 7.29.2
+    optionalDependencies:
+      '@types/react': 19.2.14
+
   '@mui/utils@7.3.11(@types/react@19.2.14)(react@19.1.1)':
     dependencies:
       '@babel/runtime': 7.29.2
       '@mui/types': 7.4.12(@types/react@19.2.14)
+      '@types/prop-types': 15.7.15
+      clsx: 2.1.1
+      prop-types: 15.8.1
+      react: 19.1.1
+      react-is: 19.2.6
+    optionalDependencies:
+      '@types/react': 19.2.14
+
+  '@mui/utils@9.0.0(@types/react@19.2.14)(react@19.1.1)':
+    dependencies:
+      '@babel/runtime': 7.29.2
+      '@mui/types': 9.0.0(@types/react@19.2.14)
       '@types/prop-types': 15.7.15
       clsx: 2.1.1
       prop-types: 15.8.1
@@ -9895,7 +10040,7 @@ snapshots:
       '@nodelib/fs.scandir': 2.1.5
       fastq: 1.20.1
 
-  '@oxc-project/types@0.128.0': {}
+  '@oxc-project/types@0.130.0': {}
 
   '@pkgjs/parseargs@0.11.0':
     optional: true
@@ -9908,7 +10053,7 @@ snapshots:
     dependencies:
       '@standard-schema/spec': 1.1.0
       '@standard-schema/utils': 0.3.0
-      immer: 11.1.7
+      immer: 11.1.8
       redux: 5.0.1
       redux-thunk: 3.1.0(redux@5.0.1)
       reselect: 5.1.1
@@ -9918,144 +10063,140 @@ snapshots:
 
   '@remix-run/router@1.21.0': {}
 
-  '@rolldown/binding-android-arm64@1.0.0-rc.18':
+  '@rolldown/binding-android-arm64@1.0.1':
     optional: true
 
-  '@rolldown/binding-darwin-arm64@1.0.0-rc.18':
+  '@rolldown/binding-darwin-arm64@1.0.1':
     optional: true
 
-  '@rolldown/binding-darwin-x64@1.0.0-rc.18':
+  '@rolldown/binding-darwin-x64@1.0.1':
     optional: true
 
-  '@rolldown/binding-freebsd-x64@1.0.0-rc.18':
+  '@rolldown/binding-freebsd-x64@1.0.1':
     optional: true
 
-  '@rolldown/binding-linux-arm-gnueabihf@1.0.0-rc.18':
+  '@rolldown/binding-linux-arm-gnueabihf@1.0.1':
     optional: true
 
-  '@rolldown/binding-linux-arm64-gnu@1.0.0-rc.18':
+  '@rolldown/binding-linux-arm64-gnu@1.0.1':
     optional: true
 
-  '@rolldown/binding-linux-arm64-musl@1.0.0-rc.18':
+  '@rolldown/binding-linux-arm64-musl@1.0.1':
     optional: true
 
-  '@rolldown/binding-linux-ppc64-gnu@1.0.0-rc.18':
+  '@rolldown/binding-linux-ppc64-gnu@1.0.1':
     optional: true
 
-  '@rolldown/binding-linux-s390x-gnu@1.0.0-rc.18':
+  '@rolldown/binding-linux-s390x-gnu@1.0.1':
     optional: true
 
-  '@rolldown/binding-linux-x64-gnu@1.0.0-rc.18':
+  '@rolldown/binding-linux-x64-gnu@1.0.1':
     optional: true
 
-  '@rolldown/binding-linux-x64-musl@1.0.0-rc.18':
+  '@rolldown/binding-linux-x64-musl@1.0.1':
     optional: true
 
-  '@rolldown/binding-openharmony-arm64@1.0.0-rc.18':
+  '@rolldown/binding-openharmony-arm64@1.0.1':
     optional: true
 
-  '@rolldown/binding-wasm32-wasi@1.0.0-rc.18':
+  '@rolldown/binding-wasm32-wasi@1.0.1':
     dependencies:
       '@emnapi/core': 1.10.0
       '@emnapi/runtime': 1.10.0
       '@napi-rs/wasm-runtime': 1.1.4(@emnapi/core@1.10.0)(@emnapi/runtime@1.10.0)
     optional: true
 
-  '@rolldown/binding-win32-arm64-msvc@1.0.0-rc.18':
+  '@rolldown/binding-win32-arm64-msvc@1.0.1':
     optional: true
 
-  '@rolldown/binding-win32-x64-msvc@1.0.0-rc.18':
+  '@rolldown/binding-win32-x64-msvc@1.0.1':
     optional: true
-
-  '@rolldown/pluginutils@1.0.0': {}
 
   '@rolldown/pluginutils@1.0.0-beta.38': {}
 
-  '@rolldown/pluginutils@1.0.0-rc.18': {}
+  '@rolldown/pluginutils@1.0.1': {}
 
-  '@rolldown/pluginutils@1.0.0-rc.7': {}
-
-  '@rollup/pluginutils@5.3.0(rollup@4.60.3)':
+  '@rollup/pluginutils@5.3.0(rollup@4.60.4)':
     dependencies:
       '@types/estree': 1.0.9
       estree-walker: 2.0.2
       picomatch: 4.0.4
     optionalDependencies:
-      rollup: 4.60.3
+      rollup: 4.60.4
 
-  '@rollup/rollup-android-arm-eabi@4.60.3':
+  '@rollup/rollup-android-arm-eabi@4.60.4':
     optional: true
 
-  '@rollup/rollup-android-arm64@4.60.3':
+  '@rollup/rollup-android-arm64@4.60.4':
     optional: true
 
-  '@rollup/rollup-darwin-arm64@4.60.3':
+  '@rollup/rollup-darwin-arm64@4.60.4':
     optional: true
 
-  '@rollup/rollup-darwin-x64@4.60.3':
+  '@rollup/rollup-darwin-x64@4.60.4':
     optional: true
 
-  '@rollup/rollup-freebsd-arm64@4.60.3':
+  '@rollup/rollup-freebsd-arm64@4.60.4':
     optional: true
 
-  '@rollup/rollup-freebsd-x64@4.60.3':
+  '@rollup/rollup-freebsd-x64@4.60.4':
     optional: true
 
-  '@rollup/rollup-linux-arm-gnueabihf@4.60.3':
+  '@rollup/rollup-linux-arm-gnueabihf@4.60.4':
     optional: true
 
-  '@rollup/rollup-linux-arm-musleabihf@4.60.3':
+  '@rollup/rollup-linux-arm-musleabihf@4.60.4':
     optional: true
 
-  '@rollup/rollup-linux-arm64-gnu@4.60.3':
+  '@rollup/rollup-linux-arm64-gnu@4.60.4':
     optional: true
 
-  '@rollup/rollup-linux-arm64-musl@4.60.3':
+  '@rollup/rollup-linux-arm64-musl@4.60.4':
     optional: true
 
-  '@rollup/rollup-linux-loong64-gnu@4.60.3':
+  '@rollup/rollup-linux-loong64-gnu@4.60.4':
     optional: true
 
-  '@rollup/rollup-linux-loong64-musl@4.60.3':
+  '@rollup/rollup-linux-loong64-musl@4.60.4':
     optional: true
 
-  '@rollup/rollup-linux-ppc64-gnu@4.60.3':
+  '@rollup/rollup-linux-ppc64-gnu@4.60.4':
     optional: true
 
-  '@rollup/rollup-linux-ppc64-musl@4.60.3':
+  '@rollup/rollup-linux-ppc64-musl@4.60.4':
     optional: true
 
-  '@rollup/rollup-linux-riscv64-gnu@4.60.3':
+  '@rollup/rollup-linux-riscv64-gnu@4.60.4':
     optional: true
 
-  '@rollup/rollup-linux-riscv64-musl@4.60.3':
+  '@rollup/rollup-linux-riscv64-musl@4.60.4':
     optional: true
 
-  '@rollup/rollup-linux-s390x-gnu@4.60.3':
+  '@rollup/rollup-linux-s390x-gnu@4.60.4':
     optional: true
 
-  '@rollup/rollup-linux-x64-gnu@4.60.3':
+  '@rollup/rollup-linux-x64-gnu@4.60.4':
     optional: true
 
-  '@rollup/rollup-linux-x64-musl@4.60.3':
+  '@rollup/rollup-linux-x64-musl@4.60.4':
     optional: true
 
-  '@rollup/rollup-openbsd-x64@4.60.3':
+  '@rollup/rollup-openbsd-x64@4.60.4':
     optional: true
 
-  '@rollup/rollup-openharmony-arm64@4.60.3':
+  '@rollup/rollup-openharmony-arm64@4.60.4':
     optional: true
 
-  '@rollup/rollup-win32-arm64-msvc@4.60.3':
+  '@rollup/rollup-win32-arm64-msvc@4.60.4':
     optional: true
 
-  '@rollup/rollup-win32-ia32-msvc@4.60.3':
+  '@rollup/rollup-win32-ia32-msvc@4.60.4':
     optional: true
 
-  '@rollup/rollup-win32-x64-gnu@4.60.3':
+  '@rollup/rollup-win32-x64-gnu@4.60.4':
     optional: true
 
-  '@rollup/rollup-win32-x64-msvc@4.60.3':
+  '@rollup/rollup-win32-x64-msvc@4.60.4':
     optional: true
 
   '@rtsao/scc@1.1.0': {}
@@ -10239,7 +10380,7 @@ snapshots:
       recast: 0.23.11
       semver: 7.8.0
       util: 0.12.5
-      ws: 8.20.0
+      ws: 8.20.1
     optionalDependencies:
       prettier: 3.5.3
     transitivePeerDependencies:
@@ -10288,10 +10429,10 @@ snapshots:
       react-dom: 19.1.1(react@19.1.1)
       storybook: 8.6.13(prettier@3.5.3)
 
-  '@storybook/react-vite@8.6.13(@storybook/test@8.6.13(storybook@8.6.13(prettier@3.5.3)))(react-dom@19.1.1(react@19.1.1))(react@19.1.1)(rollup@4.60.3)(storybook@8.6.13(prettier@3.5.3))(typescript@5.9.3)(vite@6.3.5(@types/node@24.6.0)(less@4.3.0)(lightningcss@1.32.0))':
+  '@storybook/react-vite@8.6.13(@storybook/test@8.6.13(storybook@8.6.13(prettier@3.5.3)))(react-dom@19.1.1(react@19.1.1))(react@19.1.1)(rollup@4.60.4)(storybook@8.6.13(prettier@3.5.3))(typescript@5.9.3)(vite@6.3.5(@types/node@24.6.0)(less@4.3.0)(lightningcss@1.32.0))':
     dependencies:
       '@joshwooding/vite-plugin-react-docgen-typescript': 0.5.0(typescript@5.9.3)(vite@6.3.5(@types/node@24.6.0)(less@4.3.0)(lightningcss@1.32.0))
-      '@rollup/pluginutils': 5.3.0(rollup@4.60.3)
+      '@rollup/pluginutils': 5.3.0(rollup@4.60.4)
       '@storybook/builder-vite': 8.6.13(storybook@8.6.13(prettier@3.5.3))(vite@6.3.5(@types/node@24.6.0)(less@4.3.0)(lightningcss@1.32.0))
       '@storybook/react': 8.6.13(@storybook/test@8.6.13(storybook@8.6.13(prettier@3.5.3)))(react-dom@19.1.1(react@19.1.1))(react@19.1.1)(storybook@8.6.13(prettier@3.5.3))(typescript@5.9.3)
       find-up: 5.0.0
@@ -10344,20 +10485,20 @@ snapshots:
     dependencies:
       storybook: 8.6.13(prettier@3.5.3)
 
-  '@swagger-api/apidom-ast@1.11.0':
+  '@swagger-api/apidom-ast@1.11.1':
     dependencies:
       '@babel/runtime-corejs3': 7.29.2
-      '@swagger-api/apidom-error': 1.11.0
+      '@swagger-api/apidom-error': 1.11.1
       '@types/ramda': 0.30.2
       ramda: 0.30.1
       ramda-adjunct: 5.1.0(ramda@0.30.1)
       unraw: 3.0.0
 
-  '@swagger-api/apidom-core@1.11.0':
+  '@swagger-api/apidom-core@1.11.1':
     dependencies:
       '@babel/runtime-corejs3': 7.29.2
-      '@swagger-api/apidom-ast': 1.11.0
-      '@swagger-api/apidom-error': 1.11.0
+      '@swagger-api/apidom-ast': 1.11.1
+      '@swagger-api/apidom-error': 1.11.1
       '@types/ramda': 0.30.2
       minim: 0.23.8
       ramda: 0.30.1
@@ -10365,260 +10506,260 @@ snapshots:
       short-unique-id: 5.3.2
       ts-mixer: 6.0.4
 
-  '@swagger-api/apidom-error@1.11.0':
+  '@swagger-api/apidom-error@1.11.1':
     dependencies:
       '@babel/runtime-corejs3': 7.29.2
 
-  '@swagger-api/apidom-json-pointer@1.11.0':
+  '@swagger-api/apidom-json-pointer@1.11.1':
     dependencies:
       '@babel/runtime-corejs3': 7.29.2
-      '@swagger-api/apidom-core': 1.11.0
-      '@swagger-api/apidom-error': 1.11.0
+      '@swagger-api/apidom-core': 1.11.1
+      '@swagger-api/apidom-error': 1.11.1
       '@swaggerexpert/json-pointer': 2.10.2
 
-  '@swagger-api/apidom-ns-api-design-systems@1.11.0':
+  '@swagger-api/apidom-ns-api-design-systems@1.11.1':
     dependencies:
       '@babel/runtime-corejs3': 7.29.2
-      '@swagger-api/apidom-core': 1.11.0
-      '@swagger-api/apidom-error': 1.11.0
-      '@swagger-api/apidom-ns-openapi-3-1': 1.11.0
+      '@swagger-api/apidom-core': 1.11.1
+      '@swagger-api/apidom-error': 1.11.1
+      '@swagger-api/apidom-ns-openapi-3-1': 1.11.1
       '@types/ramda': 0.30.2
       ramda: 0.30.1
       ramda-adjunct: 5.1.0(ramda@0.30.1)
       ts-mixer: 6.0.4
     optional: true
 
-  '@swagger-api/apidom-ns-arazzo-1@1.11.0':
+  '@swagger-api/apidom-ns-arazzo-1@1.11.1':
     dependencies:
       '@babel/runtime-corejs3': 7.29.2
-      '@swagger-api/apidom-core': 1.11.0
-      '@swagger-api/apidom-ns-json-schema-2020-12': 1.11.0
+      '@swagger-api/apidom-core': 1.11.1
+      '@swagger-api/apidom-ns-json-schema-2020-12': 1.11.1
       '@types/ramda': 0.30.2
       ramda: 0.30.1
       ramda-adjunct: 5.1.0(ramda@0.30.1)
       ts-mixer: 6.0.4
     optional: true
 
-  '@swagger-api/apidom-ns-asyncapi-2@1.11.0':
+  '@swagger-api/apidom-ns-asyncapi-2@1.11.1':
     dependencies:
       '@babel/runtime-corejs3': 7.29.2
-      '@swagger-api/apidom-core': 1.11.0
-      '@swagger-api/apidom-ns-json-schema-draft-7': 1.11.0
+      '@swagger-api/apidom-core': 1.11.1
+      '@swagger-api/apidom-ns-json-schema-draft-7': 1.11.1
       '@types/ramda': 0.30.2
       ramda: 0.30.1
       ramda-adjunct: 5.1.0(ramda@0.30.1)
       ts-mixer: 6.0.4
     optional: true
 
-  '@swagger-api/apidom-ns-asyncapi-3@1.11.0':
+  '@swagger-api/apidom-ns-asyncapi-3@1.11.1':
     dependencies:
       '@babel/runtime-corejs3': 7.29.2
-      '@swagger-api/apidom-core': 1.11.0
-      '@swagger-api/apidom-ns-asyncapi-2': 1.11.0
+      '@swagger-api/apidom-core': 1.11.1
+      '@swagger-api/apidom-ns-asyncapi-2': 1.11.1
       '@types/ramda': 0.30.2
       ramda: 0.30.1
       ramda-adjunct: 5.1.0(ramda@0.30.1)
       ts-mixer: 6.0.4
     optional: true
 
-  '@swagger-api/apidom-ns-json-schema-2019-09@1.11.0':
+  '@swagger-api/apidom-ns-json-schema-2019-09@1.11.1':
     dependencies:
       '@babel/runtime-corejs3': 7.29.2
-      '@swagger-api/apidom-core': 1.11.0
-      '@swagger-api/apidom-error': 1.11.0
-      '@swagger-api/apidom-ns-json-schema-draft-7': 1.11.0
+      '@swagger-api/apidom-core': 1.11.1
+      '@swagger-api/apidom-error': 1.11.1
+      '@swagger-api/apidom-ns-json-schema-draft-7': 1.11.1
       '@types/ramda': 0.30.2
       ramda: 0.30.1
       ramda-adjunct: 5.1.0(ramda@0.30.1)
       ts-mixer: 6.0.4
 
-  '@swagger-api/apidom-ns-json-schema-2020-12@1.11.0':
+  '@swagger-api/apidom-ns-json-schema-2020-12@1.11.1':
     dependencies:
       '@babel/runtime-corejs3': 7.29.2
-      '@swagger-api/apidom-core': 1.11.0
-      '@swagger-api/apidom-error': 1.11.0
-      '@swagger-api/apidom-ns-json-schema-2019-09': 1.11.0
+      '@swagger-api/apidom-core': 1.11.1
+      '@swagger-api/apidom-error': 1.11.1
+      '@swagger-api/apidom-ns-json-schema-2019-09': 1.11.1
       '@types/ramda': 0.30.2
       ramda: 0.30.1
       ramda-adjunct: 5.1.0(ramda@0.30.1)
       ts-mixer: 6.0.4
 
-  '@swagger-api/apidom-ns-json-schema-draft-4@1.11.0':
+  '@swagger-api/apidom-ns-json-schema-draft-4@1.11.1':
     dependencies:
       '@babel/runtime-corejs3': 7.29.2
-      '@swagger-api/apidom-ast': 1.11.0
-      '@swagger-api/apidom-core': 1.11.0
+      '@swagger-api/apidom-ast': 1.11.1
+      '@swagger-api/apidom-core': 1.11.1
       '@types/ramda': 0.30.2
       ramda: 0.30.1
       ramda-adjunct: 5.1.0(ramda@0.30.1)
       ts-mixer: 6.0.4
 
-  '@swagger-api/apidom-ns-json-schema-draft-6@1.11.0':
+  '@swagger-api/apidom-ns-json-schema-draft-6@1.11.1':
     dependencies:
       '@babel/runtime-corejs3': 7.29.2
-      '@swagger-api/apidom-core': 1.11.0
-      '@swagger-api/apidom-error': 1.11.0
-      '@swagger-api/apidom-ns-json-schema-draft-4': 1.11.0
+      '@swagger-api/apidom-core': 1.11.1
+      '@swagger-api/apidom-error': 1.11.1
+      '@swagger-api/apidom-ns-json-schema-draft-4': 1.11.1
       '@types/ramda': 0.30.2
       ramda: 0.30.1
       ramda-adjunct: 5.1.0(ramda@0.30.1)
       ts-mixer: 6.0.4
 
-  '@swagger-api/apidom-ns-json-schema-draft-7@1.11.0':
+  '@swagger-api/apidom-ns-json-schema-draft-7@1.11.1':
     dependencies:
       '@babel/runtime-corejs3': 7.29.2
-      '@swagger-api/apidom-core': 1.11.0
-      '@swagger-api/apidom-error': 1.11.0
-      '@swagger-api/apidom-ns-json-schema-draft-6': 1.11.0
+      '@swagger-api/apidom-core': 1.11.1
+      '@swagger-api/apidom-error': 1.11.1
+      '@swagger-api/apidom-ns-json-schema-draft-6': 1.11.1
       '@types/ramda': 0.30.2
       ramda: 0.30.1
       ramda-adjunct: 5.1.0(ramda@0.30.1)
       ts-mixer: 6.0.4
 
-  '@swagger-api/apidom-ns-openapi-2@1.11.0':
+  '@swagger-api/apidom-ns-openapi-2@1.11.1':
     dependencies:
       '@babel/runtime-corejs3': 7.29.2
-      '@swagger-api/apidom-core': 1.11.0
-      '@swagger-api/apidom-error': 1.11.0
-      '@swagger-api/apidom-ns-json-schema-draft-4': 1.11.0
+      '@swagger-api/apidom-core': 1.11.1
+      '@swagger-api/apidom-error': 1.11.1
+      '@swagger-api/apidom-ns-json-schema-draft-4': 1.11.1
       '@types/ramda': 0.30.2
       ramda: 0.30.1
       ramda-adjunct: 5.1.0(ramda@0.30.1)
       ts-mixer: 6.0.4
     optional: true
 
-  '@swagger-api/apidom-ns-openapi-3-0@1.11.0':
+  '@swagger-api/apidom-ns-openapi-3-0@1.11.1':
     dependencies:
       '@babel/runtime-corejs3': 7.29.2
-      '@swagger-api/apidom-core': 1.11.0
-      '@swagger-api/apidom-error': 1.11.0
-      '@swagger-api/apidom-ns-json-schema-draft-4': 1.11.0
+      '@swagger-api/apidom-core': 1.11.1
+      '@swagger-api/apidom-error': 1.11.1
+      '@swagger-api/apidom-ns-json-schema-draft-4': 1.11.1
       '@types/ramda': 0.30.2
       ramda: 0.30.1
       ramda-adjunct: 5.1.0(ramda@0.30.1)
       ts-mixer: 6.0.4
 
-  '@swagger-api/apidom-ns-openapi-3-1@1.11.0':
+  '@swagger-api/apidom-ns-openapi-3-1@1.11.1':
     dependencies:
       '@babel/runtime-corejs3': 7.29.2
-      '@swagger-api/apidom-ast': 1.11.0
-      '@swagger-api/apidom-core': 1.11.0
-      '@swagger-api/apidom-json-pointer': 1.11.0
-      '@swagger-api/apidom-ns-json-schema-2020-12': 1.11.0
-      '@swagger-api/apidom-ns-openapi-3-0': 1.11.0
+      '@swagger-api/apidom-ast': 1.11.1
+      '@swagger-api/apidom-core': 1.11.1
+      '@swagger-api/apidom-json-pointer': 1.11.1
+      '@swagger-api/apidom-ns-json-schema-2020-12': 1.11.1
+      '@swagger-api/apidom-ns-openapi-3-0': 1.11.1
       '@types/ramda': 0.30.2
       ramda: 0.30.1
       ramda-adjunct: 5.1.0(ramda@0.30.1)
       ts-mixer: 6.0.4
 
-  '@swagger-api/apidom-ns-openapi-3-2@1.11.0':
+  '@swagger-api/apidom-ns-openapi-3-2@1.11.1':
     dependencies:
       '@babel/runtime-corejs3': 7.29.2
-      '@swagger-api/apidom-ast': 1.11.0
-      '@swagger-api/apidom-core': 1.11.0
-      '@swagger-api/apidom-json-pointer': 1.11.0
-      '@swagger-api/apidom-ns-json-schema-2020-12': 1.11.0
-      '@swagger-api/apidom-ns-openapi-3-0': 1.11.0
-      '@swagger-api/apidom-ns-openapi-3-1': 1.11.0
+      '@swagger-api/apidom-ast': 1.11.1
+      '@swagger-api/apidom-core': 1.11.1
+      '@swagger-api/apidom-json-pointer': 1.11.1
+      '@swagger-api/apidom-ns-json-schema-2020-12': 1.11.1
+      '@swagger-api/apidom-ns-openapi-3-0': 1.11.1
+      '@swagger-api/apidom-ns-openapi-3-1': 1.11.1
       '@types/ramda': 0.30.2
       ramda: 0.30.1
       ramda-adjunct: 5.1.0(ramda@0.30.1)
       ts-mixer: 6.0.4
 
-  '@swagger-api/apidom-parser-adapter-api-design-systems-json@1.11.0':
+  '@swagger-api/apidom-parser-adapter-api-design-systems-json@1.11.1':
     dependencies:
       '@babel/runtime-corejs3': 7.29.2
-      '@swagger-api/apidom-core': 1.11.0
-      '@swagger-api/apidom-ns-api-design-systems': 1.11.0
-      '@swagger-api/apidom-parser-adapter-json': 1.11.0
+      '@swagger-api/apidom-core': 1.11.1
+      '@swagger-api/apidom-ns-api-design-systems': 1.11.1
+      '@swagger-api/apidom-parser-adapter-json': 1.11.1
       '@types/ramda': 0.30.2
       ramda: 0.30.1
       ramda-adjunct: 5.1.0(ramda@0.30.1)
     optional: true
 
-  '@swagger-api/apidom-parser-adapter-api-design-systems-yaml@1.11.0':
+  '@swagger-api/apidom-parser-adapter-api-design-systems-yaml@1.11.1':
     dependencies:
       '@babel/runtime-corejs3': 7.29.2
-      '@swagger-api/apidom-core': 1.11.0
-      '@swagger-api/apidom-ns-api-design-systems': 1.11.0
-      '@swagger-api/apidom-parser-adapter-yaml-1-2': 1.11.0
+      '@swagger-api/apidom-core': 1.11.1
+      '@swagger-api/apidom-ns-api-design-systems': 1.11.1
+      '@swagger-api/apidom-parser-adapter-yaml-1-2': 1.11.1
       '@types/ramda': 0.30.2
       ramda: 0.30.1
       ramda-adjunct: 5.1.0(ramda@0.30.1)
     optional: true
 
-  '@swagger-api/apidom-parser-adapter-arazzo-json-1@1.11.0':
+  '@swagger-api/apidom-parser-adapter-arazzo-json-1@1.11.1':
     dependencies:
       '@babel/runtime-corejs3': 7.29.2
-      '@swagger-api/apidom-core': 1.11.0
-      '@swagger-api/apidom-ns-arazzo-1': 1.11.0
-      '@swagger-api/apidom-parser-adapter-json': 1.11.0
+      '@swagger-api/apidom-core': 1.11.1
+      '@swagger-api/apidom-ns-arazzo-1': 1.11.1
+      '@swagger-api/apidom-parser-adapter-json': 1.11.1
       '@types/ramda': 0.30.2
       ramda: 0.30.1
       ramda-adjunct: 5.1.0(ramda@0.30.1)
     optional: true
 
-  '@swagger-api/apidom-parser-adapter-arazzo-yaml-1@1.11.0':
+  '@swagger-api/apidom-parser-adapter-arazzo-yaml-1@1.11.1':
     dependencies:
       '@babel/runtime-corejs3': 7.29.2
-      '@swagger-api/apidom-core': 1.11.0
-      '@swagger-api/apidom-ns-arazzo-1': 1.11.0
-      '@swagger-api/apidom-parser-adapter-yaml-1-2': 1.11.0
+      '@swagger-api/apidom-core': 1.11.1
+      '@swagger-api/apidom-ns-arazzo-1': 1.11.1
+      '@swagger-api/apidom-parser-adapter-yaml-1-2': 1.11.1
       '@types/ramda': 0.30.2
       ramda: 0.30.1
       ramda-adjunct: 5.1.0(ramda@0.30.1)
     optional: true
 
-  '@swagger-api/apidom-parser-adapter-asyncapi-json-2@1.11.0':
+  '@swagger-api/apidom-parser-adapter-asyncapi-json-2@1.11.1':
     dependencies:
       '@babel/runtime-corejs3': 7.29.2
-      '@swagger-api/apidom-core': 1.11.0
-      '@swagger-api/apidom-ns-asyncapi-2': 1.11.0
-      '@swagger-api/apidom-parser-adapter-json': 1.11.0
+      '@swagger-api/apidom-core': 1.11.1
+      '@swagger-api/apidom-ns-asyncapi-2': 1.11.1
+      '@swagger-api/apidom-parser-adapter-json': 1.11.1
       '@types/ramda': 0.30.2
       ramda: 0.30.1
       ramda-adjunct: 5.1.0(ramda@0.30.1)
     optional: true
 
-  '@swagger-api/apidom-parser-adapter-asyncapi-json-3@1.11.0':
+  '@swagger-api/apidom-parser-adapter-asyncapi-json-3@1.11.1':
     dependencies:
       '@babel/runtime-corejs3': 7.29.2
-      '@swagger-api/apidom-core': 1.11.0
-      '@swagger-api/apidom-ns-asyncapi-3': 1.11.0
-      '@swagger-api/apidom-parser-adapter-json': 1.11.0
+      '@swagger-api/apidom-core': 1.11.1
+      '@swagger-api/apidom-ns-asyncapi-3': 1.11.1
+      '@swagger-api/apidom-parser-adapter-json': 1.11.1
       '@types/ramda': 0.30.2
       ramda: 0.30.1
       ramda-adjunct: 5.1.0(ramda@0.30.1)
     optional: true
 
-  '@swagger-api/apidom-parser-adapter-asyncapi-yaml-2@1.11.0':
+  '@swagger-api/apidom-parser-adapter-asyncapi-yaml-2@1.11.1':
     dependencies:
       '@babel/runtime-corejs3': 7.29.2
-      '@swagger-api/apidom-core': 1.11.0
-      '@swagger-api/apidom-ns-asyncapi-2': 1.11.0
-      '@swagger-api/apidom-parser-adapter-yaml-1-2': 1.11.0
+      '@swagger-api/apidom-core': 1.11.1
+      '@swagger-api/apidom-ns-asyncapi-2': 1.11.1
+      '@swagger-api/apidom-parser-adapter-yaml-1-2': 1.11.1
       '@types/ramda': 0.30.2
       ramda: 0.30.1
       ramda-adjunct: 5.1.0(ramda@0.30.1)
     optional: true
 
-  '@swagger-api/apidom-parser-adapter-asyncapi-yaml-3@1.11.0':
+  '@swagger-api/apidom-parser-adapter-asyncapi-yaml-3@1.11.1':
     dependencies:
       '@babel/runtime-corejs3': 7.29.2
-      '@swagger-api/apidom-core': 1.11.0
-      '@swagger-api/apidom-ns-asyncapi-3': 1.11.0
-      '@swagger-api/apidom-parser-adapter-yaml-1-2': 1.11.0
+      '@swagger-api/apidom-core': 1.11.1
+      '@swagger-api/apidom-ns-asyncapi-3': 1.11.1
+      '@swagger-api/apidom-parser-adapter-yaml-1-2': 1.11.1
       '@types/ramda': 0.30.2
       ramda: 0.30.1
       ramda-adjunct: 5.1.0(ramda@0.30.1)
     optional: true
 
-  '@swagger-api/apidom-parser-adapter-json@1.11.0':
+  '@swagger-api/apidom-parser-adapter-json@1.11.1':
     dependencies:
       '@babel/runtime-corejs3': 7.29.2
-      '@swagger-api/apidom-ast': 1.11.0
-      '@swagger-api/apidom-core': 1.11.0
-      '@swagger-api/apidom-error': 1.11.0
+      '@swagger-api/apidom-ast': 1.11.1
+      '@swagger-api/apidom-core': 1.11.1
+      '@swagger-api/apidom-error': 1.11.1
       '@types/ramda': 0.30.2
       ramda: 0.30.1
       ramda-adjunct: 5.1.0(ramda@0.30.1)
@@ -10627,100 +10768,100 @@ snapshots:
       web-tree-sitter: 0.24.5
     optional: true
 
-  '@swagger-api/apidom-parser-adapter-openapi-json-2@1.11.0':
+  '@swagger-api/apidom-parser-adapter-openapi-json-2@1.11.1':
     dependencies:
       '@babel/runtime-corejs3': 7.29.2
-      '@swagger-api/apidom-core': 1.11.0
-      '@swagger-api/apidom-ns-openapi-2': 1.11.0
-      '@swagger-api/apidom-parser-adapter-json': 1.11.0
+      '@swagger-api/apidom-core': 1.11.1
+      '@swagger-api/apidom-ns-openapi-2': 1.11.1
+      '@swagger-api/apidom-parser-adapter-json': 1.11.1
       '@types/ramda': 0.30.2
       ramda: 0.30.1
       ramda-adjunct: 5.1.0(ramda@0.30.1)
     optional: true
 
-  '@swagger-api/apidom-parser-adapter-openapi-json-3-0@1.11.0':
+  '@swagger-api/apidom-parser-adapter-openapi-json-3-0@1.11.1':
     dependencies:
       '@babel/runtime-corejs3': 7.29.2
-      '@swagger-api/apidom-core': 1.11.0
-      '@swagger-api/apidom-ns-openapi-3-0': 1.11.0
-      '@swagger-api/apidom-parser-adapter-json': 1.11.0
+      '@swagger-api/apidom-core': 1.11.1
+      '@swagger-api/apidom-ns-openapi-3-0': 1.11.1
+      '@swagger-api/apidom-parser-adapter-json': 1.11.1
       '@types/ramda': 0.30.2
       ramda: 0.30.1
       ramda-adjunct: 5.1.0(ramda@0.30.1)
     optional: true
 
-  '@swagger-api/apidom-parser-adapter-openapi-json-3-1@1.11.0':
+  '@swagger-api/apidom-parser-adapter-openapi-json-3-1@1.11.1':
     dependencies:
       '@babel/runtime-corejs3': 7.29.2
-      '@swagger-api/apidom-core': 1.11.0
-      '@swagger-api/apidom-ns-openapi-3-1': 1.11.0
-      '@swagger-api/apidom-parser-adapter-json': 1.11.0
+      '@swagger-api/apidom-core': 1.11.1
+      '@swagger-api/apidom-ns-openapi-3-1': 1.11.1
+      '@swagger-api/apidom-parser-adapter-json': 1.11.1
       '@types/ramda': 0.30.2
       ramda: 0.30.1
       ramda-adjunct: 5.1.0(ramda@0.30.1)
     optional: true
 
-  '@swagger-api/apidom-parser-adapter-openapi-json-3-2@1.11.0':
+  '@swagger-api/apidom-parser-adapter-openapi-json-3-2@1.11.1':
     dependencies:
       '@babel/runtime-corejs3': 7.29.2
-      '@swagger-api/apidom-core': 1.11.0
-      '@swagger-api/apidom-ns-openapi-3-2': 1.11.0
-      '@swagger-api/apidom-parser-adapter-json': 1.11.0
+      '@swagger-api/apidom-core': 1.11.1
+      '@swagger-api/apidom-ns-openapi-3-2': 1.11.1
+      '@swagger-api/apidom-parser-adapter-json': 1.11.1
       '@types/ramda': 0.30.2
       ramda: 0.30.1
       ramda-adjunct: 5.1.0(ramda@0.30.1)
     optional: true
 
-  '@swagger-api/apidom-parser-adapter-openapi-yaml-2@1.11.0':
+  '@swagger-api/apidom-parser-adapter-openapi-yaml-2@1.11.1':
     dependencies:
       '@babel/runtime-corejs3': 7.29.2
-      '@swagger-api/apidom-core': 1.11.0
-      '@swagger-api/apidom-ns-openapi-2': 1.11.0
-      '@swagger-api/apidom-parser-adapter-yaml-1-2': 1.11.0
+      '@swagger-api/apidom-core': 1.11.1
+      '@swagger-api/apidom-ns-openapi-2': 1.11.1
+      '@swagger-api/apidom-parser-adapter-yaml-1-2': 1.11.1
       '@types/ramda': 0.30.2
       ramda: 0.30.1
       ramda-adjunct: 5.1.0(ramda@0.30.1)
     optional: true
 
-  '@swagger-api/apidom-parser-adapter-openapi-yaml-3-0@1.11.0':
+  '@swagger-api/apidom-parser-adapter-openapi-yaml-3-0@1.11.1':
     dependencies:
       '@babel/runtime-corejs3': 7.29.2
-      '@swagger-api/apidom-core': 1.11.0
-      '@swagger-api/apidom-ns-openapi-3-0': 1.11.0
-      '@swagger-api/apidom-parser-adapter-yaml-1-2': 1.11.0
+      '@swagger-api/apidom-core': 1.11.1
+      '@swagger-api/apidom-ns-openapi-3-0': 1.11.1
+      '@swagger-api/apidom-parser-adapter-yaml-1-2': 1.11.1
       '@types/ramda': 0.30.2
       ramda: 0.30.1
       ramda-adjunct: 5.1.0(ramda@0.30.1)
     optional: true
 
-  '@swagger-api/apidom-parser-adapter-openapi-yaml-3-1@1.11.0':
+  '@swagger-api/apidom-parser-adapter-openapi-yaml-3-1@1.11.1':
     dependencies:
       '@babel/runtime-corejs3': 7.29.2
-      '@swagger-api/apidom-core': 1.11.0
-      '@swagger-api/apidom-ns-openapi-3-1': 1.11.0
-      '@swagger-api/apidom-parser-adapter-yaml-1-2': 1.11.0
+      '@swagger-api/apidom-core': 1.11.1
+      '@swagger-api/apidom-ns-openapi-3-1': 1.11.1
+      '@swagger-api/apidom-parser-adapter-yaml-1-2': 1.11.1
       '@types/ramda': 0.30.2
       ramda: 0.30.1
       ramda-adjunct: 5.1.0(ramda@0.30.1)
     optional: true
 
-  '@swagger-api/apidom-parser-adapter-openapi-yaml-3-2@1.11.0':
+  '@swagger-api/apidom-parser-adapter-openapi-yaml-3-2@1.11.1':
     dependencies:
       '@babel/runtime-corejs3': 7.29.2
-      '@swagger-api/apidom-core': 1.11.0
-      '@swagger-api/apidom-ns-openapi-3-2': 1.11.0
-      '@swagger-api/apidom-parser-adapter-yaml-1-2': 1.11.0
+      '@swagger-api/apidom-core': 1.11.1
+      '@swagger-api/apidom-ns-openapi-3-2': 1.11.1
+      '@swagger-api/apidom-parser-adapter-yaml-1-2': 1.11.1
       '@types/ramda': 0.30.2
       ramda: 0.30.1
       ramda-adjunct: 5.1.0(ramda@0.30.1)
     optional: true
 
-  '@swagger-api/apidom-parser-adapter-yaml-1-2@1.11.0':
+  '@swagger-api/apidom-parser-adapter-yaml-1-2@1.11.1':
     dependencies:
       '@babel/runtime-corejs3': 7.29.2
-      '@swagger-api/apidom-ast': 1.11.0
-      '@swagger-api/apidom-core': 1.11.0
-      '@swagger-api/apidom-error': 1.11.0
+      '@swagger-api/apidom-ast': 1.11.1
+      '@swagger-api/apidom-core': 1.11.1
+      '@swagger-api/apidom-error': 1.11.1
       '@tree-sitter-grammars/tree-sitter-yaml': 0.7.1(tree-sitter@0.22.4)
       '@types/ramda': 0.30.2
       ramda: 0.30.1
@@ -10729,44 +10870,45 @@ snapshots:
       web-tree-sitter: 0.24.5
     optional: true
 
-  '@swagger-api/apidom-reference@1.11.0':
+  '@swagger-api/apidom-reference@1.11.1':
     dependencies:
       '@babel/runtime-corejs3': 7.29.2
-      '@swagger-api/apidom-core': 1.11.0
-      '@swagger-api/apidom-error': 1.11.0
+      '@swagger-api/apidom-core': 1.11.1
+      '@swagger-api/apidom-error': 1.11.1
       '@types/ramda': 0.30.2
-      axios: 1.16.0
+      axios: 1.16.1
       minimatch: 10.2.5
       ramda: 0.30.1
       ramda-adjunct: 5.1.0(ramda@0.30.1)
     optionalDependencies:
-      '@swagger-api/apidom-json-pointer': 1.11.0
-      '@swagger-api/apidom-ns-arazzo-1': 1.11.0
-      '@swagger-api/apidom-ns-asyncapi-2': 1.11.0
-      '@swagger-api/apidom-ns-openapi-2': 1.11.0
-      '@swagger-api/apidom-ns-openapi-3-0': 1.11.0
-      '@swagger-api/apidom-ns-openapi-3-1': 1.11.0
-      '@swagger-api/apidom-ns-openapi-3-2': 1.11.0
-      '@swagger-api/apidom-parser-adapter-api-design-systems-json': 1.11.0
-      '@swagger-api/apidom-parser-adapter-api-design-systems-yaml': 1.11.0
-      '@swagger-api/apidom-parser-adapter-arazzo-json-1': 1.11.0
-      '@swagger-api/apidom-parser-adapter-arazzo-yaml-1': 1.11.0
-      '@swagger-api/apidom-parser-adapter-asyncapi-json-2': 1.11.0
-      '@swagger-api/apidom-parser-adapter-asyncapi-json-3': 1.11.0
-      '@swagger-api/apidom-parser-adapter-asyncapi-yaml-2': 1.11.0
-      '@swagger-api/apidom-parser-adapter-asyncapi-yaml-3': 1.11.0
-      '@swagger-api/apidom-parser-adapter-json': 1.11.0
-      '@swagger-api/apidom-parser-adapter-openapi-json-2': 1.11.0
-      '@swagger-api/apidom-parser-adapter-openapi-json-3-0': 1.11.0
-      '@swagger-api/apidom-parser-adapter-openapi-json-3-1': 1.11.0
-      '@swagger-api/apidom-parser-adapter-openapi-json-3-2': 1.11.0
-      '@swagger-api/apidom-parser-adapter-openapi-yaml-2': 1.11.0
-      '@swagger-api/apidom-parser-adapter-openapi-yaml-3-0': 1.11.0
-      '@swagger-api/apidom-parser-adapter-openapi-yaml-3-1': 1.11.0
-      '@swagger-api/apidom-parser-adapter-openapi-yaml-3-2': 1.11.0
-      '@swagger-api/apidom-parser-adapter-yaml-1-2': 1.11.0
+      '@swagger-api/apidom-json-pointer': 1.11.1
+      '@swagger-api/apidom-ns-arazzo-1': 1.11.1
+      '@swagger-api/apidom-ns-asyncapi-2': 1.11.1
+      '@swagger-api/apidom-ns-openapi-2': 1.11.1
+      '@swagger-api/apidom-ns-openapi-3-0': 1.11.1
+      '@swagger-api/apidom-ns-openapi-3-1': 1.11.1
+      '@swagger-api/apidom-ns-openapi-3-2': 1.11.1
+      '@swagger-api/apidom-parser-adapter-api-design-systems-json': 1.11.1
+      '@swagger-api/apidom-parser-adapter-api-design-systems-yaml': 1.11.1
+      '@swagger-api/apidom-parser-adapter-arazzo-json-1': 1.11.1
+      '@swagger-api/apidom-parser-adapter-arazzo-yaml-1': 1.11.1
+      '@swagger-api/apidom-parser-adapter-asyncapi-json-2': 1.11.1
+      '@swagger-api/apidom-parser-adapter-asyncapi-json-3': 1.11.1
+      '@swagger-api/apidom-parser-adapter-asyncapi-yaml-2': 1.11.1
+      '@swagger-api/apidom-parser-adapter-asyncapi-yaml-3': 1.11.1
+      '@swagger-api/apidom-parser-adapter-json': 1.11.1
+      '@swagger-api/apidom-parser-adapter-openapi-json-2': 1.11.1
+      '@swagger-api/apidom-parser-adapter-openapi-json-3-0': 1.11.1
+      '@swagger-api/apidom-parser-adapter-openapi-json-3-1': 1.11.1
+      '@swagger-api/apidom-parser-adapter-openapi-json-3-2': 1.11.1
+      '@swagger-api/apidom-parser-adapter-openapi-yaml-2': 1.11.1
+      '@swagger-api/apidom-parser-adapter-openapi-yaml-3-0': 1.11.1
+      '@swagger-api/apidom-parser-adapter-openapi-yaml-3-1': 1.11.1
+      '@swagger-api/apidom-parser-adapter-openapi-yaml-3-2': 1.11.1
+      '@swagger-api/apidom-parser-adapter-yaml-1-2': 1.11.1
     transitivePeerDependencies:
       - debug
+      - supports-color
 
   '@swaggerexpert/cookie@2.0.2':
     dependencies:
@@ -10972,7 +11114,7 @@ snapshots:
 
   '@types/ms@2.1.0': {}
 
-  '@types/node@24.12.3':
+  '@types/node@24.12.4':
     dependencies:
       undici-types: 7.16.0
 
@@ -11514,10 +11656,10 @@ snapshots:
     transitivePeerDependencies:
       - supports-color
 
-  '@vitejs/plugin-react@6.0.1(vite@8.0.12(@types/node@24.12.3)(less@4.3.0))':
+  '@vitejs/plugin-react@6.0.2(vite@8.0.13(@types/node@24.12.4)(less@4.3.0))':
     dependencies:
-      '@rolldown/pluginutils': 1.0.0-rc.7
-      vite: 8.0.12(@types/node@24.12.3)(less@4.3.0)
+      '@rolldown/pluginutils': 1.0.1
+      vite: 8.0.13(@types/node@24.12.4)(less@4.3.0)
 
   '@vitest/expect@2.0.5':
     dependencies:
@@ -11640,9 +11782,9 @@ snapshots:
 
   '@vue/shared@3.5.34': {}
 
-  '@wso2/oxygen-ui-charts-react@0.8.3(@types/react@19.2.14)(@wso2/oxygen-ui@0.8.3(@mui/system@7.3.11(@emotion/react@11.13.5(@types/react@19.2.14)(react@19.1.1))(@emotion/styled@11.13.5(@emotion/react@11.13.5(@types/react@19.2.14)(react@19.1.1))(@types/react@19.2.14)(react@19.1.1))(@types/react@19.2.14)(react@19.1.1))(@types/react@19.2.14)(@wso2/oxygen-ui-icons-react@0.8.3(react@19.1.1))(react-dom@19.1.1(react@19.1.1))(react@19.1.1))(react-dom@19.1.1(react@19.1.1))(react-is@19.2.6)(react@19.1.1)(redux@5.0.1)':
+  '@wso2/oxygen-ui-charts-react@0.10.1(@types/react@19.2.14)(@wso2/oxygen-ui@0.10.1(@mui/system@7.3.11(@emotion/react@11.13.5(@types/react@19.2.14)(react@19.1.1))(@emotion/styled@11.13.5(@emotion/react@11.13.5(@types/react@19.2.14)(react@19.1.1))(@types/react@19.2.14)(react@19.1.1))(@types/react@19.2.14)(react@19.1.1))(@types/react@19.2.14)(@wso2/oxygen-ui-icons-react@0.10.1(react@19.1.1))(react-dom@19.1.1(react@19.1.1))(react@19.1.1))(react-dom@19.1.1(react@19.1.1))(react-is@19.2.6)(react@19.1.1)(redux@5.0.1)':
     dependencies:
-      '@wso2/oxygen-ui': 0.8.3(@mui/system@7.3.11(@emotion/react@11.13.5(@types/react@19.2.14)(react@19.1.1))(@emotion/styled@11.13.5(@emotion/react@11.13.5(@types/react@19.2.14)(react@19.1.1))(@types/react@19.2.14)(react@19.1.1))(@types/react@19.2.14)(react@19.1.1))(@types/react@19.2.14)(@wso2/oxygen-ui-icons-react@0.8.3(react@19.1.1))(react-dom@19.1.1(react@19.1.1))(react@19.1.1)
+      '@wso2/oxygen-ui': 0.10.1(@mui/system@7.3.11(@emotion/react@11.13.5(@types/react@19.2.14)(react@19.1.1))(@emotion/styled@11.13.5(@emotion/react@11.13.5(@types/react@19.2.14)(react@19.1.1))(@types/react@19.2.14)(react@19.1.1))(@types/react@19.2.14)(react@19.1.1))(@types/react@19.2.14)(@wso2/oxygen-ui-icons-react@0.10.1(react@19.1.1))(react-dom@19.1.1(react@19.1.1))(react@19.1.1)
       react: 19.1.1
       react-dom: 19.1.1(react@19.1.1)
       react-is: 19.2.6
@@ -11651,10 +11793,42 @@ snapshots:
       - '@types/react'
       - redux
 
+  '@wso2/oxygen-ui-icons-react@0.10.1(react@19.1.1)':
+    dependencies:
+      lucide-react: 0.545.0(react@19.1.1)
+      react: 19.1.1
+
   '@wso2/oxygen-ui-icons-react@0.8.3(react@19.1.1)':
     dependencies:
       lucide-react: 0.545.0(react@19.1.1)
       react: 19.1.1
+
+  '@wso2/oxygen-ui@0.10.1(@mui/system@7.3.11(@emotion/react@11.13.5(@types/react@19.2.14)(react@19.1.1))(@emotion/styled@11.13.5(@emotion/react@11.13.5(@types/react@19.2.14)(react@19.1.1))(@types/react@19.2.14)(react@19.1.1))(@types/react@19.2.14)(react@19.1.1))(@types/react@19.2.14)(@wso2/oxygen-ui-icons-react@0.10.1(react@19.1.1))(react-dom@19.1.1(react@19.1.1))(react@19.1.1)':
+    dependencies:
+      '@emotion/react': 11.14.0(@types/react@19.2.14)(react@19.1.1)
+      '@emotion/styled': 11.14.1(@emotion/react@11.14.0(@types/react@19.2.14)(react@19.1.1))(@types/react@19.2.14)(react@19.1.1)
+      '@fontsource-variable/inter': 5.2.8
+      '@mui/material': 7.3.4(@emotion/react@11.14.0(@types/react@19.2.14)(react@19.1.1))(@emotion/styled@11.14.1(@emotion/react@11.14.0(@types/react@19.2.14)(react@19.1.1))(@types/react@19.2.14)(react@19.1.1))(@types/react@19.2.14)(react-dom@19.1.1(react@19.1.1))(react@19.1.1)
+      '@mui/utils': 9.0.0(@types/react@19.2.14)(react@19.1.1)
+      '@mui/x-data-grid': 8.16.0(@emotion/react@11.14.0(@types/react@19.2.14)(react@19.1.1))(@emotion/styled@11.14.1(@emotion/react@11.14.0(@types/react@19.2.14)(react@19.1.1))(@types/react@19.2.14)(react@19.1.1))(@mui/material@7.3.4(@emotion/react@11.14.0(@types/react@19.2.14)(react@19.1.1))(@emotion/styled@11.14.1(@emotion/react@11.14.0(@types/react@19.2.14)(react@19.1.1))(@types/react@19.2.14)(react@19.1.1))(@types/react@19.2.14)(react-dom@19.1.1(react@19.1.1))(react@19.1.1))(@mui/system@7.3.11(@emotion/react@11.13.5(@types/react@19.2.14)(react@19.1.1))(@emotion/styled@11.13.5(@emotion/react@11.13.5(@types/react@19.2.14)(react@19.1.1))(@types/react@19.2.14)(react@19.1.1))(@types/react@19.2.14)(react@19.1.1))(@types/react@19.2.14)(react-dom@19.1.1(react@19.1.1))(react@19.1.1)
+      '@mui/x-date-pickers': 8.16.0(@emotion/react@11.14.0(@types/react@19.2.14)(react@19.1.1))(@emotion/styled@11.14.1(@emotion/react@11.14.0(@types/react@19.2.14)(react@19.1.1))(@types/react@19.2.14)(react@19.1.1))(@mui/material@7.3.4(@emotion/react@11.14.0(@types/react@19.2.14)(react@19.1.1))(@emotion/styled@11.14.1(@emotion/react@11.14.0(@types/react@19.2.14)(react@19.1.1))(@types/react@19.2.14)(react@19.1.1))(@types/react@19.2.14)(react-dom@19.1.1(react@19.1.1))(react@19.1.1))(@mui/system@7.3.11(@emotion/react@11.13.5(@types/react@19.2.14)(react@19.1.1))(@emotion/styled@11.13.5(@emotion/react@11.13.5(@types/react@19.2.14)(react@19.1.1))(@types/react@19.2.14)(react@19.1.1))(@types/react@19.2.14)(react@19.1.1))(@types/react@19.2.14)(date-fns@4.1.0)(react-dom@19.1.1(react@19.1.1))(react@19.1.1)
+      '@mui/x-tree-view': 8.14.0(@emotion/react@11.14.0(@types/react@19.2.14)(react@19.1.1))(@emotion/styled@11.14.1(@emotion/react@11.14.0(@types/react@19.2.14)(react@19.1.1))(@types/react@19.2.14)(react@19.1.1))(@mui/material@7.3.4(@emotion/react@11.14.0(@types/react@19.2.14)(react@19.1.1))(@emotion/styled@11.14.1(@emotion/react@11.14.0(@types/react@19.2.14)(react@19.1.1))(@types/react@19.2.14)(react@19.1.1))(@types/react@19.2.14)(react-dom@19.1.1(react@19.1.1))(react@19.1.1))(@mui/system@7.3.11(@emotion/react@11.13.5(@types/react@19.2.14)(react@19.1.1))(@emotion/styled@11.13.5(@emotion/react@11.13.5(@types/react@19.2.14)(react@19.1.1))(@types/react@19.2.14)(react@19.1.1))(@types/react@19.2.14)(react@19.1.1))(@types/react@19.2.14)(react-dom@19.1.1(react@19.1.1))(react@19.1.1)
+      '@wso2/oxygen-ui-icons-react': 0.10.1(react@19.1.1)
+      date-fns: 4.1.0
+      prismjs: 1.30.0
+      react: 19.1.1
+      react-dom: 19.1.1(react@19.1.1)
+    transitivePeerDependencies:
+      - '@mui/material-pigment-css'
+      - '@mui/system'
+      - '@types/react'
+      - date-fns-jalali
+      - dayjs
+      - luxon
+      - moment
+      - moment-hijri
+      - moment-jalaali
+      - supports-color
 
   '@wso2/oxygen-ui@0.8.3(@mui/system@7.3.11(@emotion/react@11.13.5(@types/react@19.2.14)(react@19.1.1))(@emotion/styled@11.13.5(@emotion/react@11.13.5(@types/react@19.2.14)(react@19.1.1))(@types/react@19.2.14)(react@19.1.1))(@types/react@19.2.14)(react@19.1.1))(@types/react@19.2.14)(@wso2/oxygen-ui-icons-react@0.8.3(react@19.1.1))(react-dom@19.1.1(react@19.1.1))(react@19.1.1)':
     dependencies:
@@ -11691,6 +11865,12 @@ snapshots:
       acorn: 8.16.0
 
   acorn@8.16.0: {}
+
+  agent-base@6.0.2:
+    dependencies:
+      debug: 4.4.3
+    transitivePeerDependencies:
+      - supports-color
 
   agent-base@7.1.4: {}
 
@@ -11837,13 +12017,15 @@ snapshots:
     dependencies:
       possible-typed-array-names: 1.1.0
 
-  axios@1.16.0:
+  axios@1.16.1:
     dependencies:
       follow-redirects: 1.16.0
       form-data: 4.0.5
+      https-proxy-agent: 5.0.1
       proxy-from-env: 2.1.0
     transitivePeerDependencies:
       - debug
+      - supports-color
 
   babel-plugin-macros@3.1.0:
     dependencies:
@@ -11940,10 +12122,10 @@ snapshots:
 
   browserslist@4.28.2:
     dependencies:
-      baseline-browser-mapping: 2.10.27
+      baseline-browser-mapping: 2.10.29
       caniuse-lite: 1.0.30001792
-      electron-to-chromium: 1.5.352
-      node-releases: 2.0.38
+      electron-to-chromium: 1.5.356
+      node-releases: 2.0.44
       update-browserslist-db: 1.2.3(browserslist@4.28.2)
 
   buffer-xor@1.0.3: {}
@@ -12316,7 +12498,7 @@ snapshots:
 
   eastasianwidth@0.2.0: {}
 
-  electron-to-chromium@1.5.352: {}
+  electron-to-chromium@1.5.356: {}
 
   elliptic@6.6.1:
     dependencies:
@@ -13089,6 +13271,13 @@ snapshots:
     transitivePeerDependencies:
       - supports-color
 
+  https-proxy-agent@5.0.1:
+    dependencies:
+      agent-base: 6.0.2
+      debug: 4.4.3
+    transitivePeerDependencies:
+      - supports-color
+
   https-proxy-agent@7.0.6:
     dependencies:
       agent-base: 7.1.4
@@ -13117,7 +13306,7 @@ snapshots:
 
   immer@10.2.0: {}
 
-  immer@11.1.7: {}
+  immer@11.1.8: {}
 
   immutable@3.8.3: {}
 
@@ -13364,7 +13553,7 @@ snapshots:
   jest-util@29.7.0:
     dependencies:
       '@jest/types': 29.6.3
-      '@types/node': 24.12.3
+      '@types/node': 24.12.4
       chalk: 4.1.2
       ci-info: 3.9.0
       graceful-fs: 4.2.11
@@ -13410,7 +13599,7 @@ snapshots:
       whatwg-encoding: 3.1.1
       whatwg-mimetype: 4.0.0
       whatwg-url: 14.2.0
-      ws: 8.20.0
+      ws: 8.20.1
       xml-name-validator: 5.0.0
     transitivePeerDependencies:
       - bufferutil
@@ -13912,7 +14101,7 @@ snapshots:
   node-gyp-build@4.8.4:
     optional: true
 
-  node-releases@2.0.38: {}
+  node-releases@2.0.44: {}
 
   nwsapi@2.2.23: {}
 
@@ -14524,56 +14713,56 @@ snapshots:
 
   robust-predicates@3.0.3: {}
 
-  rolldown@1.0.0-rc.18:
+  rolldown@1.0.1:
     dependencies:
-      '@oxc-project/types': 0.128.0
-      '@rolldown/pluginutils': 1.0.0-rc.18
+      '@oxc-project/types': 0.130.0
+      '@rolldown/pluginutils': 1.0.1
     optionalDependencies:
-      '@rolldown/binding-android-arm64': 1.0.0-rc.18
-      '@rolldown/binding-darwin-arm64': 1.0.0-rc.18
-      '@rolldown/binding-darwin-x64': 1.0.0-rc.18
-      '@rolldown/binding-freebsd-x64': 1.0.0-rc.18
-      '@rolldown/binding-linux-arm-gnueabihf': 1.0.0-rc.18
-      '@rolldown/binding-linux-arm64-gnu': 1.0.0-rc.18
-      '@rolldown/binding-linux-arm64-musl': 1.0.0-rc.18
-      '@rolldown/binding-linux-ppc64-gnu': 1.0.0-rc.18
-      '@rolldown/binding-linux-s390x-gnu': 1.0.0-rc.18
-      '@rolldown/binding-linux-x64-gnu': 1.0.0-rc.18
-      '@rolldown/binding-linux-x64-musl': 1.0.0-rc.18
-      '@rolldown/binding-openharmony-arm64': 1.0.0-rc.18
-      '@rolldown/binding-wasm32-wasi': 1.0.0-rc.18
-      '@rolldown/binding-win32-arm64-msvc': 1.0.0-rc.18
-      '@rolldown/binding-win32-x64-msvc': 1.0.0-rc.18
+      '@rolldown/binding-android-arm64': 1.0.1
+      '@rolldown/binding-darwin-arm64': 1.0.1
+      '@rolldown/binding-darwin-x64': 1.0.1
+      '@rolldown/binding-freebsd-x64': 1.0.1
+      '@rolldown/binding-linux-arm-gnueabihf': 1.0.1
+      '@rolldown/binding-linux-arm64-gnu': 1.0.1
+      '@rolldown/binding-linux-arm64-musl': 1.0.1
+      '@rolldown/binding-linux-ppc64-gnu': 1.0.1
+      '@rolldown/binding-linux-s390x-gnu': 1.0.1
+      '@rolldown/binding-linux-x64-gnu': 1.0.1
+      '@rolldown/binding-linux-x64-musl': 1.0.1
+      '@rolldown/binding-openharmony-arm64': 1.0.1
+      '@rolldown/binding-wasm32-wasi': 1.0.1
+      '@rolldown/binding-win32-arm64-msvc': 1.0.1
+      '@rolldown/binding-win32-x64-msvc': 1.0.1
 
-  rollup@4.60.3:
+  rollup@4.60.4:
     dependencies:
       '@types/estree': 1.0.8
     optionalDependencies:
-      '@rollup/rollup-android-arm-eabi': 4.60.3
-      '@rollup/rollup-android-arm64': 4.60.3
-      '@rollup/rollup-darwin-arm64': 4.60.3
-      '@rollup/rollup-darwin-x64': 4.60.3
-      '@rollup/rollup-freebsd-arm64': 4.60.3
-      '@rollup/rollup-freebsd-x64': 4.60.3
-      '@rollup/rollup-linux-arm-gnueabihf': 4.60.3
-      '@rollup/rollup-linux-arm-musleabihf': 4.60.3
-      '@rollup/rollup-linux-arm64-gnu': 4.60.3
-      '@rollup/rollup-linux-arm64-musl': 4.60.3
-      '@rollup/rollup-linux-loong64-gnu': 4.60.3
-      '@rollup/rollup-linux-loong64-musl': 4.60.3
-      '@rollup/rollup-linux-ppc64-gnu': 4.60.3
-      '@rollup/rollup-linux-ppc64-musl': 4.60.3
-      '@rollup/rollup-linux-riscv64-gnu': 4.60.3
-      '@rollup/rollup-linux-riscv64-musl': 4.60.3
-      '@rollup/rollup-linux-s390x-gnu': 4.60.3
-      '@rollup/rollup-linux-x64-gnu': 4.60.3
-      '@rollup/rollup-linux-x64-musl': 4.60.3
-      '@rollup/rollup-openbsd-x64': 4.60.3
-      '@rollup/rollup-openharmony-arm64': 4.60.3
-      '@rollup/rollup-win32-arm64-msvc': 4.60.3
-      '@rollup/rollup-win32-ia32-msvc': 4.60.3
-      '@rollup/rollup-win32-x64-gnu': 4.60.3
-      '@rollup/rollup-win32-x64-msvc': 4.60.3
+      '@rollup/rollup-android-arm-eabi': 4.60.4
+      '@rollup/rollup-android-arm64': 4.60.4
+      '@rollup/rollup-darwin-arm64': 4.60.4
+      '@rollup/rollup-darwin-x64': 4.60.4
+      '@rollup/rollup-freebsd-arm64': 4.60.4
+      '@rollup/rollup-freebsd-x64': 4.60.4
+      '@rollup/rollup-linux-arm-gnueabihf': 4.60.4
+      '@rollup/rollup-linux-arm-musleabihf': 4.60.4
+      '@rollup/rollup-linux-arm64-gnu': 4.60.4
+      '@rollup/rollup-linux-arm64-musl': 4.60.4
+      '@rollup/rollup-linux-loong64-gnu': 4.60.4
+      '@rollup/rollup-linux-loong64-musl': 4.60.4
+      '@rollup/rollup-linux-ppc64-gnu': 4.60.4
+      '@rollup/rollup-linux-ppc64-musl': 4.60.4
+      '@rollup/rollup-linux-riscv64-gnu': 4.60.4
+      '@rollup/rollup-linux-riscv64-musl': 4.60.4
+      '@rollup/rollup-linux-s390x-gnu': 4.60.4
+      '@rollup/rollup-linux-x64-gnu': 4.60.4
+      '@rollup/rollup-linux-x64-musl': 4.60.4
+      '@rollup/rollup-openbsd-x64': 4.60.4
+      '@rollup/rollup-openharmony-arm64': 4.60.4
+      '@rollup/rollup-win32-arm64-msvc': 4.60.4
+      '@rollup/rollup-win32-ia32-msvc': 4.60.4
+      '@rollup/rollup-win32-x64-gnu': 4.60.4
+      '@rollup/rollup-win32-x64-msvc': 4.60.4
       fsevents: 2.3.3
 
   rrweb-cssom@0.8.0: {}
@@ -14877,12 +15066,12 @@ snapshots:
     dependencies:
       '@babel/runtime-corejs3': 7.29.2
       '@scarf/scarf': 1.4.0
-      '@swagger-api/apidom-core': 1.11.0
-      '@swagger-api/apidom-error': 1.11.0
-      '@swagger-api/apidom-json-pointer': 1.11.0
-      '@swagger-api/apidom-ns-openapi-3-1': 1.11.0
-      '@swagger-api/apidom-ns-openapi-3-2': 1.11.0
-      '@swagger-api/apidom-reference': 1.11.0
+      '@swagger-api/apidom-core': 1.11.1
+      '@swagger-api/apidom-error': 1.11.1
+      '@swagger-api/apidom-json-pointer': 1.11.1
+      '@swagger-api/apidom-ns-openapi-3-1': 1.11.1
+      '@swagger-api/apidom-ns-openapi-3-2': 1.11.1
+      '@swagger-api/apidom-reference': 1.11.1
       '@swaggerexpert/cookie': 2.0.2
       deepmerge: 4.3.1
       fast-json-patch: 3.1.1
@@ -14895,6 +15084,7 @@ snapshots:
       ramda-adjunct: 5.1.0(ramda@0.30.1)
     transitivePeerDependencies:
       - debug
+      - supports-color
 
   swagger-ui-react@5.19.0(@types/react@19.2.14)(react-dom@19.1.1(react@19.1.1))(react@19.1.1):
     dependencies:
@@ -14937,6 +15127,7 @@ snapshots:
     transitivePeerDependencies:
       - '@types/react'
       - debug
+      - supports-color
 
   symbol-tree@3.2.4: {}
 
@@ -15321,10 +15512,10 @@ snapshots:
       postcss-modules: 4.3.1(postcss@8.5.3)
       vite: 6.3.5(@types/node@24.6.0)(less@4.3.0)(lightningcss@1.32.0)
 
-  vite-plugin-dts@4.5.4(@types/node@24.6.0)(rollup@4.60.3)(typescript@5.9.3)(vite@6.3.5(@types/node@24.6.0)(less@4.3.0)(lightningcss@1.32.0)):
+  vite-plugin-dts@4.5.4(@types/node@24.6.0)(rollup@4.60.4)(typescript@5.9.3)(vite@6.3.5(@types/node@24.6.0)(less@4.3.0)(lightningcss@1.32.0)):
     dependencies:
       '@microsoft/api-extractor': 7.58.7(@types/node@24.6.0)
-      '@rollup/pluginutils': 5.3.0(rollup@4.60.3)
+      '@rollup/pluginutils': 5.3.0(rollup@4.60.4)
       '@volar/typescript': 2.4.28
       '@vue/language-core': 2.2.0(typescript@5.9.3)
       compare-versions: 6.1.1
@@ -15340,10 +15531,10 @@ snapshots:
       - rollup
       - supports-color
 
-  vite-plugin-dts@4.5.4(@types/node@24.6.0)(rollup@4.60.3)(typescript@5.9.3)(vite@7.1.7(@types/node@24.6.0)(less@4.3.0)(lightningcss@1.32.0)(tsx@4.7.0)):
+  vite-plugin-dts@4.5.4(@types/node@24.6.0)(rollup@4.60.4)(typescript@5.9.3)(vite@7.1.7(@types/node@24.6.0)(less@4.3.0)(lightningcss@1.32.0)(tsx@4.7.0)):
     dependencies:
       '@microsoft/api-extractor': 7.58.7(@types/node@24.6.0)
-      '@rollup/pluginutils': 5.3.0(rollup@4.60.3)
+      '@rollup/pluginutils': 5.3.0(rollup@4.60.4)
       '@volar/typescript': 2.4.28
       '@vue/language-core': 2.2.0(typescript@5.9.3)
       compare-versions: 6.1.1
@@ -15365,7 +15556,7 @@ snapshots:
       fdir: 6.5.0(picomatch@4.0.4)
       picomatch: 4.0.4
       postcss: 8.5.3
-      rollup: 4.60.3
+      rollup: 4.60.4
       tinyglobby: 0.2.16
     optionalDependencies:
       '@types/node': 24.6.0
@@ -15379,7 +15570,7 @@ snapshots:
       fdir: 6.5.0(picomatch@4.0.4)
       picomatch: 4.0.4
       postcss: 8.5.14
-      rollup: 4.60.3
+      rollup: 4.60.4
       tinyglobby: 0.2.16
     optionalDependencies:
       '@types/node': 24.6.0
@@ -15388,15 +15579,15 @@ snapshots:
       lightningcss: 1.32.0
       tsx: 4.7.0
 
-  vite@8.0.12(@types/node@24.12.3)(less@4.3.0):
+  vite@8.0.13(@types/node@24.12.4)(less@4.3.0):
     dependencies:
       lightningcss: 1.32.0
       picomatch: 4.0.4
       postcss: 8.5.14
-      rolldown: 1.0.0-rc.18
+      rolldown: 1.0.1
       tinyglobby: 0.2.16
     optionalDependencies:
-      '@types/node': 24.12.3
+      '@types/node': 24.12.4
       fsevents: 2.3.3
       less: 4.3.0
 
@@ -15529,7 +15720,7 @@ snapshots:
       string-width: 5.1.2
       strip-ansi: 7.2.0
 
-  ws@8.20.0: {}
+  ws@8.20.1: {}
 
   xml-but-prettier@1.0.1:
     dependencies:

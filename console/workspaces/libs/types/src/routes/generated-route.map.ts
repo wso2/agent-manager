@@ -75,6 +75,17 @@ export const generatedRouteMap =  {
             }
           }
         },
+        "catalog": {
+          "path": "/org/:orgId/catalog",
+          "wildPath": "/org/:orgId/catalog/*",
+          "children": {
+            "kindDetails": {
+              "path": "/org/:orgId/catalog/kind/:kindId",
+              "wildPath": "/org/:orgId/catalog/kind/:kindId/*",
+              "children": {}
+            }
+          }
+        },
         "newProject": {
           "path": "/org/:orgId/newProject",
           "wildPath": "/org/:orgId/newProject/*",
@@ -91,7 +102,24 @@ export const generatedRouteMap =  {
                 "create": {
                   "path": "/org/:orgId/project/:projectId/newAgent/create",
                   "wildPath": "/org/:orgId/project/:projectId/newAgent/create/*",
-                  "children": {}
+                  "children": {
+                    "catalog": {
+                      "path": "/org/:orgId/project/:projectId/newAgent/create/catalog",
+                      "wildPath": "/org/:orgId/project/:projectId/newAgent/create/catalog/*",
+                      "children": {
+                        "withKind": {
+                          "path": "/org/:orgId/project/:projectId/newAgent/create/catalog/:kindId",
+                          "wildPath": "/org/:orgId/project/:projectId/newAgent/create/catalog/:kindId/*",
+                          "children": {}
+                        }
+                      }
+                    },
+                    "source": {
+                      "path": "/org/:orgId/project/:projectId/newAgent/create/source",
+                      "wildPath": "/org/:orgId/project/:projectId/newAgent/create/source/*",
+                      "children": {}
+                    }
+                  }
                 },
                 "connect": {
                   "path": "/org/:orgId/project/:projectId/newAgent/connect",
@@ -140,6 +168,28 @@ export const generatedRouteMap =  {
                   "path": "/org/:orgId/project/:projectId/agents/:agentId/deployment",
                   "wildPath": "/org/:orgId/project/:projectId/agents/:agentId/deployment/*",
                   "children": {}
+                },
+                "publish": {
+                  "path": "/org/:orgId/project/:projectId/agents/:agentId/publish",
+                  "wildPath": "/org/:orgId/project/:projectId/agents/:agentId/publish/*",
+                  "children": {
+                    "createNewVersion": {
+                      "path": "/org/:orgId/project/:projectId/agents/:agentId/publish/create-new-version",
+                      "wildPath": "/org/:orgId/project/:projectId/agents/:agentId/publish/create-new-version/*",
+                      "children": {}
+                    },
+                    "versionDetails": {
+                      "path": "/org/:orgId/project/:projectId/agents/:agentId/publish/version-details/:versionId",
+                      "wildPath": "/org/:orgId/project/:projectId/agents/:agentId/publish/version-details/:versionId/*",
+                      "children": {
+                        "edit": {
+                          "path": "/org/:orgId/project/:projectId/agents/:agentId/publish/version-details/:versionId/edit",
+                          "wildPath": "/org/:orgId/project/:projectId/agents/:agentId/publish/version-details/:versionId/edit/*",
+                          "children": {}
+                        }
+                      }
+                    }
+                  }
                 },
                 "evaluation": {
                   "path": "/org/:orgId/project/:projectId/agents/:agentId/evaluation",

@@ -25,12 +25,18 @@ interface EnvironmentVariableProps {
   formData: CreateAgentFormValues;
   setFormData: React.Dispatch<React.SetStateAction<CreateAgentFormValues>>;
   llmReservedNames?: Set<string>;
+  /** Keys that cannot be edited or removed (pre-defined by the Agent Kind schema) */
+  lockedKeys?: Set<string>;
+  /** Hide the Add button (e.g. in catalog flow where env vars are fully pre-defined) */
+  hideAdd?: boolean;
 }
 
 export const EnvironmentVariable = ({
   formData,
   setFormData,
   llmReservedNames = new Set(),
+  lockedKeys = new Set(),
+  hideAdd = false,
 }: EnvironmentVariableProps) => {
   const envVariables = formData.env || [];
   const isOneEmpty = envVariables.some((e) => !e?.key || !e?.value);
@@ -88,7 +94,7 @@ export const EnvironmentVariable = ({
       <CardContent>
         <Box display="flex" flexDirection="row" alignItems="center" gap={1}>
           <Typography variant="h5">
-            Environment Variables (Optional)
+            {hideAdd ? "Environment Variables" : "Environment Variables (Optional)"}
           </Typography>
         </Box>
         <Box display="flex" flexDirection="column" py={2} gap={2}>
@@ -96,6 +102,7 @@ export const EnvironmentVariable = ({
             const siblingKeys = new Set(
               envVariables.flatMap((e, i) => (i !== index && e.key ? [e.key] : [])),
             );
+            const isLocked = !!item.key && lockedKeys.has(item.key);
             const keyError = item.key && llmReservedNames.has(item.key)
               ? "Already used as an LLM provider variable"
               : item.key && siblingKeys.has(item.key)
@@ -111,7 +118,8 @@ export const EnvironmentVariable = ({
                 onKeyChange={(value) => handleChange(index, 'key', value)}
                 onValueChange={(value) => handleChange(index, 'value', value)}
                 onSensitiveChange={(value: boolean) => handleChange(index, 'isSensitive', value)}
-                onRemove={() => handleRemove(index)}
+                onRemove={isLocked ? () => {} : () => handleRemove(index)}
+                keyDisabled={isLocked}
                 keyError={keyError}
               />
             );
@@ -130,16 +138,18 @@ export const EnvironmentVariable = ({
             />
           }
         </Box>
-        <Button
-          startIcon={<Add fontSize="small" />}
-          disabled={isOneEmpty}
-          variant="outlined"
-          color="primary"
-          size="small"
-          onClick={handleAdd}
-        >
-          Add
-        </Button>
+        {!hideAdd && (
+          <Button
+            startIcon={<Add fontSize="small" />}
+            disabled={isOneEmpty}
+            variant="outlined"
+            color="primary"
+            size="small"
+            onClick={handleAdd}
+          >
+            Add
+          </Button>
+        )}
       </CardContent>
     </Card>
   );

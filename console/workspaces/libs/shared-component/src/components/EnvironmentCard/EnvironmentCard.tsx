@@ -19,12 +19,14 @@
 import {
   useGetAgent,
   useListAgentDeployments,
+  useListAgentKindVersions,
 } from "@agent-management-platform/api-client";
 import {
   absoluteRouteMap,
   Environment,
 } from "@agent-management-platform/types";
 import {
+  Alert,
   Box,
   Button,
   Card,
@@ -46,6 +48,7 @@ import {
   Workflow,
   Link as LinkOutlined,
   PauseCircle,
+  Tag,
 } from "@wso2/oxygen-ui-icons-react";
 import { NoDataFound, TextInput } from "@agent-management-platform/views";
 import { formatDistanceToNow } from "date-fns";
@@ -158,8 +161,35 @@ export const EnvironmentCard = (props: EnvironmentCardProps) => {
     projName: projectId,
     agentName: agentId,
   });
+  const fromKind = agent?.fromKind;
+
+  const { data: kindVersions } = useListAgentKindVersions({
+    orgName: orgId,
+    kindName: fromKind?.kindName ?? "",
+  });
+
   const currentDiployment = deployments?.[environment?.name ?? "default"];
   const theme = useTheme();
+
+  const deployedVersion = (() => {
+    if (!currentDiployment?.imageId || !fromKind) return null;
+    const matched = kindVersions?.find((v) => v.imageId === currentDiployment.imageId);
+    return matched?.version ?? fromKind.version;
+  })();
+
+  const deployedVersionLabel = deployedVersion ? `v${deployedVersion}` : null;
+
+  const latestKindVersion = kindVersions?.length
+    ? [...kindVersions].sort(
+        (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime(),
+      )[0]
+    : undefined;
+
+  const isKindOutdated =
+    !!fromKind &&
+    !!latestKindVersion &&
+    !!deployedVersion &&
+    deployedVersion !== latestKindVersion.version;
   if (isDeploymentsLoading) {
     return <Skeleton variant="rounded" height={100} />;
   }
@@ -262,7 +292,15 @@ export const EnvironmentCard = (props: EnvironmentCardProps) => {
           <Box display="flex" flexDirection="row" gap={1} alignItems="center">
             {currentDiployment?.status === DeploymentStatus.ACTIVE && (
               <>
-                <Button
+                {deployedVersionLabel && (
+                <Chip
+                  icon={<Tag size={14} />}
+                  label={deployedVersionLabel}
+                  size="small"
+                  variant="outlined"
+                />
+              )}
+              <Button
                   startIcon={<TryOutlined size={16} />}
                   variant="text"
                   // disabled
@@ -349,9 +387,16 @@ export const EnvironmentCard = (props: EnvironmentCardProps) => {
               flexGrow={1}
               flexDirection="column"
               width="100%"
-              gap={4}
+              gap={isKindOutdated ? 2 : 4}
               alignItems="flex-start"
             >
+              {isKindOutdated && (
+                <Alert severity="warning" sx={{ width: "100%" }}>
+                  A newer version of this Agent Kind is available:{" "}
+                  <strong>v{latestKindVersion!.version}</strong>. Currently
+                  deployed: <strong>v{deployedVersion}</strong>.
+                </Alert>
+              )}
               {currentDiployment?.endpoints?.map((endpoint) => (
                 <TextInput
                   slotProps={{
