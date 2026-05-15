@@ -23,9 +23,10 @@ log = logging.getLogger("it-helpdesk")
 CONFIG = Config.from_env()
 AGENT = build_agent(CONFIG)
 log.info(
-    "IT helpdesk agent ready (company=%s, tone=%s)",
+    "IT helpdesk agent ready (company=%s, tone=%s, llm_provider=%s)",
     CONFIG.company_name,
     CONFIG.tone,
+    "agent-manager" if CONFIG.use_llm_provider else "openai-direct",
 )
 
 
