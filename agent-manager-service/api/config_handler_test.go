@@ -23,6 +23,7 @@ import (
 	"testing"
 
 	"github.com/wso2/agent-manager/agent-manager-service/config"
+	"github.com/wso2/agent-manager/agent-manager-service/spec"
 )
 
 func setupConfigMux() *http.ServeMux {
@@ -56,7 +57,7 @@ func TestConfigEndpoint_HappyPath(t *testing.T) {
 		t.Errorf("expected Content-Type application/json, got %q", ct)
 	}
 
-	var body configResponse
+	var body spec.ConfigResponse
 	if err := json.NewDecoder(rec.Body).Decode(&body); err != nil {
 		t.Fatalf("decode: %v", err)
 	}
@@ -77,7 +78,7 @@ func TestConfigEndpoint_EmptyURLStillReturns200(t *testing.T) {
 		t.Fatalf("expected 200, got %d", rec.Code)
 	}
 
-	var body configResponse
+	var body spec.ConfigResponse
 	if err := json.NewDecoder(rec.Body).Decode(&body); err != nil {
 		t.Fatalf("decode: %v", err)
 	}
