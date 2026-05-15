@@ -1,0 +1,10 @@
+[
+  {"service": "Email (Exchange Online)", "status": "degraded", "since": "2026-05-14T08:30:00Z", "message": "Intermittent delays in email delivery and sync. Engineering is investigating. ETA for resolution: 2026-05-15T18:00Z."},
+  {"service": "VPN Gateway", "status": "operational", "since": null, "message": "All VPN endpoints healthy."},
+  {"service": "SSO / Okta", "status": "operational", "since": null, "message": "Single sign-on functioning normally."},
+  {"service": "Jira", "status": "operational", "since": null, "message": "Project tracking available."},
+  {"service": "GitHub Enterprise", "status": "operational", "since": null, "message": "All repositories accessible."},
+  {"service": "CI/CD Pipeline", "status": "operational", "since": null, "message": "Build and deploy pipelines running normally."},
+  {"service": "Slack", "status": "operational", "since": null, "message": "Messaging service healthy."},
+  {"service": "AWS Console", "status": "maintenance", "since": "2026-05-15T02:00:00Z", "message": "Scheduled maintenance window until 2026-05-15T06:00Z. Read-only access available."}
+]

@@ -1,0 +1,10 @@
+[
+  {"id": "TKT-2001", "employee_id": "E-1001", "subject": "Cannot connect to VPN from home", "category": "network", "priority": "P2", "status": "open", "assigned_to": "L1", "created_at": "2026-05-10"},
+  {"id": "TKT-2002", "employee_id": "E-1003", "subject": "Tableau license expired", "category": "software", "priority": "P3", "status": "in_progress", "assigned_to": "L1", "created_at": "2026-05-08"},
+  {"id": "TKT-2003", "employee_id": "E-1002", "subject": "Laptop keyboard not working", "category": "hardware", "priority": "P2", "status": "open", "assigned_to": "L1", "created_at": "2026-05-12"},
+  {"id": "TKT-2004", "employee_id": "E-1005", "subject": "Figma plugin crashes on startup", "category": "software", "priority": "P3", "status": "resolved", "assigned_to": "L1", "created_at": "2026-05-01"},
+  {"id": "TKT-2005", "employee_id": "E-1001", "subject": "Need access to staging database", "category": "access", "priority": "P3", "status": "pending_approval", "assigned_to": "L2", "created_at": "2026-05-09"},
+  {"id": "TKT-2006", "employee_id": "E-1004", "subject": "CI/CD pipeline permissions issue", "category": "access", "priority": "P1", "status": "open", "assigned_to": "L2", "created_at": "2026-05-13"},
+  {"id": "TKT-2007", "employee_id": "E-1006", "subject": "Suspicious login alert from unknown IP", "category": "security", "priority": "P1", "status": "in_progress", "assigned_to": "L2", "created_at": "2026-05-14"},
+  {"id": "TKT-2008", "employee_id": "E-1003", "subject": "Email not syncing on mobile", "category": "email", "priority": "P3", "status": "open", "assigned_to": "L1", "created_at": "2026-05-13"}
+]

@@ -1,0 +1,12 @@
+[
+  {"id": "SW-001", "name": "Jira", "category": "project_management", "requires_approval": false, "allowed_departments": null, "description": "Issue and project tracking"},
+  {"id": "SW-002", "name": "GitHub Enterprise", "category": "development", "requires_approval": false, "allowed_departments": ["Engineering", "Security"], "description": "Source code management and collaboration"},
+  {"id": "SW-003", "name": "Tableau", "category": "analytics", "requires_approval": true, "allowed_departments": ["Analytics", "Product", "Executive"], "description": "Business intelligence and data visualization"},
+  {"id": "SW-004", "name": "Figma", "category": "design", "requires_approval": false, "allowed_departments": ["Design", "Product"], "description": "UI/UX design and prototyping"},
+  {"id": "SW-005", "name": "AWS Console", "category": "infrastructure", "requires_approval": true, "allowed_departments": ["Engineering", "Security"], "description": "Cloud infrastructure management"},
+  {"id": "SW-006", "name": "Slack", "category": "communication", "requires_approval": false, "allowed_departments": null, "description": "Team messaging and collaboration"},
+  {"id": "SW-007", "name": "Splunk", "category": "security", "requires_approval": true, "allowed_departments": ["Security", "Engineering"], "description": "Log analysis and security monitoring"},
+  {"id": "SW-008", "name": "Salesforce", "category": "crm", "requires_approval": true, "allowed_departments": ["Product", "Executive"], "description": "Customer relationship management"},
+  {"id": "SW-009", "name": "PagerDuty", "category": "incident_management", "requires_approval": false, "allowed_departments": ["Engineering", "Security"], "description": "On-call and incident response"},
+  {"id": "SW-010", "name": "Admin Portal", "category": "administration", "requires_approval": true, "allowed_departments": ["Security", "Executive"], "description": "Internal admin dashboard with elevated privileges"}
+]
