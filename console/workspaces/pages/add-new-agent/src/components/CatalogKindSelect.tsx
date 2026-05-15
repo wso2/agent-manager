@@ -44,7 +44,7 @@ export const CatalogKindSelect: React.FC = () => {
   return (
     <PageLayout
       title="Select an Agent Kind"
-      description="Browse the catalog and pick a kind to create your agent from."
+      description="Browse the catalog and pick a Agent Kind to create your agent from."
       disableIcon
       backHref={backHref}
       backLabel="Back to Source Type Selection"

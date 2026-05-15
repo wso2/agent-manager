@@ -25,7 +25,7 @@ interface EnvironmentVariableProps {
   formData: CreateAgentFormValues;
   setFormData: React.Dispatch<React.SetStateAction<CreateAgentFormValues>>;
   llmReservedNames?: Set<string>;
-  /** Keys that cannot be edited or removed (pre-defined by the agent kind schema) */
+  /** Keys that cannot be edited or removed (pre-defined by the Agent Kind schema) */
   lockedKeys?: Set<string>;
   /** Hide the Add button (e.g. in catalog flow where env vars are fully pre-defined) */
   hideAdd?: boolean;

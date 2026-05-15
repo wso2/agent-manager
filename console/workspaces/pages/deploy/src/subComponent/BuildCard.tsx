@@ -240,7 +240,7 @@ export function BuildCard(props: BuildCardProps) {
             <Stack gap={2} alignItems="center">
               <NoDataFound
                 message="No versions available"
-                subtitle="Publish a version for this agent kind first."
+                subtitle="Publish a version for this Agent Kind first."
                 icon={<Tag size={32} />}
                 disableBackground
               />

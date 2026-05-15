@@ -392,7 +392,7 @@ export const EnvironmentCard = (props: EnvironmentCardProps) => {
             >
               {isKindOutdated && (
                 <Alert severity="warning" sx={{ width: "100%" }}>
-                  A newer version of this agent kind is available:{" "}
+                  A newer version of this Agent Kind is available:{" "}
                   <strong>v{latestKindVersion!.version}</strong>. Currently
                   deployed: <strong>v{deployedVersion}</strong>.
                 </Alert>

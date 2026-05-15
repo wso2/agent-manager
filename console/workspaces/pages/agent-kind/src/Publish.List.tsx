@@ -193,7 +193,7 @@ export const PublishedList: React.FC = () => {
     <>
       <PageLayout
         title="Publish"
-        description="Manage and publish versions of this agent kind to the catalog."
+        description="Manage and publish versions of this Agent Kind to the catalog."
         disableIcon
         actions={
           <Button
@@ -219,7 +219,7 @@ export const PublishedList: React.FC = () => {
             <ListingTable.EmptyState
               illustration={<Package size={64} />}
               title="No versions published yet"
-              description="Publish a build as a version to make this agent kind available in the catalog."
+              description="Publish a build as a version to make this Agent Kind available in the catalog."
             />
           ) : (
             <ListingTable>
@@ -295,7 +295,7 @@ export const PublishedList: React.FC = () => {
                   <Form.ElementWrapper label="Description" name="kindDescription">
                     <TextInput
                       id="kindDescription"
-                      placeholder="Describe this agent kind"
+                      placeholder="Describe this Agent Kind"
                       value={kindDescription}
                       onChange={(e) => setKindDescription(e.target.value)}
                       fullWidth

@@ -88,7 +88,7 @@ export const PublishEditVersion: React.FC = () => {
   return (
     <PageLayout
       title="Edit Agent Kind"
-      description="Update the display name and description for this agent kind."
+      description="Update the display name and description for this Agent Kind."
       disableIcon
       backHref={backHref}
       backLabel="Back to Version"

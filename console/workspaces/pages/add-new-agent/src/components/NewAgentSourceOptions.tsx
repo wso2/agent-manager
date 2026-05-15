@@ -48,7 +48,7 @@ export const NewAgentSourceOptions = ({ onSelect }: NewAgentSourceOptionsProps) 
         {
             type: "catalog",
             title: "Agent Catalog",
-            subheader: "Pick an agent kind from Agent Catalog",
+            subheader: "Pick an Agent Kind from Agent Catalog",
             icon: <Package size={56} />,
         },
     ] as const;

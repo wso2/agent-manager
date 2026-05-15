@@ -19,7 +19,7 @@
 import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { Alert, Form, MenuItem, Select, SelectChangeEvent, Skeleton } from "@wso2/oxygen-ui";
 import { PageLayout, useFormValidation } from "@agent-management-platform/views";
-import { generatePath, useNavigate, useParams } from "react-router-dom";
+import { generatePath, useNavigate, useParams, useSearchParams } from "react-router-dom";
 import { absoluteRouteMap, type AgentKindVersionResponse, OrgProjPathParams } from "@agent-management-platform/types";
 import { useCreateAgent, useGetAgentKind } from "@agent-management-platform/api-client";
 import { createAgentSchema, type CreateAgentFormValues, type LLMProviderFormEntry } from "../form/schema";
@@ -31,6 +31,7 @@ import { EnvironmentVariable } from "./EnvironmentVariable";
 
 export const CatalogAgentFlow: React.FC = () => {
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
   const { orgId, projectId, kindId } = useParams<{
     orgId: string;
     projectId?: string;
@@ -51,7 +52,14 @@ export const CatalogAgentFlow: React.FC = () => {
   );
 
   const [selectedVersion, setSelectedVersion] = useState<string>("");
-  const effectiveVersion = selectedVersion || sortedVersions[0]?.version || "";
+  const requestedVersion = searchParams.get("version") ?? "";
+  const effectiveVersion = useMemo(() => {
+    const preferredVersion = selectedVersion || requestedVersion;
+    if (preferredVersion && sortedVersions.some((v) => v.version === preferredVersion)) {
+      return preferredVersion;
+    }
+    return sortedVersions[0]?.version || "";
+  }, [selectedVersion, requestedVersion, sortedVersions]);
 
   const selectedVersionData = useMemo<AgentKindVersionResponse | undefined>(
     () => kind?.versions.find((v) => v.version === effectiveVersion),

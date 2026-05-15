@@ -36,7 +36,6 @@ export const CatalogList: React.FC = () => {
   return (
     <PageLayout
       title="Agent Catalog"
-      description="Browse cataloged agent kinds of the organization."
       disableIcon
     >
       <CatalogKindListing

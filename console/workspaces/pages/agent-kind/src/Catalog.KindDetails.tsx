@@ -17,15 +17,16 @@
  */
 
 
-import React, { useMemo } from "react";
+import React, { useMemo, useState } from "react";
 import { formatDistanceToNow } from "date-fns";
-import { generatePath, useParams, useSearchParams } from "react-router-dom";
+import { generatePath, useNavigate, useParams, useSearchParams } from "react-router-dom";
 import {
   Alert,
   Box,
   Button,
   Divider,
   ListingTable,
+  Menu,
   MenuItem,
   Select,
   SelectChangeEvent,
@@ -36,10 +37,11 @@ import {
 import { PageLayout } from "@agent-management-platform/views";
 import { absoluteRouteMap } from "@agent-management-platform/types";
 import { SwaggerSpecViewer } from "@agent-management-platform/shared-component";
-import { useGetAgentKind, useGetAgentEndpoints, useListKindAgents } from "@agent-management-platform/api-client";
-import { ExternalLink } from "@wso2/oxygen-ui-icons-react";
+import { useGetAgentKind, useGetAgentEndpoints, useListKindAgents, useListProjects } from "@agent-management-platform/api-client";
+import { ExternalLink, Plus } from "@wso2/oxygen-ui-icons-react";
 
 export const CatalogKindDetails: React.FC = () => {
+  const navigate = useNavigate();
   const { kindId, orgId } = useParams<{ kindId: string; orgId: string }>();
 
   const { data: kind, isLoading } = useGetAgentKind({ orgName: orgId, kindName: kindId ?? "" });
@@ -72,6 +74,12 @@ export const CatalogKindDetails: React.FC = () => {
     kindName: kindId ?? "",
   });
 
+  const { data: projectsData, isLoading: isProjectsLoading } = useListProjects({
+    orgName: orgId,
+  });
+
+  const [addInstanceAnchorEl, setAddInstanceAnchorEl] = useState<null | HTMLElement>(null);
+
   const endpointKey = useMemo(() => Object.keys(endpointsData ?? {})[0] ?? "", [endpointsData]);
   const apiSpec = useMemo(
     () => endpointsData?.[endpointKey]?.schema?.content as Record<string, unknown> | undefined,
@@ -81,6 +89,38 @@ export const CatalogKindDetails: React.FC = () => {
   const backHref = generatePath(absoluteRouteMap.children.org.children.catalog.path, {
     orgId: orgId ?? "",
   });
+
+  const sortedProjects = useMemo(
+    () =>
+      [...(projectsData?.projects ?? [])].sort((a, b) =>
+        (a.displayName || a.name).localeCompare(b.displayName || b.name),
+      ),
+    [projectsData],
+  );
+
+  const handleOpenAddInstanceMenu = (event: React.MouseEvent<HTMLElement>) => {
+    setAddInstanceAnchorEl(event.currentTarget);
+  };
+
+  const handleCloseAddInstanceMenu = () => {
+    setAddInstanceAnchorEl(null);
+  };
+
+  const handleSelectProjectForInstance = (projectName: string) => {
+    const targetPath = generatePath(
+      absoluteRouteMap.children.org.children.projects.children.newAgent
+        .children.create.children.catalog.children.withKind.path,
+      {
+        orgId: orgId ?? "",
+        projectId: projectName,
+        kindId: kindId ?? "",
+      },
+    );
+    const target = selectedVersionTag ?
+      `${targetPath}?version=${encodeURIComponent(selectedVersionTag)}` : targetPath;
+    handleCloseAddInstanceMenu();
+    navigate(target);
+  };
 
   const versionSelector = sortedVersions.length > 1 && (
     <Select
@@ -105,7 +145,8 @@ export const CatalogKindDetails: React.FC = () => {
 
   if (isLoading) {
     return (
-      <PageLayout title={kindId ?? "Agent Kind Details"} backHref={backHref} backLabel="Back to Agent Catalog" disableIcon>
+      <PageLayout title={kindId ?? "Agent Kind Details"} backHref={backHref}
+        backLabel="Back to Agent Catalog" disableIcon>
         <Box sx={{ p: 2 }}>
           <Skeleton variant="rounded" height={32} sx={{ mb: 2, maxWidth: 320 }} />
           <Skeleton variant="rounded" height={48} sx={{ mb: 1 }} />
@@ -118,23 +159,61 @@ export const CatalogKindDetails: React.FC = () => {
 
   if (!kind) {
     return (
-      <PageLayout title="Agent Kind Details" backHref={backHref} backLabel="Back to Agent Catalog" disableIcon>
+      <PageLayout title="Agent Kind Details" backHref={backHref}
+        backLabel="Back to Agent Catalog" disableIcon>
         <Alert severity="error">Agent kind &quot;{kindId}&quot; was not found.</Alert>
       </PageLayout>
     );
   }
 
   const releasedLabel = selectedVersion
-    ? `Released on ${new Date(selectedVersion.createdAt).toLocaleDateString(undefined, { year: "numeric", month: "long", day: "numeric" })}`
+    ? `Released on ${new Date(selectedVersion.createdAt).toLocaleDateString(undefined,
+      { year: "numeric", month: "long", day: "numeric" })}`
     : undefined;
 
   return (
     <PageLayout
       title={kind.displayName}
-      description={releasedLabel ?? "View details of this agent kind."}
+      description={releasedLabel ?? "View details of this Agent Kind."}
       backHref={backHref}
       backLabel="Back to Agent Catalog"
-      actions={versionSelector || undefined}
+      actions={[
+        versionSelector || undefined,
+        <React.Fragment key="add-instance-action">
+          <Button
+            startIcon={<Plus />}
+            variant="contained"
+            color="primary"
+            onClick={handleOpenAddInstanceMenu}
+            aria-controls={addInstanceAnchorEl ? "add-instance-menu" : undefined}
+            aria-haspopup="true"
+            aria-expanded={Boolean(addInstanceAnchorEl)}
+          >
+            Add Instance
+          </Button>
+          <Menu
+            id="add-instance-menu"
+            anchorEl={addInstanceAnchorEl}
+            open={Boolean(addInstanceAnchorEl)}
+            onClose={handleCloseAddInstanceMenu}
+            anchorOrigin={{ vertical: "bottom", horizontal: "right" }}
+            transformOrigin={{ vertical: "top", horizontal: "right" }}
+          >
+            {isProjectsLoading ? (
+              <MenuItem disabled>Loading projects...</MenuItem>
+            ) : sortedProjects.length > 0 ? (
+              sortedProjects.map((project) => (
+                <MenuItem key={project.name} onClick={() =>
+                  handleSelectProjectForInstance(project.name)}>
+                  {project.displayName || project.name}
+                </MenuItem>
+              ))
+            ) : (
+              <MenuItem disabled>No projects found</MenuItem>
+            )}
+          </Menu>
+        </React.Fragment>,
+      ]}
       disableIcon
     >
       <Stack spacing={3}>
@@ -174,16 +253,24 @@ export const CatalogKindDetails: React.FC = () => {
                         <Typography variant="body2" fontWeight={500}>{item.name}</Typography>
                       </ListingTable.Cell>
                       <ListingTable.Cell>
-                        <Typography variant="body2" color="text.secondary">{item.description ?? "—"}</Typography>
+                        <Typography variant="body2" color="text.secondary">
+                          {item.description ?? "—"}
+                        </Typography>
                       </ListingTable.Cell>
                       <ListingTable.Cell>
-                        <Typography variant="body2" color="text.secondary">{item.isMandatory ? "Yes" : "No"}</Typography>
+                        <Typography variant="body2" color="text.secondary">
+                          {item.isMandatory ? "Yes" : "No"}
+                        </Typography>
                       </ListingTable.Cell>
                       <ListingTable.Cell>
-                        <Typography variant="body2" color="text.secondary">{item.isSecret ? "Yes" : "No"}</Typography>
+                        <Typography variant="body2" color="text.secondary">
+                          {item.isSecret ? "Yes" : "No"}
+                        </Typography>
                       </ListingTable.Cell>
                       <ListingTable.Cell>
-                        <Typography variant="body2" color="text.secondary">{item.defaultValue ?? "—"}</Typography>
+                        <Typography variant="body2" color="text.secondary">
+                          {item.defaultValue ?? "—"}
+                        </Typography>
                       </ListingTable.Cell>
                     </ListingTable.Row>
                   ))}
