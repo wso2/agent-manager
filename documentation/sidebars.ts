@@ -66,6 +66,7 @@ const sidebars: SidebarsConfig = {
         'tutorials/custom-evaluators',
         'tutorials/register-ai-gateway',
         'tutorials/register-llm-service-provider',
+        'tutorials/secure-agent-endpoints-with-api-keys',
         'tutorials/configure-agent-llm-configuration'
       ],
     },
