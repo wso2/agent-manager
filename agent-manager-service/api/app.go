@@ -42,6 +42,9 @@ func MakeHTTPHandler(params *wiring.AppParams, extraAPIRoutes func(*http.ServeMu
 	// Register OAuth 2.0 Protected Resource Metadata (RFC 9728) at root level (no authentication required)
 	registerWellKnownRoutes(mux)
 
+	// Register service-configuration discovery endpoint at root level (no authentication required)
+	registerConfigRoutes(mux)
+
 	// Register MCP at root level
 	mcp.RegisterRoute(mux, mcp.Dependencies{
 		InfraResourceManager:     params.InfraResourceManager,

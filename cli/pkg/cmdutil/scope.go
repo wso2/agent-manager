@@ -114,3 +114,32 @@ func (f *Factory) AgentScope(org, project, agent string) render.Scope {
 	s.Agent = agent
 	return s
 }
+
+// ResolveEnvironment returns the environment using this fallback chain:
+//  1. --env flag
+//  2. linked project's Environment for the current working directory
+func (f *Factory) ResolveEnvironment(cmd *cobra.Command) (string, error) {
+	if env, _ := cmd.Flags().GetString("env"); env != "" {
+		return env, nil
+	}
+	if cfg, _ := f.Config(); cfg != nil {
+		if wd, err := os.Getwd(); err == nil {
+			if _, lp := cfg.GetLinkedProject(wd); lp != nil && lp.Environment != "" {
+				return lp.Environment, nil
+			}
+		}
+	}
+	return "", clierr.New(clierr.NoEnvironment, "no environment (set --env or run `amctl context link`)")
+}
+
+// EnvScope builds a render envelope scope that includes org, project, agent, and environment.
+func (f *Factory) EnvScope(org, project, agent, env string) render.Scope {
+	s := f.AgentScope(org, project, agent)
+	s.Environment = env
+	return s
+}
+
+// AddEnvFlag registers the standard --env flag on cmd.
+func AddEnvFlag(cmd *cobra.Command) {
+	cmd.Flags().String("env", "", "Environment name (defaults to linked project's environment)")
+}

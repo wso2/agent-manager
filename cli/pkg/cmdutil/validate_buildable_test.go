@@ -74,8 +74,53 @@ func TestValidateBuildable_ExternalFails(t *testing.T) {
 	if cliErr.Code != clierr.Validation {
 		t.Errorf("code = %q, want %q", cliErr.Code, clierr.Validation)
 	}
-	if !strings.Contains(cliErr.Message, "does not support builds") {
-		t.Errorf("message = %q, want to contain 'does not support builds'", cliErr.Message)
+	if !strings.Contains(cliErr.Message, "externally provisioned") {
+		t.Errorf("message = %q, want to contain 'externally provisioned'", cliErr.Message)
+	}
+	if !strings.Contains(cliErr.Message, "Builds") {
+		t.Errorf("message = %q, want to contain 'Builds'", cliErr.Message)
+	}
+}
+
+func TestValidateRuntimeManaged_InternalPasses(t *testing.T) {
+	agent := &amsvc.AgentResponse{
+		Name:         "my-agent",
+		DisplayName:  "My Agent",
+		ProjectName:  "proj",
+		Provisioning: amsvc.Provisioning{Type: amsvc.ProvisioningTypeInternal},
+		CreatedAt:    time.Now().UTC(),
+	}
+	client := newGetAgentServer(t, agent, http.StatusOK)
+
+	err := ValidateRuntimeManaged(context.Background(), client, "org", "proj", "my-agent")
+	if err != nil {
+		t.Errorf("ValidateRuntimeManaged = %v, want nil for internal agent", err)
+	}
+}
+
+func TestValidateRuntimeManaged_ExternalFails(t *testing.T) {
+	agent := &amsvc.AgentResponse{
+		Name:         "ext-agent",
+		DisplayName:  "Ext",
+		ProjectName:  "proj",
+		Provisioning: amsvc.Provisioning{Type: "external"},
+		CreatedAt:    time.Now().UTC(),
+	}
+	client := newGetAgentServer(t, agent, http.StatusOK)
+
+	err := ValidateRuntimeManaged(context.Background(), client, "org", "proj", "ext-agent")
+	if err == nil {
+		t.Fatal("ValidateRuntimeManaged = nil, want error for external agent")
+	}
+	var cliErr clierr.CLIError
+	if !errors.As(err, &cliErr) {
+		t.Fatalf("error is not CLIError: %T", err)
+	}
+	if cliErr.Code != clierr.Validation {
+		t.Errorf("code = %q, want %q", cliErr.Code, clierr.Validation)
+	}
+	if !strings.Contains(cliErr.Message, "Runtime logs and metrics") {
+		t.Errorf("message = %q, want to contain 'Runtime logs and metrics'", cliErr.Message)
 	}
 }
 

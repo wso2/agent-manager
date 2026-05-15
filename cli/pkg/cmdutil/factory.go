@@ -19,7 +19,9 @@ package cmdutil
 import (
 	"context"
 	"net/http"
+	"net/url"
 	"strings"
+	"sync"
 	"time"
 
 	"golang.org/x/oauth2"
@@ -27,6 +29,7 @@ import (
 
 	"github.com/wso2/agent-manager/cli/pkg/clients"
 	amsvc "github.com/wso2/agent-manager/cli/pkg/clients/amsvc/gen"
+	"github.com/wso2/agent-manager/cli/pkg/clients/traceobssvc"
 	"github.com/wso2/agent-manager/cli/pkg/clierr"
 	"github.com/wso2/agent-manager/cli/pkg/config"
 	"github.com/wso2/agent-manager/cli/pkg/iostreams"
@@ -36,11 +39,17 @@ import (
 const refreshBuffer = 5 * time.Minute
 
 type Factory struct {
-	Config       func() (*config.Config, error)
-	IOStreams    *iostreams.IOStreams
-	Prompter     prompter.Prompter
-	HTTPClient   func() *http.Client
-	AgentManager func(ctx context.Context) (*amsvc.ClientWithResponses, error)
+	Config        func() (*config.Config, error)
+	IOStreams     *iostreams.IOStreams
+	Prompter      prompter.Prompter
+	HTTPClient    func() *http.Client
+	AgentManager  func(ctx context.Context) (*amsvc.ClientWithResponses, error)
+	TraceObserver func(ctx context.Context) (*traceobssvc.Client, error)
+	Token         func(ctx context.Context) (string, error)
+
+	traceObsOnce sync.Once
+	traceObsURL  string
+	traceObsErr  error
 }
 
 func NewFactory(cfg *config.Config, io *iostreams.IOStreams) *Factory {
@@ -54,7 +63,91 @@ func NewFactory(cfg *config.Config, io *iostreams.IOStreams) *Factory {
 	f.AgentManager = func(ctx context.Context) (*amsvc.ClientWithResponses, error) {
 		return f.agentManager(ctx)
 	}
+	f.Token = func(ctx context.Context) (string, error) {
+		return f.currentAccessToken(ctx)
+	}
+	f.TraceObserver = func(ctx context.Context) (*traceobssvc.Client, error) {
+		return f.traceObserver(ctx)
+	}
 	return f
+}
+
+func (f *Factory) currentAccessToken(ctx context.Context) (string, error) {
+	cfg, err := f.Config()
+	if err != nil {
+		return "", clierr.Newf(clierr.ConfigNotLoaded, "%v", err)
+	}
+	inst, err := cfg.Current()
+	if err != nil {
+		return "", clierr.New(clierr.NoInstance, err.Error())
+	}
+	return f.ensureFreshToken(ctx, cfg, inst)
+}
+
+func (f *Factory) traceObserver(ctx context.Context) (*traceobssvc.Client, error) {
+	obsURL, err := f.discoverTraceObserverURL(ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	token, err := f.Token(ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	return traceobssvc.NewClient(
+		strings.TrimRight(obsURL, "/"),
+		traceobssvc.WithHTTPClient(f.HTTPClient()),
+		traceobssvc.WithRequestEditor(func(_ context.Context, req *http.Request) error {
+			req.Header.Set("Authorization", "Bearer "+token)
+			return nil
+		}),
+	)
+}
+
+func (f *Factory) discoverTraceObserverURL(ctx context.Context) (string, error) {
+	f.traceObsOnce.Do(func() {
+		amClient, err := f.AgentManager(ctx)
+		if err != nil {
+			f.traceObsErr = err
+			return
+		}
+		resp, err := amClient.GetConfigWithResponse(ctx)
+		if err != nil {
+			f.traceObsErr = clierr.Newf(clierr.Transport, "discover trace observer URL: %v", err)
+			return
+		}
+		if resp.JSON200 == nil {
+			f.traceObsErr = ErrorFromServer(resp.HTTPResponse, nil)
+			return
+		}
+		raw := resp.JSON200.TraceObserverBaseUrl
+		if raw == "" {
+			f.traceObsErr = clierr.New(clierr.ServerInvalid, "server returned empty traceObserverBaseUrl")
+			return
+		}
+		f.traceObsURL = rewriteDockerHost(raw)
+	})
+	return f.traceObsURL, f.traceObsErr
+}
+
+// rewriteDockerHost swaps host.docker.internal for localhost — the server may
+// advertise the container-network hostname, which does not resolve from the CLI.
+func rewriteDockerHost(raw string) string {
+	u, err := url.Parse(raw)
+	if err != nil || u.Host == "" {
+		return raw
+	}
+	host := u.Hostname()
+	if host != "host.docker.internal" {
+		return raw
+	}
+	if port := u.Port(); port != "" {
+		u.Host = "localhost:" + port
+	} else {
+		u.Host = "localhost"
+	}
+	return u.String()
 }
 
 func (f *Factory) agentManager(ctx context.Context) (*amsvc.ClientWithResponses, error) {

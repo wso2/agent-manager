@@ -23,6 +23,7 @@ import (
 	"strings"
 
 	amsvc "github.com/wso2/agent-manager/cli/pkg/clients/amsvc/gen"
+	"github.com/wso2/agent-manager/cli/pkg/clients/traceobssvc"
 	"github.com/wso2/agent-manager/cli/pkg/clierr"
 )
 
@@ -113,4 +114,38 @@ func FirstNonNil(errs ...*amsvc.ErrorResponse) *amsvc.ErrorResponse {
 		}
 	}
 	return nil
+}
+
+// TraceObserverErrorFromResponse converts a traceobssvc error into a CLIError.
+// Non-HTTP errors map to clierr.Transport.
+func TraceObserverErrorFromResponse(err error) clierr.CLIError {
+	var herr *traceobssvc.HTTPError
+	if !errors.As(err, &herr) {
+		return clierr.CLIError{
+			Code:           clierr.Transport,
+			Message:        err.Error(),
+			AdditionalData: map[string]any{},
+		}
+	}
+	code := clierr.ServerError
+	switch herr.StatusCode {
+	case http.StatusUnauthorized:
+		code = clierr.Unauthorized
+	case http.StatusForbidden:
+		code = clierr.Forbidden
+	case http.StatusNotFound:
+		code = clierr.NotFound
+	case http.StatusBadRequest:
+		code = clierr.Validation
+	}
+	msg := fmt.Sprintf("trace observer returned %d", herr.StatusCode)
+	if herr.Body != nil && herr.Body.Message != "" {
+		msg = herr.Body.Message
+	}
+	return clierr.CLIError{
+		Status:         herr.StatusCode,
+		Code:           code,
+		Message:        msg,
+		AdditionalData: map[string]any{},
+	}
 }
