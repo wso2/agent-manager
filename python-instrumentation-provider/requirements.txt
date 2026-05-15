@@ -1,4 +1,7 @@
 # traceloop-sdk (OpenLLMetry) is installed by the Dockerfile from the
 # TRACELOOP_VERSION build arg, so the pinned version is set per AMP
 # instrumentation image. This file holds only the always-needed extras.
+# Pin wrapt below 2.0: wrapt 2.x removed the `module=` kwarg on
+# wrap_function_wrapper that opentelemetry-instrumentation-* 0.60.0 still calls.
+wrapt<2.0.0
 httpx>=0.25.0

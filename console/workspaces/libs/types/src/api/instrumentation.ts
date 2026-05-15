@@ -19,9 +19,9 @@
 // AMP instrumentation versions the platform supports. Each version maps to a
 // pre-built init-container image (`amp-python-instrumentation-provider:<version>-python<X.Y>`)
 // with a specific pinned `traceloop-sdk`. Server-side source of truth:
-// agent-manager-service `OTEL_SUPPORTED_INSTRUMENTATION_VERSIONS` env (default `["0.2.0"]`).
-export const SUPPORTED_INSTRUMENTATION_VERSIONS = ['0.2.0'] as const;
-export const DEFAULT_INSTRUMENTATION_VERSION: SupportedInstrumentationVersion = '0.2.0';
+// agent-manager-service `OTEL_SUPPORTED_INSTRUMENTATION_VERSIONS` env (default `["0.2.1"]`).
+export const SUPPORTED_INSTRUMENTATION_VERSIONS = ['0.2.1'] as const;
+export const DEFAULT_INSTRUMENTATION_VERSION: SupportedInstrumentationVersion = '0.2.1';
 export type SupportedInstrumentationVersion =
   (typeof SUPPORTED_INSTRUMENTATION_VERSIONS)[number];
 

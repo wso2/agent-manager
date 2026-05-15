@@ -16,6 +16,9 @@ maintainers = [
 # is a new amp-instrumentation release. See the AMP instrumentation version mapping.
 dependencies = [
     "traceloop-sdk==0.60.0",
+     # Pin wrapt below 2.0: wrapt 2.x removed the `module=` kwarg on
+    # wrap_function_wrapper that opentelemetry-instrumentation-* 0.60.0 still calls.
+    "wrapt<2.0.0",
     "httpx>=0.25.0",
     # Imported directly by amp_instrumentation.otel.init_otel. Left unconstrained
     # on purpose: their version is determined by traceloop-sdk==0.60.0, which
