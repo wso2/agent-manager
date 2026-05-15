@@ -21,6 +21,7 @@ import (
 	"fmt"
 	"io/fs"
 	"os"
+	"path"
 	"path/filepath"
 	"strings"
 
@@ -70,6 +71,35 @@ type SkillInfo struct {
 // DefaultDestRel is the relative path (from home) for the canonical skill directory.
 const DefaultDestRel = ".agents/skills"
 
+// validSkillName reports whether name is safe to use as a top-level skill
+// directory: non-empty, not "." or "..", and contains no path separators.
+func validSkillName(name string) bool {
+	if name == "" || name == "." || name == ".." {
+		return false
+	}
+	return !strings.ContainsAny(name, `/\`)
+}
+
+// validSkillRelPath reports whether rel is safe to use as a relative path
+// inside a skill directory: non-empty, not absolute, no backslashes (which
+// can act as separators on some platforms), and no ".." segments after
+// path.Clean.
+func validSkillRelPath(rel string) bool {
+	if rel == "" || strings.HasPrefix(rel, "/") || strings.ContainsRune(rel, '\\') {
+		return false
+	}
+	cleaned := path.Clean(rel)
+	if cleaned == "." || cleaned == ".." || strings.HasPrefix(cleaned, "../") {
+		return false
+	}
+	for _, seg := range strings.Split(cleaned, "/") {
+		if seg == ".." {
+			return false
+		}
+	}
+	return true
+}
+
 // knownToolDirs are the relative paths (from home) of tool skill directories.
 var knownToolDirs = []string{
 	filepath.Join(".claude", "skills"),
@@ -110,6 +140,9 @@ func Install(ctx context.Context, fsys fs.FS, destDir string, toolDirs []string)
 			continue
 		}
 		name := entry.Name()
+		if !validSkillName(name) {
+			return result, fmt.Errorf("invalid skill name %q", name)
+		}
 		skillDir := filepath.Join(destDir, name)
 		if err := os.MkdirAll(skillDir, 0o755); err != nil {
 			return result, fmt.Errorf("create skill dir %s: %w", skillDir, err)
@@ -238,22 +271,29 @@ func Remove(destDir string, toolDirs []string) (RemoveResult, error) {
 // to destDir, preserving subdirectory structure.
 func extractSkillFS(fsys fs.FS, name, destDir string) error {
 	root := "skilldata/" + name
-	return fs.WalkDir(fsys, root, func(path string, d fs.DirEntry, err error) error {
+	return fs.WalkDir(fsys, root, func(p string, d fs.DirEntry, err error) error {
 		if err != nil {
 			return err
 		}
 		if d.IsDir() {
 			return nil
 		}
-		rel, err := filepath.Rel(root, path)
+		rel, err := filepath.Rel(root, p)
 		if err != nil {
 			return err
 		}
-		data, err := fs.ReadFile(fsys, path)
+		if !validSkillRelPath(filepath.ToSlash(rel)) {
+			return fmt.Errorf("invalid skill file path %q", rel)
+		}
+		data, err := fs.ReadFile(fsys, p)
 		if err != nil {
 			return err
 		}
 		out := filepath.Join(destDir, rel)
+		cleanedDest := filepath.Clean(destDir) + string(filepath.Separator)
+		if !strings.HasPrefix(filepath.Clean(out), cleanedDest) {
+			return fmt.Errorf("skill file %q escapes destination", rel)
+		}
 		if err := os.MkdirAll(filepath.Dir(out), 0o755); err != nil {
 			return err
 		}

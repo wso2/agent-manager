@@ -243,6 +243,12 @@ func walkTarball(tarball []byte, pathPrefix string) (map[string]map[string][]byt
 		if relative == "" {
 			continue
 		}
+		if !validSkillName(skillName) {
+			return nil, fmt.Errorf("invalid skill name %q in archive entry %q", skillName, hdr.Name)
+		}
+		if !validSkillRelPath(relative) {
+			return nil, fmt.Errorf("invalid relative path %q in archive entry %q", relative, hdr.Name)
+		}
 
 		contents, err := io.ReadAll(tr)
 		if err != nil {

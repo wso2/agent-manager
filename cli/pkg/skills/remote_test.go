@@ -111,6 +111,23 @@ func TestWalkTarball_MalformedGzip(t *testing.T) {
 	}
 }
 
+func TestWalkTarball_RejectsPathTraversal(t *testing.T) {
+	cases := map[string]string{
+		"relative path with ..":         "agent-skills-main/plugins/agent-manager/skills/foo/../../etc/passwd",
+		"skill name is ..":              "agent-skills-main/plugins/agent-manager/skills/../evil/SKILL.md",
+		"skill name contains backslash": "agent-skills-main/plugins/agent-manager/skills/foo\\bar/SKILL.md",
+	}
+	for desc, entry := range cases {
+		t.Run(desc, func(t *testing.T) {
+			tarball := buildTarball(t, map[string]string{entry: "x"})
+			_, err := walkTarball(tarball, "plugins/agent-manager/skills/")
+			if err == nil {
+				t.Fatalf("want error for malicious entry %q, got nil", entry)
+			}
+		})
+	}
+}
+
 func TestFetchTarball_ReturnsBodyOn200(t *testing.T) {
 	want := []byte("fake tarball bytes")
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
