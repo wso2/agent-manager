@@ -10,13 +10,24 @@ WSO2 Agent Manager provides full-stack observability for AI agents — whether t
 
 Observability in AMP is built on [OpenTelemetry](https://opentelemetry.io/), the industry-standard framework for distributed tracing and instrumentation. Every agent interaction — LLM calls, tool invocations, MCP requests, retrieval operations, and agent reasoning steps — is captured as a structured trace and stored for analysis.
 
-## Auto-Instrumentation for Deployed Agents
+There are two places an agent can run, and two ways to instrument it. AMP supports any combination of the two:
 
-When you deploy an agent through WSO2 Agent Manager, observability is set up **automatically — no code changes required**.
+- **Where it runs:** platform-hosted (deployed through AMP) or externally-hosted (anywhere else — local, on-prem, third-party cloud).
+- **How it's instrumented:** auto-instrumentation (zero-code, for frameworks the Traceloop SDK covers) or manual instrumentation (you emit spans yourself against AMP's published contract).
+
+## Platform-Hosted Agents
+
+When you deploy a Python agent through WSO2 Agent Manager with auto-instrumentation enabled, AMP injects a pre-built init container that pre-installs the Traceloop SDK into the agent's Python environment. No code changes are required.
+
+### Picking an AMP instrumentation version
+
+When you create a Python agent in the Console with auto-instrumentation on, you select an **AMP instrumentation version**. Each version pins a specific Traceloop SDK version, so a deployment is reproducible and existing agents don't move when the platform default changes. The selector is pre-filled with the platform default; most users never change it.
+
+You also pick the agent's **Python version** from a fixed dropdown (currently `3.10`, `3.11`, `3.12`, `3.13`) — the init container's Python must match the agent's runtime, so the dropdown is constrained to the set AMP has built images for. See the [AMP instrumentation version mapping](../components/amp-instrumentation.mdx#amp-instrumentation-version-mapping) for the current matrix.
 
 ### What Gets Instrumented
 
-The Traceloop SDK (used under the hood) instruments a wide range of AI frameworks automatically:
+The Traceloop SDK instruments a wide range of AI frameworks automatically:
 
 | Category | Examples |
 |----------|---------|
@@ -34,7 +45,7 @@ Each span is enriched with metadata that makes it possible to evaluate and debug
 - **Agent spans**: agent name, step number, reasoning output
 - **Root span**: agent ID, deployment ID, correlation ID, end-to-end latency
 
-## Observability for External Agents
+## Externally-Hosted Agents
 
 Agents that are **not deployed through AMP** — for example, agents running locally, on-premises, or in a third-party cloud — can still send traces to AMP. These are called **Externally-Hosted Agents**.
 
@@ -73,6 +84,17 @@ amp-instrument poetry run python agent.py
 ```
 
 No changes to your agent code are required. The same Traceloop-based auto-instrumentation applies — all supported AI frameworks are traced automatically.
+
+## Manual Instrumentation
+
+If your agent runs on a framework the Traceloop SDK doesn't cover well, or you want full control over the spans you emit, turn auto-instrumentation off and emit your own spans against AMP's published contract.
+
+This works for both deployment models:
+
+- **Platform-hosted agents** with auto-instrumentation disabled: AMP's env-injection trait still sets `AMP_OTEL_ENDPOINT` and `AMP_AGENT_API_KEY` for you. You're responsible for emitting the spans.
+- **Externally-hosted agents:** install `amp-instrumentation` for the `init_otel()` helper, set the two environment variables yourself, and emit spans from your own code.
+
+The contract is layered on the OpenTelemetry GenAI semantic conventions (`gen_ai.*` + `db.*`), with a few `traceloop.*` extension keys for the gaps OTel hasn't standardized yet. See the [manual instrumentation reference](../components/amp-instrumentation.mdx#manual-instrumentation) on the `amp-instrumentation` page for the full attribute table, transport details, and a worked `init_otel()` example.
 
 ---
 
