@@ -18,6 +18,7 @@ package traces
 
 import (
 	"context"
+	"encoding/json"
 	"net/http"
 	"strings"
 	"testing"
@@ -118,5 +119,39 @@ func TestValidateCondition(t *testing.T) {
 	}
 	if !strings.Contains(err.Error(), "bogus_condition") {
 		t.Errorf("error should mention the invalid value, got %q", err.Error())
+	}
+}
+
+func TestRenderFilteredOverview_JSONShapeStableWhenEmpty(t *testing.T) {
+	ios, _, out, _ := iostreams.Test()
+	ios.JSON = true
+
+	err := renderFilteredOverview(&ListTracesOptions{IO: ios, Scope: traceBaseScope()}, nil)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	var envelope struct {
+		Data map[string]any `json:"data"`
+	}
+	if err := json.Unmarshal(out.Bytes(), &envelope); err != nil {
+		t.Fatalf("decode: %v\nbody: %s", err, out.String())
+	}
+	traces, ok := envelope.Data["traces"]
+	if !ok {
+		t.Fatalf("data missing \"traces\" key: %s", out.String())
+	}
+	if traces == nil {
+		t.Errorf("traces should be [], not null: %s", out.String())
+	}
+	if arr, ok := traces.([]any); !ok || len(arr) != 0 {
+		t.Errorf("traces should be empty array, got %T %v", traces, traces)
+	}
+	count, ok := envelope.Data["count"]
+	if !ok {
+		t.Fatalf("data missing \"count\" key (non-empty branch uses \"count\"): %s", out.String())
+	}
+	if n, _ := count.(float64); n != 0 {
+		t.Errorf("count = %v, want 0", count)
 	}
 }

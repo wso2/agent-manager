@@ -176,18 +176,18 @@ func runFilteredTraces(ctx context.Context, o *ListTracesOptions) error {
 }
 
 func renderFilteredOverview(o *ListTracesOptions, traces []traceobssvc.TraceOverview) error {
-	if len(traces) == 0 {
-		if o.IO.JSON {
-			return render.JSONSuccess(o.IO, o.Scope, traceobssvc.TraceOverviewResponse{})
-		}
-		fmt.Fprintln(o.IO.Out, "No traces match the condition.")
-		return nil
-	}
 	if o.IO.JSON {
+		if traces == nil {
+			traces = []traceobssvc.TraceOverview{}
+		}
 		return render.JSONSuccess(o.IO, o.Scope, map[string]any{
 			"traces": traces,
 			"count":  len(traces),
 		})
+	}
+	if len(traces) == 0 {
+		fmt.Fprintln(o.IO.Out, "No traces match the condition.")
+		return nil
 	}
 	return renderOverviewTable(o, traces)
 }
