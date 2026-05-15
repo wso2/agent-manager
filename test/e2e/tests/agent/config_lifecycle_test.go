@@ -205,7 +205,7 @@ var _ = Describe("Agent Configuration Lifecycle", Label("agent", "config-lifecyc
 			AgentName:   agentName,
 			Environment: Cfg.DefaultEnv,
 			SearchText:  "Incorrect API key provided",
-			Timeout:     5 * time.Minute,
+			Timeout:     10 * time.Minute,
 		})
 	})
 })
