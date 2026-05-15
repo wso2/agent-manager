@@ -53,7 +53,7 @@ func InvokeAgentEndpoint(endpointURL string, body any, apiKey string) string {
 			StopTrying(fmt.Sprintf("read response body: %v", readErr)).Now()
 		}
 
-		if resp.StatusCode == http.StatusServiceUnavailable || resp.StatusCode == http.StatusBadGateway {
+		if resp.StatusCode == http.StatusServiceUnavailable || resp.StatusCode == http.StatusBadGateway || resp.StatusCode == http.StatusUnauthorized {
 			g.Expect(resp.StatusCode).To(Equal(http.StatusOK), "agent endpoint returned %d, retrying", resp.StatusCode)
 			return
 		}
