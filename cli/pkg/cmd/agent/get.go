@@ -105,6 +105,11 @@ func runGet(ctx context.Context, o *GetOptions) error {
 	fmt.Fprintf(w, "name:          %s\n", cs.Bold(a.Name))
 	fmt.Fprintf(w, "display name:  %s\n", a.DisplayName)
 	fmt.Fprintf(w, "description:   %s\n", a.Description)
+	typeStr := a.AgentType.Type
+	if a.AgentType.SubType != nil && *a.AgentType.SubType != "" {
+		typeStr = fmt.Sprintf("%s / %s", a.AgentType.Type, *a.AgentType.SubType)
+	}
+	fmt.Fprintf(w, "type:          %s\n", typeStr)
 	status := "-"
 	if a.Status != nil {
 		status = *a.Status
