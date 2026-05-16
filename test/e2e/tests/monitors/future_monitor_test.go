@@ -87,7 +87,7 @@ var _ = Describe("Future Monitor", Ordered, Label("monitors", "future-monitor"),
 
 	It("should invoke agent to generate traces", func() {
 		endpointURL := Shared.EndpointURL + "/chat"
-		agentops.InvokeAgentEndpoint(endpointURL, Shared.InvokeReq)
+		agentops.InvokeAgentEndpoint(endpointURL, Shared.InvokeReq, Shared.APIKey)
 		GinkgoWriter.Println("Agent invoked to generate traces for future monitor")
 	})
 

@@ -43,6 +43,7 @@ type SharedAgent struct {
 	AgentName   string          `json:"agentName"`
 	BuildName   string          `json:"buildName"`
 	EndpointURL string          `json:"endpointURL"`
+	APIKey      string          `json:"apiKey"`
 	InvokeReq   json.RawMessage `json:"invokeReq"`
 }
 
