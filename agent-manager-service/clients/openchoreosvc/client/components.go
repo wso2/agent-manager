@@ -499,6 +499,7 @@ func (c *openChoreoClient) UpdateComponentBasicInfo(ctx context.Context, namespa
 	(*component.Metadata.Annotations)[string(AnnotationKeyDisplayName)] = req.DisplayName
 	(*component.Metadata.Annotations)[string(AnnotationKeyDescription)] = req.Description
 
+	component.Status = nil
 	updateResp, err := c.ocClient.UpdateComponentWithResponse(ctx, namespaceName, componentName, *component)
 	if err != nil {
 		return fmt.Errorf("failed to update component: %w", err)
@@ -1148,6 +1149,7 @@ func (c *openChoreoClient) AttachTraits(ctx context.Context, namespaceName, proj
 
 	component.Spec.Traits = &traits
 
+	component.Status = nil
 	updateResp, err := c.ocClient.UpdateComponentWithResponse(ctx, namespaceName, componentName, *component)
 	if err != nil {
 		return fmt.Errorf("failed to update component: %w", err)
@@ -1207,6 +1209,7 @@ func (c *openChoreoClient) DetachTrait(ctx context.Context, namespaceName, proje
 	component.Spec.Traits = &updatedTraits
 
 	// Update component
+	component.Status = nil
 	updateResp, err := c.ocClient.UpdateComponentWithResponse(ctx, namespaceName, componentName, *component)
 	if err != nil {
 		return fmt.Errorf("failed to update component: %w", err)
@@ -1299,6 +1302,7 @@ func (c *openChoreoClient) UpdateComponentDeploymentConfig(ctx context.Context, 
 		replaceComponentWorkflowEnvVars(component, req.Env)
 	}
 
+	component.Status = nil
 	updateResp, err := c.ocClient.UpdateComponentWithResponse(ctx, namespaceName, componentName, *component)
 	if err != nil {
 		return fmt.Errorf("failed to update component deployment config: %w", err)
@@ -1395,6 +1399,7 @@ func (c *openChoreoClient) mergeComponentEnvVars(ctx context.Context, namespaceN
 	workflowParams["environmentVariables"] = mergedEnvVars
 
 	// Update the component
+	component.Status = nil
 	updateResp, err := c.ocClient.UpdateComponentWithResponse(ctx, namespaceName, componentName, *component)
 	if err != nil {
 		return fmt.Errorf("failed to update component environment variables: %w", err)
@@ -1439,6 +1444,7 @@ func (c *openChoreoClient) ReplaceComponentEnvVars(ctx context.Context, namespac
 
 	replaceComponentWorkflowEnvVars(component, envVars)
 
+	component.Status = nil
 	updateResp, err := c.ocClient.UpdateComponentWithResponse(ctx, namespaceName, componentName, *component)
 	if err != nil {
 		return fmt.Errorf("failed to replace component environment variables: %w", err)
@@ -1663,6 +1669,7 @@ func (c *openChoreoClient) RemoveComponentEnvironmentVariables(ctx context.Conte
 
 	workflowParams["environmentVariables"] = filtered
 
+	component.Status = nil
 	updateResp, err := c.ocClient.UpdateComponentWithResponse(ctx, namespaceName, componentName, *component)
 	if err != nil {
 		return fmt.Errorf("failed to update component environment variables: %w", err)
