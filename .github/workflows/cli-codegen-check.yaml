@@ -1,0 +1,44 @@
+name: CLI Codegen Check
+
+on:
+  pull_request:
+    branches: ["main"]
+    paths:
+      - "agent-manager-service/docs/api_v1_openapi.yaml"
+      - "cli/pkg/clients/amsvc/**"
+      - "Makefile"
+      - ".github/workflows/cli-codegen-check.yaml"
+
+jobs:
+  drift-check:
+    name: Regenerate & Diff
+    runs-on:
+      - codebuild-wso2_agent-manager-${{ github.run_id }}-${{ github.run_attempt }}
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Go
+        uses: actions/setup-go@v6.1.0
+        with:
+          go-version-file: cli/go.mod
+          cache-dependency-path: cli/go.sum
+
+      - name: Install oapi-codegen
+        run: go install github.com/oapi-codegen/oapi-codegen/v2/cmd/oapi-codegen@v2.6.0
+
+      - name: Regenerate amctl AM client
+        run: make amctl-gen-client
+
+      - name: Verify no drift in generated client
+        run: |
+          if ! git diff --exit-code -- cli/pkg/clients/amsvc/gen; then
+            echo ""
+            echo "::error::Generated amctl AM client is out of sync with agent-manager-service/docs/api_v1_openapi.yaml."
+            echo "::error::Run 'make amctl-gen-client' locally and commit the result."
+            exit 1
+          fi
+
+      - name: Build CLI against regenerated client
+        working-directory: ./cli
+        run: go build ./...

@@ -1064,6 +1064,9 @@ type AddAgentKindVersionRequest struct {
 	// ConfigSchema Configuration schema for this version
 	ConfigSchema []AgentKindConfigSchemaItem `json:"configSchema"`
 
+	// Metadata Optional interface metadata (e.g. OpenAPI spec)
+	Metadata *map[string]interface{} `json:"metadata,omitempty"`
+
 	// SourceAgentName Name of the agent the build belongs to
 	SourceAgentName string `json:"sourceAgentName"`
 
@@ -1072,12 +1075,6 @@ type AddAgentKindVersionRequest struct {
 
 	// Version Version tag for this release
 	Version string `json:"version"`
-}
-
-// AgentFromKind Identifies the Agent Kind this agent was instantiated from.
-type AgentFromKind struct {
-	KindName string `json:"kindName"`
-	Version  string `json:"version"`
 }
 
 // AgentKindConfigSchemaItem defines model for AgentKindConfigSchemaItem.
@@ -1145,6 +1142,9 @@ type AgentKindVersionResponse struct {
 
 	// ImageId Docker image ID for this version. A kind version is only created once the source build completes successfully with an image.
 	ImageId string `json:"imageId"`
+
+	// Metadata Optional interface metadata for this version (e.g. OpenAPI spec). Only returned on single-version fetch.
+	Metadata *map[string]interface{} `json:"metadata,omitempty"`
 
 	// SourceAgentName Name of the agent this version was published from
 	SourceAgentName string `json:"sourceAgentName"`
@@ -1257,14 +1257,14 @@ type AgentResponse struct {
 	Description    string          `json:"description"`
 	DisplayName    string          `json:"displayName"`
 
-	// FromKind Identifies the Agent Kind this agent was instantiated from.
-	FromKind *AgentFromKind `json:"fromKind,omitempty"`
-
 	// InputInterface Endpoint configurations
 	InputInterface *InputInterface `json:"inputInterface,omitempty"`
-	Name           string          `json:"name"`
-	ProjectName    string          `json:"projectName"`
-	Provisioning   Provisioning    `json:"provisioning"`
+
+	// KindName Name of the Agent Kind this agent was instantiated from (absent for source-built agents)
+	KindName     *string      `json:"kindName,omitempty"`
+	Name         string       `json:"name"`
+	ProjectName  string       `json:"projectName"`
+	Provisioning Provisioning `json:"provisioning"`
 
 	// Status Current status of the agent
 	Status *string `json:"status,omitempty"`
@@ -3437,6 +3437,9 @@ type PublishAgentKindRequest struct {
 
 	// KindName Target Agent Kind name. Creates a new kind if it does not exist.
 	KindName string `json:"kindName"`
+
+	// Metadata Optional interface metadata (e.g. OpenAPI spec)
+	Metadata *map[string]interface{} `json:"metadata,omitempty"`
 
 	// Version Version tag for this release
 	Version string `json:"version"`
