@@ -1309,6 +1309,7 @@ func (c *openChoreoClient) UpdateComponentDeploymentConfig(ctx context.Context, 
 	}
 	if updateResp.StatusCode() != http.StatusOK {
 		return handleErrorResponse(updateResp.StatusCode(), ErrorResponses{
+			JSON400: updateResp.JSON400,
 			JSON401: updateResp.JSON401,
 			JSON403: updateResp.JSON403,
 			JSON404: updateResp.JSON404,
@@ -1463,7 +1464,9 @@ func (c *openChoreoClient) ReplaceComponentEnvVars(ctx context.Context, namespac
 
 func replaceComponentWorkflowEnvVars(component *gen.Component, envVars []EnvVar) {
 	if component.Spec.Workflow == nil {
-		component.Spec.Workflow = &gen.ComponentWorkflowConfig{}
+		// No workflow exists (e.g. kind-sourced agents) — skip setting workflow env vars.
+		// Env vars for these agents are applied directly to the Workload CR during deploy.
+		return
 	}
 	if component.Spec.Workflow.Parameters == nil {
 		params := make(map[string]interface{})
