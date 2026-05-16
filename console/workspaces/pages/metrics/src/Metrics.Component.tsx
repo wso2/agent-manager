@@ -58,7 +58,7 @@ export const MetricsComponent: React.FC = () => {
   const timeRange = useMemo(
     () =>
       (searchParams.get("timeRange") as TraceListTimeRange) ||
-      TraceListTimeRange.SEVEN_DAYS,
+      TraceListTimeRange.ONE_HOUR,
     [searchParams]
   );
 

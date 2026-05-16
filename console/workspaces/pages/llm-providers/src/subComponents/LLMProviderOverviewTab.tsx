@@ -16,7 +16,7 @@
  * under the License.
  */
 
-import React, {
+import {
   Suspense,
   useCallback,
   useEffect,
@@ -24,9 +24,7 @@ import React, {
   useRef,
   useState,
 } from "react";
-import "swagger-ui-react/swagger-ui.css";
-
-const SwaggerUI = React.lazy(() => import("swagger-ui-react"));
+import { SwaggerSpecViewer } from "@agent-management-platform/shared-component";
 import {
   useCreateLLMProviderAPIKey,
   useListGateways,
@@ -38,7 +36,6 @@ import {
   AccordionDetails,
   AccordionSummary,
   Alert,
-  Box,
   Button,
   Card,
   Chip,
@@ -70,20 +67,6 @@ import type {
   UpdateLLMProviderRequest,
 } from "@agent-management-platform/types";
 import { parseOpenApiSpec } from "../utils/openapiResources";
-
-const swaggerHideInfoAndServersPlugin = {
-  statePlugins: {
-    spec: {
-      wrapSelectors: {
-        servers: () => (): unknown[] => [],
-        schemes: () => (): unknown[] => [],
-      },
-    },
-  },
-  wrapComponents: {
-    info: () => (): null => null,
-  },
-};
 
 export type LLMProviderOverviewTabProps = {
   providerData: LLMProviderResponse | null | undefined;
@@ -775,40 +758,16 @@ export function LLMProviderOverviewTab({
                     </Stack>
                   }
                 >
-                  <Box
-                    className="hide-scheme-container hide-models swagger-spec-viewer hide-info-section hide-servers hide-authorize hide-operation-header"
-                    sx={{
-                      "& .swagger-ui .wrapper": { padding: 0 },
-                      "&.hide-info-section .swagger-ui .info": {
-                        display: "none !important",
-                      },
-                      "&.hide-servers .swagger-ui .servers, &.hide-servers .swagger-ui .schemes":
-                        { display: "none !important" },
-                      "&.hide-authorize .swagger-ui .auth-wrapper": {
-                        display: "none !important",
-                      },
-                      "&.hide-tag-headers .swagger-ui .opblock-tag-section": {
-                        display: "none !important",
-                      },
-                      "&.hide-operation-header .swagger-ui .opblock-section-header":
-                        { display: "none !important" },
-                      "&.hide-scheme-container .swagger-ui .scheme-container": {
-                        display: "none !important",
-                      },
-                      "&.hide-models .swagger-ui .models": {
-                        display: "none !important",
-                      },
-                    }}
-                  >
-                    <SwaggerUI
-                      {...(swaggerSource.type === "url"
-                        ? { url: swaggerSource.value }
-                        : { spec: swaggerSource.value })}
-                      layout="BaseLayout"
-                      docExpansion="list"
-                      plugins={[swaggerHideInfoAndServersPlugin]}
-                    />
-                  </Box>
+                  <SwaggerSpecViewer
+                    {...(swaggerSource.type === "url"
+                      ? { url: swaggerSource.value }
+                      : { spec: swaggerSource.value as Record<string, unknown> })}
+                    docExpansion="list"
+                    hideInfoSection
+                    hideServers
+                    hideAuthorizeButton
+                    hideOperationHeader
+                  />
                 </Suspense>
               </AccordionDetails>
             </Accordion>

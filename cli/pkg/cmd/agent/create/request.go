@@ -57,7 +57,7 @@ func Build(opts *CreateOptions) (amsvc.CreateAgentRequest, error) {
 	req := amsvc.CreateAgentRequest{
 		Name:        opts.Name,
 		DisplayName: opts.DisplayName,
-		AgentType: amsvc.AgentType{
+		AgentType: &amsvc.AgentType{
 			Type: agentType,
 		},
 		Provisioning: buildProvisioning(opts),

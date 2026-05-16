@@ -38,6 +38,7 @@ var _ = Describe("Agent Configuration Lifecycle", Label("agent", "config-lifecyc
 	var (
 		agentName          string
 		endpointURL        string
+		apiKey             string
 		invokeReq          json.RawMessage
 		sensitiveSecretRef string
 		lastDeployedBefore time.Time
@@ -104,6 +105,15 @@ var _ = Describe("Agent Configuration Lifecycle", Label("agent", "config-lifecyc
 		}
 		Expect(endpointURL).NotTo(BeEmpty(), "agent endpoint URL should not be empty")
 
+		apiKeyResp := agentops.CreateAgentAPIKey(Default, Client,
+			Cfg.DefaultOrg, framework.E2ESharedProjectName, agentName, Cfg.DefaultEnv,
+			framework.CreateAgentAPIKeyRequest{
+				DisplayName: "e2e-test-key",
+				ExpiresAt:   time.Now().Add(24 * time.Hour).Format(time.RFC3339),
+			})
+		apiKey = apiKeyResp.ApiKey
+		Expect(apiKey).NotTo(BeEmpty(), "agent API key should not be empty")
+
 		invokeReq = framework.DefaultInvokeRequest()
 		GinkgoWriter.Printf("Config lifecycle agent ready: %s endpoint=%s\n", agentName, endpointURL)
 	})
@@ -137,7 +147,7 @@ var _ = Describe("Agent Configuration Lifecycle", Label("agent", "config-lifecyc
 	It("should respond to invocation", func() {
 		chatEndpoint := endpointURL + "/chat"
 		GinkgoWriter.Printf("Endpoint: %s\n", chatEndpoint)
-		agentops.InvokeAgentEndpoint(chatEndpoint, invokeReq)
+		agentops.InvokeAgentEndpoint(chatEndpoint, invokeReq, apiKey)
 	})
 
 	It("should redeploy with updated configurations", func() {

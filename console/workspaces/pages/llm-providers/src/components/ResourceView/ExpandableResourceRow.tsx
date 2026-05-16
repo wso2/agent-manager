@@ -26,7 +26,7 @@ import {
   Typography,
 } from "@wso2/oxygen-ui";
 import { ChevronDown, ChevronUp } from "@wso2/oxygen-ui-icons-react";
-import SwaggerSpecViewer from "../SwaggerSpecViewer/SwaggerSpecViewer";
+import { SwaggerSpecViewer } from "@agent-management-platform/shared-component";
 import type { ResourceViewItem } from "./ResourceRow";
 
 type ExpandableResourceRowProps = {

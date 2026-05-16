@@ -22,6 +22,8 @@ import {
   Stack,
   Typography,
   Button,
+  Menu,
+  MenuItem,
   Alert,
   Tooltip,
   Skeleton,
@@ -58,6 +60,7 @@ import {
   useListAgents,
   useDeleteAgent,
   useGetProject,
+  useListAgentKinds,
 } from "@agent-management-platform/api-client";
 import { AgentTypeSummery } from "./subComponents/AgentTypeSummery";
 import { getErrorMessage, useConfirmationDialog } from "@agent-management-platform/shared-component";
@@ -118,6 +121,7 @@ export const AgentsList: React.FC = () => {
   const [page, setPage] = useState(0);
   const [rowsPerPage, setRowsPerPage] = useState(5);
   const [editProjectDrawerOpen, setEditProjectDrawerOpen] = useState(false);
+  const [addAgentAnchorEl, setAddAgentAnchorEl] = useState<null | HTMLElement>(null);
 
   // Detect touch device for alternative interaction pattern
   const isTouchDevice =
@@ -144,6 +148,15 @@ export const AgentsList: React.FC = () => {
     orgName: orgId,
     projName: projectId,
   });
+  const { data: kindsData } = useListAgentKinds({ orgName: orgId });
+
+  const kindDisplayNameMap = useMemo(() => {
+    const map: Record<string, string> = {};
+    kindsData?.kinds?.forEach((k) => {
+      map[k.name] = k.displayName;
+    });
+    return map;
+  }, [kindsData?.kinds]);
   const { addConfirmation } = useConfirmationDialog();
   const handleDeleteAgent = useCallback(
     (agentId: string) => {
@@ -166,6 +179,39 @@ export const AgentsList: React.FC = () => {
   const handleRowMouseLeave = useCallback(() => {
     setHoveredAgentId(null);
   }, []);
+
+  const handleOpenAddAgentMenu = useCallback(
+    (event: React.MouseEvent<HTMLElement>) => {
+      setAddAgentAnchorEl(event.currentTarget);
+    },
+    []
+  );
+
+  const handleCloseAddAgentMenu = useCallback(() => {
+    setAddAgentAnchorEl(null);
+  }, []);
+
+  const handleAddExternalAgent = useCallback(() => {
+    handleCloseAddAgentMenu();
+    navigate(
+      generatePath(
+        absoluteRouteMap.children.org.children.projects.children.newAgent.children
+          .connect.path,
+        { orgId: orgId ?? "", projectId: projectId ?? "" }
+      )
+    );
+  }, [handleCloseAddAgentMenu, navigate, orgId, projectId]);
+
+  const handleAddPlatformHostedAgent = useCallback(() => {
+    handleCloseAddAgentMenu();
+    navigate(
+      generatePath(
+        absoluteRouteMap.children.org.children.projects.children.newAgent.children
+          .create.path,
+        { orgId: orgId ?? "", projectId: projectId ?? "" }
+      )
+    );
+  }, [handleCloseAddAgentMenu, navigate, orgId, projectId]);
 
   const getRelativeTime = useCallback((date?: string) => {
     if (!date) {
@@ -317,18 +363,28 @@ export const AgentsList: React.FC = () => {
                   color="primary"
                   size="small"
                   startIcon={<Add size={16} />}
-                  onClick={() =>
-                    navigate(
-                      generatePath(
-                        absoluteRouteMap.children.org.children.projects.children
-                          .newAgent.path,
-                        { orgId: orgId ?? "", projectId: projectId ?? "" }
-                      )
-                    )
-                  }
+                  onClick={handleOpenAddAgentMenu}
+                  aria-controls={addAgentAnchorEl ? "add-agent-menu" : undefined}
+                  aria-haspopup="true"
+                  aria-expanded={Boolean(addAgentAnchorEl)}
                 >
                   Add Agent
                 </Button>
+                <Menu
+                  id="add-agent-menu"
+                  anchorEl={addAgentAnchorEl}
+                  open={Boolean(addAgentAnchorEl)}
+                  onClose={handleCloseAddAgentMenu}
+                  anchorOrigin={{ vertical: "bottom", horizontal: "right" }}
+                  transformOrigin={{ vertical: "top", horizontal: "right" }}
+                >
+                  <MenuItem onClick={handleAddExternalAgent}>
+                    External Agent
+                  </MenuItem>
+                  <MenuItem onClick={handleAddPlatformHostedAgent}>
+                    Platform-Hosted Agent
+                  </MenuItem>
+                </Menu>
               </Stack>
 
               {error ? (
@@ -373,7 +429,7 @@ export const AgentsList: React.FC = () => {
                         >
                           <ListingTable.Cell>
                             <Stack direction="row" alignItems="center" spacing={2}>
-                              <Avatar sx={{bgcolor: "primary.main", fontSize: 16, height: 32, width: 32, color: "primary.contrastText"}}>
+                              <Avatar sx={{ bgcolor: "primary.main", fontSize: 16, height: 32, width: 32, color: "primary.contrastText" }}>
                                 {agent.displayName.charAt(0).toUpperCase()}
                               </Avatar>
                               <Stack direction="row" alignItems="flex-start" spacing={1}>
@@ -389,6 +445,14 @@ export const AgentsList: React.FC = () => {
                                     variant="outlined"
                                   />
                                 )}
+                                {agent.fromKind &&
+                                  <Chip size="small"
+                                    label={
+                                      kindDisplayNameMap[agent.fromKind.kindName]
+                                      ?? agent.fromKind.kindName
+                                    }
+                                  />
+                                }
                               </Stack>
                             </Stack>
                           </ListingTable.Cell>
@@ -478,15 +542,10 @@ export const AgentsList: React.FC = () => {
                         variant="contained"
                         color="primary"
                         startIcon={<Add />}
-                        onClick={() =>
-                          navigate(
-                            generatePath(
-                              absoluteRouteMap.children.org.children.projects.children
-                                .newAgent.path,
-                              { orgId: orgId ?? "", projectId: projectId ?? "" }
-                            )
-                          )
-                        }
+                        onClick={handleOpenAddAgentMenu}
+                        aria-controls={addAgentAnchorEl ? "add-agent-menu" : undefined}
+                        aria-haspopup="true"
+                        aria-expanded={Boolean(addAgentAnchorEl)}
                       >
                         Add New Agent
                       </Button>

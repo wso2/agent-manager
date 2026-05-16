@@ -50,4 +50,3 @@ window.__RUNTIME_CONFIG__ = {
     semanticGuardrails: false,
   },
 };
-

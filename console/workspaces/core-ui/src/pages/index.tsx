@@ -24,6 +24,7 @@ import { metaData as deploymentMetadata } from "@agent-management-platform/deplo
 import { metaData as evalMetadata } from "@agent-management-platform/eval";
 import { metaData as gatewaysMetadata } from "@agent-management-platform/gateways";
 import { metaData as llmProvidersMetadata } from "@agent-management-platform/llm-providers";
+import { metaData as agentKindMetadata } from "@agent-management-platform/agent-kind";
 import { metaData as logsMetadata } from "@agent-management-platform/logs";
 import { metaData as metricsMetadata } from "@agent-management-platform/metrics";
 import { metaData as overviewMetadata } from "@agent-management-platform/overview";
@@ -85,6 +86,11 @@ export const LazyAddLLMProvidersOrg =
 
 // Gateways
 export const LazyGatewaysOrg = gatewaysMetadata.levels!.organization as FC;
+
+// Agent Kind
+export const LazyCatalogOrg = agentKindMetadata.levels!.organization as FC;
+export const LazyPublishComponent = agentKindMetadata.levels!.component as FC;
+export const LazyPublishOrg = agentKindMetadata.levels!.publishOrganization as FC;
 
 // Lazy-loaded create pages (only needed when user creates something)
 export const LazyAddNewAgent = lazy(() =>

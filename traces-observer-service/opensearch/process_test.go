@@ -609,6 +609,118 @@ func TestExtractPromptMessages(t *testing.T) {
 			t.Errorf("expected 'Hi there', got %q", messages[1].Content)
 		}
 	})
+
+	// Regression: opentelemetry-instrumentation-openai (0.60.0) and
+	// opentelemetry-instrumentation-openai-agents emit content nested under
+	// parts:[{type:"text", content:"..."}] instead of a top-level content field.
+	// parseOTELMessage must fall back to parts[].content so the Console's
+	// per-span Input Messages panel doesn't render empty bubbles.
+	t.Run("OTEL format with gen_ai parts[]", func(t *testing.T) {
+		attrs := map[string]interface{}{
+			"gen_ai.input.messages": `[{"role":"system","parts":[{"type":"text","content":"You are helpful"}]},{"role":"user","parts":[{"type":"text","content":"Hello"}]}]`,
+		}
+		messages := ExtractPromptMessages(attrs)
+		if len(messages) != 2 {
+			t.Fatalf("expected 2 messages, got %d", len(messages))
+		}
+		if messages[0].Content != "You are helpful" {
+			t.Errorf("expected content 'You are helpful' from parts[], got %q", messages[0].Content)
+		}
+		if messages[1].Content != "Hello" {
+			t.Errorf("expected content 'Hello' from parts[], got %q", messages[1].Content)
+		}
+	})
+
+	t.Run("OTEL format with gen_ai parts[] - skips non-text parts", func(t *testing.T) {
+		attrs := map[string]interface{}{
+			"gen_ai.input.messages": `[{"role":"user","parts":[{"type":"text","content":"caption: "},{"type":"image","content":"<binary>"},{"type":"text","content":"a cat"}]}]`,
+		}
+		messages := ExtractPromptMessages(attrs)
+		if len(messages) != 1 {
+			t.Fatalf("expected 1 message, got %d", len(messages))
+		}
+		if messages[0].Content != "caption: a cat" {
+			t.Errorf("expected concatenated text parts 'caption: a cat', got %q", messages[0].Content)
+		}
+	})
+
+	// Regression for the parts[] tool_call path that #181 inadvertently dropped:
+	// an assistant turn that carries only a tool_call part must surface as a
+	// PromptMessage with empty Content but populated ToolCalls so the console
+	// renders the tool name + arguments instead of an empty bubble.
+	t.Run("OTEL format with parts[] tool_call", func(t *testing.T) {
+		attrs := map[string]interface{}{
+			"gen_ai.input.messages": `[{"role":"assistant","parts":[{"type":"tool_call","id":"call_1","name":"search_flights","arguments":{"departure_airport":"ZRH","arrival_airport":"LHR"}}]}]`,
+		}
+		messages := ExtractPromptMessages(attrs)
+		if len(messages) != 1 {
+			t.Fatalf("expected 1 message, got %d", len(messages))
+		}
+		if messages[0].Role != "assistant" {
+			t.Errorf("expected role 'assistant', got %q", messages[0].Role)
+		}
+		if messages[0].Content != "" {
+			t.Errorf("expected empty Content (tool_call only), got %q", messages[0].Content)
+		}
+		if len(messages[0].ToolCalls) != 1 {
+			t.Fatalf("expected 1 tool call, got %d", len(messages[0].ToolCalls))
+		}
+		tc := messages[0].ToolCalls[0]
+		if tc.ID != "call_1" {
+			t.Errorf("expected tool call ID 'call_1', got %q", tc.ID)
+		}
+		if tc.Name != "search_flights" {
+			t.Errorf("expected tool name 'search_flights', got %q", tc.Name)
+		}
+		if tc.Arguments != `{"arrival_airport":"LHR","departure_airport":"ZRH"}` {
+			t.Errorf("expected JSON-marshalled arguments, got %q", tc.Arguments)
+		}
+	})
+
+	t.Run("OTEL format with parts[] tool_call_response - 'response' field", func(t *testing.T) {
+		attrs := map[string]interface{}{
+			"gen_ai.input.messages": `[{"role":"tool","parts":[{"type":"tool_call_response","id":"call_1","response":"Error: ValueError('boom')"}]}]`,
+		}
+		messages := ExtractPromptMessages(attrs)
+		if len(messages) != 1 {
+			t.Fatalf("expected 1 message, got %d", len(messages))
+		}
+		if messages[0].Role != "tool" {
+			t.Errorf("expected role 'tool', got %q", messages[0].Role)
+		}
+		if messages[0].Content != "Error: ValueError('boom')" {
+			t.Errorf("expected response surfaced into Content, got %q", messages[0].Content)
+		}
+	})
+
+	t.Run("OTEL format with parts[] tool_call_response - legacy 'result' field", func(t *testing.T) {
+		attrs := map[string]interface{}{
+			"gen_ai.input.messages": `[{"role":"tool","parts":[{"type":"tool_call_response","id":"call_1","result":"ok"}]}]`,
+		}
+		messages := ExtractPromptMessages(attrs)
+		if len(messages) != 1 {
+			t.Fatalf("expected 1 message, got %d", len(messages))
+		}
+		if messages[0].Content != "ok" {
+			t.Errorf("expected legacy 'result' surfaced into Content, got %q", messages[0].Content)
+		}
+	})
+
+	t.Run("OTEL format with parts[] mixed text + tool_call", func(t *testing.T) {
+		attrs := map[string]interface{}{
+			"gen_ai.input.messages": `[{"role":"assistant","parts":[{"type":"text","content":"Let me search."},{"type":"tool_call","id":"call_1","name":"lookup","arguments":"{}"}]}]`,
+		}
+		messages := ExtractPromptMessages(attrs)
+		if len(messages) != 1 {
+			t.Fatalf("expected 1 message, got %d", len(messages))
+		}
+		if messages[0].Content != "Let me search." {
+			t.Errorf("expected text part in Content, got %q", messages[0].Content)
+		}
+		if len(messages[0].ToolCalls) != 1 || messages[0].ToolCalls[0].Name != "lookup" {
+			t.Errorf("expected tool call 'lookup', got %+v", messages[0].ToolCalls)
+		}
+	})
 }
 
 func TestExtractCompletionMessages(t *testing.T) {

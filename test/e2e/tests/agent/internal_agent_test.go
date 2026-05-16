@@ -38,6 +38,7 @@ var _ = Describe("Internal Chat Agent Lifecycle", Label("agent", "internal-agent
 	var (
 		agentName   string
 		endpointURL string
+		apiKey      string
 		invokeReq   json.RawMessage
 	)
 
@@ -108,6 +109,15 @@ var _ = Describe("Internal Chat Agent Lifecycle", Label("agent", "internal-agent
 		}
 		Expect(endpointURL).NotTo(BeEmpty(), "agent endpoint URL should not be empty")
 
+		apiKeyResp := agentops.CreateAgentAPIKey(Default, Client,
+			Cfg.DefaultOrg, framework.E2ESharedProjectName, agentName, Cfg.DefaultEnv,
+			framework.CreateAgentAPIKeyRequest{
+				DisplayName: "e2e-test-key",
+				ExpiresAt:   time.Now().Add(24 * time.Hour).Format(time.RFC3339),
+			})
+		apiKey = apiKeyResp.ApiKey
+		Expect(apiKey).NotTo(BeEmpty(), "agent API key should not be empty")
+
 		invokeReq = framework.DefaultInvokeRequest()
 		GinkgoWriter.Printf("Agent ready: endpoint=%s\n", endpointURL)
 	})
@@ -115,7 +125,7 @@ var _ = Describe("Internal Chat Agent Lifecycle", Label("agent", "internal-agent
 	It("should respond to invocation", func() {
 		endpoint := endpointURL + "/chat"
 		GinkgoWriter.Printf("Endpoint: %s\n", endpoint)
-		agentops.InvokeAgentEndpoint(endpoint, invokeReq)
+		agentops.InvokeAgentEndpoint(endpoint, invokeReq, apiKey)
 	})
 
 	It("should have metrics available", func() {

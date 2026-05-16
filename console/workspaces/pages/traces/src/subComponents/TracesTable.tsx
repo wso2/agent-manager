@@ -196,7 +196,7 @@ export function TracesTable({
                         textOverflow: "ellipsis",
                         overflow: "hidden",
                         whiteSpace: "nowrap",
-                        maxWidth: "100%",
+                        maxWidth: "300px",
                       }}
                     >
                       {trace.rootSpanName}

@@ -36,7 +36,7 @@ var _ = Describe("Traces", Ordered, Label("traces"), func() {
 
 	It("should respond to invocation", func() {
 		endpointURL := Shared.EndpointURL + "/chat"
-		agentops.InvokeAgentEndpoint(endpointURL, Shared.InvokeReq)
+		agentops.InvokeAgentEndpoint(endpointURL, Shared.InvokeReq, Shared.APIKey)
 	})
 
 	It("should have traces available", func() {

@@ -26,6 +26,7 @@ import {
   Stack,
   Tooltip,
   Typography,
+  Alert,
 } from '@wso2/oxygen-ui';
 import { useCallback, useMemo, useState } from 'react';
 import {
@@ -439,6 +440,11 @@ export function TraceExplorer(props: TraceExplorerProps) {
 
   return (
     <Stack direction="column" spacing={2}>
+      {renderingSpans.rootSpans.length > 1 && (
+        <Alert severity="warning" sx={{ mb: 1 }}>
+          Some trace details are missing or incomplete.
+        </Alert>
+      )}
       {renderedSpans}
     </Stack>
   );

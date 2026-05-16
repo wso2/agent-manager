@@ -1,5 +1,3 @@
-source ~/.zshrc 2>/dev/null || true # make aliases work
-
 rm -rf spec
 mkdir -p spec
 cp scripts/.openapi-generator-ignore spec/.openapi-generator-ignore

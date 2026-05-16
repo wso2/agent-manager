@@ -26,6 +26,20 @@ import (
 // ValidateBuildable fetches the agent and verifies it supports build operations.
 // Returns nil if the agent is buildable, or a CLIError explaining why not.
 func ValidateBuildable(ctx context.Context, client *amsvc.ClientWithResponses, org, proj, agentName string) error {
+	return validateInternalProvisioning(ctx, client, org, proj, agentName, "Builds")
+}
+
+// ValidateRuntimeManaged fetches the agent and verifies it has a runtime managed
+// by this platform (i.e., it is internally provisioned). Externally-provisioned
+// agents run outside the platform and produce no runtime logs or metrics here.
+func ValidateRuntimeManaged(ctx context.Context, client *amsvc.ClientWithResponses, org, proj, agentName string) error {
+	return validateInternalProvisioning(ctx, client, org, proj, agentName, "Runtime logs and metrics")
+}
+
+// validateInternalProvisioning fetches the agent and returns a CLIError if it is
+// not internally provisioned. feature names the operation in the error message
+// ("Builds", "Runtime logs and metrics", etc.).
+func validateInternalProvisioning(ctx context.Context, client *amsvc.ClientWithResponses, org, proj, agentName, feature string) error {
 	resp, err := client.GetAgentWithResponse(ctx, org, proj, agentName)
 	if err != nil {
 		return clierr.Newf(clierr.Transport, "%v", err)
@@ -35,7 +49,7 @@ func ValidateBuildable(ctx context.Context, client *amsvc.ClientWithResponses, o
 	}
 	if !IsBuildable(*resp.JSON200) {
 		return clierr.Newf(clierr.Validation,
-			"agent %q does not support builds\n  Only internally-provisioned agents can be built.", agentName)
+			"agent %q is externally provisioned\n  %s are only available for internally-provisioned agents.", agentName, feature)
 	}
 	return nil
 }

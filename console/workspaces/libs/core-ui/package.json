@@ -1,0 +1,103 @@
+{
+  "name": "@agent-management-platform/core-ui",
+  "version": "0.0.0",
+  "type": "module",
+  "main": "./dist/index.js",
+  "module": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "import": "./dist/index.js",
+      "types": "./dist/index.d.ts"
+    },
+    "./dist/index.css": "./dist/index.css"
+  },
+  "files": [
+    "dist"
+  ],
+  "engines": {
+    "node": ">=20.19.0 || >=22.12.0"
+  },
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "lint": "eslint .",
+    "lint:fix": "eslint . --fix",
+    "preview": "vite preview",
+    "generate-route": "cd ../../libs/types && npm run generate-route"
+  },
+  "scarfSettings": {
+    "enabled": false
+  },
+  "dependencies": {
+    "react-markdown": "10.1.0",
+    "@agent-management-platform/auth": "workspace:*",
+    "@agent-management-platform/types": "workspace:*",
+    "@agent-management-platform/eslint-config": "workspace:*",
+    "@agent-management-platform/api-client": "workspace:*",
+    "@agent-management-platform/views": "workspace:*",
+    "clsx": "2.1.1",
+    "date-fns": "4.1.0",
+    "lodash": "4.17.21",
+    "@fontsource/roboto": "5.2.5",
+    "@agent-management-platform/add-new-agent": "workspace:*",
+    "@agent-management-platform/add-new-project": "workspace:*",
+    "@agent-management-platform/shared-component": "workspace:*",
+    "js-yaml": "4.1.1",
+    "zod": "4.3.6",
+    "@agent-management-platform/overview": "workspace:*",
+    "@agent-management-platform/configure-agent": "workspace:*",
+    "@agent-management-platform/build": "workspace:*",
+    "@agent-management-platform/deploy": "workspace:*",
+    "@agent-management-platform/test": "workspace:*",
+    "@agent-management-platform/traces": "workspace:*",
+    "@agent-management-platform/logs": "workspace:*",
+    "@agent-management-platform/metrics": "workspace:*",
+    "@agent-management-platform/eval": "workspace:*",
+    "@agent-management-platform/llm-providers": "workspace:*",
+    "@agent-management-platform/gateways": "workspace:*",
+    "swagger-ui-react": "5.19.0",
+    "@monaco-editor/react": "4.7.0"
+  },
+  "peerDependencies": {
+    "react": ">=19.0.0",
+    "react-dom": ">=19.0.0",
+    "react-router-dom": ">=6.0.0",
+    "@mui/material": ">=7.0.0",
+    "@mui/icons-material": ">=7.0.0",
+    "@emotion/react": ">=11.0.0",
+    "@emotion/styled": ">=11.0.0",
+    "@wso2/oxygen-ui": ">=0.10.1",
+    "@wso2/oxygen-ui-icons-react": ">=0.10.1",
+    "@wso2/oxygen-ui-charts-react": ">=0.10.1",
+    "@tanstack/react-query": ">=5.0.0",
+    "@asgardeo/react": ">=0.22.0"
+  },
+  "devDependencies": {
+    "@types/node": "24.6.0",
+    "@types/react": "19.2.14",
+    "@types/react-dom": "19.1.9",
+    "@types/lodash": "4.17.17",
+    "@vitejs/plugin-react": "5.0.4",
+    "babel-plugin-react-compiler": "19.1.0-rc.3",
+    "eslint": "9.36.0",
+    "ts-node": "10.9.2",
+    "tsx": "4.7.0",
+    "typescript": "5.9.3",
+    "vite": "7.1.7",
+    "vite-plugin-dts": "^4.5.4",
+    "@types/swagger-ui-react": "5.18.0",
+    "react": "19.1.1",
+    "react-dom": "19.1.1",
+    "react-router-dom": "6.28.0",
+    "@mui/material": "7.0.0",
+    "@mui/icons-material": "7.0.0",
+    "@emotion/react": "11.13.5",
+    "@emotion/styled": "11.13.5",
+    "@wso2/oxygen-ui": "0.10.1",
+    "@wso2/oxygen-ui-icons-react": "0.10.1",
+    "@wso2/oxygen-ui-charts-react": "0.10.1",
+    "@tanstack/react-query": "5.90.5",
+    "@asgardeo/react": "0.22.4"
+  }
+}

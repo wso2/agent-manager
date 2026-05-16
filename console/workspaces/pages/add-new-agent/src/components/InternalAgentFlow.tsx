@@ -118,12 +118,10 @@ export const InternalAgentFlow: React.FC = () => {
   }, [validateForm, formData, createAgent, navigate, params, errors, llmProviders]);
 
 
-  const backHref = useMemo(() => {
-    return generatePath(absoluteRouteMap.children.org.children.projects.children.newAgent.path, {
-      orgId: orgId ?? "",
-      projectId: projectId ?? "default",
-    });
-  }, [orgId, projectId]);
+  const backHref = generatePath(
+    absoluteRouteMap.children.org.children.projects.children.newAgent.children.create.path,
+    { orgId: orgId ?? "", projectId: projectId ?? "default" },
+  );
 
   return (
     <PageLayout
@@ -131,7 +129,7 @@ export const InternalAgentFlow: React.FC = () => {
       description="Specify the source repository, select the agent type, and deploy it on the platform."
       disableIcon
       backHref={backHref}
-      backLabel="Back to Agent Hosting Options"
+      backLabel="Back to Source Type Selection"
     >
       <Form.Stack spacing={3}>
         <InternalAgentForm
@@ -170,7 +168,7 @@ export const InternalAgentFlow: React.FC = () => {
             if (llmNames.length !== llmNameSet.size) return true;
             // Duplicate env keys
             const envKeyList = (formData.env ?? [])
-            .map((e) => e.key).filter((k): k is string => !!k);
+              .map((e) => e.key).filter((k): k is string => !!k);
             if (envKeyList.length !== new Set(envKeyList).size) return true;
             // Cross-conflict: env key matches an LLM name
             return envKeyList.some((k) => llmNameSet.has(k));

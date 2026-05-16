@@ -38,6 +38,7 @@ import { useMemo } from "react";
 import { formatDistanceToNow } from "date-fns";
 import { EnvironmentCard } from "@agent-management-platform/shared-component";
 import { absoluteRouteMap } from "@agent-management-platform/types";
+import { KindInfoCard } from "./KindInfoCard";
 
 export const InternalAgentOverview = () => {
   const { orgId, agentId, projectId } = useParams();
@@ -65,6 +66,8 @@ export const InternalAgentOverview = () => {
     });
   }, [environmentList]);
 
+  const isKindAgent = !!agent?.fromKind;
+
   const createdAtText = agent?.createdAt
     ? formatDistanceToNow(new Date(agent.createdAt), { addSuffix: true })
     : "—";
@@ -89,11 +92,11 @@ export const InternalAgentOverview = () => {
   }, [buildList]);
 
   return (
-    <Box display="flex" flexDirection="column" gap={4}>
+    <Box display="flex" flexDirection="column" gap={2}>
       <Box
         sx={{
           maxWidth: "fit-content",
-          gap: 1,
+          gap: 2,
           display: "flex",
           flexDirection: "column",
         }}
@@ -103,27 +106,36 @@ export const InternalAgentOverview = () => {
           <AccessTime size={14} />
           <Typography variant="body2">{createdAtText}</Typography>
         </Box>
-        <Box display="flex" flexDirection="row" gap={1} alignItems="center">
-          <Typography variant="body2" width={100} noWrap>
-            Source Code:
-          </Typography>
-          <Button
-            component="a"
-            startIcon={
-              <GitHub size={16} color={theme.palette.text.secondary} />
-            }
-            variant="text"
-            color="inherit"
-            size="small"
-            href={repositoryUrl}
-            target="_blank"
-          >
-            <Typography variant="body2" noWrap>
-              {repositoryUrl}
+        {isKindAgent ? (
+          <KindInfoCard
+            orgId={orgId ?? ""}
+            kindName={agent!.fromKind!.kindName}
+            kindVersion={agent!.fromKind!.version}
+          />
+        ) : (
+          <Box display="flex" flexDirection="row" gap={1} alignItems="center">
+            <Typography variant="body2" width={100} noWrap>
+              Source Code:
             </Typography>
-          </Button>
-        </Box>
-        <Box display="flex" flexDirection="row" gap={1} alignItems="center">
+            <Button
+              component="a"
+              startIcon={
+                <GitHub size={16} color={theme.palette.text.secondary} />
+              }
+              variant="text"
+              color="inherit"
+              size="small"
+              href={repositoryUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+            >
+              <Typography variant="body2" noWrap>
+                {repositoryUrl}
+              </Typography>
+            </Button>
+          </Box>
+        )}
+        {!isKindAgent && (<Box display="flex" flexDirection="row" gap={1} alignItems="center">
           <Typography variant="body2" width={100} noWrap>
             Build Status:
           </Typography>
@@ -167,7 +179,10 @@ export const InternalAgentOverview = () => {
             </Button>
           )}
         </Box>
+        )}
+
       </Box>
+
       {sortedEnvironmentList && sortedEnvironmentList?.length > 0 && (
         <>
           {sortedEnvironmentList.map(

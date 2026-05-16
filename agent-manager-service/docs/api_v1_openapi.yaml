@@ -5,6 +5,20 @@ info:
 servers:
   - url: /api/v1
 paths:
+  /config:
+    get:
+      summary: Get service configuration
+      description: Returns service URLs that CLI clients need for direct backend access.
+      operationId: getConfig
+      tags:
+        - Config
+      responses:
+        '200':
+          description: Service configuration
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ConfigResponse"
   /orgs:
     get:
       summary: List all organizations
@@ -6709,6 +6723,15 @@ paths:
 
 components:
   schemas:
+    ConfigResponse:
+      type: object
+      required:
+        - traceObserverBaseUrl
+      properties:
+        traceObserverBaseUrl:
+          type: string
+          description: Base URL for the traces observer service
+
     CreateLLMAPIKeyRequest:
       type: object
       properties:

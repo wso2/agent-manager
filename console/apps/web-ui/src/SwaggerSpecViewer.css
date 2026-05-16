@@ -7,6 +7,10 @@
   display: none !important;
 }
 
+.swagger-spec-viewer .wrapper {
+  max-width: unset !important;
+}
+
 .swagger-spec-viewer.hide-authorize .swagger-ui .auth-wrapper {
   display: none !important;
 }
@@ -25,4 +29,10 @@
 
 .swagger-spec-viewer .swagger-ui .wrapper {
   padding: 0;
+}
+
+.swagger-ui .copy-to-clipboard {
+  transform: none;
+  transition: none;
+  animation: none;
 }

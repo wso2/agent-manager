@@ -31,11 +31,13 @@ import {
   LazyAddLLMProvidersComponent,
   LazyLLMProvidersComponent, LazyViewLLMProviderComponent, LazyAddLLMProvidersOrg,
   LazyGatewaysOrg,
+  LazyCatalogOrg,
   LazyAddNewAgent,
   LazyAddNewProject,
   LazyBuildComponent,
   LazySecurityComponent,
   LazyDeploymentComponent,
+  LazyPublishOrg,
   LazyTestComponent,
   LazyTracesComponent,
   LazyLogsComponent,
@@ -166,6 +168,12 @@ export function RootRouter() {
                 relativeRouteMap.children.org.children.evaluators.children.view.path
               }
               element={<LazyViewEvaluatorComponent />}
+            />
+            <Route
+              path={
+                relativeRouteMap.children.org.children.catalog.path + "/*"
+              }
+              element={<LazyCatalogOrg />}
             />
             <Route
               path={relativeRouteMap.children.org.children.newProject.path}
@@ -319,6 +327,13 @@ export function RootRouter() {
                       .agents.children.environment.children.security.path
                   }
                   element={<SecurityRouteElement />}
+                />
+                <Route
+                  path={
+                    relativeRouteMap.children.org.children.projects.children
+                      .agents.children.publish.path + "/*"
+                  }
+                  element={<LazyPublishOrg />}
                 />
                 <Route
                   path={

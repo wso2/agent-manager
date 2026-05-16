@@ -17,9 +17,11 @@
  */
 
 import {
+  useGetAgent,
   useGetAgentMetrics,
   useGetAgentResourceConfigs,
   useListAgentDeployments,
+  useListAgentKindVersions,
   useUpdateDeploymentState,
 } from "@agent-management-platform/api-client";
 import { NoDataFound, TextInput } from "@agent-management-platform/views";
@@ -65,6 +67,7 @@ import {
   AgentResourceConfigsResponse,
   MetricsResponse,
   Environment,
+  AgentKindVersionResponse,
 } from "@agent-management-platform/types";
 import { extractBuildIdFromImageId } from "../utils/extractBuildIdFromImageId";
 import { formatDistanceToNow } from "date-fns";
@@ -289,6 +292,21 @@ export function DeployCard(props: DeployCardProps) {
       enableAutoRefresh: true,
     },
   );
+  const { data: agent } = useGetAgent({
+    orgName: orgId,
+    projName: projectId,
+    agentName: agentId,
+  });
+  const fromKind = agent?.fromKind;
+
+  const { data: kindVersions } = useListAgentKindVersions(
+    { orgName: orgId ?? "", kindName: fromKind?.kindName ?? "" },
+  );
+
+  const matchedKindVersion: AgentKindVersionResponse | undefined = kindVersions?.find(
+    (v) => v.imageId === currentDeployment?.imageId,
+  );
+
   const selectedBuildId = extractBuildIdFromImageId(currentDeployment?.imageId);
   const lastDeployedText = currentDeployment?.lastDeployed
     ? formatDistanceToNow(new Date(currentDeployment.lastDeployed), {
@@ -438,37 +456,51 @@ export function DeployCard(props: DeployCardProps) {
             />
           </Stack>
           {currentDeployment?.imageId && (
-            <TextInput
-              label="Build Image"
-              labelAction={
-                <IconButton
-                  component={Link}
-                  to={
-                    generatePath(
-                      absoluteRouteMap.children.org.children.projects.children
-                        .agents.children.build.path,
-                      {
-                        orgId,
-                        projectId,
-                        agentId,
-                      },
-                    ) +
-                    "?panel=logs&selectedBuild=" +
-                    selectedBuildId
-                  }
-                >
-                  <ExternalLink size={16} />
-                </IconButton>
-              }
-              value={currentDeployment?.imageId}
-              copyable
-              copyTooltipText="Copy Build Image"
-              slotProps={{
-                input: {
-                  readOnly: true,
-                },
-              }}
-            />
+            fromKind ? (
+              <TextInput
+                label="Kind Version"
+                labelAction={
+                  <IconButton
+                    component={Link}
+                    to={
+                      generatePath(
+                        absoluteRouteMap.children.org.children.catalog.children.kindDetails.path,
+                        { orgId, kindId: fromKind.kindName },
+                      ) +
+                      (matchedKindVersion ? `?version=${matchedKindVersion.version}` : "")
+                    }
+                  >
+                    <ExternalLink size={16} />
+                  </IconButton>
+                }
+                value={matchedKindVersion ? `v${matchedKindVersion.version}` : fromKind.version}
+                slotProps={{ input: { readOnly: true } }}
+              />
+            ) : (
+              <TextInput
+                label="Build Image"
+                labelAction={
+                  <IconButton
+                    component={Link}
+                    to={
+                      generatePath(
+                        absoluteRouteMap.children.org.children.projects.children
+                          .agents.children.build.path,
+                        { orgId, projectId, agentId },
+                      ) +
+                      "?panel=logs&selectedBuild=" +
+                      selectedBuildId
+                    }
+                  >
+                    <ExternalLink size={16} />
+                  </IconButton>
+                }
+                value={currentDeployment?.imageId}
+                copyable
+                copyTooltipText="Copy Build Image"
+                slotProps={{ input: { readOnly: true } }}
+              />
+            )
           )}
           {currentDeployment?.endpoints.map((endpoint) => (
             <TextInput
