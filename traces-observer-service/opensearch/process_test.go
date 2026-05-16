@@ -804,6 +804,23 @@ func TestExtractPromptMessages(t *testing.T) {
 			t.Errorf("expected user, got %q", messages[0].Role)
 		}
 	})
+
+	// Defensive: even though the conventions are all lowercase, a malformed
+	// span carrying " System " / "System" must not cause a duplicate system
+	// bubble. hasSystemMessage trims + lowercases before matching.
+	t.Run("Does not duplicate system when input.messages role has odd casing/whitespace", func(t *testing.T) {
+		attrs := map[string]interface{}{
+			"gen_ai.system_instructions": `[{"type":"text","content":"Should be ignored"}]`,
+			"gen_ai.input.messages":      `[{"role":" System ","content":"You are a bot."},{"role":"user","content":"hi"}]`,
+		}
+		messages := ExtractPromptMessages(attrs)
+		if len(messages) != 2 {
+			t.Fatalf("expected 2 messages (no duplicate), got %d", len(messages))
+		}
+		if messages[0].Content != "You are a bot." {
+			t.Errorf("expected existing system kept, got %+v", messages[0])
+		}
+	})
 }
 
 func TestExtractCompletionMessages(t *testing.T) {

@@ -923,9 +923,12 @@ func ExtractPromptMessages(attrs map[string]interface{}) []PromptMessage {
 }
 
 // hasSystemMessage reports whether any message in the list carries role=system.
+// OTel GenAI / OpenLLMetry / Traceloop all spec lowercase role values, but
+// match defensively (case-insensitive, trimmed) so a malformed span carrying
+// "System" or " system " doesn't slip past and produce a duplicate bubble.
 func hasSystemMessage(messages []PromptMessage) bool {
 	for _, m := range messages {
-		if m.Role == "system" {
+		if strings.EqualFold(strings.TrimSpace(m.Role), "system") {
 			return true
 		}
 	}
