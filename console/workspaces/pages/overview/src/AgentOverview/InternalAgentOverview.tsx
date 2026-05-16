@@ -66,7 +66,7 @@ export const InternalAgentOverview = () => {
     });
   }, [environmentList]);
 
-  const isKindAgent = !!agent?.fromKind;
+  const isKindAgent = !!agent?.kindName;
 
   const createdAtText = agent?.createdAt
     ? formatDistanceToNow(new Date(agent.createdAt), { addSuffix: true })
@@ -109,8 +109,7 @@ export const InternalAgentOverview = () => {
         {isKindAgent ? (
           <KindInfoCard
             orgId={orgId ?? ""}
-            kindName={agent!.fromKind!.kindName}
-            kindVersion={agent!.fromKind!.version}
+            kindName={agent!.kindName!}
           />
         ) : (
           <Box display="flex" flexDirection="row" gap={1} alignItems="center">

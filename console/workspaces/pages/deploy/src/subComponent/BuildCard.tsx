@@ -61,7 +61,7 @@ export function BuildCard(props: BuildCardProps) {
     agentName: agentId,
   });
 
-  const isKindAgent = !!agent?.fromKind;
+  const isKindAgent = !!agent?.kindName;
 
   // ── Build-agent data ────────────────────────────────────────────────────────
   const { data: builds, isLoading: isBuildsLoading } = useGetAgentBuilds({
@@ -115,7 +115,7 @@ export function BuildCard(props: BuildCardProps) {
   // ── Kind-agent data ─────────────────────────────────────────────────────────
   const { data: kind, isLoading: isKindLoading } = useGetAgentKind({
     orgName: orgId,
-    kindName: agent?.fromKind?.kindName  ?? "",
+    kindName: agent?.kindName  ?? "",
   });
 
   const sortedKindVersions = useMemo(
@@ -129,18 +129,17 @@ export function BuildCard(props: BuildCardProps) {
   const selectedVersionFromParams = searchParams.get("selectedVersion");
   const isVersionSelectorOpen = searchParams.get("versionSelector") === "open";
 
-  // Default selected version to the agent's current kind version
+  // Default selected version to latest kind version when no version is in params
   useEffect(() => {
-    if (isKindAgent && !selectedVersionFromParams && agent?.fromKind?.version) {
+    if (isKindAgent && !selectedVersionFromParams && sortedKindVersions.length > 0) {
       const next = new URLSearchParams(searchParams);
-      next.set("selectedVersion", agent.fromKind.version);
+      next.set("selectedVersion", sortedKindVersions[0].version);
       setSearchParams(next, { replace: true });
     }
-  }, [isKindAgent, selectedVersionFromParams, agent, searchParams, setSearchParams]);
+  }, [isKindAgent, selectedVersionFromParams, sortedKindVersions, searchParams, setSearchParams]);
 
   const selectedVersion =
     selectedVersionFromParams ||
-    agent?.fromKind?.version ||
     (sortedKindVersions.length > 0 ? sortedKindVersions[0].version : "");
 
   const currentKindVersion = sortedKindVersions.find(
