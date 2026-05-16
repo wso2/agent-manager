@@ -201,7 +201,7 @@ export function useNavigationItems(): Array<
     ];
   }
 
-  if (orgId && projectId && agentId && defaultEnv && agent?.fromKind) {
+  if (orgId && projectId && agentId && defaultEnv && agent?.kindName) {
     return [
       {
         label: overviewMetadata.title,
@@ -347,7 +347,7 @@ export function useNavigationItems(): Array<
       })),
     ];
   }
-  if (orgId && projectId && agentId && defaultEnv && !agent?.fromKind) {
+  if (orgId && projectId && agentId && defaultEnv && !agent?.kindName) {
     return [
       {
         label: overviewMetadata.title,

@@ -83,11 +83,6 @@ export interface Provisioning {
   agentKind?: ProvisioningAgentKind;
 }
 
-export interface AgentFromKind {
-  kindName: string;
-  version: string;
-}
-
 export interface AgentResponse {
   name: string;
   displayName: string;
@@ -101,7 +96,7 @@ export interface AgentResponse {
   configurations?: Configurations;
   inputInterface?: InputInterface;
   uuid?: string;
-  fromKind?: AgentFromKind;
+  kindName?: string;
 }
 
 export interface AgentListResponse extends PaginationMeta {

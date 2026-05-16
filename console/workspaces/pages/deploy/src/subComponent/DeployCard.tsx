@@ -297,10 +297,10 @@ export function DeployCard(props: DeployCardProps) {
     projName: projectId,
     agentName: agentId,
   });
-  const fromKind = agent?.fromKind;
+  const kindName = agent?.kindName;
 
   const { data: kindVersions } = useListAgentKindVersions(
-    { orgName: orgId ?? "", kindName: fromKind?.kindName ?? "" },
+    { orgName: orgId ?? "", kindName: kindName ?? "" },
   );
 
   const matchedKindVersion: AgentKindVersionResponse | undefined = kindVersions?.find(
@@ -456,7 +456,7 @@ export function DeployCard(props: DeployCardProps) {
             />
           </Stack>
           {currentDeployment?.imageId && (
-            fromKind ? (
+            kindName ? (
               <TextInput
                 label="Kind Version"
                 labelAction={
@@ -465,7 +465,7 @@ export function DeployCard(props: DeployCardProps) {
                     to={
                       generatePath(
                         absoluteRouteMap.children.org.children.catalog.children.kindDetails.path,
-                        { orgId, kindId: fromKind.kindName },
+                        { orgId, kindId: kindName },
                       ) +
                       (matchedKindVersion ? `?version=${matchedKindVersion.version}` : "")
                     }
@@ -473,7 +473,7 @@ export function DeployCard(props: DeployCardProps) {
                     <ExternalLink size={16} />
                   </IconButton>
                 }
-                value={matchedKindVersion ? `v${matchedKindVersion.version}` : fromKind.version}
+                value={matchedKindVersion ? `v${matchedKindVersion.version}` : ""}
                 slotProps={{ input: { readOnly: true } }}
               />
             ) : (

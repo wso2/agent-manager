@@ -445,11 +445,11 @@ export const AgentsList: React.FC = () => {
                                     variant="outlined"
                                   />
                                 )}
-                                {agent.fromKind &&
+                                {agent.kindName &&
                                   <Chip size="small"
                                     label={
-                                      kindDisplayNameMap[agent.fromKind.kindName]
-                                      ?? agent.fromKind.kindName
+                                      kindDisplayNameMap[agent.kindName]
+                                      ?? agent.kindName
                                     }
                                   />
                                 }
