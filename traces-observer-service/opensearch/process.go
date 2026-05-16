@@ -944,6 +944,78 @@ func parseOTELMessage(rawMsg map[string]interface{}, messageIndex int) (*PromptM
 		msg.Content = content
 	}
 
+	// Newer OTel gen_ai semantic conventions wrap message bodies under
+	// parts:[{type:"text"|"tool_call"|"tool_call_response", ...}] instead of
+	// top-level content / toolCalls fields (emitted by
+	// opentelemetry-instrumentation-openai 0.60.0 and
+	// opentelemetry-instrumentation-openai-agents). Walk parts when present and
+	// extract text into Content and tool_call parts into ToolCalls so the
+	// Console's per-span Input/Output Messages panel renders the full
+	// conversation, including tool calls and tool responses.
+	if partsRaw, ok := rawMsg["parts"].([]interface{}); ok {
+		var textBuilder strings.Builder
+		for partIndex, p := range partsRaw {
+			pm, ok := p.(map[string]interface{})
+			if !ok {
+				continue
+			}
+			partType, _ := pm["type"].(string)
+			switch partType {
+			case "", "text":
+				if c, ok := pm["content"].(string); ok {
+					textBuilder.WriteString(c)
+				}
+			case "tool_call":
+				tc := ToolCall{}
+				if id, ok := pm["id"].(string); ok {
+					tc.ID = id
+				}
+				if name, ok := pm["name"].(string); ok {
+					tc.Name = name
+				}
+				if args, ok := pm["arguments"]; ok && args != nil {
+					if argsStr, ok := args.(string); ok {
+						tc.Arguments = argsStr
+					} else {
+						argsBytes, err := json.Marshal(args)
+						if err == nil {
+							tc.Arguments = string(argsBytes)
+						} else {
+							slog.Warn("parseOTELMessage: Failed to marshal tool call arguments in parts[]",
+								"messageIndex", messageIndex,
+								"partIndex", partIndex,
+								"toolCallName", tc.Name,
+								"error", err)
+						}
+					}
+				}
+				if tc.Name != "" {
+					msg.ToolCalls = append(msg.ToolCalls, tc)
+				}
+			case "tool_call_response":
+				// Surface tool response text as Content for role="tool" messages.
+				// Field name varies across OpenLLMetry versions: older builds used
+				// "result"; current builds use "response". Accept either.
+				var respText string
+				if r, ok := pm["response"].(string); ok && r != "" {
+					respText = r
+				} else if r, ok := pm["result"].(string); ok && r != "" {
+					respText = r
+				}
+				if respText != "" {
+					if textBuilder.Len() > 0 {
+						textBuilder.WriteString("\n")
+					}
+					textBuilder.WriteString(respText)
+				}
+				// Other types (image, audio, ...) are intentionally skipped.
+			}
+		}
+		if msg.Content == "" && textBuilder.Len() > 0 {
+			msg.Content = textBuilder.String()
+		}
+	}
+
 	// Extract toolCalls (optional, can be null)
 	if toolCallsRaw, ok := rawMsg["toolCalls"].([]interface{}); ok {
 		msg.ToolCalls = make([]ToolCall, 0, len(toolCallsRaw))
