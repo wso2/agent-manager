@@ -161,20 +161,20 @@ export const EnvironmentCard = (props: EnvironmentCardProps) => {
     projName: projectId,
     agentName: agentId,
   });
-  const fromKind = agent?.fromKind;
+  const kindName = agent?.kindName;
 
   const { data: kindVersions } = useListAgentKindVersions({
     orgName: orgId,
-    kindName: fromKind?.kindName ?? "",
+    kindName: kindName ?? "",
   });
 
   const currentDiployment = deployments?.[environment?.name ?? "default"];
   const theme = useTheme();
 
   const deployedVersion = (() => {
-    if (!currentDiployment?.imageId || !fromKind) return null;
+    if (!currentDiployment?.imageId || !kindName) return null;
     const matched = kindVersions?.find((v) => v.imageId === currentDiployment.imageId);
-    return matched?.version ?? fromKind.version;
+    return matched?.version ?? null;
   })();
 
   const deployedVersionLabel = deployedVersion ? `v${deployedVersion}` : null;
@@ -186,7 +186,7 @@ export const EnvironmentCard = (props: EnvironmentCardProps) => {
     : undefined;
 
   const isKindOutdated =
-    !!fromKind &&
+    !!kindName &&
     !!latestKindVersion &&
     !!deployedVersion &&
     deployedVersion !== latestKindVersion.version;

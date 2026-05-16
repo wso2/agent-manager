@@ -26,7 +26,6 @@ import { generatePath, Link } from "react-router-dom";
 interface KindInfoCardProps {
     orgId: string;
     kindName: string;
-    kindVersion: string;
 }
 
 export const KindInfoCard: React.FC<KindInfoCardProps> = ({ orgId, kindName }) => {
