@@ -36,6 +36,7 @@ import {
   TextInput,
   useFormValidation,
   BuildpackIcon,
+  useExternalConfigModules,
 } from "@agent-management-platform/views";
 import { z } from "zod";
 import { useUpdateAgentBuildParameters } from "@agent-management-platform/api-client";
@@ -206,6 +207,10 @@ export function ConfigureBuildDrawer({
   projectId,
 }: ConfigureBuildDrawerProps) {
   const theme = useTheme();
+  const privateRepoConfigs = useExternalConfigModules("private-repo-support");
+  const isPrivateRepoEnabled =
+    privateRepoConfigs.length === 0 ||
+    (privateRepoConfigs[0]?.value as { enabled?: boolean })?.enabled !== false;
   const isCustomInterface =
     !!agent.inputInterface?.schema?.path ||
     !!agent.inputInterface?.port ||
@@ -431,13 +436,15 @@ export function ConfigureBuildDrawer({
                     helperText={errors.repositoryUrl}
                     disabled={isPending}
                   />
-                  <GitSecretSelect
-                    orgId={orgId}
-                    value={formData.gitSecretRef}
-                    onChange={(value) => handleFieldChange('gitSecretRef', value)}
-                    error={errors.gitSecretRef}
-                    disabled={isPending}
-                  />
+                  {isPrivateRepoEnabled && (
+                    <GitSecretSelect
+                      orgId={orgId}
+                      value={formData.gitSecretRef}
+                      onChange={(value) => handleFieldChange('gitSecretRef', value)}
+                      error={errors.gitSecretRef}
+                      disabled={isPending}
+                    />
+                  )}
                   <Box display="flex" flexDirection="row" gap={1}>
                     <TextInput
                       placeholder="main"
