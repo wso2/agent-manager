@@ -721,6 +721,106 @@ func TestExtractPromptMessages(t *testing.T) {
 			t.Errorf("expected tool call 'lookup', got %+v", messages[0].ToolCalls)
 		}
 	})
+
+	// OTel GenAI conventions (used by LangGraph / OpenAI Agents SDK) surface
+	// the system prompt in a separate gen_ai.system_instructions attribute
+	// rather than as the first message in gen_ai.input.messages. The Console
+	// expects to see a system message at the head of the conversation, so the
+	// observer synthesizes one when only system_instructions is present.
+	t.Run("Prepends system from gen_ai.system_instructions parts[] when input.messages has none", func(t *testing.T) {
+		attrs := map[string]interface{}{
+			"gen_ai.system_instructions": `[{"type":"text","content":"You are a customer support agent for Acme."}]`,
+			"gen_ai.input.messages":      `[{"role":"user","parts":[{"type":"text","content":"hi"}]}]`,
+		}
+		messages := ExtractPromptMessages(attrs)
+		if len(messages) != 2 {
+			t.Fatalf("expected 2 messages (synthesized system + user), got %d", len(messages))
+		}
+		if messages[0].Role != "system" {
+			t.Errorf("expected first message role 'system', got %q", messages[0].Role)
+		}
+		if messages[0].Content != "You are a customer support agent for Acme." {
+			t.Errorf("unexpected system content %q", messages[0].Content)
+		}
+		if messages[1].Role != "user" || messages[1].Content != "hi" {
+			t.Errorf("expected second message user/'hi', got %+v", messages[1])
+		}
+	})
+
+	t.Run("Prepends system from plain-string gen_ai.system_instructions", func(t *testing.T) {
+		attrs := map[string]interface{}{
+			"gen_ai.system_instructions": "You are a careful researcher.",
+			"gen_ai.input.messages":      `[{"role":"user","parts":[{"type":"text","content":"hi"}]}]`,
+		}
+		messages := ExtractPromptMessages(attrs)
+		if len(messages) != 2 {
+			t.Fatalf("expected 2 messages, got %d", len(messages))
+		}
+		if messages[0].Role != "system" || messages[0].Content != "You are a careful researcher." {
+			t.Errorf("unexpected first message %+v", messages[0])
+		}
+	})
+
+	t.Run("Does not duplicate system when input.messages already has one", func(t *testing.T) {
+		attrs := map[string]interface{}{
+			"gen_ai.system_instructions": `[{"type":"text","content":"Should be ignored"}]`,
+			"gen_ai.input.messages":      `[{"role":"system","content":"You are a bot."},{"role":"user","content":"hi"}]`,
+		}
+		messages := ExtractPromptMessages(attrs)
+		if len(messages) != 2 {
+			t.Fatalf("expected 2 messages (no duplicate), got %d", len(messages))
+		}
+		if messages[0].Role != "system" || messages[0].Content != "You are a bot." {
+			t.Errorf("expected existing system kept, got %+v", messages[0])
+		}
+	})
+
+	t.Run("Does not duplicate system when Traceloop format already has one", func(t *testing.T) {
+		attrs := map[string]interface{}{
+			"gen_ai.system_instructions": "Should be ignored",
+			"gen_ai.prompt.0.role":       "system",
+			"gen_ai.prompt.0.content":    "You are a bot.",
+			"gen_ai.prompt.1.role":       "user",
+			"gen_ai.prompt.1.content":    "hi",
+		}
+		messages := ExtractPromptMessages(attrs)
+		if len(messages) != 2 {
+			t.Fatalf("expected 2 messages, got %d", len(messages))
+		}
+		if messages[0].Role != "system" || messages[0].Content != "You are a bot." {
+			t.Errorf("expected Traceloop system kept, got %+v", messages[0])
+		}
+	})
+
+	t.Run("Leaves conversation untouched when no system instructions anywhere", func(t *testing.T) {
+		attrs := map[string]interface{}{
+			"gen_ai.input.messages": `[{"role":"user","parts":[{"type":"text","content":"hi"}]}]`,
+		}
+		messages := ExtractPromptMessages(attrs)
+		if len(messages) != 1 {
+			t.Fatalf("expected 1 message (no synthesized system), got %d", len(messages))
+		}
+		if messages[0].Role != "user" {
+			t.Errorf("expected user, got %q", messages[0].Role)
+		}
+	})
+
+	// Defensive: even though the conventions are all lowercase, a malformed
+	// span carrying " System " / "System" must not cause a duplicate system
+	// bubble. hasSystemMessage trims + lowercases before matching.
+	t.Run("Does not duplicate system when input.messages role has odd casing/whitespace", func(t *testing.T) {
+		attrs := map[string]interface{}{
+			"gen_ai.system_instructions": `[{"type":"text","content":"Should be ignored"}]`,
+			"gen_ai.input.messages":      `[{"role":" System ","content":"You are a bot."},{"role":"user","content":"hi"}]`,
+		}
+		messages := ExtractPromptMessages(attrs)
+		if len(messages) != 2 {
+			t.Fatalf("expected 2 messages (no duplicate), got %d", len(messages))
+		}
+		if messages[0].Content != "You are a bot." {
+			t.Errorf("expected existing system kept, got %+v", messages[0])
+		}
+	})
 }
 
 func TestExtractCompletionMessages(t *testing.T) {

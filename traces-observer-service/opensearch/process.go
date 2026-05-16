@@ -884,20 +884,55 @@ func ExtractRootSpanInputOutput(rootSpan *Span) (input interface{}, output inter
 // Handles two formats:
 // 1. OTEL format: gen_ai.input.messages (JSON array)
 // 2. Traceloop format: gen_ai.prompt.{index}.{field}
+//
+// The OTel GenAI semantic conventions surface the system prompt in a separate
+// gen_ai.system_instructions attribute rather than as a message in
+// gen_ai.input.messages (this is what LangGraph / OpenAI Agents SDK emit). If
+// no system message is present in the extracted conversation, the system
+// instructions are prepended as a synthetic system message so the Console's
+// Input Messages panel renders it.
 func ExtractPromptMessages(attrs map[string]interface{}) []PromptMessage {
+	var messages []PromptMessage
+
 	// First, try OTEL format (gen_ai.input.messages)
 	if messagesJSON, ok := attrs["gen_ai.input.messages"].(string); ok && messagesJSON != "" {
 		slog.Debug("ExtractPromptMessages: Found OTEL format input messages, parsing")
-		messages := parseOTELMessages(messagesJSON)
-		if len(messages) > 0 {
-			return messages
+		messages = parseOTELMessages(messagesJSON)
+		if len(messages) == 0 {
+			slog.Warn("ExtractPromptMessages: OTEL format parsing returned no messages, falling back to Traceloop format")
 		}
-		slog.Warn("ExtractPromptMessages: OTEL format parsing returned no messages, falling back to Traceloop format")
 	}
 
 	// Fallback to Traceloop format (gen_ai.prompt.*)
-	slog.Debug("ExtractPromptMessages: Using Traceloop format extraction")
-	return extractTraceloopPromptMessages(attrs)
+	if len(messages) == 0 {
+		slog.Debug("ExtractPromptMessages: Using Traceloop format extraction")
+		messages = extractTraceloopPromptMessages(attrs)
+	}
+
+	// Prepend system instructions from the dedicated attribute if the
+	// conversation doesn't already carry a system message. extractAgentSystemPrompt
+	// handles gen_ai.system_instructions (parts[] or string), the Traceloop
+	// gen_ai.prompt.0.role=system path, and a plain system_prompt attribute.
+	if !hasSystemMessage(messages) {
+		if sys := extractAgentSystemPrompt(attrs); sys != "" {
+			messages = append([]PromptMessage{{Role: "system", Content: sys}}, messages...)
+		}
+	}
+
+	return messages
+}
+
+// hasSystemMessage reports whether any message in the list carries role=system.
+// OTel GenAI / OpenLLMetry / Traceloop all spec lowercase role values, but
+// match defensively (case-insensitive, trimmed) so a malformed span carrying
+// "System" or " system " doesn't slip past and produce a duplicate bubble.
+func hasSystemMessage(messages []PromptMessage) bool {
+	for _, m := range messages {
+		if strings.EqualFold(strings.TrimSpace(m.Role), "system") {
+			return true
+		}
+	}
+	return false
 }
 
 // RecursiveJSONParser recursively parses a potentially deeply stringified JSON string
