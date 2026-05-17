@@ -113,6 +113,9 @@ func runList(ctx context.Context, opts *ListOptions) error {
 		for _, link := range info.ActiveLinks {
 			fmt.Fprintf(w, "  %s Linked at %s\n", cs.SuccessIcon(), link)
 		}
+		for _, tool := range info.NativeTools {
+			fmt.Fprintf(w, "  %s Active for %s (native, reads %s)\n", cs.SuccessIcon(), tool, info.Path)
+		}
 		fmt.Fprintln(w)
 	}
 	return nil

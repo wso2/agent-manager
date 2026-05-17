@@ -125,7 +125,16 @@ func runInstall(ctx context.Context, opts *InstallOptions) error {
 		}
 	}
 
-	totalLocations := len(result.Skills) + len(result.Links)
+	if len(result.Skills) > 0 && len(skills.KnownNativeTools) > 0 {
+		fmt.Fprintln(w)
+		fmt.Fprintln(w, "Active for native tools...")
+		fmt.Fprintln(w)
+		for _, tool := range skills.KnownNativeTools {
+			fmt.Fprintf(w, "  %s %s reads %s directly\n", cs.SuccessIcon(), tool, opts.DestDir)
+		}
+	}
+
+	totalLocations := len(result.Skills) + len(result.Links) + len(result.Skills)*len(skills.KnownNativeTools)
 	fmt.Fprintln(w)
 	fmt.Fprintf(w, "Installed %d skill to %d locations.\n", len(result.Skills), totalLocations)
 

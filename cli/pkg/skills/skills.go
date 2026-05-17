@@ -66,10 +66,17 @@ type SkillInfo struct {
 	Description string   `json:"description"`
 	Path        string   `json:"path,omitempty"`
 	ActiveLinks []string `json:"active_links,omitempty"`
+	NativeTools []string `json:"native_tools,omitempty"`
 }
 
 // DefaultDestRel is the relative path (from home) for the canonical skill directory.
 const DefaultDestRel = ".agents/skills"
+
+// KnownNativeTools lists tools that read installed skills directly from
+// DefaultDestRel and therefore do not need a per-tool symlink directory.
+// Codex discovers skills from $HOME/.agents/skills natively
+// (https://developers.openai.com/codex/skills.md).
+var KnownNativeTools = []string{"codex"}
 
 // validSkillName reports whether name is safe to use as a top-level skill
 // directory: non-empty, not "." or "..", and contains no path separators.
@@ -202,6 +209,7 @@ func List(ctx context.Context, fsys fs.FS, destDir string, toolDirs []string) ([
 		skillDir := filepath.Join(destDir, name)
 		if _, err := os.Stat(skillDir); err == nil {
 			info.Path = skillDir
+			info.NativeTools = append(info.NativeTools, KnownNativeTools...)
 		}
 
 		for _, td := range toolDirs {

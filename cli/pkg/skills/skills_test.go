@@ -225,6 +225,9 @@ func TestList_BeforeAndAfterInstall(t *testing.T) {
 	if len(infos[0].ActiveLinks) != 0 {
 		t.Errorf("ActiveLinks should be empty before install, got %v", infos[0].ActiveLinks)
 	}
+	if len(infos[0].NativeTools) != 0 {
+		t.Errorf("NativeTools should be empty before install, got %v", infos[0].NativeTools)
+	}
 
 	if _, err := Install(context.Background(), fsys, dest, []string{toolDir}); err != nil {
 		t.Fatalf("Install failed: %v", err)
@@ -243,6 +246,9 @@ func TestList_BeforeAndAfterInstall(t *testing.T) {
 	}
 	if len(infos[0].ActiveLinks) != 1 {
 		t.Errorf("expected 1 active link, got %d", len(infos[0].ActiveLinks))
+	}
+	if len(infos[0].NativeTools) != len(KnownNativeTools) {
+		t.Errorf("expected %d native tools, got %v", len(KnownNativeTools), infos[0].NativeTools)
 	}
 }
 
