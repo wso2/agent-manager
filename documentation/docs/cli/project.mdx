@@ -1,0 +1,134 @@
+---
+sidebar_position: 4
+sidebar_label: Project
+---
+
+# amctl project
+
+Manage projects in an organization. Projects group agents and own the build and deploy pipeline.
+
+```
+amctl project [command]
+```
+
+## Subcommands
+
+| Command | Purpose |
+|---------|---------|
+| [`create`](#amctl-project-create) | Create a new project |
+| [`get`](#amctl-project-get) | Show project details |
+| [`list`](#amctl-project-list) | List projects in the active organization |
+| [`delete`](#amctl-project-delete) | Delete a project |
+
+## Options inherited from parent commands
+
+| Name | Description |
+|------|-------------|
+| `--org` | Override the active organization. |
+| `--json` | Output as JSON envelopes. |
+
+---
+
+## amctl project create
+
+Create a new project in the active organization.
+
+```
+amctl project create <name> [flags]
+```
+
+### Arguments
+
+| Name | Description |
+|------|-------------|
+| `<name>` | Project name. URL-safe slug used in CLI commands and API paths. |
+
+### Examples
+
+```bash
+# Create a project with required display name
+amctl project create checkout --display-name "Checkout API"
+
+# With a description
+amctl project create checkout \
+  --display-name "Checkout API" \
+  --description "Order checkout, payments, fulfillment"
+```
+
+### Options
+
+| Name | Type | Default | Description |
+|------|------|---------|-------------|
+| `--display-name` | string | _required_ | Human-readable display name. |
+| `--description` | string | (none) | Free-text project description. |
+
+---
+
+## amctl project get
+
+Show details of a project.
+
+```
+amctl project get <project>
+```
+
+### Arguments
+
+| Name | Description |
+|------|-------------|
+| `<project>` | Project name. |
+
+### Example
+
+```bash
+amctl project get checkout
+```
+
+---
+
+## amctl project list
+
+List projects visible in the active organization.
+
+```
+amctl project list
+```
+
+### Example
+
+```bash
+amctl project list --json | jq '.data.projects[].name'
+```
+
+---
+
+## amctl project delete
+
+Delete a project. Asks for confirmation unless `--yes` is set.
+
+```
+amctl project delete <project> [flags]
+```
+
+### Arguments
+
+| Name | Description |
+|------|-------------|
+| `<project>` | Project name to delete. |
+
+### Options
+
+| Name | Short | Type | Default | Description |
+|------|-------|------|---------|-------------|
+| `--yes` | `-y` | bool | `false` | Skip the confirmation prompt. |
+
+### Example
+
+```bash
+amctl project delete checkout --yes
+```
+
+## See Also
+
+- [`amctl agent`](./agent.mdx) — manage agents inside a project
+- [`amctl context link`](./context.mdx#amctl-context-link) — link the current directory to a project

@@ -37,6 +37,21 @@ const sidebars: SidebarsConfig = {
             'getting-started/on-your-environment',
           ],
         },
+        'getting-started/cli-installation',
+      ],
+    },
+    {
+      type: 'category',
+      label: 'CLI',
+      collapsed: false,
+      items: [
+        'cli/overview',
+        'cli/login',
+        'cli/context',
+        'cli/project',
+        'cli/agent',
+        'cli/skills',
+        'cli/version',
       ],
     },
     {
