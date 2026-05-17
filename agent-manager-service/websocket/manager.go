@@ -90,6 +90,24 @@ func NewManager(config ManagerConfig) *Manager {
 // Register adds a new connection to the registry and starts heartbeat monitoring.
 // Returns an error if the maximum connection limit is reached.
 func (m *Manager) Register(gatewayID string, transport Transport, authToken string) (*Connection, error) {
+	// Evict any existing connections for this gateway before registering the new one.
+	// When kgateway reloads config (on each OpenChoreo reconcile), it sends a TCP RST to
+	// the gateway controller which reconnects immediately. Without eviction, kgateway
+	// sometimes hands the reconnect to an old upstream connection whose downstream is
+	// already dead — that upstream receives no heartbeat pings and lingers as stale state.
+	// Closing old connections here sends a WebSocket CLOSE to kgateway, which tears down
+	// the stale upstream immediately and leaves a clean slate for the new connection.
+	if connsInterface, loaded := m.connections.LoadAndDelete(gatewayID); loaded {
+		for _, old := range connsInterface.([]*Connection) {
+			_ = old.Close(1000, "superseded by new connection")
+			m.mu.Lock()
+			m.connectionCount--
+			m.mu.Unlock()
+			log.Printf("[INFO] Evicted superseded connection: gatewayID=%s connectionID=%s",
+				gatewayID, old.ConnectionID)
+		}
+	}
+
 	// Check connection limit
 	m.mu.Lock()
 	if m.connectionCount >= m.maxConnections {
@@ -103,11 +121,8 @@ func (m *Manager) Register(gatewayID string, transport Transport, authToken stri
 	connectionID := uuid.New().String()
 	conn := NewConnection(gatewayID, connectionID, transport, authToken)
 
-	// Add connection to registry
-	connsInterface, _ := m.connections.LoadOrStore(gatewayID, []*Connection{})
-	conns := connsInterface.([]*Connection)
-	conns = append(conns, conn)
-	m.connections.Store(gatewayID, conns)
+	// Store as the sole active connection for this gateway (singleton per gateway).
+	m.connections.Store(gatewayID, []*Connection{conn})
 
 	// Start heartbeat monitoring in background
 	m.wg.Add(1)
