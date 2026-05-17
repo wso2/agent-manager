@@ -134,6 +134,38 @@ func TestInstall_Idempotent(t *testing.T) {
 	}
 }
 
+func TestInstall_RemovesStaleFilesOnReinstall(t *testing.T) {
+	dest := t.TempDir()
+
+	oldFS := fstest.MapFS{
+		"skilldata/use-amctl/SKILL.md": &fstest.MapFile{
+			Data: []byte(skillFrontmatter),
+			Mode: 0o644,
+		},
+		"skilldata/use-amctl/old-file.md": &fstest.MapFile{
+			Data: []byte("will be removed"),
+			Mode: 0o644,
+		},
+	}
+	if _, err := Install(context.Background(), oldFS, dest, nil); err != nil {
+		t.Fatalf("first Install failed: %v", err)
+	}
+	stale := filepath.Join(dest, "use-amctl", "old-file.md")
+	if _, err := os.Stat(stale); err != nil {
+		t.Fatalf("expected stale file present after first install: %v", err)
+	}
+
+	if _, err := Install(context.Background(), fakeFS(t), dest, nil); err != nil {
+		t.Fatalf("second Install failed: %v", err)
+	}
+	if _, err := os.Stat(stale); !os.IsNotExist(err) {
+		t.Errorf("stale file should be removed after reinstall, stat err = %v", err)
+	}
+	if _, err := os.Stat(filepath.Join(dest, "use-amctl", "references", "extra.md")); err != nil {
+		t.Errorf("new file missing after reinstall: %v", err)
+	}
+}
+
 func TestInstall_NoToolDirs(t *testing.T) {
 	dest := t.TempDir()
 

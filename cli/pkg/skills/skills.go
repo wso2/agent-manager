@@ -151,11 +151,28 @@ func Install(ctx context.Context, fsys fs.FS, destDir string, toolDirs []string)
 			return result, fmt.Errorf("invalid skill name %q", name)
 		}
 		skillDir := filepath.Join(destDir, name)
-		if err := os.MkdirAll(skillDir, 0o755); err != nil {
-			return result, fmt.Errorf("create skill dir %s: %w", skillDir, err)
+		if err := os.MkdirAll(destDir, 0o755); err != nil {
+			return result, fmt.Errorf("create dest dir %s: %w", destDir, err)
 		}
-		if err := extractSkillFS(fsys, name, skillDir); err != nil {
+		tmpDir := skillDir + ".tmp"
+		// Clean any leftover tmp from a prior aborted install.
+		if err := os.RemoveAll(tmpDir); err != nil {
+			return result, fmt.Errorf("clear stale tmp %s: %w", tmpDir, err)
+		}
+		if err := os.MkdirAll(tmpDir, 0o755); err != nil {
+			return result, fmt.Errorf("create tmp dir %s: %w", tmpDir, err)
+		}
+		if err := extractSkillFS(fsys, name, tmpDir); err != nil {
+			os.RemoveAll(tmpDir)
 			return result, fmt.Errorf("extract %s: %w", name, err)
+		}
+		if err := os.RemoveAll(skillDir); err != nil {
+			os.RemoveAll(tmpDir)
+			return result, fmt.Errorf("remove old skill dir %s: %w", skillDir, err)
+		}
+		if err := os.Rename(tmpDir, skillDir); err != nil {
+			os.RemoveAll(tmpDir)
+			return result, fmt.Errorf("install %s: %w", skillDir, err)
 		}
 		meta := readMeta(filepath.Join(skillDir, "SKILL.md"))
 		result.Skills = append(result.Skills, InstalledSkill{
