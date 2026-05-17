@@ -279,7 +279,7 @@ func Remove(destDir string, toolDirs []string) (RemoveResult, error) {
 			if err != nil {
 				continue
 			}
-			if !strings.HasPrefix(target, destDir+string(filepath.Separator)) {
+			if filepath.Clean(target) != skillDir {
 				continue
 			}
 			if err := os.Remove(linkPath); err != nil {
