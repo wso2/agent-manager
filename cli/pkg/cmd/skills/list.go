@@ -20,8 +20,6 @@ import (
 	"context"
 	"fmt"
 	"io/fs"
-	"os"
-	"path/filepath"
 
 	"github.com/spf13/cobra"
 
@@ -59,13 +57,13 @@ func NewListCmd(f *cmdutil.Factory) *cobra.Command {
 		Short: "List available AI assistant skills",
 		Args:  cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, args []string) error {
-			home, err := os.UserHomeDir()
+			destDir, toolDirs, err := skills.ResolveLocations()
 			if err != nil {
 				return render.Error(opts.IO, render.Scope{},
 					clierr.Newf(clierr.SkillListFailed, "resolve home dir: %v", err))
 			}
-			opts.DestDir = filepath.Join(home, skills.DefaultDestRel)
-			opts.ToolDirs = skills.DetectToolDirs(home)
+			opts.DestDir = destDir
+			opts.ToolDirs = toolDirs
 			return runList(cmd.Context(), opts)
 		},
 	}

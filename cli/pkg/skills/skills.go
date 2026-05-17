@@ -89,8 +89,7 @@ func validSkillName(name string) bool {
 
 // validSkillRelPath reports whether rel is safe to use as a relative path
 // inside a skill directory: non-empty, not absolute, no backslashes (which
-// can act as separators on some platforms), and no ".." segments after
-// path.Clean.
+// can act as separators on some platforms), and no ".." segments.
 func validSkillRelPath(rel string) bool {
 	if rel == "" || strings.HasPrefix(rel, "/") || strings.ContainsRune(rel, '\\') {
 		return false
@@ -98,11 +97,6 @@ func validSkillRelPath(rel string) bool {
 	cleaned := path.Clean(rel)
 	if cleaned == "." || cleaned == ".." || strings.HasPrefix(cleaned, "../") {
 		return false
-	}
-	for _, seg := range strings.Split(cleaned, "/") {
-		if seg == ".." {
-			return false
-		}
 	}
 	return true
 }
@@ -128,6 +122,16 @@ func DetectToolDirs(homeDir string) []string {
 	return dirs
 }
 
+// ResolveLocations returns the canonical install destination and detected
+// tool directories for the current user.
+func ResolveLocations() (destDir string, toolDirs []string, err error) {
+	home, err := os.UserHomeDir()
+	if err != nil {
+		return "", nil, err
+	}
+	return filepath.Join(home, DefaultDestRel), DetectToolDirs(home), nil
+}
+
 // Install reads every skill under fsys's "skilldata" root, writes it to
 // destDir, and creates symlinks from each toolDir to the canonical skill
 // directory.
@@ -137,6 +141,9 @@ func Install(ctx context.Context, fsys fs.FS, destDir string, toolDirs []string)
 	entries, err := fs.ReadDir(fsys, "skilldata")
 	if err != nil {
 		return result, fmt.Errorf("read skilldata: %w", err)
+	}
+	if err := os.MkdirAll(destDir, 0o755); err != nil {
+		return result, fmt.Errorf("create dest dir %s: %w", destDir, err)
 	}
 
 	for _, entry := range entries {
@@ -151,11 +158,7 @@ func Install(ctx context.Context, fsys fs.FS, destDir string, toolDirs []string)
 			return result, fmt.Errorf("invalid skill name %q", name)
 		}
 		skillDir := filepath.Join(destDir, name)
-		if err := os.MkdirAll(destDir, 0o755); err != nil {
-			return result, fmt.Errorf("create dest dir %s: %w", destDir, err)
-		}
 		tmpDir := skillDir + ".tmp"
-		// Clean any leftover tmp from a prior aborted install.
 		if err := os.RemoveAll(tmpDir); err != nil {
 			return result, fmt.Errorf("clear stale tmp %s: %w", tmpDir, err)
 		}
@@ -174,7 +177,8 @@ func Install(ctx context.Context, fsys fs.FS, destDir string, toolDirs []string)
 			os.RemoveAll(tmpDir)
 			return result, fmt.Errorf("install %s: %w", skillDir, err)
 		}
-		meta := readMeta(filepath.Join(skillDir, "SKILL.md"))
+		data, _ := fs.ReadFile(fsys, "skilldata/"+name+"/SKILL.md")
+		meta := parseFrontmatter(data)
 		result.Skills = append(result.Skills, InstalledSkill{
 			Name:        name,
 			Description: meta.Description,
@@ -338,14 +342,6 @@ func removeIfSymlink(path string) error {
 		return os.Remove(path)
 	}
 	return fmt.Errorf("%s exists and is not a symlink; remove it manually", path)
-}
-
-func readMeta(path string) SkillMeta {
-	data, err := os.ReadFile(path)
-	if err != nil {
-		return SkillMeta{}
-	}
-	return parseFrontmatter(data)
 }
 
 func parseFrontmatter(data []byte) SkillMeta {

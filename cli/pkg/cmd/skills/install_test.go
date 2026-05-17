@@ -59,14 +59,13 @@ func TestInstallCmd_TextOutput(t *testing.T) {
 	if err := os.MkdirAll(toolDir, 0o755); err != nil {
 		t.Fatal(err)
 	}
-	home := filepath.Dir(filepath.Dir(toolDir))
 
 	io, _, errOut := newTextIO()
 	err := runInstall(context.Background(), &InstallOptions{
-		IO:      io,
-		HomeDir: home,
-		DestDir: dest,
-		FetchFS: fakeFetchFS(),
+		IO:       io,
+		DestDir:  dest,
+		ToolDirs: []string{toolDir},
+		FetchFS:  fakeFetchFS(),
 	})
 	if err != nil {
 		t.Fatalf("runInstall failed: %v", err)
@@ -90,7 +89,6 @@ func TestInstallCmd_JSONOutput(t *testing.T) {
 	io, out, _ := newTestIO(true)
 	err := runInstall(context.Background(), &InstallOptions{
 		IO:      io,
-		HomeDir: t.TempDir(),
 		DestDir: dest,
 		FetchFS: fakeFetchFS(),
 	})
@@ -121,7 +119,6 @@ func TestInstallCmd_JSONNoTextOutput(t *testing.T) {
 	io, _, errOut := newTestIO(true)
 	err := runInstall(context.Background(), &InstallOptions{
 		IO:      io,
-		HomeDir: t.TempDir(),
 		DestDir: dest,
 		FetchFS: fakeFetchFS(),
 	})

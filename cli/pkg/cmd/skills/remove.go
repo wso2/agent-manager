@@ -19,8 +19,6 @@ package skills
 import (
 	"context"
 	"fmt"
-	"os"
-	"path/filepath"
 
 	"github.com/spf13/cobra"
 
@@ -48,13 +46,13 @@ func NewRemoveCmd(f *cmdutil.Factory) *cobra.Command {
 		Short: "Remove installed AI assistant skills",
 		Args:  cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, args []string) error {
-			home, err := os.UserHomeDir()
+			destDir, toolDirs, err := skills.ResolveLocations()
 			if err != nil {
 				return render.Error(opts.IO, render.Scope{},
 					clierr.Newf(clierr.SkillRemoveFailed, "resolve home dir: %v", err))
 			}
-			opts.DestDir = filepath.Join(home, skills.DefaultDestRel)
-			opts.ToolDirs = skills.DetectToolDirs(home)
+			opts.DestDir = destDir
+			opts.ToolDirs = toolDirs
 			return runRemove(cmd.Context(), opts)
 		},
 	}
@@ -92,7 +90,10 @@ func runRemove(ctx context.Context, opts *RemoveOptions) error {
 	}
 
 	fmt.Fprintln(w)
-	fmt.Fprintf(w, "Removed %d skill and %d link(s).\n", len(result.RemovedSkills), len(result.RemovedLinks))
+	fmt.Fprintf(w, "Removed %s and %s.\n",
+		plural(len(result.RemovedSkills), "skill", "skills"),
+		plural(len(result.RemovedLinks), "link", "links"),
+	)
 
 	return nil
 }

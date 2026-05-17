@@ -21,7 +21,6 @@ import (
 	"fmt"
 	"io/fs"
 	"os"
-	"path/filepath"
 
 	"github.com/spf13/cobra"
 
@@ -34,9 +33,9 @@ import (
 
 // InstallOptions holds the resolved inputs for the install command.
 type InstallOptions struct {
-	IO      *iostreams.IOStreams
-	HomeDir string
-	DestDir string
+	IO       *iostreams.IOStreams
+	DestDir  string
+	ToolDirs []string
 	// FetchFS returns the source fs.FS of available skills. Defaults to
 	// skills.Remote against the canonical GitHub tarball; tests override.
 	FetchFS func(ctx context.Context) (fs.FS, error)
@@ -55,13 +54,13 @@ func NewInstallCmd(f *cmdutil.Factory) *cobra.Command {
 		Short: "Install AI assistant skills to disk",
 		Args:  cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, args []string) error {
-			home, err := os.UserHomeDir()
+			destDir, toolDirs, err := skills.ResolveLocations()
 			if err != nil {
 				return render.Error(opts.IO, render.Scope{},
 					clierr.Newf(clierr.SkillInstallFailed, "resolve home dir: %v", err))
 			}
-			opts.HomeDir = home
-			opts.DestDir = filepath.Join(home, skills.DefaultDestRel)
+			opts.DestDir = destDir
+			opts.ToolDirs = toolDirs
 			return runInstall(cmd.Context(), opts)
 		},
 	}
@@ -85,9 +84,7 @@ func runInstall(ctx context.Context, opts *InstallOptions) error {
 			clierr.Newf(clierr.SkillInstallFailed, "fetch remote skills: %v", err))
 	}
 
-	toolDirs := skills.DetectToolDirs(opts.HomeDir)
-
-	result, err := skills.Install(ctx, fsys, opts.DestDir, toolDirs)
+	result, err := skills.Install(ctx, fsys, opts.DestDir, opts.ToolDirs)
 	if err != nil {
 		return render.Error(opts.IO, scope,
 			clierr.Newf(clierr.SkillInstallFailed, "%v", err))
@@ -107,11 +104,11 @@ func runInstall(ctx context.Context, opts *InstallOptions) error {
 		fmt.Fprintf(w, "  %s Extracted %s to %s\n", cs.SuccessIcon(), s.Name, s.Path)
 	}
 
-	if len(toolDirs) > 0 {
+	if len(opts.ToolDirs) > 0 {
 		fmt.Fprintln(w)
 		fmt.Fprintln(w, "Detecting tool directories...")
 		fmt.Fprintln(w)
-		for _, td := range toolDirs {
+		for _, td := range opts.ToolDirs {
 			fmt.Fprintf(w, "  %s Found %s\n", cs.SuccessIcon(), td)
 		}
 	}
@@ -134,9 +131,18 @@ func runInstall(ctx context.Context, opts *InstallOptions) error {
 		}
 	}
 
-	totalLocations := len(result.Skills) + len(result.Links) + len(result.Skills)*len(skills.KnownNativeTools)
 	fmt.Fprintln(w)
-	fmt.Fprintf(w, "Installed %d skill to %d locations.\n", len(result.Skills), totalLocations)
+	fmt.Fprintf(w, "Installed %s, created %s.\n",
+		plural(len(result.Skills), "skill", "skills"),
+		plural(len(result.Links), "link", "links"),
+	)
 
 	return nil
+}
+
+func plural(n int, singular, plural string) string {
+	if n == 1 {
+		return fmt.Sprintf("%d %s", n, singular)
+	}
+	return fmt.Sprintf("%d %s", n, plural)
 }

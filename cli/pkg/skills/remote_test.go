@@ -13,6 +13,7 @@ import (
 	"bytes"
 	"compress/gzip"
 	"context"
+	"io"
 	"io/fs"
 	"net/http"
 	"net/http/httptest"
@@ -58,7 +59,7 @@ func TestWalkTarball_FiltersByPrefixAndGroupsBySkill(t *testing.T) {
 		"agent-skills-main/plugins/other-product/skills/baz/SKILL.md":            "ignored-other-plugin",
 	})
 
-	got, err := walkTarball(tarball, "plugins/agent-manager/skills/")
+	got, err := walkTarball(bytes.NewReader(tarball), "plugins/agent-manager/skills/")
 	if err != nil {
 		t.Fatalf("walkTarball: %v", err)
 	}
@@ -82,7 +83,7 @@ func TestWalkTarball_NonStandardWrapperDir(t *testing.T) {
 		"some-other-prefix/plugins/agent-manager/skills/foo/SKILL.md": "foo-skill",
 	})
 
-	got, err := walkTarball(tarball, "plugins/agent-manager/skills/")
+	got, err := walkTarball(bytes.NewReader(tarball), "plugins/agent-manager/skills/")
 	if err != nil {
 		t.Fatalf("walkTarball: %v", err)
 	}
@@ -95,7 +96,7 @@ func TestWalkTarball_NoMatchingEntries(t *testing.T) {
 	tarball := buildTarball(t, map[string]string{
 		"repo-main/README.md": "x",
 	})
-	got, err := walkTarball(tarball, "plugins/agent-manager/skills/")
+	got, err := walkTarball(bytes.NewReader(tarball), "plugins/agent-manager/skills/")
 	if err != nil {
 		t.Fatalf("walkTarball: %v", err)
 	}
@@ -105,7 +106,7 @@ func TestWalkTarball_NoMatchingEntries(t *testing.T) {
 }
 
 func TestWalkTarball_MalformedGzip(t *testing.T) {
-	_, err := walkTarball([]byte("not a gzip"), "plugins/agent-manager/skills/")
+	_, err := walkTarball(bytes.NewReader([]byte("not a gzip")), "plugins/agent-manager/skills/")
 	if err == nil {
 		t.Fatal("want error for malformed gzip, got nil")
 	}
@@ -120,7 +121,7 @@ func TestWalkTarball_RejectsPathTraversal(t *testing.T) {
 	for desc, entry := range cases {
 		t.Run(desc, func(t *testing.T) {
 			tarball := buildTarball(t, map[string]string{entry: "x"})
-			_, err := walkTarball(tarball, "plugins/agent-manager/skills/")
+			_, err := walkTarball(bytes.NewReader(tarball), "plugins/agent-manager/skills/")
 			if err == nil {
 				t.Fatalf("want error for malicious entry %q, got nil", entry)
 			}
@@ -139,9 +140,14 @@ func TestFetchTarball_ReturnsBodyOn200(t *testing.T) {
 	}))
 	defer srv.Close()
 
-	got, err := fetchTarball(context.Background(), http.DefaultClient, srv.URL)
+	rc, err := fetchTarball(context.Background(), http.DefaultClient, srv.URL)
 	if err != nil {
 		t.Fatalf("fetchTarball: %v", err)
+	}
+	defer rc.Close()
+	got, err := io.ReadAll(rc)
+	if err != nil {
+		t.Fatalf("read body: %v", err)
 	}
 	if !bytes.Equal(got, want) {
 		t.Errorf("body mismatch: got %q want %q", got, want)
