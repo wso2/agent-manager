@@ -17,6 +17,7 @@ import (
 	"io"
 	"io/fs"
 	"net/http"
+	"slices"
 	"strings"
 	"time"
 )
@@ -110,6 +111,7 @@ func (m memFS) ReadDir(name string) ([]fs.DirEntry, error) {
 		seen[dirName] = true
 		out = append(out, &memDirEntry{name: dirName, isDir: true})
 	}
+	slices.SortFunc(out, func(a, b fs.DirEntry) int { return strings.Compare(a.Name(), b.Name()) })
 	return out, nil
 }
 
