@@ -118,14 +118,23 @@ func (c *TracingController) GetTraceOverviews(ctx context.Context, params TraceQ
 		}, nil
 	}
 
-	// Fetch root span details in parallel, bounded by maxConcurrentFetches.
+	// Fetch root spans and run per-trace enrichment in parallel.
+	// outerSem caps how many traces are being enriched at once; innerSem caps
+	// the total observer round-trips across all enrichments in flight (root
+	// fetches plus anything enrichTraceOverview fetches inside).
+	// Two pools avoid the deadlock a single shared pool would hit when every
+	// outer slot is held by a goroutine waiting on a fetch slot.
 	type result struct {
-		idx  int
-		span *opensearch.Span
-		err  error
+		idx        int
+		span       *opensearch.Span
+		input      interface{}
+		output     interface{}
+		tokenUsage *opensearch.TokenUsage
+		err        error
 	}
 	results := make([]result, len(tracesResp.Traces))
-	sem := make(chan struct{}, maxConcurrentFetches)
+	outerSem := make(chan struct{}, maxConcurrentTraces)
+	innerSem := make(chan struct{}, maxConcurrentFetches)
 	var wg sync.WaitGroup
 
 	for i, t := range tracesResp.Traces {
@@ -134,20 +143,22 @@ func (c *TracingController) GetTraceOverviews(ctx context.Context, params TraceQ
 			continue
 		}
 		wg.Add(1)
-		go func(idx int, traceID, rootSpanID string) {
+		go func(idx int, t observer.TraceInfo) {
 			defer wg.Done()
-			sem <- struct{}{}
-			defer func() { <-sem }()
+			outerSem <- struct{}{}
+			defer func() { <-outerSem }()
 
-			details, err := c.observerClient.GetSpanDetails(ctx, traceID, rootSpanID)
+			innerSem <- struct{}{}
+			details, err := c.observerClient.GetSpanDetails(ctx, t.TraceID, t.RootSpanID)
+			<-innerSem
 			if err != nil {
 				results[idx] = result{idx: idx, err: err}
 				return
 			}
-			span := observer.ConvertSpanDetailsToSpan(traceID, details)
-			enriched := opensearch.ProcessSpan(span)
-			results[idx] = result{idx: idx, span: &enriched}
-		}(i, t.TraceID, t.RootSpanID)
+			enriched := opensearch.ProcessSpan(observer.ConvertSpanDetailsToSpan(t.TraceID, details))
+			input, output, tokens := c.enrichTraceOverview(ctx, params, t, &enriched, innerSem)
+			results[idx] = result{idx: idx, span: &enriched, input: input, output: output, tokenUsage: tokens}
+		}(i, t)
 	}
 	wg.Wait()
 
@@ -163,8 +174,6 @@ func (c *TracingController) GetTraceOverviews(ctx context.Context, params TraceQ
 			continue
 		}
 		rootSpan := res.span
-
-		input, output, tokenUsage := c.enrichTraceOverview(ctx, params, t, rootSpan)
 		traceStatus := opensearch.ExtractTraceStatus([]opensearch.Span{*rootSpan})
 
 		overviews = append(overviews, opensearch.TraceOverview{
@@ -176,10 +185,10 @@ func (c *TracingController) GetTraceOverviews(ctx context.Context, params TraceQ
 			EndTime:         t.EndTime.Format(time.RFC3339Nano),
 			DurationInNanos: t.DurationNs,
 			SpanCount:       t.SpanCount,
-			TokenUsage:      tokenUsage,
+			TokenUsage:      res.tokenUsage,
 			Status:          traceStatus,
-			Input:           input,
-			Output:          output,
+			Input:           res.input,
+			Output:          res.output,
 		})
 	}
 
@@ -210,13 +219,18 @@ func (c *TracingController) GetTraceOverviews(ctx context.Context, params TraceQ
 //
 // Each step only fills in fields the earlier step left nil — so a CrewAI
 // trace that gets all three from step 1 incurs no extra calls.
+//
+// fetchSem bounds the total observer fetches across all concurrent
+// enrichments — callers pass a shared semaphore so a 50-trace page can't
+// fan out into thousands of in-flight requests.
 func (c *TracingController) enrichTraceOverview(
 	ctx context.Context,
 	params TraceQueryParams,
 	traceInfo observer.TraceInfo,
 	rootSpan *opensearch.Span,
+	fetchSem chan struct{},
 ) (input interface{}, output interface{}, tokenUsage *opensearch.TokenUsage) {
-	// Step 1: root span (unchanged behaviour — preserved exactly).
+	// Step 1: root span attributes.
 	if opensearch.IsCrewAISpan(rootSpan.Attributes) {
 		input, output = opensearch.ExtractCrewAIRootSpanInputOutput(rootSpan)
 		tokenUsage = opensearch.ExtractCrewAITraceTokenUsage(rootSpan)
@@ -236,14 +250,14 @@ func (c *TracingController) enrichTraceOverview(
 	}
 
 	// Both steps 2 and 3 need the per-trace span list. Fetch it once.
-	spans, ok := c.fetchTraceSpanSummaries(ctx, params, traceInfo)
+	spans, ok := c.fetchTraceSpanSummaries(ctx, params, traceInfo, fetchSem)
 	if !ok {
 		return input, output, tokenUsage
 	}
 
 	// Step 2: immediate child of the root (Traceloop chain span path).
 	if input == nil || output == nil || tokenUsage == nil {
-		if childInput, childOutput, childTokens, ok := c.tryChildChainSpan(ctx, traceInfo.TraceID, rootSpan.SpanID, spans); ok {
+		if childInput, childOutput, childTokens, ok := c.tryChildChainSpan(ctx, traceInfo.TraceID, rootSpan.SpanID, spans, fetchSem); ok {
 			if input == nil {
 				input = childInput
 			}
@@ -264,7 +278,7 @@ func (c *TracingController) enrichTraceOverview(
 				"spanCount", traceInfo.SpanCount,
 				"threshold", skipLeafAggregationSpanCountThreshold)
 		} else {
-			leafInput, leafOutput, leafTokens := c.aggregateFromLeafLLMSpans(ctx, traceInfo.TraceID, spans)
+			leafInput, leafOutput, leafTokens := c.aggregateFromLeafLLMSpans(ctx, traceInfo.TraceID, spans, fetchSem)
 			if input == nil {
 				input = leafInput
 			}
@@ -282,12 +296,15 @@ func (c *TracingController) enrichTraceOverview(
 
 // fetchTraceSpanSummaries calls QueryTraceSpans for one trace and returns
 // the span-summary list, mirroring the request shape used elsewhere in this
-// controller. Returns ok=false on error (logged as a warning); callers fall
-// back gracefully to whatever they already extracted.
+// controller. Acquires a slot on fetchSem for the duration of the call so
+// the call counts against the shared cross-trace fetch budget. Returns
+// ok=false on error (logged as a warning); callers fall back gracefully to
+// whatever they already extracted.
 func (c *TracingController) fetchTraceSpanSummaries(
 	ctx context.Context,
 	params TraceQueryParams,
 	traceInfo observer.TraceInfo,
+	fetchSem chan struct{},
 ) ([]observer.SpanInfo, bool) {
 	log := logger.GetLogger(ctx)
 
@@ -295,6 +312,7 @@ func (c *TracingController) fetchTraceSpanSummaries(
 	if spanLimit <= 0 || spanLimit > MaxSpansPerRequest {
 		spanLimit = MaxSpansPerRequest
 	}
+	fetchSem <- struct{}{}
 	spansResp, err := c.observerClient.QueryTraceSpans(ctx, traceInfo.TraceID, observer.TracesQueryRequest{
 		StartTime: params.StartTime,
 		EndTime:   params.EndTime,
@@ -306,6 +324,7 @@ func (c *TracingController) fetchTraceSpanSummaries(
 			Environment: params.Environment,
 		},
 	})
+	<-fetchSem
 	if err != nil {
 		log.Warn("enrichTraceOverview: QueryTraceSpans failed, skipping enrichment",
 			"traceId", traceInfo.TraceID, "err", err)
@@ -326,6 +345,7 @@ func (c *TracingController) tryChildChainSpan(
 	traceID string,
 	rootSpanID string,
 	spans []observer.SpanInfo,
+	fetchSem chan struct{},
 ) (input interface{}, output interface{}, tokens *opensearch.TokenUsage, ok bool) {
 	log := logger.GetLogger(ctx)
 
@@ -351,7 +371,9 @@ func (c *TracingController) tryChildChainSpan(
 		return nil, nil, nil, false
 	}
 
+	fetchSem <- struct{}{}
 	details, err := c.observerClient.GetSpanDetails(ctx, traceID, childID)
+	<-fetchSem
 	if err != nil {
 		log.Warn("tryChildChainSpan: GetSpanDetails failed",
 			"traceId", traceID, "childSpanId", childID, "err", err)
@@ -368,10 +390,12 @@ func (c *TracingController) tryChildChainSpan(
 }
 
 // aggregateFromLeafLLMSpans fetches up to maxLLMLeavesPerTrace leaf LLM spans
-// (name matches IsLLMLeafSpan), in parallel bounded by maxConcurrentFetches,
-// and aggregates token usage across them plus first/last message previews.
-// Used when neither the root nor a child chain span carries the data (OpenAI
-// Agents SDK / pure-OTel agents).
+// (name matches IsLLMLeafSpan) and aggregates token usage across them plus
+// first/last message previews. Used when neither the root nor a child chain
+// span carries the data (OpenAI Agents SDK / pure-OTel agents).
+//
+// Fetches share fetchSem with every other enrichment in flight, so leaf fan-
+// out across many concurrent traces doesn't flood the upstream observer.
 //
 // If the trace has more LLM leaves than the cap, the returned TokenUsage has
 // Partial=true so the UI can render an "approximate" marker.
@@ -379,6 +403,7 @@ func (c *TracingController) aggregateFromLeafLLMSpans(
 	ctx context.Context,
 	traceID string,
 	spans []observer.SpanInfo,
+	fetchSem chan struct{},
 ) (input interface{}, output interface{}, tokens *opensearch.TokenUsage) {
 	log := logger.GetLogger(ctx)
 
@@ -403,16 +428,14 @@ func (c *TracingController) aggregateFromLeafLLMSpans(
 			"traceId", traceID, "totalLeaves", totalLeaves, "cap", maxLLMLeavesPerTrace)
 	}
 
-	// Parallel fetch, bounded by the existing controller-wide semaphore.
 	fetched := make([]opensearch.Span, len(leaves))
-	sem := make(chan struct{}, maxConcurrentFetches)
 	var wg sync.WaitGroup
 	for i, leaf := range leaves {
 		wg.Add(1)
 		go func(idx int, spanID string) {
 			defer wg.Done()
-			sem <- struct{}{}
-			defer func() { <-sem }()
+			fetchSem <- struct{}{}
+			defer func() { <-fetchSem }()
 
 			details, err := c.observerClient.GetSpanDetails(ctx, traceID, spanID)
 			if err != nil {

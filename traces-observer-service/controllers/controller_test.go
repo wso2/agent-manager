@@ -102,6 +102,11 @@ func baseParams() TraceQueryParams {
 	}
 }
 
+// testFetchSem returns a fresh fetch-budget semaphore sized for tests. The
+// cascade's per-trace fetches share this channel in production; tests give
+// each call its own channel for isolation.
+func testFetchSem() chan struct{} { return make(chan struct{}, maxConcurrentFetches) }
+
 // (a) Root span carries entity.input/output and entity.output → root-derived
 // token usage. The cascade must short-circuit at step 1 — no extra fetches.
 func TestEnrichTraceOverview_RootHasEntityShortCircuits(t *testing.T) {
@@ -112,7 +117,7 @@ func TestEnrichTraceOverview_RootHasEntityShortCircuits(t *testing.T) {
 	fake := &fakeObserverClient{rootSpan: &observer.SpanDetailsResponse{SpanID: "root"}}
 	c := NewTracingController(fake)
 
-	input, output, tokens := c.enrichTraceOverview(context.Background(), baseParams(), baseTraceInfo(5), root)
+	input, output, tokens := c.enrichTraceOverview(context.Background(), baseParams(), baseTraceInfo(5), root, testFetchSem())
 
 	if input == nil || output == nil {
 		t.Errorf("expected input/output from root, got input=%v output=%v", input, output)
@@ -153,7 +158,7 @@ func TestEnrichTraceOverview_FallsBackToChildChainSpan(t *testing.T) {
 	}
 	c := NewTracingController(fake)
 
-	input, output, tokens := c.enrichTraceOverview(context.Background(), baseParams(), baseTraceInfo(5), root)
+	input, output, tokens := c.enrichTraceOverview(context.Background(), baseParams(), baseTraceInfo(5), root, testFetchSem())
 
 	if input == nil || output == nil {
 		t.Errorf("expected input/output from chain child, got input=%v output=%v", input, output)
@@ -200,7 +205,7 @@ func TestEnrichTraceOverview_AggregatesFromLeafLLMSpans(t *testing.T) {
 	}
 	c := NewTracingController(fake)
 
-	input, output, tokens := c.enrichTraceOverview(context.Background(), baseParams(), baseTraceInfo(5), root)
+	input, output, tokens := c.enrichTraceOverview(context.Background(), baseParams(), baseTraceInfo(5), root, testFetchSem())
 
 	if input != "first user msg" {
 		t.Errorf("input = %v, want first user msg", input)
@@ -223,7 +228,7 @@ func TestEnrichTraceOverview_AllEmptyReturnsNil(t *testing.T) {
 	fake := &fakeObserverClient{spans: []observer.SpanInfo{}}
 	c := NewTracingController(fake)
 
-	input, output, tokens := c.enrichTraceOverview(context.Background(), baseParams(), baseTraceInfo(1), root)
+	input, output, tokens := c.enrichTraceOverview(context.Background(), baseParams(), baseTraceInfo(1), root, testFetchSem())
 
 	if input != nil || output != nil || tokens != nil {
 		t.Errorf("expected all nil, got input=%v output=%v tokens=%+v", input, output, tokens)
@@ -258,9 +263,11 @@ func TestEnrichTraceOverview_LeafCapHonoredAndPartialFlagged(t *testing.T) {
 	fake := &fakeObserverClient{spans: spans, spanDetails: details}
 	c := NewTracingController(fake)
 
-	// SpanCount stays under the skip threshold so step 3 runs; the cap
-	// (maxLLMLeavesPerTrace) is what should trigger Partial.
-	_, _, tokens := c.enrichTraceOverview(context.Background(), baseParams(), baseTraceInfo(skipLeafAggregationSpanCountThreshold), root)
+	// SpanCount stays clearly under the skip threshold so step 3 runs; the
+	// cap (maxLLMLeavesPerTrace) is what should trigger Partial. Using
+	// threshold-1 expresses "below the skip threshold" independently of
+	// whether the guard ever tightens from > to >=.
+	_, _, tokens := c.enrichTraceOverview(context.Background(), baseParams(), baseTraceInfo(skipLeafAggregationSpanCountThreshold-1), root, testFetchSem())
 
 	if tokens == nil {
 		t.Fatalf("expected tokens, got nil")
@@ -291,7 +298,7 @@ func TestEnrichTraceOverview_SkipsLeafAggregationForHugeTraces(t *testing.T) {
 	c := NewTracingController(fake)
 
 	hugeTrace := baseTraceInfo(skipLeafAggregationSpanCountThreshold + 1)
-	input, output, tokens := c.enrichTraceOverview(context.Background(), baseParams(), hugeTrace, root)
+	input, output, tokens := c.enrichTraceOverview(context.Background(), baseParams(), hugeTrace, root, testFetchSem())
 
 	if input != nil || output != nil || tokens != nil {
 		t.Errorf("expected nil for huge trace, got input=%v output=%v tokens=%+v", input, output, tokens)
