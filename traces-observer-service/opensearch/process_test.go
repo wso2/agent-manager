@@ -1686,6 +1686,30 @@ func TestExtractInputPreviewFromLeaf(t *testing.T) {
 			t.Errorf("got %v, want 'hi'", got)
 		}
 	})
+
+	// gen_ai.input.messages on a chat span often carries the system prompt
+	// first; we should skip past it to surface the user turn as the preview.
+	t.Run("skips leading system message and returns first user content", func(t *testing.T) {
+		s := &Span{Attributes: map[string]interface{}{
+			"gen_ai.input.messages": `[{"role":"system","content":"You are a bot."},{"role":"user","content":"order #12347?"},{"role":"assistant","content":"checking..."}]`,
+		}}
+		got := ExtractInputPreviewFromLeaf(s)
+		if got != "order #12347?" {
+			t.Errorf("got %v, want first user content", got)
+		}
+	})
+
+	// When no user role is present (pathological), fall back to the first
+	// non-empty content rather than returning nil.
+	t.Run("falls back to first non-empty content when no user role", func(t *testing.T) {
+		s := &Span{Attributes: map[string]interface{}{
+			"gen_ai.input.messages": `[{"role":"system","content":"sys prompt"},{"role":"assistant","content":"reply"}]`,
+		}}
+		got := ExtractInputPreviewFromLeaf(s)
+		if got != "sys prompt" {
+			t.Errorf("got %v, want fallback to first content", got)
+		}
+	})
 }
 
 func TestExtractOutputPreviewFromLeaf(t *testing.T) {
@@ -1719,6 +1743,30 @@ func TestExtractOutputPreviewFromLeaf(t *testing.T) {
 		got := ExtractOutputPreviewFromLeaf(s)
 		if got != "final" {
 			t.Errorf("got %v, want 'final'", got)
+		}
+	})
+
+	// In agent flows gen_ai.output.messages can end with a tool response;
+	// the trace-list preview wants the model's answer, not the tool output.
+	t.Run("skips trailing tool message and returns last assistant content", func(t *testing.T) {
+		s := &Span{Attributes: map[string]interface{}{
+			"gen_ai.output.messages": `[{"role":"assistant","content":"calling search_flights"},{"role":"tool","content":"{flights: [...]}"}]`,
+		}}
+		got := ExtractOutputPreviewFromLeaf(s)
+		if got != "calling search_flights" {
+			t.Errorf("got %v, want last assistant content", got)
+		}
+	})
+
+	// When no assistant role is present (pathological), fall back to the
+	// last non-empty content rather than returning nil.
+	t.Run("falls back to last non-empty content when no assistant role", func(t *testing.T) {
+		s := &Span{Attributes: map[string]interface{}{
+			"gen_ai.output.messages": `[{"role":"tool","content":"only tool output"}]`,
+		}}
+		got := ExtractOutputPreviewFromLeaf(s)
+		if got != "only tool output" {
+			t.Errorf("got %v, want fallback to last content", got)
 		}
 	})
 }

@@ -265,7 +265,9 @@ export function TracesTable({
                   <ListingTable.Cell align="right">
                     {(() => {
                       const tu = trace.tokenUsage;
-                      const hasTotal = tu?.totalTokens && tu.totalTokens > 0;
+                      // null-check rather than truthy: a legitimate 0-token
+                      // trace (e.g. error path) should still render "0", not "-".
+                      const hasTotal = tu?.totalTokens != null;
                       // partial=true means the trace had more LLM leaves than
                       // the list view aggregates; render an approximate marker
                       // and an explanatory tooltip.
