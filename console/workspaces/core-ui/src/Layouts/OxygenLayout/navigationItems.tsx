@@ -138,21 +138,6 @@ export function useNavigationItems(): Array<
         ),
       },
       {
-        label: "Publish",
-        type: "item",
-        icon: <agentKindMetadata.icon size={20} />,
-        isActive: !!matchPath(
-          absoluteRouteMap.children.org.children.projects.children.agents
-            .children.publish.wildPath,
-          pathname,
-        ),
-        href: generatePath(
-          absoluteRouteMap.children.org.children.projects.children.agents
-            .children.publish.path,
-          { orgId, projectId, agentId },
-        ),
-      },
-      {
         title: "Observability",
         type: "section",
         icon: <AutoGraphOutlined />,
@@ -259,6 +244,32 @@ export function useNavigationItems(): Array<
           { orgId, projectId, agentId, envId: defaultEnv },
         ),
       },
+      ...(agent?.agentType?.type === "agent-api"
+        ? [
+          {
+            title: "Security",
+            type: "section" as const,
+            icon: <agentSecurityMetadata.icon />,
+            items: [
+              {
+                label: "Credentials",
+                type: "item" as const,
+                icon: <agentSecurityMetadata.icon size={20} />,
+                isActive: !!matchPath(
+                  absoluteRouteMap.children.org.children.projects.children.agents
+                    .children.environment.children.security.wildPath,
+                  pathname,
+                ),
+                href: generatePath(
+                  absoluteRouteMap.children.org.children.projects.children.agents
+                    .children.environment.children.security.path,
+                  { orgId, projectId, agentId, envId: defaultEnv },
+                ),
+              },
+            ],
+          },
+        ]
+        : []),
       {
         title: "Observability",
         type: "section",
@@ -437,29 +448,29 @@ export function useNavigationItems(): Array<
       },
       ...(agent?.agentType?.type === "agent-api"
         ? [
-            {
-              title: "Security",
-              type: "section" as const,
-              icon: <agentSecurityMetadata.icon />,
-              items: [
-                {
-                  label: "Credentials",
-                  type: "item" as const,
-                  icon: <agentSecurityMetadata.icon size={20} />,
-                  isActive: !!matchPath(
-                    absoluteRouteMap.children.org.children.projects.children.agents
-                      .children.environment.children.security.wildPath,
-                    pathname,
-                  ),
-                  href: generatePath(
-                    absoluteRouteMap.children.org.children.projects.children.agents
-                      .children.environment.children.security.path,
-                    { orgId, projectId, agentId, envId: defaultEnv },
-                  ),
-                },
-              ],
-            },
-          ]
+          {
+            title: "Security",
+            type: "section" as const,
+            icon: <agentSecurityMetadata.icon />,
+            items: [
+              {
+                label: "Credentials",
+                type: "item" as const,
+                icon: <agentSecurityMetadata.icon size={20} />,
+                isActive: !!matchPath(
+                  absoluteRouteMap.children.org.children.projects.children.agents
+                    .children.environment.children.security.wildPath,
+                  pathname,
+                ),
+                href: generatePath(
+                  absoluteRouteMap.children.org.children.projects.children.agents
+                    .children.environment.children.security.path,
+                  { orgId, projectId, agentId, envId: defaultEnv },
+                ),
+              },
+            ],
+          },
+        ]
         : []),
       {
         title: "Observability",
