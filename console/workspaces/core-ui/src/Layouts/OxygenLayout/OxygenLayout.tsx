@@ -64,7 +64,8 @@ export function OxygenLayout() {
   const externalBottomRightComponentModules =
     useExternalComponentModules(MountPoints.BottomRightPanel);
   const footerLinkConfigs = useExternalConfigModules(MountPoints.FooterLinks);
-  const footerLinks = footerLinkConfigs[0]?.value as { privacyPolicyUrl?: string; termsOfUseUrl?: string } | undefined;
+  const footerLinks = footerLinkConfigs[0]?.value as
+    { privacyPolicyUrl?: string; termsOfUseUrl?: string } | undefined;
 
   const { data: organizations } = useListOrganizations();
   const homePath = useMemo(() => {
