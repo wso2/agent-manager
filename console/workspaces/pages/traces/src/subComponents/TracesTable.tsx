@@ -203,7 +203,10 @@ export function TracesTable({
                     </Typography>
                   </ListingTable.Cell>
                   <ListingTable.Cell align="left" sx={{ maxWidth: 200 }}>
-                    <Tooltip title={trace.input}>
+                    <Tooltip
+                      title="Preview only. Open the trace for the full input."
+                      disableHoverListener={!trace.input}
+                    >
                       <Typography
                         variant="caption"
                         component="span"
@@ -220,7 +223,10 @@ export function TracesTable({
                     </Tooltip>
                   </ListingTable.Cell>
                   <ListingTable.Cell align="left" sx={{ maxWidth: 200 }}>
-                    <Tooltip title={trace.output}>
+                    <Tooltip
+                      title="Preview only. Open the trace for the full output."
+                      disableHoverListener={!trace.output}
+                    >
                       <Typography
                         variant="caption"
                         component="span"
@@ -257,21 +263,35 @@ export function TracesTable({
                     </Typography>
                   </ListingTable.Cell>
                   <ListingTable.Cell align="right">
-                    <Tooltip
-                      disableHoverListener={
-                        !trace.tokenUsage?.totalTokens ||
-                        trace.tokenUsage.totalTokens === 0
-                      }
-                      title={`${trace.tokenUsage?.inputTokens} input tokens, ${trace.tokenUsage?.outputTokens} output tokens`}
-                    >
-                      <Typography variant="caption" component="span">
-                        {trace.tokenUsage?.totalTokens ? (
-                          <>{trace.tokenUsage.totalTokens}</>
-                        ) : (
-                          "-"
-                        )}
-                      </Typography>
-                    </Tooltip>
+                    {(() => {
+                      const tu = trace.tokenUsage;
+                      const hasTotal = tu?.totalTokens && tu.totalTokens > 0;
+                      // partial=true means the trace had more LLM leaves than
+                      // the list view aggregates; render an approximate marker
+                      // and an explanatory tooltip.
+                      const tooltip = hasTotal
+                        ? tu?.partial
+                          ? "Approximate total. This trace has more LLM spans than the list view aggregates. Open the trace for the exact total."
+                          : `${tu?.inputTokens} input tokens, ${tu?.outputTokens} output tokens`
+                        : "";
+                      return (
+                        <Tooltip
+                          disableHoverListener={!hasTotal}
+                          title={tooltip}
+                        >
+                          <Typography variant="caption" component="span">
+                            {hasTotal ? (
+                              <>
+                                {tu?.totalTokens}
+                                {tu?.partial ? "+" : null}
+                              </>
+                            ) : (
+                              "-"
+                            )}
+                          </Typography>
+                        </Tooltip>
+                      );
+                    })()}
                   </ListingTable.Cell>
                   <ListingTable.Cell align="right">
                     <Typography variant="caption" component="span">
