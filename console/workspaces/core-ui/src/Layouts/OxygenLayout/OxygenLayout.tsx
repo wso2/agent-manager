@@ -26,7 +26,7 @@ import {
 } from "@wso2/oxygen-ui";
 import { generatePath, Outlet, useNavigate } from "react-router-dom";
 import { useAuthHooks } from "@agent-management-platform/auth";
-import { Logo, useExternalComponentModules } from "@agent-management-platform/views";
+import { Logo, useExternalComponentModules, useExternalConfigModules } from "@agent-management-platform/views";
 import { LeftNavigation, type NavigationItem, type NavigationSection } from "./LeftNavigation";
 import { useNavigationItems } from "./navigationItems";
 import { TopNavigation } from "./TopNavigation";
@@ -63,6 +63,9 @@ export function OxygenLayout() {
     useExternalComponentModules(MountPoints.BottomLeftPanel);
   const externalBottomRightComponentModules =
     useExternalComponentModules(MountPoints.BottomRightPanel);
+  const footerLinkConfigs = useExternalConfigModules(MountPoints.FooterLinks);
+  const footerLinks = footerLinkConfigs[0]?.value as
+    { privacyPolicyUrl?: string; termsOfUseUrl?: string } | undefined;
 
   const { data: organizations } = useListOrganizations();
   const homePath = useMemo(() => {
@@ -176,8 +179,8 @@ export function OxygenLayout() {
               </div>
             ))
           }
-          <Footer.Link href="#terms">Terms & Conditions</Footer.Link>
-          <Footer.Link href="#privacy">Privacy Policy</Footer.Link>
+          <Footer.Link href={footerLinks?.termsOfUseUrl ?? "#terms"} target="_blank" rel="noopener noreferrer">Terms & Conditions</Footer.Link>
+          <Footer.Link href={footerLinks?.privacyPolicyUrl ?? "#privacy"} target="_blank" rel="noopener noreferrer">Privacy Policy</Footer.Link>
         </Footer>
       </AppShell.Footer>
     </AppShell>
