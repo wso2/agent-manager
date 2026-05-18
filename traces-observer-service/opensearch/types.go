@@ -202,11 +202,15 @@ const (
 	SpanTypeUnknown    SpanType = "unknown"    // Unknown/unclassified spans
 )
 
-// TokenUsage represents aggregated token usage from GenAI spans
+// TokenUsage represents aggregated token usage from GenAI spans.
+// Partial is true when the aggregation was truncated (e.g. trace had more
+// LLM leaf spans than the trace-list view fetches), so consumers know to
+// render the count with a "+" / "approximate" indicator.
 type TokenUsage struct {
-	InputTokens  int `json:"inputTokens"`
-	OutputTokens int `json:"outputTokens"`
-	TotalTokens  int `json:"totalTokens"`
+	InputTokens  int  `json:"inputTokens"`
+	OutputTokens int  `json:"outputTokens"`
+	TotalTokens  int  `json:"totalTokens"`
+	Partial      bool `json:"partial,omitempty"`
 }
 
 // TraceOverviewResponse represents the response for trace overview queries

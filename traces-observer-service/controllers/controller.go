@@ -36,6 +36,16 @@ const (
 	maxConcurrentFetches = 50
 	// maxConcurrentTraces limits concurrent per-trace goroutines in ExportTraces.
 	maxConcurrentTraces = 10
+	// maxLLMLeavesPerTrace caps the number of leaf LLM spans fetched per trace
+	// when the trace-list view falls back to leaf aggregation for Input/Output
+	// preview and token totals (OpenAI Agents SDK / pure-OTel agents). Realistic
+	// multi-turn agents stay under this; traces beyond the cap get TokenUsage.Partial=true.
+	maxLLMLeavesPerTrace = 50
+	// skipLeafAggregationSpanCountThreshold short-circuits leaf aggregation
+	// entirely when the trace's total span count exceeds this — a rough proxy
+	// for "way more than 50 LLM leaves" that keeps the worst-case list-endpoint
+	// cost bounded.
+	skipLeafAggregationSpanCountThreshold = 100
 )
 
 // TracingController provides tracing functionality via the observer service.
@@ -154,26 +164,7 @@ func (c *TracingController) GetTraceOverviews(ctx context.Context, params TraceQ
 		}
 		rootSpan := res.span
 
-		// Extract input/output — same logic as controller.go lines 315-321.
-		var input, output interface{}
-		if opensearch.IsCrewAISpan(rootSpan.Attributes) {
-			input, output = opensearch.ExtractCrewAIRootSpanInputOutput(rootSpan)
-		} else {
-			input, output = opensearch.ExtractRootSpanInputOutput(rootSpan)
-		}
-
-		// Extract token usage — same fallback chain as controller.go lines 323-335.
-		var tokenUsage *opensearch.TokenUsage
-		if opensearch.IsCrewAISpan(rootSpan.Attributes) {
-			tokenUsage = opensearch.ExtractCrewAITraceTokenUsage(rootSpan)
-		}
-		if tokenUsage == nil {
-			tokenUsage = opensearch.ExtractTokenUsageFromEntityOutput(rootSpan)
-		}
-		if tokenUsage == nil {
-			tokenUsage = opensearch.ExtractTokenUsage([]opensearch.Span{*rootSpan})
-		}
-
+		input, output, tokenUsage := c.enrichTraceOverview(ctx, params, t, rootSpan)
 		traceStatus := opensearch.ExtractTraceStatus([]opensearch.Span{*rootSpan})
 
 		overviews = append(overviews, opensearch.TraceOverview{
@@ -200,6 +191,260 @@ func (c *TracingController) GetTraceOverviews(ctx context.Context, params TraceQ
 		Traces:     overviews,
 		TotalCount: tracesResp.Total,
 	}, nil
+}
+
+// enrichTraceOverview computes Input/Output/Tokens for one row of the trace
+// list, cascading through three sources in order of cost:
+//
+//  1. The root span's own attributes (older Traceloop entity.input/output
+//     and CrewAI roll-up). Free — root span is already fetched.
+//  2. The immediate child of the root, typically a chain span like
+//     LangGraph.workflow that Traceloop's LangChain instrumentation still
+//     decorates with traceloop.entity.input/output. Costs +1 GetSpanDetails.
+//  3. Leaf LLM spans (anything ending in ".chat"). Used for OpenAI Agents
+//     SDK / pure-OTel agents where neither the root nor any chain span
+//     carries the conversation. Bounded: skipped entirely when the trace's
+//     total span count exceeds skipLeafAggregationSpanCountThreshold; up to
+//     maxLLMLeavesPerTrace leaves are fetched in parallel; TokenUsage.Partial
+//     is set true when the cap truncates the aggregation.
+//
+// Each step only fills in fields the earlier step left nil — so a CrewAI
+// trace that gets all three from step 1 incurs no extra calls.
+func (c *TracingController) enrichTraceOverview(
+	ctx context.Context,
+	params TraceQueryParams,
+	traceInfo observer.TraceInfo,
+	rootSpan *opensearch.Span,
+) (input interface{}, output interface{}, tokenUsage *opensearch.TokenUsage) {
+	// Step 1: root span (unchanged behaviour — preserved exactly).
+	if opensearch.IsCrewAISpan(rootSpan.Attributes) {
+		input, output = opensearch.ExtractCrewAIRootSpanInputOutput(rootSpan)
+		tokenUsage = opensearch.ExtractCrewAITraceTokenUsage(rootSpan)
+	} else {
+		input, output = opensearch.ExtractRootSpanInputOutput(rootSpan)
+	}
+	if tokenUsage == nil {
+		tokenUsage = opensearch.ExtractTokenUsageFromEntityOutput(rootSpan)
+	}
+	if tokenUsage == nil {
+		tokenUsage = opensearch.ExtractTokenUsage([]opensearch.Span{*rootSpan})
+	}
+
+	// If the root covered everything, short-circuit — no extra fetches.
+	if input != nil && output != nil && tokenUsage != nil {
+		return input, output, tokenUsage
+	}
+
+	// Both steps 2 and 3 need the per-trace span list. Fetch it once.
+	spans, ok := c.fetchTraceSpanSummaries(ctx, params, traceInfo)
+	if !ok {
+		return input, output, tokenUsage
+	}
+
+	// Step 2: immediate child of the root (Traceloop chain span path).
+	if input == nil || output == nil || tokenUsage == nil {
+		if childInput, childOutput, childTokens, ok := c.tryChildChainSpan(ctx, traceInfo.TraceID, rootSpan.SpanID, spans); ok {
+			if input == nil {
+				input = childInput
+			}
+			if output == nil {
+				output = childOutput
+			}
+			if tokenUsage == nil {
+				tokenUsage = childTokens
+			}
+		}
+	}
+
+	// Step 3: leaf LLM aggregation (OpenAI Agents SDK / pure-OTel path).
+	if input == nil || output == nil || tokenUsage == nil {
+		if traceInfo.SpanCount > skipLeafAggregationSpanCountThreshold {
+			logger.GetLogger(ctx).Debug("skipping leaf-LLM aggregation: trace exceeds spanCount threshold",
+				"traceId", traceInfo.TraceID,
+				"spanCount", traceInfo.SpanCount,
+				"threshold", skipLeafAggregationSpanCountThreshold)
+		} else {
+			leafInput, leafOutput, leafTokens := c.aggregateFromLeafLLMSpans(ctx, traceInfo.TraceID, spans)
+			if input == nil {
+				input = leafInput
+			}
+			if output == nil {
+				output = leafOutput
+			}
+			if tokenUsage == nil {
+				tokenUsage = leafTokens
+			}
+		}
+	}
+
+	return input, output, tokenUsage
+}
+
+// fetchTraceSpanSummaries calls QueryTraceSpans for one trace and returns
+// the span-summary list, mirroring the request shape used elsewhere in this
+// controller. Returns ok=false on error (logged as a warning); callers fall
+// back gracefully to whatever they already extracted.
+func (c *TracingController) fetchTraceSpanSummaries(
+	ctx context.Context,
+	params TraceQueryParams,
+	traceInfo observer.TraceInfo,
+) ([]observer.SpanInfo, bool) {
+	log := logger.GetLogger(ctx)
+
+	spanLimit := traceInfo.SpanCount
+	if spanLimit <= 0 || spanLimit > MaxSpansPerRequest {
+		spanLimit = MaxSpansPerRequest
+	}
+	spansResp, err := c.observerClient.QueryTraceSpans(ctx, traceInfo.TraceID, observer.TracesQueryRequest{
+		StartTime: params.StartTime,
+		EndTime:   params.EndTime,
+		Limit:     &spanLimit,
+		SearchScope: observer.ComponentSearchScope{
+			Namespace:   params.Organization,
+			Project:     params.Project,
+			Component:   params.Agent,
+			Environment: params.Environment,
+		},
+	})
+	if err != nil {
+		log.Warn("enrichTraceOverview: QueryTraceSpans failed, skipping enrichment",
+			"traceId", traceInfo.TraceID, "err", err)
+		return nil, false
+	}
+	return spansResp.Spans, true
+}
+
+// tryChildChainSpan fetches the earliest immediate child of the root span
+// and runs the same entity.input/output / entity.output token extractors
+// against it. Covers LangChain / LangGraph agents where Traceloop emits the
+// conversation summary on a chain span (e.g. LangGraph.workflow) right under
+// an attribute-empty `invoke_agent` root.
+//
+// Returns ok=false when no immediate child is found or the fetch fails.
+func (c *TracingController) tryChildChainSpan(
+	ctx context.Context,
+	traceID string,
+	rootSpanID string,
+	spans []observer.SpanInfo,
+) (input interface{}, output interface{}, tokens *opensearch.TokenUsage, ok bool) {
+	log := logger.GetLogger(ctx)
+
+	// Pick the earliest-started direct child of the root, skipping leaf LLM
+	// spans. We're looking for a chain/agent wrapper (e.g. LangGraph.workflow)
+	// that summarizes the whole conversation, not a single LLM call — those
+	// belong to step 3's full-trace aggregation, not a per-span lookup.
+	var childID string
+	var childStart time.Time
+	for _, s := range spans {
+		if s.ParentSpanID != rootSpanID {
+			continue
+		}
+		if opensearch.IsLLMLeafSpan(s.SpanName) {
+			continue
+		}
+		if childID == "" || s.StartTime.Before(childStart) {
+			childID = s.SpanID
+			childStart = s.StartTime
+		}
+	}
+	if childID == "" {
+		return nil, nil, nil, false
+	}
+
+	details, err := c.observerClient.GetSpanDetails(ctx, traceID, childID)
+	if err != nil {
+		log.Warn("tryChildChainSpan: GetSpanDetails failed",
+			"traceId", traceID, "childSpanId", childID, "err", err)
+		return nil, nil, nil, false
+	}
+	childSpan := opensearch.ProcessSpan(observer.ConvertSpanDetailsToSpan(traceID, details))
+
+	input, output = opensearch.ExtractRootSpanInputOutput(&childSpan)
+	tokens = opensearch.ExtractTokenUsageFromEntityOutput(&childSpan)
+	if tokens == nil {
+		tokens = opensearch.ExtractTokenUsage([]opensearch.Span{childSpan})
+	}
+	return input, output, tokens, true
+}
+
+// aggregateFromLeafLLMSpans fetches up to maxLLMLeavesPerTrace leaf LLM spans
+// (name matches IsLLMLeafSpan), in parallel bounded by maxConcurrentFetches,
+// and aggregates token usage across them plus first/last message previews.
+// Used when neither the root nor a child chain span carries the data (OpenAI
+// Agents SDK / pure-OTel agents).
+//
+// If the trace has more LLM leaves than the cap, the returned TokenUsage has
+// Partial=true so the UI can render an "approximate" marker.
+func (c *TracingController) aggregateFromLeafLLMSpans(
+	ctx context.Context,
+	traceID string,
+	spans []observer.SpanInfo,
+) (input interface{}, output interface{}, tokens *opensearch.TokenUsage) {
+	log := logger.GetLogger(ctx)
+
+	// Filter to leaf LLM spans, ordered by start time.
+	leaves := make([]observer.SpanInfo, 0)
+	for _, s := range spans {
+		if opensearch.IsLLMLeafSpan(s.SpanName) {
+			leaves = append(leaves, s)
+		}
+	}
+	if len(leaves) == 0 {
+		return nil, nil, nil
+	}
+	sort.Slice(leaves, func(i, j int) bool { return leaves[i].StartTime.Before(leaves[j].StartTime) })
+
+	totalLeaves := len(leaves)
+	partial := false
+	if totalLeaves > maxLLMLeavesPerTrace {
+		leaves = leaves[:maxLLMLeavesPerTrace]
+		partial = true
+		log.Debug("aggregateFromLeafLLMSpans: capping leaf fetches",
+			"traceId", traceID, "totalLeaves", totalLeaves, "cap", maxLLMLeavesPerTrace)
+	}
+
+	// Parallel fetch, bounded by the existing controller-wide semaphore.
+	fetched := make([]opensearch.Span, len(leaves))
+	sem := make(chan struct{}, maxConcurrentFetches)
+	var wg sync.WaitGroup
+	for i, leaf := range leaves {
+		wg.Add(1)
+		go func(idx int, spanID string) {
+			defer wg.Done()
+			sem <- struct{}{}
+			defer func() { <-sem }()
+
+			details, err := c.observerClient.GetSpanDetails(ctx, traceID, spanID)
+			if err != nil {
+				log.Warn("aggregateFromLeafLLMSpans: GetSpanDetails failed for leaf",
+					"traceId", traceID, "spanId", spanID, "err", err)
+				return
+			}
+			fetched[idx] = opensearch.ProcessSpan(observer.ConvertSpanDetailsToSpan(traceID, details))
+		}(i, leaf.SpanID)
+	}
+	wg.Wait()
+
+	// Trim out any leaves that failed to fetch (zero-value Span).
+	validLeaves := make([]opensearch.Span, 0, len(fetched))
+	for _, s := range fetched {
+		if s.SpanID != "" {
+			validLeaves = append(validLeaves, s)
+		}
+	}
+	if len(validLeaves) == 0 {
+		return nil, nil, nil
+	}
+
+	tokens = opensearch.ExtractTokenUsage(validLeaves)
+	if tokens != nil && partial {
+		tokens.Partial = true
+	}
+
+	// Input preview from the first leaf, output preview from the last.
+	input = opensearch.ExtractInputPreviewFromLeaf(&validLeaves[0])
+	output = opensearch.ExtractOutputPreviewFromLeaf(&validLeaves[len(validLeaves)-1])
+	return input, output, tokens
 }
 
 // GetTraceSpans fetches span summaries for a specific trace (no attributes).

@@ -609,6 +609,56 @@ func ExtractTokenUsage(spans []Span) *TokenUsage {
 	return nil
 }
 
+// IsLLMLeafSpan reports whether a span name looks like a leaf LLM call.
+// Narrow match on the ".chat" suffix covers ChatOpenAI.chat, openai.chat,
+// anthropic.chat, cohere.chat, etc., while avoiding chain / agent / tool
+// spans whose names share the gen_ai surface.
+func IsLLMLeafSpan(spanName string) bool {
+	return strings.HasSuffix(spanName, ".chat")
+}
+
+// ExtractInputPreviewFromLeaf returns a short preview of the user-facing
+// input on a leaf LLM span — the content of the first message in
+// gen_ai.input.messages. Used by the trace-list view to populate the Input
+// column when neither the root span nor a child chain span carries it
+// (OpenAI Agents SDK / pure-OTel agents).
+//
+// Returns nil when no input messages are present.
+func ExtractInputPreviewFromLeaf(leaf *Span) interface{} {
+	if leaf == nil || leaf.Attributes == nil {
+		return nil
+	}
+	messagesJSON, ok := leaf.Attributes["gen_ai.input.messages"].(string)
+	if !ok || messagesJSON == "" {
+		return nil
+	}
+	messages := parseOTELMessages(messagesJSON)
+	if len(messages) == 0 {
+		return nil
+	}
+	return messages[0].Content
+}
+
+// ExtractOutputPreviewFromLeaf returns a short preview of the assistant-
+// facing output on a leaf LLM span — the content of the last message in
+// gen_ai.output.messages.
+//
+// Returns nil when no output messages are present.
+func ExtractOutputPreviewFromLeaf(leaf *Span) interface{} {
+	if leaf == nil || leaf.Attributes == nil {
+		return nil
+	}
+	messagesJSON, ok := leaf.Attributes["gen_ai.output.messages"].(string)
+	if !ok || messagesJSON == "" {
+		return nil
+	}
+	messages := parseOTELMessages(messagesJSON)
+	if len(messages) == 0 {
+		return nil
+	}
+	return messages[len(messages)-1].Content
+}
+
 // ExtractTokenUsageFromEntityOutput extracts token usage from the traceloop.entity.output
 // attribute of a root span. Token info is nested in the last AIMessage:
 // outputs.messages[-1].kwargs.response_metadata.token_usage OR usage_metadata
