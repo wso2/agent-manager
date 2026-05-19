@@ -694,12 +694,61 @@ func TestCreate_External_TokenFailure_WarnsAndSucceeds(t *testing.T) {
 	env := decodeEnvelope(t, out.String())
 	data, ok := env["data"].(map[string]any)
 	if !ok {
-		t.Fatalf("missing data envelope (should fall back to bare agent): %v", env)
+		t.Fatalf("missing data envelope: %v", env)
 	}
-	if data["name"] != "testing" {
-		t.Errorf("data.name = %v, want testing", data["name"])
+	agent, ok := data["agent"].(map[string]any)
+	if !ok {
+		t.Fatalf("data.agent missing or wrong shape (success and failure envelopes must share the .data.agent selector): %v", data)
+	}
+	if agent["name"] != "testing" {
+		t.Errorf("data.agent.name = %v, want testing", agent["name"])
 	}
 	if _, hasToken := data["token"]; hasToken {
 		t.Errorf("data.token should be absent on failure fallback: %v", data["token"])
+	}
+}
+
+func TestCreate_External_TokenFailure_TextMode(t *testing.T) {
+	ios, _, errOut := newTestIO(false)
+	routes := map[string]routeResponse{
+		"/orgs/acme/projects/triage/agents/testing/token": {
+			Status: 500,
+			Body:   amsvc.ErrorResponse{Code: "INTERNAL", Message: "boom"},
+		},
+		"/orgs/acme/projects/triage/agents": {
+			Status: 202,
+			Body: amsvc.AgentResponse{
+				Name:         "testing",
+				DisplayName:  "Testing",
+				AgentType:    amsvc.AgentType{Type: "external-agent-api"},
+				Provisioning: amsvc.Provisioning{Type: amsvc.ProvisioningTypeExternal},
+				ProjectName:  "triage",
+				Uuid:         "u",
+			},
+		},
+	}
+	clientFn, _, cleanup := newTestRouter(t, routes)
+	defer cleanup()
+
+	cmd := testCreateCmd(t, ios, clientFn, "https://otel.example")
+	cmd.SetArgs([]string{
+		"agent", "create", "testing",
+		"--project", "triage",
+		"--display-name", "Testing",
+		"--provisioning", "external",
+	})
+	if err := cmd.Execute(); err != nil {
+		t.Fatalf("expected nil error (post-create failure is a warning), got %v", err)
+	}
+
+	stderr := errOut.String()
+	if !strings.Contains(stderr, "Created agent testing") {
+		t.Errorf("stderr missing success line: %q", stderr)
+	}
+	if !strings.Contains(stderr, "warning:") {
+		t.Errorf("stderr missing warning prefix: %q", stderr)
+	}
+	if strings.Contains(stderr, "amp-instrument") {
+		t.Errorf("stderr should not contain instrumentation block when token mint failed: %q", stderr)
 	}
 }

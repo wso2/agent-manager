@@ -188,9 +188,9 @@ func runCreate(ctx context.Context, opts *CreateOptions) error {
 	// mint, trace-observer discovery) is a warning, not an error — otherwise the
 	// user retries and hits 409.
 	if err := runExternalPostCreate(ctx, opts, resp.JSON202, client); err != nil {
-		fmt.Fprintf(opts.IO.ErrOut, "warning: agent created but post-create setup failed: %v\n", err)
+		fmt.Fprintf(opts.IO.ErrOut, "warning: agent created but failed to generate token: %v\n", err)
 		if opts.IO.JSON {
-			return render.JSONSuccess(opts.IO, opts.Scope, resp.JSON202)
+			return render.JSONSuccess(opts.IO, opts.Scope, map[string]any{"agent": resp.JSON202})
 		}
 	}
 	return nil
