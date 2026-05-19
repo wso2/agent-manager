@@ -39,10 +39,10 @@ import (
 const refreshBuffer = 5 * time.Minute
 
 type Factory struct {
-	Config        func() (*config.Config, error)
-	IOStreams     *iostreams.IOStreams
-	Prompter      prompter.Prompter
-	HTTPClient    func() *http.Client
+	Config           func() (*config.Config, error)
+	IOStreams        *iostreams.IOStreams
+	Prompter         prompter.Prompter
+	HTTPClient       func() *http.Client
 	AgentManager     func(ctx context.Context) (*amsvc.ClientWithResponses, error)
 	TraceObserver    func(ctx context.Context) (*traceobssvc.Client, error)
 	TraceObserverURL func(ctx context.Context) (string, error)
