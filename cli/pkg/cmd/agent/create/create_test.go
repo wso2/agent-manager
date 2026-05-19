@@ -31,6 +31,7 @@ import (
 	"github.com/spf13/cobra"
 
 	amsvc "github.com/wso2/agent-manager/cli/pkg/clients/amsvc/gen"
+	"github.com/wso2/agent-manager/cli/pkg/clients/traceobssvc"
 	"github.com/wso2/agent-manager/cli/pkg/clierr"
 	"github.com/wso2/agent-manager/cli/pkg/cmdutil"
 	"github.com/wso2/agent-manager/cli/pkg/config"
@@ -122,8 +123,11 @@ func testCreateCmd(t *testing.T, ios *iostreams.IOStreams, clientFn func(context
 	f := &cmdutil.Factory{
 		IOStreams:    ios,
 		AgentManager: clientFn,
-		TraceObserverURL: func(context.Context) (string, error) {
-			return traceObsURL, nil
+		TraceObserver: func(context.Context) (*traceobssvc.Client, error) {
+			if traceObsURL == "" {
+				return nil, nil
+			}
+			return traceobssvc.NewClient(traceObsURL)
 		},
 		Config: func() (*config.Config, error) {
 			return &config.Config{

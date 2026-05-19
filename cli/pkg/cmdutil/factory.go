@@ -39,14 +39,13 @@ import (
 const refreshBuffer = 5 * time.Minute
 
 type Factory struct {
-	Config           func() (*config.Config, error)
-	IOStreams        *iostreams.IOStreams
-	Prompter         prompter.Prompter
-	HTTPClient       func() *http.Client
-	AgentManager     func(ctx context.Context) (*amsvc.ClientWithResponses, error)
-	TraceObserver    func(ctx context.Context) (*traceobssvc.Client, error)
-	TraceObserverURL func(ctx context.Context) (string, error)
-	Token            func(ctx context.Context) (string, error)
+	Config        func() (*config.Config, error)
+	IOStreams     *iostreams.IOStreams
+	Prompter      prompter.Prompter
+	HTTPClient    func() *http.Client
+	AgentManager  func(ctx context.Context) (*amsvc.ClientWithResponses, error)
+	TraceObserver func(ctx context.Context) (*traceobssvc.Client, error)
+	Token         func(ctx context.Context) (string, error)
 
 	traceObsOnce sync.Once
 	traceObsURL  string
@@ -69,9 +68,6 @@ func NewFactory(cfg *config.Config, io *iostreams.IOStreams) *Factory {
 	}
 	f.TraceObserver = func(ctx context.Context) (*traceobssvc.Client, error) {
 		return f.traceObserver(ctx)
-	}
-	f.TraceObserverURL = func(ctx context.Context) (string, error) {
-		return f.discoverTraceObserverURL(ctx)
 	}
 	return f
 }

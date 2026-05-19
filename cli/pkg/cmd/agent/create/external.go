@@ -31,10 +31,11 @@ import (
 const externalTokenExpiresIn = "8760h"
 
 func runExternalPostCreate(ctx context.Context, opts *CreateOptions, agent *amsvc.AgentResponse, client *amsvc.ClientWithResponses) error {
-	traceObsURL, err := opts.TraceObserverURL(ctx)
+	tc, err := opts.TraceObserver(ctx)
 	if err != nil {
 		return err
 	}
+	traceObsURL := tc.URL()
 
 	expires := externalTokenExpiresIn
 	body := amsvc.TokenRequest{ExpiresIn: &expires}
