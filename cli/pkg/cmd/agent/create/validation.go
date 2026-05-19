@@ -175,37 +175,31 @@ func parseEnvKey(entry string) (string, error) {
 
 func validateExternal(opts *CreateOptions) []string {
 	var v []string
-
-	// Internal-only flags must be unset. PortSet (not Port != 0) because the
-	// --port flag default is 8000; we only want to flag when the user
-	// explicitly passed --port.
-	for _, c := range []struct {
-		cond bool
-		msg  string
-	}{
-		{opts.SubType != "", "--subtype is not allowed for external provisioning"},
-		{opts.RepoURL != "", "--repo-url is not allowed for external provisioning"},
-		{opts.RepoBranch != "", "--repo-branch is not allowed for external provisioning"},
-		{opts.RepoPath != "", "--repo-path is not allowed for external provisioning"},
-		{opts.RepoSecret != "", "--repo-secret is not allowed for external provisioning"},
-		{opts.BuildType != "", "--build-type is not allowed for external provisioning"},
-		{opts.Language != "", "--language is not allowed for external provisioning"},
-		{opts.LanguageVersion != "", "--language-version is not allowed for external provisioning"},
-		{opts.RunCommand != "", "--run-command is not allowed for external provisioning"},
-		{opts.Dockerfile != "", "--dockerfile is not allowed for external provisioning"},
-		{opts.PortSet, "--port is not allowed for external provisioning"},
-		{opts.BasePath != "", "--base-path is not allowed for external provisioning"},
-		{opts.OpenAPISpec != "", "--openapi-spec is not allowed for external provisioning"},
-		{len(opts.Env) > 0, "--env is not allowed for external provisioning"},
-		{len(opts.EnvSecret) > 0, "--env-secret is not allowed for external provisioning"},
-		{len(opts.EnvFromSecret) > 0, "--env-from-secret is not allowed for external provisioning"},
-		{opts.DisableAutoInstrumentation, "--no-auto-instrumentation is not allowed for external provisioning"},
-		{opts.ModelConfigFile != "", "--model-config-file is not allowed for external provisioning"},
-	} {
-		if c.cond {
-			v = append(v, c.msg)
+	disallow := func(flag string, set bool) {
+		if set {
+			v = append(v, flag+" is not allowed for external provisioning")
 		}
 	}
+
+	disallow("--subtype", opts.SubType != "")
+	disallow("--repo-url", opts.RepoURL != "")
+	disallow("--repo-branch", opts.RepoBranch != "")
+	disallow("--repo-path", opts.RepoPath != "")
+	disallow("--repo-secret", opts.RepoSecret != "")
+	disallow("--build-type", opts.BuildType != "")
+	disallow("--language", opts.Language != "")
+	disallow("--language-version", opts.LanguageVersion != "")
+	disallow("--run-command", opts.RunCommand != "")
+	disallow("--dockerfile", opts.Dockerfile != "")
+	// PortSet (not Port != 0) — the --port flag defaults to 8000.
+	disallow("--port", opts.PortSet)
+	disallow("--base-path", opts.BasePath != "")
+	disallow("--openapi-spec", opts.OpenAPISpec != "")
+	disallow("--env", len(opts.Env) > 0)
+	disallow("--env-secret", len(opts.EnvSecret) > 0)
+	disallow("--env-from-secret", len(opts.EnvFromSecret) > 0)
+	disallow("--no-auto-instrumentation", opts.DisableAutoInstrumentation)
+	disallow("--model-config-file", opts.ModelConfigFile != "")
 
 	return v
 }

@@ -27,16 +27,19 @@ import (
 	"github.com/wso2/agent-manager/cli/pkg/render"
 )
 
+// 1 year — matches the MCP create_agent flow.
 const externalTokenExpiresIn = "8760h"
 
-// runExternalPostCreate is invoked after a successful external CreateAgent call.
-// It mints a long-lived agent token and prints (or returns, for JSON mode) the
-// Python instrumentation instructions.
-func runExternalPostCreate(ctx context.Context, opts *CreateOptions, agentName string, client *amsvc.ClientWithResponses, traceObsURL string) error {
+func runExternalPostCreate(ctx context.Context, opts *CreateOptions, agent *amsvc.AgentResponse, client *amsvc.ClientWithResponses) error {
+	traceObsURL, err := opts.TraceObserverURL(ctx)
+	if err != nil {
+		return err
+	}
+
 	expires := externalTokenExpiresIn
 	body := amsvc.TokenRequest{ExpiresIn: &expires}
 
-	tokenResp, err := client.GenerateAgentTokenWithResponse(ctx, opts.Org, opts.Proj, agentName, nil, body)
+	tokenResp, err := client.GenerateAgentTokenWithResponse(ctx, opts.Org, opts.Proj, agent.Name, nil, body)
 	if err != nil {
 		return clierr.Newf(clierr.Transport, "generate agent token: %v", err)
 	}
@@ -49,7 +52,7 @@ func runExternalPostCreate(ctx context.Context, opts *CreateOptions, agentName s
 
 	if opts.IO.JSON {
 		return render.JSONSuccess(opts.IO, opts.Scope, map[string]any{
-			"agent":                       agentName,
+			"agent":                       agent,
 			"token":                       tokenResp.JSON200.Token,
 			"tokenExpiresAt":              tokenResp.JSON200.ExpiresAt,
 			"otelEndpoint":                endpoint,
@@ -66,10 +69,8 @@ func otelIngestEndpoint(base string) string {
 	return strings.TrimRight(base, "/") + "/v1/traces"
 }
 
-// buildPythonInstructions renders the Python instrumentation block shown after
-// an external agent is created. The MCP server has its own copy of this
-// renderer (agent-manager-service/mcp/tools/agents.go); the duplication is
-// intentional and avoids a cli -> agent-manager-service Go dependency.
+// The MCP server keeps its own copy at agent-manager-service/mcp/tools/agents.go;
+// the duplication is intentional and avoids a cli -> agent-manager-service Go dependency.
 func buildPythonInstructions(otelEndpoint, token string) string {
 	return fmt.Sprintf(`Follow these steps to enable instrumentation:
 

@@ -173,33 +173,31 @@ func runCreate(ctx context.Context, opts *CreateOptions) error {
 		return render.Error(opts.IO, opts.Scope, cmdutil.ErrorFromServer(resp.HTTPResponse, cmdutil.FirstNonNil(resp.JSON400, resp.JSON409, resp.JSON500)))
 	}
 
-	isExternal := opts.Provisioning == provisioningExternal
-
 	if !opts.IO.JSON {
-		cs := opts.IO.StderrColorScheme()
-		fmt.Fprintf(opts.IO.ErrOut, "%s Created agent %s\n\n", cs.SuccessIcon(), resp.JSON202.Name)
-		fmt.Fprintf(opts.IO.ErrOut, "  Name:         %s\n", resp.JSON202.Name)
-		fmt.Fprintf(opts.IO.ErrOut, "  Display Name: %s\n", resp.JSON202.DisplayName)
-		fmt.Fprintf(opts.IO.ErrOut, "  Type:         %s\n", resp.JSON202.AgentType.Type)
-		if resp.JSON202.AgentType.SubType != nil {
-			fmt.Fprintf(opts.IO.ErrOut, "  Sub-Type:     %s\n", *resp.JSON202.AgentType.SubType)
-		}
-		fmt.Fprintf(opts.IO.ErrOut, "  Provisioning: %s\n", resp.JSON202.Provisioning.Type)
+		printAgentSummary(opts.IO, resp.JSON202)
 	}
 
-	if !isExternal {
+	if opts.Provisioning != provisioningExternal {
 		if opts.IO.JSON {
 			return render.JSONSuccess(opts.IO, opts.Scope, resp.JSON202)
 		}
 		return nil
 	}
 
-	traceObsURL, err := opts.TraceObserverURL(ctx)
-	if err != nil {
-		return render.Error(opts.IO, opts.Scope, err)
-	}
-	if err := runExternalPostCreate(ctx, opts, resp.JSON202.Name, client, traceObsURL); err != nil {
+	if err := runExternalPostCreate(ctx, opts, resp.JSON202, client); err != nil {
 		return render.Error(opts.IO, opts.Scope, err)
 	}
 	return nil
+}
+
+func printAgentSummary(io *iostreams.IOStreams, a *amsvc.AgentResponse) {
+	cs := io.StderrColorScheme()
+	fmt.Fprintf(io.ErrOut, "%s Created agent %s\n\n", cs.SuccessIcon(), a.Name)
+	fmt.Fprintf(io.ErrOut, "  Name:         %s\n", a.Name)
+	fmt.Fprintf(io.ErrOut, "  Display Name: %s\n", a.DisplayName)
+	fmt.Fprintf(io.ErrOut, "  Type:         %s\n", a.AgentType.Type)
+	if a.AgentType.SubType != nil {
+		fmt.Fprintf(io.ErrOut, "  Sub-Type:     %s\n", *a.AgentType.SubType)
+	}
+	fmt.Fprintf(io.ErrOut, "  Provisioning: %s\n", a.Provisioning.Type)
 }
