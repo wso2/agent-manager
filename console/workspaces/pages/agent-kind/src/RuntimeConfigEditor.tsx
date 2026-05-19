@@ -29,6 +29,18 @@ import {
 import { Plus, Trash } from "@wso2/oxygen-ui-icons-react";
 import { TextInput } from "@agent-management-platform/views";
 
+const KEY_REGEX = /^[A-Za-z_][A-Za-z0-9_]*$/;
+const KEY_MAX_LENGTH = 64;
+
+const getKeyError = (key: string, keyCounts: Map<string, number>): string | null => {
+    const trimmed = key.trim();
+    if (!trimmed) return "Key is required.";
+    if (trimmed.length > KEY_MAX_LENGTH) return `Key must be at most ${KEY_MAX_LENGTH} characters.`;
+    if (!KEY_REGEX.test(trimmed)) return "Key must start with a letter or underscore, and contain only letters, numbers, or underscores.";
+    if ((keyCounts.get(trimmed) ?? 0) > 1) return "Key must be unique.";
+    return null;
+};
+
 const createRowId = (): string => {
     if (typeof crypto !== "undefined" && typeof crypto.randomUUID === "function") {
         return crypto.randomUUID();
@@ -69,17 +81,12 @@ export const RuntimeConfigEditor: React.FC<RuntimeConfigEditorProps> = ({
     readonlyKey,
 }) => {
     const normalizedKeys = rows.map((row) => row.key.trim());
-    const hasEmptyKeys = !readonlyKey && normalizedKeys.some((key) => !key);
-    const nonEmptyKeys = normalizedKeys.filter(Boolean);
-    const hasDuplicateKeys = !readonlyKey && nonEmptyKeys.length !== new Set(nonEmptyKeys).size;
-    const isInvalid = hasEmptyKeys || hasDuplicateKeys;
     const keyCounts = normalizedKeys.reduce<Map<string, number>>((acc, key) => {
-        if (!key) {
-            return acc;
-        }
+        if (!key) return acc;
         acc.set(key, (acc.get(key) ?? 0) + 1);
         return acc;
     }, new Map());
+    const isInvalid = !readonlyKey && rows.some((row) => getKeyError(row.key, keyCounts) !== null);
 
     const updateRow = <K extends keyof RuntimeConfigRow>(
         index: number,
@@ -112,19 +119,16 @@ export const RuntimeConfigEditor: React.FC<RuntimeConfigEditorProps> = ({
                                 <TextInput
                                     placeholder="Key"
                                     value={row.key}
-                                    onChange={(e) => updateRow(i, "key", e.target.value)}
+                                    onChange={(e) => updateRow(i, "key", e.target.value.replace(/\s/g, "_"))}
                                     fullWidth
                                     size="small"
+                                    error={!!getKeyError(row.key, keyCounts)}
                                 />
-                                {!row.key.trim() ? (
+                                {getKeyError(row.key, keyCounts) && (
                                     <Typography variant="caption" color="error.main">
-                                        Key is required.
+                                        {getKeyError(row.key, keyCounts)}
                                     </Typography>
-                                ) : (keyCounts.get(row.key.trim()) ?? 0) > 1 ? (
-                                    <Typography variant="caption" color="error.main">
-                                        Key must be unique.
-                                    </Typography>
-                                ) : null}
+                                )}
                             </>
                         )}
                     </Box>

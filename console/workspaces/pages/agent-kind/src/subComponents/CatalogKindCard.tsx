@@ -8,28 +8,12 @@ interface CatalogKindCardProps {
     viewPath: string;
 }
 
-const MAX_DESC_LENGTH = 180;
-
 export const CatalogKindCard: React.FC<CatalogKindCardProps> = ({ item, viewPath }) => {
 
     const description = item.description ?? "";
     const latestReleaseLabel = item.latestVersion
         ? `Latest: ${item.latestVersion}`
         : null;
-    const truncatedDesc =
-        description.length > MAX_DESC_LENGTH
-            ? `${description.slice(0, MAX_DESC_LENGTH)}...`
-            : description;
-
-    const descriptionEl = (
-        <Typography
-            variant="caption"
-            color="text.secondary"
-            sx={{ display: "block", mb: 1 }}
-        >
-            {truncatedDesc || "No description provided."}
-        </Typography>
-    );
 
     return (
         <Link to={viewPath} style={{ textDecoration: "none" }}>
@@ -68,13 +52,21 @@ export const CatalogKindCard: React.FC<CatalogKindCardProps> = ({ item, viewPath
                     }}
                 >
                     <Stack flexGrow={1} minHeight={0}>
-                        {description.length > MAX_DESC_LENGTH ? (
-                            <Tooltip title={description} placement="top">
-                                {descriptionEl}
-                            </Tooltip>
-                        ) : (
-                            descriptionEl
-                        )}
+                        <Tooltip title={description} placement="top" disableHoverListener={!description}>
+                            <Typography
+                                variant="caption"
+                                color="text.secondary"
+                                sx={{
+                                    display: "-webkit-box",
+                                    WebkitBoxOrient: "vertical",
+                                    WebkitLineClamp: 2,
+                                    overflow: "hidden",
+                                    mb: 1,
+                                }}
+                            >
+                                {description || "No description provided."}
+                            </Typography>
+                        </Tooltip>
                     </Stack>
                     {latestReleaseLabel && (
                         <Typography variant="caption" color="text.secondary">
