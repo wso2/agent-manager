@@ -40,7 +40,7 @@ func validate(opts *CreateOptions) error {
 
 	switch opts.Provisioning {
 	case provisioningExternal:
-		return cmdutil.FlagErrorf("external provisioning is not yet supported by amctl agent create")
+		v = append(v, validateExternal(opts)...)
 	case provisioningInternal:
 		v = append(v, validateInternal(opts)...)
 	default:
@@ -171,4 +171,49 @@ func parseEnvKey(entry string) (string, error) {
 		return "", fmt.Errorf("invalid key %q (must match [A-Za-z_][A-Za-z0-9_]*)", key)
 	}
 	return key, nil
+}
+
+func validateExternal(opts *CreateOptions) []string {
+	var v []string
+
+	switch opts.SubType {
+	case subTypeCustomAPI:
+		// ok
+	case "":
+		v = append(v, "--subtype is required for external provisioning (custom-api)")
+	default:
+		v = append(v, fmt.Sprintf("--subtype must be %q for external provisioning, got %q", subTypeCustomAPI, opts.SubType))
+	}
+
+	// Internal-only flags must be unset. PortSet (not Port != 0) because the
+	// --port flag default is 8000; we only want to flag when the user
+	// explicitly passed --port.
+	for _, c := range []struct {
+		cond bool
+		msg  string
+	}{
+		{opts.RepoURL != "", "--repo-url is not allowed for external provisioning"},
+		{opts.RepoBranch != "", "--repo-branch is not allowed for external provisioning"},
+		{opts.RepoPath != "", "--repo-path is not allowed for external provisioning"},
+		{opts.RepoSecret != "", "--repo-secret is not allowed for external provisioning"},
+		{opts.BuildType != "", "--build-type is not allowed for external provisioning"},
+		{opts.Language != "", "--language is not allowed for external provisioning"},
+		{opts.LanguageVersion != "", "--language-version is not allowed for external provisioning"},
+		{opts.RunCommand != "", "--run-command is not allowed for external provisioning"},
+		{opts.Dockerfile != "", "--dockerfile is not allowed for external provisioning"},
+		{opts.PortSet, "--port is not allowed for external provisioning"},
+		{opts.BasePath != "", "--base-path is not allowed for external provisioning"},
+		{opts.OpenAPISpec != "", "--openapi-spec is not allowed for external provisioning"},
+		{len(opts.Env) > 0, "--env is not allowed for external provisioning"},
+		{len(opts.EnvSecret) > 0, "--env-secret is not allowed for external provisioning"},
+		{len(opts.EnvFromSecret) > 0, "--env-from-secret is not allowed for external provisioning"},
+		{opts.DisableAutoInstrumentation, "--no-auto-instrumentation is not allowed for external provisioning"},
+		{opts.ModelConfigFile != "", "--model-config-file is not allowed for external provisioning"},
+	} {
+		if c.cond {
+			v = append(v, c.msg)
+		}
+	}
+
+	return v
 }

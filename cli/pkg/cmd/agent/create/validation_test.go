@@ -89,22 +89,81 @@ func TestValidate_MissingRequiredFlags(t *testing.T) {
 	assertContains(t, details, "--subtype is required")
 }
 
-func TestValidate_ExternalProvisioning(t *testing.T) {
-	opts := validBuildpackOpts()
-	opts.Provisioning = "external"
+// validExternalOpts returns a CreateOptions for external that passes validation.
+func validExternalOpts() *CreateOptions {
+	return &CreateOptions{
+		Name:         "my-agent",
+		DisplayName:  "My Agent",
+		Provisioning: "external",
+		SubType:      "custom-api",
+	}
+}
+
+func TestValidate_ValidExternal(t *testing.T) {
+	if err := validate(validExternalOpts()); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+}
+
+func TestValidate_ExternalRequiresSubtype(t *testing.T) {
+	opts := validExternalOpts()
+	opts.SubType = ""
 	err := validate(opts)
-	if err == nil {
-		t.Fatal("expected error for external provisioning")
-	}
-	var ce clierr.CLIError
-	if !errors.As(err, &ce) {
-		t.Fatalf("expected CLIError, got %T", err)
-	}
-	if ce.Message != "external provisioning is not yet supported by amctl agent create" {
-		t.Errorf("message = %q", ce.Message)
-	}
-	if _, ok := ce.AdditionalData["details"]; ok {
-		t.Error("external error should not have aggregate details")
+	details := mustFlagDetails(t, err)
+	assertContains(t, details, "--subtype is required for external provisioning (custom-api)")
+}
+
+func TestValidate_ExternalSubtypeMustBeCustomAPI(t *testing.T) {
+	opts := validExternalOpts()
+	opts.SubType = "chat-api"
+	err := validate(opts)
+	details := mustFlagDetails(t, err)
+	assertContains(t, details, `--subtype must be "custom-api" for external provisioning, got "chat-api"`)
+}
+
+func TestValidate_ExternalRejectsInternalOnlyFlags(t *testing.T) {
+	opts := validExternalOpts()
+	opts.RepoURL = "https://x"
+	opts.RepoBranch = "main"
+	opts.RepoPath = "/"
+	opts.RepoSecret = "gh-token"
+	opts.BuildType = "buildpack"
+	opts.Language = "python"
+	opts.LanguageVersion = "3.11"
+	opts.RunCommand = "python main.py"
+	opts.Dockerfile = "Dockerfile"
+	opts.PortSet = true
+	opts.Port = 9000
+	opts.BasePath = "/api"
+	opts.OpenAPISpec = "/openapi.yaml"
+	opts.Env = []string{"FOO=bar"}
+	opts.EnvSecret = []string{"BAZ=quux"}
+	opts.EnvFromSecret = []string{"QUUX=secret-name"}
+	opts.DisableAutoInstrumentation = true
+	opts.ModelConfigFile = "models.yaml"
+
+	err := validate(opts)
+	details := mustFlagDetails(t, err)
+	for _, msg := range []string{
+		"--repo-url is not allowed for external provisioning",
+		"--repo-branch is not allowed for external provisioning",
+		"--repo-path is not allowed for external provisioning",
+		"--repo-secret is not allowed for external provisioning",
+		"--build-type is not allowed for external provisioning",
+		"--language is not allowed for external provisioning",
+		"--language-version is not allowed for external provisioning",
+		"--run-command is not allowed for external provisioning",
+		"--dockerfile is not allowed for external provisioning",
+		"--port is not allowed for external provisioning",
+		"--base-path is not allowed for external provisioning",
+		"--openapi-spec is not allowed for external provisioning",
+		"--env is not allowed for external provisioning",
+		"--env-secret is not allowed for external provisioning",
+		"--env-from-secret is not allowed for external provisioning",
+		"--no-auto-instrumentation is not allowed for external provisioning",
+		"--model-config-file is not allowed for external provisioning",
+	} {
+		assertContains(t, details, msg)
 	}
 }
 

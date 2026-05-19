@@ -407,31 +407,6 @@ func TestCreate_ValidationError_Text(t *testing.T) {
 	}
 }
 
-func TestCreate_ExternalProvisioning(t *testing.T) {
-	ios, out, _ := newTestIO(true)
-	cmd := testCreateCmd(t, ios, nil)
-	cmd.SetArgs([]string{
-		"agent", "create", "foo",
-		"--project", "triage",
-		"--display-name", "Foo",
-		"--provisioning", "external",
-	})
-	err := cmd.Execute()
-	if err == nil {
-		t.Fatal("expected error")
-	}
-
-	env := decodeEnvelope(t, out.String())
-	errMap := env["error"].(map[string]any)
-	if errMap["code"] != clierr.InvalidFlag {
-		t.Errorf("code = %v", errMap["code"])
-	}
-	msg := errMap["message"].(string)
-	if !strings.Contains(msg, "not yet supported") {
-		t.Errorf("message = %q, want 'not yet supported'", msg)
-	}
-}
-
 func TestCreate_UnknownProvisioning(t *testing.T) {
 	ios, out, _ := newTestIO(true)
 	cmd := testCreateCmd(t, ios, nil)
