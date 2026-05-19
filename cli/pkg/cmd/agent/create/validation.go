@@ -176,15 +176,6 @@ func parseEnvKey(entry string) (string, error) {
 func validateExternal(opts *CreateOptions) []string {
 	var v []string
 
-	switch opts.SubType {
-	case subTypeCustomAPI:
-		// ok
-	case "":
-		v = append(v, "--subtype is required for external provisioning (custom-api)")
-	default:
-		v = append(v, fmt.Sprintf("--subtype must be %q for external provisioning, got %q", subTypeCustomAPI, opts.SubType))
-	}
-
 	// Internal-only flags must be unset. PortSet (not Port != 0) because the
 	// --port flag default is 8000; we only want to flag when the user
 	// explicitly passed --port.
@@ -192,6 +183,7 @@ func validateExternal(opts *CreateOptions) []string {
 		cond bool
 		msg  string
 	}{
+		{opts.SubType != "", "--subtype is not allowed for external provisioning"},
 		{opts.RepoURL != "", "--repo-url is not allowed for external provisioning"},
 		{opts.RepoBranch != "", "--repo-branch is not allowed for external provisioning"},
 		{opts.RepoPath != "", "--repo-path is not allowed for external provisioning"},

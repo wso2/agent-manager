@@ -523,8 +523,6 @@ func TestCreate_MissingName_BatchedError(t *testing.T) {
 	}
 }
 
-func ptr[T any](v T) *T { return &v }
-
 func TestCreate_External_Text(t *testing.T) {
 	ios, _, errOut := newTestIO(false)
 	routes := map[string]routeResponse{
@@ -543,7 +541,7 @@ func TestCreate_External_Text(t *testing.T) {
 				Name:         "testing",
 				DisplayName:  "Testing",
 				Description:  "dssdf",
-				AgentType:    amsvc.AgentType{Type: "external-agent-api", SubType: ptr("custom-api")},
+				AgentType:    amsvc.AgentType{Type: "external-agent-api"},
 				Provisioning: amsvc.Provisioning{Type: amsvc.ProvisioningTypeExternal},
 				ProjectName:  "triage",
 				Uuid:         "uuid-ext",
@@ -561,7 +559,6 @@ func TestCreate_External_Text(t *testing.T) {
 		"--display-name", "Testing",
 		"--description", "dssdf",
 		"--provisioning", "external",
-		"--subtype", "custom-api",
 	})
 	if err := cmd.Execute(); err != nil {
 		t.Fatalf("unexpected error: %v", err)
@@ -618,7 +615,7 @@ func TestCreate_External_JSON(t *testing.T) {
 			Body: amsvc.AgentResponse{
 				Name:         "testing",
 				DisplayName:  "Testing",
-				AgentType:    amsvc.AgentType{Type: "external-agent-api", SubType: ptr("custom-api")},
+				AgentType:    amsvc.AgentType{Type: "external-agent-api"},
 				Provisioning: amsvc.Provisioning{Type: amsvc.ProvisioningTypeExternal},
 				ProjectName:  "triage",
 				Uuid:         "u",
@@ -634,7 +631,6 @@ func TestCreate_External_JSON(t *testing.T) {
 		"--project", "triage",
 		"--display-name", "Testing",
 		"--provisioning", "external",
-		"--subtype", "custom-api",
 	})
 	if err := cmd.Execute(); err != nil {
 		t.Fatalf("unexpected error: %v", err)

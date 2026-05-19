@@ -490,7 +490,6 @@ func TestBuild_External(t *testing.T) {
 		DisplayName:  "Testing",
 		Description:  "dssdf",
 		Provisioning: "external",
-		SubType:      "custom-api",
 	}
 	req, err := Build(opts)
 	if err != nil {
@@ -505,8 +504,8 @@ func TestBuild_External(t *testing.T) {
 	if req.AgentType == nil || req.AgentType.Type != "external-agent-api" {
 		t.Errorf("AgentType.Type = %v, want external-agent-api", req.AgentType)
 	}
-	if req.AgentType.SubType == nil || *req.AgentType.SubType != "custom-api" {
-		t.Errorf("AgentType.SubType = %v, want custom-api", req.AgentType.SubType)
+	if req.AgentType.SubType != nil {
+		t.Errorf("AgentType.SubType should be nil for external, got %v", *req.AgentType.SubType)
 	}
 	if req.Provisioning.Type != amsvc.ProvisioningTypeExternal {
 		t.Errorf("Provisioning.Type = %q, want external", req.Provisioning.Type)

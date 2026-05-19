@@ -95,7 +95,6 @@ func validExternalOpts() *CreateOptions {
 		Name:         "my-agent",
 		DisplayName:  "My Agent",
 		Provisioning: "external",
-		SubType:      "custom-api",
 	}
 }
 
@@ -105,24 +104,9 @@ func TestValidate_ValidExternal(t *testing.T) {
 	}
 }
 
-func TestValidate_ExternalRequiresSubtype(t *testing.T) {
-	opts := validExternalOpts()
-	opts.SubType = ""
-	err := validate(opts)
-	details := mustFlagDetails(t, err)
-	assertContains(t, details, "--subtype is required for external provisioning (custom-api)")
-}
-
-func TestValidate_ExternalSubtypeMustBeCustomAPI(t *testing.T) {
-	opts := validExternalOpts()
-	opts.SubType = "chat-api"
-	err := validate(opts)
-	details := mustFlagDetails(t, err)
-	assertContains(t, details, `--subtype must be "custom-api" for external provisioning, got "chat-api"`)
-}
-
 func TestValidate_ExternalRejectsInternalOnlyFlags(t *testing.T) {
 	opts := validExternalOpts()
+	opts.SubType = "custom-api"
 	opts.RepoURL = "https://x"
 	opts.RepoBranch = "main"
 	opts.RepoPath = "/"
@@ -145,6 +129,7 @@ func TestValidate_ExternalRejectsInternalOnlyFlags(t *testing.T) {
 	err := validate(opts)
 	details := mustFlagDetails(t, err)
 	for _, msg := range []string{
+		"--subtype is not allowed for external provisioning",
 		"--repo-url is not allowed for external provisioning",
 		"--repo-branch is not allowed for external provisioning",
 		"--repo-path is not allowed for external provisioning",
