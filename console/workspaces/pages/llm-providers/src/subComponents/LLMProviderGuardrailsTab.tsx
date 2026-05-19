@@ -36,9 +36,11 @@ import {
   Button,
   Chip,
   Collapse,
+  Divider,
   ListingTable,
   Skeleton,
   Stack,
+  TablePagination,
   Typography,
 } from "@wso2/oxygen-ui";
 import { ChevronDown, Plus, ShieldAlert } from "@wso2/oxygen-ui-icons-react";
@@ -153,6 +155,8 @@ export function LLMProviderGuardrailsTab({
   const [expandedResources, setExpandedResources] = useState<Set<string>>(
     new Set(),
   );
+  const [resourcePage, setResourcePage] = useState(0);
+  const RESOURCES_PER_PAGE = 10;
 
   const serverPolicies = useMemo(
     () => providerData?.policies ?? [],
@@ -185,6 +189,10 @@ export function LLMProviderGuardrailsTab({
     const spec = parseOpenApiSpec(openapiText);
     return spec ? extractResourcesFromSpec(spec) : [];
   }, [openapiText]);
+
+  useEffect(() => {
+    setResourcePage(0);
+  }, [resources]);
 
   type PolicyEntry = {
     policyIndex: number;
@@ -423,180 +431,202 @@ export function LLMProviderGuardrailsTab({
     return null;
   }
 
+  const pagedResources = useMemo(
+    () => resources.slice(resourcePage * RESOURCES_PER_PAGE, (resourcePage + 1) * RESOURCES_PER_PAGE),
+    [resources, resourcePage],
+  );
+
   return (
-    <Stack spacing={3}>
-      {providerError && (
-        <Alert severity="error" sx={{ width: "100%" }}>
-          {providerError instanceof Error
-            ? providerError.message
-            : "Failed to load provider."}
-        </Alert>
-      )}
-
-      <Collapse
-        in={!!status && (status.severity === "error" || !isDirty)}
-        timeout={300}
-      >
-        {status && (
-          <Alert
-            severity={status.severity}
-            onClose={() => setStatus(null)}
-            sx={{ width: "100%" }}
-          >
-            {status.message}
-          </Alert>
-        )}
-      </Collapse>
-
-      <Stack spacing={3}>
-        <Box>
-          <Typography variant="h6" component="h2" sx={{ mb: 0.5 }}>
-            Global Guardrails
-          </Typography>
-          <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
-            Applies for all resources
-          </Typography>
-          <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
-            {globalEntries.map((entry) => (
-              <Chip
-                key={`${entry.policyIndex}-${entry.pathIndex}`}
-                label={`${getDisplayName(entry.policy)} (v${entry.policy.version})`}
-                color="warning"
-                variant="outlined"
-                onClick={() => handleOpenEditDrawer(entry)}
-                onDelete={() =>
-                  handleRemoveGuardrail(entry.policyIndex, entry.pathIndex)
-                }
-                disabled={isUpdating}
-                sx={{ cursor: "pointer" }}
-              />
-            ))}
-            <Button
-              variant="contained"
-              size="small"
-              startIcon={<Plus size={16} />}
-              onClick={() => handleOpenDrawer({ type: "global" })}
-              disabled={isUpdating}
-            >
-              Add Guardrail
-            </Button>
-          </Stack>
-        </Box>
-
-        <Box>
-          <Typography variant="h6" component="h2" sx={{ mb: 2 }}>
-            Resource-wise Guardrails
-          </Typography>
-          {specLoading ? (
-            <Stack direction="row" spacing={1} alignItems="center" sx={{ py: 2 }}>
-              <Skeleton variant="circular" width={16} height={16} />
-              <Typography variant="body2" color="text.secondary">
-                Loading OpenAPI spec…
-              </Typography>
-            </Stack>
-          ) : resources.length === 0 ? (
-            <ListingTable.Container>
-              <ListingTable.EmptyState
-                illustration={<ShieldAlert size={64} />}
-                title="No resources found"
-                description="Add an OpenAPI specification to define resources for resource-wise guardrails."
-              />
-            </ListingTable.Container>
-          ) : (
-            <Stack spacing={0}>
-              {resources.map((resource) => {
-                const key = getResourceKey(resource);
-                const isExpanded = expandedResources.has(key);
-                const resourceGuardrails = getResourceGuardrails(resource);
-                return (
-                  <Accordion
-                    key={key}
-                    expanded={isExpanded}
-                    onChange={(_, exp) =>
-                      setExpandedResources((prev) => {
-                        const next = new Set(prev);
-                        if (exp) next.add(key);
-                        else next.delete(key);
-                        return next;
-                      })
-                    }
-                    disableGutters
-                  >
-                    <AccordionSummary expandIcon={<ChevronDown size={18} />}>
-                      <Stack
-                        direction="row"
-                        alignItems="center"
-                        spacing={1}
-                      >
-                        <Chip
-                          label={resource.method}
-                          size="small"
-                          variant="outlined"
-                          color={getMethodChipColor(resource.method)}
-                        />
-                        <Typography variant="body2">{resource.path}</Typography>
-                      </Stack>
-                    </AccordionSummary>
-                    <AccordionDetails>
-                      <Typography variant="subtitle2" sx={{ mb: 1 }}>
-                        Guardrails
-                      </Typography>
-                      <Stack
-                        direction="row"
-                        spacing={1}
-                        flexWrap="wrap"
-                        useFlexGap
-                        sx={{ mb: 1 }}
-                      >
-                        {resourceGuardrails.length === 0 ? (
-                          <Typography variant="body2" color="text.secondary">
-                            No guardrails added yet.
-                          </Typography>
-                        ) : (
-                          resourceGuardrails.map((entry) => (
-                              <Chip
-                                key={`${resource.path}-${entry.policyIndex}-${entry.pathIndex}`}
-                                label={`${getDisplayName(entry.policy)} (v${entry.policy.version})`}
-                                color="warning"
-                                variant="outlined"
-                                onClick={() => handleOpenEditDrawer(entry)}
-                                onDelete={() =>
-                                  handleRemoveGuardrail(
-                                    entry.policyIndex,
-                                    entry.pathIndex,
-                                  )
-                                }
-                                disabled={isUpdating}
-                                sx={{ cursor: "pointer" }}
-                              />
-                            ))
-                        )}
-                      </Stack>
-                      <Button
-                        variant="outlined"
-                        size="small"
-                        startIcon={<Plus size={16} />}
-                        onClick={() =>
-                          handleOpenDrawer({
-                            type: "resource",
-                            method: resource.method,
-                            path: resource.path,
-                          })
-                        }
-                        disabled={isUpdating}
-                      >
-                        Add Guardrail
-                      </Button>
-                    </AccordionDetails>
-                  </Accordion>
-                );
-              })}
-            </Stack>
+    <Box sx={{ display: "flex", flexDirection: "column", height: "100%" }}>
+      <Box sx={{ flex: 1, overflowY: "auto", pb: 2 }}>
+        <Stack spacing={3}>
+          {providerError && (
+            <Alert severity="error" sx={{ width: "100%" }}>
+              {providerError instanceof Error
+                ? providerError.message
+                : "Failed to load provider."}
+            </Alert>
           )}
-        </Box>
-      </Stack>
 
-      <Stack direction="row" spacing={1.5} justifyContent="flex-end">
+          <Collapse
+            in={!!status && (status.severity === "error" || !isDirty)}
+            timeout={300}
+          >
+            {status && (
+              <Alert
+                severity={status.severity}
+                onClose={() => setStatus(null)}
+                sx={{ width: "100%" }}
+              >
+                {status.message}
+              </Alert>
+            )}
+          </Collapse>
+
+          <Stack spacing={3}>
+            <Box>
+              <Typography variant="h6" component="h2" sx={{ mb: 0.5 }}>
+                Global Guardrails
+              </Typography>
+              <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+                Applies for all resources
+              </Typography>
+              <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
+                {globalEntries.map((entry) => (
+                  <Chip
+                    key={`${entry.policyIndex}-${entry.pathIndex}`}
+                    label={`${getDisplayName(entry.policy)} (v${entry.policy.version})`}
+                    color="warning"
+                    variant="outlined"
+                    onClick={() => handleOpenEditDrawer(entry)}
+                    onDelete={() =>
+                      handleRemoveGuardrail(entry.policyIndex, entry.pathIndex)
+                    }
+                    disabled={isUpdating}
+                    sx={{ cursor: "pointer" }}
+                  />
+                ))}
+                <Button
+                  variant="contained"
+                  size="small"
+                  startIcon={<Plus size={16} />}
+                  onClick={() => handleOpenDrawer({ type: "global" })}
+                  disabled={isUpdating}
+                >
+                  Add Guardrail
+                </Button>
+              </Stack>
+            </Box>
+
+            <Box>
+              <Typography variant="h6" component="h2" sx={{ mb: 2 }}>
+                Resource-wise Guardrails
+              </Typography>
+              {specLoading ? (
+                <Stack direction="row" spacing={1} alignItems="center" sx={{ py: 2 }}>
+                  <Skeleton variant="circular" width={16} height={16} />
+                  <Typography variant="body2" color="text.secondary">
+                    Loading OpenAPI spec…
+                  </Typography>
+                </Stack>
+              ) : resources.length === 0 ? (
+                <ListingTable.Container>
+                  <ListingTable.EmptyState
+                    illustration={<ShieldAlert size={64} />}
+                    title="No resources found"
+                    description="Add an OpenAPI specification to define resources for resource-wise guardrails."
+                  />
+                </ListingTable.Container>
+              ) : (
+                <Box>
+                  <Stack spacing={0}>
+                    {pagedResources.map((resource) => {
+                      const key = getResourceKey(resource);
+                      const isExpanded = expandedResources.has(key);
+                      const resourceGuardrails = getResourceGuardrails(resource);
+                      return (
+                        <Accordion
+                          key={key}
+                          expanded={isExpanded}
+                          onChange={(_, exp) =>
+                            setExpandedResources((prev) => {
+                              const next = new Set(prev);
+                              if (exp) next.add(key);
+                              else next.delete(key);
+                              return next;
+                            })
+                          }
+                          disableGutters
+                        >
+                          <AccordionSummary expandIcon={<ChevronDown size={18} />}>
+                            <Stack
+                              direction="row"
+                              alignItems="center"
+                              spacing={1}
+                            >
+                              <Chip
+                                label={resource.method}
+                                size="small"
+                                variant="outlined"
+                                color={getMethodChipColor(resource.method)}
+                              />
+                              <Typography variant="body2">{resource.path}</Typography>
+                            </Stack>
+                          </AccordionSummary>
+                          <AccordionDetails>
+                            <Typography variant="subtitle2" sx={{ mb: 1 }}>
+                              Guardrails
+                            </Typography>
+                            <Stack
+                              direction="row"
+                              spacing={1}
+                              flexWrap="wrap"
+                              useFlexGap
+                              sx={{ mb: 1 }}
+                            >
+                              {resourceGuardrails.length === 0 ? (
+                                <Typography variant="body2" color="text.secondary">
+                                  No guardrails added yet.
+                                </Typography>
+                              ) : (
+                                resourceGuardrails.map((entry) => (
+                                  <Chip
+                                    key={`${resource.path}-${entry.policyIndex}-${entry.pathIndex}`}
+                                    label={`${getDisplayName(entry.policy)} (v${entry.policy.version})`}
+                                    color="warning"
+                                    variant="outlined"
+                                    onClick={() => handleOpenEditDrawer(entry)}
+                                    onDelete={() =>
+                                      handleRemoveGuardrail(
+                                        entry.policyIndex,
+                                        entry.pathIndex,
+                                      )
+                                    }
+                                    disabled={isUpdating}
+                                    sx={{ cursor: "pointer" }}
+                                  />
+                                ))
+                              )}
+                            </Stack>
+                            <Button
+                              variant="outlined"
+                              size="small"
+                              startIcon={<Plus size={16} />}
+                              onClick={() =>
+                                handleOpenDrawer({
+                                  type: "resource",
+                                  method: resource.method,
+                                  path: resource.path,
+                                })
+                              }
+                              disabled={isUpdating}
+                            >
+                              Add Guardrail
+                            </Button>
+                          </AccordionDetails>
+                        </Accordion>
+                      );
+                    })}
+                  </Stack>
+                  {resources.length > RESOURCES_PER_PAGE && (
+                    <TablePagination
+                      component="div"
+                      count={resources.length}
+                      page={resourcePage}
+                      rowsPerPage={RESOURCES_PER_PAGE}
+                      rowsPerPageOptions={[RESOURCES_PER_PAGE]}
+                      onPageChange={(_e, newPage) => setResourcePage(newPage)}
+                    />
+                  )}
+                </Box>
+              )}
+            </Box>
+          </Stack>
+        </Stack>
+      </Box>
+
+      <Divider />
+      <Stack direction="row" spacing={1.5} justifyContent="flex-end" sx={{ pt: 2 }}>
         <Button
           variant="outlined"
           onClick={handleDiscard}
@@ -651,6 +681,6 @@ export function LLMProviderGuardrailsTab({
         minWidth={600}
         maxWidth={600}
       />
-    </Stack>
+    </Box>
   );
 }

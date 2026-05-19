@@ -301,11 +301,12 @@ export const ViewLLMProviderComponent: React.FC = () => {
       const edited = guardrailsByEnv[envName] ?? [];
       if (origPolicies.length !== edited.length) return true;
       for (let i = 0; i < origPolicies.length; i++) {
-        if (
-          origPolicies[i].name !== edited[i]?.name ||
-          origPolicies[i].version !== edited[i]?.version
-        )
-          return true;
+        const orig = origPolicies[i];
+        const edit = edited[i];
+        if (orig.name !== edit?.name || orig.version !== edit?.version) return true;
+        const origParams = orig.paths?.[0]?.params ?? {};
+        const editParams = edit?.settings ?? {};
+        if (JSON.stringify(origParams) !== JSON.stringify(editParams)) return true;
       }
     }
 
