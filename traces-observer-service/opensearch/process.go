@@ -609,6 +609,83 @@ func ExtractTokenUsage(spans []Span) *TokenUsage {
 	return nil
 }
 
+// IsLLMLeafSpan reports whether a span name looks like a leaf LLM call.
+// Narrow match on the ".chat" suffix covers ChatOpenAI.chat, openai.chat,
+// anthropic.chat, cohere.chat, etc., while avoiding chain / agent / tool
+// spans whose names share the gen_ai surface.
+func IsLLMLeafSpan(spanName string) bool {
+	return strings.HasSuffix(spanName, ".chat")
+}
+
+// ExtractInputPreviewFromLeaf returns a short preview of the user-facing
+// input on a leaf LLM span. It prefers the first message with role "user"
+// (since gen_ai.input.messages on a chat span typically carries the system
+// prompt first followed by the user turn, and the system prompt is not a
+// useful trace-list preview) and falls back to the first non-empty content
+// when no user-role message is present.
+//
+// Used by the trace-list view to populate the Input column when neither
+// the root span nor a child chain span carries it (OpenAI Agents SDK /
+// pure-OTel agents). Returns nil when no usable content is present.
+func ExtractInputPreviewFromLeaf(leaf *Span) interface{} {
+	if leaf == nil || leaf.Attributes == nil {
+		return nil
+	}
+	messagesJSON, ok := leaf.Attributes["gen_ai.input.messages"].(string)
+	if !ok || messagesJSON == "" {
+		return nil
+	}
+	messages := parseOTELMessages(messagesJSON)
+	if len(messages) == 0 {
+		return nil
+	}
+	for _, m := range messages {
+		if roleEquals(m, "user") && m.Content != "" {
+			return m.Content
+		}
+	}
+	for _, m := range messages {
+		if m.Content != "" {
+			return m.Content
+		}
+	}
+	return nil
+}
+
+// ExtractOutputPreviewFromLeaf returns a short preview of the assistant-
+// facing output on a leaf LLM span. It prefers the last message with role
+// "assistant" (since gen_ai.output.messages on an agent turn can include
+// trailing tool-response messages, and the trace-list user wants the model's
+// answer, not the tool's output) and falls back to the last non-empty
+// content when no assistant-role message is present.
+//
+// Returns nil when no usable content is present.
+func ExtractOutputPreviewFromLeaf(leaf *Span) interface{} {
+	if leaf == nil || leaf.Attributes == nil {
+		return nil
+	}
+	messagesJSON, ok := leaf.Attributes["gen_ai.output.messages"].(string)
+	if !ok || messagesJSON == "" {
+		return nil
+	}
+	messages := parseOTELMessages(messagesJSON)
+	if len(messages) == 0 {
+		return nil
+	}
+	for i := len(messages) - 1; i >= 0; i-- {
+		m := messages[i]
+		if roleEquals(m, "assistant") && m.Content != "" {
+			return m.Content
+		}
+	}
+	for i := len(messages) - 1; i >= 0; i-- {
+		if messages[i].Content != "" {
+			return messages[i].Content
+		}
+	}
+	return nil
+}
+
 // ExtractTokenUsageFromEntityOutput extracts token usage from the traceloop.entity.output
 // attribute of a root span. Token info is nested in the last AIMessage:
 // outputs.messages[-1].kwargs.response_metadata.token_usage OR usage_metadata
@@ -922,13 +999,18 @@ func ExtractPromptMessages(attrs map[string]interface{}) []PromptMessage {
 	return messages
 }
 
-// hasSystemMessage reports whether any message in the list carries role=system.
-// OTel GenAI / OpenLLMetry / Traceloop all spec lowercase role values, but
+// roleEquals reports whether a PromptMessage's Role matches the given target.
+// OTel GenAI / OpenLLMetry / Traceloop all spec lowercase role values, but we
 // match defensively (case-insensitive, trimmed) so a malformed span carrying
-// "System" or " system " doesn't slip past and produce a duplicate bubble.
+// "User" or " system " doesn't slip past.
+func roleEquals(m PromptMessage, role string) bool {
+	return strings.EqualFold(strings.TrimSpace(m.Role), role)
+}
+
+// hasSystemMessage reports whether any message in the list carries role=system.
 func hasSystemMessage(messages []PromptMessage) bool {
 	for _, m := range messages {
-		if strings.EqualFold(strings.TrimSpace(m.Role), "system") {
+		if roleEquals(m, "system") {
 			return true
 		}
 	}

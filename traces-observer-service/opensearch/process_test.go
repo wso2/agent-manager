@@ -17,6 +17,8 @@
 package opensearch
 
 import (
+	"encoding/json"
+	"strings"
 	"testing"
 )
 
@@ -1620,6 +1622,177 @@ func TestProcessSpan_PureOTelGenAISpans(t *testing.T) {
 		amp := ProcessSpan(span).AmpAttributes
 		if amp.Status == nil || !amp.Status.Error {
 			t.Errorf("status = %#v, want error", amp.Status)
+		}
+	})
+}
+
+// ── Trace-list cascade helpers ──────────────────────────────────────────────
+
+func TestIsLLMLeafSpan(t *testing.T) {
+	cases := []struct {
+		name string
+		in   string
+		want bool
+	}{
+		{"OpenAI chat leaf", "openai.chat", true},
+		{"LangChain ChatOpenAI", "ChatOpenAI.chat", true},
+		{"Anthropic", "anthropic.chat", true},
+		{"Cohere", "cohere.chat", true},
+		{"LangGraph workflow chain — not a leaf", "LangGraph.workflow", false},
+		{"invoke_agent root", "invoke_agent LangGraph", false},
+		{"execute_task chain", "execute_task call_model", false},
+		{"embedding span", "openai.embeddings", false},
+		{"empty", "", false},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			if got := IsLLMLeafSpan(tc.in); got != tc.want {
+				t.Errorf("IsLLMLeafSpan(%q) = %v, want %v", tc.in, got, tc.want)
+			}
+		})
+	}
+}
+
+func TestExtractInputPreviewFromLeaf(t *testing.T) {
+	t.Run("nil span returns nil", func(t *testing.T) {
+		if got := ExtractInputPreviewFromLeaf(nil); got != nil {
+			t.Errorf("got %v, want nil", got)
+		}
+	})
+
+	t.Run("no gen_ai.input.messages attribute returns nil", func(t *testing.T) {
+		s := &Span{Attributes: map[string]interface{}{"foo": "bar"}}
+		if got := ExtractInputPreviewFromLeaf(s); got != nil {
+			t.Errorf("got %v, want nil", got)
+		}
+	})
+
+	t.Run("returns first message content from parts[] shape", func(t *testing.T) {
+		s := &Span{Attributes: map[string]interface{}{
+			"gen_ai.input.messages": `[{"role":"user","parts":[{"type":"text","content":"what flights from ZRH to LHR"}]},{"role":"assistant","parts":[{"type":"text","content":"checking..."}]}]`,
+		}}
+		got := ExtractInputPreviewFromLeaf(s)
+		if got != "what flights from ZRH to LHR" {
+			t.Errorf("got %v, want first user message", got)
+		}
+	})
+
+	t.Run("returns first message content from legacy top-level content shape", func(t *testing.T) {
+		s := &Span{Attributes: map[string]interface{}{
+			"gen_ai.input.messages": `[{"role":"user","content":"hi"},{"role":"assistant","content":"hello"}]`,
+		}}
+		got := ExtractInputPreviewFromLeaf(s)
+		if got != "hi" {
+			t.Errorf("got %v, want 'hi'", got)
+		}
+	})
+
+	// gen_ai.input.messages on a chat span often carries the system prompt
+	// first; we should skip past it to surface the user turn as the preview.
+	t.Run("skips leading system message and returns first user content", func(t *testing.T) {
+		s := &Span{Attributes: map[string]interface{}{
+			"gen_ai.input.messages": `[{"role":"system","content":"You are a bot."},{"role":"user","content":"order #12347?"},{"role":"assistant","content":"checking..."}]`,
+		}}
+		got := ExtractInputPreviewFromLeaf(s)
+		if got != "order #12347?" {
+			t.Errorf("got %v, want first user content", got)
+		}
+	})
+
+	// When no user role is present (pathological), fall back to the first
+	// non-empty content rather than returning nil.
+	t.Run("falls back to first non-empty content when no user role", func(t *testing.T) {
+		s := &Span{Attributes: map[string]interface{}{
+			"gen_ai.input.messages": `[{"role":"system","content":"sys prompt"},{"role":"assistant","content":"reply"}]`,
+		}}
+		got := ExtractInputPreviewFromLeaf(s)
+		if got != "sys prompt" {
+			t.Errorf("got %v, want fallback to first content", got)
+		}
+	})
+}
+
+func TestExtractOutputPreviewFromLeaf(t *testing.T) {
+	t.Run("nil span returns nil", func(t *testing.T) {
+		if got := ExtractOutputPreviewFromLeaf(nil); got != nil {
+			t.Errorf("got %v, want nil", got)
+		}
+	})
+
+	t.Run("no gen_ai.output.messages attribute returns nil", func(t *testing.T) {
+		s := &Span{Attributes: map[string]interface{}{"foo": "bar"}}
+		if got := ExtractOutputPreviewFromLeaf(s); got != nil {
+			t.Errorf("got %v, want nil", got)
+		}
+	})
+
+	t.Run("returns last message content from parts[] shape", func(t *testing.T) {
+		s := &Span{Attributes: map[string]interface{}{
+			"gen_ai.output.messages": `[{"role":"assistant","parts":[{"type":"text","content":"Here are the flights..."}]}]`,
+		}}
+		got := ExtractOutputPreviewFromLeaf(s)
+		if got != "Here are the flights..." {
+			t.Errorf("got %v, want assistant response", got)
+		}
+	})
+
+	t.Run("returns last (not first) when multiple output messages", func(t *testing.T) {
+		s := &Span{Attributes: map[string]interface{}{
+			"gen_ai.output.messages": `[{"role":"assistant","content":"draft"},{"role":"assistant","content":"final"}]`,
+		}}
+		got := ExtractOutputPreviewFromLeaf(s)
+		if got != "final" {
+			t.Errorf("got %v, want 'final'", got)
+		}
+	})
+
+	// In agent flows gen_ai.output.messages can end with a tool response;
+	// the trace-list preview wants the model's answer, not the tool output.
+	t.Run("skips trailing tool message and returns last assistant content", func(t *testing.T) {
+		s := &Span{Attributes: map[string]interface{}{
+			"gen_ai.output.messages": `[{"role":"assistant","content":"calling search_flights"},{"role":"tool","content":"{flights: [...]}"}]`,
+		}}
+		got := ExtractOutputPreviewFromLeaf(s)
+		if got != "calling search_flights" {
+			t.Errorf("got %v, want last assistant content", got)
+		}
+	})
+
+	// When no assistant role is present (pathological), fall back to the
+	// last non-empty content rather than returning nil.
+	t.Run("falls back to last non-empty content when no assistant role", func(t *testing.T) {
+		s := &Span{Attributes: map[string]interface{}{
+			"gen_ai.output.messages": `[{"role":"tool","content":"only tool output"}]`,
+		}}
+		got := ExtractOutputPreviewFromLeaf(s)
+		if got != "only tool output" {
+			t.Errorf("got %v, want fallback to last content", got)
+		}
+	})
+}
+
+func TestTokenUsage_PartialSerialization(t *testing.T) {
+	t.Run("omitted from JSON when false", func(t *testing.T) {
+		tu := TokenUsage{InputTokens: 100, OutputTokens: 50, TotalTokens: 150}
+		buf, err := json.Marshal(tu)
+		if err != nil {
+			t.Fatalf("marshal: %v", err)
+		}
+		got := string(buf)
+		if strings.Contains(got, "partial") {
+			t.Errorf("partial should be omitted when false, got %q", got)
+		}
+	})
+
+	t.Run("included when true", func(t *testing.T) {
+		tu := TokenUsage{InputTokens: 100, OutputTokens: 50, TotalTokens: 150, Partial: true}
+		buf, err := json.Marshal(tu)
+		if err != nil {
+			t.Fatalf("marshal: %v", err)
+		}
+		got := string(buf)
+		if !strings.Contains(got, `"partial":true`) {
+			t.Errorf("partial=true should serialise, got %q", got)
 		}
 	})
 }
