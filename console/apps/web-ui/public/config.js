@@ -32,6 +32,11 @@ window.__RUNTIME_CONFIG__ = {
         clockTolerance: 300,
       },
     },
+    tokenLifecycle: {
+      refreshToken: {
+        autoRefresh: true,
+      },
+    },
     storage: 'localStorage',
   },
   disableAuth: false,
