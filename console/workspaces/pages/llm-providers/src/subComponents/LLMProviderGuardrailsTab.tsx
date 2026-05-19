@@ -418,6 +418,14 @@ export function LLMProviderGuardrailsTab({
     [availableGuardrails],
   );
 
+  const pagedResources = useMemo(
+    () => resources.slice(
+      resourcePage * RESOURCES_PER_PAGE,
+      (resourcePage + 1) * RESOURCES_PER_PAGE,
+    ),
+    [resources, resourcePage],
+  );
+
   if (isLoading) {
     return (
       <Stack spacing={3}>
@@ -430,11 +438,6 @@ export function LLMProviderGuardrailsTab({
   if (!providerData && !providerError) {
     return null;
   }
-
-  const pagedResources = useMemo(
-    () => resources.slice(resourcePage * RESOURCES_PER_PAGE, (resourcePage + 1) * RESOURCES_PER_PAGE),
-    [resources, resourcePage],
-  );
 
   return (
     <Box sx={{ display: "flex", flexDirection: "column", height: "100%" }}>
