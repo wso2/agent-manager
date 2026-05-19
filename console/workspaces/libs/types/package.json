@@ -24,7 +24,7 @@
     "@types/react": "19.2.14"
   },
   "dependencies": {
-    "@asgardeo/react": "0.22.4",
+    "@asgardeo/react": "0.23.6",
     "@agent-management-platform/eslint-config": "workspace:*",
     "date-fns": "4.1.0",
     "zod": "4.3.6"
