@@ -19,7 +19,7 @@
 
 import React, { useMemo, useState } from "react";
 import { formatDistanceToNow } from "date-fns";
-import { generatePath, useNavigate, useParams, useSearchParams } from "react-router-dom";
+import { Link, generatePath, useNavigate, useParams, useSearchParams } from "react-router-dom";
 import {
   Alert,
   Box,
@@ -37,7 +37,7 @@ import {
 import { PageLayout } from "@agent-management-platform/views";
 import { absoluteRouteMap } from "@agent-management-platform/types";
 import { SwaggerSpecViewer } from "@agent-management-platform/shared-component";
-import { useGetAgentKind, useGetAgentEndpoints, useListKindAgents, useListProjects } from "@agent-management-platform/api-client";
+import { useGetAgentKind, useGetAgentEndpoints, useListKindAgents, useListProjects, useGetAgentKindVersion } from "@agent-management-platform/api-client";
 import { ExternalLink, Plus } from "@wso2/oxygen-ui-icons-react";
 
 export const CatalogKindDetails: React.FC = () => {
@@ -60,11 +60,17 @@ export const CatalogKindDetails: React.FC = () => {
   const selectedVersion =
     sortedVersions.find((v) => v.version === selectedVersionTag) ?? sortedVersions[0];
 
-  const { data: endpointsData, isLoading: isEndpointsLoading } = useGetAgentEndpoints(
+  const { data: kindVersion, isLoading: isVersionLoading } = useGetAgentKindVersion({
+    orgName: orgId ?? "",
+    kindName: kindId ?? "",
+    versionTag: selectedVersionTag,
+  });
+
+  const { data: endpointsData, isFetching: isEndpointsLoading } = useGetAgentEndpoints(
     {
-      orgName: orgId,
-      projName: selectedVersion?.sourceProjectName,
-      agentName: selectedVersion?.sourceAgentName,
+      orgName: orgId ?? "",
+      projName: kindVersion?.sourceProjectName,
+      agentName: kindVersion?.sourceAgentName,
     },
     { environment: "default" },
   );
@@ -177,6 +183,28 @@ export const CatalogKindDetails: React.FC = () => {
       description={releasedLabel ?? "View details of this Agent Kind."}
       backHref={backHref}
       backLabel="Back to Agent Catalog"
+      titleTail={
+        kindVersion?.sourceProjectName && kindVersion?.sourceAgentName ? (
+          <Button
+            size="small"
+            startIcon={<ExternalLink size={14} />}
+            variant="outlined"
+            component={Link}
+            to={generatePath(
+              absoluteRouteMap.children.org.children.projects.children.agents.path,
+              {
+                orgId,
+                projectId: kindVersion.sourceProjectName,
+                agentId: kindVersion.sourceAgentName,
+              },
+            )}
+            target="_blank"
+            rel="noopener noreferrer"
+          >
+            View Source Agent
+          </Button>
+        ) : undefined
+      }
       actions={[
         versionSelector || undefined,
         <React.Fragment key="add-instance-action">
@@ -355,15 +383,14 @@ export const CatalogKindDetails: React.FC = () => {
         </Stack>
 
         <Divider />
-
         {/* API Specification */}
         <Stack spacing={1.5}>
           <Typography variant="overline" color="text.secondary">
             API Specification
           </Typography>
-          {isEndpointsLoading ? (
+          {isVersionLoading || isEndpointsLoading ? (
             <Skeleton variant="rounded" height={300} />
-          ) : apiSpec ? (
+          ) : (apiSpec ? (
             <SwaggerSpecViewer
               spec={apiSpec}
               docExpansion="list"
@@ -373,7 +400,7 @@ export const CatalogKindDetails: React.FC = () => {
             />
           ) : (
             <Alert severity="info">No API specification available for this version.</Alert>
-          )}
+          ))}
         </Stack>
       </Stack>
     </PageLayout>
