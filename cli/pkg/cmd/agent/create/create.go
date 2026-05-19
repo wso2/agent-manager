@@ -30,10 +30,11 @@ import (
 )
 
 type CreateOptions struct {
-	IO           *iostreams.IOStreams
-	Client       func(context.Context) (*amsvc.ClientWithResponses, error)
-	ResolveScope func(*cobra.Command, bool, bool) (string, string, error)
-	MakeScope    func(string, string) render.Scope
+	IO               *iostreams.IOStreams
+	Client           func(context.Context) (*amsvc.ClientWithResponses, error)
+	TraceObserverURL func(context.Context) (string, error)
+	ResolveScope     func(*cobra.Command, bool, bool) (string, string, error)
+	MakeScope        func(string, string) render.Scope
 
 	Org   string
 	Proj  string
@@ -74,10 +75,11 @@ type CreateOptions struct {
 
 func NewCreateCmd(f *cmdutil.Factory) *cobra.Command {
 	opts := &CreateOptions{
-		IO:           f.IOStreams,
-		Client:       f.AgentManager,
-		ResolveScope: f.ResolveOrgProject,
-		MakeScope:    f.Scope,
+		IO:               f.IOStreams,
+		Client:           f.AgentManager,
+		TraceObserverURL: f.TraceObserverURL,
+		ResolveScope:     f.ResolveOrgProject,
+		MakeScope:        f.Scope,
 	}
 
 	cmd := &cobra.Command{
@@ -171,18 +173,33 @@ func runCreate(ctx context.Context, opts *CreateOptions) error {
 		return render.Error(opts.IO, opts.Scope, cmdutil.ErrorFromServer(resp.HTTPResponse, cmdutil.FirstNonNil(resp.JSON400, resp.JSON409, resp.JSON500)))
 	}
 
-	if opts.IO.JSON {
-		return render.JSONSuccess(opts.IO, opts.Scope, resp.JSON202)
+	isExternal := opts.Provisioning == provisioningExternal
+
+	if !opts.IO.JSON {
+		cs := opts.IO.StderrColorScheme()
+		fmt.Fprintf(opts.IO.ErrOut, "%s Created agent %s\n\n", cs.SuccessIcon(), resp.JSON202.Name)
+		fmt.Fprintf(opts.IO.ErrOut, "  Name:         %s\n", resp.JSON202.Name)
+		fmt.Fprintf(opts.IO.ErrOut, "  Display Name: %s\n", resp.JSON202.DisplayName)
+		fmt.Fprintf(opts.IO.ErrOut, "  Type:         %s\n", resp.JSON202.AgentType.Type)
+		if resp.JSON202.AgentType.SubType != nil {
+			fmt.Fprintf(opts.IO.ErrOut, "  Sub-Type:     %s\n", *resp.JSON202.AgentType.SubType)
+		}
+		fmt.Fprintf(opts.IO.ErrOut, "  Provisioning: %s\n", resp.JSON202.Provisioning.Type)
 	}
 
-	cs := opts.IO.StderrColorScheme()
-	fmt.Fprintf(opts.IO.ErrOut, "%s Created agent %s\n\n", cs.SuccessIcon(), resp.JSON202.Name)
-	fmt.Fprintf(opts.IO.ErrOut, "  Name:         %s\n", resp.JSON202.Name)
-	fmt.Fprintf(opts.IO.ErrOut, "  Display Name: %s\n", resp.JSON202.DisplayName)
-	fmt.Fprintf(opts.IO.ErrOut, "  Type:         %s\n", resp.JSON202.AgentType.Type)
-	if resp.JSON202.AgentType.SubType != nil {
-		fmt.Fprintf(opts.IO.ErrOut, "  Sub-Type:     %s\n", *resp.JSON202.AgentType.SubType)
+	if !isExternal {
+		if opts.IO.JSON {
+			return render.JSONSuccess(opts.IO, opts.Scope, resp.JSON202)
+		}
+		return nil
 	}
-	fmt.Fprintf(opts.IO.ErrOut, "  Provisioning: %s\n", resp.JSON202.Provisioning.Type)
+
+	traceObsURL, err := opts.TraceObserverURL(ctx)
+	if err != nil {
+		return render.Error(opts.IO, opts.Scope, err)
+	}
+	if err := runExternalPostCreate(ctx, opts, resp.JSON202.Name, client, traceObsURL); err != nil {
+		return render.Error(opts.IO, opts.Scope, err)
+	}
 	return nil
 }
