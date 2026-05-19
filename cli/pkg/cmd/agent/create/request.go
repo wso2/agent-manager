@@ -28,7 +28,7 @@ import (
 
 const (
 	provisioningInternal = string(amsvc.ProvisioningTypeInternal)
-	provisioningExternal = "external" // CLI-only: API spec has no ProvisioningTypeExternal yet.
+	provisioningExternal = string(amsvc.ProvisioningTypeExternal)
 
 	buildTypeBuildpack = string(amsvc.Buildpack)
 	buildTypeDocker    = string(amsvc.Docker)
