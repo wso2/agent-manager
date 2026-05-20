@@ -176,7 +176,7 @@ export function OxygenLayout() {
             ))
           }
           {globalConfig.docsUrl && (
-            <Footer.Link href={globalConfig.docsUrl} target="_blank" rel="noopener noreferrer">Documentation</Footer.Link>
+            <Footer.Link href={globalConfig.docsUrl + "/overview/what-is-amp/"} target="_blank" rel="noopener noreferrer">Documentation</Footer.Link>
           )}
           {globalConfig.footerLinks?.termsOfUseUrl && (
             <Footer.Link href={globalConfig.footerLinks.termsOfUseUrl} target="_blank" rel="noopener noreferrer">Terms & Conditions</Footer.Link>

@@ -48,7 +48,7 @@ window.__RUNTIME_CONFIG__ = {
     nemoGuard:          '$GUARDRAIL_CAP_NEMO_GUARD' === 'true',
     semanticGuardrails: '$GUARDRAIL_CAP_SEMANTIC_GUARDRAILS' === 'true',
   },
-  docsUrl: 'https://wso2.github.io/agent-manager/docs/next/overview/what-is-amp/',
+  docsUrl: 'https://wso2.github.io/agent-manager/docs/next',
   footerLinks: {
     privacyPolicyUrl: 'https://wso2.com/agent-platform/agent-manager/',
     termsOfUseUrl: 'https://wso2.com/agent-platform/agent-manager/',
