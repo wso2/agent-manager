@@ -40,13 +40,13 @@ const (
 	kindLLMProvider       = "LlmProvider"
 
 	// Policy names and versions
-	tokenBasedRateLimitPolicyName  = "token-based-ratelimit"
-	advancedRateLimitPolicyName    = "advanced-ratelimit"
-	costBasedRateLimitPolicyName   = "llm-cost-based-ratelimit"
-	llmCostPolicyName              = "llm-cost"
-	apiKeyAuthPolicyName           = "api-key-auth"
-	rateLimitPolicyVersion         = "v1"
-	apiKeyAuthPolicyVersion        = "v1"
+	tokenBasedRateLimitPolicyName = "token-based-ratelimit"
+	advancedRateLimitPolicyName   = "advanced-ratelimit"
+	costBasedRateLimitPolicyName  = "llm-cost-based-ratelimit"
+	llmCostPolicyName             = "llm-cost"
+	apiKeyAuthPolicyName          = "api-key-auth"
+	rateLimitPolicyVersion        = "v1"
+	apiKeyAuthPolicyVersion       = "v1"
 )
 
 // LLMProviderDeploymentService handles LLM deployment business logic
