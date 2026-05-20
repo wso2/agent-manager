@@ -121,7 +121,6 @@ function handleAuthAndExpectedErrors(
   const e = error as { status?: number; response?: { status?: number } };
   const status = e.status ?? e.response?.status;
   if (status === 401) {
-    logout();
     return true;
   }
   return status === 400;
