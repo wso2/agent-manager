@@ -5,6 +5,7 @@ import fs from 'fs';
 
 // This runs in Node.js - Don't use client-side code here (browser APIs, JSX...)
 const versions: string[] = JSON.parse(fs.readFileSync('./versions.json', 'utf-8'));
+// Skip non-release entries like "cloud" which are manually maintained versions
 const latestVersion = versions.find(v => /^v\d+/.test(v)) ?? versions[0];
 
 // Read quickStartDockerTag from _constants.md
