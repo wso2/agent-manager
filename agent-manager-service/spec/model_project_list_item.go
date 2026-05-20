@@ -27,6 +27,8 @@ type ProjectListItem struct {
 	OrgName string `json:"orgName"`
 	// Display name of the project
 	DisplayName string `json:"displayName"`
+	// Description of the project
+	Description string `json:"description"`
 	// Timestamp when the project was created
 	CreatedAt time.Time `json:"createdAt"`
 }
@@ -35,12 +37,13 @@ type ProjectListItem struct {
 // This constructor will assign default values to properties that have it defined,
 // and makes sure properties required by API are set, but the set of arguments
 // will change when the set of required properties is changed
-func NewProjectListItem(uuid string, name string, orgName string, displayName string, createdAt time.Time) *ProjectListItem {
+func NewProjectListItem(uuid string, name string, orgName string, displayName string, description string, createdAt time.Time) *ProjectListItem {
 	this := ProjectListItem{}
 	this.Uuid = uuid
 	this.Name = name
 	this.OrgName = orgName
 	this.DisplayName = displayName
+	this.Description = description
 	this.CreatedAt = createdAt
 	return &this
 }
@@ -187,6 +190,7 @@ func (o ProjectListItem) ToMap() (map[string]interface{}, error) {
 	toSerialize["name"] = o.Name
 	toSerialize["orgName"] = o.OrgName
 	toSerialize["displayName"] = o.DisplayName
+	toSerialize["description"] = o.Description
 	toSerialize["createdAt"] = o.CreatedAt
 	return toSerialize, nil
 }

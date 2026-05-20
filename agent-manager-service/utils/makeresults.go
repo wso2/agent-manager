@@ -466,6 +466,7 @@ func ConvertToProjectListItem(project *models.ProjectResponse) spec.ProjectListI
 		Uuid:        project.UUID,
 		Name:        project.Name,
 		DisplayName: project.DisplayName,
+		Description: project.Description,
 		CreatedAt:   project.CreatedAt,
 		OrgName:     project.OrgName,
 	}
