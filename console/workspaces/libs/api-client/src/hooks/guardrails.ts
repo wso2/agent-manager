@@ -39,6 +39,10 @@ const NON_GUARDRAIL_POLICY_EXCLUDELIST = new Set([
   "cors",
   "advanced-ratelimit",
   "basic-ratelimit",
+  // Rate limiting policies managed via the Rate Limiting tab
+  "token-based-ratelimit",
+  "llm-cost-based-ratelimit",
+  "llm-cost",
   "mcp-acl-list",
   "mcp-auth",
   "mcp-authz",

@@ -40,11 +40,13 @@ const (
 	kindLLMProvider       = "LlmProvider"
 
 	// Policy names and versions
-	tokenBasedRateLimitPolicyName = "token-based-ratelimit"
-	advancedRateLimitPolicyName   = "advanced-ratelimit"
-	apiKeyAuthPolicyName          = "api-key-auth"
-	rateLimitPolicyVersion        = "v1"
-	apiKeyAuthPolicyVersion       = "v1"
+	tokenBasedRateLimitPolicyName  = "token-based-ratelimit"
+	advancedRateLimitPolicyName    = "advanced-ratelimit"
+	costBasedRateLimitPolicyName   = "llm-cost-based-ratelimit"
+	llmCostPolicyName              = "llm-cost"
+	apiKeyAuthPolicyName           = "api-key-auth"
+	rateLimitPolicyVersion         = "v1"
+	apiKeyAuthPolicyVersion        = "v1"
 )
 
 // LLMProviderDeploymentService handles LLM deployment business logic
@@ -568,6 +570,9 @@ func (s *LLMProviderDeploymentService) generateLLMProviderDeploymentYAML(provide
 
 	// Step 2: Transform rate limit config to policies
 	rateLimit := provider.Configuration.RateLimiting
+	// costPaths accumulates the specific paths where llm-cost-based-ratelimit is applied,
+	// so llm-cost can be scoped to the same paths rather than applied globally.
+	var costPaths []models.LLMPolicyPath
 	if rateLimit != nil {
 		// Step 2.1: Provider level rate limit
 		providerLevel := rateLimit.ProviderLevel
@@ -631,6 +636,37 @@ func (s *LLMProviderDeploymentService) generateLLMProviderDeploymentYAML(provide
 						},
 					})
 				}
+
+				if providerLevel.Global.Cost != nil && providerLevel.Global.Cost.Enabled {
+					costLimit := providerLevel.Global.Cost
+					duration, err := formatRateLimitDuration(costLimit.Reset.Duration, costLimit.Reset.Unit)
+					if err != nil {
+						return "", fmt.Errorf("invalid cost reset window: %w", err)
+					}
+					costPath := models.LLMPolicyPath{
+						Path:    "/*",
+						Methods: []string{"*"},
+					}
+					policies = append(policies, models.LLMPolicy{
+						Name:    costBasedRateLimitPolicyName,
+						Version: rateLimitPolicyVersion,
+						Paths: []models.LLMPolicyPath{
+							{
+								Path:    costPath.Path,
+								Methods: costPath.Methods,
+								Params: map[string]interface{}{
+									"budgetLimits": []map[string]interface{}{
+										{
+											"amount":   costLimit.Amount,
+											"duration": duration,
+										},
+									},
+								},
+							},
+						},
+					})
+					costPaths = append(costPaths, costPath)
+				}
 			} else if providerLevel.ResourceWise != nil {
 				// Step 2.1.2: Handle resource-wise rate limiting
 				defaultLimit := &providerLevel.ResourceWise.Default
@@ -693,6 +729,37 @@ func (s *LLMProviderDeploymentService) generateLLMProviderDeploymentYAML(provide
 					})
 				}
 
+				if defaultLimit.Cost != nil && defaultLimit.Cost.Enabled {
+					costLimit := defaultLimit.Cost
+					duration, err := formatRateLimitDuration(costLimit.Reset.Duration, costLimit.Reset.Unit)
+					if err != nil {
+						return "", fmt.Errorf("invalid cost reset window: %w", err)
+					}
+					costPath := models.LLMPolicyPath{
+						Path:    "/*",
+						Methods: []string{"*"},
+					}
+					policies = append(policies, models.LLMPolicy{
+						Name:    costBasedRateLimitPolicyName,
+						Version: rateLimitPolicyVersion,
+						Paths: []models.LLMPolicyPath{
+							{
+								Path:    costPath.Path,
+								Methods: costPath.Methods,
+								Params: map[string]interface{}{
+									"budgetLimits": []map[string]interface{}{
+										{
+											"amount":   costLimit.Amount,
+											"duration": duration,
+										},
+									},
+								},
+							},
+						},
+					})
+					costPaths = append(costPaths, costPath)
+				}
+
 				// Step 2.1.2.2: Resource-specific rate limits
 				for _, r := range providerLevel.ResourceWise.Resources {
 					if r.Limit.Token != nil && r.Limit.Token.Enabled {
@@ -739,6 +806,29 @@ func (s *LLMProviderDeploymentService) generateLLMProviderDeploymentYAML(provide
 							},
 						})
 					}
+
+					if r.Limit.Cost != nil && r.Limit.Cost.Enabled {
+						costLimit := r.Limit.Cost
+						duration, err := formatRateLimitDuration(costLimit.Reset.Duration, costLimit.Reset.Unit)
+						if err != nil {
+							return "", fmt.Errorf("invalid cost reset window for resource %s: %w", r.Resource, err)
+						}
+						method, path := parseResourceKey(r.Resource)
+						costPath := models.LLMPolicyPath{Path: path, Methods: []string{method}}
+						addOrAppendPolicyPath(&policies, costBasedRateLimitPolicyName, rateLimitPolicyVersion, models.LLMPolicyPath{
+							Path:    path,
+							Methods: []string{method},
+							Params: map[string]interface{}{
+								"budgetLimits": []map[string]interface{}{
+									{
+										"amount":   costLimit.Amount,
+										"duration": duration,
+									},
+								},
+							},
+						})
+						costPaths = append(costPaths, costPath)
+					}
 				}
 			}
 		}
@@ -746,6 +836,22 @@ func (s *LLMProviderDeploymentService) generateLLMProviderDeploymentYAML(provide
 		// Step 2.2: Consumer level rate limit (placeholder for future implementation)
 		// TODO: implement consumer-level rate limiting for Global/ResourceWise
 		// Consumer-level rate limiting is not yet supported by the gateway
+	}
+
+	// llm-cost must run before llm-cost-based-ratelimit in the response phase.
+	// Response-phase policies execute in reverse list order, so llm-cost is appended
+	// after llm-cost-based-ratelimit to guarantee it fires first at response time.
+	// llm-cost is scoped to the same paths as llm-cost-based-ratelimit, not globally.
+	if len(costPaths) > 0 {
+		llmCostPaths := make([]models.LLMPolicyPath, len(costPaths))
+		for i, cp := range costPaths {
+			llmCostPaths[i] = models.LLMPolicyPath{Path: cp.Path, Methods: cp.Methods}
+		}
+		policies = append(policies, models.LLMPolicy{
+			Name:    llmCostPolicyName,
+			Version: rateLimitPolicyVersion,
+			Paths:   llmCostPaths,
+		})
 	}
 
 	// Step 3: Append user-defined policies with version normalization
@@ -785,7 +891,20 @@ func (s *LLMProviderDeploymentService) generateLLMProviderDeploymentYAML(provide
 	return string(yamlBytes), nil
 }
 
-// formatRateLimitDuration converts rate limit duration and unit to gateway-compatible format
+// parseResourceKey splits a resource key of the form "METHOD-/path" back into its
+// constituent method and path. The key is produced by the frontend as "<method>-<path>".
+// If the key does not contain "-", the whole string is treated as the path with method "*".
+func parseResourceKey(key string) (method, path string) {
+	idx := strings.Index(key, "-")
+	if idx < 0 {
+		return "*", key
+	}
+	return key[:idx], key[idx+1:]
+}
+
+// formatRateLimitDuration converts rate limit duration and unit to a Go duration string
+// accepted by gateway policies (ns|us|ms|s|m|h). Day/week/month are converted to hours
+// since the Go time package has no native support for calendar units.
 func formatRateLimitDuration(duration int, unit string) (string, error) {
 	if duration <= 0 {
 		return "", fmt.Errorf("duration must be positive, got %d", duration)
@@ -801,10 +920,9 @@ func formatRateLimitDuration(duration int, unit string) (string, error) {
 	case "week":
 		return fmt.Sprintf("%dh", duration*24*7), nil
 	case "month":
-		// policy accepts Go duration units; month is represented as 30 days.
 		return fmt.Sprintf("%dh", duration*24*30), nil
 	default:
-		return "", fmt.Errorf("unsupported reset unit: %q", unit)
+		return "", fmt.Errorf("unsupported reset unit %q: must be minute, hour, day, week, or month", unit)
 	}
 }
 

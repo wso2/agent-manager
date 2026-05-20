@@ -43,6 +43,7 @@ import {
   Skeleton,
   Stack,
   Switch,
+  TablePagination,
   TextField,
   ToggleButton,
   ToggleButtonGroup,
@@ -62,10 +63,11 @@ import {
 import { z } from "zod";
 
 const RESET_UNITS = [
-  { value: "second", label: "second" },
-  { value: "minute", label: "minute" },
-  { value: "hour", label: "hour" },
-  { value: "all", label: "all" },
+  { value: "minute", label: "Minute(s)" },
+  { value: "hour",   label: "Hour(s)"   },
+  { value: "day",    label: "Day(s)"    },
+  { value: "week",   label: "Week(s)"   },
+  { value: "month",  label: "Month(s)"  },
 ] as const;
 
 const criterionRowSchema = z
@@ -87,15 +89,39 @@ const criterionRowSchema = z
     (data) => {
       if (!data.enabled) return true;
       const d = Number(data.duration);
-      return !Number.isNaN(d) && d >= 1;
+      return !Number.isNaN(d) && Number.isInteger(d) && d >= 1;
     },
-    { message: "Reset duration must be >= 1", path: ["duration"] },
+    { message: "Duration must be a whole number >= 1", path: ["duration"] },
+  );
+
+const costCriterionRowSchema = z
+  .object({
+    enabled: z.boolean(),
+    quota: z.string(),
+    duration: z.string(),
+    unit: z.string(),
+  })
+  .refine(
+    (data) => {
+      if (!data.enabled) return true;
+      const q = Number(data.quota);
+      return !Number.isNaN(q) && q > 0;
+    },
+    { message: "Budget must be > 0", path: ["quota"] },
+  )
+  .refine(
+    (data) => {
+      if (!data.enabled) return true;
+      const d = Number(data.duration);
+      return !Number.isNaN(d) && Number.isInteger(d) && d >= 1;
+    },
+    { message: "Duration must be a whole number >= 1", path: ["duration"] },
   );
 
 const criteriaStateSchema = z.object({
   request: criterionRowSchema,
   token: criterionRowSchema,
-  cost: criterionRowSchema,
+  cost: costCriterionRowSchema,
 });
 
 /** Rate Limiting uses "-" separator for backendResourceWiseMap keys. */
@@ -103,44 +129,44 @@ const getRateLimitResourceKey = (r: ResourceItem) => getResourceKey(r, "-");
 
 export interface CriteriaState {
   request: { enabled: boolean; quota: string; duration: string; unit: string };
-  token: { enabled: boolean; quota: string; duration: string; unit: string };
-  cost: { enabled: boolean; quota: string; duration: string; unit: string };
+  token:   { enabled: boolean; quota: string; duration: string; unit: string };
+  cost:    { enabled: boolean; quota: string; duration: string; unit: string };
 }
 
 const DEFAULT_CRITERIA: CriteriaState = {
-  request: { enabled: false, quota: "", duration: "1", unit: "minute" },
-  token: { enabled: false, quota: "", duration: "1", unit: "minute" },
-  cost: { enabled: false, quota: "", duration: "1", unit: "minute" },
+  request: { enabled: false, quota: "", duration: "1", unit: "hour" },
+  token:   { enabled: false, quota: "", duration: "1", unit: "hour" },
+  cost:    { enabled: false, quota: "", duration: "1", unit: "day"  },
 };
 
 function criteriaFromLimit(
   limit: RateLimitingLimitConfig | undefined,
 ): CriteriaState {
-  const c = { ...DEFAULT_CRITERIA };
+  const c: CriteriaState = { ...DEFAULT_CRITERIA };
   if (!limit) return c;
 
   if (limit.request) {
     c.request = {
-      enabled: limit.request.enabled,
-      quota: String(limit.request.count ?? ""),
+      enabled:  limit.request.enabled,
+      quota:    String(limit.request.count ?? ""),
       duration: String(limit.request.reset?.duration ?? 1),
-      unit: limit.request.reset?.unit ?? "minute",
+      unit:     limit.request.reset?.unit ?? "hour",
     };
   }
   if (limit.token) {
     c.token = {
-      enabled: limit.token.enabled,
-      quota: String(limit.token.count ?? ""),
+      enabled:  limit.token.enabled,
+      quota:    String(limit.token.count ?? ""),
       duration: String(limit.token.reset?.duration ?? 1),
-      unit: limit.token.reset?.unit ?? "minute",
+      unit:     limit.token.reset?.unit ?? "hour",
     };
   }
   if (limit.cost) {
     c.cost = {
-      enabled: limit.cost.enabled,
-      quota: String(limit.cost.amount ?? ""),
+      enabled:  limit.cost.enabled,
+      quota:    String(limit.cost.amount ?? ""),
       duration: String(limit.cost.reset?.duration ?? 1),
-      unit: limit.cost.reset?.unit ?? "minute",
+      unit:     limit.cost.reset?.unit ?? "day",
     };
   }
   return c;
@@ -154,38 +180,35 @@ function parseFinite(value: string | number | undefined): number | undefined {
 function limitFromCriteria(criteria: CriteriaState): RateLimitingLimitConfig {
   const limit: RateLimitingLimitConfig = {};
   if (criteria.request.enabled) {
-    const duration = parseFinite(criteria.request.duration);
     const count = parseFinite(criteria.request.quota);
-    const unit = criteria.request.unit || "minute";
+    const duration = parseFinite(criteria.request.duration);
     if (count !== undefined && duration !== undefined) {
       limit.request = {
         enabled: true,
         count,
-        reset: { duration, unit },
+        reset: { duration, unit: criteria.request.unit },
       };
     }
   }
   if (criteria.token.enabled) {
-    const duration = parseFinite(criteria.token.duration);
     const count = parseFinite(criteria.token.quota);
-    const unit = criteria.token.unit || "minute";
+    const duration = parseFinite(criteria.token.duration);
     if (count !== undefined && duration !== undefined) {
       limit.token = {
         enabled: true,
         count,
-        reset: { duration, unit },
+        reset: { duration, unit: criteria.token.unit },
       };
     }
   }
   if (criteria.cost.enabled) {
-    const duration = parseFinite(criteria.cost.duration);
     const amount = parseFinite(criteria.cost.quota);
-    const unit = criteria.cost.unit || "minute";
+    const duration = parseFinite(criteria.cost.duration);
     if (amount !== undefined && duration !== undefined) {
       limit.cost = {
         enabled: true,
         amount,
-        reset: { duration, unit },
+        reset: { duration, unit: criteria.cost.unit },
       };
     }
   }
@@ -212,7 +235,7 @@ function hasConfiguredCriteria(criteria: CriteriaState): boolean {
   return (
     (criteria.request.enabled && Number(criteria.request.quota) >= 1) ||
     (criteria.token.enabled && Number(criteria.token.quota) >= 1) ||
-    (criteria.cost.enabled && Number(criteria.cost.quota) >= 1)
+    (criteria.cost.enabled && Number(criteria.cost.quota) > 0)
   );
 }
 
@@ -290,67 +313,53 @@ function CriteriaBlock({
           </Stack>
         </AccordionSummary>
         <AccordionDetails>
-          <Stack spacing={1.5}>
-            <Grid container spacing={2}>
-              <Grid size={{ xs: 12, sm: 4 }}>
-                <FormControl fullWidth size="small">
-                  <FormLabel>Quota</FormLabel>
-                  <TextField
-                    size="small"
-                    type="number"
-                    value={criteria.request.quota}
-                    onChange={(e) =>
-                      update("request", { quota: e.target.value })
-                    }
-                    disabled={disabled}
-                    error={!!fieldErrors?.["request.quota"]}
-                    helperText={fieldErrors?.["request.quota"]}
-                    slotProps={{
-                      input: { inputProps: { min: 1 } },
-                    }}
-                  />
-                </FormControl>
-              </Grid>
-              <Grid size={{ xs: 12, sm: 4 }}>
-                <FormControl fullWidth size="small">
-                  <FormLabel>Reset Duration</FormLabel>
-                  <TextField
-                    size="small"
-                    type="number"
-                    value={criteria.request.duration}
-                    onChange={(e) =>
-                      update("request", { duration: e.target.value })
-                    }
-                    disabled={disabled}
-                    error={!!fieldErrors?.["request.duration"]}
-                    helperText={fieldErrors?.["request.duration"]}
-                    slotProps={{
-                      input: { inputProps: { min: 1 } },
-                    }}
-                  />
-                </FormControl>
-              </Grid>
-              <Grid size={{ xs: 12, sm: 4 }}>
-                <FormControl fullWidth size="small">
-                  <FormLabel>Reset unit</FormLabel>
-                  <Select
-                    size="small"
-                    value={criteria.request.unit}
-                    onChange={(e) =>
-                      update("request", { unit: e.target.value })
-                    }
-                    disabled={disabled}
-                  >
-                    {RESET_UNITS.map((u) => (
-                      <MenuItem key={u.value} value={u.value}>
-                        {u.label}
-                      </MenuItem>
-                    ))}
-                  </Select>
-                </FormControl>
-              </Grid>
+          <Grid container spacing={2}>
+            <Grid size={{ xs: 12, sm: 4 }}>
+              <FormControl fullWidth size="small">
+                <FormLabel>Quota</FormLabel>
+                <TextField
+                  size="small"
+                  type="number"
+                  value={criteria.request.quota}
+                  onChange={(e) => update("request", { quota: e.target.value })}
+                  disabled={disabled}
+                  error={!!fieldErrors?.["request.quota"]}
+                  helperText={fieldErrors?.["request.quota"]}
+                  slotProps={{ input: { inputProps: { min: 1 } } }}
+                />
+              </FormControl>
             </Grid>
-          </Stack>
+            <Grid size={{ xs: 12, sm: 4 }}>
+              <FormControl fullWidth size="small">
+                <FormLabel>Duration</FormLabel>
+                <TextField
+                  size="small"
+                  type="number"
+                  value={criteria.request.duration}
+                  onChange={(e) => update("request", { duration: e.target.value })}
+                  disabled={disabled}
+                  error={!!fieldErrors?.["request.duration"]}
+                  helperText={fieldErrors?.["request.duration"]}
+                  slotProps={{ input: { inputProps: { min: 1, step: 1 } } }}
+                />
+              </FormControl>
+            </Grid>
+            <Grid size={{ xs: 12, sm: 4 }}>
+              <FormControl fullWidth size="small">
+                <FormLabel>Unit</FormLabel>
+                <Select
+                  size="small"
+                  value={criteria.request.unit}
+                  onChange={(e) => update("request", { unit: e.target.value })}
+                  disabled={disabled}
+                >
+                  {RESET_UNITS.map((u) => (
+                    <MenuItem key={u.value} value={u.value}>{u.label}</MenuItem>
+                  ))}
+                </Select>
+              </FormControl>
+            </Grid>
+          </Grid>
         </AccordionDetails>
       </Accordion>
 
@@ -380,91 +389,131 @@ function CriteriaBlock({
           </Stack>
         </AccordionSummary>
         <AccordionDetails>
-          <Stack spacing={1.5}>
-            <Grid container spacing={2}>
-              <Grid size={{ xs: 12, sm: 4 }}>
-                <FormControl fullWidth size="small">
-                  <FormLabel>Quota</FormLabel>
-                  <TextField
-                    size="small"
-                    type="number"
-                    value={criteria.token.quota}
-                    onChange={(e) => update("token", { quota: e.target.value })}
-                    disabled={disabled}
-                    error={!!fieldErrors?.["token.quota"]}
-                    helperText={fieldErrors?.["token.quota"]}
-                    slotProps={{
-                      input: { inputProps: { min: 1 } },
-                    }}
-                  />
-                </FormControl>
-              </Grid>
-              <Grid size={{ xs: 12, sm: 4 }}>
-                <FormControl fullWidth size="small">
-                  <FormLabel>Reset Duration</FormLabel>
-                  <TextField
-                    size="small"
-                    type="number"
-                    value={criteria.token.duration}
-                    onChange={(e) =>
-                      update("token", { duration: e.target.value })
-                    }
-                    disabled={disabled}
-                    error={!!fieldErrors?.["token.duration"]}
-                    helperText={fieldErrors?.["token.duration"]}
-                    slotProps={{
-                      input: { inputProps: { min: 1 } },
-                    }}
-                  />
-                </FormControl>
-              </Grid>
-              <Grid size={{ xs: 12, sm: 4 }}>
-                <FormControl fullWidth size="small">
-                  <FormLabel>Reset unit</FormLabel>
-                  <Select
-                    size="small"
-                    value={criteria.token.unit}
-                    onChange={(e) => update("token", { unit: e.target.value })}
-                    disabled={disabled}
-                  >
-                    {RESET_UNITS.map((u) => (
-                      <MenuItem key={u.value} value={u.value}>
-                        {u.label}
-                      </MenuItem>
-                    ))}
-                  </Select>
-                </FormControl>
-              </Grid>
+          <Grid container spacing={2}>
+            <Grid size={{ xs: 12, sm: 4 }}>
+              <FormControl fullWidth size="small">
+                <FormLabel>Quota</FormLabel>
+                <TextField
+                  size="small"
+                  type="number"
+                  value={criteria.token.quota}
+                  onChange={(e) => update("token", { quota: e.target.value })}
+                  disabled={disabled}
+                  error={!!fieldErrors?.["token.quota"]}
+                  helperText={fieldErrors?.["token.quota"]}
+                  slotProps={{ input: { inputProps: { min: 1 } } }}
+                />
+              </FormControl>
             </Grid>
-          </Stack>
+            <Grid size={{ xs: 12, sm: 4 }}>
+              <FormControl fullWidth size="small">
+                <FormLabel>Duration</FormLabel>
+                <TextField
+                  size="small"
+                  type="number"
+                  value={criteria.token.duration}
+                  onChange={(e) => update("token", { duration: e.target.value })}
+                  disabled={disabled}
+                  error={!!fieldErrors?.["token.duration"]}
+                  helperText={fieldErrors?.["token.duration"]}
+                  slotProps={{ input: { inputProps: { min: 1, step: 1 } } }}
+                />
+              </FormControl>
+            </Grid>
+            <Grid size={{ xs: 12, sm: 4 }}>
+              <FormControl fullWidth size="small">
+                <FormLabel>Unit</FormLabel>
+                <Select
+                  size="small"
+                  value={criteria.token.unit}
+                  onChange={(e) => update("token", { unit: e.target.value })}
+                  disabled={disabled}
+                >
+                  {RESET_UNITS.map((u) => (
+                    <MenuItem key={u.value} value={u.value}>{u.label}</MenuItem>
+                  ))}
+                </Select>
+              </FormControl>
+            </Grid>
+          </Grid>
         </AccordionDetails>
       </Accordion>
 
       {/* Cost */}
       {showCost && (
         <Accordion
-          expanded={false}
+          expanded={expanded.cost}
+          onChange={(_, isExpanded) =>
+            !disabled && setExpanded((e) => ({ ...e, cost: isExpanded }))
+          }
           disableGutters
         >
-          <AccordionSummary>
+          <AccordionSummary expandIcon={<ChevronDown size={18} />}>
             <Stack
               direction="row"
               alignItems="center"
               justifyContent="space-between"
               width="100%"
             >
-              <Stack direction="row" alignItems="center" spacing={1}>
-                <Typography variant="subtitle2" color="text.disabled">Cost</Typography>
-                <Chip label="Coming soon" size="small" variant="outlined" />
-              </Stack>
+              <Typography variant="subtitle2">Cost</Typography>
               <Switch
                 size="small"
-                checked={false}
-                disabled
+                checked={criteria.cost.enabled}
+                onChange={(_, v) => update("cost", { enabled: v })}
+                disabled={disabled}
                 onClick={(e) => e.stopPropagation()}
               />
             </Stack>
           </AccordionSummary>
+          <AccordionDetails>
+            <Grid container spacing={2}>
+              <Grid size={{ xs: 12, sm: 4 }}>
+                <FormControl fullWidth size="small">
+                  <FormLabel>Budget (USD)</FormLabel>
+                  <TextField
+                    size="small"
+                    type="number"
+                    value={criteria.cost.quota}
+                    onChange={(e) => update("cost", { quota: e.target.value })}
+                    disabled={disabled}
+                    error={!!fieldErrors?.["cost.quota"]}
+                    helperText={fieldErrors?.["cost.quota"]}
+                    slotProps={{ input: { inputProps: { min: 0.000001, step: 0.01 } } }}
+                  />
+                </FormControl>
+              </Grid>
+              <Grid size={{ xs: 12, sm: 4 }}>
+                <FormControl fullWidth size="small">
+                  <FormLabel>Duration</FormLabel>
+                  <TextField
+                    size="small"
+                    type="number"
+                    value={criteria.cost.duration}
+                    onChange={(e) => update("cost", { duration: e.target.value })}
+                    disabled={disabled}
+                    error={!!fieldErrors?.["cost.duration"]}
+                    helperText={fieldErrors?.["cost.duration"]}
+                    slotProps={{ input: { inputProps: { min: 1, step: 1 } } }}
+                  />
+                </FormControl>
+              </Grid>
+              <Grid size={{ xs: 12, sm: 4 }}>
+                <FormControl fullWidth size="small">
+                  <FormLabel>Unit</FormLabel>
+                  <Select
+                    size="small"
+                    value={criteria.cost.unit}
+                    onChange={(e) => update("cost", { unit: e.target.value })}
+                    disabled={disabled}
+                  >
+                    {RESET_UNITS.map((u) => (
+                      <MenuItem key={u.value} value={u.value}>{u.label}</MenuItem>
+                    ))}
+                  </Select>
+                </FormControl>
+              </Grid>
+            </Grid>
+          </AccordionDetails>
         </Accordion>
       )}
     </Stack>
@@ -761,6 +810,19 @@ export function LLMProviderRateLimitingTab({
     );
   }, [resources, backendResourceSearch]);
 
+  const RESOURCES_PER_PAGE = 10;
+  const [resourcePage, setResourcePage] = useState(0);
+
+  useEffect(() => { setResourcePage(0); }, [filteredResources]);
+
+  const pagedResources = useMemo(
+    () => filteredResources.slice(
+      resourcePage * RESOURCES_PER_PAGE,
+      (resourcePage + 1) * RESOURCES_PER_PAGE,
+    ),
+    [filteredResources, resourcePage],
+  );
+
   if (isLoading) {
     return (
       <Stack spacing={3}>
@@ -880,7 +942,6 @@ export function LLMProviderRateLimitingTab({
                   placeholder="Search resources…"
                   value={backendResourceSearch}
                   onChange={(e) => setBackendResourceSearch(e.target.value)}
-                  sx={{ maxWidth: 280 }}
                 />
                 {specLoading ? (
                   <Box
@@ -920,7 +981,7 @@ export function LLMProviderRateLimitingTab({
                   </ListingTable.Container>
                 ) : (
                   <Stack>
-                    {filteredResources.map((r) => {
+                    {pagedResources.map((r) => {
                       const key = getRateLimitResourceKey(r);
                       const isExpanded = backendExpandedResources.has(key);
                       const criteria =
@@ -953,6 +1014,7 @@ export function LLMProviderRateLimitingTab({
                                 size="small"
                                 variant="outlined"
                                 color={getMethodChipColor(r.method)}
+                                sx={{ minWidth: 72, justifyContent: "center" }}
                               />
                               <Typography variant="body2">{r.path}</Typography>
                             </Stack>
@@ -976,6 +1038,16 @@ export function LLMProviderRateLimitingTab({
                         </Accordion>
                       );
                     })}
+                    {filteredResources.length > RESOURCES_PER_PAGE && (
+                      <TablePagination
+                        component="div"
+                        count={filteredResources.length}
+                        page={resourcePage}
+                        rowsPerPage={RESOURCES_PER_PAGE}
+                        rowsPerPageOptions={[RESOURCES_PER_PAGE]}
+                        onPageChange={(_e, newPage) => setResourcePage(newPage)}
+                      />
+                    )}
                   </Stack>
                 )}
               </Stack>
