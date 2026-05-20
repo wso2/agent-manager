@@ -1,10 +1,10 @@
-# WSO2 Agent Manager Instrumentation
+# WSO2 Agent Manager Instrumentation Package
 
-Zero-code OpenTelemetry instrumentation for Python agents using the Traceloop SDK, with trace visibility in the WSO2 Agent Manager.
+Zero-code OpenTelemetry instrumentation package for externally-hosted Python agents using the Traceloop SDK, with trace visibility in the WSO2 Agent Manager.
 
 ## Overview
 
-`amp-instrumentation` enables zero-code instrumentation for Python agents, automatically capturing traces for LLM calls, MCP requests, and other operations. It wraps your agent's execution with OpenTelemetry tracing powered by the Traceloop SDK.
+`amp-instrumentation` package enables zero-code instrumentation for Python agents, automatically capturing traces for LLM calls, MCP requests, and other operations. It wraps your agent's execution with OpenTelemetry tracing powered by the Traceloop SDK.
 
 For agents on a custom or non-frontier framework, or anywhere you want full control over the spans you emit, it also ships `init_otel()`, a one-line OpenTelemetry exporter setup so you can instrument the agent yourself against AMP's [manual instrumentation contract](#manual-instrumentation).
 
@@ -29,9 +29,11 @@ Each release of `amp-instrumentation` pins a specific Traceloop SDK version, so 
 
 ### 1. Register Your Agent
 
-First, register your agent at the [WSO2 Agent Manager](https://github.com/wso2/agent-manager) to obtain your agent API key and configuration details.
+First, register your agent as an external agent in the [WSO2 Agent Manager](../getting-started/create-your-first-agent.mdx) to obtain your agent API key and configuration details.
 
-### 2. Set Required Environment Variables
+### 2. Set Required Environment Variables in terminal
+
+Use the OTEL endpoint and agent API key obtained when you registered the agent in the previous step:
 
 ```bash
 export AMP_OTEL_ENDPOINT="https://amp-otel-endpoint.com" # AMP OTEL endpoint

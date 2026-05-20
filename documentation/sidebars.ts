@@ -37,6 +37,7 @@ const sidebars: SidebarsConfig = {
             'getting-started/on-your-environment',
           ],
         },
+        "getting-started/create-your-first-agent",
         'getting-started/cli-installation',
       ],
     },
