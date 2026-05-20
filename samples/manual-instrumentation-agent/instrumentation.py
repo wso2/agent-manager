@@ -55,10 +55,42 @@ def _content(text: str) -> str:
     return text if _trace_content_enabled() else "[redacted]"
 
 
-def _messages(msgs: list[dict[str, str]]) -> str:
+def _messages(msgs: list[dict[str, Any]]) -> str:
     if _trace_content_enabled():
         return json.dumps(msgs)
-    return json.dumps([{"role": m["role"], "content": "[redacted]"} for m in msgs])
+    return json.dumps([_redact_message(m) for m in msgs])
+
+
+def _redact_message(msg: dict[str, Any]) -> dict[str, Any]:
+    """Redact the free text of one chat message, keeping role and tool-call
+    structure. A tool call's ``arguments`` string is content too.
+    """
+    redacted = dict(msg)
+    if redacted.get("content") is not None:
+        redacted["content"] = "[redacted]"
+    if redacted.get("tool_calls"):
+        redacted["tool_calls"] = [
+            {**tc, "function": {**tc["function"], "arguments": "[redacted]"}}
+            for tc in redacted["tool_calls"]
+        ]
+    return redacted
+
+
+def _redact_value(value: Any) -> Any:
+    """Redact string content anywhere inside an arbitrary value when content
+    tracing is off, preserving structure (dict keys, list shape) so the trace
+    view stays readable. Used for the Layer-2 ``traceloop.entity.*`` payloads,
+    which carry free-form input/output rather than typed messages.
+    """
+    if _trace_content_enabled():
+        return value
+    if isinstance(value, str):
+        return "[redacted]"
+    if isinstance(value, list):
+        return [_redact_value(v) for v in value]
+    if isinstance(value, dict):
+        return {k: _redact_value(v) for k, v in value.items()}
+    return value
 
 
 # --- Evaluation correlation -------------------------------------------------
@@ -158,13 +190,17 @@ def chain_span(*, name: str, workflow_input: Any) -> Iterator[tuple[Span, dict]]
     """
     with _tracer().start_as_current_span(name, kind=SpanKind.INTERNAL) as span:
         span.set_attribute("traceloop.span.kind", "workflow")     # -> kind = chain
-        span.set_attribute("traceloop.entity.input", json.dumps({"input": workflow_input}))
+        span.set_attribute(
+            "traceloop.entity.input",
+            json.dumps({"input": _redact_value(workflow_input)}),
+        )
         result: dict[str, Any] = {"output": None}
         try:
             yield span, result
         finally:
             span.set_attribute(
-                "traceloop.entity.output", json.dumps({"output": result["output"]})
+                "traceloop.entity.output",
+                json.dumps({"output": _redact_value(result["output"])}),
             )
 
 
@@ -247,13 +283,14 @@ def tool_span(
         span.set_attribute("gen_ai.tool.name", name)              # required
         span.set_attribute("gen_ai.tool.description", description)
         span.set_attribute("gen_ai.tool.call.id", call_id)
-        span.set_attribute("traceloop.entity.input", json.dumps(arguments))
+        span.set_attribute("traceloop.entity.input", json.dumps(_redact_value(arguments)))
         result: dict[str, Any] = {"output": None}
         try:
             yield span, result
         finally:
             span.set_attribute(
-                "traceloop.entity.output", json.dumps({"result": result["output"]})
+                "traceloop.entity.output",
+                json.dumps({"result": _redact_value(result["output"])}),
             )
 
 
