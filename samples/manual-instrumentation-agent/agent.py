@@ -1,6 +1,6 @@
 """A small RAG agent on a hand-written framework.
 
-This agent is deliberately *not* built on LangChain / LlamaIndex / CrewAI — it's
+This agent is deliberately *not* built on LangChain, LlamaIndex, or CrewAI. It's
 plain Python. The Traceloop SDK can't auto-instrument it, which is exactly when
 you reach for the manual instrumentation path: you emit your own OpenTelemetry
 GenAI spans against AMP's contract. All the span emission lives in
@@ -10,15 +10,16 @@ One ``run_agent`` call produces one trace covering every span kind AMP supports:
 
     invoke_agent (agent, root)
     └── rag-pipeline (chain)
-        ├── embeddings   (embedding) — real OpenAI embeddings call
-        ├── vector_search (retriever) — cosine top-k over an in-memory store
-        ├── rerank       (rerank)    — simulated reranking
-        ├── execute_tool (tool)      — a real local tool
-        └── chat         (llm)       — real OpenAI chat completion
+        ├── embeddings    (embedding)
+        ├── vector_search (retriever)
+        ├── rerank        (rerank)
+        ├── execute_tool  (tool)
+        └── chat          (llm)
 
-The retriever and rerank are simulated (no external vector DB / rerank service)
-so the sample runs with only an OpenAI key. In a real agent they'd call your
-vector DB and rerank provider — the span attributes stay the same.
+The embeddings and chat spans wrap real OpenAI calls. The retriever and rerank
+steps are simulated (no external vector DB or rerank service), so the sample
+runs with only an OpenAI key. In a real agent they'd call your vector DB and
+rerank provider, and the span attributes stay the same.
 """
 
 from __future__ import annotations
@@ -48,8 +49,8 @@ KNOWLEDGE_BASE = [
      "text": "WSO2 Agent Manager is a platform to run, govern, observe, and "
              "evaluate AI agents at scale."},
     {"id": "kb-2", "title": "Observability",
-     "text": "AMP captures every agent interaction — LLM calls, tool calls, "
-             "retrievals — as OpenTelemetry traces stored for analysis."},
+     "text": "AMP captures every agent interaction (LLM calls, tool calls, "
+             "retrievals) as OpenTelemetry traces stored for analysis."},
     {"id": "kb-3", "title": "Auto-instrumentation",
      "text": "Platform-hosted Python agents are auto-instrumented by an injected "
              "init container; externally-hosted agents use the amp-instrument CLI."},
@@ -95,7 +96,7 @@ def _cosine(a: list[float], b: list[float]) -> float:
 
 
 def _word_count(text: str) -> int:
-    """A trivial local tool — the kind of function a custom agent calls."""
+    """A trivial local tool: the kind of function a custom agent calls."""
     return len(text.split())
 
 
@@ -141,7 +142,7 @@ def run_agent(
 
 def _rag_pipeline(client, doc_vectors, question, tool_defs):
     with ix.chain_span(name="rag-pipeline", workflow_input=question) as (chain, chain_result):
-        # 1. Embedding — embed the user's question (real OpenAI call).
+        # 1. Embedding: embed the user's question (real OpenAI call).
         with ix.embedding_span(
             system="openai", request_model=EMBED_MODEL, texts=[question],
         ) as (_embed_span, embed_result):
@@ -150,7 +151,7 @@ def _rag_pipeline(client, doc_vectors, question, tool_defs):
             embed_result.response_model = resp.model
             embed_result.input_tokens = resp.usage.prompt_tokens
 
-        # 2. Retriever — cosine top-k over the in-memory store.
+        # 2. Retriever: cosine top-k over the in-memory store.
         with ix.retriever_span(
             vector_db="chroma", collection="amp-knowledge-base", top_k=TOP_K,
         ):
@@ -161,7 +162,7 @@ def _rag_pipeline(client, doc_vectors, question, tool_defs):
             )
             hits = [doc for doc, _score in ranked[:TOP_K]]
 
-        # 3. Rerank — reorder the hits (simulated rerank service).
+        # 3. Rerank: reorder the hits (simulated rerank service).
         with ix.rerank_span(
             model=RERANK_MODEL, query=question, candidate_count=len(hits),
         ):
@@ -174,7 +175,7 @@ def _rag_pipeline(client, doc_vectors, question, tool_defs):
 
         context_text = "\n".join(f"- {d['title']}: {d['text']}" for d in hits)
 
-        # 4. Tool — a real local tool call.
+        # 4. Tool: a real local tool call.
         with ix.tool_span(
             name="word_count",
             description="Counts the words in a piece of text.",
@@ -183,7 +184,7 @@ def _rag_pipeline(client, doc_vectors, question, tool_defs):
         ) as (_tool_span, tool_result):
             tool_result["output"] = {"word_count": _word_count(context_text)}
 
-        # 5. LLM — generate the answer with the retrieved context (real call).
+        # 5. LLM: generate the answer with the retrieved context (real call).
         input_messages = [
             {"role": "system", "content": SYSTEM_PROMPT},
             {"role": "user",

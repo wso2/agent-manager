@@ -4,7 +4,7 @@ Implements the AM chat-agent contract: ``POST /chat`` on port 8000 accepting
 ``{session_id, message}`` and returning ``{response, session_id}``.
 ``GET /health`` is provided for local checks.
 
-``init_otel()`` is the only AMP-specific setup on the manual path — there is no
+``init_otel()`` is the only AMP-specific setup on the manual path. There is no
 Traceloop SDK and no ``amp-instrument`` CLI here. It configures the OpenTelemetry
 OTLP exporter to AMP; the agent emits its own spans (see ``instrumentation.py``).
 """
@@ -24,8 +24,8 @@ log = logging.getLogger("manual-instrumentation-agent")
 
 # Configure the OTLP exporter to AMP. Reads AMP_OTEL_ENDPOINT and
 # AMP_AGENT_API_KEY from the environment:
-#   * platform-hosted (auto-instrumentation OFF) — AMP's env-injection trait sets both
-#   * externally-hosted — you set both yourself
+#   * platform-hosted (auto-instrumentation OFF): AMP's env-injection trait sets both
+#   * externally-hosted: you set both yourself
 # init_otel() raises ValueError if either is missing, and is idempotent.
 init_otel()
 
@@ -35,7 +35,7 @@ app = FastAPI(title="Manual Instrumentation Sample Agent")
 class ChatRequest(BaseModel):
     session_id: str
     message: str
-    # Optional W3C-baggage correlation — only set when an evaluation run drives the agent.
+    # Optional W3C-baggage correlation; set only when an evaluation run drives the agent.
     task_id: str | None = None
     trial_id: str | None = None
 

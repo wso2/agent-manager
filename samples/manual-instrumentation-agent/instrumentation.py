@@ -1,4 +1,4 @@
-"""Manual instrumentation helpers — AMP's instrumentation contract, in code.
+"""Manual instrumentation helpers: AMP's instrumentation contract, in code.
 
 This module is the point of the sample. Each helper opens one OpenTelemetry span
 and sets exactly the attributes AMP's observer reads for that span kind, so the
@@ -7,9 +7,9 @@ through evaluators.
 
 The contract is layered:
 
-  * Layer 1 — OpenTelemetry GenAI semantic conventions (``gen_ai.*``, plus
+  * Layer 1: OpenTelemetry GenAI semantic conventions (``gen_ai.*``, plus
     ``db.*`` for retriever spans). The primary set.
-  * Layer 2 — OpenLLMetry / Traceloop extension keys (``traceloop.*``) for the
+  * Layer 2: OpenLLMetry / Traceloop extension keys (``traceloop.*``) for the
     few decisions OTel has not standardized yet: the ``chain`` span kind,
     ``rerank``, and tool-call arguments / result.
 
@@ -43,7 +43,7 @@ def _tracer() -> trace.Tracer:
 
 # --- Trace content toggle --------------------------------------------------
 # On the auto path the Traceloop SDK reads TRACELOOP_TRACE_CONTENT. On the
-# manual path you control span content yourself — this sample honours
+# manual path you control span content yourself, so this sample honours
 # AMP_TRACE_CONTENT (the variable the platform env-injection trait sets) so
 # prompt/completion text can be suppressed without dropping the spans.
 
@@ -66,7 +66,7 @@ def _messages(msgs: list[dict[str, str]]) -> str:
 @contextmanager
 def evaluation_baggage(task_id: str | None, trial_id: str | None) -> Iterator[None]:
     """Attach W3C baggage so a trace can be joined to the evaluation trial that
-    produced it. Optional — only relevant when the agent is driven by an
+    produced it. Optional; only relevant when the agent is driven by an
     evaluation run. Baggage propagates to every span started inside the block.
     """
     ctx = context.get_current()
@@ -213,7 +213,7 @@ def retriever_span(
 
 @contextmanager
 def rerank_span(*, model: str, query: str, candidate_count: int) -> Iterator[Span]:
-    """A reranking step. Recognized as a *kind* only — a rerank span gets the
+    """A reranking step. Recognized as a *kind* only. A rerank span gets the
     rerank icon, no data card (no RerankData payload in v1). The observer reads
     the Layer-2 `traceloop.span.kind`; the other keys are de-facto signals.
     """
