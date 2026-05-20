@@ -118,15 +118,12 @@ apiGateway:
         #   include_retry_after: true
 
       # --- LLM Cost ---
-      # NOTE: llm_cost_v1.pricing_file is already set by the gateway helm chart
-      # (defaults to /etc/policy-engine/llm-pricing/model_prices.json).
-      # Only override here if you need a custom path.
-      # llm_cost_v1:
-      #   pricing_file: "/etc/policy-engine/llm-pricing/model_prices.json"
+      llm_cost_v1:
+        pricing_file: "/etc/policy-engine/llm-pricing/model_prices.json"
 
       # --- LLM Cost Based Rate Limiting (additional to ratelimit_v1) ---
-      # llm_cost_ratelimit_v1:
-      #   cost_scale_factor: 1000000000
+      llm_cost_ratelimit_v1:
+        cost_scale_factor: 1000000000
 
       # --- JWT Authentication (shared by jwt-auth and mcp-auth) ---
       jwtauth_v1:
