@@ -5,7 +5,7 @@ import fs from 'fs';
 
 // This runs in Node.js - Don't use client-side code here (browser APIs, JSX...)
 const versions: string[] = JSON.parse(fs.readFileSync('./versions.json', 'utf-8'));
-const latestVersion = versions[0]; // First entry is always the latest
+const latestVersion = versions.find(v => /^v\d+/.test(v)) ?? versions[0];
 
 // Read quickStartDockerTag from _constants.md
 const constantsFile = fs.readFileSync('./docs/_constants.md', 'utf-8');
@@ -76,6 +76,11 @@ const config: Config = {
             current: {
               label: 'Next',
               banner: 'unreleased',
+            },
+            cloud: {
+              label: 'Cloud',
+              banner: 'none',
+              path: 'cloud',
             },
             [latestVersion]: {
               label: latestVersion,

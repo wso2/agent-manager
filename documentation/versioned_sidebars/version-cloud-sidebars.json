@@ -1,0 +1,44 @@
+{
+  "docsSidebar": [
+    {
+      "type": "category",
+      "label": "Overview",
+      "collapsed": false,
+      "items": [
+        "overview/what-is-amp"
+      ]
+    },
+    {
+      "type": "category",
+      "label": "Getting Started",
+      "collapsed": false,
+      "items": [
+        "getting-started/on-cloud",
+        "getting-started/create-your-first-agent"
+      ]
+    },
+    {
+      "type": "category",
+      "label": "Concepts",
+      "collapsed": false,
+      "items": [
+        "concepts/observability",
+        "concepts/evaluation"
+      ]
+    },
+    {
+      "type": "category",
+      "label": "Tutorials",
+      "collapsed": false,
+      "items": [
+        "tutorials/observe-first-agent",
+        "tutorials/evaluation-monitors",
+        "tutorials/custom-evaluators",
+        "tutorials/register-ai-gateway",
+        "tutorials/register-llm-service-provider",
+        "tutorials/secure-agent-endpoints-with-api-keys",
+        "tutorials/configure-agent-llm-configuration"
+      ]
+    }
+  ]
+}
