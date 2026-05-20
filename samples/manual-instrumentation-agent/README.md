@@ -127,13 +127,21 @@ Add one environment variable, `OPENAI_API_KEY`. Leave `AMP_OTEL_ENDPOINT` and
 
 ## Testing
 
+If you ran it externally-hosted, the agent is listening on `localhost:8000`, so
+`curl` it directly:
+
 ```bash
 curl -X POST http://localhost:8000/chat \
   -H 'Content-Type: application/json' \
   -d '{"session_id": "demo-1", "message": "How does AMP handle observability?"}'
 ```
 
-The response is the agent's answer. Behind it, one full trace was emitted.
+If you deployed it platform-hosted, the agent runs inside the AMP cluster, not on
+your machine. Test it from the agent's **Chat** interface in the AMP Console
+instead.
+
+Either way, the response is the agent's answer, and behind it one full trace was
+emitted.
 
 To see an error badge, point the agent at a model that doesn't exist (edit
 `CHAT_MODEL` in `agent.py`). The LLM call fails, `mark_error` flags the agent
