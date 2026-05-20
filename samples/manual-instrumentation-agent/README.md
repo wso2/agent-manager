@@ -71,7 +71,11 @@ the OpenLLMetry `traceloop.*` extension keys for the gaps OTel hasn't standardiz
 
 ## Run it — externally-hosted
 
-You set the two AMP environment variables yourself.
+First register the agent in the AMP Console and generate its API key — follow
+[Register an externally-hosted agent](https://wso2.github.io/agent-manager/docs/latest/getting-started/create-your-first-agent/#register-an-externally-hosted-agent).
+That gives you the OTLP endpoint and the `AMP_AGENT_API_KEY`.
+
+Then set the two AMP environment variables yourself and run the agent:
 
 ```bash
 cd samples/manual-instrumentation-agent
@@ -95,7 +99,8 @@ auto-instrumentation off**. That makes AMP attach the env-injection trait — wh
 still supplies `AMP_OTEL_ENDPOINT` and `AMP_AGENT_API_KEY` — instead of the
 auto-instrumentation init container. The agent then does its own instrumentation.
 
-In the AMP Console, **Add Agent → Platform-Hosted Agent**:
+Follow [Create a platform-hosted agent](https://wso2.github.io/agent-manager/docs/latest/getting-started/create-your-first-agent/#create-a-platform-hosted-agent)
+for the full walkthrough. Use these values in the create-agent form:
 
 | Field | Value |
 |---|---|
