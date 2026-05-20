@@ -28,7 +28,7 @@ type ProjectListItem struct {
 	// Display name of the project
 	DisplayName string `json:"displayName"`
 	// Description of the project
-	Description string `json:"description"`
+	Description *string `json:"description,omitempty"`
 	// Timestamp when the project was created
 	CreatedAt time.Time `json:"createdAt"`
 }
@@ -37,13 +37,12 @@ type ProjectListItem struct {
 // This constructor will assign default values to properties that have it defined,
 // and makes sure properties required by API are set, but the set of arguments
 // will change when the set of required properties is changed
-func NewProjectListItem(uuid string, name string, orgName string, displayName string, description string, createdAt time.Time) *ProjectListItem {
+func NewProjectListItem(uuid string, name string, orgName string, displayName string, createdAt time.Time) *ProjectListItem {
 	this := ProjectListItem{}
 	this.Uuid = uuid
 	this.Name = name
 	this.OrgName = orgName
 	this.DisplayName = displayName
-	this.Description = description
 	this.CreatedAt = createdAt
 	return &this
 }
@@ -152,6 +151,38 @@ func (o *ProjectListItem) SetDisplayName(v string) {
 	o.DisplayName = v
 }
 
+// GetDescription returns the Description field value if set, zero value otherwise.
+func (o *ProjectListItem) GetDescription() string {
+	if o == nil || IsNil(o.Description) {
+		var ret string
+		return ret
+	}
+	return *o.Description
+}
+
+// GetDescriptionOk returns a tuple with the Description field value if set, nil otherwise
+// and a boolean to check if the value has been set.
+func (o *ProjectListItem) GetDescriptionOk() (*string, bool) {
+	if o == nil || IsNil(o.Description) {
+		return nil, false
+	}
+	return o.Description, true
+}
+
+// HasDescription returns a boolean if a field has been set.
+func (o *ProjectListItem) HasDescription() bool {
+	if o != nil && !IsNil(o.Description) {
+		return true
+	}
+
+	return false
+}
+
+// SetDescription gets a reference to the given string and assigns it to the Description field.
+func (o *ProjectListItem) SetDescription(v string) {
+	o.Description = &v
+}
+
 // GetCreatedAt returns the CreatedAt field value
 func (o *ProjectListItem) GetCreatedAt() time.Time {
 	if o == nil {
@@ -190,7 +221,9 @@ func (o ProjectListItem) ToMap() (map[string]interface{}, error) {
 	toSerialize["name"] = o.Name
 	toSerialize["orgName"] = o.OrgName
 	toSerialize["displayName"] = o.DisplayName
-	toSerialize["description"] = o.Description
+	if !IsNil(o.Description) {
+		toSerialize["description"] = o.Description
+	}
 	toSerialize["createdAt"] = o.CreatedAt
 	return toSerialize, nil
 }
