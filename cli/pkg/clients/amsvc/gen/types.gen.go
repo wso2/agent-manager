@@ -3328,6 +3328,9 @@ type ProjectListItem struct {
 	// CreatedAt Timestamp when the project was created
 	CreatedAt time.Time `json:"createdAt"`
 
+	// Description Description of the project
+	Description *string `json:"description,omitempty"`
+
 	// DisplayName Display name of the project
 	DisplayName string `json:"displayName"`
 

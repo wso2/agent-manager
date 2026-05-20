@@ -8040,6 +8040,9 @@ components:
         displayName:
           type: string
           description: Display name of the project
+        description:
+          type: string
+          description: Description of the project
         createdAt:
           type: string
           format: date-time
