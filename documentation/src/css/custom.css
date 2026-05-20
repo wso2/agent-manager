@@ -18,7 +18,7 @@
 }
 
 /* For readability concerns, you should choose a lighter palette in dark mode. */
-[data-theme='dark'] {
+[data-theme="dark"] {
   --ifm-color-primary: #fa7b3f;
   --ifm-color-primary-dark: #fa7b3f;
   --ifm-color-primary-darker: #fa7b3f;
@@ -40,7 +40,7 @@
 
 /* GitHub icon styling */
 .header-github-link::before {
-  content: '';
+  content: "";
   width: 24px;
   height: 24px;
   display: flex;
@@ -48,7 +48,7 @@
     no-repeat;
 }
 
-[data-theme='dark'] .header-github-link::before {
+[data-theme="dark"] .header-github-link::before {
   background: url("data:image/svg+xml,%3Csvg viewBox='0 0 24 24' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath fill='white' d='M12 .297c-6.63 0-12 5.373-12 12 0 5.303 3.438 9.8 8.205 11.385.6.113.82-.258.82-.577 0-.285-.01-1.04-.015-2.04-3.338.724-4.042-1.61-4.042-1.61C4.422 18.07 3.633 17.7 3.633 17.7c-1.087-.744.084-.729.084-.729 1.205.084 1.838 1.236 1.838 1.236 1.07 1.835 2.809 1.305 3.495.998.108-.776.417-1.305.76-1.605-2.665-.3-5.466-1.332-5.466-5.93 0-1.31.465-2.38 1.235-3.22-.135-.303-.54-1.523.105-3.176 0 0 1.005-.322 3.3 1.23.96-.267 1.98-.399 3-.405 1.02.006 2.04.138 3 .405 2.28-1.552 3.285-1.23 3.285-1.23.645 1.653.24 2.873.12 3.176.765.84 1.23 1.91 1.23 3.22 0 4.61-2.805 5.625-5.475 5.92.42.36.81 1.096.81 2.22 0 1.606-.015 2.896-.015 3.286 0 .315.21.69.825.57C20.565 22.092 24 17.592 24 12.297c0-6.627-5.373-12-12-12'/%3E%3C/svg%3E")
     no-repeat;
 }
@@ -100,7 +100,7 @@
 }
 
 /* LIGHT MODE — white base, black text, orange accents */
-[data-theme='light'] .DocSearch {
+[data-theme="light"] .DocSearch {
   --docsearch-primary-color: #ff7a18; /* orange */
   --docsearch-text-color: #000000;
   --docsearch-muted-color: #555555;
@@ -127,9 +127,8 @@
   --docsearch-logo-color: #ff7a18;
 }
 
-
 /* DARK MODE — black base, white text, orange accents */
-[data-theme='dark'] .DocSearch {
+[data-theme="dark"] .DocSearch {
   --docsearch-primary-color: #ff7a18; /* orange */
   --docsearch-text-color: #ffffff;
   --docsearch-muted-color: #b0b0b0;
@@ -153,11 +152,7 @@
   --docsearch-footer-background: #0f0f0f;
 
   /* Keys / subtle depth */
-  --docsearch-key-gradient: linear-gradient(
-    -26.5deg,
-    #2a2a2a 0%,
-    #111111 100%
-  );
+  --docsearch-key-gradient: linear-gradient(-26.5deg, #2a2a2a 0%, #111111 100%);
 
   /* Accents */
   --docsearch-highlight-color: #ff7a18;
@@ -165,204 +160,204 @@
 }
 
 /* LIGHT MODE - Light theme for search */
-[data-theme='light'] .DocSearch-AskAI {
+[data-theme="light"] .DocSearch-AskAI {
   background: #f5f5f5 !important;
   border: 1px solid #ff7a18;
 }
 
-[data-theme='light'] .DocSearch-Button {
+[data-theme="light"] .DocSearch-Button {
   background: #ffffff !important;
   border: 1px solid #e0e0e0 !important;
   color: #000000 !important;
 }
 
-[data-theme='light'] .DocSearch-Button:hover,
-[data-theme='light'] .DocSearch-Button:focus,
-[data-theme='light'] .DocSearch-Button:active {
+[data-theme="light"] .DocSearch-Button:hover,
+[data-theme="light"] .DocSearch-Button:focus,
+[data-theme="light"] .DocSearch-Button:active {
   background: #f5f5f5 !important;
   border-color: #ff7a18 !important;
   box-shadow: none !important;
 }
 
-[data-theme='light'] .DocSearch-Form {
+[data-theme="light"] .DocSearch-Form {
   background: #ffffff !important;
   border: 1px solid #e0e0e0 !important;
   box-shadow: none !important;
 }
 
-[data-theme='light'] .DocSearch-Input {
+[data-theme="light"] .DocSearch-Input {
   background: transparent !important;
   color: #000000 !important;
 }
 
-[data-theme='light'] .DocSearch-Input:focus {
+[data-theme="light"] .DocSearch-Input:focus {
   outline: none !important;
   box-shadow: none !important;
 }
 
-[data-theme='light'] .DocSearch-Hit[aria-selected="true"] a,
-[data-theme='light'] .DocSearch-Hit--active {
+[data-theme="light"] .DocSearch-Hit[aria-selected="true"] a,
+[data-theme="light"] .DocSearch-Hit--active {
   background: #f0f0f0 !important;
   color: #000000 !important;
 }
 
-[data-theme='light'] .DocSearch-AskAI,
-[data-theme='light'] .DocSearch-StartScreen .DocSearch-Help,
-[data-theme='light'] [class*="DocSearch"][class*="AskAI"] {
+[data-theme="light"] .DocSearch-AskAI,
+[data-theme="light"] .DocSearch-StartScreen .DocSearch-Help,
+[data-theme="light"] [class*="DocSearch"][class*="AskAI"] {
   background: #f5f5f5 !important;
   background-color: #f5f5f5 !important;
 }
 
-[data-theme='light'] .DocSearch-Button-Key {
+[data-theme="light"] .DocSearch-Button-Key {
   background: #f0f0f0 !important;
   border-color: #d0d0d0 !important;
   color: #ff7a18 !important;
   box-shadow: none !important;
 }
 
-[data-theme='light'] .DocSearch-Button-Placeholder {
+[data-theme="light"] .DocSearch-Button-Placeholder {
   color: #666666 !important;
 }
 
-[data-theme='light'] .DocSearch-Button:hover .DocSearch-Button-Key,
-[data-theme='light'] .DocSearch-Button:focus .DocSearch-Button-Key {
+[data-theme="light"] .DocSearch-Button:hover .DocSearch-Button-Key,
+[data-theme="light"] .DocSearch-Button:focus .DocSearch-Button-Key {
   background: #e8e8e8 !important;
   border-color: #ff7a18 !important;
 }
 
-[data-theme='light'] .DocSearch-Commands-Key,
-[data-theme='light'] .DocSearch-Footer button,
-[data-theme='light'] .DocSearch-Footer kbd {
+[data-theme="light"] .DocSearch-Commands-Key,
+[data-theme="light"] .DocSearch-Footer button,
+[data-theme="light"] .DocSearch-Footer kbd {
   background: #f0f0f0 !important;
   border-color: #d0d0d0 !important;
   color: #000000 !important;
 }
 
-[data-theme='light'] [class*="DocSearch"] kbd {
+[data-theme="light"] [class*="DocSearch"] kbd {
   background: #f0f0f0 !important;
   color: #000000 !important;
   border: 1px solid #d0d0d0 !important;
   box-shadow: none !important;
 }
 
-[data-theme='light'] .DocSearch-Footer {
+[data-theme="light"] .DocSearch-Footer {
   background: #ffffff !important;
   border-top: 1px solid #e0e0e0 !important;
 }
 
-[data-theme='light'] .DocSearch-StartScreen,
-[data-theme='light'] .DocSearch-NoResults {
+[data-theme="light"] .DocSearch-StartScreen,
+[data-theme="light"] .DocSearch-NoResults {
   background: transparent !important;
 }
 
-[data-theme='light'] .DocSearch-NoResults .DocSearch-StartScreen-Icon,
-[data-theme='light'] .DocSearch-NoResults svg {
+[data-theme="light"] .DocSearch-NoResults .DocSearch-StartScreen-Icon,
+[data-theme="light"] .DocSearch-NoResults svg {
   color: #ff7a18 !important;
   stroke: #ff7a18 !important;
 }
 
 /* DARK MODE - Dark theme for search */
-[data-theme='dark'] .DocSearch-AskAI {
+[data-theme="dark"] .DocSearch-AskAI {
   background: #0e0e0e !important;
   border: 1px solid #ff7a18;
 }
 
-[data-theme='dark'] .DocSearch-Button {
+[data-theme="dark"] .DocSearch-Button {
   background: #1a1a1a !important;
   border: 1px solid #2a2a2a !important;
   color: #ffffff !important;
 }
 
-[data-theme='dark'] .DocSearch-Button:hover,
-[data-theme='dark'] .DocSearch-Button:focus,
-[data-theme='dark'] .DocSearch-Button:active {
+[data-theme="dark"] .DocSearch-Button:hover,
+[data-theme="dark"] .DocSearch-Button:focus,
+[data-theme="dark"] .DocSearch-Button:active {
   background: #2a2a2a !important;
   border-color: #ff7a18 !important;
   box-shadow: none !important;
 }
 
-[data-theme='dark'] .DocSearch-Form {
+[data-theme="dark"] .DocSearch-Form {
   background: #1a1a1a !important;
   border: 1px solid #2a2a2a !important;
   box-shadow: none !important;
 }
 
-[data-theme='dark'] .DocSearch-Input {
+[data-theme="dark"] .DocSearch-Input {
   background: transparent !important;
   color: #ffffff !important;
 }
 
-[data-theme='dark'] .DocSearch-Input:focus {
+[data-theme="dark"] .DocSearch-Input:focus {
   outline: none !important;
   box-shadow: none !important;
 }
 
-[data-theme='dark'] .DocSearch-Hit[aria-selected="true"] a,
-[data-theme='dark'] .DocSearch-Hit--active {
+[data-theme="dark"] .DocSearch-Hit[aria-selected="true"] a,
+[data-theme="dark"] .DocSearch-Hit--active {
   background: #2a2a2a !important;
   color: #ffffff !important;
 }
 
-[data-theme='dark'] .DocSearch-AskAI,
-[data-theme='dark'] .DocSearch-StartScreen .DocSearch-Help,
-[data-theme='dark'] [class*="DocSearch"][class*="AskAI"] {
+[data-theme="dark"] .DocSearch-AskAI,
+[data-theme="dark"] .DocSearch-StartScreen .DocSearch-Help,
+[data-theme="dark"] [class*="DocSearch"][class*="AskAI"] {
   background: #1a1a1a !important;
   background-color: #1a1a1a !important;
 }
 
-[data-theme='dark'] .DocSearch-Button-Key {
+[data-theme="dark"] .DocSearch-Button-Key {
   background: #2a2a2a !important;
   border-color: #ff7a18 !important;
   color: #ff7a18 !important;
   box-shadow: none !important;
 }
 
-[data-theme='dark'] .DocSearch-Button-Placeholder {
+[data-theme="dark"] .DocSearch-Button-Placeholder {
   color: #b0b0b0 !important;
 }
 
-[data-theme='dark'] .DocSearch-Button:hover .DocSearch-Button-Key,
-[data-theme='dark'] .DocSearch-Button:focus .DocSearch-Button-Key {
+[data-theme="dark"] .DocSearch-Button:hover .DocSearch-Button-Key,
+[data-theme="dark"] .DocSearch-Button:focus .DocSearch-Button-Key {
   background: #3a3a3a !important;
   border-color: #ff7a18 !important;
 }
 
-[data-theme='dark'] .DocSearch-Commands-Key,
-[data-theme='dark'] .DocSearch-Footer button,
-[data-theme='dark'] .DocSearch-Footer kbd {
+[data-theme="dark"] .DocSearch-Commands-Key,
+[data-theme="dark"] .DocSearch-Footer button,
+[data-theme="dark"] .DocSearch-Footer kbd {
   background: #2a2a2a !important;
   border-color: #3a3a3a !important;
   color: #ffffff !important;
 }
 
-[data-theme='dark'] [class*="DocSearch"] kbd {
+[data-theme="dark"] [class*="DocSearch"] kbd {
   background: #2a2a2a !important;
   color: #ffffff !important;
   border: 1px solid #3a3a3a !important;
   box-shadow: none !important;
 }
 
-[data-theme='dark'] .DocSearch-Footer {
+[data-theme="dark"] .DocSearch-Footer {
   background: #0f0f0f !important;
   border-top: 1px solid #2a2a2a !important;
 }
 
-[data-theme='dark'] .DocSearch-StartScreen,
-[data-theme='dark'] .DocSearch-NoResults {
+[data-theme="dark"] .DocSearch-StartScreen,
+[data-theme="dark"] .DocSearch-NoResults {
   background: transparent !important;
 }
 
-[data-theme='dark'] .DocSearch-NoResults .DocSearch-StartScreen-Icon,
-[data-theme='dark'] .DocSearch-NoResults svg {
+[data-theme="dark"] .DocSearch-NoResults .DocSearch-StartScreen-Icon,
+[data-theme="dark"] .DocSearch-NoResults svg {
   color: #ff7a18 !important;
   stroke: #ff7a18 !important;
 }
 
 /* Match highlighting in Algolia results: use text color only */
-[data-theme='light'] .DocSearch-Hits mark,
-[data-theme='light'] .DocSearch-Hit mark,
-[data-theme='dark'] .DocSearch-Hits mark,
-[data-theme='dark'] .DocSearch-Hit mark {
+[data-theme="light"] .DocSearch-Hits mark,
+[data-theme="light"] .DocSearch-Hit mark,
+[data-theme="dark"] .DocSearch-Hits mark,
+[data-theme="dark"] .DocSearch-Hit mark {
   background: transparent !important;
   color: #ff7a18 !important;
   text-decoration: none !important;
@@ -370,48 +365,56 @@
 }
 
 /* Announcement Bar Styling */
-[data-theme='light'] .announcementBar,
-[data-theme='light'] .announcement-bar,
-[data-theme='light'] div[class*='announcementBar'] {
+[data-theme="light"] .announcementBar,
+[data-theme="light"] .announcement-bar,
+[data-theme="light"] div[class*="announcementBar"] {
   background: #e3e3e3 !important;
   color: #1c1e21 !important;
   border: none !important;
   box-shadow: none !important;
 }
 
-[data-theme='light'] .announcementBar_content,
-[data-theme='light'] .announcement-bar__content,
-[data-theme='light'] div[class*='announcementBar'] > div {
+[data-theme="light"] .announcementBar_content,
+[data-theme="light"] .announcement-bar__content,
+[data-theme="light"] div[class*="announcementBar"] > div {
   color: #1c1e21 !important;
 }
 
-[data-theme='light'] .announcementBar_close,
-[data-theme='light'] .announcement-bar__close,
-[data-theme='light'] button[class*='close'] {
+[data-theme="light"] .announcementBar_close,
+[data-theme="light"] .announcement-bar__close,
+[data-theme="light"] button[class*="close"] {
   color: #1c1e21 !important;
   opacity: 0.6;
 }
 
-[data-theme='light'] .announcementBar_close:hover,
-[data-theme='light'] .announcement-bar__close:hover,
-[data-theme='light'] button[class*='close']:hover {
+[data-theme="light"] .announcementBar_close:hover,
+[data-theme="light"] .announcement-bar__close:hover,
+[data-theme="light"] button[class*="close"]:hover {
   opacity: 1;
 }
 
-[data-theme='dark'] .announcementBar {
+[data-theme="dark"] .announcementBar {
   background: linear-gradient(90deg, #ff8c3a 0%, #ff7a18 100%);
   color: #ffffff;
 }
 
-[data-theme='dark'] .announcementBar_content {
+[data-theme="dark"] .announcementBar_content {
   color: #ffffff;
 }
 
-[data-theme='dark'] .announcementBar_close {
+[data-theme="dark"] .announcementBar_close {
   color: #ffffff;
   opacity: 0.8;
 }
 
-[data-theme='dark'] .announcementBar_close:hover {
+[data-theme="dark"] .announcementBar_close:hover {
   opacity: 1;
+}
+
+/* Cloud version — distinct entry in the version dropdown */
+.dropdown__link[href*="/docs/cloud"] {
+  color: #fa7b3f;
+  border-left: 3px solid #fa7b3f;
+  padding-left: calc(var(--ifm-menu-link-padding-horizontal) - 3px);
+  font-weight: 600;
 }
