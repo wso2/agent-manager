@@ -231,12 +231,20 @@ function getCriteriaFieldErrors(
   return errors;
 }
 
+/** True when at least one limit type is toggled on AND has a valid quota. Used for
+ *  dirty-state detection and payload filtering (skip empty disabled rows). */
 function hasConfiguredCriteria(criteria: CriteriaState): boolean {
   return (
     (criteria.request.enabled && Number(criteria.request.quota) >= 1) ||
     (criteria.token.enabled && Number(criteria.token.quota) >= 1) ||
     (criteria.cost.enabled && Number(criteria.cost.quota) > 0)
   );
+}
+
+/** True when at least one limit type is toggled on, regardless of quota value.
+ *  Used for validation inclusion so enabled-but-invalid rows surface field errors. */
+function hasEnabledCriteria(criteria: CriteriaState): boolean {
+  return criteria.request.enabled || criteria.token.enabled || criteria.cost.enabled;
 }
 
 type CriteriaBlockProps = {
@@ -321,11 +329,15 @@ function CriteriaBlock({
                   size="small"
                   type="number"
                   value={criteria.request.quota}
-                  onChange={(e) => update("request", { quota: e.target.value })}
+                  onChange={(e) =>
+                    update("request", {
+                      quota: e.target.value === "" ? "" : String(Math.trunc(Number(e.target.value))),
+                    })
+                  }
                   disabled={disabled}
                   error={!!fieldErrors?.["request.quota"]}
                   helperText={fieldErrors?.["request.quota"]}
-                  slotProps={{ input: { inputProps: { min: 1 } } }}
+                  slotProps={{ input: { inputProps: { min: 1, step: 1 } } }}
                 />
               </FormControl>
             </Grid>
@@ -397,11 +409,15 @@ function CriteriaBlock({
                   size="small"
                   type="number"
                   value={criteria.token.quota}
-                  onChange={(e) => update("token", { quota: e.target.value })}
+                  onChange={(e) =>
+                    update("token", {
+                      quota: e.target.value === "" ? "" : String(Math.trunc(Number(e.target.value))),
+                    })
+                  }
                   disabled={disabled}
                   error={!!fieldErrors?.["token.quota"]}
                   helperText={fieldErrors?.["token.quota"]}
-                  slotProps={{ input: { inputProps: { min: 1 } } }}
+                  slotProps={{ input: { inputProps: { min: 1, step: 1 } } }}
                 />
               </FormControl>
             </Grid>
@@ -478,7 +494,7 @@ function CriteriaBlock({
                     disabled={disabled}
                     error={!!fieldErrors?.["cost.quota"]}
                     helperText={fieldErrors?.["cost.quota"]}
-                    slotProps={{ input: { inputProps: { min: 0.000001, step: 0.01 } } }}
+                    slotProps={{ input: { inputProps: { min: 0.000001, step: 0.000001 } } }}
                   />
                 </FormControl>
               </Grid>
@@ -721,7 +737,7 @@ export function LLMProviderRateLimitingTab({
         blockKey: "resourceWise-default",
       });
       Object.entries(backendResourceWiseMap).forEach(([res, c]) => {
-        if (hasConfiguredCriteria(c)) {
+        if (hasEnabledCriteria(c)) {
           criteriaToValidate.push({ c, blockKey: `resourceWise-${res}` });
         }
       });
@@ -734,6 +750,12 @@ export function LLMProviderRateLimitingTab({
         if (blockKey.startsWith("resourceWise-") && blockKey !== "resourceWise-default") {
           const resKey = blockKey.replace("resourceWise-", "");
           setBackendExpandedResources((prev) => new Set(prev).add(resKey));
+          const resIndex = filteredResources.findIndex(
+            (r) => getRateLimitResourceKey(r) === resKey,
+          );
+          if (resIndex >= 0) {
+            setResourcePage(Math.floor(resIndex / RESOURCES_PER_PAGE));
+          }
         }
         return;
       }

@@ -843,9 +843,14 @@ func (s *LLMProviderDeploymentService) generateLLMProviderDeploymentYAML(provide
 	// after llm-cost-based-ratelimit to guarantee it fires first at response time.
 	// llm-cost is scoped to the same paths as llm-cost-based-ratelimit, not globally.
 	if len(costPaths) > 0 {
-		llmCostPaths := make([]models.LLMPolicyPath, len(costPaths))
-		for i, cp := range costPaths {
-			llmCostPaths[i] = models.LLMPolicyPath{Path: cp.Path, Methods: cp.Methods}
+		seen := make(map[string]bool, len(costPaths))
+		var llmCostPaths []models.LLMPolicyPath
+		for _, cp := range costPaths {
+			key := cp.Path + "|" + strings.Join(cp.Methods, ",")
+			if !seen[key] {
+				seen[key] = true
+				llmCostPaths = append(llmCostPaths, models.LLMPolicyPath{Path: cp.Path, Methods: cp.Methods})
+			}
 		}
 		policies = append(policies, models.LLMPolicy{
 			Name:    llmCostPolicyName,
