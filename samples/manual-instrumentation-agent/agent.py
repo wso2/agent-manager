@@ -10,20 +10,24 @@ One ``run_agent`` call produces one trace covering every span kind AMP supports:
 
     invoke_agent (agent, root)
     └── rag-pipeline (chain)
-        ├── embeddings    (embedding)
-        ├── vector_search (retriever)
-        ├── rerank        (rerank)
-        ├── execute_tool  (tool)
-        └── chat          (llm)
+        ├── embeddings    (embedding)  - real OpenAI call
+        ├── vector_search (retriever)  - simulated
+        ├── rerank        (rerank)     - simulated
+        ├── chat          (llm)        - simulated: decides to call a tool
+        ├── execute_tool  (tool)       - real local call
+        └── chat          (llm)        - real OpenAI call: final answer
 
-The embeddings and chat spans wrap real OpenAI calls. The retriever and rerank
-steps are simulated (no external vector DB or rerank service), so the sample
-runs with only an OpenAI key. In a real agent they'd call your vector DB and
-rerank provider, and the span attributes stay the same.
+The embeddings span and the final chat span wrap real OpenAI calls. The
+retriever, rerank, and the tool-deciding chat call are simulated (no external
+vector DB, rerank service, or model round-trip), so the trace is deterministic
+and the sample runs with only an OpenAI key. In a real agent those would call
+your vector DB, rerank provider, and the model, and the span attributes stay
+the same.
 """
 
 from __future__ import annotations
 
+import json
 import math
 import os
 import uuid
@@ -174,31 +178,62 @@ def _rag_pipeline(client, doc_vectors, question, tool_defs):
             )
 
         context_text = "\n".join(f"- {d['title']}: {d['text']}" for d in hits)
-
-        # 4. Tool: a real local tool call.
-        with ix.tool_span(
-            name="word_count",
-            description="Counts the words in a piece of text.",
-            call_id=str(uuid.uuid4()),
-            arguments={"text": context_text},
-        ) as (_tool_span, tool_result):
-            tool_result["output"] = {"word_count": _word_count(context_text)}
-
-        # 5. LLM: generate the answer with the retrieved context (real call).
-        input_messages = [
+        base_messages = [
             {"role": "system", "content": SYSTEM_PROMPT},
             {"role": "user",
              "content": f"Context:\n{context_text}\n\nQuestion: {question}"},
         ]
+
+        # 4. LLM call 1: given the tools, the model asks to run one. A real
+        #    model returns this tool call; the sample hard-codes it to keep the
+        #    trace deterministic, the same reason the rerank step is simulated.
+        call_id = f"call_{uuid.uuid4().hex[:8]}"
+        tool_call = {
+            "id": call_id,
+            "type": "function",
+            "function": {
+                "name": "word_count",
+                "arguments": json.dumps({"text": context_text}),
+            },
+        }
         with ix.llm_span(
             system="openai",
             request_model=CHAT_MODEL,
-            input_messages=input_messages,
+            input_messages=base_messages,
             temperature=0.3,
             tools=tool_defs,
+        ) as (_decide_span, decide_result):
+            # Simulated: no OpenAI call. A real call fills these from the
+            # response; here the tool call is hard-coded and usage stays zero.
+            decide_result.response_model = CHAT_MODEL
+            decide_result.output_messages = [
+                {"role": "assistant", "content": None, "tool_calls": [tool_call]},
+            ]
+
+        # 5. Tool: run the tool the model asked for (real local call). The span
+        #    call_id matches the tool call above, linking it to the decision.
+        with ix.tool_span(
+            name="word_count",
+            description="Counts the words in a piece of text.",
+            call_id=call_id,
+            arguments={"text": context_text},
+        ) as (_tool_span, tool_result):
+            tool_result["output"] = {"word_count": _word_count(context_text)}
+
+        # 6. LLM call 2: feed the tool result back, get the answer (real call).
+        answer_messages = base_messages + [
+            {"role": "assistant", "content": None, "tool_calls": [tool_call]},
+            {"role": "tool", "tool_call_id": call_id,
+             "content": json.dumps(tool_result["output"])},
+        ]
+        with ix.llm_span(
+            system="openai",
+            request_model=CHAT_MODEL,
+            input_messages=answer_messages,
+            temperature=0.3,
         ) as (_llm_span, llm_result):
             resp = client.chat.completions.create(
-                model=CHAT_MODEL, messages=input_messages, temperature=0.3,
+                model=CHAT_MODEL, messages=answer_messages, temperature=0.3,
             )
             answer = resp.choices[0].message.content or ""
             llm_result.response_model = resp.model
