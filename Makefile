@@ -233,8 +233,14 @@ console-logs:
 	@docker logs -f agent-manager-console
 
 # amctl CLI client codegen (oapi-codegen against local OpenAPI spec)
+# Pinned to the same version used in .github/workflows/cli-codegen-check.yaml
+OAPI_CODEGEN_VERSION := v2.6.0
+
 amctl-gen-client:
-	@command -v oapi-codegen >/dev/null || (echo "Installing oapi-codegen..." && go install github.com/oapi-codegen/oapi-codegen/v2/cmd/oapi-codegen@latest)
+	@if ! command -v oapi-codegen >/dev/null || ! oapi-codegen -version 2>&1 | grep -qx '$(OAPI_CODEGEN_VERSION)'; then \
+		echo "Installing oapi-codegen $(OAPI_CODEGEN_VERSION)..."; \
+		go install github.com/oapi-codegen/oapi-codegen/v2/cmd/oapi-codegen@$(OAPI_CODEGEN_VERSION); \
+	fi
 	@oapi-codegen -config cli/pkg/clients/amsvc/gen/oapi-codegen.yaml agent-manager-service/docs/api_v1_openapi.yaml
 	@oapi-codegen -config cli/pkg/clients/amsvc/gen/oapi-codegen-client.yaml agent-manager-service/docs/api_v1_openapi.yaml
 	@echo "amctl client generated successfully"
