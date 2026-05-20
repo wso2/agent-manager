@@ -701,6 +701,22 @@ export function LLMProviderRateLimitingTab({
     return current !== lastSavedRef.current;
   }, [providerData, getPayloadSnapshot]);
 
+  const filteredResources = useMemo(() => {
+    if (!backendResourceSearch.trim()) return resources;
+    const q = backendResourceSearch.toLowerCase();
+    return resources.filter(
+      (r) =>
+        getRateLimitResourceKey(r).toLowerCase().includes(q) ||
+        r.path.toLowerCase().includes(q) ||
+        (r.summary ?? "").toLowerCase().includes(q),
+    );
+  }, [resources, backendResourceSearch]);
+
+  const RESOURCES_PER_PAGE = 10;
+  const [resourcePage, setResourcePage] = useState(0);
+
+  useEffect(() => { setResourcePage(0); }, [filteredResources]);
+
   const handleSave = useCallback(async () => {
     if (!providerData) return;
     if (isLoading) return;
@@ -813,6 +829,7 @@ export function LLMProviderRateLimitingTab({
     hasBackendResourceWiseConfig,
     onUpdate,
     getPayloadSnapshot,
+    filteredResources,
   ]);
 
   const handleDiscard = useCallback(() => {
@@ -820,22 +837,6 @@ export function LLMProviderRateLimitingTab({
     setStatus(null);
     setCriteriaFieldErrors({});
   }, [loadFromProvider]);
-
-  const filteredResources = useMemo(() => {
-    if (!backendResourceSearch.trim()) return resources;
-    const q = backendResourceSearch.toLowerCase();
-    return resources.filter(
-      (r) =>
-        getRateLimitResourceKey(r).toLowerCase().includes(q) ||
-        r.path.toLowerCase().includes(q) ||
-        (r.summary ?? "").toLowerCase().includes(q),
-    );
-  }, [resources, backendResourceSearch]);
-
-  const RESOURCES_PER_PAGE = 10;
-  const [resourcePage, setResourcePage] = useState(0);
-
-  useEffect(() => { setResourcePage(0); }, [filteredResources]);
 
   const pagedResources = useMemo(
     () => filteredResources.slice(
