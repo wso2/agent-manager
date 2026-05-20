@@ -26,11 +26,11 @@ import {
 } from "@wso2/oxygen-ui";
 import { generatePath, Outlet, useNavigate } from "react-router-dom";
 import { useAuthHooks } from "@agent-management-platform/auth";
-import { Logo, useExternalComponentModules, useExternalConfigModules } from "@agent-management-platform/views";
+import { Logo, useExternalComponentModules } from "@agent-management-platform/views";
+import { globalConfig, absoluteRouteMap } from "@agent-management-platform/types";
 import { LeftNavigation, type NavigationItem, type NavigationSection } from "./LeftNavigation";
 import { useNavigationItems } from "./navigationItems";
 import { TopNavigation } from "./TopNavigation";
-import { absoluteRouteMap } from "@agent-management-platform/types";
 import { useListOrganizations } from "@agent-management-platform/api-client";
 import { MountPoints } from "../../types";
 
@@ -63,10 +63,6 @@ export function OxygenLayout() {
     useExternalComponentModules(MountPoints.BottomLeftPanel);
   const externalBottomRightComponentModules =
     useExternalComponentModules(MountPoints.BottomRightPanel);
-  const footerLinkConfigs = useExternalConfigModules(MountPoints.FooterLinks);
-  const footerLinks = footerLinkConfigs[0]?.value as
-    { privacyPolicyUrl?: string; termsOfUseUrl?: string } | undefined;
-
   const { data: organizations } = useListOrganizations();
   const homePath = useMemo(() => {
     return generatePath(absoluteRouteMap.children.org.path, {
@@ -179,8 +175,15 @@ export function OxygenLayout() {
               </div>
             ))
           }
-          <Footer.Link href={footerLinks?.termsOfUseUrl ?? "#terms"} target="_blank" rel="noopener noreferrer">Terms & Conditions</Footer.Link>
-          <Footer.Link href={footerLinks?.privacyPolicyUrl ?? "#privacy"} target="_blank" rel="noopener noreferrer">Privacy Policy</Footer.Link>
+          {globalConfig.docsUrl && (
+            <Footer.Link href={globalConfig.docsUrl + "/overview/what-is-amp/"} target="_blank" rel="noopener noreferrer">Documentation</Footer.Link>
+          )}
+          {globalConfig.footerLinks?.termsOfUseUrl && (
+            <Footer.Link href={globalConfig.footerLinks.termsOfUseUrl} target="_blank" rel="noopener noreferrer">Terms & Conditions</Footer.Link>
+          )}
+          {globalConfig.footerLinks?.privacyPolicyUrl && (
+            <Footer.Link href={globalConfig.footerLinks.privacyPolicyUrl} target="_blank" rel="noopener noreferrer">Privacy Policy</Footer.Link>
+          )}
         </Footer>
       </AppShell.Footer>
     </AppShell>

@@ -54,4 +54,9 @@ window.__RUNTIME_CONFIG__ = {
     nemoGuard: false,
     semanticGuardrails: false,
   },
+  docsUrl: 'https://wso2.github.io/agent-manager/docs/next',
+  footerLinks: {
+    privacyPolicyUrl: 'https://wso2.com/agent-platform/agent-manager/',
+    termsOfUseUrl: 'https://wso2.com/agent-platform/agent-manager/',
+  },
 };

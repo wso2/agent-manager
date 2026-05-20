@@ -37,6 +37,13 @@ export interface AppConfig {
    * OOTB policies are always shown regardless of these flags.
    */
   guardrailCapabilities?: GuardrailCapabilities;
+  /** URL for the product documentation. Shown as a "Docs" link in the footer. */
+  docsUrl?: string;
+  /** URLs rendered in the footer. */
+  footerLinks?: {
+    privacyPolicyUrl?: string;
+    termsOfUseUrl?: string;
+  };
 }
 
 export type GuardrailCapabilities = {
