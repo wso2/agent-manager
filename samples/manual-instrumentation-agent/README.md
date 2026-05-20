@@ -143,6 +143,18 @@ instead.
 Either way, the response is the agent's answer, and behind it one full trace was
 emitted.
 
+The bundled knowledge base is a handful of facts about WSO2 Agent Manager, so ask
+it questions it can actually answer:
+
+- `What is WSO2 Agent Manager?`
+- `How does AMP handle observability?`
+- `How are platform-hosted Python agents instrumented?`
+- `When should I use manual instrumentation instead of auto-instrumentation?`
+- `What do LLM-as-judge evaluators need from a trace?`
+
+Ask something the knowledge base doesn't cover and the agent says so. That's a
+valid trace too, and a good one to inspect.
+
 To see an error badge, point the agent at a model that doesn't exist (edit
 `CHAT_MODEL` in `agent.py`). The LLM call fails, `mark_error` flags the agent
 span, and the trace shows an error.
