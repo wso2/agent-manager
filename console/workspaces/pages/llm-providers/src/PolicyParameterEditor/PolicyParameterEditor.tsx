@@ -345,7 +345,7 @@ const PolicyParameterEditor: React.FC<PolicyParameterEditorProps> = ({
           color="primary"
           onClick={handleSubmit}
           disabled={disabled || !levelOneValid}
-          endIcon={<Plus size={16} />}
+          startIcon={isEditMode ? undefined : <Plus size={16} />}
         >
           {isEditMode ? "Save" : "Add"}
         </Button>
