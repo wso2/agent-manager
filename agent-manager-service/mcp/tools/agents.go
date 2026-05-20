@@ -204,7 +204,7 @@ func (t *Toolsets) registerAgentTools(server *gomcp.Server) {
 			"openapi_path":   stringProperty("Required when interface_type is CUSTOM. OpenAPI specification file path within the repository (must start with /)."),
 
 			"enable_auto_instrumentation": boolProperty("Automatically enables OTEL tracing instrumentation to your agent for observability."),
-			"instrumentation_version":     stringProperty("Optional. AMP instrumentation version to pin for the agent (e.g., '0.2.0'). Selects the matching pre-built init-container image and the bundled traceloop-sdk version. Omit to use the platform default; only versions supported by the deployment are accepted."),
+			"instrumentation_version":     stringProperty("Optional. AMP instrumentation version to pin for the agent (e.g., '0.2.1'). Selects the matching pre-built init-container image and the bundled traceloop-sdk version. Omit to use the platform default; only versions supported by the deployment are accepted."),
 			"env": arrayProperty("Required. Environment variables and other configurations for the agent.(eg: api keys, database URLs, support service URLs). Can be obtained from the .env file in the project repository", map[string]any{
 				"type": "object",
 				"properties": map[string]any{

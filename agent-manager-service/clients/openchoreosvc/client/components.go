@@ -2184,7 +2184,7 @@ func (c *openChoreoClient) buildEnvInjectionTraitParameters(opts ...TraitOption)
 
 // getInstrumentationImage builds the pre-built init-container image reference for
 // the given AMP instrumentation version and the agent's Python runtime version,
-// e.g. ghcr.io/wso2/amp-python-instrumentation-provider:0.2.0-python3.11.
+// e.g. ghcr.io/wso2/amp-python-instrumentation-provider:0.2.1-python3.11.
 func getInstrumentationImage(languageVersion, instrumentationVersion string) (string, error) {
 	parts := strings.Split(languageVersion, ".")
 	if len(parts) < 2 {
