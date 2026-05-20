@@ -53,5 +53,9 @@ window.__RUNTIME_CONFIG__ = {
     privacyPolicyUrl: 'https://wso2.com/agent-platform/agent-manager/',
     termsOfUseUrl: 'https://wso2.com/agent-platform/agent-manager/',
   },
+  instrumentationDocLinks: {
+    manualInstrumentation: '/components/amp-instrumentation/#manual-instrumentation',
+    versionMapping: '/components/amp-instrumentation/#amp-instrumentation-version-mapping',
+  },
 };
 

@@ -23,6 +23,7 @@ import { debounce } from "lodash";
 import { useGenerateResourceName } from "@agent-management-platform/api-client";
 import {
   DEFAULT_INSTRUMENTATION_VERSION,
+  globalConfig,
   SUPPORTED_INSTRUMENTATION_VERSIONS,
   SUPPORTED_PYTHON_VERSIONS,
 } from "@agent-management-platform/types";
@@ -54,12 +55,10 @@ const languageOptions = [
   { label: "Docker", value: "docker" },
 ];
 
-const AMP_INSTRUMENTATION_DOCS_URL =
-  "https://wso2.github.io/agent-manager/docs/components/amp-instrumentation/";
 const MANUAL_INSTRUMENTATION_DOCS_URL =
-  `${AMP_INSTRUMENTATION_DOCS_URL}#manual-instrumentation`;
+  `${globalConfig.docsUrl ?? ""}${globalConfig.instrumentationDocLinks?.manualInstrumentation ?? ""}`;
 const VERSION_MAPPING_DOCS_URL =
-  `${AMP_INSTRUMENTATION_DOCS_URL}#amp-instrumentation-version-mapping`;
+  `${globalConfig.docsUrl ?? ""}${globalConfig.instrumentationDocLinks?.versionMapping ?? ""}`;
 
 export const InternalAgentForm = ({
   formData,

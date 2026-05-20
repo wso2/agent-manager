@@ -44,6 +44,13 @@ export interface AppConfig {
     privacyPolicyUrl?: string;
     termsOfUseUrl?: string;
   };
+  /** Documentation deep-link paths for AMP instrumentation, appended to docsUrl. */
+  instrumentationDocLinks?: {
+    /** Path to the manual instrumentation contract section. */
+    manualInstrumentation?: string;
+    /** Path to the AMP instrumentation version mapping section. */
+    versionMapping?: string;
+  };
 }
 
 export type GuardrailCapabilities = {
