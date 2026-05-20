@@ -28,6 +28,14 @@
     },
     {
       "type": "category",
+      "label": "Components",
+      "collapsed": false,
+      "items": [
+        "components/amp-instrumentation"
+      ]
+    },
+    {
+      "type": "category",
       "label": "Tutorials",
       "collapsed": false,
       "items": [
