@@ -65,6 +65,17 @@ const config: Config = {
   plugins: [
     '@signalwire/docusaurus-plugin-llms-txt',
     require.resolve('docusaurus-lunr-search'),
+    [
+      '@docusaurus/plugin-client-redirects',
+      {
+        createRedirects(existingPath: string) {
+          if (existingPath.includes(`/docs/${latestVersion}/`)) {
+            return [existingPath.replace(`/docs/${latestVersion}/`, '/docs/latest/')];
+          }
+          return undefined;
+        },
+      },
+    ],
   ],
 
   presets: [
