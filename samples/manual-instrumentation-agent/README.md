@@ -30,20 +30,22 @@ no Traceloop SDK and no `amp-instrument` CLI involved.
 
 One `/chat` request produces one trace:
 
-```
+```text
 invoke_agent  (agent, root)
 └── rag-pipeline  (chain)
-    ├── embeddings     (embedding)
-    ├── vector_search  (retriever)
-    ├── rerank         (rerank)
-    ├── execute_tool   (tool)
-    └── chat           (llm)
+    ├── embeddings     (embedding)   real OpenAI call
+    ├── vector_search  (retriever)   simulated
+    ├── rerank         (rerank)      simulated
+    ├── chat           (llm)         simulated: decides to call a tool
+    ├── execute_tool   (tool)        real local call
+    └── chat           (llm)         real OpenAI call: final answer
 ```
 
-The `embeddings` and `chat` spans wrap real OpenAI calls. The `vector_search` and
-`rerank` steps are simulated, so the sample runs with only an OpenAI key. In a
-real agent they'd call your vector DB and rerank provider; the span attributes
-are the same either way.
+The `embeddings` span and the final `chat` span wrap real OpenAI calls. The
+`vector_search`, `rerank`, and the first `chat` span (where the model decides to
+call a tool) are simulated, so the trace is deterministic and the sample runs
+with only an OpenAI key. In a real agent those would call your vector DB, rerank
+provider, and the model; the span attributes are the same either way.
 
 ### Attribute coverage
 
