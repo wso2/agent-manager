@@ -217,7 +217,7 @@ func Test_runStatus_pipelineTransport_failure(t *testing.T) {
 }
 
 func Test_runStatus_callsDeploymentAndPipelineInParallel(t *testing.T) {
-	ios, _, out, _ := iostreams.Test()
+	ios, _, _, _ := iostreams.Test()
 	ios.JSON = true
 
 	var inflight, maxInflight atomic.Int32
@@ -273,7 +273,6 @@ func Test_runStatus_callsDeploymentAndPipelineInParallel(t *testing.T) {
 	if got := maxInflight.Load(); got < 2 {
 		t.Fatalf("maxInflight = %d, want >= 2 (calls were not parallel)", got)
 	}
-	_ = out.String()
 }
 
 func Test_runStatus_agentNotFound(t *testing.T) {
@@ -613,7 +612,7 @@ func Test_runStatus_emptyDeployments_returnsSuccess(t *testing.T) {
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
-	if !strings.Contains(errOut.String(), "No environments configured for this project's deployment pipeline.") {
+	if !strings.Contains(errOut.String(), "No deployments found for this agent.") {
 		t.Fatalf("missing empty-state message: %q", errOut.String())
 	}
 	env := decodeEnvelope(t, out.String())

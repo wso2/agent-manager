@@ -118,7 +118,7 @@ func runStatus(ctx context.Context, o *StatusOptions) error {
 	}
 
 	if len(deployments) == 0 {
-		fmt.Fprintln(o.IO.ErrOut, "No environments configured for this project's deployment pipeline.")
+		fmt.Fprintln(o.IO.ErrOut, "No deployments found for this agent.")
 		result := StatusResult{Agent: o.AgentName, Environments: []EnvStatus{}}
 		if o.IO.JSON {
 			return render.JSONSuccess(o.IO, o.Scope, result)
@@ -166,11 +166,11 @@ func fetchStatusData(ctx context.Context, client *amsvc.ClientWithResponses, org
 	if dep.err != nil {
 		return nil, nil, clierr.Newf(clierr.Transport, "%v", dep.err)
 	}
-	if dep.resp.JSON200 == nil {
-		return nil, nil, cmdutil.ErrorFromServer(dep.resp.HTTPResponse, cmdutil.FirstNonNil(dep.resp.JSON404, dep.resp.JSON500))
-	}
 	if pipe.err != nil {
 		return nil, nil, clierr.Newf(clierr.Transport, "%v", pipe.err)
+	}
+	if dep.resp.JSON200 == nil {
+		return nil, nil, cmdutil.ErrorFromServer(dep.resp.HTTPResponse, cmdutil.FirstNonNil(dep.resp.JSON404, dep.resp.JSON500))
 	}
 	if pipe.resp.JSON200 == nil {
 		return nil, nil, cmdutil.ErrorFromServer(pipe.resp.HTTPResponse, cmdutil.FirstNonNil(pipe.resp.JSON404, pipe.resp.JSON500))
@@ -292,7 +292,7 @@ func formatLastDeployed(t time.Time) string {
 	if t.IsZero() {
 		return "-"
 	}
-	return t.Format("2006-01-02T15:04:05Z07:00")
+	return t.Format(time.RFC3339)
 }
 
 func summarizeEndpoints(endpoints []EndpointRef) string {
