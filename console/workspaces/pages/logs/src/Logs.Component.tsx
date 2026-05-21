@@ -17,7 +17,7 @@
  */
 
 import React, { useCallback, useEffect, useMemo, useState } from "react";
-import { LogsPanel, PageLayout } from "@agent-management-platform/views";
+import { LogsPanel, PageLayout, TimeRangeSelector, useTimeRangeParams } from "@agent-management-platform/views";
 import { useParams, useSearchParams } from "react-router-dom";
 import {
   TraceListTimeRange,
@@ -36,7 +36,6 @@ import {
   ListItemText,
 } from "@wso2/oxygen-ui";
 import {
-  Clock,
   Filter,
   RefreshCcw,
   SortAsc,
@@ -49,13 +48,10 @@ const TIME_RANGE_OPTIONS = [
   { value: TraceListTimeRange.TEN_MINUTES, label: "10 Minutes" },
   { value: TraceListTimeRange.THIRTY_MINUTES, label: "30 Minutes" },
   { value: TraceListTimeRange.ONE_HOUR, label: "1 Hour" },
-  { value: TraceListTimeRange.THREE_HOURS, label: "3 Hours" },
   { value: TraceListTimeRange.SIX_HOURS, label: "6 Hours" },
   { value: TraceListTimeRange.TWELVE_HOURS, label: "12 Hours" },
   { value: TraceListTimeRange.ONE_DAY, label: "1 Day" },
-  { value: TraceListTimeRange.THREE_DAYS, label: "3 Days" },
   { value: TraceListTimeRange.SEVEN_DAYS, label: "7 Days" },
-  { value: TraceListTimeRange.THIRTY_DAYS, label: "30 Days" },
 ];
 
 const DEFAULT_PAGE_SIZE = 300;
@@ -66,11 +62,15 @@ export const LogsComponent: React.FC = () => {
   const { agentId, orgId, projectId, envId } = useParams();
   const [searchParams, setSearchParams] = useSearchParams();
 
+  const { customStartTime, customEndTime, hasCustomRange, handleCustomRangeApply, handleCustomRangeClear } =
+    useTimeRangeParams(searchParams, setSearchParams);
+
   const timeRange = useMemo(
     () =>
-      (searchParams.get("timeRange") as TraceListTimeRange) ||
-      TraceListTimeRange.ONE_HOUR,
-    [searchParams],
+      hasCustomRange
+        ? undefined
+        : (searchParams.get("timeRange") as TraceListTimeRange) || TraceListTimeRange.ONE_HOUR,
+    [searchParams, hasCustomRange],
   );
 
   const sortOrder = useMemo(
@@ -115,11 +115,13 @@ export const LogsComponent: React.FC = () => {
     () => ({
       environmentName: envId ?? "",
       timeRange: timeRange,
+      startTime: hasCustomRange ? customStartTime : undefined,
+      endTime: hasCustomRange ? customEndTime : undefined,
       sortOrder: sortOrder,
       searchPhrase,
       logLevels: selectedLogLevels.length > 0 ? selectedLogLevels : undefined,
     }),
-    [envId, timeRange, sortOrder, searchPhrase, selectedLogLevels],
+    [envId, timeRange, hasCustomRange, customStartTime, customEndTime, sortOrder, searchPhrase, selectedLogLevels],
   );
 
   const logParams = useMemo(
@@ -165,6 +167,8 @@ export const LogsComponent: React.FC = () => {
     (newTimeRange: string) => {
       const next = new URLSearchParams(searchParams);
       next.set("timeRange", newTimeRange as TraceListTimeRange);
+      next.delete("startTime");
+      next.delete("endTime");
       setSearchParams(next);
     },
     [searchParams, setSearchParams],
@@ -211,25 +215,15 @@ export const LogsComponent: React.FC = () => {
             ))}
           </Select>
 
-          {/* Time Range Selector */}
-          <Select
-            size="small"
-            variant="outlined"
-            value={timeRange}
-            onChange={(e) => handleTimeRangeChange(e.target.value)}
-            startAdornment={
-              <InputAdornment position="start">
-                <Clock size={16} />
-              </InputAdornment>
-            }
-            sx={{ minWidth: 150 }}
-          >
-            {TIME_RANGE_OPTIONS.map((opt) => (
-              <MenuItem key={opt.value} value={opt.value}>
-                {opt.label}
-              </MenuItem>
-            ))}
-          </Select>
+          <TimeRangeSelector
+            preset={timeRange}
+            customStart={customStartTime}
+            customEnd={customEndTime}
+            options={TIME_RANGE_OPTIONS}
+            onPresetChange={handleTimeRangeChange}
+            onCustomRangeApply={handleCustomRangeApply}
+            onCustomRangeClear={handleCustomRangeClear}
+          />
 
           {/* Sort Toggle */}
           <IconButton
