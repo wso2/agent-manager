@@ -18,41 +18,35 @@
 
 window.__RUNTIME_CONFIG__ = {
   authConfig: {
-    baseUrl: 'http://thunder.amp.localhost:8080',
-    clientId: 'amp-console-client',
-    signInUrl: 'http://thunder.amp.localhost:8080/gate',
-    afterSignInUrl: 'http://localhost:3000/login',
-    afterSignOutUrl: 'http://localhost:3000/login',
-    scopes: ['openid', 'profile', 'email'],
+    baseUrl: 'null',
+    clientId: 'null',
+    signInUrl: 'null/gate',
+    afterSignInUrl: 'null',
+    afterSignOutUrl: 'null',
+    scopes: (''.trim() || 'openid profile email').split(/\s+/).filter(Boolean),
     platform: 'AsgardeoV2',
     tokenValidation: {
       idToken: {
-        // Disable for Thunder / local dev with non-standard issuers or self-signed certs
-        validate: false,
-        clockTolerance: 300,
-      },
-    },
-    tokenLifecycle: {
-      refreshToken: {
-        autoRefresh: true,
+        validate: '' === 'true',
+        clockTolerance: Number('') || 300,
       },
     },
     storage: 'localStorage',
   },
-  disableAuth: false,
+  disableAuth: 'true' === 'true',
   apiBaseUrl: 'http://localhost:9000',
   obsApiBaseUrl: 'http://localhost:9098',
-  gatewayControlPlaneUrl: 'http://localhost:9243',
-  gatewayVersion: 'v0.11.0',
-  instrumentationUrl: 'http://localhost:22893/otel',
-  guardrailsCatalogUrl: 'https://db720294-98fd-40f4-85a1-cc6a3b65bc9a-prod.e1-us-east-azure.choreoapis.dev/api-platform/policy-hub-api/policy-hub-public/v1.0/policies?categories=Guardrails,AI&limit=100',
+  gatewayControlPlaneUrl: '',
+  gatewayVersion: '',
+  instrumentationUrl: '',
+  guardrailsCatalogUrl: 'https://db720294-98fd-40f4-85a1-cc6a3b65bc9a-prod.e1-us-east-azure.choreoapis.dev/api-platform/policy-hub-api/policy-hub-public/v1.0/policies?categories=Guardrails',
   guardrailsDefinitionBaseUrl: 'https://db720294-98fd-40f4-85a1-cc6a3b65bc9a-prod.e1-us-east-azure.choreoapis.dev/api-platform/policy-hub-api/policy-hub-public/v1.0/policies',
   guardrailCapabilities: {
-    awsBedrock: false,
-    azureContentSafety: false,
-    graniteGuardian: false,
-    nemoGuard: false,
-    semanticGuardrails: false,
+    awsBedrock:         '' === 'true',
+    azureContentSafety: '' === 'true',
+    graniteGuardian:    '' === 'true',
+    nemoGuard:          '' === 'true',
+    semanticGuardrails: '' === 'true',
   },
   docsUrl: 'https://wso2.github.io/agent-manager/docs/next',
   footerLinks: {
@@ -64,3 +58,4 @@ window.__RUNTIME_CONFIG__ = {
     versionMapping: '/components/amp-instrumentation/#amp-instrumentation-version-mapping',
   },
 };
+

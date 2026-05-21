@@ -955,14 +955,17 @@ func (s *agentManagerService) createComponentAgent(ctx context.Context, orgName,
 
 		if isFromKind {
 			var kindEnvVars []client.EnvVar
+			var kindFileVars []client.FileVar
 			if createAgentReq.Configurations != nil {
 				kindEnvVars = createAgentReq.Configurations.Env
+				kindFileVars = createAgentReq.Configurations.Files
 			}
 			kindEndpoints := inputInterfaceToEndpoints(createAgentReq.InputInterface, req.Name)
 			if err := s.ocClient.CreateInternalAgentFromKindWorkload(ctx, orgName, projectName, req.Name, client.InternalAgentFromKindWorkloadRequest{
 				ImageID:   imageID,
 				Endpoints: kindEndpoints,
 				Env:       kindEnvVars,
+				Files:     kindFileVars,
 			}); err != nil {
 				s.logger.Error("Failed to create internal-agent-from-kind workload", "agentName", req.Name, "error", err)
 				if hasSecrets {

@@ -36,6 +36,7 @@ type InternalAgentFromKindWorkloadRequest struct {
 	ImageID   string
 	Endpoints []InputInterfaceEndpoint
 	Env       []EnvVar
+	Files     []FileVar
 }
 
 // InputInterfaceEndpoint describes a single exposed endpoint on a kind-sourced agent workload.
@@ -123,6 +124,29 @@ func (c *openChoreoClient) CreateInternalAgentFromKindWorkload(ctx context.Conte
 		envVars = append(envVars, genEnv)
 	}
 
+	// Build file vars
+	var fileVars []gen.FileVar
+	for _, f := range req.Files {
+		genFile := gen.FileVar{
+			Key:       f.Key,
+			MountPath: f.MountPath,
+		}
+		if f.ValueFrom != nil && f.ValueFrom.SecretKeyRef != nil {
+			secretName := f.ValueFrom.SecretKeyRef.Name
+			secretKey := f.ValueFrom.SecretKeyRef.Key
+			genFile.ValueFrom = &gen.EnvVarValueFrom{
+				SecretKeyRef: &struct {
+					Key  *string `json:"key,omitempty"`
+					Name *string `json:"name,omitempty"`
+				}{Name: &secretName, Key: &secretKey},
+			}
+		} else {
+			v := f.Value
+			genFile.Value = &v
+		}
+		fileVars = append(fileVars, genFile)
+	}
+
 	workload := gen.CreateWorkloadJSONRequestBody{
 		Metadata: gen.ObjectMeta{
 			Name:      workloadName,
@@ -132,6 +156,7 @@ func (c *openChoreoClient) CreateInternalAgentFromKindWorkload(ctx context.Conte
 			Container: &gen.WorkloadContainer{
 				Image: req.ImageID,
 				Env:   &envVars,
+				Files: &fileVars,
 			},
 			Owner: &struct {
 				ComponentName string `json:"componentName"`

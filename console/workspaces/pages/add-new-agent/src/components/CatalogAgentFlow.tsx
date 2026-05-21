@@ -28,6 +28,7 @@ import { buildCatalogAgentPayload } from "../utils/buildAgentPayload";
 import { CatalogAgentForm } from "../forms/CatalogAgentForm";
 import { LLMProviderSection } from "./LLMProviderSection";
 import { EnvironmentVariable } from "./EnvironmentVariable";
+import { FileMount } from "./FileMount";
 
 export const CatalogAgentFlow: React.FC = () => {
   const navigate = useNavigate();
@@ -263,6 +264,11 @@ export const CatalogAgentFlow: React.FC = () => {
           lockedKeys={lockedEnvKeys}
           hideAdd
           llmReservedNames={llmReservedNames}
+        />
+
+        <FileMount
+          formData={formData}
+          setFormData={setFormData}
         />
 
         {!!error && (
