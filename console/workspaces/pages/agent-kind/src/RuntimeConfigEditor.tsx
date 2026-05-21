@@ -29,6 +29,18 @@ import {
 import { Plus, Trash } from "@wso2/oxygen-ui-icons-react";
 import { TextInput } from "@agent-management-platform/views";
 
+const KEY_REGEX = /^[A-Za-z_][A-Za-z0-9_]*$/;
+const KEY_MAX_LENGTH = 64;
+
+const getKeyError = (key: string, keyCounts: Map<string, number>): string | null => {
+    const trimmed = key.trim();
+    if (!trimmed) return "Key is required.";
+    if (trimmed.length > KEY_MAX_LENGTH) return `Key must be at most ${KEY_MAX_LENGTH} characters.`;
+    if (!KEY_REGEX.test(trimmed)) return "Key must start with a letter or underscore, and contain only letters, numbers, or underscores.";
+    if ((keyCounts.get(trimmed) ?? 0) > 1) return "Key must be unique.";
+    return null;
+};
+
 const createRowId = (): string => {
     if (typeof crypto !== "undefined" && typeof crypto.randomUUID === "function") {
         return crypto.randomUUID();
@@ -63,23 +75,105 @@ export interface RuntimeConfigEditorProps {
     readonlyKey?: boolean;
 }
 
+interface ConfigRowProps {
+    row: RuntimeConfigRow;
+    keyError: string | null;
+    readonlyKey?: boolean;
+    canRemove: boolean;
+    onUpdate: <K extends keyof RuntimeConfigRow>(field: K, value: RuntimeConfigRow[K]) => void;
+    onRemove: () => void;
+}
+
+const ConfigRow: React.FC<ConfigRowProps> = ({
+    row,
+    keyError,
+    readonlyKey,
+    canRemove,
+    onUpdate,
+    onRemove,
+}) => (
+    <Stack key={row.id} direction="row" spacing={1} alignItems="top" justifyContent="flex-start">
+        <Box sx={{ width: 180 }}>
+            {readonlyKey ? (
+                <Typography variant="body2" fontWeight={600}>{row.key}</Typography>
+            ) : (
+                <>
+                    <TextInput
+                        placeholder="Key"
+                        value={row.key}
+                        onChange={(e) => onUpdate("key", e.target.value.replace(/\s/g, "_"))}
+                        fullWidth
+                        size="small"
+                        error={!!keyError}
+                    />
+                    {keyError && (
+                        <Typography variant="caption" color="error.main">
+                            {keyError}
+                        </Typography>
+                    )}
+                </>
+            )}
+        </Box>
+
+        <Box sx={{ width: 180 }}>
+            <TextInput
+                placeholder="Default value"
+                value={row.defaultValue ?? ""}
+                onChange={(e) => onUpdate("defaultValue", e.target.value)}
+                fullWidth
+                size="small"
+            />
+        </Box>
+        <Box display="flex" flexDirection="row" flexGrow={1} alignItems="start" pl={2} pt={0.5} gap={1}>
+            <FormControlLabel
+                control={
+                    <Switch
+                        size="small"
+                        checked={row.isMandatory ?? false}
+                        onChange={(_, checked) => onUpdate("isMandatory", checked)}
+                    />
+                }
+                label="Mandatory"
+                sx={{ mr: 0, minWidth: 105 }}
+            />
+            <FormControlLabel
+                control={
+                    <Switch
+                        size="small"
+                        checked={row.isSecret}
+                        onChange={(_, checked) => onUpdate("isSecret", checked)}
+                    />
+                }
+                label="Secret"
+                sx={{ mr: 0, minWidth: 80 }}
+            />
+            {!readonlyKey && (
+                <IconButton
+                    size="small"
+                    onClick={onRemove}
+                    disabled={!canRemove}
+                    aria-label="Remove row"
+                    color="error"
+                >
+                    <Trash size={16} />
+                </IconButton>
+            )}
+        </Box>
+    </Stack>
+);
+
 export const RuntimeConfigEditor: React.FC<RuntimeConfigEditorProps> = ({
     rows,
     onChange,
     readonlyKey,
 }) => {
     const normalizedKeys = rows.map((row) => row.key.trim());
-    const hasEmptyKeys = !readonlyKey && normalizedKeys.some((key) => !key);
-    const nonEmptyKeys = normalizedKeys.filter(Boolean);
-    const hasDuplicateKeys = !readonlyKey && nonEmptyKeys.length !== new Set(nonEmptyKeys).size;
-    const isInvalid = hasEmptyKeys || hasDuplicateKeys;
     const keyCounts = normalizedKeys.reduce<Map<string, number>>((acc, key) => {
-        if (!key) {
-            return acc;
-        }
+        if (!key) return acc;
         acc.set(key, (acc.get(key) ?? 0) + 1);
         return acc;
     }, new Map());
+    const isInvalid = !readonlyKey && rows.some((row) => getKeyError(row.key, keyCounts) !== null);
 
     const updateRow = <K extends keyof RuntimeConfigRow>(
         index: number,
@@ -103,78 +197,15 @@ export const RuntimeConfigEditor: React.FC<RuntimeConfigEditorProps> = ({
     return (
         <Stack spacing={1} pt={1}>
             {rows.map((row, i) => (
-                <Stack key={row.id} direction="row" spacing={1} alignItems="top" justifyContent="flex-start">
-                    <Box sx={{ width: 180 }}>
-                        {readonlyKey ? (
-                            <Typography variant="body2" fontWeight={600}>{row.key}</Typography>
-                        ) : (
-                            <>
-                                <TextInput
-                                    placeholder="Key"
-                                    value={row.key}
-                                    onChange={(e) => updateRow(i, "key", e.target.value)}
-                                    fullWidth
-                                    size="small"
-                                />
-                                {!row.key.trim() ? (
-                                    <Typography variant="caption" color="error.main">
-                                        Key is required.
-                                    </Typography>
-                                ) : (keyCounts.get(row.key.trim()) ?? 0) > 1 ? (
-                                    <Typography variant="caption" color="error.main">
-                                        Key must be unique.
-                                    </Typography>
-                                ) : null}
-                            </>
-                        )}
-                    </Box>
-
-                    <Box sx={{ width: 180 }}>
-                        <TextInput
-                            placeholder="Default value"
-                            value={row.defaultValue ?? ""}
-                            onChange={(e) => updateRow(i, "defaultValue", e.target.value)}
-                            fullWidth
-                            size="small"
-                        />
-                    </Box>
-                    <Box display="flex" flexDirection="row" flexGrow={1} alignItems="start" pl={2} pt={0.5} gap={1}>
-                        <FormControlLabel
-                            control={
-                                <Switch
-                                    size="small"
-                                    checked={row.isMandatory ?? false}
-                                    onChange={(_, checked) => updateRow(i, "isMandatory", checked)}
-                                />
-                            }
-                            label="Mandatory"
-                            sx={{ mr: 0, minWidth: 105 }}
-                        />
-                        <FormControlLabel
-                            control={
-                                <Switch
-                                    size="small"
-                                    checked={row.isSecret}
-                                    onChange={(_, checked) => updateRow(i, "isSecret", checked)}
-                                />
-                            }
-                            label="Secret"
-                            sx={{ mr: 0, minWidth: 80 }}
-                        />
-
-                        {!readonlyKey && (
-                            <IconButton
-                                size="small"
-                                onClick={() => removeRow(i)}
-                                disabled={rows.length === 1}
-                                aria-label="Remove row"
-                                color="error"
-                            >
-                                <Trash size={16} />
-                            </IconButton>
-                        )}
-                    </Box>
-                </Stack>
+                <ConfigRow
+                    key={row.id}
+                    row={row}
+                    keyError={readonlyKey ? null : getKeyError(row.key, keyCounts)}
+                    readonlyKey={readonlyKey}
+                    canRemove={rows.length > 1}
+                    onUpdate={(field, value) => updateRow(i, field, value)}
+                    onRemove={() => removeRow(i)}
+                />
             ))}
             {!readonlyKey && (
                 <Box>

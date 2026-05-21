@@ -34,3 +34,4 @@ export * from './AgentIcons';
 export * from './LogsPanel';
 export * from './SnackBar';
 export * from './ExternalModuleManager';
+export * from './TimeRangeSelector';

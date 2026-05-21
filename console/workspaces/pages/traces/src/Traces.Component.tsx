@@ -22,6 +22,8 @@ import {
   DrawerHeader,
   DrawerWrapper,
   PageLayout,
+  TimeRangeSelector,
+  useTimeRangeParams,
 } from "@agent-management-platform/views";
 import { useParams, useSearchParams } from "react-router-dom";
 import {
@@ -32,7 +34,6 @@ import {
 } from "@agent-management-platform/types";
 import {
   Workflow,
-  Clock,
   RefreshCcw,
   SortAsc,
   SortDesc,
@@ -52,25 +53,18 @@ import {
   Button,
   CircularProgress,
   IconButton,
-  InputAdornment,
-  MenuItem,
-  Select,
   Snackbar,
   Stack,
-  Typography,
 } from "@wso2/oxygen-ui";
 
 const TIME_RANGE_OPTIONS = [
   { value: TraceListTimeRange.TEN_MINUTES, label: "10 Minutes" },
   { value: TraceListTimeRange.THIRTY_MINUTES, label: "30 Minutes" },
   { value: TraceListTimeRange.ONE_HOUR, label: "1 Hour" },
-  { value: TraceListTimeRange.THREE_HOURS, label: "3 Hours" },
   { value: TraceListTimeRange.SIX_HOURS, label: "6 Hours" },
   { value: TraceListTimeRange.TWELVE_HOURS, label: "12 Hours" },
   { value: TraceListTimeRange.ONE_DAY, label: "1 Day" },
-  { value: TraceListTimeRange.THREE_DAYS, label: "3 Days" },
   { value: TraceListTimeRange.SEVEN_DAYS, label: "7 Days" },
-  { value: TraceListTimeRange.THIRTY_DAYS, label: "30 Days" },
 ];
 
 export const TracesComponent: React.FC = () => {
@@ -115,23 +109,13 @@ export const TracesComponent: React.FC = () => {
   const [exportError, setExportError] = useState<string | null>(null);
   const [drawerFullscreen, setDrawerFullscreen] = useState(false);
 
-  // Initialize state from URL search params with defaults.
-  // Validate that both timestamps are parseable and start <= end before
-  // activating custom-range mode, so malformed or inverted URLs are ignored.
-  const [customStartTime, customEndTime, hasCustomRange] = useMemo((): [
-    string | undefined,
-    string | undefined,
-    boolean,
-  ] => {
-    const startRaw = searchParams.get("startTime") || undefined;
-    const endRaw = searchParams.get("endTime") || undefined;
-    if (!startRaw || !endRaw) return [undefined, undefined, false];
-    const startMs = Date.parse(startRaw);
-    const endMs = Date.parse(endRaw);
-    if (isNaN(startMs) || isNaN(endMs) || startMs > endMs)
-      return [undefined, undefined, false];
-    return [startRaw, endRaw, true];
-  }, [searchParams]);
+  const {
+    customStartTime,
+    customEndTime,
+    hasCustomRange,
+    handleCustomRangeApply,
+    handleCustomRangeClear,
+  } = useTimeRangeParams(searchParams, setSearchParams);
 
   const timeRange = useMemo(
     () =>
@@ -282,25 +266,12 @@ export const TracesComponent: React.FC = () => {
     (newTimeRange: string) => {
       const next = new URLSearchParams(searchParams);
       next.set("timeRange", newTimeRange as TraceListTimeRange);
-      // Clear custom range when switching to a preset
       next.delete("startTime");
       next.delete("endTime");
       setSearchParams(next);
     },
     [searchParams, setSearchParams],
   );
-
-  const customRangeLabel = useMemo(() => {
-    if (!hasCustomRange) return null;
-    const fmt = (iso: string) =>
-      new Date(iso).toLocaleString(undefined, {
-        month: "short",
-        day: "numeric",
-        hour: "2-digit",
-        minute: "2-digit",
-      });
-    return `${fmt(customStartTime!)} – ${fmt(customEndTime!)}`;
-  }, [hasCustomRange, customStartTime, customEndTime]);
 
   const handleSortOrderChange = useCallback(
     (newSortOrder: "asc" | "desc") => {
@@ -369,34 +340,15 @@ export const TracesComponent: React.FC = () => {
             alignItems="center"
             flexWrap="wrap"
           >
-            {/* Time Range Selector */}
-            {hasCustomRange ? (
-              <Stack direction="row" spacing={0.5} alignItems="center">
-                <Clock size={16} />
-                <Typography variant="caption" color="text.secondary" noWrap>
-                  {customRangeLabel}
-                </Typography>
-              </Stack>
-            ) : (
-              <Select
-                size="small"
-                variant="outlined"
-                value={timeRange}
-                onChange={(e) => handleTimeRangeChange(e.target.value)}
-                startAdornment={
-                  <InputAdornment position="start">
-                    <Clock size={16} />
-                  </InputAdornment>
-                }
-                sx={{ minWidth: 150 }}
-              >
-                {TIME_RANGE_OPTIONS.map((opt) => (
-                  <MenuItem key={opt.value} value={opt.value}>
-                    {opt.label}
-                  </MenuItem>
-                ))}
-              </Select>
-            )}
+            <TimeRangeSelector
+              preset={timeRange}
+              customStart={customStartTime}
+              customEnd={customEndTime}
+              options={TIME_RANGE_OPTIONS}
+              onPresetChange={handleTimeRangeChange}
+              onCustomRangeApply={handleCustomRangeApply}
+              onCustomRangeClear={handleCustomRangeClear}
+            />
 
             {/* Sort Toggle */}
             <IconButton

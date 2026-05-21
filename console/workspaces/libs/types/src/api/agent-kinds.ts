@@ -42,6 +42,7 @@ export interface AgentKindVersionResponse {
   sourceProjectName: string;
   agentSubType?: 'chat-api' | 'custom-api';
   configSchema: AgentKindConfigSchemaItem[];
+  metadata?: Record<string, unknown> | null;
   createdAt: string;
 }
 
@@ -80,6 +81,7 @@ export interface AddAgentKindVersionRequest {
   sourceAgentName: string;
   sourceProjectName: string;
   configSchema: AgentKindConfigSchemaItem[];
+  metadata?: Record<string, unknown> | null;
 }
 
 export interface PublishAgentKindRequest {
@@ -89,6 +91,7 @@ export interface PublishAgentKindRequest {
   version: string;
   buildName: string;
   configSchema: AgentKindConfigSchemaItem[];
+  metadata?: Record<string, unknown> | null;
 }
 
 // ============================================
