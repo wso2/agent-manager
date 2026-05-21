@@ -38,12 +38,13 @@ import {
   Collapse,
   Divider,
   ListingTable,
+  SearchBar,
   Skeleton,
   Stack,
   TablePagination,
   Typography,
 } from "@wso2/oxygen-ui";
-import { ChevronDown, Plus, ShieldAlert } from "@wso2/oxygen-ui-icons-react";
+import { ChevronDown, Plus, Search, ShieldAlert } from "@wso2/oxygen-ui-icons-react";
 import type { ParameterValues } from "../PolicyParameterEditor/types";
 import { GuardrailSelectorDrawer } from "../components/GuardrailSelectorDrawer";
 import { useOpenApiSpec } from "../hooks/useOpenApiSpec";
@@ -156,6 +157,7 @@ export function LLMProviderGuardrailsTab({
     new Set(),
   );
   const [resourcePage, setResourcePage] = useState(0);
+  const [resourceSearch, setResourceSearch] = useState("");
   const RESOURCES_PER_PAGE = 10;
 
   const serverPolicies = useMemo(
@@ -190,9 +192,8 @@ export function LLMProviderGuardrailsTab({
     return spec ? extractResourcesFromSpec(spec) : [];
   }, [openapiText]);
 
-  useEffect(() => {
-    setResourcePage(0);
-  }, [resources]);
+  useEffect(() => { setResourcePage(0); }, [resources]);
+  useEffect(() => { setResourcePage(0); }, [resourceSearch]);
 
   type PolicyEntry = {
     policyIndex: number;
@@ -418,12 +419,23 @@ export function LLMProviderGuardrailsTab({
     [availableGuardrails],
   );
 
+  const filteredResources = useMemo(() => {
+    if (!resourceSearch.trim()) return resources;
+    const q = resourceSearch.toLowerCase();
+    return resources.filter(
+      (r) =>
+        r.path.toLowerCase().includes(q) ||
+        r.method.toLowerCase().includes(q) ||
+        (r.summary ?? "").toLowerCase().includes(q),
+    );
+  }, [resources, resourceSearch]);
+
   const pagedResources = useMemo(
-    () => resources.slice(
+    () => filteredResources.slice(
       resourcePage * RESOURCES_PER_PAGE,
       (resourcePage + 1) * RESOURCES_PER_PAGE,
     ),
-    [resources, resourcePage],
+    [filteredResources, resourcePage],
   );
 
   if (isLoading) {
@@ -522,6 +534,21 @@ export function LLMProviderGuardrailsTab({
                 </ListingTable.Container>
               ) : (
                 <Box>
+                  <SearchBar
+                    placeholder="Search resources…"
+                    value={resourceSearch}
+                    onChange={(e) => setResourceSearch(e.target.value)}
+                    sx={{ mb: 1, width: "100%" }}
+                  />
+                  {filteredResources.length === 0 ? (
+                    <ListingTable.Container>
+                      <ListingTable.EmptyState
+                        illustration={<Search size={64} />}
+                        title="No resources match your search"
+                        description="Try a different keyword or clear the search filter."
+                      />
+                    </ListingTable.Container>
+                  ) : (
                   <Stack spacing={0}>
                     {pagedResources.map((resource) => {
                       const key = getResourceKey(resource);
@@ -552,6 +579,7 @@ export function LLMProviderGuardrailsTab({
                                 size="small"
                                 variant="outlined"
                                 color={getMethodChipColor(resource.method)}
+                                sx={{ minWidth: 72, justifyContent: "center" }}
                               />
                               <Typography variant="body2">{resource.path}</Typography>
                             </Stack>
@@ -611,10 +639,11 @@ export function LLMProviderGuardrailsTab({
                       );
                     })}
                   </Stack>
-                  {resources.length > RESOURCES_PER_PAGE && (
+                  )}
+                  {filteredResources.length > RESOURCES_PER_PAGE && (
                     <TablePagination
                       component="div"
-                      count={resources.length}
+                      count={filteredResources.length}
                       page={resourcePage}
                       rowsPerPage={RESOURCES_PER_PAGE}
                       rowsPerPageOptions={[RESOURCES_PER_PAGE]}
