@@ -62,14 +62,23 @@ export const LogsComponent: React.FC = () => {
   const { agentId, orgId, projectId, envId } = useParams();
   const [searchParams, setSearchParams] = useSearchParams();
 
-  const { customStartTime, customEndTime, hasCustomRange, handleCustomRangeApply, handleCustomRangeClear } =
-    useTimeRangeParams(searchParams, setSearchParams);
+  const {
+    customStartTime,
+    customEndTime,
+    hasCustomRange,
+    handleCustomRangeApply,
+    handleCustomRangeClear,
+  } = useTimeRangeParams(searchParams, setSearchParams);
 
   const timeRange = useMemo(
     () =>
       hasCustomRange
         ? undefined
-        : (searchParams.get("timeRange") as TraceListTimeRange) || TraceListTimeRange.ONE_HOUR,
+        : (Object.values(TraceListTimeRange) as string[]).includes(
+            searchParams.get("timeRange") ?? "",
+          )
+          ? (searchParams.get("timeRange") as TraceListTimeRange)
+          : TraceListTimeRange.ONE_HOUR,
     [searchParams, hasCustomRange],
   );
 
@@ -121,7 +130,10 @@ export const LogsComponent: React.FC = () => {
       searchPhrase,
       logLevels: selectedLogLevels.length > 0 ? selectedLogLevels : undefined,
     }),
-    [envId, timeRange, hasCustomRange, customStartTime, customEndTime, sortOrder, searchPhrase, selectedLogLevels],
+    [
+      envId, timeRange, hasCustomRange, customStartTime, customEndTime, sortOrder, searchPhrase,
+      selectedLogLevels,
+    ],
   );
 
   const logParams = useMemo(

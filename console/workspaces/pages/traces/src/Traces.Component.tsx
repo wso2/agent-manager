@@ -109,8 +109,13 @@ export const TracesComponent: React.FC = () => {
   const [exportError, setExportError] = useState<string | null>(null);
   const [drawerFullscreen, setDrawerFullscreen] = useState(false);
 
-  const { customStartTime, customEndTime, hasCustomRange, handleCustomRangeApply, handleCustomRangeClear } =
-    useTimeRangeParams(searchParams, setSearchParams);
+  const {
+    customStartTime,
+    customEndTime,
+    hasCustomRange,
+    handleCustomRangeApply,
+    handleCustomRangeClear,
+  } = useTimeRangeParams(searchParams, setSearchParams);
 
   const timeRange = useMemo(
     () =>

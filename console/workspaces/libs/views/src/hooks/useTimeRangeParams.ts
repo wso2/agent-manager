@@ -56,5 +56,11 @@ export const useTimeRangeParams = (
         setSearchParams(next);
     }, [searchParams, setSearchParams]);
 
-    return { customStartTime, customEndTime, hasCustomRange, handleCustomRangeApply, handleCustomRangeClear };
+    return {
+        customStartTime,
+        customEndTime,
+        hasCustomRange,
+        handleCustomRangeApply,
+        handleCustomRangeClear,
+    };
 };
