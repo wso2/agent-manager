@@ -31,8 +31,12 @@ type AgentConfig struct {
 	AgentName                 string    `gorm:"column:agent_name;not null"`
 	EnvironmentName           string    `gorm:"column:environment_name;not null"`
 	EnableAutoInstrumentation bool      `gorm:"column:enable_auto_instrumentation;not null"`
-	CreatedAt                 time.Time `gorm:"column:created_at;not null;default:NOW()"`
-	UpdatedAt                 time.Time `gorm:"column:updated_at;not null;default:NOW()"`
+	// InstrumentationVersion is the AMP instrumentation version selected for the
+	// agent. Nil means "use the platform default".
+	InstrumentationVersion *string   `gorm:"column:instrumentation_version"`
+	CreatedAt              time.Time `gorm:"column:created_at;not null;default:NOW()"`
+	UpdatedAt              time.Time `gorm:"column:updated_at;not null;default:NOW()"`
+	EnableApiKeySecurity   bool      `gorm:"column:enable_api_key_security;not null;default:true"`
 }
 
 func (AgentConfig) TableName() string { return "agent_configs" }

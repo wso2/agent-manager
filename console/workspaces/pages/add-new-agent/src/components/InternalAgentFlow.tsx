@@ -20,7 +20,12 @@ import React, { useCallback, useMemo, useState } from "react";
 import { Alert, Form } from "@wso2/oxygen-ui";
 import { PageLayout, useFormValidation } from "@agent-management-platform/views";
 import { generatePath, useNavigate, useParams } from "react-router-dom";
-import { absoluteRouteMap, OrgProjPathParams } from "@agent-management-platform/types";
+import {
+  absoluteRouteMap,
+  DEFAULT_INSTRUMENTATION_VERSION,
+  DEFAULT_PYTHON_VERSION,
+  OrgProjPathParams,
+} from "@agent-management-platform/types";
 import { useCreateAgent } from "@agent-management-platform/api-client";
 import { createAgentSchema, type CreateAgentFormValues, type LLMProviderFormEntry } from "../form/schema";
 import { InternalAgentForm } from "../forms/InternalAgentForm";
@@ -37,6 +42,7 @@ export const InternalAgentFlow: React.FC = () => {
   const [formData, setFormData] = useState<CreateAgentFormValues>({
     deploymentType: "new" as const,
     enableAutoInstrumentation: true,
+    instrumentationVersion: DEFAULT_INSTRUMENTATION_VERSION,
     name: "",
     displayName: "",
     description: "",
@@ -45,7 +51,7 @@ export const InternalAgentFlow: React.FC = () => {
     appPath: "/",
     runCommand: "python main.py",
     language: "python",
-    languageVersion: "3.11",
+    languageVersion: DEFAULT_PYTHON_VERSION,
     dockerfilePath: "/Dockerfile",
     interfaceType: "DEFAULT" as const,
     port: "" as unknown as number,
@@ -113,12 +119,10 @@ export const InternalAgentFlow: React.FC = () => {
   }, [validateForm, formData, createAgent, navigate, params, errors, llmProviders]);
 
 
-  const backHref = useMemo(() => {
-    return generatePath(absoluteRouteMap.children.org.children.projects.children.newAgent.path, {
-      orgId: orgId ?? "",
-      projectId: projectId ?? "default",
-    });
-  }, [orgId, projectId]);
+  const backHref = generatePath(
+    absoluteRouteMap.children.org.children.projects.children.newAgent.children.create.path,
+    { orgId: orgId ?? "", projectId: projectId ?? "default" },
+  );
 
   return (
     <PageLayout
@@ -126,7 +130,7 @@ export const InternalAgentFlow: React.FC = () => {
       description="Specify the source repository, select the agent type, and deploy it on the platform."
       disableIcon
       backHref={backHref}
-      backLabel="Back to Agent Hosting Options"
+      backLabel="Back to Source Type Selection"
     >
       <Form.Stack spacing={3}>
         <InternalAgentForm
@@ -165,7 +169,7 @@ export const InternalAgentFlow: React.FC = () => {
             if (llmNames.length !== llmNameSet.size) return true;
             // Duplicate env keys
             const envKeyList = (formData.env ?? [])
-            .map((e) => e.key).filter((k): k is string => !!k);
+              .map((e) => e.key).filter((k): k is string => !!k);
             if (envKeyList.length !== new Set(envKeyList).size) return true;
             // Cross-conflict: env key matches an LLM name
             return envKeyList.some((k) => llmNameSet.has(k));

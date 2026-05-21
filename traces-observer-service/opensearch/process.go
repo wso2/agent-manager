@@ -609,6 +609,83 @@ func ExtractTokenUsage(spans []Span) *TokenUsage {
 	return nil
 }
 
+// IsLLMLeafSpan reports whether a span name looks like a leaf LLM call.
+// Narrow match on the ".chat" suffix covers ChatOpenAI.chat, openai.chat,
+// anthropic.chat, cohere.chat, etc., while avoiding chain / agent / tool
+// spans whose names share the gen_ai surface.
+func IsLLMLeafSpan(spanName string) bool {
+	return strings.HasSuffix(spanName, ".chat")
+}
+
+// ExtractInputPreviewFromLeaf returns a short preview of the user-facing
+// input on a leaf LLM span. It prefers the first message with role "user"
+// (since gen_ai.input.messages on a chat span typically carries the system
+// prompt first followed by the user turn, and the system prompt is not a
+// useful trace-list preview) and falls back to the first non-empty content
+// when no user-role message is present.
+//
+// Used by the trace-list view to populate the Input column when neither
+// the root span nor a child chain span carries it (OpenAI Agents SDK /
+// pure-OTel agents). Returns nil when no usable content is present.
+func ExtractInputPreviewFromLeaf(leaf *Span) interface{} {
+	if leaf == nil || leaf.Attributes == nil {
+		return nil
+	}
+	messagesJSON, ok := leaf.Attributes["gen_ai.input.messages"].(string)
+	if !ok || messagesJSON == "" {
+		return nil
+	}
+	messages := parseOTELMessages(messagesJSON)
+	if len(messages) == 0 {
+		return nil
+	}
+	for _, m := range messages {
+		if roleEquals(m, "user") && m.Content != "" {
+			return m.Content
+		}
+	}
+	for _, m := range messages {
+		if m.Content != "" {
+			return m.Content
+		}
+	}
+	return nil
+}
+
+// ExtractOutputPreviewFromLeaf returns a short preview of the assistant-
+// facing output on a leaf LLM span. It prefers the last message with role
+// "assistant" (since gen_ai.output.messages on an agent turn can include
+// trailing tool-response messages, and the trace-list user wants the model's
+// answer, not the tool's output) and falls back to the last non-empty
+// content when no assistant-role message is present.
+//
+// Returns nil when no usable content is present.
+func ExtractOutputPreviewFromLeaf(leaf *Span) interface{} {
+	if leaf == nil || leaf.Attributes == nil {
+		return nil
+	}
+	messagesJSON, ok := leaf.Attributes["gen_ai.output.messages"].(string)
+	if !ok || messagesJSON == "" {
+		return nil
+	}
+	messages := parseOTELMessages(messagesJSON)
+	if len(messages) == 0 {
+		return nil
+	}
+	for i := len(messages) - 1; i >= 0; i-- {
+		m := messages[i]
+		if roleEquals(m, "assistant") && m.Content != "" {
+			return m.Content
+		}
+	}
+	for i := len(messages) - 1; i >= 0; i-- {
+		if messages[i].Content != "" {
+			return messages[i].Content
+		}
+	}
+	return nil
+}
+
 // ExtractTokenUsageFromEntityOutput extracts token usage from the traceloop.entity.output
 // attribute of a root span. Token info is nested in the last AIMessage:
 // outputs.messages[-1].kwargs.response_metadata.token_usage OR usage_metadata
@@ -884,20 +961,60 @@ func ExtractRootSpanInputOutput(rootSpan *Span) (input interface{}, output inter
 // Handles two formats:
 // 1. OTEL format: gen_ai.input.messages (JSON array)
 // 2. Traceloop format: gen_ai.prompt.{index}.{field}
+//
+// The OTel GenAI semantic conventions surface the system prompt in a separate
+// gen_ai.system_instructions attribute rather than as a message in
+// gen_ai.input.messages (this is what LangGraph / OpenAI Agents SDK emit). If
+// no system message is present in the extracted conversation, the system
+// instructions are prepended as a synthetic system message so the Console's
+// Input Messages panel renders it.
 func ExtractPromptMessages(attrs map[string]interface{}) []PromptMessage {
+	var messages []PromptMessage
+
 	// First, try OTEL format (gen_ai.input.messages)
 	if messagesJSON, ok := attrs["gen_ai.input.messages"].(string); ok && messagesJSON != "" {
 		slog.Debug("ExtractPromptMessages: Found OTEL format input messages, parsing")
-		messages := parseOTELMessages(messagesJSON)
-		if len(messages) > 0 {
-			return messages
+		messages = parseOTELMessages(messagesJSON)
+		if len(messages) == 0 {
+			slog.Warn("ExtractPromptMessages: OTEL format parsing returned no messages, falling back to Traceloop format")
 		}
-		slog.Warn("ExtractPromptMessages: OTEL format parsing returned no messages, falling back to Traceloop format")
 	}
 
 	// Fallback to Traceloop format (gen_ai.prompt.*)
-	slog.Debug("ExtractPromptMessages: Using Traceloop format extraction")
-	return extractTraceloopPromptMessages(attrs)
+	if len(messages) == 0 {
+		slog.Debug("ExtractPromptMessages: Using Traceloop format extraction")
+		messages = extractTraceloopPromptMessages(attrs)
+	}
+
+	// Prepend system instructions from the dedicated attribute if the
+	// conversation doesn't already carry a system message. extractAgentSystemPrompt
+	// handles gen_ai.system_instructions (parts[] or string), the Traceloop
+	// gen_ai.prompt.0.role=system path, and a plain system_prompt attribute.
+	if !hasSystemMessage(messages) {
+		if sys := extractAgentSystemPrompt(attrs); sys != "" {
+			messages = append([]PromptMessage{{Role: "system", Content: sys}}, messages...)
+		}
+	}
+
+	return messages
+}
+
+// roleEquals reports whether a PromptMessage's Role matches the given target.
+// OTel GenAI / OpenLLMetry / Traceloop all spec lowercase role values, but we
+// match defensively (case-insensitive, trimmed) so a malformed span carrying
+// "User" or " system " doesn't slip past.
+func roleEquals(m PromptMessage, role string) bool {
+	return strings.EqualFold(strings.TrimSpace(m.Role), role)
+}
+
+// hasSystemMessage reports whether any message in the list carries role=system.
+func hasSystemMessage(messages []PromptMessage) bool {
+	for _, m := range messages {
+		if roleEquals(m, "system") {
+			return true
+		}
+	}
+	return false
 }
 
 // RecursiveJSONParser recursively parses a potentially deeply stringified JSON string
@@ -942,6 +1059,78 @@ func parseOTELMessage(rawMsg map[string]interface{}, messageIndex int) (*PromptM
 	// Extract content (optional, can be null)
 	if content, ok := rawMsg["content"].(string); ok {
 		msg.Content = content
+	}
+
+	// Newer OTel gen_ai semantic conventions wrap message bodies under
+	// parts:[{type:"text"|"tool_call"|"tool_call_response", ...}] instead of
+	// top-level content / toolCalls fields (emitted by
+	// opentelemetry-instrumentation-openai 0.60.0 and
+	// opentelemetry-instrumentation-openai-agents). Walk parts when present and
+	// extract text into Content and tool_call parts into ToolCalls so the
+	// Console's per-span Input/Output Messages panel renders the full
+	// conversation, including tool calls and tool responses.
+	if partsRaw, ok := rawMsg["parts"].([]interface{}); ok {
+		var textBuilder strings.Builder
+		for partIndex, p := range partsRaw {
+			pm, ok := p.(map[string]interface{})
+			if !ok {
+				continue
+			}
+			partType, _ := pm["type"].(string)
+			switch partType {
+			case "", "text":
+				if c, ok := pm["content"].(string); ok {
+					textBuilder.WriteString(c)
+				}
+			case "tool_call":
+				tc := ToolCall{}
+				if id, ok := pm["id"].(string); ok {
+					tc.ID = id
+				}
+				if name, ok := pm["name"].(string); ok {
+					tc.Name = name
+				}
+				if args, ok := pm["arguments"]; ok && args != nil {
+					if argsStr, ok := args.(string); ok {
+						tc.Arguments = argsStr
+					} else {
+						argsBytes, err := json.Marshal(args)
+						if err == nil {
+							tc.Arguments = string(argsBytes)
+						} else {
+							slog.Warn("parseOTELMessage: Failed to marshal tool call arguments in parts[]",
+								"messageIndex", messageIndex,
+								"partIndex", partIndex,
+								"toolCallName", tc.Name,
+								"error", err)
+						}
+					}
+				}
+				if tc.Name != "" {
+					msg.ToolCalls = append(msg.ToolCalls, tc)
+				}
+			case "tool_call_response":
+				// Surface tool response text as Content for role="tool" messages.
+				// Field name varies across OpenLLMetry versions: older builds used
+				// "result"; current builds use "response". Accept either.
+				var respText string
+				if r, ok := pm["response"].(string); ok && r != "" {
+					respText = r
+				} else if r, ok := pm["result"].(string); ok && r != "" {
+					respText = r
+				}
+				if respText != "" {
+					if textBuilder.Len() > 0 {
+						textBuilder.WriteString("\n")
+					}
+					textBuilder.WriteString(respText)
+				}
+				// Other types (image, audio, ...) are intentionally skipped.
+			}
+		}
+		if msg.Content == "" && textBuilder.Len() > 0 {
+			msg.Content = textBuilder.String()
+		}
 	}
 
 	// Extract toolCalls (optional, can be null)

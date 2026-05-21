@@ -37,6 +37,22 @@ const sidebars: SidebarsConfig = {
             'getting-started/on-your-environment',
           ],
         },
+        "getting-started/create-your-first-agent",
+        'getting-started/cli-installation',
+      ],
+    },
+    {
+      type: 'category',
+      label: 'CLI',
+      collapsed: false,
+      items: [
+        'cli/overview',
+        'cli/login',
+        'cli/context',
+        'cli/project',
+        'cli/agent',
+        'cli/skills',
+        'cli/version',
       ],
     },
     {
@@ -58,6 +74,14 @@ const sidebars: SidebarsConfig = {
     },
     {
       type: 'category',
+      label: 'Reference',
+      collapsed: false,
+      items: [
+        'reference/mcp-server',
+      ],
+    },
+    {
+      type: 'category',
       label: 'Tutorials',
       collapsed: false,
       items: [
@@ -66,6 +90,7 @@ const sidebars: SidebarsConfig = {
         'tutorials/custom-evaluators',
         'tutorials/register-ai-gateway',
         'tutorials/register-llm-service-provider',
+        'tutorials/secure-agent-endpoints-with-api-keys',
         'tutorials/configure-agent-llm-configuration'
       ],
     },

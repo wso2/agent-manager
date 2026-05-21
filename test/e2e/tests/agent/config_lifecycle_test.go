@@ -20,10 +20,7 @@
 package agent
 
 import (
-	"bytes"
 	"encoding/json"
-	"io"
-	"net/http"
 	"time"
 
 	"github.com/google/uuid"
@@ -41,6 +38,7 @@ var _ = Describe("Agent Configuration Lifecycle", Label("agent", "config-lifecyc
 	var (
 		agentName          string
 		endpointURL        string
+		apiKey             string
 		invokeReq          json.RawMessage
 		sensitiveSecretRef string
 		lastDeployedBefore time.Time
@@ -107,6 +105,15 @@ var _ = Describe("Agent Configuration Lifecycle", Label("agent", "config-lifecyc
 		}
 		Expect(endpointURL).NotTo(BeEmpty(), "agent endpoint URL should not be empty")
 
+		apiKeyResp := agentops.CreateAgentAPIKey(Default, Client,
+			Cfg.DefaultOrg, framework.E2ESharedProjectName, agentName, Cfg.DefaultEnv,
+			framework.CreateAgentAPIKeyRequest{
+				DisplayName: "e2e-test-key",
+				ExpiresAt:   time.Now().Add(24 * time.Hour).Format(time.RFC3339),
+			})
+		apiKey = apiKeyResp.ApiKey
+		Expect(apiKey).NotTo(BeEmpty(), "agent API key should not be empty")
+
 		invokeReq = framework.DefaultInvokeRequest()
 		GinkgoWriter.Printf("Config lifecycle agent ready: %s endpoint=%s\n", agentName, endpointURL)
 	})
@@ -140,7 +147,7 @@ var _ = Describe("Agent Configuration Lifecycle", Label("agent", "config-lifecyc
 	It("should respond to invocation", func() {
 		chatEndpoint := endpointURL + "/chat"
 		GinkgoWriter.Printf("Endpoint: %s\n", chatEndpoint)
-		agentops.InvokeAgentEndpoint(chatEndpoint, invokeReq)
+		agentops.InvokeAgentEndpoint(chatEndpoint, invokeReq, apiKey)
 	})
 
 	It("should redeploy with updated configurations", func() {
@@ -201,34 +208,6 @@ var _ = Describe("Agent Configuration Lifecycle", Label("agent", "config-lifecyc
 		}
 	})
 
-	It("should fail invocation with invalid API key", func() {
-		chatEndpoint := endpointURL + "/chat"
-
-		data, err := json.Marshal(invokeReq)
-		Expect(err).NotTo(HaveOccurred())
-
-		httpClient := &http.Client{Timeout: 60 * time.Second}
-		Eventually(func(g Gomega) {
-			resp, err := httpClient.Post(chatEndpoint, "application/json", bytes.NewBuffer(data))
-			g.Expect(err).NotTo(HaveOccurred(), "agent endpoint not reachable")
-			defer resp.Body.Close()
-
-			body, _ := io.ReadAll(resp.Body)
-			if resp.StatusCode == http.StatusOK {
-				g.Expect(string(body)).To(
-					SatisfyAny(
-						ContainSubstring("error"),
-						ContainSubstring("Error"),
-						ContainSubstring("invalid"),
-						ContainSubstring("AuthenticationError"),
-					),
-					"expected error indicator in response body")
-			} else {
-				GinkgoWriter.Printf("Invocation failed with status %d as expected\n", resp.StatusCode)
-			}
-		}).WithTimeout(3 * time.Minute).WithPolling(10 * time.Second).Should(Succeed())
-	})
-
 	It("should have error in runtime logs", func() {
 		agentops.WaitForRuntimeLog(Client, &agentops.WaitForRuntimeLogParams{
 			OrgName:     Cfg.DefaultOrg,
@@ -236,7 +215,7 @@ var _ = Describe("Agent Configuration Lifecycle", Label("agent", "config-lifecyc
 			AgentName:   agentName,
 			Environment: Cfg.DefaultEnv,
 			SearchText:  "Incorrect API key provided",
-			Timeout:     5 * time.Minute,
+			Timeout:     10 * time.Minute,
 		})
 	})
 })

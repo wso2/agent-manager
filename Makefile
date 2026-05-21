@@ -92,9 +92,8 @@ gen-keys:
 setup-platform: gen-keys
 	@cd deployments/scripts && ./setup-platform.sh
 
-LOCAL ?=
 setup-gateway:
-	@cd deployments/scripts && ./setup-gateway.sh $(if $(filter true,$(LOCAL)),--local)
+	@cd deployments/scripts && ./setup-gateway.sh
 
 # Console local setup with dependency tracking
 # This will only rebuild when rush.json or pnpm-lock.yaml changes
@@ -107,8 +106,8 @@ setup-gateway:
 		echo "⚠️  Rush not found. Installing Rush globally..."; \
 		npm install -g @microsoft/rush@5.157.0; \
 	fi
-	@echo "📥 Running rush update..."
-	@cd console && rush update --full
+	@echo "📥 Running rush install..."
+	@cd console && rush install
 	@touch .make/console-deps-installed
 
 .make/console-built: .make/console-deps-installed
@@ -234,8 +233,14 @@ console-logs:
 	@docker logs -f agent-manager-console
 
 # amctl CLI client codegen (oapi-codegen against local OpenAPI spec)
+# Pinned to the same version used in .github/workflows/cli-codegen-check.yaml
+OAPI_CODEGEN_VERSION := v2.6.0
+
 amctl-gen-client:
-	@command -v oapi-codegen >/dev/null || (echo "Installing oapi-codegen..." && go install github.com/oapi-codegen/oapi-codegen/v2/cmd/oapi-codegen@latest)
+	@if ! command -v oapi-codegen >/dev/null || ! oapi-codegen -version 2>&1 | grep -qx '$(OAPI_CODEGEN_VERSION)'; then \
+		echo "Installing oapi-codegen $(OAPI_CODEGEN_VERSION)..."; \
+		go install github.com/oapi-codegen/oapi-codegen/v2/cmd/oapi-codegen@$(OAPI_CODEGEN_VERSION); \
+	fi
 	@oapi-codegen -config cli/pkg/clients/amsvc/gen/oapi-codegen.yaml agent-manager-service/docs/api_v1_openapi.yaml
 	@oapi-codegen -config cli/pkg/clients/amsvc/gen/oapi-codegen-client.yaml agent-manager-service/docs/api_v1_openapi.yaml
 	@echo "amctl client generated successfully"
@@ -260,7 +265,7 @@ gen-eval-artifacts:
 # AI Gateway setup (required for LLM proxy/guardrail tests)
 setup-ai-gateway: dev-migrate
 	@echo "🚀 Installing AI Gateway extension..."
-	@helm upgrade --install amp-ai-gateway deployments/helm-charts/wso2-amp-ai-gateway-extension \
+	@helm upgrade --install amp-ai-gateway deployments/helm-charts/wso2-amp-api-platform-gateway-extension \
 		--namespace openchoreo-data-plane \
 		--set agentManager.apiUrl="http://host.k3d.internal:9000/api/v1" \
 		--set agentManager.idp.tokenUrl="http://amp-thunder-extension-service.amp-thunder.svc.cluster.local:8090/oauth2/token" \
@@ -288,7 +293,7 @@ e2e-list:
 e2e-test:
 	@echo "Running E2E tests..."
 	@cd test/e2e && set -a && [ -f .env ] && . ./.env; set +a && \
-		go run github.com/onsi/ginkgo/v2/ginkgo -v $(if $(FOCUS),--procs=1,$(if $(SUITE),--procs=1,-p)) --timeout 30m --poll-progress-after=600s \
+		go run github.com/onsi/ginkgo/v2/ginkgo -v --procs=1 --timeout 30m --poll-progress-after=600s \
 		--junit-report=e2e-report.xml --output-dir=. \
 		$(if $(FOCUS),--focus="$(FOCUS)") $(if $(SUITE),./tests/$(SUITE)/,./tests/...)
 

@@ -18,10 +18,12 @@ package cmd
 
 import (
 	"github.com/spf13/cobra"
+	"github.com/spf13/pflag"
 
 	"github.com/wso2/agent-manager/cli/pkg/cmd/agent"
 	amcontext "github.com/wso2/agent-manager/cli/pkg/cmd/context"
 	"github.com/wso2/agent-manager/cli/pkg/cmd/project"
+	"github.com/wso2/agent-manager/cli/pkg/cmd/skills"
 	"github.com/wso2/agent-manager/cli/pkg/cmdutil"
 	"github.com/wso2/agent-manager/cli/pkg/version"
 )
@@ -45,6 +47,7 @@ func NewRootCmd(f *cmdutil.Factory) (*cobra.Command, error) {
 	cmd.AddCommand(amcontext.NewContextCmd(f))
 	cmd.AddCommand(project.NewProjectCmd(f))
 	cmd.AddCommand(NewVersionCmd())
+	cmd.AddCommand(skills.NewSkillsCmd(f))
 
 	linkAlias := amcontext.NewLinkCmd(f)
 	linkAlias.Hidden = true
@@ -52,6 +55,21 @@ func NewRootCmd(f *cmdutil.Factory) (*cobra.Command, error) {
 	unlinkAlias.Hidden = true
 	cmd.AddCommand(linkAlias)
 	cmd.AddCommand(unlinkAlias)
+	disableFileCompletion(cmd)
 
 	return cmd, nil
+}
+
+func disableFileCompletion(cmd *cobra.Command) {
+	if cmd.ValidArgsFunction == nil {
+		cmd.ValidArgsFunction = cobra.NoFileCompletions
+	}
+	cmd.Flags().VisitAll(func(f *pflag.Flag) {
+		if _, ok := cmd.GetFlagCompletionFunc(f.Name); !ok {
+			_ = cmd.RegisterFlagCompletionFunc(f.Name, cobra.NoFileCompletions)
+		}
+	})
+	for _, child := range cmd.Commands() {
+		disableFileCompletion(child)
+	}
 }

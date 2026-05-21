@@ -34,7 +34,9 @@ type AgentKindVersionResponse struct {
 	AgentSubType *string `json:"agentSubType,omitempty"`
 	// Configuration schema defining the parameters users must supply when creating an agent from this kind
 	ConfigSchema []AgentKindConfigSchemaItem `json:"configSchema"`
-	CreatedAt    time.Time                   `json:"createdAt"`
+	// Optional interface metadata for this version (e.g. OpenAPI spec). Only returned on single-version fetch.
+	Metadata  map[string]interface{} `json:"metadata,omitempty"`
+	CreatedAt time.Time              `json:"createdAt"`
 }
 
 // NewAgentKindVersionResponse instantiates a new AgentKindVersionResponse object
@@ -244,6 +246,39 @@ func (o *AgentKindVersionResponse) SetConfigSchema(v []AgentKindConfigSchemaItem
 	o.ConfigSchema = v
 }
 
+// GetMetadata returns the Metadata field value if set, zero value otherwise (both if not set or set to explicit null).
+func (o *AgentKindVersionResponse) GetMetadata() map[string]interface{} {
+	if o == nil {
+		var ret map[string]interface{}
+		return ret
+	}
+	return o.Metadata
+}
+
+// GetMetadataOk returns a tuple with the Metadata field value if set, nil otherwise
+// and a boolean to check if the value has been set.
+// NOTE: If the value is an explicit nil, `nil, true` will be returned
+func (o *AgentKindVersionResponse) GetMetadataOk() (map[string]interface{}, bool) {
+	if o == nil || IsNil(o.Metadata) {
+		return map[string]interface{}{}, false
+	}
+	return o.Metadata, true
+}
+
+// HasMetadata returns a boolean if a field has been set.
+func (o *AgentKindVersionResponse) HasMetadata() bool {
+	if o != nil && IsNil(o.Metadata) {
+		return true
+	}
+
+	return false
+}
+
+// SetMetadata gets a reference to the given map[string]interface{} and assigns it to the Metadata field.
+func (o *AgentKindVersionResponse) SetMetadata(v map[string]interface{}) {
+	o.Metadata = v
+}
+
 // GetCreatedAt returns the CreatedAt field value
 func (o *AgentKindVersionResponse) GetCreatedAt() time.Time {
 	if o == nil {
@@ -289,6 +324,9 @@ func (o AgentKindVersionResponse) ToMap() (map[string]interface{}, error) {
 		toSerialize["agentSubType"] = o.AgentSubType
 	}
 	toSerialize["configSchema"] = o.ConfigSchema
+	if o.Metadata != nil {
+		toSerialize["metadata"] = o.Metadata
+	}
 	toSerialize["createdAt"] = o.CreatedAt
 	return toSerialize, nil
 }

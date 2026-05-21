@@ -53,7 +53,7 @@ var _ = Describe("External Agent Lifecycle", Label("agent", "external-agent"), O
 
 	It("should generate a token for the external agent", func() {
 		By("Generating agent token")
-		tokenResp := agentops.GenerateAgentToken(Default, Client, Cfg.DefaultOrg, framework.E2ESharedProjectName, agentName, "1h")
+		tokenResp := agentops.GenerateAgentToken(Default, Client, Cfg.DefaultOrg, framework.E2ESharedProjectName, agentName, Cfg.DefaultEnv, "1h")
 		Expect(tokenResp.Token).NotTo(BeEmpty(), "expected non-empty agent token")
 		GinkgoWriter.Printf("Token type: %s\n", tokenResp.TokenType)
 	})

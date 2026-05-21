@@ -9,8 +9,8 @@ import (
 )
 
 // GenerateAgentToken generates a JWT token for an agent.
-func GenerateAgentToken(g Gomega, client *framework.AMPClient, orgName, projName, agentName string, expiresIn string) framework.TokenResponse {
-	path := fmt.Sprintf("/api/v1/orgs/%s/projects/%s/agents/%s/token", orgName, projName, agentName)
+func GenerateAgentToken(g Gomega, client *framework.AMPClient, orgName, projName, agentName, environment string, expiresIn string) framework.TokenResponse {
+	path := fmt.Sprintf("/api/v1/orgs/%s/projects/%s/agents/%s/token?environment=%s", orgName, projName, agentName, environment)
 
 	req := framework.TokenRequest{
 		ExpiresIn: expiresIn,

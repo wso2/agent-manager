@@ -16,18 +16,24 @@
  * under the License.
  */
 
-import { Alert, Checkbox, Collapse, Form, FormControlLabel, Stack, TextField, Typography, CircularProgress } from "@wso2/oxygen-ui";
+import { Alert, Checkbox, Collapse, Form, FormControl, FormControlLabel, FormHelperText, MenuItem, Select, Stack, TextField, Typography, CircularProgress } from "@wso2/oxygen-ui";
 import { useEffect, useMemo, useCallback } from "react";
 import { useParams } from "react-router-dom";
 import { debounce } from "lodash";
 import { useGenerateResourceName } from "@agent-management-platform/api-client";
+import {
+  DEFAULT_INSTRUMENTATION_VERSION,
+  globalConfig,
+  SUPPORTED_INSTRUMENTATION_VERSIONS,
+  SUPPORTED_PYTHON_VERSIONS,
+} from "@agent-management-platform/types";
 import { InputInterface } from "../components/InputInterface";
 import { EnvironmentVariable } from "../components/EnvironmentVariable";
 import { FileMount } from "../components/FileMount";
 import { GitSecretSelector } from "../components/GitSecretSelector";
 import { LLMProviderSection } from "../components/LLMProviderSection";
 import type { CreateAgentFormValues, LLMProviderFormEntry } from "../form/schema";
-import { BuildpackIcon } from "@agent-management-platform/views";
+import { BuildpackIcon, useExternalConfigModules } from "@agent-management-platform/views";
 
 interface InternalAgentFormProps {
   formData: CreateAgentFormValues;
@@ -50,6 +56,11 @@ const languageOptions = [
   { label: "Docker", value: "docker" },
 ];
 
+const MANUAL_INSTRUMENTATION_DOCS_URL =
+  `${globalConfig.docsUrl ?? ""}${globalConfig.instrumentationDocLinks?.manualInstrumentation ?? ""}`;
+const VERSION_MAPPING_DOCS_URL =
+  `${globalConfig.docsUrl ?? ""}${globalConfig.instrumentationDocLinks?.versionMapping ?? ""}`;
+
 export const InternalAgentForm = ({
   formData,
   setFormData,
@@ -60,6 +71,11 @@ export const InternalAgentForm = ({
   setLLMProviders,
 }: InternalAgentFormProps) => {
   const { orgId, projectId } = useParams<{ orgId: string; projectId: string }>();
+  const privateRepoConfigs = useExternalConfigModules("private-repo-support");
+  const isPrivateRepoEnabled =
+    privateRepoConfigs.length === 0 ||
+    (privateRepoConfigs[0]?.value as { enabled?: boolean })
+      ?.enabled !== false;
 
   const { mutate: generateName, isPending: isGeneratingName } = useGenerateResourceName({
     orgName: orgId,
@@ -196,11 +212,13 @@ export const InternalAgentForm = ({
               fullWidth
             />
           </Form.ElementWrapper>
-          <GitSecretSelector
-            formData={formData}
-            handleFieldChange={handleFieldChange}
-            errors={errors}
-          />
+          {isPrivateRepoEnabled && (
+            <GitSecretSelector
+              formData={formData}
+              handleFieldChange={handleFieldChange}
+              errors={errors}
+            />
+          )}
           <Form.Stack direction="row" spacing={2}>
             <Form.ElementWrapper label="Branch" name="branch">
               <TextField
@@ -270,18 +288,22 @@ export const InternalAgentForm = ({
                 />
               </Form.ElementWrapper>
               <Form.ElementWrapper label="Language Version" name="languageVersion">
-                <TextField
-                  id="languageVersion"
-                  placeholder="3.11"
-                  value={formData.languageVersion || ''}
-                  onChange={(e) => handleFieldChange('languageVersion', e.target.value)}
-                  error={!!errors.languageVersion}
-                  helperText={
-                    errors.languageVersion ||
-                    "e.g., 3.11, 20, 1.21"
-                  }
-                  fullWidth
-                />
+                <FormControl fullWidth error={!!errors.languageVersion}>
+                  <Select
+                    id="languageVersion"
+                    value={formData.languageVersion || ''}
+                    onChange={(e) => handleFieldChange('languageVersion', e.target.value)}
+                  >
+                    {SUPPORTED_PYTHON_VERSIONS.map((v) => (
+                      <MenuItem key={v} value={v}>
+                        {v}
+                      </MenuItem>
+                    ))}
+                  </Select>
+                  <FormHelperText>
+                    {errors.languageVersion || 'Python runtime version'}
+                  </FormHelperText>
+                </FormControl>
               </Form.ElementWrapper>
             </Form.Stack>
             <FormControlLabel
@@ -294,9 +316,38 @@ export const InternalAgentForm = ({
               label="Enable auto instrumentation"
             />
             <Collapse in={formData.enableAutoInstrumentation !== false}>
-              <Typography variant="body2" color="text.secondary">
-                Automatically adds OTEL tracing instrumentation to your agent for observability.
-              </Typography>
+              <Stack spacing={1}>
+                <Typography variant="body2" color="text.secondary">
+                  Automatically adds OTEL tracing instrumentation to your agent for observability.
+                </Typography>
+                <Form.ElementWrapper
+                  label="AMP Instrumentation Version"
+                  name="instrumentationVersion"
+                >
+                  <FormControl
+                    sx={{ minWidth: 200 }}
+                    error={!!errors.instrumentationVersion}
+                  >
+                    <Select
+                      id="instrumentationVersion"
+                      value={formData.instrumentationVersion || ''}
+                      onChange={(e) =>
+                        handleFieldChange('instrumentationVersion', e.target.value)
+                      }
+                    >
+                      {SUPPORTED_INSTRUMENTATION_VERSIONS.map((v) => (
+                        <MenuItem key={v} value={v}>
+                          {v}
+                        </MenuItem>
+                      ))}
+                    </Select>
+                    <FormHelperText>
+                      {errors.instrumentationVersion ||
+                        'Pins the init-container image and the bundled OpenLLMetry SDK version.'}
+                    </FormHelperText>
+                  </FormControl>
+                </Form.ElementWrapper>
+              </Stack>
             </Collapse>
             <Collapse in={formData.enableAutoInstrumentation === false}>
               <Alert severity="info" sx={{ mt: 1 }}>
@@ -305,7 +356,25 @@ export const InternalAgentForm = ({
                 </Typography>
                 <Typography variant="body2" sx={{ mt: 1 }}>
                   With auto-instrumentation disabled, you can still manually instrument your Python agent using{' '}
-                  your desired instrumentation library.
+                  your desired instrumentation library. Emit your own spans against the{' '}
+                  <Typography
+                    component="a"
+                    href={MANUAL_INSTRUMENTATION_DOCS_URL}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    sx={{ color: 'primary.main' }}
+                  >
+                    manual instrumentation contract
+                  </Typography>
+                  {' '}—{' '}
+                  <Typography component="code" sx={{ bgcolor: 'action.hover', px: 0.5, borderRadius: 0.5 }}>
+                    amp-instrumentation
+                  </Typography>
+                  {' '}ships an{' '}
+                  <Typography component="code" sx={{ bgcolor: 'action.hover', px: 0.5, borderRadius: 0.5 }}>
+                    init_otel()
+                  </Typography>
+                  {' '}helper that configures the OTLP exporter for you.
                 </Typography>
                 <Typography variant="body2" sx={{ mt: 1 }}>
                   Environment variables provided:{' '}
@@ -364,13 +433,34 @@ export const InternalAgentForm = ({
                   Docker-based agents require OTEL instrumentation to export traces.
                   For Python, use{' '}
                   <Typography component="code" sx={{ bgcolor: 'action.hover', px: 0.5, borderRadius: 0.5 }}>
-                    pip install amp-instrumentation
+                    {`pip install amp-instrumentation==${DEFAULT_INSTRUMENTATION_VERSION}`}
                   </Typography>
                   {' '}and run with{' '}
                   <Typography component="code" sx={{ bgcolor: 'action.hover', px: 0.5, borderRadius: 0.5 }}>
                     amp-instrument python your_script.py
                   </Typography>
-                  {' '}for zero-code tracing.
+                  {' '}for zero-code tracing. To pick a different version, see the{' '}
+                  <Typography
+                    component="a"
+                    href={VERSION_MAPPING_DOCS_URL}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    sx={{ color: 'primary.main' }}
+                  >
+                    AMP instrumentation version mapping
+                  </Typography>
+                  . For agents on a framework the Traceloop SDK doesn&apos;t cover,
+                  emit your own spans against the{' '}
+                  <Typography
+                    component="a"
+                    href={MANUAL_INSTRUMENTATION_DOCS_URL}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    sx={{ color: 'primary.main' }}
+                  >
+                    manual instrumentation contract
+                  </Typography>
+                  .
                 </Typography>
                 <Typography variant="body2" gutterBottom>
                   Environment variables provided:{' '}

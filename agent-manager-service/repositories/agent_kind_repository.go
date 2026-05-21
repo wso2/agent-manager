@@ -35,6 +35,8 @@ type AgentKindRepository interface {
 
 	CreateVersion(ctx context.Context, version *models.AgentKindVersion) error
 	GetVersion(ctx context.Context, kindID uuid.UUID, versionTag string) (*models.AgentKindVersion, error)
+	GetVersionByImageID(ctx context.Context, kindID uuid.UUID, imageID string) (*models.AgentKindVersion, error)
+	FindVersionByImageIDInOrg(ctx context.Context, orgName, imageID string) (*models.AgentKindVersion, error)
 	ListVersions(ctx context.Context, kindID uuid.UUID) ([]models.AgentKindVersion, error)
 	DeleteVersion(ctx context.Context, kindID uuid.UUID, versionTag string) error
 }
@@ -58,8 +60,8 @@ func (r *agentKindRepo) CreateKind(ctx context.Context, kind *models.AgentKind) 
 func (r *agentKindRepo) GetKind(ctx context.Context, orgName, kindName string) (*models.AgentKind, error) {
 	var kind models.AgentKind
 	result := r.db.WithContext(ctx).
-		Preload("Versions").
-		Where("org_name = ? AND name = ? AND deleted_at IS NULL", orgName, kindName).
+		Preload("Versions", func(db *gorm.DB) *gorm.DB { return db.Order("created_at DESC") }).
+		Where("org_name = ? AND name = ?", orgName, kindName).
 		First(&kind)
 	if errors.Is(result.Error, gorm.ErrRecordNotFound) {
 		return nil, gorm.ErrRecordNotFound
@@ -72,14 +74,14 @@ func (r *agentKindRepo) ListKinds(ctx context.Context, orgName string, limit, of
 	var total int64
 
 	query := r.db.WithContext(ctx).Model(&models.AgentKind{}).
-		Where("org_name = ? AND deleted_at IS NULL", orgName)
+		Where("org_name = ?", orgName)
 
 	if err := query.Count(&total).Error; err != nil {
 		return nil, 0, err
 	}
 
 	result := query.
-		Preload("Versions").
+		Preload("Versions", func(db *gorm.DB) *gorm.DB { return db.Order("created_at DESC") }).
 		Limit(limit).
 		Offset(offset).
 		Order("created_at DESC").
@@ -90,7 +92,7 @@ func (r *agentKindRepo) ListKinds(ctx context.Context, orgName string, limit, of
 func (r *agentKindRepo) UpdateKind(ctx context.Context, kind *models.AgentKind) error {
 	result := r.db.WithContext(ctx).
 		Model(kind).
-		Where("id = ? AND deleted_at IS NULL", kind.ID).
+		Where("id = ?", kind.ID).
 		Updates(map[string]interface{}{
 			"display_name": kind.DisplayName,
 			"description":  kind.Description,
@@ -107,10 +109,9 @@ func (r *agentKindRepo) UpdateKind(ctx context.Context, kind *models.AgentKind) 
 
 func (r *agentKindRepo) DeleteKind(ctx context.Context, orgName, kindName string) error {
 	return r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
-		// Fetch the kind first so we can hard-delete its versions.
-		// ON DELETE CASCADE will not fire because the parent row is only soft-deleted.
+		// Fetch the kind first so we can delete its versions before the parent row.
 		var kind models.AgentKind
-		if err := tx.Where("org_name = ? AND name = ? AND deleted_at IS NULL", orgName, kindName).
+		if err := tx.Where("org_name = ? AND name = ?", orgName, kindName).
 			First(&kind).Error; err != nil {
 			if errors.Is(err, gorm.ErrRecordNotFound) {
 				return gorm.ErrRecordNotFound
@@ -118,14 +119,13 @@ func (r *agentKindRepo) DeleteKind(ctx context.Context, orgName, kindName string
 			return err
 		}
 
-		// Hard-delete all versions belonging to this kind.
-		if err := tx.Unscoped().
-			Where("agent_kind_id = ?", kind.ID).
+		// Delete all versions belonging to this kind.
+		if err := tx.Where("agent_kind_id = ?", kind.ID).
 			Delete(&models.AgentKindVersion{}).Error; err != nil {
 			return err
 		}
 
-		// Soft-delete the kind itself.
+		// Delete the kind itself.
 		result := tx.Delete(&kind)
 		if result.RowsAffected == 0 {
 			return gorm.ErrRecordNotFound
@@ -146,6 +146,30 @@ func (r *agentKindRepo) GetVersion(ctx context.Context, kindID uuid.UUID, versio
 	result := r.db.WithContext(ctx).
 		Preload("Kind").
 		Where("agent_kind_id = ? AND version = ?", kindID, versionTag).
+		First(&v)
+	if errors.Is(result.Error, gorm.ErrRecordNotFound) {
+		return nil, gorm.ErrRecordNotFound
+	}
+	return &v, result.Error
+}
+
+func (r *agentKindRepo) GetVersionByImageID(ctx context.Context, kindID uuid.UUID, imageID string) (*models.AgentKindVersion, error) {
+	var v models.AgentKindVersion
+	result := r.db.WithContext(ctx).
+		Where("agent_kind_id = ? AND image_id = ?", kindID, imageID).
+		First(&v)
+	if errors.Is(result.Error, gorm.ErrRecordNotFound) {
+		return nil, gorm.ErrRecordNotFound
+	}
+	return &v, result.Error
+}
+
+func (r *agentKindRepo) FindVersionByImageIDInOrg(ctx context.Context, orgName, imageID string) (*models.AgentKindVersion, error) {
+	var v models.AgentKindVersion
+	result := r.db.WithContext(ctx).
+		Joins("JOIN agent_kinds ON agent_kinds.id = agent_kind_versions.agent_kind_id").
+		Where("agent_kinds.org_name = ? AND agent_kind_versions.image_id = ?", orgName, imageID).
+		Preload("Kind").
 		First(&v)
 	if errors.Is(result.Error, gorm.ErrRecordNotFound) {
 		return nil, gorm.ErrRecordNotFound

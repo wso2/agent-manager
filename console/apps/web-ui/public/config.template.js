@@ -41,5 +41,21 @@ window.__RUNTIME_CONFIG__ = {
   instrumentationUrl: '$INSTRUMENTATION_URL',
   guardrailsCatalogUrl: '$GUARDRAILS_CATALOG_URL',
   guardrailsDefinitionBaseUrl: '$GUARDRAILS_DEFINITION_BASE_URL',
+  guardrailCapabilities: {
+    awsBedrock:         '$GUARDRAIL_CAP_AWS_BEDROCK' === 'true',
+    azureContentSafety: '$GUARDRAIL_CAP_AZURE_CONTENT_SAFETY' === 'true',
+    graniteGuardian:    '$GUARDRAIL_CAP_GRANITE_GUARDIAN' === 'true',
+    nemoGuard:          '$GUARDRAIL_CAP_NEMO_GUARD' === 'true',
+    semanticGuardrails: '$GUARDRAIL_CAP_SEMANTIC_GUARDRAILS' === 'true',
+  },
+  docsUrl: 'https://wso2.github.io/agent-manager/docs/next',
+  footerLinks: {
+    privacyPolicyUrl: 'https://wso2.com/agent-platform/agent-manager/',
+    termsOfUseUrl: 'https://wso2.com/agent-platform/agent-manager/',
+  },
+  instrumentationDocLinks: {
+    manualInstrumentation: '/components/amp-instrumentation/#manual-instrumentation',
+    versionMapping: '/components/amp-instrumentation/#amp-instrumentation-version-mapping',
+  },
 };
 

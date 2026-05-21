@@ -296,7 +296,8 @@ func (c *openChoreoClient) UpdateComponentBuildParameters(ctx context.Context, n
 	// Update agent subtype label
 	labels[string(LabelKeyAgentSubType)] = req.AgentType.SubType
 
-	// Update the component
+	// Update the component — strip read-only status to avoid JSON parse errors on the server
+	component.Status = nil
 	updateResp, err := c.ocClient.UpdateComponentWithResponse(ctx, namespaceName, componentName, *component)
 	if err != nil {
 		return fmt.Errorf("failed to update component build parameters: %w", err)

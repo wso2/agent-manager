@@ -18,11 +18,13 @@
 
 import { lazy, type ComponentType, type FC } from "react";
 import { metaData as buildMetadata } from "@agent-management-platform/build";
+import { metaData as agentSecurityMetadata } from "@agent-management-platform/agent-security";
 import { metaData as configureAgentMetadata, AddLLMProviderComponent, ViewLLMProviderComponent } from "@agent-management-platform/configure-agent";
 import { metaData as deploymentMetadata } from "@agent-management-platform/deploy";
 import { metaData as evalMetadata } from "@agent-management-platform/eval";
 import { metaData as gatewaysMetadata } from "@agent-management-platform/gateways";
 import { metaData as llmProvidersMetadata } from "@agent-management-platform/llm-providers";
+import { metaData as agentKindMetadata } from "@agent-management-platform/agent-kind";
 import { metaData as logsMetadata } from "@agent-management-platform/logs";
 import { metaData as metricsMetadata } from "@agent-management-platform/metrics";
 import { metaData as overviewMetadata } from "@agent-management-platform/overview";
@@ -38,6 +40,9 @@ export const LazyOverviewComponent = overviewMetadata.levels!.component as FC;
 
 // Build
 export const LazyBuildComponent = buildMetadata.levels!.component as FC;
+
+// Security
+export const LazySecurityComponent = agentSecurityMetadata.levels!.component as FC;
 
 // Configure Agent
 export const LazyConfigureComponent = configureAgentMetadata.component as FC;
@@ -81,6 +86,11 @@ export const LazyAddLLMProvidersOrg =
 
 // Gateways
 export const LazyGatewaysOrg = gatewaysMetadata.levels!.organization as FC;
+
+// Agent Kind
+export const LazyCatalogOrg = agentKindMetadata.levels!.organization as FC;
+export const LazyPublishComponent = agentKindMetadata.levels!.component as FC;
+export const LazyPublishOrg = agentKindMetadata.levels!.publishOrganization as FC;
 
 // Lazy-loaded create pages (only needed when user creates something)
 export const LazyAddNewAgent = lazy(() =>

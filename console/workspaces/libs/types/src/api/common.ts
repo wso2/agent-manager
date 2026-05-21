@@ -90,6 +90,8 @@ export interface Configurations {
   env?: EnvironmentVariable[];
   files?: FileMount[];
   enableAutoInstrumentation?: boolean;
+  instrumentationVersion?: string;
+  enableApiKeySecurity?: boolean;
 }
 
 export interface EndpointSchema {

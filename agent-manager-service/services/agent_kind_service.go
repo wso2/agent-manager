@@ -18,6 +18,7 @@ package services
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"sync"
@@ -149,7 +150,11 @@ func (s *agentKindService) AddVersion(ctx context.Context, orgName, kindName str
 		return nil, fmt.Errorf("failed to get agent kind: %w", err)
 	}
 
-	return s.publishVersion(ctx, orgName, kind, req.GetSourceProjectName(), req.GetSourceAgentName(), req.GetBuildName(), req.GetVersion(), req.GetConfigSchema())
+	metadata, err := marshalMetadata(req.GetMetadata())
+	if err != nil {
+		return nil, err
+	}
+	return s.publishVersion(ctx, orgName, kind, req.GetSourceProjectName(), req.GetSourceAgentName(), req.GetBuildName(), req.GetVersion(), req.GetConfigSchema(), metadata)
 }
 
 // GetVersion returns a specific version of an Agent Kind.
@@ -191,7 +196,7 @@ func (s *agentKindService) ListVersions(ctx context.Context, orgName, kindName s
 
 	responses := make([]models.AgentKindVersionResponse, len(versions))
 	for i := range versions {
-		responses[i] = toAgentKindVersionResponse(&versions[i])
+		responses[i] = toAgentKindVersionSummary(&versions[i])
 	}
 	return responses, nil
 }
@@ -239,8 +244,7 @@ func (s *agentKindService) PublishKind(ctx context.Context, orgName, projectName
 			Versions:    []models.AgentKindVersion{},
 		}
 		if createErr := s.kindRepo.CreateKind(ctx, newKind); createErr != nil {
-			// Handle concurrent creation race: if another request won the race and created
-			// the kind first, retry the lookup rather than surfacing a generic DB error.
+			// Handle concurrent creation race
 			existing, retryErr := s.kindRepo.GetKind(ctx, orgName, kindName)
 			if retryErr == nil {
 				kind = existing
@@ -252,8 +256,11 @@ func (s *agentKindService) PublishKind(ctx context.Context, orgName, projectName
 		}
 	}
 
-	configSchema := req.GetConfigSchema()
-	return s.publishVersion(ctx, orgName, kind, projectName, agentName, req.GetBuildName(), req.GetVersion(), configSchema)
+	metadata, err := marshalMetadata(req.GetMetadata())
+	if err != nil {
+		return nil, err
+	}
+	return s.publishVersion(ctx, orgName, kind, projectName, agentName, req.GetBuildName(), req.GetVersion(), req.GetConfigSchema(), metadata)
 }
 
 // GetKindVersion returns the raw DB record for a kind version (used during agent creation from kind).
@@ -322,13 +329,14 @@ func (s *agentKindService) ListKindAgents(ctx context.Context, orgName, kindName
 // Internal helpers
 // -----------------------------------------------------------------------------
 
-// publishVersion fetches build+component details from OpenChoreo and persists the version.
+// publishVersion fetches build details from OpenChoreo and persists the version.
 func (s *agentKindService) publishVersion(
 	ctx context.Context,
 	orgName string,
 	kind *models.AgentKind,
 	sourceProjectName, sourceAgentName, buildName, versionTag string,
 	configSchema []spec.AgentKindConfigSchemaItem,
+	metadata json.RawMessage,
 ) (*models.AgentKindVersionResponse, error) {
 	// Check version doesn't already exist
 	existing, err := s.kindRepo.GetVersion(ctx, kind.ID, versionTag)
@@ -347,12 +355,27 @@ func (s *agentKindService) publishVersion(
 		return nil, utils.ErrBuildNotComplete
 	}
 
+	// Block re-publishing the same image under a different version of this kind
+	if dup, dupErr := s.kindRepo.GetVersionByImageID(ctx, kind.ID, build.ImageId); dupErr == nil && dup != nil {
+		return nil, fmt.Errorf("%w: already published as version %q of kind %q", utils.ErrKindImageAlreadyPublished, dup.Version, kind.Name)
+	} else if dupErr != nil && !errors.Is(dupErr, gorm.ErrRecordNotFound) {
+		return nil, fmt.Errorf("failed to check for duplicate image: %w", dupErr)
+	}
+
+	// Block re-publishing the same image under any other kind in the org
+	if orgDup, orgDupErr := s.kindRepo.FindVersionByImageIDInOrg(ctx, orgName, build.ImageId); orgDupErr == nil && orgDup != nil {
+		return nil, fmt.Errorf("%w: image already published as version %q of kind %q", utils.ErrKindImageAlreadyPublished, orgDup.Version, orgDup.Kind.Name)
+	} else if orgDupErr != nil && !errors.Is(orgDupErr, gorm.ErrRecordNotFound) {
+		return nil, fmt.Errorf("failed to check for duplicate image across org: %w", orgDupErr)
+	}
+
 	version := &models.AgentKindVersion{
 		AgentKindID:  kind.ID,
 		Version:      versionTag,
 		BuildName:    buildName,
 		ImageId:      build.ImageId,
 		ConfigSchema: toModelConfigSchema(configSchema),
+		Metadata:     metadata,
 		CreatedAt:    time.Now(),
 	}
 
@@ -362,6 +385,18 @@ func (s *agentKindService) publishVersion(
 
 	resp := toAgentKindVersionResponse(version)
 	return &resp, nil
+}
+
+// marshalMetadata converts a map to json.RawMessage; returns nil for nil/empty maps.
+func marshalMetadata(m map[string]interface{}) (json.RawMessage, error) {
+	if len(m) == 0 {
+		return nil, nil
+	}
+	b, err := json.Marshal(m)
+	if err != nil {
+		return nil, fmt.Errorf("failed to marshal metadata: %w", err)
+	}
+	return b, nil
 }
 
 func toModelConfigSchema(items []spec.AgentKindConfigSchemaItem) []models.KindConfigSchemaItem {
@@ -380,7 +415,25 @@ func toModelConfigSchema(items []spec.AgentKindConfigSchemaItem) []models.KindCo
 	return result
 }
 
+// toAgentKindVersionResponse builds the full response including metadata (used for single-version fetch).
 func toAgentKindVersionResponse(v *models.AgentKindVersion) models.AgentKindVersionResponse {
+	resp := models.AgentKindVersionResponse{
+		Version:      v.Version,
+		BuildName:    v.BuildName,
+		ImageId:      v.ImageId,
+		ConfigSchema: v.ConfigSchema,
+		Metadata:     v.Metadata,
+		CreatedAt:    v.CreatedAt,
+	}
+	if v.Kind != nil {
+		resp.SourceAgentName = v.Kind.AgentName
+		resp.SourceProjectName = v.Kind.ProjectName
+	}
+	return resp
+}
+
+// toAgentKindVersionSummary builds a response without metadata (used for list views).
+func toAgentKindVersionSummary(v *models.AgentKindVersion) models.AgentKindVersionResponse {
 	resp := models.AgentKindVersionResponse{
 		Version:      v.Version,
 		BuildName:    v.BuildName,
@@ -399,7 +452,7 @@ func toAgentKindResponse(kind *models.AgentKind) *models.AgentKindResponse {
 	versions := make([]models.AgentKindVersionResponse, len(kind.Versions))
 	latestVersion := ""
 	for i, v := range kind.Versions {
-		versions[i] = toAgentKindVersionResponse(&v)
+		versions[i] = toAgentKindVersionSummary(&v)
 		// The first entry (ordered DESC by created_at) is the latest
 		if i == 0 {
 			latestVersion = v.Version

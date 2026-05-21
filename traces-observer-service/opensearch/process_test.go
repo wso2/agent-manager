@@ -17,6 +17,8 @@
 package opensearch
 
 import (
+	"encoding/json"
+	"strings"
 	"testing"
 )
 
@@ -607,6 +609,218 @@ func TestExtractPromptMessages(t *testing.T) {
 		}
 		if messages[1].Content != "Hi there" {
 			t.Errorf("expected 'Hi there', got %q", messages[1].Content)
+		}
+	})
+
+	// Regression: opentelemetry-instrumentation-openai (0.60.0) and
+	// opentelemetry-instrumentation-openai-agents emit content nested under
+	// parts:[{type:"text", content:"..."}] instead of a top-level content field.
+	// parseOTELMessage must fall back to parts[].content so the Console's
+	// per-span Input Messages panel doesn't render empty bubbles.
+	t.Run("OTEL format with gen_ai parts[]", func(t *testing.T) {
+		attrs := map[string]interface{}{
+			"gen_ai.input.messages": `[{"role":"system","parts":[{"type":"text","content":"You are helpful"}]},{"role":"user","parts":[{"type":"text","content":"Hello"}]}]`,
+		}
+		messages := ExtractPromptMessages(attrs)
+		if len(messages) != 2 {
+			t.Fatalf("expected 2 messages, got %d", len(messages))
+		}
+		if messages[0].Content != "You are helpful" {
+			t.Errorf("expected content 'You are helpful' from parts[], got %q", messages[0].Content)
+		}
+		if messages[1].Content != "Hello" {
+			t.Errorf("expected content 'Hello' from parts[], got %q", messages[1].Content)
+		}
+	})
+
+	t.Run("OTEL format with gen_ai parts[] - skips non-text parts", func(t *testing.T) {
+		attrs := map[string]interface{}{
+			"gen_ai.input.messages": `[{"role":"user","parts":[{"type":"text","content":"caption: "},{"type":"image","content":"<binary>"},{"type":"text","content":"a cat"}]}]`,
+		}
+		messages := ExtractPromptMessages(attrs)
+		if len(messages) != 1 {
+			t.Fatalf("expected 1 message, got %d", len(messages))
+		}
+		if messages[0].Content != "caption: a cat" {
+			t.Errorf("expected concatenated text parts 'caption: a cat', got %q", messages[0].Content)
+		}
+	})
+
+	// Regression for the parts[] tool_call path that #181 inadvertently dropped:
+	// an assistant turn that carries only a tool_call part must surface as a
+	// PromptMessage with empty Content but populated ToolCalls so the console
+	// renders the tool name + arguments instead of an empty bubble.
+	t.Run("OTEL format with parts[] tool_call", func(t *testing.T) {
+		attrs := map[string]interface{}{
+			"gen_ai.input.messages": `[{"role":"assistant","parts":[{"type":"tool_call","id":"call_1","name":"search_flights","arguments":{"departure_airport":"ZRH","arrival_airport":"LHR"}}]}]`,
+		}
+		messages := ExtractPromptMessages(attrs)
+		if len(messages) != 1 {
+			t.Fatalf("expected 1 message, got %d", len(messages))
+		}
+		if messages[0].Role != "assistant" {
+			t.Errorf("expected role 'assistant', got %q", messages[0].Role)
+		}
+		if messages[0].Content != "" {
+			t.Errorf("expected empty Content (tool_call only), got %q", messages[0].Content)
+		}
+		if len(messages[0].ToolCalls) != 1 {
+			t.Fatalf("expected 1 tool call, got %d", len(messages[0].ToolCalls))
+		}
+		tc := messages[0].ToolCalls[0]
+		if tc.ID != "call_1" {
+			t.Errorf("expected tool call ID 'call_1', got %q", tc.ID)
+		}
+		if tc.Name != "search_flights" {
+			t.Errorf("expected tool name 'search_flights', got %q", tc.Name)
+		}
+		if tc.Arguments != `{"arrival_airport":"LHR","departure_airport":"ZRH"}` {
+			t.Errorf("expected JSON-marshalled arguments, got %q", tc.Arguments)
+		}
+	})
+
+	t.Run("OTEL format with parts[] tool_call_response - 'response' field", func(t *testing.T) {
+		attrs := map[string]interface{}{
+			"gen_ai.input.messages": `[{"role":"tool","parts":[{"type":"tool_call_response","id":"call_1","response":"Error: ValueError('boom')"}]}]`,
+		}
+		messages := ExtractPromptMessages(attrs)
+		if len(messages) != 1 {
+			t.Fatalf("expected 1 message, got %d", len(messages))
+		}
+		if messages[0].Role != "tool" {
+			t.Errorf("expected role 'tool', got %q", messages[0].Role)
+		}
+		if messages[0].Content != "Error: ValueError('boom')" {
+			t.Errorf("expected response surfaced into Content, got %q", messages[0].Content)
+		}
+	})
+
+	t.Run("OTEL format with parts[] tool_call_response - legacy 'result' field", func(t *testing.T) {
+		attrs := map[string]interface{}{
+			"gen_ai.input.messages": `[{"role":"tool","parts":[{"type":"tool_call_response","id":"call_1","result":"ok"}]}]`,
+		}
+		messages := ExtractPromptMessages(attrs)
+		if len(messages) != 1 {
+			t.Fatalf("expected 1 message, got %d", len(messages))
+		}
+		if messages[0].Content != "ok" {
+			t.Errorf("expected legacy 'result' surfaced into Content, got %q", messages[0].Content)
+		}
+	})
+
+	t.Run("OTEL format with parts[] mixed text + tool_call", func(t *testing.T) {
+		attrs := map[string]interface{}{
+			"gen_ai.input.messages": `[{"role":"assistant","parts":[{"type":"text","content":"Let me search."},{"type":"tool_call","id":"call_1","name":"lookup","arguments":"{}"}]}]`,
+		}
+		messages := ExtractPromptMessages(attrs)
+		if len(messages) != 1 {
+			t.Fatalf("expected 1 message, got %d", len(messages))
+		}
+		if messages[0].Content != "Let me search." {
+			t.Errorf("expected text part in Content, got %q", messages[0].Content)
+		}
+		if len(messages[0].ToolCalls) != 1 || messages[0].ToolCalls[0].Name != "lookup" {
+			t.Errorf("expected tool call 'lookup', got %+v", messages[0].ToolCalls)
+		}
+	})
+
+	// OTel GenAI conventions (used by LangGraph / OpenAI Agents SDK) surface
+	// the system prompt in a separate gen_ai.system_instructions attribute
+	// rather than as the first message in gen_ai.input.messages. The Console
+	// expects to see a system message at the head of the conversation, so the
+	// observer synthesizes one when only system_instructions is present.
+	t.Run("Prepends system from gen_ai.system_instructions parts[] when input.messages has none", func(t *testing.T) {
+		attrs := map[string]interface{}{
+			"gen_ai.system_instructions": `[{"type":"text","content":"You are a customer support agent for Acme."}]`,
+			"gen_ai.input.messages":      `[{"role":"user","parts":[{"type":"text","content":"hi"}]}]`,
+		}
+		messages := ExtractPromptMessages(attrs)
+		if len(messages) != 2 {
+			t.Fatalf("expected 2 messages (synthesized system + user), got %d", len(messages))
+		}
+		if messages[0].Role != "system" {
+			t.Errorf("expected first message role 'system', got %q", messages[0].Role)
+		}
+		if messages[0].Content != "You are a customer support agent for Acme." {
+			t.Errorf("unexpected system content %q", messages[0].Content)
+		}
+		if messages[1].Role != "user" || messages[1].Content != "hi" {
+			t.Errorf("expected second message user/'hi', got %+v", messages[1])
+		}
+	})
+
+	t.Run("Prepends system from plain-string gen_ai.system_instructions", func(t *testing.T) {
+		attrs := map[string]interface{}{
+			"gen_ai.system_instructions": "You are a careful researcher.",
+			"gen_ai.input.messages":      `[{"role":"user","parts":[{"type":"text","content":"hi"}]}]`,
+		}
+		messages := ExtractPromptMessages(attrs)
+		if len(messages) != 2 {
+			t.Fatalf("expected 2 messages, got %d", len(messages))
+		}
+		if messages[0].Role != "system" || messages[0].Content != "You are a careful researcher." {
+			t.Errorf("unexpected first message %+v", messages[0])
+		}
+	})
+
+	t.Run("Does not duplicate system when input.messages already has one", func(t *testing.T) {
+		attrs := map[string]interface{}{
+			"gen_ai.system_instructions": `[{"type":"text","content":"Should be ignored"}]`,
+			"gen_ai.input.messages":      `[{"role":"system","content":"You are a bot."},{"role":"user","content":"hi"}]`,
+		}
+		messages := ExtractPromptMessages(attrs)
+		if len(messages) != 2 {
+			t.Fatalf("expected 2 messages (no duplicate), got %d", len(messages))
+		}
+		if messages[0].Role != "system" || messages[0].Content != "You are a bot." {
+			t.Errorf("expected existing system kept, got %+v", messages[0])
+		}
+	})
+
+	t.Run("Does not duplicate system when Traceloop format already has one", func(t *testing.T) {
+		attrs := map[string]interface{}{
+			"gen_ai.system_instructions": "Should be ignored",
+			"gen_ai.prompt.0.role":       "system",
+			"gen_ai.prompt.0.content":    "You are a bot.",
+			"gen_ai.prompt.1.role":       "user",
+			"gen_ai.prompt.1.content":    "hi",
+		}
+		messages := ExtractPromptMessages(attrs)
+		if len(messages) != 2 {
+			t.Fatalf("expected 2 messages, got %d", len(messages))
+		}
+		if messages[0].Role != "system" || messages[0].Content != "You are a bot." {
+			t.Errorf("expected Traceloop system kept, got %+v", messages[0])
+		}
+	})
+
+	t.Run("Leaves conversation untouched when no system instructions anywhere", func(t *testing.T) {
+		attrs := map[string]interface{}{
+			"gen_ai.input.messages": `[{"role":"user","parts":[{"type":"text","content":"hi"}]}]`,
+		}
+		messages := ExtractPromptMessages(attrs)
+		if len(messages) != 1 {
+			t.Fatalf("expected 1 message (no synthesized system), got %d", len(messages))
+		}
+		if messages[0].Role != "user" {
+			t.Errorf("expected user, got %q", messages[0].Role)
+		}
+	})
+
+	// Defensive: even though the conventions are all lowercase, a malformed
+	// span carrying " System " / "System" must not cause a duplicate system
+	// bubble. hasSystemMessage trims + lowercases before matching.
+	t.Run("Does not duplicate system when input.messages role has odd casing/whitespace", func(t *testing.T) {
+		attrs := map[string]interface{}{
+			"gen_ai.system_instructions": `[{"type":"text","content":"Should be ignored"}]`,
+			"gen_ai.input.messages":      `[{"role":" System ","content":"You are a bot."},{"role":"user","content":"hi"}]`,
+		}
+		messages := ExtractPromptMessages(attrs)
+		if len(messages) != 2 {
+			t.Fatalf("expected 2 messages (no duplicate), got %d", len(messages))
+		}
+		if messages[0].Content != "You are a bot." {
+			t.Errorf("expected existing system kept, got %+v", messages[0])
 		}
 	})
 }
@@ -1408,6 +1622,177 @@ func TestProcessSpan_PureOTelGenAISpans(t *testing.T) {
 		amp := ProcessSpan(span).AmpAttributes
 		if amp.Status == nil || !amp.Status.Error {
 			t.Errorf("status = %#v, want error", amp.Status)
+		}
+	})
+}
+
+// ── Trace-list cascade helpers ──────────────────────────────────────────────
+
+func TestIsLLMLeafSpan(t *testing.T) {
+	cases := []struct {
+		name string
+		in   string
+		want bool
+	}{
+		{"OpenAI chat leaf", "openai.chat", true},
+		{"LangChain ChatOpenAI", "ChatOpenAI.chat", true},
+		{"Anthropic", "anthropic.chat", true},
+		{"Cohere", "cohere.chat", true},
+		{"LangGraph workflow chain — not a leaf", "LangGraph.workflow", false},
+		{"invoke_agent root", "invoke_agent LangGraph", false},
+		{"execute_task chain", "execute_task call_model", false},
+		{"embedding span", "openai.embeddings", false},
+		{"empty", "", false},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			if got := IsLLMLeafSpan(tc.in); got != tc.want {
+				t.Errorf("IsLLMLeafSpan(%q) = %v, want %v", tc.in, got, tc.want)
+			}
+		})
+	}
+}
+
+func TestExtractInputPreviewFromLeaf(t *testing.T) {
+	t.Run("nil span returns nil", func(t *testing.T) {
+		if got := ExtractInputPreviewFromLeaf(nil); got != nil {
+			t.Errorf("got %v, want nil", got)
+		}
+	})
+
+	t.Run("no gen_ai.input.messages attribute returns nil", func(t *testing.T) {
+		s := &Span{Attributes: map[string]interface{}{"foo": "bar"}}
+		if got := ExtractInputPreviewFromLeaf(s); got != nil {
+			t.Errorf("got %v, want nil", got)
+		}
+	})
+
+	t.Run("returns first message content from parts[] shape", func(t *testing.T) {
+		s := &Span{Attributes: map[string]interface{}{
+			"gen_ai.input.messages": `[{"role":"user","parts":[{"type":"text","content":"what flights from ZRH to LHR"}]},{"role":"assistant","parts":[{"type":"text","content":"checking..."}]}]`,
+		}}
+		got := ExtractInputPreviewFromLeaf(s)
+		if got != "what flights from ZRH to LHR" {
+			t.Errorf("got %v, want first user message", got)
+		}
+	})
+
+	t.Run("returns first message content from legacy top-level content shape", func(t *testing.T) {
+		s := &Span{Attributes: map[string]interface{}{
+			"gen_ai.input.messages": `[{"role":"user","content":"hi"},{"role":"assistant","content":"hello"}]`,
+		}}
+		got := ExtractInputPreviewFromLeaf(s)
+		if got != "hi" {
+			t.Errorf("got %v, want 'hi'", got)
+		}
+	})
+
+	// gen_ai.input.messages on a chat span often carries the system prompt
+	// first; we should skip past it to surface the user turn as the preview.
+	t.Run("skips leading system message and returns first user content", func(t *testing.T) {
+		s := &Span{Attributes: map[string]interface{}{
+			"gen_ai.input.messages": `[{"role":"system","content":"You are a bot."},{"role":"user","content":"order #12347?"},{"role":"assistant","content":"checking..."}]`,
+		}}
+		got := ExtractInputPreviewFromLeaf(s)
+		if got != "order #12347?" {
+			t.Errorf("got %v, want first user content", got)
+		}
+	})
+
+	// When no user role is present (pathological), fall back to the first
+	// non-empty content rather than returning nil.
+	t.Run("falls back to first non-empty content when no user role", func(t *testing.T) {
+		s := &Span{Attributes: map[string]interface{}{
+			"gen_ai.input.messages": `[{"role":"system","content":"sys prompt"},{"role":"assistant","content":"reply"}]`,
+		}}
+		got := ExtractInputPreviewFromLeaf(s)
+		if got != "sys prompt" {
+			t.Errorf("got %v, want fallback to first content", got)
+		}
+	})
+}
+
+func TestExtractOutputPreviewFromLeaf(t *testing.T) {
+	t.Run("nil span returns nil", func(t *testing.T) {
+		if got := ExtractOutputPreviewFromLeaf(nil); got != nil {
+			t.Errorf("got %v, want nil", got)
+		}
+	})
+
+	t.Run("no gen_ai.output.messages attribute returns nil", func(t *testing.T) {
+		s := &Span{Attributes: map[string]interface{}{"foo": "bar"}}
+		if got := ExtractOutputPreviewFromLeaf(s); got != nil {
+			t.Errorf("got %v, want nil", got)
+		}
+	})
+
+	t.Run("returns last message content from parts[] shape", func(t *testing.T) {
+		s := &Span{Attributes: map[string]interface{}{
+			"gen_ai.output.messages": `[{"role":"assistant","parts":[{"type":"text","content":"Here are the flights..."}]}]`,
+		}}
+		got := ExtractOutputPreviewFromLeaf(s)
+		if got != "Here are the flights..." {
+			t.Errorf("got %v, want assistant response", got)
+		}
+	})
+
+	t.Run("returns last (not first) when multiple output messages", func(t *testing.T) {
+		s := &Span{Attributes: map[string]interface{}{
+			"gen_ai.output.messages": `[{"role":"assistant","content":"draft"},{"role":"assistant","content":"final"}]`,
+		}}
+		got := ExtractOutputPreviewFromLeaf(s)
+		if got != "final" {
+			t.Errorf("got %v, want 'final'", got)
+		}
+	})
+
+	// In agent flows gen_ai.output.messages can end with a tool response;
+	// the trace-list preview wants the model's answer, not the tool output.
+	t.Run("skips trailing tool message and returns last assistant content", func(t *testing.T) {
+		s := &Span{Attributes: map[string]interface{}{
+			"gen_ai.output.messages": `[{"role":"assistant","content":"calling search_flights"},{"role":"tool","content":"{flights: [...]}"}]`,
+		}}
+		got := ExtractOutputPreviewFromLeaf(s)
+		if got != "calling search_flights" {
+			t.Errorf("got %v, want last assistant content", got)
+		}
+	})
+
+	// When no assistant role is present (pathological), fall back to the
+	// last non-empty content rather than returning nil.
+	t.Run("falls back to last non-empty content when no assistant role", func(t *testing.T) {
+		s := &Span{Attributes: map[string]interface{}{
+			"gen_ai.output.messages": `[{"role":"tool","content":"only tool output"}]`,
+		}}
+		got := ExtractOutputPreviewFromLeaf(s)
+		if got != "only tool output" {
+			t.Errorf("got %v, want fallback to last content", got)
+		}
+	})
+}
+
+func TestTokenUsage_PartialSerialization(t *testing.T) {
+	t.Run("omitted from JSON when false", func(t *testing.T) {
+		tu := TokenUsage{InputTokens: 100, OutputTokens: 50, TotalTokens: 150}
+		buf, err := json.Marshal(tu)
+		if err != nil {
+			t.Fatalf("marshal: %v", err)
+		}
+		got := string(buf)
+		if strings.Contains(got, "partial") {
+			t.Errorf("partial should be omitted when false, got %q", got)
+		}
+	})
+
+	t.Run("included when true", func(t *testing.T) {
+		tu := TokenUsage{InputTokens: 100, OutputTokens: 50, TotalTokens: 150, Partial: true}
+		buf, err := json.Marshal(tu)
+		if err != nil {
+			t.Fatalf("marshal: %v", err)
+		}
+		got := string(buf)
+		if !strings.Contains(got, `"partial":true`) {
+			t.Errorf("partial=true should serialise, got %q", got)
 		}
 	})
 }

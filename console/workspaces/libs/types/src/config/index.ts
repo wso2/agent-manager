@@ -32,7 +32,39 @@ export interface AppConfig {
   instrumentationUrl: string;
   guardrailsCatalogUrl: string;
   guardrailsDefinitionBaseUrl: string;
+  /**
+   * Capability flags that unlock guardrail policies requiring external system configuration.
+   * OOTB policies are always shown regardless of these flags.
+   */
+  guardrailCapabilities?: GuardrailCapabilities;
+  /** URL for the product documentation. Shown as a "Docs" link in the footer. */
+  docsUrl?: string;
+  /** URLs rendered in the footer. */
+  footerLinks?: {
+    privacyPolicyUrl?: string;
+    termsOfUseUrl?: string;
+  };
+  /** Documentation deep-link paths for AMP instrumentation, appended to docsUrl. */
+  instrumentationDocLinks?: {
+    /** Path to the manual instrumentation contract section. */
+    manualInstrumentation?: string;
+    /** Path to the AMP instrumentation version mapping section. */
+    versionMapping?: string;
+  };
 }
+
+export type GuardrailCapabilities = {
+  /** Unlocks: aws-bedrock-guardrail */
+  awsBedrock?: boolean;
+  /** Unlocks: azure-content-safety-content-moderation */
+  azureContentSafety?: boolean;
+  /** Unlocks: granite-guardian-prompt-injection */
+  graniteGuardian?: boolean;
+  /** Unlocks: nvidia-nemoguard-content-safety */
+  nemoGuard?: boolean;
+  /** Unlocks: semantic-prompt-guard, semantic-cache */
+  semanticGuardrails?: boolean;
+};
 
 
 // Extend the Window interface to include our config

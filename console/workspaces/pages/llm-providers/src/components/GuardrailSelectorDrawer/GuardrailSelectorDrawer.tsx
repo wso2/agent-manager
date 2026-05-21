@@ -48,8 +48,10 @@ import {
 import {
   useGuardrailsCatalog,
   useGuardrailPolicyDefinition,
+  filterGuardrailPolicies,
   type GuardrailDefinition,
 } from "@agent-management-platform/api-client";
+import { globalConfig } from "@agent-management-platform/types";
 import PolicyParameterEditor from "../../PolicyParameterEditor/PolicyParameterEditor";
 import { parsePolicyYaml } from "../../PolicyParameterEditor/yamlParser";
 import type {
@@ -203,7 +205,10 @@ export function GuardrailSelectorDrawer({
   const [searchQuery, setSearchQuery] = useState("");
 
   const availableGuardrails = useMemo(
-    () => catalogData?.data ?? [],
+    () => filterGuardrailPolicies(
+      catalogData?.data ?? [],
+      globalConfig?.guardrailCapabilities,
+    ),
     [catalogData],
   );
 

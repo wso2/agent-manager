@@ -26,7 +26,11 @@ import {
   CircularProgress,
 } from "@wso2/oxygen-ui";
 import { MessageCircle, Send } from "@wso2/oxygen-ui-icons-react";
-import { useGetAgentEndpoints } from "@agent-management-platform/api-client";
+import {
+  useGetAgent,
+  useGetAgentEndpoints,
+  useTestAgentAPIKey,
+} from "@agent-management-platform/api-client";
 import { useParams } from "react-router-dom";
 import { ChatMessage } from "./subComponents/ChatMessage";
 import { FadeIn } from "@agent-management-platform/views";
@@ -64,6 +68,20 @@ export function AgentChat() {
         environment: envId ?? "",
       },
     );
+  const { data: agent } = useGetAgent({
+    orgName: orgId,
+    projName: projectId,
+    agentName: agentId,
+  });
+  const securityEnabled = agent?.configurations?.enableApiKeySecurity ?? true;
+  const {
+    data: testKey,
+    isLoading: isLoadingTestKey,
+    error: testKeyError,
+  } = useTestAgentAPIKey(
+    { orgName: orgId, projName: projectId, agentName: agentId, envId },
+    { enabled: securityEnabled },
+  );
   const endpointOptions = useMemo(() => {
     return Object.entries(endpoints ?? {}).map(([key, value]) => ({
       label: key,
@@ -83,6 +101,10 @@ export function AgentChat() {
 
   const handleSendMessage = async () => {
     if (!message.trim() || isLoading) return;
+    if (securityEnabled && !testKey?.apiKey) {
+      setError("API key security is enabled, but a test API key is not available yet.");
+      return;
+    }
 
     const userMessage: ChatMessage = {
       id: Date.now().toString(),
@@ -102,11 +124,16 @@ export function AgentChat() {
         message: userMessage.content,
       };
 
+      const headers: Record<string, string> = {
+        "Content-Type": "application/json",
+      };
+      if (securityEnabled && testKey?.apiKey) {
+        headers["X-API-Key"] = testKey.apiKey;
+      }
+
       const apiResponse = await fetch(endpoint, {
         method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
+        headers,
         body: JSON.stringify(requestBody),
         referrerPolicy: "",
       });
@@ -175,6 +202,13 @@ export function AgentChat() {
     }
   };
 
+  const inputDisabled =
+    isLoading ||
+    isEndpointsLoading ||
+    isLoadingTestKey ||
+    (securityEnabled && !testKey?.apiKey);
+  const sendDisabled = inputDisabled || !message.trim();
+
   if (messages.length === 0) {
     return (
       <FadeIn>
@@ -214,13 +248,13 @@ export function AgentChat() {
                 onKeyDown={handleKeyDown}
                 placeholder="Type your message..."
                 variant="outlined"
-                disabled={isLoading || isEndpointsLoading}
+                disabled={inputDisabled}
               />
               <Button
                 variant="contained"
                 color="primary"
                 onClick={handleSendMessage}
-                disabled={isLoading || isEndpointsLoading || !message.trim()}
+                disabled={sendDisabled}
                 startIcon={
                   isLoading || isEndpointsLoading ? (
                     <CircularProgress size={16} />
@@ -294,6 +328,11 @@ export function AgentChat() {
             {error}
           </Alert>
         )}
+        {!!testKeyError && (
+          <Alert severity="error" sx={{ borderRadius: 1 }}>
+            Failed to obtain a test API key. Send may fail until this is resolved.
+          </Alert>
+        )}
 
         {/* Message Input Area */}
         <Box
@@ -311,13 +350,13 @@ export function AgentChat() {
             placeholder="Type your message..."
             variant="outlined"
             size="small"
-            disabled={isLoading || isEndpointsLoading}
+            disabled={inputDisabled}
           />
           <Button
             variant="contained"
             color="primary"
             onClick={handleSendMessage}
-            disabled={isLoading || isEndpointsLoading || !message.trim()}
+            disabled={sendDisabled}
             startIcon={
               isLoading || isEndpointsLoading ? (
                 <CircularProgress size={16} />

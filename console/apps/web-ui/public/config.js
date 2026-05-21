@@ -32,14 +32,35 @@ window.__RUNTIME_CONFIG__ = {
         clockTolerance: 300,
       },
     },
+    tokenLifecycle: {
+      refreshToken: {
+        autoRefresh: true,
+      },
+    },
     storage: 'localStorage',
   },
   disableAuth: false,
   apiBaseUrl: 'http://localhost:9000',
   obsApiBaseUrl: 'http://localhost:9098',
   gatewayControlPlaneUrl: 'http://localhost:9243',
-  gatewayVersion: 'v0.9.0',
+  gatewayVersion: 'v0.11.0',
   instrumentationUrl: 'http://localhost:22893/otel',
-  guardrailsCatalogUrl: 'https://db720294-98fd-40f4-85a1-cc6a3b65bc9a-prod.e1-us-east-azure.choreoapis.dev/api-platform/policy-hub-api/policy-hub-public/v1.0/policies?categories=Guardrails',
+  guardrailsCatalogUrl: 'https://db720294-98fd-40f4-85a1-cc6a3b65bc9a-prod.e1-us-east-azure.choreoapis.dev/api-platform/policy-hub-api/policy-hub-public/v1.0/policies?categories=Guardrails,AI&limit=100',
   guardrailsDefinitionBaseUrl: 'https://db720294-98fd-40f4-85a1-cc6a3b65bc9a-prod.e1-us-east-azure.choreoapis.dev/api-platform/policy-hub-api/policy-hub-public/v1.0/policies',
+  guardrailCapabilities: {
+    awsBedrock: false,
+    azureContentSafety: false,
+    graniteGuardian: false,
+    nemoGuard: false,
+    semanticGuardrails: false,
+  },
+  docsUrl: 'https://wso2.github.io/agent-manager/docs/next',
+  footerLinks: {
+    privacyPolicyUrl: 'https://wso2.com/agent-platform/agent-manager/',
+    termsOfUseUrl: 'https://wso2.com/agent-platform/agent-manager/',
+  },
+  instrumentationDocLinks: {
+    manualInstrumentation: '/components/amp-instrumentation/#manual-instrumentation',
+    versionMapping: '/components/amp-instrumentation/#amp-instrumentation-version-mapping',
+  },
 };

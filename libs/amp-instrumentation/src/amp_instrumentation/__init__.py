@@ -18,8 +18,20 @@
 WSO2 Agent Management Platform - Automatic Instrumentation Package
 
 This package provides automatic tracing instrumentation for Python applications
-using the Traceloop SDK and OpenTelemetry.
+using the Traceloop SDK and OpenTelemetry. For agents that instrument themselves
+against the AMP manual-instrumentation contract, :func:`init_otel` configures the
+OTLP exporter without doing any instrumentation.
 """
 
-__version__ = "0.1.0"
-__all__ = []
+from importlib.metadata import PackageNotFoundError, version
+
+from .otel import init_otel
+
+try:
+    # Single source of truth: the version baked into the installed distribution
+    # (set from pyproject.toml's `version`, which the release pipeline updates).
+    __version__ = version("amp-instrumentation")
+except PackageNotFoundError:  # running from a source checkout, not installed
+    __version__ = "0.0.0"
+
+__all__ = ["init_otel"]

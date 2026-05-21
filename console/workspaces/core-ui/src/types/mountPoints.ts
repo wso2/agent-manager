@@ -22,7 +22,9 @@ export enum MountPoints {
     ProjectLevelPage = "project-level-page",
     TopLeftPanel = "top-left-panel",
     TopRightPanel = "top-right-panel",
+    TopLogo = "top-logo",
     BottomLeftPanel = "bottom-left-panel",
     BottomRightPanel = "bottom-right-panel",
     LeftNavItem = "left-nav-item",
+    PrivateRepoSupport = "private-repo-support",
 }

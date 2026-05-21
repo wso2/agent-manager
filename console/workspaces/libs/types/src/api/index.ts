@@ -17,7 +17,9 @@
  */
 
 export * from './common';
+export * from './instrumentation';
 export * from './agent-model-configs';
+export * from './agent-api-keys';
 export * from './catalog';
 export * from './agents';
 export * from './builds';
@@ -34,3 +36,4 @@ export * from './resource-configs';
 export * from './llm-providers';
 export * from './gateways';
 export * from './git-secrets';
+export * from './agent-kinds';

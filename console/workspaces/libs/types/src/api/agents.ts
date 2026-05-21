@@ -72,9 +72,15 @@ export interface AgentType {
 
 export type ProvisioningType = 'internal' | 'external';
 
+export interface ProvisioningAgentKind {
+  name: string;
+  version: string;
+}
+
 export interface Provisioning {
   type: ProvisioningType;
   repository?: RepositoryConfig;
+  agentKind?: ProvisioningAgentKind;
 }
 
 export interface AgentResponse {
@@ -90,6 +96,7 @@ export interface AgentResponse {
   configurations?: Configurations;
   inputInterface?: InputInterface;
   uuid?: string;
+  kindName?: string;
 }
 
 export interface AgentListResponse extends PaginationMeta {

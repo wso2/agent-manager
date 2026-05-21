@@ -45,7 +45,7 @@ func WaitForActiveAIGateway(client *framework.AMPClient, orgName, gatewayName st
 
 		var found bool
 		for _, gw := range gateways.Gateways {
-			if gw.Name == gatewayName && gw.GatewayType == "ai" {
+			if gw.Name == gatewayName && gw.GatewayType == "regular" {
 				ginkgo.GinkgoWriter.Printf("AI Gateway: %s (UUID: %s, status: %s)\n", gw.Name, gw.UUID, gw.Status)
 				g.Expect(gw.Status).To(Equal("ACTIVE"), "AI gateway exists but is not ACTIVE yet")
 				gatewayUUID = gw.UUID

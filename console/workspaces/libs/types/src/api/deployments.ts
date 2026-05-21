@@ -24,6 +24,8 @@ export interface DeployAgentRequest {
   env?: EnvironmentVariable[];
   files?: FileMount[];
   enableAutoInstrumentation?: boolean;
+  instrumentationVersion?: string;
+  enableApiKeySecurity?: boolean;
 }
 
 // Responses

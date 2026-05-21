@@ -44,14 +44,15 @@
     "@mui/icons-material": "7.0.0",
     "@emotion/react": "11.13.5",
     "@emotion/styled": "11.13.5",
-    "@wso2/oxygen-ui": "0.8.3",
-    "@wso2/oxygen-ui-icons-react": "0.8.3",
+    "@wso2/oxygen-ui": "0.10.1",
+    "@wso2/oxygen-ui-icons-react": "0.10.1",
     "@agent-management-platform/views": "workspace:*",
     "@agent-management-platform/api-client": "workspace:*",
     "@agent-management-platform/types": "workspace:*",
     "date-fns": "4.1.0",
     "zod": "4.3.6",
-    "react-syntax-highlighter": "15.6.1"
+    "react-syntax-highlighter": "15.6.1",
+    "swagger-ui-react": "5.19.0"
   },
   "devDependencies": {
     "@storybook/addon-essentials": "8.6.13",
@@ -68,6 +69,7 @@
     "@types/react": "19.2.14",
     "@types/react-dom": "19.1.9",
     "@types/react-syntax-highlighter": "15.5.13",
+    "@types/swagger-ui-react": "5.18.0",
     "@typescript-eslint/eslint-plugin": "8.33.1",
     "@typescript-eslint/parser": "8.33.1",
     "eslint": "9.36.0",

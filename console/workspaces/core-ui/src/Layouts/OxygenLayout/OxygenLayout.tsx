@@ -27,10 +27,10 @@ import {
 import { generatePath, Outlet, useNavigate } from "react-router-dom";
 import { useAuthHooks } from "@agent-management-platform/auth";
 import { Logo, useExternalComponentModules } from "@agent-management-platform/views";
+import { globalConfig, absoluteRouteMap } from "@agent-management-platform/types";
 import { LeftNavigation, type NavigationItem, type NavigationSection } from "./LeftNavigation";
 import { useNavigationItems } from "./navigationItems";
 import { TopNavigation } from "./TopNavigation";
-import { absoluteRouteMap } from "@agent-management-platform/types";
 import { useListOrganizations } from "@agent-management-platform/api-client";
 import { MountPoints } from "../../types";
 
@@ -56,13 +56,13 @@ export function OxygenLayout() {
 
   const externalTopRightComponentModules =
     useExternalComponentModules(MountPoints.TopRightPanel);
+  const externalLogoComponentModules = useExternalComponentModules(MountPoints.TopLogo);
   const externalTopLeftComponentModules =
     useExternalComponentModules(MountPoints.TopLeftPanel);
   const externalBottomLeftComponentModules =
     useExternalComponentModules(MountPoints.BottomLeftPanel);
   const externalBottomRightComponentModules =
     useExternalComponentModules(MountPoints.BottomRightPanel);
-
   const { data: organizations } = useListOrganizations();
   const homePath = useMemo(() => {
     return generatePath(absoluteRouteMap.children.org.path, {
@@ -108,6 +108,11 @@ export function OxygenLayout() {
           <Header.Brand onClick={() => navigate(homePath)}>
             <Header.BrandLogo>
               <Logo  />
+              {externalLogoComponentModules?.map((module) => (
+                <div key={module.moduleName}>
+                  <module.component />
+                </div>
+              ))}
             </Header.BrandLogo>
           </Header.Brand>
           <TopNavigation />
@@ -170,8 +175,15 @@ export function OxygenLayout() {
               </div>
             ))
           }
-          <Footer.Link href="#terms">Terms & Conditions</Footer.Link>
-          <Footer.Link href="#privacy">Privacy Policy</Footer.Link>
+          {globalConfig.docsUrl && (
+            <Footer.Link href={globalConfig.docsUrl + "/overview/what-is-amp/"} target="_blank" rel="noopener noreferrer">Documentation</Footer.Link>
+          )}
+          {globalConfig.footerLinks?.termsOfUseUrl && (
+            <Footer.Link href={globalConfig.footerLinks.termsOfUseUrl} target="_blank" rel="noopener noreferrer">Terms & Conditions</Footer.Link>
+          )}
+          {globalConfig.footerLinks?.privacyPolicyUrl && (
+            <Footer.Link href={globalConfig.footerLinks.privacyPolicyUrl} target="_blank" rel="noopener noreferrer">Privacy Policy</Footer.Link>
+          )}
         </Footer>
       </AppShell.Footer>
     </AppShell>

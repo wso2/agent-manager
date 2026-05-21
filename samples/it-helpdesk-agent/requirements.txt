@@ -1,0 +1,15 @@
+# Versions locked from a clean install of the LangChain 1.x ecosystem.
+langchain==1.3.0
+langchain-core==1.4.0
+langchain-openai==1.2.1
+langgraph==1.2.0
+
+fastapi==0.136.1
+uvicorn[standard]==0.47.0
+pydantic==2.13.4
+
+# wrapt locked to 1.x — AM's auto-instrumentation injects
+# opentelemetry-instrumentation-langchain 0.62b0, which calls
+# wrap_function_wrapper(module=..., name=..., wrapper=...). wrapt 2.x
+# dropped that keyword argument — see traceloop/openllmetry#4009.
+wrapt==1.17.3

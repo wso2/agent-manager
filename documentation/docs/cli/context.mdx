@@ -1,0 +1,189 @@
+---
+sidebar_position: 3
+sidebar_label: Context
+---
+
+# amctl context
+
+View and manage CLI context — configured instances, the active organization, and per-directory project links.
+
+```
+amctl context [command]
+```
+
+## Subcommands
+
+| Command | Purpose |
+|---------|---------|
+| [`show`](#amctl-context-show) | Show how scope resolves in the current directory |
+| [`link`](#amctl-context-link) | Link the current directory to an org, project, and optional agent |
+| [`unlink`](#amctl-context-unlink) | Remove the link for the current directory |
+| [`instance list`](#amctl-context-instance-list) | List configured instances |
+| [`instance use`](#amctl-context-instance-use) | Switch the active instance |
+| [`instance remove`](#amctl-context-instance-remove) | Remove a configured instance |
+| [`org list`](#amctl-context-org-list) | List organizations on the active instance |
+| [`org use`](#amctl-context-org-use) | Set the active organization |
+
+## Options inherited from parent commands
+
+| Name | Description |
+|------|-------------|
+| `--org` | Override the active organization. |
+| `--json` | Output as JSON envelopes. |
+
+---
+
+## amctl context show
+
+Show the current context: active instance, current org, linked project, linked agent, and resolved environment.
+
+```
+amctl context show
+```
+
+### Example
+
+```bash
+amctl context show
+```
+
+---
+
+## amctl context link
+
+Link the current working directory to an org, project, and optionally an agent. Once linked, commands run from this directory (or any subdirectory) use this context automatically and operate in the `default` environment.
+
+`amctl link` is a hidden top-level alias for this command.
+
+```
+amctl context link [flags]
+```
+
+### Examples
+
+```bash
+# Link to a project; pick the agent later via positional arg
+amctl context link --project checkout
+
+# Link to a specific agent inside the project
+amctl context link --project checkout --agent api
+
+# Equivalent shorthand
+amctl link --project checkout --agent api
+```
+
+### Options
+
+| Name | Type | Default | Description |
+|------|------|---------|-------------|
+| `--project` | string | _required_ | Project to link the directory to. |
+| `--agent` | string | (none) | Optional agent to link as well. |
+
+---
+
+## amctl context unlink
+
+Remove the project link for the current working directory.
+
+`amctl unlink` is a hidden top-level alias for this command.
+
+```
+amctl context unlink
+```
+
+### Example
+
+```bash
+amctl unlink
+```
+
+---
+
+## amctl context instance list
+
+List the Agent Manager instances configured in `~/.amctl/config.yaml`. The active instance is marked.
+
+```
+amctl context instance list
+```
+
+---
+
+## amctl context instance use
+
+Switch the active instance. Subsequent commands use the new instance's URL, credentials, and current org.
+
+```
+amctl context instance use <name>
+```
+
+### Arguments
+
+| Name | Description |
+|------|-------------|
+| `<name>` | Configured instance name. |
+
+### Example
+
+```bash
+amctl context instance use dev
+```
+
+---
+
+## amctl context instance remove
+
+Remove an instance entry from `~/.amctl/config.yaml`. Project links that referenced the removed instance are cleared.
+
+```
+amctl context instance remove <name> [flags]
+```
+
+### Arguments
+
+| Name | Description |
+|------|-------------|
+| `<name>` | Configured instance name to remove. |
+
+### Options
+
+| Name | Short | Type | Default | Description |
+|------|-------|------|---------|-------------|
+| `--yes` | `-y` | bool | `false` | Skip the confirmation prompt. |
+
+---
+
+## amctl context org list
+
+List organizations available on the active instance.
+
+```
+amctl context org list
+```
+
+---
+
+## amctl context org use
+
+Set the current organization on the active instance. Persists to `~/.amctl/config.yaml`.
+
+```
+amctl context org use <name>
+```
+
+### Arguments
+
+| Name | Description |
+|------|-------------|
+| `<name>` | Organization name. |
+
+### Example
+
+```bash
+amctl context org use acme
+```
+
+## See Also
+
+- [`amctl login`](./login.mdx) — authenticate against an instance
+- [`amctl project`](./project.mdx) — manage projects in an organization

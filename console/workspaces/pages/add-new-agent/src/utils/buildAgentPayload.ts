@@ -21,7 +21,7 @@ import {
   ModelConfigRequest,
   OrgProjPathParams,
 } from "@agent-management-platform/types";
-import { AddAgentFormValues, LLMProviderFormEntry } from "../form/schema";
+import { AddAgentFormValues, CreateAgentFormValues, LLMProviderFormEntry } from "../form/schema";
 
 function buildOneModelConfig(
   entry: LLMProviderFormEntry,
@@ -124,6 +124,11 @@ export const buildAgentCreationPayload = (
               isSensitive: f.isSensitive || false,
             })),
           enableAutoInstrumentation: data.enableAutoInstrumentation,
+          ...(data.language === "python" &&
+          data.enableAutoInstrumentation !== false &&
+          data.instrumentationVersion
+            ? { instrumentationVersion: data.instrumentationVersion }
+            : {}),
         },
         inputInterface: {
           type: "HTTP",
@@ -155,6 +160,41 @@ export const buildAgentCreationPayload = (
       agentType: {
         type: "external-agent-api",
         subType: "custom-api",
+      },
+      ...((buildModelConfig(llmProviders)) ? { modelConfig: buildModelConfig(llmProviders) } : {}),
+    },
+  };
+};
+
+export const buildCatalogAgentPayload = (
+  data: CreateAgentFormValues,
+  params: OrgProjPathParams,
+  kindName: string,
+  version: string,
+  llmProviders: LLMProviderFormEntry[] = [],
+): { params: OrgProjPathParams; body: CreateAgentRequest } => {
+  return {
+    params,
+    body: {
+      name: data.name,
+      displayName: data.displayName,
+      description: data.description?.trim() || undefined,
+      provisioning: {
+        type: "internal",
+        agentKind: {
+          name: kindName,
+          version,
+        },
+      },
+      configurations: {
+        env: (data.env ?? [])
+          .filter((envVar) => envVar.key && envVar.value)
+          .map((envVar) => ({
+            key: envVar.key!.trim().replace(/\s+/g, '_'),
+            value: envVar.value!,
+            isSensitive: envVar.isSensitive || false,
+          })),
+        enableAutoInstrumentation: data.enableAutoInstrumentation,
       },
       ...((buildModelConfig(llmProviders)) ? { modelConfig: buildModelConfig(llmProviders) } : {}),
     },

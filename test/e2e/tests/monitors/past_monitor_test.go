@@ -52,7 +52,7 @@ var _ = Describe("Past Monitor - Built-in Evaluator", Ordered, Label("monitors",
 		By("Invoking shared agent to generate traces")
 		traceStartTime = time.Now().Add(-10 * time.Minute)
 		endpointURL := Shared.EndpointURL + "/chat"
-		agentops.InvokeAgentEndpoint(endpointURL, Shared.InvokeReq)
+		agentops.InvokeAgentEndpoint(endpointURL, Shared.InvokeReq, Shared.APIKey)
 		traceEndTime = time.Now()
 		GinkgoWriter.Printf("Invocation completed, trace window: %s to %s\n",
 			traceStartTime.Format(time.RFC3339), traceEndTime.Format(time.RFC3339))

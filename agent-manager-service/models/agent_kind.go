@@ -17,10 +17,10 @@
 package models
 
 import (
+	"encoding/json"
 	"time"
 
 	"github.com/google/uuid"
-	"gorm.io/gorm"
 )
 
 // -----------------------------------------------------------------------------
@@ -37,7 +37,6 @@ type AgentKind struct {
 	AgentName   string             `gorm:"column:agent_name"`
 	CreatedAt   time.Time          `gorm:"column:created_at"`
 	UpdatedAt   time.Time          `gorm:"column:updated_at"`
-	DeletedAt   gorm.DeletedAt     `gorm:"column:deleted_at"`
 	Versions    []AgentKindVersion `gorm:"foreignKey:AgentKindID"`
 }
 
@@ -50,6 +49,7 @@ type AgentKindVersion struct {
 	BuildName    string                 `gorm:"column:build_name"`
 	ImageId      string                 `gorm:"column:image_id"`
 	ConfigSchema []KindConfigSchemaItem `gorm:"column:config_schema;type:jsonb;serializer:json"`
+	Metadata     json.RawMessage        `gorm:"column:metadata;type:jsonb"`
 	CreatedAt    time.Time              `gorm:"column:created_at"`
 	Kind         *AgentKind             `gorm:"foreignKey:AgentKindID"`
 }
@@ -76,6 +76,7 @@ type AgentKindVersionResponse struct {
 	SourceAgentName   string                 `json:"sourceAgentName,omitempty"`
 	SourceProjectName string                 `json:"sourceProjectName,omitempty"`
 	ConfigSchema      []KindConfigSchemaItem `json:"configSchema"`
+	Metadata          json.RawMessage        `json:"metadata,omitempty"`
 	CreatedAt         time.Time              `json:"createdAt"`
 }
 

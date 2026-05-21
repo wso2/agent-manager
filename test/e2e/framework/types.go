@@ -580,6 +580,22 @@ type CreateLLMAPIKeyResponse struct {
 }
 
 // ---------------------------------------------------------------------------
+// Agent API Key
+// ---------------------------------------------------------------------------
+
+type CreateAgentAPIKeyRequest struct {
+	DisplayName string `json:"displayName"`
+	ExpiresAt   string `json:"expiresAt"`
+}
+
+type CreateAgentAPIKeyResponse struct {
+	Status  string `json:"status"`
+	Message string `json:"message"`
+	KeyID   string `json:"keyId"`
+	ApiKey  string `json:"apiKey"`
+}
+
+// ---------------------------------------------------------------------------
 // Monitor
 // ---------------------------------------------------------------------------
 
