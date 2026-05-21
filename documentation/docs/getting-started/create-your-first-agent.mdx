@@ -58,6 +58,14 @@ Provide a **Name** (e.g., `Customer Support Agent`) and an optional **Descriptio
 | **Branch** | Branch to build from (default: `main`) |
 | **Project Path** | Path within the repository where the agent code lives (default: `/`) |
 
+#### Using a Private Repository
+
+If your repository is private, you need to provide a **Git Secret** that contains a GitHub Personal Access Token (PAT).
+
+1. In the **Git Secret** dropdown, select an existing secret or click **+ Create New** to add one.
+2. When creating a new secret, provide a **Name** and paste your GitHub PAT. The token must have `repo` scope to allow the platform to clone your private repository.
+3. The secret is stored securely and reused across agents that need access to the same repository or organization.
+
 ### Step 4: Build Details *(Source Code only)*
 
 Choose a build type:
@@ -85,6 +93,22 @@ Click **+ Add** to bind one or more LLM providers to this agent. LLM providers a
 ### Step 7: Set Environment Variables *(Optional)*
 
 Add any environment variables your agent requires at runtime. Mark sensitive values as **Secret** to store them securely.
+
+### Step 8: Mount Files *(Optional)*
+
+Mount configuration files or other static files into your agent's container at runtime.
+
+1. Click **+ Add File Mount**.
+2. Fill in the following fields for each file:
+
+| Field | Description |
+|-------|-------------|
+| **File Name** | A unique name to identify the file (max 253 characters) |
+| **Mount Path** | Absolute path where the file will be available inside the container (e.g., `/workspace/config/settings.yaml`) |
+| **Content** | The file content (max 1 MB) |
+| **Sensitive** | Toggle on to store the content as a secret |
+
+Duplicate file names are not allowed.
 
 Click **Deploy** to build and deploy the agent.
 
