@@ -31,6 +31,7 @@ import {
   DrawerHeader,
   DrawerContent,
   useFormValidation,
+  useSnackBar,
 } from "@agent-management-platform/views";
 import { z } from "zod";
 import { useUpdateAgentResourceConfigs } from "@agent-management-platform/api-client";
@@ -119,6 +120,26 @@ const resourceConfigsSchema = z
   )
   .refine(
     (data) => {
+      if (!data.cpuRequest?.trim()) return true;
+      if (!data.cpuLimit?.trim()) return true;
+      const req = parseCpuQuantity(data.cpuRequest);
+      const lim = parseCpuQuantity(data.cpuLimit);
+      return !Number.isNaN(req) && !Number.isNaN(lim) && lim >= req;
+    },
+    { message: "CPU request must be ≤ CPU limit", path: ["cpuRequest"] }
+  )
+  .refine(
+    (data) => {
+      if (!data.memoryRequest?.trim()) return true;
+      if (!data.memoryLimit?.trim()) return true;
+      const req = parseMemoryQuantity(data.memoryRequest);
+      const lim = parseMemoryQuantity(data.memoryLimit);
+      return !Number.isNaN(req) && !Number.isNaN(lim) && lim >= req;
+    },
+    { message: "Memory request must be ≤ memory limit", path: ["memoryRequest"] }
+  )
+  .refine(
+    (data) => {
       if (!data.cpuLimit?.trim()) return true;
       const req = parseCpuQuantity(data.cpuRequest);
       const lim = parseCpuQuantity(data.cpuLimit);
@@ -140,10 +161,10 @@ type ResourceConfigsFormValues = z.infer<typeof resourceConfigsSchema>;
 
 const DEFAULT_FORM_VALUES: ResourceConfigsFormValues = {
   replicas: 1,
-  cpuRequest: "500m",
-  memoryRequest: "512Mi",
-  cpuLimit: "",
-  memoryLimit: "",
+  cpuRequest: "100m",
+  memoryRequest: "256Mi",
+  cpuLimit: "500m",
+  memoryLimit: "512Mi",
   autoScalingEnabled: false,
   minReplicas: 1,
   maxReplicas: 3,
@@ -220,6 +241,7 @@ export function EditResourceConfigsDrawer({
   } = useFormValidation<ResourceConfigsFormValues>(resourceConfigsSchema);
 
   const { mutate: updateConfigs, isPending } = useUpdateAgentResourceConfigs();
+  const { pushSnackBar } = useSnackBar();
 
   useEffect(() => {
     if (open) {
@@ -263,6 +285,11 @@ export function EditResourceConfigsDrawer({
             clearErrors();
             onClose();
           },
+          onError: (error) => {
+            const body = (error as { body?: { message?: string } })?.body;
+            const message = body?.message ?? "Failed to update resource configurations";
+            pushSnackBar({ message, type: "error" });
+          },
         }
       );
     },
@@ -276,6 +303,7 @@ export function EditResourceConfigsDrawer({
       environment,
       onClose,
       clearErrors,
+      pushSnackBar,
     ]
   );
 

@@ -25,11 +25,10 @@ import (
 	"strings"
 	"time"
 
+	"github.com/wso2/agent-manager/agent-manager-service/config"
 	"github.com/wso2/agent-manager/agent-manager-service/spec"
+	"k8s.io/apimachinery/pkg/api/resource"
 )
-
-// MaxReplicasLimit is the maximum number of replicas allowed for agents
-const MaxReplicasLimit = 10
 
 // capitalize returns a string with the first letter capitalized
 func capitalize(s string) string {
@@ -88,20 +87,20 @@ func ValidateAgentBuildParametersUpdatePayload(payload spec.UpdateAgentBuildPara
 	return nil
 }
 
-func ValidateAgentResourceConfigsPayload(payload spec.UpdateAgentResourceConfigsRequest) error {
+func ValidateAgentResourceConfigsPayload(payload spec.UpdateAgentResourceConfigsRequest, limits config.ResourceLimitsConfig) error {
 	// Check if autoscaling is enabled
 	autoscalingEnabled := payload.AutoScaling.Enabled != nil && *payload.AutoScaling.Enabled
 
 	// Validate autoscaling config
-	if err := validateAutoScalingConfig(&payload.AutoScaling); err != nil {
+	if err := validateAutoScalingConfig(&payload.AutoScaling, limits.MaxReplicas); err != nil {
 		return err
 	}
 
 	// Validate replicas only when autoscaling is disabled (static scaling)
 	// When autoscaling is enabled, HPA manages replicas between minReplicas and maxReplicas
 	if !autoscalingEnabled {
-		if payload.Replicas < 0 || payload.Replicas > MaxReplicasLimit {
-			return fmt.Errorf("replicas must be between 0 and %d", MaxReplicasLimit)
+		if payload.Replicas < 0 || payload.Replicas > int32(limits.MaxReplicas) {
+			return fmt.Errorf("replicas must be between 0 and %d", limits.MaxReplicas)
 		}
 	}
 
@@ -113,6 +112,12 @@ func ValidateAgentResourceConfigsPayload(payload spec.UpdateAgentResourceConfigs
 		if err := validateResourceValue(payload.Resources.Requests.Memory, "memory request"); err != nil {
 			return err
 		}
+		if err := validateResourceMaxCPU(payload.Resources.Requests.Cpu, limits.MaxCPU, "CPU request"); err != nil {
+			return err
+		}
+		if err := validateResourceMaxMemory(payload.Resources.Requests.Memory, limits.MaxMemory, "memory request"); err != nil {
+			return err
+		}
 	}
 	if payload.Resources.Limits != nil {
 		if err := validateResourceValue(payload.Resources.Limits.Cpu, "CPU limit"); err != nil {
@@ -121,52 +126,58 @@ func ValidateAgentResourceConfigsPayload(payload spec.UpdateAgentResourceConfigs
 		if err := validateResourceValue(payload.Resources.Limits.Memory, "memory limit"); err != nil {
 			return err
 		}
+		if err := validateResourceMaxCPU(payload.Resources.Limits.Cpu, limits.MaxCPU, "CPU limit"); err != nil {
+			return err
+		}
+		if err := validateResourceMaxMemory(payload.Resources.Limits.Memory, limits.MaxMemory, "memory limit"); err != nil {
+			return err
+		}
 	}
 
 	return nil
 }
 
-func validateAutoScalingConfig(config *spec.AutoScalingConfig) error {
-	if config == nil {
+func validateAutoScalingConfig(cfg *spec.AutoScalingConfig, maxReplicas int) error {
+	if cfg == nil {
 		return nil
 	}
 
 	// enabled is required when autoscaling config is provided
-	if config.Enabled == nil {
+	if cfg.Enabled == nil {
 		return fmt.Errorf("autoscaling enabled field is required when updating autoscaling configuration")
 	}
 
 	// When autoscaling is enabled, minReplicas and maxReplicas are required
-	if *config.Enabled {
-		if config.MinReplicas == nil {
+	if *cfg.Enabled {
+		if cfg.MinReplicas == nil {
 			return fmt.Errorf("autoscaling minReplicas is required when autoscaling is enabled")
 		}
-		if config.MaxReplicas == nil {
+		if cfg.MaxReplicas == nil {
 			return fmt.Errorf("autoscaling maxReplicas is required when autoscaling is enabled")
 		}
 	}
 
 	// Validate minReplicas if provided
-	if config.MinReplicas != nil {
-		if *config.MinReplicas < 1 {
+	if cfg.MinReplicas != nil {
+		if *cfg.MinReplicas < 1 {
 			return fmt.Errorf("autoscaling minReplicas must be at least 1")
 		}
 	}
 
 	// Validate maxReplicas if provided
-	if config.MaxReplicas != nil {
-		if *config.MaxReplicas < 1 {
+	if cfg.MaxReplicas != nil {
+		if *cfg.MaxReplicas < 1 {
 			return fmt.Errorf("autoscaling maxReplicas must be at least 1")
 		}
-		if *config.MaxReplicas > MaxReplicasLimit {
-			return fmt.Errorf("autoscaling maxReplicas must not exceed %d", MaxReplicasLimit)
+		if *cfg.MaxReplicas > int32(maxReplicas) {
+			return fmt.Errorf("autoscaling maxReplicas must not exceed %d", maxReplicas)
 		}
 	}
 
 	// Validate maxReplicas >= minReplicas when both are provided
-	if config.MinReplicas != nil && config.MaxReplicas != nil {
-		if *config.MaxReplicas < *config.MinReplicas {
-			return fmt.Errorf("autoscaling maxReplicas (%d) must be greater than or equal to minReplicas (%d)", *config.MaxReplicas, *config.MinReplicas)
+	if cfg.MinReplicas != nil && cfg.MaxReplicas != nil {
+		if *cfg.MaxReplicas < *cfg.MinReplicas {
+			return fmt.Errorf("autoscaling maxReplicas (%d) must be greater than or equal to minReplicas (%d)", *cfg.MaxReplicas, *cfg.MinReplicas)
 		}
 	}
 
@@ -189,6 +200,44 @@ func validateResourceValue(value *string, fieldName string) error {
 		return fmt.Errorf("%s has invalid format '%s': must be a valid Kubernetes resource quantity (e.g., '500m', '2Gi', '1', '256Mi')", fieldName, *value)
 	}
 
+	return nil
+}
+
+func validateResourceMaxCPU(value *string, maxCPU string, fieldName string) error {
+	if value == nil || *value == "" {
+		return nil
+	}
+	submitted, err := resource.ParseQuantity(*value)
+	if err != nil {
+		// format error already caught by validateResourceValue; skip
+		return nil
+	}
+	max, err := resource.ParseQuantity(maxCPU)
+	if err != nil {
+		return fmt.Errorf("invalid server-side max CPU config %q: %w", maxCPU, err)
+	}
+	if submitted.Cmp(max) > 0 {
+		return fmt.Errorf("%s %q exceeds the maximum allowed value of %s", fieldName, *value, maxCPU)
+	}
+	return nil
+}
+
+func validateResourceMaxMemory(value *string, maxMemory string, fieldName string) error {
+	if value == nil || *value == "" {
+		return nil
+	}
+	submitted, err := resource.ParseQuantity(*value)
+	if err != nil {
+		// format error already caught by validateResourceValue; skip
+		return nil
+	}
+	max, err := resource.ParseQuantity(maxMemory)
+	if err != nil {
+		return fmt.Errorf("invalid server-side max memory config %q: %w", maxMemory, err)
+	}
+	if submitted.Cmp(max) > 0 {
+		return fmt.Errorf("%s %q exceeds the maximum allowed value of %s", fieldName, *value, maxMemory)
+	}
 	return nil
 }
 
