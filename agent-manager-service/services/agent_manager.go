@@ -22,6 +22,7 @@ import (
 	"fmt"
 	"log/slog"
 	"slices"
+	"strings"
 
 	"github.com/google/uuid"
 	observabilitysvc "github.com/wso2/agent-manager/agent-manager-service/clients/observabilitysvc"
@@ -2020,11 +2021,18 @@ func (s *agentManagerService) DeployAgent(ctx context.Context, orgName string, p
 		} else {
 			traitOpts = append(traitOpts, client.WithUpstreamBasePath(config.GetConfig().DefaultChatAPI.DefaultBasePath))
 		}
-		if enableApiKeySecurity {
-			traitOpts = append(traitOpts, client.WithPolicies([]map[string]interface{}{client.APIKeyAuthPolicy()}))
-		} else {
-			traitOpts = append(traitOpts, client.WithPolicies([]map[string]interface{}{}))
+		corsConfig := config.GetAgentWorkloadConfig().CORS
+		policies := []map[string]interface{}{
+			client.CORSPolicy(
+				strings.Split(corsConfig.AllowOrigin, ","),
+				strings.Split(corsConfig.AllowMethods, ","),
+				strings.Split(corsConfig.AllowHeaders, ","),
+			),
 		}
+		if enableApiKeySecurity {
+			policies = append(policies, client.APIKeyAuthPolicy())
+		}
+		traitOpts = append(traitOpts, client.WithPolicies(policies))
 
 		componentDeployConfig.TraitsToAttach = append(componentDeployConfig.TraitsToAttach, client.TraitRequest{
 			TraitKind: client.TraitKindTrait,

@@ -2047,6 +2047,20 @@ func APIKeyAuthPolicy() map[string]interface{} {
 	}
 }
 
+// CORSPolicy returns a CORS policy map with the given allowed origins, methods, and headers.
+func CORSPolicy(allowedOrigins, allowedMethods, allowedHeaders []string) map[string]interface{} {
+	return map[string]interface{}{
+		"name":    "cors",
+		"version": "v1",
+		"params": map[string]interface{}{
+			"allowedOrigins": allowedOrigins,
+			"allowedMethods": allowedMethods,
+			"allowedHeaders": allowedHeaders,
+		},
+	}
+}
+
+
 // WithInstrumentationVersion pins the AMP instrumentation version for the OTEL
 // instrumentation trait — the init-container image resolves to
 // `amp-python-instrumentation-provider:<instrumentation_version>-python<X.Y>`.
