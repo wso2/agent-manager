@@ -294,9 +294,3 @@ var (
 // defaultListLimit is the default maximum number of items to return per page for OpenChoreo list API calls
 var defaultListLimit = 100
 
-// CORS constants (must match agent-api.yaml schema defaults)
-var (
-	DefaultCORSAllowOrigins = []string{"http://localhost:3000"}
-	DefaultCORSAllowMethods = []string{"GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS"}
-	DefaultCORSAllowHeaders = []string{"authorization", "Content-Type", "Origin"}
-)
