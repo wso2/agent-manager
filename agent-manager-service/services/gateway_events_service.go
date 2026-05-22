@@ -24,18 +24,20 @@ import (
 
 	"github.com/google/uuid"
 
+	"github.com/wso2/agent-manager/agent-manager-service/eventhub"
 	"github.com/wso2/agent-manager/agent-manager-service/models"
-	"github.com/wso2/agent-manager/agent-manager-service/websocket"
 )
 
 const (
-	// Maximum event payload size (1MB)
+	// MaxEventPayloadSize is the maximum allowed event payload size (1MB)
 	MaxEventPayloadSize = 1024 * 1024
 )
 
-// GatewayEventsService handles broadcasting events to connected gateways
+// GatewayEventsService handles broadcasting events to connected gateways.
+// It publishes events to the EventHub so that any service instance holding
+// the gateway's WebSocket connection will deliver the event.
 type GatewayEventsService struct {
-	manager *websocket.Manager
+	hub eventhub.EventHub
 }
 
 // GatewayEventDTO represents a gateway event
@@ -48,10 +50,8 @@ type GatewayEventDTO struct {
 }
 
 // NewGatewayEventsService creates a new gateway events service
-func NewGatewayEventsService(manager *websocket.Manager) *GatewayEventsService {
-	return &GatewayEventsService{
-		manager: manager,
-	}
+func NewGatewayEventsService(hub eventhub.EventHub) *GatewayEventsService {
+	return &GatewayEventsService{hub: hub}
 }
 
 // DeploymentEvent represents an API deployment event (TODO: move to models package)
@@ -93,38 +93,23 @@ func (s *GatewayEventsService) broadcastEvent(gatewayID string, eventType string
 		return fmt.Errorf("failed to marshal event: %w", err)
 	}
 
-	if s.manager == nil {
-		slog.Warn("WebSocket manager not initialized")
-		return nil
+	evt := eventhub.Event{
+		GatewayID:           gatewayID,
+		OriginatedTimestamp: time.Now(),
+		EventType:           eventhub.EventType(eventType),
+		Action:              "CREATE",
+		EntityID:            correlationID,
+		EventData:           string(eventJSON),
 	}
 
-	connections := s.manager.GetConnections(gatewayID)
-	if len(connections) == 0 {
-		slog.Warn(fmt.Sprintf("broadcast api key event; no active connections for gateway: %s, skipping", gatewayID))
-		return nil
+	if err := s.hub.PublishEvent(gatewayID, evt); err != nil {
+		slog.Error("Failed to publish event to EventHub",
+			"gatewayID", gatewayID, "type", eventType, "correlationID", correlationID, "error", err)
+		return fmt.Errorf("failed to publish %s event: %w", eventType, err)
 	}
 
-	successCount, failureCount := 0, 0
-	var lastError error
-	for _, conn := range connections {
-		if err := conn.Send(eventJSON); err != nil {
-			failureCount++
-			lastError = err
-			slog.Error("Failed to send event", "gatewayID", gatewayID, "connectionID", conn.ConnectionID,
-				"correlationID", correlationID, "type", eventType, "error", err)
-			conn.DeliveryStats.IncrementFailed(fmt.Sprintf("send error: %v", err))
-		} else {
-			successCount++
-			conn.DeliveryStats.IncrementTotalSent()
-		}
-	}
-
-	slog.Info("Broadcast summary", "gatewayID", gatewayID, "correlationID", correlationID,
-		"type", eventType, "total", len(connections), "success", successCount, "failed", failureCount)
-
-	if successCount == 0 {
-		return fmt.Errorf("failed to deliver %s event to any connection: %w", eventType, lastError)
-	}
+	slog.Debug("Event published to EventHub",
+		"gatewayID", gatewayID, "type", eventType, "correlationID", correlationID)
 	return nil
 }
 
