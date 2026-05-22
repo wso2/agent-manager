@@ -293,4 +293,3 @@ var (
 
 // defaultListLimit is the default maximum number of items to return per page for OpenChoreo list API calls
 var defaultListLimit = 100
-

@@ -2060,7 +2060,6 @@ func CORSPolicy(allowedOrigins, allowedMethods, allowedHeaders []string) map[str
 	}
 }
 
-
 // WithInstrumentationVersion pins the AMP instrumentation version for the OTEL
 // instrumentation trait — the init-container image resolves to
 // `amp-python-instrumentation-provider:<instrumentation_version>-python<X.Y>`.
