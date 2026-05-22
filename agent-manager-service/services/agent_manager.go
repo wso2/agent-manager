@@ -329,7 +329,7 @@ func (s *agentManagerService) buildCreateTraitRequests(ctx context.Context, orgN
 	}
 
 	// Attach api-configuration trait at create time so the RestApi CRD is provisioned immediately.
-	// API key security is enabled by default; deploy time upserts with the actual policy setting.
+	// API key security and CORS are enabled by default; deploy time upserts with the actual policy setting.
 	if isAPIAgent {
 		port := config.GetConfig().DefaultChatAPI.DefaultHTTPPort
 		basePath := config.GetConfig().DefaultChatAPI.DefaultBasePath
@@ -339,6 +339,15 @@ func (s *agentManagerService) buildCreateTraitRequests(ctx context.Context, orgN
 		if req.InputInterface != nil && req.InputInterface.BasePath != nil && *req.InputInterface.BasePath != "" {
 			basePath = *req.InputInterface.BasePath
 		}
+		corsConfig := config.GetAgentWorkloadConfig().CORS
+		createPolicies := []map[string]interface{}{
+			client.CORSPolicy(
+				strings.Split(corsConfig.AllowOrigin, ","),
+				strings.Split(corsConfig.AllowMethods, ","),
+				strings.Split(corsConfig.AllowHeaders, ","),
+			),
+			client.APIKeyAuthPolicy(),
+		}
 		traits = append(traits, client.TraitRequest{
 			TraitKind: client.TraitKindTrait,
 			TraitType: client.TraitAPIManagement,
@@ -346,7 +355,7 @@ func (s *agentManagerService) buildCreateTraitRequests(ctx context.Context, orgN
 				client.WithArtifactID(artifactID),
 				client.WithUpstreamPort(port),
 				client.WithUpstreamBasePath(basePath),
-				client.WithPolicies([]map[string]interface{}{client.APIKeyAuthPolicy()}),
+				client.WithPolicies(createPolicies),
 			},
 		})
 	}
