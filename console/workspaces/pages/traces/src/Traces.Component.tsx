@@ -114,7 +114,6 @@ export const TracesComponent: React.FC = () => {
     customEndTime,
     hasCustomRange,
     handleCustomRangeApply,
-    handleCustomRangeClear,
   } = useTimeRangeParams(searchParams, setSearchParams);
 
   const timeRange = useMemo(
@@ -347,7 +346,6 @@ export const TracesComponent: React.FC = () => {
               options={TIME_RANGE_OPTIONS}
               onPresetChange={handleTimeRangeChange}
               onCustomRangeApply={handleCustomRangeApply}
-              onCustomRangeClear={handleCustomRangeClear}
             />
 
             {/* Sort Toggle */}

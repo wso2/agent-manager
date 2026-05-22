@@ -53,7 +53,6 @@ export const MetricsComponent: React.FC = () => {
     customEndTime,
     hasCustomRange,
     handleCustomRangeApply,
-    handleCustomRangeClear,
   } = useTimeRangeParams(searchParams, setSearchParams);
 
   const timeRange = useMemo(
@@ -129,7 +128,6 @@ export const MetricsComponent: React.FC = () => {
               options={TIME_RANGE_OPTIONS}
               onPresetChange={handleTimeRangeChange}
               onCustomRangeApply={handleCustomRangeApply}
-              onCustomRangeClear={handleCustomRangeClear}
             />
 
             {/* Refresh Button */}
