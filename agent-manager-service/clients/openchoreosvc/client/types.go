@@ -175,13 +175,6 @@ type AutoScalingConfig struct {
 	TargetCPUUtilizationPercentage *int32 `json:"cpuUtilizationPercentage,omitempty"`
 }
 
-// CORSConfig contains CORS configuration
-type CORSConfig struct {
-	AllowOrigin  []string `json:"allowOrigin,omitempty"`
-	AllowMethods []string `json:"allowMethods,omitempty"`
-	AllowHeaders []string `json:"allowHeaders,omitempty"`
-}
-
 // ComponentParameters represents the component type parameters (must match agent-api.yaml schema)
 type ComponentParameters struct {
 	Exposed bool `json:"exposed"`

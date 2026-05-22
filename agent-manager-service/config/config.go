@@ -162,6 +162,12 @@ type AgentWorkload struct {
 	CORS CORSConfig
 }
 
+type CORSConfig struct {
+	AllowOrigin  string
+	AllowMethods string
+	AllowHeaders string
+}
+
 // OTELConfig holds all OpenTelemetry related configuration
 type OTELConfig struct {
 	// Instrumentation configuration
@@ -183,12 +189,6 @@ type OTELConfig struct {
 
 	// OTLP Exporter configuration
 	ExporterEndpoint string
-}
-
-type CORSConfig struct {
-	AllowOrigin  string
-	AllowMethods string
-	AllowHeaders string
 }
 
 type TraceObserverConfig struct {

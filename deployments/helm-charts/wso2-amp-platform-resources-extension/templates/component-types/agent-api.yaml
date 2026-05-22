@@ -60,36 +60,6 @@ spec:
             limits:
               $ref: "#/$defs/ResourceQuantity"
           default: {}
-        CORSConfig:
-          type: object
-          default: {}
-          properties:
-            allowOrigin:
-              type: array
-              items:
-                type: string
-              default:
-                - "http://localhost:3000"
-            allowMethods:
-              type: array
-              items:
-                type: string
-              default:
-                - "GET"
-                - "POST"
-                - "PUT"
-                - "DELETE"
-                - "PATCH"
-                - "OPTIONS"
-            allowHeaders:
-              type: array
-              items:
-                type: string
-              default:
-                - "authorization"
-                - "Content-Type"
-                - "Origin"
-                - "X-API-Key"
         AutoscalingConfig:
           type: object
           default: {}
@@ -124,8 +94,6 @@ spec:
             - Always
             - IfNotPresent
             - Never
-        cors:
-          $ref: "#/$defs/CORSConfig"
         restartedAt:
           type: string
           default: ""
@@ -238,11 +206,6 @@ spec:
                   path:
                     type: ReplacePrefixMatch
                     replacePrefixMatch: '${workload.endpoints[endpoint].?basePath.orValue("") != "" ? workload.endpoints[endpoint].?basePath.orValue("") : "/"}'
-              - type: CORS
-                cors:
-                  allowOrigins: ${environmentConfigs.cors.allowOrigin}
-                  allowMethods: ${environmentConfigs.cors.allowMethods}
-                  allowHeaders: ${environmentConfigs.cors.allowHeaders}
             backendRefs:
             - name: ${metadata.componentName}
               port: ${workload.endpoints[endpoint].port}

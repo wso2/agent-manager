@@ -126,11 +126,13 @@ spec:
             name: ${metadata.componentName}-api-gw-backend
             weight: 100
 
-    # --- Patch HTTPRoute: Update URL rewrite to derived API context path ---
-    # Sets the replacePrefixMatch to /<environment>-<namespace>-<componentName>,
-    # matching the RestApi context so the WSO2 router can route correctly.
+    # --- Patch HTTPRoute: Replace filters array — set URL rewrite to API context path and remove CORS filter ---
+    # CORS is now handled by the cors policy in the RestApi (see policies parameter).
         - op: replace
-          path: /spec/rules/0/filters/0/urlRewrite/path
+          path: /spec/rules/0/filters
           value:
-            type: ReplacePrefixMatch
-            replacePrefixMatch: /${metadata.environmentName}-${metadata.componentNamespace}-${metadata.componentName}
+            - type: URLRewrite
+              urlRewrite:
+                path:
+                  type: ReplacePrefixMatch
+                  replacePrefixMatch: /${metadata.environmentName}-${metadata.componentNamespace}-${metadata.componentName}
