@@ -209,8 +209,7 @@ func validateResourceMaxCPU(value *string, maxCPU string, fieldName string) erro
 	}
 	submitted, err := resource.ParseQuantity(*value)
 	if err != nil {
-		// format error already caught by validateResourceValue; skip
-		return nil
+		return fmt.Errorf("%s has invalid format %q: %w", fieldName, *value, err)
 	}
 	max, err := resource.ParseQuantity(maxCPU)
 	if err != nil {
@@ -228,8 +227,7 @@ func validateResourceMaxMemory(value *string, maxMemory string, fieldName string
 	}
 	submitted, err := resource.ParseQuantity(*value)
 	if err != nil {
-		// format error already caught by validateResourceValue; skip
-		return nil
+		return fmt.Errorf("%s has invalid format %q: %w", fieldName, *value, err)
 	}
 	max, err := resource.ParseQuantity(maxMemory)
 	if err != nil {
