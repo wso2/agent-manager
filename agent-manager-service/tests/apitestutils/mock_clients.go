@@ -158,6 +158,9 @@ func CreateMockOpenChoreoClient() *clientmocks.OpenChoreoClientMock {
 		ReplaceComponentEnvVarsFunc: func(ctx context.Context, namespaceName string, projectName string, componentName string, envVars []client.EnvVar) error {
 			return nil
 		},
+		ReplaceComponentFileMountsFunc: func(ctx context.Context, namespaceName string, projectName string, componentName string, files []client.FileVar) error {
+			return nil
+		},
 		RemoveWorkloadEnvVarsFunc: func(ctx context.Context, namespaceName string, componentName string, envVarKeys []string) error {
 			return nil
 		},
@@ -165,6 +168,9 @@ func CreateMockOpenChoreoClient() *clientmocks.OpenChoreoClientMock {
 			return nil
 		},
 		GetComponentConfigurationsFunc: func(ctx context.Context, namespaceName string, projectName string, componentName string, environment string) ([]models.EnvVars, error) {
+			return nil, nil
+		},
+		GetComponentFileMountsFunc: func(ctx context.Context, namespaceName string, projectName string, componentName string, environment string) ([]models.FileMountEntry, error) {
 			return nil, nil
 		},
 	}

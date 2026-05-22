@@ -161,6 +161,8 @@ spec:
             value: ${parameters.endpoints}
           - name: environment-variables
             value: ${parameters.environmentVariables}
+          - name: file-mounts
+            value: ${parameters.fileMounts}
           - name: build-env
             value: ${parameters.buildEnv}
       serviceAccountName: workflow-sa

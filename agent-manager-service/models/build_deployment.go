@@ -64,6 +64,15 @@ type EnvVars struct {
 	SecretKey   string `json:"secretKey,omitempty"` // The key within the secret (e.g., "api-key")
 }
 
+// FileMountEntry represents a file mount configuration
+type FileMountEntry struct {
+	Key         string `json:"key"`
+	MountPath   string `json:"mountPath"`
+	Value       string `json:"value,omitempty"`
+	IsSensitive bool   `json:"isSensitive,omitempty"`
+	SecretRef   string `json:"secretRef,omitempty"`
+}
+
 // Build represents a build instance
 type BuildResponse struct {
 	UUID            string          `json:"uuid"`

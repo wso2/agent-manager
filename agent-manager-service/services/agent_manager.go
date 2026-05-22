@@ -21,7 +21,9 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"regexp"
 	"slices"
+	"strings"
 
 	"github.com/google/uuid"
 	observabilitysvc "github.com/wso2/agent-manager/agent-manager-service/clients/observabilitysvc"
@@ -52,6 +54,7 @@ type AgentManagerService interface {
 	UpdateAgentDeploymentState(ctx context.Context, orgName string, projectName string, agentName string, environment string, state string) error
 	GetAgentEndpoints(ctx context.Context, orgName string, projectName string, agentName string, environmentName string) (map[string]models.EndpointsResponse, error)
 	GetAgentConfigurations(ctx context.Context, orgName string, projectName string, agentName string, environment string) ([]models.EnvVars, error)
+	GetAgentFileMounts(ctx context.Context, orgName string, projectName string, agentName string, environment string) ([]models.FileMountEntry, error)
 	GetBuildLogs(ctx context.Context, orgName string, projectName string, agentName string, buildName string) (*models.LogsResponse, error)
 	GenerateName(ctx context.Context, orgName string, payload spec.ResourceNameRequest) (string, error)
 	GetAgentMetrics(ctx context.Context, orgName string, projectName string, agentName string, payload spec.MetricsFilterRequest) (*spec.MetricsResponse, error)
@@ -216,32 +219,50 @@ func mapBuildConfig(specBuild *spec.Build) *client.BuildConfig {
 }
 
 // mapConfigurationsWithSecrets converts spec.Configurations to client.Configurations
-// handling secret env vars by using secretKeyRef pointing to the K8s Secret created by SecretReference
+// handling secret env vars and file mounts by using secretKeyRef pointing to the K8s Secret created by SecretReference
 func mapConfigurationsWithSecrets(specConfigs *spec.Configurations, secretReference string) *client.Configurations {
-	if specConfigs == nil || len(specConfigs.Env) == 0 {
+	if specConfigs == nil || (len(specConfigs.Env) == 0 && len(specConfigs.Files) == 0) {
 		return nil
 	}
 
-	configs := &client.Configurations{
-		Env: make([]client.EnvVar, len(specConfigs.Env)),
+	configs := &client.Configurations{}
+
+	if len(specConfigs.Env) > 0 {
+		configs.Env = make([]client.EnvVar, len(specConfigs.Env))
+		for i, env := range specConfigs.Env {
+			if env.GetIsSensitive() {
+				configs.Env[i] = client.EnvVar{
+					Key: env.Key,
+					ValueFrom: &client.EnvVarValueFrom{
+						SecretKeyRef: &client.SecretKeyRef{
+							Name: secretReference,
+							Key:  env.Key,
+						},
+					},
+				}
+			} else {
+				configs.Env[i] = client.EnvVar{Key: env.Key, Value: env.GetValue()}
+			}
+		}
 	}
 
-	for i, env := range specConfigs.Env {
-		if env.GetIsSensitive() {
-			// Use secretKeyRef pointing to the K8s Secret
-			// Name = K8s Secret name (created by SecretReference)
-			// Key = key within the K8s Secret
-			configs.Env[i] = client.EnvVar{
-				Key: env.Key,
-				ValueFrom: &client.EnvVarValueFrom{
-					SecretKeyRef: &client.SecretKeyRef{
-						Name: secretReference, // K8s Secret name (e.g., "component-secrets")
-						Key:  env.Key,         // Key within the secret
+	if len(specConfigs.Files) > 0 {
+		configs.Files = make([]client.FileVar, len(specConfigs.Files))
+		for i, f := range specConfigs.Files {
+			if f.GetIsSensitive() {
+				configs.Files[i] = client.FileVar{
+					Key:       f.Key,
+					MountPath: f.MountPath,
+					ValueFrom: &client.EnvVarValueFrom{
+						SecretKeyRef: &client.SecretKeyRef{
+							Name: secretReference,
+							Key:  f.Key,
+						},
 					},
-				},
+				}
+			} else {
+				configs.Files[i] = client.FileVar{Key: f.Key, MountPath: f.MountPath, Value: f.GetValue()}
 			}
-		} else {
-			configs.Env[i] = client.EnvVar{Key: env.Key, Value: env.GetValue()}
 		}
 	}
 
@@ -809,18 +830,37 @@ func (s *agentManagerService) createComponentAgent(ctx context.Context, orgName,
 	}
 
 	hasSecrets := false
-	if req.Configurations != nil && len(req.Configurations.Env) > 0 {
+	if req.Configurations != nil {
 		for _, env := range req.Configurations.Env {
 			if env.GetIsSensitive() {
 				hasSecrets = true
 				break
 			}
 		}
+		if !hasSecrets {
+			for _, f := range req.Configurations.Files {
+				if f.GetIsSensitive() {
+					hasSecrets = true
+					break
+				}
+			}
+		}
 	}
 
 	secretReference := ""
 	if hasSecrets {
-		secretReference, err = s.saveSecretsAndCreateReference(ctx, secretLocation, req.Configurations.Env)
+		// Collect all secret data from both env vars and files
+		allSecretVars := req.Configurations.Env
+		for _, f := range req.Configurations.Files {
+			if f.GetIsSensitive() {
+				// Wrap file mount as an EnvironmentVariable for secret storage (same KV path)
+				ev := spec.EnvironmentVariable{Key: f.Key}
+				ev.SetValue(f.GetValue())
+				ev.SetIsSensitive(true)
+				allSecretVars = append(allSecretVars, ev)
+			}
+		}
+		secretReference, err = s.saveSecretsAndCreateReference(ctx, secretLocation, allSecretVars)
 		if err != nil {
 			s.logger.Error("Failed to save secrets and create SecretReference for agent", "agentName", req.Name, "error", err)
 			s.cleanupSecretsOnRollback(ctx, secretLocation)
@@ -915,14 +955,17 @@ func (s *agentManagerService) createComponentAgent(ctx context.Context, orgName,
 
 		if isFromKind {
 			var kindEnvVars []client.EnvVar
+			var kindFileVars []client.FileVar
 			if createAgentReq.Configurations != nil {
 				kindEnvVars = createAgentReq.Configurations.Env
+				kindFileVars = createAgentReq.Configurations.Files
 			}
 			kindEndpoints := inputInterfaceToEndpoints(createAgentReq.InputInterface, req.Name)
 			if err := s.ocClient.CreateInternalAgentFromKindWorkload(ctx, orgName, projectName, req.Name, client.InternalAgentFromKindWorkloadRequest{
 				ImageID:   imageID,
 				Endpoints: kindEndpoints,
 				Env:       kindEnvVars,
+				Files:     kindFileVars,
 			}); err != nil {
 				s.logger.Error("Failed to create internal-agent-from-kind workload", "agentName", req.Name, "error", err)
 				if hasSecrets {
@@ -1860,7 +1903,8 @@ func (s *agentManagerService) DeployAgent(ctx context.Context, orgName string, p
 
 	// Process user-provided environment variables, handling secrets separately
 	// Always call processEnvVars to ensure secrets cleanup happens when all env vars are removed
-	envVars, err := s.processEnvVars(ctx, orgName, projectName, lowestEnv, agentName, userEnv)
+	// Include file mount secrets alongside env var secrets so they share the same KV path
+	envVars, err := s.processEnvVars(ctx, orgName, projectName, lowestEnv, agentName, userEnv, req.Files)
 	if err != nil {
 		s.logger.Error("Failed to process environment variables", "agentName", agentName, "error", err)
 		return "", fmt.Errorf("failed to process environment variables: %w", err)
@@ -1871,6 +1915,15 @@ func (s *agentManagerService) DeployAgent(ctx context.Context, orgName string, p
 	// Combine user-processed env vars with preserved system-managed env vars
 	deployReq.Env = append(envVars, systemManagedEnvVars...)
 	s.logger.Debug("Final deploy env vars", "agentName", agentName, "totalCount", len(deployReq.Env))
+
+	// Process file mounts
+	fileVars, err := s.processFileVars(ctx, orgName, projectName, lowestEnv, agentName, req.Files)
+	if err != nil {
+		s.logger.Error("Failed to process file mounts", "agentName", agentName, "error", err)
+		return "", fmt.Errorf("failed to process file mounts: %w", err)
+	}
+	deployReq.Files = fileVars
+	s.logger.Debug("Processed file mounts", "agentName", agentName, "count", len(fileVars))
 
 	targetEnv, err := s.ocClient.GetEnvironment(ctx, orgName, lowestEnv)
 	if err != nil {
@@ -1996,7 +2049,22 @@ func (s *agentManagerService) DeployAgent(ctx context.Context, orgName string, p
 		}
 	}
 
+	// Replace Component CR workflow parameters with env vars and file mounts from deploy request
+	// This replaces all existing env vars to ensure the component CR matches the deploy request
+	s.logger.Debug("Replacing component workflow parameters with environment variables", "agentName", agentName, "envVarCount", len(deployReq.Env))
+	if err := s.ocClient.ReplaceComponentEnvVars(ctx, orgName, projectName, agentName, deployReq.Env); err != nil {
+		s.logger.Warn("Failed to replace component workflow parameters with env vars", "agentName", agentName, "error", err)
+		// Continue with deploy even if this fails - env vars will still be applied to the workload
+	}
 	// Manage api-configuration trait for API agents (attach/update with artifact-id and policies)
+
+	if deployReq.Files != nil {
+		s.logger.Debug("Replacing component workflow parameters with file mounts", "agentName", agentName, "fileMountCount", len(deployReq.Files))
+		if err := s.ocClient.ReplaceComponentFileMounts(ctx, orgName, projectName, agentName, deployReq.Files); err != nil {
+			s.logger.Warn("Failed to replace component workflow parameters with file mounts", "agentName", agentName, "error", err)
+		}
+	}
+
 	if isAPIAgent {
 		if targetEnv == nil {
 			return "", fmt.Errorf("cannot deploy API agent without environment details")
@@ -2187,10 +2255,14 @@ func (s *agentManagerService) getSystemManagedEnvVars(
 //
 // For plain env vars:
 //   - Returns env var with the value directly
+//
+// fileMounts are also processed for secrets: sensitive file mount values are stored in the
+// same KV path alongside env var secrets.
 func (s *agentManagerService) processEnvVars(
 	ctx context.Context,
 	orgName, projectName, environmentName, componentName string,
 	envVars []spec.EnvironmentVariable,
+	fileMounts []spec.FileMount,
 ) ([]client.EnvVar, error) {
 	secretData := make(map[string]string)
 	var preservedSecretKeys []string
@@ -2210,9 +2282,6 @@ func (s *agentManagerService) processEnvVars(
 	// Fetch existing secret keys upfront so we can correctly classify sensitive env vars
 	// that come back with secretRef + empty value as either "ours" (key exists in our
 	// agent's secret) or "system-managed" (key lives in another secret like an LLM config).
-	// This is provider-agnostic: it works for both OpenBao (where the secretRef matches the
-	// locally-derived name) and the Secret Manager API (where the secretRef is a server-
-	// generated name we can't predict).
 	var existingInfo *secretmanagersvc.SecretInfo
 	existingKeys := make(map[string]struct{})
 	if s.secretMgmtClient != nil {
@@ -2232,17 +2301,15 @@ func (s *agentManagerService) processEnvVars(
 		}
 	}
 
-	// First pass: collect secret data
+	// First pass: collect secret data from env vars
 	for _, env := range envVars {
 		if env.GetIsSensitive() {
 			if env.HasSecretRef() && env.GetValue() == "" {
 				existingSecretRefName := env.GetSecretRef()
 				if _, ours := existingKeys[env.Key]; ours {
-					// Key exists in this agent's own secret — preserve it (no KV update needed)
 					preservedSecretKeys = append(preservedSecretKeys, env.Key)
 					s.logger.Debug("Preserving existing secret", "key", env.Key, "secretRef", existingSecretRefName)
 				} else {
-					// Key isn't in our secret — system-managed (e.g., LLM config) - skip KV sync, keep original secretRef
 					s.logger.Info(fmt.Sprintf("Skipping existing system-managed secret-ref %s for key %s", existingSecretRefName, env.Key))
 					secretRefOverrides[env.Key] = existingSecretRefName
 				}
@@ -2254,13 +2321,29 @@ func (s *agentManagerService) processEnvVars(
 		}
 	}
 
+	// Also collect secret data from file mounts (same KV path)
+	for _, f := range fileMounts {
+		if f.GetIsSensitive() {
+			if f.HasSecretRef() && f.GetValue() == "" {
+				if _, ours := existingKeys[f.Key]; ours {
+					preservedSecretKeys = append(preservedSecretKeys, f.Key)
+					s.logger.Debug("Preserving existing file mount secret", "key", f.Key)
+				}
+			} else if f.GetValue() != "" {
+				secretData[f.Key] = f.GetValue()
+			} else {
+				return nil, fmt.Errorf("sensitive file mount %q requires either a value or secretRef", f.Key)
+			}
+		}
+	}
+
 	// Sync secrets to KV store and get the secretRefName
 	secretRefName, err := s.syncSecrets(ctx, location, secretData, preservedSecretKeys, existingInfo)
 	if err != nil {
 		return nil, err
 	}
 
-	// Second pass: build result
+	// Second pass: build result for env vars only (file mounts are handled by processFileVars)
 	var result []client.EnvVar
 	for _, env := range envVars {
 		if env.GetIsSensitive() {
@@ -2281,6 +2364,67 @@ func (s *agentManagerService) processEnvVars(
 			result = append(result, client.EnvVar{
 				Key:   env.Key,
 				Value: env.GetValue(),
+			})
+		}
+	}
+
+	return result, nil
+}
+
+var validMountPathRe = regexp.MustCompile(`^/[A-Za-z0-9._\-/]*$`)
+
+// processFileVars converts spec.FileMount entries to client.FileVar entries.
+// Sensitive file mounts use secretKeyRef pointing to the K8s Secret (secrets are
+// already stored in KV by processEnvVars which handles both env and file secrets).
+func (s *agentManagerService) processFileVars(
+	ctx context.Context,
+	orgName, projectName, environmentName, componentName string,
+	fileMounts []spec.FileMount,
+) ([]client.FileVar, error) {
+	if len(fileMounts) == 0 {
+		return make([]client.FileVar, 0), nil
+	}
+
+	for _, f := range fileMounts {
+		mp := f.MountPath
+		if !strings.HasPrefix(mp, "/") {
+			return nil, fmt.Errorf("mount path %q must be an absolute path", mp)
+		}
+		if strings.Contains(mp, "..") {
+			return nil, fmt.Errorf("mount path %q must not contain path traversal (..)", mp)
+		}
+		if !validMountPathRe.MatchString(mp) {
+			return nil, fmt.Errorf("mount path %q contains invalid characters", mp)
+		}
+	}
+
+	// Build secret location to derive the secretRefName
+	location := secretmanagersvc.SecretLocation{
+		OrgName:         orgName,
+		ProjectName:     projectName,
+		EnvironmentName: environmentName,
+		EntityName:      componentName,
+	}
+	secretRefName := location.SecretRefName()
+
+	var result []client.FileVar
+	for _, f := range fileMounts {
+		if f.GetIsSensitive() {
+			result = append(result, client.FileVar{
+				Key:       f.Key,
+				MountPath: f.MountPath,
+				ValueFrom: &client.EnvVarValueFrom{
+					SecretKeyRef: &client.SecretKeyRef{
+						Name: secretRefName,
+						Key:  f.Key,
+					},
+				},
+			})
+		} else {
+			result = append(result, client.FileVar{
+				Key:       f.Key,
+				MountPath: f.MountPath,
+				Value:     f.GetValue(),
 			})
 		}
 	}
@@ -2612,6 +2756,19 @@ func (s *agentManagerService) GetAgentConfigurations(ctx context.Context, orgNam
 
 	s.logger.Info("Fetched configurations successfully", "agentName", agentName, "orgName", orgName, "projectName", projectName, "environment", environment, "configCount", len(filteredConfigurations))
 	return filteredConfigurations, nil
+}
+
+func (s *agentManagerService) GetAgentFileMounts(ctx context.Context, orgName string, projectName string, agentName string, environment string) ([]models.FileMountEntry, error) {
+	s.logger.Info("Getting agent file mounts", "agentName", agentName, "orgName", orgName, "projectName", projectName, "environment", environment)
+
+	fileMounts, err := s.ocClient.GetComponentFileMounts(ctx, orgName, projectName, agentName, environment)
+	if err != nil {
+		s.logger.Error("Failed to fetch file mounts", "agentName", agentName, "error", err)
+		return nil, fmt.Errorf("failed to get file mounts for agent %s: %w", agentName, err)
+	}
+
+	s.logger.Info("Fetched file mounts successfully", "agentName", agentName, "count", len(fileMounts))
+	return fileMounts, nil
 }
 
 func (s *agentManagerService) GetBuildLogs(ctx context.Context, orgName string, projectName string, agentName string, buildName string) (*models.LogsResponse, error) {

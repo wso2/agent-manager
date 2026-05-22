@@ -412,5 +412,5 @@ func configurationItemsFromResponse(r *gen.ConfigurationResponse) []gen.Configur
 	if r == nil {
 		return nil
 	}
-	return r.Configurations
+	return r.Configurations.Env
 }

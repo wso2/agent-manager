@@ -1645,8 +1645,14 @@ type ConfigurationResponse struct {
 	// AgentName Name of the agent
 	AgentName string `json:"agentName"`
 
-	// Configurations List of configuration key-value pairs
-	Configurations []ConfigurationItem `json:"configurations"`
+	// Configurations Configuration data containing env vars and file mounts
+	Configurations struct {
+		// Env List of environment variable configurations
+		Env []ConfigurationItem `json:"env"`
+
+		// Files List of file mount configurations
+		Files []FileMount `json:"files"`
+	} `json:"configurations"`
 
 	// Environment Environment name
 	Environment string `json:"environment"`
@@ -1665,6 +1671,9 @@ type Configurations struct {
 
 	// Env Environment variables
 	Env *[]EnvironmentVariable `json:"env,omitempty"`
+
+	// Files File mounts
+	Files *[]FileMount `json:"files,omitempty"`
 
 	// InstrumentationVersion AMP instrumentation version to use for the agent. Selects the
 	// pre-built init-container image
@@ -2006,6 +2015,9 @@ type DeployAgentRequest struct {
 
 	// Env Environment variables
 	Env *[]EnvironmentVariable `json:"env,omitempty"`
+
+	// Files File mounts
+	Files *[]FileMount `json:"files,omitempty"`
 
 	// ImageId Container image ID to deploy
 	ImageId string `json:"imageId"`
@@ -2366,6 +2378,24 @@ type ExtractionIdentifier struct {
 
 // ExtractionIdentifierLocation Where to find the token information
 type ExtractionIdentifierLocation string
+
+// FileMount defines model for FileMount.
+type FileMount struct {
+	// IsSensitive If true, value is stored in KV and synced via ExternalSecret
+	IsSensitive *bool `json:"isSensitive,omitempty"`
+
+	// Key File name/key identifier
+	Key string `json:"key"`
+
+	// MountPath Mount path in container (absolute path, no '..' segments)
+	MountPath string `json:"mountPath"`
+
+	// SecretRef Reference to existing secret.
+	SecretRef *string `json:"secretRef,omitempty"`
+
+	// Value File content (plain text or secret value for input; omitted for secrets in responses)
+	Value *string `json:"value,omitempty"`
+}
 
 // GatewayEnvironmentResponse defines model for GatewayEnvironmentResponse.
 type GatewayEnvironmentResponse struct {

@@ -35,10 +35,12 @@ import {
   Typography,
 } from "@wso2/oxygen-ui";
 import { EnvironmentVariable } from "./EnvironmentVariable";
+import { FileMountSection } from "./FileMountSection";
 import type {
   AgentKindConfigSchemaItem,
   Environment,
   EnvironmentVariable as EnvVar,
+  FileMount,
 } from "@agent-management-platform/types";
 import { useEffect, useMemo, useState } from "react";
 import {
@@ -78,6 +80,16 @@ export function DeploymentConfig({
       isSecretEdited?: boolean;
     }>
   >([]);
+  const [fileMounts, setFileMounts] = useState<
+    Array<{
+      key: string;
+      mountPath: string;
+      value: string;
+      isSensitive?: boolean;
+      secretRef?: string;
+      isSecretEdited?: boolean;
+    }>
+  >([]);
   const [enableAutoInstrumentation, setEnableAutoInstrumentation] =
     useState<boolean>(true);
   const [enableApiKeySecurity, setEnableApiKeySecurity] =
@@ -106,12 +118,28 @@ export function DeploymentConfig({
     );
 
   useEffect(() => {
-    const configs = configurations?.configurations;
+    const envs = configurations?.configurations?.env;
+    setEnvVariables(
+      envs ? [...envs].sort((a, b) => a.key.localeCompare(b.key)) : [],
+    );
+    const files = configurations?.configurations?.files;
+    setFileMounts(
+      files
+        ? files.map((f) => ({
+            key: f.key,
+            mountPath: f.mountPath,
+            value: f.value ?? "",
+            isSensitive: f.isSensitive,
+            secretRef: f.secretRef,
+          }))
+        : [],
+    );
+  }, [configurations]);
+  useEffect(() => {
+    const configs = configurations?.configurations?.env;
     if (configSchema && configSchema.length > 0) {
       // Build a lookup of existing deployed config values keyed by var name
-      const existingByKey = new Map(
-        (configs ?? []).map((c) => [c.key, c]),
-      );
+      const existingByKey = new Map((configs ?? []).map((c) => [c.key, c]));
       // Schema-defined vars come first (locked), merged with existing values
       const schemaVars = configSchema.map((item) => {
         const existing = existingByKey.get(item.name);
@@ -218,6 +246,36 @@ export function DeploymentConfig({
           };
         });
 
+      // Build file mounts payload
+      const filteredFiles: FileMount[] = fileMounts
+        .filter((f) => f.key && f.mountPath)
+        .map((f) => {
+          if (f.isSensitive) {
+            const isExistingPreserved = f.secretRef && !f.isSecretEdited;
+            if (isExistingPreserved) {
+              return {
+                key: f.key,
+                mountPath: f.mountPath,
+                value: "",
+                isSensitive: true,
+                secretRef: f.secretRef,
+              };
+            }
+            return {
+              key: f.key,
+              mountPath: f.mountPath,
+              value: f.value,
+              isSensitive: true,
+            };
+          }
+          return {
+            key: f.key,
+            mountPath: f.mountPath,
+            value: f.value,
+            isSensitive: false,
+          };
+        });
+
       deployAgent(
         {
           params: {
@@ -228,6 +286,7 @@ export function DeploymentConfig({
           body: {
             imageId: imageId,
             env: filteredEnvVars.length > 0 ? filteredEnvVars : undefined,
+            files: filteredFiles.length > 0 ? filteredFiles : undefined,
             ...(isPythonBuildpack && { enableAutoInstrumentation }),
             ...(isApiAgent && { enableApiKeySecurity }),
           },
@@ -300,6 +359,20 @@ export function DeploymentConfig({
             )}
           </Form.Section>
 
+          <Form.Section>
+            <Form.Header>File Mounts</Form.Header>
+            {isLoadingConfigurations ||
+            isLoadingEnvironments ||
+            isLoadingAgent ? (
+              <Skeleton variant="rectangular" width="100%" height={150} />
+            ) : (
+              <FileMountSection
+                fileMounts={fileMounts}
+                setFileMounts={setFileMounts}
+              />
+            )}
+          </Form.Section>
+
           {isPythonBuildpack && (
             <Form.Section>
               <Form.Header>Instrumentation</Form.Header>
@@ -324,8 +397,13 @@ export function DeploymentConfig({
                   agent?.configurations?.instrumentationVersion && (
                     <Typography variant="body2" color="text.secondary">
                       AMP instrumentation version:{" "}
-                      <Typography component="code"
-                        sx={{ bgcolor: "action.hover", px: 0.5, borderRadius: 0.5 }}
+                      <Typography
+                        component="code"
+                        sx={{
+                          bgcolor: "action.hover",
+                          px: 0.5,
+                          borderRadius: 0.5,
+                        }}
                       >
                         {agent.configurations.instrumentationVersion}
                       </Typography>{" "}

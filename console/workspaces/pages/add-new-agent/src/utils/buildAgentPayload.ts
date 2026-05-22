@@ -115,6 +115,14 @@ export const buildAgentCreationPayload = (
               value: envVar.value!,
               isSensitive: envVar.isSensitive || false,
             })),
+          files: (data.files ?? [])
+            .filter((f) => f.key && f.mountPath)
+            .map((f) => ({
+              key: f.key!,
+              mountPath: f.mountPath!,
+              value: f.value ?? '',
+              isSensitive: f.isSensitive || false,
+            })),
           enableAutoInstrumentation: data.enableAutoInstrumentation,
           ...(data.language === "python" &&
           data.enableAutoInstrumentation !== false &&
@@ -185,6 +193,14 @@ export const buildCatalogAgentPayload = (
             key: envVar.key!.trim().replace(/\s+/g, '_'),
             value: envVar.value!,
             isSensitive: envVar.isSensitive || false,
+          })),
+        files: (data.files ?? [])
+          .filter((f) => f.key && f.mountPath)
+          .map((f) => ({
+            key: f.key!,
+            mountPath: f.mountPath!,
+            value: f.value ?? '',
+            isSensitive: f.isSensitive || false,
           })),
         enableAutoInstrumentation: data.enableAutoInstrumentation,
       },

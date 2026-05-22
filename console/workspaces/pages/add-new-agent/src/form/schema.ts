@@ -125,6 +125,31 @@ export const createAgentSchema = z.object({
       })
     )
     .max(50, 'A maximum of 50 environment variables is allowed'),
+  files: z
+    .array(
+      z.object({
+        key: z
+          .string()
+          .trim()
+          .min(1, 'File name is required')
+          .max(253, 'File name must be at most 253 characters')
+          .optional(),
+        mountPath: z
+          .string()
+          .trim()
+          .min(1, 'Mount path is required')
+          .refine((p) => !p || p.startsWith('/'), { message: 'Mount path must be an absolute path (start with /)' })
+          .refine((p) => !p || !p.includes('..'), { message: 'Path traversal (..) is not allowed' })
+          .refine((p) => !p || /^\/[A-Za-z0-9._\-/]*$/.test(p), { message: 'Mount path contains invalid characters' })
+          .optional(),
+        value: z
+          .string()
+          .max(1048576, 'File content must be at most 1MB')
+          .optional(),
+        isSensitive: z.boolean().default(false),
+      })
+    )
+    .max(20, 'A maximum of 20 file mounts is allowed'),
 }).refine(
   (data) => {
     if (data.interfaceType === 'CUSTOM' && !data.port) {

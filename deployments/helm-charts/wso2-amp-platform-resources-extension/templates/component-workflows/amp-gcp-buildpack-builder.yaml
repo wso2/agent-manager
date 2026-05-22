@@ -159,6 +159,8 @@ spec:
             value: ${parameters.endpoints}
           - name: environment-variables
             value: ${parameters.environmentVariables}
+          - name: file-mounts
+            value: ${parameters.fileMounts}
           - name: registry-push-secret
             value: ${metadata.workflowRunName}-registry-push-secret
           - name: workload-publisher-secret-name
