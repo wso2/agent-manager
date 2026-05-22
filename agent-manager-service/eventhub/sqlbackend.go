@@ -19,6 +19,7 @@ package eventhub
 import (
 	"context"
 	"database/sql"
+	"errors"
 	"fmt"
 	"log/slog"
 	"strings"
@@ -133,7 +134,7 @@ func (b *SQLBackend) closeStatements() {
 		b.cleanupEventsStmt,
 	} {
 		if stmt != nil {
-			stmt.Close()
+			_ = stmt.Close()
 		}
 	}
 }
@@ -237,7 +238,7 @@ func (b *SQLBackend) RegisterGateway(gatewayID string) error {
 		return fmt.Errorf("failed to register gateway: %w", err)
 	}
 
-	if regErr := b.registry.register(gatewayID); regErr != nil && regErr != ErrGatewayAlreadyExists {
+	if regErr := b.registry.register(gatewayID); regErr != nil && !errors.Is(regErr, ErrGatewayAlreadyExists) {
 		return fmt.Errorf("failed to register gateway in registry: %w", regErr)
 	}
 
@@ -264,7 +265,7 @@ func (b *SQLBackend) PublishEvent(gatewayID string, event Event) error {
 	}
 	defer func() {
 		if err != nil {
-			tx.Rollback()
+			_ = tx.Rollback()
 		}
 	}()
 
@@ -287,7 +288,7 @@ func (b *SQLBackend) PublishEvent(gatewayID string, event Event) error {
 	)
 	if err != nil {
 		insertErr := err
-		if rollbackErr := tx.Rollback(); rollbackErr != nil && rollbackErr != sql.ErrTxDone {
+		if rollbackErr := tx.Rollback(); rollbackErr != nil && !errors.Is(rollbackErr, sql.ErrTxDone) {
 			return fmt.Errorf("failed to rollback after insert failure: %w", rollbackErr)
 		}
 		err = nil
@@ -439,7 +440,7 @@ func (b *SQLBackend) getGatewayStatesPage(cursor string, limit int) ([]GatewaySt
 	if err != nil {
 		return nil, "", fmt.Errorf("failed to query gateway states page: %w", err)
 	}
-	defer rows.Close()
+	defer func() { _ = rows.Close() }()
 
 	states := make([]GatewayState, 0, limit)
 	nextCursor := ""
@@ -488,7 +489,7 @@ func (b *SQLBackend) pollGatewayWithState(gw *gateway, state GatewayState) error
 	if err != nil {
 		return fmt.Errorf("failed to query events: %w", err)
 	}
-	defer rows.Close()
+	defer func() { _ = rows.Close() }()
 
 	var events []Event
 	for rows.Next() {
