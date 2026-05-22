@@ -18,9 +18,11 @@
 
 import React, { useRef, useState } from "react";
 import {
+    AdapterDateFns,
     Button,
+    DatePickers,
     Divider,
-    IconButton,
+    Form,
     InputAdornment,
     MenuItem,
     Popover,
@@ -28,17 +30,12 @@ import {
     Stack,
     Typography,
 } from "@wso2/oxygen-ui";
-import { Clock, X } from "@wso2/oxygen-ui-icons-react";
-import { TextInput } from "../FormElements/TextInput";
+import { Clock } from "@wso2/oxygen-ui-icons-react";
+import { isValid } from "date-fns";
 
 const CUSTOM_VALUE = "__custom__";
-
-const isoToLocalInput = (iso: string): string => {
-    const d = new Date(iso);
-    return new Date(d.getTime() - d.getTimezoneOffset() * 60_000)
-        .toISOString()
-        .slice(0, 16);
-};
+const isValidDate = (d: Date | null): d is Date => isValid(d);
+const MAX_RANGE_MS = 14 * 24 * 60 * 60 * 1000;
 
 const fmtLabel = (iso: string) =>
     new Date(iso).toLocaleString(undefined, {
@@ -55,7 +52,6 @@ export interface TimeRangeSelectorProps {
     options: Array<{ value: string; label: string }>;
     onPresetChange: (value: string) => void;
     onCustomRangeApply: (startISO: string, endISO: string) => void;
-    onCustomRangeClear: () => void;
 }
 
 export const TimeRangeSelector: React.FC<TimeRangeSelectorProps> = ({
@@ -65,12 +61,11 @@ export const TimeRangeSelector: React.FC<TimeRangeSelectorProps> = ({
     options,
     onPresetChange,
     onCustomRangeApply,
-    onCustomRangeClear,
 }) => {
     const anchorRef = useRef<HTMLElement>(null);
     const [popoverOpen, setPopoverOpen] = useState(false);
-    const [draftStart, setDraftStart] = useState("");
-    const [draftEnd, setDraftEnd] = useState("");
+    const [draftStart, setDraftStart] = useState<Date | null>(null);
+    const [draftEnd, setDraftEnd] = useState<Date | null>(null);
 
     const hasCustomRange = !!customStart && !!customEnd;
     const selectValue = hasCustomRange ? CUSTOM_VALUE : (preset ?? "");
@@ -78,17 +73,27 @@ export const TimeRangeSelector: React.FC<TimeRangeSelectorProps> = ({
     const openPopover = () => {
         const now = new Date();
         const hourAgo = new Date(now.getTime() - 60 * 60 * 1000);
-        setDraftStart(isoToLocalInput(customStart ?? hourAgo.toISOString()));
-        setDraftEnd(isoToLocalInput(customEnd ?? now.toISOString()));
+        setDraftStart(customStart ? new Date(customStart) : hourAgo);
+        setDraftEnd(customEnd ? new Date(customEnd) : now);
         setPopoverOpen(true);
     };
 
+    const now = new Date();
+    const minStart = new Date(now.getTime() - MAX_RANGE_MS);
+
+    const isApplyDisabled =
+        !isValidDate(draftStart) ||
+        !isValidDate(draftEnd) ||
+        draftStart < minStart ||
+        draftEnd > now ||
+        draftStart >= draftEnd ||
+        draftEnd.getTime() - draftStart.getTime() > MAX_RANGE_MS;
+
     const handleApply = () => {
-        onCustomRangeApply(new Date(draftStart).toISOString(), new Date(draftEnd).toISOString());
+        if (isApplyDisabled) return;
+        onCustomRangeApply(draftStart!.toISOString(), draftEnd!.toISOString());
         setPopoverOpen(false);
     };
-
-    const isApplyDisabled = !draftStart || !draftEnd || draftStart >= draftEnd;
 
     return (
         <Stack direction="row" spacing={0.5} alignItems="center">
@@ -104,9 +109,7 @@ export const TimeRangeSelector: React.FC<TimeRangeSelectorProps> = ({
                     return options.find((o) => o.value === v)?.label ?? v;
                 }}
                 onChange={(e) => {
-                    if (e.target.value === CUSTOM_VALUE) {
-                        openPopover();
-                    } else {
+                    if (e.target.value !== CUSTOM_VALUE) {
                         onPresetChange(e.target.value);
                     }
                 }}
@@ -123,14 +126,8 @@ export const TimeRangeSelector: React.FC<TimeRangeSelectorProps> = ({
                     </MenuItem>
                 ))}
                 <Divider />
-                <MenuItem value={CUSTOM_VALUE}>Custom range...</MenuItem>
+                <MenuItem value={CUSTOM_VALUE} onClick={openPopover}>Custom Time Range</MenuItem>
             </Select>
-
-            {hasCustomRange && (
-                <IconButton size="small" onClick={onCustomRangeClear} aria-label="Clear custom range">
-                    <X size={14} />
-                </IconButton>
-            )}
 
             <Popover
                 open={popoverOpen}
@@ -139,26 +136,29 @@ export const TimeRangeSelector: React.FC<TimeRangeSelectorProps> = ({
                 anchorOrigin={{ vertical: "bottom", horizontal: "right" }}
                 transformOrigin={{ vertical: "top", horizontal: "right" }}
             >
-                <Stack spacing={2} sx={{ p: 2, width: 300 }}>
-                    <Typography variant="h6">
-                        Custom Time Range
-                    </Typography>
+                <Stack spacing={2} sx={{ p: 2, width: 320 }}>
+                    <Typography variant="h6">Custom Time Range</Typography>
                     <Divider />
-                    <TextInput
-                        label="Start"
-                        type="datetime-local"
-                        size="small"
-                        value={draftStart}
-                        onChange={(e) => setDraftStart(e.target.value)}
-                    />
-                    <TextInput
-                        label="End"
-                        type="datetime-local"
-                        size="small"
-                        value={draftEnd}
-                        onChange={(e) => setDraftEnd(e.target.value)}
-                        inputProps={{ min: draftStart || undefined }}
-                    />
+                    <DatePickers.LocalizationProvider dateAdapter={AdapterDateFns}>
+                        <Form.ElementWrapper label="Start" name="start">
+                            <DatePickers.DateTimePicker
+                                value={draftStart}
+                                onChange={(v) => setDraftStart(v)}
+                                minDateTime={minStart}
+                                maxDateTime={now}
+                                slotProps={{ textField: { size: "small", fullWidth: true } }}
+                            />
+                        </Form.ElementWrapper>
+                        <Form.ElementWrapper label="End" name="end">
+                            <DatePickers.DateTimePicker
+                                value={draftEnd}
+                                onChange={(v) => setDraftEnd(v)}
+                                minDateTime={isValidDate(draftStart) ? draftStart : undefined}
+                                maxDateTime={now}
+                                slotProps={{ textField: { size: "small", fullWidth: true } }}
+                            />
+                        </Form.ElementWrapper>
+                    </DatePickers.LocalizationProvider>
                     <Stack direction="row" spacing={1} justifyContent="flex-end">
                         <Button size="small" variant="text" onClick={() => setPopoverOpen(false)}>
                             Cancel
