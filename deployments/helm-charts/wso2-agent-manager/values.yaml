@@ -198,6 +198,12 @@ agentManagerService:
       existingSecret: ""
       existingSecretKey: "openbao-token"
 
+    # Agent resource limits — operator-configured upper bounds enforced on PUT /resource-configs
+    perAgentResourceLimits:
+      maxReplicas: 10
+      maxCPU: "500m"
+      maxMemory: "512Mi"
+
     # Thunder admin API configuration (for per-org publisher credential provisioning)
     # When baseURL is empty, the static amp-publisher-client credentials are used.
     thunder:

@@ -24,6 +24,7 @@ import (
 	"strconv"
 	"time"
 
+	"github.com/wso2/agent-manager/agent-manager-service/config"
 	"github.com/wso2/agent-manager/agent-manager-service/middleware/logger"
 	"github.com/wso2/agent-manager/agent-manager-service/services"
 	"github.com/wso2/agent-manager/agent-manager-service/spec"
@@ -398,7 +399,7 @@ func (c *agentController) UpdateAgentResourceConfigs(w http.ResponseWriter, r *h
 		utils.WriteErrorResponse(w, http.StatusBadRequest, "Invalid request body")
 		return
 	}
-	if err := utils.ValidateAgentResourceConfigsPayload(payload); err != nil {
+	if err := utils.ValidateAgentResourceConfigsPayload(payload, config.GetConfig().PerAgentResourceLimits); err != nil {
 		utils.WriteValidationErrorResponse(w, err)
 		return
 	}

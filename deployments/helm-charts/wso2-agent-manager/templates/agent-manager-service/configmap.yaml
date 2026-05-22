@@ -54,4 +54,8 @@ data:
   # Thunder admin API configuration (for per-org publisher credentials)
   THUNDER_BASE_URL: {{ .Values.agentManagerService.config.thunder.baseURL | default "" | quote }}
   THUNDER_CLIENT_ID: {{ .Values.agentManagerService.config.thunder.clientId | default "" | quote }}
+  # Agent resource limits (per-agent upper bounds)
+  RESOURCE_MAX_REPLICAS: {{ .Values.agentManagerService.config.perAgentResourceLimits.maxReplicas | default 10 | quote }}
+  RESOURCE_MAX_CPU: {{ .Values.agentManagerService.config.perAgentResourceLimits.maxCPU | default "500m" | quote }}
+  RESOURCE_MAX_MEMORY: {{ .Values.agentManagerService.config.perAgentResourceLimits.maxMemory | default "512Mi" | quote }}
 {{- end }}

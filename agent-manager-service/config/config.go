@@ -101,6 +101,9 @@ type Config struct {
 
 	// TLS Configurations
 	TLSConfig TLSConfig
+
+	// PerAgentResourceLimits defines the operator-configured maximum values for agent resource configs
+	PerAgentResourceLimits ResourceLimitsConfig
 }
 type TLSConfig struct {
 	// EnableTLS indicates whether TLS is enabled for the server
@@ -289,4 +292,15 @@ type WebSocketConfig struct {
 	MaxConnections    int // Maximum number of concurrent WebSocket connections (default: 1000)
 	ConnectionTimeout int // Connection timeout in seconds (default: 30)
 	RateLimitPerMin   int // Rate limit per gateway per minute (default: 10)
+}
+
+// ResourceLimitsConfig holds the operator-configured upper bounds for agent resource configs.
+// All user-submitted values are validated against these limits and rejected with 400 if exceeded.
+type ResourceLimitsConfig struct {
+	// MaxReplicas is the maximum replica count (static and autoscaling maxReplicas)
+	MaxReplicas int
+	// MaxCPU is the maximum CPU value (Kubernetes quantity string) applied to both requests and limits
+	MaxCPU string
+	// MaxMemory is the maximum memory value (Kubernetes quantity string) applied to both requests and limits
+	MaxMemory string
 }
