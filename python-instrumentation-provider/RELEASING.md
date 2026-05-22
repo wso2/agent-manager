@@ -81,6 +81,38 @@ X for Python Y"*, and the OS refresh is a feature, not drift.
 
 ---
 
+## Watching for OpenLLMetry releases
+
+You do not have to poll PyPI yourself. `.github/workflows/traceloop-release-watch.yaml`
+runs daily (09:00 IST / 03:30 UTC) and, when `traceloop-sdk` publishes a release newer than the
+pin in `libs/amp-instrumentation/pyproject.toml`, it:
+
+- opens a GitHub issue labelled `traceloop-release` — the durable tracker, and
+- posts a message to the team Google Chat space.
+
+That issue is your cue to start Scenario A below. The watcher never bumps a pin or
+opens a PR itself — the version cut stays a deliberate, manual decision.
+
+**One-time setup** (needs repo admin):
+
+- Create the label once:
+  ```
+  gh label create traceloop-release \
+    --description "New OpenLLMetry/traceloop-sdk release to evaluate" \
+    --color BFD4F2
+  ```
+- Create an incoming webhook in the target Google Chat space and store its URL as
+  the `GCHAT_WEBHOOK_URL` repository secret. If the secret is absent the workflow
+  still files the issue and just skips the Chat message.
+
+**Testing it:** dispatch the workflow manually (Actions tab → *Traceloop Release
+Watch* → *Run workflow*) with `force_version` set to a value higher than the current
+pin, e.g. `99.0.0`. It files a real issue and posts to Chat — **delete** the test
+issue afterwards (not just close it; the dedup check looks at closed issues too, so
+a leftover closed test issue would suppress a future real notification).
+
+---
+
 ## Scenario A — bump `traceloop-sdk` (new OpenLLMetry version)
 
 Example: `traceloop-sdk` `0.60.0` → `0.65.0`, cutting AMP-instr version `0.3.0`.
