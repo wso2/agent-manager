@@ -1,0 +1,3 @@
+additionalInstrumentationVersions:
+  - version: "0.4.0"
+    pythonVersions: ["3.11"]

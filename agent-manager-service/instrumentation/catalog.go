@@ -16,7 +16,13 @@
 
 package instrumentation
 
-import "fmt"
+import (
+	"errors"
+	"fmt"
+	"os"
+
+	"gopkg.in/yaml.v3"
+)
 
 const (
 	SourceBundled   = "bundled"
@@ -40,11 +46,19 @@ type Catalog struct {
 	byVersion      map[string]Version
 }
 
+// extensionFile is the on-disk YAML shape.
+type extensionFile struct {
+	AdditionalInstrumentationVersions []Version `yaml:"additionalInstrumentationVersions"`
+}
+
 // Load assembles the catalog from the embedded baseline plus the optional
-// extension file at extensionPath. The defaultVersion must appear in the
+// extension file at extensionPath. Extension entries are validated and
+// merged in; when an extension entry shares a version with a bundled
+// entry the extension wins (lets an operator redirect imageRepository
+// for an air-gapped mirror). The defaultVersion must appear in the
 // effective set or Load returns an error. extensionPath == "" or a
-// non-existent path is not an error; the catalog is baseline-only in
-// that case. Extension parsing lands in a follow-up commit.
+// missing file is not an error; the catalog is baseline-only in that
+// case.
 func Load(extensionPath, defaultVersion string) (*Catalog, error) {
 	baseline, err := decodeBaseline()
 	if err != nil {
@@ -53,6 +67,18 @@ func Load(extensionPath, defaultVersion string) (*Catalog, error) {
 
 	by := make(map[string]Version, len(baseline))
 	for _, v := range baseline {
+		by[v.Version] = v
+	}
+
+	ext, err := readExtension(extensionPath)
+	if err != nil {
+		return nil, err
+	}
+	for _, v := range ext {
+		if err := validateExtensionEntry(v); err != nil {
+			return nil, fmt.Errorf("extension entry %q: %w", v.Version, err)
+		}
+		v.Source = SourceExtension
 		by[v.Version] = v
 	}
 
@@ -70,6 +96,37 @@ func Load(extensionPath, defaultVersion string) (*Catalog, error) {
 		defaultVersion: defaultVersion,
 		byVersion:      by,
 	}, nil
+}
+
+func readExtension(path string) ([]Version, error) {
+	if path == "" {
+		return nil, nil
+	}
+	raw, err := os.ReadFile(path)
+	if err != nil {
+		if errors.Is(err, os.ErrNotExist) {
+			return nil, nil
+		}
+		return nil, fmt.Errorf("read extension %s: %w", path, err)
+	}
+	var f extensionFile
+	if err := yaml.Unmarshal(raw, &f); err != nil {
+		return nil, fmt.Errorf("parse extension %s: %w", path, err)
+	}
+	return f.AdditionalInstrumentationVersions, nil
+}
+
+func validateExtensionEntry(v Version) error {
+	if v.Version == "" {
+		return errors.New("missing version")
+	}
+	if v.ImageRepository == "" {
+		return errors.New("missing imageRepository")
+	}
+	if len(v.PythonVersions) == 0 {
+		return errors.New("missing pythonVersions")
+	}
+	return nil
 }
 
 // All returns every version in the effective catalog. Ordering is

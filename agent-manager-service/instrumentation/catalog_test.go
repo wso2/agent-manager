@@ -55,3 +55,60 @@ func TestLoad_DefaultNotInSet(t *testing.T) {
 		t.Fatal("Load with bad default returned nil error")
 	}
 }
+
+func TestLoad_ExtensionAdds(t *testing.T) {
+	c, err := Load("testdata/extension_valid.yaml", "0.2.1")
+	if err != nil {
+		t.Fatalf("Load: %v", err)
+	}
+	if !c.Has("0.4.0") {
+		t.Fatal("expected 0.4.0 in effective set")
+	}
+	got, _ := c.Get("0.4.0")
+	if got.Source != SourceExtension {
+		t.Errorf("Get(0.4.0).Source = %q, want extension", got.Source)
+	}
+	if got.TraceloopSDK != "0.65.0" {
+		t.Errorf("Get(0.4.0).TraceloopSDK = %q, want 0.65.0", got.TraceloopSDK)
+	}
+	bundled, _ := c.Get("0.2.1")
+	if bundled.Source != SourceBundled {
+		t.Errorf("Get(0.2.1).Source = %q, want bundled", bundled.Source)
+	}
+}
+
+func TestLoad_ExtensionOverridesBundled(t *testing.T) {
+	c, err := Load("testdata/extension_override.yaml", "0.2.1")
+	if err != nil {
+		t.Fatalf("Load: %v", err)
+	}
+	got, _ := c.Get("0.2.1")
+	if got.Source != SourceExtension {
+		t.Errorf("expected extension override; Source = %q", got.Source)
+	}
+	if got.ImageRepository != "internal.registry.example/amp-python-instrumentation-provider" {
+		t.Errorf("ImageRepository = %q, want override", got.ImageRepository)
+	}
+}
+
+func TestLoad_ExtensionFileAbsent(t *testing.T) {
+	c, err := Load("testdata/does_not_exist.yaml", "0.2.1")
+	if err != nil {
+		t.Fatalf("Load: %v", err)
+	}
+	if len(c.All()) != 1 {
+		t.Errorf("len(All) = %d, want 1 (baseline only)", len(c.All()))
+	}
+}
+
+func TestLoad_ExtensionMalformedYAML(t *testing.T) {
+	if _, err := Load("testdata/extension_malformed.yaml", "0.2.1"); err == nil {
+		t.Fatal("expected error for malformed YAML")
+	}
+}
+
+func TestLoad_ExtensionMissingRequiredFields(t *testing.T) {
+	if _, err := Load("testdata/extension_missing_fields.yaml", "0.2.1"); err == nil {
+		t.Fatal("expected error for missing imageRepository")
+	}
+}
