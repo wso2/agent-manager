@@ -18,6 +18,8 @@
 
 package utils
 
+import "strings"
+
 type SupportedLanguages string
 
 const (
@@ -105,4 +107,27 @@ var Buildpacks = []Buildpack{
 		VersionEnvVariable: "",
 		Provider:           "AMP-Ballerina",
 	},
+}
+
+// SupportedPythonVersions returns the bare-minor Python versions the
+// platform buildpack provider can build (e.g. ["3.10","3.11","3.12","3.13"]).
+// Derived from the Python entry in Buildpacks by stripping the trailing ".x"
+// patch-wildcard. Returns nil if no Python entry is configured.
+func SupportedPythonVersions() []string {
+	for _, bp := range Buildpacks {
+		if bp.Language != string(LanguagePython) {
+			continue
+		}
+		parts := strings.Split(bp.SupportedVersions, ",")
+		out := make([]string, 0, len(parts))
+		for _, p := range parts {
+			p = strings.TrimSpace(p)
+			p = strings.TrimSuffix(p, ".x")
+			if p != "" {
+				out = append(out, p)
+			}
+		}
+		return out
+	}
+	return nil
 }
