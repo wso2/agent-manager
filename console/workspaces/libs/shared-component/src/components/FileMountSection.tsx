@@ -16,11 +16,15 @@
  * under the License.
  */
 
+import { useRef } from "react";
 import { Box, Button } from "@wso2/oxygen-ui";
 import { Plus as Add } from "@wso2/oxygen-ui-icons-react";
 import { FileMountEditor } from "@agent-management-platform/views";
 
+let nextFileMountId = 1;
+
 export interface FileMountItem {
+  id?: number;
   key: string;
   mountPath: string;
   value: string;
@@ -34,16 +38,38 @@ interface FileMountSectionProps {
   setFileMounts: React.Dispatch<React.SetStateAction<FileMountItem[]>>;
 }
 
+function ensureId(item: FileMountItem): FileMountItem {
+  if (item.id != null) return item;
+  return { ...item, id: nextFileMountId++ };
+}
+
 export function FileMountSection({
   fileMounts,
   setFileMounts,
 }: FileMountSectionProps) {
-  const isOneEmpty = fileMounts.some((f) => !f.key || !f.mountPath);
+  const didInit = useRef(false);
+  if (!didInit.current && fileMounts.length > 0) {
+    const needsIds = fileMounts.some((f) => f.id == null);
+    if (needsIds) {
+      setFileMounts((prev) => prev.map(ensureId));
+    }
+    didInit.current = true;
+  }
+
+  const isOneEmpty = fileMounts.some(
+    (f) => !f.key || !f.mountPath,
+  );
 
   const handleAdd = () => {
     setFileMounts((prev) => [
       ...prev,
-      { key: "", mountPath: "", value: "", isSensitive: false },
+      {
+        id: nextFileMountId++,
+        key: "",
+        mountPath: "",
+        value: "",
+        isSensitive: false,
+      },
     ]);
   };
 
@@ -85,7 +111,7 @@ export function FileMountSection({
             : undefined;
         return (
           <FileMountEditor
-            key={`file-${index}`}
+            key={`file-${item.id ?? index}`}
             index={index}
             keyValue={item.key}
             mountPathValue={item.mountPath}
@@ -99,9 +125,12 @@ export function FileMountSection({
             keyError={keyError}
             isExistingSecret={!!item.secretRef}
             onSecretEditCancel={() => {
+              const targetId = item.id;
               setFileMounts((prev) =>
-                prev.map((it, i) =>
-                  i === index ? { ...it, isSecretEdited: false } : it,
+                prev.map((it) =>
+                  it.id === targetId
+                    ? { ...it, isSecretEdited: false }
+                    : it,
                 ),
               );
             }}

@@ -60,20 +60,29 @@ export function FileMountEditor({
   isExistingSecret = false,
   onSecretEditCancel,
 }: FileMountEditorProps) {
-  const isNew = !keyValue && !mountPathValue && !contentValue;
-  const [isEditing, setIsEditing] = useState(isNew);
+  const initialIsNew = useRef(
+    !keyValue && !mountPathValue && !contentValue,
+  );
+  const [isEditing, setIsEditing] = useState(
+    initialIsNew.current,
+  );
   const [isEditingSecret, setIsEditingSecret] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [snapshot, setSnapshot] = useState<{
-    key: string; mountPath: string; content: string;
+    key: string; mountPath: string;
+    content: string; isSensitive: boolean;
   } | null>(null);
 
   const handleEnableEditing = () => {
-    setSnapshot({ key: keyValue, mountPath: mountPathValue, content: contentValue });
+    setSnapshot({
+      key: keyValue,
+      mountPath: mountPathValue,
+      content: contentValue,
+      isSensitive,
+    });
     setIsEditing(true);
     if (isExistingSecret && isSensitive) {
       setIsEditingSecret(true);
-      onContentChange('');
     }
   };
 
@@ -82,6 +91,10 @@ export function FileMountEditor({
       onKeyChange(snapshot.key);
       onMountPathChange(snapshot.mountPath);
       onContentChange(snapshot.content);
+      if (onSensitiveChange
+        && snapshot.isSensitive !== isSensitive) {
+        onSensitiveChange(snapshot.isSensitive);
+      }
       setSnapshot(null);
     }
     setIsEditing(false);
@@ -215,12 +228,19 @@ export function FileMountEditor({
           multiline
           minRows={3}
           maxRows={10}
-          value={contentValue}
+          value={isEditingSecret ? (contentValue || '') : contentValue}
           onChange={(e) => onContentChange(e.target.value)}
           error={!!contentError}
           helperText={contentError}
-          placeholder={isExistingSecret && isSensitive ? 'Enter new secret content...' : 'Paste or type file content here...'}
-          type={isSensitive && !isEditingSecret && !isEditing ? 'password' : 'text'}
+          placeholder={
+            isEditingSecret
+              ? 'Enter new secret content...'
+              : 'Paste or type file content here...'
+          }
+          type={
+            isSensitive && !isEditingSecret && !isEditing
+              ? 'password' : 'text'
+          }
         />
         <Box mt={1}>
           <input
@@ -247,7 +267,7 @@ export function FileMountEditor({
           Updating a Secret file removes the previous content permanently and cannot be restored.
         </Alert>
       )}
-      {!isNew && (
+      {!initialIsNew.current && (
         <Stack direction="row" gap={1} justifyContent="flex-end">
           <Button variant="outlined" size="small" onClick={handleCancelEditing}>
             Cancel
