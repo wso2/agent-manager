@@ -22,8 +22,6 @@ import { PageLayout, useFormValidation } from "@agent-management-platform/views"
 import { generatePath, useNavigate, useParams } from "react-router-dom";
 import {
   absoluteRouteMap,
-  DEFAULT_INSTRUMENTATION_VERSION,
-  DEFAULT_PYTHON_VERSION,
   OrgProjPathParams,
 } from "@agent-management-platform/types";
 import { useCreateAgent } from "@agent-management-platform/api-client";
@@ -42,7 +40,9 @@ export const InternalAgentFlow: React.FC = () => {
   const [formData, setFormData] = useState<CreateAgentFormValues>({
     deploymentType: "new" as const,
     enableAutoInstrumentation: true,
-    instrumentationVersion: DEFAULT_INSTRUMENTATION_VERSION,
+    // instrumentationVersion and languageVersion start undefined and get
+    // populated by the form from the fetched agent-build-options.
+    instrumentationVersion: undefined,
     name: "",
     displayName: "",
     description: "",
@@ -51,7 +51,7 @@ export const InternalAgentFlow: React.FC = () => {
     appPath: "/",
     runCommand: "python main.py",
     language: "python",
-    languageVersion: DEFAULT_PYTHON_VERSION,
+    languageVersion: undefined,
     dockerfilePath: "/Dockerfile",
     interfaceType: "DEFAULT" as const,
     port: "" as unknown as number,
