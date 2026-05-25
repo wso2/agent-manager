@@ -21,7 +21,6 @@ import (
 	"log/slog"
 	"net/url"
 	"os"
-	"slices"
 
 	"github.com/joho/godotenv"
 	"k8s.io/apimachinery/pkg/api/resource"
@@ -116,7 +115,7 @@ func loadEnvs() {
 
 		DefaultInstrumentationVersion: r.readOptionalString("OTEL_DEFAULT_INSTRUMENTATION_VERSION", "0.2.1"),
 
-		SupportedInstrumentationVersions: r.readOptionalStringList("OTEL_SUPPORTED_INSTRUMENTATION_VERSIONS", "0.2.1"),
+		InstrumentationExtensionPath: r.readOptionalString("INSTRUMENTATION_EXTENSION_PATH", "/etc/amp/instrumentation-extension.yaml"),
 
 		// Tracing configuration
 		IsTraceContentEnabled: r.readOptionalBool("OTEL_TRACELOOP_TRACE_CONTENT", true),
@@ -329,18 +328,13 @@ func validateInstrumentationURL(cfg *Config, r *configReader) {
 	}
 }
 
-func validateInstrumentationVersionConfig(cfg *Config, r *configReader) {
-	if len(cfg.OTEL.SupportedInstrumentationVersions) == 0 {
-		r.errors = append(r.errors, fmt.Errorf("OTEL_SUPPORTED_INSTRUMENTATION_VERSIONS must not be empty"))
-		return
-	}
-	if !slices.Contains(cfg.OTEL.SupportedInstrumentationVersions, cfg.OTEL.DefaultInstrumentationVersion) {
-		r.errors = append(r.errors, fmt.Errorf(
-			"OTEL_DEFAULT_INSTRUMENTATION_VERSION %q must be in OTEL_SUPPORTED_INSTRUMENTATION_VERSIONS %v",
-			cfg.OTEL.DefaultInstrumentationVersion, cfg.OTEL.SupportedInstrumentationVersions,
-		))
-	}
-}
+// validateInstrumentationVersionConfig used to enforce that the default
+// version was a member of OTEL_SUPPORTED_INSTRUMENTATION_VERSIONS. The
+// effective version set now lives in the instrumentation catalog
+// (assembled at app boot from embedded baseline + extension file), so
+// membership of the default is validated by instrumentation.Load rather
+// than from config-time env values. Kept as a no-op for caller symmetry.
+func validateInstrumentationVersionConfig(_ *Config, _ *configReader) {}
 
 func validateInternalServerConfigs(cfg *Config, r *configReader) {
 	if cfg.InternalServer.Port < 1 || cfg.InternalServer.Port > 65535 {
