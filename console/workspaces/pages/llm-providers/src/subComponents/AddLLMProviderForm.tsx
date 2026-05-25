@@ -153,8 +153,8 @@ export const AddLLMProviderForm: React.FC<AddLLMProviderFormProps> = ({
   );
 
   useEffect(() => {
-    if (gateways.length > 0 && !formData.gatewayIds) {
-      setFormData({ ...formData, gatewayIds: [gateways[0].uuid] });
+    if (gateways.length > 0 && formData.gatewayIds?.length === 0) {
+        setFormData({ ...formData, gatewayIds: [gateways[0].uuid] });
     }
   }, [gateways]);
 
