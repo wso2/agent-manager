@@ -556,11 +556,9 @@ func (s *agentManagerService) validateEffectivePythonInstrumentationPair(pythonV
 	if pythonVersion == "" {
 		return nil
 	}
-	effective := ""
+	effective := instrumentation.GetCatalog().Default()
 	if requestedVersion != nil {
 		effective = *requestedVersion
-	} else {
-		effective = instrumentation.GetCatalog().Default()
 	}
 	return s.validatePythonInstrumentationPair(pythonVersion, effective)
 }
@@ -846,15 +844,6 @@ func (s *agentManagerService) CreateAgent(ctx context.Context, orgName string, p
 			}
 		}
 	}
-	// Pair-check the python/instrumentation combo whenever the deploy will
-	// actually use this version: either the user pinned one (intent must
-	// be consistent), or auto-instrumentation is on and the default will
-	// be injected (otherwise the init-container image won't exist).
-	if requestedVersion != nil || autoInstr {
-		if err := s.validateEffectivePythonInstrumentationPair(buildpackPythonVersion(req.Build), requestedVersion); err != nil {
-			return err
-		}
-	}
 
 	imageID := ""
 	if req.Provisioning.AgentKind != nil {
@@ -896,6 +885,20 @@ func (s *agentManagerService) CreateAgent(ctx context.Context, orgName string, p
 			}
 		}
 		imageID = kindVersion.ImageId
+	}
+
+	// Pair-check the python/instrumentation combo after any kind-based
+	// build replacement above, so we validate against the build that
+	// will actually be deployed (not the one in the original request,
+	// which is empty for kind-based agents). The check runs whenever
+	// the deploy will use this version: either the user pinned one
+	// (intent must stay consistent), or auto-instrumentation is on and
+	// the default will be injected (otherwise the init-container image
+	// won't exist).
+	if requestedVersion != nil || autoInstr {
+		if err := s.validateEffectivePythonInstrumentationPair(buildpackPythonVersion(req.Build), requestedVersion); err != nil {
+			return err
+		}
 	}
 	return s.createComponentAgent(ctx, orgName, projectName, req, imageID)
 }
