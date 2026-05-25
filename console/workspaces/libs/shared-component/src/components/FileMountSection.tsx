@@ -98,6 +98,13 @@ export function FileMountSection({
             onRemove={() => handleRemove(index)}
             keyError={keyError}
             isExistingSecret={!!item.secretRef}
+            onSecretEditCancel={() => {
+              setFileMounts((prev) =>
+                prev.map((it, i) =>
+                  i === index ? { ...it, isSecretEdited: false } : it,
+                ),
+              );
+            }}
           />
         );
       })}
