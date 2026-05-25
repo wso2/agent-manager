@@ -1,0 +1,159 @@
+---
+sidebar_position: 3
+---
+
+# CLI Installation
+
+`amctl` is the command-line interface for Agent Manager. Use it to manage organizations, projects, agents, runtime observability, and AI assistant skills from your terminal.
+
+This guide installs `amctl`, logs into a running Agent Manager instance, and verifies the setup.
+
+:::info Prerequisites
+You need a reachable Agent Manager instance before logging in. Follow the [Quick Start](./quick-start.mdx) or [On k3d](./on-k3d.mdx) guide first if you have not installed one. The local install exposes the Agent Manager API at `http://localhost:9000`.
+:::
+
+## Step 1: Install amctl
+
+Download the release archive for your platform from the [Agent Manager releases page](https://github.com/wso2/agent-manager/releases), extract the binary, and move it onto your `PATH`.
+
+The latest published build is **`amctl/v0.1.0`** (pre-release). Replace `0.1.0` in the commands below with a newer version once one is published.
+
+:::note Pre-release
+`amctl` is currently shipped as a pre-release. Expect breaking changes between versions until the first stable release.
+:::
+
+### macOS (Apple Silicon)
+
+```bash
+curl -LO https://github.com/wso2/agent-manager/releases/download/amctl/v0.1.0/amctl_v0.1.0_darwin_arm64.tar.gz
+tar -xzf amctl_v0.1.0_darwin_arm64.tar.gz
+sudo mv amctl /usr/local/bin/
+```
+
+### macOS (Intel)
+
+```bash
+curl -LO https://github.com/wso2/agent-manager/releases/download/amctl/v0.1.0/amctl_v0.1.0_darwin_amd64.tar.gz
+tar -xzf amctl_v0.1.0_darwin_amd64.tar.gz
+sudo mv amctl /usr/local/bin/
+```
+
+### Linux (x64)
+
+```bash
+curl -LO https://github.com/wso2/agent-manager/releases/download/amctl/v0.1.0/amctl_v0.1.0_linux_amd64.tar.gz
+tar -xzf amctl_v0.1.0_linux_amd64.tar.gz
+sudo mv amctl /usr/local/bin/
+```
+
+### Linux (ARM64)
+
+```bash
+curl -LO https://github.com/wso2/agent-manager/releases/download/amctl/v0.1.0/amctl_v0.1.0_linux_arm64.tar.gz
+tar -xzf amctl_v0.1.0_linux_arm64.tar.gz
+sudo mv amctl /usr/local/bin/
+```
+
+### Windows (x64)
+
+```powershell
+Invoke-WebRequest -Uri https://github.com/wso2/agent-manager/releases/download/amctl/v0.1.0/amctl_v0.1.0_windows_amd64.zip -OutFile amctl.zip
+Expand-Archive amctl.zip -DestinationPath $env:USERPROFILE\amctl
+$env:Path += ";$env:USERPROFILE\amctl"
+```
+
+To make the `PATH` change permanent on Windows, add `%USERPROFILE%\amctl` through **System Properties → Environment Variables**.
+
+### Build from source
+
+If a release archive is not available for your platform, build from source:
+
+```bash
+git clone https://github.com/wso2/agent-manager.git
+cd agent-manager
+make amctl-build
+sudo mv dist/amctl /usr/local/bin/
+```
+
+### Verify the binary
+
+```bash
+amctl version
+```
+
+## Step 2: Log in to Agent Manager
+
+Run `amctl login` with the URL of your Agent Manager API. For a local install this is `http://localhost:9000`.
+
+```bash
+amctl login --url http://localhost:9000
+```
+
+`amctl` opens a browser window for sign-in. Enter the default Agent Manager credentials:
+
+| Field | Value |
+|-------|-------|
+| Username | `admin` |
+| Password | `admin` |
+
+Once authentication completes, the CLI prints a success message and stores the session in `~/.amctl/config.yaml`.
+
+:::tip Naming the instance
+Use `--name` if you log into more than one Agent Manager (for example a local cluster and a shared dev cluster). The name distinguishes the saved instance.
+
+```bash
+amctl login --url http://localhost:9000 --name local
+```
+:::
+
+### Non-interactive login
+
+For CI or scripts, use the OAuth client-credentials grant by passing both `--client-id` and `--client-secret`:
+
+```bash
+amctl login \
+  --url http://localhost:9000 \
+  --client-id <client-id> \
+  --client-secret <client-secret>
+```
+
+## Step 3: Verify the Setup
+
+Confirm the CLI can reach Agent Manager and your session is active.
+
+```bash
+amctl project list
+```
+
+The first call after login auto-selects your organization if only one is available. If the call returns a project list (it may be empty on a fresh install), the CLI is configured correctly.
+
+You can also list any agents you have access to:
+
+```bash
+amctl agent list
+```
+
+## Next Steps
+
+- **Run an agent end-to-end:** see [Observe Your First Agent](../tutorials/observe-first-agent.mdx).
+- **Browse the command reference:** start at the [CLI overview](../cli/overview.mdx) for syntax and conventions.
+- **Install AI assistant skills:** run `amctl skills install` to add the bundled `manage-agent` skill to Claude Code, Cursor, or Windsurf — see [`amctl skills`](../cli/skills.mdx).
+- **Inspect a running agent from the CLI:** see [`amctl agent logs`](../cli/agent.mdx#amctl-agent-logs), [`metrics`](../cli/agent.mdx#amctl-agent-metrics), and [`traces`](../cli/agent.mdx#amctl-agent-traces).
+
+## Troubleshooting
+
+### `connection refused` on `amctl login`
+
+The Agent Manager API is not reachable at the URL you passed. For a k3d-based install, check that the port-forward or ingress is up:
+
+```bash
+curl http://localhost:9000/api/v1/healthz
+```
+
+### Browser does not open
+
+If `amctl` cannot open a browser (for example over SSH), it prints the login URL to the terminal. Copy it into a browser on your local machine, complete the login, and the CLI resumes once the callback completes.
+
+### Re-authenticating
+
+Re-run `amctl login --url <url>` to refresh credentials. If you switch to a different Agent Manager instance, `amctl` clears any project links that pointed at the old instance and prompts you to re-link.

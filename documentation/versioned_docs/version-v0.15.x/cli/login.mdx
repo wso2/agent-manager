@@ -1,0 +1,63 @@
+---
+sidebar_position: 2
+sidebar_label: Login
+---
+
+# amctl login
+
+Authenticate against an Agent Manager instance.
+
+## Synopsis
+
+Log in to an Agent Manager instance. By default, the command opens a browser to complete an OAuth Authorization Code flow against the instance's identity provider. Pass `--client-id` and `--client-secret` to use the OAuth client-credentials grant instead — suitable for CI.
+
+On a fresh local install, sign in with the default credentials:
+
+| Field | Value |
+|-------|-------|
+| Username | `admin` |
+| Password | `admin` |
+
+The resulting session is stored in `~/.amctl/config.yaml`. If only one organization is available, it is auto-selected as the current org. Otherwise, set one with `amctl context org use <name>` or pass `--org` per command.
+
+```
+amctl login [flags]
+```
+
+## Examples
+
+```bash
+# Interactive browser login against a local install
+amctl login --url http://localhost:9000
+
+# Name the instance so it can be switched to later
+amctl login --url https://amp.dev.example.com --name dev
+
+# Non-interactive (CI) using client credentials
+amctl login \
+  --url https://amp.example.com \
+  --client-id ci-bot \
+  --client-secret $AMCTL_CLIENT_SECRET
+```
+
+## Options
+
+| Name | Type | Default | Description |
+|------|------|---------|-------------|
+| `--url` | string | _required_ | Agent Manager instance URL (for example `http://localhost:9000`). |
+| `--name` | string | `default` | Local name for the instance. Use to distinguish multiple instances. |
+| `--client-id` | string | `amctl` | OAuth client ID. Defaults to `amctl` for the interactive browser flow. |
+| `--client-secret` | string | (none) | OAuth client secret. When set, uses the client-credentials grant instead of the browser flow. |
+| `--auth-server` | string | (auto-discovered) | Authorization server base URL. Skips OAuth metadata discovery. |
+
+## Options inherited from parent commands
+
+| Name | Description |
+|------|-------------|
+| `--org` | Override the active organization. |
+| `--json` | Output as JSON envelopes. |
+
+## See Also
+
+- [`amctl context`](./context.mdx) — switch between configured instances or organizations
+- [`amctl context instance list`](./context.mdx#amctl-context-instance-list) — list configured instances
