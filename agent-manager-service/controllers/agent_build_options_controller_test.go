@@ -72,3 +72,25 @@ func TestAgentBuildOptions_ResponseShape(t *testing.T) {
 		t.Errorf("versions = %v, want [0.4.0, 0.2.1]", got.Instrumentation.Versions)
 	}
 }
+
+func TestCompareVersionsDesc(t *testing.T) {
+	cases := []struct {
+		a, b string
+		want bool
+	}{
+		{"0.4.0", "0.2.1", true},
+		{"0.2.1", "0.4.0", false},
+		{"0.10.0", "0.2.1", true},  // the case lexicographic sort gets wrong
+		{"0.2.1", "0.10.0", false}, // the case lexicographic sort gets wrong
+		{"1.0.0", "0.99.99", true},
+		{"0.10.0", "0.10.0", false}, // equal -> not less
+		{"0.10.1", "0.10.0", true},
+		{"0.2", "0.2.0", false}, // shorter version with same components doesn't sort before
+	}
+	for _, tc := range cases {
+		got := compareVersionsDesc(tc.a, tc.b)
+		if got != tc.want {
+			t.Errorf("compareVersionsDesc(%q, %q) = %v, want %v", tc.a, tc.b, got, tc.want)
+		}
+	}
+}

@@ -19,6 +19,8 @@ package controllers
 import (
 	"net/http"
 	"sort"
+	"strconv"
+	"strings"
 
 	"github.com/wso2/agent-manager/agent-manager-service/instrumentation"
 	"github.com/wso2/agent-manager/agent-manager-service/utils"
@@ -78,12 +80,13 @@ type agentBuildOptionsResponse struct {
 // catalog_routes.go; the response is identical across orgs.
 func (c *agentBuildOptionsController) GetAgentBuildOptions(w http.ResponseWriter, _ *http.Request) {
 	versions := c.catalog.All()
-	// Newest-first by version string. Lexicographic is sufficient while
-	// the catalog stays within a single semver-major; revisit if mixed
-	// majors ever land.
+	// Newest-first by numeric-component compare. Lexicographic sort
+	// inverts "0.10.0" vs "0.2.1" once the catalog grows past 0.9.x.
 	sorted := make([]instrumentation.Version, len(versions))
 	copy(sorted, versions)
-	sort.Slice(sorted, func(i, j int) bool { return sorted[i].Version > sorted[j].Version })
+	sort.Slice(sorted, func(i, j int) bool {
+		return compareVersionsDesc(sorted[i].Version, sorted[j].Version)
+	})
 
 	resp := agentBuildOptionsResponse{
 		Python: pythonOptionsDTO{
@@ -103,4 +106,37 @@ func (c *agentBuildOptionsController) GetAgentBuildOptions(w http.ResponseWriter
 	}
 
 	utils.WriteSuccessResponse(w, http.StatusOK, resp)
+}
+
+// compareVersionsDesc reports whether a should sort before b in
+// newest-first order. Compares dot-separated components as integers;
+// non-numeric components fall back to lexical compare on that component
+// so the function stays total on any pair of strings.
+func compareVersionsDesc(a, b string) bool {
+	pa, pb := strings.Split(a, "."), strings.Split(b, ".")
+	n := len(pa)
+	if len(pb) > n {
+		n = len(pb)
+	}
+	for i := 0; i < n; i++ {
+		var ai, bi string
+		if i < len(pa) {
+			ai = pa[i]
+		}
+		if i < len(pb) {
+			bi = pb[i]
+		}
+		an, aErr := strconv.Atoi(ai)
+		bn, bErr := strconv.Atoi(bi)
+		if aErr == nil && bErr == nil {
+			if an != bn {
+				return an > bn
+			}
+			continue
+		}
+		if ai != bi {
+			return ai > bi
+		}
+	}
+	return false
 }
