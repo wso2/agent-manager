@@ -60,6 +60,11 @@ func (r *AgentConfigRepo) Upsert(config *models.AgentConfig) error {
 			"enable_auto_instrumentation": config.EnableAutoInstrumentation,
 			"instrumentation_version":     config.InstrumentationVersion,
 			"enable_api_key_security":     config.EnableApiKeySecurity,
+			"cors_enabled":                config.CORSEnabled,
+			"cors_allow_origins":          config.CORSAllowOrigins,
+			"cors_allow_methods":          config.CORSAllowMethods,
+			"cors_allow_headers":          config.CORSAllowHeaders,
+			"cors_allow_credentials":      config.CORSAllowCredentials,
 			"updated_at":                  clause.Expr{SQL: "NOW()"},
 		}),
 	}).Create(config).Error
