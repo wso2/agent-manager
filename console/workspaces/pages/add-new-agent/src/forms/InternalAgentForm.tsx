@@ -96,14 +96,16 @@ export const InternalAgentForm = ({
     );
   }, [buildOptions, formData.languageVersion]);
 
-  // Seed defaults when build options first arrive (form initialises with
-  // undefined; we don't want to render an empty dropdown forever).
+  // Seed defaults when build options arrive, and normalise any value
+  // that's no longer in the refreshed set (the catalog can change
+  // mid-session if React Query refetches after a helm upgrade).
   useEffect(() => {
     if (!buildOptions) return;
+    const supportedPython = new Set(buildOptions.python.supportedVersions);
     setFormData((prev) => {
       const next = { ...prev };
       let touched = false;
-      if (prev.languageVersion == null) {
+      if (prev.languageVersion == null || !supportedPython.has(prev.languageVersion)) {
         next.languageVersion = buildOptions.python.defaultVersion;
         touched = true;
       }
@@ -113,6 +115,8 @@ export const InternalAgentForm = ({
       }
       return touched ? next : prev;
     });
+    // The second useEffect below handles instrumentationVersion staleness
+    // via the python-compat filter, so we don't duplicate that check here.
   }, [buildOptions, setFormData]);
 
   // When the user changes Python, if the current instrumentation is no
