@@ -1,0 +1,199 @@
+name: Traceloop Release Watch
+
+# Detects new traceloop-sdk (OpenLLMetry) releases on PyPI and notifies the team
+# via a labelled GitHub issue plus a Google Chat message. It does NOT bump any
+# pin -- cutting a new AMP instrumentation version stays the manual process in
+# python-instrumentation-provider/RELEASING.md.
+#
+# One-time setup (see RELEASING.md -> "Watching for OpenLLMetry releases"):
+#   - create the `traceloop-release` issue label
+#   - set the `GCHAT_WEBHOOK_URL` repository secret
+
+on:
+  schedule:
+    - cron: "30 3 * * *" # daily at 09:00 IST (03:30 UTC)
+  workflow_dispatch:
+    inputs:
+      force_version:
+        description: "Treat this string as the latest PyPI version (testing only; leave blank to query PyPI)"
+        required: false
+        default: ""
+        type: string
+
+permissions:
+  issues: write
+  contents: read
+
+jobs:
+  watch:
+    name: Check for new traceloop-sdk release
+    runs-on: ubuntu-latest
+    if: github.repository == 'wso2/agent-manager'
+    # Queue overlapping runs (e.g. a manual dispatch during the cron) so the
+    # dedup and issue-creation steps cannot race into duplicate issues.
+    concurrency:
+      group: traceloop-release-watch
+      cancel-in-progress: false
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          # This workflow only reads files; it never uses git credentials, so
+          # do not leave the runner token in the local git config.
+          persist-credentials: false
+
+      - name: Detect latest traceloop-sdk release
+        id: detect
+        env:
+          FORCE_VERSION: ${{ inputs.force_version }}
+        run: |
+          set -euo pipefail
+
+          # Current pinned version, parsed from pyproject.toml.
+          PIN=$(grep -oE 'traceloop-sdk==[0-9]+\.[0-9]+\.[0-9]+' \
+            libs/amp-instrumentation/pyproject.toml | head -n1 | cut -d= -f3)
+          if [ -z "$PIN" ]; then
+            echo "::error::Could not parse traceloop-sdk pin from libs/amp-instrumentation/pyproject.toml"
+            exit 1
+          fi
+          echo "Current pin: $PIN"
+
+          # Latest version: the forced test value, or PyPI's info.version
+          # (which is always the latest stable release).
+          if [ -n "${FORCE_VERSION}" ]; then
+            LATEST="${FORCE_VERSION}"
+            echo "Using forced version: $LATEST"
+          else
+            LATEST=$(curl -fsSL https://pypi.org/pypi/traceloop-sdk/json | jq -r '.info.version')
+          fi
+          if [ -z "$LATEST" ] || [ "$LATEST" = "null" ]; then
+            echo "::error::Could not determine latest traceloop-sdk version from PyPI"
+            exit 1
+          fi
+          echo "Latest version: $LATEST"
+
+          # Version comparison via GNU sort -V (available on ubuntu-latest).
+          if [ "$LATEST" = "$PIN" ]; then
+            IS_NEWER=no
+          else
+            HIGHEST=$(printf '%s\n%s\n' "$PIN" "$LATEST" | sort -V | tail -n1)
+            if [ "$HIGHEST" = "$LATEST" ]; then
+              IS_NEWER=yes
+            else
+              IS_NEWER=no
+            fi
+          fi
+
+          {
+            echo "pin=$PIN"
+            echo "latest=$LATEST"
+            echo "is_newer=$IS_NEWER"
+          } >> "$GITHUB_OUTPUT"
+
+          if [ "$IS_NEWER" = "yes" ]; then
+            echo "::notice::New traceloop-sdk release detected: $LATEST (pinned: $PIN)"
+          else
+            echo "No new release. Latest $LATEST is not newer than pinned $PIN."
+          fi
+
+      - name: Check for an existing issue
+        id: dedup
+        if: steps.detect.outputs.is_newer == 'yes'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          LATEST: ${{ steps.detect.outputs.latest }}
+        run: |
+          set -euo pipefail
+          TITLE="Traceloop SDK ${LATEST} released — evaluate instrumentation bump"
+          # Search labelled issues (open + closed) for an exact title match.
+          COUNT=$(gh issue list \
+            --state all \
+            --label traceloop-release \
+            --limit 100 \
+            --search "in:title \"${TITLE}\"" \
+            --json title \
+            --jq "[.[] | select(.title == \"${TITLE}\")] | length")
+          if [ "$COUNT" -gt 0 ]; then
+            echo "An issue for ${LATEST} already exists; nothing to do."
+            echo "already_filed=yes" >> "$GITHUB_OUTPUT"
+          else
+            echo "already_filed=no" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Create tracking issue
+        id: create_issue
+        if: steps.detect.outputs.is_newer == 'yes' && steps.dedup.outputs.already_filed == 'no'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          LATEST: ${{ steps.detect.outputs.latest }}
+          PIN: ${{ steps.detect.outputs.pin }}
+        run: |
+          set -euo pipefail
+          TITLE="Traceloop SDK ${LATEST} released — evaluate instrumentation bump"
+
+          # release-config.json pin, shown in the body for context.
+          RC_PIN=$(jq -r '.["python-instrumentation-provider"][0].traceloop_version' .github/release-config.json)
+
+          cat > /tmp/issue-body.md <<EOF
+          A new traceloop-sdk (OpenLLMetry) release is available.
+
+          | Where | Version |
+          |---|---|
+          | Latest on PyPI | ${LATEST} |
+          | Pinned in libs/amp-instrumentation/pyproject.toml | ${PIN} |
+          | Pinned in .github/release-config.json | ${RC_PIN} |
+
+          ### Links
+
+          - PyPI: https://pypi.org/project/traceloop-sdk/${LATEST}/
+          - Release notes: https://github.com/traceloop/openllmetry/releases
+
+          ### Next steps
+
+          This issue only signals that a release exists. It does not bump any pin.
+          To cut a new AMP instrumentation version, follow Scenario A in
+          python-instrumentation-provider/RELEASING.md.
+
+          Before bumping, remember:
+
+          - Frontier-framework validation is still a manual gate. Validate
+            traceloop-sdk ${LATEST} against the supported frameworks first.
+          - Check that the wrapt<2.0.0 constraint
+            (libs/amp-instrumentation/pyproject.toml and
+            python-instrumentation-provider/requirements.txt) still holds.
+
+          Filed automatically by .github/workflows/traceloop-release-watch.yaml
+          EOF
+
+          URL=$(gh issue create \
+            --title "$TITLE" \
+            --body-file /tmp/issue-body.md \
+            --label traceloop-release)
+          echo "Created issue: $URL"
+          echo "issue_url=$URL" >> "$GITHUB_OUTPUT"
+
+      - name: Notify Google Chat
+        if: steps.detect.outputs.is_newer == 'yes' && steps.dedup.outputs.already_filed == 'no'
+        env:
+          GCHAT_WEBHOOK_URL: ${{ secrets.GCHAT_WEBHOOK_URL }}
+          LATEST: ${{ steps.detect.outputs.latest }}
+          PIN: ${{ steps.detect.outputs.pin }}
+          ISSUE_URL: ${{ steps.create_issue.outputs.issue_url }}
+        run: |
+          set -euo pipefail
+          if [ -z "${GCHAT_WEBHOOK_URL}" ]; then
+            echo "::warning::GCHAT_WEBHOOK_URL secret is not set; skipping Google Chat notification."
+            exit 0
+          fi
+          TEXT=$(printf '*New traceloop-sdk release: %s* (currently pinned: %s)\nTracking issue: %s' \
+            "$LATEST" "$PIN" "$ISSUE_URL")
+          PAYLOAD=$(jq -n --arg text "$TEXT" '{text: $text}')
+          HTTP_CODE=$(curl -sS -o /tmp/gchat-resp.txt -w '%{http_code}' \
+            -X POST -H 'Content-Type: application/json; charset=UTF-8' \
+            -d "$PAYLOAD" "$GCHAT_WEBHOOK_URL")
+          if [ "$HTTP_CODE" != "200" ]; then
+            echo "::error::Google Chat webhook returned HTTP ${HTTP_CODE}"
+            cat /tmp/gchat-resp.txt || true
+            exit 1
+          fi
+          echo "Google Chat notified."
