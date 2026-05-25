@@ -32,9 +32,11 @@ import (
 	traceobserversvc "github.com/wso2/agent-manager/agent-manager-service/clients/traceobserversvc"
 	"github.com/wso2/agent-manager/agent-manager-service/config"
 	"github.com/wso2/agent-manager/agent-manager-service/controllers"
+	"github.com/wso2/agent-manager/agent-manager-service/instrumentation"
 	"github.com/wso2/agent-manager/agent-manager-service/middleware/jwtassertion"
 	"github.com/wso2/agent-manager/agent-manager-service/repositories"
 	"github.com/wso2/agent-manager/agent-manager-service/services"
+	"github.com/wso2/agent-manager/agent-manager-service/utils"
 	"github.com/wso2/agent-manager/agent-manager-service/websocket"
 )
 
@@ -83,6 +85,12 @@ var serviceProviderSet = wire.NewSet(
 	services.NewGitSecretService,
 )
 
+var instrumentationProviderSet = wire.NewSet(
+	ProvideInstrumentationCatalog,
+	ProvideSupportedPythonVersions,
+	ProvideDefaultPythonVersion,
+)
+
 var controllerProviderSet = wire.NewSet(
 	controllers.NewAgentController,
 	controllers.NewAgentKindController,
@@ -104,6 +112,7 @@ var controllerProviderSet = wire.NewSet(
 	controllers.NewMonitorScoresPublisherController,
 	controllers.NewEvaluatorController,
 	controllers.NewCatalogController,
+	ProvideAgentBuildOptionsController,
 	controllers.NewAgentConfigurationController,
 	controllers.NewGitSecretController,
 )
@@ -119,6 +128,53 @@ var testClientProviderSet = wire.NewSet(
 // ProvideLogger provides the configured slog.Logger instance
 func ProvideLogger() *slog.Logger {
 	return slog.Default()
+}
+
+// ProvideInstrumentationCatalog loads the instrumentation catalog and
+// installs it as the process-wide default so legacy callers via
+// instrumentation.GetCatalog get the same instance Wire hands to the new
+// controllers.
+func ProvideInstrumentationCatalog(cfg config.Config) (*instrumentation.Catalog, error) {
+	cat, err := instrumentation.Load(
+		cfg.OTEL.InstrumentationExtensionPath,
+		cfg.OTEL.DefaultInstrumentationVersion,
+	)
+	if err != nil {
+		return nil, err
+	}
+	instrumentation.SetCatalog(cat)
+	return cat, nil
+}
+
+// SupportedPythonVersions is a distinct type so Wire can disambiguate
+// from other []string providers.
+type SupportedPythonVersions []string
+
+// DefaultPythonVersion is a distinct type so Wire can disambiguate from
+// other string providers.
+type DefaultPythonVersion string
+
+// ProvideSupportedPythonVersions exposes the buildpack-derived Python
+// list to the AgentBuildOptions controller.
+func ProvideSupportedPythonVersions() SupportedPythonVersions {
+	return SupportedPythonVersions(utils.SupportedPythonVersions())
+}
+
+// ProvideDefaultPythonVersion returns the platform default Python version.
+// Constant for M1; promote to config later if needed.
+func ProvideDefaultPythonVersion() DefaultPythonVersion {
+	return "3.11"
+}
+
+// ProvideAgentBuildOptionsController wraps the controller constructor
+// so Wire can resolve the typed default + supported list back to the
+// plain string / []string the constructor takes.
+func ProvideAgentBuildOptionsController(
+	cat *instrumentation.Catalog,
+	supportedPython SupportedPythonVersions,
+	defaultPython DefaultPythonVersion,
+) controllers.AgentBuildOptionsController {
+	return controllers.NewAgentBuildOptionsController(cat, []string(supportedPython), string(defaultPython))
 }
 
 // ProvideOCClient creates the OpenChoreo client
@@ -326,6 +382,7 @@ func InitializeAppParams(cfg *config.Config, db *gorm.DB, authProvider occlient.
 		repositoryProviderSet,
 		websocketProviderSet,
 		serviceProviderSet,
+		instrumentationProviderSet,
 		controllerProviderSet,
 		ProvideAuthMiddleware,
 		ProvideJWTSigningConfig,
@@ -347,6 +404,7 @@ func InitializeTestAppParamsWithClientMocks(
 		repositoryProviderSet,
 		websocketProviderSet,
 		serviceProviderSet,
+		instrumentationProviderSet,
 		controllerProviderSet,
 		configProviderSet,
 		ProvideJWTSigningConfig,
