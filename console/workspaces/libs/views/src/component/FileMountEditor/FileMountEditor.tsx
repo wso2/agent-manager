@@ -18,7 +18,11 @@
 
 import { useRef, useState } from 'react';
 import { Alert, Box, Button, Checkbox, Chip, FormControlLabel, IconButton, Stack } from '@wso2/oxygen-ui';
-import { Trash2 as DeleteOutline, Edit as EditIcon, X as CancelIcon, Upload as UploadIcon } from '@wso2/oxygen-ui-icons-react';
+import {
+  Trash2 as DeleteOutline,
+  Edit as EditIcon,
+  Upload as UploadIcon,
+} from '@wso2/oxygen-ui-icons-react';
 import { TextInput } from '../FormElements';
 
 export interface FileMountEditorProps {
@@ -36,6 +40,7 @@ export interface FileMountEditorProps {
   mountPathError?: string;
   contentError?: string;
   isExistingSecret?: boolean;
+  onSecretEditCancel?: () => void;
 }
 
 export function FileMountEditor({
@@ -53,19 +58,56 @@ export function FileMountEditor({
   mountPathError,
   contentError,
   isExistingSecret = false,
+  onSecretEditCancel,
 }: FileMountEditorProps) {
+  const initialIsNew = useRef(
+    !keyValue && !mountPathValue && !contentValue,
+  );
+  const [isEditing, setIsEditing] = useState(
+    initialIsNew.current,
+  );
   const [isEditingSecret, setIsEditingSecret] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
-  const isSecretLocked = isExistingSecret && isSensitive && !isEditingSecret;
+  const [snapshot, setSnapshot] = useState<{
+    key: string; mountPath: string;
+    content: string; isSensitive: boolean;
+  } | null>(null);
 
   const handleEnableEditing = () => {
-    setIsEditingSecret(true);
-    onContentChange('');
+    setSnapshot({
+      key: keyValue,
+      mountPath: mountPathValue,
+      content: contentValue,
+      isSensitive,
+    });
+    setIsEditing(true);
+    if (isExistingSecret && isSensitive) {
+      setIsEditingSecret(true);
+    }
   };
 
   const handleCancelEditing = () => {
+    if (snapshot) {
+      onKeyChange(snapshot.key);
+      onMountPathChange(snapshot.mountPath);
+      onContentChange(snapshot.content);
+      if (onSensitiveChange
+        && snapshot.isSensitive !== isSensitive) {
+        onSensitiveChange(snapshot.isSensitive);
+      }
+      setSnapshot(null);
+    }
+    setIsEditing(false);
+    if (isEditingSecret) {
+      setIsEditingSecret(false);
+      onSecretEditCancel?.();
+    }
+  };
+
+  const handleUpdate = () => {
+    setSnapshot(null);
+    setIsEditing(false);
     setIsEditingSecret(false);
-    onContentChange('');
   };
 
   const MAX_FILE_SIZE = 1_000_000; // 1 MB — matches backend schema limit
@@ -96,6 +138,36 @@ export function FileMountEditor({
     e.target.value = '';
   };
 
+  // Collapsed (read-only) view
+  if (!isEditing) {
+    return (
+      <Stack key={index} direction="row" gap={2} alignItems="center">
+        <Box flex={1} minWidth={0}>
+          <Box component="span" fontWeight={500}>File Name:</Box>{' '}{keyValue}
+        </Box>
+        <Box flex={1} minWidth={0}>
+          <Box component="span" fontWeight={500}>Mount Path:</Box>{' '}{mountPathValue}
+        </Box>
+        <Box
+          display="flex" alignItems="center" gap={1}
+          minWidth={120} justifyContent="flex-end"
+        >
+          {(isSensitive && (isExistingSecret
+            || (onSensitiveChange && !isExistingSecret))) && (
+            <Chip label="Secret" size="small" color="warning" variant="outlined" />
+          )}
+          <IconButton size="small" color="primary" onClick={handleEnableEditing} title="Edit file mount">
+            <EditIcon size={16} />
+          </IconButton>
+          <IconButton size="small" color="error" onClick={onRemove}>
+            <DeleteOutline size={16} />
+          </IconButton>
+        </Box>
+      </Stack>
+    );
+  }
+
+  // Expanded (editing) view
   return (
     <Stack key={index} direction="column" gap={1}>
       <Stack direction="row" gap={2} alignItems="end">
@@ -125,15 +197,6 @@ export function FileMountEditor({
         {isExistingSecret && isSensitive && (
           <Box display="flex" alignItems="center" gap={1} pb={1}>
             <Chip label="Secret" size="small" color="warning" variant="outlined" />
-            {!isEditingSecret ? (
-              <IconButton size="small" color="primary" onClick={handleEnableEditing} title="Edit secret content">
-                <EditIcon size={16} />
-              </IconButton>
-            ) : (
-              <IconButton size="small" color="default" onClick={handleCancelEditing} title="Cancel editing">
-                <CancelIcon size={16} />
-              </IconButton>
-            )}
           </Box>
         )}
         {onSensitiveChange && !isExistingSecret && (
@@ -165,40 +228,54 @@ export function FileMountEditor({
           multiline
           minRows={3}
           maxRows={10}
-          value={contentValue}
+          value={isEditingSecret ? (contentValue || '') : contentValue}
           onChange={(e) => onContentChange(e.target.value)}
           error={!!contentError}
           helperText={contentError}
-          disabled={isSecretLocked}
-          placeholder={isSecretLocked ? '••••••••' : 'Paste or type file content here...'}
-          type={isSensitive && !isEditingSecret ? 'password' : 'text'}
+          placeholder={
+            isEditingSecret
+              ? 'Enter new secret content...'
+              : 'Paste or type file content here...'
+          }
+          type={
+            isSensitive && !isEditingSecret && !isEditing
+              ? 'password' : 'text'
+          }
         />
-        {!isSecretLocked && (
-          <Box mt={1}>
-            <input
-              type="file"
-              ref={fileInputRef}
-              onChange={handleFileUpload}
-              style={{ display: 'none' }}
-            />
-            <Button
-              variant="text"
-              size="small"
-              startIcon={<UploadIcon size={14} />}
-              onClick={() => fileInputRef.current?.click()}
-            >
-              Upload file
-            </Button>
-            {uploadError && (
-              <Alert severity="error" sx={{ mt: 1, py: 0.5 }}>{uploadError}</Alert>
-            )}
-          </Box>
-        )}
+        <Box mt={1}>
+          <input
+            type="file"
+            ref={fileInputRef}
+            onChange={handleFileUpload}
+            style={{ display: 'none' }}
+          />
+          <Button
+            variant="text"
+            size="small"
+            startIcon={<UploadIcon size={14} />}
+            onClick={() => fileInputRef.current?.click()}
+          >
+            Upload file
+          </Button>
+          {uploadError && (
+            <Alert severity="error" sx={{ mt: 1, py: 0.5 }}>{uploadError}</Alert>
+          )}
+        </Box>
       </Box>
       {isEditingSecret && (
         <Alert severity="warning" sx={{ py: 0.5 }}>
           Updating a Secret file removes the previous content permanently and cannot be restored.
         </Alert>
+      )}
+      {!initialIsNew.current && (
+        <Stack direction="row" gap={1} justifyContent="flex-end">
+          <Button variant="outlined" size="small" onClick={handleCancelEditing}>
+            Cancel
+          </Button>
+          <Button variant="contained" size="small" color="primary" onClick={handleUpdate}>
+            Update
+          </Button>
+        </Stack>
       )}
     </Stack>
   );
