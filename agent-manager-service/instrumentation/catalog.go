@@ -20,6 +20,7 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"sync"
 
 	"gopkg.in/yaml.v3"
 )
@@ -153,20 +154,36 @@ func (c *Catalog) Get(v string) (Version, bool) {
 // so legacy code paths can reach the catalog without taking it through
 // constructor DI. New code should prefer DI through Wire; this accessor
 // exists for the legacy boundary in services/agent_manager.go.
-var pkgCatalog *Catalog
+//
+// In production SetCatalog runs once at boot before any reader exists,
+// so a lock isn't strictly required. The mutex is here so that tests
+// (which install their own NewForTest catalogs and may run in parallel
+// against tests that build app params via Wire) don't trip the race
+// detector. Read/write contention in production is negligible.
+var (
+	pkgCatalogMu sync.RWMutex
+	pkgCatalog   *Catalog
+)
 
 // SetCatalog installs the process-wide catalog. Call once at startup
 // after Load succeeds. Subsequent calls overwrite the prior catalog.
-func SetCatalog(c *Catalog) { pkgCatalog = c }
+func SetCatalog(c *Catalog) {
+	pkgCatalogMu.Lock()
+	pkgCatalog = c
+	pkgCatalogMu.Unlock()
+}
 
 // GetCatalog returns the process-wide catalog. Panics if SetCatalog has
 // never been called — this signals a boot-order bug, not a runtime
 // condition we should handle gracefully.
 func GetCatalog() *Catalog {
-	if pkgCatalog == nil {
+	pkgCatalogMu.RLock()
+	c := pkgCatalog
+	pkgCatalogMu.RUnlock()
+	if c == nil {
 		panic("instrumentation.GetCatalog called before SetCatalog")
 	}
-	return pkgCatalog
+	return c
 }
 
 // NewForTest builds a catalog directly from versions. Use only in tests
