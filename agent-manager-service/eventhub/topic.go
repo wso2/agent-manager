@@ -29,12 +29,12 @@ var (
 )
 
 type gateway struct {
-	id                  string
-	subscribers         []chan Event
-	knownVersion        string
-	lastPolledTime      time.Time // zero means no event has been delivered yet
-	lastPolledEventID   string    // event_id of the last delivered event; used as tie-breaker
-	queuedLoggedAt      int64     // unix nano of last "events queued, no subscribers" log; 0 = not yet logged
+	id                string
+	subscribers       []chan Event
+	knownVersion      string
+	lastPolledTime    time.Time // zero means no event has been delivered yet
+	lastPolledEventID string    // event_id of the last delivered event; used as tie-breaker
+	queuedLoggedAt    int64     // unix nano of last "events queued, no subscribers" log; 0 = not yet logged
 }
 
 type gatewayRegistry struct {

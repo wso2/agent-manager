@@ -609,9 +609,8 @@ func (b *SQLBackend) pollGatewayWithState(gw *gateway, state GatewayState) error
 		if lastDelivered != nil {
 			gw.lastPolledTime = lastDelivered.ProcessedTimestamp
 			gw.lastPolledEventID = lastDelivered.EventID
-		} else {
-			// Nothing delivered in this cycle; keep the existing cursor unchanged.
 		}
+		// else: nothing delivered this cycle; cursor unchanged.
 	} else {
 		gw.knownVersion = state.VersionID
 		if lastDelivered != nil {
