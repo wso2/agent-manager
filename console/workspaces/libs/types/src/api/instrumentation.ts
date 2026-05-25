@@ -16,19 +16,23 @@
  * under the License.
  */
 
-// AMP instrumentation versions the platform supports. Each version maps to a
-// pre-built init-container image (`amp-python-instrumentation-provider:<version>-python<X.Y>`)
-// with a specific pinned `traceloop-sdk`. Server-side source of truth:
-// agent-manager-service `OTEL_SUPPORTED_INSTRUMENTATION_VERSIONS` env (default `["0.2.1"]`).
-export const SUPPORTED_INSTRUMENTATION_VERSIONS = ['0.2.1'] as const;
-export const DEFAULT_INSTRUMENTATION_VERSION: SupportedInstrumentationVersion = '0.2.1';
-export type SupportedInstrumentationVersion =
-  (typeof SUPPORTED_INSTRUMENTATION_VERSIONS)[number];
+// AMP instrumentation + Python version options, fetched from
+// GET /api/v1/orgs/{orgName}/agent-build-options. Replaces the previously
+// hardcoded SUPPORTED_INSTRUMENTATION_VERSIONS / SUPPORTED_PYTHON_VERSIONS
+// constants; the server's instrumentation catalog is the source of truth.
+export type AgentBuildOptions = {
+  python: {
+    defaultVersion: string;
+    supportedVersions: string[];
+  };
+  instrumentation: {
+    defaultVersion: string;
+    versions: Array<{
+      version: string;
+      pythonVersions: string[];
+    }>;
+  };
+};
 
-// Python versions supported by the platform's buildpack. The instrumentation
-// init-container image is ABI-locked to the agent's Python runtime, so this
-// set must match the `python_versions` entries in
-// `.github/release-config.json` for the `python-instrumentation-provider`.
-export const SUPPORTED_PYTHON_VERSIONS = ['3.10', '3.11', '3.12', '3.13'] as const;
-export const DEFAULT_PYTHON_VERSION: SupportedPythonVersion = '3.11';
-export type SupportedPythonVersion = (typeof SUPPORTED_PYTHON_VERSIONS)[number];
+export type InstrumentationVersionEntry =
+  AgentBuildOptions["instrumentation"]["versions"][number];
