@@ -22,7 +22,6 @@ import (
 	"fmt"
 	"log/slog"
 	"regexp"
-	"slices"
 	"strings"
 
 	"github.com/google/uuid"
@@ -31,6 +30,7 @@ import (
 	"github.com/wso2/agent-manager/agent-manager-service/clients/openchoreosvc/gen"
 	"github.com/wso2/agent-manager/agent-manager-service/clients/secretmanagersvc"
 	"github.com/wso2/agent-manager/agent-manager-service/config"
+	"github.com/wso2/agent-manager/agent-manager-service/instrumentation"
 	"github.com/wso2/agent-manager/agent-manager-service/middleware/jwtassertion"
 	"github.com/wso2/agent-manager/agent-manager-service/models"
 	"github.com/wso2/agent-manager/agent-manager-service/repositories"
@@ -494,11 +494,15 @@ func (s *agentManagerService) detachEnvInjectionTrait(ctx context.Context, orgNa
 }
 
 // validateInstrumentationVersion checks the AMP instrumentation version against
-// the deployment's supported set. Empty / unsupported values return ErrInvalidInput.
+// the deployment's effective catalog. Unsupported values return ErrInvalidInput.
 func (s *agentManagerService) validateInstrumentationVersion(version string) error {
-	supported := config.GetConfig().OTEL.SupportedInstrumentationVersions
-	if slices.Contains(supported, version) {
+	cat := instrumentation.GetCatalog()
+	if cat.Has(version) {
 		return nil
+	}
+	supported := make([]string, 0, len(cat.All()))
+	for _, v := range cat.All() {
+		supported = append(supported, v.Version)
 	}
 	return fmt.Errorf("%w: instrumentationVersion %q is not supported by this deployment; supported: %v", utils.ErrInvalidInput, version, supported)
 }
