@@ -16,6 +16,8 @@
 
 package instrumentation
 
+import "fmt"
+
 const (
 	SourceBundled   = "bundled"
 	SourceExtension = "extension"
@@ -28,4 +30,63 @@ type Version struct {
 	PythonVersions  []string `json:"pythonVersions"   yaml:"pythonVersions"`
 	ImageRepository string   `json:"imageRepository"  yaml:"imageRepository"`
 	Source          string   `json:"source"           yaml:"-"`
+}
+
+// Catalog is the effective instrumentation version set, assembled from
+// the embedded baseline plus an optional operator-supplied extension.
+type Catalog struct {
+	versions       []Version
+	defaultVersion string
+	byVersion      map[string]Version
+}
+
+// Load assembles the catalog from the embedded baseline plus the optional
+// extension file at extensionPath. The defaultVersion must appear in the
+// effective set or Load returns an error. extensionPath == "" or a
+// non-existent path is not an error; the catalog is baseline-only in
+// that case. Extension parsing lands in a follow-up commit.
+func Load(extensionPath, defaultVersion string) (*Catalog, error) {
+	baseline, err := decodeBaseline()
+	if err != nil {
+		return nil, err
+	}
+
+	by := make(map[string]Version, len(baseline))
+	for _, v := range baseline {
+		by[v.Version] = v
+	}
+
+	versions := make([]Version, 0, len(by))
+	for _, v := range by {
+		versions = append(versions, v)
+	}
+
+	if _, ok := by[defaultVersion]; !ok {
+		return nil, fmt.Errorf("default instrumentation version %q not in effective set", defaultVersion)
+	}
+
+	return &Catalog{
+		versions:       versions,
+		defaultVersion: defaultVersion,
+		byVersion:      by,
+	}, nil
+}
+
+// All returns every version in the effective catalog. Ordering is
+// unspecified; callers that need deterministic ordering must sort.
+func (c *Catalog) All() []Version { return c.versions }
+
+// Default returns the platform default instrumentation version.
+func (c *Catalog) Default() string { return c.defaultVersion }
+
+// Has reports whether the version is present in the effective catalog.
+func (c *Catalog) Has(v string) bool {
+	_, ok := c.byVersion[v]
+	return ok
+}
+
+// Get returns the catalog entry for the given version.
+func (c *Catalog) Get(v string) (Version, bool) {
+	got, ok := c.byVersion[v]
+	return got, ok
 }
