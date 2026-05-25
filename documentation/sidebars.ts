@@ -74,6 +74,14 @@ const sidebars: SidebarsConfig = {
     },
     {
       type: 'category',
+      label: 'Administration',
+      collapsed: false,
+      items: [
+        'administration/instrumentation-catalog',
+      ],
+    },
+    {
+      type: 'category',
       label: 'Reference',
       collapsed: false,
       items: [
