@@ -19,6 +19,7 @@ package eventhub
 import (
 	"errors"
 	"sync"
+	"time"
 )
 
 var (
@@ -28,11 +29,12 @@ var (
 )
 
 type gateway struct {
-	id             string
-	subscribers    []chan Event
-	knownVersion   string
-	lastPolled     int64
-	queuedLoggedAt int64 // unix nano of last "events queued, no subscribers" log; 0 = not yet logged
+	id                  string
+	subscribers         []chan Event
+	knownVersion        string
+	lastPolledTime      time.Time // zero means no event has been delivered yet
+	lastPolledEventID   string    // event_id of the last delivered event; used as tie-breaker
+	queuedLoggedAt      int64     // unix nano of last "events queued, no subscribers" log; 0 = not yet logged
 }
 
 type gatewayRegistry struct {
@@ -97,12 +99,19 @@ func (r *gatewayRegistry) removeAllSubscribers(gatewayID string) ([]chan Event, 
 	return subscribers, nil
 }
 
-func (r *gatewayRegistry) getAll() []*gateway {
+// forEach calls fn for each gateway while holding the read lock.
+// fn must not retain the *gateway pointer after it returns.
+func (r *gatewayRegistry) forEach(fn func(*gateway)) {
 	r.mu.RLock()
 	defer r.mu.RUnlock()
-	gateways := make([]*gateway, 0, len(r.gateways))
 	for _, gw := range r.gateways {
-		gateways = append(gateways, gw)
+		fn(gw)
 	}
-	return gateways
+}
+
+// get returns the gateway pointer for the given ID, or nil if not found.
+// The caller MUST hold r.mu (read or write) before calling and for the
+// duration of any access to fields on the returned pointer.
+func (r *gatewayRegistry) get(gatewayID string) *gateway {
+	return r.gateways[gatewayID]
 }

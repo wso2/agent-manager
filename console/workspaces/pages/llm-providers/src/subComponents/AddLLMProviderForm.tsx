@@ -603,7 +603,7 @@ export const AddLLMProviderForm: React.FC<AddLLMProviderFormProps> = ({
           disabled={
             isSubmitting ||
             !formData.gatewayIds ||
-            formData.gatewayIds?.length == 0
+            formData.gatewayIds?.length === 0
           }
         >
           {isSubmitting ? "Creating..." : "Add provider"}

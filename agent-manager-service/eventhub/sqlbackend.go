@@ -31,10 +31,6 @@ import (
 
 const (
 	defaultGatewayStatePageSize = 200
-
-	unixMillisThreshold = int64(100_000_000_000)
-	unixMicrosThreshold = int64(100_000_000_000_000)
-	unixNanosThreshold  = int64(100_000_000_000_000_000)
 )
 
 // SQLBackendConfig holds configuration for the SQL backend
@@ -69,7 +65,8 @@ type SQLBackend struct {
 	upsertGatewayStmt        *sql.Stmt
 	getGatewayStateStmt      *sql.Stmt
 	getGatewayStatesPageStmt *sql.Stmt
-	getEventsStmt            *sql.Stmt
+	getEventsStmt            *sql.Stmt // cold start: all events for a gateway
+	getEventsAfterCursorStmt *sql.Stmt // resume: (processed_timestamp, event_id) > (?, ?)
 	getEventByIDStmt         *sql.Stmt
 	cleanupEventsStmt        *sql.Stmt
 
@@ -79,19 +76,6 @@ type SQLBackend struct {
 }
 
 var _ EventHub = (*SQLBackend)(nil)
-
-func unixTimestampToTime(ts int64) time.Time {
-	switch {
-	case ts >= unixNanosThreshold:
-		return time.Unix(0, ts)
-	case ts >= unixMicrosThreshold:
-		return time.UnixMicro(ts)
-	case ts >= unixMillisThreshold:
-		return time.UnixMilli(ts)
-	default:
-		return time.Unix(ts, 0)
-	}
-}
 
 // NewSQLBackend creates a new SQL-backed EventHub for PostgreSQL.
 func NewSQLBackend(db *sql.DB, logger *slog.Logger, config SQLBackendConfig) *SQLBackend {
@@ -129,6 +113,7 @@ func (b *SQLBackend) closeStatements() {
 		b.getGatewayStateStmt,
 		b.getGatewayStatesPageStmt,
 		b.getEventsStmt,
+		b.getEventsAfterCursorStmt,
 		b.getEventByIDStmt,
 		b.cleanupEventsStmt,
 	} {
@@ -187,10 +172,19 @@ func (b *SQLBackend) prepareStatements() (err error) {
 	b.getEventsStmt, err = b.db.Prepare(rebind(`
 		SELECT gateway_id, processed_timestamp, originated_timestamp, entity_type, action, entity_id, event_id, event_data
 		FROM eventhub_events
-		WHERE gateway_id = ? AND processed_timestamp >= ?
-		ORDER BY processed_timestamp ASC`))
+		WHERE gateway_id = ?
+		ORDER BY processed_timestamp ASC, event_id ASC`))
 	if err != nil {
 		return fmt.Errorf("prepare get events: %w", err)
+	}
+
+	b.getEventsAfterCursorStmt, err = b.db.Prepare(rebind(`
+		SELECT gateway_id, processed_timestamp, originated_timestamp, entity_type, action, entity_id, event_id, event_data
+		FROM eventhub_events
+		WHERE gateway_id = ? AND (processed_timestamp, event_id) > (?, ?)
+		ORDER BY processed_timestamp ASC, event_id ASC`))
+	if err != nil {
+		return fmt.Errorf("prepare get events after cursor: %w", err)
 	}
 
 	b.getEventByIDStmt, err = b.db.Prepare(rebind(`
@@ -214,6 +208,16 @@ func (b *SQLBackend) Initialize() error {
 		return fmt.Errorf("failed to prepare statements: %w", err)
 	}
 
+	if b.config.PollInterval <= 0 {
+		return fmt.Errorf("invalid config: poll_interval must be > 0, got %s", b.config.PollInterval)
+	}
+	if b.config.CleanupInterval <= 0 {
+		return fmt.Errorf("invalid config: cleanup_interval must be > 0, got %s", b.config.CleanupInterval)
+	}
+	if b.config.RetentionPeriod <= 0 {
+		return fmt.Errorf("invalid config: retention_period must be > 0, got %s", b.config.RetentionPeriod)
+	}
+
 	b.wg.Add(2)
 	go b.pollLoop()
 	go b.cleanupLoop()
@@ -226,11 +230,20 @@ func (b *SQLBackend) Initialize() error {
 	return nil
 }
 
-// RegisterGateway registers a new gateway for event tracking.
-func (b *SQLBackend) RegisterGateway(gatewayID string) error {
+// normalizeGatewayID trims whitespace and returns an error if the result is empty.
+func normalizeGatewayID(gatewayID string) (string, error) {
 	gatewayID = strings.TrimSpace(gatewayID)
 	if gatewayID == "" {
-		return fmt.Errorf("gateway_id cannot be empty")
+		return "", fmt.Errorf("gateway_id cannot be empty")
+	}
+	return gatewayID, nil
+}
+
+// RegisterGateway registers a new gateway for event tracking.
+func (b *SQLBackend) RegisterGateway(gatewayID string) error {
+	var err error
+	if gatewayID, err = normalizeGatewayID(gatewayID); err != nil {
+		return err
 	}
 
 	if _, err := b.upsertGatewayStmt.Exec(gatewayID); err != nil {
@@ -247,6 +260,10 @@ func (b *SQLBackend) RegisterGateway(gatewayID string) error {
 
 // PublishEvent publishes an event atomically (insert event + bump gateway version).
 func (b *SQLBackend) PublishEvent(gatewayID string, event Event) error {
+	var err error
+	if gatewayID, err = normalizeGatewayID(gatewayID); err != nil {
+		return err
+	}
 	newVersion := uuid.New().String()
 	eventData := strings.TrimSpace(event.EventData)
 	if eventData == "" {
@@ -341,6 +358,10 @@ func (b *SQLBackend) eventExists(eventID string) (bool, error) {
 
 // Subscribe subscribes to events for a gateway.
 func (b *SQLBackend) Subscribe(gatewayID string) (<-chan Event, error) {
+	var err error
+	if gatewayID, err = normalizeGatewayID(gatewayID); err != nil {
+		return nil, err
+	}
 	ch := make(chan Event, 100)
 	if err := b.registry.addSubscriber(gatewayID, ch); err != nil {
 		close(ch)
@@ -352,6 +373,10 @@ func (b *SQLBackend) Subscribe(gatewayID string) (<-chan Event, error) {
 
 // Unsubscribe removes a specific subscription for a gateway.
 func (b *SQLBackend) Unsubscribe(gatewayID string, subscriber <-chan Event) error {
+	var err error
+	if gatewayID, err = normalizeGatewayID(gatewayID); err != nil {
+		return err
+	}
 	ch, err := b.registry.removeSubscriber(gatewayID, subscriber)
 	if err != nil {
 		return fmt.Errorf("failed to unsubscribe from gateway %s: %w", gatewayID, err)
@@ -363,6 +388,10 @@ func (b *SQLBackend) Unsubscribe(gatewayID string, subscriber <-chan Event) erro
 
 // UnsubscribeAll removes all subscriptions for a gateway.
 func (b *SQLBackend) UnsubscribeAll(gatewayID string) error {
+	var err error
+	if gatewayID, err = normalizeGatewayID(gatewayID); err != nil {
+		return err
+	}
 	subscribers, err := b.registry.removeAllSubscribers(gatewayID)
 	if err != nil {
 		return fmt.Errorf("failed to unsubscribe all for gateway %s: %w", gatewayID, err)
@@ -389,12 +418,17 @@ func (b *SQLBackend) pollLoop() {
 }
 
 func (b *SQLBackend) pollGateways() {
-	gatewayByID := make(map[string]*gateway)
-	for _, gw := range b.registry.getAll() {
-		gatewayByID[gw.id] = gw
-	}
-	if len(gatewayByID) == 0 {
+	// Snapshot gateway IDs under the lock; do not retain pointers outside it.
+	var gatewayIDs []string
+	b.registry.forEach(func(gw *gateway) {
+		gatewayIDs = append(gatewayIDs, gw.id)
+	})
+	if len(gatewayIDs) == 0 {
 		return
+	}
+	gatewayByID := make(map[string]struct{}, len(gatewayIDs))
+	for _, id := range gatewayIDs {
+		gatewayByID[id] = struct{}{}
 	}
 
 	pageSize := b.config.GatewayStatePageSize
@@ -416,13 +450,18 @@ func (b *SQLBackend) pollGateways() {
 		}
 
 		for _, state := range states {
-			gw, ok := gatewayByID[state.GatewayID]
-			if !ok {
+			if _, ok := gatewayByID[state.GatewayID]; !ok {
+				continue
+			}
+			b.registry.mu.RLock()
+			gw := b.registry.get(state.GatewayID)
+			b.registry.mu.RUnlock()
+			if gw == nil {
 				continue
 			}
 			if err := b.pollGatewayWithState(gw, state); err != nil {
 				b.logger.Warn("Failed to poll gateway",
-					slog.String("gateway_id", gw.id),
+					slog.String("gateway_id", state.GatewayID),
 					slog.Any("error", err))
 			}
 		}
@@ -469,23 +508,26 @@ func subscriberChannelsAvailable(subscribers []chan Event) bool {
 func (b *SQLBackend) pollGatewayWithState(gw *gateway, state GatewayState) error {
 	b.registry.mu.RLock()
 	knownVersion := gw.knownVersion
-	lastPolled := gw.lastPolled
+	lastPolledTime := gw.lastPolledTime
+	lastPolledEventID := gw.lastPolledEventID
 	b.registry.mu.RUnlock()
 
 	if state.VersionID == knownVersion || state.VersionID == "" {
 		return nil
 	}
 
-	var lastPolledTime time.Time
-	resumingFromLastPolled := lastPolled > 0
-	if lastPolled > 0 {
-		lastPolledTime = unixTimestampToTime(lastPolled)
+	// Choose query based on whether a delivery cursor exists.
+	// Cold start (lastPolledTime.IsZero()): fetch all events for the gateway.
+	// Resume: use composite (processed_timestamp, event_id) > (?, ?) so events
+	// sharing a timestamp do not replay — event_id is the stable tie-breaker.
+	var rows *sql.Rows
+	var err error
+	resuming := !lastPolledTime.IsZero()
+	if resuming {
+		rows, err = b.getEventsAfterCursorStmt.Query(gw.id, lastPolledTime, lastPolledEventID)
+	} else {
+		rows, err = b.getEventsStmt.Query(gw.id)
 	}
-	// lastPolled == 0: no event has ever been delivered to this gateway.
-	// Leave lastPolledTime as zero so the query returns all stored events.
-	// The 120s skew window only applies when resuming from a known position.
-
-	rows, err := b.getEventsStmt.Query(gw.id, lastPolledTime)
 	if err != nil {
 		return fmt.Errorf("failed to query events: %w", err)
 	}
@@ -514,12 +556,10 @@ func (b *SQLBackend) pollGatewayWithState(gw *gateway, state GatewayState) error
 		return fmt.Errorf("error iterating event rows: %w", err)
 	}
 
-	events = trimSingleBoundaryReplay(events, lastPolledTime, resumingFromLastPolled)
-
-	// On catch-up (no prior delivery to this gateway), filter events to current
-	// desired state: skip API key events (gateway bulk-syncs those on reconnect)
-	// and deduplicate the rest by entity_id keeping only the latest per entity.
-	if !resumingFromLastPolled {
+	// On cold start, filter to current desired state: skip API key events
+	// (gateway bulk-syncs those on reconnect) and keep only the latest event
+	// per entity_id for all other types.
+	if !resuming {
 		events = deduplicateLatestPerEntity(events)
 	}
 
@@ -544,21 +584,21 @@ func (b *SQLBackend) pollGatewayWithState(gw *gateway, state GatewayState) error
 	gw.queuedLoggedAt = 0
 
 	subscriberCount := len(gw.subscribers)
-	var latestDeliveredTimestamp time.Time
+	var lastDelivered *Event
 	deliveredCount := 0
 	deliveryBlocked := false
-	for _, evt := range events {
+	for i := range events {
 		if !subscriberChannelsAvailable(gw.subscribers) {
 			deliveryBlocked = true
 			b.logger.Warn("Subscriber channel full, deferring event delivery",
 				slog.String("gateway_id", gw.id),
-				slog.String("entity_id", evt.EntityID))
+				slog.String("entity_id", events[i].EntityID))
 			break
 		}
 		for _, ch := range gw.subscribers {
-			ch <- evt
+			ch <- events[i]
 		}
-		latestDeliveredTimestamp = evt.ProcessedTimestamp
+		lastDelivered = &events[i]
 		deliveredCount++
 	}
 
@@ -566,15 +606,17 @@ func (b *SQLBackend) pollGatewayWithState(gw *gateway, state GatewayState) error
 
 	b.registry.mu.Lock()
 	if deliveryBlocked {
-		if !latestDeliveredTimestamp.IsZero() {
-			gw.lastPolled = latestDeliveredTimestamp.UnixNano()
+		if lastDelivered != nil {
+			gw.lastPolledTime = lastDelivered.ProcessedTimestamp
+			gw.lastPolledEventID = lastDelivered.EventID
 		} else {
-			gw.lastPolled = lastPolledTime.UnixNano()
+			// Nothing delivered in this cycle; keep the existing cursor unchanged.
 		}
 	} else {
 		gw.knownVersion = state.VersionID
-		if !latestDeliveredTimestamp.IsZero() {
-			gw.lastPolled = latestDeliveredTimestamp.UnixNano()
+		if lastDelivered != nil {
+			gw.lastPolledTime = lastDelivered.ProcessedTimestamp
+			gw.lastPolledEventID = lastDelivered.EventID
 		}
 	}
 	b.registry.mu.Unlock()
@@ -627,18 +669,6 @@ func deduplicateLatestPerEntity(events []Event) []Event {
 	return result
 }
 
-// trimSingleBoundaryReplay drops the single boundary event that was already
-// delivered on the previous poll (the >= query re-fetches it).
-func trimSingleBoundaryReplay(events []Event, boundary time.Time, enabled bool) []Event {
-	if !enabled || len(events) == 0 || !events[0].ProcessedTimestamp.Equal(boundary) {
-		return events
-	}
-	if len(events) == 1 || !events[1].ProcessedTimestamp.Equal(boundary) {
-		return events[1:]
-	}
-	return events
-}
-
 func (b *SQLBackend) cleanupLoop() {
 	defer b.wg.Done()
 	ticker := time.NewTicker(b.config.CleanupInterval)
@@ -673,14 +703,14 @@ func (b *SQLBackend) Close() error {
 	b.cancel()
 	b.wg.Wait()
 
-	for _, gw := range b.registry.getAll() {
-		b.registry.mu.Lock()
+	b.registry.mu.Lock()
+	for _, gw := range b.registry.gateways {
 		for _, ch := range gw.subscribers {
 			close(ch)
 		}
 		gw.subscribers = nil
-		b.registry.mu.Unlock()
 	}
+	b.registry.mu.Unlock()
 
 	b.stmtMu.Lock()
 	defer b.stmtMu.Unlock()
