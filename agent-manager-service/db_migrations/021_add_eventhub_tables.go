@@ -34,7 +34,7 @@ var migration021 = migration{
 				processed_timestamp  TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
 				originated_timestamp TIMESTAMP NOT NULL,
 				entity_type          TEXT      NOT NULL,
-				action               TEXT      NOT NULL CHECK (action IN ('CREATE', 'UPDATE', 'DELETE')),
+				action               TEXT      NOT NULL,
 				entity_id            TEXT      NOT NULL,
 				event_data           TEXT      NOT NULL
 			);

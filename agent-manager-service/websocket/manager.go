@@ -151,15 +151,21 @@ func (m *Manager) Register(gatewayID string, transport Transport, authToken stri
 		if err != nil {
 			slog.Error("Failed to subscribe to EventHub for gateway",
 				"gatewayID", gatewayID, "connectionID", connectionID, "error", err)
-		} else {
-			conn.eventSub = ch
-			m.wg.Add(1)
-			go m.forwardEvents(conn, ch)
+			m.Unregister(gatewayID, connectionID)
+			return nil, fmt.Errorf("failed to subscribe to EventHub for gateway %s: %w", gatewayID, err)
 		}
+		conn.eventSub = ch
+		m.wg.Add(1)
+		go m.forwardEvents(conn, ch)
 	}
 
-	log.Printf("[INFO] Gateway connected: gatewayID=%s connectionID=%s totalConnections=%d",
-		gatewayID, connectionID, m.GetConnectionCount())
+	if len(evicted) > 0 {
+		log.Printf("[INFO] Gateway reconnected (evicted %d stale connection(s)): gatewayID=%s connectionID=%s totalConnections=%d",
+			len(evicted), gatewayID, connectionID, m.GetConnectionCount())
+	} else {
+		log.Printf("[INFO] Gateway connected: gatewayID=%s connectionID=%s totalConnections=%d",
+			gatewayID, connectionID, m.GetConnectionCount())
+	}
 
 	return conn, nil
 }
@@ -192,6 +198,11 @@ func (m *Manager) forwardEvents(conn *Connection, ch <-chan eventhub.Event) {
 					"error", err)
 				conn.DeliveryStats.IncrementFailed(fmt.Sprintf("forward error: %v", err))
 			} else {
+				slog.Debug("Forwarded event to gateway WebSocket",
+					"gatewayID", conn.GatewayID,
+					"connectionID", conn.ConnectionID,
+					"event_type", string(evt.EventType),
+					"event_id", evt.EventID)
 				conn.DeliveryStats.IncrementTotalSent()
 			}
 		case <-m.shutdownCtx.Done():

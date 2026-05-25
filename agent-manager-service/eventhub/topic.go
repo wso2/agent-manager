@@ -28,10 +28,11 @@ var (
 )
 
 type gateway struct {
-	id           string
-	subscribers  []chan Event
-	knownVersion string
-	lastPolled   int64
+	id             string
+	subscribers    []chan Event
+	knownVersion   string
+	lastPolled     int64
+	queuedLoggedAt int64 // unix nano of last "events queued, no subscribers" log; 0 = not yet logged
 }
 
 type gatewayRegistry struct {

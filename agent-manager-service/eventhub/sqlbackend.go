@@ -30,7 +30,6 @@ import (
 )
 
 const (
-	initialPollSkewWindow       = 120 * time.Second
 	defaultGatewayStatePageSize = 200
 
 	unixMillisThreshold = int64(100_000_000_000)
@@ -220,9 +219,9 @@ func (b *SQLBackend) Initialize() error {
 	go b.cleanupLoop()
 
 	b.logger.Info("EventHub initialized",
-		slog.Duration("poll_interval", b.config.PollInterval),
-		slog.Duration("cleanup_interval", b.config.CleanupInterval),
-		slog.Duration("retention_period", b.config.RetentionPeriod))
+		slog.String("poll_interval", b.config.PollInterval.String()),
+		slog.String("cleanup_interval", b.config.CleanupInterval.String()),
+		slog.String("retention_period", b.config.RetentionPeriod.String()))
 
 	return nil
 }
@@ -319,11 +318,11 @@ func (b *SQLBackend) PublishEvent(gatewayID string, event Event) error {
 		return fmt.Errorf("failed to commit event publish: %w", err)
 	}
 
-	b.logger.Debug("Event published",
+	b.logger.Info("Event published to EventHub",
 		slog.String("gateway_id", gatewayID),
 		slog.String("event_type", string(event.EventType)),
 		slog.String("action", event.Action),
-		slog.String("entity_id", event.EntityID))
+		slog.String("event_id", eventID))
 
 	return nil
 }
@@ -481,9 +480,10 @@ func (b *SQLBackend) pollGatewayWithState(gw *gateway, state GatewayState) error
 	resumingFromLastPolled := lastPolled > 0
 	if lastPolled > 0 {
 		lastPolledTime = unixTimestampToTime(lastPolled)
-	} else {
-		lastPolledTime = time.Now().Add(-initialPollSkewWindow)
 	}
+	// lastPolled == 0: no event has ever been delivered to this gateway.
+	// Leave lastPolledTime as zero so the query returns all stored events.
+	// The 120s skew window only applies when resuming from a known position.
 
 	rows, err := b.getEventsStmt.Query(gw.id, lastPolledTime)
 	if err != nil {
@@ -516,29 +516,53 @@ func (b *SQLBackend) pollGatewayWithState(gw *gateway, state GatewayState) error
 
 	events = trimSingleBoundaryReplay(events, lastPolledTime, resumingFromLastPolled)
 
-	// Snapshot subscribers under the lock so we don't hold it during channel sends.
-	b.registry.mu.RLock()
-	subscribers := make([]chan Event, len(gw.subscribers))
-	copy(subscribers, gw.subscribers)
-	b.registry.mu.RUnlock()
+	// On catch-up (no prior delivery to this gateway), filter events to current
+	// desired state: skip API key events (gateway bulk-syncs those on reconnect)
+	// and deduplicate the rest by entity_id keeping only the latest per entity.
+	if !resumingFromLastPolled {
+		events = deduplicateLatestPerEntity(events)
+	}
 
+	// Hold the read lock across all channel sends so that Unsubscribe/UnsubscribeAll
+	// (which need the write lock) cannot close a channel while a send is in flight.
+	b.registry.mu.RLock()
+
+	if len(gw.subscribers) == 0 {
+		shouldLog := len(events) > 0 && gw.queuedLoggedAt == 0
+		if shouldLog {
+			gw.queuedLoggedAt = time.Now().UnixNano()
+		}
+		b.registry.mu.RUnlock()
+		if shouldLog {
+			b.logger.Info("Gateway disconnected with pending events, waiting for reconnect",
+				slog.String("gateway_id", gw.id),
+				slog.Int("queued_event_count", len(events)))
+		}
+		return nil
+	}
+	// Subscriber present — clear the queued flag so it fires again after the next disconnect.
+	gw.queuedLoggedAt = 0
+
+	subscriberCount := len(gw.subscribers)
 	var latestDeliveredTimestamp time.Time
 	deliveredCount := 0
 	deliveryBlocked := false
 	for _, evt := range events {
-		if !subscriberChannelsAvailable(subscribers) {
+		if !subscriberChannelsAvailable(gw.subscribers) {
 			deliveryBlocked = true
 			b.logger.Warn("Subscriber channel full, deferring event delivery",
 				slog.String("gateway_id", gw.id),
 				slog.String("entity_id", evt.EntityID))
 			break
 		}
-		for _, ch := range subscribers {
+		for _, ch := range gw.subscribers {
 			ch <- evt
 		}
 		latestDeliveredTimestamp = evt.ProcessedTimestamp
 		deliveredCount++
 	}
+
+	b.registry.mu.RUnlock()
 
 	b.registry.mu.Lock()
 	if deliveryBlocked {
@@ -556,13 +580,51 @@ func (b *SQLBackend) pollGatewayWithState(gw *gateway, state GatewayState) error
 	b.registry.mu.Unlock()
 
 	if deliveredCount > 0 {
-		b.logger.Debug("Delivered events to gateway subscribers",
+		catchUp := knownVersion == ""
+		b.logger.Info("Delivered events to gateway subscribers",
 			slog.String("gateway_id", gw.id),
 			slog.Int("event_count", deliveredCount),
-			slog.Int("subscriber_count", len(subscribers)))
+			slog.Int("subscriber_count", subscriberCount),
+			slog.Bool("catch_up", catchUp))
 	}
 
 	return nil
+}
+
+// apiKeySyncEventTypes lists event types the gateway reconciles via bulk-sync on
+// reconnect. These are skipped during catch-up replay to avoid replaying stale
+// individual key operations that are already reflected in the bulk-sync response.
+var apiKeySyncEventTypes = map[string]bool{
+	"apikey.created": true,
+	"apikey.revoked": true,
+	"apikey.updated": true,
+}
+
+// deduplicateLatestPerEntity filters a catch-up event list to current desired
+// state: skips API key events (covered by bulk-sync) and keeps only the most
+// recent event per entity_id for all other event types. Input must be ordered
+// by processed_timestamp ASC; the last entry per entity_id wins.
+func deduplicateLatestPerEntity(events []Event) []Event {
+	latest := make(map[string]int, len(events))
+	for i, evt := range events {
+		if apiKeySyncEventTypes[string(evt.EventType)] {
+			continue
+		}
+		latest[evt.EntityID] = i
+	}
+	if len(latest) == 0 {
+		return nil
+	}
+	result := make([]Event, 0, len(latest))
+	for i, evt := range events {
+		if apiKeySyncEventTypes[string(evt.EventType)] {
+			continue
+		}
+		if latest[evt.EntityID] == i {
+			result = append(result, evt)
+		}
+	}
+	return result
 }
 
 // trimSingleBoundaryReplay drops the single boundary event that was already

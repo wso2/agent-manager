@@ -68,7 +68,7 @@ type APIUndeploymentEvent struct {
 	GatewayID    string `json:"gatewayId"`
 }
 
-func (s *GatewayEventsService) broadcastEvent(gatewayID string, eventType string, payload interface{}) error {
+func (s *GatewayEventsService) broadcastEvent(gatewayID string, eventType string, action string, entityID string, payload interface{}) error {
 	correlationID := uuid.New().String()
 
 	payloadJSON, err := json.Marshal(payload)
@@ -97,8 +97,8 @@ func (s *GatewayEventsService) broadcastEvent(gatewayID string, eventType string
 		GatewayID:           gatewayID,
 		OriginatedTimestamp: time.Now(),
 		EventType:           eventhub.EventType(eventType),
-		Action:              "CREATE",
-		EntityID:            correlationID,
+		Action:              action,
+		EntityID:            entityID,
 		EventData:           string(eventJSON),
 	}
 
@@ -115,37 +115,39 @@ func (s *GatewayEventsService) broadcastEvent(gatewayID string, eventType string
 
 // Public methods become thin one-liners:
 func (s *GatewayEventsService) BroadcastDeploymentEvent(gatewayID string, event *DeploymentEvent) error {
-	return s.broadcastEvent(gatewayID, "api.deployed", event)
+	return s.broadcastEvent(gatewayID, "api.deployed", "CREATE", event.APIID, event)
 }
 
 func (s *GatewayEventsService) BroadcastUndeploymentEvent(gatewayID string, event *APIUndeploymentEvent) error {
-	return s.broadcastEvent(gatewayID, "api.undeployed", event)
+	return s.broadcastEvent(gatewayID, "api.undeployed", "DELETE", event.APIID, event)
 }
 
 func (s *GatewayEventsService) BroadcastLLMProviderDeploymentEvent(gatewayID string, event *models.LLMProviderDeploymentEvent) error {
-	return s.broadcastEvent(gatewayID, "llmprovider.deployed", event)
+	return s.broadcastEvent(gatewayID, "llmprovider.deployed", "CREATE", event.ProviderID, event)
 }
 
 func (s *GatewayEventsService) BroadcastLLMProviderUndeploymentEvent(gatewayID string, event *models.LLMProviderUndeploymentEvent) error {
-	return s.broadcastEvent(gatewayID, "llmprovider.undeployed", event)
+	return s.broadcastEvent(gatewayID, "llmprovider.undeployed", "DELETE", event.ProviderID, event)
 }
 
 func (s *GatewayEventsService) BroadcastLLMProxyDeploymentEvent(gatewayID string, event *models.LLMProxyDeploymentEvent) error {
-	return s.broadcastEvent(gatewayID, "llmproxy.deployed", event)
+	return s.broadcastEvent(gatewayID, "llmproxy.deployed", "CREATE", event.ProxyID, event)
 }
 
 func (s *GatewayEventsService) BroadcastLLMProxyUndeploymentEvent(gatewayID string, event *models.LLMProxyUndeploymentEvent) error {
-	return s.broadcastEvent(gatewayID, "llmproxy.undeployed", event)
+	return s.broadcastEvent(gatewayID, "llmproxy.undeployed", "DELETE", event.ProxyID, event)
 }
 
+// API key events use a unique ID per event — they are not deduplicated on replay
+// because the gateway bulk-syncs API keys on reconnect via the catalog endpoint.
 func (s *GatewayEventsService) BroadcastAPIKeyCreatedEvent(gatewayID string, event *models.APIKeyCreatedEvent) error {
-	return s.broadcastEvent(gatewayID, "apikey.created", event)
+	return s.broadcastEvent(gatewayID, "apikey.created", "PROVISION", event.UUID, event)
 }
 
 func (s *GatewayEventsService) BroadcastAPIKeyRevokedEvent(gatewayID string, event *models.APIKeyRevokedEvent) error {
-	return s.broadcastEvent(gatewayID, "apikey.revoked", event)
+	return s.broadcastEvent(gatewayID, "apikey.revoked", "REVOKE", uuid.New().String(), event)
 }
 
 func (s *GatewayEventsService) BroadcastAPIKeyUpdatedEvent(gatewayID string, event *models.APIKeyUpdatedEvent) error {
-	return s.broadcastEvent(gatewayID, "apikey.updated", event)
+	return s.broadcastEvent(gatewayID, "apikey.updated", "UPDATE", uuid.New().String(), event)
 }
