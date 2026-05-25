@@ -1,0 +1,178 @@
+# WSO2 Agent Manager Instrumentation Package
+
+Zero-code OpenTelemetry instrumentation package for externally-hosted Python agents using the Traceloop SDK, with trace visibility in the WSO2 Agent Manager.
+
+## Overview
+
+`amp-instrumentation` package enables zero-code instrumentation for Python agents, automatically capturing traces for LLM calls, MCP requests, and other operations. It wraps your agent's execution with OpenTelemetry tracing powered by the Traceloop SDK.
+
+For agents on a custom or non-frontier framework, or anywhere you want full control over the spans you emit, it also ships `init_otel()`, a one-line OpenTelemetry exporter setup so you can instrument the agent yourself against AMP's [manual instrumentation contract](#manual-instrumentation).
+
+## Features
+
+- **Zero Code Changes**: Instrument existing applications without modifying code
+- **Automatic Tracing**: Traces LLM calls, MCP requests, database queries, and more
+- **OpenTelemetry Compatible**: Uses industry-standard OpenTelemetry protocol
+- **Flexible Configuration**: Configure via environment variables
+- **Framework Agnostic**: Works with any Python application built using a wide range of agent frameworks supported by the Traceloop SDK
+- **Manual path**: `init_otel()` for agents that emit their own OpenTelemetry GenAI spans
+
+## Installation
+
+```bash
+pip install amp-instrumentation
+```
+
+Each release of `amp-instrumentation` pins a specific Traceloop SDK version, so a given `amp-instrumentation` version always installs a fully determined SDK. To use a different Traceloop SDK version, install a different `amp-instrumentation` version — see the [version mapping](#amp-instrumentation-version-mapping) below.
+
+## Quick Start
+
+### 1. Register Your Agent
+
+First, register your agent as an external agent in the [WSO2 Agent Manager](../getting-started/create-your-first-agent.mdx) to obtain your agent API key and configuration details.
+
+### 2. Set Required Environment Variables in terminal
+
+Use the OTEL endpoint and agent API key obtained when you registered the agent in the previous step:
+
+```bash
+export AMP_OTEL_ENDPOINT="https://amp-otel-endpoint.com" # AMP OTEL endpoint
+export AMP_AGENT_API_KEY="your-agent-api-key" # Agent-specific key generated after registration
+```
+
+### 3. Run Your Application
+
+Use the `amp-instrument` command to wrap your application run command:
+
+```bash
+# Run a Python script
+amp-instrument python my_script.py
+
+# Run with uvicorn
+amp-instrument uvicorn app:main --reload
+
+# Run with any package manager
+amp-instrument poetry run python script.py
+amp-instrument uv run python script.py
+```
+
+That's it! Your application is now instrumented and sending traces to the WSO2 Agent Manager.
+
+## Manual instrumentation
+
+If you run a custom or non-frontier agent framework that the Traceloop SDK doesn't cover well — or you just want full control over the spans you emit — you can instrument your agent yourself and send the spans to AMP. This section is the contract: which endpoint to send to, which header to set, and which attributes a span needs to carry to render with the full trace view in the AMP Console and feed evaluators.
+
+Spans that follow the contract render exactly the same as auto-instrumented spans. Spans that don't still appear, just without the rich view.
+
+The manual path works on both platform-hosted and externally-hosted agents. The only difference is who sets the two environment variables — AMP injects them on platform-hosted agents (via the env-injection trait when auto-instrumentation is off); you set them yourself when running externally.
+
+### Transport
+
+- **Endpoint:** OTLP/HTTP `POST` to `${AMP_OTEL_ENDPOINT}/v1/traces`.
+- **Header:** `x-amp-api-key: ${AMP_AGENT_API_KEY}`.
+
+For a platform-hosted agent with auto-instrumentation disabled, AMP's env-injection trait sets `AMP_OTEL_ENDPOINT` and `AMP_AGENT_API_KEY` for you. For an externally-hosted agent, you set them yourself — `AMP_OTEL_ENDPOINT` is the AMP gateway's OTel endpoint, and `AMP_AGENT_API_KEY` is the key you generate in the Console when you register the agent.
+
+### Setting up the exporter
+
+`amp-instrumentation` ships an `init_otel()` helper that configures the OpenTelemetry exporter so you don't have to write the `TracerProvider` + `BatchSpanProcessor` + `OTLPSpanExporter` boilerplate yourself. It does no instrumentation; it just wires the exporter to the AMP endpoint with the API-key header.
+
+```python
+import json
+from opentelemetry import trace
+from amp_instrumentation import init_otel
+
+init_otel()  # reads AMP_OTEL_ENDPOINT and AMP_AGENT_API_KEY from the environment
+tracer = trace.get_tracer("my-agent")
+
+with tracer.start_as_current_span("chat") as span:
+    span.set_attribute("gen_ai.operation.name", "chat")
+    span.set_attribute("gen_ai.system", "openai")
+    span.set_attribute("gen_ai.request.model", "gpt-4o-mini")
+    span.set_attribute("gen_ai.request.temperature", 0.7)
+    span.set_attribute("gen_ai.input.messages", json.dumps(input_messages))
+    response = call_model(...)
+    span.set_attribute("gen_ai.response.model", response.model)
+    span.set_attribute("gen_ai.output.messages", json.dumps(response.messages))
+    span.set_attribute("gen_ai.usage.input_tokens", response.usage.input_tokens)
+    span.set_attribute("gen_ai.usage.output_tokens", response.usage.output_tokens)
+```
+
+`init_otel()` is idempotent. Calling it more than once won't double-register the tracer provider.
+
+If you'd rather not pull in `amp-instrumentation`, the same setup is about ten lines of vanilla OpenTelemetry SDK code: a `TracerProvider`, a `BatchSpanProcessor` wrapping an `OTLPSpanExporter(endpoint=<AMP_OTEL_ENDPOINT>/v1/traces, headers={"x-amp-api-key": <key>})`, and `trace.set_tracer_provider(...)`. The contract is what AMP commits to, not the helper.
+
+### The contract
+
+The contract is **layered**:
+
+- **Layer 1 — OpenTelemetry GenAI semantic conventions (`gen_ai.*`, plus `db.*` for retriever spans).** This is the primary set. It's a real public standard, the ecosystem is converging on it, and it covers `llm` / `embedding` / `tool` / `agent` / `retriever` spans and all their model, vendor, token, status, system-prompt, and tool data.
+- **Layer 2 — OpenLLMetry/Traceloop extension keys (`traceloop.*`).** Used only for the few decisions OTel hasn't standardized yet: the `chain` span kind, `rerank`, and tool-call arguments/result. These are documented, stable conventions, and they're what AMP's managed instrumentation already emits — so manual and auto spans end up identically-shaped. When OTel ratifies keys for these areas, AMP's observer will read the new standard key too, and the row will move from "OpenLLMetry ext" to "OTel GenAI" in the table below.
+
+"Required" in the table below is per span kind — it applies only when emitting that kind of span. A span missing a required key still appears in the Console; it just won't have the part of the rich view that key feeds.
+
+<details>
+<summary><b>Supported attributes</b> (full table, click to expand)</summary>
+
+| Span kind | Attribute key | Source | Required | What it enables |
+|---|---|---|---|---|
+| any GenAI span | `gen_ai.operation.name` (one of `chat`, `text_completion`, `embeddings`, `execute_tool`, `invoke_agent`, `create_agent`) | OTel GenAI | yes | `AmpAttributes.kind` (span icon, which card renders, which evaluators apply) |
+| any GenAI span | `gen_ai.system` (provider id, e.g. `openai`, `anthropic`, `aws.bedrock`, `azure.ai.openai`, `cohere`) | OTel GenAI | yes | vendor / framework chip |
+| any span | span `Status` set to `Error` (plus message), or `error.type` attribute | OTel (span status) | recommended | error badge on the span; error count in the trace list |
+| any span | W3C baggage `task_id`, `trial_id` | OTel baggage | no | joins the trace to the evaluation trial that produced it |
+| llm | `gen_ai.request.model` | OTel GenAI | yes | model chip; evaluator context |
+| llm | `gen_ai.response.model` | OTel GenAI | no | model chip (used over `request.model` when present) |
+| llm | `gen_ai.input.messages` (JSON array), *or* indexed `gen_ai.prompt.{i}.role` / `gen_ai.prompt.{i}.content` | OTel GenAI | yes (one form) | `AmpAttributes.input`; **LLM evaluators fail without it** |
+| llm | `gen_ai.output.messages` (JSON array), *or* indexed `gen_ai.completion.{i}.role` / `gen_ai.completion.{i}.content` | OTel GenAI | yes (one form) | `AmpAttributes.output`; **LLM evaluators fail without it** |
+| llm | `gen_ai.request.temperature` | OTel GenAI | no | temperature chip |
+| llm | `gen_ai.usage.input_tokens`, `gen_ai.usage.output_tokens` (legacy `prompt_tokens` / `completion_tokens` also read) | OTel GenAI | no | token chip; trace-list token total |
+| llm | `gen_ai.input.tools` (JSON), *or* legacy `gen_ai.request.functions.{i}.name` / `.description` / `.parameters` | OTel GenAI / OpenLLMetry ext | no | tools accordion |
+| embedding | `gen_ai.request.model` (and `gen_ai.response.model`, preferred when present) | OTel GenAI | yes | model chip |
+| embedding | `gen_ai.usage.input_tokens` | OTel GenAI | no | token chip |
+| embedding | `gen_ai.prompt.{i}.content` (indexed) | OTel GenAI (de-facto) | no | `AmpAttributes.input` (the embedded text). OTel hasn't fully settled the embedding-input key; this is what's read today. |
+| tool | `gen_ai.tool.name` | OTel GenAI | yes | tool name header; contributes to `kind = tool` |
+| tool | `gen_ai.tool.description` | OTel GenAI | no | tool description (not extracted in v1) |
+| tool | `gen_ai.tool.call.id` | OTel GenAI | no | tool call id (not extracted in v1) |
+| tool | `traceloop.entity.input` / `traceloop.entity.output` (JSON) | OpenLLMetry ext | no | tool-call arguments / result. OTel has no stable key here; AMP also reads `gen_ai.input.messages` / `gen_ai.output.messages` on tool spans as a lower-priority fallback. |
+| agent | `gen_ai.agent.name` | OTel GenAI | yes | agent name; `kind = agent` |
+| agent | `gen_ai.agent.description` | OTel GenAI | no | agent description (not extracted in v1) |
+| agent | `gen_ai.agent.tools` (JSON) | OTel GenAI | no | tools accordion |
+| agent | `gen_ai.request.model` | OTel GenAI | no | model chip |
+| agent | `gen_ai.system` | OTel GenAI | no | framework chip |
+| agent | `gen_ai.system_instructions` (or `gen_ai.prompt.0.content` with role `system`) | OTel GenAI | no | system-prompt card |
+| agent | `gen_ai.conversation.id` | OTel GenAI | no | conversation grouping |
+| agent | `gen_ai.usage.input_tokens`, `gen_ai.usage.output_tokens` | OTel GenAI | no | token chip; trace-list total |
+| agent | `gen_ai.input.messages` / `gen_ai.output.messages` (or the indexed form) | OTel GenAI | recommended | `AmpAttributes.input` / `output`; agent-level evaluators need it |
+| retriever | `db.system.name` (`pinecone`, `chroma`, `qdrant`, `weaviate`, `milvus`, `pgvector`, …) | OTel DB semconv | yes | `kind = retriever`; vectorDB chip |
+| retriever | `db.collection.name` | OTel DB semconv | no | collection chip |
+| retriever | `db.vector.query.top_k` | OTel DB semconv | no | Top-K chip. Extracted as int, float, or string. |
+| chain / workflow | `traceloop.span.kind` = `workflow` or `task` | OpenLLMetry ext | no | `kind = chain` (the chain icon). OTel has no signal for this; without it the span renders as a plain span. |
+| chain / workflow | `traceloop.entity.input` / `traceloop.entity.output` (JSON) | OpenLLMetry ext | no | chain I/O |
+| rerank | any of: `traceloop.span.kind` = `rerank`; `gen_ai.operation.name` = `rerank` / `reranking`; `rerank.model`; a `gen_ai.request.model` like `rerank-english-*` / `rerank-multilingual-*`; or a span named `rerank` / `reranker` | OpenLLMetry ext / de-facto (not standard OTel) | no | `kind = rerank` (the rerank icon, nothing more — see below) |
+
+</details>
+
+Anything not on this list is ignored.
+
+### Partially supported kinds
+
+A couple of kinds work as a *kind* but don't have their full data card extracted yet:
+
+- **Rerank** is recognised as a kind only — a rerank span gets the rerank icon, no data card. There's no `RerankData` payload today and no per-kind extractor runs for rerank, so model, query, and results are not surfaced. A future enhancement will add a proper rerank payload. (Note: `rerank` isn't a value OTel GenAI enumerates for `gen_ai.operation.name`; AMP reads it because Cohere's OTel instrumentation and OpenLLMetry emit it. If OTel ratifies a rerank operation later, AMP will align.)
+- **Retriever documents.** The retrieved documents on a retriever span are not extracted in v1 (they aren't extracted for any instrumentation source today). The vectorDB chip, collection, and Top-K render; the document list doesn't.
+
+### Suppressing prompt and completion content
+
+Prompt and completion content is captured by default. To suppress it, set `TRACELOOP_TRACE_CONTENT=false` in the agent's environment. The variable is read by the Traceloop SDK on the auto path and is documented here for parity — on a fully hand-rolled manual setup that bypasses Traceloop, you control what you put into `gen_ai.input.messages` / `gen_ai.output.messages` directly.
+
+## AMP instrumentation version mapping
+
+Each AMP-instrumentation version is a single semver shared by the PyPI package (`amp-instrumentation`) and the init-container image (`ghcr.io/wso2/amp-python-instrumentation-provider:<version>-python<X.Y>`) AMP injects into platform-hosted Python agents. The version is independent of the AMP product version. One AMP-instrumentation version pins exactly one Traceloop SDK version.
+
+When AMP raises the platform default, existing agents stay on the version they were pinned to.
+
+| AMP instrumentation version | Traceloop SDK (`traceloop-sdk`) | Supported Python versions | Init-container image tag |
+|---|---|---|---|
+| 0.2.1 | 0.60.0 | 3.10, 3.11, 3.12, 3.13 | `ghcr.io/wso2/amp-python-instrumentation-provider:0.2.1-python<X.Y>` |
+
+The canonical source for this matrix is [`.github/release-config.json`](https://github.com/wso2/agent-manager/blob/main/.github/release-config.json) under the `python-instrumentation-provider` key. Maintainers cutting a new version: see [`python-instrumentation-provider/RELEASING.md`](https://github.com/wso2/agent-manager/blob/main/python-instrumentation-provider/RELEASING.md) for the release runbook.

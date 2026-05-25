@@ -1,0 +1,130 @@
+---
+sidebar_position: 2
+---
+
+import Tabs from '@theme/Tabs';
+import TabItem from '@theme/TabItem';
+
+# Create Your First Agent
+
+Once Agent Manager is installed, you can create your first agent from the console.
+
+## Choose an Agent Type
+
+1. Navigate to **Agents** in the left sidebar.
+2. Click **Add Agent**.
+3. Choose how you want to get started:
+
+- **Externally-Hosted Agent** — Connect an agent already running outside the platform. WSO2 Agent Manager provides observability and governance without managing the deployment.
+- **Platform-Hosted Agent** — Deploy and manage the full agent lifecycle directly on WSO2 Agent Manager, including build, deployment, scaling, and observability.
+
+---
+
+<Tabs>
+<TabItem value="external" label="Externally-Hosted Agent">
+
+## Register an Externally-Hosted Agent
+
+Fill in the **Agent Details** form:
+
+| Field | Description |
+|-------|-------------|
+| **Name** | A display name for your agent (e.g., `Customer Support`) |
+| **Description** *(optional)* | A short description of what this agent does |
+
+Click **Register** to complete the registration. The agent will appear in your agent list and start receiving observability data once you instrument it using the [AMP instrumentation](../components/amp-instrumentation.mdx) package.
+
+</TabItem>
+<TabItem value="platform" label="Platform-Hosted Agent">
+
+## Create a Platform-Hosted Agent
+
+### Step 1: Choose a Source Type
+
+Select how the agent source will be provided:
+
+- **Source Code** — Point to a GitHub repository containing your agent code. The platform builds and deploys it automatically.
+- **Agent Catalog** — Pick a pre-built agent kind from the Agent Catalog.
+
+### Step 2: Fill in Agent Details
+
+Provide a **Name** (e.g., `Customer Support Agent`) and an optional **Description**.
+
+### Step 3: Repository Details *(Source Code only)*
+
+| Field | Description |
+|-------|-------------|
+| **GitHub Repository** | Full URL of your repository (e.g., `https://github.com/username/repo`) |
+| **Branch** | Branch to build from (default: `main`) |
+| **Project Path** | Path within the repository where the agent code lives (default: `/`) |
+
+#### Using a Private Repository
+
+If your repository is private, you need to provide a **Git Secret** that contains a GitHub Personal Access Token (PAT).
+
+1. In the **Git Secret** dropdown, select an existing secret or click **+ Create New** to add one.
+2. When creating a new secret, provide a **Name** and paste your GitHub PAT. The token must have `repo` scope to allow the platform to clone your private repository.
+3. The secret is stored securely and reused across agents that need access to the same repository or organization.
+
+### Step 4: Build Details *(Source Code only)*
+
+Choose a build type:
+
+- **Python** — Provide a **Start Command** (default: `python main.py`) and select the **Language Version** (e.g., `3.11`). Dependencies are auto-installed from `requirements.txt`, `pyproject.toml`, or `package.json`.
+- **Docker** — Use a `Dockerfile` in the repository.
+
+**Enable auto instrumentation** *(Python only, checked by default)*
+
+Automatically injects OpenTelemetry tracing into your agent for observability with zero code changes. You can also pin the **AMP Instrumentation Version** used by the init container.
+
+### Step 5: Select an Agent Type
+
+Choose how your agent receives requests:
+
+| Agent Type | Description |
+|------------|-------------|
+| **Chat Agent** | Standard chat interface. Exposes `POST /chat` on port `8000`. Request: `{message: string, session_id: string, context: JSON}` — Response: `{response: string}` |
+| **Custom API Agent** | Custom HTTP API. Specify your own OpenAPI specification and port configuration. |
+
+### Step 6: Configure LLM Providers *(Optional)*
+
+Click **+ Add** to bind one or more LLM providers to this agent. LLM providers are configured separately — see [Register an LLM Service Provider](../tutorials/register-llm-service-provider.mdx).
+
+### Step 7: Set Environment Variables *(Optional)*
+
+Add any environment variables your agent requires at runtime. Mark sensitive values as **Secret** to store them securely.
+
+### Step 8: Mount Files *(Optional)*
+
+Mount configuration files or other static files into your agent's container at runtime.
+
+1. Click **+ Add File Mount**.
+2. Fill in the following fields for each file:
+
+| Field | Description |
+|-------|-------------|
+| **File Name** | A unique name to identify the file (max 253 characters) |
+| **Mount Path** | Absolute path where the file will be available inside the container (e.g., `/workspace/config/settings.yaml`) |
+| **Content** | The file content (max 1 MB) |
+| **Sensitive** | Toggle on to store the content as a secret |
+
+Duplicate file names are not allowed.
+
+Click **Deploy** to build and deploy the agent.
+
+</TabItem>
+</Tabs>
+
+---
+
+## What's Next?
+
+| Tutorial | Description |
+|----------|-------------|
+| [Observe Your First Agent](../tutorials/observe-first-agent.mdx) | Set up OpenTelemetry tracing for your agent |
+| [Register an AI Gateway](../tutorials/register-ai-gateway.mdx) | Connect an LLM provider via the AI gateway |
+| [Register an LLM Service Provider](../tutorials/register-llm-service-provider.mdx) | Add and configure LLM providers |
+| [Secure Agent Endpoints with API Keys](../tutorials/secure-agent-endpoints-with-api-keys.mdx) | Protect endpoints with API key authentication |
+| [Evaluation Monitors](../tutorials/evaluation-monitors.mdx) | Automate quality checks for your agents |
+| [Custom Evaluators](../tutorials/custom-evaluators.mdx) | Build and deploy your own evaluators |
+| [Configure Agent LLM Configuration](../tutorials/configure-agent-llm-configuration.mdx) | Bind LLM config to a specific agent |

@@ -1,0 +1,88 @@
+---
+sidebar_position: 6
+sidebar_label: Skills
+---
+
+# amctl skills
+
+Manage AI assistant skill files — `SKILL.md` instruction packs that extend tools like Claude Code, Cursor, and Windsurf with Agent Manager-aware behavior.
+
+Skills are fetched from the [wso2/agent-skills](https://github.com/wso2/agent-skills) repository, extracted under `~/.agents/skills/`, and symlinked into any supported assistant directories that exist locally:
+
+| Tool | Detected directory |
+|------|---------------------|
+| Claude Code | `~/.claude/skills` |
+| Cursor | `~/.cursor/skills` |
+| Windsurf | `~/.windsurf/skills` |
+
+```
+amctl skills [command]
+```
+
+## Subcommands
+
+| Command | Purpose |
+|---------|---------|
+| [`install`](#amctl-skills-install) | Fetch and install skills |
+| [`list`](#amctl-skills-list) | List available and installed skills |
+| [`remove`](#amctl-skills-remove) | Remove installed skills and their links |
+
+## Options inherited from parent commands
+
+| Name | Description |
+|------|-------------|
+| `--json` | Output as JSON envelopes. |
+
+---
+
+## amctl skills install
+
+Fetch the latest skills bundle, extract under `~/.agents/skills/`, and link each skill into every detected assistant directory. Re-running the command updates skills in place.
+
+```
+amctl skills install
+```
+
+### Example
+
+```bash
+amctl skills install
+```
+
+After installation, restart your AI assistant so it picks up the new skill.
+
+---
+
+## amctl skills list
+
+Show the skills available in the published bundle, including which ones are installed locally and where they are linked.
+
+```
+amctl skills list
+```
+
+### Example
+
+```bash
+amctl skills list
+```
+
+---
+
+## amctl skills remove
+
+Remove installed skills from `~/.agents/skills/` and clean up symlinks that point at them. Symlinks whose target is outside the managed directory are left alone — safe to run if some skills were placed manually.
+
+```
+amctl skills remove
+```
+
+### Example
+
+```bash
+amctl skills remove
+```
+
+## See Also
+
+- [wso2/agent-skills](https://github.com/wso2/agent-skills) — source of truth for the published skills bundle

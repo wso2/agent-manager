@@ -1,0 +1,504 @@
+---
+sidebar_position: 5
+sidebar_label: Agent
+---
+
+# amctl agent
+
+Manage agents in a project — create, build, deploy, inspect, and observe.
+
+```
+amctl agent [command]
+```
+
+## Subcommands
+
+| Command | Purpose |
+|---------|---------|
+| [`create`](#amctl-agent-create) | Create an agent |
+| [`get`](#amctl-agent-get) | Show details of an agent |
+| [`list`](#amctl-agent-list) | List agents in a project |
+| [`delete`](#amctl-agent-delete) | Delete an agent |
+| [`deploy`](#amctl-agent-deploy) | Deploy a built agent image to an environment |
+| [`build create`](#amctl-agent-build-create) | Trigger a build |
+| [`build get`](#amctl-agent-build-get) | Show details of a build |
+| [`build list`](#amctl-agent-build-list) | List builds for an agent |
+| [`build logs`](#amctl-agent-build-logs) | Show build logs |
+| [`logs`](#amctl-agent-logs) | Fetch runtime logs for a deployed agent |
+| [`metrics`](#amctl-agent-metrics) | Show CPU and memory metrics |
+| [`traces`](#amctl-agent-traces) | List runtime traces |
+| [`traces export`](#amctl-agent-traces-export) | Export a full trace payload |
+| [`trace`](#amctl-agent-trace) | Show span detail for a single trace |
+
+## Options inherited from parent commands
+
+| Name | Description |
+|------|-------------|
+| `--project` | Project that owns the agent. Falls back to the linked project. |
+| `--org` | Override the active organization. |
+| `--json` | Output as JSON envelopes. |
+
+:::info Runtime-managed agents only
+`logs`, `metrics`, `traces`, `trace`, and `traces export` only work for platform-managed agents. Calling them against an external-runtime agent fails up-front with a clear error.
+:::
+
+---
+
+## amctl agent create
+
+Create an agent in the active project.
+
+```
+amctl agent create <name> [flags]
+```
+
+### Arguments
+
+| Name | Description |
+|------|-------------|
+| `<name>` | Agent name (URL-safe slug). |
+
+### Examples
+
+```bash
+# Chat API agent built from a public repo with buildpacks
+amctl agent create support-bot \
+  --display-name "Support Bot" \
+  --subtype chat-api \
+  --repo-url https://github.com/acme/support-bot \
+  --repo-branch main \
+  --build-type buildpack \
+  --language python \
+  --language-version 3.12
+
+# Custom-API agent with a Dockerfile build
+amctl agent create checkout-api \
+  --display-name "Checkout API" \
+  --subtype custom-api \
+  --repo-url https://github.com/acme/checkout-api \
+  --build-type docker \
+  --dockerfile Dockerfile \
+  --port 8080 \
+  --openapi-spec openapi.yaml
+
+# Plain environment + secret references
+amctl agent create payments \
+  --display-name "Payments" \
+  --subtype custom-api \
+  --repo-url https://github.com/acme/payments \
+  --env LOG_LEVEL=info \
+  --env-secret STRIPE_KEY=sk_test_xxx \
+  --env-from-secret OPENAI_API_KEY=shared-openai
+```
+
+### Options
+
+| Name | Type | Default | Description |
+|------|------|---------|-------------|
+| `--display-name` | string | _required_ | Human-readable name. |
+| `--description` | string | (none) | Free-text description. |
+| `--subtype` | string | (none) | Agent sub-type: `chat-api` or `custom-api`. |
+| `--provisioning` | string | `internal` | `internal` (platform-managed) or `external`. |
+| `--repo-url` | string | (none) | Source repository URL. |
+| `--repo-branch` | string | (none) | Source branch. |
+| `--repo-path` | string | (none) | Application path within the repository. |
+| `--repo-secret` | string | (none) | Secret reference for private repositories. |
+| `--build-type` | string | (none) | `buildpack` or `docker`. |
+| `--language` | string | (none) | Language for buildpack builds. |
+| `--language-version` | string | (none) | Language version for buildpack builds. |
+| `--run-command` | string | (none) | Run command for buildpack builds. |
+| `--dockerfile` | string | (none) | Dockerfile path (Docker builds). |
+| `--port` | int | `8000` | Service port (1–65535). Applies only to `custom-api`. |
+| `--base-path` | string | (none) | Base path for the agent's HTTP service. |
+| `--openapi-spec` | string | (none) | Path to OpenAPI schema within the repo. |
+| `--no-auto-instrumentation` | bool | `false` | Disable automatic instrumentation. |
+| `--env` | strings | (none) | Environment variable as `KEY=VALUE`. Repeatable. Stored as plain text. |
+| `--env-secret` | strings | (none) | Sensitive env variable as `KEY=VALUE`. Repeatable. |
+| `--env-from-secret` | strings | (none) | Env variable sourced from a managed secret: `KEY=SECRETNAME`. Repeatable. |
+| `--model-config-file` | string | (none) | Path to a model-config YAML/JSON file. |
+
+---
+
+## amctl agent get
+
+Show configuration and current build/deploy status for an agent.
+
+```
+amctl agent get [agent]
+```
+
+### Arguments
+
+| Name | Description |
+|------|-------------|
+| `[agent]` | Agent name. Optional if the directory is linked. |
+
+:::note
+`agent get` returns the agent's **configured** state, not its **runtime** liveness. Use [`amctl agent logs`](#amctl-agent-logs), [`amctl agent metrics`](#amctl-agent-metrics), or [`amctl agent traces`](#amctl-agent-traces) to check that a deployed agent is actually serving.
+:::
+
+---
+
+## amctl agent list
+
+List agents in the active project.
+
+```
+amctl agent list [flags]
+```
+
+### Options
+
+| Name | Type | Default | Description |
+|------|------|---------|-------------|
+| `--limit` | int | (server default) | Maximum number of results. |
+| `--offset` | int | `0` | Number of results to skip. |
+
+---
+
+## amctl agent delete
+
+Delete an agent. Asks for confirmation unless `--yes` is set. Deletes are asynchronous — the agent enters a terminating state immediately and is fully removed shortly after.
+
+```
+amctl agent delete [agent] [flags]
+```
+
+### Arguments
+
+| Name | Description |
+|------|-------------|
+| `[agent]` | Agent name. Optional if the directory is linked. |
+
+### Options
+
+| Name | Short | Type | Default | Description |
+|------|-------|------|---------|-------------|
+| `--yes` | `-y` | bool | `false` | Skip the confirmation prompt. |
+
+---
+
+## amctl agent deploy
+
+Deploy a built agent image to the lowest environment in the deployment pipeline.
+
+Env vars passed via `--env` are merged with the agent's current configuration. Conflicting values require interactive confirmation or `--yes`. CLI-supplied values are always stored as plain text — use the platform UI or `--env-from-secret` at create-time for secrets.
+
+```
+amctl agent deploy [agent] [flags]
+```
+
+### Arguments
+
+| Name | Description |
+|------|-------------|
+| `[agent]` | Agent name. Optional if the directory is linked. |
+
+### Examples
+
+```bash
+# Deploy the latest build of the linked agent
+amctl agent deploy
+
+# Deploy a specific build by buildName
+amctl agent deploy support-bot --build-name support-bot-build-3
+
+# Merge two env vars, skip the conflict prompt
+amctl agent deploy --env LOG_LEVEL=debug --env FEATURE_X=true --yes
+```
+
+### Options
+
+| Name | Short | Type | Default | Description |
+|------|-------|------|---------|-------------|
+| `--build-name` | | string | _latest by `startedAt`_ | Build to deploy. Builds are addressed by `buildName`, not `buildId`. |
+| `--env` | | strings | (none) | Set env var as `KEY=VALUE`. Repeatable. Merges with current config. |
+| `--yes` | `-y` | bool | `false` | Skip the env-conflict confirmation prompt. |
+
+---
+
+## amctl agent build create
+
+Trigger a build for an agent.
+
+```
+amctl agent build create [agent] [flags]
+```
+
+### Arguments
+
+| Name | Description |
+|------|-------------|
+| `[agent]` | Agent name. Optional if the directory is linked. |
+
+### Options
+
+| Name | Type | Default | Description |
+|------|------|---------|-------------|
+| `--commit` | string | (latest) | Commit SHA to build from. |
+
+---
+
+## amctl agent build get
+
+Show details of a build.
+
+```
+amctl agent build get [agent] <build-name>
+```
+
+### Arguments
+
+| Name | Description |
+|------|-------------|
+| `[agent]` | Agent name. Optional if the directory is linked. |
+| `<build-name>` | Build to display. Builds are addressed by `buildName`. |
+
+### Example
+
+```bash
+amctl agent build get support-bot support-bot-build-3
+```
+
+---
+
+## amctl agent build list
+
+List builds for an agent.
+
+```
+amctl agent build list [agent] [flags]
+```
+
+### Arguments
+
+| Name | Description |
+|------|-------------|
+| `[agent]` | Agent name. Optional if the directory is linked. |
+
+### Options
+
+| Name | Type | Default | Description |
+|------|------|---------|-------------|
+| `--limit` | int | (server default) | Maximum number of results. |
+| `--offset` | int | `0` | Number of results to skip. |
+
+---
+
+## amctl agent build logs
+
+Show logs for a build. Output is raw text, not JSON — `--json` is ignored.
+
+```
+amctl agent build logs [agent] [build-name]
+```
+
+### Arguments
+
+| Name | Description |
+|------|-------------|
+| `[agent]` | Agent name. Optional if the directory is linked. |
+| `[build-name]` | Build name. Defaults to the latest build for the agent. |
+
+### Example
+
+```bash
+# Latest build of the linked agent
+amctl agent build logs
+
+# Specific build
+amctl agent build logs support-bot support-bot-build-3
+```
+
+---
+
+## amctl agent logs
+
+Fetch runtime logs for a deployed agent.
+
+```
+amctl agent logs <agent> [flags]
+```
+
+### Arguments
+
+| Name | Description |
+|------|-------------|
+| `<agent>` | Agent name. Optional if the directory is linked. |
+
+### Examples
+
+```bash
+# Last hour of ERROR-level logs
+amctl agent logs support-bot --since 1h --level ERROR
+
+# Search across the last day
+amctl agent logs support-bot --grep "tool_call_failed"
+
+# Latest 100 lines, JSON for downstream parsing
+amctl agent logs support-bot --limit 100 --json | jq '.data.logs[]'
+```
+
+### Options
+
+| Name | Type | Default | Description |
+|------|------|---------|-------------|
+| `--since` | string | `24h` | Time window. Examples: `30m`, `1h`, `7d`. |
+| `--level` | strings | (all) | Filter by level: `DEBUG`, `INFO`, `WARN`, `ERROR`. Repeatable. |
+| `--grep` | string | (none) | Substring filter applied server-side. |
+| `--limit` | int | (server default) | Maximum entries (1–10000). |
+| `--sort` | string | `desc` | `asc` (oldest first) or `desc` (newest first). |
+| `--env` | string | (linked env) | Environment to query. |
+
+---
+
+## amctl agent metrics
+
+Show CPU and memory usage against the agent's request and limit values, sampled over a time window. The default text output is a table; `--json` returns the raw timeseries arrays.
+
+```
+amctl agent metrics <agent> [flags]
+```
+
+### Arguments
+
+| Name | Description |
+|------|-------------|
+| `<agent>` | Agent name. Optional if the directory is linked. |
+
+### Example
+
+```bash
+amctl agent metrics support-bot --since 1h
+```
+
+Output:
+
+```
+metric  current  request  limit
+CPU     120m     250m     500m
+Memory  340Mi    512Mi    1.0Gi
+```
+
+### Options
+
+| Name | Type | Default | Description |
+|------|------|---------|-------------|
+| `--since` | string | `24h` | Time window. Examples: `30m`, `1h`, `7d`. |
+| `--env` | string | (linked env) | Environment to query. |
+
+---
+
+## amctl agent traces
+
+List runtime traces for an agent, optionally filtered by a built-in condition.
+
+```
+amctl agent traces <agent> [flags]
+```
+
+### Arguments
+
+| Name | Description |
+|------|-------------|
+| `<agent>` | Agent name. Optional if the directory is linked. |
+
+### Examples
+
+```bash
+# Last 2 hours of errored traces
+amctl agent traces support-bot --since 2h --condition error_status
+
+# Slow requests (over 60 seconds)
+amctl agent traces support-bot --condition high_latency --max-latency 60000
+
+# Tool failures
+amctl agent traces support-bot --condition tool_call_fails
+```
+
+### Options
+
+| Name | Type | Default | Description |
+|------|------|---------|-------------|
+| `--since` | string | `24h` | Time window. |
+| `--limit` | int | `10` | Maximum traces (1–100). |
+| `--sort` | string | `desc` | `asc` or `desc`. |
+| `--condition` | string | (none) | One of: `error_status`, `high_latency`, `high_token_usage`, `tool_call_fails`, `excessive_steps`. |
+| `--max-latency` | int | `30000` | Latency threshold in milliseconds (used with `high_latency`). |
+| `--max-tokens` | int | `10000` | Token threshold (used with `high_token_usage`). |
+| `--max-spans` | int | `40` | Span-count threshold (used with `excessive_steps`). |
+| `--env` | string | (linked env) | Environment to query. |
+
+---
+
+## amctl agent traces export
+
+Export a single trace's full payload, including every span and span event. Suitable for offline analysis or attaching to an incident ticket.
+
+```
+amctl agent traces export <agent> <trace-id> [flags]
+```
+
+### Arguments
+
+| Name | Description |
+|------|-------------|
+| `<agent>` | Agent name. Optional if the directory is linked. |
+| `<trace-id>` | Trace ID, typically obtained from [`amctl agent traces`](#amctl-agent-traces). |
+
+### Example
+
+```bash
+amctl agent traces export support-bot 7c8f...e1 --since 1h > trace.json
+```
+
+### Options
+
+| Name | Type | Default | Description |
+|------|------|---------|-------------|
+| `--since` | string | _required_ | Time window the trace was produced in. |
+| `--limit` | int | `100` | Maximum spans to include (1–100). |
+| `--sort` | string | `desc` | Span order: `asc` or `desc`. |
+| `--env` | string | (linked env) | Environment to query. |
+
+---
+
+## amctl agent trace
+
+Show span details for a single trace. With `--span`, expand a specific span to full detail.
+
+```
+amctl agent trace <agent> <trace-id> [flags]
+```
+
+### Arguments
+
+| Name | Description |
+|------|-------------|
+| `<agent>` | Agent name. Optional if the directory is linked. |
+| `<trace-id>` | Trace ID. |
+
+### Examples
+
+```bash
+# Span summary
+amctl agent trace support-bot 7c8f...e1
+
+# Full detail for a specific span
+amctl agent trace support-bot 7c8f...e1 --span a2b3...c4
+```
+
+### Options
+
+| Name | Type | Default | Description |
+|------|------|---------|-------------|
+| `--since` | string | `24h` | Time window to search. |
+| `--span` | string | (none) | Show full detail for the given span ID. |
+| `--limit` | int | `1000` | Maximum spans to return. |
+| `--env` | string | (linked env) | Environment to query. |
+
+## See Also
+
+- [`amctl project`](./project.mdx) — manage projects that own agents
+- [`amctl context link`](./context.mdx#amctl-context-link) — link the current directory to an agent
+- [Observe your first agent](../tutorials/observe-first-agent.mdx)
