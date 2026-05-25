@@ -508,23 +508,43 @@ func (s *agentManagerService) validateInstrumentationVersion(version string) err
 }
 
 // buildpackPythonVersion returns the buildpack-configured Python version
-// (bare-minor like "3.11") when the build is a Python buildpack build;
-// returns "" otherwise. Used by CreateAgent to pair-check Python with the
-// chosen instrumentation version.
+// normalised to bare-minor ("3.11"), matching the shape stored in the
+// instrumentation catalog. Returns "" when the build is not a python
+// buildpack build, when LanguageVersion is unset, or when the value
+// normalises to empty.
+//
+// Normalisation:
+//   - Language comparison is exact (matches the case-sensitive ==
+//     comparison used elsewhere in this file, e.g. isPythonBuildpack at
+//     line ~320, so a request with "Python" doesn't take a different
+//     branch here than in the trait-attach logic).
+//   - LanguageVersion is trimmed, then truncated to the first two
+//     dot-separated components so "3.11", "3.11.4", and "3.11.x" all
+//     collapse to "3.11" (the form the catalog uses).
 func buildpackPythonVersion(b *spec.Build) string {
 	if b == nil || b.BuildpackBuild == nil {
 		return ""
 	}
 	bp := b.BuildpackBuild.Buildpack
-	if !strings.EqualFold(bp.Language, string(utils.LanguagePython)) {
+	if bp.Language != string(utils.LanguagePython) {
 		return ""
 	}
 	if bp.LanguageVersion == nil {
 		return ""
 	}
-	// Buildpack LanguageVersion is bare-minor (e.g. "3.11"); the catalog's
-	// PythonVersions uses the same shape, so no normalization needed.
-	return strings.TrimSpace(*bp.LanguageVersion)
+	raw := strings.TrimSpace(*bp.LanguageVersion)
+	if raw == "" {
+		return ""
+	}
+	parts := strings.SplitN(raw, ".", 3)
+	if len(parts) < 2 {
+		return ""
+	}
+	major, minor := strings.TrimSpace(parts[0]), strings.TrimSpace(parts[1])
+	if major == "" || minor == "" {
+		return ""
+	}
+	return major + "." + minor
 }
 
 // validateEffectivePythonInstrumentationPair resolves the instrumentation

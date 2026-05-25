@@ -21,6 +21,7 @@ import (
 	"testing"
 
 	"github.com/wso2/agent-manager/agent-manager-service/instrumentation"
+	"github.com/wso2/agent-manager/agent-manager-service/spec"
 )
 
 func TestValidateInstrumentationVersion_UsesCatalog(t *testing.T) {
@@ -85,6 +86,45 @@ func TestValidateEffectivePair_FallsBackToDefault(t *testing.T) {
 	}
 	if !strings.Contains(err.Error(), "3.13") || !strings.Contains(err.Error(), "0.2.1") {
 		t.Errorf("error %q should name the resolved default version, not just nil", err)
+	}
+}
+
+func TestBuildpackPythonVersion_Normalises(t *testing.T) {
+	mk := func(lang string, version *string) *spec.Build {
+		b := spec.BuildpackBuildAsBuild(&spec.BuildpackBuild{
+			Buildpack: spec.BuildpackConfig{
+				Language:        lang,
+				LanguageVersion: version,
+			},
+		})
+		return &b
+	}
+	strPtr := func(s string) *string { return &s }
+
+	cases := []struct {
+		name string
+		in   *spec.Build
+		want string
+	}{
+		{"bare minor", mk("python", strPtr("3.11")), "3.11"},
+		{"with patch", mk("python", strPtr("3.11.4")), "3.11"},
+		{"with x", mk("python", strPtr("3.11.x")), "3.11"},
+		{"leading whitespace", mk("python", strPtr("  3.11  ")), "3.11"},
+		{"whitespace only", mk("python", strPtr("   ")), ""},
+		{"empty", mk("python", strPtr("")), ""},
+		{"capital P language", mk("Python", strPtr("3.11")), ""},
+		{"non python language", mk("nodejs", strPtr("20")), ""},
+		{"single component", mk("python", strPtr("3")), ""},
+		{"nil version", mk("python", nil), ""},
+		{"nil build", nil, ""},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			got := buildpackPythonVersion(tc.in)
+			if got != tc.want {
+				t.Errorf("buildpackPythonVersion = %q, want %q", got, tc.want)
+			}
+		})
 	}
 }
 
