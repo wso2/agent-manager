@@ -507,6 +507,47 @@ func (s *agentManagerService) validateInstrumentationVersion(version string) err
 	return fmt.Errorf("%w: instrumentationVersion %q is not supported by this deployment; supported: %v", utils.ErrInvalidInput, version, supported)
 }
 
+// buildpackPythonVersion returns the buildpack-configured Python version
+// (bare-minor like "3.11") when the build is a Python buildpack build;
+// returns "" otherwise. Used by CreateAgent to pair-check Python with the
+// chosen instrumentation version.
+func buildpackPythonVersion(b *spec.Build) string {
+	if b == nil || b.BuildpackBuild == nil {
+		return ""
+	}
+	bp := b.BuildpackBuild.Buildpack
+	if !strings.EqualFold(bp.Language, string(utils.LanguagePython)) {
+		return ""
+	}
+	if bp.LanguageVersion == nil {
+		return ""
+	}
+	// Buildpack LanguageVersion is bare-minor (e.g. "3.11"); the catalog's
+	// PythonVersions uses the same shape, so no normalization needed.
+	return strings.TrimSpace(*bp.LanguageVersion)
+}
+
+// validatePythonInstrumentationPair rejects an agent whose instrumentation
+// version doesn't cover the chosen Python version. Both values are assumed
+// to have passed their individual validations already; this exists because
+// each catalog entry's pythonVersions field constrains which Python a
+// version supports (the image tag is python-ABI-locked).
+func (s *agentManagerService) validatePythonInstrumentationPair(pythonVersion, instrumentationVersion string) error {
+	entry, ok := instrumentation.GetCatalog().Get(instrumentationVersion)
+	if !ok {
+		// Should have been caught by validateInstrumentationVersion;
+		// defensive only.
+		return fmt.Errorf("%w: instrumentationVersion %q not in catalog", utils.ErrInvalidInput, instrumentationVersion)
+	}
+	for _, p := range entry.PythonVersions {
+		if p == pythonVersion {
+			return nil
+		}
+	}
+	return fmt.Errorf("%w: instrumentation %q does not support python %q (supports: %v)",
+		utils.ErrInvalidInput, instrumentationVersion, pythonVersion, entry.PythonVersions)
+}
+
 // persistInstrumentationConfig saves the instrumentation config to the database.
 // instrumentationVersion is nil when the caller did not pin a specific version —
 // the column stays NULL and the resolver falls back to the platform default.
@@ -758,6 +799,11 @@ func (s *agentManagerService) CreateAgent(ctx context.Context, orgName string, p
 		if v := req.Configurations.InstrumentationVersion.Get(); v != nil {
 			if err := s.validateInstrumentationVersion(*v); err != nil {
 				return err
+			}
+			if py := buildpackPythonVersion(req.Build); py != "" {
+				if err := s.validatePythonInstrumentationPair(py, *v); err != nil {
+					return err
+				}
 			}
 		}
 	}
