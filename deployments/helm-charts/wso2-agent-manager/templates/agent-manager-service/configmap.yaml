@@ -19,6 +19,7 @@ data:
   AGENT_WORKLOAD_CORS_ALLOWED_ORIGIN: {{ .Values.agentManagerService.agentWorkload.cors.allowedOrigin | quote }}
   AGENT_WORKLOAD_CORS_ALLOWED_METHODS: {{ .Values.agentManagerService.agentWorkload.cors.allowedMethods | quote }}
   AGENT_WORKLOAD_CORS_ALLOWED_HEADERS: {{ .Values.agentManagerService.agentWorkload.cors.allowedHeaders | quote }}
+  AGENT_WORKLOAD_CORS_ALLOW_CREDENTIALS: {{ .Values.agentManagerService.agentWorkload.cors.allowCredentials | quote }}
   API_KEY_HEADER: {{ .Values.agentManagerService.config.apiKey.header | quote }}
   KUBECONFIG: {{ .Values.agentManagerService.config.kubeconfig | quote }}
   OTEL_TRACELOOP_TRACE_CONTENT: {{ .Values.agentManagerService.config.otel.traceContent | quote }}

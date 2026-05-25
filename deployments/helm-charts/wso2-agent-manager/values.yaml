@@ -232,6 +232,7 @@ agentManagerService:
       allowedOrigin: "http://localhost:3000"
       allowedMethods: "GET,POST,PUT,DELETE,PATCH,OPTIONS"
       allowedHeaders: "authorization,Content-Type,Origin,X-API-Key"
+      allowCredentials: false
 
   # Pod-level configurations
   podAnnotations: {}

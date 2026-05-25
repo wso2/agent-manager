@@ -540,7 +540,7 @@ func (s *agentManagerService) persistInstrumentationConfig(ctx context.Context, 
 		CORSAllowOrigins:          strings.Split(defaultCORS.AllowOrigin, ","),
 		CORSAllowMethods:          strings.Split(defaultCORS.AllowMethods, ","),
 		CORSAllowHeaders:          strings.Split(defaultCORS.AllowHeaders, ","),
-		CORSAllowCredentials:      false,
+		CORSAllowCredentials:      defaultCORS.AllowCredentials,
 	}
 
 	if err := s.agentConfigRepo.Upsert(agentConfig); err != nil {
@@ -685,7 +685,6 @@ func (s *agentManagerService) GetAgent(ctx context.Context, orgName string, proj
 				// No config in DB - use defaults for display purposes
 				defaultEnabled := true
 				defaultCORSEnabled := true
-				defaultAllowCredentials := false
 				defCORS := config.GetAgentWorkloadConfig().CORS
 				agent.Configurations = &models.Configurations{
 					EnableAutoInstrumentation: &defaultEnabled,
@@ -695,7 +694,7 @@ func (s *agentManagerService) GetAgent(ctx context.Context, orgName string, proj
 						AllowOrigin:      strings.Split(defCORS.AllowOrigin, ","),
 						AllowMethods:     strings.Split(defCORS.AllowMethods, ","),
 						AllowHeaders:     strings.Split(defCORS.AllowHeaders, ","),
-						AllowCredentials: &defaultAllowCredentials,
+						AllowCredentials: &defCORS.AllowCredentials,
 					},
 				}
 			} else if configErr != nil {
@@ -2005,7 +2004,7 @@ func (s *agentManagerService) DeployAgent(ctx context.Context, orgName string, p
 	corsAllowOrigins := strings.Split(defaultCORS.AllowOrigin, ",")
 	corsAllowMethods := strings.Split(defaultCORS.AllowMethods, ",")
 	corsAllowHeaders := strings.Split(defaultCORS.AllowHeaders, ",")
-	corsAllowCredentials := false
+	corsAllowCredentials := defaultCORS.AllowCredentials
 	if existingConfig != nil {
 		corsEnabled = existingConfig.CORSEnabled
 		if len(existingConfig.CORSAllowOrigins) > 0 {
@@ -2167,6 +2166,8 @@ func (s *agentManagerService) DeployAgent(ctx context.Context, orgName string, p
 		} else {
 			traitOpts = append(traitOpts, client.WithUpstreamBasePath(config.GetConfig().DefaultChatAPI.DefaultBasePath))
 		}
+		// CORS must be first so preflight OPTIONS requests are handled before
+		// any auth policy runs. api-key-auth is always appended after.
 		var policies []map[string]interface{}
 		if corsEnabled {
 			policies = append(policies, client.CORSPolicy(corsAllowOrigins, corsAllowMethods, corsAllowHeaders, corsAllowCredentials))

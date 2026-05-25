@@ -17,6 +17,7 @@
 package repositories
 
 import (
+	"encoding/json"
 	"errors"
 
 	"gorm.io/gorm"
@@ -52,6 +53,12 @@ func NewAgentConfigRepo(db *gorm.DB) AgentConfigRepository {
 
 // Upsert creates or updates an agent config for a specific environment
 func (r *AgentConfigRepo) Upsert(config *models.AgentConfig) error {
+	// clause.Assignments bypasses GORM's serializer:json tag, so []string fields
+	// must be pre-serialized to JSON strings and cast to jsonb explicitly.
+	originsJSON, _ := json.Marshal(config.CORSAllowOrigins)
+	methodsJSON, _ := json.Marshal(config.CORSAllowMethods)
+	headersJSON, _ := json.Marshal(config.CORSAllowHeaders)
+
 	// Use Select("*") to force GORM to include all fields including boolean false values
 	// Without this, GORM skips "zero value" fields like false booleans during Create
 	return r.db.Select("*").Clauses(clause.OnConflict{
@@ -61,9 +68,9 @@ func (r *AgentConfigRepo) Upsert(config *models.AgentConfig) error {
 			"instrumentation_version":     config.InstrumentationVersion,
 			"enable_api_key_security":     config.EnableApiKeySecurity,
 			"cors_enabled":                config.CORSEnabled,
-			"cors_allow_origins":          config.CORSAllowOrigins,
-			"cors_allow_methods":          config.CORSAllowMethods,
-			"cors_allow_headers":          config.CORSAllowHeaders,
+			"cors_allow_origins":          clause.Expr{SQL: "?::jsonb", Vars: []interface{}{string(originsJSON)}},
+			"cors_allow_methods":          clause.Expr{SQL: "?::jsonb", Vars: []interface{}{string(methodsJSON)}},
+			"cors_allow_headers":          clause.Expr{SQL: "?::jsonb", Vars: []interface{}{string(headersJSON)}},
 			"cors_allow_credentials":      config.CORSAllowCredentials,
 			"updated_at":                  clause.Expr{SQL: "NOW()"},
 		}),
