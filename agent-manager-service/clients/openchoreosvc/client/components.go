@@ -2138,15 +2138,16 @@ func APIKeyAuthPolicy() map[string]interface{} {
 	}
 }
 
-// CORSPolicy returns a CORS policy map with the given allowed origins, methods, and headers.
-func CORSPolicy(allowedOrigins, allowedMethods, allowedHeaders []string) map[string]interface{} {
+// CORSPolicy returns a CORS policy map with the given allowed origins, methods, headers, and credentials flag.
+func CORSPolicy(allowedOrigins, allowedMethods, allowedHeaders []string, allowCredentials bool) map[string]interface{} {
 	return map[string]interface{}{
 		"name":    "cors",
 		"version": "v1",
 		"params": map[string]interface{}{
-			"allowedOrigins": allowedOrigins,
-			"allowedMethods": allowedMethods,
-			"allowedHeaders": allowedHeaders,
+			"allowedOrigins":   allowedOrigins,
+			"allowedMethods":   allowedMethods,
+			"allowedHeaders":   allowedHeaders,
+			"allowCredentials": allowCredentials,
 		},
 	}
 }

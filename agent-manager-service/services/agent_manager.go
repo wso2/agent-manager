@@ -365,6 +365,7 @@ func (s *agentManagerService) buildCreateTraitRequests(ctx context.Context, orgN
 				strings.Split(corsConfig.AllowOrigin, ","),
 				strings.Split(corsConfig.AllowMethods, ","),
 				strings.Split(corsConfig.AllowHeaders, ","),
+				false, // allowCredentials defaults to false at agent creation
 			),
 			client.APIKeyAuthPolicy(),
 		}
@@ -526,6 +527,7 @@ func (s *agentManagerService) persistInstrumentationConfig(ctx context.Context, 
 		return
 	}
 
+	defaultCORS := config.GetAgentWorkloadConfig().CORS
 	agentConfig := &models.AgentConfig{
 		OrgName:                   orgName,
 		ProjectName:               projectName,
@@ -534,6 +536,11 @@ func (s *agentManagerService) persistInstrumentationConfig(ctx context.Context, 
 		EnableAutoInstrumentation: enableAutoInstrumentation,
 		InstrumentationVersion:    instrumentationVersion,
 		EnableApiKeySecurity:      true,
+		CORSEnabled:               true,
+		CORSAllowOrigins:          strings.Split(defaultCORS.AllowOrigin, ","),
+		CORSAllowMethods:          strings.Split(defaultCORS.AllowMethods, ","),
+		CORSAllowHeaders:          strings.Split(defaultCORS.AllowHeaders, ","),
+		CORSAllowCredentials:      false,
 	}
 
 	if err := s.agentConfigRepo.Upsert(agentConfig); err != nil {
@@ -675,11 +682,21 @@ func (s *agentManagerService) GetAgent(ctx context.Context, orgName string, proj
 		if lowestEnv != "" {
 			agentConfig, configErr := s.agentConfigRepo.Get(orgName, projectName, agentName, lowestEnv)
 			if errors.Is(configErr, repositories.ErrAgentConfigNotFound) {
-				// No config in DB - default both to true for display purposes
+				// No config in DB - use defaults for display purposes
 				defaultEnabled := true
+				defaultCORSEnabled := true
+				defaultAllowCredentials := false
+				defCORS := config.GetAgentWorkloadConfig().CORS
 				agent.Configurations = &models.Configurations{
 					EnableAutoInstrumentation: &defaultEnabled,
 					EnableApiKeySecurity:      &defaultEnabled,
+					CorsConfig: &models.CorsConfig{
+						Enabled:          &defaultCORSEnabled,
+						AllowOrigin:      strings.Split(defCORS.AllowOrigin, ","),
+						AllowMethods:     strings.Split(defCORS.AllowMethods, ","),
+						AllowHeaders:     strings.Split(defCORS.AllowHeaders, ","),
+						AllowCredentials: &defaultAllowCredentials,
+					},
 				}
 			} else if configErr != nil {
 				s.logger.Warn("Failed to read agent config from database", "agentName", agentName, "environment", lowestEnv, "error", configErr)
@@ -688,6 +705,13 @@ func (s *agentManagerService) GetAgent(ctx context.Context, orgName string, proj
 					EnableAutoInstrumentation: &agentConfig.EnableAutoInstrumentation,
 					InstrumentationVersion:    agentConfig.InstrumentationVersion,
 					EnableApiKeySecurity:      &agentConfig.EnableApiKeySecurity,
+					CorsConfig: &models.CorsConfig{
+						Enabled:          &agentConfig.CORSEnabled,
+						AllowOrigin:      agentConfig.CORSAllowOrigins,
+						AllowMethods:     agentConfig.CORSAllowMethods,
+						AllowHeaders:     agentConfig.CORSAllowHeaders,
+						AllowCredentials: &agentConfig.CORSAllowCredentials,
+					},
 				}
 			}
 
@@ -1975,6 +1999,52 @@ func (s *agentManagerService) DeployAgent(ctx context.Context, orgName string, p
 		enableApiKeySecurity = existingConfig.EnableApiKeySecurity
 	}
 
+	// Resolve CORS config: request > DB > env-var defaults.
+	defaultCORS := config.GetAgentWorkloadConfig().CORS
+	corsEnabled := true
+	corsAllowOrigins := strings.Split(defaultCORS.AllowOrigin, ",")
+	corsAllowMethods := strings.Split(defaultCORS.AllowMethods, ",")
+	corsAllowHeaders := strings.Split(defaultCORS.AllowHeaders, ",")
+	corsAllowCredentials := false
+	if existingConfig != nil {
+		corsEnabled = existingConfig.CORSEnabled
+		if len(existingConfig.CORSAllowOrigins) > 0 {
+			corsAllowOrigins = existingConfig.CORSAllowOrigins
+		}
+		if len(existingConfig.CORSAllowMethods) > 0 {
+			corsAllowMethods = existingConfig.CORSAllowMethods
+		}
+		if len(existingConfig.CORSAllowHeaders) > 0 {
+			corsAllowHeaders = existingConfig.CORSAllowHeaders
+		}
+		corsAllowCredentials = existingConfig.CORSAllowCredentials
+	}
+	if req.HasCorsConfig() {
+		cc := req.GetCorsConfig()
+		if cc.Enabled != nil {
+			corsEnabled = *cc.Enabled
+		}
+		if len(cc.AllowOrigin) > 0 {
+			corsAllowOrigins = cc.AllowOrigin
+		}
+		if len(cc.AllowMethods) > 0 {
+			corsAllowMethods = cc.AllowMethods
+		}
+		if len(cc.AllowHeaders) > 0 {
+			corsAllowHeaders = cc.AllowHeaders
+		}
+		if cc.AllowCredentials != nil {
+			corsAllowCredentials = *cc.AllowCredentials
+		}
+	}
+	if corsAllowCredentials {
+		for _, origin := range corsAllowOrigins {
+			if origin == "*" {
+				return "", fmt.Errorf("corsConfig.allowCredentials cannot be true when allowOrigin contains \"*\"")
+			}
+		}
+	}
+
 	var existingInstrumentationVersion *string
 	if existingConfig != nil {
 		existingInstrumentationVersion = existingConfig.InstrumentationVersion
@@ -2097,13 +2167,9 @@ func (s *agentManagerService) DeployAgent(ctx context.Context, orgName string, p
 		} else {
 			traitOpts = append(traitOpts, client.WithUpstreamBasePath(config.GetConfig().DefaultChatAPI.DefaultBasePath))
 		}
-		corsConfig := config.GetAgentWorkloadConfig().CORS
-		policies := []map[string]interface{}{
-			client.CORSPolicy(
-				strings.Split(corsConfig.AllowOrigin, ","),
-				strings.Split(corsConfig.AllowMethods, ","),
-				strings.Split(corsConfig.AllowHeaders, ","),
-			),
+		var policies []map[string]interface{}
+		if corsEnabled {
+			policies = append(policies, client.CORSPolicy(corsAllowOrigins, corsAllowMethods, corsAllowHeaders, corsAllowCredentials))
 		}
 		if enableApiKeySecurity {
 			policies = append(policies, client.APIKeyAuthPolicy())
@@ -2151,6 +2217,11 @@ func (s *agentManagerService) DeployAgent(ctx context.Context, orgName string, p
 			EnableAutoInstrumentation: enableAutoInstrumentation,
 			InstrumentationVersion:    existingInstrumentationVersion,
 			EnableApiKeySecurity:      enableApiKeySecurity,
+			CORSEnabled:               corsEnabled,
+			CORSAllowOrigins:          corsAllowOrigins,
+			CORSAllowMethods:          corsAllowMethods,
+			CORSAllowHeaders:          corsAllowHeaders,
+			CORSAllowCredentials:      corsAllowCredentials,
 		}
 		if configErr := s.agentConfigRepo.Upsert(agentConfig); configErr != nil {
 			s.logger.Error("Failed to persist instrumentation config to database", "agentName", agentName, "environment", lowestEnv, "error", configErr)
