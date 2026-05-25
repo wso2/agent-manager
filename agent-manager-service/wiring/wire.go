@@ -20,6 +20,7 @@
 package wiring
 
 import (
+	"fmt"
 	"log/slog"
 	"time"
 
@@ -142,8 +143,39 @@ func ProvideInstrumentationCatalog(cfg config.Config) (*instrumentation.Catalog,
 	if err != nil {
 		return nil, err
 	}
+	if err := validateDefaultCoversBuildpackPython(cat); err != nil {
+		return nil, err
+	}
 	instrumentation.SetCatalog(cat)
 	return cat, nil
+}
+
+// validateDefaultCoversBuildpackPython rejects a catalog whose default
+// instrumentation entry doesn't cover any Python the buildpack provider
+// can build. Without this check a misconfigured override (e.g. an
+// extension entry that narrows the default's pythonVersions to a value
+// the buildpack can't build) lets the server boot cleanly, then the
+// create-agent form is unusable: no Python the user can pick is
+// compatible with the platform default. Failing fast here surfaces the
+// misconfiguration at helm-upgrade time instead.
+func validateDefaultCoversBuildpackPython(cat *instrumentation.Catalog) error {
+	entry, ok := cat.Get(cat.Default())
+	if !ok {
+		// Already validated by Load, but be defensive.
+		return fmt.Errorf("default instrumentation version %q not in effective set", cat.Default())
+	}
+	bpPython := utils.SupportedPythonVersions()
+	for _, p := range entry.PythonVersions {
+		for _, bp := range bpPython {
+			if p == bp {
+				return nil
+			}
+		}
+	}
+	return fmt.Errorf(
+		"default instrumentation version %q supports python %v but the buildpack provider supports %v; no overlap means the create-agent form would offer no valid combination",
+		cat.Default(), entry.PythonVersions, bpPython,
+	)
 }
 
 // SupportedPythonVersions is a distinct type so Wire can disambiguate
