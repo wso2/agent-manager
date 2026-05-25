@@ -65,3 +65,40 @@ func TestValidatePythonInstrumentationPair(t *testing.T) {
 		t.Errorf("error %q should mention both python and instrumentation versions", err)
 	}
 }
+
+func TestValidateEffectivePair_FallsBackToDefault(t *testing.T) {
+	instrumentation.SetCatalog(instrumentation.NewForTest(
+		[]instrumentation.Version{
+			{Version: "0.2.1", PythonVersions: []string{"3.10", "3.11"}, ImageRepository: "x"},
+		},
+		"0.2.1",
+	))
+	s := &agentManagerService{}
+
+	// nil requested version means "use platform default", which is 0.2.1.
+	if err := s.validateEffectivePythonInstrumentationPair("3.11", nil); err != nil {
+		t.Errorf("3.11 + default(0.2.1) should be valid: %v", err)
+	}
+	err := s.validateEffectivePythonInstrumentationPair("3.13", nil)
+	if err == nil {
+		t.Fatal("3.13 + default(0.2.1) should be invalid")
+	}
+	if !strings.Contains(err.Error(), "3.13") || !strings.Contains(err.Error(), "0.2.1") {
+		t.Errorf("error %q should name the resolved default version, not just nil", err)
+	}
+}
+
+func TestValidateEffectivePair_NoPythonIsNoOp(t *testing.T) {
+	instrumentation.SetCatalog(instrumentation.NewForTest(
+		[]instrumentation.Version{
+			{Version: "0.2.1", PythonVersions: []string{"3.11"}, ImageRepository: "x"},
+		},
+		"0.2.1",
+	))
+	s := &agentManagerService{}
+
+	// Empty python means the agent isn't a python-buildpack build.
+	if err := s.validateEffectivePythonInstrumentationPair("", nil); err != nil {
+		t.Errorf("empty python should be a no-op: %v", err)
+	}
+}

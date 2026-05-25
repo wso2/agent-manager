@@ -527,6 +527,24 @@ func buildpackPythonVersion(b *spec.Build) string {
 	return strings.TrimSpace(*bp.LanguageVersion)
 }
 
+// validateEffectivePythonInstrumentationPair resolves the instrumentation
+// version that will actually apply to the agent (the request's explicit
+// pin if non-nil, otherwise the platform default from the catalog) and
+// pair-checks it against pythonVersion. An empty pythonVersion means the
+// agent isn't a python-buildpack build and the check is a no-op.
+func (s *agentManagerService) validateEffectivePythonInstrumentationPair(pythonVersion string, requestedVersion *string) error {
+	if pythonVersion == "" {
+		return nil
+	}
+	effective := ""
+	if requestedVersion != nil {
+		effective = *requestedVersion
+	} else {
+		effective = instrumentation.GetCatalog().Default()
+	}
+	return s.validatePythonInstrumentationPair(pythonVersion, effective)
+}
+
 // validatePythonInstrumentationPair rejects an agent whose instrumentation
 // version doesn't cover the chosen Python version. Both values are assumed
 // to have passed their individual validations already; this exists because
@@ -795,16 +813,26 @@ func (s *agentManagerService) ListAgents(ctx context.Context, orgName string, pr
 }
 
 func (s *agentManagerService) CreateAgent(ctx context.Context, orgName string, projectName string, req *spec.CreateAgentRequest) error {
+	var requestedVersion *string
+	autoInstr := true
 	if req.Configurations != nil {
-		if v := req.Configurations.InstrumentationVersion.Get(); v != nil {
-			if err := s.validateInstrumentationVersion(*v); err != nil {
+		requestedVersion = req.Configurations.InstrumentationVersion.Get()
+		if req.Configurations.EnableAutoInstrumentation != nil {
+			autoInstr = *req.Configurations.EnableAutoInstrumentation
+		}
+		if requestedVersion != nil {
+			if err := s.validateInstrumentationVersion(*requestedVersion); err != nil {
 				return err
 			}
-			if py := buildpackPythonVersion(req.Build); py != "" {
-				if err := s.validatePythonInstrumentationPair(py, *v); err != nil {
-					return err
-				}
-			}
+		}
+	}
+	// Pair-check the python/instrumentation combo whenever the deploy will
+	// actually use this version: either the user pinned one (intent must
+	// be consistent), or auto-instrumentation is on and the default will
+	// be injected (otherwise the init-container image won't exist).
+	if requestedVersion != nil || autoInstr {
+		if err := s.validateEffectivePythonInstrumentationPair(buildpackPythonVersion(req.Build), requestedVersion); err != nil {
+			return err
 		}
 	}
 
@@ -1314,6 +1342,39 @@ func (s *agentManagerService) UpdateAgentBuildParameters(ctx context.Context, or
 	if req.Provisioning.Type != existingAgent.Provisioning.Type {
 		s.logger.Error("Cannot change provisioning type", "existingType", existingAgent.Provisioning.Type, "requestedType", req.Provisioning.Type)
 		return nil, fmt.Errorf("%w: provisioning type cannot be changed", utils.ErrImmutableFieldChange)
+	}
+
+	// Re-validate the python/instrumentation pair. The build params
+	// payload can flip the agent's Python version, and optionally
+	// override its pinned instrumentation, either of which would
+	// otherwise leave the deploy pointing at an init-container image
+	// tag that doesn't exist.
+	if py := buildpackPythonVersion(&req.Build); py != "" {
+		var requestedVersion *string
+		if req.Configurations != nil {
+			requestedVersion = req.Configurations.InstrumentationVersion.Get()
+			if requestedVersion != nil {
+				if err := s.validateInstrumentationVersion(*requestedVersion); err != nil {
+					return nil, err
+				}
+			}
+		}
+		// No new pin in the request: validate against the agent's
+		// currently-pinned version (or the platform default if none).
+		if requestedVersion == nil {
+			pinned, lookupErr := s.lookupAgentInstrumentationVersion(ctx, orgName, projectName, agentName)
+			switch {
+			case errors.Is(lookupErr, ErrInstrumentationVersionNotPinned):
+				// Leave nil; helper resolves to catalog default.
+			case lookupErr != nil:
+				return nil, lookupErr
+			default:
+				requestedVersion = pinned
+			}
+		}
+		if err := s.validateEffectivePythonInstrumentationPair(py, requestedVersion); err != nil {
+			return nil, err
+		}
 	}
 
 	// Update agent build parameters in OpenChoreo
