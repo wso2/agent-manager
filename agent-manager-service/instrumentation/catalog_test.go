@@ -112,3 +112,47 @@ func TestLoad_ExtensionMissingRequiredFields(t *testing.T) {
 		t.Fatal("expected error for missing imageRepository")
 	}
 }
+
+func TestAllAndGet_ReturnDefensiveCopies(t *testing.T) {
+	c, err := Load("", "0.2.1")
+	if err != nil {
+		t.Fatalf("Load: %v", err)
+	}
+
+	// All(): mutating the returned slice or the nested PythonVersions
+	// must not affect a subsequent read.
+	first := c.All()
+	if len(first) == 0 || len(first[0].PythonVersions) == 0 {
+		t.Fatalf("expected non-empty baseline; got %+v", first)
+	}
+	first[0].Version = "tampered"
+	first[0].PythonVersions[0] = "tampered"
+
+	second := c.All()
+	if second[0].Version == "tampered" {
+		t.Error("All() mutation leaked into catalog (Version field)")
+	}
+	if second[0].PythonVersions[0] == "tampered" {
+		t.Error("All() mutation leaked into catalog (PythonVersions slice)")
+	}
+
+	// Get(): same contract.
+	got, ok := c.Get("0.2.1")
+	if !ok {
+		t.Fatal("Get(0.2.1) missing")
+	}
+	got.PythonVersions[0] = "tampered"
+	again, _ := c.Get("0.2.1")
+	if again.PythonVersions[0] == "tampered" {
+		t.Error("Get() mutation leaked into catalog")
+	}
+}
+
+func TestSetCatalog_PanicsOnNil(t *testing.T) {
+	defer func() {
+		if r := recover(); r == nil {
+			t.Fatal("SetCatalog(nil) should panic")
+		}
+	}()
+	SetCatalog(nil)
+}

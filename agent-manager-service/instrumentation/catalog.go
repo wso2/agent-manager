@@ -132,7 +132,15 @@ func validateExtensionEntry(v Version) error {
 
 // All returns every version in the effective catalog. Ordering is
 // unspecified; callers that need deterministic ordering must sort.
-func (c *Catalog) All() []Version { return c.versions }
+// The returned slice and each entry's PythonVersions are copies so a
+// caller cannot mutate catalog internals.
+func (c *Catalog) All() []Version {
+	out := make([]Version, len(c.versions))
+	for i := range c.versions {
+		out[i] = cloneVersion(c.versions[i])
+	}
+	return out
+}
 
 // Default returns the platform default instrumentation version.
 func (c *Catalog) Default() string { return c.defaultVersion }
@@ -143,10 +151,25 @@ func (c *Catalog) Has(v string) bool {
 	return ok
 }
 
-// Get returns the catalog entry for the given version.
+// Get returns a copy of the catalog entry for the given version, so a
+// caller mutating the returned PythonVersions slice cannot corrupt the
+// catalog state shared across requests.
 func (c *Catalog) Get(v string) (Version, bool) {
 	got, ok := c.byVersion[v]
-	return got, ok
+	if !ok {
+		return Version{}, false
+	}
+	return cloneVersion(got), true
+}
+
+// cloneVersion returns a Version whose slice fields are independent
+// copies of the input's.
+func cloneVersion(v Version) Version {
+	cp := v
+	if v.PythonVersions != nil {
+		cp.PythonVersions = append([]string(nil), v.PythonVersions...)
+	}
+	return cp
 }
 
 // pkgCatalog is the process-wide default catalog, installed once at
@@ -167,7 +190,13 @@ var (
 
 // SetCatalog installs the process-wide catalog. Call once at startup
 // after Load succeeds. Subsequent calls overwrite the prior catalog.
+// Panics on nil so a boot-time wiring bug fails at the source instead
+// of deferring the failure to the next GetCatalog call from a request
+// handler.
 func SetCatalog(c *Catalog) {
+	if c == nil {
+		panic("instrumentation.SetCatalog called with nil catalog")
+	}
 	pkgCatalogMu.Lock()
 	pkgCatalog = c
 	pkgCatalogMu.Unlock()
