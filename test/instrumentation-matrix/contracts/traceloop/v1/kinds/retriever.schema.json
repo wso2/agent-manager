@@ -1,0 +1,20 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "traceloop/v1/kinds/retriever.schema.json",
+  "title": "Traceloop v1 — retriever span",
+  "type": "object",
+  "properties": {
+    "name": { "type": "string", "minLength": 1 },
+    "kind": { "type": "string" },
+    "attributes": {
+      "type": "object",
+      "required": ["db.system", "db.vector.query.top_k"],
+      "properties": {
+        "db.system":              { "type": "string", "minLength": 1 },
+        "db.vector.query.top_k":  { "type": "integer", "minimum": 1 }
+      },
+      "additionalProperties": true
+    }
+  },
+  "required": ["name", "kind", "attributes"]
+}

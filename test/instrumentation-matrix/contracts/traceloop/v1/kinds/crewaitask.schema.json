@@ -1,0 +1,20 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "traceloop/v1/kinds/crewaitask.schema.json",
+  "title": "Traceloop v1 — CrewAI task span",
+  "type": "object",
+  "properties": {
+    "name": { "type": "string", "minLength": 1 },
+    "kind": { "type": "string" },
+    "attributes": {
+      "type": "object",
+      "required": [],
+      "properties": {
+        "crewai.task.name":        { "type": "string" },
+        "crewai.task.description": { "type": "string" }
+      },
+      "additionalProperties": true
+    }
+  },
+  "required": ["name", "kind", "attributes"]
+}
