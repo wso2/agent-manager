@@ -1,0 +1,19 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "amp-instrumentation-matrix"
+version = "0.0.0"
+description = "Compatibility matrix test suite for AMP instrumentation"
+requires-python = ">=3.10"
+
+[tool.setuptools]
+packages = ["harness", "providers"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests", "harness"]
+addopts = "-q --strict-markers"
+markers = [
+    "vcr: mark a test as using a VCR cassette",
+]
