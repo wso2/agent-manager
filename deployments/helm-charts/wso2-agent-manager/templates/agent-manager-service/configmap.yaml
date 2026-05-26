@@ -24,6 +24,8 @@ data:
   KUBECONFIG: {{ .Values.agentManagerService.config.kubeconfig | quote }}
   OTEL_TRACELOOP_TRACE_CONTENT: {{ .Values.agentManagerService.config.otel.traceContent | quote }}
   OTEL_EXPORTER_OTLP_ENDPOINT: {{ .Values.agentManagerService.config.otel.exporterEndpoint | quote }}
+  OTEL_DEFAULT_INSTRUMENTATION_VERSION: {{ .Values.agentManagerService.config.otel.defaultInstrumentationVersion | quote }}
+  INSTRUMENTATION_EXTENSION_PATH: "/etc/amp/instrumentation-extension.yaml"
   KEY_MANAGER_ISSUER: {{ .Values.agentManagerService.config.keyManager.issuer | quote }}                                         
   KEY_MANAGER_AUDIENCE: {{ .Values.agentManagerService.config.keyManager.audience | quote }}                                   
   KEY_MANAGER_JWKS_URL: {{ .Values.agentManagerService.config.keyManager.jwksUrl | quote }}                                         

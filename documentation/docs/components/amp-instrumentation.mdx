@@ -171,8 +171,20 @@ Each AMP-instrumentation version is a single semver shared by the PyPI package (
 
 When AMP raises the platform default, existing agents stay on the version they were pinned to.
 
+### Bundled baseline
+
+These are the versions that ship with this AMP release:
+
 | AMP instrumentation version | Traceloop SDK (`traceloop-sdk`) | Supported Python versions | Init-container image tag |
 |---|---|---|---|
 | 0.2.1 | 0.60.0 | 3.10, 3.11, 3.12, 3.13 | `ghcr.io/wso2/amp-python-instrumentation-provider:0.2.1-python<X.Y>` |
 
-The canonical source for this matrix is [`.github/release-config.json`](https://github.com/wso2/agent-manager/blob/main/.github/release-config.json) under the `python-instrumentation-provider` key. Maintainers cutting a new version: see [`python-instrumentation-provider/RELEASING.md`](https://github.com/wso2/agent-manager/blob/main/python-instrumentation-provider/RELEASING.md) for the release runbook.
+The canonical source for this table is [`.github/release-config.json`](https://github.com/wso2/agent-manager/blob/main/.github/release-config.json) under the `python-instrumentation-provider` key. Maintainers cutting a new version: see [`python-instrumentation-provider/RELEASING.md`](https://github.com/wso2/agent-manager/blob/main/python-instrumentation-provider/RELEASING.md) for the release runbook.
+
+### Why the Console may show more than this
+
+The version set a given install actually accepts is assembled at runtime from the bundled baseline above plus any extra entries the platform admin has added through the Helm chart. So when AMP publishes, say, `0.4.0` between AMP releases, an operator can make it selectable in the Console without upgrading the whole platform.
+
+If you're picking a version in the create-agent form and see something that isn't in the table above, your platform admin added it. The pinned `traceloop-sdk` and supported Python versions for those entries live in the operator's chart values.
+
+Operators: see [Instrumentation Catalog](../administration/instrumentation-catalog.mdx) for how to add a version, mirror images for air-gapped installs, and set the platform default.

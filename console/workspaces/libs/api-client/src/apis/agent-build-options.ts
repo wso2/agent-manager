@@ -16,23 +16,20 @@
  * under the License.
  */
 
-// AMP instrumentation + Python version options, fetched from
-// GET /api/v1/orgs/{orgName}/agent-build-options. Replaces the previously
-// hardcoded SUPPORTED_INSTRUMENTATION_VERSIONS / SUPPORTED_PYTHON_VERSIONS
-// constants; the server's instrumentation catalog is the source of truth.
-export type AgentBuildOptions = {
-  python: {
-    defaultVersion: string;
-    supportedVersions: string[];
-  };
-  instrumentation: {
-    defaultVersion: string;
-    versions: Array<{
-      version: string;
-      pythonVersions: string[];
-    }>;
-  };
-};
+import type { AgentBuildOptions } from "@agent-management-platform/types";
+import { encodeRequired, httpGET, SERVICE_BASE } from "../utils";
 
-export type InstrumentationVersionEntry =
-  AgentBuildOptions["instrumentation"]["versions"][number];
+export type AgentBuildOptionsPathParams = { orgName: string };
+
+export async function getAgentBuildOptions(
+  params: AgentBuildOptionsPathParams,
+  getToken?: () => Promise<string>,
+): Promise<AgentBuildOptions> {
+  const org = encodeRequired(params.orgName, "orgName");
+  const token = getToken ? await getToken() : undefined;
+  const res = await httpGET(`${SERVICE_BASE}/orgs/${org}/agent-build-options`, {
+    token,
+  });
+  if (!res.ok) throw await res.json();
+  return res.json();
+}

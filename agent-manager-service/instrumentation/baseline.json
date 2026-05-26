@@ -1,0 +1,13 @@
+[
+  {
+    "version": "0.2.1",
+    "traceloopSdk": "0.60.0",
+    "pythonVersions": [
+      "3.10",
+      "3.11",
+      "3.12",
+      "3.13"
+    ],
+    "imageRepository": "ghcr.io/wso2/amp-python-instrumentation-provider"
+  }
+]

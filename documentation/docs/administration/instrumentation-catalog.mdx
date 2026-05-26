@@ -1,0 +1,200 @@
+# Managing Instrumentation Versions
+
+How a platform admin controls which `amp-instrumentation` versions an AMP install will offer to agent authors. Internally this set is called the *instrumentation catalog*, and the rest of this page uses that name.
+
+## Why this exists
+
+A given AMP release ships with a known set of `amp-instrumentation` versions baked into the binary. That set is the *baseline*. AMP, however, cuts new `amp-instrumentation` versions independently of the product version, so the baseline goes stale between AMP releases. Rather than forcing every install to upgrade the whole platform just to pick up a new instrumentation, an operator can extend the catalog through Helm values.
+
+The Console's create-agent form, and the API that validates a chosen version on agent creation, both read from this catalog at runtime. There is no rebuild step on the operator side.
+
+## What's in the catalog
+
+Two layers, merged at server startup:
+
+1. **Bundled baseline.** Compiled into the `agent-manager-service` binary from `.github/release-config.json`. This is what every install gets out of the box with no extra configuration. The list is also visible in the [version mapping table](../components/amp-instrumentation.mdx#amp-instrumentation-version-mapping).
+2. **Operator extension.** A YAML list under `agentManagerService.config.otel.additionalInstrumentationVersions` in the Helm chart. Empty by default. Each entry describes one extra version the operator has vetted.
+
+The effective set is the union, deduplicated by `version`. When an extension entry uses a version that already appears in the baseline, the extension entry wins. (That is the mechanism for redirecting `imageRepository` when an installation mirrors images internally.)
+
+## Adding a version
+
+Walkthrough for adding a newly-published `amp-instrumentation` version to a running install. Examples use `0.4.0` as the placeholder — substitute the real version you're adding.
+
+### 1. Gather the facts about the version
+
+You need four pieces of information before editing anything:
+
+- The `traceloop-sdk` version this `amp-instrumentation` release pins.
+- The Python versions it supports.
+- The registry path you'll pull from.
+- (Implicit) The exact image tags AMP will assemble at deploy time.
+
+For 1 and 2, the canonical mapping lives in the [version mapping table](../components/amp-instrumentation.mdx#amp-instrumentation-version-mapping) on the user-facing instrumentation page, or directly in the `python-instrumentation-provider` array of [`.github/release-config.json`](https://github.com/wso2/agent-manager/blob/main/.github/release-config.json) on the AMP repo. For 3, use the public `ghcr.io/wso2/amp-python-instrumentation-provider` path if your cluster reaches the public internet, otherwise your internal mirror. For 4, AMP constructs the tag itself as `<imageRepository>:<version>-python<X.Y>`.
+
+### 2. (Internal registry only) Mirror the images
+
+Skip this if your cluster pulls from public `ghcr.io` directly.
+
+If you mirror images internally, pull each Python tag once from `ghcr.io` and push to your registry. See [Using an internal image registry](#using-an-internal-image-registry) below for the full procedure and a `docker pull/tag/push` example.
+
+### 3. Add the entry to your values.yaml
+
+Under `agentManagerService.config.otel.additionalInstrumentationVersions`, add an entry with all four fields:
+
+```yaml
+agentManagerService:
+  config:
+    otel:
+      additionalInstrumentationVersions:
+        - version: "0.4.0"
+          traceloopSdk: "0.65.0"
+          pythonVersions: ["3.10", "3.11", "3.12", "3.13"]
+          imageRepository: "ghcr.io/wso2/amp-python-instrumentation-provider"
+```
+
+(For an internal mirror, swap `imageRepository` to your registry path.)
+
+The list is additive. Keep any entries already there.
+
+#### Entry field reference
+
+| Field | What it is |
+|---|---|
+| `version` | The `amp-instrumentation` semver (matches the PyPI release and the init-container image tag). |
+| `traceloopSdk` | The pinned `traceloop-sdk` version. Informational at the API layer today; surfaces in operator-facing tooling and documents the SDK pin. |
+| `pythonVersions` | Bare-minor Python versions this `amp-instrumentation` version supports (`3.11`, not `3.11.4`). The init-container image is ABI-locked to the Python runtime, so this is a real constraint, not a hint. |
+| `imageRepository` | The registry path to the init-container image. The full tag the server constructs is `<imageRepository>:<version>-python<X.Y>`. Set this to your internal mirror when you're not pulling from `ghcr.io` directly. |
+
+`version`, `imageRepository`, and at least one entry in `pythonVersions` are required. A missing field is a startup error, not a silent default.
+
+### 4. (Optional) Promote to platform default
+
+Skip this if you only want the new version *available*, not pre-selected on new agents.
+
+To make `0.4.0` the version pre-selected on the create-agent form, set `defaultInstrumentationVersion` in the same `values.yaml`:
+
+```yaml
+agentManagerService:
+  config:
+    otel:
+      defaultInstrumentationVersion: "0.4.0"
+      additionalInstrumentationVersions:
+        # (the entry from step 3)
+```
+
+The default must be a version present in the effective catalog (bundled baseline or your extension). Setting it to something that isn't will block the rollout — see [The platform default](#the-platform-default) for the details.
+
+Existing agents keep the version they were pinned to when they were created. Raising the platform default does not touch them.
+
+### 5. Apply with helm upgrade
+
+```bash
+helm upgrade <release> wso2/wso2-agent-manager \
+  -f values.yaml \
+  --namespace <amp-namespace>
+```
+
+The chart renders the list into a ConfigMap, mounts it into the `agent-manager-service` pod, and writes a checksum annotation on the Deployment that tracks the ConfigMap contents. So any change to your `additionalInstrumentationVersions` list automatically rolls the pod.
+
+Watch the rollout finish:
+
+```bash
+kubectl rollout status -n <amp-namespace> deploy/amp-api --timeout=5m
+```
+
+### 6. Verify the pod started clean
+
+The catalog loader runs at startup. If your entry is malformed (missing required field, malformed YAML, default-not-in-set), the pod exits non-zero with a clear log line:
+
+```bash
+kubectl logs -n <amp-namespace> deploy/amp-api --tail=50
+```
+
+Common messages and what they mean:
+
+| Log message | Cause | Fix |
+|---|---|---|
+| `extension entry "0.4.0": missing imageRepository` | A required field is missing on the entry | Add the field in step 3 |
+| `default instrumentation version "0.4.0" not in effective set` | Step 4 set the default but step 3 didn't add the entry | Add the entry, or revert the default |
+| Server prints `Main API server is running` with no instrumentation errors | All good. Proceed to step 7 | — |
+
+If the pod crash-loops, `helm rollback <release>` reverts to the previous values.
+
+### 7. Verify it appears in the Console
+
+Open the Console, navigate to the create-agent form, and hard-refresh (`Cmd+Shift+R` / `Ctrl+Shift+R`) to bypass the in-browser query cache. The "AMP Instrumentation Version" dropdown should now offer `0.4.0`. If you did step 4, it should also be pre-selected.
+
+### 8. Smoke-test with a real agent
+
+The catalog check verifies that `0.4.0` is *selectable*. It does not verify that the init-container image is *pullable*. Catch any registry-side issue now, not later:
+
+1. Create a new agent → Python language → pick a Python version → pick `0.4.0`.
+2. Deploy.
+3. Watch the agent pod reach `Running`.
+
+If the agent pod sits in `ImagePullBackOff`, the catalog has the entry but Kubernetes can't pull the init-container image. Most common causes:
+
+- The specific Python tag wasn't mirrored (e.g. you mirrored `0.4.0-python3.11` but the user picked 3.10).
+- The registry needs auth and the cluster doesn't have an `imagePullSecret` for it.
+- Typo in `imageRepository`.
+
+`kubectl describe pod <agent-pod>` shows the exact image tag Kubernetes tried to pull. Fix the registry side, then either redeploy the agent or delete the pod to force a re-pull.
+
+## Removing a version
+
+The inverse of adding: edit the list, `helm upgrade`. Two cautions:
+
+- **If your platform default still points at the version you're removing**, bump `defaultInstrumentationVersion` to a still-present version first (or in the same `helm upgrade`). The server's startup check will refuse to boot if the default is missing from the effective set.
+- **Don't remove a version any existing agents are pinned to.** Those agents will fail validation on their next update or redeploy because the catalog will reject the now-unknown version. Check which versions are pinned by querying the `instrumentation_version` column on `agent_configs` in the platform database, or by listing agents in the Console and inspecting their build parameters.
+
+Bundled-baseline entries can't be removed via Helm; they ship with the AMP release. To suppress one from the effective set you'd need a new AMP version that drops it.
+
+## The platform default
+
+`OTEL_DEFAULT_INSTRUMENTATION_VERSION` (chart value: `agentManagerService.config.otel.defaultInstrumentationVersion`) is the version pre-selected on the create-agent form when a user doesn't override it. It defaults to `0.2.1`.
+
+This value has to exist in the effective catalog at startup. If it doesn't, the server exits with:
+
+```
+default instrumentation version "X.Y.Z" not in effective set
+```
+
+So when an operator wants the default to be a version that isn't in the bundled baseline, the same `helm upgrade` has to add that version under `additionalInstrumentationVersions` and set `defaultInstrumentationVersion` to it. Setting one without the other will block the rollout.
+
+Existing agents keep the version they were pinned to when they were created. Raising the platform default does not touch them.
+
+## Using an internal image registry
+
+The catalog entry decides whether a version is *selectable*. It does not, on its own, make the init-container image *pullable*. If your cluster pulls images from an internal registry instead of `ghcr.io` (corporate policy, no outbound internet, caching, regulatory reasons, take your pick):
+
+1. Mirror `ghcr.io/wso2/amp-python-instrumentation-provider:<version>-python<X.Y>` into your registry, for every Python tag you intend to support. From a host that can reach both `ghcr.io` and your registry:
+
+   ```bash
+   VERSION=0.4.0
+   MIRROR=registry.example.com/wso2-mirror/amp-python-instrumentation-provider
+
+   for py in 3.10 3.11 3.12 3.13; do
+     docker pull ghcr.io/wso2/amp-python-instrumentation-provider:${VERSION}-python${py}
+     docker tag  ghcr.io/wso2/amp-python-instrumentation-provider:${VERSION}-python${py} \
+                 ${MIRROR}:${VERSION}-python${py}
+     docker push ${MIRROR}:${VERSION}-python${py}
+   done
+   ```
+
+2. Point `imageRepository` on the catalog entry at that registry. The server constructs the full tag from `imageRepository` plus `version` plus the chosen Python minor.
+3. `helm upgrade`. Agent deploys will pull from your registry. If the registry requires authentication, make sure the agent-deploy namespace has the right `imagePullSecret` available, otherwise the agent pod sits in `ImagePullBackOff`.
+
+The bundled baseline's `imageRepository` is the public `ghcr.io` path. To redirect a *bundled* version through your registry as well, add an extension entry with the same `version`. The extension entry's `imageRepository` overrides the bundled one.
+
+## Failure modes
+
+Most things fail loudly and early. Worth knowing where:
+
+| When | What goes wrong | What you see |
+|---|---|---|
+| Server startup | Default version isn't in the effective set | `agent-manager-service` exits non-zero. `helm upgrade` reports a failed rollout. The pod's log line names the offending version. |
+| Server startup | Extension YAML doesn't parse, or an entry is missing `version` / `imageRepository` / `pythonVersions` | Same as above. The error message identifies the file and the offending entry. |
+| Agent create | Chosen `instrumentationVersion` is not in the catalog | API returns 400. Console form surfaces the validation error inline. |
+| Agent create | Chosen Python version is not in the entry's `pythonVersions` | API returns 400 naming both fields. The Console filter normally prevents this from being submittable in the first place. |
+| Agent deploy | The init-container image tag isn't pullable from `imageRepository` | The agent's pod goes to `ImagePullBackOff`. Visible in the agent's status in the Console. Most common cause when using an internal registry: the catalog entry was added but the specific Python tag wasn't mirrored. |

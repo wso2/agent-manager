@@ -99,6 +99,10 @@ codegenfmt-check:
       exit 1; \
     fi
 
+.PHONY: gen-instrumentation-baseline
+gen-instrumentation-baseline: ## Regenerate instrumentation/baseline.json from .github/release-config.json.
+	GOFLAGS=-mod=mod go run ./scripts/gen_instrumentation_baseline.go
+
 .PHONY: gen-evaluators-dev
 gen-evaluators-dev: ## Generate builtin evaluators using local amp-evaluation SDK
 	@echo "Generating builtin evaluators (dev mode)..."

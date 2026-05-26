@@ -119,6 +119,50 @@ paths:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
 
+  /orgs/{orgName}/agent-build-options:
+    parameters:
+      - name: orgName
+        in: path
+        required: true
+        description: Organization name/handle
+        schema:
+          type: string
+          pattern: "^[a-z0-9-]+$"
+          minLength: 1
+          maxLength: 64
+
+    get:
+      tags:
+        - AgentBuildOptions
+      summary: Get agent build options
+      description: |
+        Return the option lists the create-agent form needs: the platform's
+        supported Python versions (with a default) and the effective
+        instrumentation catalog (bundled baseline plus operator extensions,
+        with a default). Operators extend the instrumentation set per install
+        via the Helm value `agentManagerService.config.otel.additionalInstrumentationVersions`.
+        Versions are returned newest-first by numeric component compare.
+      operationId: getAgentBuildOptions
+      responses:
+        "200":
+          description: Successfully retrieved agent build options
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AgentBuildOptionsResponse"
+        "401":
+          description: Unauthorized - invalid or missing authentication
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "500":
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
   /orgs/{orgName}/deployment-pipelines:
     get:
       summary: List all deployment pipelines in an organization
@@ -12435,3 +12479,70 @@ components:
           description: Optional interface metadata (e.g. OpenAPI spec)
           additionalProperties: true
           nullable: true
+
+    AgentBuildOptionsResponse:
+      type: object
+      required:
+        - python
+        - instrumentation
+      properties:
+        python:
+          $ref: "#/components/schemas/AgentBuildOptionsPython"
+        instrumentation:
+          $ref: "#/components/schemas/AgentBuildOptionsInstrumentation"
+
+    AgentBuildOptionsPython:
+      type: object
+      required:
+        - defaultVersion
+        - supportedVersions
+      properties:
+        defaultVersion:
+          type: string
+          description: Bare-minor Python version pre-selected on the create-agent form.
+          example: "3.11"
+        supportedVersions:
+          type: array
+          description: Bare-minor Python versions the buildpack provider can build.
+          items:
+            type: string
+          example: ["3.10", "3.11", "3.12", "3.13"]
+
+    AgentBuildOptionsInstrumentation:
+      type: object
+      required:
+        - defaultVersion
+        - versions
+      properties:
+        defaultVersion:
+          type: string
+          description: AMP instrumentation version pre-selected on the create-agent form.
+          example: "0.2.1"
+        versions:
+          type: array
+          description: |
+            Effective instrumentation catalog: embedded baseline merged with any
+            operator-supplied extension entries, sorted newest-first by numeric
+            component compare.
+          items:
+            $ref: "#/components/schemas/AgentBuildOptionsInstrumentationEntry"
+
+    AgentBuildOptionsInstrumentationEntry:
+      type: object
+      required:
+        - version
+        - pythonVersions
+      properties:
+        version:
+          type: string
+          description: The amp-instrumentation semver.
+          example: "0.2.1"
+        pythonVersions:
+          type: array
+          description: |
+            Bare-minor Python versions this instrumentation version supports.
+            The init-container image is ABI-locked to the Python runtime, so a
+            selection outside this list will fail to pull at deploy time.
+          items:
+            type: string
+          example: ["3.10", "3.11", "3.12", "3.13"]

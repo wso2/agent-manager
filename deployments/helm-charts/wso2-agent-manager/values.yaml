@@ -127,6 +127,19 @@ agentManagerService:
     otel:
       traceContent: "true"
       exporterEndpoint: "http://api-platform-default-default-gateway-gateway-runtime.openchoreo-data-plane.svc.cluster.local:22893/otel"
+      # Platform default AMP instrumentation version. Must exist in the
+      # effective catalog (embedded baseline ∪ additionalInstrumentationVersions);
+      # otherwise the server fails to start.
+      defaultInstrumentationVersion: "0.2.1"
+      # Operator-supplied catalog extension entries, added on top of the
+      # bundled baseline. For air-gapped installs, point imageRepository
+      # at the internal mirror.
+      # Example:
+      #   - version: "0.4.0"
+      #     traceloopSdk: "0.65.0"
+      #     pythonVersions: ["3.10","3.11","3.12","3.13"]
+      #     imageRepository: "my-mirror.example/amp-python-instrumentation-provider"
+      additionalInstrumentationVersions: []
 
     # Key Manager configuration
     keyManager:

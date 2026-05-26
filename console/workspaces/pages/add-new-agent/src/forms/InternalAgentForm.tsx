@@ -20,13 +20,11 @@ import { Alert, Checkbox, Collapse, Form, FormControl, FormControlLabel, FormHel
 import { useEffect, useMemo, useCallback } from "react";
 import { useParams } from "react-router-dom";
 import { debounce } from "lodash";
-import { useGenerateResourceName } from "@agent-management-platform/api-client";
 import {
-  DEFAULT_INSTRUMENTATION_VERSION,
-  globalConfig,
-  SUPPORTED_INSTRUMENTATION_VERSIONS,
-  SUPPORTED_PYTHON_VERSIONS,
-} from "@agent-management-platform/types";
+  useAgentBuildOptions,
+  useGenerateResourceName,
+} from "@agent-management-platform/api-client";
+import { globalConfig } from "@agent-management-platform/types";
 import { InputInterface } from "../components/InputInterface";
 import { EnvironmentVariable } from "../components/EnvironmentVariable";
 import { FileMount } from "../components/FileMount";
@@ -80,6 +78,73 @@ export const InternalAgentForm = ({
   const { mutate: generateName, isPending: isGeneratingName } = useGenerateResourceName({
     orgName: orgId,
   });
+
+  // Fetch the platform's supported Python versions + the instrumentation
+  // catalog. Until this resolves, the dropdowns render empty.
+  const buildOptionsQuery = useAgentBuildOptions({ orgName: orgId ?? "" });
+  const buildOptions = buildOptionsQuery.data;
+
+  // Instrumentation entries compatible with the currently-selected Python.
+  // Empty list when no AMP-provided instrumentation covers that Python —
+  // the form then offers the manual-instrumentation fallback.
+  const compatibleInstrumentation = useMemo(() => {
+    if (!buildOptions) return [] as { version: string; pythonVersions: string[] }[];
+    const py = formData.languageVersion;
+    if (!py) return buildOptions.instrumentation.versions;
+    return buildOptions.instrumentation.versions.filter((v) =>
+      v.pythonVersions.includes(py),
+    );
+  }, [buildOptions, formData.languageVersion]);
+
+  // Seed defaults when build options arrive, and normalise any value
+  // that's no longer in the refreshed set (the catalog can change
+  // mid-session if React Query refetches after a helm upgrade).
+  useEffect(() => {
+    if (!buildOptions) return;
+    const supportedPython = new Set(buildOptions.python.supportedVersions);
+    setFormData((prev) => {
+      const next = { ...prev };
+      let touched = false;
+      if (prev.languageVersion == null || !supportedPython.has(prev.languageVersion)) {
+        next.languageVersion = buildOptions.python.defaultVersion;
+        touched = true;
+      }
+      if (prev.instrumentationVersion == null) {
+        next.instrumentationVersion = buildOptions.instrumentation.defaultVersion;
+        touched = true;
+      }
+      return touched ? next : prev;
+    });
+    // The second useEffect below handles instrumentationVersion staleness
+    // via the python-compat filter, so we don't duplicate that check here.
+  }, [buildOptions, setFormData]);
+
+  // When the user changes Python, if the current instrumentation is no
+  // longer compatible, reset to the platform default (if compatible),
+  // else the newest compatible, else null (manual-instrumentation path).
+  useEffect(() => {
+    if (!buildOptions) return;
+    const py = formData.languageVersion;
+    if (!py) return;
+    const compat = buildOptions.instrumentation.versions.filter((v) =>
+      v.pythonVersions.includes(py),
+    );
+    const current = formData.instrumentationVersion;
+    const isCurrentCompat =
+      current != null && compat.some((c) => c.version === current);
+    if (isCurrentCompat) return;
+    let nextVersion: string | null = null;
+    if (compat.length > 0) {
+      const def = buildOptions.instrumentation.defaultVersion;
+      nextVersion = compat.some((c) => c.version === def) ? def : compat[0].version;
+    }
+    setFormData((prev) => ({ ...prev, instrumentationVersion: nextVersion }));
+  }, [
+    buildOptions,
+    formData.languageVersion,
+    formData.instrumentationVersion,
+    setFormData,
+  ]);
 
   const handleFieldChange = useCallback(
     (field: keyof CreateAgentFormValues, value: unknown) => {
@@ -293,15 +358,19 @@ export const InternalAgentForm = ({
                     id="languageVersion"
                     value={formData.languageVersion || ''}
                     onChange={(e) => handleFieldChange('languageVersion', e.target.value)}
+                    disabled={!buildOptions}
                   >
-                    {SUPPORTED_PYTHON_VERSIONS.map((v) => (
+                    {(buildOptions?.python.supportedVersions ?? []).map((v) => (
                       <MenuItem key={v} value={v}>
                         {v}
                       </MenuItem>
                     ))}
                   </Select>
                   <FormHelperText>
-                    {errors.languageVersion || 'Python runtime version'}
+                    {errors.languageVersion ||
+                      (buildOptionsQuery.isError
+                        ? 'Could not load supported Python versions; retry by refreshing.'
+                        : 'Python runtime version')}
                   </FormHelperText>
                 </FormControl>
               </Form.ElementWrapper>
@@ -320,33 +389,42 @@ export const InternalAgentForm = ({
                 <Typography variant="body2" color="text.secondary">
                   Automatically adds OTEL tracing instrumentation to your agent for observability.
                 </Typography>
-                <Form.ElementWrapper
-                  label="AMP Instrumentation Version"
-                  name="instrumentationVersion"
-                >
-                  <FormControl
-                    sx={{ minWidth: 200 }}
-                    error={!!errors.instrumentationVersion}
+                {compatibleInstrumentation.length === 0 && buildOptions ? (
+                  <Alert severity="info" sx={{ mt: 1 }}>
+                    No AMP-provided instrumentation is available for Python{' '}
+                    {formData.languageVersion ?? 'the selected version'}. You
+                    can still deploy this agent and instrument it manually.
+                  </Alert>
+                ) : (
+                  <Form.ElementWrapper
+                    label="AMP Instrumentation Version"
+                    name="instrumentationVersion"
                   >
-                    <Select
-                      id="instrumentationVersion"
-                      value={formData.instrumentationVersion || ''}
-                      onChange={(e) =>
-                        handleFieldChange('instrumentationVersion', e.target.value)
-                      }
+                    <FormControl
+                      sx={{ minWidth: 200 }}
+                      error={!!errors.instrumentationVersion}
                     >
-                      {SUPPORTED_INSTRUMENTATION_VERSIONS.map((v) => (
-                        <MenuItem key={v} value={v}>
-                          {v}
-                        </MenuItem>
-                      ))}
-                    </Select>
-                    <FormHelperText>
-                      {errors.instrumentationVersion ||
-                        'Pins the init-container image and the bundled OpenLLMetry SDK version.'}
-                    </FormHelperText>
-                  </FormControl>
-                </Form.ElementWrapper>
+                      <Select
+                        id="instrumentationVersion"
+                        value={formData.instrumentationVersion || ''}
+                        onChange={(e) =>
+                          handleFieldChange('instrumentationVersion', e.target.value)
+                        }
+                        disabled={!buildOptions}
+                      >
+                        {compatibleInstrumentation.map((v) => (
+                          <MenuItem key={v.version} value={v.version}>
+                            {v.version}
+                          </MenuItem>
+                        ))}
+                      </Select>
+                      <FormHelperText>
+                        {errors.instrumentationVersion ||
+                          'Pins the init-container image and the bundled OpenLLMetry SDK version.'}
+                      </FormHelperText>
+                    </FormControl>
+                  </Form.ElementWrapper>
+                )}
               </Stack>
             </Collapse>
             <Collapse in={formData.enableAutoInstrumentation === false}>
@@ -433,7 +511,7 @@ export const InternalAgentForm = ({
                   Docker-based agents require OTEL instrumentation to export traces.
                   For Python, use{' '}
                   <Typography component="code" sx={{ bgcolor: 'action.hover', px: 0.5, borderRadius: 0.5 }}>
-                    {`pip install amp-instrumentation==${DEFAULT_INSTRUMENTATION_VERSION}`}
+                    {`pip install amp-instrumentation==${formData.instrumentationVersion ?? buildOptions?.instrumentation.defaultVersion ?? 'latest'}`}
                   </Typography>
                   {' '}and run with{' '}
                   <Typography component="code" sx={{ bgcolor: 'action.hover', px: 0.5, borderRadius: 0.5 }}>

@@ -20,8 +20,8 @@ import (
 	"gorm.io/gorm"
 )
 
-var migration021 = migration{
-	ID: 21,
+var migration022 = migration{
+	ID: 22,
 	Migrate: func(db *gorm.DB) error {
 		addCORSConfig := `
 		ALTER TABLE agent_configs

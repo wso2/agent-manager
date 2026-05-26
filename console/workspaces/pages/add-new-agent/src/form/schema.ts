@@ -17,11 +17,7 @@
  */
 
 import { z } from 'zod';
-import {
-  SUPPORTED_INSTRUMENTATION_VERSIONS,
-  SUPPORTED_PYTHON_VERSIONS,
-  type InputInterfaceType,
-} from '@agent-management-platform/types';
+import type { InputInterfaceType } from '@agent-management-platform/types';
 
 export type InterfaceType = InputInterfaceType;
 
@@ -62,9 +58,11 @@ export const createAgentSchema = z.object({
   ...baseAgentFields,
   deploymentType: z.literal('new').optional(),
   enableAutoInstrumentation: z.boolean().default(true),
-  instrumentationVersion: z
-    .enum(SUPPORTED_INSTRUMENTATION_VERSIONS)
-    .optional(),
+  // instrumentationVersion is a plain string; the dropdown is populated
+  // dynamically from the agent-build-options endpoint and the server is
+  // the authoritative gate. nullable for the case where no AMP-provided
+  // instrumentation is available for the chosen Python version.
+  instrumentationVersion: z.string().trim().nullable().optional(),
   repositoryUrl: z
     .string()
     .trim()
@@ -201,26 +199,6 @@ export const createAgentSchema = z.object({
     return true;
   },
   { message: 'Python version is required for Python agents', path: ['languageVersion'] }
-).refine(
-  (data) => {
-    // Python languageVersion must be one of the supported versions
-    // (the AMP instrumentation init-container image is ABI-locked to the
-    // agent's Python runtime, so only versions with a matching image work).
-    if (
-      data.language === 'python' &&
-      data.languageVersion?.trim() &&
-      !SUPPORTED_PYTHON_VERSIONS.includes(
-        data.languageVersion.trim() as (typeof SUPPORTED_PYTHON_VERSIONS)[number]
-      )
-    ) {
-      return false;
-    }
-    return true;
-  },
-  {
-    message: `Python version must be one of: ${SUPPORTED_PYTHON_VERSIONS.join(', ')}`,
-    path: ['languageVersion'],
-  }
 ).refine(
   (data) => {
     // Validate Docker-specific fields: dockerfilePath is required for Docker

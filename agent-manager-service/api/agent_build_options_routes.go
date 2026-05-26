@@ -1,4 +1,4 @@
-// Copyright (c) 2025, WSO2 LLC. (https://www.wso2.com).
+// Copyright (c) 2026, WSO2 LLC. (https://www.wso2.com).
 //
 // WSO2 LLC. licenses this file to you under the Apache License,
 // Version 2.0 (the "License"); you may not use this file except
@@ -14,33 +14,15 @@
 // specific language governing permissions and limitations
 // under the License.
 
-package dbmigrations
+package api
 
-const latestVersion = 22
+import (
+	"net/http"
 
-// migration list sorted by version.  Add new migrations to the end of the list.
-// Previous migrations should not be modified.
-var migrations = []migration{
-	migration001,
-	migration002,
-	migration003,
-	migration004,
-	migration005,
-	migration006,
-	migration007,
-	migration008,
-	migration009,
-	migration010,
-	migration011,
-	migration012,
-	migration013,
-	migration014,
-	migration015,
-	migration016,
-	migration017,
-	migration018,
-	migration019,
-	migration020,
-	migration021,
-	migration022,
+	"github.com/wso2/agent-manager/agent-manager-service/controllers"
+	"github.com/wso2/agent-manager/agent-manager-service/middleware"
+)
+
+func registerAgentBuildOptionsRoutes(mux *http.ServeMux, ctrl controllers.AgentBuildOptionsController) {
+	middleware.HandleFuncWithValidation(mux, "GET /orgs/{orgName}/agent-build-options", ctrl.GetAgentBuildOptions)
 }

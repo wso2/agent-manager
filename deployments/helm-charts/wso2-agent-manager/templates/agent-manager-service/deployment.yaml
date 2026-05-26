@@ -17,6 +17,7 @@ spec:
       annotations:
         checksum/config: {{ include (print $.Template.BasePath "/agent-manager-service/configmap.yaml") . | sha256sum }}
         checksum/secret: {{ include (print $.Template.BasePath "/agent-manager-service/secret.yaml") . | sha256sum }}
+        checksum/instrumentation-extension: {{ include (print $.Template.BasePath "/agent-manager-service/instrumentation-extension-configmap.yaml") . | sha256sum }}
         {{- with .Values.agentManagerService.podAnnotations }}
         {{- toYaml . | nindent 8 }}
         {{- end }}
@@ -162,6 +163,9 @@ spec:
             - name: jwt-keys
               mountPath: /app/keys
               readOnly: true
+            - name: instrumentation-extension
+              mountPath: /etc/amp
+              readOnly: true
             {{- if .Values.agentManagerService.internalServer.tlsEnabled }}
             - name: certificates
               mountPath: /app/data/certs
@@ -176,6 +180,9 @@ spec:
             secretName: {{ include "agent-management-platform.jwtKeysSecretName" . }}
             defaultMode: 0440
             optional: true
+        - name: instrumentation-extension
+          configMap:
+            name: {{ include "agent-management-platform.agentManagerService.fullname" . }}-instrumentation-extension
         {{- if .Values.agentManagerService.internalServer.tlsEnabled }}
         - name: certificates
           secret:
