@@ -23,6 +23,7 @@ import (
 	"strings"
 
 	"github.com/wso2/agent-manager/agent-manager-service/instrumentation"
+	"github.com/wso2/agent-manager/agent-manager-service/spec"
 	"github.com/wso2/agent-manager/agent-manager-service/utils"
 )
 
@@ -54,55 +55,37 @@ func NewAgentBuildOptionsController(
 	}
 }
 
-type instrumentationVersionDTO struct {
-	Version        string   `json:"version"`
-	PythonVersions []string `json:"pythonVersions"`
-}
-
-type pythonOptionsDTO struct {
-	DefaultVersion    string   `json:"defaultVersion"`
-	SupportedVersions []string `json:"supportedVersions"`
-}
-
-type instrumentationOptionsDTO struct {
-	DefaultVersion string                      `json:"defaultVersion"`
-	Versions       []instrumentationVersionDTO `json:"versions"`
-}
-
-type agentBuildOptionsResponse struct {
-	Python          pythonOptionsDTO          `json:"python"`
-	Instrumentation instrumentationOptionsDTO `json:"instrumentation"`
-}
-
 // GetAgentBuildOptions handles GET /orgs/{orgName}/agent-build-options.
 // Returns the Python set the platform supports and the effective
 // instrumentation catalog. Org-scoped for routing/auth consistency with
 // catalog_routes.go; the response is identical across orgs.
 func (c *agentBuildOptionsController) GetAgentBuildOptions(w http.ResponseWriter, _ *http.Request) {
 	versions := c.catalog.All()
-	// Newest-first by numeric-component compare. Lexicographic sort
-	// inverts "0.10.0" vs "0.2.1" once the catalog grows past 0.9.x.
+	// Newest-first by numeric-component compare. Lex sort inverts
+	// "0.10.0" vs "0.2.1" once the catalog grows past 0.9.x.
 	sorted := make([]instrumentation.Version, len(versions))
 	copy(sorted, versions)
 	sort.Slice(sorted, func(i, j int) bool {
 		return compareVersionsDesc(sorted[i].Version, sorted[j].Version)
 	})
 
-	resp := agentBuildOptionsResponse{
-		Python: pythonOptionsDTO{
-			DefaultVersion:    c.defaultPythonVersion,
-			SupportedVersions: c.supportedPythonVersions,
-		},
-		Instrumentation: instrumentationOptionsDTO{
-			DefaultVersion: c.catalog.Default(),
-			Versions:       make([]instrumentationVersionDTO, 0, len(sorted)),
-		},
-	}
+	entries := make([]spec.AgentBuildOptionsInstrumentationEntry, 0, len(sorted))
 	for _, v := range sorted {
-		resp.Instrumentation.Versions = append(resp.Instrumentation.Versions, instrumentationVersionDTO{
+		entries = append(entries, spec.AgentBuildOptionsInstrumentationEntry{
 			Version:        v.Version,
 			PythonVersions: v.PythonVersions,
 		})
+	}
+
+	resp := spec.AgentBuildOptionsResponse{
+		Python: spec.AgentBuildOptionsPython{
+			DefaultVersion:    c.defaultPythonVersion,
+			SupportedVersions: c.supportedPythonVersions,
+		},
+		Instrumentation: spec.AgentBuildOptionsInstrumentation{
+			DefaultVersion: c.catalog.Default(),
+			Versions:       entries,
+		},
 	}
 
 	utils.WriteSuccessResponse(w, http.StatusOK, resp)

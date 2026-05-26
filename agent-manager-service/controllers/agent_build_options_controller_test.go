@@ -23,6 +23,7 @@ import (
 	"testing"
 
 	"github.com/wso2/agent-manager/agent-manager-service/instrumentation"
+	"github.com/wso2/agent-manager/agent-manager-service/spec"
 )
 
 func TestAgentBuildOptions_ResponseShape(t *testing.T) {
@@ -39,19 +40,7 @@ func TestAgentBuildOptions_ResponseShape(t *testing.T) {
 	if w.Code != http.StatusOK {
 		t.Fatalf("status = %d, want 200", w.Code)
 	}
-	var got struct {
-		Python struct {
-			DefaultVersion    string   `json:"defaultVersion"`
-			SupportedVersions []string `json:"supportedVersions"`
-		} `json:"python"`
-		Instrumentation struct {
-			DefaultVersion string `json:"defaultVersion"`
-			Versions       []struct {
-				Version        string   `json:"version"`
-				PythonVersions []string `json:"pythonVersions"`
-			} `json:"versions"`
-		} `json:"instrumentation"`
-	}
+	var got spec.AgentBuildOptionsResponse
 	if err := json.Unmarshal(w.Body.Bytes(), &got); err != nil {
 		t.Fatalf("decode: %v; body=%s", err, w.Body.String())
 	}
