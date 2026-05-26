@@ -1416,7 +1416,7 @@ func (s *agentManagerService) UpdateAgentBuildParameters(ctx context.Context, or
 		}
 		// Resolve effective auto-instrumentation: request override if
 		// provided, otherwise the persisted value on the agent.
-		autoInstr := true
+		var autoInstr bool
 		if req.Configurations != nil && req.Configurations.EnableAutoInstrumentation != nil {
 			autoInstr = *req.Configurations.EnableAutoInstrumentation
 		} else {

@@ -248,7 +248,6 @@ func loadEnvs() {
 	validateOAuthAuthorizationServers(config, r)
 	validateServerPublicURL(config, r)
 	validateInstrumentationURL(config, r)
-	validateInstrumentationVersionConfig(config, r)
 	validateResourceLimitsConfig(config, r)
 
 	r.logAndExitIfErrorsFound()
@@ -327,14 +326,6 @@ func validateInstrumentationURL(cfg *Config, r *configReader) {
 		r.errors = append(r.errors, fmt.Errorf("INSTRUMENTATION_URL %q must have a non-empty host", cfg.InstrumentationURL))
 	}
 }
-
-// validateInstrumentationVersionConfig used to enforce that the default
-// version was a member of OTEL_SUPPORTED_INSTRUMENTATION_VERSIONS. The
-// effective version set now lives in the instrumentation catalog
-// (assembled at app boot from embedded baseline + extension file), so
-// membership of the default is validated by instrumentation.Load rather
-// than from config-time env values. Kept as a no-op for caller symmetry.
-func validateInstrumentationVersionConfig(_ *Config, _ *configReader) {}
 
 func validateInternalServerConfigs(cfg *Config, r *configReader) {
 	if cfg.InternalServer.Port < 1 || cfg.InternalServer.Port > 65535 {

@@ -194,7 +194,8 @@ func ProvideSupportedPythonVersions() SupportedPythonVersions {
 }
 
 // defaultPythonVersion is the platform's preferred Python for new
-// agents. Constant for M1; promote to config later if needed.
+// agents. Hardcoded today; promote to a chart value if customers need
+// to override it per install.
 const defaultPythonVersion = "3.11"
 
 // ProvideDefaultPythonVersion returns the platform default Python
