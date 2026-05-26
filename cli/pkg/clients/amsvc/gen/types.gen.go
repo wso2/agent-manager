@@ -1077,6 +1077,43 @@ type AddAgentKindVersionRequest struct {
 	Version string `json:"version"`
 }
 
+// AgentBuildOptionsInstrumentation defines model for AgentBuildOptionsInstrumentation.
+type AgentBuildOptionsInstrumentation struct {
+	// DefaultVersion AMP instrumentation version pre-selected on the create-agent form.
+	DefaultVersion string `json:"defaultVersion"`
+
+	// Versions Effective instrumentation catalog: embedded baseline merged with any
+	// operator-supplied extension entries, sorted newest-first by numeric
+	// component compare.
+	Versions []AgentBuildOptionsInstrumentationEntry `json:"versions"`
+}
+
+// AgentBuildOptionsInstrumentationEntry defines model for AgentBuildOptionsInstrumentationEntry.
+type AgentBuildOptionsInstrumentationEntry struct {
+	// PythonVersions Bare-minor Python versions this instrumentation version supports.
+	// The init-container image is ABI-locked to the Python runtime, so a
+	// selection outside this list will fail to pull at deploy time.
+	PythonVersions []string `json:"pythonVersions"`
+
+	// Version The amp-instrumentation semver.
+	Version string `json:"version"`
+}
+
+// AgentBuildOptionsPython defines model for AgentBuildOptionsPython.
+type AgentBuildOptionsPython struct {
+	// DefaultVersion Bare-minor Python version pre-selected on the create-agent form.
+	DefaultVersion string `json:"defaultVersion"`
+
+	// SupportedVersions Bare-minor Python versions the buildpack provider can build.
+	SupportedVersions []string `json:"supportedVersions"`
+}
+
+// AgentBuildOptionsResponse defines model for AgentBuildOptionsResponse.
+type AgentBuildOptionsResponse struct {
+	Instrumentation AgentBuildOptionsInstrumentation `json:"instrumentation"`
+	Python          AgentBuildOptionsPython          `json:"python"`
+}
+
 // AgentKindConfigSchemaItem defines model for AgentKindConfigSchemaItem.
 type AgentKindConfigSchemaItem struct {
 	// DefaultValue Default value if not provided by the user

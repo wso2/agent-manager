@@ -107,6 +107,9 @@ type ClientInterface interface {
 	// GetOrganization request
 	GetOrganization(ctx context.Context, orgName string, reqEditors ...RequestEditorFn) (*http.Response, error)
 
+	// GetAgentBuildOptions request
+	GetAgentBuildOptions(ctx context.Context, orgName string, reqEditors ...RequestEditorFn) (*http.Response, error)
+
 	// ListAgentKinds request
 	ListAgentKinds(ctx context.Context, orgName string, params *ListAgentKindsParams, reqEditors ...RequestEditorFn) (*http.Response, error)
 
@@ -623,6 +626,18 @@ func (c *Client) CreateOrganization(ctx context.Context, body CreateOrganization
 
 func (c *Client) GetOrganization(ctx context.Context, orgName string, reqEditors ...RequestEditorFn) (*http.Response, error) {
 	req, err := NewGetOrganizationRequest(c.Server, orgName)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) GetAgentBuildOptions(ctx context.Context, orgName string, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewGetAgentBuildOptionsRequest(c.Server, orgName)
 	if err != nil {
 		return nil, err
 	}
@@ -2789,6 +2804,40 @@ func NewGetOrganizationRequest(server string, orgName string) (*http.Request, er
 	}
 
 	operationPath := fmt.Sprintf("/orgs/%s", pathParam0)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest("GET", queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return req, nil
+}
+
+// NewGetAgentBuildOptionsRequest generates requests for GetAgentBuildOptions
+func NewGetAgentBuildOptionsRequest(server string, orgName string) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithOptions("simple", false, "orgName", orgName, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: ""})
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/orgs/%s/agent-build-options", pathParam0)
 	if operationPath[0] == '/' {
 		operationPath = "." + operationPath
 	}
@@ -10112,6 +10161,9 @@ type ClientWithResponsesInterface interface {
 	// GetOrganizationWithResponse request
 	GetOrganizationWithResponse(ctx context.Context, orgName string, reqEditors ...RequestEditorFn) (*GetOrganizationResp, error)
 
+	// GetAgentBuildOptionsWithResponse request
+	GetAgentBuildOptionsWithResponse(ctx context.Context, orgName string, reqEditors ...RequestEditorFn) (*GetAgentBuildOptionsResp, error)
+
 	// ListAgentKindsWithResponse request
 	ListAgentKindsWithResponse(ctx context.Context, orgName string, params *ListAgentKindsParams, reqEditors ...RequestEditorFn) (*ListAgentKindsResp, error)
 
@@ -10677,6 +10729,30 @@ func (r GetOrganizationResp) Status() string {
 
 // StatusCode returns HTTPResponse.StatusCode
 func (r GetOrganizationResp) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+type GetAgentBuildOptionsResp struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON200      *AgentBuildOptionsResponse
+	JSON401      *ErrorResponse
+	JSON500      *ErrorResponse
+}
+
+// Status returns HTTPResponse.Status
+func (r GetAgentBuildOptionsResp) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r GetAgentBuildOptionsResp) StatusCode() int {
 	if r.HTTPResponse != nil {
 		return r.HTTPResponse.StatusCode
 	}
@@ -13830,6 +13906,15 @@ func (c *ClientWithResponses) GetOrganizationWithResponse(ctx context.Context, o
 	return ParseGetOrganizationResp(rsp)
 }
 
+// GetAgentBuildOptionsWithResponse request returning *GetAgentBuildOptionsResp
+func (c *ClientWithResponses) GetAgentBuildOptionsWithResponse(ctx context.Context, orgName string, reqEditors ...RequestEditorFn) (*GetAgentBuildOptionsResp, error) {
+	rsp, err := c.GetAgentBuildOptions(ctx, orgName, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseGetAgentBuildOptionsResp(rsp)
+}
+
 // ListAgentKindsWithResponse request returning *ListAgentKindsResp
 func (c *ClientWithResponses) ListAgentKindsWithResponse(ctx context.Context, orgName string, params *ListAgentKindsParams, reqEditors ...RequestEditorFn) (*ListAgentKindsResp, error) {
 	rsp, err := c.ListAgentKinds(ctx, orgName, params, reqEditors...)
@@ -15439,6 +15524,46 @@ func ParseGetOrganizationResp(rsp *http.Response) (*GetOrganizationResp, error) 
 			return nil, err
 		}
 		response.JSON404 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
+		var dest ErrorResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON500 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseGetAgentBuildOptionsResp parses an HTTP response from a GetAgentBuildOptionsWithResponse call
+func ParseGetAgentBuildOptionsResp(rsp *http.Response) (*GetAgentBuildOptionsResp, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &GetAgentBuildOptionsResp{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest AgentBuildOptionsResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
+		var dest ErrorResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON401 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
 		var dest ErrorResponse
