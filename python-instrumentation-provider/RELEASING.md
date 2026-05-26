@@ -142,9 +142,9 @@ Example: `traceloop-sdk` `0.60.0` → `0.65.0`, cutting AMP-instr version `0.3.0
    cd agent-manager-service && make gen-instrumentation-baseline
    ```
    This rewrites `agent-manager-service/instrumentation/baseline.json` from
-   `release-config.json`. Commit the regenerated file in the same PR as the
-   `release-config.json` change — a CI check (`TestHelmDefaultInstrumentationVersionConsistent`)
-   will fail otherwise once you also bump the chart default in step 7. Merge the PR.
+   `release-config.json`. Commit the regenerated file in the same PR. A CI test
+   (`TestHelmDefaultInstrumentationVersionConsistent`) keeps `baseline.json` and
+   the chart's default from drifting. Merge the PR.
 6. **Publish the images** by dispatching the **`AMP Python Instrumentation Image Release`**
    workflow (`python_instrumentation_image_release.yaml`) with `branch = main`,
    `instrumentation_version = 0.3.0`. It builds & pushes the `(0.3.0 × supported python)`
@@ -157,13 +157,11 @@ Example: `traceloop-sdk` `0.60.0` → `0.65.0`, cutting AMP-instr version `0.3.0
    agentManagerService:
      config:
        otel:
-         defaultInstrumentationVersion: "0.3.0"   # was the previous default
+         defaultInstrumentationVersion: "0.3.0"
    ```
    The next AMP product release ships this default. Operators can still override it
    per install via the same chart value. Existing agents are unaffected — the default
-   only applies to *new* agents created without an explicit pin. If you forget step 5,
-   the server's startup check will refuse to boot with "default instrumentation version
-   not in effective set"; the CI test catches the same drift at PR time.
+   only applies to *new* agents created without an explicit pin.
 8. **Docs / mapping table**: add a `0.3.0 → traceloop-sdk 0.65.0 → python 3.10–3.13` row
    to the "Bundled baseline" table in `documentation/docs/components/amp-instrumentation.mdx`.
    (Console dropdowns are populated from the runtime catalog at the agent-build-options
@@ -183,12 +181,11 @@ Example: AMP buildpack starts supporting Python `3.14`.
    the current one). To *drop* a Python (e.g. EOL `3.10`), remove it — but only once no live
    agent runs on it; the image stays pullable for whatever versions remain listed in each entry.
    No Dockerfile change (`ARG PYTHON_VERSION` already parameterizes it).
-3. **Regenerate the server's embedded catalog**:
+3. **Regenerate the server's embedded catalog** so the new Python flows into each
+   entry's `pythonVersions` and the Console picks it up:
    ```
    cd agent-manager-service && make gen-instrumentation-baseline
    ```
-   The Console's instrumentation dropdown filters by Python via the catalog's per-entry
-   `pythonVersions`; the regenerated `baseline.json` is what carries that mapping.
 4. **Publish the images** by dispatching the **`AMP Python Instrumentation Image Release`**
    workflow with the affected `instrumentation_version` (or `all`) to push the new
    `(instr × 3.14)` images.
@@ -210,9 +207,3 @@ Only prune a very old entry after confirming no agent pins it.
 - **Image:** `docker run --rm ghcr.io/wso2/amp-python-instrumentation-provider:0.3.0-python3.11 sh -c 'cat /instrumentations/otel-tracing/traceloop_sdk-*.dist-info/METADATA | grep ^Version'` (or just `ls /instrumentations/otel-tracing/`).
 - **agent-manager-service:** deploy a Python agent with auto-instrumentation on; confirm the init container in the pod is `…:<expected version>-python<agent's Python>`.
 
-## Quick reference — what changes where
-
-| Change | `libs/amp-instrumentation/pyproject.toml` | `amp_instrumentation_release.yaml` run | `.github/release-config.json` | `agent-manager-service/instrumentation/baseline.json` | `utils/buildpack_types.go` | `python_instrumentation_image_release.yaml` run | Helm `values.yaml` | `amp-instrumentation.mdx` |
-|---|---|---|---|---|---|---|---|---|
-| Bump `traceloop-sdk` (new AMP-instr version) | `traceloop-sdk==<new>` | `target_version=<new>` | add `{instrumentation_version, traceloop_version, python_versions}` entry | `make gen-instrumentation-baseline` to regenerate | — | `instrumentation_version=<new>` | bump `defaultInstrumentationVersion` when promoting to default | add a row |
-| Add a supported Python | — | — | add `"3.X"` to `python_versions` of the affected entries | `make gen-instrumentation-baseline` to regenerate | add `"3.X.x"` to the Python entry's `SupportedVersions` so the Console offers it | re-run (`all` or affected version) to publish the new-Python images | — | update the Python list |
