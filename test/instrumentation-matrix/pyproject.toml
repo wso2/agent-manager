@@ -13,7 +13,7 @@ packages = ["harness", "providers"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests", "harness"]
-addopts = "-q --strict-markers"
-markers = [
-    "vcr: mark a test as using a VCR cassette",
-]
+addopts = "-q"
+# The `vcr` marker is registered by the pytest-recording plugin in cell venvs.
+# We deliberately don't use --strict-markers so the harness's own tests (which
+# don't have pytest-recording installed) can ignore the marker.

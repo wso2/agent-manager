@@ -24,7 +24,8 @@ REPORTS_DIR = Path(os.environ.get("REPORTS_DIR", "reports/cells"))
 
 _FRAMEWORK = CELL_MANIFEST["framework_name"]
 _SCENARIO = CELL_MANIFEST.get("cassette", "llm_chat_completion")
-_CASSETTE = f"../cassettes/{_FRAMEWORK}/{_SCENARIO}.yaml"
+_HERE = Path(__file__).resolve().parent.parent
+_CASSETTE = str(_HERE / "cassettes" / _FRAMEWORK / f"{_SCENARIO}.yaml")
 
 
 @pytest.fixture(scope="session")

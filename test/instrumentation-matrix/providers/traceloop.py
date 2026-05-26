@@ -20,7 +20,9 @@ class TraceloopProvider:
         ]
 
     def bootstrap_module(self) -> Path:
-        return _HERE / "_test_sitecustomize_traceloop.py"
+        # Auto-loaded by Python at interpreter startup when this file's parent
+        # directory is on PYTHONPATH. Filename must literally be sitecustomize.py.
+        return _HERE / "bootstrap" / "traceloop" / "sitecustomize.py"
 
     def contract_schema_id(self) -> str:
         return "traceloop/v1"
