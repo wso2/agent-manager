@@ -1,0 +1,23 @@
+schemaVersion: 1
+providers:
+  traceloop:
+    versions: ["0.60.0"]
+    contractSchema: "v1"
+frameworks:
+  - name: langchain
+    package: langchain
+    versions: ["0.3.27"]
+    samplePath: cells/langchain_sample.py
+    spanKinds: [llm]
+python:
+  versions: ["3.11"]
+defaultCell:
+  provider: traceloop
+  providerVersion: "0.60.0"
+  framework: langchain
+  frameworkVersion: "0.3.27"
+  python: "3.11"
+heavyTier:
+  perTraceloopVersion: 1
+  perFramework: 1
+known-broken: []
