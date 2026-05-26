@@ -71,6 +71,12 @@ def test_emission_cell():
     validator = ContractValidator.load(schema_id)
     coverage = validator.assert_coverage(spans, expected_kinds=expected_kinds)
     shape_results = validator.validate_all(spans)
+
+    # The resource attribute set is the same on every span in a process, so
+    # validating the first captured span's resource is sufficient.
+    resource_result = None
+    if spans:
+        resource_result = validator.validate_resource(spans[0].get("resource", {}))
     t_validate = time.monotonic() - t0
 
     violations = [
@@ -84,6 +90,16 @@ def test_emission_cell():
         for r in shape_results
         if not r.ok
     ]
+    if resource_result is not None and not resource_result.ok:
+        violations.append(
+            {
+                "spanName": resource_result.span_name,
+                "kind": resource_result.kind,
+                "rule": "schema",
+                "path": resource_result.path,
+                "message": resource_result.message,
+            }
+        )
 
     if not spans:
         result, category = "fail", "no-spans-captured"
