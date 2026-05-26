@@ -1,4 +1,4 @@
-.PHONY: help setup setup-colima setup-k3d setup-openchoreo setup-platform setup-gateway setup-console-local setup-console-local-force dev-up dev-down dev-restart dev-rebuild dev-logs dev-migrate openchoreo-up openchoreo-down openchoreo-status teardown db-connect db-logs service-logs service-shell console-logs port-forward stop-port-forward gen-eval-artifacts gen-instrumentation-contract e2e-test
+.PHONY: help setup setup-colima setup-k3d setup-openchoreo setup-platform setup-gateway setup-console-local setup-console-local-force dev-up dev-down dev-restart dev-rebuild dev-logs dev-migrate openchoreo-up openchoreo-down openchoreo-status teardown db-connect db-logs service-logs service-shell console-logs port-forward stop-port-forward gen-eval-artifacts gen-instrumentation-contract check-contract-drift e2e-test
 
 # Absolute path to the console directory on the host. Passed to docker-compose
 # so the container mounts and builds at the same path, keeping rush/pnpm
@@ -264,6 +264,9 @@ gen-eval-artifacts:
 
 gen-instrumentation-contract:
 	@$(MAKE) -C traces-observer-service gen-instrumentation-contract
+
+check-contract-drift:
+	@scripts/check-contract-drift.sh
 
 # AI Gateway setup (required for LLM proxy/guardrail tests)
 setup-ai-gateway: dev-migrate
