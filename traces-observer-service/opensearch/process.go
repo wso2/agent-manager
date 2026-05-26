@@ -173,10 +173,9 @@ func populateLLMAttributes(ampAttrs *AmpAttributes, attrs map[string]interface{}
 		llmData.Model = requestModel
 	}
 
-	// Extract vendor (gen_ai.system)
-	if vendor, ok := attrs["gen_ai.system"].(string); ok {
-		llmData.Vendor = vendor
-	}
+	// Extract vendor — gen_ai.system (legacy) or gen_ai.provider.name
+	// (current OTel GenAI semconv; Traceloop 0.60+ emits this one).
+	llmData.Vendor = extractVendor(attrs)
 
 	// Extract temperature
 	if tempRaw, ok := attrs["gen_ai.request.temperature"]; ok {
@@ -222,10 +221,8 @@ func populateEmbeddingAttributes(ampAttrs *AmpAttributes, attrs map[string]inter
 		embeddingData.Model = requestModel
 	}
 
-	// Extract vendor (gen_ai.system)
-	if vendor, ok := attrs["gen_ai.system"].(string); ok {
-		embeddingData.Vendor = vendor
-	}
+	// Extract vendor — see populateLLMAttributes for the fallback rationale.
+	embeddingData.Vendor = extractVendor(attrs)
 
 	// Extract token usage
 	embeddingData.TokenUsage = extractTokenUsageFromAttributes(attrs)
@@ -299,10 +296,8 @@ func populateAgentAttributes(ampAttrs *AmpAttributes, attrs map[string]interface
 		agentData.Model = model
 	}
 
-	// Extract framework from gen_ai.system
-	if framework, ok := attrs["gen_ai.system"].(string); ok {
-		agentData.Framework = framework
-	}
+	// Extract framework — see populateLLMAttributes for fallback rationale.
+	agentData.Framework = extractVendor(attrs)
 
 	// Extract conversation ID if present
 	if convID, ok := attrs["gen_ai.conversation.id"].(string); ok {
@@ -531,6 +526,21 @@ func extractFloatValue(value interface{}) (float64, bool) {
 	default:
 		return 0, false
 	}
+}
+
+// extractVendor reads the GenAI vendor / provider name. The OTel GenAI semconv
+// renamed gen_ai.system to gen_ai.provider.name in mid-2025; Traceloop 0.60+
+// emits the new key, older instrumentation versions emit the legacy key.
+// Prefer the legacy key so existing spans keep their vendor field populated,
+// but fall back to the current key for newer instrumentation.
+func extractVendor(attrs map[string]interface{}) string {
+	if v, ok := attrs["gen_ai.system"].(string); ok && v != "" {
+		return v
+	}
+	if v, ok := attrs["gen_ai.provider.name"].(string); ok {
+		return v
+	}
+	return ""
 }
 
 // extractTokenUsageFromAttributes extracts token usage from span attributes
