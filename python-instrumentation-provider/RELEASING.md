@@ -138,7 +138,7 @@ Example: `traceloop-sdk` `0.60.0` → `0.65.0`, cutting AMP-instr version `0.3.0
 5. **Regenerate the server's embedded catalog**. The `agent-manager-service` binary
    embeds `baseline.json` at build time and only accepts AMP-instr versions present
    in that file (or in an operator's per-install extension). Run:
-   ```
+   ```bash
    cd agent-manager-service && make gen-instrumentation-baseline
    ```
    This rewrites `agent-manager-service/instrumentation/baseline.json` from
@@ -183,7 +183,7 @@ Example: AMP buildpack starts supporting Python `3.14`.
    No Dockerfile change (`ARG PYTHON_VERSION` already parameterizes it).
 3. **Regenerate the server's embedded catalog** so the new Python flows into each
    entry's `pythonVersions` and the Console picks it up:
-   ```
+   ```bash
    cd agent-manager-service && make gen-instrumentation-baseline
    ```
 4. **Publish the images** by dispatching the **`AMP Python Instrumentation Image Release`**
