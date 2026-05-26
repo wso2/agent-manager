@@ -18,17 +18,25 @@ package websocket
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"log"
+	"log/slog"
 	"sync"
 	"time"
 
 	"github.com/google/uuid"
+
+	"github.com/wso2/agent-manager/agent-manager-service/eventhub"
 )
 
 // Manager handles the lifecycle of gateway WebSocket connections.
 // It maintains an in-memory registry of active connections, manages heartbeats,
 // and handles graceful/ungraceful disconnections.
+//
+// When an EventHub is configured, Manager subscribes to it on Register and
+// forwards received events to the local WebSocket connection. This allows any
+// service instance to deliver events to gateways connected to a different pod.
 type Manager struct {
 	// connections maps gatewayID -> []*Connection
 	connections sync.Map
@@ -39,26 +47,19 @@ type Manager struct {
 	// map reads and count decrements, causing count drift or double-decrement.
 	registryMu sync.Mutex
 
-	// mu protects the connectionCount and maxConnections fields
+	// mu protects connectionCount
 	mu sync.RWMutex
 
-	// connectionCount tracks the total number of active connections across all gateways
-	connectionCount int
-
-	// maxConnections enforces a limit on concurrent connections (default 1000)
-	maxConnections int
-
-	// heartbeatInterval specifies how often to send ping frames (default 20s)
+	connectionCount   int
+	maxConnections    int
 	heartbeatInterval time.Duration
+	heartbeatTimeout  time.Duration
 
-	// heartbeatTimeout specifies when to consider a connection dead (default 30s)
-	heartbeatTimeout time.Duration
+	hub eventhub.EventHub
 
-	// shutdownCtx is used to signal graceful shutdown to all connection goroutines
 	shutdownCtx context.Context
 	shutdownFn  context.CancelFunc
 
-	// wg tracks active connection handler goroutines for graceful shutdown
 	wg sync.WaitGroup
 }
 
@@ -79,14 +80,13 @@ func DefaultManagerConfig() ManagerConfig {
 }
 
 // NewManager creates a new connection manager with the provided configuration
-func NewManager(config ManagerConfig) *Manager {
+func NewManager(config ManagerConfig, hub eventhub.EventHub) *Manager {
 	ctx, cancel := context.WithCancel(context.Background())
 	return &Manager{
-		connections:       sync.Map{},
-		connectionCount:   0,
 		maxConnections:    config.MaxConnections,
 		heartbeatInterval: config.HeartbeatInterval,
 		heartbeatTimeout:  config.HeartbeatTimeout,
+		hub:               hub,
 		shutdownCtx:       ctx,
 		shutdownFn:        cancel,
 	}
@@ -94,19 +94,17 @@ func NewManager(config ManagerConfig) *Manager {
 
 // Register adds a new connection to the registry and starts heartbeat monitoring.
 // Returns an error if the maximum connection limit is reached.
+//
+// Any existing connections for the same gateway are evicted first (singleton per
+// gateway). When kgateway reloads config it reconnects immediately; without eviction
+// the stale upstream lingers and receives no heartbeat pings.
 func (m *Manager) Register(gatewayID string, transport Transport, authToken string) (*Connection, error) {
 	// registryMu ensures the LoadAndDelete → count update → Store sequence is atomic
 	// against concurrent Register/Unregister calls for the same gateway.
 	m.registryMu.Lock()
 
-	// Collect any existing connections to evict. We snapshot them here under the lock
-	// but close them after releasing it so we don't hold registryMu during I/O.
-	// When kgateway reloads config (on each OpenChoreo reconcile), it sends a TCP RST to
-	// the gateway controller which reconnects immediately. Without eviction, kgateway
-	// sometimes hands the reconnect to an old upstream connection whose downstream is
-	// already dead — that upstream receives no heartbeat pings and lingers as stale state.
-	// Closing old connections sends a WebSocket CLOSE to kgateway, which tears down
-	// the stale upstream immediately and leaves a clean slate for the new connection.
+	// Snapshot existing connections for eviction. We close them after releasing the
+	// lock so we don't hold registryMu during I/O.
 	var evicted []*Connection
 	if connsInterface, loaded := m.connections.LoadAndDelete(gatewayID); loaded {
 		evicted = connsInterface.([]*Connection)
@@ -131,22 +129,86 @@ func (m *Manager) Register(gatewayID string, transport Transport, authToken stri
 
 	m.registryMu.Unlock()
 
-	// Close evicted connections outside the lock — Close involves I/O and must not
-	// block other Register/Unregister callers.
+	// Unsubscribe and close evicted connections outside the lock.
 	for _, old := range evicted {
+		if m.hub != nil && old.eventSub != nil {
+			if err := m.hub.Unsubscribe(gatewayID, old.eventSub); err != nil {
+				slog.Error("Failed to unsubscribe evicted connection from EventHub",
+					"gatewayID", gatewayID, "connectionID", old.ConnectionID, "error", err)
+			}
+		}
 		_ = old.Close(1000, "superseded by new connection")
 		log.Printf("[INFO] Evicted superseded connection: gatewayID=%s connectionID=%s",
 			gatewayID, old.ConnectionID)
 	}
 
-	// Start heartbeat monitoring in background
 	m.wg.Add(1)
 	go m.monitorHeartbeat(conn)
 
-	log.Printf("[INFO] Gateway connected: gatewayID=%s connectionID=%s totalConnections=%d",
-		gatewayID, connectionID, m.GetConnectionCount())
+	// Subscribe to the EventHub and forward events to this connection.
+	if m.hub != nil {
+		ch, err := m.hub.Subscribe(gatewayID)
+		if err != nil {
+			slog.Error("Failed to subscribe to EventHub for gateway",
+				"gatewayID", gatewayID, "connectionID", connectionID, "error", err)
+			m.Unregister(gatewayID, connectionID)
+			return nil, fmt.Errorf("failed to subscribe to EventHub for gateway %s: %w", gatewayID, err)
+		}
+		conn.eventSub = ch
+		m.wg.Add(1)
+		go m.forwardEvents(conn, ch)
+	}
+
+	if len(evicted) > 0 {
+		log.Printf("[INFO] Gateway reconnected (evicted %d stale connection(s)): gatewayID=%s connectionID=%s totalConnections=%d",
+			len(evicted), gatewayID, connectionID, m.GetConnectionCount())
+	} else {
+		log.Printf("[INFO] Gateway connected: gatewayID=%s connectionID=%s totalConnections=%d",
+			gatewayID, connectionID, m.GetConnectionCount())
+	}
 
 	return conn, nil
+}
+
+// forwardEvents reads events from the EventHub subscription channel and sends
+// them to the WebSocket connection. It exits when the channel is closed or
+// the connection is closed.
+func (m *Manager) forwardEvents(conn *Connection, ch <-chan eventhub.Event) {
+	defer m.wg.Done()
+	for {
+		select {
+		case evt, ok := <-ch:
+			if !ok {
+				return
+			}
+			if conn.IsClosed() {
+				return
+			}
+			// EventData already contains the full GatewayEventDTO JSON serialized by
+			// GatewayEventsService.broadcastEvent — send it directly.
+			payload := []byte(evt.EventData)
+			if len(payload) == 0 {
+				payload, _ = json.Marshal(evt)
+			}
+			if err := conn.Send(payload); err != nil {
+				slog.Error("Failed to forward EventHub event to gateway",
+					"gatewayID", conn.GatewayID,
+					"connectionID", conn.ConnectionID,
+					"event_type", string(evt.EventType),
+					"error", err)
+				conn.DeliveryStats.IncrementFailed(fmt.Sprintf("forward error: %v", err))
+			} else {
+				slog.Debug("Forwarded event to gateway WebSocket",
+					"gatewayID", conn.GatewayID,
+					"connectionID", conn.ConnectionID,
+					"event_type", string(evt.EventType),
+					"event_id", evt.EventID)
+				conn.DeliveryStats.IncrementTotalSent()
+			}
+		case <-m.shutdownCtx.Done():
+			return
+		}
+	}
 }
 
 // Unregister removes a connection from the registry and closes it gracefully.
@@ -164,7 +226,6 @@ func (m *Manager) Unregister(gatewayID, connectionID string) {
 	var updatedConns []*Connection
 	var removed *Connection
 
-	// Filter out the connection to remove
 	for _, conn := range conns {
 		if conn.ConnectionID == connectionID {
 			removed = conn
@@ -178,19 +239,26 @@ func (m *Manager) Unregister(gatewayID, connectionID string) {
 		return // Connection not found
 	}
 
-	// Update or delete the gateway entry
 	if len(updatedConns) == 0 {
 		m.connections.Delete(gatewayID)
 	} else {
 		m.connections.Store(gatewayID, updatedConns)
 	}
 
-	// Decrement connection count
 	m.mu.Lock()
 	m.connectionCount--
 	m.mu.Unlock()
 
 	m.registryMu.Unlock()
+
+	// Unsubscribe from the EventHub before closing the connection so the forwardEvents
+	// goroutine exits cleanly (channel close signals it) rather than leaking until shutdown.
+	if m.hub != nil && removed.eventSub != nil {
+		if err := m.hub.Unsubscribe(gatewayID, removed.eventSub); err != nil {
+			slog.Error("Failed to unsubscribe from EventHub",
+				"gatewayID", gatewayID, "connectionID", connectionID, "error", err)
+		}
+	}
 
 	// Close the connection outside the lock — Close involves I/O and must not
 	// block other Register/Unregister callers.
@@ -221,7 +289,7 @@ func (m *Manager) GetAllConnections() map[string][]*Connection {
 		gatewayID := key.(string)
 		conns := value.([]*Connection)
 		result[gatewayID] = conns
-		return true // Continue iteration
+		return true
 	})
 	return result
 }
@@ -241,7 +309,6 @@ func (m *Manager) monitorHeartbeat(conn *Connection) {
 	ticker := time.NewTicker(m.heartbeatInterval)
 	defer ticker.Stop()
 
-	// Configure pong handler to update heartbeat timestamp
 	conn.Transport.EnablePongHandler(func(appData string) error {
 		conn.UpdateHeartbeat()
 		return nil
@@ -250,16 +317,13 @@ func (m *Manager) monitorHeartbeat(conn *Connection) {
 	for {
 		select {
 		case <-m.shutdownCtx.Done():
-			// Graceful shutdown triggered
 			return
 
 		case <-ticker.C:
-			// Check if connection is already closed
 			if conn.IsClosed() {
 				return
 			}
 
-			// Check for heartbeat timeout
 			if time.Since(conn.GetLastHeartbeat()) > m.heartbeatTimeout {
 				log.Printf("[WARN] Heartbeat timeout detected: gatewayID=%s connectionID=%s lastHeartbeat=%v",
 					conn.GatewayID, conn.ConnectionID, conn.GetLastHeartbeat())
@@ -267,7 +331,6 @@ func (m *Manager) monitorHeartbeat(conn *Connection) {
 				return
 			}
 
-			// Send ping frame
 			if err := conn.SendPing(); err != nil {
 				log.Printf("[ERROR] Failed to send ping: gatewayID=%s connectionID=%s error=%v",
 					conn.GatewayID, conn.ConnectionID, err)
@@ -283,10 +346,8 @@ func (m *Manager) monitorHeartbeat(conn *Connection) {
 func (m *Manager) Shutdown() {
 	log.Println("[INFO] Shutting down WebSocket manager...")
 
-	// Signal shutdown to all monitoring goroutines
 	m.shutdownFn()
 
-	// Close all connections
 	m.connections.Range(func(key, value interface{}) bool {
 		gatewayID := key.(string)
 		conns := value.([]*Connection)
@@ -296,10 +357,9 @@ func (m *Manager) Shutdown() {
 					gatewayID, conn.ConnectionID, err)
 			}
 		}
-		return true // Continue iteration
+		return true
 	})
 
-	// Wait for all goroutines to exit
 	m.wg.Wait()
 
 	log.Println("[INFO] WebSocket manager shutdown complete")

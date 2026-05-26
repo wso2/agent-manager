@@ -27,6 +27,7 @@ import (
 
 	"github.com/gorilla/websocket"
 
+	"github.com/wso2/agent-manager/agent-manager-service/eventhub"
 	"github.com/wso2/agent-manager/agent-manager-service/middleware/logger"
 	"github.com/wso2/agent-manager/agent-manager-service/services"
 	ws "github.com/wso2/agent-manager/agent-manager-service/websocket"
@@ -41,6 +42,7 @@ type WebSocketController interface {
 
 type websocketController struct {
 	manager        *ws.Manager
+	hub            eventhub.EventHub
 	gatewayService *services.PlatformGatewayService
 	ackHandler     *services.DeploymentAckHandler
 	upgrader       websocket.Upgrader
@@ -65,12 +67,14 @@ type ConnectionAckDTO struct {
 // NewWebSocketController creates a new WebSocket controller
 func NewWebSocketController(
 	manager *ws.Manager,
+	hub eventhub.EventHub,
 	gatewayService *services.PlatformGatewayService,
 	ackHandler *services.DeploymentAckHandler,
 	rateLimitCount int,
 ) WebSocketController {
 	ctrl := &websocketController{
 		manager:        manager,
+		hub:            hub,
 		gatewayService: gatewayService,
 		ackHandler:     ackHandler,
 		upgrader: websocket.Upgrader{
@@ -129,6 +133,15 @@ func (c *websocketController) Connect(w http.ResponseWriter, r *http.Request) {
 	gatewayID := gateway.UUID.String()
 	orgName := gateway.OrganizationName
 	gatewayName := gateway.Name
+
+	// Ensure the gateway is registered in the EventHub (idempotent - safe to call on every connect).
+	if c.hub != nil {
+		if err := c.hub.RegisterGateway(gatewayID); err != nil {
+			log.Warn("Failed to register gateway in EventHub",
+				"gatewayID", gatewayID, "gatewayName", gatewayName,
+				"orgName", orgName, "error", err)
+		}
+	}
 
 	// Rate limit by gateway ID so that all gateways behind a shared ingress are
 	// tracked independently instead of sharing a single per-IP bucket.
