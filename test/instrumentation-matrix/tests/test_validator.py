@@ -2,16 +2,17 @@ from harness.validator import ContractValidator
 
 
 def _llm_span(extra=None):
+    # Mirrors what Traceloop 0.60+ emits via the current OTel GenAI semconv.
     attrs = {
-        "gen_ai.system": "openai",
+        "gen_ai.provider.name": "openai",
         "gen_ai.request.model": "gpt-4o-mini",
+        "gen_ai.operation.name": "chat",
         "gen_ai.usage.input_tokens": 10,
         "gen_ai.usage.output_tokens": 2,
-        "traceloop.span.kind": "llm",
     }
     if extra:
         attrs.update(extra)
-    return {"name": "openai.chat", "kind": "CLIENT", "attributes": attrs}
+    return {"name": "ChatOpenAI.chat", "kind": "CLIENT", "attributes": attrs}
 
 
 def test_validator_passes_well_formed_llm_span():
@@ -22,11 +23,11 @@ def test_validator_passes_well_formed_llm_span():
 
 def test_validator_rejects_missing_required_attribute():
     span = _llm_span()
-    del span["attributes"]["gen_ai.system"]
+    del span["attributes"]["gen_ai.provider.name"]
     v = ContractValidator.load("traceloop/v1")
     result = v.validate(span, kind="llm")
     assert not result.ok
-    assert "gen_ai.system" in result.message
+    assert "gen_ai.provider.name" in result.message
 
 
 def test_validator_allows_additional_attributes():

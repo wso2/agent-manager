@@ -1,7 +1,7 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "traceloop/v1/kinds/llm.schema.json",
-  "title": "Traceloop v1 — LLM span",
+  "title": "Traceloop v1 — LLM span (OTel GenAI semconv current as of Traceloop 0.60)",
   "type": "object",
   "properties": {
     "name": { "type": "string", "minLength": 1 },
@@ -9,19 +9,19 @@
     "attributes": {
       "type": "object",
       "required": [
-        "gen_ai.system",
+        "gen_ai.provider.name",
         "gen_ai.request.model",
+        "gen_ai.operation.name",
         "gen_ai.usage.input_tokens",
-        "gen_ai.usage.output_tokens",
-        "traceloop.span.kind"
+        "gen_ai.usage.output_tokens"
       ],
       "properties": {
-        "gen_ai.system":              { "type": "string", "minLength": 1 },
+        "gen_ai.provider.name":       { "type": "string", "minLength": 1 },
         "gen_ai.request.model":       { "type": "string", "minLength": 1 },
         "gen_ai.response.model":      { "type": "string" },
+        "gen_ai.operation.name":      { "type": "string", "minLength": 1 },
         "gen_ai.usage.input_tokens":  { "type": "integer", "minimum": 0 },
-        "gen_ai.usage.output_tokens": { "type": "integer", "minimum": 0 },
-        "traceloop.span.kind":        { "const": "llm" }
+        "gen_ai.usage.output_tokens": { "type": "integer", "minimum": 0 }
       },
       "additionalProperties": true
     }
