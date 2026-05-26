@@ -18,6 +18,7 @@ import (
 	"github.com/wso2/agent-manager/agent-manager-service/clients/traceobserversvc"
 	"github.com/wso2/agent-manager/agent-manager-service/config"
 	"github.com/wso2/agent-manager/agent-manager-service/controllers"
+	"github.com/wso2/agent-manager/agent-manager-service/eventhub"
 	"github.com/wso2/agent-manager/agent-manager-service/instrumentation"
 	"github.com/wso2/agent-manager/agent-manager-service/middleware/jwtassertion"
 	"github.com/wso2/agent-manager/agent-manager-service/repositories"
@@ -69,8 +70,11 @@ func InitializeAppParams(cfg *config.Config, db *gorm.DB, authProvider client.Au
 	}
 	llmProxyService := services.NewLLMProxyService(llmProxyRepository, llmProviderRepository, v)
 	deploymentRepository := ProvideDeploymentRepository(db)
-	manager := ProvideWebSocketManager(configConfig)
-	gatewayEventsService := services.NewGatewayEventsService(manager)
+	eventHub, err := ProvideEventHub(db, logger)
+	if err != nil {
+		return nil, err
+	}
+	gatewayEventsService := services.NewGatewayEventsService(eventHub)
 	llmProxyDeploymentService := services.NewLLMProxyDeploymentService(deploymentRepository, llmProxyRepository, llmProviderRepository, gatewayRepository, gatewayEventsService)
 	apiKeyRepository := ProvideAPIKeyRepository(db)
 	llmProxyAPIKeyService := services.NewLLMProxyAPIKeyService(llmProxyRepository, gatewayRepository, gatewayEventsService, apiKeyRepository)
@@ -102,8 +106,9 @@ func InitializeAppParams(cfg *config.Config, db *gorm.DB, authProvider client.Au
 	agentAPIKeyService := services.NewAgentAPIKeyService(artifactRepository, openChoreoClient, gatewayRepository, gatewayEventsService, apiKeyRepository)
 	agentAPIKeyController := controllers.NewAgentAPIKeyController(agentAPIKeyService)
 	llmProxyDeploymentController := controllers.NewLLMProxyDeploymentController(llmProxyDeploymentService)
+	manager := ProvideWebSocketManager(configConfig, eventHub)
 	deploymentAckHandler := ProvideDeploymentAckHandler(deploymentRepository)
-	webSocketController := ProvideWebSocketController(manager, platformGatewayService, deploymentAckHandler, configConfig)
+	webSocketController := ProvideWebSocketController(manager, eventHub, platformGatewayService, deploymentAckHandler, configConfig)
 	gatewayInternalAPIService := services.NewGatewayInternalAPIService(llmProviderRepository, llmProxyRepository, deploymentRepository, gatewayRepository, infraResourceManager, v)
 	gatewayInternalController := controllers.NewGatewayInternalController(platformGatewayService, gatewayInternalAPIService, apiKeyRepository)
 	monitorRepository := ProvideMonitorRepository(db)
@@ -176,6 +181,7 @@ func InitializeAppParams(cfg *config.Config, db *gorm.DB, authProvider client.Au
 		OpenChoreoClient:                 openChoreoClient,
 		TraceObserverSvcClient:           traceObserverSvcClient,
 		WebSocketManager:                 manager,
+		EventHub:                         eventHub,
 		DB:                               db,
 	}
 	return appParams, nil
@@ -211,8 +217,11 @@ func InitializeTestAppParamsWithClientMocks(cfg *config.Config, db *gorm.DB, aut
 	}
 	llmProxyService := services.NewLLMProxyService(llmProxyRepository, llmProviderRepository, v)
 	deploymentRepository := ProvideDeploymentRepository(db)
-	manager := ProvideWebSocketManager(configConfig)
-	gatewayEventsService := services.NewGatewayEventsService(manager)
+	eventHub, err := ProvideEventHub(db, logger)
+	if err != nil {
+		return nil, err
+	}
+	gatewayEventsService := services.NewGatewayEventsService(eventHub)
 	llmProxyDeploymentService := services.NewLLMProxyDeploymentService(deploymentRepository, llmProxyRepository, llmProviderRepository, gatewayRepository, gatewayEventsService)
 	apiKeyRepository := ProvideAPIKeyRepository(db)
 	llmProxyAPIKeyService := services.NewLLMProxyAPIKeyService(llmProxyRepository, gatewayRepository, gatewayEventsService, apiKeyRepository)
@@ -244,8 +253,9 @@ func InitializeTestAppParamsWithClientMocks(cfg *config.Config, db *gorm.DB, aut
 	agentAPIKeyService := services.NewAgentAPIKeyService(artifactRepository, openChoreoClient, gatewayRepository, gatewayEventsService, apiKeyRepository)
 	agentAPIKeyController := controllers.NewAgentAPIKeyController(agentAPIKeyService)
 	llmProxyDeploymentController := controllers.NewLLMProxyDeploymentController(llmProxyDeploymentService)
+	manager := ProvideWebSocketManager(configConfig, eventHub)
 	deploymentAckHandler := ProvideDeploymentAckHandler(deploymentRepository)
-	webSocketController := ProvideWebSocketController(manager, platformGatewayService, deploymentAckHandler, configConfig)
+	webSocketController := ProvideWebSocketController(manager, eventHub, platformGatewayService, deploymentAckHandler, configConfig)
 	gatewayInternalAPIService := services.NewGatewayInternalAPIService(llmProviderRepository, llmProxyRepository, deploymentRepository, gatewayRepository, infraResourceManager, v)
 	gatewayInternalController := controllers.NewGatewayInternalController(platformGatewayService, gatewayInternalAPIService, apiKeyRepository)
 	monitorRepository := ProvideMonitorRepository(db)
@@ -315,6 +325,7 @@ func InitializeTestAppParamsWithClientMocks(cfg *config.Config, db *gorm.DB, aut
 		OpenChoreoClient:                 openChoreoClient,
 		TraceObserverSvcClient:           traceObserverSvcClient,
 		WebSocketManager:                 manager,
+		EventHub:                         eventHub,
 		DB:                               db,
 	}
 	return appParams, nil
@@ -520,6 +531,7 @@ var repositoryProviderSet = wire.NewSet(
 )
 
 var websocketProviderSet = wire.NewSet(
+	ProvideEventHub,
 	ProvideWebSocketManager, services.NewGatewayEventsService, ProvideDeploymentAckHandler,
 )
 
@@ -540,25 +552,40 @@ func ProvideTestSecretManagementClient(testClients TestClients) secretmanagersvc
 	return testClients.SecretMgmtClient
 }
 
+// ProvideEventHub creates and initializes the EventHub backed by PostgreSQL.
+func ProvideEventHub(db *gorm.DB, logger *slog.Logger) (eventhub.EventHub, error) {
+	sqlDB, err := db.DB()
+	if err != nil {
+		return nil, err
+	}
+	cfg := eventhub.DefaultSQLBackendConfig()
+	hub := eventhub.NewSQLBackend(sqlDB, logger, cfg)
+	if err := hub.Initialize(); err != nil {
+		return nil, err
+	}
+	return hub, nil
+}
+
 // ProvideWebSocketManager creates a new WebSocket manager with config
-func ProvideWebSocketManager(cfg config.Config) *websocket.Manager {
+func ProvideWebSocketManager(cfg config.Config, hub eventhub.EventHub) *websocket.Manager {
 	wsConfig := websocket.ManagerConfig{
 		MaxConnections:    cfg.WebSocket.MaxConnections,
 		HeartbeatInterval: 20 * time.Second,
 		HeartbeatTimeout:  time.Duration(cfg.WebSocket.ConnectionTimeout) * time.Second,
 	}
-	return websocket.NewManager(wsConfig)
+	return websocket.NewManager(wsConfig, hub)
 }
 
 // ProvideWebSocketController creates a new WebSocket controller with rate limiting
 func ProvideWebSocketController(
 	manager *websocket.Manager,
+	hub eventhub.EventHub,
 	gatewayService *services.PlatformGatewayService,
 	ackHandler *services.DeploymentAckHandler,
 	cfg config.Config,
 ) controllers.WebSocketController {
 	rateLimitCount := cfg.WebSocket.RateLimitPerMin
-	return controllers.NewWebSocketController(manager, gatewayService, ackHandler, rateLimitCount)
+	return controllers.NewWebSocketController(manager, hub, gatewayService, ackHandler, rateLimitCount)
 }
 
 // ProvideDeploymentAckHandler creates a new deployment ack handler

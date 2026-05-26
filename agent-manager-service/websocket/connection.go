@@ -19,6 +19,8 @@ package websocket
 import (
 	"sync"
 	"time"
+
+	"github.com/wso2/agent-manager/agent-manager-service/eventhub"
 )
 
 // Connection represents an active gateway connection with metadata and lifecycle management.
@@ -48,6 +50,12 @@ type Connection struct {
 
 	// DeliveryStats tracks event delivery statistics for this connection
 	DeliveryStats *Stats
+
+	// eventSub is the EventHub subscription channel for this connection.
+	// Set by Manager.Register when an EventHub is configured; nil otherwise.
+	// Stored here so Unregister can call hub.Unsubscribe to clean up the
+	// subscription and stop the forwardEvents goroutine.
+	eventSub <-chan eventhub.Event
 
 	// mu protects concurrent access to mutable fields (LastHeartbeat, closed state)
 	mu sync.RWMutex
