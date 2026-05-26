@@ -424,6 +424,35 @@ func (s *agentManagerService) attachOTELInstrumentationTrait(ctx context.Context
 // failure can't silently swap a customer's pinned version for the default.
 var ErrInstrumentationVersionNotPinned = errors.New("agent has no pinned instrumentation version")
 
+// lookupAgentAutoInstrumentation returns the agent's persisted
+// EnableAutoInstrumentation setting from agent_configs. Defaults to
+// true when there is no row yet (matching the configurations default).
+// Errors only on genuine DB failures; missing config is not an error.
+func (s *agentManagerService) lookupAgentAutoInstrumentation(ctx context.Context, orgName, projectName, agentName string) (bool, error) {
+	pipeline, err := s.ocClient.GetProjectDeploymentPipeline(ctx, orgName, projectName)
+	if err != nil {
+		return true, fmt.Errorf("failed to get deployment pipeline: %w", err)
+	}
+	if len(pipeline.PromotionPaths) == 0 {
+		return true, nil
+	}
+	lowestEnv := findLowestEnvironment(pipeline.PromotionPaths)
+	if lowestEnv == "" {
+		return true, nil
+	}
+	cfg, err := s.agentConfigRepo.Get(orgName, projectName, agentName, lowestEnv)
+	if errors.Is(err, repositories.ErrAgentConfigNotFound) {
+		return true, nil
+	}
+	if err != nil {
+		return true, fmt.Errorf("failed to read agent config: %w", err)
+	}
+	if cfg == nil {
+		return true, nil
+	}
+	return cfg.EnableAutoInstrumentation, nil
+}
+
 // lookupAgentInstrumentationVersion returns the agent's pinned AMP instrumentation
 // version (from agent_configs.instrumentation_version). It returns
 // ErrInstrumentationVersionNotPinned when there's genuinely no pin to honour,
@@ -1371,7 +1400,10 @@ func (s *agentManagerService) UpdateAgentBuildParameters(ctx context.Context, or
 	// payload can flip the agent's Python version, and optionally
 	// override its pinned instrumentation, either of which would
 	// otherwise leave the deploy pointing at an init-container image
-	// tag that doesn't exist.
+	// tag that doesn't exist. The check is skipped when neither path
+	// will inject an init-container: no explicit pin in the request
+	// AND auto-instrumentation is off on the agent's effective config.
+	// Mirrors the gate in CreateAgent.
 	if py := buildpackPythonVersion(&req.Build); py != "" {
 		var requestedVersion *string
 		if req.Configurations != nil {
@@ -1382,21 +1414,35 @@ func (s *agentManagerService) UpdateAgentBuildParameters(ctx context.Context, or
 				}
 			}
 		}
-		// No new pin in the request: validate against the agent's
-		// currently-pinned version (or the platform default if none).
-		if requestedVersion == nil {
-			pinned, lookupErr := s.lookupAgentInstrumentationVersion(ctx, orgName, projectName, agentName)
-			switch {
-			case errors.Is(lookupErr, ErrInstrumentationVersionNotPinned):
-				// Leave nil; helper resolves to catalog default.
-			case lookupErr != nil:
+		// Resolve effective auto-instrumentation: request override if
+		// provided, otherwise the persisted value on the agent.
+		autoInstr := true
+		if req.Configurations != nil && req.Configurations.EnableAutoInstrumentation != nil {
+			autoInstr = *req.Configurations.EnableAutoInstrumentation
+		} else {
+			persisted, lookupErr := s.lookupAgentAutoInstrumentation(ctx, orgName, projectName, agentName)
+			if lookupErr != nil {
 				return nil, lookupErr
-			default:
-				requestedVersion = pinned
 			}
+			autoInstr = persisted
 		}
-		if err := s.validateEffectivePythonInstrumentationPair(py, requestedVersion); err != nil {
-			return nil, err
+		if requestedVersion != nil || autoInstr {
+			// No new pin: validate against the agent's currently-pinned
+			// version (or the platform default if none).
+			if requestedVersion == nil {
+				pinned, lookupErr := s.lookupAgentInstrumentationVersion(ctx, orgName, projectName, agentName)
+				switch {
+				case errors.Is(lookupErr, ErrInstrumentationVersionNotPinned):
+					// Leave nil; helper resolves to catalog default.
+				case lookupErr != nil:
+					return nil, lookupErr
+				default:
+					requestedVersion = pinned
+				}
+			}
+			if err := s.validateEffectivePythonInstrumentationPair(py, requestedVersion); err != nil {
+				return nil, err
+			}
 		}
 	}
 

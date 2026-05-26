@@ -193,10 +193,27 @@ func ProvideSupportedPythonVersions() SupportedPythonVersions {
 	return SupportedPythonVersions(utils.SupportedPythonVersions())
 }
 
-// ProvideDefaultPythonVersion returns the platform default Python version.
-// Constant for M1; promote to config later if needed.
+// defaultPythonVersion is the platform's preferred Python for new
+// agents. Constant for M1; promote to config later if needed.
+const defaultPythonVersion = "3.11"
+
+// ProvideDefaultPythonVersion returns the platform default Python
+// version, panicking at boot if the constant is no longer present in
+// the buildpack-supported list. The two values share no compile-time
+// link; without this guard a developer pruning utils.Buildpacks could
+// ship a chart whose /agent-build-options advertises a default the
+// backend then rejects.
 func ProvideDefaultPythonVersion() DefaultPythonVersion {
-	return "3.11"
+	for _, p := range utils.SupportedPythonVersions() {
+		if p == defaultPythonVersion {
+			return defaultPythonVersion
+		}
+	}
+	panic(fmt.Sprintf(
+		"default python version %q not present in buildpack-supported list %v; "+
+			"update defaultPythonVersion in wire.go alongside any buildpack change",
+		defaultPythonVersion, utils.SupportedPythonVersions(),
+	))
 }
 
 // ProvideAgentBuildOptionsController wraps the controller constructor
