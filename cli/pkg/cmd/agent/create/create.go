@@ -23,6 +23,7 @@ import (
 	"github.com/spf13/cobra"
 
 	amsvc "github.com/wso2/agent-manager/cli/pkg/clients/amsvc/gen"
+	"github.com/wso2/agent-manager/cli/pkg/clients/traceobssvc"
 	"github.com/wso2/agent-manager/cli/pkg/clierr"
 	"github.com/wso2/agent-manager/cli/pkg/cmdutil"
 	"github.com/wso2/agent-manager/cli/pkg/iostreams"
@@ -30,10 +31,11 @@ import (
 )
 
 type CreateOptions struct {
-	IO           *iostreams.IOStreams
-	Client       func(context.Context) (*amsvc.ClientWithResponses, error)
-	ResolveScope func(*cobra.Command, bool, bool) (string, string, error)
-	MakeScope    func(string, string) render.Scope
+	IO            *iostreams.IOStreams
+	Client        func(context.Context) (*amsvc.ClientWithResponses, error)
+	TraceObserver func(context.Context) (*traceobssvc.Client, error)
+	ResolveScope  func(*cobra.Command, bool, bool) (string, string, error)
+	MakeScope     func(string, string) render.Scope
 
 	Org   string
 	Proj  string
@@ -74,10 +76,11 @@ type CreateOptions struct {
 
 func NewCreateCmd(f *cmdutil.Factory) *cobra.Command {
 	opts := &CreateOptions{
-		IO:           f.IOStreams,
-		Client:       f.AgentManager,
-		ResolveScope: f.ResolveOrgProject,
-		MakeScope:    f.Scope,
+		IO:            f.IOStreams,
+		Client:        f.AgentManager,
+		TraceObserver: f.TraceObserver,
+		ResolveScope:  f.ResolveOrgProject,
+		MakeScope:     f.Scope,
 	}
 
 	cmd := &cobra.Command{
@@ -171,18 +174,37 @@ func runCreate(ctx context.Context, opts *CreateOptions) error {
 		return render.Error(opts.IO, opts.Scope, cmdutil.ErrorFromServer(resp.HTTPResponse, cmdutil.FirstNonNil(resp.JSON400, resp.JSON409, resp.JSON500)))
 	}
 
-	if opts.IO.JSON {
-		return render.JSONSuccess(opts.IO, opts.Scope, resp.JSON202)
+	if !opts.IO.JSON {
+		printAgentSummary(opts.IO, resp.JSON202)
 	}
 
-	cs := opts.IO.StderrColorScheme()
-	fmt.Fprintf(opts.IO.ErrOut, "%s Created agent %s\n\n", cs.SuccessIcon(), resp.JSON202.Name)
-	fmt.Fprintf(opts.IO.ErrOut, "  Name:         %s\n", resp.JSON202.Name)
-	fmt.Fprintf(opts.IO.ErrOut, "  Display Name: %s\n", resp.JSON202.DisplayName)
-	fmt.Fprintf(opts.IO.ErrOut, "  Type:         %s\n", resp.JSON202.AgentType.Type)
-	if resp.JSON202.AgentType.SubType != nil {
-		fmt.Fprintf(opts.IO.ErrOut, "  Sub-Type:     %s\n", *resp.JSON202.AgentType.SubType)
+	if opts.Provisioning != provisioningExternal {
+		if opts.IO.JSON {
+			return render.JSONSuccess(opts.IO, opts.Scope, resp.JSON202)
+		}
+		return nil
 	}
-	fmt.Fprintf(opts.IO.ErrOut, "  Provisioning: %s\n", resp.JSON202.Provisioning.Type)
+
+	// The agent is already created server-side, so a post-create failure (token
+	// mint, trace-observer discovery) is a warning, not an error — otherwise the
+	// user retries and hits 409.
+	if err := runExternalPostCreate(ctx, opts, resp.JSON202, client); err != nil {
+		fmt.Fprintf(opts.IO.ErrOut, "warning: agent created but failed to generate token: %v\n", err)
+		if opts.IO.JSON {
+			return render.JSONSuccess(opts.IO, opts.Scope, map[string]any{"agent": resp.JSON202})
+		}
+	}
 	return nil
+}
+
+func printAgentSummary(io *iostreams.IOStreams, a *amsvc.AgentResponse) {
+	cs := io.StderrColorScheme()
+	fmt.Fprintf(io.ErrOut, "%s Created agent %s\n\n", cs.SuccessIcon(), a.Name)
+	fmt.Fprintf(io.ErrOut, "  Name:         %s\n", a.Name)
+	fmt.Fprintf(io.ErrOut, "  Display Name: %s\n", a.DisplayName)
+	fmt.Fprintf(io.ErrOut, "  Type:         %s\n", a.AgentType.Type)
+	if a.AgentType.SubType != nil {
+		fmt.Fprintf(io.ErrOut, "  Sub-Type:     %s\n", *a.AgentType.SubType)
+	}
+	fmt.Fprintf(io.ErrOut, "  Provisioning: %s\n", a.Provisioning.Type)
 }

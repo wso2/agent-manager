@@ -40,7 +40,7 @@ func validate(opts *CreateOptions) error {
 
 	switch opts.Provisioning {
 	case provisioningExternal:
-		return cmdutil.FlagErrorf("external provisioning is not yet supported by amctl agent create")
+		v = append(v, validateExternal(opts)...)
 	case provisioningInternal:
 		v = append(v, validateInternal(opts)...)
 	default:
@@ -171,4 +171,35 @@ func parseEnvKey(entry string) (string, error) {
 		return "", fmt.Errorf("invalid key %q (must match [A-Za-z_][A-Za-z0-9_]*)", key)
 	}
 	return key, nil
+}
+
+func validateExternal(opts *CreateOptions) []string {
+	var v []string
+	disallow := func(flag string, set bool) {
+		if set {
+			v = append(v, flag+" is not allowed for external provisioning")
+		}
+	}
+
+	disallow("--subtype", opts.SubType != "")
+	disallow("--repo-url", opts.RepoURL != "")
+	disallow("--repo-branch", opts.RepoBranch != "")
+	disallow("--repo-path", opts.RepoPath != "")
+	disallow("--repo-secret", opts.RepoSecret != "")
+	disallow("--build-type", opts.BuildType != "")
+	disallow("--language", opts.Language != "")
+	disallow("--language-version", opts.LanguageVersion != "")
+	disallow("--run-command", opts.RunCommand != "")
+	disallow("--dockerfile", opts.Dockerfile != "")
+	// PortSet (not Port != 0) — the --port flag defaults to 8000.
+	disallow("--port", opts.PortSet)
+	disallow("--base-path", opts.BasePath != "")
+	disallow("--openapi-spec", opts.OpenAPISpec != "")
+	disallow("--env", len(opts.Env) > 0)
+	disallow("--env-secret", len(opts.EnvSecret) > 0)
+	disallow("--env-from-secret", len(opts.EnvFromSecret) > 0)
+	disallow("--no-auto-instrumentation", opts.DisableAutoInstrumentation)
+	disallow("--model-config-file", opts.ModelConfigFile != "")
+
+	return v
 }

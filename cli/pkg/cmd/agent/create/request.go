@@ -28,7 +28,7 @@ import (
 
 const (
 	provisioningInternal = string(amsvc.ProvisioningTypeInternal)
-	provisioningExternal = "external" // CLI-only: API spec has no ProvisioningTypeExternal yet.
+	provisioningExternal = string(amsvc.ProvisioningTypeExternal)
 
 	buildTypeBuildpack = string(amsvc.Buildpack)
 	buildTypeDocker    = string(amsvc.Docker)
@@ -70,6 +70,10 @@ func Build(opts *CreateOptions) (amsvc.CreateAgentRequest, error) {
 		req.AgentType.SubType = &opts.SubType
 	}
 
+	if opts.Provisioning == provisioningExternal {
+		return req, nil
+	}
+
 	b, err := buildBuild(opts)
 	if err != nil {
 		return amsvc.CreateAgentRequest{}, err
@@ -90,6 +94,9 @@ func ensureLeadingSlash(s string) string {
 }
 
 func buildProvisioning(opts *CreateOptions) amsvc.Provisioning {
+	if opts.Provisioning == provisioningExternal {
+		return amsvc.Provisioning{Type: amsvc.ProvisioningTypeExternal}
+	}
 	repo := &amsvc.RepositoryConfig{
 		Url:     opts.RepoURL,
 		Branch:  opts.RepoBranch,

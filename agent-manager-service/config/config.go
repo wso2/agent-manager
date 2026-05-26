@@ -163,9 +163,10 @@ type AgentWorkload struct {
 }
 
 type CORSConfig struct {
-	AllowOrigin  string
-	AllowMethods string
-	AllowHeaders string
+	AllowOrigin      string
+	AllowMethods     string
+	AllowHeaders     string
+	AllowCredentials bool
 }
 
 // OTELConfig holds all OpenTelemetry related configuration

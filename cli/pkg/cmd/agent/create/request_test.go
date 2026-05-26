@@ -473,6 +473,57 @@ func TestBuild_NoConfigWhenUnset(t *testing.T) {
 	}
 }
 
+func TestBuildProvisioning_External(t *testing.T) {
+	opts := &CreateOptions{Provisioning: "external"}
+	p := buildProvisioning(opts)
+	if p.Type != amsvc.ProvisioningTypeExternal {
+		t.Errorf("Type = %q, want %q", p.Type, amsvc.ProvisioningTypeExternal)
+	}
+	if p.Repository != nil {
+		t.Errorf("Repository = %v, want nil", p.Repository)
+	}
+}
+
+func TestBuild_External(t *testing.T) {
+	opts := &CreateOptions{
+		Name:         "testing",
+		DisplayName:  "Testing",
+		Description:  "dssdf",
+		Provisioning: "external",
+	}
+	req, err := Build(opts)
+	if err != nil {
+		t.Fatalf("Build returned error: %v", err)
+	}
+	if req.Name != "testing" || req.DisplayName != "Testing" {
+		t.Errorf("name/displayName mismatch: %+v", req)
+	}
+	if req.Description == nil || *req.Description != "dssdf" {
+		t.Errorf("Description = %v, want \"dssdf\"", req.Description)
+	}
+	if req.AgentType == nil || req.AgentType.Type != "external-agent-api" {
+		t.Errorf("AgentType.Type = %v, want external-agent-api", req.AgentType)
+	}
+	if req.AgentType.SubType != nil {
+		t.Errorf("AgentType.SubType should be nil for external, got %v", *req.AgentType.SubType)
+	}
+	if req.Provisioning.Type != amsvc.ProvisioningTypeExternal {
+		t.Errorf("Provisioning.Type = %q, want external", req.Provisioning.Type)
+	}
+	if req.Provisioning.Repository != nil {
+		t.Errorf("Repository should be nil for external, got %+v", req.Provisioning.Repository)
+	}
+	if req.Build != nil {
+		t.Errorf("Build should be nil for external, got %+v", req.Build)
+	}
+	if req.InputInterface != nil {
+		t.Errorf("InputInterface should be nil for external, got %+v", req.InputInterface)
+	}
+	if req.Configurations != nil {
+		t.Errorf("Configurations should be nil for external, got %+v", req.Configurations)
+	}
+}
+
 // --- helpers ---
 
 func strPtr(s string) *string { return &s }

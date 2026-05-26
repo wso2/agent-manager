@@ -1481,6 +1481,24 @@ type BuildsListResponse struct {
 	Total int `json:"total"`
 }
 
+// CORSConfig defines model for CORSConfig.
+type CORSConfig struct {
+	// AllowCredentials Whether credentials are allowed. Cannot be true when allowOrigin contains "*"
+	AllowCredentials *bool `json:"allowCredentials,omitempty"`
+
+	// AllowHeaders Allowed request headers for CORS
+	AllowHeaders *[]string `json:"allowHeaders,omitempty"`
+
+	// AllowMethods Allowed HTTP methods for CORS
+	AllowMethods *[]string `json:"allowMethods,omitempty"`
+
+	// AllowOrigin Allowed origins. Use ["*"] to allow all (incompatible with allowCredentials)
+	AllowOrigin *[]string `json:"allowOrigin,omitempty"`
+
+	// Enabled Enable or disable CORS for this agent endpoint
+	Enabled *bool `json:"enabled,omitempty"`
+}
+
 // CatalogEntry defines model for CatalogEntry.
 type CatalogEntry struct {
 	// CreatedAt Timestamp when the entry was created
@@ -1663,6 +1681,8 @@ type ConfigurationResponse struct {
 
 // Configurations defines model for Configurations.
 type Configurations struct {
+	CorsConfig *CORSConfig `json:"corsConfig,omitempty"`
+
 	// EnableApiKeySecurity Enable API key security for the agent endpoint
 	EnableApiKeySecurity *bool `json:"enableApiKeySecurity,omitempty"`
 
@@ -2007,6 +2027,8 @@ type DataPlaneListResponse = []DataPlane
 
 // DeployAgentRequest defines model for DeployAgentRequest.
 type DeployAgentRequest struct {
+	CorsConfig *CORSConfig `json:"corsConfig,omitempty"`
+
 	// EnableApiKeySecurity Enable API key security for the agent endpoint
 	EnableApiKeySecurity *bool `json:"enableApiKeySecurity,omitempty"`
 

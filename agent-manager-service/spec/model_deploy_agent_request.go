@@ -28,7 +28,8 @@ type DeployAgentRequest struct {
 	// Enable auto instrumentation for observability
 	EnableAutoInstrumentation *bool `json:"enableAutoInstrumentation,omitempty"`
 	// Enable API key security for the agent endpoint
-	EnableApiKeySecurity *bool `json:"enableApiKeySecurity,omitempty"`
+	EnableApiKeySecurity *bool       `json:"enableApiKeySecurity,omitempty"`
+	CorsConfig           *CORSConfig `json:"corsConfig,omitempty"`
 }
 
 // NewDeployAgentRequest instantiates a new DeployAgentRequest object
@@ -209,6 +210,38 @@ func (o *DeployAgentRequest) SetEnableApiKeySecurity(v bool) {
 	o.EnableApiKeySecurity = &v
 }
 
+// GetCorsConfig returns the CorsConfig field value if set, zero value otherwise.
+func (o *DeployAgentRequest) GetCorsConfig() CORSConfig {
+	if o == nil || IsNil(o.CorsConfig) {
+		var ret CORSConfig
+		return ret
+	}
+	return *o.CorsConfig
+}
+
+// GetCorsConfigOk returns a tuple with the CorsConfig field value if set, nil otherwise
+// and a boolean to check if the value has been set.
+func (o *DeployAgentRequest) GetCorsConfigOk() (*CORSConfig, bool) {
+	if o == nil || IsNil(o.CorsConfig) {
+		return nil, false
+	}
+	return o.CorsConfig, true
+}
+
+// HasCorsConfig returns a boolean if a field has been set.
+func (o *DeployAgentRequest) HasCorsConfig() bool {
+	if o != nil && !IsNil(o.CorsConfig) {
+		return true
+	}
+
+	return false
+}
+
+// SetCorsConfig gets a reference to the given CORSConfig and assigns it to the CorsConfig field.
+func (o *DeployAgentRequest) SetCorsConfig(v CORSConfig) {
+	o.CorsConfig = &v
+}
+
 func (o DeployAgentRequest) MarshalJSON() ([]byte, error) {
 	toSerialize, err := o.ToMap()
 	if err != nil {
@@ -231,6 +264,9 @@ func (o DeployAgentRequest) ToMap() (map[string]interface{}, error) {
 	}
 	if !IsNil(o.EnableApiKeySecurity) {
 		toSerialize["enableApiKeySecurity"] = o.EnableApiKeySecurity
+	}
+	if !IsNil(o.CorsConfig) {
+		toSerialize["corsConfig"] = o.CorsConfig
 	}
 	return toSerialize, nil
 }

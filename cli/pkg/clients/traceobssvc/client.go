@@ -64,6 +64,8 @@ func NewClient(baseURL string, opts ...Option) (*Client, error) {
 	return c, nil
 }
 
+func (c *Client) URL() string { return c.baseURL }
+
 func (c *Client) do(ctx context.Context, method, path string, q url.Values, out any) error {
 	u := c.baseURL + path
 	if len(q) > 0 {
