@@ -68,6 +68,28 @@ func TestRenderToolSchemaEmitsAnyOfForNameKeys(t *testing.T) {
 	}
 }
 
+func TestRenderLLMAndEmbeddingEmitVendorAnyOf(t *testing.T) {
+	for _, kind := range []string{"llm", "embedding"} {
+		k := KindSpec{
+			Kind: kind,
+			Attributes: []AttributeSpec{
+				{Key: "gen_ai.system", Type: "string"},
+				{Key: "gen_ai.provider.name", Type: "string"},
+			},
+		}
+		b, _ := json.Marshal(renderKindSchema(k))
+		s := string(b)
+		for _, key := range VendorAnyOf {
+			if !strings.Contains(s, key) {
+				t.Fatalf("kind %q anyOf missing %q: %s", kind, key, s)
+			}
+		}
+		if !strings.Contains(s, `"anyOf"`) {
+			t.Fatalf("kind %q schema missing anyOf clause: %s", kind, s)
+		}
+	}
+}
+
 func TestContractCoversAllNineKinds(t *testing.T) {
 	expected := map[string]bool{
 		"llm": false, "embedding": false, "tool": false,

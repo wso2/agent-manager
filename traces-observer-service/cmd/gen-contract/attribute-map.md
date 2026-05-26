@@ -33,18 +33,18 @@ Everything else is `properties` with a `type:` but not `required`.
 | `gen_ai.operation.name` | classification (`hasLLMAttributes` checks `{chat, text_completion, generate_content}`) | **yes** |
 | `gen_ai.request.model` | fallback for `LLMData.Model` when response model absent | **yes** (a model name is needed downstream) |
 | `gen_ai.response.model` | preferred `LLMData.Model` | no |
-| `gen_ai.system` | `LLMData.Vendor` | **yes** (cost aggregation needs vendor) |
+| `gen_ai.system` / `gen_ai.provider.name` | `LLMData.Vendor` (via `extractVendor`) | **one of** (`VendorAnyOf` in `contract.go`) |
 | `gen_ai.request.temperature` | `LLMData.Temperature` | no |
 | `gen_ai.usage.input_tokens` (+ legacy `prompt_tokens`) | `LLMTokenUsage.InputTokens` | **yes** (cost) |
 | `gen_ai.usage.output_tokens` (+ legacy `completion_tokens`) | `LLMTokenUsage.OutputTokens` | **yes** (cost) |
 | `gen_ai.usage.cache_read_input_tokens` | `LLMTokenUsage.CacheReadInputTokens` | no |
 
-**Gap surfaced by Phase 1 matrix run:** Traceloop 0.60 emits
-`gen_ai.provider.name` (current OTel GenAI semconv) instead of the legacy
-`gen_ai.system`. The observer only reads `gen_ai.system`, so vendor stays empty.
-Schema marks `gen_ai.system` required → matrix cells against Traceloop 0.60 go
-red until the observer learns to fall back to `gen_ai.provider.name`. That is
-exactly the regression the matrix exists to catch.
+**Vendor convention note.** The OTel GenAI semconv renamed `gen_ai.system` to
+`gen_ai.provider.name` in mid-2025. The observer's `extractVendor` helper reads
+the legacy key first and falls back to the current key, so older instrumentation
+versions and Traceloop 0.60+ both populate `Vendor` correctly. The schema's
+`VendorAnyOf` requires at least one of the two keys to be present — surfaced as
+a finding by the Phase 1 matrix run.
 
 ## Embedding (`populateEmbeddingAttributes`, lines 211–235)
 
@@ -52,7 +52,7 @@ exactly the regression the matrix exists to catch.
 | --- | --- | --- |
 | `gen_ai.operation.name` | classification (`{embeddings, embedding}`) | **yes** |
 | `gen_ai.request.model` / `gen_ai.response.model` | `EmbeddingData.Model` | **yes** (one of the two) |
-| `gen_ai.system` | `EmbeddingData.Vendor` | **yes** |
+| `gen_ai.system` / `gen_ai.provider.name` | `EmbeddingData.Vendor` (via `extractVendor`) | **one of** (`VendorAnyOf` in `contract.go`) |
 | `gen_ai.usage.*` | `EmbeddingData.TokenUsage` | no |
 | `gen_ai.embedding.dimension` | classification fallback only | no |
 
@@ -94,7 +94,7 @@ For now the schema is permissive — no required attributes beyond the envelope.
 | `gen_ai.agent.name` | `AgentData.Name` | **yes** |
 | `gen_ai.agent.tools` | `AgentData.Tools` (JSON-string) | no |
 | `gen_ai.request.model` | `AgentData.Model` | no |
-| `gen_ai.system` | `AgentData.Framework` | no |
+| `gen_ai.system` / `gen_ai.provider.name` | `AgentData.Framework` (via `extractVendor`) | no (typed property only) |
 | `crewai.agent.max_iter` | `AgentData.MaxIter` | no |
 | `gen_ai.conversation.id` | `AgentData.ConversationID` | no |
 

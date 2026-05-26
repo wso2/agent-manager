@@ -21,19 +21,18 @@ import (
 	"strings"
 )
 
-// IsCrewAISpan checks if a span is from CrewAI framework
-// It verifies both gen_ai.system == "crewai" and the presence of crewai.* attributes
+// IsCrewAISpan checks if a span is from CrewAI framework.
+// Accepts the legacy gen_ai.system or current gen_ai.provider.name vendor
+// signal, then falls back to scanning for any crewai.* attribute.
 func IsCrewAISpan(attrs map[string]interface{}) bool {
 	if attrs == nil {
 		return false
 	}
 
-	// Check if gen_ai.system is "crewai"
-	if val, ok := attrs["gen_ai.system"].(string); ok && strings.ToLower(val) == "crewai" {
+	if strings.ToLower(extractVendor(attrs)) == "crewai" {
 		return true
 	}
 
-	// Verify that at least one crewai.* attribute exists
 	for key := range attrs {
 		if strings.HasPrefix(key, "crewai.") {
 			return true
