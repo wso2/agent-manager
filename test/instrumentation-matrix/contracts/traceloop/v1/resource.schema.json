@@ -1,0 +1,11 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "traceloop/v1/resource.schema.json",
+  "title": "Traceloop v1 — span resource attributes",
+  "type": "object",
+  "required": ["service.name"],
+  "properties": {
+    "service.name": { "type": "string", "minLength": 1 }
+  },
+  "additionalProperties": true
+}

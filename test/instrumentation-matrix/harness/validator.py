@@ -74,6 +74,21 @@ class ContractValidator:
     def validate_all(self, spans: list[dict[str, Any]]) -> list[ValidationResult]:
         return [self.validate(s, classify_span(s)) for s in spans]
 
+    def validate_resource(self, resource: dict[str, Any]) -> ValidationResult:
+        path = _CONTRACTS / self.schema_id / "resource.schema.json"
+        v = Draft202012Validator(json.loads(path.read_text()))
+        errors = sorted(v.iter_errors(resource), key=lambda e: list(e.path))
+        if not errors:
+            return ValidationResult(ok=True, span_name="<resource>", kind="resource")
+        e = errors[0]
+        return ValidationResult(
+            ok=False,
+            span_name="<resource>",
+            kind="resource",
+            message=e.message,
+            path="/" + "/".join(str(p) for p in e.absolute_path),
+        )
+
     def assert_coverage(
         self, spans: list[dict[str, Any]], expected_kinds: list[str]
     ) -> CoverageResult:

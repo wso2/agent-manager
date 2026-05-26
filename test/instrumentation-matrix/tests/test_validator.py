@@ -195,3 +195,18 @@ def test_assert_coverage_passes_when_all_kinds_present():
     spans = [_llm_span()]
     cov = v.assert_coverage(spans, expected_kinds=["llm"])
     assert cov.ok
+
+
+# ---------- Resource ----------
+
+
+def test_validator_rejects_resource_missing_service_name():
+    v = ContractValidator.load("traceloop/v1")
+    r = v.validate_resource({})
+    assert not r.ok
+    assert "service.name" in r.message
+
+
+def test_validator_passes_resource_with_service_name():
+    v = ContractValidator.load("traceloop/v1")
+    assert v.validate_resource({"service.name": "my-agent"}).ok
