@@ -1,4 +1,4 @@
-.PHONY: help build run stop clean test docker-build docker-run docker-stop docker-clean mock-traces
+.PHONY: help build run stop clean test docker-build docker-run docker-stop docker-clean mock-traces gen-instrumentation-contract
 
 # Variables
 TAG=0.0.0-dev
@@ -110,6 +110,10 @@ docker-dev: docker-build docker-run ## Build and run with Docker
 docker-restart: docker-stop docker-dev ## Restart Docker container
 
 all: clean build ## Clean and build
+
+gen-instrumentation-contract: ## Regenerate the instrumentation-matrix JSON schemas from cmd/gen-contract
+	@GOFLAGS=-mod=mod go run ./cmd/gen-contract ../test/instrumentation-matrix/contracts/traceloop/v1
+	@echo "Regenerated traceloop/v1 contract schemas."
 
 mock-traces: ## Generate mock traces using Makefile-configured values
 	@command -v telemetrygen >/dev/null 2>&1 || (echo "telemetrygen is required. Install with: go install github.com/open-telemetry/opentelemetry-collector-contrib/cmd/telemetrygen@latest" && exit 1)

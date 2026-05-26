@@ -89,6 +89,8 @@ func renderKindSchema(k KindSpec) map[string]any {
 		attributes["anyOf"] = anyOfRequired(ToolNameAnyOf)
 	case "retriever":
 		attributes["anyOf"] = anyOfRequired(RetrieverVectorDBAnyOf)
+	case "llm", "embedding":
+		attributes["anyOf"] = anyOfRequired(VendorAnyOf)
 	}
 
 	return map[string]any{

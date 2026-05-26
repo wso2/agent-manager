@@ -1,19 +1,30 @@
 {
-  "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "traceloop/v1/kinds/chain.schema.json",
-  "title": "Traceloop v1 — chain span",
-  "type": "object",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
   "properties": {
-    "name": { "type": "string", "minLength": 1 },
-    "kind": { "type": "string" },
     "attributes": {
-      "type": "object",
-      "required": [],
+      "additionalProperties": true,
       "properties": {
-        "traceloop.span.kind": { "const": "chain" }
+        "traceloop.span.kind": {
+          "const": "chain"
+        }
       },
-      "additionalProperties": true
+      "required": [],
+      "type": "object"
+    },
+    "kind": {
+      "type": "string"
+    },
+    "name": {
+      "minLength": 1,
+      "type": "string"
     }
   },
-  "required": ["name", "kind", "attributes"]
+  "required": [
+    "name",
+    "kind",
+    "attributes"
+  ],
+  "title": "Traceloop v1 — chain span",
+  "type": "object"
 }

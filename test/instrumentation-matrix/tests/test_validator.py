@@ -23,12 +23,23 @@ def test_validator_passes_well_formed_llm_span():
 
 
 def test_validator_rejects_missing_required_attribute():
+    # Drop both vendor keys; the anyOf clause in the schema requires at least
+    # one of gen_ai.system or gen_ai.provider.name.
     span = _llm_span()
     del span["attributes"]["gen_ai.provider.name"]
     v = ContractValidator.load("traceloop/v1")
     result = v.validate(span, kind="llm")
     assert not result.ok
-    assert "gen_ai.provider.name" in result.message
+
+
+def test_validator_accepts_legacy_vendor_key():
+    # gen_ai.system (legacy) and gen_ai.provider.name (current) both satisfy
+    # the schema's vendor anyOf clause; the observer accepts either.
+    span = _llm_span()
+    del span["attributes"]["gen_ai.provider.name"]
+    span["attributes"]["gen_ai.system"] = "openai"
+    v = ContractValidator.load("traceloop/v1")
+    assert v.validate(span, kind="llm").ok
 
 
 def test_validator_allows_additional_attributes():
@@ -106,16 +117,17 @@ def test_validator_passes_retriever_span():
     assert v.validate(span, kind="retriever").ok
 
 
-def test_validator_rejects_retriever_missing_topk():
+def test_validator_rejects_retriever_missing_vector_db():
+    # The schema's anyOf requires either db.system or db.system.name to be
+    # present so RetrieverData.VectorDB can be populated by the observer.
     v = ContractValidator.load("traceloop/v1")
     span = {
-        "name": "chroma.query",
+        "name": "unknown.query",
         "kind": "CLIENT",
-        "attributes": {"db.system": "chroma"},
+        "attributes": {"db.vector.query.top_k": 5},
     }
     result = v.validate(span, kind="retriever")
     assert not result.ok
-    assert "db.vector.query.top_k" in result.message
 
 
 # ---------- Rerank ----------

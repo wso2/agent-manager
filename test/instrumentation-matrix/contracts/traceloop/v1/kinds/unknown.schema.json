@@ -1,15 +1,26 @@
 {
-  "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "traceloop/v1/kinds/unknown.schema.json",
-  "title": "Traceloop v1 — unclassified span (lenient envelope only)",
-  "type": "object",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
   "properties": {
-    "name": { "type": "string", "minLength": 1 },
-    "kind": { "type": "string" },
     "attributes": {
-      "type": "object",
-      "additionalProperties": true
+      "additionalProperties": true,
+      "properties": {},
+      "required": [],
+      "type": "object"
+    },
+    "kind": {
+      "type": "string"
+    },
+    "name": {
+      "minLength": 1,
+      "type": "string"
     }
   },
-  "required": ["name", "kind", "attributes"]
+  "required": [
+    "name",
+    "kind",
+    "attributes"
+  ],
+  "title": "Traceloop v1 — unknown span",
+  "type": "object"
 }

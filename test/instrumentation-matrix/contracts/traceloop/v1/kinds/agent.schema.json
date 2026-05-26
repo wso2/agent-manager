@@ -1,21 +1,51 @@
 {
-  "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "traceloop/v1/kinds/agent.schema.json",
-  "title": "Traceloop v1 — agent span",
-  "type": "object",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
   "properties": {
-    "name": { "type": "string", "minLength": 1 },
-    "kind": { "type": "string" },
     "attributes": {
-      "type": "object",
-      "required": [],
+      "additionalProperties": true,
       "properties": {
-        "gen_ai.agent.name":   { "type": "string" },
-        "gen_ai.provider.name":{ "type": "string" },
-        "traceloop.span.kind": { "const": "agent" }
+        "crewai.agent.max_iter": {
+          "type": "integer"
+        },
+        "gen_ai.agent.name": {
+          "minLength": 1,
+          "type": "string"
+        },
+        "gen_ai.agent.tools": {
+          "type": "string"
+        },
+        "gen_ai.conversation.id": {
+          "type": "string"
+        },
+        "gen_ai.provider.name": {
+          "type": "string"
+        },
+        "gen_ai.request.model": {
+          "type": "string"
+        },
+        "gen_ai.system": {
+          "type": "string"
+        }
       },
-      "additionalProperties": true
+      "required": [
+        "gen_ai.agent.name"
+      ],
+      "type": "object"
+    },
+    "kind": {
+      "type": "string"
+    },
+    "name": {
+      "minLength": 1,
+      "type": "string"
     }
   },
-  "required": ["name", "kind", "attributes"]
+  "required": [
+    "name",
+    "kind",
+    "attributes"
+  ],
+  "title": "Traceloop v1 — agent span",
+  "type": "object"
 }

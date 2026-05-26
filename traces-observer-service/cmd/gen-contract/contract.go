@@ -43,10 +43,14 @@ type KindSpec struct {
 // the per-kind rationale.
 var Contract = []KindSpec{
 	{
+		// Vendor expressed via VendorAnyOf below (legacy gen_ai.system OR
+		// current OTel gen_ai.provider.name; the observer's extractVendor
+		// helper accepts either).
 		Kind: "llm",
 		Attributes: []AttributeSpec{
 			{Key: "gen_ai.operation.name", Type: "string", Required: true, MinLen: 1},
-			{Key: "gen_ai.system", Type: "string", Required: true, MinLen: 1},
+			{Key: "gen_ai.system", Type: "string"},
+			{Key: "gen_ai.provider.name", Type: "string"},
 			{Key: "gen_ai.request.model", Type: "string", Required: true, MinLen: 1},
 			{Key: "gen_ai.response.model", Type: "string"},
 			{Key: "gen_ai.request.temperature", Type: "number"},
@@ -59,7 +63,8 @@ var Contract = []KindSpec{
 		Kind: "embedding",
 		Attributes: []AttributeSpec{
 			{Key: "gen_ai.operation.name", Type: "string", Required: true, MinLen: 1},
-			{Key: "gen_ai.system", Type: "string", Required: true, MinLen: 1},
+			{Key: "gen_ai.system", Type: "string"},
+			{Key: "gen_ai.provider.name", Type: "string"},
 			{Key: "gen_ai.request.model", Type: "string", Required: true, MinLen: 1},
 			{Key: "gen_ai.response.model", Type: "string"},
 			{Key: "gen_ai.usage.input_tokens", Type: "integer", Min: ptr(0)},
@@ -103,6 +108,7 @@ var Contract = []KindSpec{
 			{Key: "gen_ai.agent.tools", Type: "string"},
 			{Key: "gen_ai.request.model", Type: "string"},
 			{Key: "gen_ai.system", Type: "string"},
+			{Key: "gen_ai.provider.name", Type: "string"},
 			{Key: "gen_ai.conversation.id", Type: "string"},
 			{Key: "crewai.agent.max_iter", Type: "integer"},
 		},
@@ -142,6 +148,14 @@ var ToolNameAnyOf = []string{
 var RetrieverVectorDBAnyOf = []string{
 	"db.system",
 	"db.system.name",
+}
+
+// VendorAnyOf lists the vendor keys the observer's extractVendor helper
+// accepts: the legacy gen_ai.system or the current OTel gen_ai.provider.name.
+// Applies to the LLM and embedding kinds.
+var VendorAnyOf = []string{
+	"gen_ai.system",
+	"gen_ai.provider.name",
 }
 
 func ptr(i int) *int { return &i }

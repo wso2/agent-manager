@@ -1,22 +1,65 @@
 {
-  "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "traceloop/v1/kinds/tool.schema.json",
-  "title": "Traceloop v1 — tool span",
-  "type": "object",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
   "properties": {
-    "name": { "type": "string", "minLength": 1 },
-    "kind": { "type": "string" },
     "attributes": {
-      "type": "object",
-      "required": [],
+      "additionalProperties": true,
+      "anyOf": [
+        {
+          "required": [
+            "traceloop.entity.name"
+          ]
+        },
+        {
+          "required": [
+            "function.name"
+          ]
+        },
+        {
+          "required": [
+            "gen_ai.tool.name"
+          ]
+        }
+      ],
       "properties": {
-        "traceloop.entity.name":   { "type": "string" },
-        "traceloop.entity.input":  { "type": "string" },
-        "traceloop.entity.output": { "type": "string" },
-        "traceloop.span.kind":     { "const": "tool" }
+        "function.name": {
+          "type": "string"
+        },
+        "gen_ai.tool.name": {
+          "type": "string"
+        },
+        "gen_ai.tool.status": {
+          "type": "string"
+        },
+        "traceloop.entity.input": {
+          "type": "string"
+        },
+        "traceloop.entity.name": {
+          "type": "string"
+        },
+        "traceloop.entity.output": {
+          "type": "string"
+        },
+        "traceloop.span.kind": {
+          "const": "tool"
+        }
       },
-      "additionalProperties": true
+      "required": [],
+      "type": "object"
+    },
+    "kind": {
+      "type": "string"
+    },
+    "name": {
+      "minLength": 1,
+      "type": "string"
     }
   },
-  "required": ["name", "kind", "attributes"]
+  "required": [
+    "name",
+    "kind",
+    "attributes"
+  ],
+  "title": "Traceloop v1 — tool span",
+  "type": "object"
 }
