@@ -37,6 +37,11 @@ type AgentConfig struct {
 	CreatedAt              time.Time `gorm:"column:created_at;not null;default:NOW()"`
 	UpdatedAt              time.Time `gorm:"column:updated_at;not null;default:NOW()"`
 	EnableApiKeySecurity   bool      `gorm:"column:enable_api_key_security;not null;default:true"`
+	CORSEnabled            bool      `gorm:"column:cors_enabled;not null;default:true"`
+	CORSAllowOrigins       []string  `gorm:"column:cors_allow_origins;type:jsonb;serializer:json;not null;default:'[\"http://localhost:3000\"]'"`
+	CORSAllowMethods       []string  `gorm:"column:cors_allow_methods;type:jsonb;serializer:json;not null;default:'[\"GET\",\"POST\",\"PUT\",\"DELETE\",\"PATCH\",\"OPTIONS\"]'"`
+	CORSAllowHeaders       []string  `gorm:"column:cors_allow_headers;type:jsonb;serializer:json;not null;default:'[\"authorization\",\"Content-Type\",\"Origin\",\"X-API-Key\"]'"`
+	CORSAllowCredentials   bool      `gorm:"column:cors_allow_credentials;not null;default:false"`
 }
 
 func (AgentConfig) TableName() string { return "agent_configs" }

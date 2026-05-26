@@ -122,10 +122,21 @@ func convertToConfigurations(configs *models.Configurations) *spec.Configuration
 	if configs == nil {
 		return nil
 	}
-	return &spec.Configurations{
+	result := &spec.Configurations{
 		EnableAutoInstrumentation: configs.EnableAutoInstrumentation,
 		EnableApiKeySecurity:      configs.EnableApiKeySecurity,
 	}
+	if configs.CorsConfig != nil {
+		corsConfig := spec.CORSConfig{
+			Enabled:          configs.CorsConfig.Enabled,
+			AllowOrigin:      configs.CorsConfig.AllowOrigin,
+			AllowMethods:     configs.CorsConfig.AllowMethods,
+			AllowHeaders:     configs.CorsConfig.AllowHeaders,
+			AllowCredentials: configs.CorsConfig.AllowCredentials,
+		}
+		result.CorsConfig = &corsConfig
+	}
+	return result
 }
 
 func convertToExternalAgentResponse(component *models.AgentResponse) spec.AgentResponse {

@@ -7145,11 +7145,15 @@ components:
     CORSConfig:
       type: object
       properties:
+        enabled:
+          type: boolean
+          description: Enable or disable CORS for this agent endpoint
+          default: true
         allowOrigin:
           type: array
           items:
             type: string
-          description: Allowed origins for CORS
+          description: Allowed origins. Use ["*"] to allow all (incompatible with allowCredentials)
         allowMethods:
           type: array
           items:
@@ -7159,7 +7163,11 @@ components:
           type: array
           items:
             type: string
-          description: Allowed headers for CORS
+          description: Allowed request headers for CORS
+        allowCredentials:
+          type: boolean
+          description: Whether credentials are allowed. Cannot be true when allowOrigin contains "*"
+          default: false
 
     AgentResourceConfigsResponse:
       type: object
@@ -7505,6 +7513,10 @@ components:
           type: boolean
           description: Enable API key security for the agent endpoint
           default: true
+        corsConfig:
+          $ref: "#/components/schemas/CORSConfig"
+          nullable: true
+          description: CORS configuration for the agent endpoint. Omit to keep existing settings.
       required:
         - imageId
 
@@ -7578,6 +7590,10 @@ components:
           type: boolean
           description: Enable API key security for the agent endpoint
           default: true
+        corsConfig:
+          $ref: "#/components/schemas/CORSConfig"
+          nullable: true
+          description: Current CORS configuration for the agent endpoint
     EnvironmentVariable:
       type: object
       required:

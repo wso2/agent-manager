@@ -19,12 +19,16 @@ var _ MappedNullable = &CORSConfig{}
 
 // CORSConfig struct for CORSConfig
 type CORSConfig struct {
-	// Allowed origins for CORS
+	// Enable or disable CORS for this agent endpoint
+	Enabled *bool `json:"enabled,omitempty"`
+	// Allowed origins. Use [\"*\"] to allow all (incompatible with allowCredentials)
 	AllowOrigin []string `json:"allowOrigin,omitempty"`
 	// Allowed HTTP methods for CORS
 	AllowMethods []string `json:"allowMethods,omitempty"`
-	// Allowed headers for CORS
+	// Allowed request headers for CORS
 	AllowHeaders []string `json:"allowHeaders,omitempty"`
+	// Whether credentials are allowed. Cannot be true when allowOrigin contains \"*\"
+	AllowCredentials *bool `json:"allowCredentials,omitempty"`
 }
 
 // NewCORSConfig instantiates a new CORSConfig object
@@ -33,6 +37,10 @@ type CORSConfig struct {
 // will change when the set of required properties is changed
 func NewCORSConfig() *CORSConfig {
 	this := CORSConfig{}
+	var enabled bool = true
+	this.Enabled = &enabled
+	var allowCredentials bool = false
+	this.AllowCredentials = &allowCredentials
 	return &this
 }
 
@@ -41,7 +49,43 @@ func NewCORSConfig() *CORSConfig {
 // but it doesn't guarantee that properties required by API are set
 func NewCORSConfigWithDefaults() *CORSConfig {
 	this := CORSConfig{}
+	var enabled bool = true
+	this.Enabled = &enabled
+	var allowCredentials bool = false
+	this.AllowCredentials = &allowCredentials
 	return &this
+}
+
+// GetEnabled returns the Enabled field value if set, zero value otherwise.
+func (o *CORSConfig) GetEnabled() bool {
+	if o == nil || IsNil(o.Enabled) {
+		var ret bool
+		return ret
+	}
+	return *o.Enabled
+}
+
+// GetEnabledOk returns a tuple with the Enabled field value if set, nil otherwise
+// and a boolean to check if the value has been set.
+func (o *CORSConfig) GetEnabledOk() (*bool, bool) {
+	if o == nil || IsNil(o.Enabled) {
+		return nil, false
+	}
+	return o.Enabled, true
+}
+
+// HasEnabled returns a boolean if a field has been set.
+func (o *CORSConfig) HasEnabled() bool {
+	if o != nil && !IsNil(o.Enabled) {
+		return true
+	}
+
+	return false
+}
+
+// SetEnabled gets a reference to the given bool and assigns it to the Enabled field.
+func (o *CORSConfig) SetEnabled(v bool) {
+	o.Enabled = &v
 }
 
 // GetAllowOrigin returns the AllowOrigin field value if set, zero value otherwise.
@@ -140,6 +184,38 @@ func (o *CORSConfig) SetAllowHeaders(v []string) {
 	o.AllowHeaders = v
 }
 
+// GetAllowCredentials returns the AllowCredentials field value if set, zero value otherwise.
+func (o *CORSConfig) GetAllowCredentials() bool {
+	if o == nil || IsNil(o.AllowCredentials) {
+		var ret bool
+		return ret
+	}
+	return *o.AllowCredentials
+}
+
+// GetAllowCredentialsOk returns a tuple with the AllowCredentials field value if set, nil otherwise
+// and a boolean to check if the value has been set.
+func (o *CORSConfig) GetAllowCredentialsOk() (*bool, bool) {
+	if o == nil || IsNil(o.AllowCredentials) {
+		return nil, false
+	}
+	return o.AllowCredentials, true
+}
+
+// HasAllowCredentials returns a boolean if a field has been set.
+func (o *CORSConfig) HasAllowCredentials() bool {
+	if o != nil && !IsNil(o.AllowCredentials) {
+		return true
+	}
+
+	return false
+}
+
+// SetAllowCredentials gets a reference to the given bool and assigns it to the AllowCredentials field.
+func (o *CORSConfig) SetAllowCredentials(v bool) {
+	o.AllowCredentials = &v
+}
+
 func (o CORSConfig) MarshalJSON() ([]byte, error) {
 	toSerialize, err := o.ToMap()
 	if err != nil {
@@ -150,6 +226,9 @@ func (o CORSConfig) MarshalJSON() ([]byte, error) {
 
 func (o CORSConfig) ToMap() (map[string]interface{}, error) {
 	toSerialize := map[string]interface{}{}
+	if !IsNil(o.Enabled) {
+		toSerialize["enabled"] = o.Enabled
+	}
 	if !IsNil(o.AllowOrigin) {
 		toSerialize["allowOrigin"] = o.AllowOrigin
 	}
@@ -158,6 +237,9 @@ func (o CORSConfig) ToMap() (map[string]interface{}, error) {
 	}
 	if !IsNil(o.AllowHeaders) {
 		toSerialize["allowHeaders"] = o.AllowHeaders
+	}
+	if !IsNil(o.AllowCredentials) {
+		toSerialize["allowCredentials"] = o.AllowCredentials
 	}
 	return toSerialize, nil
 }
