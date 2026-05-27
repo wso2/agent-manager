@@ -1,23 +1,71 @@
 schemaVersion: 1
+
 providers:
   traceloop:
     versions: ["0.60.0"]
     contractSchema: "v1"
+
 frameworks:
   - name: langchain
     package: langchain
     versions: ["0.3.27"]
     samplePath: cells/langchain_sample.py
     spanKinds: [llm]
+    cassette: llm_chat_completion
+    extras: [langchain-openai, openai]
+
+  - name: langgraph
+    package: langgraph
+    versions: ["0.2.74"]
+    samplePath: cells/langgraph_sample.py
+    spanKinds: [llm, tool]
+    cassette: agent_with_tools
+    extras: [langchain-openai, langchain-core, openai]
+
+  - name: llama-index
+    package: llama-index
+    versions: ["0.12.0"]
+    samplePath: cells/llamaindex_sample.py
+    spanKinds: [llm, embedding]
+    cassette: rag_pipeline
+    extras: [llama-index-llms-openai, llama-index-embeddings-openai, openai]
+
+  - name: crewai
+    package: crewai
+    versions: ["0.86.0"]
+    samplePath: cells/crewai_sample.py
+    spanKinds: [llm, agent, crewaitask]
+    cassette: multi_agent
+    extras: [openai]
+
+  - name: openai-direct
+    package: openai
+    versions: ["1.55.0"]
+    samplePath: cells/openai_sample.py
+    spanKinds: [llm]
+    cassette: chat
+    extras: []
+
+  - name: anthropic-direct
+    package: anthropic
+    versions: ["0.40.0"]
+    samplePath: cells/anthropic_sample.py
+    spanKinds: [llm]
+    cassette: messages
+    extras: []
+
 python:
   versions: ["3.11"]
+
 defaultCell:
   provider: traceloop
   providerVersion: "0.60.0"
   framework: langchain
   frameworkVersion: "0.3.27"
   python: "3.11"
+
 heavyTier:
   perTraceloopVersion: 1
   perFramework: 1
+
 known-broken: []

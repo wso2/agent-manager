@@ -48,9 +48,8 @@ def emission(session, cell):
     install_specs = [
         *provider.package_specs(cell.provider_version),
         f"{cell.framework_package}=={cell.framework_version}",
-        # Cell-specific runtime extras for the langchain sample.
-        "langchain-openai",
-        "openai",
+        # Per-framework runtime extras declared in matrix.yaml.
+        *cell.extras,
         # Test infra.
         "pytest",
         "pytest-recording",
@@ -70,6 +69,7 @@ def emission(session, cell):
         "sample_path": cell.sample_path,
         "span_kinds": cell.span_kinds,
         "contract_schema_id": provider.contract_schema_id(),
+        "cassette": cell.cassette,
     }
 
     session.run(
