@@ -104,13 +104,15 @@ var Contract = []KindSpec{
 	{
 		Kind: "agent",
 		Attributes: []AttributeSpec{
-			{Key: "gen_ai.agent.name", Type: "string", Required: true, MinLen: 1},
+			{Key: "gen_ai.agent.name", Type: "string"},
 			{Key: "gen_ai.agent.tools", Type: "string"},
 			{Key: "gen_ai.request.model", Type: "string"},
 			{Key: "gen_ai.system", Type: "string"},
 			{Key: "gen_ai.provider.name", Type: "string"},
 			{Key: "gen_ai.conversation.id", Type: "string"},
-			{Key: "crewai.agent.max_iter", Type: "integer"},
+			// Traceloop 0.60's CrewAI instrumentation stringifies all crewai.*
+			// attributes — see FINDINGS.md (F-001).
+			{Key: "crewai.agent.max_iter", Type: "string"},
 		},
 	},
 	{
@@ -122,10 +124,14 @@ var Contract = []KindSpec{
 		},
 	},
 	{
+		// CrewAI's Task class has no `name` field — tasks are identified by
+		// `description`. The observer's CrewAITaskData.Name has no upstream
+		// source; treat it as a contract bug (F-002 in FINDINGS.md). The
+		// schema declares the actually-emitted attributes: description and
+		// tools. All stringified by Traceloop 0.60.
 		Kind: "crewaitask",
 		Attributes: []AttributeSpec{
-			{Key: "crewai.task.name", Type: "string", Required: true, MinLen: 1},
-			{Key: "crewai.task.description", Type: "string"},
+			{Key: "crewai.task.description", Type: "string", Required: true, MinLen: 1},
 			{Key: "crewai.task.tools", Type: "string"},
 		},
 	},

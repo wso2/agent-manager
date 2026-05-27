@@ -173,13 +173,27 @@ def test_validator_passes_minimal_chain_span():
 
 
 def test_validator_passes_minimal_crewaitask_span():
+    # Required attribute is crewai.task.description, not name — see FINDINGS.md
+    # F-002 for why (CrewAI Tasks lack a `name` field).
     v = ContractValidator.load("traceloop/v1")
     span = {
-        "name": "Task.execute",
+        "name": "Look up the capital of France..task",
         "kind": "INTERNAL",
-        "attributes": {"crewai.task.name": "research"},
+        "attributes": {"crewai.task.description": "Look up the capital of France."},
     }
     assert v.validate(span, kind="crewaitask").ok
+
+
+def test_validator_rejects_crewaitask_missing_description():
+    v = ContractValidator.load("traceloop/v1")
+    span = {
+        "name": "anonymous.task",
+        "kind": "INTERNAL",
+        "attributes": {"crewai.task.tools": "[]"},
+    }
+    result = v.validate(span, kind="crewaitask")
+    assert not result.ok
+    assert "crewai.task.description" in result.message
 
 
 # ---------- Unknown (permissive) ----------

@@ -6,10 +6,9 @@
       "additionalProperties": true,
       "properties": {
         "crewai.agent.max_iter": {
-          "type": "integer"
+          "type": "string"
         },
         "gen_ai.agent.name": {
-          "minLength": 1,
           "type": "string"
         },
         "gen_ai.agent.tools": {
@@ -28,9 +27,7 @@
           "type": "string"
         }
       },
-      "required": [
-        "gen_ai.agent.name"
-      ],
+      "required": [],
       "type": "object"
     },
     "kind": {

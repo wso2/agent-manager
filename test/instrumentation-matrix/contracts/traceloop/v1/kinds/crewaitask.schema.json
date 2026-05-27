@@ -6,9 +6,6 @@
       "additionalProperties": true,
       "properties": {
         "crewai.task.description": {
-          "type": "string"
-        },
-        "crewai.task.name": {
           "minLength": 1,
           "type": "string"
         },
@@ -17,7 +14,7 @@
         }
       },
       "required": [
-        "crewai.task.name"
+        "crewai.task.description"
       ],
       "type": "object"
     },
