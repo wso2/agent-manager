@@ -30,13 +30,19 @@ frameworks:
     cassette: rag_pipeline
     extras: [llama-index-llms-openai, llama-index-embeddings-openai, openai]
 
-  - name: crewai
-    package: crewai
-    versions: ["0.86.0"]
-    samplePath: cells/crewai_sample.py
-    spanKinds: [llm, agent, crewaitask]
-    cassette: multi_agent
-    extras: [openai]
+  # CrewAI cell is deferred for v1. Two upstream incompatibilities surfaced
+  # by the matrix make every (crewai × traceloop 0.60) combo unworkable:
+  #
+  #   * crewai < 1.0  → Traceloop's CrewAI instrumentation refuses to attach
+  #     ("DependencyConflict: requested: 'crewai >= 1.0.0'"), so only generic
+  #     LLM spans are emitted — no agent / crewaitask / tool spans.
+  #   * crewai >= 1.0 → crewai pins opentelemetry-api ~=1.34, while
+  #     traceloop-sdk 0.60.0 pins opentelemetry-api >=1.38, <2. pip refuses
+  #     to resolve the install.
+  #
+  # Re-add the cell once Traceloop ships a release with compatible
+  # opentelemetry-api ranges. The sample + recording script stay on disk
+  # (cells/crewai_sample.py, scripts/record_cassette.py) so the work isn't lost.
 
   - name: openai-direct
     package: openai
