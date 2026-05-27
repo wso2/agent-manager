@@ -11,15 +11,16 @@ frameworks:
     versions: ["0.3.27"]
     samplePath: cells/langchain_sample.py
     spanKinds: [llm]
-    cassette: llm_chat_completion
     extras: [langchain-openai, openai]
 
   - name: langgraph
     package: langgraph
     versions: ["0.2.74"]
     samplePath: cells/langgraph_sample.py
-    spanKinds: [llm, tool]
-    cassette: agent_with_tools
+    # Tool execution is NOT emitted as a separate span by Traceloop 0.60's
+    # LangGraph instrumentation — see FINDINGS.md F-008. May also be missing
+    # because my harness doesn't capture span events (F-009).
+    spanKinds: [llm]
     extras: [langchain-openai, langchain-core, openai]
 
   - name: llama-index
@@ -27,7 +28,6 @@ frameworks:
     versions: ["0.12.0"]
     samplePath: cells/llama_index_sample.py
     spanKinds: [llm, embedding]
-    cassette: rag_pipeline
     extras: [llama-index-llms-openai, llama-index-embeddings-openai, openai]
 
   - name: crewai
@@ -41,8 +41,10 @@ frameworks:
     # the first attempt at the CrewAI cell.
     versions: ["1.1.0"]
     samplePath: cells/crewai_sample.py
-    spanKinds: [llm, agent, crewaitask, tool]
-    cassette: multi_agent
+    # Traceloop 0.60's CrewAI instrumentation folds tool calls into events on
+    # the agent span rather than emitting a separate tool span, so the matrix
+    # only expects llm/agent/crewaitask kinds for CrewAI cells.
+    spanKinds: [llm, agent, crewaitask]
     extras: [crewai-tools==1.1.0, openai]
 
   - name: openai-direct
@@ -50,7 +52,6 @@ frameworks:
     versions: ["1.55.0"]
     samplePath: cells/openai_direct_sample.py
     spanKinds: [llm]
-    cassette: chat
     extras: []
 
   - name: anthropic-direct
@@ -58,7 +59,6 @@ frameworks:
     versions: ["0.40.0"]
     samplePath: cells/anthropic_direct_sample.py
     spanKinds: [llm]
-    cassette: messages
     extras: []
 
 python:

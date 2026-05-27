@@ -27,7 +27,6 @@ class FrameworkEntry:
     versions: list[str]
     sample_path: str
     span_kinds: list[str]
-    cassette: str = "llm_chat_completion"
     extras: list[str] = field(default_factory=list)
     provider_restriction: Optional[str] = None
 
@@ -76,7 +75,6 @@ class Cell:
     span_kinds: list[str]
     python: str
     contract_schema: str
-    cassette: str = "llm_chat_completion"
     extras: list[str] = field(default_factory=list)
 
     @property
@@ -105,7 +103,6 @@ def load_manifest(path: Path) -> Manifest:
             versions=f["versions"],
             sample_path=f["samplePath"],
             span_kinds=f["spanKinds"],
-            cassette=f.get("cassette", "llm_chat_completion"),
             extras=f.get("extras", []),
             provider_restriction=f.get("provider"),
         )
@@ -164,7 +161,6 @@ def expand_matrix(manifest: Manifest) -> list[Cell]:
                                 span_kinds=fw.span_kinds,
                                 python=py,
                                 contract_schema=provider.contract_schema,
-                                cassette=fw.cassette,
                                 extras=fw.extras,
                             )
                         )

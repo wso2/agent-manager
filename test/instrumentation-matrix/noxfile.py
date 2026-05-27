@@ -70,7 +70,6 @@ def emission(session, cell):
         "sample_path": cell.sample_path,
         "span_kinds": cell.span_kinds,
         "contract_schema_id": provider.contract_schema_id(),
-        "cassette": cell.cassette,
     }
 
     # Pass through real API keys when recording (VCR_RECORD_MODE != "none");

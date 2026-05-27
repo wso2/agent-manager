@@ -23,9 +23,7 @@ CELL_MANIFEST = json.loads(os.environ["CELL_MANIFEST"])
 REPORTS_DIR = Path(os.environ.get("REPORTS_DIR", "reports/cells"))
 
 _FRAMEWORK = CELL_MANIFEST["framework_name"]
-_SCENARIO = CELL_MANIFEST.get("cassette", "llm_chat_completion")
 _HERE = Path(__file__).resolve().parent.parent
-_CASSETTE = str(_HERE / "cassettes" / _FRAMEWORK / f"{_SCENARIO}.yaml")
 
 
 @pytest.fixture(scope="session")
@@ -42,7 +40,15 @@ def vcr_config():
     }
 
 
-@pytest.mark.vcr(_CASSETTE)
+# pytest-recording derives the cassette filename from the test name
+# (test_emission_cell.yaml); the per-framework `vcr_cassette_dir` is what
+# disambiguates cells from each other.
+@pytest.fixture
+def vcr_cassette_dir():
+    return str(_HERE / "cassettes" / _FRAMEWORK)
+
+
+@pytest.mark.vcr
 def test_emission_cell():
     cell_id = CELL_MANIFEST["id"]
     schema_id = CELL_MANIFEST["contract_schema_id"]
