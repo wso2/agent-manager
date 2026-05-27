@@ -17,48 +17,29 @@ interactions:
       - api.openai.com
       User-Agent:
       - OpenAI/Python 2.38.0
-      X-Stainless-Arch:
-      - arm64
-      X-Stainless-Async:
-      - 'false'
-      X-Stainless-Lang:
-      - python
-      X-Stainless-OS:
-      - MacOS
-      X-Stainless-Package-Version:
-      - 2.38.0
       X-Stainless-Raw-Response:
       - 'true'
-      X-Stainless-Runtime:
-      - CPython
-      X-Stainless-Runtime-Version:
-      - 3.11.11
       authorization:
       - REDACTED
-      x-stainless-retry-count:
-      - '0'
     method: POST
     uri: https://api.openai.com/v1/chat/completions
   response:
     body:
-      string: "{\n  \"id\": \"chatcmpl-DjinI0MWzTRz0NESYjNz9pLopuFoy\",\n  \"object\":
-        \"chat.completion\",\n  \"created\": 1779789320,\n  \"model\": \"gpt-4o-mini-2024-07-18\",\n
-        \ \"choices\": [\n    {\n      \"index\": 0,\n      \"message\": {\n        \"role\":
-        \"assistant\",\n        \"content\": \"Paris.\",\n        \"refusal\": null,\n
-        \       \"annotations\": []\n      },\n      \"logprobs\": null,\n      \"finish_reason\":
-        \"stop\"\n    }\n  ],\n  \"usage\": {\n    \"prompt_tokens\": 16,\n    \"completion_tokens\":
-        2,\n    \"total_tokens\": 18,\n    \"prompt_tokens_details\": {\n      \"cached_tokens\":
-        0,\n      \"audio_tokens\": 0\n    },\n    \"completion_tokens_details\":
-        {\n      \"reasoning_tokens\": 0,\n      \"audio_tokens\": 0,\n      \"accepted_prediction_tokens\":
-        0,\n      \"rejected_prediction_tokens\": 0\n    }\n  },\n  \"service_tier\":
-        \"default\",\n  \"system_fingerprint\": \"fp_53ee395669\"\n}\n"
+      string: "{\n  \"id\": \"chatcmpl-DjinI0MWzTRz0NESYjNz9pLopuFoy\",\n  \"object\"\
+        : \"chat.completion\",\n  \"created\": 1779789320,\n  \"model\": \"gpt-4o-mini-2024-07-18\"\
+        ,\n  \"choices\": [\n    {\n      \"index\": 0,\n      \"message\": {\n  \
+        \      \"role\": \"assistant\",\n        \"content\": \"Paris.\",\n      \
+        \  \"refusal\": null,\n        \"annotations\": []\n      },\n      \"logprobs\"\
+        : null,\n      \"finish_reason\": \"stop\"\n    }\n  ],\n  \"usage\": {\n\
+        \    \"prompt_tokens\": 16,\n    \"completion_tokens\": 2,\n    \"total_tokens\"\
+        : 18,\n    \"prompt_tokens_details\": {\n      \"cached_tokens\": 0,\n   \
+        \   \"audio_tokens\": 0\n    },\n    \"completion_tokens_details\": {\n  \
+        \    \"reasoning_tokens\": 0,\n      \"audio_tokens\": 0,\n      \"accepted_prediction_tokens\"\
+        : 0,\n      \"rejected_prediction_tokens\": 0\n    }\n  },\n  \"service_tier\"\
+        : \"default\",\n  \"system_fingerprint\": \"fp_53ee395669\"\n}\n"
     headers:
       Access-Control-Expose-Headers:
       - CF-Ray
-      CF-Cache-Status:
-      - DYNAMIC
-      CF-Ray:
-      - a01be74b0d375132-CMB
       Connection:
       - keep-alive
       Content-Type:
@@ -77,34 +58,6 @@ interactions:
       - h3=":443"; ma=86400
       content-length:
       - '812'
-      openai-organization:
-      - REDACTED
-      openai-processing-ms:
-      - '334'
-      openai-project:
-      - REDACTED
-      openai-version:
-      - '2020-10-01'
-      set-cookie:
-      - __cf_bm=REDACTED;
-        HttpOnly; SameSite=None; Secure; Path=/; Domain=api.openai.com; Expires=Tue,
-        26 May 2026 10:25:20 GMT
-      x-openai-proxy-wasm:
-      - v0.1
-      x-ratelimit-limit-requests:
-      - '30000'
-      x-ratelimit-limit-tokens:
-      - '150000000'
-      x-ratelimit-remaining-requests:
-      - '29999'
-      x-ratelimit-remaining-tokens:
-      - '149999987'
-      x-ratelimit-reset-requests:
-      - 2ms
-      x-ratelimit-reset-tokens:
-      - 0s
-      x-request-id:
-      - req_647806e9bf264372ab70edd6f1410b2b
     status:
       code: 200
       message: OK

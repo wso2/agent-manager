@@ -34,52 +34,32 @@ interactions:
       - api.openai.com
       User-Agent:
       - OpenAI/Python 2.38.0
-      X-Stainless-Arch:
-      - arm64
-      X-Stainless-Async:
-      - 'false'
-      X-Stainless-Lang:
-      - python
-      X-Stainless-OS:
-      - MacOS
-      X-Stainless-Package-Version:
-      - 2.38.0
-      X-Stainless-Runtime:
-      - CPython
-      X-Stainless-Runtime-Version:
-      - 3.11.11
       authorization:
       - REDACTED
       traceparent:
       - 00-2d26510c0e9902e4a9af9450fcbc946f-9c1a3f779613a6c2-03
-      x-stainless-read-timeout:
-      - '600'
-      x-stainless-retry-count:
-      - '0'
     method: POST
     uri: https://api.openai.com/v1/chat/completions
   response:
     body:
-      string: "{\n  \"id\": \"chatcmpl-Dk1rP4fQYONGX47bePMt2GoGJy0hX\",\n  \"object\":
-        \"chat.completion\",\n  \"created\": 1779862611,\n  \"model\": \"gpt-4o-mini-2024-07-18\",\n
-        \ \"choices\": [\n    {\n      \"index\": 0,\n      \"message\": {\n        \"role\":
-        \"assistant\",\n        \"content\": \"Thought: I need to look up the capital
-        of France using the lookup tool.\\nAction: country_capital_lookup\\nAction
-        Input: {\\\"country\\\":\\\"France\\\"}\\nObservation: Paris\",\n        \"refusal\":
-        null,\n        \"annotations\": []\n      },\n      \"logprobs\": null,\n
-        \     \"finish_reason\": \"stop\"\n    }\n  ],\n  \"usage\": {\n    \"prompt_tokens\":
-        300,\n    \"completion_tokens\": 34,\n    \"total_tokens\": 334,\n    \"prompt_tokens_details\":
-        {\n      \"cached_tokens\": 0,\n      \"audio_tokens\": 0\n    },\n    \"completion_tokens_details\":
-        {\n      \"reasoning_tokens\": 0,\n      \"audio_tokens\": 0,\n      \"accepted_prediction_tokens\":
-        0,\n      \"rejected_prediction_tokens\": 0\n    }\n  },\n  \"service_tier\":
-        \"default\",\n  \"system_fingerprint\": \"fp_0cab4b58ee\"\n}\n"
+      string: "{\n  \"id\": \"chatcmpl-Dk1rP4fQYONGX47bePMt2GoGJy0hX\",\n  \"object\"\
+        : \"chat.completion\",\n  \"created\": 1779862611,\n  \"model\": \"gpt-4o-mini-2024-07-18\"\
+        ,\n  \"choices\": [\n    {\n      \"index\": 0,\n      \"message\": {\n  \
+        \      \"role\": \"assistant\",\n        \"content\": \"Thought: I need to\
+        \ look up the capital of France using the lookup tool.\\nAction: country_capital_lookup\\\
+        nAction Input: {\\\"country\\\":\\\"France\\\"}\\nObservation: Paris\",\n\
+        \        \"refusal\": null,\n        \"annotations\": []\n      },\n     \
+        \ \"logprobs\": null,\n      \"finish_reason\": \"stop\"\n    }\n  ],\n  \"\
+        usage\": {\n    \"prompt_tokens\": 300,\n    \"completion_tokens\": 34,\n\
+        \    \"total_tokens\": 334,\n    \"prompt_tokens_details\": {\n      \"cached_tokens\"\
+        : 0,\n      \"audio_tokens\": 0\n    },\n    \"completion_tokens_details\"\
+        : {\n      \"reasoning_tokens\": 0,\n      \"audio_tokens\": 0,\n      \"\
+        accepted_prediction_tokens\": 0,\n      \"rejected_prediction_tokens\": 0\n\
+        \    }\n  },\n  \"service_tier\": \"default\",\n  \"system_fingerprint\":\
+        \ \"fp_0cab4b58ee\"\n}\n"
     headers:
       Access-Control-Expose-Headers:
       - CF-Ray
-      CF-Cache-Status:
-      - DYNAMIC
-      CF-Ray:
-      - a022e49e8c75513a-CMB
       Connection:
       - keep-alive
       Content-Type:
@@ -98,34 +78,6 @@ interactions:
       - h3=":443"; ma=86400
       content-length:
       - '972'
-      openai-organization:
-      - REDACTED
-      openai-processing-ms:
-      - '880'
-      openai-project:
-      - REDACTED
-      openai-version:
-      - '2020-10-01'
-      set-cookie:
-      - __cf_bm=REDACTED;
-        HttpOnly; SameSite=None; Secure; Path=/; Domain=api.openai.com; Expires=Wed,
-        27 May 2026 06:46:52 GMT
-      x-openai-proxy-wasm:
-      - v0.1
-      x-ratelimit-limit-requests:
-      - '30000'
-      x-ratelimit-limit-tokens:
-      - '150000000'
-      x-ratelimit-remaining-requests:
-      - '29999'
-      x-ratelimit-remaining-tokens:
-      - '149999655'
-      x-ratelimit-reset-requests:
-      - 2ms
-      x-ratelimit-reset-tokens:
-      - 0s
-      x-request-id:
-      - req_bac3415e2a9b490b80a767eefa44e0ca
     status:
       code: 200
       message: OK
@@ -163,57 +115,34 @@ interactions:
       - '1731'
       Content-Type:
       - application/json
-      Cookie:
-      - __cf_bm=REDACTED
       Host:
       - api.openai.com
       User-Agent:
       - OpenAI/Python 2.38.0
-      X-Stainless-Arch:
-      - arm64
-      X-Stainless-Async:
-      - 'false'
-      X-Stainless-Lang:
-      - python
-      X-Stainless-OS:
-      - MacOS
-      X-Stainless-Package-Version:
-      - 2.38.0
-      X-Stainless-Runtime:
-      - CPython
-      X-Stainless-Runtime-Version:
-      - 3.11.11
       authorization:
       - REDACTED
       traceparent:
       - 00-2d26510c0e9902e4a9af9450fcbc946f-b1b99fe5726a1ac5-03
-      x-stainless-read-timeout:
-      - '600'
-      x-stainless-retry-count:
-      - '0'
     method: POST
     uri: https://api.openai.com/v1/chat/completions
   response:
     body:
-      string: "{\n  \"id\": \"chatcmpl-Dk1rRsFeeRS6XRcQB8Ahhj1Bw1sZK\",\n  \"object\":
-        \"chat.completion\",\n  \"created\": 1779862613,\n  \"model\": \"gpt-4o-mini-2024-07-18\",\n
-        \ \"choices\": [\n    {\n      \"index\": 0,\n      \"message\": {\n        \"role\":
-        \"assistant\",\n        \"content\": \"Thought: I now know the final answer\\nFinal
-        Answer: The capital of France is Paris.\",\n        \"refusal\": null,\n        \"annotations\":
-        []\n      },\n      \"logprobs\": null,\n      \"finish_reason\": \"stop\"\n
-        \   }\n  ],\n  \"usage\": {\n    \"prompt_tokens\": 344,\n    \"completion_tokens\":
-        19,\n    \"total_tokens\": 363,\n    \"prompt_tokens_details\": {\n      \"cached_tokens\":
-        0,\n      \"audio_tokens\": 0\n    },\n    \"completion_tokens_details\":
-        {\n      \"reasoning_tokens\": 0,\n      \"audio_tokens\": 0,\n      \"accepted_prediction_tokens\":
-        0,\n      \"rejected_prediction_tokens\": 0\n    }\n  },\n  \"service_tier\":
-        \"default\",\n  \"system_fingerprint\": \"fp_0cab4b58ee\"\n}\n"
+      string: "{\n  \"id\": \"chatcmpl-Dk1rRsFeeRS6XRcQB8Ahhj1Bw1sZK\",\n  \"object\"\
+        : \"chat.completion\",\n  \"created\": 1779862613,\n  \"model\": \"gpt-4o-mini-2024-07-18\"\
+        ,\n  \"choices\": [\n    {\n      \"index\": 0,\n      \"message\": {\n  \
+        \      \"role\": \"assistant\",\n        \"content\": \"Thought: I now know\
+        \ the final answer\\nFinal Answer: The capital of France is Paris.\",\n  \
+        \      \"refusal\": null,\n        \"annotations\": []\n      },\n      \"\
+        logprobs\": null,\n      \"finish_reason\": \"stop\"\n    }\n  ],\n  \"usage\"\
+        : {\n    \"prompt_tokens\": 344,\n    \"completion_tokens\": 19,\n    \"total_tokens\"\
+        : 363,\n    \"prompt_tokens_details\": {\n      \"cached_tokens\": 0,\n  \
+        \    \"audio_tokens\": 0\n    },\n    \"completion_tokens_details\": {\n \
+        \     \"reasoning_tokens\": 0,\n      \"audio_tokens\": 0,\n      \"accepted_prediction_tokens\"\
+        : 0,\n      \"rejected_prediction_tokens\": 0\n    }\n  },\n  \"service_tier\"\
+        : \"default\",\n  \"system_fingerprint\": \"fp_0cab4b58ee\"\n}\n"
     headers:
       Access-Control-Expose-Headers:
       - CF-Ray
-      CF-Cache-Status:
-      - DYNAMIC
-      CF-Ray:
-      - a022e4adeaa25134-CMB
       Connection:
       - keep-alive
       Content-Type:
@@ -232,30 +161,6 @@ interactions:
       - h3=":443"; ma=86400
       content-length:
       - '892'
-      openai-organization:
-      - REDACTED
-      openai-processing-ms:
-      - '1221'
-      openai-project:
-      - REDACTED
-      openai-version:
-      - '2020-10-01'
-      x-openai-proxy-wasm:
-      - v0.1
-      x-ratelimit-limit-requests:
-      - '30000'
-      x-ratelimit-limit-tokens:
-      - '150000000'
-      x-ratelimit-remaining-requests:
-      - '29999'
-      x-ratelimit-remaining-tokens:
-      - '149999607'
-      x-ratelimit-reset-requests:
-      - 2ms
-      x-ratelimit-reset-tokens:
-      - 0s
-      x-request-id:
-      - req_3e9cfc153adb485a9e3887608bb00c6b
     status:
       code: 200
       message: OK
@@ -289,51 +194,30 @@ interactions:
       - api.openai.com
       User-Agent:
       - OpenAI/Python 2.38.0
-      X-Stainless-Arch:
-      - arm64
-      X-Stainless-Async:
-      - 'false'
-      X-Stainless-Lang:
-      - python
-      X-Stainless-OS:
-      - MacOS
-      X-Stainless-Package-Version:
-      - 2.38.0
-      X-Stainless-Runtime:
-      - CPython
-      X-Stainless-Runtime-Version:
-      - 3.11.11
       authorization:
       - REDACTED
       traceparent:
       - 00-2d26510c0e9902e4a9af9450fcbc946f-907aabf0bd86b281-03
-      x-stainless-read-timeout:
-      - '600'
-      x-stainless-retry-count:
-      - '0'
     method: POST
     uri: https://api.openai.com/v1/chat/completions
   response:
     body:
-      string: "{\n  \"id\": \"chatcmpl-Dk1rTqGMXtA5vzZByQGrAJ6nmo4S9\",\n  \"object\":
-        \"chat.completion\",\n  \"created\": 1779862615,\n  \"model\": \"gpt-4o-mini-2024-07-18\",\n
-        \ \"choices\": [\n    {\n      \"index\": 0,\n      \"message\": {\n        \"role\":
-        \"assistant\",\n        \"content\": \"I now can give a great answer  \\nFinal
-        Answer: The capital of France is Paris.\",\n        \"refusal\": null,\n        \"annotations\":
-        []\n      },\n      \"logprobs\": null,\n      \"finish_reason\": \"stop\"\n
-        \   }\n  ],\n  \"usage\": {\n    \"prompt_tokens\": 196,\n    \"completion_tokens\":
-        18,\n    \"total_tokens\": 214,\n    \"prompt_tokens_details\": {\n      \"cached_tokens\":
-        0,\n      \"audio_tokens\": 0\n    },\n    \"completion_tokens_details\":
-        {\n      \"reasoning_tokens\": 0,\n      \"audio_tokens\": 0,\n      \"accepted_prediction_tokens\":
-        0,\n      \"rejected_prediction_tokens\": 0\n    }\n  },\n  \"service_tier\":
-        \"default\",\n  \"system_fingerprint\": \"fp_8324b7be19\"\n}\n"
+      string: "{\n  \"id\": \"chatcmpl-Dk1rTqGMXtA5vzZByQGrAJ6nmo4S9\",\n  \"object\"\
+        : \"chat.completion\",\n  \"created\": 1779862615,\n  \"model\": \"gpt-4o-mini-2024-07-18\"\
+        ,\n  \"choices\": [\n    {\n      \"index\": 0,\n      \"message\": {\n  \
+        \      \"role\": \"assistant\",\n        \"content\": \"I now can give a great\
+        \ answer  \\nFinal Answer: The capital of France is Paris.\",\n        \"\
+        refusal\": null,\n        \"annotations\": []\n      },\n      \"logprobs\"\
+        : null,\n      \"finish_reason\": \"stop\"\n    }\n  ],\n  \"usage\": {\n\
+        \    \"prompt_tokens\": 196,\n    \"completion_tokens\": 18,\n    \"total_tokens\"\
+        : 214,\n    \"prompt_tokens_details\": {\n      \"cached_tokens\": 0,\n  \
+        \    \"audio_tokens\": 0\n    },\n    \"completion_tokens_details\": {\n \
+        \     \"reasoning_tokens\": 0,\n      \"audio_tokens\": 0,\n      \"accepted_prediction_tokens\"\
+        : 0,\n      \"rejected_prediction_tokens\": 0\n    }\n  },\n  \"service_tier\"\
+        : \"default\",\n  \"system_fingerprint\": \"fp_8324b7be19\"\n}\n"
     headers:
       Access-Control-Expose-Headers:
       - CF-Ray
-      CF-Cache-Status:
-      - DYNAMIC
-      CF-Ray:
-      - a022e4bede095132-CMB
       Connection:
       - keep-alive
       Content-Type:
@@ -352,34 +236,6 @@ interactions:
       - h3=":443"; ma=86400
       content-length:
       - '887'
-      openai-organization:
-      - REDACTED
-      openai-processing-ms:
-      - '675'
-      openai-project:
-      - REDACTED
-      openai-version:
-      - '2020-10-01'
-      set-cookie:
-      - __cf_bm=REDACTED;
-        HttpOnly; SameSite=None; Secure; Path=/; Domain=api.openai.com; Expires=Wed,
-        27 May 2026 06:46:56 GMT
-      x-openai-proxy-wasm:
-      - v0.1
-      x-ratelimit-limit-requests:
-      - '30000'
-      x-ratelimit-limit-tokens:
-      - '150000000'
-      x-ratelimit-remaining-requests:
-      - '29999'
-      x-ratelimit-remaining-tokens:
-      - '149999772'
-      x-ratelimit-reset-requests:
-      - 2ms
-      x-ratelimit-reset-tokens:
-      - 0s
-      x-request-id:
-      - req_07c9f4ce760740248893e41b5c436275
     status:
       code: 200
       message: OK

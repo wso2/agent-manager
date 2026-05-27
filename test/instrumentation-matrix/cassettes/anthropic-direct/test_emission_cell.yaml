@@ -18,34 +18,16 @@ interactions:
       - api.anthropic.com
       User-Agent:
       - Anthropic/Python 0.45.0
-      X-Stainless-Arch:
-      - arm64
-      X-Stainless-Async:
-      - 'false'
-      X-Stainless-Lang:
-      - python
-      X-Stainless-OS:
-      - MacOS
-      X-Stainless-Package-Version:
-      - 0.45.0
-      X-Stainless-Runtime:
-      - CPython
-      X-Stainless-Runtime-Version:
-      - 3.11.11
       anthropic-version:
       - '2023-06-01'
       x-api-key:
       - REDACTED
-      x-stainless-retry-count:
-      - '0'
     method: POST
     uri: https://api.anthropic.com/v1/messages
   response:
     body:
       string: '{"model":"claude-haiku-4-5-20251001","id":"msg_01FutFouLzqxSXtB7b8TQVjM","type":"message","role":"assistant","content":[{"type":"text","text":"Paris"}],"stop_reason":"end_turn","stop_sequence":null,"stop_details":null,"usage":{"input_tokens":16,"cache_creation_input_tokens":0,"cache_read_input_tokens":0,"cache_creation":{"ephemeral_5m_input_tokens":0,"ephemeral_1h_input_tokens":0},"output_tokens":4,"service_tier":"standard","inference_geo":"not_available"}}'
     headers:
-      CF-RAY:
-      - a0231a691bd35137-CMB
       Connection:
       - keep-alive
       Content-Security-Policy:
@@ -60,8 +42,6 @@ interactions:
       - chunked
       X-Robots-Tag:
       - none
-      anthropic-organization-id:
-      - REDACTED-UUID
       anthropic-ratelimit-input-tokens-limit:
       - '4000000'
       anthropic-ratelimit-input-tokens-remaining:
@@ -86,15 +66,8 @@ interactions:
       - '4800000'
       anthropic-ratelimit-tokens-reset:
       - '2026-05-27T06:53:33Z'
-      cf-cache-status:
-      - DYNAMIC
       content-length:
       - '461'
-      request-id:
-      - req_011CbSdgv5DyNku8HmrBmB5c
-      set-cookie:
-      - _cfuvid=cEWo1ZpNd1_jH7FGkQhlKs90Uex0bXvTXhJYouIiIdI-1779864812.982485-1.0.1.1-vx2CyfzTV_Z8zjl6jsjFZjhKpe22N1psGCaI6QZ2I7k;
-        HttpOnly; SameSite=None; Secure; Path=/; Domain=api.anthropic.com
       strict-transport-security:
       - max-age=31536000; includeSubDomains; preload
       traceresponse:

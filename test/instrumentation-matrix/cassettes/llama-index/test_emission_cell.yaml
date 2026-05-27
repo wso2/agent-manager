@@ -18,26 +18,8 @@ interactions:
       - api.openai.com
       User-Agent:
       - OpenAI/Python 2.38.0
-      X-Stainless-Arch:
-      - arm64
-      X-Stainless-Async:
-      - 'false'
-      X-Stainless-Lang:
-      - python
-      X-Stainless-OS:
-      - MacOS
-      X-Stainless-Package-Version:
-      - 2.38.0
-      X-Stainless-Runtime:
-      - CPython
-      X-Stainless-Runtime-Version:
-      - 3.11.11
       authorization:
       - REDACTED
-      x-stainless-read-timeout:
-      - '60.0'
-      x-stainless-retry-count:
-      - '0'
     method: POST
     uri: https://api.openai.com/v1/embeddings
   response:
@@ -46,10 +28,6 @@ interactions:
     headers:
       Access-Control-Expose-Headers:
       - CF-Ray
-      CF-Cache-Status:
-      - DYNAMIC
-      CF-Ray:
-      - a022b2d85ee387f3-SIN
       Connection:
       - keep-alive
       Content-Type:
@@ -68,34 +46,6 @@ interactions:
       - h3=":443"; ma=86400
       content-length:
       - '16586'
-      openai-organization:
-      - REDACTED
-      openai-processing-ms:
-      - '262'
-      openai-project:
-      - REDACTED
-      openai-version:
-      - '2020-10-01'
-      set-cookie:
-      - __cf_bm=REDACTED;
-        HttpOnly; SameSite=None; Secure; Path=/; Domain=api.openai.com; Expires=Wed,
-        27 May 2026 06:12:52 GMT
-      x-openai-proxy-wasm:
-      - v0.1
-      x-ratelimit-limit-requests:
-      - '10000'
-      x-ratelimit-limit-tokens:
-      - '10000000'
-      x-ratelimit-remaining-requests:
-      - '9999'
-      x-ratelimit-remaining-tokens:
-      - '9999979'
-      x-ratelimit-reset-requests:
-      - 6ms
-      x-ratelimit-reset-tokens:
-      - 0s
-      x-request-id:
-      - req_8fb8fcec90134ff389e5b8c56fa3a615
     status:
       code: 200
       message: OK
@@ -113,32 +63,12 @@ interactions:
       - '104'
       Content-Type:
       - application/json
-      Cookie:
-      - __cf_bm=REDACTED
       Host:
       - api.openai.com
       User-Agent:
       - OpenAI/Python 2.38.0
-      X-Stainless-Arch:
-      - arm64
-      X-Stainless-Async:
-      - 'false'
-      X-Stainless-Lang:
-      - python
-      X-Stainless-OS:
-      - MacOS
-      X-Stainless-Package-Version:
-      - 2.38.0
-      X-Stainless-Runtime:
-      - CPython
-      X-Stainless-Runtime-Version:
-      - 3.11.11
       authorization:
       - REDACTED
-      x-stainless-read-timeout:
-      - '60.0'
-      x-stainless-retry-count:
-      - '0'
     method: POST
     uri: https://api.openai.com/v1/embeddings
   response:
@@ -147,10 +77,6 @@ interactions:
     headers:
       Access-Control-Expose-Headers:
       - CF-Ray
-      CF-Cache-Status:
-      - DYNAMIC
-      CF-Ray:
-      - a022b2e62ebafd80-SIN
       Connection:
       - keep-alive
       Content-Type:
@@ -169,30 +95,6 @@ interactions:
       - h3=":443"; ma=86400
       content-length:
       - '8344'
-      openai-organization:
-      - REDACTED
-      openai-processing-ms:
-      - '208'
-      openai-project:
-      - REDACTED
-      openai-version:
-      - '2020-10-01'
-      x-openai-proxy-wasm:
-      - v0.1
-      x-ratelimit-limit-requests:
-      - '10000'
-      x-ratelimit-limit-tokens:
-      - '10000000'
-      x-ratelimit-remaining-requests:
-      - '9999'
-      x-ratelimit-remaining-tokens:
-      - '9999993'
-      x-ratelimit-reset-requests:
-      - 6ms
-      x-ratelimit-reset-tokens:
-      - 0s
-      x-request-id:
-      - req_207b13c4e4064094b2be01e0ec9c6ffd
     status:
       code: 200
       message: OK
@@ -222,48 +124,28 @@ interactions:
       - api.openai.com
       User-Agent:
       - OpenAI/Python 2.38.0
-      X-Stainless-Arch:
-      - arm64
-      X-Stainless-Async:
-      - 'false'
-      X-Stainless-Lang:
-      - python
-      X-Stainless-OS:
-      - MacOS
-      X-Stainless-Package-Version:
-      - 2.38.0
-      X-Stainless-Runtime:
-      - CPython
-      X-Stainless-Runtime-Version:
-      - 3.11.11
       authorization:
       - REDACTED
-      x-stainless-read-timeout:
-      - '60.0'
-      x-stainless-retry-count:
-      - '0'
     method: POST
     uri: https://api.openai.com/v1/chat/completions
   response:
     body:
-      string: "{\n  \"id\": \"chatcmpl-Dk1KYQh5YhQP4fJX4VJM8KWMoXQYa\",\n  \"object\":
-        \"chat.completion\",\n  \"created\": 1779860574,\n  \"model\": \"gpt-4o-mini-2024-07-18\",\n
-        \ \"choices\": [\n    {\n      \"index\": 0,\n      \"message\": {\n        \"role\":
-        \"assistant\",\n        \"content\": \"The capital of France is Paris.\",\n
-        \       \"refusal\": null,\n        \"annotations\": []\n      },\n      \"logprobs\":
-        null,\n      \"finish_reason\": \"stop\"\n    }\n  ],\n  \"usage\": {\n    \"prompt_tokens\":
-        138,\n    \"completion_tokens\": 7,\n    \"total_tokens\": 145,\n    \"prompt_tokens_details\":
-        {\n      \"cached_tokens\": 0,\n      \"audio_tokens\": 0\n    },\n    \"completion_tokens_details\":
-        {\n      \"reasoning_tokens\": 0,\n      \"audio_tokens\": 0,\n      \"accepted_prediction_tokens\":
-        0,\n      \"rejected_prediction_tokens\": 0\n    }\n  },\n  \"service_tier\":
-        \"default\",\n  \"system_fingerprint\": \"fp_137d513d95\"\n}\n"
+      string: "{\n  \"id\": \"chatcmpl-Dk1KYQh5YhQP4fJX4VJM8KWMoXQYa\",\n  \"object\"\
+        : \"chat.completion\",\n  \"created\": 1779860574,\n  \"model\": \"gpt-4o-mini-2024-07-18\"\
+        ,\n  \"choices\": [\n    {\n      \"index\": 0,\n      \"message\": {\n  \
+        \      \"role\": \"assistant\",\n        \"content\": \"The capital of France\
+        \ is Paris.\",\n        \"refusal\": null,\n        \"annotations\": []\n\
+        \      },\n      \"logprobs\": null,\n      \"finish_reason\": \"stop\"\n\
+        \    }\n  ],\n  \"usage\": {\n    \"prompt_tokens\": 138,\n    \"completion_tokens\"\
+        : 7,\n    \"total_tokens\": 145,\n    \"prompt_tokens_details\": {\n     \
+        \ \"cached_tokens\": 0,\n      \"audio_tokens\": 0\n    },\n    \"completion_tokens_details\"\
+        : {\n      \"reasoning_tokens\": 0,\n      \"audio_tokens\": 0,\n      \"\
+        accepted_prediction_tokens\": 0,\n      \"rejected_prediction_tokens\": 0\n\
+        \    }\n  },\n  \"service_tier\": \"default\",\n  \"system_fingerprint\":\
+        \ \"fp_137d513d95\"\n}\n"
     headers:
       Access-Control-Expose-Headers:
       - CF-Ray
-      CF-Cache-Status:
-      - DYNAMIC
-      CF-Ray:
-      - a022b2ec4dd68225-SIN
       Connection:
       - keep-alive
       Content-Type:
@@ -282,34 +164,6 @@ interactions:
       - h3=":443"; ma=86400
       content-length:
       - '839'
-      openai-organization:
-      - REDACTED
-      openai-processing-ms:
-      - '421'
-      openai-project:
-      - REDACTED
-      openai-version:
-      - '2020-10-01'
-      set-cookie:
-      - __cf_bm=REDACTED;
-        HttpOnly; SameSite=None; Secure; Path=/; Domain=api.openai.com; Expires=Wed,
-        27 May 2026 06:12:54 GMT
-      x-openai-proxy-wasm:
-      - v0.1
-      x-ratelimit-limit-requests:
-      - '30000'
-      x-ratelimit-limit-tokens:
-      - '150000000'
-      x-ratelimit-remaining-requests:
-      - '29999'
-      x-ratelimit-remaining-tokens:
-      - '149999837'
-      x-ratelimit-reset-requests:
-      - 2ms
-      x-ratelimit-reset-tokens:
-      - 0s
-      x-request-id:
-      - req_80a0f79f15c3492aac13de6ef1920920
     status:
       code: 200
       message: OK

@@ -19,15 +19,22 @@ from pathlib import Path
 # becomes a concern. Each pattern is anchored to a prefix that almost never
 # appears in benign cassette content.
 PATTERNS = [
-    (re.compile(r"\bsk-(proj-)?[A-Za-z0-9_-]{20,}\b"), "OpenAI"),
-    (re.compile(r"\bsk-ant-[A-Za-z0-9_-]{20,}\b"), "Anthropic"),
-    (re.compile(r"\bxai-[A-Za-z0-9_-]{20,}\b"), "xAI"),
-    (re.compile(r"\bgsk_[A-Za-z0-9_-]{20,}\b"), "Groq"),
+    # API-key prefixes — credentials, hard fail.
+    (re.compile(r"\bsk-(proj-)?[A-Za-z0-9_-]{20,}\b"), "OpenAI API key"),
+    (re.compile(r"\bsk-ant-[A-Za-z0-9_-]{20,}\b"), "Anthropic API key"),
+    (re.compile(r"\bxai-[A-Za-z0-9_-]{20,}\b"), "xAI API key"),
+    (re.compile(r"\bgsk_[A-Za-z0-9_-]{20,}\b"), "Groq API key"),
     # CrewAI's hosted-tracing one-shot access codes. The CrewAI sample sets
     # CREWAI_TRACING_ENABLED=false + CREWAI_DISABLE_TRACING_PROMPT=true to
     # avoid the upload entirely; this regex stays as a backstop in case those
     # env vars stop working or someone removes them.
     (re.compile(r"\bTRACE-[A-Za-z0-9]{8,}\b"), "CrewAI trace access code"),
+    # Identifying response-header leftovers. VCR's filter_headers only filters
+    # request headers; before_record_response in test_cell.py / record_cassette.py
+    # strips these from responses. If they reappear, the hook regressed.
+    (re.compile(r"\bproj_[A-Za-z0-9]{20,}\b"), "OpenAI project ID"),
+    (re.compile(r"\bwso2-\d+\b"), "OpenAI organization slug"),
+    (re.compile(r"\b__cf_bm=[A-Za-z0-9._-]{20,}\b"), "Cloudflare session cookie"),
 ]
 
 ROOT = Path(__file__).resolve().parent.parent

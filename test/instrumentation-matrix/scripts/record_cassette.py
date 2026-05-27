@@ -40,14 +40,46 @@ def main():
     sys.modules[module_name] = module
     spec.loader.exec_module(module)
 
+    # Keep this config aligned with harness/test_cell.py's vcr_config fixture,
+    # so a cassette recorded through this script looks the same as one
+    # recorded through the cell harness.
+    response_headers_to_drop = {
+        "openai-organization",
+        "openai-project",
+        "anthropic-organization-id",
+        "set-cookie",
+        "cf-ray",
+        "cf-cache-status",
+        "x-request-id",
+        "request-id",
+        "x-openai-proxy-wasm",
+        "openai-version",
+        "openai-processing-ms",
+        "x-ratelimit-limit-requests",
+        "x-ratelimit-limit-tokens",
+        "x-ratelimit-remaining-requests",
+        "x-ratelimit-remaining-tokens",
+        "x-ratelimit-reset-requests",
+        "x-ratelimit-reset-tokens",
+    }
+
+    def strip_response_headers(response):
+        headers = response.get("headers") or {}
+        for key in list(headers.keys()):
+            if key.lower() in response_headers_to_drop:
+                del headers[key]
+        return response
+
     cfg = {
         "record_mode": "once",
         "filter_headers": [
             ("authorization", "REDACTED"),
             ("x-api-key", "REDACTED"),
             ("openai-organization", "REDACTED"),
+            ("cookie", "REDACTED"),
         ],
         "filter_post_data_parameters": [("api_key", "REDACTED")],
+        "before_record_response": strip_response_headers,
         "decode_compressed_response": True,
     }
 

@@ -20,52 +20,33 @@ interactions:
       - api.openai.com
       User-Agent:
       - OpenAI/Python 2.38.0
-      X-Stainless-Arch:
-      - arm64
-      X-Stainless-Async:
-      - 'false'
-      X-Stainless-Lang:
-      - python
-      X-Stainless-OS:
-      - MacOS
-      X-Stainless-Package-Version:
-      - 2.38.0
       X-Stainless-Raw-Response:
       - 'true'
-      X-Stainless-Runtime:
-      - CPython
-      X-Stainless-Runtime-Version:
-      - 3.11.11
       authorization:
       - REDACTED
-      x-stainless-retry-count:
-      - '0'
     method: POST
     uri: https://api.openai.com/v1/chat/completions
   response:
     body:
-      string: "{\n  \"id\": \"chatcmpl-Dk1GdxTDlHT4YzTYy0eTJRIaKzaST\",\n  \"object\":
-        \"chat.completion\",\n  \"created\": 1779860331,\n  \"model\": \"gpt-4o-mini-2024-07-18\",\n
-        \ \"choices\": [\n    {\n      \"index\": 0,\n      \"message\": {\n        \"role\":
-        \"assistant\",\n        \"content\": null,\n        \"tool_calls\": [\n          {\n
-        \           \"id\": \"call_8E91SNJqZ4aZRJyV9K6YaWLa\",\n            \"type\":
-        \"function\",\n            \"function\": {\n              \"name\": \"double\",\n
-        \             \"arguments\": \"{\\\"x\\\":21}\"\n            }\n          }\n
-        \       ],\n        \"refusal\": null,\n        \"annotations\": []\n      },\n
-        \     \"logprobs\": null,\n      \"finish_reason\": \"tool_calls\"\n    }\n
-        \ ],\n  \"usage\": {\n    \"prompt_tokens\": 53,\n    \"completion_tokens\":
-        13,\n    \"total_tokens\": 66,\n    \"prompt_tokens_details\": {\n      \"cached_tokens\":
-        0,\n      \"audio_tokens\": 0\n    },\n    \"completion_tokens_details\":
-        {\n      \"reasoning_tokens\": 0,\n      \"audio_tokens\": 0,\n      \"accepted_prediction_tokens\":
-        0,\n      \"rejected_prediction_tokens\": 0\n    }\n  },\n  \"service_tier\":
-        \"default\",\n  \"system_fingerprint\": \"fp_54f26dc974\"\n}\n"
+      string: "{\n  \"id\": \"chatcmpl-Dk1GdxTDlHT4YzTYy0eTJRIaKzaST\",\n  \"object\"\
+        : \"chat.completion\",\n  \"created\": 1779860331,\n  \"model\": \"gpt-4o-mini-2024-07-18\"\
+        ,\n  \"choices\": [\n    {\n      \"index\": 0,\n      \"message\": {\n  \
+        \      \"role\": \"assistant\",\n        \"content\": null,\n        \"tool_calls\"\
+        : [\n          {\n            \"id\": \"call_8E91SNJqZ4aZRJyV9K6YaWLa\",\n\
+        \            \"type\": \"function\",\n            \"function\": {\n      \
+        \        \"name\": \"double\",\n              \"arguments\": \"{\\\"x\\\"\
+        :21}\"\n            }\n          }\n        ],\n        \"refusal\": null,\n\
+        \        \"annotations\": []\n      },\n      \"logprobs\": null,\n      \"\
+        finish_reason\": \"tool_calls\"\n    }\n  ],\n  \"usage\": {\n    \"prompt_tokens\"\
+        : 53,\n    \"completion_tokens\": 13,\n    \"total_tokens\": 66,\n    \"prompt_tokens_details\"\
+        : {\n      \"cached_tokens\": 0,\n      \"audio_tokens\": 0\n    },\n    \"\
+        completion_tokens_details\": {\n      \"reasoning_tokens\": 0,\n      \"audio_tokens\"\
+        : 0,\n      \"accepted_prediction_tokens\": 0,\n      \"rejected_prediction_tokens\"\
+        : 0\n    }\n  },\n  \"service_tier\": \"default\",\n  \"system_fingerprint\"\
+        : \"fp_54f26dc974\"\n}\n"
     headers:
       Access-Control-Expose-Headers:
       - CF-Ray
-      CF-Cache-Status:
-      - DYNAMIC
-      CF-Ray:
-      - a022acfc9da49f8f-SIN
       Connection:
       - keep-alive
       Content-Type:
@@ -84,34 +65,6 @@ interactions:
       - h3=":443"; ma=86400
       content-length:
       - '1069'
-      openai-organization:
-      - REDACTED
-      openai-processing-ms:
-      - '646'
-      openai-project:
-      - REDACTED
-      openai-version:
-      - '2020-10-01'
-      set-cookie:
-      - __cf_bm=REDACTED;
-        HttpOnly; SameSite=None; Secure; Path=/; Domain=api.openai.com; Expires=Wed,
-        27 May 2026 06:08:52 GMT
-      x-openai-proxy-wasm:
-      - v0.1
-      x-ratelimit-limit-requests:
-      - '30000'
-      x-ratelimit-limit-tokens:
-      - '150000000'
-      x-ratelimit-remaining-requests:
-      - '29999'
-      x-ratelimit-remaining-tokens:
-      - '149999990'
-      x-ratelimit-reset-requests:
-      - 2ms
-      x-ratelimit-reset-tokens:
-      - 0s
-      x-request-id:
-      - req_30b9b8a9d8a242f38addda958824b87a
     status:
       code: 200
       message: OK
@@ -135,54 +88,34 @@ interactions:
       - '563'
       Content-Type:
       - application/json
-      Cookie:
-      - __cf_bm=REDACTED
       Host:
       - api.openai.com
       User-Agent:
       - OpenAI/Python 2.38.0
-      X-Stainless-Arch:
-      - arm64
-      X-Stainless-Async:
-      - 'false'
-      X-Stainless-Lang:
-      - python
-      X-Stainless-OS:
-      - MacOS
-      X-Stainless-Package-Version:
-      - 2.38.0
       X-Stainless-Raw-Response:
       - 'true'
-      X-Stainless-Runtime:
-      - CPython
-      X-Stainless-Runtime-Version:
-      - 3.11.11
       authorization:
       - REDACTED
-      x-stainless-retry-count:
-      - '0'
     method: POST
     uri: https://api.openai.com/v1/chat/completions
   response:
     body:
-      string: "{\n  \"id\": \"chatcmpl-Dk1GfutB80mJkw8MkvBovaiJLMMxm\",\n  \"object\":
-        \"chat.completion\",\n  \"created\": 1779860333,\n  \"model\": \"gpt-4o-mini-2024-07-18\",\n
-        \ \"choices\": [\n    {\n      \"index\": 0,\n      \"message\": {\n        \"role\":
-        \"assistant\",\n        \"content\": \"The double of 21 is 42.\",\n        \"refusal\":
-        null,\n        \"annotations\": []\n      },\n      \"logprobs\": null,\n
-        \     \"finish_reason\": \"stop\"\n    }\n  ],\n  \"usage\": {\n    \"prompt_tokens\":
-        74,\n    \"completion_tokens\": 10,\n    \"total_tokens\": 84,\n    \"prompt_tokens_details\":
-        {\n      \"cached_tokens\": 0,\n      \"audio_tokens\": 0\n    },\n    \"completion_tokens_details\":
-        {\n      \"reasoning_tokens\": 0,\n      \"audio_tokens\": 0,\n      \"accepted_prediction_tokens\":
-        0,\n      \"rejected_prediction_tokens\": 0\n    }\n  },\n  \"service_tier\":
-        \"default\",\n  \"system_fingerprint\": \"fp_54f26dc974\"\n}\n"
+      string: "{\n  \"id\": \"chatcmpl-Dk1GfutB80mJkw8MkvBovaiJLMMxm\",\n  \"object\"\
+        : \"chat.completion\",\n  \"created\": 1779860333,\n  \"model\": \"gpt-4o-mini-2024-07-18\"\
+        ,\n  \"choices\": [\n    {\n      \"index\": 0,\n      \"message\": {\n  \
+        \      \"role\": \"assistant\",\n        \"content\": \"The double of 21 is\
+        \ 42.\",\n        \"refusal\": null,\n        \"annotations\": []\n      },\n\
+        \      \"logprobs\": null,\n      \"finish_reason\": \"stop\"\n    }\n  ],\n\
+        \  \"usage\": {\n    \"prompt_tokens\": 74,\n    \"completion_tokens\": 10,\n\
+        \    \"total_tokens\": 84,\n    \"prompt_tokens_details\": {\n      \"cached_tokens\"\
+        : 0,\n      \"audio_tokens\": 0\n    },\n    \"completion_tokens_details\"\
+        : {\n      \"reasoning_tokens\": 0,\n      \"audio_tokens\": 0,\n      \"\
+        accepted_prediction_tokens\": 0,\n      \"rejected_prediction_tokens\": 0\n\
+        \    }\n  },\n  \"service_tier\": \"default\",\n  \"system_fingerprint\":\
+        \ \"fp_54f26dc974\"\n}\n"
     headers:
       Access-Control-Expose-Headers:
       - CF-Ray
-      CF-Cache-Status:
-      - DYNAMIC
-      CF-Ray:
-      - a022ad06db079cb3-SIN
       Connection:
       - keep-alive
       Content-Type:
@@ -201,30 +134,6 @@ interactions:
       - h3=":443"; ma=86400
       content-length:
       - '830'
-      openai-organization:
-      - REDACTED
-      openai-processing-ms:
-      - '645'
-      openai-project:
-      - REDACTED
-      openai-version:
-      - '2020-10-01'
-      x-openai-proxy-wasm:
-      - v0.1
-      x-ratelimit-limit-requests:
-      - '30000'
-      x-ratelimit-limit-tokens:
-      - '150000000'
-      x-ratelimit-remaining-requests:
-      - '29999'
-      x-ratelimit-remaining-tokens:
-      - '149999985'
-      x-ratelimit-reset-requests:
-      - 2ms
-      x-ratelimit-reset-tokens:
-      - 0s
-      x-request-id:
-      - req_37f345fac9349cd793d6ea5cca9ca43f
     status:
       code: 200
       message: OK

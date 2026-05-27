@@ -29,15 +29,51 @@ _HERE = Path(__file__).resolve().parent.parent
 @pytest.fixture(scope="session")
 def vcr_config():
     return {
+        # Request headers: filter_headers replaces these with placeholder
+        # values rather than removing them (so VCR matching still works).
         "filter_headers": [
             ("authorization", "REDACTED"),
             ("x-api-key", "REDACTED"),
             ("openai-organization", "REDACTED"),
+            ("cookie", "REDACTED"),
         ],
         "filter_post_data_parameters": [("api_key", "REDACTED")],
+        # Response headers: VCR's filter_headers doesn't touch responses.
+        # The hook below drops identifying response headers entirely. Mirrors
+        # the set in test/instrumentation-matrix/scripts/scrub_cassettes.py.
+        "before_record_response": _strip_response_headers,
         "decode_compressed_response": True,
         "record_mode": os.getenv("VCR_RECORD_MODE", "none"),
     }
+
+
+_RESPONSE_HEADERS_TO_DROP = {
+    "openai-organization",
+    "openai-project",
+    "anthropic-organization-id",
+    "set-cookie",
+    "cf-ray",
+    "cf-cache-status",
+    "x-request-id",
+    "request-id",
+    "x-openai-proxy-wasm",
+    "openai-version",
+    "openai-processing-ms",
+    "x-ratelimit-limit-requests",
+    "x-ratelimit-limit-tokens",
+    "x-ratelimit-remaining-requests",
+    "x-ratelimit-remaining-tokens",
+    "x-ratelimit-reset-requests",
+    "x-ratelimit-reset-tokens",
+}
+
+
+def _strip_response_headers(response):
+    headers = response.get("headers") or {}
+    for key in list(headers.keys()):
+        if key.lower() in _RESPONSE_HEADERS_TO_DROP:
+            del headers[key]
+    return response
 
 
 # pytest-recording derives the cassette filename from the test name
