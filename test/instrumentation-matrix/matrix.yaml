@@ -5,8 +5,21 @@ providers:
     versions: ["0.60.0"]
     contractSchema: "v1"
 
+  manual:
+    # The manual path doesn't pin a SDK version — the cell exercises the
+    # published samples/manual-instrumentation-agent/, which depends only on
+    # the OpenAI Python SDK + stdlib opentelemetry.
+    versions: ["0.1.0"]
+    contractSchema: "v1"
+
 frameworks:
+  # Auto-instrumentation frameworks below all use `provider: traceloop` —
+  # otherwise the manual provider would cross-product into each one and
+  # produce nonsensical (manual × langchain) cells. The manual-rag entry
+  # further down explicitly opts into `provider: manual` only.
+
   - name: langchain
+    provider: traceloop
     package: langchain
     versions: ["0.3.27"]
     samplePath: cells/langchain_sample.py
@@ -14,6 +27,7 @@ frameworks:
     extras: [langchain-openai, openai]
 
   - name: langgraph
+    provider: traceloop
     package: langgraph
     versions: ["0.2.74"]
     samplePath: cells/langgraph_sample.py
@@ -24,6 +38,7 @@ frameworks:
     extras: [langchain-openai, langchain-core, openai]
 
   - name: llama-index
+    provider: traceloop
     package: llama-index
     versions: ["0.12.0"]
     samplePath: cells/llama_index_sample.py
@@ -31,6 +46,7 @@ frameworks:
     extras: [llama-index-llms-openai, llama-index-embeddings-openai, openai]
 
   - name: crewai
+    provider: traceloop
     package: crewai
     # crewai 1.1.0 is the version that both:
     #   (a) Traceloop's CrewAI instrumentation accepts (>= 1.0), and
@@ -48,6 +64,7 @@ frameworks:
     extras: [crewai-tools==1.1.0, openai]
 
   - name: openai-direct
+    provider: traceloop
     package: openai
     # openai 1.55.0 + httpx 0.28+ blows up at client construction
     # (TypeError on `proxies=` kwarg). See FINDINGS.md F-010. Pin to a
@@ -57,7 +74,16 @@ frameworks:
     spanKinds: [llm]
     extras: []
 
+  - name: manual-rag
+    provider: manual          # restricts this framework to the manual provider only
+    package: openai           # the published sample's runtime dep is just openai
+    versions: ["2.38.0"]
+    samplePath: cells/manual_rag_sample.py
+    spanKinds: [agent, chain, embedding, retriever, rerank, llm, tool]
+    extras: []
+
   - name: anthropic-direct
+    provider: traceloop
     package: anthropic
     # Same httpx-0.28 story as openai-direct; anthropic 0.40 has the same
     # `proxies` kwarg path. Pin to a version that works with the resolved

@@ -39,9 +39,33 @@ def test_embedding_via_legacy_attribute_heuristic():
     assert classify_span(s) == "embedding"
 
 
-def test_retriever_via_db_attrs():
+def test_retriever_via_legacy_db_system():
     s = _span("vector_search", {"db.system": "chroma", "db.vector.query.top_k": 5})
     assert classify_span(s) == "retriever"
+
+
+def test_retriever_via_db_system_name():
+    # The published manual-instrumentation sample uses the current OTel key
+    # `db.system.name` (with db.collection.name + db.vector.query.top_k) and
+    # does NOT set traceloop.span.kind=retriever.
+    s = _span(
+        "vector_search",
+        {"db.system.name": "chroma", "db.collection.name": "kb", "db.vector.query.top_k": 5},
+    )
+    assert classify_span(s) == "retriever"
+
+
+def test_agent_via_invoke_agent_operation():
+    s = _span("invoke_agent", {"gen_ai.operation.name": "invoke_agent"})
+    assert classify_span(s) == "agent"
+
+
+def test_tool_via_execute_tool_operation():
+    s = _span(
+        "execute_tool",
+        {"gen_ai.operation.name": "execute_tool", "gen_ai.tool.name": "word_count"},
+    )
+    assert classify_span(s) == "tool"
 
 
 def test_workflow_maps_to_chain():

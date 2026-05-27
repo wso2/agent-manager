@@ -42,8 +42,11 @@ def classify_span(span: dict[str, Any]) -> str:
     if any(k.startswith("crewai.task.") for k in attrs):
         return "crewaitask"
 
-    # Retriever — vector DB attrs.
-    if attrs.get("db.system") and "db.vector.query.top_k" in attrs:
+    # Retriever — vector DB attrs. Accept the current OTel db.system.name
+    # in addition to the legacy db.system; the published manual-instrumentation
+    # sample uses db.system.name with db.collection.name + db.vector.query.top_k
+    # but does NOT set traceloop.span.kind=retriever.
+    if attrs.get("db.system") or attrs.get("db.system.name"):
         return "retriever"
 
     # OTel GenAI semconv (current): gen_ai.operation.name discriminates.
@@ -54,6 +57,10 @@ def classify_span(span: dict[str, Any]) -> str:
         return "llm"
     if op in {"embeddings", "embedding"}:
         return "embedding"
+    if op == "invoke_agent":
+        return "agent"
+    if op == "execute_tool":
+        return "tool"
 
     # Legacy heuristics for older Traceloop versions.
     model = (attrs.get("gen_ai.request.model") or "").lower()
