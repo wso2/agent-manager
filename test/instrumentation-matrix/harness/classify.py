@@ -24,11 +24,16 @@ _KINDS = {
     "crewaitask",
 }
 
+# Traceloop emits `workflow` and `task` as generic wrapper-span kinds; AMP's
+# observer collapses both into the `chain` kind (see INSTRUMENTATION.md §6.4
+# and types.go: SpanTypeChain = "Generic tasks/workflows").
+_TRACELOOP_CHAIN_KINDS = {"workflow", "task"}
+
 
 def classify_span(span: dict[str, Any]) -> str:
     attrs = span.get("attributes", {}) or {}
 
-    # Legacy: explicit traceloop.span.kind wins when present.
+    # Explicit AMP-kind hint via traceloop.span.kind wins when present.
     tlk = attrs.get("traceloop.span.kind")
     if tlk in _KINDS:
         return tlk
@@ -42,6 +47,8 @@ def classify_span(span: dict[str, Any]) -> str:
         return "retriever"
 
     # OTel GenAI semconv (current): gen_ai.operation.name discriminates.
+    # Checked *before* the workflow/task fallback so a real embedding span
+    # wrapped in a Traceloop task span still classifies as embedding.
     op = (attrs.get("gen_ai.operation.name") or "").lower()
     if op in {"chat", "text_completion", "generate_content"}:
         return "llm"
@@ -58,5 +65,9 @@ def classify_span(span: dict[str, Any]) -> str:
         or "gen_ai.usage.input_tokens" in attrs
     ):
         return "llm"
+
+    # Generic Traceloop wrappers map to chain.
+    if tlk in _TRACELOOP_CHAIN_KINDS:
+        return "chain"
 
     return "unknown"

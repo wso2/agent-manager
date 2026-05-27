@@ -89,7 +89,12 @@ func renderKindSchema(k KindSpec) map[string]any {
 		attributes["anyOf"] = anyOfRequired(ToolNameAnyOf)
 	case "retriever":
 		attributes["anyOf"] = anyOfRequired(RetrieverVectorDBAnyOf)
-	case "llm", "embedding":
+	case "llm":
+		// Vendor is enforced for LLM kind because cost aggregation depends
+		// on it. Embedding intentionally omits this requirement: Traceloop's
+		// LlamaIndex OpenAIEmbedding instrumentation emits the model and
+		// operation but not the vendor, and forcing it would be a known-broken
+		// for every llama-index cell.
 		attributes["anyOf"] = anyOfRequired(VendorAnyOf)
 	}
 

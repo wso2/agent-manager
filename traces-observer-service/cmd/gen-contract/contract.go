@@ -114,9 +114,11 @@ var Contract = []KindSpec{
 		},
 	},
 	{
+		// AMP-only abstraction. Traceloop emits `workflow` or `task` for spans
+		// that classify here, so we don't pin the attribute to a single value.
 		Kind: "chain",
 		Attributes: []AttributeSpec{
-			{Key: "traceloop.span.kind", Type: "string", Const: "chain"},
+			{Key: "traceloop.span.kind", Type: "string"},
 		},
 	},
 	{
@@ -152,7 +154,8 @@ var RetrieverVectorDBAnyOf = []string{
 
 // VendorAnyOf lists the vendor keys the observer's extractVendor helper
 // accepts: the legacy gen_ai.system or the current OTel gen_ai.provider.name.
-// Applies to the LLM and embedding kinds.
+// Applied to the LLM kind. Embedding kind intentionally omits this anyOf —
+// see the case statement in renderKindSchema for the upstream gap rationale.
 var VendorAnyOf = []string{
 	"gen_ai.system",
 	"gen_ai.provider.name",

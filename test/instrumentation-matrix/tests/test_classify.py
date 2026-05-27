@@ -44,6 +44,37 @@ def test_retriever_via_db_attrs():
     assert classify_span(s) == "retriever"
 
 
+def test_workflow_maps_to_chain():
+    s = _span(
+        "RetrieverQueryEngine.workflow",
+        {"traceloop.span.kind": "workflow"},
+    )
+    assert classify_span(s) == "chain"
+
+
+def test_task_maps_to_chain():
+    s = _span(
+        "SentenceSplitter.task",
+        {"traceloop.span.kind": "task"},
+    )
+    assert classify_span(s) == "chain"
+
+
+def test_embedding_inside_task_wrapper_still_classified_as_embedding():
+    # LlamaIndex emits a Traceloop task wrapper that still carries the
+    # gen_ai.operation.name=embeddings attribute. The classifier must prefer
+    # the gen_ai.operation.name signal over the generic 'task' span kind.
+    s = _span(
+        "OpenAIEmbedding.task",
+        {
+            "traceloop.span.kind": "task",
+            "gen_ai.operation.name": "embeddings",
+            "gen_ai.request.model": "text-embedding-3-small",
+        },
+    )
+    assert classify_span(s) == "embedding"
+
+
 def test_unknown_when_no_signals():
     s = _span("anonymous", {})
     assert classify_span(s) == "unknown"

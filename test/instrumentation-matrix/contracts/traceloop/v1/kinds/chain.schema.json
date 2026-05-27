@@ -6,7 +6,7 @@
       "additionalProperties": true,
       "properties": {
         "traceloop.span.kind": {
-          "const": "chain"
+          "type": "string"
         }
       },
       "required": [],

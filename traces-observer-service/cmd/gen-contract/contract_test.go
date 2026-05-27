@@ -68,25 +68,40 @@ func TestRenderToolSchemaEmitsAnyOfForNameKeys(t *testing.T) {
 	}
 }
 
-func TestRenderLLMAndEmbeddingEmitVendorAnyOf(t *testing.T) {
-	for _, kind := range []string{"llm", "embedding"} {
-		k := KindSpec{
-			Kind: kind,
-			Attributes: []AttributeSpec{
-				{Key: "gen_ai.system", Type: "string"},
-				{Key: "gen_ai.provider.name", Type: "string"},
-			},
+func TestRenderLLMEmitsVendorAnyOf(t *testing.T) {
+	k := KindSpec{
+		Kind: "llm",
+		Attributes: []AttributeSpec{
+			{Key: "gen_ai.system", Type: "string"},
+			{Key: "gen_ai.provider.name", Type: "string"},
+		},
+	}
+	b, _ := json.Marshal(renderKindSchema(k))
+	s := string(b)
+	for _, key := range VendorAnyOf {
+		if !strings.Contains(s, key) {
+			t.Fatalf("llm anyOf missing %q: %s", key, s)
 		}
-		b, _ := json.Marshal(renderKindSchema(k))
-		s := string(b)
-		for _, key := range VendorAnyOf {
-			if !strings.Contains(s, key) {
-				t.Fatalf("kind %q anyOf missing %q: %s", kind, key, s)
-			}
-		}
-		if !strings.Contains(s, `"anyOf"`) {
-			t.Fatalf("kind %q schema missing anyOf clause: %s", kind, s)
-		}
+	}
+	if !strings.Contains(s, `"anyOf"`) {
+		t.Fatalf("llm schema missing anyOf clause: %s", s)
+	}
+}
+
+func TestRenderEmbeddingOmitsVendorAnyOf(t *testing.T) {
+	// Embedding intentionally omits VendorAnyOf because Traceloop's LlamaIndex
+	// OpenAIEmbedding instrumentation does not emit a vendor attribute.
+	k := KindSpec{
+		Kind: "embedding",
+		Attributes: []AttributeSpec{
+			{Key: "gen_ai.system", Type: "string"},
+			{Key: "gen_ai.provider.name", Type: "string"},
+		},
+	}
+	b, _ := json.Marshal(renderKindSchema(k))
+	s := string(b)
+	if strings.Contains(s, `"anyOf"`) {
+		t.Fatalf("embedding schema unexpectedly has anyOf clause: %s", s)
 	}
 }
 

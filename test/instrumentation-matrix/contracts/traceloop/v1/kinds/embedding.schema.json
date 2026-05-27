@@ -4,18 +4,6 @@
   "properties": {
     "attributes": {
       "additionalProperties": true,
-      "anyOf": [
-        {
-          "required": [
-            "gen_ai.system"
-          ]
-        },
-        {
-          "required": [
-            "gen_ai.provider.name"
-          ]
-        }
-      ],
       "properties": {
         "gen_ai.operation.name": {
           "minLength": 1,
