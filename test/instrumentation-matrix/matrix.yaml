@@ -25,7 +25,7 @@ frameworks:
   - name: llama-index
     package: llama-index
     versions: ["0.12.0"]
-    samplePath: cells/llamaindex_sample.py
+    samplePath: cells/llama_index_sample.py
     spanKinds: [llm, embedding]
     cassette: rag_pipeline
     extras: [llama-index-llms-openai, llama-index-embeddings-openai, openai]
@@ -41,7 +41,7 @@ frameworks:
   - name: openai-direct
     package: openai
     versions: ["1.55.0"]
-    samplePath: cells/openai_sample.py
+    samplePath: cells/openai_direct_sample.py
     spanKinds: [llm]
     cassette: chat
     extras: []
@@ -49,7 +49,7 @@ frameworks:
   - name: anthropic-direct
     package: anthropic
     versions: ["0.40.0"]
-    samplePath: cells/anthropic_sample.py
+    samplePath: cells/anthropic_direct_sample.py
     spanKinds: [llm]
     cassette: messages
     extras: []
