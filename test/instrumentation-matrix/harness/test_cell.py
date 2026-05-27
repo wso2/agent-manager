@@ -51,9 +51,15 @@ def test_emission_cell():
     sample_path = Path(CELL_MANIFEST["sample_path"])
     if not sample_path.is_absolute():
         sample_path = Path(__file__).resolve().parent.parent / sample_path
-    spec = importlib.util.spec_from_file_location("cell_sample", sample_path)
+    # Use the sample's filename stem as its module name so get_type_hints()
+    # can find globals when the sample uses `from __future__ import annotations`.
+    import sys
+
+    module_name = sample_path.stem
+    spec = importlib.util.spec_from_file_location(module_name, sample_path)
     sample = importlib.util.module_from_spec(spec)
     assert spec is not None and spec.loader is not None
+    sys.modules[module_name] = sample
 
     t0 = time.monotonic()
     spec.loader.exec_module(sample)

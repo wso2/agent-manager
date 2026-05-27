@@ -30,9 +30,14 @@ def main():
     if not sample_path.exists():
         sys.exit(f"sample not found: {sample_path}")
 
-    spec = importlib.util.spec_from_file_location(f"{framework}_sample", sample_path)
+    # Register the module under its own name in sys.modules so get_type_hints()
+    # can find the module's globals when LangGraph (and friends) lazily resolve
+    # `from __future__ import annotations` forward references.
+    module_name = f"{framework.replace('-', '_')}_sample"
+    spec = importlib.util.spec_from_file_location(module_name, sample_path)
     module = importlib.util.module_from_spec(spec)
     assert spec is not None and spec.loader is not None
+    sys.modules[module_name] = module
     spec.loader.exec_module(module)
 
     cfg = {
