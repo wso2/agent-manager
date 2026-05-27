@@ -71,25 +71,36 @@ via `make gen-instrumentation-contract`, and mark the finding `resolved` here.
   `crewai.task.description`, or (b) `CrewAITaskData.Name` is removed from the
   observer's data model.
 
-## F-003 — Traceloop's CrewAI 0.60 does not emit separate tool spans
+## F-003 — Traceloop's CrewAI 0.60 may not emit separate tool spans
 
-- **Status**: mitigated
+- **Status**: open / unconfirmed (blocked on F-009)
 - **Combo**: `traceloop-sdk 0.60.0` × `crewai 1.1.0`
 - **Discovered**: 2026-05-27
 - **Symptom**: CrewAI cell with a tool-using agent never produces a span
-  classified as `tool`. Tool execution appears only as
-  `crewai.agent.tools_results` on the agent span, not as a child span.
-- **Suspected cause**: Traceloop's `opentelemetry-instrumentation-crewai`
+  classified as `tool`. Tool execution appears at least as
+  `crewai.agent.tools_results` on the agent span.
+- **Suspected cause** (provisional): Traceloop's `opentelemetry-instrumentation-crewai`
   doesn't wrap CrewAI's `ToolUsage.execute` / equivalent. The reference
-  repo at `nadheesh/2026-AUS-AI-tutorial` notes "openinference-instrumentation-crewai"
-  as the source of agent-spans for multi-agent traces, suggesting OpenInference
-  may emit separate tool spans where Traceloop does not.
-- **Mitigation**: `matrix.yaml.frameworks[crewai].spanKinds` set to
-  `[llm, agent, crewaitask]` (omits `tool`).
-- **Re-tighten when**: Traceloop ships a release that wraps CrewAI tool
-  execution as separate spans, OR we add OpenInference as a second
-  instrumentation provider in v2 of the matrix and the OpenInference CrewAI
-  cell asserts `tool` kind.
+  repo at `nadheesh/2026-AUS-AI-tutorial` notes
+  "openinference-instrumentation-crewai" as the source of agent-spans for
+  multi-agent traces, suggesting OpenInference may emit separate tool spans
+  where Traceloop does not.
+- **Why open / unconfirmed**: F-009 — the harness's `_to_dict` strips span
+  *events*. The OTel GenAI semconv allows tool calls to be encoded as
+  `gen_ai.tool.call` events on the assistant LLM span rather than as
+  separate spans. The captured cassette shows `finish_reason: tool_calls`
+  on the LLM response, so the data flow exists; whether Traceloop attaches
+  the per-tool-call detail as an event we can't see is unknown until F-009
+  is resolved. The "missing tool spans" conclusion may be a harness blind
+  spot, not a real upstream gap.
+- **Mitigation (temporary)**: `matrix.yaml.frameworks[crewai].spanKinds` set
+  to `[llm, agent, crewaitask]` (omits `tool`) so the cell passes today.
+  Re-evaluate once F-009 is fixed.
+- **Re-tighten when**: F-009 is resolved AND a re-run still shows no tool-kind
+  signal (then this remains a real upstream gap), OR Traceloop ships a release
+  that wraps CrewAI tool execution as separate spans, OR we add OpenInference
+  as a second instrumentation provider in v2 of the matrix and the
+  OpenInference CrewAI cell asserts `tool` kind.
 
 ## F-004 — `crewai 1.14.x` × `traceloop-sdk 0.60` is unresolvable
 
@@ -120,6 +131,17 @@ via `make gen-instrumentation-contract`, and mark the finding `resolved` here.
   the legacy key and falls back to the current one. Schema's `VendorAnyOf`
   accepts either.
 
+## F-007 — Traceloop emits `workflow` / `task` for generic wrapper spans
+
+- **Status**: resolved (commit `62e0a698`)
+- **Combo**: `traceloop-sdk 0.60.0` × any framework (LlamaIndex, CrewAI most prominently)
+- **Discovered**: 2026-05-26
+- **Symptom**: many wrapper spans carry `traceloop.span.kind=workflow` or `task`;
+  AMP's observer has only a `chain` kind for "generic workflows".
+- **Fix**: classifier (`harness/classify.py`) maps `workflow` and `task` to
+  `chain`, but only after the `gen_ai.operation.name` discriminator runs so a
+  real embedding span wrapped in a Traceloop `task` still classifies as embedding.
+
 ## F-006 — Traceloop's LlamaIndex `OpenAIEmbedding` instrumentation omits vendor
 
 - **Status**: mitigated
@@ -133,23 +155,24 @@ via `make gen-instrumentation-contract`, and mark the finding `resolved` here.
 - **Re-tighten when**: Traceloop's LlamaIndex instrumentation emits
   `gen_ai.provider.name` on embedding spans.
 
-## F-008 — Traceloop's LangGraph 0.60 doesn't emit separate tool spans
+## F-008 — Traceloop's LangGraph 0.60 may not emit separate tool spans
 
-- **Status**: mitigated
+- **Status**: open / unconfirmed (blocked on F-009; same shape as F-003)
 - **Combo**: `traceloop-sdk 0.60.0` × `langgraph 0.2.74` (+ `langchain-core` `@tool`)
 - **Discovered**: 2026-05-27
 - **Symptom**: a LangGraph agent that uses a `@tool` function invoked via
-  `ToolNode` produces no span carrying any tool signal (no
+  `ToolNode` produces no captured span carrying any tool signal (no
   `traceloop.span.kind=tool`, no `gen_ai.tool.name`, no
-  `gen_ai.operation.name=execute_tool`). The graph correctly chooses to call
-  the tool — the cassette captures a `finish_reason: tool_calls` response —
-  but the tool execution itself goes unspanned.
-- **Suspected cause**: Traceloop's `opentelemetry-instrumentation-langchain`
-  doesn't wrap LangChain's `@tool` decorator or LangGraph's `ToolNode`. The
-  tool function runs in-process without an instrumentation layer.
-- **Mitigation**: `matrix.yaml.frameworks[langgraph].spanKinds = [llm]`.
-- **Re-tighten when**: Traceloop adds tool-call wrapping for LangChain/LangGraph
-  tools, OR we add OpenInference as a second provider in v2 of the matrix.
+  `gen_ai.operation.name=execute_tool`). The graph chose to call the tool —
+  the cassette captures a `finish_reason: tool_calls` response.
+- **Why open / unconfirmed**: same as F-003 — the tool call could be on the
+  LLM span as a `gen_ai.tool.call` event that our `_to_dict` drops. F-009
+  must be fixed before this finding can be confirmed.
+- **Mitigation (temporary)**: `matrix.yaml.frameworks[langgraph].spanKinds = [llm]`.
+- **Re-tighten when**: F-009 is resolved AND a re-run still shows no tool-kind
+  signal (then this is a real upstream gap), OR Traceloop adds tool-call
+  wrapping for LangChain/LangGraph tools, OR we add OpenInference as a second
+  provider in v2 of the matrix.
 
 ## F-009 — Harness doesn't capture span events
 
@@ -188,14 +211,3 @@ via `make gen-instrumentation-contract`, and mark the finding `resolved` here.
 - **Re-tighten when**: not applicable — these are forward pins to currently-
   compatible versions; if either SDK regresses or Traceloop pins httpx tight
   enough to require an older SDK, the matrix will surface it.
-
-## F-007 — Traceloop emits `workflow` / `task` for generic wrapper spans
-
-- **Status**: resolved (commit `62e0a698`)
-- **Combo**: `traceloop-sdk 0.60.0` × any framework (LlamaIndex, CrewAI most prominently)
-- **Discovered**: 2026-05-26
-- **Symptom**: many wrapper spans carry `traceloop.span.kind=workflow` or `task`;
-  AMP's observer has only a `chain` kind for "generic workflows".
-- **Fix**: classifier (`harness/classify.py`) maps `workflow` and `task` to
-  `chain`, but only after the `gen_ai.operation.name` discriminator runs so a
-  real embedding span wrapped in a Traceloop `task` still classifies as embedding.

@@ -23,9 +23,10 @@ PATTERNS = [
     (re.compile(r"\bsk-ant-[A-Za-z0-9_-]{20,}\b"), "Anthropic"),
     (re.compile(r"\bxai-[A-Za-z0-9_-]{20,}\b"), "xAI"),
     (re.compile(r"\bgsk_[A-Za-z0-9_-]{20,}\b"), "Groq"),
-    # CrewAI's hosted-tracing one-shot access codes — see FINDINGS.md F-003's
-    # earlier sibling about the trace prompt; the env var disables it but the
-    # check stays as a backstop.
+    # CrewAI's hosted-tracing one-shot access codes. The CrewAI sample sets
+    # CREWAI_TRACING_ENABLED=false + CREWAI_DISABLE_TRACING_PROMPT=true to
+    # avoid the upload entirely; this regex stays as a backstop in case those
+    # env vars stop working or someone removes them.
     (re.compile(r"\bTRACE-[A-Za-z0-9]{8,}\b"), "CrewAI trace access code"),
 ]
 

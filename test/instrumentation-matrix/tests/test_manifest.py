@@ -29,8 +29,26 @@ def test_expand_matrix_minimal_yields_one_cell():
     assert c.sample_path == "cells/langchain_sample.py"
 
 
-def test_expand_matrix_uses_provider_restriction():
+def test_expand_matrix_raises_on_unknown_provider_restriction():
+    # A framework restricted to a provider that isn't declared is almost
+    # certainly a typo (e.g. `tracelop`). Silently producing zero cells
+    # would hide the bug; expand_matrix raises instead.
+    import pytest
+
     m = load_manifest(FIXTURE)
-    m.frameworks[0].provider_restriction = "manual"  # no manual provider in fixture
+    m.frameworks[0].provider_restriction = "manual"  # not declared in fixture
+    with pytest.raises(ValueError, match="manual"):
+        expand_matrix(m)
+
+
+def test_expand_matrix_honours_known_provider_restriction():
+    m = load_manifest(FIXTURE)
+    # Add a fake `manual` provider to the fixture in memory, then restrict
+    # the langchain framework to it. Expansion should produce langchain-on-manual.
+    from harness.manifest import ProviderEntry
+
+    m.providers["manual"] = ProviderEntry(name="manual", versions=["0.1.0"], contract_schema="v1")
+    m.frameworks[0].provider_restriction = "manual"
     cells = expand_matrix(m)
-    assert cells == []  # framework restricted to a provider that is not declared
+    assert len(cells) == 1
+    assert cells[0].provider_name == "manual"

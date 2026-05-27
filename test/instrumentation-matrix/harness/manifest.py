@@ -145,7 +145,15 @@ def expand_matrix(manifest: Manifest) -> list[Cell]:
         )
         for pname in provider_names:
             if pname not in manifest.providers:
-                continue
+                # An unknown provider name on a framework's `provider:` is
+                # almost certainly a typo (e.g., `tracelop`) — silently
+                # skipping would make the framework produce zero cells with
+                # no error. Fail loud at expansion time.
+                raise ValueError(
+                    f"framework '{fw.name}' is restricted to provider "
+                    f"'{pname}' which is not declared under matrix.yaml "
+                    f"providers: (got {sorted(manifest.providers.keys())})"
+                )
             provider = manifest.providers[pname]
             for pver in provider.versions:
                 for fver in fw.versions:

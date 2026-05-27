@@ -110,8 +110,14 @@ var Contract = []KindSpec{
 			{Key: "gen_ai.system", Type: "string"},
 			{Key: "gen_ai.provider.name", Type: "string"},
 			{Key: "gen_ai.conversation.id", Type: "string"},
-			// Traceloop 0.60's CrewAI instrumentation stringifies all crewai.*
-			// attributes — see FINDINGS.md (F-001).
+			// Traceloop 0.60's CrewAI instrumentation stringifies max_iter
+			// (and other crewai.* numerics observed in the CrewAI cell). We
+			// only declare the attrs the contract genuinely cares about, and
+			// only the ones observed-as-stringified are typed as string —
+			// see FINDINGS.md (F-001). Do NOT generalise this to "every
+			// crewai.* attr": a future regression where Traceloop stringifies
+			// something safety-critical (e.g. usage tokens on a CrewAI LLM
+			// span) should still fail validation.
 			{Key: "crewai.agent.max_iter", Type: "string"},
 		},
 	},

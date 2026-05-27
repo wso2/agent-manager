@@ -3,6 +3,12 @@
 Mirrors python-instrumentation-provider/sitecustomize.py with one change: the
 OTLP HTTP exporter is replaced by InMemorySpanExporter so the cell harness can
 read spans synchronously.
+
+**Scope reminder for readers:** this verifies attribute-shape parity, not
+delivery-path parity. The matrix does NOT exercise the BatchSpanProcessor or
+the OTLP-HTTP transport from the prod sitecustomize; those should be covered
+by the heavy tier (v2) where the unmodified prod sitecustomize runs against a
+real AMP stack.
 """
 import logging
 import os

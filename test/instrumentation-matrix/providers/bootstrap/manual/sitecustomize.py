@@ -6,6 +6,12 @@ amp_instrumentation.init_otel() here — that function's job is to ship spans
 over OTLP to AMP, which is a separate concern from "does the manual sample
 emit spans that satisfy AMP's contract?" The matrix tests the contract; the
 OTLP path has its own tests in libs/amp-instrumentation.
+
+**Scope reminder for readers:** this verifies attribute-shape parity, not
+delivery-path parity. The matrix does NOT exercise BatchSpanProcessor,
+OTLP-HTTP serialisation, baggage propagation, or any other behaviour of the
+production init_otel(). Coverage for those lives in libs/amp-instrumentation's
+own test suite and (in v2) the heavy tier.
 """
 import logging
 
