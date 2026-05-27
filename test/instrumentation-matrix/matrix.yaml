@@ -94,7 +94,11 @@ frameworks:
     extras: []
 
 python:
-  versions: ["3.11"]
+  # Must cover every Python AMP baselines in .github/release-config.json.
+  # scripts/check-matrix-manifest.py enforces this. Locally, filter to one
+  # cell with --cell-id so you don't need every Python installed; CI fans
+  # out across all four.
+  versions: ["3.10", "3.11", "3.12", "3.13"]
 
 defaultCell:
   provider: traceloop
