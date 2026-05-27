@@ -171,6 +171,24 @@ via `make gen-instrumentation-contract`, and mark the finding `resolved` here.
   sub-operation, and add a matching JSON-schema validation slot for span
   events. Reconfirm F-003 and F-008 with the new harness before closing.
 
+## F-010 — Old SDK pins blow up against the httpx the matrix resolves
+
+- **Status**: mitigated
+- **Combo**: `openai 1.55.0` × `httpx >= 0.28`; `anthropic 0.40.0` × `httpx >= 0.28`
+- **Discovered**: 2026-05-27
+- **Symptom**: `TypeError: Client.__init__() got an unexpected keyword argument 'proxies'`
+  at SDK client construction. httpx 0.28 removed the `proxies` kwarg; older
+  versions of the OpenAI / Anthropic SDKs still pass it.
+- **Cause**: Traceloop 0.60 doesn't pin httpx tight; the resolver picks 0.28+
+  (current). Old SDK pins predate that breaking change.
+- **Mitigation**: matrix pins `openai 2.38.0` and `anthropic 0.45.0` — both
+  support httpx 0.28+. The original `1.55.0` / `0.40.0` numbers in the plan
+  were speculative pins I made up, not validated against current httpx; the
+  matrix has now done its job by catching that.
+- **Re-tighten when**: not applicable — these are forward pins to currently-
+  compatible versions; if either SDK regresses or Traceloop pins httpx tight
+  enough to require an older SDK, the matrix will surface it.
+
 ## F-007 — Traceloop emits `workflow` / `task` for generic wrapper spans
 
 - **Status**: resolved (commit `62e0a698`)

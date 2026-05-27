@@ -1,0 +1,109 @@
+interactions:
+- request:
+    body: '{"max_tokens": 64, "messages": [{"role": "user", "content": "Answer in
+      one word: capital of France?"}], "model": "claude-haiku-4-5", "temperature":
+      0}'
+    headers:
+      Accept:
+      - application/json
+      Accept-Encoding:
+      - gzip, deflate
+      Connection:
+      - keep-alive
+      Content-Length:
+      - '140'
+      Content-Type:
+      - application/json
+      Host:
+      - api.anthropic.com
+      User-Agent:
+      - Anthropic/Python 0.45.0
+      X-Stainless-Arch:
+      - arm64
+      X-Stainless-Async:
+      - 'false'
+      X-Stainless-Lang:
+      - python
+      X-Stainless-OS:
+      - MacOS
+      X-Stainless-Package-Version:
+      - 0.45.0
+      X-Stainless-Runtime:
+      - CPython
+      X-Stainless-Runtime-Version:
+      - 3.11.11
+      anthropic-version:
+      - '2023-06-01'
+      x-api-key:
+      - REDACTED
+      x-stainless-retry-count:
+      - '0'
+    method: POST
+    uri: https://api.anthropic.com/v1/messages
+  response:
+    body:
+      string: '{"model":"claude-haiku-4-5-20251001","id":"msg_01FutFouLzqxSXtB7b8TQVjM","type":"message","role":"assistant","content":[{"type":"text","text":"Paris"}],"stop_reason":"end_turn","stop_sequence":null,"stop_details":null,"usage":{"input_tokens":16,"cache_creation_input_tokens":0,"cache_read_input_tokens":0,"cache_creation":{"ephemeral_5m_input_tokens":0,"ephemeral_1h_input_tokens":0},"output_tokens":4,"service_tier":"standard","inference_geo":"not_available"}}'
+    headers:
+      CF-RAY:
+      - a0231a691bd35137-CMB
+      Connection:
+      - keep-alive
+      Content-Security-Policy:
+      - default-src 'none'; frame-ancestors 'none'
+      Content-Type:
+      - application/json
+      Date:
+      - Wed, 27 May 2026 06:53:33 GMT
+      Server:
+      - cloudflare
+      Transfer-Encoding:
+      - chunked
+      X-Robots-Tag:
+      - none
+      anthropic-organization-id:
+      - REDACTED-UUID
+      anthropic-ratelimit-input-tokens-limit:
+      - '4000000'
+      anthropic-ratelimit-input-tokens-remaining:
+      - '4000000'
+      anthropic-ratelimit-input-tokens-reset:
+      - '2026-05-27T06:53:33Z'
+      anthropic-ratelimit-output-tokens-limit:
+      - '800000'
+      anthropic-ratelimit-output-tokens-remaining:
+      - '800000'
+      anthropic-ratelimit-output-tokens-reset:
+      - '2026-05-27T06:53:33Z'
+      anthropic-ratelimit-requests-limit:
+      - '4000'
+      anthropic-ratelimit-requests-remaining:
+      - '3999'
+      anthropic-ratelimit-requests-reset:
+      - '2026-05-27T06:53:33Z'
+      anthropic-ratelimit-tokens-limit:
+      - '4800000'
+      anthropic-ratelimit-tokens-remaining:
+      - '4800000'
+      anthropic-ratelimit-tokens-reset:
+      - '2026-05-27T06:53:33Z'
+      cf-cache-status:
+      - DYNAMIC
+      content-length:
+      - '461'
+      request-id:
+      - req_011CbSdgv5DyNku8HmrBmB5c
+      set-cookie:
+      - _cfuvid=cEWo1ZpNd1_jH7FGkQhlKs90Uex0bXvTXhJYouIiIdI-1779864812.982485-1.0.1.1-vx2CyfzTV_Z8zjl6jsjFZjhKpe22N1psGCaI6QZ2I7k;
+        HttpOnly; SameSite=None; Secure; Path=/; Domain=api.anthropic.com
+      strict-transport-security:
+      - max-age=31536000; includeSubDomains; preload
+      traceresponse:
+      - 00-724d60ce80d887d1fd1bfa551ae0a257-fe39c31574e39ffd-01
+      vary:
+      - Accept-Encoding
+      x-envoy-upstream-service-time:
+      - '532'
+    status:
+      code: 200
+      message: OK
+version: 1

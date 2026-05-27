@@ -49,14 +49,20 @@ frameworks:
 
   - name: openai-direct
     package: openai
-    versions: ["1.55.0"]
+    # openai 1.55.0 + httpx 0.28+ blows up at client construction
+    # (TypeError on `proxies=` kwarg). See FINDINGS.md F-010. Pin to a
+    # version that supports the httpx 0.28+ that Traceloop pulls in.
+    versions: ["2.38.0"]
     samplePath: cells/openai_direct_sample.py
     spanKinds: [llm]
     extras: []
 
   - name: anthropic-direct
     package: anthropic
-    versions: ["0.40.0"]
+    # Same httpx-0.28 story as openai-direct; anthropic 0.40 has the same
+    # `proxies` kwarg path. Pin to a version that works with the resolved
+    # httpx. See FINDINGS.md F-010.
+    versions: ["0.45.0"]
     samplePath: cells/anthropic_direct_sample.py
     spanKinds: [llm]
     extras: []
