@@ -7,6 +7,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import sys
 from pathlib import Path
 
@@ -72,6 +73,15 @@ def emission(session, cell):
         "cassette": cell.cassette,
     }
 
+    # Pass through real API keys when recording (VCR_RECORD_MODE != "none");
+    # otherwise inject dummy values so SDK client constructors don't reject at
+    # import time. VCR replays the HTTP before the key is ever used.
+    record_mode = os.environ.get("VCR_RECORD_MODE", "none")
+    openai_key = os.environ.get("OPENAI_API_KEY") or "test-key-not-used-vcr-replays"
+    anthropic_key = (
+        os.environ.get("ANTHROPIC_API_KEY") or "test-key-not-used-vcr-replays"
+    )
+
     session.run(
         str(py),
         "-m",
@@ -81,12 +91,10 @@ def emission(session, cell):
         external=True,
         env={
             "PYTHONPATH": pythonpath,
-            "VCR_RECORD_MODE": "none",
+            "VCR_RECORD_MODE": record_mode,
             "CELL_MANIFEST": json.dumps(cell_manifest),
             "REPORTS_DIR": str(HERE / "reports" / "cells"),
-            # Dummy credentials so SDK client constructors don't reject at
-            # import time. VCR replays the HTTP before the key is ever used.
-            "OPENAI_API_KEY": "test-key-not-used-vcr-replays",
-            "ANTHROPIC_API_KEY": "test-key-not-used-vcr-replays",
+            "OPENAI_API_KEY": openai_key,
+            "ANTHROPIC_API_KEY": anthropic_key,
         },
     )

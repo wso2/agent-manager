@@ -4,3 +4,8 @@ reports/
 __pycache__/
 *.egg-info/
 .pytest_cache/
+
+# pytest-recording falls back to writing cassettes here when an explicit
+# path doesn't catch every interaction; the canonical cassettes live under
+# cassettes/<framework>/.
+harness/cassettes/
