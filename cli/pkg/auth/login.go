@@ -18,13 +18,17 @@ package auth
 
 import (
 	"context"
+	"errors"
 	"fmt"
+	"io"
+	"net/http"
 	"strings"
 
 	"golang.org/x/oauth2"
 	"golang.org/x/oauth2/clientcredentials"
 
 	"github.com/wso2/agent-manager/cli/pkg/browser"
+	"github.com/wso2/agent-manager/cli/pkg/clierr"
 	"github.com/wso2/agent-manager/cli/pkg/clients"
 	"github.com/wso2/agent-manager/cli/pkg/config"
 	"github.com/wso2/agent-manager/cli/pkg/iostreams"
@@ -74,6 +78,9 @@ func loginClientCredentials(ctx context.Context, opts LoginOptions) (*config.Ins
 	}
 	tok, err := cc.Token(ctx)
 	if err != nil {
+		if ce := classifyTokenError(err); ce != nil {
+			return nil, ce
+		}
 		return nil, fmt.Errorf("client_credentials token exchange: %w", err)
 	}
 
@@ -90,6 +97,22 @@ func loginClientCredentials(ctx context.Context, opts LoginOptions) (*config.Ins
 			Scopes:       scopes,
 		},
 	}, nil
+}
+
+// classifyTokenError maps oauth2 token-endpoint errors to typed CLIErrors.
+// Returns nil for errors that don't have a known classification.
+func classifyTokenError(err error) error {
+	var re *oauth2.RetrieveError
+	if !errors.As(err, &re) {
+		return nil
+	}
+	if re.Response != nil && re.Response.StatusCode == http.StatusUnauthorized {
+		return clierr.New(clierr.Unauthorized, "token endpoint rejected the request (401)")
+	}
+	if re.ErrorCode == "invalid_grant" {
+		return clierr.Newf(clierr.Unauthorized, "invalid_grant: %s", re.ErrorDescription)
+	}
+	return nil
 }
 
 func loginPKCE(ctx context.Context, opts LoginOptions) (*config.Instance, error) {
@@ -131,6 +154,12 @@ func loginPKCE(ctx context.Context, opts LoginOptions) (*config.Instance, error)
 
 	tok, err := authCodePKCE(ctx, oauthCfg, opts.IO, openBrowser)
 	if err != nil {
+		if errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded) || errors.Is(err, io.EOF) {
+			return nil, clierr.New(clierr.AuthLoginCancelled, "browser login cancelled")
+		}
+		if ce := classifyTokenError(err); ce != nil {
+			return nil, ce
+		}
 		return nil, fmt.Errorf("authorization code exchange: %w", err)
 	}
 
