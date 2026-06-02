@@ -28,120 +28,71 @@ import (
 	"github.com/wso2/agent-manager/cli/pkg/iostreams"
 )
 
-func TestRunLogin_TypedErrorPassthrough(t *testing.T) {
-	io, _, out, _ := iostreams.Test()
-	io.JSON = true
-
-	opts := &LoginOptions{
-		IO:  io,
-		URL: "https://example.com",
-		Authenticate: func(_ context.Context, _ auth.LoginOptions) (*config.Instance, error) {
-			return nil, clierr.New(clierr.Unauthorized, "client credentials rejected (401)")
+func TestRunLogin(t *testing.T) {
+	cases := []struct {
+		name         string
+		url          string
+		authErr      error
+		wantErrCode  string
+	}{
+		{
+			name:        "typed CLIError passes through unchanged",
+			url:         "https://example.com",
+			authErr:     clierr.New(clierr.Unauthorized, "client credentials rejected (401)"),
+			wantErrCode: clierr.Unauthorized,
+		},
+		{
+			name:        "plain error becomes Transport",
+			url:         "https://example.com",
+			authErr:     errors.New("dial tcp: connection refused"),
+			wantErrCode: clierr.Transport,
+		},
+		{
+			name:        "AuthLoginCancelled passes through unchanged",
+			url:         "https://example.com",
+			authErr:     clierr.New(clierr.AuthLoginCancelled, "browser login cancelled"),
+			wantErrCode: clierr.AuthLoginCancelled,
+		},
+		{
+			name:        "missing --url returns InvalidFlag without calling Authenticate",
+			url:         "",
+			authErr:     nil,
+			wantErrCode: clierr.InvalidFlag,
 		},
 	}
 
-	err := runLogin(context.Background(), opts)
-	if err == nil {
-		t.Fatal("expected error, got nil")
-	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			io, _, out, _ := iostreams.Test()
+			io.JSON = true
 
-	env := decodeLoginEnvelope(t, out.String())
-	errBody, ok := env["error"].(map[string]any)
-	if !ok {
-		t.Fatalf("envelope missing 'error' field: %v", env)
-	}
-	if got := errBody["code"]; got != clierr.Unauthorized {
-		t.Errorf("code = %q, want %q (typed error must not be re-wrapped as Transport)", got, clierr.Unauthorized)
-	}
-}
+			opts := &LoginOptions{
+				IO:  io,
+				URL: tc.url,
+				Authenticate: func(_ context.Context, _ auth.LoginOptions) (*config.Instance, error) {
+					if tc.url == "" {
+						t.Fatal("Authenticate should not be called when --url is missing")
+					}
+					return nil, tc.authErr
+				},
+			}
 
-func TestRunLogin_PlainErrorBecomesTransport(t *testing.T) {
-	io, _, out, _ := iostreams.Test()
-	io.JSON = true
+			err := runLogin(context.Background(), opts)
+			if err == nil {
+				t.Fatal("expected error, got nil")
+			}
 
-	opts := &LoginOptions{
-		IO:  io,
-		URL: "https://example.com",
-		Authenticate: func(_ context.Context, _ auth.LoginOptions) (*config.Instance, error) {
-			return nil, errors.New("dial tcp: connection refused")
-		},
+			var env map[string]any
+			if jerr := json.Unmarshal([]byte(out.String()), &env); jerr != nil {
+				t.Fatalf("decode envelope: %v\nbody=%q", jerr, out.String())
+			}
+			errBody, ok := env["error"].(map[string]any)
+			if !ok {
+				t.Fatalf("envelope missing 'error' field: %v", env)
+			}
+			if got := errBody["code"]; got != tc.wantErrCode {
+				t.Errorf("code = %q, want %q", got, tc.wantErrCode)
+			}
+		})
 	}
-
-	err := runLogin(context.Background(), opts)
-	if err == nil {
-		t.Fatal("expected error, got nil")
-	}
-
-	env := decodeLoginEnvelope(t, out.String())
-	errBody, ok := env["error"].(map[string]any)
-	if !ok {
-		t.Fatalf("envelope missing 'error' field: %v", env)
-	}
-	if got := errBody["code"]; got != clierr.Transport {
-		t.Errorf("code = %q, want %q (untyped errors must be wrapped as Transport)", got, clierr.Transport)
-	}
-}
-
-func TestRunLogin_CancelledErrorPassthrough(t *testing.T) {
-	io, _, out, _ := iostreams.Test()
-	io.JSON = true
-
-	opts := &LoginOptions{
-		IO:  io,
-		URL: "https://example.com",
-		Authenticate: func(_ context.Context, _ auth.LoginOptions) (*config.Instance, error) {
-			return nil, clierr.New(clierr.AuthLoginCancelled, "browser login cancelled")
-		},
-	}
-
-	err := runLogin(context.Background(), opts)
-	if err == nil {
-		t.Fatal("expected error, got nil")
-	}
-
-	env := decodeLoginEnvelope(t, out.String())
-	errBody, ok := env["error"].(map[string]any)
-	if !ok {
-		t.Fatalf("envelope missing 'error' field: %v", env)
-	}
-	if got := errBody["code"]; got != clierr.AuthLoginCancelled {
-		t.Errorf("code = %q, want %q", got, clierr.AuthLoginCancelled)
-	}
-}
-
-func TestRunLogin_MissingURL(t *testing.T) {
-	io, _, out, _ := iostreams.Test()
-	io.JSON = true
-
-	opts := &LoginOptions{
-		IO:  io,
-		URL: "",
-		Authenticate: func(_ context.Context, _ auth.LoginOptions) (*config.Instance, error) {
-			t.Fatal("Authenticate should not be called when --url is missing")
-			return nil, nil
-		},
-	}
-
-	err := runLogin(context.Background(), opts)
-	if err == nil {
-		t.Fatal("expected error for missing --url")
-	}
-
-	env := decodeLoginEnvelope(t, out.String())
-	errBody, ok := env["error"].(map[string]any)
-	if !ok {
-		t.Fatalf("envelope missing 'error' field: %v", env)
-	}
-	if got := errBody["code"]; got != clierr.InvalidFlag {
-		t.Errorf("code = %q, want %q", got, clierr.InvalidFlag)
-	}
-}
-
-func decodeLoginEnvelope(t *testing.T, raw string) map[string]any {
-	t.Helper()
-	var m map[string]any
-	if err := json.Unmarshal([]byte(raw), &m); err != nil {
-		t.Fatalf("decode envelope: %v\nbody=%q", err, raw)
-	}
-	return m
 }

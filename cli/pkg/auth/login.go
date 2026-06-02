@@ -78,10 +78,7 @@ func loginClientCredentials(ctx context.Context, opts LoginOptions) (*config.Ins
 	}
 	tok, err := cc.Token(ctx)
 	if err != nil {
-		if ce := classifyTokenError(err); ce != nil {
-			return nil, ce
-		}
-		return nil, fmt.Errorf("client_credentials token exchange: %w", err)
+		return nil, wrapTokenError(err, "client_credentials token exchange")
 	}
 
 	return &config.Instance{
@@ -113,6 +110,15 @@ func classifyTokenError(err error) error {
 		return clierr.Newf(clierr.Unauthorized, "invalid_grant: %s", re.ErrorDescription)
 	}
 	return nil
+}
+
+// wrapTokenError classifies known token-endpoint errors into typed CLIErrors
+// and falls back to a fmt.Errorf wrap with the given context.
+func wrapTokenError(err error, fallbackContext string) error {
+	if ce := classifyTokenError(err); ce != nil {
+		return ce
+	}
+	return fmt.Errorf("%s: %w", fallbackContext, err)
 }
 
 func loginPKCE(ctx context.Context, opts LoginOptions) (*config.Instance, error) {
@@ -157,10 +163,7 @@ func loginPKCE(ctx context.Context, opts LoginOptions) (*config.Instance, error)
 		if errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded) || errors.Is(err, io.EOF) {
 			return nil, clierr.New(clierr.AuthLoginCancelled, "browser login cancelled")
 		}
-		if ce := classifyTokenError(err); ce != nil {
-			return nil, ce
-		}
-		return nil, fmt.Errorf("authorization code exchange: %w", err)
+		return nil, wrapTokenError(err, "authorization code exchange")
 	}
 
 	return &config.Instance{

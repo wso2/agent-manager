@@ -18,7 +18,6 @@ package cmd
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"time"
 
@@ -105,11 +104,7 @@ func runLogin(ctx context.Context, opts *LoginOptions) error {
 		OpenBrowser:  opts.OpenBrowser,
 	})
 	if err != nil {
-		var ce clierr.CLIError
-		if errors.As(err, &ce) {
-			return render.Error(opts.IO, scope, ce)
-		}
-		return render.Error(opts.IO, scope, clierr.Newf(clierr.Transport, "%v", err))
+		return render.Error(opts.IO, scope, err)
 	}
 
 	cfg, err := opts.Config()
