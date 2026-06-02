@@ -30,10 +30,10 @@ import (
 
 func TestRunLogin(t *testing.T) {
 	cases := []struct {
-		name         string
-		url          string
-		authErr      error
-		wantErrCode  string
+		name        string
+		url         string
+		authErr     error
+		wantErrCode string
 	}{
 		{
 			name:        "typed CLIError passes through unchanged",
@@ -83,7 +83,7 @@ func TestRunLogin(t *testing.T) {
 			}
 
 			var env map[string]any
-			if jerr := json.Unmarshal([]byte(out.String()), &env); jerr != nil {
+			if jerr := json.Unmarshal(out.Bytes(), &env); jerr != nil {
 				t.Fatalf("decode envelope: %v\nbody=%q", jerr, out.String())
 			}
 			errBody, ok := env["error"].(map[string]any)

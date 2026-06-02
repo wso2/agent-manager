@@ -28,8 +28,8 @@ import (
 	"golang.org/x/oauth2/clientcredentials"
 
 	"github.com/wso2/agent-manager/cli/pkg/browser"
-	"github.com/wso2/agent-manager/cli/pkg/clierr"
 	"github.com/wso2/agent-manager/cli/pkg/clients"
+	"github.com/wso2/agent-manager/cli/pkg/clierr"
 	"github.com/wso2/agent-manager/cli/pkg/config"
 	"github.com/wso2/agent-manager/cli/pkg/iostreams"
 )
