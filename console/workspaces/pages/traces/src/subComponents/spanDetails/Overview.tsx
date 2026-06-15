@@ -52,6 +52,7 @@ interface MessageListProps {
   getRoleColor: (role: string) => "default" | "primary" | "success" | "info";
   "data-testid"?: string;
   showEmptyMessage?: boolean;
+  defaultExpanded?: boolean;
 }
 
 function formattedMessage(message: string) {
@@ -105,8 +106,9 @@ const MessageList = memo(function MessageList({
   getRoleColor,
   "data-testid": testId,
   showEmptyMessage = false,
+  defaultExpanded = false,
 }: MessageListProps) {
-  const [isExpanded, setIsExpanded] = useState(false);
+  const [isExpanded, setIsExpanded] = useState(defaultExpanded);
 
   if (messages.length === 0) {
     if (!showEmptyMessage) {
@@ -380,6 +382,7 @@ export function Overview({ ampAttributes }: OverviewProps) {
         getRoleColor={getRoleColor}
         data-testid="input-messages"
         showEmptyMessage={false}
+        defaultExpanded
       />
       <MessageList
         title="Output Messages"
