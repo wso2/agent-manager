@@ -22,17 +22,18 @@ import {
   MarkdownView,
 } from "@agent-management-platform/views";
 import {
+  Accordion,
+  AccordionSummary,
+  AccordionDetails,
   Box,
   Card,
   CardContent,
   Chip,
-  Collapse,
   Divider,
-  IconButton,
   Stack,
   Typography,
 } from "@wso2/oxygen-ui";
-import { Info, ChevronDown, ChevronUp } from "@wso2/oxygen-ui-icons-react";
+import { Info, ChevronDown } from "@wso2/oxygen-ui-icons-react";
 import {
   AmpAttributes,
   PromptMessage,
@@ -137,98 +138,103 @@ const MessageList = memo(function MessageList({
       {/*<Typography variant="h6" sx={{ mb: 2 }}>
         {title}
       </Typography>*/}
-      <Box
+      <Accordion
+        expanded={isExpanded}
+        onChange={(_, expanded) => setIsExpanded(expanded)}
+        disableGutters
+        elevation={0}
         sx={{
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "space-between",
-          mb: isExpanded ? 2 : 0,
-          cursor: "pointer",
-          userSelect: "none",
+          bgcolor: "transparent",
+          border: "none",
+          "&:before": { display: "none" },
         }}
-        onClick={() => setIsExpanded((prev) => !prev)}
       >
-        <Typography variant="h6">{title}</Typography>
-        <IconButton
-          size="small"
-          aria-label={isExpanded ? "Collapse" : "Expand"}
+        <AccordionSummary
+          expandIcon={<ChevronDown />}
+          sx={{
+            px: 0,
+            minHeight: "auto",
+            "& .MuiAccordionSummary-content": { my: 1 },
+          }}
         >
-          {isExpanded ? <ChevronUp /> : <ChevronDown />}
-        </IconButton>
-      </Box>
-      <Collapse in={isExpanded}>
-        <Stack spacing={2}>
-          {messages.map((message, index) => {
-            const messageKey =
-              (message as PromptMessage & { id?: string }).id ?? index;
-            return (
-              <Card key={messageKey} variant="outlined">
-                <CardContent>
-                  <Stack spacing={1.5}>
-                    <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
-                      {message?.role && message.role !== "unknown" && (
-                        <Chip
-                          label={
-                            message.role.charAt(0).toUpperCase() +
-                            message.role.slice(1)
-                          }
-                          size="small"
-                          color={getRoleColor(message.role)}
-                          variant="outlined"
-                        />
+          <Typography variant="h6">{title}</Typography>
+        </AccordionSummary>
+        <AccordionDetails sx={{ px: 0 }}>
+          <Stack spacing={2}>
+            {messages.map((message, index) => {
+              const messageKey =
+                (message as PromptMessage & { id?: string }).id ?? index;
+              return (
+                <Card key={messageKey} variant="outlined">
+                  <CardContent>
+                    <Stack spacing={1.5}>
+                      <Box
+                        sx={{ display: "flex", alignItems: "center", gap: 1 }}
+                      >
+                        {message?.role && message.role !== "unknown" && (
+                          <Chip
+                            label={
+                              message.role.charAt(0).toUpperCase() +
+                              message.role.slice(1)
+                            }
+                            size="small"
+                            color={getRoleColor(message.role)}
+                            variant="outlined"
+                          />
+                        )}
+                      </Box>
+                      {message.content && !message.role && (
+                        <JSONView json={formattedMessage(message.content)} />
                       )}
-                    </Box>
-                    {message.content && !message.role && (
-                      <JSONView json={formattedMessage(message.content)} />
-                    )}
-                    {message.content && message.role && (
-                      <MarkdownView content={message.content} />
-                    )}
-                    {message.toolCalls && message.toolCalls.length > 0 && (
-                      <Box>
-                        <Stack spacing={1}>
-                          {message.toolCalls.map((toolCall, toolIndex) => {
-                            const toolCallKey = toolCall.id ?? toolIndex;
+                      {message.content && message.role && (
+                        <MarkdownView content={message.content} />
+                      )}
+                      {message.toolCalls && message.toolCalls.length > 0 && (
+                        <Box>
+                          <Stack spacing={1}>
+                            {message.toolCalls.map((toolCall, toolIndex) => {
+                              const toolCallKey = toolCall.id ?? toolIndex;
 
-                            return (
-                              <Card key={toolCallKey} variant="outlined">
-                                <CardContent
-                                  sx={{ "&:last-child": { pb: 1.5 } }}
-                                >
-                                  <Typography
-                                    variant="caption"
-                                    sx={{ fontWeight: "bold" }}
+                              return (
+                                <Card key={toolCallKey} variant="outlined">
+                                  <CardContent
+                                    sx={{ "&:last-child": { pb: 1.5 } }}
                                   >
-                                    {toolCall.name}
-                                  </Typography>
-                                  {toolCall.arguments && (
                                     <Typography
                                       variant="caption"
-                                      sx={{
-                                        display: "block",
-                                        mt: 0.5,
-                                        fontFamily: "monospace",
-                                        whiteSpace: "pre-wrap",
-                                        wordBreak: "break-word",
-                                      }}
+                                      sx={{ fontWeight: "bold" }}
                                     >
-                                      {formattedMessage(toolCall.arguments)}
+                                      {toolCall.name}
                                     </Typography>
-                                  )}
-                                </CardContent>
-                              </Card>
-                            );
-                          })}
-                        </Stack>
-                      </Box>
-                    )}
-                  </Stack>
-                </CardContent>
-              </Card>
-            );
-          })}
-        </Stack>
-      </Collapse>
+                                    {toolCall.arguments && (
+                                      <Typography
+                                        variant="caption"
+                                        sx={{
+                                          display: "block",
+                                          mt: 0.5,
+                                          fontFamily: "monospace",
+                                          whiteSpace: "pre-wrap",
+                                          wordBreak: "break-word",
+                                        }}
+                                      >
+                                        {formattedMessage(toolCall.arguments)}
+                                      </Typography>
+                                    )}
+                                  </CardContent>
+                                </Card>
+                              );
+                            })}
+                          </Stack>
+                        </Box>
+                      )}
+                    </Stack>
+                  </CardContent>
+                </Card>
+              );
+            })}
+          </Stack>
+        </AccordionDetails>
+      </Accordion>
     </Stack>
   );
 });
