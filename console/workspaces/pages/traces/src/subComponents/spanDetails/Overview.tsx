@@ -135,7 +135,6 @@ const MessageList = memo(function MessageList({
   return (
     <Stack pt={2} data-testid={testId}>
       <Divider sx={{ mb: 2 }} />
-      {/*<Typography variant="h6" sx={{ mb: 2 }}>
         {title}
       <Accordion
         expanded={isExpanded}
