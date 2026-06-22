@@ -137,7 +137,6 @@ const MessageList = memo(function MessageList({
       <Divider sx={{ mb: 2 }} />
       {/*<Typography variant="h6" sx={{ mb: 2 }}>
         {title}
-      </Typography>*/}
       <Accordion
         expanded={isExpanded}
         onChange={(_, expanded) => setIsExpanded(expanded)}
