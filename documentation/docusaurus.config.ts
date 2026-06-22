@@ -88,6 +88,7 @@ const config: Config = {
             current: {
               label: 'Next',
               banner: 'unreleased',
+              noIndex: true,
             },
             cloud: {
               label: 'Cloud',
@@ -105,11 +106,25 @@ const config: Config = {
           // Please change this to your repo.
           // Remove this to remove the "edit this page" links.
           editUrl:
-            'https://github.com/wso2/agent-manager/edit/main/documentation/',
+              'https://github.com/wso2/agent-manager/edit/main/documentation/',
+        },
+        sitemap: {
+            lastmod: 'date',
+            changefreq: 'weekly',
+            priority: 0.5,
+            ignorePatterns: [
+                ...versions
+                .filter((version) => version !== latestVersion)
+                .map((version) => `/agent-manager/docs/${version}/**`),
+                    '/agent-manager/docs/next/**',
+                '/agent-manager/docs/',
+                '/agent-manager/search/',
+                '/agent-manager/docs/getting-started/quick-start/',
+            ],
         },
         blog: false, // Disable blog until we have content
         theme: {
-          customCss: './src/css/custom.css',
+            customCss: './src/css/custom.css',
         },
       } satisfies Preset.Options,
     ],
@@ -117,12 +132,12 @@ const config: Config = {
 
   themeConfig: {
 
-    // Replace with your project's social card
-    // image: 'img/amp-social-card.png',
-    announcementBar: {
-      id: `release_${quickStartDockerTag.replace(/\./g, '_')}`,
-      content:
-        `🎉 WSO2 Agent Manager <a target="_blank" rel="noopener noreferrer" href="https://github.com/wso2/agent-manager/releases/tag/amp%2F${quickStartDockerTag}">${quickStartDockerTag}</a> has been released! Explore what's new. 🎉`,
+      // Replace with your project's social card
+      // image: 'img/amp-social-card.png',
+      announcementBar: {
+          id: `release_${quickStartDockerTag.replace(/\./g, '_')}`,
+          content:
+              `🎉 WSO2 Agent Manager <a target="_blank" rel="noopener noreferrer" href="https://github.com/wso2/agent-manager/releases/tag/amp%2F${quickStartDockerTag}">${quickStartDockerTag}</a> has been released! Explore what's new. 🎉`,
       isCloseable: true,
     },
 
