@@ -135,7 +135,6 @@ const MessageList = memo(function MessageList({
   return (
     <Stack pt={2} data-testid={testId}>
       <Divider sx={{ mb: 2 }} />
-        {title}
       <Accordion
         expanded={isExpanded}
         onChange={(_, expanded) => setIsExpanded(expanded)}
@@ -147,17 +146,10 @@ const MessageList = memo(function MessageList({
           "&:before": { display: "none" },
         }}
       >
-        <AccordionSummary
-          expandIcon={<ChevronDown />}
-          sx={{
-            px: 0,
-            minHeight: "auto",
-            "& .MuiAccordionSummary-content": { my: 1 },
-          }}
-        >
+        <AccordionSummary expandIcon={<ChevronDown />}>
           <Typography variant="h6">{title}</Typography>
         </AccordionSummary>
-        <AccordionDetails sx={{ px: 0 }}>
+        <AccordionDetails>
           <Stack spacing={2}>
             {messages.map((message, index) => {
               const messageKey =
@@ -195,9 +187,7 @@ const MessageList = memo(function MessageList({
 
                               return (
                                 <Card key={toolCallKey} variant="outlined">
-                                  <CardContent
-                                    sx={{ "&:last-child": { pb: 1.5 } }}
-                                  >
+                                  <CardContent>
                                     <Typography
                                       variant="caption"
                                       sx={{ fontWeight: "bold" }}
