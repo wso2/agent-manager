@@ -19,6 +19,7 @@ package services
 import (
 	"context"
 	"errors"
+	"fmt"
 	"log/slog"
 	"strings"
 	"sync/atomic"
@@ -1480,14 +1481,14 @@ func TestDeployAgent_APIAgent_ResilienceTimeout(t *testing.T) {
 	}
 }
 
-// covers the "editable immediately without redeploy" path: 
+// covers the "editable immediately without redeploy" path:
 func TestUpdateAgentDeploySettings_ResilienceTimeout(t *testing.T) {
 	tests := []struct {
 		name                string
 		existingConfig      *models.AgentConfig
 		requested           *int32
 		wantPersisted       *int32
-		wantEnvOverridePush string 
+		wantEnvOverridePush string
 	}{
 		{"request sets a new value", nil, int32Ptr(90), int32Ptr(90), "90s"},
 		{"omitted request keeps existing DB value", &models.AgentConfig{ResilienceTimeoutSeconds: int32Ptr(60)}, nil, int32Ptr(60), "60s"},
@@ -1510,6 +1511,10 @@ func TestUpdateAgentDeploySettings_ResilienceTimeout(t *testing.T) {
 				UpdateReleaseBindingTraitConfigsFunc: func(_ context.Context, _, _, _ string, traitConfigs map[string]interface{}, _ map[string]interface{}) error {
 					pushedTraitEnvConfigs = traitConfigs
 					return nil
+				},
+				// No API key has been minted for this test agent, so simulate that.
+				GetSecretReferenceFunc: func(_ context.Context, _, _ string) (*client.SecretReferenceInfo, error) {
+					return nil, fmt.Errorf("secret reference not found")
 				},
 			}
 			artifactRepo := &repomocks.ArtifactRepositoryMock{

@@ -32,10 +32,11 @@ type ConfigurationResponse struct {
 	// Whether API key security is enabled for this environment's agent endpoint
 	EnableApiKeySecurity *bool `json:"enableApiKeySecurity,omitempty"`
 	// Whether OAuth security is enabled for this environment's agent endpoint
-	EnableOAuthSecurity *bool                               `json:"enableOAuthSecurity,omitempty"`
-	CorsConfig          *CORSConfig                         `json:"corsConfig,omitempty"`
-	OauthConfig         *OAuthConfig                        `json:"oauthConfig,omitempty"`
-	Configurations      ConfigurationResponseConfigurations `json:"configurations"`
+	EnableOAuthSecurity *bool        `json:"enableOAuthSecurity,omitempty"`
+	CorsConfig          *CORSConfig  `json:"corsConfig,omitempty"`
+	OauthConfig         *OAuthConfig `json:"oauthConfig,omitempty"`
+	ResilienceTimeoutSeconds *int32                              `json:"resilienceTimeoutSeconds,omitempty"`
+	Configurations           ConfigurationResponseConfigurations `json:"configurations"`
 }
 
 // NewConfigurationResponse instantiates a new ConfigurationResponse object
@@ -323,6 +324,33 @@ func (o *ConfigurationResponse) SetOauthConfig(v OAuthConfig) {
 	o.OauthConfig = &v
 }
 
+func (o *ConfigurationResponse) GetResilienceTimeoutSeconds() int32 {
+	if o == nil || IsNil(o.ResilienceTimeoutSeconds) {
+		var ret int32
+		return ret
+	}
+	return *o.ResilienceTimeoutSeconds
+}
+
+func (o *ConfigurationResponse) GetResilienceTimeoutSecondsOk() (*int32, bool) {
+	if o == nil || IsNil(o.ResilienceTimeoutSeconds) {
+		return nil, false
+	}
+	return o.ResilienceTimeoutSeconds, true
+}
+
+func (o *ConfigurationResponse) HasResilienceTimeoutSeconds() bool {
+	if o != nil && !IsNil(o.ResilienceTimeoutSeconds) {
+		return true
+	}
+
+	return false
+}
+
+func (o *ConfigurationResponse) SetResilienceTimeoutSeconds(v int32) {
+	o.ResilienceTimeoutSeconds = &v
+}
+
 // GetConfigurations returns the Configurations field value
 func (o *ConfigurationResponse) GetConfigurations() ConfigurationResponseConfigurations {
 	if o == nil {
@@ -377,6 +405,9 @@ func (o ConfigurationResponse) ToMap() (map[string]interface{}, error) {
 	}
 	if !IsNil(o.OauthConfig) {
 		toSerialize["oauthConfig"] = o.OauthConfig
+	}
+	if !IsNil(o.ResilienceTimeoutSeconds) {
+		toSerialize["resilienceTimeoutSeconds"] = o.ResilienceTimeoutSeconds
 	}
 	toSerialize["configurations"] = o.Configurations
 	return toSerialize, nil

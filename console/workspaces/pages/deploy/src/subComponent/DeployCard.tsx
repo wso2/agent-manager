@@ -413,6 +413,12 @@ export function DeployCard(props: DeployCardProps) {
     ? corsOrigins.includes("*") ? "All origins" : `${corsOrigins.length} origin${corsOrigins.length !== 1 ? "s" : ""}`
     : "Disabled";
 
+  const resilienceTimeoutSeconds = envConfig?.resilienceTimeoutSeconds ?? 30;
+  const isWholeMinutes = resilienceTimeoutSeconds >= 60 && resilienceTimeoutSeconds % 60 === 0;
+  const resilienceTimeoutLabel = isWholeMinutes
+    ? `${resilienceTimeoutSeconds / 60}m`
+    : `${resilienceTimeoutSeconds}s`;
+
   const kindName = agent?.kindName;
 
   const { data: kindVersions } = useListAgentKindVersions(
@@ -676,6 +682,21 @@ export function DeployCard(props: DeployCardProps) {
                           size="small"
                           label={authLabel}
                           color={authMode === "none" ? "default" : "success"}
+                          variant="outlined"
+                          sx={{ height: 18, fontSize: "0.65rem", cursor: "default" }}
+                        />
+                      </Tooltip>
+                    </Box>
+                  )}
+                  {isApiAgent && (
+                    <Box display="flex" alignItems="center" gap={1}>
+                      <Clock size={14} style={{ opacity: 0.6 }} />
+                      <Typography variant="body2">Gateway Timeout</Typography>
+                      <Tooltip title="Max duration the gateway keeps a response open between this agent and the client before cutting it off">
+                        <Chip
+                          size="small"
+                          label={resilienceTimeoutLabel}
+                          color="default"
                           variant="outlined"
                           sx={{ height: 18, fontSize: "0.65rem", cursor: "default" }}
                         />

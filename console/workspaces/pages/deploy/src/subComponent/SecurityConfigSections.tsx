@@ -39,8 +39,11 @@ import {
   FormControlLabel,
   FormHelperText,
   FormLabel,
+  Grid,
+  MenuItem,
   Radio,
   RadioGroup,
+  Select,
   Switch,
   TextField,
   Typography,
@@ -53,6 +56,22 @@ import {
   useMemo,
   useState,
 } from "react";
+
+const DEFAULT_RESILIENCE_TIMEOUT_SECONDS = 30;
+const MIN_RESILIENCE_TIMEOUT_SECONDS = 1;
+const MAX_RESILIENCE_TIMEOUT_SECONDS = 3600;
+
+type TimeoutUnit = "seconds" | "minutes";
+
+// Displays a persisted seconds value in the larger unit when it divides evenly, purely so the
+// input doesn't show "600" when "10 minutes" reads more naturally — the persisted value is
+// always seconds regardless of which unit the user views/edits it in.
+function toDurationAndUnit(seconds: number): { duration: string; unit: TimeoutUnit } {
+  if (seconds >= 60 && seconds % 60 === 0) {
+    return { duration: String(seconds / 60), unit: "minutes" };
+  }
+  return { duration: String(seconds), unit: "seconds" };
+}
 
 export interface SecurityConfigHandle {
   // Returns true when the current selection is valid (e.g. OAuth has an issuer).
@@ -117,6 +136,17 @@ export const SecurityConfigSections = forwardRef<SecurityConfigHandle, SecurityC
       "authorization", "Content-Type", "Origin", "X-API-Key",
     ]);
     const [corsAllowCredentials, setCorsAllowCredentials] = useState(false);
+    const [timeoutDuration, setTimeoutDuration] = useState("30");
+    const [timeoutUnit, setTimeoutUnit] = useState<TimeoutUnit>("seconds");
+
+    useEffect(() => {
+      if (!open) return;
+      const seconds =
+        configurations?.resilienceTimeoutSeconds ?? DEFAULT_RESILIENCE_TIMEOUT_SECONDS;
+      const { duration, unit } = toDurationAndUnit(seconds);
+      setTimeoutDuration(duration);
+      setTimeoutUnit(unit);
+    }, [open, configurations?.resilienceTimeoutSeconds]);
 
     // Seed CORS from the env-scoped config on open; reset to defaults when no persisted config
     // exists so stale edits from a previous open don't leak across reopens.
@@ -175,14 +205,31 @@ export const SecurityConfigSections = forwardRef<SecurityConfigHandle, SecurityC
     const hasWildcardOrigin = corsAllowAll || corsOrigins.includes("*");
     const oauthInvalid = isApiAgent && authMode === "oauth" && oauthIssuers.length === 0;
 
+    const resilienceTimeoutSeconds = timeoutUnit === "minutes"
+      ? Number(timeoutDuration) * 60
+      : Number(timeoutDuration);
+    const timeoutInvalid = isApiAgent && (
+      timeoutDuration.trim() === ""
+      || !Number.isFinite(resilienceTimeoutSeconds)
+      || resilienceTimeoutSeconds < MIN_RESILIENCE_TIMEOUT_SECONDS
+      || resilienceTimeoutSeconds > MAX_RESILIENCE_TIMEOUT_SECONDS
+    );
+
+
+    const handleTimeoutBlur = () => {
+      if (!timeoutInvalid) return;
+      setTimeoutDuration(String(DEFAULT_RESILIENCE_TIMEOUT_SECONDS));
+      setTimeoutUnit("seconds");
+    };
+
     useEffect(() => {
-      onValidityChange?.(!oauthInvalid);
-    }, [oauthInvalid, onValidityChange]);
+      onValidityChange?.(!oauthInvalid && !timeoutInvalid);
+    }, [oauthInvalid, timeoutInvalid, onValidityChange]);
 
     useImperativeHandle(
       ref,
       () => ({
-        validate: () => !oauthInvalid,
+        validate: () => !oauthInvalid && !timeoutInvalid,
         buildBody: () => {
           if (!isApiAgent) return {};
           return {
@@ -204,13 +251,17 @@ export const SecurityConfigSections = forwardRef<SecurityConfigHandle, SecurityC
               allowHeaders: corsHeaders,
               allowCredentials: hasWildcardOrigin ? false : corsAllowCredentials,
             },
+            resilienceTimeoutSeconds: timeoutInvalid
+              ? DEFAULT_RESILIENCE_TIMEOUT_SECONDS
+              : resilienceTimeoutSeconds,
           };
         },
       }),
       [
         isApiAgent, oauthInvalid, authMode, oauthIssuers, oauthAudiences, oauthHeaderName,
         oauthHeaderPrefix, oauthForwardToken, corsEnabled, corsOrigins, corsMethods,
-        corsHeaders, corsAllowCredentials, hasWildcardOrigin,
+        corsHeaders, corsAllowCredentials, hasWildcardOrigin, timeoutInvalid,
+        resilienceTimeoutSeconds,
       ],
     );
 
@@ -526,6 +577,50 @@ export const SecurityConfigSections = forwardRef<SecurityConfigHandle, SecurityC
               </Form.Stack>
             </Collapse>
           </Form.Stack>
+        </Form.Section>
+        <Form.Section>
+          <Form.Header>Gateway Timeout</Form.Header>
+          <Form.Subheader>
+            Max duration the gateway keeps a response open between this agent and the client
+          </Form.Subheader>
+          <Grid container spacing={2}>
+            <Grid size={{ xs: 12, sm: 6 }}>
+              <FormControl fullWidth size="small" error={timeoutInvalid}>
+                <FormLabel>Duration</FormLabel>
+                <TextField
+                  size="small"
+                  type="number"
+                  placeholder="e.g. 30"
+                  value={timeoutDuration}
+                  onChange={(e) => setTimeoutDuration(e.target.value)}
+                  onBlur={handleTimeoutBlur}
+                  disabled={disabled}
+                  error={timeoutInvalid}
+                  helperText={
+                    timeoutInvalid
+                      ? `Enter a duration between ${MIN_RESILIENCE_TIMEOUT_SECONDS}s and `
+                        + `${MAX_RESILIENCE_TIMEOUT_SECONDS / 60}m`
+                      : undefined
+                  }
+                  slotProps={{ input: { inputProps: { min: 1, step: 1 } } }}
+                />
+              </FormControl>
+            </Grid>
+            <Grid size={{ xs: 12, sm: 6 }}>
+              <FormControl fullWidth size="small">
+                <FormLabel>Unit</FormLabel>
+                <Select
+                  size="small"
+                  value={timeoutUnit}
+                  onChange={(e) => setTimeoutUnit(e.target.value as TimeoutUnit)}
+                  disabled={disabled}
+                >
+                  <MenuItem value="seconds">Seconds</MenuItem>
+                  <MenuItem value="minutes">Minutes</MenuItem>
+                </Select>
+              </FormControl>
+            </Grid>
+          </Grid>
         </Form.Section>
       </>
     );

@@ -12247,6 +12247,11 @@ components:
           $ref: "#/components/schemas/OAuthConfig"
           nullable: true
           description: OAuth configuration for this environment's agent endpoint
+        resilienceTimeoutSeconds:
+          type: integer
+          description: Max duration (seconds) the gateway keeps a response open between the agent and the client before cutting it off, for this agent's endpoint in this environment. Defaults to 30 seconds when unset.
+          minimum: 1
+          maximum: 3600
         configurations:
           type: object
           description: Configuration data containing env vars and file mounts

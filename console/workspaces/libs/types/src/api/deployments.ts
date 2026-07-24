@@ -44,6 +44,7 @@ export interface UpdateAgentDeploySettingsRequest {
   enableOAuthSecurity?: boolean;
   corsConfig?: CorsConfig;
   oauthConfig?: OAuthConfig;
+  resilienceTimeoutSeconds?: number;
 }
 
 export type UpdateAgentDeploySettingsPathParams = AgentPathParams;
@@ -139,6 +140,11 @@ export interface ConfigurationResponse {
   enableOAuthSecurity?: boolean;
   corsConfig?: CorsConfig;
   oauthConfig?: OAuthConfig;
+  /**
+   * Max duration (seconds) the gateway keeps a response open between the agent and the
+   * client before cutting it off, for this agent's endpoint in this environment.
+   */
+  resilienceTimeoutSeconds?: number;
   configurations: ConfigurationData;
 }
 

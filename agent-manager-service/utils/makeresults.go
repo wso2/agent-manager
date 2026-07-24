@@ -172,6 +172,7 @@ func PopulateConfigurationResponseFromAgentConfig(resp *spec.ConfigurationRespon
 	resp.InstrumentationVersion = cfg.InstrumentationVersion
 	resp.EnableApiKeySecurity = spec.PtrBool(cfg.EnableApiKeySecurity)
 	resp.EnableOAuthSecurity = spec.PtrBool(cfg.EnableOAuthSecurity)
+	resp.ResilienceTimeoutSeconds = cfg.ResilienceTimeoutSeconds
 	resp.CorsConfig = &spec.CORSConfig{
 		Enabled:          spec.PtrBool(cfg.CORSEnabled),
 		AllowOrigin:      cfg.CORSAllowOrigins,
