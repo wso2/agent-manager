@@ -50,6 +50,7 @@ type Configurations struct {
 	CorsConfig                *CorsConfig  `json:"corsConfig,omitempty"`
 	EnableOAuthSecurity       *bool        `json:"enableOAuthSecurity,omitempty"`
 	OAuthConfig               *OAuthConfig `json:"oauthConfig,omitempty"`
+	ResilienceTimeoutSeconds  *int32       `json:"resilienceTimeoutSeconds,omitempty"`
 }
 
 type CorsConfig struct {

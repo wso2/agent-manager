@@ -2304,6 +2304,23 @@ func WithArtifactID(artifactID string) TraitOption {
 	}
 }
 
+const (
+	DefaultResilienceTimeoutSeconds int32 = 30
+	MinResilienceTimeoutSeconds     int32 = 1
+	MaxResilienceTimeoutSeconds     int32 = 3600
+)
+
+func FormatResilienceTimeout(seconds int32) string {
+	return fmt.Sprintf("%ds", seconds)
+}
+
+// transforming to gateway policy format
+func WithResilienceTimeout(seconds int32) TraitOption {
+	return func(params map[string]interface{}) {
+		params["resilienceTimeout"] = FormatResilienceTimeout(seconds)
+	}
+}
+
 // APIKeyAuthPolicy returns the policy map for API key authentication.
 func APIKeyAuthPolicy() map[string]interface{} {
 	return map[string]interface{}{
@@ -2427,11 +2444,12 @@ func (c *openChoreoClient) buildTrait(ctx context.Context, namespaceName, projec
 
 func (c *openChoreoClient) buildAPIConfigurationTraitParameters(componentName string, opts ...TraitOption) (map[string]interface{}, error) {
 	params := map[string]interface{}{
-		"apiName":          componentName,
-		"apiVersion":       "v1.0",
-		"context":          fmt.Sprintf("/%s", componentName),
-		"upstreamPort":     config.GetConfig().DefaultChatAPI.DefaultHTTPPort,
-		"upstreamBasePath": config.GetConfig().DefaultChatAPI.DefaultBasePath,
+		"apiName":           componentName,
+		"apiVersion":        "v1.0",
+		"context":           fmt.Sprintf("/%s", componentName),
+		"upstreamPort":      config.GetConfig().DefaultChatAPI.DefaultHTTPPort,
+		"upstreamBasePath":  config.GetConfig().DefaultChatAPI.DefaultBasePath,
+		"resilienceTimeout": FormatResilienceTimeout(DefaultResilienceTimeoutSeconds),
 	}
 	for _, opt := range opts {
 		opt(params)

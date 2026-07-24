@@ -60,6 +60,10 @@ spec:
           type: string
           description: "Artifact UUID injected as gateway.api-platform.wso2.com/artifact-id annotation on the RestApi"
           default: ""
+        resilienceTimeout:
+          type: string
+          description: "Max streaming/request duration for this API's routes (gateway duration string, e.g. '30s'). Applied as spec.resilience.timeout on the generated RestApi."
+          default: "30s"
       required:
         - apiName
 
@@ -76,6 +80,10 @@ spec:
         artifactId:
           type: string
           description: "Per-environment artifact UUID override. When set, takes precedence over parameters.artifactId."
+          default: ""
+        resilienceTimeout:
+          type: string
+          description: "Per-environment resilience.timeout override. When set, takes precedence over parameters.resilienceTimeout."
           default: ""
 
   creates:
@@ -129,6 +137,10 @@ spec:
           policies: |
             ${has(environmentConfigs.policies) ? dyn(environmentConfigs.policies) : dyn(parameters.policies)}
           operations: ${parameters.operations}
+          # idleTimeout is always disabled ("0s") — not user-configurable.
+          resilience:
+            timeout: "${has(environmentConfigs.resilienceTimeout) && environmentConfigs.resilienceTimeout != '' ? environmentConfigs.resilienceTimeout : parameters.resilienceTimeout}"
+            idleTimeout: "0s"
 
   patches:
     # --- Patch HTTPRoute: Route traffic through WSO2 API Platform router ---
@@ -166,3 +178,19 @@ spec:
                 path:
                   type: ReplacePrefixMatch
                   replacePrefixMatch: /${metadata.environmentName}-${metadata.componentNamespace}-${metadata.componentName}
+
+        # --- Patch HTTPRoute: Disable this outer kgateway hop's own request timeout ---
+        # Real enforcement now lives in the RestApi's own spec.resilience.timeout (set
+        # above from parameters.resilienceTimeout), which the WSO2 API Platform Gateway
+        # enforces at the actual upstream hop. Leaving this outer hop's hardcoded 30s in
+        # place would silently cut off any SSE/streaming response before the user's
+        # configured resilience.timeout ever gets a chance to apply — the same reasoning
+        # already applied to /mcp and /api/internal/v1/ws in oc-ingress.yaml.
+        # Uses "add" (not "replace"): the internal HTTPRoute has no pre-existing
+        # /spec/rules/0/timeouts key, and JSON Patch "replace" requires the target
+        # path to already exist, while "add" both creates it (internal route) and
+        # overwrites it (external route) as needed.
+        - op: add
+          path: /spec/rules/0/timeouts
+          value:
+            request: 0s

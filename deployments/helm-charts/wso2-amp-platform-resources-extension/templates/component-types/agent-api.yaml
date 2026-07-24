@@ -315,6 +315,7 @@ spec:
             backendRefs:
             - name: ${metadata.componentName}
               port: ${workload.endpoints[endpoint].port}
+            # Overwritten to 0s by the api-configuration trait's HTTPRoute patch
             timeouts:
               request: 30s
 

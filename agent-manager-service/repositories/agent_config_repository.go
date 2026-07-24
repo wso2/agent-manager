@@ -82,6 +82,7 @@ func (r *AgentConfigRepo) Upsert(config *models.AgentConfig) error {
 			"oauth_header_name":           config.OAuthHeaderName,
 			"oauth_auth_header_prefix":    config.OAuthAuthHeaderPrefix,
 			"oauth_forward_token":         config.OAuthForwardToken,
+			"resilience_timeout_seconds":  config.ResilienceTimeoutSeconds,
 			"updated_at":                  clause.Expr{SQL: "NOW()"},
 		}),
 	}).Create(config).Error

@@ -327,6 +327,19 @@ func mapInputInterface(specInterface *spec.InputInterface) *client.InputInterfac
 
 	return config
 }
+func resolveResilienceTimeoutSeconds(existingConfig *models.AgentConfig, requested *int32, withDefaults bool) int32 {
+	resolved := int32(0)
+	if withDefaults {
+		resolved = client.DefaultResilienceTimeoutSeconds
+	}
+	if existingConfig != nil && existingConfig.ResilienceTimeoutSeconds != nil {
+		resolved = *existingConfig.ResilienceTimeoutSeconds
+	}
+	if requested != nil && *requested >= client.MinResilienceTimeoutSeconds && *requested <= client.MaxResilienceTimeoutSeconds {
+		resolved = *requested
+	}
+	return resolved
+}
 
 // buildCreateTraitRequests collects all traits needed during agent creation into a single
 // list so they can be attached in one GET-UPDATE cycle, avoiding resource version conflicts.
@@ -986,8 +999,9 @@ func (s *agentManagerService) GetAgent(ctx context.Context, ouID string, project
 						AllowHeaders:     agentConfig.CORSAllowHeaders,
 						AllowCredentials: &agentConfig.CORSAllowCredentials,
 					},
-					EnableOAuthSecurity: &agentConfig.EnableOAuthSecurity,
-					OAuthConfig:         oauthConfigFromAgentConfig(agentConfig),
+					EnableOAuthSecurity:      &agentConfig.EnableOAuthSecurity,
+					OAuthConfig:              oauthConfigFromAgentConfig(agentConfig),
+					ResilienceTimeoutSeconds: agentConfig.ResilienceTimeoutSeconds,
 				}
 			}
 
@@ -2652,6 +2666,7 @@ func (s *agentManagerService) DeployAgent(ctx context.Context, ouID string, proj
 	// Resolve config values: request > DB > defaults
 	tracingCfg := resolveTracingConfig(existingConfig, req.EnableAutoInstrumentation, true)
 	apiCfg := resolveAPIConfig(existingConfig, req.EnableApiKeySecurity, req.CorsConfig, req.EnableOAuthSecurity, req.OauthConfig, true)
+	resilienceTimeoutSeconds := resolveResilienceTimeoutSeconds(existingConfig, nil, true)
 	if err := validateAuthExclusivity(apiCfg); err != nil {
 		return "", err
 	}
@@ -2717,7 +2732,7 @@ func (s *agentManagerService) DeployAgent(ctx context.Context, ouID string, proj
 	if err != nil {
 		return "", err
 	}
-	deployTraitEnvConfigs := buildTraitEnvConfigs(agentName, policies, "", isPythonBuildpack, isBallerinaBuildpack, enableAutoInstrumentation, deployInstrumentationImage)
+	deployTraitEnvConfigs := buildTraitEnvConfigs(agentName, policies, "", resilienceTimeoutSeconds, isPythonBuildpack, isBallerinaBuildpack, enableAutoInstrumentation, deployInstrumentationImage)
 
 	// Replace Component CR workflow parameters with env vars and file mounts from deploy request
 	// This replaces all existing env vars to ensure the component CR matches the deploy request
@@ -2756,6 +2771,9 @@ func (s *agentManagerService) DeployAgent(ctx context.Context, ouID string, proj
 			traitOpts = append(traitOpts, client.WithUpstreamBasePath(agent.InputInterface.BasePath))
 		} else {
 			traitOpts = append(traitOpts, client.WithUpstreamBasePath(config.GetConfig().DefaultChatAPI.DefaultBasePath))
+		}
+		if resilienceTimeoutSeconds > 0 {
+			traitOpts = append(traitOpts, client.WithResilienceTimeout(resilienceTimeoutSeconds))
 		}
 		traitOpts = append(traitOpts, client.WithPolicies(policies))
 
@@ -2810,6 +2828,10 @@ func (s *agentManagerService) DeployAgent(ctx context.Context, ouID string, proj
 	// Upsert — the repo's DoUpdates map includes that column, so omitting
 	// the value would NULL out a customer's pin on every redeploy.
 	if targetEnv != nil {
+		var deployResilienceTimeoutSeconds *int32
+		if resilienceTimeoutSeconds > 0 {
+			deployResilienceTimeoutSeconds = &resilienceTimeoutSeconds
+		}
 		agentConfig := &models.AgentConfig{
 			OUID:                      ouID,
 			ProjectName:               projectName,
@@ -2829,6 +2851,7 @@ func (s *agentManagerService) DeployAgent(ctx context.Context, ouID string, proj
 			OAuthHeaderName:           apiCfg.OAuthHeaderName,
 			OAuthAuthHeaderPrefix:     apiCfg.OAuthAuthHeaderPrefix,
 			OAuthForwardToken:         apiCfg.OAuthForwardToken,
+			ResilienceTimeoutSeconds:  deployResilienceTimeoutSeconds,
 		}
 		if configErr := s.agentConfigRepo.Upsert(agentConfig); configErr != nil {
 			s.logger.Error("Failed to persist instrumentation config to database", "agentName", agentName, "environment", lowestEnv, "error", configErr)
@@ -3110,7 +3133,7 @@ func buildComponentTypeEnvConfigs(env *models.EnvironmentResponse) map[string]in
 // instrumentationImage, when non-empty, pins the OTEL init-container image for this environment
 // (overriding the Component's create-time default) so the AMP instrumentation version can be
 // changed per-environment on deploy/promote without re-attaching the Component trait.
-func buildTraitEnvConfigs(agentName string, policies []map[string]interface{}, artifactID string, isPythonBuildpack, isBallerinaBuildpack bool, autoInstrumentation bool, instrumentationImage string) map[string]interface{} {
+func buildTraitEnvConfigs(agentName string, policies []map[string]interface{}, artifactID string, resilienceTimeoutSeconds int32, isPythonBuildpack, isBallerinaBuildpack bool, autoInstrumentation bool, instrumentationImage string) map[string]interface{} {
 	instanceName := func(traitType client.TraitType) string {
 		return agentName + "-" + string(traitType)
 	}
@@ -3119,6 +3142,9 @@ func buildTraitEnvConfigs(agentName string, policies []map[string]interface{}, a
 	}
 	if artifactID != "" {
 		apiTraitCfg["artifactId"] = artifactID
+	}
+	if resilienceTimeoutSeconds > 0 {
+		apiTraitCfg["resilienceTimeout"] = client.FormatResilienceTimeout(resilienceTimeoutSeconds)
 	}
 	traitEnvConfigs := map[string]interface{}{
 		instanceName(client.TraitAPIManagement): apiTraitCfg,
@@ -3658,6 +3684,7 @@ func (s *agentManagerService) PromoteAgent(ctx context.Context, ouID string, pro
 		// where set; any unset field falls back to the source env's values.
 		tracingCfg := resolveTracingConfig(existingConfig, req.EnableAutoInstrumentation, false)
 		apiCfg := resolveAPIConfig(existingConfig, req.EnableApiKeySecurity, req.CorsConfig, req.EnableOAuthSecurity, req.OauthConfig, false)
+		resilienceTimeoutSeconds := resolveResilienceTimeoutSeconds(existingConfig, nil, false)
 		if err := validateAuthExclusivity(apiCfg); err != nil {
 			return err
 		}
@@ -3702,7 +3729,7 @@ func (s *agentManagerService) PromoteAgent(ctx context.Context, ouID string, pro
 		if resolveErr != nil {
 			return resolveErr
 		}
-		traitEnvConfigs = buildTraitEnvConfigs(agentName, policies, targetArtifactID, promotePythonBuildpack, promoteBallerinaBuildpack, tracingCfg.EnableAutoInstrumentation, promoteInstrumentationImage)
+		traitEnvConfigs = buildTraitEnvConfigs(agentName, policies, targetArtifactID, resilienceTimeoutSeconds, promotePythonBuildpack, promoteBallerinaBuildpack, tracingCfg.EnableAutoInstrumentation, promoteInstrumentationImage)
 		promoteCTConfigs = buildComponentTypeEnvConfigs(targetEnv)
 
 		apiKey, apiKeyErr := s.generateAgentAPIKey(ctx, ouID, projectName, agentName, req.TargetEnvironment)
@@ -3714,6 +3741,10 @@ func (s *agentManagerService) PromoteAgent(ctx context.Context, ouID string, pro
 			injectAgentAPIKeySecretRef(traitEnvConfigs, agentName, apiKeySecretRef, apiKeySecretProperty)
 		}
 
+		var promoteResilienceTimeoutSeconds *int32
+		if resilienceTimeoutSeconds > 0 {
+			promoteResilienceTimeoutSeconds = &resilienceTimeoutSeconds
+		}
 		// Persist config for the target environment
 		agentConfig := &models.AgentConfig{
 			OUID:                      ouID,
@@ -3734,6 +3765,7 @@ func (s *agentManagerService) PromoteAgent(ctx context.Context, ouID string, pro
 			OAuthHeaderName:           apiCfg.OAuthHeaderName,
 			OAuthAuthHeaderPrefix:     apiCfg.OAuthAuthHeaderPrefix,
 			OAuthForwardToken:         apiCfg.OAuthForwardToken,
+			ResilienceTimeoutSeconds:  promoteResilienceTimeoutSeconds,
 		}
 		if upsertErr := s.agentConfigRepo.Upsert(agentConfig); upsertErr != nil {
 			s.logger.Error("Failed to persist agent config for target environment", "agentName", agentName, "environment", req.TargetEnvironment, "error", upsertErr)
@@ -3890,6 +3922,7 @@ func (s *agentManagerService) UpdateAgentDeploySettings(ctx context.Context, ouI
 	}
 	tracingCfg := resolveTracingConfig(existingConfig, req.EnableAutoInstrumentation, false)
 	apiCfg := resolveAPIConfig(existingConfig, req.EnableApiKeySecurity, req.CorsConfig, req.EnableOAuthSecurity, req.OauthConfig, false)
+	resilienceTimeoutSeconds := resolveResilienceTimeoutSeconds(existingConfig, req.ResilienceTimeoutSeconds, false)
 	if err := validateAuthExclusivity(apiCfg); err != nil {
 		return err
 	}
@@ -3929,7 +3962,7 @@ func (s *agentManagerService) UpdateAgentDeploySettings(ctx context.Context, ouI
 	if resolveErr != nil {
 		return resolveErr
 	}
-	traitEnvConfigs := buildTraitEnvConfigs(agentName, policies, artifact.UUID.String(), isPythonBuildpack, isBallerinaBuildpack, tracingCfg.EnableAutoInstrumentation, instrumentationImage)
+	traitEnvConfigs := buildTraitEnvConfigs(agentName, policies, artifact.UUID.String(), resilienceTimeoutSeconds, isPythonBuildpack, isBallerinaBuildpack, tracingCfg.EnableAutoInstrumentation, instrumentationImage)
 
 	// Re-attach the per-env agent API key secret ref. buildTraitEnvConfigs omits it and the update
 	// below REPLACES the binding's trait configs, so without this a non-lowest env falls back to the
@@ -3949,6 +3982,10 @@ func (s *agentManagerService) UpdateAgentDeploySettings(ctx context.Context, ouI
 		return fmt.Errorf("failed to update deploy settings: %w", updateErr)
 	}
 
+	var settingsResilienceTimeoutSeconds *int32
+	if resilienceTimeoutSeconds > 0 {
+		settingsResilienceTimeoutSeconds = &resilienceTimeoutSeconds
+	}
 	// Persist resolved config so subsequent deploy/promote calls see the current values.
 	agentConfig := &models.AgentConfig{
 		OUID:                      ouID,
@@ -3969,6 +4006,7 @@ func (s *agentManagerService) UpdateAgentDeploySettings(ctx context.Context, ouI
 		OAuthHeaderName:           apiCfg.OAuthHeaderName,
 		OAuthAuthHeaderPrefix:     apiCfg.OAuthAuthHeaderPrefix,
 		OAuthForwardToken:         apiCfg.OAuthForwardToken,
+		ResilienceTimeoutSeconds:  settingsResilienceTimeoutSeconds,
 	}
 	if upsertErr := s.agentConfigRepo.Upsert(agentConfig); upsertErr != nil {
 		s.logger.Error("Failed to persist agent deploy settings", "agentName", agentName, "environment", req.EnvironmentName, "error", upsertErr)

@@ -129,6 +129,7 @@ func convertToConfigurations(configs *models.Configurations) *spec.Configuration
 		EnableAutoInstrumentation: configs.EnableAutoInstrumentation,
 		EnableApiKeySecurity:      configs.EnableApiKeySecurity,
 		EnableOAuthSecurity:       configs.EnableOAuthSecurity,
+		ResilienceTimeoutSeconds:  configs.ResilienceTimeoutSeconds,
 	}
 	// Surface the pinned AMP instrumentation version on reads so the deploy/promote
 	// UI shows the currently-applied version instead of falling back to the platform

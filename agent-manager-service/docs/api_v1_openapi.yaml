@@ -11834,6 +11834,11 @@ components:
           $ref: "#/components/schemas/OAuthConfig"
           nullable: true
           description: Current OAuth configuration for the agent endpoint
+        resilienceTimeoutSeconds:
+          type: integer
+          description: Max duration (seconds) the gateway keeps a response open between the agent and the client before cutting it off, for this agent's endpoint in this environment. Defaults to 30 seconds when unset.
+          minimum: 1
+          maximum: 3600
     EnvironmentVariable:
       type: object
       required:
@@ -14071,6 +14076,11 @@ components:
         oauthConfig:
           description: OAuth configuration for the agent endpoint in this environment. Omit to keep the current value.
           $ref: "#/components/schemas/OAuthConfig"
+        resilienceTimeoutSeconds:
+          type: integer
+          description: Max duration (seconds) the gateway keeps a response open between the agent and the client before cutting it off, for this agent's endpoint in this environment. Omit to keep the current value.
+          minimum: 1
+          maximum: 3600
 
     PromoteAgentRequest:
       type: object

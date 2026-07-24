@@ -31,6 +31,8 @@ type UpdateAgentDeploySettingsRequest struct {
 	// Enable OAuth security for the agent endpoint in this environment. Mutually exclusive with enableApiKeySecurity. Omit to keep the current value.
 	EnableOAuthSecurity *bool        `json:"enableOAuthSecurity,omitempty"`
 	OauthConfig         *OAuthConfig `json:"oauthConfig,omitempty"`
+	// Max duration (seconds) the gateway keeps a response open between the agent and the client before cutting it off, for this agent's endpoint in this environment. Omit to keep the current value.
+	ResilienceTimeoutSeconds *int32 `json:"resilienceTimeoutSeconds,omitempty"`
 }
 
 // NewUpdateAgentDeploySettingsRequest instantiates a new UpdateAgentDeploySettingsRequest object
@@ -278,6 +280,38 @@ func (o *UpdateAgentDeploySettingsRequest) SetOauthConfig(v OAuthConfig) {
 	o.OauthConfig = &v
 }
 
+// GetResilienceTimeoutSeconds returns the ResilienceTimeoutSeconds field value if set, zero value otherwise.
+func (o *UpdateAgentDeploySettingsRequest) GetResilienceTimeoutSeconds() int32 {
+	if o == nil || IsNil(o.ResilienceTimeoutSeconds) {
+		var ret int32
+		return ret
+	}
+	return *o.ResilienceTimeoutSeconds
+}
+
+// GetResilienceTimeoutSecondsOk returns a tuple with the ResilienceTimeoutSeconds field value if set, nil otherwise
+// and a boolean to check if the value has been set.
+func (o *UpdateAgentDeploySettingsRequest) GetResilienceTimeoutSecondsOk() (*int32, bool) {
+	if o == nil || IsNil(o.ResilienceTimeoutSeconds) {
+		return nil, false
+	}
+	return o.ResilienceTimeoutSeconds, true
+}
+
+// HasResilienceTimeoutSeconds returns a boolean if a field has been set.
+func (o *UpdateAgentDeploySettingsRequest) HasResilienceTimeoutSeconds() bool {
+	if o != nil && !IsNil(o.ResilienceTimeoutSeconds) {
+		return true
+	}
+
+	return false
+}
+
+// SetResilienceTimeoutSeconds gets a reference to the given int32 and assigns it to the ResilienceTimeoutSeconds field.
+func (o *UpdateAgentDeploySettingsRequest) SetResilienceTimeoutSeconds(v int32) {
+	o.ResilienceTimeoutSeconds = &v
+}
+
 func (o UpdateAgentDeploySettingsRequest) MarshalJSON() ([]byte, error) {
 	toSerialize, err := o.ToMap()
 	if err != nil {
@@ -306,6 +340,9 @@ func (o UpdateAgentDeploySettingsRequest) ToMap() (map[string]interface{}, error
 	}
 	if !IsNil(o.OauthConfig) {
 		toSerialize["oauthConfig"] = o.OauthConfig
+	}
+	if !IsNil(o.ResilienceTimeoutSeconds) {
+		toSerialize["resilienceTimeoutSeconds"] = o.ResilienceTimeoutSeconds
 	}
 	return toSerialize, nil
 }
