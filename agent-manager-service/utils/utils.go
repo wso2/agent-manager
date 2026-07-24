@@ -849,8 +849,9 @@ func ValidatePromoteAgentRequest(payload *spec.PromoteAgentRequest) error {
 			payload.EnableApiKeySecurity != nil ||
 			payload.CorsConfig != nil ||
 			payload.EnableOAuthSecurity != nil ||
-			payload.OauthConfig != nil {
-			return fmt.Errorf("useConfigFromSourceEnv=true is mutually exclusive with env, files, enableAutoInstrumentation, instrumentationVersion, enableApiKeySecurity, corsConfig, enableOAuthSecurity, and oauthConfig")
+			payload.OauthConfig != nil ||
+			payload.ResilienceTimeoutSeconds != nil {
+			return fmt.Errorf("useConfigFromSourceEnv=true is mutually exclusive with env, files, enableAutoInstrumentation, instrumentationVersion, enableApiKeySecurity, corsConfig, enableOAuthSecurity, oauthConfig, and resilienceTimeoutSeconds")
 		}
 	}
 

@@ -1360,18 +1360,25 @@ func TestResolveResilienceTimeoutSeconds(t *testing.T) {
 		requested *int32
 		withDef   bool
 		want      int32
+		wantErr   bool
 	}{
-		{"nothing set, withDefaults=true falls back to default", nil, nil, true, client.DefaultResilienceTimeoutSeconds},
-		{"nothing set, withDefaults=false yields zero (no override)", nil, nil, false, 0},
-		{"existing DB value is used", &models.AgentConfig{ResilienceTimeoutSeconds: int32Ptr(60)}, nil, false, 60},
-		{"request overrides existing DB value", &models.AgentConfig{ResilienceTimeoutSeconds: int32Ptr(60)}, int32Ptr(90), false, 90},
-		{"out-of-bounds request is ignored, falls back to existing", &models.AgentConfig{ResilienceTimeoutSeconds: int32Ptr(60)}, int32Ptr(10000), false, 60},
-		{"minimum bound is accepted", nil, int32Ptr(client.MinResilienceTimeoutSeconds), false, client.MinResilienceTimeoutSeconds},
-		{"maximum bound is accepted", nil, int32Ptr(client.MaxResilienceTimeoutSeconds), false, client.MaxResilienceTimeoutSeconds},
+		{"nothing set, withDefaults=true falls back to default", nil, nil, true, client.DefaultResilienceTimeoutSeconds, false},
+		{"nothing set, withDefaults=false yields zero (no override)", nil, nil, false, 0, false},
+		{"existing DB value is used", &models.AgentConfig{ResilienceTimeoutSeconds: int32Ptr(60)}, nil, false, 60, false},
+		{"request overrides existing DB value", &models.AgentConfig{ResilienceTimeoutSeconds: int32Ptr(60)}, int32Ptr(90), false, 90, false},
+		{"out-of-bounds request is rejected", &models.AgentConfig{ResilienceTimeoutSeconds: int32Ptr(60)}, int32Ptr(10000), false, 0, true},
+		{"minimum bound is accepted", nil, int32Ptr(client.MinResilienceTimeoutSeconds), false, client.MinResilienceTimeoutSeconds, false},
+		{"maximum bound is accepted", nil, int32Ptr(client.MaxResilienceTimeoutSeconds), false, client.MaxResilienceTimeoutSeconds, false},
 	}
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			got := resolveResilienceTimeoutSeconds(tc.existing, tc.requested, tc.withDef)
+			got, err := resolveResilienceTimeoutSeconds(tc.existing, tc.requested, tc.withDef)
+			if tc.wantErr {
+				require.Error(t, err)
+				assert.ErrorIs(t, err, utils.ErrInvalidInput)
+				return
+			}
+			require.NoError(t, err)
 			assert.Equal(t, tc.want, got)
 		})
 	}
@@ -1562,4 +1569,41 @@ func TestUpdateAgentDeploySettings_ResilienceTimeout(t *testing.T) {
 			}
 		})
 	}
+}
+
+// TestUpdateAgentDeploySettings_ResilienceTimeout_OutOfBoundsRejected guards
+// against an explicitly-requested out-of-bounds value being silently discarded:
+// the call must fail with ErrInvalidInput before it touches the release
+// binding or persists anything. UpdateReleaseBindingTraitConfigsFunc and
+// UpsertFunc are deliberately left nil so an unwanted call panics the test.
+func TestUpdateAgentDeploySettings_ResilienceTimeout_OutOfBoundsRejected(t *testing.T) {
+	ocClient := &clientmocks.OpenChoreoClientMock{
+		GetOrganizationFunc: func(_ context.Context, name string) (*models.OrganizationResponse, error) {
+			return &models.OrganizationResponse{Name: name}, nil
+		},
+		GetComponentFunc: func(_ context.Context, _, _, _ string) (*models.AgentResponse, error) {
+			return &models.AgentResponse{Type: models.AgentType{Type: string(utils.AgentTypeAPI)}}, nil
+		},
+		GetEnvironmentFunc: func(_ context.Context, _, name string) (*models.EnvironmentResponse, error) {
+			return &models.EnvironmentResponse{Name: name, UUID: "env-uuid"}, nil
+		},
+	}
+	agentConfigRepo := &repomocks.AgentConfigRepositoryMock{
+		GetFunc: func(string, string, string, string) (*models.AgentConfig, error) {
+			return nil, repositories.ErrAgentConfigNotFound
+		},
+	}
+	s := &agentManagerService{
+		ocClient:        ocClient,
+		agentConfigRepo: agentConfigRepo,
+		logger:          discardLogger(),
+	}
+
+	err := s.UpdateAgentDeploySettings(context.Background(), "acme", "proj1", "my-agent", &spec.UpdateAgentDeploySettingsRequest{
+		EnvironmentName:          "dev",
+		ResilienceTimeoutSeconds: int32Ptr(10000),
+	})
+
+	require.Error(t, err)
+	assert.ErrorIs(t, err, utils.ErrInvalidInput)
 }

@@ -2040,6 +2040,9 @@ type ConfigurationResponse struct {
 
 	// ProjectName Name of the project
 	ProjectName string `json:"projectName"`
+
+	// ResilienceTimeoutSeconds Max duration (seconds) the gateway keeps a response open between the agent and the client before cutting it off, for this agent's endpoint in this environment. Defaults to 30 seconds when unset.
+	ResilienceTimeoutSeconds *int `json:"resilienceTimeoutSeconds,omitempty"`
 }
 
 // Configurations defines model for Configurations.
@@ -2071,6 +2074,9 @@ type Configurations struct {
 
 	// OauthConfig OAuth security configuration for the agent endpoint. Callers authenticate with a standard Authorization Bearer token validated by the gateway.
 	OauthConfig *OAuthConfig `json:"oauthConfig,omitempty"`
+
+	// ResilienceTimeoutSeconds Max duration (seconds) the gateway keeps a response open between the agent and the client before cutting it off, for this agent's endpoint in this environment. Defaults to 30 seconds when unset.
+	ResilienceTimeoutSeconds *int `json:"resilienceTimeoutSeconds,omitempty"`
 }
 
 // CostRateLimit defines model for CostRateLimit.
@@ -4319,6 +4325,9 @@ type PromoteAgentRequest struct {
 	// OauthConfig OAuth security configuration for the agent endpoint. Callers authenticate with a standard Authorization Bearer token validated by the gateway.
 	OauthConfig *OAuthConfig `json:"oauthConfig,omitempty"`
 
+	// ResilienceTimeoutSeconds Max duration (seconds) the gateway keeps a response open between the agent and the client before cutting it off, for this agent's endpoint in the target environment. Omit to inherit the source environment's value.
+	ResilienceTimeoutSeconds *int `json:"resilienceTimeoutSeconds,omitempty"`
+
 	// SourceEnvironment Source environment to promote from
 	SourceEnvironment string `json:"sourceEnvironment"`
 
@@ -4945,6 +4954,9 @@ type UpdateAgentDeploySettingsRequest struct {
 
 	// OauthConfig OAuth security configuration for the agent endpoint. Callers authenticate with a standard Authorization Bearer token validated by the gateway.
 	OauthConfig *OAuthConfig `json:"oauthConfig,omitempty"`
+
+	// ResilienceTimeoutSeconds Max duration (seconds) the gateway keeps a response open between the agent and the client before cutting it off, for this agent's endpoint in this environment. Omit to keep the current value.
+	ResilienceTimeoutSeconds *int `json:"resilienceTimeoutSeconds,omitempty"`
 }
 
 // UpdateAgentKindRequest defines model for UpdateAgentKindRequest.

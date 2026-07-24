@@ -211,6 +211,7 @@ export const SecurityConfigSections = forwardRef<SecurityConfigHandle, SecurityC
     const timeoutInvalid = isApiAgent && (
       timeoutDuration.trim() === ""
       || !Number.isFinite(resilienceTimeoutSeconds)
+      || !Number.isInteger(resilienceTimeoutSeconds)
       || resilienceTimeoutSeconds < MIN_RESILIENCE_TIMEOUT_SECONDS
       || resilienceTimeoutSeconds > MAX_RESILIENCE_TIMEOUT_SECONDS
     );

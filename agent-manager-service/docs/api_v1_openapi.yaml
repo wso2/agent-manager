@@ -14143,6 +14143,11 @@ components:
           description: Enable OAuth security for the agent endpoint in the target environment. Mutually exclusive with enableApiKeySecurity.
         oauthConfig:
           $ref: "#/components/schemas/OAuthConfig"
+        resilienceTimeoutSeconds:
+          type: integer
+          description: Max duration (seconds) the gateway keeps a response open between the agent and the client before cutting it off, for this agent's endpoint in the target environment. Omit to inherit the source environment's value.
+          minimum: 1
+          maximum: 3600
 
     PromoteAgentResponse:
       type: object

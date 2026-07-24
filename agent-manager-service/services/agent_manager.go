@@ -327,7 +327,13 @@ func mapInputInterface(specInterface *spec.InputInterface) *client.InputInterfac
 
 	return config
 }
-func resolveResilienceTimeoutSeconds(existingConfig *models.AgentConfig, requested *int32, withDefaults bool) int32 {
+
+// resolveResilienceTimeoutSeconds resolves the effective resilience timeout from
+// (in precedence order) an explicit request value, the persisted config, and the
+// default. An explicitly requested value outside [MinResilienceTimeoutSeconds,
+// MaxResilienceTimeoutSeconds] is rejected rather than silently discarded — unlike
+// an omitted (nil) request, which falls through to the existing/default value.
+func resolveResilienceTimeoutSeconds(existingConfig *models.AgentConfig, requested *int32, withDefaults bool) (int32, error) {
 	resolved := int32(0)
 	if withDefaults {
 		resolved = client.DefaultResilienceTimeoutSeconds
@@ -335,10 +341,14 @@ func resolveResilienceTimeoutSeconds(existingConfig *models.AgentConfig, request
 	if existingConfig != nil && existingConfig.ResilienceTimeoutSeconds != nil {
 		resolved = *existingConfig.ResilienceTimeoutSeconds
 	}
-	if requested != nil && *requested >= client.MinResilienceTimeoutSeconds && *requested <= client.MaxResilienceTimeoutSeconds {
+	if requested != nil {
+		if *requested < client.MinResilienceTimeoutSeconds || *requested > client.MaxResilienceTimeoutSeconds {
+			return 0, fmt.Errorf("%w: resilienceTimeoutSeconds must be between %d and %d seconds, got %d",
+				utils.ErrInvalidInput, client.MinResilienceTimeoutSeconds, client.MaxResilienceTimeoutSeconds, *requested)
+		}
 		resolved = *requested
 	}
-	return resolved
+	return resolved, nil
 }
 
 // buildCreateTraitRequests collects all traits needed during agent creation into a single
@@ -2666,7 +2676,10 @@ func (s *agentManagerService) DeployAgent(ctx context.Context, ouID string, proj
 	// Resolve config values: request > DB > defaults
 	tracingCfg := resolveTracingConfig(existingConfig, req.EnableAutoInstrumentation, true)
 	apiCfg := resolveAPIConfig(existingConfig, req.EnableApiKeySecurity, req.CorsConfig, req.EnableOAuthSecurity, req.OauthConfig, true)
-	resilienceTimeoutSeconds := resolveResilienceTimeoutSeconds(existingConfig, nil, true)
+	resilienceTimeoutSeconds, err := resolveResilienceTimeoutSeconds(existingConfig, nil, true)
+	if err != nil {
+		return "", err
+	}
 	if err := validateAuthExclusivity(apiCfg); err != nil {
 		return "", err
 	}
@@ -3676,15 +3689,18 @@ func (s *agentManagerService) PromoteAgent(ctx context.Context, ouID string, pro
 			existingConfig = cfg
 		}
 
-		// Deploy-settings precedence (CORS, API key security, auto instrumentation):
-		//   request fields → source env's saved AgentConfig → off.
+		// Deploy-settings precedence (CORS, API key security, auto instrumentation,
+		// resilience timeout): request fields → source env's saved AgentConfig → off.
 		// When useConfigFromSourceEnv=true, the validator guarantees the request fields
 		// are nil, so the resolved settings fall through to the source env's saved
 		// AgentConfig. When useConfigFromSourceEnv=false the request takes precedence
 		// where set; any unset field falls back to the source env's values.
 		tracingCfg := resolveTracingConfig(existingConfig, req.EnableAutoInstrumentation, false)
 		apiCfg := resolveAPIConfig(existingConfig, req.EnableApiKeySecurity, req.CorsConfig, req.EnableOAuthSecurity, req.OauthConfig, false)
-		resilienceTimeoutSeconds := resolveResilienceTimeoutSeconds(existingConfig, nil, false)
+		resilienceTimeoutSeconds, err := resolveResilienceTimeoutSeconds(existingConfig, req.ResilienceTimeoutSeconds, false)
+		if err != nil {
+			return err
+		}
 		if err := validateAuthExclusivity(apiCfg); err != nil {
 			return err
 		}
@@ -3922,7 +3938,10 @@ func (s *agentManagerService) UpdateAgentDeploySettings(ctx context.Context, ouI
 	}
 	tracingCfg := resolveTracingConfig(existingConfig, req.EnableAutoInstrumentation, false)
 	apiCfg := resolveAPIConfig(existingConfig, req.EnableApiKeySecurity, req.CorsConfig, req.EnableOAuthSecurity, req.OauthConfig, false)
-	resilienceTimeoutSeconds := resolveResilienceTimeoutSeconds(existingConfig, req.ResilienceTimeoutSeconds, false)
+	resilienceTimeoutSeconds, err := resolveResilienceTimeoutSeconds(existingConfig, req.ResilienceTimeoutSeconds, false)
+	if err != nil {
+		return err
+	}
 	if err := validateAuthExclusivity(apiCfg); err != nil {
 		return err
 	}
