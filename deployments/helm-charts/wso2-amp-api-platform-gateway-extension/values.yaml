@@ -62,8 +62,7 @@ gateway:
     key: "token"
 
 # APIGateway CR configuration (deployed by gateway-operator)
-# Development mode: relaxes security checks (e.g. auto-generates encryption keys).
-# Set to false in production and configure gateway.controller.encryptionKeys instead.
+# Development mode
 developmentMode: true
 
 # kgateway ingress the gw-route HTTPRoute attaches to. This is the shared

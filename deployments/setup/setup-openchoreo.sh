@@ -515,6 +515,8 @@ else
         --set gateway.values.gateway.controller.image.repository=ghcr.io/wso2/api-platform/gateway-controller \
         --set "gateway.values.gateway.gatewayRuntime.image.tag=${GATEWAY_IMAGE_VERSION}" \
         --set gateway.values.gateway.gatewayRuntime.image.repository=ghcr.io/wso2/api-platform/gateway-runtime \
+        --set gateway.values.gateway.controller.encryptionKeys.enabled=true \
+        --set "gateway.values.gateway.controller.encryptionKeys.secretName=${GATEWAY_ENCRYPTION_SECRET_NAME}" \
         --set gateway.values.gateway.controller.deployment.livenessProbe.httpGet.path=/api/admin/v1/health \
         --set gateway.values.gateway.controller.deployment.livenessProbe.httpGet.port=admin \
         --set gateway.values.gateway.controller.deployment.readinessProbe.httpGet.path=/api/admin/v1/health \

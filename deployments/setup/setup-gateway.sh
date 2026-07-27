@@ -99,6 +99,20 @@ echo "🌐 Installing gateway chart..."
 kubectl create namespace "${GATEWAY_NAMESPACE}" --dry-run=client -o yaml | kubectl apply -f - > /dev/null
 kubectl label namespace "${GATEWAY_NAMESPACE}" "amp.wso2.com/api-platform-gateway=true" --overwrite > /dev/null
 
+GATEWAY_ENCRYPTION_SECRET_NAME="${GATEWAY_ENCRYPTION_SECRET_NAME:-gateway-encryption-keys}"
+GATEWAY_ENCRYPTION_SECRET_KEY="${GATEWAY_ENCRYPTION_SECRET_KEY:-default-aesgcm256-v1.bin}"
+if kubectl get secret "${GATEWAY_ENCRYPTION_SECRET_NAME}" -n "${GATEWAY_NAMESPACE}" &>/dev/null; then
+    echo "⏭️  Gateway encryption key secret '${GATEWAY_ENCRYPTION_SECRET_NAME}' already exists in '${GATEWAY_NAMESPACE}', leaving it untouched."
+else
+    echo "🔑 Provisioning gateway at-rest encryption key in '${GATEWAY_NAMESPACE}'..."
+    key_tmp="$(mktemp)"
+    openssl rand 32 > "${key_tmp}"
+    kubectl create secret generic "${GATEWAY_ENCRYPTION_SECRET_NAME}" -n "${GATEWAY_NAMESPACE}" \
+        "--from-file=${GATEWAY_ENCRYPTION_SECRET_KEY}=${key_tmp}"
+    rm -f "${key_tmp}" # don't leave the plaintext key on disk
+    echo "✅ Gateway encryption key secret created"
+fi
+
 helm "${HELM_ARGS[@]}"
 
 echo "⏳ Waiting for Gateway to be ready..."

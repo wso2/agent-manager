@@ -37,7 +37,7 @@ else
 fi
 
 # WSO2 API Platform / Gateway Operator versions
-GATEWAY_OPERATOR_VERSION="0.10.0"
+GATEWAY_OPERATOR_VERSION="0.10.1"
 # gateway-controller/gateway-runtime 1.1.x reject every RestApi/LlmProvider
 # deployment with a bare 404 despite correctly-configured basic auth (confirmed
 # via a live tcpdump of the operator's request — same 404 across 1.1.0 and
@@ -45,8 +45,12 @@ GATEWAY_OPERATOR_VERSION="0.10.0"
 # reaches Programmed=True). Chart *version* and container *image tag* are
 # pinned separately below — setting chartVersion alone still runs an older
 # default image, so GATEWAY_IMAGE_VERSION must also be threaded through.
-GATEWAY_CHART_VERSION="1.2.0-alpha"
-GATEWAY_IMAGE_VERSION="1.2.0-alpha2"
+GATEWAY_CHART_VERSION="1.2.0-beta"
+GATEWAY_IMAGE_VERSION="1.2.0-beta"
+
+# The 1.2.0-beta gateway chart requires an encryption key to be mounted from a Kubernetes Secret
+GATEWAY_ENCRYPTION_SECRET_NAME="gateway-encryption-keys"
+GATEWAY_ENCRYPTION_SECRET_KEY="default-aesgcm256-v1.bin"
 
 # OpenChoreo community module versions compatible with OpenChoreo ${OPENCHOREO_VERSION}
 OBSERVABILITY_LOGS_OPENSEARCH_VERSION="0.4.1"
@@ -1454,6 +1458,8 @@ helm_install_idempotent \
     --set gateway.values.gateway.controller.image.repository=ghcr.io/wso2/api-platform/gateway-controller \
     --set "gateway.values.gateway.gatewayRuntime.image.tag=${GATEWAY_IMAGE_VERSION}" \
     --set gateway.values.gateway.gatewayRuntime.image.repository=ghcr.io/wso2/api-platform/gateway-runtime \
+    --set gateway.values.gateway.controller.encryptionKeys.enabled=true \
+    --set "gateway.values.gateway.controller.encryptionKeys.secretName=${GATEWAY_ENCRYPTION_SECRET_NAME}" \
     --set gateway.values.gateway.controller.deployment.livenessProbe.httpGet.path=/api/admin/v1/health \
     --set gateway.values.gateway.controller.deployment.livenessProbe.httpGet.port=admin \
     --set gateway.values.gateway.controller.deployment.readinessProbe.httpGet.path=/api/admin/v1/health \
