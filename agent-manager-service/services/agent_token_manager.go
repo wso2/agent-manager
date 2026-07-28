@@ -256,18 +256,12 @@ func (s *agentTokenManagerService) GenerateToken(ctx context.Context, req Genera
 		return nil, fmt.Errorf("org id is required: %w", utils.ErrInvalidInput)
 	}
 
-	// Fetch component UID from OpenChoreo
-	component, err := s.ocClient.GetComponent(ctx, req.OrgName, req.ProjectName, req.AgentName)
-	if err != nil {
-		s.logger.Error("Failed to get agent component", "agentName", req.AgentName, "error", err)
-		return nil, fmt.Errorf("failed to get agent component: %w", err)
-	}
-
 	// Determine which environment to use. Environment is optional on the request:
 	// the token REST endpoint's ?environment= query parameter and the MCP
 	// create_external_agent tool both leave it unset, so an omitted value falls
 	// back to the configured default (JWT_SIGNING_DEFAULT_ENVIRONMENT, "default"
-	// unless overridden) rather than failing the call.
+	// unless overridden) rather than failing the call. Resolved before any
+	// OpenChoreo call so a purely local failure costs no remote round trips.
 	environmentName := strings.TrimSpace(req.Environment)
 	if environmentName == "" {
 		environmentName = strings.TrimSpace(s.config.DefaultEnvironment)
@@ -278,6 +272,13 @@ func (s *agentTokenManagerService) GenerateToken(ctx context.Context, req Genera
 				"environment is configured (set JWT_SIGNING_DEFAULT_ENVIRONMENT)")
 		}
 		s.logger.Debug("No environment supplied; using configured default", "environment", environmentName)
+	}
+
+	// Fetch component UID from OpenChoreo
+	component, err := s.ocClient.GetComponent(ctx, req.OrgName, req.ProjectName, req.AgentName)
+	if err != nil {
+		s.logger.Error("Failed to get agent component", "agentName", req.AgentName, "error", err)
+		return nil, fmt.Errorf("failed to get agent component: %w", err)
 	}
 
 	// Fetch environment UID from OpenChoreo

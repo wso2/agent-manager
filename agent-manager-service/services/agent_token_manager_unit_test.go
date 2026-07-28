@@ -156,15 +156,13 @@ func TestAgentTokenManager_GenerateToken_ValidationGates(t *testing.T) {
 	})
 
 	t.Run("rejects empty environment name when no default is configured", func(t *testing.T) {
-		// Org id passes; GetComponent succeeds; the empty-environment guard fires
-		// before GetEnvironment, so GetEnvironment must stay unconfigured. This is
-		// the only case where an omitted environment is fatal — testJWTConfig
-		// leaves DefaultEnvironment empty, so there is nothing to fall back to.
-		oc := &clientmocks.OpenChoreoClientMock{
-			GetComponentFunc: func(_ context.Context, _, _, _ string) (*models.AgentResponse, error) {
-				return &models.AgentResponse{UUID: "comp-uuid"}, nil
-			},
-		}
+		// This is the only case where an omitted environment is fatal — testJWTConfig
+		// leaves DefaultEnvironment empty, so there is nothing to fall back to. The
+		// environment resolves entirely from the request and local config, so it must
+		// fail before any OpenChoreo I/O: leaving every mock func nil asserts that
+		// (a call on an unconfigured moq func panics), and the call recorders below
+		// state it explicitly.
+		oc := &clientmocks.OpenChoreoClientMock{}
 		svc := newTokenManager(t, oc)
 
 		_, err := svc.GenerateToken(context.Background(), GenerateTokenRequest{
@@ -176,6 +174,12 @@ func TestAgentTokenManager_GenerateToken_ValidationGates(t *testing.T) {
 		})
 
 		require.Error(t, err)
+		assert.Contains(t, err.Error(), "JWT_SIGNING_DEFAULT_ENVIRONMENT",
+			"the error must name the config knob the operator has to set")
+		assert.Empty(t, oc.GetComponentCalls(), "no component lookup before the environment is resolved")
+		assert.Empty(t, oc.GetEnvironmentCalls(), "no environment lookup without a resolved name")
+		assert.Empty(t, oc.GetProjectCalls(), "no project lookup before the environment is resolved")
+		assert.Empty(t, oc.ListOrganizationsCalls(), "no namespace resolution before the environment is resolved")
 	})
 }
 
