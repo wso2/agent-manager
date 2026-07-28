@@ -758,6 +758,19 @@ func (s *agentManagerService) persistInstrumentationConfig(ctx context.Context, 
 // generateAgentAPIKey generates an agent API key (JWT token) for the agent
 // This is a common utility used by both buildpack and docker agent instrumentation
 func (s *agentManagerService) generateAgentAPIKey(ctx context.Context, ouID, projectName, agentName, envName string) (string, error) {
+	// An environment is mandatory here, unlike on GenerateTokenRequest itself. The key is
+	// minted per environment and stored at an env-scoped KV path, so an empty name would
+	// both mis-scope the token's environment_uid claim and collapse the secret to the
+	// org-level path (SecretLocation skips the segment when EnvironmentName is empty).
+	// The token service's fallback to the configured default environment exists for
+	// callers that genuinely have none — external agents, the token REST endpoint. A
+	// deploy-shaped caller reaching here without one is an upstream bug (e.g. a swallowed
+	// GetProjectDeploymentPipeline error) and must fail loudly rather than be papered over.
+	if strings.TrimSpace(envName) == "" {
+		s.logger.Error("Cannot generate agent API key without an environment", "agentName", agentName, "projectName", projectName)
+		return "", fmt.Errorf("%w: environment name is required to generate an agent API key", utils.ErrInvalidInput)
+	}
+
 	// Extract OrgId from the caller's JWT claims
 	callerClaims := jwtassertion.GetTokenClaims(ctx)
 	if callerClaims == nil || callerClaims.OuId == "" {

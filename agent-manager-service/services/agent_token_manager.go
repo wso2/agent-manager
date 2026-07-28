@@ -264,6 +264,12 @@ func (s *agentTokenManagerService) GenerateToken(ctx context.Context, req Genera
 	// OpenChoreo call so a purely local failure costs no remote round trips.
 	environmentName := strings.TrimSpace(req.Environment)
 	if environmentName == "" {
+		if req.Environment != "" {
+			// Supplied but blank (e.g. ?environment=%20) is caller error, not an omitted
+			// field: silently substituting the default would scope the token to an
+			// environment other than the one the caller named.
+			return nil, fmt.Errorf("%w: environment name is blank", utils.ErrInvalidInput)
+		}
 		environmentName = strings.TrimSpace(s.config.DefaultEnvironment)
 		if environmentName == "" {
 			// Server-side misconfiguration, not bad caller input: the config loader
@@ -281,11 +287,15 @@ func (s *agentTokenManagerService) GenerateToken(ctx context.Context, req Genera
 		return nil, fmt.Errorf("failed to get agent component: %w", err)
 	}
 
-	// Fetch environment UID from OpenChoreo
+	// Fetch environment UID from OpenChoreo. The client reports a 404 as the generic
+	// utils.ErrNotFound, which is a different sentinel from the utils.ErrEnvironmentNotFound
+	// the token controller maps to 404 — translate so a missing environment (now the
+	// common case, since an omitted environment resolves to a configured default that
+	// may not exist in this install) surfaces as 404 rather than an opaque 500.
 	environment, err := s.ocClient.GetEnvironment(ctx, req.OrgName, environmentName)
 	if err != nil {
 		s.logger.Error("Failed to get environment", "environment", environmentName, "error", err)
-		return nil, fmt.Errorf("failed to get environment: %w", err)
+		return nil, fmt.Errorf("failed to get environment %q: %w", environmentName, translateEnvironmentError(err))
 	}
 
 	// Fetch project UID

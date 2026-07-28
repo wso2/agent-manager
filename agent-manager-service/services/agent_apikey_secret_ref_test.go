@@ -26,6 +26,7 @@ import (
 	"github.com/wso2/agent-manager/agent-manager-service/clients/clientmocks"
 	"github.com/wso2/agent-manager/agent-manager-service/clients/openchoreosvc/client"
 	"github.com/wso2/agent-manager/agent-manager-service/clients/secretmanagersvc"
+	"github.com/wso2/agent-manager/agent-manager-service/utils"
 )
 
 func TestInjectAgentAPIKeySecretRef_AddsEntry(t *testing.T) {
@@ -84,4 +85,24 @@ func TestResolveAgentAPIKeySecretRef_ReturnsPerEnvRemoteRef(t *testing.T) {
 	require.Len(t, ocClient.GetSecretReferenceCalls(), 1)
 	expectedName := agentAPIKeySecretLocation("org", "proj", "agent", "production").SecretRefName()
 	assert.Equal(t, expectedName, ocClient.GetSecretReferenceCalls()[0].SecretRefName)
+}
+
+// generateAgentAPIKey must refuse an empty environment. The token service itself treats
+// GenerateTokenRequest.Environment as optional (falling back to the configured default for
+// external agents and the token REST endpoint), so this guard is what keeps a deploy-shaped
+// caller that lost its environment — e.g. agent creation swallowing a
+// GetProjectDeploymentPipeline error, leaving findLowestEnvironment empty — from silently
+// minting a token scoped to the wrong environment and writing its API key to the org-level
+// KV path instead of the per-environment one.
+func TestGenerateAgentAPIKey_RequiresEnvironment(t *testing.T) {
+	for _, envName := range []string{"", "   "} {
+		// Every collaborator is nil: the guard must fire before any of them is touched,
+		// so a regression shows up as a panic rather than a passing test.
+		s := &agentManagerService{logger: discardLogger()}
+
+		_, err := s.generateAgentAPIKey(context.Background(), "org", "proj", "agent", envName)
+
+		require.Error(t, err, "empty environment %q must be rejected", envName)
+		assert.ErrorIs(t, err, utils.ErrInvalidInput)
+	}
 }

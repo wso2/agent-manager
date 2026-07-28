@@ -45,7 +45,9 @@ JWT_SIGNING_PUBLIC_KEYS_CONFIG=./keys/public-keys-config.json
 # Other settings
 JWT_SIGNING_DEFAULT_EXPIRY=8760h
 JWT_SIGNING_ISSUER=agent-manager-service
-JWT_SIGNING_DEFAULT_ENVIRONMENT=development
+# Environment used for token claims when the caller does not name one. It must be an
+# environment that actually exists in this install — the shipped charts create "default".
+JWT_SIGNING_DEFAULT_ENVIRONMENT=default
 ```
 
 Create `public-keys-config.json`:

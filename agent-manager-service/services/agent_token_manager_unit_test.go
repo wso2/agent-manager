@@ -33,6 +33,7 @@ package services
 import (
 	"context"
 	"errors"
+	"fmt"
 	"os"
 	"testing"
 
@@ -419,6 +420,40 @@ func TestAgentTokenManager_GenerateToken_DefaultEnvironment(t *testing.T) {
 
 		require.NoError(t, err)
 		assert.Equal(t, "staging", lookedUp)
+	})
+
+	t.Run("blank-but-supplied environment is rejected, not defaulted", func(t *testing.T) {
+		// A caller that names an environment gets that environment or an error — never a
+		// silent substitution. Guards ?environment=%20 on the token REST endpoint, which
+		// passes the raw query value through.
+		oc := &clientmocks.OpenChoreoClientMock{}
+		svc := newTokenManagerWithConfig(t, oc, cfg)
+		req := base
+		req.Environment = "   "
+
+		_, err := svc.GenerateToken(context.Background(), req)
+
+		assert.ErrorIs(t, err, utils.ErrInvalidInput)
+		assert.Empty(t, oc.GetEnvironmentCalls(), "a blank environment must not be resolved against the default")
+	})
+
+	t.Run("missing environment maps to ErrEnvironmentNotFound", func(t *testing.T) {
+		// The OpenChoreo client reports a 404 as the generic utils.ErrNotFound; the token
+		// controller only maps utils.ErrEnvironmentNotFound to a 404 response. Without the
+		// translation a configured default that does not exist in this install would
+		// surface as an opaque 500.
+		oc := fullClientMock("comp-uuid", "env-uuid", "proj-uuid")
+		oc.GetEnvironmentFunc = func(_ context.Context, _, _ string) (*models.EnvironmentResponse, error) {
+			return nil, fmt.Errorf("%w: environment not found", utils.ErrNotFound)
+		}
+		svc := newTokenManagerWithConfig(t, oc, cfg)
+
+		_, err := svc.GenerateToken(context.Background(), base)
+
+		require.Error(t, err)
+		assert.ErrorIs(t, err, utils.ErrEnvironmentNotFound,
+			"a 404 from GetEnvironment must reach the controller as ErrEnvironmentNotFound")
+		assert.Contains(t, err.Error(), "default", "the error must name the environment that was not found")
 	})
 }
 
