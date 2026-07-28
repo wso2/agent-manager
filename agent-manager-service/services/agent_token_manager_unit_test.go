@@ -66,9 +66,21 @@ func testJWTConfig() config.JWTSigningConfig {
 // signing config. It skips the test if the signing keys are not present (the
 // unit-test runner generates them; a bare `go test` without gen_keys.sh would
 // otherwise fail with an unrelated file-not-found).
+//
+// testJWTConfig leaves DefaultEnvironment empty, so services built here have no
+// configured fallback environment — use newTokenManagerWithConfig to exercise
+// that fallback.
 func newTokenManager(t *testing.T, oc *clientmocks.OpenChoreoClientMock) AgentTokenManagerService {
 	t.Helper()
-	cfg := testJWTConfig()
+	return newTokenManagerWithConfig(t, oc, testJWTConfig())
+}
+
+// newTokenManagerWithConfig is newTokenManager with a caller-supplied signing
+// config, for asserting config-driven defaults.
+func newTokenManagerWithConfig(
+	t *testing.T, oc *clientmocks.OpenChoreoClientMock, cfg config.JWTSigningConfig,
+) AgentTokenManagerService {
+	t.Helper()
 	if _, err := os.Stat(cfg.PrivateKeyPath); err != nil {
 		t.Skipf("signing keys not present (%v); run scripts/gen_keys.sh", err)
 	}
@@ -143,9 +155,11 @@ func TestAgentTokenManager_GenerateToken_ValidationGates(t *testing.T) {
 		assert.ErrorIs(t, err, utils.ErrInvalidInput)
 	})
 
-	t.Run("rejects empty environment name", func(t *testing.T) {
+	t.Run("rejects empty environment name when no default is configured", func(t *testing.T) {
 		// Org id passes; GetComponent succeeds; the empty-environment guard fires
-		// before GetEnvironment, so GetEnvironment must stay unconfigured.
+		// before GetEnvironment, so GetEnvironment must stay unconfigured. This is
+		// the only case where an omitted environment is fatal — testJWTConfig
+		// leaves DefaultEnvironment empty, so there is nothing to fall back to.
 		oc := &clientmocks.OpenChoreoClientMock{
 			GetComponentFunc: func(_ context.Context, _, _, _ string) (*models.AgentResponse, error) {
 				return &models.AgentResponse{UUID: "comp-uuid"}, nil
@@ -346,6 +360,62 @@ func TestAgentTokenManager_GenerateToken_DefaultExpiry(t *testing.T) {
 	require.NoError(t, err)
 	require.NotNil(t, resp)
 	assert.NotEmpty(t, resp.Token)
+}
+
+func TestAgentTokenManager_GenerateToken_DefaultEnvironment(t *testing.T) {
+	// GenerateTokenRequest.Environment is documented as optional, falling back to
+	// the configured default (JWT_SIGNING_DEFAULT_ENVIRONMENT). Callers rely on
+	// that: the MCP create_external_agent tool always passes an empty
+	// environment, and the token REST endpoint's ?environment= query parameter is
+	// optional. Regression test for #1415, where an omitted environment failed
+	// outright with "environment name cannot be empty".
+	newMock := func(seen *string) *clientmocks.OpenChoreoClientMock {
+		oc := fullClientMock("comp-uuid", "env-uuid", "proj-uuid")
+		oc.GetEnvironmentFunc = func(_ context.Context, _, environmentName string) (*models.EnvironmentResponse, error) {
+			*seen = environmentName
+			return &models.EnvironmentResponse{UUID: "env-uuid"}, nil
+		}
+		return oc
+	}
+
+	base := GenerateTokenRequest{
+		OrgName:     "acme",
+		ProjectName: "proj",
+		AgentName:   "agent",
+		OrgId:       "org-123",
+		ExpiresIn:   "1h",
+	}
+
+	cfg := testJWTConfig()
+	cfg.DefaultEnvironment = "default"
+
+	t.Run("omitted environment falls back to the configured default", func(t *testing.T) {
+		var lookedUp string
+		svc := newTokenManagerWithConfig(t, newMock(&lookedUp), cfg)
+
+		resp, err := svc.GenerateToken(context.Background(), base)
+
+		require.NoError(t, err)
+		require.NotNil(t, resp)
+		assert.Equal(t, "default", lookedUp, "the configured default environment must be the one looked up")
+
+		claims := &AgentTokenClaims{}
+		_, _, err = jwt.NewParser().ParseUnverified(resp.Token, claims)
+		require.NoError(t, err)
+		assert.Equal(t, "env-uuid", claims.EnvironmentUid, "the resolved environment's UUID must reach the claims")
+	})
+
+	t.Run("request environment wins over the configured default", func(t *testing.T) {
+		var lookedUp string
+		svc := newTokenManagerWithConfig(t, newMock(&lookedUp), cfg)
+		req := base
+		req.Environment = "  staging  " // surrounding whitespace must not defeat the explicit value
+
+		_, err := svc.GenerateToken(context.Background(), req)
+
+		require.NoError(t, err)
+		assert.Equal(t, "staging", lookedUp)
+	})
 }
 
 // -----------------------------------------------------------------------------

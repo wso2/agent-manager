@@ -41,16 +41,6 @@ func resolveOUID(ctx context.Context) string {
 	return ""
 }
 
-// helper function for resolving the environment of the agent
-const defaultEnvName = "default"
-
-func resolveEnv(value string) string {
-	if trimmed := strings.TrimSpace(value); trimmed != "" {
-		return trimmed
-	}
-	return defaultEnvName
-}
-
 // helper functions  that build JSON Schema snippets
 
 func createSchema(properties map[string]any, required []string) map[string]any {

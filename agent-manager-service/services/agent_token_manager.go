@@ -29,6 +29,7 @@ import (
 	"math/big"
 	"os"
 	"path/filepath"
+	"strings"
 	"sync"
 	"time"
 
@@ -262,10 +263,21 @@ func (s *agentTokenManagerService) GenerateToken(ctx context.Context, req Genera
 		return nil, fmt.Errorf("failed to get agent component: %w", err)
 	}
 
-	// Determine which environment to use
-	environmentName := req.Environment
+	// Determine which environment to use. Environment is optional on the request:
+	// the token REST endpoint's ?environment= query parameter and the MCP
+	// create_external_agent tool both leave it unset, so an omitted value falls
+	// back to the configured default (JWT_SIGNING_DEFAULT_ENVIRONMENT, "default"
+	// unless overridden) rather than failing the call.
+	environmentName := strings.TrimSpace(req.Environment)
 	if environmentName == "" {
-		return nil, fmt.Errorf("environment name cannot be empty")
+		environmentName = strings.TrimSpace(s.config.DefaultEnvironment)
+		if environmentName == "" {
+			// Server-side misconfiguration, not bad caller input: the config loader
+			// defaults this to "default", so it is only empty if explicitly blanked.
+			return nil, fmt.Errorf("environment name cannot be empty and no default " +
+				"environment is configured (set JWT_SIGNING_DEFAULT_ENVIRONMENT)")
+		}
+		s.logger.Debug("No environment supplied; using configured default", "environment", environmentName)
 	}
 
 	// Fetch environment UID from OpenChoreo

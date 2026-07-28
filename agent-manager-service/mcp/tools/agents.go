@@ -377,7 +377,10 @@ func createExternalAgent(handler AgentToolsetHandler) func(context.Context, *gom
 			return nil, nil, wrapToolError("create_external_agent", err)
 		}
 
-		// generate a token for the agent that allows instrumentation
+		// generate a token for the agent that allows instrumentation. External agents
+		// run outside the platform, so there is no deployment environment to derive
+		// here: the empty environment routes through the token service's configured
+		// default (JWT_SIGNING_DEFAULT_ENVIRONMENT).
 		expiresIn := "8760h"
 		tokenResp, err := handler.GenerateToken(ctx, ouID, input.ProjectName, agentName, "", expiresIn)
 		if err != nil {
