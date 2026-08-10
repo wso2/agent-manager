@@ -26,6 +26,20 @@
       "watchForChanges": false,
       "disableBuildCache": false
     },
+    {
+      "commandKind": "bulk",
+      "name": "test",
+      "summary": "Run unit tests across all UI projects",
+      "description": "Runs the unit test suite for every project in the monorepo that defines a \"test\" script, skipping projects that don't have one.",
+      "safeForSimultaneousRushProcesses": false,
+      "enableParallelism": true,
+      "ignoreDependencyOrder": true,
+      "ignoreMissingScript": true,
+      "allowWarningsInSuccessfulBuild": false,
+      "incremental": false,
+      "watchForChanges": false,
+      "disableBuildCache": false
+    },
     // {
     //   /**
     //    * (Required) Determines the type of custom command.
