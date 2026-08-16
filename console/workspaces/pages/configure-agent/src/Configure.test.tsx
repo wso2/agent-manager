@@ -55,7 +55,7 @@ const route = "/org/org1/project/proj1/agents/agent1/configure";
 function renderWithRouter() {
   return render(
     <SnackBarProvider>
-      <MemoryRouter initialEntries={[route]} initialIndex={0}>
+      <MemoryRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }} initialEntries={[route]} initialIndex={0}>
         <Routes>
           <Route
             path="/org/:orgId/project/:projectId/agents/:agentId/configure"

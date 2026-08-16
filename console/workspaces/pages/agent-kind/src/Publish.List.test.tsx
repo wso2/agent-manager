@@ -148,7 +148,7 @@ const renderList = (initialEntry = basePath) =>
   render(
     <SnackBarProvider>
       <ConfirmationDialogProvider>
-        <MemoryRouter initialEntries={[initialEntry]}>
+        <MemoryRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }} initialEntries={[initialEntry]}>
           <Routes>
             <Route path={routePath} element={<PublishedList />} />
             <Route path={`${routePath}/create-new-version`} element={<PublishedList />} />

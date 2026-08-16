@@ -97,7 +97,7 @@ const pipelinesResponse = (
 function renderAt(initialPath: string) {
   return render(
     <SnackBarProvider>
-      <MemoryRouter initialEntries={[initialPath]}>
+      <MemoryRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }} initialEntries={[initialPath]}>
         <Routes>
           <Route
             path="/org/:orgId/deployment-pipelines/*"
@@ -177,6 +177,7 @@ describe("DeploymentPipelinesOrganization", () => {
     render(
       <SnackBarProvider>
         <MemoryRouter
+          future={{ v7_startTransition: true, v7_relativeSplatPath: true }}
           initialEntries={[
             { pathname: "/org/org1/deployment-pipelines", search: "?edit=pipeline-a" },
           ]}
