@@ -84,7 +84,9 @@ describe("PermissionTree", () => {
     );
     const catalogCheckbox = getCheckbox("Catalog") as HTMLInputElement;
     expect(catalogCheckbox.checked).toBe(false);
-    expect(catalogCheckbox.indeterminate).toBe(true);
+    // MUI's Checkbox deliberately doesn't set the native `indeterminate` DOM
+    // property (cross-browser inconsistency); it exposes `data-indeterminate` instead.
+    expect(catalogCheckbox.getAttribute("data-indeterminate")).toBe("true");
   });
 
   it("shows a parent fully checked once both its own scope and all descendants are selected", () => {

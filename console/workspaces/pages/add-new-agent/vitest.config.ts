@@ -26,5 +26,15 @@ export default defineConfig({
     globals: true,
     environment: 'jsdom',
     setupFiles: './setupTests.tsx',
+    server: {
+      deps: {
+        // oxygen-ui's dist imports prismjs subpaths without file extensions,
+        // which Node's native ESM loader rejects; route them through Vite's
+        // resolver instead of externalizing them. agent-kind's dist only
+        // declares react as a peerDependency (no local node_modules symlink),
+        // which breaks the same native loader when externalized.
+        inline: ['@wso2/oxygen-ui', '@mui/x-data-grid', 'prismjs', '@agent-management-platform/agent-kind'],
+      },
+    },
   },
 });

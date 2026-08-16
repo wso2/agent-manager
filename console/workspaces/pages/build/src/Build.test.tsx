@@ -16,81 +16,110 @@
  * under the License.
  */
 
-import { render, screen } from '@testing-library/react';
-import { 
-  BuildComponent,
-  BuildProject,
-  BuildOrganization,
-} from './index';
+import { render, screen, fireEvent } from "@testing-library/react";
+import { MemoryRouter, Route, Routes } from "react-router-dom";
+import { SnackBarProvider } from "@agent-management-platform/views";
+import { vi } from "vitest";
+import { BuildComponent } from "./index";
 
-describe('BuildComponent', () => {
-  it('renders without crashing', () => {
-    render(<BuildComponent />);
-    expect(screen.getByText('Build - Component Level')).toBeInTheDocument();
-  });
+// BuildComponent (and AgentBuild/TopCards/BuildTable/BuildPanel/
+// ConfigureBuildDrawer beneath it) call real TanStack Query hooks, which
+// need a QueryClientProvider the real app only supplies at the shell level.
+// Stub the api-client module boundary instead of wiring up react-query here.
+vi.mock("@agent-management-platform/api-client", () => ({
+  useGetAgent: vi.fn(),
+  useGetAgentBuilds: vi.fn(() => ({ data: { builds: [] }, isLoading: false })),
+  useBuildAgent: vi.fn(() => ({ mutate: vi.fn(), isPending: false })),
+  useListCommits: vi.fn(() => ({ data: { commits: [] }, isLoading: false, isError: false })),
+  useUpdateAgentBuildParameters: vi.fn(() => ({ mutate: vi.fn(), isPending: false })),
+  useListGitSecrets: vi.fn(() => ({ data: { secrets: [] }, isLoading: false })),
+}));
 
-  it('renders with custom title', () => {
-    const customTitle = 'Custom Title';
-    render(<BuildComponent title={customTitle} />);
-    expect(screen.getByText(customTitle)).toBeInTheDocument();
-  });
+import { useGetAgent } from "@agent-management-platform/api-client";
 
-  it('renders with custom description', () => {
-    const customDescription = 'Custom Description';
-    render(<BuildComponent description={customDescription} />);
-    expect(screen.getByText(customDescription)).toBeInTheDocument();
-  });
+const mockUseGetAgent = vi.mocked(useGetAgent);
 
-  it('displays component level indicator', () => {
-    render(<BuildComponent />);
-    expect(screen.getByText('Component Level View')).toBeInTheDocument();
-  });
+const makeAgent = (provisioningType: string) => ({
+  displayName: "Agent One",
+  provisioning: {
+    type: provisioningType,
+    repository: { url: "https://github.com/acme/agent-one", branch: "main" },
+  },
 });
 
-describe('BuildProject', () => {
-  it('renders without crashing', () => {
-    render(<BuildProject />);
-    expect(screen.getByText('Build - Project Level')).toBeInTheDocument();
+const route = "/org/org1/project/proj1/agents/agent1/build";
+
+function renderWithRouter() {
+  return render(
+    <SnackBarProvider>
+      <MemoryRouter initialEntries={[route]} initialIndex={0}>
+        <Routes>
+          <Route
+            path="/org/:orgId/project/:projectId/agents/:agentId/build"
+            element={<BuildComponent />}
+          />
+        </Routes>
+      </MemoryRouter>
+    </SnackBarProvider>,
+  );
+}
+
+describe("BuildComponent", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
   });
 
-  it('renders with custom title', () => {
-    const customTitle = 'Custom Project Title';
-    render(<BuildProject title={customTitle} />);
-    expect(screen.getByText(customTitle)).toBeInTheDocument();
+  it("renders the page title and the Trigger a Build action", () => {
+    mockUseGetAgent.mockReturnValue({ data: makeAgent("external") } as unknown as ReturnType<
+      typeof useGetAgent
+    >);
+
+    renderWithRouter();
+
+    expect(screen.getByText("Build")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Trigger a Build" })).toBeInTheDocument();
   });
 
-  it('renders with custom description', () => {
-    const customDescription = 'Custom Project Description';
-    render(<BuildProject description={customDescription} />);
-    expect(screen.getByText(customDescription)).toBeInTheDocument();
+  it("hides the Configure Build action for externally-provisioned agents", () => {
+    mockUseGetAgent.mockReturnValue({ data: makeAgent("external") } as unknown as ReturnType<
+      typeof useGetAgent
+    >);
+
+    renderWithRouter();
+
+    expect(screen.queryByRole("button", { name: "Configure Build" })).not.toBeInTheDocument();
   });
 
-  it('displays project level indicator', () => {
-    render(<BuildProject />);
-    expect(screen.getByText('Project Level View')).toBeInTheDocument();
-  });
-});
+  it("shows the Configure Build action for internally-provisioned agents", () => {
+    mockUseGetAgent.mockReturnValue({ data: makeAgent("internal") } as unknown as ReturnType<
+      typeof useGetAgent
+    >);
 
-describe('BuildOrganization', () => {
-  it('renders without crashing', () => {
-    render(<BuildOrganization />);
-    expect(screen.getByText('Build - Organization Level')).toBeInTheDocument();
+    renderWithRouter();
+
+    expect(screen.getByRole("button", { name: "Configure Build" })).toBeInTheDocument();
   });
 
-  it('renders with custom title', () => {
-    const customTitle = 'Custom Organization Title';
-    render(<BuildOrganization title={customTitle} />);
-    expect(screen.getByText(customTitle)).toBeInTheDocument();
+  it("opens the trigger-build drawer when Trigger a Build is clicked", () => {
+    mockUseGetAgent.mockReturnValue({ data: makeAgent("external") } as unknown as ReturnType<
+      typeof useGetAgent
+    >);
+
+    renderWithRouter();
+    fireEvent.click(screen.getByRole("button", { name: "Trigger a Build" }));
+
+    expect(screen.getByRole("heading", { name: "Trigger Build" })).toBeInTheDocument();
+    expect(screen.getByText(/Build Agent One from a specific commit/)).toBeInTheDocument();
   });
 
-  it('renders with custom description', () => {
-    const customDescription = 'Custom Organization Description';
-    render(<BuildOrganization description={customDescription} />);
-    expect(screen.getByText(customDescription)).toBeInTheDocument();
-  });
+  it("opens the configure-build drawer when Configure Build is clicked", () => {
+    mockUseGetAgent.mockReturnValue({ data: makeAgent("internal") } as unknown as ReturnType<
+      typeof useGetAgent
+    >);
 
-  it('displays organization level indicator', () => {
-    render(<BuildOrganization />);
-    expect(screen.getByText('Organization Level View')).toBeInTheDocument();
+    renderWithRouter();
+    fireEvent.click(screen.getByRole("button", { name: "Configure Build" }));
+
+    expect(screen.getByRole("heading", { name: "Configure Build" })).toBeInTheDocument();
   });
 });

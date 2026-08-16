@@ -16,81 +16,128 @@
  * under the License.
  */
 
-import { render, screen } from '@testing-library/react';
-import { 
-  OverviewComponent,
-  OverviewProject,
-  OverviewOrganization,
-} from './index';
+import { render, screen, fireEvent } from "@testing-library/react";
+import { MemoryRouter, Route, Routes } from "react-router-dom";
+import { SnackBarProvider } from "@agent-management-platform/views";
+import { vi } from "vitest";
+import { OverviewComponent } from "./index";
 
-describe('OverviewComponent', () => {
-  it('renders without crashing', () => {
-    render(<OverviewComponent />);
-    expect(screen.getByText('Overview - Component Level')).toBeInTheDocument();
+// OverviewComponent (via AgentOverview/EditAgentDrawer) calls real TanStack
+// Query hooks, which need a QueryClientProvider the real app only supplies
+// at the shell level. Stub the api-client module boundary instead.
+vi.mock("@agent-management-platform/api-client", () => ({
+  useGetAgent: vi.fn(),
+  useUserDisplayName: vi.fn(() => undefined),
+  useUpdateAgent: vi.fn(() => ({ mutate: vi.fn(), isPending: false })),
+  // Consumed by ExternalAgentOverview via usePipelineEnvironmentsState.
+  useListEnvironments: vi.fn(() => ({ data: undefined, isLoading: false, isError: false })),
+  useGetProject: vi.fn(() => ({ data: undefined, isLoading: false, isError: false })),
+  useListDeploymentPipelines: vi.fn(() => ({ data: undefined, isLoading: false, isError: false })),
+  useListGateways: vi.fn(() => ({ data: undefined, isLoading: false })),
+}));
+
+import { useGetAgent } from "@agent-management-platform/api-client";
+
+const mockUseGetAgent = vi.mocked(useGetAgent);
+
+const route = "/org/org1/project/proj1/agents/agent1";
+
+function renderWithRouter() {
+  return render(
+    <SnackBarProvider>
+      <MemoryRouter initialEntries={[route]} initialIndex={0}>
+        <Routes>
+          <Route
+            path="/org/:orgId/project/:projectId/agents/:agentId"
+            element={<OverviewComponent />}
+          />
+        </Routes>
+      </MemoryRouter>
+    </SnackBarProvider>,
+  );
+}
+
+describe("OverviewComponent", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
   });
 
-  it('renders with custom title', () => {
-    const customTitle = 'Custom Title';
-    render(<OverviewComponent title={customTitle} />);
-    expect(screen.getByText(customTitle)).toBeInTheDocument();
+  it("renders a loading skeleton instead of the agent's details while it's loading", () => {
+    mockUseGetAgent.mockReturnValue({
+      data: undefined,
+      isLoading: true,
+    } as unknown as ReturnType<typeof useGetAgent>);
+
+    renderWithRouter();
+
+    // PageLayout swaps the title and actions for skeletons entirely while loading.
+    expect(screen.queryByText("Agent")).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /Edit Agent/i })).not.toBeInTheDocument();
   });
 
-  it('renders with custom description', () => {
-    const customDescription = 'Custom Description';
-    render(<OverviewComponent description={customDescription} />);
-    expect(screen.getByText(customDescription)).toBeInTheDocument();
+  it("renders the agent's display name and description once loaded", () => {
+    mockUseGetAgent.mockReturnValue({
+      data: {
+        displayName: "My Agent",
+        description: "Does useful things.",
+        provisioning: { type: "external" },
+        createdAt: "2026-01-01T00:00:00Z",
+        createdBy: { id: "user-1", display: "Jane Doe" },
+      },
+      isLoading: false,
+    } as unknown as ReturnType<typeof useGetAgent>);
+
+    renderWithRouter();
+
+    expect(screen.getByText("My Agent")).toBeInTheDocument();
+    expect(screen.getByText("Does useful things.")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /Edit Agent/i })).toBeEnabled();
   });
 
-  it('displays component level indicator', () => {
-    render(<OverviewComponent />);
-    expect(screen.getByText('Component Level View')).toBeInTheDocument();
-  });
-});
+  it("shows the agent's custom tags as chips when it has labels", () => {
+    mockUseGetAgent.mockReturnValue({
+      data: {
+        displayName: "My Agent",
+        provisioning: { type: "external" },
+        labels: { team: "platform" },
+      },
+      isLoading: false,
+    } as unknown as ReturnType<typeof useGetAgent>);
 
-describe('OverviewProject', () => {
-  it('renders without crashing', () => {
-    render(<OverviewProject />);
-    expect(screen.getByText('Overview - Project Level')).toBeInTheDocument();
-  });
+    renderWithRouter();
 
-  it('renders with custom title', () => {
-    const customTitle = 'Custom Project Title';
-    render(<OverviewProject title={customTitle} />);
-    expect(screen.getByText(customTitle)).toBeInTheDocument();
-  });
-
-  it('renders with custom description', () => {
-    const customDescription = 'Custom Project Description';
-    render(<OverviewProject description={customDescription} />);
-    expect(screen.getByText(customDescription)).toBeInTheDocument();
+    // LabelChips renders an aria-hidden off-screen copy of every chip (to
+    // measure natural width) alongside the visible one, so more than one
+    // match for the same label text is expected here.
+    expect(screen.getAllByText("team: platform").length).toBeGreaterThan(0);
   });
 
-  it('displays project level indicator', () => {
-    render(<OverviewProject />);
-    expect(screen.getByText('Project Level View')).toBeInTheDocument();
-  });
-});
+  it("omits the custom tags row when the agent has no labels", () => {
+    mockUseGetAgent.mockReturnValue({
+      data: {
+        displayName: "My Agent",
+        provisioning: { type: "external" },
+      },
+      isLoading: false,
+    } as unknown as ReturnType<typeof useGetAgent>);
 
-describe('OverviewOrganization', () => {
-  it('renders without crashing', () => {
-    render(<OverviewOrganization />);
-    expect(screen.getByText('Overview - Organization Level')).toBeInTheDocument();
-  });
+    renderWithRouter();
 
-  it('renders with custom title', () => {
-    const customTitle = 'Custom Organization Title';
-    render(<OverviewOrganization title={customTitle} />);
-    expect(screen.getByText(customTitle)).toBeInTheDocument();
+    expect(screen.queryByText(/team/)).not.toBeInTheDocument();
   });
 
-  it('renders with custom description', () => {
-    const customDescription = 'Custom Organization Description';
-    render(<OverviewOrganization description={customDescription} />);
-    expect(screen.getByText(customDescription)).toBeInTheDocument();
-  });
+  it("opens the edit agent drawer when Edit Agent is clicked", () => {
+    mockUseGetAgent.mockReturnValue({
+      data: {
+        displayName: "My Agent",
+        provisioning: { type: "external" },
+      },
+      isLoading: false,
+    } as unknown as ReturnType<typeof useGetAgent>);
 
-  it('displays organization level indicator', () => {
-    render(<OverviewOrganization />);
-    expect(screen.getByText('Organization Level View')).toBeInTheDocument();
+    renderWithRouter();
+    fireEvent.click(screen.getByRole("button", { name: /Edit Agent/i }));
+
+    expect(screen.getByRole("heading", { name: "Edit Agent" })).toBeInTheDocument();
   });
 });

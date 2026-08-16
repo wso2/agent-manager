@@ -1274,6 +1274,9 @@ importers:
       '@testing-library/jest-dom':
         specifier: 6.6.3
         version: 6.6.3
+      '@testing-library/react':
+        specifier: 16.3.0
+        version: 16.3.0(@testing-library/dom@10.4.0)(@types/react-dom@19.1.9(@types/react@19.2.14))(@types/react@19.2.14)(react-dom@19.1.1(react@19.1.1))(react@19.1.1)
       '@types/jest':
         specifier: 29.5.14
         version: 29.5.14
@@ -1292,6 +1295,12 @@ importers:
       eslint:
         specifier: 9.36.0
         version: 9.36.0
+      jsdom:
+        specifier: 26.1.0
+        version: 26.1.0
+      react:
+        specifier: 19.1.1
+        version: 19.1.1
       typescript:
         specifier: 5.9.3
         version: 5.9.3
