@@ -71,7 +71,11 @@ const route =
 function renderWithRouter(initialEntry = route) {
   return render(
     <SnackBarProvider>
-      <MemoryRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }} initialEntries={[initialEntry]} initialIndex={0}>
+      <MemoryRouter
+        future={{ v7_startTransition: true, v7_relativeSplatPath: true }}
+        initialEntries={[initialEntry]}
+        initialIndex={0}
+      >
         <Routes>
           <Route
             path="/org/:orgId/project/:projectId/agents/:agentId/environment/:envId/observability/traces"

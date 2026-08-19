@@ -70,7 +70,11 @@ const route = "/org/org1/project/proj1/agents/agent1/environment/env1/tryOut";
 function renderTestPage() {
   return render(
     <SnackBarProvider>
-      <MemoryRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }} initialEntries={[route]} initialIndex={0}>
+      <MemoryRouter
+        future={{ v7_startTransition: true, v7_relativeSplatPath: true }}
+        initialEntries={[route]}
+        initialIndex={0}
+      >
         <Routes>
           <Route
             path="/org/:orgId/project/:projectId/agents/:agentId/environment/:envId/tryOut"

@@ -38,7 +38,10 @@ function renderWithRouter(initialEntry = route) {
   return render(
     <SnackBarProvider>
       <ConfirmationDialogProvider>
-        <MemoryRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }} initialEntries={[initialEntry]}>
+        <MemoryRouter
+          future={{ v7_startTransition: true, v7_relativeSplatPath: true }}
+          initialEntries={[initialEntry]}
+        >
           <Routes>
             <Route path="/org/:orgId/settings/*" element={<SettingsOrganization />} />
           </Routes>

@@ -97,7 +97,10 @@ const pipelinesResponse = (
 function renderAt(initialPath: string) {
   return render(
     <SnackBarProvider>
-      <MemoryRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }} initialEntries={[initialPath]}>
+      <MemoryRouter
+        future={{ v7_startTransition: true, v7_relativeSplatPath: true }}
+        initialEntries={[initialPath]}
+      >
         <Routes>
           <Route
             path="/org/:orgId/deployment-pipelines/*"
