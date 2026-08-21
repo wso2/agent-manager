@@ -142,7 +142,7 @@ func (c *evaluatorController) GetEvaluator(w http.ResponseWriter, r *http.Reques
 	// URL decode the identifier (handles "deepeval%2Ftool-correctness" -> "deepeval/tool-correctness")
 	decodedID, err := url.PathUnescape(evaluatorID)
 	if err != nil {
-		log.Warn("Failed to decode evaluator ID", "evaluatorId", evaluatorID, "error", err)
+		log.Warn("Failed to decode evaluator ID", "evaluator_id", evaluatorID, "error", err)
 		utils.WriteErrorResponse(w, http.StatusBadRequest, "Invalid evaluator ID")
 		return
 	}

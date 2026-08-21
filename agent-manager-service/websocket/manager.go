@@ -133,8 +133,9 @@ func (m *Manager) Register(gatewayID string, transport Transport, authToken stri
 	for _, old := range evicted {
 		if m.hub != nil && old.eventSub != nil {
 			if err := m.hub.Unsubscribe(gatewayID, old.eventSub); err != nil {
+				//nolint:forbidigo // connection registry outlives any single request
 				slog.Error("Failed to unsubscribe evicted connection from EventHub",
-					"gatewayID", gatewayID, "connectionID", old.ConnectionID, "error", err)
+					"gateway_id", gatewayID, "connection_id", old.ConnectionID, "error", err)
 			}
 		}
 		_ = old.Close(1000, "superseded by new connection")
@@ -149,8 +150,9 @@ func (m *Manager) Register(gatewayID string, transport Transport, authToken stri
 	if m.hub != nil {
 		ch, err := m.hub.Subscribe(gatewayID)
 		if err != nil {
+			//nolint:forbidigo // connection registry outlives any single request
 			slog.Error("Failed to subscribe to EventHub for gateway",
-				"gatewayID", gatewayID, "connectionID", connectionID, "error", err)
+				"gateway_id", gatewayID, "connection_id", connectionID, "error", err)
 			m.Unregister(gatewayID, connectionID)
 			return nil, fmt.Errorf("failed to subscribe to EventHub for gateway %s: %w", gatewayID, err)
 		}
@@ -191,16 +193,18 @@ func (m *Manager) forwardEvents(conn *Connection, ch <-chan eventhub.Event) {
 				payload, _ = json.Marshal(evt)
 			}
 			if err := conn.Send(payload); err != nil {
+				//nolint:forbidigo // connection registry outlives any single request
 				slog.Error("Failed to forward EventHub event to gateway",
-					"gatewayID", conn.GatewayID,
-					"connectionID", conn.ConnectionID,
+					"gateway_id", conn.GatewayID,
+					"connection_id", conn.ConnectionID,
 					"event_type", string(evt.EventType),
 					"error", err)
 				conn.DeliveryStats.IncrementFailed(fmt.Sprintf("forward error: %v", err))
 			} else {
+				//nolint:forbidigo // connection registry outlives any single request
 				slog.Debug("Forwarded event to gateway WebSocket",
-					"gatewayID", conn.GatewayID,
-					"connectionID", conn.ConnectionID,
+					"gateway_id", conn.GatewayID,
+					"connection_id", conn.ConnectionID,
 					"event_type", string(evt.EventType),
 					"event_id", evt.EventID)
 				conn.DeliveryStats.IncrementTotalSent()
@@ -255,8 +259,9 @@ func (m *Manager) Unregister(gatewayID, connectionID string) {
 	// goroutine exits cleanly (channel close signals it) rather than leaking until shutdown.
 	if m.hub != nil && removed.eventSub != nil {
 		if err := m.hub.Unsubscribe(gatewayID, removed.eventSub); err != nil {
+			//nolint:forbidigo // connection registry outlives any single request
 			slog.Error("Failed to unsubscribe from EventHub",
-				"gatewayID", gatewayID, "connectionID", connectionID, "error", err)
+				"gateway_id", gatewayID, "connection_id", connectionID, "error", err)
 		}
 	}
 

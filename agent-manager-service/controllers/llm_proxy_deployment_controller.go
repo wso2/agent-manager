@@ -57,90 +57,90 @@ func (c *llmProxyDeploymentController) DeployLLMProxy(w http.ResponseWriter, r *
 	ouID := middleware.OUIDFromRequest(r)
 	proxyID := r.PathValue("id")
 
-	log.Info("DeployLLMProxy: starting", "ouID", ouID, "proxyID", proxyID)
+	log.Info("DeployLLMProxy: starting", "ou_id", ouID, "proxy_id", proxyID)
 
-	log.Info("DeployLLMProxy: organization resolved", "ouID", ouID)
+	log.Info("DeployLLMProxy: organization resolved", "ou_id", ouID)
 
 	if proxyID == "" {
-		log.Error("DeployLLMProxy: proxy ID is empty", "ouID", ouID)
+		log.Warn("DeployLLMProxy: proxy ID is empty", "ou_id", ouID)
 		utils.WriteErrorResponse(w, http.StatusBadRequest, "LLM proxy ID is required")
 		return
 	}
 
 	var req models.DeployAPIRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		log.Error("DeployLLMProxy: failed to decode request", "ouID", ouID, "proxyID", proxyID, "error", err)
+		log.Warn("DeployLLMProxy: failed to decode request", "ou_id", ouID, "proxy_id", proxyID, "error", err)
 		utils.WriteErrorResponse(w, http.StatusBadRequest, "Invalid request body")
 		return
 	}
 
-	log.Info("DeployLLMProxy: request decoded", "ouID", ouID, "proxyID", proxyID,
-		"deploymentName", req.Name, "base", req.Base, "gatewayID", req.GatewayID)
+	log.Info("DeployLLMProxy: request decoded", "ou_id", ouID, "proxy_id", proxyID,
+		"deployment_name", req.Name, "base", req.Base, "gateway_id", req.GatewayID)
 
 	// Validate required fields
 	if req.Name == "" {
-		log.Error("DeployLLMProxy: deployment name is required", "ouID", ouID, "proxyID", proxyID)
+		log.Warn("DeployLLMProxy: deployment name is required", "ou_id", ouID, "proxy_id", proxyID)
 		utils.WriteErrorResponse(w, http.StatusBadRequest, "name is required")
 		return
 	}
 	if req.Base == "" {
-		log.Error("DeployLLMProxy: base is required", "ouID", ouID, "proxyID", proxyID)
+		log.Warn("DeployLLMProxy: base is required", "ou_id", ouID, "proxy_id", proxyID)
 		utils.WriteErrorResponse(w, http.StatusBadRequest, "base is required (use 'current' or a deploymentId)")
 		return
 	}
 	if req.GatewayID == "" {
-		log.Error("DeployLLMProxy: gateway ID is required", "ouID", ouID, "proxyID", proxyID)
+		log.Warn("DeployLLMProxy: gateway ID is required", "ou_id", ouID, "proxy_id", proxyID)
 		utils.WriteErrorResponse(w, http.StatusBadRequest, "gatewayId is required")
 		return
 	}
 
-	log.Info("DeployLLMProxy: calling service layer", "ouID", ouID, "proxyID", proxyID,
-		"deploymentName", req.Name, "gatewayID", req.GatewayID)
+	log.Info("DeployLLMProxy: calling service layer", "ou_id", ouID, "proxy_id", proxyID,
+		"deployment_name", req.Name, "gateway_id", req.GatewayID)
 
-	deployment, err := c.deploymentService.DeployLLMProxy(proxyID, &req, ouID)
+	deployment, err := c.deploymentService.DeployLLMProxy(ctx, proxyID, &req, ouID)
 	if err != nil {
 		switch {
 		case errors.Is(err, utils.ErrLLMProxyNotFound):
-			log.Warn("DeployLLMProxy: proxy not found", "ouID", ouID, "proxyID", proxyID)
+			log.Warn("DeployLLMProxy: proxy not found", "ou_id", ouID, "proxy_id", proxyID)
 			utils.WriteErrorResponse(w, http.StatusNotFound, "LLM proxy not found")
 			return
 		case errors.Is(err, utils.ErrGatewayNotFound):
-			log.Warn("DeployLLMProxy: gateway not found", "ouID", ouID, "proxyID", proxyID, "gatewayID", req.GatewayID)
+			log.Warn("DeployLLMProxy: gateway not found", "ou_id", ouID, "proxy_id", proxyID, "gateway_id", req.GatewayID)
 			utils.WriteErrorResponse(w, http.StatusNotFound, "Gateway not found")
 			return
 		case errors.Is(err, utils.ErrBaseDeploymentNotFound):
-			log.Warn("DeployLLMProxy: base deployment not found", "ouID", ouID, "proxyID", proxyID, "base", req.Base)
+			log.Warn("DeployLLMProxy: base deployment not found", "ou_id", ouID, "proxy_id", proxyID, "base", req.Base)
 			utils.WriteErrorResponse(w, http.StatusNotFound, "Base deployment not found")
 			return
 		case errors.Is(err, utils.ErrDeploymentNameRequired):
-			log.Error("DeployLLMProxy: deployment name required", "ouID", ouID, "proxyID", proxyID)
+			log.Warn("DeployLLMProxy: deployment name required", "ou_id", ouID, "proxy_id", proxyID)
 			utils.WriteErrorResponse(w, http.StatusBadRequest, "Deployment name is required")
 			return
 		case errors.Is(err, utils.ErrDeploymentBaseRequired):
-			log.Error("DeployLLMProxy: base required", "ouID", ouID, "proxyID", proxyID)
+			log.Warn("DeployLLMProxy: base required", "ou_id", ouID, "proxy_id", proxyID)
 			utils.WriteErrorResponse(w, http.StatusBadRequest, "Base is required (use 'current' or a deploymentId)")
 			return
 		case errors.Is(err, utils.ErrDeploymentGatewayIDRequired):
-			log.Error("DeployLLMProxy: gateway ID required", "ouID", ouID, "proxyID", proxyID)
+			log.Warn("DeployLLMProxy: gateway ID required", "ou_id", ouID, "proxy_id", proxyID)
 			utils.WriteErrorResponse(w, http.StatusBadRequest, "Gateway ID is required")
 			return
 		case errors.Is(err, utils.ErrLLMProviderNotFound):
-			log.Error("DeployLLMProxy: referenced provider not found", "ouID", ouID, "proxyID", proxyID, "error", err)
+			log.Warn("DeployLLMProxy: referenced provider not found", "ou_id", ouID, "proxy_id", proxyID, "error", err)
 			utils.WriteErrorResponse(w, http.StatusBadRequest, "Referenced LLM provider not found")
 			return
 		case errors.Is(err, utils.ErrInvalidInput):
-			log.Error("DeployLLMProxy: invalid input", "ouID", ouID, "proxyID", proxyID, "error", err)
+			log.Warn("DeployLLMProxy: invalid input", "ou_id", ouID, "proxy_id", proxyID, "error", err)
 			utils.WriteErrorResponse(w, http.StatusBadRequest, "Invalid input")
 			return
 		default:
-			log.Error("DeployLLMProxy: failed to deploy", "ouID", ouID, "proxyID", proxyID, "error", err)
+			log.Error("DeployLLMProxy: failed to deploy", "ou_id", ouID, "proxy_id", proxyID, "error", err)
 			utils.WriteErrorResponse(w, http.StatusInternalServerError, "Failed to deploy LLM proxy")
 			return
 		}
 	}
 
-	log.Info("DeployLLMProxy: deployment created successfully", "ouID", ouID, "proxyID", proxyID,
-		"deploymentID", deployment.DeploymentID, "gatewayID", req.GatewayID)
+	log.Info("DeployLLMProxy: deployment created successfully", "ou_id", ouID, "proxy_id", proxyID,
+		"deployment_id", deployment.DeploymentID, "gateway_id", req.GatewayID)
 
 	utils.WriteSuccessResponse(w, http.StatusCreated, deployment)
 }
@@ -155,61 +155,61 @@ func (c *llmProxyDeploymentController) UndeployLLMProxyDeployment(w http.Respons
 	deploymentID := r.URL.Query().Get("deploymentId")
 	gatewayID := r.URL.Query().Get("gatewayId")
 
-	log.Info("UndeployLLMProxyDeployment: starting", "ouID", ouID, "proxyID", proxyID,
-		"deploymentID", deploymentID, "gatewayID", gatewayID)
+	log.Info("UndeployLLMProxyDeployment: starting", "ou_id", ouID, "proxy_id", proxyID,
+		"deployment_id", deploymentID, "gateway_id", gatewayID)
 
-	log.Info("UndeployLLMProxyDeployment: organization resolved", "ouID", ouID)
+	log.Info("UndeployLLMProxyDeployment: organization resolved", "ou_id", ouID)
 
 	if proxyID == "" {
-		log.Error("UndeployLLMProxyDeployment: proxy ID is empty", "ouID", ouID)
+		log.Warn("UndeployLLMProxyDeployment: proxy ID is empty", "ou_id", ouID)
 		utils.WriteErrorResponse(w, http.StatusBadRequest, "LLM proxy ID is required")
 		return
 	}
 	if deploymentID == "" {
-		log.Error("UndeployLLMProxyDeployment: deployment ID is empty", "ouID", ouID, "proxyID", proxyID)
+		log.Warn("UndeployLLMProxyDeployment: deployment ID is empty", "ou_id", ouID, "proxy_id", proxyID)
 		utils.WriteErrorResponse(w, http.StatusBadRequest, "deploymentId query parameter is required")
 		return
 	}
 	if gatewayID == "" {
-		log.Error("UndeployLLMProxyDeployment: gateway ID is empty", "ouID", ouID, "proxyID", proxyID)
+		log.Warn("UndeployLLMProxyDeployment: gateway ID is empty", "ou_id", ouID, "proxy_id", proxyID)
 		utils.WriteErrorResponse(w, http.StatusBadRequest, "gatewayId query parameter is required")
 		return
 	}
 
-	log.Info("UndeployLLMProxyDeployment: calling service layer", "ouID", ouID, "proxyID", proxyID,
-		"deploymentID", deploymentID, "gatewayID", gatewayID)
+	log.Info("UndeployLLMProxyDeployment: calling service layer", "ou_id", ouID, "proxy_id", proxyID,
+		"deployment_id", deploymentID, "gateway_id", gatewayID)
 
 	_, err := c.deploymentService.UndeployLLMProxyDeployment(r.Context(), proxyID, deploymentID, gatewayID, ouID)
 	if err != nil {
 		switch {
 		case errors.Is(err, utils.ErrLLMProxyNotFound):
-			log.Warn("UndeployLLMProxyDeployment: proxy not found", "ouID", ouID, "proxyID", proxyID)
+			log.Warn("UndeployLLMProxyDeployment: proxy not found", "ou_id", ouID, "proxy_id", proxyID)
 			utils.WriteErrorResponse(w, http.StatusNotFound, "LLM proxy not found")
 			return
 		case errors.Is(err, utils.ErrDeploymentNotFound):
-			log.Warn("UndeployLLMProxyDeployment: deployment not found", "ouID", ouID, "proxyID", proxyID, "deploymentID", deploymentID)
+			log.Warn("UndeployLLMProxyDeployment: deployment not found", "ou_id", ouID, "proxy_id", proxyID, "deployment_id", deploymentID)
 			utils.WriteErrorResponse(w, http.StatusNotFound, "Deployment not found")
 			return
 		case errors.Is(err, utils.ErrGatewayNotFound):
-			log.Warn("UndeployLLMProxyDeployment: gateway not found", "ouID", ouID, "gatewayID", gatewayID)
+			log.Warn("UndeployLLMProxyDeployment: gateway not found", "ou_id", ouID, "gateway_id", gatewayID)
 			utils.WriteErrorResponse(w, http.StatusNotFound, "Gateway not found")
 			return
 		case errors.Is(err, utils.ErrDeploymentNotActive):
-			log.Warn("UndeployLLMProxyDeployment: deployment not active", "ouID", ouID, "proxyID", proxyID, "deploymentID", deploymentID)
+			log.Warn("UndeployLLMProxyDeployment: deployment not active", "ou_id", ouID, "proxy_id", proxyID, "deployment_id", deploymentID)
 			utils.WriteErrorResponse(w, http.StatusConflict, "No active deployment found for this LLM proxy on the gateway")
 			return
 		case errors.Is(err, utils.ErrGatewayIDMismatch):
-			log.Error("UndeployLLMProxyDeployment: gateway ID mismatch", "ouID", ouID, "proxyID", proxyID, "deploymentID", deploymentID, "gatewayID", gatewayID)
+			log.Warn("UndeployLLMProxyDeployment: gateway ID mismatch", "ou_id", ouID, "proxy_id", proxyID, "deployment_id", deploymentID, "gateway_id", gatewayID)
 			utils.WriteErrorResponse(w, http.StatusBadRequest, "Deployment is bound to a different gateway")
 			return
 		default:
-			log.Error("UndeployLLMProxyDeployment: failed to undeploy", "ouID", ouID, "proxyID", proxyID, "deploymentID", deploymentID, "error", err)
+			log.Error("UndeployLLMProxyDeployment: failed to undeploy", "ou_id", ouID, "proxy_id", proxyID, "deployment_id", deploymentID, "error", err)
 			utils.WriteErrorResponse(w, http.StatusInternalServerError, "Failed to undeploy deployment")
 			return
 		}
 	}
 
-	log.Info("UndeployLLMProxyDeployment: undeployed successfully", "ouID", ouID, "proxyID", proxyID, "deploymentID", deploymentID)
+	log.Info("UndeployLLMProxyDeployment: undeployed successfully", "ou_id", ouID, "proxy_id", proxyID, "deployment_id", deploymentID)
 
 	resp := map[string]string{"message": "LLM proxy undeployed successfully"}
 	utils.WriteSuccessResponse(w, http.StatusOK, resp)
@@ -225,61 +225,61 @@ func (c *llmProxyDeploymentController) RestoreLLMProxyDeployment(w http.Response
 	deploymentID := r.URL.Query().Get("deploymentId")
 	gatewayID := r.URL.Query().Get("gatewayId")
 
-	log.Info("RestoreLLMProxyDeployment: starting", "ouID", ouID, "proxyID", proxyID,
-		"deploymentID", deploymentID, "gatewayID", gatewayID)
+	log.Info("RestoreLLMProxyDeployment: starting", "ou_id", ouID, "proxy_id", proxyID,
+		"deployment_id", deploymentID, "gateway_id", gatewayID)
 
-	log.Info("RestoreLLMProxyDeployment: organization resolved", "ouID", ouID)
+	log.Info("RestoreLLMProxyDeployment: organization resolved", "ou_id", ouID)
 
 	if proxyID == "" {
-		log.Error("RestoreLLMProxyDeployment: proxy ID is empty", "ouID", ouID)
+		log.Warn("RestoreLLMProxyDeployment: proxy ID is empty", "ou_id", ouID)
 		utils.WriteErrorResponse(w, http.StatusBadRequest, "LLM proxy ID is required")
 		return
 	}
 	if deploymentID == "" {
-		log.Error("RestoreLLMProxyDeployment: deployment ID is empty", "ouID", ouID, "proxyID", proxyID)
+		log.Warn("RestoreLLMProxyDeployment: deployment ID is empty", "ou_id", ouID, "proxy_id", proxyID)
 		utils.WriteErrorResponse(w, http.StatusBadRequest, "deploymentId query parameter is required")
 		return
 	}
 	if gatewayID == "" {
-		log.Error("RestoreLLMProxyDeployment: gateway ID is empty", "ouID", ouID, "proxyID", proxyID)
+		log.Warn("RestoreLLMProxyDeployment: gateway ID is empty", "ou_id", ouID, "proxy_id", proxyID)
 		utils.WriteErrorResponse(w, http.StatusBadRequest, "gatewayId query parameter is required")
 		return
 	}
 
-	log.Info("RestoreLLMProxyDeployment: calling service layer", "ouID", ouID, "proxyID", proxyID,
-		"deploymentID", deploymentID, "gatewayID", gatewayID)
+	log.Info("RestoreLLMProxyDeployment: calling service layer", "ou_id", ouID, "proxy_id", proxyID,
+		"deployment_id", deploymentID, "gateway_id", gatewayID)
 
-	deployment, err := c.deploymentService.RestoreLLMProxyDeployment(proxyID, deploymentID, gatewayID, ouID)
+	deployment, err := c.deploymentService.RestoreLLMProxyDeployment(ctx, proxyID, deploymentID, gatewayID, ouID)
 	if err != nil {
 		switch {
 		case errors.Is(err, utils.ErrLLMProxyNotFound):
-			log.Warn("RestoreLLMProxyDeployment: proxy not found", "ouID", ouID, "proxyID", proxyID)
+			log.Warn("RestoreLLMProxyDeployment: proxy not found", "ou_id", ouID, "proxy_id", proxyID)
 			utils.WriteErrorResponse(w, http.StatusNotFound, "LLM proxy not found")
 			return
 		case errors.Is(err, utils.ErrDeploymentNotFound):
-			log.Warn("RestoreLLMProxyDeployment: deployment not found", "ouID", ouID, "proxyID", proxyID, "deploymentID", deploymentID)
+			log.Warn("RestoreLLMProxyDeployment: deployment not found", "ou_id", ouID, "proxy_id", proxyID, "deployment_id", deploymentID)
 			utils.WriteErrorResponse(w, http.StatusNotFound, "Deployment not found")
 			return
 		case errors.Is(err, utils.ErrGatewayNotFound):
-			log.Warn("RestoreLLMProxyDeployment: gateway not found", "ouID", ouID, "gatewayID", gatewayID)
+			log.Warn("RestoreLLMProxyDeployment: gateway not found", "ou_id", ouID, "gateway_id", gatewayID)
 			utils.WriteErrorResponse(w, http.StatusNotFound, "Gateway not found")
 			return
 		case errors.Is(err, utils.ErrDeploymentAlreadyDeployed):
-			log.Warn("RestoreLLMProxyDeployment: deployment already deployed", "ouID", ouID, "proxyID", proxyID, "deploymentID", deploymentID)
+			log.Warn("RestoreLLMProxyDeployment: deployment already deployed", "ou_id", ouID, "proxy_id", proxyID, "deployment_id", deploymentID)
 			utils.WriteErrorResponse(w, http.StatusConflict, "Cannot restore currently deployed deployment")
 			return
 		case errors.Is(err, utils.ErrGatewayIDMismatch):
-			log.Error("RestoreLLMProxyDeployment: gateway ID mismatch", "ouID", ouID, "proxyID", proxyID, "deploymentID", deploymentID, "gatewayID", gatewayID)
+			log.Warn("RestoreLLMProxyDeployment: gateway ID mismatch", "ou_id", ouID, "proxy_id", proxyID, "deployment_id", deploymentID, "gateway_id", gatewayID)
 			utils.WriteErrorResponse(w, http.StatusBadRequest, "Deployment is bound to a different gateway")
 			return
 		default:
-			log.Error("RestoreLLMProxyDeployment: failed to restore", "ouID", ouID, "proxyID", proxyID, "deploymentID", deploymentID, "error", err)
+			log.Error("RestoreLLMProxyDeployment: failed to restore", "ou_id", ouID, "proxy_id", proxyID, "deployment_id", deploymentID, "error", err)
 			utils.WriteErrorResponse(w, http.StatusInternalServerError, "Failed to restore deployment")
 			return
 		}
 	}
 
-	log.Info("RestoreLLMProxyDeployment: restored successfully", "ouID", ouID, "proxyID", proxyID, "deploymentID", deploymentID)
+	log.Info("RestoreLLMProxyDeployment: restored successfully", "ou_id", ouID, "proxy_id", proxyID, "deployment_id", deploymentID)
 
 	utils.WriteSuccessResponse(w, http.StatusOK, deployment)
 }
@@ -291,46 +291,46 @@ func (c *llmProxyDeploymentController) DeleteLLMProxyDeployment(w http.ResponseW
 	proxyID := r.PathValue("id")
 	deploymentID := r.PathValue("deploymentId")
 
-	log.Info("DeleteLLMProxyDeployment: starting", "ouID", ouID, "proxyID", proxyID, "deploymentID", deploymentID)
+	log.Info("DeleteLLMProxyDeployment: starting", "ou_id", ouID, "proxy_id", proxyID, "deployment_id", deploymentID)
 
-	log.Info("DeleteLLMProxyDeployment: organization resolved", "ouID", ouID)
+	log.Info("DeleteLLMProxyDeployment: organization resolved", "ou_id", ouID)
 
 	if proxyID == "" {
-		log.Error("DeleteLLMProxyDeployment: proxy ID is empty", "ouID", ouID)
+		log.Warn("DeleteLLMProxyDeployment: proxy ID is empty", "ou_id", ouID)
 		utils.WriteErrorResponse(w, http.StatusBadRequest, "LLM proxy ID is required")
 		return
 	}
 	if deploymentID == "" {
-		log.Error("DeleteLLMProxyDeployment: deployment ID is empty", "ouID", ouID, "proxyID", proxyID)
+		log.Warn("DeleteLLMProxyDeployment: deployment ID is empty", "ou_id", ouID, "proxy_id", proxyID)
 		utils.WriteErrorResponse(w, http.StatusBadRequest, "Deployment ID is required")
 		return
 	}
 
-	log.Info("DeleteLLMProxyDeployment: calling service layer", "ouID", ouID, "proxyID", proxyID, "deploymentID", deploymentID)
+	log.Info("DeleteLLMProxyDeployment: calling service layer", "ou_id", ouID, "proxy_id", proxyID, "deployment_id", deploymentID)
 
 	err := c.deploymentService.DeleteLLMProxyDeployment(proxyID, deploymentID, ouID)
 	if err != nil {
 		switch {
 		case errors.Is(err, utils.ErrLLMProxyNotFound):
-			log.Warn("DeleteLLMProxyDeployment: proxy not found", "ouID", ouID, "proxyID", proxyID)
+			log.Warn("DeleteLLMProxyDeployment: proxy not found", "ou_id", ouID, "proxy_id", proxyID)
 			utils.WriteErrorResponse(w, http.StatusNotFound, "LLM proxy not found")
 			return
 		case errors.Is(err, utils.ErrDeploymentNotFound):
-			log.Warn("DeleteLLMProxyDeployment: deployment not found", "ouID", ouID, "proxyID", proxyID, "deploymentID", deploymentID)
+			log.Warn("DeleteLLMProxyDeployment: deployment not found", "ou_id", ouID, "proxy_id", proxyID, "deployment_id", deploymentID)
 			utils.WriteErrorResponse(w, http.StatusNotFound, "Deployment not found")
 			return
 		case errors.Is(err, utils.ErrDeploymentIsDeployed):
-			log.Warn("DeleteLLMProxyDeployment: deployment is active", "ouID", ouID, "proxyID", proxyID, "deploymentID", deploymentID)
+			log.Warn("DeleteLLMProxyDeployment: deployment is active", "ou_id", ouID, "proxy_id", proxyID, "deployment_id", deploymentID)
 			utils.WriteErrorResponse(w, http.StatusConflict, "Cannot delete an active deployment - undeploy it first")
 			return
 		default:
-			log.Error("DeleteLLMProxyDeployment: failed to delete", "ouID", ouID, "proxyID", proxyID, "deploymentID", deploymentID, "error", err)
+			log.Error("DeleteLLMProxyDeployment: failed to delete", "ou_id", ouID, "proxy_id", proxyID, "deployment_id", deploymentID, "error", err)
 			utils.WriteErrorResponse(w, http.StatusInternalServerError, "Failed to delete deployment")
 			return
 		}
 	}
 
-	log.Info("DeleteLLMProxyDeployment: deleted successfully", "ouID", ouID, "proxyID", proxyID, "deploymentID", deploymentID)
+	log.Info("DeleteLLMProxyDeployment: deleted successfully", "ou_id", ouID, "proxy_id", proxyID, "deployment_id", deploymentID)
 
 	utils.WriteSuccessResponse(w, http.StatusNoContent, struct{}{})
 }
@@ -342,42 +342,42 @@ func (c *llmProxyDeploymentController) GetLLMProxyDeployment(w http.ResponseWrit
 	proxyID := r.PathValue("id")
 	deploymentID := r.PathValue("deploymentId")
 
-	log.Info("GetLLMProxyDeployment: starting", "ouID", ouID, "proxyID", proxyID, "deploymentID", deploymentID)
+	log.Info("GetLLMProxyDeployment: starting", "ou_id", ouID, "proxy_id", proxyID, "deployment_id", deploymentID)
 
-	log.Info("GetLLMProxyDeployment: organization resolved", "ouID", ouID)
+	log.Info("GetLLMProxyDeployment: organization resolved", "ou_id", ouID)
 
 	if proxyID == "" {
-		log.Error("GetLLMProxyDeployment: proxy ID is empty", "ouID", ouID)
+		log.Warn("GetLLMProxyDeployment: proxy ID is empty", "ou_id", ouID)
 		utils.WriteErrorResponse(w, http.StatusBadRequest, "LLM proxy ID is required")
 		return
 	}
 	if deploymentID == "" {
-		log.Error("GetLLMProxyDeployment: deployment ID is empty", "ouID", ouID, "proxyID", proxyID)
+		log.Warn("GetLLMProxyDeployment: deployment ID is empty", "ou_id", ouID, "proxy_id", proxyID)
 		utils.WriteErrorResponse(w, http.StatusBadRequest, "Deployment ID is required")
 		return
 	}
 
-	log.Info("GetLLMProxyDeployment: calling service layer", "ouID", ouID, "proxyID", proxyID, "deploymentID", deploymentID)
+	log.Info("GetLLMProxyDeployment: calling service layer", "ou_id", ouID, "proxy_id", proxyID, "deployment_id", deploymentID)
 
 	deployment, err := c.deploymentService.GetLLMProxyDeployment(proxyID, deploymentID, ouID)
 	if err != nil {
 		switch {
 		case errors.Is(err, utils.ErrLLMProxyNotFound):
-			log.Warn("GetLLMProxyDeployment: proxy not found", "ouID", ouID, "proxyID", proxyID)
+			log.Warn("GetLLMProxyDeployment: proxy not found", "ou_id", ouID, "proxy_id", proxyID)
 			utils.WriteErrorResponse(w, http.StatusNotFound, "LLM proxy not found")
 			return
 		case errors.Is(err, utils.ErrDeploymentNotFound):
-			log.Warn("GetLLMProxyDeployment: deployment not found", "ouID", ouID, "proxyID", proxyID, "deploymentID", deploymentID)
+			log.Warn("GetLLMProxyDeployment: deployment not found", "ou_id", ouID, "proxy_id", proxyID, "deployment_id", deploymentID)
 			utils.WriteErrorResponse(w, http.StatusNotFound, "Deployment not found")
 			return
 		default:
-			log.Error("GetLLMProxyDeployment: failed to get deployment", "ouID", ouID, "proxyID", proxyID, "deploymentID", deploymentID, "error", err)
+			log.Error("GetLLMProxyDeployment: failed to get deployment", "ou_id", ouID, "proxy_id", proxyID, "deployment_id", deploymentID, "error", err)
 			utils.WriteErrorResponse(w, http.StatusInternalServerError, "Failed to retrieve deployment")
 			return
 		}
 	}
 
-	log.Info("GetLLMProxyDeployment: retrieved successfully", "ouID", ouID, "proxyID", proxyID, "deploymentID", deploymentID)
+	log.Info("GetLLMProxyDeployment: retrieved successfully", "ou_id", ouID, "proxy_id", proxyID, "deployment_id", deploymentID)
 
 	utils.WriteSuccessResponse(w, http.StatusOK, deployment)
 }
@@ -392,13 +392,13 @@ func (c *llmProxyDeploymentController) GetLLMProxyDeployments(w http.ResponseWri
 	gatewayID := r.URL.Query().Get("gatewayId")
 	status := r.URL.Query().Get("status")
 
-	log.Info("GetLLMProxyDeployments: starting", "ouID", ouID, "proxyID", proxyID,
-		"gatewayID", gatewayID, "status", status)
+	log.Info("GetLLMProxyDeployments: starting", "ou_id", ouID, "proxy_id", proxyID,
+		"gateway_id", gatewayID, "status", status)
 
-	log.Info("GetLLMProxyDeployments: organization resolved", "ouID", ouID)
+	log.Info("GetLLMProxyDeployments: organization resolved", "ou_id", ouID)
 
 	if proxyID == "" {
-		log.Error("GetLLMProxyDeployments: proxy ID is empty", "ouID", ouID)
+		log.Warn("GetLLMProxyDeployments: proxy ID is empty", "ou_id", ouID)
 		utils.WriteErrorResponse(w, http.StatusBadRequest, "LLM proxy ID is required")
 		return
 	}
@@ -412,28 +412,28 @@ func (c *llmProxyDeploymentController) GetLLMProxyDeployments(w http.ResponseWri
 		statusPtr = &status
 	}
 
-	log.Info("GetLLMProxyDeployments: calling service layer", "ouID", ouID, "proxyID", proxyID,
-		"hasGatewayFilter", gatewayIDPtr != nil, "hasStatusFilter", statusPtr != nil)
+	log.Info("GetLLMProxyDeployments: calling service layer", "ou_id", ouID, "proxy_id", proxyID,
+		"has_gateway_filter", gatewayIDPtr != nil, "has_status_filter", statusPtr != nil)
 
 	deployments, err := c.deploymentService.GetLLMProxyDeployments(proxyID, ouID, gatewayIDPtr, statusPtr)
 	if err != nil {
 		switch {
 		case errors.Is(err, utils.ErrLLMProxyNotFound):
-			log.Warn("GetLLMProxyDeployments: proxy not found", "ouID", ouID, "proxyID", proxyID)
+			log.Warn("GetLLMProxyDeployments: proxy not found", "ou_id", ouID, "proxy_id", proxyID)
 			utils.WriteErrorResponse(w, http.StatusNotFound, "LLM proxy not found")
 			return
 		case errors.Is(err, utils.ErrInvalidDeploymentStatus):
-			log.Error("GetLLMProxyDeployments: invalid status", "ouID", ouID, "proxyID", proxyID, "status", status)
+			log.Warn("GetLLMProxyDeployments: invalid status", "ou_id", ouID, "proxy_id", proxyID, "status", status)
 			utils.WriteErrorResponse(w, http.StatusBadRequest, "Invalid deployment status")
 			return
 		default:
-			log.Error("GetLLMProxyDeployments: failed to get deployments", "ouID", ouID, "proxyID", proxyID, "error", err)
+			log.Error("GetLLMProxyDeployments: failed to get deployments", "ou_id", ouID, "proxy_id", proxyID, "error", err)
 			utils.WriteErrorResponse(w, http.StatusInternalServerError, "Failed to retrieve deployments")
 			return
 		}
 	}
 
-	log.Info("GetLLMProxyDeployments: retrieved successfully", "ouID", ouID, "proxyID", proxyID, "count", len(deployments))
+	log.Info("GetLLMProxyDeployments: retrieved successfully", "ou_id", ouID, "proxy_id", proxyID, "count", len(deployments))
 
 	utils.WriteSuccessResponse(w, http.StatusOK, deployments)
 }

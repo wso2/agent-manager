@@ -98,7 +98,7 @@ func (c *monitorScoresPublisherController) PublishScores(w http.ResponseWriter, 
 		audit.Result(publishErr),
 	)
 	if publishErr != nil {
-		log.Error("Failed to publish scores", "monitorId", monitorID, "runId", runID, "error", publishErr)
+		log.Warn("Failed to publish scores", "monitor_id", monitorID, "run_id", runID, "error", publishErr)
 		switch {
 		case errors.Is(publishErr, utils.ErrForbidden):
 			utils.WriteErrorResponse(w, http.StatusForbidden, "insufficient permissions")

@@ -240,7 +240,7 @@ func (s *MCPProxyService) Create(ctx context.Context, orgUUID, createdBy string,
 		if mcpDeployErrorIsFatal(err) {
 			return nil, fmt.Errorf("%w: %w", utils.ErrInvalidInput, err)
 		}
-		s.logger.Warn("Failed to deploy one or more MCP proxy endpoint artifacts", "proxyID", created.UUID, "error", err)
+		s.logger.Warn("Failed to deploy one or more MCP proxy endpoint artifacts", "proxy_id", created.UUID, "error", err)
 	}
 	return convertModelMCPProxyToSpec(created), nil
 }
@@ -375,7 +375,7 @@ func (s *MCPProxyService) Get(ctx context.Context, orgUUID, proxyID string) (*mo
 					gatewayIDs, err := s.deploymentRepo.GetDeployedGatewaysByProvider(artifactUUID, orgUUID)
 					if err != nil {
 						s.logger.Warn("Failed to list deployed gateways for MCP proxy endpoint environment",
-							"proxyID", proxy.UUID, "endpoint", endpointDTO.ID, "environment", envBinding.EnvironmentUUID, "ouID", orgUUID, "error", err)
+							"proxy_id", proxy.UUID, "endpoint", endpointDTO.ID, "environment", envBinding.EnvironmentUUID, "ou_id", orgUUID, "error", err)
 					} else if len(gatewayIDs) > 0 {
 						status = models.MCPDeploymentStatusDeployed
 						for _, gatewayID := range gatewayIDs {
@@ -541,7 +541,7 @@ func (s *MCPProxyService) Update(ctx context.Context, orgUUID, proxyID string, r
 	}
 	if len(removedArtifacts) > 0 {
 		if err := s.deleteMCPProxyEnvironmentArtifacts(ctx, removedArtifacts, orgUUID); err != nil {
-			s.logger.Warn("Failed to delete removed MCP proxy endpoint artifacts", "proxyID", updated.UUID, "error", err)
+			s.logger.Warn("Failed to delete removed MCP proxy endpoint artifacts", "proxy_id", updated.UUID, "error", err)
 		}
 	}
 
@@ -565,7 +565,7 @@ func (s *MCPProxyService) Update(ctx context.Context, orgUUID, proxyID string, r
 		if mcpDeployErrorIsFatal(deployErr) {
 			return nil, fmt.Errorf("%w: %w", utils.ErrInvalidInput, deployErr)
 		}
-		s.logger.Warn("Failed to redeploy one or more MCP proxy endpoint artifacts", "proxyID", updated.UUID, "error", deployErr)
+		s.logger.Warn("Failed to redeploy one or more MCP proxy endpoint artifacts", "proxy_id", updated.UUID, "error", deployErr)
 	}
 
 	return convertModelMCPProxyToSpec(updated), nil
@@ -582,7 +582,7 @@ func (s *MCPProxyService) Update(ctx context.Context, orgUUID, proxyID string, r
 func (s *MCPProxyService) refreshAgentsBoundToProxy(ctx context.Context, proxy *models.MCPProxy, orgUUID string) {
 	mappings, err := s.envMCPMappingRepo.ListByMCPProxy(ctx, proxy.UUID)
 	if err != nil {
-		s.logger.Warn("Failed to list agent bindings for scope refresh", "proxyUUID", proxy.UUID, "error", err)
+		s.logger.Warn("Failed to list agent bindings for scope refresh", "proxy_uuid", proxy.UUID, "error", err)
 		return
 	}
 	if len(mappings) == 0 {
@@ -591,7 +591,7 @@ func (s *MCPProxyService) refreshAgentsBoundToProxy(ctx context.Context, proxy *
 
 	envs, err := s.infraManager.ListOrgEnvironments(ctx, orgUUID)
 	if err != nil {
-		s.logger.Warn("Failed to list environments for scope refresh", "proxyUUID", proxy.UUID, "error", err)
+		s.logger.Warn("Failed to list environments for scope refresh", "proxy_uuid", proxy.UUID, "error", err)
 		return
 	}
 	uuidToEnvName := make(map[string]string, len(envs))
@@ -607,12 +607,12 @@ func (s *MCPProxyService) refreshAgentsBoundToProxy(ctx context.Context, proxy *
 		config, err := s.agentConfigRepo.GetByUUID(ctx, mapping.ConfigUUID, orgUUID)
 		if err != nil {
 			s.logger.Warn("Failed to resolve agent configuration for scope refresh",
-				"proxyUUID", proxy.UUID, "configUUID", mapping.ConfigUUID, "error", err)
+				"proxy_uuid", proxy.UUID, "config_uuid", mapping.ConfigUUID, "error", err)
 			continue
 		}
 		if err := s.agentIdentityInjection.ReconcileForEnvironment(ctx, orgUUID, config.ProjectName, config.AgentID, envName); err != nil {
 			s.logger.Warn("Failed to refresh agent identity credentials after MCP proxy change",
-				"agentName", config.AgentID, "envName", envName, "error", err)
+				"agent_name", config.AgentID, "env_name", envName, "error", err)
 		}
 	}
 }
@@ -665,7 +665,7 @@ func (s *MCPProxyService) Delete(ctx context.Context, orgUUID, orgName, proxyID 
 		}
 	}
 	if err := s.deleteMCPProxyEnvironmentArtifacts(ctx, artifactUUIDs, orgUUID); err != nil {
-		s.logger.Warn("Failed to delete MCP proxy endpoint artifacts during proxy delete", "proxyID", proxy.UUID, "error", err)
+		s.logger.Warn("Failed to delete MCP proxy endpoint artifacts during proxy delete", "proxy_id", proxy.UUID, "error", err)
 	}
 
 	if err := s.repo.Delete(ctx, handle, orgUUID); err != nil {
@@ -1338,7 +1338,7 @@ func (s *MCPProxyService) anchorGatewaysForEnvironment(orgUUID string, artifactU
 	deployed, err := s.deploymentRepo.GetDeployedGatewaysByProvider(artifactUUID, orgUUID)
 	if err != nil {
 		s.logger.Warn("Skipping MCP placement pre-check; could not list existing deployments",
-			"artifactUUID", artifactUUID, "error", err)
+			"artifact_uuid", artifactUUID, "error", err)
 		return nil, false
 	}
 	return deployed, true

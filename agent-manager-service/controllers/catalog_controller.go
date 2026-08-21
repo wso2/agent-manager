@@ -76,7 +76,7 @@ func (c *catalogController) ListCatalog(w http.ResponseWriter, r *http.Request) 
 	// Validate kind parameter if provided
 	if kind != "" && !isValidCatalogKind(kind) {
 		validKinds := validCatalogKinds()
-		log.Error("ListCatalog: invalid kind parameter", "kind", kind)
+		log.Warn("ListCatalog: invalid kind parameter", "kind", kind)
 		utils.WriteErrorResponse(w, http.StatusBadRequest,
 			fmt.Sprintf("Invalid kind parameter. Must be one of: %s", strings.Join(validKinds, ", ")))
 		return
@@ -84,7 +84,7 @@ func (c *catalogController) ListCatalog(w http.ResponseWriter, r *http.Request) 
 
 	// Validate name parameter length if provided
 	if name != "" && len(name) > 255 {
-		log.Error("ListCatalog: name parameter too long", "length", len(name))
+		log.Warn("ListCatalog: name parameter too long", "length", len(name))
 		utils.WriteErrorResponse(w, http.StatusBadRequest, "Name parameter exceeds maximum length of 255 characters")
 		return
 	}
@@ -93,12 +93,12 @@ func (c *catalogController) ListCatalog(w http.ResponseWriter, r *http.Request) 
 	if environmentUUID != "" {
 		// Prevent DoS by checking length before parsing
 		if len(environmentUUID) > 100 {
-			log.Error("ListCatalog: environment UUID parameter too long", "length", len(environmentUUID))
+			log.Warn("ListCatalog: environment UUID parameter too long", "length", len(environmentUUID))
 			utils.WriteErrorResponse(w, http.StatusBadRequest, "Invalid environment UUID format")
 			return
 		}
 		if _, err := uuid.Parse(environmentUUID); err != nil {
-			log.Error("ListCatalog: invalid environment UUID format", "error", err)
+			log.Warn("ListCatalog: invalid environment UUID format", "error", err)
 			utils.WriteErrorResponse(w, http.StatusBadRequest, "Invalid environment UUID format")
 			return
 		}

@@ -133,7 +133,7 @@ func (c *gatewayController) RegisterGateway(w http.ResponseWriter, r *http.Reque
 	log := logger.GetLogger(ctx)
 	var req spec.CreateGatewayRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		log.Error("RegisterGateway: failed to decode request", "error", err)
+		log.Warn("RegisterGateway: failed to decode request", "error", err)
 		utils.WriteErrorResponse(w, http.StatusBadRequest, "Invalid request body")
 		return
 	}
@@ -168,7 +168,7 @@ func (c *gatewayController) RegisterGateway(w http.ResponseWriter, r *http.Reque
 		}
 		for _, envId := range req.EnvironmentIds {
 			if _, ok := envMap[envId]; !ok {
-				log.Error("environment validation failed: environment not found", "envId", envId)
+				log.Warn("environment validation failed: environment not found", "env_id", envId)
 				utils.WriteErrorResponse(w, http.StatusBadRequest, "environment validation failed")
 				return
 			}
@@ -350,7 +350,7 @@ func (c *gatewayController) UpdateGateway(w http.ResponseWriter, r *http.Request
 
 	var req spec.UpdateGatewayRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		log.Error("UpdateGateway: failed to decode request", "error", err)
+		log.Warn("UpdateGateway: failed to decode request", "error", err)
 		utils.WriteErrorResponse(w, http.StatusBadRequest, "Invalid request body")
 		return
 	}
@@ -393,7 +393,7 @@ func (c *gatewayController) DeleteGateway(w http.ResponseWriter, r *http.Request
 		return
 	}
 
-	if err := c.gatewayService.DeleteGateway(gatewayID, ouID); err != nil {
+	if err := c.gatewayService.DeleteGateway(ctx, gatewayID, ouID); err != nil {
 		attempt.Complete(ctx, err)
 		log.Error("DeleteGateway: failed to delete gateway", "error", err)
 		handleGatewayErrors(w, err, "Failed to delete gateway")
@@ -420,7 +420,7 @@ func (c *gatewayController) AssignGatewayToEnvironment(w http.ResponseWriter, r 
 
 	resolvedEnvID, err := c.resolveEnvironmentUUID(ctx, ouID, envID)
 	if err != nil {
-		log.Error("AssignGatewayToEnvironment: failed to resolve environment", "envID", envID, "error", err)
+		log.Error("AssignGatewayToEnvironment: failed to resolve environment", "env_id", envID, "error", err)
 		handleGatewayErrors(w, err, "Failed to resolve environment")
 		return
 	}
@@ -460,7 +460,7 @@ func (c *gatewayController) RemoveGatewayFromEnvironment(w http.ResponseWriter, 
 
 	resolvedEnvID, err := c.resolveEnvironmentUUID(ctx, ouID, envID)
 	if err != nil {
-		log.Error("RemoveGatewayFromEnvironment: failed to resolve environment", "envID", envID, "error", err)
+		log.Error("RemoveGatewayFromEnvironment: failed to resolve environment", "env_id", envID, "error", err)
 		handleGatewayErrors(w, err, "Failed to resolve environment")
 		return
 	}
@@ -476,7 +476,7 @@ func (c *gatewayController) RemoveGatewayFromEnvironment(w http.ResponseWriter, 
 		audit.Result(removeErr),
 	)
 	if err := removeErr; err != nil {
-		log.Error("RemoveGatewayFromEnvironment: failed to remove mapping", "error", err)
+		log.Warn("RemoveGatewayFromEnvironment: failed to remove mapping", "error", err)
 		if errors.Is(err, gorm.ErrRecordNotFound) || strings.Contains(err.Error(), "mapping not found") {
 			utils.WriteErrorResponse(w, http.StatusNotFound, "Gateway-environment mapping not found")
 			return
@@ -548,7 +548,7 @@ func (c *gatewayController) ListGatewayTokens(w http.ResponseWriter, r *http.Req
 	ouID := middleware.OUIDFromRequest(r)
 	gatewayID := strings.TrimSpace(r.PathValue("gatewayID"))
 
-	log.Info("ListGatewayTokens: starting", "ouID", ouID, "gatewayID", gatewayID)
+	log.Info("ListGatewayTokens: starting", "ou_id", ouID, "gateway_id", gatewayID)
 
 	svcResp, err := c.gatewayService.ListTokens(gatewayID, ouID)
 	if err != nil {
@@ -584,7 +584,7 @@ func (c *gatewayController) RotateGatewayToken(w http.ResponseWriter, r *http.Re
 	if r.Body != nil && r.ContentLength != 0 {
 		var req spec.RotateGatewayTokenRequest
 		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-			log.Error("RotateGatewayToken: failed to decode request", "error", err)
+			log.Warn("RotateGatewayToken: failed to decode request", "error", err)
 			utils.WriteErrorResponse(w, http.StatusBadRequest, "Invalid request body")
 			return
 		}
@@ -637,7 +637,7 @@ func (c *gatewayController) RevokeGatewayToken(w http.ResponseWriter, r *http.Re
 	gatewayID := strings.TrimSpace(r.PathValue("gatewayID"))
 	tokenID := strings.TrimSpace(r.PathValue("tokenID"))
 
-	log.Info("RevokeGatewayToken: starting", "ouID", ouID, "gatewayID", gatewayID, "tokenID", tokenID)
+	log.Info("RevokeGatewayToken: starting", "ou_id", ouID, "gateway_id", gatewayID, "token_id", tokenID)
 
 	attempt, ok := beginAuditOrFail(
 		w, r, "RevokeGatewayToken", "Failed to revoke token", audit.ActionGatewayTokenRevoke,
@@ -649,9 +649,9 @@ func (c *gatewayController) RevokeGatewayToken(w http.ResponseWriter, r *http.Re
 		return
 	}
 
-	if err := c.gatewayService.RevokeTokenByID(tokenID, gatewayID, ouID); err != nil {
+	if err := c.gatewayService.RevokeTokenByID(ctx, tokenID, gatewayID, ouID); err != nil {
 		attempt.Complete(ctx, err)
-		log.Error("RevokeGatewayToken: failed to revoke token", "error", err)
+		log.Warn("RevokeGatewayToken: failed to revoke token", "error", err)
 		switch {
 		case errors.Is(err, utils.ErrGatewayNotFound):
 			utils.WriteErrorResponse(w, http.StatusNotFound, "Gateway not found")
@@ -667,7 +667,7 @@ func (c *gatewayController) RevokeGatewayToken(w http.ResponseWriter, r *http.Re
 	}
 	attempt.Complete(ctx, nil)
 
-	log.Info("RevokeGatewayToken: token revoked successfully", "ouID", ouID, "gatewayID", gatewayID, "tokenID", tokenID)
+	log.Info("RevokeGatewayToken: token revoked successfully", "ou_id", ouID, "gateway_id", gatewayID, "token_id", tokenID)
 	w.WriteHeader(http.StatusNoContent)
 }
 

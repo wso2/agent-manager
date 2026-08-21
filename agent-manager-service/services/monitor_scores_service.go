@@ -172,10 +172,10 @@ func (s *MonitorScoresService) PublishScores(
 	}
 
 	s.logger.Info("Published evaluation scores",
-		"monitorID", monitorID,
-		"runID", runID,
-		"scoreCount", len(req.IndividualScores),
-		"evaluatorCount", len(runEvaluators))
+		"monitor_id", monitorID,
+		"run_id", runID,
+		"score_count", len(req.IndividualScores),
+		"evaluator_count", len(runEvaluators))
 
 	return nil
 }
@@ -197,9 +197,9 @@ func (s *MonitorScoresService) authorizeRun(monitorID, runID uuid.UUID, callerOU
 
 	if monitor.OUID != callerOUID {
 		s.logger.Warn("Rejected cross-organization score publish",
-			"monitorID", monitorID,
-			"runID", runID,
-			"callerOUID", callerOUID)
+			"monitor_id", monitorID,
+			"run_id", runID,
+			"caller_ouid", callerOUID)
 		return fmt.Errorf("%w: monitor %s belongs to another organization", utils.ErrForbidden, monitorID)
 	}
 

@@ -120,10 +120,14 @@ func MakeHTTPHandler(params *wiring.AppParams, extraAPIRoutes func(*http.ServeMu
 	// Apply middleware in reverse order (last middleware is applied first)
 	apiHandler := http.Handler(apiMux)
 	apiHandler = params.AuthMiddleware(apiHandler)
+	// Applied innermost-first. RecovererOnPanic sits *inside* AddCorrelationID
+	// and RequestLogger so the record it writes carries the correlation ID and
+	// the request line; outside them it could only ever log "unknown". The
+	// three middleware now outside it do no caller-driven work.
+	apiHandler = middleware.RecovererOnPanic()(apiHandler)
 	apiHandler = logger.RequestLogger()(apiHandler)
 	apiHandler = middleware.AddCorrelationID()(apiHandler)
 	apiHandler = middleware.CORS(config.GetConfig().CORSAllowedOrigin)(apiHandler)
-	apiHandler = middleware.RecovererOnPanic()(apiHandler)
 
 	mux.Handle("/api/v1/", http.StripPrefix("/api/v1", apiHandler))
 
@@ -157,10 +161,10 @@ func MakeInternalHTTPHandler(params *wiring.AppParams) http.Handler {
 	// handler-level emits for api-key rejections, which happen before any route
 	// wrapper could see them.
 	internalHandler = middleware.WithAuditRecorder(params.AuditRecorder, audit.SurfaceInternal)(internalHandler)
+	internalHandler = middleware.RecovererOnPanic()(internalHandler)
 	internalHandler = logger.RequestLogger()(internalHandler)
 	internalHandler = middleware.AddCorrelationID()(internalHandler)
 	internalHandler = middleware.CORS(config.GetConfig().CORSAllowedOrigin)(internalHandler)
-	internalHandler = middleware.RecovererOnPanic()(internalHandler)
 
 	mux.Handle("/api/internal/v1/", http.StripPrefix("/api/internal/v1", internalHandler))
 

@@ -153,7 +153,7 @@ func (c *agentIdentityController) envClient(w http.ResponseWriter, r *http.Reque
 	envName := r.PathValue("envName")
 	client, err := services.ResolveEnvThunderIdentity(r.Context(), c.resolver, ouID, envName)
 	if err != nil {
-		logger.GetLogger(r.Context()).Error("agent-identity: env-thunder resolve failed", "ouID", ouID, "env", envName, "error", err)
+		logger.GetLogger(r.Context()).Error("agent-identity: env-thunder resolve failed", "ou_id", ouID, "env", envName, "error", err)
 		utils.WriteErrorResponse(w, http.StatusServiceUnavailable,
 			"The environment's identity provider is not available; retry after it is provisioned")
 		return nil, false
@@ -180,7 +180,7 @@ func (c *agentIdentityController) managedGroup(w http.ResponseWriter, r *http.Re
 			utils.WriteErrorResponse(w, http.StatusNotFound, "Group not found")
 			return nil, false
 		}
-		logger.GetLogger(ctx).Error("agent-identity: get group failed", "groupID", groupID, "error", err)
+		logger.GetLogger(ctx).Error("agent-identity: get group failed", "group_id", groupID, "error", err)
 		utils.WriteErrorResponse(w, http.StatusInternalServerError, "Failed to get group")
 		return nil, false
 	}
@@ -306,7 +306,7 @@ func (c *agentIdentityController) UpdateGroup(w http.ResponseWriter, r *http.Req
 			utils.WriteErrorResponse(w, http.StatusNotFound, "Group not found")
 			return
 		}
-		log.Error("agent-identity UpdateGroup failed", "groupID", groupID, "error", err)
+		log.Error("agent-identity UpdateGroup failed", "group_id", groupID, "error", err)
 		utils.WriteErrorResponse(w, http.StatusInternalServerError, "Failed to update group")
 		return
 	}
@@ -330,7 +330,7 @@ func (c *agentIdentityController) DeleteGroup(w http.ResponseWriter, r *http.Req
 			utils.WriteErrorResponse(w, http.StatusNotFound, "Group not found")
 			return
 		}
-		log.Error("agent-identity DeleteGroup failed", "groupID", groupID, "error", err)
+		log.Error("agent-identity DeleteGroup failed", "group_id", groupID, "error", err)
 		utils.WriteErrorResponse(w, http.StatusInternalServerError, "Failed to delete group")
 		return
 	}
@@ -354,7 +354,7 @@ func (c *agentIdentityController) GetGroupMembers(w http.ResponseWriter, r *http
 	// member entries rather than resolving user members.
 	members, total, err := client.ListGroupMemberEntries(ctx, groupID, offset, limit)
 	if err != nil {
-		log.Error("agent-identity GetGroupMembers failed", "groupID", groupID, "error", err)
+		log.Error("agent-identity GetGroupMembers failed", "group_id", groupID, "error", err)
 		utils.WriteErrorResponse(w, http.StatusInternalServerError, "Failed to get group members")
 		return
 	}
@@ -384,7 +384,7 @@ func (c *agentIdentityController) AddGroupMembers(w http.ResponseWriter, r *http
 		return
 	}
 	if err := client.AddGroupMemberEntries(ctx, groupID, agentMemberEntries(body.AgentIds)); err != nil {
-		log.Error("agent-identity AddGroupMembers failed", "groupID", groupID, "error", err)
+		log.Error("agent-identity AddGroupMembers failed", "group_id", groupID, "error", err)
 		utils.WriteErrorResponse(w, http.StatusInternalServerError, "Failed to add group members")
 		return
 	}
@@ -414,7 +414,7 @@ func (c *agentIdentityController) RemoveGroupMembers(w http.ResponseWriter, r *h
 		return
 	}
 	if err := client.RemoveGroupMemberEntries(ctx, groupID, agentMemberEntries(body.AgentIds)); err != nil {
-		log.Error("agent-identity RemoveGroupMembers failed", "groupID", groupID, "error", err)
+		log.Error("agent-identity RemoveGroupMembers failed", "group_id", groupID, "error", err)
 		utils.WriteErrorResponse(w, http.StatusInternalServerError, "Failed to remove group members")
 		return
 	}
@@ -439,7 +439,7 @@ func (c *agentIdentityController) GetGroupRoles(w http.ResponseWriter, r *http.R
 			utils.WriteErrorResponse(w, http.StatusNotFound, "Group not found")
 			return
 		}
-		log.Error("agent-identity GetGroupRoles failed", "groupID", groupID, "error", err)
+		log.Error("agent-identity GetGroupRoles failed", "group_id", groupID, "error", err)
 		utils.WriteErrorResponse(w, http.StatusInternalServerError, "Failed to get group roles")
 		return
 	}
@@ -547,7 +547,7 @@ func (c *agentIdentityController) CreateRole(w http.ResponseWriter, r *http.Requ
 	for _, handle := range sortedKeys(groups) {
 		g := groups[handle]
 		if err := client.AddRolePermissions(ctx, role.ID, thundersvc.RolePermissionRequest{ResourceServerID: rsIDByHandle[handle], Permissions: g.scopes}); err != nil {
-			log.Error("agent-identity CreateRole: add role permissions failed", "roleID", role.ID, "proxy", g.handle, "error", err)
+			log.Error("agent-identity CreateRole: add role permissions failed", "role_id", role.ID, "proxy", g.handle, "error", err)
 			utils.WriteErrorResponse(w, http.StatusInternalServerError, "Role created but scope permissions failed; edit the role to retry")
 			return
 		}
@@ -556,7 +556,7 @@ func (c *agentIdentityController) CreateRole(w http.ResponseWriter, r *http.Requ
 	// return the reconciled state. The role already exists, so a read failure
 	// here degrades to returning the pre-permission role rather than failing.
 	if reconciled, err := client.GetRole(ctx, role.ID); err != nil {
-		log.Warn("agent-identity CreateRole: re-fetch after permission write failed; returning role without reconciled scopes", "roleID", role.ID, "error", err)
+		log.Warn("agent-identity CreateRole: re-fetch after permission write failed; returning role without reconciled scopes", "role_id", role.ID, "error", err)
 	} else {
 		role = reconciled
 	}
@@ -582,7 +582,7 @@ func (c *agentIdentityController) managedRole(w http.ResponseWriter, r *http.Req
 			utils.WriteErrorResponse(w, http.StatusNotFound, "Role not found")
 			return nil, false
 		}
-		logger.GetLogger(ctx).Error("agent-identity: get role failed", "roleID", roleID, "error", err)
+		logger.GetLogger(ctx).Error("agent-identity: get role failed", "role_id", roleID, "error", err)
 		utils.WriteErrorResponse(w, http.StatusInternalServerError, "Failed to get role")
 		return nil, false
 	}
@@ -651,7 +651,7 @@ func (c *agentIdentityController) UpdateRole(w http.ResponseWriter, r *http.Requ
 			utils.WriteErrorResponse(w, http.StatusNotFound, "Role not found")
 			return
 		}
-		log.Error("agent-identity UpdateRole failed", "roleID", roleID, "error", err)
+		log.Error("agent-identity UpdateRole failed", "role_id", roleID, "error", err)
 		utils.WriteErrorResponse(w, http.StatusInternalServerError, "Failed to update role")
 		return
 	}
@@ -710,14 +710,14 @@ func (c *agentIdentityController) UpdateRole(w http.ResponseWriter, r *http.Requ
 		removals := stringSetDifference(currentByRS[rsID], desired[rsID])
 		if len(additions) > 0 {
 			if err := client.AddRolePermissions(ctx, roleID, thundersvc.RolePermissionRequest{ResourceServerID: rsID, Permissions: additions}); err != nil {
-				log.Error("agent-identity UpdateRole: add role permissions failed", "roleID", roleID, "resourceServerID", rsID, "error", err)
+				log.Error("agent-identity UpdateRole: add role permissions failed", "role_id", roleID, "resource_server_id", rsID, "error", err)
 				utils.WriteErrorResponse(w, http.StatusInternalServerError, "Failed to update role permissions")
 				return
 			}
 		}
 		if len(removals) > 0 {
 			if err := client.RemoveRolePermissions(ctx, roleID, thundersvc.RolePermissionRequest{ResourceServerID: rsID, Permissions: removals}); err != nil {
-				log.Error("agent-identity UpdateRole: remove role permissions failed", "roleID", roleID, "resourceServerID", rsID, "error", err)
+				log.Error("agent-identity UpdateRole: remove role permissions failed", "role_id", roleID, "resource_server_id", rsID, "error", err)
 				utils.WriteErrorResponse(w, http.StatusInternalServerError, "Failed to update role permissions")
 				return
 			}
@@ -727,7 +727,7 @@ func (c *agentIdentityController) UpdateRole(w http.ResponseWriter, r *http.Requ
 	// so re-fetch to return the reconciled state. The role is already updated,
 	// so a read failure here degrades to returning the pre-reconcile role.
 	if reconciled, err := client.GetRole(ctx, roleID); err != nil {
-		log.Warn("agent-identity UpdateRole: re-fetch after reconcile failed; returning role without reconciled scopes", "roleID", roleID, "error", err)
+		log.Warn("agent-identity UpdateRole: re-fetch after reconcile failed; returning role without reconciled scopes", "role_id", roleID, "error", err)
 	} else {
 		updated = reconciled
 	}
@@ -751,7 +751,7 @@ func (c *agentIdentityController) DeleteRole(w http.ResponseWriter, r *http.Requ
 			utils.WriteErrorResponse(w, http.StatusNotFound, "Role not found")
 			return
 		}
-		log.Error("agent-identity DeleteRole failed", "roleID", roleID, "error", err)
+		log.Error("agent-identity DeleteRole failed", "role_id", roleID, "error", err)
 		utils.WriteErrorResponse(w, http.StatusInternalServerError, "Failed to delete role")
 		return
 	}
@@ -773,7 +773,7 @@ func (c *agentIdentityController) GetRoleAssignments(w http.ResponseWriter, r *h
 			utils.WriteErrorResponse(w, http.StatusNotFound, "Role not found")
 			return
 		}
-		log.Error("agent-identity GetRoleAssignments failed", "roleID", roleID, "error", err)
+		log.Error("agent-identity GetRoleAssignments failed", "role_id", roleID, "error", err)
 		utils.WriteErrorResponse(w, http.StatusInternalServerError, "Failed to get role assignments")
 		return
 	}
@@ -799,7 +799,7 @@ func (c *agentIdentityController) AddRoleAssignees(w http.ResponseWriter, r *htt
 		return
 	}
 	if err := client.AddRoleAssignees(ctx, roleID, assignments); err != nil {
-		log.Error("agent-identity AddRoleAssignees failed", "roleID", roleID, "error", err)
+		log.Error("agent-identity AddRoleAssignees failed", "role_id", roleID, "error", err)
 		utils.WriteErrorResponse(w, http.StatusInternalServerError, "Failed to add role assignees")
 		return
 	}
@@ -822,7 +822,7 @@ func (c *agentIdentityController) RemoveRoleAssignees(w http.ResponseWriter, r *
 		return
 	}
 	if err := client.RemoveRoleAssignees(ctx, roleID, assignments); err != nil {
-		log.Error("agent-identity RemoveRoleAssignees failed", "roleID", roleID, "error", err)
+		log.Error("agent-identity RemoveRoleAssignees failed", "role_id", roleID, "error", err)
 		utils.WriteErrorResponse(w, http.StatusInternalServerError, "Failed to remove role assignees")
 		return
 	}

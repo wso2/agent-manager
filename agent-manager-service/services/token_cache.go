@@ -90,7 +90,8 @@ func (c *TokenCache) Invalidate(tokenPrefix string) {
 	defer c.mu.Unlock()
 
 	delete(c.tokens, tokenPrefix)
-	slog.Info("token cache invalidated", "tokenPrefix", tokenPrefix)
+	//nolint:forbidigo // process-wide cache; invalidation is not tied to a request
+	slog.Info("token cache invalidated", "token_prefix", tokenPrefix)
 }
 
 // InvalidateGateway removes all tokens for a specific gateway
@@ -107,7 +108,8 @@ func (c *TokenCache) InvalidateGateway(gatewayUUID uuid.UUID) {
 	}
 
 	if count > 0 {
-		slog.Info("gateway tokens invalidated from cache", "gatewayUUID", gatewayUUID, "count", count)
+		//nolint:forbidigo // process-wide cache; invalidation is not tied to a request
+		slog.Info("gateway tokens invalidated from cache", "gateway_uuid", gatewayUUID, "count", count)
 	}
 }
 
@@ -118,6 +120,7 @@ func (c *TokenCache) Clear() {
 
 	c.tokens = make(map[string]*TokenCacheEntry)
 	c.lastRefresh = time.Time{}
+	//nolint:forbidigo // process-wide cache; invalidation is not tied to a request
 	slog.Info("token cache cleared")
 }
 
@@ -136,6 +139,7 @@ func (c *TokenCache) Refresh(tokens map[string]*TokenCacheEntry) {
 
 	c.tokens = tokens
 	c.lastRefresh = time.Now()
+	//nolint:forbidigo // process-wide cache; invalidation is not tied to a request
 	slog.Info("token cache refreshed", "count", len(tokens))
 }
 

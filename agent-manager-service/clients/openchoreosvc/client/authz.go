@@ -88,7 +88,7 @@ func (c *openChoreoClient) EnsureClusterRoleBinding(ctx context.Context, clientI
 			return fmt.Errorf("failed to update ClusterAuthzRoleBinding for %s: %w", clientID, err)
 		}
 		if updateResp.StatusCode() != http.StatusOK {
-			return handleErrorResponse(updateResp.StatusCode(), ErrorResponses{
+			return handleErrorResponse(ctx, updateResp.StatusCode(), ErrorResponses{
 				JSON400: updateResp.JSON400,
 				JSON401: updateResp.JSON401,
 				JSON403: updateResp.JSON403,
@@ -97,7 +97,7 @@ func (c *openChoreoClient) EnsureClusterRoleBinding(ctx context.Context, clientI
 		}
 		return nil
 	default:
-		return handleErrorResponse(resp.StatusCode(), ErrorResponses{
+		return handleErrorResponse(ctx, resp.StatusCode(), ErrorResponses{
 			JSON400: resp.JSON400,
 			JSON401: resp.JSON401,
 			JSON403: resp.JSON403,

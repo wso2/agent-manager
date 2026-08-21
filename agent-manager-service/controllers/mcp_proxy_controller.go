@@ -67,11 +67,11 @@ func (c *mcpProxyController) CreateMCPProxy(w http.ResponseWriter, r *http.Reque
 	log := logger.GetLogger(ctx)
 	ouID := middleware.OUIDFromRequest(r)
 
-	log.Info("CreateMCPProxy: starting", "ouID", ouID)
+	log.Info("CreateMCPProxy: starting", "ou_id", ouID)
 
 	var req models.MCPProxyDTO
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		log.Error("CreateMCPProxy: failed to decode request", "error", err)
+		log.Warn("CreateMCPProxy: failed to decode request", "error", err)
 		utils.WriteErrorResponse(w, http.StatusBadRequest, "Invalid request body")
 		return
 	}
@@ -80,25 +80,25 @@ func (c *mcpProxyController) CreateMCPProxy(w http.ResponseWriter, r *http.Reque
 	if err != nil {
 		switch {
 		case errors.Is(err, utils.ErrInvalidInput), errors.Is(err, utils.ErrInvalidURL):
-			log.Error("CreateMCPProxy: invalid request", "ouID", ouID, "error", err)
+			log.Warn("CreateMCPProxy: invalid request", "ou_id", ouID, "error", err)
 			utils.WriteErrorResponseWithReason(w, http.StatusBadRequest, "Bad request", err.Error(), utils.ErrCodeBadRequest)
 		case errors.Is(err, utils.ErrMCPProxyExists):
-			log.Error("CreateMCPProxy: MCP proxy already exists", "ouID", ouID, "id", req.ID)
+			log.Warn("CreateMCPProxy: MCP proxy already exists", "ou_id", ouID, "id", req.ID)
 			utils.WriteErrorResponse(w, http.StatusConflict, fmt.Sprintf("MCP proxy %q already exists", req.ID))
 		case errors.Is(err, utils.ErrArtifactExists):
-			log.Error("CreateMCPProxy: handle already in use by another artifact", "ouID", ouID, "id", req.ID)
+			log.Warn("CreateMCPProxy: handle already in use by another artifact", "ou_id", ouID, "id", req.ID)
 			utils.WriteErrorResponse(w, http.StatusConflict, fmt.Sprintf("Handle %q is already in use", req.ID))
 		case errors.Is(err, utils.ErrMCPEnvAlreadyBound):
-			log.Error("CreateMCPProxy: environment already bound to another endpoint", "ouID", ouID, "id", req.ID)
+			log.Warn("CreateMCPProxy: environment already bound to another endpoint", "ou_id", ouID, "id", req.ID)
 			utils.WriteErrorResponse(w, http.StatusConflict, err.Error())
 		default:
-			log.Error("CreateMCPProxy: failed", "ouID", ouID, "error", err)
+			log.Error("CreateMCPProxy: failed", "ou_id", ouID, "error", err)
 			utils.WriteErrorResponse(w, http.StatusInternalServerError, "Failed to create MCP proxy")
 		}
 		return
 	}
 
-	log.Info("CreateMCPProxy: completed", "ouID", ouID, "id", req.ID)
+	log.Info("CreateMCPProxy: completed", "ou_id", ouID, "id", req.ID)
 	utils.WriteSuccessResponse(w, http.StatusCreated, resp)
 }
 
@@ -117,16 +117,16 @@ func (c *mcpProxyController) ListMCPProxies(w http.ResponseWriter, r *http.Reque
 		offset = utils.DefaultOffset
 	}
 
-	log.Info("ListMCPProxies: starting", "ouID", ouID, "limit", limit, "offset", offset)
+	log.Info("ListMCPProxies: starting", "ou_id", ouID, "limit", limit, "offset", offset)
 
 	resp, err := c.mcpProxyService.List(ctx, ouID, limit, offset)
 	if err != nil {
-		log.Error("ListMCPProxies: failed", "ouID", ouID, "error", err)
+		log.Error("ListMCPProxies: failed", "ou_id", ouID, "error", err)
 		utils.WriteErrorResponse(w, http.StatusInternalServerError, "Failed to list MCP proxies")
 		return
 	}
 
-	log.Info("ListMCPProxies: completed", "ouID", ouID, "count", resp.Count)
+	log.Info("ListMCPProxies: completed", "ou_id", ouID, "count", resp.Count)
 	utils.WriteSuccessResponse(w, http.StatusOK, resp)
 }
 
@@ -136,16 +136,16 @@ func (c *mcpProxyController) ListAvailableMCPPolicies(w http.ResponseWriter, r *
 	log := logger.GetLogger(ctx)
 	ouID := middleware.OUIDFromRequest(r)
 
-	log.Info("ListAvailableMCPPolicies: starting", "ouID", ouID)
+	log.Info("ListAvailableMCPPolicies: starting", "ou_id", ouID)
 
 	resp, err := c.mcpProxyService.ListAvailableMCPPolicies(ctx, ouID)
 	if err != nil {
-		log.Error("ListAvailableMCPPolicies: failed", "ouID", ouID, "error", err)
+		log.Error("ListAvailableMCPPolicies: failed", "ou_id", ouID, "error", err)
 		utils.WriteErrorResponse(w, http.StatusInternalServerError, "Failed to list available MCP policies")
 		return
 	}
 
-	log.Info("ListAvailableMCPPolicies: completed", "ouID", ouID, "count", resp.Count)
+	log.Info("ListAvailableMCPPolicies: completed", "ou_id", ouID, "count", resp.Count)
 	utils.WriteSuccessResponse(w, http.StatusOK, resp)
 }
 
@@ -156,25 +156,25 @@ func (c *mcpProxyController) GetMCPProxy(w http.ResponseWriter, r *http.Request)
 	ouID := middleware.OUIDFromRequest(r)
 	proxyID := r.PathValue(utils.PathParamProxyId)
 
-	log.Info("GetMCPProxy: starting", "ouID", ouID, "proxyID", proxyID)
+	log.Info("GetMCPProxy: starting", "ou_id", ouID, "proxy_id", proxyID)
 
 	resp, err := c.mcpProxyService.Get(ctx, ouID, proxyID)
 	if err != nil {
 		switch {
 		case errors.Is(err, utils.ErrMCPProxyNotFound):
-			log.Warn("GetMCPProxy: MCP proxy not found", "ouID", ouID, "proxyID", proxyID)
+			log.Warn("GetMCPProxy: MCP proxy not found", "ou_id", ouID, "proxy_id", proxyID)
 			utils.WriteErrorResponse(w, http.StatusNotFound, "MCP proxy not found")
 		case errors.Is(err, utils.ErrInvalidInput):
-			log.Error("GetMCPProxy: invalid request", "ouID", ouID, "proxyID", proxyID, "error", err)
+			log.Warn("GetMCPProxy: invalid request", "ou_id", ouID, "proxy_id", proxyID, "error", err)
 			utils.WriteErrorResponse(w, http.StatusBadRequest, "Invalid MCP proxy id")
 		default:
-			log.Error("GetMCPProxy: failed", "ouID", ouID, "proxyID", proxyID, "error", err)
+			log.Error("GetMCPProxy: failed", "ou_id", ouID, "proxy_id", proxyID, "error", err)
 			utils.WriteErrorResponse(w, http.StatusInternalServerError, "Failed to get MCP proxy")
 		}
 		return
 	}
 
-	log.Info("GetMCPProxy: completed", "ouID", ouID, "proxyID", proxyID)
+	log.Info("GetMCPProxy: completed", "ou_id", ouID, "proxy_id", proxyID)
 	utils.WriteSuccessResponse(w, http.StatusOK, resp)
 }
 
@@ -185,11 +185,11 @@ func (c *mcpProxyController) UpdateMCPProxy(w http.ResponseWriter, r *http.Reque
 	ouID := middleware.OUIDFromRequest(r)
 	proxyID := r.PathValue(utils.PathParamProxyId)
 
-	log.Info("UpdateMCPProxy: starting", "ouID", ouID, "proxyID", proxyID)
+	log.Info("UpdateMCPProxy: starting", "ou_id", ouID, "proxy_id", proxyID)
 
 	var req models.MCPProxyDTO
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		log.Error("UpdateMCPProxy: failed to decode request", "error", err)
+		log.Warn("UpdateMCPProxy: failed to decode request", "error", err)
 		utils.WriteErrorResponse(w, http.StatusBadRequest, "Invalid request body")
 		return
 	}
@@ -198,19 +198,19 @@ func (c *mcpProxyController) UpdateMCPProxy(w http.ResponseWriter, r *http.Reque
 	if err != nil {
 		switch {
 		case errors.Is(err, utils.ErrMCPProxyNotFound):
-			log.Warn("UpdateMCPProxy: MCP proxy not found", "ouID", ouID, "proxyID", proxyID)
+			log.Warn("UpdateMCPProxy: MCP proxy not found", "ou_id", ouID, "proxy_id", proxyID)
 			utils.WriteErrorResponse(w, http.StatusNotFound, "MCP proxy not found")
 		case errors.Is(err, utils.ErrInvalidInput), errors.Is(err, utils.ErrInvalidURL):
-			log.Error("UpdateMCPProxy: invalid request", "ouID", ouID, "proxyID", proxyID, "error", err)
+			log.Warn("UpdateMCPProxy: invalid request", "ou_id", ouID, "proxy_id", proxyID, "error", err)
 			utils.WriteErrorResponseWithReason(w, http.StatusBadRequest, "Bad request", err.Error(), utils.ErrCodeBadRequest)
 		case errors.Is(err, utils.ErrArtifactExists):
-			log.Error("UpdateMCPProxy: handle already in use by another artifact", "ouID", ouID, "proxyID", proxyID)
+			log.Warn("UpdateMCPProxy: handle already in use by another artifact", "ou_id", ouID, "proxy_id", proxyID)
 			utils.WriteErrorResponse(w, http.StatusConflict, err.Error())
 		case errors.Is(err, utils.ErrMCPEnvAlreadyBound):
-			log.Error("UpdateMCPProxy: environment already bound to another endpoint", "ouID", ouID, "proxyID", proxyID)
+			log.Warn("UpdateMCPProxy: environment already bound to another endpoint", "ou_id", ouID, "proxy_id", proxyID)
 			utils.WriteErrorResponse(w, http.StatusConflict, err.Error())
 		default:
-			log.Error("UpdateMCPProxy: failed", "ouID", ouID, "proxyID", proxyID, "error", err)
+			log.Error("UpdateMCPProxy: failed", "ou_id", ouID, "proxy_id", proxyID, "error", err)
 			utils.WriteErrorResponse(w, http.StatusInternalServerError, "Failed to update MCP proxy")
 		}
 		return
@@ -235,10 +235,10 @@ func (c *mcpProxyController) UpdateMCPProxy(w http.ResponseWriter, r *http.Reque
 	// Nothing here calls out to the gateway or OpenChoreo until an environment is genuinely
 	// bindable, so the steady state is a handful of indexed reads.
 	if err := c.agentConfigService.ReconcileMCPBindingsForProxy(ctx, ouID, proxyID); err != nil {
-		log.Warn("UpdateMCPProxy: failed to reconcile agent MCP bindings", "ouID", ouID, "proxyID", proxyID, "error", err)
+		log.Warn("UpdateMCPProxy: failed to reconcile agent MCP bindings", "ou_id", ouID, "proxy_id", proxyID, "error", err)
 	}
 
-	log.Info("UpdateMCPProxy: completed", "ouID", ouID, "proxyID", proxyID)
+	log.Info("UpdateMCPProxy: completed", "ou_id", ouID, "proxy_id", proxyID)
 	utils.WriteSuccessResponse(w, http.StatusOK, resp)
 }
 
@@ -250,27 +250,27 @@ func (c *mcpProxyController) DeleteMCPProxy(w http.ResponseWriter, r *http.Reque
 	orgName := middleware.OrgHandleFromRequest(r)
 	proxyID := r.PathValue(utils.PathParamProxyId)
 
-	log.Info("DeleteMCPProxy: starting", "ouID", ouID, "proxyID", proxyID)
+	log.Info("DeleteMCPProxy: starting", "ou_id", ouID, "proxy_id", proxyID)
 
 	if err := c.mcpProxyService.Delete(ctx, ouID, orgName, proxyID); err != nil {
 		switch {
 		case errors.Is(err, utils.ErrMCPProxyNotFound):
-			log.Warn("DeleteMCPProxy: MCP proxy not found", "ouID", ouID, "proxyID", proxyID)
+			log.Warn("DeleteMCPProxy: MCP proxy not found", "ou_id", ouID, "proxy_id", proxyID)
 			utils.WriteErrorResponse(w, http.StatusNotFound, "MCP proxy not found")
 		case errors.Is(err, utils.ErrMCPProxyHasMappings):
-			log.Warn("DeleteMCPProxy: MCP proxy has mappings", "ouID", ouID, "proxyID", proxyID)
+			log.Warn("DeleteMCPProxy: MCP proxy has mappings", "ou_id", ouID, "proxy_id", proxyID)
 			utils.WriteErrorResponse(w, http.StatusConflict, utils.ErrMCPProxyHasMappings.Error())
 		case errors.Is(err, utils.ErrInvalidInput):
-			log.Error("DeleteMCPProxy: invalid request", "ouID", ouID, "proxyID", proxyID, "error", err)
+			log.Warn("DeleteMCPProxy: invalid request", "ou_id", ouID, "proxy_id", proxyID, "error", err)
 			utils.WriteErrorResponse(w, http.StatusBadRequest, "Invalid MCP proxy id")
 		default:
-			log.Error("DeleteMCPProxy: failed", "ouID", ouID, "proxyID", proxyID, "error", err)
+			log.Error("DeleteMCPProxy: failed", "ou_id", ouID, "proxy_id", proxyID, "error", err)
 			utils.WriteErrorResponse(w, http.StatusInternalServerError, "Failed to delete MCP proxy")
 		}
 		return
 	}
 
-	log.Info("DeleteMCPProxy: completed", "ouID", ouID, "proxyID", proxyID)
+	log.Info("DeleteMCPProxy: completed", "ou_id", ouID, "proxy_id", proxyID)
 	utils.WriteSuccessResponse(w, http.StatusNoContent, struct{}{})
 }
 
@@ -280,11 +280,11 @@ func (c *mcpProxyController) FetchServerInfo(w http.ResponseWriter, r *http.Requ
 	log := logger.GetLogger(ctx)
 	ouID := middleware.OUIDFromRequest(r)
 
-	log.Info("FetchMCPProxyServerInfo: starting", "ouID", ouID)
+	log.Info("FetchMCPProxyServerInfo: starting", "ou_id", ouID)
 
 	var req models.MCPServerInfoFetchRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		log.Error("FetchMCPProxyServerInfo: failed to decode request", "error", err)
+		log.Warn("FetchMCPProxyServerInfo: failed to decode request", "error", err)
 		utils.WriteErrorResponse(w, http.StatusBadRequest, "Invalid request body")
 		return
 	}
@@ -293,22 +293,22 @@ func (c *mcpProxyController) FetchServerInfo(w http.ResponseWriter, r *http.Requ
 	if err != nil {
 		switch {
 		case errors.Is(err, utils.ErrInvalidInput), errors.Is(err, utils.ErrInvalidURL):
-			log.Error("FetchMCPProxyServerInfo: invalid request", "ouID", ouID, "error", err)
+			log.Warn("FetchMCPProxyServerInfo: invalid request", "ou_id", ouID, "error", err)
 			utils.WriteErrorResponseWithReason(w, http.StatusBadRequest, "Bad request", err.Error(), utils.ErrCodeBadRequest)
 		case errors.Is(err, utils.ErrURLUnreachable):
-			log.Error("FetchMCPProxyServerInfo: MCP server URL is unreachable", "ouID", ouID, "error", err)
+			log.Warn("FetchMCPProxyServerInfo: MCP server URL is unreachable", "ou_id", ouID, "error", err)
 			utils.WriteErrorResponseWithReason(w, http.StatusBadRequest, "MCP server URL is unreachable", err.Error(), utils.ErrCodeBadRequest)
 		case errors.Is(err, utils.ErrMCPServerUnauthorized):
-			log.Error("FetchMCPProxyServerInfo: MCP server returned unauthorized", "ouID", ouID, "error", err)
+			log.Warn("FetchMCPProxyServerInfo: MCP server returned unauthorized", "ou_id", ouID, "error", err)
 			utils.WriteErrorResponseWithReason(w, http.StatusUnauthorized, "MCP server returned 401 Unauthorized. Check the provided credentials.", err.Error(), utils.ErrCodeUnauthorized)
 		default:
-			log.Error("FetchMCPProxyServerInfo: failed", "ouID", ouID, "error", err)
+			log.Error("FetchMCPProxyServerInfo: failed", "ou_id", ouID, "error", err)
 			utils.WriteErrorResponse(w, http.StatusInternalServerError, "Failed to fetch MCP server info")
 		}
 		return
 	}
 
-	log.Info("FetchMCPProxyServerInfo: completed", "ouID", ouID)
+	log.Info("FetchMCPProxyServerInfo: completed", "ou_id", ouID)
 	utils.WriteSuccessResponse(w, http.StatusOK, resp)
 }
 

@@ -345,7 +345,7 @@ func (s *AgentAPIKeyService) IssueTestAPIKey(
 		resp, err = s.broadcaster.broadcastRotateToGateways(gateways, ouID, artifactUUID, artifactUUID, keyName,
 			&models.RotateAPIKeyRequest{ExpiresAt: &expiresAt})
 		if err == nil {
-			log.Info("IssueTestAPIKey: rotated", "keyName", keyName, "org", ouID, "agent", agentName, "env", envID, "expiresAt", expiresAt)
+			log.Info("IssueTestAPIKey: rotated", "key_name", keyName, "org", ouID, "agent", agentName, "env", envID, "expires_at", expiresAt)
 		}
 	} else {
 		resp, err = s.broadcaster.broadcastCreateToGateways(gateways, ouID, artifactUUID, artifactUUID,
@@ -356,7 +356,7 @@ func (s *AgentAPIKeyService) IssueTestAPIKey(
 				ExpiresAt:   &expiresAt,
 			})
 		if err == nil {
-			log.Info("IssueTestAPIKey: created", "keyName", keyName, "org", ouID, "agent", agentName, "env", envID, "expiresAt", expiresAt)
+			log.Info("IssueTestAPIKey: created", "key_name", keyName, "org", ouID, "agent", agentName, "env", envID, "expires_at", expiresAt)
 		}
 	}
 	// Recorded after the fact rather than fail-closed: a console test key is

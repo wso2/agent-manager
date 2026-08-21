@@ -236,7 +236,7 @@ func (p *LLMProxyProvisioner) ProvisionProxy(ctx context.Context, params Provisi
 	if createdBy == "" {
 		createdBy = models.UserRoleSystem
 	}
-	proxy, err := p.llmProxyService.Create(params.OrgName, createdBy, proxyConfig)
+	proxy, err := p.llmProxyService.Create(ctx, params.OrgName, createdBy, proxyConfig)
 	if err != nil {
 		p.RollbackProxy(ctx, rb, params.OrgName)
 		return nil, fmt.Errorf("failed to create proxy: %w", err)
@@ -244,7 +244,7 @@ func (p *LLMProxyProvisioner) ProvisionProxy(ctx context.Context, params Provisi
 	rb.ProxyHandle = proxy.Handle
 
 	baseName := strings.TrimSuffix(params.ProxyName, "-proxy")
-	deployment, err := p.llmProxyDeploymentService.DeployLLMProxy(proxy.Handle, &models.DeployAPIRequest{
+	deployment, err := p.llmProxyDeploymentService.DeployLLMProxy(ctx, proxy.Handle, &models.DeployAPIRequest{
 		Name:      k8sNameWithSuffix(baseName, "-deployment"),
 		Base:      "current",
 		GatewayID: params.Gateway.UUID.String(),
@@ -290,9 +290,9 @@ func (p *LLMProxyProvisioner) ProvisionProxy(ctx context.Context, params Provisi
 
 	p.logger.Info(
 		"Provisioned LLM proxy",
-		"proxyName", params.ProxyName,
-		"providerHandle", params.ProviderHandle,
-		"proxyURL", proxyURL,
+		"proxy_name", params.ProxyName,
+		"provider_handle", params.ProviderHandle,
+		"proxy_url", proxyURL,
 	)
 
 	return &ProvisionedProxy{
@@ -307,7 +307,7 @@ func (p *LLMProxyProvisioner) ProvisionProxy(ctx context.Context, params Provisi
 // RollbackProxy reverts all resources tracked in state. It is best-effort: each step is
 // attempted independently and errors are logged rather than returned.
 func (p *LLMProxyProvisioner) RollbackProxy(ctx context.Context, state ProxyRollbackState, ouID string) {
-	p.logger.Warn("Rolling back LLM proxy resources", "proxyHandle", state.ProxyHandle)
+	p.logger.Warn("Rolling back LLM proxy resources", "proxy_handle", state.ProxyHandle)
 
 	if state.ProxySecretLoc != nil {
 		if err := p.secretClient.DeleteSecret(ctx, *state.ProxySecretLoc, ""); err != nil {
@@ -315,31 +315,31 @@ func (p *LLMProxyProvisioner) RollbackProxy(ctx context.Context, state ProxyRoll
 			if kvErr != nil {
 				kvPath = fmt.Sprintf("<unresolvable: %v>", kvErr)
 			}
-			p.logger.Error("Failed to delete proxy secret during rollback", "kvPath", kvPath, "error", err)
+			p.logger.Error("Failed to delete proxy secret during rollback", "kv_path", kvPath, "error", err)
 		}
 	}
 	if state.ProxyAPIKeyID != "" && state.ProxyHandle != "" {
 		if err := p.llmProxyAPIKeyService.RevokeAPIKey(ctx, ouID, state.ProxyHandle, state.ProxyAPIKeyID); err != nil {
 			p.logger.Error("Failed to revoke proxy API key during rollback",
-				"proxyHandle", state.ProxyHandle, "apiKeyID", state.ProxyAPIKeyID, "error", err)
+				"proxy_handle", state.ProxyHandle, "api_key_id", state.ProxyAPIKeyID, "error", err)
 		}
 	}
 	if state.ProxyHandle != "" && state.DeploymentID != uuid.Nil {
 		if _, err := p.llmProxyDeploymentService.UndeployLLMProxyDeployment(ctx, state.ProxyHandle, state.DeploymentID.String(), state.GatewayUUID.String(), ouID); err != nil {
 			p.logger.Error("Failed to undeploy proxy during rollback",
-				"proxyHandle", state.ProxyHandle, "deploymentID", state.DeploymentID, "error", err)
+				"proxy_handle", state.ProxyHandle, "deployment_id", state.DeploymentID, "error", err)
 		}
 	}
 	if state.ProviderAPIKeyID != "" && state.ProviderUUID != "" {
 		if err := p.llmProviderAPIKeyService.RevokeAPIKey(ctx, ouID, state.ProviderUUID, state.ProviderAPIKeyID); err != nil {
 			p.logger.Error("Failed to revoke provider API key during rollback",
-				"providerUUID", state.ProviderUUID, "apiKeyID", state.ProviderAPIKeyID, "error", err)
+				"provider_uuid", state.ProviderUUID, "api_key_id", state.ProviderAPIKeyID, "error", err)
 		}
 	}
 	if state.ProxyHandle != "" {
 		if err := p.llmProxyService.Delete(state.ProxyHandle, ouID); err != nil {
 			if !errors.Is(err, utils.ErrLLMProxyNotFound) {
-				p.logger.Error("Failed to delete proxy during rollback", "proxyHandle", state.ProxyHandle, "error", err)
+				p.logger.Error("Failed to delete proxy during rollback", "proxy_handle", state.ProxyHandle, "error", err)
 			}
 		}
 	}
@@ -366,7 +366,7 @@ func (p *LLMProxyProvisioner) CleanupProxy(ctx context.Context, proxy *models.LL
 	// Revoke proxy API key (best-effort — failure preserved for retry guard below).
 	if err := p.llmProxyAPIKeyService.RevokeAPIKey(ctx, ouID, proxyHandle, k8sNameWithSuffix(baseName, "-key")); err != nil {
 		p.logger.Warn("Failed to revoke proxy API key during cleanup",
-			"proxyHandle", proxyHandle, "error", err)
+			"proxy_handle", proxyHandle, "error", err)
 		cleanupErrs = append(cleanupErrs, fmt.Errorf("revoke proxy API key: %w", err))
 	}
 
@@ -375,7 +375,7 @@ func (p *LLMProxyProvisioner) CleanupProxy(ctx context.Context, proxy *models.LL
 		providerUUID := proxy.ProviderUUID.String()
 		if err := p.llmProviderAPIKeyService.RevokeAPIKey(ctx, ouID, providerUUID, proxyHandle); err != nil {
 			p.logger.Warn("Failed to revoke provider API key during cleanup",
-				"providerUUID", providerUUID, "error", err)
+				"provider_uuid", providerUUID, "error", err)
 			cleanupErrs = append(cleanupErrs, fmt.Errorf("revoke provider API key: %w", err))
 		}
 	}
@@ -386,14 +386,14 @@ func (p *LLMProxyProvisioner) CleanupProxy(ctx context.Context, proxy *models.LL
 		if !errors.Is(err, utils.ErrLLMProxyNotFound) {
 			return fmt.Errorf("failed to get deployments for proxy %q: %w", proxyHandle, err)
 		}
-		p.logger.Info("Proxy already deleted, skipping deployment cleanup", "proxyHandle", proxyHandle)
+		p.logger.Info("Proxy already deleted, skipping deployment cleanup", "proxy_handle", proxyHandle)
 	} else {
 		for _, dep := range deployments {
 			if _, err := p.llmProxyDeploymentService.UndeployLLMProxyDeployment(
 				ctx, proxyHandle, dep.DeploymentID.String(), dep.GatewayUUID.String(), ouID,
 			); err != nil {
 				p.logger.Error("Failed to undeploy proxy during cleanup",
-					"proxyHandle", proxyHandle, "deploymentID", dep.DeploymentID, "error", err)
+					"proxy_handle", proxyHandle, "deployment_id", dep.DeploymentID, "error", err)
 				cleanupErrs = append(cleanupErrs, fmt.Errorf("undeploy deployment %s: %w", dep.DeploymentID, err))
 			}
 		}
@@ -424,7 +424,7 @@ func (p *LLMProxyProvisioner) CleanupProxy(ctx context.Context, proxy *models.LL
 	}
 	if err := p.secretClient.DeleteSecret(ctx, proxySecretLoc, ""); err != nil {
 		p.logger.Warn("Failed to delete proxy secret from KV during cleanup",
-			"proxyHandle", proxyHandle, "error", err)
+			"proxy_handle", proxyHandle, "error", err)
 	}
 
 	// Provider upstream auth key is encrypted in the DB — deleted with the proxy record, no KV cleanup needed.

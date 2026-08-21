@@ -73,7 +73,8 @@ func (s *GatewayEventsService) broadcastEvent(gatewayID string, eventType string
 
 	payloadJSON, err := json.Marshal(payload)
 	if err != nil {
-		slog.Error("Failed to serialize event", "gatewayID", gatewayID, "type", eventType, "error", err)
+		//nolint:forbidigo // event fan-out runs on the hub goroutine, not a request
+		slog.Error("Failed to serialize event", "gateway_id", gatewayID, "type", eventType, "error", err)
 		return fmt.Errorf("failed to serialize %s event: %w", eventType, err)
 	}
 
@@ -103,13 +104,15 @@ func (s *GatewayEventsService) broadcastEvent(gatewayID string, eventType string
 	}
 
 	if err := s.hub.PublishEvent(gatewayID, evt); err != nil {
+		//nolint:forbidigo // event fan-out runs on the hub goroutine, not a request
 		slog.Error("Failed to publish event to EventHub",
-			"gatewayID", gatewayID, "type", eventType, "correlationID", correlationID, "error", err)
+			"gateway_id", gatewayID, "type", eventType, "correlation_id", correlationID, "error", err)
 		return fmt.Errorf("failed to publish %s event: %w", eventType, err)
 	}
 
+	//nolint:forbidigo // event fan-out runs on the hub goroutine, not a request
 	slog.Debug("Event published to EventHub",
-		"gatewayID", gatewayID, "type", eventType, "correlationID", correlationID)
+		"gateway_id", gatewayID, "type", eventType, "correlation_id", correlationID)
 	return nil
 }
 

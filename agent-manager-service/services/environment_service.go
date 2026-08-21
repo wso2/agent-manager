@@ -104,10 +104,10 @@ func NewEnvironmentService(logger *slog.Logger, gatewayRepo repositories.Gateway
 }
 
 func (s *environmentService) CreateEnvironment(ctx context.Context, ouID string, req *models.CreateEnvironmentRequest) (*models.GatewayEnvironmentResponse, error) {
-	s.logger.Info("Creating environment in OpenChoreo", "name", req.Name, "ouID", ouID)
+	s.logger.Info("Creating environment in OpenChoreo", "name", req.Name, "ou_id", ouID)
 
 	if req.DataplaneRef == "" {
-		s.logger.Warn("No dataplaneRef provided", "name", req.Name, "ouID", ouID)
+		s.logger.Warn("No dataplaneRef provided", "name", req.Name, "ou_id", ouID)
 	}
 
 	// Reject unsupported isolation tiers up front. An unknown value would otherwise be
@@ -132,7 +132,7 @@ func (s *environmentService) CreateEnvironment(ctx context.Context, ouID string,
 
 	env, err := s.ocClient.CreateEnvironment(ctx, ouID, ocReq)
 	if err != nil {
-		s.logger.Error("Failed to create environment in OpenChoreo", "ouID", ouID, "name", req.Name, "error", err)
+		s.logger.Warn("Failed to create environment in OpenChoreo", "ou_id", ouID, "name", req.Name, "error", err)
 		return nil, fmt.Errorf("failed to create environment: %w", err)
 	}
 
@@ -152,13 +152,13 @@ func (s *environmentService) CreateEnvironment(ctx context.Context, ouID string,
 }
 
 func (s *environmentService) GetEnvironment(ctx context.Context, ouID string, envID string) (*models.GatewayEnvironmentResponse, error) {
-	s.logger.Info("Getting environment from OpenChoreo", "envID", envID, "ouID", ouID)
+	s.logger.Info("Getting environment from OpenChoreo", "env_id", envID, "ou_id", ouID)
 
 	// envID in this context is the environment name (not UUID)
 	// since OpenChoreo API uses environment name as identifier
 	env, err := s.ocClient.GetEnvironment(ctx, ouID, envID)
 	if err != nil {
-		s.logger.Error("Failed to get environment from OpenChoreo", "ouID", ouID, "envID", envID, "error", err)
+		s.logger.Error("Failed to get environment from OpenChoreo", "ou_id", ouID, "env_id", envID, "error", err)
 		// Check if it's a not-found error
 		if errors.Is(err, utils.ErrEnvironmentNotFound) {
 			return nil, utils.ErrEnvironmentNotFound
@@ -184,12 +184,12 @@ func (s *environmentService) GetEnvironment(ctx context.Context, ouID string, en
 }
 
 func (s *environmentService) ListEnvironments(ctx context.Context, ouID string, limit, offset int32) (*models.EnvironmentListResponse, error) {
-	s.logger.Info("Listing environments from OpenChoreo", "ouID", ouID, "limit", limit, "offset", offset)
+	s.logger.Info("Listing environments from OpenChoreo", "ou_id", ouID, "limit", limit, "offset", offset)
 
 	// Fetch environments directly from OpenChoreo
 	ocEnvironments, err := s.ocClient.ListEnvironments(ctx, ouID)
 	if err != nil {
-		s.logger.Error("Failed to list environments from OpenChoreo", "ouID", ouID, "error", err)
+		s.logger.Warn("Failed to list environments from OpenChoreo", "ou_id", ouID, "error", err)
 		return nil, fmt.Errorf("failed to list environments: %w", err)
 	}
 
@@ -243,7 +243,7 @@ func (s *environmentService) ListEnvironments(ctx context.Context, ouID string, 
 }
 
 func (s *environmentService) UpdateEnvironment(ctx context.Context, ouID string, envID string, req *models.UpdateEnvironmentRequest) (*models.GatewayEnvironmentResponse, error) {
-	s.logger.Info("Updating environment in OpenChoreo", "envID", envID, "ouID", ouID)
+	s.logger.Info("Updating environment in OpenChoreo", "env_id", envID, "ou_id", ouID)
 
 	ocReq := occlient.UpdateEnvironmentRequest{
 		DisplayName:  req.DisplayName,
@@ -254,7 +254,7 @@ func (s *environmentService) UpdateEnvironment(ctx context.Context, ouID string,
 
 	env, err := s.ocClient.UpdateEnvironment(ctx, ouID, envID, ocReq)
 	if err != nil {
-		s.logger.Error("Failed to update environment in OpenChoreo", "ouID", ouID, "envID", envID, "error", err)
+		s.logger.Error("Failed to update environment in OpenChoreo", "ou_id", ouID, "env_id", envID, "error", err)
 		if errors.Is(err, utils.ErrNotFound) || errors.Is(err, utils.ErrEnvironmentNotFound) {
 			return nil, utils.ErrEnvironmentNotFound
 		}
@@ -288,13 +288,13 @@ func (s *environmentService) UpdateEnvironment(ctx context.Context, ouID string,
 //
 // On success: delete the OpenChoreo Environment CR, then delete any gateway↔env mapping rows
 func (s *environmentService) DeleteEnvironment(ctx context.Context, ouID string, envID string) error {
-	s.logger.Info("Deleting environment", "envID", envID, "ouID", ouID)
+	s.logger.Info("Deleting environment", "env_id", envID, "ou_id", ouID)
 
 	// envID is the environment name (matching OpenChoreo's identifier); resolve the UUID via OC
 	// because the local DB doesn't have its own environments table.
 	env, err := s.ocClient.GetEnvironment(ctx, ouID, envID)
 	if err != nil {
-		s.logger.Error("Failed to look up environment", "ouID", ouID, "envID", envID, "error", err)
+		s.logger.Error("Failed to look up environment", "ou_id", ouID, "env_id", envID, "error", err)
 		if errors.Is(err, utils.ErrNotFound) || errors.Is(err, utils.ErrEnvironmentNotFound) {
 			return utils.ErrEnvironmentNotFound
 		}
@@ -311,7 +311,7 @@ func (s *environmentService) DeleteEnvironment(ctx context.Context, ouID string,
 	// promotion paths (either as a source or a target environment).
 	pipelines, err := s.ocClient.ListDeploymentPipelines(ctx, ouID)
 	if err != nil {
-		s.logger.Error("Failed to list deployment pipelines while checking environment references", "ouID", ouID, "envID", envID, "error", err)
+		s.logger.Warn("Failed to list deployment pipelines while checking environment references", "ou_id", ouID, "env_id", envID, "error", err)
 		return fmt.Errorf("failed to verify environment references: %w", err)
 	}
 	var referencingPipelines []string
@@ -321,7 +321,7 @@ func (s *environmentService) DeleteEnvironment(ctx context.Context, ouID string,
 		}
 	}
 	if len(referencingPipelines) > 0 {
-		s.logger.Warn("Cannot delete environment referenced by deployment pipelines", "ouID", ouID, "envID", envID, "pipelines", referencingPipelines)
+		s.logger.Warn("Cannot delete environment referenced by deployment pipelines", "ou_id", ouID, "env_id", envID, "pipelines", referencingPipelines)
 		return fmt.Errorf("%w: %v", utils.ErrEnvironmentInUse, referencingPipelines)
 	}
 
@@ -329,10 +329,10 @@ func (s *environmentService) DeleteEnvironment(ctx context.Context, ouID string,
 	// that error without having touched local state. A not-found from OC after UUID resolution
 	// is treated as idempotent so we still clean up local gateway↔env mappings.
 	if err := s.ocClient.DeleteEnvironment(ctx, ouID, env.Name); err != nil {
-		s.logger.Error("Failed to delete environment in OpenChoreo", "ouID", ouID, "envID", envID, "error", err)
+		s.logger.Error("Failed to delete environment in OpenChoreo", "ou_id", ouID, "env_id", envID, "error", err)
 		if errors.Is(err, utils.ErrNotFound) || errors.Is(err, utils.ErrEnvironmentNotFound) {
 			s.logger.Warn("Environment already absent in OpenChoreo; continuing local cleanup",
-				"ouID", ouID, "envID", envID, "envUUID", envUUID)
+				"ou_id", ouID, "env_id", envID, "env_uuid", envUUID)
 		} else {
 			return fmt.Errorf("failed to delete environment in OpenChoreo: %w", err)
 		}
@@ -344,28 +344,28 @@ func (s *environmentService) DeleteEnvironment(ctx context.Context, ouID string,
 	if s.agentConfigService != nil {
 		if err := s.agentConfigService.CleanupEnvironmentMCPArtifacts(ctx, ouID, envUUID, env.Name); err != nil {
 			s.logger.Warn("environment deleted; MCP artifact cleanup had errors",
-				"ouID", ouID, "envID", envID, "envUUID", envUUID, "error", err)
+				"ou_id", ouID, "env_id", envID, "env_uuid", envUUID, "error", err)
 		}
 	}
 
 	// Local cleanup: gateway↔env mapping rows. The gateway themselves are unaffected.
 	deleted, err := s.gatewayRepo.DeleteEnvironmentMappingsByEnvironmentID(envUUID.String())
 	if err != nil {
-		s.logger.Error("Environment deleted in OpenChoreo but local gateway-mapping cleanup failed",
-			"envUUID", envUUID, "error", err)
+		s.logger.Warn("Environment deleted in OpenChoreo but local gateway-mapping cleanup failed",
+			"env_uuid", envUUID, "error", err)
 		return fmt.Errorf("environment deleted but gateway mapping cleanup failed: %w", err)
 	}
-	s.logger.Info("Deleted environment", "envID", envID, "envUUID", envUUID, "gatewayMappingsDeleted", deleted)
+	s.logger.Info("Deleted environment", "env_id", envID, "env_uuid", envUUID, "gateway_mappings_deleted", deleted)
 	return nil
 }
 
 func (s *environmentService) GetEnvironmentGateways(ctx context.Context, ouID string, envID string) ([]models.GatewayResponse, error) {
-	s.logger.Info("Getting environment gateways", "envID", envID, "ouID", ouID)
+	s.logger.Info("Getting environment gateways", "env_id", envID, "ou_id", ouID)
 
 	// Verify environment exists in OpenChoreo (envID is environment name)
 	env, err := s.ocClient.GetEnvironment(ctx, ouID, envID)
 	if err != nil {
-		s.logger.Error("Failed to get environment from OpenChoreo", "ouID", ouID, "envID", envID, "error", err)
+		s.logger.Error("Failed to get environment from OpenChoreo", "ou_id", ouID, "env_id", envID, "error", err)
 		if errors.Is(err, utils.ErrEnvironmentNotFound) {
 			return nil, utils.ErrEnvironmentNotFound
 		}
@@ -375,14 +375,14 @@ func (s *environmentService) GetEnvironmentGateways(ctx context.Context, ouID st
 	// Parse environment UUID
 	envUUID, err := uuid.Parse(env.UUID)
 	if err != nil {
-		s.logger.Error("Failed to parse environment UUID", "uuid", env.UUID, "error", err)
+		s.logger.Warn("Failed to parse environment UUID", "uuid", env.UUID, "error", err)
 		return nil, fmt.Errorf("invalid environment UUID: %w", err)
 	}
 
 	// Get gateway-environment mappings from repository
 	mappings, err := s.gatewayRepo.GetEnvironmentMappingsByEnvironmentID(envUUID.String())
 	if err != nil {
-		s.logger.Error("Failed to get gateway mappings from repository", "environmentID", envUUID.String(), "error", err)
+		s.logger.Warn("Failed to get gateway mappings from repository", "environment_id", envUUID.String(), "error", err)
 		return nil, fmt.Errorf("failed to get gateway mappings: %w", err)
 	}
 
@@ -394,11 +394,11 @@ func (s *environmentService) GetEnvironmentGateways(ctx context.Context, ouID st
 		// Get gateway details from repository
 		gateway, err := s.gatewayRepo.GetByUUID(gatewayID)
 		if err != nil {
-			s.logger.Warn("Failed to get gateway from repository", "gatewayID", gatewayID, "error", err)
+			s.logger.Warn("Failed to get gateway from repository", "gateway_id", gatewayID, "error", err)
 			continue
 		}
 		if gateway == nil {
-			s.logger.Warn("Gateway not found", "gatewayID", gatewayID)
+			s.logger.Warn("Gateway not found", "gateway_id", gatewayID)
 			continue
 		}
 
@@ -569,7 +569,7 @@ func (s *environmentService) ListThunderInstances(ctx context.Context, ouID stri
 		// environments with no registered handle all pass the gateway-mappings check but
 		// have no Thunder instance.
 		if !reachable[i] {
-			s.logger.Debug("env-Thunder not reachable, skipping", "envName", env.Name)
+			s.logger.Debug("env-Thunder not reachable, skipping", "env_name", env.Name)
 			continue
 		}
 
@@ -741,7 +741,7 @@ func (s *environmentService) SetThunderURL(ctx context.Context, ouID, envName, h
 		if errors.Is(err, utils.ErrThunderHandleTaken) {
 			// The generated value collided with a different environment's
 			// handle — try a fresh one.
-			s.logger.Debug("generated thunder url handle collided, retrying", "ouID", ouID, "envName", envName, "attempt", attempt)
+			s.logger.Debug("generated thunder url handle collided, retrying", "ou_id", ouID, "env_name", envName, "attempt", attempt)
 			continue
 		}
 		return "", err
@@ -756,7 +756,7 @@ func (s *environmentService) SetThunderURL(ctx context.Context, ouID, envName, h
 // rejected, since Thunder's issuer is never silently changed once minted.
 func (s *environmentService) reuseOrRejectThunderHandle(existing, requested, ouID, envName string) (string, error) {
 	if requested == "" || requested == existing {
-		s.logger.Info("Reusing already-registered env-thunder url handle", "ouID", ouID, "envName", envName)
+		s.logger.Info("Reusing already-registered env-thunder url handle", "ou_id", ouID, "env_name", envName)
 		return existing, nil
 	}
 	return "", fmt.Errorf("%w: %s/%s already has a registered handle %q — call DeleteThunderURL first to change it",
@@ -773,9 +773,9 @@ func (s *environmentService) claimThunderHandle(ctx context.Context, ouID, envNa
 	err := s.envThunderURLRepo.Insert(ctx, rec)
 	if err == nil {
 		if generated {
-			s.logger.Info("Generated and stored env-thunder url handle", "ouID", ouID, "envName", envName)
+			s.logger.Info("Generated and stored env-thunder url handle", "ou_id", ouID, "env_name", envName)
 		} else {
-			s.logger.Info("Stored env-thunder url handle", "ouID", ouID, "envName", envName)
+			s.logger.Info("Stored env-thunder url handle", "ou_id", ouID, "env_name", envName)
 		}
 		return handle, nil
 	}
@@ -785,7 +785,7 @@ func (s *environmentService) claimThunderHandle(ctx context.Context, ouID, envNa
 			return "", fmt.Errorf("failed to read the winning thunder url handle for %s/%s after a claim race: %w", ouID, envName, getErr)
 		}
 		if generated {
-			s.logger.Info("Lost a concurrent first-provisioning race; adopting the winning handle", "ouID", ouID, "envName", envName)
+			s.logger.Info("Lost a concurrent first-provisioning race; adopting the winning handle", "ou_id", ouID, "env_name", envName)
 			return winner.ThunderHandle, nil
 		}
 		return s.reuseOrRejectThunderHandle(winner.ThunderHandle, handle, ouID, envName)
@@ -823,7 +823,7 @@ func (s *environmentService) DeleteThunderURL(ctx context.Context, ouID, envName
 	if err := s.envThunderURLRepo.Delete(ctx, ouID, envName); err != nil {
 		return fmt.Errorf("failed to delete thunder url handle for %s/%s: %w", ouID, envName, err)
 	}
-	s.logger.Info("Deleted env-thunder url handle", "ouID", ouID, "envName", envName)
+	s.logger.Info("Deleted env-thunder url handle", "ou_id", ouID, "env_name", envName)
 	return nil
 }
 
@@ -891,7 +891,7 @@ func (s *environmentService) SetThunderSystemClientSecret(ctx context.Context, o
 	if err := s.envThunderRepo.Upsert(ctx, cred); err != nil {
 		return fmt.Errorf("failed to store env-thunder system-client secret for %s/%s: %w", ouID, envName, err)
 	}
-	s.logger.Info("Stored env-thunder system-client secret", "ouID", ouID, "envName", envName)
+	s.logger.Info("Stored env-thunder system-client secret", "ou_id", ouID, "env_name", envName)
 	return nil
 }
 
@@ -904,6 +904,6 @@ func (s *environmentService) DeleteThunderSystemClientSecret(ctx context.Context
 	if err := s.envThunderRepo.Delete(ctx, ouID, envName); err != nil {
 		return fmt.Errorf("failed to delete env-thunder system-client secret for %s/%s: %w", ouID, envName, err)
 	}
-	s.logger.Info("Deleted env-thunder system-client secret", "ouID", ouID, "envName", envName)
+	s.logger.Info("Deleted env-thunder system-client secret", "ou_id", ouID, "env_name", envName)
 	return nil
 }

@@ -506,7 +506,7 @@ func (s *agentIdentityInjectionService) InjectForEnvironment(ctx context.Context
 		return err
 	}
 	if len(envVars) == 0 {
-		s.logger.Debug("No agent identity env vars to inject", "agentName", agentName, "envName", envName)
+		s.logger.Debug("No agent identity env vars to inject", "agent_name", agentName, "env_name", envName)
 		return nil
 	}
 	// Merges into the ReleaseBinding's workload overrides and stamps
@@ -518,7 +518,7 @@ func (s *agentIdentityInjectionService) InjectForEnvironment(ctx context.Context
 	}); err != nil {
 		return fmt.Errorf("inject agent identity env vars into release binding: %w", err)
 	}
-	s.logger.Info("Injected agent identity env vars", "agentName", agentName, "envName", envName)
+	s.logger.Info("Injected agent identity env vars", "agent_name", agentName, "env_name", envName)
 	return nil
 }
 
@@ -654,10 +654,10 @@ func (s *agentIdentityInjectionService) RefreshAfterRotation(ctx context.Context
 		if err := withReleaseBindingRetry(refreshCtx, func() error {
 			return s.ocClient.UpdateReleaseBindingEnvVars(refreshCtx, ouID, projectName, agentName, envName, envVars)
 		}); err != nil {
-			s.logger.Warn("Failed to roll out pod after agent identity secret rotation", "agentName", agentName, "envName", envName, "error", err)
+			s.logger.Warn("Failed to roll out pod after agent identity secret rotation", "agent_name", agentName, "env_name", envName, "error", err)
 			return
 		}
-		s.logger.Info("Refreshed agent identity credentials in workload after rotation", "agentName", agentName, "envName", envName)
+		s.logger.Info("Refreshed agent identity credentials in workload after rotation", "agent_name", agentName, "env_name", envName)
 	}()
 	return nil
 }
@@ -702,7 +702,7 @@ func (s *agentIdentityInjectionService) RemoveForEnvironment(ctx context.Context
 		return fmt.Errorf("delete agent identity SecretReference during removal: %w", err)
 	}
 
-	s.logger.Info("Removed agent identity env vars from workload", "agentName", agentName, "envName", envName, "includeWorkloadLevel", includeWorkloadLevel)
+	s.logger.Info("Removed agent identity env vars from workload", "agent_name", agentName, "env_name", envName, "include_workload_level", includeWorkloadLevel)
 	return nil
 }
 

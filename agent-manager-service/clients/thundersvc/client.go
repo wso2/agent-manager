@@ -24,7 +24,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
-	"log/slog"
 	"net"
 	"net/http"
 	"net/url"
@@ -32,6 +31,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/wso2/agent-manager/agent-manager-service/middleware/logger"
 	"golang.org/x/sync/singleflight"
 )
 
@@ -391,7 +391,7 @@ func (c *thunderClient) regenerateSecret(ctx context.Context, token, appID strin
 	if err != nil {
 		return "", err
 	}
-	slog.Info("Thunder client secret regenerated", "appID", appID)
+	logger.GetLogger(ctx).Info("Thunder client secret regenerated", "app_id", appID)
 	return secret, nil
 }
 
@@ -615,7 +615,7 @@ func (c *thunderClient) createApp(ctx context.Context, token, appName, ouID stri
 		return "", "", fmt.Errorf("thunder create app returned %d: %s", resp.StatusCode, string(respBody))
 	}
 
-	slog.Info("Thunder app created", "appName", appName, "status", resp.StatusCode)
+	logger.GetLogger(ctx).Info("Thunder app created", "app_name", appName, "status", resp.StatusCode)
 
 	// Thunder may return the app directly or nested — extract clientId and clientSecret
 	var result struct {

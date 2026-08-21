@@ -30,6 +30,7 @@ import (
 
 	"github.com/wso2/agent-manager/agent-manager-service/clients/openchoreosvc/client"
 	"github.com/wso2/agent-manager/agent-manager-service/clients/requests"
+	"github.com/wso2/agent-manager/agent-manager-service/middleware/logger"
 )
 
 // Compile-time check that AuthProvider implements client.AuthProvider
@@ -98,12 +99,12 @@ func (p *AuthProvider) GetToken(ctx context.Context) (string, error) {
 		return p.accessToken, nil
 	}
 
-	slog.Debug("openchoreo auth: fetching new token")
+	logger.GetLogger(ctx).Debug("openchoreo auth: fetching new token")
 
 	// Fetch new token
 	token, expiresIn, err := p.fetchToken(ctx)
 	if err != nil {
-		slog.Error("openchoreo auth: failed to fetch token", "error", err)
+		logger.GetLogger(ctx).Error("openchoreo auth: failed to fetch token", "error", err)
 		return "", fmt.Errorf("failed to fetch token: %w", err)
 	}
 
@@ -111,7 +112,7 @@ func (p *AuthProvider) GetToken(ctx context.Context) (string, error) {
 	p.accessToken = token
 	p.expiresAt = time.Now().Add(time.Duration(expiresIn) * time.Second)
 
-	slog.Info("openchoreo auth: fetched new access token",
+	logger.GetLogger(ctx).Info("openchoreo auth: fetched new access token",
 		"expires_at", p.expiresAt.Format(time.RFC3339))
 
 	return p.accessToken, nil
@@ -121,6 +122,7 @@ func (p *AuthProvider) GetToken(ctx context.Context) (string, error) {
 func (p *AuthProvider) InvalidateToken() {
 	p.mu.Lock()
 	defer p.mu.Unlock()
+	//nolint:forbidigo // process-wide token cache, shared across requests
 	slog.Debug("openchoreo auth: invalidating cached token")
 	p.accessToken = ""
 	p.expiresAt = time.Time{}
@@ -129,10 +131,12 @@ func (p *AuthProvider) InvalidateToken() {
 // isTokenValid checks if the cached token is still valid
 func (p *AuthProvider) isTokenValid() bool {
 	if p.accessToken == "" {
+		//nolint:forbidigo // process-wide token cache, shared across requests
 		slog.Debug("openchoreo auth: no cached token")
 		return false
 	}
 	isValid := time.Now().Add(expiryBuffer).Before(p.expiresAt)
+	//nolint:forbidigo // process-wide token cache, shared across requests
 	slog.Debug("openchoreo auth: token validation check",
 		"is_valid", isValid,
 		"expires_at", p.expiresAt.Format(time.RFC3339))

@@ -75,14 +75,14 @@ func (c *infraResourceController) ListOrganizations(w http.ResponseWriter, r *ht
 	// Parse and validate pagination parameters
 	limit, err := strconv.Atoi(limitStr)
 	if err != nil || limit < utils.MinLimit || limit > utils.MaxLimit {
-		log.Error("ListOrganizations: invalid limit parameter", "limit", limitStr)
+		log.Warn("ListOrganizations: invalid limit parameter", "limit", limitStr)
 		utils.WriteErrorResponse(w, http.StatusBadRequest, fmt.Sprintf("Invalid limit parameter: must be between %d and %d", utils.MinLimit, utils.MaxLimit))
 		return
 	}
 
 	offset, err := strconv.Atoi(offsetStr)
 	if err != nil || offset < utils.MinOffset {
-		log.Error("ListOrganizations: invalid offset parameter", "offset", offsetStr)
+		log.Warn("ListOrganizations: invalid offset parameter", "offset", offsetStr)
 		utils.WriteErrorResponse(w, http.StatusBadRequest, fmt.Sprintf("Invalid offset parameter: must be %d or greater", utils.MinOffset))
 		return
 	}
@@ -142,14 +142,14 @@ func (c *infraResourceController) ListProjects(w http.ResponseWriter, r *http.Re
 	// Parse and validate pagination parameters
 	limit, err := strconv.Atoi(limitStr)
 	if err != nil || limit < utils.MinLimit || limit > utils.MaxLimit {
-		log.Error("ListProjects: invalid limit parameter", "limit", limitStr)
+		log.Warn("ListProjects: invalid limit parameter", "limit", limitStr)
 		utils.WriteErrorResponse(w, http.StatusBadRequest, fmt.Sprintf("Invalid limit parameter: must be between %d and %d", utils.MinLimit, utils.MaxLimit))
 		return
 	}
 
 	offset, err := strconv.Atoi(offsetStr)
 	if err != nil || offset < utils.MinOffset {
-		log.Error("ListProjects: invalid offset parameter", "offset", offsetStr)
+		log.Warn("ListProjects: invalid offset parameter", "offset", offsetStr)
 		utils.WriteErrorResponse(w, http.StatusBadRequest, fmt.Sprintf("Invalid offset parameter: must be %d or greater", utils.MinOffset))
 		return
 	}
@@ -180,25 +180,25 @@ func (c *infraResourceController) CreateProject(w http.ResponseWriter, r *http.R
 	// Parse and validate request body
 	var payload spec.CreateProjectRequest
 	if err := json.NewDecoder(r.Body).Decode(&payload); err != nil {
-		log.Error("CreateProject: failed to decode request body", "error", err)
+		log.Warn("CreateProject: failed to decode request body", "error", err)
 		utils.WriteErrorResponse(w, http.StatusBadRequest, "Invalid request body")
 		return
 	}
 
 	if err := utils.ValidateResourceName(payload.Name, "project"); err != nil {
-		log.Error("CreateProject: invalid project name", "projectName", payload.Name, "error", err)
+		log.Warn("CreateProject: invalid project name", "project_name", payload.Name, "error", err)
 		utils.WriteValidationErrorResponse(w, err)
 		return
 	}
 
 	if err := utils.ValidateResourceDisplayName(payload.DisplayName, "project"); err != nil {
-		log.Error("CreateProject: invalid project display name", "projectDisplayName", payload.DisplayName, "error", err)
+		log.Warn("CreateProject: invalid project display name", "project_display_name", payload.DisplayName, "error", err)
 		utils.WriteValidationErrorResponse(w, err)
 		return
 	}
 
 	if payload.DeploymentPipeline == "" {
-		log.Error("CreateProject: missing deployment pipeline in request body")
+		log.Warn("CreateProject: missing deployment pipeline in request body")
 		utils.WriteErrorResponse(w, http.StatusBadRequest, "Missing deployment pipeline in request body")
 		return
 	}
@@ -231,13 +231,13 @@ func (c *infraResourceController) UpdateProject(w http.ResponseWriter, r *http.R
 	// Parse and validate request body
 	var payload spec.UpdateProjectRequest
 	if err := json.NewDecoder(r.Body).Decode(&payload); err != nil {
-		log.Error("UpdateProject: failed to decode request body", "error", err)
+		log.Warn("UpdateProject: failed to decode request body", "error", err)
 		utils.WriteErrorResponse(w, http.StatusBadRequest, "Invalid request body")
 		return
 	}
 
 	if err := utils.ValidateProjectUpdatePayload(payload); err != nil {
-		log.Error("UpdateProject: invalid project payload", "error", err)
+		log.Warn("UpdateProject: invalid project payload", "error", err)
 		utils.WriteValidationErrorResponse(w, err)
 		return
 	}
@@ -298,14 +298,14 @@ func (c *infraResourceController) ListOrgDeploymentPipelines(w http.ResponseWrit
 	// Parse and validate pagination parameters
 	limit, err := strconv.Atoi(limitStr)
 	if err != nil || limit < utils.MinLimit || limit > utils.MaxLimit {
-		log.Error("ListOrgDeploymentPipelines: invalid limit parameter", "limit", limitStr)
+		log.Warn("ListOrgDeploymentPipelines: invalid limit parameter", "limit", limitStr)
 		utils.WriteErrorResponse(w, http.StatusBadRequest, fmt.Sprintf("Invalid limit parameter: must be between %d and %d", utils.MinLimit, utils.MaxLimit))
 		return
 	}
 
 	offset, err := strconv.Atoi(offsetStr)
 	if err != nil || offset < utils.MinOffset {
-		log.Error("ListOrgDeploymentPipelines: invalid offset parameter", "offset", offsetStr)
+		log.Warn("ListOrgDeploymentPipelines: invalid offset parameter", "offset", offsetStr)
 		utils.WriteErrorResponse(w, http.StatusBadRequest, fmt.Sprintf("Invalid offset parameter: must be %d or greater", utils.MinOffset))
 		return
 	}
@@ -331,7 +331,7 @@ func (c *infraResourceController) GetProject(w http.ResponseWriter, r *http.Requ
 
 	project, err := c.infraResourceManager.GetProject(ctx, ouID, projectName)
 	if err != nil {
-		log.Error("GetProject: failed to get project", "error", err)
+		log.Warn("GetProject: failed to get project", "error", err)
 		if errors.Is(err, utils.ErrOrganizationNotFound) {
 			utils.WriteErrorResponse(w, http.StatusNotFound, "Organization not found")
 			return
@@ -397,7 +397,7 @@ func (c *infraResourceController) CreateOrgDeploymentPipeline(w http.ResponseWri
 
 	var payload spec.CreateDeploymentPipelineRequest
 	if err := json.NewDecoder(r.Body).Decode(&payload); err != nil {
-		log.Error("CreateOrgDeploymentPipeline: failed to decode request body", "error", err)
+		log.Warn("CreateOrgDeploymentPipeline: failed to decode request body", "error", err)
 		utils.WriteErrorResponse(w, http.StatusBadRequest, "Invalid request body")
 		return
 	}
@@ -431,7 +431,7 @@ func (c *infraResourceController) UpdateOrgDeploymentPipeline(w http.ResponseWri
 
 	var payload spec.UpdateDeploymentPipelineRequest
 	if err := json.NewDecoder(r.Body).Decode(&payload); err != nil {
-		log.Error("UpdateOrgDeploymentPipeline: failed to decode request body", "error", err)
+		log.Warn("UpdateOrgDeploymentPipeline: failed to decode request body", "error", err)
 		utils.WriteErrorResponse(w, http.StatusBadRequest, "Invalid request body")
 		return
 	}

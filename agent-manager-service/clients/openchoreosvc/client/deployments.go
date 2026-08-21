@@ -19,7 +19,6 @@ package client
 import (
 	"context"
 	"fmt"
-	"log/slog"
 	"net/http"
 	"strings"
 	"time"
@@ -28,6 +27,7 @@ import (
 
 	"github.com/wso2/agent-manager/agent-manager-service/clients/openchoreosvc/gen"
 	"github.com/wso2/agent-manager/agent-manager-service/config"
+	"github.com/wso2/agent-manager/agent-manager-service/middleware/logger"
 	"github.com/wso2/agent-manager/agent-manager-service/models"
 	"github.com/wso2/agent-manager/agent-manager-service/utils"
 )
@@ -133,7 +133,7 @@ func (c *openChoreoClient) CreateInternalAgentFromKindWorkload(ctx context.Conte
 		return fmt.Errorf("failed to create kind-sourced agent workload: %w", err)
 	}
 	if resp.StatusCode() != http.StatusCreated {
-		return handleErrorResponse(resp.StatusCode(), ErrorResponses{
+		return handleErrorResponse(ctx, resp.StatusCode(), ErrorResponses{
 			JSON400: resp.JSON400,
 			JSON401: resp.JSON401,
 			JSON403: resp.JSON403,
@@ -155,7 +155,7 @@ func (c *openChoreoClient) Deploy(ctx context.Context, ouID, projectName, compon
 	}
 
 	if workloadResp.StatusCode() != http.StatusOK {
-		return handleErrorResponse(workloadResp.StatusCode(), ErrorResponses{
+		return handleErrorResponse(ctx, workloadResp.StatusCode(), ErrorResponses{
 			JSON401: workloadResp.JSON401,
 			JSON403: workloadResp.JSON403,
 			JSON404: workloadResp.JSON404,
@@ -187,7 +187,7 @@ func (c *openChoreoClient) Deploy(ctx context.Context, ouID, projectName, compon
 	}
 
 	if updateResp.StatusCode() != http.StatusOK {
-		return handleErrorResponse(updateResp.StatusCode(), ErrorResponses{
+		return handleErrorResponse(ctx, updateResp.StatusCode(), ErrorResponses{
 			JSON401: updateResp.JSON401,
 			JSON403: updateResp.JSON403,
 			JSON404: updateResp.JSON404,
@@ -222,7 +222,7 @@ func (c *openChoreoClient) retryReleaseBindingUpdate(
 			return fmt.Errorf("failed to get release binding %q: %w", bindingName, err)
 		}
 		if getResp.StatusCode() != http.StatusOK {
-			return handleErrorResponse(getResp.StatusCode(), ErrorResponses{
+			return handleErrorResponse(ctx, getResp.StatusCode(), ErrorResponses{
 				JSON401: getResp.JSON401,
 				JSON403: getResp.JSON403,
 				JSON404: getResp.JSON404,
@@ -248,12 +248,12 @@ func (c *openChoreoClient) retryReleaseBindingUpdate(
 		// generic Internal Server Error rather than a 409. See the function-level comment.
 		if (updateResp.StatusCode() == http.StatusConflict ||
 			updateResp.StatusCode() == http.StatusInternalServerError) && attempt < maxRetries {
-			slog.Warn("release binding update failed, retrying with fresh version",
-				"binding", bindingName, "status", updateResp.StatusCode(), "attempt", attempt, "maxRetries", maxRetries)
+			logger.GetLogger(ctx).Warn("release binding update failed, retrying with fresh version",
+				"binding", bindingName, "status", updateResp.StatusCode(), "attempt", attempt, "max_retries", maxRetries)
 			lastErr = fmt.Errorf("status %d on attempt %d", updateResp.StatusCode(), attempt)
 			continue
 		}
-		return handleErrorResponse(updateResp.StatusCode(), ErrorResponses{
+		return handleErrorResponse(ctx, updateResp.StatusCode(), ErrorResponses{
 			JSON401: updateResp.JSON401,
 			JSON403: updateResp.JSON403,
 			JSON404: updateResp.JSON404,
@@ -279,7 +279,7 @@ func (c *openChoreoClient) findReleaseBindingForEnv(ctx context.Context, namespa
 		return nil, fmt.Errorf("failed to list release bindings: %w", err)
 	}
 	if listResp.StatusCode() != http.StatusOK {
-		return nil, handleErrorResponse(listResp.StatusCode(), ErrorResponses{
+		return nil, handleErrorResponse(ctx, listResp.StatusCode(), ErrorResponses{
 			JSON401: listResp.JSON401,
 			JSON403: listResp.JSON403,
 			JSON404: listResp.JSON404,
@@ -486,7 +486,7 @@ func (c *openChoreoClient) PromoteComponent(ctx context.Context, ouID, projectNa
 		return fmt.Errorf("failed to list release bindings: %w", err)
 	}
 	if bindingsResp.StatusCode() != http.StatusOK {
-		return handleErrorResponse(bindingsResp.StatusCode(), ErrorResponses{
+		return handleErrorResponse(ctx, bindingsResp.StatusCode(), ErrorResponses{
 			JSON401: bindingsResp.JSON401,
 			JSON403: bindingsResp.JSON403,
 			JSON500: bindingsResp.JSON500,
@@ -616,7 +616,7 @@ func (c *openChoreoClient) PromoteComponent(ctx context.Context, ouID, projectNa
 			return fmt.Errorf("failed to create release binding in target environment: %w", err)
 		}
 		if createResp.StatusCode() != http.StatusCreated {
-			return handleErrorResponse(createResp.StatusCode(), ErrorResponses{
+			return handleErrorResponse(ctx, createResp.StatusCode(), ErrorResponses{
 				JSON400: createResp.JSON400,
 				JSON401: createResp.JSON401,
 				JSON403: createResp.JSON403,
@@ -646,7 +646,7 @@ func (c *openChoreoClient) GetSourceEnvWorkloadOverrides(ctx context.Context, ou
 		return nil, nil, fmt.Errorf("failed to list workloads: %w", err)
 	}
 	if workloadResp.StatusCode() != http.StatusOK {
-		return nil, nil, handleErrorResponse(workloadResp.StatusCode(), ErrorResponses{
+		return nil, nil, handleErrorResponse(ctx, workloadResp.StatusCode(), ErrorResponses{
 			JSON401: workloadResp.JSON401,
 			JSON403: workloadResp.JSON403,
 			JSON500: workloadResp.JSON500,
@@ -677,7 +677,7 @@ func (c *openChoreoClient) GetSourceEnvWorkloadOverrides(ctx context.Context, ou
 		return nil, nil, fmt.Errorf("failed to list release bindings: %w", err)
 	}
 	if bindingsResp.StatusCode() != http.StatusOK {
-		return nil, nil, handleErrorResponse(bindingsResp.StatusCode(), ErrorResponses{
+		return nil, nil, handleErrorResponse(ctx, bindingsResp.StatusCode(), ErrorResponses{
 			JSON401: bindingsResp.JSON401,
 			JSON403: bindingsResp.JSON403,
 			JSON500: bindingsResp.JSON500,
@@ -824,7 +824,7 @@ func (c *openChoreoClient) GetDeployments(ctx context.Context, ouID, pipelineNam
 	}
 
 	if bindingsResp.StatusCode() != http.StatusOK {
-		return nil, handleErrorResponse(bindingsResp.StatusCode(), ErrorResponses{
+		return nil, handleErrorResponse(ctx, bindingsResp.StatusCode(), ErrorResponses{
 			JSON401: bindingsResp.JSON401,
 			JSON403: bindingsResp.JSON403,
 			JSON404: bindingsResp.JSON404,
@@ -992,7 +992,7 @@ func (c *openChoreoClient) IsDeploymentInProgress(ctx context.Context, ouID, com
 	}
 
 	if resp.StatusCode() != http.StatusOK {
-		return false, handleErrorResponse(resp.StatusCode(), ErrorResponses{
+		return false, handleErrorResponse(ctx, resp.StatusCode(), ErrorResponses{
 			JSON401: resp.JSON401,
 			JSON403: resp.JSON403,
 			JSON500: resp.JSON500,
@@ -1154,18 +1154,18 @@ func (c *openChoreoClient) fetchRuntimeReplicaState(ctx context.Context, namespa
 
 	resp, err := c.ocClient.GetReleaseBindingK8sResourceTreeWithResponse(ctx, namespaceName, bindingName)
 	if err != nil {
-		slog.Warn("failed to fetch resource tree for deployment readiness",
+		logger.GetLogger(ctx).Warn("failed to fetch resource tree for deployment readiness",
 			"binding", bindingName, "namespace", namespaceName, "error", err)
 		return runtimeReplicaState{}
 	}
 	if resp.StatusCode() != http.StatusOK {
-		slog.Warn("resource tree request returned non-OK for deployment readiness",
+		logger.GetLogger(ctx).Warn("resource tree request returned non-OK for deployment readiness",
 			"binding", bindingName, "namespace", namespaceName, "status", resp.StatusCode())
 		return runtimeReplicaState{}
 	}
 
 	state := runtimeReplicaStateFromTree(resp.JSON200)
-	slog.Debug("resolved agent runtime state",
+	logger.GetLogger(ctx).Debug("resolved agent runtime state",
 		"binding", bindingName, "namespace", namespaceName,
 		"desired", state.desired, "ready", state.ready, "cause", state.notReadyResource)
 
@@ -1369,7 +1369,7 @@ func (c *openChoreoClient) UpdateDeploymentState(ctx context.Context, ouID, proj
 	}
 
 	if bindingsResp.StatusCode() != http.StatusOK {
-		return handleErrorResponse(bindingsResp.StatusCode(), ErrorResponses{
+		return handleErrorResponse(ctx, bindingsResp.StatusCode(), ErrorResponses{
 			JSON401: bindingsResp.JSON401,
 			JSON403: bindingsResp.JSON403,
 			JSON404: bindingsResp.JSON404,
@@ -1404,7 +1404,7 @@ func (c *openChoreoClient) UpdateDeploymentState(ctx context.Context, ouID, proj
 	}
 
 	if updateResp.StatusCode() != http.StatusOK {
-		return handleErrorResponse(updateResp.StatusCode(), ErrorResponses{
+		return handleErrorResponse(ctx, updateResp.StatusCode(), ErrorResponses{
 			JSON401: updateResp.JSON401,
 			JSON403: updateResp.JSON403,
 			JSON404: updateResp.JSON404,

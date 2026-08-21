@@ -108,7 +108,7 @@ func (c *identityController) ListUsers(w http.ResponseWriter, r *http.Request) {
 
 	users, total, err := c.client.ListUsersByOUId(ctx, resolvedOrg.OUID, offset, limit)
 	if err != nil {
-		log.Error("ListUsers failed", "ouID", resolvedOrg.OUID, "error", err)
+		log.Error("ListUsers failed", "ou_id", resolvedOrg.OUID, "error", err)
 		utils.WriteErrorResponse(w, http.StatusInternalServerError, "Failed to list users")
 		return
 	}
@@ -141,7 +141,7 @@ func (c *identityController) GetUser(w http.ResponseWriter, r *http.Request) {
 			utils.WriteErrorResponse(w, http.StatusNotFound, "User not found")
 			return
 		}
-		log.Error("GetUser failed", "userID", userID, "error", err)
+		log.Error("GetUser failed", "user_id", userID, "error", err)
 		utils.WriteErrorResponse(w, http.StatusInternalServerError, "Failed to get user")
 		return
 	}
@@ -237,7 +237,7 @@ func (c *identityController) UpdateUser(w http.ResponseWriter, r *http.Request) 
 			utils.WriteErrorResponse(w, http.StatusNotFound, "User not found")
 			return
 		}
-		log.Error("UpdateUser failed", "userID", userID, "error", err)
+		log.Error("UpdateUser failed", "user_id", userID, "error", err)
 		utils.WriteErrorResponse(w, http.StatusInternalServerError, "Failed to update user")
 		return
 	}
@@ -272,7 +272,7 @@ func (c *identityController) UpdateUser(w http.ResponseWriter, r *http.Request) 
 			utils.WriteErrorResponse(w, http.StatusNotFound, "User not found")
 			return
 		}
-		log.Error("UpdateUser failed", "userID", userID, "error", err)
+		log.Error("UpdateUser failed", "user_id", userID, "error", err)
 		utils.WriteErrorResponse(w, http.StatusInternalServerError, "Failed to update user")
 		return
 	}
@@ -296,7 +296,7 @@ func (c *identityController) DeleteUser(w http.ResponseWriter, r *http.Request) 
 			utils.WriteErrorResponse(w, http.StatusNotFound, "User not found")
 			return
 		}
-		log.Error("DeleteUser failed", "userID", userID, "error", err)
+		log.Error("DeleteUser failed", "user_id", userID, "error", err)
 		utils.WriteErrorResponse(w, http.StatusInternalServerError, "Failed to delete user")
 		return
 	}
@@ -321,7 +321,7 @@ func (c *identityController) DeleteUser(w http.ResponseWriter, r *http.Request) 
 			utils.WriteErrorResponse(w, http.StatusNotFound, "User not found")
 			return
 		}
-		log.Error("DeleteUser failed", "userID", userID, "error", err)
+		log.Error("DeleteUser failed", "user_id", userID, "error", err)
 		utils.WriteErrorResponse(w, http.StatusInternalServerError, "Failed to delete user")
 		return
 	}
@@ -346,7 +346,7 @@ func (c *identityController) GetUserGroups(w http.ResponseWriter, r *http.Reques
 			utils.WriteErrorResponse(w, http.StatusNotFound, "User not found")
 			return
 		}
-		log.Error("GetUserGroups failed", "userID", userID, "error", err)
+		log.Error("GetUserGroups failed", "user_id", userID, "error", err)
 		utils.WriteErrorResponse(w, http.StatusInternalServerError, "Failed to get user groups")
 		return
 	}
@@ -357,7 +357,7 @@ func (c *identityController) GetUserGroups(w http.ResponseWriter, r *http.Reques
 
 	groups, err := c.client.GetUserGroups(ctx, userID)
 	if err != nil {
-		log.Error("GetUserGroups failed", "userID", userID, "error", err)
+		log.Error("GetUserGroups failed", "user_id", userID, "error", err)
 		utils.WriteErrorResponse(w, http.StatusInternalServerError, "Failed to get user groups")
 		return
 	}
@@ -381,7 +381,7 @@ func (c *identityController) GetUserRoles(w http.ResponseWriter, r *http.Request
 			utils.WriteErrorResponse(w, http.StatusNotFound, "User not found")
 			return
 		}
-		log.Error("GetUserRoles failed", "userID", userID, "error", err)
+		log.Error("GetUserRoles failed", "user_id", userID, "error", err)
 		utils.WriteErrorResponse(w, http.StatusInternalServerError, "Failed to get user roles")
 		return
 	}
@@ -392,7 +392,7 @@ func (c *identityController) GetUserRoles(w http.ResponseWriter, r *http.Request
 
 	roles, err := c.client.GetUserRoles(ctx, userID)
 	if err != nil {
-		log.Error("GetUserRoles failed", "userID", userID, "error", err)
+		log.Error("GetUserRoles failed", "user_id", userID, "error", err)
 		utils.WriteErrorResponse(w, http.StatusInternalServerError, "Failed to get user roles")
 		return
 	}
@@ -446,7 +446,7 @@ func (c *identityController) InviteUser(w http.ResponseWriter, r *http.Request) 
 	inviteLink, err := c.client.InviteUser(ctx, body.Email, ouIDForInvite)
 	if err != nil {
 		attempt.Complete(ctx, err)
-		log.Error("InviteUser failed", "ouID", resolvedOrg.OUID, "error", err)
+		log.Error("InviteUser failed", "ou_id", resolvedOrg.OUID, "error", err)
 		utils.WriteErrorResponse(w, http.StatusInternalServerError, "Failed to invite user")
 		return
 	}
@@ -477,7 +477,7 @@ func (c *identityController) ListGroups(w http.ResponseWriter, r *http.Request) 
 
 	groups, total, err := c.client.ListGroupsByOUId(ctx, resolvedOrg.OUID, offset, limit)
 	if err != nil {
-		log.Error("ListGroups failed", "ouID", resolvedOrg.OUID, "error", err)
+		log.Error("ListGroups failed", "ou_id", resolvedOrg.OUID, "error", err)
 		utils.WriteErrorResponse(w, http.StatusInternalServerError, "Failed to list groups")
 		return
 	}
@@ -512,7 +512,7 @@ func (c *identityController) GetGroup(w http.ResponseWriter, r *http.Request) {
 			utils.WriteErrorResponse(w, http.StatusNotFound, "Group not found")
 			return
 		}
-		log.Error("GetGroup failed", "groupID", groupID, "error", err)
+		log.Error("GetGroup failed", "group_id", groupID, "error", err)
 		utils.WriteErrorResponse(w, http.StatusInternalServerError, "Failed to get group")
 		return
 	}
@@ -590,7 +590,7 @@ func (c *identityController) UpdateGroup(w http.ResponseWriter, r *http.Request)
 			utils.WriteErrorResponse(w, http.StatusNotFound, "Group not found")
 			return
 		}
-		log.Error("UpdateGroup failed", "groupID", groupID, "error", err)
+		log.Error("UpdateGroup failed", "group_id", groupID, "error", err)
 		utils.WriteErrorResponse(w, http.StatusInternalServerError, "Failed to update group")
 		return
 	}
@@ -622,7 +622,7 @@ func (c *identityController) UpdateGroup(w http.ResponseWriter, r *http.Request)
 			utils.WriteErrorResponse(w, http.StatusNotFound, "Group not found")
 			return
 		}
-		log.Error("UpdateGroup failed", "groupID", groupID, "error", err)
+		log.Error("UpdateGroup failed", "group_id", groupID, "error", err)
 		utils.WriteErrorResponse(w, http.StatusInternalServerError, "Failed to update group")
 		return
 	}
@@ -646,7 +646,7 @@ func (c *identityController) DeleteGroup(w http.ResponseWriter, r *http.Request)
 			utils.WriteErrorResponse(w, http.StatusNotFound, "Group not found")
 			return
 		}
-		log.Error("DeleteGroup failed", "groupID", groupID, "error", err)
+		log.Error("DeleteGroup failed", "group_id", groupID, "error", err)
 		utils.WriteErrorResponse(w, http.StatusInternalServerError, "Failed to delete group")
 		return
 	}
@@ -664,7 +664,7 @@ func (c *identityController) DeleteGroup(w http.ResponseWriter, r *http.Request)
 			utils.WriteErrorResponse(w, http.StatusNotFound, "Group not found")
 			return
 		}
-		log.Error("DeleteGroup failed", "groupID", groupID, "error", err)
+		log.Error("DeleteGroup failed", "group_id", groupID, "error", err)
 		utils.WriteErrorResponse(w, http.StatusInternalServerError, "Failed to delete group")
 		return
 	}
@@ -688,7 +688,7 @@ func (c *identityController) AddGroupMembers(w http.ResponseWriter, r *http.Requ
 			utils.WriteErrorResponse(w, http.StatusNotFound, "Group not found")
 			return
 		}
-		log.Error("AddGroupMembers failed", "groupID", groupID, "error", err)
+		log.Error("AddGroupMembers failed", "group_id", groupID, "error", err)
 		utils.WriteErrorResponse(w, http.StatusInternalServerError, "Failed to add group members")
 		return
 	}
@@ -727,7 +727,7 @@ func (c *identityController) AddGroupMembers(w http.ResponseWriter, r *http.Requ
 
 	if err := c.client.AddGroupMembers(ctx, groupID, req.UserIDs); err != nil {
 		attempt.Complete(ctx, err)
-		log.Error("AddGroupMembers failed", "groupID", groupID, "error", err)
+		log.Error("AddGroupMembers failed", "group_id", groupID, "error", err)
 		utils.WriteErrorResponse(w, http.StatusInternalServerError, "Failed to add group members")
 		return
 	}
@@ -752,7 +752,7 @@ func (c *identityController) RemoveGroupMembers(w http.ResponseWriter, r *http.R
 			utils.WriteErrorResponse(w, http.StatusNotFound, "Group not found")
 			return
 		}
-		log.Error("RemoveGroupMembers failed", "groupID", groupID, "error", err)
+		log.Error("RemoveGroupMembers failed", "group_id", groupID, "error", err)
 		utils.WriteErrorResponse(w, http.StatusInternalServerError, "Failed to remove group members")
 		return
 	}
@@ -791,7 +791,7 @@ func (c *identityController) RemoveGroupMembers(w http.ResponseWriter, r *http.R
 
 	if err := c.client.RemoveGroupMembers(ctx, groupID, req.UserIDs); err != nil {
 		attempt.Complete(ctx, err)
-		log.Error("RemoveGroupMembers failed", "groupID", groupID, "error", err)
+		log.Error("RemoveGroupMembers failed", "group_id", groupID, "error", err)
 		utils.WriteErrorResponse(w, http.StatusInternalServerError, "Failed to remove group members")
 		return
 	}
@@ -816,7 +816,7 @@ func (c *identityController) GetGroupMembers(w http.ResponseWriter, r *http.Requ
 			utils.WriteErrorResponse(w, http.StatusNotFound, "Group not found")
 			return
 		}
-		log.Error("GetGroupMembers failed", "groupID", groupID, "error", err)
+		log.Error("GetGroupMembers failed", "group_id", groupID, "error", err)
 		utils.WriteErrorResponse(w, http.StatusInternalServerError, "Failed to get group members")
 		return
 	}
@@ -837,7 +837,7 @@ func (c *identityController) GetGroupMembers(w http.ResponseWriter, r *http.Requ
 
 	members, total, err := c.client.GetGroupMembers(ctx, groupID, offset, limit)
 	if err != nil {
-		log.Error("GetGroupMembers failed", "groupID", groupID, "error", err)
+		log.Error("GetGroupMembers failed", "group_id", groupID, "error", err)
 		utils.WriteErrorResponse(w, http.StatusInternalServerError, "Failed to get group members")
 		return
 	}
@@ -861,7 +861,7 @@ func (c *identityController) GetGroupRoles(w http.ResponseWriter, r *http.Reques
 			utils.WriteErrorResponse(w, http.StatusNotFound, "Group not found")
 			return
 		}
-		log.Error("GetGroupRoles failed", "groupID", groupID, "error", err)
+		log.Error("GetGroupRoles failed", "group_id", groupID, "error", err)
 		utils.WriteErrorResponse(w, http.StatusInternalServerError, "Failed to get group roles")
 		return
 	}
@@ -876,7 +876,7 @@ func (c *identityController) GetGroupRoles(w http.ResponseWriter, r *http.Reques
 
 	roles, err := c.client.GetGroupRoles(ctx, groupID)
 	if err != nil {
-		log.Error("GetGroupRoles failed", "groupID", groupID, "error", err)
+		log.Error("GetGroupRoles failed", "group_id", groupID, "error", err)
 		utils.WriteErrorResponse(w, http.StatusInternalServerError, "Failed to get group roles")
 		return
 	}
@@ -906,7 +906,7 @@ func (c *identityController) ListRoles(w http.ResponseWriter, r *http.Request) {
 
 	roles, total, err := c.client.ListRoles(ctx, resolvedOrg.OUID, offset, limit)
 	if err != nil {
-		log.Error("ListRoles failed", "ouID", resolvedOrg.OUID, "error", err)
+		log.Error("ListRoles failed", "ou_id", resolvedOrg.OUID, "error", err)
 		utils.WriteErrorResponse(w, http.StatusInternalServerError, "Failed to list roles")
 		return
 	}
@@ -940,7 +940,7 @@ func (c *identityController) GetRole(w http.ResponseWriter, r *http.Request) {
 			utils.WriteErrorResponse(w, http.StatusNotFound, "Role not found")
 			return
 		}
-		log.Error("GetRole failed", "roleID", roleID, "error", err)
+		log.Error("GetRole failed", "role_id", roleID, "error", err)
 		utils.WriteErrorResponse(w, http.StatusInternalServerError, "Failed to get role")
 		return
 	}
@@ -1016,7 +1016,7 @@ func (c *identityController) UpdateRole(w http.ResponseWriter, r *http.Request) 
 			utils.WriteErrorResponse(w, http.StatusNotFound, "Role not found")
 			return
 		}
-		log.Error("UpdateRole failed", "roleID", roleID, "error", err)
+		log.Error("UpdateRole failed", "role_id", roleID, "error", err)
 		utils.WriteErrorResponse(w, http.StatusInternalServerError, "Failed to update role")
 		return
 	}
@@ -1049,7 +1049,7 @@ func (c *identityController) UpdateRole(w http.ResponseWriter, r *http.Request) 
 			utils.WriteErrorResponse(w, http.StatusNotFound, "Role not found")
 			return
 		}
-		log.Error("UpdateRole failed", "roleID", roleID, "error", err)
+		log.Error("UpdateRole failed", "role_id", roleID, "error", err)
 		utils.WriteErrorResponse(w, http.StatusInternalServerError, "Failed to update role")
 		return
 	}
@@ -1074,7 +1074,7 @@ func (c *identityController) DeleteRole(w http.ResponseWriter, r *http.Request) 
 			utils.WriteErrorResponse(w, http.StatusNotFound, "Role not found")
 			return
 		}
-		log.Error("DeleteRole failed", "roleID", roleID, "error", err)
+		log.Error("DeleteRole failed", "role_id", roleID, "error", err)
 		utils.WriteErrorResponse(w, http.StatusInternalServerError, "Failed to delete role")
 		return
 	}
@@ -1092,7 +1092,7 @@ func (c *identityController) DeleteRole(w http.ResponseWriter, r *http.Request) 
 			utils.WriteErrorResponse(w, http.StatusNotFound, "Role not found")
 			return
 		}
-		log.Error("DeleteRole failed", "roleID", roleID, "error", err)
+		log.Error("DeleteRole failed", "role_id", roleID, "error", err)
 		utils.WriteErrorResponse(w, http.StatusInternalServerError, "Failed to delete role")
 		return
 	}
@@ -1116,7 +1116,7 @@ func (c *identityController) GetRoleAssignments(w http.ResponseWriter, r *http.R
 			utils.WriteErrorResponse(w, http.StatusNotFound, "Role not found")
 			return
 		}
-		log.Error("GetRoleAssignments failed", "roleID", roleID, "error", err)
+		log.Error("GetRoleAssignments failed", "role_id", roleID, "error", err)
 		utils.WriteErrorResponse(w, http.StatusInternalServerError, "Failed to get role assignments")
 		return
 	}
@@ -1127,7 +1127,7 @@ func (c *identityController) GetRoleAssignments(w http.ResponseWriter, r *http.R
 
 	assignments, err := c.client.GetRoleAssignments(ctx, roleID)
 	if err != nil {
-		log.Error("GetRoleAssignments failed", "roleID", roleID, "error", err)
+		log.Error("GetRoleAssignments failed", "role_id", roleID, "error", err)
 		utils.WriteErrorResponse(w, http.StatusInternalServerError, "Failed to get role assignments")
 		return
 	}
@@ -1151,7 +1151,7 @@ func (c *identityController) AddRolePermissions(w http.ResponseWriter, r *http.R
 			utils.WriteErrorResponse(w, http.StatusNotFound, "Role not found")
 			return
 		}
-		log.Error("AddRolePermissions failed", "roleID", roleID, "error", err)
+		log.Error("AddRolePermissions failed", "role_id", roleID, "error", err)
 		utils.WriteErrorResponse(w, http.StatusInternalServerError, "Failed to add role permissions")
 		return
 	}
@@ -1188,7 +1188,7 @@ func (c *identityController) AddRolePermissions(w http.ResponseWriter, r *http.R
 
 	if err := c.client.AddRolePermissions(ctx, roleID, req); err != nil {
 		attempt.Complete(ctx, err)
-		log.Error("AddRolePermissions failed", "roleID", roleID, "error", err)
+		log.Error("AddRolePermissions failed", "role_id", roleID, "error", err)
 		utils.WriteErrorResponse(w, http.StatusInternalServerError, "Failed to add role permissions")
 		return
 	}
@@ -1213,7 +1213,7 @@ func (c *identityController) RemoveRolePermissions(w http.ResponseWriter, r *htt
 			utils.WriteErrorResponse(w, http.StatusNotFound, "Role not found")
 			return
 		}
-		log.Error("RemoveRolePermissions failed", "roleID", roleID, "error", err)
+		log.Error("RemoveRolePermissions failed", "role_id", roleID, "error", err)
 		utils.WriteErrorResponse(w, http.StatusInternalServerError, "Failed to remove role permissions")
 		return
 	}
@@ -1247,7 +1247,7 @@ func (c *identityController) RemoveRolePermissions(w http.ResponseWriter, r *htt
 
 	if err := c.client.RemoveRolePermissions(ctx, roleID, req); err != nil {
 		attempt.Complete(ctx, err)
-		log.Error("RemoveRolePermissions failed", "roleID", roleID, "error", err)
+		log.Error("RemoveRolePermissions failed", "role_id", roleID, "error", err)
 		utils.WriteErrorResponse(w, http.StatusInternalServerError, "Failed to remove role permissions")
 		return
 	}
@@ -1272,7 +1272,7 @@ func (c *identityController) AddRoleAssignees(w http.ResponseWriter, r *http.Req
 			utils.WriteErrorResponse(w, http.StatusNotFound, "Role not found")
 			return
 		}
-		log.Error("AddRoleAssignees failed", "roleID", roleID, "error", err)
+		log.Error("AddRoleAssignees failed", "role_id", roleID, "error", err)
 		utils.WriteErrorResponse(w, http.StatusInternalServerError, "Failed to add role assignees")
 		return
 	}
@@ -1303,7 +1303,7 @@ func (c *identityController) AddRoleAssignees(w http.ResponseWriter, r *http.Req
 
 	if err := c.client.AddRoleAssignees(ctx, roleID, req); err != nil {
 		attempt.Complete(ctx, err)
-		log.Error("AddRoleAssignees failed", "roleID", roleID, "error", err)
+		log.Error("AddRoleAssignees failed", "role_id", roleID, "error", err)
 		utils.WriteErrorResponse(w, http.StatusInternalServerError, "Failed to add role assignees")
 		return
 	}
@@ -1328,7 +1328,7 @@ func (c *identityController) RemoveRoleAssignees(w http.ResponseWriter, r *http.
 			utils.WriteErrorResponse(w, http.StatusNotFound, "Role not found")
 			return
 		}
-		log.Error("RemoveRoleAssignees failed", "roleID", roleID, "error", err)
+		log.Error("RemoveRoleAssignees failed", "role_id", roleID, "error", err)
 		utils.WriteErrorResponse(w, http.StatusInternalServerError, "Failed to remove role assignees")
 		return
 	}
@@ -1359,7 +1359,7 @@ func (c *identityController) RemoveRoleAssignees(w http.ResponseWriter, r *http.
 
 	if err := c.client.RemoveRoleAssignees(ctx, roleID, req); err != nil {
 		attempt.Complete(ctx, err)
-		log.Error("RemoveRoleAssignees failed", "roleID", roleID, "error", err)
+		log.Error("RemoveRoleAssignees failed", "role_id", roleID, "error", err)
 		utils.WriteErrorResponse(w, http.StatusInternalServerError, "Failed to remove role assignees")
 		return
 	}
@@ -1435,7 +1435,7 @@ func (c *identityController) GetUserProfile(w http.ResponseWriter, r *http.Reque
 			utils.WriteErrorResponse(w, http.StatusNotFound, "User not found")
 			return
 		}
-		log.Error("GetUserProfile failed", "userID", userID, "error", err)
+		log.Error("GetUserProfile failed", "user_id", userID, "error", err)
 		utils.WriteErrorResponse(w, http.StatusInternalServerError, "Failed to get user profile")
 		return
 	}
@@ -1483,7 +1483,7 @@ func (c *identityController) UpdateCurrentUserProfile(w http.ResponseWriter, r *
 			utils.WriteErrorResponse(w, http.StatusNotFound, "User not found")
 			return
 		}
-		log.Error("Failed to fetch current user", "userID", userID, "error", err)
+		log.Error("Failed to fetch current user", "user_id", userID, "error", err)
 		utils.WriteErrorResponse(w, http.StatusInternalServerError, "Failed to update user profile")
 		return
 	}
@@ -1522,7 +1522,7 @@ func (c *identityController) UpdateCurrentUserProfile(w http.ResponseWriter, r *
 		}
 	}
 
-	log.Info("UpdateCurrentUserProfile - request details", "userID", userID, "ouID", resolvedOrg.OUID, "type", currentUser.Type)
+	log.Info("UpdateCurrentUserProfile - request details", "user_id", userID, "ou_id", resolvedOrg.OUID, "type", currentUser.Type)
 	sanitizedMerged := sanitizeAttributesForLogging(attrs)
 	log.Info("UpdateCurrentUserProfile - attributes being sent", "attrs", sanitizedMerged)
 
@@ -1536,21 +1536,21 @@ func (c *identityController) UpdateCurrentUserProfile(w http.ResponseWriter, r *
 			utils.WriteErrorResponse(w, http.StatusNotFound, "User not found")
 			return
 		}
-		log.Error("UpdateCurrentUserProfile failed", "userID", userID, "error", err)
+		log.Error("UpdateCurrentUserProfile failed", "user_id", userID, "error", err)
 		utils.WriteErrorResponse(w, http.StatusInternalServerError, "Failed to update user profile")
 		return
 	}
 
 	if newPassword != "" {
 		if err := c.client.UpdateUserCredentials(ctx, userID, newPassword); err != nil {
-			log.Error("UpdateCurrentUserProfile: password update failed", "userID", userID, "ouID", resolvedOrg.OUID, "error", err)
+			log.Error("UpdateCurrentUserProfile: password update failed", "user_id", userID, "ou_id", resolvedOrg.OUID, "error", err)
 			utils.WriteErrorResponse(w, http.StatusInternalServerError, "Profile updated, but password change failed")
 			return
 		}
 	}
 
 	sanitizedResponse := sanitizeAttributesForLogging(updatedUser.Attributes)
-	log.Info("UpdateCurrentUserProfile - response from Thunder", "userID", userID, "attributes", sanitizedResponse)
+	log.Info("UpdateCurrentUserProfile - response from Thunder", "user_id", userID, "attributes", sanitizedResponse)
 	utils.WriteSuccessResponse(w, http.StatusOK, updatedUser)
 }
 

@@ -111,7 +111,8 @@ func enrichSpecIdentityProvider(row repositories.IdentityProviderWithContext, en
 
 // ListGatewayIdentityProviders lists the identity providers mirrored for a gateway.
 func (c *gatewayController) ListGatewayIdentityProviders(w http.ResponseWriter, r *http.Request) {
-	log := logger.GetLogger(r.Context())
+	ctx := r.Context()
+	log := logger.GetLogger(ctx)
 	ouID := middleware.OUIDFromRequest(r)
 	gatewayID := strings.TrimSpace(r.PathValue("gatewayID"))
 
@@ -142,7 +143,7 @@ func (c *gatewayController) UpsertGatewayIdentityProvider(w http.ResponseWriter,
 
 	var req spec.UpsertIdentityProviderRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		log.Error("UpsertGatewayIdentityProvider: failed to decode request", "error", err)
+		log.Warn("UpsertGatewayIdentityProvider: failed to decode request", "error", err)
 		utils.WriteErrorResponse(w, http.StatusBadRequest, "Invalid request body")
 		return
 	}
@@ -223,7 +224,7 @@ func (c *gatewayController) ListEnvironmentIdentityProviders(w http.ResponseWrit
 
 	envUUID, err := c.resolveEnvironmentUUID(ctx, ouID, environmentID)
 	if err != nil {
-		log.Error("ListEnvironmentIdentityProviders: failed to resolve environment", "error", err)
+		log.Warn("ListEnvironmentIdentityProviders: failed to resolve environment", "error", err)
 		utils.WriteErrorResponse(w, http.StatusNotFound, "Environment not found")
 		return
 	}

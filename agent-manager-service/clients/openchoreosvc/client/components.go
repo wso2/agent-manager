@@ -23,7 +23,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"log/slog"
 	"net/http"
 	"path"
 	"strings"
@@ -31,6 +30,7 @@ import (
 
 	"github.com/wso2/agent-manager/agent-manager-service/clients/openchoreosvc/gen"
 	"github.com/wso2/agent-manager/agent-manager-service/config"
+	"github.com/wso2/agent-manager/agent-manager-service/middleware/logger"
 	"github.com/wso2/agent-manager/agent-manager-service/models"
 	"github.com/wso2/agent-manager/agent-manager-service/utils"
 )
@@ -48,7 +48,7 @@ func (c *openChoreoClient) CreateComponent(ctx context.Context, ouID, projectNam
 	}
 
 	if resp.StatusCode() != http.StatusCreated {
-		return handleErrorResponse(resp.StatusCode(), ErrorResponses{
+		return handleErrorResponse(ctx, resp.StatusCode(), ErrorResponses{
 			JSON400: resp.JSON400,
 			JSON401: resp.JSON401,
 			JSON403: resp.JSON403,
@@ -572,7 +572,7 @@ func (c *openChoreoClient) GetComponent(ctx context.Context, ouID, projectName, 
 	}
 
 	if resp.StatusCode() != http.StatusOK {
-		return nil, handleErrorResponse(resp.StatusCode(), ErrorResponses{
+		return nil, handleErrorResponse(ctx, resp.StatusCode(), ErrorResponses{
 			JSON401: resp.JSON401,
 			JSON403: resp.JSON403,
 			JSON404: resp.JSON404,
@@ -594,7 +594,7 @@ func (c *openChoreoClient) UpdateComponentBasicInfo(ctx context.Context, ouID, p
 		return fmt.Errorf("failed to get component: %w", err)
 	}
 	if resp.StatusCode() != http.StatusOK {
-		return handleErrorResponse(resp.StatusCode(), ErrorResponses{
+		return handleErrorResponse(ctx, resp.StatusCode(), ErrorResponses{
 			JSON401: resp.JSON401,
 			JSON403: resp.JSON403,
 			JSON404: resp.JSON404,
@@ -624,7 +624,7 @@ func (c *openChoreoClient) UpdateComponentBasicInfo(ctx context.Context, ouID, p
 		return fmt.Errorf("failed to update component: %w", err)
 	}
 	if updateResp.StatusCode() != http.StatusOK {
-		return handleErrorResponse(updateResp.StatusCode(), ErrorResponses{
+		return handleErrorResponse(ctx, updateResp.StatusCode(), ErrorResponses{
 			JSON401: updateResp.JSON401,
 			JSON403: updateResp.JSON403,
 			JSON404: updateResp.JSON404,
@@ -648,7 +648,7 @@ func (c *openChoreoClient) UpdateEnvResourceConfigs(ctx context.Context, ouID, p
 		return fmt.Errorf("failed to list release bindings: %w", err)
 	}
 	if listResp.StatusCode() != http.StatusOK {
-		return handleErrorResponse(listResp.StatusCode(), ErrorResponses{
+		return handleErrorResponse(ctx, listResp.StatusCode(), ErrorResponses{
 			JSON401: listResp.JSON401,
 			JSON403: listResp.JSON403,
 			JSON404: listResp.JSON404,
@@ -677,7 +677,7 @@ func (c *openChoreoClient) UpdateEnvResourceConfigs(ctx context.Context, ouID, p
 		return fmt.Errorf("failed to get release binding: %w", err)
 	}
 	if getResp.StatusCode() != http.StatusOK {
-		return handleErrorResponse(getResp.StatusCode(), ErrorResponses{
+		return handleErrorResponse(ctx, getResp.StatusCode(), ErrorResponses{
 			JSON401: getResp.JSON401,
 			JSON403: getResp.JSON403,
 			JSON404: getResp.JSON404,
@@ -762,7 +762,7 @@ func (c *openChoreoClient) UpdateEnvResourceConfigs(ctx context.Context, ouID, p
 		return fmt.Errorf("failed to update release binding: %w", err)
 	}
 	if updateResp.StatusCode() != http.StatusOK {
-		return handleErrorResponse(updateResp.StatusCode(), ErrorResponses{
+		return handleErrorResponse(ctx, updateResp.StatusCode(), ErrorResponses{
 			JSON401: updateResp.JSON401,
 			JSON403: updateResp.JSON403,
 			JSON404: updateResp.JSON404,
@@ -782,7 +782,7 @@ func (c *openChoreoClient) GetEnvResourceConfigs(ctx context.Context, ouID, proj
 		return nil, fmt.Errorf("failed to get component: %w", err)
 	}
 	if compResp.StatusCode() != http.StatusOK {
-		return nil, handleErrorResponse(compResp.StatusCode(), ErrorResponses{
+		return nil, handleErrorResponse(ctx, compResp.StatusCode(), ErrorResponses{
 			JSON401: compResp.JSON401,
 			JSON403: compResp.JSON403,
 			JSON404: compResp.JSON404,
@@ -979,7 +979,7 @@ func (c *openChoreoClient) getEnvConfigDefaultsFromComponentType(ctx context.Con
 		return nil, fmt.Errorf("failed to get cluster component type: %w", err)
 	}
 	if ctResp.StatusCode() != http.StatusOK {
-		return nil, handleErrorResponse(ctResp.StatusCode(), ErrorResponses{
+		return nil, handleErrorResponse(ctx, ctResp.StatusCode(), ErrorResponses{
 			JSON401: ctResp.JSON401,
 			JSON403: ctResp.JSON403,
 			JSON404: ctResp.JSON404,
@@ -1202,7 +1202,7 @@ func (c *openChoreoClient) DeleteComponent(ctx context.Context, ouID, projectNam
 		return fmt.Errorf("failed to delete component: %w", err)
 	}
 	if resp.StatusCode() != http.StatusOK && resp.StatusCode() != http.StatusNoContent {
-		return handleErrorResponse(resp.StatusCode(), ErrorResponses{
+		return handleErrorResponse(ctx, resp.StatusCode(), ErrorResponses{
 			JSON401: resp.JSON401,
 			JSON403: resp.JSON403,
 			JSON404: resp.JSON404,
@@ -1222,7 +1222,7 @@ func (c *openChoreoClient) ListComponents(ctx context.Context, ouID, projectName
 		return nil, fmt.Errorf("failed to list components: %w", err)
 	}
 	if resp.StatusCode() != http.StatusOK {
-		return nil, handleErrorResponse(resp.StatusCode(), ErrorResponses{
+		return nil, handleErrorResponse(ctx, resp.StatusCode(), ErrorResponses{
 			JSON401: resp.JSON401,
 			JSON403: resp.JSON403,
 			JSON404: resp.JSON404,
@@ -1237,7 +1237,7 @@ func (c *openChoreoClient) ListComponents(ctx context.Context, ouID, projectName
 	for i := range resp.JSON200.Items {
 		comp, err := convertComponentFromTyped(&resp.JSON200.Items[i])
 		if err != nil {
-			slog.Error("failed to convert component", "component", resp.JSON200.Items[i].Metadata.Name, "error", err)
+			logger.GetLogger(ctx).Error("failed to convert component", "component", resp.JSON200.Items[i].Metadata.Name, "error", err)
 			continue
 		}
 		components = append(components, comp)
@@ -1257,7 +1257,7 @@ func (c *openChoreoClient) ListComponentsByKind(ctx context.Context, ouID, proje
 		return nil, fmt.Errorf("failed to list components by kind: %w", err)
 	}
 	if resp.StatusCode() != http.StatusOK {
-		return nil, handleErrorResponse(resp.StatusCode(), ErrorResponses{
+		return nil, handleErrorResponse(ctx, resp.StatusCode(), ErrorResponses{
 			JSON401: resp.JSON401,
 			JSON403: resp.JSON403,
 			JSON404: resp.JSON404,
@@ -1272,7 +1272,7 @@ func (c *openChoreoClient) ListComponentsByKind(ctx context.Context, ouID, proje
 	for i := range resp.JSON200.Items {
 		comp, err := convertComponentFromTyped(&resp.JSON200.Items[i])
 		if err != nil {
-			slog.Error("failed to convert component", "component", resp.JSON200.Items[i].Metadata.Name, "error", err)
+			logger.GetLogger(ctx).Error("failed to convert component", "component", resp.JSON200.Items[i].Metadata.Name, "error", err)
 			continue
 		}
 		components = append(components, comp)
@@ -1299,7 +1299,7 @@ func (c *openChoreoClient) listComponentTraits(ctx context.Context, namespaceNam
 		return nil, fmt.Errorf("failed to get component: %w", err)
 	}
 	if resp.StatusCode() != http.StatusOK {
-		return nil, handleErrorResponse(resp.StatusCode(), ErrorResponses{
+		return nil, handleErrorResponse(ctx, resp.StatusCode(), ErrorResponses{
 			JSON401: resp.JSON401,
 			JSON403: resp.JSON403,
 			JSON404: resp.JSON404,
@@ -1331,7 +1331,7 @@ func (c *openChoreoClient) AttachTraits(ctx context.Context, ouID, projectName, 
 		return fmt.Errorf("failed to get component: %w", err)
 	}
 	if resp.StatusCode() != http.StatusOK {
-		return handleErrorResponse(resp.StatusCode(), ErrorResponses{
+		return handleErrorResponse(ctx, resp.StatusCode(), ErrorResponses{
 			JSON401: resp.JSON401,
 			JSON403: resp.JSON403,
 			JSON404: resp.JSON404,
@@ -1376,8 +1376,8 @@ func (c *openChoreoClient) AttachTraits(ctx context.Context, ouID, projectName, 
 		return fmt.Errorf("failed to update component: %w", err)
 	}
 	if updateResp.StatusCode() != http.StatusOK {
-		slog.Error("AttachTraits: UpdateComponent failed", "statusCode", updateResp.StatusCode())
-		return handleErrorResponse(updateResp.StatusCode(), ErrorResponses{
+		logger.GetLogger(ctx).Error("AttachTraits: UpdateComponent failed", "status_code", updateResp.StatusCode())
+		return handleErrorResponse(ctx, updateResp.StatusCode(), ErrorResponses{
 			JSON401: updateResp.JSON401,
 			JSON403: updateResp.JSON403,
 			JSON404: updateResp.JSON404,
@@ -1397,7 +1397,7 @@ func (c *openChoreoClient) DetachTrait(ctx context.Context, ouID, projectName, c
 		return fmt.Errorf("failed to get component: %w", err)
 	}
 	if resp.StatusCode() != http.StatusOK {
-		return handleErrorResponse(resp.StatusCode(), ErrorResponses{
+		return handleErrorResponse(ctx, resp.StatusCode(), ErrorResponses{
 			JSON401: resp.JSON401,
 			JSON403: resp.JSON403,
 			JSON404: resp.JSON404,
@@ -1437,7 +1437,7 @@ func (c *openChoreoClient) DetachTrait(ctx context.Context, ouID, projectName, c
 		return fmt.Errorf("failed to update component: %w", err)
 	}
 	if updateResp.StatusCode() != http.StatusOK {
-		return handleErrorResponse(updateResp.StatusCode(), ErrorResponses{
+		return handleErrorResponse(ctx, updateResp.StatusCode(), ErrorResponses{
 			JSON401: updateResp.JSON401,
 			JSON403: updateResp.JSON403,
 			JSON404: updateResp.JSON404,
@@ -1473,7 +1473,7 @@ func (c *openChoreoClient) UpdateComponentDeploymentConfig(ctx context.Context, 
 		return fmt.Errorf("failed to get component: %w", err)
 	}
 	if resp.StatusCode() != http.StatusOK {
-		return handleErrorResponse(resp.StatusCode(), ErrorResponses{
+		return handleErrorResponse(ctx, resp.StatusCode(), ErrorResponses{
 			JSON401: resp.JSON401,
 			JSON403: resp.JSON403,
 			JSON404: resp.JSON404,
@@ -1532,7 +1532,7 @@ func (c *openChoreoClient) UpdateComponentDeploymentConfig(ctx context.Context, 
 		return fmt.Errorf("failed to update component deployment config: %w", err)
 	}
 	if updateResp.StatusCode() != http.StatusOK {
-		return handleErrorResponse(updateResp.StatusCode(), ErrorResponses{
+		return handleErrorResponse(ctx, updateResp.StatusCode(), ErrorResponses{
 			JSON400: updateResp.JSON400,
 			JSON401: updateResp.JSON401,
 			JSON403: updateResp.JSON403,
@@ -1553,7 +1553,7 @@ func (c *openChoreoClient) mergeComponentEnvVars(ctx context.Context, namespaceN
 		return fmt.Errorf("failed to get component: %w", err)
 	}
 	if resp.StatusCode() != http.StatusOK {
-		return handleErrorResponse(resp.StatusCode(), ErrorResponses{
+		return handleErrorResponse(ctx, resp.StatusCode(), ErrorResponses{
 			JSON401: resp.JSON401,
 			JSON403: resp.JSON403,
 			JSON404: resp.JSON404,
@@ -1630,7 +1630,7 @@ func (c *openChoreoClient) mergeComponentEnvVars(ctx context.Context, namespaceN
 		return fmt.Errorf("failed to update component environment variables: %w", err)
 	}
 	if updateResp.StatusCode() != http.StatusOK {
-		return handleErrorResponse(updateResp.StatusCode(), ErrorResponses{
+		return handleErrorResponse(ctx, updateResp.StatusCode(), ErrorResponses{
 			JSON401: updateResp.JSON401,
 			JSON403: updateResp.JSON403,
 			JSON404: updateResp.JSON404,
@@ -1656,7 +1656,7 @@ func (c *openChoreoClient) ReplaceComponentEnvVars(ctx context.Context, ouID, pr
 		return fmt.Errorf("failed to get component: %w", err)
 	}
 	if resp.StatusCode() != http.StatusOK {
-		return handleErrorResponse(resp.StatusCode(), ErrorResponses{
+		return handleErrorResponse(ctx, resp.StatusCode(), ErrorResponses{
 			JSON401: resp.JSON401,
 			JSON403: resp.JSON403,
 			JSON404: resp.JSON404,
@@ -1677,7 +1677,7 @@ func (c *openChoreoClient) ReplaceComponentEnvVars(ctx context.Context, ouID, pr
 		return fmt.Errorf("failed to replace component environment variables: %w", err)
 	}
 	if updateResp.StatusCode() != http.StatusOK {
-		return handleErrorResponse(updateResp.StatusCode(), ErrorResponses{
+		return handleErrorResponse(ctx, updateResp.StatusCode(), ErrorResponses{
 			JSON401: updateResp.JSON401,
 			JSON403: updateResp.JSON403,
 			JSON404: updateResp.JSON404,
@@ -1728,7 +1728,7 @@ func (c *openChoreoClient) ReplaceComponentFileMounts(ctx context.Context, ouID,
 		return fmt.Errorf("failed to get component: %w", err)
 	}
 	if resp.StatusCode() != http.StatusOK {
-		return handleErrorResponse(resp.StatusCode(), ErrorResponses{
+		return handleErrorResponse(ctx, resp.StatusCode(), ErrorResponses{
 			JSON401: resp.JSON401,
 			JSON403: resp.JSON403,
 			JSON404: resp.JSON404,
@@ -1776,7 +1776,7 @@ func (c *openChoreoClient) ReplaceComponentFileMounts(ctx context.Context, ouID,
 		return fmt.Errorf("failed to replace component file mounts: %w", err)
 	}
 	if updateResp.StatusCode() != http.StatusOK {
-		return handleErrorResponse(updateResp.StatusCode(), ErrorResponses{
+		return handleErrorResponse(ctx, updateResp.StatusCode(), ErrorResponses{
 			JSON401: updateResp.JSON401,
 			JSON403: updateResp.JSON403,
 			JSON404: updateResp.JSON404,
@@ -1807,7 +1807,7 @@ func (c *openChoreoClient) UpdateReleaseBindingEnvVars(ctx context.Context, ouID
 		return fmt.Errorf("failed to get release binding %q: %w", bindingName, err)
 	}
 	if getResp.StatusCode() != http.StatusOK {
-		return handleErrorResponse(getResp.StatusCode(), ErrorResponses{
+		return handleErrorResponse(ctx, getResp.StatusCode(), ErrorResponses{
 			JSON401: getResp.JSON401,
 			JSON403: getResp.JSON403,
 			JSON404: getResp.JSON404,
@@ -1863,7 +1863,7 @@ func (c *openChoreoClient) UpdateReleaseBindingEnvVars(ctx context.Context, ouID
 		return fmt.Errorf("failed to update release binding: %w", err)
 	}
 	if updateResp.StatusCode() != http.StatusOK {
-		return handleErrorResponse(updateResp.StatusCode(), ErrorResponses{
+		return handleErrorResponse(ctx, updateResp.StatusCode(), ErrorResponses{
 			JSON401: updateResp.JSON401,
 			JSON403: updateResp.JSON403,
 			JSON404: updateResp.JSON404,
@@ -1883,7 +1883,7 @@ func (c *openChoreoClient) RemoveComponentEnvironmentVariables(ctx context.Conte
 		return fmt.Errorf("failed to get component: %w", err)
 	}
 	if resp.StatusCode() != http.StatusOK {
-		return handleErrorResponse(resp.StatusCode(), ErrorResponses{
+		return handleErrorResponse(ctx, resp.StatusCode(), ErrorResponses{
 			JSON401: resp.JSON401,
 			JSON403: resp.JSON403,
 			JSON404: resp.JSON404,
@@ -1932,7 +1932,7 @@ func (c *openChoreoClient) RemoveComponentEnvironmentVariables(ctx context.Conte
 		return fmt.Errorf("failed to update component environment variables: %w", err)
 	}
 	if updateResp.StatusCode() != http.StatusOK {
-		return handleErrorResponse(updateResp.StatusCode(), ErrorResponses{
+		return handleErrorResponse(ctx, updateResp.StatusCode(), ErrorResponses{
 			JSON401: updateResp.JSON401,
 			JSON403: updateResp.JSON403,
 			JSON404: updateResp.JSON404,
@@ -1961,7 +1961,7 @@ func (c *openChoreoClient) RemoveReleaseBindingEnvVars(ctx context.Context, ouID
 		return fmt.Errorf("failed to list release bindings: %w", err)
 	}
 	if listResp.StatusCode() != http.StatusOK {
-		return handleErrorResponse(listResp.StatusCode(), ErrorResponses{
+		return handleErrorResponse(ctx, listResp.StatusCode(), ErrorResponses{
 			JSON401: listResp.JSON401,
 			JSON403: listResp.JSON403,
 			JSON404: listResp.JSON404,
@@ -1991,7 +1991,7 @@ func (c *openChoreoClient) RemoveReleaseBindingEnvVars(ctx context.Context, ouID
 		return fmt.Errorf("failed to get release binding %q: %w", bindingName, err)
 	}
 	if getResp.StatusCode() != http.StatusOK {
-		return handleErrorResponse(getResp.StatusCode(), ErrorResponses{
+		return handleErrorResponse(ctx, getResp.StatusCode(), ErrorResponses{
 			JSON401: getResp.JSON401,
 			JSON403: getResp.JSON403,
 			JSON404: getResp.JSON404,
@@ -2041,7 +2041,7 @@ func (c *openChoreoClient) RemoveReleaseBindingEnvVars(ctx context.Context, ouID
 		return fmt.Errorf("failed to update release binding: %w", err)
 	}
 	if updateResp.StatusCode() != http.StatusOK {
-		return handleErrorResponse(updateResp.StatusCode(), ErrorResponses{
+		return handleErrorResponse(ctx, updateResp.StatusCode(), ErrorResponses{
 			JSON401: updateResp.JSON401,
 			JSON403: updateResp.JSON403,
 			JSON404: updateResp.JSON404,
@@ -2066,7 +2066,7 @@ func (c *openChoreoClient) ReplaceReleaseBindingEnvVars(ctx context.Context, ouI
 		return fmt.Errorf("failed to list release bindings: %w", err)
 	}
 	if listResp.StatusCode() != http.StatusOK {
-		return handleErrorResponse(listResp.StatusCode(), ErrorResponses{
+		return handleErrorResponse(ctx, listResp.StatusCode(), ErrorResponses{
 			JSON401: listResp.JSON401,
 			JSON403: listResp.JSON403,
 			JSON404: listResp.JSON404,
@@ -2093,7 +2093,7 @@ func (c *openChoreoClient) ReplaceReleaseBindingEnvVars(ctx context.Context, ouI
 		return fmt.Errorf("failed to get release binding %q: %w", bindingName, err)
 	}
 	if getResp.StatusCode() != http.StatusOK {
-		return handleErrorResponse(getResp.StatusCode(), ErrorResponses{
+		return handleErrorResponse(ctx, getResp.StatusCode(), ErrorResponses{
 			JSON401: getResp.JSON401,
 			JSON403: getResp.JSON403,
 			JSON404: getResp.JSON404,
@@ -2153,7 +2153,7 @@ func (c *openChoreoClient) ReplaceReleaseBindingEnvVars(ctx context.Context, ouI
 		return fmt.Errorf("failed to update release binding: %w", err)
 	}
 	if updateResp.StatusCode() != http.StatusOK {
-		return handleErrorResponse(updateResp.StatusCode(), ErrorResponses{
+		return handleErrorResponse(ctx, updateResp.StatusCode(), ErrorResponses{
 			JSON401: updateResp.JSON401,
 			JSON403: updateResp.JSON403,
 			JSON404: updateResp.JSON404,
@@ -2181,7 +2181,7 @@ func (c *openChoreoClient) RemoveWorkloadEnvVars(ctx context.Context, ouID, comp
 		return fmt.Errorf("failed to list workloads: %w", err)
 	}
 	if workloadResp.StatusCode() != http.StatusOK {
-		return handleErrorResponse(workloadResp.StatusCode(), ErrorResponses{
+		return handleErrorResponse(ctx, workloadResp.StatusCode(), ErrorResponses{
 			JSON401: workloadResp.JSON401,
 			JSON403: workloadResp.JSON403,
 			JSON404: workloadResp.JSON404,
@@ -2218,7 +2218,7 @@ func (c *openChoreoClient) RemoveWorkloadEnvVars(ctx context.Context, ouID, comp
 		return fmt.Errorf("failed to update workload: %w", err)
 	}
 	if updateResp.StatusCode() != http.StatusOK {
-		return handleErrorResponse(updateResp.StatusCode(), ErrorResponses{
+		return handleErrorResponse(ctx, updateResp.StatusCode(), ErrorResponses{
 			JSON401: updateResp.JSON401,
 			JSON403: updateResp.JSON403,
 			JSON404: updateResp.JSON404,
@@ -2615,7 +2615,7 @@ func (c *openChoreoClient) GetComponentEndpoints(ctx context.Context, ouID, proj
 		return nil, fmt.Errorf("failed to list release bindings: %w", err)
 	}
 	if releaseBindingResp.StatusCode() != http.StatusOK {
-		return nil, handleErrorResponse(releaseBindingResp.StatusCode(), ErrorResponses{
+		return nil, handleErrorResponse(ctx, releaseBindingResp.StatusCode(), ErrorResponses{
 			JSON401: releaseBindingResp.JSON401,
 			JSON403: releaseBindingResp.JSON403,
 			JSON404: releaseBindingResp.JSON404,
@@ -2656,7 +2656,7 @@ func (c *openChoreoClient) GetComponentEndpoints(ctx context.Context, ouID, proj
 		return nil, fmt.Errorf("failed to list workloads: %w", err)
 	}
 	if workloadResp.StatusCode() != http.StatusOK {
-		return nil, handleErrorResponse(workloadResp.StatusCode(), ErrorResponses{
+		return nil, handleErrorResponse(ctx, workloadResp.StatusCode(), ErrorResponses{
 			JSON401: workloadResp.JSON401,
 			JSON403: workloadResp.JSON403,
 			JSON404: workloadResp.JSON404,
@@ -2713,7 +2713,7 @@ func (c *openChoreoClient) GetComponentConfigurations(ctx context.Context, ouID,
 		return nil, fmt.Errorf("failed to list workloads: %w", err)
 	}
 	if workloadResp.StatusCode() != http.StatusOK {
-		return nil, handleErrorResponse(workloadResp.StatusCode(), ErrorResponses{
+		return nil, handleErrorResponse(ctx, workloadResp.StatusCode(), ErrorResponses{
 			JSON401: workloadResp.JSON401,
 			JSON403: workloadResp.JSON403,
 			JSON404: workloadResp.JSON404,
@@ -2756,7 +2756,7 @@ func (c *openChoreoClient) GetComponentConfigurations(ctx context.Context, ouID,
 	}
 
 	if releaseBindingResp.StatusCode() != http.StatusOK {
-		return nil, handleErrorResponse(releaseBindingResp.StatusCode(), ErrorResponses{
+		return nil, handleErrorResponse(ctx, releaseBindingResp.StatusCode(), ErrorResponses{
 			JSON401: releaseBindingResp.JSON401,
 			JSON403: releaseBindingResp.JSON403,
 			JSON404: releaseBindingResp.JSON404,
@@ -2820,7 +2820,7 @@ func (c *openChoreoClient) GetComponentFileMounts(ctx context.Context, ouID, pro
 		return nil, fmt.Errorf("failed to list workloads: %w", err)
 	}
 	if workloadResp.StatusCode() != http.StatusOK {
-		return nil, handleErrorResponse(workloadResp.StatusCode(), ErrorResponses{
+		return nil, handleErrorResponse(ctx, workloadResp.StatusCode(), ErrorResponses{
 			JSON401: workloadResp.JSON401,
 			JSON403: workloadResp.JSON403,
 			JSON404: workloadResp.JSON404,
@@ -2874,7 +2874,7 @@ func (c *openChoreoClient) GetComponentFileMounts(ctx context.Context, ouID, pro
 		return nil, fmt.Errorf("failed to list release bindings: %w", err)
 	}
 	if releaseBindingResp.StatusCode() != http.StatusOK {
-		return nil, handleErrorResponse(releaseBindingResp.StatusCode(), ErrorResponses{
+		return nil, handleErrorResponse(ctx, releaseBindingResp.StatusCode(), ErrorResponses{
 			JSON401: releaseBindingResp.JSON401,
 			JSON403: releaseBindingResp.JSON403,
 			JSON404: releaseBindingResp.JSON404,

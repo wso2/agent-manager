@@ -17,14 +17,15 @@
 package services
 
 import (
+	"context"
 	"encoding/base64"
 	"errors"
 	"fmt"
-	"log/slog"
 
 	"github.com/google/uuid"
 	"gorm.io/gorm"
 
+	"github.com/wso2/agent-manager/agent-manager-service/middleware/logger"
 	"github.com/wso2/agent-manager/agent-manager-service/models"
 	"github.com/wso2/agent-manager/agent-manager-service/repositories"
 	"github.com/wso2/agent-manager/agent-manager-service/utils"
@@ -51,7 +52,7 @@ func NewLLMProxyService(
 }
 
 // Create creates a new LLM proxy
-func (s *LLMProxyService) Create(ouID, createdBy string, proxy *models.LLMProxy) (*models.LLMProxy, error) {
+func (s *LLMProxyService) Create(ctx context.Context, ouID, createdBy string, proxy *models.LLMProxy) (*models.LLMProxy, error) {
 	if proxy == nil {
 		return nil, utils.ErrInvalidInput
 	}
@@ -66,12 +67,19 @@ func (s *LLMProxyService) Create(ouID, createdBy string, proxy *models.LLMProxy)
 	handle := name
 
 	if handle == "" || name == "" || version == "" || provider == "" {
-		slog.Error("handle, name, version or provider is empty", handle, name, version, provider)
+		// Rejected caller input, not a service failure — and the values are
+		// key/value pairs, which they were not before: the record used to
+		// serialise as "!BADKEY".
+		logger.GetLogger(ctx).Warn("required LLM proxy fields are empty",
+			"handle", utils.SanitizeForLog(handle),
+			"name", utils.SanitizeForLog(name),
+			"version", utils.SanitizeForLog(version),
+			"provider", utils.SanitizeForLog(provider))
 		return nil, utils.ErrInvalidInput
 	}
 
 	if proxy.ProjectUUID == uuid.Nil {
-		slog.Error("project uuid is nil")
+		logger.GetLogger(ctx).Warn("project uuid is nil")
 		return nil, utils.ErrInvalidInput
 	}
 	// Validate provider exists

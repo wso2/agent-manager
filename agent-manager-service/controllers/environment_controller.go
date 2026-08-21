@@ -85,7 +85,7 @@ func (c *environmentController) CreateEnvironment(w http.ResponseWriter, r *http
 
 	var req spec.CreateEnvironmentRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		log.Error("CreateEnvironment: failed to decode request", "error", err)
+		log.Warn("CreateEnvironment: failed to decode request", "error", err)
 		utils.WriteErrorResponse(w, http.StatusBadRequest, "Invalid request body")
 		return
 	}
@@ -183,7 +183,7 @@ func (c *environmentController) UpdateEnvironment(w http.ResponseWriter, r *http
 
 	var req spec.UpdateEnvironmentRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		log.Error("UpdateEnvironment: failed to decode request", "error", err)
+		log.Warn("UpdateEnvironment: failed to decode request", "error", err)
 		utils.WriteErrorResponse(w, http.StatusBadRequest, "Invalid request body")
 		return
 	}
@@ -392,7 +392,7 @@ func (c *environmentController) ListThunderInstances(w http.ResponseWriter, r *h
 
 	result, err := c.environmentService.ListThunderInstances(ctx, ouID)
 	if err != nil {
-		log.Error("ListThunderInstances: failed to list thunder instances", "ouID", ouID, "error", err)
+		log.Error("ListThunderInstances: failed to list thunder instances", "ou_id", ouID, "error", err)
 		utils.WriteErrorResponse(w, http.StatusInternalServerError, "Failed to list Thunder instances")
 		return
 	}
@@ -411,7 +411,7 @@ func (c *environmentController) SetThunderSystemClient(w http.ResponseWriter, r 
 
 	var req spec.ThunderSystemClientRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		log.Error("SetThunderSystemClient: failed to decode request", "error", err)
+		log.Warn("SetThunderSystemClient: failed to decode request", "error", err)
 		utils.WriteErrorResponse(w, http.StatusBadRequest, "Invalid request body")
 		return
 	}
@@ -437,7 +437,7 @@ func (c *environmentController) SetThunderSystemClient(w http.ResponseWriter, r 
 
 	if err := c.environmentService.SetThunderSystemClientSecret(ctx, ouID, envName, req.ClientId, req.ClientSecret); err != nil {
 		attempt.Complete(ctx, err)
-		log.Error("SetThunderSystemClient: failed to store credential", "ouID", ouID, "envName", envName, "error", err)
+		log.Warn("SetThunderSystemClient: failed to store credential", "ou_id", ouID, "env_name", envName, "error", err)
 		if errors.Is(err, utils.ErrInvalidInput) {
 			utils.WriteErrorResponse(w, http.StatusBadRequest, "Invalid input")
 			return
@@ -472,7 +472,7 @@ func (c *environmentController) DeleteThunderSystemClient(w http.ResponseWriter,
 
 	if err := c.environmentService.DeleteThunderSystemClientSecret(ctx, ouID, envName); err != nil {
 		attempt.Complete(ctx, err)
-		log.Error("DeleteThunderSystemClient: failed to delete credential", "ouID", ouID, "envName", envName, "error", err)
+		log.Warn("DeleteThunderSystemClient: failed to delete credential", "ou_id", ouID, "env_name", envName, "error", err)
 		if errors.Is(err, utils.ErrInvalidInput) {
 			utils.WriteErrorResponse(w, http.StatusBadRequest, "Invalid input")
 			return
@@ -500,7 +500,7 @@ func (c *environmentController) SetThunderURL(w http.ResponseWriter, r *http.Req
 	var req spec.ThunderUrlRequest
 	if r.ContentLength != 0 {
 		if err := json.NewDecoder(r.Body).Decode(&req); err != nil && !errors.Is(err, io.EOF) {
-			log.Error("SetThunderURL: failed to decode request", "error", err)
+			log.Warn("SetThunderURL: failed to decode request", "error", err)
 			utils.WriteErrorResponse(w, http.StatusBadRequest, "Invalid request body")
 			return
 		}
@@ -526,7 +526,7 @@ func (c *environmentController) SetThunderURL(w http.ResponseWriter, r *http.Req
 	resolved, err := c.environmentService.SetThunderURL(ctx, ouID, envName, handle)
 	if err != nil {
 		attempt.Complete(ctx, err)
-		log.Error("SetThunderURL: failed to store handle", "ouID", ouID, "envName", envName, "error", err)
+		log.Warn("SetThunderURL: failed to store handle", "ou_id", ouID, "env_name", envName, "error", err)
 		switch {
 		case errors.Is(err, utils.ErrThunderHandleTaken):
 			utils.WriteErrorResponse(w, http.StatusConflict, "Thunder URL handle is already in use")
@@ -558,7 +558,7 @@ func (c *environmentController) GetThunderURL(w http.ResponseWriter, r *http.Req
 			utils.WriteErrorResponse(w, http.StatusNotFound, "No thunder url handle registered for this environment")
 			return
 		}
-		log.Error("GetThunderURL: failed to read handle", "ouID", ouID, "envName", envName, "error", err)
+		log.Error("GetThunderURL: failed to read handle", "ou_id", ouID, "env_name", envName, "error", err)
 		utils.WriteErrorResponse(w, http.StatusInternalServerError, "Failed to read thunder url handle")
 		return
 	}
@@ -592,14 +592,14 @@ func (c *environmentController) DeleteThunderURL(w http.ResponseWriter, r *http.
 	existing, err := c.environmentService.GetThunderURL(ctx, ouID, envName)
 	if err != nil && !errors.Is(err, utils.ErrThunderHandleNotFound) {
 		attempt.Complete(ctx, err)
-		log.Error("DeleteThunderURL: failed to read handle before delete", "ouID", ouID, "envName", envName, "error", err)
+		log.Error("DeleteThunderURL: failed to read handle before delete", "ou_id", ouID, "env_name", envName, "error", err)
 		utils.WriteErrorResponse(w, http.StatusInternalServerError, "Failed to delete thunder url handle")
 		return
 	}
 
 	if err := c.environmentService.DeleteThunderURL(ctx, ouID, envName); err != nil {
 		attempt.Complete(ctx, err)
-		log.Error("DeleteThunderURL: failed to delete handle", "ouID", ouID, "envName", envName, "error", err)
+		log.Warn("DeleteThunderURL: failed to delete handle", "ou_id", ouID, "env_name", envName, "error", err)
 		if errors.Is(err, utils.ErrInvalidInput) {
 			utils.WriteErrorResponse(w, http.StatusBadRequest, "Invalid input")
 			return

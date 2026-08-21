@@ -56,16 +56,16 @@ func (c *mcpProxyScopeController) ListMCPProxyScopes(w http.ResponseWriter, r *h
 	orgName := middleware.OrgHandleFromRequest(r)
 	proxyID := r.PathValue(utils.PathParamProxyId)
 
-	log.Info("ListMCPProxyScopes: starting", "ouID", ouID, "orgName", orgName, "proxyID", proxyID)
+	log.Info("ListMCPProxyScopes: starting", "ou_id", ouID, "org_name", orgName, "proxy_id", proxyID)
 
 	result, err := c.svc.List(ctx, ouID, proxyID)
 	if err != nil {
 		switch {
 		case errors.Is(err, utils.ErrMCPProxyNotFound):
-			log.Warn("ListMCPProxyScopes: MCP proxy not found", "ouID", ouID, "proxyID", proxyID)
+			log.Warn("ListMCPProxyScopes: MCP proxy not found", "ou_id", ouID, "proxy_id", proxyID)
 			utils.WriteErrorResponse(w, http.StatusNotFound, "MCP proxy not found")
 		default:
-			log.Error("ListMCPProxyScopes: failed", "ouID", ouID, "proxyID", proxyID, "error", err)
+			log.Error("ListMCPProxyScopes: failed", "ou_id", ouID, "proxy_id", proxyID, "error", err)
 			utils.WriteErrorResponse(w, http.StatusInternalServerError, "Failed to list MCP proxy scopes")
 		}
 		return
@@ -76,7 +76,7 @@ func (c *mcpProxyScopeController) ListMCPProxyScopes(w http.ResponseWriter, r *h
 		items = append(items, toMCPProxyScopeResponse(result.ProxyHandle, result.Scopes[i]))
 	}
 
-	log.Info("ListMCPProxyScopes: completed", "ouID", ouID, "proxyID", proxyID, "count", len(items))
+	log.Info("ListMCPProxyScopes: completed", "ou_id", ouID, "proxy_id", proxyID, "count", len(items))
 	utils.WriteSuccessResponse(w, http.StatusOK, spec.MCPProxyScopeListResponse{Scopes: items})
 }
 
@@ -88,11 +88,11 @@ func (c *mcpProxyScopeController) CreateMCPProxyScope(w http.ResponseWriter, r *
 	orgName := middleware.OrgHandleFromRequest(r)
 	proxyID := r.PathValue(utils.PathParamProxyId)
 
-	log.Info("CreateMCPProxyScope: starting", "ouID", ouID, "orgName", orgName, "proxyID", proxyID)
+	log.Info("CreateMCPProxyScope: starting", "ou_id", ouID, "org_name", orgName, "proxy_id", proxyID)
 
 	var body spec.MCPProxyScopeRequest
 	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
-		log.Error("CreateMCPProxyScope: failed to decode request", "error", err)
+		log.Warn("CreateMCPProxyScope: failed to decode request", "error", err)
 		utils.WriteErrorResponse(w, http.StatusBadRequest, "Invalid request body")
 		return
 	}
@@ -110,22 +110,22 @@ func (c *mcpProxyScopeController) CreateMCPProxyScope(w http.ResponseWriter, r *
 	if err != nil {
 		switch {
 		case errors.Is(err, utils.ErrInvalidInput):
-			log.Error("CreateMCPProxyScope: invalid request", "ouID", ouID, "proxyID", proxyID, "error", err)
+			log.Warn("CreateMCPProxyScope: invalid request", "ou_id", ouID, "proxy_id", proxyID, "error", err)
 			utils.WriteErrorResponse(w, http.StatusBadRequest, err.Error())
 		case errors.Is(err, utils.ErrMCPProxyNotFound):
-			log.Warn("CreateMCPProxyScope: MCP proxy not found", "ouID", ouID, "proxyID", proxyID)
+			log.Warn("CreateMCPProxyScope: MCP proxy not found", "ou_id", ouID, "proxy_id", proxyID)
 			utils.WriteErrorResponse(w, http.StatusNotFound, "MCP proxy not found")
 		case errors.Is(err, utils.ErrConflict):
-			log.Warn("CreateMCPProxyScope: scope already exists", "ouID", ouID, "proxyID", proxyID, "action", body.Action)
+			log.Warn("CreateMCPProxyScope: scope already exists", "ou_id", ouID, "proxy_id", proxyID, "action", body.Action)
 			utils.WriteErrorResponse(w, http.StatusConflict, err.Error())
 		default:
-			log.Error("CreateMCPProxyScope: failed", "ouID", ouID, "proxyID", proxyID, "action", body.Action, "error", err)
+			log.Error("CreateMCPProxyScope: failed", "ou_id", ouID, "proxy_id", proxyID, "action", body.Action, "error", err)
 			utils.WriteErrorResponse(w, http.StatusInternalServerError, "Failed to create MCP proxy scope")
 		}
 		return
 	}
 
-	log.Info("CreateMCPProxyScope: completed", "ouID", ouID, "proxyID", proxyID, "action", body.Action)
+	log.Info("CreateMCPProxyScope: completed", "ou_id", ouID, "proxy_id", proxyID, "action", body.Action)
 	utils.WriteSuccessResponse(w, http.StatusCreated, toMCPProxyScopeResponse(result.ProxyHandle, result.Scope))
 }
 
@@ -138,11 +138,11 @@ func (c *mcpProxyScopeController) UpdateMCPProxyScope(w http.ResponseWriter, r *
 	proxyID := r.PathValue(utils.PathParamProxyId)
 	action := r.PathValue(utils.PathParamScopeAction)
 
-	log.Info("UpdateMCPProxyScope: starting", "ouID", ouID, "orgName", orgName, "proxyID", proxyID, "action", action)
+	log.Info("UpdateMCPProxyScope: starting", "ou_id", ouID, "org_name", orgName, "proxy_id", proxyID, "action", action)
 
 	var body spec.MCPProxyScopeUpdateRequest
 	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
-		log.Error("UpdateMCPProxyScope: failed to decode request", "error", err)
+		log.Warn("UpdateMCPProxyScope: failed to decode request", "error", err)
 		utils.WriteErrorResponse(w, http.StatusBadRequest, "Invalid request body")
 		return
 	}
@@ -154,19 +154,19 @@ func (c *mcpProxyScopeController) UpdateMCPProxyScope(w http.ResponseWriter, r *
 	if err != nil {
 		switch {
 		case errors.Is(err, utils.ErrInvalidInput):
-			log.Error("UpdateMCPProxyScope: invalid request", "ouID", ouID, "proxyID", proxyID, "action", action, "error", err)
+			log.Warn("UpdateMCPProxyScope: invalid request", "ou_id", ouID, "proxy_id", proxyID, "action", action, "error", err)
 			utils.WriteErrorResponse(w, http.StatusBadRequest, err.Error())
 		case errors.Is(err, utils.ErrMCPProxyNotFound), errors.Is(err, utils.ErrScopeNotFound):
-			log.Warn("UpdateMCPProxyScope: not found", "ouID", ouID, "proxyID", proxyID, "action", action)
+			log.Warn("UpdateMCPProxyScope: not found", "ou_id", ouID, "proxy_id", proxyID, "action", action)
 			utils.WriteErrorResponse(w, http.StatusNotFound, "MCP proxy or scope not found")
 		default:
-			log.Error("UpdateMCPProxyScope: failed", "ouID", ouID, "proxyID", proxyID, "action", action, "error", err)
+			log.Error("UpdateMCPProxyScope: failed", "ou_id", ouID, "proxy_id", proxyID, "action", action, "error", err)
 			utils.WriteErrorResponse(w, http.StatusInternalServerError, "Failed to update MCP proxy scope")
 		}
 		return
 	}
 
-	log.Info("UpdateMCPProxyScope: completed", "ouID", ouID, "proxyID", proxyID, "action", action)
+	log.Info("UpdateMCPProxyScope: completed", "ou_id", ouID, "proxy_id", proxyID, "action", action)
 	utils.WriteSuccessResponse(w, http.StatusOK, toMCPProxyScopeResponse(result.ProxyHandle, result.Scope))
 }
 
@@ -179,21 +179,21 @@ func (c *mcpProxyScopeController) DeleteMCPProxyScope(w http.ResponseWriter, r *
 	proxyID := r.PathValue(utils.PathParamProxyId)
 	action := r.PathValue(utils.PathParamScopeAction)
 
-	log.Info("DeleteMCPProxyScope: starting", "ouID", ouID, "orgName", orgName, "proxyID", proxyID, "action", action)
+	log.Info("DeleteMCPProxyScope: starting", "ou_id", ouID, "org_name", orgName, "proxy_id", proxyID, "action", action)
 
 	if err := c.svc.Delete(ctx, ouID, orgName, proxyID, action); err != nil {
 		switch {
 		case errors.Is(err, utils.ErrMCPProxyNotFound), errors.Is(err, utils.ErrScopeNotFound):
-			log.Warn("DeleteMCPProxyScope: not found", "ouID", ouID, "proxyID", proxyID, "action", action)
+			log.Warn("DeleteMCPProxyScope: not found", "ou_id", ouID, "proxy_id", proxyID, "action", action)
 			utils.WriteErrorResponse(w, http.StatusNotFound, "MCP proxy or scope not found")
 		default:
-			log.Error("DeleteMCPProxyScope: failed", "ouID", ouID, "proxyID", proxyID, "action", action, "error", err)
+			log.Error("DeleteMCPProxyScope: failed", "ou_id", ouID, "proxy_id", proxyID, "action", action, "error", err)
 			utils.WriteErrorResponse(w, http.StatusInternalServerError, "Failed to delete MCP proxy scope")
 		}
 		return
 	}
 
-	log.Info("DeleteMCPProxyScope: completed", "ouID", ouID, "proxyID", proxyID, "action", action)
+	log.Info("DeleteMCPProxyScope: completed", "ou_id", ouID, "proxy_id", proxyID, "action", action)
 	w.WriteHeader(http.StatusNoContent)
 }
 
@@ -205,16 +205,16 @@ func (c *mcpProxyScopeController) ListAgentIdentityScopes(w http.ResponseWriter,
 	orgName := middleware.OrgHandleFromRequest(r)
 	envName := r.PathValue("envName")
 
-	log.Info("ListAgentIdentityScopes: starting", "ouID", ouID, "orgName", orgName, "envName", envName)
+	log.Info("ListAgentIdentityScopes: starting", "ou_id", ouID, "org_name", orgName, "env_name", envName)
 
 	entries, err := c.svc.ListEnvironmentScopes(ctx, ouID, envName)
 	if err != nil {
 		switch {
 		case errors.Is(err, utils.ErrEnvironmentNotFound):
-			log.Warn("ListAgentIdentityScopes: environment not found", "ouID", ouID, "envName", envName)
+			log.Warn("ListAgentIdentityScopes: environment not found", "ou_id", ouID, "env_name", envName)
 			utils.WriteErrorResponse(w, http.StatusNotFound, "Environment not found")
 		default:
-			log.Error("ListAgentIdentityScopes: failed", "ouID", ouID, "envName", envName, "error", err)
+			log.Error("ListAgentIdentityScopes: failed", "ou_id", ouID, "env_name", envName, "error", err)
 			utils.WriteErrorResponse(w, http.StatusInternalServerError, "Failed to list agent-identity scopes")
 		}
 		return
@@ -225,7 +225,7 @@ func (c *mcpProxyScopeController) ListAgentIdentityScopes(w http.ResponseWriter,
 		items = append(items, toAgentIdentityScopeEntry(e))
 	}
 
-	log.Info("ListAgentIdentityScopes: completed", "ouID", ouID, "envName", envName, "count", len(items))
+	log.Info("ListAgentIdentityScopes: completed", "ou_id", ouID, "env_name", envName, "count", len(items))
 	utils.WriteSuccessResponse(w, http.StatusOK, spec.AgentIdentityScopeListResponse{Scopes: items})
 }
 

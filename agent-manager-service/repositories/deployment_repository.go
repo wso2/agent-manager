@@ -264,7 +264,8 @@ func (r *DeploymentRepo) UpdateStatusByDeploymentID(deploymentID, gatewayUUID st
 		return time.Time{}, result.Error
 	}
 	if result.RowsAffected == 0 {
-		slog.Warn("UpdateStatusByDeploymentID: no matching deployment_status record found", "deploymentID", deploymentID)
+		//nolint:forbidigo // reached only from the gateway ack handler, which has no request context
+		slog.Warn("UpdateStatusByDeploymentID: no matching deployment_status record found", "deployment_id", deploymentID)
 		return time.Time{}, fmt.Errorf("deployment_status not found for deploymentID %s", deploymentID)
 	}
 	return updatedAt, nil

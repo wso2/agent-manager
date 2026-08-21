@@ -36,6 +36,7 @@ import (
 	"golang.org/x/sync/singleflight"
 
 	"github.com/wso2/agent-manager/agent-manager-service/config"
+	"github.com/wso2/agent-manager/agent-manager-service/middleware/logger"
 	"github.com/wso2/agent-manager/agent-manager-service/utils"
 )
 
@@ -247,14 +248,15 @@ func JWTAuthMiddleware(header, resourceMetadataURL string) func(http.Handler) ht
 			// Validate the token using JWKS
 			claims, err := validateJWTWithJWKS(tokenString)
 			if err != nil {
-				// The path and client IP make this actionable: the previous form
-				// logged only the error, which left credential stuffing against
-				// the API undetectable.
-				slog.Error("JWT validation failed",
+				// The client IP makes this actionable: the original form logged
+				// only the error, which left credential stuffing against the API
+				// undetectable. The path is no longer set here — this middleware
+				// runs inside RequestLogger, so the record already carries it and
+				// setting it again would put the key in twice.
+				logger.GetLogger(r.Context()).Error("JWT validation failed",
 					"error", err,
 					"reason", classifyAuthFailure(err),
-					"path", utils.SanitizeForLog(r.URL.Path),
-					"clientIp", utils.ClientIP(r))
+					"client_ip", utils.ClientIP(r))
 				notifyAuthFailure(r, classifyAuthFailure(err))
 				w.Header().Set("WWW-Authenticate", buildBearerChallenge(resourceMetadataURL, "invalid_token"))
 				utils.WriteErrorResponse(w, http.StatusUnauthorized, "invalid jwt")
@@ -356,6 +358,7 @@ func validateJWTWithJWKS(tokenString string) (*TokenClaims, error) {
 				return nil, fmt.Errorf("%w: kid has an invalid format", ErrUnknownKid)
 			}
 
+			//nolint:forbidigo // JWKS key lookup runs inside a keyfunc callback that carries no request context
 			slog.Warn("kid not found in JWKS, attempting refresh", slog.String("kid", kid))
 			refreshed, err := refreshJWKS(cfg.KeyManagerConfigurations.JWKSUrl)
 			if err != nil {

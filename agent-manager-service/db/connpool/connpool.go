@@ -23,6 +23,8 @@ import (
 	"strings"
 	"time"
 
+	"github.com/wso2/agent-manager/agent-manager-service/middleware/logger"
+
 	"gorm.io/gorm"
 )
 
@@ -63,12 +65,12 @@ func (c *connPool) GetDBConn() (*sql.DB, error) {
 }
 
 func (c *connPool) Conn(ctx context.Context) (*sql.Conn, error) {
-	slog.Debug("connPool:Conn", "log_type", "connPool")
+	logger.GetLogger(ctx).Debug("connPool:Conn", "log_type", "connPool")
 	return c.DB.Conn(ctx)
 }
 
 func (c *connPool) BeginTx(ctx context.Context, opts *sql.TxOptions) (tx *sql.Tx, err error) {
-	slog.Debug("connPool:BeginTx", "log_type", "connPool", "opts", opts)
+	logger.GetLogger(ctx).Debug("connPool:BeginTx", "log_type", "connPool", "opts", opts)
 	c.retry(ctx, "BeginTx", func() error {
 		// `tx` contains *sql.DB, retries won't work for queries run on `tx`
 		tx, err = c.DB.BeginTx(ctx, opts)
@@ -78,7 +80,7 @@ func (c *connPool) BeginTx(ctx context.Context, opts *sql.TxOptions) (tx *sql.Tx
 }
 
 func (c *connPool) PrepareContext(ctx context.Context, query string) (stmt *sql.Stmt, err error) {
-	slog.Debug("connPool:PrepareContext", "log_type", "connPool", "query", query)
+	logger.GetLogger(ctx).Debug("connPool:PrepareContext", "log_type", "connPool", "query", query)
 	c.retry(ctx, "PrepareContext", func() error {
 		// `stmt` contains *sql.DB, retries won't work for queries run on `stmt`
 		stmt, err = c.DB.PrepareContext(ctx, query)
@@ -88,7 +90,7 @@ func (c *connPool) PrepareContext(ctx context.Context, query string) (stmt *sql.
 }
 
 func (c *connPool) ExecContext(ctx context.Context, query string, args ...interface{}) (result sql.Result, err error) {
-	slog.Debug("connPool:ExecContext", "log_type", "connPool", "query", query)
+	logger.GetLogger(ctx).Debug("connPool:ExecContext", "log_type", "connPool", "query", query)
 	c.retry(ctx, "ExecContext", func() error {
 		result, err = c.DB.ExecContext(ctx, query, args...)
 		return err
@@ -97,7 +99,7 @@ func (c *connPool) ExecContext(ctx context.Context, query string, args ...interf
 }
 
 func (c *connPool) QueryContext(ctx context.Context, query string, args ...interface{}) (rows *sql.Rows, err error) {
-	slog.Debug("connPool:QueryContext", "log_type", "connPool", "query", query)
+	logger.GetLogger(ctx).Debug("connPool:QueryContext", "log_type", "connPool", "query", query)
 	c.retry(ctx, "QueryContext", func() error {
 		rows, err = c.DB.QueryContext(ctx, query, args...)
 		return err
@@ -106,7 +108,7 @@ func (c *connPool) QueryContext(ctx context.Context, query string, args ...inter
 }
 
 func (c *connPool) QueryRowContext(ctx context.Context, query string, args ...interface{}) (val *sql.Row) {
-	slog.Debug("connPool:QueryRowContext", "log_type", "connPool", "query", query)
+	logger.GetLogger(ctx).Debug("connPool:QueryRowContext", "log_type", "connPool", "query", query)
 	c.retry(ctx, "QueryRowContext", func() error {
 		val = c.DB.QueryRowContext(ctx, query, args...)
 		return val.Err()
@@ -122,7 +124,7 @@ func (c *connPool) retry(ctx context.Context, fn string, op func() error) {
 		select {
 		// Context was cancelled (timeout/user cancellation)
 		case <-ctx.Done():
-			slog.Warn("connPool operation canceled",
+			logger.GetLogger(ctx).Warn("connPool operation canceled",
 				"log_type", "connPool",
 				"fn", fn,
 				"context_error", ctx.Err())
@@ -135,7 +137,7 @@ func (c *connPool) retry(ctx context.Context, fn string, op func() error) {
 			return
 		}
 
-		slog.Error("connPool operation failed",
+		logger.GetLogger(ctx).Error("connPool operation failed",
 			"log_type", "connPool",
 			"error", err,
 			"attempt", attempts,

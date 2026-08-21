@@ -60,7 +60,7 @@ func NewLLMProviderRepo(db *gorm.DB) LLMProviderRepository {
 
 // Create inserts a new LLM provider
 func (r *LLMProviderRepo) Create(tx *gorm.DB, p *models.LLMProvider, handle, name, version string, orgUUID string) error {
-	slog.Info("LLMProviderRepo.Create: starting", "handle", handle, "name", name, "version", version, "orgUUID", orgUUID)
+	slog.Info("LLMProviderRepo.Create: starting", "handle", handle, "name", name, "version", version, "org_uuid", orgUUID)
 
 	// Generate UUID if not set
 	if p.UUID == uuid.Nil {
@@ -99,7 +99,7 @@ func (r *LLMProviderRepo) Create(tx *gorm.DB, p *models.LLMProvider, handle, nam
 
 // GetByID retrieves an LLM provider by ID (handle)
 func (r *LLMProviderRepo) GetByUUID(providerID, orgUUID string) (*models.LLMProvider, error) {
-	slog.Info("LLMProviderRepo.GetByID: starting", "providerID", providerID, "orgUUID", orgUUID)
+	slog.Info("LLMProviderRepo.GetByID: starting", "provider_id", providerID, "org_uuid", orgUUID)
 
 	var provider models.LLMProvider
 	err := r.db.
@@ -109,10 +109,10 @@ func (r *LLMProviderRepo) GetByUUID(providerID, orgUUID string) (*models.LLMProv
 		First(&provider).Error
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
-			slog.Warn("LLMProviderRepo.GetByID: provider not found", "providerID", providerID, "orgUUID", orgUUID)
+			slog.Warn("LLMProviderRepo.GetByID: provider not found", "provider_id", providerID, "org_uuid", orgUUID)
 			return nil, err
 		}
-		slog.Error("LLMProviderRepo.GetByID: query failed", "providerID", providerID, "orgUUID", orgUUID, "error", err)
+		slog.Error("LLMProviderRepo.GetByID: query failed", "provider_id", providerID, "org_uuid", orgUUID, "error", err)
 		return nil, err
 	}
 
@@ -121,13 +121,13 @@ func (r *LLMProviderRepo) GetByUUID(providerID, orgUUID string) (*models.LLMProv
 		provider.InCatalog = provider.Artifact.InCatalog
 	}
 
-	slog.Info("LLMProviderRepo.GetByID: completed successfully", "providerID", providerID, "orgUUID", orgUUID, "uuid", provider.UUID)
+	slog.Info("LLMProviderRepo.GetByID: completed successfully", "provider_id", providerID, "org_uuid", orgUUID, "uuid", provider.UUID)
 	return &provider, nil
 }
 
 // GetByHandle retrieves an LLM provider by artifact handle
 func (r *LLMProviderRepo) GetByHandle(handle, orgUUID string) (*models.LLMProvider, error) {
-	slog.Info("LLMProviderRepo.GetByHandle: starting", "handle", handle, "orgUUID", orgUUID)
+	slog.Info("LLMProviderRepo.GetByHandle: starting", "handle", handle, "org_uuid", orgUUID)
 
 	var provider models.LLMProvider
 	err := r.db.
@@ -137,10 +137,10 @@ func (r *LLMProviderRepo) GetByHandle(handle, orgUUID string) (*models.LLMProvid
 		First(&provider).Error
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
-			slog.Warn("LLMProviderRepo.GetByHandle: provider not found", "handle", handle, "orgUUID", orgUUID)
+			slog.Warn("LLMProviderRepo.GetByHandle: provider not found", "handle", handle, "org_uuid", orgUUID)
 			return nil, err
 		}
-		slog.Error("LLMProviderRepo.GetByHandle: query failed", "handle", handle, "orgUUID", orgUUID, "error", err)
+		slog.Error("LLMProviderRepo.GetByHandle: query failed", "handle", handle, "org_uuid", orgUUID, "error", err)
 		return nil, err
 	}
 
@@ -148,13 +148,13 @@ func (r *LLMProviderRepo) GetByHandle(handle, orgUUID string) (*models.LLMProvid
 		provider.InCatalog = provider.Artifact.InCatalog
 	}
 
-	slog.Info("LLMProviderRepo.GetByHandle: completed successfully", "handle", handle, "orgUUID", orgUUID, "uuid", provider.UUID)
+	slog.Info("LLMProviderRepo.GetByHandle: completed successfully", "handle", handle, "org_uuid", orgUUID, "uuid", provider.UUID)
 	return &provider, nil
 }
 
 // List retrieves LLM providers with pagination
 func (r *LLMProviderRepo) List(orgUUID string, limit, offset int) ([]*models.LLMProvider, error) {
-	slog.Info("LLMProviderRepo.List: starting", "orgUUID", orgUUID, "limit", limit, "offset", offset)
+	slog.Info("LLMProviderRepo.List: starting", "org_uuid", orgUUID, "limit", limit, "offset", offset)
 
 	var providers []*models.LLMProvider
 	err := r.db.
@@ -166,7 +166,7 @@ func (r *LLMProviderRepo) List(orgUUID string, limit, offset int) ([]*models.LLM
 		Offset(offset).
 		Find(&providers).Error
 	if err != nil {
-		slog.Error("LLMProviderRepo.List: query failed", "orgUUID", orgUUID, "error", err)
+		slog.Error("LLMProviderRepo.List: query failed", "org_uuid", orgUUID, "error", err)
 		return providers, err
 	}
 
@@ -177,7 +177,7 @@ func (r *LLMProviderRepo) List(orgUUID string, limit, offset int) ([]*models.LLM
 		}
 	}
 
-	slog.Info("LLMProviderRepo.List: completed successfully", "orgUUID", orgUUID, "count", len(providers))
+	slog.Info("LLMProviderRepo.List: completed successfully", "org_uuid", orgUUID, "count", len(providers))
 	return providers, nil
 }
 
@@ -188,10 +188,10 @@ func (r *LLMProviderRepo) Count(orgUUID string) (int, error) {
 
 // Update modifies an existing LLM provider
 func (r *LLMProviderRepo) Update(p *models.LLMProvider, providerID string, orgUUID string) error {
-	slog.Info("LLMProviderRepo.Update: starting", "providerID", providerID, "orgUUID", orgUUID)
+	slog.Info("LLMProviderRepo.Update: starting", "provider_id", providerID, "org_uuid", orgUUID)
 
 	return r.db.Transaction(func(tx *gorm.DB) error {
-		slog.Info("LLMProviderRepo.Update: resolved UUID", "providerID", providerID)
+		slog.Info("LLMProviderRepo.Update: resolved UUID", "provider_id", providerID)
 
 		_, err := uuid.Parse(providerID)
 		if err != nil {
@@ -219,25 +219,25 @@ func (r *LLMProviderRepo) Update(p *models.LLMProvider, providerID string, orgUU
 			return gorm.ErrRecordNotFound
 		}
 
-		slog.Info("LLMProviderRepo.Update: completed successfully", "handle", providerID, "rowsAffected", result.RowsAffected)
+		slog.Info("LLMProviderRepo.Update: completed successfully", "handle", providerID, "rows_affected", result.RowsAffected)
 		return nil
 	})
 }
 
 // Delete removes an LLM provider
 func (r *LLMProviderRepo) Delete(providerID, orgUUID string) error {
-	slog.Info("LLMProviderRepo.Delete: starting", "providerID", providerID, "orgUUID", orgUUID)
+	slog.Info("LLMProviderRepo.Delete: starting", "provider_id", providerID, "org_uuid", orgUUID)
 
 	// Parse providerID as UUID
 	providerUUID, err := uuid.Parse(providerID)
 	if err != nil {
-		slog.Error("LLMProviderRepo.Delete: invalid provider UUID", "providerID", providerID, "error", err)
+		slog.Error("LLMProviderRepo.Delete: invalid provider UUID", "provider_id", providerID, "error", err)
 		return fmt.Errorf("invalid provider UUID: %w", err)
 	}
 
 	return r.db.Transaction(func(tx *gorm.DB) error {
 		// Verify the provider exists and belongs to the organization
-		slog.Info("LLMProviderRepo.Delete: verifying provider exists", "providerID", providerID, "uuid", providerUUID, "orgUUID", orgUUID)
+		slog.Info("LLMProviderRepo.Delete: verifying provider exists", "provider_id", providerID, "uuid", providerUUID, "org_uuid", orgUUID)
 		var artifact struct{ UUID uuid.UUID }
 		result := tx.Table("artifacts").
 			Select("uuid").
@@ -245,48 +245,48 @@ func (r *LLMProviderRepo) Delete(providerID, orgUUID string) error {
 			Take(&artifact)
 		if result.Error != nil {
 			if errors.Is(result.Error, gorm.ErrRecordNotFound) {
-				slog.Warn("LLMProviderRepo.Delete: provider not found", "providerID", providerID, "uuid", providerUUID, "orgUUID", orgUUID)
+				slog.Warn("LLMProviderRepo.Delete: provider not found", "provider_id", providerID, "uuid", providerUUID, "org_uuid", orgUUID)
 				return gorm.ErrRecordNotFound
 			}
-			slog.Error("LLMProviderRepo.Delete: failed to verify provider", "providerID", providerID, "uuid", providerUUID, "orgUUID", orgUUID, "error", result.Error)
+			slog.Error("LLMProviderRepo.Delete: failed to verify provider", "provider_id", providerID, "uuid", providerUUID, "org_uuid", orgUUID, "error", result.Error)
 			return result.Error
 		}
 
-		slog.Info("LLMProviderRepo.Delete: provider verified", "providerID", providerID, "uuid", providerUUID)
+		slog.Info("LLMProviderRepo.Delete: provider verified", "provider_id", providerID, "uuid", providerUUID)
 
-		slog.Info("LLMProviderRepo.Delete: deleting from llm_providers table", "providerID", providerID, "uuid", providerUUID)
+		slog.Info("LLMProviderRepo.Delete: deleting from llm_providers table", "provider_id", providerID, "uuid", providerUUID)
 		if err := tx.Where("uuid = ?", providerUUID).Delete(&models.LLMProvider{}).Error; err != nil {
 			var pgErr *pgconn.PgError
 			if errors.As(err, &pgErr) && pgErr.Code == "23503" {
-				slog.Warn("LLMProviderRepo.Delete: provider has associated proxies", "providerID", providerID, "uuid", providerUUID, "constraint", pgErr.ConstraintName)
+				slog.Warn("LLMProviderRepo.Delete: provider has associated proxies", "provider_id", providerID, "uuid", providerUUID, "constraint", pgErr.ConstraintName)
 				return utils.ErrLLMProviderHasProxies
 			}
-			slog.Error("LLMProviderRepo.Delete: failed to delete provider", "providerID", providerID, "uuid", providerUUID, "error", err)
+			slog.Error("LLMProviderRepo.Delete: failed to delete provider", "provider_id", providerID, "uuid", providerUUID, "error", err)
 			return err
 		}
 
 		// Delete from artifacts
-		slog.Info("LLMProviderRepo.Delete: deleting from artifacts table", "providerID", providerID, "uuid", providerUUID)
+		slog.Info("LLMProviderRepo.Delete: deleting from artifacts table", "provider_id", providerID, "uuid", providerUUID)
 		if err := r.artifactRepo.Delete(tx, providerUUID.String()); err != nil {
-			slog.Error("LLMProviderRepo.Delete: failed to delete artifact", "providerID", providerID, "uuid", providerUUID, "error", err)
+			slog.Error("LLMProviderRepo.Delete: failed to delete artifact", "provider_id", providerID, "uuid", providerUUID, "error", err)
 			return err
 		}
 
-		slog.Info("LLMProviderRepo.Delete: completed successfully", "providerID", providerID, "uuid", providerUUID)
+		slog.Info("LLMProviderRepo.Delete: completed successfully", "provider_id", providerID, "uuid", providerUUID)
 		return nil
 	})
 }
 
 // Exists checks if an LLM provider exists
 func (r *LLMProviderRepo) Exists(providerID, orgUUID string) (bool, error) {
-	slog.Info("LLMProviderRepo.Exists: checking", "providerID", providerID, "orgUUID", orgUUID)
+	slog.Info("LLMProviderRepo.Exists: checking", "provider_id", providerID, "org_uuid", orgUUID)
 
 	exists, err := r.artifactRepo.Exists(models.KindLLMProvider, providerID, orgUUID)
 	if err != nil {
-		slog.Error("LLMProviderRepo.Exists: check failed", "providerID", providerID, "orgUUID", orgUUID, "error", err)
+		slog.Error("LLMProviderRepo.Exists: check failed", "provider_id", providerID, "org_uuid", orgUUID, "error", err)
 		return false, err
 	}
 
-	slog.Info("LLMProviderRepo.Exists: completed", "providerID", providerID, "orgUUID", orgUUID, "exists", exists)
+	slog.Info("LLMProviderRepo.Exists: completed", "provider_id", providerID, "org_uuid", orgUUID, "exists", exists)
 	return exists, nil
 }

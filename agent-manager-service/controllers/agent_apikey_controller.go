@@ -70,11 +70,11 @@ func (c *agentAPIKeyController) CreateAPIKey(w http.ResponseWriter, r *http.Requ
 	agentName := r.PathValue(utils.PathParamAgentName)
 	envID := r.PathValue(utils.PathParamEnvID)
 
-	log.Info("CreateAgentAPIKey: starting", "ouID", ouID, "projName", projName, "agentName", agentName, "envID", envID)
+	log.Info("CreateAgentAPIKey: starting", "ou_id", ouID, "proj_name", projName, "agent_name", agentName, "env_id", envID)
 
 	var specReq spec.CreateLLMAPIKeyRequest
 	if err := json.NewDecoder(r.Body).Decode(&specReq); err != nil {
-		log.Error("CreateAgentAPIKey: failed to decode request", "error", err)
+		log.Warn("CreateAgentAPIKey: failed to decode request", "error", err)
 		utils.WriteErrorResponse(w, http.StatusBadRequest, "Invalid request body")
 		return
 	}
@@ -108,29 +108,29 @@ func (c *agentAPIKeyController) CreateAPIKey(w http.ResponseWriter, r *http.Requ
 	if err != nil {
 		switch {
 		case errors.Is(err, utils.ErrBadRequest):
-			log.Warn("CreateAgentAPIKey: invalid request", "ouID", ouID, "agentName", agentName, "error", err)
+			log.Warn("CreateAgentAPIKey: invalid request", "ou_id", ouID, "agent_name", agentName, "error", err)
 			utils.WriteErrorResponse(w, http.StatusBadRequest, err.Error())
 			return
 		case errors.Is(err, utils.ErrArtifactNotFound):
-			log.Warn("CreateAgentAPIKey: agent not found", "ouID", ouID, "agentName", agentName)
+			log.Warn("CreateAgentAPIKey: agent not found", "ou_id", ouID, "agent_name", agentName)
 			utils.WriteErrorResponse(w, http.StatusNotFound, "Agent not found")
 			return
 		case errors.Is(err, utils.ErrEnvironmentNotFound):
-			log.Warn("CreateAgentAPIKey: environment not found", "ouID", ouID, "agentName", agentName, "envID", envID)
+			log.Warn("CreateAgentAPIKey: environment not found", "ou_id", ouID, "agent_name", agentName, "env_id", envID)
 			utils.WriteErrorResponse(w, http.StatusNotFound, "Environment not found")
 			return
 		case errors.Is(err, utils.ErrGatewayNotFound):
-			log.Error("CreateAgentAPIKey: no gateways found", "ouID", ouID)
+			log.Error("CreateAgentAPIKey: no gateways found", "ou_id", ouID)
 			utils.WriteErrorResponse(w, http.StatusServiceUnavailable, "No gateway connections available")
 			return
 		default:
-			log.Error("CreateAgentAPIKey: failed to create API key", "ouID", ouID, "agentName", agentName, "error", err)
+			log.Error("CreateAgentAPIKey: failed to create API key", "ou_id", ouID, "agent_name", agentName, "error", err)
 			utils.WriteErrorResponse(w, http.StatusInternalServerError, "Failed to create API key")
 			return
 		}
 	}
 
-	log.Info("CreateAgentAPIKey: API key created successfully", "ouID", ouID, "agentName", agentName, "keyID", response.KeyID)
+	log.Info("CreateAgentAPIKey: API key created successfully", "ou_id", ouID, "agent_name", agentName, "key_id", response.KeyID)
 	utils.WriteSuccessResponse(w, http.StatusCreated, response)
 }
 
@@ -144,21 +144,21 @@ func (c *agentAPIKeyController) ListAPIKeys(w http.ResponseWriter, r *http.Reque
 	agentName := r.PathValue(utils.PathParamAgentName)
 	envID := r.PathValue(utils.PathParamEnvID)
 
-	log.Info("ListAgentAPIKeys: starting", "ouID", ouID, "projName", projName, "agentName", agentName, "envID", envID)
+	log.Info("ListAgentAPIKeys: starting", "ou_id", ouID, "proj_name", projName, "agent_name", agentName, "env_id", envID)
 
 	keys, err := c.apiKeyService.ListAPIKeys(ctx, ouID, projName, agentName, envID)
 	if err != nil {
 		switch {
 		case errors.Is(err, utils.ErrArtifactNotFound):
-			log.Warn("ListAgentAPIKeys: agent not found", "ouID", ouID, "agentName", agentName)
+			log.Warn("ListAgentAPIKeys: agent not found", "ou_id", ouID, "agent_name", agentName)
 			utils.WriteErrorResponse(w, http.StatusNotFound, "Agent not found")
 			return
 		case errors.Is(err, utils.ErrEnvironmentNotFound):
-			log.Warn("ListAgentAPIKeys: environment not found", "ouID", ouID, "agentName", agentName, "envID", envID)
+			log.Warn("ListAgentAPIKeys: environment not found", "ou_id", ouID, "agent_name", agentName, "env_id", envID)
 			utils.WriteErrorResponse(w, http.StatusNotFound, "Environment not found")
 			return
 		default:
-			log.Error("ListAgentAPIKeys: failed to list API keys", "ouID", ouID, "agentName", agentName, "error", err)
+			log.Error("ListAgentAPIKeys: failed to list API keys", "ou_id", ouID, "agent_name", agentName, "error", err)
 			utils.WriteErrorResponse(w, http.StatusInternalServerError, "Failed to list API keys")
 			return
 		}
@@ -181,30 +181,30 @@ func (c *agentAPIKeyController) RevokeAPIKey(w http.ResponseWriter, r *http.Requ
 	envID := r.PathValue(utils.PathParamEnvID)
 	keyName := r.PathValue("keyName")
 
-	log.Info("RevokeAgentAPIKey: starting", "ouID", ouID, "agentName", agentName, "envID", envID, "keyName", keyName)
+	log.Info("RevokeAgentAPIKey: starting", "ou_id", ouID, "agent_name", agentName, "env_id", envID, "key_name", keyName)
 
 	if err := c.apiKeyService.RevokeAPIKey(ctx, ouID, projName, agentName, envID, keyName); err != nil {
 		switch {
 		case errors.Is(err, utils.ErrArtifactNotFound):
-			log.Warn("RevokeAgentAPIKey: agent not found", "ouID", ouID, "agentName", agentName)
+			log.Warn("RevokeAgentAPIKey: agent not found", "ou_id", ouID, "agent_name", agentName)
 			utils.WriteErrorResponse(w, http.StatusNotFound, "Agent not found")
 			return
 		case errors.Is(err, utils.ErrEnvironmentNotFound):
-			log.Warn("RevokeAgentAPIKey: environment not found", "ouID", ouID, "agentName", agentName, "envID", envID)
+			log.Warn("RevokeAgentAPIKey: environment not found", "ou_id", ouID, "agent_name", agentName, "env_id", envID)
 			utils.WriteErrorResponse(w, http.StatusNotFound, "Environment not found")
 			return
 		case errors.Is(err, utils.ErrGatewayNotFound):
-			log.Error("RevokeAgentAPIKey: no gateways found", "ouID", ouID)
+			log.Error("RevokeAgentAPIKey: no gateways found", "ou_id", ouID)
 			utils.WriteErrorResponse(w, http.StatusServiceUnavailable, "No gateway connections available")
 			return
 		default:
-			log.Error("RevokeAgentAPIKey: failed to revoke API key", "ouID", ouID, "agentName", agentName, "keyName", keyName, "error", err)
+			log.Error("RevokeAgentAPIKey: failed to revoke API key", "ou_id", ouID, "agent_name", agentName, "key_name", keyName, "error", err)
 			utils.WriteErrorResponse(w, http.StatusInternalServerError, "Failed to revoke API key")
 			return
 		}
 	}
 
-	log.Info("RevokeAgentAPIKey: API key revoked successfully", "ouID", ouID, "agentName", agentName, "keyName", keyName)
+	log.Info("RevokeAgentAPIKey: API key revoked successfully", "ou_id", ouID, "agent_name", agentName, "key_name", keyName)
 	w.WriteHeader(http.StatusNoContent)
 }
 
@@ -219,12 +219,12 @@ func (c *agentAPIKeyController) RotateAPIKey(w http.ResponseWriter, r *http.Requ
 	envID := r.PathValue(utils.PathParamEnvID)
 	keyName := r.PathValue("keyName")
 
-	log.Info("RotateAgentAPIKey: starting", "ouID", ouID, "agentName", agentName, "envID", envID, "keyName", keyName)
+	log.Info("RotateAgentAPIKey: starting", "ou_id", ouID, "agent_name", agentName, "env_id", envID, "key_name", keyName)
 
 	var specReq spec.RotateLLMAPIKeyRequest
 	// Body is optional for rotation; only an empty body is acceptable.
 	if err := json.NewDecoder(r.Body).Decode(&specReq); err != nil && !errors.Is(err, io.EOF) {
-		log.Warn("RotateAgentAPIKey: invalid request body", "ouID", ouID, "agentName", agentName, "keyName", keyName, "error", err)
+		log.Warn("RotateAgentAPIKey: invalid request body", "ou_id", ouID, "agent_name", agentName, "key_name", keyName, "error", err)
 		utils.WriteErrorResponse(w, http.StatusBadRequest, "Invalid request body")
 		return
 	}
@@ -238,25 +238,25 @@ func (c *agentAPIKeyController) RotateAPIKey(w http.ResponseWriter, r *http.Requ
 	if err != nil {
 		switch {
 		case errors.Is(err, utils.ErrArtifactNotFound):
-			log.Warn("RotateAgentAPIKey: agent not found", "ouID", ouID, "agentName", agentName)
+			log.Warn("RotateAgentAPIKey: agent not found", "ou_id", ouID, "agent_name", agentName)
 			utils.WriteErrorResponse(w, http.StatusNotFound, "Agent not found")
 			return
 		case errors.Is(err, utils.ErrEnvironmentNotFound):
-			log.Warn("RotateAgentAPIKey: environment not found", "ouID", ouID, "agentName", agentName, "envID", envID)
+			log.Warn("RotateAgentAPIKey: environment not found", "ou_id", ouID, "agent_name", agentName, "env_id", envID)
 			utils.WriteErrorResponse(w, http.StatusNotFound, "Environment not found")
 			return
 		case errors.Is(err, utils.ErrGatewayNotFound):
-			log.Error("RotateAgentAPIKey: no gateways found", "ouID", ouID)
+			log.Error("RotateAgentAPIKey: no gateways found", "ou_id", ouID)
 			utils.WriteErrorResponse(w, http.StatusServiceUnavailable, "No gateway connections available")
 			return
 		default:
-			log.Error("RotateAgentAPIKey: failed to rotate API key", "ouID", ouID, "agentName", agentName, "keyName", keyName, "error", err)
+			log.Error("RotateAgentAPIKey: failed to rotate API key", "ou_id", ouID, "agent_name", agentName, "key_name", keyName, "error", err)
 			utils.WriteErrorResponse(w, http.StatusInternalServerError, "Failed to rotate API key")
 			return
 		}
 	}
 
-	log.Info("RotateAgentAPIKey: API key rotated successfully", "ouID", ouID, "agentName", agentName, "keyName", keyName)
+	log.Info("RotateAgentAPIKey: API key rotated successfully", "ou_id", ouID, "agent_name", agentName, "key_name", keyName)
 	utils.WriteSuccessResponse(w, http.StatusOK, response)
 }
 
@@ -274,7 +274,7 @@ func (c *agentAPIKeyController) IssueTestAPIKey(w http.ResponseWriter, r *http.R
 	agentName := r.PathValue(utils.PathParamAgentName)
 	envID := r.PathValue(utils.PathParamEnvID)
 
-	log.Info("IssueTestAPIKey: starting", "ouID", ouID, "projName", projName, "agentName", agentName, "envID", envID)
+	log.Info("IssueTestAPIKey: starting", "ou_id", ouID, "proj_name", projName, "agent_name", agentName, "env_id", envID)
 
 	claims := jwtassertion.GetTokenClaims(ctx)
 	if claims == nil || claims.Sub == "" {
@@ -287,24 +287,24 @@ func (c *agentAPIKeyController) IssueTestAPIKey(w http.ResponseWriter, r *http.R
 	if err != nil {
 		switch {
 		case errors.Is(err, utils.ErrArtifactNotFound):
-			log.Warn("IssueTestAPIKey: agent not found", "ouID", ouID, "agentName", agentName)
+			log.Warn("IssueTestAPIKey: agent not found", "ou_id", ouID, "agent_name", agentName)
 			utils.WriteErrorResponse(w, http.StatusNotFound, "Agent not found")
 			return
 		case errors.Is(err, utils.ErrEnvironmentNotFound):
-			log.Warn("IssueTestAPIKey: environment not found", "ouID", ouID, "agentName", agentName, "envID", envID)
+			log.Warn("IssueTestAPIKey: environment not found", "ou_id", ouID, "agent_name", agentName, "env_id", envID)
 			utils.WriteErrorResponse(w, http.StatusNotFound, "Environment not found")
 			return
 		case errors.Is(err, utils.ErrGatewayNotFound):
-			log.Error("IssueTestAPIKey: no gateways found", "ouID", ouID)
+			log.Error("IssueTestAPIKey: no gateways found", "ou_id", ouID)
 			utils.WriteErrorResponse(w, http.StatusServiceUnavailable, "No gateway connections available")
 			return
 		default:
-			log.Error("IssueTestAPIKey: failed to issue test API key", "ouID", ouID, "agentName", agentName, "error", err)
+			log.Error("IssueTestAPIKey: failed to issue test API key", "ou_id", ouID, "agent_name", agentName, "error", err)
 			utils.WriteErrorResponse(w, http.StatusInternalServerError, "Failed to issue test API key")
 			return
 		}
 	}
 
-	log.Info("IssueTestAPIKey: test API key issued successfully", "ouID", ouID, "agentName", agentName, "expiresAt", response.ExpiresAt)
+	log.Info("IssueTestAPIKey: test API key issued successfully", "ou_id", ouID, "agent_name", agentName, "expires_at", response.ExpiresAt)
 	utils.WriteSuccessResponse(w, http.StatusOK, response)
 }

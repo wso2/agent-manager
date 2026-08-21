@@ -260,14 +260,14 @@ func (c *agentController) ListAgents(w http.ResponseWriter, r *http.Request) {
 	// Parse and validate pagination parameters
 	limit, err := strconv.Atoi(limitStr)
 	if err != nil || limit < utils.MinLimit || limit > utils.MaxLimit {
-		log.Error("ListAgents: invalid limit parameter", "limit", limitStr)
+		log.Warn("ListAgents: invalid limit parameter", "limit", limitStr)
 		utils.WriteErrorResponse(w, http.StatusBadRequest, fmt.Sprintf("Invalid limit parameter: must be between %d and %d", utils.MinLimit, utils.MaxLimit))
 		return
 	}
 
 	offset, err := strconv.Atoi(offsetStr)
 	if err != nil || offset < utils.MinOffset {
-		log.Error("ListAgents: invalid offset parameter", "offset", offsetStr)
+		log.Warn("ListAgents: invalid offset parameter", "offset", offsetStr)
 		utils.WriteErrorResponse(w, http.StatusBadRequest, fmt.Sprintf("Invalid offset parameter: must be %d or greater", utils.MinOffset))
 		return
 	}
@@ -326,13 +326,13 @@ func (c *agentController) CreateAgent(w http.ResponseWriter, r *http.Request) {
 	// Parse and validate request body
 	var payload spec.CreateAgentRequest
 	if err := json.NewDecoder(r.Body).Decode(&payload); err != nil {
-		log.Error("CreateAgent: failed to decode request body", "error", err)
+		log.Warn("CreateAgent: failed to decode request body", "error", err)
 		utils.WriteErrorResponse(w, http.StatusBadRequest, "Invalid request body")
 		return
 	}
 
 	if err := utils.ValidateAgentCreatePayload(payload); err != nil {
-		log.Error("CreateAgent: invalid agent payload", "error", err)
+		log.Warn("CreateAgent: invalid agent payload", "error", err)
 		utils.WriteValidationErrorResponse(w, err)
 		return
 	}
@@ -374,7 +374,7 @@ func (c *agentController) UpdateAgentBasicInfo(w http.ResponseWriter, r *http.Re
 	// Parse and validate request body
 	var payload spec.UpdateAgentBasicInfoRequest
 	if err := json.NewDecoder(r.Body).Decode(&payload); err != nil {
-		log.Error("UpdateAgent: failed to decode request body", "error", err)
+		log.Warn("UpdateAgent: failed to decode request body", "error", err)
 		utils.WriteErrorResponse(w, http.StatusBadRequest, "Invalid request body")
 		return
 	}
@@ -406,7 +406,7 @@ func (c *agentController) UpdateAgentBuildParameters(w http.ResponseWriter, r *h
 	// Parse and validate request body
 	var payload spec.UpdateAgentBuildParametersRequest
 	if err := json.NewDecoder(r.Body).Decode(&payload); err != nil {
-		log.Error("UpdateAgentBuildParameters: failed to decode request body", "error", err)
+		log.Warn("UpdateAgentBuildParameters: failed to decode request body", "error", err)
 		utils.WriteErrorResponse(w, http.StatusBadRequest, "Invalid request body")
 		return
 	}
@@ -469,7 +469,7 @@ func (c *agentController) UpdateAgentResourceConfigs(w http.ResponseWriter, r *h
 	// Parse and validate request body
 	var payload spec.UpdateAgentResourceConfigsRequest
 	if err := json.NewDecoder(r.Body).Decode(&payload); err != nil {
-		log.Error("UpdateAgentResourceConfigs: failed to decode request body", "error", err)
+		log.Warn("UpdateAgentResourceConfigs: failed to decode request body", "error", err)
 		utils.WriteErrorResponse(w, http.StatusBadRequest, "Invalid request body")
 		return
 	}
@@ -542,13 +542,13 @@ func (c *agentController) DeployAgent(w http.ResponseWriter, r *http.Request) {
 	// Parse and validate request body
 	var payload spec.DeployAgentRequest
 	if err := json.NewDecoder(r.Body).Decode(&payload); err != nil {
-		log.Error("DeployAgent: failed to decode request body", "error", err)
+		log.Warn("DeployAgent: failed to decode request body", "error", err)
 		utils.WriteErrorResponse(w, http.StatusBadRequest, "Invalid request body")
 		return
 	}
 
 	if err := utils.ValidateDeployAgentRequest(&payload); err != nil {
-		log.Error("DeployAgent: invalid request", "error", err)
+		log.Warn("DeployAgent: invalid request", "error", err)
 		utils.WriteValidationErrorResponse(w, err)
 		return
 	}
@@ -579,12 +579,12 @@ func (c *agentController) PromoteAgent(w http.ResponseWriter, r *http.Request) {
 
 	var payload spec.PromoteAgentRequest
 	if err := json.NewDecoder(r.Body).Decode(&payload); err != nil {
-		log.Error("PromoteAgent: failed to decode request body", "error", err)
+		log.Warn("PromoteAgent: failed to decode request body", "error", err)
 		utils.WriteErrorResponse(w, http.StatusBadRequest, "Invalid request body")
 		return
 	}
 	if err := utils.ValidatePromoteAgentRequest(&payload); err != nil {
-		log.Error("PromoteAgent: invalid request", "error", err)
+		log.Warn("PromoteAgent: invalid request", "error", err)
 		utils.WriteValidationErrorResponse(w, err)
 		return
 	}
@@ -614,7 +614,7 @@ func (c *agentController) UpdateAgentDeploySettings(w http.ResponseWriter, r *ht
 
 	var payload spec.UpdateAgentDeploySettingsRequest
 	if err := json.NewDecoder(r.Body).Decode(&payload); err != nil {
-		log.Error("UpdateAgentDeploySettings: failed to decode request body", "error", err)
+		log.Warn("UpdateAgentDeploySettings: failed to decode request body", "error", err)
 		utils.WriteErrorResponse(w, http.StatusBadRequest, "Invalid request body")
 		return
 	}
@@ -641,7 +641,7 @@ func (c *agentController) UpdateAgentConfigurations(w http.ResponseWriter, r *ht
 
 	var payload spec.UpdateAgentConfigurationsRequest
 	if err := json.NewDecoder(r.Body).Decode(&payload); err != nil {
-		log.Error("UpdateAgentConfigurations: failed to decode request body", "error", err)
+		log.Warn("UpdateAgentConfigurations: failed to decode request body", "error", err)
 		utils.WriteErrorResponse(w, http.StatusBadRequest, "Invalid request body")
 		return
 	}
@@ -668,7 +668,7 @@ func (c *agentController) RegenerateTracingToken(w http.ResponseWriter, r *http.
 
 	var payload spec.TracingTokenRegenerateRequest
 	if err := json.NewDecoder(r.Body).Decode(&payload); err != nil {
-		log.Error("RegenerateTracingToken: failed to decode request body", "error", err)
+		log.Warn("RegenerateTracingToken: failed to decode request body", "error", err)
 		utils.WriteErrorResponse(w, http.StatusBadRequest, "Invalid request body")
 		return
 	}
@@ -734,14 +734,14 @@ func (c *agentController) ListAgentBuilds(w http.ResponseWriter, r *http.Request
 	// Parse and validate pagination parameters
 	limit, err := strconv.Atoi(limitStr)
 	if err != nil || limit < utils.MinLimit || limit > utils.MaxLimit {
-		log.Error("ListAgentBuilds: invalid limit parameter", "limit", limitStr)
+		log.Warn("ListAgentBuilds: invalid limit parameter", "limit", limitStr)
 		utils.WriteErrorResponse(w, http.StatusBadRequest, fmt.Sprintf("Invalid limit parameter: must be between %d and %d", utils.MinLimit, utils.MaxLimit))
 		return
 	}
 
 	offset, err := strconv.Atoi(offsetStr)
 	if err != nil || offset < utils.MinOffset {
-		log.Error("ListAgentBuilds: invalid offset parameter", "offset", offsetStr)
+		log.Warn("ListAgentBuilds: invalid offset parameter", "offset", offsetStr)
 		utils.WriteErrorResponse(w, http.StatusBadRequest, fmt.Sprintf("Invalid offset parameter: must be %d or greater", utils.MinOffset))
 		return
 	}
@@ -773,14 +773,14 @@ func (c *agentController) GenerateName(w http.ResponseWriter, r *http.Request) {
 	// Parse and validate request body
 	var payload spec.ResourceNameRequest
 	if err := json.NewDecoder(r.Body).Decode(&payload); err != nil {
-		log.Error("GenerateName: failed to decode request body", "error", err)
+		log.Warn("GenerateName: failed to decode request body", "error", err)
 		utils.WriteErrorResponse(w, http.StatusBadRequest, "Invalid request body")
 		return
 	}
 
 	err := utils.ValidateResourceNameRequest(payload)
 	if err != nil {
-		log.Error("GenerateName: invalid resource name payload", "error", err)
+		log.Warn("GenerateName: invalid resource name payload", "error", err)
 		utils.WriteErrorResponse(w, http.StatusBadRequest, "Invalid resource name payload")
 		return
 	}
@@ -853,26 +853,26 @@ func (c *agentController) UpdateDeploymentState(w http.ResponseWriter, r *http.R
 	// Parse and validate request body
 	var payload spec.UpdateDeploymentStateRequest
 	if err := json.NewDecoder(r.Body).Decode(&payload); err != nil {
-		log.Error("UpdateDeploymentState: failed to decode request body", "error", err)
+		log.Warn("UpdateDeploymentState: failed to decode request body", "error", err)
 		utils.WriteErrorResponse(w, http.StatusBadRequest, "Invalid request body")
 		return
 	}
 
 	// Validate required fields
 	if payload.Environment == "" {
-		log.Error("UpdateDeploymentState: missing required field 'environment'")
+		log.Warn("UpdateDeploymentState: missing required field 'environment'")
 		utils.WriteErrorResponse(w, http.StatusBadRequest, "Missing required field 'environment'")
 		return
 	}
 	if payload.State == "" {
-		log.Error("UpdateDeploymentState: missing required field 'state'")
+		log.Warn("UpdateDeploymentState: missing required field 'state'")
 		utils.WriteErrorResponse(w, http.StatusBadRequest, "Missing required field 'state'")
 		return
 	}
 
 	// Validate state value
 	if payload.State != utils.DeploymentStateActive && payload.State != utils.DeploymentStateUndeploy {
-		log.Error("UpdateDeploymentState: invalid state value", "state", payload.State)
+		log.Warn("UpdateDeploymentState: invalid state value", "state", payload.State)
 		utils.WriteErrorResponse(w, http.StatusBadRequest, "Invalid state value: must be 'Active' or 'Undeploy'")
 		return
 	}
@@ -921,7 +921,7 @@ func (c *agentController) GetAgentEndpoints(w http.ResponseWriter, r *http.Reque
 	agentName := r.PathValue(utils.PathParamAgentName)
 	environment := r.URL.Query().Get("environment")
 	if environment == "" {
-		log.Error("GetAgentEndpoints: missing required query parameter 'environment'")
+		log.Warn("GetAgentEndpoints: missing required query parameter 'environment'")
 		utils.WriteErrorResponse(w, http.StatusBadRequest, "Missing required query parameter 'environment'")
 		return
 	}
@@ -948,7 +948,7 @@ func (c *agentController) GetAgentConfigurations(w http.ResponseWriter, r *http.
 
 	environment := r.URL.Query().Get("environment")
 	if environment == "" {
-		log.Error("GetAgentConfigurations: missing required query parameter 'environment'")
+		log.Warn("GetAgentConfigurations: missing required query parameter 'environment'")
 		utils.WriteErrorResponse(w, http.StatusBadRequest, "Missing required query parameter 'environment'")
 		return
 	}
@@ -1096,7 +1096,7 @@ func (c *agentController) GetAgentIdentity(w http.ResponseWriter, r *http.Reques
 
 	views, err := c.agentService.GetAgentIdentity(ctx, ouID, projName, agentName)
 	if err != nil {
-		log.Error("GetAgentIdentity: failed to get agent identity", "orgName", orgName, "agentName", agentName, "error", err)
+		log.Error("GetAgentIdentity: failed to get agent identity", "org_name", orgName, "agent_name", agentName, "error", err)
 		handleCommonErrors(w, err, "Failed to get agent identity")
 		return
 	}
@@ -1136,7 +1136,7 @@ func (c *agentController) RegenerateAgentIdentitySecret(w http.ResponseWriter, r
 
 	var payload models.AgentIdentityActionRequest
 	if err := json.NewDecoder(r.Body).Decode(&payload); err != nil {
-		log.Error("RegenerateAgentIdentitySecret: failed to decode request body", "error", err)
+		log.Warn("RegenerateAgentIdentitySecret: failed to decode request body", "error", err)
 		utils.WriteErrorResponse(w, http.StatusBadRequest, "Invalid request body")
 		return
 	}
@@ -1146,7 +1146,7 @@ func (c *agentController) RegenerateAgentIdentitySecret(w http.ResponseWriter, r
 		return
 	}
 
-	log.Info("RegenerateAgentIdentitySecret: starting", "orgName", orgName, "agentName", agentName, "envID", envID)
+	log.Info("RegenerateAgentIdentitySecret: starting", "org_name", orgName, "agent_name", agentName, "env_id", envID)
 
 	attempt, ok := beginAuditOrFail(
 		w, r, "RegenerateAgentIdentitySecret", "Failed to regenerate agent identity secret", audit.ActionAgentIdentityRegenerateSecret,
@@ -1165,17 +1165,17 @@ func (c *agentController) RegenerateAgentIdentitySecret(w http.ResponseWriter, r
 	if err != nil {
 		attempt.Complete(ctx, err)
 		if errors.Is(err, utils.ErrAgentIdentityNotProvisioned) {
-			log.Warn("RegenerateAgentIdentitySecret: identity not yet provisioned", "orgName", orgName, "agentName", agentName, "envID", envID)
+			log.Warn("RegenerateAgentIdentitySecret: identity not yet provisioned", "org_name", orgName, "agent_name", agentName, "env_id", envID)
 			utils.WriteErrorResponse(w, http.StatusNotFound, "Agent identity not yet provisioned for this environment")
 			return
 		}
-		log.Error("RegenerateAgentIdentitySecret: failed to regenerate secret", "orgName", orgName, "agentName", agentName, "envID", envID, "error", err)
+		log.Error("RegenerateAgentIdentitySecret: failed to regenerate secret", "org_name", orgName, "agent_name", agentName, "env_id", envID, "error", err)
 		handleCommonErrors(w, err, "Failed to regenerate agent identity secret")
 		return
 	}
 
 	attempt.Complete(ctx, nil)
-	log.Info("RegenerateAgentIdentitySecret: secret regenerated successfully", "orgName", orgName, "agentName", agentName, "envID", envID)
+	log.Info("RegenerateAgentIdentitySecret: secret regenerated successfully", "org_name", orgName, "agent_name", agentName, "env_id", envID)
 	utils.WriteSuccessResponse(w, http.StatusOK, resp)
 }
 
@@ -1198,7 +1198,7 @@ func (c *agentController) RevokeAgentIdentitySecret(w http.ResponseWriter, r *ht
 		return
 	}
 
-	log.Info("RevokeAgentIdentitySecret: starting", "orgName", orgName, "agentName", agentName, "envID", envID)
+	log.Info("RevokeAgentIdentitySecret: starting", "org_name", orgName, "agent_name", agentName, "env_id", envID)
 
 	attempt, ok := beginAuditOrFail(
 		w, r, "RevokeAgentIdentitySecret", "Failed to revoke agent identity secret", audit.ActionAgentIdentityRevokeSecret,
@@ -1217,17 +1217,17 @@ func (c *agentController) RevokeAgentIdentitySecret(w http.ResponseWriter, r *ht
 	if err != nil {
 		attempt.Complete(ctx, err)
 		if errors.Is(err, utils.ErrAgentIdentityNotProvisioned) {
-			log.Warn("RevokeAgentIdentitySecret: identity not yet provisioned", "orgName", orgName, "agentName", agentName, "envID", envID)
+			log.Warn("RevokeAgentIdentitySecret: identity not yet provisioned", "org_name", orgName, "agent_name", agentName, "env_id", envID)
 			utils.WriteErrorResponse(w, http.StatusNotFound, "Agent identity not yet provisioned for this environment")
 			return
 		}
-		log.Error("RevokeAgentIdentitySecret: failed to revoke secret", "orgName", orgName, "agentName", agentName, "envID", envID, "error", err)
+		log.Error("RevokeAgentIdentitySecret: failed to revoke secret", "org_name", orgName, "agent_name", agentName, "env_id", envID, "error", err)
 		handleCommonErrors(w, err, "Failed to revoke agent identity secret")
 		return
 	}
 
 	attempt.Complete(ctx, nil)
-	log.Info("RevokeAgentIdentitySecret: secret revoked successfully", "orgName", orgName, "agentName", agentName, "envID", envID)
+	log.Info("RevokeAgentIdentitySecret: secret revoked successfully", "org_name", orgName, "agent_name", agentName, "env_id", envID)
 	utils.WriteSuccessResponse(w, http.StatusOK, resp)
 }
 
@@ -1254,7 +1254,7 @@ func (c *agentController) ProvisionAgentIdentity(w http.ResponseWriter, r *http.
 		return
 	}
 
-	log.Info("ProvisionAgentIdentity: starting", "orgName", orgName, "agentName", agentName, "envID", envID)
+	log.Info("ProvisionAgentIdentity: starting", "org_name", orgName, "agent_name", agentName, "env_id", envID)
 
 	attempt, ok := beginAuditOrFail(
 		w, r, "ProvisionAgentIdentity", "Failed to provision agent identity", audit.ActionAgentIdentityProvision,
@@ -1272,7 +1272,7 @@ func (c *agentController) ProvisionAgentIdentity(w http.ResponseWriter, r *http.
 	view, alreadyExisted, err := c.agentService.ProvisionAgentIdentity(ctx, ouID, projName, agentName, envID)
 	if err != nil {
 		attempt.Complete(ctx, err)
-		log.Error("ProvisionAgentIdentity: failed to provision agent identity", "orgName", orgName, "agentName", agentName, "envID", envID, "error", err)
+		log.Error("ProvisionAgentIdentity: failed to provision agent identity", "org_name", orgName, "agent_name", agentName, "env_id", envID, "error", err)
 		handleCommonErrors(w, err, "Failed to provision agent identity")
 		return
 	}
@@ -1288,7 +1288,7 @@ func (c *agentController) ProvisionAgentIdentity(w http.ResponseWriter, r *http.
 	} else {
 		attempt.Complete(ctx, nil)
 	}
-	log.Info("ProvisionAgentIdentity: completed", "orgName", orgName, "agentName", agentName, "envID", envID, "alreadyExisted", alreadyExisted)
+	log.Info("ProvisionAgentIdentity: completed", "org_name", orgName, "agent_name", agentName, "env_id", envID, "already_existed", alreadyExisted)
 	utils.WriteSuccessResponse(w, status, view)
 }
 
@@ -1310,7 +1310,7 @@ func (c *agentController) RetryAgentIdentityProvisioning(w http.ResponseWriter, 
 
 	var payload models.AgentIdentityActionRequest
 	if err := json.NewDecoder(r.Body).Decode(&payload); err != nil {
-		log.Error("RetryAgentIdentityProvisioning: failed to decode request body", "error", err)
+		log.Warn("RetryAgentIdentityProvisioning: failed to decode request body", "error", err)
 		utils.WriteErrorResponse(w, http.StatusBadRequest, "Invalid request body")
 		return
 	}
@@ -1320,7 +1320,7 @@ func (c *agentController) RetryAgentIdentityProvisioning(w http.ResponseWriter, 
 		return
 	}
 
-	log.Info("RetryAgentIdentityProvisioning: starting", "orgName", orgName, "agentName", agentName, "envID", envID)
+	log.Info("RetryAgentIdentityProvisioning: starting", "org_name", orgName, "agent_name", agentName, "env_id", envID)
 
 	attempt, ok := beginAuditOrFail(
 		w, r, "RetryAgentIdentityProvisioning", "Failed to retry agent identity provisioning", audit.ActionAgentIdentityRetryProvisioning,
@@ -1339,22 +1339,22 @@ func (c *agentController) RetryAgentIdentityProvisioning(w http.ResponseWriter, 
 	if err != nil {
 		attempt.Complete(ctx, err)
 		if errors.Is(err, utils.ErrAgentIdentityNotProvisioned) {
-			log.Warn("RetryAgentIdentityProvisioning: identity not yet provisioned", "orgName", orgName, "agentName", agentName, "envID", envID)
+			log.Warn("RetryAgentIdentityProvisioning: identity not yet provisioned", "org_name", orgName, "agent_name", agentName, "env_id", envID)
 			utils.WriteErrorResponse(w, http.StatusNotFound, "Agent identity not yet provisioned for this environment")
 			return
 		}
 		if errors.Is(err, utils.ErrAgentIdentityRetryNotAllowed) {
-			log.Warn("RetryAgentIdentityProvisioning: binding not in a failed state", "orgName", orgName, "agentName", agentName, "envID", envID)
+			log.Warn("RetryAgentIdentityProvisioning: binding not in a failed state", "org_name", orgName, "agent_name", agentName, "env_id", envID)
 			utils.WriteErrorResponse(w, http.StatusConflict, "Agent identity binding is not in a failed state and cannot be retried")
 			return
 		}
-		log.Error("RetryAgentIdentityProvisioning: failed to retry provisioning", "orgName", orgName, "agentName", agentName, "envID", envID, "error", err)
+		log.Error("RetryAgentIdentityProvisioning: failed to retry provisioning", "org_name", orgName, "agent_name", agentName, "env_id", envID, "error", err)
 		handleCommonErrors(w, err, "Failed to retry agent identity provisioning")
 		return
 	}
 
 	attempt.Complete(ctx, nil)
-	log.Info("RetryAgentIdentityProvisioning: retry scheduled", "orgName", orgName, "agentName", agentName, "envID", envID)
+	log.Info("RetryAgentIdentityProvisioning: retry scheduled", "org_name", orgName, "agent_name", agentName, "env_id", envID)
 	utils.WriteSuccessResponse(w, http.StatusAccepted, view)
 }
 
@@ -1379,21 +1379,21 @@ func (c *agentController) GetAgentRoles(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 
-	log.Info("GetAgentRoles: starting", "orgName", orgName, "agentName", agentName, "envID", envID)
+	log.Info("GetAgentRoles: starting", "org_name", orgName, "agent_name", agentName, "env_id", envID)
 
 	roles, err := c.agentService.GetAgentRoles(ctx, ouID, projName, agentName, envID)
 	if err != nil {
 		if errors.Is(err, utils.ErrAgentIdentityNotProvisioned) {
-			log.Warn("GetAgentRoles: identity not yet provisioned", "orgName", orgName, "agentName", agentName, "envID", envID)
+			log.Warn("GetAgentRoles: identity not yet provisioned", "org_name", orgName, "agent_name", agentName, "env_id", envID)
 			utils.WriteErrorResponse(w, http.StatusNotFound, "Agent identity not yet provisioned for this environment")
 			return
 		}
-		log.Error("GetAgentRoles: failed to get agent roles", "orgName", orgName, "agentName", agentName, "envID", envID, "error", err)
+		log.Error("GetAgentRoles: failed to get agent roles", "org_name", orgName, "agent_name", agentName, "env_id", envID, "error", err)
 		handleCommonErrors(w, err, "Failed to get agent roles")
 		return
 	}
 
-	log.Info("GetAgentRoles: completed", "orgName", orgName, "agentName", agentName, "envID", envID)
+	log.Info("GetAgentRoles: completed", "org_name", orgName, "agent_name", agentName, "env_id", envID)
 	utils.WriteSuccessResponse(w, http.StatusOK, map[string]any{"roles": roles})
 }
 
@@ -1418,20 +1418,20 @@ func (c *agentController) GetAgentGroups(w http.ResponseWriter, r *http.Request)
 		return
 	}
 
-	log.Info("GetAgentGroups: starting", "orgName", orgName, "agentName", agentName, "envID", envID)
+	log.Info("GetAgentGroups: starting", "org_name", orgName, "agent_name", agentName, "env_id", envID)
 
 	groups, err := c.agentService.GetAgentGroups(ctx, ouID, projName, agentName, envID)
 	if err != nil {
 		if errors.Is(err, utils.ErrAgentIdentityNotProvisioned) {
-			log.Warn("GetAgentGroups: identity not yet provisioned", "orgName", orgName, "agentName", agentName, "envID", envID)
+			log.Warn("GetAgentGroups: identity not yet provisioned", "org_name", orgName, "agent_name", agentName, "env_id", envID)
 			utils.WriteErrorResponse(w, http.StatusNotFound, "Agent identity not yet provisioned for this environment")
 			return
 		}
-		log.Error("GetAgentGroups: failed to get agent groups", "orgName", orgName, "agentName", agentName, "envID", envID, "error", err)
+		log.Error("GetAgentGroups: failed to get agent groups", "org_name", orgName, "agent_name", agentName, "env_id", envID, "error", err)
 		handleCommonErrors(w, err, "Failed to get agent groups")
 		return
 	}
 
-	log.Info("GetAgentGroups: completed", "orgName", orgName, "agentName", agentName, "envID", envID)
+	log.Info("GetAgentGroups: completed", "org_name", orgName, "agent_name", agentName, "env_id", envID)
 	utils.WriteSuccessResponse(w, http.StatusOK, map[string]any{"groups": groups})
 }

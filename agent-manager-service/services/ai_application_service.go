@@ -94,12 +94,12 @@ func (s *AIApplicationService) EnsureAndBind(
 
 	s.logger.Info(
 		"Ensured AI application and bound API key",
-		"applicationUUID", app.UUID,
-		"applicationHandle", appHandle,
-		"agentID", agentID,
-		"envName", envName,
-		"ouID", ouID,
-		"newlyCreated", created,
+		"application_uuid", app.UUID,
+		"application_handle", appHandle,
+		"agent_id", agentID,
+		"env_name", envName,
+		"ou_id", ouID,
+		"newly_created", created,
 	)
 	return app, created, nil
 }
@@ -125,12 +125,12 @@ func (s *AIApplicationService) Delete(ctx context.Context, ouID, projectName, ag
 
 	s.logger.Info(
 		"Deleted AI application",
-		"applicationUUID", app.UUID,
-		"applicationHandle", app.Handle,
-		"agentID", agentID,
-		"projectName", projectName,
-		"envName", envName,
-		"ouID", ouID,
+		"application_uuid", app.UUID,
+		"application_handle", app.Handle,
+		"agent_id", agentID,
+		"project_name", projectName,
+		"env_name", envName,
+		"ou_id", ouID,
 	)
 	return nil
 }
@@ -152,7 +152,7 @@ func (s *AIApplicationService) DeleteAllByAgent(ctx context.Context, ouID, proje
 		s.broadcastDeletionToAllGateways(ctx, ouID, &apps[i])
 	}
 
-	s.logger.Info("Deleted all AI applications for agent", "agentID", agentID, "projectName", projectName, "ouID", ouID, "count", len(apps))
+	s.logger.Info("Deleted all AI applications for agent", "agent_id", agentID, "project_name", projectName, "ou_id", ouID, "count", len(apps))
 	return nil
 }
 
@@ -163,7 +163,7 @@ func (s *AIApplicationService) broadcastDeletionToAllGateways(ctx context.Contex
 	gateways, err := s.gatewayRepo.GetByOrganizationID(ctx, ouID)
 	if err != nil {
 		s.logger.Warn("Failed to list gateways for application deletion broadcast; gateway will sync on reconnect",
-			"ouID", ouID, "applicationUUID", app.UUID, "error", err)
+			"ou_id", ouID, "application_uuid", app.UUID, "error", err)
 		return
 	}
 
@@ -178,7 +178,7 @@ func (s *AIApplicationService) broadcastDeletionToAllGateways(ctx context.Contex
 	for _, gw := range gateways {
 		if err := s.gatewayService.BroadcastApplicationUpdatedEvent(gw.UUID.String(), event); err != nil {
 			s.logger.Warn("Failed to broadcast application deletion to gateway; will sync on reconnect",
-				"gatewayID", gw.UUID, "applicationUUID", app.UUID, "error", err)
+				"gateway_id", gw.UUID, "application_uuid", app.UUID, "error", err)
 		}
 	}
 }
@@ -189,7 +189,7 @@ func (s *AIApplicationService) broadcastToAllGateways(ctx context.Context, ouID 
 	gateways, err := s.gatewayRepo.GetByOrganizationID(ctx, ouID)
 	if err != nil {
 		s.logger.Warn("Failed to list gateways for application broadcast; gateway will sync on reconnect",
-			"ouID", ouID, "applicationUUID", app.UUID, "error", err)
+			"ou_id", ouID, "application_uuid", app.UUID, "error", err)
 		return
 	}
 
@@ -206,7 +206,7 @@ func (s *AIApplicationService) broadcastToAllGateways(ctx context.Context, ouID 
 	for _, gw := range gateways {
 		if err := s.gatewayService.BroadcastApplicationUpdatedEvent(gw.UUID.String(), event); err != nil {
 			s.logger.Warn("Failed to broadcast application.updated to gateway; will sync on reconnect",
-				"gatewayID", gw.UUID, "applicationUUID", app.UUID, "error", err)
+				"gateway_id", gw.UUID, "application_uuid", app.UUID, "error", err)
 		}
 	}
 }

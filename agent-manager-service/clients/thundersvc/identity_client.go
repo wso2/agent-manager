@@ -518,7 +518,7 @@ func (c *thunderClient) GetGroupMembers(ctx context.Context, groupID string, off
 		user, err := c.GetUser(ctx, m.ID)
 		if err != nil {
 			if IsNotFound(err) {
-				log.Warn("skipping deleted group member", "groupID", groupID, "userID", m.ID)
+				log.Warn("skipping deleted group member", "group_id", groupID, "user_id", m.ID)
 				continue
 			}
 			return nil, 0, fmt.Errorf("thunder get group member %s: %w", m.ID, err)
@@ -827,7 +827,7 @@ func (c *thunderClient) resolveAssignmentGroup(ctx context.Context, roleID, grou
 	group, err = c.GetGroup(ctx, groupID)
 	if err != nil {
 		if IsNotFound(err) {
-			logger.GetLogger(ctx).Warn("skipping deleted role assignment group", "roleID", roleID, "groupID", groupID)
+			logger.GetLogger(ctx).Warn("skipping deleted role assignment group", "role_id", roleID, "group_id", groupID)
 			return nil, false, nil
 		}
 		return nil, false, fmt.Errorf("thunder get role assignment group %s: %w", groupID, err)
@@ -856,7 +856,7 @@ func (c *thunderClient) GetRoleAssignments(ctx context.Context, roleID string) (
 			user, err := c.GetUser(ctx, a.ID)
 			if err != nil {
 				if IsNotFound(err) {
-					log.Warn("skipping deleted role assignment user", "roleID", roleID, "userID", a.ID)
+					log.Warn("skipping deleted role assignment user", "role_id", roleID, "user_id", a.ID)
 					continue
 				}
 				return nil, fmt.Errorf("thunder get role assignment user %s: %w", a.ID, err)

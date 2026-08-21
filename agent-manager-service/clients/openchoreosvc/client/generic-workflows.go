@@ -66,7 +66,7 @@ func (c *openChoreoClient) CreateWorkflowRun(ctx context.Context, ouID string, r
 	}
 
 	if resp.StatusCode() != http.StatusCreated {
-		return nil, handleErrorResponse(resp.StatusCode(), ErrorResponses{
+		return nil, handleErrorResponse(ctx, resp.StatusCode(), ErrorResponses{
 			JSON400: resp.JSON400,
 			JSON401: resp.JSON401,
 			JSON403: resp.JSON403,
@@ -91,7 +91,7 @@ func (c *openChoreoClient) GetWorkflowRun(ctx context.Context, ouID, runName str
 	}
 
 	if resp.StatusCode() != http.StatusOK {
-		return nil, handleErrorResponse(resp.StatusCode(), ErrorResponses{
+		return nil, handleErrorResponse(ctx, resp.StatusCode(), ErrorResponses{
 			JSON401: resp.JSON401,
 			JSON403: resp.JSON403,
 			JSON404: resp.JSON404,
@@ -116,7 +116,7 @@ func (c *openChoreoClient) ExpireWorkflowRun(ctx context.Context, ouID, runName 
 	}
 
 	if getResp.StatusCode() != http.StatusOK {
-		return handleErrorResponse(getResp.StatusCode(), ErrorResponses{
+		return handleErrorResponse(ctx, getResp.StatusCode(), ErrorResponses{
 			JSON401: getResp.JSON401,
 			JSON403: getResp.JSON403,
 			JSON404: getResp.JSON404,
@@ -137,7 +137,7 @@ func (c *openChoreoClient) ExpireWorkflowRun(ctx context.Context, ouID, runName 
 		return fmt.Errorf("failed to update workflow run: %w", err)
 	}
 	if updateResp.StatusCode() != http.StatusOK {
-		return handleErrorResponse(updateResp.StatusCode(), ErrorResponses{
+		return handleErrorResponse(ctx, updateResp.StatusCode(), ErrorResponses{
 			JSON400: updateResp.JSON400,
 			JSON401: updateResp.JSON401,
 			JSON403: updateResp.JSON403,

@@ -51,18 +51,18 @@ func (c *gitSecretController) CreateGitSecret(w http.ResponseWriter, r *http.Req
 	log := logger.GetLogger(ctx)
 	ouID := middleware.OUIDFromRequest(r)
 
-	log.Info("CreateGitSecret: starting", "ouID", ouID)
+	log.Info("CreateGitSecret: starting", "ou_id", ouID)
 
 	var req spec.CreateGitSecretRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		log.Error("CreateGitSecret: failed to decode request", "error", err)
+		log.Warn("CreateGitSecret: failed to decode request", "error", err)
 		utils.WriteErrorResponse(w, http.StatusBadRequest, "Invalid request body")
 		return
 	}
 
 	// Validate request body
 	if err := utils.ValidateCreateGitSecretRequest(&req); err != nil {
-		log.Error("CreateGitSecret: validation failed", "error", err)
+		log.Warn("CreateGitSecret: validation failed", "error", err)
 		utils.WriteErrorResponse(w, http.StatusBadRequest, err.Error())
 		return
 	}
@@ -78,7 +78,7 @@ func (c *gitSecretController) CreateGitSecret(w http.ResponseWriter, r *http.Req
 		Name: created.Name,
 	}
 
-	log.Info("CreateGitSecret: completed", "ouID", ouID, "name", created.Name)
+	log.Info("CreateGitSecret: completed", "ou_id", ouID, "name", created.Name)
 	utils.WriteSuccessResponse(w, http.StatusCreated, response)
 }
 
@@ -88,7 +88,7 @@ func (c *gitSecretController) ListGitSecrets(w http.ResponseWriter, r *http.Requ
 	log := logger.GetLogger(ctx)
 	ouID := middleware.OUIDFromRequest(r)
 
-	log.Info("ListGitSecrets: starting", "ouID", ouID)
+	log.Info("ListGitSecrets: starting", "ou_id", ouID)
 
 	// Parse pagination parameters
 	limit := getIntQueryParam(r, "limit", 20)
@@ -107,7 +107,7 @@ func (c *gitSecretController) ListGitSecrets(w http.ResponseWriter, r *http.Requ
 
 	secrets, totalCount, err := c.gitSecretService.List(ctx, ouID, limit, offset)
 	if err != nil {
-		log.Error("ListGitSecrets: failed to list git secrets", "ouID", ouID, "error", err)
+		log.Error("ListGitSecrets: failed to list git secrets", "ou_id", ouID, "error", err)
 		handleCommonErrors(w, err, "Failed to list git secrets")
 		return
 	}
@@ -127,7 +127,7 @@ func (c *gitSecretController) ListGitSecrets(w http.ResponseWriter, r *http.Requ
 		Offset:  int32(offset),
 	}
 
-	log.Info("ListGitSecrets: completed", "ouID", ouID, "count", len(secrets), "total", totalCount)
+	log.Info("ListGitSecrets: completed", "ou_id", ouID, "count", len(secrets), "total", totalCount)
 	utils.WriteSuccessResponse(w, http.StatusOK, response)
 }
 
@@ -138,7 +138,7 @@ func (c *gitSecretController) DeleteGitSecret(w http.ResponseWriter, r *http.Req
 	ouID := middleware.OUIDFromRequest(r)
 	gitSecretName := r.PathValue(utils.PathParamSecretName)
 
-	log.Info("DeleteGitSecret: starting", "ouID", ouID, "gitSecretName", gitSecretName)
+	log.Info("DeleteGitSecret: starting", "ou_id", ouID, "git_secret_name", gitSecretName)
 
 	if err := c.gitSecretService.Delete(ctx, ouID, gitSecretName); err != nil {
 		log.Error("DeleteGitSecret: failed to delete git secret", "error", err)
@@ -146,6 +146,6 @@ func (c *gitSecretController) DeleteGitSecret(w http.ResponseWriter, r *http.Req
 		return
 	}
 
-	log.Info("DeleteGitSecret: completed", "ouID", ouID, "gitSecretName", gitSecretName)
+	log.Info("DeleteGitSecret: completed", "ou_id", ouID, "git_secret_name", gitSecretName)
 	utils.WriteSuccessResponse(w, http.StatusNoContent, struct{}{})
 }

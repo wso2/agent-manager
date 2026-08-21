@@ -105,7 +105,7 @@ func (c *gatewayInternalController) GetLLMProvider(w http.ResponseWriter, r *htt
 	// Create ZIP file from LLM provider YAML file
 	zipData, err := utils.CreateLLMProviderYamlZip(provider)
 	if err != nil {
-		log.Error("Failed to create ZIP file for LLM provider", "providerID", providerID, "error", err)
+		log.Error("Failed to create ZIP file for LLM provider", "provider_id", providerID, "error", err)
 		http.Error(w, "Failed to create LLM provider package", http.StatusInternalServerError)
 		return
 	}
@@ -118,7 +118,7 @@ func (c *gatewayInternalController) GetLLMProvider(w http.ResponseWriter, r *htt
 	// Return ZIP file
 	w.WriteHeader(http.StatusOK)
 	if _, err := w.Write(zipData); err != nil {
-		log.Error("Failed to write ZIP response", "providerID", providerID, "error", err)
+		log.Error("Failed to write ZIP response", "provider_id", providerID, "error", err)
 	}
 }
 
@@ -158,7 +158,7 @@ func (c *gatewayInternalController) GetLLMProxy(w http.ResponseWriter, r *http.R
 	// Create ZIP file from LLM proxy YAML file
 	zipData, err := utils.CreateLLMProxyYamlZip(proxy)
 	if err != nil {
-		log.Error("Failed to create ZIP file for LLM proxy", "proxyID", proxyID, "error", err)
+		log.Error("Failed to create ZIP file for LLM proxy", "proxy_id", proxyID, "error", err)
 		http.Error(w, "Failed to create LLM proxy package", http.StatusInternalServerError)
 		return
 	}
@@ -171,7 +171,7 @@ func (c *gatewayInternalController) GetLLMProxy(w http.ResponseWriter, r *http.R
 	// Return ZIP file
 	w.WriteHeader(http.StatusOK)
 	if _, err := w.Write(zipData); err != nil {
-		log.Error("Failed to write ZIP response", "proxyID", proxyID, "error", err)
+		log.Error("Failed to write ZIP response", "proxy_id", proxyID, "error", err)
 	}
 }
 
@@ -213,7 +213,7 @@ func (c *gatewayInternalController) GetMCPProxy(w http.ResponseWriter, r *http.R
 
 	zipData, err := utils.CreateMCPProxyYamlZip(proxy)
 	if err != nil {
-		log.Error("Failed to create ZIP file for MCP proxy", "proxyID", proxyID, "error", err)
+		log.Error("Failed to create ZIP file for MCP proxy", "proxy_id", proxyID, "error", err)
 		http.Error(w, "Failed to create MCP proxy package", http.StatusInternalServerError)
 		return
 	}
@@ -224,7 +224,7 @@ func (c *gatewayInternalController) GetMCPProxy(w http.ResponseWriter, r *http.R
 
 	w.WriteHeader(http.StatusOK)
 	if _, err := w.Write(zipData); err != nil {
-		log.Error("Failed to write ZIP response", "proxyID", proxyID, "error", err)
+		log.Error("Failed to write ZIP response", "proxy_id", proxyID, "error", err)
 	}
 }
 
@@ -263,7 +263,8 @@ func (c *gatewayInternalController) getAPIKeysByKind(w http.ResponseWriter, r *h
 }
 
 func (c *gatewayInternalController) getAPIKeysByKinds(w http.ResponseWriter, r *http.Request, kinds ...string) {
-	log := logger.GetLogger(r.Context())
+	ctx := r.Context()
+	log := logger.GetLogger(ctx)
 
 	identity, ok := c.authenticateGateway(w, r, "internal-read")
 	if !ok {
@@ -284,7 +285,7 @@ func (c *gatewayInternalController) getAPIKeysByKinds(w http.ResponseWriter, r *
 			if envUUIDs == nil {
 				mappings, mappingErr := c.gatewayService.GetGatewayEnvironmentMappings(identity.ID)
 				if mappingErr != nil {
-					log.Error("Failed to get gateway environment mappings", "gatewayID", identity.ID, "error", mappingErr)
+					log.Error("Failed to get gateway environment mappings", "gateway_id", identity.ID, "error", mappingErr)
 					http.Error(w, "Failed to list API keys", http.StatusInternalServerError)
 					return
 				}
@@ -394,7 +395,7 @@ func (c *gatewayInternalController) GetApplications(w http.ResponseWriter, r *ht
 	for _, app := range apps {
 		keys, err := c.apiKeyRepo.ListByApplicationUUID(app.UUID.String())
 		if err != nil {
-			log.Error("Failed to list API keys for application", "applicationUUID", app.UUID, "error", err)
+			log.Error("Failed to list API keys for application", "application_uuid", app.UUID, "error", err)
 			http.Error(w, "Failed to list application key bindings", http.StatusInternalServerError)
 			return
 		}
@@ -434,7 +435,7 @@ func (c *gatewayInternalController) PushGatewayManifest(w http.ResponseWriter, r
 		// A gateway presenting a valid key for a different gateway. Recorded
 		// separately from a bad key: it is a valid credential used out of
 		// scope, which is a stronger signal than an invalid one.
-		log.Warn("Gateway manifest token does not match gateway", "gatewayId", gatewayID, "tokenGatewayId", identity.ID)
+		log.Warn("Gateway manifest token does not match gateway", "gateway_id", gatewayID, "token_gateway_id", identity.ID)
 		recordGatewayAuthFailure(r, "gateway-id-mismatch", identity.ID)
 		http.Error(w, "Gateway token does not match gateway ID", http.StatusForbidden)
 		return
@@ -442,7 +443,7 @@ func (c *gatewayInternalController) PushGatewayManifest(w http.ResponseWriter, r
 
 	var manifest map[string]interface{}
 	if err := json.NewDecoder(r.Body).Decode(&manifest); err != nil {
-		log.Error("Failed to decode gateway manifest", "gatewayId", gatewayID, "error", err)
+		log.Warn("Failed to decode gateway manifest", "gateway_id", gatewayID, "error", err)
 		http.Error(w, "Invalid gateway manifest", http.StatusBadRequest)
 		return
 	}
@@ -467,7 +468,7 @@ func (c *gatewayInternalController) PushGatewayManifest(w http.ResponseWriter, r
 			http.Error(w, "Gateway not found", http.StatusNotFound)
 			return
 		}
-		log.Error("Failed to store gateway manifest", "gatewayId", gatewayID, "error", err)
+		log.Error("Failed to store gateway manifest", "gateway_id", gatewayID, "error", err)
 		http.Error(w, "Failed to store gateway manifest", http.StatusInternalServerError)
 		return
 	}

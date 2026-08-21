@@ -75,7 +75,7 @@ func NewEvaluatorManagerService(logger *slog.Logger, custRepo repositories.Custo
 // ListEvaluators retrieves evaluators from both the built-in catalog and custom evaluator DB.
 // Results are merged, filtered, and paginated.
 func (s *evaluatorManagerService) ListEvaluators(ctx context.Context, ouID string, filters EvaluatorFilters) ([]*models.EvaluatorResponse, int32, error) {
-	s.logger.Info("Listing evaluators", "ouID", ouID, "filters", filters)
+	s.logger.Info("Listing evaluators", "ou_id", ouID, "filters", filters)
 
 	var merged []*models.EvaluatorResponse
 
@@ -95,7 +95,7 @@ func (s *evaluatorManagerService) ListEvaluators(ctx context.Context, ouID strin
 
 		customs, _, err := s.custRepo.List(ouID, customFilters)
 		if err != nil {
-			s.logger.Error("Failed to list custom evaluators", "error", err)
+			s.logger.Warn("Failed to list custom evaluators", "error", err)
 			return nil, 0, fmt.Errorf("failed to list custom evaluators: %w", err)
 		}
 		for i := range customs {
@@ -165,7 +165,7 @@ func (s *evaluatorManagerService) GetEvaluator(ctx context.Context, ouID string,
 
 // CreateCustomEvaluator creates a new custom evaluator
 func (s *evaluatorManagerService) CreateCustomEvaluator(ctx context.Context, ouID string, req *models.CreateCustomEvaluatorRequest) (*models.EvaluatorResponse, error) {
-	s.logger.Info("Creating custom evaluator", "ouID", ouID, "displayName", req.DisplayName, "type", req.Type)
+	s.logger.Info("Creating custom evaluator", "ou_id", ouID, "display_name", req.DisplayName, "type", req.Type)
 
 	// Generate identifier from display name if not provided
 	identifier := req.Identifier
@@ -215,7 +215,7 @@ func (s *evaluatorManagerService) CreateCustomEvaluator(ctx context.Context, ouI
 
 // GetCustomEvaluator retrieves a custom evaluator by identifier
 func (s *evaluatorManagerService) GetCustomEvaluator(ctx context.Context, ouID string, identifier string) (*models.EvaluatorResponse, error) {
-	s.logger.Info("Getting custom evaluator", "ouID", ouID, "identifier", identifier)
+	s.logger.Info("Getting custom evaluator", "ou_id", ouID, "identifier", identifier)
 
 	custom, err := s.custRepo.GetByIdentifier(ouID, identifier)
 	if err != nil {
@@ -230,7 +230,7 @@ func (s *evaluatorManagerService) GetCustomEvaluator(ctx context.Context, ouID s
 
 // UpdateCustomEvaluator updates an existing custom evaluator
 func (s *evaluatorManagerService) UpdateCustomEvaluator(ctx context.Context, ouID string, identifier string, req *models.UpdateCustomEvaluatorRequest) (*models.EvaluatorResponse, error) {
-	s.logger.Info("Updating custom evaluator", "ouID", ouID, "identifier", identifier)
+	s.logger.Info("Updating custom evaluator", "ou_id", ouID, "identifier", identifier)
 
 	evaluator, err := s.custRepo.GetByIdentifier(ouID, identifier)
 	if err != nil {
@@ -267,7 +267,7 @@ func (s *evaluatorManagerService) UpdateCustomEvaluator(ctx context.Context, ouI
 
 // DeleteCustomEvaluator soft-deletes a custom evaluator
 func (s *evaluatorManagerService) DeleteCustomEvaluator(ctx context.Context, ouID string, identifier string) error {
-	s.logger.Info("Deleting custom evaluator", "ouID", ouID, "identifier", identifier)
+	s.logger.Info("Deleting custom evaluator", "ou_id", ouID, "identifier", identifier)
 
 	evaluator, err := s.custRepo.GetByIdentifier(ouID, identifier)
 	if err != nil {

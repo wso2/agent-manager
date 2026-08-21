@@ -78,7 +78,7 @@ func (s *InternalServer) Start() error {
 	certPath := filepath.Join(s.cfg.CertDir, "cert.pem")
 	keyPath := filepath.Join(s.cfg.CertDir, "key.pem")
 
-	slog.Info("initializing with certs", "certPath", certPath, "keyPath", keyPath)
+	slog.Info("initializing with certs", "cert_path", certPath, "key_path", keyPath)
 
 	var cert tls.Certificate
 
@@ -89,7 +89,7 @@ func (s *InternalServer) Start() error {
 			if err != nil {
 				slog.Warn("Failed to load existing certificates", "error", err)
 			} else {
-				slog.Info("Using existing certificates", "certDir", s.cfg.CertDir)
+				slog.Info("Using existing certificates", "cert_dir", s.cfg.CertDir)
 				cert = loadedCert
 			}
 		}
@@ -172,7 +172,7 @@ func generateSelfSignedCert(certPath, keyPath string) (tls.Certificate, error) {
 	if err := os.WriteFile(keyPath, keyPEM, 0o600); err != nil {
 		return tls.Certificate{}, fmt.Errorf("failed to save private key: %w", err)
 	}
-	slog.Info("Saved certificate", "certPath", certPath, "keyPath", keyPath)
+	slog.Info("Saved certificate", "cert_path", certPath, "key_path", keyPath)
 
 	// Create TLS certificate
 	cert, err := tls.X509KeyPair(certPEM, keyPEM)

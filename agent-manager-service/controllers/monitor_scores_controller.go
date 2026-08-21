@@ -129,14 +129,14 @@ func (c *monitorScoresController) GetMonitorScores(w http.ResponseWriter, r *htt
 			utils.WriteErrorResponse(w, http.StatusNotFound, "Monitor not found")
 			return
 		}
-		log.Error("Failed to resolve monitor", "monitorName", monitorName, "error", err)
+		log.Error("Failed to resolve monitor", "monitor_name", monitorName, "error", err)
 		utils.WriteErrorResponse(w, http.StatusInternalServerError, "Failed to resolve monitor")
 		return
 	}
 
 	result, err := c.scoresService.GetMonitorScores(monitorID, monitorName, startTime, endTime, filters)
 	if err != nil {
-		log.Error("Failed to get monitor scores", "monitorName", monitorName, "error", err)
+		log.Error("Failed to get monitor scores", "monitor_name", monitorName, "error", err)
 		utils.WriteErrorResponse(w, http.StatusInternalServerError, "Failed to get monitor scores")
 		return
 	}
@@ -173,7 +173,7 @@ func (c *monitorScoresController) GetMonitorRunScores(w http.ResponseWriter, r *
 			utils.WriteErrorResponse(w, http.StatusNotFound, "Monitor not found")
 			return
 		}
-		log.Error("Failed to resolve monitor", "ouID", ouID, "projName", projName, "agentName", agentName, "monitorName", monitorName, "error", err)
+		log.Error("Failed to resolve monitor", "ou_id", ouID, "proj_name", projName, "agent_name", agentName, "monitor_name", monitorName, "error", err)
 		utils.WriteErrorResponse(w, http.StatusInternalServerError, "Failed to resolve monitor")
 		return
 	}
@@ -184,7 +184,7 @@ func (c *monitorScoresController) GetMonitorRunScores(w http.ResponseWriter, r *
 			utils.WriteErrorResponse(w, http.StatusNotFound, "Monitor run not found")
 			return
 		}
-		log.Error("Failed to get monitor run scores", "ouID", ouID, "projName", projName, "agentName", agentName, "monitorName", monitorName, "runId", runIDStr, "error", err)
+		log.Error("Failed to get monitor run scores", "ou_id", ouID, "proj_name", projName, "agent_name", agentName, "monitor_name", monitorName, "run_id", runIDStr, "error", err)
 		utils.WriteErrorResponse(w, http.StatusInternalServerError, "Failed to get monitor run scores")
 		return
 	}
@@ -244,14 +244,14 @@ func (c *monitorScoresController) GetScoresTimeSeries(w http.ResponseWriter, r *
 			utils.WriteErrorResponse(w, http.StatusNotFound, "Monitor not found")
 			return
 		}
-		log.Error("Failed to resolve monitor", "monitorName", monitorName, "error", err)
+		log.Error("Failed to resolve monitor", "monitor_name", monitorName, "error", err)
 		utils.WriteErrorResponse(w, http.StatusInternalServerError, "Failed to resolve monitor")
 		return
 	}
 
 	result, err := c.scoresService.GetEvaluatorsTimeSeries(monitorID, monitorName, evaluatorNames, startTime, endTime)
 	if err != nil {
-		log.Error("Failed to get batch time series", "monitorName", monitorName, "evaluators", evaluatorNames, "error", err)
+		log.Error("Failed to get batch time series", "monitor_name", monitorName, "evaluators", evaluatorNames, "error", err)
 		utils.WriteErrorResponse(w, http.StatusInternalServerError, "Failed to get time series data")
 		return
 	}
@@ -309,14 +309,14 @@ func (c *monitorScoresController) GetGroupedScores(w http.ResponseWriter, r *htt
 			utils.WriteErrorResponse(w, http.StatusNotFound, "Monitor not found")
 			return
 		}
-		log.Error("Failed to resolve monitor", "monitorName", monitorName, "error", err)
+		log.Error("Failed to resolve monitor", "monitor_name", monitorName, "error", err)
 		utils.WriteErrorResponse(w, http.StatusInternalServerError, "Failed to resolve monitor")
 		return
 	}
 
 	result, err := c.scoresService.GetGroupedScores(monitorID, monitorName, startTime, endTime, level)
 	if err != nil {
-		log.Error("Failed to get grouped scores", "monitorName", monitorName, "level", level, "error", err)
+		log.Error("Failed to get grouped scores", "monitor_name", monitorName, "level", level, "error", err)
 		utils.WriteErrorResponse(w, http.StatusInternalServerError, "Failed to get grouped scores")
 		return
 	}
@@ -346,7 +346,7 @@ func (c *monitorScoresController) GetTraceScores(w http.ResponseWriter, r *http.
 
 	result, err := c.scoresService.GetTraceScores(traceID, ouID, projName, agentName)
 	if err != nil {
-		log.Error("Failed to get trace scores", "traceId", traceID, "error", err)
+		log.Error("Failed to get trace scores", "trace_id", traceID, "error", err)
 		utils.WriteErrorResponse(w, http.StatusInternalServerError, "Failed to get trace scores")
 		return
 	}
@@ -407,7 +407,7 @@ func (c *monitorScoresController) GetAgentTraceScores(w http.ResponseWriter, r *
 
 	result, err := c.scoresService.GetAgentTraceScores(ouID, projName, agentName, startTime, endTime, limit, offset, sortOrder)
 	if err != nil {
-		log.Error("Failed to get agent trace scores", "agentName", agentName, "error", err)
+		log.Error("Failed to get agent trace scores", "agent_name", agentName, "error", err)
 		utils.WriteErrorResponse(w, http.StatusInternalServerError, "Failed to get agent trace scores")
 		return
 	}

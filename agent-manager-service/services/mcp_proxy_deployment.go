@@ -124,7 +124,7 @@ func (s *MCPProxyService) deployMCPProxyToGateway(ctx context.Context, proxy *mo
 	}
 	if err := s.gatewayEventsService.BroadcastMCPProxyDeploymentEvent(gateway.UUID.String(), event); err != nil {
 		s.logger.Warn("Failed to broadcast MCP proxy deployment event",
-			"proxyID", proxy.UUID, "deploymentID", deployment.DeploymentID, "gatewayID", gateway.UUID, "error", err)
+			"proxy_id", proxy.UUID, "deployment_id", deployment.DeploymentID, "gateway_id", gateway.UUID, "error", err)
 		return fmt.Errorf("failed to broadcast MCP proxy deployment event for deployment %s: %w", deployment.DeploymentID, err)
 	}
 	return nil
@@ -264,7 +264,7 @@ func (s *MCPProxyService) deployMCPProxyEndpoints(ctx context.Context, proxy *mo
 			gateway, err := resolveEgressGatewayForArtifact(s.gatewayRepo, ouID, ee.EnvironmentUUID, deployed, ee.RequestedGatewayUUID)
 			if errors.Is(err, errNoGatewayForEnvironment) {
 				s.logger.Info("Skipping MCP proxy endpoint deploy; no gateway mapped to environment",
-					"proxyUUID", proxy.UUID, "endpoint", endpoint.Handle, "environment", envID)
+					"proxy_uuid", proxy.UUID, "endpoint", endpoint.Handle, "environment", envID)
 				continue
 			}
 			if err != nil {
@@ -274,7 +274,7 @@ func (s *MCPProxyService) deployMCPProxyEndpoints(ctx context.Context, proxy *mo
 			if !gateway.IsActive {
 				s.logger.Warn("Deploying MCP proxy endpoint to a currently offline gateway; "+
 					"delivery is durable through the event hub",
-					"proxyUUID", proxy.UUID, "endpoint", endpoint.Handle, "gateway", gateway.Name)
+					"proxy_uuid", proxy.UUID, "endpoint", endpoint.Handle, "gateway", gateway.Name)
 			}
 			deployProxy := buildMCPProxyEnvArtifact(proxy, endpoint, ee)
 			if err := s.ensureMCPProxyEnvArtifactRow(deployProxy, ouID); err != nil {
@@ -345,7 +345,7 @@ func (s *MCPProxyService) gatewayIDsForDeletion(ctx context.Context, proxy *mode
 	if s.deploymentRepo != nil {
 		deployedGatewayIDs, err := s.deploymentRepo.GetDeployedGatewaysByProvider(proxy.UUID, ouID)
 		if err != nil {
-			s.logger.Warn("Failed to get deployed gateways for MCP proxy deletion", "proxyID", proxy.UUID, "ouID", ouID, "error", err)
+			s.logger.Warn("Failed to get deployed gateways for MCP proxy deletion", "proxy_id", proxy.UUID, "ou_id", ouID, "error", err)
 		}
 		for _, gatewayID := range deployedGatewayIDs {
 			if strings.TrimSpace(gatewayID) != "" {
@@ -361,7 +361,7 @@ func (s *MCPProxyService) gatewayIDsForDeletion(ctx context.Context, proxy *mode
 			Status:         &active,
 		})
 		if err != nil {
-			s.logger.Warn("Failed to get active gateways for MCP proxy deletion", "proxyID", proxy.UUID, "ouID", ouID, "error", err)
+			s.logger.Warn("Failed to get active gateways for MCP proxy deletion", "proxy_id", proxy.UUID, "ou_id", ouID, "error", err)
 		}
 		for _, gateway := range gateways {
 			if gateway != nil {
@@ -390,9 +390,9 @@ func (s *MCPProxyService) broadcastMCPProxyDeletion(ctx context.Context, proxy *
 			continue
 		}
 		if err := s.gatewayEventsService.BroadcastMCPProxyDeletionEvent(gatewayID, event); err != nil {
-			s.logger.Warn("Failed to broadcast MCP proxy deletion event", "proxyID", proxy.UUID, "gatewayID", gatewayID, "error", err)
+			s.logger.Warn("Failed to broadcast MCP proxy deletion event", "proxy_id", proxy.UUID, "gateway_id", gatewayID, "error", err)
 		} else {
-			s.logger.Info("MCP proxy deletion event sent", "proxyID", proxy.UUID, "gatewayID", gatewayID)
+			s.logger.Info("MCP proxy deletion event sent", "proxy_id", proxy.UUID, "gateway_id", gatewayID)
 		}
 	}
 }

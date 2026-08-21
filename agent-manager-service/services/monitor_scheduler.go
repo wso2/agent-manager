@@ -208,7 +208,7 @@ func (s *monitorSchedulerService) triggerMonitor(ctx context.Context, monitor *m
 			audit.Detail("reason", "execute-failed"),
 			audit.Result(err),
 		)
-		s.logger.Error("Failed to execute monitor run", "error", err)
+		s.logger.Warn("Failed to execute monitor run", "error", err)
 		return err
 	}
 
@@ -218,8 +218,8 @@ func (s *monitorSchedulerService) triggerMonitor(ctx context.Context, monitor *m
 
 	s.logger.Info("Monitor triggered successfully",
 		"monitor", monitor.Name,
-		"workflowRunName", result.Name,
-		"nextScheduledRun", nextRunTime)
+		"workflow_run_name", result.Name,
+		"next_scheduled_run", nextRunTime)
 
 	return nil
 }
@@ -239,7 +239,7 @@ func (s *monitorSchedulerService) syncRunStatus(ctx context.Context) error {
 
 	for _, run := range runs {
 		if err := s.syncSingleRunStatus(ctx, &run); err != nil {
-			s.logger.Error("Failed to sync run status", "runID", run.ID, "error", err)
+			s.logger.Error("Failed to sync run status", "run_id", run.ID, "error", err)
 		}
 	}
 
@@ -253,7 +253,7 @@ func (s *monitorSchedulerService) syncSingleRunStatus(ctx context.Context, run *
 		return fmt.Errorf("failed to get monitor: %w", err)
 	}
 	if monitor == nil {
-		s.logger.Warn("Monitor not found for run, skipping status sync", "monitorID", run.MonitorID)
+		s.logger.Warn("Monitor not found for run, skipping status sync", "monitor_id", run.MonitorID)
 		return nil
 	}
 
@@ -264,14 +264,14 @@ func (s *monitorSchedulerService) syncSingleRunStatus(ctx context.Context, run *
 
 	workflowRun, err := ocClient.GetWorkflowRun(ctx, monitor.OUID, run.Name)
 	if err != nil {
-		s.logger.Warn("WorkflowRun not found", "workflowRunName", run.Name)
+		s.logger.Warn("WorkflowRun not found", "workflow_run_name", run.Name)
 		return fmt.Errorf("failed to get workflow run: %w", err)
 	}
 
 	s.logger.Debug("WorkflowRun status retrieved",
-		"runName", run.Name,
-		"currentDBStatus", run.Status,
-		"workflowStatus", workflowRun.Status)
+		"run_name", run.Name,
+		"current_db_status", run.Status,
+		"workflow_status", workflowRun.Status)
 
 	updates := make(map[string]interface{})
 
@@ -294,7 +294,7 @@ func (s *monitorSchedulerService) syncSingleRunStatus(ctx context.Context, run *
 		return nil
 
 	default:
-		s.logger.Warn("Unknown workflow status", "status", workflowRun.Status, "workflowRunName", run.Name)
+		s.logger.Warn("Unknown workflow status", "status", workflowRun.Status, "workflow_run_name", run.Name)
 		return nil
 	}
 
@@ -302,7 +302,7 @@ func (s *monitorSchedulerService) syncSingleRunStatus(ctx context.Context, run *
 		if err := s.monitorRepo.UpdateMonitorRun(run, updates); err != nil {
 			return fmt.Errorf("failed to update run status: %w", err)
 		}
-		s.logger.Info("Updated run status", "runID", run.ID, "status", updates["status"])
+		s.logger.Info("Updated run status", "run_id", run.ID, "status", updates["status"])
 	}
 
 	return nil

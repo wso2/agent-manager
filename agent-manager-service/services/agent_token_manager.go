@@ -156,7 +156,7 @@ func (s *agentTokenManagerService) loadKeys() error {
 		return fmt.Errorf("active key ID %s not found in loaded public keys", s.activeKeyID)
 	}
 
-	s.logger.Info("Successfully loaded JWT signing keys", "activeKeyID", s.activeKeyID, "totalKeys", len(s.keyPairs))
+	s.logger.Info("Successfully loaded JWT signing keys", "active_key_id", s.activeKeyID, "total_keys", len(s.keyPairs))
 	return nil
 }
 
@@ -248,9 +248,9 @@ func (s *agentTokenManagerService) loadPublicKey(path string) (*rsa.PublicKey, e
 func (s *agentTokenManagerService) GenerateToken(ctx context.Context, req GenerateTokenRequest) (*spec.TokenResponse, error) {
 	s.logger.Info(
 		"Generating token for agent",
-		"agentName", req.AgentName,
-		"ouID", req.OrgName,
-		"projectName", req.ProjectName,
+		"agent_name", req.AgentName,
+		"ou_id", req.OrgName,
+		"project_name", req.ProjectName,
 	)
 
 	if req.OrgId == "" {
@@ -261,7 +261,7 @@ func (s *agentTokenManagerService) GenerateToken(ctx context.Context, req Genera
 	// not per-project, so this resolves by name alone regardless of req.ProjectName.
 	component, err := s.ocClient.GetComponent(ctx, req.OrgName, req.ProjectName, req.AgentName)
 	if err != nil {
-		s.logger.Error("Failed to get agent component", "agentName", req.AgentName, "error", err)
+		s.logger.Warn("Failed to get agent component", "agent_name", req.AgentName, "error", err)
 		return nil, translateAgentError(err)
 	}
 
@@ -283,14 +283,14 @@ func (s *agentTokenManagerService) GenerateToken(ctx context.Context, req Genera
 	// Fetch environment UID from OpenChoreo
 	environment, err := s.ocClient.GetEnvironment(ctx, req.OrgName, environmentName)
 	if err != nil {
-		s.logger.Error("Failed to get environment", "environment", environmentName, "error", err)
+		s.logger.Warn("Failed to get environment", "environment", environmentName, "error", err)
 		return nil, fmt.Errorf("failed to get environment: %w", err)
 	}
 
 	// Fetch project UID
 	project, err := s.ocClient.GetProject(ctx, req.OrgName, req.ProjectName)
 	if err != nil {
-		s.logger.Error("Failed to get project", "projectName", req.ProjectName, "error", err)
+		s.logger.Warn("Failed to get project", "project_name", req.ProjectName, "error", err)
 		return nil, fmt.Errorf("failed to get project: %w", err)
 	}
 
@@ -300,7 +300,7 @@ func (s *agentTokenManagerService) GenerateToken(ctx context.Context, req Genera
 	// observability read path (which scopes queries by organization) to match.
 	namespace, err := ResolveNamespace(ctx, s.ocClient)
 	if err != nil {
-		s.logger.Error("Failed to resolve namespace", "ouID", req.OrgName, "error", err)
+		s.logger.Warn("Failed to resolve namespace", "ou_id", req.OrgName, "error", err)
 		return nil, err
 	}
 
@@ -345,15 +345,15 @@ func (s *agentTokenManagerService) GenerateToken(ctx context.Context, req Genera
 
 	signedToken, err := token.SignedString(keyPair.PrivateKey)
 	if err != nil {
-		s.logger.Error("Failed to sign token", "error", err)
+		s.logger.Warn("Failed to sign token", "error", err)
 		return nil, fmt.Errorf("failed to sign token: %w", err)
 	}
 
 	s.logger.Info(
 		"Token generated successfully",
-		"agentName", req.AgentName,
-		"expiresAt", expiresAt,
-		"keyID", keyPair.KeyID,
+		"agent_name", req.AgentName,
+		"expires_at", expiresAt,
+		"key_id", keyPair.KeyID,
 	)
 
 	// Recorded before the token is handed back. Minting is local and stateless,
@@ -370,8 +370,8 @@ func (s *agentTokenManagerService) GenerateToken(ctx context.Context, req Genera
 		audit.Detail("agentName", req.AgentName),
 		audit.Detail("expiresIn", int64(expiryDuration.Seconds())),
 	); err != nil {
-		s.logger.Error("Refusing to issue agent token: audit record could not be written",
-			"agentName", req.AgentName, "error", err)
+		s.logger.Warn("Refusing to issue agent token: audit record could not be written",
+			"agent_name", req.AgentName, "error", err)
 		return nil, err
 	}
 

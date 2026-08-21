@@ -38,6 +38,7 @@ func SetupSignalHandler() (stopCh <-chan struct{}) {
 		close(stop)
 		// Second signal: force exit.
 		<-c
+		//nolint:forbidigo // process signal handler; there is no request
 		slog.Error("received second signal, forcing shutdown")
 		os.Exit(1)
 	}()

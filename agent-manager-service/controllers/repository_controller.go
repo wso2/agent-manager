@@ -62,14 +62,14 @@ func (c *repositoryController) ListBranches(w http.ResponseWriter, r *http.Reque
 	// Parse request body
 	var reqBody spec.ListBranchesRequest
 	if err := json.NewDecoder(r.Body).Decode(&reqBody); err != nil {
-		log.Error("ListBranches: failed to decode request body", "error", err)
+		log.Warn("ListBranches: failed to decode request body", "error", err)
 		utils.WriteErrorResponse(w, http.StatusBadRequest, "Invalid request body")
 		return
 	}
 
 	// Validate request body
 	if err := utils.ValidateListBranchesRequest(&reqBody); err != nil {
-		log.Error("ListBranches: invalid request payload", "error", err)
+		log.Warn("ListBranches: invalid request payload", "error", err)
 		utils.WriteValidationErrorResponse(w, err)
 		return
 	}
@@ -77,7 +77,7 @@ func (c *repositoryController) ListBranches(w http.ResponseWriter, r *http.Reque
 	// Parse pagination from query params
 	limit, offset, err := parsePaginationParams(r)
 	if err != nil {
-		log.Error("ListBranches: invalid pagination params", "error", err)
+		log.Warn("ListBranches: invalid pagination params", "error", err)
 		utils.WriteErrorResponse(w, http.StatusBadRequest, err.Error())
 		return
 	}
@@ -104,14 +104,14 @@ func (c *repositoryController) ListCommits(w http.ResponseWriter, r *http.Reques
 	// Parse request body
 	var reqBody spec.ListCommitsRequest
 	if err := json.NewDecoder(r.Body).Decode(&reqBody); err != nil {
-		log.Error("ListCommits: failed to decode request body", "error", err)
+		log.Warn("ListCommits: failed to decode request body", "error", err)
 		utils.WriteErrorResponse(w, http.StatusBadRequest, "Invalid request body")
 		return
 	}
 
 	// Validate request body
 	if err := utils.ValidateListCommitsRequest(&reqBody); err != nil {
-		log.Error("ListCommits: invalid request payload", "error", err)
+		log.Warn("ListCommits: invalid request payload", "error", err)
 		utils.WriteValidationErrorResponse(w, err)
 		return
 	}
@@ -119,7 +119,7 @@ func (c *repositoryController) ListCommits(w http.ResponseWriter, r *http.Reques
 	// Parse pagination from query params
 	limit, offset, err := parsePaginationParams(r)
 	if err != nil {
-		log.Error("ListCommits: invalid pagination params", "error", err)
+		log.Warn("ListCommits: invalid pagination params", "error", err)
 		utils.WriteErrorResponse(w, http.StatusBadRequest, err.Error())
 		return
 	}

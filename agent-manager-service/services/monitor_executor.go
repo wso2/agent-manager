@@ -126,8 +126,8 @@ func (e *monitorExecutor) ExecuteMonitorRun(ctx context.Context, params ExecuteM
 
 	e.logger.Debug("Executing monitor run",
 		"monitor", params.Monitor.Name,
-		"startTime", params.StartTime,
-		"endTime", params.EndTime,
+		"start_time", params.StartTime,
+		"end_time", params.EndTime,
 		"evaluators", evaluators)
 
 	// Resolve LLM proxy config: secret KV path, proxy URL, and provider template handle.
@@ -180,15 +180,15 @@ func (e *monitorExecutor) ExecuteMonitorRun(ctx context.Context, params ExecuteM
 	}
 
 	if err := e.monitorRepo.CreateMonitorRun(run); err != nil {
-		e.logger.Error("Failed to create monitor_runs entry", "error", err, "workflowRunName", workflowRunName)
+		e.logger.Error("Failed to create monitor_runs entry", "error", err, "workflow_run_name", workflowRunName)
 		// Note: No delete API available for workflow runs
 		return nil, fmt.Errorf("failed to create monitor run entry: %w", err)
 	}
 
 	e.logger.Info("Monitor run executed successfully",
 		"monitor", params.Monitor.Name,
-		"runID", run.ID,
-		"workflowRunName", workflowRunName)
+		"run_id", run.ID,
+		"workflow_run_name", workflowRunName)
 
 	return &ExecuteMonitorRunResult{
 		Run:  run,
@@ -202,7 +202,7 @@ func (e *monitorExecutor) UpdateNextRunTime(ctx context.Context, monitorID uuid.
 		return fmt.Errorf("failed to update next_run_time: %w", err)
 	}
 
-	e.logger.Debug("Updated next_run_time", "monitorID", monitorID, "nextRunTime", nextRunTime)
+	e.logger.Debug("Updated next_run_time", "monitor_id", monitorID, "next_run_time", nextRunTime)
 	return nil
 }
 
@@ -348,7 +348,7 @@ func (e *monitorExecutor) buildPublishingParams(monitor *models.Monitor, runID u
 		params["secretKey"] = cred.SecretKey
 	} else if errors.Is(err, gorm.ErrRecordNotFound) {
 		// Fallback to static defaults (on-prem single-tenant)
-		e.logger.Debug("No per-org publisher credentials found, using defaults", "ouID", monitor.OUID)
+		e.logger.Debug("No per-org publisher credentials found, using defaults", "ou_id", monitor.OUID)
 		params["clientId"] = "amp-publisher-client"
 		params["secretKVPath"] = "amp-publisher-client-secret"
 		params["secretKey"] = "value"

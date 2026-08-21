@@ -123,7 +123,7 @@ func (c *websocketController) Connect(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Authenticate gateway using API key
-	gateway, err := c.gatewayService.VerifyToken(apiKey)
+	gateway, err := c.gatewayService.VerifyToken(r.Context(), apiKey)
 	if err != nil {
 		log.Warn("WebSocket authentication failed", "ip", clientIP, "error", err)
 		http.Error(w, "Invalid or expired API key", http.StatusUnauthorized)
@@ -138,8 +138,8 @@ func (c *websocketController) Connect(w http.ResponseWriter, r *http.Request) {
 	if c.hub != nil {
 		if err := c.hub.RegisterGateway(gatewayID); err != nil {
 			log.Warn("Failed to register gateway in EventHub",
-				"gatewayID", gatewayID, "gatewayName", gatewayName,
-				"ouID", ouID, "error", err)
+				"gateway_id", gatewayID, "gateway_name", gatewayName,
+				"ou_id", ouID, "error", err)
 		}
 	}
 
@@ -148,8 +148,8 @@ func (c *websocketController) Connect(w http.ResponseWriter, r *http.Request) {
 	// We use the gateway UUID (not the raw API key) to avoid storing secrets in memory.
 	if !c.checkRateLimit(gatewayID) {
 		log.Warn("Gateway connection rate limit exceeded",
-			"gatewayID", gatewayID, "gatewayName", gatewayName,
-			"ouID", ouID, "ip", clientIP)
+			"gateway_id", gatewayID, "gateway_name", gatewayName,
+			"ou_id", ouID, "ip", clientIP)
 		http.Error(w, "Connection rate limit exceeded. Please try again later.", http.StatusTooManyRequests)
 		return
 	}
@@ -158,8 +158,8 @@ func (c *websocketController) Connect(w http.ResponseWriter, r *http.Request) {
 	conn, err := c.upgrader.Upgrade(w, r, nil)
 	if err != nil {
 		log.Error("WebSocket upgrade failed",
-			"gatewayID", gatewayID, "gatewayName", gatewayName,
-			"ouID", ouID, "error", err)
+			"gateway_id", gatewayID, "gateway_name", gatewayName,
+			"ou_id", ouID, "error", err)
 		// Upgrade error is already sent by upgrader
 		return
 	}
@@ -171,8 +171,8 @@ func (c *websocketController) Connect(w http.ResponseWriter, r *http.Request) {
 	connection, err := c.manager.Register(gatewayID, transport, apiKey)
 	if err != nil {
 		log.Error("Connection registration failed",
-			"gatewayID", gatewayID, "gatewayName", gatewayName,
-			"ouID", ouID, "error", err)
+			"gateway_id", gatewayID, "gateway_name", gatewayName,
+			"ou_id", ouID, "error", err)
 		// Send error message before closing
 		errorMsg := map[string]string{
 			"type":    "error",
@@ -181,14 +181,14 @@ func (c *websocketController) Connect(w http.ResponseWriter, r *http.Request) {
 		if jsonErr, _ := json.Marshal(errorMsg); jsonErr != nil {
 			if err := conn.WriteMessage(websocket.TextMessage, jsonErr); err != nil {
 				log.Error("Failed to send error message",
-					"gatewayID", gatewayID, "gatewayName", gatewayName,
-					"ouID", ouID, "error", err)
+					"gateway_id", gatewayID, "gateway_name", gatewayName,
+					"ou_id", ouID, "error", err)
 			}
 		}
 		if err := conn.Close(); err != nil {
 			log.Debug("Connection close returned error",
-				"gatewayID", gatewayID, "gatewayName", gatewayName,
-				"ouID", ouID, "error", err)
+				"gateway_id", gatewayID, "gateway_name", gatewayName,
+				"ou_id", ouID, "error", err)
 		}
 		return
 	}
@@ -204,25 +204,25 @@ func (c *websocketController) Connect(w http.ResponseWriter, r *http.Request) {
 	ackJSON, err := json.Marshal(ack)
 	if err != nil {
 		log.Error("Failed to marshal connection ACK",
-			"gatewayID", gatewayID, "gatewayName", gatewayName,
-			"ouID", ouID, "error", err)
+			"gateway_id", gatewayID, "gateway_name", gatewayName,
+			"ou_id", ouID, "error", err)
 	} else {
 		if err := connection.Send(ackJSON); err != nil {
 			log.Error("Failed to send connection ACK",
-				"gatewayID", gatewayID, "gatewayName", gatewayName,
-				"ouID", ouID, "connectionID", connection.ConnectionID, "error", err)
+				"gateway_id", gatewayID, "gateway_name", gatewayName,
+				"ou_id", ouID, "connection_id", connection.ConnectionID, "error", err)
 		}
 	}
 
 	log.Info("WebSocket connection established",
-		"gatewayID", gatewayID, "gatewayName", gatewayName,
-		"ouID", ouID, "connectionID", connection.ConnectionID, "ip", clientIP)
+		"gateway_id", gatewayID, "gateway_name", gatewayName,
+		"ou_id", ouID, "connection_id", connection.ConnectionID, "ip", clientIP)
 
 	// Update gateway active status to true when connection is established
 	if err := c.gatewayService.UpdateGatewayActiveStatus(gatewayID, true); err != nil {
 		log.Error("Failed to update gateway active status to true",
-			"gatewayID", gatewayID, "gatewayName", gatewayName,
-			"ouID", ouID, "error", err)
+			"gateway_id", gatewayID, "gateway_name", gatewayName,
+			"ou_id", ouID, "error", err)
 	}
 
 	// Start reading messages (blocks until connection closes)
@@ -231,15 +231,15 @@ func (c *websocketController) Connect(w http.ResponseWriter, r *http.Request) {
 
 	// Connection closed - cleanup
 	log.Info("WebSocket connection closed",
-		"gatewayID", gatewayID, "gatewayName", gatewayName,
-		"ouID", ouID, "connectionID", connection.ConnectionID)
+		"gateway_id", gatewayID, "gateway_name", gatewayName,
+		"ou_id", ouID, "connection_id", connection.ConnectionID)
 	c.manager.Unregister(gatewayID, connection.ConnectionID)
 
 	// Update gateway active status to false when connection is disconnected
 	if err := c.gatewayService.UpdateGatewayActiveStatus(gatewayID, false); err != nil {
 		log.Error("Failed to update gateway active status to false",
-			"gatewayID", gatewayID, "gatewayName", gatewayName,
-			"ouID", ouID, "error", err)
+			"gateway_id", gatewayID, "gateway_name", gatewayName,
+			"ou_id", ouID, "error", err)
 	}
 }
 
@@ -249,7 +249,7 @@ func (c *websocketController) Connect(w http.ResponseWriter, r *http.Request) {
 func (c *websocketController) readLoop(conn *ws.Connection) {
 	defer func() {
 		if r := recover(); r != nil {
-			logger.GetLogger(context.TODO()).Error("Panic in WebSocket read loop", "gatewayID", conn.GatewayID, "connectionID", conn.ConnectionID, "panic", r)
+			logger.GetLogger(context.TODO()).Error("Panic in WebSocket read loop", "gateway_id", conn.GatewayID, "connection_id", conn.ConnectionID, "panic", r)
 		}
 	}()
 
@@ -266,7 +266,7 @@ func (c *websocketController) readLoop(conn *ws.Connection) {
 		// to detect disconnections and handle control frames
 		wsTransport, ok := conn.Transport.(*ws.WebSocketTransport)
 		if !ok {
-			logger.GetLogger(context.TODO()).Error("Invalid transport type for connection", "gatewayID", conn.GatewayID, "connectionID", conn.ConnectionID)
+			logger.GetLogger(context.TODO()).Error("Invalid transport type for connection", "gateway_id", conn.GatewayID, "connection_id", conn.ConnectionID)
 			return
 		}
 
@@ -274,7 +274,7 @@ func (c *websocketController) readLoop(conn *ws.Connection) {
 		if err != nil {
 			// Connection closed or error occurred
 			if websocket.IsUnexpectedCloseError(err, websocket.CloseGoingAway, websocket.CloseNormalClosure) {
-				logger.GetLogger(context.TODO()).Error("WebSocket read error", "gatewayID", conn.GatewayID, "connectionID", conn.ConnectionID, "error", err)
+				logger.GetLogger(context.TODO()).Error("WebSocket read error", "gateway_id", conn.GatewayID, "connection_id", conn.ConnectionID, "error", err)
 			}
 			return
 		}
@@ -366,9 +366,10 @@ func (c *websocketController) cleanupRateLimitMap() {
 		}
 
 		if cleanedCount > 0 {
+			//nolint:forbidigo // background sweeper goroutine, not a request
 			slog.Info("cleaned up stale rate limit entries",
-				"removedCount", cleanedCount,
-				"remainingCount", len(c.rateLimitMap))
+				"removed_count", cleanedCount,
+				"remaining_count", len(c.rateLimitMap))
 		}
 
 		c.rateLimitMu.Unlock()

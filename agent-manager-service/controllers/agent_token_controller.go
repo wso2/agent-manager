@@ -60,15 +60,15 @@ func (c *agentTokenController) GenerateToken(w http.ResponseWriter, r *http.Requ
 
 	log.Info(
 		"GenerateToken request received",
-		"ouID", ouID,
-		"projName", projName,
-		"agentName", agentName,
+		"ou_id", ouID,
+		"proj_name", projName,
+		"agent_name", agentName,
 	)
 
 	// Extract OrgId from the caller's JWT claims
 	callerClaims := jwtassertion.GetTokenClaims(ctx)
 	if callerClaims == nil || callerClaims.OuId == "" {
-		log.Error("GenerateToken: missing organization identity in caller token")
+		log.Warn("GenerateToken: missing organization identity in caller token")
 		utils.WriteErrorResponse(w, http.StatusForbidden, "missing organization identity")
 		return
 	}
@@ -80,7 +80,7 @@ func (c *agentTokenController) GenerateToken(w http.ResponseWriter, r *http.Requ
 	var tokenRequest spec.TokenRequest
 	if r.Body != nil && r.ContentLength > 0 {
 		if err := json.NewDecoder(r.Body).Decode(&tokenRequest); err != nil {
-			log.Error("GenerateToken: failed to parse request body", "error", err)
+			log.Warn("GenerateToken: failed to parse request body", "error", err)
 			utils.WriteErrorResponse(w, http.StatusBadRequest, "Invalid request body")
 			return
 		}
@@ -104,7 +104,7 @@ func (c *agentTokenController) GenerateToken(w http.ResponseWriter, r *http.Requ
 	// Generate token
 	tokenResponse, err := c.tokenService.GenerateToken(ctx, req)
 	if err != nil {
-		log.Error("GenerateToken: failed to generate token", "error", err)
+		log.Warn("GenerateToken: failed to generate token", "error", err)
 		// Check for specific error types using errors.Is()
 		if errors.Is(err, utils.ErrOrganizationNotFound) {
 			utils.WriteErrorResponse(w, http.StatusNotFound, "Organization not found")
@@ -132,8 +132,8 @@ func (c *agentTokenController) GenerateToken(w http.ResponseWriter, r *http.Requ
 
 	log.Info(
 		"GenerateToken: token generated successfully",
-		"agentName", agentName,
-		"expiresAt", tokenResponse.ExpiresAt,
+		"agent_name", agentName,
+		"expires_at", tokenResponse.ExpiresAt,
 	)
 
 	utils.WriteSuccessResponse(w, http.StatusOK, tokenResponse)
@@ -153,7 +153,7 @@ func (c *agentTokenController) GetJWKS(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	log.Info("GetJWKS: JWKS retrieved successfully", "keyCount", len(jwks.Keys))
+	log.Info("GetJWKS: JWKS retrieved successfully", "key_count", len(jwks.Keys))
 
 	utils.WriteSuccessResponse(w, http.StatusOK, jwks)
 }

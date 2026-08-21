@@ -19,10 +19,11 @@
 package client
 
 import (
+	"context"
 	"fmt"
-	"log/slog"
 
 	"github.com/wso2/agent-manager/agent-manager-service/clients/openchoreosvc/gen"
+	"github.com/wso2/agent-manager/agent-manager-service/middleware/logger"
 	"github.com/wso2/agent-manager/agent-manager-service/utils"
 )
 
@@ -37,25 +38,25 @@ type ErrorResponses struct {
 }
 
 // handleErrorResponse converts typed error responses to domain errors.
-func handleErrorResponse(statusCode int, errs ErrorResponses) error {
+func handleErrorResponse(ctx context.Context, statusCode int, errs ErrorResponses) error {
 	switch {
 	case errs.JSON400 != nil:
-		logErrorDetails(errs.JSON400)
+		logErrorDetails(ctx, errs.JSON400)
 		return fmt.Errorf("%w: %s", utils.ErrBadRequest, errs.JSON400.Error)
 	case errs.JSON401 != nil:
-		logErrorDetails(errs.JSON401)
+		logErrorDetails(ctx, errs.JSON401)
 		return fmt.Errorf("%w: %s", utils.ErrUnauthorized, errs.JSON401.Error)
 	case errs.JSON403 != nil:
-		logErrorDetails(errs.JSON403)
+		logErrorDetails(ctx, errs.JSON403)
 		return fmt.Errorf("%w: %s", utils.ErrForbidden, errs.JSON403.Error)
 	case errs.JSON404 != nil:
-		logErrorDetails(errs.JSON404)
+		logErrorDetails(ctx, errs.JSON404)
 		return fmt.Errorf("%w: %s", utils.ErrNotFound, errs.JSON404.Error)
 	case errs.JSON409 != nil:
-		logErrorDetails(errs.JSON409)
+		logErrorDetails(ctx, errs.JSON409)
 		return fmt.Errorf("%w: %s", utils.ErrConflict, errs.JSON409.Error)
 	case errs.JSON500 != nil:
-		logErrorDetails(errs.JSON500)
+		logErrorDetails(ctx, errs.JSON500)
 		return fmt.Errorf("%w: %s", utils.ErrInternalServerError, errs.JSON500.Error)
 	default:
 		return fmt.Errorf("unexpected error: status %d", statusCode)
@@ -63,7 +64,7 @@ func handleErrorResponse(statusCode int, errs ErrorResponses) error {
 }
 
 // logErrorDetails logs error details if present.
-func logErrorDetails(errResp *gen.ErrorResponse) {
+func logErrorDetails(ctx context.Context, errResp *gen.ErrorResponse) {
 	if errResp == nil || errResp.Details == nil {
 		return
 	}
@@ -76,6 +77,6 @@ func logErrorDetails(errResp *gen.ErrorResponse) {
 		if d.Message != nil {
 			message = *d.Message
 		}
-		slog.Debug("API error detail", "field", field, "message", message)
+		logger.GetLogger(ctx).Debug("API error detail", "field", field, "message", message)
 	}
 }

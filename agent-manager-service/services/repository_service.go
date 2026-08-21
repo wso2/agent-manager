@@ -89,15 +89,15 @@ func (s *repositoryService) ListBranches(ctx context.Context, req spec.ListBranc
 		}
 		creds, err := s.gitCredentialsService.GetGitCredentials(ctx, ouID, req.GetSecretRef())
 		if err != nil {
-			s.logger.Error("failed to get git credentials", "error", err, "secretRef", req.GetSecretRef(), "ouID", ouID)
+			s.logger.Warn("failed to get git credentials", "error", err, "secret_ref", req.GetSecretRef(), "ou_id", ouID)
 			return nil, err
 		}
 		providerConfig, err = getGitProviderConfigWithCredentials(creds)
 		if err != nil {
-			s.logger.Error("invalid git credentials", "error", err, "secretRef", req.GetSecretRef())
+			s.logger.Warn("invalid git credentials", "error", err, "secret_ref", req.GetSecretRef())
 			return nil, err
 		}
-		s.logger.Debug("using git credentials for private repository", "secretRef", req.GetSecretRef())
+		s.logger.Debug("using git credentials for private repository", "secret_ref", req.GetSecretRef())
 	}
 
 	// Create provider with configuration
@@ -154,15 +154,15 @@ func (s *repositoryService) ListCommits(ctx context.Context, req spec.ListCommit
 		}
 		creds, err := s.gitCredentialsService.GetGitCredentials(ctx, ouID, req.GetSecretRef())
 		if err != nil {
-			s.logger.Error("failed to get git credentials", "error", err, "secretRef", req.GetSecretRef(), "ouID", ouID)
+			s.logger.Warn("failed to get git credentials", "error", err, "secret_ref", req.GetSecretRef(), "ou_id", ouID)
 			return nil, err
 		}
 		providerConfig, err = getGitProviderConfigWithCredentials(creds)
 		if err != nil {
-			s.logger.Error("invalid git credentials", "error", err, "secretRef", req.GetSecretRef())
+			s.logger.Warn("invalid git credentials", "error", err, "secret_ref", req.GetSecretRef())
 			return nil, err
 		}
-		s.logger.Debug("using git credentials for private repository", "secretRef", req.GetSecretRef())
+		s.logger.Debug("using git credentials for private repository", "secret_ref", req.GetSecretRef())
 	}
 
 	// Create provider with configuration

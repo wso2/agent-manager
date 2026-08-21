@@ -228,8 +228,8 @@ func (r *bufferedRecorder) noteDrop(e Event) {
 	}
 	r.logger.Error("audit buffer full; event dropped",
 		"action", string(e.Action),
-		"actorId", e.ActorID,
-		"droppedTotal", total,
+		"actor_id", e.ActorID,
+		"dropped_total", total,
 		"sink", r.sink.Name())
 }
 
@@ -290,6 +290,7 @@ func (u *uninstalledRecorder) warn(action Action) {
 	if u.warned.Swap(true) {
 		return
 	}
+	//nolint:forbidigo // reports a missing recorder, so the context it was handed cannot be trusted to carry a logger either
 	slog.Error("audit recorder not installed on context; events are being lost",
 		"action", string(action),
 		"hint", "install one with audit.WithRecorder in the surface's middleware")

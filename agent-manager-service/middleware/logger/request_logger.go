@@ -40,19 +40,38 @@ func GetLogger(ctx context.Context) *slog.Logger {
 	return slog.Default()
 }
 
+// Enrich returns a context whose logger carries attrs in addition to whatever
+// it already had. Middleware use it to attach a field once — at the point the
+// value becomes known — instead of every downstream call site repeating it.
+//
+// Enrichment only reaches handlers that run *inside* the enriching middleware:
+// a context value added here is invisible to anything further out in the chain.
+func Enrich(ctx context.Context, attrs ...any) context.Context {
+	if len(attrs) == 0 {
+		return ctx
+	}
+	return WithLogger(ctx, GetLogger(ctx).With(attrs...))
+}
+
+// FromRequest is GetLogger(r.Context()) — the form controllers need.
+func FromRequest(r *http.Request) *slog.Logger {
+	return GetLogger(r.Context())
+}
+
 func RequestLogger() func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			correlationID := "unknown"
-			if id := r.Context().Value(utils.CorrelationIdCtxKey()); id != nil {
-				if idStr, ok := id.(string); ok {
-					correlationID = idStr
-				}
-			}
+			correlationID := utils.GetCorrelationId(r.Context())
+
 			// Use the globally configured logger
+			// No log_type here. Records that belong to a specific stream add
+			// their own (request, upstream, audit, …), and slog appends rather
+			// than replaces — stamping "app" on the base logger put the key in
+			// the record twice, which makes a term query ambiguous. An
+			// application log line is the one with no log_type.
 			reqLogger := slog.Default().With(
 				slog.String("method", r.Method),
-				slog.String("path", r.URL.Path),
+				slog.String("path", utils.TruncateForLog(utils.SanitizeForLog(r.URL.Path), 512)),
 				slog.String("correlation_id", correlationID),
 			)
 			ctx := WithLogger(r.Context(), reqLogger)

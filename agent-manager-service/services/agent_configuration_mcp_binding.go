@@ -203,7 +203,7 @@ func (s *agentConfigurationService) reconcileConfigMCPBindings(
 			continue
 		}
 		s.logger.Info("Backfilled MCP binding for environment that became deployable",
-			"agentName", config.AgentID, "configName", config.Name, "environment", envName, "mcpProxyUUID", proxy.UUID)
+			"agent_name", config.AgentID, "config_name", config.Name, "environment", envName, "mcp_proxy_uuid", proxy.UUID)
 		boundEnvNames[envName] = struct{}{}
 	}
 	// The agent's AgentID token scopes are derived from its MCP mappings, so the bindings
@@ -222,7 +222,7 @@ func (s *agentConfigurationService) deployableMCPEnvs(
 		if _, err := s.resolveDeployableMCPGateway(ctx, proxy, ouID, envUUID); err != nil {
 			if !errors.Is(err, errMCPEnvNotDeployable) {
 				s.logger.Warn("Skipping MCP binding backfill; gateway lookup failed",
-					"environmentUUID", envUUID, "mcpProxyUUID", proxy.UUID, "error", err)
+					"environment_uuid", envUUID, "mcp_proxy_uuid", proxy.UUID, "error", err)
 			}
 			continue
 		}
@@ -386,7 +386,7 @@ func (s *agentConfigurationService) activateMCPMappingForEnv(
 	// binding the agent picks up on its next deploy, so it must not trigger the rollback.
 	if injectErr := s.injectMCPMappingEnvVars(ctx, config, mapping, sourceProxy, envName, ouID,
 		inputs.envTemplates, inputs.firstEnvName); injectErr != nil {
-		s.logger.Warn("failed to inject MCP mapping env vars", "environment", envName, "err", injectErr)
+		s.logger.Warn("failed to inject MCP mapping env vars", "environment", envName, "error", injectErr)
 	}
 	return nil
 }

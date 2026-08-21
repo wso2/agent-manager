@@ -8,17 +8,35 @@ linters:
   enable:
     - errorlint
     - exhaustruct
+    - forbidigo
     - goheader
     - grouper
     - nilerr
     - nilnil
     - nolintlint
     - reassign
+    - sloglint
     - wastedassign
   disable:
     - revive
     - unused
   settings:
+    # Only the context logger carries the correlation ID, so a package-level
+    # slog call on a request path emits a line that cannot be tied back to the
+    # request that produced it. Startup, shutdown and migrations have no
+    # request and are excluded below.
+    forbidigo:
+      forbid:
+        - pattern: ^slog\.(Info|Warn|Error|Debug)(Context)?$
+          msg: use logger.GetLogger(ctx) so the record carries the correlation ID (see docs/logging.md)
+      # Matched on the source expression: `slog.Info` is a package-level
+      # function, not a method on a type forbidigo could resolve.
+      analyze-types: false
+    sloglint:
+      # Catches the alternating key/value form being broken — a bare value in a
+      # key position serialises as "!BADKEY" and the record loses the field.
+      no-mixed-args: true
+      key-naming-case: snake
     exhaustruct:
       include:
         - .*\.Test
@@ -52,6 +70,25 @@ linters:
         path: repositories.*go
       - linters:
           - exhaustruct
+        path: \_test.go
+      # No request context exists during startup, shutdown or migrations.
+      - linters:
+          - forbidigo
+        path: (app|config|db|server|db_migrations)/
+      # These repository methods predate the context convention and take no
+      # context.Context, so their logs cannot reach the request logger. Give
+      # them the exemption rather than deleting logs that already exist;
+      # threading a context through the repository interface (and its generated
+      # mock) is a change worth making on its own terms.
+      - linters:
+          - forbidigo
+        path: repositories/llm_provider_repository\.go
+      - linters:
+          - forbidigo
+        path: main\.go
+      - linters:
+          - forbidigo
+          - sloglint
         path: \_test.go
     paths:
       - agent-manager-service/spec

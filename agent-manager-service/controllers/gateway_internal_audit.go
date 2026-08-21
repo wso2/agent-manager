@@ -115,7 +115,7 @@ func (c *gatewayInternalController) authenticateGateway(
 		return gatewayIdentity{}, false
 	}
 
-	gateway, err := c.gatewayService.VerifyToken(apiKey)
+	gateway, err := c.gatewayService.VerifyToken(r.Context(), apiKey)
 	if err != nil {
 		log.Warn("Authentication failed", "ip", clientIP, "operation", operation, "error", err)
 		recordGatewayAuthFailure(r, "invalid-api-key", "")

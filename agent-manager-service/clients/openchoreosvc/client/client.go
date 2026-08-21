@@ -206,6 +206,7 @@ func NewOpenChoreoClient(cfg *Config) (OpenChoreoClient, error) {
 		retryConfig.RetryOnStatus = func(statusCode int) bool {
 			// Handle 401 by invalidating cached token and retrying
 			if statusCode == http.StatusUnauthorized {
+				//nolint:forbidigo // retry predicate is built once at client construction; no request context exists here
 				slog.Info("Received 401 Unauthorized, invalidating cached token")
 				cfg.AuthProvider.InvalidateToken()
 				return true

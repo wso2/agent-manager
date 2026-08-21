@@ -114,6 +114,9 @@ func (rr *RouteRegistrar) register(
 	meta := audit.NewRouteMetaForSurface(pattern, params, perms, rr.surface)
 	rr.routes = append(rr.routes, meta)
 	handler = WithAudit(rr.auditor, meta)(handler)
+	// Outermost, so the completion record reports the status actually returned
+	// — including the 400 from path-param validation and the 403 from authz.
+	handler = WithRequestLog(meta)(handler)
 
 	rr.mux.HandleFunc(pattern, handler)
 }
@@ -170,6 +173,9 @@ func (rr *RouteRegistrar) registerRootOU(
 	meta := audit.NewRouteMetaForSurface(pattern, params, perms, rr.surface)
 	rr.routes = append(rr.routes, meta)
 	handler = WithAudit(rr.auditor, meta)(handler)
+	// Outermost, so the completion record reports the status actually returned
+	// — including the 400 from path-param validation and the 403 from authz.
+	handler = WithRequestLog(meta)(handler)
 
 	rr.mux.HandleFunc(pattern, handler)
 }

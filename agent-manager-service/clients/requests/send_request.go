@@ -39,15 +39,23 @@ var _ HttpClient = (*http.Client)(nil)
 
 // SendRequest builds and sends an HTTP request, returning a Result for response handling.
 func SendRequest(ctx context.Context, client HttpClient, req *HttpRequest) *Result {
-	log := logger.GetLogger(ctx).With(slog.String("request", req.Name))
+	log := logger.GetLogger(ctx).With(
+		slog.String("log_type", "upstream"),
+		slog.String("request", req.Name),
+	)
 
+	// Each failure below is returned to the caller and logged here as well:
+	// the caller sees only "request failed", while which named request failed
+	// is the part worth having when reading the trail.
 	httpReq, err := req.buildHttpRequest(ctx)
 	if err != nil {
+		log.Warn("failed to build upstream request", slog.String("error", err.Error()))
 		return &Result{err: fmt.Errorf("failed to build http request: %w", err)}
 	}
 
 	resp, err := client.Do(httpReq)
 	if err != nil {
+		log.Warn("upstream request failed", slog.String("error", err.Error()))
 		return &Result{err: fmt.Errorf("request failed: %w", err)}
 	}
 
@@ -58,6 +66,8 @@ func SendRequest(ctx context.Context, client HttpClient, req *HttpRequest) *Resu
 		log.Warn("failed to close response body", slog.String("error", closeErr.Error()))
 	}
 	if err != nil {
+		log.Warn("failed to read upstream response body",
+			slog.Int("status", resp.StatusCode), slog.String("error", err.Error()))
 		return &Result{err: fmt.Errorf("failed to read response body: %w", err)}
 	}
 

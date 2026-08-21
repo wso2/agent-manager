@@ -25,6 +25,7 @@ import (
 	"github.com/wso2/agent-manager/agent-manager-service/audit"
 	"github.com/wso2/agent-manager/agent-manager-service/config"
 	"github.com/wso2/agent-manager/agent-manager-service/middleware/jwtassertion"
+	"github.com/wso2/agent-manager/agent-manager-service/middleware/logger"
 	"github.com/wso2/agent-manager/agent-manager-service/rbac"
 	"github.com/wso2/agent-manager/agent-manager-service/utils"
 )
@@ -115,15 +116,21 @@ func RequireOrgMatchAllowRootOU(_ OrgResolver) func(http.HandlerFunc) http.Handl
 func resolveOrgFromToken() func(http.HandlerFunc) http.HandlerFunc {
 	return func(next http.HandlerFunc) http.HandlerFunc {
 		return func(w http.ResponseWriter, r *http.Request) {
+			log := logger.GetLogger(r.Context())
 			claims := jwtassertion.GetTokenClaims(r.Context())
 			if claims == nil {
-				slog.Warn("RequireOrgMatch rejected", "reason", "missing token claims", "path", r.URL.Path)
+				log.Warn("RequireOrgMatch rejected", "reason", "missing token claims")
 				recordAuthzDeny(r, "missing-token-claims")
 				utils.WriteErrorResponse(w, http.StatusForbidden, "missing token claims")
 				return
 			}
 			if claims.OuId == "" || claims.OuHandle == "" {
-				slog.Warn("RequireOrgMatch rejected", "reason", "missing ou identity in token", "sub", claims.Sub, "path", r.URL.Path)
+				// `sub` predates this logger and stays: it is the only thing that
+				// distinguishes one malformed-token caller from another on a
+				// rejection path that carries no org. It is deliberately not
+				// promoted onto the context logger — see the Enrich call below.
+				log.Warn("RequireOrgMatch rejected", "reason", "missing ou identity in token",
+					"sub", utils.SanitizeForLog(claims.Sub))
 				recordAuthzDeny(r, "missing-ou-identity")
 				utils.WriteErrorResponse(w, http.StatusForbidden, "missing ou identity in token")
 				return
@@ -134,6 +141,20 @@ func resolveOrgFromToken() func(http.HandlerFunc) http.HandlerFunc {
 				OuHandle: claims.OuHandle,
 				OUID:     claims.OuId,
 			})
+			// Attach the org once, here, where it first becomes known — every log
+			// line the handler and the layers below it write inherits it.
+			//
+			// The token subject is deliberately not attached: the caller's
+			// identity belongs in the audit trail, which records it with the
+			// retention and access controls that come with being evidence, not
+			// in the application log.
+			ctx = logger.Enrich(ctx,
+				slog.String("ou_id", claims.OuId),
+				slog.String("org_handle", utils.SanitizeForLog(claims.OuHandle)),
+			)
+			// The access-log record is emitted outside this middleware, where a
+			// context value added here is no longer visible.
+			setRequestIdentity(ctx, claims.OuId)
 			next(w, r.WithContext(ctx))
 		}
 	}

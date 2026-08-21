@@ -21,12 +21,12 @@ import (
 	"encoding/base64"
 	"errors"
 	"fmt"
-	"log/slog"
 	"strings"
 
 	"gopkg.in/yaml.v3"
 	"gorm.io/gorm"
 
+	"github.com/wso2/agent-manager/agent-manager-service/middleware/logger"
 	"github.com/wso2/agent-manager/agent-manager-service/repositories"
 	"github.com/wso2/agent-manager/agent-manager-service/utils"
 )
@@ -116,8 +116,8 @@ func (s *GatewayInternalAPIService) GetActiveMCPProxyDeploymentByGateway(ctx con
 
 	resolvedYaml, err := s.resolveAllSecretsInYAML(ctx, string(deployment.Content))
 	if err != nil {
-		slog.Error("GatewayInternalAPIService: failed to resolve secrets in MCP proxy YAML",
-			"proxyID", proxyID, "error", err)
+		logger.GetLogger(ctx).Warn("GatewayInternalAPIService: failed to resolve secrets in MCP proxy YAML",
+			"proxy_id", proxyID, "error", err)
 		return nil, fmt.Errorf("failed to resolve secrets: %w", err)
 	}
 
@@ -167,8 +167,8 @@ func (s *GatewayInternalAPIService) GetActiveLLMProviderDeploymentByGateway(ctx 
 	// Resolve secret references in the YAML
 	resolvedYaml, err := s.resolveSecretsInYAML(ctx, providerYaml, "upstream.auth")
 	if err != nil {
-		slog.Error("GatewayInternalAPIService: failed to resolve secrets in provider YAML",
-			"providerID", providerID, "error", err)
+		logger.GetLogger(ctx).Warn("GatewayInternalAPIService: failed to resolve secrets in provider YAML",
+			"provider_id", providerID, "error", err)
 		return nil, fmt.Errorf("failed to resolve secrets: %w", err)
 	}
 
@@ -204,8 +204,8 @@ func (s *GatewayInternalAPIService) GetActiveLLMProxyDeploymentByGateway(ctx con
 	// Resolve secret references in the YAML
 	resolvedYaml, err := s.resolveSecretsInYAML(ctx, proxyYaml, "provider.auth")
 	if err != nil {
-		slog.Error("GatewayInternalAPIService: failed to resolve secrets in proxy YAML",
-			"proxyID", proxyID, "error", err)
+		logger.GetLogger(ctx).Warn("GatewayInternalAPIService: failed to resolve secrets in proxy YAML",
+			"proxy_id", proxyID, "error", err)
 		return nil, fmt.Errorf("failed to resolve secrets: %w", err)
 	}
 

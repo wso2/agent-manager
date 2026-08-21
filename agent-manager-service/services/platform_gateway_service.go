@@ -25,7 +25,6 @@ import (
 	"encoding/hex"
 	"errors"
 	"fmt"
-	"log/slog"
 	"net"
 	"net/url"
 	"regexp"
@@ -36,6 +35,7 @@ import (
 	"github.com/google/uuid"
 	"gorm.io/gorm"
 
+	"github.com/wso2/agent-manager/agent-manager-service/middleware/logger"
 	"github.com/wso2/agent-manager/agent-manager-service/models"
 	"github.com/wso2/agent-manager/agent-manager-service/repositories"
 	"github.com/wso2/agent-manager/agent-manager-service/utils"
@@ -407,7 +407,7 @@ func (s *PlatformGatewayService) SaveGatewayPolicyManifest(ctx context.Context, 
 	if gateway == nil {
 		return utils.ErrGatewayNotFound
 	}
-	slog.Info("Saving gateway policy manifest for gateway", "gatewayID", gatewayID)
+	logger.GetLogger(ctx).Info("Saving gateway policy manifest for gateway", "gateway_id", gatewayID)
 
 	return gatewayManifestCache.Set(ctx, manifest)
 }
@@ -478,7 +478,7 @@ func (s *PlatformGatewayService) UpdateGateway(
 }
 
 // DeleteGateway deletes a gateway after verifying no active deployments exist
-func (s *PlatformGatewayService) DeleteGateway(gatewayID, ouID string) error {
+func (s *PlatformGatewayService) DeleteGateway(ctx context.Context, gatewayID, ouID string) error {
 	// Validate UUID format
 	if _, err := uuid.Parse(gatewayID); err != nil {
 		return errors.New("invalid UUID format")
@@ -514,7 +514,7 @@ func (s *PlatformGatewayService) DeleteGateway(gatewayID, ouID string) error {
 	// touched: it is one shared copy describing every gateway's policy bundle, so the
 	// gateways that remain still need it.
 	s.tokenCache.InvalidateGateway(gateway.UUID)
-	slog.Info("gateway deleted and cache invalidated", "gatewayID", gatewayID)
+	logger.GetLogger(ctx).Info("gateway deleted and cache invalidated", "gateway_id", gatewayID)
 
 	return nil
 }
@@ -525,14 +525,14 @@ func (s *PlatformGatewayService) DeleteGateway(gatewayID, ouID string) error {
 // 2. Single indexed DB lookup by prefix (WHERE token_prefix = ? AND status = 'active')
 // 3. Verify token hash with constant-time comparison
 // 4. Return gateway or cache result
-func (s *PlatformGatewayService) VerifyToken(plainToken string) (*models.PlatformGateway, error) {
+func (s *PlatformGatewayService) VerifyToken(ctx context.Context, plainToken string) (*models.PlatformGateway, error) {
 	start := time.Now()
 	defer func() {
-		slog.Debug("token verification completed", "duration_ms", time.Since(start).Milliseconds())
+		logger.GetLogger(ctx).Debug("token verification completed", "duration_ms", time.Since(start).Milliseconds())
 	}()
 
 	if plainToken == "" {
-		slog.Warn("token verification failed: empty token")
+		logger.GetLogger(ctx).Warn("token verification failed: empty token")
 		return nil, errors.New("token is required")
 	}
 
@@ -540,7 +540,7 @@ func (s *PlatformGatewayService) VerifyToken(plainToken string) (*models.Platfor
 	// Example: "550e8400-e29b-41d4-a716-446655440000-kQpL8vK9..."
 	parts := strings.SplitN(plainToken, "-", 6) // UUID has 5 dashes, so split into 6 parts
 	if len(parts) < 6 {
-		slog.Warn("token verification failed: invalid token format", "tokenPrefix", plainToken[:min(16, len(plainToken))])
+		logger.GetLogger(ctx).Warn("token verification failed: invalid token format", "token_prefix", plainToken[:min(16, len(plainToken))])
 		return nil, errors.New("invalid token")
 	}
 
@@ -549,7 +549,7 @@ func (s *PlatformGatewayService) VerifyToken(plainToken string) (*models.Platfor
 
 	// Validate UUID format
 	if _, err := uuid.Parse(tokenPrefix); err != nil {
-		slog.Warn("token verification failed: invalid UUID prefix", "tokenPrefix", tokenPrefix)
+		logger.GetLogger(ctx).Warn("token verification failed: invalid UUID prefix", "token_prefix", tokenPrefix)
 		return nil, errors.New("invalid token")
 	}
 
@@ -559,47 +559,47 @@ func (s *PlatformGatewayService) VerifyToken(plainToken string) (*models.Platfor
 		// Verify token hash with constant-time comparison (cache stores hash+salt)
 		if verifyToken(plainToken, entry.TokenHash, entry.Salt) {
 			// Cache hit with valid hash - return cached gateway directly
-			slog.Debug("token verified from cache", "tokenPrefix", tokenPrefix, "gatewayUUID", entry.GatewayUUID)
+			logger.GetLogger(ctx).Debug("token verified from cache", "token_prefix", tokenPrefix, "gateway_uuid", entry.GatewayUUID)
 			return entry.Gateway, nil
 		}
 		// Hash mismatch - token was rotated/revoked, invalidate stale cache
-		slog.Warn("cached token hash mismatch, invalidating cache", "tokenPrefix", tokenPrefix)
+		logger.GetLogger(ctx).Warn("cached token hash mismatch, invalidating cache", "token_prefix", tokenPrefix)
 		s.tokenCache.Invalidate(tokenPrefix)
 	}
 
 	// Step 3: Cache miss - single indexed DB lookup by UUID prefix
 	token, err := s.gatewayRepo.GetActiveTokenByPrefix(tokenPrefix)
 	if err != nil {
-		slog.Error("failed to lookup token by prefix", "tokenPrefix", tokenPrefix, "error", err)
+		logger.GetLogger(ctx).Warn("failed to lookup token by prefix", "token_prefix", tokenPrefix, "error", err)
 		return nil, fmt.Errorf("failed to verify token: %w", err)
 	}
 
 	if token == nil {
-		slog.Warn("token verification failed: no active token with prefix", "tokenPrefix", tokenPrefix)
+		logger.GetLogger(ctx).Warn("token verification failed: no active token with prefix", "token_prefix", tokenPrefix)
 		return nil, errors.New("invalid token")
 	}
 
 	// Step 4: Verify token hash with constant-time comparison
 	if !verifyToken(plainToken, token.TokenHash, token.Salt) {
-		slog.Warn("token verification failed: hash mismatch", "tokenPrefix", tokenPrefix)
+		logger.GetLogger(ctx).Warn("token verification failed: hash mismatch", "token_prefix", tokenPrefix)
 		return nil, errors.New("invalid token")
 	}
 
 	// Step 5: Get gateway (only on cache miss)
 	gateway, err := s.gatewayRepo.GetByUUID(token.GatewayUUID.String())
 	if err != nil {
-		slog.Error("failed to get gateway for valid token", "gatewayUUID", token.GatewayUUID, "error", err)
+		logger.GetLogger(ctx).Warn("failed to get gateway for valid token", "gateway_uuid", token.GatewayUUID, "error", err)
 		return nil, fmt.Errorf("failed to get gateway: %w", err)
 	}
 
 	if gateway == nil {
-		slog.Warn("gateway not found for valid token", "gatewayUUID", token.GatewayUUID)
+		logger.GetLogger(ctx).Warn("gateway not found for valid token", "gateway_uuid", token.GatewayUUID)
 		return nil, utils.ErrGatewayNotFound
 	}
 
 	// Step 6: Cache the valid token using prefix as key (stores full gateway + hash + salt)
 	s.tokenCache.Set(tokenPrefix, token.GatewayUUID, gateway, token.TokenHash, token.Salt)
-	slog.Info("token verified successfully and cached", "tokenPrefix", tokenPrefix, "gatewayUUID", gateway.UUID)
+	logger.GetLogger(ctx).Info("token verified successfully and cached", "token_prefix", tokenPrefix, "gateway_uuid", gateway.UUID)
 
 	return gateway, nil
 }
@@ -711,7 +711,7 @@ func (s *PlatformGatewayService) ListTokens(gatewayID, ouID string) (*GatewayTok
 }
 
 // RevokeTokenByID revokes a token and invalidates it from cache
-func (s *PlatformGatewayService) RevokeTokenByID(tokenID, gatewayID, ouID string) error {
+func (s *PlatformGatewayService) RevokeTokenByID(ctx context.Context, tokenID, gatewayID, ouID string) error {
 	// 1. Validate gateway exists and belongs to organization
 	gateway, err := s.gatewayRepo.GetByUUID(gatewayID)
 	if err != nil {
@@ -748,7 +748,7 @@ func (s *PlatformGatewayService) RevokeTokenByID(tokenID, gatewayID, ouID string
 
 	// 4. Invalidate from cache using token prefix
 	s.tokenCache.Invalidate(token.TokenPrefix)
-	slog.Info("token revoked and cache invalidated", "tokenID", tokenID, "tokenPrefix", token.TokenPrefix, "gatewayID", gatewayID)
+	logger.GetLogger(ctx).Info("token revoked and cache invalidated", "token_id", tokenID, "token_prefix", token.TokenPrefix, "gateway_id", gatewayID)
 
 	return nil
 }
@@ -887,8 +887,8 @@ func (s *PlatformGatewayService) UpsertIdentityProvider(ctx context.Context, gat
 		if applied {
 			// Gateway was patched but the mirror write failed: the two are diverged
 			// until the client retries (both operations are idempotent).
-			slog.Warn("gateway identity provider applied but mirror upsert failed; retry to reconcile",
-				"gatewayID", gatewayID, "provider", name, "error", err)
+			logger.GetLogger(ctx).Warn("gateway identity provider applied but mirror upsert failed; retry to reconcile",
+				"gateway_id", gatewayID, "provider", name, "error", err)
 		}
 		return nil, err
 	}
@@ -918,8 +918,8 @@ func (s *PlatformGatewayService) DeleteIdentityProvider(ctx context.Context, gat
 		if removed {
 			// Gateway entry was removed but the mirror delete failed: the two are
 			// diverged until the client retries (both operations are idempotent).
-			slog.Warn("gateway identity provider removed but mirror delete failed; retry to reconcile",
-				"gatewayID", gatewayID, "provider", name, "error", err)
+			logger.GetLogger(ctx).Warn("gateway identity provider removed but mirror delete failed; retry to reconcile",
+				"gateway_id", gatewayID, "provider", name, "error", err)
 		}
 		return err
 	}
@@ -1076,7 +1076,7 @@ func (s *PlatformGatewayService) GetGatewayEnvironmentMappingsBulk(gatewayIDs []
 }
 
 // DeleteGatewayEnvironmentMappings deletes all environment mappings for a gateway
-func (s *PlatformGatewayService) DeleteGatewayEnvironmentMappings(gatewayID string) error {
+func (s *PlatformGatewayService) DeleteGatewayEnvironmentMappings(ctx context.Context, gatewayID string) error {
 	// Validate UUID
 	gwUUID, err := uuid.Parse(gatewayID)
 	if err != nil {
@@ -1092,7 +1092,7 @@ func (s *PlatformGatewayService) DeleteGatewayEnvironmentMappings(gatewayID stri
 	// Delete each mapping
 	for _, mapping := range mappings {
 		if err := s.gatewayRepo.DeleteEnvironmentMapping(gwUUID.String(), mapping.EnvironmentUUID.String()); err != nil {
-			slog.Warn("failed to delete gateway-environment mapping", "gatewayID", gatewayID, "environmentID", mapping.EnvironmentUUID, "error", err)
+			logger.GetLogger(ctx).Warn("failed to delete gateway-environment mapping", "gateway_id", gatewayID, "environment_id", mapping.EnvironmentUUID, "error", err)
 			// Continue with other mappings
 		}
 	}

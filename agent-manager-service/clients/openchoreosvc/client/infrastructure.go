@@ -41,7 +41,7 @@ func (c *openChoreoClient) GetOrganization(ctx context.Context, ouID string) (*m
 	}
 
 	if resp.StatusCode() != http.StatusOK {
-		return nil, handleErrorResponse(resp.StatusCode(), ErrorResponses{
+		return nil, handleErrorResponse(ctx, resp.StatusCode(), ErrorResponses{
 			JSON401: resp.JSON401,
 			JSON403: resp.JSON403,
 			JSON404: resp.JSON404,
@@ -78,7 +78,7 @@ func (c *openChoreoClient) ListOrganizations(ctx context.Context) ([]*models.Org
 	}
 
 	if resp.StatusCode() != http.StatusOK {
-		return nil, handleErrorResponse(resp.StatusCode(), ErrorResponses{
+		return nil, handleErrorResponse(ctx, resp.StatusCode(), ErrorResponses{
 			JSON401: resp.JSON401,
 			JSON403: resp.JSON403,
 			JSON500: resp.JSON500,
@@ -159,7 +159,7 @@ func (c *openChoreoClient) CreateEnvironment(ctx context.Context, ouID string, r
 	}
 
 	if resp.StatusCode() != http.StatusCreated {
-		return nil, handleErrorResponse(resp.StatusCode(), ErrorResponses{
+		return nil, handleErrorResponse(ctx, resp.StatusCode(), ErrorResponses{
 			JSON400: resp.JSON400,
 			JSON401: resp.JSON401,
 			JSON403: resp.JSON403,
@@ -183,7 +183,7 @@ func (c *openChoreoClient) UpdateEnvironment(ctx context.Context, ouID, environm
 		return nil, fmt.Errorf("failed to get environment for update: %w", err)
 	}
 	if getResp.StatusCode() != http.StatusOK {
-		return nil, handleErrorResponse(getResp.StatusCode(), ErrorResponses{
+		return nil, handleErrorResponse(ctx, getResp.StatusCode(), ErrorResponses{
 			JSON401: getResp.JSON401,
 			JSON403: getResp.JSON403,
 			JSON404: getResp.JSON404,
@@ -236,7 +236,7 @@ func (c *openChoreoClient) UpdateEnvironment(ctx context.Context, ouID, environm
 	}
 
 	if resp.StatusCode() != http.StatusOK {
-		return nil, handleErrorResponse(resp.StatusCode(), ErrorResponses{
+		return nil, handleErrorResponse(ctx, resp.StatusCode(), ErrorResponses{
 			JSON400: resp.JSON400,
 			JSON401: resp.JSON401,
 			JSON403: resp.JSON403,
@@ -261,7 +261,7 @@ func (c *openChoreoClient) GetEnvironment(ctx context.Context, ouID, environment
 	}
 
 	if resp.StatusCode() != http.StatusOK {
-		return nil, handleErrorResponse(resp.StatusCode(), ErrorResponses{
+		return nil, handleErrorResponse(ctx, resp.StatusCode(), ErrorResponses{
 			JSON401: resp.JSON401,
 			JSON403: resp.JSON403,
 			JSON404: resp.JSON404,
@@ -293,7 +293,7 @@ func (c *openChoreoClient) DeleteEnvironment(ctx context.Context, ouID, environm
 		return nil
 	}
 
-	return handleErrorResponse(resp.StatusCode(), ErrorResponses{
+	return handleErrorResponse(ctx, resp.StatusCode(), ErrorResponses{
 		JSON401: resp.JSON401,
 		JSON403: resp.JSON403,
 		JSON404: resp.JSON404,
@@ -309,7 +309,7 @@ func (c *openChoreoClient) ListEnvironments(ctx context.Context, ouID string) ([
 	}
 
 	if resp.StatusCode() != http.StatusOK {
-		return nil, handleErrorResponse(resp.StatusCode(), ErrorResponses{
+		return nil, handleErrorResponse(ctx, resp.StatusCode(), ErrorResponses{
 			JSON401: resp.JSON401,
 			JSON403: resp.JSON403,
 			JSON500: resp.JSON500,
@@ -344,7 +344,7 @@ func (c *openChoreoClient) GetProjectDeploymentPipeline(ctx context.Context, ouI
 		if projectResp.StatusCode() == http.StatusNotFound {
 			return nil, fmt.Errorf("%w: %s", utils.ErrProjectNotFound, projectName)
 		}
-		return nil, handleErrorResponse(projectResp.StatusCode(), ErrorResponses{
+		return nil, handleErrorResponse(ctx, projectResp.StatusCode(), ErrorResponses{
 			JSON401: projectResp.JSON401,
 			JSON403: projectResp.JSON403,
 			JSON404: projectResp.JSON404,
@@ -364,7 +364,7 @@ func (c *openChoreoClient) GetProjectDeploymentPipeline(ctx context.Context, ouI
 	}
 
 	if resp.StatusCode() != http.StatusOK {
-		return nil, handleErrorResponse(resp.StatusCode(), ErrorResponses{
+		return nil, handleErrorResponse(ctx, resp.StatusCode(), ErrorResponses{
 			JSON401: resp.JSON401,
 			JSON403: resp.JSON403,
 			JSON404: resp.JSON404,
@@ -479,7 +479,7 @@ func (c *openChoreoClient) CreateDeploymentPipeline(ctx context.Context, ouID, p
 	}
 
 	if resp.StatusCode() != http.StatusCreated {
-		return nil, handleErrorResponse(resp.StatusCode(), ErrorResponses{
+		return nil, handleErrorResponse(ctx, resp.StatusCode(), ErrorResponses{
 			JSON400: resp.JSON400,
 			JSON401: resp.JSON401,
 			JSON403: resp.JSON403,
@@ -503,7 +503,7 @@ func (c *openChoreoClient) UpdateDeploymentPipeline(ctx context.Context, ouID, p
 		return nil, fmt.Errorf("failed to get deployment pipeline for update: %w", err)
 	}
 	if getResp.StatusCode() != http.StatusOK {
-		return nil, handleErrorResponse(getResp.StatusCode(), ErrorResponses{
+		return nil, handleErrorResponse(ctx, getResp.StatusCode(), ErrorResponses{
 			JSON401: getResp.JSON401,
 			JSON403: getResp.JSON403,
 			JSON404: getResp.JSON404,
@@ -544,7 +544,7 @@ func (c *openChoreoClient) UpdateDeploymentPipeline(ctx context.Context, ouID, p
 	}
 
 	if resp.StatusCode() != http.StatusOK {
-		return nil, handleErrorResponse(resp.StatusCode(), ErrorResponses{
+		return nil, handleErrorResponse(ctx, resp.StatusCode(), ErrorResponses{
 			JSON400: resp.JSON400,
 			JSON401: resp.JSON401,
 			JSON403: resp.JSON403,
@@ -567,7 +567,7 @@ func (c *openChoreoClient) DeleteOrgDeploymentPipeline(ctx context.Context, ouID
 		return fmt.Errorf("failed to delete deployment pipeline: %w", err)
 	}
 	if resp.StatusCode() != http.StatusOK && resp.StatusCode() != http.StatusNoContent {
-		return handleErrorResponse(resp.StatusCode(), ErrorResponses{
+		return handleErrorResponse(ctx, resp.StatusCode(), ErrorResponses{
 			JSON401: resp.JSON401,
 			JSON403: resp.JSON403,
 			JSON404: resp.JSON404,
@@ -585,7 +585,7 @@ func (c *openChoreoClient) ListDeploymentPipelines(ctx context.Context, ouID str
 	}
 
 	if resp.StatusCode() != http.StatusOK {
-		return nil, handleErrorResponse(resp.StatusCode(), ErrorResponses{
+		return nil, handleErrorResponse(ctx, resp.StatusCode(), ErrorResponses{
 			JSON401: resp.JSON401,
 			JSON403: resp.JSON403,
 			JSON500: resp.JSON500,
@@ -614,7 +614,7 @@ func (c *openChoreoClient) ListDataPlanes(ctx context.Context) ([]*models.DataPl
 	}
 
 	if resp.StatusCode() != http.StatusOK {
-		return nil, handleErrorResponse(resp.StatusCode(), ErrorResponses{
+		return nil, handleErrorResponse(ctx, resp.StatusCode(), ErrorResponses{
 			JSON401: resp.JSON401,
 			JSON403: resp.JSON403,
 			JSON500: resp.JSON500,
@@ -735,7 +735,7 @@ func (c *openChoreoClient) getClusterDataPlaneGateway(ctx context.Context, dataP
 		return nil, fmt.Errorf("failed to get cluster dataplane %q: %w", dataPlaneRef, err)
 	}
 	if resp.StatusCode() != http.StatusOK || resp.JSON200 == nil {
-		return nil, handleErrorResponse(resp.StatusCode(), ErrorResponses{
+		return nil, handleErrorResponse(ctx, resp.StatusCode(), ErrorResponses{
 			JSON401: resp.JSON401,
 			JSON403: resp.JSON403,
 			JSON404: resp.JSON404,

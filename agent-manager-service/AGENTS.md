@@ -109,7 +109,7 @@ Generated files are checked in and **never hand-edited**. Regenerate and commit 
 - **Tenant isolation is DB-only** — org isolation happens at the DB (`ou_id`) layer alone. All OpenChoreo API calls resolve to a single default namespace from config (`OPEN_CHOREO_DEFAULT_NAMESPACE`, default `"default"`, `config.OpenChoreo.DefaultNamespace`), so there is no namespace-level tenant separation yet.
 - **Concurrency** — never hold a lock across I/O. Atomic upserts (`ON CONFLICT`), not read-then-write. Serialize expensive side effects per-key, not globally.
 - **Config** — validate at startup, not first use; check co-dependent values together.
-- **Observability** — log with correlation context (org, resource ID, request ID). Debug = hot paths, Info = rare events, Error = destructive ops.
+- **Observability** — get the logger from the context (`logger.GetLogger(ctx)`), never the package-level `slog` functions: only the context logger carries the correlation ID, and CI rejects `slog.Info/Warn/Error/Debug` outside `app/`, `db/` and `server/`. Keys are snake_case and one concept has one name (`ou_id`, `error`, `duration_ms`); untrusted values go through `utils.SanitizeForLog`. `Error` = the service failed, `Warn` = handled, including every 4xx, `Info` = rare state change, `Debug` = hot path. Log a failure **once, at the boundary** — the controller's `log.Error` already prints the whole `%w` chain, so a service that logs and re-returns logs at `Warn`. See `docs/logging.md`.
 
 # Testing
 

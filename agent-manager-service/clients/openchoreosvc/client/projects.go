@@ -55,7 +55,7 @@ func (c *openChoreoClient) CreateProject(ctx context.Context, ouID string, req C
 	}
 
 	if resp.StatusCode() != http.StatusCreated && resp.StatusCode() != http.StatusOK {
-		return handleErrorResponse(resp.StatusCode(), ErrorResponses{
+		return handleErrorResponse(ctx, resp.StatusCode(), ErrorResponses{
 			JSON400: resp.JSON400,
 			JSON401: resp.JSON401,
 			JSON403: resp.JSON403,
@@ -75,7 +75,7 @@ func (c *openChoreoClient) GetProject(ctx context.Context, ouID, projectName str
 	}
 
 	if resp.StatusCode() != http.StatusOK {
-		return nil, handleErrorResponse(resp.StatusCode(), ErrorResponses{
+		return nil, handleErrorResponse(ctx, resp.StatusCode(), ErrorResponses{
 			JSON401: resp.JSON401,
 			JSON403: resp.JSON403,
 			JSON404: resp.JSON404,
@@ -98,7 +98,7 @@ func (c *openChoreoClient) PatchProject(ctx context.Context, ouID, projectName s
 		return fmt.Errorf("failed to get project: %w", err)
 	}
 	if resp.StatusCode() != http.StatusOK {
-		return handleErrorResponse(resp.StatusCode(), ErrorResponses{
+		return handleErrorResponse(ctx, resp.StatusCode(), ErrorResponses{
 			JSON401: resp.JSON401,
 			JSON403: resp.JSON403,
 			JSON404: resp.JSON404,
@@ -136,7 +136,7 @@ func (c *openChoreoClient) PatchProject(ctx context.Context, ouID, projectName s
 		return fmt.Errorf("failed to update project: %w", err)
 	}
 	if updateResp.StatusCode() != http.StatusOK {
-		return handleErrorResponse(updateResp.StatusCode(), ErrorResponses{
+		return handleErrorResponse(ctx, updateResp.StatusCode(), ErrorResponses{
 			JSON401: updateResp.JSON401,
 			JSON403: updateResp.JSON403,
 			JSON404: updateResp.JSON404,
@@ -155,7 +155,7 @@ func (c *openChoreoClient) DeleteProject(ctx context.Context, ouID, projectName 
 	}
 
 	if resp.StatusCode() != http.StatusOK && resp.StatusCode() != http.StatusNoContent {
-		return handleErrorResponse(resp.StatusCode(), ErrorResponses{
+		return handleErrorResponse(ctx, resp.StatusCode(), ErrorResponses{
 			JSON401: resp.JSON401,
 			JSON403: resp.JSON403,
 			JSON404: resp.JSON404,
@@ -174,7 +174,7 @@ func (c *openChoreoClient) ListProjects(ctx context.Context, ouID string) ([]*mo
 	}
 
 	if resp.StatusCode() != http.StatusOK {
-		return nil, handleErrorResponse(resp.StatusCode(), ErrorResponses{
+		return nil, handleErrorResponse(ctx, resp.StatusCode(), ErrorResponses{
 			JSON401: resp.JSON401,
 			JSON403: resp.JSON403,
 			JSON404: resp.JSON404,

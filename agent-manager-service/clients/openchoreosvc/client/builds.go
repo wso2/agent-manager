@@ -20,7 +20,6 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"log/slog"
 	"net/http"
 	"path"
 	"sort"
@@ -31,6 +30,7 @@ import (
 
 	"github.com/wso2/agent-manager/agent-manager-service/clients/openchoreosvc/gen"
 	"github.com/wso2/agent-manager/agent-manager-service/config"
+	"github.com/wso2/agent-manager/agent-manager-service/middleware/logger"
 	"github.com/wso2/agent-manager/agent-manager-service/models"
 	"github.com/wso2/agent-manager/agent-manager-service/utils"
 )
@@ -112,7 +112,7 @@ func (c *openChoreoClient) TriggerBuild(ctx context.Context, ouID, projectName, 
 	}
 
 	if resp.StatusCode() != http.StatusCreated {
-		return nil, handleErrorResponse(resp.StatusCode(), ErrorResponses{
+		return nil, handleErrorResponse(ctx, resp.StatusCode(), ErrorResponses{
 			JSON400: resp.JSON400,
 			JSON401: resp.JSON401,
 			JSON403: resp.JSON403,
@@ -136,7 +136,7 @@ func (c *openChoreoClient) GetBuild(ctx context.Context, ouID, projectName, comp
 	}
 
 	if resp.StatusCode() != http.StatusOK {
-		return nil, handleErrorResponse(resp.StatusCode(), ErrorResponses{
+		return nil, handleErrorResponse(ctx, resp.StatusCode(), ErrorResponses{
 			JSON401: resp.JSON401,
 			JSON403: resp.JSON403,
 			JSON404: resp.JSON404,
@@ -148,7 +148,7 @@ func (c *openChoreoClient) GetBuild(ctx context.Context, ouID, projectName, comp
 		return nil, fmt.Errorf("empty response from get build")
 	}
 
-	return toBuildDetailsResponse(resp.JSON200, componentName, projectName)
+	return toBuildDetailsResponse(ctx, resp.JSON200, componentName, projectName)
 }
 
 func (c *openChoreoClient) ListBuilds(ctx context.Context, ouID, projectName, componentName string) ([]*models.BuildResponse, error) {
@@ -164,7 +164,7 @@ func (c *openChoreoClient) ListBuilds(ctx context.Context, ouID, projectName, co
 	}
 
 	if resp.StatusCode() != http.StatusOK {
-		return nil, handleErrorResponse(resp.StatusCode(), ErrorResponses{
+		return nil, handleErrorResponse(ctx, resp.StatusCode(), ErrorResponses{
 			JSON401: resp.JSON401,
 			JSON403: resp.JSON403,
 			JSON500: resp.JSON500,
@@ -180,7 +180,7 @@ func (c *openChoreoClient) ListBuilds(ctx context.Context, ouID, projectName, co
 	for _, workflowRun := range workflowRuns {
 		build, err := toWorkflowRunBuild(&workflowRun, componentName, projectName)
 		if err != nil {
-			slog.Error("failed to convert workflow run", "workflowRun", workflowRun.Metadata.Name, "error", err)
+			logger.GetLogger(ctx).Error("failed to convert workflow run", "workflow_run", workflowRun.Metadata.Name, "error", err)
 			continue
 		}
 		buildResponses = append(buildResponses, build)
@@ -201,7 +201,7 @@ func (c *openChoreoClient) UpdateComponentBuildParameters(ctx context.Context, o
 		return fmt.Errorf("failed to get component: %w", err)
 	}
 	if resp.StatusCode() != http.StatusOK {
-		return handleErrorResponse(resp.StatusCode(), ErrorResponses{
+		return handleErrorResponse(ctx, resp.StatusCode(), ErrorResponses{
 			JSON401: resp.JSON401,
 			JSON403: resp.JSON403,
 			JSON404: resp.JSON404,
@@ -311,7 +311,7 @@ func (c *openChoreoClient) UpdateComponentBuildParameters(ctx context.Context, o
 		return fmt.Errorf("failed to update component build parameters: %w", err)
 	}
 	if updateResp.StatusCode() != http.StatusOK {
-		return handleErrorResponse(updateResp.StatusCode(), ErrorResponses{
+		return handleErrorResponse(ctx, updateResp.StatusCode(), ErrorResponses{
 			JSON401: updateResp.JSON401,
 			JSON403: updateResp.JSON403,
 			JSON404: updateResp.JSON404,
@@ -498,7 +498,7 @@ func imageIDFromWorkflowRunWorkloadAnnotation(run *gen.WorkflowRun) string {
 // the workload endpoint spec — reading the git file at schemaFilePath for custom agents — so
 // this annotation is the per-build source of truth for schema content across both chat and
 // custom agents. Returns the content of the first endpoint that carries one.
-func schemaContentFromWorkflowRunWorkloadAnnotation(run *gen.WorkflowRun) string {
+func schemaContentFromWorkflowRunWorkloadAnnotation(ctx context.Context, run *gen.WorkflowRun) string {
 	if run == nil || run.Metadata.Annotations == nil {
 		return ""
 	}
@@ -508,12 +508,12 @@ func schemaContentFromWorkflowRunWorkloadAnnotation(run *gen.WorkflowRun) string
 	}
 	var workload map[string]interface{}
 	if err := json.Unmarshal([]byte(raw), &workload); err != nil {
-		slog.Warn("failed to unmarshal workload annotation for schema content", "workflowRun", run.Metadata.Name, "error", err)
+		logger.GetLogger(ctx).Warn("failed to unmarshal workload annotation for schema content", "workflow_run", run.Metadata.Name, "error", err)
 		return ""
 	}
 	endpoints, found, err := unstructured.NestedMap(workload, "spec", "endpoints")
 	if err != nil || !found {
-		slog.Warn("no endpoints found in workload annotation for schema content", "workflowRun", run.Metadata.Name, "error", err)
+		logger.GetLogger(ctx).Warn("no endpoints found in workload annotation for schema content", "workflow_run", run.Metadata.Name, "error", err)
 		return ""
 	}
 	for _, ep := range endpoints {
@@ -525,12 +525,12 @@ func schemaContentFromWorkflowRunWorkloadAnnotation(run *gen.WorkflowRun) string
 			return content
 		}
 	}
-	slog.Warn("schema content is empty in workload annotation endpoints", "workflowRun", run.Metadata.Name)
+	logger.GetLogger(ctx).Warn("schema content is empty in workload annotation endpoints", "workflow_run", run.Metadata.Name)
 	return ""
 }
 
 // toBuildDetailsResponse converts a gen.WorkflowRun to models.BuildDetailsResponse
-func toBuildDetailsResponse(run *gen.WorkflowRun, componentName, projectName string) (*models.BuildDetailsResponse, error) {
+func toBuildDetailsResponse(ctx context.Context, run *gen.WorkflowRun, componentName, projectName string) (*models.BuildDetailsResponse, error) {
 	build, err := toWorkflowRunBuild(run, componentName, projectName)
 	if err != nil {
 		return nil, fmt.Errorf("failed to build response: %w", err)
@@ -561,7 +561,7 @@ func toBuildDetailsResponse(run *gen.WorkflowRun, componentName, projectName str
 	// file into the workload endpoint schema, so the annotation is the per-build content source.
 	// Chat agents already carry inline content in params, so only fill when it's missing.
 	if details.InputInterface != nil && (details.InputInterface.Schema == nil || details.InputInterface.Schema.Content == "") {
-		if content := schemaContentFromWorkflowRunWorkloadAnnotation(run); content != "" {
+		if content := schemaContentFromWorkflowRunWorkloadAnnotation(ctx, run); content != "" {
 			if details.InputInterface.Schema == nil {
 				details.InputInterface.Schema = &models.InputInterfaceSchema{}
 			}

@@ -22,8 +22,9 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
-	"log/slog"
 	"net/http"
+
+	"github.com/wso2/agent-manager/agent-manager-service/middleware/logger"
 )
 
 // agentConflictCode is the error code Thunder returns (HTTP 409) when an /agents
@@ -112,7 +113,7 @@ func (c *thunderClient) CreateAgentIdentity(ctx context.Context, ouID, name, own
 		return "", "", "", false, fmt.Errorf("thunder create agent: clientId not found in response: %s", string(respBody))
 	}
 
-	slog.Info("Thunder agent identity created", "name", name, "thunderAgentID", result.ID)
+	logger.GetLogger(ctx).Info("Thunder agent identity created", "name", name, "thunder_agent_id", result.ID)
 	return result.ID, result.InboundAuth[0].Config.ClientID, result.InboundAuth[0].Config.ClientSecret, true, nil
 }
 
@@ -139,7 +140,7 @@ func (c *thunderClient) RegenerateAgentSecret(ctx context.Context, thunderAgentI
 		return "", err
 	}
 
-	slog.Info("Thunder agent client secret regenerated", "thunderAgentID", thunderAgentID)
+	logger.GetLogger(ctx).Info("Thunder agent client secret regenerated", "thunder_agent_id", thunderAgentID)
 	return secret, nil
 }
 

@@ -19,10 +19,10 @@ package services
 import (
 	"context"
 	"errors"
-	"log/slog"
 
 	"github.com/wso2/agent-manager/agent-manager-service/audit"
 	"github.com/wso2/agent-manager/agent-manager-service/clients/openchoreosvc/client"
+	"github.com/wso2/agent-manager/agent-manager-service/middleware/logger"
 	"github.com/wso2/agent-manager/agent-manager-service/spec"
 	"github.com/wso2/agent-manager/agent-manager-service/utils"
 )
@@ -53,7 +53,7 @@ func NewGitSecretService(
 
 // Create creates a new git secret
 func (s *GitSecretService) Create(ctx context.Context, ouID string, req *spec.CreateGitSecretRequest) (*GitSecretInfo, error) {
-	slog.Info("GitSecretService.Create: starting", "ouID", ouID, "name", req.Name, "type", req.Type)
+	logger.GetLogger(ctx).Info("GitSecretService.Create: starting", "ou_id", ouID, "name", req.Name, "type", req.Type)
 
 	// Validate input
 	if err := s.validateCreateRequest(req); err != nil {
@@ -84,8 +84,8 @@ func (s *GitSecretService) Create(ctx context.Context, ouID string, req *spec.Cr
 		audit.Detail("username", req.Credentials.Username),
 	)
 	if err != nil {
-		slog.Error("GitSecretService.Create: refusing, audit record could not be written",
-			"ouID", ouID, "name", req.Name, "error", err)
+		logger.GetLogger(ctx).Warn("GitSecretService.Create: refusing, audit record could not be written",
+			"ou_id", ouID, "name", req.Name, "error", err)
 		return nil, err
 	}
 
@@ -94,15 +94,15 @@ func (s *GitSecretService) Create(ctx context.Context, ouID string, req *spec.Cr
 	if err != nil {
 		attempt.Complete(ctx, err)
 		if errors.Is(err, utils.ErrConflict) {
-			slog.Warn("GitSecretService.Create: git secret already exists", "ouID", ouID, "name", req.Name)
+			logger.GetLogger(ctx).Warn("GitSecretService.Create: git secret already exists", "ou_id", ouID, "name", req.Name)
 			return nil, utils.ErrGitSecretAlreadyExists
 		}
-		slog.Error("GitSecretService.Create: failed to create git secret", "ouID", ouID, "name", req.Name, "error", err)
+		logger.GetLogger(ctx).Warn("GitSecretService.Create: failed to create git secret", "ou_id", ouID, "name", req.Name, "error", err)
 		return nil, err
 	}
 	attempt.Complete(ctx, nil)
 
-	slog.Info("GitSecretService.Create: git secret created successfully", "ouID", ouID, "name", result.Name)
+	logger.GetLogger(ctx).Info("GitSecretService.Create: git secret created successfully", "ou_id", ouID, "name", result.Name)
 
 	return &GitSecretInfo{
 		Name: result.Name,
@@ -111,12 +111,12 @@ func (s *GitSecretService) Create(ctx context.Context, ouID string, req *spec.Cr
 
 // List lists all git secrets for an organization
 func (s *GitSecretService) List(ctx context.Context, ouID string, limit, offset int) ([]*GitSecretInfo, int, error) {
-	slog.Info("GitSecretService.List: starting", "ouID", ouID, "limit", limit, "offset", offset)
+	logger.GetLogger(ctx).Info("GitSecretService.List: starting", "ou_id", ouID, "limit", limit, "offset", offset)
 
 	// List git secrets via OpenChoreo
 	secrets, err := s.ocClient.ListGitSecrets(ctx, ouID)
 	if err != nil {
-		slog.Error("GitSecretService.List: failed to list git secrets", "ouID", ouID, "error", err)
+		logger.GetLogger(ctx).Warn("GitSecretService.List: failed to list git secrets", "ou_id", ouID, "error", err)
 		return nil, 0, err
 	}
 
@@ -139,13 +139,13 @@ func (s *GitSecretService) List(ctx context.Context, ouID string, limit, offset 
 		end = totalCount
 	}
 
-	slog.Info("GitSecretService.List: completed", "ouID", ouID, "count", len(gitSecrets[offset:end]), "total", totalCount)
+	logger.GetLogger(ctx).Info("GitSecretService.List: completed", "ou_id", ouID, "count", len(gitSecrets[offset:end]), "total", totalCount)
 	return gitSecrets[offset:end], totalCount, nil
 }
 
 // Delete deletes a git secret
 func (s *GitSecretService) Delete(ctx context.Context, ouID, secretName string) error {
-	slog.Info("GitSecretService.Delete: starting", "ouID", ouID, "secretName", secretName)
+	logger.GetLogger(ctx).Info("GitSecretService.Delete: starting", "ou_id", ouID, "secret_name", secretName)
 
 	if secretName == "" {
 		return utils.ErrInvalidInput
@@ -157,8 +157,8 @@ func (s *GitSecretService) Delete(ctx context.Context, ouID, secretName string) 
 		audit.ResourceNamed(audit.ResourceGitSecret, secretName, secretName),
 	)
 	if err != nil {
-		slog.Error("GitSecretService.Delete: refusing, audit record could not be written",
-			"ouID", ouID, "secretName", secretName, "error", err)
+		logger.GetLogger(ctx).Warn("GitSecretService.Delete: refusing, audit record could not be written",
+			"ou_id", ouID, "secret_name", secretName, "error", err)
 		return err
 	}
 
@@ -168,12 +168,12 @@ func (s *GitSecretService) Delete(ctx context.Context, ouID, secretName string) 
 		if errors.Is(err, utils.ErrNotFound) {
 			return utils.ErrGitSecretNotFound
 		}
-		slog.Error("GitSecretService.Delete: failed to delete git secret", "ouID", ouID, "secretName", secretName, "error", err)
+		logger.GetLogger(ctx).Warn("GitSecretService.Delete: failed to delete git secret", "ou_id", ouID, "secret_name", secretName, "error", err)
 		return err
 	}
 	attempt.Complete(ctx, nil)
 
-	slog.Info("GitSecretService.Delete: completed", "ouID", ouID, "secretName", secretName)
+	logger.GetLogger(ctx).Info("GitSecretService.Delete: completed", "ou_id", ouID, "secret_name", secretName)
 	return nil
 }
 

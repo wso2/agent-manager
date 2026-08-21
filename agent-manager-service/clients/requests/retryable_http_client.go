@@ -26,6 +26,9 @@ import (
 	"math/rand/v2"
 	"net/http"
 	"time"
+
+	"github.com/wso2/agent-manager/agent-manager-service/middleware/logger"
+	"github.com/wso2/agent-manager/agent-manager-service/utils"
 )
 
 // errRetry is a sentinel error used internally to signal retry attempts.
@@ -58,9 +61,18 @@ func NewRetryableHTTPClient(client HttpClient, config ...RequestRetryConfig) *Re
 func (c *RetryableHTTPClient) Do(req *http.Request) (*http.Response, error) {
 	ctx := req.Context()
 	cfg := c.config.getRetryConfig(&HttpRequest{Method: req.Method})
-	log := slog.Default().With(
-		slog.String("method", req.Method),
-		slog.String("url", req.URL.String()),
+	// The context logger carries the correlation ID of the request that caused
+	// this call, so an upstream failure can be read next to the API request it
+	// belongs to instead of being an orphan line.
+	log := logger.GetLogger(ctx).With(
+		slog.String("log_type", "upstream"),
+		// Prefixed because the context logger already carries `method` for the
+		// inbound request. Unprefixed, one record would hold two different
+		// methods under one key and a reader could not tell which is which.
+		slog.String("upstream_method", req.Method),
+		slog.String("upstream_host", req.URL.Host),
+		// The path can carry caller-supplied segments.
+		slog.String("upstream_url", utils.TruncateForLog(utils.SanitizeForLog(req.URL.String()), 512)),
 	)
 
 	// Capture body bytes for replay on retries
@@ -76,6 +88,7 @@ func (c *RetryableHTTPClient) Do(req *http.Request) (*http.Response, error) {
 		}
 	}
 
+	start := time.Now()
 	for attempt := 1; attempt <= cfg.RetryAttemptsMax+1; attempt++ {
 		isLastAttempt := attempt == cfg.RetryAttemptsMax+1
 
@@ -86,6 +99,10 @@ func (c *RetryableHTTPClient) Do(req *http.Request) (*http.Response, error) {
 
 		resp, err := c.doAttempt(ctx, req, cfg, attempt, isLastAttempt, log)
 		if !errors.Is(err, errRetry) {
+			// One record per outbound call, whatever the outcome. Without it a
+			// slow or failing dependency is invisible: the per-attempt lines
+			// below only fire on retryable failures.
+			logUpstreamResult(log, resp, err, attempt, start)
 			return resp, err
 		}
 
@@ -119,7 +136,7 @@ func (c *RetryableHTTPClient) doAttempt(ctx context.Context, req *http.Request, 
 		if attemptCtx.Err() != nil {
 			logAttrs := []any{
 				slog.Int("attempt", attempt),
-				slog.Int("maxAttempts", cfg.RetryAttemptsMax+1),
+				slog.Int("max_attempts", cfg.RetryAttemptsMax+1),
 				slog.Duration("timeout", cfg.AttemptTimeout),
 			}
 			if isLastAttempt {
@@ -131,7 +148,7 @@ func (c *RetryableHTTPClient) doAttempt(ctx context.Context, req *http.Request, 
 		}
 		logAttrs := []any{
 			slog.Int("attempt", attempt),
-			slog.Int("maxAttempts", cfg.RetryAttemptsMax+1),
+			slog.Int("max_attempts", cfg.RetryAttemptsMax+1),
 			slog.String("error", err.Error()),
 		}
 		if isLastAttempt {
@@ -146,8 +163,8 @@ func (c *RetryableHTTPClient) doAttempt(ctx context.Context, req *http.Request, 
 	if cfg.RetryOnStatus != nil && cfg.RetryOnStatus(resp.StatusCode) {
 		logAttrs := []any{
 			slog.Int("attempt", attempt),
-			slog.Int("maxAttempts", cfg.RetryAttemptsMax+1),
-			slog.Duration("duration", elapsed),
+			slog.Int("max_attempts", cfg.RetryAttemptsMax+1),
+			slog.Int64("duration_ms", elapsed.Milliseconds()),
 			slog.Int("status", resp.StatusCode),
 		}
 		if isLastAttempt {
@@ -186,6 +203,29 @@ func (c *RetryableHTTPClient) doAttempt(ctx context.Context, req *http.Request, 
 	// Replace body with buffered version so caller can still read it
 	resp.Body = io.NopCloser(bytes.NewReader(bodyBytes))
 	return resp, nil
+}
+
+// logUpstreamResult records how an outbound call finished. Levels follow the
+// same rule as the inbound access log: a 5xx or transport failure is ours to
+// investigate, a 4xx is the upstream telling us no.
+func logUpstreamResult(log *slog.Logger, resp *http.Response, err error, attempts int, start time.Time) {
+	attrs := []any{
+		slog.Int64("duration_ms", time.Since(start).Milliseconds()),
+		slog.Int("attempts", attempts),
+	}
+	if err != nil {
+		log.Error("upstream call failed", append(attrs, slog.String("error", err.Error()))...)
+		return
+	}
+	attrs = append(attrs, slog.Int("status", resp.StatusCode))
+	switch {
+	case resp.StatusCode >= http.StatusInternalServerError:
+		log.Error("upstream call completed", attrs...)
+	case resp.StatusCode >= http.StatusBadRequest:
+		log.Warn("upstream call completed", attrs...)
+	default:
+		log.Debug("upstream call completed", attrs...)
+	}
 }
 
 // calculateBackoff returns an exponential backoff duration with jitter, capped by max.

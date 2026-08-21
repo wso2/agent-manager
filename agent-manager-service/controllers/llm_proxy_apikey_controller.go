@@ -59,21 +59,21 @@ func (c *llmProxyAPIKeyController) ListAPIKeys(w http.ResponseWriter, r *http.Re
 	projName := r.PathValue(utils.PathParamProjName)
 	proxyID := r.PathValue("id")
 
-	log.Info("ListLLMProxyAPIKeys: starting", "ouID", ouID, "projName", projName, "proxyID", proxyID)
+	log.Info("ListLLMProxyAPIKeys: starting", "ou_id", ouID, "proj_name", projName, "proxy_id", proxyID)
 
 	response, err := c.apiKeyService.ListAPIKeys(ctx, ouID, projName, proxyID)
 	if err != nil {
 		switch {
 		case errors.Is(err, utils.ErrProjectNotFound):
-			log.Warn("ListLLMProxyAPIKeys: project not found", "ouID", ouID, "projName", projName)
+			log.Warn("ListLLMProxyAPIKeys: project not found", "ou_id", ouID, "proj_name", projName)
 			utils.WriteErrorResponse(w, http.StatusNotFound, "Project not found")
 			return
 		case errors.Is(err, utils.ErrLLMProxyNotFound):
-			log.Warn("ListLLMProxyAPIKeys: proxy not found", "ouID", ouID, "projName", projName, "proxyID", proxyID)
+			log.Warn("ListLLMProxyAPIKeys: proxy not found", "ou_id", ouID, "proj_name", projName, "proxy_id", proxyID)
 			utils.WriteErrorResponse(w, http.StatusNotFound, "LLM proxy not found")
 			return
 		default:
-			log.Error("ListLLMProxyAPIKeys: failed to list API keys", "ouID", ouID, "proxyID", proxyID, "error", err)
+			log.Error("ListLLMProxyAPIKeys: failed to list API keys", "ou_id", ouID, "proxy_id", proxyID, "error", err)
 			utils.WriteErrorResponse(w, http.StatusInternalServerError, "Failed to list API keys")
 			return
 		}
@@ -90,11 +90,11 @@ func (c *llmProxyAPIKeyController) CreateAPIKey(w http.ResponseWriter, r *http.R
 	ouID := middleware.OUIDFromRequest(r)
 	proxyID := r.PathValue("id")
 
-	log.Info("CreateLLMProxyAPIKey: starting", "ouID", ouID, "proxyID", proxyID)
+	log.Info("CreateLLMProxyAPIKey: starting", "ou_id", ouID, "proxy_id", proxyID)
 
 	var specReq spec.CreateLLMAPIKeyRequest
 	if err := json.NewDecoder(r.Body).Decode(&specReq); err != nil {
-		log.Error("CreateLLMProxyAPIKey: failed to decode request", "ouID", ouID, "proxyID", proxyID, "error", err)
+		log.Warn("CreateLLMProxyAPIKey: failed to decode request", "ou_id", ouID, "proxy_id", proxyID, "error", err)
 		utils.WriteErrorResponse(w, http.StatusBadRequest, "Invalid request body")
 		return
 	}
@@ -109,7 +109,7 @@ func (c *llmProxyAPIKeyController) CreateAPIKey(w http.ResponseWriter, r *http.R
 	}
 
 	if name == "" && displayName == "" {
-		log.Error("CreateLLMProxyAPIKey: name or displayName required", "ouID", ouID, "proxyID", proxyID)
+		log.Warn("CreateLLMProxyAPIKey: name or displayName required", "ou_id", ouID, "proxy_id", proxyID)
 		utils.WriteErrorResponse(w, http.StatusBadRequest, "At least one of 'name' or 'displayName' must be provided")
 		return
 	}
@@ -120,27 +120,27 @@ func (c *llmProxyAPIKeyController) CreateAPIKey(w http.ResponseWriter, r *http.R
 		ExpiresAt:   specReq.ExpiresAt,
 	}
 
-	log.Info("CreateLLMProxyAPIKey: calling service", "ouID", ouID, "proxyID", proxyID)
+	log.Info("CreateLLMProxyAPIKey: calling service", "ou_id", ouID, "proxy_id", proxyID)
 
 	response, err := c.apiKeyService.CreateAPIKey(ctx, ouID, proxyID, req)
 	if err != nil {
 		switch {
 		case errors.Is(err, utils.ErrLLMProxyNotFound):
-			log.Warn("CreateLLMProxyAPIKey: proxy not found", "ouID", ouID, "proxyID", proxyID)
+			log.Warn("CreateLLMProxyAPIKey: proxy not found", "ou_id", ouID, "proxy_id", proxyID)
 			utils.WriteErrorResponse(w, http.StatusNotFound, "LLM proxy not found")
 			return
 		case errors.Is(err, utils.ErrGatewayNotFound):
-			log.Error("CreateLLMProxyAPIKey: no gateways found", "ouID", ouID)
+			log.Error("CreateLLMProxyAPIKey: no gateways found", "ou_id", ouID)
 			utils.WriteErrorResponse(w, http.StatusServiceUnavailable, "No gateway connections available")
 			return
 		default:
-			log.Error("CreateLLMProxyAPIKey: failed to create API key", "ouID", ouID, "proxyID", proxyID, "error", err)
+			log.Error("CreateLLMProxyAPIKey: failed to create API key", "ou_id", ouID, "proxy_id", proxyID, "error", err)
 			utils.WriteErrorResponse(w, http.StatusInternalServerError, "Failed to create API key")
 			return
 		}
 	}
 
-	log.Info("CreateLLMProxyAPIKey: API key created successfully", "ouID", ouID, "proxyID", proxyID, "keyID", response.KeyID)
+	log.Info("CreateLLMProxyAPIKey: API key created successfully", "ou_id", ouID, "proxy_id", proxyID, "key_id", response.KeyID)
 
 	utils.WriteSuccessResponse(w, http.StatusCreated, response)
 }
@@ -154,26 +154,26 @@ func (c *llmProxyAPIKeyController) RevokeAPIKey(w http.ResponseWriter, r *http.R
 	proxyID := r.PathValue("id")
 	keyName := r.PathValue("keyName")
 
-	log.Info("RevokeLLMProxyAPIKey: starting", "ouID", ouID, "proxyID", proxyID, "keyName", keyName)
+	log.Info("RevokeLLMProxyAPIKey: starting", "ou_id", ouID, "proxy_id", proxyID, "key_name", keyName)
 
 	if err := c.apiKeyService.RevokeAPIKey(ctx, ouID, proxyID, keyName); err != nil {
 		switch {
 		case errors.Is(err, utils.ErrLLMProxyNotFound):
-			log.Warn("RevokeLLMProxyAPIKey: proxy not found", "ouID", ouID, "proxyID", proxyID)
+			log.Warn("RevokeLLMProxyAPIKey: proxy not found", "ou_id", ouID, "proxy_id", proxyID)
 			utils.WriteErrorResponse(w, http.StatusNotFound, "LLM proxy not found")
 			return
 		case errors.Is(err, utils.ErrGatewayNotFound):
-			log.Error("RevokeLLMProxyAPIKey: no gateways found", "ouID", ouID)
+			log.Error("RevokeLLMProxyAPIKey: no gateways found", "ou_id", ouID)
 			utils.WriteErrorResponse(w, http.StatusServiceUnavailable, "No gateway connections available")
 			return
 		default:
-			log.Error("RevokeLLMProxyAPIKey: failed to revoke API key", "ouID", ouID, "proxyID", proxyID, "keyName", keyName, "error", err)
+			log.Error("RevokeLLMProxyAPIKey: failed to revoke API key", "ou_id", ouID, "proxy_id", proxyID, "key_name", keyName, "error", err)
 			utils.WriteErrorResponse(w, http.StatusInternalServerError, "Failed to revoke API key")
 			return
 		}
 	}
 
-	log.Info("RevokeLLMProxyAPIKey: API key revoked successfully", "ouID", ouID, "proxyID", proxyID, "keyName", keyName)
+	log.Info("RevokeLLMProxyAPIKey: API key revoked successfully", "ou_id", ouID, "proxy_id", proxyID, "key_name", keyName)
 
 	w.WriteHeader(http.StatusNoContent)
 }
@@ -187,7 +187,7 @@ func (c *llmProxyAPIKeyController) RotateAPIKey(w http.ResponseWriter, r *http.R
 	proxyID := r.PathValue("id")
 	keyName := r.PathValue("keyName")
 
-	log.Info("RotateLLMProxyAPIKey: starting", "ouID", ouID, "proxyID", proxyID, "keyName", keyName)
+	log.Info("RotateLLMProxyAPIKey: starting", "ou_id", ouID, "proxy_id", proxyID, "key_name", keyName)
 
 	var specReq spec.RotateLLMAPIKeyRequest
 	// Body is optional for rotation; ignore decode errors on empty body
@@ -202,21 +202,21 @@ func (c *llmProxyAPIKeyController) RotateAPIKey(w http.ResponseWriter, r *http.R
 	if err != nil {
 		switch {
 		case errors.Is(err, utils.ErrLLMProxyNotFound):
-			log.Warn("RotateLLMProxyAPIKey: proxy not found", "ouID", ouID, "proxyID", proxyID)
+			log.Warn("RotateLLMProxyAPIKey: proxy not found", "ou_id", ouID, "proxy_id", proxyID)
 			utils.WriteErrorResponse(w, http.StatusNotFound, "LLM proxy not found")
 			return
 		case errors.Is(err, utils.ErrGatewayNotFound):
-			log.Error("RotateLLMProxyAPIKey: no gateways found", "ouID", ouID)
+			log.Error("RotateLLMProxyAPIKey: no gateways found", "ou_id", ouID)
 			utils.WriteErrorResponse(w, http.StatusServiceUnavailable, "No gateway connections available")
 			return
 		default:
-			log.Error("RotateLLMProxyAPIKey: failed to rotate API key", "ouID", ouID, "proxyID", proxyID, "keyName", keyName, "error", err)
+			log.Error("RotateLLMProxyAPIKey: failed to rotate API key", "ou_id", ouID, "proxy_id", proxyID, "key_name", keyName, "error", err)
 			utils.WriteErrorResponse(w, http.StatusInternalServerError, "Failed to rotate API key")
 			return
 		}
 	}
 
-	log.Info("RotateLLMProxyAPIKey: API key rotated successfully", "ouID", ouID, "proxyID", proxyID, "keyName", keyName)
+	log.Info("RotateLLMProxyAPIKey: API key rotated successfully", "ou_id", ouID, "proxy_id", proxyID, "key_name", keyName)
 
 	utils.WriteSuccessResponse(w, http.StatusOK, response)
 }

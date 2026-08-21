@@ -426,12 +426,12 @@ func reconcileWorkloadInjection(ctx context.Context, injector AgentIdentityInjec
 		// this nil shows up immediately instead of as a mysteriously
 		// uninjected credential days later.
 		logger.Warn("Skipping agent identity workload reconcile: no workload injector configured",
-			"ouID", binding.OUID, "bindingID", binding.ID, "agentName", binding.AgentName, "envName", binding.EnvironmentName)
+			"ou_id", binding.OUID, "binding_id", binding.ID, "agent_name", binding.AgentName, "env_name", binding.EnvironmentName)
 		return
 	}
 	if err := injector.ReconcileForEnvironment(ctx, binding.OUID, binding.ProjectName, binding.AgentName, binding.EnvironmentName); err != nil {
 		logger.Warn("Failed to reconcile agent identity credentials into workload",
-			"ouID", binding.OUID, "bindingID", binding.ID, "agentName", binding.AgentName, "envName", binding.EnvironmentName, "error", err)
+			"ou_id", binding.OUID, "binding_id", binding.ID, "agent_name", binding.AgentName, "env_name", binding.EnvironmentName, "error", err)
 	}
 }
 
@@ -606,7 +606,7 @@ func (s *agentThunderProvisioningService) ProvisionForAgent(
 			time.Sleep(writeAheadUpsertRetryDelay)
 		}
 		if err != nil {
-			s.logger.Error("Failed to write-ahead agent thunder binding after retries", "agentName", agentName, "env", env, "error", err)
+			s.logger.Error("Failed to write-ahead agent thunder binding after retries", "agent_name", agentName, "env", env, "error", err)
 			continue
 		}
 		bindings = append(bindings, b)
@@ -692,7 +692,7 @@ func (s *agentThunderProvisioningService) AttemptProvision(ctx context.Context, 
 	release, err := s.bindingLocks.Lock(ctx, bindingLockKey(binding.OUID, binding.ProjectName, binding.AgentName, binding.EnvironmentName))
 	if err != nil {
 		s.logger.Warn("Agent thunder provisioning attempt cancelled while waiting for binding lock",
-			"bindingID", binding.ID, "agentName", binding.AgentName, "envName", binding.EnvironmentName, "error", err)
+			"binding_id", binding.ID, "agent_name", binding.AgentName, "env_name", binding.EnvironmentName, "error", err)
 		return
 	}
 	defer release()
@@ -704,7 +704,7 @@ func (s *agentThunderProvisioningService) AttemptProvision(ctx context.Context, 
 	defer func() {
 		if r := recover(); r != nil {
 			s.logger.Error("Recovered from panic during agent thunder provisioning attempt",
-				"bindingID", binding.ID, "agentName", binding.AgentName, "envName", binding.EnvironmentName, "panic", r)
+				"binding_id", binding.ID, "agent_name", binding.AgentName, "env_name", binding.EnvironmentName, "panic", r)
 			s.recordFailure(ctx, binding, "", "", fmt.Errorf("panic during provisioning attempt: %v", r))
 		}
 	}()
@@ -720,11 +720,11 @@ func (s *agentThunderProvisioningService) AttemptProvision(ctx context.Context, 
 	// than duplicate the work.
 	claimed, claimErr := s.repo.ClaimForAttempt(ctx, binding.ID)
 	if claimErr != nil {
-		s.logger.Error("Failed to claim agent thunder binding for attempt", "bindingID", binding.ID, "error", claimErr)
+		s.logger.Error("Failed to claim agent thunder binding for attempt", "binding_id", binding.ID, "error", claimErr)
 		return
 	}
 	if !claimed {
-		s.logger.Debug("Agent thunder binding already claimed by another attempt, skipping", "bindingID", binding.ID)
+		s.logger.Debug("Agent thunder binding already claimed by another attempt, skipping", "binding_id", binding.ID)
 		return
 	}
 
@@ -805,7 +805,7 @@ func (s *agentThunderProvisioningService) AttemptProvision(ctx context.Context, 
 		ThunderClientID: &clientID,
 		SecretRefPath:   &secretRefPath,
 	}); err != nil {
-		s.logger.Error("Failed to record successful agent thunder provisioning", "bindingID", binding.ID, "error", err)
+		s.logger.Error("Failed to record successful agent thunder provisioning", "binding_id", binding.ID, "error", err)
 		return
 	}
 
@@ -884,7 +884,7 @@ func (s *agentThunderProvisioningService) recordFailure(ctx context.Context, bin
 	}
 
 	if err := s.repo.UpdateAfterAttempt(ctx, binding.ID, update); err != nil {
-		s.logger.Error("Failed to record agent thunder provisioning failure", "bindingID", binding.ID, "error", err)
+		s.logger.Error("Failed to record agent thunder provisioning failure", "binding_id", binding.ID, "error", err)
 	}
 }
 
@@ -1024,7 +1024,7 @@ func (s *agentThunderProvisioningService) RevokeSecret(ctx context.Context, ouID
 			// second revoke call reaches this same branch and retries the
 			// delete, instead of orphaning the stored secret and its
 			// SecretReference CR with no path left pointing at them.
-			s.logger.Warn("Failed to delete stored secret during revoke; leaving secret_ref_path set so a re-revoke retries", "bindingID", binding.ID, "error", err)
+			s.logger.Warn("Failed to delete stored secret during revoke; leaving secret_ref_path set so a re-revoke retries", "binding_id", binding.ID, "error", err)
 			return binding.ThunderClientID, nil
 		}
 		if err := s.repo.UpdateSecretRef(ctx, binding.ID, ""); err != nil {
@@ -1075,7 +1075,7 @@ func (s *agentThunderProvisioningService) GetBindingState(ctx context.Context, o
 func (s *agentThunderProvisioningService) DeleteAllBindings(ctx context.Context, ouID, projectName, agentName string) {
 	snapshot, err := s.repo.FindByAgent(ctx, ouID, projectName, agentName)
 	if err != nil {
-		s.logger.Error("Failed to fetch agent thunder bindings for deletion", "ouID", ouID, "agentName", agentName, "error", err)
+		s.logger.Error("Failed to fetch agent thunder bindings for deletion", "ou_id", ouID, "agent_name", agentName, "error", err)
 		return
 	}
 
@@ -1101,7 +1101,7 @@ func (s *agentThunderProvisioningService) DeleteAllBindings(ctx context.Context,
 		release, lockErr := s.bindingLocks.Lock(ctx, bindingLockKey(ouID, projectName, agentName, b.EnvironmentName))
 		if lockErr != nil {
 			s.logger.Warn("Agent thunder binding deletion cancelled while waiting for binding lock",
-				"ouID", ouID, "bindingID", b.ID, "agentName", agentName, "env", b.EnvironmentName, "error", lockErr)
+				"ou_id", ouID, "binding_id", b.ID, "agent_name", agentName, "env", b.EnvironmentName, "error", lockErr)
 			continue
 		}
 
@@ -1111,7 +1111,7 @@ func (s *agentThunderProvisioningService) DeleteAllBindings(ctx context.Context,
 			if errors.Is(getErr, repositories.ErrAgentThunderClientNotFound) {
 				continue // already gone — e.g. deleted by a concurrent call
 			}
-			s.logger.Error("Failed to re-fetch agent thunder binding before deletion", "ouID", ouID, "bindingID", b.ID, "agentName", agentName, "env", b.EnvironmentName, "error", getErr)
+			s.logger.Error("Failed to re-fetch agent thunder binding before deletion", "ou_id", ouID, "binding_id", b.ID, "agent_name", agentName, "env", b.EnvironmentName, "error", getErr)
 			continue
 		}
 		bindings = append(bindings, *current)
@@ -1133,7 +1133,7 @@ func (s *agentThunderProvisioningService) DeleteAllBindings(ctx context.Context,
 	// rest of this cleanup.
 	for _, b := range bindings {
 		if err := s.repo.UpdateSecretRef(ctx, b.ID, ""); err != nil {
-			s.logger.Warn("Failed to clear agent thunder binding secret ref before deletion", "ouID", ouID, "bindingID", b.ID, "agentName", agentName, "env", b.EnvironmentName, "error", err)
+			s.logger.Warn("Failed to clear agent thunder binding secret ref before deletion", "ou_id", ouID, "binding_id", b.ID, "agent_name", agentName, "env", b.EnvironmentName, "error", err)
 		}
 	}
 
@@ -1161,7 +1161,7 @@ func (s *agentThunderProvisioningService) DeleteAllBindings(ctx context.Context,
 		// still-active resources whose leak is a materially worse outcome (an
 		// orphaned Thunder identity can still mint valid tokens indefinitely)
 		// than a few dangling database rows.
-		s.logger.Error("Failed to delete agent thunder client rows; continuing to clean up external resources anyway", "ouID", ouID, "agentName", agentName, "error", err)
+		s.logger.Error("Failed to delete agent thunder client rows; continuing to clean up external resources anyway", "ou_id", ouID, "agent_name", agentName, "error", err)
 	}
 
 	// Each binding's lock releases as soon as ITS OWN external cleanup below
@@ -1183,9 +1183,9 @@ func (s *agentThunderProvisioningService) DeleteAllBindings(ctx context.Context,
 			if b.ProvisioningType == models.AgentProvisioningTypeInternal {
 				if injector == nil {
 					s.logger.Warn("Skipping agent identity SecretReference cleanup: no workload injector configured",
-						"ouID", ouID, "bindingID", b.ID, "agentName", agentName, "env", b.EnvironmentName)
+						"ou_id", ouID, "binding_id", b.ID, "agent_name", agentName, "env", b.EnvironmentName)
 				} else if err := injector.CleanupForEnvironment(ctx, ouID, agentName, b.EnvironmentName); err != nil {
-					s.logger.Warn("Failed to clean up agent identity data-plane SecretReference", "ouID", ouID, "bindingID", b.ID, "agentName", agentName, "env", b.EnvironmentName, "error", err)
+					s.logger.Warn("Failed to clean up agent identity data-plane SecretReference", "ou_id", ouID, "binding_id", b.ID, "agent_name", agentName, "env", b.EnvironmentName, "error", err)
 				}
 			}
 			if b.ThunderAgentID == "" {
@@ -1193,15 +1193,15 @@ func (s *agentThunderProvisioningService) DeleteAllBindings(ctx context.Context,
 			}
 			thunderClient, err := ResolveEnvThunderClient(ctx, s.envResolver, ouID, b.EnvironmentName)
 			if err != nil {
-				s.logger.Warn("Env-thunder resolver error during agent binding cleanup", "ouID", ouID, "bindingID", b.ID, "agentName", agentName, "env", b.EnvironmentName, "error", err)
+				s.logger.Warn("Env-thunder resolver error during agent binding cleanup", "ou_id", ouID, "binding_id", b.ID, "agent_name", agentName, "env", b.EnvironmentName, "error", err)
 				return
 			}
 			if _, err := thunderClient.DeleteAgentIdentity(ctx, b.ThunderAgentID); err != nil {
-				s.logger.Warn("Failed to delete Thunder agent identity", "ouID", ouID, "bindingID", b.ID, "agentName", agentName, "env", b.EnvironmentName, "error", err)
+				s.logger.Warn("Failed to delete Thunder agent identity", "ou_id", ouID, "binding_id", b.ID, "agent_name", agentName, "env", b.EnvironmentName, "error", err)
 			}
 			if b.SecretRefPath != "" {
 				if err := s.deleteCredential(ctx, ouID, projectName, agentName, b.EnvironmentName); err != nil {
-					s.logger.Warn("Failed to delete stored agent secret", "ouID", ouID, "bindingID", b.ID, "agentName", agentName, "env", b.EnvironmentName, "error", err)
+					s.logger.Warn("Failed to delete stored agent secret", "ou_id", ouID, "binding_id", b.ID, "agent_name", agentName, "env", b.EnvironmentName, "error", err)
 				}
 			}
 		}()

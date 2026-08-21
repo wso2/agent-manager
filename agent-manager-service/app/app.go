@@ -27,6 +27,8 @@ import (
 	"log/slog"
 	"net/http"
 	"os"
+	"strconv"
+	"strings"
 	"sync"
 	"time"
 
@@ -41,6 +43,7 @@ import (
 	"github.com/wso2/agent-manager/agent-manager-service/server"
 	"github.com/wso2/agent-manager/agent-manager-service/services"
 	"github.com/wso2/agent-manager/agent-manager-service/signals"
+	"github.com/wso2/agent-manager/agent-manager-service/utils"
 	"github.com/wso2/agent-manager/agent-manager-service/wiring"
 
 	"go.uber.org/automaxprocs/maxprocs"
@@ -310,10 +313,10 @@ func Run(authProvider occlient.AuthProvider, secretProvider secretmanagersvc.Pro
 		}
 		slog.Info("Internal server is running",
 			"address", fmt.Sprintf("%s://localhost:%d", scheme, cfg.InternalServer.Port),
-			"tlsEnabled", cfg.InternalServer.TLSEnabled,
-			"maxWebSocketConnections", cfg.WebSocket.MaxConnections,
-			"heartbeatTimeout", fmt.Sprintf("%ds", cfg.WebSocket.ConnectionTimeout),
-			"rateLimitPerMin", cfg.WebSocket.RateLimitPerMin)
+			"tls_enabled", cfg.InternalServer.TLSEnabled,
+			"max_web_socket_connections", cfg.WebSocket.MaxConnections,
+			"heartbeat_timeout", fmt.Sprintf("%ds", cfg.WebSocket.ConnectionTimeout),
+			"rate_limit_per_min", cfg.WebSocket.RateLimitPerMin)
 		if err := internalServer.Start(); err != nil && !errors.Is(err, http.ErrServerClosed) {
 			slog.Error("Failed to start internal server", "error", err)
 			os.Exit(1)
@@ -374,9 +377,45 @@ func recordStartupPosture(cfg *config.Config, recorder audit.Recorder) {
 	}
 }
 
+// compactSource rewrites slog's source group into a single "file:line" string.
+//
+// The default shape costs about 150 bytes on every record:
+//
+//	"source":{"function":"github.com/wso2/…/services.(*infraResourceManager).ListOrgDeploymentPipelines",
+//	          "file":"/app/services/infra_resource_manager.go","line":360}
+//
+// The function name repeats what the file already says, and the absolute path
+// is the build directory, which differs between the container and a local run.
+// What a reader actually needs is where to open the editor:
+//
+//	"source":"services/infra_resource_manager.go:360"
+//
+// The last two path segments are kept because that is the package-relative form
+// in this layout; a bare basename would be ambiguous across packages.
+func compactSource(_ []string, a slog.Attr) slog.Attr {
+	if a.Key != slog.SourceKey {
+		return a
+	}
+	src, ok := a.Value.Any().(*slog.Source)
+	if !ok || src == nil {
+		return a
+	}
+	file := src.File
+	if i := strings.LastIndex(file, "/"); i >= 0 {
+		if j := strings.LastIndex(file[:i], "/"); j >= 0 {
+			file = file[j+1:]
+		}
+	}
+	return slog.String(slog.SourceKey, file+":"+strconv.Itoa(src.Line))
+}
+
 func setupLogger(cfg *config.Config) {
+	// Normalised before matching: a lowercase LOG_LEVEL=debug used to fall
+	// through to INFO silently, so the setting appeared to have no effect.
+	configured := strings.ToUpper(strings.TrimSpace(cfg.LogLevel))
 	var level slog.Level
-	switch cfg.LogLevel {
+	recognised := true
+	switch configured {
 	case "DEBUG":
 		level = slog.LevelDebug
 	case "INFO":
@@ -387,18 +426,31 @@ func setupLogger(cfg *config.Config) {
 		level = slog.LevelError
 	default:
 		level = slog.LevelInfo // default to INFO
+		recognised = false
 	}
 
 	// Create handler options
 	opts := &slog.HandlerOptions{
 		Level: level,
+		// Records carry file:line, so a message no longer has to name its own
+		// call site to be locatable. ReplaceAttr collapses it — see compactSource.
+		AddSource:   true,
+		ReplaceAttr: compactSource,
 	}
 	handler := slog.NewJSONHandler(os.Stdout, opts)
 	logger := slog.New(handler)
 	slog.SetDefault(logger)
 
+	// The configured value is logged next to the resolved one so a typo is
+	// visible at startup rather than as unexplained missing output later.
 	slog.Info("Logger configured",
-		"level", level.String())
+		"level", level.String(),
+		"configured_level", utils.SanitizeForLog(cfg.LogLevel))
+	if !recognised && strings.TrimSpace(cfg.LogLevel) != "" {
+		slog.Warn("LOG_LEVEL not recognised; defaulting to INFO",
+			"configured_level", utils.SanitizeForLog(cfg.LogLevel),
+			"supported", []string{"DEBUG", "INFO", "WARN", "ERROR"})
+	}
 }
 
 // loadBuiltInLLMTemplates loads built-in LLM provider templates into in-memory store

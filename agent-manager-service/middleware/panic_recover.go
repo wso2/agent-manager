@@ -17,10 +17,10 @@
 package middleware
 
 import (
-	"log/slog"
 	"net/http"
 	"runtime/debug"
 
+	"github.com/wso2/agent-manager/agent-manager-service/middleware/logger"
 	"github.com/wso2/agent-manager/agent-manager-service/utils"
 )
 
@@ -29,23 +29,12 @@ func RecovererOnPanic() func(http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			defer func() {
 				if rec := recover(); rec != nil {
-					correlationId := "unknown"
-					if id := r.Context().Value(utils.CorrelationIdCtxKey()); id != nil {
-						if idStr, ok := id.(string); ok {
-							correlationId = idStr
-						}
-					}
-
-					operation := "unknown"
-					if op := r.Context().Value("operation"); op != nil {
-						if opStr, ok := op.(string); ok {
-							operation = opStr
-						}
-					}
-
-					slog.Error("recoverOnPanic",
-						"correlationID", correlationId,
-						"operation", operation,
+					// The context logger carries correlation_id, method and
+					// path. Route and status are not visible from out here —
+					// they belong to the completion record WithRequestLog
+					// writes for the same request, which shares the
+					// correlation ID.
+					logger.GetLogger(r.Context()).Error("recoverOnPanic",
 						"log_type", "err_response",
 						"panic", rec,
 						"stack", string(debug.Stack()))

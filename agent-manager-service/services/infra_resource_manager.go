@@ -68,10 +68,10 @@ func (s *infraResourceManager) ListOrganizations(ctx context.Context, limit int,
 	// Fetch organizations from OpenChoreo
 	orgs, err := s.ocClient.ListOrganizations(ctx)
 	if err != nil {
-		s.logger.Error("Failed to list organizations from openchoreo", "error", err)
+		s.logger.Warn("Failed to list organizations from openchoreo", "error", err)
 		return nil, 0, fmt.Errorf("failed to list organizations from OpenChoreo: %w", err)
 	}
-	s.logger.Debug("Retrieved organizations from openchoreo", "totalCount", len(orgs))
+	s.logger.Debug("Retrieved organizations from openchoreo", "total_count", len(orgs))
 
 	total := len(orgs)
 	// Apply pagination
@@ -88,25 +88,25 @@ func (s *infraResourceManager) ListOrganizations(ctx context.Context, limit int,
 }
 
 func (s *infraResourceManager) GetOrganization(ctx context.Context, ouID string) (*models.OrganizationResponse, error) {
-	s.logger.Debug("GetOrganization called", "ouID", ouID)
+	s.logger.Debug("GetOrganization called", "ou_id", ouID)
 
 	org, err := s.ocClient.GetOrganization(ctx, ouID)
 	if err != nil {
-		s.logger.Error("Failed to get organization from OpenChoreo", "ouID", ouID, "error", err)
+		s.logger.Warn("Failed to get organization from OpenChoreo", "ou_id", ouID, "error", err)
 		return nil, err
 	}
 
-	s.logger.Info("Fetched organization successfully", "ouID", ouID)
+	s.logger.Info("Fetched organization successfully", "ou_id", ouID)
 	return org, nil
 }
 
 func (s *infraResourceManager) CreateProject(ctx context.Context, ouID string, payload spec.CreateProjectRequest) (*models.ProjectResponse, error) {
-	s.logger.Debug("CreateProject called", "ouID", ouID, "projectName", payload.Name, "deploymentPipeline", payload.DeploymentPipeline)
+	s.logger.Debug("CreateProject called", "ou_id", ouID, "project_name", payload.Name, "deployment_pipeline", payload.DeploymentPipeline)
 
 	// Validate organization exists
 	_, err := s.ocClient.GetOrganization(ctx, ouID)
 	if err != nil {
-		s.logger.Error("Failed to get organization", "ouID", ouID, "error", err)
+		s.logger.Warn("Failed to get organization", "ou_id", ouID, "error", err)
 		return nil, err
 	}
 
@@ -119,10 +119,10 @@ func (s *infraResourceManager) CreateProject(ctx context.Context, ouID string, p
 	}
 
 	if err := s.ocClient.CreateProject(ctx, ouID, req); err != nil {
-		s.logger.Error("Failed to create project in OpenChoreo", "ouID", ouID, "projectName", payload.Name, "error", err)
+		s.logger.Warn("Failed to create project in OpenChoreo", "ou_id", ouID, "project_name", payload.Name, "error", err)
 		return nil, err
 	}
-	s.logger.Info("Project created successfully", "ouID", ouID, "projectName", payload.Name)
+	s.logger.Info("Project created successfully", "ou_id", ouID, "project_name", payload.Name)
 
 	// Provision the cell namespace for every environment the project can reach.
 	// Best effort: the project itself exists and is usable, and the deploy and
@@ -148,18 +148,18 @@ func (s *infraResourceManager) ensureProjectReleaseBindings(ctx context.Context,
 	pipeline, err := s.ocClient.GetProjectDeploymentPipeline(ctx, ouID, projectName)
 	if err != nil {
 		s.logger.Error("Failed to resolve deployment pipeline for project release bindings",
-			"ouID", ouID, "projectName", projectName, "error", err)
+			"ou_id", ouID, "project_name", projectName, "error", err)
 		return
 	}
 
 	for _, envName := range pipelineEnvironments(pipeline) {
 		if err := s.ocClient.EnsureProjectReleaseBinding(ctx, ouID, projectName, envName); err != nil {
 			s.logger.Error("Failed to ensure project release binding",
-				"ouID", ouID, "projectName", projectName, "environment", envName, "error", err)
+				"ou_id", ouID, "project_name", projectName, "environment", envName, "error", err)
 			continue
 		}
 		s.logger.Debug("Ensured project release binding",
-			"ouID", ouID, "projectName", projectName, "environment", envName)
+			"ou_id", ouID, "project_name", projectName, "environment", envName)
 	}
 }
 
@@ -193,19 +193,19 @@ func pipelineEnvironments(pipeline *models.DeploymentPipelineResponse) []string 
 }
 
 func (s *infraResourceManager) UpdateProject(ctx context.Context, ouID string, projectName string, payload spec.UpdateProjectRequest) (*models.ProjectResponse, error) {
-	s.logger.Info("Updating project", "ouID", ouID, "projectName", projectName)
+	s.logger.Info("Updating project", "ou_id", ouID, "project_name", projectName)
 
 	// Validate organization exists
 	_, err := s.ocClient.GetOrganization(ctx, ouID)
 	if err != nil {
-		s.logger.Error("Failed to get organization", "ouID", ouID, "error", err)
+		s.logger.Warn("Failed to get organization", "ou_id", ouID, "error", err)
 		return nil, err
 	}
 
 	// Validate project exists
 	_, err = s.ocClient.GetProject(ctx, ouID, projectName)
 	if err != nil {
-		s.logger.Error("Failed to get project", "projectName", projectName, "ouID", ouID, "error", err)
+		s.logger.Warn("Failed to get project", "project_name", projectName, "ou_id", ouID, "error", err)
 		return nil, err
 	}
 	// Todo: verify existence of deployment pipeline if deployment pipeline is being updated
@@ -217,38 +217,38 @@ func (s *infraResourceManager) UpdateProject(ctx context.Context, ouID string, p
 		DeploymentPipeline: payload.DeploymentPipeline,
 	}
 	if err := s.ocClient.PatchProject(ctx, ouID, projectName, patchReq); err != nil {
-		s.logger.Error("Failed to update project in OpenChoreo", "projectName", projectName, "ouID", ouID, "error", err)
+		s.logger.Warn("Failed to update project in OpenChoreo", "project_name", projectName, "ou_id", ouID, "error", err)
 		return nil, fmt.Errorf("failed to update project: %w", err)
 	}
 
 	// Fetch updated project
 	updatedProject, err := s.ocClient.GetProject(ctx, ouID, projectName)
 	if err != nil {
-		s.logger.Error("Failed to fetch updated project", "projectName", projectName, "ouID", ouID, "error", err)
+		s.logger.Warn("Failed to fetch updated project", "project_name", projectName, "ou_id", ouID, "error", err)
 		return nil, err
 	}
 
-	s.logger.Info("Project updated successfully", "ouID", ouID, "projectName", projectName)
+	s.logger.Info("Project updated successfully", "ou_id", ouID, "project_name", projectName)
 
 	return updatedProject, nil
 }
 
 func (s *infraResourceManager) ListProjects(ctx context.Context, ouID string, limit int, offset int) ([]*models.ProjectResponse, int32, error) {
-	s.logger.Debug("ListProjects called", "ouID", ouID, "limit", limit, "offset", offset)
+	s.logger.Debug("ListProjects called", "ou_id", ouID, "limit", limit, "offset", offset)
 
 	// Validate organization exists
 	_, err := s.ocClient.GetOrganization(ctx, ouID)
 	if err != nil {
-		s.logger.Error("Failed to get organization", "ouID", ouID, "error", err)
+		s.logger.Warn("Failed to get organization", "ou_id", ouID, "error", err)
 		return nil, 0, err
 	}
 
 	projects, err := s.ocClient.ListProjects(ctx, ouID)
 	if err != nil {
-		s.logger.Error("Failed to list projects", "ouID", ouID, "error", err)
+		s.logger.Warn("Failed to list projects", "ou_id", ouID, "error", err)
 		return nil, 0, fmt.Errorf("failed to list projects for organization %s: %w", ouID, err)
 	}
-	s.logger.Debug("Retrieved projects", "ouID", ouID, "totalCount", len(projects))
+	s.logger.Debug("Retrieved projects", "ou_id", ouID, "total_count", len(projects))
 
 	total := len(projects)
 	// Apply pagination
@@ -262,35 +262,35 @@ func (s *infraResourceManager) ListProjects(ctx context.Context, ouID string, li
 	}
 	paginatedProjects := projects[start:end]
 
-	s.logger.Info("Fetched projects successfully", "ouID", ouID, "count", len(paginatedProjects), "total", total)
+	s.logger.Info("Fetched projects successfully", "ou_id", ouID, "count", len(paginatedProjects), "total", total)
 	return paginatedProjects, int32(total), nil
 }
 
 func (s *infraResourceManager) DeleteProject(ctx context.Context, ouID string, projectName string) error {
-	s.logger.Debug("DeleteProject called", "ouID", ouID, "projectName", projectName)
+	s.logger.Debug("DeleteProject called", "ou_id", ouID, "project_name", projectName)
 
 	// Validate organization exists
 	_, err := s.ocClient.GetOrganization(ctx, ouID)
 	if err != nil {
-		s.logger.Error("Failed to get organization", "ouID", ouID, "error", err)
+		s.logger.Warn("Failed to get organization", "ou_id", ouID, "error", err)
 		return err
 	}
 	// Check agents exist for the project
-	s.logger.Debug("Checking for associated agents", "projectName", projectName)
+	s.logger.Debug("Checking for associated agents", "project_name", projectName)
 	agents, err := s.ocClient.ListComponents(ctx, ouID, projectName)
 	if err != nil {
 		if errors.Is(err, utils.ErrProjectNotFound) {
-			s.logger.Warn("Project not found while listing components; delete is idempotent", "ouID", ouID, "projectName", projectName)
+			s.logger.Warn("Project not found while listing components; delete is idempotent", "ou_id", ouID, "project_name", projectName)
 			return nil
 		}
-		s.logger.Error("Failed to list agents for project", "projectName", projectName, "error", err)
+		s.logger.Warn("Failed to list agents for project", "project_name", projectName, "error", err)
 		return err
 	}
 	if len(agents) > 0 {
-		s.logger.Warn("Cannot delete project with associated agents", "ouID", ouID, "projectName", projectName, "agentCount", len(agents))
+		s.logger.Warn("Cannot delete project with associated agents", "ou_id", ouID, "project_name", projectName, "agent_count", len(agents))
 		return utils.ErrProjectHasAssociatedAgents
 	}
-	s.logger.Debug("No associated agents found, proceeding with deletion", "projectName", projectName)
+	s.logger.Debug("No associated agents found, proceeding with deletion", "project_name", projectName)
 
 	// Delete project from OpenChoreo
 	deleteAttempt, auditErr := audit.Begin(
@@ -302,7 +302,7 @@ func (s *infraResourceManager) DeleteProject(ctx context.Context, ouID string, p
 	)
 	if auditErr != nil {
 		s.logger.Error("Refusing to delete project: audit record could not be written",
-			"projectName", projectName, "error", auditErr)
+			"project_name", projectName, "error", auditErr)
 		return auditErr
 	}
 
@@ -310,54 +310,54 @@ func (s *infraResourceManager) DeleteProject(ctx context.Context, ouID string, p
 	deleteAttempt.Complete(ctx, err)
 	if err != nil {
 		if errors.Is(err, utils.ErrProjectNotFound) {
-			s.logger.Warn("Project not found during deletion, delete is idempotent", "ouID", ouID, "projectName", projectName)
+			s.logger.Warn("Project not found during deletion, delete is idempotent", "ou_id", ouID, "project_name", projectName)
 			return nil
 		}
-		s.logger.Error("Failed to delete project from OpenChoreo", "ouID", ouID, "projectName", projectName, "error", err)
+		s.logger.Warn("Failed to delete project from OpenChoreo", "ou_id", ouID, "project_name", projectName, "error", err)
 		return err
 	}
-	s.logger.Info("Project deleted successfully", "ouID", ouID, "projectName", projectName)
+	s.logger.Info("Project deleted successfully", "ou_id", ouID, "project_name", projectName)
 	return nil
 }
 
 func (s *infraResourceManager) GetProject(ctx context.Context, ouID string, projectName string) (*models.ProjectResponse, error) {
-	s.logger.Debug("GetProject called", "ouID", ouID, "projectName", projectName)
+	s.logger.Debug("GetProject called", "ou_id", ouID, "project_name", projectName)
 
 	// Validate organization exists
 	_, err := s.ocClient.GetOrganization(ctx, ouID)
 	if err != nil {
-		s.logger.Error("Failed to get organization", "ouID", ouID, "error", err)
+		s.logger.Warn("Failed to get organization", "ou_id", ouID, "error", err)
 		return nil, err
 	}
 
 	project, err := s.ocClient.GetProject(ctx, ouID, projectName)
 	if err != nil {
-		s.logger.Error("Failed to get project from OpenChoreo", "ouID", ouID, "projectName", projectName, "error", err)
+		s.logger.Warn("Failed to get project from OpenChoreo", "ou_id", ouID, "project_name", projectName, "error", err)
 		return nil, err
 	}
 
-	s.logger.Info("Fetched project successfully", "ouID", ouID, "projectName", projectName)
+	s.logger.Info("Fetched project successfully", "ou_id", ouID, "project_name", projectName)
 	return project, nil
 }
 
 func (s *infraResourceManager) ListOrgDeploymentPipelines(ctx context.Context, ouID string, limit int, offset int) ([]*models.DeploymentPipelineResponse, int, error) {
-	s.logger.Debug("ListOrgDeploymentPipelines called", "ouID", ouID)
+	s.logger.Debug("ListOrgDeploymentPipelines called", "ou_id", ouID)
 
 	// Validate organization exists
 	_, err := s.ocClient.GetOrganization(ctx, ouID)
 	if err != nil {
-		s.logger.Error("Failed to get organization", "ouID", ouID, "error", err)
+		s.logger.Warn("Failed to get organization", "ou_id", ouID, "error", err)
 		return nil, 0, err
 	}
 
-	s.logger.Debug("Fetching deployment pipelines from OpenChoreo", "ouID", ouID)
+	s.logger.Debug("Fetching deployment pipelines from OpenChoreo", "ou_id", ouID)
 	deploymentPipelines, err := s.ocClient.ListDeploymentPipelines(ctx, ouID)
 	if err != nil {
-		s.logger.Error("Failed to get deployment pipelines from OpenChoreo", "ouID", ouID, "error", err)
+		s.logger.Warn("Failed to get deployment pipelines from OpenChoreo", "ou_id", ouID, "error", err)
 		return nil, 0, fmt.Errorf("failed to get deployment pipelines for organization %s: %w", ouID, err)
 	}
 
-	s.logger.Info("Fetched deployment pipelines successfully", "ouID", ouID, "count", len(deploymentPipelines))
+	s.logger.Info("Fetched deployment pipelines successfully", "ou_id", ouID, "count", len(deploymentPipelines))
 	total := len(deploymentPipelines)
 	// Apply pagination
 	start := offset
@@ -374,49 +374,49 @@ func (s *infraResourceManager) ListOrgDeploymentPipelines(ctx context.Context, o
 }
 
 func (s *infraResourceManager) ListOrgEnvironments(ctx context.Context, ouID string) ([]*models.EnvironmentResponse, error) {
-	s.logger.Debug("ListOrgEnvironments called", "ouID", ouID)
+	s.logger.Debug("ListOrgEnvironments called", "ou_id", ouID)
 
 	// Validate organization exists
 	_, err := s.ocClient.GetOrganization(ctx, ouID)
 	if err != nil {
-		s.logger.Error("Failed to get organization from OpenChoreo", "ouID", ouID, "error", err)
+		s.logger.Warn("Failed to get organization from OpenChoreo", "ou_id", ouID, "error", err)
 		return nil, err
 	}
-	s.logger.Debug("Fetching environments from OpenChoreo", "ouID", ouID)
+	s.logger.Debug("Fetching environments from OpenChoreo", "ou_id", ouID)
 	environments, err := s.ocClient.ListEnvironments(ctx, ouID)
 	if err != nil {
-		s.logger.Error("Failed to get environments from OpenChoreo", "ouID", ouID, "error", err)
+		s.logger.Warn("Failed to get environments from OpenChoreo", "ou_id", ouID, "error", err)
 		return nil, err
 	}
 
-	s.logger.Info("Fetched environments successfully", "ouID", ouID, "count", len(environments))
+	s.logger.Info("Fetched environments successfully", "ou_id", ouID, "count", len(environments))
 	return environments, nil
 }
 
 func (s *infraResourceManager) GetProjectDeploymentPipeline(ctx context.Context, ouID string, projectName string) (*models.DeploymentPipelineResponse, error) {
-	s.logger.Debug("GetProjectDeploymentPipeline called", "ouID", ouID, "projectName", projectName)
+	s.logger.Debug("GetProjectDeploymentPipeline called", "ou_id", ouID, "project_name", projectName)
 
 	// Validate organization exists
 	_, err := s.ocClient.GetOrganization(ctx, ouID)
 	if err != nil {
-		s.logger.Error("Failed to get organization", "ouID", ouID, "error", err)
+		s.logger.Warn("Failed to get organization", "ou_id", ouID, "error", err)
 		return nil, err
 	}
 
-	s.logger.Debug("Fetching deployment pipeline from OpenChoreo", "ouID", ouID, "projectName", projectName)
+	s.logger.Debug("Fetching deployment pipeline from OpenChoreo", "ou_id", ouID, "project_name", projectName)
 	deploymentPipeline, err := s.ocClient.GetProjectDeploymentPipeline(ctx, ouID, projectName)
 	if err != nil {
-		s.logger.Error("Failed to get deployment pipeline from OpenChoreo", "ouID", ouID, "projectName", projectName, "error", err)
+		s.logger.Warn("Failed to get deployment pipeline from OpenChoreo", "ou_id", ouID, "project_name", projectName, "error", err)
 		return nil, err
 	}
 
-	s.logger.Info("Fetched deployment pipeline successfully", "ouID", ouID, "projectName", projectName)
+	s.logger.Info("Fetched deployment pipeline successfully", "ou_id", ouID, "project_name", projectName)
 
 	return deploymentPipeline, nil
 }
 
 func (s *infraResourceManager) CreateOrgDeploymentPipeline(ctx context.Context, ouID string, displayName string, description *string, projectName *string, promotionPaths []models.PromotionPath) (*models.DeploymentPipelineResponse, error) {
-	s.logger.Info("Creating deployment pipeline", "ouID", ouID, "displayName", displayName)
+	s.logger.Info("Creating deployment pipeline", "ou_id", ouID, "display_name", displayName)
 
 	pipelineName := slugify(displayName) // slugify is defined in evaluator_manager.go
 	if pipelineName == "" {
@@ -425,7 +425,7 @@ func (s *infraResourceManager) CreateOrgDeploymentPipeline(ctx context.Context, 
 
 	created, err := s.ocClient.CreateDeploymentPipeline(ctx, ouID, pipelineName, &displayName, description, promotionPaths)
 	if err != nil {
-		s.logger.Error("Failed to create deployment pipeline", "ouID", ouID, "error", err)
+		s.logger.Warn("Failed to create deployment pipeline", "ou_id", ouID, "error", err)
 		return nil, err
 	}
 
@@ -435,7 +435,7 @@ func (s *infraResourceManager) CreateOrgDeploymentPipeline(ctx context.Context, 
 	if projectName != nil && *projectName != "" {
 		project, getErr := s.ocClient.GetProject(ctx, ouID, *projectName)
 		if getErr != nil {
-			s.logger.Error("Failed to fetch project for pipeline linkage", "ouID", ouID, "projectName", *projectName, "error", getErr)
+			s.logger.Error("Failed to fetch project for pipeline linkage", "ou_id", ouID, "project_name", *projectName, "error", getErr)
 			return nil, fmt.Errorf("failed to link deployment pipeline to project: %w", getErr)
 		}
 		if patchErr := s.ocClient.PatchProject(ctx, ouID, *projectName, client.PatchProjectRequest{
@@ -443,34 +443,34 @@ func (s *infraResourceManager) CreateOrgDeploymentPipeline(ctx context.Context, 
 			Description:        project.Description,
 			DeploymentPipeline: pipelineName,
 		}); patchErr != nil {
-			s.logger.Error("Failed to patch project with deployment pipeline ref", "ouID", ouID, "projectName", *projectName, "pipelineName", pipelineName, "error", patchErr)
+			s.logger.Error("Failed to patch project with deployment pipeline ref", "ou_id", ouID, "project_name", *projectName, "pipeline_name", pipelineName, "error", patchErr)
 			return nil, fmt.Errorf("failed to link deployment pipeline to project: %w", patchErr)
 		}
 	}
 
-	s.logger.Info("Deployment pipeline created successfully", "ouID", ouID, "pipelineName", pipelineName)
+	s.logger.Info("Deployment pipeline created successfully", "ou_id", ouID, "pipeline_name", pipelineName)
 	return created, nil
 }
 
 func (s *infraResourceManager) UpdateOrgDeploymentPipeline(ctx context.Context, ouID string, pipelineName string, displayName *string, description *string, promotionPaths []models.PromotionPath) (*models.DeploymentPipelineResponse, error) {
-	s.logger.Info("Updating deployment pipeline", "ouID", ouID, "pipelineName", pipelineName)
+	s.logger.Info("Updating deployment pipeline", "ou_id", ouID, "pipeline_name", pipelineName)
 	updated, err := s.ocClient.UpdateDeploymentPipeline(ctx, ouID, pipelineName, displayName, description, promotionPaths)
 	if err != nil {
-		s.logger.Error("Failed to update deployment pipeline", "ouID", ouID, "pipelineName", pipelineName, "error", err)
+		s.logger.Warn("Failed to update deployment pipeline", "ou_id", ouID, "pipeline_name", pipelineName, "error", err)
 		return nil, err
 	}
-	s.logger.Info("Deployment pipeline updated successfully", "ouID", ouID, "pipelineName", pipelineName)
+	s.logger.Info("Deployment pipeline updated successfully", "ou_id", ouID, "pipeline_name", pipelineName)
 	return updated, nil
 }
 
 func (s *infraResourceManager) DeleteOrgDeploymentPipeline(ctx context.Context, ouID string, pipelineName string) error {
-	s.logger.Info("Deleting deployment pipeline", "ouID", ouID, "pipelineName", pipelineName)
+	s.logger.Info("Deleting deployment pipeline", "ou_id", ouID, "pipeline_name", pipelineName)
 
 	// Block deletion if any project still references this deployment pipeline.
-	s.logger.Debug("Checking for projects referencing the deployment pipeline", "ouID", ouID, "pipelineName", pipelineName)
+	s.logger.Debug("Checking for projects referencing the deployment pipeline", "ou_id", ouID, "pipeline_name", pipelineName)
 	projects, err := s.ocClient.ListProjects(ctx, ouID)
 	if err != nil {
-		s.logger.Error("Failed to list projects while checking deployment pipeline references", "ouID", ouID, "pipelineName", pipelineName, "error", err)
+		s.logger.Warn("Failed to list projects while checking deployment pipeline references", "ou_id", ouID, "pipeline_name", pipelineName, "error", err)
 		return fmt.Errorf("failed to verify deployment pipeline references: %w", err)
 	}
 	var referencingProjects []string
@@ -480,33 +480,33 @@ func (s *infraResourceManager) DeleteOrgDeploymentPipeline(ctx context.Context, 
 		}
 	}
 	if len(referencingProjects) > 0 {
-		s.logger.Warn("Cannot delete deployment pipeline referenced by projects", "ouID", ouID, "pipelineName", pipelineName, "projects", referencingProjects)
+		s.logger.Warn("Cannot delete deployment pipeline referenced by projects", "ou_id", ouID, "pipeline_name", pipelineName, "projects", referencingProjects)
 		return fmt.Errorf("%w: %v", utils.ErrDeploymentPipelineInUse, referencingProjects)
 	}
 
 	if err := s.ocClient.DeleteOrgDeploymentPipeline(ctx, ouID, pipelineName); err != nil {
-		s.logger.Error("Failed to delete deployment pipeline", "ouID", ouID, "pipelineName", pipelineName, "error", err)
+		s.logger.Warn("Failed to delete deployment pipeline", "ou_id", ouID, "pipeline_name", pipelineName, "error", err)
 		return fmt.Errorf("failed to delete deployment pipeline: %w", err)
 	}
 
-	s.logger.Info("Deployment pipeline deleted successfully", "ouID", ouID, "pipelineName", pipelineName)
+	s.logger.Info("Deployment pipeline deleted successfully", "ou_id", ouID, "pipeline_name", pipelineName)
 	return nil
 }
 
 func (s *infraResourceManager) GetDataplanes(ctx context.Context, ouID string) ([]*models.DataPlaneResponse, error) {
-	s.logger.Debug("GetDataplanes called", "ouID", ouID)
+	s.logger.Debug("GetDataplanes called", "ou_id", ouID)
 
 	// Validate organization exists
 	_, err := s.ocClient.GetOrganization(ctx, ouID)
 	if err != nil {
-		s.logger.Error("Failed to get organization", "ouID", ouID, "error", err)
+		s.logger.Warn("Failed to get organization", "ou_id", ouID, "error", err)
 		return nil, err
 	}
 
 	s.logger.Debug("Fetching dataplanes from OpenChoreo")
 	dataplanes, err := s.ocClient.ListDataPlanes(ctx)
 	if err != nil {
-		s.logger.Error("Failed to get dataplanes from OpenChoreo", "error", err)
+		s.logger.Warn("Failed to get dataplanes from OpenChoreo", "error", err)
 		return nil, err
 	}
 

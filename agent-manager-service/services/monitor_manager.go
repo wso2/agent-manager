@@ -112,11 +112,11 @@ func NewMonitorManagerService(
 func (s *monitorManagerService) CreateMonitor(ctx context.Context, ouID string, req *models.CreateMonitorRequest) (*models.MonitorResponse, error) {
 	s.logger.Info(
 		"Creating monitor",
-		"ouID", ouID,
+		"ou_id", ouID,
 		"name", req.Name,
 		"type", req.Type,
-		"agentName", req.AgentName,
-		"environmentName", req.EnvironmentName,
+		"agent_name", req.AgentName,
+		"environment_name", req.EnvironmentName,
 		"evaluators", req.Evaluators,
 	)
 
@@ -364,7 +364,7 @@ func (s *monitorManagerService) CreateMonitor(ctx context.Context, ouID string, 
 
 // GetMonitor retrieves a single monitor with DB config + live CR status
 func (s *monitorManagerService) GetMonitor(ctx context.Context, ouID, projectName, agentName, monitorName string) (*models.MonitorResponse, error) {
-	s.logger.Debug("Getting monitor", "ouID", ouID, "name", monitorName)
+	s.logger.Debug("Getting monitor", "ou_id", ouID, "name", monitorName)
 
 	monitor, err := s.monitorRepo.GetMonitorByName(ouID, projectName, agentName, monitorName)
 	if err != nil {
@@ -393,7 +393,7 @@ func (s *monitorManagerService) GetMonitor(ctx context.Context, ouID, projectNam
 // ListMonitors lists all monitors for an organization with live status enrichment.
 // If environmentName is non-empty, only monitors for that environment are returned.
 func (s *monitorManagerService) ListMonitors(ctx context.Context, ouID, projectName, agentName, environmentName string) (*models.MonitorListResponse, error) {
-	s.logger.Debug("Listing monitors", "ouID", ouID, "projectName", projectName, "agentName", agentName, "environmentName", environmentName)
+	s.logger.Debug("Listing monitors", "ou_id", ouID, "project_name", projectName, "agent_name", agentName, "environment_name", environmentName)
 
 	var monitors []models.Monitor
 	var err error
@@ -445,7 +445,7 @@ func (s *monitorManagerService) ListMonitors(ctx context.Context, ouID, projectN
 
 // UpdateMonitor applies partial updates to a monitor (DB + re-apply CR)
 func (s *monitorManagerService) UpdateMonitor(ctx context.Context, ouID, projectName, agentName, monitorName string, req *models.UpdateMonitorRequest) (*models.MonitorResponse, error) {
-	s.logger.Info("Updating monitor", "ouID", ouID, "name", monitorName)
+	s.logger.Info("Updating monitor", "ou_id", ouID, "name", monitorName)
 
 	monitor, err := s.monitorRepo.GetMonitorByName(ouID, projectName, agentName, monitorName)
 	if err != nil {
@@ -540,7 +540,7 @@ func (s *monitorManagerService) UpdateMonitor(ctx context.Context, ouID, project
 		if len(oldMappings) > 0 {
 			if oldMappings[0].LLMProxy == nil {
 				s.logger.Error("Existing monitor LLM mapping points at a missing proxy — orphaned gateway resources may exist",
-					"monitorID", monitor.ID, "proxyUUID", oldMappings[0].LLMProxyUUID)
+					"monitor_id", monitor.ID, "proxy_uuid", oldMappings[0].LLMProxyUUID)
 			} else {
 				existingProvider, err := s.llmProvisioner.ProviderRepo().GetByUUID(
 					oldMappings[0].LLMProxy.ProviderUUID.String(), ouID,
@@ -697,7 +697,7 @@ func (s *monitorManagerService) UpdateMonitor(ctx context.Context, ouID, project
 			Evaluators: monitor.Evaluators,
 		})
 		if err != nil {
-			s.logger.Error("Failed to trigger past monitor run after update", "name", monitorName, "error", err)
+			s.logger.Warn("Failed to trigger past monitor run after update", "name", monitorName, "error", err)
 			return nil, fmt.Errorf("monitor updated but failed to trigger evaluation run: %w", err)
 		}
 		if result.Run != nil {
@@ -736,7 +736,7 @@ func (s *monitorManagerService) UpdateMonitor(ctx context.Context, ouID, project
 
 // DeleteMonitor removes a monitor from DB and attempts to clean up any WorkflowRun CRs
 func (s *monitorManagerService) DeleteMonitor(ctx context.Context, ouID, projectName, agentName, monitorName string) error {
-	s.logger.Info("Deleting monitor", "ouID", ouID, "name", monitorName)
+	s.logger.Info("Deleting monitor", "ou_id", ouID, "name", monitorName)
 
 	// Get monitor first to check type and get runs
 	monitor, err := s.monitorRepo.GetMonitorByName(ouID, projectName, agentName, monitorName)
@@ -772,7 +772,7 @@ func (s *monitorManagerService) DeleteMonitor(ctx context.Context, ouID, project
 	if s.provisioner.IsThunderMode() {
 		orgClient, err := s.provisioner.GetOCClientForOrg(ctx, ouID)
 		if err != nil {
-			s.logger.Error("Skipping WorkflowRun expiry: failed to get org-scoped OC client", "ouID", ouID, "error", err)
+			s.logger.Error("Skipping WorkflowRun expiry: failed to get org-scoped OC client", "ou_id", ouID, "error", err)
 		} else {
 			ocClient = orgClient
 		}
@@ -782,9 +782,9 @@ func (s *monitorManagerService) DeleteMonitor(ctx context.Context, ouID, project
 	if ocClient != nil {
 		for _, run := range runs {
 			// Todo: This would be replaced by deletion once OpenChoreo supports it
-			s.logger.Info("Calling ExpireWorkflowRun", "ouID", ouID, "runName", run.Name)
+			s.logger.Info("Calling ExpireWorkflowRun", "ou_id", ouID, "run_name", run.Name)
 			if err := ocClient.ExpireWorkflowRun(ctx, ouID, run.Name); err != nil {
-				s.logger.Error("Failed to expire WorkflowRun", "monitorName", monitorName, "runName", run.Name, "error", err)
+				s.logger.Error("Failed to expire WorkflowRun", "monitor_name", monitorName, "run_name", run.Name, "error", err)
 			}
 		}
 	}
@@ -816,7 +816,7 @@ func (s *monitorManagerService) DeleteMonitorsByAgent(ctx context.Context, ouID,
 		monitorName := monitors[i].Name
 		if delErr := s.DeleteMonitor(ctx, ouID, projectName, agentName, monitorName); delErr != nil {
 			s.logger.Error("Failed to delete monitor during agent cleanup",
-				"agentName", agentName, "monitorName", monitorName, "error", delErr)
+				"agent_name", agentName, "monitor_name", monitorName, "error", delErr)
 			errs = append(errs, fmt.Errorf("monitor %s: %w", monitorName, delErr))
 		}
 	}
@@ -824,13 +824,13 @@ func (s *monitorManagerService) DeleteMonitorsByAgent(ctx context.Context, ouID,
 		return fmt.Errorf("failed to delete %d monitor(s) for agent %s: %w", len(errs), agentName, errors.Join(errs...))
 	}
 
-	s.logger.Info("Deleted all monitors for agent", "agentName", agentName, "count", len(monitors))
+	s.logger.Info("Deleted all monitors for agent", "agent_name", agentName, "count", len(monitors))
 	return nil
 }
 
 // StopMonitor stops a future monitor by setting next_run_time to NULL
 func (s *monitorManagerService) StopMonitor(ctx context.Context, ouID, projectName, agentName, monitorName string) (*models.MonitorResponse, error) {
-	s.logger.Info("Stopping monitor", "ouID", ouID, "name", monitorName)
+	s.logger.Info("Stopping monitor", "ou_id", ouID, "name", monitorName)
 
 	monitor, err := s.monitorRepo.GetMonitorByName(ouID, projectName, agentName, monitorName)
 	if err != nil {
@@ -885,7 +885,7 @@ func (s *monitorManagerService) StopMonitor(ctx context.Context, ouID, projectNa
 
 // StartMonitor starts a stopped future monitor by setting next_run_time to NOW()
 func (s *monitorManagerService) StartMonitor(ctx context.Context, ouID, projectName, agentName, monitorName string) (*models.MonitorResponse, error) {
-	s.logger.Info("Starting monitor", "ouID", ouID, "name", monitorName)
+	s.logger.Info("Starting monitor", "ou_id", ouID, "name", monitorName)
 
 	monitor, err := s.monitorRepo.GetMonitorByName(ouID, projectName, agentName, monitorName)
 	if err != nil {
@@ -928,7 +928,7 @@ func (s *monitorManagerService) StartMonitor(ctx context.Context, ouID, projectN
 		audit.Detail("monitorName", monitorName),
 		audit.Detail("agentName", agentName),
 	)
-	s.logger.Info("Monitor started successfully", "name", monitorName, "status", status, "nextRunTime", now)
+	s.logger.Info("Monitor started successfully", "name", monitorName, "status", status, "next_run_time", now)
 	resp := monitor.ToResponse(status, latestRun)
 	llmProvider, err := s.buildMonitorLLMProviderInfo(ctx, monitor.ID, ouID)
 	if err != nil {
@@ -941,7 +941,7 @@ func (s *monitorManagerService) StartMonitor(ctx context.Context, ouID, projectN
 
 // ListMonitorRuns returns paginated runs for a specific monitor
 func (s *monitorManagerService) ListMonitorRuns(ctx context.Context, ouID, projectName, agentName, monitorName string, limit, offset int, includeScores bool) (*models.MonitorRunsListResponse, error) {
-	s.logger.Debug("Listing monitor runs", "ouID", ouID, "monitorName", monitorName)
+	s.logger.Debug("Listing monitor runs", "ou_id", ouID, "monitor_name", monitorName)
 
 	monitor, err := s.monitorRepo.GetMonitorByName(ouID, projectName, agentName, monitorName)
 	if err != nil {
@@ -1016,7 +1016,7 @@ func (s *monitorManagerService) ListMonitorRuns(ctx context.Context, ouID, proje
 
 // RerunMonitor creates a new workflow execution with the same time parameters as an existing run
 func (s *monitorManagerService) RerunMonitor(ctx context.Context, ouID, projectName, agentName, monitorName, runID string) (*models.MonitorRunResponse, error) {
-	s.logger.Info("Rerunning monitor", "ouID", ouID, "monitorName", monitorName, "runID", runID)
+	s.logger.Info("Rerunning monitor", "ou_id", ouID, "monitor_name", monitorName, "run_id", runID)
 
 	runUUID, err := uuid.Parse(runID)
 	if err != nil {
@@ -1062,7 +1062,7 @@ func (s *monitorManagerService) RerunMonitor(ctx context.Context, ouID, projectN
 		audit.Detail("agentName", agentName),
 		audit.Detail("runId", result.Run.ID.String()),
 	)
-	s.logger.Info("Monitor rerun created", "runID", result.Run.ID, "workflowRunName", result.Name)
+	s.logger.Info("Monitor rerun created", "run_id", result.Run.ID, "workflow_run_name", result.Name)
 
 	resp := result.Run.ToResponse()
 	resp.MonitorName = monitorName
@@ -1071,7 +1071,7 @@ func (s *monitorManagerService) RerunMonitor(ctx context.Context, ouID, projectN
 
 // GetMonitorRunLogs retrieves logs for a specific monitor run
 func (s *monitorManagerService) GetMonitorRunLogs(ctx context.Context, ouID, orgHandle, projectName, agentName, monitorName, runID string) (*models.LogsResponse, error) {
-	s.logger.Info("Getting monitor run logs", "ouID", ouID, "monitorName", monitorName, "runID", runID)
+	s.logger.Info("Getting monitor run logs", "ou_id", ouID, "monitor_name", monitorName, "run_id", runID)
 
 	runUUID, err := uuid.Parse(runID)
 	if err != nil {
@@ -1102,11 +1102,11 @@ func (s *monitorManagerService) GetMonitorRunLogs(ctx context.Context, ouID, org
 	// handle, so this s2s call does too.
 	logs, err := s.observerClient.GetWorkflowRunLogs(ctx, orgHandle, run.Name)
 	if err != nil {
-		s.logger.Error("Failed to get workflow run logs from observer service", "runID", runID, "error", err)
+		s.logger.Warn("Failed to get workflow run logs from observer service", "run_id", runID, "error", err)
 		return nil, fmt.Errorf("failed to get workflow run logs: %w", err)
 	}
 
-	s.logger.Info("Fetched monitor run logs successfully", "runID", runID, "logCount", len(logs.Logs))
+	s.logger.Info("Fetched monitor run logs successfully", "run_id", runID, "log_count", len(logs.Logs))
 	return logs, nil
 }
 
@@ -1508,8 +1508,8 @@ func (s *monitorManagerService) provisionLLMProxy(
 		"Provisioned LLM proxy for monitor",
 		"monitor", monitor.Name,
 		"provider", provRef.ProviderName,
-		"proxyHandle", provisioned.Proxy.Handle,
-		"proxyURL", provisioned.ProxyURL,
+		"proxy_handle", provisioned.Proxy.Handle,
+		"proxy_url", provisioned.ProxyURL,
 	)
 
 	// Return the API key to the caller so it can write the composite secret only after
@@ -1535,7 +1535,7 @@ func (s *monitorManagerService) cleanupLLMProxies(ctx context.Context, ouID stri
 		}
 		// Monitors use org-scoped KV paths (empty ProxySecretContext).
 		if err := s.llmProvisioner.CleanupProxy(ctx, mapping.LLMProxy, ouID, ProxySecretContext{}); err != nil {
-			s.logger.Error("Failed to clean up LLM proxy", "proxyUUID", mapping.LLMProxyUUID, "error", err)
+			s.logger.Error("Failed to clean up LLM proxy", "proxy_uuid", mapping.LLMProxyUUID, "error", err)
 			cleanupErrs = append(cleanupErrs, err)
 		}
 	}
@@ -1574,12 +1574,12 @@ func (s *monitorManagerService) buildMonitorLLMProviderInfo(ctx context.Context,
 		providerUUID := mapping.LLMProxy.ProviderUUID.String()
 		provider, err := s.llmProvisioner.ProviderRepo().GetByUUID(providerUUID, ouID)
 		if err != nil {
-			s.logger.Warn("Failed to resolve provider for mapping", "providerUUID", providerUUID, "error", err)
+			s.logger.Warn("Failed to resolve provider for mapping", "provider_uuid", providerUUID, "error", err)
 			continue
 		}
 
 		if provider.Artifact == nil {
-			s.logger.Warn("Provider has no artifact, skipping LLM provider info", "providerUUID", providerUUID)
+			s.logger.Warn("Provider has no artifact, skipping LLM provider info", "provider_uuid", providerUUID)
 			continue
 		}
 

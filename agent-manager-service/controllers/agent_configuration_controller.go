@@ -89,7 +89,7 @@ func (c *agentConfigurationController) CreateAgentModelConfig(w http.ResponseWri
 	r.Body = http.MaxBytesReader(w, r.Body, 1<<20) // 1MB limit
 	var specReq spec.CreateAgentModelConfigRequest
 	if err := json.NewDecoder(r.Body).Decode(&specReq); err != nil {
-		log.Error("CreateAgentModelConfig: failed to decode request", "error", err)
+		log.Warn("CreateAgentModelConfig: failed to decode request", "error", err)
 		utils.WriteErrorResponse(w, http.StatusBadRequest, "Invalid request body")
 		return
 	}
@@ -109,7 +109,7 @@ func (c *agentConfigurationController) CreateAgentModelConfig(w http.ResponseWri
 	// Convert spec request to models request
 	req, err := convertCreateAgentModelConfigRequest(specReq)
 	if err != nil {
-		log.Error("CreateAgentModelConfig: failed to convert request", "error", err)
+		log.Warn("CreateAgentModelConfig: failed to convert request", "error", err)
 		utils.WriteErrorResponse(w, http.StatusBadRequest, fmt.Sprintf("Invalid request: %v", err))
 		return
 	}
@@ -166,7 +166,7 @@ func (c *agentConfigurationController) GetAgentModelConfig(w http.ResponseWriter
 
 	configUUID, err := uuid.Parse(configID)
 	if err != nil {
-		log.Error("GetAgentModelConfig: invalid config ID", "configId", configID, "error", err)
+		log.Warn("GetAgentModelConfig: invalid config ID", "config_id", configID, "error", err)
 		utils.WriteErrorResponse(w, http.StatusBadRequest, "Invalid configuration ID")
 		return
 	}
@@ -238,7 +238,7 @@ func (c *agentConfigurationController) UpdateAgentModelConfig(w http.ResponseWri
 
 	configUUID, err := uuid.Parse(configID)
 	if err != nil {
-		log.Error("UpdateAgentModelConfig: invalid config ID", "configId", configID, "error", err)
+		log.Warn("UpdateAgentModelConfig: invalid config ID", "config_id", configID, "error", err)
 		utils.WriteErrorResponse(w, http.StatusBadRequest, "Invalid configuration ID")
 		return
 	}
@@ -246,7 +246,7 @@ func (c *agentConfigurationController) UpdateAgentModelConfig(w http.ResponseWri
 	r.Body = http.MaxBytesReader(w, r.Body, 1<<20) // 1MB limit
 	var specReq spec.UpdateAgentModelConfigRequest
 	if err := json.NewDecoder(r.Body).Decode(&specReq); err != nil {
-		log.Error("UpdateAgentModelConfig: failed to decode request", "error", err)
+		log.Warn("UpdateAgentModelConfig: failed to decode request", "error", err)
 		utils.WriteErrorResponse(w, http.StatusBadRequest, "Invalid request body")
 		return
 	}
@@ -262,7 +262,7 @@ func (c *agentConfigurationController) UpdateAgentModelConfig(w http.ResponseWri
 	// Convert spec request to models request
 	req, err := convertUpdateAgentModelConfigRequest(specReq)
 	if err != nil {
-		log.Error("UpdateAgentModelConfig: failed to convert request", "error", err)
+		log.Warn("UpdateAgentModelConfig: failed to convert request", "error", err)
 		utils.WriteErrorResponse(w, http.StatusBadRequest, fmt.Sprintf("Invalid request: %v", err))
 		return
 	}
@@ -324,7 +324,7 @@ func (c *agentConfigurationController) DeleteAgentModelConfig(w http.ResponseWri
 
 	configUUID, err := uuid.Parse(configID)
 	if err != nil {
-		log.Error("DeleteAgentModelConfig: invalid config ID", "configId", configID, "error", err)
+		log.Warn("DeleteAgentModelConfig: invalid config ID", "config_id", configID, "error", err)
 		utils.WriteErrorResponse(w, http.StatusBadRequest, "Invalid configuration ID")
 		return
 	}
@@ -370,7 +370,7 @@ func (c *agentConfigurationController) CreateAgentMCPConfig(w http.ResponseWrite
 	r.Body = http.MaxBytesReader(w, r.Body, 1<<20) // 1MB limit
 	var specReq spec.CreateAgentModelConfigRequest
 	if err := json.NewDecoder(r.Body).Decode(&specReq); err != nil {
-		log.Error("CreateAgentMCPConfig: failed to decode request", "error", err)
+		log.Warn("CreateAgentMCPConfig: failed to decode request", "error", err)
 		utils.WriteErrorResponse(w, http.StatusBadRequest, "Invalid request body")
 		return
 	}
@@ -384,7 +384,7 @@ func (c *agentConfigurationController) CreateAgentMCPConfig(w http.ResponseWrite
 
 	req, err := convertCreateAgentModelConfigRequest(specReq)
 	if err != nil {
-		log.Error("CreateAgentMCPConfig: failed to convert request", "error", err)
+		log.Warn("CreateAgentMCPConfig: failed to convert request", "error", err)
 		utils.WriteErrorResponse(w, http.StatusBadRequest, fmt.Sprintf("Invalid request: %v", err))
 		return
 	}
@@ -433,7 +433,7 @@ func (c *agentConfigurationController) GetAgentMCPConfig(w http.ResponseWriter, 
 
 	configUUID, err := uuid.Parse(configID)
 	if err != nil {
-		log.Error("GetAgentMCPConfig: invalid config ID", "configId", configID, "error", err)
+		log.Warn("GetAgentMCPConfig: invalid config ID", "config_id", configID, "error", err)
 		utils.WriteErrorResponse(w, http.StatusBadRequest, "Invalid configuration ID")
 		return
 	}
@@ -496,7 +496,7 @@ func (c *agentConfigurationController) UpdateAgentMCPConfig(w http.ResponseWrite
 
 	configUUID, err := uuid.Parse(configID)
 	if err != nil {
-		log.Error("UpdateAgentMCPConfig: invalid config ID", "configId", configID, "error", err)
+		log.Warn("UpdateAgentMCPConfig: invalid config ID", "config_id", configID, "error", err)
 		utils.WriteErrorResponse(w, http.StatusBadRequest, "Invalid configuration ID")
 		return
 	}
@@ -514,7 +514,7 @@ func (c *agentConfigurationController) UpdateAgentMCPConfig(w http.ResponseWrite
 	r.Body = http.MaxBytesReader(w, r.Body, 1<<20) // 1MB limit
 	var specReq spec.UpdateAgentModelConfigRequest
 	if err := json.NewDecoder(r.Body).Decode(&specReq); err != nil {
-		log.Error("UpdateAgentMCPConfig: failed to decode request", "error", err)
+		log.Warn("UpdateAgentMCPConfig: failed to decode request", "error", err)
 		utils.WriteErrorResponse(w, http.StatusBadRequest, "Invalid request body")
 		return
 	}
@@ -529,7 +529,7 @@ func (c *agentConfigurationController) UpdateAgentMCPConfig(w http.ResponseWrite
 
 	req, err := convertUpdateAgentModelConfigRequest(specReq)
 	if err != nil {
-		log.Error("UpdateAgentMCPConfig: failed to convert request", "error", err)
+		log.Warn("UpdateAgentMCPConfig: failed to convert request", "error", err)
 		utils.WriteErrorResponse(w, http.StatusBadRequest, fmt.Sprintf("Invalid request: %v", err))
 		return
 	}
@@ -569,7 +569,7 @@ func (c *agentConfigurationController) DeleteAgentMCPConfig(w http.ResponseWrite
 
 	configUUID, err := uuid.Parse(configID)
 	if err != nil {
-		log.Error("DeleteAgentMCPConfig: invalid config ID", "configId", configID, "error", err)
+		log.Warn("DeleteAgentMCPConfig: invalid config ID", "config_id", configID, "error", err)
 		utils.WriteErrorResponse(w, http.StatusBadRequest, "Invalid configuration ID")
 		return
 	}
