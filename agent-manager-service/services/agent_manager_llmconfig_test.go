@@ -21,21 +21,24 @@ import (
 	"errors"
 	"testing"
 
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/wso2/agent-manager/agent-manager-service/clients/clientmocks"
 	"github.com/wso2/agent-manager/agent-manager-service/clients/openchoreosvc/client"
 	"github.com/wso2/agent-manager/agent-manager-service/models"
 	"github.com/wso2/agent-manager/agent-manager-service/spec"
+	"github.com/wso2/agent-manager/agent-manager-service/utils"
 )
 
-// spyConfigService records the request passed to Create and stubs the LLM env var resolver.
-// Only Create and BuildSystemManagedEnvVarsFromConfig are exercised; the embedded interface
-// satisfies the rest (and panics if any other method is called).
+// spyConfigService records the request passed to Create and stubs the system-managed env var
+// resolvers; the embedded interface panics on any other method.
 type spyConfigService struct {
 	AgentConfigurationService
 	lastReq        models.CreateAgentModelConfigRequest
 	systemEnvVars  []client.EnvVar
 	systemEnvVarsE error
+	systemEnvKeys  map[string]bool
 }
 
 func (s *spyConfigService) Create(_ context.Context, _, _, _ string,
@@ -47,6 +50,14 @@ func (s *spyConfigService) Create(_ context.Context, _, _, _ string,
 
 func (s *spyConfigService) BuildSystemManagedEnvVarsFromConfig(_ context.Context, _, _, _, _ string) ([]client.EnvVar, error) {
 	return s.systemEnvVars, s.systemEnvVarsE
+}
+
+func (s *spyConfigService) ListSystemManagedEnvVarKeys(_ context.Context, _, _, _, _ string) (map[string]bool, error) {
+	return s.systemEnvKeys, nil
+}
+
+func (s *spyConfigService) ListAgentLLMConfigSecretReferences(_ context.Context, _, _, _ string) (map[string]struct{}, error) {
+	return map[string]struct{}{}, nil
 }
 
 func TestCreateAgentLLMConfigs_KeysUnderFirstEnv(t *testing.T) {
@@ -132,4 +143,98 @@ func TestMergeKindWorkloadSystemEnvVars_ResolverError(t *testing.T) {
 
 	_, err := s.mergeKindWorkloadSystemEnvVars(context.Background(), "my-agent", "org", "proj", "Development", nil)
 	require.ErrorIs(t, err, resolverErr, "resolver error must stay unwrappable so callers can inspect it")
+}
+
+// #1736: vars configured while the first build ran exist only in the DB, so a deploy that
+// rebuilds from live cluster state alone would full-replace the overrides without them.
+func TestDeployAgent_InjectsSystemEnvVarsAbsentFromClusterState(t *testing.T) {
+	llmVars := []client.EnvVar{
+		{Key: "OPENAI_BASE_URL", Value: "http://gateway.cluster.local/openai"},
+		{Key: "OPENAI_API_KEY", ValueFrom: &client.EnvVarValueFrom{
+			SecretKeyRef: &client.SecretKeyRef{Name: "secret-ref", Key: "api-key"},
+		}},
+	}
+	s, _, capturedOverrides := deployAPIAgentMocks(nil)
+	s.agentConfigurationService = &spyConfigService{
+		systemEnvVars: llmVars,
+		systemEnvKeys: map[string]bool{"OPENAI_BASE_URL": true, "OPENAI_API_KEY": true},
+	}
+
+	_, err := s.DeployAgent(auditableCtx(t), "acme", "proj1", "my-agent",
+		&spec.DeployAgentRequest{ImageId: "registry.example.com/my-agent:v1"})
+
+	require.NoError(t, err)
+	require.Equal(t, llmVars, *capturedOverrides, "workload overrides must carry the DB-tracked LLM vars")
+}
+
+// Drives GetAgentDeployments for an internal API agent in one environment; liveEnv is what the
+// cluster already carries. Captures the env vars any reconcile writes to the binding.
+func deploymentsReconcileMocks(liveEnv []models.EnvVars, spy *spyConfigService) (*agentManagerService, *[]client.EnvVar, *int) {
+	var captured []client.EnvVar
+	writes := 0
+	ocClient := &clientmocks.OpenChoreoClientMock{
+		GetProjectFunc: func(_ context.Context, _, name string) (*models.ProjectResponse, error) {
+			return &models.ProjectResponse{Name: name, DeploymentPipeline: "default"}, nil
+		},
+		GetDeploymentsFunc: func(context.Context, string, string, string, string) ([]*models.DeploymentResponse, error) {
+			return []*models.DeploymentResponse{{AgentName: "it-help-5", Environment: "default"}}, nil
+		},
+		GetComponentFunc: func(_ context.Context, _, _, _ string) (*models.AgentResponse, error) {
+			return &models.AgentResponse{
+				Provisioning: models.Provisioning{Type: string(utils.InternalAgent)},
+				Type:         models.AgentType{Type: string(utils.AgentTypeAPI)},
+			}, nil
+		},
+		ListEnvironmentsFunc: func(context.Context, string) ([]*models.EnvironmentResponse, error) {
+			return []*models.EnvironmentResponse{{Name: "default"}}, nil
+		},
+		GetComponentConfigurationsFunc: func(context.Context, string, string, string, string) ([]models.EnvVars, error) {
+			return liveEnv, nil
+		},
+		UpdateReleaseBindingEnvVarsFunc: func(_ context.Context, _, _, _, _ string, envVars []client.EnvVar) error {
+			captured = envVars
+			writes++
+			return nil
+		},
+	}
+	s := &agentManagerService{ocClient: ocClient, agentConfigurationService: spy, logger: discardLogger()}
+	return s, &captured, &writes
+}
+
+// #1736 creation path: the LLM config is created after the build is triggered and AutoDeploy
+// builds the first binding from that build's Workload, so DeployAgent never runs. The
+// deployments poll must converge the binding on the DB.
+func TestGetAgentDeployments_InjectsSystemEnvVarsMissingFromBinding(t *testing.T) {
+	llmVars := []client.EnvVar{
+		{Key: "OPENAI_URL", Value: "http://gateway.cluster.local/openai"},
+		{Key: "OPENAI_API_KEY", ValueFrom: &client.EnvVarValueFrom{
+			SecretKeyRef: &client.SecretKeyRef{Name: "proxy-secrets", Key: "api-key"},
+		}},
+	}
+	spy := &spyConfigService{
+		systemEnvVars: llmVars,
+		systemEnvKeys: map[string]bool{"OPENAI_URL": true, "OPENAI_API_KEY": true},
+	}
+	s, captured, writes := deploymentsReconcileMocks([]models.EnvVars{{Key: "OPENAI_API_TEST", Value: "123"}}, spy)
+
+	_, err := s.GetAgentDeployments(context.Background(), "acme", "default", "it-help-5")
+
+	require.NoError(t, err)
+	require.Equal(t, 1, *writes, "the binding must be patched exactly once")
+	assert.ElementsMatch(t, llmVars, *captured, "both LLM vars must be merged into the binding")
+}
+
+// UpdateReleaseBindingEnvVars stamps restartedAt, so an unconditional write would restart the
+// pod on every poll.
+func TestGetAgentDeployments_SkipsWriteWhenSystemEnvVarsAlreadyPresent(t *testing.T) {
+	spy := &spyConfigService{
+		systemEnvVars: []client.EnvVar{{Key: "OPENAI_URL", Value: "http://gateway.cluster.local/openai"}},
+		systemEnvKeys: map[string]bool{"OPENAI_URL": true},
+	}
+	s, _, writes := deploymentsReconcileMocks([]models.EnvVars{{Key: "OPENAI_URL", Value: "http://gateway.cluster.local/openai"}}, spy)
+
+	_, err := s.GetAgentDeployments(context.Background(), "acme", "default", "it-help-5")
+
+	require.NoError(t, err)
+	assert.Zero(t, *writes, "nothing is missing, so the binding must not be rewritten")
 }

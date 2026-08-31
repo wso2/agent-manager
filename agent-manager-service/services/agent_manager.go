@@ -5090,10 +5090,6 @@ func (s *agentManagerService) getSystemManagedEnvVars(
 	if err != nil {
 		return nil, nil, err
 	}
-	if len(existingConfigs) == 0 {
-		s.logger.Debug("No existing env vars found in component configurations", "agentName", componentName)
-		return nil, nil, nil
-	}
 
 	// Fetch the set of SecretReference names that belong to LLM configurations for this agent
 	// and environment from the DB. These are the source of truth — provider-agnostic.
@@ -5150,6 +5146,23 @@ func (s *agentManagerService) getSystemManagedEnvVars(
 		result = append(result, client.EnvVar{Key: existing.Key, Value: existing.Value})
 		keySet[existing.Key] = true
 		s.logger.Info("Identified system-managed plain env var", "key", existing.Key)
+	}
+
+	// The scans above only see what already reached the cluster; rebuild the rest from the DB so a
+	// full-replace caller does not drop vars that never made it into a Workload or ReleaseBinding.
+	if len(keySet) < len(systemKeys) {
+		dbVars, dbErr := s.agentConfigurationService.BuildSystemManagedEnvVarsFromConfig(ctx, componentName, ouID, projectName, environmentName)
+		if dbErr != nil {
+			return nil, nil, fmt.Errorf("failed to build system-managed env vars from configuration: %w", dbErr)
+		}
+		for _, dbVar := range dbVars {
+			if keySet[dbVar.Key] {
+				continue
+			}
+			result = append(result, dbVar)
+			keySet[dbVar.Key] = true
+			s.logger.Info("Injected system-managed env var missing from cluster state", "key", dbVar.Key)
+		}
 	}
 
 	return result, keySet, nil
@@ -5665,6 +5678,9 @@ func (s *agentManagerService) GetAgentDeployments(ctx context.Context, ouID stri
 		if agent.Type.Type == string(utils.AgentTypeAPI) {
 			s.reconcileIsolationRuntimeClass(ctx, ouID, agentName, deployments)
 		}
+		if agent.Provisioning.Type == string(utils.InternalAgent) {
+			s.reconcileSystemManagedEnvVars(ctx, ouID, projectName, agentName, deployments)
+		}
 		s.resolveDeployedKindVersions(ctx, ouID, agent.KindName, deployments)
 	}
 
@@ -5740,6 +5756,78 @@ func (s *agentManagerService) reconcileIsolationRuntimeClass(ctx context.Context
 			s.logger.Warn("isolation reconcile: failed to set runtimeClassName",
 				"agentName", agentName, "environment", d.Environment, "runtimeClass", rc, "error", err)
 		}
+	}
+}
+
+// reconcileSystemManagedEnvVars backfills DB-tracked system-managed env vars into each environment's
+// binding, since AutoDeploy creates the first ReleaseBinding without DeployAgent ever running.
+// Only missing vars are written: UpdateReleaseBindingEnvVars stamps restartedAt, so an
+// unconditional write would restart the pod on every deployments poll.
+func (s *agentManagerService) reconcileSystemManagedEnvVars(
+	ctx context.Context, ouID, projectName, agentName string, deployments []*models.DeploymentResponse,
+) {
+	for _, d := range deployments {
+		if d == nil || d.Environment == "" {
+			continue
+		}
+		dbKeys, err := s.agentConfigurationService.ListSystemManagedEnvVarKeys(ctx, agentName, ouID, projectName, d.Environment)
+		if err != nil {
+			s.logger.Warn("system env var reconcile: failed to list DB keys",
+				"agentName", agentName, "environment", d.Environment, "error", err)
+			continue
+		}
+		if len(dbKeys) == 0 {
+			continue
+		}
+
+		live, err := s.ocClient.GetComponentConfigurations(ctx, ouID, projectName, agentName, d.Environment)
+		if err != nil {
+			s.logger.Warn("system env var reconcile: failed to read live configurations",
+				"agentName", agentName, "environment", d.Environment, "error", err)
+			continue
+		}
+		present := make(map[string]bool, len(live))
+		for _, e := range live {
+			present[e.Key] = true
+		}
+		missing := false
+		for k := range dbKeys {
+			if !present[k] {
+				missing = true
+				break
+			}
+		}
+		if !missing {
+			continue
+		}
+
+		dbVars, err := s.agentConfigurationService.BuildSystemManagedEnvVarsFromConfig(ctx, agentName, ouID, projectName, d.Environment)
+		if err != nil {
+			s.logger.Warn("system env var reconcile: failed to build vars from configuration",
+				"agentName", agentName, "environment", d.Environment, "error", err)
+			continue
+		}
+		toInject := make([]client.EnvVar, 0, len(dbVars))
+		for _, v := range dbVars {
+			if !present[v.Key] {
+				toInject = append(toInject, v)
+			}
+		}
+		if len(toInject) == 0 {
+			continue
+		}
+
+		if err := s.ocClient.UpdateReleaseBindingEnvVars(ctx, ouID, projectName, agentName, d.Environment, toInject); err != nil {
+			s.logger.Warn("system env var reconcile: failed to patch release binding",
+				"agentName", agentName, "environment", d.Environment, "error", err)
+			continue
+		}
+		keys := make([]string, 0, len(toInject))
+		for _, v := range toInject {
+			keys = append(keys, v.Key)
+		}
+		s.logger.Info("system env var reconcile: injected vars missing from binding",
+			"agentName", agentName, "environment", d.Environment, "keys", keys)
 	}
 }
 

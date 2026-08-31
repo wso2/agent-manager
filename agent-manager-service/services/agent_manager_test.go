@@ -533,7 +533,12 @@ func TestDeployAgent_IdentityInjectionError_AbortsDeploy(t *testing.T) {
 			return nil, boom
 		},
 	}
-	s := &agentManagerService{ocClient: ocClient, agentIdentityInjection: injector, logger: discardLogger()}
+	s := &agentManagerService{
+		ocClient:                  ocClient,
+		agentIdentityInjection:    injector,
+		agentConfigurationService: &spyConfigService{},
+		logger:                    discardLogger(),
+	}
 
 	_, err := s.DeployAgent(tierGrantedCtx(t), "acme", "proj1", "my-agent", &spec.DeployAgentRequest{ImageId: "registry.example.com/my-agent:v1"})
 
@@ -572,7 +577,12 @@ func TestUpdateAgentConfigurations_IdentityInjectionError_AbortsUpdate(t *testin
 			return nil, boom
 		},
 	}
-	s := &agentManagerService{ocClient: ocClient, agentIdentityInjection: injector, logger: discardLogger()}
+	s := &agentManagerService{
+		ocClient:                  ocClient,
+		agentIdentityInjection:    injector,
+		agentConfigurationService: &spyConfigService{},
+		logger:                    discardLogger(),
+	}
 
 	err := s.UpdateAgentConfigurations(tierGrantedCtx(t), "acme", "proj1", "my-agent",
 		&spec.UpdateAgentConfigurationsRequest{EnvironmentName: "dev"})
@@ -1816,9 +1826,13 @@ func TestResolveResilienceTimeoutSeconds(t *testing.T) {
 	}
 }
 
-// OpenChoreo client and repository mocks needed to drive DeployAgent
-func deployAPIAgentMocks(existingConfig *models.AgentConfig) (*agentManagerService, *client.ComponentDeploymentConfigRequest) {
+// OpenChoreo client and repository mocks needed to drive DeployAgent. Its config service resolves
+// no system-managed vars; tests that need them replace it.
+func deployAPIAgentMocks(existingConfig *models.AgentConfig) (
+	*agentManagerService, *client.ComponentDeploymentConfigRequest, *[]client.EnvVar,
+) {
 	var capturedDeployConfig client.ComponentDeploymentConfigRequest
+	var capturedOverrideEnvVars []client.EnvVar
 	ocClient := &clientmocks.OpenChoreoClientMock{
 		GetOrganizationFunc: func(_ context.Context, name string) (*models.OrganizationResponse, error) {
 			return &models.OrganizationResponse{Name: name}, nil
@@ -1848,7 +1862,8 @@ func deployAPIAgentMocks(existingConfig *models.AgentConfig) (*agentManagerServi
 		// component-wide base alone. ReplaceComponentEnvVars and ReplaceComponentFileMounts are
 		// left unstubbed on purpose: a regression that writes the shared base again panics here
 		// instead of silently leaking config into every environment.
-		ReplaceReleaseBindingWorkloadOverridesFunc: func(context.Context, string, string, string, []client.EnvVar, []client.FileVar) error {
+		ReplaceReleaseBindingWorkloadOverridesFunc: func(_ context.Context, _, _, _ string, envVars []client.EnvVar, _ []client.FileVar) error {
+			capturedOverrideEnvVars = envVars
 			return nil
 		},
 		UpdateComponentDeploymentConfigFunc: func(_ context.Context, _, _, _ string, req client.ComponentDeploymentConfigRequest) error {
@@ -1885,13 +1900,14 @@ func deployAPIAgentMocks(existingConfig *models.AgentConfig) (*agentManagerServi
 		},
 	}
 	s := &agentManagerService{
-		ocClient:               ocClient,
-		agentIdentityInjection: injector,
-		artifactRepo:           artifactRepo,
-		agentConfigRepo:        agentConfigRepo,
-		logger:                 discardLogger(),
+		ocClient:                  ocClient,
+		agentIdentityInjection:    injector,
+		artifactRepo:              artifactRepo,
+		agentConfigRepo:           agentConfigRepo,
+		agentConfigurationService: &spyConfigService{},
+		logger:                    discardLogger(),
 	}
-	return s, &capturedDeployConfig
+	return s, &capturedDeployConfig, &capturedOverrideEnvVars
 }
 
 // covers the deploy-time wiring of ResilienceTimeoutSeconds into the
@@ -1908,7 +1924,7 @@ func TestDeployAgent_APIAgent_ResilienceTimeout(t *testing.T) {
 	}
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			s, capturedDeployConfig := deployAPIAgentMocks(tc.existingConfig)
+			s, capturedDeployConfig, _ := deployAPIAgentMocks(tc.existingConfig)
 
 			env, err := s.DeployAgent(tierGrantedCtx(t), "acme", "proj1", "my-agent", &spec.DeployAgentRequest{ImageId: "registry.example.com/my-agent:v1"})
 
