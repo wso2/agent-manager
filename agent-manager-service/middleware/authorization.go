@@ -106,7 +106,8 @@ func resolveOrgFromToken() func(http.HandlerFunc) http.HandlerFunc {
 }
 
 // RequirePermission returns a middleware that checks the request token carries the
-// required amp: scope.
+// required amp: scope. When RBAC_ENABLED=false the check is skipped entirely,
+// allowing zero-downtime rollout.
 func RequirePermission(perm rbac.Permission) func(http.HandlerFunc) http.HandlerFunc {
 	return requireScopes(allPermissions, false, perm)
 }
@@ -149,8 +150,9 @@ const (
 
 // requireScopes is the one gate behind RequirePermission, RequireAnyPermission
 // and RequireAllPermissions. They differ only in how the permissions combine and
-// in what the refusal names; everything around that — the root-OU bypass, the
-// audited denial, the 403 — is the same gate, and was three copies of it before. A fourth combining rule should be a
+// in what the refusal names; everything around that — the RBAC_ENABLED
+// short-circuit, the root-OU bypass, the audited denial, the 403 — is the same
+// gate, and was three copies of it before. A fourth combining rule should be a
 // scopeMode, not a fourth copy.
 func requireScopes(mode scopeMode, allowRootOU bool, perms ...rbac.Permission) func(http.HandlerFunc) http.HandlerFunc {
 	// An empty list is refused where the route table is built, not where a
@@ -165,6 +167,14 @@ func requireScopes(mode scopeMode, allowRootOU bool, perms ...rbac.Permission) f
 	}
 	return func(next http.HandlerFunc) http.HandlerFunc {
 		return func(w http.ResponseWriter, r *http.Request) {
+			if !config.GetConfig().RBACEnabled {
+				// The check is skipped entirely. The event the coverage tier
+				// writes for this request carries rbacEnforced=false alongside
+				// the permission that would have applied, so the record shows
+				// on its face that nothing was enforced.
+				next(w, r)
+				return
+			}
 			if allowRootOU {
 				if claims := jwtassertion.GetTokenClaims(r.Context()); claims != nil && claims.OuHandle == config.GetConfig().RootOUHandle {
 					// A root-OU token is admitted regardless of its scopes. That

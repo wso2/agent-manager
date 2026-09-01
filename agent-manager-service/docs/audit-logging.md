@@ -63,7 +63,8 @@ When a semantic event describes a successful request, the coverage tier stands d
     "resourceName": "github-deploy-key",
     "outcome": "success",
     "statusCode": 201,
-    "requiredPermission": "amp:git-secret:create"
+    "requiredPermission": "amp:git-secret:create",
+    "rbacEnforced": true
   }
 }
 ```
@@ -84,7 +85,7 @@ Actions read as `<resource>:<verb>`. Most are the route's `rbac.Permission` verb
 
 ### Severity 4 — the events worth alerting on
 
-`authz:root-ou-bypass`, `system:audit-dropped`, and everything in `actionClass: credential` or `identity` with a mutating verb — notably `role:grant-permission`, `role:assign`, `user:create`, `user:delete`, `api-key:*`, `git-secret:*`, `agent-identity:*`, `gateway-token:*`, `service-account:configure`.
+`authz:root-ou-bypass`, `system:rbac-disabled`, `system:audit-dropped`, and everything in `actionClass: credential` or `identity` with a mutating verb — notably `role:grant-permission`, `role:assign`, `user:create`, `user:delete`, `api-key:*`, `git-secret:*`, `agent-identity:*`, `gateway-token:*`, `service-account:configure`.
 
 ## What is never recorded
 
@@ -146,7 +147,14 @@ Refusals are recorded on every surface, because a denied attempt is often more i
 
 ## Enforcement posture is part of the trail
 
-Authorization is always enforced: every audited route carries the `requiredPermission` that was checked, so a record names the decision that was made rather than the one that might have been.
+`RBAC_ENABLED` defaults to `false` in code, and when it is off **every permission check returns early**. The Helm chart sets it to `true`, so a chart-based install enforces authorization — but a bare binary run does not.
+
+Rather than leave that gap visible only in a config file, the trail documents it:
+
+- `system:rbac-disabled` is recorded at startup when authorization is off.
+- Every record carries `rbacEnforced`, alongside the `requiredPermission` that *would* have applied.
+
+A record with `rbacEnforced: false` shows on its face that no check happened. Without this, every record would imply an authorization decision that never occurred.
 
 `system:startup` is recorded when the service starts, which bounds any gap in the trail to a restart — a reader can tell "nothing happened" apart from "the service was not running".
 

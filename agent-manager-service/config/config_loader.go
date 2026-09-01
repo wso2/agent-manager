@@ -273,6 +273,7 @@ func loadEnvs() {
 		EnableTLS: r.readOptionalBool("TLS_ENABLED", false),
 	}
 
+	config.RBACEnabled = r.readOptionalBool("RBAC_ENABLED", false)
 	config.RootOUHandle = r.readOptionalString("ROOT_OU_HANDLE", "admin")
 
 	// Audit defaults to on. A deployment that wants no audit trail has to say

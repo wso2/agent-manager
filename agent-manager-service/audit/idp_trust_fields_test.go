@@ -138,19 +138,24 @@ func TestJWTActorIsNotClobberedByAnEmptyScope(t *testing.T) {
 	}
 }
 
-// TestSemanticRecordsCarryTheGatingPermission is the regression for a record
-// that named no check at all.
+// TestSemanticRecordsCarryTheGatingPermission is the regression for half a
+// claim.
 //
-// The design says every record carries the requiredPermission that gated the
-// route. The coverage tier passed the permission explicitly, but a semantic
-// emit does not know its route, so those records carried none — and semantic
-// records are exactly the severity-4 credential and privilege operations where
-// knowing which permission applied matters most.
+// The design says every record carries rbacEnforced "alongside the
+// requiredPermission that would have applied". The coverage tier passed the
+// permission explicitly, but a semantic emit does not know its route, so those
+// records carried rbacEnforced:false and no permission at all.
+//
+// Found by running with RBAC_ENABLED=false: a git-secret:create that would have
+// been refused recorded that no check happened, without saying which check —
+// and semantic records are exactly the severity-4 credential and privilege
+// operations where that matters most.
 func TestSemanticRecordsCarryTheGatingPermission(t *testing.T) {
 	ctx := WithSource(context.Background(), Source{
 		Surface:            SurfaceAPI,
 		Pattern:            "/orgs/{orgName}/git-secrets",
 		Method:             "POST",
+		RBACEnforced:       false,
 		RequiredPermission: "amp:git-secret:create",
 	})
 	ctx, _ = NewRequestScope(ctx)
@@ -158,7 +163,10 @@ func TestSemanticRecordsCarryTheGatingPermission(t *testing.T) {
 	e := BuildEvent(ctx, ActionGitSecretCreate)
 	if e.RequiredPermission != "amp:git-secret:create" {
 		t.Errorf("RequiredPermission = %q; a semantic record must say which check "+
-			"gated the route", e.RequiredPermission)
+			"would have applied, especially when rbacEnforced is false", e.RequiredPermission)
+	}
+	if e.RBACEnforced {
+		t.Error("RBACEnforced should have come from the source")
 	}
 }
 

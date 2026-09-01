@@ -16,8 +16,9 @@
 
 // Package observability holds the security suite for agent-manager-observer.
 //
-// The observer is a separate service with its own rbac package and its own JWT
-// middleware — neither of which the agent-manager-service suites cover. Traces, logs, and metrics are the most
+// The observer is a separate service with its own rbac package, its own
+// RBAC_ENABLED flag, and its own JWT middleware — none of which the
+// agent-manager-service suites cover. Traces, logs, and metrics are the most
 // sensitive read surface on the platform (prompts, completions, tool calls),
 // so its scope enforcement gets its own suite rather than riding along.
 package observability
@@ -67,8 +68,8 @@ var _ = BeforeSuite(func(ctx SpecContext) {
 	By("Checking the observer is reachable")
 	verifyObserverReachable(ctx)
 
-	By("Verifying the observer enforces scopes")
-	verifyObserverScopeEnforcement(ctx)
+	By("Verifying RBAC enforcement is enabled on the observer")
+	verifyObserverRBACEnabled(ctx)
 })
 
 // verifyObserverReachable fails fast with an actionable message rather than
@@ -89,12 +90,13 @@ func verifyObserverReachable(ctx context.Context) {
 		resp.StatusCode)
 }
 
-// verifyObserverScopeEnforcement proves the observer enforces scopes. It is a
-// separate deployment with its own authorization middleware, so the authz suite
-// passing says nothing about this service. If AuthorizePermission were bypassed
-// here, every trace in the cluster would be readable by any authenticated
-// caller and every spec below would pass vacuously.
-func verifyObserverScopeEnforcement(ctx context.Context) {
+// verifyObserverRBACEnabled proves the observer enforces scopes. It has its OWN
+// RBAC_ENABLED (amObserver.auth.rbacEnabled in the observability extension
+// chart), independent of agent-manager-service's — so the authz suite passing
+// says nothing about this service. With it off, AuthorizePermission returns nil
+// for any non-publisher token and every trace in the cluster is readable by any
+// authenticated caller.
+func verifyObserverRBACEnabled(ctx context.Context) {
 	unscoped, err := framework.FetchTokenWithScopes(ctx, Cfg, nil)
 	Expect(err).NotTo(HaveOccurred(), "failed to fetch an unscoped token")
 
@@ -103,8 +105,8 @@ func verifyObserverScopeEnforcement(ctx context.Context) {
 
 	Expect(resp.StatusCode).To(Equal(http.StatusForbidden),
 		"ABORTING: an unscoped token reached the observer's /api/v1/traces and got %d instead "+
-			"of 403. The observer is not enforcing scopes; every spec in this suite would "+
-			"be vacuous.",
+			"of 403. RBAC enforcement appears disabled on the observer "+
+			"(amObserver.auth.rbacEnabled=false). Every spec in this suite would be vacuous.",
 		resp.StatusCode)
 }
 

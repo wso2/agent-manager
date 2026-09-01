@@ -3869,9 +3869,11 @@ func buildTraitEnvConfigs(agentName string, policies []map[string]interface{}, a
 //
 // The environment is returned even on a denial, because the caller wants the
 // production flag for its audit record and this call has already paid for the
-// lookup; it is nil only when the lookup itself failed. The cost is that an
-// unresolvable environment fails the operation outright — deliberate, and
-// called out in Task 5.
+// lookup; it is nil only when the lookup itself failed. The lookup runs before
+// the RBAC switch is consulted for the same reason: an RBAC_ENABLED=false
+// install should still get a trail that distinguishes a production change from
+// a sandbox one. The cost is that an unresolvable environment fails the
+// operation even with RBAC disabled — deliberate, and called out in Task 5.
 //
 // Nothing here allows on failure. There is deliberately no fallback for an
 // installation where no environment carries the flag: every environment is then
@@ -3886,6 +3888,10 @@ func (s *agentManagerService) requireEnvTier(
 			"ouID", ouID, "environment", envName, "error", err)
 		return nil, translateEnvironmentError(err)
 	}
+	if !config.GetConfig().RBACEnabled {
+		return env, nil
+	}
+
 	// The floor is always required. Production adds to it rather than replacing
 	// it, so the missing scope reported is the first one the caller lacks —
 	// naming the production grant to someone who is also missing the floor would

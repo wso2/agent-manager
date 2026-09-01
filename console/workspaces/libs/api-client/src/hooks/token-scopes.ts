@@ -38,7 +38,8 @@ import { globalConfig } from "@agent-management-platform/types";
  */
 export function useTokenScopes(): {
   /**
-   * False when auth is disabled outright and there is no token at all: the
+   * False when this deployment does not enforce RBAC. It mirrors the service's
+   * RBAC_ENABLED switch (plus disableAuth, where there is no token at all): the
    * server gates nothing, so the console must not either.
    */
   enforced: boolean;
@@ -60,7 +61,7 @@ export function useTokenScopes(): {
   const scopeStr = userInfo?.scope;
   return useMemo(
     () => ({
-      enforced: !globalConfig.disableAuth,
+      enforced: !globalConfig.disableAuth && globalConfig.rbacEnabled,
       resolved: !isLoadingAccessToken,
       scopes: new Set((scopeStr ?? "").split(" ").filter(Boolean)),
     }),

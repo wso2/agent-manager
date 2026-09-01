@@ -41,56 +41,71 @@ func tokenWithScopes(t *testing.T, aud, scope string) string {
 }
 
 // The per-tool guard must mirror the REST RequirePermission policy on the MCP
-// transport: ordinary tokens need the tool's amp scope, and publisher-audience
-// tokens are confined to their implicit trace-read permission.
+// transport: ordinary tokens need the tool's amp scope when RBAC is enabled,
+// the kill-switch skips that check, and publisher-audience tokens are confined
+// to their implicit trace-read permission regardless of the flag.
 func TestRequireToolPermission(t *testing.T) {
 	tests := []struct {
-		name       string
-		perm       rbac.Permission
-		authHeader string
-		wantAllow  bool
+		name        string
+		rbacEnabled bool
+		perm        rbac.Permission
+		authHeader  string
+		wantAllow   bool
 	}{
 		{
-			name:       "token with required scope allowed",
-			perm:       rbac.LogRead,
-			authHeader: "Bearer " + tokenWithScopes(t, "localhost", "amp:observability:log-read amp:project:read"),
-			wantAllow:  true,
+			name:        "rbac on, token with required scope allowed",
+			rbacEnabled: true,
+			perm:        rbac.LogRead,
+			authHeader:  "Bearer " + tokenWithScopes(t, "localhost", "amp:observability:log-read amp:project:read"),
+			wantAllow:   true,
 		},
 		{
-			name:       "token without required scope rejected",
-			perm:       rbac.LogRead,
-			authHeader: "Bearer " + tokenWithScopes(t, "localhost", "amp:project:read"),
-			wantAllow:  false,
+			name:        "rbac on, token without required scope rejected",
+			rbacEnabled: true,
+			perm:        rbac.LogRead,
+			authHeader:  "Bearer " + tokenWithScopes(t, "localhost", "amp:project:read"),
+			wantAllow:   false,
 		},
 		{
-			name:       "token with empty scope rejected",
-			perm:       rbac.TraceRead,
-			authHeader: "Bearer " + tokenWithScopes(t, "localhost", ""),
-			wantAllow:  false,
+			name:        "rbac on, token with empty scope rejected",
+			rbacEnabled: true,
+			perm:        rbac.TraceRead,
+			authHeader:  "Bearer " + tokenWithScopes(t, "localhost", ""),
+			wantAllow:   false,
 		},
 		{
-			name:       "publisher token allowed trace-read without scopes",
-			perm:       rbac.TraceRead,
-			authHeader: "Bearer " + tokenWithScopes(t, "amp-publisher-acme", ""),
-			wantAllow:  true,
+			name:        "rbac off, token without scopes allowed",
+			rbacEnabled: false,
+			perm:        rbac.MetricRead,
+			authHeader:  "Bearer " + tokenWithScopes(t, "localhost", ""),
+			wantAllow:   true,
 		},
 		{
-			name:       "publisher token rejected on log-read",
-			perm:       rbac.LogRead,
-			authHeader: "Bearer " + tokenWithScopes(t, "amp-publisher-acme", ""),
-			wantAllow:  false,
+			name:        "rbac on, publisher token allowed trace-read without scopes",
+			rbacEnabled: true,
+			perm:        rbac.TraceRead,
+			authHeader:  "Bearer " + tokenWithScopes(t, "amp-publisher-acme", ""),
+			wantAllow:   true,
 		},
 		{
-			name:       "missing authorization header rejected",
-			perm:       rbac.LogRead,
-			authHeader: "",
-			wantAllow:  false,
+			name:        "rbac off, publisher token still rejected on log-read",
+			rbacEnabled: false,
+			perm:        rbac.LogRead,
+			authHeader:  "Bearer " + tokenWithScopes(t, "amp-publisher-acme", ""),
+			wantAllow:   false,
+		},
+		{
+			name:        "rbac on, missing authorization header rejected",
+			rbacEnabled: true,
+			perm:        rbac.LogRead,
+			authHeader:  "",
+			wantAllow:   false,
 		},
 	}
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			guard := requireToolPermission(tc.perm)
+			guard := requireToolPermission(tc.rbacEnabled, tc.perm)
 			err := guard(requestWithAuth(tc.authHeader))
 			if tc.wantAllow && err != nil {
 				t.Fatalf("expected allow, got error: %v", err)
@@ -113,7 +128,7 @@ func TestObservabilityTools_ScopeEnforced(t *testing.T) {
 	}
 
 	call := func(fake *fakeObserverClient, req *gomcp.CallToolRequest) error {
-		handler := getRuntimeLogs(controllers.NewObservabilityController(fake), requireToolPermission(rbac.LogRead))
+		handler := getRuntimeLogs(controllers.NewObservabilityController(fake), requireToolPermission(true, rbac.LogRead))
 		_, _, err := handler(context.Background(), req, input)
 		return err
 	}

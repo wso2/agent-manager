@@ -142,6 +142,8 @@ agentManagerService:
     dbOperationTimeout: 30
     healthCheckTimeout: 5
     corsAllowedOrigin: "*"
+    # Enable RBAC enforcement on all routes
+    rbacEnabled: "true"
     # Audit trail. Every state-changing API call, every authorization denial and
     # every rejected token is written to stdout as structured JSON tagged
     # log_type=audit, for the cluster log pipeline to collect.
@@ -497,6 +499,8 @@ console:
 
     # Disable auth for development
     disableAuth: "false"
+    # Enable RBAC-based sidebar visibility (scope-gated nav sections)
+    rbacEnabled: "true"
 
     # Backend API URLs (will be auto-configured if empty)
     # Routed through the OpenChoreo control-plane gateway (see ocIngress).

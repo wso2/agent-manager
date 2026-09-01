@@ -37,6 +37,8 @@ export interface AppConfig {
    */
   ampVersion?: string;
   disableAuth: boolean;
+  /** When false, nav items are shown regardless of token scopes (mirrors RBAC_ENABLED). */
+  rbacEnabled: boolean;
   instrumentationUrl: string;
   /**
    * When true, the OTEL endpoint shown in the Setup Agent panel is

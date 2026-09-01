@@ -89,6 +89,9 @@ var detailSchema = map[Action]map[string]FieldKind{
 		"sinks":    KindNameList,
 		"instance": KindIdentifier,
 	},
+	ActionSystemRBACDisabled: {
+		"reason": KindEnum,
+	},
 	ActionSystemAuditDropped: {
 		"droppedTotal": KindCount,
 		"sink":         KindName,

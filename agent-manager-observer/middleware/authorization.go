@@ -40,14 +40,18 @@ var (
 
 // AuthorizePermission is the single scope policy shared by the REST routes
 // (via RequirePermission) and the am-obs-mcp per-tool guards: publisher-
-// audience tokens are confined to their implicit permission set, and ordinary
-// tokens need the perm's amp scope. Claims must come from a JWTAuth-validated
-// token.
-func AuthorizePermission(claims *TokenClaims, perm rbac.Permission) error {
+// audience tokens are confined to their implicit permission set regardless of
+// rbacEnabled, so pre-authz publisher restrictions never regress while the
+// kill-switch is off; ordinary tokens need the perm's amp scope only when
+// rbacEnabled. Claims must come from a JWTAuth-validated token.
+func AuthorizePermission(claims *TokenClaims, perm rbac.Permission, rbacEnabled bool) error {
 	if claims != nil && hasPublisherAudience(claims.Audience) {
 		if !slices.Contains(publisherImplicitPermissions, perm) {
 			return ErrInsufficientPermissions
 		}
+		return nil
+	}
+	if !rbacEnabled {
 		return nil
 	}
 	if claims == nil {
@@ -62,10 +66,10 @@ func AuthorizePermission(claims *TokenClaims, perm rbac.Permission) error {
 // RequirePermission returns middleware that applies AuthorizePermission to the
 // JWTAuth-validated token claims. Must run inside JWTAuth: it reads claims
 // from the request context.
-func RequirePermission(perm rbac.Permission) func(http.Handler) http.Handler {
+func RequirePermission(rbacEnabled bool, perm rbac.Permission) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			if err := AuthorizePermission(GetTokenClaims(r.Context()), perm); err != nil {
+			if err := AuthorizePermission(GetTokenClaims(r.Context()), perm, rbacEnabled); err != nil {
 				writeAuthError(w, http.StatusForbidden, err.Error())
 				return
 			}

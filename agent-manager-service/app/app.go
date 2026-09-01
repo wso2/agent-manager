@@ -215,7 +215,7 @@ func Run(authProvider occlient.AuthProvider, secretProvider secretmanagersvc.Pro
 		// Don't exit - templates can still be created via API
 	}
 
-	recordStartupPosture(dependencies.AuditRecorder)
+	recordStartupPosture(cfg, dependencies.AuditRecorder)
 
 	// Create main API server handler
 	handler := api.MakeHTTPHandler(dependencies, opts.ExtraAPIRoutes)
@@ -343,21 +343,46 @@ func Run(authProvider occlient.AuthProvider, secretProvider secretmanagersvc.Pro
 	slog.Info("All servers shut down successfully")
 }
 
-// recordStartupPosture writes the audit trail's own opening bookend. The record
-// bounds any gap in the trail to a restart: a reader can tell "nothing happened"
-// apart from "the service was not running".
-func recordStartupPosture(recorder audit.Recorder) {
+// recordStartupPosture writes the audit trail's own bookend events.
+//
+// The startup record bounds any gap in the trail to a restart: a reader can
+// tell "nothing happened" apart from "the service was not running".
+//
+// The RBAC record matters more. Authorization enforcement is off by default, and
+// when it is off every permission check returns early. Without an event saying
+// so, that gap is visible only in a config file no auditor reads — and every
+// request in the trail would imply a check that never happened.
+func recordStartupPosture(cfg *config.Config, recorder audit.Recorder) {
 	if recorder == nil {
 		return
 	}
 	ctx := audit.WithRecorder(context.Background(), recorder)
 
+	// rbacEnforced is set explicitly here. Outside a request there is no source
+	// to carry it, so it would otherwise serialise as false — and false is not a
+	// neutral default on this field: it is the assertion that no authorization
+	// check happened. On an RBAC-enabled deployment the startup record, which is
+	// the first thing a reader of the trail sees, then contradicts every request
+	// record that follows it.
 	audit.RecordAncillary(
 		ctx, audit.ActionSystemStartup,
 		audit.Actor(audit.ActorSystem, "system:agent-manager-service", ""),
 		audit.SurfaceOpt(audit.SurfaceSystem),
+		audit.RBACEnforced(cfg.RBACEnabled),
 		audit.Detail("sinks", []string{"stdout"}),
 	)
+
+	if !cfg.RBACEnabled {
+		audit.RecordAncillary(
+			ctx, audit.ActionSystemRBACDisabled,
+			audit.Actor(audit.ActorSystem, "system:agent-manager-service", ""),
+			audit.SurfaceOpt(audit.SurfaceSystem),
+			audit.RBACEnforced(false),
+			audit.Detail("reason", "rbac-enabled-false"),
+		)
+		slog.Warn("RBAC is disabled; every authenticated request is allowed regardless of token scopes",
+			"setting", "RBAC_ENABLED")
+	}
 }
 
 func setupLogger(cfg *config.Config) {

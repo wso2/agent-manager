@@ -23,6 +23,7 @@ import (
 	"time"
 
 	"github.com/wso2/agent-manager/agent-manager-service/audit"
+	"github.com/wso2/agent-manager/agent-manager-service/config"
 	"github.com/wso2/agent-manager/agent-manager-service/utils"
 )
 
@@ -48,17 +49,24 @@ func WithAudit(recorder audit.Recorder, meta audit.RouteMeta) func(http.HandlerF
 			start := time.Now()
 			rec := newResponseRecorder(w)
 
+			rbacEnabled := false
+			if cfg := config.GetConfig(); cfg != nil {
+				rbacEnabled = cfg.RBACEnabled
+			}
+
 			ctx := audit.WithRecorder(r.Context(), recorder)
 			ctx = audit.WithSource(ctx, audit.Source{
-				Surface:   meta.Surface,
-				IP:        utils.ClientIP(r),
-				UserAgent: r.UserAgent(),
-				Method:    meta.Method,
-				Pattern:   meta.Path,
-				// Carried on the source so semantic emits inherit it: they know
-				// what they changed but not which permission gated the route —
-				// worth knowing on exactly the credential and privilege
-				// operations this tier covers.
+				Surface:      meta.Surface,
+				IP:           utils.ClientIP(r),
+				UserAgent:    r.UserAgent(),
+				Method:       meta.Method,
+				Pattern:      meta.Path,
+				RBACEnforced: rbacEnabled,
+				// Carried on the source so semantic emits inherit it. They know
+				// what they changed but not which permission gated the route,
+				// and "rbacEnforced: false" without it says a check was skipped
+				// without saying which — on exactly the credential and privilege
+				// operations where that is worth knowing.
 				RequiredPermission: audit.ScopesOf(meta.Perms),
 			})
 			ctx, scope := audit.NewRequestScope(ctx)

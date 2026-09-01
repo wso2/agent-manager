@@ -24,7 +24,6 @@ import (
 
 	"github.com/wso2/agent-manager/agent-manager-observer/controllers"
 	"github.com/wso2/agent-manager/agent-manager-observer/observer"
-	"github.com/wso2/agent-manager/agent-manager-observer/rbac"
 )
 
 // constants for testing
@@ -98,11 +97,6 @@ func setupTestServer(t *testing.T) (*gomcp.ClientSession, *fakeObserverClient) {
 	toolsets := &Toolsets{
 		Tracing:       controllers.NewTracingController(fake),
 		Observability: controllers.NewObservabilityController(fake),
-		// The in-memory transport carries no Authorization header, so the real
-		// guard would refuse every call. Authorization has its own tests
-		// (authorization_test.go, observability_guard_test.go); these specs are
-		// about what the tools do with their inputs.
-		authorize: allowEveryCall,
 	}
 	return setupTestServerWithToolsets(t, toolsets), fake
 }
@@ -162,10 +156,3 @@ var allToolSpecs = func() []toolTestSpec {
 	specs = append(specs, tracesToolSpecs()...)
 	return specs
 }()
-
-// allowEveryCall is the spec tests' stand-in for requireToolPermission: it
-// admits every call so a test over the in-memory transport, which has no
-// Authorization header to offer, reaches the handler under test.
-func allowEveryCall(rbac.Permission) func(*gomcp.CallToolRequest) error {
-	return func(*gomcp.CallToolRequest) error { return nil }
-}

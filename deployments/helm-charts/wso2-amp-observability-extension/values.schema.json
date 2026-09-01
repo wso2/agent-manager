@@ -239,6 +239,12 @@
               "description": "Accepted token audiences, as a comma-separated list.",
               "title": "audience",
               "type": "string"
+            },
+            "rbacEnabled": {
+              "default": "true",
+              "description": "Enables scope-based authorization on the observer REST data routes. Mirrors agent-manager-service's rbacEnabled. MUST stay a quoted string: Helm's `default` treats boolean false as unset, which would make the kill-switch impossible to turn off.",
+              "title": "rbacEnabled",
+              "type": "string"
             }
           },
           "required": [],
@@ -253,7 +259,7 @@
         },
         "oauth": {
           "additionalProperties": false,
-          "description": "OAuth 2.0 discovery metadata for MCP clients (RFC 9728). Consumed by the /mcp route's protected-resource well-known endpoint.",
+          "description": "OAuth 2.0 discovery metadata for MCP clients (RFC 9728). Consumed by the /mcp route's protected-resource well-known endpoint; scope/claims enforcement on the REST data routes is governed by auth.rbacEnabled above.",
           "properties": {
             "authorizationServers": {
               "default": "",

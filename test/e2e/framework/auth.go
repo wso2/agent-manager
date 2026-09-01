@@ -35,8 +35,9 @@ type tokenResponse struct {
 
 // ampScopes is the full set of RBAC scopes the e2e suite requests for its
 // client_credentials token. Thunder only includes scopes in a client_credentials
-// token that are EXPLICITLY requested (it returns requested ∩ allowed), so
-// omitting these yields an unscoped token and every guarded route returns 403. Scopes are amp:-prefixed to match what Thunder
+// token that are EXPLICITLY requested (it returns requested ∩ allowed), so when
+// RBAC_ENABLED=true on Agent Manager, omitting these yields an unscoped token and
+// every guarded route returns 403. Scopes are amp:-prefixed to match what Thunder
 // (v0.44+) issues and what RBAC checks — i.e. Permission.Scope() in
 // agent-manager-service/rbac/permissions.go; the IDP grants only the ones the
 // client app is actually allowed, so requesting the superset is safe.

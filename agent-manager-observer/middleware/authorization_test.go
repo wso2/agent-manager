@@ -25,10 +25,10 @@ import (
 	"github.com/wso2/agent-manager/agent-manager-observer/rbac"
 )
 
-func doAuthzRequest(t *testing.T, perm rbac.Permission, claims *TokenClaims) (*httptest.ResponseRecorder, bool) {
+func doAuthzRequest(t *testing.T, rbacEnabled bool, perm rbac.Permission, claims *TokenClaims) (*httptest.ResponseRecorder, bool) {
 	t.Helper()
 	called := false
-	h := RequirePermission(perm)(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	h := RequirePermission(rbacEnabled, perm)(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		called = true
 		w.WriteHeader(http.StatusOK)
 	}))
@@ -56,24 +56,29 @@ func publisherClaims() *TokenClaims {
 
 func TestRequirePermission(t *testing.T) {
 	cases := []struct {
-		name       string
-		perm       rbac.Permission
-		claims     *TokenClaims
-		wantStatus int
-		wantCalled bool
+		name        string
+		rbacEnabled bool
+		perm        rbac.Permission
+		claims      *TokenClaims
+		wantStatus  int
+		wantCalled  bool
 	}{
-		{"scope present passes", rbac.TraceRead, userClaims("amp:observability:trace-read amp:org:view"), http.StatusOK, true},
-		{"scope missing 403", rbac.LogRead, userClaims("amp:observability:trace-read"), http.StatusForbidden, false},
-		{"empty scope 403", rbac.TraceRead, userClaims(""), http.StatusForbidden, false},
-		{"nil claims 403", rbac.TraceRead, nil, http.StatusForbidden, false},
-		{"publisher allowed on traces", rbac.TraceRead, publisherClaims(), http.StatusOK, true},
-		{"publisher 403 on logs", rbac.LogRead, publisherClaims(), http.StatusForbidden, false},
-		{"publisher 403 on build-logs", rbac.BuildLogRead, publisherClaims(), http.StatusForbidden, false},
-		{"publisher 403 on metrics", rbac.MetricRead, publisherClaims(), http.StatusForbidden, false},
+		{"scope present passes", true, rbac.TraceRead, userClaims("amp:observability:trace-read amp:org:view"), http.StatusOK, true},
+		{"scope missing 403", true, rbac.LogRead, userClaims("amp:observability:trace-read"), http.StatusForbidden, false},
+		{"empty scope 403", true, rbac.TraceRead, userClaims(""), http.StatusForbidden, false},
+		{"nil claims 403", true, rbac.TraceRead, nil, http.StatusForbidden, false},
+		{"kill-switch off passes without scope", false, rbac.MetricRead, userClaims(""), http.StatusOK, true},
+		{"kill-switch off nil claims passes", false, rbac.MetricRead, nil, http.StatusOK, true},
+		{"publisher allowed on traces", true, rbac.TraceRead, publisherClaims(), http.StatusOK, true},
+		{"publisher 403 on logs", true, rbac.LogRead, publisherClaims(), http.StatusForbidden, false},
+		{"publisher 403 on build-logs", true, rbac.BuildLogRead, publisherClaims(), http.StatusForbidden, false},
+		{"publisher 403 on metrics", true, rbac.MetricRead, publisherClaims(), http.StatusForbidden, false},
+		{"publisher 403 on logs even with kill-switch off", false, rbac.LogRead, publisherClaims(), http.StatusForbidden, false},
+		{"publisher allowed on traces with kill-switch off", false, rbac.TraceRead, publisherClaims(), http.StatusOK, true},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
-			rec, called := doAuthzRequest(t, tc.perm, tc.claims)
+			rec, called := doAuthzRequest(t, tc.rbacEnabled, tc.perm, tc.claims)
 			if rec.Code != tc.wantStatus {
 				t.Errorf("status = %d, want %d", rec.Code, tc.wantStatus)
 			}

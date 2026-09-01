@@ -621,6 +621,12 @@
               "title": "corsAllowedOrigin",
               "type": "string"
             },
+            "rbacEnabled": {
+              "default": "true",
+              "description": "Enable RBAC enforcement on all routes",
+              "title": "rbacEnabled",
+              "type": "string"
+            },
             "audit": {
               "additionalProperties": false,
               "description": "Audit trail. Every state-changing API call, every authorization denial and every rejected token is written to stdout as structured JSON tagged log_type=audit, for the cluster log pipeline to collect. Retention is NOT provided by this service. Route these records to an index or bucket with a retention period that matches your audit obligations \u2014 the observability plane's default log retention is far shorter than the evidence period most audits require.",
@@ -1623,6 +1629,12 @@
               "default": "false",
               "description": "Disable auth for development",
               "title": "disableAuth",
+              "type": "string"
+            },
+            "rbacEnabled": {
+              "default": "true",
+              "description": "Enable RBAC-based sidebar visibility (scope-gated nav sections)",
+              "title": "rbacEnabled",
               "type": "string"
             },
             "apiBaseUrl": {

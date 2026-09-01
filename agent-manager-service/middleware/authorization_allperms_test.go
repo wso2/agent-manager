@@ -21,9 +21,20 @@ import (
 	"net/http/httptest"
 	"testing"
 
+	"github.com/wso2/agent-manager/agent-manager-service/config"
 	"github.com/wso2/agent-manager/agent-manager-service/middleware/jwtassertion"
 	"github.com/wso2/agent-manager/agent-manager-service/rbac"
 )
+
+// setRBACEnabled flips the process-global RBAC switch for one test and restores
+// it on cleanup. Tests using it must not run in parallel.
+func setRBACEnabled(t *testing.T, enabled bool) {
+	t.Helper()
+	cfg := config.GetConfig()
+	orig := cfg.RBACEnabled
+	cfg.RBACEnabled = enabled
+	t.Cleanup(func() { cfg.RBACEnabled = orig })
+}
 
 // serveAllPermissions runs RequireAllPermissions around a handler that records
 // whether it ran, for a token carrying exactly grantedScopes.
@@ -44,6 +55,7 @@ func serveAllPermissions(t *testing.T, grantedScopes string, perms ...rbac.Permi
 // TestRequireAllPermissions_AllowsWhenEveryScopeHeld is the passing case: the
 // caller holds both independent axes the route is gated on.
 func TestRequireAllPermissions_AllowsWhenEveryScopeHeld(t *testing.T) {
+	setRBACEnabled(t, true)
 	granted := rbac.AgentSuspend.Scope() + " " + rbac.AgentEnvNonProduction.Scope()
 	status, ran := serveAllPermissions(t, granted, rbac.AgentSuspend, rbac.AgentEnvNonProduction)
 	if !ran {
@@ -57,6 +69,7 @@ func TestRequireAllPermissions_AllowsWhenEveryScopeHeld(t *testing.T) {
 // TestRequireAllPermissions_DeniesOnPartialScopes is the whole reason this
 // helper is not RequireAnyPermission: holding one axis must not admit the other.
 func TestRequireAllPermissions_DeniesOnPartialScopes(t *testing.T) {
+	setRBACEnabled(t, true)
 	for _, held := range []rbac.Permission{rbac.AgentSuspend, rbac.AgentEnvNonProduction} {
 		status, ran := serveAllPermissions(t, held.Scope(), rbac.AgentSuspend, rbac.AgentEnvNonProduction)
 		if ran {
@@ -68,15 +81,16 @@ func TestRequireAllPermissions_DeniesOnPartialScopes(t *testing.T) {
 	}
 }
 
-// TestRequireAllPermissions_DeniesWhenNoScopeHeld pins the unauthenticated-in-
-// effect case: a token carrying no amp scopes reaches nothing.
-func TestRequireAllPermissions_DeniesWhenNoScopeHeld(t *testing.T) {
+// TestRequireAllPermissions_SkipsCheckWhenRBACDisabled matches
+// RequirePermission's zero-downtime rollout switch.
+func TestRequireAllPermissions_SkipsCheckWhenRBACDisabled(t *testing.T) {
+	setRBACEnabled(t, false)
 	status, ran := serveAllPermissions(t, "", rbac.AgentSuspend, rbac.AgentEnvNonProduction)
-	if ran {
-		t.Error("handler ran for a token holding no scopes")
+	if !ran {
+		t.Error("handler did not run with RBAC disabled")
 	}
-	if status != http.StatusForbidden {
-		t.Errorf("status = %d, want %d", status, http.StatusForbidden)
+	if status != http.StatusOK {
+		t.Errorf("status = %d, want %d", status, http.StatusOK)
 	}
 }
 

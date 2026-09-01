@@ -72,6 +72,8 @@ spec:
               value: "{{ .Values.amObserver.auth.issuer }}"
             - name: KEY_MANAGER_AUDIENCE
               value: "{{ include "amp-observability-extension.audience" . }}"
+            - name: RBAC_ENABLED
+              value: {{ .Values.amObserver.auth.rbacEnabled | default "true" | quote }}
             # OAuth 2.0 protected-resource metadata (RFC 9728) for MCP clients
             - name: SERVER_PUBLIC_URL
               value: "{{ .Values.amObserver.publicUrl }}"

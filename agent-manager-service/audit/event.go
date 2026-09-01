@@ -160,9 +160,16 @@ type Event struct {
 	StatusCode   int     `json:"statusCode,omitempty"`
 	ErrorCode    string  `json:"errorCode,omitempty"`
 	ErrorMessage string  `json:"errorMessage,omitempty"`
-	// RequiredPermission is the scope that gated this call, recorded on allow
-	// and deny alike so a record shows on its face what was checked.
+	// RequiredPermission is the scope that gated this call, recorded even when
+	// the check was skipped, so a record shows on its face what would have
+	// applied.
 	RequiredPermission string `json:"requiredPermission,omitempty"`
+	// RBACEnforced is false when RBAC_ENABLED=false. The platform defaults to
+	// that state, so recording it is the difference between an audit trail that
+	// documents its own enforcement gap and one that silently implies a check
+	// happened.
+	RBACEnforced bool `json:"rbacEnforced"`
+
 	// Details carries operation-specific fields. Only keys present in the
 	// action's schema survive; see schema.go.
 	Details map[string]any `json:"details,omitempty"`

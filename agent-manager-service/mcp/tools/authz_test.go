@@ -25,9 +25,20 @@ import (
 	gomcp "github.com/modelcontextprotocol/go-sdk/mcp"
 
 	"github.com/wso2/agent-manager/agent-manager-service/audit"
+	"github.com/wso2/agent-manager/agent-manager-service/config"
 	"github.com/wso2/agent-manager/agent-manager-service/middleware/jwtassertion"
 	"github.com/wso2/agent-manager/agent-manager-service/rbac"
 )
+
+// setRBACEnabled flips the process-global RBAC switch for one test and
+// restores it on cleanup. Tests using it must not run in parallel.
+func setRBACEnabled(t *testing.T, enabled bool) {
+	t.Helper()
+	cfg := config.GetConfig()
+	orig := cfg.RBACEnabled
+	cfg.RBACEnabled = enabled
+	t.Cleanup(func() { cfg.RBACEnabled = orig })
+}
 
 // callToolViaMiddleware runs a synthetic tools/call for toolName through the
 // registry's middleware with a next handler that records whether it ran.
@@ -150,6 +161,7 @@ func TestAddToolPanicsWithoutAuditAction(t *testing.T) {
 }
 
 func TestAuthzMiddlewareDeniesUnregisteredTool(t *testing.T) {
+	setRBACEnabled(t, false) // fail-closed applies even with RBAC disabled
 	reg := newToolRegistry()
 	result, nextCalled := callToolViaMiddleware(t, reg, context.Background(), "rogue_tool")
 	if nextCalled {
@@ -160,7 +172,19 @@ func TestAuthzMiddlewareDeniesUnregisteredTool(t *testing.T) {
 	}
 }
 
+func TestAuthzMiddlewareSkipsCheckWhenRBACDisabled(t *testing.T) {
+	setRBACEnabled(t, false)
+	reg := newToolRegistry()
+	reg.permissions["some_tool"] = []rbac.Permission{rbac.AgentBuild}
+	// No claims on context at all — must still pass with RBAC disabled.
+	_, nextCalled := callToolViaMiddleware(t, reg, context.Background(), "some_tool")
+	if !nextCalled {
+		t.Fatal("next handler did not run with RBAC disabled")
+	}
+}
+
 func TestAuthzMiddlewareDeniesMissingScope(t *testing.T) {
+	setRBACEnabled(t, true)
 	reg := newToolRegistry()
 	reg.permissions["some_tool"] = []rbac.Permission{rbac.AgentBuild}
 	ctx := jwtassertion.ContextWithTokenClaimsAndScope(context.Background(), &jwtassertion.TokenClaims{
@@ -176,10 +200,11 @@ func TestAuthzMiddlewareDeniesMissingScope(t *testing.T) {
 	}
 }
 
-// TestAuthzMiddlewareDeniesWhenNoClaimsOnContext pins that a call carrying no
-// claims/scopes at all (not even an empty scope string) fails closed rather
-// than open.
+// TestAuthzMiddlewareDeniesWhenNoClaimsOnContext pins that RBAC enabled with
+// no claims/scopes at all on the context (not even an empty scope string)
+// fails closed rather than open.
 func TestAuthzMiddlewareDeniesWhenNoClaimsOnContext(t *testing.T) {
+	setRBACEnabled(t, true)
 	reg := newToolRegistry()
 	reg.permissions["some_tool"] = []rbac.Permission{rbac.AgentBuild}
 	result, nextCalled := callToolViaMiddleware(t, reg, context.Background(), "some_tool")
@@ -192,6 +217,7 @@ func TestAuthzMiddlewareDeniesWhenNoClaimsOnContext(t *testing.T) {
 }
 
 func TestAuthzMiddlewareAllowsMatchingScope(t *testing.T) {
+	setRBACEnabled(t, true)
 	reg := newToolRegistry()
 	reg.permissions["some_tool"] = []rbac.Permission{rbac.AgentBuild}
 	ctx := jwtassertion.ContextWithTokenClaimsAndScope(context.Background(), &jwtassertion.TokenClaims{
@@ -209,6 +235,7 @@ func TestAuthzMiddlewareAllowsMatchingScope(t *testing.T) {
 // own): the session context carries no scopes at all, yet the call is allowed
 // because call.Extra.TokenInfo has the required scope.
 func TestAuthzMiddlewarePerRequestScopeAllowsWithEmptySession(t *testing.T) {
+	setRBACEnabled(t, true)
 	reg := newToolRegistry()
 	reg.permissions["some_tool"] = []rbac.Permission{rbac.AgentBuild}
 	extra := &gomcp.RequestExtra{TokenInfo: &auth.TokenInfo{Scopes: []string{rbac.AgentBuild.Scope()}}}
@@ -223,6 +250,7 @@ func TestAuthzMiddlewarePerRequestScopeAllowsWithEmptySession(t *testing.T) {
 // SESSION context separately carries the required scope: a request whose
 // per-request TokenInfo lacks the scope is denied.
 func TestAuthzMiddlewarePerRequestScopeTakesPrecedenceOverSession(t *testing.T) {
+	setRBACEnabled(t, true)
 	reg := newToolRegistry()
 	reg.permissions["some_tool"] = []rbac.Permission{rbac.AgentBuild}
 	// Session context has the required scope...
@@ -252,6 +280,7 @@ func TestAuthzMiddlewarePerRequestScopeTakesPrecedenceOverSession(t *testing.T) 
 // not be allowed to drive a tool against org B's data. The request here has the
 // required scope but a different ouId than the session — it must be denied.
 func TestAuthzMiddlewareDeniesOrgMismatch(t *testing.T) {
+	setRBACEnabled(t, true)
 	reg := newToolRegistry()
 	reg.permissions["some_tool"] = []rbac.Permission{rbac.AgentBuild}
 	// Session established for org B, and it even carries the required scope.
@@ -276,6 +305,7 @@ func TestAuthzMiddlewareDeniesOrgMismatch(t *testing.T) {
 // TestAuthzMiddlewareAllowsMatchingOrg is the happy path: a single-token client
 // whose per-request org equals the session org passes the consistency check.
 func TestAuthzMiddlewareAllowsMatchingOrg(t *testing.T) {
+	setRBACEnabled(t, true)
 	reg := newToolRegistry()
 	reg.permissions["some_tool"] = []rbac.Permission{rbac.AgentBuild}
 	ctx := jwtassertion.ContextWithTokenClaimsAndScope(context.Background(), &jwtassertion.TokenClaims{
@@ -292,11 +322,12 @@ func TestAuthzMiddlewareAllowsMatchingOrg(t *testing.T) {
 	}
 }
 
-// TestAuthzMiddlewareDeniesOrgMismatchBeforeScopes proves the org consistency
-// check is an identity-integrity guard, not scope authorization: it decides
-// first, so the refusal names the mismatch rather than a missing scope
-// (mirroring the SDK's sub-based session-hijack guard).
-func TestAuthzMiddlewareDeniesOrgMismatchBeforeScopes(t *testing.T) {
+// TestAuthzMiddlewareDeniesOrgMismatchEvenWhenRBACDisabled proves the org
+// consistency check is an identity-integrity guard, not scope authorization:
+// it holds even when RBAC_ENABLED is false (mirroring the SDK's sub-based
+// session-hijack guard, which is always active).
+func TestAuthzMiddlewareDeniesOrgMismatchEvenWhenRBACDisabled(t *testing.T) {
+	setRBACEnabled(t, false)
 	reg := newToolRegistry()
 	reg.permissions["some_tool"] = []rbac.Permission{rbac.AgentBuild}
 	ctx := jwtassertion.ContextWithTokenClaimsAndScope(context.Background(), &jwtassertion.TokenClaims{
@@ -307,7 +338,7 @@ func TestAuthzMiddlewareDeniesOrgMismatchBeforeScopes(t *testing.T) {
 	}}
 	result, nextCalled := callToolViaMiddlewareWithExtra(t, reg, ctx, "some_tool", extra)
 	if nextCalled {
-		t.Fatal("next handler ran despite org mismatch")
+		t.Fatal("next handler ran despite org mismatch with RBAC disabled")
 	}
 	if got, want := denialText(t, result), "organization mismatch: request token is not scoped to the session organization"; got != want {
 		t.Fatalf("denial text = %q, want %q", got, want)
@@ -315,6 +346,7 @@ func TestAuthzMiddlewareDeniesOrgMismatchBeforeScopes(t *testing.T) {
 }
 
 func TestAuthzMiddlewareRequiresAllPermissions(t *testing.T) {
+	setRBACEnabled(t, true)
 	reg := newToolRegistry()
 	reg.permissions["multi_tool"] = []rbac.Permission{rbac.AgentCreate, rbac.AgentTokenManage}
 	// Only one of the two scopes present.
@@ -332,6 +364,7 @@ func TestAuthzMiddlewareRequiresAllPermissions(t *testing.T) {
 }
 
 func TestAuthzMiddlewarePassesThroughOtherMethods(t *testing.T) {
+	setRBACEnabled(t, true)
 	reg := newToolRegistry()
 	next := func(_ context.Context, _ string, _ gomcp.Request) (gomcp.Result, error) {
 		return &gomcp.ListToolsResult{}, nil
@@ -355,6 +388,7 @@ func TestAuthzMiddlewarePassesThroughOtherMethods(t *testing.T) {
 // The session here grants the production tier and the per-request token does
 // not, which is exactly the direction that matters: the narrower token must win.
 func TestAuthzMiddlewarePutsPerRequestScopesOnContext(t *testing.T) {
+	setRBACEnabled(t, true)
 	reg := newToolRegistry()
 	reg.permissions["some_tool"] = []rbac.Permission{rbac.AgentBuild}
 	ctx := jwtassertion.ContextWithTokenClaimsAndScope(context.Background(), &jwtassertion.TokenClaims{
@@ -389,6 +423,7 @@ func TestAuthzMiddlewarePutsPerRequestScopesOnContext(t *testing.T) {
 // the session scopes already on ctx are the effective set. Rewriting ctx from an
 // absent TokenInfo would blank them.
 func TestAuthzMiddlewareKeepsSessionScopesWithoutTokenInfo(t *testing.T) {
+	setRBACEnabled(t, true)
 	reg := newToolRegistry()
 	reg.permissions["some_tool"] = []rbac.Permission{rbac.AgentBuild}
 	ctx := jwtassertion.ContextWithTokenClaimsAndScope(context.Background(), &jwtassertion.TokenClaims{

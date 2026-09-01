@@ -24,6 +24,7 @@ import (
 	gomcp "github.com/modelcontextprotocol/go-sdk/mcp"
 
 	"github.com/wso2/agent-manager/agent-manager-service/audit"
+	"github.com/wso2/agent-manager/agent-manager-service/config"
 	"github.com/wso2/agent-manager/agent-manager-service/middleware/jwtassertion"
 	"github.com/wso2/agent-manager/agent-manager-service/rbac"
 )
@@ -83,9 +84,11 @@ func addTool[T any](reg *toolRegistry, server *gomcp.Server, tool *gomcp.Tool,
 }
 
 // authzMiddleware returns a server middleware that authorizes every tools/call
-// against the registry, mirroring middleware.RequirePermission semantics.
-// Denials are returned as IsError tool results so MCP clients surface an
-// actionable message instead of a protocol error.
+// against the registry, mirroring middleware.RequirePermission semantics:
+// RBAC_ENABLED=false skips the scope check (zero-downtime rollout switch),
+// while the unknown-tool denial applies regardless. Denials are returned as
+// IsError tool results so MCP clients surface an actionable message instead
+// of a protocol error.
 func (reg *toolRegistry) authzMiddleware() gomcp.Middleware {
 	return func(next gomcp.MethodHandler) gomcp.MethodHandler {
 		return func(ctx context.Context, method string, req gomcp.Request) (gomcp.Result, error) {
@@ -108,8 +111,9 @@ func (reg *toolRegistry) authzMiddleware() gomcp.Middleware {
 			// from the per-request token. Reject when the per-request token targets
 			// a different org than the session, so scopes granted in one org cannot
 			// authorize actions against another. This is an identity-integrity check
-			// like the SDK's sub-based session-hijack guard. Skipped when
-			// there is no per-request TokenInfo (in-memory transports have no HTTP layer).
+			// like the SDK's sub-based session-hijack guard, so it applies
+			// regardless of RBAC_ENABLED. Skipped when there is no per-request
+			// TokenInfo (in-memory transports have no HTTP layer).
 			if call.Extra != nil && call.Extra.TokenInfo != nil {
 				if !sessionOrgMatchesRequest(ctx, call.Extra.TokenInfo) {
 					// An attempt to drive a tool against a different org than
@@ -125,6 +129,9 @@ func (reg *toolRegistry) authzMiddleware() gomcp.Middleware {
 			// reading two sources would let one request be gated on the request
 			// token and tiered on the session token.
 			ctx = withEffectiveScopes(ctx, call)
+			if !config.GetConfig().RBACEnabled {
+				return next(ctx, method, req)
+			}
 			if missing, short := jwtassertion.FirstMissingScope(ctx, perms...); short {
 				recordToolDeny(ctx, call.Params.Name, "missing-scope",
 					audit.RequiredPermissions(missing),

@@ -119,6 +119,11 @@ type Config struct {
 	// Thunder admin API configuration for provisioning OAuth apps
 	Thunder ThunderConfig
 
+	// RBACEnabled enables scope-based authorization on every API route.
+	// When false (default), all authenticated requests are allowed regardless of token scopes.
+	// Flip to true after roles are assigned to users in Thunder.
+	RBACEnabled bool
+
 	// RootOUHandle identifies the root/admin Organization Unit in Thunder.
 	// Client-credentials tokens issued to this OU are allowed to access any
 	// org's gateway-registration route (see RequireOrgMatchAllowRootOU /

@@ -72,6 +72,7 @@ helm install agent-manager oci://ghcr.io/wso2/helm-charts/wso2-agent-manager \
 | `agentManagerService.config.dbOperationTimeout` | Seconds a database operation may run before it is cancelled. | integer | `30` |
 | `agentManagerService.config.healthCheckTimeout` | Seconds a health check may take before it is treated as failed. | integer | `5` |
 | `agentManagerService.config.corsAllowedOrigin` | Origins allowed to call the API from a browser. Narrow this in production. | string | `"*"` |
+| `agentManagerService.config.rbacEnabled` | Enable RBAC enforcement on all routes | string | `"true"` |
 | `agentManagerService.config.audit` | Audit trail. Every state-changing API call, every authorization denial and every rejected token is written to stdout as structured JSON tagged log_type=audit, for the cluster log pipeline to collect. Retention is NOT provided by this service. Route these records to an index or bucket with a retention period that matches your audit obligations — the observability plane's default log retention is far shorter than the evidence period most audits require. | object |  |
 | `agentManagerService.config.audit.enabled` | Boolean, not a quoted string, so setting it to false actually disables recording — see the AUDIT_ENABLED note in the service ConfigMap. | boolean | `true` |
 | `agentManagerService.config.audit.bufferSize` | Queued events. On overflow, events are dropped and counted rather than blocking the request that produced them. | integer | `4096` |
@@ -233,6 +234,7 @@ helm install agent-manager oci://ghcr.io/wso2/helm-charts/wso2-agent-manager \
 | `console.config.auth.validateIDToken` | Verify the ID token signature in the browser. | string | `"false"` |
 | `console.config.auth.clockTolerance` | Clock skew tolerated when validating tokens, in seconds. | integer | `300` |
 | `console.config.disableAuth` | Disable auth for development | string | `"false"` |
+| `console.config.rbacEnabled` | Enable RBAC-based sidebar visibility (scope-gated nav sections) | string | `"true"` |
 | `console.config.apiBaseUrl` | Backend API URLs (will be auto-configured if empty) Routed through the OpenChoreo control-plane gateway (see ocIngress). | string | `"http://api.amp.localhost:8080"` |
 | `console.config.gatewayControlPlaneUrl` | Gateway control plane URL rendered into external-gateway setup commands. Routed through the OpenChoreo control-plane gateway (see agentManagerService.ocIngress.gatewayMgmt); host.docker.internal lets a gateway container on the same machine reach it. | string | `"http://host.docker.internal:8080"` |
 | `console.config.gatewayVersion` | Gateway version for setup commands (default: v1.0.0) | string | `"v1.0.0"` |

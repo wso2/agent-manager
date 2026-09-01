@@ -16,6 +16,8 @@ data:
   CLOCK_TOLERANCE: {{ .Values.console.config.auth.clockTolerance | quote }}
   # Disable authentication flag
   DISABLE_AUTH: {{ .Values.console.config.disableAuth | quote }}
+  # Enable RBAC-based sidebar visibility (scope-gated nav sections)
+  RBAC_ENABLED: {{ .Values.console.config.rbacEnabled | default "true" | quote }}
   # Backend API URL (auto-configure if empty)
   API_BASE_URL: {{ .Values.console.config.apiBaseUrl | quote }}
   # Gateway control plane URL for gateway setup commands

@@ -84,7 +84,7 @@ type spanDetailsInput struct {
 }
 
 func (t *Toolsets) registerTraceTools(server *gomcp.Server) {
-	authorize := t.guard(rbac.TraceRead)
+	authorize := requireToolPermission(t.RBACEnabled, rbac.TraceRead)
 
 	gomcp.AddTool(server, &gomcp.Tool{
 		Name: "list_traces",
