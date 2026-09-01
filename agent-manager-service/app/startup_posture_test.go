@@ -22,7 +22,6 @@ import (
 	"testing"
 
 	"github.com/wso2/agent-manager/agent-manager-service/audit"
-	"github.com/wso2/agent-manager/agent-manager-service/config"
 )
 
 type postureSink struct {
@@ -50,67 +49,26 @@ func (s *postureSink) find(action audit.Action) (audit.Event, bool) {
 	return audit.Event{}, false
 }
 
-func capturePosture(t *testing.T, rbacEnabled bool) *postureSink {
+func capturePosture(t *testing.T) *postureSink {
 	t.Helper()
 	sink := &postureSink{}
 	rec := audit.NewRecorder(sink, nil, audit.Config{BatchSize: 1})
-	recordStartupPosture(&config.Config{RBACEnabled: rbacEnabled}, rec)
+	recordStartupPosture(rec)
 	if err := rec.Close(context.Background()); err != nil {
 		t.Fatalf("close recorder: %v", err)
 	}
 	return sink
 }
 
-// TestStartupRecordStatesTheRealEnforcementPosture is the regression for a
-// record that asserted the opposite of the truth.
-//
-// rbacEnforced is not a neutral field: false is the claim that no authorization
-// check happened, and the design leans on it ("a record with rbacEnforced:false
-// shows on its face that no check happened"). Outside a request there is no
-// audit source to carry the value, so the startup record serialised the zero
-// value — and on an RBAC-enabled deployment the first record in the trail
-// contradicted every request record after it.
-//
-// Found by running the service with RBAC_ENABLED=true: the startup record said
-// rbacEnforced:false while the authz:deny records from the same process said
-// true.
-func TestStartupRecordStatesTheRealEnforcementPosture(t *testing.T) {
-	t.Run("enforced", func(t *testing.T) {
-		sink := capturePosture(t, true)
+// TestStartupRecordIsWritten keeps the trail's opening bookend: without it a
+// reader cannot tell "nothing happened" apart from "the service was not
+// running", and any gap in the record is unbounded.
+func TestStartupRecordIsWritten(t *testing.T) {
+	sink := capturePosture(t)
 
-		e, ok := sink.find(audit.ActionSystemStartup)
-		if !ok {
-			t.Fatal("no system:startup record")
-		}
-		if !e.RBACEnforced {
-			t.Error("startup record says rbacEnforced=false while RBAC is enabled; " +
-				"it contradicts every request record the same process will write")
-		}
-		if _, disabled := sink.find(audit.ActionSystemRBACDisabled); disabled {
-			t.Error("system:rbac-disabled recorded while RBAC is enabled")
-		}
-	})
-
-	t.Run("not enforced", func(t *testing.T) {
-		sink := capturePosture(t, false)
-
-		e, ok := sink.find(audit.ActionSystemStartup)
-		if !ok {
-			t.Fatal("no system:startup record")
-		}
-		if e.RBACEnforced {
-			t.Error("startup record says rbacEnforced=true while RBAC is disabled")
-		}
-
-		disabled, ok := sink.find(audit.ActionSystemRBACDisabled)
-		if !ok {
-			t.Fatal("RBAC is off and no system:rbac-disabled record was written; " +
-				"the posture would be visible only in a config file")
-		}
-		if disabled.RBACEnforced {
-			t.Error("system:rbac-disabled record claims enforcement is on")
-		}
-	})
+	if _, ok := sink.find(audit.ActionSystemStartup); !ok {
+		t.Fatal("no system:startup record")
+	}
 }
 
 // TestStartupPostureWithoutARecorderIsANoop keeps startup from depending on the
@@ -121,5 +79,5 @@ func TestStartupPostureWithoutARecorderIsANoop(t *testing.T) {
 			t.Fatalf("recordStartupPosture panicked with no recorder: %v", r)
 		}
 	}()
-	recordStartupPosture(&config.Config{RBACEnabled: true}, nil)
+	recordStartupPosture(nil)
 }

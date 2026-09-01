@@ -106,9 +106,13 @@ func (c *openChoreoClient) CreateInternalAgentFromKindWorkload(ctx context.Conte
 		endpointMap[name] = workloadEp
 	}
 
-	envVars := toGenEnvVars(req.Env)
-	fileVars := toGenFileVars(req.Files)
-
+	// Env vars and file mounts are deliberately NOT set here. A value on the Workload is
+	// inherited by every environment, and a ReleaseBinding's workloadOverrides can replace
+	// such a value per environment but cannot remove it — making the inheritance impossible
+	// to opt out of. Configuration therefore lives only on the per-environment binding,
+	// written by EnsureReleaseAndBinding; the Workload carries just the image and
+	// the environment-independent endpoint contract. This mirrors amp-generate-workload,
+	// which splits the same two documents for source-built agents.
 	workload := gen.CreateWorkloadJSONRequestBody{
 		Metadata: gen.ObjectMeta{
 			Name:      workloadName,
@@ -117,8 +121,6 @@ func (c *openChoreoClient) CreateInternalAgentFromKindWorkload(ctx context.Conte
 		Spec: &gen.WorkloadSpec{
 			Container: &gen.WorkloadContainer{
 				Image: req.ImageID,
-				Env:   &envVars,
-				Files: &fileVars,
 			},
 			Owner: &struct {
 				ComponentName string `json:"componentName"`
@@ -384,8 +386,9 @@ func (c *openChoreoClient) UpdateReleaseBindingTraitConfigs(ctx context.Context,
 // EnsureReleaseBindingRuntimeClass idempotently reconciles runtimeClassName on a release
 // binding's ComponentTypeEnvironmentConfigs for (component, environment).
 //
-// Why this exists: OpenChoreo's AutoDeploy creates the release binding when a build completes,
-// WITHOUT going through the backend's deploy-time config write — so an agent in an isolation-tier
+// Why this exists: the build workflow creates the release binding when a build completes,
+// WITHOUT going through the backend's deploy-time config write — it writes the release pin and
+// workloadOverrides only, never componentTypeEnvironmentConfigs — so an agent in an isolation-tier
 // environment first comes up on the default (runc) runtime. This is called from the deploy-status
 // read path to correct that out-of-band binding.
 //
@@ -470,6 +473,156 @@ func (c *openChoreoClient) ReplaceReleaseBindingWorkloadOverrides(ctx context.Co
 
 		bumpRestartedAt(rb)
 	})
+}
+
+// EnsureReleaseAndBinding cuts a ComponentRelease from the component's current state and binds
+// it to the given environment, carrying the environment's configuration as the binding's
+// workloadOverrides. Creates the binding when the environment has none, and otherwise repins
+// the existing one, so both an agent's first deployment and every redeploy use this one path.
+//
+// Why this exists: components are created with autoDeploy off, so OpenChoreo's Component
+// controller neither cuts releases nor owns the binding. Nothing else notices that the
+// Workload's image changed — the ReleaseBinding renders from the frozen workload copy inside
+// the pinned ComponentRelease, never from the live Workload — so an image write that is not
+// followed by a new release and a repin is invisible to the data plane.
+//
+// autoDeploy is off because a controller-created binding carries no overrides, and
+// configuration must not sit on the shared Workload: a value there is inherited by every
+// environment and a binding can replace but never remove it. This is the backend's equivalent
+// of amp-generate-workload's Steps 6-7, which do the same for a build.
+//
+// Call it AFTER every write this deployment makes to the Component and the Workload: the
+// release freezes the component's traits, parameters and workload as they are at this moment,
+// so anything written afterwards waits for the next release.
+//
+// The binding name follows the same convention the workflow and the promotion path use:
+// <component>-<environment>. Passing nil overrides leaves spec.workloadOverrides unset.
+func (c *openChoreoClient) EnsureReleaseAndBinding(
+	ctx context.Context, ouID, projectName, componentName, environment string,
+	envOverrides []EnvVar, fileOverrides []FileVar,
+) error {
+	namespaceName := c.NamespaceFor(ouID)
+
+	// Step 1: cut the release from the component's current state. The name is left to the
+	// API server to generate; the response carries it back for the binding to pin.
+	releaseResp, err := c.ocClient.GenerateReleaseWithResponse(ctx, namespaceName, componentName,
+		gen.GenerateReleaseJSONRequestBody{})
+	if err != nil {
+		return fmt.Errorf("failed to generate component release for component %q: %w", componentName, err)
+	}
+	if releaseResp.StatusCode() != http.StatusCreated || releaseResp.JSON201 == nil {
+		return handleErrorResponse(releaseResp.StatusCode(), ErrorResponses{
+			JSON400: releaseResp.JSON400,
+			JSON401: releaseResp.JSON401,
+			JSON403: releaseResp.JSON403,
+			JSON500: releaseResp.JSON500,
+		})
+	}
+	releaseName := releaseResp.JSON201.Metadata.Name
+	if releaseName == "" {
+		return fmt.Errorf("component release for %q was created without a name", componentName)
+	}
+
+	var workloadOverrides *gen.WorkloadOverrides
+	if len(envOverrides) > 0 || len(fileOverrides) > 0 {
+		container := &gen.ContainerOverride{}
+		if len(envOverrides) > 0 {
+			envVars := toGenEnvVars(envOverrides)
+			container.Env = &envVars
+		}
+		if len(fileOverrides) > 0 {
+			fileVars := toGenFileVars(fileOverrides)
+			container.Files = &fileVars
+		}
+		workloadOverrides = &gen.WorkloadOverrides{Container: container}
+	}
+
+	// Step 2: bind the release to the environment. A binding usually already exists — every
+	// redeploy comes through here, and so does an agent recreated over a previous one — so
+	// update rather than fail on that path; retryReleaseBindingUpdate re-reads per attempt, as
+	// the backend races other writers of this same binding (MCP env vars, runtime class) and
+	// the build workflow, which repins this same field at the end of a build.
+	activeState := gen.ReleaseBindingSpecStateActive
+	bindingName := componentName + "-" + environment
+	existing, err := c.findReleaseBindingForEnv(ctx, namespaceName, componentName, environment)
+	if err != nil {
+		return fmt.Errorf("failed to look up release binding for component %q in environment %q: %w",
+			componentName, environment, err)
+	}
+	if existing != nil {
+		return c.retryReleaseBindingUpdate(ctx, namespaceName, existing.Metadata.Name, func(rb *gen.ReleaseBinding) {
+			rb.Spec.ReleaseName = &releaseName
+			// Assigned unconditionally: the caller's configuration is authoritative for
+			// this environment, so an empty one (nil here) must clear whatever a previous
+			// binding held rather than leaving it in force. Unlike
+			// ReplaceReleaseBindingWorkloadOverrides, this is not a partial edit.
+			rb.Spec.WorkloadOverrides = workloadOverrides
+			// Force the binding back to Active. An agent undeployed via UpdateDeploymentState
+			// leaves this at Undeploy, and the read feeding this mutator round-trips it, so a binding
+			// adopted here would pin the release and carry the overrides while the data plane
+			// tore the resources down — with nothing in the response signalling it. Both callers
+			// are explicit deploy intents, so deploying an undeployed agent should redeploy it.
+			rb.Spec.State = &activeState
+			bumpRestartedAt(rb)
+		})
+	}
+
+	createBody := gen.CreateReleaseBindingJSONRequestBody{
+		Metadata: gen.ObjectMeta{
+			Name:      bindingName,
+			Namespace: &namespaceName,
+		},
+		Spec: &gen.ReleaseBindingSpec{
+			Environment: environment,
+			ReleaseName: &releaseName,
+			// spec.state is left unset: the ReleaseBinding CRD defaults it to Active
+			// (+kubebuilder:default=Active), so a create needs no opinion here. The update
+			// paths above do set it, because defaulting cannot help an existing binding
+			// whose state round-trips through the read.
+			WorkloadOverrides: workloadOverrides,
+			Owner: struct {
+				ComponentName string `json:"componentName"`
+				ProjectName   string `json:"projectName"`
+			}{
+				ComponentName: componentName,
+				ProjectName:   projectName,
+			},
+		},
+	}
+
+	createResp, err := c.ocClient.CreateReleaseBindingWithResponse(ctx, namespaceName, createBody)
+	if err != nil {
+		return fmt.Errorf("failed to create release binding for component %q: %w", componentName, err)
+	}
+	// A concurrent writer can win the create; adopt the binding it made rather than failing
+	// the agent creation, mirroring the workflow's 409 handling.
+	if createResp.StatusCode() == http.StatusConflict {
+		return c.retryReleaseBindingUpdate(ctx, namespaceName, bindingName, func(rb *gen.ReleaseBinding) {
+			rb.Spec.ReleaseName = &releaseName
+			// Assigned unconditionally: the caller's configuration is authoritative for
+			// this environment, so an empty one (nil here) must clear whatever a previous
+			// binding held rather than leaving it in force. Unlike
+			// ReplaceReleaseBindingWorkloadOverrides, this is not a partial edit.
+			rb.Spec.WorkloadOverrides = workloadOverrides
+			// Force the binding back to Active. An agent undeployed via UpdateDeploymentState
+			// leaves this at Undeploy, and the read feeding this mutator round-trips it, so a binding
+			// adopted here would pin the release and carry the overrides while the data plane
+			// tore the resources down — with nothing in the response signalling it. Both callers
+			// are explicit deploy intents, so deploying an undeployed agent should redeploy it.
+			rb.Spec.State = &activeState
+			bumpRestartedAt(rb)
+		})
+	}
+	if createResp.StatusCode() != http.StatusCreated {
+		return handleErrorResponse(createResp.StatusCode(), ErrorResponses{
+			JSON400: createResp.JSON400,
+			JSON401: createResp.JSON401,
+			JSON403: createResp.JSON403,
+			JSON500: createResp.JSON500,
+		})
+	}
+
+	return nil
 }
 
 // PromoteComponent promotes a component from sourceEnvironment to targetEnvironment.

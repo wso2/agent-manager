@@ -8,7 +8,7 @@ The server speaks MCP over Streamable HTTP and is protected by the existing
 JWT middleware, which means every tool call goes through the standard OAuth
 2.0 authorization-code + PKCE flow against Thunder. Each tool additionally
 declares the `rbac` permission(s) it requires; calls are denied unless the
-token carries the matching `amp:*` scopes (when `RBAC_ENABLED=true`).
+token carries the matching `amp:*` scopes.
 
 The caller's organization is always derived from the token's claims — tools
 take no `org_name`/`org_handle` input, and every operation is scoped to the
@@ -91,7 +91,7 @@ The relevant env vars on `agent-manager-service` are already set:
 - SERVER_PUBLIC_URL=http://localhost:9000
 - OAUTH_AUTHORIZATION_SERVERS=http://thunder.amp.localhost:8080
 - KEY_MANAGER_ISSUER=Agent Management Platform Local,http://thunder.amp.localhost:8080
-- KEY_MANAGER_AUDIENCE=localhost,amp-publisher-*,amp-api-client,amp-console-client,am-cli,http://localhost:9000/
+- KEY_MANAGER_AUDIENCE=localhost,amp-publisher-*,amp-api-client,amp-console-client,am-cli,http://localhost:9000/mcp
 ```
 
 ### Helm

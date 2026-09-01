@@ -142,8 +142,6 @@ agentManagerService:
     dbOperationTimeout: 30
     healthCheckTimeout: 5
     corsAllowedOrigin: "*"
-    # Enable RBAC enforcement on all routes
-    rbacEnabled: "true"
     # Audit trail. Every state-changing API call, every authorization denial and
     # every rejected token is written to stdout as structured JSON tagged
     # log_type=audit, for the cluster log pipeline to collect.
@@ -254,10 +252,10 @@ agentManagerService:
     oauthAuthorizationServers: ""
 
     # Domain suffix env-Thunder developer-facing hostnames are built from:
-    # "<handle>.<thunderHostBaseDomain>". Override on custom-domain /
+    # "<handle>.<idpHostBaseDomain>". Override on custom-domain /
     # sslip.io installs so the reported identity-provider endpoints match the
     # actual env-Thunder hosts.
-    thunderHostBaseDomain: "amp.localhost"
+    idpHostBaseDomain: "amp.localhost"
 
     # Base domains for agent-facing hostnames. add-environment.sh prefixes
     # "<env>-<org>." onto gatewayBaseDomain; agentsBaseDomain is used as-is
@@ -339,6 +337,8 @@ agentManagerService:
     workflowPlaneOpenbao:
       # Workflow plane OpenBao URL
       url: "http://openbao.openbao.svc.cluster.local:8200"
+      # KV mount path git credentials are read from.
+      path: "secret"
       # OpenBao token. When set, it is stored in the chart-managed Secret and
       # injected via secretKeyRef — never as a plaintext env var in the pod spec.
       # For production, use existingSecret instead.
@@ -497,8 +497,6 @@ console:
 
     # Disable auth for development
     disableAuth: "false"
-    # Enable RBAC-based sidebar visibility (scope-gated nav sections)
-    rbacEnabled: "true"
 
     # Backend API URLs (will be auto-configured if empty)
     # Routed through the OpenChoreo control-plane gateway (see ocIngress).
@@ -532,10 +530,10 @@ console:
     agentManagerInternalCpHost: "amp-api-gateway-manager.wso2-amp.svc.cluster.local:9243"
     # Base domain env-Thunder instances are hosted under, and whether this
     # deployment serves them over TLS. Mirrors agentManagerService.config's own
-    # thunderHostBaseDomain/tlsEnabled — kept in sync so the Create Environment
+    # idpHostBaseDomain/tlsEnabled — kept in sync so the Create Environment
     # drawer's rendered command matches this deployment. VM/production installs
     # override both (see deployments/vm/lib-vm.sh).
-    thunderHostBaseDomain: "amp.localhost"
+    idpHostBaseDomain: "amp.localhost"
     tlsEnabled: "false"
     # Guardrails catalog URL for fetching available guardrail policies
     guardrailsCatalogUrl: "https://db720294-98fd-40f4-85a1-cc6a3b65bc9a-prod.e1-us-east-azure.choreoapis.dev/api-platform/policy-hub-api/policy-hub-public/v1.0/policies?categories=AI,Guardrails&limit=50"

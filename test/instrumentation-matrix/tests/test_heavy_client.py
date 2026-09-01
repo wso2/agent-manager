@@ -53,7 +53,7 @@ def test_access_token_fetches_and_caches():
 @responses.activate
 def test_access_token_requests_rbac_scopes():
     # Thunder only puts a scope in a client_credentials token when it's requested,
-    # and the service authorizes routes against it under RBAC_ENABLED=true. The
+    # and the service authorizes routes against it. The
     # token call must therefore send the provisioning scopes, or every API call 403s.
     import urllib.parse as _u
 

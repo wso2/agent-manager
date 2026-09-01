@@ -111,15 +111,14 @@ func TestNewEventPrefersResolvedOrg(t *testing.T) {
 
 func TestNewEventReadsSource(t *testing.T) {
 	ctx := WithSource(context.Background(), Source{
-		Surface:      SurfaceMCP,
-		IP:           "203.0.113.5",
-		UserAgent:    "amctl/1.0",
-		Method:       http.MethodPost,
-		Pattern:      "/orgs/{orgName}/projects",
-		ActorType:    ActorService,
-		ActorID:      "gateway-1",
-		AuthMethod:   "api-key",
-		RBACEnforced: true,
+		Surface:    SurfaceMCP,
+		IP:         "203.0.113.5",
+		UserAgent:  "amctl/1.0",
+		Method:     http.MethodPost,
+		Pattern:    "/orgs/{orgName}/projects",
+		ActorType:  ActorService,
+		ActorID:    "gateway-1",
+		AuthMethod: "api-key",
 	})
 
 	e := newEvent(ctx, "project:create")
@@ -129,9 +128,6 @@ func TestNewEventReadsSource(t *testing.T) {
 	}
 	if e.ActorType != ActorService || e.ActorID != "gateway-1" || e.AuthMethod != "api-key" {
 		t.Errorf("surface actor override not applied: %+v", e)
-	}
-	if !e.RBACEnforced {
-		t.Error("RBACEnforced was not carried from the source")
 	}
 }
 

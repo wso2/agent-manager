@@ -80,8 +80,6 @@ func TestToolPermissionsMatchSpecs(t *testing.T) {
 // from a nil *Toolsets still gets the authz middleware installed: any
 // tools/call — even one bypassing addTool entirely — is denied.
 func TestNilToolsetsInstallsFailClosedMiddleware(t *testing.T) {
-	setRBACEnabled(t, false) // fail-closed must hold even with RBAC disabled
-
 	server := gomcp.NewServer(&gomcp.Implementation{Name: "test-nil-toolsets", Version: "0.0.1"}, nil)
 	var toolsets *Toolsets
 	toolsets.Register(server)

@@ -16,8 +16,6 @@ data:
   CLOCK_TOLERANCE: {{ .Values.console.config.auth.clockTolerance | quote }}
   # Disable authentication flag
   DISABLE_AUTH: {{ .Values.console.config.disableAuth | quote }}
-  # Enable RBAC-based sidebar visibility (scope-gated nav sections)
-  RBAC_ENABLED: {{ .Values.console.config.rbacEnabled | default "true" | quote }}
   # Backend API URL (auto-configure if empty)
   API_BASE_URL: {{ .Values.console.config.apiBaseUrl | quote }}
   # Gateway control plane URL for gateway setup commands
@@ -38,9 +36,9 @@ data:
   AGENT_MANAGER_INTERNAL_CP_HOST: {{ .Values.console.config.agentManagerInternalCpHost | default "" | quote }}
   # Base domain env-Thunder instances are hosted under, and whether this
   # deployment serves them over TLS — piped into the Create Environment
-  # drawer's rendered add-environment.sh command so THUNDER_HOST_BASE_DOMAIN
+  # drawer's rendered add-environment.sh command so IDP_HOST_BASE_DOMAIN
   # and TLS_ENABLED match this deployment instead of being omitted.
-  THUNDER_HOST_BASE_DOMAIN: {{ .Values.console.config.thunderHostBaseDomain | default "amp.localhost" | quote }}
+  IDP_HOST_BASE_DOMAIN: {{ .Values.console.config.idpHostBaseDomain | default "amp.localhost" | quote }}
   TLS_ENABLED: {{ .Values.console.config.tlsEnabled | default "false" | quote }}
   # Guardrails configuration
   GUARDRAILS_CATALOG_URL: {{ .Values.console.config.guardrailsCatalogUrl | default "" | quote }}

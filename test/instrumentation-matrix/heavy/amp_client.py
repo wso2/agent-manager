@@ -42,8 +42,8 @@ _DEPLOY_FAILED_STREAK = 3
 _HTTP_TIMEOUT_S = 30
 _TOKEN_REFRESH_SKEW_S = 30
 
-# OAuth2 scopes requested in the client_credentials grant. With RBAC_ENABLED=true
-# the service authorizes every route against the token's scopes, and Thunder only
+# OAuth2 scopes requested in the client_credentials grant. The service authorizes
+# every route against the token's scopes, and Thunder only
 # puts a scope in a client_credentials token when it is *explicitly requested*
 # (and the app is registered for it + assigned a role that grants it — both done
 # for amp-api-client in the Thunder bootstrap). Omitting `scope` yields a token
@@ -52,7 +52,7 @@ _TOKEN_REFRESH_SKEW_S = 30
 # builds+deployments, mint API key, teardown deletes) plus reading the emitted
 # spans back from the observer (heavy/observer.py reuses this same token for
 # GET /api/v1/traces[/…], which the observer wraps in RequirePermission(
-# TraceRead) under RBAC_ENABLED=true — so amp:observability:trace-read is
+# TraceRead) — so amp:observability:trace-read is
 # required or every trace poll 403s and the cell reports a pipeline error
 # instead of no-spans-captured). Mirrors how the console requests its scope
 # list. Unauthorised/unknown scopes are silently filtered by Thunder, so this

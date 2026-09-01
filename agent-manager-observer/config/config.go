@@ -64,11 +64,6 @@ type AuthConfig struct {
 	// ScopesSupported is the list of OAuth 2.0 scopes supported by this
 	// resource, advertised in the RFC 9728 protected resource metadata document.
 	ScopesSupported []string
-
-	// RBACEnabled enables scope-based authorization on the REST data routes.
-	// When false only authentication runs, allowing zero-downtime rollout —
-	// mirrors agent-manager-service's RBAC_ENABLED flag.
-	RBACEnabled bool
 }
 
 // ServerConfig holds HTTP server configuration
@@ -98,7 +93,6 @@ func Load() (*Config, error) {
 			ServerPublicURL:      getEnv("SERVER_PUBLIC_URL", ""),
 			AuthorizationServers: getEnvAsOptionalList("OAUTH_AUTHORIZATION_SERVERS"),
 			ScopesSupported:      getEnvAsOptionalList("OAUTH_SCOPES_SUPPORTED"),
-			RBACEnabled:          getEnvAsBool("RBAC_ENABLED", false),
 		},
 	}
 

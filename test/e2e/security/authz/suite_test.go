@@ -17,7 +17,7 @@
 // Package authz holds the authorization security suite: specs that assert a
 // principal CANNOT do something. Every spec here must fail loudly when a guard
 // is missing, so the suite refuses to run at all unless it has first proved
-// that (a) RBAC enforcement is switched on and (b) it can actually mint an
+// that (a) the deployment enforces scopes and (b) it can actually mint an
 // under-privileged token. Without both, every negative spec would pass
 // vacuously — the single worst failure mode for a security suite.
 package authz
@@ -70,8 +70,8 @@ var _ = BeforeSuite(func(ctx SpecContext) {
 	By("Verifying the IDP honours scope reduction")
 	verifyScopeReductionWorks(ctx)
 
-	By("Verifying RBAC enforcement is enabled on the target deployment")
-	verifyRBACEnabled(ctx)
+	By("Verifying the target deployment enforces scopes")
+	verifyScopeEnforcement(ctx)
 })
 
 // verifyScopeMatrixUsesKnownScopes catches stale permission names before the
@@ -112,13 +112,12 @@ func verifyScopeReductionWorks(ctx SpecContext) {
 			"removed more than requested, which would make positive controls unreliable")
 }
 
-// verifyRBACEnabled proves the deployment actually enforces scopes. RBAC_ENABLED
-// defaults to false in the Go config loader (true in the Helm chart and in
-// docker-compose), and when it is off RequirePermission short-circuits and every
-// route is reachable by any authenticated caller. Running the negative specs
-// against such a deployment would report a clean bill of health for a platform
-// with authorization switched off entirely.
-func verifyRBACEnabled(ctx SpecContext) {
+// verifyScopeEnforcement proves the deployment actually enforces scopes before
+// any negative spec runs. If RequirePermission were bypassed — a misrouted
+// request, a proxy stripping the token, a regression in the middleware chain —
+// every route would be reachable by any authenticated caller, and this suite
+// would report a clean bill of health for a platform with no authorization.
+func verifyScopeEnforcement(ctx SpecContext) {
 	unscoped, err := framework.FetchTokenWithScopes(ctx, Cfg, nil)
 	Expect(err).NotTo(HaveOccurred(), "failed to fetch an unscoped token")
 
@@ -129,7 +128,7 @@ func verifyRBACEnabled(ctx SpecContext) {
 
 	Expect(resp.StatusCode).To(Equal(http.StatusForbidden),
 		"ABORTING: an unscoped token reached a %s-guarded endpoint and got %d instead of 403. "+
-			"RBAC enforcement appears to be disabled on this deployment (RBAC_ENABLED=false). "+
-			"Set RBAC_ENABLED=true and re-run — results from this suite are meaningless otherwise.",
+			"This deployment is not enforcing scopes — results from this suite are "+
+			"meaningless until that is fixed.",
 		rbacProbeScope, resp.StatusCode)
 }

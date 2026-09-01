@@ -1,0 +1,155 @@
+---
+title: Platform Resources Extension
+---
+
+# Platform Resources Extension
+
+Default platform resources for WSO2 AI Agent Management Platform on OpenChoreo
+
+```bash
+helm install amp-platform-resources-extension oci://ghcr.io/wso2/helm-charts/wso2-amp-platform-resources-extension \
+  --namespace <namespace> --create-namespace \
+  --values my-values.yaml
+```
+
+## apiPlatformGateway
+
+| Parameter | Description | Type | Default |
+|---|---|---|---|
+| `apiPlatformGateway` | Where the per-environment API Platform Gateway is installed. This must agree with apiGateway.namespace in wso2-amp-api-platform-gateway-extension, because the traits below address that release's gateway-runtime Service by DNS name. | object |  |
+| `apiPlatformGateway.namespace` | Empty = derive the per-org-env convention "&lt;org&gt;-&lt;env&gt;", which setup-gateway.sh and add-environment.sh create by passing set apiGateway.namespace=&lt;org&gt;-&lt;env&gt;. Set this to a fixed namespace when the gateway extension is installed somewhere else — notably openchoreo-data-plane, which is the gateway chart's own default for apiGateway.namespace. Leaving it empty there makes the traits build a name that does not resolve, and the failure is silent: agents keep serving traffic while every span batch fails, and agent invocation has no route to the gateway runtime. | string | `""` |
+
+## apiPlatformGatewayVhost
+
+| Parameter | Description | Type | Default |
+|---|---|---|---|
+| `apiPlatformGatewayVhost` | API Platform Gateway vhost used for externally reachable gateway URLs. Sandboxed platform agents use the per-environment gateway runtime's in-cluster Service for OTEL and managed LLM/MCP proxy traffic instead. | object |  |
+| `apiPlatformGatewayVhost.host` | Hostname of the virtual host. | string | `"gateway.localhost"` |
+| `apiPlatformGatewayVhost.port` | Port the virtual host serves on. | integer | `19080` |
+| `apiPlatformGatewayVhost.otelEndpointOverride` | Full override for the agent OTEL endpoint. When set, it replaces the in-cluster runtime URL entirely — used on installs that front a single public gateway host on :443 (e.g. a VM install), where the per-environment Kubernetes Service does not apply. Empty = derive the in-cluster Service. | string | `""` |
+
+## authz
+
+| Parameter | Description | Type | Default |
+|---|---|---|---|
+| `authz` | Authorization configuration for OpenChoreo | object |  |
+| `authz.ampApiClient` | AMP API Client authorization binding | object |  |
+| `authz.ampApiClient.clientId` | Client ID used by agent-manager-service (must match Thunder OAuth client_id) | string | `"amp-api-client"` |
+| `authz.ampApiClient.role` | Role to assign (admin grants full access to OpenChoreo APIs) | string | `"admin"` |
+| `authz.amObserverClient` | AM Observer Client authorization binding | object |  |
+| `authz.amObserverClient.clientId` | Client ID used by agent-manager-observer's outbound calls to the OpenChoreo observer (must match Thunder OAuth client_id seeded by wso2-amp-thunder-extension's amObserverClient) | string | `"am-observer-client"` |
+| `authz.amObserverClient.role` | Minimal read-only role for observability data (traces/logs/metrics) | string | `"amp-observer-reader"` |
+
+## buildWorkflows
+
+| Parameter | Description | Type | Default |
+|---|---|---|---|
+| `buildWorkflows` | Build workflow pod hardening | object |  |
+| `buildWorkflows.userNamespaces` | Run build pods inside a Linux user namespace (hostUsers: false) so the build's root user is unprivileged on the node. This requires idmapped-mount support for every filesystem the pod mounts (overlayfs AND tmpfs/projected volumes) — in practice Linux kernel &gt;= 6.3 (e.g. Ubuntu 24.04, Amazon Linux 2023, recent COS). On older kernels (e.g. Ubuntu 22.04's 5.15, Amazon Linux 2's 5.10) every build pod fails at sandbox creation with "failed to set MOUNT_ATTR_IDMAP ... invalid argument" — set this to false on such nodes to run builds without user namespaces. | boolean | `true` |
+
+## deploymentPipeline
+
+| Parameter | Description | Type | Default |
+|---|---|---|---|
+| `deploymentPipeline` | Deployment Pipeline configuration | object |  |
+| `deploymentPipeline.name` | Name of the default deployment pipeline | string | `"default"` |
+| `deploymentPipeline.displayName` | Display name for the deployment pipeline | string | `"Default Deployment Pipeline"` |
+| `deploymentPipeline.description` | Description for the deployment pipeline | string | `"Default deployment pipeline for WSO2 Agent Manager"` |
+| `deploymentPipeline.promotionOrder` | Promotion order for the deployment pipeline | array | see `values.yaml` |
+
+## environment
+
+| Parameter | Description | Type | Default |
+|---|---|---|---|
+| `environment` | Environment configuration | object |  |
+| `environment.name` | Name of the default environment | string | `"default"` |
+| `environment.displayName` | Display name for the environment | string | `"Default"` |
+| `environment.description` | Description for the environment | string | `"Default environment for WSO2 AI Agent Management Platform"` |
+| `environment.isCritical` | Is this environment critical/production? | boolean | `false` |
+| `environment.dnsPrefix` | DNS Prefix for the gateway | string | `"default"` |
+| `environment.gateway` | Gateway ingress details persisted on the default Environment CR. This mirrors what add-environment.sh writes for other envs so every env CR carries its gateway info explicitly. name/namespace MUST reference the real data-plane Gateway so agent HTTPRoutes attach to it; OC builds agent route hostnames as "&lt;env&gt;-&lt;org&gt;.&lt;listener.host&gt;". | object |  |
+| `environment.gateway.name` | Real data-plane Gateway the agent routes attach to (parentRef). | string | `"gateway-default"` |
+| `environment.gateway.namespace` | Namespace containing that gateway. | string | `"openchoreo-data-plane"` |
+| `environment.gateway.http` | http: agent-facing host (distinct from the gateway-runtime host gateway.localhost). | object |  |
+| `environment.gateway.http.host` | Hostname routed to agents in this environment. | string | `"am-gateway.localhost"` |
+| `environment.gateway.http.port` | Port the HTTP listener serves on. | integer | `19080` |
+| `environment.gateway.https` | https: optional TLS-fronted variant. Unset by default (local/compose serves agents over plain http, tlsEnabled=false). Set host/port on TLS deployments (e.g. the VM installer) so the binding carries an https externalURL; otherwise the tlsEnabled console reads a missing variant and the invoke URL is empty. | object | `{}` |
+
+## externalSecrets
+
+| Parameter | Description | Type | Default |
+|---|---|---|---|
+| `externalSecrets` | External Secrets configuration | object |  |
+| `externalSecrets.clusterSecretStoreName` | Name of the ClusterSecretStore (uses the default OpenBao ClusterSecretStore) | string | `"default"` |
+
+## gatewayTls
+
+| Parameter | Description | Type | Default |
+|---|---|---|---|
+| `gatewayTls` | Gateway TLS certificate configuration | object |  |
+| `gatewayTls.enabled` | Enable gateway TLS certificate creation | boolean | `true` |
+| `gatewayTls.certificateName` | Certificate name | string | `"gateway-tls"` |
+| `gatewayTls.secretName` | Secret name where the certificate will be stored | string | `"gateway-tls"` |
+| `gatewayTls.namespace` | Namespace where the certificate and secret will be created | string | `"openchoreo-data-plane"` |
+| `gatewayTls.duration` | Certificate duration (default: 2160h = 90 days) | string | `"2160h"` |
+| `gatewayTls.renewBefore` | Certificate renewal time (default: 720h = 30 days before expiry) | string | `"720h"` |
+| `gatewayTls.commonName` | Common name for the certificate | string | `"*.agentmanager.localhost"` |
+| `gatewayTls.dnsNames` | DNS names for the certificate | array | see `values.yaml` |
+| `gatewayTls.issuerRef` | Issuer reference for cert-manager | object |  |
+| `gatewayTls.issuerRef.name` | Name of the issuer (created by openchoreo-data-plane chart) | string | `"openchoreo-data-plane-selfsigned-issuer"` |
+| `gatewayTls.issuerRef.kind` | Issuer kind: Issuer or ClusterIssuer | string | `"Issuer"` |
+
+## global
+
+| Parameter | Description | Type | Default |
+|---|---|---|---|
+| `global` | Global configuration | object |  |
+| `global.oauth` | OAuth / IDP configuration for workload publishing | object |  |
+| `global.oauth.tokenUrl` | OAuth token endpoint URL | string | `"http://host.k3d.internal:8080/oauth2/token"` |
+| `global.oauth.hostHeader` | Host header for OAuth requests | string | `"thunder.amp.localhost"` |
+| `global.oauth.clientId` | OAuth client ID for workload publisher | string | `"openchoreo-workload-publisher-client"` |
+| `global.apiServer` | OpenChoreo API server configuration | object |  |
+| `global.apiServer.url` | API server URL | string | `"http://host.k3d.internal:8080"` |
+| `global.apiServer.hostHeader` | Host header for API server requests | string | `"api.openchoreo.localhost"` |
+| `global.commonLabels` | Common labels to add to every resource. | object | `{}` |
+| `global.baseDomain` | Base domain for external access (e.g., "openchoreo.example.com") When set, registry will be accessible at registry.&lt;baseDomain&gt; | string | `""` |
+| `global.registry` | Container registry configuration | object |  |
+| `global.registry.endpoint` | Registry endpoint for pushing and pulling images For local registry: "host.k3d.internal:10082" For external registry with baseDomain: automatically uses "registry.&lt;baseDomain&gt;" | string | `"host.k3d.internal:10082"` |
+| `global.defaultResources` | Default resources configuration | object |  |
+| `global.defaultResources.namespace` | Namespace where default resources will be created | string | `"default"` |
+| `global.defaultResources.registry` | Registry configuration for default resources | object |  |
+| `global.defaultResources.registry.tlsVerify` | Enable TLS verification for registry connections | boolean | `false` |
+| `global.defaultResources.buildpackCache` | Buildpack cache configuration | object |  |
+| `global.defaultResources.buildpackCache.enabled` | @schema type: boolean description: Enable buildpack image caching. When enabled, images are pulled from cache registry instead of remote. default: false @schema | boolean | `false` |
+| `global.defaultResources.buildpackCache.images` | @schema type: array description: List of buildpack images to cache. Each entry has an id for lookup, remoteImage for external registry, and cachedImage for local cache. items: type: object additionalProperties: false required: - id - remoteImage - cachedImage properties: id: type: string description: Unique identifier for lookup in workflow templates remoteImage: type: string description: Image reference from remote registry (used when caching is disabled) cachedImage: type: string description: Image path in the local build plane registry (used when caching is enabled) @schema | array | see `values.yaml` |
+
+## kubectl
+
+| Parameter | Description | Type | Default |
+|---|---|---|---|
+| `kubectl` | Kubectl image configuration for jobs | object |  |
+| `kubectl.image` | Image providing the `kubectl` binary for helper jobs | string | `"bitnamilegacy/kubectl:1.32.4"` |
+
+## openchoreoNamespace
+
+| Parameter | Description | Type | Default |
+|---|---|---|---|
+| `openchoreoNamespace` | Namespace the platform resources below are created in. It must match the service's OPEN_CHOREO_DEFAULT_NAMESPACE, since that is the namespace the service creates projects in — and a namespaced ProjectType is only resolvable from within its own namespace. | string | `"default"` |
+
+## project
+
+| Parameter | Description | Type | Default |
+|---|---|---|---|
+| `project` | Project configuration | object |  |
+| `project.name` | Name of the default project | string | `"default"` |
+| `project.displayName` | Display name for the project | string | `"Default Project"` |
+| `project.description` | Description for the project | string | `"Default project for WSO2 Agent Manager"` |
+
+## projectType
+
+| Parameter | Description | Type | Default |
+|---|---|---|---|
+| `projectType` | ProjectType referenced by the default Project. OpenChoreo 1.2.0+ makes Project.spec.type a required reference to a (Cluster)ProjectType, which provides the per-environment resource template (here, the cell namespace). A namespaced ProjectType is used rather than a cluster-scoped ClusterProjectType so the type is not shared across tenants. The name is deliberately not configurable: it is a contract with the service, which references client.DefaultProjectTypeName. If the two diverged, every project created through the API would fail to reconcile with ProjectTypeNotFound. | object |  |
+| `projectType.displayName` | Display name for the project type | string | `"Default Project Type"` |
+| `projectType.description` | Description for the project type | string | `"Minimal project type that provisions only the cell namespace per environment."` |
+

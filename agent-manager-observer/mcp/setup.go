@@ -31,9 +31,6 @@ import (
 type Dependencies struct {
 	Tracing       *controllers.TracingController
 	Observability *controllers.ObservabilityController
-	// RBACEnabled applies the REST routes' scope policy per tool call: each
-	// tool requires its amp:observability:* scope on the per-call token.
-	RBACEnabled bool
 }
 
 // RegisterRoute builds the MCP HTTP handler and registers it on mux at
@@ -49,7 +46,6 @@ func RegisterRoute(mux *http.ServeMux, deps Dependencies, authMiddleware func(ht
 	toolsets := &tools.Toolsets{
 		Tracing:       deps.Tracing,
 		Observability: deps.Observability,
-		RBACEnabled:   deps.RBACEnabled,
 	}
 	toolsets.Register(server)
 

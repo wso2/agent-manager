@@ -158,6 +158,16 @@ var (
 	// ErrThunderHandleNotFound is returned when no env-Thunder URL handle has been
 	// registered for an environment. Maps to 404.
 	ErrThunderHandleNotFound = errors.New("thunder url handle not found")
+	// ErrInvalidThunderURL is returned when a caller-supplied full env-Thunder
+	// URL (the url registration path) fails shape or SSRF validation. Maps to 400.
+	ErrInvalidThunderURL = errors.New("invalid thunder url")
+	// ErrThunderURLTaken is returned when a caller-supplied full env-Thunder URL
+	// is already registered to a different (org, env) pair. Maps to 409.
+	ErrThunderURLTaken = errors.New("thunder url is already in use")
+	// ErrThunderHandleAndURLBothSet is returned when a SetThunderURL request
+	// supplies both handle and url — the two registration paths are mutually
+	// exclusive. Maps to 400.
+	ErrThunderHandleAndURLBothSet = errors.New("thunder url request must not set both handle and url")
 	// ErrEnvThunderURLAlreadyClaimed is returned by EnvThunderURLRepository.Insert
 	// when a DIFFERENT concurrent request already claimed the SAME (ouID, envName)
 	// first — i.e. the (ou_id, env_name) unique constraint was violated, not the

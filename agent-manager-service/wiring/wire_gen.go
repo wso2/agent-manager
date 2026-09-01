@@ -89,8 +89,8 @@ func InitializeAppParams(cfg *config.Config, db *gorm.DB, authProvider client.Au
 	envThunderSystemClientRepository := ProvideEnvThunderSystemClientRepository(db)
 	readSystemClientFunc := ProvideEnvThunderSecretReader(envThunderSystemClientRepository, v)
 	envThunderURLRepository := ProvideEnvThunderURLRepository(db)
-	readThunderHandleFunc := ProvideEnvThunderURLReader(envThunderURLRepository)
-	envThunderResolver := ProvideEnvThunderResolver(readSystemClientFunc, readThunderHandleFunc)
+	readThunderURLFunc := ProvideEnvThunderURLReader(envThunderURLRepository)
+	envThunderResolver := ProvideEnvThunderResolver(readSystemClientFunc, readThunderURLFunc)
 	mcpProxyService := services.NewMCPProxyService(db, mcpProxyRepository, mcpProxyEndpointRepository, deploymentRepository, gatewayRepository, envAgentMCPMappingRepository, agentConfigurationRepository, gatewayEventsService, apiKeyRepository, infraResourceManager, agentIdentityInjectionService, logger, v, mcpProxyScopeRepository, envThunderResolver)
 	llmProxyDeploymentService := services.NewLLMProxyDeploymentService(deploymentRepository, llmProxyRepository, llmProviderRepository, gatewayRepository, gatewayEventsService)
 	llmProxyAPIKeyService := services.NewLLMProxyAPIKeyService(llmProxyRepository, gatewayRepository, gatewayEventsService, apiKeyRepository, openChoreoClient)
@@ -272,8 +272,8 @@ func InitializeTestAppParamsWithClientMocks(cfg *config.Config, db *gorm.DB, aut
 	envThunderSystemClientRepository := ProvideEnvThunderSystemClientRepository(db)
 	readSystemClientFunc := ProvideEnvThunderSecretReader(envThunderSystemClientRepository, v)
 	envThunderURLRepository := ProvideEnvThunderURLRepository(db)
-	readThunderHandleFunc := ProvideEnvThunderURLReader(envThunderURLRepository)
-	envThunderResolver := ProvideEnvThunderResolver(readSystemClientFunc, readThunderHandleFunc)
+	readThunderURLFunc := ProvideEnvThunderURLReader(envThunderURLRepository)
+	envThunderResolver := ProvideEnvThunderResolver(readSystemClientFunc, readThunderURLFunc)
 	mcpProxyService := services.NewMCPProxyService(db, mcpProxyRepository, mcpProxyEndpointRepository, deploymentRepository, gatewayRepository, envAgentMCPMappingRepository, agentConfigurationRepository, gatewayEventsService, apiKeyRepository, infraResourceManager, agentIdentityInjectionService, logger, v, mcpProxyScopeRepository, envThunderResolver)
 	llmProxyDeploymentService := services.NewLLMProxyDeploymentService(deploymentRepository, llmProxyRepository, llmProviderRepository, gatewayRepository, gatewayEventsService)
 	llmProxyAPIKeyService := services.NewLLMProxyAPIKeyService(llmProxyRepository, gatewayRepository, gatewayEventsService, apiKeyRepository, openChoreoClient)
@@ -822,18 +822,18 @@ func ProvideEnvThunderSecretReader(repo repositories.EnvThunderSystemClientRepos
 	return services.NewEnvThunderSecretReader(repo, encryptionKey)
 }
 
-// ProvideEnvThunderURLReader looks up an env-Thunder's registered URL handle
-// from AMS's own Postgres. A missing row means not provisioned — there is no
+// ProvideEnvThunderURLReader looks up an env-Thunder's registered origin from
+// AMS's own Postgres. A missing row means not provisioned — there is no
 // fallback to a value computed from (org, env).
-func ProvideEnvThunderURLReader(repo repositories.EnvThunderURLRepository) thundersvc.ReadThunderHandleFunc {
+func ProvideEnvThunderURLReader(repo repositories.EnvThunderURLRepository) thundersvc.ReadThunderURLFunc {
 	return services.NewEnvThunderURLReader(repo)
 }
 
 // ProvideEnvThunderResolver maps (org, environment) to an authenticated
-// ThunderClient, reading the system-client credential and URL handle via the
-// injected readers.
-func ProvideEnvThunderResolver(readSystemClient thundersvc.ReadSystemClientFunc, readThunderHandle thundersvc.ReadThunderHandleFunc) thundersvc.EnvThunderResolver {
-	return thundersvc.NewEnvThunderResolver(readSystemClient, readThunderHandle)
+// ThunderClient, reading the system-client credential and registered URL via
+// the injected readers.
+func ProvideEnvThunderResolver(readSystemClient thundersvc.ReadSystemClientFunc, readThunderURL thundersvc.ReadThunderURLFunc) thundersvc.EnvThunderResolver {
+	return thundersvc.NewEnvThunderResolver(readSystemClient, readThunderURL)
 }
 
 // ProvideAgentIdentityInjectionService creates the Gateway Binding service that

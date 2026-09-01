@@ -103,11 +103,61 @@ func TestDeployAgent(t *testing.T) {
 		require.Equal(t, "registry.example.com/myapp:v1.0.0", deployCall.Req.ImageID)
 
 		// Env vars are no longer part of DeployRequest: they are written to the
-		// environment's ReleaseBinding so they apply to that environment only.
-		require.Len(t, openChoreoClient.ReplaceReleaseBindingWorkloadOverridesCalls(), 1)
-		overrideCall := openChoreoClient.ReplaceReleaseBindingWorkloadOverridesCalls()[0]
-		require.Equal(t, deployTestAgentName, overrideCall.ComponentName)
-		require.Empty(t, overrideCall.EnvOverrides) // No env vars provided
+		// environment's ReleaseBinding, along with the release this deploy cut, so they
+		// apply to that environment only.
+		require.Len(t, openChoreoClient.EnsureReleaseAndBindingCalls(), 1)
+		require.Empty(t, openChoreoClient.EnsureReleaseAndBindingCalls()[0].EnvOverrides) // No env vars provided
+	})
+
+	// Components are created with autoDeploy off, so the Component controller neither cuts
+	// releases nor repins the binding: the image written to the Workload only reaches the data
+	// plane because the deploy cuts a ComponentRelease afterwards and pins the environment to it.
+	// Order is the whole point — a release cut before the image write freezes the previous image,
+	// which is how deploying an older build or another kind version silently changed nothing.
+	t.Run("Deploying an agent cuts the release after writing the image", func(t *testing.T) {
+		openChoreoClient := apitestutils.CreateMockOpenChoreoClient()
+		openChoreoClient.ComponentExistsFunc = func(ctx context.Context, orgName string, projName string, agentName string) (bool, error) {
+			return true, nil
+		}
+		var callOrder []string
+		openChoreoClient.DeployFunc = func(ctx context.Context, ouID, projectName, componentName string, req client.DeployRequest) error {
+			callOrder = append(callOrder, "deploy:"+req.ImageID)
+			return nil
+		}
+		openChoreoClient.EnsureReleaseAndBindingFunc = func(ctx context.Context, ouID, projectName, componentName, environment string, envOverrides []client.EnvVar, fileOverrides []client.FileVar) error {
+			callOrder = append(callOrder, "release:"+environment)
+			return nil
+		}
+		testClients := wiring.TestClients{
+			OpenChoreoClient: openChoreoClient,
+		}
+
+		app := apitestutils.MakeAppClientWithDeps(t, testClients, authMiddleware)
+
+		reqBody := new(bytes.Buffer)
+		err := json.NewEncoder(reqBody).Encode(map[string]interface{}{
+			"imageId": "registry.example.com/myapp:v0.9.0",
+		})
+		require.NoError(t, err)
+
+		url := fmt.Sprintf("/api/v1/orgs/%s/projects/%s/agents/%s/deployments",
+			deployTestOrgName, deployTestProjName, deployTestAgentName)
+		req := httptest.NewRequest(http.MethodPost, url, reqBody)
+		req.Header.Set("Content-Type", "application/json")
+
+		rr := httptest.NewRecorder()
+		app.ServeHTTP(rr, req)
+		require.Equal(t, http.StatusAccepted, rr.Code)
+
+		require.Equal(t,
+			[]string{"deploy:registry.example.com/myapp:v0.9.0", "release:Development"},
+			callOrder,
+			"the deployed image must be written to the Workload before the release that freezes it is cut")
+
+		releaseCall := openChoreoClient.EnsureReleaseAndBindingCalls()[0]
+		require.Equal(t, deployTestProjName, releaseCall.ProjectName)
+		require.Equal(t, deployTestAgentName, releaseCall.ComponentName)
+		require.Equal(t, "Development", releaseCall.Environment)
 	})
 
 	t.Run("Deploying agent with imageId and environment variables should return 202", func(t *testing.T) {
@@ -180,8 +230,8 @@ func TestDeployAgent(t *testing.T) {
 		// Validate environment variables. They ride on the environment's
 		// ReleaseBinding overrides now, not on the deploy request, so that adding
 		// a var in one environment cannot leak into the others.
-		require.Len(t, openChoreoClient.ReplaceReleaseBindingWorkloadOverridesCalls(), 1)
-		overrideCall := openChoreoClient.ReplaceReleaseBindingWorkloadOverridesCalls()[0]
+		require.Len(t, openChoreoClient.EnsureReleaseAndBindingCalls(), 1)
+		overrideCall := openChoreoClient.EnsureReleaseAndBindingCalls()[0]
 		require.Equal(t, deployTestAgentName, overrideCall.ComponentName)
 		require.Len(t, overrideCall.EnvOverrides, 3)
 		require.Equal(t, "DATABASE_URL", overrideCall.EnvOverrides[0].Key)

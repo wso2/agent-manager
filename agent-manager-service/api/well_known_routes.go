@@ -34,7 +34,12 @@ type protectedResourceMetadata struct {
 }
 
 func registerWellKnownRoutes(mux *http.ServeMux) {
-	mux.HandleFunc("GET /.well-known/oauth-protected-resource", func(w http.ResponseWriter, r *http.Request) {
+	mux.HandleFunc("GET /.well-known/oauth-protected-resource", protectedResourceMetadataHandler(false))
+	mux.HandleFunc("GET /.well-known/oauth-protected-resource/mcp", protectedResourceMetadataHandler(true))
+}
+
+func protectedResourceMetadataHandler(mcpResource bool) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
 		cfg := config.GetConfig()
 
 		if cfg.ServerPublicURL == "" {
@@ -48,11 +53,18 @@ func registerWellKnownRoutes(mux *http.ServeMux) {
 			return
 		}
 
+		resource := strings.TrimSuffix(cfg.ServerPublicURL, "/")
+		scopes := cfg.OAuthScopesSupported
+		if mcpResource {
+			resource += "/mcp"
+			scopes = rbac.MainMCPScopes()
+		}
+
 		body := protectedResourceMetadata{
-			Resource:               strings.TrimSuffix(cfg.ServerPublicURL, "/") + "/mcp",
+			Resource:               resource,
 			AuthorizationServers:   cfg.OAuthAuthorizationServers,
 			BearerMethodsSupported: []string{"header"},
-			ScopesSupported:        rbac.MainMCPScopes(),
+			ScopesSupported:        scopes,
 		}
 
 		w.Header().Set("Content-Type", "application/json")
@@ -60,5 +72,5 @@ func registerWellKnownRoutes(mux *http.ServeMux) {
 		if err := json.NewEncoder(w).Encode(body); err != nil {
 			logger.GetLogger(r.Context()).Error("failed to encode protected resource metadata", "error", err)
 		}
-	})
+	}
 }

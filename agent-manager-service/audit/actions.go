@@ -71,10 +71,6 @@ const (
 	// ActionSystemStartup records that the audit trail began, which bounds any
 	// gap in the record to a restart.
 	ActionSystemStartup Action = "system:startup"
-	// ActionSystemRBACDisabled records that authorization enforcement is off.
-	// RBAC_ENABLED defaults to false, so without this the enforcement gap is
-	// only visible in a config file no auditor reads.
-	ActionSystemRBACDisabled Action = "system:rbac-disabled"
 	// ActionSystemAuditDropped records that the buffer overflowed and events
 	// were lost. A trail that silently drops records is worse than one that
 	// admits it.
@@ -93,7 +89,6 @@ var registry = map[Action]actionMeta{
 	ActionAuthzDeny:          {class: ClassAuthz, severity: SeverityWarning},
 	ActionAuthzRootOUBypass:  {class: ClassAuthz, severity: SeverityCritical},
 	ActionSystemStartup:      {class: ClassSystem, severity: SeverityNotice},
-	ActionSystemRBACDisabled: {class: ClassSystem, severity: SeverityCritical},
 	ActionSystemAuditDropped: {class: ClassSystem, severity: SeverityCritical},
 }
 

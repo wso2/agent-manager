@@ -1,0 +1,609 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "additionalProperties": false,
+  "type": "object",
+  "required": [],
+  "properties": {
+    "kubectl": {
+      "additionalProperties": false,
+      "description": "Kubectl image used in bootstrap job",
+      "properties": {
+        "image": {
+          "default": "alpine/k8s:1.32.3",
+          "description": "Image providing the `kubectl` binary for helper jobs",
+          "title": "image",
+          "type": "string"
+        }
+      },
+      "required": [],
+      "title": "kubectl",
+      "type": "object"
+    },
+    "agentManager": {
+      "additionalProperties": false,
+      "description": "Agent Manager API connection details (used by bootstrap job to register gateway)",
+      "properties": {
+        "apiUrl": {
+          "default": "http://amp-api.wso2-amp.svc.cluster.local:9000/api/v1",
+          "description": "Public API URL (port 8080 = JWT-authenticated API)",
+          "title": "apiUrl",
+          "type": "string"
+        },
+        "orgName": {
+          "default": "default",
+          "description": "Organization name in Agent Manager (must match Thunder OU handle)",
+          "title": "orgName",
+          "type": "string"
+        },
+        "idp": {
+          "additionalProperties": false,
+          "description": "Thunder IDP for obtaining a JWT to call Agent Manager API",
+          "properties": {
+            "tokenUrl": {
+              "default": "http://amp-thunder-extension-service.amp-thunder.svc.cluster.local:8090/oauth2/token",
+              "description": "Token endpoint the gateway requests its access token from.",
+              "title": "tokenUrl",
+              "type": "string"
+            },
+            "clientId": {
+              "default": "amp-api-client",
+              "description": "OAuth 2.0 client ID for the gateway's control-plane calls.",
+              "title": "clientId",
+              "type": "string"
+            },
+            "clientSecret": {
+              "default": "amp-api-client-secret",
+              "description": "OAuth 2.0 client secret. Prefer an existing Secret in real deployments. Allowed values: Prefer existingSecret; only set this for local/dev use.",
+              "title": "clientSecret",
+              "type": "string"
+            },
+            "existingSecret": {
+              "default": "",
+              "description": "Reference an existing secret for IDP credentials (recommended for production). When set, clientId and clientSecret above are ignored.",
+              "title": "existingSecret",
+              "type": "string"
+            },
+            "existingSecretClientIdKey": {
+              "default": "client-id",
+              "description": "Key within the existing Secret holding the client ID.",
+              "title": "existingSecretClientIdKey",
+              "type": "string"
+            },
+            "existingSecretClientSecretKey": {
+              "default": "client-secret",
+              "description": "Key within the existing Secret holding the client secret.",
+              "title": "existingSecretClientSecretKey",
+              "type": "string"
+            }
+          },
+          "required": [],
+          "title": "idp",
+          "type": "object"
+        }
+      },
+      "required": [],
+      "title": "agentManager",
+      "type": "object"
+    },
+    "gateway": {
+      "additionalProperties": false,
+      "description": "Gateway registration configuration",
+      "properties": {
+        "name": {
+          "default": "",
+          "description": "Name of the AI gateway to register in Agent Manager (lowercase alphanumeric + hyphens). Defaults to the Helm release name if empty.",
+          "title": "name",
+          "type": "string"
+        },
+        "displayName": {
+          "default": "Default API Gateway",
+          "description": "Human-readable display name",
+          "title": "displayName",
+          "type": "string"
+        },
+        "vhost": {
+          "default": "http://default-default.gateway.localhost:19080",
+          "description": "Virtual host (FQDN or IP) that the gateway is reachable on. All access is hostname-routed through kgateway \u2014 never the runtime Service directly.",
+          "title": "vhost",
+          "type": "string"
+        },
+        "runtimeUrl": {
+          "default": "",
+          "description": "In-cluster base URL sandboxed agents use to reach this gateway runtime. Empty derives \"http://<apiGatewayName>-gw-gateway-gateway-runtime.<apiGateway.namespace>:22893\". AMS validates it: http/https, explicit port that is not 80 or 443, cluster-local host.",
+          "title": "runtimeUrl",
+          "type": "string"
+        },
+        "hostname": {
+          "default": "",
+          "description": "Hostname for routing traffic to this gateway through kgateway. All traffic (LLM proxy, OTEL, etc.) matching this hostname on kgateway is forwarded to this gateway's runtime service. Defaults to \"<environment>-<orgName>.gateway.localhost\" if empty.",
+          "title": "hostname",
+          "type": "string"
+        },
+        "type": {
+          "default": "BOTH",
+          "description": "Gateway placement role: INGRESS, EGRESS, or BOTH (must match GatewayType enum in Agent Manager API). BOTH is correct for single topology, where the chart is installed once per environment; split topology sets this explicitly on both releases from add-environment.sh. Immutable after first registration \u2014 changing it later only logs a drift warning.",
+          "title": "type",
+          "type": "string"
+        },
+        "environment": {
+          "default": "default",
+          "description": "Environment name in Agent Manager to associate this gateway with. The bootstrap job looks up environments by this name.",
+          "title": "environment",
+          "type": "string"
+        },
+        "tokenSecret": {
+          "additionalProperties": false,
+          "description": "The generated registration token is stored in this Kubernetes Secret. It is then referenced by the APIGateway CR spec.controlPlane.tokenSecretRef. Defaults to \"<release-name>-token\" if empty.",
+          "properties": {
+            "name": {
+              "default": "",
+              "description": "Name of the Secret. Generated when empty.",
+              "title": "name",
+              "type": "string"
+            },
+            "key": {
+              "default": "token",
+              "description": "Key within the Secret holding the token.",
+              "title": "key",
+              "type": "string"
+            }
+          },
+          "required": [],
+          "title": "tokenSecret",
+          "type": "object"
+        }
+      },
+      "required": [],
+      "title": "gateway",
+      "type": "object"
+    },
+    "developmentMode": {
+      "default": true,
+      "description": "APIGateway CR configuration (deployed by gateway-operator) Development mode",
+      "title": "developmentMode",
+      "type": "boolean"
+    },
+    "kgateway": {
+      "additionalProperties": false,
+      "description": "kgateway ingress the gw-route HTTPRoute attaches to. This is the shared data-plane Gateway provisioned by the OpenChoreo data-plane chart \u2014 it does NOT move when the api-platform gateway gets its own per-org-env namespace. The HTTPRoute is created here (same namespace as the Gateway) and reaches the gateway runtime Service cross-namespace via a ReferenceGrant.",
+      "properties": {
+        "name": {
+          "default": "gateway-default",
+          "description": "Name of the Gateway resource.",
+          "title": "name",
+          "type": "string"
+        },
+        "namespace": {
+          "default": "openchoreo-data-plane",
+          "description": "Namespace containing the Gateway resource.",
+          "title": "namespace",
+          "type": "string"
+        }
+      },
+      "required": [],
+      "title": "kgateway",
+      "type": "object"
+    },
+    "apiGateway": {
+      "additionalProperties": false,
+      "description": "Runtime configuration for the API Platform Gateway.",
+      "properties": {
+        "namespace": {
+          "default": "openchoreo-data-plane",
+          "description": "Namespace where the APIGateway CR is created. Must be the same namespace where the gateway-operator is watching. For per-org-env namespace isolation set this to \"<org>-<env>\" (add-environment.sh passes it via --set apiGateway.namespace=...).",
+          "title": "namespace",
+          "type": "string"
+        },
+        "controlPlane": {
+          "additionalProperties": false,
+          "description": "Control plane connection: points to Agent Manager's gateway management port (9243)",
+          "properties": {
+            "host": {
+              "default": "amp-api-gateway-manager.wso2-amp.svc.cluster.local:9243",
+              "description": "In-cluster address of the control plane.",
+              "title": "host",
+              "type": "string"
+            },
+            "tls": {
+              "additionalProperties": false,
+              "description": "TLS settings for the control-plane connection.",
+              "properties": {
+                "enabled": {
+                  "default": true,
+                  "description": "Use TLS when connecting to the control plane.",
+                  "title": "enabled",
+                  "type": "boolean"
+                },
+                "insecureSkipVerify": {
+                  "default": true,
+                  "description": "Skip verification of the control plane's TLS certificate. True because the control plane serves a self-signed certificate in-cluster; set to false only where the gateway can trust the control plane's certificate chain.",
+                  "title": "insecureSkipVerify",
+                  "type": "boolean"
+                }
+              },
+              "required": [],
+              "title": "tls",
+              "type": "object"
+            }
+          },
+          "required": [],
+          "title": "controlPlane",
+          "type": "object"
+        },
+        "config": {
+          "additionalProperties": false,
+          "description": "ConfigMap containing full Helm values for the gateway Helm chart. The gateway-operator reads this and passes it when deploying the gateway stack.",
+          "properties": {
+            "configMapName": {
+              "default": "",
+              "description": "Name of the ConfigMap to create with gateway Helm values. Defaults to \"<release-name>-config\" if empty.",
+              "title": "configMapName",
+              "type": "string"
+            },
+            "policyConfigurations": {
+              "additionalProperties": false,
+              "description": "Policy configurations rendered under [policy_configurations.*] in config.toml. Consumed by policies that reference ${config.policy_configurations.<section>.<key>}.",
+              "properties": {
+                "ratelimit_v1": {
+                  "additionalProperties": false,
+                  "description": "- Rate Limiting (shared by basic-ratelimit, advanced-ratelimit, token-based-ratelimit, llm-cost-based-ratelimit) ---",
+                  "properties": {
+                    "algorithm": {
+                      "default": "fixed-window",
+                      "description": "Rate-limiting algorithm used to count requests. Allowed values: \"fixed-window\" or \"gcra\".",
+                      "title": "algorithm",
+                      "type": "string"
+                    },
+                    "backend": {
+                      "default": "memory",
+                      "description": "Where counters are stored. In-memory counters are per gateway replica. Allowed values: \"memory\" or \"redis\".",
+                      "title": "backend",
+                      "type": "string"
+                    },
+                    "memory": {
+                      "additionalProperties": false,
+                      "description": "Settings for the in-memory counter backend.",
+                      "properties": {
+                        "max_entries": {
+                          "default": 10000,
+                          "description": "Maximum counters held in memory before eviction.",
+                          "title": "max_entries",
+                          "type": "integer"
+                        },
+                        "cleanup_interval": {
+                          "default": "5m",
+                          "description": "How often expired counters are purged.",
+                          "title": "cleanup_interval",
+                          "type": "string"
+                        }
+                      },
+                      "required": [],
+                      "title": "memory",
+                      "type": "object"
+                    }
+                  },
+                  "required": [],
+                  "title": "ratelimit_v1",
+                  "type": "object"
+                },
+                "llm_cost_ratelimit_v1": {
+                  "additionalProperties": false,
+                  "description": "- LLM Cost Based Rate Limiting (additional to ratelimit_v1) ---",
+                  "properties": {
+                    "cost_scale_factor": {
+                      "default": 1000000000,
+                      "description": "Fixed-point scale applied to costs so they can be counted as integers.",
+                      "title": "cost_scale_factor",
+                      "type": "integer"
+                    }
+                  },
+                  "required": [],
+                  "title": "llm_cost_ratelimit_v1",
+                  "type": "object"
+                },
+                "jwtauth_v1": {
+                  "additionalProperties": false,
+                  "description": "- JWT Authentication (shared by jwt-auth and mcp-auth) ---",
+                  "properties": {
+                    "keymanagers": {
+                      "default": [
+                        {
+                          "name": "agent-manager-service",
+                          "issuer": "agent-manager-service",
+                          "jwks": {
+                            "remote": {
+                              "uri": "http://amp-api.wso2-amp.svc.cluster.local:9000/auth/external/jwks.json",
+                              "skipTlsVerify": true
+                            }
+                          }
+                        },
+                        {
+                          "name": "ThunderKeyManager",
+                          "issuer": "http://thunder.amp.localhost:8080",
+                          "jwks": {
+                            "remote": {
+                              "uri": "http://amp-thunder-extension-service.amp-thunder:8090/oauth2/jwks",
+                              "skipTlsVerify": true
+                            }
+                          }
+                        }
+                      ],
+                      "description": "Trusted token issuers, each with its issuer URL and JWKS endpoint.",
+                      "items": {
+                        "type": "object"
+                      },
+                      "title": "keymanagers",
+                      "type": "array"
+                    },
+                    "authheaderscheme": {
+                      "default": "",
+                      "description": "Scheme expected on the Authorization header. Empty accepts a bare token.",
+                      "title": "authheaderscheme",
+                      "type": "string"
+                    },
+                    "onfailurestatuscode": {
+                      "default": 401,
+                      "description": "HTTP status returned when authentication fails.",
+                      "title": "onfailurestatuscode",
+                      "type": "integer"
+                    },
+                    "errormessageformat": {
+                      "default": "json",
+                      "description": "Format of the authentication failure body.",
+                      "title": "errormessageformat",
+                      "type": "string"
+                    },
+                    "errormessage": {
+                      "default": "Authentication failed",
+                      "description": "Message returned when authentication fails.",
+                      "title": "errormessage",
+                      "type": "string"
+                    },
+                    "leeway": {
+                      "default": "30s",
+                      "description": "Clock skew tolerated when checking token expiry.",
+                      "title": "leeway",
+                      "type": "string"
+                    },
+                    "allowedalgorithms": {
+                      "default": [
+                        "RS256",
+                        "ES256"
+                      ],
+                      "description": "Signing algorithms accepted on incoming tokens.",
+                      "items": {
+                        "type": "string"
+                      },
+                      "title": "allowedalgorithms",
+                      "type": "array"
+                    },
+                    "jwkscachettl": {
+                      "default": "5m",
+                      "description": "How long a fetched JWKS is cached before refetching.",
+                      "title": "jwkscachettl",
+                      "type": "string"
+                    },
+                    "jwksfetchtimeout": {
+                      "default": "5s",
+                      "description": "Timeout for a single JWKS fetch.",
+                      "title": "jwksfetchtimeout",
+                      "type": "string"
+                    },
+                    "jwksfetchretrycount": {
+                      "default": 3,
+                      "description": "Retries attempted when a JWKS fetch fails.",
+                      "title": "jwksfetchretrycount",
+                      "type": "integer"
+                    },
+                    "jwksfetchretryinterval": {
+                      "default": "2s",
+                      "description": "Wait between JWKS fetch retries.",
+                      "title": "jwksfetchretryinterval",
+                      "type": "string"
+                    },
+                    "validateissuer": {
+                      "default": true,
+                      "description": "Reject tokens whose issuer is not a configured key manager.",
+                      "title": "validateissuer",
+                      "type": "boolean"
+                    }
+                  },
+                  "required": [],
+                  "title": "jwtauth_v1",
+                  "type": "object"
+                }
+              },
+              "required": [],
+              "title": "policyConfigurations",
+              "type": "object"
+            },
+            "config_toml": {
+              "default": "",
+              "description": "Raw TOML injected at the TOP of the downstream gateway chart's generated config.toml, above every [table] section (rendered as gateway.config_toml in the generated values.yaml). Use for policy \"system parameters\" that policies read as ${config.<key>} at root level (e.g. AWS Bedrock, Azure Content Safety, embedding providers) \u2014 TOML requires bare root keys to precede any [table] header, which is why this leads the file. Whole [table] sections work here too (tables are order-independent). Do NOT redefine a table this chart already emits below ([policy_configurations.*], [controller.*], [router], etc.) \u2014 TOML rejects a duplicate table and the gateway-runtime crash-loops on it. config.toml renders into a ConfigMap, not a Secret. For any secret value, supply an `{{ env \"VAR\" }}` interpolation token (resolved by the policy engine at load time) instead of a literal, and inject the backing env var via apiGateway.config.systemExtraEnv below (backed by a Kubernetes Secret, never a plaintext value). Example: config_toml: | # AWS Bedrock Guardrail awsbedrock_guardrail_region = \"us-east-1\" awsbedrock_guardrail_id = \"\" awsbedrock_guardrail_version = \"DRAFT\" awsbedrock_access_key_id = \"\" awsbedrock_secret_access_key = '{{ env \"APIP_GW_AWSBEDROCK_SECRET_ACCESS_KEY\" }}' awsbedrock_session_token = \"\" awsbedrock_role_arn = \"\" awsbedrock_role_region = \"\" awsbedrock_role_external_id = \"\" # Azure Content Safety azurecontentsafety_endpoint = \"\" azurecontentsafety_key = '{{ env \"APIP_GW_AZURECONTENTSAFETY_KEY\" }}' # Embedding Provider (semantic-cache, semantic-prompt-guard, semantic-tool-filtering) embedding_provider = \"OPENAI\" embedding_provider_endpoint = \"\" embedding_provider_model = \"text-embedding-ada-002\" embedding_provider_dimension = \"1536\" embedding_provider_api_key = '{{ env \"APIP_GW_EMBEDDING_PROVIDER_API_KEY\" }}' # Vector DB (semantic-cache) vector_db_provider = \"REDIS\" vector_db_provider_host = \"\" vector_db_provider_port = \"6379\" vector_db_provider_username = \"\" vector_db_provider_password = '{{ env \"APIP_GW_VECTOR_DB_PROVIDER_PASSWORD\" }}' vector_db_provider_database = \"\" vector_db_provider_ttl = \"3600\" # Granite Guardian Prompt Injection granite_guardian_endpoint = \"http://granite-guardian:8000\" granite_guardian_model = \"ibm-granite/granite-guardian-3.3-8b\" granite_guardian_timeout = \"10\" granite_guardian_api_key = '{{ env \"APIP_GW_GRANITE_GUARDIAN_API_KEY\" }}' # NeMo Guard Content Safety nemoguard_endpoint = \"http://nemoguard:8101\" nemoguard_model = \"nemoguard\" nemoguard_timeout = \"30\" nemoguard_api_key = '{{ env \"APIP_GW_NEMOGUARD_API_KEY\" }}'",
+              "title": "config_toml",
+              "type": "string"
+            },
+            "systemExtraEnv": {
+              "default": [],
+              "description": "Env vars backing any `{{ env \"...\" }}` tokens used in config_toml above. config.toml is loaded by both the gateway-controller and gatewayRuntime (policy engine) pods, so each entry is rendered into BOTH controller.deployment.extraEnv and gatewayRuntime.deployment.extraEnv. Secret values should use valueFrom.secretKeyRef rather than a literal value. Example: systemExtraEnv: - name: APIP_GW_AZURECONTENTSAFETY_KEY valueFrom: secretKeyRef: name: azure-content-safety key: subscription-key",
+              "items": {},
+              "title": "systemExtraEnv",
+              "type": "array"
+            }
+          },
+          "required": [],
+          "title": "config",
+          "type": "object"
+        }
+      },
+      "required": [],
+      "title": "apiGateway",
+      "type": "object"
+    },
+    "bootstrap": {
+      "additionalProperties": false,
+      "description": "Bootstrap Job configuration The job runs as a pre-install, pre-upgrade AND pre-rollback hook, so `helm rollback` now runs it too and can fail (leaving the release in pending-rollback) when Agent Manager is unreachable \u2014 rollbacks could not fail before. Recovery: re-run `helm rollback`, or `helm rollback --no-hooks` to skip the job entirely.",
+      "properties": {
+        "enabled": {
+          "default": true,
+          "description": "Run the bootstrap job.",
+          "title": "enabled",
+          "type": "boolean"
+        },
+        "backoffLimit": {
+          "default": 3,
+          "description": "Retries before the bootstrap job is marked failed.",
+          "title": "backoffLimit",
+          "type": "integer"
+        },
+        "identityProviders": {
+          "default": [],
+          "description": "Identity providers to mirror into Agent Manager (AMS) for this gateway. This list is the authoritative allowlist of IdPs the bootstrap job seeds via the AMS identity-provider API. It is intentionally decoupled from apiGateway.config.policyConfigurations.jwtauth_v1.keymanagers: that list is the gateway runtime's JWT-validation config (and legitimately includes the internal 'agent-manager-service' keymanager and ThunderKeyManager), whereas this list is what AMS exposes in the Security UI and as agent OAuth issuer options. Only list user-visible providers here \u2014 omit any internal/reserved keymanagers (e.g. agent-manager-service). Defaults to empty: no IdP is auto-mirrored into AMS. ThunderKeyManager stays a gateway keymanager (so deployed agents still validate Thunder-issued tokens), but is no longer registered as a visible identity provider by default \u2014 operators add IdPs on demand via the Manage Identity Provider flow. The bootstrap job seeds exactly the entries listed here, so an empty list seeds nothing. Each entry: { name, issuer, jwksUri, skipTlsVerify }.",
+          "items": {},
+          "title": "identityProviders",
+          "type": "array"
+        },
+        "ttlSecondsAfterFinished": {
+          "default": 86400,
+          "description": "TTL after completion (seconds). 86400 = 1 day",
+          "title": "ttlSecondsAfterFinished",
+          "type": "integer"
+        },
+        "resources": {
+          "additionalProperties": false,
+          "description": "Compute resources for the bootstrap job.",
+          "properties": {
+            "requests": {
+              "additionalProperties": false,
+              "description": "Resources reserved for the bootstrap job at scheduling time.",
+              "properties": {
+                "memory": {
+                  "default": "64Mi",
+                  "description": "Memory the container requests at scheduling time",
+                  "title": "memory",
+                  "type": "string"
+                },
+                "cpu": {
+                  "default": "50m",
+                  "description": "CPU the container requests at scheduling time",
+                  "title": "cpu",
+                  "type": "string"
+                }
+              },
+              "required": [],
+              "title": "requests",
+              "type": "object"
+            },
+            "limits": {
+              "additionalProperties": false,
+              "description": "Maximum resources the bootstrap job may use.",
+              "properties": {
+                "memory": {
+                  "default": "128Mi",
+                  "description": "Maximum memory the container may use before it is OOM-killed",
+                  "title": "memory",
+                  "type": "string"
+                },
+                "cpu": {
+                  "default": "100m",
+                  "description": "Maximum CPU the container may use",
+                  "title": "cpu",
+                  "type": "string"
+                }
+              },
+              "required": [],
+              "title": "limits",
+              "type": "object"
+            }
+          },
+          "required": [],
+          "title": "resources",
+          "type": "object"
+        },
+        "podSecurityContext": {
+          "additionalProperties": false,
+          "description": "Pod-level security settings for the bootstrap job.",
+          "properties": {
+            "runAsNonRoot": {
+              "default": false,
+              "description": "Require the container to run as a non-root user",
+              "title": "runAsNonRoot",
+              "type": "boolean"
+            },
+            "runAsUser": {
+              "default": 0,
+              "description": "UID the pod's containers run as",
+              "title": "runAsUser",
+              "type": "integer"
+            },
+            "fsGroup": {
+              "default": 0,
+              "description": "Supplemental group applied to mounted volumes",
+              "title": "fsGroup",
+              "type": "integer"
+            }
+          },
+          "required": [],
+          "title": "podSecurityContext",
+          "type": "object"
+        },
+        "securityContext": {
+          "additionalProperties": false,
+          "description": "Container-level security settings for the bootstrap job.",
+          "properties": {
+            "runAsNonRoot": {
+              "default": false,
+              "description": "Require the container to run as a non-root user",
+              "title": "runAsNonRoot",
+              "type": "boolean"
+            },
+            "runAsUser": {
+              "default": 0,
+              "description": "UID the container runs as",
+              "title": "runAsUser",
+              "type": "integer"
+            },
+            "allowPrivilegeEscalation": {
+              "default": false,
+              "description": "Allow a process to gain more privileges than its parent",
+              "title": "allowPrivilegeEscalation",
+              "type": "boolean"
+            },
+            "capabilities": {
+              "additionalProperties": false,
+              "description": "Linux capabilities adjusted for the bootstrap container.",
+              "properties": {
+                "drop": {
+                  "default": [
+                    "ALL"
+                  ],
+                  "description": "Linux capabilities removed from the container",
+                  "items": {
+                    "type": "string"
+                  },
+                  "title": "drop",
+                  "type": "array"
+                }
+              },
+              "required": [],
+              "title": "capabilities",
+              "type": "object"
+            },
+            "readOnlyRootFilesystem": {
+              "default": false,
+              "description": "Mount the container root filesystem read-only",
+              "title": "readOnlyRootFilesystem",
+              "type": "boolean"
+            }
+          },
+          "required": [],
+          "title": "securityContext",
+          "type": "object"
+        }
+      },
+      "required": [],
+      "title": "bootstrap",
+      "type": "object"
+    }
+  }
+}

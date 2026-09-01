@@ -39,7 +39,7 @@ export interface IdentityVisibility {
 export function useIdentityVisibility(): IdentityVisibility {
   const { userInfo } = useAuthHooks();
   return useMemo(() => {
-    if (globalConfig.disableAuth || !globalConfig.rbacEnabled) {
+    if (globalConfig.disableAuth) {
       return { users: true, roles: true, groups: true };
     }
     const scopeStr = userInfo?.scope;

@@ -40,7 +40,6 @@ window.__RUNTIME_CONFIG__ = {
     storage: "localStorage",
   },
   disableAuth: "false" === "true",
-  rbacEnabled: "true" === "true",
   apiBaseUrl: "http://localhost:9000",
   gatewayControlPlaneUrl: "http://localhost:9243",
   gatewayVersion: "v0.11.0",

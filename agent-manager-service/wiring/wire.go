@@ -550,18 +550,18 @@ func ProvideEnvThunderSecretReader(repo repositories.EnvThunderSystemClientRepos
 	return services.NewEnvThunderSecretReader(repo, encryptionKey)
 }
 
-// ProvideEnvThunderURLReader looks up an env-Thunder's registered URL handle
-// from AMS's own Postgres. A missing row means not provisioned — there is no
+// ProvideEnvThunderURLReader looks up an env-Thunder's registered origin from
+// AMS's own Postgres. A missing row means not provisioned — there is no
 // fallback to a value computed from (org, env).
-func ProvideEnvThunderURLReader(repo repositories.EnvThunderURLRepository) thundersvc.ReadThunderHandleFunc {
+func ProvideEnvThunderURLReader(repo repositories.EnvThunderURLRepository) thundersvc.ReadThunderURLFunc {
 	return services.NewEnvThunderURLReader(repo)
 }
 
 // ProvideEnvThunderResolver maps (org, environment) to an authenticated
-// ThunderClient, reading the system-client credential and URL handle via the
-// injected readers.
-func ProvideEnvThunderResolver(readSystemClient thundersvc.ReadSystemClientFunc, readThunderHandle thundersvc.ReadThunderHandleFunc) thundersvc.EnvThunderResolver {
-	return thundersvc.NewEnvThunderResolver(readSystemClient, readThunderHandle)
+// ThunderClient, reading the system-client credential and registered URL via
+// the injected readers.
+func ProvideEnvThunderResolver(readSystemClient thundersvc.ReadSystemClientFunc, readThunderURL thundersvc.ReadThunderURLFunc) thundersvc.EnvThunderResolver {
+	return thundersvc.NewEnvThunderResolver(readSystemClient, readThunderURL)
 }
 
 // ProvideAgentIdentityInjectionService creates the Gateway Binding service that

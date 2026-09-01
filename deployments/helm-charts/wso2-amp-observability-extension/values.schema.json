@@ -1,0 +1,353 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "additionalProperties": false,
+  "type": "object",
+  "required": [],
+  "properties": {
+    "amObserver": {
+      "additionalProperties": false,
+      "description": "Agent Manager Observer Service config",
+      "properties": {
+        "enabled": {
+          "default": true,
+          "description": "Install the observer.",
+          "title": "enabled",
+          "type": "boolean"
+        },
+        "developmentMode": {
+          "default": false,
+          "description": "Relax checks intended only for local development. Leave off in real deployments.",
+          "title": "developmentMode",
+          "type": "boolean"
+        },
+        "name": {
+          "default": "amp-observer",
+          "description": "Name used for the observer's Kubernetes resources.",
+          "title": "name",
+          "type": "string"
+        },
+        "replicaCount": {
+          "default": 1,
+          "description": "Number of pod replicas to run",
+          "title": "replicaCount",
+          "type": "integer"
+        },
+        "image": {
+          "additionalProperties": false,
+          "description": "Container image for the observer.",
+          "properties": {
+            "repository": {
+              "default": "ghcr.io/wso2/amp-observer",
+              "description": "Container image repository",
+              "title": "repository",
+              "type": "string"
+            },
+            "tag": {
+              "default": "0.0.0-dev",
+              "description": "Container image tag. Defaults to the chart's appVersion when empty",
+              "title": "tag",
+              "type": "string"
+            },
+            "pullPolicy": {
+              "default": "IfNotPresent",
+              "description": "Image pull policy (`Always`, `IfNotPresent`, or `Never`)",
+              "title": "pullPolicy",
+              "type": "string"
+            }
+          },
+          "required": [],
+          "title": "image",
+          "type": "object"
+        },
+        "port": {
+          "default": 9098,
+          "description": "Port the observer serves its API on.",
+          "title": "port",
+          "type": "integer"
+        },
+        "resourceLimits": {
+          "additionalProperties": false,
+          "description": "Maximum compute resources for the observer container.",
+          "properties": {
+            "memory": {
+              "default": "256Mi",
+              "description": "Maximum memory before the container is OOM-killed.",
+              "title": "memory",
+              "type": "string"
+            },
+            "cpu": {
+              "default": "500m",
+              "description": "Maximum CPU the container may use.",
+              "title": "cpu",
+              "type": "string"
+            }
+          },
+          "required": [],
+          "title": "resourceLimits",
+          "type": "object"
+        },
+        "resourceRequests": {
+          "additionalProperties": false,
+          "description": "Compute resources reserved for the observer at scheduling time.",
+          "properties": {
+            "memory": {
+              "default": "128Mi",
+              "description": "Memory reserved at scheduling time.",
+              "title": "memory",
+              "type": "string"
+            },
+            "cpu": {
+              "default": "250m",
+              "description": "CPU reserved at scheduling time.",
+              "title": "cpu",
+              "type": "string"
+            }
+          },
+          "required": [],
+          "title": "resourceRequests",
+          "type": "object"
+        },
+        "service": {
+          "additionalProperties": false,
+          "description": "Reachable externally via the observability-plane gateway (see ocIngress); set type to LoadBalancer to restore a dedicated external endpoint.",
+          "properties": {
+            "type": {
+              "default": "ClusterIP",
+              "description": "Kubernetes Service type (`ClusterIP`, `NodePort`, or `LoadBalancer`)",
+              "title": "type",
+              "type": "string"
+            }
+          },
+          "required": [],
+          "title": "service",
+          "type": "object"
+        },
+        "ocIngress": {
+          "additionalProperties": false,
+          "description": "Exposes the Agent Manager Observer through the observability-plane kgateway (gateway-default) so it does not need its own LoadBalancer service.",
+          "properties": {
+            "enabled": {
+              "default": true,
+              "description": "Expose this component through the gateway",
+              "title": "enabled",
+              "type": "boolean"
+            },
+            "gatewayName": {
+              "default": "gateway-default",
+              "description": "Gateway that serves this route",
+              "title": "gatewayName",
+              "type": "string"
+            },
+            "hostname": {
+              "default": "traces.amp.localhost",
+              "description": "Hostname routed to this component through the gateway",
+              "title": "hostname",
+              "type": "string"
+            },
+            "requestTimeout": {
+              "default": "60s",
+              "description": "Time the gateway waits for an observer response before giving up.",
+              "title": "requestTimeout",
+              "type": "string"
+            }
+          },
+          "required": [],
+          "title": "ocIngress",
+          "type": "object"
+        },
+        "observer": {
+          "additionalProperties": false,
+          "description": "Observer Service connection \u2014 the upstream service that provides trace data.",
+          "properties": {
+            "baseUrl": {
+              "default": "http://observer.openchoreo-observability-plane.svc.cluster.local:8080",
+              "description": "In-cluster base URL of the upstream observer.",
+              "title": "baseUrl",
+              "type": "string"
+            },
+            "idpTokenUrl": {
+              "default": "http://amp-thunder-extension-service.amp-thunder.svc.cluster.local:8090/oauth2/token",
+              "description": "Token endpoint used to authenticate to the upstream observer.",
+              "title": "idpTokenUrl",
+              "type": "string"
+            },
+            "idpClientId": {
+              "default": "am-observer-client",
+              "description": "Dedicated outbound identity for calls to the OpenChoreo observer. Seeded by wso2-amp-thunder-extension (amObserverClient); authorized via the amp-observer-reader ClusterAuthzRoleBinding in wso2-amp-platform-resources-extension. No amp:* scopes. Generate this the same way as every other client secret in this product (e.g. AM_OBSERVER_CLIENT_SECRET=\"$(openssl rand -hex 32)\") and pass it here AND to thunder.bootstrap.amObserverClient.clientSecret \u2014 they must match, since Thunder is what actually issued this client. Prefer existingSecret below over the inline value for production. NOTE: the Thunder bootstrap job is a pre-install-only hook \u2014 on an existing install, helm upgrade does NOT create this client; re-run the bootstrap job (or reinstall the thunder extension) before rolling out this value.",
+              "title": "idpClientId",
+              "type": "string"
+            },
+            "idpClientSecret": {
+              "default": "am-observer-client-secret",
+              "description": "Unlike apiKey/encryptionKey elsewhere in this product, there is no safe empty-value fallback here: this must match whatever Thunder actually issued for amObserverClient, so it stays at the same default that chart ships (thunder.bootstrap.amObserverClient.clientSecret) rather than being emptied \u2014 override BOTH together via existingSecret in production.",
+              "title": "idpClientSecret",
+              "type": "string"
+            },
+            "existingSecret": {
+              "default": "",
+              "description": "Reference an existing secret for IDP credentials (recommended for production). When set, idpClientId/idpClientSecret above are ignored.",
+              "title": "existingSecret",
+              "type": "string"
+            },
+            "existingSecretClientIdKey": {
+              "default": "idpClientId",
+              "description": "Key within the existing Secret holding the OAuth client ID.",
+              "title": "existingSecretClientIdKey",
+              "type": "string"
+            },
+            "existingSecretClientSecretKey": {
+              "default": "idpClientSecret",
+              "description": "Key within the existing Secret holding the OAuth client secret.",
+              "title": "existingSecretClientSecretKey",
+              "type": "string"
+            },
+            "defaultNamespace": {
+              "default": "default",
+              "description": "Namespace assumed when a query does not name one.",
+              "title": "defaultNamespace",
+              "type": "string"
+            }
+          },
+          "required": [],
+          "title": "observer",
+          "type": "object"
+        },
+        "auth": {
+          "additionalProperties": false,
+          "description": "JWT authentication \u2014 must match the agent-manager keyManager config so the same user token issued by Thunder is accepted by both services. Thunder stamps the resource-server identifier as the token audience, so query tokens (console/CLI) carry aud=urn:wso2:amp \u2014 the amp resource server's identifier, which must stay in sync with 60-amp-resource-server.yaml in the Thunder extension chart. The agent-manager-service's own amp-api-client client-credentials token (used for the monitor-run-logs server-to-server call) requests the full amp:* scope set and resolves to the same resource-server audience; \"amp-api-client\" is listed too as a defensive fallback for any client-credentials request that carries no scope (in which case Thunder falls back to the client ID as the audience). Publisher tokens (aud amp-publisher-*) are matched by a separate regex in the observer's auth middleware and do not need to be listed here. MCP tokens minted for the observer MCP client (am-obs-mcp) carry the RFC 8707 resource identifier \u2014 this service's publicUrl with \"/mcp\" appended (no trailing slash, per the MCP spec's canonical-URI guidance) \u2014 as their audience. That URL is NOT listed here: the chart appends publicUrl+\"/mcp\" to this list automatically, so overriding publicUrl alone keeps MCP tokens valid. \"am-obs-mcp\" is listed defensively; MCP logins normally carry that resource URL as the audience, not the client ID (unlike amp-api-client's client-credentials fallback, this can't occur for am-obs-mcp, a public client restricted to authorization_code).",
+          "properties": {
+            "isLocalDevEnv": {
+              "default": false,
+              "description": "Accept local-development tokens. Leave off in real deployments.",
+              "title": "isLocalDevEnv",
+              "type": "boolean"
+            },
+            "jwksUrl": {
+              "default": "http://amp-thunder-extension-service.amp-thunder.svc.cluster.local:8090/oauth2/jwks",
+              "description": "JSON Web Key Set used to verify incoming token signatures.",
+              "title": "jwksUrl",
+              "type": "string"
+            },
+            "issuer": {
+              "default": "http://thunder.amp.localhost:8080",
+              "description": "MUST be the PUBLIC Thunder URL the platform issues tokens from (the `iss` claim), not the in-cluster service URL used for jwksUrl above. The console and amctl send the same user token here that they send to agent-manager-service, so this has to match that chart's agentManagerService.config.keyManager.issuer \u2014 otherwise every traces request 401s with \"invalid issuer\".",
+              "title": "issuer",
+              "type": "string"
+            },
+            "audience": {
+              "default": "urn:wso2:amp,amp-api-client,am-obs-mcp",
+              "description": "Accepted token audiences, as a comma-separated list.",
+              "title": "audience",
+              "type": "string"
+            }
+          },
+          "required": [],
+          "title": "auth",
+          "type": "object"
+        },
+        "publicUrl": {
+          "default": "http://traces.amp.localhost:11080",
+          "description": "Externally reachable base URL of this service. Used as the `resource` identifier in RFC 9728 protected resource metadata and in the WWW-Authenticate resource_metadata parameter on 401 responses. Routed through the observability-plane gateway (see ocIngress above), which k3d maps to host port 11080 \u2014 not the 8080 control-plane gateway.",
+          "title": "publicUrl",
+          "type": "string"
+        },
+        "oauth": {
+          "additionalProperties": false,
+          "description": "OAuth 2.0 discovery metadata for MCP clients (RFC 9728). Consumed by the /mcp route's protected-resource well-known endpoint.",
+          "properties": {
+            "authorizationServers": {
+              "default": "",
+              "description": "Comma-separated list of OAuth 2.0 authorization server URLs advertised in RFC 9728 protected resource metadata. Left empty on purpose: it defaults to auth.issuer above, which is the same authorization server. Only set it when the advertised URL must differ from the token issuer. To suppress the metadata endpoint instead, empty publicUrl \u2014 the handler checks that first, and an empty auth.issuer fails startup validation.",
+              "title": "authorizationServers",
+              "type": "string"
+            },
+            "scopesSupported": {
+              "default": "amp:observability:log-read,amp:observability:trace-read,amp:observability:metric-read,amp:observability:build-log-read",
+              "description": "Comma-separated list of OAuth 2.0 scopes supported by this resource, advertised in RFC 9728 protected resource metadata.",
+              "title": "scopesSupported",
+              "type": "string"
+            }
+          },
+          "required": [],
+          "title": "oauth",
+          "type": "object"
+        }
+      },
+      "required": [],
+      "title": "amObserver",
+      "type": "object"
+    },
+    "otelCollector": {
+      "additionalProperties": false,
+      "description": "OpenTelemetry collector extras",
+      "properties": {
+        "otlpHttpPort": {
+          "default": 4318,
+          "description": "Collector container ports. Must match the receiver/extension endpoints in deployments/values/oc-collector-configmap.yaml, which is applied separately (not templated by this chart) \u2014 update both if either changes.",
+          "title": "otlpHttpPort",
+          "type": "integer"
+        },
+        "healthCheckPort": {
+          "default": 13133,
+          "description": "Port serving the collector's health check.",
+          "title": "healthCheckPort",
+          "type": "integer"
+        },
+        "externalService": {
+          "additionalProperties": false,
+          "description": "Optional dedicated external Service for direct OTLP/HTTP pushes to the collector. Disabled by default: shipped clients send traces through the data-plane gateway's /otel route.",
+          "properties": {
+            "enabled": {
+              "default": false,
+              "description": "Expose the collector outside the cluster.",
+              "title": "enabled",
+              "type": "boolean"
+            },
+            "type": {
+              "default": "LoadBalancer",
+              "description": "Service type used for the external endpoint.",
+              "title": "type",
+              "type": "string"
+            },
+            "port": {
+              "default": 21893,
+              "description": "Port the external endpoint listens on.",
+              "title": "port",
+              "type": "integer"
+            }
+          },
+          "required": [],
+          "title": "externalService",
+          "type": "object"
+        }
+      },
+      "required": [],
+      "title": "otelCollector",
+      "type": "object"
+    },
+    "networkPolicy": {
+      "additionalProperties": false,
+      "description": "Network restrictions applied to the pods this chart runs.",
+      "properties": {
+        "otelCollector": {
+          "additionalProperties": false,
+          "description": "Traffic the collector is allowed to accept.",
+          "properties": {
+            "enabled": {
+              "default": true,
+              "description": "No-op on clusters whose CNI doesn't enforce NetworkPolicy.",
+              "title": "enabled",
+              "type": "boolean"
+            }
+          },
+          "required": [],
+          "title": "otelCollector",
+          "type": "object"
+        }
+      },
+      "required": [],
+      "title": "networkPolicy",
+      "type": "object"
+    }
+  }
+}

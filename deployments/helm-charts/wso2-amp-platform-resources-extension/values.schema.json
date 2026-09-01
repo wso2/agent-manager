@@ -1,0 +1,584 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "additionalProperties": false,
+  "type": "object",
+  "required": [],
+  "properties": {
+    "global": {
+      "additionalProperties": false,
+      "description": "Global configuration",
+      "properties": {
+        "oauth": {
+          "additionalProperties": false,
+          "description": "OAuth / IDP configuration for workload publishing",
+          "properties": {
+            "tokenUrl": {
+              "default": "http://host.k3d.internal:8080/oauth2/token",
+              "description": "OAuth token endpoint URL",
+              "title": "tokenUrl",
+              "type": "string"
+            },
+            "hostHeader": {
+              "default": "thunder.amp.localhost",
+              "description": "Host header for OAuth requests",
+              "title": "hostHeader",
+              "type": "string"
+            },
+            "clientId": {
+              "default": "openchoreo-workload-publisher-client",
+              "description": "OAuth client ID for workload publisher",
+              "title": "clientId",
+              "type": "string"
+            }
+          },
+          "required": [],
+          "title": "oauth",
+          "type": "object"
+        },
+        "apiServer": {
+          "additionalProperties": false,
+          "description": "OpenChoreo API server configuration",
+          "properties": {
+            "url": {
+              "default": "http://host.k3d.internal:8080",
+              "description": "API server URL",
+              "title": "url",
+              "type": "string"
+            },
+            "hostHeader": {
+              "default": "api.openchoreo.localhost",
+              "description": "Host header for API server requests",
+              "title": "hostHeader",
+              "type": "string"
+            }
+          },
+          "required": [],
+          "title": "apiServer",
+          "type": "object"
+        },
+        "commonLabels": {
+          "additionalProperties": true,
+          "default": {},
+          "description": "Common labels to add to every resource.",
+          "required": [],
+          "title": "commonLabels",
+          "type": "object"
+        },
+        "baseDomain": {
+          "default": "",
+          "description": "Base domain for external access (e.g., \"openchoreo.example.com\") When set, registry will be accessible at registry.<baseDomain>",
+          "title": "baseDomain",
+          "type": "string"
+        },
+        "registry": {
+          "additionalProperties": false,
+          "description": "Container registry configuration",
+          "properties": {
+            "endpoint": {
+              "default": "host.k3d.internal:10082",
+              "description": "Registry endpoint for pushing and pulling images For local registry: \"host.k3d.internal:10082\" For external registry with baseDomain: automatically uses \"registry.<baseDomain>\"",
+              "title": "endpoint",
+              "type": "string"
+            }
+          },
+          "required": [],
+          "title": "registry",
+          "type": "object"
+        },
+        "defaultResources": {
+          "additionalProperties": false,
+          "description": "Default resources configuration",
+          "properties": {
+            "namespace": {
+              "default": "default",
+              "description": "Namespace where default resources will be created",
+              "title": "namespace",
+              "type": "string"
+            },
+            "registry": {
+              "additionalProperties": false,
+              "description": "Registry configuration for default resources",
+              "properties": {
+                "tlsVerify": {
+                  "default": false,
+                  "description": "Enable TLS verification for registry connections",
+                  "title": "tlsVerify",
+                  "type": "boolean"
+                }
+              },
+              "required": [],
+              "title": "registry",
+              "type": "object"
+            },
+            "buildpackCache": {
+              "additionalProperties": false,
+              "description": "Buildpack cache configuration",
+              "properties": {
+                "enabled": {
+                  "default": false,
+                  "description": "@schema type: boolean description: Enable buildpack image caching. When enabled, images are pulled from cache registry instead of remote. default: false @schema",
+                  "title": "enabled",
+                  "type": "boolean"
+                },
+                "images": {
+                  "default": [
+                    {
+                      "id": "lifecycle",
+                      "remoteImage": "docker.io/buildpacksio/lifecycle:0.20.5",
+                      "cachedImage": "buildpacks-cache/lifecycle:0.20.5"
+                    },
+                    {
+                      "id": "google-builder",
+                      "remoteImage": "gcr.io/buildpacks/builder@sha256:5977b4bd47d3e9ff729eefe9eb99d321d4bba7aa3b14986323133f40b622aef1",
+                      "cachedImage": "buildpacks-cache/google-builder:latest"
+                    },
+                    {
+                      "id": "google-run",
+                      "remoteImage": "gcr.io/buildpacks/google-22/run:latest",
+                      "cachedImage": "buildpacks-cache/google-run:latest"
+                    },
+                    {
+                      "id": "ballerina-builder",
+                      "remoteImage": "ghcr.io/openchoreo/buildpack/ballerina:18",
+                      "cachedImage": "buildpacks-cache/ballerina-builder:18"
+                    },
+                    {
+                      "id": "ballerina-run",
+                      "remoteImage": "ghcr.io/openchoreo/buildpack/ballerina:18-run",
+                      "cachedImage": "buildpacks-cache/ballerina-run:18"
+                    }
+                  ],
+                  "description": "@schema type: array description: List of buildpack images to cache. Each entry has an id for lookup, remoteImage for external registry, and cachedImage for local cache. items: type: object additionalProperties: false required: - id - remoteImage - cachedImage properties: id: type: string description: Unique identifier for lookup in workflow templates remoteImage: type: string description: Image reference from remote registry (used when caching is disabled) cachedImage: type: string description: Image path in the local build plane registry (used when caching is enabled) @schema",
+                  "items": {
+                    "type": "object"
+                  },
+                  "title": "images",
+                  "type": "array"
+                }
+              },
+              "required": [],
+              "title": "buildpackCache",
+              "type": "object"
+            }
+          },
+          "required": [],
+          "title": "defaultResources",
+          "type": "object"
+        }
+      },
+      "required": [],
+      "title": "global",
+      "type": "object"
+    },
+    "kubectl": {
+      "additionalProperties": false,
+      "description": "Kubectl image configuration for jobs",
+      "properties": {
+        "image": {
+          "default": "bitnamilegacy/kubectl:1.32.4",
+          "description": "Image providing the `kubectl` binary for helper jobs",
+          "title": "image",
+          "type": "string"
+        }
+      },
+      "required": [],
+      "title": "kubectl",
+      "type": "object"
+    },
+    "buildWorkflows": {
+      "additionalProperties": false,
+      "description": "Build workflow pod hardening",
+      "properties": {
+        "userNamespaces": {
+          "default": true,
+          "description": "Run build pods inside a Linux user namespace (hostUsers: false) so the build's root user is unprivileged on the node. This requires idmapped-mount support for every filesystem the pod mounts (overlayfs AND tmpfs/projected volumes) \u2014 in practice Linux kernel >= 6.3 (e.g. Ubuntu 24.04, Amazon Linux 2023, recent COS). On older kernels (e.g. Ubuntu 22.04's 5.15, Amazon Linux 2's 5.10) every build pod fails at sandbox creation with \"failed to set MOUNT_ATTR_IDMAP ... invalid argument\" \u2014 set this to false on such nodes to run builds without user namespaces.",
+          "title": "userNamespaces",
+          "type": "boolean"
+        }
+      },
+      "required": [],
+      "title": "buildWorkflows",
+      "type": "object"
+    },
+    "environment": {
+      "additionalProperties": false,
+      "description": "Environment configuration",
+      "properties": {
+        "name": {
+          "default": "default",
+          "description": "Name of the default environment",
+          "title": "name",
+          "type": "string"
+        },
+        "displayName": {
+          "default": "Default",
+          "description": "Display name for the environment",
+          "title": "displayName",
+          "type": "string"
+        },
+        "description": {
+          "default": "Default environment for WSO2 AI Agent Management Platform",
+          "description": "Description for the environment",
+          "title": "description",
+          "type": "string"
+        },
+        "isCritical": {
+          "default": false,
+          "description": "Is this environment critical/production?",
+          "title": "isCritical",
+          "type": "boolean"
+        },
+        "dnsPrefix": {
+          "default": "default",
+          "description": "DNS Prefix for the gateway",
+          "title": "dnsPrefix",
+          "type": "string"
+        },
+        "gateway": {
+          "additionalProperties": false,
+          "description": "Gateway ingress details persisted on the default Environment CR. This mirrors what add-environment.sh writes for other envs so every env CR carries its gateway info explicitly. name/namespace MUST reference the real data-plane Gateway so agent HTTPRoutes attach to it; OC builds agent route hostnames as \"<env>-<org>.<listener.host>\".",
+          "properties": {
+            "name": {
+              "default": "gateway-default",
+              "description": "Real data-plane Gateway the agent routes attach to (parentRef).",
+              "title": "name",
+              "type": "string"
+            },
+            "namespace": {
+              "default": "openchoreo-data-plane",
+              "description": "Namespace containing that gateway.",
+              "title": "namespace",
+              "type": "string"
+            },
+            "http": {
+              "additionalProperties": false,
+              "description": "http: agent-facing host (distinct from the gateway-runtime host gateway.localhost).",
+              "properties": {
+                "host": {
+                  "default": "am-gateway.localhost",
+                  "description": "Hostname routed to agents in this environment.",
+                  "title": "host",
+                  "type": "string"
+                },
+                "port": {
+                  "default": 19080,
+                  "description": "Port the HTTP listener serves on.",
+                  "title": "port",
+                  "type": "integer"
+                }
+              },
+              "required": [],
+              "title": "http",
+              "type": "object"
+            },
+            "https": {
+              "additionalProperties": true,
+              "default": {},
+              "description": "https: optional TLS-fronted variant. Unset by default (local/compose serves agents over plain http, tlsEnabled=false). Set host/port on TLS deployments (e.g. the VM installer) so the binding carries an https externalURL; otherwise the tlsEnabled console reads a missing variant and the invoke URL is empty.",
+              "required": [],
+              "title": "https",
+              "type": "object"
+            }
+          },
+          "required": [],
+          "title": "gateway",
+          "type": "object"
+        }
+      },
+      "required": [],
+      "title": "environment",
+      "type": "object"
+    },
+    "apiPlatformGatewayVhost": {
+      "additionalProperties": false,
+      "description": "API Platform Gateway vhost used for externally reachable gateway URLs. Sandboxed platform agents use the per-environment gateway runtime's in-cluster Service for OTEL and managed LLM/MCP proxy traffic instead.",
+      "properties": {
+        "host": {
+          "default": "gateway.localhost",
+          "description": "Hostname of the virtual host.",
+          "title": "host",
+          "type": "string"
+        },
+        "port": {
+          "default": 19080,
+          "description": "Port the virtual host serves on.",
+          "title": "port",
+          "type": "integer"
+        },
+        "otelEndpointOverride": {
+          "default": "",
+          "description": "Full override for the agent OTEL endpoint. When set, it replaces the in-cluster runtime URL entirely \u2014 used on installs that front a single public gateway host on :443 (e.g. a VM install), where the per-environment Kubernetes Service does not apply. Empty = derive the in-cluster Service.",
+          "title": "otelEndpointOverride",
+          "type": "string"
+        }
+      },
+      "required": [],
+      "title": "apiPlatformGatewayVhost",
+      "type": "object"
+    },
+    "apiPlatformGateway": {
+      "additionalProperties": false,
+      "description": "Where the per-environment API Platform Gateway is installed. This must agree with apiGateway.namespace in wso2-amp-api-platform-gateway-extension, because the traits below address that release's gateway-runtime Service by DNS name.",
+      "properties": {
+        "namespace": {
+          "default": "",
+          "description": "Empty = derive the per-org-env convention \"<org>-<env>\", which setup-gateway.sh and add-environment.sh create by passing set apiGateway.namespace=<org>-<env>. Set this to a fixed namespace when the gateway extension is installed somewhere else \u2014 notably openchoreo-data-plane, which is the gateway chart's own default for apiGateway.namespace. Leaving it empty there makes the traits build a name that does not resolve, and the failure is silent: agents keep serving traffic while every span batch fails, and agent invocation has no route to the gateway runtime.",
+          "title": "namespace",
+          "type": "string"
+        }
+      },
+      "required": [],
+      "title": "apiPlatformGateway",
+      "type": "object"
+    },
+    "deploymentPipeline": {
+      "additionalProperties": false,
+      "description": "Deployment Pipeline configuration",
+      "properties": {
+        "name": {
+          "default": "default",
+          "description": "Name of the default deployment pipeline",
+          "title": "name",
+          "type": "string"
+        },
+        "displayName": {
+          "default": "Default Deployment Pipeline",
+          "description": "Display name for the deployment pipeline",
+          "title": "displayName",
+          "type": "string"
+        },
+        "description": {
+          "default": "Default deployment pipeline for WSO2 Agent Manager",
+          "description": "Description for the deployment pipeline",
+          "title": "description",
+          "type": "string"
+        },
+        "promotionOrder": {
+          "default": [
+            {
+              "sourceEnvironmentRef": {
+                "name": "default"
+              },
+              "targetEnvironmentRefs": []
+            }
+          ],
+          "description": "Promotion order for the deployment pipeline",
+          "items": {
+            "type": "object"
+          },
+          "title": "promotionOrder",
+          "type": "array"
+        }
+      },
+      "required": [],
+      "title": "deploymentPipeline",
+      "type": "object"
+    },
+    "project": {
+      "additionalProperties": false,
+      "description": "Project configuration",
+      "properties": {
+        "name": {
+          "default": "default",
+          "description": "Name of the default project",
+          "title": "name",
+          "type": "string"
+        },
+        "displayName": {
+          "default": "Default Project",
+          "description": "Display name for the project",
+          "title": "displayName",
+          "type": "string"
+        },
+        "description": {
+          "default": "Default project for WSO2 Agent Manager",
+          "description": "Description for the project",
+          "title": "description",
+          "type": "string"
+        }
+      },
+      "required": [],
+      "title": "project",
+      "type": "object"
+    },
+    "openchoreoNamespace": {
+      "default": "default",
+      "description": "Namespace the platform resources below are created in. It must match the service's OPEN_CHOREO_DEFAULT_NAMESPACE, since that is the namespace the service creates projects in \u2014 and a namespaced ProjectType is only resolvable from within its own namespace.",
+      "title": "openchoreoNamespace",
+      "type": "string"
+    },
+    "projectType": {
+      "additionalProperties": false,
+      "description": "ProjectType referenced by the default Project. OpenChoreo 1.2.0+ makes Project.spec.type a required reference to a (Cluster)ProjectType, which provides the per-environment resource template (here, the cell namespace). A namespaced ProjectType is used rather than a cluster-scoped ClusterProjectType so the type is not shared across tenants. The name is deliberately not configurable: it is a contract with the service, which references client.DefaultProjectTypeName. If the two diverged, every project created through the API would fail to reconcile with ProjectTypeNotFound.",
+      "properties": {
+        "displayName": {
+          "default": "Default Project Type",
+          "description": "Display name for the project type",
+          "title": "displayName",
+          "type": "string"
+        },
+        "description": {
+          "default": "Minimal project type that provisions only the cell namespace per environment.",
+          "description": "Description for the project type",
+          "title": "description",
+          "type": "string"
+        }
+      },
+      "required": [],
+      "title": "projectType",
+      "type": "object"
+    },
+    "externalSecrets": {
+      "additionalProperties": false,
+      "description": "External Secrets configuration",
+      "properties": {
+        "clusterSecretStoreName": {
+          "default": "default",
+          "description": "Name of the ClusterSecretStore (uses the default OpenBao ClusterSecretStore)",
+          "title": "clusterSecretStoreName",
+          "type": "string"
+        }
+      },
+      "required": [],
+      "title": "externalSecrets",
+      "type": "object"
+    },
+    "authz": {
+      "additionalProperties": false,
+      "description": "Authorization configuration for OpenChoreo",
+      "properties": {
+        "ampApiClient": {
+          "additionalProperties": false,
+          "description": "AMP API Client authorization binding",
+          "properties": {
+            "clientId": {
+              "default": "amp-api-client",
+              "description": "Client ID used by agent-manager-service (must match Thunder OAuth client_id)",
+              "title": "clientId",
+              "type": "string"
+            },
+            "role": {
+              "default": "admin",
+              "description": "Role to assign (admin grants full access to OpenChoreo APIs)",
+              "title": "role",
+              "type": "string"
+            }
+          },
+          "required": [],
+          "title": "ampApiClient",
+          "type": "object"
+        },
+        "amObserverClient": {
+          "additionalProperties": false,
+          "description": "AM Observer Client authorization binding",
+          "properties": {
+            "clientId": {
+              "default": "am-observer-client",
+              "description": "Client ID used by agent-manager-observer's outbound calls to the OpenChoreo observer (must match Thunder OAuth client_id seeded by wso2-amp-thunder-extension's amObserverClient)",
+              "title": "clientId",
+              "type": "string"
+            },
+            "role": {
+              "default": "amp-observer-reader",
+              "description": "Minimal read-only role for observability data (traces/logs/metrics)",
+              "title": "role",
+              "type": "string"
+            }
+          },
+          "required": [],
+          "title": "amObserverClient",
+          "type": "object"
+        }
+      },
+      "required": [],
+      "title": "authz",
+      "type": "object"
+    },
+    "gatewayTls": {
+      "additionalProperties": false,
+      "description": "Gateway TLS certificate configuration",
+      "properties": {
+        "enabled": {
+          "default": true,
+          "description": "Enable gateway TLS certificate creation",
+          "title": "enabled",
+          "type": "boolean"
+        },
+        "certificateName": {
+          "default": "gateway-tls",
+          "description": "Certificate name",
+          "title": "certificateName",
+          "type": "string"
+        },
+        "secretName": {
+          "default": "gateway-tls",
+          "description": "Secret name where the certificate will be stored",
+          "title": "secretName",
+          "type": "string"
+        },
+        "namespace": {
+          "default": "openchoreo-data-plane",
+          "description": "Namespace where the certificate and secret will be created",
+          "title": "namespace",
+          "type": "string"
+        },
+        "duration": {
+          "default": "2160h",
+          "description": "Certificate duration (default: 2160h = 90 days)",
+          "title": "duration",
+          "type": "string"
+        },
+        "renewBefore": {
+          "default": "720h",
+          "description": "Certificate renewal time (default: 720h = 30 days before expiry)",
+          "title": "renewBefore",
+          "type": "string"
+        },
+        "commonName": {
+          "default": "*.agentmanager.localhost",
+          "description": "Common name for the certificate",
+          "title": "commonName",
+          "type": "string"
+        },
+        "dnsNames": {
+          "default": [
+            "*.agentmanager.localhost",
+            "agentmanager.localhost",
+            "*.am-gateway.localhost",
+            "am-gateway.localhost"
+          ],
+          "description": "DNS names for the certificate",
+          "items": {
+            "type": "string"
+          },
+          "title": "dnsNames",
+          "type": "array"
+        },
+        "issuerRef": {
+          "additionalProperties": false,
+          "description": "Issuer reference for cert-manager",
+          "properties": {
+            "name": {
+              "default": "openchoreo-data-plane-selfsigned-issuer",
+              "description": "Name of the issuer (created by openchoreo-data-plane chart)",
+              "title": "name",
+              "type": "string"
+            },
+            "kind": {
+              "default": "Issuer",
+              "description": "Issuer kind: Issuer or ClusterIssuer",
+              "title": "kind",
+              "type": "string"
+            }
+          },
+          "required": [],
+          "title": "issuerRef",
+          "type": "object"
+        }
+      },
+      "required": [],
+      "title": "gatewayTls",
+      "type": "object"
+    }
+  }
+}

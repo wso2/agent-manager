@@ -131,9 +131,9 @@ describe("evaluateAgentEnvironmentAccess", () => {
     expect(decision.missingScope).toBe(AGENT_ENV_NON_PRODUCTION_SCOPE);
   });
 
-  // Mirrors RBAC_ENABLED=false on the service: nothing is enforced, so the
-  // console must not gate anything either.
-  it("allows everything when RBAC is not enforced", () => {
+  // Mirrors an auth-disabled deployment: there is no token to carry scopes and
+  // the service gates nothing, so the console must not gate anything either.
+  it("allows everything when nothing is enforced", () => {
     const decision = evaluateAgentEnvironmentAccess(
       { enforced: false, resolved: true, scopes: new Set<string>() },
       production,

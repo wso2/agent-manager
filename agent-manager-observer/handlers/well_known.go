@@ -26,7 +26,8 @@ import (
 )
 
 // protectedResourceMetadata is the RFC 9728 OAuth 2.0 Protected Resource
-// Metadata document served at /.well-known/oauth-protected-resource.
+// Metadata document served at the root compatibility location and the RFC
+// 9728 path-specific /.well-known/oauth-protected-resource/mcp location.
 type protectedResourceMetadata struct {
 	Resource               string   `json:"resource"`
 	AuthorizationServers   []string `json:"authorization_servers,omitempty"`
@@ -34,13 +35,23 @@ type protectedResourceMetadata struct {
 	ScopesSupported        []string `json:"scopes_supported,omitempty"`
 }
 
+// ampAPIResourceIdentifier is the shared Agent Manager API resource registered
+// in Thunder. Observer REST endpoints accept that platform API audience, while
+// the Observer MCP endpoint has its own deployment-specific URL resource.
+const ampAPIResourceIdentifier = "urn:wso2:amp"
+
 // RegisterWellKnownRoutes registers the RFC 9728 OAuth 2.0 protected resource
 // metadata endpoint on mux. The route is unauthenticated and returns 503 when
 // SERVER_PUBLIC_URL or OAUTH_AUTHORIZATION_SERVERS is not configured.
 //
 // Ported from agent-manager-service/api/well_known_routes.go.
 func RegisterWellKnownRoutes(mux *http.ServeMux, cfg config.AuthConfig) {
-	mux.HandleFunc("GET /.well-known/oauth-protected-resource", func(w http.ResponseWriter, r *http.Request) {
+	mux.HandleFunc("GET /.well-known/oauth-protected-resource", protectedResourceMetadataHandler(cfg, false))
+	mux.HandleFunc("GET /.well-known/oauth-protected-resource/mcp", protectedResourceMetadataHandler(cfg, true))
+}
+
+func protectedResourceMetadataHandler(cfg config.AuthConfig, mcpResource bool) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
 		if cfg.ServerPublicURL == "" {
 			logger.GetLogger(r.Context()).Error("SERVER_PUBLIC_URL is not configured; cannot serve protected resource metadata")
 			http.Error(w, "protected resource metadata not configured", http.StatusServiceUnavailable)
@@ -52,8 +63,13 @@ func RegisterWellKnownRoutes(mux *http.ServeMux, cfg config.AuthConfig) {
 			return
 		}
 
+		resource := ampAPIResourceIdentifier
+		if mcpResource {
+			resource = strings.TrimSuffix(cfg.ServerPublicURL, "/") + "/mcp"
+		}
+
 		body := protectedResourceMetadata{
-			Resource:               strings.TrimSuffix(cfg.ServerPublicURL, "/") + "/mcp",
+			Resource:               resource,
 			AuthorizationServers:   cfg.AuthorizationServers,
 			BearerMethodsSupported: []string{"header"},
 			ScopesSupported:        cfg.ScopesSupported,
@@ -64,5 +80,5 @@ func RegisterWellKnownRoutes(mux *http.ServeMux, cfg config.AuthConfig) {
 		if err := json.NewEncoder(w).Encode(body); err != nil {
 			logger.GetLogger(r.Context()).Error("failed to encode protected resource metadata", "error", err)
 		}
-	})
+	}
 }

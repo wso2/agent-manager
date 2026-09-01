@@ -12,7 +12,7 @@ Unlike the main MCP server's tools, every `am-obs-mcp` tool call is scoped by an
 
 The observer MCP server provides **7 tools** organized into two toolsets: Observability (runtime logs, build logs, metrics) and Tracing (traces and spans).
 
-When `RBAC_ENABLED` is set on the observer, every tool call is authorized against the token's scopes — the trace tools require `amp:observability:trace-read`, and `get_runtime_logs`/`get_build_logs`/`get_metrics` require `amp:observability:log-read`/`build-log-read`/`metric-read` respectively — mirroring the REST routes' per-route checks. Publisher (`amp-publisher-*`) tokens are always confined to trace reads, regardless of the flag. These scopes are part of the platform-wide model documented in [Authorization](./authorization.mdx).
+Every tool call is authorized against the token's scopes — the trace tools require `amp:observability:trace-read`, and `get_runtime_logs`/`get_build_logs`/`get_metrics` require `amp:observability:log-read`/`build-log-read`/`metric-read` respectively — mirroring the REST routes' per-route checks. Publisher (`amp-publisher-*`) tokens are always confined to trace reads. These scopes are part of the platform-wide model documented in [Authorization](./authorization.mdx).
 
 <details>
 <summary><strong>Observability Toolset (3 tools)</strong></summary>

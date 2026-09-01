@@ -133,7 +133,7 @@ environment:
     # agents over plain http, tlsEnabled=false). Set host/port on TLS deployments
     # (e.g. the VM installer) so the binding carries an https externalURL; otherwise
     # the tlsEnabled console reads a missing variant and the invoke URL is empty.
-    # https:
+    https: {}
     #   host: am-gateway.localhost
     #   port: 443
 

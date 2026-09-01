@@ -146,3 +146,15 @@ func TestJWTAuth_ValidTokenNoChallengeHeader(t *testing.T) {
 		t.Errorf("expected no WWW-Authenticate header on success, got %q", got)
 	}
 }
+
+func TestJWTAuthForMCP_AdvertisesPathSpecificMetadata(t *testing.T) {
+	cfg := config.AuthConfig{IsLocalDevEnv: true, ServerPublicURL: "https://traces.amp.example.com/"}
+	handler := JWTAuthForMCP(cfg)(passThroughHandler(new(bool)))
+	rec := httptest.NewRecorder()
+	handler.ServeHTTP(rec, httptest.NewRequest(http.MethodPost, "/mcp", nil))
+
+	want := `Bearer realm="agent-manager-observer", resource_metadata="https://traces.amp.example.com/.well-known/oauth-protected-resource/mcp"`
+	if got := rec.Header().Get("WWW-Authenticate"); got != want {
+		t.Fatalf("expected WWW-Authenticate %q, got %q", want, got)
+	}
+}

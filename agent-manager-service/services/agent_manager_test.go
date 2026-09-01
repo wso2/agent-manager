@@ -504,10 +504,6 @@ func TestRevokeAgentIdentitySecret_PipelineLookupFails_StillRevokesConservativel
 // a deploy that proceeded here would permanently drop the agent's
 // credentials until some later operation happened to re-inject them.
 func TestDeployAgent_IdentityInjectionError_AbortsDeploy(t *testing.T) {
-	// These fixtures carry no scopes, so the tier check requireEnvTier runs on
-	// the deploy and promote paths only passes with RBAC off. Stated here rather
-	// than inherited from the config default.
-	setRBACEnabledForTier(t, false)
 	boom := errors.New("secret backend unavailable")
 	deployCalled := false
 	ocClient := &clientmocks.OpenChoreoClientMock{
@@ -546,7 +542,7 @@ func TestDeployAgent_IdentityInjectionError_AbortsDeploy(t *testing.T) {
 	}
 	s := &agentManagerService{ocClient: ocClient, agentIdentityInjection: injector, logger: discardLogger()}
 
-	_, err := s.DeployAgent(auditableCtx(t), "acme", "proj1", "my-agent", &spec.DeployAgentRequest{ImageId: "registry.example.com/my-agent:v1"})
+	_, err := s.DeployAgent(tierGrantedCtx(t), "acme", "proj1", "my-agent", &spec.DeployAgentRequest{ImageId: "registry.example.com/my-agent:v1"})
 
 	require.Error(t, err, "a failure building AgentID env vars must abort the deploy, not proceed without credentials")
 	assert.False(t, deployCalled, "the OpenChoreo Deploy call must never happen once identity env vars failed to build")
@@ -573,7 +569,7 @@ func TestUpdateAgentConfigurations_IdentityInjectionError_AbortsUpdate(t *testin
 		GetComponentConfigurationsFunc: func(context.Context, string, string, string, string) ([]models.EnvVars, error) {
 			return nil, nil
 		},
-		ReplaceReleaseBindingWorkloadOverridesFunc: func(context.Context, string, string, string, []client.EnvVar, []client.FileVar) error {
+		EnsureReleaseAndBindingFunc: func(context.Context, string, string, string, string, []client.EnvVar, []client.FileVar) error {
 			overridesReplaced = true
 			return nil
 		},
@@ -585,7 +581,7 @@ func TestUpdateAgentConfigurations_IdentityInjectionError_AbortsUpdate(t *testin
 	}
 	s := &agentManagerService{ocClient: ocClient, agentIdentityInjection: injector, logger: discardLogger()}
 
-	err := s.UpdateAgentConfigurations(context.Background(), "acme", "proj1", "my-agent",
+	err := s.UpdateAgentConfigurations(tierGrantedCtx(t), "acme", "proj1", "my-agent",
 		&spec.UpdateAgentConfigurationsRequest{EnvironmentName: "dev"})
 
 	require.Error(t, err, "a failure building AgentID env vars must abort the update, not proceed without credentials")
@@ -602,7 +598,6 @@ func TestUpdateAgentConfigurations_IdentityInjectionError_AbortsUpdate(t *testin
 // agent's actual server-side configuration — so the attacker's env var would
 // resolve, at the workload, straight to the victim's secret value.
 func TestUpdateAgentConfigurations_RejectsUnownedSecretRef(t *testing.T) {
-	setRBACEnabledForTier(t, false)
 	overridesReplaced := false
 	const attackerAgent = "scout-agent"
 	const victimSecretRef = "victim-agent-default-secrets"
@@ -620,7 +615,7 @@ func TestUpdateAgentConfigurations_RejectsUnownedSecretRef(t *testing.T) {
 		GetComponentConfigurationsFunc: func(context.Context, string, string, string, string) ([]models.EnvVars, error) {
 			return nil, nil
 		},
-		ReplaceReleaseBindingWorkloadOverridesFunc: func(context.Context, string, string, string, []client.EnvVar, []client.FileVar) error {
+		EnsureReleaseAndBindingFunc: func(context.Context, string, string, string, string, []client.EnvVar, []client.FileVar) error {
 			overridesReplaced = true
 			return nil
 		},
@@ -637,7 +632,7 @@ func TestUpdateAgentConfigurations_RejectsUnownedSecretRef(t *testing.T) {
 	attackerEnv.SetValue("")
 	attackerEnv.SetSecretRef(victimSecretRef) // recovered from victim-agent's own config-read response
 
-	err := s.UpdateAgentConfigurations(context.Background(), "acme", "proj1", attackerAgent,
+	err := s.UpdateAgentConfigurations(tierGrantedCtx(t), "acme", "proj1", attackerAgent,
 		&spec.UpdateAgentConfigurationsRequest{
 			EnvironmentName: "dev",
 			Env:             []spec.EnvironmentVariable{attackerEnv},
@@ -704,7 +699,6 @@ func shrinkPromotionIdentityPollForTest(t *testing.T) {
 // for a non-API-type internal agent (skips the large isAPIAgent branch
 // entirely), for a dev -> staging promotion pipeline.
 func promoteAgentTestFixture(t *testing.T, tgtIdentityEnvVars []client.EnvVar, tgtIdentityErr error) (*agentManagerService, *bool) {
-	setRBACEnabledForTier(t, false)
 	t.Helper()
 	shrinkPromotionIdentityPollForTest(t)
 	promoteCalled := false
@@ -833,7 +827,7 @@ func TestPromoteAgent_BlocksWhenMCPConnectionUnresolvableInTarget(t *testing.T) 
 	s, promoteCalled := promoteAgentTestFixture(t, []client.EnvVar{{Key: "AMP_AGENTID_CLIENT_ID", Value: "staging-client-id"}}, nil)
 	stubUnresolvedMCPs(t, s, "staging", "booking")
 
-	err := s.PromoteAgent(auditableCtx(t), "acme", "proj1", "my-agent", &spec.PromoteAgentRequest{
+	err := s.PromoteAgent(tierGrantedCtx(t), "acme", "proj1", "my-agent", &spec.PromoteAgentRequest{
 		SourceEnvironment: "dev",
 		TargetEnvironment: "staging",
 	})
@@ -855,7 +849,7 @@ func TestPromoteAgent_AllowsMCPConnectionUnresolvableInBothEnvironments(t *testi
 		return map[string]struct{}{"booking": {}}, nil
 	}
 
-	err := s.PromoteAgent(auditableCtx(t), "acme", "proj1", "my-agent", &spec.PromoteAgentRequest{
+	err := s.PromoteAgent(tierGrantedCtx(t), "acme", "proj1", "my-agent", &spec.PromoteAgentRequest{
 		SourceEnvironment: "dev",
 		TargetEnvironment: "staging",
 	})
@@ -875,7 +869,7 @@ func TestPromoteAgent_BlocksWhenMCPBindingLookupFails(t *testing.T) {
 		return nil, errors.New("database unavailable")
 	}
 
-	err := s.PromoteAgent(auditableCtx(t), "acme", "proj1", "my-agent", &spec.PromoteAgentRequest{
+	err := s.PromoteAgent(tierGrantedCtx(t), "acme", "proj1", "my-agent", &spec.PromoteAgentRequest{
 		SourceEnvironment: "dev",
 		TargetEnvironment: "staging",
 	})
@@ -890,7 +884,7 @@ func TestPromoteAgent_ListsBrokenMCPConnectionsInStableOrder(t *testing.T) {
 	s, _ := promoteAgentTestFixture(t, []client.EnvVar{{Key: "AMP_AGENTID_CLIENT_ID", Value: "staging-client-id"}}, nil)
 	stubUnresolvedMCPs(t, s, "staging", "payments", "booking")
 
-	err := s.PromoteAgent(auditableCtx(t), "acme", "proj1", "my-agent", &spec.PromoteAgentRequest{
+	err := s.PromoteAgent(tierGrantedCtx(t), "acme", "proj1", "my-agent", &spec.PromoteAgentRequest{
 		SourceEnvironment: "dev",
 		TargetEnvironment: "staging",
 	})
@@ -997,7 +991,7 @@ func TestPromoteAgent_BlockedMCPPromotion_ReportsTheMissingBindingNotAnUnchecked
 	s, _ := promoteAgentTestFixture(t, []client.EnvVar{{Key: "AMP_AGENTID_CLIENT_ID", Value: "staging-client-id"}}, nil)
 	stubUnresolvedMCPs(t, s, "staging", "booking")
 
-	err := s.PromoteAgent(auditableCtx(t), "acme", "proj1", "my-agent", &spec.PromoteAgentRequest{
+	err := s.PromoteAgent(tierGrantedCtx(t), "acme", "proj1", "my-agent", &spec.PromoteAgentRequest{
 		SourceEnvironment: "dev",
 		TargetEnvironment: "staging",
 	})
@@ -1016,7 +1010,7 @@ func TestPromoteAgent_BlockedMCPPromotion_TellsUserToDeployTheMCPServer(t *testi
 	s, _ := promoteAgentTestFixture(t, []client.EnvVar{{Key: "AMP_AGENTID_CLIENT_ID", Value: "staging-client-id"}}, nil)
 	stubUnresolvedMCPs(t, s, "staging", "booking")
 
-	err := s.PromoteAgent(auditableCtx(t), "acme", "proj1", "my-agent", &spec.PromoteAgentRequest{
+	err := s.PromoteAgent(tierGrantedCtx(t), "acme", "proj1", "my-agent", &spec.PromoteAgentRequest{
 		SourceEnvironment: "dev",
 		TargetEnvironment: "staging",
 	})
@@ -1031,7 +1025,7 @@ func TestPromoteAgent_BlockedMCPPromotion_ReadsAsPluralOnlyWhenSeveralAreBroken(
 	s, _ := promoteAgentTestFixture(t, []client.EnvVar{{Key: "AMP_AGENTID_CLIENT_ID", Value: "staging-client-id"}}, nil)
 	stubUnresolvedMCPs(t, s, "staging", "payments", "booking")
 
-	err := s.PromoteAgent(auditableCtx(t), "acme", "proj1", "my-agent", &spec.PromoteAgentRequest{
+	err := s.PromoteAgent(tierGrantedCtx(t), "acme", "proj1", "my-agent", &spec.PromoteAgentRequest{
 		SourceEnvironment: "dev",
 		TargetEnvironment: "staging",
 	})
@@ -1061,7 +1055,7 @@ func TestPromoteAgent_BlockedMCPPromotion_VeryLongConfigName_IsShortenedNotPaste
 			stubUnresolvedMCPs(t, s, "staging", tc.names...)
 			logs := captureLogs(s)
 
-			err := s.PromoteAgent(auditableCtx(t), "acme", "proj1", "my-agent", &spec.PromoteAgentRequest{
+			err := s.PromoteAgent(tierGrantedCtx(t), "acme", "proj1", "my-agent", &spec.PromoteAgentRequest{
 				SourceEnvironment: "dev",
 				TargetEnvironment: "staging",
 			})
@@ -1089,7 +1083,7 @@ func TestPromoteAgent_TargetIdentityReady_PromotesWithTargetOnlyCredentials(t *t
 		return nil
 	}
 
-	err := s.PromoteAgent(auditableCtx(t), "acme", "proj1", "my-agent", &spec.PromoteAgentRequest{
+	err := s.PromoteAgent(tierGrantedCtx(t), "acme", "proj1", "my-agent", &spec.PromoteAgentRequest{
 		SourceEnvironment: "dev",
 		TargetEnvironment: "staging",
 	})
@@ -1111,7 +1105,7 @@ func TestPromoteAgent_TargetIdentityReady_PromotesWithTargetOnlyCredentials(t *t
 func TestPromoteAgent_IdentityBuildError_AbortsBeforePromoting(t *testing.T) {
 	s, promoteCalled := promoteAgentTestFixture(t, nil, errors.New("openchoreo unavailable"))
 
-	err := s.PromoteAgent(auditableCtx(t), "acme", "proj1", "my-agent", &spec.PromoteAgentRequest{
+	err := s.PromoteAgent(tierGrantedCtx(t), "acme", "proj1", "my-agent", &spec.PromoteAgentRequest{
 		SourceEnvironment: "dev",
 		TargetEnvironment: "staging",
 	})
@@ -1129,7 +1123,6 @@ func TestPromoteAgent_IdentityBuildError_AbortsBeforePromoting(t *testing.T) {
 // proving the pre-promote kick-off alone is sufficient to unblock a
 // new-environment promotion, with no dependency on any post-promote step.
 func TestPromoteAgent_KickOffThenRetry_SucceedsOnceTargetIdentityCompletes(t *testing.T) {
-	setRBACEnabledForTier(t, false)
 	shrinkPromotionIdentityPollForTest(t)
 	promoteCalled := false
 	var capturedOverrides []client.EnvVar
@@ -1210,7 +1203,7 @@ func TestPromoteAgent_KickOffThenRetry_SucceedsOnceTargetIdentityCompletes(t *te
 
 	// First attempt: target environment is brand new — kicks off provisioning
 	// (ProvisionForEnvironmentIfMissing), but the identity isn't ready yet.
-	err := s.PromoteAgent(auditableCtx(t), "acme", "proj1", "my-agent", req)
+	err := s.PromoteAgent(tierGrantedCtx(t), "acme", "proj1", "my-agent", req)
 	ve := requireBriefPromotionBlock(t, err)
 	assert.Contains(t, ve.Message, "still being provisioned")
 	assert.False(t, promoteCalled, "must not promote while the target identity is still provisioning")
@@ -1219,7 +1212,7 @@ func TestPromoteAgent_KickOffThenRetry_SucceedsOnceTargetIdentityCompletes(t *te
 	targetReady = true
 
 	// Retry: the same promote call now succeeds with the target's own creds.
-	err = s.PromoteAgent(auditableCtx(t), "acme", "proj1", "my-agent", req)
+	err = s.PromoteAgent(tierGrantedCtx(t), "acme", "proj1", "my-agent", req)
 	require.NoError(t, err)
 	assert.True(t, promoteCalled, "the retry must succeed once the target identity is ready")
 
@@ -1239,7 +1232,6 @@ func TestPromoteAgent_KickOffThenRetry_SucceedsOnceTargetIdentityCompletes(t *te
 // let the SAME PromoteAgent call succeed, without the caller needing to
 // retry at all.
 func TestPromoteAgent_PollSucceedsWithinBudget_PromotesOnFirstCall(t *testing.T) {
-	setRBACEnabledForTier(t, false)
 	shrinkPromotionIdentityPollForTest(t)
 	promoteCalled := false
 	ocClient := &clientmocks.OpenChoreoClientMock{
@@ -1300,7 +1292,7 @@ func TestPromoteAgent_PollSucceedsWithinBudget_PromotesOnFirstCall(t *testing.T)
 		logger:                    discardLogger(),
 	}
 
-	err := s.PromoteAgent(auditableCtx(t), "acme", "proj1", "my-agent", &spec.PromoteAgentRequest{
+	err := s.PromoteAgent(tierGrantedCtx(t), "acme", "proj1", "my-agent", &spec.PromoteAgentRequest{
 		SourceEnvironment: "dev",
 		TargetEnvironment: "staging",
 	})
@@ -1320,7 +1312,7 @@ func TestPromoteAgent_TargetCredentialRevoked_BlocksWithRegenerateMessage(t *tes
 
 	stubBindingState(t, s, &AgentThunderBindingState{Status: models.AgentThunderStatusCompleted, HasSecret: false}, nil)
 
-	err := s.PromoteAgent(auditableCtx(t), "acme", "proj1", "my-agent", &spec.PromoteAgentRequest{
+	err := s.PromoteAgent(tierGrantedCtx(t), "acme", "proj1", "my-agent", &spec.PromoteAgentRequest{
 		SourceEnvironment: "dev",
 		TargetEnvironment: "staging",
 	})
@@ -1341,7 +1333,7 @@ func TestPromoteAgent_TargetProvisioningFailed_BlocksWithReprovisionMessage(t *t
 
 	stubBindingState(t, s, &AgentThunderBindingState{Status: models.AgentThunderStatusFailed, LastError: "thunder unreachable"}, nil)
 
-	err := s.PromoteAgent(auditableCtx(t), "acme", "proj1", "my-agent", &spec.PromoteAgentRequest{
+	err := s.PromoteAgent(tierGrantedCtx(t), "acme", "proj1", "my-agent", &spec.PromoteAgentRequest{
 		SourceEnvironment: "dev",
 		TargetEnvironment: "staging",
 	})
@@ -1420,7 +1412,7 @@ func TestPromoteAgent_IdentityStillProvisioning_KeepsUIErrorBriefAndLogsDetail(t
 	s, promoteCalled := promoteAgentTestFixture(t, nil, nil)
 	logs := captureLogs(s)
 
-	err := s.PromoteAgent(auditableCtx(t), "acme", "proj1", "my-agent", &spec.PromoteAgentRequest{
+	err := s.PromoteAgent(tierGrantedCtx(t), "acme", "proj1", "my-agent", &spec.PromoteAgentRequest{
 		SourceEnvironment: "dev",
 		TargetEnvironment: "staging",
 	})
@@ -1443,7 +1435,7 @@ func TestPromoteAgent_IdentityBindingMissing_KeepsUIErrorBriefAndSaysRetry(t *te
 	logs := captureLogs(s)
 	stubBindingState(t, s, nil, nil)
 
-	err := s.PromoteAgent(auditableCtx(t), "acme", "proj1", "my-agent", &spec.PromoteAgentRequest{
+	err := s.PromoteAgent(tierGrantedCtx(t), "acme", "proj1", "my-agent", &spec.PromoteAgentRequest{
 		SourceEnvironment: "dev",
 		TargetEnvironment: "staging",
 	})
@@ -1467,7 +1459,7 @@ func TestPromoteAgent_BindingStateReadFails_ReportsOperationalFailureNotValidati
 	logs := captureLogs(s)
 	stubBindingState(t, s, nil, readFailure)
 
-	err := s.PromoteAgent(auditableCtx(t), "acme", "proj1", "my-agent", &spec.PromoteAgentRequest{
+	err := s.PromoteAgent(tierGrantedCtx(t), "acme", "proj1", "my-agent", &spec.PromoteAgentRequest{
 		SourceEnvironment: "dev",
 		TargetEnvironment: "staging",
 	})
@@ -1491,7 +1483,7 @@ func TestPromoteAgent_ManyLongMCPConnectionNames_KeepsUIErrorBriefAndNamesNoPart
 	stubUnresolvedMCPs(t, s, "staging", names...)
 	logs := captureLogs(s)
 
-	err := s.PromoteAgent(auditableCtx(t), "acme", "proj1", "my-agent", &spec.PromoteAgentRequest{
+	err := s.PromoteAgent(tierGrantedCtx(t), "acme", "proj1", "my-agent", &spec.PromoteAgentRequest{
 		SourceEnvironment: "dev",
 		TargetEnvironment: "staging",
 	})
@@ -1515,7 +1507,7 @@ func TestPromoteAgent_ProvisioningFailedWithLongLastError_TruncatesUIReason(t *t
 	logs := captureLogs(s)
 	stubBindingState(t, s, &AgentThunderBindingState{Status: models.AgentThunderStatusFailed, LastError: longLastError}, nil)
 
-	err := s.PromoteAgent(auditableCtx(t), "acme", "proj1", "my-agent", &spec.PromoteAgentRequest{
+	err := s.PromoteAgent(tierGrantedCtx(t), "acme", "proj1", "my-agent", &spec.PromoteAgentRequest{
 		SourceEnvironment: "dev",
 		TargetEnvironment: "staging",
 	})
@@ -1539,7 +1531,6 @@ func TestPromoteAgent_ProvisioningFailedWithLongLastError_TruncatesUIReason(t *t
 // a nil-interface panic rather than silently passing. PromoteAgent must not
 // hard-block the promotion just because no AgentID binding will ever exist.
 func TestPromoteAgent_ProvisioningDisabled_SkipsIdentityCheckAndPromotes(t *testing.T) {
-	setRBACEnabledForTier(t, false)
 	promoteCalled := false
 	ocClient := &clientmocks.OpenChoreoClientMock{
 		ReplaceReleaseBindingWorkloadOverridesFunc: func(_ context.Context, _, _, _ string, _ []client.EnvVar, _ []client.FileVar) error {
@@ -1593,7 +1584,7 @@ func TestPromoteAgent_ProvisioningDisabled_SkipsIdentityCheckAndPromotes(t *test
 		// agentThunderProvisioning intentionally omitted (nil).
 	}
 
-	err := s.PromoteAgent(auditableCtx(t), "acme", "proj1", "my-agent", &spec.PromoteAgentRequest{
+	err := s.PromoteAgent(tierGrantedCtx(t), "acme", "proj1", "my-agent", &spec.PromoteAgentRequest{
 		SourceEnvironment: "dev",
 		TargetEnvironment: "staging",
 	})
@@ -1613,7 +1604,6 @@ func TestPromoteAgent_ProvisioningDisabled_SkipsIdentityCheckAndPromotes(t *test
 // CR regardless. If PromoteAgent let this through without the target's own
 // override, the promoted pod would silently inherit that real credential.
 func TestPromoteAgent_ProvisioningDisabledButLowestEnvHasRealCredential_StillBlocks(t *testing.T) {
-	setRBACEnabledForTier(t, false)
 	promoteCalled := false
 	ocClient := &clientmocks.OpenChoreoClientMock{
 		ReplaceReleaseBindingWorkloadOverridesFunc: func(_ context.Context, _, _, _ string, _ []client.EnvVar, _ []client.FileVar) error {
@@ -1673,7 +1663,7 @@ func TestPromoteAgent_ProvisioningDisabledButLowestEnvHasRealCredential_StillBlo
 		// disabled NOW, even though dev was provisioned earlier while it was on.
 	}
 
-	err := s.PromoteAgent(auditableCtx(t), "acme", "proj1", "my-agent", &spec.PromoteAgentRequest{
+	err := s.PromoteAgent(tierGrantedCtx(t), "acme", "proj1", "my-agent", &spec.PromoteAgentRequest{
 		SourceEnvironment: "dev",
 		TargetEnvironment: "staging",
 	})
@@ -1990,11 +1980,11 @@ func deployAPIAgentMocks(existingConfig *models.AgentConfig) (*agentManagerServi
 		IsDeploymentInProgressFunc: func(context.Context, string, string, string) (bool, error) {
 			return false, nil
 		},
-		// Deploy writes env vars and file mounts to the environment's ReleaseBinding and leaves the
-		// component-wide base alone. ReplaceComponentEnvVars and ReplaceComponentFileMounts are
-		// left unstubbed on purpose: a regression that writes the shared base again panics here
-		// instead of silently leaking config into every environment.
-		ReplaceReleaseBindingWorkloadOverridesFunc: func(context.Context, string, string, string, []client.EnvVar, []client.FileVar) error {
+		// Deploy cuts the release and writes env vars and file mounts to the environment's
+		// ReleaseBinding, leaving the component-wide base alone. ReplaceComponentEnvVars and
+		// ReplaceComponentFileMounts are left unstubbed on purpose: a regression that writes the
+		// shared base again panics here instead of silently leaking config into every environment.
+		EnsureReleaseAndBindingFunc: func(context.Context, string, string, string, string, []client.EnvVar, []client.FileVar) error {
 			return nil
 		},
 		// Not blocked, so the deploy runs to completion.
@@ -2060,7 +2050,7 @@ func TestDeployAgent_APIAgent_ResilienceTimeout(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			s, capturedDeployConfig := deployAPIAgentMocks(tc.existingConfig)
 
-			env, err := s.DeployAgent(auditableCtx(t), "acme", "proj1", "my-agent", &spec.DeployAgentRequest{ImageId: "registry.example.com/my-agent:v1"})
+			env, err := s.DeployAgent(tierGrantedCtx(t), "acme", "proj1", "my-agent", &spec.DeployAgentRequest{ImageId: "registry.example.com/my-agent:v1"})
 
 			require.NoError(t, err)
 			assert.Equal(t, "dev", env)
@@ -2128,7 +2118,7 @@ func TestUpdateAgentDeploySettings_ResilienceTimeout(t *testing.T) {
 				logger:          discardLogger(),
 			}
 
-			err := s.UpdateAgentDeploySettings(context.Background(), "acme", "proj1", "my-agent", &spec.UpdateAgentDeploySettingsRequest{
+			err := s.UpdateAgentDeploySettings(tierGrantedCtx(t), "acme", "proj1", "my-agent", &spec.UpdateAgentDeploySettingsRequest{
 				EnvironmentName:          "dev",
 				ResilienceTimeoutSeconds: tc.requested,
 			})
@@ -2179,7 +2169,7 @@ func TestUpdateAgentDeploySettings_ResilienceTimeout_OutOfBoundsRejected(t *test
 		logger:          discardLogger(),
 	}
 
-	err := s.UpdateAgentDeploySettings(context.Background(), "acme", "proj1", "my-agent", &spec.UpdateAgentDeploySettingsRequest{
+	err := s.UpdateAgentDeploySettings(tierGrantedCtx(t), "acme", "proj1", "my-agent", &spec.UpdateAgentDeploySettingsRequest{
 		EnvironmentName:          "dev",
 		ResilienceTimeoutSeconds: int32Ptr(10000),
 	})
@@ -2491,7 +2481,7 @@ func TestPromoteAgent_TargetMissingMCPOnlyConfig_NamesTheConfigurationNotLLM(t *
 	s, promoteCalled := promoteAgentTestFixture(t, []client.EnvVar{{Key: "AMP_AGENTID_CLIENT_ID", Value: "staging-client-id"}}, nil)
 	stubSystemManagedConfigs(t, s, "dev", mcpConfigRef("booking"))
 
-	err := s.PromoteAgent(auditableCtx(t), "acme", "proj1", "my-agent", &spec.PromoteAgentRequest{
+	err := s.PromoteAgent(tierGrantedCtx(t), "acme", "proj1", "my-agent", &spec.PromoteAgentRequest{
 		SourceEnvironment: "dev",
 		TargetEnvironment: "staging",
 	})
@@ -2510,7 +2500,7 @@ func TestPromoteAgent_TargetMissingSeveralMCPConfigs_ReadsAsPlural(t *testing.T)
 	s, _ := promoteAgentTestFixture(t, []client.EnvVar{{Key: "AMP_AGENTID_CLIENT_ID", Value: "staging-client-id"}}, nil)
 	stubSystemManagedConfigs(t, s, "dev", mcpConfigRef("payments"), mcpConfigRef("booking"))
 
-	err := s.PromoteAgent(auditableCtx(t), "acme", "proj1", "my-agent", &spec.PromoteAgentRequest{
+	err := s.PromoteAgent(tierGrantedCtx(t), "acme", "proj1", "my-agent", &spec.PromoteAgentRequest{
 		SourceEnvironment: "dev",
 		TargetEnvironment: "staging",
 	})
@@ -2529,7 +2519,7 @@ func TestPromoteAgent_TargetMissingLLMConfig_KeepsTheGenericWording(t *testing.T
 	s, _ := promoteAgentTestFixture(t, []client.EnvVar{{Key: "AMP_AGENTID_CLIENT_ID", Value: "staging-client-id"}}, nil)
 	stubSystemManagedConfigs(t, s, "dev", llmConfigRef("openai"))
 
-	err := s.PromoteAgent(auditableCtx(t), "acme", "proj1", "my-agent", &spec.PromoteAgentRequest{
+	err := s.PromoteAgent(tierGrantedCtx(t), "acme", "proj1", "my-agent", &spec.PromoteAgentRequest{
 		SourceEnvironment: "dev",
 		TargetEnvironment: "staging",
 	})
@@ -2547,7 +2537,7 @@ func TestPromoteAgent_TargetMissingLLMAndMCPConfigs_KeepsMessageAndNamesMCPInRea
 	s, _ := promoteAgentTestFixture(t, []client.EnvVar{{Key: "AMP_AGENTID_CLIENT_ID", Value: "staging-client-id"}}, nil)
 	stubSystemManagedConfigs(t, s, "dev", llmConfigRef("openai"), mcpConfigRef("booking"))
 
-	err := s.PromoteAgent(auditableCtx(t), "acme", "proj1", "my-agent", &spec.PromoteAgentRequest{
+	err := s.PromoteAgent(tierGrantedCtx(t), "acme", "proj1", "my-agent", &spec.PromoteAgentRequest{
 		SourceEnvironment: "dev",
 		TargetEnvironment: "staging",
 	})
@@ -2568,7 +2558,7 @@ func TestPromoteAgent_ConfigLookupFailsWhileDescribingBlock_StillRefusesWithGene
 		return nil, errors.New("database unavailable")
 	}
 
-	err := s.PromoteAgent(auditableCtx(t), "acme", "proj1", "my-agent", &spec.PromoteAgentRequest{
+	err := s.PromoteAgent(tierGrantedCtx(t), "acme", "proj1", "my-agent", &spec.PromoteAgentRequest{
 		SourceEnvironment: "dev",
 		TargetEnvironment: "staging",
 	})

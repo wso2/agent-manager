@@ -161,6 +161,21 @@ const sidebars: SidebarsConfig = {
             'reference/cli/api',
           ],
         },
+        {
+          type: 'category',
+          label: 'Helm Charts',
+          collapsed: true,
+          // The category index doubles as the landing page, listing every chart.
+          link: {type: 'doc', id: 'reference/helm-charts/index'},
+          items: [
+            'reference/helm-charts/wso2-agent-manager',
+            'reference/helm-charts/wso2-amp-api-platform-gateway-extension',
+            'reference/helm-charts/wso2-amp-thunder-extension',
+            'reference/helm-charts/wso2-amp-evaluation-extension',
+            'reference/helm-charts/wso2-amp-observability-extension',
+            'reference/helm-charts/wso2-amp-platform-resources-extension',
+          ],
+        },
         'reference/mcp-server',
         'reference/observer-mcp-server',
         'reference/authorization',

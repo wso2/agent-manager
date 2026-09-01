@@ -38,7 +38,7 @@ data:
             sqlite:
               path: ./data/gateway.db
           controlplane:
-            insecure_skip_verify: {{ .Values.apiGateway.controlPlane.tls.insecureSkipVerify | default true }}
+            insecure_skip_verify: {{ .Values.apiGateway.controlPlane.tls.insecureSkipVerify }}
             reconnect_initial: 1s
             reconnect_max: 5m
             polling_interval: 15m

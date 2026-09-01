@@ -33,15 +33,27 @@ import (
 
 	"github.com/wso2/agent-manager/agent-manager-observer/controllers"
 	"github.com/wso2/agent-manager/agent-manager-observer/middleware/logger"
+	"github.com/wso2/agent-manager/agent-manager-observer/rbac"
 )
 
 // Toolsets holds the controllers backing the seven am-obs-mcp tools.
 type Toolsets struct {
 	Tracing       *controllers.TracingController
 	Observability *controllers.ObservabilityController
-	// RBACEnabled mirrors the REST routes' RBAC_ENABLED kill-switch: when set,
-	// every tool requires its amp:observability:* scope on the per-call token.
-	RBACEnabled bool
+	// authorize builds each tool's per-call guard. Nil is the production
+	// wiring; only in-package tests set it, to exercise input handling over the
+	// in-memory transport, which carries no Authorization header for the real
+	// guard to read.
+	authorize func(rbac.Permission) func(*gomcp.CallToolRequest) error
+}
+
+// guard is the per-call authorization check a tool registers with. Leaving
+// Toolsets.authorize nil yields the real, enforcing guard.
+func (t *Toolsets) guard(perm rbac.Permission) func(*gomcp.CallToolRequest) error {
+	if t.authorize != nil {
+		return t.authorize(perm)
+	}
+	return requireToolPermission(perm)
 }
 
 // Register wires every tool onto server. Toolsets left nil are skipped, so

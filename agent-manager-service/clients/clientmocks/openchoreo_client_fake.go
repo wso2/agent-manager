@@ -84,6 +84,9 @@ import (
 //			EnsureProjectReleaseBindingFunc: func(ctx context.Context, ouID string, projectName string, environmentName string) error {
 //				panic("mock out the EnsureProjectReleaseBinding method")
 //			},
+//			EnsureReleaseAndBindingFunc: func(ctx context.Context, ouID string, projectName string, componentName string, environment string, envOverrides []client.EnvVar, fileOverrides []client.FileVar) error {
+//				panic("mock out the EnsureReleaseAndBinding method")
+//			},
 //			EnsureReleaseBindingRuntimeClassFunc: func(ctx context.Context, ouID string, componentName string, environment string, desiredRuntimeClass string) error {
 //				panic("mock out the EnsureReleaseBindingRuntimeClass method")
 //			},
@@ -318,6 +321,9 @@ type OpenChoreoClientMock struct {
 
 	// EnsureProjectReleaseBindingFunc mocks the EnsureProjectReleaseBinding method.
 	EnsureProjectReleaseBindingFunc func(ctx context.Context, ouID string, projectName string, environmentName string) error
+
+	// EnsureReleaseAndBindingFunc mocks the EnsureReleaseAndBinding method.
+	EnsureReleaseAndBindingFunc func(ctx context.Context, ouID string, projectName string, componentName string, environment string, envOverrides []client.EnvVar, fileOverrides []client.FileVar) error
 
 	// EnsureReleaseBindingRuntimeClassFunc mocks the EnsureReleaseBindingRuntimeClass method.
 	EnsureReleaseBindingRuntimeClassFunc func(ctx context.Context, ouID string, componentName string, environment string, desiredRuntimeClass string) error
@@ -710,6 +716,23 @@ type OpenChoreoClientMock struct {
 			ProjectName string
 			// EnvironmentName is the environmentName argument value.
 			EnvironmentName string
+		}
+		// EnsureReleaseAndBinding holds details about calls to the EnsureReleaseAndBinding method.
+		EnsureReleaseAndBinding []struct {
+			// Ctx is the ctx argument value.
+			Ctx context.Context
+			// OuID is the ouID argument value.
+			OuID string
+			// ProjectName is the projectName argument value.
+			ProjectName string
+			// ComponentName is the componentName argument value.
+			ComponentName string
+			// Environment is the environment argument value.
+			Environment string
+			// EnvOverrides is the envOverrides argument value.
+			EnvOverrides []client.EnvVar
+			// FileOverrides is the fileOverrides argument value.
+			FileOverrides []client.FileVar
 		}
 		// EnsureReleaseBindingRuntimeClass holds details about calls to the EnsureReleaseBindingRuntimeClass method.
 		EnsureReleaseBindingRuntimeClass []struct {
@@ -1350,6 +1373,7 @@ type OpenChoreoClientMock struct {
 	lockDetachTrait                            sync.RWMutex
 	lockEnsureClusterRoleBinding               sync.RWMutex
 	lockEnsureProjectReleaseBinding            sync.RWMutex
+	lockEnsureReleaseAndBinding                sync.RWMutex
 	lockEnsureReleaseBindingRuntimeClass       sync.RWMutex
 	lockExpireWorkflowRun                      sync.RWMutex
 	lockGetBuild                               sync.RWMutex
@@ -2343,6 +2367,62 @@ func (mock *OpenChoreoClientMock) EnsureProjectReleaseBindingCalls() []struct {
 	mock.lockEnsureProjectReleaseBinding.RLock()
 	calls = mock.calls.EnsureProjectReleaseBinding
 	mock.lockEnsureProjectReleaseBinding.RUnlock()
+	return calls
+}
+
+// EnsureReleaseAndBinding calls EnsureReleaseAndBindingFunc.
+func (mock *OpenChoreoClientMock) EnsureReleaseAndBinding(ctx context.Context, ouID string, projectName string, componentName string, environment string, envOverrides []client.EnvVar, fileOverrides []client.FileVar) error {
+	if mock.EnsureReleaseAndBindingFunc == nil {
+		panic("OpenChoreoClientMock.EnsureReleaseAndBindingFunc: method is nil but OpenChoreoClient.EnsureReleaseAndBinding was just called")
+	}
+	callInfo := struct {
+		Ctx           context.Context
+		OuID          string
+		ProjectName   string
+		ComponentName string
+		Environment   string
+		EnvOverrides  []client.EnvVar
+		FileOverrides []client.FileVar
+	}{
+		Ctx:           ctx,
+		OuID:          ouID,
+		ProjectName:   projectName,
+		ComponentName: componentName,
+		Environment:   environment,
+		EnvOverrides:  envOverrides,
+		FileOverrides: fileOverrides,
+	}
+	mock.lockEnsureReleaseAndBinding.Lock()
+	mock.calls.EnsureReleaseAndBinding = append(mock.calls.EnsureReleaseAndBinding, callInfo)
+	mock.lockEnsureReleaseAndBinding.Unlock()
+	return mock.EnsureReleaseAndBindingFunc(ctx, ouID, projectName, componentName, environment, envOverrides, fileOverrides)
+}
+
+// EnsureReleaseAndBindingCalls gets all the calls that were made to EnsureReleaseAndBinding.
+// Check the length with:
+//
+//	len(mockedOpenChoreoClient.EnsureReleaseAndBindingCalls())
+func (mock *OpenChoreoClientMock) EnsureReleaseAndBindingCalls() []struct {
+	Ctx           context.Context
+	OuID          string
+	ProjectName   string
+	ComponentName string
+	Environment   string
+	EnvOverrides  []client.EnvVar
+	FileOverrides []client.FileVar
+} {
+	var calls []struct {
+		Ctx           context.Context
+		OuID          string
+		ProjectName   string
+		ComponentName string
+		Environment   string
+		EnvOverrides  []client.EnvVar
+		FileOverrides []client.FileVar
+	}
+	mock.lockEnsureReleaseAndBinding.RLock()
+	calls = mock.calls.EnsureReleaseAndBinding
+	mock.lockEnsureReleaseAndBinding.RUnlock()
 	return calls
 }
 

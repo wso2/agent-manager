@@ -24,37 +24,40 @@ import (
 	"gorm.io/gorm"
 
 	"github.com/wso2/agent-manager/agent-manager-service/clients/thundersvc"
+	"github.com/wso2/agent-manager/agent-manager-service/models"
 	"github.com/wso2/agent-manager/agent-manager-service/repositories"
 )
 
-// ResolveThunderHandle is the SINGLE place every caller resolves an
-// environment's env-Thunder URL handle — EnvironmentService's own
-// readThunderHandle/GetThunderURL/SetThunderURL and the resolver's injected
-// ReadThunderHandleFunc (via NewEnvThunderURLReader below) all delegate here so
-// this logic can never drift apart between call sites.
-//
-// A missing row means this environment has never been provisioned through
-// SetThunderURL — returns ("", nil), never a value computed from (ouID,
-// envName). There is no grandfathering: every live env-Thunder instance has a
-// row here by construction (SetThunderSystemClientSecret always provisions one
-// first), so a missing row means exactly "not provisioned," full stop.
-func ResolveThunderHandle(ctx context.Context, urlRepo repositories.EnvThunderURLRepository, ouID, envName string) (string, error) {
+// ResolveThunderURL is the SINGLE place every caller resolves an
+// environment's env-Thunder registration, so this logic can never drift
+// apart between call sites. A missing row means never provisioned — returns
+// (models.ThunderURLRecord{}, nil), never a value computed from (ouID, envName).
+func ResolveThunderURL(ctx context.Context, urlRepo repositories.EnvThunderURLRepository, ouID, envName string) (models.ThunderURLRecord, error) {
 	row, err := urlRepo.Get(ctx, ouID, envName)
 	if err == nil {
-		return row.ThunderHandle, nil
+		return toThunderURLRecord(row), nil
 	}
 	if errors.Is(err, gorm.ErrRecordNotFound) {
-		return "", nil
+		return models.ThunderURLRecord{}, nil
 	}
-	return "", fmt.Errorf("read env-thunder url handle for %s/%s: %w", ouID, envName, err)
+	return models.ThunderURLRecord{}, fmt.Errorf("read env-thunder url for %s/%s: %w", ouID, envName, err)
 }
 
-// NewEnvThunderURLReader builds the resolver's DB-backed handle reader —
-// ResolveThunderHandle widened to thundersvc.ReadThunderHandleFunc's shape.
-// Lives in services (not wiring) for the same reason as
-// NewEnvThunderSecretReader: app.Run's provisioning factory shares it without a cycle.
-func NewEnvThunderURLReader(urlRepo repositories.EnvThunderURLRepository) thundersvc.ReadThunderHandleFunc {
-	return func(ctx context.Context, ouID, envName string) (string, error) {
-		return ResolveThunderHandle(ctx, urlRepo, ouID, envName)
+// NewEnvThunderURLReader builds the resolver's DB-backed URL reader —
+// ResolveThunderURL widened to thundersvc.ReadThunderURLFunc's shape.
+// callerSupplied (Handle == "") tells the resolver whether this row's URL was
+// supplied directly by the caller (attacker-influenced) or computed by AMS
+// itself from a handle (its own trusted computation) — see
+// thunderURLCandidate's doc comment for why that decides which candidate gets
+// SSRF-hardened. Lives in services (not wiring), same as
+// NewEnvThunderSecretReader, so app.Run's provisioning factory can share it
+// without an import cycle.
+func NewEnvThunderURLReader(urlRepo repositories.EnvThunderURLRepository) thundersvc.ReadThunderURLFunc {
+	return func(ctx context.Context, ouID, envName string) (string, bool, error) {
+		rec, err := ResolveThunderURL(ctx, urlRepo, ouID, envName)
+		if err != nil {
+			return "", false, err
+		}
+		return rec.URL, rec.Handle == "", nil
 	}
 }

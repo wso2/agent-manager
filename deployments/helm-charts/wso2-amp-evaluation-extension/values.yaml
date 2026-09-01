@@ -15,6 +15,9 @@ global:
 
 # AMP Evaluation image configuration
 ampEvaluation:
+  # -- Namespace OpenChoreo runs this environment's Argo workflows in. The
+  # evaluation job namespace is derived from it as "workflows-<value>".
+  workflowNamespace: "default"
   # -- Docker image configuration for monitor evaluation
   image:
     # -- Image repository

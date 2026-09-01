@@ -115,13 +115,17 @@ func (r *envAgentModelMappingRepository) ListAgentConsumersByProxyUUIDs(ctx cont
 		return nil, nil
 	}
 	var results []AgentConsumer
+	// A single agent gets a distinct LLM proxy artifact per environment, so grouping only
+	// by (project_name, agent_id) — rather than including the per-env proxy handle/name in
+	// the projection — collapses those per-env rows into one consumer entry per agent.
 	err := r.db.WithContext(ctx).
 		Table("env_agent_model_mapping eam").
-		Select("DISTINCT a.handle AS proxy_handle, a.name AS proxy_name, ac.project_name, ac.agent_id").
+		Select("MIN(a.handle) AS proxy_handle, MIN(a.name) AS proxy_name, ac.project_name, ac.agent_id").
 		Joins("JOIN llm_proxies lp ON lp.uuid = eam.llm_proxy_uuid").
 		Joins("JOIN artifacts a ON a.uuid = lp.uuid").
 		Joins("JOIN agent_configurations ac ON ac.uuid = eam.config_uuid").
 		Where("eam.llm_proxy_uuid IN ?", proxyUUIDs).
+		Group("ac.project_name, ac.agent_id").
 		Scan(&results).Error
 	return results, err
 }

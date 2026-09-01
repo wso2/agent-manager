@@ -123,7 +123,14 @@ func buildInternalAgentFromKindComponentRequestBody(namespaceName, projectName s
 		return gen.CreateComponentJSONRequestBody{}, fmt.Errorf("failed to convert parameters to map: %w", err)
 	}
 
-	autoDeploy := true
+	// Kind-sourced agents have no build workflow, so nothing runs amp-generate-workload
+	// to cut the ComponentRelease and bind it to the first environment. The backend does
+	// that itself instead (EnsureReleaseAndBinding), for the same reason the
+	// workflow does it for source-built agents: configuration must land on the
+	// per-environment ReleaseBinding rather than the shared Workload, and autoDeploy's
+	// controller-created binding carries no overrides. Both agent kinds therefore set
+	// this to false and own the release/binding themselves.
+	autoDeploy := false
 	return gen.CreateComponentJSONRequestBody{
 		Metadata: gen.ObjectMeta{
 			Name:        req.Name,
@@ -166,6 +173,10 @@ func buildExternalAgentComponentRequestBody(namespaceName, projectName string, r
 		return gen.CreateComponentJSONRequestBody{}, err
 	}
 
+	// An external agent has no Workload and never deploys, so autoDeploy has nothing to act on.
+	// Stated rather than left to the field's default, so all three component builders answer the
+	// question in the same place.
+	autoDeploy := false
 	return gen.CreateComponentJSONRequestBody{
 		Metadata: gen.ObjectMeta{
 			Name:        req.Name,
@@ -186,6 +197,7 @@ func buildExternalAgentComponentRequestBody(namespaceName, projectName string, r
 			}{
 				ProjectName: projectName,
 			},
+			AutoDeploy: &autoDeploy,
 		},
 	}, nil
 }
@@ -249,7 +261,13 @@ func buildInternalAgentFromSourceComponentRequestBody(namespaceName, projectName
 		return gen.CreateComponentJSONRequestBody{}, fmt.Errorf("error building workflow parameters: %w", err)
 	}
 
-	autoDeploy := true
+	// The build workflow's generate-workload step cuts the ComponentRelease and binds
+	// it to the first environment itself, and every deploy afterwards does the same via
+	// EnsureReleaseAndBinding. That is what lets each environment's configuration live on
+	// its own ReleaseBinding instead of on the shared Workload. autoDeploy would have
+	// OpenChoreo's Component controller create and own that same binding, so the two would
+	// fight over spec.releaseName.
+	autoDeploy := false
 	return gen.CreateComponentJSONRequestBody{
 		Metadata: gen.ObjectMeta{
 			Name:        req.Name,

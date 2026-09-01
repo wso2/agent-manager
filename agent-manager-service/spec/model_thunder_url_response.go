@@ -17,18 +17,19 @@ import (
 // checks if the ThunderUrlResponse type satisfies the MappedNullable interface at compile time
 var _ MappedNullable = &ThunderUrlResponse{}
 
-// ThunderUrlResponse The env-Thunder URL handle registered for an environment — either the caller-supplied value or the value the server generated when the caller left it blank.
+// ThunderUrlResponse The env-Thunder registration for an environment. url is always present — the caller-supplied value (either path), or the value the server generated/computed when the caller left handle blank. handle is present only for the on-prem path; it is absent for an environment registered via a caller-supplied url.
 type ThunderUrlResponse struct {
-	Handle string `json:"handle"`
+	Handle *string `json:"handle,omitempty"`
+	Url    string  `json:"url"`
 }
 
 // NewThunderUrlResponse instantiates a new ThunderUrlResponse object
 // This constructor will assign default values to properties that have it defined,
 // and makes sure properties required by API are set, but the set of arguments
 // will change when the set of required properties is changed
-func NewThunderUrlResponse(handle string) *ThunderUrlResponse {
+func NewThunderUrlResponse(url string) *ThunderUrlResponse {
 	this := ThunderUrlResponse{}
-	this.Handle = handle
+	this.Url = url
 	return &this
 }
 
@@ -40,28 +41,60 @@ func NewThunderUrlResponseWithDefaults() *ThunderUrlResponse {
 	return &this
 }
 
-// GetHandle returns the Handle field value
+// GetHandle returns the Handle field value if set, zero value otherwise.
 func (o *ThunderUrlResponse) GetHandle() string {
+	if o == nil || IsNil(o.Handle) {
+		var ret string
+		return ret
+	}
+	return *o.Handle
+}
+
+// GetHandleOk returns a tuple with the Handle field value if set, nil otherwise
+// and a boolean to check if the value has been set.
+func (o *ThunderUrlResponse) GetHandleOk() (*string, bool) {
+	if o == nil || IsNil(o.Handle) {
+		return nil, false
+	}
+	return o.Handle, true
+}
+
+// HasHandle returns a boolean if a field has been set.
+func (o *ThunderUrlResponse) HasHandle() bool {
+	if o != nil && !IsNil(o.Handle) {
+		return true
+	}
+
+	return false
+}
+
+// SetHandle gets a reference to the given string and assigns it to the Handle field.
+func (o *ThunderUrlResponse) SetHandle(v string) {
+	o.Handle = &v
+}
+
+// GetUrl returns the Url field value
+func (o *ThunderUrlResponse) GetUrl() string {
 	if o == nil {
 		var ret string
 		return ret
 	}
 
-	return o.Handle
+	return o.Url
 }
 
-// GetHandleOk returns a tuple with the Handle field value
+// GetUrlOk returns a tuple with the Url field value
 // and a boolean to check if the value has been set.
-func (o *ThunderUrlResponse) GetHandleOk() (*string, bool) {
+func (o *ThunderUrlResponse) GetUrlOk() (*string, bool) {
 	if o == nil {
 		return nil, false
 	}
-	return &o.Handle, true
+	return &o.Url, true
 }
 
-// SetHandle sets field value
-func (o *ThunderUrlResponse) SetHandle(v string) {
-	o.Handle = v
+// SetUrl sets field value
+func (o *ThunderUrlResponse) SetUrl(v string) {
+	o.Url = v
 }
 
 func (o ThunderUrlResponse) MarshalJSON() ([]byte, error) {
@@ -74,7 +107,10 @@ func (o ThunderUrlResponse) MarshalJSON() ([]byte, error) {
 
 func (o ThunderUrlResponse) ToMap() (map[string]interface{}, error) {
 	toSerialize := map[string]interface{}{}
-	toSerialize["handle"] = o.Handle
+	if !IsNil(o.Handle) {
+		toSerialize["handle"] = o.Handle
+	}
+	toSerialize["url"] = o.Url
 	return toSerialize, nil
 }
 

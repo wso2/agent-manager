@@ -19,6 +19,9 @@ package thundersvc
 import (
 	"context"
 	"errors"
+	"net/http"
+	"net/http/httptest"
+	"strings"
 	"sync"
 	"sync/atomic"
 	"testing"
@@ -46,24 +49,33 @@ func okReader(clientID, secret string) ReadSystemClientFunc {
 
 // fakeResolveBaseURL stands in for real network probing — always reports a
 // fake, reachable base URL with no dial override.
-func fakeResolveBaseURL(_ context.Context, _, _, _ string) (string, string, bool) {
+func fakeResolveBaseURL(_ context.Context, _, _, _ string, _ bool) (string, string, bool) {
 	return "http://fake-thunder:8090", "", true
 }
 
-// noHandleReader stands in for an environment that was never provisioned
-// through add-environment-thunder.sh (or whose registration never completed):
-// no URL handle exists, so Resolve must report ErrThunderNotProvisioned — there
-// is no fallback to compute an address from org/env.
-func noHandleReader(context.Context, string, string) (string, error) {
-	return "", nil
+// noURLReader stands in for an environment that was never provisioned: no
+// URL exists, so Resolve must report ErrThunderNotProvisioned — there is no
+// fallback to compute an address from org/env.
+func noURLReader(context.Context, string, string) (string, bool, error) {
+	return "", false, nil
 }
 
-// okHandleReader returns a fixed handle for any (ouID, env) — the common case
-// for tests that don't care about the handle lookup itself, just that Resolve
-// gets past it.
-func okHandleReader(handle string) ReadThunderHandleFunc {
-	return func(context.Context, string, string) (string, error) {
-		return handle, nil
+// okURLReader returns a fixed thunderURL for any (ouID, env), reported as a
+// handle-derived row — the common case for tests that don't care about the
+// URL lookup itself, just that Resolve gets past it. Use
+// okCallerSuppliedURLReader for tests specifically about the
+// caller-supplied distinction.
+func okURLReader(thunderURL string) ReadThunderURLFunc {
+	return func(context.Context, string, string) (string, bool, error) {
+		return thunderURL, false, nil
+	}
+}
+
+// okCallerSuppliedURLReader is okURLReader's counterpart for a row registered
+// with no handle — callerSupplied is true.
+func okCallerSuppliedURLReader(thunderURL string) ReadThunderURLFunc {
+	return func(context.Context, string, string) (string, bool, error) {
+		return thunderURL, true, nil
 	}
 }
 
@@ -73,7 +85,7 @@ func TestEnvThunderResolver_Resolve_Success(t *testing.T) {
 		gotOUID, gotEnv = ouID, env
 		return "amp-system-client", "the-system-client-secret", nil
 	}
-	resolver := newEnvThunderResolverWithReader(read, okHandleReader("x7f2q9kz"), fakeResolveBaseURL)
+	resolver := newEnvThunderResolverWithReader(read, okURLReader("x7f2q9kz"), fakeResolveBaseURL)
 
 	client, err := resolver.Resolve(context.Background(), testOUID, testOrgNamespace, "staging")
 	require.NoError(t, err)
@@ -85,7 +97,7 @@ func TestEnvThunderResolver_Resolve_Success(t *testing.T) {
 // TestEnvThunderResolver_Resolve_UsesStoredClientID confirms the resolver uses
 // the client ID returned by the reader (not only the well-known constant).
 func TestEnvThunderResolver_Resolve_UsesStoredClientID(t *testing.T) {
-	resolver := newEnvThunderResolverWithReader(okReader("custom-client-id", "s3cr3t"), okHandleReader("x7f2q9kz"), fakeResolveBaseURL)
+	resolver := newEnvThunderResolverWithReader(okReader("custom-client-id", "s3cr3t"), okURLReader("x7f2q9kz"), fakeResolveBaseURL)
 
 	client, err := resolver.Resolve(context.Background(), testOUID, testOrgNamespace, "staging")
 	require.NoError(t, err)
@@ -101,7 +113,7 @@ func TestEnvThunderResolver_Resolve_RejectsPathBreakingSegments(t *testing.T) {
 		t.Fatal("must not read the store when a segment is invalid")
 		return "", "", nil // unreachable — t.Fatal above halts the test
 	}
-	resolver := newEnvThunderResolverWithReader(read, okHandleReader("x7f2q9kz"), fakeResolveBaseURL)
+	resolver := newEnvThunderResolverWithReader(read, okURLReader("x7f2q9kz"), fakeResolveBaseURL)
 
 	cases := []struct{ ouID, ns, env string }{
 		{"..", testOrgNamespace, "staging"},
@@ -127,7 +139,7 @@ func TestEnvThunderResolver_Resolve_Caches(t *testing.T) {
 		calls++
 		return "amp-system-client", "s3cr3t", nil
 	}
-	resolver := newEnvThunderResolverWithReader(read, okHandleReader("x7f2q9kz"), fakeResolveBaseURL)
+	resolver := newEnvThunderResolverWithReader(read, okURLReader("x7f2q9kz"), fakeResolveBaseURL)
 
 	c1, err := resolver.Resolve(context.Background(), testOUID, testOrgNamespace, "staging")
 	require.NoError(t, err)
@@ -146,7 +158,7 @@ func TestEnvThunderResolver_Resolve_ExpiresAfterTTL(t *testing.T) {
 		calls++
 		return "amp-system-client", "s3cr3t", nil
 	}
-	resolver := newEnvThunderResolverWithReader(read, okHandleReader("x7f2q9kz"), fakeResolveBaseURL)
+	resolver := newEnvThunderResolverWithReader(read, okURLReader("x7f2q9kz"), fakeResolveBaseURL)
 	now := time.Now()
 	resolver.now = func() time.Time { return now }
 	resolver.ttl = time.Minute
@@ -176,11 +188,11 @@ func TestEnvThunderResolver_Resolve_ConcurrentCacheMiss_DedupesViaSingleflight(t
 		time.Sleep(20 * time.Millisecond) // widen the race window
 		return "amp-system-client", "s3cr3t", nil
 	}
-	probeFn := func(_ context.Context, _, _, _ string) (string, string, bool) {
+	probeFn := func(_ context.Context, _, _, _ string, _ bool) (string, string, bool) {
 		atomic.AddInt64(&probeCalls, 1)
 		return "http://fake-thunder:8090", "", true
 	}
-	resolver := newEnvThunderResolverWithReader(read, okHandleReader("x7f2q9kz"), probeFn)
+	resolver := newEnvThunderResolverWithReader(read, okURLReader("x7f2q9kz"), probeFn)
 
 	const goroutines = 20
 	clients := make([]ThunderClient, goroutines)
@@ -208,7 +220,7 @@ func TestEnvThunderResolver_Resolve_ConcurrentCacheMiss_DedupesViaSingleflight(t
 }
 
 func TestEnvThunderResolver_Resolve_DifferentEnvironmentsAreNotCachedTogether(t *testing.T) {
-	resolver := newEnvThunderResolverWithReader(okReader("amp-system-client", "s3cr3t"), okHandleReader("x7f2q9kz"), fakeResolveBaseURL)
+	resolver := newEnvThunderResolverWithReader(okReader("amp-system-client", "s3cr3t"), okURLReader("x7f2q9kz"), fakeResolveBaseURL)
 
 	staging, err := resolver.Resolve(context.Background(), testOUID, testOrgNamespace, "staging")
 	require.NoError(t, err)
@@ -228,7 +240,7 @@ func TestEnvThunderResolver_Resolve_DifferentOUIDsAreNotCachedTogether(t *testin
 		gotOUIDs = append(gotOUIDs, ouID)
 		return "amp-system-client", "s3cr3t-" + ouID, nil
 	}
-	resolver := newEnvThunderResolverWithReader(read, okHandleReader("x7f2q9kz"), fakeResolveBaseURL)
+	resolver := newEnvThunderResolverWithReader(read, okURLReader("x7f2q9kz"), fakeResolveBaseURL)
 
 	acme, err := resolver.Resolve(context.Background(), "ou-acme", testOrgNamespace, "staging")
 	require.NoError(t, err)
@@ -243,14 +255,14 @@ func TestEnvThunderResolver_Resolve_NotProvisioned_NoRow(t *testing.T) {
 	read := func(context.Context, string, string) (string, string, error) {
 		return "", "", ErrThunderNotProvisioned
 	}
-	resolver := newEnvThunderResolverWithReader(read, noHandleReader, fakeResolveBaseURL)
+	resolver := newEnvThunderResolverWithReader(read, noURLReader, fakeResolveBaseURL)
 
 	_, err := resolver.Resolve(context.Background(), testOUID, testOrgNamespace, "no-such-env")
 	assert.True(t, errors.Is(err, ErrThunderNotProvisioned))
 }
 
 func TestEnvThunderResolver_Resolve_NotProvisioned_EmptySecret(t *testing.T) {
-	resolver := newEnvThunderResolverWithReader(okReader("amp-system-client", ""), noHandleReader, fakeResolveBaseURL)
+	resolver := newEnvThunderResolverWithReader(okReader("amp-system-client", ""), noURLReader, fakeResolveBaseURL)
 
 	_, err := resolver.Resolve(context.Background(), testOUID, testOrgNamespace, "half-provisioned-env")
 	assert.True(t, errors.Is(err, ErrThunderNotProvisioned))
@@ -263,11 +275,11 @@ func TestEnvThunderResolver_Resolve_NotProvisioned_EmptySecret(t *testing.T) {
 // be called.
 func TestEnvThunderResolver_Resolve_NoHandleRegistered(t *testing.T) {
 	resolveBaseURLCalled := false
-	resolveBaseURL := func(context.Context, string, string, string) (string, string, bool) {
+	resolveBaseURL := func(context.Context, string, string, string, bool) (string, string, bool) {
 		resolveBaseURLCalled = true
 		return "", "", false
 	}
-	resolver := newEnvThunderResolverWithReader(okReader("amp-system-client", "s3cr3t"), noHandleReader, resolveBaseURL)
+	resolver := newEnvThunderResolverWithReader(okReader("amp-system-client", "s3cr3t"), noURLReader, resolveBaseURL)
 
 	_, err := resolver.Resolve(context.Background(), testOUID, testOrgNamespace, "never-registered-env")
 	assert.True(t, errors.Is(err, ErrThunderNotProvisioned), "no handle must be treated as not-provisioned")
@@ -276,8 +288,8 @@ func TestEnvThunderResolver_Resolve_NoHandleRegistered(t *testing.T) {
 
 func TestEnvThunderResolver_Resolve_HandleReadErrorPropagates(t *testing.T) {
 	dbErr := errors.New("db unavailable")
-	readHandle := func(context.Context, string, string) (string, error) {
-		return "", dbErr
+	readHandle := func(context.Context, string, string) (string, bool, error) {
+		return "", false, dbErr
 	}
 	resolver := newEnvThunderResolverWithReader(okReader("amp-system-client", "s3cr3t"), readHandle, fakeResolveBaseURL)
 
@@ -292,7 +304,7 @@ func TestEnvThunderResolver_Resolve_ReadErrorPropagates(t *testing.T) {
 	read := func(context.Context, string, string) (string, string, error) {
 		return "", "", boom
 	}
-	resolver := newEnvThunderResolverWithReader(read, noHandleReader, fakeResolveBaseURL)
+	resolver := newEnvThunderResolverWithReader(read, noURLReader, fakeResolveBaseURL)
 
 	_, err := resolver.Resolve(context.Background(), testOUID, testOrgNamespace, "staging")
 	require.Error(t, err)
@@ -301,11 +313,11 @@ func TestEnvThunderResolver_Resolve_ReadErrorPropagates(t *testing.T) {
 
 func TestEnvThunderResolver_Resolve_UsesResolvedBaseURLAndDialOverride(t *testing.T) {
 	var gotNamespace, gotEnv string
-	resolveBaseURL := func(_ context.Context, ns, env, _ string) (string, string, bool) {
+	resolveBaseURL := func(_ context.Context, ns, env, _ string, _ bool) (string, string, bool) {
 		gotNamespace, gotEnv = ns, env
 		return "http://acme-staging.amp.localhost:8080", "host.docker.internal:8080", true
 	}
-	resolver := newEnvThunderResolverWithReader(okReader("amp-system-client", "s3cr3t"), okHandleReader("x7f2q9kz"), resolveBaseURL)
+	resolver := newEnvThunderResolverWithReader(okReader("amp-system-client", "s3cr3t"), okURLReader("x7f2q9kz"), resolveBaseURL)
 
 	client, err := resolver.Resolve(context.Background(), testOUID, testOrgNamespace, "staging")
 	require.NoError(t, err)
@@ -319,11 +331,85 @@ func TestEnvThunderResolver_Resolve_UsesResolvedBaseURLAndDialOverride(t *testin
 	require.NotNil(t, tc.httpClient.Transport, "a non-empty dial override must install a custom transport")
 }
 
+// TestEnvThunderResolver_Resolve_HardensOnlyThePlainExternalCallerSuppliedWinner
+// proves the resolver itself, not just the two constructors in isolation,
+// picks the SSRF-hardened client only when BOTH hold: the winning candidate
+// is the plain-external one (baseURL==thunderURL, no override) AND the row is
+// caller-supplied (no handle). Candidate position alone is not enough — a
+// handle-derived row landing on that exact same position (e.g. a VM install
+// whose sslip.io hostname resolves to a private LAN IP) must NOT be hardened,
+// or a working deployment goes from reachable to permanently
+// ErrThunderUnreachable.
+func TestEnvThunderResolver_Resolve_HardensOnlyThePlainExternalCallerSuppliedWinner(t *testing.T) {
+	mux := http.NewServeMux()
+	mux.HandleFunc("/", func(w http.ResponseWriter, _ *http.Request) { w.WriteHeader(http.StatusOK) })
+	server := httptest.NewServer(mux)
+	defer server.Close()
+
+	doGet := func(t *testing.T, client ThunderClient) error {
+		t.Helper()
+		tc, ok := client.(*thunderClient)
+		require.True(t, ok)
+		req, err := http.NewRequestWithContext(context.Background(), http.MethodGet, tc.baseURL, nil)
+		require.NoError(t, err)
+		resp, err := tc.httpClient.Do(req)
+		if err == nil {
+			_ = resp.Body.Close()
+		}
+		return err
+	}
+
+	t.Run("plain external winner, caller-supplied row (no handle): SSRF-hardened, loopback rejected", func(t *testing.T) {
+		resolveBaseURL := func(_ context.Context, _, _, thunderURL string, _ bool) (string, string, bool) {
+			return thunderURL, "", true
+		}
+		resolver := newEnvThunderResolverWithReader(okReader("amp-system-client", "s3cr3t"), okCallerSuppliedURLReader(server.URL), resolveBaseURL)
+
+		client, err := resolver.Resolve(context.Background(), testOUID, testOrgNamespace, "staging")
+		require.NoError(t, err)
+		assert.Error(t, doGet(t, client), "the loopback server must be rejected — this is what a caller-supplied thunder_url pointed at an internal address would hit")
+	})
+
+	t.Run("plain external winner, on-prem row (handle): plain client, loopback reachable", func(t *testing.T) {
+		resolveBaseURL := func(_ context.Context, _, _, thunderURL string, _ bool) (string, string, bool) {
+			return thunderURL, "", true
+		}
+		resolver := newEnvThunderResolverWithReader(okReader("amp-system-client", "s3cr3t"), okURLReader(server.URL), resolveBaseURL)
+
+		client, err := resolver.Resolve(context.Background(), testOUID, testOrgNamespace, "staging")
+		require.NoError(t, err)
+		assert.NoError(t, doGet(t, client), "an on-prem (handle) row's URL is AMS's own trusted computation and can legitimately be private (e.g. a VM install's sslip.io hostname on a LAN IP) — hardening it would break a working deployment")
+	})
+
+	t.Run("cluster-internal-DNS-shaped winner (baseURL != thunderURL): plain client, loopback reachable regardless of trust", func(t *testing.T) {
+		resolveBaseURL := func(_ context.Context, _, _, _ string, _ bool) (string, string, bool) {
+			return server.URL, "", true // baseURL deliberately does NOT equal thunderURL below
+		}
+		resolver := newEnvThunderResolverWithReader(okReader("amp-system-client", "s3cr3t"), okCallerSuppliedURLReader("http://different-thunder-url:8080"), resolveBaseURL)
+
+		client, err := resolver.Resolve(context.Background(), testOUID, testOrgNamespace, "staging")
+		require.NoError(t, err)
+		assert.NoError(t, doGet(t, client), "AMS's own cluster-internal candidate must never be SSRF-checked, or real in-cluster DNS (always a private IP) would always be rejected")
+	})
+
+	t.Run("dial-override winner: plain client, loopback reachable regardless of baseURL or trust", func(t *testing.T) {
+		overrideHost := strings.TrimPrefix(server.URL, "http://")
+		resolveBaseURL := func(_ context.Context, _, _, thunderURL string, _ bool) (string, string, bool) {
+			return thunderURL, overrideHost, true
+		}
+		resolver := newEnvThunderResolverWithReader(okReader("amp-system-client", "s3cr3t"), okCallerSuppliedURLReader("http://unreachable.invalid:9999"), resolveBaseURL)
+
+		client, err := resolver.Resolve(context.Background(), testOUID, testOrgNamespace, "staging")
+		require.NoError(t, err)
+		assert.NoError(t, doGet(t, client), "an explicit dial override is always AMS's own trusted target, so it must not be SSRF-checked")
+	})
+}
+
 func TestEnvThunderResolver_Resolve_ThunderUnreachable(t *testing.T) {
-	resolveBaseURL := func(_ context.Context, _, _, _ string) (string, string, bool) {
+	resolveBaseURL := func(_ context.Context, _, _, _ string, _ bool) (string, string, bool) {
 		return "", "", false
 	}
-	resolver := newEnvThunderResolverWithReader(okReader("amp-system-client", "s3cr3t"), okHandleReader("x7f2q9kz"), resolveBaseURL)
+	resolver := newEnvThunderResolverWithReader(okReader("amp-system-client", "s3cr3t"), okURLReader("x7f2q9kz"), resolveBaseURL)
 
 	_, err := resolver.Resolve(context.Background(), testOUID, testOrgNamespace, "staging")
 	require.Error(t, err)

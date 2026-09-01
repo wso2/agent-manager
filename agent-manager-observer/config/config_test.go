@@ -165,27 +165,3 @@ func TestLoad_OAuthConfigured(t *testing.T) {
 		t.Errorf("expected ScopesSupported %v, got %v", wantScopes, cfg.Auth.ScopesSupported)
 	}
 }
-
-func TestLoadRBACEnabled(t *testing.T) {
-	setRequiredEnv(t)
-	t.Setenv("RBAC_ENABLED", "true")
-	cfg, err := Load()
-	if err != nil {
-		t.Fatalf("Load() error: %v", err)
-	}
-	if !cfg.Auth.RBACEnabled {
-		t.Error("RBACEnabled = false, want true when RBAC_ENABLED=true")
-	}
-}
-
-func TestLoadRBACEnabledDefaultsFalse(t *testing.T) {
-	setRequiredEnv(t)
-	t.Setenv("RBAC_ENABLED", "")
-	cfg, err := Load()
-	if err != nil {
-		t.Fatalf("Load() error: %v", err)
-	}
-	if cfg.Auth.RBACEnabled {
-		t.Error("RBACEnabled = true, want default false when RBAC_ENABLED unset")
-	}
-}

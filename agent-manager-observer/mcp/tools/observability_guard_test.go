@@ -49,10 +49,9 @@ func requestWithAuth(authHeader string) *gomcp.CallToolRequest {
 	return req
 }
 
-// The three observability tools must reject publisher-audience tokens even
-// with RBAC disabled — publishers are confined to their implicit trace-read
-// permission, so the /mcp trace-tool carve-out can't be used to read
-// logs/build-logs/metrics.
+// The three observability tools must reject publisher-audience tokens:
+// publishers are confined to their implicit trace-read permission, so the /mcp
+// trace-tool carve-out can't be used to read logs/build-logs/metrics.
 func TestObservabilityTools_RejectPublisherToken(t *testing.T) {
 	validLogsInput := runtimeLogsInput{
 		Organization: testOrgName,
@@ -74,30 +73,35 @@ func TestObservabilityTools_RejectPublisherToken(t *testing.T) {
 		// upstreamMethod is the fakeObserverClient method the tool would call if
 		// the guard let it through; it must NOT be recorded for a publisher token.
 		upstreamMethod string
+		// scope is what an ordinary caller of this tool has to hold.
+		scope string
 	}{
 		{
 			name: "get_runtime_logs",
 			call: func(fake *fakeObserverClient, req *gomcp.CallToolRequest) error {
-				_, _, err := getRuntimeLogs(controllers.NewObservabilityController(fake), requireToolPermission(false, rbac.LogRead))(context.Background(), req, validLogsInput)
+				_, _, err := getRuntimeLogs(controllers.NewObservabilityController(fake), requireToolPermission(rbac.LogRead))(context.Background(), req, validLogsInput)
 				return err
 			},
 			upstreamMethod: "QueryLogs",
+			scope:          rbac.LogRead.Scope(),
 		},
 		{
 			name: "get_build_logs",
 			call: func(fake *fakeObserverClient, req *gomcp.CallToolRequest) error {
-				_, _, err := getBuildLogs(controllers.NewObservabilityController(fake), requireToolPermission(false, rbac.BuildLogRead))(context.Background(), req, validBuildLogsInput)
+				_, _, err := getBuildLogs(controllers.NewObservabilityController(fake), requireToolPermission(rbac.BuildLogRead))(context.Background(), req, validBuildLogsInput)
 				return err
 			},
 			upstreamMethod: "QueryLogs",
+			scope:          rbac.BuildLogRead.Scope(),
 		},
 		{
 			name: "get_metrics",
 			call: func(fake *fakeObserverClient, req *gomcp.CallToolRequest) error {
-				_, _, err := getMetrics(controllers.NewObservabilityController(fake), requireToolPermission(false, rbac.MetricRead))(context.Background(), req, validMetricsInput)
+				_, _, err := getMetrics(controllers.NewObservabilityController(fake), requireToolPermission(rbac.MetricRead))(context.Background(), req, validMetricsInput)
 				return err
 			},
 			upstreamMethod: "QueryMetrics",
+			scope:          rbac.MetricRead.Scope(),
 		},
 	}
 
@@ -116,7 +120,7 @@ func TestObservabilityTools_RejectPublisherToken(t *testing.T) {
 
 		t.Run(tc.name+" normal token passes", func(t *testing.T) {
 			fake := newFakeObserverClient()
-			req := requestWithAuth("Bearer " + tokenWithAudience(t, "localhost"))
+			req := requestWithAuth("Bearer " + tokenWithScopes(t, "localhost", tc.scope))
 			if err := tc.call(fake, req); err != nil {
 				t.Fatalf("expected non-publisher token to pass, got error: %v", err)
 			}

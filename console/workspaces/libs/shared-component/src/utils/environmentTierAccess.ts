@@ -41,9 +41,8 @@ export const AGENT_SUSPEND_SCOPE = "amp:agent:suspend";
 /** The scopes the current token carries, and whether they are enforced at all. */
 export interface ScopeState {
   /**
-   * False when this deployment does not enforce RBAC (RBAC_ENABLED=false, or
-   * auth disabled outright). Every check then passes, exactly as the service's
-   * own gates skip when the switch is off.
+   * False when auth is disabled outright, so no token exists to carry scopes.
+   * Every check then passes, exactly as the service gates nothing.
    */
   enforced: boolean;
   /**

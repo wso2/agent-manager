@@ -1,0 +1,132 @@
+---
+title: API Platform Gateway Extension
+---
+
+# API Platform Gateway Extension
+
+A Helm chart to deploy and auto-register the unified API Platform Gateway for the Agent Management Platform.
+
+```bash
+helm install amp-api-platform-gateway-extension oci://ghcr.io/wso2/helm-charts/wso2-amp-api-platform-gateway-extension \
+  --namespace <namespace> --create-namespace \
+  --values my-values.yaml
+```
+
+## agentManager
+
+| Parameter | Description | Type | Default |
+|---|---|---|---|
+| `agentManager` | Agent Manager API connection details (used by bootstrap job to register gateway) | object |  |
+| `agentManager.apiUrl` | Public API URL (port 8080 = JWT-authenticated API) | string | `"http://amp-api.wso2-amp.svc.cluster.local:9000/api/v1"` |
+| `agentManager.orgName` | Organization name in Agent Manager (must match Thunder OU handle) | string | `"default"` |
+| `agentManager.idp` | Thunder IDP for obtaining a JWT to call Agent Manager API | object |  |
+| `agentManager.idp.tokenUrl` | Token endpoint the gateway requests its access token from. | string | `"http://amp-thunder-extension-service.amp-thunder.svc.cluster.local:8090/oauth2/token"` |
+| `agentManager.idp.clientId` | OAuth 2.0 client ID for the gateway's control-plane calls. | string | `"amp-api-client"` |
+| `agentManager.idp.clientSecret` | OAuth 2.0 client secret. Prefer an existing Secret in real deployments. Allowed values: Prefer existingSecret; only set this for local/dev use. | string | `"amp-api-client-secret"` |
+| `agentManager.idp.existingSecret` | Reference an existing secret for IDP credentials (recommended for production). When set, clientId and clientSecret above are ignored. | string | `""` |
+| `agentManager.idp.existingSecretClientIdKey` | Key within the existing Secret holding the client ID. | string | `"client-id"` |
+| `agentManager.idp.existingSecretClientSecretKey` | Key within the existing Secret holding the client secret. | string | `"client-secret"` |
+
+## apiGateway
+
+| Parameter | Description | Type | Default |
+|---|---|---|---|
+| `apiGateway` | Runtime configuration for the API Platform Gateway. | object |  |
+| `apiGateway.namespace` | Namespace where the APIGateway CR is created. Must be the same namespace where the gateway-operator is watching. For per-org-env namespace isolation set this to "&lt;org&gt;-&lt;env&gt;" (add-environment.sh passes it via --set apiGateway.namespace=...). | string | `"openchoreo-data-plane"` |
+| `apiGateway.controlPlane` | Control plane connection: points to Agent Manager's gateway management port (9243) | object |  |
+| `apiGateway.controlPlane.host` | In-cluster address of the control plane. | string | `"amp-api-gateway-manager.wso2-amp.svc.cluster.local:9243"` |
+| `apiGateway.controlPlane.tls` | TLS settings for the control-plane connection. | object |  |
+| `apiGateway.controlPlane.tls.enabled` | Use TLS when connecting to the control plane. | boolean | `true` |
+| `apiGateway.controlPlane.tls.insecureSkipVerify` | Skip verification of the control plane's TLS certificate. True by default because the control plane serves a self-signed certificate in-cluster. Note: the template applies `\| default true`, and Go templates treat false as empty, so setting this to false here does not currently disable it. | boolean | `true` |
+| `apiGateway.config` | ConfigMap containing full Helm values for the gateway Helm chart. The gateway-operator reads this and passes it when deploying the gateway stack. | object |  |
+| `apiGateway.config.configMapName` | Name of the ConfigMap to create with gateway Helm values. Defaults to "&lt;release-name&gt;-config" if empty. | string | `""` |
+| `apiGateway.config.policyConfigurations` | Policy configurations rendered under [policy_configurations.*] in config.toml. Consumed by policies that reference $&#123;config.policy_configurations.&lt;section&gt;.&lt;key&gt;&#125;. | object |  |
+| `apiGateway.config.policyConfigurations.ratelimit_v1` | - Rate Limiting (shared by basic-ratelimit, advanced-ratelimit, token-based-ratelimit, llm-cost-based-ratelimit) --- | object |  |
+| `apiGateway.config.policyConfigurations.ratelimit_v1.algorithm` | Rate-limiting algorithm used to count requests. Allowed values: "fixed-window" or "gcra". | string | `"fixed-window"` |
+| `apiGateway.config.policyConfigurations.ratelimit_v1.backend` | Where counters are stored. In-memory counters are per gateway replica. Allowed values: "memory" or "redis". | string | `"memory"` |
+| `apiGateway.config.policyConfigurations.ratelimit_v1.memory` | Settings for the in-memory counter backend. | object |  |
+| `apiGateway.config.policyConfigurations.ratelimit_v1.memory.max_entries` | Maximum counters held in memory before eviction. | integer | `10000` |
+| `apiGateway.config.policyConfigurations.ratelimit_v1.memory.cleanup_interval` | How often expired counters are purged. | string | `"5m"` |
+| `apiGateway.config.policyConfigurations.llm_cost_ratelimit_v1` | - LLM Cost Based Rate Limiting (additional to ratelimit_v1) --- | object |  |
+| `apiGateway.config.policyConfigurations.llm_cost_ratelimit_v1.cost_scale_factor` | Fixed-point scale applied to costs so they can be counted as integers. | integer | `1000000000` |
+| `apiGateway.config.policyConfigurations.jwtauth_v1` | - JWT Authentication (shared by jwt-auth and mcp-auth) --- | object |  |
+| `apiGateway.config.policyConfigurations.jwtauth_v1.keymanagers` | Trusted token issuers, each with its issuer URL and JWKS endpoint. | array | see `values.yaml` |
+| `apiGateway.config.policyConfigurations.jwtauth_v1.authheaderscheme` | Scheme expected on the Authorization header. Empty accepts a bare token. | string | `""` |
+| `apiGateway.config.policyConfigurations.jwtauth_v1.onfailurestatuscode` | HTTP status returned when authentication fails. | integer | `401` |
+| `apiGateway.config.policyConfigurations.jwtauth_v1.errormessageformat` | Format of the authentication failure body. | string | `"json"` |
+| `apiGateway.config.policyConfigurations.jwtauth_v1.errormessage` | Message returned when authentication fails. | string | `"Authentication failed"` |
+| `apiGateway.config.policyConfigurations.jwtauth_v1.leeway` | Clock skew tolerated when checking token expiry. | string | `"30s"` |
+| `apiGateway.config.policyConfigurations.jwtauth_v1.allowedalgorithms` | Signing algorithms accepted on incoming tokens. | array | see `values.yaml` |
+| `apiGateway.config.policyConfigurations.jwtauth_v1.jwkscachettl` | How long a fetched JWKS is cached before refetching. | string | `"5m"` |
+| `apiGateway.config.policyConfigurations.jwtauth_v1.jwksfetchtimeout` | Timeout for a single JWKS fetch. | string | `"5s"` |
+| `apiGateway.config.policyConfigurations.jwtauth_v1.jwksfetchretrycount` | Retries attempted when a JWKS fetch fails. | integer | `3` |
+| `apiGateway.config.policyConfigurations.jwtauth_v1.jwksfetchretryinterval` | Wait between JWKS fetch retries. | string | `"2s"` |
+| `apiGateway.config.policyConfigurations.jwtauth_v1.validateissuer` | Reject tokens whose issuer is not a configured key manager. | boolean | `true` |
+| `apiGateway.config.config_toml` | Raw TOML injected at the TOP of the downstream gateway chart's generated config.toml, above every [table] section (rendered as gateway.config_toml in the generated values.yaml). Use for policy "system parameters" that policies read as $&#123;config.&lt;key&gt;&#125; at root level (e.g. AWS Bedrock, Azure Content Safety, embedding providers) — TOML requires bare root keys to precede any [table] header, which is why this leads the file. Whole [table] sections work here too (tables are order-independent). Do NOT redefine a table this chart already emits below ([policy_configurations.*], [controller.*], [router], etc.) — TOML rejects a duplicate table and the gateway-runtime crash-loops on it. config.toml renders into a ConfigMap, not a Secret. For any secret value, supply an `&#123;&#123; env "VAR" &#125;&#125;` interpolation token (resolved by the policy engine at load time) instead of a literal, and inject the backing env var via apiGateway.config.systemExtraEnv below (backed by a Kubernetes Secret, never a plaintext value). Example: config_toml: \| # AWS Bedrock Guardrail awsbedrock_guardrail_region = "us-east-1" awsbedrock_guardrail_id = "" awsbedrock_guardrail_version = "DRAFT" awsbedrock_access_key_id = "" awsbedrock_secret_access_key = '&#123;&#123; env "APIP_GW_AWSBEDROCK_SECRET_ACCESS_KEY" &#125;&#125;' awsbedrock_session_token = "" awsbedrock_role_arn = "" awsbedrock_role_region = "" awsbedrock_role_external_id = "" # Azure Content Safety azurecontentsafety_endpoint = "" azurecontentsafety_key = '&#123;&#123; env "APIP_GW_AZURECONTENTSAFETY_KEY" &#125;&#125;' # Embedding Provider (semantic-cache, semantic-prompt-guard, semantic-tool-filtering) embedding_provider = "OPENAI" embedding_provider_endpoint = "" embedding_provider_model = "text-embedding-ada-002" embedding_provider_dimension = "1536" embedding_provider_api_key = '&#123;&#123; env "APIP_GW_EMBEDDING_PROVIDER_API_KEY" &#125;&#125;' # Vector DB (semantic-cache) vector_db_provider = "REDIS" vector_db_provider_host = "" vector_db_provider_port = "6379" vector_db_provider_username = "" vector_db_provider_password = '&#123;&#123; env "APIP_GW_VECTOR_DB_PROVIDER_PASSWORD" &#125;&#125;' vector_db_provider_database = "" vector_db_provider_ttl = "3600" # Granite Guardian Prompt Injection granite_guardian_endpoint = "http://granite-guardian:8000" granite_guardian_model = "ibm-granite/granite-guardian-3.3-8b" granite_guardian_timeout = "10" granite_guardian_api_key = '&#123;&#123; env "APIP_GW_GRANITE_GUARDIAN_API_KEY" &#125;&#125;' # NeMo Guard Content Safety nemoguard_endpoint = "http://nemoguard:8101" nemoguard_model = "nemoguard" nemoguard_timeout = "30" nemoguard_api_key = '&#123;&#123; env "APIP_GW_NEMOGUARD_API_KEY" &#125;&#125;' | string | `""` |
+| `apiGateway.config.systemExtraEnv` | Env vars backing any `&#123;&#123; env "..." &#125;&#125;` tokens used in config_toml above. config.toml is loaded by both the gateway-controller and gatewayRuntime (policy engine) pods, so each entry is rendered into BOTH controller.deployment.extraEnv and gatewayRuntime.deployment.extraEnv. Secret values should use valueFrom.secretKeyRef rather than a literal value. Example: systemExtraEnv: - name: APIP_GW_AZURECONTENTSAFETY_KEY valueFrom: secretKeyRef: name: azure-content-safety key: subscription-key | array | `[]` |
+
+## bootstrap
+
+| Parameter | Description | Type | Default |
+|---|---|---|---|
+| `bootstrap` | Bootstrap Job configuration The job runs as a pre-install, pre-upgrade AND pre-rollback hook, so `helm rollback` now runs it too and can fail (leaving the release in pending-rollback) when Agent Manager is unreachable — rollbacks could not fail before. Recovery: re-run `helm rollback`, or `helm rollback --no-hooks` to skip the job entirely. | object |  |
+| `bootstrap.enabled` | Run the bootstrap job. | boolean | `true` |
+| `bootstrap.backoffLimit` | Retries before the bootstrap job is marked failed. | integer | `3` |
+| `bootstrap.identityProviders` | Identity providers to mirror into Agent Manager (AMS) for this gateway. This list is the authoritative allowlist of IdPs the bootstrap job seeds via the AMS identity-provider API. It is intentionally decoupled from apiGateway.config.policyConfigurations.jwtauth_v1.keymanagers: that list is the gateway runtime's JWT-validation config (and legitimately includes the internal 'agent-manager-service' keymanager and ThunderKeyManager), whereas this list is what AMS exposes in the Security UI and as agent OAuth issuer options. Only list user-visible providers here — omit any internal/reserved keymanagers (e.g. agent-manager-service). Defaults to empty: no IdP is auto-mirrored into AMS. ThunderKeyManager stays a gateway keymanager (so deployed agents still validate Thunder-issued tokens), but is no longer registered as a visible identity provider by default — operators add IdPs on demand via the Manage Identity Provider flow. The bootstrap job seeds exactly the entries listed here, so an empty list seeds nothing. Each entry: &#123; name, issuer, jwksUri, skipTlsVerify &#125;. | array | `[]` |
+| `bootstrap.ttlSecondsAfterFinished` | TTL after completion (seconds). 86400 = 1 day | integer | `86400` |
+| `bootstrap.resources` | Compute resources for the bootstrap job. | object |  |
+| `bootstrap.resources.requests` | Resources reserved for the bootstrap job at scheduling time. | object |  |
+| `bootstrap.resources.requests.memory` | Memory the container requests at scheduling time | string | `"64Mi"` |
+| `bootstrap.resources.requests.cpu` | CPU the container requests at scheduling time | string | `"50m"` |
+| `bootstrap.resources.limits` | Maximum resources the bootstrap job may use. | object |  |
+| `bootstrap.resources.limits.memory` | Maximum memory the container may use before it is OOM-killed | string | `"128Mi"` |
+| `bootstrap.resources.limits.cpu` | Maximum CPU the container may use | string | `"100m"` |
+| `bootstrap.podSecurityContext` | Pod-level security settings for the bootstrap job. | object |  |
+| `bootstrap.podSecurityContext.runAsNonRoot` | Require the container to run as a non-root user | boolean | `false` |
+| `bootstrap.podSecurityContext.runAsUser` | UID the pod's containers run as | integer | `0` |
+| `bootstrap.podSecurityContext.fsGroup` | Supplemental group applied to mounted volumes | integer | `0` |
+| `bootstrap.securityContext` | Container-level security settings for the bootstrap job. | object |  |
+| `bootstrap.securityContext.runAsNonRoot` | Require the container to run as a non-root user | boolean | `false` |
+| `bootstrap.securityContext.runAsUser` | UID the container runs as | integer | `0` |
+| `bootstrap.securityContext.allowPrivilegeEscalation` | Allow a process to gain more privileges than its parent | boolean | `false` |
+| `bootstrap.securityContext.capabilities` | Linux capabilities adjusted for the bootstrap container. | object |  |
+| `bootstrap.securityContext.capabilities.drop` | Linux capabilities removed from the container | array | see `values.yaml` |
+| `bootstrap.securityContext.readOnlyRootFilesystem` | Mount the container root filesystem read-only | boolean | `false` |
+
+## developmentMode
+
+| Parameter | Description | Type | Default |
+|---|---|---|---|
+| `developmentMode` | APIGateway CR configuration (deployed by gateway-operator) Development mode | boolean | `true` |
+
+## gateway
+
+| Parameter | Description | Type | Default |
+|---|---|---|---|
+| `gateway` | Gateway registration configuration | object |  |
+| `gateway.name` | Name of the AI gateway to register in Agent Manager (lowercase alphanumeric + hyphens). Defaults to the Helm release name if empty. | string | `""` |
+| `gateway.displayName` | Human-readable display name | string | `"Default API Gateway"` |
+| `gateway.vhost` | Virtual host (FQDN or IP) that the gateway is reachable on. All access is hostname-routed through kgateway — never the runtime Service directly. | string | `"http://default-default.gateway.localhost:19080"` |
+| `gateway.runtimeUrl` | In-cluster base URL sandboxed agents use to reach this gateway runtime. Empty derives "http://&lt;apiGatewayName&gt;-gw-gateway-gateway-runtime.&lt;apiGateway.namespace&gt;:22893". AMS validates it: http/https, explicit port that is not 80 or 443, cluster-local host. | string | `""` |
+| `gateway.hostname` | Hostname for routing traffic to this gateway through kgateway. All traffic (LLM proxy, OTEL, etc.) matching this hostname on kgateway is forwarded to this gateway's runtime service. Defaults to "&lt;environment&gt;-&lt;orgName&gt;.gateway.localhost" if empty. | string | `""` |
+| `gateway.type` | Gateway placement role: INGRESS, EGRESS, or BOTH (must match GatewayType enum in Agent Manager API). BOTH is correct for single topology, where the chart is installed once per environment; split topology sets this explicitly on both releases from add-environment.sh. Immutable after first registration — changing it later only logs a drift warning. | string | `"BOTH"` |
+| `gateway.environment` | Environment name in Agent Manager to associate this gateway with. The bootstrap job looks up environments by this name. | string | `"default"` |
+| `gateway.tokenSecret` | The generated registration token is stored in this Kubernetes Secret. It is then referenced by the APIGateway CR spec.controlPlane.tokenSecretRef. Defaults to "&lt;release-name&gt;-token" if empty. | object |  |
+| `gateway.tokenSecret.name` | Name of the Secret. Generated when empty. | string | `""` |
+| `gateway.tokenSecret.key` | Key within the Secret holding the token. | string | `"token"` |
+
+## kgateway
+
+| Parameter | Description | Type | Default |
+|---|---|---|---|
+| `kgateway` | kgateway ingress the gw-route HTTPRoute attaches to. This is the shared data-plane Gateway provisioned by the OpenChoreo data-plane chart — it does NOT move when the api-platform gateway gets its own per-org-env namespace. The HTTPRoute is created here (same namespace as the Gateway) and reaches the gateway runtime Service cross-namespace via a ReferenceGrant. | object |  |
+| `kgateway.name` | Name of the Gateway resource. | string | `"gateway-default"` |
+| `kgateway.namespace` | Namespace containing the Gateway resource. | string | `"openchoreo-data-plane"` |
+
+## kubectl
+
+| Parameter | Description | Type | Default |
+|---|---|---|---|
+| `kubectl` | Kubectl image used in bootstrap job | object |  |
+| `kubectl.image` | Image providing the `kubectl` binary for helper jobs | string | `"alpine/k8s:1.32.3"` |
+

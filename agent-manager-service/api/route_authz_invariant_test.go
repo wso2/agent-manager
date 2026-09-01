@@ -91,6 +91,8 @@ var unguardedRouteAllowlist = map[routeKey]string{
 		"fails closed on lookup errors, and is rate-limited instead of using user RBAC.",
 	{"registerWellKnownRoutes", "HandleFunc", "GET /.well-known/oauth-protected-resource"}: "GET /.well-known/oauth-protected-resource is RFC 9728 resource metadata and must be " +
 		"unauthenticated so clients can discover how to authenticate.",
+	{"registerWellKnownRoutes", "HandleFunc", "GET /.well-known/oauth-protected-resource/mcp"}: "path-specific RFC 9728 metadata for the MCP resource must be unauthenticated " +
+		"so MCP clients can discover how to authenticate.",
 	{"registerConfigRoutes", "Handle", "/api/v1/config"}:       "public console/CLI discovery endpoint; exposes only the observer public URL.",
 	{"MakeHTTPHandler", "Handle", "/api/v1/"}:                  "mount point for the JWT-authenticated API sub-router, not a leaf endpoint.",
 	{"MakeInternalHTTPHandler", "HandleFunc", "/health"}:       "internal-listener liveness probe.",

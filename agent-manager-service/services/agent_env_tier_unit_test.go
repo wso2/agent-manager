@@ -33,7 +33,6 @@ import (
 	"github.com/wso2/agent-manager/agent-manager-service/audit"
 	"github.com/wso2/agent-manager/agent-manager-service/clients/clientmocks"
 	"github.com/wso2/agent-manager/agent-manager-service/clients/openchoreosvc/client"
-	"github.com/wso2/agent-manager/agent-manager-service/config"
 	"github.com/wso2/agent-manager/agent-manager-service/middleware/jwtassertion"
 	"github.com/wso2/agent-manager/agent-manager-service/models"
 	"github.com/wso2/agent-manager/agent-manager-service/rbac"
@@ -46,16 +45,6 @@ const (
 	tierProdEnv = "production"
 	tierDevEnv  = "development"
 )
-
-// setRBACEnabledForTier flips the process-global RBAC switch for one test and
-// restores it on cleanup. Tests using it must not run in parallel.
-func setRBACEnabledForTier(t *testing.T, enabled bool) {
-	t.Helper()
-	cfg := config.GetConfig()
-	orig := cfg.RBACEnabled
-	cfg.RBACEnabled = enabled
-	t.Cleanup(func() { cfg.RBACEnabled = orig })
-}
 
 // nonProductionEnvStub is the GetEnvironment stub the deploy and promote
 // fixtures need now that both paths resolve their target through requireEnvTier:
@@ -95,21 +84,23 @@ func tierService(envs map[string]bool, lookupErr error) (*agentManagerService, *
 // scopes.
 func tierCtx(t *testing.T, scopes ...rbac.Permission) context.Context {
 	t.Helper()
-	scope := ""
-	for i, perm := range scopes {
-		if i > 0 {
-			scope += " "
-		}
-		scope += perm.Scope()
-	}
 	return jwtassertion.ContextWithTokenClaimsAndScope(auditableCtx(t),
-		&jwtassertion.TokenClaims{OuId: tierOUID, Scope: scope})
+		&jwtassertion.TokenClaims{OuId: tierOUID, Scope: audit.ScopesOf(scopes)})
+}
+
+// tierGrantedCtx is the caller the deploy and promote fixtures assume: it holds
+// both environment tiers, so requireEnvTier passes and the test reaches whatever
+// it is actually about. Tests about the tier check itself use tierCtx.
+func tierGrantedCtx(t *testing.T) context.Context {
+	t.Helper()
+	return jwtassertion.ContextWithTokenClaimsAndScope(auditableCtx(t), &jwtassertion.TokenClaims{
+		Scope: audit.ScopesOf([]rbac.Permission{rbac.AgentEnvNonProduction, rbac.AgentEnvProduction}),
+	})
 }
 
 // TestRequireEnvTier_ProductionEnvNeedsProductionScope is the point of the whole
 // change: the floor is not enough for a production environment.
 func TestRequireEnvTier_ProductionEnvNeedsProductionScope(t *testing.T) {
-	setRBACEnabledForTier(t, true)
 	svc, _ := tierService(map[string]bool{tierProdEnv: true}, nil)
 
 	env, err := svc.requireEnvTier(tierCtx(t, rbac.AgentEnvNonProduction), tierOUID, tierProdEnv)
@@ -123,7 +114,6 @@ func TestRequireEnvTier_ProductionEnvNeedsProductionScope(t *testing.T) {
 // TestRequireEnvTier_ProductionEnvAllowedWithBothScopes is the same environment
 // with the grant that reaches it.
 func TestRequireEnvTier_ProductionEnvAllowedWithBothScopes(t *testing.T) {
-	setRBACEnabledForTier(t, true)
 	svc, _ := tierService(map[string]bool{tierProdEnv: true}, nil)
 
 	env, err := svc.requireEnvTier(
@@ -141,7 +131,6 @@ func TestRequireEnvTier_ProductionEnvAllowedWithBothScopes(t *testing.T) {
 // grant alone here would be an unreachable rule that reads as a second, laxer
 // model of the same decision.
 func TestRequireEnvTier_ProductionScopeAloneIsNotEnough(t *testing.T) {
-	setRBACEnabledForTier(t, true)
 	svc, _ := tierService(map[string]bool{tierProdEnv: true}, nil)
 
 	_, err := svc.requireEnvTier(tierCtx(t, rbac.AgentEnvProduction), tierOUID, tierProdEnv)
@@ -152,7 +141,6 @@ func TestRequireEnvTier_ProductionScopeAloneIsNotEnough(t *testing.T) {
 
 // TestRequireEnvTier_NonProductionEnvAllowedWithFloor covers the ordinary case.
 func TestRequireEnvTier_NonProductionEnvAllowedWithFloor(t *testing.T) {
-	setRBACEnabledForTier(t, true)
 	svc, _ := tierService(map[string]bool{tierDevEnv: false}, nil)
 
 	env, err := svc.requireEnvTier(tierCtx(t, rbac.AgentEnvNonProduction), tierOUID, tierDevEnv)
@@ -165,7 +153,6 @@ func TestRequireEnvTier_NonProductionEnvAllowedWithFloor(t *testing.T) {
 // floor by implication. No predefined role is in that state, but a custom role
 // can be.
 func TestRequireEnvTier_NonProductionEnvDeniedWithoutFloor(t *testing.T) {
-	setRBACEnabledForTier(t, true)
 	svc, _ := tierService(map[string]bool{tierDevEnv: false}, nil)
 
 	_, err := svc.requireEnvTier(tierCtx(t, rbac.AgentEnvProduction), tierOUID, tierDevEnv)
@@ -175,7 +162,6 @@ func TestRequireEnvTier_NonProductionEnvDeniedWithoutFloor(t *testing.T) {
 
 // TestRequireEnvTier_NoScopesDenies is the unscoped-token case.
 func TestRequireEnvTier_NoScopesDenies(t *testing.T) {
-	setRBACEnabledForTier(t, true)
 	svc, _ := tierService(map[string]bool{tierDevEnv: false}, nil)
 
 	_, err := svc.requireEnvTier(tierCtx(t), tierOUID, tierDevEnv)
@@ -185,7 +171,6 @@ func TestRequireEnvTier_NoScopesDenies(t *testing.T) {
 // TestRequireEnvTier_UnknownEnvIsNotFound keeps the 404 the controller already
 // maps, rather than reporting a missing environment as a permission problem.
 func TestRequireEnvTier_UnknownEnvIsNotFound(t *testing.T) {
-	setRBACEnabledForTier(t, true)
 	svc, _ := tierService(map[string]bool{tierDevEnv: false}, nil)
 
 	_, err := svc.requireEnvTier(tierCtx(t, rbac.AgentEnvNonProduction), tierOUID, "nope")
@@ -195,7 +180,6 @@ func TestRequireEnvTier_UnknownEnvIsNotFound(t *testing.T) {
 // TestRequireEnvTier_LookupFailureDenies is the fail-closed guarantee: an
 // unreachable OpenChoreo must not become an allow.
 func TestRequireEnvTier_LookupFailureDenies(t *testing.T) {
-	setRBACEnabledForTier(t, true)
 	boom := errors.New("openchoreo unreachable")
 	svc, _ := tierService(nil, boom)
 
@@ -203,33 +187,35 @@ func TestRequireEnvTier_LookupFailureDenies(t *testing.T) {
 	require.ErrorIs(t, err, boom)
 }
 
-// TestRequireEnvTier_RBACDisabledSkipsCheckButStillReportsTier mirrors
-// middleware.RequirePermission's rollout switch. The lookup still runs: the
-// production flag is what the deploy and promote records carry, and an
-// RBAC-disabled install should not lose it from its audit trail.
-func TestRequireEnvTier_RBACDisabledSkipsCheckButStillReportsTier(t *testing.T) {
-	setRBACEnabledForTier(t, false)
+// TestRequireEnvTier_ReportsTierOnEveryCall keeps the environment lookup on the
+// path regardless of the outcome of the scope check: the production flag is what
+// the deploy and promote records carry, and losing it would cost the audit trail
+// the difference between a production change and a sandbox one.
+func TestRequireEnvTier_ReportsTierOnEveryCall(t *testing.T) {
 	svc, calls := tierService(map[string]bool{tierProdEnv: true}, nil)
 
-	env, err := svc.requireEnvTier(tierCtx(t), tierOUID, tierProdEnv)
+	env, err := svc.requireEnvTier(
+		tierCtx(t, rbac.AgentEnvNonProduction, rbac.AgentEnvProduction), tierOUID, tierProdEnv,
+	)
 	require.NoError(t, err)
 	require.True(t, env.IsProduction)
-	require.Equal(t, 1, *calls, "the environment lookup must still run with RBAC disabled")
+	require.Equal(t, 1, *calls, "the environment lookup must run on every tier check")
 }
 
-// TestRequireEnvTier_RBACDisabledStillFailsClosedOnLookupError pins the sharpest
-// edge of this change. The lookup runs before the RBAC switch is consulted, so an
-// unresolvable environment fails the operation even on an install that enforces
-// no scopes at all. That is a deliberate trade: the alternative is a deploy that
+// TestRequireEnvTier_LookupErrorFailsClosedBeforeTheScopeCheck pins the sharpest
+// edge of this change. The lookup runs before the scopes are read, so an
+// unresolvable environment fails the operation even for a caller holding every
+// tier scope. That is a deliberate trade: the alternative is a deploy that
 // proceeds without knowing where it lands, which is what DeployAgent did before
 // (a warning, then a degraded deploy with no config, OAuth issuer or trait work).
 // Task 5 Step 3 records this as user-visible and it belongs in the release notes.
-func TestRequireEnvTier_RBACDisabledStillFailsClosedOnLookupError(t *testing.T) {
-	setRBACEnabledForTier(t, false)
+func TestRequireEnvTier_LookupErrorFailsClosedBeforeTheScopeCheck(t *testing.T) {
 	boom := errors.New("openchoreo unreachable")
 	svc, _ := tierService(nil, boom)
 
-	env, err := svc.requireEnvTier(tierCtx(t), tierOUID, tierProdEnv)
+	env, err := svc.requireEnvTier(
+		tierCtx(t, rbac.AgentEnvNonProduction, rbac.AgentEnvProduction), tierOUID, tierProdEnv,
+	)
 	require.ErrorIs(t, err, boom)
 	require.Nil(t, env, "a lookup failure is the one case that yields no environment")
 }
@@ -239,7 +225,6 @@ func TestRequireEnvTier_RBACDisabledStillFailsClosedOnLookupError(t *testing.T) 
 // a different route than a middleware one, so it needs its own assertion that it
 // arrives at all.
 func TestRequireEnvTier_DenialIsAudited(t *testing.T) {
-	setRBACEnabledForTier(t, true)
 	svc, _ := tierService(map[string]bool{tierProdEnv: true}, nil)
 	ctx, sink, flush := capturingAuditCtx(t)
 	ctx = jwtassertion.ContextWithTokenClaimsAndScope(ctx,
@@ -268,7 +253,6 @@ func TestRequireEnvTier_DenialIsAudited(t *testing.T) {
 // tests are that guarantee — the route's static floor is only half of it, since
 // the environment arrives in the request body.
 func TestUpdateAgentConfigurations_ProductionNeedsProductionScope(t *testing.T) {
-	setRBACEnabledForTier(t, true)
 	overridesReplaced := false
 	ocClient := &clientmocks.OpenChoreoClientMock{
 		GetOrganizationFunc: func(_ context.Context, name string) (*models.OrganizationResponse, error) {
@@ -280,7 +264,7 @@ func TestUpdateAgentConfigurations_ProductionNeedsProductionScope(t *testing.T) 
 		GetEnvironmentFunc: func(_ context.Context, _, name string) (*models.EnvironmentResponse, error) {
 			return &models.EnvironmentResponse{Name: name, IsProduction: true}, nil
 		},
-		ReplaceReleaseBindingWorkloadOverridesFunc: func(context.Context, string, string, string, []client.EnvVar, []client.FileVar) error {
+		EnsureReleaseAndBindingFunc: func(context.Context, string, string, string, string, []client.EnvVar, []client.FileVar) error {
 			overridesReplaced = true
 			return nil
 		},
@@ -299,7 +283,6 @@ func TestUpdateAgentConfigurations_ProductionNeedsProductionScope(t *testing.T) 
 }
 
 func TestUpdateAgentDeploySettings_ProductionNeedsProductionScope(t *testing.T) {
-	setRBACEnabledForTier(t, true)
 	traitConfigsUpdated := false
 	ocClient := &clientmocks.OpenChoreoClientMock{
 		GetOrganizationFunc: func(_ context.Context, name string) (*models.OrganizationResponse, error) {

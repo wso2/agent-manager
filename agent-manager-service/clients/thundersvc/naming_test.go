@@ -18,6 +18,8 @@ package thundersvc
 
 import (
 	"context"
+	"net/http"
+	"net/http/httptest"
 	"strings"
 	"testing"
 	"time"
@@ -25,29 +27,35 @@ import (
 	"github.com/wso2/agent-manager/agent-manager-service/config"
 )
 
-// TestThunderExternalURLs_RespectBaseDomainConfig locks in that a VM deployment's
-// THUNDER_HOST_BASE_DOMAIN override flows straight through into every URL builder —
-// this is what makes deployments/vm/lib-vm.sh setting the same value (both for
-// add-environment-thunder.sh and this Go config) keep the reported URLs and the
-// actually-deployed Thunder instance's own issuer in sync.
-func TestThunderExternalURLs_RespectBaseDomainConfig(t *testing.T) {
+// TestThunderOriginFromHandle_RespectsBaseDomainConfig locks in that a VM
+// deployment's IDP_HOST_BASE_DOMAIN override flows straight through into
+// the on-prem write-time origin computation — this is what makes
+// deployments/vm/lib-vm.sh setting the same value (both for
+// add-environment-thunder.sh's THUNDER_HOST_BASE_DOMAIN and this Go config)
+// keep the URL AMS stores and the actually-deployed Thunder instance's own
+// issuer in sync.
+func TestThunderOriginFromHandle_RespectsBaseDomainConfig(t *testing.T) {
 	orig := config.GetConfig().ThunderHostBaseDomain
 	defer func() { config.GetConfig().ThunderHostBaseDomain = orig }()
 
 	config.GetConfig().ThunderHostBaseDomain = "amp.203.0.113.10.sslip.io"
-	got := ThunderIssuerURL("x7f2q9kz")
+	got := ThunderOriginFromHandle("x7f2q9kz")
 	want := "http://x7f2q9kz.amp.203.0.113.10.sslip.io:8080"
 	if got != want {
-		t.Errorf("ThunderIssuerURL with overridden base domain: want %q, got %q", want, got)
+		t.Errorf("ThunderOriginFromHandle with overridden base domain: want %q, got %q", want, got)
 	}
 }
 
-// TestThunderExternalURLs_RespectTLSConfig locks in that TLS_ENABLED (the same flag
-// deployments/vm/lib-vm.sh already sets for platform Thunder's own advertised URLs)
-// switches env-Thunder's reported scheme AND drops the :8080 suffix — matching Caddy
-// terminating on the standard HTTPS port on a VM, rather than the k3d gateway's
-// plain-HTTP :8080 in local dev.
-func TestThunderExternalURLs_RespectTLSConfig(t *testing.T) {
+// TestThunderOriginFromHandle_RespectsTLSConfig locks in that TLS_ENABLED (the
+// same flag deployments/vm/lib-vm.sh already sets for platform Thunder's own
+// advertised URLs) switches env-Thunder's computed scheme AND drops the :8080
+// suffix — matching Caddy terminating on the standard HTTPS port on a VM,
+// rather than the k3d gateway's plain-HTTP :8080 in local dev. Also confirms
+// ThunderIssuerURL/ThunderExternalTokenURL/ThunderExternalJWKSURL only ever
+// use the already-resolved origin they're given — no independent TLS/domain
+// awareness of their own, since a caller-supplied row's origin never came
+// from this config at all.
+func TestThunderOriginFromHandle_RespectsTLSConfig(t *testing.T) {
 	origDomain := config.GetConfig().ThunderHostBaseDomain
 	origTLS := config.GetConfig().TLSConfig.EnableTLS
 	defer func() {
@@ -57,34 +65,117 @@ func TestThunderExternalURLs_RespectTLSConfig(t *testing.T) {
 	config.GetConfig().ThunderHostBaseDomain = "amp.203.0.113.10.sslip.io"
 
 	config.GetConfig().TLSConfig.EnableTLS = false
-	if got, want := ThunderIssuerURL("x7f2q9kz"), "http://x7f2q9kz.amp.203.0.113.10.sslip.io:8080"; got != want {
-		t.Errorf("ThunderIssuerURL (TLS off): want %q, got %q", want, got)
+	originNoTLS := ThunderOriginFromHandle("x7f2q9kz")
+	if want := "http://x7f2q9kz.amp.203.0.113.10.sslip.io:8080"; originNoTLS != want {
+		t.Errorf("ThunderOriginFromHandle (TLS off): want %q, got %q", want, originNoTLS)
 	}
-	if got, want := ThunderExternalJWKSURL("x7f2q9kz"), "http://x7f2q9kz.amp.203.0.113.10.sslip.io:8080/oauth2/jwks"; got != want {
+	if got, want := ThunderIssuerURL(originNoTLS), originNoTLS; got != want {
+		t.Errorf("ThunderIssuerURL must return its input unchanged: want %q, got %q", want, got)
+	}
+	if got, want := ThunderExternalJWKSURL(originNoTLS), originNoTLS+"/oauth2/jwks"; got != want {
 		t.Errorf("ThunderExternalJWKSURL (TLS off): want %q, got %q", want, got)
 	}
 
 	config.GetConfig().TLSConfig.EnableTLS = true
-	if got, want := ThunderIssuerURL("x7f2q9kz"), "https://x7f2q9kz.amp.203.0.113.10.sslip.io"; got != want {
-		t.Errorf("ThunderIssuerURL (TLS on): want %q, got %q", want, got)
+	originTLS := ThunderOriginFromHandle("x7f2q9kz")
+	if want := "https://x7f2q9kz.amp.203.0.113.10.sslip.io"; originTLS != want {
+		t.Errorf("ThunderOriginFromHandle (TLS on): want %q, got %q", want, originTLS)
 	}
-	if got, want := ThunderExternalTokenURL("x7f2q9kz"), "https://x7f2q9kz.amp.203.0.113.10.sslip.io/oauth2/token"; got != want {
+	if got, want := ThunderExternalTokenURL(originTLS), originTLS+"/oauth2/token"; got != want {
 		t.Errorf("ThunderExternalTokenURL (TLS on): want %q, got %q", want, got)
 	}
 }
 
-// TestThunderIssuerURL_PanicsOnEmptyHandle guards the fail-loud contract: a
-// caller must check for "not provisioned" (an environment with no registered
-// handle) BEFORE building a URL — thunderExternalOrigin takes only a handle,
-// with no org/env fallback to degrade to, so an empty handle panics instead
-// of producing a guessable address.
-func TestThunderIssuerURL_PanicsOnEmptyHandle(t *testing.T) {
+// TestThunderIssuerURL_NeverPanics locks in that ThunderIssuerURL (an identity
+// function over an already-resolved, stored origin) has no fail-loud contract
+// of its own — that check belongs to whatever resolved the origin in the
+// first place (ThunderOriginFromHandle for the on-prem path; a caller
+// checking "not provisioned" before ever reaching here for either path).
+func TestThunderIssuerURL_NeverPanics(t *testing.T) {
 	defer func() {
-		if recover() == nil {
-			t.Error(`expected ThunderIssuerURL("") to panic`)
+		if r := recover(); r != nil {
+			t.Errorf(`expected ThunderIssuerURL("") not to panic, got %v`, r)
 		}
 	}()
-	ThunderIssuerURL("")
+	if got := ThunderIssuerURL(""); got != "" {
+		t.Errorf(`expected ThunderIssuerURL("") == "", got %q`, got)
+	}
+}
+
+// TestThunderOriginFromHandle_PanicsOnEmptyHandle guards the fail-loud
+// contract: a caller must check for "not provisioned" (an environment with no
+// registered handle) BEFORE building a URL — ThunderOriginFromHandle takes
+// only a handle, with no org/env fallback to degrade to, so an empty handle
+// panics instead of producing a guessable address.
+func TestThunderOriginFromHandle_PanicsOnEmptyHandle(t *testing.T) {
+	defer func() {
+		if recover() == nil {
+			t.Error(`expected ThunderOriginFromHandle("") to panic`)
+		}
+	}()
+	ThunderOriginFromHandle("")
+}
+
+// TestThunderBaseURLCandidates_PanicsOnEmptyThunderURL mirrors the same
+// fail-loud contract for the candidate cascade: thunderURL is the stored,
+// already-resolved origin (either registration path), and there is no
+// fallback to compute one from org/env if it's missing.
+func TestThunderBaseURLCandidates_PanicsOnEmptyThunderURL(t *testing.T) {
+	defer func() {
+		if recover() == nil {
+			t.Error(`expected thunderBaseURLCandidates with an empty thunderURL to panic`)
+		}
+	}()
+	thunderBaseURLCandidates("acme", "staging", "", false)
+}
+
+// TestThunderBaseURLCandidates_OnlyThePlainExternalOneCanBeMarkedExternal locks
+// in exactly which candidate CAN get the SSRF-hardened client in
+// probeThunderURL: the plain external one (dialed by its own host with no
+// override) — never cluster-internal DNS or a local-dev host-override, both
+// of which are legitimately private-target by design and would be wrongly
+// rejected by the SSRF guard. Whether that one candidate actually gets marked
+// depends on callerSupplied — a caller-supplied row's value is
+// attacker-influenced, a handle-derived row's is AMS's own trusted
+// computation (and can legitimately be private, e.g. a VM install's
+// sslip.io hostname over a LAN IP).
+func TestThunderBaseURLCandidates_OnlyThePlainExternalOneCanBeMarkedExternal(t *testing.T) {
+	orig := config.GetConfig().IsLocalDevEnv
+	config.GetConfig().IsLocalDevEnv = true
+	defer func() { config.GetConfig().IsLocalDevEnv = orig }()
+
+	for _, callerSupplied := range []bool{true, false} {
+		candidates := thunderBaseURLCandidates("acme", "staging", "https://stage-idp.example.com", callerSupplied)
+		if len(candidates) != 4 {
+			t.Fatalf("expected 4 candidates (internal, external, 2 local-dev overrides), got %d", len(candidates))
+		}
+		for i, c := range candidates {
+			wantExternal := i == 1 && callerSupplied
+			if c.external != wantExternal {
+				t.Errorf("callerSupplied=%v, candidate %d (%+v): external = %v, want %v", callerSupplied, i, c, c.external, wantExternal)
+			}
+		}
+	}
+}
+
+// TestProbeThunderURL_ExternalCandidateIsSSRFHardened proves the wiring is
+// real, not just declared: the SAME loopback server is reachable when
+// external=false (internal/local-dev-override candidates) but rejected when
+// external=true (the plain external candidate), because that one dials
+// through ssrf.NewClient, which refuses to resolve to a private/loopback IP.
+func TestProbeThunderURL_ExternalCandidateIsSSRFHardened(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		_, _ = w.Write([]byte(`{"keys":[{"kty":"RSA","kid":"abc","use":"sig"}]}`))
+	}))
+	defer server.Close()
+	jwksURL := server.URL + "/oauth2/jwks"
+
+	if ok := probeThunderURL(context.Background(), jwksURL, "", false); !ok {
+		t.Error("external=false: expected the loopback test server to be reachable, matching cluster-internal/local-dev-override candidates' trusted-private-target behavior")
+	}
+	if ok := probeThunderURL(context.Background(), jwksURL, "", true); ok {
+		t.Error("external=true: expected the loopback test server to be REJECTED by the SSRF guard, since httptest.Server binds to 127.0.0.1")
+	}
 }
 
 // TestThunderReleaseName_NoHyphenCollapsing locks in that ThunderReleaseName does
@@ -203,7 +294,7 @@ func TestResolveThunderBaseURL_PrefersClusterInternal(t *testing.T) {
 		return c.baseURL == ThunderInternalURL("acme", "staging")
 	}
 
-	got, ok := resolveThunderBaseURL(context.Background(), "acme", "staging", "x7f2q9kz", prober)
+	got, ok := resolveThunderBaseURL(context.Background(), "acme", "staging", "x7f2q9kz", false, prober)
 	if !ok {
 		t.Fatal("expected ok=true when the cluster-internal candidate is reachable")
 	}
@@ -224,7 +315,7 @@ func TestResolveThunderBaseURL_FallsBackToExternalIngress(t *testing.T) {
 		return c.baseURL == externalBaseURL && c.resolveToHost == ""
 	}
 
-	got, ok := resolveThunderBaseURL(context.Background(), "acme", "staging", "x7f2q9kz", prober)
+	got, ok := resolveThunderBaseURL(context.Background(), "acme", "staging", externalBaseURL, false, prober)
 	if !ok {
 		t.Fatal("expected ok=true when the external ingress candidate is reachable")
 	}
@@ -233,28 +324,33 @@ func TestResolveThunderBaseURL_FallsBackToExternalIngress(t *testing.T) {
 	}
 }
 
-// TestResolveThunderBaseURL_ExternalIngressCandidate_RespectsTLSConfig guards a
-// regression: the external ingress candidate must match thunderExternalOrigin's
-// TLS-aware scheme/port (what env-Thunder itself advertises as its issuer/JWKS),
-// not a hardcoded http://...:8080 — otherwise a VM/production deployment
-// (TLS_ENABLED=true) falling back to this candidate probes the wrong scheme and
-// port entirely, and reports a live env-Thunder as unreachable.
-func TestResolveThunderBaseURL_ExternalIngressCandidate_RespectsTLSConfig(t *testing.T) {
+// TestResolveThunderBaseURL_ExternalCandidateIsThunderURLVerbatim guards a
+// regression: the external candidate must be exactly the stored thunderURL
+// passed in — no independent recomputation from TLS config or anything else.
+// That TLS-aware computation only ever happens once, at registration time,
+// in ThunderOriginFromHandle (see its own tests); the candidate cascade must
+// never re-derive it, since a caller-supplied row's origin never came from
+// this process's TLS config at all.
+func TestResolveThunderBaseURL_ExternalCandidateIsThunderURLVerbatim(t *testing.T) {
 	origTLS := config.GetConfig().TLSConfig.EnableTLS
 	defer func() { config.GetConfig().TLSConfig.EnableTLS = origTLS }()
 	config.GetConfig().TLSConfig.EnableTLS = true
 
-	wantBaseURL := "https://x7f2q9kz.amp.localhost"
+	// Deliberately does NOT match what ThunderOriginFromHandle would compute
+	// for TLSConfig.EnableTLS=true (which would be "https://...", no port) —
+	// if the cascade were still doing any of its own TLS-aware derivation,
+	// this candidate would silently get rewritten and the test would fail.
+	storedThunderURL := "http://x7f2q9kz.amp.example.com:9999"
 	prober := func(_ context.Context, c thunderURLCandidate) bool {
-		return c.baseURL == wantBaseURL && c.resolveToHost == ""
+		return c.baseURL == storedThunderURL && c.resolveToHost == ""
 	}
 
-	got, ok := resolveThunderBaseURL(context.Background(), "acme", "staging", "x7f2q9kz", prober)
+	got, ok := resolveThunderBaseURL(context.Background(), "acme", "staging", storedThunderURL, false, prober)
 	if !ok {
-		t.Fatal("expected ok=true when the TLS-aware external ingress candidate is reachable")
+		t.Fatal("expected ok=true when the external candidate (verbatim) is reachable")
 	}
-	if got.baseURL != wantBaseURL || got.resolveToHost != "" {
-		t.Errorf("want TLS-aware external ingress candidate %q, got %+v", wantBaseURL, got)
+	if got.baseURL != storedThunderURL || got.resolveToHost != "" {
+		t.Errorf("want the external candidate to equal thunderURL verbatim %q, got %+v", storedThunderURL, got)
 	}
 }
 
@@ -273,7 +369,7 @@ func TestResolveThunderBaseURL_FallsBackToDockerDesktop(t *testing.T) {
 		return c.resolveToHost == "host.docker.internal:8080"
 	}
 
-	got, ok := resolveThunderBaseURL(context.Background(), "acme", "staging", "x7f2q9kz", prober)
+	got, ok := resolveThunderBaseURL(context.Background(), "acme", "staging", "x7f2q9kz", false, prober)
 	if !ok {
 		t.Fatal("expected ok=true when only the host.docker.internal candidate is reachable")
 	}
@@ -291,7 +387,7 @@ func TestResolveThunderBaseURL_FallsBackToLoopback(t *testing.T) {
 		return c.resolveToHost == "127.0.0.1:8080"
 	}
 
-	got, ok := resolveThunderBaseURL(context.Background(), "acme", "staging", "x7f2q9kz", prober)
+	got, ok := resolveThunderBaseURL(context.Background(), "acme", "staging", "x7f2q9kz", false, prober)
 	if !ok {
 		t.Fatal("expected ok=true when only the 127.0.0.1 candidate is reachable")
 	}
@@ -303,7 +399,7 @@ func TestResolveThunderBaseURL_FallsBackToLoopback(t *testing.T) {
 func TestResolveThunderBaseURL_AllUnreachable(t *testing.T) {
 	prober := func(_ context.Context, _ thunderURLCandidate) bool { return false }
 
-	_, ok := resolveThunderBaseURL(context.Background(), "acme", "staging", "x7f2q9kz", prober)
+	_, ok := resolveThunderBaseURL(context.Background(), "acme", "staging", "x7f2q9kz", false, prober)
 	if ok {
 		t.Error("expected ok=false when no candidate is reachable")
 	}
@@ -315,7 +411,7 @@ func TestResolveThunderBaseURL_PublicWrapperUsesRealCascadeShape(t *testing.T) {
 	// definitely-unreachable org/env, rather than e.g. always returning ok=true.
 	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
 	defer cancel()
-	_, _, ok := ResolveThunderBaseURL(ctx, "nonexistent-org-xyz", "nonexistent-env-xyz", "nonexistent-handle-xyz")
+	_, _, ok := ResolveThunderBaseURL(ctx, "nonexistent-org-xyz", "nonexistent-env-xyz", "nonexistent-handle-xyz", false)
 	if ok {
 		t.Error("expected ok=false for an org/env with no env-Thunder deployed anywhere reachable")
 	}

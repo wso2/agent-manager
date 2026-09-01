@@ -105,10 +105,10 @@ func main() {
 	obsController := controllers.NewObservabilityController(observerClient)
 	handler := handlers.NewHandler(controller, obsController)
 
-	requireTrace := middleware.RequirePermission(cfg.Auth.RBACEnabled, rbac.TraceRead)
-	requireLog := middleware.RequirePermission(cfg.Auth.RBACEnabled, rbac.LogRead)
-	requireBuildLog := middleware.RequirePermission(cfg.Auth.RBACEnabled, rbac.BuildLogRead)
-	requireMetric := middleware.RequirePermission(cfg.Auth.RBACEnabled, rbac.MetricRead)
+	requireTrace := middleware.RequirePermission(rbac.TraceRead)
+	requireLog := middleware.RequirePermission(rbac.LogRead)
+	requireBuildLog := middleware.RequirePermission(rbac.BuildLogRead)
+	requireMetric := middleware.RequirePermission(rbac.MetricRead)
 
 	apiMux.Handle("/api/v1/traces", requireTrace(http.HandlerFunc(handler.GetTraceOverviews)))
 	apiMux.Handle("/api/v1/traces/export", requireTrace(http.HandlerFunc(handler.ExportTraces)))
@@ -137,13 +137,12 @@ func main() {
 	// am-obs-mcp: streamable-HTTP MCP server on the root mux (not under
 	// /api/v1/). Behind the same JWTAuth middleware, with per-tool guards
 	// applying the same scope policy as the REST routes: each tool requires
-	// its amp:observability:* scope when RBAC is enabled, and publisher-
-	// audience tokens are confined to their implicit trace-read permission.
+	// its amp:observability:* scope, and publisher-audience tokens are confined
+	// to their implicit trace-read permission.
 	mcp.RegisterRoute(mux, mcp.Dependencies{
 		Tracing:       controller,
 		Observability: obsController,
-		RBACEnabled:   cfg.Auth.RBACEnabled,
-	}, middleware.JWTAuth(cfg.Auth))
+	}, middleware.JWTAuthForMCP(cfg.Auth))
 	slog.Info("am-obs-mcp registered", "path", "/mcp")
 
 	// Apply middleware: Request Logger -> CORS

@@ -2068,36 +2068,42 @@ paths:
     put:
       tags:
         - Environments
-      summary: Register an environment's env-Thunder URL handle
+      summary: Register an environment's env-Thunder URL
       description: |
-        Bootstrap-only endpoint used by add-environment-thunder.sh before it
-        provisions an environment's dedicated Thunder instance. Registers an
-        unguessable handle that replaces the predictable "<org>-<env>" segment
-        of that environment's externally-reachable env-Thunder hostname
-        (issuer/token/JWKS URLs) — without this, every such URL is 100%
-        derivable from (org, env) alone. org/env is NEVER used as a fallback:
-        every environment gets a handle, one way or another.
+        Bootstrap-only endpoint used by add-environment-thunder.sh, or by any
+        caller that already knows the full origin, before/while provisioning
+        an environment's dedicated Thunder instance. Registers the environment's
+        externally-reachable env-Thunder origin (issuer/token/JWKS URLs) via
+        exactly one of two mutually-exclusive request fields — see
+        ThunderUrlRequest. Without this, an on-prem URL would be 100%
+        derivable from (org, env) alone; org/env is NEVER used as a fallback
+        for either path — every environment gets a registered origin, one way
+        or another.
 
-        The request body's handle is OPTIONAL. Omit it (or send an empty
-        string) to have the server generate one automatically — a 10-character
-        random value. The response always reports the handle that ended up
-        stored, since a caller that left it blank needs to learn what was
+        Both request fields are OPTIONAL, and omitting both is the on-prem
+        auto-generate default: the server picks a 10-character random handle
+        and computes the origin from it. The response always reports the url
+        that ended up stored (and the handle, if the on-prem path produced
+        one), since a caller that left the body blank needs to learn what was
         actually assigned.
 
-        The handle is globally unique across ALL orgs/environments (every
-        env-Thunder instance's HTTPRoute attaches to the same shared Gateway,
-        so hostname routing is cluster-wide, not per-org). If a caller-supplied
-        handle collides with a different environment's, this returns 409. A
-        collision on a GENERATED handle is retried internally with a fresh
-        value and never surfaces as a 409.
+        Both handle and the resolved url are globally unique across ALL
+        orgs/environments (every env-Thunder instance's HTTPRoute attaches to
+        the same shared Gateway, so hostname routing is cluster-wide, not
+        per-org — and a caller-supplied url is expected to be globally unique
+        the same way). If a caller-supplied handle or url collides
+        with a different environment's, this returns 409. A collision on a
+        GENERATED handle is retried internally with a fresh value and never
+        surfaces as a 409.
 
         Idempotent for the SAME environment, but never changes an
-        already-registered handle: a blank or matching re-registration is a
-        no-op that reports the existing handle; an explicit DIFFERENT handle
-        is rejected with 409 (Thunder's issuer is immutable once minted — call
-        DELETE first to free the handle before registering a new one). Keyed
-        by OU ID, always taken from the caller's own token (never
-        client-supplied), not orgName — same rationale as thunder-system-client.
+        already-registered value: a blank or matching re-registration is a
+        no-op that reports the existing record; an explicit DIFFERENT
+        handle/url is rejected with 409 (Thunder's issuer is immutable once
+        minted — call DELETE first to free the registration before
+        registering a new one). Keyed by OU ID, always taken from the
+        caller's own token (never client-supplied), not orgName — same
+        rationale as thunder-system-client.
       operationId: setEnvironmentThunderUrl
       requestBody:
         required: false
@@ -2107,13 +2113,13 @@ paths:
               $ref: "#/components/schemas/ThunderUrlRequest"
       responses:
         "200":
-          description: Handle stored successfully — response reports the handle that ended up stored
+          description: Registered successfully — response reports the url (and handle, if applicable) that ended up stored
           content:
             application/json:
               schema:
                 $ref: "#/components/schemas/ThunderUrlResponse"
         "400":
-          description: Bad request - invalid handle format
+          description: Bad request - invalid handle/url format, or both handle and url were set
           content:
             application/json:
               schema:
@@ -2132,9 +2138,9 @@ paths:
                 $ref: "#/components/schemas/ErrorResponse"
         "409":
           description: >-
-            Conflict - handle is already registered to a different
-            environment, or this environment already has a different handle
-            registered (call DELETE first to change it)
+            Conflict - handle or url is already registered to a different
+            environment, or this environment already has a different
+            handle/url registered (call DELETE first to change it)
           content:
             application/json:
               schema:
@@ -2149,13 +2155,14 @@ paths:
     delete:
       tags:
         - Environments
-      summary: Remove an environment's env-Thunder URL handle
+      summary: Remove an environment's env-Thunder URL
       description: |
-        Removes the registered handle for an environment, freeing it for
-        reuse. Called by remove-environment-thunder.sh when an environment's
-        Thunder instance is torn down. Deleting a non-existent handle
-        succeeds (idempotent). Looked up by OU ID, always taken from the
-        caller's own token (never client-supplied), not orgName.
+        Removes the registered origin (and handle, if any) for an
+        environment, freeing both for reuse. Called by
+        remove-environment-thunder.sh when an environment's Thunder instance
+        is torn down. Deleting a non-existent registration succeeds
+        (idempotent). Looked up by OU ID, always taken from the caller's own
+        token (never client-supplied), not orgName.
       operationId: deleteEnvironmentThunderUrl
       responses:
         "204":
@@ -14507,9 +14514,18 @@ components:
     ThunderUrlRequest:
       type: object
       description: |
-        An unguessable handle to register for an environment's env-Thunder
-        URL, replacing the predictable "<org>-<env>" pattern. Optional — omit
-        it (or send an empty string) to have the server generate one.
+        Registers an environment's env-Thunder origin via exactly one of two
+        mutually-exclusive fields — setting both is rejected with 400:
+
+        - `handle` (handle path): an unguessable label AMS resolves into the
+          full origin itself, replacing the predictable "<org>-<env>" pattern.
+          Optional — omit it (or send an empty string, with url also omitted)
+          to have the server generate one.
+        - `url` (url path): the full origin the caller has already
+          provisioned, for deployments where different environments can live
+          under different domains and there is no single pattern AMS could
+          compute. AMS validates and stores it verbatim; the environment's
+          registration then has no handle at all.
       properties:
         handle:
           type: string
@@ -14518,20 +14534,33 @@ components:
             leading/trailing hyphen) that replaces "<org>-<env>" in
             "<handle>.<baseDomain>". Must be globally unique across
             all orgs/environments, and at least 3 characters. Omit to
-            auto-generate a 10-character handle.
+            auto-generate a 10-character handle. Mutually exclusive with url.
           pattern: "^[a-z0-9]([a-z0-9-]*[a-z0-9])?$"
           minLength: 3
           maxLength: 63
           example: x7f2q9kzab
+        url:
+          type: string
+          format: uri
+          description: |
+            The full env-Thunder origin (scheme + host, no path/query/fragment)
+            this environment is already reachable at — the url registration
+            path. Must be http or https, resolve to a public IP address (no
+            private/loopback hosts), and be globally unique across all
+            orgs/environments. Mutually exclusive with handle.
+          maxLength: 2048
+          example: https://stage-idp.tenant42.example.com
 
     ThunderUrlResponse:
       type: object
       description: |
-        The env-Thunder URL handle registered for an environment — either the
-        caller-supplied value or the value the server generated when the
-        caller left it blank.
+        The env-Thunder registration for an environment. url is always
+        present — the caller-supplied value (either path), or the value the
+        server generated/computed when the caller left handle blank. handle is
+        present only for the on-prem path; it is absent for an environment
+        registered via a caller-supplied url.
       required:
-        - handle
+        - url
       properties:
         handle:
           type: string
@@ -14539,6 +14568,11 @@ components:
           minLength: 3
           maxLength: 63
           example: x7f2q9kzab
+        url:
+          type: string
+          format: uri
+          maxLength: 2048
+          example: https://x7f2q9kzab.amp.example.com
 
     ThunderUrlAvailabilityResponse:
       type: object

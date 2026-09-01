@@ -53,7 +53,6 @@ func newFullToolsets() (*Toolsets, *MockToolsetHandler) {
 }
 
 func TestE2EToolAllowedWithScope(t *testing.T) {
-	setRBACEnabled(t, true)
 	toolsets, _ := newFullToolsets()
 	session := setupTestServerWithClaims(t, toolsets, &jwtassertion.TokenClaims{
 		OuId:  testOrgName,
@@ -66,7 +65,6 @@ func TestE2EToolAllowedWithScope(t *testing.T) {
 }
 
 func TestE2EToolDeniedWithoutScope(t *testing.T) {
-	setRBACEnabled(t, true)
 	toolsets, mock := newFullToolsets()
 	session := setupTestServerWithClaims(t, toolsets, &jwtassertion.TokenClaims{
 		OuId:  testOrgName,
@@ -88,20 +86,18 @@ func TestE2EToolDeniedWithoutScope(t *testing.T) {
 	}
 }
 
-func TestE2EToolAllowedWhenRBACDisabled(t *testing.T) {
-	setRBACEnabled(t, false)
+func TestE2EToolDeniedWithoutAnyScope(t *testing.T) {
 	toolsets, _ := newFullToolsets()
 	session := setupTestServerWithClaims(t, toolsets, &jwtassertion.TokenClaims{
 		OuId: testOrgName, // no scopes at all
 	})
 	result := callListProjects(t, session)
-	if result.IsError {
-		t.Fatalf("expected success with RBAC disabled, got error result: %+v", result.Content)
+	if !result.IsError {
+		t.Fatal("expected denial for a token carrying no scopes, got success")
 	}
 }
 
 func TestE2ERogueToolFailsClosed(t *testing.T) {
-	setRBACEnabled(t, false) // fail-closed must hold even with RBAC disabled
 	toolsets, _ := newFullToolsets()
 
 	server := gomcp.NewServer(&gomcp.Implementation{
@@ -156,7 +152,6 @@ func TestE2ERogueToolFailsClosed(t *testing.T) {
 }
 
 func TestE2EMultiPermissionToolDeniedWithPartialScopes(t *testing.T) {
-	setRBACEnabled(t, true)
 	toolsets, mock := newFullToolsets()
 	// create_external_agent requires AgentCreate AND AgentTokenManage.
 	session := setupTestServerWithClaims(t, toolsets, &jwtassertion.TokenClaims{

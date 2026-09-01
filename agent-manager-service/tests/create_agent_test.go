@@ -1056,6 +1056,12 @@ func TestCreateAgentFromKind_SecretConfigDefaults(t *testing.T) {
 		openChoreoClient.CreateInternalAgentFromKindWorkloadFunc = func(ctx context.Context, ouID, projectName, componentName string, req client.InternalAgentFromKindWorkloadRequest) error {
 			return nil
 		}
+		// Kind creation now also cuts the ComponentRelease and binds it to the first
+		// environment, which is where its configuration lives; the shared mock has no
+		// default for it either.
+		openChoreoClient.EnsureReleaseAndBindingFunc = func(ctx context.Context, ouID, projectName, componentName, environment string, envOverrides []client.EnvVar, fileOverrides []client.FileVar) error {
+			return nil
+		}
 		secretMgmtClient := apitestutils.CreateMockSecretManagementClient()
 		testClients := wiring.TestClients{
 			OpenChoreoClient: openChoreoClient,
@@ -1109,6 +1115,12 @@ func TestCreateAgentFromKind_SecretConfigDefaults(t *testing.T) {
 		// TriggerBuild) since the image is already built; the shared mock has no
 		// default for it.
 		openChoreoClient.CreateInternalAgentFromKindWorkloadFunc = func(ctx context.Context, ouID, projectName, componentName string, req client.InternalAgentFromKindWorkloadRequest) error {
+			return nil
+		}
+		// Kind creation now also cuts the ComponentRelease and binds it to the first
+		// environment, which is where its configuration lives; the shared mock has no
+		// default for it either.
+		openChoreoClient.EnsureReleaseAndBindingFunc = func(ctx context.Context, ouID, projectName, componentName, environment string, envOverrides []client.EnvVar, fileOverrides []client.FileVar) error {
 			return nil
 		}
 		secretMgmtClient := apitestutils.CreateMockSecretManagementClient()
@@ -1283,6 +1295,12 @@ func TestCreateAgentFromKind_SecretConfigDefaults(t *testing.T) {
 
 		t.Run("supplied by the caller: creation succeeds with that value", func(t *testing.T) {
 			openChoreoClient.CreateInternalAgentFromKindWorkloadFunc = func(ctx context.Context, ouID, projectName, componentName string, req client.InternalAgentFromKindWorkloadRequest) error {
+				return nil
+			}
+			// Kind creation now also cuts the ComponentRelease and binds it to the first
+			// environment, which is where its configuration lives; the shared mock has no
+			// default for it either.
+			openChoreoClient.EnsureReleaseAndBindingFunc = func(ctx context.Context, ouID, projectName, componentName, environment string, envOverrides []client.EnvVar, fileOverrides []client.FileVar) error {
 				return nil
 			}
 			env := []map[string]interface{}{
