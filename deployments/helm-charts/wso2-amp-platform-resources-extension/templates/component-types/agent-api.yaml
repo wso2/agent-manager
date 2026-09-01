@@ -146,7 +146,21 @@ spec:
         spec:
           podTemplate:
             metadata:
-              labels: ${metadata.podSelectors}
+              # amp.wso2.com/workload is the usage-metering marker, matching the
+              # build and evaluation pods that already carry workload=build and
+              # workload=evaluation. The runtime recording rules scope on it so
+              # that a data plane shared with other workloads is not measured as
+              # agent runtime; a pod that is missing it is dropped from the meter
+              # rather than counted, which under-reports rather than over-charges.
+              #
+              # Merged into the pod template's labels only. It must never be added
+              # to podSelectors, which feeds spec.selector.matchLabels on the
+              # rendered objects -- Kubernetes makes that immutable once created.
+              #
+              # SandboxWarmPool pods inherit this through sandboxTemplateRef, and
+              # the Service selector uses podSelectors (a subset), so it still
+              # matches.
+              labels: '${oc_merge(metadata.podSelectors, {"amp.wso2.com/workload": "agent"})}'
               annotations:
                 openchoreo.dev/restarted-at: ${environmentConfigs.restartedAt}
             spec:
