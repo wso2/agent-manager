@@ -931,7 +931,7 @@ func TestPromoteAgent_ReconcileLookupFails_PromotesAnyway(t *testing.T) {
 		return nil, errors.New("openchoreo unavailable")
 	}
 
-	err := s.PromoteAgent(auditableCtx(t), "acme", "proj1", "my-agent", &spec.PromoteAgentRequest{
+	err := s.PromoteAgent(tierGrantedCtx(t), "acme", "proj1", "my-agent", &spec.PromoteAgentRequest{
 		SourceEnvironment: "dev",
 		TargetEnvironment: "staging",
 	})
@@ -970,7 +970,7 @@ func TestPromoteAgent_BlocksWhenTargetIdentityNotReady(t *testing.T) {
 	// when the target's AgentID binding hasn't finished provisioning yet.
 	s, promoteCalled := promoteAgentTestFixture(t, nil, nil)
 
-	err := s.PromoteAgent(auditableCtx(t), "acme", "proj1", "my-agent", &spec.PromoteAgentRequest{
+	err := s.PromoteAgent(tierGrantedCtx(t), "acme", "proj1", "my-agent", &spec.PromoteAgentRequest{
 		SourceEnvironment: "dev",
 		TargetEnvironment: "staging",
 	})
