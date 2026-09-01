@@ -154,7 +154,7 @@ function buildScript(
   // back to its own "amp.localhost"/non-TLS defaults regardless of the actual
   // deployment, producing a broken env-Thunder URL for any non-local-dev
   // install (e.g. a VM/production deployment with its own base domain).
-  const thunderHostBaseDomain = globalConfig.thunderHostBaseDomain?.trim();
+  const thunderHostBaseDomain = globalConfig.idpHostBaseDomain?.trim();
   const tlsEnabled = globalConfig.tlsEnabled;
   // Required by add-environment.sh: the gateway chart version, pinned to the
   // platform release version so an added environment runs the same gateway chart.
@@ -197,10 +197,10 @@ function buildScript(
 // amp.localhost is the local-dev default base domain (config.ThunderHostBaseDomain /
 // THUNDER_HOST_BASE_DOMAIN) — the handle sits directly under it, with no fixed
 // subdomain segment in between. Deployments (VM/production) publish their own
-// base domain via globalConfig.thunderHostBaseDomain; this is only the
+// base domain via globalConfig.idpHostBaseDomain; this is only the
 // fallback for deployments that haven't set it.
 const THUNDER_HOST_PREVIEW_DOMAIN =
-  globalConfig.thunderHostBaseDomain?.trim() || "amp.localhost";
+  globalConfig.idpHostBaseDomain?.trim() || "amp.localhost";
 
 export function CreateEnvironmentDrawer({
   open,

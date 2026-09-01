@@ -1,0 +1,441 @@
+---
+title: Thunder Extension
+---
+
+# Thunder Extension
+
+A Helm chart to add Thunder Identity Provider functionality for the Agent Management Platform.
+
+```bash
+helm install amp-thunder-extension oci://ghcr.io/wso2/helm-charts/wso2-amp-thunder-extension \
+  --namespace <namespace> --create-namespace \
+  --values my-values.yaml
+```
+
+## thunder
+
+| Parameter | Description | Type | Default |
+|---|---|---|---|
+| `thunder` | Thunder subchart configuration | object |  |
+
+## thunder.bootstrap
+
+| Parameter | Description | Type | Default |
+|---|---|---|---|
+| `thunder.bootstrap` | Job that seeds the OAuth clients, organization unit, and console branding the platform expects. | object |  |
+| `thunder.bootstrap.enabled` | Run the bootstrap job. | boolean | `true` |
+| `thunder.bootstrap.observabilityScopes` | The observability data-read scopes, single-sourced: 59-am-mcp-client.yaml subtracts this list from am-mcp's allowance and 73-am-obs-mcp-client.yaml appends it to am-obs-mcp's OIDC scopes (both at template render time). The same scopes also appear in ampScopes below as part of the full catalog for the other interactive clients. | array | see `values.yaml` |
+| `thunder.bootstrap.ampScopes` | Full list of AMP OAuth2 scopes that interactive clients are allowed to request. Thunder only grants scopes that appear in an app's registered scope list, so all permission scopes must be declared here for role-based access to work. Exception: am-mcp's allowance is this catalog MINUS observabilityScopes (filtered in 59-am-mcp-client.yaml) — those scopes are owned exclusively by the observer MCP client (amObsMcpClient below). | array | see `values.yaml` |
+| `thunder.bootstrap.configMap` | ConfigMap holding the bootstrap payload. | object |  |
+| `thunder.bootstrap.configMap.name` | Name of the ConfigMap holding the bootstrap payload. | string | `"amp-thunder-bootstrap"` |
+| `thunder.bootstrap.configMap.files` | Bootstrap files to mount from the ConfigMap. Leave empty to mount the whole ConfigMap, which replaces the chart's defaults. | array | see `values.yaml` |
+| `thunder.bootstrap.observerResourceReaderClient` | Observer Resource Reader Client configuration (for observability plane to read resources) | object |  |
+| `thunder.bootstrap.observerResourceReaderClient.clientId` | OAuth 2.0 client ID Allowed values: clusterauthzrolebinding is already created with this clientId by openchoreo, so it should not be changed unless the corresponding ClusterAuthzRoleBinding is also updated. | string | `"openchoreo-observer-resource-reader-client"` |
+| `thunder.bootstrap.observerResourceReaderClient.clientSecret` | OAuth 2.0 client secret | string | `"openchoreo-observer-resource-reader-client-secret"` |
+| `thunder.bootstrap.observerResourceReaderClient.name` | Internal name of the OAuth application | string | `"OpenChoreo Observer Resource Reader"` |
+| `thunder.bootstrap.observerResourceReaderClient.description` | Description of the OAuth application | string | `"OpenChoreo Observer Resource Reader Client for reading resources from control plane"` |
+| `thunder.bootstrap.observerResourceReaderClient.grantTypes` | OAuth 2.0 grant types the client may use | array | see `values.yaml` |
+| `thunder.bootstrap.observerResourceReaderClient.tokenEndpointAuthMethod` | Authentication method the client uses at the token endpoint | string | `"client_secret_post"` |
+| `thunder.bootstrap.observerResourceReaderClient.pkceRequired` | Require PKCE on the authorization code flow | boolean | `false` |
+| `thunder.bootstrap.observerResourceReaderClient.publicClient` | Treat as a public client, which authenticates without a secret | boolean | `false` |
+| `thunder.bootstrap.observerResourceReaderClient.accessTokenValidityPeriod` | Access token lifetime in seconds | integer | `3600` |
+| `thunder.bootstrap.workloadPublisherClient` | Workload Publisher Client configuration (for CI workflows to create workloads) | object |  |
+| `thunder.bootstrap.workloadPublisherClient.clientId` | OAuth 2.0 client ID Allowed values: clusterauthzrolebinding is already created with this clientId by openchoreo, so it should not be changed unless the corresponding ClusterAuthzRoleBinding is also updated. | string | `"openchoreo-workload-publisher-client"` |
+| `thunder.bootstrap.workloadPublisherClient.clientSecret` | OAuth 2.0 client secret | string | `"openchoreo-workload-publisher-secret"` |
+| `thunder.bootstrap.workloadPublisherClient.name` | Internal name of the OAuth application | string | `"Workload Publisher"` |
+| `thunder.bootstrap.workloadPublisherClient.description` | Description of the OAuth application | string | `"OpenChoreo Workload Publisher Client for creating workloads from CI workflows"` |
+| `thunder.bootstrap.workloadPublisherClient.grantTypes` | OAuth 2.0 grant types the client may use | array | see `values.yaml` |
+| `thunder.bootstrap.workloadPublisherClient.tokenEndpointAuthMethod` | Authentication method the client uses at the token endpoint | string | `"client_secret_post"` |
+| `thunder.bootstrap.workloadPublisherClient.pkceRequired` | Require PKCE on the authorization code flow | boolean | `false` |
+| `thunder.bootstrap.workloadPublisherClient.publicClient` | Treat as a public client, which authenticates without a secret | boolean | `false` |
+| `thunder.bootstrap.workloadPublisherClient.accessTokenValidityPeriod` | Access token lifetime in seconds | integer | `3600` |
+| `thunder.bootstrap.ampApiClient` | AMP API Client configuration | object |  |
+| `thunder.bootstrap.ampApiClient.clientId` | OAuth 2.0 client ID | string | `"amp-api-client"` |
+| `thunder.bootstrap.ampApiClient.clientSecret` | OAuth 2.0 client secret | string | `"amp-api-client-secret"` |
+| `thunder.bootstrap.ampApiClient.name` | Internal name of the OAuth application | string | `"AMP API Client"` |
+| `thunder.bootstrap.ampApiClient.description` | Description of the OAuth application | string | `"Client application for AMP API access"` |
+| `thunder.bootstrap.ampApiClient.grantTypes` | OAuth 2.0 grant types the client may use | array | see `values.yaml` |
+| `thunder.bootstrap.ampApiClient.tokenEndpointAuthMethod` | Authentication method the client uses at the token endpoint | string | `"client_secret_basic"` |
+| `thunder.bootstrap.ampApiClient.pkceRequired` | Require PKCE on the authorization code flow | boolean | `false` |
+| `thunder.bootstrap.ampApiClient.publicClient` | Treat as a public client, which authenticates without a secret | boolean | `false` |
+| `thunder.bootstrap.ampApiClient.accessTokenValidityPeriod` | Access token lifetime in seconds | integer | `3600` |
+| `thunder.bootstrap.ampSystemClient` | AMP System Client configuration (for agent-manager to provision per-org OAuth apps via Thunder admin API) WARNING: clientSecret below is a LOCAL-DEVELOPMENT-ONLY placeholder. In production, override ampSystemClient.clientSecret via a Kubernetes Secret or external secret manager. Deploying with this default value is insecure. | object |  |
+| `thunder.bootstrap.ampSystemClient.clientId` | OAuth 2.0 client ID | string | `"amp-system-client"` |
+| `thunder.bootstrap.ampSystemClient.clientSecret` | OAuth 2.0 client secret | string | `"amp-system-client-secret"` |
+| `thunder.bootstrap.ampSystemClient.name` | Internal name of the OAuth application | string | `"AMP System Client"` |
+| `thunder.bootstrap.ampSystemClient.description` | Description of the OAuth application | string | `"System client for agent-manager to provision per-org OAuth apps"` |
+| `thunder.bootstrap.ampSystemClient.grantTypes` | OAuth 2.0 grant types the client may use | array | see `values.yaml` |
+| `thunder.bootstrap.ampSystemClient.tokenEndpointAuthMethod` | Authentication method the client uses at the token endpoint | string | `"client_secret_basic"` |
+| `thunder.bootstrap.ampSystemClient.pkceRequired` | Require PKCE on the authorization code flow | boolean | `false` |
+| `thunder.bootstrap.ampSystemClient.publicClient` | Treat as a public client, which authenticates without a secret | boolean | `false` |
+| `thunder.bootstrap.ampSystemClient.accessTokenValidityPeriod` | Access token lifetime in seconds | integer | `3600` |
+| `thunder.bootstrap.ampPublisherClient` | AMP Publisher Client configuration (for evaluation job to publish scores) | object |  |
+| `thunder.bootstrap.ampPublisherClient.clientId` | OAuth 2.0 client ID | string | `"amp-publisher-client"` |
+| `thunder.bootstrap.ampPublisherClient.clientSecret` | OAuth 2.0 client secret Allowed values: Override in production; must match the value stored in OpenBao at secret/amp-publisher-client-secret (used by ExternalSecret at workflow runtime). | string | `"amp-publisher-client-secret"` |
+| `thunder.bootstrap.ampPublisherClient.name` | Internal name of the OAuth application | string | `"AMP Publisher Client"` |
+| `thunder.bootstrap.ampPublisherClient.description` | Description of the OAuth application | string | `"Client application for evaluation job to publish scores"` |
+| `thunder.bootstrap.ampPublisherClient.grantTypes` | OAuth 2.0 grant types the client may use | array | see `values.yaml` |
+| `thunder.bootstrap.ampPublisherClient.tokenEndpointAuthMethod` | Authentication method the client uses at the token endpoint | string | `"client_secret_basic"` |
+| `thunder.bootstrap.ampPublisherClient.pkceRequired` | Require PKCE on the authorization code flow | boolean | `false` |
+| `thunder.bootstrap.ampPublisherClient.publicClient` | Treat as a public client, which authenticates without a secret | boolean | `false` |
+| `thunder.bootstrap.ampPublisherClient.accessTokenValidityPeriod` | Access token lifetime in seconds | integer | `3600` |
+| `thunder.bootstrap.amObserverClient` | AM Observer Client configuration (dedicated outbound identity for agent-manager-observer's calls to the OpenChoreo observer backend). Its authority comes from the OpenChoreo ClusterAuthzRoleBinding (amp-observer-reader-binding in wso2-amp-platform-resources-extension), NOT from AMP scopes — it has no scope allowance at all, so its tokens fail agent-manager-service's scope checks by construction. WARNING: clientSecret below is a LOCAL-DEVELOPMENT-ONLY placeholder. In production, override amObserverClient.clientSecret via a Kubernetes Secret or external secret manager. Deploying with this default value is insecure. NOTE: pre-install bootstrap job only — see the upgrade note on mcpResourceServers below / docs/reference/mcp-server.mdx. | object |  |
+| `thunder.bootstrap.amObserverClient.clientId` | OAuth 2.0 client ID | string | `"am-observer-client"` |
+| `thunder.bootstrap.amObserverClient.clientSecret` | OAuth 2.0 client secret | string | `"am-observer-client-secret"` |
+| `thunder.bootstrap.amObserverClient.name` | Internal name of the OAuth application | string | `"AM Observer Client"` |
+| `thunder.bootstrap.amObserverClient.description` | Description of the OAuth application | string | `"Dedicated client for agent-manager-observer to read observability data from the OpenChoreo observer"` |
+| `thunder.bootstrap.amObserverClient.grantTypes` | OAuth 2.0 grant types the client may use | array | see `values.yaml` |
+| `thunder.bootstrap.amObserverClient.tokenEndpointAuthMethod` | Authentication method the client uses at the token endpoint | string | `"client_secret_basic"` |
+| `thunder.bootstrap.amObserverClient.pkceRequired` | Require PKCE on the authorization code flow | boolean | `false` |
+| `thunder.bootstrap.amObserverClient.publicClient` | Treat as a public client, which authenticates without a secret | boolean | `false` |
+| `thunder.bootstrap.amObserverClient.accessTokenValidityPeriod` | Access token lifetime in seconds | integer | `3600` |
+| `thunder.bootstrap.amCliClient` | AMP CLI Client configuration (public PKCE client for interactive login) | object |  |
+| `thunder.bootstrap.amCliClient.clientId` | OAuth 2.0 client ID | string | `"amctl"` |
+| `thunder.bootstrap.amCliClient.name` | Internal name of the OAuth application | string | `"AMCTL"` |
+| `thunder.bootstrap.amCliClient.description` | Description of the OAuth application | string | `"AMP CLI application for interactive user login"` |
+| `thunder.bootstrap.amCliClient.redirectUris` | Redirect URIs permitted for the authorization code flow | array | see `values.yaml` |
+| `thunder.bootstrap.amCliClient.grantTypes` | OAuth 2.0 grant types the client may use | array | see `values.yaml` |
+| `thunder.bootstrap.amCliClient.responseTypes` | OAuth 2.0 response types the client may request | array | see `values.yaml` |
+| `thunder.bootstrap.amCliClient.allowedUserTypes` | User types permitted to authenticate through this client | array | see `values.yaml` |
+| `thunder.bootstrap.amCliClient.tokenEndpointAuthMethod` | Authentication method the client uses at the token endpoint | string | `"none"` |
+| `thunder.bootstrap.amCliClient.pkceRequired` | Require PKCE on the authorization code flow | boolean | `true` |
+| `thunder.bootstrap.amCliClient.publicClient` | Treat as a public client, which authenticates without a secret | boolean | `true` |
+| `thunder.bootstrap.amCliClient.accessTokenValidityPeriod` | Access token lifetime in seconds | integer | `3600` |
+| `thunder.bootstrap.amCliClient.idTokenValidityPeriod` | ID token lifetime in seconds | integer | `3600` |
+| `thunder.bootstrap.amCliClient.userAttributes` | User attributes released to the CLI after login. | array | see `values.yaml` |
+| `thunder.bootstrap.amMcpClient` | AMP MCP Client configuration (public PKCE client for interactive login) | object |  |
+| `thunder.bootstrap.amMcpClient.clientId` | OAuth 2.0 client ID | string | `"am-mcp"` |
+| `thunder.bootstrap.amMcpClient.name` | Internal name of the OAuth application | string | `"AMP MCP"` |
+| `thunder.bootstrap.amMcpClient.description` | Description of the OAuth application | string | `"AMP MCP application for interactive user login"` |
+| `thunder.bootstrap.amMcpClient.redirectUris` | Redirect URIs permitted for the authorization code flow | array | see `values.yaml` |
+| `thunder.bootstrap.amMcpClient.grantTypes` | OAuth 2.0 grant types the client may use | array | see `values.yaml` |
+| `thunder.bootstrap.amMcpClient.responseTypes` | OAuth 2.0 response types the client may request | array | see `values.yaml` |
+| `thunder.bootstrap.amMcpClient.allowedUserTypes` | User types permitted to authenticate through this client | array | see `values.yaml` |
+| `thunder.bootstrap.amMcpClient.tokenEndpointAuthMethod` | Authentication method the client uses at the token endpoint | string | `"none"` |
+| `thunder.bootstrap.amMcpClient.pkceRequired` | Require PKCE on the authorization code flow | boolean | `true` |
+| `thunder.bootstrap.amMcpClient.publicClient` | Treat as a public client, which authenticates without a secret | boolean | `true` |
+| `thunder.bootstrap.amMcpClient.accessTokenValidityPeriod` | Access token lifetime in seconds | integer | `3600` |
+| `thunder.bootstrap.amMcpClient.idTokenValidityPeriod` | ID token lifetime in seconds | integer | `3600` |
+| `thunder.bootstrap.amMcpClient.userAttributes` | User attributes released to the MCP server after login. | array | see `values.yaml` |
+| `thunder.bootstrap.amObsMcpClient` | AMP Observer MCP Client configuration (public PKCE client for the observer MCP server's interactive login). Allowed ONLY the OIDC scopes plus the four observability data-read scopes; the am-service MCP client (amMcpClient above) is allowed the rest of the catalog. NOTE: pre-install bootstrap job only — see the upgrade note on mcpResourceServers below / docs/reference/mcp-server.mdx. | object |  |
+| `thunder.bootstrap.amObsMcpClient.clientId` | OAuth 2.0 client ID | string | `"am-obs-mcp"` |
+| `thunder.bootstrap.amObsMcpClient.name` | Internal name of the OAuth application | string | `"AMP Observer MCP"` |
+| `thunder.bootstrap.amObsMcpClient.description` | Description of the OAuth application | string | `"AMP Observer MCP application for interactive user login"` |
+| `thunder.bootstrap.amObsMcpClient.redirectUris` | Redirect URIs permitted for the authorization code flow | array | see `values.yaml` |
+| `thunder.bootstrap.amObsMcpClient.grantTypes` | OAuth 2.0 grant types the client may use | array | see `values.yaml` |
+| `thunder.bootstrap.amObsMcpClient.responseTypes` | OAuth 2.0 response types the client may request | array | see `values.yaml` |
+| `thunder.bootstrap.amObsMcpClient.allowedUserTypes` | User types permitted to authenticate through this client | array | see `values.yaml` |
+| `thunder.bootstrap.amObsMcpClient.tokenEndpointAuthMethod` | Authentication method the client uses at the token endpoint | string | `"none"` |
+| `thunder.bootstrap.amObsMcpClient.pkceRequired` | Require PKCE on the authorization code flow | boolean | `true` |
+| `thunder.bootstrap.amObsMcpClient.publicClient` | Treat as a public client, which authenticates without a secret | boolean | `true` |
+| `thunder.bootstrap.amObsMcpClient.accessTokenValidityPeriod` | Access token lifetime in seconds | integer | `3600` |
+| `thunder.bootstrap.amObsMcpClient.idTokenValidityPeriod` | ID token lifetime in seconds | integer | `3600` |
+| `thunder.bootstrap.amObsMcpClient.scopes` | OIDC scopes only — the four observability data-read scopes are appended from observabilityScopes at template render time (73-am-obs-mcp-client.yaml). | array | see `values.yaml` |
+| `thunder.bootstrap.amObsMcpClient.userAttributes` | User attributes released to the Observer MCP server after login. | array | see `values.yaml` |
+| `thunder.bootstrap.agentManagerMcpBaseUrl` | RFC 8707 resource servers for the public MCP origins. The bootstrap renders these as separate resource servers; urn:wso2:amp remains the platform API resource identifier. baseUrlValue selects the deployment- specific origin — one scalar per MCP endpoint, overridden to whatever that install actually serves (docker-compose dev, k3d, a VM, or a real domain); there is no separate "dev" scalar to keep in sync, the same way observerMcpBaseUrl has never needed one. | string | `"http://api.amp.localhost:8080"` |
+| `thunder.bootstrap.observerMcpBaseUrl` | Base URL of the Observer MCP server, registered as a resource server. | string | `"http://traces.amp.localhost:11080"` |
+| `thunder.bootstrap.mcpResourceServers` | MCP resource servers registered so agent tokens can be scoped to them. | array | see `values.yaml` |
+| `thunder.bootstrap.ampConsoleClient` | AMP Console Client configuration | object |  |
+| `thunder.bootstrap.ampConsoleClient.clientId` | OAuth 2.0 client ID | string | `"amp-console-client"` |
+| `thunder.bootstrap.ampConsoleClient.clientSecret` | OAuth 2.0 client secret | string | `"amp-console-client-secret"` |
+| `thunder.bootstrap.ampConsoleClient.name` | Internal name of the OAuth application | string | `"AMP Console"` |
+| `thunder.bootstrap.ampConsoleClient.description` | Description of the OAuth application | string | `"AMP Console Application"` |
+| `thunder.bootstrap.ampConsoleClient.logoUrl` | Logo shown on the Console's login and consent screens. | string | `"https://wso2.cachefly.net/wso2/sites/all/image_resources/logos/WSO2-Pulse-Orange.webp"` |
+| `thunder.bootstrap.ampConsoleClient.redirectUris` | Redirect URIs permitted for the authorization code flow | array | see `values.yaml` |
+| `thunder.bootstrap.ampConsoleClient.grantTypes` | OAuth 2.0 grant types the client may use | array | see `values.yaml` |
+| `thunder.bootstrap.ampConsoleClient.responseTypes` | OAuth 2.0 response types the client may request | array | see `values.yaml` |
+| `thunder.bootstrap.ampConsoleClient.allowedUserTypes` | User types permitted to authenticate through this client | array | see `values.yaml` |
+| `thunder.bootstrap.ampConsoleClient.tokenEndpointAuthMethod` | Authentication method the client uses at the token endpoint | string | `"none"` |
+| `thunder.bootstrap.ampConsoleClient.pkceRequired` | Require PKCE on the authorization code flow | boolean | `true` |
+| `thunder.bootstrap.ampConsoleClient.publicClient` | Treat as a public client, which authenticates without a secret | boolean | `true` |
+| `thunder.bootstrap.ampConsoleClient.accessTokenValidityPeriod` | Access token lifetime in seconds | integer | `3600` |
+| `thunder.bootstrap.ampConsoleClient.idTokenValidityPeriod` | ID token lifetime in seconds | integer | `3600` |
+| `thunder.bootstrap.ampConsoleClient.userAttributes` | User attributes released to the Console after login. | array | see `values.yaml` |
+| `thunder.bootstrap.ampConsoleTheme` | Agent Manager Console Theme (applied to amp-console-client sign-in page) | object |  |
+| `thunder.bootstrap.ampConsoleTheme.handle` | Unique handle identifying the Console theme. | string | `"wso2-agent-manager-console"` |
+| `thunder.bootstrap.ampConsoleTheme.displayName` | Human-readable name for the Console theme. | string | `"WSO2 Agent Manager Console Theme"` |
+| `thunder.bootstrap.ampConsoleTheme.theme` | The theme definition itself. | object |  |
+| `thunder.bootstrap.ampConsoleTheme.theme.direction` | Text direction, ltr or rtl. | string | `"ltr"` |
+| `thunder.bootstrap.ampConsoleTheme.theme.defaultColorScheme` | Colour scheme used before the user expresses a preference. | string | `"light"` |
+| `thunder.bootstrap.ampConsoleTheme.theme.shape` | Shape tokens such as corner radius. | object |  |
+| `thunder.bootstrap.ampConsoleTheme.theme.shape.borderRadius` | Console theme typography or shape token | integer | `8` |
+| `thunder.bootstrap.ampConsoleTheme.theme.typography` | Typography tokens for the Console. | object |  |
+| `thunder.bootstrap.ampConsoleTheme.theme.typography.fontFamily` | Console theme typography or shape token | string | `"Inter Variable, sans-serif"` |
+| `thunder.bootstrap.ampConsoleTheme.theme.typography.h1` | Styling for top-level headings. | object |  |
+| `thunder.bootstrap.ampConsoleTheme.theme.typography.h1.fontSize` | Console theme typography or shape token | string | `"1.75rem"` |
+| `thunder.bootstrap.ampConsoleTheme.theme.typography.h1.fontWeight` | Console theme typography or shape token | integer | `600` |
+| `thunder.bootstrap.ampConsoleTheme.theme.typography.h1.lineHeight` | Line height for top-level headings. | number | `1.3` |
+| `thunder.bootstrap.ampConsoleTheme.theme.colorSchemes` | Light and dark colour palettes. | object |  |
+| `thunder.bootstrap.ampConsoleTheme.theme.colorSchemes.light` | Palette used in light mode. | object |  |
+| `thunder.bootstrap.ampConsoleTheme.theme.colorSchemes.light.colors` | Colour tokens for light mode. | object |  |
+| `thunder.bootstrap.ampConsoleTheme.theme.colorSchemes.light.colors.primary` | Console theme colour token | object |  |
+| `thunder.bootstrap.ampConsoleTheme.theme.colorSchemes.light.colors.primary.main` | Console theme colour token | string | `"#fa7b3f"` |
+| `thunder.bootstrap.ampConsoleTheme.theme.colorSchemes.light.colors.primary.dark` | Console theme colour token | string | `"#e74420"` |
+| `thunder.bootstrap.ampConsoleTheme.theme.colorSchemes.light.colors.primary.contrastText` | Console theme colour token | string | `"#ffffff"` |
+| `thunder.bootstrap.ampConsoleTheme.theme.colorSchemes.light.colors.secondary` | Console theme colour token | object |  |
+| `thunder.bootstrap.ampConsoleTheme.theme.colorSchemes.light.colors.secondary.main` | Console theme colour token | string | `"#1a1a2e"` |
+| `thunder.bootstrap.ampConsoleTheme.theme.colorSchemes.light.colors.secondary.dark` | Console theme colour token | string | `"#0d0d1a"` |
+| `thunder.bootstrap.ampConsoleTheme.theme.colorSchemes.light.colors.secondary.contrastText` | Console theme colour token | string | `"#ffffff"` |
+| `thunder.bootstrap.ampConsoleTheme.theme.colorSchemes.light.colors.background` | Console theme colour token | object |  |
+| `thunder.bootstrap.ampConsoleTheme.theme.colorSchemes.light.colors.background.default` | Console theme colour token | string | `"#f7f8fb"` |
+| `thunder.bootstrap.ampConsoleTheme.theme.colorSchemes.light.colors.background.paper` | Console theme colour token | string | `"#ffffff"` |
+| `thunder.bootstrap.ampConsoleTheme.theme.colorSchemes.light.colors.text` | Console theme colour token | object |  |
+| `thunder.bootstrap.ampConsoleTheme.theme.colorSchemes.light.colors.text.primary` | Console theme colour token | string | `"#000000"` |
+| `thunder.bootstrap.ampConsoleTheme.theme.colorSchemes.light.colors.text.secondary` | Console theme colour token | string | `"#494848"` |
+| `thunder.bootstrap.ampConsoleTheme.theme.colorSchemes.dark` | Palette used in dark mode. | object |  |
+| `thunder.bootstrap.ampConsoleTheme.theme.colorSchemes.dark.colors` | Colour tokens for dark mode. | object |  |
+| `thunder.bootstrap.ampConsoleTheme.theme.colorSchemes.dark.colors.primary` | Console theme colour token | object |  |
+| `thunder.bootstrap.ampConsoleTheme.theme.colorSchemes.dark.colors.primary.main` | Console theme colour token | string | `"#fa7b3f"` |
+| `thunder.bootstrap.ampConsoleTheme.theme.colorSchemes.dark.colors.primary.dark` | Console theme colour token | string | `"#e74420"` |
+| `thunder.bootstrap.ampConsoleTheme.theme.colorSchemes.dark.colors.primary.contrastText` | Console theme colour token | string | `"#ffffff"` |
+| `thunder.bootstrap.ampConsoleTheme.theme.colorSchemes.dark.colors.secondary` | Console theme colour token | object |  |
+| `thunder.bootstrap.ampConsoleTheme.theme.colorSchemes.dark.colors.secondary.main` | Console theme colour token | string | `"#ff9966"` |
+| `thunder.bootstrap.ampConsoleTheme.theme.colorSchemes.dark.colors.secondary.dark` | Console theme colour token | string | `"#fa7b3f"` |
+| `thunder.bootstrap.ampConsoleTheme.theme.colorSchemes.dark.colors.secondary.contrastText` | Console theme colour token | string | `"#000000"` |
+| `thunder.bootstrap.ampConsoleTheme.theme.colorSchemes.dark.colors.background` | Console theme colour token | object |  |
+| `thunder.bootstrap.ampConsoleTheme.theme.colorSchemes.dark.colors.background.default` | Console theme colour token | string | `"#121212"` |
+| `thunder.bootstrap.ampConsoleTheme.theme.colorSchemes.dark.colors.background.paper` | Console theme colour token | string | `"#1e1e1e"` |
+| `thunder.bootstrap.ampConsoleTheme.theme.colorSchemes.dark.colors.text` | Console theme colour token | object |  |
+| `thunder.bootstrap.ampConsoleTheme.theme.colorSchemes.dark.colors.text.primary` | Console theme colour token | string | `"#ffffff"` |
+| `thunder.bootstrap.ampConsoleTheme.theme.colorSchemes.dark.colors.text.secondary` | Console theme colour token | string | `"#cccccc"` |
+| `thunder.bootstrap.ampConsoleLayout` | Agent Manager Console Layout (split-screen sign-in page for amp-console-client). | object |  |
+| `thunder.bootstrap.ampConsoleLayout.id` | Console layout setting | string | `"0e0dc039-bae9-4563-82b9-ee4e76f9a58c"` |
+| `thunder.bootstrap.ampConsoleLayout.handle` | Console layout setting | string | `"wso2-agent-manager-console"` |
+| `thunder.bootstrap.ampConsoleLayout.displayName` | Console layout setting | string | `"WSO2 Agent Manager Console Layout"` |
+| `thunder.bootstrap.ampConsoleLayout.layout` | Console layout setting | object |  |
+| `thunder.bootstrap.ampConsoleLayout.layout.head` | Console layout setting | object |  |
+| `thunder.bootstrap.ampConsoleLayout.layout.head.stylesheets` | Console layout setting | array | see `values.yaml` |
+| `thunder.bootstrap.ampConsoleLayout.layout.screens` | Console layout setting | object |  |
+| `thunder.bootstrap.ampConsoleLayout.layout.screens.signin` | Console layout setting | object |  |
+| `thunder.bootstrap.ampConsoleLayout.layout.screens.signin.title` | Console layout setting | string | `"Sign In"` |
+| `thunder.bootstrap.ampConsoleLayout.layout.screens.signin.layout` | Console layout setting | string | `"split"` |
+| `thunder.bootstrap.ampConsoleLayout.layout.screens.signup` | Console layout setting | object |  |
+| `thunder.bootstrap.ampConsoleLayout.layout.screens.signup.title` | Console layout setting | string | `"Create your WSO2 Cloud account"` |
+| `thunder.bootstrap.ampConsoleLayout.layout.screens.signup.layout` | Console layout setting | string | `"split"` |
+| `thunder.bootstrap.ampConsoleLayout.layout.screens.common` | Console layout setting | object |  |
+| `thunder.bootstrap.ampConsoleLayout.layout.screens.common.layout` | Console layout setting | string | `"split"` |
+| `thunder.bootstrap.organizationUnit` | Default Organization unit configuration | object |  |
+| `thunder.bootstrap.organizationUnit.name` | Display name of the default organization unit. | string | `"Default"` |
+| `thunder.bootstrap.organizationUnit.handle` | Handle of the default organization unit. Appears in token claims. | string | `"default"` |
+| `thunder.bootstrap.organizationUnit.description` | Description of the default organization unit. | string | `"Default organizational unit"` |
+| `thunder.bootstrap.userSchema` | User schema configuration | object |  |
+| `thunder.bootstrap.userSchema.name` | Name of the user attribute schema. | string | `"engineer"` |
+| `thunder.bootstrap.userSchema.allowSelfRegistration` | Let users register themselves rather than being invited. | boolean | `true` |
+| `thunder.bootstrap.defaultUsers` | Default users configuration | array | see `values.yaml` |
+
+## thunder.configuration
+
+| Parameter | Description | Type | Default |
+|---|---|---|---|
+| `thunder.configuration` | Thunder's own runtime configuration, rendered into its config file. | object |  |
+| `thunder.configuration.server` | Server listener settings. | object |  |
+| `thunder.configuration.server.port` | Port the server process listens on | integer | `8090` |
+| `thunder.configuration.server.httpOnly` | Serve plain HTTP only, leaving TLS termination to the gateway. | boolean | `true` |
+| `thunder.configuration.server.publicUrl` | URL where users reach Thunder in their browser. Thunder uses it to build login and error redirect links. | string | `"http://thunder.amp.localhost:8080"` |
+| `thunder.configuration.gateClient` | Where Thunder serves its login and consent screens. Hostname, port, and scheme default to server.publicUrl, and are only needed when Gate is hosted separately. | object |  |
+| `thunder.configuration.gateClient.hostname` | Hostname serving those screens. | string | `"thunder.amp.localhost"` |
+| `thunder.configuration.gateClient.port` | Port serving those screens. | integer | `8080` |
+| `thunder.configuration.gateClient.scheme` | URL scheme used to build the redirect. | string | `"http"` |
+| `thunder.configuration.gateClient.path` | Base path the screens are served under. | string | `"/gate"` |
+| `thunder.configuration.crypto` | Cryptographic material and password hashing settings. | object |  |
+| `thunder.configuration.crypto.encryption` | Key used to encrypt data Thunder stores at rest. | object |  |
+| `thunder.configuration.crypto.encryption.key` | Location of the encryption key, as a file:// reference. Replace the default with a 32-byte (64-character) hex string before any production deployment. | string | `"file://config/certs/crypto.key"` |
+| `thunder.configuration.crypto.passwordHashing` | How user passwords are hashed before storage. | object |  |
+| `thunder.configuration.crypto.passwordHashing.algorithm` | Hashing algorithm used for new passwords. | string | `"PBKDF2"` |
+| `thunder.configuration.crypto.passwordHashing.argon2id` | Parameters used when the algorithm is Argon2id. | object |  |
+| `thunder.configuration.crypto.passwordHashing.argon2id.iterations` | Passes over memory. Higher is slower to compute and to attack. | integer | `2` |
+| `thunder.configuration.crypto.passwordHashing.argon2id.memory` | Memory used per hash, in kibibytes. | integer | `19456` |
+| `thunder.configuration.crypto.passwordHashing.argon2id.parallelism` | Parallel lanes used per hash. | integer | `1` |
+| `thunder.configuration.crypto.passwordHashing.argon2id.key_size` | Length of the derived hash, in bytes. | integer | `32` |
+| `thunder.configuration.crypto.passwordHashing.argon2id.salt_size` | Length of the random salt, in bytes. | integer | `16` |
+| `thunder.configuration.crypto.passwordHashing.pbkdf2` | Parameters used when the algorithm is PBKDF2. | object |  |
+| `thunder.configuration.crypto.passwordHashing.pbkdf2.iterations` | Iteration count. Raise it as hardware gets faster. | integer | `600000` |
+| `thunder.configuration.crypto.passwordHashing.pbkdf2.key_size` | Length of the derived hash, in bytes. | integer | `32` |
+| `thunder.configuration.crypto.passwordHashing.pbkdf2.salt_size` | Length of the random salt, in bytes. | integer | `16` |
+| `thunder.configuration.crypto.passwordHashing.sha256` | Parameters used when the algorithm is SHA-256. Weaker than the alternatives above. | object |  |
+| `thunder.configuration.crypto.passwordHashing.sha256.salt_size` | Length of the random salt, in bytes. | integer | `16` |
+| `thunder.configuration.crypto.keys` | Signing key pairs Thunder publishes and signs tokens with, each a certificate and key file. The setup job generates them, including the ECDSA key used by the OpenID4VP and OpenID4VCI engines. | array | see `values.yaml` |
+| `thunder.configuration.database` | Databases Thunder uses. Each may point at its own backend. | object |  |
+| `thunder.configuration.database.config` | Store holding Thunder's own configuration. | object |  |
+| `thunder.configuration.database.config.type` | Database engine for this store, postgres or sqlite. Use sqlite only when running a single pod. | string | `"sqlite"` |
+| `thunder.configuration.database.config.sqlite` | SQLite settings used when the type is sqlite. | object |  |
+| `thunder.configuration.database.config.sqlite.path` | Filesystem path to the SQLite database file | string | `"database/configdb.db"` |
+| `thunder.configuration.database.config.sqlite.options` | Extra SQLite connection options appended to the DSN | string | `"_journal_mode=WAL&_busy_timeout=5000&_pragma=foreign_keys(1)"` |
+| `thunder.configuration.database.config.sqlite.max_open_conns` | Maximum open connections in the pool | integer | `500` |
+| `thunder.configuration.database.config.sqlite.max_idle_conns` | Maximum idle connections kept in the pool | integer | `100` |
+| `thunder.configuration.database.config.sqlite.conn_max_lifetime` | Maximum lifetime of a pooled connection, in seconds | integer | `3600` |
+| `thunder.configuration.database.runtime_transient` | Store for short-lived runtime state. May be backed by Redis as well as a SQL engine. | object |  |
+| `thunder.configuration.database.runtime_transient.type` | Database engine for this store, postgres or sqlite. Use sqlite only when running a single pod. | string | `"sqlite"` |
+| `thunder.configuration.database.runtime_transient.sqlite` | SQLite settings used when the type is sqlite. | object |  |
+| `thunder.configuration.database.runtime_transient.sqlite.path` | Filesystem path to the SQLite database file | string | `"database/runtime_transient.db"` |
+| `thunder.configuration.database.runtime_transient.sqlite.options` | Extra SQLite connection options appended to the DSN | string | `"_journal_mode=WAL&_busy_timeout=5000&_pragma=foreign_keys(1)"` |
+| `thunder.configuration.database.runtime_transient.sqlite.max_open_conns` | Maximum open connections in the pool | integer | `500` |
+| `thunder.configuration.database.runtime_transient.sqlite.max_idle_conns` | Maximum idle connections kept in the pool | integer | `100` |
+| `thunder.configuration.database.runtime_transient.sqlite.conn_max_lifetime` | Maximum lifetime of a pooled connection, in seconds | integer | `3600` |
+| `thunder.configuration.database.entity` | Store holding users, groups, and applications. | object |  |
+| `thunder.configuration.database.entity.type` | Database engine for this store, postgres or sqlite. Use sqlite only when running a single pod. | string | `"sqlite"` |
+| `thunder.configuration.database.entity.sqlite` | SQLite settings used when the type is sqlite. | object |  |
+| `thunder.configuration.database.entity.sqlite.path` | Filesystem path to the SQLite database file | string | `"database/entitydb.db"` |
+| `thunder.configuration.database.entity.sqlite.options` | Extra SQLite connection options appended to the DSN | string | `"_journal_mode=WAL&_busy_timeout=5000&_pragma=foreign_keys(1)"` |
+| `thunder.configuration.database.entity.sqlite.max_open_conns` | Maximum open connections in the pool | integer | `500` |
+| `thunder.configuration.database.entity.sqlite.max_idle_conns` | Maximum idle connections kept in the pool | integer | `100` |
+| `thunder.configuration.database.entity.sqlite.conn_max_lifetime` | Maximum lifetime of a pooled connection, in seconds | integer | `3600` |
+| `thunder.configuration.database.runtime_persistent` | Store for runtime state that must survive a restart: SSO sessions, revoked tokens, and consent records. | object |  |
+| `thunder.configuration.database.runtime_persistent.type` | Database engine for this store, postgres or sqlite. Use sqlite only when running a single pod. | string | `"sqlite"` |
+| `thunder.configuration.database.runtime_persistent.sqlite` | SQLite settings used when the type is sqlite. | object |  |
+| `thunder.configuration.database.runtime_persistent.sqlite.path` | Filesystem path to the SQLite database file | string | `"database/runtime_persistent.db"` |
+| `thunder.configuration.database.runtime_persistent.sqlite.options` | Extra SQLite connection options appended to the DSN | string | `"_journal_mode=WAL&_busy_timeout=5000&_pragma=foreign_keys(1)"` |
+| `thunder.configuration.database.runtime_persistent.sqlite.max_open_conns` | Maximum open connections in the pool | integer | `500` |
+| `thunder.configuration.database.runtime_persistent.sqlite.max_idle_conns` | Maximum idle connections kept in the pool | integer | `100` |
+| `thunder.configuration.database.runtime_persistent.sqlite.conn_max_lifetime` | Maximum lifetime of a pooled connection, in seconds | integer | `3600` |
+| `thunder.configuration.cache` | In-process cache in front of the databases. | object |  |
+| `thunder.configuration.cache.disabled` | Turn the cache off entirely. | boolean | `false` |
+| `thunder.configuration.cache.type` | Cache backend. | string | `"inmemory"` |
+| `thunder.configuration.cache.size` | Maximum entries held before eviction. | integer | `1000` |
+| `thunder.configuration.cache.ttl` | Seconds an entry stays valid. | integer | `3600` |
+| `thunder.configuration.cache.evictionPolicy` | Policy deciding which entry is dropped when the cache is full. | string | `"LRU"` |
+| `thunder.configuration.cache.cleanupInterval` | Seconds between sweeps for expired entries. | integer | `300` |
+| `thunder.configuration.jwt` | Defaults for the tokens Thunder issues. | object |  |
+| `thunder.configuration.jwt.issuer` | Issuer claim stamped on issued tokens. | string | `"http://thunder.amp.localhost:8080"` |
+| `thunder.configuration.jwt.validityPeriod` | Access token lifetime in seconds. | integer | `3600` |
+| `thunder.configuration.jwt.audience` | Default audience claim on issued tokens. | string | `"application"` |
+| `thunder.configuration.jwt.preferredKeyId` | Key used to sign new tokens. Must match an id defined under crypto.keys; other configured keys stay valid for verification. | string | `"default-key"` |
+| `thunder.configuration.oauth` | OAuth 2.0 protocol settings. | object |  |
+| `thunder.configuration.oauth.refreshToken` | Refresh token behaviour. | object |  |
+| `thunder.configuration.oauth.refreshToken.renewOnGrant` | Issue a new refresh token each time one is redeemed. | boolean | `false` |
+| `thunder.configuration.oauth.refreshToken.validityPeriod` | Refresh token lifetime in seconds. | integer | `86400` |
+| `thunder.configuration.oauth.authorizationCode` | Authorization code behaviour. | object |  |
+| `thunder.configuration.oauth.authorizationCode.validityPeriod` | Seconds an authorization code may be redeemed within. | integer | `600` |
+| `thunder.configuration.oauth.dcr` | Dynamic Client Registration settings. | object |  |
+| `thunder.configuration.oauth.dcr.insecure` | Allow client registration without authentication. Leave off outside local development. | boolean | `false` |
+| `thunder.configuration.consent` | The consent service that records user approval of scope grants. | object |  |
+| `thunder.configuration.consent.enabled` | Run the consent service. | boolean | `true` |
+| `thunder.configuration.consent.baseUrl` | Base URL Thunder calls the consent service on. | string | `"http://localhost:9090/api/v1"` |
+| `thunder.configuration.consent.timeout` | Seconds Thunder waits for a consent service response. | integer | `5` |
+| `thunder.configuration.consent.maxRetries` | Retries before a consent call is treated as failed. | integer | `3` |
+| `thunder.configuration.consent.server` | Listener for the consent service. | object |  |
+| `thunder.configuration.consent.server.port` | Port the server process listens on | integer | `9090` |
+| `thunder.configuration.consent.server.hostname` | Hostname the consent service binds to. | string | `"localhost"` |
+| `thunder.configuration.consent.database` | Database backing the consent service. | object |  |
+| `thunder.configuration.consent.database.type` | Database engine for consent records. | string | `"sqlite"` |
+| `thunder.configuration.consent.database.sqlitePath` | Path to the SQLite consent database. | string | `"repository/database/consentdb.db"` |
+| `thunder.configuration.consent.database.sqliteOptions` | Extra SQLite options appended to the connection string. | string | `"_pragma=journal_mode(WAL)&_pragma=cache_size(-16000)"` |
+| `thunder.configuration.cors` | Cross-origin policy for Thunder's own endpoints. | object |  |
+| `thunder.configuration.cors.allowedOrigins` | Browser origins allowed to call Thunder. Narrow this in production. | array | see `values.yaml` |
+
+## thunder.deployment
+
+| Parameter | Description | Type | Default |
+|---|---|---|---|
+| `thunder.deployment` | Deployment settings for the Thunder pod. | object |  |
+| `thunder.deployment.replicaCount` | Number of pod replicas to run | integer | `1` |
+| `thunder.deployment.strategy` | Rollout strategy used when the Deployment is updated. | object |  |
+| `thunder.deployment.strategy.rollingUpdate` | Rolling update bounds for the Thunder Deployment. | object |  |
+| `thunder.deployment.strategy.rollingUpdate.maxSurge` | Pods that may be created above the desired count during a rollout. | integer | `1` |
+| `thunder.deployment.strategy.rollingUpdate.maxUnavailable` | Pods that may be unavailable during a rollout. | integer | `0` |
+| `thunder.deployment.securityContext` | Container-level security settings for Thunder. | object |  |
+| `thunder.deployment.securityContext.readOnlyRootFilesystem` | Read-only root filesystem. Must be false for SQLite | boolean | `false` |
+| `thunder.deployment.securityContext.enableRunAsUser` | Pin the container to a fixed UID rather than the image default. | boolean | `true` |
+| `thunder.deployment.securityContext.fsGroup` | Supplemental group applied to mounted volumes. | integer | `10001` |
+| `thunder.deployment.securityContext.runAsUser` | UID the container runs as | integer | `10001` |
+| `thunder.deployment.securityContext.seccompProfile` | Seccomp profile restricting the syscalls Thunder may make. | object |  |
+| `thunder.deployment.securityContext.seccompProfile.enabled` | Apply a seccomp profile. | boolean | `true` |
+| `thunder.deployment.securityContext.seccompProfile.type` | Seccomp profile to apply. | string | `"RuntimeDefault"` |
+| `thunder.deployment.terminationGracePeriodSeconds` | Seconds Thunder is given to shut down before it is killed. | integer | `10` |
+| `thunder.deployment.image` | Container image for Thunder. | object |  |
+| `thunder.deployment.image.registry` | Registry the Thunder image is pulled from. | string | `"ghcr.io/thunder-id"` |
+| `thunder.deployment.image.repository` | Container image repository | string | `"thunderid"` |
+| `thunder.deployment.image.tag` | Container image tag. Define either tag or digest, not both. | string | `"1.0.0"` |
+| `thunder.deployment.image.pullPolicy` | Image pull policy (`Always`, `IfNotPresent`, or `Never`) | string | `"Always"` |
+| `thunder.deployment.container` | Container-level settings such as ports. | object |  |
+| `thunder.deployment.container.port` | Port Thunder listens on inside the container. | integer | `8090` |
+| `thunder.deployment.resources` | Compute resources for the Thunder container. | object |  |
+| `thunder.deployment.resources.limits` | Maximum resources the Thunder container may use. | object |  |
+| `thunder.deployment.resources.limits.cpu` | Maximum CPU the container may use | string | `"500m"` |
+| `thunder.deployment.resources.limits.memory` | Maximum memory the container may use before it is OOM-killed | string | `"512Mi"` |
+| `thunder.deployment.resources.requests` | Resources reserved for Thunder at scheduling time. | object |  |
+| `thunder.deployment.resources.requests.cpu` | CPU the container requests at scheduling time | string | `"100m"` |
+| `thunder.deployment.resources.requests.memory` | Memory the container requests at scheduling time | string | `"128Mi"` |
+
+## thunder.hpa
+
+| Parameter | Description | Type | Default |
+|---|---|---|---|
+| `thunder.hpa` | Horizontal Pod Autoscaler settings for Thunder. | object |  |
+| `thunder.hpa.enabled` | Enable the Horizontal Pod Autoscaler. | boolean | `false` |
+
+## thunder.ingress
+
+| Parameter | Description | Type | Default |
+|---|---|---|---|
+| `thunder.ingress` | Standard Kubernetes Ingress for Thunder. Off by default in favour of the gateway route. | object |  |
+| `thunder.ingress.enabled` | Create an Ingress resource for this component | boolean | `false` |
+
+## thunder.ocIngress
+
+| Parameter | Description | Type | Default |
+|---|---|---|---|
+| `thunder.ocIngress` | Gateway route exposing Thunder outside the cluster. | object |  |
+| `thunder.ocIngress.hostname` | Hostname routed to this component through the gateway | string | `"thunder.amp.localhost"` |
+| `thunder.ocIngress.https` | Dedicated HTTPS listener, needed when environment instances must trust this issuer over TLS. | object |  |
+| `thunder.ocIngress.https.enabled` | Enable a dedicated HTTPS Gateway (port 8443) and cert-manager TLS certificate for thunder.amp.localhost so env-Thunder instances can wire it as a trusted issuer. Requires cert-manager to be installed in the cluster. | boolean | `true` |
+| `thunder.ocIngress.https.port` | Port the dedicated HTTPS listener serves on. | integer | `8443` |
+| `thunder.ocIngress.https.createIssuer` | Set to true to create the local ClusterIssuer and Root CA. Only one instance in the cluster (typically the platform-wide instance) should create these. | boolean | `true` |
+
+## thunder.pdb
+
+| Parameter | Description | Type | Default |
+|---|---|---|---|
+| `thunder.pdb` | PodDisruptionBudget protecting Thunder during voluntary disruption. | object |  |
+| `thunder.pdb.minAvailable` | Minimum pods that must stay available during voluntary disruption | string | `"50%"` |
+
+## thunder.persistence
+
+| Parameter | Description | Type | Default |
+|---|---|---|---|
+| `thunder.persistence` | Persistent storage for Thunder's databases and keys. | object |  |
+| `thunder.persistence.enabled` | Persist data on a PersistentVolumeClaim instead of the pod filesystem | boolean | `true` |
+| `thunder.persistence.storageClass` | StorageClass for the PersistentVolumeClaim. Uses the cluster default when empty | string | `""` |
+| `thunder.persistence.accessMode` | Access mode requested for the PersistentVolumeClaim. | string | `"ReadWriteOnce"` |
+| `thunder.persistence.size` | Size of the PersistentVolumeClaim | string | `"1Gi"` |
+| `thunder.persistence.annotations` | Annotations added to the PersistentVolumeClaim. | object | `{}` |
+
+## thunder.service
+
+| Parameter | Description | Type | Default |
+|---|---|---|---|
+| `thunder.service` | Kubernetes Service fronting Thunder. | object |  |
+| `thunder.service.port` | Port the Service listens on | integer | `8090` |
+
+## thunder.serviceAccount
+
+| Parameter | Description | Type | Default |
+|---|---|---|---|
+| `thunder.serviceAccount` | ServiceAccount used by the Thunder pod. | object |  |
+| `thunder.serviceAccount.name` | Name of the ServiceAccount to use. Generated when empty | string | `"thunder-service-account"` |
+| `thunder.serviceAccount.create` | Create a ServiceAccount for this component | boolean | `true` |
+
+## thunder.setup
+
+| Parameter | Description | Type | Default |
+|---|---|---|---|
+| `thunder.setup` | One-off job that initialises Thunder after install. | object |  |
+| `thunder.setup.enabled` | Run the setup job. It runs on first install only, via a Helm hook. | boolean | `true` |
+| `thunder.setup.backoffLimit` | Retries before the setup job is marked failed. | integer | `3` |
+| `thunder.setup.ttlSecondsAfterFinished` | Seconds a failed setup job is kept before cleanup, where 0 keeps it indefinitely. Applies only when preserveJob is false. | integer | `86400` |
+| `thunder.setup.preserveJob` | Keep the setup job after it completes. When false, a successful job is deleted immediately and a failed one after ttlSecondsAfterFinished. | boolean | `true` |
+| `thunder.setup.debug` | Emit verbose setup logs. | boolean | `false` |
+| `thunder.setup.admin` | Thunder's own native admin user (created by its built-in bootstrap, backend/cmd/server/bootstrap/01-default-resources.yaml, type "Person", fixed id 01900000-0000-7000-8000-000000000030) is deliberately left at its default username "admin" here — 67-amp-default-users.yaml below re-targets our own admin bootstrap entry at this SAME fixed id instead of creating a separate user, merging the two into a single account. That account already sits in Thunder's built-in "Administrators" group (system permission), so it works for both the AMP console and ThunderID's own native console without needing a second AMP-side role for it. Leave password empty for production: this chart's own admin-credentials.yaml then generates a random 10-character value itself (reused across reinstalls the same way Thunder's own admin-secret.yaml already does), so there is no shipped default for anyone to leave unchanged. Set it explicitly (the local dev, quick-start, and VM installers all set it to a fixed value) only when a memorable password matters more than a generated one — e.g. a machine only the operator can reach. Either way, retrieve the real value in effect any time with: kubectl get secret amp-admin-credentials -n &lt;thunder-namespace&gt; -o jsonpath='&#123;.data.password&#125;' \| base64 -d | object |  |
+| `thunder.setup.admin.username` | Username of the administrator account created at setup. | string | `"admin"` |
+| `thunder.setup.admin.password` | Administrator password set inline. Leave empty to generate a random one. Ignored when passwordRef is set. | string | `""` |
+| `thunder.setup.admin.passwordRef` | Secret holding the administrator password. | object |  |
+| `thunder.setup.admin.passwordRef.name` | Name of that Secret. | string | `"amp-admin-credentials"` |
+| `thunder.setup.admin.passwordRef.key` | Key within that Secret. | string | `"password"` |
+| `thunder.setup.resources` | Compute resources for the setup job. | object |  |
+| `thunder.setup.resources.limits` | Maximum resources the setup job may use. | object |  |
+| `thunder.setup.resources.limits.cpu` | Maximum CPU the container may use | string | `"500m"` |
+| `thunder.setup.resources.limits.memory` | Maximum memory the container may use before it is OOM-killed | string | `"256Mi"` |
+| `thunder.setup.resources.requests` | Resources reserved for the setup job at scheduling time. | object |  |
+| `thunder.setup.resources.requests.cpu` | CPU the container requests at scheduling time | string | `"250m"` |
+| `thunder.setup.resources.requests.memory` | Memory the container requests at scheduling time | string | `"128Mi"` |
+

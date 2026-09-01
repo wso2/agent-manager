@@ -106,6 +106,16 @@ func tierCtx(t *testing.T, scopes ...rbac.Permission) context.Context {
 		&jwtassertion.TokenClaims{OuId: tierOUID, Scope: scope})
 }
 
+// tierGrantedCtx is the caller the deploy and promote fixtures assume: it holds
+// both environment tiers, so requireEnvTier passes and the test reaches whatever
+// it is actually about. Tests about the tier check itself use tierCtx.
+func tierGrantedCtx(t *testing.T) context.Context {
+	t.Helper()
+	return jwtassertion.ContextWithTokenClaimsAndScope(auditableCtx(t), &jwtassertion.TokenClaims{
+		Scope: audit.ScopesOf([]rbac.Permission{rbac.AgentEnvNonProduction, rbac.AgentEnvProduction}),
+	})
+}
+
 // TestRequireEnvTier_ProductionEnvNeedsProductionScope is the point of the whole
 // change: the floor is not enough for a production environment.
 func TestRequireEnvTier_ProductionEnvNeedsProductionScope(t *testing.T) {
@@ -280,7 +290,7 @@ func TestUpdateAgentConfigurations_ProductionNeedsProductionScope(t *testing.T) 
 		GetEnvironmentFunc: func(_ context.Context, _, name string) (*models.EnvironmentResponse, error) {
 			return &models.EnvironmentResponse{Name: name, IsProduction: true}, nil
 		},
-		ReplaceReleaseBindingWorkloadOverridesFunc: func(context.Context, string, string, string, []client.EnvVar, []client.FileVar) error {
+		EnsureReleaseAndBindingFunc: func(context.Context, string, string, string, string, []client.EnvVar, []client.FileVar) error {
 			overridesReplaced = true
 			return nil
 		},

@@ -153,9 +153,9 @@ services:
       # Base domain env-Thunder instances are hosted under, and whether this
       # deployment serves them over TLS — piped into the Create Environment
       # drawer's rendered add-environment.sh command. Matches
-      # agent-manager-service's own THUNDER_HOST_BASE_DOMAIN/TLS_ENABLED
+      # agent-manager-service's own IDP_HOST_BASE_DOMAIN/TLS_ENABLED
       # defaults for local dev.
-      - THUNDER_HOST_BASE_DOMAIN=amp.localhost
+      - IDP_HOST_BASE_DOMAIN=amp.localhost
       - TLS_ENABLED=false
       - GUARDRAILS_CATALOG_URL=https://db720294-98fd-40f4-85a1-cc6a3b65bc9a-prod.e1-us-east-azure.choreoapis.dev/api-platform/policy-hub-api/policy-hub-public/v1.0/policies?categories=Guardrails,AI&limit=100
       - GUARDRAILS_DEFINITION_BASE_URL=https://db720294-98fd-40f4-85a1-cc6a3b65bc9a-prod.e1-us-east-azure.choreoapis.dev/api-platform/policy-hub-api/policy-hub-public/v1.0/policies

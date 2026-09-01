@@ -188,7 +188,7 @@ func buildStatusResult(agent string, order []string, deployments amsvc.Deploymen
 			Endpoints: make([]EndpointRef, 0, len(d.Endpoints)),
 		}
 		// lastDeployed is omitted for bindings that have not deployed yet (e.g.
-		// created by AutoDeploy before the first backend deploy); zero time renders as "-".
+		// created by the build workflow before the first backend deploy); zero time renders as "-".
 		if d.LastDeployed != nil {
 			row.LastDeployed = *d.LastDeployed
 		}

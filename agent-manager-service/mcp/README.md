@@ -91,7 +91,7 @@ The relevant env vars on `agent-manager-service` are already set:
 - SERVER_PUBLIC_URL=http://localhost:9000
 - OAUTH_AUTHORIZATION_SERVERS=http://thunder.amp.localhost:8080
 - KEY_MANAGER_ISSUER=Agent Management Platform Local,http://thunder.amp.localhost:8080
-- KEY_MANAGER_AUDIENCE=localhost,amp-publisher-*,amp-api-client,amp-console-client,am-cli,http://localhost:9000/
+- KEY_MANAGER_AUDIENCE=localhost,amp-publisher-*,amp-api-client,amp-console-client,am-cli,http://localhost:9000/mcp
 ```
 
 ### Helm

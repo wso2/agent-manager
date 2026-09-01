@@ -24,12 +24,27 @@ import (
 	"time"
 
 	"github.com/golang-jwt/jwt/v5"
+
+	"github.com/wso2/agent-manager/agent-manager-service/rbac"
 )
 
 // MockOUID is the OU ID carried by tokens minted by NewMockMiddleware. It is
 // distinct from the path org handle (as in a real token). Handlers scope org
 // data by OU ID, so tests assert against this value rather than the path org.
 const MockOUID = "mock-org-id"
+
+// mockScopes is the scope set every mocked token carries: the whole permission
+// catalog, since the Admin role is pinned to hold all of it. Handler tests are
+// about the handler, not the gate — a token short of a scope would turn every
+// one of them into a 403. Scope checks are exercised in middleware's own tests.
+func mockScopes() string {
+	perms := rbac.PredefinedRolePermissions[rbac.RoleAdmin]
+	scopes := make([]string, 0, len(perms))
+	for _, perm := range perms {
+		scopes = append(scopes, perm.Scope())
+	}
+	return strings.Join(scopes, " ")
+}
 
 // NewMockMiddleware creates a mock JWT middleware for testing.
 // Automatically extracts org from the request path if it contains /orgs/{orgName}/
@@ -58,7 +73,7 @@ func NewMockMiddlewareWithOUID(t *testing.T, ouID string) Middleware {
 			// OuId is a distinct identifier, as in a real token. Handlers scope by
 			// OuId, so tests assert against this value, not the path org.
 			tokenClaims := &TokenClaims{
-				Scope:    "test-scopes",
+				Scope:    mockScopes(),
 				OuId:     ouID,
 				OuHandle: orgName,
 				RegisteredClaims: jwt.RegisteredClaims{

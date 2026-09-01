@@ -123,9 +123,11 @@ if [ "${DEPROVISION_THUNDER:-true}" = "true" ]; then
     THUNDER_SCRIPT_URL="${THUNDER_SCRIPT_URL:-${SCRIPT_BASE_URL}/remove-environment-thunder.sh}"
     script_tmp="$(mktemp)"
     if curl -fsSL "${THUNDER_SCRIPT_URL}" -o "$script_tmp"; then
-      # SCRIPT_BASE_URL is forwarded so the chained script fetches
-      # thunder-naming.sh/ams-auth.sh from the same git ref as this one.
-      if ENV_NAME="${ENV_NAME}" ORG_NAME="${ORG_NAME}" SCRIPT_BASE_URL="${SCRIPT_BASE_URL}" bash "$script_tmp"; then
+      # Forward the API URL and token already validated by this script so the
+      # chained cleanup updates the same Agent Manager deployment.
+      if ENV_NAME="${ENV_NAME}" ORG_NAME="${ORG_NAME}" SCRIPT_BASE_URL="${SCRIPT_BASE_URL}" \
+          AMP_API_URL="${AGENT_MANAGER_API_URL}" AGENT_MANAGER_TOKEN="${AGENT_MANAGER_TOKEN}" \
+          bash "$script_tmp"; then
         echo "✅ Thunder ID instance removed"
       else
         echo "⚠️  Thunder ID removal failed — continuing with gateway removal."
@@ -190,4 +192,3 @@ fi
 echo ""
 echo "=== Environment '${ENV_NAME}' removed ==="
 echo ""
-

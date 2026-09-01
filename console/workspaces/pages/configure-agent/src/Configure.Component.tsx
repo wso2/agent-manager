@@ -170,11 +170,18 @@ export const ConfigureComponent: React.FC = () => {
   const buildsOwnImage =
     !!agent && agent.provisioning?.type !== "external" && !agent.kindName;
 
-  const { data: buildsData, isLoading: isLoadingBuilds } = useGetAgentBuilds({
-    orgName: orgId,
-    projName: projectId,
-    agentName: agentId,
-  });
+  // Exempt agents have no builds of their own, so the list is never fetched for
+  // them — the gate is already open and the request would only be an empty
+  // answer to a question that does not apply.
+  const { data: buildsData, isLoading: isLoadingBuilds } = useGetAgentBuilds(
+    {
+      orgName: orgId,
+      projName: projectId,
+      agentName: agentId,
+    },
+    undefined,
+    { enabled: buildsOwnImage },
+  );
   const builds = useMemo(() => buildsData?.builds ?? [], [buildsData]);
   const hasNoCompletedBuild =
     buildsOwnImage && !isLoadingBuilds && !builds.some(isBuildComplete);

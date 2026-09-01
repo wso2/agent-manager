@@ -660,13 +660,14 @@ func (r ApiDeleteEnvironmentThunderUrlRequest) Execute() (*http.Response, error)
 }
 
 /*
-DeleteEnvironmentThunderUrl Remove an environment's env-Thunder URL handle
+DeleteEnvironmentThunderUrl Remove an environment's env-Thunder URL
 
-Removes the registered handle for an environment, freeing it for
-reuse. Called by remove-environment-thunder.sh when an environment's
-Thunder instance is torn down. Deleting a non-existent handle
-succeeds (idempotent). Looked up by OU ID, always taken from the
-caller's own token (never client-supplied), not orgName.
+Removes the registered origin (and handle, if any) for an
+environment, freeing both for reuse. Called by
+remove-environment-thunder.sh when an environment's Thunder instance
+is torn down. Deleting a non-existent registration succeeds
+(idempotent). Looked up by OU ID, always taken from the caller's own
+token (never client-supplied), not orgName.
 
 	@param ctx context.Context - for authentication, logging, cancellation, deadlines, tracing, etc. Passed from http.Request or context.Background().
 	@param orgName Organization name/handle
@@ -1614,36 +1615,42 @@ func (r ApiSetEnvironmentThunderUrlRequest) Execute() (*ThunderUrlResponse, *htt
 }
 
 /*
-SetEnvironmentThunderUrl Register an environment's env-Thunder URL handle
+SetEnvironmentThunderUrl Register an environment's env-Thunder URL
 
-Bootstrap-only endpoint used by add-environment-thunder.sh before it
-provisions an environment's dedicated Thunder instance. Registers an
-unguessable handle that replaces the predictable "<org>-<env>" segment
-of that environment's externally-reachable env-Thunder hostname
-(issuer/token/JWKS URLs) — without this, every such URL is 100%
-derivable from (org, env) alone. org/env is NEVER used as a fallback:
-every environment gets a handle, one way or another.
+Bootstrap-only endpoint used by add-environment-thunder.sh, or by any
+caller that already knows the full origin, before/while provisioning
+an environment's dedicated Thunder instance. Registers the environment's
+externally-reachable env-Thunder origin (issuer/token/JWKS URLs) via
+exactly one of two mutually-exclusive request fields — see
+ThunderUrlRequest. Without this, an on-prem URL would be 100%
+derivable from (org, env) alone; org/env is NEVER used as a fallback
+for either path — every environment gets a registered origin, one way
+or another.
 
-The request body's handle is OPTIONAL. Omit it (or send an empty
-string) to have the server generate one automatically — a 10-character
-random value. The response always reports the handle that ended up
-stored, since a caller that left it blank needs to learn what was
+Both request fields are OPTIONAL, and omitting both is the on-prem
+auto-generate default: the server picks a 10-character random handle
+and computes the origin from it. The response always reports the url
+that ended up stored (and the handle, if the on-prem path produced
+one), since a caller that left the body blank needs to learn what was
 actually assigned.
 
-The handle is globally unique across ALL orgs/environments (every
-env-Thunder instance's HTTPRoute attaches to the same shared Gateway,
-so hostname routing is cluster-wide, not per-org). If a caller-supplied
-handle collides with a different environment's, this returns 409. A
-collision on a GENERATED handle is retried internally with a fresh
-value and never surfaces as a 409.
+Both handle and the resolved url are globally unique across ALL
+orgs/environments (every env-Thunder instance's HTTPRoute attaches to
+the same shared Gateway, so hostname routing is cluster-wide, not
+per-org — and a caller-supplied url is expected to be globally unique
+the same way). If a caller-supplied handle or url collides
+with a different environment's, this returns 409. A collision on a
+GENERATED handle is retried internally with a fresh value and never
+surfaces as a 409.
 
 Idempotent for the SAME environment, but never changes an
-already-registered handle: a blank or matching re-registration is a
-no-op that reports the existing handle; an explicit DIFFERENT handle
-is rejected with 409 (Thunder's issuer is immutable once minted — call
-DELETE first to free the handle before registering a new one). Keyed
-by OU ID, always taken from the caller's own token (never
-client-supplied), not orgName — same rationale as thunder-system-client.
+already-registered value: a blank or matching re-registration is a
+no-op that reports the existing record; an explicit DIFFERENT
+handle/url is rejected with 409 (Thunder's issuer is immutable once
+minted — call DELETE first to free the registration before
+registering a new one). Keyed by OU ID, always taken from the
+caller's own token (never client-supplied), not orgName — same
+rationale as thunder-system-client.
 
 	@param ctx context.Context - for authentication, logging, cancellation, deadlines, tracing, etc. Passed from http.Request or context.Background().
 	@param orgName Organization name/handle

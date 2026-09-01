@@ -73,26 +73,30 @@ type (
 	// ErrThunderNotProvisioned for a missing row.
 	ReadSystemClientFunc func(ctx context.Context, ouID, envName string) (clientID, clientSecret string, err error)
 
-	// ReadThunderHandleFunc reads an env-Thunder's registered URL handle (see
-	// EnvThunderURL) from AMS's own Postgres, keyed by (ouID, envName). A
-	// missing row means this environment was never provisioned — it returns
-	// ("", nil), never a value computed from (ouID, envName).
-	ReadThunderHandleFunc func(ctx context.Context, ouID, envName string) (handle string, err error)
+	// ReadThunderURLFunc reads an env-Thunder's registered origin (see
+	// EnvThunderURL.ThunderURL) from AMS's own Postgres, keyed by (ouID, envName).
+	// A missing row means this environment was never provisioned — it returns
+	// ("", false, nil), never a value computed from (ouID, envName).
+	// callerSupplied reports whether the row's URL was supplied directly by the
+	// caller (no handle) rather than computed by AMS itself from a handle —
+	// needed so the candidate cascade below can tell an attacker-influenced
+	// value from one AMS computed itself under its own trusted domain.
+	ReadThunderURLFunc func(ctx context.Context, ouID, envName string) (thunderURL string, callerSupplied bool, err error)
 
 	// resolveBaseURLFunc picks a reachable base URL for an env-Thunder instance —
 	// injectable so tests don't depend on real network probing.
-	resolveBaseURLFunc func(ctx context.Context, org, env, handle string) (baseURL, resolveToHost string, ok bool)
+	resolveBaseURLFunc func(ctx context.Context, org, env, thunderURL string, callerSupplied bool) (baseURL, resolveToHost string, ok bool)
 )
 
 // envThunderResolver reads the system-client credential via the injected
 // ReadSystemClientFunc (AMS's Postgres, not a key vault — cloud vaults are reveal-once),
-// and the env's URL handle (if any) via the injected ReadThunderHandleFunc.
+// and the env's registered URL (if any) via the injected ReadThunderURLFunc.
 type envThunderResolver struct {
-	readSystemClient  ReadSystemClientFunc
-	readThunderHandle ReadThunderHandleFunc
-	resolveBaseURL    resolveBaseURLFunc
-	ttl               time.Duration
-	now               func() time.Time
+	readSystemClient ReadSystemClientFunc
+	readThunderURL   ReadThunderURLFunc
+	resolveBaseURL   resolveBaseURLFunc
+	ttl              time.Duration
+	now              func() time.Time
 
 	mu    sync.RWMutex
 	cache map[string]cachedThunderClient // keyed by "org/env"
@@ -106,21 +110,21 @@ type cachedThunderClient struct {
 
 // NewEnvThunderResolver creates an EnvThunderResolver backed by the given
 // system-client reader (which decrypts the credential from AMS's Postgres) and
-// URL-handle reader (which looks up a user-chosen handle, if any, from the same DB).
-func NewEnvThunderResolver(readSystemClient ReadSystemClientFunc, readThunderHandle ReadThunderHandleFunc) EnvThunderResolver {
-	return newEnvThunderResolverWithReader(readSystemClient, readThunderHandle, ResolveThunderBaseURL)
+// URL reader (which looks up the registered origin, if any, from the same DB).
+func NewEnvThunderResolver(readSystemClient ReadSystemClientFunc, readThunderURL ReadThunderURLFunc) EnvThunderResolver {
+	return newEnvThunderResolverWithReader(readSystemClient, readThunderURL, ResolveThunderBaseURL)
 }
 
 // newEnvThunderResolverWithReader builds a resolver from injected readers and a
 // base-URL resolver — real implementations in production, fakes in tests.
-func newEnvThunderResolverWithReader(readSystemClient ReadSystemClientFunc, readThunderHandle ReadThunderHandleFunc, resolveBaseURL resolveBaseURLFunc) *envThunderResolver {
+func newEnvThunderResolverWithReader(readSystemClient ReadSystemClientFunc, readThunderURL ReadThunderURLFunc, resolveBaseURL resolveBaseURLFunc) *envThunderResolver {
 	return &envThunderResolver{
-		readSystemClient:  readSystemClient,
-		readThunderHandle: readThunderHandle,
-		resolveBaseURL:    resolveBaseURL,
-		ttl:               envThunderClientCacheTTL,
-		now:               time.Now,
-		cache:             make(map[string]cachedThunderClient),
+		readSystemClient: readSystemClient,
+		readThunderURL:   readThunderURL,
+		resolveBaseURL:   resolveBaseURL,
+		ttl:              envThunderClientCacheTTL,
+		now:              time.Now,
+		cache:            make(map[string]cachedThunderClient),
 	}
 }
 
@@ -166,28 +170,35 @@ func (r *envThunderResolver) Resolve(ctx context.Context, ouID, orgNamespace, en
 			return nil, ErrThunderNotProvisioned
 		}
 
-		// Every environment gets a handle at provisioning time (see SetThunderURL) —
-		// there is no fallback to a pattern computed from org/env. A missing handle
-		// (read error OR genuinely no row) means this env-Thunder was never
-		// provisioned through add-environment-thunder.sh, exactly like a missing
-		// system-client secret above — so it gets the same ErrThunderNotProvisioned,
-		// not a degraded/guessed address.
-		handle, err := r.readThunderHandle(ctx, ouID, envName)
+		// Every environment gets a registered URL at provisioning time — no
+		// fallback to a pattern computed from org/env. A missing URL means
+		// this env-Thunder was never provisioned, same as a missing
+		// system-client secret above: ErrThunderNotProvisioned, not a guess.
+		thunderURL, callerSupplied, err := r.readThunderURL(ctx, ouID, envName)
 		if err != nil {
-			return nil, fmt.Errorf("failed to read env-thunder url handle for %s/%s: %w", ouID, envName, err)
+			return nil, fmt.Errorf("failed to read env-thunder url for %s/%s: %w", ouID, envName, err)
 		}
-		if handle == "" {
+		if thunderURL == "" {
 			return nil, ErrThunderNotProvisioned
 		}
 
-		baseURL, resolveToHost, ok := r.resolveBaseURL(ctx, orgNamespace, envName, handle)
+		baseURL, resolveToHost, ok := r.resolveBaseURL(ctx, orgNamespace, envName, thunderURL, callerSupplied)
 		if !ok {
 			return nil, fmt.Errorf("%w: %s/%s", ErrThunderUnreachable, orgNamespace, envName)
 		}
 		// The System RS identifier is "<issuer>/mcp", derived from the env-Thunder issuer
 		// URL — not the (possibly cluster-internal) dialable base URL selected above.
-		systemResource := SystemResourceIdentifier(ThunderIssuerURL(handle))
-		client := NewThunderClientWithDialOverride(baseURL, clientID, clientSecret, resolveToHost, systemResource)
+		systemResource := SystemResourceIdentifier(ThunderIssuerURL(thunderURL))
+		// baseURL==thunderURL with no override identifies the plain-external
+		// candidate; callerSupplied says whether ITS VALUE is attacker-influenced
+		// (a caller-supplied row) rather than AMS's own trusted computation (a
+		// handle-derived row, which can legitimately be a private address — see
+		// thunderURLCandidate's doc comment). Both must hold to harden the dial.
+		newClient := NewThunderClientWithDialOverride
+		if resolveToHost == "" && baseURL == thunderURL && callerSupplied {
+			newClient = NewEnvThunderClient
+		}
+		client := newClient(baseURL, clientID, clientSecret, resolveToHost, systemResource)
 
 		r.mu.Lock()
 		r.cache[cacheKey] = cachedThunderClient{client: client, cachedAt: r.now()}

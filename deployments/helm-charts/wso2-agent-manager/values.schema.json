@@ -1,0 +1,2421 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "additionalProperties": false,
+  "type": "object",
+  "required": [],
+  "properties": {
+    "global": {
+      "additionalProperties": false,
+      "description": "Default values for agent-management-platform",
+      "properties": {
+        "imagePullSecrets": {
+          "default": [],
+          "description": "Secrets used to pull images from a private registry",
+          "items": {},
+          "title": "imagePullSecrets",
+          "type": "array"
+        },
+        "storageClass": {
+          "default": "",
+          "description": "StorageClass applied to every chart component that needs storage",
+          "title": "storageClass",
+          "type": "string"
+        }
+      },
+      "required": [],
+      "title": "global",
+      "type": "object"
+    },
+    "postgresql": {
+      "additionalProperties": true,
+      "description": "PostgreSQL Database Configuration",
+      "properties": {
+        "enabled": {
+          "default": true,
+          "description": "Install the bundled PostgreSQL. Turn off to point at an external database.",
+          "title": "enabled",
+          "type": "boolean"
+        },
+        "external": {
+          "additionalProperties": true,
+          "description": "Connection details for an external database, used when the bundled one is disabled.",
+          "properties": {
+            "host": {
+              "default": "",
+              "description": "Hostname of the external database.",
+              "title": "host",
+              "type": "string"
+            },
+            "port": {
+              "default": 5432,
+              "description": "Port the external database listens on.",
+              "title": "port",
+              "type": "integer"
+            },
+            "database": {
+              "default": "agentmanager",
+              "description": "Database name to connect to.",
+              "title": "database",
+              "type": "string"
+            },
+            "username": {
+              "default": "agentmanager",
+              "description": "Username used to connect.",
+              "title": "username",
+              "type": "string"
+            },
+            "password": {
+              "default": "",
+              "description": "Password used to connect. Prefer an existing Secret in real deployments.",
+              "title": "password",
+              "type": "string"
+            },
+            "existingSecret": {
+              "default": "",
+              "description": "Secret holding the database password, used instead of setting it inline.",
+              "title": "existingSecret",
+              "type": "string"
+            },
+            "existingSecretPasswordKey": {
+              "default": "password",
+              "description": "Key within that Secret holding the password.",
+              "title": "existingSecretPasswordKey",
+              "type": "string"
+            },
+            "sslMode": {
+              "default": "",
+              "description": "TLS for the client -> database hop (libpq \"sslmode\"). One of disable, allow, prefer, require, verify-ca, verify-full. Empty keeps the driver default (\"prefer\"), which negotiates TLS when the server offers it but silently falls back to plaintext when it does not. Set \"require\" to refuse an unencrypted connection; use verify-ca or verify-full to also validate the server certificate.",
+              "title": "sslMode",
+              "type": "string"
+            },
+            "sslRootCert": {
+              "default": "",
+              "description": "Path to a PEM CA bundle inside the container for verify-ca/verify-full, or the literal \"system\" to validate against the image trust store (sufficient when the database certificate chains to a public CA). Mount a private CA through the top-level `volumes`/`volumeMounts` values.",
+              "title": "sslRootCert",
+              "type": "string"
+            }
+          },
+          "required": [],
+          "title": "external",
+          "type": "object"
+        },
+        "auth": {
+          "additionalProperties": true,
+          "description": "Image configuration - use stable PostgreSQL 16 image",
+          "properties": {
+            "database": {
+              "default": "agentmanager",
+              "description": "Database created at first start.",
+              "title": "database",
+              "type": "string"
+            },
+            "username": {
+              "default": "agentmanager",
+              "description": "Application user created at first start.",
+              "title": "username",
+              "type": "string"
+            },
+            "password": {
+              "default": "agentmanager",
+              "description": "Password for the application user. Change this before any real deployment.",
+              "title": "password",
+              "type": "string"
+            }
+          },
+          "required": [],
+          "title": "auth",
+          "type": "object"
+        },
+        "primary": {
+          "additionalProperties": true,
+          "description": "Settings for the bundled PostgreSQL primary.",
+          "properties": {
+            "persistence": {
+              "additionalProperties": true,
+              "description": "Persistent storage for the database.",
+              "properties": {
+                "enabled": {
+                  "default": true,
+                  "description": "Persist data on a PersistentVolumeClaim instead of the pod filesystem",
+                  "title": "enabled",
+                  "type": "boolean"
+                },
+                "size": {
+                  "default": "10Gi",
+                  "description": "Size of the PersistentVolumeClaim",
+                  "title": "size",
+                  "type": "string"
+                }
+              },
+              "required": [],
+              "title": "persistence",
+              "type": "object"
+            },
+            "resources": {
+              "additionalProperties": true,
+              "description": "Compute resources for the database pod.",
+              "properties": {
+                "requests": {
+                  "additionalProperties": true,
+                  "description": "Resources reserved at scheduling time.",
+                  "properties": {
+                    "memory": {
+                      "default": "256Mi",
+                      "description": "Memory the container requests at scheduling time",
+                      "title": "memory",
+                      "type": "string"
+                    },
+                    "cpu": {
+                      "default": "250m",
+                      "description": "CPU the container requests at scheduling time",
+                      "title": "cpu",
+                      "type": "string"
+                    }
+                  },
+                  "required": [],
+                  "title": "requests",
+                  "type": "object"
+                },
+                "limits": {
+                  "additionalProperties": true,
+                  "description": "Maximum resources the database may use.",
+                  "properties": {
+                    "memory": {
+                      "default": "512Mi",
+                      "description": "Maximum memory the container may use before it is OOM-killed",
+                      "title": "memory",
+                      "type": "string"
+                    },
+                    "cpu": {
+                      "default": "500m",
+                      "description": "Maximum CPU the container may use",
+                      "title": "cpu",
+                      "type": "string"
+                    }
+                  },
+                  "required": [],
+                  "title": "limits",
+                  "type": "object"
+                }
+              },
+              "required": [],
+              "title": "resources",
+              "type": "object"
+            }
+          },
+          "required": [],
+          "title": "primary",
+          "type": "object"
+        }
+      },
+      "required": [],
+      "title": "postgresql",
+      "type": "object"
+    },
+    "ocIngress": {
+      "additionalProperties": false,
+      "description": "OpenChoreo ingress configuration \u2014 routes the Console and Agent Manager API through the OpenChoreo control-plane kgateway (gateway-default) so they do not need their own LoadBalancer services.",
+      "properties": {
+        "enabled": {
+          "default": true,
+          "description": "Expose this component through the gateway",
+          "title": "enabled",
+          "type": "boolean"
+        },
+        "gatewayName": {
+          "default": "gateway-default",
+          "description": "Gateway that serves this route",
+          "title": "gatewayName",
+          "type": "string"
+        },
+        "gatewayNamespace": {
+          "default": "openchoreo-control-plane",
+          "description": "Namespace containing the gateway that serves those routes.",
+          "title": "gatewayNamespace",
+          "type": "string"
+        }
+      },
+      "required": [],
+      "title": "ocIngress",
+      "type": "object"
+    },
+    "agentManagerService": {
+      "additionalProperties": false,
+      "description": "Agent Manager Service Configuration",
+      "properties": {
+        "enabled": {
+          "default": true,
+          "description": "Install the control-plane API.",
+          "title": "enabled",
+          "type": "boolean"
+        },
+        "replicaCount": {
+          "default": 1,
+          "description": "Number of pod replicas to run",
+          "title": "replicaCount",
+          "type": "integer"
+        },
+        "image": {
+          "additionalProperties": false,
+          "description": "Container image for the control-plane API.",
+          "properties": {
+            "repository": {
+              "default": "ghcr.io/wso2/amp-api",
+              "description": "Container image repository",
+              "title": "repository",
+              "type": "string"
+            },
+            "tag": {
+              "default": "0.0.0-dev",
+              "description": "Container image tag. Defaults to the chart's appVersion when empty",
+              "title": "tag",
+              "type": "string"
+            },
+            "pullPolicy": {
+              "default": "IfNotPresent",
+              "description": "Image pull policy (`Always`, `IfNotPresent`, or `Never`)",
+              "title": "pullPolicy",
+              "type": "string"
+            }
+          },
+          "required": [],
+          "title": "image",
+          "type": "object"
+        },
+        "service": {
+          "additionalProperties": false,
+          "description": "Reachable externally via the control-plane gateway (see ocIngress); set type to LoadBalancer to restore a dedicated external endpoint.",
+          "properties": {
+            "type": {
+              "default": "ClusterIP",
+              "description": "Kubernetes Service type (`ClusterIP`, `NodePort`, or `LoadBalancer`)",
+              "title": "type",
+              "type": "string"
+            },
+            "port": {
+              "default": 9000,
+              "description": "Port the Service listens on",
+              "title": "port",
+              "type": "integer"
+            },
+            "targetPort": {
+              "default": 8080,
+              "description": "Container port the Service forwards to",
+              "title": "targetPort",
+              "type": "integer"
+            },
+            "annotations": {
+              "additionalProperties": true,
+              "default": {},
+              "description": "Annotations added to the Service",
+              "required": [],
+              "title": "annotations",
+              "type": "object"
+            }
+          },
+          "required": [],
+          "title": "service",
+          "type": "object"
+        },
+        "gatewayMgtService": {
+          "additionalProperties": false,
+          "description": "Internal gateway-management (xDS) endpoint. In-cluster AI gateways reach it via cluster DNS; set type to LoadBalancer only when external gateways must connect from outside the cluster.",
+          "properties": {
+            "type": {
+              "default": "ClusterIP",
+              "description": "Service type for the gateway-management endpoint.",
+              "title": "type",
+              "type": "string"
+            },
+            "port": {
+              "default": 9243,
+              "description": "Port the gateway-management Service listens on.",
+              "title": "port",
+              "type": "integer"
+            },
+            "targetPort": {
+              "default": 9243,
+              "description": "Container port the gateway-management Service forwards to.",
+              "title": "targetPort",
+              "type": "integer"
+            }
+          },
+          "required": [],
+          "title": "gatewayMgtService",
+          "type": "object"
+        },
+        "ocIngress": {
+          "additionalProperties": false,
+          "description": "Hostname the API is served on via the OpenChoreo control-plane gateway (see the top-level ocIngress block)",
+          "properties": {
+            "hostname": {
+              "default": "api.amp.localhost",
+              "description": "Hostname routed to this component through the gateway",
+              "title": "hostname",
+              "type": "string"
+            },
+            "requestTimeout": {
+              "default": "60s",
+              "description": "Gateway request timeout for API routes; /mcp streams are exempt (no timeout)",
+              "title": "requestTimeout",
+              "type": "string"
+            },
+            "gatewayMgmt": {
+              "additionalProperties": false,
+              "description": "Exposes the gateway-management (xDS/WebSocket) endpoint through the control-plane gateway so external AI gateways connect without a dedicated LoadBalancer. The WebSocket stays healthy behind the gateway because the server pings every connection every 20s.",
+              "properties": {
+                "enabled": {
+                  "default": true,
+                  "description": "Expose the gateway-management endpoint through the gateway.",
+                  "title": "enabled",
+                  "type": "boolean"
+                },
+                "hostnames": {
+                  "default": [
+                    "cp.amp.localhost",
+                    "host.docker.internal"
+                  ],
+                  "description": "Hostnames external gateways use. host.docker.internal serves gateways started via the console's Docker quick start on the same machine.",
+                  "items": {
+                    "type": "string"
+                  },
+                  "title": "hostnames",
+                  "type": "array"
+                },
+                "caConfigMapName": {
+                  "default": "",
+                  "description": "ConfigMap holding the CA (key ca.crt) that validates the endpoint's TLS certificate on the gateway->service hop. Published automatically by the tls-certs job; set this when certificates.certificatesSecret supplies your own certificate.",
+                  "title": "caConfigMapName",
+                  "type": "string"
+                }
+              },
+              "required": [],
+              "title": "gatewayMgmt",
+              "type": "object"
+            }
+          },
+          "required": [],
+          "title": "ocIngress",
+          "type": "object"
+        },
+        "internalServer": {
+          "additionalProperties": false,
+          "description": "Internal server configuration",
+          "properties": {
+            "tlsEnabled": {
+              "default": true,
+              "description": "Enable TLS for the internal server. When false, serves plain HTTP.",
+              "title": "tlsEnabled",
+              "type": "boolean"
+            }
+          },
+          "required": [],
+          "title": "internalServer",
+          "type": "object"
+        },
+        "resources": {
+          "additionalProperties": false,
+          "description": "Compute resources for the control-plane API.",
+          "properties": {
+            "requests": {
+              "additionalProperties": false,
+              "description": "Resources reserved at scheduling time.",
+              "properties": {
+                "memory": {
+                  "default": "256Mi",
+                  "description": "Memory the container requests at scheduling time",
+                  "title": "memory",
+                  "type": "string"
+                },
+                "cpu": {
+                  "default": "250m",
+                  "description": "CPU the container requests at scheduling time",
+                  "title": "cpu",
+                  "type": "string"
+                }
+              },
+              "required": [],
+              "title": "requests",
+              "type": "object"
+            },
+            "limits": {
+              "additionalProperties": false,
+              "description": "Maximum resources the container may use.",
+              "properties": {
+                "memory": {
+                  "default": "512Mi",
+                  "description": "Maximum memory the container may use before it is OOM-killed",
+                  "title": "memory",
+                  "type": "string"
+                },
+                "cpu": {
+                  "default": "500m",
+                  "description": "Maximum CPU the container may use",
+                  "title": "cpu",
+                  "type": "string"
+                }
+              },
+              "required": [],
+              "title": "limits",
+              "type": "object"
+            }
+          },
+          "required": [],
+          "title": "resources",
+          "type": "object"
+        },
+        "autoscaling": {
+          "additionalProperties": false,
+          "description": "Horizontal Pod Autoscaler settings for the control-plane API.",
+          "properties": {
+            "enabled": {
+              "default": true,
+              "description": "Enable the Horizontal Pod Autoscaler",
+              "title": "enabled",
+              "type": "boolean"
+            },
+            "minReplicas": {
+              "default": 1,
+              "description": "Minimum replicas the autoscaler may scale down to",
+              "title": "minReplicas",
+              "type": "integer"
+            },
+            "maxReplicas": {
+              "default": 10,
+              "description": "Maximum replicas the autoscaler may scale up to",
+              "title": "maxReplicas",
+              "type": "integer"
+            },
+            "targetCPUUtilizationPercentage": {
+              "default": 80,
+              "description": "Target average CPU utilisation that triggers scaling",
+              "title": "targetCPUUtilizationPercentage",
+              "type": "integer"
+            },
+            "targetMemoryUtilizationPercentage": {
+              "default": null,
+              "description": "Target average memory utilisation that triggers scaling",
+              "title": "targetMemoryUtilizationPercentage",
+              "type": "null"
+            }
+          },
+          "required": [],
+          "title": "autoscaling",
+          "type": "object"
+        },
+        "livenessProbe": {
+          "additionalProperties": false,
+          "description": "Health checks",
+          "properties": {
+            "tcpSocket": {
+              "additionalProperties": false,
+              "description": "TCP socket check used as the liveness probe.",
+              "properties": {
+                "port": {
+                  "default": 8080,
+                  "description": "Port probed by the TCP socket health check",
+                  "title": "port",
+                  "type": "integer"
+                }
+              },
+              "required": [],
+              "title": "tcpSocket",
+              "type": "object"
+            },
+            "initialDelaySeconds": {
+              "default": 15,
+              "description": "Seconds to wait before the first liveness probe",
+              "title": "initialDelaySeconds",
+              "type": "integer"
+            },
+            "periodSeconds": {
+              "default": 10,
+              "description": "Seconds between liveness probes",
+              "title": "periodSeconds",
+              "type": "integer"
+            }
+          },
+          "required": [],
+          "title": "livenessProbe",
+          "type": "object"
+        },
+        "readinessProbe": {
+          "additionalProperties": false,
+          "description": "Readiness probe deciding when the pod may receive traffic.",
+          "properties": {
+            "tcpSocket": {
+              "additionalProperties": false,
+              "description": "TCP socket check used as the readiness probe.",
+              "properties": {
+                "port": {
+                  "default": 8080,
+                  "description": "Port probed by the TCP socket health check",
+                  "title": "port",
+                  "type": "integer"
+                }
+              },
+              "required": [],
+              "title": "tcpSocket",
+              "type": "object"
+            },
+            "initialDelaySeconds": {
+              "default": 5,
+              "description": "Seconds to wait before the first readiness probe",
+              "title": "initialDelaySeconds",
+              "type": "integer"
+            },
+            "periodSeconds": {
+              "default": 10,
+              "description": "Seconds between readiness probes",
+              "title": "periodSeconds",
+              "type": "integer"
+            }
+          },
+          "required": [],
+          "title": "readinessProbe",
+          "type": "object"
+        },
+        "config": {
+          "additionalProperties": false,
+          "description": "Application configuration",
+          "properties": {
+            "serverHost": {
+              "default": "0.0.0.0",
+              "description": "Address the API binds to inside the container.",
+              "title": "serverHost",
+              "type": "string"
+            },
+            "logLevel": {
+              "default": "INFO",
+              "description": "Minimum severity written to the log.",
+              "title": "logLevel",
+              "type": "string"
+            },
+            "autoMaxProcsEnabled": {
+              "default": "true",
+              "description": "Match Go's thread count to the container's CPU limit.",
+              "title": "autoMaxProcsEnabled",
+              "type": "string"
+            },
+            "authHeader": {
+              "default": "Authorization",
+              "description": "Header the API reads the caller's bearer token from.",
+              "title": "authHeader",
+              "type": "string"
+            },
+            "dbOperationTimeout": {
+              "default": 30,
+              "description": "Seconds a database operation may run before it is cancelled.",
+              "title": "dbOperationTimeout",
+              "type": "integer"
+            },
+            "healthCheckTimeout": {
+              "default": 5,
+              "description": "Seconds a health check may take before it is treated as failed.",
+              "title": "healthCheckTimeout",
+              "type": "integer"
+            },
+            "corsAllowedOrigin": {
+              "default": "*",
+              "description": "Origins allowed to call the API from a browser. Narrow this in production.",
+              "title": "corsAllowedOrigin",
+              "type": "string"
+            },
+            "rbacEnabled": {
+              "default": "true",
+              "description": "Enable RBAC enforcement on all routes",
+              "title": "rbacEnabled",
+              "type": "string"
+            },
+            "audit": {
+              "additionalProperties": false,
+              "description": "Audit trail. Every state-changing API call, every authorization denial and every rejected token is written to stdout as structured JSON tagged log_type=audit, for the cluster log pipeline to collect. Retention is NOT provided by this service. Route these records to an index or bucket with a retention period that matches your audit obligations \u2014 the observability plane's default log retention is far shorter than the evidence period most audits require.",
+              "properties": {
+                "enabled": {
+                  "default": true,
+                  "description": "Boolean, not a quoted string, so setting it to false actually disables recording \u2014 see the AUDIT_ENABLED note in the service ConfigMap.",
+                  "title": "enabled",
+                  "type": "boolean"
+                },
+                "bufferSize": {
+                  "default": 4096,
+                  "description": "Queued events. On overflow, events are dropped and counted rather than blocking the request that produced them.",
+                  "title": "bufferSize",
+                  "type": "integer"
+                },
+                "batchSize": {
+                  "default": 200,
+                  "description": "Audit events buffered before a write is flushed.",
+                  "title": "batchSize",
+                  "type": "integer"
+                },
+                "flushIntervalMs": {
+                  "default": 1000,
+                  "description": "Milliseconds before a partial audit batch is flushed anyway.",
+                  "title": "flushIntervalMs",
+                  "type": "integer"
+                }
+              },
+              "required": [],
+              "title": "audit",
+              "type": "object"
+            },
+            "amObserverURL": {
+              "default": "http://amp-observer.openchoreo-observability-plane.svc.cluster.local:9098",
+              "description": "In-cluster URL the agent-manager-service uses to query trace data server-side.",
+              "title": "amObserverURL",
+              "type": "string"
+            },
+            "amObserverPublicURL": {
+              "default": "",
+              "description": "Externally reachable observer URL returned to out-of-cluster clients (e.g. the CLI) via /api/v1/config. No internal fallback: unset means clients surface \"observer not configured\".",
+              "title": "amObserverPublicURL",
+              "type": "string"
+            },
+            "tlsEnabled": {
+              "default": false,
+              "description": "TLS Configuration",
+              "title": "tlsEnabled",
+              "type": "boolean"
+            },
+            "apiKey": {
+              "additionalProperties": false,
+              "description": "API Key configuration",
+              "properties": {
+                "header": {
+                  "default": "X-API-Key",
+                  "description": "Header the API key is read from.",
+                  "title": "header",
+                  "type": "string"
+                },
+                "value": {
+                  "default": "",
+                  "description": "Empty by default so the chart's own randAlphaNum(32) fallback (see templates/agent-manager-service/secret.yaml) generates a real value \u2014 the same pattern encryptionKey below already uses correctly. Set this explicitly, or prefer existingSecret, for production.",
+                  "title": "value",
+                  "type": "string"
+                },
+                "existingSecret": {
+                  "default": "",
+                  "description": "Secret holding the API key.",
+                  "title": "existingSecret",
+                  "type": "string"
+                },
+                "existingSecretKey": {
+                  "default": "api-key",
+                  "description": "Key to read from existingSecret. Applies ONLY when existingSecret is set; the chart-managed Secret always uses the fixed key \"api-key\".",
+                  "title": "existingSecretKey",
+                  "type": "string"
+                }
+              },
+              "required": [],
+              "title": "apiKey",
+              "type": "object"
+            },
+            "encryptionKey": {
+              "additionalProperties": false,
+              "description": "Encryption key for secrets at rest (hex-encoded 32-byte AES-256 key) Must be exactly 64 hex characters. Auto-generated if not provided.",
+              "properties": {
+                "value": {
+                  "default": "",
+                  "description": "Key material set inline. Prefer an existing Secret in real deployments.",
+                  "title": "value",
+                  "type": "string"
+                },
+                "existingSecret": {
+                  "default": "",
+                  "description": "Secret holding the encryption key.",
+                  "title": "existingSecret",
+                  "type": "string"
+                },
+                "existingSecretKey": {
+                  "default": "encryption-key",
+                  "description": "Key to read from existingSecret. Applies ONLY when existingSecret is set; the chart-managed Secret always uses the fixed key \"encryption-key\".",
+                  "title": "existingSecretKey",
+                  "type": "string"
+                }
+              },
+              "required": [],
+              "title": "encryptionKey",
+              "type": "object"
+            },
+            "thunderAskSecret": {
+              "additionalProperties": false,
+              "description": "Shared secret Caddy presents on the on-demand-TLS ask endpoint (/internal/thunder-ask) so that trusted Caddy traffic can be told apart from the public internet, which reaches the same path through the api host's catch-all route. Auto-generated if not provided; deployments.vm's install-vm.sh reads the generated value back out to configure Caddy.",
+              "properties": {
+                "value": {
+                  "default": "",
+                  "description": "Secret set inline. Prefer an existing Secret in real deployments.",
+                  "title": "value",
+                  "type": "string"
+                },
+                "existingSecret": {
+                  "default": "",
+                  "description": "Secret holding the value.",
+                  "title": "existingSecret",
+                  "type": "string"
+                },
+                "existingSecretKey": {
+                  "default": "thunder-ask-secret",
+                  "description": "Key within that Secret.",
+                  "title": "existingSecretKey",
+                  "type": "string"
+                }
+              },
+              "required": [],
+              "title": "thunderAskSecret",
+              "type": "object"
+            },
+            "kubeconfig": {
+              "default": "",
+              "description": "Kubeconfig (empty for in-cluster, or provide config)",
+              "title": "kubeconfig",
+              "type": "string"
+            },
+            "otel": {
+              "additionalProperties": false,
+              "description": "OpenTelemetry configuration",
+              "properties": {
+                "traceContent": {
+                  "default": "true",
+                  "description": "Record request and response bodies on spans. Disable where payloads may be sensitive.",
+                  "title": "traceContent",
+                  "type": "string"
+                },
+                "exporterEndpoint": {
+                  "default": "http://default-default.gateway.localhost:19080/otel",
+                  "description": "kgateway-routed vhost (\"<env>-<org>.gateway.localhost\") \u2014 independent of the namespace the api-platform gateway runtime is deployed in.",
+                  "title": "exporterEndpoint",
+                  "type": "string"
+                },
+                "defaultInstrumentationVersion": {
+                  "default": "0.4.1",
+                  "description": "Platform default AMP instrumentation version. Must exist in the effective catalog (embedded baseline \u222a additionalInstrumentationVersions); otherwise the server fails to start.",
+                  "title": "defaultInstrumentationVersion",
+                  "type": "string"
+                },
+                "additionalInstrumentationVersions": {
+                  "default": [],
+                  "description": "Operator-supplied catalog extension entries, added on top of the bundled baseline. For air-gapped installs, point imageRepository at the internal mirror. Example: - version: \"0.5.0\" traceloopSdk: \"0.65.0\" pythonVersions: [\"3.10\",\"3.11\",\"3.12\",\"3.13\"] imageRepository: \"my-mirror.example/amp-python-instrumentation-provider\"",
+                  "items": {},
+                  "title": "additionalInstrumentationVersions",
+                  "type": "array"
+                }
+              },
+              "required": [],
+              "title": "otel",
+              "type": "object"
+            },
+            "keyManager": {
+              "additionalProperties": false,
+              "description": "Key Manager configuration Token audiences accepted by this service. Console/CLI logins arrive with aud=urn:wso2:amp (the amp resource server's identifier \u2014 keep in sync with 60-amp-resource-server.yaml in the Thunder extension chart); MCP logins arrive with serverPublicURL plus \"/mcp\" (no trailing slash, per the MCP spec's canonical-URI guidance), which the chart appends automatically \u2014 list only client IDs here.",
+              "properties": {
+                "issuer": {
+                  "default": "http://thunder.amp.localhost:8080",
+                  "description": "Issuer claim that incoming tokens must carry.",
+                  "title": "issuer",
+                  "type": "string"
+                },
+                "audience": {
+                  "default": "urn:wso2:amp,amp-console-client,amp-api-client,amp-publisher-*,amctl,am-mcp",
+                  "description": "Accepted token audiences, as a comma-separated list.",
+                  "title": "audience",
+                  "type": "string"
+                },
+                "jwksUrl": {
+                  "default": "http://amp-thunder-extension-service.amp-thunder.svc.cluster.local:8090/oauth2/jwks",
+                  "description": "JSON Web Key Set used to verify token signatures.",
+                  "title": "jwksUrl",
+                  "type": "string"
+                }
+              },
+              "required": [],
+              "title": "keyManager",
+              "type": "object"
+            },
+            "serverPublicURL": {
+              "default": "http://api.amp.localhost:8080",
+              "description": "Externally reachable base URL of this service. Used as the `resource` identifier in RFC 9728 protected resource metadata. Routed through the OpenChoreo control-plane gateway (see ocIngress). Must stay in sync with the thunder extension's thunder.bootstrap.agentManagerMcpBaseUrl; keyManager.audience above picks this up on its own.",
+              "title": "serverPublicURL",
+              "type": "string"
+            },
+            "oauthAuthorizationServers": {
+              "default": "",
+              "description": "Comma-separated absolute http/https URLs advertised in RFC 9728 protected resource metadata. Empty by design: falls back to keyManager.issuer above. Startup validation only checks the URLs are well-formed, so a stale value here silently advertises the wrong issuer. Set only if it must differ.",
+              "title": "oauthAuthorizationServers",
+              "type": "string"
+            },
+            "idpHostBaseDomain": {
+              "default": "amp.localhost",
+              "description": "Domain suffix env-Thunder developer-facing hostnames are built from: \"<handle>.<idpHostBaseDomain>\". Override on custom-domain / sslip.io installs so the reported identity-provider endpoints match the actual env-Thunder hosts.",
+              "title": "idpHostBaseDomain",
+              "type": "string"
+            },
+            "agentsBaseDomain": {
+              "default": "am-gateway.localhost",
+              "description": "Base domains for agent-facing hostnames. add-environment.sh prefixes \"<env>-<org>.\" onto gatewayBaseDomain; agentsBaseDomain is used as-is (its own env/org prefixing happens later, in the gateway extension chart's HTTPRoute template). Override on custom-domain / sslip.io installs, or added environments resolve nowhere.",
+              "title": "agentsBaseDomain",
+              "type": "string"
+            },
+            "gatewayBaseDomain": {
+              "default": "gateway.localhost",
+              "description": "Base domain that per-environment gateway hostnames are derived from.",
+              "title": "gatewayBaseDomain",
+              "type": "string"
+            },
+            "agentsHttpPort": {
+              "default": "19080",
+              "description": "Port each agent-facing listener variant serves. Behind a single TLS front door both are 443; on a plane gateway they are typically 80 and 443. Set them to what the environment.gateway.http/https.port overrides on the platform-resources chart say, so an added environment advertises the same pair as the default one.",
+              "title": "agentsHttpPort",
+              "type": "string"
+            },
+            "agentsHttpsPort": {
+              "default": "443",
+              "description": "Port agents are reached on over HTTPS.",
+              "title": "agentsHttpsPort",
+              "type": "string"
+            },
+            "gatewayVhostScheme": {
+              "default": "http",
+              "description": "Scheme and port the gateway vhost above is published on. The defaults describe a local k3d install (plain http on the node port). Set these to https/443 wherever a front proxy terminates TLS, or added environments publish a reachable hostname on a port that is not listening.",
+              "title": "gatewayVhostScheme",
+              "type": "string"
+            },
+            "gatewayVhostPort": {
+              "default": "19080",
+              "description": "Port the gateway virtual host serves on.",
+              "title": "gatewayVhostPort",
+              "type": "string"
+            },
+            "oauthScopesSupported": {
+              "default": "amp:llm-proxy:deploy,amp:mcp-server:create,amp:org:invite-member,amp:role:delete,amp:monitor:read,amp:agent:env-production,amp:git-secret:delete,amp:llm-provider:delete,amp:mcp-server:configure-guardrail,amp:deployment-pipeline:create,amp:deployment-pipeline:read,amp:deployment-pipeline:update,amp:deployment-pipeline:delete,amp:gateway:delete,amp:group:delete,amp:llm-proxy:update,amp:monitor:score-read,amp:llm-provider-template:update,amp:agent:build,amp:agent:rollback,amp:agent:token-manage,amp:evaluator:read,amp:llm-provider-template:read,amp:monitor:create,amp:agent:suspend,amp:gateway:token-manage,amp:git-secret:read,amp:mcp-server:connect,amp:mcp-server:api-key-manage,amp:mcp-server:read,amp:observability:log-read,amp:group:create,amp:observability:trace-read,amp:org:remove-member,amp:agent:env-non-production,amp:group:read,amp:llm-provider-template:create,amp:project:delete,amp:agent:create,amp:evaluator:create,amp:llm-provider:read,amp:org:modify-settings,amp:catalog:read,amp:environment:update,amp:group:update,amp:llm-proxy:delete,amp:project:read,amp:data-plane:read,amp:agent:read,amp:environment:read,amp:llm-provider:configure-guardrail,amp:observability:build-log-read,amp:org:assign-role,amp:project:update,amp:mcp-server:delete,amp:environment:delete,amp:evaluator:update,amp:git-secret:create,amp:monitor:execute,amp:llm-provider:api-key-manage,amp:gateway:read,amp:agent:update,amp:llm-provider-template:delete,amp:monitor:delete,amp:org:view,amp:llm-provider:create,amp:mcp-server:update,amp:org:manage-idp,amp:role:read,amp:role:update,amp:agent:delete,amp:gateway:create,amp:llm-provider:deploy,amp:llm-proxy:api-key-manage,amp:monitor:update,amp:org:manage-service-account,amp:role:create,amp:evaluator:delete,amp:llm-provider:connect,amp:llm-provider:update,amp:llm-proxy:read,amp:monitor:score-publish,amp:observability:metric-read,amp:project:create,amp:repository:read,amp:gateway:update,amp:environment:create,amp:llm-proxy:create,amp:agent:api-key-manage,amp:agent-kind:read,amp:agent-kind:create,amp:agent-kind:update,amp:agent-kind:delete,amp:profile:read,amp:profile:update-attributes,amp:scope:create,amp:scope:read,amp:scope:update,amp:scope:delete,amp:agent-identity:read,amp:agent-identity:create,amp:agent-identity:update,amp:agent-identity:delete",
+              "description": "Comma-separated list of OAuth 2.0 scopes supported by this resource, advertised in RFC 9728 protected resource metadata.",
+              "title": "oauthScopesSupported",
+              "type": "string"
+            },
+            "isOnPremDeployment": {
+              "default": "true",
+              "description": "On-premise deployment flag",
+              "title": "isOnPremDeployment",
+              "type": "string"
+            },
+            "oidc": {
+              "additionalProperties": false,
+              "description": "OIDC configuration for Thunder integration",
+              "properties": {
+                "tokenUrl": {
+                  "default": "http://amp-thunder-extension-service.amp-thunder.svc.cluster.local:8090/oauth2/token",
+                  "description": "Token endpoint the API requests its own token from.",
+                  "title": "tokenUrl",
+                  "type": "string"
+                },
+                "clientId": {
+                  "default": "amp-api-client",
+                  "description": "OAuth 2.0 client ID for those outbound calls.",
+                  "title": "clientId",
+                  "type": "string"
+                },
+                "clientSecret": {
+                  "default": "amp-api-client-secret",
+                  "description": "OAuth 2.0 client secret. Prefer an existing Secret in real deployments.",
+                  "title": "clientSecret",
+                  "type": "string"
+                }
+              },
+              "required": [],
+              "title": "oidc",
+              "type": "object"
+            },
+            "jwtSigning": {
+              "additionalProperties": false,
+              "description": "JWT Signing configuration",
+              "properties": {
+                "privateKeyPath": {
+                  "default": "/app/keys/private.pem",
+                  "description": "Path to the signing private key inside the container.",
+                  "title": "privateKeyPath",
+                  "type": "string"
+                },
+                "publicKeysConfig": {
+                  "default": "/app/keys/public-keys-config.json",
+                  "description": "Path to the public key set published for verification.",
+                  "title": "publicKeysConfig",
+                  "type": "string"
+                },
+                "activeKeyId": {
+                  "default": "key-1",
+                  "description": "Key ID used for new signatures. Older keys stay valid for verification.",
+                  "title": "activeKeyId",
+                  "type": "string"
+                },
+                "defaultExpiry": {
+                  "default": "2160h",
+                  "description": "Default lifetime of an issued token.",
+                  "title": "defaultExpiry",
+                  "type": "string"
+                },
+                "issuer": {
+                  "default": "agent-manager-service",
+                  "description": "Issuer claim stamped on issued tokens.",
+                  "title": "issuer",
+                  "type": "string"
+                },
+                "defaultEnvironment": {
+                  "default": "default",
+                  "description": "Environment assumed when a request does not name one.",
+                  "title": "defaultEnvironment",
+                  "type": "string"
+                }
+              },
+              "required": [],
+              "title": "jwtSigning",
+              "type": "object"
+            },
+            "github": {
+              "additionalProperties": false,
+              "description": "GitHub configuration for repository API access",
+              "properties": {
+                "token": {
+                  "default": "",
+                  "description": "Token set inline. Prefer an existing Secret in real deployments.",
+                  "title": "token",
+                  "type": "string"
+                },
+                "existingSecret": {
+                  "default": "",
+                  "description": "Secret holding the GitHub token.",
+                  "title": "existingSecret",
+                  "type": "string"
+                },
+                "existingSecretKey": {
+                  "default": "github-token",
+                  "description": "Key within that Secret.",
+                  "title": "existingSecretKey",
+                  "type": "string"
+                }
+              },
+              "required": [],
+              "title": "github",
+              "type": "object"
+            },
+            "openChoreo": {
+              "additionalProperties": false,
+              "description": "OpenChoreo API configuration",
+              "properties": {
+                "baseURL": {
+                  "default": "http://openchoreo-api.openchoreo-control-plane:8080",
+                  "description": "In-cluster base URL of the OpenChoreo API.",
+                  "title": "baseURL",
+                  "type": "string"
+                }
+              },
+              "required": [],
+              "title": "openChoreo",
+              "type": "object"
+            },
+            "secretManager": {
+              "additionalProperties": false,
+              "description": "Secret Manager configuration",
+              "properties": {
+                "provider": {
+                  "default": "openbao",
+                  "description": "Secret manager implementation to use.",
+                  "title": "provider",
+                  "type": "string"
+                },
+                "baseURL": {
+                  "default": "",
+                  "description": "Base URL of the secret manager.",
+                  "title": "baseURL",
+                  "type": "string"
+                }
+              },
+              "required": [],
+              "title": "secretManager",
+              "type": "object"
+            },
+            "openbao": {
+              "additionalProperties": false,
+              "description": "OpenBao KV store configuration (for user deployment secrets)",
+              "properties": {
+                "url": {
+                  "default": "http://openbao.openbao.svc.cluster.local:8200",
+                  "description": "OpenBao URL (uses the default OpenBao that comes with OpenChoreo)",
+                  "title": "url",
+                  "type": "string"
+                },
+                "path": {
+                  "default": "secret",
+                  "description": "KV secrets engine path",
+                  "title": "path",
+                  "type": "string"
+                },
+                "version": {
+                  "default": "v2",
+                  "description": "OpenBao KV engine version.",
+                  "title": "version",
+                  "type": "string"
+                },
+                "token": {
+                  "default": "root",
+                  "description": "OpenBao token (for dev mode, use \"root\"). When set, it is stored in the chart-managed Secret and injected via secretKeyRef \u2014 never as a plaintext env var in the pod spec. For production, use existingSecret to reference an externally-managed Secret containing the token instead.",
+                  "title": "token",
+                  "type": "string"
+                },
+                "existingSecret": {
+                  "default": "",
+                  "description": "Secret holding the OpenBao access token.",
+                  "title": "existingSecret",
+                  "type": "string"
+                },
+                "existingSecretKey": {
+                  "default": "openbao-token",
+                  "description": "Key to read from existingSecret. Applies ONLY when existingSecret is set; the chart-managed Secret always uses the fixed key \"openbao-token\".",
+                  "title": "existingSecretKey",
+                  "type": "string"
+                }
+              },
+              "required": [],
+              "title": "openbao",
+              "type": "object"
+            },
+            "workflowPlaneOpenbao": {
+              "additionalProperties": false,
+              "description": "Workflow Plane OpenBao configuration (for Git Secrets) Used to fetch git credentials for private repository access",
+              "properties": {
+                "url": {
+                  "default": "http://openbao.openbao.svc.cluster.local:8200",
+                  "description": "Workflow plane OpenBao URL",
+                  "title": "url",
+                  "type": "string"
+                },
+                "path": {
+                  "default": "secret",
+                  "description": "KV mount path git credentials are read from.",
+                  "title": "path",
+                  "type": "string"
+                },
+                "token": {
+                  "default": "root",
+                  "description": "OpenBao token. When set, it is stored in the chart-managed Secret and injected via secretKeyRef \u2014 never as a plaintext env var in the pod spec. For production, use existingSecret instead.",
+                  "title": "token",
+                  "type": "string"
+                },
+                "existingSecret": {
+                  "default": "",
+                  "description": "Secret holding that instance's access token.",
+                  "title": "existingSecret",
+                  "type": "string"
+                },
+                "existingSecretKey": {
+                  "default": "openbao-token",
+                  "description": "Key to read from existingSecret. Applies ONLY when existingSecret is set. The chart-managed Secret packs both OpenBao tokens into one Secret, so this token is stored there under the distinct key \"workflow-plane-openbao-token\".",
+                  "title": "existingSecretKey",
+                  "type": "string"
+                }
+              },
+              "required": [],
+              "title": "workflowPlaneOpenbao",
+              "type": "object"
+            },
+            "gatewayManifestCache": {
+              "additionalProperties": false,
+              "description": "Gateway-reported policy manifest cache. Manifests are large and every gateway re-pushes its whole manifest on a fixed heartbeat, so they are cached in-process rather than persisted to the database.",
+              "properties": {
+                "backend": {
+                  "default": "memory",
+                  "description": "\"memory\" (default) is process-local \u2014 safe ONLY when replicaCount is 1. Set to \"redis\" whenever this chart is deployed with more than one replica: an in-memory cache would leave replicas disagreeing on which policies gateways report, since each replica only observes the manifest pushes routed to it.",
+                  "title": "backend",
+                  "type": "string"
+                },
+                "redis": {
+                  "additionalProperties": false,
+                  "description": "Redis backing the manifest cache.",
+                  "properties": {
+                    "host": {
+                      "default": "",
+                      "description": "Redis hostname. Empty disables the cache.",
+                      "title": "host",
+                      "type": "string"
+                    },
+                    "port": {
+                      "default": 6379,
+                      "description": "Redis port.",
+                      "title": "port",
+                      "type": "integer"
+                    },
+                    "db": {
+                      "default": 0,
+                      "description": "Redis database index.",
+                      "title": "db",
+                      "type": "integer"
+                    },
+                    "tlsEnabled": {
+                      "default": false,
+                      "description": "Connect to Redis over TLS.",
+                      "title": "tlsEnabled",
+                      "type": "boolean"
+                    },
+                    "password": {
+                      "default": "",
+                      "description": "Redis password. When set, it is stored in the chart-managed Secret and injected via secretKeyRef \u2014 never as a plaintext env var in the pod spec. For production, use existingSecret to reference an externally-managed Secret containing the password instead. Leave both empty for a password-less Redis (e.g. local/dev).",
+                      "title": "password",
+                      "type": "string"
+                    },
+                    "existingSecret": {
+                      "default": "",
+                      "description": "Secret holding the Redis password.",
+                      "title": "existingSecret",
+                      "type": "string"
+                    },
+                    "existingSecretKey": {
+                      "default": "gateway-manifest-cache-redis-password",
+                      "description": "Key to read from existingSecret. Applies ONLY when existingSecret is set; the chart-managed Secret always uses the fixed key \"gateway-manifest-cache-redis-password\".",
+                      "title": "existingSecretKey",
+                      "type": "string"
+                    }
+                  },
+                  "required": [],
+                  "title": "redis",
+                  "type": "object"
+                }
+              },
+              "required": [],
+              "title": "gatewayManifestCache",
+              "type": "object"
+            },
+            "perAgentResourceLimits": {
+              "additionalProperties": false,
+              "description": "Agent resource limits \u2014 operator-configured upper bounds enforced on PUT /resource-configs",
+              "properties": {
+                "maxReplicas": {
+                  "default": 10,
+                  "description": "Most replicas a single agent may scale to.",
+                  "title": "maxReplicas",
+                  "type": "integer"
+                },
+                "maxCPU": {
+                  "default": "500m",
+                  "description": "Most CPU a single agent may request.",
+                  "title": "maxCPU",
+                  "type": "string"
+                },
+                "maxMemory": {
+                  "default": "512Mi",
+                  "description": "Most memory a single agent may request.",
+                  "title": "maxMemory",
+                  "type": "string"
+                }
+              },
+              "required": [],
+              "title": "perAgentResourceLimits",
+              "type": "object"
+            },
+            "thunder": {
+              "additionalProperties": false,
+              "description": "Thunder admin API configuration (for per-org publisher credential provisioning and the identity APIs: users, roles, groups). When baseURL is empty, the static amp-publisher-client credentials are used instead for publisher provisioning, and the identity APIs are unavailable.",
+              "properties": {
+                "baseURL": {
+                  "default": "http://thunder.amp.localhost:8080",
+                  "description": "Must be the PUBLIC URL, same as keyManager.issuer above. Every admin API request asks for a token scoped to Thunder's System resource server via an RFC 8707 \"resource\" parameter derived from this value (client.go's SystemResourceIdentifier), and Thunder only recognizes the public URL as that resource server's registered identifier \u2014 any other value fails with invalid_target. This does NOT need to be directly dialable from the pod; see resolveToHost below for that.",
+                  "title": "baseURL",
+                  "type": "string"
+                },
+                "resolveToHost": {
+                  "default": "amp-thunder-extension-service.amp-thunder.svc.cluster.local:8090",
+                  "description": "The host:port this service actually connects to for every Thunder request (baseURL's host is still sent as the HTTP Host header, and still drives the resource-identifier above). Needed here because baseURL is a *.localhost hostname that only resolves via the host machine's own DNS/hosts setup \u2014 it doesn't resolve from inside this pod. Leave empty only if baseURL is itself directly dialable from the pod (e.g. a real in-cluster DNS name).",
+                  "title": "resolveToHost",
+                  "type": "string"
+                },
+                "clientId": {
+                  "default": "amp-system-client",
+                  "description": "OAuth2 client ID of the system app (with Administrator role)",
+                  "title": "clientId",
+                  "type": "string"
+                },
+                "clientSecret": {
+                  "default": "amp-system-client-secret",
+                  "description": "OAuth2 client secret of the system app",
+                  "title": "clientSecret",
+                  "type": "string"
+                },
+                "existingSecret": {
+                  "default": "",
+                  "description": "Reference to an existing secret containing the Thunder client secret",
+                  "title": "existingSecret",
+                  "type": "string"
+                },
+                "existingSecretKey": {
+                  "default": "thunder-client-secret",
+                  "description": "Key within the existing Secret holding the client secret.",
+                  "title": "existingSecretKey",
+                  "type": "string"
+                }
+              },
+              "required": [],
+              "title": "thunder",
+              "type": "object"
+            }
+          },
+          "required": [],
+          "title": "config",
+          "type": "object"
+        },
+        "certificates": {
+          "additionalProperties": false,
+          "description": "Certificate configuration",
+          "properties": {
+            "certificatesSecret": {
+              "default": "",
+              "description": "REQUIRED: Kubernetes secret name containing TLS certificates Expected keys in secret: cert.pem (certificate), key.pem (private key) Example creation: kubectl create secret generic amp-tls-certs \\ from-file=cert.pem=/path/to/cert.pem \\ from-file=key.pem=/path/to/key.pem For development, leave empty to generate self-signed certs at runtime (insecure)",
+              "title": "certificatesSecret",
+              "type": "string"
+            }
+          },
+          "required": [],
+          "title": "certificates",
+          "type": "object"
+        },
+        "agentWorkload": {
+          "additionalProperties": false,
+          "description": "Defaults applied to every agent workload the platform deploys.",
+          "properties": {
+            "cors": {
+              "additionalProperties": false,
+              "description": "Default CORS policy on agent endpoints. Overridable per agent.",
+              "properties": {
+                "allowedOrigin": {
+                  "default": "*",
+                  "description": "Browser origins allowed to call agent endpoints. Narrow this in production.",
+                  "title": "allowedOrigin",
+                  "type": "string"
+                },
+                "allowedMethods": {
+                  "default": "GET,POST,PUT,DELETE,PATCH,OPTIONS",
+                  "description": "HTTP methods allowed on cross-origin requests.",
+                  "title": "allowedMethods",
+                  "type": "string"
+                },
+                "allowedHeaders": {
+                  "default": "authorization,Content-Type,Origin,X-API-Key",
+                  "description": "Request headers allowed on cross-origin requests.",
+                  "title": "allowedHeaders",
+                  "type": "string"
+                },
+                "allowCredentials": {
+                  "default": false,
+                  "description": "Allow cross-origin requests to carry credentials.",
+                  "title": "allowCredentials",
+                  "type": "boolean"
+                }
+              },
+              "required": [],
+              "title": "cors",
+              "type": "object"
+            }
+          },
+          "required": [],
+          "title": "agentWorkload",
+          "type": "object"
+        },
+        "podAnnotations": {
+          "additionalProperties": true,
+          "default": {},
+          "description": "Pod-level configurations",
+          "required": [],
+          "title": "podAnnotations",
+          "type": "object"
+        },
+        "podLabels": {
+          "additionalProperties": true,
+          "default": {},
+          "description": "Labels added to the pod",
+          "required": [],
+          "title": "podLabels",
+          "type": "object"
+        },
+        "podSecurityContext": {
+          "additionalProperties": true,
+          "default": {},
+          "description": "Pod security context - defaults to fsGroup: 1000 if not specified Note: If you encounter \"too many open files\" errors, this is typically caused by the Kubernetes client watching too many resources. Consider: 1. Reducing the number of watched resources in the application 2. Implementing resource filtering in watchers 3. Increasing limits at the node/cluster level",
+          "required": [],
+          "title": "podSecurityContext",
+          "type": "object"
+        },
+        "securityContext": {
+          "additionalProperties": true,
+          "default": {},
+          "description": "Container security context - defaults to secure settings if not specified",
+          "required": [],
+          "title": "securityContext",
+          "type": "object"
+        },
+        "nodeSelector": {
+          "additionalProperties": true,
+          "default": {},
+          "description": "Node labels the pod must match to be scheduled",
+          "required": [],
+          "title": "nodeSelector",
+          "type": "object"
+        },
+        "tolerations": {
+          "default": [],
+          "description": "Taints the pod tolerates",
+          "items": {},
+          "title": "tolerations",
+          "type": "array"
+        },
+        "affinity": {
+          "additionalProperties": true,
+          "default": {},
+          "description": "Affinity and anti-affinity rules for pod scheduling",
+          "required": [],
+          "title": "affinity",
+          "type": "object"
+        }
+      },
+      "required": [],
+      "title": "agentManagerService",
+      "type": "object"
+    },
+    "console": {
+      "additionalProperties": false,
+      "description": "Console (Frontend) Configuration",
+      "properties": {
+        "enabled": {
+          "default": true,
+          "description": "Install the console.",
+          "title": "enabled",
+          "type": "boolean"
+        },
+        "replicaCount": {
+          "default": 1,
+          "description": "Number of pod replicas to run",
+          "title": "replicaCount",
+          "type": "integer"
+        },
+        "image": {
+          "additionalProperties": false,
+          "description": "Container image for the console.",
+          "properties": {
+            "repository": {
+              "default": "ghcr.io/wso2/amp-console",
+              "description": "Container image repository",
+              "title": "repository",
+              "type": "string"
+            },
+            "tag": {
+              "default": "0.0.0-dev",
+              "description": "Container image tag. Defaults to the chart's appVersion when empty",
+              "title": "tag",
+              "type": "string"
+            },
+            "pullPolicy": {
+              "default": "Always",
+              "description": "Image pull policy (`Always`, `IfNotPresent`, or `Never`)",
+              "title": "pullPolicy",
+              "type": "string"
+            }
+          },
+          "required": [],
+          "title": "image",
+          "type": "object"
+        },
+        "service": {
+          "additionalProperties": false,
+          "description": "Reachable externally via the control-plane gateway (see ocIngress); set type to LoadBalancer to restore a dedicated external endpoint.",
+          "properties": {
+            "type": {
+              "default": "ClusterIP",
+              "description": "Kubernetes Service type (`ClusterIP`, `NodePort`, or `LoadBalancer`)",
+              "title": "type",
+              "type": "string"
+            },
+            "port": {
+              "default": 3000,
+              "description": "Port the Service listens on",
+              "title": "port",
+              "type": "integer"
+            },
+            "targetPort": {
+              "default": 3000,
+              "description": "Container port the Service forwards to",
+              "title": "targetPort",
+              "type": "integer"
+            }
+          },
+          "required": [],
+          "title": "service",
+          "type": "object"
+        },
+        "ocIngress": {
+          "additionalProperties": false,
+          "description": "Hostname the Console is served on via the OpenChoreo control-plane gateway (see the top-level ocIngress block)",
+          "properties": {
+            "hostname": {
+              "default": "console.amp.localhost",
+              "description": "Hostname routed to this component through the gateway",
+              "title": "hostname",
+              "type": "string"
+            }
+          },
+          "required": [],
+          "title": "ocIngress",
+          "type": "object"
+        },
+        "resources": {
+          "additionalProperties": false,
+          "description": "Compute resources for the console.",
+          "properties": {
+            "requests": {
+              "additionalProperties": false,
+              "description": "Resources reserved at scheduling time.",
+              "properties": {
+                "memory": {
+                  "default": "128Mi",
+                  "description": "Memory the container requests at scheduling time",
+                  "title": "memory",
+                  "type": "string"
+                },
+                "cpu": {
+                  "default": "100m",
+                  "description": "CPU the container requests at scheduling time",
+                  "title": "cpu",
+                  "type": "string"
+                }
+              },
+              "required": [],
+              "title": "requests",
+              "type": "object"
+            },
+            "limits": {
+              "additionalProperties": false,
+              "description": "Maximum resources the console may use.",
+              "properties": {
+                "memory": {
+                  "default": "256Mi",
+                  "description": "Maximum memory the container may use before it is OOM-killed",
+                  "title": "memory",
+                  "type": "string"
+                },
+                "cpu": {
+                  "default": "200m",
+                  "description": "Maximum CPU the container may use",
+                  "title": "cpu",
+                  "type": "string"
+                }
+              },
+              "required": [],
+              "title": "limits",
+              "type": "object"
+            }
+          },
+          "required": [],
+          "title": "resources",
+          "type": "object"
+        },
+        "autoscaling": {
+          "additionalProperties": false,
+          "description": "Horizontal Pod Autoscaler settings for the console.",
+          "properties": {
+            "enabled": {
+              "default": false,
+              "description": "Enable the Horizontal Pod Autoscaler",
+              "title": "enabled",
+              "type": "boolean"
+            },
+            "minReplicas": {
+              "default": 1,
+              "description": "Minimum replicas the autoscaler may scale down to",
+              "title": "minReplicas",
+              "type": "integer"
+            },
+            "maxReplicas": {
+              "default": 10,
+              "description": "Maximum replicas the autoscaler may scale up to",
+              "title": "maxReplicas",
+              "type": "integer"
+            },
+            "targetCPUUtilizationPercentage": {
+              "default": 80,
+              "description": "Target average CPU utilisation that triggers scaling",
+              "title": "targetCPUUtilizationPercentage",
+              "type": "integer"
+            },
+            "targetMemoryUtilizationPercentage": {
+              "default": null,
+              "description": "Target average memory utilisation that triggers scaling",
+              "title": "targetMemoryUtilizationPercentage",
+              "type": "null"
+            }
+          },
+          "required": [],
+          "title": "autoscaling",
+          "type": "object"
+        },
+        "livenessProbe": {
+          "default": null,
+          "description": "Health checks",
+          "title": "livenessProbe",
+          "type": "null"
+        },
+        "readinessProbe": {
+          "default": null,
+          "description": "Readiness probe for the console. Unset uses the image default.",
+          "title": "readinessProbe",
+          "type": "null"
+        },
+        "config": {
+          "additionalProperties": false,
+          "description": "Frontend configuration",
+          "properties": {
+            "auth": {
+              "additionalProperties": false,
+              "description": "Authentication (set to \"\" to disable)",
+              "properties": {
+                "clientId": {
+                  "default": "amp-console-client",
+                  "description": "OAuth 2.0 client ID the console authenticates with.",
+                  "title": "clientId",
+                  "type": "string"
+                },
+                "baseUrl": {
+                  "default": "http://thunder.amp.localhost:8080",
+                  "description": "Identity provider the console redirects users to.",
+                  "title": "baseUrl",
+                  "type": "string"
+                },
+                "scopes": {
+                  "default": "openid profile email amp:llm-proxy:deploy amp:mcp-server:create amp:org:invite-member amp:role:delete amp:monitor:read amp:agent:env-production amp:git-secret:delete amp:llm-provider:delete amp:mcp-server:configure-guardrail amp:deployment-pipeline:create amp:deployment-pipeline:read amp:deployment-pipeline:update amp:deployment-pipeline:delete amp:gateway:delete amp:group:delete amp:llm-proxy:update amp:monitor:score-read amp:llm-provider-template:update amp:agent:build amp:agent:rollback amp:agent:token-manage amp:evaluator:read amp:llm-provider-template:read amp:monitor:create amp:agent:suspend amp:gateway:token-manage amp:git-secret:read amp:mcp-server:connect amp:mcp-server:api-key-manage amp:mcp-server:read amp:observability:log-read amp:group:create amp:observability:trace-read amp:org:remove-member amp:agent:env-non-production amp:group:read amp:llm-provider-template:create amp:project:delete amp:agent:create amp:evaluator:create amp:llm-provider:read amp:org:modify-settings amp:catalog:read amp:environment:update amp:group:update amp:llm-proxy:delete amp:project:read amp:data-plane:read amp:agent:read amp:environment:read amp:llm-provider:configure-guardrail amp:observability:build-log-read amp:org:assign-role amp:project:update amp:mcp-server:delete amp:environment:delete amp:evaluator:update amp:git-secret:create amp:monitor:execute amp:llm-provider:api-key-manage amp:gateway:read amp:agent:update amp:llm-provider-template:delete amp:monitor:delete amp:org:view amp:llm-provider:create amp:mcp-server:update amp:org:manage-idp amp:role:read amp:role:update amp:agent:delete amp:gateway:create amp:llm-provider:deploy amp:llm-proxy:api-key-manage amp:monitor:update amp:org:manage-service-account amp:role:create amp:evaluator:delete amp:llm-provider:connect amp:llm-provider:update amp:llm-proxy:read amp:monitor:score-publish amp:observability:metric-read amp:project:create amp:repository:read amp:gateway:update amp:environment:create amp:llm-proxy:create amp:agent:api-key-manage amp:agent-kind:read amp:agent-kind:create amp:agent-kind:update amp:agent-kind:delete amp:profile:read amp:profile:update-attributes amp:scope:create amp:scope:read amp:scope:update amp:scope:delete amp:agent-identity:read amp:agent-identity:create amp:agent-identity:update amp:agent-identity:delete",
+                  "description": "Scopes the console requests at login.",
+                  "title": "scopes",
+                  "type": "string"
+                },
+                "signInRedirectURL": {
+                  "default": "http://console.amp.localhost:8080/login",
+                  "description": "URL the identity provider returns users to after sign-in.",
+                  "title": "signInRedirectURL",
+                  "type": "string"
+                },
+                "signOutRedirectURL": {
+                  "default": "http://console.amp.localhost:8080/login",
+                  "description": "URL the identity provider returns users to after sign-out.",
+                  "title": "signOutRedirectURL",
+                  "type": "string"
+                },
+                "existingSecret": {
+                  "default": "",
+                  "description": "Secret holding the console's client secret.",
+                  "title": "existingSecret",
+                  "type": "string"
+                },
+                "validateIDToken": {
+                  "default": "false",
+                  "description": "Verify the ID token signature in the browser.",
+                  "title": "validateIDToken",
+                  "type": "string"
+                },
+                "clockTolerance": {
+                  "default": 300,
+                  "description": "Clock skew tolerated when validating tokens, in seconds.",
+                  "title": "clockTolerance",
+                  "type": "integer"
+                }
+              },
+              "required": [],
+              "title": "auth",
+              "type": "object"
+            },
+            "disableAuth": {
+              "default": "false",
+              "description": "Disable auth for development",
+              "title": "disableAuth",
+              "type": "string"
+            },
+            "rbacEnabled": {
+              "default": "true",
+              "description": "Enable RBAC-based sidebar visibility (scope-gated nav sections)",
+              "title": "rbacEnabled",
+              "type": "string"
+            },
+            "apiBaseUrl": {
+              "default": "http://api.amp.localhost:8080",
+              "description": "Backend API URLs (will be auto-configured if empty) Routed through the OpenChoreo control-plane gateway (see ocIngress).",
+              "title": "apiBaseUrl",
+              "type": "string"
+            },
+            "gatewayControlPlaneUrl": {
+              "default": "http://host.docker.internal:8080",
+              "description": "Gateway control plane URL rendered into external-gateway setup commands. Routed through the OpenChoreo control-plane gateway (see agentManagerService.ocIngress.gatewayMgmt); host.docker.internal lets a gateway container on the same machine reach it.",
+              "title": "gatewayControlPlaneUrl",
+              "type": "string"
+            },
+            "gatewayVersion": {
+              "default": "v1.0.0",
+              "description": "Gateway version for setup commands (default: v1.0.0)",
+              "title": "gatewayVersion",
+              "type": "string"
+            },
+            "ampVersion": {
+              "default": "0.0.0-dev",
+              "description": "Agent Manager release version \u2014 pins the deployment-script git tag (amp/vX.Y.Z). Placeholder is substituted with the real release version by the release pipeline (.github/scripts/update-helm-charts.sh); dev builds fall back to main.",
+              "title": "ampVersion",
+              "type": "string"
+            },
+            "docsVersion": {
+              "default": "latest",
+              "description": "Documentation version the console's in-product doc links point at, used as the path segment after /docs/. \"latest\" tracks the newest released docs. The release pipeline (.github/scripts/update-helm-charts.sh) pins this to the matching versioned docs (vX.Y.x, or the exact version for a pre-release) for final and pre-release builds. Release candidates and nightlies keep \"latest\", because no docs version is cut for them.",
+              "title": "docsVersion",
+              "type": "string"
+            },
+            "instrumentationUrl": {
+              "default": "http://default-default.gateway.localhost:19080/otel",
+              "description": "Trace-export URL shown to external agent developers. kgateway-routed vhost \u2014 independent of the gateway runtime's namespace; no port-forward.",
+              "title": "instrumentationUrl",
+              "type": "string"
+            },
+            "agentManagerInternalBaseUrl": {
+              "default": "http://amp-api.wso2-amp.svc.cluster.local:9000",
+              "description": "Cluster-internal URLs the API Platform Gateway uses to reach Agent Manager when add-environment.sh installs a new gateway. The Create Environment drawer pipes these into the rendered curl|bash command so the gateway is configured for in-cluster service discovery.",
+              "title": "agentManagerInternalBaseUrl",
+              "type": "string"
+            },
+            "agentManagerInternalCpHost": {
+              "default": "amp-api-gateway-manager.wso2-amp.svc.cluster.local:9243",
+              "description": "In-cluster address the console's server-side calls use.",
+              "title": "agentManagerInternalCpHost",
+              "type": "string"
+            },
+            "idpHostBaseDomain": {
+              "default": "amp.localhost",
+              "description": "Base domain env-Thunder instances are hosted under, and whether this deployment serves them over TLS. Mirrors agentManagerService.config's own idpHostBaseDomain/tlsEnabled \u2014 kept in sync so the Create Environment drawer's rendered command matches this deployment. VM/production installs override both (see deployments/vm/lib-vm.sh).",
+              "title": "idpHostBaseDomain",
+              "type": "string"
+            },
+            "tlsEnabled": {
+              "default": "false",
+              "description": "Serve the console over HTTPS.",
+              "title": "tlsEnabled",
+              "type": "string"
+            },
+            "guardrailsCatalogUrl": {
+              "default": "https://db720294-98fd-40f4-85a1-cc6a3b65bc9a-prod.e1-us-east-azure.choreoapis.dev/api-platform/policy-hub-api/policy-hub-public/v1.0/policies?categories=AI,Guardrails&limit=50",
+              "description": "Guardrails catalog URL for fetching available guardrail policies",
+              "title": "guardrailsCatalogUrl",
+              "type": "string"
+            },
+            "guardrailsDefinitionBaseUrl": {
+              "default": "https://db720294-98fd-40f4-85a1-cc6a3b65bc9a-prod.e1-us-east-azure.choreoapis.dev/api-platform/policy-hub-api/policy-hub-public/v1.0/policies",
+              "description": "Guardrails definition base URL for fetching policy definitions",
+              "title": "guardrailsDefinitionBaseUrl",
+              "type": "string"
+            },
+            "guardrailCapabilities": {
+              "additionalProperties": false,
+              "description": "Guardrail capability flags \u2014 enable policies that require external system configuration. OOTB policies are always shown regardless of these flags.",
+              "properties": {
+                "awsBedrock": {
+                  "default": false,
+                  "description": "Offer AWS Bedrock guardrails. Allowed values: Unlocks: aws-bedrock-guardrail.",
+                  "title": "awsBedrock",
+                  "type": "boolean"
+                },
+                "azureContentSafety": {
+                  "default": false,
+                  "description": "Offer Azure AI Content Safety guardrails. Allowed values: Unlocks: azure-content-safety-content-moderation.",
+                  "title": "azureContentSafety",
+                  "type": "boolean"
+                },
+                "graniteGuardian": {
+                  "default": false,
+                  "description": "Offer Granite Guardian guardrails. Allowed values: Unlocks: granite-guardian-prompt-injection.",
+                  "title": "graniteGuardian",
+                  "type": "boolean"
+                },
+                "nemoGuard": {
+                  "default": false,
+                  "description": "Offer NVIDIA NeMo Guardrails. Allowed values: Unlocks: nvidia-nemoguard-content-safety.",
+                  "title": "nemoGuard",
+                  "type": "boolean"
+                },
+                "semanticGuardrails": {
+                  "default": false,
+                  "description": "Offer semantic guardrails. Allowed values: Unlocks: semantic-prompt-guard, semantic-cache.",
+                  "title": "semanticGuardrails",
+                  "type": "boolean"
+                }
+              },
+              "required": [],
+              "title": "guardrailCapabilities",
+              "type": "object"
+            },
+            "featureFlags": {
+              "additionalProperties": false,
+              "description": "Feature flags.",
+              "properties": {
+                "enablePrivateRepoSupport": {
+                  "default": true,
+                  "description": "Shows the private Git repository option when building agents from source.",
+                  "title": "enablePrivateRepoSupport",
+                  "type": "boolean"
+                },
+                "enableIdentityProviderManagedMode": {
+                  "default": false,
+                  "description": "When true, identity provider management calls the REST API directly instead of rendering the self-hosted manage-identity-provider.sh script snippet.",
+                  "title": "enableIdentityProviderManagedMode",
+                  "type": "boolean"
+                },
+                "enableProfileManagement": {
+                  "default": true,
+                  "description": "When false, the Profile Settings text fields and Save Changes button are hidden/disabled, and the Change Password tab is disabled.",
+                  "title": "enableProfileManagement",
+                  "type": "boolean"
+                },
+                "enableUserManagement": {
+                  "default": true,
+                  "description": "When false, the Add User, Invite User, Create Role, and Create Group buttons on the Settings page are disabled.",
+                  "title": "enableUserManagement",
+                  "type": "boolean"
+                }
+              },
+              "required": [],
+              "title": "featureFlags",
+              "type": "object"
+            }
+          },
+          "required": [],
+          "title": "config",
+          "type": "object"
+        },
+        "podAnnotations": {
+          "additionalProperties": true,
+          "default": {},
+          "description": "Pod-level configurations",
+          "required": [],
+          "title": "podAnnotations",
+          "type": "object"
+        },
+        "podLabels": {
+          "additionalProperties": true,
+          "default": {},
+          "description": "Labels added to the pod",
+          "required": [],
+          "title": "podLabels",
+          "type": "object"
+        },
+        "podSecurityContext": {
+          "additionalProperties": true,
+          "default": {},
+          "description": "Pod security context - optional, no defaults to allow image to use its own user If you need to set fsGroup or other pod-level security settings, specify them here",
+          "required": [],
+          "title": "podSecurityContext",
+          "type": "object"
+        },
+        "securityContext": {
+          "additionalProperties": true,
+          "default": {},
+          "description": "Container security context - defaults to secure settings (without runAsUser to allow image default) If you need to set runAsUser or other container-level security settings, specify them here",
+          "required": [],
+          "title": "securityContext",
+          "type": "object"
+        },
+        "nodeSelector": {
+          "additionalProperties": true,
+          "default": {},
+          "description": "Node labels the pod must match to be scheduled",
+          "required": [],
+          "title": "nodeSelector",
+          "type": "object"
+        },
+        "tolerations": {
+          "default": [],
+          "description": "Taints the pod tolerates",
+          "items": {},
+          "title": "tolerations",
+          "type": "array"
+        },
+        "affinity": {
+          "additionalProperties": true,
+          "default": {},
+          "description": "Affinity and anti-affinity rules for pod scheduling",
+          "required": [],
+          "title": "affinity",
+          "type": "object"
+        }
+      },
+      "required": [],
+      "title": "console",
+      "type": "object"
+    },
+    "dbMigration": {
+      "additionalProperties": false,
+      "description": "Database Migration Job Configuration",
+      "properties": {
+        "enabled": {
+          "default": true,
+          "description": "Run the migration job.",
+          "title": "enabled",
+          "type": "boolean"
+        },
+        "image": {
+          "additionalProperties": false,
+          "description": "Container image for the migration job.",
+          "properties": {
+            "repository": {
+              "default": "ghcr.io/wso2/amp-api",
+              "description": "Container image repository",
+              "title": "repository",
+              "type": "string"
+            },
+            "tag": {
+              "default": "0.0.0-dev",
+              "description": "Container image tag. Defaults to the chart's appVersion when empty",
+              "title": "tag",
+              "type": "string"
+            },
+            "pullPolicy": {
+              "default": "IfNotPresent",
+              "description": "Image pull policy (`Always`, `IfNotPresent`, or `Never`)",
+              "title": "pullPolicy",
+              "type": "string"
+            }
+          },
+          "required": [],
+          "title": "image",
+          "type": "object"
+        },
+        "resources": {
+          "additionalProperties": false,
+          "description": "Compute resources for the migration job.",
+          "properties": {
+            "requests": {
+              "additionalProperties": false,
+              "description": "Resources reserved at scheduling time.",
+              "properties": {
+                "memory": {
+                  "default": "128Mi",
+                  "description": "Memory the container requests at scheduling time",
+                  "title": "memory",
+                  "type": "string"
+                },
+                "cpu": {
+                  "default": "100m",
+                  "description": "CPU the container requests at scheduling time",
+                  "title": "cpu",
+                  "type": "string"
+                }
+              },
+              "required": [],
+              "title": "requests",
+              "type": "object"
+            },
+            "limits": {
+              "additionalProperties": false,
+              "description": "Maximum resources the migration job may use.",
+              "properties": {
+                "memory": {
+                  "default": "256Mi",
+                  "description": "Maximum memory the container may use before it is OOM-killed",
+                  "title": "memory",
+                  "type": "string"
+                },
+                "cpu": {
+                  "default": "200m",
+                  "description": "Maximum CPU the container may use",
+                  "title": "cpu",
+                  "type": "string"
+                }
+              },
+              "required": [],
+              "title": "limits",
+              "type": "object"
+            }
+          },
+          "required": [],
+          "title": "resources",
+          "type": "object"
+        },
+        "backoffLimit": {
+          "default": 3,
+          "description": "Retries before the migration job is marked failed.",
+          "title": "backoffLimit",
+          "type": "integer"
+        },
+        "podSecurityContext": {
+          "additionalProperties": true,
+          "default": {},
+          "description": "Pod-level security settings for the migration job.",
+          "required": [],
+          "title": "podSecurityContext",
+          "type": "object"
+        },
+        "securityContext": {
+          "additionalProperties": true,
+          "default": {},
+          "description": "Container-level security settings for the migration job.",
+          "required": [],
+          "title": "securityContext",
+          "type": "object"
+        }
+      },
+      "required": [],
+      "title": "dbMigration",
+      "type": "object"
+    },
+    "jwtKeysGeneration": {
+      "additionalProperties": false,
+      "description": "JWT Keys Generation Job Configuration",
+      "properties": {
+        "enabled": {
+          "default": true,
+          "description": "Run the key generation job.",
+          "title": "enabled",
+          "type": "boolean"
+        },
+        "backoffLimit": {
+          "default": 3,
+          "description": "Retries before the key generation job is marked failed.",
+          "title": "backoffLimit",
+          "type": "integer"
+        },
+        "resources": {
+          "additionalProperties": false,
+          "description": "Compute resources for the key generation job.",
+          "properties": {
+            "requests": {
+              "additionalProperties": false,
+              "description": "Resources reserved at scheduling time.",
+              "properties": {
+                "memory": {
+                  "default": "64Mi",
+                  "description": "Memory the container requests at scheduling time",
+                  "title": "memory",
+                  "type": "string"
+                },
+                "cpu": {
+                  "default": "50m",
+                  "description": "CPU the container requests at scheduling time",
+                  "title": "cpu",
+                  "type": "string"
+                }
+              },
+              "required": [],
+              "title": "requests",
+              "type": "object"
+            },
+            "limits": {
+              "additionalProperties": false,
+              "description": "Maximum resources the job may use.",
+              "properties": {
+                "memory": {
+                  "default": "128Mi",
+                  "description": "Maximum memory the container may use before it is OOM-killed",
+                  "title": "memory",
+                  "type": "string"
+                },
+                "cpu": {
+                  "default": "100m",
+                  "description": "Maximum CPU the container may use",
+                  "title": "cpu",
+                  "type": "string"
+                }
+              },
+              "required": [],
+              "title": "limits",
+              "type": "object"
+            }
+          },
+          "required": [],
+          "title": "resources",
+          "type": "object"
+        },
+        "podSecurityContext": {
+          "additionalProperties": false,
+          "description": "Security context for JWT keys generation job Allows root access for apk package installation (openssl, kubectl)",
+          "properties": {
+            "runAsNonRoot": {
+              "default": false,
+              "description": "Require the container to run as a non-root user",
+              "title": "runAsNonRoot",
+              "type": "boolean"
+            },
+            "runAsUser": {
+              "default": 0,
+              "description": "UID the pod's containers run as",
+              "title": "runAsUser",
+              "type": "integer"
+            },
+            "fsGroup": {
+              "default": 0,
+              "description": "Supplemental group applied to mounted volumes",
+              "title": "fsGroup",
+              "type": "integer"
+            }
+          },
+          "required": [],
+          "title": "podSecurityContext",
+          "type": "object"
+        },
+        "securityContext": {
+          "additionalProperties": false,
+          "description": "Container-level security settings for the job.",
+          "properties": {
+            "runAsNonRoot": {
+              "default": false,
+              "description": "Require the container to run as a non-root user",
+              "title": "runAsNonRoot",
+              "type": "boolean"
+            },
+            "runAsUser": {
+              "default": 0,
+              "description": "UID the container runs as",
+              "title": "runAsUser",
+              "type": "integer"
+            },
+            "allowPrivilegeEscalation": {
+              "default": false,
+              "description": "Allow a process to gain more privileges than its parent",
+              "title": "allowPrivilegeEscalation",
+              "type": "boolean"
+            },
+            "capabilities": {
+              "additionalProperties": false,
+              "description": "Linux capabilities adjusted for the job's container.",
+              "properties": {
+                "drop": {
+                  "default": [
+                    "ALL"
+                  ],
+                  "description": "Linux capabilities removed from the container",
+                  "items": {
+                    "type": "string"
+                  },
+                  "title": "drop",
+                  "type": "array"
+                }
+              },
+              "required": [],
+              "title": "capabilities",
+              "type": "object"
+            },
+            "readOnlyRootFilesystem": {
+              "default": false,
+              "description": "Mount the container root filesystem read-only",
+              "title": "readOnlyRootFilesystem",
+              "type": "boolean"
+            }
+          },
+          "required": [],
+          "title": "securityContext",
+          "type": "object"
+        }
+      },
+      "required": [],
+      "title": "jwtKeysGeneration",
+      "type": "object"
+    },
+    "tlsCertsGeneration": {
+      "additionalProperties": false,
+      "description": "TLS Certificates Generation Job Configuration",
+      "properties": {
+        "enabled": {
+          "default": true,
+          "description": "Run the certificate generation job.",
+          "title": "enabled",
+          "type": "boolean"
+        },
+        "backoffLimit": {
+          "default": 3,
+          "description": "Retries before the certificate job is marked failed.",
+          "title": "backoffLimit",
+          "type": "integer"
+        },
+        "resources": {
+          "additionalProperties": false,
+          "description": "Compute resources for the certificate job.",
+          "properties": {
+            "requests": {
+              "additionalProperties": false,
+              "description": "Resources reserved at scheduling time.",
+              "properties": {
+                "memory": {
+                  "default": "64Mi",
+                  "description": "Memory the container requests at scheduling time",
+                  "title": "memory",
+                  "type": "string"
+                },
+                "cpu": {
+                  "default": "50m",
+                  "description": "CPU the container requests at scheduling time",
+                  "title": "cpu",
+                  "type": "string"
+                }
+              },
+              "required": [],
+              "title": "requests",
+              "type": "object"
+            },
+            "limits": {
+              "additionalProperties": false,
+              "description": "Maximum resources the job may use.",
+              "properties": {
+                "memory": {
+                  "default": "128Mi",
+                  "description": "Maximum memory the container may use before it is OOM-killed",
+                  "title": "memory",
+                  "type": "string"
+                },
+                "cpu": {
+                  "default": "100m",
+                  "description": "Maximum CPU the container may use",
+                  "title": "cpu",
+                  "type": "string"
+                }
+              },
+              "required": [],
+              "title": "limits",
+              "type": "object"
+            }
+          },
+          "required": [],
+          "title": "resources",
+          "type": "object"
+        },
+        "podSecurityContext": {
+          "additionalProperties": false,
+          "description": "Security context for TLS certs generation job Allows root access for apk package installation (openssl, kubectl)",
+          "properties": {
+            "runAsNonRoot": {
+              "default": false,
+              "description": "Require the container to run as a non-root user",
+              "title": "runAsNonRoot",
+              "type": "boolean"
+            },
+            "runAsUser": {
+              "default": 0,
+              "description": "UID the pod's containers run as",
+              "title": "runAsUser",
+              "type": "integer"
+            },
+            "fsGroup": {
+              "default": 0,
+              "description": "Supplemental group applied to mounted volumes",
+              "title": "fsGroup",
+              "type": "integer"
+            }
+          },
+          "required": [],
+          "title": "podSecurityContext",
+          "type": "object"
+        },
+        "securityContext": {
+          "additionalProperties": false,
+          "description": "Container-level security settings for the job.",
+          "properties": {
+            "runAsNonRoot": {
+              "default": false,
+              "description": "Require the container to run as a non-root user",
+              "title": "runAsNonRoot",
+              "type": "boolean"
+            },
+            "runAsUser": {
+              "default": 0,
+              "description": "UID the container runs as",
+              "title": "runAsUser",
+              "type": "integer"
+            },
+            "allowPrivilegeEscalation": {
+              "default": false,
+              "description": "Allow a process to gain more privileges than its parent",
+              "title": "allowPrivilegeEscalation",
+              "type": "boolean"
+            },
+            "capabilities": {
+              "additionalProperties": false,
+              "description": "Linux capabilities adjusted for the job's container.",
+              "properties": {
+                "drop": {
+                  "default": [
+                    "ALL"
+                  ],
+                  "description": "Linux capabilities removed from the container",
+                  "items": {
+                    "type": "string"
+                  },
+                  "title": "drop",
+                  "type": "array"
+                }
+              },
+              "required": [],
+              "title": "capabilities",
+              "type": "object"
+            },
+            "readOnlyRootFilesystem": {
+              "default": false,
+              "description": "Mount the container root filesystem read-only",
+              "title": "readOnlyRootFilesystem",
+              "type": "boolean"
+            }
+          },
+          "required": [],
+          "title": "securityContext",
+          "type": "object"
+        }
+      },
+      "required": [],
+      "title": "tlsCertsGeneration",
+      "type": "object"
+    },
+    "jwtSigning": {
+      "additionalProperties": false,
+      "description": "JWT Signing Keys Configuration",
+      "properties": {
+        "existingSecret": {
+          "default": "",
+          "description": "Specify an existing secret containing JWT keys (optional) If not specified, keys will be auto-generated by the jwt-keys-generation job",
+          "title": "existingSecret",
+          "type": "string"
+        }
+      },
+      "required": [],
+      "title": "jwtSigning",
+      "type": "object"
+    },
+    "serviceAccount": {
+      "additionalProperties": false,
+      "description": "Ingress Configuration ServiceAccount Configuration",
+      "properties": {
+        "create": {
+          "default": true,
+          "description": "Create a ServiceAccount for this component",
+          "title": "create",
+          "type": "boolean"
+        },
+        "name": {
+          "default": "agent-management-platform",
+          "description": "Name of the ServiceAccount to use. Generated when empty",
+          "title": "name",
+          "type": "string"
+        },
+        "annotations": {
+          "additionalProperties": true,
+          "default": {},
+          "description": "Annotations added to the ServiceAccount",
+          "required": [],
+          "title": "annotations",
+          "type": "object"
+        },
+        "automount": {
+          "default": false,
+          "description": "Automount the ServiceAccount API token into the pod",
+          "title": "automount",
+          "type": "boolean"
+        }
+      },
+      "required": [],
+      "title": "serviceAccount",
+      "type": "object"
+    },
+    "rbac": {
+      "additionalProperties": false,
+      "description": "RBAC Configuration Scoped to exactly what the pre-install/pre-upgrade hook Jobs (TLS certs, JWT keys) do: read/create/patch Secrets in the release namespace. The amp-api service itself makes no Kubernetes API calls.",
+      "properties": {
+        "create": {
+          "default": true,
+          "description": "Create the Role and RoleBinding.",
+          "title": "create",
+          "type": "boolean"
+        },
+        "rules": {
+          "default": [
+            {
+              "apiGroups": [
+                ""
+              ],
+              "resources": [
+                "secrets"
+              ],
+              "verbs": [
+                "get",
+                "create",
+                "patch"
+              ]
+            },
+            {
+              "apiGroups": [
+                ""
+              ],
+              "resources": [
+                "configmaps"
+              ],
+              "verbs": [
+                "get",
+                "create",
+                "patch"
+              ]
+            }
+          ],
+          "description": "Rules granted by the Role.",
+          "items": {
+            "type": "object"
+          },
+          "title": "rules",
+          "type": "array"
+        }
+      },
+      "required": [],
+      "title": "rbac",
+      "type": "object"
+    },
+    "hookServiceAccount": {
+      "additionalProperties": false,
+      "description": "ServiceAccount used only by the pre-install/pre-upgrade hook Jobs. This is the sole subject of the scoped RBAC Role. The SA and the Role/RoleBinding are only rendered when at least one hook Job is enabled, so no unused grant is left standing. With create: false, name must point at an existing ServiceAccount (rendering fails fast otherwise).",
+      "properties": {
+        "create": {
+          "default": true,
+          "description": "Create the hook ServiceAccount.",
+          "title": "create",
+          "type": "boolean"
+        },
+        "name": {
+          "default": "",
+          "description": "Name of the hook ServiceAccount. Generated when empty. Allowed values: defaults to \"<fullname>-hooks\" (e.g. amp-hooks).",
+          "title": "name",
+          "type": "string"
+        },
+        "annotations": {
+          "additionalProperties": true,
+          "default": {},
+          "description": "Annotations added to the hook ServiceAccount.",
+          "required": [],
+          "title": "annotations",
+          "type": "object"
+        }
+      },
+      "required": [],
+      "title": "hookServiceAccount",
+      "type": "object"
+    },
+    "volumeMounts": {
+      "default": [],
+      "description": "Global volume mounts and volumes (optional)",
+      "items": {},
+      "title": "volumeMounts",
+      "type": "array"
+    },
+    "volumes": {
+      "default": [],
+      "description": "Extra volumes mounted into the control-plane API, for example a private CA bundle.",
+      "items": {},
+      "title": "volumes",
+      "type": "array"
+    },
+    "commonLabels": {
+      "additionalProperties": true,
+      "default": {},
+      "description": "Common labels to add to all resources",
+      "required": [],
+      "title": "commonLabels",
+      "type": "object"
+    }
+  }
+}

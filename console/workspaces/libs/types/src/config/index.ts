@@ -64,11 +64,11 @@ export interface AppConfig {
   /**
    * Base domain env-Thunder instances are hosted under (e.g. amp.localhost,
    * or a VM/production deployment's own domain). Mirrors the backend's
-   * THUNDER_HOST_BASE_DOMAIN. Used to render the correct
-   * THUNDER_HOST_BASE_DOMAIN value in the Create Environment drawer's
+   * IDP_HOST_BASE_DOMAIN. Used to render the correct
+   * IDP_HOST_BASE_DOMAIN value in the Create Environment drawer's
    * generated add-environment.sh command, and to build the handle preview.
    */
-  thunderHostBaseDomain?: string;
+  idpHostBaseDomain?: string;
   /**
    * Whether this deployment serves env-Thunder over TLS. Mirrors the
    * backend's TLS_ENABLED. Piped into the Create Environment drawer's

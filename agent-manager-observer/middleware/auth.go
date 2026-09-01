@@ -132,9 +132,22 @@ func buildBearerChallenge(resourceMetadataURL, errorCode string) string {
 // JWTAuth returns a middleware that validates Bearer JWTs on every request.
 // Routes wrapped by this middleware require a valid token in the Authorization header.
 func JWTAuth(cfg config.AuthConfig) func(http.Handler) http.Handler {
+	return jwtAuth(cfg, false)
+}
+
+// JWTAuthForMCP points authentication challenges at the path-specific RFC
+// 9728 metadata document for the Observer MCP resource.
+func JWTAuthForMCP(cfg config.AuthConfig) func(http.Handler) http.Handler {
+	return jwtAuth(cfg, true)
+}
+
+func jwtAuth(cfg config.AuthConfig, mcpResource bool) func(http.Handler) http.Handler {
 	resourceMetadataURL := ""
 	if cfg.ServerPublicURL != "" {
-		resourceMetadataURL = cfg.ServerPublicURL + "/.well-known/oauth-protected-resource"
+		resourceMetadataURL = strings.TrimRight(cfg.ServerPublicURL, "/") + "/.well-known/oauth-protected-resource"
+		if mcpResource {
+			resourceMetadataURL += "/mcp"
+		}
 	}
 
 	return func(next http.Handler) http.Handler {

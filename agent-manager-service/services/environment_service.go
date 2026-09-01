@@ -23,16 +23,20 @@ import (
 	"fmt"
 	"log/slog"
 	"math/big"
+	"net/url"
 	"regexp"
+	"strings"
 	"sync"
 
 	"github.com/google/uuid"
 
 	occlient "github.com/wso2/agent-manager/agent-manager-service/clients/openchoreosvc/client"
 	"github.com/wso2/agent-manager/agent-manager-service/clients/thundersvc"
+	"github.com/wso2/agent-manager/agent-manager-service/config"
 	"github.com/wso2/agent-manager/agent-manager-service/models"
 	"github.com/wso2/agent-manager/agent-manager-service/repositories"
 	"github.com/wso2/agent-manager/agent-manager-service/utils"
+	"github.com/wso2/agent-manager/agent-manager-service/utils/ssrf"
 )
 
 // EnvironmentService defines the interface for environment operations
@@ -50,15 +54,23 @@ type EnvironmentService interface {
 	SetThunderSystemClientSecret(ctx context.Context, ouID, envName, clientID, clientSecret string) error
 	// DeleteThunderSystemClientSecret removes that credential (idempotent), looked up by ouID.
 	DeleteThunderSystemClientSecret(ctx context.Context, ouID, envName string) error
-	// SetThunderURL registers an unguessable handle that replaces the predictable
-	// <org>-<env> segment of this environment's externally-reachable env-Thunder
-	// hostname, and returns the handle that ended up stored. When handle is empty,
-	// one is generated automatically. Returns utils.ErrThunderHandleTaken if a
-	// caller-supplied handle is already registered to a different environment.
-	SetThunderURL(ctx context.Context, ouID, envName, handle string) (string, error)
-	// GetThunderURL returns the registered handle for (ouID, envName), or
-	// utils.ErrThunderHandleNotFound if none has been registered.
-	GetThunderURL(ctx context.Context, ouID, envName string) (string, error)
+	// SetThunderURL registers this environment's env-Thunder registration via
+	// exactly one of two mutually-exclusive paths:
+	//   - handle set (or both empty): on-prem path. An unguessable handle
+	//     replaces the predictable <org>-<env> segment of the environment's
+	//     hostname; AMS computes and stores the full origin server-side. An
+	//     empty handle auto-generates one.
+	//   - url set: the caller already knows the real, already-provisioned
+	//     origin (useful when different environments live under different
+	//     domains, so there is no single pattern AMS could compute); AMS
+	//     validates and stores it verbatim, with no handle at all.
+	// Returns utils.ErrThunderHandleAndURLBothSet if both are non-empty,
+	// utils.ErrThunderHandleTaken/utils.ErrThunderURLTaken if the respective
+	// value is already registered to a different environment.
+	SetThunderURL(ctx context.Context, ouID, envName, handle, url string) (models.ThunderURLRecord, error)
+	// GetThunderURL returns the registered record for (ouID, envName), or
+	// utils.ErrThunderHandleNotFound if nothing has been registered.
+	GetThunderURL(ctx context.Context, ouID, envName string) (models.ThunderURLRecord, error)
 	// DeleteThunderURL removes the handle (idempotent), freeing it for reuse.
 	DeleteThunderURL(ctx context.Context, ouID, envName string) error
 	// IsThunderHandleAvailable checks whether handle passes format validation
@@ -527,7 +539,7 @@ func (s *environmentService) ListThunderInstances(ctx context.Context, ouID stri
 	// must never look identical to "this environment has no Thunder instance" on
 	// the console's Identity page.
 	reachable := make([]bool, len(envs))
-	handles := make([]string, len(envs))
+	thunderURLs := make([]string, len(envs))
 	sem := make(chan struct{}, maxThunderProbeConcurrency)
 	var wg sync.WaitGroup
 	var readErrOnce sync.Once
@@ -541,16 +553,16 @@ func (s *environmentService) ListThunderInstances(ctx context.Context, ouID stri
 		go func(idx int, envName string) {
 			defer wg.Done()
 			defer func() { <-sem }()
-			handle, err := s.readThunderHandle(ctx, ouID, envName)
+			rec, err := s.resolveThunderRecord(ctx, ouID, envName)
 			if err != nil {
-				readErrOnce.Do(func() { readErr = fmt.Errorf("read thunder url handle for env %s: %w", envName, err) })
+				readErrOnce.Do(func() { readErr = fmt.Errorf("read thunder url for env %s: %w", envName, err) })
 				return
 			}
-			handles[idx] = handle
-			if handle == "" {
+			thunderURLs[idx] = rec.URL
+			if rec.URL == "" {
 				return // not provisioned — reachable[idx] stays false, no probe needed
 			}
-			reachable[idx] = s.thunderProber.Probe(ctx, orgNamespace, envName, handle)
+			reachable[idx] = s.thunderProber.Probe(ctx, orgNamespace, envName, rec.URL, rec.Handle == "")
 		}(i, env.Name)
 	}
 	wg.Wait()
@@ -580,22 +592,20 @@ func (s *environmentService) ListThunderInstances(ctx context.Context, ouID stri
 			EnvName:      env.Name,
 			DisplayName:  env.DisplayName,
 			IsProduction: env.IsProduction,
-			IssuerURL:    thundersvc.ThunderIssuerURL(handles[i]),
-			TokenURL:     thundersvc.ThunderExternalTokenURL(handles[i]),
-			JWKSURL:      thundersvc.ThunderExternalJWKSURL(handles[i]),
+			IssuerURL:    thundersvc.ThunderIssuerURL(thunderURLs[i]),
+			TokenURL:     thundersvc.ThunderExternalTokenURL(thunderURLs[i]),
+			JWKSURL:      thundersvc.ThunderExternalJWKSURL(thunderURLs[i]),
 			Namespace:    thundersvc.ThunderNamespace(orgNamespace, env.Name),
 		})
 	}
 	return &models.ThunderInstanceListResponse{ThunderInstances: instances}, nil
 }
 
-// readThunderHandle looks up envName's env-Thunder URL handle via
-// ResolveThunderHandle, which already distinguishes "genuinely never
-// provisioned" (returns "", nil) from a real read failure (returns a wrapped
-// error) — this just widens that same distinction to environmentService's
-// caller instead of collapsing it.
-func (s *environmentService) readThunderHandle(ctx context.Context, ouID, envName string) (string, error) {
-	return ResolveThunderHandle(ctx, s.envThunderURLRepo, ouID, envName)
+// resolveThunderRecord looks up envName's env-Thunder registration via
+// ResolveThunderURL, which distinguishes "never provisioned" (zero-value
+// record, nil error) from a real read failure (wrapped error).
+func (s *environmentService) resolveThunderRecord(ctx context.Context, ouID, envName string) (models.ThunderURLRecord, error) {
+	return ResolveThunderURL(ctx, s.envThunderURLRepo, ouID, envName)
 }
 
 // thunderHandlePattern matches a DNS-label-safe handle: lowercase alphanumeric,
@@ -699,39 +709,113 @@ func generateThunderHandle() (string, error) {
 	return string(out), nil
 }
 
-// SetThunderURL registers handle for (ouID, envName) and returns the handle
-// that actually ended up stored. If handle is empty, one is generated.
+// maxThunderURLLen mirrors the thunder_url column's VARCHAR(2048) cap.
+const maxThunderURLLen = 2048
+
+// validateThunderURL checks rawURL's shape for the caller-supplied URL
+// registration path and returns it normalized to a bare "scheme://host[:port]"
+// origin (stripping any trailing "/", since callers append their own paths).
+// Must be an absolute http(s) origin with no userinfo/path/query/fragment.
+// Also runs ssrf.ValidateURL: unlike a handle (always AMS's own label under
+// its own trusted domain), this exact value gets dialed later by
+// EnvThunderResolver — genuinely attacker-influenced input, which a handle
+// never was.
+func validateThunderURL(ctx context.Context, rawURL string) (string, error) {
+	if rawURL == "" {
+		return "", fmt.Errorf("%w: url is required", utils.ErrInvalidThunderURL)
+	}
+	if len(rawURL) > maxThunderURLLen {
+		return "", fmt.Errorf("%w: url exceeds %d characters", utils.ErrInvalidThunderURL, maxThunderURLLen)
+	}
+	parsed, err := url.Parse(rawURL)
+	if err != nil {
+		return "", fmt.Errorf("%w: %s", utils.ErrInvalidThunderURL, err.Error())
+	}
+	if parsed.Scheme != "http" && parsed.Scheme != "https" {
+		return "", fmt.Errorf("%w: scheme must be http or https", utils.ErrInvalidThunderURL)
+	}
+	if parsed.Host == "" {
+		return "", fmt.Errorf("%w: host is required", utils.ErrInvalidThunderURL)
+	}
+	if parsed.User != nil {
+		return "", fmt.Errorf("%w: must not contain userinfo", utils.ErrInvalidThunderURL)
+	}
+	if parsed.Path != "" && parsed.Path != "/" {
+		return "", fmt.Errorf("%w: must be a bare origin with no path", utils.ErrInvalidThunderURL)
+	}
+	if parsed.RawQuery != "" || parsed.Fragment != "" {
+		return "", fmt.Errorf("%w: must not contain a query or fragment", utils.ErrInvalidThunderURL)
+	}
+	// A url under THIS deployment's own base domain is still checked against
+	// reservedThunderHandles, the same protection the handle path enforces:
+	// without it, a caller could register e.g. "https://console.<baseDomain>"
+	// and AMS would dial the platform's own console with the environment's
+	// system-client credentials, and advertise it as the environment's
+	// issuer/JWKS. A url under a DIFFERENT domain (the common case) never
+	// matches this deployment's base domain, so this never fires for it.
+	hostname := strings.TrimSuffix(parsed.Hostname(), ".")
+	baseDomain := strings.TrimSuffix(config.GetConfig().ThunderHostBaseDomain, ".")
+	if label, rest, ok := strings.Cut(hostname, "."); ok &&
+		strings.EqualFold(rest, baseDomain) &&
+		reservedThunderHandles[strings.ToLower(label)] {
+		return "", fmt.Errorf("%w: %q is a reserved subdomain of %s", utils.ErrInvalidThunderURL, label, rest)
+	}
+	origin := fmt.Sprintf("%s://%s", parsed.Scheme, parsed.Host)
+	if err := ssrf.ValidateURL(ctx, origin); err != nil {
+		return "", fmt.Errorf("%w: %s", utils.ErrInvalidThunderURL, err.Error())
+	}
+	return origin, nil
+}
+
+// SetThunderURL registers this environment's env-Thunder record via exactly
+// one of two mutually-exclusive paths (rejecting both handle and url set at
+// once with utils.ErrThunderHandleAndURLBothSet) — see the interface doc
+// comment for the two paths' shapes.
 //
-// Idempotent, and never changes an already-registered handle: Thunder's issuer
-// is immutable once minted, so a blank-handle call reuses the existing one,
-// and an explicit different handle is rejected (utils.ErrThunderHandleTaken,
-// 409) — callers that want to change it must call DeleteThunderURL first.
+// Idempotent, and never changes an already-registered record: Thunder's
+// issuer is immutable once minted, so a blank or matching request reuses it
+// as a no-op, and an explicit different one is rejected (409) — callers that
+// want to change it must call DeleteThunderURL first.
 //
 // Safe under concurrent first-time provisioning: the up-front read is only a
-// fast path, not the race guard. The actual guarantee comes from
-// claimThunderHandle's use of EnvThunderURLRepository.Insert (insert-only, not
-// an upsert) — whichever request's INSERT commits first wins, and the loser
-// discovers that via the DB's own unique-constraint check rather than a
-// separate read-then-write step.
-func (s *environmentService) SetThunderURL(ctx context.Context, ouID, envName, handle string) (string, error) {
+// fast path. The real guarantee is claimThunderHandle/claimThunderURL's use
+// of EnvThunderURLRepository.Insert (insert-only, not upsert) — whichever
+// INSERT commits first wins, and the loser discovers that via the DB's own
+// unique-constraint check.
+func (s *environmentService) SetThunderURL(ctx context.Context, ouID, envName, handle, rawURL string) (models.ThunderURLRecord, error) {
 	if ouID == "" {
-		return "", fmt.Errorf("%w: ouID is required", utils.ErrInvalidInput)
+		return models.ThunderURLRecord{}, fmt.Errorf("%w: ouID is required", utils.ErrInvalidInput)
 	}
 	if envName == "" {
-		return "", fmt.Errorf("%w: envName is required", utils.ErrInvalidInput)
+		return models.ThunderURLRecord{}, fmt.Errorf("%w: envName is required", utils.ErrInvalidInput)
+	}
+	if handle != "" && rawURL != "" {
+		return models.ThunderURLRecord{}, utils.ErrThunderHandleAndURLBothSet
 	}
 
-	existing, err := ResolveThunderHandle(ctx, s.envThunderURLRepo, ouID, envName)
+	existing, err := ResolveThunderURL(ctx, s.envThunderURLRepo, ouID, envName)
 	if err != nil {
-		return "", fmt.Errorf("failed to check for an existing thunder url handle for %s/%s: %w", ouID, envName, err)
+		return models.ThunderURLRecord{}, fmt.Errorf("failed to check for an existing thunder url for %s/%s: %w", ouID, envName, err)
 	}
-	if existing != "" {
+
+	if rawURL != "" {
+		normalized, err := validateThunderURL(ctx, rawURL)
+		if err != nil {
+			return models.ThunderURLRecord{}, err
+		}
+		if existing.URL != "" {
+			return s.reuseOrRejectThunderURL(existing, normalized, ouID, envName)
+		}
+		return s.claimThunderURL(ctx, ouID, envName, normalized)
+	}
+
+	if existing.URL != "" {
 		return s.reuseOrRejectThunderHandle(existing, handle, ouID, envName)
 	}
 
 	if handle != "" {
 		if err := validateThunderHandle(handle); err != nil {
-			return "", err
+			return models.ThunderURLRecord{}, err
 		}
 		return s.claimThunderHandle(ctx, ouID, envName, handle, false)
 	}
@@ -739,44 +823,75 @@ func (s *environmentService) SetThunderURL(ctx context.Context, ouID, envName, h
 	for attempt := 1; attempt <= maxGenerateThunderHandleAttempts; attempt++ {
 		generated, err := generateThunderHandle()
 		if err != nil {
-			return "", err
+			return models.ThunderURLRecord{}, err
 		}
 		resolved, err := s.claimThunderHandle(ctx, ouID, envName, generated, true)
 		if err == nil {
 			return resolved, nil
 		}
-		if errors.Is(err, utils.ErrThunderHandleTaken) {
-			// The generated value collided with a different environment's
-			// handle — try a fresh one.
+		if errors.Is(err, utils.ErrThunderHandleTaken) || errors.Is(err, utils.ErrThunderURLTaken) {
+			// The generated value's handle or computed URL collided with a
+			// different environment's — try a fresh one.
 			s.logger.Debug("generated thunder url handle collided, retrying", "ouID", ouID, "envName", envName, "attempt", attempt)
 			continue
 		}
-		return "", err
+		return models.ThunderURLRecord{}, err
 	}
-	return "", fmt.Errorf("failed to generate a unique thunder url handle for %s/%s after %d attempts", ouID, envName, maxGenerateThunderHandleAttempts)
+	return models.ThunderURLRecord{}, fmt.Errorf("failed to generate a unique thunder url handle for %s/%s after %d attempts", ouID, envName, maxGenerateThunderHandleAttempts)
 }
 
-// reuseOrRejectThunderHandle applies SetThunderURL's idempotency rule once a
-// registered handle is known — whether seen via an up-front read, or
-// discovered by losing an insert race (see claimThunderHandle): a blank or
-// matching request reuses it as a no-op; a different EXPLICIT request is
-// rejected, since Thunder's issuer is never silently changed once minted.
-func (s *environmentService) reuseOrRejectThunderHandle(existing, requested, ouID, envName string) (string, error) {
-	if requested == "" || requested == existing {
+// reuseOrRejectThunderHandle applies SetThunderURL's idempotency rule for the
+// on-prem handle path once an existing registration is known (via an
+// up-front read, or by losing an insert race — see claimThunderHandle): a
+// blank or matching request reuses it as a no-op; a different EXPLICIT
+// request is rejected. Also correctly rejects an explicit handle against an
+// existing caller-supplied (handle-less) row, since existing.Handle is "" there.
+func (s *environmentService) reuseOrRejectThunderHandle(existing models.ThunderURLRecord, requested, ouID, envName string) (models.ThunderURLRecord, error) {
+	if requested == "" || requested == existing.Handle {
 		s.logger.Info("Reusing already-registered env-thunder url handle", "ouID", ouID, "envName", envName)
 		return existing, nil
 	}
-	return "", fmt.Errorf("%w: %s/%s already has a registered handle %q — call DeleteThunderURL first to change it",
-		utils.ErrThunderHandleTaken, ouID, envName, existing)
+	if existing.Handle == "" {
+		return models.ThunderURLRecord{}, fmt.Errorf("%w: %s/%s already has a registered thunder url %q (registered via the url path, no handle) — call DeleteThunderURL first to change it",
+			utils.ErrThunderHandleTaken, ouID, envName, existing.URL)
+	}
+	return models.ThunderURLRecord{}, fmt.Errorf("%w: %s/%s already has a registered handle %q — call DeleteThunderURL first to change it",
+		utils.ErrThunderHandleTaken, ouID, envName, existing.Handle)
 }
 
-// claimThunderHandle attempts to insert-claim handle for (ouID, envName). If a
-// concurrent request already won the same (ouID, envName) race first, it
-// reads back the winning row: a generated handle always adopts the winner's
-// value, while an explicit caller-supplied handle applies the same
-// reuse-or-reject rule a pre-existing row would get.
-func (s *environmentService) claimThunderHandle(ctx context.Context, ouID, envName, handle string, generated bool) (string, error) {
-	rec := &models.EnvThunderURL{OUID: ouID, EnvName: envName, ThunderHandle: handle}
+// reuseOrRejectThunderURL is reuseOrRejectThunderHandle's counterpart for the
+// caller-supplied URL path: a matching re-registration is a no-op; a
+// different one is rejected, regardless of which path originally minted the
+// existing record.
+func (s *environmentService) reuseOrRejectThunderURL(existing models.ThunderURLRecord, requested, ouID, envName string) (models.ThunderURLRecord, error) {
+	if requested == existing.URL {
+		s.logger.Info("Reusing already-registered env-thunder url", "ouID", ouID, "envName", envName)
+		return existing, nil
+	}
+	return models.ThunderURLRecord{}, fmt.Errorf("%w: %s/%s already has a registered thunder url %q — call DeleteThunderURL first to change it",
+		utils.ErrThunderURLTaken, ouID, envName, existing.URL)
+}
+
+// toThunderURLRecord converts a stored row into the public ThunderURLRecord
+// shape, dereferencing ThunderHandle (nil for a caller-supplied row) down
+// to "" — see EnvThunderURL's doc comment for why the column is a *string.
+func toThunderURLRecord(row *models.EnvThunderURL) models.ThunderURLRecord {
+	rec := models.ThunderURLRecord{URL: row.ThunderURL}
+	if row.ThunderHandle != nil {
+		rec.Handle = *row.ThunderHandle
+	}
+	return rec
+}
+
+// claimThunderHandle attempts to insert-claim handle for (ouID, envName),
+// computing its origin server-side (see thundersvc.ThunderOriginFromHandle)
+// and storing both. If a concurrent request already won the same
+// (ouID, envName) race first, it reads back the winning row: a generated
+// handle always adopts the winner's value, while an explicit caller-supplied
+// handle applies the same reuse-or-reject rule a pre-existing row would get.
+func (s *environmentService) claimThunderHandle(ctx context.Context, ouID, envName, handle string, generated bool) (models.ThunderURLRecord, error) {
+	thunderURL := thundersvc.ThunderOriginFromHandle(handle)
+	rec := &models.EnvThunderURL{OUID: ouID, EnvName: envName, ThunderHandle: &handle, ThunderURL: thunderURL}
 	err := s.envThunderURLRepo.Insert(ctx, rec)
 	if err == nil {
 		if generated {
@@ -784,40 +899,67 @@ func (s *environmentService) claimThunderHandle(ctx context.Context, ouID, envNa
 		} else {
 			s.logger.Info("Stored env-thunder url handle", "ouID", ouID, "envName", envName)
 		}
-		return handle, nil
+		return models.ThunderURLRecord{Handle: handle, URL: thunderURL}, nil
 	}
 	if errors.Is(err, utils.ErrEnvThunderURLAlreadyClaimed) {
 		winner, getErr := s.envThunderURLRepo.Get(ctx, ouID, envName)
 		if getErr != nil {
-			return "", fmt.Errorf("failed to read the winning thunder url handle for %s/%s after a claim race: %w", ouID, envName, getErr)
+			return models.ThunderURLRecord{}, fmt.Errorf("failed to read the winning thunder url for %s/%s after a claim race: %w", ouID, envName, getErr)
 		}
+		winnerRec := toThunderURLRecord(winner)
 		if generated {
-			s.logger.Info("Lost a concurrent first-provisioning race; adopting the winning handle", "ouID", ouID, "envName", envName)
-			return winner.ThunderHandle, nil
+			s.logger.Info("Lost a concurrent first-provisioning race; adopting the winning registration", "ouID", ouID, "envName", envName)
+			return winnerRec, nil
 		}
-		return s.reuseOrRejectThunderHandle(winner.ThunderHandle, handle, ouID, envName)
+		return s.reuseOrRejectThunderHandle(winnerRec, handle, ouID, envName)
 	}
-	if errors.Is(err, utils.ErrThunderHandleTaken) {
-		return "", err
+	if errors.Is(err, utils.ErrThunderHandleTaken) || errors.Is(err, utils.ErrThunderURLTaken) {
+		return models.ThunderURLRecord{}, err
 	}
-	return "", fmt.Errorf("failed to store thunder url handle for %s/%s: %w", ouID, envName, err)
+	return models.ThunderURLRecord{}, fmt.Errorf("failed to store thunder url for %s/%s: %w", ouID, envName, err)
 }
 
-// GetThunderURL returns the registered handle for (ouID, envName) — resolved
-// via ResolveThunderHandle — or utils.ErrThunderHandleNotFound if none has ever
-// been registered.
-func (s *environmentService) GetThunderURL(ctx context.Context, ouID, envName string) (string, error) {
+// claimThunderURL attempts to insert-claim rawURL (already validated and
+// normalized) for (ouID, envName), with no handle at all — the caller-supplied
+// URL registration path. Mirrors claimThunderHandle's concurrency handling,
+// one level simpler since there is no generated-value retry loop for this
+// path: the caller already knows the exact URL it wants, so there is nothing
+// to regenerate on collision.
+func (s *environmentService) claimThunderURL(ctx context.Context, ouID, envName, rawURL string) (models.ThunderURLRecord, error) {
+	rec := &models.EnvThunderURL{OUID: ouID, EnvName: envName, ThunderURL: rawURL}
+	err := s.envThunderURLRepo.Insert(ctx, rec)
+	if err == nil {
+		s.logger.Info("Stored env-thunder url", "ouID", ouID, "envName", envName)
+		return models.ThunderURLRecord{URL: rawURL}, nil
+	}
+	if errors.Is(err, utils.ErrEnvThunderURLAlreadyClaimed) {
+		winner, getErr := s.envThunderURLRepo.Get(ctx, ouID, envName)
+		if getErr != nil {
+			return models.ThunderURLRecord{}, fmt.Errorf("failed to read the winning thunder url for %s/%s after a claim race: %w", ouID, envName, getErr)
+		}
+		return s.reuseOrRejectThunderURL(toThunderURLRecord(winner), rawURL, ouID, envName)
+	}
+	if errors.Is(err, utils.ErrThunderURLTaken) {
+		return models.ThunderURLRecord{}, err
+	}
+	return models.ThunderURLRecord{}, fmt.Errorf("failed to store thunder url for %s/%s: %w", ouID, envName, err)
+}
+
+// GetThunderURL returns the registered record for (ouID, envName) — resolved
+// via ResolveThunderURL — or utils.ErrThunderHandleNotFound if nothing has
+// ever been registered.
+func (s *environmentService) GetThunderURL(ctx context.Context, ouID, envName string) (models.ThunderURLRecord, error) {
 	if ouID == "" {
-		return "", fmt.Errorf("%w: ouID is required", utils.ErrInvalidInput)
+		return models.ThunderURLRecord{}, fmt.Errorf("%w: ouID is required", utils.ErrInvalidInput)
 	}
-	handle, err := ResolveThunderHandle(ctx, s.envThunderURLRepo, ouID, envName)
+	rec, err := ResolveThunderURL(ctx, s.envThunderURLRepo, ouID, envName)
 	if err != nil {
-		return "", fmt.Errorf("failed to read thunder url handle for %s/%s: %w", ouID, envName, err)
+		return models.ThunderURLRecord{}, fmt.Errorf("failed to read thunder url for %s/%s: %w", ouID, envName, err)
 	}
-	if handle == "" {
-		return "", utils.ErrThunderHandleNotFound
+	if rec.URL == "" {
+		return models.ThunderURLRecord{}, utils.ErrThunderHandleNotFound
 	}
-	return handle, nil
+	return rec, nil
 }
 
 // DeleteThunderURL removes the handle for (ouID, envName). Idempotent — deleting a
@@ -864,26 +1006,27 @@ func (s *environmentService) ThunderHandleRegistered(ctx context.Context, handle
 // SetThunderSystemClientSecret encrypts and upserts the env-Thunder system-client
 // credential, keyed by ouID.
 //
-// Provisions a URL handle (auto-generating one if none is registered yet)
-// BEFORE ever storing the credential — never the other way around. This
-// guarantees every environment with a system-client credential also has a
-// handle row, so ResolveThunderHandle's "not provisioned" answer stays
-// trustworthy: a credential can never exist without a handle already existing
-// first. add-environment-thunder.sh happens to call register_thunder_url
-// before store_via_ams today, but that's an external, unenforced ordering;
-// this call makes the invariant hold by construction for every caller,
-// present and future, not just today's one script. SetThunderURL with an
-// empty handle is already an idempotent no-op when one is already registered,
-// so this changes nothing for an environment that already has one.
+// Does NOT provision a thunder-url registration — that's SetThunderURL's job,
+// called independently (by add-environment-thunder.sh's register_thunder_url,
+// or by a caller's own PUT .../thunder-url). This method previously
+// auto-generated a handle here if none was registered yet, to guarantee "a
+// credential never exists without a registration." That guarantee doesn't
+// hold for the url-registration path: a caller that stores the credential
+// before registering its URL would have gotten a bogus handle-based origin
+// permanently stamped, since SetThunderURL never overwrites an existing
+// registration — the real URL registration would then fail forever with
+// ErrThunderURLTaken. Silently fabricating a registration nobody asked for is
+// worse than a transient "not provisioned": Resolve() already checks the
+// credential and the URL as two independent pieces (see
+// EnvThunderResolver.Resolve), so a credential existing without a URL row is
+// a valid, correctly-handled state — it just reports ErrThunderNotProvisioned
+// until the real registration lands.
 func (s *environmentService) SetThunderSystemClientSecret(ctx context.Context, ouID, envName, clientID, clientSecret string) error {
 	if clientSecret == "" {
 		return fmt.Errorf("%w: clientSecret is required", utils.ErrInvalidInput)
 	}
 	if ouID == "" {
 		return fmt.Errorf("%w: ouID is required", utils.ErrInvalidInput)
-	}
-	if _, err := s.SetThunderURL(ctx, ouID, envName, ""); err != nil {
-		return fmt.Errorf("failed to ensure a thunder url handle exists for %s/%s: %w", ouID, envName, err)
 	}
 	encrypted, err := utils.EncryptBytes([]byte(clientSecret), s.encryptionKey)
 	if err != nil {

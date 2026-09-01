@@ -4889,23 +4889,42 @@ type ThunderUrlAvailabilityResponse struct {
 	Available bool `json:"available"`
 }
 
-// ThunderUrlRequest An unguessable handle to register for an environment's env-Thunder
-// URL, replacing the predictable "<org>-<env>" pattern. Optional — omit
-// it (or send an empty string) to have the server generate one.
+// ThunderUrlRequest Registers an environment's env-Thunder origin via exactly one of two
+// mutually-exclusive fields — setting both is rejected with 400:
+//
+//   - `handle` (handle path): an unguessable label AMS resolves into the
+//     full origin itself, replacing the predictable "<org>-<env>" pattern.
+//     Optional — omit it (or send an empty string, with url also omitted)
+//     to have the server generate one.
+//   - `url` (url path): the full origin the caller has already
+//     provisioned, for deployments where different environments can live
+//     under different domains and there is no single pattern AMS could
+//     compute. AMS validates and stores it verbatim; the environment's
+//     registration then has no handle at all.
 type ThunderUrlRequest struct {
 	// Handle DNS-label-safe handle (lowercase alphanumeric with hyphens, no
 	// leading/trailing hyphen) that replaces "<org>-<env>" in
 	// "<handle>.<baseDomain>". Must be globally unique across
 	// all orgs/environments, and at least 3 characters. Omit to
-	// auto-generate a 10-character handle.
+	// auto-generate a 10-character handle. Mutually exclusive with url.
 	Handle *string `json:"handle,omitempty"`
+
+	// Url The full env-Thunder origin (scheme + host, no path/query/fragment)
+	// this environment is already reachable at — the url registration
+	// path. Must be http or https, resolve to a public IP address (no
+	// private/loopback hosts), and be globally unique across all
+	// orgs/environments. Mutually exclusive with handle.
+	Url *string `json:"url,omitempty"`
 }
 
-// ThunderUrlResponse The env-Thunder URL handle registered for an environment — either the
-// caller-supplied value or the value the server generated when the
-// caller left it blank.
+// ThunderUrlResponse The env-Thunder registration for an environment. url is always
+// present — the caller-supplied value (either path), or the value the
+// server generated/computed when the caller left handle blank. handle is
+// present only for the on-prem path; it is absent for an environment
+// registered via a caller-supplied url.
 type ThunderUrlResponse struct {
-	Handle string `json:"handle"`
+	Handle *string `json:"handle,omitempty"`
+	Url    string  `json:"url"`
 }
 
 // TimeRange defines model for TimeRange.

@@ -1,0 +1,350 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "additionalProperties": false,
+  "type": "object",
+  "required": [],
+  "properties": {
+    "global": {
+      "additionalProperties": false,
+      "description": "Global configuration (inherited from parent chart)",
+      "properties": {
+        "baseDomain": {
+          "default": "",
+          "description": "Base domain for external access",
+          "title": "baseDomain",
+          "type": "string"
+        },
+        "registry": {
+          "additionalProperties": false,
+          "description": "Container registry configuration",
+          "properties": {
+            "endpoint": {
+              "default": "host.k3d.internal:10082",
+              "description": "Registry endpoint for pushing and pulling images For local registry: \"host.k3d.internal:10082\" For external registry with baseDomain: automatically uses \"registry.<baseDomain>\"",
+              "title": "endpoint",
+              "type": "string"
+            }
+          },
+          "required": [],
+          "title": "registry",
+          "type": "object"
+        }
+      },
+      "required": [],
+      "title": "global",
+      "type": "object"
+    },
+    "ampEvaluation": {
+      "additionalProperties": false,
+      "description": "AMP Evaluation image configuration",
+      "properties": {
+        "workflowNamespace": {
+          "default": "default",
+          "description": "Namespace OpenChoreo runs this environment's Argo workflows in. The evaluation job namespace is derived from it as \"workflows-<value>\".",
+          "title": "workflowNamespace",
+          "type": "string"
+        },
+        "image": {
+          "additionalProperties": false,
+          "description": "Docker image configuration for monitor evaluation",
+          "properties": {
+            "repository": {
+              "default": "ghcr.io/wso2/amp-evaluation-monitor",
+              "description": "Image repository For local development: will be pushed to local registry For production: ghcr.io/wso2/amp-evaluation-monitor",
+              "title": "repository",
+              "type": "string"
+            },
+            "tag": {
+              "default": "0.0.0-dev",
+              "description": "Image tag IMPORTANT: For production, this should match the amp-evaluation SDK version used in dbMigration.evaluatorGenerator.image.tag in the wso2-agent-manager chart. Example: If using amp-evaluation==0.1.5, set this to \"0.1.5\"",
+              "title": "tag",
+              "type": "string"
+            },
+            "pullPolicy": {
+              "default": "IfNotPresent",
+              "description": "Image pull policy",
+              "title": "pullPolicy",
+              "type": "string"
+            }
+          },
+          "required": [],
+          "title": "image",
+          "type": "object"
+        },
+        "useLocalRegistry": {
+          "default": false,
+          "description": "Whether to use local registry or external image When true, image will be prefixed with registry endpoint When false, uses repository:tag directly (for k3d imported images or external registries)",
+          "title": "useLocalRegistry",
+          "type": "boolean"
+        },
+        "tracesApiEndpoint": {
+          "default": "http://amp-observer.openchoreo-observability-plane.svc.cluster.local:9098",
+          "description": "In-cluster URL for the observer API",
+          "title": "tracesApiEndpoint",
+          "type": "string"
+        },
+        "publisher": {
+          "additionalProperties": false,
+          "description": "Publisher settings (for publishing evaluation scores to agent-manager)",
+          "properties": {
+            "endpoint": {
+              "default": "http://amp-api.wso2-amp.svc.cluster.local:9000",
+              "description": "In-cluster URL for the agent-manager API",
+              "title": "endpoint",
+              "type": "string"
+            },
+            "idpTokenUrl": {
+              "default": "http://amp-thunder-extension-service.amp-thunder.svc.cluster.local:8090/oauth2/token",
+              "description": "OAuth2 client credentials for publisher authentication The evaluation job uses these to obtain a Bearer token from Thunder Note: clientSecret is loaded dynamically from OpenBao via ExternalSecret at workflow runtime",
+              "title": "idpTokenUrl",
+              "type": "string"
+            },
+            "clientId": {
+              "default": "amp-publisher-client",
+              "description": "OAuth 2.0 client ID the job uses to obtain a publisher token.",
+              "title": "clientId",
+              "type": "string"
+            }
+          },
+          "required": [],
+          "title": "publisher",
+          "type": "object"
+        }
+      },
+      "required": [],
+      "title": "ampEvaluation",
+      "type": "object"
+    },
+    "networkPolicy": {
+      "additionalProperties": false,
+      "description": "Restricts the evaluation-job pod's egress (untrusted, user-submitted code) to just DNS, the traces observer, Thunder, the agent-manager-service publisher endpoint, and the LLM gateway.",
+      "properties": {
+        "evaluationJob": {
+          "additionalProperties": false,
+          "description": "Egress allow-list for the evaluation job, which executes user-submitted evaluator code.",
+          "properties": {
+            "enabled": {
+              "default": true,
+              "description": "No-op on clusters whose CNI doesn't enforce NetworkPolicy (e.g. plain flannel).",
+              "title": "enabled",
+              "type": "boolean"
+            },
+            "namespace": {
+              "default": "",
+              "description": "Empty derives \"workflows-<ampEvaluation.workflowNamespace>\" (where OpenChoreo runs this environment's Argo workflows), not this chart's own release namespace.",
+              "title": "namespace",
+              "type": "string"
+            },
+            "dns": {
+              "additionalProperties": false,
+              "description": "DNS target on port 53, scoped rather than left wide open since this pod runs untrusted code.",
+              "properties": {
+                "namespace": {
+                  "default": "kube-system",
+                  "description": "Namespace running the cluster DNS pods.",
+                  "title": "namespace",
+                  "type": "string"
+                },
+                "podLabel": {
+                  "additionalProperties": false,
+                  "description": "Label selecting the DNS pods, rather than opening port 53 cluster-wide.",
+                  "properties": {
+                    "key": {
+                      "default": "k8s-app",
+                      "description": "Label key on the DNS pods.",
+                      "title": "key",
+                      "type": "string"
+                    },
+                    "value": {
+                      "default": "kube-dns",
+                      "description": "Label value on the DNS pods.",
+                      "title": "value",
+                      "type": "string"
+                    }
+                  },
+                  "required": [],
+                  "title": "podLabel",
+                  "type": "object"
+                }
+              },
+              "required": [],
+              "title": "dns",
+              "type": "object"
+            },
+            "observer": {
+              "additionalProperties": false,
+              "description": "Ports are matched post-DNAT, so each is the target's containerPort, not its Service port.",
+              "properties": {
+                "namespace": {
+                  "default": "openchoreo-observability-plane",
+                  "description": "Namespace running the observer.",
+                  "title": "namespace",
+                  "type": "string"
+                },
+                "ports": {
+                  "default": [
+                    9098
+                  ],
+                  "description": "Ports the job may reach on the observer pods.",
+                  "items": {
+                    "type": "integer"
+                  },
+                  "title": "ports",
+                  "type": "array"
+                }
+              },
+              "required": [],
+              "title": "observer",
+              "type": "object"
+            },
+            "publisher": {
+              "additionalProperties": false,
+              "description": "Agent Manager service the job publishes scores to.",
+              "properties": {
+                "namespace": {
+                  "default": "wso2-amp",
+                  "description": "Namespace running the Agent Manager service.",
+                  "title": "namespace",
+                  "type": "string"
+                },
+                "ports": {
+                  "default": [
+                    8080
+                  ],
+                  "description": "Ports the job may reach on the Agent Manager service. Allowed values: amp-api's containerPort; its Service port 9000 never survives DNAT.",
+                  "items": {
+                    "type": "integer"
+                  },
+                  "title": "ports",
+                  "type": "array"
+                }
+              },
+              "required": [],
+              "title": "publisher",
+              "type": "object"
+            },
+            "idp": {
+              "additionalProperties": false,
+              "description": "Identity provider the job requests a token from.",
+              "properties": {
+                "namespace": {
+                  "default": "amp-thunder",
+                  "description": "Namespace running the identity provider.",
+                  "title": "namespace",
+                  "type": "string"
+                },
+                "ports": {
+                  "default": [
+                    8090
+                  ],
+                  "description": "Ports the job may reach on the identity provider.",
+                  "items": {
+                    "type": "integer"
+                  },
+                  "title": "ports",
+                  "type": "array"
+                }
+              },
+              "required": [],
+              "title": "idp",
+              "type": "object"
+            },
+            "llmGateway": {
+              "additionalProperties": false,
+              "description": "AI Gateway that LLM-judge evaluators call through.",
+              "properties": {
+                "ports": {
+                  "default": [
+                    22893
+                  ],
+                  "description": "Ports the job may reach on the gateway.",
+                  "items": {
+                    "type": "integer"
+                  },
+                  "title": "ports",
+                  "type": "array"
+                },
+                "namespace": {
+                  "default": "",
+                  "description": "Namespace holding the API Platform Gateway, allowed in addition to any namespace labelled amp.wso2.com/api-platform-gateway=true. That label is only applied by setup-gateway.sh and add-environment.sh, so an install that follows the gateway chart's own apiGateway.namespace default (openchoreo-data-plane) has no matching namespace and llm_judge evaluators are silently denied egress to the gateway. Empty = rely on the label alone.",
+                  "title": "namespace",
+                  "type": "string"
+                }
+              },
+              "required": [],
+              "title": "llmGateway",
+              "type": "object"
+            },
+            "devEgress": {
+              "additionalProperties": false,
+              "description": "Local-dev only: ipBlock exception for the node network, covering agent-manager-service outside the cluster (8080) and the gateway's node port (19080). Empty (no-op) elsewhere; setup-amp-extensions.sh sets both.",
+              "properties": {
+                "cidr": {
+                  "default": "",
+                  "description": "Node network CIDR to allow. Empty disables the exception.",
+                  "title": "cidr",
+                  "type": "string"
+                },
+                "ports": {
+                  "default": [
+                    8080,
+                    19080
+                  ],
+                  "description": "Ports allowed on the node network.",
+                  "items": {
+                    "type": "integer"
+                  },
+                  "title": "ports",
+                  "type": "array"
+                }
+              },
+              "required": [],
+              "title": "devEgress",
+              "type": "object"
+            },
+            "apiServer": {
+              "additionalProperties": false,
+              "description": "Node network of the kube-apiserver. Permissive default spans the pod and service CIDRs so any cluster works unconfigured; narrow to the control-plane subnet in production.",
+              "properties": {
+                "cidrs": {
+                  "default": [
+                    "10.0.0.0/8",
+                    "172.16.0.0/12",
+                    "192.168.0.0/16"
+                  ],
+                  "description": "Private ranges the API server may live in.",
+                  "items": {
+                    "type": "string"
+                  },
+                  "title": "cidrs",
+                  "type": "array"
+                },
+                "ports": {
+                  "default": [
+                    443,
+                    6443
+                  ],
+                  "description": "Ports the API server listens on.",
+                  "items": {
+                    "type": "integer"
+                  },
+                  "title": "ports",
+                  "type": "array"
+                }
+              },
+              "required": [],
+              "title": "apiServer",
+              "type": "object"
+            }
+          },
+          "required": [],
+          "title": "evaluationJob",
+          "type": "object"
+        }
+      },
+      "required": [],
+      "title": "networkPolicy",
+      "type": "object"
+    }
+  }
+}

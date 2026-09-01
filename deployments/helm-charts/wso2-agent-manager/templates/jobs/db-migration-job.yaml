@@ -88,6 +88,14 @@ spec:
                   {{- end }}
             - name: IS_LOCAL_DEV_ENV
               value: "true"
+            # Migration 043 backfills existing handle-only env-Thunder rows by
+            # using the same deployment-specific origin settings as amp-api.
+            # Keep these in the migration hook as well as the API ConfigMap or
+            # VM/custom-domain upgrades silently persist localhost URLs.
+            - name: IDP_HOST_BASE_DOMAIN
+              value: {{ .Values.agentManagerService.config.idpHostBaseDomain | default "amp.localhost" | quote }}
+            - name: TLS_ENABLED
+              value: {{ .Values.agentManagerService.config.tlsEnabled | default false | quote }}
             - name: LOG_LEVEL
               value: "INFO"
             - name: OPEN_CHOREO_BASE_URL

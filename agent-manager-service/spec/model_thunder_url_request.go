@@ -17,10 +17,12 @@ import (
 // checks if the ThunderUrlRequest type satisfies the MappedNullable interface at compile time
 var _ MappedNullable = &ThunderUrlRequest{}
 
-// ThunderUrlRequest An unguessable handle to register for an environment's env-Thunder URL, replacing the predictable \"<org>-<env>\" pattern. Optional — omit it (or send an empty string) to have the server generate one.
+// ThunderUrlRequest Registers an environment's env-Thunder origin via exactly one of two mutually-exclusive fields — setting both is rejected with 400:  - `handle` (handle path): an unguessable label AMS resolves into the   full origin itself, replacing the predictable \"<org>-<env>\" pattern.   Optional — omit it (or send an empty string, with url also omitted)   to have the server generate one. - `url` (url path): the full origin the caller has already   provisioned, for deployments where different environments can live   under different domains and there is no single pattern AMS could   compute. AMS validates and stores it verbatim; the environment's   registration then has no handle at all.
 type ThunderUrlRequest struct {
-	// DNS-label-safe handle (lowercase alphanumeric with hyphens, no leading/trailing hyphen) that replaces \"<org>-<env>\" in \"<handle>.<baseDomain>\". Must be globally unique across all orgs/environments, and at least 3 characters. Omit to auto-generate a 10-character handle.
+	// DNS-label-safe handle (lowercase alphanumeric with hyphens, no leading/trailing hyphen) that replaces \"<org>-<env>\" in \"<handle>.<baseDomain>\". Must be globally unique across all orgs/environments, and at least 3 characters. Omit to auto-generate a 10-character handle. Mutually exclusive with url.
 	Handle *string `json:"handle,omitempty"`
+	// The full env-Thunder origin (scheme + host, no path/query/fragment) this environment is already reachable at — the url registration path. Must be http or https, resolve to a public IP address (no private/loopback hosts), and be globally unique across all orgs/environments. Mutually exclusive with handle.
+	Url *string `json:"url,omitempty"`
 }
 
 // NewThunderUrlRequest instantiates a new ThunderUrlRequest object
@@ -72,6 +74,38 @@ func (o *ThunderUrlRequest) SetHandle(v string) {
 	o.Handle = &v
 }
 
+// GetUrl returns the Url field value if set, zero value otherwise.
+func (o *ThunderUrlRequest) GetUrl() string {
+	if o == nil || IsNil(o.Url) {
+		var ret string
+		return ret
+	}
+	return *o.Url
+}
+
+// GetUrlOk returns a tuple with the Url field value if set, nil otherwise
+// and a boolean to check if the value has been set.
+func (o *ThunderUrlRequest) GetUrlOk() (*string, bool) {
+	if o == nil || IsNil(o.Url) {
+		return nil, false
+	}
+	return o.Url, true
+}
+
+// HasUrl returns a boolean if a field has been set.
+func (o *ThunderUrlRequest) HasUrl() bool {
+	if o != nil && !IsNil(o.Url) {
+		return true
+	}
+
+	return false
+}
+
+// SetUrl gets a reference to the given string and assigns it to the Url field.
+func (o *ThunderUrlRequest) SetUrl(v string) {
+	o.Url = &v
+}
+
 func (o ThunderUrlRequest) MarshalJSON() ([]byte, error) {
 	toSerialize, err := o.ToMap()
 	if err != nil {
@@ -84,6 +118,9 @@ func (o ThunderUrlRequest) ToMap() (map[string]interface{}, error) {
 	toSerialize := map[string]interface{}{}
 	if !IsNil(o.Handle) {
 		toSerialize["handle"] = o.Handle
+	}
+	if !IsNil(o.Url) {
+		toSerialize["url"] = o.Url
 	}
 	return toSerialize, nil
 }

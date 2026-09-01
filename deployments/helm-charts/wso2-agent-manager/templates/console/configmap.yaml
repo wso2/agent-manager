@@ -38,9 +38,9 @@ data:
   AGENT_MANAGER_INTERNAL_CP_HOST: {{ .Values.console.config.agentManagerInternalCpHost | default "" | quote }}
   # Base domain env-Thunder instances are hosted under, and whether this
   # deployment serves them over TLS — piped into the Create Environment
-  # drawer's rendered add-environment.sh command so THUNDER_HOST_BASE_DOMAIN
+  # drawer's rendered add-environment.sh command so IDP_HOST_BASE_DOMAIN
   # and TLS_ENABLED match this deployment instead of being omitted.
-  THUNDER_HOST_BASE_DOMAIN: {{ .Values.console.config.thunderHostBaseDomain | default "amp.localhost" | quote }}
+  IDP_HOST_BASE_DOMAIN: {{ .Values.console.config.idpHostBaseDomain | default "amp.localhost" | quote }}
   TLS_ENABLED: {{ .Values.console.config.tlsEnabled | default "false" | quote }}
   # Guardrails configuration
   GUARDRAILS_CATALOG_URL: {{ .Values.console.config.guardrailsCatalogUrl | default "" | quote }}

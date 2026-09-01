@@ -26,7 +26,7 @@ JWT middleware, which means every tool call goes through the standard OAuth
      `http://localhost:9098/mcp`. During the OAuth flow the MCP client
      validates that the server's advertised resource identifier
      (`SERVER_PUBLIC_URL`, served from
-     `/.well-known/oauth-protected-resource`) matches the URL it was
+     `/.well-known/oauth-protected-resource/mcp`) matches the URL it was
      configured with; a mismatch fails with
      `Protected resource ... does not match expected ...` before login
      even starts.
@@ -75,7 +75,7 @@ OAUTH_SCOPES_SUPPORTED=amp:observability:trace-read,amp:observability:log-read,a
 ```
 
 When either `SERVER_PUBLIC_URL` or `OAUTH_AUTHORIZATION_SERVERS` is unset,
-`GET /.well-known/oauth-protected-resource` returns 503 and MCP clients cannot
+`GET /.well-known/oauth-protected-resource/mcp` returns 503 and MCP clients cannot
 complete OAuth discovery.
 
 In the Helm deployment these come from

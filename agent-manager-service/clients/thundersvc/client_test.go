@@ -83,6 +83,48 @@ func TestNewThunderClientWithDialOverride_EmptyOverrideDialsBaseURLDirectly(t *t
 	assert.Equal(t, http.StatusOK, resp.StatusCode)
 }
 
+// TestNewEnvThunderClient_HardensOnlyTheNoOverrideDial proves the two
+// constructors genuinely differ: the same loopback server is reachable via
+// the plain constructor's no-override dial, but rejected by NewEnvThunderClient's
+// (ssrf.NewClient refuses a private/loopback target). The dial-override path
+// is unaffected by either — that target is always AMS's own trusted address.
+func TestNewEnvThunderClient_HardensOnlyTheNoOverrideDial(t *testing.T) {
+	mux := http.NewServeMux()
+	mux.HandleFunc("/oauth2/jwks", func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusOK)
+	})
+	server := httptest.NewServer(mux)
+	defer server.Close()
+
+	doGet := func(client ThunderClient) error {
+		tc, ok := client.(*thunderClient)
+		require.True(t, ok)
+		req, err := http.NewRequestWithContext(context.Background(), http.MethodGet, tc.baseURL+"/oauth2/jwks", nil)
+		require.NoError(t, err)
+		resp, err := tc.httpClient.Do(req)
+		if err == nil {
+			_ = resp.Body.Close()
+		}
+		return err
+	}
+
+	t.Run("plain constructor: no-override dial reaches the loopback server", func(t *testing.T) {
+		err := doGet(NewThunderClientWithDialOverride(server.URL, "cid", "secret", "", server.URL+"/mcp"))
+		assert.NoError(t, err)
+	})
+
+	t.Run("env-Thunder constructor: no-override dial is rejected as an SSRF target", func(t *testing.T) {
+		err := doGet(NewEnvThunderClient(server.URL, "cid", "secret", "", server.URL+"/mcp"))
+		assert.Error(t, err, "the loopback test server must be REJECTED — this is exactly the case a caller-supplied thunder_url pointed at an internal address would hit")
+	})
+
+	t.Run("env-Thunder constructor: an explicit dial override is unaffected, same as the plain constructor", func(t *testing.T) {
+		overrideHost := strings.TrimPrefix(server.URL, "http://")
+		err := doGet(NewEnvThunderClient("http://unreachable.invalid:9999", "cid", "secret", overrideHost, "http://unreachable.invalid:9999/mcp"))
+		assert.NoError(t, err, "an explicit resolveToHost is always AMS's own trusted target, so it must not be SSRF-checked")
+	})
+}
+
 // TestCreateApp_SendsRequiredApplicationType guards against a regression:
 // applications require a "type" field on create, and a POST /applications
 // missing it fails outright. createApp's payload must always include it.

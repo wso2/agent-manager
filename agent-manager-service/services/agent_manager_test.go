@@ -573,7 +573,7 @@ func TestUpdateAgentConfigurations_IdentityInjectionError_AbortsUpdate(t *testin
 		GetComponentConfigurationsFunc: func(context.Context, string, string, string, string) ([]models.EnvVars, error) {
 			return nil, nil
 		},
-		ReplaceReleaseBindingWorkloadOverridesFunc: func(context.Context, string, string, string, []client.EnvVar, []client.FileVar) error {
+		EnsureReleaseAndBindingFunc: func(context.Context, string, string, string, string, []client.EnvVar, []client.FileVar) error {
 			overridesReplaced = true
 			return nil
 		},
@@ -620,7 +620,7 @@ func TestUpdateAgentConfigurations_RejectsUnownedSecretRef(t *testing.T) {
 		GetComponentConfigurationsFunc: func(context.Context, string, string, string, string) ([]models.EnvVars, error) {
 			return nil, nil
 		},
-		ReplaceReleaseBindingWorkloadOverridesFunc: func(context.Context, string, string, string, []client.EnvVar, []client.FileVar) error {
+		EnsureReleaseAndBindingFunc: func(context.Context, string, string, string, string, []client.EnvVar, []client.FileVar) error {
 			overridesReplaced = true
 			return nil
 		},
@@ -937,7 +937,7 @@ func TestPromoteAgent_ReconcileLookupFails_PromotesAnyway(t *testing.T) {
 		return nil, errors.New("openchoreo unavailable")
 	}
 
-	err := s.PromoteAgent(auditableCtx(t), "acme", "proj1", "my-agent", &spec.PromoteAgentRequest{
+	err := s.PromoteAgent(tierGrantedCtx(t), "acme", "proj1", "my-agent", &spec.PromoteAgentRequest{
 		SourceEnvironment: "dev",
 		TargetEnvironment: "staging",
 	})
@@ -976,7 +976,7 @@ func TestPromoteAgent_BlocksWhenTargetIdentityNotReady(t *testing.T) {
 	// when the target's AgentID binding hasn't finished provisioning yet.
 	s, promoteCalled := promoteAgentTestFixture(t, nil, nil)
 
-	err := s.PromoteAgent(auditableCtx(t), "acme", "proj1", "my-agent", &spec.PromoteAgentRequest{
+	err := s.PromoteAgent(tierGrantedCtx(t), "acme", "proj1", "my-agent", &spec.PromoteAgentRequest{
 		SourceEnvironment: "dev",
 		TargetEnvironment: "staging",
 	})
@@ -1990,11 +1990,11 @@ func deployAPIAgentMocks(existingConfig *models.AgentConfig) (*agentManagerServi
 		IsDeploymentInProgressFunc: func(context.Context, string, string, string) (bool, error) {
 			return false, nil
 		},
-		// Deploy writes env vars and file mounts to the environment's ReleaseBinding and leaves the
-		// component-wide base alone. ReplaceComponentEnvVars and ReplaceComponentFileMounts are
-		// left unstubbed on purpose: a regression that writes the shared base again panics here
-		// instead of silently leaking config into every environment.
-		ReplaceReleaseBindingWorkloadOverridesFunc: func(context.Context, string, string, string, []client.EnvVar, []client.FileVar) error {
+		// Deploy cuts the release and writes env vars and file mounts to the environment's
+		// ReleaseBinding, leaving the component-wide base alone. ReplaceComponentEnvVars and
+		// ReplaceComponentFileMounts are left unstubbed on purpose: a regression that writes the
+		// shared base again panics here instead of silently leaking config into every environment.
+		EnsureReleaseAndBindingFunc: func(context.Context, string, string, string, string, []client.EnvVar, []client.FileVar) error {
 			return nil
 		},
 		// Not blocked, so the deploy runs to completion.

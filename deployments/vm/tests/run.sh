@@ -55,13 +55,13 @@ assert_eq "amp oauthAuthorizationServers (service key)" \
 assert_eq "amp keyManager.issuer (service key)" \
   "agentManagerService.config.keyManager.issuer=https://thunder.amp.203.0.113.10.sslip.io" \
   "$(grep -F 'agentManagerService.config.keyManager.issuer' <<<"$amp")"
-# An MCP token's aud is serverPublicURL plus a trailing slash, so the audience
-# has to follow it off the chart's localhost default. Assert only that entry —
+# An MCP token's aud is the public MCP endpoint, so the audience has to follow
+# it off the chart's localhost default. Assert only that entry —
 # pinning the whole list would break on any unrelated audience change.
 assert_eq "amp keyManager.audience carries the public API URL (service key)" "yes" \
   "$(has "$amp" 'agentManagerService.config.keyManager.audience=urn:wso2:amp\,')"
 assert_eq "amp keyManager.audience ends with the public API URL (service key)" "yes" \
-  "$(has "$amp" 'am-mcp\,https://api.amp.203.0.113.10.sslip.io/')"
+  "$(has "$amp" 'am-mcp\,https://api.amp.203.0.113.10.sslip.io/mcp')"
 assert_eq "amp keyManager.audience carries the public API URL (legacy key)" "yes" \
   "$(has "$amp" 'agentManager.config.keyManager.audience=urn:wso2:amp\,')"
 # tlsEnabled=true makes amp-api advertise the https deployed-agent endpoint variant;
@@ -162,11 +162,11 @@ assert_eq "observability publicUrl -> public observer host" \
 assert_eq "observability oauth authorizationServers -> public thunder" \
   "amObserver.oauth.authorizationServers=https://thunder.amp.203.0.113.10.sslip.io" \
   "$(grep -F 'amObserver.oauth.authorizationServers' <<<"$obs")"
-# The observer mints MCP tokens whose aud is its own public URL plus a trailing
-# slash, so the audience list has to follow publicUrl off the chart's localhost
+# The observer mints MCP tokens whose aud is its public `/mcp` resource, so the
+# audience list has to follow publicUrl off the chart's localhost
 # default. Commas stay escaped or helm splits the value into a list.
 assert_eq "observability audience carries the public observer URL" \
-  'amObserver.auth.audience=urn:wso2:amp\,amp-api-client\,am-obs-mcp\,https://observer.amp.203.0.113.10.sslip.io/' \
+  'amObserver.auth.audience=urn:wso2:amp\,amp-api-client\,am-obs-mcp\,https://observer.amp.203.0.113.10.sslip.io/mcp' \
   "$(grep -F 'amObserver.auth.audience' <<<"$obs")"
 
 # --- render_dataplane_external_ingress: public host on :443, both http+https entries
@@ -433,7 +433,7 @@ assert_eq "agent site on_demand + disable_http_challenge" "yes" \
   # The audience must land on the same host as serverPublicURL above and as
   # thunder.bootstrap.agentManagerMcpBaseUrl below.
   assert_eq "core amp keyManager.audience carries the public API URL" "yes" \
-    "$(has "$core_amp" 'am-mcp\,https://api.amp.example.com/')"
+    "$(has "$core_amp" 'am-mcp\,https://api.amp.example.com/mcp')"
 
   core_th="$(thunder_helm_args)"
   assert_eq "core thunder jwt.issuer" \
@@ -450,7 +450,7 @@ assert_eq "agent site on_demand + disable_http_challenge" "yes" \
 
   core_obs="$(observability_helm_args)"
   assert_eq "core observability audience carries the public observer URL" \
-    'amObserver.auth.audience=urn:wso2:amp\,amp-api-client\,am-obs-mcp\,https://observer.amp.example.com/' \
+    'amObserver.auth.audience=urn:wso2:amp\,amp-api-client\,am-obs-mcp\,https://observer.amp.example.com/mcp' \
     "$(grep -F 'amObserver.auth.audience' <<<"$core_obs")"
 
   core_gw="$(gateway_helm_args)"

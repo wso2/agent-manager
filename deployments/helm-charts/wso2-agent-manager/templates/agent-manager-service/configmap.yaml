@@ -35,11 +35,11 @@ data:
   SERVER_PUBLIC_URL: {{ .Values.agentManagerService.config.serverPublicURL | default "" | quote }}
   OAUTH_AUTHORIZATION_SERVERS: {{ .Values.agentManagerService.config.oauthAuthorizationServers | default .Values.agentManagerService.config.keyManager.issuer | quote }}
   # Domain suffix env-Thunder's developer-facing hostnames are built from:
-  # "<handle>.<THUNDER_HOST_BASE_DOMAIN>". Must match the value the
+  # "<handle>.<IDP_HOST_BASE_DOMAIN>". Must match the value the
   # deployment-wide provisioning uses, or the identity-provider endpoints the API
   # reports diverge from the actual env-Thunder hosts (e.g. amp.localhost vs the
   # public sslip.io/custom domain on a VM install).
-  THUNDER_HOST_BASE_DOMAIN: {{ .Values.agentManagerService.config.thunderHostBaseDomain | default "amp.localhost" | quote }}
+  IDP_HOST_BASE_DOMAIN: {{ .Values.agentManagerService.config.idpHostBaseDomain | default "amp.localhost" | quote }}
   # Read back by add-environment.sh so added environments inherit these domains.
   AGENTS_BASE_DOMAIN: {{ .Values.agentManagerService.config.agentsBaseDomain | default "am-gateway.localhost" | quote }}
   # One port per listener variant: they coincide behind a single TLS front door but

@@ -233,12 +233,29 @@ func buildBearerChallenge(resourceMetadataURL, errorCode string) string {
 }
 
 func JWTAuthMiddleware(header, resourceMetadataURL string) func(http.Handler) http.Handler {
+	return JWTAuthMiddlewareWithResourceMetadataResolver(header, func(*http.Request) string {
+		return resourceMetadataURL
+	})
+}
+
+// JWTAuthMiddlewareWithResourceMetadataResolver validates bearer tokens and
+// lets each protected resource advertise its own RFC 9728 metadata document.
+// This is needed when one HTTP server exposes both its REST API and an MCP
+// resource, which intentionally have different resources and scope catalogs.
+func JWTAuthMiddlewareWithResourceMetadataResolver(
+	header string,
+	resourceMetadataURL func(*http.Request) string,
+) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			metadataURL := ""
+			if resourceMetadataURL != nil {
+				metadataURL = resourceMetadataURL(r)
+			}
 			tokenString := r.Header.Get(header)
 			if tokenString == "" {
 				notifyAuthFailure(r, "missing-header")
-				w.Header().Set("WWW-Authenticate", buildBearerChallenge(resourceMetadataURL, ""))
+				w.Header().Set("WWW-Authenticate", buildBearerChallenge(metadataURL, ""))
 				utils.WriteErrorResponse(w, http.StatusUnauthorized, fmt.Sprintf("missing header: %s", header))
 				return
 			}
@@ -257,7 +274,7 @@ func JWTAuthMiddleware(header, resourceMetadataURL string) func(http.Handler) ht
 					"path", utils.SanitizeForLog(r.URL.Path),
 					"clientIp", utils.ClientIP(r))
 				notifyAuthFailure(r, classifyAuthFailure(err))
-				w.Header().Set("WWW-Authenticate", buildBearerChallenge(resourceMetadataURL, "invalid_token"))
+				w.Header().Set("WWW-Authenticate", buildBearerChallenge(metadataURL, "invalid_token"))
 				utils.WriteErrorResponse(w, http.StatusUnauthorized, "invalid jwt")
 				return
 			}

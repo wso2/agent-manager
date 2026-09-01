@@ -110,16 +110,11 @@ func runList(ctx context.Context, o *ListOptions) error {
 		return render.JSONSuccess(o.IO, o.Scope, resp.JSON200)
 	}
 
-	tp := tableprinter.New(o.IO, "name", "display name", "status", "created")
+	tp := tableprinter.New(o.IO, "name", "display name", "created")
 	cs := o.IO.ColorScheme()
 	for _, a := range resp.JSON200.Agents {
 		tp.AddField(a.Name, tableprinter.WithColor(cs.Bold))
 		tp.AddField(a.DisplayName)
-		status := "-"
-		if a.Status != nil {
-			status = *a.Status
-		}
-		tp.AddField(status)
 		tp.AddField(a.CreatedAt.Format("2006-01-02"), tableprinter.WithColor(cs.Gray))
 		tp.EndRow()
 	}

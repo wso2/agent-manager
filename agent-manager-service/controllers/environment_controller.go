@@ -505,16 +505,19 @@ func (c *environmentController) SetThunderURL(w http.ResponseWriter, r *http.Req
 			return
 		}
 	}
-	var handle string
+	var handle, rawURL string
 	if req.Handle != nil {
 		handle = *req.Handle
 	}
+	if req.Url != nil {
+		rawURL = *req.Url
+	}
 
-	// The resolved handle (possibly server-generated) is only known once the
-	// service call returns, so it's added to the record at Complete rather
-	// than here.
+	// The resolved record (possibly server-generated handle, or the
+	// caller-supplied url normalized) is only known once the service call
+	// returns, so it's added to the record at Complete rather than here.
 	attempt, ok := beginAuditOrFail(
-		w, r, "SetThunderURL", "Failed to store thunder url handle", audit.ActionThunderURLSet,
+		w, r, "SetThunderURL", "Failed to store thunder url", audit.ActionThunderURLSet,
 		audit.Org(ouID),
 		audit.ResourceNamed(audit.ResourceThunderURL, envName, envName),
 		audit.Environment(envName),
@@ -523,23 +526,36 @@ func (c *environmentController) SetThunderURL(w http.ResponseWriter, r *http.Req
 		return
 	}
 
-	resolved, err := c.environmentService.SetThunderURL(ctx, ouID, envName, handle)
+	resolved, err := c.environmentService.SetThunderURL(ctx, ouID, envName, handle, rawURL)
 	if err != nil {
 		attempt.Complete(ctx, err)
-		log.Error("SetThunderURL: failed to store handle", "ouID", ouID, "envName", envName, "error", err)
+		log.Error("SetThunderURL: failed to store thunder url", "ouID", ouID, "envName", envName, "error", err)
 		switch {
-		case errors.Is(err, utils.ErrThunderHandleTaken):
-			utils.WriteErrorResponse(w, http.StatusConflict, "Thunder URL handle is already in use")
-		case errors.Is(err, utils.ErrInvalidThunderHandle), errors.Is(err, utils.ErrInvalidInput):
+		case errors.Is(err, utils.ErrThunderHandleTaken), errors.Is(err, utils.ErrThunderURLTaken):
+			utils.WriteErrorResponse(w, http.StatusConflict, "Thunder URL is already in use")
+		case errors.Is(err, utils.ErrInvalidThunderHandle), errors.Is(err, utils.ErrInvalidThunderURL),
+			errors.Is(err, utils.ErrThunderHandleAndURLBothSet), errors.Is(err, utils.ErrInvalidInput):
 			utils.WriteErrorResponse(w, http.StatusBadRequest, "Invalid input")
 		default:
-			utils.WriteErrorResponse(w, http.StatusInternalServerError, "Failed to store thunder url handle")
+			utils.WriteErrorResponse(w, http.StatusInternalServerError, "Failed to store thunder url")
 		}
 		return
 	}
-	attempt.Complete(ctx, nil, audit.Detail("handle", resolved))
+	attempt.Complete(ctx, nil, audit.Detail("handle", resolved.Handle), audit.Detail("url", resolved.URL))
 
-	utils.WriteSuccessResponse(w, http.StatusOK, spec.ThunderUrlResponse{Handle: resolved})
+	utils.WriteSuccessResponse(w, http.StatusOK, toThunderUrlResponse(resolved))
+}
+
+// toThunderUrlResponse maps a resolved record to the wire response, omitting
+// Handle entirely (rather than an empty string) for a caller-supplied row
+// that has none — spec.ThunderUrlResponse.Handle is optional for exactly
+// this reason.
+func toThunderUrlResponse(rec models.ThunderURLRecord) spec.ThunderUrlResponse {
+	resp := spec.ThunderUrlResponse{Url: rec.URL}
+	if rec.Handle != "" {
+		resp.Handle = &rec.Handle
+	}
+	return resp
 }
 
 // GetThunderURL returns an environment's registered env-Thunder URL handle.
@@ -552,18 +568,18 @@ func (c *environmentController) GetThunderURL(w http.ResponseWriter, r *http.Req
 	ouID := middleware.OUIDFromRequest(r)
 	envName := r.PathValue("envID")
 
-	handle, err := c.environmentService.GetThunderURL(ctx, ouID, envName)
+	resolved, err := c.environmentService.GetThunderURL(ctx, ouID, envName)
 	if err != nil {
 		if errors.Is(err, utils.ErrThunderHandleNotFound) {
-			utils.WriteErrorResponse(w, http.StatusNotFound, "No thunder url handle registered for this environment")
+			utils.WriteErrorResponse(w, http.StatusNotFound, "No thunder url registered for this environment")
 			return
 		}
-		log.Error("GetThunderURL: failed to read handle", "ouID", ouID, "envName", envName, "error", err)
-		utils.WriteErrorResponse(w, http.StatusInternalServerError, "Failed to read thunder url handle")
+		log.Error("GetThunderURL: failed to read thunder url", "ouID", ouID, "envName", envName, "error", err)
+		utils.WriteErrorResponse(w, http.StatusInternalServerError, "Failed to read thunder url")
 		return
 	}
 
-	utils.WriteSuccessResponse(w, http.StatusOK, spec.ThunderUrlResponse{Handle: handle})
+	utils.WriteSuccessResponse(w, http.StatusOK, toThunderUrlResponse(resolved))
 }
 
 // DeleteThunderURL removes an environment's env-Thunder URL handle (idempotent;
@@ -585,29 +601,29 @@ func (c *environmentController) DeleteThunderURL(w http.ResponseWriter, r *http.
 		return
 	}
 
-	// Read the handle being freed so the success record below names it. A
-	// genuinely missing handle is not an error — Delete is idempotent — but any
+	// Read the record being freed so the success record below names it. A
+	// genuinely missing record is not an error — Delete is idempotent — but any
 	// other read failure must abort before the delete: silently ignoring it
 	// would risk deleting a row the record can no longer identify.
 	existing, err := c.environmentService.GetThunderURL(ctx, ouID, envName)
 	if err != nil && !errors.Is(err, utils.ErrThunderHandleNotFound) {
 		attempt.Complete(ctx, err)
-		log.Error("DeleteThunderURL: failed to read handle before delete", "ouID", ouID, "envName", envName, "error", err)
-		utils.WriteErrorResponse(w, http.StatusInternalServerError, "Failed to delete thunder url handle")
+		log.Error("DeleteThunderURL: failed to read thunder url before delete", "ouID", ouID, "envName", envName, "error", err)
+		utils.WriteErrorResponse(w, http.StatusInternalServerError, "Failed to delete thunder url")
 		return
 	}
 
 	if err := c.environmentService.DeleteThunderURL(ctx, ouID, envName); err != nil {
 		attempt.Complete(ctx, err)
-		log.Error("DeleteThunderURL: failed to delete handle", "ouID", ouID, "envName", envName, "error", err)
+		log.Error("DeleteThunderURL: failed to delete thunder url", "ouID", ouID, "envName", envName, "error", err)
 		if errors.Is(err, utils.ErrInvalidInput) {
 			utils.WriteErrorResponse(w, http.StatusBadRequest, "Invalid input")
 			return
 		}
-		utils.WriteErrorResponse(w, http.StatusInternalServerError, "Failed to delete thunder url handle")
+		utils.WriteErrorResponse(w, http.StatusInternalServerError, "Failed to delete thunder url")
 		return
 	}
-	attempt.Complete(ctx, nil, audit.Detail("handle", existing))
+	attempt.Complete(ctx, nil, audit.Detail("handle", existing.Handle), audit.Detail("url", existing.URL))
 
 	utils.WriteSuccessResponse(w, http.StatusNoContent, "")
 }

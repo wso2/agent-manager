@@ -1,0 +1,72 @@
+---
+title: Evaluation Extension
+---
+
+# Evaluation Extension
+
+A Helm chart to add Evaluation functionality for the Agent Management Platform, by Deploying and Configuring Monitor evaluation workflows.
+
+```bash
+helm install amp-evaluation-extension oci://ghcr.io/wso2/helm-charts/wso2-amp-evaluation-extension \
+  --namespace <namespace> --create-namespace \
+  --values my-values.yaml
+```
+
+## ampEvaluation
+
+| Parameter | Description | Type | Default |
+|---|---|---|---|
+| `ampEvaluation` | AMP Evaluation image configuration | object |  |
+| `ampEvaluation.workflowNamespace` | Namespace OpenChoreo runs this environment's Argo workflows in. The evaluation job namespace is derived from it as "workflows-&lt;value&gt;". | string | `"default"` |
+| `ampEvaluation.image` | Docker image configuration for monitor evaluation | object |  |
+| `ampEvaluation.image.repository` | Image repository For local development: will be pushed to local registry For production: ghcr.io/wso2/amp-evaluation-monitor | string | `"ghcr.io/wso2/amp-evaluation-monitor"` |
+| `ampEvaluation.image.tag` | Image tag IMPORTANT: For production, this should match the amp-evaluation SDK version used in dbMigration.evaluatorGenerator.image.tag in the wso2-agent-manager chart. Example: If using amp-evaluation==0.1.5, set this to "0.1.5" | string | `"0.0.0-dev"` |
+| `ampEvaluation.image.pullPolicy` | Image pull policy | string | `"IfNotPresent"` |
+| `ampEvaluation.useLocalRegistry` | Whether to use local registry or external image When true, image will be prefixed with registry endpoint When false, uses repository:tag directly (for k3d imported images or external registries) | boolean | `false` |
+| `ampEvaluation.tracesApiEndpoint` | In-cluster URL for the observer API | string | `"http://amp-observer.openchoreo-observability-plane.svc.cluster.local:9098"` |
+| `ampEvaluation.publisher` | Publisher settings (for publishing evaluation scores to agent-manager) | object |  |
+| `ampEvaluation.publisher.endpoint` | In-cluster URL for the agent-manager API | string | `"http://amp-api.wso2-amp.svc.cluster.local:9000"` |
+| `ampEvaluation.publisher.idpTokenUrl` | OAuth2 client credentials for publisher authentication The evaluation job uses these to obtain a Bearer token from Thunder Note: clientSecret is loaded dynamically from OpenBao via ExternalSecret at workflow runtime | string | `"http://amp-thunder-extension-service.amp-thunder.svc.cluster.local:8090/oauth2/token"` |
+| `ampEvaluation.publisher.clientId` | OAuth 2.0 client ID the job uses to obtain a publisher token. | string | `"amp-publisher-client"` |
+
+## global
+
+| Parameter | Description | Type | Default |
+|---|---|---|---|
+| `global` | Global configuration (inherited from parent chart) | object |  |
+| `global.baseDomain` | Base domain for external access | string | `""` |
+| `global.registry` | Container registry configuration | object |  |
+| `global.registry.endpoint` | Registry endpoint for pushing and pulling images For local registry: "host.k3d.internal:10082" For external registry with baseDomain: automatically uses "registry.&lt;baseDomain&gt;" | string | `"host.k3d.internal:10082"` |
+
+## networkPolicy
+
+| Parameter | Description | Type | Default |
+|---|---|---|---|
+| `networkPolicy` | Restricts the evaluation-job pod's egress (untrusted, user-submitted code) to just DNS, the traces observer, Thunder, the agent-manager-service publisher endpoint, and the LLM gateway. | object |  |
+| `networkPolicy.evaluationJob` | Egress allow-list for the evaluation job, which executes user-submitted evaluator code. | object |  |
+| `networkPolicy.evaluationJob.enabled` | No-op on clusters whose CNI doesn't enforce NetworkPolicy (e.g. plain flannel). | boolean | `true` |
+| `networkPolicy.evaluationJob.namespace` | Empty derives "workflows-&lt;ampEvaluation.workflowNamespace&gt;" (where OpenChoreo runs this environment's Argo workflows), not this chart's own release namespace. | string | `""` |
+| `networkPolicy.evaluationJob.dns` | DNS target on port 53, scoped rather than left wide open since this pod runs untrusted code. | object |  |
+| `networkPolicy.evaluationJob.dns.namespace` | Namespace running the cluster DNS pods. | string | `"kube-system"` |
+| `networkPolicy.evaluationJob.dns.podLabel` | Label selecting the DNS pods, rather than opening port 53 cluster-wide. | object |  |
+| `networkPolicy.evaluationJob.dns.podLabel.key` | Label key on the DNS pods. | string | `"k8s-app"` |
+| `networkPolicy.evaluationJob.dns.podLabel.value` | Label value on the DNS pods. | string | `"kube-dns"` |
+| `networkPolicy.evaluationJob.observer` | Ports are matched post-DNAT, so each is the target's containerPort, not its Service port. | object |  |
+| `networkPolicy.evaluationJob.observer.namespace` | Namespace running the observer. | string | `"openchoreo-observability-plane"` |
+| `networkPolicy.evaluationJob.observer.ports` | Ports the job may reach on the observer pods. | array | see `values.yaml` |
+| `networkPolicy.evaluationJob.publisher` | Agent Manager service the job publishes scores to. | object |  |
+| `networkPolicy.evaluationJob.publisher.namespace` | Namespace running the Agent Manager service. | string | `"wso2-amp"` |
+| `networkPolicy.evaluationJob.publisher.ports` | Ports the job may reach on the Agent Manager service. Allowed values: amp-api's containerPort; its Service port 9000 never survives DNAT. | array | see `values.yaml` |
+| `networkPolicy.evaluationJob.idp` | Identity provider the job requests a token from. | object |  |
+| `networkPolicy.evaluationJob.idp.namespace` | Namespace running the identity provider. | string | `"amp-thunder"` |
+| `networkPolicy.evaluationJob.idp.ports` | Ports the job may reach on the identity provider. | array | see `values.yaml` |
+| `networkPolicy.evaluationJob.llmGateway` | AI Gateway that LLM-judge evaluators call through. | object |  |
+| `networkPolicy.evaluationJob.llmGateway.ports` | Ports the job may reach on the gateway. | array | see `values.yaml` |
+| `networkPolicy.evaluationJob.llmGateway.namespace` | Namespace holding the API Platform Gateway, allowed in addition to any namespace labelled amp.wso2.com/api-platform-gateway=true. That label is only applied by setup-gateway.sh and add-environment.sh, so an install that follows the gateway chart's own apiGateway.namespace default (openchoreo-data-plane) has no matching namespace and llm_judge evaluators are silently denied egress to the gateway. Empty = rely on the label alone. | string | `""` |
+| `networkPolicy.evaluationJob.devEgress` | Local-dev only: ipBlock exception for the node network, covering agent-manager-service outside the cluster (8080) and the gateway's node port (19080). Empty (no-op) elsewhere; setup-amp-extensions.sh sets both. | object |  |
+| `networkPolicy.evaluationJob.devEgress.cidr` | Node network CIDR to allow. Empty disables the exception. | string | `""` |
+| `networkPolicy.evaluationJob.devEgress.ports` | Ports allowed on the node network. | array | see `values.yaml` |
+| `networkPolicy.evaluationJob.apiServer` | Node network of the kube-apiserver. Permissive default spans the pod and service CIDRs so any cluster works unconfigured; narrow to the control-plane subnet in production. | object |  |
+| `networkPolicy.evaluationJob.apiServer.cidrs` | Private ranges the API server may live in. | array | see `values.yaml` |
+| `networkPolicy.evaluationJob.apiServer.ports` | Ports the API server listens on. | array | see `values.yaml` |
+

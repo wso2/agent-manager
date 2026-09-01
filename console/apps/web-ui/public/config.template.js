@@ -44,7 +44,7 @@ window.__RUNTIME_CONFIG__ = {
   instrumentationUrl: '$INSTRUMENTATION_URL',
   agentManagerInternalBaseUrl: '$AGENT_MANAGER_INTERNAL_BASE_URL',
   agentManagerInternalCpHost: '$AGENT_MANAGER_INTERNAL_CP_HOST',
-  thunderHostBaseDomain: '$THUNDER_HOST_BASE_DOMAIN',
+  idpHostBaseDomain: '$IDP_HOST_BASE_DOMAIN',
   tlsEnabled: '$TLS_ENABLED' === 'true',
   guardrailsCatalogUrl: '$GUARDRAILS_CATALOG_URL',
   guardrailsDefinitionBaseUrl: '$GUARDRAILS_DEFINITION_BASE_URL',

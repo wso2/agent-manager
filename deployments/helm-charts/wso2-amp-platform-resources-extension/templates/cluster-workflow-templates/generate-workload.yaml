@@ -83,6 +83,7 @@ spec:
             OUT_JSON="/mnt/vol/workload-cr.json"
             OUT_FULL_JSON="/mnt/vol/workload-cr-full.json"
             OUT_YAML="/mnt/vol/workload-cr.yaml"
+            OUT_OVERRIDES_JSON="/mnt/vol/workload-overrides.json"
 
             # Argo leaves an unset parameter as the empty string.
             if [ -z "$ENV_VARS" ] || [ "$ENV_VARS" = "null" ]; then ENV_VARS='[]'; fi
@@ -142,27 +143,23 @@ spec:
             # --- Step 2: Build the Workload CR ---
             # Assembled by jq rather than by echoing YAML lines: every value is
             # encoded as JSON by jq, so no field can inject document structure.
+            #
+            # Env vars and file mounts are deliberately NOT written here. The Workload
+            # is snapshotted verbatim into every ComponentRelease, and a release is
+            # pinned unchanged into each environment it is promoted to, so anything
+            # placed on the Workload is inherited by every environment. A
+            # ReleaseBinding's workloadOverrides can replace such a value per
+            # environment but cannot remove it, which makes the inheritance
+            # impossible to opt out of. Configuration therefore lives only on the
+            # per-environment ReleaseBinding (see Step 7); the Workload carries just
+            # the image and the environment-independent endpoint contract.
             jq -n -c \
               --arg name "${COMPONENT_NAME}-workload" \
               --arg namespace "$NAMESPACE" \
               --arg projectName "$PROJECT_NAME" \
               --arg componentName "$COMPONENT_NAME" \
               --arg image "$IMAGE" \
-              --argjson envVars "$ENV_VARS" \
-              --argjson fileMounts "$FILE_MOUNTS" \
               --argjson endpoints "$ENDPOINTS" '
-                def secret_ref:
-                  (.valueFrom.secretKeyRef.name // "") as $n
-                  | (.valueFrom.secretKeyRef.key // "") as $k
-                  | if $n != "" and $k != ""
-                    then { valueFrom: { secretKeyRef: { name: $n, key: $k } } }
-                    else { value: (.value // "") }
-                    end;
-
-                def env_entry: { key: .name } + secret_ref;
-
-                def file_entry: { key: .key, mountPath: .mountPath } + secret_ref;
-
                 def endpoint_entry:
                   { type: (.type // "HTTP"), port: .port }
                   + (if (.basePath // "") != "" then { basePath: .basePath } else {} end)
@@ -176,11 +173,7 @@ spec:
                   spec: (
                     {
                       owner: { projectName: $projectName, componentName: $componentName },
-                      container: (
-                        { image: $image }
-                        + (if ($envVars | length) > 0 then { env: [ $envVars[] | env_entry ] } else {} end)
-                        + (if ($fileMounts | length) > 0 then { files: [ $fileMounts[] | file_entry ] } else {} end)
-                      )
+                      container: { image: $image }
                     }
                     + (if ($endpoints | length) > 0
                        then { endpoints: ($endpoints | map({ (.name): endpoint_entry }) | add) }
@@ -188,6 +181,32 @@ spec:
                   )
                 }
               ' > "$OUT_JSON"
+
+            # The same env vars and file mounts, shaped as ReleaseBinding
+            # workloadOverrides. Emitted as null when the component has neither, so
+            # Step 7 can leave spec.workloadOverrides unset rather than writing an
+            # empty container object.
+            jq -n -c \
+              --argjson envVars "$ENV_VARS" \
+              --argjson fileMounts "$FILE_MOUNTS" '
+                def secret_ref:
+                  (.valueFrom.secretKeyRef.name // "") as $n
+                  | (.valueFrom.secretKeyRef.key // "") as $k
+                  | if $n != "" and $k != ""
+                    then { valueFrom: { secretKeyRef: { name: $n, key: $k } } }
+                    else { value: (.value // "") }
+                    end;
+
+                def env_entry: { key: .name } + secret_ref;
+
+                def file_entry: { key: .key, mountPath: .mountPath } + secret_ref;
+
+                (
+                  (if ($envVars | length) > 0 then { env: [ $envVars[] | env_entry ] } else {} end)
+                  + (if ($fileMounts | length) > 0 then { files: [ $fileMounts[] | file_entry ] } else {} end)
+                ) as $container
+                | if ($container | length) > 0 then { container: $container } else null end
+              ' > "$OUT_OVERRIDES_JSON"
 
             # The API server payload carries no apiVersion/kind; the YAML rendered
             # for the workflow output parameter does.
@@ -297,6 +316,203 @@ spec:
               echo "Failed to update WorkflowRun (HTTP ${UPDATE_HTTP_CODE}): ${UPDATE_BODY}"
               exit 1
             fi
+
+            # Steps 6-7 do what OpenChoreo's Component controller does when
+            # spec.autoDeploy is set: cut a ComponentRelease from the component's
+            # current state and bind it to the first environment. Driving it from
+            # here instead is what allows the configuration to be attached to the
+            # binding rather than baked into the shared Workload. Components built by
+            # this workflow are created with autoDeploy off, so the controller is not
+            # also managing the binding written below.
+
+            # Small helper for the remaining reads. Echoes "<body>\n<http-code>";
+            # callers split it the same way as the blocks above.
+            api_get() {
+              curl -s -w "\n%{http_code}" \
+                -X GET "${API_URL}$1" \
+                -H "Host: ${API_HOST}" \
+                -H "Authorization: Bearer ${ACCESS_TOKEN}"
+            }
+
+            # --- Step 6: Generate the ComponentRelease ---
+            # Named after the WorkflowRun, which is unique per build, so the create
+            # below cannot collide with an earlier release.
+            RELEASE_NAME="${RUN_NAME}"
+
+            echo "Generating ComponentRelease ${RELEASE_NAME}..."
+            jq -n -c --arg releaseName "$RELEASE_NAME" '{ releaseName: $releaseName }' \
+              > /mnt/vol/generate-release.json
+
+            RELEASE_RESPONSE=$(curl -s -w "\n%{http_code}" \
+              -X POST "${API_URL}/api/v1/namespaces/${NAMESPACE}/components/${COMPONENT_NAME}/generate-release" \
+              -H "Host: ${API_HOST}" \
+              -H "Content-Type: application/json" \
+              -H "Authorization: Bearer ${ACCESS_TOKEN}" \
+              -d @/mnt/vol/generate-release.json)
+
+            RELEASE_HTTP_CODE=$(echo "${RELEASE_RESPONSE}" | tail -1)
+            RELEASE_BODY=$(echo "${RELEASE_RESPONSE}" | sed '$d')
+
+            if [ "${RELEASE_HTTP_CODE}" -lt 200 ] || [ "${RELEASE_HTTP_CODE}" -ge 300 ]; then
+              echo "Failed to generate ComponentRelease (HTTP ${RELEASE_HTTP_CODE}): ${RELEASE_BODY}"
+              exit 1
+            fi
+            echo "ComponentRelease ${RELEASE_NAME} generated (HTTP ${RELEASE_HTTP_CODE})"
+
+            # --- Step 7: Bind the release to the first environment ---
+            # The first environment is the project's promotion root, resolved the way
+            # OpenChoreo's Component controller resolves it: the one source
+            # environment that is never itself a promotion target.
+            PROJECT_RESPONSE=$(api_get "/api/v1/namespaces/${NAMESPACE}/projects/${PROJECT_NAME}")
+            PROJECT_HTTP_CODE=$(echo "${PROJECT_RESPONSE}" | tail -1)
+            PROJECT_BODY=$(echo "${PROJECT_RESPONSE}" | sed '$d')
+
+            if [ "${PROJECT_HTTP_CODE}" -lt 200 ] || [ "${PROJECT_HTTP_CODE}" -ge 300 ]; then
+              echo "Failed to get Project (HTTP ${PROJECT_HTTP_CODE}): ${PROJECT_BODY}"
+              exit 1
+            fi
+
+            PIPELINE_NAME=$(printf '%s' "${PROJECT_BODY}" | jq -r '.spec.deploymentPipelineRef.name // ""')
+            if [ -z "${PIPELINE_NAME}" ]; then
+              echo "Error: project ${PROJECT_NAME} has no deploymentPipelineRef"
+              exit 1
+            fi
+
+            PIPELINE_RESPONSE=$(api_get "/api/v1/namespaces/${NAMESPACE}/deploymentpipelines/${PIPELINE_NAME}")
+            PIPELINE_HTTP_CODE=$(echo "${PIPELINE_RESPONSE}" | tail -1)
+            PIPELINE_BODY=$(echo "${PIPELINE_RESPONSE}" | sed '$d')
+
+            if [ "${PIPELINE_HTTP_CODE}" -lt 200 ] || [ "${PIPELINE_HTTP_CODE}" -ge 300 ]; then
+              echo "Failed to get DeploymentPipeline (HTTP ${PIPELINE_HTTP_CODE}): ${PIPELINE_BODY}"
+              exit 1
+            fi
+
+            FIRST_ENV=$(printf '%s' "${PIPELINE_BODY}" | jq -r '
+              (.spec.promotionPaths // []) as $paths
+              | ([ $paths[].targetEnvironmentRefs[]?.name ] | map({ (.): true }) | add // {}) as $targets
+              | [ $paths[].sourceEnvironmentRef.name
+                  | select(. != null and . != "")
+                  | select($targets[.] != true) ][0] // ""
+            ')
+            if [ -z "${FIRST_ENV}" ]; then
+              echo "Error: deployment pipeline ${PIPELINE_NAME} has no root environment"
+              exit 1
+            fi
+
+            # Name fixed by convention: the promotion path and the backend both look
+            # the first-environment binding up as <component>-<environment>.
+            BINDING_NAME="${COMPONENT_NAME}-${FIRST_ENV}"
+
+            # The whole read-then-write is retried, re-reading the binding each time,
+            # mirroring retryReleaseBindingUpdate in the backend's OpenChoreo client.
+            # Both writes below race the backend, which edits this same binding to
+            # inject MCP env vars and runtime class:
+            #   - a create can lose the race and come back 409, in which case the
+            #     re-read finds the binding and the next attempt updates it instead;
+            #   - an update can collide with a concurrent write inside the API server
+            #     and fail. OpenChoreo surfaces that as a generic 500 rather than a
+            #     409, so both codes are treated as retryable.
+            # Re-reading per attempt also narrows (it cannot close) the window where a
+            # backend write lands between our read and our write: the API replaces the
+            # spec wholesale and does not honour a caller's resourceVersion, so the
+            # last writer wins regardless.
+            BINDING_MAX_ATTEMPTS=3
+            BINDING_ATTEMPT=1
+            BINDING_WRITTEN=false
+
+            while [ "${BINDING_ATTEMPT}" -le "${BINDING_MAX_ATTEMPTS}" ]; do
+              BINDING_GET_RESPONSE=$(api_get "/api/v1/namespaces/${NAMESPACE}/releasebindings/${BINDING_NAME}")
+              BINDING_GET_HTTP_CODE=$(echo "${BINDING_GET_RESPONSE}" | tail -1)
+              BINDING_GET_BODY=$(echo "${BINDING_GET_RESPONSE}" | sed '$d')
+
+              if [ "${BINDING_GET_HTTP_CODE}" -eq 404 ]; then
+                echo "Creating ReleaseBinding ${BINDING_NAME} for environment ${FIRST_ENV}..."
+                jq -n -c \
+                  --arg name "$BINDING_NAME" \
+                  --arg namespace "$NAMESPACE" \
+                  --arg projectName "$PROJECT_NAME" \
+                  --arg componentName "$COMPONENT_NAME" \
+                  --arg environment "$FIRST_ENV" \
+                  --arg releaseName "$RELEASE_NAME" \
+                  --slurpfile overrides "$OUT_OVERRIDES_JSON" '
+                    {
+                      metadata: { name: $name, namespace: $namespace },
+                      spec: (
+                        {
+                          owner: { projectName: $projectName, componentName: $componentName },
+                          environment: $environment,
+                          releaseName: $releaseName
+                        }
+                        + (if $overrides[0] != null then { workloadOverrides: $overrides[0] } else {} end)
+                      )
+                    }
+                  ' > /mnt/vol/releasebinding.json
+
+                BINDING_RESPONSE=$(curl -s -w "\n%{http_code}" \
+                  -X POST "${API_URL}/api/v1/namespaces/${NAMESPACE}/releasebindings" \
+                  -H "Host: ${API_HOST}" \
+                  -H "Content-Type: application/json" \
+                  -H "Authorization: Bearer ${ACCESS_TOKEN}" \
+                  -d @/mnt/vol/releasebinding.json)
+              elif [ "${BINDING_GET_HTTP_CODE}" -ge 200 ] && [ "${BINDING_GET_HTTP_CODE}" -lt 300 ]; then
+                # Only the release pin is advanced. Once the binding exists it owns the
+                # environment's configuration, which the backend edits directly; a
+                # rebuild must not roll that back to whatever the component-level
+                # parameters happened to hold.
+                echo "Updating ReleaseBinding ${BINDING_NAME} to release ${RELEASE_NAME}..."
+                printf '%s' "${BINDING_GET_BODY}" > /mnt/vol/releasebinding-get.json
+                jq -c --arg releaseName "$RELEASE_NAME" '.spec.releaseName = $releaseName' \
+                  /mnt/vol/releasebinding-get.json > /mnt/vol/releasebinding.json
+
+                BINDING_RESPONSE=$(curl -s -w "\n%{http_code}" \
+                  -X PUT "${API_URL}/api/v1/namespaces/${NAMESPACE}/releasebindings/${BINDING_NAME}" \
+                  -H "Host: ${API_HOST}" \
+                  -H "Content-Type: application/json" \
+                  -H "Authorization: Bearer ${ACCESS_TOKEN}" \
+                  -d @/mnt/vol/releasebinding.json)
+              elif [ "${BINDING_GET_HTTP_CODE}" -ge 500 ]; then
+                # The read is as racy as the write below, so spend the same retry budget on
+                # it rather than failing the build on a transient API-server error.
+                if [ "${BINDING_ATTEMPT}" -lt "${BINDING_MAX_ATTEMPTS}" ]; then
+                  echo "ReleaseBinding lookup failed (HTTP ${BINDING_GET_HTTP_CODE}), attempt ${BINDING_ATTEMPT} of ${BINDING_MAX_ATTEMPTS}; retrying"
+                  BINDING_ATTEMPT=$((BINDING_ATTEMPT + 1))
+                  sleep 2
+                  continue
+                fi
+                echo "Failed to look up ReleaseBinding after ${BINDING_MAX_ATTEMPTS} attempts (HTTP ${BINDING_GET_HTTP_CODE}): ${BINDING_GET_BODY}"
+                exit 1
+              else
+                echo "Failed to look up ReleaseBinding (HTTP ${BINDING_GET_HTTP_CODE}): ${BINDING_GET_BODY}"
+                exit 1
+              fi
+
+              BINDING_HTTP_CODE=$(echo "${BINDING_RESPONSE}" | tail -1)
+              BINDING_BODY=$(echo "${BINDING_RESPONSE}" | sed '$d')
+
+              if [ "${BINDING_HTTP_CODE}" -ge 200 ] && [ "${BINDING_HTTP_CODE}" -lt 300 ]; then
+                BINDING_WRITTEN=true
+                break
+              fi
+
+              if [ "${BINDING_HTTP_CODE}" -eq 409 ] || [ "${BINDING_HTTP_CODE}" -ge 500 ]; then
+                if [ "${BINDING_ATTEMPT}" -lt "${BINDING_MAX_ATTEMPTS}" ]; then
+                  echo "ReleaseBinding write failed (HTTP ${BINDING_HTTP_CODE}), attempt ${BINDING_ATTEMPT} of ${BINDING_MAX_ATTEMPTS}; re-reading and retrying"
+                  BINDING_ATTEMPT=$((BINDING_ATTEMPT + 1))
+                  sleep 2
+                  continue
+                fi
+              fi
+
+              echo "Failed to write ReleaseBinding (HTTP ${BINDING_HTTP_CODE}): ${BINDING_BODY}"
+              exit 1
+            done
+
+            if [ "${BINDING_WRITTEN}" != "true" ]; then
+              echo "Failed to write ReleaseBinding after ${BINDING_MAX_ATTEMPTS} attempts (HTTP ${BINDING_HTTP_CODE}): ${BINDING_BODY}"
+              exit 1
+            fi
+
+            echo "ReleaseBinding ${BINDING_NAME} bound to release ${RELEASE_NAME} (HTTP ${BINDING_HTTP_CODE})"
         volumeMounts:
           - name: workspace
             mountPath: /mnt/vol

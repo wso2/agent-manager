@@ -71,14 +71,38 @@ func TestWellKnownOAuthProtectedResource_HappyPath(t *testing.T) {
 	if err := json.NewDecoder(rec.Body).Decode(&body); err != nil {
 		t.Fatalf("failed to decode response: %v", err)
 	}
-	if body.Resource != "https://am.example.com/mcp" {
-		t.Errorf("expected resource %q, got %q", "https://am.example.com/mcp", body.Resource)
+	if body.Resource != "https://am.example.com" {
+		t.Errorf("expected resource %q, got %q", "https://am.example.com", body.Resource)
 	}
 	if len(body.AuthorizationServers) != 1 || body.AuthorizationServers[0] != "https://idp.example.com" {
 		t.Errorf("expected authorization_servers [https://idp.example.com], got %v", body.AuthorizationServers)
 	}
 	if len(body.BearerMethodsSupported) != 1 || body.BearerMethodsSupported[0] != "header" {
 		t.Errorf("expected bearer_methods_supported [header], got %v", body.BearerMethodsSupported)
+	}
+	if expected := []string{"org:view", "project:read"}; !reflect.DeepEqual(body.ScopesSupported, expected) {
+		t.Errorf("expected API/CLI scopes %v, got %v", expected, body.ScopesSupported)
+	}
+}
+
+func TestWellKnownOAuthProtectedResource_MCPMetadata(t *testing.T) {
+	withWellKnownConfig(t, "https://am.example.com/", []string{"https://idp.example.com"}, []string{"api:scope"})
+
+	mux := setupWellKnownMux()
+	req := httptest.NewRequest(http.MethodGet, "/.well-known/oauth-protected-resource/mcp", nil)
+	rec := httptest.NewRecorder()
+	mux.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d", rec.Code)
+	}
+
+	var body protectedResourceMetadata
+	if err := json.NewDecoder(rec.Body).Decode(&body); err != nil {
+		t.Fatalf("failed to decode response: %v", err)
+	}
+	if body.Resource != "https://am.example.com/mcp" {
+		t.Errorf("expected MCP resource %q, got %q", "https://am.example.com/mcp", body.Resource)
 	}
 	if expected := rbac.MainMCPScopes(); !reflect.DeepEqual(body.ScopesSupported, expected) {
 		t.Errorf("expected MCP scopes %v, got %v", expected, body.ScopesSupported)
@@ -125,9 +149,9 @@ func TestWellKnownOAuthProtectedResource_TrailingSlashNormalized(t *testing.T) {
 	if err := json.NewDecoder(rec.Body).Decode(&body); err != nil {
 		t.Fatalf("failed to decode response: %v", err)
 	}
-	// A trailing slash on ServerPublicURL must not become "//mcp" — it's trimmed
-	// before "/mcp" is appended, matching the MCP spec's no-trailing-slash guidance.
-	if body.Resource != "https://am.example.com/mcp" {
+	// The API/CLI resource is the normalized public service URL. MCP metadata is
+	// served separately at /.well-known/oauth-protected-resource/mcp.
+	if body.Resource != "https://am.example.com" {
 		t.Errorf("expected resource with trailing slash normalized away, got %q", body.Resource)
 	}
 	// authorization_servers is passed through verbatim — untouched by resource normalization.

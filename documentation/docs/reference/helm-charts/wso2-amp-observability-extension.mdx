@@ -1,0 +1,81 @@
+---
+title: Observability Extension
+---
+
+# Observability Extension
+
+A Helm chart to add Tracing functionality for the Agent Management Platform, by Deploying and Configuring the Agent Manager Observer.
+
+```bash
+helm install amp-observability-extension oci://ghcr.io/wso2/helm-charts/wso2-amp-observability-extension \
+  --namespace <namespace> --create-namespace \
+  --values my-values.yaml
+```
+
+## amObserver
+
+| Parameter | Description | Type | Default |
+|---|---|---|---|
+| `amObserver` | Agent Manager Observer Service config | object |  |
+| `amObserver.enabled` | Install the observer. | boolean | `true` |
+| `amObserver.developmentMode` | Relax checks intended only for local development. Leave off in real deployments. | boolean | `false` |
+| `amObserver.name` | Name used for the observer's Kubernetes resources. | string | `"amp-observer"` |
+| `amObserver.replicaCount` | Number of pod replicas to run | integer | `1` |
+| `amObserver.image` | Container image for the observer. | object |  |
+| `amObserver.image.repository` | Container image repository | string | `"ghcr.io/wso2/amp-observer"` |
+| `amObserver.image.tag` | Container image tag. Defaults to the chart's appVersion when empty | string | `"0.0.0-dev"` |
+| `amObserver.image.pullPolicy` | Image pull policy (`Always`, `IfNotPresent`, or `Never`) | string | `"IfNotPresent"` |
+| `amObserver.port` | Port the observer serves its API on. | integer | `9098` |
+| `amObserver.resourceLimits` | Maximum compute resources for the observer container. | object |  |
+| `amObserver.resourceLimits.memory` | Maximum memory before the container is OOM-killed. | string | `"256Mi"` |
+| `amObserver.resourceLimits.cpu` | Maximum CPU the container may use. | string | `"500m"` |
+| `amObserver.resourceRequests` | Compute resources reserved for the observer at scheduling time. | object |  |
+| `amObserver.resourceRequests.memory` | Memory reserved at scheduling time. | string | `"128Mi"` |
+| `amObserver.resourceRequests.cpu` | CPU reserved at scheduling time. | string | `"250m"` |
+| `amObserver.service` | Reachable externally via the observability-plane gateway (see ocIngress); set type to LoadBalancer to restore a dedicated external endpoint. | object |  |
+| `amObserver.service.type` | Kubernetes Service type (`ClusterIP`, `NodePort`, or `LoadBalancer`) | string | `"ClusterIP"` |
+| `amObserver.ocIngress` | Exposes the Agent Manager Observer through the observability-plane kgateway (gateway-default) so it does not need its own LoadBalancer service. | object |  |
+| `amObserver.ocIngress.enabled` | Expose this component through the gateway | boolean | `true` |
+| `amObserver.ocIngress.gatewayName` | Gateway that serves this route | string | `"gateway-default"` |
+| `amObserver.ocIngress.hostname` | Hostname routed to this component through the gateway | string | `"traces.amp.localhost"` |
+| `amObserver.ocIngress.requestTimeout` | Time the gateway waits for an observer response before giving up. | string | `"60s"` |
+| `amObserver.observer` | Observer Service connection — the upstream service that provides trace data. | object |  |
+| `amObserver.observer.baseUrl` | In-cluster base URL of the upstream observer. | string | `"http://observer.openchoreo-observability-plane.svc.cluster.local:8080"` |
+| `amObserver.observer.idpTokenUrl` | Token endpoint used to authenticate to the upstream observer. | string | `"http://amp-thunder-extension-service.amp-thunder.svc.cluster.local:8090/oauth2/token"` |
+| `amObserver.observer.idpClientId` | Dedicated outbound identity for calls to the OpenChoreo observer. Seeded by wso2-amp-thunder-extension (amObserverClient); authorized via the amp-observer-reader ClusterAuthzRoleBinding in wso2-amp-platform-resources-extension. No amp:* scopes. Generate this the same way as every other client secret in this product (e.g. AM_OBSERVER_CLIENT_SECRET="$(openssl rand -hex 32)") and pass it here AND to thunder.bootstrap.amObserverClient.clientSecret — they must match, since Thunder is what actually issued this client. Prefer existingSecret below over the inline value for production. NOTE: the Thunder bootstrap job is a pre-install-only hook — on an existing install, helm upgrade does NOT create this client; re-run the bootstrap job (or reinstall the thunder extension) before rolling out this value. | string | `"am-observer-client"` |
+| `amObserver.observer.idpClientSecret` | Unlike apiKey/encryptionKey elsewhere in this product, there is no safe empty-value fallback here: this must match whatever Thunder actually issued for amObserverClient, so it stays at the same default that chart ships (thunder.bootstrap.amObserverClient.clientSecret) rather than being emptied — override BOTH together via existingSecret in production. | string | `"am-observer-client-secret"` |
+| `amObserver.observer.existingSecret` | Reference an existing secret for IDP credentials (recommended for production). When set, idpClientId/idpClientSecret above are ignored. | string | `""` |
+| `amObserver.observer.existingSecretClientIdKey` | Key within the existing Secret holding the OAuth client ID. | string | `"idpClientId"` |
+| `amObserver.observer.existingSecretClientSecretKey` | Key within the existing Secret holding the OAuth client secret. | string | `"idpClientSecret"` |
+| `amObserver.observer.defaultNamespace` | Namespace assumed when a query does not name one. | string | `"default"` |
+| `amObserver.auth` | JWT authentication — must match the agent-manager keyManager config so the same user token issued by Thunder is accepted by both services. Thunder stamps the resource-server identifier as the token audience, so query tokens (console/CLI) carry aud=urn:wso2:amp — the amp resource server's identifier, which must stay in sync with 60-amp-resource-server.yaml in the Thunder extension chart. The agent-manager-service's own amp-api-client client-credentials token (used for the monitor-run-logs server-to-server call) requests the full amp:* scope set and resolves to the same resource-server audience; "amp-api-client" is listed too as a defensive fallback for any client-credentials request that carries no scope (in which case Thunder falls back to the client ID as the audience). Publisher tokens (aud amp-publisher-*) are matched by a separate regex in the observer's auth middleware and do not need to be listed here. MCP tokens minted for the observer MCP client (am-obs-mcp) carry the RFC 8707 resource identifier — this service's publicUrl with "/mcp" appended (no trailing slash, per the MCP spec's canonical-URI guidance) — as their audience. That URL is NOT listed here: the chart appends publicUrl+"/mcp" to this list automatically, so overriding publicUrl alone keeps MCP tokens valid. "am-obs-mcp" is listed defensively; MCP logins normally carry that resource URL as the audience, not the client ID (unlike amp-api-client's client-credentials fallback, this can't occur for am-obs-mcp, a public client restricted to authorization_code). | object |  |
+| `amObserver.auth.isLocalDevEnv` | Accept local-development tokens. Leave off in real deployments. | boolean | `false` |
+| `amObserver.auth.jwksUrl` | JSON Web Key Set used to verify incoming token signatures. | string | `"http://amp-thunder-extension-service.amp-thunder.svc.cluster.local:8090/oauth2/jwks"` |
+| `amObserver.auth.issuer` | MUST be the PUBLIC Thunder URL the platform issues tokens from (the `iss` claim), not the in-cluster service URL used for jwksUrl above. The console and amctl send the same user token here that they send to agent-manager-service, so this has to match that chart's agentManagerService.config.keyManager.issuer — otherwise every traces request 401s with "invalid issuer". | string | `"http://thunder.amp.localhost:8080"` |
+| `amObserver.auth.audience` | Accepted token audiences, as a comma-separated list. | string | `"urn:wso2:amp,amp-api-client,am-obs-mcp"` |
+| `amObserver.auth.rbacEnabled` | Enables scope-based authorization on the observer REST data routes. Mirrors agent-manager-service's rbacEnabled. MUST stay a quoted string: Helm's `default` treats boolean false as unset, which would make the kill-switch impossible to turn off. | string | `"true"` |
+| `amObserver.publicUrl` | Externally reachable base URL of this service. Used as the `resource` identifier in RFC 9728 protected resource metadata and in the WWW-Authenticate resource_metadata parameter on 401 responses. Routed through the observability-plane gateway (see ocIngress above), which k3d maps to host port 11080 — not the 8080 control-plane gateway. | string | `"http://traces.amp.localhost:11080"` |
+| `amObserver.oauth` | OAuth 2.0 discovery metadata for MCP clients (RFC 9728). Consumed by the /mcp route's protected-resource well-known endpoint; scope/claims enforcement on the REST data routes is governed by auth.rbacEnabled above. | object |  |
+| `amObserver.oauth.authorizationServers` | Comma-separated list of OAuth 2.0 authorization server URLs advertised in RFC 9728 protected resource metadata. Left empty on purpose: it defaults to auth.issuer above, which is the same authorization server. Only set it when the advertised URL must differ from the token issuer. To suppress the metadata endpoint instead, empty publicUrl — the handler checks that first, and an empty auth.issuer fails startup validation. | string | `""` |
+| `amObserver.oauth.scopesSupported` | Comma-separated list of OAuth 2.0 scopes supported by this resource, advertised in RFC 9728 protected resource metadata. | string | `"amp:observability:log-read,amp:observability:trace-read,amp:observability:metric-read,amp:observability:build-log-read"` |
+
+## networkPolicy
+
+| Parameter | Description | Type | Default |
+|---|---|---|---|
+| `networkPolicy` | Network restrictions applied to the pods this chart runs. | object |  |
+| `networkPolicy.otelCollector` | Traffic the collector is allowed to accept. | object |  |
+| `networkPolicy.otelCollector.enabled` | No-op on clusters whose CNI doesn't enforce NetworkPolicy. | boolean | `true` |
+
+## otelCollector
+
+| Parameter | Description | Type | Default |
+|---|---|---|---|
+| `otelCollector` | OpenTelemetry collector extras | object |  |
+| `otelCollector.otlpHttpPort` | Collector container ports. Must match the receiver/extension endpoints in deployments/values/oc-collector-configmap.yaml, which is applied separately (not templated by this chart) — update both if either changes. | integer | `4318` |
+| `otelCollector.healthCheckPort` | Port serving the collector's health check. | integer | `13133` |
+| `otelCollector.externalService` | Optional dedicated external Service for direct OTLP/HTTP pushes to the collector. Disabled by default: shipped clients send traces through the data-plane gateway's /otel route. | object |  |
+| `otelCollector.externalService.enabled` | Expose the collector outside the cluster. | boolean | `false` |
+| `otelCollector.externalService.type` | Service type used for the external endpoint. | string | `"LoadBalancer"` |
+| `otelCollector.externalService.port` | Port the external endpoint listens on. | integer | `21893` |
+

@@ -1,0 +1,55 @@
+---
+# Supplementary ClusterAuthzRole for the workload publisher client.
+#
+# OpenChoreo's built-in workload-publisher role covers only publishing the
+# Workload and annotating the WorkflowRun. The amp-generate-workload template
+# also cuts the ComponentRelease and binds it to the first environment — work
+# the Component controller used to do under spec.autoDeploy — so it needs the
+# actions that path touches:
+#
+# componentrelease:create → POST .../generate-release
+# project:view            → reading spec.deploymentPipelineRef
+# deploymentpipeline:view → resolving the promotion root, i.e. the first
+#                           environment to deploy to
+# releasebinding:view/create/update → the first-environment ReleaseBinding that
+#                           carries the release pin and the environment's config
+#
+# This is additive: OpenChoreo's own workload-publisher-binding still applies,
+# and the PDP unions every matching allow rule.
+apiVersion: openchoreo.dev/v1alpha1
+kind: ClusterAuthzRole
+metadata:
+  name: amp-workload-deployer
+  labels:
+    app.kubernetes.io/name: {{ .Chart.Name }}
+    app.kubernetes.io/instance: {{ .Release.Name }}
+    app.kubernetes.io/managed-by: {{ .Release.Service }}
+spec:
+  description: "Allows the AMP build workflow to release a workload to the first environment"
+  actions:
+    - componentrelease:create
+    - project:view
+    - deploymentpipeline:view
+    - releasebinding:view
+    - releasebinding:create
+    - releasebinding:update
+---
+# Binds the role above to the workload publisher client, matching OpenChoreo's
+# own workload-publisher-binding on the `client_id` claim.
+apiVersion: openchoreo.dev/v1alpha1
+kind: ClusterAuthzRoleBinding
+metadata:
+  name: amp-workload-deployer-binding
+  labels:
+    app.kubernetes.io/name: {{ .Chart.Name }}
+    app.kubernetes.io/instance: {{ .Release.Name }}
+    app.kubernetes.io/managed-by: {{ .Release.Service }}
+spec:
+  effect: allow
+  entitlement:
+    claim: client_id
+    value: {{ .Values.global.oauth.clientId | quote }}
+  roleMappings:
+    - roleRef:
+        kind: ClusterAuthzRole
+        name: amp-workload-deployer

@@ -475,8 +475,8 @@ log_success "Agent Manager resource server registration complete (all amp permis
 # ===========================================================================
 # 3. MCP resource servers (RFC 8707 resource indicators)
 # ===========================================================================
-# MCP clients (Claude Code etc.) send the service's public base URL, with a
-# trailing slash, as the OAuth `resource` parameter. Thunder rejects the
+# MCP clients (Claude Code etc.) send the MCP endpoint URL as the OAuth
+# `resource` parameter. Thunder rejects the
 # authorize request with invalid_target unless that value exactly matches a
 # registered resource-server identifier, so each MCP endpoint's public URL is
 # registered here as its own resource server.
@@ -492,9 +492,9 @@ log_success "Agent Manager resource server registration complete (all amp permis
 # own entry; set one to "" to skip it. The dev origin is the docker-compose
 # stack's published host port.
 # Unset-only defaults, so an explicit "" survives to the skip above.
-AM_MCP_RESOURCE="${AM_MCP_RESOURCE-http://api.amp.localhost:8080/}"
-AM_MCP_DEV_RESOURCE="${AM_MCP_DEV_RESOURCE-http://localhost:9000/}"
-OBSERVER_MCP_RESOURCE="${OBSERVER_MCP_RESOURCE-http://traces.amp.localhost:11080/}"
+AM_MCP_RESOURCE="${AM_MCP_RESOURCE-http://api.amp.localhost:8080/mcp}"
+AM_MCP_DEV_RESOURCE="${AM_MCP_DEV_RESOURCE-http://localhost:9000/mcp}"
+OBSERVER_MCP_RESOURCE="${OBSERVER_MCP_RESOURCE-http://traces.amp.localhost:11080/mcp}"
 
 log_info "Registering MCP resource servers..."
 register_mcp_resource_server "AMP Agent Manager MCP" "$AM_MCP_RESOURCE" "Resource identifier for the agent-manager MCP endpoint" "amp-minus-observability"

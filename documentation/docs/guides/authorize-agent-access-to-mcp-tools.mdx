@@ -35,9 +35,9 @@ The authorization mechanism is identical for every agent. The only difference is
 
 ## Prerequisites
 
-- `amctl` installed and logged in against your control plane (see [CLI Installation](./cli-installation.mdx) and [`amctl login`](../reference/cli/login.mdx)).
-- An [AI Gateway](../concepts/gateway.mdx) active for the environment you are configuring. The installer registers one per environment.
-- A reachable upstream MCP server URL.
+- `amctl` installed and logged in against your control plane(see [CLI Installation](./cli-installation.mdx) and [`amctl login`](../reference/cli/login.mdx)).
+- An AI Gateway registered and active for the environment you are configuring.
+- A **GitHub Personal Access Token**. Read access is enough for `github:read`; add issue write access only if you want to exercise `github:write`. Create one at [github.com/settings/tokens](https://github.com/settings/tokens).
 
 This guide uses the [`amctl api`](../reference/cli/api.mdx) command to call the control plane directly, which makes every step precise and copy-pasteable. The examples use the `default` organization, `default` project, and `default` environment — substitute your own.
 

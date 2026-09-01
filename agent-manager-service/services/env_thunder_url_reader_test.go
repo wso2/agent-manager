@@ -29,22 +29,36 @@ import (
 	"github.com/wso2/agent-manager/agent-manager-service/repositories/repomocks"
 )
 
-// TestResolveThunderHandle covers the SINGLE centralized function every caller
-// (EnvironmentService's readThunderHandle/GetThunderURL/SetThunderURL, and the
-// resolver's ReadThunderHandleFunc via NewEnvThunderURLReader) delegates to.
-func TestResolveThunderHandle(t *testing.T) {
-	t.Run("returns the registered handle", func(t *testing.T) {
+// TestResolveThunderURL covers the SINGLE centralized function every caller
+// (EnvironmentService's SetThunderURL/GetThunderURL/ListThunderInstances, and
+// the resolver's ReadThunderURLFunc via NewEnvThunderURLReader) delegates to.
+func TestResolveThunderURL(t *testing.T) {
+	t.Run("returns the registered on-prem record (handle + computed url)", func(t *testing.T) {
 		urlRepo := &repomocks.EnvThunderURLRepositoryMock{
 			GetFunc: func(_ context.Context, ouID, envName string) (*models.EnvThunderURL, error) {
 				assert.Equal(t, "ou-1", ouID)
 				assert.Equal(t, "prod", envName)
-				return &models.EnvThunderURL{ThunderHandle: "x7f2q9kz"}, nil
+				return &models.EnvThunderURL{ThunderHandle: strPtr("x7f2q9kz"), ThunderURL: "http://x7f2q9kz.amp.localhost:8080"}, nil
 			},
 		}
 
-		handle, err := ResolveThunderHandle(context.Background(), urlRepo, "ou-1", "prod")
+		rec, err := ResolveThunderURL(context.Background(), urlRepo, "ou-1", "prod")
 		require.NoError(t, err)
-		assert.Equal(t, "x7f2q9kz", handle)
+		assert.Equal(t, "x7f2q9kz", rec.Handle)
+		assert.Equal(t, "http://x7f2q9kz.amp.localhost:8080", rec.URL)
+	})
+
+	t.Run("returns the registered caller-supplied record (url only, no handle)", func(t *testing.T) {
+		urlRepo := &repomocks.EnvThunderURLRepositoryMock{
+			GetFunc: func(context.Context, string, string) (*models.EnvThunderURL, error) {
+				return &models.EnvThunderURL{ThunderURL: "https://stage-idp.tenant42.example.com"}, nil
+			},
+		}
+
+		rec, err := ResolveThunderURL(context.Background(), urlRepo, "ou-1", "prod")
+		require.NoError(t, err)
+		assert.Empty(t, rec.Handle)
+		assert.Equal(t, "https://stage-idp.tenant42.example.com", rec.URL)
 	})
 
 	t.Run("reports not-provisioned when no row exists — never recomputes a value", func(t *testing.T) {
@@ -54,9 +68,10 @@ func TestResolveThunderHandle(t *testing.T) {
 			},
 		}
 
-		handle, err := ResolveThunderHandle(context.Background(), urlRepo, "ou-1", "prod")
+		rec, err := ResolveThunderURL(context.Background(), urlRepo, "ou-1", "prod")
 		require.NoError(t, err)
-		assert.Empty(t, handle)
+		assert.Empty(t, rec.Handle)
+		assert.Empty(t, rec.URL)
 	})
 
 	t.Run("propagates an unexpected repo error", func(t *testing.T) {
@@ -67,7 +82,7 @@ func TestResolveThunderHandle(t *testing.T) {
 			},
 		}
 
-		_, err := ResolveThunderHandle(context.Background(), urlRepo, "ou-1", "prod")
+		_, err := ResolveThunderURL(context.Background(), urlRepo, "ou-1", "prod")
 		require.Error(t, err)
 		assert.ErrorIs(t, err, boom)
 	})

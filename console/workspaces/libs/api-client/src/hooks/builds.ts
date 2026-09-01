@@ -58,7 +58,8 @@ export function useBuildAgent() {
 
 export function useGetAgentBuilds(
   params: GetAgentBuildsPathParams,
-  query?: GetAgentBuildsQuery
+  query?: GetAgentBuildsQuery,
+  options?: { enabled?: boolean }
 ) {
   const { getToken } = useAuthHooks();
   const queryClient = useQueryClient();
@@ -67,7 +68,11 @@ export function useGetAgentBuilds(
   return useApiQuery<BuildsListResponse>({
     queryKey: ["agent-builds", params, query],
     queryFn: () => getAgentBuilds(params, query, getToken),
-    enabled: !!params.orgName && !!params.projName && !!params.agentName,
+    enabled:
+      (options?.enabled ?? true) &&
+      !!params.orgName &&
+      !!params.projName &&
+      !!params.agentName,
     refetchInterval: (queryState) => {
       // Check if any build is in progress
       const hasInProgressBuild =

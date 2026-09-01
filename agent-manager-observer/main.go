@@ -143,7 +143,7 @@ func main() {
 		Tracing:       controller,
 		Observability: obsController,
 		RBACEnabled:   cfg.Auth.RBACEnabled,
-	}, middleware.JWTAuth(cfg.Auth))
+	}, middleware.JWTAuthForMCP(cfg.Auth))
 	slog.Info("am-obs-mcp registered", "path", "/mcp")
 
 	// Apply middleware: Request Logger -> CORS

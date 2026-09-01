@@ -22,19 +22,31 @@ import (
 	"github.com/google/uuid"
 )
 
-// EnvThunderURL is an unguessable handle (user-chosen or server-generated)
-// that forms an environment's externally-reachable env-Thunder hostname
-// ("<handle>.<baseDomain>"), keyed by (OUID, EnvName). ThunderHandle is
-// additionally globally unique across all orgs/envs — see migration042's doc
-// comment for why.
+// EnvThunderURL records an environment's externally-reachable env-Thunder
+// origin, keyed by (OUID, EnvName). ThunderURL is always set and is the
+// authoritative value every reader uses. ThunderHandle is set only for the
+// handle path (AMS computes ThunderURL from it); nil for a row that supplies
+// ThunderURL directly. ThunderHandle is *string, not string, so an omitted
+// handle writes SQL NULL rather than "" — uq_env_thunder_urls_handle relies
+// on Postgres never treating multiple NULLs as conflicting to let any number
+// of handle-less rows coexist.
 type EnvThunderURL struct {
 	ID            uuid.UUID `gorm:"column:id;primaryKey;type:uuid;default:gen_random_uuid()"`
 	OUID          string    `gorm:"column:ou_id;not null;uniqueIndex:uq_env_thunder_urls_ou_env"`
 	EnvName       string    `gorm:"column:env_name;not null;uniqueIndex:uq_env_thunder_urls_ou_env"`
-	ThunderHandle string    `gorm:"column:thunder_handle;not null;uniqueIndex:uq_env_thunder_urls_handle"`
+	ThunderHandle *string   `gorm:"column:thunder_handle;uniqueIndex:uq_env_thunder_urls_handle"`
+	ThunderURL    string    `gorm:"column:thunder_url;not null;uniqueIndex:uq_env_thunder_urls_url"`
 	CreatedAt     time.Time `gorm:"column:created_at;not null;default:NOW()"`
 	UpdatedAt     time.Time `gorm:"column:updated_at;not null;default:NOW()"`
 }
 
 // TableName returns the table name for the EnvThunderURL model.
 func (EnvThunderURL) TableName() string { return "env_thunder_urls" }
+
+// ThunderURLRecord is the public-facing result of resolving an environment's
+// env-Thunder registration. URL is always the authoritative origin; Handle is
+// set only for an on-prem row. A zero value means not provisioned.
+type ThunderURLRecord struct {
+	Handle string
+	URL    string
+}

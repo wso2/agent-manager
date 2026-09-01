@@ -48,6 +48,9 @@ type EnvThunderURLRepository interface {
 	//   - utils.ErrThunderHandleTaken: rec.ThunderHandle is already registered
 	//     to a DIFFERENT (OUID, EnvName) — a genuine cross-environment
 	//     collision, unrelated to concurrency.
+	//   - utils.ErrThunderURLTaken: rec.ThunderURL is already registered to a
+	//     DIFFERENT (OUID, EnvName) — same idea, for a caller-supplied url
+	//     that has no handle to collide on instead.
 	Insert(ctx context.Context, rec *models.EnvThunderURL) error
 	// Delete removes the handle record for (ouID, envName). Deleting a
 	// non-existent row is not an error.
@@ -93,13 +96,16 @@ func (r *envThunderURLRepo) Insert(ctx context.Context, rec *models.EnvThunderUR
 		// Distinguish WHICH unique constraint fired: (ou_id, env_name) means a
 		// concurrent request beat this one to the SAME environment (a race,
 		// not a real conflict — the caller adopts the winner); thunder_handle
-		// means this exact string is already owned by a DIFFERENT environment
-		// (a genuine collision).
+		// or thunder_url means that exact value is already owned by a
+		// DIFFERENT environment (a genuine collision, one per registration
+		// path — see EnvironmentService.SetThunderURL).
 		switch pgErr.ConstraintName {
 		case "uq_env_thunder_urls_ou_env":
 			return utils.ErrEnvThunderURLAlreadyClaimed
 		case "uq_env_thunder_urls_handle":
 			return utils.ErrThunderHandleTaken
+		case "uq_env_thunder_urls_url":
+			return utils.ErrThunderURLTaken
 		default:
 			return err
 		}

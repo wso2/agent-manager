@@ -33,6 +33,8 @@ import (
 	"time"
 
 	"golang.org/x/sync/singleflight"
+
+	"github.com/wso2/agent-manager/agent-manager-service/utils/ssrf"
 )
 
 // ThunderClient encapsulates the Thunder API calls needed to create OAuth2 applications.
@@ -147,6 +149,24 @@ func NewThunderClient(baseURL, clientID, clientSecret string) ThunderClient {
 // instance's issuer. The System RS identifier is always "<issuer>/mcp", so callers
 // derive it from the instance's issuer URL, not the dialable base URL.
 func NewThunderClientWithDialOverride(baseURL, clientID, clientSecret, resolveToHost, systemResource string) ThunderClient {
+	return newThunderClientWithDialOverride(baseURL, clientID, clientSecret, resolveToHost, systemResource, false)
+}
+
+// NewEnvThunderClient is NewThunderClientWithDialOverride's env-Thunder variant:
+// when resolveToHost is empty, the dial is SSRF-hardened (re-resolved at
+// connect time, every redirect re-validated) rather than plain. Use this
+// wherever baseURL may be a caller-supplied EnvThunderURL.ThunderURL, since
+// that value is only checked once at registration time (see
+// EnvironmentService.validateThunderURL) yet gets dialed for every later
+// admin/token call. Platform Thunder's clients deliberately keep using
+// NewThunderClientWithDialOverride instead: its base URL is always AMS's own
+// config, and local dev legitimately runs it on a "*.localhost" address the
+// SSRF guard would otherwise reject.
+func NewEnvThunderClient(baseURL, clientID, clientSecret, resolveToHost, systemResource string) ThunderClient {
+	return newThunderClientWithDialOverride(baseURL, clientID, clientSecret, resolveToHost, systemResource, true)
+}
+
+func newThunderClientWithDialOverride(baseURL, clientID, clientSecret, resolveToHost, systemResource string, ssrfHardenDirectDial bool) ThunderClient {
 	httpClient := &http.Client{Timeout: httpClientTimeout}
 	if resolveToHost != "" {
 		httpClient.Transport = &http.Transport{
@@ -165,6 +185,8 @@ func NewThunderClientWithDialOverride(baseURL, clientID, clientSecret, resolveTo
 		// here — baseURL's host is untouched, so the Host header Kgateway's
 		// host-based routing relies on is unaffected.
 		baseURL = "http://" + strings.TrimPrefix(strings.TrimPrefix(baseURL, "https://"), "http://")
+	} else if ssrfHardenDirectDial {
+		httpClient = ssrf.NewClient(httpClientTimeout)
 	}
 	return &thunderClient{
 		baseURL:        baseURL,

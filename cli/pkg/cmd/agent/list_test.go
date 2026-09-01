@@ -53,8 +53,8 @@ func TestList_TextOutput(t *testing.T) {
 	if !strings.Contains(got, "Order Triage") {
 		t.Errorf("output should contain display name, got %q", got)
 	}
-	if !strings.Contains(got, "active") {
-		t.Errorf("output should contain status, got %q", got)
+	if strings.Contains(got, "STATUS") || strings.Contains(got, "active") {
+		t.Errorf("output should not contain the status column, got %q", got)
 	}
 }
 

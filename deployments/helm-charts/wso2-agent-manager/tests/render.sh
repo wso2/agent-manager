@@ -159,6 +159,16 @@ assert_env "sslRootCert reaches the migration job" "$MIG_TMPL" DB_SSL_ROOT_CERT 
   "${EXTERNAL[@]}" --set postgresql.external.sslMode=verify-full \
   --set postgresql.external.sslRootCert=system
 
+# Migration 043 derives a full URL for existing handle-only rows. The hook must
+# receive the same deployment origin settings as the API or a TLS/custom-domain
+# upgrade would backfill localhost URLs even though live writes are correct.
+assert_env "IDP base domain reaches the migration job" \
+  "$MIG_TMPL" IDP_HOST_BASE_DOMAIN "amp.example.com" \
+  --set agentManagerService.config.idpHostBaseDomain=amp.example.com
+assert_env "TLS setting reaches the migration job" \
+  "$MIG_TMPL" TLS_ENABLED "true" \
+  --set agentManagerService.config.tlsEnabled=true
+
 # The bundled PostgreSQL serves plaintext, so an sslMode left over from an
 # external configuration must not be applied to it — that would fail the API pod
 # and the migration hook on an otherwise working default install.

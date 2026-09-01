@@ -1413,9 +1413,9 @@ helm upgrade amp oci://${HELM_CHART_REGISTRY}/wso2-agent-manager \
   --set agentManagerService.config.agentsBaseDomain="${AGENTS_DOMAIN}" \
   --set agentManagerService.config.agentsHttpPort=80 \
   --set agentManagerService.config.agentsHttpsPort=443 \
-  --set agentManagerService.config.thunderHostBaseDomain="${BASE_DOMAIN}" \
+  --set agentManagerService.config.idpHostBaseDomain="${BASE_DOMAIN}" \
   --set agentManagerService.config.tlsEnabled=true \
-  --set console.config.thunderHostBaseDomain="${BASE_DOMAIN}" \
+  --set console.config.idpHostBaseDomain="${BASE_DOMAIN}" \
   --set console.config.tlsEnabled=true
 ```
 
@@ -1443,9 +1443,9 @@ helm upgrade amp oci://${HELM_CHART_REGISTRY}/wso2-agent-manager \
   --set agentManagerService.config.gatewayBaseDomain="otel.${BASE_DOMAIN}" \
   --set agentManagerService.config.gatewayVhostScheme=https \
   --set agentManagerService.config.gatewayVhostPort=443 \
-  --set agentManagerService.config.thunderHostBaseDomain="${BASE_DOMAIN}" \
+  --set agentManagerService.config.idpHostBaseDomain="${BASE_DOMAIN}" \
   --set agentManagerService.config.tlsEnabled=true \
-  --set console.config.thunderHostBaseDomain="${BASE_DOMAIN}" \
+  --set console.config.idpHostBaseDomain="${BASE_DOMAIN}" \
   --set console.config.tlsEnabled=true
 ```
 

@@ -1741,22 +1741,35 @@ func (s *agentManagerService) createComponentAgent(ctx context.Context, ouID, pr
 				return envErr
 			}
 			kindEndpoints := inputInterfaceToEndpoints(createAgentReq.InputInterface, req.Name)
+			// Env/Files are carried to the binding below, not the Workload: a value on the
+			// Workload is inherited by every environment and a binding can replace but never
+			// remove it. CreateInternalAgentFromKindWorkload writes only image + endpoints.
 			if err := s.ocClient.CreateInternalAgentFromKindWorkload(ctx, ouID, projectName, req.Name, client.InternalAgentFromKindWorkloadRequest{
 				ImageID:   imageID,
 				Endpoints: kindEndpoints,
-				Env:       kindEnvVars,
-				Files:     kindFileVars,
 			}); err != nil {
 				s.logger.Error("Failed to create internal-agent-from-kind workload", "agentName", req.Name, "error", err)
-				if hasSecrets {
-					s.cleanupSecretsOnRollback(ctx, secretLocation)
-				}
-				if errDeletion := s.ocClient.DeleteComponent(ctx, ouID, projectName, req.Name); errDeletion != nil {
-					s.logger.Error("Failed to rollback agent creation after kind-workload failure", "agentName", req.Name, "error", errDeletion)
-				}
+				rollbackAgentCreate("kind-workload failure")
 				return err
 			}
 			s.logger.Info("Created internal-agent-from-kind workload", "agentName", req.Name)
+
+			// Cut the release and bind it to the first environment, carrying the resolved
+			// configuration as the binding's workloadOverrides. This is what
+			// amp-generate-workload does for source-built agents; kind components are
+			// created with autoDeploy off so nothing else deploys them. Deploy goes through
+			// the same call, which is how a later kind-version switch reaches the pod.
+			if err := s.ocClient.EnsureReleaseAndBinding(
+				ctx, ouID, projectName, req.Name, firstEnv, kindEnvVars, kindFileVars,
+			); err != nil {
+				s.logger.Error("Failed to create release binding for kind-sourced agent",
+					"agentName", req.Name, "ouID", ouID, "projectName", projectName,
+					"environment", firstEnv, "error", err)
+				rollbackAgentCreate("release-binding failure")
+				return fmt.Errorf("failed to create release binding for agent %q in environment %q: %w",
+					req.Name, firstEnv, err)
+			}
+			s.logger.Info("Bound kind-sourced agent release to environment", "agentName", req.Name, "environment", firstEnv)
 		} else {
 			if req.GithubApp != nil {
 				if err := s.buildSecretProvisioner.PutSource(ctx, ouID, projectName, req.Name, *req.GithubApp); err != nil {
@@ -3418,9 +3431,16 @@ func (s *agentManagerService) DeployAgent(ctx context.Context, ouID string, proj
 	}
 	deployAttempt.Complete(ctx, nil)
 
-	// Write this environment's env vars and file mounts to its release binding, so this deploy's
-	// config reaches this environment only. The component-wide base is left as agent creation
-	// seeded it — see applyEnvScopedWorkloadConfig for why it is not cleared here.
+	// Cut the release this deploy actually runs and pin the environment's binding to it, carrying
+	// this environment's env vars and file mounts as the binding's workloadOverrides so the config
+	// reaches this environment only. The component-wide base is left as agent creation seeded it —
+	// see applyEnvScopedWorkloadConfig for why it is not cleared here.
+	//
+	// The release has to be cut here, after the Component trait writes and the Workload image
+	// write above: components are created with autoDeploy off, so nothing else notices either
+	// change. A binding keeps rendering the frozen workload inside the release it is pinned to,
+	// which is why deploying an image that is not the one the last build pinned — an older build,
+	// or another kind version — used to change the Workload and nothing else.
 	if err := s.applyEnvScopedWorkloadConfig(ctx, ouID, projectName, agentName, lowestEnv, overrideEnvVars, overrideFileVars); err != nil {
 		return "", err
 	}
@@ -3477,19 +3497,21 @@ func (s *agentManagerService) DeployAgent(ctx context.Context, ouID string, proj
 	return lowestEnv, nil
 }
 
-// releaseBindingWaitAttempts / releaseBindingWaitInterval bound how long a deploy waits for the
-// environment's ReleaseBinding to exist. On an agent's first deploy the binding is created by
-// OpenChoreo's component controller once the build's Release lands (ensureReleaseBinding), so it
-// can trail the Deploy call by a reconcile cycle.
-const (
-	releaseBindingWaitAttempts = 10
-	releaseBindingWaitInterval = 2 * time.Second
-)
-
-// applyEnvScopedWorkloadConfig writes the environment's full env var and file mount set to its
-// ReleaseBinding workloadOverrides. Deploy no longer writes to the component-wide base (the
+// applyEnvScopedWorkloadConfig cuts the ComponentRelease this deploy runs and pins the
+// environment's ReleaseBinding to it, writing the environment's full env var and file mount set
+// as that binding's workloadOverrides. Deploy does not write to the component-wide base (the
 // Workload container spec and the Component's build workflow parameters), so config applied here
 // reaches only this environment.
+//
+// Release and config go in one call because they must land in one binding write: the release pin
+// is what makes this deploy's image real, the overrides are what make its config real, and
+// splitting them rolls the pods twice and leaves a window where the environment runs the new
+// image with the old configuration.
+//
+// It creates the binding when the environment has none rather than waiting for one to appear.
+// It used to poll, because autoDeploy had OpenChoreo's Component controller create the binding a
+// reconcile cycle behind the Deploy call; with autoDeploy off, either the build workflow has
+// already created it or nothing ever will.
 //
 // The base is deliberately left untouched. It is seeded once at agent creation and every
 // environment renders base merged with its own overrides, which has a known consequence: a var set
@@ -3507,35 +3529,13 @@ func (s *agentManagerService) applyEnvScopedWorkloadConfig(
 	envVars []client.EnvVar,
 	fileVars []client.FileVar,
 ) error {
-	var lastErr error
-	for attempt := 1; attempt <= releaseBindingWaitAttempts; attempt++ {
-		lastErr = s.ocClient.ReplaceReleaseBindingWorkloadOverrides(ctx, ouID, agentName, environment, envVars, fileVars)
-		if lastErr == nil {
-			break
-		}
-		if !errors.Is(lastErr, utils.ErrNotFound) {
-			s.logger.Error("Failed to write workload overrides to release binding",
-				"agentName", agentName, "environment", environment, "error", lastErr)
-			return fmt.Errorf("failed to apply environment configuration: %w", lastErr)
-		}
-		// Binding not created yet (first deploy) — wait for the controller and retry.
-		s.logger.Debug("Release binding not ready yet, retrying workload override write",
-			"agentName", agentName, "environment", environment, "attempt", attempt)
-		select {
-		case <-ctx.Done():
-			// Wrapped so the caller can still match context.Canceled/DeadlineExceeded with
-			// errors.Is while seeing which operation gave up.
-			return fmt.Errorf("failed to apply environment configuration: %w", ctx.Err())
-		case <-time.After(releaseBindingWaitInterval):
-		}
-	}
-	if lastErr != nil {
-		s.logger.Error("Release binding never became available for workload overrides",
-			"agentName", agentName, "environment", environment, "error", lastErr)
-		return fmt.Errorf("failed to apply environment configuration: %w", lastErr)
+	if err := s.ocClient.EnsureReleaseAndBinding(ctx, ouID, projectName, agentName, environment, envVars, fileVars); err != nil {
+		s.logger.Error("Failed to release the deployed image to the environment",
+			"agentName", agentName, "environment", environment, "error", err)
+		return fmt.Errorf("failed to apply environment configuration: %w", err)
 	}
 
-	s.logger.Debug("Applied environment-scoped workload config", "agentName", agentName,
+	s.logger.Debug("Released image and applied environment-scoped workload config", "agentName", agentName,
 		"environment", environment, "envVarCount", len(envVars), "fileMountCount", len(fileVars))
 	return nil
 }
@@ -5801,7 +5801,7 @@ func (s *agentManagerService) GetAgentDeployments(ctx context.Context, ouID stri
 
 	s.logger.Info("Fetched deployments successfully", "agentName", agentName, "ouID", ouID, "projectName", projectName, "deploymentCount", len(deployments))
 
-	// Reconcile isolation-tier runtimeClassName on out-of-band bindings. OpenChoreo's AutoDeploy
+	// Reconcile isolation-tier runtimeClassName on out-of-band bindings. The build workflow
 	// creates a release binding when a build completes, WITHOUT the backend's deploy-time config
 	// write — so an agent in a gVisor/Kata environment first comes up on the default runtime. The
 	// deploy-status poll is the natural point to detect that the binding now exists and correct it.
