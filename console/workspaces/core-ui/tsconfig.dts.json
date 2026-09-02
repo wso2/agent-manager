@@ -1,8 +1,7 @@
 {
-  // Dedicated config for the rollup-plugin-dts type-bundling pass. It mirrors the
-  // vite `resolve.alias` map so the declaration bundler resolves the internal
-  // @agent-management-platform/* workspace packages to their source (the same way
-  // the JS bundle inlines them), producing a single self-contained dist/index.d.ts.
+  // Dedicated config for the rollup-plugin-dts type-bundling pass, which resolves the
+  // internal @agent-management-platform/* workspace packages to their source (the same
+  // way the JS bundle inlines them), producing a single self-contained dist/index.d.ts.
   "extends": "./tsconfig.app.json",
   "compilerOptions": {
     "noEmit": false,
@@ -12,40 +11,10 @@
     // These are only relevant to type-checking, not to declaration emit, and the
     // pulled-in workspace sources trip them; keep the dts pass focused on emit.
     "noUnusedLocals": false,
-    "noUnusedParameters": false,
-    "baseUrl": ".",
-    "paths": {
-      "@/*": ["./src/*"],
-      "@agent-management-platform/auth": ["../libs/auth/src"],
-      "@agent-management-platform/auth/*": ["../libs/auth/*"],
-      "@agent-management-platform/api-client": ["../libs/api-client/src"],
-      "@agent-management-platform/api-client/*": ["../libs/api-client/*"],
-      "@agent-management-platform/shared-component": ["../libs/shared-component/src"],
-      "@agent-management-platform/shared-component/*": ["../libs/shared-component/*"],
-      "@agent-management-platform/types": ["../libs/types/src"],
-      "@agent-management-platform/types/*": ["../libs/types/*"],
-      "@agent-management-platform/views": ["../libs/views/src"],
-      "@agent-management-platform/views/*": ["../libs/views/*"],
-      "@agent-management-platform/add-new-agent": ["../pages/add-new-agent/src"],
-      "@agent-management-platform/add-new-project": ["../pages/add-new-project/src"],
-      "@agent-management-platform/build": ["../pages/build/src"],
-      "@agent-management-platform/deploy": ["../pages/deploy/src"],
-      "@agent-management-platform/overview": ["../pages/overview/src"],
-      "@agent-management-platform/configure-agent": ["../pages/configure-agent/src"],
-      "@agent-management-platform/test": ["../pages/test/src"],
-      "@agent-management-platform/traces": ["../pages/traces/src"],
-      "@agent-management-platform/logs": ["../pages/logs/src"],
-      "@agent-management-platform/metrics": ["../pages/metrics/src"],
-      "@agent-management-platform/eval": ["../pages/eval/src"],
-      "@agent-management-platform/llm-providers": ["../pages/llm-providers/src"],
-      "@agent-management-platform/mcp-proxies": ["../pages/mcp-proxies/src"],
-      "@agent-management-platform/gateways": ["../pages/gateways/src"],
-      "@agent-management-platform/identities": ["../pages/identities/src"],
-      "@agent-management-platform/agent-security": ["../pages/agent-security/src"],
-      "@agent-management-platform/agent-kind": ["../pages/agent-kind/src"],
-      "@agent-management-platform/deployment-pipelines": ["../pages/deployment-pipelines/src"],
-      "@agent-management-platform/profile-settings": ["../pages/profile-settings/src"]
-    }
+    // `baseUrl` and `paths` are supplied programmatically by rollup.dts.config.mjs
+    // from the shared workspace alias map, so this pass resolves the internal
+    // @agent-management-platform/* packages to source exactly as the vite build does.
+    "noUnusedParameters": false
   },
   "include": ["src/index.ts"]
 }

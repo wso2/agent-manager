@@ -9,7 +9,7 @@ This repo is a **multi-aspect monorepo**. Each aspect has its own `AGENTS.md` wi
 | Aspect | Dir | Stack | Guide |
 |---|---|---|---|
 | **Control-plane API** | `agent-manager-service/` | Go 1.25, net/http (stdlib), GORM/pgx, gRPC, wire, sqlc, oapi-codegen | [`agent-manager-service/AGENTS.md`](agent-manager-service/AGENTS.md) |
-| **Web console** | `console/` | React 19, TS, Vite, Rush/pnpm, Oxygen UI (MUI 7), TanStack Query | [`console/AGENTS.md`](console/AGENTS.md) |
+| **Web console** | `console/` | React 19, TS, Vite, pnpm workspaces, Oxygen UI (MUI 7), TanStack Query | [`console/AGENTS.md`](console/AGENTS.md) |
 | **Oxygen UI library** | `console/.ai/oxygen-ui/` | WSO2 React component lib | [`console/.ai/oxygen-ui/AGENTS.md`](console/.ai/oxygen-ui/AGENTS.md) |
 | **CLI (`amctl`)** | `cli/` | Go, cobra-style, factory-injected deps | [`cli/AGENTS.md`](cli/AGENTS.md) |
 | **Trace/observability API** | `agent-manager-observer/` | Go, stdlib `net/http`, `slog` | [`agent-manager-observer/AGENTS.md`](agent-manager-observer/AGENTS.md) |

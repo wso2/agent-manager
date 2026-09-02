@@ -1,7 +1,7 @@
 .PHONY: help setup setup-colima setup-k3d setup-openchoreo setup-default-env-thunder setup-sandbox setup-gvisor setup-kata setup-platform setup-gateway setup-console-local setup-console-local-force setup-amp teardown-amp reset-amp dev-up dev-down dev-restart dev-rebuild dev-logs dev-migrate openchoreo-up openchoreo-down openchoreo-status thunder-up thunder-down thunder-restart thunder-reset teardown db-connect db-logs service-logs service-shell console-logs port-forward stop-port-forward gen-eval-artifacts gen-instrumentation-contract check-contract-drift check-matrix-manifest e2e-test security-test security-test-static security-test-live
 
 # Absolute path to the console directory on the host. Passed to docker-compose
-# so the container mounts and builds at the same path, keeping rush/pnpm
+# so the container mounts and builds at the same path, keeping pnpm
 # symlinks valid on both the host and inside the container.
 export CONSOLE_HOST_PATH := $(realpath $(CURDIR)/console)
 
@@ -19,7 +19,7 @@ help:
 	@echo "  make setup-kata              - Join a real (non-Docker) node to the cluster and install Kata there (needs nested virt; run after make setup)"
 	@echo "  make setup-platform          - Build images and start core platform services"
 	@echo "  make setup-gateway           - Install API Platform Gateway (run via make setup)"
-	@echo "  make setup-console-local     - Install console deps (only if changed)"
+	@echo "  make setup-console-local     - Install console deps (only if changed), then build"
 	@echo "  make setup-console-local-force - Force reinstall console deps"
 	@echo ""
 	@echo "💻 Daily Development:"
@@ -174,33 +174,28 @@ setup-platform: gen-keys
 setup-gateway:
 	@cd deployments/setup && ./setup-gateway.sh
 
-# Console local setup with dependency tracking
-# This will only rebuild when rush.json or pnpm-lock.yaml changes
+# Console local setup. The install is gated on console/pnpm-lock.yaml.
 .make:
 	@mkdir -p .make
 
-.make/console-deps-installed: console/rush.json console/common/config/rush/pnpm-lock.yaml | .make
+.make/console-deps-installed: console/pnpm-lock.yaml | .make
 	@echo "📦 Installing console dependencies locally..."
-	@if ! command -v rush &> /dev/null; then \
-		echo "⚠️  Rush not found. Installing Rush globally..."; \
-		npm install -g @microsoft/rush@5.157.0; \
+	@if ! command -v pnpm >/dev/null 2>&1; then \
+		echo "⚠️  pnpm not found. Enabling via corepack..."; \
+		corepack enable; \
 	fi
-	@echo "📥 Running rush install..."
-	@cd console && rush install
+	@echo "📥 Running pnpm install..."
+	@cd console && pnpm install --frozen-lockfile
 	@touch .make/console-deps-installed
 
-.make/console-built: .make/console-deps-installed
+setup-console-local: .make/console-deps-installed
 	@echo "🔨 Building monorepo packages..."
-	@cd console && rush build
-	@touch .make/console-built
+	@cd console && pnpm build
 	@echo "✅ Console packages built"
 
-setup-console-local: .make/console-built
-	@echo "✅ Console dependencies are up to date"
-
-# Force rebuild of console dependencies (ignores timestamps)
+# Force reinstall of console dependencies (ignores timestamps)
 setup-console-local-force:
-	@rm -f .make/console-deps-installed .make/console-built
+	@rm -f .make/console-deps-installed
 	@$(MAKE) setup-console-local
 
 # Daily development commands
@@ -225,9 +220,7 @@ dev-rebuild: setup-console-local
 	@echo "🧹 Stopping services..."
 	@cd deployments && docker compose down
 	@echo "🧹 Removing console volumes (preserving database)..."
-	@docker volume rm deployments_console_node_modules deployments_console_common_temp 2>/dev/null || true
-	@echo "🧹 Cleaning Rush temp directory..."
-	@rm -rf console/common/temp
+	@docker volume rm deployments_console_node_modules 2>/dev/null || true
 	@echo "🔨 Rebuilding Docker images..."
 	@cd deployments && docker compose build --no-cache
 	@echo "🔄 Starting services..."

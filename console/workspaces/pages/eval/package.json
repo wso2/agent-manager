@@ -20,14 +20,15 @@
   "scripts": {
     "format": "prettier --write --parser typescript '**/*.{ts,tsx}'",
     "lint": "eslint --config ./eslint.config.js",
+    "lint:fix": "eslint --config ./eslint.config.js --fix",
     "test": "vitest run",
     "test-watch": "vitest",
     "test:ui": "vitest --ui",
     "storybook": "storybook dev -p 6007",
     "build-storybook": "storybook build",
     "clean": "rm -rf dist",
-    "build": "rushx clean && tsc -project tsconfig.lib.json",
-    "dev": "rushx clean && tsc -project tsconfig.lib.json --watch"
+    "build": "pnpm run clean && tsc -project tsconfig.lib.json",
+    "dev": "pnpm run clean && tsc -project tsconfig.lib.json --watch"
   },
   "keywords": [
     "ai",

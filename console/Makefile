@@ -1,35 +1,34 @@
-.PHONY: help install build dev clean purge
+.PHONY: help install build build-webapp dev clean purge
 
 # Default target
 help:
 	@echo "Console Development Commands:"
 	@echo ""
-	@echo "  make install     - Install all dependencies"
-	@echo "  make build       - Build all projects"
-	@echo "  make dev         - Start development"
-	@echo "  make clean       - Clean build outputs"
-	@echo "  make purge       - Purge all Rush build cache"
+	@echo "  make install       - Install all dependencies"
+	@echo "  make build         - Build all projects"
+	@echo "  make build-webapp  - Build core-ui and its dependencies"
+	@echo "  make dev           - Start development"
+	@echo "  make clean         - Clean build outputs"
+	@echo "  make purge         - Remove node_modules and all caches"
 	@echo ""
 
 # Install dependencies
 install:
 	@echo "Installing dependencies..."
-	@rush install
+	@pnpm install
 
 # Build all projects
 build:
 	@echo "Building all projects..."
-	@rush build
+	@pnpm build
 
 build-webapp:
 	@echo "Building core-ui..."
-	@rush build --to @agent-management-platform/am-core-ui
+	@pnpm build:core-ui
 
 dev:
-	@echo "Starting development mode (core-ui watch + web-ui dev server)..."
-	@cd workspaces/core-ui && rushx dev & \
-	 cd apps/web-ui && rushx dev & \
-	 wait
+	@echo "Starting web-ui dev server..."
+	@pnpm dev
 
 # Clean build outputs
 clean:
@@ -38,7 +37,8 @@ clean:
 	@find apps -name "dist" -type d -exec rm -rf {} + 2>/dev/null || true
 	@echo "Done!"
 
-# Purge Rush cache and build outputs
-purge:
-	@echo "Purging Rush cache..."
-	@rush purge
+# Remove installed dependencies
+purge: clean
+	@echo "Purging node_modules..."
+	@find . -name "node_modules" -type d -prune -exec rm -rf {} + 2>/dev/null || true
+	@echo "Done!"

@@ -22,6 +22,7 @@
 // the equivalent for types, resolving those packages through tsconfig.dts.json paths
 // so no unpublished workspace references leak into the published tarball.
 import dts from 'rollup-plugin-dts'
+import { workspaceSourcePaths } from '../../workspace-aliases.mjs'
 
 // Runtime peer dependencies — never inline their types, reference them as imports.
 const external = [
@@ -66,6 +67,15 @@ export default {
     ignoreStyles,
     dts({
       tsconfig: './tsconfig.dts.json',
+      // Shared with the vite builds so the declaration pass inlines exactly the
+      // packages the JS bundle does — see ../../workspace-aliases.mjs.
+      compilerOptions: {
+        baseUrl: import.meta.dirname,
+        paths: {
+          '@/*': ['./src/*'],
+          ...workspaceSourcePaths(import.meta.dirname),
+        },
+      },
       respectExternal: false,
     }),
   ],

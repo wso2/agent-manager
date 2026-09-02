@@ -16,11 +16,6 @@ yarn-error.log*
 pnpm-debug.log*
 lerna-debug.log*
 
-# Rush specific
-rush-logs/
-.rush/temp/
-.rush/build-cache/
-
 # Environment variables
 .env
 .env.local

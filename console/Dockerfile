@@ -10,36 +10,25 @@ RUN apt-get update && \
     apt-get install -y --no-install-recommends git gettext && \
     rm -rf /var/lib/apt/lists/*
 
-# Install pnpm and Rush globally
-RUN npm install -g pnpm@9.12.3 @microsoft/rush@5.157.0
+# corepack activates the pnpm version pinned in package.json's packageManager field
+RUN corepack enable
 
 WORKDIR /app
 
-# Copy Rush configuration and monorepo structure
-COPY rush.json ./
-COPY common/ common/
+# Copy workspace configuration
+COPY package.json pnpm-workspace.yaml pnpm-lock.yaml .npmrc ./
 
 # Copy all project sources
 COPY apps/ apps/
 COPY workspaces/ workspaces/
 
-# Install dependencies using Rush
-# This will install all dependencies for all projects in the monorepo.
-# `rush install` resolves from the committed lockfile so image builds are
-# reproducible; `rush update` would float every semver range to the newest
+# --frozen-lockfile resolves from the committed lockfile so image builds are
+# reproducible; a bare `pnpm install` would float semver ranges to the newest
 # published version at build time.
-RUN rush install
+RUN pnpm install --frozen-lockfile
 
-# Build all projects
-# This compiles TypeScript and generates production-ready builds
-RUN rush build --verbose
-
-# Build core-ui library then web-ui for production
-WORKDIR /app/workspaces/core-ui
-RUN rushx build
-
-WORKDIR /app/apps/web-ui
-RUN rushx build
+# Build all projects (pnpm walks the workspace graph topologically)
+RUN pnpm build
 
 # Stage 2: Production stage with nginx
 FROM public.ecr.aws/docker/library/nginx:1.30.1-alpine  AS production

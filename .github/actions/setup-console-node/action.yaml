@@ -1,0 +1,22 @@
+name: Setup console Node.js
+description: Sets up Node.js and the pnpm version pinned in console/package.json
+inputs:
+  registry-url:
+    description: npm registry to configure, for publishing jobs
+    required: false
+  scope:
+    description: npm scope to associate with the registry
+    required: false
+runs:
+  using: "composite"
+  steps:
+    - uses: pnpm/action-setup@v4
+      with:
+        package_json_file: console/package.json
+    - uses: actions/setup-node@v6
+      with:
+        node-version: "20.19.0"
+        cache: pnpm
+        cache-dependency-path: console/pnpm-lock.yaml
+        registry-url: ${{ inputs.registry-url }}
+        scope: ${{ inputs.scope }}

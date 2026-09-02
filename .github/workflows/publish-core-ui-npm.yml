@@ -31,6 +31,9 @@ jobs:
     runs-on: ${{ inputs.runner }}
     permissions:
       contents: read
+    defaults:
+      run:
+        working-directory: console
     steps:
       - name: Validate target version
         run: |
@@ -40,37 +43,28 @@ jobs:
           fi
         env:
           TARGET_RELEASE: ${{ inputs.target_version }}
-        shell: bash
+        working-directory: .
 
       - name: Checkout code
         uses: actions/checkout@v6
         with:
           ref: ${{ inputs.source_ref }}
 
-      - name: Setup Node.js for npm registry
-        uses: actions/setup-node@v6
+      - name: Setup Node.js and pnpm for npm registry
+        uses: ./.github/actions/setup-console-node
         with:
-          node-version: 20
           registry-url: https://registry.npmjs.org
           scope: ${{ inputs.npm_scope }}
 
       - name: Install monorepo dependencies
-        run: |
-          cd console
-          corepack enable
-          node common/scripts/install-run-rush.js install --bypass-policy
-        shell: bash
+        run: pnpm install --frozen-lockfile
 
       - name: Build core-ui package
-        run: |
-          cd console
-          PACKAGE_NAME=$(node -p "require('./workspaces/core-ui/package.json').name")
-          node common/scripts/install-run-rush.js build --to "$PACKAGE_NAME"
-        shell: bash
+        run: pnpm build:core-ui
 
       - name: Ensure package scope matches target
         run: |
-          cd console/workspaces/core-ui
+          cd workspaces/core-ui
           CURRENT_SCOPE=$(node -p "require('./package.json').name.split('/')[0]")
           if [[ "$CURRENT_SCOPE" != "$NPM_SCOPE" ]]; then
             PACKAGE_BASENAME=$(node -p "require('./package.json').name.split('/')[1]")
@@ -81,19 +75,17 @@ jobs:
           fi
         env:
           NPM_SCOPE: ${{ inputs.npm_scope }}
-        shell: bash
 
       - name: Set core-ui package version from release
         run: |
-          cd console/workspaces/core-ui
+          cd workspaces/core-ui
           npm version "$TARGET_RELEASE" --no-git-tag-version --allow-same-version
         env:
           TARGET_RELEASE: ${{ inputs.target_version }}
-        shell: bash
 
       - name: Strip bundled dependencies for publish
         run: |
-          cd console/workspaces/core-ui
+          cd workspaces/core-ui
           node <<'NODE'
           const fs = require('fs');
 
@@ -111,11 +103,10 @@ jobs:
           console.log('Stripped bundled dependencies from published package.json');
           console.log('Remaining peerDependencies:', Object.keys(pkg.peerDependencies || {}));
           NODE
-        shell: bash
 
       - name: Publish core-ui package
         run: |
-          cd console/workspaces/core-ui
+          cd workspaces/core-ui
           DIST_TAG="latest"
           if [[ "$TARGET_RELEASE" == *"-"* ]]; then
             DIST_TAG="next"
@@ -124,4 +115,3 @@ jobs:
         env:
           TARGET_RELEASE: ${{ inputs.target_version }}
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN_WSO2 }}
-        shell: bash
