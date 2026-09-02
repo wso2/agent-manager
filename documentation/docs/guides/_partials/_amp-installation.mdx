@@ -421,6 +421,42 @@ Get it wrong and nothing reports an error. The agent starts and serves requests 
 If you install the gateway extension into `<org>-<env>` instead, leave this unset.
 :::
 
+:::caution Build workflows lose access to your private network
+This chart also ships `amp-build-workflow-egress`, a `NetworkPolicy` on the `workflows-<env>` namespace that stops build pods reaching cluster-internal services. Build steps run code from the repository being built — a `RUN` line in a Dockerfile, a `setup.py`, a postinstall hook — so without it a build can call any Service in the cluster and the cloud metadata endpoint.
+
+Builds keep **unrestricted egress to the public internet on every port**, IPv4 and IPv6, which is what base images, package registries, and mirrors need. What is withheld is RFC1918, `169.254.0.0/16` (the metadata endpoint), `100.64.0.0/10`, and the IPv6 private and link-local ranges — minus the two re-allowances builds cannot work without: your API server (Argo reports step status there) and your registry. Left at their RFC1918 defaults those two span far more than the intended hosts, so narrow them.
+
+This policy lands in `workflows-<environment>`, which OpenChoreo does not create until a workflow first runs there. The chart creates it if it is absent, so a fresh install works either way. If builds run in more than one workflow namespace on your install, name them all in `networkPolicy.buildWorkflows.namespaces` — one policy is rendered per entry, and a namespace left off the list has no policy.
+
+Two cases need a `--set`. `kubectl -n default get endpoints kubernetes` prints an address, not a subnet, so turn it into a host CIDR with `/32` (`172.19.0.2` becomes `172.19.0.2/32`) or use the control-plane subnet it sits in if you know it:
+
+```bash
+  --set "networkPolicy.buildWorkflows.apiServer.cidrs[0]=<api-server-ip>/32" \
+  # the subnet your registry is on, if it is not reached over the public internet
+  --set "networkPolicy.buildWorkflows.registry.cidrs[0]=<registry-subnet>"
+```
+
+Both default to all of RFC1918, which covers most private clusters but also spans your pod and service CIDRs — narrow them if you can. A **public** API server endpoint (public GKE/AKS control planes) needs no setting at all: the internet rule already permits it. An endpoint on `100.64.0.0/10` does need `apiServer.cidrs` set, since that range is withheld — otherwise every build hangs with its `wait` container unable to report step results.
+
+If your registry is reached by in-cluster Service DNS rather than on the node network, name its namespace instead. This is matched after DNAT, so `ports` is the registry's **containerPort**, not the Service port — `docker-registry` serves 5000 behind a Service on 10082:
+
+```bash
+  --set "networkPolicy.buildWorkflows.registry.inCluster.namespace=<registry-namespace>"
+```
+
+A registry at `registry.<baseDomain>`, or any other public endpoint, needs no rule.
+
+Anything else on a private address that a build legitimately needs — a self-hosted Git server, an internal package mirror, an egress proxy — goes in `networkPolicy.buildWorkflows.extraEgress`, which is appended to the policy verbatim:
+
+```bash
+  --set "networkPolicy.buildWorkflows.extraEgress[0].to[0].ipBlock.cidr=10.20.0.0/16"
+```
+
+`networkPolicy.buildWorkflows.enabled=false` turns the policy off entirely.
+
+The `generate-workload` step is deliberately **not** covered: it runs no repository code, and it is the step that calls `global.apiServer.url` and `global.oauth.tokenUrl` above.
+:::
+
 export const RegistryConfig = ({expanded}) => {
   const content = (
     <>

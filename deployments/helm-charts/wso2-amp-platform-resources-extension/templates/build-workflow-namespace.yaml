@@ -1,0 +1,33 @@
+{{- if .Values.networkPolicy.buildWorkflows.enabled }}
+{{- $bw := .Values.networkPolicy.buildWorkflows }}
+{{- $namespaces := without ($bw.namespaces | default list) "" nil }}
+{{- if not $namespaces }}
+{{- $namespaces = list (printf "workflows-%s" (.Values.environment.name | default "default")) }}
+{{- end }}
+{{- range $namespace := $namespaces }}
+{{- if ne $namespace $.Release.Namespace }}
+{{- if not (lookup "v1" "Namespace" "" $namespace) }}
+---
+# OpenChoreo does not create this namespace until a workflow first runs there, so rendering
+# only the NetworkPolicy fails a fresh install with `namespaces "<name>" not found`.
+#
+# Only when it is absent: Helm refuses to adopt a resource lacking its ownership metadata,
+# so rendering unconditionally fails with `invalid ownership metadata` wherever OpenChoreo,
+# an installer, or the evaluation chart created it first. The lookup needs a live cluster;
+# a path without one (helm template, GitOps dry-run) emits it, which is correct for a first
+# install and the safe direction to be wrong in.
+#
+# resource-policy: keep — OpenChoreo owns this namespace's lifecycle and it holds running
+# workflows, so uninstalling this chart must never delete it.
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: {{ $namespace }}
+  annotations:
+    helm.sh/resource-policy: keep
+  labels:
+{{- include "amp-build-extension.labels" $ | nindent 4 }}
+{{- end }}
+{{- end }}
+{{- end }}
+{{- end }}

@@ -1,0 +1,127 @@
+{{- if .Values.networkPolicy.buildWorkflows.enabled }}
+{{- $bw := .Values.networkPolicy.buildWorkflows }}
+{{- $namespaces := without ($bw.namespaces | default list) "" nil }}
+{{- if not $namespaces }}
+{{- $namespaces = list (printf "workflows-%s" (.Values.environment.name | default "default")) }}
+{{- end }}
+{{- range $namespace := $namespaces }}
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: amp-build-workflow-egress
+  namespace: {{ $namespace }}
+  labels:
+{{- include "amp-build-extension.labels" $ | nindent 4 }}
+spec:
+  # generate-workload-cr is unlabelled and so unselected: it calls the OpenChoreo API and
+  # Thunder, and runs no user content.
+  podSelector:
+    matchLabels:
+{{- include "amp.buildWorkflowPodLabels" $ | nindent 6 }}
+  policyTypes: [Egress]
+  egress:
+    # Matched post-DNAT: every rule names the backing pod's address and containerPort, not the Service's.
+
+    # Scoped to the DNS workload, not left open — build pods run untrusted code.
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: {{ $bw.dns.namespace }}
+          podSelector:
+            matchLabels:
+              {{ $bw.dns.podLabel.key }}: {{ $bw.dns.podLabel.value }}
+      ports:
+        - port: 53
+          protocol: UDP
+        - port: 53
+          protocol: TCP
+
+    # The point of the policy: builds keep the internet, lose the private network. No
+    # `ports`, so a mirror or registry on a non-standard port cannot break.
+    - to:
+        - ipBlock:
+            cidr: 0.0.0.0/0
+            {{- with without ($bw.internet.excludedCidrs | default list) "" nil }}
+            except:
+              {{- range . }}
+              - {{ . }}
+              {{- end }}
+            {{- end }}
+        {{- if $bw.internet.ipv6 }}
+        # A policy with only an IPv4 block denies all IPv6 egress, so dual-stack builds fail.
+        - ipBlock:
+            cidr: ::/0
+            {{- with without ($bw.internet.excludedCidrsV6 | default list) "" nil }}
+            except:
+              {{- range . }}
+              - {{ . }}
+              {{- end }}
+            {{- end }}
+        {{- end }}
+
+    {{- with $bw.apiServer }}
+    {{- $cidrs := without (.cidrs | default list) "" nil }}
+    {{- if and $cidrs .ports }}
+    # wait reports WorkflowTaskResults here; no pod backs the API server, so ipBlock. Pods
+    # are the unit of policy, so this reaches the build container too — workflow-sa can only
+    # create/patch workflowtaskresults.
+    - to:
+        {{- range $cidrs }}
+        - ipBlock:
+            cidr: {{ . }}
+        {{- end }}
+      ports:
+        {{- range .ports }}
+        - port: {{ . }}
+          protocol: TCP
+        {{- end }}
+    {{- end }}
+    {{- end }}
+
+    {{- with $bw.registry }}
+    {{- $cidrs := without (.cidrs | default list) "" nil }}
+    {{- if and $cidrs .ports }}
+    # publish-image pushes here and build-image pulls cached buildpacks; reached on the node
+    # network, which the internet rule's except withholds. registry.<baseDomain> needs no rule.
+    - to:
+        {{- range $cidrs }}
+        - ipBlock:
+            cidr: {{ . }}
+        {{- end }}
+      ports:
+        {{- range .ports }}
+        - port: {{ . }}
+          protocol: TCP
+        {{- end }}
+    {{- end }}
+
+    {{- with .inCluster }}
+    {{- if and .namespace .ports }}
+    # A registry addressed by Service DNS is matched post-DNAT, so this names the registry
+    # pod's namespace and its containerPort — the Service's own port never matches. Without
+    # podLabels this reaches every pod in that namespace on those ports.
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: {{ .namespace }}
+          {{- with .podLabels }}
+          podSelector:
+            matchLabels:
+              {{- toYaml . | nindent 14 }}
+          {{- end }}
+      ports:
+        {{- range .ports }}
+        - port: {{ . }}
+          protocol: TCP
+        {{- end }}
+    {{- end }}
+    {{- end }}
+    {{- end }}
+
+    {{- with $bw.extraEgress }}
+    # Private-network destinations a build needs: self-hosted git, internal registry, proxy.
+    {{- toYaml . | nindent 4 }}
+    {{- end }}
+{{- end }}
+{{- end }}

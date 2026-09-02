@@ -340,13 +340,7 @@ install_evaluation_extension() {
     local chart_version="${VERSION}"
     local release_name="amp-evaluation-extension"
 
-    # The chart's NetworkPolicy targets "workflows-<env>" (workflows-default unless
-    # ampEvaluation.workflowNamespace is overridden) — the namespace OpenChoreo's control
-    # plane runs that environment's Argo workflows in. On a fresh cluster nothing has
-    # triggered a workflow yet, so OpenChoreo hasn't created it and the install fails with
-    # "namespaces \"workflows-default\" not found". Pre-create it (idempotent) so install
-    # order doesn't depend on a workflow having already run.
-    kubectl create namespace workflows-default --dry-run=client -o yaml | kubectl apply -f - >/dev/null
+    ensure_workflows_namespace
 
     # The eval pod runs untrusted evaluator code, so scope its API-server egress to the k3d node
     # network rather than taking the chart's RFC1918 default, which also spans pod and service CIDRs.
@@ -395,15 +389,36 @@ install_agent_sandbox_module() {
     return 0
 }
 
+# OpenChoreo creates this only once a workflow has run there, so both charts that place a
+# NetworkPolicy in it would otherwise fail; unowned, neither chart's lookup guard renders it.
+ensure_workflows_namespace() {
+    kubectl create namespace workflows-default --dry-run=client -o yaml | kubectl apply -f - >/dev/null
+}
+
 # Install Platform Resources Extension
 install_platform_resources_extension() {
     local chart_ref="oci://${HELM_CHART_REGISTRY}/${PLATFORM_RESOURCES_CHART_NAME}"
     local chart_version="${VERSION}"
     local release_name="amp-platform-resources"
 
+    ensure_workflows_namespace
+
+    # Narrow the build netpol's API-server and registry egress to the k3d node network,
+    # which carries both; the chart's RFC1918 default also spans pod and service CIDRs.
+    local netpol_args=() node_cidr
+    node_cidr=$(docker network inspect "k3d-${CLUSTER_NAME}" \
+        --format '{{ (index .IPAM.Config 0).Subnet }}' 2>/dev/null || echo "")
+    if [[ -n "$node_cidr" ]]; then
+        netpol_args=(
+            --set "networkPolicy.buildWorkflows.apiServer.cidrs[0]=${node_cidr}"
+            --set "networkPolicy.buildWorkflows.registry.cidrs[0]=${node_cidr}"
+        )
+    fi
+
     # Install Helm chart
     if ! install_amp_helm_chart "${release_name}" "${chart_ref}" "${DEFAULT_NS}" "${TIMEOUT_AMP_INSTALL}" \
         --version "${chart_version}" \
+        ${netpol_args[@]+"${netpol_args[@]}"} \
         "${PLATFORM_RESOURCES_HELM_ARGS[@]}"; then
         return 1
     fi

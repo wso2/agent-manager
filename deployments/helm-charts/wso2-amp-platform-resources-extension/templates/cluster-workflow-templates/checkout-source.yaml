@@ -5,6 +5,9 @@ metadata:
 spec:
   templates:
     - name: checkout
+      metadata:
+        labels:
+{{- include "amp.buildWorkflowPodLabels" . | nindent 10 }}
       outputs:
         parameters:
           - name: git-revision

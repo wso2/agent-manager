@@ -47,7 +47,7 @@ The main flow assumes you control a DNS zone. If you are evaluating on a cluster
 | LoadBalancer support | Required |
 | Default StorageClass | Required, and it must actually provision volumes. On EKS check both halves: clusters created at 1.30+ ship **no default class at all**, and the stock `gp2` class (default on upgraded clusters) references the in-tree provisioner removed in Kubernetes 1.27, so without the EBS CSI driver its PVCs are accepted and stay `Pending` forever. Install the EBS CSI driver and mark a CSI-backed class (e.g. `gp3`) as default |
 | Node kernel (build nodes) | Linux **6.3+** for user-namespaced agent builds (idmapped-mount support). On older kernels (Ubuntu 22.04's 5.15, Amazon Linux 2's 5.10) set `buildWorkflows.userNamespaces=false` on the Platform Resources chart — see [Troubleshooting](#build-pods-fail-with-mount_attr_idmap--idmap-mounts-errors) |
-| NetworkPolicy-enforcing CNI | Recommended. The Observability and Evaluation extension charts each ship a `NetworkPolicy` (collector ingress, evaluation-job egress) — inert on a CNI that doesn't implement the NetworkPolicy API. EKS's default VPC CNI, AKS, and legacy GKE don't enforce it out of the box; enable your provider's policy add-on (or install Calico/Cilium) if you want these to actually take effect. k3s (local/CI) enforces it by default. |
+| NetworkPolicy-enforcing CNI | Recommended. The Observability, Evaluation, and Platform Resources extension charts each ship a `NetworkPolicy` (collector ingress, evaluation-job egress, build-workflow egress) — inert on a CNI that doesn't implement the NetworkPolicy API. EKS's default VPC CNI, AKS, and legacy GKE don't enforce it out of the box; enable your provider's policy add-on (or install Calico/Cilium) if you want these to actually take effect. k3s (local/CI) enforces it by default. |
 
 ### Supported Providers
 
@@ -1697,6 +1697,7 @@ Work down this table against an existing install. The **When** column matters: t
 | Gateway development mode off with encryption keys configured | [Gateway hardening](#gateway-hardening) | Both are set during installation |
 | Post-upgrade patches re-applied | [After a chart upgrade](#after-a-chart-upgrade) | After every relevant `helm upgrade` |
 | Build workloads bounded by a node pool or ResourceQuota | [Build workflows](#build-workflows) | Any time |
+| Build egress policy active, with API-server and registry CIDRs narrowed, covering every workflow namespace | [Build egress](#build-egress) | Any time — affects new builds |
 | Stateless services running multiple replicas | [High availability](#high-availability-and-scaling) | Any time |
 | NetworkPolicies, RBAC, and Pod Security Standards applied | [Cluster security](#certificates-and-cluster-security) | Any time |
 | Stronger isolation tier chosen where agents run untrusted code | [Agent isolation](#agent-isolation) | Any time, per environment |
@@ -1890,6 +1891,36 @@ A memory limit under what a build needs gets the step OOMKilled, and a low CPU l
 `workflows-<environment>` is created by OpenChoreo the first time a workflow runs there, so apply these after the first successful build rather than during the install. Repeat them for each environment you add.
 :::
 
+#### Build egress
+
+Build steps execute code from the repository being built, so a `RUN` line, a `setup.py`, or an npm postinstall hook runs with the build pod's network access. The Platform Resources chart ships `amp-build-workflow-egress` in `workflows-<environment>` to bound that: builds keep unrestricted egress to the public internet on every port, IPv4 and IPv6 — base images, package registries, and mirrors all depend on it — and lose RFC1918, `169.254.0.0/16` (the cloud metadata endpoint), `100.64.0.0/10`, and the IPv6 equivalents.
+
+The chart renders one policy per entry in `networkPolicy.buildWorkflows.namespaces`, and left empty that derives the single `workflows-<environment.name>`. If your install runs builds in more than one workflow namespace, list them all — anything not listed is left unprotected:
+
+```bash
+  --set "networkPolicy.buildWorkflows.namespaces={workflows-default,workflows-staging}"
+```
+
+Two destinations are re-allowed because builds cannot work without them, and both may need narrowing on your cluster:
+
+| Value | Why | Default |
+|---|---|---|
+| `networkPolicy.buildWorkflows.apiServer.cidrs` | Argo's `wait` container reports step results to the API server. Wrong value and every build hangs rather than failing. | all of RFC1918 |
+| `networkPolicy.buildWorkflows.registry.cidrs` | `publish-image` pushes the built image; `build-image` pulls cached buildpacks. Only for a registry on a private address — a public one is covered by the internet rule. | all of RFC1918, port 10082 |
+| `networkPolicy.buildWorkflows.registry.inCluster.namespace` | Use instead of `cidrs` when the registry is reached by Service DNS. `ports` here is the registry's **containerPort** (5000 for `docker-registry`), not the Service port. Set `inCluster.podLabels` too, or the rule reaches every pod in that namespace on those ports. | unset |
+
+All of these are matched **after** kube-proxy DNAT, so they name the endpoint address and container port — never a Service ClusterIP or Service port. Get the API server's from `kubectl -n default get endpoints kubernetes`. A public API server endpoint needs no setting; one on `100.64.0.0/10` does, since that range is withheld.
+
+Anything else on a private address a build legitimately reaches — a self-hosted Git server, an internal package mirror, an egress proxy — goes in `networkPolicy.buildWorkflows.extraEgress`, appended to the policy verbatim. The escape hatch is `networkPolicy.buildWorkflows.enabled=false`.
+
+:::warning The defaults are wider than "no private network"
+Left at their RFC1918 defaults, the two re-allowances above let build code reach **any** in-cluster address on 443, 6443, and 10082 — the policy cannot tell your API server and registry apart from anything else in those ranges. Only narrowing them to the real subnets makes the restriction what it says on the tin, and nothing fails if you skip it. The bundled k3d, quick-start, and VM installers narrow both automatically; a manual install does not.
+:::
+
+:::note What this does not close
+A build container can still reach the API server, because policy applies to pods and the `wait` container needs that access. The token it can use is `workflow-sa`'s, which is allowed only to create and patch `workflowtaskresults` in its own namespace.
+:::
+
 ### High Availability and Scaling
 
 The production install already runs the Agent Manager API, console, and observer at two replicas. Spread them across availability zones with your cluster's default topology spreading, and adjust to load:
@@ -1908,7 +1939,7 @@ With the Let's Encrypt DNS-01 issuer, certificate renewals are automatic — mon
 
 Apply your organization's standard cluster hardening around the platform: restrict namespace-to-namespace traffic with NetworkPolicies — in particular, only the gateways should reach the OTel collector and OpenSearch — scope RBAC for humans and CI to the namespaces they operate in, and enforce Pod Security Standards on the workload namespaces.
 
-Confirm your CNI actually **enforces** the `NetworkPolicy` objects the platform ships (the Observability and Evaluation extensions each include one — see [Cluster Requirements](#cluster-requirements)). A cluster without a policy engine selected — EKS's default VPC CNI, AKS, or legacy GKE — accepts those objects silently while blocking nothing, so the protection you think you have is not there.
+Confirm your CNI actually **enforces** the `NetworkPolicy` objects the platform ships (the Observability, Evaluation, and Platform Resources extensions each include one — see [Cluster Requirements](#cluster-requirements)). A cluster without a policy engine selected — EKS's default VPC CNI, AKS, or legacy GKE — accepts those objects silently while blocking nothing, so the protection you think you have is not there.
 
 ### Agent Isolation
 
@@ -2159,7 +2190,7 @@ kubectl delete pvc -n amp-thunder --all
 <details>
 <summary>Evaluations mysteriously fail or hang with connection errors</summary>
 
-The evaluation-job NetworkPolicy scopes DNS egress to a specific namespace/pod label (default: `kube-system` / `k8s-app=kube-dns`). If your cluster's DNS runs elsewhere — NodeLocal DNSCache, a relabeled CoreDNS, a managed provider's own DNS add-on — that egress rule won't match it, DNS resolution fails inside the eval-job pod, and *every* other egress rule fails right along with it, since nothing can resolve first. Check this first when evaluations fail with generic connection errors: point `networkPolicy.evaluationJob.dns.namespace`/`podLabel` at your cluster's actual DNS workload.
+The evaluation-job and build-workflow NetworkPolicies each scope DNS egress to a specific namespace/pod label (default: `kube-system` / `k8s-app=kube-dns`). If your cluster's DNS runs elsewhere — NodeLocal DNSCache, a relabeled CoreDNS, a managed provider's own DNS add-on — that egress rule won't match it, DNS resolution fails inside the eval-job pod, and *every* other egress rule fails right along with it, since nothing can resolve first. Check this first when evaluations fail with generic connection errors: point `networkPolicy.evaluationJob.dns.namespace`/`podLabel` at your cluster's actual DNS workload. The build-workflow policy has the same failure mode and the same fix under `networkPolicy.buildWorkflows.dns` — there it surfaces as a build whose checkout step cannot resolve your Git host.
 
 </details>
 
