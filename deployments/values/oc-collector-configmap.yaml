@@ -12,6 +12,21 @@ data:
             endpoint: 0.0.0.0:4318
             include_metadata: true
     exporters:
+      # Scraped by the observability-plane Prometheus. resource_to_telemetry
+      # turns the openchoreo.dev/* resource attributes into metric labels, which
+      # is what makes the count attributable; without it every tenant collapses
+      # into one series.
+      prometheus:
+        endpoint: 0.0.0.0:8889
+        resource_to_telemetry_conversion:
+          enabled: true
+        # Comfortably longer than the hour the meter reads, and no longer. The
+        # exporter forgets a series it has not seen for metric_expiration (5m by
+        # default), so a tenant idle beyond that would have its counter restart
+        # from zero mid-window. Every retained series costs memory on a
+        # collector that ships with a 200Mi limit, so this buys the margin the
+        # read window needs rather than the largest number that would work.
+        metric_expiration: 90m
       opensearch:
         http:
           auth:
@@ -43,7 +58,28 @@ data:
       health_check:
         endpoint: ${env:MY_POD_IP}:13133
   
+    connectors:
+      # Counts spans as they are ingested, which is the only place the number is
+      # exact. The trace store's own count is approximate above volume, capped,
+      # unpaginated, and its window filter requires full containment — so a
+      # trace straddling an hour boundary is counted in neither hour, and none
+      # of that is signalled.
+      #
+      # The counter inherits the resource attributes the processor below
+      # upserts, so each tenant is counted separately. Those become metric
+      # labels via resource_to_telemetry_conversion on the exporter.
+      count:
+        spans:
+          amp_agent_trace_spans:
+            description: Spans ingested, counted per tenant at the point of ingest.
+
     processors:
+      # The count connector emits DELTA sums — each export carries the spans
+      # since the last one, not a running total. Prometheus counters are
+      # cumulative, and increase() over a delta series reads only the most
+      # recent batch, so without this the meter counts a fraction of the spans
+      # and under-bills by however much traffic arrived between scrapes.
+      deltatocumulative: {}
       resource:
         attributes:
           - key: openchoreo.dev/component-uid
@@ -58,6 +94,13 @@ data:
           - key: openchoreo.dev/namespace
             from_context: metadata.x-user-namespace
             action: upsert
+          # The organisation's billing identifier, forwarded by the gateway from
+          # the org_id claim. Unlike pods — which carry an organisation NAME and
+          # no UUID — this path has the billing id directly, so the span counter
+          # needs no separate mapping to be billable.
+          - key: openchoreo.dev/org-id
+            from_context: metadata.x-org-id
+            action: upsert
 
     service:
       extensions: [basicauth/opensearch, health_check]
@@ -65,4 +108,11 @@ data:
         traces:
           receivers: [otlp]
           processors: [resource]
-          exporters: [opensearch]
+          # count is a connector, so it appears as an exporter here and as a
+          # receiver on the metrics pipeline below. Traces still reach
+          # opensearch unchanged; the count is a tee, not a diversion.
+          exporters: [opensearch, count]
+        metrics/spans:
+          receivers: [count]
+          processors: [deltatocumulative]
+          exporters: [prometheus]

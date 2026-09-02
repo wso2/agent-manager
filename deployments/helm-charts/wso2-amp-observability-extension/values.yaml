@@ -113,6 +113,8 @@ otelCollector:
   # deployments/values/oc-collector-configmap.yaml, which is applied separately
   # (not templated by this chart) — update both if either changes.
   otlpHttpPort: 4318
+  # Where the collector's Prometheus exporter serves the span counter.
+  metricsPort: 8889
   healthCheckPort: 13133
   # Optional dedicated external Service for direct OTLP/HTTP pushes to the
   # collector. Disabled by default: shipped clients send traces through the

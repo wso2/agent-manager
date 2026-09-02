@@ -287,6 +287,10 @@
           "title": "otlpHttpPort",
           "type": "integer"
         },
+        "metricsPort": {
+          "type": "integer",
+          "description": "Port on which the collector's Prometheus exporter serves the span counter."
+        },
         "healthCheckPort": {
           "default": 13133,
           "description": "Port serving the collector's health check.",

@@ -24,4 +24,19 @@ spec:
     - ports:
         - protocol: TCP
           port: {{ .Values.otelCollector.healthCheckPort }}
+    # Prometheus scrapes the span counter the count connector emits. Without
+    # this the scrape is refused and the counter silently never reaches the
+    # metrics store — the collector looks healthy, traces keep flowing, and the
+    # only symptom is a meter that reads zero forever.
+    #
+    # Selected on the operator's own label rather than a release name, so it
+    # holds whatever the Prometheus instance is called.
+    - from:
+        - namespaceSelector: {}
+          podSelector:
+            matchLabels:
+              app.kubernetes.io/name: prometheus
+      ports:
+        - protocol: TCP
+          port: {{ .Values.otelCollector.metricsPort }}
 {{- end }}

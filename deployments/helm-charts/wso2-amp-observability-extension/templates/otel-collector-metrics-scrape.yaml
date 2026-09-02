@@ -1,0 +1,47 @@
+# Scrape target for the span counter.
+#
+# The collector's own Service belongs to the OpenChoreo traces chart and exposes
+# only the ingest ports, so this adds a second Service for the Prometheus
+# exporter rather than modifying a chart we do not own. The port is given
+# numerically because it is not declared as a containerPort — it does not need
+# to be for a Service to route to it.
+#
+# This lives in the chart rather than as a manifest applied by the local setup
+# script, because the production install uses helm directly and would never run
+# that script. A counter nothing scrapes reads zero forever and looks healthy
+# doing it.
+apiVersion: v1
+kind: Service
+metadata:
+  name: amp-otel-collector-metrics
+  namespace: {{ .Release.Namespace }}
+  labels:
+    app.kubernetes.io/name: amp-otel-collector-metrics
+spec:
+  selector:
+    app.kubernetes.io/name: opentelemetry-collector
+  ports:
+    - name: metrics
+      port: {{ .Values.otelCollector.metricsPort }}
+      targetPort: {{ .Values.otelCollector.metricsPort }}
+      protocol: TCP
+---
+# The observability-plane Prometheus selects ServiceMonitors with an empty
+# selector across all namespaces, so no release label is required here. Its
+# PodMonitor and scrapeConfig selectors are NOT empty, which is why this is a
+# ServiceMonitor.
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: amp-otel-collector-metrics
+  namespace: {{ .Release.Namespace }}
+spec:
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: amp-otel-collector-metrics
+  endpoints:
+    # The span count is a counter read with increase() over a clock hour. The
+    # interval only has to be fine enough that a restart is visible as a reset;
+    # it does not scale the value, unlike the recording-rule meters.
+    - port: metrics
+      interval: 30s
