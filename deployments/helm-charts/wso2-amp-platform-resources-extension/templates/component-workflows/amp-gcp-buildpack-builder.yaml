@@ -157,6 +157,23 @@ spec:
       name: ${metadata.workflowRunName}
       namespace: ${metadata.namespace}
     spec:
+      # Stamped onto the build pods themselves. metadata.labels above only labels
+      # the Workflow object, and kube-state-metrics reads pod labels — so without
+      # this a build is measurable but not attributable to any tenant.
+      #
+      # No UIDs: the WorkflowRun carries only component and project labels, so
+      # ${metadata.labels['openchoreo.dev/component-uid']} does not resolve here.
+      # Names are unique within a namespace, but a rename splits the series.
+      #
+      # app.kubernetes.io/component separates these from evaluation pods, which
+      # share the workflows-<org> namespace. Both keys must stay in the
+      # kube-state-metrics allowlist in observability-metrics-prometheus.yaml.
+      podMetadata:
+        labels:
+          openchoreo.dev/namespace: ${metadata.namespaceName}
+          openchoreo.dev/project: ${metadata.labels['openchoreo.dev/project']}
+          openchoreo.dev/component: ${metadata.labels['openchoreo.dev/component']}
+          app.kubernetes.io/component: build
       ttlStrategy:
           secondsAfterCompletion: 86400  # Deletes 1 day after it finishes (success or failure)
       activeDeadlineSeconds: 3600

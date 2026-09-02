@@ -1236,12 +1236,18 @@ helm upgrade observability-logs-opensearch \
   --set fluent-bit.enabled=true \
   --timeout 10m
 
-# Metrics module
+# Metrics module.
+#
+# The values file widens the kube-state-metrics label allowlist. Only labels on
+# that list reach the metrics store, and usage attribution needs them: without
+# it, build and evaluation pods are indistinguishable once collected and their
+# durations are summed into a single figure.
 helm upgrade --install observability-metrics-prometheus \
   oci://ghcr.io/openchoreo/helm-charts/observability-metrics-prometheus \
   --create-namespace \
   --namespace openchoreo-observability-plane \
   --version 0.6.1 \
+  --values https://raw.githubusercontent.com/wso2/agent-manager/amp/v${VERSION}/deployments/values/observability-metrics-prometheus.yaml \
   --timeout 10m
 
 # Tracing module (uses the custom OTel Collector ConfigMap)
