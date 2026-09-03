@@ -711,7 +711,7 @@ class TraceLoader:
             return []
 
         try:
-            with open(self.file_path, "r") as f:
+            with open(self.file_path, "r", encoding="utf-8") as f:
                 data = json.load(f)
 
                 # Handle different JSON structures
