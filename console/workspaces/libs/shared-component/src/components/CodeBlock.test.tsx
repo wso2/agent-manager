@@ -42,10 +42,16 @@ const renderWithTheme = (component: React.ReactElement, mode: 'light' | 'dark' =
     );
 };
 
+// Prism splits highlighted code into multiple sibling <span> tokens, so the
+// full source line is never a single text node's content — assert against
+// the <code> element's combined textContent instead of screen.getByText.
+const getRenderedCode = (container: HTMLElement) =>
+    container.querySelector('code')?.textContent ?? '';
+
 describe('CodeBlock', () => {
     it('renders code with syntax highlighting', () => {
-        renderWithTheme(<CodeBlock code="pip install agent-instrumentation" />);
-        expect(screen.getByText(/pip install agent-instrumentation/i)).toBeInTheDocument();
+        const { container } = renderWithTheme(<CodeBlock code="pip install agent-instrumentation" />);
+        expect(getRenderedCode(container)).toContain('pip install agent-instrumentation');
     });
 
     it('displays copy button by default', () => {
@@ -62,7 +68,7 @@ describe('CodeBlock', () => {
         const testCode = 'test code to copy';
         
         renderWithTheme(<CodeBlock code={testCode} />);
-        
+
         const copyButton = screen.getByRole('button');
         fireEvent.click(copyButton);
 
@@ -73,8 +79,12 @@ describe('CodeBlock', () => {
 
     it('shows "Copied!" tooltip after successful copy', async () => {
         renderWithTheme(<CodeBlock code="test code" />);
-        
+
         const copyButton = screen.getByRole('button');
+        // MUI's Tooltip only mounts its content while open, so hover before
+        // clicking to mirror the real interaction (the cursor is already over
+        // the button when the user clicks it).
+        fireEvent.mouseOver(copyButton);
         fireEvent.click(copyButton);
 
         await waitFor(() => {
@@ -86,12 +96,13 @@ describe('CodeBlock', () => {
         const multiLineCode = `export VAR1="value1"
 export VAR2="value2"
 export VAR3="value3"`;
-        
-        renderWithTheme(<CodeBlock code={multiLineCode} />);
-        
-        expect(screen.getByText(/export VAR1/)).toBeInTheDocument();
-        expect(screen.getByText(/export VAR2/)).toBeInTheDocument();
-        expect(screen.getByText(/export VAR3/)).toBeInTheDocument();
+
+        const { container } = renderWithTheme(<CodeBlock code={multiLineCode} />);
+        const renderedCode = getRenderedCode(container);
+
+        expect(renderedCode).toContain('export VAR1');
+        expect(renderedCode).toContain('export VAR2');
+        expect(renderedCode).toContain('export VAR3');
     });
 
     it('uses correct theme for dark mode', () => {
@@ -115,8 +126,9 @@ export VAR3="value3"`;
     });
 
     it('applies custom language prop', () => {
-        renderWithTheme(<CodeBlock code="const x = 1;" language="javascript" />);
-        expect(screen.getByText(/const x = 1;/)).toBeInTheDocument();
+        const { container } = renderWithTheme(<CodeBlock code="const x = 1;" language="javascript" />);
+        expect(container.querySelector('code')).toHaveClass('language-javascript');
+        expect(getRenderedCode(container)).toContain('const x = 1;');
     });
 
     it('handles copy errors gracefully', async () => {

@@ -31,11 +31,13 @@ declare module 'vitest' {
 
 expect.extend(matchers);
 
-// Mock MUI theme for testing
-import { ThemeProvider } from '@mui/material/styles';
-import { aiAgentTheme } from './src/theme';
+// The real app doesn't wrap itself in a custom MUI ThemeProvider (oxygen-ui
+// themes itself), and the custom theme this used to import from './src/theme'
+// no longer exists. A default theme is enough for components under test that
+// call useTheme()/sx callbacks.
+import { ThemeProvider, createTheme } from '@mui/material/styles';
 
-export const testTheme = aiAgentTheme;
+export const testTheme = createTheme();
 
 export const TestWrapper = ({ children }: { children: React.ReactNode }) => (
   <ThemeProvider theme={testTheme}>

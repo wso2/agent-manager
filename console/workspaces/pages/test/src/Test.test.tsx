@@ -16,81 +16,168 @@
  * under the License.
  */
 
-import { render, screen } from '@testing-library/react';
-import { 
-  TestComponent,
-  TestProject,
-  TestOrganization,
-} from './index';
+import { render, screen } from "@testing-library/react";
+import { MemoryRouter, Route, Routes } from "react-router-dom";
+import { SnackBarProvider } from "@agent-management-platform/views";
+import { vi } from "vitest";
+import { TestComponent } from "./index";
 
-describe('TestComponent', () => {
-  it('renders without crashing', () => {
-    render(<TestComponent />);
-    expect(screen.getByText('Test - Component Level')).toBeInTheDocument();
+// TestComponent (and the AgentChat/Swagger/EnvironmentSelector children it
+// renders) call real TanStack Query hooks, which need a QueryClientProvider
+// the real app only supplies at the shell level. Stub the api-client module
+// boundary instead of wiring up react-query here.
+vi.mock("@agent-management-platform/api-client", () => ({
+  useGetAgent: vi.fn(),
+  useGetAgentConfigurations: vi.fn(),
+  useListAgentDeployments: vi.fn(),
+  useGetAgentEndpoints: vi.fn(),
+  useTestAgentAPIKey: vi.fn(),
+  // Consumed by EnvironmentSelector (PageLayout's actions) via
+  // usePipelineEnvironments.
+  useListEnvironments: vi.fn(() => ({ data: undefined, isLoading: false, isError: false })),
+  useGetProject: vi.fn(() => ({ data: undefined, isLoading: false, isError: false })),
+  useListDeploymentPipelines: vi.fn(() => ({ data: undefined, isLoading: false, isError: false })),
+}));
+
+import {
+  useGetAgent,
+  useGetAgentConfigurations,
+  useListAgentDeployments,
+  useGetAgentEndpoints,
+  useTestAgentAPIKey,
+} from "@agent-management-platform/api-client";
+
+const mockUseGetAgent = vi.mocked(useGetAgent);
+const mockUseGetAgentConfigurations = vi.mocked(useGetAgentConfigurations);
+const mockUseListAgentDeployments = vi.mocked(useListAgentDeployments);
+const mockUseGetAgentEndpoints = vi.mocked(useGetAgentEndpoints);
+const mockUseTestAgentAPIKey = vi.mocked(useTestAgentAPIKey);
+
+// Minimal stand-in for a react-query UseQueryResult, with just the fields
+// the components under test actually destructure.
+const asQueryResult = (overrides: Record<string, unknown>) =>
+  ({
+    data: undefined,
+    isLoading: false,
+    isError: false,
+    error: null,
+    refetch: vi.fn(),
+    ...overrides,
+  }) as any;
+
+const route = "/org/org1/project/proj1/agents/agent1/environment/env1/tryOut";
+
+function renderTestPage() {
+  return render(
+    <SnackBarProvider>
+      <MemoryRouter
+        future={{ v7_startTransition: true, v7_relativeSplatPath: true }}
+        initialEntries={[route]}
+        initialIndex={0}
+      >
+        <Routes>
+          <Route
+            path="/org/:orgId/project/:projectId/agents/:agentId/environment/:envId/tryOut"
+            element={<TestComponent />}
+          />
+        </Routes>
+      </MemoryRouter>
+    </SnackBarProvider>
+  );
+}
+
+describe("TestComponent", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    // AgentChat / Swagger both call these regardless of agent type; give
+    // them an inert default and let individual tests override as needed.
+    mockUseGetAgentEndpoints.mockReturnValue(asQueryResult({ data: {} }));
+    mockUseTestAgentAPIKey.mockReturnValue(asQueryResult({}));
   });
 
-  it('renders with custom title', () => {
-    const customTitle = 'Custom Title';
-    render(<TestComponent title={customTitle} />);
-    expect(screen.getByText(customTitle)).toBeInTheDocument();
+  it("shows the not-deployed empty state when the environment has no active deployment", () => {
+    mockUseGetAgent.mockReturnValue(
+      asQueryResult({ data: { agentType: { subType: "chat-api" } } }),
+    );
+    mockUseListAgentDeployments.mockReturnValue(asQueryResult({ data: {} }));
+    mockUseGetAgentConfigurations.mockReturnValue(asQueryResult({}));
+
+    renderTestPage();
+
+    expect(screen.getByText("Try your agent")).toBeInTheDocument();
+    expect(screen.getByText("Agent is not deployed")).toBeInTheDocument();
+    expect(
+      screen.getByText(/Deploy your agent to try it out/),
+    ).toBeInTheDocument();
   });
 
-  it('renders with custom description', () => {
-    const customDescription = 'Custom Description';
-    render(<TestComponent description={customDescription} />);
-    expect(screen.getByText(customDescription)).toBeInTheDocument();
+  it("renders a loading skeleton with no title while agent/deployment data is loading", () => {
+    mockUseGetAgent.mockReturnValue(asQueryResult({ isLoading: true }));
+    mockUseListAgentDeployments.mockReturnValue(
+      asQueryResult({ isLoading: true }),
+    );
+    mockUseGetAgentConfigurations.mockReturnValue(
+      asQueryResult({ isLoading: true }),
+    );
+
+    renderTestPage();
+
+    // PageLayout swaps the title text for a skeleton entirely while loading.
+    expect(screen.queryByText("Try your agent")).not.toBeInTheDocument();
+    expect(screen.queryByText("Agent is not deployed")).not.toBeInTheDocument();
   });
 
-  it('displays component level indicator', () => {
-    render(<TestComponent />);
-    expect(screen.getByText('Component Level View')).toBeInTheDocument();
-  });
-});
+  it("renders the chat UI for a chat-api agent with an active deployment", () => {
+    mockUseGetAgent.mockReturnValue(
+      asQueryResult({ data: { agentType: { subType: "chat-api" } } }),
+    );
+    mockUseListAgentDeployments.mockReturnValue(
+      asQueryResult({ data: { env1: { status: "active" } } }),
+    );
+    mockUseGetAgentConfigurations.mockReturnValue(
+      asQueryResult({ data: { enableApiKeySecurity: false } }),
+    );
 
-describe('TestProject', () => {
-  it('renders without crashing', () => {
-    render(<TestProject />);
-    expect(screen.getByText('Test - Project Level')).toBeInTheDocument();
-  });
+    renderTestPage();
 
-  it('renders with custom title', () => {
-    const customTitle = 'Custom Project Title';
-    render(<TestProject title={customTitle} />);
-    expect(screen.getByText(customTitle)).toBeInTheDocument();
-  });
-
-  it('renders with custom description', () => {
-    const customDescription = 'Custom Project Description';
-    render(<TestProject description={customDescription} />);
-    expect(screen.getByText(customDescription)).toBeInTheDocument();
+    expect(screen.getByText("Try your agent")).toBeInTheDocument();
+    expect(screen.getByText("Start a conversation")).toBeInTheDocument();
   });
 
-  it('displays project level indicator', () => {
-    render(<TestProject />);
-    expect(screen.getByText('Project Level View')).toBeInTheDocument();
-  });
-});
+  it("renders the Swagger tester's no-schema state for a non-chat agent with an active deployment", () => {
+    mockUseGetAgent.mockReturnValue(
+      asQueryResult({ data: { agentType: { subType: "rest-api" } } }),
+    );
+    mockUseListAgentDeployments.mockReturnValue(
+      asQueryResult({ data: { env1: { status: "active" } } }),
+    );
+    mockUseGetAgentConfigurations.mockReturnValue(
+      asQueryResult({ data: { enableApiKeySecurity: false } }),
+    );
+    mockUseGetAgentEndpoints.mockReturnValue(asQueryResult({ data: {} }));
 
-describe('TestOrganization', () => {
-  it('renders without crashing', () => {
-    render(<TestOrganization />);
-    expect(screen.getByText('Test - Organization Level')).toBeInTheDocument();
-  });
+    renderTestPage();
 
-  it('renders with custom title', () => {
-    const customTitle = 'Custom Organization Title';
-    render(<TestOrganization title={customTitle} />);
-    expect(screen.getByText(customTitle)).toBeInTheDocument();
-  });
-
-  it('renders with custom description', () => {
-    const customDescription = 'Custom Organization Description';
-    render(<TestOrganization description={customDescription} />);
-    expect(screen.getByText(customDescription)).toBeInTheDocument();
+    expect(
+      screen.getByText("No API schema available for this endpoint."),
+    ).toBeInTheDocument();
   });
 
-  it('displays organization level indicator', () => {
-    render(<TestOrganization />);
-    expect(screen.getByText('Organization Level View')).toBeInTheDocument();
+  it("shows an error alert when the environment's security configuration fails to load", () => {
+    mockUseGetAgent.mockReturnValue(
+      asQueryResult({ data: { agentType: { subType: "chat-api" } } }),
+    );
+    mockUseListAgentDeployments.mockReturnValue(
+      asQueryResult({ data: { env1: { status: "active" } } }),
+    );
+    mockUseGetAgentConfigurations.mockReturnValue(
+      asQueryResult({ isError: true }),
+    );
+
+    renderTestPage();
+
+    expect(
+      screen.getByText(/Could not load this environment.s security settings/),
+    ).toBeInTheDocument();
   });
 });

@@ -51,3 +51,25 @@ jobs:
 
       - name: Run Rush build
         run: node common/scripts/install-run-rush.js build
+
+  test:
+    name: Test
+    runs-on:
+      - codebuild-wso2_agent-manager-${{ github.run_id }}-${{ github.run_attempt }}
+    defaults:
+      run:
+        working-directory: console
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v6
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: "20.19.0"
+
+      - name: Install Rush dependencies
+        run: node common/scripts/install-run-rush.js install
+
+      - name: Run Rush test
+        run: node common/scripts/install-run-rush.js test

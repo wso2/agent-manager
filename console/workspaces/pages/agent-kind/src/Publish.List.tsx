@@ -342,7 +342,7 @@ export const PublishedList: React.FC = () => {
                     onClick={() => handleRowClick(version.version)}
                   >
                     <ListingTable.Cell>
-                      <Typography variant="body2" fontWeight={600}>
+                      <Typography variant="body2" fontWeight={600} component="span">
                         {version.version}
                         {version.version === latestVersionKey && (
                           <Chip

@@ -16,24 +16,68 @@
  * under the License.
  */
 
-import { render, screen } from '@testing-library/react';
-import { AddNewAgent } from './AddNewAgent';
+import { render, screen, fireEvent } from "@testing-library/react";
+import { MemoryRouter, Route, Routes } from "react-router-dom";
+import { SnackBarProvider } from "@agent-management-platform/views";
+import { vi } from "vitest";
+import { AddNewAgent } from "./AddNewAgent";
 
-describe('AddNewAgent', () => {
-  it('renders without crashing', () => {
-    render(<AddNewAgent />);
-    expect(screen.getByText('Add New Agent')).toBeInTheDocument();
+// AddNewAgent's steps (NewAgentOptions, ExternalAgentFlow, ...) call real
+// TanStack Query hooks, which need a QueryClientProvider the real app only
+// supplies at the shell level. Stub the api-client module boundary instead.
+//
+// generateNameMutate must be a stable module-scope reference, not created
+// fresh inside the vi.fn() factory below: ExternalAgentForm feeds it into a
+// useMemo/useEffect dependency chain that debounces name generation, and a
+// factory returning a new mock function on every call makes that effect
+// re-fire (and update state) on every render, forever.
+const generateNameMutate = vi.fn();
+
+vi.mock("@agent-management-platform/api-client", () => ({
+  useListAgents: vi.fn(() => ({ data: { agents: [] } })),
+  useCreateAgent: vi.fn(() => ({ mutate: vi.fn(), isPending: false, error: null })),
+  useGenerateResourceName: vi.fn(() => ({ mutate: generateNameMutate, isPending: false })),
+}));
+
+const route = "/org/org1/project/proj1/newAgent";
+
+function renderWithRouter(initialEntry = route) {
+  return render(
+    <SnackBarProvider>
+      <MemoryRouter
+        future={{ v7_startTransition: true, v7_relativeSplatPath: true }}
+        initialEntries={[initialEntry]}
+      >
+        <Routes>
+          <Route path="/org/:orgId/project/:projectId/newAgent/*" element={<AddNewAgent />} />
+        </Routes>
+      </MemoryRouter>
+    </SnackBarProvider>,
+  );
+}
+
+describe("AddNewAgent", () => {
+  it("renders the two agent-hosting options", () => {
+    renderWithRouter();
+
+    expect(screen.getByText("Add a New Agent")).toBeInTheDocument();
+    expect(screen.getByText("Externally-Hosted Agent")).toBeInTheDocument();
+    expect(screen.getByText("Platform-Hosted Agent")).toBeInTheDocument();
   });
 
-  it('renders with custom title', () => {
-    const customTitle = 'Custom Title';
-    render(<AddNewAgent title={customTitle} />);
-    expect(screen.getByText(customTitle)).toBeInTheDocument();
+  it("navigates to the create-source step when Platform-Hosted Agent is chosen", () => {
+    renderWithRouter();
+
+    fireEvent.click(screen.getByText("Platform-Hosted Agent"));
+
+    expect(screen.getByText("Create a Platform-Hosted Agent")).toBeInTheDocument();
   });
 
-  it('renders with custom description', () => {
-    const customDescription = 'Custom Description';
-    render(<AddNewAgent description={customDescription} />);
-    expect(screen.getByText(customDescription)).toBeInTheDocument();
+  it("navigates to the connect flow when Externally-Hosted Agent is chosen", () => {
+    renderWithRouter();
+
+    fireEvent.click(screen.getByText("Externally-Hosted Agent"));
+
+    expect(screen.getByText("Register an Externally-Hosted Agent")).toBeInTheDocument();
   });
 });

@@ -45,7 +45,7 @@ function MarkdownViewComponent({ content }: MarkdownViewProps) {
           fontSize: "0.875rem",
           fontWeight: 600,
           color: "text.secondary",
-          "&:first-child": {
+          "&:first-of-type": {
             marginTop: 0,
           },
         },
