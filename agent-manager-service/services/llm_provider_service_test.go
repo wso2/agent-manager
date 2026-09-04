@@ -269,7 +269,7 @@ func TestLLMProviderService_UpdateAndSync_RejectsPlacementInvalidGatewayWithoutU
 		GetByUUIDFunc: func(id, _ string) (*models.LLMProvider, error) {
 			return &models.LLMProvider{UUID: uuid.MustParse(id)}, nil
 		},
-		UpdateFunc: func(_ *models.LLMProvider, _, _ string) error {
+		UpdateFunc: func(_ context.Context, _ *models.LLMProvider, _, _ string) error {
 			return nil
 		},
 	}

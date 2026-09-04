@@ -301,12 +301,18 @@ func (c *llmController) DeleteLLMProviderTemplate(w http.ResponseWriter, r *http
 
 // writeCreateLLMProviderError maps service errors from Create/CreateAndDeploy to HTTP responses.
 // Returns true if an error was written (caller should return), false if err is nil.
-func writeCreateLLMProviderError(w http.ResponseWriter, r *http.Request, ouID, templateHandle, providerName string, err error) {
+func writeCreateLLMProviderError(w http.ResponseWriter, r *http.Request, ouID, templateHandle, providerName, providerHandle string, err error) {
 	log := logger.GetLogger(r.Context())
 	switch {
 	case errors.Is(err, utils.ErrLLMProviderExists):
-		log.Warn("CreateLLMProvider: provider already exists", "ouID", ouID, "providerName", providerName)
-		utils.WriteErrorResponse(w, http.StatusConflict, "LLM provider already exists")
+		log.Warn("CreateLLMProvider: provider already exists", "ouID", ouID, "providerName", providerName, "providerHandle", providerHandle)
+		// The ID is auto-generated from the name and is what's actually unique (not the
+		// display name, which can be reused) — renaming a provider never changes its ID,
+		// so this collision can surface even when no provider currently shows this name.
+		utils.WriteErrorResponse(w, http.StatusConflict, fmt.Sprintf(
+			"A provider with the ID %q already exists (auto-generated from the name). Try a different name, or rename/delete the existing provider first.",
+			providerHandle,
+		))
 	case errors.Is(err, utils.ErrLLMProviderTemplateNotFound):
 		log.Error("CreateLLMProvider: template not found", "ouID", ouID, "templateHandle", templateHandle, "error", err)
 		utils.WriteErrorResponse(w, http.StatusBadRequest, "Referenced template not found")
@@ -351,7 +357,7 @@ func (c *llmController) CreateLLMProvider(w http.ResponseWriter, r *http.Request
 		log.Info("CreateLLMProvider: creating and deploying provider to gateways", "ouID", ouID, "gatewayCount", len(req.Gateways))
 		resp, err := c.providerService.CreateAndDeploy(ctx, ouID, "system", provider, req.Gateways, c.deploymentService)
 		if err != nil {
-			writeCreateLLMProviderError(w, r, ouID, req.Template, provider.Configuration.Name, err)
+			writeCreateLLMProviderError(w, r, ouID, req.Template, provider.Configuration.Name, provider.Configuration.Handle, err)
 			return
 		}
 		created = resp.Provider
@@ -372,7 +378,7 @@ func (c *llmController) CreateLLMProvider(w http.ResponseWriter, r *http.Request
 		var err error
 		created, err = c.providerService.Create(ctx, ouID, "system", provider)
 		if err != nil {
-			writeCreateLLMProviderError(w, r, ouID, req.Template, provider.Configuration.Name, err)
+			writeCreateLLMProviderError(w, r, ouID, req.Template, provider.Configuration.Name, provider.Configuration.Handle, err)
 			return
 		}
 	}

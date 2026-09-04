@@ -80,3 +80,20 @@ export const addLLMProviderSchema = z.object({
 });
 
 export type AddLLMProviderFormValues = z.infer<typeof addLLMProviderSchema>;
+
+export const editLLMProviderSchema = z.object({
+  name: z
+    .string()
+    .trim()
+    .min(1, "Name is required")
+    .min(2, "Name must be at least 2 characters")
+    .max(120, "Name must be at most 120 characters"),
+  description: z
+    .string()
+    .trim()
+    .max(512, "Description cannot exceed 512 characters")
+    .optional()
+    .or(z.literal("")),
+});
+
+export type EditLLMProviderFormValues = z.infer<typeof editLLMProviderSchema>;

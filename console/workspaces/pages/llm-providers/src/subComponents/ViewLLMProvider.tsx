@@ -30,6 +30,7 @@ import {
 import { CreatedMetadata, PageLayout } from "@agent-management-platform/views";
 import {
   Box,
+  Button,
   Card,
   Chip,
   Divider,
@@ -37,7 +38,9 @@ import {
   Tab,
   Tabs,
 } from "@wso2/oxygen-ui";
+import { Edit } from "@wso2/oxygen-ui-icons-react";
 import { generatePath, useParams } from "react-router-dom";
+import { EditLLMProviderDrawer } from "./EditLLMProviderDrawer";
 import { LLMProviderAccessControlTab } from "./LLMProviderAccessControlTab";
 import { LLMProviderAPIKeysTab } from "./LLMProviderAPIKeysTab";
 import { LLMProviderConnectionTab } from "./LLMProviderConnectionTab";
@@ -81,6 +84,7 @@ function TabPanel({ value, index, children }: TabPanelProps) {
 
 export const ViewLLMProvider: React.FC = () => {
   const [tabIndex, setTabIndex] = useState(0);
+  const [isEditDrawerOpen, setIsEditDrawerOpen] = useState(false);
 
   const { providerId, orgId } = useParams<{
     providerId: string;
@@ -151,6 +155,18 @@ export const ViewLLMProvider: React.FC = () => {
         templateLogoUrl
           ? { src: templateLogoUrl, alt: templateDisplayName, color: "transparent" }
           : undefined
+      }
+      actions={
+        providerData ? (
+          <Button
+            variant="outlined"
+            size="small"
+            startIcon={<Edit size={16} />}
+            onClick={() => setIsEditDrawerOpen(true)}
+          >
+            Edit LLM Provider
+          </Button>
+        ) : undefined
       }
       titleTail={
         <Stack direction="row" spacing={1} alignItems="center" sx={{ ml: 1 }}>
@@ -311,6 +327,15 @@ export const ViewLLMProvider: React.FC = () => {
           </Box>
         </Card>
       </Stack>
+      {providerData && (
+        <EditLLMProviderDrawer
+          open={isEditDrawerOpen}
+          onClose={() => setIsEditDrawerOpen(false)}
+          provider={providerData}
+          onUpdate={updateProvider}
+          isUpdating={isUpdating}
+        />
+      )}
     </PageLayout>
   );
 };

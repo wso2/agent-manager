@@ -595,7 +595,7 @@ func (s *LLMProviderService) Update(ctx context.Context, providerID, ouID string
 
 	// Update provider
 	slog.Info("LLMProviderService.Update: updating provider in database", "ouID", ouID, "providerID", providerID)
-	if err := s.providerRepo.Update(updates, providerID, ouID); err != nil {
+	if err := s.providerRepo.Update(ctx, updates, providerID, ouID); err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			slog.Warn("LLMProviderService.Update: provider not found", "ouID", ouID, "providerID", providerID)
 			return nil, utils.ErrLLMProviderNotFound

@@ -51,7 +51,7 @@ import (
 //			MarkDeletingFunc: func(providerUUID uuid.UUID) (bool, error) {
 //				panic("mock out the MarkDeleting method")
 //			},
-//			UpdateFunc: func(p *models.LLMProvider, providerID string, orgUUID string) error {
+//			UpdateFunc: func(ctx context.Context, p *models.LLMProvider, providerID string, orgUUID string) error {
 //				panic("mock out the Update method")
 //			},
 //		}
@@ -95,7 +95,7 @@ type LLMProviderRepositoryMock struct {
 	MarkDeletingFunc func(providerUUID uuid.UUID) (bool, error)
 
 	// UpdateFunc mocks the Update method.
-	UpdateFunc func(p *models.LLMProvider, providerID string, orgUUID string) error
+	UpdateFunc func(ctx context.Context, p *models.LLMProvider, providerID string, orgUUID string) error
 
 	// calls tracks calls to the methods.
 	calls struct {
@@ -184,6 +184,8 @@ type LLMProviderRepositoryMock struct {
 		}
 		// Update holds details about calls to the Update method.
 		Update []struct {
+			// Ctx is the ctx argument value.
+			Ctx context.Context
 			// P is the p argument value.
 			P *models.LLMProvider
 			// ProviderID is the providerID argument value.
@@ -615,15 +617,17 @@ func (mock *LLMProviderRepositoryMock) MarkDeletingCalls() []struct {
 }
 
 // Update calls UpdateFunc.
-func (mock *LLMProviderRepositoryMock) Update(p *models.LLMProvider, providerID string, orgUUID string) error {
+func (mock *LLMProviderRepositoryMock) Update(ctx context.Context, p *models.LLMProvider, providerID string, orgUUID string) error {
 	if mock.UpdateFunc == nil {
 		panic("LLMProviderRepositoryMock.UpdateFunc: method is nil but LLMProviderRepository.Update was just called")
 	}
 	callInfo := struct {
+		Ctx        context.Context
 		P          *models.LLMProvider
 		ProviderID string
 		OrgUUID    string
 	}{
+		Ctx:        ctx,
 		P:          p,
 		ProviderID: providerID,
 		OrgUUID:    orgUUID,
@@ -631,7 +635,7 @@ func (mock *LLMProviderRepositoryMock) Update(p *models.LLMProvider, providerID 
 	mock.lockUpdate.Lock()
 	mock.calls.Update = append(mock.calls.Update, callInfo)
 	mock.lockUpdate.Unlock()
-	return mock.UpdateFunc(p, providerID, orgUUID)
+	return mock.UpdateFunc(ctx, p, providerID, orgUUID)
 }
 
 // UpdateCalls gets all the calls that were made to Update.
@@ -639,11 +643,13 @@ func (mock *LLMProviderRepositoryMock) Update(p *models.LLMProvider, providerID 
 //
 //	len(mockedLLMProviderRepository.UpdateCalls())
 func (mock *LLMProviderRepositoryMock) UpdateCalls() []struct {
+	Ctx        context.Context
 	P          *models.LLMProvider
 	ProviderID string
 	OrgUUID    string
 } {
 	var calls []struct {
+		Ctx        context.Context
 		P          *models.LLMProvider
 		ProviderID string
 		OrgUUID    string
