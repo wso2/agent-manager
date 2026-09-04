@@ -3,6 +3,7 @@ from __future__ import annotations
 from datetime import datetime, timezone
 import json
 import logging
+import re
 from typing import Any
 
 from fastapi import FastAPI, HTTPException, status
@@ -50,14 +51,20 @@ def _wrap_user_message(user_message: str, context: dict[str, Any]) -> str:
         f"User Query:\n{user_message}"
     )
 
+_OTHER_CONTROL_CHARS_RE = re.compile(r"[\x00-\x09\x0b\x0c\x0e-\x1f\x7f]")
+
+
 def _sanitize_for_log(value: str) -> str:
-    """Escape CR/LF so untrusted input can't forge extra log lines or fields.
+    """Escape CR/LF and strip other control characters so untrusted input
+    can't forge extra log lines/fields or inject terminal escape sequences
+    (e.g. ANSI codes via ESC) into whatever renders the logs.
 
     html.escape() is the wrong tool here: it guards against HTML/XSS when a
     value is rendered in a browser, not against log injection, and leaves
-    \\r/\\n untouched.
+    control characters untouched.
     """
-    return value.replace("\r", "\\r").replace("\n", "\\n")
+    value = value.replace("\r", "\\r").replace("\n", "\\n")
+    return _OTHER_CONTROL_CHARS_RE.sub("", value)
 
 
 def _resolve_thread_id(session_id: str, context: dict[str, Any]) -> str:

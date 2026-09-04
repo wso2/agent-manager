@@ -697,7 +697,10 @@ The "explanation" field MUST be formatted as valid Markdown. Use headings, bulle
             # GROQ_API_KEY is set, or a real Groq credential would be sent to
             # the gateway as a bearer token. The real gateway secret travels
             # only via default_headers.
-            return {"api_key": "gateway", "client_args": {"base_url": cfg.api_base, "default_headers": header}}
+            return {  # nosec B105 - False positive: fixed placeholder, not a secret; real key is in default_headers
+                "api_key": "gateway",
+                "client_args": {"base_url": cfg.api_base, "default_headers": header},
+            }
         elif provider == "bedrock":
             # boto3 has no default_headers hook. Build a client pointed at the
             # gateway and inject the gateway api-key via a botocore before-send
