@@ -585,11 +585,34 @@ TLS still validates normally through the tunnel, because the `Host` header and S
 
 ## Persistence and teardown {#adv-persistence}
 
-Application data (PostgreSQL), the certificate (a Kubernetes Secret), and the k3d cluster persist across restarts. To tear down completely, delete the cluster. Everything the installer created lives inside it, including the certificate and the gateway resources:
+Application data (PostgreSQL), the certificate (a Kubernetes Secret), and the k3d cluster persist across restarts. Nearly everything the installer created — the certificate and the gateway resources included — lives inside the cluster, so deleting it removes the platform:
 
 ```bash
 sudo k3d cluster delete amp-local     # delete the cluster (workloads, app data, cert, gateways)
 ```
+
+Three changes are made to the **host** rather than the cluster, and deleting the cluster does not touch them:
+
+| What | Where | Why it was added |
+|---|---|---|
+| Loopback aliases for the API and Thunder hosts | `/etc/hosts` | so the installer's own API calls reach the gateway during the install |
+| Raised inotify limits | `/etc/sysctl.d/99-amp-inotify.conf` | k3d exhausts the defaults |
+| An allow rule for `443/tcp` | `ufw` | the TLS listener needs it |
+
+Leaving them in place is harmless, and the loopback aliases are what let you `curl` the API from the VM itself. Remove them only if you want the host back exactly as it was:
+
+```bash
+# loopback aliases (substitute your DOMAIN_BASE)
+sudo sed -i "/^127\.0\.0\.1 \(api\|thunder\)\.amp\.mycompany\.com$/d" /etc/hosts
+
+# raised inotify limits
+sudo rm -f /etc/sysctl.d/99-amp-inotify.conf && sudo sysctl --system >/dev/null
+
+# the firewall rule
+sudo ufw delete allow 443/tcp
+```
+
+Until the loopback aliases are removed, a later `--dry-run` (or a re-install) on the same host reports those two names as not resolving to this VM, because the local resolver answers them from `/etc/hosts`. That is expected and advisory only — your public records are unaffected.
 
 To remove only the TLS and routing layer while keeping the platform running (for example to re-issue against a different ACME server after a staging run), delete the resources the installer applies in its third phase:
 

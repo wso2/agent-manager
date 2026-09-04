@@ -272,5 +272,23 @@ assert_eq "validate_dns advisory rc=0"       "0"  "$rc"
 assert_eq "validate_dns records the mismatch" "yes" "$([[ ${#DNS_ERRORS[@]} -gt 0 ]] && echo yes || echo no)"
 unset -f _resolve_host
 
+# --- validate_dns treats a loopback answer as this installer's own alias, not a fault ---
+# ensure_loopback_alias writes 127.0.0.1 entries for the API and Thunder hosts and never
+# removes them, so on a re-install the local resolver answers from /etc/hosts. Reporting
+# that as "not this VM" points the operator at DNS that is actually correct.
+_resolve_host() { echo "127.0.0.1"; }
+validate_dns 203.0.113.10; rc=$?
+assert_eq "loopback alias: rc=0"                "0"   "$rc"
+assert_eq "loopback alias: no DNS error"        "0"   "${#DNS_ERRORS[@]}"
+assert_eq "loopback alias: recorded as a note"  "yes" "$([[ ${#DNS_NOTES[@]} -gt 0 ]] && echo yes || echo no)"
+unset -f _resolve_host
+
+# A genuine third-party address is still an error even when a loopback note is present.
+_resolve_host() { printf '127.0.0.1\n198.51.100.5\n'; }
+validate_dns 203.0.113.10 >/dev/null 2>&1
+assert_eq "loopback plus stranger: error kept" "yes" "$([[ ${#DNS_ERRORS[@]} -gt 0 ]] && echo yes || echo no)"
+assert_eq "loopback plus stranger: note kept"  "yes" "$([[ ${#DNS_NOTES[@]} -gt 0 ]] && echo yes || echo no)"
+unset -f _resolve_host
+
 if [[ -s "$FAILLOG" ]]; then echo "PREFLIGHT TESTS FAILED"; exit 1; fi
 echo "ALL PREFLIGHT TESTS PASSED"

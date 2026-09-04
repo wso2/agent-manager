@@ -232,6 +232,7 @@ _public_ip() {
 validate_dns() {
   local -a candidates=("$@")
   DNS_ERRORS=()
+  DNS_NOTES=()
   local host got ip ok e
   # The two probe.* names stand in for the *.agents and *.<gateway> wildcards: they
   # resolve only if the wildcard record exists. Checking $AMP_HOST_GATEWAY on its own
@@ -251,11 +252,25 @@ validate_dns() {
     # them), so a host that partly points elsewhere is caught regardless of order.
     while IFS= read -r ip; do
       [[ -z "$ip" ]] && continue
+      # A loopback answer is this installer's own doing, not a DNS fault. ensure_loopback_alias
+      # points the API and Thunder hosts at 127.0.0.1 in /etc/hosts so in-install API calls
+      # reach the gateway, and nothing removes those entries afterwards. On a re-install the
+      # local stub resolver answers from /etc/hosts, so those names come back as 127.0.0.1
+      # here and would otherwise be reported as pointing "not at this VM" — sending the
+      # operator to debug DNS that is in fact correct. It only affects resolution ON this
+      # VM; clients elsewhere follow the public records.
+      if [[ "$ip" == 127.* ]]; then
+        DNS_NOTES+=("$host resolves to ${ip} through a local /etc/hosts alias this installer added; clients off this VM are unaffected")
+        continue
+      fi
       ok=no
       for e in "${candidates[@]}"; do [[ -n "$e" && "$ip" == "$e" ]] && { ok=yes; break; }; done
       [[ "$ok" == yes ]] || DNS_ERRORS+=("$host resolves to '${ip}', not this VM (${candidates[*]})")
     done <<<"$got"
   done
+  if (( ${#DNS_NOTES[@]} )); then
+    printf '[preflight] note: %s\n' "${DNS_NOTES[@]}" >&2
+  fi
   if (( ${#DNS_ERRORS[@]} )); then
     printf '[preflight] DNS issue: %s\n' "${DNS_ERRORS[@]}" >&2
     printf '[preflight] (advisory: certificate issuance uses DNS-01 and needs no inbound; point your DNS — or client /etc/hosts entries — at this VM so clients can reach the services)\n' >&2
