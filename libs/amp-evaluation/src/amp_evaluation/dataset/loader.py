@@ -83,7 +83,7 @@ def load_dataset_from_json(json_path: str) -> Dataset:
         >>> dataset = load_dataset_from_json("benchmarks/my_dataset.json")
     """
     path = Path(json_path)
-    with open(path, "r") as f:
+    with open(path, "r", encoding="utf-8") as f:
         data = json.load(f)
 
     return parse_dataset_dict(data)
@@ -350,7 +350,7 @@ def load_dataset_from_csv(csv_path: str, name: Optional[str] = None) -> Dataset:
 def save_dataset_to_json(dataset: Dataset, path: str, indent: int = 2):
     """Save Dataset object to JSON file."""
     data = dataset_to_dict(dataset)
-    with open(path, "w") as f:
+    with open(path, "w", encoding="utf-8") as f:
         json.dump(data, f, indent=indent)
 
 
