@@ -122,6 +122,10 @@ spec:
               default: "value"
               description: Key within the KV secret (remoteRef.property for ExternalSecret)
 
+  # WorkflowRuns are automatically deleted after completion so that the OpenChoreo
+  # finalizer cleans up the ExternalSecrets created alongside each run.
+  ttlAfterCompletion: 10m
+  
   # Rendered workflow resource for WorkflowRun executions
   # Each WorkflowRun creates a single Workflow (not CronWorkflow)
   # The Go scheduler creates WorkflowRuns on-demand with calculated time windows
