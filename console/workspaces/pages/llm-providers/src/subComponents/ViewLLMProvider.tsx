@@ -146,10 +146,11 @@ export const ViewLLMProvider: React.FC = () => {
       backLabel="Back to LLM Providers"
       isLoading={isLoading}
       // The template's own logo identifies the provider better than a letter
-      // tile; `transparent` keeps the logo on the card surface.
+      // tile; use a white background so dark logos (e.g. OpenAI's black mark)
+      // remain visible in both light and dark themes.
       avatar={
         templateLogoUrl
-          ? { src: templateLogoUrl, alt: templateDisplayName, color: "transparent" }
+          ? { src: templateLogoUrl, alt: templateDisplayName, color: "common.white" }
           : undefined
       }
       titleTail={
@@ -166,6 +167,11 @@ export const ViewLLMProvider: React.FC = () => {
                     sx={{
                       width: 14,
                       height: 14,
+                      objectFit: "contain",
+                      bgcolor: "common.white",
+                      borderRadius: "2px",
+                      p: "1px",
+                      flexShrink: 0,
                     }}
                   />
                 ) : undefined
