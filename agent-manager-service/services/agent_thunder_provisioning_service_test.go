@@ -36,6 +36,7 @@ import (
 	"github.com/wso2/agent-manager/agent-manager-service/clients/secretmanagersvc"
 	"github.com/wso2/agent-manager/agent-manager-service/clients/thundersvc"
 	"github.com/wso2/agent-manager/agent-manager-service/models"
+	"github.com/wso2/agent-manager/agent-manager-service/orgctx"
 	"github.com/wso2/agent-manager/agent-manager-service/repositories"
 	"github.com/wso2/agent-manager/agent-manager-service/repositories/repomocks"
 	"github.com/wso2/agent-manager/agent-manager-service/utils"
@@ -2052,12 +2053,15 @@ func TestAttemptProvision_Success_InternalAgent_InjectsWorkloadCredentials(t *te
 
 	reconciledCalls := 0
 	injector := &agentIdentityInjectorStub{
-		ReconcileForEnvironmentFunc: func(_ context.Context, orgName, projectName, agentName, envName string) error {
+		ReconcileForEnvironmentFunc: func(ctx context.Context, orgName, projectName, agentName, envName string) error {
 			reconciledCalls++
 			assert.Equal(t, "acme", orgName)
 			assert.Equal(t, "proj1", projectName)
 			assert.Equal(t, "my-agent", agentName)
 			assert.Equal(t, "staging", envName)
+			resolvedOrg, ok := orgctx.GetResolvedOrg(ctx)
+			require.True(t, ok, "workload reconciliation must carry an organization context")
+			assert.Equal(t, "acme", resolvedOrg.OUID)
 			return nil
 		},
 	}

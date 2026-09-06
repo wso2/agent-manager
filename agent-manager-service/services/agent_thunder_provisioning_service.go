@@ -33,6 +33,7 @@ import (
 	"github.com/wso2/agent-manager/agent-manager-service/clients/secretmanagersvc"
 	"github.com/wso2/agent-manager/agent-manager-service/clients/thundersvc"
 	"github.com/wso2/agent-manager/agent-manager-service/models"
+	"github.com/wso2/agent-manager/agent-manager-service/orgctx"
 	"github.com/wso2/agent-manager/agent-manager-service/repositories"
 	"github.com/wso2/agent-manager/agent-manager-service/utils"
 )
@@ -463,10 +464,19 @@ func reconcileWorkloadInjection(ctx context.Context, injector AgentIdentityInjec
 			"ouID", binding.OUID, "bindingID", binding.ID, "agentName", binding.AgentName, "envName", binding.EnvironmentName)
 		return
 	}
+	// Provisioning can finish after the originating HTTP request has returned, or
+	// during the periodic reconciler where there is no user token at all. Preserve
+	// the binding's trusted OU identity in the context so deployments that use an
+	// M2M service token can send the target organization to OpenChoreo.
+	ctx = agentThunderBindingOrgContext(ctx, binding)
 	if err := injector.ReconcileForEnvironment(ctx, binding.OUID, binding.ProjectName, binding.AgentName, binding.EnvironmentName); err != nil {
 		logger.Warn("Failed to reconcile agent identity credentials into workload",
 			"ouID", binding.OUID, "bindingID", binding.ID, "agentName", binding.AgentName, "envName", binding.EnvironmentName, "error", err)
 	}
+}
+
+func agentThunderBindingOrgContext(ctx context.Context, binding models.AgentThunderClient) context.Context {
+	return orgctx.WithResolvedOrg(ctx, orgctx.ResolvedOrg{OUID: binding.OUID})
 }
 
 // DBBackedAgentThunderProvisioning returns a constructor to be called
