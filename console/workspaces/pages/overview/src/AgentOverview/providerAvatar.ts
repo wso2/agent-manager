@@ -22,9 +22,9 @@ import { getEntityAvatarColor } from "@agent-management-platform/views";
 // likely to see here; anything else falls back to a deterministic hash color
 // so it's still stable across renders instead of random.
 const KNOWN_PROVIDER_COLORS: Record<string, string> = {
+    "azure-openai": "#0078D4",
     openai: "#10a37f",
     azure: "#0078D4",
-    "azure-openai": "#0078D4",
     anthropic: "#B45AF2",
     claude: "#B45AF2",
     google: "#4285F4",
@@ -38,12 +38,21 @@ const KNOWN_PROVIDER_COLORS: Record<string, string> = {
     llama: "#0668E1",
 };
 
+// Sort candidate keys by descending length so specific/longer keys (e.g. "azure-openai")
+// are matched before generic/shorter keys (e.g. "openai" or "azure").
+const KNOWN_PROVIDER_KEYS = Object.keys(KNOWN_PROVIDER_COLORS).sort(
+    (a, b) => b.length - a.length,
+);
+
 /** Picks a stable avatar color for a provider/config name — a curated brand
  * color when recognized, otherwise the platform-wide deterministic fallback. */
 export function getProviderAvatarColor(name?: string): string {
     if (!name) return getEntityAvatarColor();
     const key = name.trim().toLowerCase();
-    const known = Object.keys(KNOWN_PROVIDER_COLORS).find((k) => key.includes(k));
+    if (Object.prototype.hasOwnProperty.call(KNOWN_PROVIDER_COLORS, key)) {
+        return KNOWN_PROVIDER_COLORS[key];
+    }
+    const known = KNOWN_PROVIDER_KEYS.find((k) => key.includes(k));
     if (known) return KNOWN_PROVIDER_COLORS[known];
     return getEntityAvatarColor(key);
 }
