@@ -244,12 +244,13 @@ func (s *agentThunderReconcilerService) pageIdentityInjectionReconcile(ctx conte
 			return
 		}
 		for _, binding := range recent {
+			bindingCtx := agentThunderBindingOrgContext(ctx, binding)
 			if healSecretRefs {
-				if err := s.provisioning.HealSecretRef(ctx, binding); err != nil {
+				if err := s.provisioning.HealSecretRef(bindingCtx, binding); err != nil {
 					s.logger.Warn("Failed to heal agent thunder binding secret ref", "ouID", binding.OUID, "bindingID", binding.ID, "agentName", binding.AgentName, "envName", binding.EnvironmentName, "error", err)
 				}
 			}
-			reconcileWorkloadInjection(ctx, s.injector, binding, s.logger)
+			reconcileWorkloadInjection(bindingCtx, s.injector, binding, s.logger)
 		}
 		if len(recent) < reconcilerBatchSize {
 			return
