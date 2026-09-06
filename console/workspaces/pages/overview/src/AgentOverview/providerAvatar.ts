@@ -22,7 +22,7 @@ import { getEntityAvatarColor } from "@agent-management-platform/views";
 // likely to see here; anything else falls back to a deterministic hash color
 // so it's still stable across renders instead of random.
 const KNOWN_PROVIDER_COLORS: Record<string, string> = {
-    openai: "#000000",
+    openai: "#10a37f",
     azure: "#0078D4",
     "azure-openai": "#0078D4",
     anthropic: "#B45AF2",
