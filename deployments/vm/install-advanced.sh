@@ -41,7 +41,8 @@ print_template() {
 # it serves is obtained with TLS_MODE — everything downstream is identical.
 
 # --- Required ---
-AMP_VERSION=0.15.0                 # amp/v* release tag (see github.com/wso2/agent-manager/releases)
+AMP_VERSION=                       # REQUIRED: amp/v* release tag, e.g. 1.0.0
+                                   # (see github.com/wso2/agent-manager/releases)
 DOMAIN_BASE=amp.mycompany.com      # service hosts derived as <svc>.<DOMAIN_BASE>
 
 # --- TLS mode: dns01 (default) or byoc ---

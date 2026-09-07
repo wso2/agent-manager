@@ -50,7 +50,7 @@ load_config() {
 # validate_cert, which needs the derived hostnames and so runs after derive_hosts.
 validate_config() {
   CONFIG_ERRORS=()
-  [[ -n "${AMP_VERSION:-}" ]] || CONFIG_ERRORS+=("AMP_VERSION is required (an amp/v* release tag, e.g. 0.15.0)")
+  [[ -n "${AMP_VERSION:-}" ]] || CONFIG_ERRORS+=("AMP_VERSION is required (an amp/v* release tag, e.g. 1.0.0)")
   [[ -n "${DOMAIN_BASE:-}" ]] || CONFIG_ERRORS+=("DOMAIN_BASE is required (e.g. amp.mycompany.com)")
   local mode; mode="$(tls_mode)"
   case " ${SUPPORTED_TLS_MODES} " in

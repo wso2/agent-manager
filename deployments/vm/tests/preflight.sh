@@ -41,6 +41,30 @@ assert_eq "cert SANs include env-Thunder wild" "yes" "$(grep -qxF '*.amp.mycompa
 AMP_HOST_CP="" sans_nocp="$(AMP_HOST_CP="" cert_dns_names)"
 assert_eq "cert SANs omit cp when unset"       "no"  "$(grep -qxF 'cp.amp.mycompany.com' <<<"$sans_nocp" && echo yes || echo no)"
 
+# --- acme_dns_names: the ACME order must carry NO name a wildcard in it already covers ---
+# Boulder rejects such an order outright ("redundant with a wildcard domain in the same
+# request"), and the Order errors before any Challenge exists — so this is what keeps
+# TLS_MODE=dns01 issuable at all, not a cosmetic trim.
+# The cp assertion above leaks AMP_HOST_CP="" into the shell (two assignments in one
+# command), so restore it — otherwise the cp cases below would pass vacuously.
+AMP_HOST_CP=cp.amp.mycompany.com
+acme="$(acme_dns_names)"
+assert_eq "acme names keep the base wildcard"   "yes" "$(grep -qxF '*.amp.mycompany.com' <<<"$acme" && echo yes || echo no)"
+assert_eq "acme names keep agents wildcard"     "yes" "$(grep -qxF '*.agents.amp.mycompany.com' <<<"$acme" && echo yes || echo no)"
+assert_eq "acme names keep gateway wildcard"    "yes" "$(grep -qxF '*.gateway.amp.mycompany.com' <<<"$acme" && echo yes || echo no)"
+# Each of these is one label under the base domain, so *.amp.mycompany.com covers it.
+for h in console api thunder observer gateway cp; do
+  assert_eq "acme names drop redundant ${h}"    "no"  "$(grep -qxF "${h}.amp.mycompany.com" <<<"$acme" && echo yes || echo no)"
+done
+assert_eq "acme names are exactly the 3 wildcards" "3" "$(grep -c . <<<"$acme")"
+# A host NOT covered by any wildcard in the list must survive the filter: an operator
+# override can put a service outside DOMAIN_BASE, and dropping it would silently issue a
+# cert that does not serve that host.
+acme_off="$(AMP_HOST_CONSOLE=console.elsewhere.example acme_dns_names)"
+assert_eq "acme names keep an off-base host"    "yes" "$(grep -qxF 'console.elsewhere.example' <<<"$acme_off" && echo yes || echo no)"
+# The byoc requirement list is deliberately unfiltered — validate_cert accepts either shape.
+assert_eq "cert_dns_names still lists all 9"    "9"   "$(grep -c . <<<"$(cert_dns_names)")"
+
 # --- validate_dns01_config: provider + credential presence (appends to CONFIG_ERRORS) ---
 run_validate() { CONFIG_ERRORS=(); validate_dns01_config; echo "${#CONFIG_ERRORS[@]}"; }
 
@@ -219,7 +243,7 @@ assert_eq "platform CA cm PEM round-trips" "yes" \
 # cannot tell a valid block scalar from an invalid header (an explicit indentation
 # indicator, say), so on its own it would pass on YAML that no parser accepts.
 if command -v kubectl >/dev/null 2>&1; then
-  ca_parsed="$(printf '%s\n' "$ca_cm" | kubectl create --dry-run=client -o jsonpath='{.data.ca\.crt}' -f - 2>/dev/null || true)"
+  ca_parsed="$(printf '%s\n' "$ca_cm" | kubectl create --validate=false --dry-run=client -o jsonpath='{.data.ca\.crt}' -f - 2>/dev/null || true)"
   assert_eq "platform CA cm is valid YAML" "yes" \
     "$(printf '%s' "$ca_parsed" | grep -q 'BEGIN CERTIFICATE' && echo yes || echo no)"
   assert_eq "platform CA cm PEM is not indented" "no" \
@@ -228,12 +252,12 @@ if command -v kubectl >/dev/null 2>&1; then
   # the inferred block indentation.
   tmp_messy="$(mktemp)"
   { printf '\n  Certificate:\n    Data:\n'; cat "$tmp_cert"; } > "$tmp_messy"
-  messy_parsed="$(render_platform_ca_configmap "$tmp_messy" | kubectl create --dry-run=client -o jsonpath='{.data.ca\.crt}' -f - 2>/dev/null || true)"
+  messy_parsed="$(render_platform_ca_configmap "$tmp_messy" | kubectl create --validate=false --dry-run=client -o jsonpath='{.data.ca\.crt}' -f - 2>/dev/null || true)"
   assert_eq "indented-preamble CA still renders valid YAML" "yes" \
     "$(printf '%s' "$messy_parsed" | openssl x509 -noout -subject >/dev/null 2>&1 && echo yes || echo no)"
   rm -f "$tmp_messy"
   # The byoc Secret must parse too.
-  sec_type="$(render_byoc_tls_secret amp-wildcard-tls "$tmp_cert" "$tmp_key" | kubectl create --dry-run=client -o jsonpath='{.type}' -f - 2>/dev/null || true)"
+  sec_type="$(render_byoc_tls_secret amp-wildcard-tls "$tmp_cert" "$tmp_key" | kubectl create --validate=false --dry-run=client -o jsonpath='{.type}' -f - 2>/dev/null || true)"
   assert_eq "byoc secret is valid YAML" "kubernetes.io/tls" "$sec_type"
 else
   printf 'ok   - rendered YAML parses (skipped: kubectl not installed)\n'

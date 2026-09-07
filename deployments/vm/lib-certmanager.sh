@@ -75,6 +75,42 @@ cert_dns_names() {
   printf '*.%s\n' "$AMP_HOST_GATEWAY"
 }
 
+# acme_dns_names — cert_dns_names() reduced to the names an ACME CA will accept in a
+# SINGLE order. Let's Encrypt (Boulder) rejects an order carrying both a wildcard and a
+# name that wildcard already covers: "Domain name <host> is redundant with a wildcard
+# domain in the same request". That rejection is fatal at order creation, so the Order
+# goes straight to `errored` and NO Challenge is ever created — the install fails looking
+# like a DNS-01 problem while `kubectl get challenge -A` shows nothing at all.
+#
+# Every fixed host sits exactly one label under DOMAIN_BASE, so *.<DOMAIN_BASE> already
+# covers all of them and dropping them changes nothing about what the issued cert serves.
+# The wildcards are kept verbatim: *.agents.<base> and *.gateway.<base> are one label
+# deeper than *.<base> reaches, so none of the three is redundant with another.
+#
+# byoc deliberately keeps the full cert_dns_names() list — no ACME is involved there, and
+# validate_cert's coverage check is wildcard-aware, so a supplied certificate may carry
+# the explicit hosts, the wildcards, or both.
+acme_dns_names() {
+  local -a names=() wildcards=()
+  local n w base covered
+  while IFS= read -r n; do [[ -n "$n" ]] && names+=("$n"); done < <(cert_dns_names)
+  for n in "${names[@]}"; do
+    [[ "$n" == \*.* ]] && wildcards+=("$n")
+  done
+  for n in "${names[@]}"; do
+    if [[ "$n" != \*.* ]]; then
+      covered=false
+      for w in "${wildcards[@]}"; do
+        base="${w#\*.}"
+        # A wildcard matches exactly one label, so only a single-label child is covered.
+        if [[ "$n" == *."$base" && "${n%."$base"}" != *.* ]]; then covered=true; break; fi
+      done
+      [[ "$covered" == true ]] && continue
+    fi
+    printf '%s\n' "$n"
+  done
+}
+
 # _dns01_solver_block — print the cert-manager `dns01:` solver body for DNS_PROVIDER,
 # indented 10 spaces to sit under `solvers:\n  - dns01:` in render_acme_clusterissuer.
 # Credential values come from the config env vars; the referenced Secret is created by
@@ -180,7 +216,8 @@ EOF
 
 # render_wildcard_certificate <cert_name> <secret_name> <issuer_name> — print the
 # Certificate whose issued Secret the consolidated :443 Gateway references. dnsNames come
-# from cert_dns_names (fixed hosts + the agent/env-Thunder wildcards). Lives in GATEWAY_NS.
+# from acme_dns_names — cert_dns_names minus any host already covered by a wildcard in
+# the same list, which an ACME CA refuses to issue in one order. Lives in GATEWAY_NS.
 render_wildcard_certificate() {
   local name="$1" secret="$2" issuer="$3" d
   cat <<EOF
@@ -200,7 +237,7 @@ spec:
 EOF
   while IFS= read -r d; do
     [[ -n "$d" ]] && printf '    - %s\n' "$(_yaml_quote "$d")"
-  done < <(cert_dns_names)
+  done < <(acme_dns_names)
   cat <<EOF
   issuerRef:
     name: ${issuer}

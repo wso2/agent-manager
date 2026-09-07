@@ -35,6 +35,10 @@ assert_eq() {
 # has <haystack> <needle> -> "yes" if needle present, else "no"
 # (-- so needles starting with '-' aren't parsed as grep options)
 has() { grep -qF -- "$2" <<<"$1" && echo yes || echo no; }
+# flag_for <helm-args> <key=value> -> the flag token emitted just before that
+# KEY=VALUE line. The builders print one token per line, so --set vs --set-string
+# (which decides whether helm coerces 443 to a number) is the preceding line.
+flag_for() { grep -B1 -F -- "$2" <<<"$1" | head -1; }
 
 # --- vm_host ---
 assert_eq "vm_host console" "console.amp.203.0.113.10.sslip.io" "$(vm_host console 203.0.113.10)"
@@ -42,13 +46,14 @@ assert_eq "vm_host thunder" "thunder.amp.203.0.113.10.sslip.io" "$(vm_host thund
 
 # --- build_amp_helm_args (external gateways on by default) ---
 amp="$(build_amp_helm_args 203.0.113.10 true)"
-# Service settings are emitted under BOTH chart keys (agentManager + agentManagerService).
+# Service settings are emitted under `agentManagerService` only. The chart's
+# values.schema.json sets additionalProperties:false at the root, so the legacy
+# pre-0.15.0 `agentManager` key fails the whole install rather than being ignored.
 assert_eq "amp serverPublicURL (service key)" \
   "agentManagerService.config.serverPublicURL=https://api.amp.203.0.113.10.sslip.io" \
   "$(grep -F 'agentManagerService.config.serverPublicURL' <<<"$amp")"
-assert_eq "amp serverPublicURL (legacy key)" \
-  "agentManager.config.serverPublicURL=https://api.amp.203.0.113.10.sslip.io" \
-  "$(grep -F 'agentManager.config.serverPublicURL' <<<"$amp")"
+assert_eq "amp emits no legacy agentManager key" "no" \
+  "$(has "$amp" 'agentManager.config.')"
 assert_eq "amp oauthAuthorizationServers (service key)" \
   "agentManagerService.config.oauthAuthorizationServers=https://thunder.amp.203.0.113.10.sslip.io" \
   "$(grep -F 'agentManagerService.config.oauthAuthorizationServers' <<<"$amp")"
@@ -62,16 +67,16 @@ assert_eq "amp keyManager.audience carries the public API URL (service key)" "ye
   "$(has "$amp" 'agentManagerService.config.keyManager.audience=urn:wso2:amp\,')"
 assert_eq "amp keyManager.audience ends with the public API URL (service key)" "yes" \
   "$(has "$amp" 'am-mcp\,https://api.amp.203.0.113.10.sslip.io/mcp')"
-assert_eq "amp keyManager.audience carries the public API URL (legacy key)" "yes" \
-  "$(has "$amp" 'agentManager.config.keyManager.audience=urn:wso2:amp\,')"
-# tlsEnabled=true makes amp-api advertise the https deployed-agent endpoint variant;
-# emitted under both keys (old agentManager + new agentManagerService).
+# tlsEnabled=true makes amp-api advertise the https deployed-agent endpoint variant.
+# The schema types the service-side flag as a boolean and the console-side one as a
+# string, so they must go out on different helm flags.
 assert_eq "amp tlsEnabled (service key)" \
   "agentManagerService.config.tlsEnabled=true" \
   "$(grep -F 'agentManagerService.config.tlsEnabled' <<<"$amp")"
-assert_eq "amp tlsEnabled (legacy key)" \
-  "agentManager.config.tlsEnabled=true" \
-  "$(grep -F 'agentManager.config.tlsEnabled' <<<"$amp")"
+assert_eq "amp tlsEnabled stays a boolean for the service" "--set" \
+  "$(flag_for "$amp" 'agentManagerService.config.tlsEnabled=true')"
+assert_eq "amp tlsEnabled is a string for the console" "--set-string" \
+  "$(flag_for "$amp" 'console.config.tlsEnabled=true')"
 assert_eq "amp console apiBaseUrl" \
   "console.config.apiBaseUrl=https://api.amp.203.0.113.10.sslip.io" \
   "$(grep -F 'config.apiBaseUrl' <<<"$amp")"
@@ -124,6 +129,12 @@ assert_eq "amp gatewayVhostScheme (service key)" \
 assert_eq "amp gatewayVhostPort (service key)" \
   "agentManagerService.config.gatewayVhostPort=443" \
   "$(grep -F 'agentManagerService.config.gatewayVhostPort' <<<"$amp")"
+# The schema types all three ports as strings; plain --set would hand helm the
+# number 443 and fail validation before anything is installed.
+for port_key in agentsHttpPort agentsHttpsPort gatewayVhostPort; do
+  assert_eq "amp ${port_key} is set as a string" "--set-string" \
+    "$(flag_for "$amp" "agentManagerService.config.${port_key}=443")"
+done
 
 # --- build_amp_helm_args (external gateways disabled) ---
 amp_nocp="$(build_amp_helm_args 203.0.113.10 false)"
@@ -767,6 +778,68 @@ assert_eq "inotify watches floor"             "524288" "$(inotify_bump_target 81
   assert_eq "_public_ip offline exit status"  "0" "$rc"
   assert_eq "_public_ip offline output empty" ""  "$out"
 )
+
+# --- every builder's output passes the target chart's values.schema.json ---
+# The assertions above check the tokens; they cannot see that helm rejects them.
+# 1.0.0-rc3 shipped the first values.schema.json and its simple install failed at
+# the last step on a value type and a stale top-level key, so render each builder's
+# args against the in-repo charts. Rendering (not just linting) is what runs schema
+# validation, and it needs no cluster.
+if command -v helm >/dev/null 2>&1; then
+  CHARTS_DIR="$(cd "${SCRIPT_DIR}/../../helm-charts" && pwd)"
+  assert_schema_accepts() {
+    local label="$1" chart="$2" out; shift 2
+    if out="$(helm template schema-check "${CHARTS_DIR}/${chart}" "$@" 2>&1 >/dev/null)"; then
+      printf 'ok   - %s\n' "$label"
+    else
+      printf 'FAIL - %s\n%s\n' "$label" "$out"
+      echo 1 >>"$FAILLOG"
+    fi
+  }
+  (
+    IP=203.0.113.10
+    args=(); while IFS= read -r l; do args+=("$l"); done < <(build_amp_helm_args "$IP" true)
+    assert_schema_accepts "amp args pass the chart schema" wso2-agent-manager "${args[@]}"
+    args=(); while IFS= read -r l; do args+=("$l"); done < <(build_amp_helm_args "$IP" false)
+    assert_schema_accepts "amp args (no cp) pass the chart schema" wso2-agent-manager "${args[@]}"
+    args=(); while IFS= read -r l; do args+=("$l"); done < <(build_thunder_helm_args "$IP")
+    assert_schema_accepts "thunder args pass the chart schema" wso2-amp-thunder-extension "${args[@]}"
+    args=(); while IFS= read -r l; do args+=("$l"); done < <(build_observability_helm_args "$IP")
+    assert_schema_accepts "observability args pass the chart schema" wso2-amp-observability-extension "${args[@]}"
+    args=(); while IFS= read -r l; do args+=("$l"); done < <(build_gateway_helm_args "$IP")
+    assert_schema_accepts "gateway args pass the chart schema" wso2-amp-api-platform-gateway-extension "${args[@]}"
+    AMP_AGENTS_BASE="agents.${IP}.sslip.io"
+    AMP_HOST_GATEWAY="$(vm_host gateway "$IP")"
+    args=(); while IFS= read -r l; do args+=("$l"); done < <(build_platform_resources_helm_args)
+    assert_schema_accepts "platform-resources args pass the chart schema" \
+      wso2-amp-platform-resources-extension "${args[@]}"
+  )
+  # The advanced installer calls the bare cores with derive_hosts' custom-domain
+  # hostnames instead of the sslip.io wrappers above, so cover that path too — a
+  # value added on only one of the two would otherwise ship unvalidated.
+  (
+    DOMAIN_BASE="amp.example.com"
+    AMP_HOST_CONSOLE="" AMP_HOST_API="" AMP_HOST_THUNDER="" AMP_HOST_OBSERVER=""
+    AMP_HOST_GATEWAY="" AMP_HOST_CP="" AMP_AGENTS_BASE=""
+    derive_hosts
+    args=(); while IFS= read -r l; do args+=("$l"); done < <(amp_helm_args)
+    assert_schema_accepts "advanced amp args pass the chart schema" wso2-agent-manager "${args[@]}"
+    args=(); while IFS= read -r l; do args+=("$l"); done < <(thunder_helm_args)
+    assert_schema_accepts "advanced thunder args pass the chart schema" \
+      wso2-amp-thunder-extension "${args[@]}"
+    args=(); while IFS= read -r l; do args+=("$l"); done < <(observability_helm_args)
+    assert_schema_accepts "advanced observability args pass the chart schema" \
+      wso2-amp-observability-extension "${args[@]}"
+    args=(); while IFS= read -r l; do args+=("$l"); done < <(gateway_helm_args)
+    assert_schema_accepts "advanced gateway args pass the chart schema" \
+      wso2-amp-api-platform-gateway-extension "${args[@]}"
+    args=(); while IFS= read -r l; do args+=("$l"); done < <(build_platform_resources_helm_args)
+    assert_schema_accepts "advanced platform-resources args pass the chart schema" \
+      wso2-amp-platform-resources-extension "${args[@]}"
+  )
+else
+  echo "skip - chart schema checks (helm not installed)"
+fi
 
 if [[ -s "$FAILLOG" ]]; then echo "TESTS FAILED"; exit 1; fi
 echo "ALL TESTS PASSED"
