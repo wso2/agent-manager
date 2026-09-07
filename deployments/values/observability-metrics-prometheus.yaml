@@ -59,3 +59,17 @@ kube-prometheus-stack:
           regex: ';.+'
           targetLabel: container
           replacement: sandbox
+
+  # kube-state-metrics label allowlist.
+  #
+  # Only the keys listed here reach kube_pod_labels, which is the only pod metric
+  # carrying pod labels at all — reservations and timestamps carry namespace/pod/uid
+  # and nothing else, so every tenant-attributed query joins against it.
+  #
+  # The first seven keys are the upstream defaults, reproduced because helm replaces
+  # list values rather than merging them. app.kubernetes.io/component is ours: build
+  # and evaluation pods share the workflows-<org> namespace, and without a key that
+  # separates them a namespace-scoped duration sums both into one bucket.
+  kube-state-metrics:
+    metricLabelsAllowlist:
+      - pods=[openchoreo.dev/component-uid,openchoreo.dev/project-uid,openchoreo.dev/environment-uid,openchoreo.dev/namespace,openchoreo.dev/component,openchoreo.dev/project,openchoreo.dev/environment,app.kubernetes.io/component]

@@ -14,7 +14,17 @@ spec:
   podMetadata:
     labels:
       app.kubernetes.io/name: amp-monitor
+      # Also the key that separates evaluation pods from build pods, which share
+      # the workflows-<org> namespace and are otherwise identical to
+      # kube_pod_labels. Allowlisted in observability-metrics-prometheus.yaml.
       app.kubernetes.io/component: evaluation-job
+      # Tenant identity for usage attribution. kube-state-metrics exports pod
+      # labels on kube_pod_labels only, and only the keys in its allowlist, so
+      # these four are what makes an evaluation run attributable to a tenant.
+      openchoreo.dev/namespace: '{{ "{{" }}workflow.parameters.organization{{ "}}" }}'
+      openchoreo.dev/project: '{{ "{{" }}workflow.parameters.project{{ "}}" }}'
+      openchoreo.dev/component: '{{ "{{" }}workflow.parameters.agent{{ "}}" }}'
+      openchoreo.dev/environment: '{{ "{{" }}workflow.parameters.environment{{ "}}" }}'
   arguments:
     parameters:
       - name: monitor-name
