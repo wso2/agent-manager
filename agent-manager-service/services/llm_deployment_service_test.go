@@ -19,10 +19,51 @@ package services
 import (
 	"testing"
 
+	"github.com/google/uuid"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	"gopkg.in/yaml.v3"
 
 	"github.com/wso2/agent-manager/agent-manager-service/models"
+	"github.com/wso2/agent-manager/agent-manager-service/repositories"
+	"github.com/wso2/agent-manager/agent-manager-service/repositories/repomocks"
 )
+
+func TestGatewayIDsForProviderDeletion_UnionsTrackedAndActiveGateways(t *testing.T) {
+	providerUUID := uuid.New()
+	trackedGatewayID := uuid.New()
+	sharedGatewayID := uuid.New()
+	activeGatewayID := uuid.New()
+
+	deploymentRepo := &repomocks.DeploymentRepositoryMock{
+		GetTrackedGatewaysByProviderFunc: func(actualProviderUUID uuid.UUID, ouID string) ([]string, error) {
+			assert.Equal(t, providerUUID, actualProviderUUID)
+			assert.Equal(t, "ou-acme", ouID)
+			return []string{trackedGatewayID.String(), sharedGatewayID.String(), ""}, nil
+		},
+	}
+	gatewayRepo := &repomocks.GatewayRepositoryMock{
+		ListWithFiltersFunc: func(filters repositories.GatewayFilterOptions) ([]*models.Gateway, error) {
+			assert.Equal(t, "ou-acme", filters.OrganizationID)
+			require.NotNil(t, filters.Status)
+			assert.True(t, *filters.Status)
+			return []*models.Gateway{
+				{UUID: sharedGatewayID},
+				{UUID: activeGatewayID},
+				nil,
+			}, nil
+		},
+	}
+	svc := &LLMProviderDeploymentService{deploymentRepo: deploymentRepo, gatewayRepo: gatewayRepo}
+
+	actual := svc.GatewayIDsForProviderDeletion(providerUUID, "ou-acme")
+
+	assert.ElementsMatch(t, []string{
+		trackedGatewayID.String(),
+		sharedGatewayID.String(),
+		activeGatewayID.String(),
+	}, actual)
+}
 
 // Test helper functions
 func strPtr(s string) *string {

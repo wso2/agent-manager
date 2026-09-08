@@ -294,9 +294,23 @@ func preserveUpstreamAuthCredential(existing, updated *models.UpstreamAuth) *mod
 }
 
 // Delete deletes an LLM proxy
-func (s *LLMProxyService) Delete(proxyID, ouID string) error {
+// Delete removes an LLM proxy and tells the gateways holding its config to drop it.
+//
+// deploymentService may be nil, in which case no gateway is notified and the
+// proxy's config is left stranded on the gateway — callers that can reach an
+// LLMProxyDeploymentService should always pass it. It is a parameter rather than a
+// field to mirror LLMProviderService.Delete and to avoid a service-level import
+// cycle through the deployment service.
+func (s *LLMProxyService) Delete(proxyID, ouID string, deploymentService *LLMProxyDeploymentService) error {
 	if proxyID == "" {
 		return utils.ErrInvalidInput
+	}
+
+	// Resolve the target gateways while the proxy row still exists — the lookup
+	// needs its UUID, and the row is gone by the time the broadcast happens.
+	var gatewayIDs []string
+	if deploymentService != nil {
+		gatewayIDs = deploymentService.GatewayIDsForProxyDeletion(proxyID, ouID)
 	}
 
 	if err := s.proxyRepo.Delete(proxyID, ouID); err != nil {
@@ -304,6 +318,12 @@ func (s *LLMProxyService) Delete(proxyID, ouID string) error {
 			return utils.ErrLLMProxyNotFound
 		}
 		return fmt.Errorf("failed to delete proxy: %w", err)
+	}
+
+	// Only after the delete is committed: a broadcast for a proxy that survived a
+	// failed delete would strip a live config off the gateway.
+	if deploymentService != nil {
+		deploymentService.BroadcastLLMProxyDeletion(proxyID, ouID, gatewayIDs)
 	}
 
 	return nil

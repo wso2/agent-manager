@@ -142,6 +142,21 @@ func (s *GatewayEventsService) BroadcastMCPProxyDeletionEvent(gatewayID string, 
 	return s.broadcastEvent(gatewayID, "mcpproxy.deleted", "DELETE", event.ProxyID, event)
 }
 
+// BroadcastLLMProviderDeletionEvent tells a gateway to drop a deleted provider's
+// config outright. The paired "llmprovider.undeployed" event is only a soft state
+// flip on the gateway and leaves the config in place, so this must be sent as well
+// whenever the provider itself is deleted.
+func (s *GatewayEventsService) BroadcastLLMProviderDeletionEvent(gatewayID string, event *models.LLMProviderDeletionEvent) error {
+	return s.broadcastEvent(gatewayID, "llmprovider.deleted", "DELETE", event.ProviderID, event)
+}
+
+// BroadcastLLMProxyDeletionEvent tells a gateway to drop a deleted proxy's config
+// outright. See BroadcastLLMProviderDeletionEvent for why the undeploy event alone
+// is not enough.
+func (s *GatewayEventsService) BroadcastLLMProxyDeletionEvent(gatewayID string, event *models.LLMProxyDeletionEvent) error {
+	return s.broadcastEvent(gatewayID, "llmproxy.deleted", "DELETE", event.ProxyID, event)
+}
+
 func (s *GatewayEventsService) BroadcastLLMProxyUndeploymentEvent(gatewayID string, event *models.LLMProxyUndeploymentEvent) error {
 	return s.broadcastEvent(gatewayID, "llmproxy.undeployed", "DELETE", event.ProxyID, event)
 }
