@@ -81,13 +81,6 @@ func (s *stubAgentThunderProvisioning) GetIdentityViews(ctx context.Context, ouI
 	return s.GetIdentityViewsFunc(ctx, ouID, projectName, agentName)
 }
 
-// HealSecretRef is a no-op override: no test using this stub exercises the
-// reconciler's startup heal pass, but leaving it unimplemented would panic on
-// the nil embedded interface if that ever changes.
-func (s *stubAgentThunderProvisioning) HealSecretRef(ctx context.Context, binding models.AgentThunderClient) error {
-	return nil
-}
-
 func TestValidateInstrumentationVersion_UsesCatalog(t *testing.T) {
 	instrumentation.SetCatalog(instrumentation.NewForTest(
 		[]instrumentation.Version{

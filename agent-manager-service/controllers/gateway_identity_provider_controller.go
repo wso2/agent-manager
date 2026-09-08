@@ -135,10 +135,24 @@ func (c *gatewayController) ListGatewayIdentityProviders(w http.ResponseWriter, 
 // deploy-time validation checks the mirror, so a mirror-only issuer passes validation
 // while the gateway rejects its tokens at runtime. Use manage-identity-provider.sh.
 func (c *gatewayController) UpsertGatewayIdentityProvider(w http.ResponseWriter, r *http.Request) {
-	log := logger.GetLogger(r.Context())
+	ctx := r.Context()
+	log := logger.GetLogger(ctx)
 	ouID := middleware.OUIDFromRequest(r)
 	gatewayID := strings.TrimSpace(r.PathValue("gatewayID"))
 	name := strings.TrimSpace(r.PathValue("name"))
+
+	// WSO2 Cloud provisions the environment Thunder identity provider with a
+	// control-plane M2M token, so the tenant OU is carried in
+	// X-Impersonate-Org. Keep ordinary user-token requests unchanged when the
+	// header is absent, matching the Thunder URL and system-client endpoints.
+	if impersonated, ok := impersonatedOUID(r); ok && impersonated != ouID {
+		log.Warn("UpsertGatewayIdentityProvider: org impersonation header overrides token org",
+			"tokenOuID", ouID, "impersonatedOuID", impersonated)
+		ouID = impersonated
+		org, _ := middleware.GetResolvedOrg(ctx)
+		org.OUID = impersonated
+		ctx = middleware.WithResolvedOrg(ctx, org)
+	}
 
 	var req spec.UpsertIdentityProviderRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
@@ -153,7 +167,6 @@ func (c *gatewayController) UpsertGatewayIdentityProvider(w http.ResponseWriter,
 	// because they decide where the signing keys come from and whether that
 	// fetch validates TLS — an issuer on its own does not say who can actually
 	// mint an accepted token.
-	ctx := r.Context()
 	attempt, ok := beginAuditOrFail(
 		w, r, "UpsertGatewayIdentityProvider", "Failed to upsert identity provider", audit.ActionGatewaySetIdentityProvider,
 		audit.Org(ouID),

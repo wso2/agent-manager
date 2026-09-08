@@ -118,14 +118,9 @@ func mergeAgentIdentityEnvVarKeys(dst map[string]bool) map[string]bool {
 // "Gateway Binding" phase of the AgentID feature. It never handles the secret
 // VALUE itself: the pod receives the client secret through a SecretKeyRef
 // into a Kubernetes Secret that OpenChoreo materializes, in the agent's own
-// workload namespace, from a data-plane SecretReference this service owns
-// (ensureSecretReference) — pointed at the remote KV key
-// agentThunderProvisioningService.storeCredential resolved once, at
-// credential creation/rotation, and persisted in binding.SecretRefPath (see
-// its doc comment). This service never independently resolves or guesses
-// that KV key — it only ever reads binding.SecretRefPath, so it never repeats
-// a live OpenChoreo round trip on its own (much more frequent) injection
-// path.
+// workload namespace, from the provider-managed SecretReference whose name
+// agentThunderProvisioningService stores in binding.SecretRefPath. Injection
+// uses that name directly and never reads or reconstructs the backing KV path.
 //
 // This service is wired unconditionally (see wiring.ProvideAgentIdentityInjectionService),
 // independent of which AgentThunderProvisioningService implementation a
@@ -136,13 +131,11 @@ func mergeAgentIdentityEnvVarKeys(dst map[string]bool) map[string]bool {
 // silently no-ops for them.
 type AgentIdentityInjectionService interface {
 	// EnvVarsForEnvironment returns the identity env vars for one internal
-	// agent in one environment, ensuring the backing data-plane
-	// SecretReference exists first. Returns (nil, nil) when there is nothing
+	// agent in one environment. Returns (nil, nil) when there is nothing
 	// to inject: no binding, provisioning not completed, an external agent,
 	// or a revoked credential. Callers treat nil as "skip identity
 	// injection" — a normal state, not an error. A non-nil error means the
-	// current state could not be determined (or the SecretReference could
-	// not be ensured) and the caller must NOT proceed with an env-var
+	// current state could not be determined and the caller must NOT proceed with an env-var
 	// rewrite that would silently drop the vars.
 	EnvVarsForEnvironment(ctx context.Context, ouID, projectName, agentName, envName string) ([]client.EnvVar, error)
 
@@ -166,18 +159,14 @@ type AgentIdentityInjectionService interface {
 	// revoked bindings and for not-yet-deployed environments.
 	ReconcileForEnvironment(ctx context.Context, ouID, projectName, agentName, envName string) error
 
-	// RefreshAfterRotation re-asserts the data-plane SecretReference with a
-	// fresh rotated-at annotation and rolls the pod once the secret-store sync
-	// has had time to catch up. Rotation never changes the SecretReference's
-	// remote KV key (storeCredential's resolved location is stable — a
-	// rotation only updates the value in place), so this never touches
-	// binding.SecretRefPath itself. No-op for external agents and
+	// RefreshAfterRotation waits for the provider-managed SecretReference to
+	// synchronize the rotated value, then rolls the pod. Rotation keeps the same
+	// SecretReference name, so this never changes binding.SecretRefPath. No-op for external agents and
 	// unprovisioned bindings.
 	RefreshAfterRotation(ctx context.Context, ouID, projectName, agentName, envName string) error
 
 	// RemoveForEnvironment removes the identity env vars from the agent's
-	// workload for one environment and deletes the backing data-plane
-	// SecretReference — used after a revoke, so the pod does not keep
+	// workload for one environment — used after a revoke, so the pod does not keep
 	// serving a credential that can no longer mint tokens.
 	// includeWorkloadLevel additionally removes the vars from the shared
 	// Workload CR; callers set it only when envName is the pipeline's lowest
@@ -187,10 +176,8 @@ type AgentIdentityInjectionService interface {
 	// pod).
 	RemoveForEnvironment(ctx context.Context, ouID, projectName, agentName, envName string, includeWorkloadLevel bool) error
 
-	// CleanupForEnvironment deletes the AgentID data-plane SecretReference
-	// for one (agent, environment) — used on agent deletion, where the
-	// workload itself is being deleted so env var removal is pointless but
-	// the SecretReference would leak. Best-effort: not-found is success.
+	// CleanupForEnvironment removes any injection-owned resources. The backing
+	// SecretReference is owned and deleted by the secret management provider.
 	CleanupForEnvironment(ctx context.Context, ouID, agentName, envName string) error
 }
 
@@ -215,8 +202,6 @@ type agentIdentityInjectionService struct {
 	refreshInterval      string
 	logger               *slog.Logger
 	resolveTokenEndpoint func(context.Context, string, string, string) (string, error)
-	// now is injectable for tests; defaults to time.Now.
-	now func() time.Time
 	// after is injectable for tests; defaults to time.After. See
 	// RefreshAfterRotation's doc comment for why it waits at all.
 	after func(time.Duration) <-chan time.Time
@@ -266,7 +251,6 @@ func NewAgentIdentityInjectionServiceWithTokenEndpointResolver(
 		refreshInterval:      refreshInterval,
 		logger:               logger,
 		resolveTokenEndpoint: resolveTokenEndpoint,
-		now:                  time.Now,
 		after:                time.After,
 		rolloutTokens:        make(map[string]uint64),
 		shutdownCtx:          context.Background(),
@@ -411,55 +395,6 @@ func (s *agentIdentityInjectionService) injectableBinding(ctx context.Context, o
 	return binding, nil
 }
 
-// secretRotatedAtAnnotation/secretRotatedAtFormat stamp a fresh value on the
-// SecretReference's Secret template on every rotation, marking its spec as
-// changed. This alone does not force the secret-store sync ahead of its own
-// refresh cadence — see RefreshAfterRotation for how the wait is handled.
-const (
-	secretRotatedAtAnnotation = "amp.wso2.com/secret-rotated-at"
-	secretRotatedAtFormat     = time.RFC3339Nano
-)
-
-// ensureSecretReference creates or updates the data-plane SecretReference CR
-// that lets OpenChoreo materialize the stored credential as a Kubernetes
-// Secret in the agent's own workload namespace. templateAnnotations may be
-// nil; see secretRotatedAtAnnotation for when it is not.
-//
-// KVPath comes directly from binding.SecretRefPath — the remote key
-// agentThunderProvisioningService.storeCredential resolved once, at
-// credential creation/rotation, by reading the SecretReference CreateSecret
-// itself manages back from OpenChoreo (see storeCredential's doc comment).
-// This method never independently computes or re-resolves that value; it
-// only ever asserts the CR's spec from whatever's already in the DB, so it
-// carries no live-read dependency of its own — safe to call on every
-// deploy/promote/config-update, and from the reconciler on every tick.
-func (s *agentIdentityInjectionService) ensureSecretReference(ctx context.Context, binding *models.AgentThunderClient, templateAnnotations map[string]string) (string, error) {
-	location := agentIdentitySecretLocation(binding.OUID, binding.ProjectName, binding.AgentName, binding.EnvironmentName)
-	refName := location.SecretRefName()
-	req := client.CreateSecretReferenceRequest{
-		Namespace:           binding.OUID,
-		Name:                refName,
-		ProjectName:         binding.ProjectName,
-		ComponentName:       binding.AgentName,
-		KVPath:              binding.SecretRefPath,
-		SecretKeys:          []string{thundersvc.AgentSecretKeyClientSecret},
-		RefreshInterval:     s.refreshInterval,
-		TemplateAnnotations: templateAnnotations,
-	}
-	if _, err := s.ocClient.CreateSecretReference(ctx, binding.OUID, req); err != nil {
-		// A concurrent caller (another request for this same binding, or the
-		// reconciler) may have already created it — fall back to asserting
-		// the same spec via update rather than treating this as fatal.
-		if !errors.Is(err, utils.ErrConflict) {
-			return "", fmt.Errorf("create agent identity SecretReference %q: %w", refName, err)
-		}
-		if _, err := s.ocClient.UpdateSecretReference(ctx, binding.OUID, refName, req); err != nil {
-			return "", fmt.Errorf("update agent identity SecretReference %q after create conflict: %w", refName, err)
-		}
-	}
-	return refName, nil
-}
-
 // deleteSecretReference deletes the data-plane SecretReference for one
 // binding. Best-effort by convention of every caller: not-found is success.
 func (s *agentIdentityInjectionService) deleteSecretReference(ctx context.Context, ouID, projectName, agentName, envName string) error {
@@ -508,20 +443,25 @@ func (s *agentIdentityInjectionService) buildEnvVars(ctx context.Context, bindin
 	}, nil
 }
 
-func (s *agentIdentityInjectionService) envVarsForEnvironment(ctx context.Context, ouID, projectName, agentName, envName string, templateAnnotations map[string]string) ([]client.EnvVar, error) {
+func (s *agentIdentityInjectionService) envVarsForEnvironment(ctx context.Context, ouID, projectName, agentName, envName string) ([]client.EnvVar, error) {
 	binding, err := s.injectableBinding(ctx, ouID, projectName, agentName, envName)
 	if err != nil || binding == nil {
 		return nil, err
 	}
-	refName, err := s.ensureSecretReference(ctx, binding, templateAnnotations)
-	if err != nil {
-		return nil, err
+	secretRefName := binding.SecretRefPath
+	if strings.Contains(secretRefName, "/") {
+		// Rows created before SecretReference-name persistence stored the backing
+		// KV path here. The SecretReference itself used this deterministic name,
+		// so existing deployments can continue without a database migration.
+		secretRefName = agentIdentitySecretLocation(
+			binding.OUID, binding.ProjectName, binding.AgentName, binding.EnvironmentName,
+		).SecretRefName()
 	}
-	return s.buildEnvVars(ctx, binding, refName)
+	return s.buildEnvVars(ctx, binding, secretRefName)
 }
 
 func (s *agentIdentityInjectionService) EnvVarsForEnvironment(ctx context.Context, ouID, projectName, agentName, envName string) ([]client.EnvVar, error) {
-	return s.envVarsForEnvironment(ctx, ouID, projectName, agentName, envName, nil)
+	return s.envVarsForEnvironment(ctx, ouID, projectName, agentName, envName)
 }
 
 func (s *agentIdentityInjectionService) InjectForEnvironment(ctx context.Context, ouID, projectName, agentName, envName string) error {
@@ -621,10 +561,7 @@ func identityEnvVarsInSync(desired []client.EnvVar, current []models.EnvVars) bo
 // otherwise every rotation restarts the pod, even ones already superseded by
 // a later rotation before their own wait finished.
 func (s *agentIdentityInjectionService) RefreshAfterRotation(ctx context.Context, ouID, projectName, agentName, envName string) error {
-	annotations := map[string]string{
-		secretRotatedAtAnnotation: s.now().UTC().Format(secretRotatedAtFormat),
-	}
-	envVars, err := s.envVarsForEnvironment(ctx, ouID, projectName, agentName, envName, annotations)
+	envVars, err := s.envVarsForEnvironment(ctx, ouID, projectName, agentName, envName)
 	if err != nil {
 		return err
 	}
