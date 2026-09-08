@@ -708,20 +708,20 @@ func (s *LLMProviderService) Delete(ctx context.Context, providerID, ouID string
 		return utils.ErrLLMProviderHasProxies
 	}
 
-	gatewayIDs, err := deploymentService.deploymentRepo.GetDeployedGatewaysByProvider(providerUUID, ouID)
+	deployedGatewayIDs, err := deploymentService.deploymentRepo.GetDeployedGatewaysByProvider(providerUUID, ouID)
 	if err != nil {
 		slog.Error("LLMProviderService.Delete: failed to get deployed gateways", "ouID", ouID, "providerID", providerID, "error", err)
 		return fmt.Errorf("failed to get deployed gateways: %w", err)
 	}
 
-	slog.Info("LLMProviderService.Delete: found deployed gateways", "ouID", ouID, "providerID", providerID, "gatewayCount", len(gatewayIDs))
+	slog.Info("LLMProviderService.Delete: found deployed gateways", "ouID", ouID, "providerID", providerID, "gatewayCount", len(deployedGatewayIDs))
 
 	// Undeploy from all gateways before deleting
-	if len(gatewayIDs) > 0 {
+	if len(deployedGatewayIDs) > 0 {
 		undeploymentErrors := []string{}
 		successfulUndeployments := 0
 
-		for _, gatewayID := range gatewayIDs {
+		for _, gatewayID := range deployedGatewayIDs {
 			slog.Info("LLMProviderService.Delete: undeploying from gateway", "ouID", ouID, "providerID", providerID, "gatewayID", gatewayID)
 
 			// Get current deployment for this gateway
@@ -752,7 +752,7 @@ func (s *LLMProviderService) Delete(ctx context.Context, providerID, ouID string
 			}
 		}
 
-		slog.Info("LLMProviderService.Delete: undeployment results", "ouID", ouID, "providerID", providerID, "successfulUndeployments", successfulUndeployments, "totalGateways", len(gatewayIDs), "errorCount", len(undeploymentErrors))
+		slog.Info("LLMProviderService.Delete: undeployment results", "ouID", ouID, "providerID", providerID, "successfulUndeployments", successfulUndeployments, "totalGateways", len(deployedGatewayIDs), "errorCount", len(undeploymentErrors))
 
 		// If all undeployments failed, return error. Wrapped in a sentinel so the
 		// controller can report an actionable 409 instead of flattening a
@@ -760,7 +760,7 @@ func (s *LLMProviderService) Delete(ctx context.Context, providerID, ouID string
 		if len(undeploymentErrors) > 0 && successfulUndeployments == 0 {
 			slog.Error("LLMProviderService.Delete: all undeployments failed", "ouID", ouID, "providerID", providerID, "errors", undeploymentErrors)
 			return fmt.Errorf("%w: %d of %d gateways: %s", utils.ErrLLMProviderUndeployFailed,
-				len(undeploymentErrors), len(gatewayIDs), strings.Join(undeploymentErrors, "; "))
+				len(undeploymentErrors), len(deployedGatewayIDs), strings.Join(undeploymentErrors, "; "))
 		}
 
 		// If some undeployments failed, log warning but continue with deletion
@@ -768,6 +768,13 @@ func (s *LLMProviderService) Delete(ctx context.Context, providerID, ouID string
 			slog.Warn("LLMProviderService.Delete: some undeployments failed, continuing with deletion", "ouID", ouID, "providerID", providerID, "errors", undeploymentErrors)
 		}
 	}
+
+	// Resolve hard-deletion targets separately from the deployed set. Undeployed
+	// configs deliberately remain in the gateway store, so every historically
+	// tracked gateway and every active gateway in the organization must receive the
+	// deletion event. Capture the list before deleting the provider because the DB
+	// delete may cascade its deployment-status rows.
+	deletionGatewayIDs := deploymentService.GatewayIDsForProviderDeletion(providerUUID, ouID)
 
 	// Now delete the provider from database (cascade deletes mappings)
 	slog.Info("LLMProviderService.Delete: deleting provider from database", "ouID", ouID, "providerID", providerID)
@@ -782,6 +789,14 @@ func (s *LLMProviderService) Delete(ctx context.Context, providerID, ouID string
 	deleteCommitted = true
 
 	// No KV cleanup needed — encrypted value is stored in the DB and deleted with the provider record
+
+	// The undeploy above only flips the gateway's desired state — it deliberately
+	// preserves the config, its keys and its policies. This is the event that makes
+	// the gateway actually drop the config; without it every deleted provider leaves
+	// its policy chains in the gateway's xDS snapshot forever. Sent only after the
+	// delete is committed, and best-effort: a committed delete must not be failed
+	// because a gateway is unreachable.
+	deploymentService.BroadcastLLMProviderDeletion(provider.UUID.String(), ouID, deletionGatewayIDs)
 
 	slog.Info("LLMProviderService.Delete: completed successfully", "ouID", ouID, "providerID", providerID)
 	return nil
