@@ -93,6 +93,26 @@ type MCPProxyDeletionEvent struct {
 	ProxyID string `json:"proxyId"`
 }
 
+// LLMProviderDeletionEvent represents an LLM provider deletion event.
+//
+// Distinct from LLMProviderUndeploymentEvent: the gateway treats undeploy as a
+// soft state change that deliberately preserves the config, its keys and its
+// policies, so only this event removes the config from the gateway's store.
+// Without it a deleted provider's config lives on in the gateway's xDS snapshot
+// forever. The payload matches the gateway's LLMProviderDeletedEventPayload.
+type LLMProviderDeletionEvent struct {
+	ProviderID string `json:"providerId"`
+}
+
+// LLMProxyDeletionEvent represents an LLM proxy deletion event.
+//
+// See LLMProviderDeletionEvent: undeploy is soft on the gateway side, so this is
+// the only event that reclaims a derived proxy's config. The payload matches the
+// gateway's LLMProxyDeletedEventPayload.
+type LLMProxyDeletionEvent struct {
+	ProxyID string `json:"proxyId"`
+}
+
 // LLMProxyUndeploymentEvent represents an LLM proxy undeployment event
 type LLMProxyUndeploymentEvent struct {
 	ProxyID        string `json:"proxyId"`
