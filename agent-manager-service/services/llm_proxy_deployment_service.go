@@ -608,3 +608,101 @@ func (s *LLMProxyDeploymentService) generateLLMProxyDeploymentYAML(proxy *models
 
 	return string(yamlBytes), nil
 }
+
+// GatewayIDsForProxyDeletion returns every gateway that could still be holding
+// this proxy's config: the gateways it is recorded as deployed to, unioned with
+// all active gateways in the organization.
+//
+// The union is deliberate. A proxy whose deployment record has already been
+// cleaned up would otherwise be unreachable, leaving its config stranded in the
+// gateway's own store forever — the gateway treats "undeployed" as a soft state
+// change that preserves the config, so nothing else ever reclaims it.
+//
+// Must be called BEFORE the proxy row is deleted: resolving the deployed gateways
+// needs the proxy's UUID.
+func (s *LLMProxyDeploymentService) GatewayIDsForProxyDeletion(proxyID, ouID string) []string {
+	gatewayIDs := map[string]struct{}{}
+
+	if s.proxyRepo != nil && s.deploymentRepo != nil {
+		proxy, err := s.proxyRepo.GetByID(proxyID, ouID)
+		switch {
+		case err != nil:
+			slog.Warn("LLMProxyDeploymentService.GatewayIDsForProxyDeletion: failed to resolve proxy",
+				"proxyID", proxyID, "ouID", ouID, "error", err)
+		case proxy == nil:
+			slog.Warn("LLMProxyDeploymentService.GatewayIDsForProxyDeletion: proxy not found",
+				"proxyID", proxyID, "ouID", ouID)
+		default:
+			deployed, err := s.deploymentRepo.GetDeployedGatewaysByProvider(proxy.UUID, ouID)
+			if err != nil {
+				slog.Warn("LLMProxyDeploymentService.GatewayIDsForProxyDeletion: failed to get deployed gateways",
+					"proxyID", proxyID, "ouID", ouID, "error", err)
+			}
+			for _, gatewayID := range deployed {
+				if strings.TrimSpace(gatewayID) != "" {
+					gatewayIDs[gatewayID] = struct{}{}
+				}
+			}
+		}
+	}
+
+	if s.gatewayRepo != nil {
+		active := true
+		gateways, err := s.gatewayRepo.ListWithFilters(repositories.GatewayFilterOptions{
+			OrganizationID: ouID,
+			Status:         &active,
+		})
+		if err != nil {
+			slog.Warn("LLMProxyDeploymentService.GatewayIDsForProxyDeletion: failed to get active gateways",
+				"proxyID", proxyID, "ouID", ouID, "error", err)
+		}
+		for _, gateway := range gateways {
+			if gateway != nil {
+				gatewayIDs[gateway.UUID.String()] = struct{}{}
+			}
+		}
+	}
+
+	out := make([]string, 0, len(gatewayIDs))
+	for gatewayID := range gatewayIDs {
+		out = append(out, gatewayID)
+	}
+	return out
+}
+
+// BroadcastLLMProxyDeletion tells the given gateways to drop this proxy's config
+// outright. The paired llmproxy.undeployed event only flips the gateway's desired
+// state and leaves the config (and its policy chains) in the xDS snapshot, so this
+// is the only event that actually reclaims it.
+//
+// Best-effort by design: a deletion already committed in the database must not be
+// rolled back because one gateway is unreachable.
+func (s *LLMProxyDeploymentService) BroadcastLLMProxyDeletion(proxyID, ouID string, gatewayIDs []string) {
+	if s.gatewayEventsService == nil || len(gatewayIDs) == 0 {
+		return
+	}
+
+	// proxyID is the proxy handle, which is what every caller of
+	// LLMProxyService.Delete already passes. The gateway resolves it with
+	// findAPIConfig, and an LlmProxy config is stored under its handle — its config
+	// id and handle are the same string, unlike every other kind.
+	//
+	// Note the asymmetry with BroadcastLLMProviderDeletion: LlmProvider, Mcp and
+	// RestApi configs are all stored under a UUID, so those paths must pass a UUID.
+	// Do not "unify" these two without re-checking what the gateway actually keys
+	// each kind by.
+	event := &models.LLMProxyDeletionEvent{ProxyID: proxyID}
+
+	for _, gatewayID := range gatewayIDs {
+		if strings.TrimSpace(gatewayID) == "" {
+			continue
+		}
+		if err := s.gatewayEventsService.BroadcastLLMProxyDeletionEvent(gatewayID, event); err != nil {
+			slog.Warn("LLMProxyDeploymentService.BroadcastLLMProxyDeletion: failed to broadcast deletion event",
+				"proxyID", proxyID, "ouID", ouID, "gatewayID", gatewayID, "error", err)
+		} else {
+			slog.Info("LLMProxyDeploymentService.BroadcastLLMProxyDeletion: deletion event sent",
+				"proxyID", proxyID, "ouID", ouID, "gatewayID", gatewayID)
+		}
+	}
+}
