@@ -18,6 +18,7 @@ package services
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"testing"
 
@@ -47,9 +48,69 @@ func serviceForRollback(
 		GetDeployedGatewaysByProviderFunc: func(_ uuid.UUID, _ string) ([]string, error) {
 			return []string{}, nil
 		},
+		GetTrackedGatewaysByProviderFunc: func(_ uuid.UUID, _ string) ([]string, error) {
+			return []string{}, nil
+		},
 	}
 	return &LLMProviderService{providerRepo: providerRepo},
 		&LLMProviderDeploymentService{deploymentRepo: deploymentRepo}
+}
+
+// A provider can be addressed by handle at the API while its gateway artifact is
+// keyed by the canonical control-plane UUID. An already-undeployed provider must
+// still produce a hard-delete event for its historically tracked gateway.
+func TestDelete_AlreadyUndeployedProviderBroadcastsCanonicalUUID(t *testing.T) {
+	created := createdProvider()
+	trackedGatewayID := uuid.New().String()
+	hub := &stubEventHub{}
+
+	providerRepo := &repomocks.LLMProviderRepositoryMock{
+		GetByHandleFunc: func(handle, ouID string) (*models.LLMProvider, error) {
+			require.Equal(t, created.Configuration.Handle, handle)
+			require.Equal(t, "ou-acme", ouID)
+			return created, nil
+		},
+		MarkDeletingFunc:         func(_ uuid.UUID) (bool, error) { return true, nil },
+		HasAssociatedProxiesFunc: func(_ context.Context, _ uuid.UUID) (bool, error) { return false, nil },
+		DeleteFunc: func(providerID, ouID string) error {
+			assert.Equal(t, created.UUID.String(), providerID)
+			assert.Equal(t, "ou-acme", ouID)
+			return nil
+		},
+	}
+	deploymentRepo := &repomocks.DeploymentRepositoryMock{
+		GetDeployedGatewaysByProviderFunc: func(_ uuid.UUID, _ string) ([]string, error) {
+			return nil, nil
+		},
+		GetTrackedGatewaysByProviderFunc: func(providerUUID uuid.UUID, ouID string) ([]string, error) {
+			assert.Equal(t, created.UUID, providerUUID)
+			assert.Equal(t, "ou-acme", ouID)
+			return []string{trackedGatewayID}, nil
+		},
+	}
+	deploymentSvc := &LLMProviderDeploymentService{
+		deploymentRepo:       deploymentRepo,
+		gatewayEventsService: NewGatewayEventsService(hub),
+	}
+	svc := &LLMProviderService{providerRepo: providerRepo}
+
+	err := svc.Delete(context.Background(), created.Configuration.Handle, "ou-acme", deploymentSvc)
+
+	require.NoError(t, err)
+	require.Len(t, hub.published, 1)
+	published := hub.published[0]
+	assert.Equal(t, trackedGatewayID, published.GatewayID)
+	assert.Equal(t, "llmprovider.deleted", string(published.EventType))
+	assert.Equal(t, "DELETE", published.Action)
+	assert.Equal(t, created.UUID.String(), published.EntityID)
+
+	var envelope struct {
+		Type    string                          `json:"type"`
+		Payload models.LLMProviderDeletionEvent `json:"payload"`
+	}
+	require.NoError(t, json.Unmarshal([]byte(published.EventData), &envelope))
+	assert.Equal(t, "llmprovider.deleted", envelope.Type)
+	assert.Equal(t, created.UUID.String(), envelope.Payload.ProviderID)
 }
 
 func createdProvider() *models.LLMProvider {
