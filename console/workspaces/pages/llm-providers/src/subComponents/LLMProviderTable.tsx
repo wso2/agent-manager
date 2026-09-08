@@ -28,7 +28,7 @@ import {
   Tooltip,
   Typography,
 } from "@wso2/oxygen-ui";
-import { ServerCog, Trash } from "@wso2/oxygen-ui-icons-react";
+import { ServerCog, Trash, Edit } from "@wso2/oxygen-ui-icons-react";
 import { generatePath, Link, useNavigate, useParams } from "react-router-dom";
 import {
   useDeleteLLMProvider,
@@ -42,6 +42,7 @@ import {
 } from "@agent-management-platform/shared-component";
 import { absoluteRouteMap } from "@agent-management-platform/types";
 import { FadeIn } from "@agent-management-platform/views";
+import { RenameLLMProviderDialog } from "./RenameLLMProviderDialog";
 
 export function LLMProviderTable() {
   const navigate = useNavigate();
@@ -50,6 +51,10 @@ export function LLMProviderTable() {
   const [page, setPage] = useState(0);
   const [rowsPerPage, setRowsPerPage] = useState(5);
   const [hoveredId, setHoveredId] = useState<string | null>(null);
+  const [renamingProvider, setRenamingProvider] = useState<{
+    id: string;
+    name: string;
+  } | null>(null);
   const { addConfirmation } = useConfirmationDialog();
 
   const {
@@ -249,29 +254,45 @@ export function LLMProviderTable() {
                     >
                       {hoveredId === provider.uuid ? (
                         <FadeIn>
-                          <Tooltip title="Delete provider">
-                            <IconButton
-                              color="error"
-                              size="small"
-                              onClick={() =>
-                                addConfirmation({
-                                  title: "Delete LLM Provider",
-                                  description:
-                                    "Are you sure you want to delete this provider? This action cannot be undone.",
-                                  confirmButtonText: "Delete",
-                                  confirmButtonColor: "error",
-                                  confirmButtonIcon: <Trash size={16} />,
-                                  onConfirm: () =>
-                                    deleteProvider({
-                                      orgName: orgId,
-                                      providerId: provider.uuid,
-                                    }),
-                                })
-                              }
-                            >
-                              <Trash size={16} />
-                            </IconButton>
-                          </Tooltip>
+                          <Stack direction="row" spacing={0.5} alignItems="center">
+                            <Tooltip title="Rename provider">
+                              <IconButton
+                                size="small"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  setRenamingProvider({
+                                    id: provider.uuid,
+                                    name: provider.name,
+                                  });
+                                }}
+                              >
+                                <Edit size={16} />
+                              </IconButton>
+                            </Tooltip>
+                            <Tooltip title="Delete provider">
+                              <IconButton
+                                color="error"
+                                size="small"
+                                onClick={() =>
+                                  addConfirmation({
+                                    title: "Delete LLM Provider",
+                                    description:
+                                      "Are you sure you want to delete this provider? This action cannot be undone.",
+                                    confirmButtonText: "Delete",
+                                    confirmButtonColor: "error",
+                                    confirmButtonIcon: <Trash size={16} />,
+                                    onConfirm: () =>
+                                      deleteProvider({
+                                        orgName: orgId,
+                                        providerId: provider.uuid,
+                                      }),
+                                  })
+                                }
+                              >
+                                <Trash size={16} />
+                              </IconButton>
+                            </Tooltip>
+                          </Stack>
                         </FadeIn>
                       ) : provider.createdAt ? (
                         <Typography variant="caption" color="text.secondary">
@@ -300,6 +321,13 @@ export function LLMProviderTable() {
           rowsPerPageOptions={[5, 10, 25]}
         />
       )}
+      <RenameLLMProviderDialog
+        open={!!renamingProvider}
+        onClose={() => setRenamingProvider(null)}
+        orgName={orgId ?? ""}
+        providerId={renamingProvider?.id ?? ""}
+        currentName={renamingProvider?.name ?? ""}
+      />
     </ResourceListShell>
   );
 }

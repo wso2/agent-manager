@@ -30,6 +30,7 @@ import {
 import { CreatedMetadata, PageLayout } from "@agent-management-platform/views";
 import {
   Box,
+  Button,
   Card,
   Chip,
   Divider,
@@ -37,7 +38,9 @@ import {
   Tab,
   Tabs,
 } from "@wso2/oxygen-ui";
+import { Edit } from "@wso2/oxygen-ui-icons-react";
 import { generatePath, useParams } from "react-router-dom";
+import { RenameLLMProviderDialog } from "./RenameLLMProviderDialog";
 import { LLMProviderAccessControlTab } from "./LLMProviderAccessControlTab";
 import { LLMProviderAPIKeysTab } from "./LLMProviderAPIKeysTab";
 import { LLMProviderConnectionTab } from "./LLMProviderConnectionTab";
@@ -81,6 +84,7 @@ function TabPanel({ value, index, children }: TabPanelProps) {
 
 export const ViewLLMProvider: React.FC = () => {
   const [tabIndex, setTabIndex] = useState(0);
+  const [isRenameOpen, setIsRenameOpen] = useState(false);
 
   const { providerId, orgId } = useParams<{
     providerId: string;
@@ -145,6 +149,18 @@ export const ViewLLMProvider: React.FC = () => {
       )}
       backLabel="Back to LLM Providers"
       isLoading={isLoading}
+      actions={
+        providerData ? (
+          <Button
+            variant="outlined"
+            size="small"
+            startIcon={<Edit size={16} />}
+            onClick={() => setIsRenameOpen(true)}
+          >
+            Rename
+          </Button>
+        ) : undefined
+      }
       // The template's own logo identifies the provider better than a letter
       // tile; `transparent` keeps the logo on the card surface.
       avatar={
@@ -311,6 +327,13 @@ export const ViewLLMProvider: React.FC = () => {
           </Box>
         </Card>
       </Stack>
+      <RenameLLMProviderDialog
+        open={isRenameOpen}
+        onClose={() => setIsRenameOpen(false)}
+        orgName={orgId ?? ""}
+        providerId={providerId ?? ""}
+        currentName={providerData?.name ?? ""}
+      />
     </PageLayout>
   );
 };
