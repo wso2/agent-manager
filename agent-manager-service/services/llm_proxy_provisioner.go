@@ -337,7 +337,7 @@ func (p *LLMProxyProvisioner) RollbackProxy(ctx context.Context, state ProxyRoll
 		}
 	}
 	if state.ProxyHandle != "" {
-		if err := p.llmProxyService.Delete(state.ProxyHandle, ouID); err != nil {
+		if err := p.llmProxyService.Delete(state.ProxyHandle, ouID, p.llmProxyDeploymentService); err != nil {
 			if !errors.Is(err, utils.ErrLLMProxyNotFound) {
 				p.logger.Error("Failed to delete proxy during rollback", "proxyHandle", state.ProxyHandle, "error", err)
 			}
@@ -406,7 +406,7 @@ func (p *LLMProxyProvisioner) CleanupProxy(ctx context.Context, proxy *models.LL
 	}
 
 	// Delete proxy record.
-	if err := p.llmProxyService.Delete(proxyHandle, ouID); err != nil {
+	if err := p.llmProxyService.Delete(proxyHandle, ouID, p.llmProxyDeploymentService); err != nil {
 		if !errors.Is(err, utils.ErrLLMProxyNotFound) {
 			return fmt.Errorf("failed to delete proxy %q: %w", proxyHandle, err)
 		}

@@ -3456,7 +3456,7 @@ func (s *agentConfigurationService) Update(ctx context.Context, configUUID uuid.
 			}
 		}
 
-		if err := s.llmProxyService.Delete(proxyHandle, ouID); err != nil {
+		if err := s.llmProxyService.Delete(proxyHandle, ouID, s.llmProxyDeploymentService); err != nil {
 			s.logger.Error(
 				"Failed to delete proxy during cleanup",
 				"proxyHandle", proxyHandle,
@@ -3718,7 +3718,7 @@ func (s *agentConfigurationService) deleteLLMConfig(ctx context.Context, existin
 		}
 
 		// Step 3: Delete proxy record.
-		if err := s.llmProxyService.Delete(proxyHandle, ouID); err != nil {
+		if err := s.llmProxyService.Delete(proxyHandle, ouID, s.llmProxyDeploymentService); err != nil {
 			// ErrLLMProxyNotFound means already deleted — treat as success.
 			if !errors.Is(err, utils.ErrLLMProxyNotFound) {
 				return fmt.Errorf("failed to delete proxy %q: %w", proxyHandle, err)
@@ -3917,7 +3917,7 @@ func (s *agentConfigurationService) DeleteForAgentDeletion(ctx context.Context, 
 		}
 
 		// Step 4: Delete proxy record.
-		if err := s.llmProxyService.Delete(proxyHandle, ouID); err != nil {
+		if err := s.llmProxyService.Delete(proxyHandle, ouID, s.llmProxyDeploymentService); err != nil {
 			if !errors.Is(err, utils.ErrLLMProxyNotFound) {
 				s.logger.Warn("Failed to delete proxy record during agent deletion",
 					"proxyHandle", proxyHandle, "error", err)
@@ -5206,7 +5206,7 @@ func (s *agentConfigurationService) rollbackProxies(ctx context.Context, resourc
 
 	// Delete all unique proxies
 	for handle := range proxyHandles {
-		if err := s.llmProxyService.Delete(handle, ouID); err != nil {
+		if err := s.llmProxyService.Delete(handle, ouID, s.llmProxyDeploymentService); err != nil {
 			s.logger.Error(
 				"Failed to delete proxy during rollback",
 				"handle", handle,
