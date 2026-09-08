@@ -161,8 +161,8 @@ func TestAttemptProvision_Success_CreatesIdentityAndStoresSecret(t *testing.T) {
 	require.NotNil(t, recorded.ThunderClientID)
 	assert.Equal(t, "client-abc", *recorded.ThunderClientID)
 	require.NotNil(t, recorded.SecretRefPath)
-	assert.Equal(t, "resolved/ref", *recorded.SecretRefPath,
-		"the persisted SecretRefPath is resolved by reading the SecretReference back from OpenChoreo, never CreateSecret's bare name or a locally-computed path")
+	assert.Equal(t, "ref", *recorded.SecretRefPath,
+		"the provider-managed SecretReference name returned by CreateSecret must be persisted directly")
 	assert.Empty(t, recorded.LastError)
 }
 
@@ -254,8 +254,8 @@ func TestAttemptProvision_AlreadyHasThunderAgentID_SkipsCreate(t *testing.T) {
 		"a binding with a Thunder identity but no stored secret must recover one before completing")
 	require.NotNil(t, recorded.SecretRefPath,
 		"the recovered secret's storage location must be persisted, not left empty")
-	assert.Equal(t, "resolved/ref", *recorded.SecretRefPath,
-		"the persisted SecretRefPath is resolved by reading the SecretReference back from OpenChoreo, never CreateSecret's bare name or a locally-computed path")
+	assert.Equal(t, "ref", *recorded.SecretRefPath,
+		"the provider-managed SecretReference name returned by CreateSecret must be persisted directly")
 }
 
 // TestAttemptProvision_AlreadyHasSecretRef_SkipsRecovery guards the inverse of
@@ -738,18 +738,13 @@ func TestRegenerateSecret_Internal_StoresSecret(t *testing.T) {
 	assert.Equal(t, "client-abc", clientID)
 	assert.Equal(t, "new-secret", newSecret)
 	assert.Equal(t, "new-secret", storedSecret)
-	assert.Equal(t, "resolved/ref", updatedPath,
-		"the persisted SecretRefPath is resolved by reading the SecretReference back from OpenChoreo, never CreateSecret's bare name or a locally-computed path")
+	assert.Equal(t, "ref", updatedPath,
+		"the provider-managed SecretReference name returned by CreateSecret must be persisted directly")
 }
 
-// TestRegenerateSecret_Internal_CreateSecretErrorPropagatesDirectly_NoInjector
-// guards the no-workload-injector case: even when CreateSecret's error
-// matches the "after create conflict" marker storeCredential otherwise
-// retries on (see TestStoreCredential_ConflictMarker_CleansUpAndRetries),
-// there is nothing to clean up without an injector configured, so the
-// original error propagates on the first and only attempt instead of
-// panicking or retrying blind. newTestProvisioningService (used here) wires
-// no injector; newTestProvisioningServiceWithInjector is the variant that does.
+// TestRegenerateSecret_Internal_CreateSecretErrorPropagatesDirectly verifies
+// that a provider failure is returned without attempting to replace or
+// recreate the provider-managed SecretReference.
 func TestRegenerateSecret_Internal_CreateSecretErrorPropagatesDirectly_NoInjector(t *testing.T) {
 	tc := fakeThunderClientMock()
 	tc.RegenerateAgentSecretFunc = func(context.Context, string) (string, error) {
@@ -780,106 +775,6 @@ func TestRegenerateSecret_Internal_CreateSecretErrorPropagatesDirectly_NoInjecto
 	require.Error(t, err)
 	assert.ErrorIs(t, err, utils.ErrNotFound)
 	assert.Equal(t, 1, createCalls, "no retry — the error propagates on the first and only attempt")
-}
-
-// TestStoreCredential_ConflictMarker_CleansUpAndRetries guards the actual
-// recovery path the marker above exists for: an already-provisioned internal
-// agent's stray SecretReference (owned by AgentIdentityInjectionService, not
-// this code) collides with a fresh CreateSecret. With a workload injector
-// configured, storeCredential clears that stray reference and retries once,
-// succeeding on a now-unobstructed create.
-func TestStoreCredential_ConflictMarker_CleansUpAndRetries(t *testing.T) {
-	tc := fakeThunderClientMock()
-	tc.RegenerateAgentSecretFunc = func(context.Context, string) (string, error) {
-		return "new-secret", nil
-	}
-	resolver := &clientmocks.EnvThunderResolverMock{
-		ResolveFunc: func(_ context.Context, _, _, _ string) (thundersvc.ThunderClient, error) { return tc, nil },
-	}
-	var createCalls int
-	store := &clientmocks.SecretManagementClientMock{
-		CreateSecretFunc: func(context.Context, secretmanagersvc.SecretLocation, map[string]string) (string, error) {
-			createCalls++
-			if createCalls == 1 {
-				return "", fmt.Errorf("failed to upsert secret: failed to update secret after create conflict: %w", utils.ErrNotFound)
-			}
-			return "ref", nil
-		},
-	}
-	var cleanupCalls int
-	injector := &agentIdentityInjectorStub{
-		CleanupForEnvironmentFunc: func(_ context.Context, orgName, agentName, envName string) error {
-			cleanupCalls++
-			assert.Equal(t, "acme", orgName)
-			assert.Equal(t, "my-agent", agentName)
-			assert.Equal(t, "staging", envName)
-			return nil
-		},
-	}
-	var updatedPath string
-	repo := &repomocks.AgentThunderClientRepositoryMock{
-		GetFunc: func(context.Context, string, string, string, string) (*models.AgentThunderClient, error) {
-			return &models.AgentThunderClient{
-				ID: uuid.New(), ThunderAgentID: "thunder-agent-1", ThunderClientID: "client-abc",
-				ProvisioningType: models.AgentProvisioningTypeInternal,
-			}, nil
-		},
-		UpdateSecretRefFunc: func(_ context.Context, _ uuid.UUID, secretRefPath string) error {
-			updatedPath = secretRefPath
-			return nil
-		},
-	}
-
-	svc := newTestProvisioningServiceWithInjector(repo, resolver, store, injector)
-	_, _, newSecret, err := svc.RegenerateSecret(context.Background(), "acme", "proj1", "my-agent", "staging")
-
-	require.NoError(t, err)
-	assert.Equal(t, "new-secret", newSecret)
-	assert.Equal(t, 2, createCalls, "the first create hits the stray reference; the retry succeeds")
-	assert.Equal(t, 1, cleanupCalls)
-	assert.Equal(t, "resolved/ref", updatedPath)
-}
-
-// TestStoreCredential_ConflictMarker_CleanupFails_WrapsBothErrors guards the
-// double-failure case: if the stray SecretReference can't even be cleaned up,
-// the original CreateSecret error must not be silently dropped — both are
-// wrapped together so the real cause (the cleanup failure blocking recovery)
-// is visible alongside what triggered the recovery attempt in the first place.
-func TestStoreCredential_ConflictMarker_CleanupFails_WrapsBothErrors(t *testing.T) {
-	tc := fakeThunderClientMock()
-	tc.RegenerateAgentSecretFunc = func(context.Context, string) (string, error) {
-		return "new-secret", nil
-	}
-	resolver := &clientmocks.EnvThunderResolverMock{
-		ResolveFunc: func(_ context.Context, _, _, _ string) (thundersvc.ThunderClient, error) { return tc, nil },
-	}
-	var createCalls int
-	store := &clientmocks.SecretManagementClientMock{
-		CreateSecretFunc: func(context.Context, secretmanagersvc.SecretLocation, map[string]string) (string, error) {
-			createCalls++
-			return "", fmt.Errorf("failed to upsert secret: failed to update secret after create conflict: %w", utils.ErrNotFound)
-		},
-	}
-	cleanupErr := errors.New("cleanup boom")
-	injector := &agentIdentityInjectorStub{
-		CleanupForEnvironmentFunc: func(context.Context, string, string, string) error { return cleanupErr },
-	}
-	repo := &repomocks.AgentThunderClientRepositoryMock{
-		GetFunc: func(context.Context, string, string, string, string) (*models.AgentThunderClient, error) {
-			return &models.AgentThunderClient{
-				ID: uuid.New(), ThunderAgentID: "thunder-agent-1", ThunderClientID: "client-abc",
-				ProvisioningType: models.AgentProvisioningTypeInternal,
-			}, nil
-		},
-	}
-
-	svc := newTestProvisioningServiceWithInjector(repo, resolver, store, injector)
-	_, _, _, err := svc.RegenerateSecret(context.Background(), "acme", "proj1", "my-agent", "staging")
-
-	require.Error(t, err)
-	assert.ErrorIs(t, err, cleanupErr)
-	assert.ErrorIs(t, err, utils.ErrNotFound, "the original CreateSecret error must still be reachable, not replaced by the cleanup error")
-	assert.Equal(t, 1, createCalls, "no retry attempted once cleanup itself failed")
 }
 
 // TestRegenerateSecret_External_NeverStoresSecret guards the invariant that an
@@ -2460,164 +2355,4 @@ func TestAttemptProvision_SerializesWithRegenerateSecret(t *testing.T) {
 	case <-time.After(2 * time.Second):
 		t.Fatal("RegenerateSecret never unblocked after AttemptProvision released the binding lock")
 	}
-}
-
-// TestHealSecretRef_CorrectsStaleRow guards the one-time backfill: a binding
-// whose SecretRefPath still holds the old locally-computed KV-path guess
-// (from before storeCredential was fixed) gets corrected to the real remote
-// KV key, read back through GetSecretReference — never recomputed locally.
-// The secret management mock has every func nil, so a CreateSecret or
-// DeleteSecret call would panic: healing is a read plus one DB write.
-func TestHealSecretRef_CorrectsStaleRow(t *testing.T) {
-	svc := newTestProvisioningService(
-		&repomocks.AgentThunderClientRepositoryMock{},
-		&clientmocks.EnvThunderResolverMock{},
-		&clientmocks.SecretManagementClientMock{},
-	)
-	impl := svc.(*agentThunderProvisioningService)
-
-	refName := agentIdentitySecretLocation("acme", "proj1", "my-agent", "staging").SecretRefName()
-	binding := models.AgentThunderClient{
-		ID: uuid.New(), OUID: "acme", ProjectName: "proj1", AgentName: "my-agent", EnvironmentName: "staging",
-		ProvisioningType: models.AgentProvisioningTypeInternal,
-		SecretRefPath:    "acme/proj1/staging/my-agent/my-agent-agent-identity", // the old, wrong KV-path-shaped guess
-	}
-
-	var updatedID uuid.UUID
-	var updatedPath string
-	impl.repo = &repomocks.AgentThunderClientRepositoryMock{
-		GetFunc: func(context.Context, string, string, string, string) (*models.AgentThunderClient, error) {
-			// The fresh re-read taken under the binding lock — still stale,
-			// matching the snapshot, so the write is expected to proceed.
-			return &binding, nil
-		},
-		UpdateSecretRefFunc: func(_ context.Context, id uuid.UUID, secretRefPath string) error {
-			updatedID = id
-			updatedPath = secretRefPath
-			return nil
-		},
-	}
-
-	require.NoError(t, impl.HealSecretRef(context.Background(), binding))
-	assert.Equal(t, binding.ID, updatedID)
-	assert.Equal(t, "resolved/"+refName, updatedPath, "must heal to the value resolved via GetSecretReference, never a locally-computed name")
-}
-
-// TestHealSecretRef_RevokedAfterSnapshot_DoesNotResurrectCredential guards the
-// race a background startup sweep is exposed to: if a RevokeSecret or
-// DeleteAllBindings call clears SecretRefPath to "" for this binding between
-// the sweep's initial snapshot and this call's own GetSecretReference resolve
-// completing, the resolved (but now orphaned) path must never be written back
-// over the fresh, empty value — that would resurrect a revoked/deleted
-// credential for the injection reconciler to re-inject.
-func TestHealSecretRef_RevokedAfterSnapshot_DoesNotResurrectCredential(t *testing.T) {
-	svc := newTestProvisioningService(
-		&repomocks.AgentThunderClientRepositoryMock{},
-		&clientmocks.EnvThunderResolverMock{},
-		&clientmocks.SecretManagementClientMock{},
-	)
-	impl := svc.(*agentThunderProvisioningService)
-
-	staleBinding := models.AgentThunderClient{
-		ID: uuid.New(), OUID: "acme", ProjectName: "proj1", AgentName: "my-agent", EnvironmentName: "staging",
-		ProvisioningType: models.AgentProvisioningTypeInternal,
-		SecretRefPath:    "acme/proj1/staging/my-agent/my-agent-agent-identity", // the sweep's stale snapshot
-	}
-
-	impl.repo = &repomocks.AgentThunderClientRepositoryMock{
-		GetFunc: func(context.Context, string, string, string, string) (*models.AgentThunderClient, error) {
-			// A concurrent revoke/delete landed and cleared it since the snapshot.
-			revoked := staleBinding
-			revoked.SecretRefPath = ""
-			return &revoked, nil
-		},
-		UpdateSecretRefFunc: func(context.Context, uuid.UUID, string) error {
-			t.Fatal("must not write a resolved path back over a binding that was revoked/cleared since the snapshot")
-			return nil
-		},
-	}
-
-	require.NoError(t, impl.HealSecretRef(context.Background(), staleBinding))
-}
-
-// TestHealSecretRef_DeletedAfterSnapshot_NoOp guards the sibling case: the
-// binding row was deleted entirely (agent deletion) between the sweep's
-// snapshot and this call's resolve completing.
-func TestHealSecretRef_DeletedAfterSnapshot_NoOp(t *testing.T) {
-	svc := newTestProvisioningService(
-		&repomocks.AgentThunderClientRepositoryMock{},
-		&clientmocks.EnvThunderResolverMock{},
-		&clientmocks.SecretManagementClientMock{},
-	)
-	impl := svc.(*agentThunderProvisioningService)
-
-	staleBinding := models.AgentThunderClient{
-		ID: uuid.New(), OUID: "acme", ProjectName: "proj1", AgentName: "my-agent", EnvironmentName: "staging",
-		ProvisioningType: models.AgentProvisioningTypeInternal,
-		SecretRefPath:    "acme/proj1/staging/my-agent/my-agent-agent-identity",
-	}
-
-	impl.repo = &repomocks.AgentThunderClientRepositoryMock{
-		GetFunc: func(context.Context, string, string, string, string) (*models.AgentThunderClient, error) {
-			return nil, repositories.ErrAgentThunderClientNotFound
-		},
-		UpdateSecretRefFunc: func(context.Context, uuid.UUID, string) error {
-			t.Fatal("must not write for a binding deleted since the snapshot")
-			return nil
-		},
-	}
-
-	require.NoError(t, impl.HealSecretRef(context.Background(), staleBinding))
-}
-
-// TestHealSecretRef_NoOpWhenAlreadyCorrect guards against a needless DB write
-// on every restart once a binding has already been healed (or was always
-// correct, e.g. provisioned after the fix shipped).
-func TestHealSecretRef_NoOpWhenAlreadyCorrect(t *testing.T) {
-	repo := &repomocks.AgentThunderClientRepositoryMock{
-		UpdateSecretRefFunc: func(context.Context, uuid.UUID, string) error {
-			t.Fatal("must not write when the stored ref is already correct")
-			return nil
-		},
-	}
-	svc := newTestProvisioningService(repo, &clientmocks.EnvThunderResolverMock{}, &clientmocks.SecretManagementClientMock{})
-	impl := svc.(*agentThunderProvisioningService)
-
-	refName := agentIdentitySecretLocation("acme", "proj1", "my-agent", "staging").SecretRefName()
-	binding := models.AgentThunderClient{
-		ID: uuid.New(), OUID: "acme", ProjectName: "proj1", AgentName: "my-agent", EnvironmentName: "staging",
-		ProvisioningType: models.AgentProvisioningTypeInternal,
-		SecretRefPath:    "resolved/" + refName, // already the resolved value HealSecretRef would derive
-	}
-
-	require.NoError(t, impl.HealSecretRef(context.Background(), binding))
-}
-
-// TestHealSecretRef_SkipsExternalAndRevoked guards the two states that must
-// never be touched: external agents never have a stored secret at all, and a
-// revoked binding's empty SecretRefPath must stay empty, not be "healed"
-// into a name pointing at a secret that no longer exists.
-func TestHealSecretRef_SkipsExternalAndRevoked(t *testing.T) {
-	repo := &repomocks.AgentThunderClientRepositoryMock{
-		UpdateSecretRefFunc: func(context.Context, uuid.UUID, string) error {
-			t.Fatal("must not write for an external agent or a revoked (empty SecretRefPath) binding")
-			return nil
-		},
-	}
-	svc := newTestProvisioningService(repo, &clientmocks.EnvThunderResolverMock{}, &clientmocks.SecretManagementClientMock{})
-	impl := svc.(*agentThunderProvisioningService)
-
-	external := models.AgentThunderClient{
-		ID: uuid.New(), OUID: "acme", ProjectName: "proj1", AgentName: "my-agent", EnvironmentName: "staging",
-		ProvisioningType: models.AgentProvisioningTypeExternal,
-		SecretRefPath:    "acme/proj1/staging/my-agent/my-agent-agent-identity",
-	}
-	revoked := models.AgentThunderClient{
-		ID: uuid.New(), OUID: "acme", ProjectName: "proj1", AgentName: "my-agent", EnvironmentName: "staging",
-		ProvisioningType: models.AgentProvisioningTypeInternal,
-		SecretRefPath:    "",
-	}
-
-	require.NoError(t, impl.HealSecretRef(context.Background(), external))
-	require.NoError(t, impl.HealSecretRef(context.Background(), revoked))
 }

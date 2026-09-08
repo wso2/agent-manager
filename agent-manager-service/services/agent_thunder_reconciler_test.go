@@ -338,10 +338,6 @@ func TestAgentThunderReconciler_RunInitialIdentityInjectionBackfill_CoversBindin
 			return nil
 		},
 	}
-	// provisioning must be set (even with no healFunc) because
-	// runInitialIdentityInjectionBackfill below calls HealSecretRef on every
-	// binding it reconciles — unset would panic on the nil interface, not
-	// silently skip it.
 	s := &agentThunderReconcilerService{injector: injector, provisioning: &fakeProvisioningService{}, repo: repo, logger: slog.Default(), stopCh: make(chan struct{})}
 
 	s.runIdentityInjectionReconcile(ctx)
@@ -355,111 +351,10 @@ func TestAgentThunderReconciler_RunInitialIdentityInjectionBackfill_CoversBindin
 	assert.True(t, reconciled, "the one-time backfill must reconcile a binding regardless of age")
 }
 
-// TestAgentThunderReconciler_RunInitialIdentityInjectionBackfill_HealsEveryBinding
-// verifies the startup pass actually invokes HealSecretRef for each binding it
-// covers, and that a periodic (non-startup) sweep does not.
-func TestAgentThunderReconciler_RunInitialIdentityInjectionBackfill_HealsEveryBinding(t *testing.T) {
-	ctx := context.Background()
-	repo := repositories.NewAgentThunderClientRepo(db.GetDB())
-	const org, project, agent, env = "test-org", "test-proj", "reconcile-heal-agent", "production"
-	t.Cleanup(func() { _ = repo.DeleteByAgent(ctx, org, project, agent) })
-
-	require.NoError(t, repo.Upsert(ctx, &models.AgentThunderClient{
-		OUID: org, ProjectName: project, AgentName: agent, EnvironmentName: env,
-		ProvisioningType: models.AgentProvisioningTypeInternal, Status: models.AgentThunderStatusCompleted,
-		ThunderAgentID: "thunder-heal", ThunderClientID: "client-heal", SecretRefPath: "path/heal",
-	}))
-
-	var mu sync.Mutex
-	var healed, reconciled int
-	provisioning := &fakeProvisioningService{
-		healFunc: func(_ context.Context, binding models.AgentThunderClient) error {
-			if binding.OUID != org || binding.ProjectName != project || binding.AgentName != agent {
-				return nil // a stray binding from an unrelated concurrent test
-			}
-			mu.Lock()
-			defer mu.Unlock()
-			healed++
-			return nil
-		},
-	}
-	injector := &agentIdentityInjectorStub{
-		ReconcileForEnvironmentFunc: func(_ context.Context, ouID, projectName, agentName, envName string) error {
-			if ouID != org || projectName != project || agentName != agent {
-				return nil
-			}
-			mu.Lock()
-			defer mu.Unlock()
-			reconciled++
-			return nil
-		},
-	}
-	s := &agentThunderReconcilerService{injector: injector, provisioning: provisioning, repo: repo, logger: slog.Default(), stopCh: make(chan struct{})}
-
-	s.runIdentityInjectionReconcile(ctx)
-	mu.Lock()
-	assert.Equal(t, 0, healed, "the periodic sweep must not call HealSecretRef — only the startup backfill does")
-	assert.Equal(t, 1, reconciled, "the periodic sweep must still reconcile the workload")
-	mu.Unlock()
-
-	s.runInitialIdentityInjectionBackfill(ctx)
-	mu.Lock()
-	defer mu.Unlock()
-	assert.Equal(t, 1, healed, "the startup backfill must call HealSecretRef for the binding it covers")
-	assert.Equal(t, 2, reconciled, "the startup backfill must still reconcile the workload after healing")
-}
-
-// TestAgentThunderReconciler_RunInitialIdentityInjectionBackfill_HealFailureDoesNotBlockReconcile
-// verifies a HealSecretRef failure is logged and swallowed rather than
-// aborting the binding's workload reconcile — matching HealSecretRef's own
-// doc comment ("best-effort... a failed heal on one binding just means that
-// binding's pod keeps failing exactly as it does today until the next sweep
-// retries it; no regression versus current behavior").
-func TestAgentThunderReconciler_RunInitialIdentityInjectionBackfill_HealFailureDoesNotBlockReconcile(t *testing.T) {
-	ctx := context.Background()
-	repo := repositories.NewAgentThunderClientRepo(db.GetDB())
-	const org, project, agent, env = "test-org", "test-proj", "reconcile-heal-fail-agent", "production"
-	t.Cleanup(func() { _ = repo.DeleteByAgent(ctx, org, project, agent) })
-
-	require.NoError(t, repo.Upsert(ctx, &models.AgentThunderClient{
-		OUID: org, ProjectName: project, AgentName: agent, EnvironmentName: env,
-		ProvisioningType: models.AgentProvisioningTypeInternal, Status: models.AgentThunderStatusCompleted,
-		ThunderAgentID: "thunder-heal-fail", ThunderClientID: "client-heal-fail", SecretRefPath: "path/heal-fail",
-	}))
-
-	provisioning := &fakeProvisioningService{
-		healFunc: func(context.Context, models.AgentThunderClient) error {
-			return fmt.Errorf("simulated heal failure")
-		},
-	}
-	var mu sync.Mutex
-	var reconciled bool
-	injector := &agentIdentityInjectorStub{
-		ReconcileForEnvironmentFunc: func(_ context.Context, ouID, projectName, agentName, envName string) error {
-			if ouID != org || projectName != project || agentName != agent {
-				return nil
-			}
-			mu.Lock()
-			defer mu.Unlock()
-			reconciled = true
-			return nil
-		},
-	}
-	s := &agentThunderReconcilerService{injector: injector, provisioning: provisioning, repo: repo, logger: slog.Default(), stopCh: make(chan struct{})}
-
-	require.NotPanics(t, func() { s.runInitialIdentityInjectionBackfill(ctx) })
-	mu.Lock()
-	defer mu.Unlock()
-	assert.True(t, reconciled, "a HealSecretRef failure must not prevent the binding's workload from still being reconciled")
-}
-
 // fakeProvisioningService is a minimal hand-written test double for
-// AgentThunderProvisioningService — only AttemptProvision and HealSecretRef
-// are exercised by the reconciler, so those are the only methods given a
-// real implementation.
+// AgentThunderProvisioningService.
 type fakeProvisioningService struct {
 	attemptFunc func(ctx context.Context, binding models.AgentThunderClient)
-	healFunc    func(ctx context.Context, binding models.AgentThunderClient) error
 }
 
 func (f *fakeProvisioningService) ProvisionForAgent(context.Context, string, string, string, models.AgentProvisioningType, []string, string) {
@@ -508,13 +403,6 @@ func (f *fakeProvisioningService) GetAgentRoles(context.Context, string, string,
 
 func (f *fakeProvisioningService) GetAgentGroups(context.Context, string, string, string, string) ([]thundersvc.ThunderGroup, error) {
 	return nil, nil
-}
-
-func (f *fakeProvisioningService) HealSecretRef(ctx context.Context, binding models.AgentThunderClient) error {
-	if f.healFunc == nil {
-		return nil
-	}
-	return f.healFunc(ctx, binding)
 }
 
 // compile-time interface check
