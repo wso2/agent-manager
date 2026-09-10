@@ -72,7 +72,6 @@ export function EnvironmentSectionsContent({
                             projectId={projectId}
                             agentId={agentId}
                             envId={envId}
-                            external={external}
                         />
                     </Grid>
                 )}

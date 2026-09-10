@@ -2411,10 +2411,11 @@ func (r ApiProvisionAgentIdentityRequest) Execute() (*AgentIdentityEnvironmentVi
 /*
 ProvisionAgentIdentity Provision an AgentID for a missing environment
 
-Creates an AgentID for an externally hosted agent in an environment
-that was added after the agent already existed. Platform-hosted
-agents get an AgentID automatically when promoted, so they are
-rejected here.
+Creates an AgentID for an internal or externally hosted agent in an
+environment that was added after the agent already existed. Internal
+agents normally get an AgentID automatically during deployment or
+promotion; this operation provides an idempotent repair path when the
+binding is missing.
 
 Safe to call more than once: if a binding already exists it is left
 as is and returned with `200`. A genuinely missing binding is

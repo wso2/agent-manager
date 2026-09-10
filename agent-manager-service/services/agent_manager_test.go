@@ -49,12 +49,13 @@ import (
 // this stub never call them.
 type stubAgentThunderProvisioning struct {
 	AgentThunderProvisioningService
-	RegenerateFunc       func(ctx context.Context, orgName, projectName, agentName, envName string) (models.AgentProvisioningType, string, string, error)
-	RevokeFunc           func(ctx context.Context, orgName, projectName, agentName, envName string) (string, error)
-	GetBindingStateFunc  func(ctx context.Context, orgName, projectName, agentName, envName string) (*AgentThunderBindingState, error)
-	GetAgentRolesFunc    func(ctx context.Context, orgName, projectName, agentName, envName string) ([]thundersvc.ThunderRole, error)
-	GetAgentGroupsFunc   func(ctx context.Context, orgName, projectName, agentName, envName string) ([]thundersvc.ThunderGroup, error)
-	GetIdentityViewsFunc func(ctx context.Context, ouID, projectName, agentName string) ([]models.AgentIdentityEnvironmentView, error)
+	RegenerateFunc                       func(ctx context.Context, orgName, projectName, agentName, envName string) (models.AgentProvisioningType, string, string, error)
+	RevokeFunc                           func(ctx context.Context, orgName, projectName, agentName, envName string) (string, error)
+	GetBindingStateFunc                  func(ctx context.Context, orgName, projectName, agentName, envName string) (*AgentThunderBindingState, error)
+	GetAgentRolesFunc                    func(ctx context.Context, orgName, projectName, agentName, envName string) ([]thundersvc.ThunderRole, error)
+	GetAgentGroupsFunc                   func(ctx context.Context, orgName, projectName, agentName, envName string) ([]thundersvc.ThunderGroup, error)
+	GetIdentityViewsFunc                 func(ctx context.Context, ouID, projectName, agentName string) ([]models.AgentIdentityEnvironmentView, error)
+	ProvisionForEnvironmentIfMissingFunc func(ctx context.Context, ouID, projectName, agentName, envName string, ownership models.AgentProvisioningType, requestedBy string) (bool, error)
 }
 
 func (s *stubAgentThunderProvisioning) GetBindingState(ctx context.Context, orgName, projectName, agentName, envName string) (*AgentThunderBindingState, error) {
@@ -79,6 +80,52 @@ func (s *stubAgentThunderProvisioning) GetAgentGroups(ctx context.Context, orgNa
 
 func (s *stubAgentThunderProvisioning) GetIdentityViews(ctx context.Context, ouID, projectName, agentName string) ([]models.AgentIdentityEnvironmentView, error) {
 	return s.GetIdentityViewsFunc(ctx, ouID, projectName, agentName)
+}
+
+func (s *stubAgentThunderProvisioning) ProvisionForEnvironmentIfMissing(ctx context.Context, ouID, projectName, agentName, envName string, ownership models.AgentProvisioningType, requestedBy string) (bool, error) {
+	return s.ProvisionForEnvironmentIfMissingFunc(ctx, ouID, projectName, agentName, envName, ownership, requestedBy)
+}
+
+func TestProvisionAgentIdentity_UsesAgentProvisioningType(t *testing.T) {
+	for _, tc := range []struct {
+		name      string
+		agentType utils.AgentProvisioningType
+		want      models.AgentProvisioningType
+	}{
+		{name: "internal", agentType: utils.InternalAgent, want: models.AgentProvisioningTypeInternal},
+		{name: "external", agentType: utils.ExternalAgent, want: models.AgentProvisioningTypeExternal},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			var got models.AgentProvisioningType
+			provisioning := &stubAgentThunderProvisioning{
+				ProvisionForEnvironmentIfMissingFunc: func(_ context.Context, _, _, _, _ string, ownership models.AgentProvisioningType, _ string) (bool, error) {
+					got = ownership
+					return false, nil
+				},
+				GetIdentityViewsFunc: func(context.Context, string, string, string) ([]models.AgentIdentityEnvironmentView, error) {
+					return []models.AgentIdentityEnvironmentView{{EnvironmentName: "development", ProvisioningType: tc.want, Status: models.AgentThunderStatusPending}}, nil
+				},
+			}
+			svc := &agentManagerService{
+				ocClient: &clientmocks.OpenChoreoClientMock{
+					GetComponentFunc: func(context.Context, string, string, string) (*models.AgentResponse, error) {
+						return &models.AgentResponse{Provisioning: models.Provisioning{Type: string(tc.agentType)}}, nil
+					},
+					GetEnvironmentFunc: func(context.Context, string, string) (*models.EnvironmentResponse, error) {
+						return &models.EnvironmentResponse{}, nil
+					},
+				},
+				agentThunderProvisioning: provisioning,
+				logger:                   discardLogger(),
+			}
+
+			view, existed, err := svc.ProvisionAgentIdentity(context.Background(), "ou-1", "default", "agent-1", "development")
+			require.NoError(t, err)
+			assert.False(t, existed)
+			assert.Equal(t, tc.want, got)
+			assert.Equal(t, "development", view.EnvironmentName)
+		})
+	}
 }
 
 func TestValidateInstrumentationVersion_UsesCatalog(t *testing.T) {

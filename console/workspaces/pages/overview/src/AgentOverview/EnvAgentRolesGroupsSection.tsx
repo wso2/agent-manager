@@ -36,14 +36,6 @@ interface EnvAgentRolesGroupsSectionProps {
   projectId: string;
   agentId: string;
   envId: string;
-  /**
-   * Only Externally-Hosted agents can self-serve provisioning for an
-   * environment added after the agent already existed (see the "Create
-   * Agent ID" action below) — Internal agents get theirs automatically when
-   * promoted to a new environment, and the backend rejects this action for
-   * them, so the action is hidden entirely rather than shown and left to fail.
-   */
-  external?: boolean;
 }
 
 /**
@@ -57,7 +49,7 @@ interface EnvAgentRolesGroupsSectionProps {
  * response.
  */
 export const EnvAgentRolesGroupsSection: React.FC<EnvAgentRolesGroupsSectionProps> = ({
-  orgId, projectId, agentId, envId, external,
+  orgId, projectId, agentId, envId,
 }) => {
   // useAgentIdentityBinding has no `enabled` option, so the ids are withheld
   // when Agent ID is disabled to keep the identity request from firing.
@@ -70,12 +62,11 @@ export const EnvAgentRolesGroupsSection: React.FC<EnvAgentRolesGroupsSectionProp
   const isFailed = binding?.status === "failed";
   // No binding row exists for this environment at all yet — distinct from
   // "pending"/"in_progress" (already attempted, still running) or "failed"
-  // (attempted, didn't work). This is the state an Externally-Hosted agent is
-  // stuck in forever if its environment was added to the pipeline after the
-  // agent was created: nothing ever attempts provisioning on its own for that
-  // combination, so it needs an explicit action (see canSelfProvision below).
+  // (attempted, didn't work). Older internal and external agents can both
+  // reach this state when an environment is added later, so the idempotent
+  // action below repairs only this genuinely missing binding.
   const hasNoBinding = !isLoadingIdentity && !binding;
-  const canSelfProvision = Boolean(external) && hasNoBinding;
+  const canSelfProvision = hasNoBinding;
 
   const { mutate: retryProvisioning, isPending: isRetrying } = useRetryAgentIdentityProvisioning();
   const handleRetry = () => {
@@ -267,7 +258,7 @@ export const EnvAgentRolesGroupsSection: React.FC<EnvAgentRolesGroupsSectionProp
         >
           {isProvisionError
             ? "Couldn't create the Agent ID for this environment. Check that the environment is reachable, then try again."
-            : "This environment was added after the agent was created, so it has no Agent ID yet."}
+            : "This agent has no Agent ID for this environment yet."}
         </Alert>
       )}
     </OverviewSectionCard>

@@ -4147,12 +4147,10 @@ func (s *agentManagerService) RevokeAgentIdentitySecret(ctx context.Context, ouI
 }
 
 // ProvisionAgentIdentity provisions an AgentID for one environment that doesn't
-// have one yet — for an External agent that existed before this environment
-// did (or before it entered the project's pipeline). Internal agents get their
-// AgentIDs automatically during PromoteAgent instead; this endpoint rejects
-// them with a clear pointer to that flow rather than silently doing nothing
-// useful (an Internal agent's identity is meaningless without also deploying
-// its workload there, which only promotion does).
+// have one yet — for example, an agent that existed before this environment
+// did (or before it entered the project's pipeline). Internal agents normally
+// get their AgentIDs automatically during deployment/promotion, but this
+// idempotent repair path also covers older agents whose binding is missing.
 //
 // alreadyExisted is true when a binding for this environment was already
 // present (any status) — the caller uses this to choose between 200 (nothing
@@ -4167,10 +4165,16 @@ func (s *agentManagerService) ProvisionAgentIdentity(ctx context.Context, ouID s
 		s.logger.Error("Failed to fetch agent for identity provisioning", "agentName", agentName, "error", err)
 		return models.AgentIdentityEnvironmentView{}, false, translateAgentError(err)
 	}
-	if agent.Provisioning.Type != string(utils.ExternalAgent) {
+	var provisioningType models.AgentProvisioningType
+	switch agent.Provisioning.Type {
+	case string(utils.InternalAgent):
+		provisioningType = models.AgentProvisioningTypeInternal
+	case string(utils.ExternalAgent):
+		provisioningType = models.AgentProvisioningTypeExternal
+	default:
 		return models.AgentIdentityEnvironmentView{}, false, fmt.Errorf(
-			"%w: agent %q is an internal agent — internal agents receive an AgentID automatically when promoted to a new environment, not via this endpoint",
-			utils.ErrInvalidInput, agentName,
+			"%w: agent %q has unsupported provisioning type %q",
+			utils.ErrInvalidInput, agentName, agent.Provisioning.Type,
 		)
 	}
 
@@ -4185,7 +4189,7 @@ func (s *agentManagerService) ProvisionAgentIdentity(ctx context.Context, ouID s
 	}
 
 	alreadyExisted, err := s.agentThunderProvisioning.ProvisionForEnvironmentIfMissing(
-		ctx, ouID, projectName, agentName, environmentName, models.AgentProvisioningTypeExternal, requestedBy,
+		ctx, ouID, projectName, agentName, environmentName, provisioningType, requestedBy,
 	)
 	if err != nil {
 		return models.AgentIdentityEnvironmentView{}, false, err
