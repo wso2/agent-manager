@@ -102,6 +102,8 @@ export interface AppConfig {
 }
 
 export type FeatureFlags = {
+  /** Hides the environment ThunderID console link; other Agent ID features are unchanged. */
+  disableThunderConsole?: boolean;
   /** Shows the private Git repository option when building agents from source. */
   enablePrivateRepoSupport?: boolean;
   /**
