@@ -90,12 +90,15 @@ export function OxygenLayout() {
             />
             <Header.Brand onClick={() => navigate(homePath)}>
               <Header.BrandLogo>
-                <Logo width={192} />
-                {externalLogoComponentModules?.map((module) => (
-                  <div key={module.moduleName}>
-                    <module.component />
+                {externalLogoComponentModules && externalLogoComponentModules.length > 0 ? (
+                  <div style={{ display: "flex", flexDirection: "row", alignItems: "center", gap: 8 }}>
+                    {externalLogoComponentModules.map((module) => (
+                      <module.component key={module.moduleName} />
+                    ))}
                   </div>
-                ))}
+                ) : (
+                  <Logo width={192} />
+                )}
               </Header.BrandLogo>
             </Header.Brand>
             <TopNavigation />
