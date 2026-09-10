@@ -1260,10 +1260,9 @@ func (c *agentController) RevokeAgentIdentitySecret(w http.ResponseWriter, r *ht
 // ProvisionAgentIdentity handles
 // PUT /orgs/{orgName}/projects/{projName}/agents/{agentName}/identities?environment={envID}
 //
-// Provisions an AgentID for an External agent in an environment that doesn't
-// have one yet — e.g. one created (or added to this project's pipeline) after
-// the agent already existed. Internal agents are rejected: they receive their
-// AgentID automatically during promotion instead. Idempotent (PUT semantics):
+// Provisions an AgentID for an agent in an environment that doesn't have one
+// yet — e.g. one created (or added to this project's pipeline) after the agent
+// already existed. Idempotent (PUT semantics):
 // if a binding already exists, it is left untouched and the current state is
 // returned rather than provisioning again.
 func (c *agentController) ProvisionAgentIdentity(w http.ResponseWriter, r *http.Request) {

@@ -296,9 +296,9 @@ export async function getAgentIdentity(
   return res.json();
 }
 
-// Creates an AgentID for an externally hosted agent in an environment that
-// was added after the agent already existed. Idempotent: an existing binding
-// is left as is and returned unchanged.
+// Creates an AgentID for an internal or externally hosted agent in an
+// environment whose binding is missing. Idempotent: an existing binding is
+// left as is and returned unchanged.
 export async function provisionAgentIdentity(
   params: ProvisionAgentIdentityPathParams,
   query: ProvisionAgentIdentityQuery,
