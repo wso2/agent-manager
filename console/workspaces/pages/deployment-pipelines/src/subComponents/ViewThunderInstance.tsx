@@ -29,7 +29,7 @@ import {
 import { AlertTriangle, CheckCircle, ExternalLink } from "@wso2/oxygen-ui-icons-react";
 import { generatePath, useParams } from "react-router-dom";
 import { useListThunderInstances } from "@agent-management-platform/api-client";
-import { absoluteRouteMap } from "@agent-management-platform/types";
+import { absoluteRouteMap, globalConfig } from "@agent-management-platform/types";
 import { copyToClipboard } from "@agent-management-platform/shared-component";
 import { PageLayout, useSnackBar } from "@agent-management-platform/views";
 import { ThunderInstanceOverviewTab } from "./ThunderInstanceOverviewTab";
@@ -70,7 +70,7 @@ export const ViewThunderInstance: React.FC = () => {
         disableIcon
         isLoading={isLoading}
         actions={
-          consoleUrl ? (
+          consoleUrl && globalConfig.featureFlags?.disableThunderConsole !== true ? (
             <Button
               variant="outlined"
               size="small"
