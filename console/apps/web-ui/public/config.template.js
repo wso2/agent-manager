@@ -25,7 +25,6 @@ window.__RUNTIME_CONFIG__ = {
     afterSignInUrl: '$SIGN_IN_REDIRECT_URL',
     afterSignOutUrl: '$SIGN_OUT_REDIRECT_URL',
     scopes: ('$AUTH_SCOPES'.trim() || 'openid profile email').split(/\s+/).filter(Boolean),
-    platform: 'AsgardeoV2',
     tokenValidation: {
       idToken: {
         validate: '$VALIDATE_ID_TOKEN' === 'true',

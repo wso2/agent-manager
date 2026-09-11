@@ -78,7 +78,7 @@
     "@wso2/oxygen-ui-icons-react": ">=0.10.1",
     "@wso2/oxygen-ui-charts-react": ">=0.10.1",
     "@tanstack/react-query": ">=5.0.0",
-    "@asgardeo/react": ">=0.22.0"
+    "@thunderid/react": "1.0.6"
   },
   "devDependencies": {
     "@types/node": "24.6.0",
@@ -105,7 +105,7 @@
     "@wso2/oxygen-ui-icons-react": "0.11.0",
     "@wso2/oxygen-ui-charts-react": "0.11.0",
     "@tanstack/react-query": "5.90.5",
-    "@asgardeo/react": "0.23.6",
+    "@thunderid/react": "1.0.6",
     "rollup-plugin-dts": "~6.4.1"
   }
 }

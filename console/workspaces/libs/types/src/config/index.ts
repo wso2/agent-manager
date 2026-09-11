@@ -16,11 +16,11 @@
  * under the License.
  */
 
-import type { AsgardeoProviderProps } from "@asgardeo/react";
+import type { ThunderIDProviderProps } from "@thunderid/react";
 import { TraceListTimeRange } from "../api/traces";
 import { type Duration, sub } from "date-fns";
 export interface AppConfig {
-  authConfig: AsgardeoProviderProps;
+  authConfig: ThunderIDProviderProps;
   apiBaseUrl: string;
   /**
    * Base URL for the unauthenticated GET /api/v1/config discovery request that

@@ -40,3 +40,30 @@ export type UserInfo = {
     sub?: string;
     username?: string;
 }
+
+/**
+ * Attributes nested under a ThunderID `/users/me` response's `attributes` object.
+ * Keys are the raw claim names ThunderID returns (snake_case), not the
+ * camelCase `UserInfo` contract the rest of the app consumes.
+ */
+export type ThunderIDUserAttributes = {
+    email?: string;
+    family_name?: string;
+    given_name?: string;
+    username?: string;
+    [key: string]: unknown;
+}
+
+/**
+ * Shape of the profile object ThunderID's `useUser()` hook returns
+ * (both `profile` and `flattenedProfile` - the SDK's "flattening" is
+ * currently a no-op, so the raw `/users/me` response shape leaks through
+ * with profile fields nested under `attributes`).
+ */
+export type ThunderIDUserProfile = {
+    id?: string;
+    ouId?: string;
+    type?: string;
+    attributes?: ThunderIDUserAttributes;
+    isReadOnly?: boolean;
+}

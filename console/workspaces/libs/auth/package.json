@@ -1,7 +1,7 @@
 {
   "name": "@agent-management-platform/auth",
   "version": "1.0.0",
-  "description": "Asgardeo authentication library for agent management platform",
+  "description": "ThunderID authentication library for agent management platform",
   "type": "module",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
@@ -13,7 +13,7 @@
     "lint:fix": "eslint . --fix",
     "dev": "tsc -b --watch"
   },
-  "keywords": ["asgardeo", "auth", "authentication"],
+  "keywords": ["thunderid", "auth", "authentication"],
   "author": "",
   "license": "ISC",
   "devDependencies": {
@@ -27,7 +27,7 @@
     "@babel/runtime-corejs3": "7.11.2"
   },
   "dependencies": {
-    "@asgardeo/react": "0.23.6",
+    "@thunderid/react": "1.0.6",
     "react-router-dom": "6.28.0",
     "react": "19.1.1",
     "react-dom": "19.1.1",

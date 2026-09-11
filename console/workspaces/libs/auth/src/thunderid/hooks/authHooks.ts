@@ -16,8 +16,8 @@
  * under the License.
  */
 
-import { useAsgardeo, useUser } from "@asgardeo/react";
-import type { UserInfo } from "../../types";
+import { useThunderID, useUser } from "@thunderid/react";
+import type { ThunderIDUserProfile, UserInfo } from "../../types";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { globalConfig } from "@agent-management-platform/types";
 
@@ -71,9 +71,11 @@ export const useAuthHooks = (): AuthHooks => {
     isSignedIn = false,
     isLoading = false,
     isInitialized = false,
-  } = useAsgardeo() ?? {};
+  } = useThunderID() ?? {};
 
   const { flattenedProfile } = useUser();
+  const profileAttributes = (flattenedProfile as ThunderIDUserProfile | null)
+    ?.attributes;
 
   // undefined = the decode has not settled yet; null = it settled with nothing
   // usable (signed out, no token, or a token that would not decode). Collapsing
@@ -117,12 +119,13 @@ export const useAuthHooks = (): AuthHooks => {
 
   const userInfo = useMemo(() => {
     return {
-      ...flattenedProfile,
-      familyName: flattenedProfile?.family_name,
-      givenName: flattenedProfile?.given_name,
+      email: profileAttributes?.email,
+      familyName: profileAttributes?.family_name,
+      givenName: profileAttributes?.given_name,
+      username: profileAttributes?.username,
       ...(accessTokenPayload ?? {}),
     } as UserInfo;
-  }, [flattenedProfile, accessTokenPayload]);
+  }, [profileAttributes, accessTokenPayload]);
 
   const customLogin = () => {
     void signIn?.();

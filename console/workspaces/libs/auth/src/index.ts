@@ -19,10 +19,10 @@
 import { AuthProvider as NoAuthAuthProvider } from './no-auth/AuthProvider';
 import { useAuthHooks as useNoAuthHooks } from './no-auth/hooks/authHooks';
 
-import { AuthProvider as AsgardeoAuthProvider } from './asgardio/AuthProvider';
-import { useAuthHooks as useAsgardeoAuthHooks } from './asgardio/hooks/authHooks';
+import { AuthProvider as ThunderIDAuthProvider } from './thunderid/AuthProvider';
+import { useAuthHooks as useThunderIDAuthHooks } from './thunderid/hooks/authHooks';
 import { globalConfig } from '@agent-management-platform/types';
 
-export const AuthProvider = globalConfig.disableAuth ? NoAuthAuthProvider : AsgardeoAuthProvider;
-export const useAuthHooks = globalConfig.disableAuth ? useNoAuthHooks : useAsgardeoAuthHooks;
+export const AuthProvider = globalConfig.disableAuth ? NoAuthAuthProvider : ThunderIDAuthProvider;
+export const useAuthHooks = globalConfig.disableAuth ? useNoAuthHooks : useThunderIDAuthHooks;
 

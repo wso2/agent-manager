@@ -17,8 +17,8 @@
  */
 
 import {
-  AsgardeoProvider,
-} from "@asgardeo/react";
+  ThunderIDProvider,
+} from "@thunderid/react";
 import { globalConfig } from "@agent-management-platform/types";
 import type { AuthProviderProps } from "../types";
 
@@ -27,8 +27,8 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
   const { authConfig } = globalConfig;
 
   return (
-    <AsgardeoProvider {...authConfig}>
+    <ThunderIDProvider {...authConfig}>
       {children}
-    </AsgardeoProvider>
+    </ThunderIDProvider>
   );
 };
