@@ -1108,7 +1108,8 @@ helm_install_idempotent \
     "oci://ghcr.io/openchoreo/helm-charts/openchoreo-workflow-plane" \
     "${BUILD_CI_NS}" \
     "${TIMEOUT_BUILD_PLANE}" \
-    --version "${OPENCHOREO_VERSION}"
+    --version "${OPENCHOREO_VERSION}" \
+    --values "${DEPLOYMENTS_DIR}/single-cluster/values-wp.yaml"
 
 
 # Register Workflow Plane with Control Plane

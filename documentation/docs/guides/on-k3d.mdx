@@ -479,6 +479,10 @@ helm install openchoreo-workflow-plane \
   --version 1.2.0 \
   --namespace openchoreo-workflow-plane \
   --create-namespace \
+  --set argo-workflows.controller.resources.requests.cpu=50m \
+  --set argo-workflows.controller.resources.requests.memory=64Mi \
+  --set argo-workflows.controller.resources.limits.cpu=200m \
+  --set argo-workflows.controller.resources.limits.memory=128Mi \
   --timeout 600s
 ```
 

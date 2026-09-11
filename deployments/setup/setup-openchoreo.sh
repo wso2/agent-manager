@@ -229,7 +229,8 @@ install_workflow_plane() {
     helm upgrade --install openchoreo-workflow-plane oci://ghcr.io/openchoreo/helm-charts/openchoreo-workflow-plane \
     --version ${OPENCHOREO_VERSION} \
     --namespace openchoreo-workflow-plane \
-    --create-namespace
+    --create-namespace \
+    --values "${SCRIPT_DIR}/../single-cluster/values-wp.yaml"
 
     echo "⏳ Waiting for Workflow Plane pods to be ready..."
     kubectl wait -n openchoreo-workflow-plane --for=condition=available --timeout=300s deployment --all

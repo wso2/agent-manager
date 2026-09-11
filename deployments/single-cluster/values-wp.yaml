@@ -1,0 +1,14 @@
+# Helm values for OpenChoreo Workflow Plane in k3d single-cluster setup
+
+# The chart ships the controller at 25m/32Mi requests, which leaves it starved
+# once several builds queue up at once. The chart's limits sat at the new
+# request values, so they move up too to leave the controller burst headroom.
+argo-workflows:
+  controller:
+    resources:
+      requests:
+        cpu: 50m
+        memory: 64Mi
+      limits:
+        cpu: 200m
+        memory: 128Mi
