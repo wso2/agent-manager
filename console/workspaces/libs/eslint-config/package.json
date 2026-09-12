@@ -18,11 +18,7 @@
   "author": "WSO2",
   "license": "MIT",
   "scripts": {
-    "build": "echo 'ESLint config package built successfully'",
-    "test": "eslint --print-config eslint.config.js",
-    "lint": "echo 'Linting ESLint config'",
-    "lint:fix": "echo 'Linting ESLint config'",
-    "dev": "echo 'Dev mode does not apply to this package'"
+    "test": "eslint --print-config eslint.config.js"
   },
   "peerDependencies": {
     "eslint": "9.36.0"

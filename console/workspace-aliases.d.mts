@@ -1,4 +1,4 @@
-/**
+/*
  * Copyright (c) 2025, WSO2 LLC. (https://www.wso2.com).
  *
  * WSO2 LLC. licenses this file to you under the Apache License,
@@ -16,33 +16,13 @@
  * under the License.
  */
 
-import eslintConfig from "@agent-management-platform/eslint-config";
-import { FlatCompat } from "@eslint/eslintrc";
+// Types for workspace-aliases.mjs, which the vite configs import from a
+// `tsc -b`-checked project.
 
-const compat = new FlatCompat();
+export declare function workspaceSourceAliases(options?: {
+  exclude?: string[]
+}): { find: string; replacement: string }[]
 
-export default [
-  ...eslintConfig,
-  ...compat.extends('plugin:storybook/recommended'),
-  {
-    files: [
-      '**/*.ts',
-      '**/*.tsx',
-      '**/*.js',
-      '**/*.jsx',
-      '**/*.mjs',
-      '**/*.cjs'
-    ],
-  },
-  {
-    ignores: [
-      '**/dist/**',
-      '**/node_modules/**',
-      '**/coverage/**',
-      '**/.storybook/**',
-      '**/storybook-static/**',
-      "**.config.js",
-      "**.config.cjs"
-    ],
-  }
-]
+export declare function workspaceSourcePaths(
+  fromDir: string
+): Record<string, string[]>

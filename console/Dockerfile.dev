@@ -3,34 +3,28 @@ FROM public.ecr.aws/docker/library/node:20.19-alpine
 # Install Git and gettext (for envsubst)
 RUN apk add --no-cache git gettext
 
-# Install pnpm globally
-RUN npm install -g pnpm@9.12.3
-
-# Install Rush globally
-RUN npm install -g @microsoft/rush@5.157.0
+# corepack activates the pnpm version pinned in package.json's packageManager field
+RUN corepack enable
 
 # WORKDIR_PATH must match the host's absolute path to the console directory
-# so that rush/pnpm symlinks in the virtual store resolve correctly on both
+# so that pnpm symlinks in the virtual store resolve correctly on both
 # the host and inside the container.
 ARG WORKDIR_PATH=/app
 WORKDIR ${WORKDIR_PATH}
 
-# Copy Rush configuration and entire monorepo structure
+# Copy workspace configuration and entire monorepo structure
 # This is needed for proper dependency resolution
-COPY rush.json ./
-COPY common/ common/
+COPY package.json pnpm-workspace.yaml pnpm-lock.yaml .npmrc ./
 COPY apps/ apps/
 COPY workspaces/ workspaces/
 COPY dev-start.sh ./dev-start.sh
 RUN chmod +x ./dev-start.sh
 
-# Install all dependencies using Rush
-# This happens during image build, not at runtime
-RUN rush purge
-RUN rush update --full
+# Install all dependencies during image build, not at runtime
+RUN pnpm install --frozen-lockfile
 
-# Note: Source code will be mounted as volumes that override these files
-# rush update runs again at container startup (dev-start.sh) to re-link
+# Note: Source code will be mounted as volumes that override these files.
+# pnpm install runs again at container startup (dev-start.sh) to re-link
 # binaries for the container's runtime paths.
 
 # Expose Vite dev server port

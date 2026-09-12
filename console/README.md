@@ -1,35 +1,35 @@
 # Agent Manager Console
 
-React/TypeScript web application for the Agent Manager platform, built as a Rush monorepo.
+React/TypeScript web application for the Agent Manager platform, built as a pnpm workspaces monorepo.
 
 ## Tech Stack
 
 - **React 19** - UI framework
 - **TypeScript** - Type safety
 - **Vite** - Build tool and dev server
-- **Rush** - Monorepo management
 - **pnpm** - Package manager
 
 ## Prerequisites
 
 Before you begin, ensure you have the following installed:
 
-- **Node.js**: Version 18.20.3+ or 20.14.0+ (see supported versions in rush.json)
-- **Rush**: The monorepo management tool
-- **pnpm**: Package manager (installed automatically by Rush)
+- **Node.js**: Version 20.19.0+ or 22.12.0+ (see engines in package.json)
+- **pnpm**: Package manager, pinned via `packageManager` in package.json and activated through Corepack
 
-### Installing Rush
+### Installing pnpm
 
-Install Rush globally:
+Enable Corepack (ships with Node.js):
 
 ```bash
-npm install -g @microsoft/rush
+corepack enable
 ```
 
 Verify installation:
 ```bash
-rush --version
+pnpm --version
 ```
+
+Corepack activates the pinned pnpm 9.12.3 automatically based on the `packageManager` field in `console/package.json`.
 
 ## Getting Started
 
@@ -43,50 +43,41 @@ make install
 ```
 
 This command will:
-- Install Rush's local copy of pnpm
-- Install all dependencies for all projects in the monorepo
+- Install all dependencies for all projects in the monorepo via pnpm
 - Create symlinks between local packages
 
-### 2. Build Libraries
-
-Build all shared libraries first:
-
-```bash
-make build-webapp
-```
-
-Or build all projects:
-```bash
-make build
-```
-
-### 3. Start Development Server
+### 2. Start Development Server
 
 ```bash
 make dev
 ```
 
 This will:
-- Start all library dependencies in watch mode
 - Launch the Vite dev server at `http://localhost:3000`
-- Automatically rebuild dependencies when you make changes
-- Hot-reload the webapp when dependencies update
+- Hot-reload on edits to any workspace package, not just the app
 
-Press `Ctrl+C` to stop all processes.
+No separate build step is needed for development — Vite resolves
+`@agent-management-platform/*` imports straight to each package's `src/`, so there are
+no library watchers to run. Run `make build` only to produce production output.
 
-### 4. Environment Configuration
+Press `Ctrl+C` to stop.
+
+### 3. Environment Configuration
 
 Copy the configuration template and customize it:
 
 ```bash
-cp apps/webapp/public/config.js.template apps/webapp/public/config.js
+cp apps/web-ui/public/config.template.js apps/web-ui/public/config.js
 ```
 
-Edit `apps/webapp/public/config.js` to set your API URL:
+The template is written for env-var substitution at deploy time, so a local `config.js`
+needs the `$PLACEHOLDER` values replaced with real ones. At minimum, point
+`apiBaseUrl` at your backend:
 
 ```javascript
-window.APP_CONFIG = {
-  API_URL: 'http://localhost:8080'
+window.__RUNTIME_CONFIG__ = {
+  // ...the rest of the template
+  apiBaseUrl: 'http://localhost:8080',
 };
 ```
 
@@ -107,74 +98,49 @@ make build
 # Clean build outputs
 make clean
 
-# Purge Rush cache
+# Remove node_modules and all caches
 make purge
 
 # Show all available commands
 make help
 ```
 
-### Rush Commands
+### pnpm Commands
+
+The `make` targets wrap these. Reach for them directly when you need a filter:
 
 ```bash
-# Install dependencies
-rush install
-
-# Build all projects
-rush build
-
-# Build specific project and its dependencies
-rush build --to @agent-management-platform/webapp
-
-# Run linting for all projects
-rush lint
-
-# Run tests for all projects
-rush test
-
-# Clean all build outputs
-rush purge
-
-# Update dependencies
-rush update
-
+pnpm build                                        # all packages
+pnpm build:core-ui                                # core-ui and its dependencies
+pnpm -r --filter <package-name>... run build      # any package and its dependencies
+pnpm lint                                         # eslint across packages
+pnpm lint:fix                                     # eslint --fix across packages
 ```
 
 ### Project-Specific Commands
 
-Navigate to any project directory and use `rushx`:
+Navigate to any project directory and use `pnpm run`:
 
 ```bash
-cd apps/webapp
+cd apps/web-ui
 
 # Start development server
-rushx dev
+pnpm run dev
 
 # Build for production
-rushx build
+pnpm run build
 
 # Run linting
-rushx lint
+pnpm run lint
 
 # Fix linting issues
-rushx lint:fix
+pnpm run lint:fix
 
 # Preview production build
-rushx preview
+pnpm run preview
 ```
 
 ## Project Structure Details
 
-### Apps
-- **webapp**: Main React application with Vite build system
-
-### Libraries
-- **auth**: Authentication provider and hooks
-- **types**: Shared TypeScript type definitions
-- **eslint-config**: Shared ESLint configuration
-- **views**: Shared UI components and themes
-- **api-client**: API client utilities
-
-### Pages
-- **AgentsListPage**: Example page component (use as reference)
+See [`AGENTS.md`](AGENTS.md) for the package map — every workspace, its package name, and what it holds.
 

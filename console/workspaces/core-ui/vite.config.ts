@@ -19,6 +19,7 @@
 import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
 import path from 'path'
+import { workspaceSourceAliases } from '../../workspace-aliases.mjs'
 
 // https://vite.dev/config/
 export default defineConfig({
@@ -37,45 +38,19 @@ export default defineConfig({
   // here — it follows the aliased re-exports into raw .tsx sources and aborts.
   resolve: {
     dedupe: ['react', 'react-dom', 'react-router-dom'],
-    alias: {
-      // Add alias for better module resolution
-      '@': path.resolve(__dirname, './src'),
+    alias: [
+      // Every workspace package resolves to source, so the bundle inlines them and
+      // watch mode picks up edits without separate tsc watchers.
+      ...workspaceSourceAliases({ exclude: ['@agent-management-platform/am-core-ui'] }),
 
-      // Workspace libraries - resolve to source for hot-reload without separate tsc watchers
-      '@agent-management-platform/auth': path.resolve(__dirname, '../libs/auth/src'),
-      '@agent-management-platform/api-client': path.resolve(__dirname, '../libs/api-client/src'),
-      '@agent-management-platform/shared-component': path.resolve(__dirname, '../libs/shared-component/src'),
-      '@agent-management-platform/types': path.resolve(__dirname, '../libs/types/src'),
-      '@agent-management-platform/views': path.resolve(__dirname, '../libs/views/src'),
-
-      // Workspace pages - resolve to source for hot-reload
-      '@agent-management-platform/add-new-agent': path.resolve(__dirname, '../pages/add-new-agent/src'),
-      '@agent-management-platform/add-new-project': path.resolve(__dirname, '../pages/add-new-project/src'),
-      '@agent-management-platform/build': path.resolve(__dirname, '../pages/build/src'),
-      '@agent-management-platform/deploy': path.resolve(__dirname, '../pages/deploy/src'),
-      '@agent-management-platform/overview': path.resolve(__dirname, '../pages/overview/src'),
-      '@agent-management-platform/configure-agent': path.resolve(__dirname, '../pages/configure-agent/src'),
-      '@agent-management-platform/test': path.resolve(__dirname, '../pages/test/src'),
-      '@agent-management-platform/traces': path.resolve(__dirname, '../pages/traces/src'),
-      '@agent-management-platform/logs': path.resolve(__dirname, '../pages/logs/src'),
-      '@agent-management-platform/metrics': path.resolve(__dirname, '../pages/metrics/src'),
-      '@agent-management-platform/eval': path.resolve(__dirname, '../pages/eval/src'),
-      '@agent-management-platform/llm-providers': path.resolve(__dirname, '../pages/llm-providers/src'),
-      '@agent-management-platform/mcp-proxies': path.resolve(__dirname, '../pages/mcp-proxies/src'),
-      '@agent-management-platform/gateways': path.resolve(__dirname, '../pages/gateways/src'),
-      '@agent-management-platform/identities': path.resolve(__dirname, '../pages/identities/src'),
-      '@agent-management-platform/agent-security': path.resolve(__dirname, '../pages/agent-security/src'),
-      '@agent-management-platform/agent-kind': path.resolve(__dirname, '../pages/agent-kind/src'),
-      '@agent-management-platform/deployment-pipelines': path.resolve(__dirname, '../pages/deployment-pipelines/src'),
-    },
+      { find: '@', replacement: path.resolve(__dirname, './src') },
+    ],
   },
   build: {
     watch: process.env.VITE_WATCH ? {
       exclude: [
         '**/node_modules/**',
-        '**/common/temp/**',
         '**/.git/**',
-        '**/.rush/**',
       ],
     } : undefined,
     lib: {

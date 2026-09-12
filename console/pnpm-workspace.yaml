@@ -1,0 +1,5 @@
+packages:
+  - apps/*
+  - workspaces/core-ui
+  - workspaces/libs/*
+  - workspaces/pages/*

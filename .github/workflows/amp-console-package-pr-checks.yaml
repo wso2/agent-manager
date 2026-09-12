@@ -7,11 +7,18 @@ on:
       - "console/**"
       - ".github/workflows/amp-console-package-pr-checks.yaml"
 
+permissions:
+  contents: read
+
 jobs:
-  lint:
-    name: Lint
+  check:
+    name: ${{ matrix.task }}
     runs-on:
       - codebuild-wso2_agent-manager-${{ github.run_id }}-${{ github.run_attempt }}
+    strategy:
+      fail-fast: false
+      matrix:
+        task: [lint, build]
     defaults:
       run:
         working-directory: console
@@ -19,35 +26,11 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v6
 
-      - name: Setup Node.js
-        uses: actions/setup-node@v6
-        with:
-          node-version: "20.19.0"
+      - name: Setup Node.js and pnpm
+        uses: ./.github/actions/setup-console-node
 
-      - name: Install Rush dependencies
-        run: node common/scripts/install-run-rush.js install
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
 
-      - name: Run Rush lint
-        run: node common/scripts/install-run-rush.js lint
-
-  build:
-    name: Build
-    runs-on:
-      - codebuild-wso2_agent-manager-${{ github.run_id }}-${{ github.run_attempt }}
-    defaults:
-      run:
-        working-directory: console
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v6
-
-      - name: Setup Node.js
-        uses: actions/setup-node@v6
-        with:
-          node-version: "20.19.0"
-
-      - name: Install Rush dependencies
-        run: node common/scripts/install-run-rush.js install
-
-      - name: Run Rush build
-        run: node common/scripts/install-run-rush.js build
+      - name: Run ${{ matrix.task }}
+        run: pnpm ${{ matrix.task }}

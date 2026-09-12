@@ -48,9 +48,6 @@ agent-manager-service/agent-manager-service
 .github/skills
 .github/copilot-instructions.md
 
-# Docker
-.dockerignore
-
 # Database
 *.db
 *.sqlite

@@ -27,8 +27,6 @@ export default [
     ignores: [
       "**/dist/**",
       "**/node_modules/**",
-      "**/.rush/**",
-      "**/common/temp/**",
       "**/coverage/**",
       "**/.storybook/**",
       "**/storybook-static/**",

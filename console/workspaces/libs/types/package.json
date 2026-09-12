@@ -8,7 +8,6 @@
   "scripts": {
     "build": "tsc",
     "clean": "rm -rf dist",
-    "rebuild": "npm run clean && npm run build",
     "lint": "eslint .",
     "lint:fix": "eslint . --fix",
     "generate-route": "npx tsx scripts/generate-route.ts",

@@ -54,7 +54,7 @@ export const generateRoutes = () => {
 
 const routes = JSON.stringify(generateRoutes(), null, 2);
 const outputPath = path.resolve(__dirname, '../src/routes/generated-route.map.ts');
-fs.writeFileSync(outputPath, `export const generatedRouteMap =  ${routes};`);
+fs.writeFileSync(outputPath, `export const generatedRouteMap =  ${routes};\n`);
 
 console.log('✅ Route map generated successfully!');
 console.log('📁 Output file: src/routes/generated-route.map.ts');

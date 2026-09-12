@@ -98,25 +98,6 @@ jspm_packages/
 !.vscode/tasks.json
 !.vscode/launch.json
 
-# Rush temporary files
-common/deploy/
-common/temp/
-common/autoinstallers/*/.npmrc
-**/.rush/temp/
-*.lock
-
-# Common toolchain intermediate files
-temp/
-lib/
-lib-amd/
-lib-es6/
-lib-esnext/
-lib-commonjs/
-lib-shim/
+# Build outputs
 dist/
 dist-storybook/
-*.tsbuildinfo
-
-# Heft temporary files
-.cache/
-.heft/
