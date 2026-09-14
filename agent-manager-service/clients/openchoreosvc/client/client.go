@@ -89,6 +89,12 @@ type OpenChoreoClient interface {
 	ReplaceReleaseBindingEnvVars(ctx context.Context, ouID, projectName, componentName, envName string, keysToRemove []string, envVarsToAdd []EnvVar) error
 	RemoveWorkloadEnvVars(ctx context.Context, ouID, componentName string, envVarKeys []string) error
 	GetComponentEndpoints(ctx context.Context, ouID, projectName, componentName, environment string) (map[string]models.EndpointsResponse, error)
+
+	// GetReleaseBindingServiceURL returns the in-cluster address of the
+	// component's endpoint in one environment, as the release binding's status
+	// reports it. Empty string with a nil error means the binding has not
+	// published one yet.
+	GetReleaseBindingServiceURL(ctx context.Context, ouID, componentName, environment string) (string, error)
 	GetComponentConfigurations(ctx context.Context, ouID, projectName, componentName, environment string) ([]models.EnvVars, error)
 	GetComponentFileMounts(ctx context.Context, ouID, projectName, componentName, environment string) ([]models.FileMountEntry, error)
 

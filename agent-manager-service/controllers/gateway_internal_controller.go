@@ -38,6 +38,7 @@ type GatewayInternalController interface {
 	GetLLMProvider(w http.ResponseWriter, r *http.Request)
 	GetLLMProxy(w http.ResponseWriter, r *http.Request)
 	GetMCPProxy(w http.ResponseWriter, r *http.Request)
+	GetAgent(w http.ResponseWriter, r *http.Request)
 	GetLLMProviderAPIKeys(w http.ResponseWriter, r *http.Request)
 	GetLLMProxyAPIKeys(w http.ResponseWriter, r *http.Request)
 	GetAPIKeys(w http.ResponseWriter, r *http.Request)
@@ -225,6 +226,58 @@ func (c *gatewayInternalController) GetMCPProxy(w http.ResponseWriter, r *http.R
 	w.WriteHeader(http.StatusOK)
 	if _, err := w.Write(zipData); err != nil {
 		log.Error("Failed to write ZIP response", "proxyID", proxyID, "error", err)
+	}
+}
+
+// GetAgent handles GET /api/internal/v1/agents/:agentId
+//
+// The gateway calls this after an agent.deployed event, so the response must be
+// a ZIP containing the Agent YAML — see CreateAgentYamlZip.
+func (c *gatewayInternalController) GetAgent(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	log := logger.GetLogger(ctx)
+	identity, ok := c.authenticateGateway(w, r, "internal-read")
+	if !ok {
+		return
+	}
+
+	ouID := identity.OUID
+	gatewayID := identity.ID
+	agentID := r.PathValue("agentId")
+	if agentID == "" {
+		http.Error(w, "Agent ID is required", http.StatusBadRequest)
+		return
+	}
+	if _, err := uuid.Parse(agentID); err != nil {
+		http.Error(w, "Agent ID must be an artifact UUID", http.StatusBadRequest)
+		return
+	}
+
+	agent, err := c.gatewayInternalService.GetActiveAgentDeploymentByGateway(ctx, agentID, ouID, gatewayID)
+	if err != nil {
+		if errors.Is(err, utils.ErrAgentArtifactNotFound) || errors.Is(err, utils.ErrDeploymentNotActive) {
+			http.Error(w, "No active deployment found for this agent on this gateway", http.StatusNotFound)
+			return
+		}
+		log.Error("Failed to get agent", "error", err)
+		http.Error(w, "Failed to get agent", http.StatusInternalServerError)
+		return
+	}
+
+	zipData, err := utils.CreateAgentYamlZip(agent)
+	if err != nil {
+		log.Error("Failed to create ZIP file for agent", "agentID", agentID, "error", err)
+		http.Error(w, "Failed to create agent package", http.StatusInternalServerError)
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/zip")
+	w.Header().Set("Content-Disposition", fmt.Sprintf("attachment; filename=\"agent-%s.zip\"", agentID))
+	w.Header().Set("Content-Length", fmt.Sprintf("%d", len(zipData)))
+
+	w.WriteHeader(http.StatusOK)
+	if _, err := w.Write(zipData); err != nil {
+		log.Error("Failed to write ZIP response", "agentID", agentID, "error", err)
 	}
 }
 

@@ -1,0 +1,27 @@
+apiVersion: gateway.api-platform.wso2.com/v1
+kind: Agent
+metadata:
+    name: checkout-trip-planner-0192f4c19a7d7c3e
+spec:
+    displayName: Trip Planner
+    version: v1.0
+    context: /trip-planner
+    vhost: agents.example.com
+    upstream:
+        url: http://trip-planner.dp-default:9099
+    a2a:
+        protocolVersion: "1.0"
+        operationConfigs:
+            transports:
+                - protocolBinding: JSONRPC
+                  pathPrefix: /rpc
+                - protocolBinding: HTTP+JSON
+                  pathPrefix: /rest
+            policies:
+                - name: cors
+                  params:
+                    allowOrigins:
+                        - '*'
+                  version: v1
+                - name: api-key-auth
+                  version: v1

@@ -165,7 +165,7 @@ export const createAgentSchema = z.object({
       message: 'Dockerfile path must start with / and contain only letters, numbers, ., _, - and /',
     })
     .optional(),
-  interfaceType: z.enum(['DEFAULT', 'CUSTOM']),
+  interfaceType: z.enum(['DEFAULT', 'CUSTOM', 'A2A']),
   port: z
     .union([z.number(), z.string(), z.undefined()])
     .transform((val) => {
@@ -233,15 +233,15 @@ export const createAgentSchema = z.object({
     .max(20, 'A maximum of 20 file mounts is allowed'),
 }).refine(
   (data) => {
-    if (data.interfaceType === 'CUSTOM' && !data.port) {
+    if ((data.interfaceType === 'CUSTOM' || data.interfaceType === 'A2A') && !data.port) {
       return false;
     }
     return true;
   },
-  { message: 'Port is required when using custom interface', path: ['port'] }
+  { message: 'Port is required for custom and A2A interfaces', path: ['port'] }
 ).refine(
   (data) => {
-    if (data.interfaceType === 'CUSTOM' && data.port !== undefined) {
+    if ((data.interfaceType === 'CUSTOM' || data.interfaceType === 'A2A') && data.port !== undefined) {
       if (!Number.isInteger(data.port)) return false;
       if (data.port < 1 || data.port > 65535) return false;
     }

@@ -30,7 +30,7 @@ type AgentKindVersionResponse struct {
 	SourceAgentName string `json:"sourceAgentName"`
 	// Project the source agent belongs to
 	SourceProjectName string `json:"sourceProjectName"`
-	// Agent sub-type (chat-api or custom-api)
+	// Agent sub-type (chat-api, custom-api or a2a-agent)
 	AgentSubType *string `json:"agentSubType,omitempty"`
 	// Configuration schema defining the parameters users must supply when creating an agent from this kind
 	ConfigSchema []AgentKindConfigSchemaItem `json:"configSchema"`

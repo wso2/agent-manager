@@ -81,6 +81,7 @@ var serviceProviderSet = wire.NewSet(
 	// reconciler that consumes it is wired here.
 	ProvideAgentIdentityInjectionService,
 	services.NewAgentThunderReconcilerService,
+	services.NewA2APublicationReconcilerService,
 	services.NewEvaluatorManagerService,
 	services.NewEnvironmentService,
 	services.NewPlatformGatewayService,
@@ -364,6 +365,7 @@ var repositoryProviderSet = wire.NewSet(
 	ProvideMCPProxyRepository,
 	repositories.NewMCPProxyEndpointRepository,
 	ProvideDeploymentRepository,
+	ProvideA2APublicationRepository,
 	ProvideArtifactRepository,
 	ProvideScoreRepository,
 	ProvideCatalogRepository,
@@ -475,6 +477,10 @@ func ProvideMCPProxyRepository(db *gorm.DB) repositories.MCPProxyRepository {
 
 func ProvideDeploymentRepository(db *gorm.DB) repositories.DeploymentRepository {
 	return repositories.NewDeploymentRepo(db)
+}
+
+func ProvideA2APublicationRepository(db *gorm.DB) repositories.A2APublicationRepository {
+	return repositories.NewA2APublicationRepository(db)
 }
 
 func ProvideArtifactRepository(db *gorm.DB) repositories.ArtifactRepository {

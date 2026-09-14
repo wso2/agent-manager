@@ -112,6 +112,7 @@ var gatewayInternalRoutes = []string{
 	"GET /llm-providers/{providerId}",
 	"GET /llm-proxies/{proxyId}",
 	"GET /mcp-proxies/{proxyId}",
+	"GET /agents/{agentId}",
 }
 
 func init() {

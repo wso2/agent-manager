@@ -1705,3 +1705,67 @@ func findDeployedImageFromComponentRelease(release *gen.ComponentRelease) string
 
 	return extractImageFromWorkloadMap(workload)
 }
+
+// GetReleaseBindingServiceURL reads the workload's in-cluster address for one
+// environment out of the release binding's status.
+//
+// The address is READ rather than derived. OpenChoreo already publishes it —
+// the agent-api ComponentType renders a Service named after the component in
+// the component's namespace, and the binding reports it as {Host, Port, Scheme,
+// Path} — so deriving it a second time from a naming convention would duplicate
+// something this repo does not own, and drift the moment OpenChoreo changed it.
+// The platform already treats this field as authoritative: probedPorts aims the
+// TCP startup probe with its Port.
+//
+// An empty string with a nil error is the normal state immediately after a
+// deploy: status is populated only once the binding reconciles. Callers must
+// distinguish it from an error and retry rather than publish.
+//
+// Selection: an agent component declares exactly one endpoint (the agent-api
+// ComponentType requires at least one, and buildEndpoints emits exactly one),
+// so the first endpoint carrying a ServiceURL is taken. Scheme is defaulted to
+// http when absent — nothing in this repo reads it today, and the in-cluster
+// hop to an agent's container is plain HTTP.
+func (c *openChoreoClient) GetReleaseBindingServiceURL(ctx context.Context, ouID, componentName, environment string) (string, error) {
+	namespaceName := c.NamespaceFor(ouID)
+	resp, err := c.ocClient.ListReleaseBindingsWithResponse(ctx, namespaceName, &gen.ListReleaseBindingsParams{
+		Component: &componentName,
+		Limit:     &defaultListLimit,
+	})
+	if err != nil {
+		return "", fmt.Errorf("failed to list release bindings for %s: %w", componentName, err)
+	}
+	if resp.StatusCode() != http.StatusOK {
+		return "", handleErrorResponse(resp.StatusCode(), ErrorResponses{
+			JSON401: resp.JSON401,
+			JSON403: resp.JSON403,
+			JSON404: resp.JSON404,
+			JSON500: resp.JSON500,
+		})
+	}
+	if resp.JSON200 == nil {
+		return "", nil
+	}
+
+	for _, binding := range resp.JSON200.Items {
+		if binding.Spec == nil || binding.Spec.Environment != environment {
+			continue
+		}
+		if binding.Status == nil || binding.Status.Endpoints == nil {
+			return "", nil
+		}
+		for _, ep := range *binding.Status.Endpoints {
+			if ep.ServiceURL == nil || strings.TrimSpace(ep.ServiceURL.Host) == "" {
+				continue
+			}
+			svc := *ep.ServiceURL
+			if svc.Scheme == nil || strings.TrimSpace(*svc.Scheme) == "" {
+				scheme := "http"
+				svc.Scheme = &scheme
+			}
+			return buildEndpointURLString(&svc), nil
+		}
+		return "", nil
+	}
+	return "", nil
+}

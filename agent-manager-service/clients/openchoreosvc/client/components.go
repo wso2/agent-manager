@@ -521,6 +521,25 @@ func buildEndpoints(req CreateComponentRequest) ([]map[string]any, error) {
 		})
 	}
 
+	// An A2A agent declares an endpoint but no OpenAPI document — it serves its
+	// own Agent Card, and the platform stores no copy. The endpoint is still
+	// mandatory: the agent-api ComponentType validates that at least one exists
+	// and renders the component's Service and HTTPRoutes from it.
+	if req.AgentType.Type == string(utils.AgentTypeAPI) &&
+		utils.IsA2AAgentSubType(req.AgentType.SubType) && req.InputInterface != nil {
+		basePath := req.InputInterface.BasePath
+		if basePath == "" {
+			basePath = "/"
+		}
+		endpoints = append(endpoints, map[string]any{
+			"name":       fmt.Sprintf("%s-endpoint", req.Name),
+			"port":       req.InputInterface.Port,
+			"type":       req.InputInterface.Type,
+			"basePath":   basePath,
+			"visibility": DefaultEndpointVisibility,
+		})
+	}
+
 	return endpoints, nil
 }
 

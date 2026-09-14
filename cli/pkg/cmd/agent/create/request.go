@@ -34,6 +34,10 @@ const (
 	// CLI-only: no generated enum for these values.
 	subTypeChatAPI   = "chat-api"
 	subTypeCustomAPI = "custom-api"
+	// subTypeA2A is an agent that speaks the A2A protocol. It declares a port
+	// like a custom-api agent but carries no OpenAPI document: it serves its own
+	// agent card, and the platform stores no copy.
+	subTypeA2A = "a2a-agent"
 
 	agentTypeInternal = "agent-api"
 	agentTypeExternal = "external-agent-api"
@@ -179,6 +183,8 @@ func buildInterface(opts *CreateOptions) *amsvc.InputInterface {
 		Type: interfaceTypeHTTP,
 		Port: &port,
 	}
+	// chat-api's port and paths are fixed by the platform. custom-api and
+	// a2a-agent both carry their own; only custom-api adds a schema.
 	if opts.SubType == subTypeChatAPI {
 		return iface
 	}
@@ -270,6 +276,10 @@ func droppedInternalFlags(opts *CreateOptions) []string {
 		if opts.OpenAPISpec != "" {
 			v = append(v, "--openapi-spec is not allowed for subtype chat-api")
 		}
+	}
+
+	if opts.SubType == subTypeA2A && opts.OpenAPISpec != "" {
+		v = append(v, "--openapi-spec is not allowed for subtype a2a-agent")
 	}
 
 	switch opts.BuildType {

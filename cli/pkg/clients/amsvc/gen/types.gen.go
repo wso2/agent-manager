@@ -65,6 +65,7 @@ func (e AgentKindResponseKind) Valid() bool {
 
 // Defines values for AgentKindVersionResponseAgentSubType.
 const (
+	A2aAgent  AgentKindVersionResponseAgentSubType = "a2a-agent"
 	ChatApi   AgentKindVersionResponseAgentSubType = "chat-api"
 	CustomApi AgentKindVersionResponseAgentSubType = "custom-api"
 )
@@ -72,6 +73,8 @@ const (
 // Valid indicates whether the value is a known member of the AgentKindVersionResponseAgentSubType enum.
 func (e AgentKindVersionResponseAgentSubType) Valid() bool {
 	switch e {
+	case A2aAgent:
+		return true
 	case ChatApi:
 		return true
 	case CustomApi:
@@ -1449,7 +1452,7 @@ type AgentKindResponseKind string
 
 // AgentKindVersionResponse defines model for AgentKindVersionResponse.
 type AgentKindVersionResponse struct {
-	// AgentSubType Agent sub-type (chat-api or custom-api)
+	// AgentSubType Agent sub-type (chat-api, custom-api or a2a-agent)
 	AgentSubType *AgentKindVersionResponseAgentSubType `json:"agentSubType,omitempty"`
 
 	// BuildName Build name from the source agent used to publish this version
@@ -1475,7 +1478,7 @@ type AgentKindVersionResponse struct {
 	Version string `json:"version"`
 }
 
-// AgentKindVersionResponseAgentSubType Agent sub-type (chat-api or custom-api)
+// AgentKindVersionResponseAgentSubType Agent sub-type (chat-api, custom-api or a2a-agent)
 type AgentKindVersionResponseAgentSubType string
 
 // AgentListResponse defines model for AgentListResponse.

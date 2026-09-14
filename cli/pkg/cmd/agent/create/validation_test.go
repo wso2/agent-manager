@@ -469,7 +469,7 @@ func TestPrepare_UnknownSubType(t *testing.T) {
 	opts.SubType = "grpc"
 	err := mustPrepareErr(t, opts)
 	details := mustFlagDetails(t, err)
-	assertContains(t, details, `spec.agentType.subType must be "chat-api" or "custom-api", got "grpc"`)
+	assertContains(t, details, `spec.agentType.subType must be "chat-api", "custom-api" or "a2a-agent", got "grpc"`)
 }
 
 func TestPrepare_CustomAPIWithoutSlashPasses(t *testing.T) {

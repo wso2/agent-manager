@@ -17,3 +17,9 @@
  */
 
 import '@testing-library/jest-dom';
+
+// Modules across the console read globalConfig at import time from the runtime
+// config the app shell injects into window, so seed it before any test imports.
+(window as unknown as { __RUNTIME_CONFIG__: unknown }).__RUNTIME_CONFIG__ = {
+  featureFlags: {},
+};

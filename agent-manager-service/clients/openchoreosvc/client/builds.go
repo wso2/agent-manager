@@ -374,7 +374,8 @@ func buildEndpointsFromInputInterface(componentName string, inputInterface *Inpu
 	var port int32
 	var basePath string
 
-	// Use default port and basePath for chat-api agents, similar to buildEndpoints in components.go
+	// Use default port and basePath for chat-api agents, similar to buildEndpoints in components.go.
+	// custom-api and a2a-agent both carry their own port and base path.
 	if agentType.Type == string(utils.AgentTypeAPI) && agentType.SubType == string(utils.AgentSubTypeChatAPI) {
 		port = int32(config.GetConfig().DefaultChatAPI.DefaultHTTPPort)
 		basePath = config.GetConfig().DefaultChatAPI.DefaultBasePath

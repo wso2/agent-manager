@@ -17919,10 +17919,11 @@ components:
           description: Project the source agent belongs to
         agentSubType:
           type: string
-          description: Agent sub-type (chat-api or custom-api)
+          description: Agent sub-type (chat-api, custom-api or a2a-agent)
           enum:
             - chat-api
             - custom-api
+            - a2a-agent
         configSchema:
           type: array
           description: Configuration schema defining the parameters users must supply when creating an agent from this kind

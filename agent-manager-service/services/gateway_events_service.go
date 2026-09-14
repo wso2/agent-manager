@@ -142,6 +142,24 @@ func (s *GatewayEventsService) BroadcastMCPProxyDeletionEvent(gatewayID string, 
 	return s.broadcastEvent(gatewayID, "mcpproxy.deleted", "DELETE", event.ProxyID, event)
 }
 
+// BroadcastAgentDeploymentEvent tells a gateway that an A2A Agent has been
+// deployed. The gateway responds by fetching /agents/{agentId} back from this
+// service, so agentId must be the artifact UUID that route is keyed on.
+func (s *GatewayEventsService) BroadcastAgentDeploymentEvent(gatewayID string, event *models.AgentDeploymentEvent) error {
+	return s.broadcastEvent(gatewayID, "agent.deployed", "CREATE", event.AgentID, event)
+}
+
+// BroadcastAgentDeletionEvent tells a gateway to drop an A2A Agent.
+//
+// There is deliberately no BroadcastAgentUndeploymentEvent. The gateway accepts
+// agent.undeployed and guards it against a mismatched deployment ID and a stale
+// timestamp — guards delete does not have — but agent-manager broadcasts no
+// mcpproxy.undeployed today either, and M1 follows that precedent rather than
+// introducing a second teardown path. Worth revisiting.
+func (s *GatewayEventsService) BroadcastAgentDeletionEvent(gatewayID string, event *models.AgentDeletionEvent) error {
+	return s.broadcastEvent(gatewayID, "agent.deleted", "DELETE", event.AgentID, event)
+}
+
 func (s *GatewayEventsService) BroadcastLLMProxyUndeploymentEvent(gatewayID string, event *models.LLMProxyUndeploymentEvent) error {
 	return s.broadcastEvent(gatewayID, "llmproxy.undeployed", "DELETE", event.ProxyID, event)
 }

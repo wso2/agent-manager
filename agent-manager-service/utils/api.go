@@ -151,3 +151,43 @@ func CreateMCPProxyYamlZip(proxyYamlMap map[string]string) ([]byte, error) {
 
 	return buf.Bytes(), nil
 }
+
+// CreateAgentYamlZip creates a ZIP file containing A2A Agent YAML files.
+//
+// The gateway fetches an Agent definition with FetchResourceZip and then
+// ExtractYAMLFromZip, so the response has to be a zip and not the YAML itself —
+// the same contract CreateMCPProxyYamlZip satisfies for MCP proxies.
+//
+// The body is written out in full rather than delegating to the MCP helper: the
+// two are separate cross-repo contracts that happen to coincide today, and
+// coupling them would make a future change to one silently change the other.
+func CreateAgentYamlZip(agentYamlMap map[string]string) ([]byte, error) {
+	var buf bytes.Buffer
+	zipWriter := zip.NewWriter(&buf)
+
+	for agentID, yamlContent := range agentYamlMap {
+		fileName := fmt.Sprintf("agent-%s.yaml", agentID)
+		fileWriter, err := zipWriter.Create(fileName)
+		if err != nil {
+			if closeErr := zipWriter.Close(); closeErr != nil {
+				return nil, errors.Join(fmt.Errorf("failed to create file in zip: %w", err), fmt.Errorf("close error: %w", closeErr))
+			}
+			return nil, fmt.Errorf("failed to create file in zip: %w", err)
+		}
+
+		_, err = fileWriter.Write([]byte(yamlContent))
+		if err != nil {
+			if closeErr := zipWriter.Close(); closeErr != nil {
+				return nil, errors.Join(fmt.Errorf("failed to write file content: %w", err), fmt.Errorf("close error: %w", closeErr))
+			}
+			return nil, fmt.Errorf("failed to write file content: %w", err)
+		}
+	}
+
+	err := zipWriter.Close()
+	if err != nil {
+		return nil, fmt.Errorf("failed to close zip writer: %w", err)
+	}
+
+	return buf.Bytes(), nil
+}

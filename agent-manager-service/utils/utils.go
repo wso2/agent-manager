@@ -541,7 +541,9 @@ func validateAgentSubType(agentType spec.AgentType) error {
 	}
 	// Validate subtype for API agent type
 	subType := StrPointerAsStr(agentType.SubType, "")
-	if subType != string(AgentSubTypeChatAPI) && subType != string(AgentSubTypeCustomAPI) {
+	if subType != string(AgentSubTypeChatAPI) &&
+		subType != string(AgentSubTypeCustomAPI) &&
+		subType != string(AgentSubTypeA2A) {
 		return NewValidationErrorf(
 			"The selected agent subtype is not supported for this agent type",
 			"unsupported agent subtype for type %s: %s", agentType.Type, subType,
