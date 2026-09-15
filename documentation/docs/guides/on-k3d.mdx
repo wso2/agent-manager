@@ -64,6 +64,8 @@ colima start --profile agent-manager \
 ```
 `--network-address` assigns the VM a stable IP so the cluster keeps working after network changes.
 
+Choose `--cpu` and `--memory` now rather than adjusting them later. Changing either requires restarting the VM, which can leave an already-created k3d cluster unable to start. [Troubleshooting](#troubleshooting) covers the recovery if you hit this.
+
 Prefix the cluster creation command in Step 1 with `K3D_FIX_DNS=0`.
 :::
 
@@ -833,6 +835,49 @@ kubectl top nodes
 ```
 
 Increase Colima/Docker Desktop resources if needed.
+
+:::warning On Colima, resizing is not a free action
+Changing `--cpu` or `--memory` requires stopping and restarting the VM, which rebuilds Docker's networks underneath the cluster. An already-created k3d cluster may not come back. Read the next entry before you resize.
+:::
+
+</details>
+
+<details>
+<summary>k3d server container crash-loops after restarting or resizing Colima</summary>
+
+This does not present as a Kubernetes error. `kubectl` stops responding altogether, because the API server never starts:
+
+```bash
+kubectl cluster-info --context k3d-amp-local
+# Hangs, or reports the connection was refused
+
+docker ps -a --filter name=k3d-amp-local
+# k3d-amp-local-server-0 shows STATUS "Restarting", or repeated "Exited"
+
+docker logs k3d-amp-local-server-0
+```
+
+The server node's log ends with:
+
+```text
+level=fatal msg="Failed to start networking: unable to initialize network policy controller: error getting node subnet: failed to find interface with specified node ip"
+```
+
+Stopping and starting the Colima VM recreates the `k3d-amp-local` bridge network, and the containers rejoin it in a different order than before. The load balancer can take the address the server node previously held. k3s still has the old address in its persisted node record, so its network policy controller finds no interface matching it and the process exits. Restarting again does not help, because the mismatch is stored in the node's own state rather than recalculated at boot.
+
+Recreate the cluster. Nothing in this install is persistent across a cluster delete, so recovery is the same work as a fresh install:
+
+```bash
+k3d cluster delete amp-local
+docker network rm k3d-amp-local 2>/dev/null || true
+
+colima stop --profile agent-manager
+colima start --profile agent-manager \
+  --vm-type=vz --vz-rosetta --network-address \
+  --cpu <cpus> --memory <gb>
+```
+
+Then rerun [Step 1: Create k3d Cluster](#step-1-create-k3d-cluster) onward.
 
 </details>
 

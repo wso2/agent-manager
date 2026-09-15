@@ -194,7 +194,7 @@ Prompt and completion content is captured by default. To suppress it, set `TRACE
 
 AMP's platform-injected auto-instrumentation covers Python (and Ballerina). A .NET agent joins AMP through the **external-agent path**: register it in the Console, then have it push spans to AMP's OTLP endpoint using the same transport and contract as above (`POST ${AMP_OTEL_ENDPOINT}/v1/traces`, header `x-amp-api-key`, `gen_ai.*` attributes). Nothing on the AMP side is .NET-specific — any process that emits contract-shaped spans to that endpoint renders in the Console and feeds evaluators.
 
-The runnable [`dotnet-agent`](https://github.com/wso2/agent-manager/tree/main/samples/dotnet-agent) sample is the worked example of everything below.
+The runnable [`dotnet-agent`](https://github.com/wso2/agent-manager/tree/main/samples/dotnet-agent) sample is the worked example of everything below. [Sample Agents](../reference/sample-agents.mdx) lists the other six samples and which instrumentation path each one takes.
 
 ### Where the `gen_ai.*` spans come from
 

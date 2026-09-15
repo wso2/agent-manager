@@ -1,0 +1,185 @@
+# Sample Agents
+
+The repository ships seven runnable agents under [`samples/`](https://github.com/wso2/agent-manager/tree/main/samples), each demonstrating a different framework and a different way of getting traces into the Agent Manager. Start from whichever one is closest to what you are building rather than from an empty directory.
+
+## Choosing a Sample
+
+| Sample | Framework | Instrumentation | Start Here If You Want |
+|---|---|---|---|
+| [crewai-agent](#crewai-agent) | CrewAI | Zero-code | A multi-agent crew with sequential tasks |
+| [customer-support-agent](#customer-support-agent) | LangGraph | Zero-code | A multi-tool agent backed by a real database |
+| [dotnet-agent](#dotnet-agent) | Microsoft Agent Framework (.NET) | Native OpenTelemetry | An agent in a language AMP does not auto-instrument |
+| [hotel-booking-agent](#hotel-booking-agent) | LangGraph | Zero-code | Retrieval over your own documents, plus a second service |
+| [insurance-support-agent](#insurance-support-agent) | Strands | Zero-code | A complete agent with a web UI and gateway login |
+| [it-helpdesk-agent](#it-helpdesk-agent) | LangChain | Zero-code | Evaluation monitors and guardrails on a governed workflow |
+| [manual-instrumentation-agent](#manual-instrumentation-agent) | None (plain Python) | Manual | Full control over every span your agent emits |
+
+**Zero-code** means the Agent Manager injects instrumentation at deploy time and the sample contains no tracing code. **Manual** and **native** samples emit their own spans. See [AMP Instrumentation](../guides/amp-instrumentation.mdx) for how the two paths differ.
+
+:::note Two of the seven run in CI
+`customer-support-agent` and `crewai-agent` are deployed and trace-verified on every release by the instrumentation matrix ([`deployable_samples.py`](https://github.com/wso2/agent-manager/blob/main/test/instrumentation-matrix/harness/deployable_samples.py)). The other five are maintained by hand, so pin versions yourself if you build on them.
+:::
+
+## Before You Start
+
+Every sample needs an LLM key, and all the Python samples target Python 3.11:
+
+```bash
+export OPENAI_API_KEY="your-key"
+```
+
+Most samples are **Platform-Hosted**, meaning you point the Agent Manager at the sample's directory and it builds and runs the agent for you. Follow [Create Your First Agent](../tutorials/create-your-first-agent.mdx) and set **App Path** to the path given below for each sample. Two samples run on your own machine as **Externally-Hosted** agents instead, and say so.
+
+No sample uses MCP tools. To see those, follow [Configure Agent MCP Proxies](../guides/configure-agent-mcp-proxies.mdx) separately.
+
+---
+
+## crewai-agent
+
+Two agents working in sequence. A researcher answers a question using a lookup tool, then an editor compresses the answer to a single sentence.
+
+This is the smallest sample that produces `agent` and `crewaitask` spans, so it is the quickest way to see a multi-agent trace tree in the Console.
+
+- **App Path** — `/samples/crewai-agent`
+- **Requires** — `OPENAI_API_KEY`
+- **Installs** — `crewai==1.15.2`
+
+:::warning CrewAI needs a writable home directory
+Set `HOME=/tmp` and `CREWAI_STORAGE_DIR=/tmp/crewai` as environment variables on the agent. CrewAI writes under `$HOME` when it is imported, before your code runs, and the build container's default home is not writable. Without these the agent fails at startup rather than at request time.
+:::
+
+Run it locally:
+
+```bash
+cd samples/crewai-agent
+pip install -r requirements.txt
+python main.py
+# Serves on port 8000
+```
+
+---
+
+## customer-support-agent
+
+A travel support assistant covering flights, hotels, car rentals, and excursions, backed by a PostgreSQL dataset. It is based on the LangGraph customer-support tutorial, so it is the closest of the samples to a conventional production app.
+
+- **App Path** — `/samples/customer-support-agent`
+- **Requires** — `OPENAI_API_KEY`, `TAVILY_API_KEY`, and `DATABASE_URL` pointing at a PostgreSQL instance loaded with the bundled `db_backup.sql`
+- **Start Command** — `python main.py`
+
+:::note Dependencies are unpinned
+This sample's `requirements.txt` lists LangGraph and LangChain without version constraints, so a build resolves whatever is current that day. If you want a reproducible build, pin the versions before deploying.
+:::
+
+---
+
+## dotnet-agent
+
+A weather assistant written in .NET that calls a `GetWeather` tool. It runs on your own machine and pushes traces to the Agent Manager over OTLP.
+
+Pick this one when your agent is not written in Python. It shows the whole externally-hosted path: register the agent, take the API key, and point an OpenTelemetry exporter at the AMP endpoint. `AmpTelemetry.cs` is the part worth reading, since it is where the endpoint and the `x-amp-api-key` header get configured.
+
+- **Runs** — externally hosted, on your machine
+- **Requires** — .NET 10 SDK, `OPENAI_API_KEY`, plus `AMP_OTEL_ENDPOINT` and `AMP_AGENT_API_KEY` from a registered externally-hosted agent
+
+```bash
+cd samples/dotnet-agent
+dotnet run
+# Serves on http://localhost:8000
+```
+
+---
+
+## hotel-booking-agent
+
+A hotel assistant that searches availability, creates and cancels bookings, and answers policy questions from PDFs held in a Pinecone index.
+
+This is the retrieval sample, and the only one split across two deployables: the agent itself plus a separate Hotel API service it calls over HTTP. Deploy the Hotel API first so the agent has something to talk to.
+
+- **App Path** — `/samples/hotel-booking-agent/agent`, which is a subdirectory rather than the sample root
+- **Requires** — `OPENAI_API_KEY`, `PINECONE_API_KEY`, `PINECONE_SERVICE_URL`, and `HOTEL_API_BASE_URL`
+
+:::warning Pinecone is required for the agent, whatever the sample README says
+The sample's own README describes Pinecone as optional. That is true of the Hotel API service, but the agent declares `pinecone_api_key` and `pinecone_service_url` as settings with no defaults, so it raises on startup when either is missing. Provide both.
+:::
+
+Run the Hotel API first:
+
+```bash
+cd samples/hotel-booking-agent/services/hotel_api
+pip install -r requirements.txt
+python -m uvicorn service:app --host 0.0.0.0 --port 9091
+```
+
+---
+
+## insurance-support-agent
+
+An insurance support agent over in-memory policies and claims. It can list policies, check what a policy covers, look up claim status, and file a claim.
+
+This is the most complete sample end to end: it ships a React chat client that logs in through the gateway, so it is the one to read if you want to see agent authentication and CORS configured together. It is also the only Strands sample.
+
+- **App Path** — `/samples/insurance-support-agent/agent`
+- **Requires** — `OPENAI_API_KEY` only, with no database or external service
+
+The agent sets `OTEL_SEMCONV_STABILITY_OPT_IN=gen_ai_latest_experimental` before importing Strands. Leave that in place if you adapt this sample, because without it tool inputs and outputs never reach the span attributes and the Console shows tool calls with empty payloads.
+
+```bash
+cd samples/insurance-support-agent/agent
+pip install -r requirements.txt
+export CORS_ALLOW_ORIGINS="http://localhost:5173"
+python main.py
+```
+
+:::warning Sessions are keyed on a caller-supplied value
+This sample resumes a conversation from the `session_id` in the request rather than from the authenticated user, so anyone holding a valid token and a known `session_id` can continue someone else's conversation. Sessions are also in-process and capped. Treat it as demonstration code, not a session-handling pattern to copy.
+:::
+
+---
+
+## it-helpdesk-agent
+
+An L1 IT helpdesk agent that handles password resets, software access requests, and ticketing. It verifies a caller's identity before acting, refuses admin password resets, detects duplicate tickets, and escalates to L2.
+
+Pick this one to explore governance. Its rules make agent behaviour easy to assert against, and its README walks through building a Sequence Adherence monitor that checks the agent looked up an employee before verifying their identity. It can also route through an LLM Service Provider so you can attach a prompt-decorator guardrail.
+
+- **App Path** — `/samples/it-helpdesk-agent`
+- **Requires** — `OPENAI_API_KEY`. All data is JSON fixtures in the sample, so there is nothing external to set up
+- **Optional** — set `USE_LLM_PROVIDER=true` with `LLM_PROVIDER_URL` and `LLM_PROVIDER_KEY` to route through a [registered provider](../guides/register-llm-service-provider.mdx)
+
+See [Evaluation Monitors](../guides/evaluation-monitors.mdx) for the monitor side of this.
+
+---
+
+## manual-instrumentation-agent
+
+A small retrieval agent over a bundled knowledge base, written in plain Python with no agent framework, that emits every AMP span kind by hand.
+
+This is the executable reference for the [manual instrumentation contract](../guides/amp-instrumentation.mdx#manual-instrumentation). `instrumentation.py` has one helper per span kind, so if your framework is not covered by auto-instrumentation, this file shows exactly what to emit for the Console to render your traces correctly.
+
+- **Runs** — either externally hosted or platform hosted
+- **Requires** — `OPENAI_API_KEY`, `AMP_OTEL_ENDPOINT`, and `AMP_AGENT_API_KEY`
+- **App Path** — `/samples/manual-instrumentation-agent` when platform hosted
+
+:::warning Turn auto-instrumentation off for this one
+When you deploy this sample to the platform, set instrumentation to **Off** in the agent's configuration. The sample calls `init_otel()` itself, and leaving auto-instrumentation on means both paths emit spans for the same operations.
+:::
+
+```bash
+cd samples/manual-instrumentation-agent
+pip install -r requirements.txt
+python main.py
+```
+
+Note there is no `amp-instrument` prefix here. That wrapper is for the automatic path.
+
+---
+
+## What's Next
+
+| Topic | Guide |
+|---|---|
+| Deploy one of these into your own environment | [Create Your First Agent](../tutorials/create-your-first-agent.mdx) |
+| See the traces a sample produces | [Observe Your First Agent](../tutorials/observe-first-agent.mdx) |
+| Instrument an agent of your own | [AMP Instrumentation](../guides/amp-instrumentation.mdx) |
+| Score agent behaviour automatically | [Evaluation Monitors](../guides/evaluation-monitors.mdx) |

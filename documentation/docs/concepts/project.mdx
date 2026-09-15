@@ -10,7 +10,9 @@ A Project is the primary container for your agents in WSO2 Agent Manager. You cr
 
 An Agent Manager Project is an [OpenChoreo Project](https://openchoreo.dev/docs/concepts/developer-abstractions/#project). A project groups everything that makes up one application or business capability. So you'd put the agents that work together in the same project, rather than putting every agent in your organization into one.
 
-The grouping is more than a label. Each project gets its own namespace, network boundary, and security policies, so agents in one project are genuinely isolated from agents in another.
+The grouping is more than a label. Each project's workloads run in their own Kubernetes namespace, provisioned for each project and environment pair, so agents in different projects do not share a runtime namespace.
+
+That separation is a runtime one rather than an access-control one. Permissions are granted organization-wide and not per project, so a role that can read or create agents in one project carries the same permission across every project in the organization. See [Authorization](../reference/authorization.mdx) for the scopes that are actually evaluated. Use projects to organize related agents and to govern how they promote through environments, rather than to control which users can reach which agents.
 
 ### How Agents Map to OpenChoreo Components
 

@@ -176,6 +176,7 @@ const sidebars: SidebarsConfig = {
             'reference/helm-charts/wso2-amp-platform-resources-extension',
           ],
         },
+        'reference/sample-agents',
         'reference/mcp-server',
         'reference/observer-mcp-server',
         'reference/authorization',

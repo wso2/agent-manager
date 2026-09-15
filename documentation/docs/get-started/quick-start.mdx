@@ -26,6 +26,10 @@ Ensure the following before you begin:
 
   The `agent-manager` profile isolates this install from your default Colima instance, and `--network-address` gives the VM a stable IP so the cluster survives network changes.
 
+  :::warning Set the VM size before you install, not after
+  Changing `--cpu` or `--memory` later requires restarting the Colima VM, which rebuilds the Docker networks underneath the `amp-local` cluster. The k3d server container can then crash-loop on every boot instead of starting, and `kubectl` stops responding. Recovering means deleting and recreating the cluster, so it is worth allocating enough up front. The [k3d installation guide](../guides/on-k3d.mdx#troubleshooting) has the recovery steps.
+  :::
+
 ## 🚀 Installation Using Dev Container
 
 The quick-start includes a dev container with all required tools pre-installed (kubectl, Helm, K3d). This ensures a consistent environment across different systems.
