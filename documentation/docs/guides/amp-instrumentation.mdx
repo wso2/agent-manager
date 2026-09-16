@@ -277,3 +277,26 @@ The version set a given install actually accepts is assembled at runtime from th
 If you're picking a version in the create-agent form and see something that isn't in the table above, your platform admin added it. The pinned `traceloop-sdk` and supported Python versions for those entries live in the operator's chart values.
 
 Operators: see [Instrumentation Catalog](./instrumentation-catalog.mdx) for how to add a version, mirror images for air-gapped installs, and set the platform default.
+
+## Agent framework compatibility
+
+The zero-code path instruments a fixed set of agent frameworks, shipped inside the Traceloop SDK that each AMP-instrumentation version pins. **The framework set is the same across every AMP-instrumentation version and every supported Python version**, so you do not need to pick a particular version to get a particular framework.
+
+### Verified frameworks
+
+These are covered by the [instrumentation matrix test suite](https://github.com/wso2/agent-manager/tree/main/test/instrumentation-matrix), which runs on changes to the instrumentation packages and nightly, and asserts the exact span kinds listed. Each framework is exercised against every AMP-instrumentation version below:
+
+| Framework | Tested version | AMP instrumentation versions | Spans produced | Known limitations |
+|---|---|---|---|---|
+| LangChain | 0.3.27 | 0.3.0, 0.4.0, 0.4.1 | LLM | — |
+| LangGraph | 0.2.74 | 0.3.0, 0.4.0, 0.4.1 | LLM, Tool | Instrumented via the LangChain package |
+| LlamaIndex | 0.12.0 | 0.3.0, 0.4.0, 0.4.1 | LLM, Embedding | Embedding spans omit the vendor attribute |
+| CrewAI | 1.1.0 | 0.3.0, 0.4.0, 0.4.1 | LLM, Agent, Task | No tool spans are emitted; versions 1.14 and later are not installable alongside the pinned SDK |
+| OpenAI (direct SDK) | 2.38.0 | 0.3.0, 0.4.0, 0.4.1 | LLM | — |
+| Anthropic (direct SDK) | 0.45.0 | 0.3.0, 0.4.0, 0.4.1 | LLM | — |
+
+:::warning CrewAI 1.14 and later will not install alongside the pinned SDK
+CrewAI 1.14 tightened its `opentelemetry-api` pin to a range that conflicts with the Traceloop SDK's own requirement, so dependency resolution fails outright rather than degrading. You see a resolver error at install time, not a missing-traces symptom at runtime. Stay on 1.1.x until this is resolved upstream.
+:::
+
+The canonical source for the verified-framework list is [`test/instrumentation-matrix/matrix.yaml`](https://github.com/wso2/agent-manager/blob/main/test/instrumentation-matrix/matrix.yaml); known limitations are tracked in [`FINDINGS.md`](https://github.com/wso2/agent-manager/blob/main/test/instrumentation-matrix/FINDINGS.md) alongside it.
