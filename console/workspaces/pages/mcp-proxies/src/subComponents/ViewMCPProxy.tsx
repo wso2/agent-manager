@@ -246,7 +246,7 @@ export function ViewMCPProxy() {
 
   return (
     <>
-      <PageLayout
+      <PageLayout docs={["mcpProxy", "registerMcpProxy", "authorizeAgentMcpTools"]}
         variant="card"
         title={displayName}
         backHref={backHref}

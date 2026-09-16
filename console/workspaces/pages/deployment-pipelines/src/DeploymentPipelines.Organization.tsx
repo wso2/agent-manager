@@ -51,7 +51,7 @@ export function DeploymentPipelinesOrganization() {
         <Route
           index
           element={
-            <PageLayout title="Deployment Pipelines" disableIcon>
+            <PageLayout docs={["deploymentPipeline", "environmentManagement", "environment"]} title="Deployment Pipelines" disableIcon>
               <DeploymentPipelineTable
                 onEditPipeline={setPipelineToEdit}
                 onCreatePipeline={() => setCreateOpen(true)}

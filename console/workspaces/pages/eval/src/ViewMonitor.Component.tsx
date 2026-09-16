@@ -383,7 +383,7 @@ export const ViewMonitorComponent: React.FC = () => {
             .view.children.runs.path
         }
         element={
-          <PageLayout
+          <PageLayout docs={["evaluationMonitors", "evaluation", "customEvaluators"]}
             title={`Run History ${monitorData?.displayName ? `(${monitorData.displayName})` : ""}`}
             disableIcon
             backLabel={`Back to ${monitorData?.displayName ?? "Monitor"}`}
@@ -407,7 +407,7 @@ export const ViewMonitorComponent: React.FC = () => {
       <Route
         index
         element={
-          <PageLayout
+          <PageLayout docs={["evaluationMonitors", "evaluation", "customEvaluators"]}
             title={
               monitorData?.displayName ?? monitorData?.name ?? "Monitor Details"
             }

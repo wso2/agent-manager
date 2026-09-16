@@ -60,7 +60,7 @@ export function AgentOverview() {
 
     return (
         <>
-            <PageLayout
+            <PageLayout docs={["agentLifecycle", "internalAndExternalAgent", "observability"]}
                 variant="card"
                 title={agent?.displayName ?? "Agent"}
                 isLoading={isAgentLoading}

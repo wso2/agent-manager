@@ -139,7 +139,7 @@ export const ViewLLMProvider: React.FC = () => {
   const description = providerData?.description?.trim();
 
   return (
-    <PageLayout
+    <PageLayout docs={["llmServiceProvider", "registerLlmServiceProvider", "gateway"]}
       variant="card"
       title={providerName}
       description={description}

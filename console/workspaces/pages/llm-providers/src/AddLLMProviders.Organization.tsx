@@ -122,7 +122,7 @@ export const AddLLMProvidersOrganization: React.FC = () => {
   );
 
   return (
-    <PageLayout
+    <PageLayout docs={["registerLlmServiceProvider", "llmServiceProvider", "gateway"]}
       title="Add LLM Service Provider"
       backHref={backHref}
       disableIcon

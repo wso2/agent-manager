@@ -291,14 +291,14 @@ export const RoleEditPage: React.FC = () => {
 
   if (isLoading) {
     return (
-      <PageLayout title="Role" backHref={rolesPath} backLabel="Back to Roles" disableIcon>
+      <PageLayout docs={["authorizeAgentMcpTools", "agentId", "authorization"]} title="Role" backHref={rolesPath} backLabel="Back to Roles" disableIcon>
         <EditFormSkeleton tabs={3} />
       </PageLayout>
     );
   }
 
   return (
-    <PageLayout
+    <PageLayout docs={["authorizeAgentMcpTools", "agentId", "authorization"]}
       title={roleData?.name || "Role"}
       backHref={rolesPath}
       backLabel="Back to Roles"

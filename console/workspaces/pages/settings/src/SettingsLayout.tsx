@@ -95,7 +95,7 @@ export const SettingsLayout: React.FC<{ children: ReactNode }> = ({
     : [];
 
   return (
-    <PageLayout title="Settings" disableIcon>
+    <PageLayout docs={["authorization", "organization"]} title="Settings" disableIcon>
       <Card sx={{ display: "flex", overflow: "hidden", minHeight: "calc(70vh - 64px)" }}>
         <Box
           component="nav"

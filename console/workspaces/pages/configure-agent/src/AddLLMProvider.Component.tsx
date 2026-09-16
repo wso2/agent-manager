@@ -768,7 +768,7 @@ export const AddLLMProviderComponent: React.FC = () => {
   // environments before collapsing to the pipeline subset.
   if (isLoadingEnvironments || (isEditMode && isLoadingConfig)) {
     return (
-      <PageLayout
+      <PageLayout docs={["configureAgentLlm", "llmServiceProvider", "gateway"]}
         title={isEditMode ? "Edit LLM Configuration" : "Add LLM Configuration"}
         backHref={backHref}
         disableIcon
@@ -785,7 +785,7 @@ export const AddLLMProviderComponent: React.FC = () => {
 
   if (isEditMode && !isLoadingConfig && (isConfigError || !existingConfig)) {
     return (
-      <PageLayout
+      <PageLayout docs={["configureAgentLlm", "llmServiceProvider", "gateway"]}
         title="Edit LLM Configuration"
         backHref={backHref}
         disableIcon
@@ -799,7 +799,7 @@ export const AddLLMProviderComponent: React.FC = () => {
   }
 
   return (
-    <PageLayout
+    <PageLayout docs={["configureAgentLlm", "llmServiceProvider", "gateway"]}
       title={isEditMode ? "Edit LLM Configuration" : "Add LLM Configuration"}
       backHref={backHref}
       disableIcon

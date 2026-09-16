@@ -93,7 +93,7 @@ export const TestComponent: React.FC = () => {
 
   if (!isDeploymentLoading && currentDeployment?.status !== "active") {
     return (
-      <PageLayout title="Try your agent" disableIcon actions={<EnvironmentSelector />}>
+      <PageLayout docs={["createFirstAgent", "secureAgentsWithApiKeys", "agentLifecycle"]} title="Try your agent" disableIcon actions={<EnvironmentSelector />}>
         <Box
           height="50vh"
           display="flex"
@@ -112,7 +112,7 @@ export const TestComponent: React.FC = () => {
   }
 
   return (
-    <PageLayout title={"Try your agent"} disableIcon isLoading={isLoading} actions={<EnvironmentSelector />}>
+    <PageLayout docs={["createFirstAgent", "secureAgentsWithApiKeys", "agentLifecycle"]} title={"Try your agent"} disableIcon isLoading={isLoading} actions={<EnvironmentSelector />}>
       {isLoading ? (
         <SkeletonTestPageLayout />
       ) : isEnvConfigError ? (

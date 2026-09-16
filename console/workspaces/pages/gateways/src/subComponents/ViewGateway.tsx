@@ -129,7 +129,7 @@ export const ViewGateway: React.FC = () => {
 
   return (
     <>
-      <PageLayout
+      <PageLayout docs={["gateway", "configureIdentityProviders", "environment"]}
         title={displayName}
         backHref={generatePath(
           absoluteRouteMap.children.org.children.gateways.path,

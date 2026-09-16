@@ -615,7 +615,7 @@ export const ViewMCPServerComponent = () => {
 
   if (isLoading) {
     return (
-      <PageLayout
+      <PageLayout docs={["configureAgentMcpProxies", "authorizeAgentMcpTools", "mcpProxy"]}
         title="Tool Configuration"
         backHref={backHref}
         disableIcon
@@ -632,7 +632,7 @@ export const ViewMCPServerComponent = () => {
 
   if (isError || !config) {
     return (
-      <PageLayout
+      <PageLayout docs={["configureAgentMcpProxies", "authorizeAgentMcpTools", "mcpProxy"]}
         title="Tool Configuration"
         backHref={backHref}
         disableIcon
@@ -956,7 +956,7 @@ export const ViewMCPServerComponent = () => {
     ));
 
   return (
-    <PageLayout
+    <PageLayout docs={["configureAgentMcpProxies", "authorizeAgentMcpTools", "mcpProxy"]}
       title={pageTitle}
       backHref={backHref}
       disableIcon

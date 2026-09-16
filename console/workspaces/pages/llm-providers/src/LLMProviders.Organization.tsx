@@ -36,7 +36,7 @@ export const LLMProvidersOrganization: React.FC = () => {
       <Route
         index
         element={
-          <PageLayout title="LLM Service Providers" disableIcon>
+          <PageLayout docs={["llmServiceProvider", "registerLlmServiceProvider", "gateway"]} title="LLM Service Providers" disableIcon>
             <LLMProviderTable />
           </PageLayout>
         }

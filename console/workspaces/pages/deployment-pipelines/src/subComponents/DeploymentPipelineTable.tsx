@@ -41,7 +41,7 @@ import {
 } from "@agent-management-platform/api-client";
 import type { DeploymentPipelineResponse } from "@agent-management-platform/types";
 import { getIsolationTierMeta, useConfirmationDialog } from "@agent-management-platform/shared-component";
-import { FadeIn } from "@agent-management-platform/views";
+import { FadeIn, DocsLink } from "@agent-management-platform/views";
 import { validatePromotionChain } from "../utils/validatePromotionChain";
 
 interface DeploymentPipelineTableProps {
@@ -242,15 +242,20 @@ export function DeploymentPipelineTable(
             title="No deployment pipelines yet"
             description="Deployment pipelines define the promotion path for your agents across environments."
             action={
-              onCreatePipeline && (
-                <Button
-                  variant="contained"
-                  startIcon={<Plus size={16} />}
-                  onClick={onCreatePipeline}
-                >
-                  Create Pipeline
-                </Button>
-              )
+              <Stack spacing={1.5} alignItems="center">
+                {onCreatePipeline && (
+                  <Button
+                    variant="contained"
+                    startIcon={<Plus size={16} />}
+                    onClick={onCreatePipeline}
+                  >
+                    Create Pipeline
+                  </Button>
+                )}
+                <DocsLink docs="deploymentPipeline">
+                  How deployment pipelines work
+                </DocsLink>
+              </Stack>
             }
           />
         </ListingTable.Container>

@@ -114,7 +114,7 @@ export const MetricsComponent: React.FC = () => {
   // state instead.
   if (!isObserverConfigured()) {
     return (
-      <PageLayout title="System Metrics" disableIcon>
+      <PageLayout docs={["observability", "observeFirstAgent", "ampInstrumentation"]} title="System Metrics" disableIcon>
         <Alert severity="error" sx={{ mt: 2 }}>
           <strong>Observer not configured.</strong> Ask your platform
           administrator to set <code>AM_OBSERVER_PUBLIC_URL</code> on the
@@ -125,7 +125,7 @@ export const MetricsComponent: React.FC = () => {
   }
 
   return (
-    <PageLayout
+    <PageLayout docs={["observability", "observeFirstAgent", "ampInstrumentation"]}
       title="System Metrics"
       disableIcon
       actions={

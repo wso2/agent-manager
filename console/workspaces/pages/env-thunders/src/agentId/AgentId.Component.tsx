@@ -783,7 +783,7 @@ export const AgentIdComponent: React.FC = () => {
   }
 
   return (
-    <PageLayout
+    <PageLayout docs={["agentId", "useAgentIdInPlatformHosted", "retrieveAgentIdForExternal"]}
       title="Agent ID"
       disableIcon
       actions={

@@ -171,7 +171,7 @@ export const InternalAgentFlow: React.FC = () => {
   );
 
   return (
-    <PageLayout
+    <PageLayout docs={["createFirstAgent", "internalAndExternalAgent", "agentSandboxing"]}
       title="Create a Platform-Hosted Agent"
       description="Specify the source repository, select the agent type, and deploy it on the platform."
       disableIcon

@@ -267,7 +267,7 @@ export const GroupEditPage: React.FC = () => {
 
   if (isLoading) {
     return (
-      <PageLayout title="Group" backHref={groupsPath} backLabel="Back to Groups" disableIcon>
+      <PageLayout docs={["authorizeAgentMcpTools", "agentId", "authorization"]} title="Group" backHref={groupsPath} backLabel="Back to Groups" disableIcon>
         <EditFormSkeleton tabs={2} />
       </PageLayout>
     );
@@ -276,7 +276,7 @@ export const GroupEditPage: React.FC = () => {
   const isDirty = memberDelta.isDirty || roleDelta.isDirty;
 
   return (
-    <PageLayout
+    <PageLayout docs={["authorizeAgentMcpTools", "agentId", "authorization"]}
       title={groupData?.name || "Group"}
       backHref={groupsPath}
       backLabel="Back to Groups"

@@ -186,7 +186,7 @@ export const CreateMonitorComponent: React.FC = () => {
 
   if (duplicateFrom && isLoadingSource) {
     return (
-      <PageLayout
+      <PageLayout docs={["evaluationMonitors", "evaluation", "customEvaluators"]}
         title="Create Monitor"
         disableIcon
         backLabel="Back to Monitors"
@@ -202,7 +202,7 @@ export const CreateMonitorComponent: React.FC = () => {
 
   if (duplicateFrom && sourceError) {
     return (
-      <PageLayout
+      <PageLayout docs={["evaluationMonitors", "evaluation", "customEvaluators"]}
         title="Create Monitor"
         disableIcon
         backLabel="Back to Monitors"

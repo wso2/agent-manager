@@ -33,7 +33,7 @@ function GroupsListPage() {
   return (
     <AgentIdentityEnvironmentGate title={TITLE}>
       {() => (
-        <PageLayout
+        <PageLayout docs={["authorizeAgentMcpTools", "agentId", "authorization"]}
           title={TITLE}
           description="Groups available in the selected environment's identity provider."
           disableIcon
@@ -52,7 +52,7 @@ function GroupCreateWrapper() {
   return (
     <AgentIdentityEnvironmentGate title="Create Group">
       {() => (
-        <PageLayout title="Create Group" backHref={backHref} backLabel="Back to Groups" disableIcon>
+        <PageLayout docs={["authorizeAgentMcpTools", "agentId", "authorization"]} title="Create Group" backHref={backHref} backLabel="Back to Groups" disableIcon>
           <GroupCreatePage />
         </PageLayout>
       )}

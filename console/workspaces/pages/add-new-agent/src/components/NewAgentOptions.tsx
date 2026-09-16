@@ -53,7 +53,7 @@ export const NewAgentOptions = ({ onSelect }: NewAgentOptionsProps) => {
     }, [hasAgents, orgId, projectId]);
 
     return (
-        <PageLayout
+        <PageLayout docs={["internalAndExternalAgent", "agentLifecycle", "createFirstAgent"]}
             title="Add a New Agent"
             description="Choose how you want to get started. You can deploy an agent on the platform or register an agent that already runs elsewhere."
             disableIcon

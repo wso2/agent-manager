@@ -68,7 +68,7 @@ export const DeployComponent = () => {
   }, [environments, pipelinesData, project?.deploymentPipeline]);
 
   return (
-    <PageLayout title="Deploy" disableIcon>
+    <PageLayout docs={["deploymentPipeline", "environment", "agentSandboxing"]} title="Deploy" disableIcon>
       <Stack direction="row" pb={4} width="100%" minHeight="calc(100vh - 300px)" overflow="auto">
         <BuildCard initialEnvironment={pipelineEnvironments[0]} />
         {pipelineEnvironments.map((env) => (

@@ -259,7 +259,7 @@ export function MonitorFormWizard({
   }, [serverError]);
 
   return (
-    <PageLayout
+    <PageLayout docs={["evaluationMonitors", "evaluation", "customEvaluators"]}
       title={title}
       description={description}
       disableIcon

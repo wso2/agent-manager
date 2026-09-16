@@ -42,7 +42,7 @@ export const CatalogKindSelect: React.FC = () => {
     );
 
   return (
-    <PageLayout
+    <PageLayout docs={["agentKindAndCatalog", "createFirstAgent", "internalAndExternalAgent"]}
       title="Select an Agent Kind"
       description="Browse the catalog and pick a Agent Kind to create your agent from."
       disableIcon

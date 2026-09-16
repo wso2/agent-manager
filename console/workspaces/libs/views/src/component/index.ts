@@ -21,6 +21,7 @@ export * from './MainActionPanel';
 export * from './FullPageLoader';
 export * from './NoDataFound';
 export * from './PageLayout';
+export * from './Docs';
 export * from './FadeIn';
 export * from "./Loader";
 export * from './EnvVariableEditor';
