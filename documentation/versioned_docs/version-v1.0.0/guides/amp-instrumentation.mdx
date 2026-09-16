@@ -284,16 +284,16 @@ The zero-code path instruments a fixed set of agent frameworks, shipped inside t
 
 ### Verified frameworks
 
-These are covered by the [instrumentation matrix test suite](https://github.com/wso2/agent-manager/tree/main/test/instrumentation-matrix), which runs on changes to the instrumentation packages and nightly, and asserts the exact span kinds listed. Each framework is exercised against every AMP-instrumentation version below:
+These are covered by the [instrumentation matrix test suite](https://github.com/wso2/agent-manager/tree/main/test/instrumentation-matrix), which runs on changes to the instrumentation packages and nightly, and asserts the exact span kinds listed. Each framework is exercised against all three AMP-instrumentation versions: 0.3.0, 0.4.0, and 0.4.1.
 
-| Framework | Tested version | AMP instrumentation versions | Spans produced | Known limitations |
-|---|---|---|---|---|
-| LangChain | 0.3.27 | 0.3.0, 0.4.0, 0.4.1 | LLM | — |
-| LangGraph | 0.2.74 | 0.3.0, 0.4.0, 0.4.1 | LLM, Tool | Instrumented via the LangChain package |
-| LlamaIndex | 0.12.0 | 0.3.0, 0.4.0, 0.4.1 | LLM, Embedding | Embedding spans omit the vendor attribute |
-| CrewAI | 1.1.0 | 0.3.0, 0.4.0, 0.4.1 | LLM, Agent, Task | No tool spans are emitted; versions 1.14 and later are not installable alongside the pinned SDK |
-| OpenAI (direct SDK) | 2.38.0 | 0.3.0, 0.4.0, 0.4.1 | LLM | — |
-| Anthropic (direct SDK) | 0.45.0 | 0.3.0, 0.4.0, 0.4.1 | LLM | — |
+| Framework | Tested version | Spans produced | Known limitations |
+|---|---|---|---|
+| LangChain | 0.3.27 | LLM | — |
+| LangGraph | 0.2.74 | LLM, Tool | Instrumented via the LangChain package |
+| LlamaIndex | 0.12.0 | LLM, Embedding | Embedding spans omit the vendor attribute |
+| CrewAI | 1.1.0 | LLM, Agent, Task | No tool spans are emitted; versions 1.14 and later are not installable alongside the pinned SDK |
+| OpenAI (direct SDK) | 2.38.0 | LLM | — |
+| Anthropic (direct SDK) | 0.45.0 | LLM | — |
 
 :::warning CrewAI 1.14 and later will not install alongside the pinned SDK
 CrewAI 1.14 tightened its `opentelemetry-api` pin to a range that conflicts with the Traceloop SDK's own requirement, so dependency resolution fails outright rather than degrading. You see a resolver error at install time, not a missing-traces symptom at runtime. Stay on 1.1.x until this is resolved upstream.
