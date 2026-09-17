@@ -501,8 +501,9 @@ export const AddLLMProviderForm: React.FC<AddLLMProviderFormProps> = ({
                             width: 28,
                             height: 28,
                             objectFit: "contain",
-                            backgroundColor: "grey.100",
+                            backgroundColor: "common.white",
                             borderRadius: "20%",
+                            flexShrink: 0,
                           }}
                         />
                       ) : (

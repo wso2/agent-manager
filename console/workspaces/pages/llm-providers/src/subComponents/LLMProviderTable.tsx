@@ -225,7 +225,7 @@ export function LLMProviderTable() {
                               width: 14,
                               height: 14,
                               objectFit: "contain",
-                              bgcolor: "grey.200",
+                              bgcolor: "common.white",
                               flexShrink: 0,
                               borderRadius: 1,
                             }}
