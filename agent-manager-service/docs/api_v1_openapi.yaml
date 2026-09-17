@@ -11594,8 +11594,9 @@ components:
           type: array
           description: >-
             Optional MCP proxy configurations to create atomically with the
-            agent. Applied to the component's initial (lowest) environment. Name
-            and type are auto-generated.
+            agent. Applied to every environment in the project's deployment
+            pipeline, so the agent can be promoted without reconfiguring each
+            one. Name and type are auto-generated.
           items:
             $ref: "#/components/schemas/MCPConfigRequest"
         labels:
@@ -11628,8 +11629,10 @@ components:
         proxyName:
           type: string
           description: >-
-            Handle of an already-configured MCP proxy. Applied to the
-            component's initial (lowest) environment.
+            Handle of an already-configured MCP proxy. Applied to every
+            environment in the project's deployment pipeline. An environment
+            the proxy has no endpoint in yet is still recorded, and is bound
+            automatically once the proxy becomes available there.
         environmentVariables:
           type: array
           description: Optional custom environment variable names exposed to the agent

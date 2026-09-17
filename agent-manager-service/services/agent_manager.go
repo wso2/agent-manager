@@ -1470,6 +1470,11 @@ func (s *agentManagerService) createComponentAgent(ctx context.Context, ouID, pr
 		s.logger.Error("No environment found in deployment pipeline", "projectName", projectName)
 		return fmt.Errorf("no environment found in deployment pipeline")
 	}
+	// The agent's workload is only released into firstEnv here; promotion carries it
+	// upward. Its MCP connections, by contrast, are bound across the whole pipeline (see
+	// createAgentMCPConfigs), because a promotion into an environment with no binding of
+	// its own is refused.
+	pipelineEnvs := client.PipelineEnvironments(pipeline.PromotionPaths)
 
 	// Preflight: validate referenced LLM providers before creating any secrets or
 	// the component, so a bad provider fails fast with no resources to roll back.
@@ -1617,7 +1622,7 @@ func (s *agentManagerService) createComponentAgent(ctx context.Context, ouID, pr
 
 	// Create MCP proxy mapping configurations (applies to both internal and external agents)
 	if len(req.McpConfig) > 0 {
-		if err := s.createAgentMCPConfigs(ctx, ouID, projectName, firstEnv, req); err != nil {
+		if err := s.createAgentMCPConfigs(ctx, ouID, projectName, pipelineEnvs, req); err != nil {
 			s.logger.Error("Failed to create MCP configurations for agent", "agentName", req.Name, "error", err)
 			rollbackAgentCreate("MCP config failure")
 			return err
@@ -1807,6 +1812,19 @@ func (s *agentManagerService) mergeKindWorkloadSystemEnvVars(
 	return append(userEnvVars, systemEnvVars...), nil
 }
 
+// createAgentLLMConfigs configures the agent's LLM providers in the pipeline's entry
+// environment only.
+//
+// Unlike an MCP connection, this deliberately does NOT span the pipeline. createLLMConfig
+// resolves the gateway the provider is deployed to per environment and rolls the whole
+// configuration back when it cannot — there is no "configure it now, bind it when the
+// environment is ready" path for an LLM proxy the way provisionUnconfiguredMCPEnv gives
+// one for MCP. Mapping every environment here would therefore make agent creation fail
+// outright whenever a higher environment has no gateway hosting the provider yet, turning
+// a promotion-time prompt to configure the target into a creation-time blocker.
+//
+// The consequence is that promoting an agent with an LLM provider still requires the
+// target environment to be configured first, and the promotion guard says so.
 func (s *agentManagerService) createAgentLLMConfigs(
 	ctx context.Context, ouID, projectName, firstEnv string, req *spec.CreateAgentRequest,
 ) error {
@@ -1837,23 +1855,33 @@ func (s *agentManagerService) createAgentLLMConfigs(
 	return nil
 }
 
+// createAgentMCPConfigs binds the agent's MCP connections across EVERY environment in the
+// project's deployment pipeline. An MCP connection is environment-agnostic — the same
+// proxy backs every environment — so there is no reason for creation to bind only the
+// entry point, and doing so left higher environments with no binding to promote into.
+//
+// Environments where the proxy has no endpoint yet are not skipped: createMCPConfig
+// records the connection there with its variables injected empty, which is the state
+// ReconcileMCPBindingsForProxy later completes once the proxy becomes deployable.
 func (s *agentManagerService) createAgentMCPConfigs(
-	ctx context.Context, ouID, projectName, firstEnv string, req *spec.CreateAgentRequest,
+	ctx context.Context, ouID, projectName string, pipelineEnvs []string, req *spec.CreateAgentRequest,
 ) error {
 	for i, mc := range req.McpConfig {
 		configName := fmt.Sprintf("%s-mcp-config", req.Name)
 		if len(req.McpConfig) > 1 {
 			configName = fmt.Sprintf("%s-mcp-config-%d", req.Name, i+1)
 		}
+		envMappings := make(map[string]models.EnvModelConfigRequest, len(pipelineEnvs))
+		for _, envName := range pipelineEnvs {
+			envMappings[envName] = models.EnvModelConfigRequest{
+				// createMCPConfig reads the MCP proxy handle from ProviderName.
+				ProviderName: mc.ProxyName,
+			}
+		}
 		createReq := models.CreateAgentModelConfigRequest{
-			Name: configName,
-			Type: models.AgentConfigTypeMCP,
-			EnvMappings: map[string]models.EnvModelConfigRequest{
-				firstEnv: {
-					// createMCPConfig reads the MCP proxy handle from ProviderName.
-					ProviderName: mc.ProxyName,
-				},
-			},
+			Name:                 configName,
+			Type:                 models.AgentConfigTypeMCP,
+			EnvMappings:          envMappings,
 			EnvironmentVariables: convertEnvVars(mc.EnvironmentVariables),
 		}
 		if _, err := s.agentConfigurationService.Create(ctx, ouID, projectName, req.Name, createReq, "system"); err != nil {
@@ -4518,8 +4546,17 @@ func (s *agentManagerService) PromoteAgent(ctx context.Context, ouID string, pro
 
 // assertMCPBindingsSurvivePromotion rejects a promotion that would carry an MCP connection
 // working in sourceEnv into targetEnv as a dead one — variables injected, but empty, because
-// the proxy has no endpoint bound to the target. A connection already unresolved in the
+// nothing in the target resolves them to a proxy URL. A connection already unresolved in the
 // source is left alone: it is unbound everywhere, not broken by this promotion.
+//
+// A connection resolves through its per-environment binding row, and that row is written
+// only by the agent-configuration write path and the proxy-side reconcile. An environment
+// that became bindable without either running still has no row, so the connection reads as
+// dead here while the proxy is in fact bound to the environment — the state users escaped
+// by detaching and re-attaching the connection. This attempts the missing binding before
+// judging the target, so that state promotes on the first try instead. A target the proxy
+// genuinely does not serve is still refused: the reconcile writes nothing there, and the
+// recheck below sees the same unresolved connection.
 func (s *agentManagerService) assertMCPBindingsSurvivePromotion(
 	ctx context.Context, agentName, ouID, projectName, sourceEnv, targetEnv string,
 ) error {
@@ -4528,6 +4565,22 @@ func (s *agentManagerService) assertMCPBindingsSurvivePromotion(
 		return fmt.Errorf("failed to check MCP bindings in target environment %q: %w", targetEnv, err)
 	}
 	if len(targetUnresolved) == 0 {
+		return nil
+	}
+
+	// Best-effort: a reconcile failure must not turn a promotion this check would have
+	// allowed into an error, so it is logged and the recheck decides either way.
+	if err := s.agentConfigurationService.ReconcileMCPBindingsForAgentEnvironment(ctx, agentName, ouID, projectName, targetEnv); err != nil {
+		s.logger.Warn("Failed to reconcile MCP bindings before promotion; re-checking as-is",
+			"agentName", agentName, "targetEnvironment", targetEnv, "error", err)
+	}
+	targetUnresolved, err = s.agentConfigurationService.ListUnresolvedMCPBindings(ctx, agentName, ouID, projectName, targetEnv)
+	if err != nil {
+		return fmt.Errorf("failed to re-check MCP bindings in target environment %q: %w", targetEnv, err)
+	}
+	if len(targetUnresolved) == 0 {
+		s.logger.Info("Bound MCP connections in the promotion target before promoting",
+			"agentName", agentName, "targetEnvironment", targetEnv)
 		return nil
 	}
 	sourceUnresolved, err := s.agentConfigurationService.ListUnresolvedMCPBindings(ctx, agentName, ouID, projectName, sourceEnv)

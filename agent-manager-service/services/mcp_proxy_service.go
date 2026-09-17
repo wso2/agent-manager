@@ -646,6 +646,30 @@ func (s *MCPProxyService) Delete(ctx context.Context, orgUUID, orgName, proxyID 
 		return utils.ErrMCPProxyHasMappings
 	}
 
+	// An agent's MCP connection references a proxy in two places: a mapping row per
+	// environment it is bound in, and AgentConfiguration.MCPProxyUUID, which is
+	// environment-independent. A connection can hold the second with none of the first —
+	// that is the state a proxy deployable in no environment leaves behind, and the state
+	// the binding reconcile exists to complete once one becomes available.
+	//
+	// The mapping check above cannot see it, and deleting would strand the connection for
+	// good: its variables stay injected but empty, no reconcile can claim it without a
+	// proxy to claim it for, and promotion refuses it with nothing left to self-heal from.
+	//
+	// This read sits outside the delete transaction, so it is a fast path that returns a
+	// clean error rather than the invariant itself: fk_agent_config_mcp_proxy is ON DELETE
+	// RESTRICT, and MCPProxyRepo.Delete maps its 23503 violation onto the same error, which
+	// is what actually closes the window against a reference committed after this read.
+	if s.agentConfigRepo != nil {
+		configs, cfgErr := s.agentConfigRepo.ListMCPConfigsByProxy(ctx, orgUUID, proxy.UUID)
+		if cfgErr != nil {
+			return fmt.Errorf("failed to list agent configurations before delete: %w", cfgErr)
+		}
+		if len(configs) > 0 {
+			return utils.ErrMCPProxyHasMappings
+		}
+	}
+
 	// Capture the proxy's scope rows before the row delete cascades them away
 	// (mcp_proxy_scopes FK is ON DELETE CASCADE) — the Thunder cleanup below needs
 	// every scope string to strip from role permissions.

@@ -61,6 +61,21 @@ type AgentConfiguration struct {
 	CreatedAt   time.Time `gorm:"column:created_at;type:timestamp;default:CURRENT_TIMESTAMP" json:"createdAt"`
 	UpdatedAt   time.Time `gorm:"column:updated_at;type:timestamp;default:CURRENT_TIMESTAMP" json:"updatedAt"`
 
+	// MCPProxyUUID is the org-level MCP proxy an MCP-type configuration references,
+	// independent of any environment. An MCP connection is environment-agnostic by
+	// construction — every environment maps to the same proxy — so recording it here
+	// keeps the reference resolvable in environments that have no EnvAgentMCPMapping
+	// row yet, which is what lets the binding reconcile find a connection it has
+	// never managed to bind anywhere.
+	//
+	// Nil for non-MCP configurations, and for an MCP configuration whose environments
+	// name different proxies: there is no single environment-agnostic answer then, so
+	// readers fall back to the per-environment mapping rows.
+	//
+	// The foreign key is ON DELETE RESTRICT, so a proxy cannot be deleted while a
+	// configuration still points at it — see migration044 for why SET NULL was unsafe.
+	MCPProxyUUID *uuid.UUID `gorm:"column:mcp_proxy_uuid;type:uuid" json:"mcpProxyUuid,omitempty"`
+
 	// Relations (eager loaded)
 	EnvMappings    []EnvAgentModelMapping   `gorm:"foreignKey:ConfigUUID;constraint:OnDelete:CASCADE" json:"envMappings,omitempty"`
 	EnvMCPMappings []EnvAgentMCPMapping     `gorm:"foreignKey:ConfigUUID;constraint:OnDelete:CASCADE" json:"mcpEnvMappings,omitempty"`

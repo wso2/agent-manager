@@ -54,6 +54,9 @@ import (
 //			ListMCPConfigsByAgentFunc: func(ctx context.Context, ouID string, projectName string, agentID string) ([]models.AgentConfiguration, error) {
 //				panic("mock out the ListMCPConfigsByAgent method")
 //			},
+//			ListMCPConfigsByProxyFunc: func(ctx context.Context, ouID string, proxyUUID uuid.UUID) ([]models.AgentConfiguration, error) {
+//				panic("mock out the ListMCPConfigsByProxy method")
+//			},
 //			UpdateFunc: func(ctx context.Context, tx *gorm.DB, config *models.AgentConfiguration) error {
 //				panic("mock out the Update method")
 //			},
@@ -99,6 +102,9 @@ type AgentConfigurationRepositoryMock struct {
 
 	// ListMCPConfigsByAgentFunc mocks the ListMCPConfigsByAgent method.
 	ListMCPConfigsByAgentFunc func(ctx context.Context, ouID string, projectName string, agentID string) ([]models.AgentConfiguration, error)
+
+	// ListMCPConfigsByProxyFunc mocks the ListMCPConfigsByProxy method.
+	ListMCPConfigsByProxyFunc func(ctx context.Context, ouID string, proxyUUID uuid.UUID) ([]models.AgentConfiguration, error)
 
 	// UpdateFunc mocks the Update method.
 	UpdateFunc func(ctx context.Context, tx *gorm.DB, config *models.AgentConfiguration) error
@@ -237,6 +243,15 @@ type AgentConfigurationRepositoryMock struct {
 			// AgentID is the agentID argument value.
 			AgentID string
 		}
+		// ListMCPConfigsByProxy holds details about calls to the ListMCPConfigsByProxy method.
+		ListMCPConfigsByProxy []struct {
+			// Ctx is the ctx argument value.
+			Ctx context.Context
+			// OuID is the ouID argument value.
+			OuID string
+			// ProxyUUID is the proxyUUID argument value.
+			ProxyUUID uuid.UUID
+		}
 		// Update holds details about calls to the Update method.
 		Update []struct {
 			// Ctx is the ctx argument value.
@@ -259,6 +274,7 @@ type AgentConfigurationRepositoryMock struct {
 	lockListByAgent           sync.RWMutex
 	lockListByAgentAndType    sync.RWMutex
 	lockListMCPConfigsByAgent sync.RWMutex
+	lockListMCPConfigsByProxy sync.RWMutex
 	lockUpdate                sync.RWMutex
 }
 
@@ -787,6 +803,46 @@ func (mock *AgentConfigurationRepositoryMock) ListMCPConfigsByAgentCalls() []str
 	mock.lockListMCPConfigsByAgent.RLock()
 	calls = mock.calls.ListMCPConfigsByAgent
 	mock.lockListMCPConfigsByAgent.RUnlock()
+	return calls
+}
+
+// ListMCPConfigsByProxy calls ListMCPConfigsByProxyFunc.
+func (mock *AgentConfigurationRepositoryMock) ListMCPConfigsByProxy(ctx context.Context, ouID string, proxyUUID uuid.UUID) ([]models.AgentConfiguration, error) {
+	if mock.ListMCPConfigsByProxyFunc == nil {
+		panic("AgentConfigurationRepositoryMock.ListMCPConfigsByProxyFunc: method is nil but AgentConfigurationRepository.ListMCPConfigsByProxy was just called")
+	}
+	callInfo := struct {
+		Ctx       context.Context
+		OuID      string
+		ProxyUUID uuid.UUID
+	}{
+		Ctx:       ctx,
+		OuID:      ouID,
+		ProxyUUID: proxyUUID,
+	}
+	mock.lockListMCPConfigsByProxy.Lock()
+	mock.calls.ListMCPConfigsByProxy = append(mock.calls.ListMCPConfigsByProxy, callInfo)
+	mock.lockListMCPConfigsByProxy.Unlock()
+	return mock.ListMCPConfigsByProxyFunc(ctx, ouID, proxyUUID)
+}
+
+// ListMCPConfigsByProxyCalls gets all the calls that were made to ListMCPConfigsByProxy.
+// Check the length with:
+//
+//	len(mockedAgentConfigurationRepository.ListMCPConfigsByProxyCalls())
+func (mock *AgentConfigurationRepositoryMock) ListMCPConfigsByProxyCalls() []struct {
+	Ctx       context.Context
+	OuID      string
+	ProxyUUID uuid.UUID
+} {
+	var calls []struct {
+		Ctx       context.Context
+		OuID      string
+		ProxyUUID uuid.UUID
+	}
+	mock.lockListMCPConfigsByProxy.RLock()
+	calls = mock.calls.ListMCPConfigsByProxy
+	mock.lockListMCPConfigsByProxy.RUnlock()
 	return calls
 }
 

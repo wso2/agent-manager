@@ -1097,11 +1097,19 @@ func (c *openChoreoClient) GetDeployments(ctx context.Context, ouID, pipelineNam
 // FindFirstEnvironment returns the name of the first (source/dev) environment
 // from the deployment pipeline promotion paths, or "" if none.
 func FindFirstEnvironment(promotionPaths []models.PromotionPath) string {
-	order := buildEnvironmentOrder(promotionPaths)
+	order := PipelineEnvironments(promotionPaths)
 	if len(order) == 0 {
 		return ""
 	}
 	return order[0]
+}
+
+// PipelineEnvironments returns every environment the deployment pipeline covers, in
+// promotion order (first/dev first). Callers that must provision an agent for the whole
+// pipeline rather than just its entry point use this — configuring only the first
+// environment leaves the higher ones with no configuration to promote into.
+func PipelineEnvironments(promotionPaths []models.PromotionPath) []string {
+	return buildEnvironmentOrder(promotionPaths)
 }
 
 // buildEnvironmentOrder creates an ordered list of environments based on promotion paths

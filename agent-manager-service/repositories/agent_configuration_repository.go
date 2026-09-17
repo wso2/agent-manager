@@ -56,6 +56,16 @@ type AgentConfigurationRepository interface {
 	// instead of GetByAgentID, which only ever returns one arbitrary row.
 	ListMCPConfigsByAgent(ctx context.Context, ouID, projectName, agentID string) ([]models.AgentConfiguration, error)
 
+	// ListMCPConfigsByProxy returns every MCP-type AgentConfiguration row in the
+	// organization whose mcp_proxy_uuid is proxyUUID, preloaded with the mapping and
+	// env var rows a binding reconcile reads.
+	//
+	// This is the proxy-side counterpart to ListMCPConfigsByAgent, and deliberately
+	// keys off the configuration's own proxy column rather than its mapping rows: a
+	// connection with no mapping in some (or any) environment is exactly the one a
+	// reconcile needs to find, and a mapping-row join cannot see it.
+	ListMCPConfigsByProxy(ctx context.Context, ouID string, proxyUUID uuid.UUID) ([]models.AgentConfiguration, error)
+
 	// List retrieves configurations with pagination
 	List(ctx context.Context, ouID string, limit, offset int) ([]models.AgentConfiguration, error)
 
@@ -150,6 +160,19 @@ func (r *agentConfigurationRepository) ListMCPConfigsByAgent(ctx context.Context
 		Preload("EnvMCPMappings.MCPProxy").
 		Preload("EnvMCPMappings.MCPProxy.Artifact").
 		Where("ou_id = ? AND project_name = ? AND agent_id = ? AND type_id = ?", ouID, projectName, agentID, models.AgentConfigTypeIDMCP).
+		Find(&configs).Error
+	return configs, err
+}
+
+func (r *agentConfigurationRepository) ListMCPConfigsByProxy(ctx context.Context, ouID string, proxyUUID uuid.UUID) ([]models.AgentConfiguration, error) {
+	var configs []models.AgentConfiguration
+	err := r.db.WithContext(ctx).
+		Preload("EnvMCPMappings").
+		Preload("EnvMCPMappings.Artifact").
+		Preload("EnvMCPMappings.MCPProxy").
+		Preload("EnvMCPMappings.MCPProxy.Artifact").
+		Preload("EnvVariables").
+		Where("ou_id = ? AND type_id = ? AND mcp_proxy_uuid = ?", ouID, models.AgentConfigTypeIDMCP, proxyUUID).
 		Find(&configs).Error
 	return configs, err
 }
