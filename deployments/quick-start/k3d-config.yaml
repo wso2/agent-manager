@@ -5,6 +5,8 @@ metadata:
 image: rancher/k3s:v1.32.9-k3s1
 servers: 1
 agents: 0
+# k3d assigns the server node a STATIC container IP
+subnet: "172.28.0.0/16"
 kubeAPI:
   hostPort: "6550"
 # Single cluster mode exposes all plane port ranges for consistency with multi-cluster setup.

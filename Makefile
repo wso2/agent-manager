@@ -202,6 +202,7 @@ setup-console-local-force:
 # --build: plain `up -d` reuses an image built from an older Dockerfile, silently
 # running a stale toolchain. Cached layers keep the no-change case near-free.
 dev-up: setup-console-local gen-keys
+	@cd deployments/setup && ./ensure-k3d-running.sh
 	@echo "🚀 Starting Agent Manager platform..."
 	@cd deployments && docker compose up -d --build
 	@echo "✅ Platform is running!"
@@ -226,6 +227,7 @@ dev-rebuild: setup-console-local
 	@echo "🔨 Rebuilding Docker images..."
 	@cd deployments && docker compose build --no-cache
 	@echo "🔄 Starting services..."
+	@cd deployments/setup && ./ensure-k3d-running.sh
 	@cd deployments && docker compose up -d
 	@echo "✅ Rebuild complete!"
 	@echo "   Console: http://localhost:3000"

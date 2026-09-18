@@ -102,8 +102,9 @@ services:
       postgres:
         condition: service_healthy
     networks:
-      - agent-manager
-      - k3d-openchoreo-local-setup # Connect to k3d cluster network for hostname resolution
+      agent-manager:
+      k3d-openchoreo-local-setup: # Connect to k3d cluster network for hostname resolution
+        ipv4_address: 172.29.0.10
     extra_hosts:
       - "host.docker.internal:host-gateway"
       # OpenChoreo API uses Host-based routing via Kgateway on port 8080.

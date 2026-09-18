@@ -663,3 +663,38 @@ source "${DEPLOYMENTS_DIR}/scripts/ams-auth.sh"
 # for the default environment. Every later consumer (the gateway wiring above, and
 # install.sh's completion banner) reads this SAME global so they can't drift.
 DEFAULT_ENV_THUNDER_HANDLE=""
+
+# Pin the serverlb's container IP so it cannot drift onto the server node's address. 
+pin_serverlb_ip() {
+    local network="k3d-${CLUSTER_NAME}"
+    local lb="k3d-${CLUSTER_NAME}-serverlb"
+    local current pinned
+
+    if ! docker container inspect "$lb" &>/dev/null; then
+        return 0    # cluster created with --no-lb
+    fi
+
+    pinned="$(docker container inspect "$lb" \
+        --format "{{with (index .NetworkSettings.Networks \"${network}\")}}{{with .IPAMConfig}}{{.IPv4Address}}{{end}}{{end}}" 2>/dev/null)"
+    if [ -n "$pinned" ]; then
+        return 0    # already static
+    fi
+
+    current="$(docker container inspect "$lb" \
+        --format "{{with (index .NetworkSettings.Networks \"${network}\")}}{{.IPAddress}}{{end}}" 2>/dev/null)"
+    if [ -z "$current" ]; then
+        log_warning "Could not read the loadbalancer address; leaving it dynamic"
+        return 0
+    fi
+
+    docker stop "$lb" >/dev/null 2>&1 || true
+    docker network disconnect "$network" "$lb" >/dev/null 2>&1 || true
+    if ! docker network connect --ip "$current" "$network" "$lb" >/dev/null 2>&1; then
+        docker network connect "$network" "$lb" >/dev/null 2>&1 || true
+        docker start "$lb" >/dev/null 2>&1 || true
+        log_warning "Could not pin the loadbalancer to ${current}; left it dynamic"
+        return 0
+    fi
+    docker start "$lb" >/dev/null 2>&1 || true
+    log_success "Loadbalancer pinned to ${current}"
+}

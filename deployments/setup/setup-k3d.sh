@@ -44,6 +44,12 @@ else
         echo "   Try running: k3d kubeconfig merge ${CLUSTER_NAME} --kubeconfig-merge-default --kubeconfig-switch-context"
         exit 1
     fi
+
+    # `subnet:` in the k3d config pins only the server node; pin the loadbalancer too
+    # so it can never be allocated the server's address while the server is stopped.
+    echo ""
+    echo "📌 Pinning loadbalancer container IP..."
+    pin_serverlb_ip
 fi
 
 # Apply CoreDNS custom configuration for *.openchoreo.localhost and *.amp.localhost resolution
