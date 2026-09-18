@@ -23,7 +23,7 @@ import {
   TrendingUp,
 } from "@wso2/oxygen-ui-icons-react";
 import { BuildStatus } from "@agent-management-platform/types";
-import { useGetAgentBuilds } from "@agent-management-platform/api-client";
+import { useGetAllAgentBuilds } from "@agent-management-platform/api-client";
 import { useParams } from "react-router-dom";
 
 const getBuildIconColor = (
@@ -71,7 +71,7 @@ function TopCardsSkeleton() {
 }
 export const TopCards: React.FC = () => {
   const { agentId, projectId, orgId } = useParams();
-  const { data: builds, isLoading } = useGetAgentBuilds({
+  const { data: builds, isLoading } = useGetAllAgentBuilds({
     orgName: orgId,
     projName: projectId,
     agentName: agentId,

@@ -19,7 +19,7 @@
 import {
   useDeployedAgentKindVersion,
   useGetAgent,
-  useGetAgentBuilds,
+  useGetAllAgentBuilds,
   useListAgentDeployments,
 } from "@agent-management-platform/api-client";
 import {
@@ -210,7 +210,7 @@ export const EnvironmentCard = (props: EnvironmentCardProps) => {
   const currentDeployment = deployments?.[environment?.name ?? ""];
   const envTitle = environment?.displayName ?? environment?.name ?? "Environment";
 
-  const { data: buildsData } = useGetAgentBuilds({
+  const { data: buildsData } = useGetAllAgentBuilds({
     orgName: !isExternal ? orgId : "",
     projName: !isExternal ? projectId : "",
     agentName: !isExternal ? agentId : "",

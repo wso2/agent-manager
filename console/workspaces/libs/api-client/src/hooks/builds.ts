@@ -17,7 +17,7 @@
  */
 
 import { useQueryClient } from "@tanstack/react-query";
-import { buildAgent, getAgentBuilds, getBuild, getBuildLogs } from "../apis";
+import { buildAgent, getAgentBuilds, getAllAgentBuilds, getBuild, getBuildLogs } from "../apis";
 import { useAuthHooks } from "@agent-management-platform/auth";
 import { useRef } from "react";
 import type {
@@ -92,6 +92,85 @@ export function useGetAgentBuilds(
 
       return hasInProgressBuild ? POLL_INTERVAL : false;
     },
+  });
+}
+
+// Number of most-recent builds polled to detect status changes. Status only ever
+// changes on recent builds, so this bounded page is enough to know when the full
+// history is worth refetching.
+const RECENT_BUILDS_POLL_LIMIT = 20;
+
+// Build history needs every build, not just the newest page the service returns
+// by default. Use this instead of useGetAgentBuilds wherever the UI paginates the
+// list itself, otherwise its pager can only ever walk the first page.
+//
+// The full history is NOT polled: it costs one request per 100 builds, so polling
+// it every POLL_INTERVAL would mean 100 requests every 5s for an agent with 10k
+// builds. Instead a small recent page is polled while a build is in flight, and
+// the full history is refetched only when that page actually changes.
+export function useGetAllAgentBuilds(
+  params: GetAgentBuildsPathParams,
+  options?: { enabled?: boolean }
+) {
+  const { getToken } = useAuthHooks();
+  const queryClient = useQueryClient();
+  const prevStatusSignatureRef = useRef<string | null>(null);
+
+  const enabled =
+    (options?.enabled ?? true) &&
+    !!params.orgName &&
+    !!params.projName &&
+    !!params.agentName;
+
+  const allBuildsQueryKey = ["agent-builds", "all", params];
+
+  // Status watcher: one bounded request per poll, regardless of history size.
+  useApiQuery<BuildsListResponse>({
+    queryKey: ["agent-builds", "recent", params],
+    queryFn: () =>
+      getAgentBuilds(
+        params,
+        { limit: RECENT_BUILDS_POLL_LIMIT, offset: 0 },
+        getToken
+      ),
+    enabled,
+    refetchInterval: (queryState) => {
+      const recent = queryState?.state?.data?.builds;
+      if (!recent) return false;
+
+      // Refetch the full history only when something actually changed, rather
+      // than on every tick — a build name appearing or a status moving on.
+      const signature = recent
+        .map((build: BuildDetailsResponse) => `${build.buildName}:${build.status}`)
+        .join(",");
+      const hasInProgressBuild = recent.some(
+        (build: BuildDetailsResponse) =>
+          build.status === "Pending" || build.status === "Running"
+      );
+
+      if (
+        prevStatusSignatureRef.current !== null &&
+        prevStatusSignatureRef.current !== signature
+      ) {
+        queryClient.invalidateQueries({ queryKey: allBuildsQueryKey });
+
+        // A build reaching a terminal state can change what is deployable and
+        // which config edits are allowed.
+        if (!hasInProgressBuild) {
+          queryClient.invalidateQueries({ queryKey: ["agent-deployments"] });
+          queryClient.invalidateQueries({ queryKey: ["agent-configurations"] });
+        }
+      }
+      prevStatusSignatureRef.current = signature;
+
+      return hasInProgressBuild ? POLL_INTERVAL : false;
+    },
+  });
+
+  return useApiQuery<BuildsListResponse>({
+    queryKey: allBuildsQueryKey,
+    queryFn: () => getAllAgentBuilds(params, getToken),
+    enabled,
   });
 }
 

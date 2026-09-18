@@ -48,7 +48,7 @@ import {
   useSearchParams,
 } from "react-router-dom";
 import { BuildLogs } from "@agent-management-platform/shared-component";
-import { useGetAgentBuilds } from "@agent-management-platform/api-client";
+import { useGetAllAgentBuilds } from "@agent-management-platform/api-client";
 import {
   BuildStatus,
   BUILD_STATUS_COLOR_MAP,
@@ -108,14 +108,16 @@ export function BuildTable() {
   const [sortDirection, setSortDirection] = useState<ListingTableSortDirection>('desc');
   const [page, setPage] = useState(0);
   const [rowsPerPage, setRowsPerPage] = useState(5);
-  const { data: builds, isLoading } = useGetAgentBuilds({
+  // Fetch every page: the table paginates client-side, so a single default page
+  // would cap the history at 50 builds and hide every build after that.
+  const { data: builds, isLoading } = useGetAllAgentBuilds({
     orgName: orgId,
     projName: projectId,
     agentName: agentId,
   });
   const orderedBuilds = useMemo(
     () =>
-      builds?.builds.sort(
+      builds?.builds.slice().sort(
         (a, b) =>
           new Date(b.startedAt).getTime() - new Date(a.startedAt).getTime(),
       ),

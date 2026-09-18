@@ -22,7 +22,7 @@ import { TopCards } from "./subComponents/TopCards";
 import { BuildTable } from "./subComponents/BuildTable";
 import { FadeIn } from "@agent-management-platform/views";
 import { useParams } from "react-router-dom";
-import { useGetAgentBuilds } from "@agent-management-platform/api-client";
+import { useGetAllAgentBuilds } from "@agent-management-platform/api-client";
 
 export function AgentBuildSkeleton() {
   return (
@@ -52,7 +52,7 @@ export function AgentBuildSkeleton() {
 
 export const AgentBuild: React.FC = () => {
   const { agentId, projectId, orgId } = useParams();
-  const { isLoading } = useGetAgentBuilds({
+  const { isLoading } = useGetAllAgentBuilds({
     orgName: orgId,
     projName: projectId,
     agentName: agentId,

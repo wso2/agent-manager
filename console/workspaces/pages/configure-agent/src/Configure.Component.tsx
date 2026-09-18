@@ -23,7 +23,7 @@ import {
   useDeleteAgentMCPConfig,
   useDeleteAgentModelConfig,
   useGetAgent,
-  useGetAgentBuilds,
+  useGetAllAgentBuilds,
   useListAgentMCPConfigs,
   useListAgentModelConfigs,
 } from "@agent-management-platform/api-client";
@@ -173,13 +173,12 @@ export const ConfigureComponent: React.FC = () => {
   // Exempt agents have no builds of their own, so the list is never fetched for
   // them — the gate is already open and the request would only be an empty
   // answer to a question that does not apply.
-  const { data: buildsData, isLoading: isLoadingBuilds } = useGetAgentBuilds(
+  const { data: buildsData, isLoading: isLoadingBuilds } = useGetAllAgentBuilds(
     {
       orgName: orgId,
       projName: projectId,
       agentName: agentId,
     },
-    undefined,
     { enabled: buildsOwnImage },
   );
   const builds = useMemo(() => buildsData?.builds ?? [], [buildsData]);

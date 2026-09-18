@@ -29,7 +29,7 @@ import {
 import { useParams, useSearchParams } from "react-router-dom";
 import {
   useGetAgent,
-  useGetAgentBuilds,
+  useGetAllAgentBuilds,
   useGetAgentKind,
   useListAgentDeployments,
 } from "@agent-management-platform/api-client";
@@ -76,7 +76,7 @@ export function BuildCard(props: BuildCardProps) {
   const isKindAgent = !!agent?.kindName;
 
   // ── Build-agent data ────────────────────────────────────────────────────────
-  const { data: builds, isLoading: isBuildsLoading } = useGetAgentBuilds({
+  const { data: builds, isLoading: isBuildsLoading } = useGetAllAgentBuilds({
     orgName: orgId,
     projName: projectId,
     agentName: agentId,
@@ -86,6 +86,7 @@ export function BuildCard(props: BuildCardProps) {
   const orderedBuilds = useMemo(
     () =>
       builds?.builds
+        .slice()
         .sort(
           (a, b) =>
             new Date(b.startedAt).getTime() - new Date(a.startedAt).getTime()

@@ -90,6 +90,37 @@ export async function getAgentBuilds(
   return res.json();
 }
 
+// The service caps a builds page at MAX_BUILDS_PAGE_SIZE and defaults to 50, so a
+// single request only ever returns the newest page. Build history must show every
+// build an agent has ever run, so walk the pages until `total` is covered.
+const MAX_BUILDS_PAGE_SIZE = 100;
+
+export async function getAllAgentBuilds(
+  params: GetAgentBuildsPathParams,
+  getToken?: () => Promise<string>
+): Promise<BuildsListResponse> {
+  const builds: BuildResponse[] = [];
+  let offset = 0;
+  let total = 0;
+
+  for (;;) {
+    const page = await getAgentBuilds(
+      params,
+      { limit: MAX_BUILDS_PAGE_SIZE, offset },
+      getToken
+    );
+    builds.push(...(page.builds ?? []));
+    total = page.total ?? builds.length;
+
+    // Stop on an empty page too: without it a server that reports a `total`
+    // larger than what it can actually return would loop forever.
+    if (builds.length >= total || !page.builds?.length) break;
+    offset = builds.length;
+  }
+
+  return { builds, total, limit: builds.length, offset: 0 };
+}
+
  
 export async function getBuild(
   params: GetBuildPathParams,

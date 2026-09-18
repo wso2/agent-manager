@@ -45,7 +45,7 @@ import { RuntimeConfigEditor, createRuntimeConfigRow, type RuntimeConfigRow } fr
 import { KindDescriptionField } from "./KindDescriptionField";
 import { DangerZoneCard } from "./DangerZoneCard";
 import { useDeleteVersionAction } from "./useDeleteVersionAction";
-import { useDeleteAgentKind, useGetAgent, useGetAgentBuilds, useGetAgentKind, useListAgentKindVersions, usePublishAgentKind, useUpdateAgentKind } from "@agent-management-platform/api-client";
+import { useDeleteAgentKind, useGetAgent, useGetAllAgentBuilds, useGetAgentKind, useListAgentKindVersions, usePublishAgentKind, useUpdateAgentKind } from "@agent-management-platform/api-client";
 
 /** Order-independent equality for label maps — key insertion order shouldn't count as a change. */
 const labelsEqual = (a: Record<string, string>, b: Record<string, string>): boolean => {
@@ -244,7 +244,7 @@ export const PublishedList: React.FC = () => {
   }, [orgId, projectId, agentId, versionName, selectedBuildName, kindDisplayName, kindDescription,
     kindLabels, createRows, publishAgentKind, resetCreateForm, navigate, listPath]);
 
-  const { data: buildsData, isLoading: isBuildsLoading } = useGetAgentBuilds({
+  const { data: buildsData, isLoading: isBuildsLoading } = useGetAllAgentBuilds({
     orgName: orgId,
     projName: projectId,
     agentName: agentId,

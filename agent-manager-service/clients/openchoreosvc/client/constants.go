@@ -339,3 +339,7 @@ var (
 
 // defaultListLimit is the default maximum number of items to return per page for OpenChoreo list API calls
 var defaultListLimit = 100
+
+// maxListPages bounds the number of pages fetched when paging through an OpenChoreo list API,
+// guarding against an unbounded loop if the server keeps returning a next cursor.
+const maxListPages = 100

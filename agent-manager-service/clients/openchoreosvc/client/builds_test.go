@@ -20,6 +20,7 @@ package client
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"testing"
 
@@ -79,4 +80,88 @@ func TestUpdateComponentBuildParameters_DoesNotIntroduceRoutePath(t *testing.T) 
 	// false negative from the update silently doing nothing.
 	assert.Equal(t, "/new", putParameters["basePath"])
 	assert.NotContains(t, putParameters, "routePath")
+}
+
+// ListBuilds must follow the pagination cursor to the end. The OpenChoreo list
+// API caps a response at one page and Kubernetes returns items in name-ascending
+// order, which for "<component>-<timestamp>" build names is oldest-first. Stopping
+// at the first page therefore returns only the OLDEST builds: past the page size
+// every newly triggered build becomes invisible in the console, and `total` under-
+// reports how many exist so no client can page to them either.
+func TestListBuilds_FollowsPaginationCursor(t *testing.T) {
+	// Two pages, oldest first, mirroring the server's ordering.
+	pages := map[string]string{
+		"": `{"items":[
+			{"metadata":{"name":"agent-1000","creationTimestamp":"2026-01-01T00:00:00Z"}},
+			{"metadata":{"name":"agent-2000","creationTimestamp":"2026-01-02T00:00:00Z"}}
+		],"pagination":{"nextCursor":"page2"}}`,
+		"page2": `{"items":[
+			{"metadata":{"name":"agent-3000","creationTimestamp":"2026-01-03T00:00:00Z"}}
+		],"pagination":{}}`,
+	}
+
+	var cursors []string
+	client := newTestClient(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		cursor := r.URL.Query().Get("cursor")
+		body, ok := pages[cursor]
+		require.True(t, ok, "unexpected cursor %q", cursor)
+		cursors = append(cursors, cursor)
+
+		w.WriteHeader(http.StatusOK)
+		_, err := w.Write([]byte(body))
+		require.NoError(t, err)
+	}))
+
+	builds, err := client.ListBuilds(context.Background(), "acme", "proj", "agent")
+	require.NoError(t, err)
+
+	assert.Equal(t, []string{"", "page2"}, cursors, "expected the second page to be fetched with the returned cursor")
+	require.Len(t, builds, 3, "every build must be returned, not just the first page")
+	// Newest first: the most recent build is what the console shows at the top.
+	assert.Equal(t, []string{"agent-3000", "agent-2000", "agent-1000"},
+		[]string{builds[0].Name, builds[1].Name, builds[2].Name})
+}
+
+// A server that keeps handing back a fresh cursor must not spin forever. Each
+// page advances the cursor, so this exercises the page cap rather than the
+// non-advancing-cursor guard below.
+func TestListBuilds_StopsAtMaxPages(t *testing.T) {
+	calls := 0
+	client := newTestClient(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		calls++
+		w.WriteHeader(http.StatusOK)
+		body := fmt.Sprintf(
+			`{"items":[{"metadata":{"name":"agent-%d"}}],"pagination":{"nextCursor":"page-%d"}}`,
+			calls, calls)
+		_, err := w.Write([]byte(body))
+		require.NoError(t, err)
+	}))
+
+	builds, err := client.ListBuilds(context.Background(), "acme", "proj", "agent")
+	require.NoError(t, err)
+	assert.Equal(t, maxListPages, calls)
+	assert.Len(t, builds, maxListPages)
+}
+
+// A cursor pointing back at the page just fetched means the server's pagination
+// is broken. Following it would re-append the same builds until the page cap,
+// handing the caller duplicates and an inflated count — so it must be an error,
+// not a quietly wrong list.
+func TestListBuilds_RejectsNonAdvancingCursor(t *testing.T) {
+	calls := 0
+	client := newTestClient(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		calls++
+		w.WriteHeader(http.StatusOK)
+		_, err := w.Write([]byte(
+			`{"items":[{"metadata":{"name":"agent-1"}}],"pagination":{"nextCursor":"stuck"}}`))
+		require.NoError(t, err)
+	}))
+
+	builds, err := client.ListBuilds(context.Background(), "acme", "proj", "agent")
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "did not advance")
+	assert.Nil(t, builds)
+	// Page 1 returns "stuck"; page 2 is requested with it and returns it again,
+	// which is where the guard trips.
+	assert.Equal(t, 2, calls)
 }
