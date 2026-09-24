@@ -16,8 +16,15 @@
  * under the License.
  */
 
-import { NoDataFound, JSONView, MarkdownView } from "@agent-management-platform/views";
 import {
+  NoDataFound,
+  JSONView,
+  MarkdownView,
+} from "@agent-management-platform/views";
+import {
+  Accordion,
+  AccordionSummary,
+  AccordionDetails,
   Box,
   Card,
   CardContent,
@@ -26,7 +33,7 @@ import {
   Stack,
   Typography,
 } from "@wso2/oxygen-ui";
-import { Info } from "@wso2/oxygen-ui-icons-react";
+import { Info, ChevronDown } from "@wso2/oxygen-ui-icons-react";
 import {
   AmpAttributes,
   PromptMessage,
@@ -34,7 +41,7 @@ import {
   AgentData,
   CrewAITaskData,
 } from "@agent-management-platform/types";
-import { memo, useCallback, useMemo } from "react";
+import { memo, useCallback, useMemo, useState } from "react";
 
 interface OverviewProps {
   ampAttributes?: AmpAttributes;
@@ -46,6 +53,7 @@ interface MessageListProps {
   getRoleColor: (role: string) => "default" | "primary" | "success" | "info";
   "data-testid"?: string;
   showEmptyMessage?: boolean;
+  defaultExpanded?: boolean;
 }
 
 function formattedMessage(message: string) {
@@ -101,7 +109,10 @@ const MessageList = memo(function MessageList({
   getRoleColor,
   "data-testid": testId,
   showEmptyMessage = false,
+  defaultExpanded = false,
 }: MessageListProps) {
+  const [isExpanded, setIsExpanded] = useState(defaultExpanded);
+
   if (messages.length === 0) {
     if (!showEmptyMessage) {
       return null;
@@ -126,78 +137,94 @@ const MessageList = memo(function MessageList({
   return (
     <Stack pt={2} data-testid={testId}>
       <Divider sx={{ mb: 2 }} />
-      <Typography variant="h6" sx={{ mb: 2 }}>
-        {title}
-      </Typography>
-      <Stack spacing={2}>
-        {messages.map((message, index) => {
-          const messageKey =
-            (message as PromptMessage & { id?: string }).id ?? index;
-          return (
-            <Card key={messageKey} variant="outlined">
-              <CardContent>
-                <Stack spacing={1.5}>
-                  <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
-                    {message?.role && message.role !== "unknown" && (
-                      <Chip
-                        label={
-                          message.role.charAt(0).toUpperCase() +
-                          message.role.slice(1)
-                        }
-                        size="small"
-                        color={getRoleColor(message.role)}
-                        variant="outlined"
-                      />
-                    )}
-                  </Box>
-                  {message.content && !message.role && (
-                    <JSONView json={formattedMessage(message.content)} />
-                  )}
-                  {message.content && message.role && (
-                    <MarkdownView content={message.content} />
-                  )}
-                  {message.toolCalls && message.toolCalls.length > 0 && (
-                    <Box>
-                      <Stack spacing={1}>
-                        {message.toolCalls.map((toolCall, toolIndex) => {
-                          const toolCallKey = toolCall.id ?? toolIndex;
+      <Accordion
+        expanded={isExpanded}
+        onChange={(_, expanded) => setIsExpanded(expanded)}
+        disableGutters
+        elevation={0}
+        sx={{
+          bgcolor: "transparent",
+          border: "none",
+          "&:before": { display: "none" },
+        }}
+      >
+        <AccordionSummary expandIcon={<ChevronDown />}>
+          <Typography variant="h6">{title}</Typography>
+        </AccordionSummary>
+        <AccordionDetails>
+          <Stack spacing={2}>
+            {messages.map((message, index) => {
+              const messageKey =
+                (message as PromptMessage & { id?: string }).id ?? index;
+              return (
+                <Card key={messageKey} variant="outlined">
+                  <CardContent>
+                    <Stack spacing={1.5}>
+                      <Box
+                        sx={{ display: "flex", alignItems: "center", gap: 1 }}
+                      >
+                        {message?.role && message.role !== "unknown" && (
+                          <Chip
+                            label={
+                              message.role.charAt(0).toUpperCase() +
+                              message.role.slice(1)
+                            }
+                            size="small"
+                            color={getRoleColor(message.role)}
+                            variant="outlined"
+                          />
+                        )}
+                      </Box>
+                      {message.content && !message.role && (
+                        <JSONView json={formattedMessage(message.content)} />
+                      )}
+                      {message.content && message.role && (
+                        <MarkdownView content={message.content} />
+                      )}
+                      {message.toolCalls && message.toolCalls.length > 0 && (
+                        <Box>
+                          <Stack spacing={1}>
+                            {message.toolCalls.map((toolCall, toolIndex) => {
+                              const toolCallKey = toolCall.id ?? toolIndex;
 
-                          return (
-                            <Card key={toolCallKey} variant="outlined">
-                              <CardContent sx={{ "&:last-child": { pb: 1.5 } }}>
-                                <Typography
-                                  variant="caption"
-                                  sx={{ fontWeight: "bold" }}
-                                >
-                                  {toolCall.name}
-                                </Typography>
-                                {toolCall.arguments && (
-                                  <Typography
-                                    variant="caption"
-                                    sx={{
-                                      display: "block",
-                                      mt: 0.5,
-                                      fontFamily: "monospace",
-                                      whiteSpace: "pre-wrap",
-                                      wordBreak: "break-word",
-                                    }}
-                                  >
-                                    {formattedMessage(toolCall.arguments)}
-                                  </Typography>
-                                )}
-                              </CardContent>
-                            </Card>
-                          );
-                        })}
-                      </Stack>
-                    </Box>
-                  )}
-                </Stack>
-              </CardContent>
-            </Card>
-          );
-        })}
-      </Stack>
+                              return (
+                                <Card key={toolCallKey} variant="outlined">
+                                  <CardContent>
+                                    <Typography
+                                      variant="caption"
+                                      sx={{ fontWeight: "bold" }}
+                                    >
+                                      {toolCall.name}
+                                    </Typography>
+                                    {toolCall.arguments && (
+                                      <Typography
+                                        variant="caption"
+                                        sx={{
+                                          display: "block",
+                                          mt: 0.5,
+                                          fontFamily: "monospace",
+                                          whiteSpace: "pre-wrap",
+                                          wordBreak: "break-word",
+                                        }}
+                                      >
+                                        {formattedMessage(toolCall.arguments)}
+                                      </Typography>
+                                    )}
+                                  </CardContent>
+                                </Card>
+                              );
+                            })}
+                          </Stack>
+                        </Box>
+                      )}
+                    </Stack>
+                  </CardContent>
+                </Card>
+              );
+            })}
+          </Stack>
+        </AccordionDetails>
+      </Accordion>
     </Stack>
   );
 });
@@ -205,7 +232,7 @@ const MessageList = memo(function MessageList({
 export function Overview({ ampAttributes }: OverviewProps) {
   const normalizeMessages = useCallback(
     (
-      input: PromptMessage[] | string[] | string | undefined
+      input: PromptMessage[] | string[] | string | undefined,
     ): (Partial<PromptMessage> | { content: string })[] => {
       if (!input) return [];
       if (typeof input === "string") {
@@ -222,17 +249,17 @@ export function Overview({ ampAttributes }: OverviewProps) {
       // Handle PromptMessage arrays
       return input as PromptMessage[];
     },
-    []
+    [],
   );
 
   const inputMessages = useMemo(
     () => normalizeMessages(ampAttributes?.input),
-    [ampAttributes?.input, normalizeMessages]
+    [ampAttributes?.input, normalizeMessages],
   );
 
   const outputMessages = useMemo(
     () => normalizeMessages(ampAttributes?.output),
-    [ampAttributes?.output, normalizeMessages]
+    [ampAttributes?.output, normalizeMessages],
   );
 
   // Extract name from data based on kind
@@ -351,6 +378,7 @@ export function Overview({ ampAttributes }: OverviewProps) {
         getRoleColor={getRoleColor}
         data-testid="input-messages"
         showEmptyMessage={false}
+        defaultExpanded
       />
       <MessageList
         title="Output Messages"
