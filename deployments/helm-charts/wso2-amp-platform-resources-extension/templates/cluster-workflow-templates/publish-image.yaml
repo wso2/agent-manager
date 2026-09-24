@@ -5,6 +5,9 @@ metadata:
 spec:
   templates:
     - name: publish-image
+      metadata:
+        labels:
+{{- include "amp.buildWorkflowPodLabels" . | nindent 10 }}
       inputs:
         parameters:
           - name: git-revision

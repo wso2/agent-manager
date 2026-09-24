@@ -263,3 +263,62 @@ gatewayTls:
     name: openchoreo-data-plane-selfsigned-issuer
     # Issuer kind: Issuer or ClusterIssuer
     kind: Issuer
+
+# Egress restriction for build-workflow pods (checkout, build-image, publish-image): builds
+# keep the internet, lose the private network. Inert on a CNI that does not enforce policy.
+networkPolicy:
+  buildWorkflows:
+    # -- Enable the build-workflow egress NetworkPolicy
+    enabled: true
+    # -- Namespaces OpenChoreo runs Argo workflows in, one policy rendered per entry.
+    # Empty derives the single "workflows-<environment.name>"; list every environment's
+    # workflow namespace on an install that has more than one.
+    namespaces: []
+    dns:
+      namespace: kube-system
+      podLabel:
+        key: k8s-app
+        value: kube-dns
+    internet:
+      # -- Include an ::/0 rule too. A policy carrying only an IPv4 block denies every IPv6
+      # destination, so dual-stack clusters need this; harmless on IPv4-only ones.
+      ipv6: true
+      # -- Withheld from ::/0. fc00::/7 is the IPv6 private range, fe80::/10 link-local.
+      excludedCidrsV6:
+        - fc00::/7
+        - fe80::/10
+      # -- Withheld from the otherwise-unrestricted 0.0.0.0/0 rule; 169.254.0.0/16 is what
+      # blocks the cloud metadata endpoint.
+      excludedCidrs:
+        - 10.0.0.0/8
+        - 172.16.0.0/12
+        - 192.168.0.0/16
+        - 169.254.0.0/16
+        - 100.64.0.0/10
+    apiServer:
+      # -- Where the kube-apiserver is reachable post-DNAT. Narrow to the node network when
+      # known; the RFC1918 default also spans the pod and Service CIDRs.
+      cidrs:
+        - 10.0.0.0/8
+        - 172.16.0.0/12
+        - 192.168.0.0/16
+      ports: [443, 6443]
+    registry:
+      # -- A registry published on the node network (k3d, and the VM and quick-start
+      # installers, all reach it this way).
+      cidrs:
+        - 10.0.0.0/8
+        - 172.16.0.0/12
+        - 192.168.0.0/16
+      ports: [10082]
+      # -- A registry addressed by in-cluster Service DNS instead. Matched post-DNAT, so
+      # ports is the registry's containerPort (5000 for docker-registry), not the Service
+      # port. Unset by default; registry.<baseDomain> and other public endpoints need no rule.
+      inCluster:
+        namespace: ""
+        # -- Labels of the registry pod. Leave empty and the rule reaches every pod in that
+        # namespace on the ports below; set it to scope the rule to the registry itself.
+        podLabels: {}
+        ports: [5000]
+    # -- Extra egress rules, appended verbatim (NetworkPolicyEgressRule list).
+    extraEgress: []

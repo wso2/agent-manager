@@ -113,3 +113,12 @@ the controller rather than by Helm.
 {{- printf "%s.${metadata.componentNamespace}-${metadata.environmentName}" $svc -}}
 {{- end -}}
 {{- end -}}
+
+{{/*
+Stamped onto build-stage pods (Argo applies templates[].metadata to the pod), and the only
+thing build-workflow-networkpolicy.yaml's podSelector can match — CR labels never reach the pod.
+*/}}
+{{- define "amp.buildWorkflowPodLabels" -}}
+app.kubernetes.io/name: amp-build
+app.kubernetes.io/component: build-workflow
+{{- end -}}

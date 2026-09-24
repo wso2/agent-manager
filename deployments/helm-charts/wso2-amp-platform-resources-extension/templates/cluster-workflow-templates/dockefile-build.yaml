@@ -5,6 +5,9 @@ metadata:
 spec:
   templates:
     - name: build-image
+      metadata:
+        labels:
+{{- include "amp.buildWorkflowPodLabels" . | nindent 10 }}
       # User-namespaced builds need idmapped-mount kernel support (~6.3+);
       # buildWorkflows.userNamespaces in values.yaml documents the trade-off.
       podSpecPatch: '{{ if .Values.buildWorkflows.userNamespaces }}{"hostUsers": false}{{ else }}{}{{ end }}'

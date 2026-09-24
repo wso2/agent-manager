@@ -19,6 +19,11 @@ kubectl config use-context $CLUSTER_CONTEXT >/dev/null
 
 echo "=== Installing AMP Extensions ==="
 
+# Two charts put a NetworkPolicy here and install in parallel below; created unowned, so
+# neither chart's lookup guard renders it and neither hits "invalid ownership metadata".
+echo "   Ensuring workflows-default namespace exists..."
+kubectl create namespace workflows-default --dry-run=client -o yaml | kubectl apply -f -
+
 # Pre-update helm dependencies (must run before parallel installs)
 echo "   Updating Helm dependencies..."
 helm dependency update "${SCRIPT_DIR}/../helm-charts/wso2-amp-thunder-extension"
@@ -87,13 +92,6 @@ install_thunder_extension() {
 install_evaluation_workflows() {
     echo "📦 Installing/Upgrading Evaluation Workflows Extension..."
 
-    # The chart's NetworkPolicy targets "workflows-<env>" (workflows-default here) — the
-    # namespace OpenChoreo's control plane runs that environment's Argo workflows in. On a
-    # fresh cluster nothing has triggered a workflow yet, so OpenChoreo hasn't created it and
-    # `helm install` fails with "namespaces \"workflows-default\" not found". Pre-create it
-    # (idempotent) so install order doesn't depend on a workflow having already run.
-    kubectl create namespace workflows-default --dry-run=client -o yaml | kubectl apply -f -
-
     # The k3d node network carries both the API server and the host-published agent-manager-service,
     # so it is the ipBlock for both NetworkPolicy exceptions; disable the policy if we can't compute it.
     local node_cidr network_policy_enabled
@@ -123,8 +121,30 @@ install_evaluation_workflows() {
 install_platform_resources() {
     echo "📦 Installing/Upgrading Default Platform Resources..."
     echo "   Creating default Organization, Project, Environment, and DeploymentPipeline..."
+
+    # Narrow the build netpol's API-server and registry egress to the k3d node network,
+    # which carries both; disable the policy rather than let a failed derivation break builds.
+    # The CIDRs are only passed when derived, so a later --reuse-values upgrade that turns the
+    # policy back on cannot resurrect it with both rules emptied out.
+    local node_cidr
+    local -a netpol_args
+    node_cidr=$(docker network inspect "k3d-${CLUSTER_NAME}" \
+        --format '{{ (index .IPAM.Config 0).Subnet }}' 2>/dev/null || echo "")
+    if [[ -z "$node_cidr" ]]; then
+        echo "⚠️  Could not determine k3d docker network subnet for k3d-${CLUSTER_NAME} — disabling"
+        echo "   the build-workflow egress NetworkPolicy for this install so local builds keep working."
+        netpol_args=(--set networkPolicy.buildWorkflows.enabled=false)
+    else
+        netpol_args=(
+            --set networkPolicy.buildWorkflows.enabled=true
+            --set "networkPolicy.buildWorkflows.apiServer.cidrs[0]=${node_cidr}"
+            --set "networkPolicy.buildWorkflows.registry.cidrs[0]=${node_cidr}"
+        )
+    fi
+
     helm upgrade --install amp-default-platform-resources "${SCRIPT_DIR}/../helm-charts/wso2-amp-platform-resources-extension" \
-        --namespace default
+        --namespace default \
+        "${netpol_args[@]}"
     echo "✅ Default Platform Resources installed/upgraded successfully"
 }
 
