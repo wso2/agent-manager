@@ -28,13 +28,32 @@ import { generatePath, Outlet, useNavigate, useParams } from "react-router-dom";
 import { Settings } from "@wso2/oxygen-ui-icons-react";
 import { ProfileDrawer } from "./ProfileDrawer";
 import { useAuthHooks } from "@agent-management-platform/auth";
-import { Logo, useExternalComponentModules } from "@agent-management-platform/views";
+import {
+  Logo,
+  PageDocs,
+  docsHomeHref,
+  useExternalComponentModules,
+  type DocsTarget,
+} from "@agent-management-platform/views";
 import { globalConfig, absoluteRouteMap } from "@agent-management-platform/types";
 import { LeftNavigation, combineNavItems, flattenWithChildren } from "./LeftNavigation";
 import { useNavigationItems } from "./navigationItems";
 import { TopNavigation } from "./TopNavigation";
 import { useGetUserProfile, useListOrganizations } from "@agent-management-platform/api-client";
 import { MountPoints } from "../../types";
+
+/**
+ * The app-level reading list, offered from the header on every screen. Where a
+ * page's own `docs` answers "what is this screen", this answers "where do I
+ * start" — the orientation a page-specific link can't give someone.
+ */
+const APP_DOCS: DocsTarget[] = [
+  "whatIsAmp",
+  "quickStart",
+  "createFirstAgent",
+  "cliInstallation",
+  "authorization",
+];
 
 export function OxygenLayout() {
   const [collapsed, setCollapsed] = useState(false);
@@ -57,6 +76,7 @@ export function OxygenLayout() {
   const externalBottomRightComponentModules =
     useExternalComponentModules(MountPoints.BottomRightPanel);
   const { data: organizations } = useListOrganizations();
+  const docsHome = docsHomeHref();
   const homePath = useMemo(() => {
     return generatePath(absoluteRouteMap.children.org.path, {
       orgId: organizations?.organizations?.[0]?.name ?? "",
@@ -121,6 +141,12 @@ export function OxygenLayout() {
             ))
             }
             <Header.Actions>
+              <PageDocs
+                docs={APP_DOCS}
+                label="Help"
+                title="Help & documentation"
+                subtitle="Start here, then dig into the concepts and reference."
+              />
               <ColorSchemeToggle />
               <UserMenu>
                 <UserMenu.Trigger
@@ -192,8 +218,8 @@ export function OxygenLayout() {
               ))
             }
 
-            {globalConfig.docsUrl && (
-              <Footer.Link href={globalConfig.docsUrl + "/get-started/what-is-amp/"} target="_blank" rel="noopener noreferrer">Documentation</Footer.Link>
+            {docsHome && (
+              <Footer.Link href={docsHome} target="_blank" rel="noopener noreferrer">Documentation</Footer.Link>
             )}
             {globalConfig.footerLinks?.termsOfUseUrl && (
               <Footer.Link href={globalConfig.footerLinks.termsOfUseUrl} target="_blank" rel="noopener noreferrer">Terms & Conditions</Footer.Link>

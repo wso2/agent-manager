@@ -156,7 +156,7 @@ export const SecurityComponent: React.FC = () => {
     : null;
 
   return (
-    <PageLayout title="API Keys" disableIcon actions={<EnvironmentSelector />}>
+    <PageLayout docs={["secureAgentsWithApiKeys", "secureAgentsWithJwt", "configureCors"]} title="API Keys" disableIcon actions={<EnvironmentSelector />}>
       {isLoading ? (
         <Skeleton variant="rectangular" width="100%" height={200} />
       ) : emptyState ? (

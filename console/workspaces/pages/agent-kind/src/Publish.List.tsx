@@ -277,7 +277,7 @@ export const PublishedList: React.FC = () => {
 
   return (
     <>
-      <PageLayout
+      <PageLayout docs={["agentKindAndCatalog", "agentLifecycle"]}
         title="Publish"
         description="Manage and publish versions of this Agent Kind to the catalog."
         disableIcon

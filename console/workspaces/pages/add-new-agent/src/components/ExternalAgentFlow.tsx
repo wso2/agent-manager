@@ -111,7 +111,7 @@ export const ExternalAgentFlow: React.FC = () => {
 
 
   return (
-    <PageLayout
+    <PageLayout docs={["internalAndExternalAgent", "retrieveAgentIdForExternal", "ampInstrumentation"]}
       title="Register an Externally-Hosted Agent"
       description="Provide basic information to register your externally-hosted agent on the platform."
       disableIcon

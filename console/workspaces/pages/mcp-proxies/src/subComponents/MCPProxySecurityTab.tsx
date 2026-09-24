@@ -331,27 +331,25 @@ export function MCPProxySecurityTab({
     [setRowScopes],
   );
 
-  // Confirm before switching methods — it breaks agents already configured
-  // to use this proxy. Reads the saved type from `config`, not
-  // lastSavedAuthRef, which defaults to "apiKey" until the sync effect above
-  // runs and would otherwise warn about a method nobody actually configured.
-  const handleAuthTypeChange = useCallback(
-    (nextType: AuthenticationType) => {
-      const savedType = resolveAuthenticationType(config);
-      if (savedType && nextType !== savedType) {
-        addConfirmation({
-          title: "Switch authentication method?",
-          description: `This proxy is currently secured with ${getAuthenticationTypeLabel(savedType)}. Switching to ${getAuthenticationTypeLabel(nextType)} will break any agent already configured to use it, until their tool configuration is updated to match.`,
-          confirmButtonText: "Switch Method",
-          confirmButtonColor: "error",
-          onConfirm: () => setAuthenticationType(nextType),
-        });
-        return;
-      }
-      setAuthenticationType(nextType);
-    },
-    [addConfirmation, config],
+  // The saved method, used both to warn about a pending switch and to confirm
+  // it at Save time. Read from `config`, not lastSavedAuthRef, which defaults
+  // to "apiKey" until the sync effect above runs and would otherwise warn
+  // about a method nobody actually configured.
+  const savedAuthenticationType = useMemo(
+    () => resolveAuthenticationType(config),
+    [config],
   );
+
+  // Switching methods breaks agents already configured against this proxy,
+  // but selecting a method in the dropdown changes nothing until Save — so
+  // this warns inline (see the Alert below) instead of interrupting with a
+  // dialog that reads as if the change had already been applied.
+  const pendingAuthTypeSwitch =
+    !!savedAuthenticationType && authenticationType !== savedAuthenticationType;
+
+  const handleAuthTypeChange = useCallback((nextType: AuthenticationType) => {
+    setAuthenticationType(nextType);
+  }, []);
 
   const isDirty = authIsDirty || toolScopesDirty;
   // Gates every control a save touches, so no edit or second Save can land
@@ -373,7 +371,7 @@ export function MCPProxySecurityTab({
     setToolScopeRows(lastSavedToolScopeRows);
   }, [config, lastSavedToolScopeRows]);
 
-  const handleSave = useCallback(async () => {
+  const performSave = useCallback(async () => {
     if (!config) return;
 
     if (authenticationType === "apiKey" && keyValue.trim().length === 0) {
@@ -466,6 +464,29 @@ export function MCPProxySecurityTab({
     updateMCPProxyScope,
   ]);
 
+  // The only confirmation in this flow, and it sits on the action that
+  // actually changes the proxy. Cancelling here leaves the pending selection
+  // intact so the user can adjust it rather than losing their edits.
+  const handleSave = useCallback(() => {
+    if (pendingAuthTypeSwitch) {
+      addConfirmation({
+        title: "Apply new authentication method?",
+        description: `This proxy is currently secured with ${getAuthenticationTypeLabel(savedAuthenticationType)}. Saving will switch it to ${getAuthenticationTypeLabel(authenticationType)} and break any agent already configured to use it, until their tool configuration is updated to match.`,
+        confirmButtonText: "Save & Apply",
+        confirmButtonColor: "warning",
+        onConfirm: () => void performSave(),
+      });
+      return;
+    }
+    void performSave();
+  }, [
+    pendingAuthTypeSwitch,
+    addConfirmation,
+    savedAuthenticationType,
+    authenticationType,
+    performSave,
+  ]);
+
   const handleDeleteScope = useCallback(
     (scope: MCPProxyScopeResponse) => {
       if (!orgName || !proxyId) return;
@@ -546,6 +567,22 @@ export function MCPProxySecurityTab({
           </FormControl>
         </Grid>
       </Grid>
+
+      {/* Replaces the old switch-time modal: the impact stays visible for as
+          long as the change is pending, and says plainly that nothing has
+          been applied yet. */}
+      <Collapse in={pendingAuthTypeSwitch} timeout={300}>
+        <Alert severity="warning" sx={{ width: "100%", maxWidth: 640 }}>
+          <Typography variant="body2" fontWeight={600} gutterBottom>
+            Not applied yet — Save to apply
+          </Typography>
+          This proxy is still secured with{" "}
+          {getAuthenticationTypeLabel(savedAuthenticationType)}. Switching to{" "}
+          {getAuthenticationTypeLabel(authenticationType)} will break any agent
+          already configured to use it, until their tool configuration is
+          updated to match. Use Discard to keep the current method.
+        </Alert>
+      </Collapse>
 
       {authenticationType === "identity" && (
         <Stack spacing={2}>
@@ -775,7 +812,7 @@ export function MCPProxySecurityTab({
           </Button>
           <Button
             variant="contained"
-            onClick={() => void handleSave()}
+            onClick={handleSave}
             disabled={saveInProgress || !isDirty}
           >
             {saveInProgress ? "Saving..." : "Save"}

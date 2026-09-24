@@ -47,6 +47,7 @@ import {
   DescriptionCard,
   CreatedMetadata,
   EntityAvatar,
+  DocsLink,
 } from "@agent-management-platform/views";
 import { generatePath, useNavigate, useParams } from "react-router-dom";
 import {
@@ -299,7 +300,7 @@ export const AgentsList: React.FC = () => {
 
   return (
     <>
-      <PageLayout
+      <PageLayout docs={["agentLifecycle", "internalAndExternalAgent", "project"]}
         variant="card"
         title={project?.displayName ?? "Agents"}
         meta={project ? <CreatedMetadata createdAt={project.createdAt} /> : undefined}
@@ -508,17 +509,22 @@ export const AgentsList: React.FC = () => {
                     title="No agents found"
                     description="Create a new agent to get started"
                     action={
-                      <Button
-                        variant="contained"
-                        color="primary"
-                        startIcon={<Add />}
-                        onClick={handleOpenAddAgentMenu}
-                        aria-controls={addAgentAnchorEl ? "add-agent-menu" : undefined}
-                        aria-haspopup="true"
-                        aria-expanded={Boolean(addAgentAnchorEl)}
-                      >
-                        Add New Agent
-                      </Button>
+                      <Stack spacing={1.5} alignItems="center">
+                        <Button
+                          variant="contained"
+                          color="primary"
+                          startIcon={<Add />}
+                          onClick={handleOpenAddAgentMenu}
+                          aria-controls={addAgentAnchorEl ? "add-agent-menu" : undefined}
+                          aria-haspopup="true"
+                          aria-expanded={Boolean(addAgentAnchorEl)}
+                        >
+                          Add New Agent
+                        </Button>
+                        <DocsLink docs="createFirstAgent">
+                          Walk through creating your first agent
+                        </DocsLink>
+                      </Stack>
                     }
                   />
                 </ListingTable.Container>

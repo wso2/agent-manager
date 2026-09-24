@@ -707,7 +707,7 @@ export const ViewLLMProviderComponent: React.FC = () => {
 
   if (isLoading) {
     return (
-      <PageLayout
+      <PageLayout docs={["configureAgentLlm", "llmServiceProvider", "gateway"]}
         title="LLM Configuration"
         backHref={backHref}
         disableIcon
@@ -724,7 +724,7 @@ export const ViewLLMProviderComponent: React.FC = () => {
 
   if (isEnvironmentsError) {
     return (
-      <PageLayout
+      <PageLayout docs={["configureAgentLlm", "llmServiceProvider", "gateway"]}
         title="LLM Configuration"
         backHref={backHref}
         disableIcon
@@ -739,7 +739,7 @@ export const ViewLLMProviderComponent: React.FC = () => {
 
   if (isConfigError || !config) {
     return (
-      <PageLayout
+      <PageLayout docs={["configureAgentLlm", "llmServiceProvider", "gateway"]}
         title="LLM Configuration"
         backHref={backHref}
         disableIcon
@@ -977,7 +977,7 @@ export const ViewLLMProviderComponent: React.FC = () => {
   );
 
   return (
-    <PageLayout
+    <PageLayout docs={["configureAgentLlm", "llmServiceProvider", "gateway"]}
       title={pageTitle}
       backHref={backHref}
       disableIcon

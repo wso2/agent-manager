@@ -392,7 +392,7 @@ export const CompareMonitorComponent: React.FC = () => {
 
   if (!targetMonitorId) {
     return (
-      <PageLayout
+      <PageLayout docs={["evaluation", "evaluationMonitors", "customEvaluators"]}
         title="Compare Monitors"
         disableIcon
         backLabel="Back to Monitor"
@@ -407,7 +407,7 @@ export const CompareMonitorComponent: React.FC = () => {
   }
 
   return (
-    <PageLayout
+    <PageLayout docs={["evaluation", "evaluationMonitors", "customEvaluators"]}
       title="Compare Monitors"
       disableIcon
       backLabel={`Back to ${sourceName}`}

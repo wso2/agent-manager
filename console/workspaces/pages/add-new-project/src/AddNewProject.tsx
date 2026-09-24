@@ -98,7 +98,7 @@ export const AddNewProject: React.FC = () => {
     navigate, params.orgName, resetDirty, clearErrors, errors]);
 
   return (
-    <PageLayout
+    <PageLayout docs={["project", "deploymentPipeline", "organization"]}
       title="Create a New Project"
       description="Create a new project to organize and manage your agents."
       disableIcon

@@ -175,7 +175,7 @@ export const EvalEvaluatorsOrganization: React.FC = () => {
 
   return (
     <>
-      <PageLayout title="Evaluators" disableIcon>
+      <PageLayout docs={["customEvaluators", "evaluation", "evaluationMonitors"]} title="Evaluators" disableIcon>
         <Stack spacing={2}>
           <Stack
             direction="row"

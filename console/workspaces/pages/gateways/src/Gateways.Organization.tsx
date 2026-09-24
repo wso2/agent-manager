@@ -55,7 +55,7 @@ export const GatewaysOrganization: React.FC = () => {
         <Route
           index
           element={
-            <PageLayout title="Gateways" disableIcon>
+            <PageLayout docs={["gateway", "configureIdentityProviders", "environment"]} title="Gateways" disableIcon>
               <AIGatewaysTable onEditGateway={handleEditGateway} />
             </PageLayout>
           }

@@ -43,7 +43,7 @@ export function AgentIdentityEnvironmentGate({
 
   if (hasEnvironmentsError) {
     return (
-      <PageLayout title={title} disableIcon>
+      <PageLayout docs={["agentId", "environment", "useAgentIdInPlatformHosted"]} title={title} disableIcon>
         <ListingTable.Container>
           <ListingTable.EmptyState
             illustration={<AlertTriangle size={64} />}
@@ -62,7 +62,7 @@ export function AgentIdentityEnvironmentGate({
 
   if (hasNoEnvironments) {
     return (
-      <PageLayout title={title} disableIcon>
+      <PageLayout docs={["agentId", "environment", "useAgentIdInPlatformHosted"]} title={title} disableIcon>
         <ListingTable.Container>
           <ListingTable.EmptyState
             illustration={<KeyRound size={64} />}
@@ -77,7 +77,7 @@ export function AgentIdentityEnvironmentGate({
   if (!envName) {
     if (!defaultEnvName) {
       return (
-        <PageLayout title={title} disableIcon isLoading>
+        <PageLayout docs={["agentId", "environment", "useAgentIdInPlatformHosted"]} title={title} disableIcon isLoading>
           {null}
         </PageLayout>
       );

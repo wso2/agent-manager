@@ -33,7 +33,7 @@ function RolesListPage() {
   return (
     <AgentIdentityEnvironmentGate title={TITLE}>
       {() => (
-        <PageLayout
+        <PageLayout docs={["authorizeAgentMcpTools", "agentId", "authorization"]}
           title={TITLE}
           description="Roles available in the selected environment's identity provider."
           disableIcon
@@ -52,7 +52,7 @@ function RoleCreateWrapper() {
   return (
     <AgentIdentityEnvironmentGate title="Create Role">
       {() => (
-        <PageLayout title="Create Role" backHref={backHref} backLabel="Back to Roles" disableIcon>
+        <PageLayout docs={["authorizeAgentMcpTools", "agentId", "authorization"]} title="Create Role" backHref={backHref} backLabel="Back to Roles" disableIcon>
           <RoleCreatePage />
         </PageLayout>
       )}

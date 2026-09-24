@@ -1658,6 +1658,12 @@
               "title": "disableAuth",
               "type": "string"
             },
+            "docsUrl": {
+              "default": "",
+              "description": "Full documentation base URL, overriding docsVersion. Empty builds the URL from docsVersion, which is what a versioned release wants. Set it for a deployment that tracks one continuously-updated set of docs rather than a release's own snapshot - cloud, which is served from /docs/cloud/ and is never version-stamped. Because this wins over docsVersion, release version stamping cannot reach a deployment that sets it. No trailing slash; the console appends the page path.",
+              "title": "docsUrl",
+              "type": "string"
+            },
             "docsVersion": {
               "default": "latest",
               "description": "Documentation version the console's in-product doc links point at, used as the path segment after /docs/. \"latest\" tracks the newest released docs. The release pipeline (.github/scripts/update-helm-charts.sh) pins this to the matching versioned docs (vX.Y.x, or the exact version for a pre-release) for final and pre-release builds. Release candidates and nightlies keep \"latest\", because no docs version is cut for them.",

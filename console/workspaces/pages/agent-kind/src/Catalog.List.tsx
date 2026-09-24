@@ -34,7 +34,7 @@ export const CatalogList: React.FC = () => {
     });
 
   return (
-    <PageLayout
+    <PageLayout docs={["agentKindAndCatalog", "agentLifecycle"]}
       title="Agent Catalog"
       disableIcon
     >

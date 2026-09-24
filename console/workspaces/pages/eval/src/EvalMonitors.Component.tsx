@@ -34,7 +34,7 @@ export const EvalMonitorsComponent: React.FC = () => {
   }>();
 
   return (
-    <PageLayout
+    <PageLayout docs={["evaluationMonitors", "evaluation", "customEvaluators"]}
       title="Eval Monitors"
       disableIcon
       actions={

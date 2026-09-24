@@ -113,7 +113,7 @@ export function EnvironmentViewPage() {
   const displayName = env?.displayName ?? env?.name ?? envName ?? "";
 
   return (
-    <PageLayout
+    <PageLayout docs={["environment", "environmentManagement", "gateway"]}
       title={displayName}
       backHref={backHref}
       backLabel="Back to Environments"

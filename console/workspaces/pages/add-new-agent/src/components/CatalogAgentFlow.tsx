@@ -279,7 +279,7 @@ export const CatalogAgentFlow: React.FC = () => {
   }, [orgId, projectId]);
 
   return (
-    <PageLayout
+    <PageLayout docs={["agentKindAndCatalog", "createFirstAgent", "internalAndExternalAgent"]}
       title={kind ? `Create a "${kind.displayName}" Agent` : isKindLoading ? "Loading..." : `Create a "${kindId}" Agent`}
       description="Add agent details and configure deployment settings."
       disableIcon

@@ -151,7 +151,7 @@ export const CatalogKindDetails: React.FC = () => {
 
   if (isLoading) {
     return (
-      <PageLayout title={kindId ?? "Agent Kind Details"} backHref={backHref}
+      <PageLayout docs={["agentKindAndCatalog", "agentLifecycle"]} title={kindId ?? "Agent Kind Details"} backHref={backHref}
         backLabel="Back to Agent Catalog" variant="card" avatar={KIND_AVATAR}>
         <Box sx={{ p: 2 }}>
           <Skeleton variant="rounded" height={32} sx={{ mb: 2, maxWidth: 320 }} />
@@ -165,7 +165,7 @@ export const CatalogKindDetails: React.FC = () => {
 
   if (!kind) {
     return (
-      <PageLayout title="Agent Kind Details" backHref={backHref}
+      <PageLayout docs={["agentKindAndCatalog", "agentLifecycle"]} title="Agent Kind Details" backHref={backHref}
         backLabel="Back to Agent Catalog" variant="card" avatar={KIND_AVATAR}>
         <Alert severity="error">Agent kind &quot;{kindId}&quot; was not found.</Alert>
       </PageLayout>
@@ -178,7 +178,7 @@ export const CatalogKindDetails: React.FC = () => {
     : undefined;
 
   return (
-    <PageLayout
+    <PageLayout docs={["agentKindAndCatalog", "agentLifecycle"]}
       title={kind.displayName}
       backHref={backHref}
       backLabel="Back to Agent Catalog"

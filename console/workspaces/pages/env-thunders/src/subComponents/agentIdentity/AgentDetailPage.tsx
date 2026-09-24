@@ -344,7 +344,7 @@ export const AgentDetailPage: React.FC = () => {
 
   if (isLoading) {
     return (
-      <PageLayout title={title} backHref={agentsPath} backLabel="Back to Agents" disableIcon>
+      <PageLayout docs={["agentId", "useAgentIdInPlatformHosted", "authorizeAgentMcpTools"]} title={title} backHref={agentsPath} backLabel="Back to Agents" disableIcon>
         <EditFormSkeleton tabs={2} />
       </PageLayout>
     );
@@ -354,7 +354,7 @@ export const AgentDetailPage: React.FC = () => {
   const canEdit = !!thunderAgentId;
 
   return (
-    <PageLayout
+    <PageLayout docs={["agentId", "useAgentIdInPlatformHosted", "authorizeAgentMcpTools"]}
       title={title}
       backHref={agentsPath}
       backLabel="Back to Agents"

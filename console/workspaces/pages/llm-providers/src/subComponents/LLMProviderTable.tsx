@@ -142,6 +142,8 @@ export function LLMProviderTable() {
         title: "No LLM service providers yet",
         description:
           "Add an LLM service provider to start routing AI traffic through the gateway.",
+        docs: "registerLlmServiceProvider",
+        docsLabel: "How to register a provider",
       }}
       searchEmptyState={{
         illustration: <ServerCog size={64} />,

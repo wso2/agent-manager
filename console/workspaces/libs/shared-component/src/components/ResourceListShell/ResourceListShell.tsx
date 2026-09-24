@@ -26,11 +26,20 @@ import {
   Stack,
 } from "@wso2/oxygen-ui";
 import { AlertTriangle, Plus, Search } from "@wso2/oxygen-ui-icons-react";
+import { DocsLink, type DocsTarget } from "@agent-management-platform/views";
 
 export interface ResourceListEmptyState {
   illustration: React.ReactNode;
   title: string;
   description: string;
+  /**
+   * Documentation for the thing this list holds. An empty list is where
+   * someone is most likely to not yet know what they are being asked to
+   * create, so the guide is offered right under the prompt to create one.
+   */
+  docs?: DocsTarget;
+  /** Link text for {@link docs}. Defaults to "Learn more". */
+  docsLabel?: string;
 }
 
 export interface ResourceListShellProps {
@@ -171,6 +180,13 @@ export const ResourceListShell: React.FC<ResourceListShellProps> = ({
             illustration={emptyState.illustration}
             title={emptyState.title}
             description={emptyState.description}
+            action={
+              emptyState.docs && (
+                <DocsLink docs={emptyState.docs}>
+                  {emptyState.docsLabel ?? "Learn more"}
+                </DocsLink>
+              )
+            }
           />
         </ListingTable.Container>
       );

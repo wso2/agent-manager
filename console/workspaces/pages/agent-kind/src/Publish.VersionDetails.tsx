@@ -79,7 +79,7 @@ export const PublishVersionDetails: React.FC = () => {
   );
 
   return (
-    <PageLayout
+    <PageLayout docs={["agentKindAndCatalog", "agentLifecycle"]}
       title={`${kind?.displayName || agentId} ${versionId}`}
       description={version ? `Build Id: ${version.buildName ?? "—"}` : ""}
       disableIcon

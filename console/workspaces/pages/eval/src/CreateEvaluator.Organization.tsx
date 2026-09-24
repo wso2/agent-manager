@@ -69,7 +69,7 @@ export const CreateEvaluatorOrganization: React.FC = () => {
   );
 
   return (
-    <PageLayout
+    <PageLayout docs={["customEvaluators", "evaluation", "evaluationMonitors"]}
       title="Create Evaluator"
       backLabel="Back to Evaluators"
       backHref={backHref}

@@ -30,7 +30,7 @@ function AgentsListPage() {
   return (
     <AgentIdentityEnvironmentGate title={TITLE}>
       {() => (
-        <PageLayout
+        <PageLayout docs={["agentId", "useAgentIdInPlatformHosted", "retrieveAgentIdForExternal"]}
           title={TITLE}
           description="Agents provisioned in the selected environment's identity provider."
           disableIcon

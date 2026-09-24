@@ -71,7 +71,7 @@ export function EnvironmentsOrganization() {
         <Route
           index
           element={
-            <PageLayout title="Environments" disableIcon>
+            <PageLayout docs={["environmentManagement", "environment", "deploymentPipeline"]} title="Environments" disableIcon>
               <EnvironmentTable
                 onEditEnvironment={setEnvToEdit}
                 onCreateEnvironment={() => setCreateOpen(true)}

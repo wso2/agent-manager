@@ -21,6 +21,7 @@ import { Box, ListingTable, SearchBar, Skeleton, Stack, TablePagination } from "
 import { BookOpenText, Search as SearchIcon } from "@wso2/oxygen-ui-icons-react";
 import type { AgentKindResponse } from "@agent-management-platform/types";
 import { CatalogKindCard, CARD_HEIGHT } from "./CatalogKindCard";
+import { DocsLink } from "@agent-management-platform/views";
 
 const DEFAULT_ROWS_PER_PAGE = 6;
 const ROWS_PER_PAGE_OPTIONS = [6, 12, 24];
@@ -125,6 +126,11 @@ export const CatalogKindListing: React.FC<CatalogKindListingProps> = ({
             illustration={<BookOpenText size={64} />}
             title="No agent kinds available"
             description="No agent kinds have been added to the catalog yet."
+            action={
+              <DocsLink docs="agentKindAndCatalog">
+                What agent kinds are
+              </DocsLink>
+            }
           />
         </ListingTable.Container>
       ) : filteredItems.length === 0 ? (

@@ -850,7 +850,7 @@ export const ViewEvaluatorOrganization: React.FC = () => {
 
   if (isLoading) {
     return (
-      <PageLayout title="Evaluator" disableIcon>
+      <PageLayout docs={["customEvaluators", "evaluation", "evaluationMonitors"]} title="Evaluator" disableIcon>
         <Stack spacing={2}>
           <Skeleton variant="rounded" height={40} />
           <Skeleton variant="rounded" height={200} />
@@ -861,7 +861,7 @@ export const ViewEvaluatorOrganization: React.FC = () => {
 
   if (fetchError) {
     return (
-      <PageLayout
+      <PageLayout docs={["customEvaluators", "evaluation", "evaluationMonitors"]}
         title="Evaluator"
         backHref={backHref}
         backLabel="Back to Evaluators"
@@ -876,7 +876,7 @@ export const ViewEvaluatorOrganization: React.FC = () => {
 
   if (!evaluator) {
     return (
-      <PageLayout
+      <PageLayout docs={["customEvaluators", "evaluation", "evaluationMonitors"]}
         title="Evaluator"
         backHref={backHref}
         backLabel="Back to Evaluators"
@@ -903,7 +903,7 @@ export const ViewEvaluatorOrganization: React.FC = () => {
   const tags = isEditing ? editValues.tags : (evaluator.tags ?? []);
 
   return (
-    <PageLayout
+    <PageLayout docs={["customEvaluators", "evaluation", "evaluationMonitors"]}
       title={isEditing ? "Edit Evaluator" : evaluator.displayName}
       description={!isEditing ? evaluator.description : undefined}
       backHref={backHref}

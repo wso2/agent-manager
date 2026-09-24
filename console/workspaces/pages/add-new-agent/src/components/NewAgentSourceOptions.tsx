@@ -54,7 +54,7 @@ export const NewAgentSourceOptions = ({ onSelect }: NewAgentSourceOptionsProps) 
     ] as const;
 
     return (
-        <PageLayout
+        <PageLayout docs={["internalAndExternalAgent", "agentLifecycle", "createFirstAgent"]}
             title="Create a Platform-Hosted Agent"
             description="Pick a source type for the agent"
             disableIcon

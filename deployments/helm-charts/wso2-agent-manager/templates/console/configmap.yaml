@@ -29,8 +29,10 @@ data:
   # it where that host is unreachable or serves nothing for this build.
   SCRIPT_BASE_URL: {{ .Values.console.config.scriptBaseUrl | default "" | quote }}
   # Documentation base URL for the console's in-product doc links. Built from
-  # the docs version so only the version segment varies per release.
-  DOCS_URL: {{ printf "https://wso2.github.io/agent-manager/docs/%s" (.Values.console.config.docsVersion | default "latest") | quote }}
+  # the docs version so only the version segment varies per release, unless
+  # docsUrl pins the whole URL — which is how a deployment that doesn't follow
+  # the versioned docs at all (cloud) opts out of versioning entirely.
+  DOCS_URL: {{ .Values.console.config.docsUrl | default (printf "https://wso2.github.io/agent-manager/docs/%s" (.Values.console.config.docsVersion | default "latest")) | quote }}
   # Agent Instrumentation URL
   INSTRUMENTATION_URL: {{ .Values.console.config.instrumentationUrl | quote }}
   # Cluster-internal URLs the gateway uses to reach Agent Manager — surfaced to

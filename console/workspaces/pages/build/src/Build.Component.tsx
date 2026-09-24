@@ -68,7 +68,7 @@ export const BuildComponent: React.FC = () => {
   }, [searchParams, setSearchParams]);
 
   return (
-      <PageLayout
+      <PageLayout docs={["agentLifecycle", "agentSandboxing", "deploymentPipeline"]}
         title="Build"
         disableIcon
         actions={

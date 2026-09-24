@@ -227,7 +227,7 @@ export const ConfigureComponent: React.FC = () => {
       : "#";
 
   return (
-    <PageLayout title="Configure Agent" disableIcon>
+    <PageLayout docs={["agentLifecycle", "configureAgentLlm", "configureAgentMcpProxies"]} title="Configure Agent" disableIcon>
       <Card variant="outlined">
         <Tabs
           value={tabIndex}

@@ -19,6 +19,7 @@
 import { Box, Card, PageTitle, Skeleton, Stack } from '@wso2/oxygen-ui';
 import type { ReactNode } from 'react';
 import { Link } from 'react-router-dom';
+import { PageDocs, type DocsTarget } from '../Docs';
 import { resolveEntityAvatarProps, type EntityAvatarProps } from '../EntityAvatar';
 import { PageMetaList } from '../PageMeta';
 
@@ -85,6 +86,13 @@ export interface PageHeaderProps {
   /** Primary actions — top-right of the header. */
   actions?: ReactNode;
   /**
+   * The documentation behind this screen — the first entry is its primary
+   * reading, the rest the related concepts and guides. Rendered as a panel
+   * opened from the header, so every page carries a route into the docs
+   * without each one having to lay one out.
+   */
+  docs?: DocsTarget | DocsTarget[];
+  /**
    * Low-emphasis or destructive actions (delete, ...), pinned to the bottom-right
    * so they stay clear of the primary action. `card` variant only.
    */
@@ -102,6 +110,7 @@ export function PageHeader({
   meta,
   avatar,
   actions,
+  docs,
   secondaryActions,
   variant = 'plain',
   isLoading = false,
@@ -136,6 +145,19 @@ export function PageHeader({
     ) : (
       actions
     ));
+
+  // The docs panel is static, so unlike the actions it renders while the page
+  // is still loading — that's precisely when someone may want to read what the
+  // screen is for.
+  const docsLink = docs ? <PageDocs docs={docs} /> : null;
+
+  const headerActions =
+    docsLink || actionsContent ? (
+      <Stack direction="row" spacing={1} alignItems="center">
+        {docsLink}
+        {actionsContent}
+      </Stack>
+    ) : null;
 
   /**
    * Oxygen's PageTitle picks its avatar/actions/back-button slots out of
@@ -189,8 +211,8 @@ export function PageHeader({
           )}
         </PageTitle.SubHeader>
       )}
-      {!isCard && actionsContent && (
-        <PageTitle.Actions>{actionsContent}</PageTitle.Actions>
+      {!isCard && headerActions && (
+        <PageTitle.Actions>{headerActions}</PageTitle.Actions>
       )}
     </PageTitle>
   );
@@ -207,7 +229,7 @@ export function PageHeader({
       <Card variant="outlined" sx={CARD_SX}>
         <Box sx={CARD_ROW_SX}>
           {pageTitle}
-          {actionsContent && <Box sx={CARD_ACTIONS_SX}>{actionsContent}</Box>}
+          {headerActions && <Box sx={CARD_ACTIONS_SX}>{headerActions}</Box>}
         </Box>
         {secondaryActions && !isLoading && (
           <Box sx={CARD_SECONDARY_ACTIONS_SX}>{secondaryActions}</Box>

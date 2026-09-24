@@ -290,7 +290,7 @@ export const TracesComponent: React.FC = () => {
 
   if (obsUrlMissing) {
     return (
-      <PageLayout title="Traces" disableIcon>
+      <PageLayout docs={["observability", "configureTraceSampling", "ampInstrumentation"]} title="Traces" disableIcon>
         <Alert severity="error" sx={{ mt: 2 }}>
           <strong>Observer not configured.</strong> Ask your platform
           administrator to set <code>AM_OBSERVER_PUBLIC_URL</code> on the
@@ -302,7 +302,7 @@ export const TracesComponent: React.FC = () => {
 
   if (orgNotFound || agentNotFound || envNotFound) {
     return (
-      <PageLayout title="Traces" disableIcon>
+      <PageLayout docs={["observability", "configureTraceSampling", "ampInstrumentation"]} title="Traces" disableIcon>
         {orgNotFound && (
           <Alert severity="error" sx={{ mt: 2 }}>
             <strong>Organization not found.</strong> No organization named{" "}
@@ -328,7 +328,7 @@ export const TracesComponent: React.FC = () => {
 
   return (
     <>
-      <PageLayout
+      <PageLayout docs={["observability", "configureTraceSampling", "ampInstrumentation"]}
         title="Traces"
         disableIcon
         actions={

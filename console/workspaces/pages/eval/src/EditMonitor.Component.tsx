@@ -150,7 +150,7 @@ export const EditMonitorComponent: React.FC = () => {
 
   if (missingParamsMessage) {
     return (
-      <PageLayout
+      <PageLayout docs={["evaluationMonitors", "evaluation", "customEvaluators"]}
         title="Edit Monitor"
         description="Update monitor configuration and evaluator settings."
         disableIcon
@@ -164,7 +164,7 @@ export const EditMonitorComponent: React.FC = () => {
 
   if (isLoading) {
     return (
-      <PageLayout
+      <PageLayout docs={["evaluationMonitors", "evaluation", "customEvaluators"]}
         title="Edit Monitor"
         description="Update monitor configuration and evaluator settings."
         disableIcon
@@ -181,7 +181,7 @@ export const EditMonitorComponent: React.FC = () => {
 
   if (fetchError) {
     return (
-      <PageLayout
+      <PageLayout docs={["evaluationMonitors", "evaluation", "customEvaluators"]}
         title="Edit Monitor"
         description="Update monitor configuration and evaluator settings."
         disableIcon
@@ -199,7 +199,7 @@ export const EditMonitorComponent: React.FC = () => {
 
   if (!initialValues) {
     return (
-      <PageLayout
+      <PageLayout docs={["evaluationMonitors", "evaluation", "customEvaluators"]}
         title="Edit Monitor"
         disableIcon
         backLabel="Back to Monitors"

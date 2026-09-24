@@ -62,7 +62,7 @@ export const ViewThunderInstance: React.FC = () => {
   const consoleUrl = instance ? `${instance.issuerUrl.replace(/\/$/, "")}/console` : undefined;
 
   return (
-      <PageLayout
+      <PageLayout docs={["agentId", "configureIdentityProviders"]}
         title="ThunderID"
         backHref={backHref}
         backLabel="Back to Environment"

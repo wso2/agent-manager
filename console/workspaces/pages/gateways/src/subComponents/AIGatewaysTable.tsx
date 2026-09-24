@@ -37,6 +37,7 @@ import {
   Trash,
 } from "@wso2/oxygen-ui-icons-react";
 import { generatePath, useNavigate, useParams } from "react-router-dom";
+import { DocsLink } from "@agent-management-platform/views";
 import {
   useDeleteGateway,
   useListEnvironments,
@@ -320,6 +321,7 @@ export function AIGatewaysTable({ onEditGateway }: AIGatewaysTableProps) {
             illustration={<DoorClosedLocked size={64} />}
             title="No available gateway"
             description="No gateways have been configured yet."
+            action={<DocsLink docs="gateway">How gateways work</DocsLink>}
           />
         </ListingTable.Container>
       );

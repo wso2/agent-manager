@@ -267,7 +267,7 @@ export function ProjectList() {
   );
 
   return (
-    <PageLayout
+    <PageLayout docs={["project", "organization", "deploymentPipeline"]}
       title="All Projects"
       disableIcon
     >

@@ -88,6 +88,8 @@ export function MCPProxyTable() {
         illustration: <MCPLogo size={64} />,
         title: "No MCP Servers Yet",
         description: "Add an MCP Server to provide tools for agents.",
+        docs: "registerMcpProxy",
+        docsLabel: "How to register an MCP server",
       }}
       searchEmptyState={{
         illustration: <Plus size={64} />,

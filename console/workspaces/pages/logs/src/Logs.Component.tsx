@@ -201,7 +201,7 @@ export const LogsComponent: React.FC = () => {
   // state instead.
   if (!isObserverConfigured()) {
     return (
-      <PageLayout title="Runtime Logs" disableIcon>
+      <PageLayout docs={["observability", "ampInstrumentation", "observeFirstAgent"]} title="Runtime Logs" disableIcon>
         <Alert severity="error" sx={{ mt: 2 }}>
           <strong>Observer not configured.</strong> Ask your platform
           administrator to set <code>AM_OBSERVER_PUBLIC_URL</code> on the
@@ -212,7 +212,7 @@ export const LogsComponent: React.FC = () => {
   }
 
   return (
-    <PageLayout
+    <PageLayout docs={["observability", "ampInstrumentation", "observeFirstAgent"]}
       title="Runtime Logs"
       disableIcon
       actions={

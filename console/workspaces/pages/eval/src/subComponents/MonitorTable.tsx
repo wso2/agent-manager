@@ -47,6 +47,7 @@ import {
   useListMonitors,
 } from "@agent-management-platform/api-client";
 import { MonitorStartStopButton } from "./MonitorStartStopButton";
+import { DocsLink } from "@agent-management-platform/views";
 
 const getStatusColor = (status: MonitorStatus) => {
   switch (status) {
@@ -174,6 +175,11 @@ export function MonitorTable() {
           illustration={<Monitor size={64} />}
           title="No monitors yet"
           description="Create a monitor to start tracking your evaluations."
+          action={
+            <DocsLink docs="evaluationMonitors">
+              How evaluation monitors work
+            </DocsLink>
+          }
         />
       </ListingTable.Container>
     );

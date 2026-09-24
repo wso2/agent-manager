@@ -24,7 +24,7 @@ export const AddMCPProxyOrganization = () => {
   );
 
   return (
-    <PageLayout
+    <PageLayout docs={["registerMcpProxy", "mcpProxy", "authorizeAgentMcpTools"]}
       title="Register MCP Server"
       backHref={backHref}
       backLabel="Back to MCP Server list"

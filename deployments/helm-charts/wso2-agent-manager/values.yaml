@@ -522,7 +522,16 @@ console:
     # the release's own versioned docs (v plus the release version). Release
     # candidates and nightlies keep "latest", because no docs version is cut
     # for them.
+    # Ignored entirely when docsUrl below is set.
     docsVersion: "latest"
+    # -- Full documentation base URL, overriding docsVersion.
+    # Empty builds the URL from docsVersion, which is what a versioned release
+    # wants. Set it for a deployment that tracks one continuously-updated set of
+    # docs rather than a release's own snapshot — cloud, which is served from
+    # /docs/cloud/ and is never version-stamped. Because this wins over
+    # docsVersion, release version stamping cannot reach a deployment that sets
+    # it. No trailing slash; the console appends the page path.
+    docsUrl: ""
     # Trace-export URL shown to external agent developers. kgateway-routed
     # vhost — independent of the gateway runtime's namespace; no port-forward.
     instrumentationUrl: "http://default-default.gateway.localhost:19080/otel"
