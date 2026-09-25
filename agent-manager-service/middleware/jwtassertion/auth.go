@@ -36,6 +36,7 @@ import (
 	"golang.org/x/sync/singleflight"
 
 	"github.com/wso2/agent-manager/agent-manager-service/config"
+	"github.com/wso2/agent-manager/agent-manager-service/middleware/logger"
 	"github.com/wso2/agent-manager/agent-manager-service/rbac"
 	"github.com/wso2/agent-manager/agent-manager-service/utils"
 )
@@ -265,13 +266,11 @@ func JWTAuthMiddlewareWithResourceMetadataResolver(
 			// Validate the token using JWKS
 			claims, err := validateJWTWithJWKS(tokenString)
 			if err != nil {
-				// The path and client IP make this actionable: the previous form
-				// logged only the error, which left credential stuffing against
-				// the API undetectable.
-				slog.Error("JWT validation failed",
+				// The client IP makes this actionable alongside the logger's request
+				// path, which left credential stuffing against the API undetectable.
+				logger.GetLogger(r.Context()).Error("JWT validation failed",
 					"error", err,
 					"reason", classifyAuthFailure(err),
-					"path", utils.SanitizeForLog(r.URL.Path),
 					"clientIp", utils.ClientIP(r))
 				notifyAuthFailure(r, classifyAuthFailure(err))
 				w.Header().Set("WWW-Authenticate", buildBearerChallenge(metadataURL, "invalid_token"))

@@ -18,12 +18,12 @@ package middleware
 
 import (
 	"context"
-	"log/slog"
 	"net/http"
 	"strings"
 	"sync"
 
 	"github.com/wso2/agent-manager/agent-manager-service/clients/thundersvc"
+	"github.com/wso2/agent-manager/agent-manager-service/middleware/logger"
 	"github.com/wso2/agent-manager/agent-manager-service/orgctx"
 )
 
@@ -48,8 +48,7 @@ func GetResolvedOrg(ctx context.Context) (ResolvedOrg, bool) {
 func OUIDFromRequest(r *http.Request) string {
 	org, ok := GetResolvedOrg(r.Context())
 	if !ok {
-		// Use ErrorContext and pass r.Context() as the first argument
-		slog.ErrorContext(r.Context(), "resolved org missing from request context — RequireOrgMatch not applied", "path", sanitizeForLog(r.URL.Path))
+		logger.GetLogger(r.Context()).Error("resolved org missing from request context — RequireOrgMatch not applied", "path", sanitizeForLog(r.URL.Path))
 		return ""
 	}
 	return org.OUID
@@ -63,8 +62,7 @@ func OUIDFromRequest(r *http.Request) string {
 func OrgHandleFromRequest(r *http.Request) string {
 	org, ok := GetResolvedOrg(r.Context())
 	if !ok {
-		// Use ErrorContext and pass r.Context() as the first argument
-		slog.ErrorContext(r.Context(), "resolved org missing from request context — RequireOrgMatch not applied", "path", sanitizeForLog(r.URL.Path))
+		logger.GetLogger(r.Context()).Error("resolved org missing from request context — RequireOrgMatch not applied", "path", sanitizeForLog(r.URL.Path))
 		return ""
 	}
 	return org.OuHandle
