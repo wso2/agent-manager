@@ -20,12 +20,22 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"time"
 
 	"github.com/google/uuid"
 
+	"github.com/wso2/agent-manager/agent-manager-service/clients/thundersvc"
 	"github.com/wso2/agent-manager/agent-manager-service/models"
 	"github.com/wso2/agent-manager/agent-manager-service/utils"
 )
+
+// ensureResourceServerPerEnvTimeout bounds one environment's ensure attempt
+// inside EnsureResourceServersForProxy's fan-out. Thunder's HTTP client
+// already times out a single request at 30s (see thundersvc.httpClientTimeout),
+// but EnsureResourceServer can make several such calls per environment, so
+// without its own bound one slow environment could stall the whole fan-out
+// far past that.
+const ensureResourceServerPerEnvTimeout = 15 * time.Second
 
 // ErrMCPProxyNotDeployedToEnvironment means the proxy has no deployed
 // (endpoint, environment) binding to anchor a resource identifier on.
@@ -81,4 +91,96 @@ func (s *MCPProxyService) MCPResourceServerIdentifier(ctx context.Context, ouID 
 	}
 
 	return buildMCPProxyURL(gateway, proxy.Configuration), nil
+}
+
+// EnsureResourceServer ensures proxy's resource server and given actions
+// exist in envID's env-Thunder, so role creation and scope save register the
+// identical server. Returns the resource server's Thunder ID.
+func (s *MCPProxyService) EnsureResourceServer(
+	ctx context.Context, ouID string, envID uuid.UUID, client thundersvc.EnvIdentityClient,
+	proxy *models.MCPProxy, actions []string,
+) (string, error) {
+	identifier, err := s.MCPResourceServerIdentifier(ctx, ouID, envID, proxy)
+	if err != nil {
+		return "", err
+	}
+	handle := proxyHandleOf(proxy)
+	name := handle
+	if proxy.Artifact != nil && proxy.Artifact.Name != "" {
+		name = proxy.Artifact.Name
+	}
+	return client.EnsureProxyResourceServer(ctx, handle, name, identifier, actions)
+}
+
+// EnsureResourceServersForProxy best-effort registers proxy's resource server
+// and actions in every identity-secured, deployed environment. Called from
+// both scope save and proxy save, so whichever happens first fills in what
+// the other missed. Never returns an error: failures are logged and skipped.
+func (s *MCPProxyService) EnsureResourceServersForProxy(ctx context.Context, ouID string, proxy *models.MCPProxy, actions []string) {
+	hasIdentityEndpoint := false
+	for i := range proxy.Endpoints {
+		if mcpIdentityEnabled(proxy.Endpoints[i].Configuration.Security) {
+			hasIdentityEndpoint = true
+			break
+		}
+	}
+	if !hasIdentityEndpoint {
+		return
+	}
+
+	handle := proxyHandleOf(proxy)
+	envs, err := s.infraManager.ListOrgEnvironments(ctx, ouID)
+	if err != nil {
+		s.logger.Warn("ensure resource server: listing environments failed", "proxy", handle, "error", err)
+		return
+	}
+	envName := make(map[string]string, len(envs)) // env UUID -> name (resolver keys on names)
+	for _, env := range envs {
+		envName[env.UUID] = env.Name
+	}
+
+	for i := range proxy.Endpoints {
+		endpoint := &proxy.Endpoints[i]
+		if !mcpIdentityEnabled(endpoint.Configuration.Security) {
+			continue
+		}
+		for j := range endpoint.Environments {
+			ee := &endpoint.Environments[j]
+			if ee.ArtifactUUID == uuid.Nil {
+				continue // not actually deployed there yet
+			}
+			name, ok := envName[ee.EnvironmentUUID.String()]
+			if !ok {
+				continue // environment no longer exists
+			}
+			client, err := ResolveEnvThunderIdentity(ctx, s.resolver, ouID, name)
+			if err != nil {
+				s.logger.Warn("ensure resource server: env-thunder unavailable", "proxy", handle, "env", name, "error", err)
+				continue
+			}
+			envCtx, cancel := context.WithTimeout(ctx, ensureResourceServerPerEnvTimeout)
+			_, err = s.EnsureResourceServer(envCtx, ouID, ee.EnvironmentUUID, client, proxy, actions)
+			cancel()
+			if err != nil {
+				s.logger.Warn("ensure resource server: ensure failed", "proxy", handle, "env", name, "error", err)
+				continue
+			}
+			s.logger.Info("ensure resource server: registered", "proxy", handle, "env", name, "actions", actions)
+		}
+	}
+}
+
+// ensureResourceServersForCurrentScopes loads proxy's current scopes and
+// delegates to EnsureResourceServersForProxy.
+func (s *MCPProxyService) ensureResourceServersForCurrentScopes(ctx context.Context, ouID string, proxy *models.MCPProxy) {
+	scopes, err := s.mcpProxyScopeRepo.ListByProxy(ctx, proxy.UUID)
+	if err != nil {
+		s.logger.Warn("ensure resource server (proxy save): listing scopes failed", "proxy", proxyHandleOf(proxy), "error", err)
+		return
+	}
+	actions := make([]string, 0, len(scopes))
+	for _, sc := range scopes {
+		actions = append(actions, sc.Action)
+	}
+	s.EnsureResourceServersForProxy(ctx, ouID, proxy, actions)
 }

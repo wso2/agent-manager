@@ -88,6 +88,18 @@ data:
   RESOURCE_MAX_REPLICAS: {{ .Values.agentManagerService.config.perAgentResourceLimits.maxReplicas | default 10 | quote }}
   RESOURCE_MAX_CPU: {{ .Values.agentManagerService.config.perAgentResourceLimits.maxCPU | default "500m" | quote }}
   RESOURCE_MAX_MEMORY: {{ .Values.agentManagerService.config.perAgentResourceLimits.maxMemory | default "512Mi" | quote }}
+  # File mount size caps in bytes. `int` because Helm reads YAML numbers as
+  # floats, and `quote` would render 1000000 as "1e+06".
+  {{- $maxFileBytes := dig "fileMountLimits" "maxFileBytes" 1000000 .Values.agentManagerService.config | int }}
+  {{- $maxTotalBytes := dig "fileMountLimits" "maxTotalBytes" 1000000 .Values.agentManagerService.config | int }}
+  {{- /* JSON Schema cannot compare two values, so this is checked here: the
+       service refuses to start with this combination, and failing the render
+       reports it at install time instead. */}}
+  {{- if gt $maxFileBytes $maxTotalBytes }}
+  {{- fail (printf "agentManagerService.config.fileMountLimits.maxFileBytes (%d) must not exceed maxTotalBytes (%d)" $maxFileBytes $maxTotalBytes) }}
+  {{- end }}
+  FILE_MOUNT_MAX_FILE_BYTES: {{ $maxFileBytes | quote }}
+  FILE_MOUNT_MAX_TOTAL_BYTES: {{ $maxTotalBytes | quote }}
   # Audit logging. Records are written to stdout as structured JSON with
   # log_type=audit and collected by the cluster log pipeline. Retention and
   # immutability are properties of that pipeline — see

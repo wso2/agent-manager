@@ -89,6 +89,18 @@ export interface AppConfig {
    * OOTB policies are always shown regardless of these flags.
    */
   guardrailCapabilities?: GuardrailCapabilities;
+  /**
+   * Largest request body, in bytes, the console will send on a write. Sized for
+   * a WAF that rejects bigger bodies with an opaque 403, so the console can
+   * refuse first with a readable error. "0" disables the check. Arrives as a
+   * string from the runtime config template; read it via getMaxRequestBodyBytes().
+   */
+  maxRequestBodyBytes?: string | number;
+  /**
+   * Per-file cap, in bytes, on file-mount content. Should match the backend's
+   * FILE_MOUNT_MAX_FILE_BYTES. Read it via getFileMountMaxFileBytes().
+   */
+  fileMountMaxFileBytes?: string | number;
   /** URL for the product documentation. Shown as a "Docs" link in the footer. */
   docsUrl?: string;
   /** URLs rendered in the footer. */

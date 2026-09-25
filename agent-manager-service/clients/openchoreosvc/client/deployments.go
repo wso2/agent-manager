@@ -237,6 +237,7 @@ func (c *openChoreoClient) retryReleaseBindingUpdate(
 
 		binding := getResp.JSON200
 		mutate(binding)
+		binding.Metadata.Labels = c.withResourceLabels(binding.Metadata.Labels)
 
 		updateResp, err := c.ocClient.UpdateReleaseBindingWithResponse(ctx, namespaceName, bindingName, *binding)
 		if err != nil {
@@ -616,6 +617,7 @@ func (c *openChoreoClient) EnsureReleaseAndBinding(
 		Metadata: gen.ObjectMeta{
 			Name:      bindingName,
 			Namespace: &namespaceName,
+			Labels:    c.withResourceLabels(nil),
 		},
 		Spec: &gen.ReleaseBindingSpec{
 			Environment: environment,
@@ -809,6 +811,7 @@ func (c *openChoreoClient) PromoteComponent(ctx context.Context, ouID, projectNa
 			Metadata: gen.ObjectMeta{
 				Name:      targetBindingName,
 				Namespace: &namespaceName,
+				Labels:    c.withResourceLabels(nil),
 			},
 			Spec: &gen.ReleaseBindingSpec{
 				Environment:                     targetEnvironment,
@@ -1711,6 +1714,7 @@ func (c *openChoreoClient) UpdateDeploymentState(ctx context.Context, ouID, proj
 
 	// Update the release binding
 	bindingName := targetBinding.Metadata.Name
+	targetBinding.Metadata.Labels = c.withResourceLabels(targetBinding.Metadata.Labels)
 	updateResp, err := c.ocClient.UpdateReleaseBindingWithResponse(ctx, namespaceName, bindingName, *targetBinding)
 	if err != nil {
 		return fmt.Errorf("failed to update release binding: %w", err)

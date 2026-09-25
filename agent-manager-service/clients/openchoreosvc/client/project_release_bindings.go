@@ -22,6 +22,7 @@ import (
 	"net/http"
 
 	"github.com/wso2/agent-manager/agent-manager-service/clients/openchoreosvc/gen"
+	"github.com/wso2/agent-manager/agent-manager-service/middleware/logger"
 )
 
 // -----------------------------------------------------------------------------
@@ -49,8 +50,9 @@ func projectReleaseBindingName(projectName, environmentName string) string {
 // it once with the project's latest ProjectRelease.
 //
 // The call is idempotent: an existing binding for the same (project,
-// environment) is success. A name collision with a binding that belongs to a
-// different project or environment is an error rather than a silent no-op.
+// environment) is success, and is given the org UUID namespace label if it
+// predates it. A name collision with a binding that belongs to a different
+// project or environment is an error rather than a silent no-op.
 func (c *openChoreoClient) EnsureProjectReleaseBinding(ctx context.Context, ouID, projectName, environmentName string) error {
 	namespaceName := c.NamespaceFor(ouID)
 	bindingName := projectReleaseBindingName(projectName, environmentName)
@@ -79,7 +81,7 @@ func (c *openChoreoClient) EnsureProjectReleaseBinding(ctx context.Context, ouID
 			// this namespace is attributable to a project and a component but to
 			// no customer.
 			EnvironmentConfigs: &map[string]interface{}{
-				"namespaceLabels": map[string]string{
+				namespaceLabelsKey: map[string]string{
 					string(LabelKeyOrgUUID): ouID,
 				},
 			},
@@ -96,7 +98,7 @@ func (c *openChoreoClient) EnsureProjectReleaseBinding(ctx context.Context, ouID
 		return nil
 	case http.StatusConflict:
 		// Already exists — confirm it is ours before treating it as success.
-		return c.verifyProjectReleaseBindingOwner(ctx, namespaceName, bindingName, projectName, environmentName)
+		return c.reconcileExistingProjectReleaseBinding(ctx, ouID, namespaceName, bindingName, projectName, environmentName)
 	default:
 		// Named so a caller can tell this apart from the lookup below, which
 		// maps the same set of statuses.
@@ -110,12 +112,20 @@ func (c *openChoreoClient) EnsureProjectReleaseBinding(ctx context.Context, ouID
 	}
 }
 
-// verifyProjectReleaseBindingOwner checks that an existing binding really is the
-// one for (project, environment). Binding names are derived from both, so a
-// mismatch means two different tuples collapsed onto the same name (e.g. project
-// "a-b" + env "c" vs project "a" + env "b-c"); silently accepting that would
-// point the project at another project's namespace.
-func (c *openChoreoClient) verifyProjectReleaseBindingOwner(ctx context.Context, namespaceName, bindingName, projectName, environmentName string) error {
+// namespaceLabelsKey is the ProjectType environmentConfigs field whose labels
+// are merged onto the cell namespace.
+const namespaceLabelsKey = "namespaceLabels"
+
+// reconcileExistingProjectReleaseBinding checks that an existing binding really
+// is the one for (project, environment), then backfills the org UUID namespace
+// label on bindings created before it was set. Binding names are derived from
+// both, so a mismatch means two different tuples collapsed onto the same name
+// (e.g. project "a-b" + env "c" vs project "a" + env "b-c"); silently accepting
+// that would point the project at another project's namespace.
+//
+// A failed backfill is logged, not returned: the binding is usable without the
+// label, and the next deploy or promote retries it.
+func (c *openChoreoClient) reconcileExistingProjectReleaseBinding(ctx context.Context, ouID, namespaceName, bindingName, projectName, environmentName string) error {
 	resp, err := c.ocClient.GetProjectReleaseBindingWithResponse(ctx, namespaceName, bindingName)
 	if err != nil {
 		return fmt.Errorf("failed to get existing project release binding %q: %w", bindingName, err)
@@ -132,12 +142,51 @@ func (c *openChoreoClient) verifyProjectReleaseBindingOwner(ctx context.Context,
 		return fmt.Errorf("empty response from get project release binding %q", bindingName)
 	}
 
-	spec := resp.JSON200.Spec
+	binding := resp.JSON200
+	spec := binding.Spec
 	if spec.Owner.ProjectName != projectName || spec.Environment != environmentName {
 		return fmt.Errorf(
 			"project release binding %q already exists for project %q environment %q, not project %q environment %q",
 			bindingName, spec.Owner.ProjectName, spec.Environment, projectName, environmentName,
 		)
 	}
+
+	if !setNamespaceLabel(spec, string(LabelKeyOrgUUID), ouID) {
+		return nil
+	}
+	updateResp, err := c.ocClient.UpdateProjectReleaseBindingWithResponse(ctx, namespaceName, bindingName, *binding)
+	if err == nil && updateResp.StatusCode() != http.StatusOK {
+		err = handleErrorResponse(updateResp.StatusCode(), ErrorResponses{
+			JSON400: updateResp.JSON400,
+			JSON401: updateResp.JSON401,
+			JSON403: updateResp.JSON403,
+			JSON404: updateResp.JSON404,
+			JSON500: updateResp.JSON500,
+		})
+	}
+	if err != nil {
+		logger.GetLogger(ctx).Warn("failed to add org UUID namespace label to existing project release binding",
+			"binding", bindingName, "namespace", namespaceName, "error", err)
+	}
 	return nil
+}
+
+// setNamespaceLabel sets key=value in spec.environmentConfigs.namespaceLabels,
+// keeping any other configs and labels, and reports whether anything changed.
+func setNamespaceLabel(spec *gen.ProjectReleaseBindingSpec, key, value string) bool {
+	if spec.EnvironmentConfigs == nil {
+		spec.EnvironmentConfigs = &map[string]interface{}{}
+	}
+	configs := *spec.EnvironmentConfigs
+
+	labels := map[string]interface{}{}
+	if existing, ok := configs[namespaceLabelsKey].(map[string]interface{}); ok {
+		if existing[key] == value {
+			return false
+		}
+		labels = existing
+	}
+	labels[key] = value
+	configs[namespaceLabelsKey] = labels
+	return true
 }

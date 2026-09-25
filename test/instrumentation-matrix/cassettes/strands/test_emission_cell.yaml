@@ -1,0 +1,74 @@
+# OpenAI responses reused from the LangGraph double-tool cassette.
+# Request bodies captured from Strands 1.55.1; no live model call was made.
+interactions:
+- request:
+    method: POST
+    uri: https://api.openai.com/v1/chat/completions
+    body: '{"messages":[{"role":"user","content":[{"text":"What is double of 21? Use
+      the tool.","type":"text"}]}],"model":"gpt-4o-mini","stream":false,"temperature":0,"tools":[{"type":"function","function":{"name":"double","description":"Return
+      twice the integer x.","parameters":{"properties":{"x":{"description":"Parameter
+      x","type":"integer"}},"required":["x"],"type":"object"}}}]}'
+    headers:
+      Content-Type:
+      - application/json
+      authorization:
+      - REDACTED
+  response:
+    body:
+      string: "{\n  \"id\": \"chatcmpl-Dk1GdxTDlHT4YzTYy0eTJRIaKzaST\",\n  \"object\"\
+        : \"chat.completion\",\n  \"created\": 1779860331,\n  \"model\": \"gpt-4o-mini-2024-07-18\"\
+        ,\n  \"choices\": [\n    {\n      \"index\": 0,\n      \"message\": {\n  \
+        \      \"role\": \"assistant\",\n        \"content\": null,\n        \"tool_calls\"\
+        : [\n          {\n            \"id\": \"call_8E91SNJqZ4aZRJyV9K6YaWLa\",\n\
+        \            \"type\": \"function\",\n            \"function\": {\n      \
+        \        \"name\": \"double\",\n              \"arguments\": \"{\\\"x\\\"\
+        :21}\"\n            }\n          }\n        ],\n        \"refusal\": null,\n\
+        \        \"annotations\": []\n      },\n      \"logprobs\": null,\n      \"\
+        finish_reason\": \"tool_calls\"\n    }\n  ],\n  \"usage\": {\n    \"prompt_tokens\"\
+        : 53,\n    \"completion_tokens\": 13,\n    \"total_tokens\": 66,\n    \"prompt_tokens_details\"\
+        : {\n      \"cached_tokens\": 0,\n      \"audio_tokens\": 0\n    },\n    \"\
+        completion_tokens_details\": {\n      \"reasoning_tokens\": 0,\n      \"audio_tokens\"\
+        : 0,\n      \"accepted_prediction_tokens\": 0,\n      \"rejected_prediction_tokens\"\
+        : 0\n    }\n  },\n  \"service_tier\": \"default\",\n  \"system_fingerprint\"\
+        : \"fp_54f26dc974\"\n}\n"
+    headers:
+      Content-Type:
+      - application/json
+    status:
+      code: 200
+      message: OK
+- request:
+    method: POST
+    uri: https://api.openai.com/v1/chat/completions
+    body: '{"messages":[{"role":"user","content":[{"text":"What is double of 21? Use
+      the tool.","type":"text"}]},{"role":"assistant","tool_calls":[{"function":{"arguments":"{\"x\":
+      21}","name":"double"},"id":"call_8E91SNJqZ4aZRJyV9K6YaWLa","type":"function"}]},{"role":"tool","tool_call_id":"call_8E91SNJqZ4aZRJyV9K6YaWLa","content":"42"}],"model":"gpt-4o-mini","stream":false,"temperature":0,"tools":[{"type":"function","function":{"name":"double","description":"Return
+      twice the integer x.","parameters":{"properties":{"x":{"description":"Parameter
+      x","type":"integer"}},"required":["x"],"type":"object"}}}]}'
+    headers:
+      Content-Type:
+      - application/json
+      authorization:
+      - REDACTED
+  response:
+    body:
+      string: "{\n  \"id\": \"chatcmpl-Dk1GfutB80mJkw8MkvBovaiJLMMxm\",\n  \"object\"\
+        : \"chat.completion\",\n  \"created\": 1779860333,\n  \"model\": \"gpt-4o-mini-2024-07-18\"\
+        ,\n  \"choices\": [\n    {\n      \"index\": 0,\n      \"message\": {\n  \
+        \      \"role\": \"assistant\",\n        \"content\": \"The double of 21 is\
+        \ 42.\",\n        \"refusal\": null,\n        \"annotations\": []\n      },\n\
+        \      \"logprobs\": null,\n      \"finish_reason\": \"stop\"\n    }\n  ],\n\
+        \  \"usage\": {\n    \"prompt_tokens\": 74,\n    \"completion_tokens\": 10,\n\
+        \    \"total_tokens\": 84,\n    \"prompt_tokens_details\": {\n      \"cached_tokens\"\
+        : 0,\n      \"audio_tokens\": 0\n    },\n    \"completion_tokens_details\"\
+        : {\n      \"reasoning_tokens\": 0,\n      \"audio_tokens\": 0,\n      \"\
+        accepted_prediction_tokens\": 0,\n      \"rejected_prediction_tokens\": 0\n\
+        \    }\n  },\n  \"service_tier\": \"default\",\n  \"system_fingerprint\":\
+        \ \"fp_54f26dc974\"\n}\n"
+    headers:
+      Content-Type:
+      - application/json
+    status:
+      code: 200
+      message: OK
+version: 1

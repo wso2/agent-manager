@@ -49,6 +49,12 @@ data:
   # and TLS_ENABLED match this deployment instead of being omitted.
   IDP_HOST_BASE_DOMAIN: {{ .Values.console.config.idpHostBaseDomain | default "amp.localhost" | quote }}
   TLS_ENABLED: {{ .Values.console.config.tlsEnabled | default "false" | quote }}
+  # Request and file-mount size limits in bytes. `dig`, not `default`, for the
+  # body limit: 0 is a real setting (no limit) and `default` would replace it.
+  # `int` because Helm reads YAML numbers as floats and `quote` would render
+  # 1000000 as "1e+06".
+  MAX_REQUEST_BODY_BYTES: {{ dig "maxRequestBodyBytes" 57344 .Values.console.config | int | quote }}
+  FILE_MOUNT_MAX_FILE_BYTES: {{ .Values.console.config.fileMountMaxFileBytes | default (dig "fileMountLimits" "maxFileBytes" 1000000 .Values.agentManagerService.config) | int | quote }}
   # Guardrails configuration
   GUARDRAILS_CATALOG_URL: {{ .Values.console.config.guardrailsCatalogUrl | default "" | quote }}
   GUARDRAILS_DEFINITION_BASE_URL: {{ .Values.console.config.guardrailsDefinitionBaseUrl | default "" | quote }}

@@ -351,6 +351,14 @@ func loadEnvs() {
 		MaxMemory:   r.readOptionalString("RESOURCE_MAX_MEMORY", "1Gi"),
 	}
 
+	// File mount size caps. The defaults are 1 MB (decimal) rather than 1 MiB so
+	// a mount at the per-file cap still leaves room for the ConfigMap/Secret's
+	// own metadata under Kubernetes' 1 MiB object limit.
+	config.FileMountLimits = FileMountLimitsConfig{
+		MaxFileBytes:  int(r.readOptionalInt64("FILE_MOUNT_MAX_FILE_BYTES", 1000000)),
+		MaxTotalBytes: int(r.readOptionalInt64("FILE_MOUNT_MAX_TOTAL_BYTES", 1000000)),
+	}
+
 	// Encryption key for secrets at rest (hex-encoded 32-byte AES-256 key)
 	// Encryption key for secrets at rest (hex-encoded 32-byte AES-256 key).
 	// Validated at runtime in wiring.ProvideEncryptionKey() so that
@@ -369,6 +377,7 @@ func loadEnvs() {
 	validateObserverURLs(config, r)
 	validateGrowthAnalyticsConfig(config)
 	validateResourceLimitsConfig(config, r)
+	validateFileMountLimitsConfig(config, r)
 	validatePostgresTLSConfig(config, r)
 	validateSecretManagerConfig(config, r)
 	validateAgentWorkloadCORSConfig(agentWorkloadConfig, r)
@@ -692,6 +701,30 @@ func validateResourceLimitsConfig(cfg *Config, r *configReader) {
 	}
 	if _, err := resource.ParseQuantity(cfg.PerAgentResourceLimits.MaxMemory); err != nil {
 		r.errors = append(r.errors, fmt.Errorf("RESOURCE_MAX_MEMORY %q is not a valid Kubernetes resource quantity: %w", cfg.PerAgentResourceLimits.MaxMemory, err))
+	}
+}
+
+// kubernetesObjectMaxBytes is Kubernetes' size limit for a single ConfigMap or
+// Secret. All of an agent's file mounts render into one such object.
+const kubernetesObjectMaxBytes = 1 << 20
+
+func validateFileMountLimitsConfig(cfg *Config, r *configReader) {
+	limits := cfg.FileMountLimits
+	if limits.MaxFileBytes < 1 {
+		r.errors = append(r.errors, fmt.Errorf("FILE_MOUNT_MAX_FILE_BYTES must be at least 1, got %d", limits.MaxFileBytes))
+	}
+	if limits.MaxTotalBytes < 1 {
+		r.errors = append(r.errors, fmt.Errorf("FILE_MOUNT_MAX_TOTAL_BYTES must be at least 1, got %d", limits.MaxTotalBytes))
+	}
+	// A per-file cap above the total could never be reached, which would make
+	// the per-file setting look like it works when it does not.
+	if limits.MaxFileBytes > limits.MaxTotalBytes {
+		r.errors = append(r.errors, fmt.Errorf("FILE_MOUNT_MAX_FILE_BYTES (%d) must not exceed FILE_MOUNT_MAX_TOTAL_BYTES (%d)", limits.MaxFileBytes, limits.MaxTotalBytes))
+	}
+	// Above this the rendered object is rejected by Kubernetes at deploy time,
+	// after the request has already been accepted.
+	if limits.MaxTotalBytes > kubernetesObjectMaxBytes {
+		r.errors = append(r.errors, fmt.Errorf("FILE_MOUNT_MAX_TOTAL_BYTES must not exceed %d (the Kubernetes ConfigMap/Secret limit), got %d", kubernetesObjectMaxBytes, limits.MaxTotalBytes))
 	}
 }
 

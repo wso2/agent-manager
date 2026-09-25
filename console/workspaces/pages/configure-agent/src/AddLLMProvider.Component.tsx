@@ -55,6 +55,7 @@ import {
   type CatalogSecuritySummary,
   type CatalogRateLimitingSummary,
   type LLMPolicy,
+  INPUT_LIMITS,
 } from "@agent-management-platform/types";
 import {
   useCreateAgentModelConfig,
@@ -1061,6 +1062,7 @@ export const AddLLMProviderComponent: React.FC = () => {
                     <ListingTable.Row key={key}>
                       <ListingTable.Cell>
                         <TextInput
+                          maxLength={INPUT_LIMITS.KEY}
                           value={envVarNames[key] ?? ""}
                           onChange={(e) => {
                             envVarNamesEditedRef.current = true;

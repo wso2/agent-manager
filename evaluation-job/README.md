@@ -6,6 +6,26 @@ Docker image for running AMP evaluation monitor jobs in Argo Workflows.
 
 This directory contains the evaluation job that uses the `amp-evaluation` SDK to run monitor evaluations against AI agent traces.
 
+## Anthropic temperature compatibility
+
+Monitor jobs omit `temperature` from Anthropic requests made by managed LLM-judge
+evaluators, including custom prompt-based judges. A warning is logged once per
+affected evaluator when the job starts. Anthropic uses its default sampling behavior,
+including for older models that otherwise support temperature.
+
+The monitor console disables the temperature input when an Anthropic provider is
+selected and explains why in a tooltip. Saved values and custom evaluator definitions are retained, so changing
+to another provider restores the configured value. Backend validation permits a
+missing required temperature only for Anthropic LLM judges; supplied values still
+undergo normal schema validation.
+
+Custom code evaluators, standalone library usage, and experiments keep their
+existing behavior. Direct SDK calls inside custom Python code are not intercepted.
+
+Release the backend and rebuilt evaluation image before the console update. The
+image must include both the job and evaluation-library changes; no database migration
+is required. Verify an actual Anthropic monitor produces a score before rollout.
+
 ## Structure
 
 - `main.py` - Job entrypoint that uses the amp-evaluation SDK

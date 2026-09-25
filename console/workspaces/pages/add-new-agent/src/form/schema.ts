@@ -17,8 +17,19 @@
  */
 
 import { z } from 'zod';
-import type { InputInterfaceType } from '@agent-management-platform/types';
+import {
+  type InputInterfaceType,
+  INPUT_LIMITS,
+  formatBytes,
+  getFileMountMaxFileBytes,
+  utf8ByteLength,
+} from '@agent-management-platform/types';
 import type { AuthenticationType } from '@agent-management-platform/shared-component';
+
+// Exported so the sections that name generated env vars cap their inputs at
+// exactly what this schema accepts.
+export const AGENT_ENV_KEY_MAX_LENGTH = 64;
+
 
 export type InterfaceType = InputInterfaceType;
 
@@ -72,7 +83,11 @@ const baseAgentFields = {
     .string()
     .trim()
     .max(50, 'Name must be at most 50 characters'),
-  description: z.string().trim().optional(),
+  description: z
+    .string()
+    .trim()
+    .max(INPUT_LIMITS.DESCRIPTION, `Description must be at most ${INPUT_LIMITS.DESCRIPTION} characters`)
+    .optional(),
   // Per-entry validation is enforced inline by LabelsEditor (mirroring the
   // backend rules), so the schema only constrains the overall shape.
   labels: z.record(z.string(), z.string()).optional(),
@@ -202,7 +217,7 @@ export const createAgentSchema = z.object({
           .string()
           .trim()
           .min(1, 'Environment variable key is required')
-          .max(64, 'Environment variable key must be at most 64 characters')
+          .max(AGENT_ENV_KEY_MAX_LENGTH, `Environment variable key must be at most ${AGENT_ENV_KEY_MAX_LENGTH} characters`)
           .regex(/^[A-Za-z_][A-Za-z0-9_]*$/, 'Env keys must match /^[A-Za-z_][A-Za-z0-9_]*$/')
           .optional(),
         value: z
@@ -233,7 +248,7 @@ export const createAgentSchema = z.object({
           .string()
           .trim()
           .min(1, 'File name is required')
-          .max(253, 'File name must be at most 253 characters')
+          .max(INPUT_LIMITS.FILE_NAME, `File name must be at most ${INPUT_LIMITS.FILE_NAME} characters`)
           .optional(),
         mountPath: z
           .string()
@@ -245,7 +260,9 @@ export const createAgentSchema = z.object({
           .optional(),
         value: z
           .string()
-          .max(1048576, 'File content must be at most 1MB')
+          .refine((value) => utf8ByteLength(value) <= getFileMountMaxFileBytes(), {
+            message: `File content must be at most ${formatBytes(getFileMountMaxFileBytes())}`,
+          })
           .optional(),
         isSensitive: z.boolean().default(false),
       })

@@ -35,7 +35,7 @@ import {
   useFormValidation,
 } from "@agent-management-platform/views";
 import { useUpdateMCPProxy } from "@agent-management-platform/api-client";
-import type { Environment, MCPProxy } from "@agent-management-platform/types";
+import { type Environment, type MCPProxy, INPUT_LIMITS } from "@agent-management-platform/types";
 import { z } from "zod";
 import { type EndpointDraft } from "./EndpointFormFields";
 import { EndpointsEditorSection } from "./EndpointsEditorSection";
@@ -209,6 +209,7 @@ export function EditMCPProxyDrawer({
                 <FormControl fullWidth error={Boolean(errors.name)}>
                   <FormLabel required>Name</FormLabel>
                   <TextField
+                    slotProps={{ htmlInput: { maxLength: INPUT_LIMITS.NAME } }}
                     fullWidth
                     size="small"
                     value={formData.name}
@@ -221,6 +222,7 @@ export function EditMCPProxyDrawer({
                 <FormControl fullWidth error={Boolean(errors.version)}>
                   <FormLabel required>Version</FormLabel>
                   <TextField
+                    slotProps={{ htmlInput: { maxLength: INPUT_LIMITS.SHORT_TEXT } }}
                     fullWidth
                     size="small"
                     value={formData.version}
@@ -235,6 +237,7 @@ export function EditMCPProxyDrawer({
                 <FormControl fullWidth error={Boolean(errors.context)}>
                   <FormLabel>Context</FormLabel>
                   <TextField
+                    slotProps={{ htmlInput: { maxLength: INPUT_LIMITS.PATH } }}
                     fullWidth
                     size="small"
                     placeholder="/default/my-mcp-proxy"
@@ -250,6 +253,7 @@ export function EditMCPProxyDrawer({
                 <FormControl fullWidth error={Boolean(errors.description)}>
                   <FormLabel>Description</FormLabel>
                   <TextField
+                    slotProps={{ htmlInput: { maxLength: INPUT_LIMITS.DESCRIPTION } }}
                     fullWidth
                     size="small"
                     multiline

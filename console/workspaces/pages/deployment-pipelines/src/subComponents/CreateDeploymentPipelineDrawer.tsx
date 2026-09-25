@@ -38,9 +38,10 @@ import {
   useCreateDeploymentPipeline,
   useListEnvironments,
 } from "@agent-management-platform/api-client";
-import { createPipelineSchema, type CreatePipelineFormValues } from "../form/schema";
+import { createPipelineSchema, type CreatePipelineFormValues, PIPELINE_DISPLAY_NAME_MAX_LENGTH } from "../form/schema";
 import { chainToPromotionPaths } from "../utils/chainUtils";
 import { PipelineChainEditor } from "./PipelineChainEditor";
+import { INPUT_LIMITS } from "@agent-management-platform/types";
 
 interface CreateDeploymentPipelineDrawerProps {
   open: boolean;
@@ -138,6 +139,7 @@ export function CreateDeploymentPipelineDrawer(
                 <FormControl fullWidth error={Boolean(errors.displayName)}>
                   <FormLabel required>Display Name</FormLabel>
                   <TextField
+                    slotProps={{ htmlInput: { maxLength: PIPELINE_DISPLAY_NAME_MAX_LENGTH } }}
                     fullWidth
                     size="small"
                     value={formData.displayName}
@@ -152,6 +154,7 @@ export function CreateDeploymentPipelineDrawer(
                 <FormControl fullWidth>
                   <FormLabel>Description</FormLabel>
                   <TextField
+                    slotProps={{ htmlInput: { maxLength: INPUT_LIMITS.DESCRIPTION } }}
                     fullWidth
                     size="small"
                     multiline

@@ -17,6 +17,12 @@
  */
 
 import { z } from "zod";
+
+// Exported so the create-monitor form caps its inputs at exactly what this
+// schema accepts.
+export const MONITOR_DISPLAY_NAME_MAX_LENGTH = 120;
+export const MONITOR_DESCRIPTION_MAX_LENGTH = 512;
+
 import type {
   MonitorEvaluator,
   MonitorLLMProviderRef,
@@ -40,7 +46,7 @@ export const createMonitorSchema = z
       .trim()
       .min(1, "Monitor title is required")
       .min(3, "Monitor title must be at least 3 characters")
-      .max(120, "Monitor title must be at most 120 characters"),
+      .max(MONITOR_DISPLAY_NAME_MAX_LENGTH, `Monitor title must be at most ${MONITOR_DISPLAY_NAME_MAX_LENGTH} characters`),
     name: z
       .string()
       .trim()
@@ -51,7 +57,7 @@ export const createMonitorSchema = z
     description: z
       .string()
       .trim()
-      .max(512, "Description cannot exceed 512 characters")
+      .max(MONITOR_DESCRIPTION_MAX_LENGTH, `Description cannot exceed ${MONITOR_DESCRIPTION_MAX_LENGTH} characters`)
       .optional(),
     environmentName: z.string().trim().min(1, "Environment is required"),
     type: z.enum(["past", "future"]) as z.ZodType<MonitorType>,

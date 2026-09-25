@@ -1213,6 +1213,29 @@
               "title": "perAgentResourceLimits",
               "type": "object"
             },
+            "fileMountLimits": {
+              "additionalProperties": false,
+              "description": "File mount size caps, in bytes of inline content (secret-reference mounts do not count). All of an agent's mounts render into one ConfigMap/Secret, which Kubernetes limits to 1 MiB, so maxTotalBytes may not exceed 1048576 and maxFileBytes may not exceed maxTotalBytes. The chart fails to render if maxFileBytes exceeds maxTotalBytes.",
+              "properties": {
+                "maxFileBytes": {
+                  "default": 1000000,
+                  "description": "Largest inline content a single file mount may carry.",
+                  "minimum": 1,
+                  "title": "maxFileBytes",
+                  "type": "integer"
+                },
+                "maxTotalBytes": {
+                  "default": 1000000,
+                  "description": "Combined inline content of all file mounts in one request.",
+                  "maximum": 1048576,
+                  "minimum": 1,
+                  "title": "maxTotalBytes",
+                  "type": "integer"
+                }
+              },
+              "title": "fileMountLimits",
+              "type": "object"
+            },
             "thunder": {
               "additionalProperties": false,
               "description": "Thunder admin API configuration (for per-org publisher credential provisioning and the identity APIs: users, roles, groups). When baseURL is empty, the static amp-publisher-client credentials are used instead for publisher provisioning, and the identity APIs are unavailable.",
@@ -1801,6 +1824,20 @@
               "description": "Serve the console over HTTPS.",
               "title": "tlsEnabled",
               "type": "string"
+            },
+            "maxRequestBodyBytes": {
+              "default": 57344,
+              "description": "Largest request body, in bytes, the console sends on a save. Bigger saves are refused with a readable error instead of reaching a WAF that would reject them with an opaque 403. The default suits a 64 KB WAF body limit; set 0 on deployments with no such limit.",
+              "minimum": 0,
+              "title": "maxRequestBodyBytes",
+              "type": "integer"
+            },
+            "fileMountMaxFileBytes": {
+              "default": 0,
+              "description": "Per-file cap, in bytes, on file-mount content in the console. 0 uses agentManagerService.config.fileMountLimits.maxFileBytes, keeping the two in step. The console also holds it under maxRequestBodyBytes (less 8 KB for the rest of the save), so with the defaults the effective cap is 48 KB; set maxRequestBodyBytes to 0 to allow files up to this value.",
+              "minimum": 0,
+              "title": "fileMountMaxFileBytes",
+              "type": "integer"
             }
           },
           "required": [],

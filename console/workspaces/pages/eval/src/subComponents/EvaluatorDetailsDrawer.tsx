@@ -16,9 +16,10 @@
  * under the License.
  */
 
-import type {
-  EvaluatorConfigParam,
-  EvaluatorResponse,
+import {
+  type EvaluatorConfigParam,
+  type EvaluatorResponse,
+  INPUT_LIMITS,
 } from "@agent-management-platform/types";
 import {
   DrawerWrapper,
@@ -51,6 +52,7 @@ interface EvaluatorDetailsDrawerProps {
   onAdd: (config: Record<string, unknown>) => void;
   onRemove: () => void;
   initialConfig?: Record<string, unknown>;
+  providerTemplate?: string;
 }
 
 function keyToDisplay(key: string): string {
@@ -67,6 +69,7 @@ interface ConfigParamFieldProps {
   value: unknown;
   onChange: (value: unknown) => void;
   error?: string;
+  disabledReason?: string;
 }
 
 function ConfigParamField({
@@ -74,13 +77,39 @@ function ConfigParamField({
   value,
   onChange,
   error,
+  disabledReason,
 }: ConfigParamFieldProps) {
   const { description, key, required, type, enumValues, max, min } = param;
-  const helperText = error
-    ? error
-    : description || "No description provided.";
+  const helperText = error ? error : description || "No description provided.";
   const label = keyToDisplay(key);
   const labelWithRequired = required ? `* ${label}` : label;
+
+  if (disabledReason) {
+    return (
+      <Tooltip title={disabledReason} describeChild>
+        <Box
+          tabIndex={0}
+          role="group"
+          aria-label={`${label} setting unavailable`}
+        >
+          <Form.ElementWrapper label={label} name={key}>
+            <TextField
+              fullWidth
+              disabled
+              value={value ?? ""}
+              type={
+                type === "float" || type === "number" || type === "integer"
+                  ? "number"
+                  : "text"
+              }
+              helperText="Uses the provider’s default sampling behavior."
+              sx={{ pointerEvents: "none" }}
+            />
+          </Form.ElementWrapper>
+        </Box>
+      </Tooltip>
+    );
+  }
 
   if (type === "enum" || (enumValues?.length ?? 0) > 0) {
     const selectValue = typeof value === "string" ? value : "";
@@ -269,6 +298,7 @@ function ConfigParamField({
               alignItems="center"
             >
               <TextField
+                slotProps={{ htmlInput: { maxLength: INPUT_LIMITS.VALUE } }}
                 fullWidth
                 value={entryValue}
                 placeholder={`Value ${index + 1}`}
@@ -332,6 +362,7 @@ function ConfigParamField({
     return (
       <Form.ElementWrapper label={labelWithRequired} name={key}>
         <TextField
+          slotProps={{ htmlInput: { maxLength: INPUT_LIMITS.VALUE } }}
           value={textValue}
           required={required}
           error={!!error}
@@ -397,6 +428,7 @@ export function EvaluatorDetailsDrawer({
   onAdd,
   onRemove,
   initialConfig,
+  providerTemplate,
 }: EvaluatorDetailsDrawerProps) {
   const [configValues, setConfigValues] = useState<Record<string, unknown>>({});
   const [savedConfig, setSavedConfig] = useState<Record<string, unknown>>({});
@@ -406,6 +438,7 @@ export function EvaluatorDetailsDrawer({
   const { addConfirmation } = useConfirmationDialog();
 
   const isLlmJudge = evaluator?.type === "llm_judge";
+  const omitTemperature = isLlmJudge && providerTemplate === "anthropic";
 
   useEffect(() => {
     if (!evaluator) {
@@ -461,6 +494,7 @@ export function EvaluatorDetailsDrawer({
     const errors: Record<string, string> = {};
     (evaluator?.configSchema ?? []).forEach((param) => {
       const value = configValues[param.key];
+      if (omitTemperature && param.key === "temperature") return;
       const isEmpty =
         value === undefined ||
         value === null ||
@@ -468,8 +502,7 @@ export function EvaluatorDetailsDrawer({
         (Array.isArray(value) &&
           (value.length === 0 ||
             value.every(
-              (item: unknown) =>
-                typeof item === "string" && item.trim() === "",
+              (item: unknown) => typeof item === "string" && item.trim() === "",
             )));
       if (param.required && isEmpty) {
         errors[param.key] = `${keyToDisplay(param.key)} is required`;
@@ -477,7 +510,9 @@ export function EvaluatorDetailsDrawer({
       }
       if (
         !isEmpty &&
-        (param.type === "integer" || param.type === "float" || param.type === "number")
+        (param.type === "integer" ||
+          param.type === "float" ||
+          param.type === "number")
       ) {
         const numberValue = typeof value === "number" ? value : Number(value);
         if (!Number.isFinite(numberValue)) {
@@ -485,9 +520,11 @@ export function EvaluatorDetailsDrawer({
         } else if (param.type === "integer" && !Number.isInteger(numberValue)) {
           errors[param.key] = `${keyToDisplay(param.key)} must be an integer`;
         } else if (param.min !== undefined && numberValue < param.min) {
-          errors[param.key] = `${keyToDisplay(param.key)} must be at least ${param.min}`;
+          errors[param.key] =
+            `${keyToDisplay(param.key)} must be at least ${param.min}`;
         } else if (param.max !== undefined && numberValue > param.max) {
-          errors[param.key] = `${keyToDisplay(param.key)} must be at most ${param.max}`;
+          errors[param.key] =
+            `${keyToDisplay(param.key)} must be at most ${param.max}`;
         }
       }
     });
@@ -509,7 +546,7 @@ export function EvaluatorDetailsDrawer({
     onAdd(filteredConfig);
     setConfigValues(filteredConfig);
     setSavedConfig(filteredConfig);
-  }, [configValues, evaluator, onAdd]);
+  }, [configValues, evaluator, onAdd, omitTemperature]);
 
   // Sort config params: "model" always first, rest in original order
   const configSchema = useMemo(() => {
@@ -565,6 +602,14 @@ export function EvaluatorDetailsDrawer({
                     {configSchema.map((param) => (
                       <Form.Section key={param.key}>
                         <ConfigParamField
+                          disabledReason={
+                            omitTemperature && param.key === "temperature"
+                              ? "Temperature settings aren’t supported by the Anthropic provider. Anthropic’s default sampling behavior will be used instead." +
+                                (evaluator.isBuiltin === false
+                                  ? " Your saved temperature value is retained for providers that support it."
+                                  : "")
+                              : undefined
+                          }
                           param={param}
                           value={configValues[param.key]}
                           onChange={(nextValue) =>

@@ -43,7 +43,7 @@ import { DrawerContent, DrawerHeader, DrawerWrapper, TextInput } from "@agent-ma
 import { capitalize } from "../../utils/format";
 import { monospaceInputSx } from "../AgentIdentityCredentials/AgentIdentityCredentials";
 import { useConfirmationDialog } from "../ConfirmationDialog/ConfirmationDialogProvider";
-import type { APIKeyInfo, SecurityConfig } from "@agent-management-platform/types";
+import { type APIKeyInfo, type SecurityConfig, INPUT_LIMITS } from "@agent-management-platform/types";
 import {
   ConsoleAction,
   useTrack,
@@ -141,6 +141,7 @@ function CreateAPIKeyDrawer({
               <Form.Stack spacing={2}>
                 <Form.ElementWrapper label="Display name" name="displayName">
                   <TextField
+                    slotProps={{ htmlInput: { maxLength: INPUT_LIMITS.NAME } }}
                     id="displayName"
                     value={displayName}
                     onChange={(e) => setDisplayName(e.target.value)}

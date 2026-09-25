@@ -23,11 +23,12 @@ import {
   useMemo,
   useState,
 } from "react";
-import type {
-  LLMModel,
-  LLMModelProvider,
-  LLMProviderResponse,
-  UpdateLLMProviderRequest,
+import {
+  type LLMModel,
+  type LLMModelProvider,
+  type LLMProviderResponse,
+  type UpdateLLMProviderRequest,
+  INPUT_LIMITS,
 } from "@agent-management-platform/types";
 import {
   Alert,
@@ -508,6 +509,7 @@ export function LLMProviderModelsTab({
               <FormControl fullWidth size="small">
                 <FormLabel>Type model id and press Enter</FormLabel>
                 <TextField
+                  slotProps={{ htmlInput: { maxLength: INPUT_LIMITS.SHORT_TEXT } }}
                   size="small"
                   placeholder="e.g., gpt-4.1-mini"
                   value={addModelInput}

@@ -17,6 +17,7 @@
 
 import { Form, Typography } from "@wso2/oxygen-ui";
 import { TextInput } from "@agent-management-platform/views";
+import { INPUT_LIMITS } from "@agent-management-platform/types";
 
 interface ConfigNameSectionProps {
   value: string;
@@ -44,6 +45,7 @@ export function ConfigNameSection({
         {description}
       </Typography>
       <TextInput
+        maxLength={INPUT_LIMITS.NAME}
         label="Name"
         value={value}
         onChange={(e) => onChange(e.target.value)}

@@ -17,10 +17,11 @@
  */
 
 import { useCallback, useEffect, useMemo, useState } from "react";
-import type {
-  APIKeyLocation,
-  LLMProviderResponse,
-  UpdateLLMProviderRequest,
+import {
+  type APIKeyLocation,
+  type LLMProviderResponse,
+  type UpdateLLMProviderRequest,
+  INPUT_LIMITS,
 } from "@agent-management-platform/types";
 import { z } from "zod";
 import {
@@ -270,6 +271,7 @@ export function LLMProviderSecurityTab({
                 {keyIn === "query" ? "Query Param Key" : "Header Key"}
               </FormLabel>
               <TextField
+                slotProps={{ htmlInput: { maxLength: INPUT_LIMITS.KEY } }}
                 size="small"
                 value={keyValue}
                 onChange={(e) => {

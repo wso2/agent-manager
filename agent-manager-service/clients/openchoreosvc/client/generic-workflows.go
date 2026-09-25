@@ -46,10 +46,16 @@ type WorkflowRunResponse struct {
 func (c *openChoreoClient) CreateWorkflowRun(ctx context.Context, ouID string, req CreateWorkflowRunRequest) (*WorkflowRunResponse, error) {
 	namespaceName := c.NamespaceFor(ouID)
 	workflowKind := gen.WorkflowRunConfigKindWorkflow
+	// Workflow templates read the org UUID off the run's own labels, so it is
+	// stamped here rather than left to whatever labels the namespace carries.
+	labels := map[string]string{
+		string(LabelKeyOrgUUID): ouID,
+	}
 	apiReq := gen.CreateWorkflowRunJSONRequestBody{
 		Metadata: gen.ObjectMeta{
 			Name:      req.Name,
 			Namespace: &namespaceName,
+			Labels:    &labels,
 		},
 		Spec: &gen.WorkflowRunSpec{
 			Workflow: gen.WorkflowRunConfig{

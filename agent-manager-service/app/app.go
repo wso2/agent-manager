@@ -25,6 +25,7 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"maps"
 	"net/http"
 	"os"
 	"sync"
@@ -90,6 +91,11 @@ type Options struct {
 	// deployment-specific component source binding. nil preserves the standard
 	// anonymous/static-token and PAT-backed repository behavior.
 	RepositoryCommitProvider services.RepositoryCommitProvider
+	// ResourceLabels are stamped on every Component and ReleaseBinding Agent
+	// Manager writes to OpenChoreo. nil (the open-source default) stamps none;
+	// cloud deployments inject their own, e.g. the product label WSO2 Cloud's
+	// product-scoped suspension selects ReleaseBindings by.
+	ResourceLabels map[string]string
 }
 
 // Run starts the application with the provided providers and options.
@@ -100,6 +106,8 @@ type Options struct {
 // secret management backend (e.g., the OpenChoreo secret API for open-source, cloud-specific for cloud).
 func Run(authProvider occlient.AuthProvider, secretProvider secretmanagersvc.Provider, opts Options) {
 	cfg := config.GetConfig()
+	// Set before anything builds an OpenChoreo client, which all read it from config.
+	cfg.OpenChoreo.ResourceLabels = maps.Clone(opts.ResourceLabels)
 
 	setupLogger(cfg)
 

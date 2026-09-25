@@ -61,7 +61,8 @@
     "@mui/x-date-pickers": "8.16.0",
     "@mui/x-tree-view": "8.14.0",
     "lucide-react": "0.545.0",
-    "zod": "4.3.6"
+    "zod": "4.3.6",
+    "@agent-management-platform/types": "workspace:*"
   },
   "devDependencies": {
     "@storybook/addon-essentials": "8.6.13",
@@ -115,8 +116,7 @@
     "@babel/traverse": "7.27.3",
     "less": "4.3.0",
     "@eslint/eslintrc": "3.3.1",
-    "@agent-management-platform/eslint-config": "workspace:*",
-    "@agent-management-platform/types": "workspace:*"
+    "@agent-management-platform/eslint-config": "workspace:*"
   },
   "peerDependencies": {
     "react": "19.2.3",

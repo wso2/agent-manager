@@ -18,15 +18,25 @@ package services
 
 import (
 	"context"
+	"errors"
 	"testing"
 
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"
 
+	"github.com/wso2/agent-manager/agent-manager-service/clients/clientmocks"
+	"github.com/wso2/agent-manager/agent-manager-service/clients/thundersvc"
 	"github.com/wso2/agent-manager/agent-manager-service/models"
 	"github.com/wso2/agent-manager/agent-manager-service/repositories/repomocks"
 	"github.com/wso2/agent-manager/agent-manager-service/utils"
 )
+
+// mcpIdentitySecurity builds an identity(OAuth2)-enabled SecurityConfig,
+// mirroring identityEnabledEndpoint's shape in mcp_proxy_scope_service_unit_test.go.
+func mcpIdentitySecurity() *models.SecurityConfig {
+	on := true
+	return &models.SecurityConfig{Enabled: &on, Identity: &models.IdentitySecurity{Enabled: &on}}
+}
 
 func TestMCPResourceServerIdentifier_DerivesPublicURI(t *testing.T) {
 	envUUID := uuid.New()
@@ -95,4 +105,156 @@ func TestEnvironmentUUIDByName_NotFound(t *testing.T) {
 	_, err := svc.EnvironmentUUIDByName(context.Background(), "ou-1", "prod")
 
 	require.ErrorIs(t, err, utils.ErrEnvironmentNotFound)
+}
+
+// TestEnsureResourceServersForProxy_RegistersOnlyIdentitySecuredDeployedEnvironments
+// is the core regression guard for the bug this method exists to fix: a proxy's
+// resource server must be (re)registered, with its given full action set, in
+// every environment it is both deployed to and identity(OAuth2)-secured in —
+// and nowhere else.
+func TestEnsureResourceServersForProxy_RegistersOnlyIdentitySecuredDeployedEnvironments(t *testing.T) {
+	envA, envB := uuid.New(), uuid.New()
+	gwUUID := uuid.New()
+	ctxPath := "/deepwiki"
+	proxy := &models.MCPProxy{
+		UUID:          uuid.New(),
+		Artifact:      &models.Artifact{Handle: "deepwiki"},
+		Configuration: models.MCPProxyConfig{Context: &ctxPath},
+		Endpoints: []models.MCPProxyEndpoint{
+			{
+				Configuration: models.MCPEndpointConfig{Security: mcpIdentitySecurity()},
+				Environments: []models.MCPProxyEndpointEnvironment{
+					{EnvironmentUUID: envA, ArtifactUUID: uuid.New()},
+				},
+			},
+			{
+				// No security configured at all (API-key or unsecured) — must be skipped.
+				Environments: []models.MCPProxyEndpointEnvironment{
+					{EnvironmentUUID: envB, ArtifactUUID: uuid.New()},
+				},
+			},
+		},
+	}
+
+	var resolvedEnvs []string
+	var ensuredActions [][]string
+	svc := &MCPProxyService{
+		infraManager: stubInfraManager{listOrgEnvs: func(_ context.Context, _ string) ([]*models.EnvironmentResponse, error) {
+			return []*models.EnvironmentResponse{
+				{Name: "env-a", UUID: envA.String()},
+				{Name: "env-b", UUID: envB.String()},
+			}, nil
+		}},
+		deploymentRepo: &repomocks.DeploymentRepositoryMock{
+			GetDeployedGatewaysByProviderFunc: func(_ uuid.UUID, _ string) ([]string, error) {
+				return []string{gwUUID.String()}, nil
+			},
+		},
+		gatewayRepo: &repomocks.GatewayRepositoryMock{
+			EnvironmentMappingExistsFunc: func(_, _ string) (bool, error) { return true, nil },
+			GetByUUIDFunc: func(_ string) (*models.Gateway, error) {
+				return &models.Gateway{UUID: gwUUID, Vhost: "https://gw.example.com"}, nil
+			},
+		},
+		resolver: &clientmocks.EnvThunderResolverMock{
+			ResolveIdentityFunc: func(_ context.Context, _, _, envName string) (thundersvc.EnvIdentityClient, error) {
+				resolvedEnvs = append(resolvedEnvs, envName)
+				return &clientmocks.EnvIdentityClientMock{
+					EnsureProxyResourceServerFunc: func(_ context.Context, _, _, _ string, actions []string) (string, error) {
+						ensuredActions = append(ensuredActions, actions)
+						return "rs-1", nil
+					},
+				}, nil
+			},
+		},
+		logger: discardLogger(),
+	}
+
+	svc.EnsureResourceServersForProxy(context.Background(), "ou-1", proxy, []string{"read", "write"})
+
+	require.Equal(t, []string{"env-a"}, resolvedEnvs, "must resolve only the identity-secured environment")
+	require.Len(t, ensuredActions, 1)
+	require.ElementsMatch(t, []string{"read", "write"}, ensuredActions[0])
+}
+
+// TestEnsureResourceServersForProxy_SkipsUndeployedEnvironment guards the exact
+// real-world scenario a live investigation traced: scopes get saved (or a role
+// created) for a proxy whose (endpoint, environment) row exists but was never
+// actually deployed (ArtifactUUID is nil) — that environment must be skipped
+// entirely, never reaching the resolver at all (a nil resolver here would
+// panic if it were).
+func TestEnsureResourceServersForProxy_SkipsUndeployedEnvironment(t *testing.T) {
+	envA := uuid.New()
+	proxy := &models.MCPProxy{
+		UUID:     uuid.New(),
+		Artifact: &models.Artifact{Handle: "deepwiki"},
+		Endpoints: []models.MCPProxyEndpoint{{
+			Configuration: models.MCPEndpointConfig{Security: mcpIdentitySecurity()},
+			Environments: []models.MCPProxyEndpointEnvironment{
+				{EnvironmentUUID: envA, ArtifactUUID: uuid.Nil},
+			},
+		}},
+	}
+	svc := &MCPProxyService{
+		infraManager: stubInfraManager{listOrgEnvs: func(_ context.Context, _ string) ([]*models.EnvironmentResponse, error) {
+			return []*models.EnvironmentResponse{{Name: "env-a", UUID: envA.String()}}, nil
+		}},
+		logger: discardLogger(),
+		// resolver deliberately left nil: reaching it would panic, proving the
+		// undeployed environment never gets past the ArtifactUUID check.
+	}
+
+	require.NotPanics(t, func() {
+		svc.EnsureResourceServersForProxy(context.Background(), "ou-1", proxy, []string{"read"})
+	})
+}
+
+// TestEnsureResourceServersForProxy_SkipsWhenNoIdentityEndpoint guards the
+// cheap early exit: a proxy with no identity-secured endpoint anywhere must
+// never touch the infra manager or env-Thunder for this.
+func TestEnsureResourceServersForProxy_SkipsWhenNoIdentityEndpoint(t *testing.T) {
+	proxy := &models.MCPProxy{
+		UUID:      uuid.New(),
+		Artifact:  &models.Artifact{Handle: "deepwiki"},
+		Endpoints: []models.MCPProxyEndpoint{{}},
+	}
+	svc := &MCPProxyService{logger: discardLogger()}
+	// infraManager/resolver deliberately left nil: reaching either would panic.
+
+	require.NotPanics(t, func() {
+		svc.EnsureResourceServersForProxy(context.Background(), "ou-1", proxy, []string{"read"})
+	})
+}
+
+// TestEnsureResourceServersForProxy_SurvivesResolverError guards the
+// best-effort contract: scopes/environment bindings can be saved while
+// env-Thunder is temporarily unreachable, so a resolver failure must be
+// logged and skipped, never panic or propagate.
+func TestEnsureResourceServersForProxy_SurvivesResolverError(t *testing.T) {
+	envA := uuid.New()
+	proxy := &models.MCPProxy{
+		UUID:     uuid.New(),
+		Artifact: &models.Artifact{Handle: "deepwiki"},
+		Endpoints: []models.MCPProxyEndpoint{{
+			Configuration: models.MCPEndpointConfig{Security: mcpIdentitySecurity()},
+			Environments: []models.MCPProxyEndpointEnvironment{
+				{EnvironmentUUID: envA, ArtifactUUID: uuid.New()},
+			},
+		}},
+	}
+	svc := &MCPProxyService{
+		infraManager: stubInfraManager{listOrgEnvs: func(_ context.Context, _ string) ([]*models.EnvironmentResponse, error) {
+			return []*models.EnvironmentResponse{{Name: "env-a", UUID: envA.String()}}, nil
+		}},
+		resolver: &clientmocks.EnvThunderResolverMock{
+			ResolveIdentityFunc: func(_ context.Context, _, _, _ string) (thundersvc.EnvIdentityClient, error) {
+				return nil, errors.New("env-thunder unreachable")
+			},
+		},
+		logger: discardLogger(),
+	}
+
+	require.NotPanics(t, func() {
+		svc.EnsureResourceServersForProxy(context.Background(), "ou-1", proxy, []string{"read"})
+	})
 }

@@ -376,6 +376,31 @@ class TestEndToEnd:
         assert call_args[1]["temperature"] == 0.5
         assert call_args[1]["max_tokens"] == 2048
 
+    @pytest.mark.parametrize("model", ["anthropic/claude-sonnet-4-5", "anthropic:claude-opus-4-7"])
+    @pytest.mark.parametrize("temperature", [0.0, 0.7])
+    @patch("any_llm.completion")
+    def test_monitor_policy_omits_temperature_on_every_attempt(self, mock_completion, model, temperature):
+        mock_completion.side_effect = [ValueError("transient failure"), _mock_response(0.7, "OK")]
+        evaluator = _SimpleJudge(model=model, temperature=temperature)
+        evaluator._monitor_omit_temperature = True
+        result = evaluator.evaluate(_make_trace())
+        assert not result.is_skipped
+        assert mock_completion.call_count == 2
+        assert all("temperature" not in call.kwargs for call in mock_completion.call_args_list)
+        assert evaluator.temperature == temperature
+
+    @pytest.mark.parametrize(
+        "model,monitor_policy",
+        [("anthropic/claude-sonnet-4-5", False), ("openai/gpt-4o", True)],
+    )
+    @patch("any_llm.completion")
+    def test_monitor_policy_preserves_other_callers(self, mock_completion, model, monitor_policy):
+        mock_completion.return_value = _mock_response(0.7, "OK")
+        evaluator = _SimpleJudge(model=model, temperature=0.7)
+        evaluator._monitor_omit_temperature = monitor_policy
+        evaluator.evaluate(_make_trace())
+        assert mock_completion.call_args.kwargs["temperature"] == 0.7
+
 
 # =============================================================================
 # @llm_judge decorator

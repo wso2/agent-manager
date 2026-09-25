@@ -77,6 +77,11 @@ def classify_span(span: dict[str, Any]) -> str:
     if tlk in _TRACELOOP_CHAIN_KINDS:
         return "chain"
 
+    # Strands names its reasoning-cycle spans this way. The Observer has the
+    # same name fallback in opensearch/process.go.
+    if (span.get("name") or "").lower().startswith("execute_event_loop_cycle"):
+        return "chain"
+
     return "unknown"
 
 

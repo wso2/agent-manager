@@ -53,9 +53,19 @@ import {
 } from "@agent-management-platform/shared-component";
 import {
   createEnvironmentSchema,
+  ENVIRONMENT_DISPLAY_NAME_MAX_LENGTH,
+  ENVIRONMENT_NAME_MAX_LENGTH,
+  THUNDER_HANDLE_MAX_LENGTH,
   type CreateEnvironmentFormValues,
   type IsolationTier,
 } from "../form/environmentSchema";
+
+// The fields the rendered add-environment.sh command embeds.
+const scriptFieldsSchema = createEnvironmentSchema.pick({
+  name: true,
+  displayName: true,
+  thunderHandle: true,
+});
 
 const TOKEN_MASK = "•••••••••••••••";
 
@@ -114,13 +124,19 @@ const DEFAULT_FORM: CreateEnvironmentFormValues = {
   thunderHandle: "",
 };
 
+// Capped at the schema's name limit: the display name allows more characters
+// than the name, and the name input's maxLength does not constrain this derived
+// state, so an uncapped result would fail validation and land in the copied
+// script. The trailing hyphen is stripped again in case the cut lands on one.
 function deriveNameFromDisplayName(displayName: string): string {
   return displayName
     .toLowerCase()
     .replace(/\s+/g, "-")
     .replace(/[^a-z0-9-]/g, "")
     .replace(/-+/g, "-")
-    .replace(/^-|-$/g, "");
+    .replace(/^-|-$/g, "")
+    .slice(0, ENVIRONMENT_NAME_MAX_LENGTH)
+    .replace(/-$/, "");
 }
 
 // Suggests "<name>-idp" as a starting point for the Thunder handle — truncated
@@ -130,7 +146,7 @@ function deriveNameFromDisplayName(displayName: string): string {
 const THUNDER_HANDLE_SUFFIX = "-idp";
 function deriveThunderHandleFromName(name: string): string {
   if (!name) return "";
-  const maxNameLen = 63 - THUNDER_HANDLE_SUFFIX.length;
+  const maxNameLen = THUNDER_HANDLE_MAX_LENGTH - THUNDER_HANDLE_SUFFIX.length;
   return `${name.slice(0, maxNameLen)}${THUNDER_HANDLE_SUFFIX}`;
 }
 
@@ -235,7 +251,11 @@ export function CreateEnvironmentDrawer({
 
   const thunderHandleFormatValid =
     !!formData.thunderHandle && !errors.thunderHandle;
-  const { data: thunderHandleAvailability, isFetching: checkingThunderHandle } =
+  const {
+    data: thunderHandleAvailability,
+    isFetching: checkingThunderHandle,
+    isError: thunderHandleCheckFailed,
+  } =
     useCheckThunderUrlAvailability(
       { orgName: orgId },
       { handle: debouncedThunderHandle },
@@ -245,6 +265,37 @@ export function CreateEnvironmentDrawer({
     thunderHandleFormatValid &&
     debouncedThunderHandle === formData.thunderHandle &&
     thunderHandleAvailability?.available === false;
+  // True until the current handle's availability is known: during the debounce,
+  // while the check runs, and before its first result. A failed check does not
+  // block copying (the query does not retry, so it would block forever); the
+  // backend still rejects a taken handle when the script runs.
+  const thunderHandleAvailabilityPending =
+    thunderHandleFormatValid &&
+    (debouncedThunderHandle !== formData.thunderHandle ||
+      checkingThunderHandle ||
+      (thunderHandleAvailability === undefined && !thunderHandleCheckFailed));
+
+  // The copied script creates the environment directly, bypassing the form's
+  // submit validation, so the fields it embeds are checked against the schema
+  // here rather than trusted. Field error state only reflects the last edit
+  // and is empty before the first one.
+  const scriptFieldsValid = useMemo(
+    () =>
+      scriptFieldsSchema.safeParse({
+        name: formData.name,
+        displayName: formData.displayName,
+        thunderHandle: formData.thunderHandle ?? "",
+      }).success &&
+      !thunderHandleTaken &&
+      !thunderHandleAvailabilityPending,
+    [
+      formData.name,
+      formData.displayName,
+      formData.thunderHandle,
+      thunderHandleTaken,
+      thunderHandleAvailabilityPending,
+    ],
+  );
 
   useEffect(() => {
     if (open) {
@@ -363,6 +414,7 @@ export function CreateEnvironmentDrawer({
   }, [showToken, getToken]);
 
   const handleCopy = useCallback(async () => {
+    if (!scriptFieldsValid) return;
     try {
       const token = resolvedToken ?? (await getToken());
       const script = buildScript(
@@ -380,6 +432,7 @@ export function CreateEnvironmentDrawer({
       // silently fail
     }
   }, [
+    scriptFieldsValid,
     resolvedToken,
     getToken,
     formData.name,
@@ -461,6 +514,7 @@ export function CreateEnvironmentDrawer({
             <FormControl fullWidth error={Boolean(errors.displayName)}>
               <FormLabel required>Display Name</FormLabel>
               <TextField
+                slotProps={{ htmlInput: { maxLength: ENVIRONMENT_DISPLAY_NAME_MAX_LENGTH } }}
                 size="small"
                 fullWidth
                 value={formData.displayName}
@@ -474,6 +528,7 @@ export function CreateEnvironmentDrawer({
             <FormControl fullWidth error={Boolean(errors.name)}>
               <FormLabel>Name</FormLabel>
               <TextField
+                slotProps={{ htmlInput: { maxLength: ENVIRONMENT_NAME_MAX_LENGTH } }}
                 size="small"
                 fullWidth
                 value={formData.name}
@@ -520,6 +575,7 @@ export function CreateEnvironmentDrawer({
             >
               <FormLabel>Identity Service Handle</FormLabel>
               <TextField
+                slotProps={{ htmlInput: { maxLength: THUNDER_HANDLE_MAX_LENGTH } }}
                 size="small"
                 fullWidth
                 value={formData.thunderHandle ?? ""}
@@ -625,20 +681,38 @@ export function CreateEnvironmentDrawer({
                     {showToken ? <EyeOff size={16} /> : <Eye size={16} />}
                   </IconButton>
                 </Tooltip>
-                <Tooltip title={copied ? "Copied!" : "Copy"}>
-                  <IconButton
-                    size="small"
-                    onClick={handleCopy}
-                    sx={{ color: copied ? "success.light" : "grey.400" }}
-                  >
-                    <Copy size={16} />
-                  </IconButton>
+                <Tooltip
+                  title={
+                    thunderHandleAvailabilityPending
+                      ? "Checking the identity service handle…"
+                      : !scriptFieldsValid
+                        ? "Fix the highlighted fields to copy the script"
+                        : copied
+                          ? "Copied!"
+                          : "Copy"
+                  }
+                >
+                  {/* span keeps the tooltip working on the disabled button */}
+                  <span>
+                    <IconButton
+                      size="small"
+                      onClick={handleCopy}
+                      disabled={!scriptFieldsValid}
+                      sx={{ color: copied ? "success.light" : "grey.400" }}
+                    >
+                      <Copy size={16} />
+                    </IconButton>
+                  </span>
                 </Tooltip>
               </Box>
               {displayScript}
             </Box>
             <Typography variant="caption" color="text.secondary">
-              Your access token will be substituted when you copy.
+              {scriptFieldsValid
+                ? "Your access token will be substituted when you copy."
+                : thunderHandleAvailabilityPending
+                  ? "Checking the identity service handle before the script can be copied."
+                  : "Fix the name, display name, or identity service handle above to copy the script."}
             </Typography>
           </Stack>
 

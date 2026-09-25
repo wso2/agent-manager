@@ -39,7 +39,28 @@ from main import (
     TRACE_FETCH_PAGE_SIZE,
     _eval_template,
     _load_custom_code_evaluator,
+    _create_custom_llm_judge,
+    _apply_monitor_parameter_policy,
 )
+
+
+@pytest.mark.parametrize("model", ["anthropic/claude-sonnet-4-5", "anthropic:claude-opus-4-7"])
+def test_monitor_parameter_policy_for_custom_judges(model, caplog):
+    config = {"model": model, "temperature": 0.7}
+    instance = _create_custom_llm_judge("custom-judge", "Evaluate {trace.output}", "trace", config)
+    _apply_monitor_parameter_policy(instance, "llm_judge")
+    assert instance._monitor_omit_temperature
+    assert instance.temperature == 0.7
+    assert config["temperature"] == 0.7
+    assert "Temperature is not applied" in caplog.text
+
+
+@pytest.mark.parametrize("eval_type,model", [("code", "anthropic/claude-sonnet-4-5"), ("llm_judge", "openai/gpt-4o")])
+def test_monitor_parameter_policy_leaves_other_evaluators_unchanged(eval_type, model, caplog):
+    instance = _create_custom_llm_judge("custom-judge", "Evaluate {trace.output}", "trace", {"model": model})
+    _apply_monitor_parameter_policy(instance, eval_type)
+    assert not instance._monitor_omit_temperature
+    assert "Temperature is not applied" not in caplog.text
 
 
 # ---------------------------------------------------------------------------

@@ -174,6 +174,8 @@ func TestEnsureReleaseAndBinding_MergesTraitAndComponentTypeConfigsInOneWrite(t 
 		"someOtherKey": "value",
 	}
 
+	srv.resourceLabels = map[string]string{"example.com/product": "agent-manager"}
+
 	err := srv.EnsureReleaseAndBinding(context.Background(), "acme", "myproject", componentName, environment,
 		envOverrides, nil, incomingTraitConfigs, incomingCTConfigs)
 
@@ -204,6 +206,11 @@ func TestEnsureReleaseAndBinding_MergesTraitAndComponentTypeConfigsInOneWrite(t 
 	_, hasRuntimeClass := ctCfg["runtimeClassName"]
 	assert.False(t, hasRuntimeClass, "a stale runtimeClassName must be cleared when the incoming configs omit it")
 	assert.NotEmpty(t, ctCfg["restartedAt"], "the binding must be stamped with a fresh restartedAt to trigger a pod rollout")
+
+	// The existing binding carries no labels, as one created by the OpenChoreo
+	// controller does; the write must still stamp the configured resource labels.
+	require.NotNil(t, gotBody.Metadata.Labels)
+	assert.Equal(t, "agent-manager", (*gotBody.Metadata.Labels)["example.com/product"])
 }
 
 // TestEnsureReleaseAndBinding_ClearsStaleRuntimeClassWithEmptyComponentTypeConfigs guards a

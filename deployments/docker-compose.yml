@@ -71,6 +71,10 @@ services:
       - JWT_SIGNING_DEFAULT_EXPIRY=2160h
       - JWT_SIGNING_ISSUER=agent-manager-service
       - JWT_SIGNING_DEFAULT_ENVIRONMENT=default
+      # Byte caps on inline file-mount content. Keep FILE_MOUNT_MAX_FILE_BYTES
+      # in sync with the console's value below.
+      - FILE_MOUNT_MAX_FILE_BYTES=1000000
+      - FILE_MOUNT_MAX_TOTAL_BYTES=1000000
       # Optional: External Service URLs (add when needed)
       # - OPENCHOREO_API_URL=http://host.docker.internal:8000
       # - OPENSEARCH_URL=http://host.docker.internal:9200
@@ -205,6 +209,13 @@ services:
       - GUARDRAILS_CATALOG_URL=https://db720294-98fd-40f4-85a1-cc6a3b65bc9a-prod.e1-us-east-azure.choreoapis.dev/api-platform/policy-hub-api/policy-hub-public/v1.0/policies?categories=Guardrails,AI&limit=100
       - GUARDRAILS_DEFINITION_BASE_URL=https://db720294-98fd-40f4-85a1-cc6a3b65bc9a-prod.e1-us-east-azure.choreoapis.dev/api-platform/policy-hub-api/policy-hub-public/v1.0/policies
       - DOCS_URL=https://wso2.github.io/agent-manager/docs/latest
+      # Largest request body the console will send; bigger saves are refused
+      # with a readable error instead of a WAF's opaque 403. 0 disables the check.
+      - MAX_REQUEST_BODY_BYTES=57344
+      # Per-file cap on file-mount content. Matches agent-manager-service's
+      # FILE_MOUNT_MAX_FILE_BYTES above. The console also holds it under
+      # MAX_REQUEST_BODY_BYTES less 8 KB, so the effective cap here is 48 KB.
+      - FILE_MOUNT_MAX_FILE_BYTES=1000000
       - FEATURE_FLAG_ENABLE_PRIVATE_REPO_SUPPORT=true
       - FEATURE_FLAG_ENABLE_PROFILE_MANAGEMENT=true
       - FEATURE_FLAG_ENABLE_USER_MANAGEMENT=true

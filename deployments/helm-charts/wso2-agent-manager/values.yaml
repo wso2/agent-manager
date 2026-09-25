@@ -384,6 +384,16 @@ agentManagerService:
       maxCPU: "500m"
       maxMemory: "512Mi"
 
+    # File mount size caps, in bytes of inline content (secret-reference mounts
+    # do not count). All of an agent's mounts render into one ConfigMap/Secret,
+    # which Kubernetes limits to 1 MiB, so maxTotalBytes may not exceed 1048576
+    # and maxFileBytes may not exceed maxTotalBytes.
+    fileMountLimits:
+      # Largest inline content a single file mount may carry.
+      maxFileBytes: 1000000
+      # Combined inline content of all file mounts in one request.
+      maxTotalBytes: 1000000
+
     # Thunder admin API configuration (for per-org publisher credential provisioning
     # and the identity APIs: users, roles, groups). When baseURL is empty, the
     # static amp-publisher-client credentials are used instead for publisher
@@ -554,6 +564,17 @@ console:
     # override both (see deployments/vm/lib-vm.sh).
     idpHostBaseDomain: "amp.localhost"
     tlsEnabled: "false"
+    # Largest request body, in bytes, the console sends on a save. Bigger saves
+    # are refused with a readable error instead of reaching a WAF that would
+    # reject them with an opaque 403. The default suits a 64 KB WAF body limit;
+    # set 0 on deployments with no such limit.
+    maxRequestBodyBytes: 57344
+    # Per-file cap, in bytes, on file-mount content in the console. 0 uses
+    # agentManagerService.config.fileMountLimits.maxFileBytes, keeping the two in step.
+    # The console also holds it under maxRequestBodyBytes (less 8 KB for the rest
+    # of the save), so with the defaults the effective cap is 48 KB; set
+    # maxRequestBodyBytes to 0 to allow files up to this value.
+    fileMountMaxFileBytes: 0
     # Guardrails catalog URL for fetching available guardrail policies
     guardrailsCatalogUrl: "https://db720294-98fd-40f4-85a1-cc6a3b65bc9a-prod.e1-us-east-azure.choreoapis.dev/api-platform/policy-hub-api/policy-hub-public/v1.0/policies?categories=AI,Guardrails&limit=50"
     # Guardrails definition base URL for fetching policy definitions

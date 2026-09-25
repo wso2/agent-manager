@@ -127,7 +127,9 @@ func (s *monitorManagerService) CreateMonitor(ctx context.Context, ouID string, 
 	}
 
 	// Validate evaluators against catalog schema
-	hasLLMJudge, err := s.validateEvaluators(ctx, ouID, req.Evaluators)
+	hasLLMJudge, err := s.validateEvaluators(ctx, ouID, req.Evaluators, func() (bool, error) {
+		return s.monitorTemperatureOptional(ctx, ouID, req.LLMProvider, uuid.Nil)
+	})
 	if err != nil {
 		return nil, err
 	}
@@ -457,14 +459,19 @@ func (s *monitorManagerService) UpdateMonitor(ctx context.Context, ouID, project
 	}
 
 	// Validate evaluator list and enforce llm_judge ↔ provider invariant.
-	// Run when new evaluators are provided (full schema check) OR when the provider is
-	// being cleared (must confirm no llm_judge remains in the effective evaluator set).
-	if req.Evaluators != nil || req.ClearLLMProvider {
+	// Revalidate the effective evaluator set when either evaluators or provider
+	// change, including when the provider is cleared.
+	if req.Evaluators != nil || req.ClearLLMProvider || req.LLMProvider != nil {
 		evalList := monitor.Evaluators
 		if req.Evaluators != nil {
 			evalList = *req.Evaluators
 		}
-		hasLLMJudge, err := s.validateEvaluators(ctx, monitor.OUID, evalList)
+		hasLLMJudge, err := s.validateEvaluators(ctx, monitor.OUID, evalList, func() (bool, error) {
+			if req.ClearLLMProvider {
+				return false, nil
+			}
+			return s.monitorTemperatureOptional(ctx, monitor.OUID, req.LLMProvider, monitor.ID)
+		})
 		if err != nil {
 			return nil, err
 		}
@@ -1214,7 +1221,8 @@ func (s *monitorManagerService) validateCreateRequest(req *models.CreateMonitorR
 // validateEvaluators validates evaluators against the catalog schema and populates defaults.
 // It mutates evaluator configs in-place to fill in default values from the schema.
 // Returns true if any evaluator requires an LLM provider (i.e. is type "llm_judge").
-func (s *monitorManagerService) validateEvaluators(ctx context.Context, ouID string, evaluators []models.MonitorEvaluator) (hasLLMJudge bool, err error) {
+func (s *monitorManagerService) validateEvaluators(ctx context.Context, ouID string, evaluators []models.MonitorEvaluator, temperatureOptional func() (bool, error)) (hasLLMJudge bool, err error) {
+	var policyResolved, temperatureNotRequired bool
 	// Check for duplicate displayNames
 	displayNames := make(map[string]int) // displayName -> first index
 	for i, eval := range evaluators {
@@ -1243,12 +1251,66 @@ func (s *monitorManagerService) validateEvaluators(ctx context.Context, ouID str
 			hasLLMJudge = true
 		}
 
-		// Validate and apply defaults to config (including level)
-		if err := validateAndApplyDefaults(i, eval.Identifier, &eval.Config, evaluatorResp.ConfigSchema); err != nil {
+		// Resolve provider policy only when it is needed to waive a missing required
+		// sampling parameter. Supplied values retain normal schema validation.
+		schema := append([]models.EvaluatorConfigParam(nil), evaluatorResp.ConfigSchema...)
+		if evaluatorResp.Type == models.CustomEvaluatorTypeLLMJudge {
+			for j, param := range schema {
+				_, present := eval.Config[param.Key]
+				if param.Key == "temperature" && param.Required && param.Default == nil && !present {
+					if !policyResolved {
+						var policyErr error
+						temperatureNotRequired, policyErr = temperatureOptional()
+						if policyErr != nil {
+							return false, fmt.Errorf("failed to resolve monitor parameter policy: %w", policyErr)
+						}
+						policyResolved = true
+					}
+					if temperatureNotRequired {
+						schema[j].Required = false
+					}
+				}
+			}
+		}
+		// Validate and apply defaults to config (including level).
+		if err := validateAndApplyDefaults(i, eval.Identifier, &eval.Config, schema); err != nil {
 			return false, err
 		}
 	}
 	return hasLLMJudge, nil
+}
+
+// monitorTemperatureOptional resolves the effective provider for create or PATCH.
+// It never trusts a client-supplied model name to establish provider identity.
+func (s *monitorManagerService) monitorTemperatureOptional(ctx context.Context, ouID string, ref *models.MonitorLLMProviderRef, monitorID uuid.UUID) (bool, error) {
+	if ref != nil {
+		provider, err := s.llmProvisioner.ProviderRepo().GetByHandle(ref.ProviderName, ouID)
+		if err != nil {
+			if errors.Is(err, gorm.ErrRecordNotFound) {
+				return false, fmt.Errorf("%w: %s", utils.ErrLLMProviderNotFound, ref.ProviderName)
+			}
+			return false, fmt.Errorf("failed to resolve LLM provider: %w", err)
+		}
+		return provider.TemplateHandle == "anthropic", nil
+	}
+	if monitorID == uuid.Nil {
+		return false, nil
+	}
+	mappings, err := s.monitorLLMMappingRepo.ListByMonitorID(ctx, monitorID)
+	if err != nil {
+		return false, fmt.Errorf("failed to resolve monitor LLM mapping: %w", err)
+	}
+	if len(mappings) == 0 {
+		return false, nil
+	}
+	if mappings[0].LLMProxy == nil {
+		return false, fmt.Errorf("monitor LLM proxy is missing")
+	}
+	provider, err := s.llmProvisioner.ProviderRepo().GetByUUID(mappings[0].LLMProxy.ProviderUUID.String(), ouID)
+	if err != nil {
+		return false, fmt.Errorf("failed to resolve monitor LLM provider: %w", err)
+	}
+	return provider.TemplateHandle == "anthropic", nil
 }
 
 // validateAndApplyDefaults validates config values against the evaluator's schema

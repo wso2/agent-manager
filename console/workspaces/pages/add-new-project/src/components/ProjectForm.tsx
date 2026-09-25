@@ -31,7 +31,7 @@ import { debounce } from "lodash";
 import { useGenerateResourceName, useListDeploymentPipelines, useListEnvironments } from "@agent-management-platform/api-client";
 import { MarkdownEditor } from "@agent-management-platform/shared-component";
 import { AddProjectFormValues } from "../form/schema";
-import type { DeploymentPipelineResponse } from "@agent-management-platform/types";
+import { type DeploymentPipelineResponse, INPUT_LIMITS } from "@agent-management-platform/types";
 
 function pipelineChainLabel(
   pipeline: DeploymentPipelineResponse,
@@ -201,6 +201,7 @@ export const ProjectForm = ({
         <Form.Stack spacing={2}>
           <Form.ElementWrapper label="Name" name="displayName">
             <TextField
+              slotProps={{ htmlInput: { maxLength: INPUT_LIMITS.NAME } }}
               id="displayName"
               value={formData.displayName}
               onChange={(e) => handleFieldChange("displayName", e.target.value)}

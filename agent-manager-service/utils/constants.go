@@ -40,14 +40,12 @@ const (
 	NameGenerationAlphabet    = "abcdefghijklmnopqrstuvwxyz"
 )
 
-// File mount limits. Kubernetes caps each ConfigMap/Secret at 1 MiB total
-// (data + binaryData + metadata). We pick per-file and per-request caps that
-// leave headroom for other workload-overrides fields rendered alongside.
+// File mount shape limits. The content size caps are operator-configurable;
+// see config.FileMountLimitsConfig (FILE_MOUNT_MAX_FILE_BYTES,
+// FILE_MOUNT_MAX_TOTAL_BYTES).
 const (
-	MaxFileMountValueBytes  = 256 * 1024 // 256 KiB per file
-	MaxFileMountsTotalBytes = 768 * 1024 // 768 KiB across all files in one request
-	MaxFileMountKeyLength   = 253        // matches k8s metadata.name limit
-	MaxMountPathLength      = 4095       // Linux PATH_MAX minus one for safety
+	MaxFileMountKeyLength = 253  // matches k8s metadata.name limit
+	MaxMountPathLength    = 4095 // Linux PATH_MAX minus one for safety
 )
 
 // Caps for the repository and build inputs that reach the build workflow. Each

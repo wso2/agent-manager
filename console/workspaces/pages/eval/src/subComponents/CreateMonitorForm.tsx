@@ -28,8 +28,12 @@ import {
   Typography,
 } from "@wso2/oxygen-ui";
 import { History, Timer } from "@wso2/oxygen-ui-icons-react";
-import type { MonitorType } from "@agent-management-platform/types";
-import type { CreateMonitorFormValues } from "../form/schema";
+import { type MonitorType } from "@agent-management-platform/types";
+import {
+  MONITOR_DESCRIPTION_MAX_LENGTH,
+  MONITOR_DISPLAY_NAME_MAX_LENGTH,
+  type CreateMonitorFormValues,
+} from "../form/schema";
 import { getMonitorTypeFieldPatch } from "../utils/monitorFormUtils";
 
 const SAMPLING_RATE_MARKS = [{ value: 100, label: "100%" }];
@@ -71,6 +75,7 @@ export function CreateMonitorForm({
         <Form.Header>Basic Details</Form.Header>
         <Form.ElementWrapper name="displayName" label="Monitor Title">
           <TextField
+            slotProps={{ htmlInput: { maxLength: MONITOR_DISPLAY_NAME_MAX_LENGTH } }}
             id="displayName"
             placeholder="Enter monitor name"
             required
@@ -87,6 +92,7 @@ export function CreateMonitorForm({
         </Form.ElementWrapper>
         <Form.ElementWrapper name="description" label="Description">
           <TextField
+            slotProps={{ htmlInput: { maxLength: MONITOR_DESCRIPTION_MAX_LENGTH } }}
             id="description"
             placeholder="Enter monitor description"
             fullWidth

@@ -21,10 +21,13 @@ import (
 	"errors"
 	"log/slog"
 	"strings"
+	"sync"
 	"testing"
+	"time"
 
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	"gorm.io/gorm"
 
 	"github.com/wso2/agent-manager/agent-manager-service/clients/clientmocks"
@@ -111,22 +114,51 @@ type noopRedeployer struct{}
 
 func (noopRedeployer) RedeployMCPProxy(context.Context, *models.MCPProxy, string) error { return nil }
 
+func (noopRedeployer) EnsureResourceServersForProxy(context.Context, string, *models.MCPProxy, []string) {
+}
+
 // redeployCall records one RedeployMCPProxy invocation for assertions.
 type redeployCall struct {
 	proxy *models.MCPProxy
 	ouID  string
 }
 
-// recordingRedeployer records every RedeployMCPProxy call and returns err (nil
-// by default) so tests can assert re-emission happened and inspect failures.
+// ensureRSCall records one EnsureResourceServersForProxy invocation for assertions.
+type ensureRSCall struct {
+	ouID    string
+	proxy   *models.MCPProxy
+	actions []string
+}
+
+// recordingRedeployer records every RedeployMCPProxy/EnsureResourceServersForProxy
+// call so tests can assert re-emission and resource-server-ensure happened.
+// The service now launches EnsureResourceServersForProxy from a detached
+// goroutine, so ensureCalls is mutex-guarded; read it via ensureCallsSnapshot
+// (polled with require.Eventually), never directly.
 type recordingRedeployer struct {
 	calls []redeployCall
 	err   error
+
+	mu          sync.Mutex
+	ensureCalls []ensureRSCall
 }
 
 func (r *recordingRedeployer) RedeployMCPProxy(_ context.Context, proxy *models.MCPProxy, ouID string) error {
 	r.calls = append(r.calls, redeployCall{proxy: proxy, ouID: ouID})
 	return r.err
+}
+
+func (r *recordingRedeployer) EnsureResourceServersForProxy(_ context.Context, ouID string, proxy *models.MCPProxy, actions []string) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	r.ensureCalls = append(r.ensureCalls, ensureRSCall{ouID: ouID, proxy: proxy, actions: actions})
+}
+
+// ensureCallsSnapshot safely copies the calls recorded so far.
+func (r *recordingRedeployer) ensureCallsSnapshot() []ensureRSCall {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	return append([]ensureRSCall(nil), r.ensureCalls...)
 }
 
 func TestMCPProxyScopeCreate_ValidatesAction(t *testing.T) {
@@ -490,4 +522,115 @@ func TestMCPProxyScopeCreate_AllowsScopeWithNoTools(t *testing.T) {
 	assert.NotNil(t, created.Tools)
 	assert.Empty(t, created.Tools)
 	assert.Equal(t, "read", res.Scope.Action)
+}
+
+// TestMCPProxyScopeCreate_DelegatesResourceServerEnsureWithFullActionSet guards
+// the improvement this test file was extended for: saving a scope must
+// delegate to MCPProxyService.EnsureResourceServersForProxy with the proxy's
+// FULL current action set (not just the one just saved) — the per-environment
+// identity/deployment gating is MCPProxyService's own concern, tested at that
+// level (see mcp_rs_identifier_test.go).
+func TestMCPProxyScopeCreate_DelegatesResourceServerEnsureWithFullActionSet(t *testing.T) {
+	proxy := &models.MCPProxy{
+		UUID:     uuid.New(),
+		Artifact: &models.Artifact{Handle: "gh-proxy"},
+		Endpoints: []models.MCPProxyEndpoint{
+			identityEnabledEndpoint("a", uuid.New(), uuid.New(), true),
+		},
+	}
+	scopeRepo := &repomocks.MCPProxyScopeRepositoryMock{
+		GetFunc: func(_ context.Context, _ uuid.UUID, _ string) (*models.MCPProxyScope, error) {
+			return nil, gorm.ErrRecordNotFound
+		},
+		CreateFunc: func(_ context.Context, s *models.MCPProxyScope) error { return nil },
+		ListByProxyFunc: func(_ context.Context, _ uuid.UUID) ([]models.MCPProxyScope, error) {
+			return []models.MCPProxyScope{{Action: "list_repos"}, {Action: "read"}}, nil
+		},
+	}
+	redeployer := &recordingRedeployer{}
+	svc := newScopeSvcForTestWithRedeployer(scopeRepo, proxy, redeployer)
+
+	_, err := svc.Create(context.Background(), "org-uuid", "org", "gh-proxy",
+		models.MCPProxyScopeInput{Action: "read"})
+
+	assert.NoError(t, err)
+	// The ensure call runs on a detached goroutine (see mcpProxyScopeService.Create),
+	// so wait for it rather than asserting on ensureCalls the instant Create returns.
+	require.Eventually(t, func() bool { return len(redeployer.ensureCallsSnapshot()) == 1 },
+		time.Second, 10*time.Millisecond, "expected exactly one ensure call")
+	call := redeployer.ensureCallsSnapshot()[0]
+	assert.Equal(t, "org-uuid", call.ouID)
+	assert.Same(t, proxy, call.proxy)
+	assert.ElementsMatch(t, []string{"list_repos", "read"}, call.actions,
+		"must pass the proxy's full current action set, not just the one just saved")
+}
+
+// TestMCPProxyScopeCreate_EnsureListFailureDoesNotFailSave guards the
+// best-effort contract at this layer: a failure loading the proxy's scopes
+// for the ensure call must never fail the scope save itself (it already
+// committed).
+func TestMCPProxyScopeCreate_EnsureListFailureDoesNotFailSave(t *testing.T) {
+	scopeRepo := &repomocks.MCPProxyScopeRepositoryMock{
+		GetFunc: func(_ context.Context, _ uuid.UUID, _ string) (*models.MCPProxyScope, error) {
+			return nil, gorm.ErrRecordNotFound
+		},
+		CreateFunc: func(_ context.Context, s *models.MCPProxyScope) error { return nil },
+		ListByProxyFunc: func(_ context.Context, _ uuid.UUID) ([]models.MCPProxyScope, error) {
+			return nil, errors.New("db unavailable")
+		},
+	}
+	proxy := &models.MCPProxy{
+		UUID:     uuid.New(),
+		Artifact: &models.Artifact{Handle: "gh-proxy"},
+		Endpoints: []models.MCPProxyEndpoint{
+			identityEnabledEndpoint("a", uuid.New(), uuid.New(), true),
+		},
+	}
+	redeployer := &recordingRedeployer{}
+	svc := newScopeSvcForTestWithRedeployer(scopeRepo, proxy, redeployer)
+
+	res, err := svc.Create(context.Background(), "org-uuid", "org", "gh-proxy",
+		models.MCPProxyScopeInput{Action: "read"})
+
+	assert.NoError(t, err, "a scope-list failure for the ensure call must not fail the scope save")
+	assert.Equal(t, "read", res.Scope.Action)
+	assert.Empty(t, redeployer.ensureCallsSnapshot())
+	assert.Len(t, redeployer.calls, 1, "the save must still re-emit gateway policy despite the ensure failure")
+}
+
+// TestMCPProxyScopeUpdate_DelegatesResourceServerEnsure is Create's sibling for
+// Update: editing an existing scope must also (re)trigger the ensure, in case
+// it never registered yet (e.g. the scope predates this improvement, or the
+// proxy's environment binding was only just created — see
+// MCPProxyService.EnsureResourceServersForProxy's doc comment).
+func TestMCPProxyScopeUpdate_DelegatesResourceServerEnsure(t *testing.T) {
+	proxy := &models.MCPProxy{
+		UUID:     uuid.New(),
+		Artifact: &models.Artifact{Handle: "gh-proxy"},
+		Endpoints: []models.MCPProxyEndpoint{
+			identityEnabledEndpoint("a", uuid.New(), uuid.New(), true),
+		},
+	}
+	scopeRepo := &repomocks.MCPProxyScopeRepositoryMock{
+		GetFunc: func(_ context.Context, _ uuid.UUID, action string) (*models.MCPProxyScope, error) {
+			return &models.MCPProxyScope{Action: action}, nil
+		},
+		UpdateFunc: func(_ context.Context, _ *models.MCPProxyScope) error { return nil },
+		ListByProxyFunc: func(_ context.Context, _ uuid.UUID) ([]models.MCPProxyScope, error) {
+			return []models.MCPProxyScope{{Action: "read"}}, nil
+		},
+	}
+	redeployer := &recordingRedeployer{}
+	svc := newScopeSvcForTestWithRedeployer(scopeRepo, proxy, redeployer)
+
+	desc := "updated"
+	_, err := svc.Update(context.Background(), "org-uuid", "org", "gh-proxy", "read",
+		models.MCPProxyScopeUpdateInput{Description: &desc})
+
+	assert.NoError(t, err)
+	require.Eventually(t, func() bool { return len(redeployer.ensureCallsSnapshot()) == 1 },
+		time.Second, 10*time.Millisecond, "expected exactly one ensure call")
+	calls := redeployer.ensureCallsSnapshot()
+	assert.Same(t, proxy, calls[0].proxy)
+	assert.Equal(t, []string{"read"}, calls[0].actions)
 }

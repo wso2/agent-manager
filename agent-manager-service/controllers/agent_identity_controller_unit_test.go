@@ -53,6 +53,24 @@ func (s stubRSIdentifierResolver) MCPResourceServerIdentifier(_ context.Context,
 	return "https://gw.example.com/" + proxy.Handle + "/mcp", nil
 }
 
+// EnsureResourceServer mirrors services.MCPProxyService.EnsureResourceServer's
+// shape (derive identifier, then call the client) so tests exercise the same
+// error propagation the real implementation does.
+func (s stubRSIdentifierResolver) EnsureResourceServer(
+	ctx context.Context, ouID string, envID uuid.UUID, client thundersvc.EnvIdentityClient,
+	proxy *models.MCPProxy, actions []string,
+) (string, error) {
+	identifier, err := s.MCPResourceServerIdentifier(ctx, ouID, envID, proxy)
+	if err != nil {
+		return "", err
+	}
+	name := proxy.Handle
+	if proxy.Artifact != nil && proxy.Artifact.Name != "" {
+		name = proxy.Artifact.Name
+	}
+	return client.EnsureProxyResourceServer(ctx, proxy.Handle, name, identifier, actions)
+}
+
 // TestAgentIdentityCreateRole_EnsuresPerProxyRSBeforePermissionWrite proves each
 // proxy's resource server is ensured before any role permission is written, so a
 // role never references a permission the environment's Thunder does not yet know.

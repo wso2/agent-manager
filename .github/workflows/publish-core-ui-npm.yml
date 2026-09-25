@@ -9,21 +9,52 @@ on:
         default: "main"
         type: string
       target_version:
-        description: "Version to publish (e.g., 0.0.1, 0.0.1-rc.1)"
-        required: true
+        description: "Version to publish (e.g., 0.0.1, 0.0.1-rc.1). Blank derives one from the commit."
+        required: false
+        default: ""
         type: string
       npm_scope:
-        description: "NPM scope for publishing (e.g., @wso2)"
+        description: "NPM scope. Blank uses the owner of this repository."
         required: false
-        default: "@wso2"
+        default: ""
+        type: string
+      registry:
+        description: "Registry. Blank uses npmjs for wso2, GitHub Packages elsewhere."
+        required: false
+        default: ""
         type: string
       runner:
         description: "Runner label (use ubuntu-latest for fork testing)"
         required: false
         default: "ubuntu-latest"
         type: string
+  workflow_call:
+    inputs:
+      source_ref:
+        required: false
+        default: "main"
+        type: string
+      target_version:
+        required: false
+        default: ""
+        type: string
+      npm_scope:
+        required: false
+        default: ""
+        type: string
+      registry:
+        required: false
+        default: ""
+        type: string
+      runner:
+        required: false
+        default: "ubuntu-latest"
+        type: string
+    secrets:
+      NPM_TOKEN_WSO2:
+        required: false
 
-run-name: Publish core-ui ${{ inputs.target_version }}
+run-name: Publish core-ui ${{ inputs.target_version || inputs.source_ref }}
 
 jobs:
   publish-core-ui-npm:
@@ -31,30 +62,95 @@ jobs:
     runs-on: ${{ inputs.runner }}
     permissions:
       contents: read
+      # A reusable workflow cannot exceed its caller, so callers must grant this too.
+      packages: write
     defaults:
       run:
         working-directory: console
     steps:
-      - name: Validate target version
+      - name: Resolve the publish target
+        id: target
+        env:
+          NPM_SCOPE: ${{ inputs.npm_scope || vars.CORE_UI_NPM_SCOPE }}
+          REGISTRY: ${{ inputs.registry || vars.CORE_UI_REGISTRY }}
+          OWNER: ${{ github.repository_owner }}
+        working-directory: .
         run: |
-          if [[ ! "$TARGET_RELEASE" =~ ^[0-9]+\.[0-9]+\.[0-9]+(-[a-zA-Z0-9.]+)?$ ]]; then
-            echo "Error: Invalid target_version format. Expected: X.Y.Z or X.Y.Z-suffix"
+          set -euo pipefail
+          owner=$(echo "$OWNER" | tr '[:upper:]' '[:lower:]')
+          scope=$(echo "${NPM_SCOPE:-$owner}" | tr '[:upper:]' '[:lower:]')
+          scope="@${scope#@}"
+
+          registry="${REGISTRY%/}"
+          if [ -z "$registry" ]; then
+            # Only wso2 owns this package on npmjs; anywhere else, its own scope on GitHub Packages.
+            if [ "$owner" = wso2 ]; then
+              registry=https://registry.npmjs.org
+            else
+              registry=https://npm.pkg.github.com
+            fi
+          fi
+          case "$registry" in
+            https://registry.npmjs.org|https://npm.pkg.github.com) ;;
+            *) echo "Error: unsupported registry '${registry}'." >&2; exit 1 ;;
+          esac
+
+          # A fork publishing to public npm would disclose code that is not released yet.
+          if [ "$registry" = https://registry.npmjs.org ] && [ "$owner" != wso2 ]; then
+            echo "Error: '${owner}' must not publish to npmjs; it is not the public repository." >&2
             exit 1
           fi
-        env:
-          TARGET_RELEASE: ${{ inputs.target_version }}
-        working-directory: .
+          # GitHub Packages only accepts the owning org as the scope.
+          if [ "$registry" = https://npm.pkg.github.com ] && [ "$scope" != "@${owner}" ]; then
+            echo "Error: GitHub Packages needs scope '@${owner}', got '${scope}'." >&2
+            exit 1
+          fi
 
+          {
+            echo "scope=${scope}"
+            echo "registry=${registry}"
+          } >> "$GITHUB_OUTPUT"
+          echo "Publishing ${scope}/am-core-ui to ${registry}" >> "$GITHUB_STEP_SUMMARY"
+
+      # Reuse this from the same repository only: the checkout below takes the caller's.
       - name: Checkout code
         uses: actions/checkout@v6
         with:
           ref: ${{ inputs.source_ref }}
 
-      - name: Setup Node.js and pnpm for npm registry
+      - name: Resolve target version
+        id: version
+        working-directory: .
+        env:
+          TARGET_RELEASE: ${{ inputs.target_version }}
+          REGISTRY: ${{ steps.target.outputs.registry }}
+        run: |
+          set -euo pipefail
+          version="$TARGET_RELEASE"
+          derived=false
+          if [ -n "$version" ]; then
+            case "$version" in *-*) tag=next ;; *) tag=latest ;; esac
+          else
+            # Go-style pseudo-version: the commit is the pin, so no version is chosen by hand.
+            ts=$(TZ=UTC git log -1 --date=format-local:%Y%m%d%H%M%S --format=%cd)
+            version="0.0.0-${ts}-$(git rev-parse --short=12 HEAD)"
+            # Its own tag: these are cut per commit and must not move `next`.
+            tag=dev
+            derived=true
+          fi
+          if [[ ! "$version" =~ ^[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.-]+)?$ ]]; then
+            echo "Error: Invalid target_version format. Expected: X.Y.Z or X.Y.Z-suffix"
+            exit 1
+          fi
+          {
+            echo "version=${version}"
+            echo "dist_tag=${tag}"
+            echo "derived=${derived}"
+          } >> "$GITHUB_OUTPUT"
+          echo "Publishing core-ui ${version} to ${REGISTRY} under ${tag}" >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Setup Node.js and pnpm
         uses: ./.github/actions/setup-console-node
-        with:
-          registry-url: https://registry.npmjs.org
-          scope: ${{ inputs.npm_scope }}
 
       - name: Install monorepo dependencies
         run: pnpm install --frozen-lockfile
@@ -62,9 +158,21 @@ jobs:
       - name: Build core-ui package
         run: pnpm build:core-ui
 
+      # Only now, so dependency resolution above is unaffected by the publish target.
+      - name: Configure the publish registry
+        uses: actions/setup-node@v6
+        with:
+          registry-url: ${{ steps.target.outputs.registry }}
+          scope: ${{ steps.target.outputs.scope }}
+
       - name: Ensure package scope matches target
         run: |
           cd workspaces/core-ui
+          # Match what setup-node wrote to .npmrc: lowercase, leading '@'.
+          NPM_SCOPE=$(echo "$NPM_SCOPE" | tr '[:upper:]' '[:lower:]')
+          if [ "${NPM_SCOPE#@}" = "$NPM_SCOPE" ]; then
+            NPM_SCOPE="@${NPM_SCOPE}"
+          fi
           CURRENT_SCOPE=$(node -p "require('./package.json').name.split('/')[0]")
           if [[ "$CURRENT_SCOPE" != "$NPM_SCOPE" ]]; then
             PACKAGE_BASENAME=$(node -p "require('./package.json').name.split('/')[1]")
@@ -74,14 +182,24 @@ jobs:
             echo "Scope already correct: ${NPM_SCOPE}"
           fi
         env:
-          NPM_SCOPE: ${{ inputs.npm_scope }}
+          NPM_SCOPE: ${{ steps.target.outputs.scope }}
 
       - name: Set core-ui package version from release
         run: |
           cd workspaces/core-ui
           npm version "$TARGET_RELEASE" --no-git-tag-version --allow-same-version
         env:
-          TARGET_RELEASE: ${{ inputs.target_version }}
+          TARGET_RELEASE: ${{ steps.version.outputs.version }}
+
+      - name: Link the package to this repository
+        if: steps.target.outputs.registry == 'https://npm.pkg.github.com'
+        run: |
+          cd workspaces/core-ui
+          npm pkg set repository.type=git
+          npm pkg set repository.url="git+${SERVER_URL}/${REPOSITORY}.git"
+        env:
+          SERVER_URL: ${{ github.server_url }}
+          REPOSITORY: ${{ github.repository }}
 
       - name: Strip bundled dependencies for publish
         run: |
@@ -107,11 +225,26 @@ jobs:
       - name: Publish core-ui package
         run: |
           cd workspaces/core-ui
-          DIST_TAG="latest"
-          if [[ "$TARGET_RELEASE" == *"-"* ]]; then
-            DIST_TAG="next"
+          name=$(node -p "require('./package.json').name")
+          if [ "$DERIVED" = true ] && npm view "${name}@${TARGET_RELEASE}" version >/dev/null 2>&1; then
+            echo "${name}@${TARGET_RELEASE} is already published; nothing to do." >> "$GITHUB_STEP_SUMMARY"
+            exit 0
           fi
-          npm publish --access public --tag "$DIST_TAG"
+          ACCESS="restricted"
+          if [[ "$REGISTRY" == *"registry.npmjs.org"* ]]; then
+            ACCESS="public"
+          fi
+          if ! npm publish --access "$ACCESS" --tag "$DIST_TAG"; then
+            # A concurrent run may have published this same commit, which is the wanted state.
+            if [ "$DERIVED" = true ] && npm view "${name}@${TARGET_RELEASE}" version >/dev/null 2>&1; then
+              echo "${name}@${TARGET_RELEASE} was published concurrently; nothing to do." >> "$GITHUB_STEP_SUMMARY"
+              exit 0
+            fi
+            exit 1
+          fi
         env:
-          TARGET_RELEASE: ${{ inputs.target_version }}
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN_WSO2 }}
+          DIST_TAG: ${{ steps.version.outputs.dist_tag }}
+          DERIVED: ${{ steps.version.outputs.derived }}
+          TARGET_RELEASE: ${{ steps.version.outputs.version }}
+          REGISTRY: ${{ steps.target.outputs.registry }}
+          NODE_AUTH_TOKEN: ${{ steps.target.outputs.registry == 'https://npm.pkg.github.com' && secrets.GITHUB_TOKEN || secrets.NPM_TOKEN_WSO2 }}

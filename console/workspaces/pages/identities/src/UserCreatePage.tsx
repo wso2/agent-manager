@@ -29,7 +29,7 @@ import {
 import { generatePath, useNavigate, useParams } from "react-router-dom";
 import { useCreateUser } from "@agent-management-platform/api-client";
 import { TextInput } from "@agent-management-platform/views";
-import { absoluteRouteMap } from "@agent-management-platform/types";
+import { absoluteRouteMap, INPUT_LIMITS } from "@agent-management-platform/types";
 import { BackButton } from "./components/BackButton";
 
 export const UserCreatePage: React.FC = () => {
@@ -113,6 +113,7 @@ export const UserCreatePage: React.FC = () => {
             <FormControl fullWidth error={Boolean(errors.username)}>
               <FormLabel required>Username</FormLabel>
               <TextField
+                slotProps={{ htmlInput: { maxLength: INPUT_LIMITS.NAME } }}
                 fullWidth
                 value={username}
                 onChange={(e) => {
@@ -128,6 +129,7 @@ export const UserCreatePage: React.FC = () => {
             </FormControl>
 
             <TextInput
+              maxLength={INPUT_LIMITS.PASSWORD}
               label="Password"
               required
               type="password"
@@ -159,6 +161,7 @@ export const UserCreatePage: React.FC = () => {
               <FormControl fullWidth>
                 <FormLabel>First Name</FormLabel>
                 <TextField
+                  slotProps={{ htmlInput: { maxLength: INPUT_LIMITS.NAME } }}
                   fullWidth
                   value={givenName}
                   onChange={(e) => setGivenName(e.target.value)}
@@ -169,6 +172,7 @@ export const UserCreatePage: React.FC = () => {
               <FormControl fullWidth>
                 <FormLabel>Last Name</FormLabel>
                 <TextField
+                  slotProps={{ htmlInput: { maxLength: INPUT_LIMITS.NAME } }}
                   fullWidth
                   value={familyName}
                   onChange={(e) => setFamilyName(e.target.value)}

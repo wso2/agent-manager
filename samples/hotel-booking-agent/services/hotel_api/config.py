@@ -7,7 +7,7 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 class Settings(BaseSettings):
     pinecone_api_key: str | None = Field(None, validation_alias="PINECONE_API_KEY")
     pinecone_service_url: str | None = Field(None, validation_alias="PINECONE_SERVICE_URL")
-    pinecone_index_name: str | None = Field(None, validation_alias="PINECONE_INDEX_NAME")
+    pinecone_index_name: str = Field("hotel-policies", validation_alias="PINECONE_INDEX_NAME")
     openai_api_key: str | None = Field(None, validation_alias="OPENAI_API_KEY")
     openai_embedding_model: str = Field(
         default="text-embedding-3-small",

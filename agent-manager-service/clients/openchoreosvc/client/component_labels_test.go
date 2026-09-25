@@ -119,6 +119,46 @@ func TestAddUserLabels(t *testing.T) {
 	})
 }
 
+func TestWithResourceLabels(t *testing.T) {
+	t.Run("none configured leaves labels untouched", func(t *testing.T) {
+		c := &openChoreoClient{}
+		assert.Nil(t, c.withResourceLabels(nil))
+		labels := map[string]string{"team": "ml"}
+		assert.Equal(t, map[string]string{"team": "ml"}, *c.withResourceLabels(&labels))
+	})
+
+	c := &openChoreoClient{resourceLabels: map[string]string{"example.com/product": "agent-manager"}}
+
+	t.Run("nil pointer allocates the map", func(t *testing.T) {
+		got := c.withResourceLabels(nil)
+		require.NotNil(t, got)
+		assert.Equal(t, map[string]string{"example.com/product": "agent-manager"}, *got)
+	})
+
+	t.Run("nil map behind the pointer allocates the map", func(t *testing.T) {
+		var labels map[string]string
+		assert.Equal(t, map[string]string{"example.com/product": "agent-manager"}, *c.withResourceLabels(&labels))
+	})
+
+	t.Run("keeps existing labels and overwrites a stale value", func(t *testing.T) {
+		labels := map[string]string{
+			string(LabelKeyComponentName): "agent-1",
+			"example.com/product":         "stale",
+		}
+		assert.Equal(t, map[string]string{
+			string(LabelKeyComponentName): "agent-1",
+			"example.com/product":         "agent-manager",
+		}, *c.withResourceLabels(&labels))
+	})
+}
+
+func TestValidateResourceLabels(t *testing.T) {
+	require.NoError(t, validateResourceLabels(nil))
+	require.NoError(t, validateResourceLabels(map[string]string{"cloud.wso2.com/product-name": "agent-manager"}))
+	require.Error(t, validateResourceLabels(map[string]string{"bad key!": "v"}))
+	require.Error(t, validateResourceLabels(map[string]string{"example.com/product": "not a valid value"}))
+}
+
 func TestBuildInternalAgentFromKindComponentRequestBody_UserLabels(t *testing.T) {
 	req := CreateComponentRequest{
 		Name:        "agent-1",

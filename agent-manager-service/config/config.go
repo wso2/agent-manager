@@ -184,6 +184,9 @@ type Config struct {
 	// PerAgentResourceLimits defines the operator-configured maximum values for agent resource configs
 	PerAgentResourceLimits ResourceLimitsConfig
 
+	// FileMountLimits bounds the inline content of agent file mounts
+	FileMountLimits FileMountLimitsConfig
+
 	// Audit configures the audit trail.
 	Audit AuditConfig
 
@@ -283,6 +286,11 @@ type OpenChoreoConfig struct {
 	// reserved for internal use and never surfaced as user labels in agent
 	// API responses.
 	SystemLabelKeyPrefixes []string
+	// ResourceLabels are stamped on every Component and ReleaseBinding Agent
+	// Manager writes. Not read from the environment: a deployment injects them
+	// through app.Options.ResourceLabels. Their keys are treated as system
+	// labels, so they are never surfaced or replaced as user labels.
+	ResourceLabels map[string]string
 }
 
 // GitHubConfig holds GitHub API configuration
@@ -546,6 +554,18 @@ type WebSocketConfig struct {
 	MaxConnections    int // Maximum number of concurrent WebSocket connections (default: 1000)
 	ConnectionTimeout int // Connection timeout in seconds (default: 30)
 	RateLimitPerMin   int // Rate limit per gateway per minute (default: 10)
+}
+
+// FileMountLimitsConfig holds the operator-configured size caps for agent file mounts.
+// Sizes are in bytes of inline file content; secret-reference mounts carry no
+// inline content and do not count.
+type FileMountLimitsConfig struct {
+	// MaxFileBytes is the largest inline content a single file mount may carry.
+	MaxFileBytes int
+	// MaxTotalBytes caps the combined inline content of all file mounts in one
+	// request. The mounts render into a single ConfigMap/Secret, which Kubernetes
+	// limits to 1 MiB including metadata, so this cannot usefully exceed that.
+	MaxTotalBytes int
 }
 
 // ResourceLimitsConfig holds the operator-configured upper bounds for agent resource configs.

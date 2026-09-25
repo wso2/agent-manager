@@ -16,9 +16,10 @@
  */
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import type {
-  MCPEndpointConfig,
-  MCPProxy,
+import {
+  type MCPEndpointConfig,
+  type MCPProxy,
+  INPUT_LIMITS,
 } from "@agent-management-platform/types";
 import {
   Accordion,
@@ -280,6 +281,7 @@ export function MCPProxyConnectionTab({
           <FormControl fullWidth>
             <FormLabel required>MCP Server Endpoint URL</FormLabel>
             <TextField
+              slotProps={{ htmlInput: { maxLength: INPUT_LIMITS.URL } }}
               size="small"
               value={endpoint}
               onChange={(e) => {

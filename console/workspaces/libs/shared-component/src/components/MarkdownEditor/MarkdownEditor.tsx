@@ -20,6 +20,7 @@ import { useEffect, useId, useRef, useState } from "react";
 import { Box, FormHelperText, FormLabel, IconButton, Stack, Tab, Tabs, TextField, Tooltip, Typography } from "@wso2/oxygen-ui";
 import { Bold, Heading2, Italic, Link2, List, Quote } from "@wso2/oxygen-ui-icons-react";
 import { MarkdownView } from "@agent-management-platform/views";
+import { INPUT_LIMITS } from "@agent-management-platform/types";
 import { type EditResult, type TextSelection, insertLink, prefixLines, wrapSelection } from "./textEditActions";
 
 type MarkdownEditorTab = "write" | "preview";
@@ -74,6 +75,14 @@ export interface MarkdownEditorProps {
   disabled?: boolean;
   minRows?: number;
   maxRows?: number;
+  /**
+   * Character cap for the document. Defaults to the shared description limit
+   * because every current caller is a description field. The cap exists
+   * because the value is submitted inside a JSON request body, and the WAF in
+   * front of the platform rejects an oversized body with a bare 403 that the
+   * console cannot attribute to a field.
+   */
+  maxLength?: number;
 }
 
 /**
@@ -92,6 +101,7 @@ export const MarkdownEditor = ({
   disabled = false,
   minRows = 3,
   maxRows = 10,
+  maxLength = INPUT_LIMITS.DESCRIPTION,
 }: MarkdownEditorProps) => {
   const [tab, setTab] = useState<MarkdownEditorTab>("write");
   const generatedId = useId();
@@ -106,6 +116,10 @@ export const MarkdownEditor = ({
     const start = textarea.selectionStart ?? value.length;
     const end = textarea.selectionEnd ?? value.length;
     const result = apply({ text: value, start }, end);
+    // A toolbar action inserts characters of its own (** for bold, a link
+    // skeleton), so it can cross the cap even though typing cannot. Drop the
+    // action rather than silently truncating the user's text mid-token.
+    if (result.text.length > maxLength) return;
     onChange(result.text);
     // `value` is a controlled prop owned by the caller, so the textarea only
     // reflects the new text once it flows back down as a re-render — an
@@ -188,7 +202,10 @@ export const MarkdownEditor = ({
               disabled={disabled}
               fullWidth
               variant="standard"
-              slotProps={{ input: { disableUnderline: true, sx: { px: 1.5, py: 1 } } }}
+              slotProps={{
+                input: { disableUnderline: true, sx: { px: 1.5, py: 1 } },
+                htmlInput: { maxLength },
+              }}
             />
           ) : value.trim() ? (
             <MarkdownView content={value} />
@@ -199,10 +216,24 @@ export const MarkdownEditor = ({
           )}
         </Box>
       </Box>
-      {(helperText || error) && (
-        <FormHelperText error={error} sx={{ mx: 1.75 }}>
-          {helperText}
-        </FormHelperText>
+      {(helperText || error || !disabled) && (
+        <Stack
+          direction="row"
+          justifyContent="space-between"
+          alignItems="flex-start"
+          spacing={1}
+        >
+          <FormHelperText error={error} sx={{ mx: 1.75 }}>
+            {helperText}
+          </FormHelperText>
+          {!disabled && (
+            <FormHelperText
+              sx={{ mx: 1.75, flexShrink: 0, fontVariantNumeric: "tabular-nums" }}
+            >
+              {value.length}/{maxLength}
+            </FormHelperText>
+          )}
+        </Stack>
       )}
     </Box>
   );

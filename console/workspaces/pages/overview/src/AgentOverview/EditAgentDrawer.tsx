@@ -28,7 +28,7 @@ import {
 } from "@agent-management-platform/views";
 import { z } from "zod";
 import { useUpdateAgent } from "@agent-management-platform/api-client";
-import { AgentResponse, UpdateAgentRequest } from "@agent-management-platform/types";
+import { AgentResponse, UpdateAgentRequest, INPUT_LIMITS } from "@agent-management-platform/types";
 import { LabelsEditor, MarkdownEditor } from "@agent-management-platform/shared-component";
 import { useEffect, useState, useCallback } from "react";
 
@@ -150,6 +150,7 @@ export function EditAgentDrawer({ open, onClose, agent, orgId, projectId }: Edit
                 <Typography variant="h5">Agent Details</Typography>
                 <Box display="flex" flexDirection="column" gap={1}>
                   <TextInput
+                    maxLength={INPUT_LIMITS.NAME}
                     placeholder="e.g., Customer Support Agent"
                     label="Name"
                     fullWidth

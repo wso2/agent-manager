@@ -124,6 +124,16 @@ frameworks:
     spanKinds: [llm]
     extras: []
 
+  - name: strands
+    provider: traceloop
+    package: strands-agents[openai]
+    versions: ["1.55.1"]
+    samplePath: cells/strands_sample.py
+    # Strands emits agent, event-loop (chain), chat, and tool spans natively.
+    # Traceloop also instruments the OpenAI SDK calls underneath them.
+    spanKinds: [agent, chain, llm, tool]
+    extras: [openai==2.38.0]
+
 python:
   # Must cover every Python AMP baselines in .github/release-config.json.
   # scripts/check-matrix-manifest.py enforces this. Locally, filter to one

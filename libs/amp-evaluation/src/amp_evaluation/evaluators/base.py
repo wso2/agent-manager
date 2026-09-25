@@ -606,6 +606,10 @@ class LLMAsJudgeEvaluator(BaseEvaluator):
     max_tokens: int = Param(default=1024, description="Max tokens for LLM response")
     max_retries: int = Param(default=2, description="Max retries on invalid LLM output")
 
+    # Internal monitor-job policy; not an evaluator parameter. Standalone judges
+    # and experiments retain their configured sampling behavior.
+    _monitor_omit_temperature: bool = False
+
     # Trace/agent/LLM judges that score the agent's *response* cannot evaluate
     # an empty output — scoring a blank response yields a templated, misleading
     # result (often a default high score). Such judges skip instead. Judges that
@@ -829,6 +833,8 @@ The "explanation" field MUST be formatted as valid Markdown. Use headings, bulle
                     "max_tokens": self.max_tokens,
                     **gateway_kwargs,
                 }
+                if self._monitor_omit_temperature and provider == "anthropic":
+                    completion_kwargs.pop("temperature", None)
                 if use_response_format:
                     completion_kwargs["response_format"] = JudgeOutput
 

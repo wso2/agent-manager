@@ -39,6 +39,7 @@ import {
   type AgentKindConfigSchemaItem,
   type AgentKindVersionResponse,
   type BuildResponse,
+  INPUT_LIMITS,
 } from "@agent-management-platform/types";
 import { LabelsEditor, useConfirmationDialog } from "@agent-management-platform/shared-component";
 import { RuntimeConfigEditor, createRuntimeConfigRow, type RuntimeConfigRow } from "./RuntimeConfigEditor";
@@ -418,6 +419,7 @@ export const PublishedList: React.FC = () => {
                 <Form.Stack spacing={2}>
                   <Form.ElementWrapper label="Display Name" name="kindDisplayName">
                     <TextInput
+                      maxLength={INPUT_LIMITS.NAME}
                       id="kindDisplayName"
                       placeholder="e.g. My Agent Kind"
                       value={kindDisplayName}
@@ -448,6 +450,7 @@ export const PublishedList: React.FC = () => {
               <Form.Stack spacing={2}>
                 <Form.ElementWrapper label="Version Name" name="versionName">
                   <TextInput
+                    maxLength={INPUT_LIMITS.SHORT_TEXT}
                     id="versionName"
                     placeholder="e.g. 1.2.0"
                     value={versionName}
@@ -537,6 +540,7 @@ export const PublishedList: React.FC = () => {
               <Form.Stack spacing={2}>
                 <Form.ElementWrapper label="Display Name" name="editDisplayName">
                   <TextInput
+                    maxLength={INPUT_LIMITS.NAME}
                     id="editDisplayName"
                     value={editDisplayName}
                     onChange={(e) => setEditDisplayName(e.target.value)}

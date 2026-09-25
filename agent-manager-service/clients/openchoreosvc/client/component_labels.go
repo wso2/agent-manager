@@ -23,15 +23,19 @@ import (
 	"github.com/wso2/agent-manager/agent-manager-service/config"
 )
 
-// isSystemLabelKey reports whether key matches one of
-// config.OpenChoreo.SystemLabelKeyPrefixes — the reserved label-key prefixes
-// that are never surfaced as user labels. User-defined label keys can never
+// isSystemLabelKey reports whether key is one of config.OpenChoreo.ResourceLabels
+// or matches one of config.OpenChoreo.SystemLabelKeyPrefixes — the reserved
+// label keys that are never surfaced as user labels. User-defined label keys can never
 // match any of these: the label-key validation in utils.ValidateLabels
 // forbids '/' in user keys, so this is a permanent, collision-free partition
 // of the label keyspace — no separate collision guard is needed anywhere
 // labels are written.
 func isSystemLabelKey(key string) bool {
-	for _, prefix := range config.GetConfig().OpenChoreo.SystemLabelKeyPrefixes {
+	ocCfg := config.GetConfig().OpenChoreo
+	if _, ok := ocCfg.ResourceLabels[key]; ok {
+		return true
+	}
+	for _, prefix := range ocCfg.SystemLabelKeyPrefixes {
 		if strings.HasPrefix(key, prefix) {
 			return true
 		}

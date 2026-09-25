@@ -90,22 +90,21 @@ dotnet run
 
 ## hotel-booking-agent
 
-A hotel assistant that searches availability, creates and cancels bookings, and answers policy questions from PDFs held in a Pinecone index.
+A hotel assistant that searches availability, creates and cancels bookings, and answers policy questions from hotel policy PDFs.
 
-This is the retrieval sample, and the only one split across two deployables: the agent itself plus a separate Hotel API service it calls over HTTP. Deploy the Hotel API first so the agent has something to talk to.
+This is the most involved sample: it talks to external APIs and is split across two deployables, the agent plus a separate Hotel API service that its tools call over HTTP. Run the Hotel API first, somewhere the agent can reach. For a platform-hosted agent that means a deployed URL or a tunnel such as ngrok, not `localhost`. It can run platform-hosted or externally-hosted; the [sample README](https://github.com/wso2/agent-manager/tree/main/samples/hotel-booking-agent) covers both.
 
 - **App Path** — `/samples/hotel-booking-agent/agent`, which is a subdirectory rather than the sample root
-- **Requires** — `OPENAI_API_KEY`, `PINECONE_API_KEY`, `PINECONE_SERVICE_URL`, and `HOTEL_API_BASE_URL`
-
-:::warning Pinecone is required for the agent, whatever the sample README says
-The sample's own README describes Pinecone as optional. That is true of the Hotel API service, but the agent declares `pinecone_api_key` and `pinecone_service_url` as settings with no defaults, so it raises on startup when either is missing. Provide both.
-:::
+- **Agent requires** — `OPENAI_API_KEY` and `HOTEL_API_BASE_URL`
+- **Hotel API requires** — `OPENAI_API_KEY`, plus `PINECONE_API_KEY` to store policies in Pinecone. Without a Pinecone key it uses an in-memory store that is rebuilt on every start.
 
 Run the Hotel API first:
 
 ```bash
 cd samples/hotel-booking-agent/services/hotel_api
 pip install -r requirements.txt
+export OPENAI_API_KEY="<your-openai-api-key>"
+export PINECONE_API_KEY="<your-pinecone-api-key>"  # optional; omit to use the in-memory policy store
 python -m uvicorn service:app --host 0.0.0.0 --port 9091
 ```
 

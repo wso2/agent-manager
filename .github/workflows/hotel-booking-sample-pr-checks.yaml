@@ -1,0 +1,28 @@
+name: Hotel Booking Sample PR Checks
+
+on:
+  pull_request:
+    branches: ["main"]
+    paths:
+      - "samples/hotel-booking-agent/**"
+      - ".github/workflows/hotel-booking-sample-pr-checks.yaml"
+
+permissions:
+  contents: read
+
+jobs:
+  smoke-test:
+    name: Smoke Test
+    runs-on:
+      - codebuild-wso2_agent-manager-${{ github.run_id }}-${{ github.run_attempt }}
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v6
+
+      - name: Setup Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.11"
+
+      - name: Run smoke test
+        run: samples/hotel-booking-agent/scripts/smoke_test.sh

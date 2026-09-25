@@ -47,7 +47,9 @@ spec:
     parameters:
       - name: monitor-name
       - name: organization
+      # Defaulted so a caller that does not pass it yet still validates.
       - name: org-uuid
+        value: ""
       - name: project
       - name: agent
       - name: environment

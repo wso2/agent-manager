@@ -317,8 +317,57 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/AvailabilityResponse"
+  /hotels/{hotel_id}/policies/search:
+    get:
+      summary: Search a hotel's policy documents
+      parameters:
+        - name: hotel_id
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: q
+          in: query
+          required: true
+          schema:
+            type: string
+        - name: k
+          in: query
+          required: false
+          schema:
+            type: integer
+            default: 5
+            minimum: 1
+            maximum: 20
+      responses:
+        "200":
+          description: Matching policy text chunks
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PolicySearchResponse"
+        "503":
+          description: Policy search is not configured
 components:
   schemas:
+    PolicySearchResponse:
+      type: object
+      properties:
+        hotel_id:
+          type: string
+        source:
+          type: string
+          enum: [pinecone, in-memory]
+        results:
+          type: array
+          items:
+            type: object
+            properties:
+              text:
+                type: string
+              page:
+                type: integer
+                nullable: true
     BookingRoom:
       type: object
       properties:

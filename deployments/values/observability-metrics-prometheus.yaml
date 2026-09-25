@@ -76,6 +76,26 @@ kube-prometheus-stack:
   # convention label is carried by a great many platform components -- admitting it
   # would export label series for all of them, into a monitoring stack that does
   # not want them.
+  #
+  # cloud.wso2.com/orguuid is the organisation's billing identifier. Evaluation pods
+  # carry it themselves; agent pods do not, but their cell namespace does, which is
+  # why the namespaces collector and kube_namespace_labels are added alongside the
+  # upstream pod-only defaults (again reproduced, since lists are replaced).
   kube-state-metrics:
+    collectors:
+      - pods
+      - namespaces
+    metricAllowlist:
+      - kube_pod_completion_time
+      - kube_pod_container_resource_limits
+      - kube_pod_container_resource_requests
+      - kube_pod_info
+      - kube_pod_init_container_resource_limits
+      - kube_pod_init_container_resource_requests
+      - kube_pod_labels
+      - kube_pod_start_time
+      - kube_pod_status_phase
+      - kube_namespace_labels
     metricLabelsAllowlist:
-      - pods=[openchoreo.dev/component-uid,openchoreo.dev/project-uid,openchoreo.dev/environment-uid,openchoreo.dev/namespace,openchoreo.dev/component,openchoreo.dev/project,openchoreo.dev/environment,amp.wso2.com/workload]
+      - pods=[openchoreo.dev/component-uid,openchoreo.dev/project-uid,openchoreo.dev/environment-uid,openchoreo.dev/namespace,openchoreo.dev/component,openchoreo.dev/project,openchoreo.dev/environment,amp.wso2.com/workload,cloud.wso2.com/orguuid]
+      - namespaces=[cloud.wso2.com/orguuid]

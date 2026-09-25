@@ -35,6 +35,16 @@ export interface TextInputProps extends Omit<TextFieldProps, 'variant'> {
   copyable?: boolean;
   copyTooltipText?: string;
   showPasswordToggle?: boolean;
+  /**
+   * Hard cap on the number of characters the field accepts. Beyond blocking
+   * further typing, it renders a live counter so the user sees the cap before
+   * hitting it. Fields feed request bodies that an upstream WAF rejects when
+   * they grow too large, so every free-text input should carry a limit — use
+   * the shared `INPUT_LIMITS` values rather than an ad-hoc number.
+   */
+  maxLength?: number;
+  /** Suppress the counter while keeping the cap (for dense or inline fields). */
+  hideCharacterCount?: boolean;
 }
 
 export const TextInput = ({
@@ -47,6 +57,10 @@ export const TextInput = ({
   required,
   showPasswordToggle = false,
   type = 'text',
+  maxLength,
+  hideCharacterCount = false,
+  helperText,
+  error,
   ...props
 }: TextInputProps) => {
   const [copied, setCopied] = useState(false);
@@ -107,7 +121,31 @@ export const TextInput = ({
       ...slotProps?.input,
       ...(endAdornment && { endAdornment }),
     },
+    ...(maxLength != null && {
+      htmlInput: {
+        ...(slotProps?.htmlInput as object | undefined),
+        maxLength,
+      },
+    }),
   };
+
+  // The counter sits on the right of the helper row so an existing helper
+  // message (or a validation error) keeps its place on the left.
+  const characterCount = typeof value === 'string' ? value.length : 0;
+  const showCounter = maxLength != null && !hideCharacterCount && !props.disabled;
+  const resolvedHelperText = showCounter ? (
+    <Box component="span" sx={{ display: 'flex', justifyContent: 'space-between', gap: 1 }}>
+      <Box component="span">{helperText}</Box>
+      <Box
+        component="span"
+        sx={{ flexShrink: 0, fontVariantNumeric: 'tabular-nums' }}
+      >
+        {characterCount}/{maxLength}
+      </Box>
+    </Box>
+  ) : (
+    helperText
+  );
 
   return (
     <FormControl fullWidth>
@@ -129,6 +167,8 @@ export const TextInput = ({
         value={value}
         slotProps={mergedSlotProps}
         required={required}
+        error={error}
+        helperText={resolvedHelperText}
         {...props}
       />
     </FormControl>

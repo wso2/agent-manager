@@ -17,6 +17,7 @@
  */
 
 import { z } from 'zod';
+import { INPUT_LIMITS } from '@agent-management-platform/types';
 
 export interface AddProjectFormValues {
   name: string;
@@ -36,7 +37,11 @@ export const addProjectSchema = z.object({
     .string()
     .trim()
     .max(50, 'Name must be at most 50 characters'),
-  description: z.string().trim().optional(),
+  description: z
+    .string()
+    .trim()
+    .max(INPUT_LIMITS.DESCRIPTION, `Description must be at most ${INPUT_LIMITS.DESCRIPTION} characters`)
+    .optional(),
   deploymentPipeline: z
     .string()
     .trim()

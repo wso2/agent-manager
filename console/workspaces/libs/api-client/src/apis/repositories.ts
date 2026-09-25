@@ -16,7 +16,7 @@
  * under the License.
  */
 
-import { SERVICE_BASE } from "../utils";
+import { SERVICE_BASE, serializeRequestBody } from "../utils";
 import  {
   type ListBranchesRequest,
   type ListBranchesResponse,
@@ -56,7 +56,7 @@ export async function listBranches(
     {
       method: "POST",
       headers: requestHeaders,
-      body: JSON.stringify(body),
+      body: serializeRequestBody(body),
     }
   );
 
@@ -101,7 +101,7 @@ export async function listCommits(
     {
       method: "POST",
       headers: requestHeaders,
-      body: JSON.stringify(body),
+      body: serializeRequestBody(body),
     }
   );
 

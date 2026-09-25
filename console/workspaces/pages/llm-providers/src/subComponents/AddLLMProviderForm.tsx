@@ -35,6 +35,8 @@ import { Brain, Eye, EyeOff, Lock, Unlock } from "@wso2/oxygen-ui-icons-react";
 import {
   addLLMProviderSchema,
   type AddLLMProviderFormValues,
+  LLM_PROVIDER_NAME_MAX_LENGTH,
+  LLM_PROVIDER_DESCRIPTION_MAX_LENGTH,
 } from "../form/schema";
 import { useValidatedForm } from "../hooks/useValidatedForm";
 import {
@@ -45,6 +47,7 @@ import {
   type PolicySelection as GuardrailSelection,
 } from "@agent-management-platform/shared-component";
 import { useListGateways } from "@agent-management-platform/api-client";
+import { INPUT_LIMITS } from "@agent-management-platform/types";
 
 export type TemplateCard = {
   id: string;
@@ -375,6 +378,7 @@ export const AddLLMProviderForm: React.FC<AddLLMProviderFormProps> = ({
             <Box sx={{ flex: 2 }}>
               <Form.ElementWrapper label="Name" name="displayName">
                 <TextField
+                  slotProps={{ htmlInput: { maxLength: LLM_PROVIDER_NAME_MAX_LENGTH } }}
                   id="displayName"
                   fullWidth
                   value={formData.displayName}
@@ -392,6 +396,7 @@ export const AddLLMProviderForm: React.FC<AddLLMProviderFormProps> = ({
               <Box sx={{ flex: 1 }}>
                 <Form.ElementWrapper label="Version" name="version">
                   <TextField
+                    slotProps={{ htmlInput: { maxLength: INPUT_LIMITS.SHORT_TEXT } }}
                     id="version"
                     fullWidth
                     value={formData.version}
@@ -414,6 +419,7 @@ export const AddLLMProviderForm: React.FC<AddLLMProviderFormProps> = ({
                 name="description"
               >
                 <TextField
+                  slotProps={{ htmlInput: { maxLength: LLM_PROVIDER_DESCRIPTION_MAX_LENGTH } }}
                   id="description"
                   fullWidth
                   multiline
@@ -433,6 +439,7 @@ export const AddLLMProviderForm: React.FC<AddLLMProviderFormProps> = ({
                 name="context"
               >
                 <TextField
+                  slotProps={{ htmlInput: { maxLength: INPUT_LIMITS.PATH } }}
                   id="context"
                   fullWidth
                   value={formData.context ?? ""}
@@ -593,6 +600,7 @@ export const AddLLMProviderForm: React.FC<AddLLMProviderFormProps> = ({
                 error={Boolean(errors.apiKey)}
                 helperText={errors.apiKey}
                 slotProps={{
+                  htmlInput: { maxLength: INPUT_LIMITS.SECRET },
                   input: {
                     endAdornment: (
                       <InputAdornment position="end">

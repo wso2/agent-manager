@@ -555,6 +555,7 @@ func (p *publisherCredentialProvisioner) GetOCClientForOrg(ctx context.Context, 
 			BaseURL:          p.ocBaseURL,
 			DefaultNamespace: config.GetConfig().OpenChoreo.DefaultNamespace,
 			AuthProvider:     authProv,
+			ResourceLabels:   config.GetConfig().OpenChoreo.ResourceLabels,
 		})
 		if err != nil {
 			return nil, fmt.Errorf("failed to build OC client for org %s: %w", ouID, err)

@@ -662,6 +662,9 @@ importers:
 
   workspaces/libs/views:
     dependencies:
+      '@agent-management-platform/types':
+        specifier: workspace:*
+        version: link:../types
       '@babel/runtime-corejs3':
         specifier: 7.11.2
         version: 7.11.2
@@ -738,9 +741,6 @@ importers:
       '@agent-management-platform/eslint-config':
         specifier: workspace:*
         version: link:../eslint-config
-      '@agent-management-platform/types':
-        specifier: workspace:*
-        version: link:../types
       '@babel/generator':
         specifier: 7.27.3
         version: 7.27.3

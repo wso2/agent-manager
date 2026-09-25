@@ -31,7 +31,7 @@ import {
 import { TextInput } from "@agent-management-platform/views";
 import { useAuthHooks } from "@agent-management-platform/auth";
 import { useUpdateUserProfile, useGetUserProfile } from "@agent-management-platform/api-client";
-import { globalConfig } from "@agent-management-platform/types";
+import { globalConfig, INPUT_LIMITS } from "@agent-management-platform/types";
 
 type ActiveTab = "profile" | "password";
 
@@ -195,6 +195,7 @@ export const ProfilePage: React.FC = () => {
             <Typography variant="subtitle2" color="text.secondary">Account Information</Typography>
             <Stack spacing={2}>
               <TextInput
+                maxLength={INPUT_LIMITS.NAME}
                 label="Username"
                 required
                 disabled={!isProfileManagementEnabled}
@@ -209,6 +210,7 @@ export const ProfilePage: React.FC = () => {
                 helperText={profileErrors.username}
               />
               <TextInput
+                maxLength={INPUT_LIMITS.SHORT_TEXT}
                 label="Email"
                 type="email"
                 required
@@ -230,12 +232,14 @@ export const ProfilePage: React.FC = () => {
             <Typography variant="subtitle2" color="text.secondary">Personal Information</Typography>
             <Box sx={{ display: "grid", gap: 2, gridTemplateColumns: { xs: "1fr", sm: "1fr 1fr" } }}>
               <TextInput
+                maxLength={INPUT_LIMITS.NAME}
                 label="First Name"
                 disabled={!isProfileManagementEnabled}
                 value={profileData.given_name}
                 onChange={(e) => setProfileData({ ...profileData, given_name: e.target.value })}
               />
               <TextInput
+                maxLength={INPUT_LIMITS.NAME}
                 label="Last Name"
                 disabled={!isProfileManagementEnabled}
                 value={profileData.family_name}
@@ -263,6 +267,7 @@ export const ProfilePage: React.FC = () => {
             </Typography>
             <Stack spacing={2}>
               <TextInput
+                maxLength={INPUT_LIMITS.PASSWORD}
                 label="New Password"
                 type="password"
                 showPasswordToggle
@@ -278,6 +283,7 @@ export const ProfilePage: React.FC = () => {
                 helperText={credentialErrors.newPassword || "Minimum 8 characters"}
               />
               <TextInput
+                maxLength={INPUT_LIMITS.PASSWORD}
                 label="Confirm Password"
                 type="password"
                 showPasswordToggle

@@ -24,6 +24,11 @@ import {
   Upload as UploadIcon,
 } from '@wso2/oxygen-ui-icons-react';
 import { TextInput } from '../FormElements';
+import {
+  INPUT_LIMITS,
+  formatBytes,
+  getFileMountMaxFileBytes,
+} from "@agent-management-platform/types";
 
 export interface FileMountEditorProps {
   /** Unused internally; kept optional for callers that still pass it. */
@@ -110,7 +115,8 @@ export function FileMountEditor({
     setIsEditingSecret(false);
   };
 
-  const MAX_FILE_SIZE = 1_000_000; // 1 MB — matches backend schema limit
+  // Configured per deployment (FILE_MOUNT_MAX_FILE_BYTES) to match the backend's cap.
+  const maxFileBytes = getFileMountMaxFileBytes();
   const [uploadError, setUploadError] = useState<string | null>(null);
 
   const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -118,8 +124,9 @@ export function FileMountEditor({
     if (!file) return;
     setUploadError(null);
 
-    if (file.size > MAX_FILE_SIZE) {
-      setUploadError(`File exceeds 1 MB limit (${(file.size / 1_000_000).toFixed(1)} MB)`);
+    // file.size is in bytes, which is what the backend measures.
+    if (file.size > maxFileBytes) {
+      setUploadError(`File exceeds the ${formatBytes(maxFileBytes)} limit (${formatBytes(file.size)})`);
       e.target.value = '';
       return;
     }
@@ -173,6 +180,7 @@ export function FileMountEditor({
       <Stack direction="row" gap={2} alignItems="end">
         <Box flex={1} minWidth={0}>
           <TextInput
+            maxLength={INPUT_LIMITS.FILE_NAME}
             label="File Name"
             fullWidth
             size="small"
@@ -184,6 +192,7 @@ export function FileMountEditor({
         </Box>
         <Box flex={1} minWidth={0}>
           <TextInput
+            maxLength={INPUT_LIMITS.PATH}
             label="Mount Path"
             fullWidth
             size="small"
@@ -222,6 +231,9 @@ export function FileMountEditor({
       </Stack>
       <Box>
         <TextInput
+          // A character never takes fewer than one byte, so this cap can only
+          // under-count; the form's schema checks the exact byte size on submit.
+          maxLength={maxFileBytes}
           label="File Content"
           fullWidth
           size="small"

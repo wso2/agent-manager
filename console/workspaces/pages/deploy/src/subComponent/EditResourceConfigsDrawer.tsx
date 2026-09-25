@@ -35,9 +35,10 @@ import {
 } from "@agent-management-platform/views";
 import { z } from "zod";
 import { useUpdateAgentResourceConfigs } from "@agent-management-platform/api-client";
-import type {
-  AgentResourceConfigsResponse,
-  UpdateAgentResourceConfigsRequest,
+import {
+  type AgentResourceConfigsResponse,
+  type UpdateAgentResourceConfigsRequest,
+  INPUT_LIMITS,
 } from "@agent-management-platform/types";
 import { useCallback, useEffect, useState } from "react";
 
@@ -400,6 +401,7 @@ export function EditResourceConfigsDrawer({
               <Form.Stack spacing={2}>
                 <Form.ElementWrapper label="CPU request" name="cpuRequest">
                   <TextField
+                    slotProps={{ htmlInput: { maxLength: INPUT_LIMITS.KEY } }}
                     id="cpuRequest"
                     placeholder="e.g., 500m, 0.5, 1"
                     size="small"
@@ -413,6 +415,7 @@ export function EditResourceConfigsDrawer({
                 </Form.ElementWrapper>
                 <Form.ElementWrapper label="Memory request" name="memoryRequest">
                   <TextField
+                    slotProps={{ htmlInput: { maxLength: INPUT_LIMITS.KEY } }}
                     id="memoryRequest"
                     placeholder="e.g., 512Mi, 1Gi"
                     size="small"
@@ -432,6 +435,7 @@ export function EditResourceConfigsDrawer({
               <Form.Stack spacing={2}>
                 <Form.ElementWrapper label="CPU limit" name="cpuLimit">
                   <TextField
+                    slotProps={{ htmlInput: { maxLength: INPUT_LIMITS.KEY } }}
                     id="cpuLimit"
                     placeholder="e.g., 1, 2"
                     size="small"
@@ -445,6 +449,7 @@ export function EditResourceConfigsDrawer({
                 </Form.ElementWrapper>
                 <Form.ElementWrapper label="Memory limit" name="memoryLimit">
                   <TextField
+                    slotProps={{ htmlInput: { maxLength: INPUT_LIMITS.KEY } }}
                     id="memoryLimit"
                     placeholder="e.g., 1Gi, 2Gi"
                     size="small"

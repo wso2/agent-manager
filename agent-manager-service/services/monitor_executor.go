@@ -237,9 +237,11 @@ func (e *monitorExecutor) resolveLLMProxyConfig(ctx context.Context, monitor *mo
 	}
 
 	if mapping.LLMProxy != nil {
-		if provider, provErr := e.llmProviderRepo.GetByUUID(mapping.LLMProxy.ProviderUUID.String(), monitor.OUID); provErr == nil {
-			templateHandle = provider.TemplateHandle
+		provider, provErr := e.llmProviderRepo.GetByUUID(mapping.LLMProxy.ProviderUUID.String(), monitor.OUID)
+		if provErr != nil {
+			return "", "", "", fmt.Errorf("failed to resolve monitor LLM provider: %w", provErr)
 		}
+		templateHandle = provider.TemplateHandle
 	}
 
 	return mapping.SecretKVPath, resolvedURL, templateHandle, nil

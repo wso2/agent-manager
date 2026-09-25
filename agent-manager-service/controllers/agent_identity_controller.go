@@ -76,6 +76,8 @@ type AgentIdentityController interface {
 type MCPResourceServerIdentifierResolver interface {
 	EnvironmentUUIDByName(ctx context.Context, ouID, envName string) (uuid.UUID, error)
 	MCPResourceServerIdentifier(ctx context.Context, ouID string, envID uuid.UUID, proxy *models.MCPProxy) (string, error)
+	// EnsureResourceServer ensures proxy's resource server exists with exactly actions.
+	EnsureResourceServer(ctx context.Context, ouID string, envID uuid.UUID, client thundersvc.EnvIdentityClient, proxy *models.MCPProxy, actions []string) (string, error)
 }
 
 type agentIdentityController struct {
@@ -118,29 +120,24 @@ func (c *agentIdentityController) resolveScopeEnvironment(w http.ResponseWriter,
 	return envID, true
 }
 
-// ensureGroupResourceServer derives the group's per-environment identifier and
-// ensures its resource server, writing the HTTP error itself when ok=false.
+// ensureGroupResourceServer ensures the group's resource server exists,
+// writing the HTTP error itself when ok=false.
 func (c *agentIdentityController) ensureGroupResourceServer(w http.ResponseWriter, r *http.Request, client thundersvc.EnvIdentityClient, envID uuid.UUID, g *proxyScopeGroup) (string, bool) {
 	ctx := r.Context()
 	ouID := middleware.OUIDFromRequest(r)
 	envName := r.PathValue("envName")
-	identifier, err := c.rsIdentifiers.MCPResourceServerIdentifier(ctx, ouID, envID, g.proxy)
+	rsID, err := c.rsIdentifiers.EnsureResourceServer(ctx, ouID, envID, client, g.proxy, g.actions)
 	if err != nil {
 		if errors.Is(err, services.ErrMCPProxyNotDeployedToEnvironment) {
 			utils.WriteErrorResponse(w, http.StatusBadRequest,
 				fmt.Sprintf("MCP proxy %q is not deployed to environment %q; deploy it there before granting its scopes", g.handle, envName))
 			return "", false
 		}
-		logger.GetLogger(ctx).Error("agent-identity: derive RS identifier failed", "proxy", g.handle, "env", envName, "error", err)
-		utils.WriteErrorResponse(w, http.StatusBadGateway, "Failed to resolve the MCP proxy's gateway address")
-		return "", false
-	}
-	rsID, err := client.EnsureProxyResourceServer(ctx, g.handle, displayName(g), identifier, g.actions)
-	if err != nil {
-		logger.GetLogger(ctx).Error("agent-identity: ensure proxy resource server failed", "proxy", g.handle, "error", err)
+		logger.GetLogger(ctx).Error("agent-identity: ensure proxy resource server failed", "proxy", g.handle, "env", envName, "error", err)
 		utils.WriteErrorResponse(w, http.StatusBadGateway, "Failed to register scopes with the environment identity provider")
 		return "", false
 	}
+	logger.GetLogger(ctx).Info("agent-identity: ensure proxy resource server: registered", "proxy", g.handle, "env", envName, "actions", g.actions)
 	return rsID, true
 }
 
@@ -954,14 +951,6 @@ func (c *agentIdentityController) resolveScopeGroups(ctx context.Context, ouID s
 		sort.Strings(g.scopes)
 	}
 	return groups, nil
-}
-
-// displayName is the Thunder resource-server display name for a proxy group.
-func displayName(g *proxyScopeGroup) string {
-	if g.proxy.Artifact != nil && g.proxy.Artifact.Name != "" {
-		return g.proxy.Artifact.Name
-	}
-	return g.handle
 }
 
 // sortedKeys gives deterministic iteration order over the handle-keyed groups.

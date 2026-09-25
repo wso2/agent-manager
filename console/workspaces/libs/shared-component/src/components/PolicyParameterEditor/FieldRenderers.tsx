@@ -33,6 +33,7 @@ import {
 } from "@wso2/oxygen-ui";
 import { Plus, Trash2 } from "@wso2/oxygen-ui-icons-react";
 import { FieldRendererProps } from "../../utils/policyParameterEditor";
+import { INPUT_LIMITS } from "@agent-management-platform/types";
 
 function keyToLabel(name: string): string {
   return name
@@ -113,6 +114,7 @@ const SimpleTagInput: React.FC<SimpleTagInputProps> = ({
         </Stack>
       )}
       <TextField
+        slotProps={{ htmlInput: { maxLength: INPUT_LIMITS.VALUE } }}
         value={inputValue}
         onChange={(e) => setInputValue(e.target.value)}
         onKeyDown={handleKeyDown}
@@ -180,6 +182,7 @@ export const StringFieldRenderer: React.FC<FieldRendererProps> = ({
     <Stack spacing={0.75} pb={2}>
       <Form.ElementWrapper label={label} name={node.path}>
         <TextField
+          slotProps={{ htmlInput: { maxLength: INPUT_LIMITS.VALUE } }}
           value={(value as string) || ""}
           onChange={(e) => onChange(node.path, e.target.value)}
           disabled={disabled}
@@ -362,6 +365,7 @@ export const KeyValueFieldRenderer: React.FC<FieldRendererProps> = ({
                 sx={{ width: "40%" }}
               />
               <TextField
+                slotProps={{ htmlInput: { maxLength: INPUT_LIMITS.VALUE } }}
                 value={v}
                 onChange={(e) =>
                   onChange(node.path, { ...objectValue, [k]: e.target.value })
@@ -386,6 +390,7 @@ export const KeyValueFieldRenderer: React.FC<FieldRendererProps> = ({
           ))}
           <Stack direction="row" spacing={1} alignItems="center">
             <TextField
+              slotProps={{ htmlInput: { maxLength: INPUT_LIMITS.KEY } }}
               value={newKey}
               onChange={(e) => setNewKey(e.target.value)}
               placeholder="Key"
@@ -395,6 +400,7 @@ export const KeyValueFieldRenderer: React.FC<FieldRendererProps> = ({
               onKeyDown={handleKeyDown}
             />
             <TextField
+              slotProps={{ htmlInput: { maxLength: INPUT_LIMITS.VALUE } }}
               value={newValue}
               onChange={(e) => setNewValue(e.target.value)}
               placeholder="Value"

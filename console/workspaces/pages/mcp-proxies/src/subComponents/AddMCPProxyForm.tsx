@@ -24,6 +24,7 @@ import {
 import {
   absoluteRouteMap,
   type MCPProxy,
+  INPUT_LIMITS,
 } from "@agent-management-platform/types";
 import {
   Button,
@@ -207,6 +208,7 @@ export function AddMCPProxyForm({ onCancel }: AddMCPProxyFormProps) {
             <FormControl sx={{ flex: 1 }}>
               <FormLabel required>Name</FormLabel>
               <TextField
+                slotProps={{ htmlInput: { maxLength: INPUT_LIMITS.NAME } }}
                 fullWidth
                 value={proxyName}
                 onChange={(event) => handleNameChange(event.target.value)}
@@ -218,6 +220,7 @@ export function AddMCPProxyForm({ onCancel }: AddMCPProxyFormProps) {
             >
               <FormLabel required>Version</FormLabel>
               <TextField
+                slotProps={{ htmlInput: { maxLength: INPUT_LIMITS.SHORT_TEXT } }}
                 fullWidth
                 value={proxyVersion}
                 onChange={(event) => handleVersionChange(event.target.value)}
@@ -230,6 +233,7 @@ export function AddMCPProxyForm({ onCancel }: AddMCPProxyFormProps) {
           <FormControl fullWidth error={Boolean(handleLengthError)}>
             <FormLabel required>Handle</FormLabel>
             <TextField
+              slotProps={{ htmlInput: { maxLength: MAX_HANDLE_LENGTH } }}
               fullWidth
               value={handle}
               onChange={(event) => handleHandleChange(event.target.value)}
@@ -247,6 +251,7 @@ export function AddMCPProxyForm({ onCancel }: AddMCPProxyFormProps) {
           <FormControl fullWidth>
             <FormLabel>Description</FormLabel>
             <TextField
+              slotProps={{ htmlInput: { maxLength: INPUT_LIMITS.DESCRIPTION } }}
               fullWidth
               multiline
               minRows={3}
@@ -259,6 +264,7 @@ export function AddMCPProxyForm({ onCancel }: AddMCPProxyFormProps) {
           <FormControl fullWidth>
             <FormLabel>Context</FormLabel>
             <TextField
+              slotProps={{ htmlInput: { maxLength: INPUT_LIMITS.PATH } }}
               fullWidth
               value={proxyContext}
               onChange={(event) => setProxyContext(event.target.value)}

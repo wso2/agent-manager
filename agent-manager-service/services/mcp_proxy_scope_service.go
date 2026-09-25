@@ -47,11 +47,12 @@ type MCPProxyScopeService interface {
 }
 
 // MCPProxyRedeployer is the narrow MCPProxyService surface scope mutations
-// need in order to re-emit gateway policies after a DB write. *MCPProxyService
-// satisfies it structurally (bound to it via wire.Bind in wiring/wire.go);
-// tests substitute a recording double.
+// need: gateway re-emission and resource-server ensure after a DB write.
 type MCPProxyRedeployer interface {
 	RedeployMCPProxy(ctx context.Context, proxy *models.MCPProxy, ouID string) error
+	// EnsureResourceServersForProxy registers proxy's resource server and
+	// actions in every identity-secured, deployed environment.
+	EnsureResourceServersForProxy(ctx context.Context, ouID string, proxy *models.MCPProxy, actions []string)
 }
 
 type mcpProxyScopeService struct {
@@ -157,7 +158,7 @@ func validateScopeTools(tools []string, union map[string]struct{}) ([]string, er
 }
 
 func (s *mcpProxyScopeService) Create(ctx context.Context, ouID, orgName, proxyHandle string, in models.MCPProxyScopeInput) (*models.MCPProxyScopeResult, error) {
-	_ = orgName // unused: Create never talks to env-Thunder (only Delete's cleanup does)
+	_ = orgName // unused: env-Thunder calls below are resolved by ouID, not orgName
 
 	if !mcpScopeActionRe.MatchString(in.Action) {
 		return nil, fmt.Errorf("%w: action must match ^[A-Za-z0-9._\\-]{1,100}$", utils.ErrInvalidInput)
@@ -197,6 +198,8 @@ func (s *mcpProxyScopeService) Create(ctx context.Context, ouID, orgName, proxyH
 		return nil, fmt.Errorf("failed to create mcp proxy scope: %w", err)
 	}
 
+	go s.ensureResourceServerEverywhere(context.WithoutCancel(ctx), ouID, proxy)
+
 	if err := s.proxySvc.RedeployMCPProxy(ctx, proxy, ouID); err != nil {
 		return nil, fmt.Errorf("scope created but gateway re-emission failed (retry by redeploying the proxy): %w", err)
 	}
@@ -208,7 +211,7 @@ func (s *mcpProxyScopeService) Create(ctx context.Context, ouID, orgName, proxyH
 }
 
 func (s *mcpProxyScopeService) Update(ctx context.Context, ouID, orgName, proxyHandle, action string, in models.MCPProxyScopeUpdateInput) (*models.MCPProxyScopeResult, error) {
-	_ = orgName // unused: Update never talks to env-Thunder (only Delete's cleanup does)
+	_ = orgName // unused: env-Thunder calls below are resolved by ouID, not orgName
 
 	proxy, err := s.resolveProxy(ctx, ouID, proxyHandle)
 	if err != nil {
@@ -242,6 +245,8 @@ func (s *mcpProxyScopeService) Update(ctx context.Context, ouID, orgName, proxyH
 		return nil, fmt.Errorf("failed to update mcp proxy scope: %w", err)
 	}
 
+	go s.ensureResourceServerEverywhere(context.WithoutCancel(ctx), ouID, proxy)
+
 	if err := s.proxySvc.RedeployMCPProxy(ctx, proxy, ouID); err != nil {
 		return nil, fmt.Errorf("scope updated but gateway re-emission failed (retry by redeploying the proxy): %w", err)
 	}
@@ -273,6 +278,32 @@ func (s *mcpProxyScopeService) Delete(ctx context.Context, ouID, orgName, proxyH
 		return fmt.Errorf("scope deleted but gateway re-emission failed (retry by redeploying the proxy): %w", err)
 	}
 	return nil
+}
+
+// ensureResourceServerEverywhere loads proxy's current scopes and delegates
+// to MCPProxyService.EnsureResourceServersForProxy.
+func (s *mcpProxyScopeService) ensureResourceServerEverywhere(ctx context.Context, ouID string, proxy *models.MCPProxy) {
+	hasIdentityEndpoint := false
+	for i := range proxy.Endpoints {
+		if mcpIdentityEnabled(proxy.Endpoints[i].Configuration.Security) {
+			hasIdentityEndpoint = true
+			break
+		}
+	}
+	if !hasIdentityEndpoint {
+		return
+	}
+
+	scopes, err := s.scopeRepo.ListByProxy(ctx, proxy.UUID)
+	if err != nil {
+		s.logger.Warn("ensure resource server (scope save): listing scopes failed", "proxy", proxyHandleOf(proxy), "error", err)
+		return
+	}
+	actions := make([]string, 0, len(scopes))
+	for _, sc := range scopes {
+		actions = append(actions, sc.Action)
+	}
+	s.proxySvc.EnsureResourceServersForProxy(ctx, ouID, proxy, actions)
 }
 
 // cleanupDeletedScope best-effort removes the deleted scope's Thunder action and

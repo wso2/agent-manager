@@ -23,8 +23,12 @@ import (
 	"context"
 	"fmt"
 	"log/slog"
+	"maps"
 	"net/http"
 	"slices"
+	"strings"
+
+	"k8s.io/apimachinery/pkg/util/validation"
 
 	"github.com/wso2/agent-manager/agent-manager-service/clients/openchoreosvc/gen"
 	"github.com/wso2/agent-manager/agent-manager-service/clients/requests"
@@ -45,6 +49,11 @@ type Config struct {
 	// calls are scoped to. The deployment runs single-namespace, so every
 	// method overrides its namespace/org argument with this value.
 	DefaultNamespace string
+	// ResourceLabels are stamped on every Component and ReleaseBinding the
+	// client writes, overwriting any existing value for the same key. Empty by
+	// default; a deployment injects its own (e.g. WSO2 Cloud's product label,
+	// which product-scoped suspension selects ReleaseBindings by).
+	ResourceLabels map[string]string
 }
 
 // OpenChoreoClient defines the interface for OpenChoreo operations
@@ -195,6 +204,41 @@ type openChoreoClient struct {
 	// defaultNamespace is the OpenChoreo namespace all API calls resolve to;
 	// see NamespaceFor.
 	defaultNamespace string
+	// resourceLabels are stamped on every Component and ReleaseBinding write;
+	// see Config.ResourceLabels and withResourceLabels.
+	resourceLabels map[string]string
+}
+
+// withResourceLabels returns labels with every configured resource label set,
+// allocating the map only when there is something to add. Every Component
+// create and ReleaseBinding write goes through it, so a full-object update of
+// a binding the OpenChoreo controller created without them still gains them.
+func (c *openChoreoClient) withResourceLabels(labels *map[string]string) *map[string]string {
+	if len(c.resourceLabels) == 0 {
+		return labels
+	}
+	if labels == nil {
+		labels = &map[string]string{}
+	}
+	if *labels == nil {
+		*labels = make(map[string]string, len(c.resourceLabels))
+	}
+	maps.Copy(*labels, c.resourceLabels)
+	return labels
+}
+
+// validateResourceLabels rejects keys and values the API server would refuse,
+// so a bad deployment config fails at startup rather than on every write.
+func validateResourceLabels(labels map[string]string) error {
+	for key, value := range labels {
+		if errs := validation.IsQualifiedName(key); len(errs) > 0 {
+			return fmt.Errorf("invalid resource label key %q: %s", key, strings.Join(errs, "; "))
+		}
+		if errs := validation.IsValidLabelValue(value); len(errs) > 0 {
+			return fmt.Errorf("invalid value %q for resource label %q: %s", value, key, strings.Join(errs, "; "))
+		}
+	}
+	return nil
 }
 
 // NamespaceFor resolves the OpenChoreo namespace an OU's workloads run in.
@@ -220,6 +264,9 @@ func NewOpenChoreoClient(cfg *Config) (OpenChoreoClient, error) {
 	}
 	if cfg.AuthProvider == nil {
 		return nil, fmt.Errorf("auth provider is required")
+	}
+	if err := validateResourceLabels(cfg.ResourceLabels); err != nil {
+		return nil, err
 	}
 
 	// Configure retry behavior to handle 401 Unauthorized by invalidating the token
@@ -277,5 +324,6 @@ func NewOpenChoreoClient(cfg *Config) (OpenChoreoClient, error) {
 	return &openChoreoClient{
 		ocClient:         ocClient,
 		defaultNamespace: cfg.DefaultNamespace,
+		resourceLabels:   maps.Clone(cfg.ResourceLabels),
 	}, nil
 }

@@ -25,7 +25,7 @@ import {
 } from "@agent-management-platform/views";
 import { useNavigate, useParams, generatePath } from "react-router-dom";
 import { useCreateUser } from "@agent-management-platform/api-client";
-import { absoluteRouteMap } from "@agent-management-platform/types";
+import { absoluteRouteMap, INPUT_LIMITS } from "@agent-management-platform/types";
 import { addUserSchema, type AddUserFormValues } from "./forms/schemas";
 
 export const UserAddPage: React.FC = () => {
@@ -135,6 +135,7 @@ export const UserAddPage: React.FC = () => {
             <Form.Stack spacing={2}>
               <Form.ElementWrapper label="Username" name="username">
                 <TextField
+                  slotProps={{ htmlInput: { maxLength: INPUT_LIMITS.NAME } }}
                   id="username"
                   value={formData.username}
                   onChange={(e) =>
@@ -151,6 +152,7 @@ export const UserAddPage: React.FC = () => {
 
               <Form.ElementWrapper label="Password" name="password">
                 <TextInput
+                  maxLength={INPUT_LIMITS.PASSWORD}
                   id="password"
                   type="password"
                   showPasswordToggle
@@ -171,6 +173,7 @@ export const UserAddPage: React.FC = () => {
                 name="firstName"
               >
                 <TextField
+                  slotProps={{ htmlInput: { maxLength: INPUT_LIMITS.NAME } }}
                   id="firstName"
                   value={formData.firstName}
                   onChange={(e) =>
@@ -185,6 +188,7 @@ export const UserAddPage: React.FC = () => {
 
               <Form.ElementWrapper label="Last Name (optional)" name="lastName">
                 <TextField
+                  slotProps={{ htmlInput: { maxLength: INPUT_LIMITS.NAME } }}
                   id="lastName"
                   value={formData.lastName}
                   onChange={(e) =>
@@ -202,6 +206,7 @@ export const UserAddPage: React.FC = () => {
                 name="email"
               >
                 <TextField
+                  slotProps={{ htmlInput: { maxLength: INPUT_LIMITS.SHORT_TEXT } }}
                   id="email"
                   type="email"
                   value={formData.email}

@@ -130,6 +130,109 @@ func TestEnsureProjectReleaseBinding_ExistingBindingIsSuccess(t *testing.T) {
 	require.NoError(t, err, "an existing binding for the same project and environment is what we wanted")
 }
 
+// Bindings created before the org UUID label existed are never re-created, so
+// the 409 path is the only place they can pick it up. Other environment configs
+// and namespace labels on the binding must survive the update.
+func TestEnsureProjectReleaseBinding_BackfillsOrgUUIDOnExistingBinding(t *testing.T) {
+	const ouID = "019eafc8-0f23-7974-9119-d762c59c83a1"
+	var updated *gen.ProjectReleaseBinding
+	srv := newTestClient(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.Method {
+		case http.MethodPost:
+			w.WriteHeader(http.StatusConflict)
+			require.NoError(t, json.NewEncoder(w).Encode(gen.Conflict{Error: "already exists"}))
+		case http.MethodPut:
+			updated = &gen.ProjectReleaseBinding{}
+			require.NoError(t, json.NewDecoder(r.Body).Decode(updated))
+			w.WriteHeader(http.StatusOK)
+			require.NoError(t, json.NewEncoder(w).Encode(updated))
+		default:
+			w.WriteHeader(http.StatusOK)
+			require.NoError(t, json.NewEncoder(w).Encode(gen.ProjectReleaseBinding{
+				Metadata: gen.ObjectMeta{Name: "my-project-dev"},
+				Spec: &gen.ProjectReleaseBindingSpec{
+					Owner: struct {
+						ProjectName string `json:"projectName"`
+					}{ProjectName: "my-project"},
+					Environment: "dev",
+					EnvironmentConfigs: &map[string]interface{}{
+						"other":            "kept",
+						namespaceLabelsKey: map[string]string{"team": "a"},
+					},
+				},
+			}))
+		}
+	}))
+
+	require.NoError(t, srv.EnsureProjectReleaseBinding(context.Background(), ouID, "my-project", "dev"))
+
+	require.NotNil(t, updated, "existing binding without the label must be updated")
+	configs := *updated.Spec.EnvironmentConfigs
+	assert.Equal(t, "kept", configs["other"])
+	nsLabels, ok := configs[namespaceLabelsKey].(map[string]interface{})
+	require.True(t, ok)
+	assert.Equal(t, ouID, nsLabels[string(LabelKeyOrgUUID)])
+	assert.Equal(t, "a", nsLabels["team"])
+}
+
+func TestEnsureProjectReleaseBinding_ExistingLabelledBindingIsNotUpdated(t *testing.T) {
+	const ouID = "019eafc8-0f23-7974-9119-d762c59c83a1"
+	srv := newTestClient(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.Method {
+		case http.MethodPost:
+			w.WriteHeader(http.StatusConflict)
+			require.NoError(t, json.NewEncoder(w).Encode(gen.Conflict{Error: "already exists"}))
+		case http.MethodPut:
+			t.Error("binding already carries the label; no update expected")
+			w.WriteHeader(http.StatusOK)
+		default:
+			w.WriteHeader(http.StatusOK)
+			require.NoError(t, json.NewEncoder(w).Encode(gen.ProjectReleaseBinding{
+				Metadata: gen.ObjectMeta{Name: "my-project-dev"},
+				Spec: &gen.ProjectReleaseBindingSpec{
+					Owner: struct {
+						ProjectName string `json:"projectName"`
+					}{ProjectName: "my-project"},
+					Environment: "dev",
+					EnvironmentConfigs: &map[string]interface{}{
+						namespaceLabelsKey: map[string]string{string(LabelKeyOrgUUID): ouID},
+					},
+				},
+			}))
+		}
+	}))
+
+	require.NoError(t, srv.EnsureProjectReleaseBinding(context.Background(), ouID, "my-project", "dev"))
+}
+
+// The label is for metering only, so failing to backfill it must not block the
+// deploy that triggered the ensure.
+func TestEnsureProjectReleaseBinding_BackfillFailureIsNotFatal(t *testing.T) {
+	srv := newTestClient(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.Method {
+		case http.MethodPost:
+			w.WriteHeader(http.StatusConflict)
+			require.NoError(t, json.NewEncoder(w).Encode(gen.Conflict{Error: "already exists"}))
+		case http.MethodPut:
+			w.WriteHeader(http.StatusForbidden)
+			require.NoError(t, json.NewEncoder(w).Encode(gen.Forbidden{Error: "no permission"}))
+		default:
+			w.WriteHeader(http.StatusOK)
+			require.NoError(t, json.NewEncoder(w).Encode(gen.ProjectReleaseBinding{
+				Metadata: gen.ObjectMeta{Name: "my-project-dev"},
+				Spec: &gen.ProjectReleaseBindingSpec{
+					Owner: struct {
+						ProjectName string `json:"projectName"`
+					}{ProjectName: "my-project"},
+					Environment: "dev",
+				},
+			}))
+		}
+	}))
+
+	require.NoError(t, srv.EnsureProjectReleaseBinding(context.Background(), "acme", "my-project", "dev"))
+}
+
 func TestEnsureProjectReleaseBinding_NameCollisionWithAnotherProjectIsAnError(t *testing.T) {
 	// Binding names are "<project>-<environment>", so project "my" + env
 	// "project-dev" collides with project "my-project" + env "dev". Treating

@@ -503,6 +503,23 @@ def _create_custom_llm_judge(identifier: str, prompt_template: str, level: str, 
     return FunctionLLMJudge(_build_prompt, name=identifier, **llm_config)
 
 
+def _apply_monitor_parameter_policy(instance, eval_type: str | None) -> None:
+    """Apply monitor compatibility rules without changing saved evaluator config."""
+    from amp_evaluation.evaluators.base import LLMAsJudgeEvaluator
+
+    # Arbitrary code evaluators own their parameters and SDK calls.
+    if eval_type == "code" or not isinstance(instance, LLMAsJudgeEvaluator):
+        return
+    provider = instance.model.replace(":", "/").split("/", 1)[0].lower()
+    if provider == "anthropic":
+        instance._monitor_omit_temperature = True
+        logger.warning(
+            "%s: Temperature is not applied to Anthropic evaluations in monitors. "
+            "The provider's default sampling behavior will be used; the configured value is retained.",
+            instance.name,
+        )
+
+
 def main() -> None:
     """Main entry point for monitor job."""
     configure_logging()
@@ -655,6 +672,7 @@ def main() -> None:
             else:
                 instance = builtin(identifier, **config)
             instance.name = display_name
+            _apply_monitor_parameter_policy(instance, eval_type)
             evaluator_instances.append(instance)
             display_name_to_identifier[display_name] = identifier
         except Exception as e:

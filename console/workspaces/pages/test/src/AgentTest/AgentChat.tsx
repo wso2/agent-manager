@@ -37,6 +37,7 @@ import { useParams } from "react-router-dom";
 import { ChatMessage } from "./subComponents/ChatMessage";
 import { FadeIn, useSnackBar } from "@agent-management-platform/views";
 import { readSSEStream, parseStreamChunk } from "./utils/sse";
+import { INPUT_LIMITS } from "@agent-management-platform/types";
 
 interface ChatMessage {
   id: string;
@@ -489,6 +490,7 @@ export function AgentChat() {
               gap={1}
             >
               <TextField
+                slotProps={{ htmlInput: { maxLength: INPUT_LIMITS.LONG_TEXT } }}
                 fullWidth
                 value={message}
                 onChange={(e) => setMessage(e.target.value)}
@@ -593,6 +595,7 @@ export function AgentChat() {
           py={2}
         >
           <TextField
+            slotProps={{ htmlInput: { maxLength: INPUT_LIMITS.LONG_TEXT } }}
             fullWidth
             value={message}
             onChange={(e) => setMessage(e.target.value)}

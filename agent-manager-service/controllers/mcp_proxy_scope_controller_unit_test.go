@@ -43,6 +43,9 @@ func (noopScopeRedeployer) RedeployMCPProxy(context.Context, *models.MCPProxy, s
 	return nil
 }
 
+func (noopScopeRedeployer) EnsureResourceServersForProxy(context.Context, string, *models.MCPProxy, []string) {
+}
+
 // scopeUpdateTestController wires the real scope service behind the controller so
 // the tests below exercise the whole decode -> validate -> persist path, which is
 // where the nil-vs-empty distinction for "tools" lives.

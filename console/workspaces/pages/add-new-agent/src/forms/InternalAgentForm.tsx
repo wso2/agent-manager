@@ -25,7 +25,7 @@ import {
   useAgentBuildOptions,
   useGenerateResourceName,
 } from "@agent-management-platform/api-client";
-import { globalConfig } from "@agent-management-platform/types";
+import { globalConfig, INPUT_LIMITS } from "@agent-management-platform/types";
 import { InputInterface } from "../components/InputInterface";
 import { EnvironmentVariable } from "../components/EnvironmentVariable";
 import { FileMount } from "../components/FileMount";
@@ -290,6 +290,7 @@ export const InternalAgentForm = ({
         <Form.Stack spacing={2}>
           <Form.ElementWrapper label="Name" name="displayName">
             <TextField
+              slotProps={{ htmlInput: { maxLength: INPUT_LIMITS.NAME } }}
               id="displayName"
               placeholder="e.g., Customer Support Agent"
               value={formData.displayName}
@@ -359,6 +360,7 @@ export const InternalAgentForm = ({
             <>
               <Form.ElementWrapper label="GitHub Repository" name="repositoryUrl">
                 <TextField
+                  slotProps={{ htmlInput: { maxLength: INPUT_LIMITS.URL } }}
                   id="repositoryUrl"
                   placeholder="https://github.com/username/repo"
                   value={formData.repositoryUrl}
@@ -378,6 +380,7 @@ export const InternalAgentForm = ({
               <Form.Stack direction="row" spacing={2}>
                 <Form.ElementWrapper label="Branch" name="branch">
                   <TextField
+                    slotProps={{ htmlInput: { maxLength: INPUT_LIMITS.SHORT_TEXT } }}
                     id="branch"
                     placeholder="main"
                     value={formData.branch}
@@ -389,6 +392,7 @@ export const InternalAgentForm = ({
                 </Form.ElementWrapper>
                 <Form.ElementWrapper label="Project Path" name="appPath">
                   <TextField
+                    slotProps={{ htmlInput: { maxLength: INPUT_LIMITS.PATH } }}
                     id="appPath"
                     placeholder="my-agent"
                     value={formData.appPath}
@@ -433,6 +437,7 @@ export const InternalAgentForm = ({
             <Form.Stack direction="row" spacing={2}>
               <Form.ElementWrapper label="Start Command" name="runCommand">
                 <TextField
+                  slotProps={{ htmlInput: { maxLength: INPUT_LIMITS.VALUE } }}
                   id="runCommand"
                   placeholder="python main.py"
                   value={formData.runCommand}
@@ -634,6 +639,7 @@ export const InternalAgentForm = ({
               <Form.Stack direction="row" spacing={2}>
                 <Form.ElementWrapper label="Dockerfile Path" name="dockerfilePath">
                   <TextField
+                    slotProps={{ htmlInput: { maxLength: INPUT_LIMITS.PATH } }}
                     id="dockerfilePath"
                     placeholder="e.g., ./Dockerfile"
                     value={formData.dockerfilePath || ''}

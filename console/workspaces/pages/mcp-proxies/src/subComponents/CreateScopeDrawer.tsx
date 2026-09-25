@@ -44,11 +44,12 @@ import {
   useDialogAnalytics,
   useValidationErrorTracking,
 } from "@agent-management-platform/api-client";
-import type {
-  AgentIdentityRoleListResponse,
-  Environment,
-  MCPProxyScopeResponse,
-  ThunderRole,
+import {
+  type AgentIdentityRoleListResponse,
+  type Environment,
+  type MCPProxyScopeResponse,
+  type ThunderRole,
+  INPUT_LIMITS,
 } from "@agent-management-platform/types";
 import { z } from "zod";
 
@@ -300,6 +301,7 @@ export function CreateScopeDrawer({
             <FormControl fullWidth error={Boolean(errors.name)}>
               <FormLabel required>Name</FormLabel>
               <TextField
+                slotProps={{ htmlInput: { maxLength: INPUT_LIMITS.NAME } }}
                 fullWidth
                 size="small"
                 value={formData.name}
@@ -314,6 +316,7 @@ export function CreateScopeDrawer({
             <FormControl fullWidth error={Boolean(errors.description)}>
               <FormLabel>Description</FormLabel>
               <TextField
+                slotProps={{ htmlInput: { maxLength: INPUT_LIMITS.DESCRIPTION } }}
                 fullWidth
                 size="small"
                 multiline

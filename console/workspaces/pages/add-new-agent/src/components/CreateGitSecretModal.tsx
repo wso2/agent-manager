@@ -32,6 +32,7 @@ import {
 import { useCreateGitSecret } from '@agent-management-platform/api-client';
 import { useFormValidation } from '@agent-management-platform/views';
 import { z } from 'zod';
+import { INPUT_LIMITS } from "@agent-management-platform/types";
 
 interface CreateGitSecretModalProps {
   open: boolean;
@@ -39,13 +40,17 @@ interface CreateGitSecretModalProps {
   onSecretCreated: (secretName: string) => void;
 }
 
+// The input caps at exactly what this schema accepts, so a name cannot be
+// typed past the limit and rejected on submit.
+const GIT_SECRET_NAME_MAX_LENGTH = 25;
+
 const gitSecretSchema = z.object({
   name: z
     .string()
     .trim()
     .min(1, 'Name is required')
     .min(2, 'Name must be at least 2 characters')
-    .max(25, 'Name must be at most 25 characters')
+    .max(GIT_SECRET_NAME_MAX_LENGTH, `Name must be at most ${GIT_SECRET_NAME_MAX_LENGTH} characters`)
     .refine(
       (value) => /^[a-zA-Z0-9][a-zA-Z0-9-]*[a-zA-Z0-9]$/.test(value) || value.length === 1,
       { message: 'Name must start and end with alphanumeric characters' }
@@ -137,6 +142,7 @@ export const CreateGitSecretModal = ({
 
           <Form.ElementWrapper label="Secret Name" name="name">
             <TextField
+              slotProps={{ htmlInput: { maxLength: GIT_SECRET_NAME_MAX_LENGTH } }}
               id="name"
               placeholder="e.g., my-github-pat"
               value={formState.name}
@@ -149,6 +155,7 @@ export const CreateGitSecretModal = ({
 
           <Form.ElementWrapper label="Username" name="username">
             <TextField
+              slotProps={{ htmlInput: { maxLength: INPUT_LIMITS.NAME } }}
               id="username"
               placeholder="e.g., your-github-username"
               value={formState.username}
@@ -161,6 +168,7 @@ export const CreateGitSecretModal = ({
 
           <Form.ElementWrapper label="Personal Access Token" name="password">
             <TextField
+              slotProps={{ htmlInput: { maxLength: INPUT_LIMITS.SECRET } }}
               id="password"
               placeholder="ghp_xxxxxxxxxxxx"
               type="password"

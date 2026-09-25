@@ -31,6 +31,7 @@ import { Edit, Eye, EyeOff, Lock, Trash2 as DeleteOutline, X } from '@wso2/oxyge
 import { useState } from 'react';
 import { TextInput } from '../FormElements';
 import { MAX_FILE_SIZE, parseEnvFileContent } from '../EnvFileUpload';
+import { INPUT_LIMITS } from "@agent-management-platform/types";
 
 export interface EnvVariableEditorProps {
   /**
@@ -234,6 +235,7 @@ export function EnvVariableEditor({
       <Stack direction="row" gap={2} alignItems="flex-start">
         <Box flex={1} minWidth={0}>
           <TextInput
+            maxLength={INPUT_LIMITS.KEY}
             label={keyLabel}
             fullWidth
             size="small"
@@ -247,6 +249,7 @@ export function EnvVariableEditor({
         </Box>
         <Box flex={1} minWidth={0}>
           <TextInput
+            maxLength={INPUT_LIMITS.VALUE}
             label={valueLabel}
             type={isSecretField && !showValue ? 'password' : 'text'}
             fullWidth

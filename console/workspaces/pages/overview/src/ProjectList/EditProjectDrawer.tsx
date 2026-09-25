@@ -28,7 +28,7 @@ import {
 } from "@agent-management-platform/views";
 import { z } from "zod";
 import { useListDeploymentPipelines, useListEnvironments, useUpdateProject } from "@agent-management-platform/api-client";
-import { type DeploymentPipelineResponse, ProjectResponse, UpdateProjectRequest } from "@agent-management-platform/types";
+import { type DeploymentPipelineResponse, ProjectResponse, UpdateProjectRequest, INPUT_LIMITS } from "@agent-management-platform/types";
 import { MarkdownEditor } from "@agent-management-platform/shared-component";
 import { useEffect, useState, useCallback, useMemo } from "react";
 
@@ -234,6 +234,7 @@ export function EditProjectDrawer({ open, onClose, project, orgId }: EditProject
                 <Box display="flex" flexDirection="column" gap={1}>
                   <Form.ElementWrapper label="Name" name="displayName">
                     <TextField
+                      slotProps={{ htmlInput: { maxLength: INPUT_LIMITS.NAME } }}
                       id="displayName"
                       placeholder="e.g., Customer Support Platform"
                       size="small"

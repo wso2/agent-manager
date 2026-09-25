@@ -18,10 +18,11 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { z } from "zod";
-import type {
-  LLMProviderResponse,
-  UpdateLLMProviderRequest,
-  UpstreamAuthType,
+import {
+  type LLMProviderResponse,
+  type UpdateLLMProviderRequest,
+  type UpstreamAuthType,
+  INPUT_LIMITS,
 } from "@agent-management-platform/types";
 import {
   Alert,
@@ -339,6 +340,7 @@ export function LLMProviderConnectionTab({
             <FormControl fullWidth>
               <FormLabel>Provider Endpoint</FormLabel>
               <TextField
+                slotProps={{ htmlInput: { maxLength: INPUT_LIMITS.URL } }}
                 size="small"
                 value={providerEndpoint}
                 onChange={(e) => {
@@ -379,6 +381,7 @@ export function LLMProviderConnectionTab({
             <FormControl fullWidth>
               <FormLabel>Authentication Header</FormLabel>
               <TextField
+                slotProps={{ htmlInput: { maxLength: INPUT_LIMITS.KEY } }}
                 size="small"
                 value={authenticationHeader}
                 onChange={(e) => setAuthenticationHeader(e.target.value)}
@@ -404,6 +407,7 @@ export function LLMProviderConnectionTab({
                   setCredentialValue(e.target.value);
                 }}
                 slotProps={{
+                  htmlInput: { maxLength: INPUT_LIMITS.SECRET },
                   input: {
                     endAdornment: (
                       <InputAdornment position="end">

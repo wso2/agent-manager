@@ -20,6 +20,7 @@ import { useState } from "react";
 import { Box, Button, Chip, IconButton, Typography } from "@wso2/oxygen-ui";
 import { Plus as Add, X as RemoveIcon } from "@wso2/oxygen-ui-icons-react";
 import { TextInput } from "@agent-management-platform/views";
+import { INPUT_LIMITS } from "@agent-management-platform/types";
 
 /** Mirrors the backend label rules (utils/labels.go in agent-manager-service). */
 export const MAX_LABELS_PER_RESOURCE = 10;
@@ -126,6 +127,7 @@ export const LabelsEditor = ({
       {isAddFormOpen && (
         <Box display="flex" gap={1} alignItems="flex-start">
           <TextInput
+            maxLength={INPUT_LIMITS.KEY}
             label="Key"
             size="small"
             value={newKey}
@@ -136,6 +138,7 @@ export const LabelsEditor = ({
             disabled={disabled}
           />
           <TextInput
+            maxLength={INPUT_LIMITS.VALUE}
             label="Value"
             size="small"
             value={newValue}

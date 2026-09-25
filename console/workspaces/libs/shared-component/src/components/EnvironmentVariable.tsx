@@ -37,6 +37,7 @@ import {
   EyeOff,
 } from "@wso2/oxygen-ui-icons-react";
 import { TextInput } from "@agent-management-platform/views";
+import { INPUT_LIMITS } from "@agent-management-platform/types";
 
 export interface EnvVariableItem {
   key: string;
@@ -182,6 +183,7 @@ export const EnvironmentVariable = ({
                     )}
                   </Box>
                   <TextInput
+                    maxLength={INPUT_LIMITS.VALUE}
                     label="New Value"
                     type={isSecret && !showEditPassword ? "password" : "text"}
                     fullWidth
@@ -339,6 +341,7 @@ export const EnvironmentVariable = ({
         >
           <Box display="flex" flexDirection="column" gap={2}>
             <TextInput
+              maxLength={INPUT_LIMITS.KEY}
               label="Name"
               fullWidth
               size="small"
@@ -352,6 +355,7 @@ export const EnvironmentVariable = ({
               placeholder="Enter a new key"
             />
             <TextInput
+              maxLength={INPUT_LIMITS.VALUE}
               label="Value"
               type={
                 newEnvVar.isSensitive && !showNewPassword ? "password" : "text"

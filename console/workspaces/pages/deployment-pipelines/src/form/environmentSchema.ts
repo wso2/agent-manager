@@ -16,10 +16,27 @@
  */
 
 import { z } from "zod";
+import { INPUT_LIMITS } from '@agent-management-platform/types';
+
+// Exported so the create/edit forms' inputs cap at exactly what these schemas
+// accept, rather than a generic limit that would reject valid values.
+export const ENVIRONMENT_DISPLAY_NAME_MAX_LENGTH = 128;
+export const ENVIRONMENT_NAME_MAX_LENGTH = 64;
+export const THUNDER_HANDLE_MAX_LENGTH = 63;
 
 export const editEnvironmentSchema = z.object({
-  displayName: z.string().min(1, "Display name is required").max(128, "Display name must be 128 characters or less"),
-  description: z.string().nullable().optional(),
+  displayName: z
+    .string()
+    .min(1, "Display name is required")
+    .max(
+      ENVIRONMENT_DISPLAY_NAME_MAX_LENGTH,
+      `Display name must be ${ENVIRONMENT_DISPLAY_NAME_MAX_LENGTH} characters or less`
+    ),
+  description: z
+    .string()
+    .max(INPUT_LIMITS.DESCRIPTION, `Description must be at most ${INPUT_LIMITS.DESCRIPTION} characters`)
+    .nullable()
+    .optional(),
   isProduction: z.boolean().optional(),
 });
 
@@ -35,6 +52,7 @@ export type IsolationTier = (typeof isolationTiers)[number];
 // agent-manager-service generate a 10-character handle instead (see
 // add-environment-thunder.sh's THUNDER_HANDLE / register_thunder_url).
 const thunderHandlePattern = /^[a-z0-9]([a-z0-9-]*[a-z0-9])?$/;
+
 
 // Mirrors agent-manager-service's reservedThunderHandles (services/environment_service.go)
 // exactly — labels that identify a real platform component/namespace, so allowing
@@ -72,10 +90,19 @@ export const createEnvironmentSchema = z.object({
   name: z
     .string()
     .min(1, "Name is required")
-    .max(64, "Name must be 64 characters or less")
+    .max(ENVIRONMENT_NAME_MAX_LENGTH, `Name must be ${ENVIRONMENT_NAME_MAX_LENGTH} characters or less`)
     .regex(/^[a-z0-9-]+$/, "Name must be lowercase alphanumeric with hyphens only"),
-  displayName: z.string().min(1, "Display name is required").max(128, "Display name must be 128 characters or less"),
-  description: z.string().optional(),
+  displayName: z
+    .string()
+    .min(1, "Display name is required")
+    .max(
+      ENVIRONMENT_DISPLAY_NAME_MAX_LENGTH,
+      `Display name must be ${ENVIRONMENT_DISPLAY_NAME_MAX_LENGTH} characters or less`
+    ),
+  description: z
+    .string()
+    .max(INPUT_LIMITS.DESCRIPTION, `Description must be at most ${INPUT_LIMITS.DESCRIPTION} characters`)
+    .optional(),
   dataplaneRef: z.string().min(1, "Data plane is required"),
   dnsPrefix: z.string().min(1, "DNS prefix is required").max(100),
   isProduction: z.boolean().optional(),
@@ -85,7 +112,7 @@ export const createEnvironmentSchema = z.object({
     // Matches agent-manager-service's own minThunderHandleLen — a hard floor,
     // not just client-side advice; the backend enforces it independently.
     .min(3, "Handle must be at least 3 characters")
-    .max(63, "Handle must be 63 characters or less")
+    .max(THUNDER_HANDLE_MAX_LENGTH, `Handle must be ${THUNDER_HANDLE_MAX_LENGTH} characters or less`)
     .regex(thunderHandlePattern, "Handle must be lowercase alphanumeric with hyphens only, no leading/trailing hyphen")
     .refine((value) => !RESTRICTED_THUNDER_HANDLES.has(value), {
       message: "This name is reserved for a platform component and can't be used as a handle",

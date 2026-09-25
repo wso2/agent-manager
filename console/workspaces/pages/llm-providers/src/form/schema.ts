@@ -17,6 +17,13 @@
 
 import { z } from "zod";
 
+// Exported so the add/edit forms cap their inputs at exactly what this schema
+// accepts, instead of a generic limit that would reject valid values or let the
+// user type past validation.
+export const LLM_PROVIDER_NAME_MAX_LENGTH = 120;
+export const LLM_PROVIDER_DESCRIPTION_MAX_LENGTH = 512;
+
+
 const VERSION_PATTERN = /^v\d+\.\d+$/;
 const DURATION_PATTERN = /^\d+(\.\d+)?(ms|s|m|h)$/;
 
@@ -30,7 +37,7 @@ export const addLLMProviderSchema = z.object({
     .trim()
     .min(1, "Display name is required")
     .min(2, "Display name must be at least 2 characters")
-    .max(120, "Display name must be at most 120 characters"),
+    .max(LLM_PROVIDER_NAME_MAX_LENGTH, `Display name must be at most ${LLM_PROVIDER_NAME_MAX_LENGTH} characters`),
   version: z
     .string()
     .trim()
@@ -39,7 +46,7 @@ export const addLLMProviderSchema = z.object({
   description: z
     .string()
     .trim()
-    .max(512, "Description cannot exceed 512 characters")
+    .max(LLM_PROVIDER_DESCRIPTION_MAX_LENGTH, `Description cannot exceed ${LLM_PROVIDER_DESCRIPTION_MAX_LENGTH} characters`)
     .optional()
     .or(z.literal("")),
   context: z
@@ -87,11 +94,11 @@ export const editLLMProviderSchema = z.object({
     .trim()
     .min(1, "Name is required")
     .min(2, "Name must be at least 2 characters")
-    .max(120, "Name must be at most 120 characters"),
+    .max(LLM_PROVIDER_NAME_MAX_LENGTH, `Name must be at most ${LLM_PROVIDER_NAME_MAX_LENGTH} characters`),
   description: z
     .string()
     .trim()
-    .max(512, "Description cannot exceed 512 characters")
+    .max(LLM_PROVIDER_DESCRIPTION_MAX_LENGTH, `Description cannot exceed ${LLM_PROVIDER_DESCRIPTION_MAX_LENGTH} characters`)
     .optional()
     .or(z.literal("")),
 });

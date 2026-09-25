@@ -22,12 +22,13 @@ import {
   useUpdateMCPProxyScope,
 } from "@agent-management-platform/api-client";
 import { useConfirmationDialog } from "@agent-management-platform/shared-component";
-import type {
-  APIKeyLocation,
-  Environment,
-  MCPEndpointConfig,
-  MCPProxy,
-  MCPProxyScopeResponse,
+import {
+  type APIKeyLocation,
+  type Environment,
+  type MCPEndpointConfig,
+  type MCPProxy,
+  type MCPProxyScopeResponse,
+  INPUT_LIMITS,
 } from "@agent-management-platform/types";
 import {
   Alert,
@@ -733,6 +734,7 @@ export function MCPProxySecurityTab({
                 {keyIn === "query" ? "Query Param Key" : "Header Key"}
               </FormLabel>
               <TextField
+                slotProps={{ htmlInput: { maxLength: INPUT_LIMITS.KEY } }}
                 size="small"
                 value={keyValue}
                 onChange={(e) => {

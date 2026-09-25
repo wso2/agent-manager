@@ -34,7 +34,7 @@ import {
   useFormValidation,
   useDirtyState,
 } from "@agent-management-platform/views";
-import { absoluteRouteMap } from "@agent-management-platform/types";
+import { absoluteRouteMap, INPUT_LIMITS } from "@agent-management-platform/types";
 import { inviteUserSchema, type InviteUserFormValues } from "./forms/schemas";
 
 export const UserInvitePage: React.FC = () => {
@@ -127,6 +127,7 @@ export const UserInvitePage: React.FC = () => {
                 <Form.Stack spacing={2}>
                   <Form.ElementWrapper label="Email Address" name="email">
                     <TextField
+                      slotProps={{ htmlInput: { maxLength: INPUT_LIMITS.SHORT_TEXT } }}
                       id="email"
                       type="email"
                       value={formData.email}

@@ -25,6 +25,7 @@ import {
   type Environment,
   type GatewayResponse,
   type MCPServerInfoFetchResponse,
+  INPUT_LIMITS,
 } from "@agent-management-platform/types";
 import {
   Accordion,
@@ -456,6 +457,7 @@ export function EndpointFormFields({
       <FormControl fullWidth>
         <FormLabel>Endpoint Name</FormLabel>
         <TextField
+          slotProps={{ htmlInput: { maxLength: INPUT_LIMITS.NAME } }}
           fullWidth
           value={name}
           onChange={(event) => setName(event.target.value)}
@@ -467,6 +469,7 @@ export function EndpointFormFields({
       <FormControl fullWidth error={Boolean(urlError)}>
         <FormLabel required>MCP Server Endpoint URL</FormLabel>
         <TextField
+          slotProps={{ htmlInput: { maxLength: INPUT_LIMITS.URL } }}
           fullWidth
           value={url}
           onChange={(event) => {

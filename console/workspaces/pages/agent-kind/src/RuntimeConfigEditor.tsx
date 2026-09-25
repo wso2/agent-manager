@@ -16,8 +16,9 @@
  * under the License.
  */
 
-import React, { useRef } from "react";
+import React, { useRef, useState } from "react";
 import {
+    Alert,
     Box,
     Button,
     Divider,
@@ -28,6 +29,7 @@ import {
     Typography,
 } from "@wso2/oxygen-ui";
 import { Plus, Trash } from "@wso2/oxygen-ui-icons-react";
+import { INPUT_LIMITS } from "@agent-management-platform/types";
 import {
     EnvFileUploadButton,
     MAX_FILE_SIZE,
@@ -38,6 +40,19 @@ import {
 
 const KEY_REGEX = /^[A-Za-z_][A-Za-z0-9_]*$/;
 const KEY_MAX_LENGTH = 64;
+
+// `maxLength` on the inputs only constrains typing. A .env upload or paste
+// writes straight to row state, so oversized entries are caught here. They are
+// rejected rather than truncated: a shortened value (often a secret) looks
+// complete but fails at runtime, and a shortened key can collide with another.
+const isEntryTooLong = (key: string, value: string) =>
+    key.length > KEY_MAX_LENGTH || value.length > INPUT_LIMITS.VALUE;
+
+const describeRejected = (keys: string[]) => {
+    const shown = keys.map((key) => (key.length > 40 ? `${key.slice(0, 40)}…` : key));
+    return `Not imported: ${shown.join(", ")}. Keys are limited to ${KEY_MAX_LENGTH} `
+        + `characters and values to ${INPUT_LIMITS.VALUE.toLocaleString()}.`;
+};
 
 const getKeyError = (key: string, keyCounts: Map<string, number>): string | null => {
     const trimmed = key.trim();
@@ -101,7 +116,6 @@ interface ConfigRowProps {
     readonlyKey?: boolean;
     canRemove: boolean;
     onUpdate: <K extends keyof RuntimeConfigRow>(field: K, value: RuntimeConfigRow[K]) => void;
-    onUpdateMany: (updates: Partial<RuntimeConfigRow>) => void;
     onRemove: () => void;
     /**
      * Called instead of onUpdateMany when the pasted clipboard text contains
@@ -109,6 +123,8 @@ interface ConfigRowProps {
      * the caller can split it into multiple rows.
      */
     onBulkPaste: (entries: ParsedEnvEntry[]) => void;
+    /** Called when a single "KEY=VALUE" is pasted, so the caller can reject it if too long. */
+    onPasteEntry: (key: string, value: string) => void;
 }
 
 const ConfigRow: React.FC<ConfigRowProps> = ({
@@ -117,9 +133,9 @@ const ConfigRow: React.FC<ConfigRowProps> = ({
     readonlyKey,
     canRemove,
     onUpdate,
-    onUpdateMany,
     onRemove,
     onBulkPaste,
+    onPasteEntry,
 }) => (
     <Stack key={row.id} spacing={0.5}>
         <Stack direction="row" spacing={1} alignItems="top" justifyContent="flex-start">
@@ -129,6 +145,7 @@ const ConfigRow: React.FC<ConfigRowProps> = ({
                 ) : (
                     <>
                         <TextInput
+                            maxLength={KEY_MAX_LENGTH}
                             placeholder="Key"
                             value={row.key}
                             onChange={(e) => onUpdate("key", e.target.value.replace(/\s/g, "_"))}
@@ -153,10 +170,7 @@ const ConfigRow: React.FC<ConfigRowProps> = ({
                                 }
                                 if (bulkEntries.length === 1) {
                                     e.preventDefault();
-                                    onUpdateMany({
-                                        key: bulkEntries[0].key.replace(/\s/g, "_"),
-                                        defaultValue: bulkEntries[0].value,
-                                    });
+                                    onPasteEntry(bulkEntries[0].key.replace(/\s/g, "_"), bulkEntries[0].value);
                                     return;
                                 }
 
@@ -166,10 +180,7 @@ const ConfigRow: React.FC<ConfigRowProps> = ({
                                 const pastedValue = stripQuotes(pasted.slice(equalsIdx + 1).trim());
                                 if (!pastedKey) return;
                                 e.preventDefault();
-                                onUpdateMany({
-                                    key: pastedKey.replace(/\s/g, "_"),
-                                    defaultValue: pastedValue,
-                                });
+                                onPasteEntry(pastedKey.replace(/\s/g, "_"), pastedValue);
                             }}
                             fullWidth
                             size="small"
@@ -191,6 +202,7 @@ const ConfigRow: React.FC<ConfigRowProps> = ({
                  * value. A fresh "Create new version" row (readonlyKey unset) still gets a
                  * normal, fully-editable field so authors can type a real secret default. */}
                 <TextInput
+                    maxLength={INPUT_LIMITS.VALUE}
                     placeholder={
                         readonlyKey && row.isSecret
                             ? (row.defaultValue ? "•••••••• (hidden)" : "Not set")
@@ -242,6 +254,7 @@ const ConfigRow: React.FC<ConfigRowProps> = ({
             </Box>
         </Stack>
         <TextInput
+            maxLength={INPUT_LIMITS.DESCRIPTION}
             label="Description"
             placeholder="Optional"
             value={row.description ?? ""}
@@ -294,6 +307,16 @@ export const RuntimeConfigEditor: React.FC<RuntimeConfigEditorProps> = ({
     // over at render time may be behind the latest edits — read from this ref instead.
     const rowsRef = useRef(rows);
     rowsRef.current = rows;
+    const [importError, setImportError] = useState<string | null>(null);
+
+    const handlePasteEntry = (index: number, key: string, value: string) => {
+        if (isEntryTooLong(key, value)) {
+            setImportError(describeRejected([key]));
+            return;
+        }
+        setImportError(null);
+        updateRowMany(index, { key, defaultValue: value });
+    };
 
     const handleEnvFileParsed = (entries: ParsedEnvEntry[]) => {
         const next = [...rowsRef.current];
@@ -303,9 +326,14 @@ export const RuntimeConfigEditor: React.FC<RuntimeConfigEditorProps> = ({
             if (trimmedKey) indexByKey.set(trimmedKey, i);
         });
 
+        const rejected: string[] = [];
         for (const rawEntry of entries) {
             const key = rawEntry.key.replace(/\s/g, "_");
             const value = rawEntry.value;
+            if (isEntryTooLong(key, value)) {
+                rejected.push(key);
+                continue;
+            }
             const existingIndex = indexByKey.get(key);
             if (existingIndex !== undefined) {
                 next[existingIndex] = { ...next[existingIndex], defaultValue: value };
@@ -314,6 +342,7 @@ export const RuntimeConfigEditor: React.FC<RuntimeConfigEditorProps> = ({
                 next.push(createRuntimeConfigRow({ key, defaultValue: value }));
             }
         }
+        setImportError(rejected.length > 0 ? describeRejected(rejected) : null);
         const withoutBlankRow = next.filter((row) => row.key.trim() !== "" || row.defaultValue?.trim());
         onChange(withoutBlankRow.length > 0 ? withoutBlankRow : next);
     };
@@ -328,11 +357,16 @@ export const RuntimeConfigEditor: React.FC<RuntimeConfigEditorProps> = ({
                     readonlyKey={readonlyKey}
                     canRemove={rows.length > 1}
                     onUpdate={(field, value) => updateRow(i, field, value)}
-                    onUpdateMany={(updates) => updateRowMany(i, updates)}
                     onRemove={() => removeRow(i)}
                     onBulkPaste={handleEnvFileParsed}
+                    onPasteEntry={(key, value) => handlePasteEntry(i, key, value)}
                 />
             ))}
+            {importError && (
+                <Alert severity="warning" onClose={() => setImportError(null)}>
+                    {importError}
+                </Alert>
+            )}
             {!readonlyKey && (
                 <Box display="flex" flexDirection="row" gap={1.5} alignItems="center" flexWrap="wrap">
                     <Button size="small" variant="outlined" startIcon={<Plus />} onClick={addRow} disabled={isInvalid}>

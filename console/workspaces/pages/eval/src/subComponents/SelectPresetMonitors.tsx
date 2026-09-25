@@ -43,12 +43,17 @@ import {
   Search as SearchIcon,
   Settings,
 } from "@wso2/oxygen-ui-icons-react";
-import { absoluteRouteMap, type EvaluatorResponse, type MonitorEvaluator, type MonitorLLMProviderRef } from "@agent-management-platform/types";
+import {
+  absoluteRouteMap,
+  type EvaluatorResponse,
+  type MonitorEvaluator,
+  type MonitorLLMProviderRef,
+} from "@agent-management-platform/types";
 import {
   useGetEvaluator,
+  useGetLLMProvider,
   useListCatalogLLMProviders,
   useListEvaluators,
-  useListLLMProviders,
   useListLLMProviderTemplates,
 } from "@agent-management-platform/api-client";
 import { generatePath, useParams } from "react-router-dom";
@@ -153,13 +158,12 @@ export function SelectPresetMonitors({
 
   const selectedProviderName = llmProvider?.providerName;
 
-  const { data: providersData } = useListLLMProviders({ orgName: orgId });
-  const providerDisplayName = useMemo(
-    () =>
-      providersData?.providers.find((p) => p.id === selectedProviderName)
-        ?.name ?? selectedProviderName,
-    [providersData, selectedProviderName],
-  );
+  const { data: selectedProvider } = useGetLLMProvider({
+    orgName: orgId,
+    providerId: selectedProviderName,
+  });
+  const selectedProviderTemplate = selectedProvider?.template;
+  const providerDisplayName = selectedProvider?.name ?? selectedProviderName;
 
   const { data: catalogProvidersData } = useListCatalogLLMProviders(
     { orgName: orgId },
@@ -182,16 +186,18 @@ export function SelectPresetMonitors({
     const entry = (catalogProvidersData?.entries ?? []).find(
       (e) => e.handle === selectedProviderName,
     );
-    return entry ? providerTemplateMap.get(entry.template ?? "")?.logoUrl : undefined;
+    return entry
+      ? providerTemplateMap.get(entry.template ?? "")?.logoUrl
+      : undefined;
   }, [catalogProvidersData, selectedProviderName, providerTemplateMap]);
 
   const [llmJudgeIds, setLlmJudgeIds] = useState<Set<string>>(() => new Set());
 
   // Accumulate evaluator types across page loads so hasLLMJudge is correct in
   // edit mode even when a pre-selected LLM-judge is not on the current page.
-  const [evaluatorTypeMap, setEvaluatorTypeMap] = useState<
-    Map<string, string>
-  >(() => new Map());
+  const [evaluatorTypeMap, setEvaluatorTypeMap] = useState<Map<string, string>>(
+    () => new Map(),
+  );
 
   useEffect(() => {
     if (allEvaluators.length === 0) return;
@@ -207,7 +213,8 @@ export function SelectPresetMonitors({
   }, [allEvaluators]);
 
   const [providerDrawerOpen, setProviderDrawerOpen] = useState(false);
-  const [pendingEvaluator, setPendingEvaluator] = useState<EvaluatorResponse | null>(null);
+  const [pendingEvaluator, setPendingEvaluator] =
+    useState<EvaluatorResponse | null>(null);
   const [drawerEvaluator, setDrawerEvaluator] =
     useState<EvaluatorResponse | null>(null);
 
@@ -244,8 +251,12 @@ export function SelectPresetMonitors({
         .map(getEvaluatorIdentifier),
     );
     setLlmJudgeIds((prev) => {
-      const merged = new Set(Array.from(prev).concat(Array.from(judgesInSelection)));
-      const selectedNames = new Set(selectedEvaluators.map(getEvaluatorIdentifier));
+      const merged = new Set(
+        Array.from(prev).concat(Array.from(judgesInSelection)),
+      );
+      const selectedNames = new Set(
+        selectedEvaluators.map(getEvaluatorIdentifier),
+      );
       Array.from(merged).forEach((id) => {
         if (!selectedNames.has(id)) merged.delete(id);
       });
@@ -256,7 +267,8 @@ export function SelectPresetMonitors({
   const hasLLMJudge = useMemo(
     () =>
       selectedEvaluatorNames.some(
-        (id) => evaluatorTypeMap.get(id) === "llm_judge" || llmJudgeIdsOnPage.has(id),
+        (id) =>
+          evaluatorTypeMap.get(id) === "llm_judge" || llmJudgeIdsOnPage.has(id),
       ) || llmJudgeIds.size > 0,
     [selectedEvaluatorNames, evaluatorTypeMap, llmJudgeIdsOnPage, llmJudgeIds],
   );
@@ -368,7 +380,9 @@ export function SelectPresetMonitors({
       }
       onSaveEvaluatorConfig(drawerEvaluator, config);
       if (drawerEvaluator.type === "llm_judge") {
-        setLlmJudgeIds((prev) => new Set(Array.from(prev).concat(drawerIdentifier)));
+        setLlmJudgeIds(
+          (prev) => new Set(Array.from(prev).concat(drawerIdentifier)),
+        );
         if (!selectedProviderName) {
           handleCloseDrawer();
           setProviderDrawerOpen(true);
@@ -394,7 +408,8 @@ export function SelectPresetMonitors({
       onToggleEvaluator(drawerEvaluator);
     }
     if (drawerEvaluator.type === "llm_judge") {
-      const isLastLLMJudge = llmJudgeIds.size === 1 && llmJudgeIds.has(drawerIdentifier);
+      const isLastLLMJudge =
+        llmJudgeIds.size === 1 && llmJudgeIds.has(drawerIdentifier);
       setLlmJudgeIds((prev) => {
         const next = new Set(Array.from(prev));
         next.delete(drawerIdentifier);
@@ -533,7 +548,12 @@ export function SelectPresetMonitors({
             <Form.Header>
               Selected Evaluators ({selectedChipEvaluators.length})
             </Form.Header>
-            <Stack direction="row" spacing={2} flexWrap="wrap" alignItems="center">
+            <Stack
+              direction="row"
+              spacing={2}
+              flexWrap="wrap"
+              alignItems="center"
+            >
               {selectedChipEvaluators.map((evaluator: MonitorEvaluator) => {
                 const identifier = getEvaluatorIdentifier(evaluator);
                 return (
@@ -553,11 +573,12 @@ export function SelectPresetMonitors({
                           evaluatorTypeMap.get(identifier) === "llm_judge" ||
                           llmJudgeIds.has(identifier);
                         if (isJudge) {
-                          const selectedJudgeCount = selectedEvaluatorNames.filter(
-                            (id: string) =>
-                              evaluatorTypeMap.get(id) === "llm_judge" ||
-                              llmJudgeIds.has(id),
-                          ).length;
+                          const selectedJudgeCount =
+                            selectedEvaluatorNames.filter(
+                              (id: string) =>
+                                evaluatorTypeMap.get(id) === "llm_judge" ||
+                                llmJudgeIds.has(id),
+                            ).length;
                           const isLastLLMJudge = selectedJudgeCount === 1;
                           setLlmJudgeIds((prev: Set<string>) => {
                             const next = new Set(Array.from(prev));
@@ -746,7 +767,10 @@ export function SelectPresetMonitors({
                             alignItems="center"
                             sx={{ minWidth: 0, overflow: "hidden" }}
                           >
-                            <Tooltip title={monitor.displayName} placement="top">
+                            <Tooltip
+                              title={monitor.displayName}
+                              placement="top"
+                            >
                               <Typography
                                 variant="h6"
                                 textOverflow="ellipsis"
@@ -785,7 +809,10 @@ export function SelectPresetMonitors({
                               title={(monitor.tags ?? []).join(", ")}
                               placement="top"
                             >
-                              <Typography variant="caption" color="text.secondary">
+                              <Typography
+                                variant="caption"
+                                color="text.secondary"
+                              >
                                 {`+${(monitor.tags ?? []).length - 4} more`}
                               </Typography>
                             </Tooltip>
@@ -797,7 +824,9 @@ export function SelectPresetMonitors({
                 />
                 <CardContent>
                   <Stack spacing={1}>
-                    <Typography variant="caption">{monitor.description}</Typography>
+                    <Typography variant="caption">
+                      {monitor.description}
+                    </Typography>
                   </Stack>
                 </CardContent>
               </Form.CardButton>
@@ -846,6 +875,7 @@ export function SelectPresetMonitors({
         )}
       </Form.Section>
       <EvaluatorDetailsDrawer
+        providerTemplate={selectedProviderTemplate}
         evaluator={drawerEvaluator}
         open={Boolean(drawerEvaluator)}
         onClose={handleCloseDrawer}

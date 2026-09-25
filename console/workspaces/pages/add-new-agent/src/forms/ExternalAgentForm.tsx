@@ -23,6 +23,7 @@ import { debounce } from "lodash";
 import { useGenerateResourceName } from "@agent-management-platform/api-client";
 import { LabelsEditor, MarkdownEditor } from "@agent-management-platform/shared-component";
 import { ConnectAgentFormValues } from "../form/schema";
+import { INPUT_LIMITS } from "@agent-management-platform/types";
 
 interface ExternalAgentFormProps {
   formData: ConnectAgentFormValues;
@@ -113,6 +114,7 @@ export const ExternalAgentForm = ({
         <Form.Stack spacing={2}>
           <Form.ElementWrapper label="Name" name="displayName">
             <TextField
+              slotProps={{ htmlInput: { maxLength: INPUT_LIMITS.NAME } }}
               id="displayName"
               placeholder="e.g., Customer Support"
               value={formData.displayName}

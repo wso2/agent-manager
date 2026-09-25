@@ -27,6 +27,7 @@ import {
   Typography,
 } from "@wso2/oxygen-ui";
 import { ChevronDown } from "@wso2/oxygen-ui-icons-react";
+import { INPUT_LIMITS } from "@agent-management-platform/types";
 
 // Gateway defaults applied when a value is omitted (RouteTimeoutMs / RouteIdleTimeoutMs).
 export const DEFAULT_REQUEST_TIMEOUT = "60s";
@@ -68,6 +69,7 @@ export function ResilienceTimeoutFields({
           <FormControl sx={{ flex: 1 }} fullWidth error={Boolean(requestTimeoutError)}>
             <FormLabel>Request Timeout</FormLabel>
             <TextField
+              slotProps={{ htmlInput: { maxLength: INPUT_LIMITS.KEY } }}
               size="small"
               value={requestTimeout}
               onChange={(e) => onRequestTimeoutChange(e.target.value)}
@@ -80,6 +82,7 @@ export function ResilienceTimeoutFields({
           <FormControl sx={{ flex: 1 }} fullWidth error={Boolean(idleTimeoutError)}>
             <FormLabel>Idle Timeout</FormLabel>
             <TextField
+              slotProps={{ htmlInput: { maxLength: INPUT_LIMITS.KEY } }}
               size="small"
               value={idleTimeout}
               onChange={(e) => onIdleTimeoutChange(e.target.value)}

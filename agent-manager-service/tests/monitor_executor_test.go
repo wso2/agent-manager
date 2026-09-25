@@ -322,9 +322,20 @@ func TestExecuteMonitorRun_LLMCredentials(t *testing.T) {
 	monitor := seedMonitor(t)
 	gdb := db.DB(context.Background())
 
+	// Provider resolution is required to choose the correct LLM adapter and
+	// parameter policy. Seed the provider and its org-scoped artifact together.
+	provider := &models.LLMProvider{UUID: uuid.New(), TemplateHandle: "anthropic"}
+	require.NoError(t, repositories.NewLLMProviderRepo(db.GetDB()).Create(
+		gdb, provider, "test-provider-"+provider.UUID.String(), "Test Provider", "v1", monitor.OUID,
+	))
+	t.Cleanup(func() {
+		gdb.Delete(provider)
+		gdb.Where("uuid = ?", provider.UUID).Delete(&models.Artifact{})
+	})
+
 	// Seed an LLMProxy row — Handle is a join-derived field so it is left empty here;
 	// buildPublicProxyURL only needs Configuration.Context from this row.
-	// session_replication_role disables FK triggers so we don't need to seed artifacts/llm_providers.
+	// Disable FK triggers only to avoid seeding the proxy artifact and project.
 	contextPath := "/test-proxy-ctx"
 	proxyUUID := uuid.New()
 	// Pin all three statements to the same connection so the session variable
@@ -336,7 +347,7 @@ func TestExecuteMonitorRun_LLMCredentials(t *testing.T) {
 		if err := tx.Exec(
 			`INSERT INTO llm_proxies (uuid, project_uuid, provider_uuid, status, configuration)
 			 VALUES (?, ?, ?, 'deployed', ?)`,
-			proxyUUID, uuid.New(), uuid.New(), `{"context":"/test-proxy-ctx"}`,
+			proxyUUID, uuid.New(), provider.UUID, `{"context":"/test-proxy-ctx"}`,
 		).Error; err != nil {
 			return err
 		}

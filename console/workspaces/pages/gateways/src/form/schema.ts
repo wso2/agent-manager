@@ -17,12 +17,16 @@
 
 import { z } from "zod";
 
+// Exported so the edit drawer caps its input at exactly what this schema accepts.
+export const GATEWAY_DISPLAY_NAME_MAX_LENGTH = 128;
+
+
 export const editGatewaySchema = z.object({
   displayName: z
     .string()
     .trim()
     .min(3, "Display name is required")
-    .max(128, "Display name must be at most 128 characters"),
+    .max(GATEWAY_DISPLAY_NAME_MAX_LENGTH, `Display name must be at most ${GATEWAY_DISPLAY_NAME_MAX_LENGTH} characters`),
   isCritical: z.boolean(),
 });
 

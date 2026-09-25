@@ -42,7 +42,7 @@ import {
   DrawerWrapper,
   TextInput,
 } from "@agent-management-platform/views";
-import { absoluteRouteMap } from "@agent-management-platform/types";
+import { absoluteRouteMap, INPUT_LIMITS } from "@agent-management-platform/types";
 import {
   useCreateAgentMCPConfig,
   useGetAgent,
@@ -481,6 +481,7 @@ export function AddMCPToolConfigPanel({
                           <ListingTable.Row key={key}>
                             <ListingTable.Cell>
                               <TextInput
+                                maxLength={INPUT_LIMITS.KEY}
                                 value={envVarNames[key] ?? ""}
                                 onChange={(event) => {
                                   envVarNamesEditedRef.current = true;

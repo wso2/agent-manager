@@ -915,3 +915,71 @@ func TestLogGrowthAnalyticsState(t *testing.T) {
 		})
 	}
 }
+
+func TestValidateFileMountLimitsConfig(t *testing.T) {
+	tests := []struct {
+		name        string
+		limits      FileMountLimitsConfig
+		wantErrors  int
+		errContains string
+	}{
+		{
+			name:       "defaults are valid",
+			limits:     FileMountLimitsConfig{MaxFileBytes: 1000000, MaxTotalBytes: 1000000},
+			wantErrors: 0,
+		},
+		{
+			name:       "total at the Kubernetes object limit is allowed",
+			limits:     FileMountLimitsConfig{MaxFileBytes: 262144, MaxTotalBytes: 1 << 20},
+			wantErrors: 0,
+		},
+		{
+			name:        "zero per-file cap rejected",
+			limits:      FileMountLimitsConfig{MaxFileBytes: 0, MaxTotalBytes: 1000000},
+			wantErrors:  1,
+			errContains: "FILE_MOUNT_MAX_FILE_BYTES must be at least 1",
+		},
+		{
+			name:        "negative total rejected",
+			limits:      FileMountLimitsConfig{MaxFileBytes: 1, MaxTotalBytes: -1},
+			wantErrors:  2, // total < 1, and per-file then exceeds total
+			errContains: "FILE_MOUNT_MAX_TOTAL_BYTES must be at least 1",
+		},
+		{
+			name:        "per-file above total rejected",
+			limits:      FileMountLimitsConfig{MaxFileBytes: 900000, MaxTotalBytes: 500000},
+			wantErrors:  1,
+			errContains: "must not exceed FILE_MOUNT_MAX_TOTAL_BYTES",
+		},
+		{
+			name:        "total above the Kubernetes object limit rejected",
+			limits:      FileMountLimitsConfig{MaxFileBytes: 1000000, MaxTotalBytes: 2 << 20},
+			wantErrors:  1,
+			errContains: "Kubernetes ConfigMap/Secret limit",
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			cfg := &Config{FileMountLimits: tc.limits}
+			r := &configReader{}
+			validateFileMountLimitsConfig(cfg, r)
+
+			if len(r.errors) != tc.wantErrors {
+				t.Fatalf("expected %d errors, got %d: %v", tc.wantErrors, len(r.errors), r.errors)
+			}
+			if tc.errContains != "" {
+				found := false
+				for _, e := range r.errors {
+					if strings.Contains(e.Error(), tc.errContains) {
+						found = true
+						break
+					}
+				}
+				if !found {
+					t.Errorf("expected an error containing %q, got %v", tc.errContains, r.errors)
+				}
+			}
+		})
+	}
+}
