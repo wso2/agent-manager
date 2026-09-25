@@ -97,6 +97,17 @@ type AgentConfigurationService interface {
 	// MCP proxy update, whose endpoint changes are what make an environment deployable.
 	ReconcileMCPBindingsForProxy(ctx context.Context, ouID, proxyHandle string) error
 
+	// ReconcileMCPBindingsForEnvironment reconciles every MCP proxy with an endpoint bound
+	// to this environment. Deployability also flips on gateway topology — mapping the first
+	// egress gateway to an environment makes every proxy bound there deployable — and that
+	// path has no proxy update to hang a reconcile off.
+	ReconcileMCPBindingsForEnvironment(ctx context.Context, ouID string, envUUID uuid.UUID) error
+
+	// ReconcileMCPBindingsForAgentEnvironment binds every MCP connection of one agent in
+	// one environment. For callers that know the agent and environment but not the proxy —
+	// promotion, which self-heals a target environment before judging it.
+	ReconcileMCPBindingsForAgentEnvironment(ctx context.Context, agentID, ouID, projectName, environmentName string) error
+
 	// ListUnresolvedMCPBindings returns the names of the agent's MCP connections that are
 	// configured for this environment but resolve to no proxy URL, so their injected
 	// URL/API-key variables are empty. Used by promote to refuse a promotion that would
@@ -1444,6 +1455,16 @@ func (s *agentConfigurationService) createMCPConfig(ctx context.Context, ouID, p
 		return nil, fmt.Errorf("failed to create MCP configuration: %w", err)
 	}
 
+	// Recorded straight after the configuration row and before the per-environment loop
+	// below, so a connection whose proxy is deployable in no environment at all still
+	// carries a resolvable reference and stays reachable from ReconcileMCPBindingsForProxy.
+	// It cannot be part of the literal above: agent_mcp_config_proxy's composite foreign
+	// key requires the configuration row to exist first.
+	if err := s.setConfigMCPProxy(ctx, config, soleMCPProxyUUID(proxiesByEnv)); err != nil {
+		s.cleanupMCPConfig(ctx, config.UUID, ouID)
+		return nil, err
+	}
+
 	firstEnvName := ""
 	if !isExternalAgent {
 		if pipeline, pipelineErr := s.ocClient.GetProjectDeploymentPipeline(ctx, ouID, projectName); pipelineErr == nil && pipeline != nil {
@@ -2527,6 +2548,19 @@ func (s *agentConfigurationService) updateMCPConfig(ctx context.Context, existin
 		if err := s.removeMCPMappingEnvironment(ctx, existingConfig, mapping, envName, ouID, projectName, agentName, envTemplates, isExternalAgent, isLastEnv); err != nil {
 			return nil, err
 		}
+	}
+
+	// Re-pointed only once every environment above has been dealt with. Writing it earlier
+	// would leave a half-applied proxy switch permanently unrepairable: the column would
+	// name the new proxy while the environments the loop never reached still had mapping
+	// rows to the old one, and neither side's reconcile would claim them — the new proxy's
+	// sees those environments as already mapped, and the old proxy's no longer recognises
+	// the configuration as its own.
+	//
+	// A reconcile racing this update therefore acts on the OLD proxy, which is safe: the
+	// loop above re-points anything it bound (see the sourceChanged branch).
+	if err := s.setConfigMCPProxy(ctx, existingConfig, soleMCPProxyUUID(proxiesByEnv)); err != nil {
+		return nil, err
 	}
 
 	// Detached onto its own goroutine, off the request path — cost scales

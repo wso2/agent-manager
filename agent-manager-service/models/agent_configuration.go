@@ -65,6 +65,39 @@ type AgentConfiguration struct {
 	EnvMappings    []EnvAgentModelMapping   `gorm:"foreignKey:ConfigUUID;constraint:OnDelete:CASCADE" json:"envMappings,omitempty"`
 	EnvMCPMappings []EnvAgentMCPMapping     `gorm:"foreignKey:ConfigUUID;constraint:OnDelete:CASCADE" json:"mcpEnvMappings,omitempty"`
 	EnvVariables   []AgentEnvConfigVariable `gorm:"foreignKey:ConfigUUID;constraint:OnDelete:CASCADE" json:"-"`
+
+	// MCPProxyRef is the environment-agnostic MCP proxy an MCP-type configuration
+	// references. Nil for a non-MCP configuration, and for an MCP configuration whose
+	// environments name different proxies: there is no single answer then, so readers fall
+	// back to the per-environment mapping rows.
+	//
+	// Lives in its own table rather than as a column here because this row is polymorphic
+	// across LLM, MCP and agent configurations — see migration044.
+	MCPProxyRef *AgentMCPConfigProxy `gorm:"foreignKey:ConfigUUID;references:UUID" json:"mcpProxyRef,omitempty"`
+}
+
+// AgentMCPConfigProxy binds one MCP-type AgentConfiguration to the org-level MCP proxy it
+// references, independent of any environment.
+//
+// The reference is kept here rather than on agent_configurations so that table stays
+// generic, and so the database can enforce that only an MCP configuration carries one: the
+// TypeID column is pinned to AgentConfigTypeIDMCP by a CHECK and joined back to
+// agent_configurations through a composite foreign key on (uuid, type_id). TypeID is
+// therefore redundant by design — it exists to make that key expressible.
+//
+// A row's presence is the whole signal. There is no NULL proxy state: a configuration
+// either records an environment-agnostic proxy or has no row at all.
+type AgentMCPConfigProxy struct {
+	ConfigUUID   uuid.UUID `gorm:"column:config_uuid;type:uuid;primaryKey" json:"configUuid"`
+	TypeID       uint      `gorm:"column:type_id;type:integer;not null;default:2" json:"-"`
+	MCPProxyUUID uuid.UUID `gorm:"column:mcp_proxy_uuid;type:uuid;not null" json:"mcpProxyUuid"`
+	CreatedAt    time.Time `gorm:"column:created_at;type:timestamp;default:CURRENT_TIMESTAMP" json:"createdAt"`
+	UpdatedAt    time.Time `gorm:"column:updated_at;type:timestamp;default:CURRENT_TIMESTAMP" json:"updatedAt"`
+}
+
+// TableName returns the table name for the AgentMCPConfigProxy model.
+func (AgentMCPConfigProxy) TableName() string {
+	return "agent_mcp_config_proxy"
 }
 
 // TableName returns the table name for the AgentConfiguration model

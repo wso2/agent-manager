@@ -698,6 +698,7 @@ type stubAgentConfigurationServiceForPromote struct {
 	SystemVarsFunc     func(ctx context.Context, agentID, ouID, projectName, environmentName string) ([]client.EnvVar, error)
 	SystemConfigsFunc  func(ctx context.Context, agentID, ouID, projectName, environmentName string) ([]SystemManagedConfigRef, error)
 	UnresolvedMCPsFunc func(ctx context.Context, agentID, ouID, projectName, environmentName string) (map[string]struct{}, error)
+	ReconcileMCPsFunc  func(ctx context.Context, agentID, ouID, projectName, environmentName string) error
 }
 
 // Defaults to "no configuration to describe", so tests that predate the block's
@@ -724,6 +725,16 @@ func (s *stubAgentConfigurationServiceForPromote) ListUnresolvedMCPBindings(ctx 
 		return map[string]struct{}{}, nil
 	}
 	return s.UnresolvedMCPsFunc(ctx, agentID, ouID, projectName, environmentName)
+}
+
+// Defaults to a no-op backfill that changes nothing, so a target whose connections are
+// unresolved stays unresolved on the recheck and the block still fires. Tests that want
+// the self-heal path make this flip what UnresolvedMCPsFunc returns.
+func (s *stubAgentConfigurationServiceForPromote) ReconcileMCPBindingsForAgentEnvironment(ctx context.Context, agentID, ouID, projectName, environmentName string) error {
+	if s.ReconcileMCPsFunc == nil {
+		return nil
+	}
+	return s.ReconcileMCPsFunc(ctx, agentID, ouID, projectName, environmentName)
 }
 
 // shrinkPromotionIdentityPollForTest overrides the poll interval/budget
@@ -874,6 +885,92 @@ func TestPromoteAgent_BlocksWhenMCPConnectionUnresolvableInTarget(t *testing.T) 
 	assert.Contains(t, ve.Reason, "deploy")
 	assert.False(t, *promoteCalled,
 		"promotion must be refused before PromoteComponent — otherwise the agent is already running with an empty MCP URL by the time this error is returned")
+}
+
+// A connection resolves through its per-environment binding row, and that row is written
+// only by the configuration write path and the proxy-side reconcile. An environment made
+// bindable without either running has no row, so the connection reads as dead while the
+// MCP server is in fact bound to the environment — the state users escaped by detaching
+// and re-attaching the connection. Promotion must write the missing binding and proceed,
+// not refuse a target that is one idempotent backfill away from working.
+func TestPromoteAgent_BindsMissingMCPBindingInTargetThenPromotes(t *testing.T) {
+	s, promoteCalled := promoteAgentTestFixture(t, []client.EnvVar{{Key: "AMP_AGENTID_CLIENT_ID", Value: "staging-client-id"}}, nil)
+	agentConfigSvc := promoteConfigStub(t, s)
+
+	bound := false
+	agentConfigSvc.UnresolvedMCPsFunc = func(_ context.Context, _, _, _, envName string) (map[string]struct{}, error) {
+		if envName == "staging" && !bound {
+			return map[string]struct{}{"booking": {}}, nil
+		}
+		return map[string]struct{}{}, nil
+	}
+	reconciledEnv := ""
+	agentConfigSvc.ReconcileMCPsFunc = func(_ context.Context, _, _, _, envName string) error {
+		reconciledEnv = envName
+		bound = true
+		return nil
+	}
+
+	err := s.PromoteAgent(tierGrantedCtx(t), "acme", "proj1", "my-agent", &spec.PromoteAgentRequest{
+		SourceEnvironment: "dev",
+		TargetEnvironment: "staging",
+	})
+
+	require.NoError(t, err, "a target whose only problem is an unwritten binding must promote")
+	assert.Equal(t, "staging", reconciledEnv, "the backfill must target the promotion target, not the source")
+	assert.True(t, *promoteCalled)
+}
+
+// The self-heal must not become a rubber stamp. When the backfill writes nothing — the MCP
+// server genuinely does not serve the target — the recheck sees the same dead connection
+// and the promotion is still refused before the component is promoted.
+func TestPromoteAgent_StillBlocksWhenBackfillCannotBindTarget(t *testing.T) {
+	s, promoteCalled := promoteAgentTestFixture(t, []client.EnvVar{{Key: "AMP_AGENTID_CLIENT_ID", Value: "staging-client-id"}}, nil)
+	stubUnresolvedMCPs(t, s, "staging", "booking")
+
+	reconcileAttempted := false
+	promoteConfigStub(t, s).ReconcileMCPsFunc = func(context.Context, string, string, string, string) error {
+		reconcileAttempted = true
+		return nil // nothing to bind: the server has no endpoint in staging
+	}
+
+	err := s.PromoteAgent(tierGrantedCtx(t), "acme", "proj1", "my-agent", &spec.PromoteAgentRequest{
+		SourceEnvironment: "dev",
+		TargetEnvironment: "staging",
+	})
+
+	ve := requireBriefPromotionBlock(t, err)
+	assert.Contains(t, ve.Message, "booking")
+	assert.True(t, reconcileAttempted, "the promotion must try to bind before refusing")
+	assert.False(t, *promoteCalled)
+}
+
+// The backfill is best-effort. Its failure must not turn a promotion the recheck would
+// allow into an error — the binding may have been written by something else in the
+// meantime, and the recheck is the authority on whether the target is safe.
+func TestPromoteAgent_BackfillFailureDoesNotBlockAResolvableTarget(t *testing.T) {
+	s, promoteCalled := promoteAgentTestFixture(t, []client.EnvVar{{Key: "AMP_AGENTID_CLIENT_ID", Value: "staging-client-id"}}, nil)
+	agentConfigSvc := promoteConfigStub(t, s)
+
+	checks := 0
+	agentConfigSvc.UnresolvedMCPsFunc = func(_ context.Context, _, _, _, envName string) (map[string]struct{}, error) {
+		checks++
+		if envName == "staging" && checks == 1 {
+			return map[string]struct{}{"booking": {}}, nil
+		}
+		return map[string]struct{}{}, nil
+	}
+	agentConfigSvc.ReconcileMCPsFunc = func(context.Context, string, string, string, string) error {
+		return errors.New("gateway unavailable")
+	}
+
+	err := s.PromoteAgent(tierGrantedCtx(t), "acme", "proj1", "my-agent", &spec.PromoteAgentRequest{
+		SourceEnvironment: "dev",
+		TargetEnvironment: "staging",
+	})
+
+	require.NoError(t, err)
+	assert.True(t, *promoteCalled)
 }
 
 // A connection unresolved in BOTH environments is simply not offered anywhere; this

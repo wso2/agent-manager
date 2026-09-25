@@ -19,7 +19,7 @@ var _ MappedNullable = &MCPConfigRequest{}
 
 // MCPConfigRequest struct for MCPConfigRequest
 type MCPConfigRequest struct {
-	// Handle of an already-configured MCP proxy. Applied to the component's initial (lowest) environment.
+	// Handle of an already-configured MCP proxy. Applied to every environment in the project's deployment pipeline. An environment the proxy has no endpoint in yet is still recorded, and is bound automatically once the proxy becomes available there.
 	ProxyName string `json:"proxyName"`
 	// Optional custom environment variable names exposed to the agent
 	EnvironmentVariables []EnvironmentVariableConfig `json:"environmentVariables,omitempty"`
