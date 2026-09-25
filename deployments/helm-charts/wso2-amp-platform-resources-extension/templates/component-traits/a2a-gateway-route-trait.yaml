@@ -1,0 +1,75 @@
+apiVersion: openchoreo.dev/v1alpha1
+kind: Trait
+metadata:
+  name: a2a-gateway-route
+  namespace: {{ .Values.global.defaultResources.namespace }}
+spec:
+  # The A2A counterpart of api-configuration's HTTPRoute patch. An a2a-agent is
+  # published to the WSO2 API Platform gateway as a kind: Agent resource, which
+  # agent-manager-service pushes over the gateway control-plane connection, so
+  # this trait creates no RestApi. What it does own is closing the component's
+  # direct route: without it the agent-api HTTPRoutes send clients straight to
+  # the pod, skipping the gateway's policies and its Agent Card URL rewriting.
+  parameters:
+    openAPIV3Schema:
+      type: object
+      properties:
+        upstreamPort:
+          type: integer
+          default: 80
+          description: "Port on the agent's Service; kept on the weight-0 backendRef so the endpoint resolver can still build invoke URLs"
+
+  creates:
+    - template:
+        apiVersion: gateway.kgateway.dev/v1alpha1
+        kind: Backend
+        metadata:
+          name: ${metadata.componentName}-a2a-gw-backend
+          namespace: ${metadata.namespace}
+        spec:
+          type: Static
+          static:
+            hosts:
+              - host: "{{ include "amp.gatewayRuntimeHost" . }}"
+                port: 22893
+
+  patches:
+    - target:
+        group: gateway.networking.k8s.io
+        version: v1
+        kind: HTTPRoute
+      operations:
+        - op: replace
+          path: /spec/rules/0/backendRefs/[?(@.name=='${metadata.componentName}')]
+          value:
+            name: ${metadata.componentName}
+            port: ${parameters.upstreamPort}
+            weight: 0
+        - op: add
+          path: /spec/rules/0/backendRefs/-
+          value:
+            group: gateway.kgateway.dev
+            kind: Backend
+            name: ${metadata.componentName}-a2a-gw-backend
+            weight: 100
+
+        # The Agent resource's context is /<componentName> (see
+        # buildA2AAgentDeploymentYAML), so the gateway expects that prefix rather
+        # than the upstream basePath the ComponentType rewrites to.
+        - op: replace
+          path: /spec/rules/0/filters
+          value:
+            - type: URLRewrite
+              urlRewrite:
+                path:
+                  type: ReplacePrefixMatch
+                  replacePrefixMatch: /${metadata.componentName}
+
+        # A2A streaming operations are long-lived; the gateway already disables
+        # its own route timeout for them, and this outer hop's 30s would sever
+        # every stream first. "add" rather than "replace" because the internal
+        # HTTPRoute has no timeouts key to replace.
+        - op: add
+          path: /spec/rules/0/timeouts
+          value:
+            request: 0s

@@ -522,6 +522,25 @@ func buildEndpoints(req CreateComponentRequest) ([]map[string]any, error) {
 		})
 	}
 
+	// An A2A agent declares an endpoint but no OpenAPI document — it serves its
+	// own Agent Card, and the platform stores no copy. The endpoint is still
+	// mandatory: the agent-api ComponentType validates that at least one exists
+	// and renders the component's Service and HTTPRoutes from it.
+	if req.AgentType.Type == string(utils.AgentTypeAPI) &&
+		utils.IsA2AAgentSubType(req.AgentType.SubType) && req.InputInterface != nil {
+		basePath := req.InputInterface.BasePath
+		if basePath == "" {
+			basePath = "/"
+		}
+		endpoints = append(endpoints, map[string]any{
+			"name":       fmt.Sprintf("%s-endpoint", req.Name),
+			"port":       req.InputInterface.Port,
+			"type":       req.InputInterface.Type,
+			"basePath":   basePath,
+			"visibility": DefaultEndpointVisibility,
+		})
+	}
+
 	return endpoints, nil
 }
 
@@ -2555,6 +2574,9 @@ func (c *openChoreoClient) buildTrait(ctx context.Context, namespaceName, projec
 			return gen.ComponentTrait{}, err
 		}
 		trait.Parameters = &params
+	case TraitA2AGatewayRoute:
+		params := buildA2AGatewayRouteTraitParameters(req.Opts...)
+		trait.Parameters = &params
 	default:
 		return gen.ComponentTrait{}, fmt.Errorf("unsupported trait type: %s", req.TraitType)
 	}
@@ -2574,6 +2596,19 @@ func (c *openChoreoClient) buildAPIConfigurationTraitParameters(componentName st
 		opt(params)
 	}
 	return params, nil
+}
+
+// buildA2AGatewayRouteTraitParameters takes only the upstream port: the trait
+// routes to the gateway's Agent resource, whose context is fixed by the
+// component name, so nothing else is per-agent.
+func buildA2AGatewayRouteTraitParameters(opts ...TraitOption) map[string]interface{} {
+	params := map[string]interface{}{
+		"upstreamPort": config.GetConfig().DefaultChatAPI.DefaultHTTPPort,
+	}
+	for _, opt := range opts {
+		opt(params)
+	}
+	return params
 }
 
 func (c *openChoreoClient) buildOTELTraitParameters(ctx context.Context, namespaceName, projectName, componentName string, opts ...TraitOption) (map[string]interface{}, error) {

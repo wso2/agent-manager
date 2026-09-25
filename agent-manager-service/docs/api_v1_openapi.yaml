@@ -11765,6 +11765,41 @@ components:
           description: Whether credentials are allowed. Cannot be true when allowOrigin contains "*"
           default: false
 
+    AgentCardCORSConfig:
+      type: object
+      description: >-
+        CORS for the public Agent Card route (/.well-known/agent-card.json) of an
+        A2A agent. The card route sits outside the agent-wide policy chain, so it
+        has its own CORS. Methods are always GET and OPTIONS. Applies only to A2A
+        agents.
+      properties:
+        inherit:
+          type: boolean
+          default: false
+          description: >-
+            When true the card follows the agent's CORS: enabled when agent CORS
+            is, with the agent's origins and credentials setting and Content-Type
+            as the only header. On a request, true clears any stored override and
+            the other fields are ignored. On a response, the other fields hold the
+            effective values.
+        enabled:
+          type: boolean
+          description: Enable CORS on the public Agent Card route. Required on a request when inherit is false.
+        allowOrigin:
+          type: array
+          items:
+            type: string
+          description: Allowed origins. Use ["*"] to allow all (incompatible with allowCredentials).
+        allowHeaders:
+          type: array
+          items:
+            type: string
+          description: Allowed request headers.
+        allowCredentials:
+          type: boolean
+          default: false
+          description: Whether credentials are allowed. Cannot be true when allowOrigin contains "*".
+
     OAuthConfig:
       type: object
       description: >-
@@ -12223,6 +12258,9 @@ components:
           $ref: "#/components/schemas/CORSConfig"
           nullable: true
           description: CORS configuration for the agent endpoint. Omit to keep existing settings.
+        agentCardCorsConfig:
+          description: Public Agent Card CORS for this environment (A2A agents only). Omit to keep the current value.
+          $ref: "#/components/schemas/AgentCardCORSConfig"
         enableOAuthSecurity:
           type: boolean
           description: Enable OAuth security for the agent endpoint. Mutually exclusive with enableApiKeySecurity.
@@ -12732,6 +12770,9 @@ components:
           $ref: "#/components/schemas/CORSConfig"
           nullable: true
           description: CORS configuration for this environment's agent endpoint
+        agentCardCorsConfig:
+          description: Effective public Agent Card CORS for this environment. Meaningful only for A2A agents.
+          $ref: "#/components/schemas/AgentCardCORSConfig"
         oauthConfig:
           $ref: "#/components/schemas/OAuthConfig"
           nullable: true
@@ -14635,6 +14676,9 @@ components:
         corsConfig:
           description: CORS configuration for the agent endpoint in this environment. Omit to keep the current value.
           $ref: "#/components/schemas/CORSConfig"
+        agentCardCorsConfig:
+          description: Public Agent Card CORS for this environment (A2A agents only). Omit to keep the current value.
+          $ref: "#/components/schemas/AgentCardCORSConfig"
         enableOAuthSecurity:
           type: boolean
           description: Enable OAuth security for the agent endpoint in this environment. Mutually exclusive with enableApiKeySecurity. Omit to keep the current value.
@@ -14698,6 +14742,9 @@ components:
           description: Enable API key security for the agent endpoint in the target environment
         corsConfig:
           $ref: "#/components/schemas/CORSConfig"
+        agentCardCorsConfig:
+          description: Public Agent Card CORS for the target environment (A2A agents only). Omit to inherit the source environment's value.
+          $ref: "#/components/schemas/AgentCardCORSConfig"
         enableOAuthSecurity:
           type: boolean
           description: Enable OAuth security for the agent endpoint in the target environment. Mutually exclusive with enableApiKeySecurity.
@@ -17920,10 +17967,11 @@ components:
           description: Project the source agent belongs to
         agentSubType:
           type: string
-          description: Agent sub-type (chat-api or custom-api)
+          description: Agent sub-type (chat-api, custom-api or a2a-agent)
           enum:
             - chat-api
             - custom-api
+            - a2a-agent
         configSchema:
           type: array
           description: Configuration schema defining the parameters users must supply when creating an agent from this kind

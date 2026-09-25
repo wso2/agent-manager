@@ -167,6 +167,12 @@ export function buildMCPConfig(
   return configs.length > 0 ? configs : undefined;
 }
 
+const subTypeByInterface = {
+  CUSTOM: "custom-api",
+  A2A: "a2a-agent",
+  DEFAULT: "chat-api",
+} as const;
+
 export const buildAgentCreationPayload = (
   data: AddAgentFormValues,
   params: OrgProjPathParams,
@@ -197,9 +203,12 @@ export const buildAgentCreationPayload = (
             secretRef: data.gitSecretRef || null,
           },
         },
+        // Three subtypes now, so a two-way ternary would silently map A2A to
+        // chat. An A2A agent needs a port and no schema: it serves its own
+        // agent card and the platform stores no copy.
         agentType: {
           type: "agent-api",
-          subType: data.interfaceType === "CUSTOM" ? "custom-api" : "chat-api",
+          subType: subTypeByInterface[data.interfaceType],
         },
         build: data.language === "docker"
           ? {
@@ -258,6 +267,8 @@ export const buildAgentCreationPayload = (
                 path: data.openApiPath ?? "",
               },
             }
+            : data.interfaceType === "A2A"
+            ? { port: Number(data.port) }
             : {}),
         },
         ...(modelConfig ? { modelConfig } : {}),

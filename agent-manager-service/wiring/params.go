@@ -77,6 +77,7 @@ type AppParams struct {
 	AgentIdentityController          controllers.AgentIdentityController
 	MonitorScheduler                 services.MonitorSchedulerService
 	AgentThunderReconciler           services.AgentThunderReconcilerService
+	A2APublicationReconciler         services.A2APublicationReconcilerService
 
 	// Services
 	LLMTemplateStore              *services.LLMTemplateStore

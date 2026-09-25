@@ -21,6 +21,8 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	"github.com/wso2/agent-manager/agent-manager-service/spec"
 )
 
@@ -55,6 +57,19 @@ func TestValidatePromoteAgentRequest_InstrumentationVersionAllowedWithoutUseSour
 }
 
 func strPtrForTest(s string) *string { return &s }
+
+func TestValidatePromoteRejectsCardCORSWithSourceConfig(t *testing.T) {
+	useSource := true
+	payload := spec.PromoteAgentRequest{
+		SourceEnvironment:      "dev",
+		TargetEnvironment:      "staging",
+		UseConfigFromSourceEnv: &useSource,
+		AgentCardCorsConfig:    &spec.AgentCardCORSConfig{Inherit: spec.PtrBool(true)},
+	}
+	err := ValidatePromoteAgentRequest(&payload)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "agentCardCorsConfig")
+}
 
 func TestValidateTemplateHandle(t *testing.T) {
 	tests := []struct {

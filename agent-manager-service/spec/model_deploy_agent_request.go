@@ -28,8 +28,9 @@ type DeployAgentRequest struct {
 	// Enable auto instrumentation for observability
 	EnableAutoInstrumentation *bool `json:"enableAutoInstrumentation,omitempty"`
 	// Enable API key security for the agent endpoint
-	EnableApiKeySecurity *bool       `json:"enableApiKeySecurity,omitempty"`
-	CorsConfig           *CORSConfig `json:"corsConfig,omitempty"`
+	EnableApiKeySecurity *bool                `json:"enableApiKeySecurity,omitempty"`
+	CorsConfig           *CORSConfig          `json:"corsConfig,omitempty"`
+	AgentCardCorsConfig  *AgentCardCORSConfig `json:"agentCardCorsConfig,omitempty"`
 	// Enable OAuth security for the agent endpoint. Mutually exclusive with enableApiKeySecurity.
 	EnableOAuthSecurity *bool        `json:"enableOAuthSecurity,omitempty"`
 	OauthConfig         *OAuthConfig `json:"oauthConfig,omitempty"`
@@ -249,6 +250,38 @@ func (o *DeployAgentRequest) SetCorsConfig(v CORSConfig) {
 	o.CorsConfig = &v
 }
 
+// GetAgentCardCorsConfig returns the AgentCardCorsConfig field value if set, zero value otherwise.
+func (o *DeployAgentRequest) GetAgentCardCorsConfig() AgentCardCORSConfig {
+	if o == nil || IsNil(o.AgentCardCorsConfig) {
+		var ret AgentCardCORSConfig
+		return ret
+	}
+	return *o.AgentCardCorsConfig
+}
+
+// GetAgentCardCorsConfigOk returns a tuple with the AgentCardCorsConfig field value if set, nil otherwise
+// and a boolean to check if the value has been set.
+func (o *DeployAgentRequest) GetAgentCardCorsConfigOk() (*AgentCardCORSConfig, bool) {
+	if o == nil || IsNil(o.AgentCardCorsConfig) {
+		return nil, false
+	}
+	return o.AgentCardCorsConfig, true
+}
+
+// HasAgentCardCorsConfig returns a boolean if a field has been set.
+func (o *DeployAgentRequest) HasAgentCardCorsConfig() bool {
+	if o != nil && !IsNil(o.AgentCardCorsConfig) {
+		return true
+	}
+
+	return false
+}
+
+// SetAgentCardCorsConfig gets a reference to the given AgentCardCORSConfig and assigns it to the AgentCardCorsConfig field.
+func (o *DeployAgentRequest) SetAgentCardCorsConfig(v AgentCardCORSConfig) {
+	o.AgentCardCorsConfig = &v
+}
+
 // GetEnableOAuthSecurity returns the EnableOAuthSecurity field value if set, zero value otherwise.
 func (o *DeployAgentRequest) GetEnableOAuthSecurity() bool {
 	if o == nil || IsNil(o.EnableOAuthSecurity) {
@@ -338,6 +371,9 @@ func (o DeployAgentRequest) ToMap() (map[string]interface{}, error) {
 	}
 	if !IsNil(o.CorsConfig) {
 		toSerialize["corsConfig"] = o.CorsConfig
+	}
+	if !IsNil(o.AgentCardCorsConfig) {
+		toSerialize["agentCardCorsConfig"] = o.AgentCardCorsConfig
 	}
 	if !IsNil(o.EnableOAuthSecurity) {
 		toSerialize["enableOAuthSecurity"] = o.EnableOAuthSecurity

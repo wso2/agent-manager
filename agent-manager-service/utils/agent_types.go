@@ -37,7 +37,19 @@ type AgentSubType string
 const (
 	AgentSubTypeChatAPI   AgentSubType = "chat-api"
 	AgentSubTypeCustomAPI AgentSubType = "custom-api"
+	// AgentSubTypeA2A is an agent that speaks the A2A protocol. It provisions
+	// with the same agent-api component type as the other two but gets no REST
+	// API: the api-configuration trait is not attached, and the agent is
+	// published to the gateway as a kind: Agent resource instead.
+	AgentSubTypeA2A AgentSubType = "a2a-agent"
 )
+
+// IsA2AAgentSubType reports whether a subtype string names an A2A agent. It
+// exists so the several gates that branch on this subtype read the same and
+// cannot drift apart.
+func IsA2AAgentSubType(subType string) bool {
+	return subType == string(AgentSubTypeA2A)
+}
 
 type InputInterfaceType string
 

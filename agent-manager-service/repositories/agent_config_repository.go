@@ -84,9 +84,23 @@ func (r *AgentConfigRepo) Upsert(ctx context.Context, config *models.AgentConfig
 			"oauth_auth_header_prefix":    config.OAuthAuthHeaderPrefix,
 			"oauth_forward_token":         config.OAuthForwardToken,
 			"resilience_timeout_seconds":  config.ResilienceTimeoutSeconds,
+			"card_cors_enabled":           config.CardCORSEnabled,
+			"card_cors_allow_origins":     nullableJSONB(config.CardCORSAllowOrigins),
+			"card_cors_allow_headers":     nullableJSONB(config.CardCORSAllowHeaders),
+			"card_cors_allow_credentials": config.CardCORSAllowCredentials,
 			"updated_at":                  clause.Expr{SQL: "NOW()"},
 		}),
 	}).Create(config).Error
+}
+
+// nullableJSONB writes a nil slice as SQL NULL rather than the JSON literal
+// null, so an inheriting card leaves its columns genuinely empty.
+func nullableJSONB(values []string) interface{} {
+	if values == nil {
+		return nil
+	}
+	encoded, _ := json.Marshal(values)
+	return clause.Expr{SQL: "?::jsonb", Vars: []interface{}{string(encoded)}}
 }
 
 // Get retrieves agent config for a specific agent and environment

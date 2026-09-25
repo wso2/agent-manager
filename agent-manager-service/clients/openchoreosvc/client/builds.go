@@ -298,10 +298,10 @@ func (c *openChoreoClient) UpdateComponentBuildParameters(ctx context.Context, o
 			parameters["port"] = req.InputInterface.Port
 		}
 
-		// Update api-configuration trait if attached
+		// Update the gateway-routing trait if attached
 		if component.Spec.Traits != nil {
 			for i, trait := range *component.Spec.Traits {
-				if trait.Name == string(TraitAPIManagement) {
+				if trait.Name == string(TraitAPIManagement) || trait.Name == string(TraitA2AGatewayRoute) {
 					if trait.Parameters == nil {
 						params := make(map[string]interface{})
 						trait.Parameters = &params
@@ -310,7 +310,7 @@ func (c *openChoreoClient) UpdateComponentBuildParameters(ctx context.Context, o
 					if req.InputInterface.Port > 0 {
 						traitParams["upstreamPort"] = req.InputInterface.Port
 					}
-					if req.InputInterface.BasePath != "" {
+					if req.InputInterface.BasePath != "" && trait.Name == string(TraitAPIManagement) {
 						traitParams["upstreamBasePath"] = req.InputInterface.BasePath
 					}
 					(*component.Spec.Traits)[i] = trait
@@ -409,7 +409,8 @@ func buildEndpointsFromInputInterface(componentName string, inputInterface *Inpu
 	var port int32
 	var basePath string
 
-	// Use default port and basePath for chat-api agents, similar to buildEndpoints in components.go
+	// Use default port and basePath for chat-api agents, similar to buildEndpoints in components.go.
+	// custom-api and a2a-agent both carry their own port and base path.
 	if agentType.Type == string(utils.AgentTypeAPI) && agentType.SubType == string(utils.AgentSubTypeChatAPI) {
 		port = int32(config.GetConfig().DefaultChatAPI.DefaultHTTPPort)
 		basePath = config.GetConfig().DefaultChatAPI.DefaultBasePath

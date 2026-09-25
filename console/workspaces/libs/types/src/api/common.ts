@@ -97,6 +97,19 @@ export interface CorsConfig {
   allowCredentials?: boolean;
 }
 
+/** CORS for an A2A agent's public Agent Card route. Methods are always GET and OPTIONS. */
+export interface AgentCardCorsConfig {
+  /**
+   * True when the card follows the agent's CORS. On a request it clears any override and the
+   * other fields are ignored; on a response the other fields hold the effective values.
+   */
+  inherit?: boolean;
+  enabled?: boolean;
+  allowOrigin?: string[];
+  allowHeaders?: string[];
+  allowCredentials?: boolean;
+}
+
 export interface OAuthConfig {
   /** Issuer names referencing gateway-side key manager entries. Empty uses the platform default. */
   issuers?: string[];

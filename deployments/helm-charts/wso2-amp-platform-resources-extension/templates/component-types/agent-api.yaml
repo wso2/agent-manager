@@ -26,6 +26,8 @@ spec:
       name: ballerina-otel-instrumentation-trait
     - kind: Trait
       name: api-configuration
+    - kind: Trait
+      name: a2a-gateway-route
 
   validations:
     - rule: "${size(workload.endpoints) > 0}"

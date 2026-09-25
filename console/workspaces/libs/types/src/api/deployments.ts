@@ -16,7 +16,7 @@
  * under the License.
  */
 
-import { type AgentPathParams, type CorsConfig, type OAuthConfig, type EnvironmentVariable, type FileMount, type EndpointSchema, type OrgProjPathParams, type PaginationMeta, type ListQuery } from './common';
+import { type AgentPathParams, type AgentCardCorsConfig, type CorsConfig, type OAuthConfig, type EnvironmentVariable, type FileMount, type EndpointSchema, type OrgProjPathParams, type PaginationMeta, type ListQuery } from './common';
 import type { GatewaySpec } from './gateways';
 
 // Requests
@@ -29,6 +29,7 @@ export interface DeployAgentRequest {
   enableApiKeySecurity?: boolean;
   enableOAuthSecurity?: boolean;
   corsConfig?: CorsConfig;
+  agentCardCorsConfig?: AgentCardCorsConfig;
   oauthConfig?: OAuthConfig;
 }
 
@@ -43,6 +44,7 @@ export interface UpdateAgentDeploySettingsRequest {
   enableApiKeySecurity?: boolean;
   enableOAuthSecurity?: boolean;
   corsConfig?: CorsConfig;
+  agentCardCorsConfig?: AgentCardCorsConfig;
   oauthConfig?: OAuthConfig;
   resilienceTimeoutSeconds?: number;
 }
@@ -142,6 +144,7 @@ export interface ConfigurationResponse {
   enableApiKeySecurity?: boolean;
   enableOAuthSecurity?: boolean;
   corsConfig?: CorsConfig;
+  agentCardCorsConfig?: AgentCardCorsConfig;
   oauthConfig?: OAuthConfig;
   /**
    * Max duration (seconds) the gateway keeps a response open between the agent and the
@@ -259,6 +262,7 @@ export interface PromoteAgentRequest {
   enableApiKeySecurity?: boolean;
   enableOAuthSecurity?: boolean;
   corsConfig?: CorsConfig;
+  agentCardCorsConfig?: AgentCardCorsConfig;
   oauthConfig?: OAuthConfig;
 }
 

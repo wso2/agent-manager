@@ -34,8 +34,9 @@ type PromoteAgentRequest struct {
 	// AMP instrumentation version to pin for the agent in the target environment. Selects the pre-built init-container image (`amp-python-instrumentation-provider:<version>-python<X.Y>`) and the `traceloop-sdk` it bundles. Applies only to Python buildpack agents with auto-instrumentation enabled. Omit (or send null) to inherit the currently-pinned version. Must be one of the versions supported by the deployment; unknown or python-incompatible values are rejected.
 	InstrumentationVersion NullableString `json:"instrumentationVersion,omitempty"`
 	// Enable API key security for the agent endpoint in the target environment
-	EnableApiKeySecurity *bool       `json:"enableApiKeySecurity,omitempty"`
-	CorsConfig           *CORSConfig `json:"corsConfig,omitempty"`
+	EnableApiKeySecurity *bool                `json:"enableApiKeySecurity,omitempty"`
+	CorsConfig           *CORSConfig          `json:"corsConfig,omitempty"`
+	AgentCardCorsConfig  *AgentCardCORSConfig `json:"agentCardCorsConfig,omitempty"`
 	// Enable OAuth security for the agent endpoint in the target environment. Mutually exclusive with enableApiKeySecurity.
 	EnableOAuthSecurity *bool        `json:"enableOAuthSecurity,omitempty"`
 	OauthConfig         *OAuthConfig `json:"oauthConfig,omitempty"`
@@ -345,6 +346,38 @@ func (o *PromoteAgentRequest) SetCorsConfig(v CORSConfig) {
 	o.CorsConfig = &v
 }
 
+// GetAgentCardCorsConfig returns the AgentCardCorsConfig field value if set, zero value otherwise.
+func (o *PromoteAgentRequest) GetAgentCardCorsConfig() AgentCardCORSConfig {
+	if o == nil || IsNil(o.AgentCardCorsConfig) {
+		var ret AgentCardCORSConfig
+		return ret
+	}
+	return *o.AgentCardCorsConfig
+}
+
+// GetAgentCardCorsConfigOk returns a tuple with the AgentCardCorsConfig field value if set, nil otherwise
+// and a boolean to check if the value has been set.
+func (o *PromoteAgentRequest) GetAgentCardCorsConfigOk() (*AgentCardCORSConfig, bool) {
+	if o == nil || IsNil(o.AgentCardCorsConfig) {
+		return nil, false
+	}
+	return o.AgentCardCorsConfig, true
+}
+
+// HasAgentCardCorsConfig returns a boolean if a field has been set.
+func (o *PromoteAgentRequest) HasAgentCardCorsConfig() bool {
+	if o != nil && !IsNil(o.AgentCardCorsConfig) {
+		return true
+	}
+
+	return false
+}
+
+// SetAgentCardCorsConfig gets a reference to the given AgentCardCORSConfig and assigns it to the AgentCardCorsConfig field.
+func (o *PromoteAgentRequest) SetAgentCardCorsConfig(v AgentCardCORSConfig) {
+	o.AgentCardCorsConfig = &v
+}
+
 // GetEnableOAuthSecurity returns the EnableOAuthSecurity field value if set, zero value otherwise.
 func (o *PromoteAgentRequest) GetEnableOAuthSecurity() bool {
 	if o == nil || IsNil(o.EnableOAuthSecurity) {
@@ -473,6 +506,9 @@ func (o PromoteAgentRequest) ToMap() (map[string]interface{}, error) {
 	}
 	if !IsNil(o.CorsConfig) {
 		toSerialize["corsConfig"] = o.CorsConfig
+	}
+	if !IsNil(o.AgentCardCorsConfig) {
+		toSerialize["agentCardCorsConfig"] = o.AgentCardCorsConfig
 	}
 	if !IsNil(o.EnableOAuthSecurity) {
 		toSerialize["enableOAuthSecurity"] = o.EnableOAuthSecurity

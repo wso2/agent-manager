@@ -65,7 +65,7 @@ export type CreateAgentRequest = AgentRequestBase;
 export type UpdateAgentRequest = UpdateAgentBasicInfoRequest;
 export type { UpdateAgentBasicInfoRequest, UpdateAgentBuildParametersRequest };
 
-export type InputInterfaceType = 'DEFAULT' | 'CUSTOM';
+export type InputInterfaceType = 'DEFAULT' | 'CUSTOM' | 'A2A';
 
 export interface InputInterface {
   type: string; // Always "HTTP" for now

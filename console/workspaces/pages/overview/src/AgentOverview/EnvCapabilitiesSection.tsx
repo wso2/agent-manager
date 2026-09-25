@@ -17,9 +17,9 @@
  */
 
 import { useState } from "react";
-import { Box, Button, Chip, Tooltip, Typography } from "@wso2/oxygen-ui";
+import { Alert, Box, Button, Chip, Tooltip, Typography } from "@wso2/oxygen-ui";
 import { Plug } from "@wso2/oxygen-ui-icons-react";
-import { useGetAgentConfigurations } from "@agent-management-platform/api-client";
+import { useGetAgent, useGetAgentConfigurations } from "@agent-management-platform/api-client";
 import {
     CollapsibleSection,
     DeploymentStatus,
@@ -130,6 +130,13 @@ export const EnvCapabilitiesSection: React.FC<EnvCapabilitiesSectionProps> = ({
         { environment: envId },
     );
 
+    // The subtype decides whether an unauthenticated endpoint also breaks the extended Agent
+    // Card. AgentOverview.tsx already fetches this same agent (same query key), so this shares
+    // that cache entry rather than firing a second request.
+    const { data: agent } = useGetAgent(
+        { orgName: external ? "" : orgId, projName: projectId, agentName: agentId },
+    );
+
     // Combined so the card never renders a stale/default "None · Disabled"
     // security summary while the per-env config is still loading, or silently
     // shows the wrong posture if that fetch fails outright.
@@ -148,6 +155,9 @@ export const EnvCapabilitiesSection: React.FC<EnvCapabilitiesSectionProps> = ({
     const { label: authLabel, tooltip: authTooltip, headerExample: authHeaderExample } =
         getAuthPresentation(authMode, authHeaderPrefix, oauthHeaderName);
     const oauthIssuers = configurations?.oauthConfig?.issuers ?? EMPTY_ISSUERS;
+    // Without auth, the endpoint is open to anyone who can reach the gateway, and the extended
+    // Agent Card (which A2A clients rely on to discover richer capabilities) always 401s.
+    const a2aOpenEndpoint = agent?.agentType?.subType === "a2a-agent" && authMode === "none";
 
     const corsEnabled = configurations?.corsConfig?.enabled ?? false;
     const corsOrigins = configurations?.corsConfig?.allowOrigin ?? [];
@@ -230,6 +240,15 @@ export const EnvCapabilitiesSection: React.FC<EnvCapabilitiesSectionProps> = ({
                                         tooltip={corsTooltip}
                                     />
                                 </Box>
+                                {a2aOpenEndpoint && (
+                                    <Alert severity="warning" sx={{ width: "100%", mt: 1 }}>
+                                        <Typography variant="caption">
+                                            This agent can be called by anyone who can reach the
+                                            gateway, and the extended Agent Card
+                                            (GetExtendedAgentCard) will always return 401.
+                                        </Typography>
+                                    </Alert>
+                                )}
                             </>
                         )}
                     </OverviewSectionCard>

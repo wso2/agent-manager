@@ -51,6 +51,12 @@ type AgentConfig struct {
 	OAuthAuthHeaderPrefix    string   `gorm:"column:oauth_auth_header_prefix;not null;default:'Bearer'"`
 	OAuthForwardToken        bool     `gorm:"column:oauth_forward_token;not null;default:true"`
 	ResilienceTimeoutSeconds *int32   `gorm:"column:resilience_timeout_seconds"`
+	// Public Agent Card CORS override (A2A agents only). A nil CardCORSEnabled
+	// means the card inherits the agent's CORS, and the other three are nil too.
+	CardCORSEnabled          *bool    `gorm:"column:card_cors_enabled"`
+	CardCORSAllowOrigins     []string `gorm:"column:card_cors_allow_origins;type:jsonb;serializer:json"`
+	CardCORSAllowHeaders     []string `gorm:"column:card_cors_allow_headers;type:jsonb;serializer:json"`
+	CardCORSAllowCredentials *bool    `gorm:"column:card_cors_allow_credentials"`
 }
 
 func (AgentConfig) TableName() string { return "agent_configs" }

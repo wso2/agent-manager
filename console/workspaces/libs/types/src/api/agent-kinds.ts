@@ -40,7 +40,7 @@ export interface AgentKindVersionResponse {
   imageId: string;
   sourceAgentName: string;
   sourceProjectName: string;
-  agentSubType?: 'chat-api' | 'custom-api';
+  agentSubType?: 'chat-api' | 'custom-api' | 'a2a-agent';
   configSchema: AgentKindConfigSchemaItem[];
   metadata?: Record<string, unknown> | null;
   createdAt: string;

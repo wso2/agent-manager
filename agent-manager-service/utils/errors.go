@@ -202,6 +202,9 @@ var (
 	ErrLLMProxyNotFound            = errors.New("LLM proxy not found")
 	ErrLLMProxyExists              = errors.New("LLM proxy already exists")
 	ErrMCPProxyNotFound            = errors.New("MCP proxy not found")
+	// ErrAgentArtifactNotFound means no active Agent deployment exists for this
+	// artifact on this gateway.
+	ErrAgentArtifactNotFound       = errors.New("agent artifact not found")
 	ErrMCPProxyExists              = errors.New("MCP proxy already exists")
 	ErrMCPProxyHasMappings         = errors.New("cannot delete MCP proxy: it has associated MCP proxy mappings. Please delete all mappings before deleting the proxy")
 	ErrMCPEnvAlreadyBound          = errors.New("environment is already assigned to another endpoint in this MCP proxy")

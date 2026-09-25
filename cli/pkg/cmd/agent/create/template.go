@@ -30,7 +30,7 @@ spec:
   # description: <optional description>
   agentType:
     type: agent-api             # external provisioning: external-agent-api
-    subType: chat-api           # or: custom-api (see inputInterface below)
+    subType: chat-api           # or: custom-api, a2a-agent (see inputInterface below)
   provisioning:
     type: internal              # or: external (then omit repository, build,
                                 #     inputInterface and configurations)
@@ -59,6 +59,10 @@ spec:
     # basePath: </api>
     # schema:
     #   path: /<openapi.yaml>          # must start with /
+    # --- a2a-agent only ---
+    # An A2A agent needs only a port: it serves its own agent card, so there is
+    # no OpenAPI document to point at.
+    # port: 9099
   # configurations:
   #   env:
   #     - key: <KEY>

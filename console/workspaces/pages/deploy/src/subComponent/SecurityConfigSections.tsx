@@ -47,6 +47,7 @@ import {
   Select,
   Switch,
   TextField,
+  Tooltip,
   Typography,
 } from "@wso2/oxygen-ui";
 import { ChevronDown } from "@wso2/oxygen-ui-icons-react";
@@ -57,10 +58,24 @@ import {
   useMemo,
   useState,
 } from "react";
+import {
+  AgentCardCorsSection,
+  cardDraftFromConfig,
+  cardDraftToPayload,
+  isCardDraftInvalid,
+  type AgentCardCorsDraft,
+} from "./AgentCardCorsSection";
 
 const DEFAULT_RESILIENCE_TIMEOUT_SECONDS = 30;
 const MIN_RESILIENCE_TIMEOUT_SECONDS = 1;
 const MAX_RESILIENCE_TIMEOUT_SECONDS = 3600;
+const DEFAULT_CORS_METHODS = ["GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS"];
+const DEFAULT_CORS_HEADERS = ["authorization", "Content-Type", "Origin", "X-API-Key"];
+// The gateway rejects A2A operations without this header, so AMS always allows it for A2A
+// agents; it is shown but never edited or sent.
+const A2A_VERSION_HEADER = "A2A-Version";
+const isA2AVersionHeader = (header: string) =>
+  header.toLowerCase() === A2A_VERSION_HEADER.toLowerCase();
 
 type TimeoutUnit = "seconds" | "minutes";
 
@@ -109,6 +124,7 @@ export const SecurityConfigSections = forwardRef<SecurityConfigHandle, SecurityC
     // env-scoped `configurations` prop below.
     const { data: agent } = useGetAgent({ orgName, projName, agentName });
     const isApiAgent = agent?.agentType?.type === "agent-api";
+    const isA2AAgent = agent?.agentType?.subType === "a2a-agent";
 
     const { data: idpResp } = useListEnvironmentIdentityProviders({
       orgName,
@@ -130,15 +146,12 @@ export const SecurityConfigSections = forwardRef<SecurityConfigHandle, SecurityC
     const [corsEnabled, setCorsEnabled] = useState(false);
     const [corsAllowAll, setCorsAllowAll] = useState(true);
     const [corsOrigins, setCorsOrigins] = useState<string[]>(["*"]);
-    const [corsMethods, setCorsMethods] = useState<string[]>([
-      "GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS",
-    ]);
-    const [corsHeaders, setCorsHeaders] = useState<string[]>([
-      "authorization", "Content-Type", "Origin", "X-API-Key",
-    ]);
+    const [corsMethods, setCorsMethods] = useState<string[]>(DEFAULT_CORS_METHODS);
+    const [corsHeaders, setCorsHeaders] = useState<string[]>(DEFAULT_CORS_HEADERS);
     const [corsAllowCredentials, setCorsAllowCredentials] = useState(false);
     const [timeoutDuration, setTimeoutDuration] = useState("30");
     const [timeoutUnit, setTimeoutUnit] = useState<TimeoutUnit>("seconds");
+    const [cardDraft, setCardDraft] = useState<AgentCardCorsDraft>(() => cardDraftFromConfig());
 
     useEffect(() => {
       if (!open) return;
@@ -158,8 +171,8 @@ export const SecurityConfigSections = forwardRef<SecurityConfigHandle, SecurityC
         setCorsEnabled(false);
         setCorsAllowAll(true);
         setCorsOrigins(["*"]);
-        setCorsMethods(["GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS"]);
-        setCorsHeaders(["authorization", "Content-Type", "Origin", "X-API-Key"]);
+        setCorsMethods(DEFAULT_CORS_METHODS);
+        setCorsHeaders(DEFAULT_CORS_HEADERS);
         setCorsAllowCredentials(false);
         return;
       }
@@ -173,6 +186,13 @@ export const SecurityConfigSections = forwardRef<SecurityConfigHandle, SecurityC
       if (cors.allowHeaders !== undefined) setCorsHeaders(cors.allowHeaders);
       if (cors.allowCredentials !== undefined) setCorsAllowCredentials(cors.allowCredentials);
     }, [open, configurations?.corsConfig]);
+
+    // Seed the Agent Card CORS draft from the env-scoped config on open; defaults to inherit
+    // when no config exists yet.
+    useEffect(() => {
+      if (!open) return;
+      setCardDraft(cardDraftFromConfig(configurations?.agentCardCorsConfig));
+    }, [open, configurations?.agentCardCorsConfig]);
 
     // Seed Endpoint Authentication from the env-scoped config on open.
     useEffect(() => {
@@ -204,12 +224,16 @@ export const SecurityConfigSections = forwardRef<SecurityConfigHandle, SecurityC
     ]);
 
     const hasWildcardOrigin = corsAllowAll || corsOrigins.includes("*");
+    const editableCorsHeaders = isA2AAgent
+      ? corsHeaders.filter((header) => !isA2AVersionHeader(header))
+      : corsHeaders;
+    const cardInvalid = isA2AAgent && isCardDraftInvalid(cardDraft);
     const oauthInvalid = isApiAgent && authMode === "oauth" && oauthIssuers.length === 0;
 
     const resilienceTimeoutSeconds = timeoutUnit === "minutes"
       ? Number(timeoutDuration) * 60
       : Number(timeoutDuration);
-    const timeoutInvalid = isApiAgent && (
+    const timeoutInvalid = isApiAgent && !isA2AAgent && (
       timeoutDuration.trim() === ""
       || !Number.isFinite(resilienceTimeoutSeconds)
       || !Number.isInteger(resilienceTimeoutSeconds)
@@ -225,13 +249,13 @@ export const SecurityConfigSections = forwardRef<SecurityConfigHandle, SecurityC
     };
 
     useEffect(() => {
-      onValidityChange?.(!oauthInvalid && !timeoutInvalid);
-    }, [oauthInvalid, timeoutInvalid, onValidityChange]);
+      onValidityChange?.(!oauthInvalid && !timeoutInvalid && !cardInvalid);
+    }, [oauthInvalid, timeoutInvalid, cardInvalid, onValidityChange]);
 
     useImperativeHandle(
       ref,
       () => ({
-        validate: () => !oauthInvalid && !timeoutInvalid,
+        validate: () => !oauthInvalid && !timeoutInvalid && !cardInvalid,
         buildBody: () => {
           if (!isApiAgent) return {};
           return {
@@ -250,20 +274,23 @@ export const SecurityConfigSections = forwardRef<SecurityConfigHandle, SecurityC
               enabled: corsEnabled,
               allowOrigin: hasWildcardOrigin ? ["*"] : corsOrigins,
               allowMethods: corsMethods,
-              allowHeaders: corsHeaders,
+              allowHeaders: editableCorsHeaders,
               allowCredentials: hasWildcardOrigin ? false : corsAllowCredentials,
             },
-            resilienceTimeoutSeconds: timeoutInvalid
-              ? DEFAULT_RESILIENCE_TIMEOUT_SECONDS
-              : resilienceTimeoutSeconds,
+            ...(!isA2AAgent && {
+              resilienceTimeoutSeconds: timeoutInvalid
+                ? DEFAULT_RESILIENCE_TIMEOUT_SECONDS
+                : resilienceTimeoutSeconds,
+            }),
+            ...(isA2AAgent && { agentCardCorsConfig: cardDraftToPayload(cardDraft) }),
           };
         },
       }),
       [
         isApiAgent, oauthInvalid, authMode, oauthIssuers, oauthAudiences, oauthHeaderName,
         oauthHeaderPrefix, oauthForwardToken, corsEnabled, corsOrigins, corsMethods,
-        corsHeaders, corsAllowCredentials, hasWildcardOrigin, timeoutInvalid,
-        resilienceTimeoutSeconds,
+        corsAllowCredentials, hasWildcardOrigin, timeoutInvalid,
+        resilienceTimeoutSeconds, isA2AAgent, editableCorsHeaders, cardDraft, cardInvalid,
       ],
     );
 
@@ -288,6 +315,16 @@ export const SecurityConfigSections = forwardRef<SecurityConfigHandle, SecurityC
               }
               label="Enable CORS"
             />
+            {isA2AAgent && (
+              <Box display="flex" alignItems="center" gap={1}>
+                <Tooltip title="Required by A2A clients; always sent.">
+                  <Chip label={A2A_VERSION_HEADER} size="small" />
+                </Tooltip>
+                <Typography variant="caption" color="text.secondary">
+                  Always an allowed header for A2A agents.
+                </Typography>
+              </Box>
+            )}
             <Collapse in={corsEnabled}>
               <Accordion
                 disableGutters
@@ -397,7 +434,7 @@ export const SecurityConfigSections = forwardRef<SecurityConfigHandle, SecurityC
                         multiple
                         freeSolo
                         options={[]}
-                        value={corsHeaders}
+                        value={editableCorsHeaders}
                         onChange={(_, v) => setCorsHeaders(v as string[])}
                         renderTags={(vals, getTagProps) =>
                           vals.map((opt, i) => (
@@ -424,6 +461,10 @@ export const SecurityConfigSections = forwardRef<SecurityConfigHandle, SecurityC
             </Collapse>
           </Form.Stack>
         </Form.Section>
+
+        {isA2AAgent && (
+          <AgentCardCorsSection draft={cardDraft} onChange={setCardDraft} disabled={disabled} />
+        )}
 
         {/* ── Endpoint Authentication ──────────────────────────────── */}
         <Form.Section>
@@ -464,6 +505,15 @@ export const SecurityConfigSections = forwardRef<SecurityConfigHandle, SecurityC
                 />
               </RadioGroup>
             </FormControl>
+
+            {isA2AAgent && authMode === "none" && (
+              <Alert severity="warning">
+                <Typography variant="caption">
+                  This agent can be called by anyone who can reach the gateway, and the extended
+                  Agent Card (GetExtendedAgentCard) will always return 401.
+                </Typography>
+              </Alert>
+            )}
 
             <Collapse in={authMode === "apikey"}>
               <FormControl fullWidth sx={{ mt: 1 }}>
@@ -594,50 +644,52 @@ export const SecurityConfigSections = forwardRef<SecurityConfigHandle, SecurityC
             </Collapse>
           </Form.Stack>
         </Form.Section>
-        <Form.Section>
-          <Form.Header>Request Timeout</Form.Header>
-          <Form.Subheader>
-            Maximum duration an active connection can stay open between the agent and client
-          </Form.Subheader>
-          <Grid container spacing={2}>
-            <Grid size={{ xs: 12, sm: 6 }}>
-              <FormControl fullWidth size="small" error={timeoutInvalid}>
-                <FormLabel>Duration</FormLabel>
-                <TextField
-                  size="small"
-                  type="number"
-                  placeholder="e.g. 30"
-                  value={timeoutDuration}
-                  onChange={(e) => setTimeoutDuration(e.target.value)}
-                  onBlur={handleTimeoutBlur}
-                  disabled={disabled}
-                  error={timeoutInvalid}
-                  helperText={
-                    timeoutInvalid
-                      ? `Enter a duration between ${MIN_RESILIENCE_TIMEOUT_SECONDS}s and `
-                        + `${MAX_RESILIENCE_TIMEOUT_SECONDS / 60}m`
-                      : undefined
-                  }
-                  slotProps={{ input: { inputProps: { min: 1, step: 1 } } }}
-                />
-              </FormControl>
+        {!isA2AAgent && (
+          <Form.Section>
+            <Form.Header>Request Timeout</Form.Header>
+            <Form.Subheader>
+              Maximum duration an active connection can stay open between the agent and client
+            </Form.Subheader>
+            <Grid container spacing={2}>
+              <Grid size={{ xs: 12, sm: 6 }}>
+                <FormControl fullWidth size="small" error={timeoutInvalid}>
+                  <FormLabel>Duration</FormLabel>
+                  <TextField
+                    size="small"
+                    type="number"
+                    placeholder="e.g. 30"
+                    value={timeoutDuration}
+                    onChange={(e) => setTimeoutDuration(e.target.value)}
+                    onBlur={handleTimeoutBlur}
+                    disabled={disabled}
+                    error={timeoutInvalid}
+                    helperText={
+                      timeoutInvalid
+                        ? `Enter a duration between ${MIN_RESILIENCE_TIMEOUT_SECONDS}s and `
+                          + `${MAX_RESILIENCE_TIMEOUT_SECONDS / 60}m`
+                        : undefined
+                    }
+                    slotProps={{ input: { inputProps: { min: 1, step: 1 } } }}
+                  />
+                </FormControl>
+              </Grid>
+              <Grid size={{ xs: 12, sm: 6 }}>
+                <FormControl fullWidth size="small">
+                  <FormLabel>Unit</FormLabel>
+                  <Select
+                    size="small"
+                    value={timeoutUnit}
+                    onChange={(e) => setTimeoutUnit(e.target.value as TimeoutUnit)}
+                    disabled={disabled}
+                  >
+                    <MenuItem value="seconds">Seconds</MenuItem>
+                    <MenuItem value="minutes">Minutes</MenuItem>
+                  </Select>
+                </FormControl>
+              </Grid>
             </Grid>
-            <Grid size={{ xs: 12, sm: 6 }}>
-              <FormControl fullWidth size="small">
-                <FormLabel>Unit</FormLabel>
-                <Select
-                  size="small"
-                  value={timeoutUnit}
-                  onChange={(e) => setTimeoutUnit(e.target.value as TimeoutUnit)}
-                  disabled={disabled}
-                >
-                  <MenuItem value="seconds">Seconds</MenuItem>
-                  <MenuItem value="minutes">Minutes</MenuItem>
-                </Select>
-              </FormControl>
-            </Grid>
-          </Grid>
-        </Form.Section>
+          </Form.Section>
+        )}
       </>
     );
   },

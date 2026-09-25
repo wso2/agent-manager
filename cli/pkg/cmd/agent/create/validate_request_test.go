@@ -315,7 +315,7 @@ func TestValidateRequest_UnknownSubType(t *testing.T) {
 	req := validInternalReq(t)
 	req.AgentType.SubType = strPtr("grpc")
 	v := validateRequest(req)
-	assertViolation(t, v, `spec.agentType.subType must be "chat-api" or "custom-api", got "grpc"`)
+	assertViolation(t, v, `spec.agentType.subType must be "chat-api", "custom-api" or "a2a-agent", got "grpc"`)
 }
 
 func TestValidateRequest_SubTypeRequiredForRepository(t *testing.T) {

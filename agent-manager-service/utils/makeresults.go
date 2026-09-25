@@ -224,6 +224,14 @@ func PopulateConfigurationResponseFromAgentConfig(resp *spec.ConfigurationRespon
 		AuthHeaderPrefix: &cfg.OAuthAuthHeaderPrefix,
 		ForwardToken:     &cfg.OAuthForwardToken,
 	}
+	card := cfg.EffectiveCardCORS()
+	resp.AgentCardCorsConfig = &spec.AgentCardCORSConfig{
+		Inherit:          spec.PtrBool(card.Inherited),
+		Enabled:          spec.PtrBool(card.Enabled),
+		AllowOrigin:      card.AllowOrigins,
+		AllowHeaders:     card.AllowHeaders,
+		AllowCredentials: spec.PtrBool(card.AllowCredentials),
+	}
 }
 
 func convertToExternalAgentResponse(component *models.AgentResponse) spec.AgentResponse {

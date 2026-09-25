@@ -34,5 +34,7 @@ export function displayAgentSubType(subType?: string) {
       return "Custom API";
     case "chat-api":
       return "Chat";
+    case "a2a-agent":
+      return "A2A";
   }
 }

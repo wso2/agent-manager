@@ -19,7 +19,11 @@ package utils
 import (
 	"testing"
 
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+
 	"github.com/wso2/agent-manager/agent-manager-service/models"
+	"github.com/wso2/agent-manager/agent-manager-service/spec"
 )
 
 func TestConvertToConfigurations_SurfacesInstrumentationVersion(t *testing.T) {
@@ -104,4 +108,14 @@ func TestConvertToDeploymentDetailsResponse_SurfacesKindVersion(t *testing.T) {
 	if unresolved.KindVersion != nil {
 		t.Errorf("KindVersion = %v, want nil when the image matches no version", *unresolved.KindVersion)
 	}
+}
+
+func TestPopulateConfigurationResponseReportsInheritedCardCORS(t *testing.T) {
+	resp := &spec.ConfigurationResponse{}
+	PopulateConfigurationResponseFromAgentConfig(resp, &models.AgentConfig{CORSEnabled: true, CORSAllowOrigins: []string{"*"}})
+	require.NotNil(t, resp.AgentCardCorsConfig)
+	assert.True(t, resp.AgentCardCorsConfig.GetInherit())
+	assert.True(t, resp.AgentCardCorsConfig.GetEnabled())
+	assert.Equal(t, []string{"*"}, resp.AgentCardCorsConfig.AllowOrigin)
+	assert.Equal(t, []string{"Content-Type"}, resp.AgentCardCorsConfig.AllowHeaders)
 }

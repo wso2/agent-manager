@@ -27,6 +27,7 @@ const (
 	TraitEnvInjection                 TraitType = "instrumentation-trait-env-injection"
 	TraitBallerinaOTELInstrumentation TraitType = "ballerina-otel-instrumentation-trait"
 	TraitAPIManagement                TraitType = "api-configuration"
+	TraitA2AGatewayRoute              TraitType = "a2a-gateway-route"
 	TraitAutoscaling                  TraitType = "horizontal-pod-autoscaler"
 )
 

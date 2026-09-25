@@ -201,12 +201,20 @@ func internalRequestViolations(req amsvc.CreateAgentRequest) []string {
 		if req.InputInterface != nil && req.InputInterface.Port == nil {
 			v = append(v, "spec.inputInterface.port is required for subtype custom-api")
 		}
+	case subTypeA2A:
+		// No schema and no base path: an a2a agent serves its own agent card at a
+		// well-known path, and the gateway derives its upstream from the endpoint
+		// this port declares.
+		if req.InputInterface == nil || req.InputInterface.Port == nil {
+			v = append(v, "spec.inputInterface.port is required for subtype a2a-agent")
+		}
 	case "":
 		if hasRepo {
-			v = append(v, "spec.agentType.subType is required for internal provisioning (chat-api or custom-api)")
+			v = append(v, "spec.agentType.subType is required for internal provisioning (chat-api, custom-api or a2a-agent)")
 		}
 	default:
-		v = append(v, fmt.Sprintf("spec.agentType.subType must be %q or %q, got %q", subTypeChatAPI, subTypeCustomAPI, subType))
+		v = append(v, fmt.Sprintf("spec.agentType.subType must be %q, %q or %q, got %q",
+			subTypeChatAPI, subTypeCustomAPI, subTypeA2A, subType))
 	}
 
 	if iface := req.InputInterface; iface != nil {

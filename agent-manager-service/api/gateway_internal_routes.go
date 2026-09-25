@@ -55,4 +55,8 @@ func RegisterGatewayInternalRoutes(rr *middleware.RouteRegistrar, ctrl controlle
 
 	// MCP Proxy endpoints
 	rr.HandleFuncWithValidation("GET /mcp-proxies/{proxyId}", ctrl.GetMCPProxy)
+
+	// A2A Agent endpoints. The gateway fetches this after an agent.deployed
+	// event and expects a ZIP containing the Agent YAML.
+	rr.HandleFuncWithValidation("GET /agents/{agentId}", ctrl.GetAgent)
 }

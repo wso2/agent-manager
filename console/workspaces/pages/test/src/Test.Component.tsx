@@ -24,7 +24,7 @@ import {
   PageLayout,
 } from "@agent-management-platform/views";
 import { Alert, Box, Skeleton } from "@wso2/oxygen-ui";
-import { Rocket } from "@wso2/oxygen-ui-icons-react";
+import { Network, Rocket } from "@wso2/oxygen-ui-icons-react";
 import { useParams } from "react-router-dom";
 import { Swagger } from "./AgentTest/Swagger";
 import {
@@ -66,6 +66,7 @@ export const TestComponent: React.FC = () => {
   });
 
   const isChatAgent = agent?.agentType?.subType === "chat-api";
+  const isA2AAgent = agent?.agentType?.subType === "a2a-agent";
 
   const { data: deployments, isLoading: isDeploymentsLoading } =
     useListAgentDeployments({
@@ -91,7 +92,7 @@ export const TestComponent: React.FC = () => {
   const isDeploymentLoading = isDeploymentsLoading || isAgentLoading;
   const isLoading = isDeploymentLoading || isEnvConfigLoading;
 
-  if (!isDeploymentLoading && currentDeployment?.status !== "active") {
+  if (!isDeploymentLoading && !isA2AAgent && currentDeployment?.status !== "active") {
     return (
       <PageLayout title="Try your agent" disableIcon actions={<EnvironmentSelector />}>
         <Box
@@ -124,6 +125,20 @@ export const TestComponent: React.FC = () => {
         <>
           {isChatAgent ? (
             <AgentChat key={`${agentId}-${envId}`} />
+          ) : isA2AAgent ? (
+            <Box
+              height="50vh"
+              display="flex"
+              justifyContent="center"
+              alignItems="center"
+            >
+              <NoDataFound
+                iconElement={Network}
+                disableBackground
+                message="Testing isn't available for A2A agents yet"
+                subtitle="This agent speaks the A2A protocol directly. Use an A2A-compatible client with its agent card to try it out."
+              />
+            </Box>
           ) : (
             <Swagger key={`${agentId}-${envId}`} />
           )}

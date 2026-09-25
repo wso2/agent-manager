@@ -32,9 +32,10 @@ type ConfigurationResponse struct {
 	// Whether API key security is enabled for this environment's agent endpoint
 	EnableApiKeySecurity *bool `json:"enableApiKeySecurity,omitempty"`
 	// Whether OAuth security is enabled for this environment's agent endpoint
-	EnableOAuthSecurity *bool        `json:"enableOAuthSecurity,omitempty"`
-	CorsConfig          *CORSConfig  `json:"corsConfig,omitempty"`
-	OauthConfig         *OAuthConfig `json:"oauthConfig,omitempty"`
+	EnableOAuthSecurity *bool                `json:"enableOAuthSecurity,omitempty"`
+	CorsConfig          *CORSConfig          `json:"corsConfig,omitempty"`
+	AgentCardCorsConfig *AgentCardCORSConfig `json:"agentCardCorsConfig,omitempty"`
+	OauthConfig         *OAuthConfig         `json:"oauthConfig,omitempty"`
 	// Max duration (seconds) the gateway keeps a response open between the agent and the client before cutting it off, for this agent's endpoint in this environment. Defaults to 30 seconds when unset.
 	ResilienceTimeoutSeconds *int32                              `json:"resilienceTimeoutSeconds,omitempty"`
 	Configurations           ConfigurationResponseConfigurations `json:"configurations"`
@@ -293,6 +294,38 @@ func (o *ConfigurationResponse) SetCorsConfig(v CORSConfig) {
 	o.CorsConfig = &v
 }
 
+// GetAgentCardCorsConfig returns the AgentCardCorsConfig field value if set, zero value otherwise.
+func (o *ConfigurationResponse) GetAgentCardCorsConfig() AgentCardCORSConfig {
+	if o == nil || IsNil(o.AgentCardCorsConfig) {
+		var ret AgentCardCORSConfig
+		return ret
+	}
+	return *o.AgentCardCorsConfig
+}
+
+// GetAgentCardCorsConfigOk returns a tuple with the AgentCardCorsConfig field value if set, nil otherwise
+// and a boolean to check if the value has been set.
+func (o *ConfigurationResponse) GetAgentCardCorsConfigOk() (*AgentCardCORSConfig, bool) {
+	if o == nil || IsNil(o.AgentCardCorsConfig) {
+		return nil, false
+	}
+	return o.AgentCardCorsConfig, true
+}
+
+// HasAgentCardCorsConfig returns a boolean if a field has been set.
+func (o *ConfigurationResponse) HasAgentCardCorsConfig() bool {
+	if o != nil && !IsNil(o.AgentCardCorsConfig) {
+		return true
+	}
+
+	return false
+}
+
+// SetAgentCardCorsConfig gets a reference to the given AgentCardCORSConfig and assigns it to the AgentCardCorsConfig field.
+func (o *ConfigurationResponse) SetAgentCardCorsConfig(v AgentCardCORSConfig) {
+	o.AgentCardCorsConfig = &v
+}
+
 // GetOauthConfig returns the OauthConfig field value if set, zero value otherwise.
 func (o *ConfigurationResponse) GetOauthConfig() OAuthConfig {
 	if o == nil || IsNil(o.OauthConfig) {
@@ -408,6 +441,9 @@ func (o ConfigurationResponse) ToMap() (map[string]interface{}, error) {
 	}
 	if !IsNil(o.CorsConfig) {
 		toSerialize["corsConfig"] = o.CorsConfig
+	}
+	if !IsNil(o.AgentCardCorsConfig) {
+		toSerialize["agentCardCorsConfig"] = o.AgentCardCorsConfig
 	}
 	if !IsNil(o.OauthConfig) {
 		toSerialize["oauthConfig"] = o.OauthConfig

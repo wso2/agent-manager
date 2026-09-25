@@ -65,6 +65,7 @@ func (e AgentKindResponseKind) Valid() bool {
 
 // Defines values for AgentKindVersionResponseAgentSubType.
 const (
+	A2aAgent  AgentKindVersionResponseAgentSubType = "a2a-agent"
 	ChatApi   AgentKindVersionResponseAgentSubType = "chat-api"
 	CustomApi AgentKindVersionResponseAgentSubType = "custom-api"
 )
@@ -72,6 +73,8 @@ const (
 // Valid indicates whether the value is a known member of the AgentKindVersionResponseAgentSubType enum.
 func (e AgentKindVersionResponseAgentSubType) Valid() bool {
 	switch e {
+	case A2aAgent:
+		return true
 	case ChatApi:
 		return true
 	case CustomApi:
@@ -1266,6 +1269,24 @@ type AgentBuildOptionsResponse struct {
 	Python          AgentBuildOptionsPython          `json:"python"`
 }
 
+// AgentCardCORSConfig CORS for the public Agent Card route (/.well-known/agent-card.json) of an A2A agent. The card route sits outside the agent-wide policy chain, so it has its own CORS. Methods are always GET and OPTIONS. Applies only to A2A agents.
+type AgentCardCORSConfig struct {
+	// AllowCredentials Whether credentials are allowed. Cannot be true when allowOrigin contains "*".
+	AllowCredentials *bool `json:"allowCredentials,omitempty"`
+
+	// AllowHeaders Allowed request headers.
+	AllowHeaders *[]string `json:"allowHeaders,omitempty"`
+
+	// AllowOrigin Allowed origins. Use ["*"] to allow all (incompatible with allowCredentials).
+	AllowOrigin *[]string `json:"allowOrigin,omitempty"`
+
+	// Enabled Enable CORS on the public Agent Card route. Required on a request when inherit is false.
+	Enabled *bool `json:"enabled,omitempty"`
+
+	// Inherit When true the card follows the agent's CORS: enabled when agent CORS is, with the agent's origins and credentials setting and Content-Type as the only header. On a request, true clears any stored override and the other fields are ignored. On a response, the other fields hold the effective values.
+	Inherit *bool `json:"inherit,omitempty"`
+}
+
 // AgentCreatedBy The user who created this agent. Resolved from an audit-only
 // requester id captured at creation time, so it is best-effort and
 // omitted entirely when unknown (e.g. agents created before this was
@@ -1449,7 +1470,7 @@ type AgentKindResponseKind string
 
 // AgentKindVersionResponse defines model for AgentKindVersionResponse.
 type AgentKindVersionResponse struct {
-	// AgentSubType Agent sub-type (chat-api or custom-api)
+	// AgentSubType Agent sub-type (chat-api, custom-api or a2a-agent)
 	AgentSubType *AgentKindVersionResponseAgentSubType `json:"agentSubType,omitempty"`
 
 	// BuildName Build name from the source agent used to publish this version
@@ -1475,7 +1496,7 @@ type AgentKindVersionResponse struct {
 	Version string `json:"version"`
 }
 
-// AgentKindVersionResponseAgentSubType Agent sub-type (chat-api or custom-api)
+// AgentKindVersionResponseAgentSubType Agent sub-type (chat-api, custom-api or a2a-agent)
 type AgentKindVersionResponseAgentSubType string
 
 // AgentListResponse defines model for AgentListResponse.
@@ -2048,6 +2069,9 @@ type ConfigurationItem struct {
 
 // ConfigurationResponse defines model for ConfigurationResponse.
 type ConfigurationResponse struct {
+	// AgentCardCorsConfig CORS for the public Agent Card route (/.well-known/agent-card.json) of an A2A agent. The card route sits outside the agent-wide policy chain, so it has its own CORS. Methods are always GET and OPTIONS. Applies only to A2A agents.
+	AgentCardCorsConfig *AgentCardCORSConfig `json:"agentCardCorsConfig,omitempty"`
+
 	// AgentName Name of the agent
 	AgentName string `json:"agentName"`
 
@@ -2515,7 +2539,9 @@ type DataPlaneListResponse = []DataPlane
 
 // DeployAgentRequest defines model for DeployAgentRequest.
 type DeployAgentRequest struct {
-	CorsConfig *CORSConfig `json:"corsConfig,omitempty"`
+	// AgentCardCorsConfig CORS for the public Agent Card route (/.well-known/agent-card.json) of an A2A agent. The card route sits outside the agent-wide policy chain, so it has its own CORS. Methods are always GET and OPTIONS. Applies only to A2A agents.
+	AgentCardCorsConfig *AgentCardCORSConfig `json:"agentCardCorsConfig,omitempty"`
+	CorsConfig          *CORSConfig          `json:"corsConfig,omitempty"`
 
 	// EnableApiKeySecurity Enable API key security for the agent endpoint
 	EnableApiKeySecurity *bool `json:"enableApiKeySecurity,omitempty"`
@@ -4377,7 +4403,9 @@ type ProjectResponse struct {
 
 // PromoteAgentRequest defines model for PromoteAgentRequest.
 type PromoteAgentRequest struct {
-	CorsConfig *CORSConfig `json:"corsConfig,omitempty"`
+	// AgentCardCorsConfig CORS for the public Agent Card route (/.well-known/agent-card.json) of an A2A agent. The card route sits outside the agent-wide policy chain, so it has its own CORS. Methods are always GET and OPTIONS. Applies only to A2A agents.
+	AgentCardCorsConfig *AgentCardCORSConfig `json:"agentCardCorsConfig,omitempty"`
+	CorsConfig          *CORSConfig          `json:"corsConfig,omitempty"`
 
 	// EnableApiKeySecurity Enable API key security for the agent endpoint in the target environment
 	EnableApiKeySecurity *bool `json:"enableApiKeySecurity,omitempty"`
@@ -5074,7 +5102,9 @@ type UpdateAgentConfigurationsRequest struct {
 
 // UpdateAgentDeploySettingsRequest defines model for UpdateAgentDeploySettingsRequest.
 type UpdateAgentDeploySettingsRequest struct {
-	CorsConfig *CORSConfig `json:"corsConfig,omitempty"`
+	// AgentCardCorsConfig CORS for the public Agent Card route (/.well-known/agent-card.json) of an A2A agent. The card route sits outside the agent-wide policy chain, so it has its own CORS. Methods are always GET and OPTIONS. Applies only to A2A agents.
+	AgentCardCorsConfig *AgentCardCORSConfig `json:"agentCardCorsConfig,omitempty"`
+	CorsConfig          *CORSConfig          `json:"corsConfig,omitempty"`
 
 	// EnableApiKeySecurity Enable API key security for the agent endpoint in this environment. Omit to keep the current value.
 	EnableApiKeySecurity *bool `json:"enableApiKeySecurity,omitempty"`

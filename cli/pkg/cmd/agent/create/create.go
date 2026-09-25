@@ -145,7 +145,7 @@ func NewCreateCmd(f *cmdutil.Factory) *cobra.Command {
 	cmd.Flags().StringVar(&opts.DisplayName, "display-name", "", "Human-readable name (required)")
 	cmd.Flags().StringVar(&opts.Type, "type", "", "Agent type (auto-derived from --provisioning)")
 	cmd.Flags().StringVar(&opts.Description, "description", "", "Agent description")
-	cmd.Flags().StringVar(&opts.SubType, "subtype", "", "Agent sub-type: chat-api or custom-api")
+	cmd.Flags().StringVar(&opts.SubType, "subtype", "", "Agent sub-type: chat-api, custom-api or a2a-agent")
 
 	_ = cmd.Flags().MarkHidden("type")
 
@@ -159,7 +159,7 @@ func NewCreateCmd(f *cmdutil.Factory) *cobra.Command {
 	cmd.Flags().StringVar(&opts.LanguageVersion, "language-version", "", "Language version for buildpack builds")
 	cmd.Flags().StringVar(&opts.RunCommand, "run-command", "", "Run command for buildpack builds")
 	cmd.Flags().StringVar(&opts.Dockerfile, "dockerfile", "", "Dockerfile path for docker builds")
-	cmd.Flags().IntVar(&opts.Port, "port", 8000, "Service port (1..65535) (custom-api only; chat-api uses a fixed port)")
+	cmd.Flags().IntVar(&opts.Port, "port", 8000, "Service port (1..65535) (custom-api and a2a-agent only; chat-api uses a fixed port)")
 	cmd.Flags().StringVar(&opts.BasePath, "base-path", "", "Base path for the service")
 	cmd.Flags().StringVar(&opts.OpenAPISpec, "openapi-spec", "", "Path to OpenAPI schema within the repo")
 	cmd.Flags().BoolVar(&opts.DisableAutoInstrumentation, "no-auto-instrumentation", false, "Disable automatic instrumentation")
@@ -177,7 +177,7 @@ func NewCreateCmd(f *cmdutil.Factory) *cobra.Command {
 		return []string{buildTypeBuildpack, buildTypeDocker}, cobra.ShellCompDirectiveNoFileComp
 	})
 	_ = cmd.RegisterFlagCompletionFunc("subtype", func(*cobra.Command, []string, string) ([]string, cobra.ShellCompDirective) {
-		return []string{subTypeChatAPI, subTypeCustomAPI}, cobra.ShellCompDirectiveNoFileComp
+		return []string{subTypeChatAPI, subTypeCustomAPI, subTypeA2A}, cobra.ShellCompDirectiveNoFileComp
 	})
 
 	return cmd
