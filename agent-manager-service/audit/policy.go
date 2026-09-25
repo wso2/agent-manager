@@ -205,6 +205,10 @@ var actionOverrides = map[string]Action{
 	// Gating permission names a different resource than the effect.
 	"POST /orgs/{orgName}/projects/{projName}/agents/{agentName}/publish-kind": "agent-kind:publish",
 
+	// agent:build gates both triggering and cancelling a build; the trail must
+	// tell them apart.
+	"DELETE /orgs/{orgName}/projects/{projName}/agents/{agentName}/builds/{buildName}": "agent:cancel-build",
+
 	// One permission, several operations — deployment lifecycle.
 	"POST /orgs/{orgName}/projects/{projName}/agents/{agentName}/deployments": "agent:deploy",
 	// Gated on the environment tier, not on a promote-specific scope, so the

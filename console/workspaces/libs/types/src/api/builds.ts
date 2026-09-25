@@ -29,12 +29,16 @@ export interface BuildAgentQuery {
 }
 
 // Responses
+// "Cancelled" is AMS's own status, not OpenChoreo's: cancelling a build deletes
+// its workflow run, so the build is served from AMS's cancelled-build record
+// rather than from the live build source.
 export type BuildStatus =
   | "Completed"
   | "Succeeded"
   | "Running"
   | "Pending"
-  | "Failed";
+  | "Failed"
+  | "Cancelled";
 
 export type BuildStatusColor = 'success' | 'warning' | 'error' | 'default';
 
@@ -44,6 +48,9 @@ export const BUILD_STATUS_COLOR_MAP: Record<BuildStatus, BuildStatusColor> = {
   Running: "warning",
   Pending: "warning",
   Failed: "error",
+  // Neutral rather than error: the developer meant to stop this build, so it is
+  // not a failure to draw attention to.
+  Cancelled: "default",
 };
 
 export interface BuildParameters {

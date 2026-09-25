@@ -228,6 +228,45 @@ func (c *openChoreoClient) ListBuilds(ctx context.Context, ouID, projectName, co
 	return buildResponses, nil
 }
 
+// IsTerminalBuildStatus reports whether a build status is one a build can no
+// longer move out of. Cancellation deletes the underlying WorkflowRun, so for a
+// terminal build it would destroy the record of finished work rather than stop
+// anything — callers use this to reject the request before deleting.
+func IsTerminalBuildStatus(status string) bool {
+	switch status {
+	case WorkflowStatusCompleted, WorkflowStatusSucceeded, WorkflowStatusFailed:
+		return true
+	default:
+		return false
+	}
+}
+
+// CancelBuild stops an in-progress build by deleting its WorkflowRun. OpenChoreo
+// exposes no suspend or cancel verb on a WorkflowRun — WorkflowRunSpec carries
+// only the workflow reference and a TTL — so deletion is the only way to stop
+// the underlying run, and it takes the run's logs and history with it. The
+// caller is responsible for rejecting terminal builds (see IsTerminalBuildStatus).
+func (c *openChoreoClient) CancelBuild(ctx context.Context, ouID, projectName, componentName, buildName string) error {
+	namespaceName := c.NamespaceFor(ouID)
+	resp, err := c.ocClient.DeleteWorkflowRunWithResponse(ctx, namespaceName, buildName)
+	if err != nil {
+		return fmt.Errorf("failed to cancel build: %w", err)
+	}
+
+	switch resp.StatusCode() {
+	case http.StatusOK, http.StatusAccepted, http.StatusNoContent:
+		slog.Debug("cancelled build", "buildName", buildName, "componentName", componentName, "projectName", projectName)
+		return nil
+	default:
+		return handleErrorResponse(resp.StatusCode(), ErrorResponses{
+			JSON401: resp.JSON401,
+			JSON403: resp.JSON403,
+			JSON404: resp.JSON404,
+			JSON500: resp.JSON500,
+		})
+	}
+}
+
 func (c *openChoreoClient) UpdateComponentBuildParameters(ctx context.Context, ouID, projectName, componentName string, req UpdateComponentBuildParametersRequest) error {
 	namespaceName := c.NamespaceFor(ouID)
 	// Get the component

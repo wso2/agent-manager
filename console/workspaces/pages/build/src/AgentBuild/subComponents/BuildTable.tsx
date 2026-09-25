@@ -40,6 +40,7 @@ import {
   Rocket,
   Circle,
   XCircle,
+  StopCircle,
 } from "@wso2/oxygen-ui-icons-react";
 import {
   generatePath,
@@ -47,8 +48,14 @@ import {
   useParams,
   useSearchParams,
 } from "react-router-dom";
-import { BuildLogs } from "@agent-management-platform/shared-component";
-import { useGetAllAgentBuilds } from "@agent-management-platform/api-client";
+import {
+  BuildLogs,
+  useConfirmationDialog,
+} from "@agent-management-platform/shared-component";
+import {
+  useCancelBuild,
+  useGetAllAgentBuilds,
+} from "@agent-management-platform/api-client";
 import {
   BuildStatus,
   BUILD_STATUS_COLOR_MAP,
@@ -97,6 +104,11 @@ export const renderStatusChip = (status: StatusConfig, theme?: Theme) => (
   </Box>
 );
 
+// A build can only be cancelled before it reaches a terminal state. This is the
+// same pair the service accepts; it rejects anything else with a 409.
+const isBuildInProgress = (status: BuildStatus) =>
+  status === "Pending" || status === "Running";
+
 export function BuildTable() {
   const theme = useTheme();
   const [searchParams, setSearchParams] = useSearchParams();
@@ -115,6 +127,8 @@ export function BuildTable() {
     projName: projectId,
     agentName: agentId,
   });
+  const { addConfirmation } = useConfirmationDialog();
+  const { mutate: cancelBuild, isPending: isCancelling } = useCancelBuild();
   const orderedBuilds = useMemo(
     () =>
       builds?.builds.slice().sort(
@@ -169,6 +183,30 @@ export function BuildTable() {
       setSearchParams(next);
     },
     [searchParams, setSearchParams],
+  );
+
+  // Cancelling deletes the build's workflow run, and its logs go with it — so
+  // this confirms first and says so, rather than being a one-click action.
+  const confirmCancelBuild = useCallback(
+    (buildName: string) => {
+      addConfirmation({
+        title: "Cancel Build",
+        description: `Are you sure you want to cancel build "${buildName}"? This stops the build and discards its logs. This action cannot be undone.`,
+        confirmButtonText: "Cancel Build",
+        confirmButtonColor: "error",
+        confirmButtonIcon: <StopCircle size={16} />,
+        onConfirm: () =>
+          cancelBuild({
+            params: {
+              orgName: orgId,
+              projName: projectId,
+              agentName: agentId,
+              buildName,
+            },
+          }),
+      });
+    },
+    [addConfirmation, cancelBuild, orgId, projectId, agentId],
   );
 
   const clearSelectedBuild = useCallback(() => {
@@ -264,27 +302,39 @@ export function BuildTable() {
                       >
                         Details
                       </Button>
-                      <Button
-                        variant="outlined"
-                        color="primary"
-                        disabled={
-                          row.status === "Pending" ||
-                          row.status === "Running" ||
-                          row.status === "Failed"
-                        }
-                        component={Link}
-                        to={`${generatePath(
-                          absoluteRouteMap.children.org.children.projects.children.agents
-                            .children.deployment.path,
-                          { orgId, projectId, agentId },
-                        )}?deployPanel=open&selectedBuild=${row.id}`}
-                        size="small"
-                        startIcon={<Rocket size={16} />}
-                      >
-                        {row.status === "Running" || row.status === "Pending"
-                          ? "Building"
-                          : "Deploy"}
-                      </Button>
+                      {isBuildInProgress(row.status) ? (
+                        <Button
+                          variant="outlined"
+                          color="error"
+                          disabled={isCancelling}
+                          onClick={() => confirmCancelBuild(row.title)}
+                          size="small"
+                          startIcon={<StopCircle size={16} />}
+                        >
+                          Cancel
+                        </Button>
+                      ) : (
+                        <Button
+                          variant="outlined"
+                          color="primary"
+                          // A failed or cancelled build produced no image, so
+                          // there is nothing to deploy from it.
+                          disabled={
+                            row.status === "Failed" ||
+                            row.status === "Cancelled"
+                          }
+                          component={Link}
+                          to={`${generatePath(
+                            absoluteRouteMap.children.org.children.projects.children.agents
+                              .children.deployment.path,
+                            { orgId, projectId, agentId },
+                          )}?deployPanel=open&selectedBuild=${row.id}`}
+                          size="small"
+                          startIcon={<Rocket size={16} />}
+                        >
+                          Deploy
+                        </Button>
+                      )}
                     </Box>
                   </ListingTable.Cell>
                 </ListingTable.Row>

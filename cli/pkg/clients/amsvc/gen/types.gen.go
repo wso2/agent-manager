@@ -134,6 +134,7 @@ func (e BatchTimeSeriesResponseGranularity) Valid() bool {
 
 // Defines values for BuildDetailsResponseStatus.
 const (
+	BuildDetailsResponseStatusCancelled BuildDetailsResponseStatus = "Cancelled"
 	BuildDetailsResponseStatusCompleted BuildDetailsResponseStatus = "Completed"
 	BuildDetailsResponseStatusFailed    BuildDetailsResponseStatus = "Failed"
 	BuildDetailsResponseStatusPending   BuildDetailsResponseStatus = "Pending"
@@ -144,6 +145,8 @@ const (
 // Valid indicates whether the value is a known member of the BuildDetailsResponseStatus enum.
 func (e BuildDetailsResponseStatus) Valid() bool {
 	switch e {
+	case BuildDetailsResponseStatusCancelled:
+		return true
 	case BuildDetailsResponseStatusCompleted:
 		return true
 	case BuildDetailsResponseStatusFailed:
@@ -161,6 +164,7 @@ func (e BuildDetailsResponseStatus) Valid() bool {
 
 // Defines values for BuildResponseStatus.
 const (
+	BuildResponseStatusCancelled BuildResponseStatus = "Cancelled"
 	BuildResponseStatusCompleted BuildResponseStatus = "Completed"
 	BuildResponseStatusFailed    BuildResponseStatus = "Failed"
 	BuildResponseStatusPending   BuildResponseStatus = "Pending"
@@ -171,6 +175,8 @@ const (
 // Valid indicates whether the value is a known member of the BuildResponseStatus enum.
 func (e BuildResponseStatus) Valid() bool {
 	switch e {
+	case BuildResponseStatusCancelled:
+		return true
 	case BuildResponseStatusCompleted:
 		return true
 	case BuildResponseStatusFailed:
@@ -1752,14 +1758,14 @@ type BuildDetailsResponse struct {
 	ProjectName string    `json:"projectName"`
 	StartedAt   time.Time `json:"startedAt"`
 
-	// Status Overall build status, derived from the underlying workflow phase. Succeeded means the image was built and pushed; Completed additionally means the workload CR was updated. Per-step progress is in `steps`.
+	// Status Overall build status, derived from the underlying workflow phase. Succeeded means the image was built and pushed; Completed additionally means the workload CR was updated. Per-step progress is in `steps`. Cancelled is not a workflow phase: the build was cancelled, its workflow run deleted, and it is served from the cancelled-build record instead — such a build has no steps and no image.
 	Status *BuildDetailsResponseStatus `json:"status,omitempty"`
 
 	// Steps Array of build steps with their status
 	Steps *[]BuildStep `json:"steps,omitempty"`
 }
 
-// BuildDetailsResponseStatus Overall build status, derived from the underlying workflow phase. Succeeded means the image was built and pushed; Completed additionally means the workload CR was updated. Per-step progress is in `steps`.
+// BuildDetailsResponseStatus Overall build status, derived from the underlying workflow phase. Succeeded means the image was built and pushed; Completed additionally means the workload CR was updated. Per-step progress is in `steps`. Cancelled is not a workflow phase: the build was cancelled, its workflow run deleted, and it is served from the cancelled-build record instead — such a build has no steps and no image.
 type BuildDetailsResponseStatus string
 
 // BuildParameters Parameters used for the build
@@ -1802,11 +1808,11 @@ type BuildResponse struct {
 	ProjectName     string          `json:"projectName"`
 	StartedAt       time.Time       `json:"startedAt"`
 
-	// Status Overall build status, derived from the underlying workflow phase. Succeeded means the image was built and pushed; Completed additionally means the workload CR was updated. Per-step progress is in `steps`.
+	// Status Overall build status, derived from the underlying workflow phase. Succeeded means the image was built and pushed; Completed additionally means the workload CR was updated. Per-step progress is in `steps`. Cancelled is not a workflow phase: the build was cancelled, its workflow run deleted, and it is served from the cancelled-build record instead — such a build has no steps and no image.
 	Status *BuildResponseStatus `json:"status,omitempty"`
 }
 
-// BuildResponseStatus Overall build status, derived from the underlying workflow phase. Succeeded means the image was built and pushed; Completed additionally means the workload CR was updated. Per-step progress is in `steps`.
+// BuildResponseStatus Overall build status, derived from the underlying workflow phase. Succeeded means the image was built and pushed; Completed additionally means the workload CR was updated. Per-step progress is in `steps`. Cancelled is not a workflow phase: the build was cancelled, its workflow run deleted, and it is served from the cancelled-build record instead — such a build has no steps and no image.
 type BuildResponseStatus string
 
 // BuildStep defines model for BuildStep.

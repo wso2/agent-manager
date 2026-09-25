@@ -61,6 +61,7 @@ func InitializeAppParams(cfg *config.Config, db *gorm.DB, authProvider client.Au
 		return nil, err
 	}
 	agentConfigRepository := ProvideAgentConfigRepository(db)
+	cancelledBuildRepository := ProvideCancelledBuildRepository(db)
 	agentConfigurationRepository := repositories.NewAgentConfigurationRepository(db)
 	envAgentModelMappingRepository := repositories.NewEnvAgentModelMappingRepository(db)
 	envAgentMCPMappingRepository := repositories.NewEnvAgentMCPMappingRepository(db)
@@ -119,7 +120,7 @@ func InitializeAppParams(cfg *config.Config, db *gorm.DB, authProvider client.Au
 	scoreRepository := ProvideScoreRepository(db)
 	llmProxyProvisioner := services.NewLLMProxyProvisioner(logger, llmProviderRepository, gatewayRepository, llmProxyService, llmProxyDeploymentService, llmProxyAPIKeyService, llmProviderAPIKeyService, secretManagementClient, v)
 	monitorManagerService := services.NewMonitorManagerService(logger, db, openChoreoClient, observerSvcClient, monitorExecutor, evaluatorManagerService, monitorRepository, scoreRepository, llmProxyProvisioner, monitorLLMMappingRepository, publisherCredentialProvisioner)
-	agentManagerService := services.NewAgentManagerService(db, openChoreoClient, secretManagementClient, repositoryService, agentTokenManagerService, agentConfigRepository, agentConfigurationService, agentKindService, artifactRepository, aiApplicationService, gatewayRepository, agentThunderProvisioning, monitorManagerService, agentIdentityInjectionService, identityClient, logger)
+	agentManagerService := services.NewAgentManagerService(db, openChoreoClient, secretManagementClient, repositoryService, agentTokenManagerService, agentConfigRepository, cancelledBuildRepository, agentConfigurationService, agentKindService, artifactRepository, aiApplicationService, gatewayRepository, agentThunderProvisioning, monitorManagerService, agentIdentityInjectionService, identityClient, logger)
 	agentController := controllers.NewAgentController(agentManagerService, agentKindService)
 	agentKindController := controllers.NewAgentKindController(agentKindService)
 	infraResourceController := controllers.NewInfraResourceController(infraResourceManager)
@@ -243,6 +244,7 @@ func InitializeTestAppParamsWithClientMocks(cfg *config.Config, db *gorm.DB, aut
 		return nil, err
 	}
 	agentConfigRepository := ProvideAgentConfigRepository(db)
+	cancelledBuildRepository := ProvideCancelledBuildRepository(db)
 	agentConfigurationRepository := repositories.NewAgentConfigurationRepository(db)
 	envAgentModelMappingRepository := repositories.NewEnvAgentModelMappingRepository(db)
 	envAgentMCPMappingRepository := repositories.NewEnvAgentMCPMappingRepository(db)
@@ -299,7 +301,7 @@ func InitializeTestAppParamsWithClientMocks(cfg *config.Config, db *gorm.DB, aut
 	scoreRepository := ProvideScoreRepository(db)
 	llmProxyProvisioner := services.NewLLMProxyProvisioner(logger, llmProviderRepository, gatewayRepository, llmProxyService, llmProxyDeploymentService, llmProxyAPIKeyService, llmProviderAPIKeyService, secretManagementClient, v)
 	monitorManagerService := services.NewMonitorManagerService(logger, db, openChoreoClient, observerSvcClient, monitorExecutor, evaluatorManagerService, monitorRepository, scoreRepository, llmProxyProvisioner, monitorLLMMappingRepository, publisherCredentialProvisioner)
-	agentManagerService := services.NewAgentManagerService(db, openChoreoClient, secretManagementClient, repositoryService, agentTokenManagerService, agentConfigRepository, agentConfigurationService, agentKindService, artifactRepository, aiApplicationService, gatewayRepository, agentThunderProvisioningService, monitorManagerService, agentIdentityInjectionService, identityClient, logger)
+	agentManagerService := services.NewAgentManagerService(db, openChoreoClient, secretManagementClient, repositoryService, agentTokenManagerService, agentConfigRepository, cancelledBuildRepository, agentConfigurationService, agentKindService, artifactRepository, aiApplicationService, gatewayRepository, agentThunderProvisioningService, monitorManagerService, agentIdentityInjectionService, identityClient, logger)
 	agentController := controllers.NewAgentController(agentManagerService, agentKindService)
 	agentKindController := controllers.NewAgentKindController(agentKindService)
 	infraResourceController := controllers.NewInfraResourceController(infraResourceManager)
@@ -654,7 +656,8 @@ var repositoryProviderSet = wire.NewSet(
 	ProvideAIApplicationRepository,
 	ProvideAgentThunderClientRepository,
 	ProvideEnvThunderSystemClientRepository,
-	ProvideEnvThunderURLRepository, repositories.NewMCPProxyScopeRepository,
+	ProvideEnvThunderURLRepository,
+	ProvideCancelledBuildRepository, repositories.NewMCPProxyScopeRepository,
 )
 
 var websocketProviderSet = wire.NewSet(
@@ -799,6 +802,12 @@ func ProvideAgentThunderClientRepository(db *gorm.DB) repositories.AgentThunderC
 // per-environment env-Thunder system-client credentials.
 func ProvideEnvThunderSystemClientRepository(db *gorm.DB) repositories.EnvThunderSystemClientRepository {
 	return repositories.NewEnvThunderSystemClientRepo(db)
+}
+
+// ProvideCancelledBuildRepository provides the repository recording builds that
+// were cancelled before they finished.
+func ProvideCancelledBuildRepository(db *gorm.DB) repositories.CancelledBuildRepository {
+	return repositories.NewCancelledBuildRepo(db)
 }
 
 // ProvideEnvThunderURLRepository provides the repository for per-environment

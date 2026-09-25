@@ -40,6 +40,7 @@ const (
 	ErrCodeProjectAlreadyExists   = "PROJECT_ALREADY_EXISTS"
 	ErrCodeOrganizationNotFound   = "ORGANIZATION_NOT_FOUND"
 	ErrCodeBuildNotFound          = "BUILD_NOT_FOUND"
+	ErrCodeBuildNotCancellable    = "BUILD_NOT_CANCELLABLE"
 	ErrCodeEnvironmentNotFound    = "ENVIRONMENT_NOT_FOUND"
 	ErrCodeGatewayNotFound        = "GATEWAY_NOT_FOUND"
 	ErrCodeGatewayAlreadyExists   = "GATEWAY_ALREADY_EXISTS"

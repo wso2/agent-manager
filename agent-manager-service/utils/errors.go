@@ -106,7 +106,12 @@ var (
 	// while a build is running. Argo Workflows resolves workflow.parameters once
 	// at WorkflowRun submission, so a config change written to the Component CR
 	// after that point is never picked up by the in-flight build. Maps to 409.
-	ErrBuildInProgress                = errors.New("a build is already in progress for this agent")
+	ErrBuildInProgress = errors.New("a build is already in progress for this agent")
+	// ErrBuildNotCancellable is returned when a cancel is requested for a build
+	// that has already reached a terminal state (succeeded, completed or
+	// failed). Cancellation deletes the underlying WorkflowRun, which for a
+	// finished build would destroy history rather than stop work. Maps to 409.
+	ErrBuildNotCancellable            = errors.New("build has already finished and cannot be cancelled")
 	ErrProjectHasAssociatedAgents     = errors.New("project has associated agents")
 	ErrMonitorNotFound                = errors.New("monitor not found")
 	ErrMonitorAlreadyExists           = errors.New("monitor already exists")

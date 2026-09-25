@@ -18,6 +18,7 @@ type MutationAction =
   | "create"
   | "delete"
   | "deploy"
+  | "cancel"
   | "generate"
   | "promote"
   | "publish"
@@ -54,6 +55,7 @@ type ApiMutationOptions<TData, TError, TVariables, TContext> =
 const SUCCESS_VERB_MAP: Record<MutationAction, string> = {
   assign: "assigned",
   build: "built",
+  cancel: "cancelled",
   create: "created",
   delete: "deleted",
   deploy: "deployed",

@@ -1085,6 +1085,56 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
+    delete:
+      summary: Cancel an in-progress build
+      description: |
+        Cancels a build that has not reached a terminal state by deleting the
+        underlying build workflow run. Build logs and history for the cancelled
+        build are removed along with it. Builds that have already succeeded,
+        completed or failed cannot be cancelled.
+      operationId: cancelBuild
+      parameters:
+        - name: orgName
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: projName
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: agentName
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: buildName
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "204":
+          description: Build cancelled successfully
+        "404":
+          description: Build not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "409":
+          description: Build has already reached a terminal state and cannot be cancelled
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "500":
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
   /orgs/{orgName}/projects/{projName}/agents/{agentName}/publish-kind:
     post:
       summary: Publish agent as an Agent Kind version
@@ -12097,7 +12147,10 @@ components:
             Overall build status, derived from the underlying workflow phase.
             Succeeded means the image was built and pushed; Completed additionally
             means the workload CR was updated. Per-step progress is in `steps`.
-          enum: [Pending, Running, Succeeded, Completed, Failed]
+            Cancelled is not a workflow phase: the build was cancelled, its
+            workflow run deleted, and it is served from the cancelled-build
+            record instead — such a build has no steps and no image.
+          enum: [Pending, Running, Succeeded, Completed, Failed, Cancelled]
         buildParameters:
           $ref: "#/components/schemas/BuildParameters"
       required:

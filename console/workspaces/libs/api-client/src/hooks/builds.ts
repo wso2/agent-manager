@@ -17,7 +17,7 @@
  */
 
 import { useQueryClient } from "@tanstack/react-query";
-import { buildAgent, getAgentBuilds, getAllAgentBuilds, getBuild, getBuildLogs } from "../apis";
+import { buildAgent, cancelBuild, getAgentBuilds, getAllAgentBuilds, getBuild, getBuildLogs } from "../apis";
 import { useAuthHooks } from "@agent-management-platform/auth";
 import { useRef } from "react";
 import type {
@@ -50,6 +50,27 @@ export function useBuildAgent() {
       queryClient.invalidateQueries({ queryKey: ["build"] });
     },
     onError: () => {
+      queryClient.invalidateQueries({ queryKey: ["agent-builds"] });
+      queryClient.invalidateQueries({ queryKey: ["build"] });
+    },
+  });
+}
+
+/**
+ * Cancels an in-progress build.
+ *
+ * Invalidates every build query prefix, including the "all" history list: the
+ * cancelled build moves from the live build source into AMS's cancelled-build
+ * record, so both the polled page and the full history need rereading before
+ * the row settles on its final "Cancelled" state.
+ */
+export function useCancelBuild() {
+  const { getToken } = useAuthHooks();
+  const queryClient = useQueryClient();
+  return useApiMutation<void, unknown, { params: GetBuildPathParams }>({
+    action: { verb: "cancel", target: "build" },
+    mutationFn: ({ params }) => cancelBuild(params, getToken),
+    onSettled: () => {
       queryClient.invalidateQueries({ queryKey: ["agent-builds"] });
       queryClient.invalidateQueries({ queryKey: ["build"] });
     },

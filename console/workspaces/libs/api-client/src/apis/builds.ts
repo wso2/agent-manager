@@ -16,7 +16,7 @@
  * under the License.
  */
 
-import { httpGET, httpGETObserver, httpPOST, SERVICE_BASE } from "../utils";
+import { httpDELETE, httpGET, httpGETObserver, httpPOST, SERVICE_BASE } from "../utils";
 import type {
   BuildAgentPathParams,
   BuildAgentQuery,
@@ -151,6 +151,40 @@ export async function getBuild(
   );
   if (!res.ok) throw await res.json();
   return res.json();
+}
+
+/**
+ * Cancels an in-progress build. The service deletes the underlying workflow run,
+ * which also discards that build's logs — it responds 204 with no body, and 409
+ * for a build that has already finished.
+ */
+export async function cancelBuild(
+  params: GetBuildPathParams,
+  getToken?: () => Promise<string>
+): Promise<void> {
+  const {
+    orgName = "default",
+    projName = "default",
+    agentName,
+    buildName,
+  } = params;
+
+  if (!agentName) {
+    throw new Error("agentName is required");
+  }
+  if (!buildName) {
+    throw new Error("buildName is required");
+  }
+
+  const token = getToken ? await getToken() : undefined;
+  await httpDELETE(
+    `${SERVICE_BASE}/orgs/${encodeURIComponent(
+      orgName
+    )}/projects/${encodeURIComponent(projName)}/agents/${encodeURIComponent(
+      agentName
+    )}/builds/${encodeURIComponent(buildName)}`,
+    { token }
+  );
 }
 
 export async function getBuildLogs(

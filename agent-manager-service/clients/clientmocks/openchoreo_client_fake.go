@@ -21,6 +21,9 @@ import (
 //			AttachTraitsFunc: func(ctx context.Context, ouID string, projectName string, componentName string, traitRequests []client.TraitRequest) error {
 //				panic("mock out the AttachTraits method")
 //			},
+//			CancelBuildFunc: func(ctx context.Context, ouID string, projectName string, componentName string, buildName string) error {
+//				panic("mock out the CancelBuild method")
+//			},
 //			ComponentExistsFunc: func(ctx context.Context, ouID string, projectName string, componentName string) (bool, error) {
 //				panic("mock out the ComponentExists method")
 //			},
@@ -258,6 +261,9 @@ import (
 type OpenChoreoClientMock struct {
 	// AttachTraitsFunc mocks the AttachTraits method.
 	AttachTraitsFunc func(ctx context.Context, ouID string, projectName string, componentName string, traitRequests []client.TraitRequest) error
+
+	// CancelBuildFunc mocks the CancelBuild method.
+	CancelBuildFunc func(ctx context.Context, ouID string, projectName string, componentName string, buildName string) error
 
 	// ComponentExistsFunc mocks the ComponentExists method.
 	ComponentExistsFunc func(ctx context.Context, ouID string, projectName string, componentName string) (bool, error)
@@ -501,6 +507,19 @@ type OpenChoreoClientMock struct {
 			ComponentName string
 			// TraitRequests is the traitRequests argument value.
 			TraitRequests []client.TraitRequest
+		}
+		// CancelBuild holds details about calls to the CancelBuild method.
+		CancelBuild []struct {
+			// Ctx is the ctx argument value.
+			Ctx context.Context
+			// OuID is the ouID argument value.
+			OuID string
+			// ProjectName is the projectName argument value.
+			ProjectName string
+			// ComponentName is the componentName argument value.
+			ComponentName string
+			// BuildName is the buildName argument value.
+			BuildName string
 		}
 		// ComponentExists holds details about calls to the ComponentExists method.
 		ComponentExists []struct {
@@ -1354,6 +1373,7 @@ type OpenChoreoClientMock struct {
 		}
 	}
 	lockAttachTraits                           sync.RWMutex
+	lockCancelBuild                            sync.RWMutex
 	lockComponentExists                        sync.RWMutex
 	lockCountProjectComponents                 sync.RWMutex
 	lockCreateComponent                        sync.RWMutex
@@ -1477,6 +1497,54 @@ func (mock *OpenChoreoClientMock) AttachTraitsCalls() []struct {
 	mock.lockAttachTraits.RLock()
 	calls = mock.calls.AttachTraits
 	mock.lockAttachTraits.RUnlock()
+	return calls
+}
+
+// CancelBuild calls CancelBuildFunc.
+func (mock *OpenChoreoClientMock) CancelBuild(ctx context.Context, ouID string, projectName string, componentName string, buildName string) error {
+	if mock.CancelBuildFunc == nil {
+		panic("OpenChoreoClientMock.CancelBuildFunc: method is nil but OpenChoreoClient.CancelBuild was just called")
+	}
+	callInfo := struct {
+		Ctx           context.Context
+		OuID          string
+		ProjectName   string
+		ComponentName string
+		BuildName     string
+	}{
+		Ctx:           ctx,
+		OuID:          ouID,
+		ProjectName:   projectName,
+		ComponentName: componentName,
+		BuildName:     buildName,
+	}
+	mock.lockCancelBuild.Lock()
+	mock.calls.CancelBuild = append(mock.calls.CancelBuild, callInfo)
+	mock.lockCancelBuild.Unlock()
+	return mock.CancelBuildFunc(ctx, ouID, projectName, componentName, buildName)
+}
+
+// CancelBuildCalls gets all the calls that were made to CancelBuild.
+// Check the length with:
+//
+//	len(mockedOpenChoreoClient.CancelBuildCalls())
+func (mock *OpenChoreoClientMock) CancelBuildCalls() []struct {
+	Ctx           context.Context
+	OuID          string
+	ProjectName   string
+	ComponentName string
+	BuildName     string
+} {
+	var calls []struct {
+		Ctx           context.Context
+		OuID          string
+		ProjectName   string
+		ComponentName string
+		BuildName     string
+	}
+	mock.lockCancelBuild.RLock()
+	calls = mock.calls.CancelBuild
+	mock.lockCancelBuild.RUnlock()
 	return calls
 }
 

@@ -81,6 +81,7 @@ const (
 	ActionAgentCreate                Action = "agent:create"
 	ActionProjectCreate              Action = "project:create"
 	ActionAgentBuild                 Action = "agent:build"
+	ActionAgentCancelBuild           Action = "agent:cancel-build"
 	ActionAgentDeploy                Action = "agent:deploy"
 	ActionAgentPromote               Action = "agent:promote"
 	ActionAgentChangeDeploymentState Action = "agent:change-deployment-state"
@@ -339,6 +340,15 @@ func init() {
 		"agentName": KindName,
 		"commitId":  KindIdentifier,
 		"buildName": KindName,
+	})
+
+	// Cancelling deletes the WorkflowRun and the build's logs with it, so the
+	// trail is the only remaining record that the build ever ran.
+	Register(ActionAgentCancelBuild, ClassDeployment, SeverityNotice)
+	RegisterDetailSchema(ActionAgentCancelBuild, map[string]FieldKind{
+		"agentName":   KindName,
+		"buildName":   KindName,
+		"buildStatus": KindName,
 	})
 
 	deployFields := map[string]FieldKind{

@@ -49,6 +49,7 @@ type AgentController interface {
 	UpdateDeploymentState(w http.ResponseWriter, r *http.Request)
 	GetAgentEndpoints(w http.ResponseWriter, r *http.Request)
 	GetBuild(w http.ResponseWriter, r *http.Request)
+	CancelBuild(w http.ResponseWriter, r *http.Request)
 	GetAgentConfigurations(w http.ResponseWriter, r *http.Request)
 	GenerateName(w http.ResponseWriter, r *http.Request)
 	GetAgentResourceConfigs(w http.ResponseWriter, r *http.Request)
@@ -136,6 +137,9 @@ func handleCommonErrors(w http.ResponseWriter, err error, fallbackMsg string) {
 	case errors.Is(err, utils.ErrAgentAlreadyExists):
 		utils.WriteErrorResponseWithReason(w, http.StatusConflict,
 			"Agent already exists", err.Error(), utils.ErrCodeAgentAlreadyExists)
+	case errors.Is(err, utils.ErrBuildNotCancellable):
+		utils.WriteErrorResponseWithReason(w, http.StatusConflict,
+			"Build cannot be cancelled", err.Error(), utils.ErrCodeBuildNotCancellable)
 	case errors.Is(err, utils.ErrOrphanedAgentConfigsExist):
 		utils.WriteErrorResponseWithReason(w, http.StatusConflict,
 			"Configurations from a deleted agent with this name still exist", err.Error(), utils.ErrCodeConflict)
@@ -824,6 +828,25 @@ func (c *agentController) GetBuild(w http.ResponseWriter, r *http.Request) {
 
 	buildResponse := utils.ConvertToBuildDetailsResponse(build)
 	utils.WriteSuccessResponse(w, http.StatusOK, buildResponse)
+}
+
+func (c *agentController) CancelBuild(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	log := logger.GetLogger(ctx)
+
+	// Extract path parameters
+	ouID := middleware.OUIDFromRequest(r)
+	projName := r.PathValue(utils.PathParamProjName)
+	agentName := r.PathValue(utils.PathParamAgentName)
+	buildName := r.PathValue(utils.PathParamBuildName)
+
+	if err := c.agentService.CancelBuild(ctx, ouID, projName, agentName, buildName); err != nil {
+		log.Error("CancelBuild: failed to cancel build", "error", err)
+		handleCommonErrors(w, err, "Failed to cancel build")
+		return
+	}
+
+	utils.WriteSuccessResponse(w, http.StatusNoContent, "")
 }
 
 func (c *agentController) GetAgentDeployments(w http.ResponseWriter, r *http.Request) {

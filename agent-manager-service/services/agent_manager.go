@@ -57,6 +57,7 @@ type AgentManagerService interface {
 	GetAgent(ctx context.Context, ouID string, projectName string, agentName string) (*models.AgentResponse, error)
 	ListAgentBuilds(ctx context.Context, ouID string, projectName string, agentName string, limit int32, offset int32) ([]*models.BuildResponse, int32, error)
 	GetBuild(ctx context.Context, ouID string, projectName string, agentName string, buildName string) (*models.BuildDetailsResponse, error)
+	CancelBuild(ctx context.Context, ouID string, projectName string, agentName string, buildName string) error
 	GetAgentDeployments(ctx context.Context, ouID string, projectName string, agentName string) ([]*models.DeploymentResponse, error)
 	UpdateAgentDeploymentState(ctx context.Context, ouID string, projectName string, agentName string, environment string, state string) error
 	GetAgentEndpoints(ctx context.Context, ouID string, projectName string, agentName string, environmentName string) (map[string]models.EndpointsResponse, error)
@@ -86,6 +87,7 @@ type agentManagerService struct {
 	gitRepositoryService      RepositoryService
 	tokenManagerService       AgentTokenManagerService
 	agentConfigRepo           repositories.AgentConfigRepository
+	cancelledBuildRepo        repositories.CancelledBuildRepository
 	agentConfigurationService AgentConfigurationService
 	agentKindService          AgentKindService
 	artifactRepo              repositories.ArtifactRepository
@@ -105,6 +107,7 @@ func NewAgentManagerService(
 	gitRepositoryService RepositoryService,
 	tokenManagerService AgentTokenManagerService,
 	agentConfigRepo repositories.AgentConfigRepository,
+	cancelledBuildRepo repositories.CancelledBuildRepository,
 	agentConfigurationService AgentConfigurationService,
 	agentKindService AgentKindService,
 	artifactRepo repositories.ArtifactRepository,
@@ -123,6 +126,7 @@ func NewAgentManagerService(
 		gitRepositoryService:      gitRepositoryService,
 		tokenManagerService:       tokenManagerService,
 		agentConfigRepo:           agentConfigRepo,
+		cancelledBuildRepo:        cancelledBuildRepo,
 		agentConfigurationService: agentConfigurationService,
 		agentKindService:          agentKindService,
 		agentThunderProvisioning:  agentThunderProvisioning,
@@ -2702,6 +2706,14 @@ func (s *agentManagerService) DeleteAgent(ctx context.Context, ouID string, proj
 	if configErr := s.agentConfigRepo.DeleteAllByAgent(ctx, ouID, projectName, agentName); configErr != nil {
 		s.logger.Warn("Failed to delete agent configs from database", "agentName", agentName, "error", configErr)
 		// Don't fail the deletion - configs will be orphaned but harmless
+	}
+
+	// Cleanup cancelled-build history. Left behind, these rows would surface in
+	// the build list of a later agent created with the same name.
+	if s.cancelledBuildRepo != nil {
+		if cancelledErr := s.cancelledBuildRepo.DeleteAllByAgent(ctx, ouID, projectName, agentName); cancelledErr != nil {
+			s.logger.Warn("Failed to delete cancelled build records", "agentName", agentName, "error", cancelledErr)
+		}
 	}
 
 	// Cleanup env-scoped API artifact record.
@@ -5610,6 +5622,12 @@ func (s *agentManagerService) ListAgentBuilds(ctx context.Context, ouID string, 
 		return nil, 0, err
 	}
 
+	// Cancelled builds no longer exist in OpenChoreo, so they are merged back in
+	// from AMS's own record. ListBuilds already fetches every build and
+	// paginates in memory below, so the two sources are joined before that
+	// pagination — there is no cross-source pagination to reconcile.
+	allBuilds = s.mergeCancelledBuilds(ctx, ouID, projectName, agentName, allBuilds)
+
 	total := int32(len(allBuilds))
 	paginatedBuilds := paginateSlice(allBuilds, offset, limit)
 
@@ -5636,12 +5654,201 @@ func (s *agentManagerService) GetBuild(ctx context.Context, ouID string, project
 	// Fetch the build from OpenChoreo
 	build, err := s.ocClient.GetBuild(ctx, ouID, projectName, agentName, buildName)
 	if err != nil {
+		// A cancelled build's WorkflowRun is deleted, so OpenChoreo reports it
+		// as missing. It is still listed in build history, and opening it from
+		// there must not 404 — fall back to AMS's own record. Only a
+		// not-found is worth retrying this way; a transport failure is
+		// reported as itself.
+		if errors.Is(err, utils.ErrNotFound) {
+			if cancelled := s.cancelledBuildDetails(ctx, ouID, projectName, agentName, buildName); cancelled != nil {
+				s.logger.Debug("Serving build from cancelled-build record", "buildName", buildName, "agentName", agentName)
+				return cancelled, nil
+			}
+		}
 		s.logger.Error("Failed to get build from OpenChoreo", "buildName", buildName, "agentName", agentName, "ouID", ouID, "projectName", projectName, "error", err)
 		return nil, translateBuildError(err)
 	}
 
 	s.logger.Info("Fetched build successfully", "agentName", agentName, "ouID", ouID, "projectName", projectName, "buildName", build.Name)
 	return build, nil
+}
+
+// mergeCancelledBuilds appends this agent's cancelled builds to builds fetched
+// from OpenChoreo. Best-effort: a read failure degrades the listing to live
+// builds only rather than failing a request that OpenChoreo answered fine.
+//
+// A cancelled build whose name still appears in the live list is skipped — that
+// means the delete did not take effect, and the live record is authoritative.
+func (s *agentManagerService) mergeCancelledBuilds(
+	ctx context.Context, ouID, projectName, agentName string, builds []*models.BuildResponse,
+) []*models.BuildResponse {
+	if s.cancelledBuildRepo == nil {
+		return builds
+	}
+
+	records, err := s.cancelledBuildRepo.ListByAgent(ctx, ouID, projectName, agentName)
+	if err != nil {
+		s.logger.Warn("Failed to list cancelled builds; build history will omit them",
+			"agentName", agentName, "ouID", ouID, "projectName", projectName, "error", err)
+		return builds
+	}
+	if len(records) == 0 {
+		return builds
+	}
+
+	live := make(map[string]struct{}, len(builds))
+	for _, b := range builds {
+		live[b.Name] = struct{}{}
+	}
+
+	merged := builds
+	for i := range records {
+		if _, stillLive := live[records[i].BuildName]; stillLive {
+			continue
+		}
+		merged = append(merged, records[i].ToBuildResponse())
+	}
+	if len(merged) == len(builds) {
+		return builds
+	}
+
+	// ListBuilds returns its own builds already sorted newest-first, so the
+	// appended records have to be folded into that order rather than left at
+	// the end — otherwise a cancelled build always sinks to the bottom of the
+	// history regardless of when it ran, and pagination strands it on the last
+	// page.
+	sort.SliceStable(merged, func(i, j int) bool {
+		return merged[i].StartedAt.After(merged[j].StartedAt)
+	})
+	return merged
+}
+
+// cancelledBuildDetails renders a cancelled build in the details shape. Returns
+// nil when the build was never cancelled, or when the record cannot be read —
+// the caller then reports the original not-found.
+func (s *agentManagerService) cancelledBuildDetails(
+	ctx context.Context, ouID, projectName, agentName, buildName string,
+) *models.BuildDetailsResponse {
+	if s.cancelledBuildRepo == nil {
+		return nil
+	}
+
+	record, err := s.cancelledBuildRepo.Get(ctx, ouID, projectName, agentName, buildName)
+	if err != nil {
+		if !errors.Is(err, gorm.ErrRecordNotFound) {
+			s.logger.Warn("Failed to read cancelled build record",
+				"buildName", buildName, "agentName", agentName, "ouID", ouID, "projectName", projectName, "error", err)
+		}
+		return nil
+	}
+
+	// Steps and percent are left at their zero values: the build never reached
+	// a step outcome worth reporting, and inventing one would misrepresent how
+	// far it actually got.
+	return &models.BuildDetailsResponse{BuildResponse: *record.ToBuildResponse()}
+}
+
+// CancelBuild cancels an in-progress build for an agent.
+//
+// Cancellation deletes the underlying WorkflowRun, which also removes the
+// build's logs and history — OpenChoreo offers no gentler stop. A build that
+// has already reached a terminal state is therefore rejected rather than
+// deleted: there is nothing left to stop, and deleting it would only destroy
+// the record.
+func (s *agentManagerService) CancelBuild(ctx context.Context, ouID string, projectName string, agentName string, buildName string) error {
+	s.logger.Info("Cancelling build", "agentName", agentName, "buildName", buildName, "ouID", ouID, "projectName", projectName)
+	// Validate organization exists
+	org, err := s.ocClient.GetOrganization(ctx, ouID)
+	if err != nil {
+		s.logger.Error("Failed to find organization", "ouID", ouID, "error", err)
+		return translateOrgError(err)
+	}
+	agent, err := s.ocClient.GetComponent(ctx, org.Name, projectName, agentName)
+	if err != nil {
+		s.logger.Error("Failed to fetch agent from OpenChoreo", "agentName", agentName, "error", err)
+		return translateAgentError(err)
+	}
+	if agent.Provisioning.Type != string(utils.InternalAgent) {
+		return fmt.Errorf("build operation is not supported for agent type: '%s'", agent.Provisioning.Type)
+	}
+
+	// Load the build once, both to confirm it belongs to this agent and to
+	// decide whether it is still cancellable.
+	build, err := s.ocClient.GetBuild(ctx, ouID, projectName, agentName, buildName)
+	if err != nil {
+		s.logger.Error("Failed to get build from OpenChoreo", "buildName", buildName, "agentName", agentName, "ouID", ouID, "projectName", projectName, "error", err)
+		return translateBuildError(err)
+	}
+	if client.IsTerminalBuildStatus(build.Status) {
+		s.logger.Debug("Refusing to cancel a build in a terminal state", "buildName", buildName, "status", build.Status)
+		return fmt.Errorf("%w: build %q is in state %q", utils.ErrBuildNotCancellable, buildName, build.Status)
+	}
+
+	// Cancellation destroys the build record, so it is recorded regardless of
+	// outcome — a failed cancel is as interesting as a successful one.
+	cancelErr := s.ocClient.CancelBuild(ctx, ouID, projectName, agentName, buildName)
+	audit.Record(
+		ctx, audit.ActionAgentCancelBuild,
+		audit.Org(ouID),
+		audit.ResourceNamed(audit.ResourceAgent, agent.UUID, agentName),
+		audit.Project(projectName),
+		audit.Detail("agentName", agentName),
+		audit.Detail("buildName", buildName),
+		audit.Detail("buildStatus", build.Status),
+		audit.Result(cancelErr),
+	)
+	if cancelErr != nil {
+		s.logger.Error("Failed to cancel build in OpenChoreo", "buildName", buildName, "agentName", agentName, "ouID", ouID, "projectName", projectName, "error", cancelErr)
+		return translateBuildError(cancelErr)
+	}
+
+	s.recordCancelledBuild(ctx, ouID, projectName, agentName, build)
+
+	s.logger.Info("Cancelled build successfully", "agentName", agentName, "ouID", ouID, "projectName", projectName, "buildName", buildName)
+	return nil
+}
+
+// recordCancelledBuild preserves the build that CancelBuild just deleted.
+//
+// Best-effort and deliberately after the delete: the WorkflowRun is already
+// gone by this point, so failing the request here would report a cancel that
+// did in fact happen as a failure, and the caller would have no build left to
+// retry against. A lost row costs the developer a history entry; the audit
+// trail still records the cancellation either way.
+func (s *agentManagerService) recordCancelledBuild(
+	ctx context.Context, ouID, projectName, agentName string, build *models.BuildDetailsResponse,
+) {
+	if s.cancelledBuildRepo == nil {
+		return
+	}
+
+	var cancelledBy string
+	if callerClaims := jwtassertion.GetTokenClaims(ctx); callerClaims != nil {
+		cancelledBy = callerClaims.Sub
+	}
+
+	var startedAt *time.Time
+	if !build.StartedAt.IsZero() {
+		started := build.StartedAt
+		startedAt = &started
+	}
+
+	record := &models.CancelledBuild{
+		OUID:            ouID,
+		ProjectName:     projectName,
+		AgentName:       agentName,
+		BuildName:       build.Name,
+		BuildUUID:       build.UUID,
+		StatusAtCancel:  build.Status,
+		BuildParameters: build.BuildParameters,
+		StartedAt:       startedAt,
+		CancelledBy:     cancelledBy,
+		CancelledAt:     time.Now(),
+	}
+	if err := s.cancelledBuildRepo.Record(ctx, record); err != nil {
+		s.logger.Warn("Failed to record cancelled build; it will not appear in build history",
+			"buildName", build.Name, "agentName", agentName, "ouID", ouID, "projectName", projectName, "error", err)
+	}
 }
 
 func (s *agentManagerService) GetAgentDeployments(ctx context.Context, ouID string, projectName string, agentName string) ([]*models.DeploymentResponse, error) {

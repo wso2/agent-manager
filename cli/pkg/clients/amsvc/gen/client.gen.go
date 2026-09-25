@@ -617,6 +617,9 @@ type ClientInterface interface {
 	// BuildAgent request
 	BuildAgent(ctx context.Context, orgName string, projName string, agentName string, params *BuildAgentParams, reqEditors ...RequestEditorFn) (*http.Response, error)
 
+	// CancelBuild request
+	CancelBuild(ctx context.Context, orgName string, projName string, agentName string, buildName string, reqEditors ...RequestEditorFn) (*http.Response, error)
+
 	// GetBuild request
 	GetBuild(ctx context.Context, orgName string, projName string, agentName string, buildName string, reqEditors ...RequestEditorFn) (*http.Response, error)
 
@@ -3194,6 +3197,18 @@ func (c *Client) GetAgentBuilds(ctx context.Context, orgName string, projName st
 
 func (c *Client) BuildAgent(ctx context.Context, orgName string, projName string, agentName string, params *BuildAgentParams, reqEditors ...RequestEditorFn) (*http.Response, error) {
 	req, err := NewBuildAgentRequest(c.Server, orgName, projName, agentName, params)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) CancelBuild(ctx context.Context, orgName string, projName string, agentName string, buildName string, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewCancelBuildRequest(c.Server, orgName, projName, agentName, buildName)
 	if err != nil {
 		return nil, err
 	}
@@ -11907,6 +11922,61 @@ func NewBuildAgentRequest(server string, orgName string, projName string, agentN
 	return req, nil
 }
 
+// NewCancelBuildRequest generates requests for CancelBuild
+func NewCancelBuildRequest(server string, orgName string, projName string, agentName string, buildName string) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithOptions("simple", false, "orgName", orgName, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: ""})
+	if err != nil {
+		return nil, err
+	}
+
+	var pathParam1 string
+
+	pathParam1, err = runtime.StyleParamWithOptions("simple", false, "projName", projName, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: ""})
+	if err != nil {
+		return nil, err
+	}
+
+	var pathParam2 string
+
+	pathParam2, err = runtime.StyleParamWithOptions("simple", false, "agentName", agentName, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: ""})
+	if err != nil {
+		return nil, err
+	}
+
+	var pathParam3 string
+
+	pathParam3, err = runtime.StyleParamWithOptions("simple", false, "buildName", buildName, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: ""})
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/orgs/%s/projects/%s/agents/%s/builds/%s", pathParam0, pathParam1, pathParam2, pathParam3)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest("DELETE", queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return req, nil
+}
+
 // NewGetBuildRequest generates requests for GetBuild
 func NewGetBuildRequest(server string, orgName string, projName string, agentName string, buildName string) (*http.Request, error) {
 	var err error
@@ -17410,6 +17480,9 @@ type ClientWithResponsesInterface interface {
 	// BuildAgentWithResponse request
 	BuildAgentWithResponse(ctx context.Context, orgName string, projName string, agentName string, params *BuildAgentParams, reqEditors ...RequestEditorFn) (*BuildAgentResp, error)
 
+	// CancelBuildWithResponse request
+	CancelBuildWithResponse(ctx context.Context, orgName string, projName string, agentName string, buildName string, reqEditors ...RequestEditorFn) (*CancelBuildResp, error)
+
 	// GetBuildWithResponse request
 	GetBuildWithResponse(ctx context.Context, orgName string, projName string, agentName string, buildName string, reqEditors ...RequestEditorFn) (*GetBuildResp, error)
 
@@ -21243,6 +21316,30 @@ func (r BuildAgentResp) StatusCode() int {
 	return 0
 }
 
+type CancelBuildResp struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON404      *ErrorResponse
+	JSON409      *ErrorResponse
+	JSON500      *ErrorResponse
+}
+
+// Status returns HTTPResponse.Status
+func (r CancelBuildResp) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r CancelBuildResp) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
 type GetBuildResp struct {
 	Body         []byte
 	HTTPResponse *http.Response
@@ -24783,6 +24880,15 @@ func (c *ClientWithResponses) BuildAgentWithResponse(ctx context.Context, orgNam
 		return nil, err
 	}
 	return ParseBuildAgentResp(rsp)
+}
+
+// CancelBuildWithResponse request returning *CancelBuildResp
+func (c *ClientWithResponses) CancelBuildWithResponse(ctx context.Context, orgName string, projName string, agentName string, buildName string, reqEditors ...RequestEditorFn) (*CancelBuildResp, error) {
+	rsp, err := c.CancelBuild(ctx, orgName, projName, agentName, buildName, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseCancelBuildResp(rsp)
 }
 
 // GetBuildWithResponse request returning *GetBuildResp
@@ -32185,6 +32291,46 @@ func ParseBuildAgentResp(rsp *http.Response) (*BuildAgentResp, error) {
 			return nil, err
 		}
 		response.JSON404 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
+		var dest ErrorResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON500 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseCancelBuildResp parses an HTTP response from a CancelBuildWithResponse call
+func ParseCancelBuildResp(rsp *http.Response) (*CancelBuildResp, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &CancelBuildResp{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
+		var dest ErrorResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON404 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 409:
+		var dest ErrorResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON409 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
 		var dest ErrorResponse
