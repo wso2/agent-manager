@@ -18,7 +18,10 @@ package auth
 
 import (
 	"context"
+	"errors"
 	"fmt"
+	"io"
+	"net/http"
 	"strings"
 
 	"golang.org/x/oauth2"
@@ -26,6 +29,7 @@ import (
 
 	"github.com/wso2/agent-manager/cli/pkg/browser"
 	"github.com/wso2/agent-manager/cli/pkg/clients"
+	"github.com/wso2/agent-manager/cli/pkg/clierr"
 	"github.com/wso2/agent-manager/cli/pkg/config"
 	"github.com/wso2/agent-manager/cli/pkg/iostreams"
 )
@@ -74,7 +78,7 @@ func loginClientCredentials(ctx context.Context, opts LoginOptions) (*config.Ins
 	}
 	tok, err := cc.Token(ctx)
 	if err != nil {
-		return nil, fmt.Errorf("client_credentials token exchange: %w", err)
+		return nil, wrapTokenError(err, "client_credentials token exchange")
 	}
 
 	return &config.Instance{
@@ -90,6 +94,31 @@ func loginClientCredentials(ctx context.Context, opts LoginOptions) (*config.Ins
 			Scopes:       scopes,
 		},
 	}, nil
+}
+
+// classifyTokenError maps oauth2 token-endpoint errors to typed CLIErrors.
+// Returns nil for errors that don't have a known classification.
+func classifyTokenError(err error) error {
+	var re *oauth2.RetrieveError
+	if !errors.As(err, &re) {
+		return nil
+	}
+	if re.Response != nil && re.Response.StatusCode == http.StatusUnauthorized {
+		return clierr.New(clierr.Unauthorized, "token endpoint rejected the request (401)")
+	}
+	if re.ErrorCode == "invalid_grant" {
+		return clierr.Newf(clierr.Unauthorized, "invalid_grant: %s", re.ErrorDescription)
+	}
+	return nil
+}
+
+// wrapTokenError classifies known token-endpoint errors into typed CLIErrors
+// and falls back to a fmt.Errorf wrap with the given context.
+func wrapTokenError(err error, fallbackContext string) error {
+	if ce := classifyTokenError(err); ce != nil {
+		return ce
+	}
+	return fmt.Errorf("%s: %w", fallbackContext, err)
 }
 
 func loginPKCE(ctx context.Context, opts LoginOptions) (*config.Instance, error) {
@@ -131,7 +160,10 @@ func loginPKCE(ctx context.Context, opts LoginOptions) (*config.Instance, error)
 
 	tok, err := authCodePKCE(ctx, oauthCfg, opts.IO, openBrowser)
 	if err != nil {
-		return nil, fmt.Errorf("authorization code exchange: %w", err)
+		if errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded) || errors.Is(err, io.EOF) {
+			return nil, clierr.New(clierr.AuthLoginCancelled, "browser login cancelled")
+		}
+		return nil, wrapTokenError(err, "authorization code exchange")
 	}
 
 	return &config.Instance{
