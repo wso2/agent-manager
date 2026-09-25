@@ -135,7 +135,9 @@ func InitializeAppParams(cfg *config.Config, db *gorm.DB, authProvider client.Au
 	llmProviderTemplateService := services.NewLLMProviderTemplateService(llmProviderTemplateRepository, llmTemplateStore)
 	llmProviderService := services.NewLLMProviderService(db, llmProviderRepository, llmProviderTemplateRepository, llmTemplateStore, llmProxyRepository, artifactRepository, v, gatewayRepository, deploymentRepository, envAgentModelMappingRepository, monitorLLMMappingRepository, llmProviderAPIKeyService)
 	llmProviderDeploymentService := services.NewLLMProviderDeploymentService(deploymentRepository, llmProviderRepository, llmProviderTemplateRepository, gatewayRepository, gatewayEventsService)
-	llmController := controllers.NewLLMController(llmProviderTemplateService, llmProviderService, llmProxyService, llmProviderDeploymentService, llmProxyDeploymentService, artifactRepository, openChoreoClient)
+	llmChatCompleter := services.NewHTTPChatCompleter()
+	evaluatorCodegenService := services.NewEvaluatorCodegenService(llmProviderService, v, llmChatCompleter, logger)
+	llmController := controllers.NewLLMController(llmProviderTemplateService, llmProviderService, llmProxyService, llmProviderDeploymentService, llmProxyDeploymentService, artifactRepository, openChoreoClient, evaluatorCodegenService)
 	llmDeploymentController := controllers.NewLLMDeploymentController(llmProviderDeploymentService)
 	llmProviderAPIKeyController := controllers.NewLLMProviderAPIKeyController(llmProviderAPIKeyService)
 	llmProxyAPIKeyController := controllers.NewLLMProxyAPIKeyController(llmProxyAPIKeyService)
@@ -315,7 +317,9 @@ func InitializeTestAppParamsWithClientMocks(cfg *config.Config, db *gorm.DB, aut
 	llmProviderTemplateService := services.NewLLMProviderTemplateService(llmProviderTemplateRepository, llmTemplateStore)
 	llmProviderService := services.NewLLMProviderService(db, llmProviderRepository, llmProviderTemplateRepository, llmTemplateStore, llmProxyRepository, artifactRepository, v, gatewayRepository, deploymentRepository, envAgentModelMappingRepository, monitorLLMMappingRepository, llmProviderAPIKeyService)
 	llmProviderDeploymentService := services.NewLLMProviderDeploymentService(deploymentRepository, llmProviderRepository, llmProviderTemplateRepository, gatewayRepository, gatewayEventsService)
-	llmController := controllers.NewLLMController(llmProviderTemplateService, llmProviderService, llmProxyService, llmProviderDeploymentService, llmProxyDeploymentService, artifactRepository, openChoreoClient)
+	llmChatCompleter := services.NewHTTPChatCompleter()
+	evaluatorCodegenService := services.NewEvaluatorCodegenService(llmProviderService, v, llmChatCompleter, logger)
+	llmController := controllers.NewLLMController(llmProviderTemplateService, llmProviderService, llmProxyService, llmProviderDeploymentService, llmProxyDeploymentService, artifactRepository, openChoreoClient, evaluatorCodegenService)
 	llmDeploymentController := controllers.NewLLMDeploymentController(llmProviderDeploymentService)
 	llmProviderAPIKeyController := controllers.NewLLMProviderAPIKeyController(llmProviderAPIKeyService)
 	llmProxyAPIKeyController := controllers.NewLLMProxyAPIKeyController(llmProxyAPIKeyService)
@@ -421,7 +425,7 @@ var clientProviderSet = wire.NewSet(
 	ProvideEnvThunderResolver,
 )
 
-var serviceProviderSet = wire.NewSet(services.NewAgentManagerService, services.NewAgentKindService, services.NewInfraResourceManager, services.NewAgentTokenManagerService, ProvideGitCredentialsService, services.NewRepositoryService, services.NewMonitorExecutor, services.NewMonitorManagerService, ProvideThunderConfig, services.NewMonitorSchedulerService, ProvideAgentIdentityInjectionService, services.NewAgentThunderReconcilerService, services.NewEvaluatorManagerService, services.NewEnvironmentService, services.NewPlatformGatewayService, services.NewLLMProviderTemplateService, services.NewLLMProviderService, services.NewLLMProxyService, services.NewLLMProviderDeploymentService, services.NewLLMProviderAPIKeyService, services.NewLLMProxyAPIKeyService, services.NewAgentAPIKeyService, services.NewLLMProxyDeploymentService, services.NewMCPProxyService, services.NewMCPProxyScopeService, wire.Bind(new(services.MCPProxyRedeployer), new(*services.MCPProxyService)), wire.Bind(new(controllers.MCPResourceServerIdentifierResolver), new(*services.MCPProxyService)), services.NewGatewayInternalAPIService, services.NewMonitorScoresService, services.NewCatalogService, services.NewLLMProxyProvisioner, services.NewAgentConfigurationService, services.NewLLMTemplateStore, services.NewGitSecretService, services.NewAIApplicationService)
+var serviceProviderSet = wire.NewSet(services.NewAgentManagerService, services.NewAgentKindService, services.NewInfraResourceManager, services.NewAgentTokenManagerService, ProvideGitCredentialsService, services.NewRepositoryService, services.NewMonitorExecutor, services.NewMonitorManagerService, ProvideThunderConfig, services.NewMonitorSchedulerService, ProvideAgentIdentityInjectionService, services.NewAgentThunderReconcilerService, services.NewEvaluatorManagerService, services.NewEnvironmentService, services.NewPlatformGatewayService, services.NewLLMProviderTemplateService, services.NewLLMProviderService, services.NewEvaluatorCodegenService, services.NewHTTPChatCompleter, services.NewLLMProxyService, services.NewLLMProviderDeploymentService, services.NewLLMProviderAPIKeyService, services.NewLLMProxyAPIKeyService, services.NewAgentAPIKeyService, services.NewLLMProxyDeploymentService, services.NewMCPProxyService, services.NewMCPProxyScopeService, wire.Bind(new(services.MCPProxyRedeployer), new(*services.MCPProxyService)), wire.Bind(new(controllers.MCPResourceServerIdentifierResolver), new(*services.MCPProxyService)), services.NewGatewayInternalAPIService, services.NewMonitorScoresService, services.NewCatalogService, services.NewLLMProxyProvisioner, services.NewAgentConfigurationService, services.NewLLMTemplateStore, services.NewGitSecretService, services.NewAIApplicationService)
 
 var instrumentationProviderSet = wire.NewSet(
 	ProvideInstrumentationCatalog,

@@ -61,6 +61,9 @@ type LLMController interface {
 
 	// Consumer handlers
 	ListLLMProviderConsumers(w http.ResponseWriter, r *http.Request)
+
+	// Evaluator authoring handlers
+	GenerateEvaluatorCode(w http.ResponseWriter, r *http.Request)
 }
 
 type llmController struct {
@@ -73,6 +76,8 @@ type llmController struct {
 	proxyDeploymentService *services.LLMProxyDeploymentService
 	artifactRepo           repositories.ArtifactRepository
 	ocClient               client.OpenChoreoClient
+	// codegenService backs the console's "Use AI to write" aid. It persists nothing.
+	codegenService *services.EvaluatorCodegenService
 }
 
 // NewLLMController creates a new LLM controller
@@ -84,6 +89,7 @@ func NewLLMController(
 	proxyDeploymentService *services.LLMProxyDeploymentService,
 	artifactRepo repositories.ArtifactRepository,
 	ocClient client.OpenChoreoClient,
+	codegenService *services.EvaluatorCodegenService,
 ) LLMController {
 	return &llmController{
 		templateService:        templateService,
@@ -93,6 +99,7 @@ func NewLLMController(
 		proxyDeploymentService: proxyDeploymentService,
 		artifactRepo:           artifactRepo,
 		ocClient:               ocClient,
+		codegenService:         codegenService,
 	}
 }
 
@@ -1151,4 +1158,57 @@ func (c *llmController) UpdateLLMProviderCatalogStatus(w http.ResponseWriter, r 
 	// Convert to response
 	response := utils.ConvertModelToSpecLLMProviderResponse(provider)
 	utils.WriteSuccessResponse(w, http.StatusOK, response)
+}
+
+// GenerateEvaluatorCode generates custom evaluator source with the org's own LLM
+// provider. It is an authoring aid for the console: nothing about the request — the
+// provider chosen, the model typed, the instruction given or the source returned — is
+// persisted.
+func (c *llmController) GenerateEvaluatorCode(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	log := logger.GetLogger(ctx)
+	ouID := middleware.OUIDFromRequest(r)
+	providerID := r.PathValue(utils.PathParamProviderId)
+
+	r.Body = http.MaxBytesReader(w, r.Body, 1<<20) // 1MB limit
+
+	var req spec.GenerateEvaluatorRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		log.Error("GenerateEvaluatorCode: failed to decode request", "error", err)
+		utils.WriteErrorResponse(w, http.StatusBadRequest, "Invalid request body")
+		return
+	}
+
+	source, err := c.codegenService.GenerateEvaluatorSource(ctx, ouID, providerID, services.GenerateEvaluatorInput{
+		Model:         req.Model,
+		EvaluatorType: req.EvaluatorType,
+		Level:         req.Level,
+		Instructions:  req.Instructions,
+		DisplayName:   req.GetDisplayName(),
+		Description:   req.GetDescription(),
+	})
+	if err != nil {
+		switch {
+		case errors.Is(err, utils.ErrLLMProviderNotFound):
+			utils.WriteErrorResponse(w, http.StatusNotFound, "LLM provider not found")
+			return
+		case errors.Is(err, utils.ErrInvalidInput):
+			utils.WriteErrorResponse(w, http.StatusBadRequest, err.Error())
+			return
+		case errors.Is(err, utils.ErrLLMProviderNotGenerationCapable):
+			utils.WriteErrorResponse(w, http.StatusUnprocessableEntity, err.Error())
+			return
+		case errors.Is(err, utils.ErrLLMUpstreamFailed):
+			// Surfaced as 502: the control plane worked, the provider's upstream did not.
+			log.Warn("GenerateEvaluatorCode: upstream call failed", "providerID", providerID, "error", err)
+			utils.WriteErrorResponse(w, http.StatusBadGateway, "The LLM provider could not complete the request")
+			return
+		default:
+			log.Error("GenerateEvaluatorCode: failed to generate evaluator source", "error", err)
+			utils.WriteErrorResponse(w, http.StatusInternalServerError, "Failed to generate evaluator source")
+			return
+		}
+	}
+
+	utils.WriteSuccessResponse(w, http.StatusOK, spec.GenerateEvaluatorResponse{Code: source})
 }

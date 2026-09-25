@@ -396,6 +396,27 @@ export type UpdateLLMProviderPathParams = LLMProviderPathParams;
 export type DeleteLLMProviderPathParams = LLMProviderPathParams;
 export type UpdateLLMProviderCatalogPathParams = LLMProviderPathParams;
 export type ListLLMProviderProxiesPathParams = LLMProviderPathParams;
+export type GenerateEvaluatorPathParams = LLMProviderPathParams;
+
+/**
+ * One-shot evaluator authoring request. Nothing here is persisted by the backend —
+ * the provider and model are chosen per generation and forgotten afterwards.
+ */
+export interface GenerateEvaluatorRequest {
+  /** Model identifier, typed by the user and passed to the upstream verbatim. */
+  model: string;
+  evaluatorType: "code" | "llm_judge";
+  level: "trace" | "agent" | "llm";
+  /** Natural-language description of what the evaluator should measure. */
+  instructions: string;
+  displayName?: string;
+  description?: string;
+}
+
+export interface GenerateEvaluatorResponse {
+  /** Generated Python source (`code`) or prompt template (`llm_judge`). */
+  code: string;
+}
 
 // -----------------------------------------------------------------------------
 // LLM proxies

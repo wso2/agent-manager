@@ -522,6 +522,11 @@ type ClientInterface interface {
 	// GetLLMProviderDeployment request
 	GetLLMProviderDeployment(ctx context.Context, orgName string, providerId string, deploymentId string, reqEditors ...RequestEditorFn) (*http.Response, error)
 
+	// GenerateEvaluatorCodeWithBody request with any body
+	GenerateEvaluatorCodeWithBody(ctx context.Context, orgName string, providerId string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	GenerateEvaluatorCode(ctx context.Context, orgName string, providerId string, body GenerateEvaluatorCodeJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
+
 	// ListLLMProxiesByProvider request
 	ListLLMProxiesByProvider(ctx context.Context, orgName string, providerId string, params *ListLLMProxiesByProviderParams, reqEditors ...RequestEditorFn) (*http.Response, error)
 
@@ -2774,6 +2779,30 @@ func (c *Client) DeleteLLMProviderDeployment(ctx context.Context, orgName string
 
 func (c *Client) GetLLMProviderDeployment(ctx context.Context, orgName string, providerId string, deploymentId string, reqEditors ...RequestEditorFn) (*http.Response, error) {
 	req, err := NewGetLLMProviderDeploymentRequest(c.Server, orgName, providerId, deploymentId)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) GenerateEvaluatorCodeWithBody(ctx context.Context, orgName string, providerId string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewGenerateEvaluatorCodeRequestWithBody(c.Server, orgName, providerId, contentType, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) GenerateEvaluatorCode(ctx context.Context, orgName string, providerId string, body GenerateEvaluatorCodeJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewGenerateEvaluatorCodeRequest(c.Server, orgName, providerId, body)
 	if err != nil {
 		return nil, err
 	}
@@ -10510,6 +10539,60 @@ func NewGetLLMProviderDeploymentRequest(server string, orgName string, providerI
 	return req, nil
 }
 
+// NewGenerateEvaluatorCodeRequest calls the generic GenerateEvaluatorCode builder with application/json body
+func NewGenerateEvaluatorCodeRequest(server string, orgName string, providerId string, body GenerateEvaluatorCodeJSONRequestBody) (*http.Request, error) {
+	var bodyReader io.Reader
+	buf, err := json.Marshal(body)
+	if err != nil {
+		return nil, err
+	}
+	bodyReader = bytes.NewReader(buf)
+	return NewGenerateEvaluatorCodeRequestWithBody(server, orgName, providerId, "application/json", bodyReader)
+}
+
+// NewGenerateEvaluatorCodeRequestWithBody generates requests for GenerateEvaluatorCode with any type of body
+func NewGenerateEvaluatorCodeRequestWithBody(server string, orgName string, providerId string, contentType string, body io.Reader) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithOptions("simple", false, "orgName", orgName, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: ""})
+	if err != nil {
+		return nil, err
+	}
+
+	var pathParam1 string
+
+	pathParam1, err = runtime.StyleParamWithOptions("simple", false, "providerId", providerId, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: ""})
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/orgs/%s/llm-providers/%s/generate-evaluator", pathParam0, pathParam1)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest("POST", queryURL.String(), body)
+	if err != nil {
+		return nil, err
+	}
+
+	req.Header.Add("Content-Type", contentType)
+
+	return req, nil
+}
+
 // NewListLLMProxiesByProviderRequest generates requests for ListLLMProxiesByProvider
 func NewListLLMProxiesByProviderRequest(server string, orgName string, providerId string, params *ListLLMProxiesByProviderParams) (*http.Request, error) {
 	var err error
@@ -17315,6 +17398,11 @@ type ClientWithResponsesInterface interface {
 	// GetLLMProviderDeploymentWithResponse request
 	GetLLMProviderDeploymentWithResponse(ctx context.Context, orgName string, providerId string, deploymentId string, reqEditors ...RequestEditorFn) (*GetLLMProviderDeploymentResp, error)
 
+	// GenerateEvaluatorCodeWithBodyWithResponse request with any body
+	GenerateEvaluatorCodeWithBodyWithResponse(ctx context.Context, orgName string, providerId string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*GenerateEvaluatorCodeResp, error)
+
+	GenerateEvaluatorCodeWithResponse(ctx context.Context, orgName string, providerId string, body GenerateEvaluatorCodeJSONRequestBody, reqEditors ...RequestEditorFn) (*GenerateEvaluatorCodeResp, error)
+
 	// ListLLMProxiesByProviderWithResponse request
 	ListLLMProxiesByProviderWithResponse(ctx context.Context, orgName string, providerId string, params *ListLLMProxiesByProviderParams, reqEditors ...RequestEditorFn) (*ListLLMProxiesByProviderResp, error)
 
@@ -20626,6 +20714,34 @@ func (r GetLLMProviderDeploymentResp) Status() string {
 
 // StatusCode returns HTTPResponse.StatusCode
 func (r GetLLMProviderDeploymentResp) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+type GenerateEvaluatorCodeResp struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON200      *GenerateEvaluatorResponse
+	JSON400      *ErrorResponse
+	JSON401      *ErrorResponse
+	JSON404      *ErrorResponse
+	JSON422      *ErrorResponse
+	JSON500      *ErrorResponse
+	JSON502      *ErrorResponse
+}
+
+// Status returns HTTPResponse.Status
+func (r GenerateEvaluatorCodeResp) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r GenerateEvaluatorCodeResp) StatusCode() int {
 	if r.HTTPResponse != nil {
 		return r.HTTPResponse.StatusCode
 	}
@@ -24478,6 +24594,23 @@ func (c *ClientWithResponses) GetLLMProviderDeploymentWithResponse(ctx context.C
 		return nil, err
 	}
 	return ParseGetLLMProviderDeploymentResp(rsp)
+}
+
+// GenerateEvaluatorCodeWithBodyWithResponse request with arbitrary body returning *GenerateEvaluatorCodeResp
+func (c *ClientWithResponses) GenerateEvaluatorCodeWithBodyWithResponse(ctx context.Context, orgName string, providerId string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*GenerateEvaluatorCodeResp, error) {
+	rsp, err := c.GenerateEvaluatorCodeWithBody(ctx, orgName, providerId, contentType, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseGenerateEvaluatorCodeResp(rsp)
+}
+
+func (c *ClientWithResponses) GenerateEvaluatorCodeWithResponse(ctx context.Context, orgName string, providerId string, body GenerateEvaluatorCodeJSONRequestBody, reqEditors ...RequestEditorFn) (*GenerateEvaluatorCodeResp, error) {
+	rsp, err := c.GenerateEvaluatorCode(ctx, orgName, providerId, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseGenerateEvaluatorCodeResp(rsp)
 }
 
 // ListLLMProxiesByProviderWithResponse request returning *ListLLMProxiesByProviderResp
@@ -31118,6 +31251,74 @@ func ParseGetLLMProviderDeploymentResp(rsp *http.Response) (*GetLLMProviderDeplo
 			return nil, err
 		}
 		response.JSON500 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseGenerateEvaluatorCodeResp parses an HTTP response from a GenerateEvaluatorCodeWithResponse call
+func ParseGenerateEvaluatorCodeResp(rsp *http.Response) (*GenerateEvaluatorCodeResp, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &GenerateEvaluatorCodeResp{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest GenerateEvaluatorResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
+		var dest ErrorResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON400 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
+		var dest ErrorResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON401 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
+		var dest ErrorResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON404 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 422:
+		var dest ErrorResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON422 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
+		var dest ErrorResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON500 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 502:
+		var dest ErrorResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON502 = &dest
 
 	}
 

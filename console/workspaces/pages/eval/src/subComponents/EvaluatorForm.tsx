@@ -30,21 +30,17 @@ import {
   Form,
   FormControlLabel,
   IconButton,
-  InputAdornment,
   MenuItem,
   Stack,
   TextField,
-  Tooltip,
   Typography,
   useColorScheme,
 } from "@wso2/oxygen-ui";
 import {
   ArrowLeft,
   ArrowRight,
-  Check,
   CheckCircle,
   Circle,
-  Copy,
   Sparkles as SparklesIcon,
   X as CloseIcon,
 } from "@wso2/oxygen-ui-icons-react";
@@ -59,8 +55,8 @@ import {
   type ReferenceTypeKey,
 } from "./DataModelReferenceDrawer";
 import { SectionErrorBoundary } from "./SectionErrorBoundary";
+import { AiEvaluatorGenerator } from "./AiEvaluatorGenerator";
 import {
-  AI_COPILOT_PROMPT_TEMPLATE,
   LLM_JUDGE_BASE_CONFIG_SCHEMA,
   LLM_JUDGE_TEMPLATES,
   LLM_JUDGE_VARIABLES,
@@ -70,40 +66,6 @@ import {
   SUPPORTED_PACKAGES,
   type CompletionSuggestion,
 } from "../generated/evaluator-models.generated";
-
-// ---------------------------------------------------------------------------
-// AI copilot prompt helper
-// ---------------------------------------------------------------------------
-
-const _TYPE_LABELS: Record<string, string> = {
-  code: "code",
-  llm_judge: "LLM-judge",
-};
-const _LEVEL_LABELS: Record<string, string> = {
-  trace: "trace-level",
-  agent: "agent-level",
-  llm: "llm-level",
-};
-
-function resolveAiPrompt(
-  type: string,
-  level: EvaluatorLevel,
-  displayName: string,
-  description: string,
-): string {
-  const guideUrl = `${window.location.origin}/prompts/writing-evaluators.md`;
-  return AI_COPILOT_PROMPT_TEMPLATE.replace(
-    "{{TYPE}}",
-    _TYPE_LABELS[type] ?? type,
-  )
-    .replace("{{LEVEL}}", _LEVEL_LABELS[level] ?? level)
-    .replace("{{GUIDE_URL}}", guideUrl)
-    .replace("{{EVALUATOR_NAME}}", displayName || "[add name here]")
-    .replace(
-      "{{EVALUATOR_DESCRIPTION}}",
-      description || "[add description here]",
-    );
-}
 
 // ---------------------------------------------------------------------------
 // Monaco editor providers — completions + hover docs
@@ -583,6 +545,72 @@ export function extractCodeBody(source: string): string {
   return source;
 }
 
+/**
+ * Extract anything the user (or a generated evaluator) put *above* the evaluator
+ * signature — extra imports, module constants, helper functions.
+ *
+ * The header is regenerated from the level and config params whenever either
+ * changes, and rebuilding it as `header + body` would silently delete this code,
+ * because the body starts after `) -> EvalResult:`. Lines the regenerated header
+ * already emits are dropped so its imports are not duplicated.
+ */
+export function extractCodePreamble(source: string, header: string): string {
+  const lines = source.split("\n");
+
+  // Find the signature terminator, then walk back to the `def` that opened it.
+  let defIndex = -1;
+  const sigEnd = lines.findIndex((l) =>
+    /^\)\s*->\s*EvalResult\s*:/.test(l.trimStart()),
+  );
+  if (sigEnd !== -1) {
+    for (let i = sigEnd; i >= 0; i--) {
+      if (/^\s*def\s+\w+\s*\(/.test(lines[i])) {
+        defIndex = i;
+        break;
+      }
+    }
+  } else {
+    // Single-line def fallback, mirroring extractCodeBody.
+    defIndex = lines.findIndex((l) =>
+      /def\s+\w+\(.*\)\s*->\s*EvalResult\s*:/.test(l),
+    );
+  }
+  if (defIndex <= 0) return "";
+
+  const headerLines = new Set(
+    header
+      .split("\n")
+      .map((l) => l.trim())
+      .filter(Boolean),
+  );
+  // Blank lines are kept so a multi-line helper keeps its internal spacing.
+  const kept = lines
+    .slice(0, defIndex)
+    .filter((l) => l.trim() === "" || !headerLines.has(l.trim()));
+
+  while (kept.length && kept[0].trim() === "") kept.shift();
+  while (kept.length && kept[kept.length - 1].trim() === "") kept.pop();
+  return kept.join("\n");
+}
+
+/**
+ * Splice preserved preamble code between the header's imports and its `def`.
+ */
+function withPreamble(header: string, preamble: string): string {
+  if (!preamble) return header;
+  const marker = "\n\n\ndef my_evaluator(";
+  const index = header.indexOf(marker);
+  // Header shape changed unexpectedly — leave it alone rather than corrupt it.
+  if (index === -1) return header;
+  return (
+    header.slice(0, index) +
+    "\n\n\n" +
+    preamble +
+    "\n\n\n" +
+    header.slice(index + 3)
+  );
+}
+
 /** Default function bodies per level (no config param references). */
 const DEFAULT_CODE_BODY: Record<EvaluatorLevel, string> = {
   trace: [
@@ -804,8 +832,9 @@ export function EvaluatorForm({
   const [page, setPage] = useState<1 | 2>(1);
   const [referenceTypeKey, setReferenceTypeKey] =
     useState<ReferenceTypeKey | null>(null);
-  const [showAiPrompt, setShowAiPrompt] = useState(false);
-  const [aiPromptCopied, setAiPromptCopied] = useState(false);
+  // Local to this form and unmounted with the panel: the provider, model and draft
+  // chosen for an AI generation are never part of the evaluator being saved.
+  const [showAiGenerator, setShowAiGenerator] = useState(false);
   const providersRegistered = useRef(false);
   const providerDisposablesRef = useRef<{ dispose(): void }[]>([]);
   const validationCleanupRef = useRef<(() => void) | null>(null);
@@ -866,14 +895,16 @@ export function EvaluatorForm({
 
     // Determine the body to keep
     let body: string;
+    let preamble = "";
     if (levelChanged && !initialValues) {
       // New evaluator with level change → use fresh body template
       body = DEFAULT_CODE_BODY[values.level];
     } else {
       body = extractCodeBody(sourceRef.current);
+      preamble = extractCodePreamble(sourceRef.current, expectedHeader);
     }
 
-    const newSource = expectedHeader + "\n" + body;
+    const newSource = withPreamble(expectedHeader, preamble) + "\n" + body;
     if (newSource === sourceRef.current) return;
 
     setValues((prev) => ({ ...prev, source: newSource }));
@@ -1337,10 +1368,7 @@ export function EvaluatorForm({
                 variant="text"
                 size="small"
                 startIcon={<SparklesIcon size={14} />}
-                onClick={() => {
-                  setShowAiPrompt(!showAiPrompt);
-                  setAiPromptCopied(false);
-                }}
+                onClick={() => setShowAiGenerator((open) => !open)}
                 sx={{
                   textTransform: "none",
                   fontSize: "0.8rem",
@@ -1352,102 +1380,19 @@ export function EvaluatorForm({
                 Use AI to write
               </Button>
             </Stack>
-            <Collapse in={showAiPrompt}>
-              <Box
-                sx={{
-                  border: 1,
-                  borderColor: "divider",
-                  borderRadius: 1,
-                  p: 2,
-                  mb: 1,
-                  bgcolor: "action.hover",
+            <Collapse in={showAiGenerator} unmountOnExit>
+              <AiEvaluatorGenerator
+                evaluatorType={values.type === "code" ? "code" : "llm_judge"}
+                level={values.level}
+                displayName={values.displayName}
+                description={values.description}
+                currentSource={values.source}
+                onInsert={(code) => {
+                  updateField("source", code);
+                  setShowAiGenerator(false);
                 }}
-              >
-                <Stack spacing={1.5}>
-                  <Stack
-                    direction="row"
-                    justifyContent="space-between"
-                    alignItems="center"
-                  >
-                    <Typography variant="subtitle2">
-                      AI Copilot Prompt
-                    </Typography>
-                    <IconButton
-                      size="small"
-                      onClick={() => {
-                        setShowAiPrompt(false);
-                        setAiPromptCopied(false);
-                      }}
-                    >
-                      <CloseIcon size={16} />
-                    </IconButton>
-                  </Stack>
-                  <Typography variant="body2" color="text.secondary">
-                    Copy this prompt and paste it into your AI assistant.
-                    Describe what you want to evaluate, and the AI will generate
-                    the {values.type === "code" ? "code" : "prompt"} for you.
-                  </Typography>
-                  <TextField
-                    multiline
-                    rows={8}
-                    fullWidth
-                    value={resolveAiPrompt(
-                      values.type,
-                      values.level,
-                      values.displayName,
-                      values.description,
-                    )}
-                    InputProps={{
-                      readOnly: true,
-                      sx: { fontFamily: "monospace", fontSize: "0.8rem" },
-                      endAdornment: (
-                        <InputAdornment
-                          position="end"
-                          sx={{ alignSelf: "flex-start", mt: 1, mr: -0.5 }}
-                        >
-                          <Tooltip
-                            title={
-                              aiPromptCopied ? "Copied!" : "Copy to clipboard"
-                            }
-                            placement="top"
-                          >
-                            <IconButton
-                              size="small"
-                              onClick={() => {
-                                navigator.clipboard
-                                  .writeText(
-                                    resolveAiPrompt(
-                                      values.type,
-                                      values.level,
-                                      values.displayName,
-                                      values.description,
-                                    ),
-                                  )
-                                  .then(() => {
-                                    setAiPromptCopied(true);
-                                    setTimeout(
-                                      () => setAiPromptCopied(false),
-                                      2000,
-                                    );
-                                  })
-                                  .catch(() => {
-                                    /* clipboard unavailable */
-                                  });
-                              }}
-                            >
-                              {aiPromptCopied ? (
-                                <Check size={14} />
-                              ) : (
-                                <Copy size={14} />
-                              )}
-                            </IconButton>
-                          </Tooltip>
-                        </InputAdornment>
-                      ),
-                    }}
-                  />
-                </Stack>
-              </Box>
+                onClose={() => setShowAiGenerator(false)}
+              />
             </Collapse>
 
             <SectionErrorBoundary fallbackMessage="The code editor failed to load. Click Retry to try again.">

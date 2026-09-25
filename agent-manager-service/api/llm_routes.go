@@ -41,6 +41,9 @@ func RegisterLLMRoutes(rr *middleware.RouteRegistrar, ctrl controllers.LLMContro
 	rr.HandleFuncWithValidationAndAuthz("PUT /orgs/{orgName}/llm-providers/{providerId}", rbac.LLMProviderUpdate, ctrl.UpdateLLMProvider)
 	rr.HandleFuncWithValidationAndAuthz("PUT /orgs/{orgName}/llm-providers/{providerId}/catalog", rbac.LLMProviderUpdate, ctrl.UpdateLLMProviderCatalogStatus)
 	rr.HandleFuncWithValidationAndAuthz("DELETE /orgs/{orgName}/llm-providers/{providerId}", rbac.LLMProviderDelete, ctrl.DeleteLLMProvider)
+	// Gated on EvaluatorCreate, not an llm-provider permission: this route exists to
+	// author an evaluator, and whoever may create one may use a provider to draft it.
+	rr.HandleFuncWithValidationAndAuthz("POST /orgs/{orgName}/llm-providers/{providerId}/generate-evaluator", rbac.EvaluatorCreate, ctrl.GenerateEvaluatorCode)
 
 	// LLM Proxies
 	rr.HandleFuncWithValidationAndAuthz("POST /orgs/{orgName}/projects/{projName}/llm-proxies", rbac.LLMProxyCreate, ctrl.CreateLLMProxy)

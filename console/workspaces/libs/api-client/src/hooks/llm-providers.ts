@@ -48,6 +48,9 @@ import type {
   ListLLMProviderProxiesPathParams,
   ListLLMProviderTemplatesPathParams,
   ListLLMProvidersPathParams,
+  GenerateEvaluatorPathParams,
+  GenerateEvaluatorRequest,
+  GenerateEvaluatorResponse,
   ListLLMProxiesPathParams,
   LLMDeploymentListResponse,
   LLMDeploymentResponse,
@@ -97,6 +100,7 @@ import {
   listLLMProviderConsumers,
   listLLMProviderProxies,
   listLLMProviders,
+  generateEvaluatorCode,
   listLLMProviderTemplates,
   listLLMProxies,
   listLLMProxyAPIKeys,
@@ -568,5 +572,25 @@ export function useRevokeLLMProxyAPIKey() {
       queryClient.invalidateQueries({ queryKey: ["llm-proxy"] });
       queryClient.invalidateQueries({ queryKey: ["llm-proxy-api-keys"] });
     },
+  });
+}
+
+/**
+ * Generates custom evaluator source with an org LLM provider.
+ *
+ * Deliberately invalidates nothing: the backend stores no record of the call, so
+ * there is no server state for a generation to make stale. The result is returned
+ * to the caller and held in component state until the user inserts or discards it.
+ */
+export function useGenerateEvaluatorCode() {
+  const { getToken } = useAuthHooks();
+  return useApiMutation<
+    GenerateEvaluatorResponse,
+    unknown,
+    { params: GenerateEvaluatorPathParams; body: GenerateEvaluatorRequest }
+  >({
+    action: { verb: 'generate', target: 'evaluator source' },
+    mutationFn: ({ params, body }) =>
+      generateEvaluatorCode(params, body, getToken),
   });
 }

@@ -46,6 +46,9 @@ import type {
   ListLLMProviderProxiesPathParams,
   ListLLMProviderTemplatesPathParams,
   ListLLMProvidersPathParams,
+  GenerateEvaluatorPathParams,
+  GenerateEvaluatorRequest,
+  GenerateEvaluatorResponse,
   ListLLMProxiesPathParams,
   LLMDeploymentListResponse,
   LLMDeploymentResponse,
@@ -288,6 +291,31 @@ export async function deleteLLMProvider(
     token,
   });
   if (!res.ok) throw await res.json();
+}
+
+/**
+ * Generates custom evaluator source with the given provider's own LLM.
+ *
+ * This is an authoring aid: the backend persists nothing — not the provider, the
+ * model, the instructions, nor the generated source — so there is no cache to
+ * invalidate and no query to refetch afterwards.
+ */
+export async function generateEvaluatorCode(
+  params: GenerateEvaluatorPathParams,
+  body: GenerateEvaluatorRequest,
+  getToken?: () => Promise<string>,
+): Promise<GenerateEvaluatorResponse> {
+  const org = encodeRequired(params.orgName, "orgName");
+  const id = encodeRequired(params.providerId, "providerId");
+  const token = getToken ? await getToken() : undefined;
+
+  const res = await httpPOST(
+    `${SERVICE_BASE}/orgs/${org}/llm-providers/${id}/generate-evaluator`,
+    body,
+    { token },
+  );
+  if (!res.ok) throw await res.json();
+  return res.json();
 }
 
 export async function updateLLMProviderCatalog(

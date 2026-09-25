@@ -681,6 +681,45 @@ func (e GatewayTypeInput) Valid() bool {
 	}
 }
 
+// Defines values for GenerateEvaluatorRequestEvaluatorType.
+const (
+	Code     GenerateEvaluatorRequestEvaluatorType = "code"
+	LlmJudge GenerateEvaluatorRequestEvaluatorType = "llm_judge"
+)
+
+// Valid indicates whether the value is a known member of the GenerateEvaluatorRequestEvaluatorType enum.
+func (e GenerateEvaluatorRequestEvaluatorType) Valid() bool {
+	switch e {
+	case Code:
+		return true
+	case LlmJudge:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for GenerateEvaluatorRequestLevel.
+const (
+	GenerateEvaluatorRequestLevelAgent GenerateEvaluatorRequestLevel = "agent"
+	GenerateEvaluatorRequestLevelLlm   GenerateEvaluatorRequestLevel = "llm"
+	GenerateEvaluatorRequestLevelTrace GenerateEvaluatorRequestLevel = "trace"
+)
+
+// Valid indicates whether the value is a known member of the GenerateEvaluatorRequestLevel enum.
+func (e GenerateEvaluatorRequestLevel) Valid() bool {
+	switch e {
+	case GenerateEvaluatorRequestLevelAgent:
+		return true
+	case GenerateEvaluatorRequestLevelLlm:
+		return true
+	case GenerateEvaluatorRequestLevelTrace:
+		return true
+	default:
+		return false
+	}
+}
+
 // Defines values for GroupedScoresResponseLevel.
 const (
 	GroupedScoresResponseLevelAgent GroupedScoresResponseLevel = "agent"
@@ -1133,16 +1172,16 @@ func (e GetMonitorScoresParamsLevel) Valid() bool {
 
 // Defines values for GetGroupedScoresParamsLevel.
 const (
-	Agent GetGroupedScoresParamsLevel = "agent"
-	Llm   GetGroupedScoresParamsLevel = "llm"
+	GetGroupedScoresParamsLevelAgent GetGroupedScoresParamsLevel = "agent"
+	GetGroupedScoresParamsLevelLlm   GetGroupedScoresParamsLevel = "llm"
 )
 
 // Valid indicates whether the value is a known member of the GetGroupedScoresParamsLevel enum.
 func (e GetGroupedScoresParamsLevel) Valid() bool {
 	switch e {
-	case Agent:
+	case GetGroupedScoresParamsLevelAgent:
 		return true
-	case Llm:
+	case GetGroupedScoresParamsLevelLlm:
 		return true
 	default:
 		return false
@@ -3139,6 +3178,39 @@ type GatewayType string
 // AI -> EGRESS); prefer INGRESS/EGRESS/BOTH. Responses and the canonical
 // `GatewayType` schema never emit REGULAR/AI.
 type GatewayTypeInput string
+
+// GenerateEvaluatorRequest Inputs for a one-shot evaluator authoring call. None of these fields are persisted — the request is served entirely in memory.
+type GenerateEvaluatorRequest struct {
+	// Description Evaluator description, used as extra context for the model.
+	Description *string `json:"description,omitempty"`
+
+	// DisplayName Evaluator display name, used as extra context for the model.
+	DisplayName *string `json:"displayName,omitempty"`
+
+	// EvaluatorType `code` generates a Python evaluator function; `llm_judge` generates a prompt template.
+	EvaluatorType GenerateEvaluatorRequestEvaluatorType `json:"evaluatorType"`
+
+	// Instructions Natural-language description of what the evaluator should measure.
+	Instructions string `json:"instructions"`
+
+	// Level The trace level the evaluator runs at, which fixes the input object type.
+	Level GenerateEvaluatorRequestLevel `json:"level"`
+
+	// Model Model identifier passed through to the upstream verbatim, exactly as the user typed it (e.g. `gpt-4o`, `claude-sonnet-4-5`). Not validated against the provider's model catalog.
+	Model string `json:"model"`
+}
+
+// GenerateEvaluatorRequestEvaluatorType `code` generates a Python evaluator function; `llm_judge` generates a prompt template.
+type GenerateEvaluatorRequestEvaluatorType string
+
+// GenerateEvaluatorRequestLevel The trace level the evaluator runs at, which fixes the input object type.
+type GenerateEvaluatorRequestLevel string
+
+// GenerateEvaluatorResponse defines model for GenerateEvaluatorResponse.
+type GenerateEvaluatorResponse struct {
+	// Code The generated Python source (`code`) or prompt template (`llm_judge`), stripped of any Markdown code fences.
+	Code string `json:"code"`
+}
 
 // GitCredentials Authentication credentials for a git secret.
 type GitCredentials struct {
@@ -6019,6 +6091,9 @@ type UpdateLLMProviderCatalogStatusJSONRequestBody = UpdateLLMProviderCatalogReq
 
 // DeployLLMProviderJSONRequestBody defines body for DeployLLMProvider for application/json ContentType.
 type DeployLLMProviderJSONRequestBody = DeployAgentRequest
+
+// GenerateEvaluatorCodeJSONRequestBody defines body for GenerateEvaluatorCode for application/json ContentType.
+type GenerateEvaluatorCodeJSONRequestBody = GenerateEvaluatorRequest
 
 // CreateMCPProxyJSONRequestBody defines body for CreateMCPProxy for application/json ContentType.
 type CreateMCPProxyJSONRequestBody = MCPProxyRequest

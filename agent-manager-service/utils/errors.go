@@ -199,6 +199,13 @@ var (
 	ErrLLMProviderUndeployFailed   = errors.New("cannot delete LLM provider: undeploying it from its gateways failed. Retry, or undeploy manually before deleting")
 	ErrLLMProviderDeleteInProgress = errors.New("cannot delete LLM provider: a delete is already in progress for it")
 	ErrLLMProviderBeingDeleted     = errors.New("cannot create LLM proxy: the LLM provider is being deleted")
+	// ErrLLMProviderNotGenerationCapable means the provider cannot serve a direct
+	// completion: it has no upstream URL or credential, or its template speaks a wire
+	// format the evaluator generator does not implement.
+	ErrLLMProviderNotGenerationCapable = errors.New("LLM provider cannot be used to generate evaluator source")
+	// ErrLLMUpstreamFailed means the upstream LLM was reached but rejected the request
+	// or returned a response the generator could not read.
+	ErrLLMUpstreamFailed           = errors.New("LLM upstream call failed")
 	ErrLLMProxyNotFound            = errors.New("LLM proxy not found")
 	ErrLLMProxyExists              = errors.New("LLM proxy already exists")
 	ErrMCPProxyNotFound            = errors.New("MCP proxy not found")

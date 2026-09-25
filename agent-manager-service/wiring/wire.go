@@ -86,6 +86,8 @@ var serviceProviderSet = wire.NewSet(
 	services.NewPlatformGatewayService,
 	services.NewLLMProviderTemplateService,
 	services.NewLLMProviderService,
+	services.NewEvaluatorCodegenService,
+	services.NewHTTPChatCompleter,
 	services.NewLLMProxyService,
 	services.NewLLMProviderDeploymentService,
 	services.NewLLMProviderAPIKeyService,

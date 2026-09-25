@@ -6063,6 +6063,90 @@ paths:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
 
+  /orgs/{orgName}/llm-providers/{providerId}/generate-evaluator:
+    parameters:
+      - name: orgName
+        in: path
+        required: true
+        description: Organization name/handle
+        schema:
+          type: string
+      - name: providerId
+        in: path
+        required: true
+        description: Provider UUID or handle
+        schema:
+          type: string
+
+    post:
+      tags:
+        - LLM Providers
+      summary: Generate custom evaluator source with an LLM
+      description: >
+        Generates the Python source (for a `code` evaluator) or the prompt
+        template (for an `llm_judge` evaluator) from a natural-language
+        instruction, by making a single synchronous chat completion call to the
+        provider's configured upstream using the caller-supplied model name.
+
+
+        This is an authoring aid for the console. Nothing is persisted: neither
+        the generated output, nor the chosen model, nor the instruction. The
+        model name is passed through to the upstream verbatim and is not
+        validated against the provider's model catalog.
+      operationId: generateEvaluatorCode
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/GenerateEvaluatorRequest"
+      responses:
+        "200":
+          description: Source generated successfully
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GenerateEvaluatorResponse"
+        "400":
+          description: Invalid request parameters
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: Provider not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "422":
+          description: >
+            The provider cannot be used for generation — it has no upstream
+            endpoint or credential configured, or its template speaks a wire
+            format this endpoint does not support.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "502":
+          description: The upstream LLM rejected the request or returned an unusable response
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "500":
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
   # ============================================
   # LLM PROXY ENDPOINTS
   # ============================================
@@ -18467,6 +18551,69 @@ components:
           type: integer
           format: int32
           description: Total number of consumers
+
+    GenerateEvaluatorRequest:
+      type: object
+      description: >
+        Inputs for a one-shot evaluator authoring call. None of these fields are
+        persisted — the request is served entirely in memory.
+      required:
+        - model
+        - evaluatorType
+        - level
+        - instructions
+      properties:
+        model:
+          type: string
+          description: >
+            Model identifier passed through to the upstream verbatim, exactly as
+            the user typed it (e.g. `gpt-4o`, `claude-sonnet-4-5`). Not validated
+            against the provider's model catalog.
+          minLength: 1
+          maxLength: 200
+          example: gpt-4o
+        evaluatorType:
+          type: string
+          description: >
+            `code` generates a Python evaluator function; `llm_judge` generates a
+            prompt template.
+          enum:
+            - code
+            - llm_judge
+          example: code
+        level:
+          type: string
+          description: The trace level the evaluator runs at, which fixes the input object type.
+          enum:
+            - trace
+            - agent
+            - llm
+          example: trace
+        instructions:
+          type: string
+          description: Natural-language description of what the evaluator should measure.
+          minLength: 1
+          maxLength: 4000
+          example: Score whether the agent's final answer cites at least one retrieved document.
+        displayName:
+          type: string
+          description: Evaluator display name, used as extra context for the model.
+          maxLength: 200
+        description:
+          type: string
+          description: Evaluator description, used as extra context for the model.
+          maxLength: 2000
+
+    GenerateEvaluatorResponse:
+      type: object
+      required:
+        - code
+      properties:
+        code:
+          type: string
+          description: >
+            The generated Python source (`code`) or prompt template
+            (`llm_judge`), stripped of any Markdown code fences.
 
     AgentProvisioningType:
       type: string
