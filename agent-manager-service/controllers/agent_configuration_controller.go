@@ -738,18 +738,22 @@ func convertAgentModelConfigResponse(modelResp models.AgentModelConfigResponse) 
 				modelEnvConfig.Url = *envConfig.LLMProxy.URL
 			}
 
-			// Build auth info if API key present
-			if envConfig.LLMProxy.APIKey != nil {
-				authType := "api-key"
-				authIn := "header"
-				headerName := "api-key"
-				if envConfig.LLMProxy.AuthHeaderName != nil && *envConfig.LLMProxy.AuthHeaderName != "" {
-					headerName = *envConfig.LLMProxy.AuthHeaderName
+			// The header name is not a secret, so report it whenever the proxy
+			// names one — callers need it to build a request on every read, not
+			// just the create that returns the key. Value stays creation-only.
+			if envConfig.LLMProxy.AuthHeaderName != nil && *envConfig.LLMProxy.AuthHeaderName != "" {
+				// A proxy's api-key security can be configured to read from the query
+				// string instead of a header (see models.LLMProxyInfo.AuthIn) — assuming
+				// "header" here would tell the caller to send a working credential the
+				// wrong way.
+				in := "header"
+				if envConfig.LLMProxy.AuthIn != nil && *envConfig.LLMProxy.AuthIn != "" {
+					in = *envConfig.LLMProxy.AuthIn
 				}
 				modelEnvConfig.AuthInfo = &spec.AuthInfo{
-					Type:  authType,
-					In:    authIn,
-					Name:  headerName,
+					Type:  "api-key",
+					In:    in,
+					Name:  *envConfig.LLMProxy.AuthHeaderName,
 					Value: envConfig.LLMProxy.APIKey,
 				}
 			}

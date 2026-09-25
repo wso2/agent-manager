@@ -482,6 +482,56 @@ func mcpProxyAPIKeySecurityEnabled(proxy *models.MCPProxy, envID string) bool {
 	return security.APIKey != nil && isBoolTrue(security.APIKey.Enabled)
 }
 
+// providerProxyAPIKeySecurity returns the parameter name and location ("header" or
+// "query") agents should send their credential in when calling a proxy provisioned in
+// front of this provider. It follows what the provider itself is configured with, so
+// the name and location an admin sets on the provider are what their agents use rather
+// than a platform-only default — including when the provider reads its own key from
+// the query string, which a plain header-name lookup would otherwise collapse to a
+// header-based default and lose entirely.
+func providerProxyAPIKeySecurity(provider *models.LLMProvider) (name, in string) {
+	if provider == nil {
+		return models.DefaultLLMProxyAPIKeyHeader, "header"
+	}
+	return provider.Configuration.Security.APIKeyNameAndLocation(models.DefaultLLMProxyAPIKeyHeader)
+}
+
+// newProxyIngressSecurity builds a proxy's ingress security from its provider: name,
+// location, and whether a credential is required at all. The requirement used to be
+// hardcoded on, so a provider set to None still produced a proxy demanding API-Key.
+// Name and location are kept when off, so re-enabling restores what was configured.
+func newProxyIngressSecurity(provider *models.LLMProvider) *models.SecurityConfig {
+	var providerSecurity *models.SecurityConfig
+	if provider != nil {
+		providerSecurity = provider.Configuration.Security
+	}
+	required := providerSecurity.RequiresAPIKey()
+	ingressName, ingressIn := providerProxyAPIKeySecurity(provider)
+	return &models.SecurityConfig{
+		Enabled: &required,
+		APIKey: &models.APIKeySecurity{
+			Enabled: &required,
+			Key:     ingressName,
+			In:      ingressIn,
+		},
+	}
+}
+
+// llmProxyAPIKeySecurity returns the parameter name and location ("header" or "query")
+// the agent must send its credential in when calling the given LLM proxy, or ("", "")
+// when the proxy doesn't actually require one — api-key auth was never configured, or
+// is explicitly turned off. Unlike a plain header-name lookup, it never fabricates a
+// name for a proxy that doesn't need one (an unsecured proxy must not be reported as
+// requiring a credential), and it never discards a query-based proxy's real parameter
+// name just because the location isn't "header". Unlike an MCP proxy, an LLM proxy
+// stores its security config on the proxy itself rather than per bound environment.
+func llmProxyAPIKeySecurity(proxy *models.LLMProxy) (name, in string) {
+	if proxy == nil || !isAPIKeyAuthEnabled(proxy.Configuration.Security) {
+		return "", ""
+	}
+	return proxy.Configuration.Security.APIKeyNameAndLocation(models.DefaultLLMProxyAPIKeyHeader)
+}
+
 func mcpProxyAPIKeyHeaderName(proxy *models.MCPProxy, envID string) string {
 	security := mcpProxySecurityForEnv(proxy, envID)
 	if security == nil || security.APIKey == nil {
@@ -4284,24 +4334,16 @@ func (s *agentConfigurationService) buildLLMProxyConfig(
 		return nil, "", "", nil, "", fmt.Errorf("invalid project UUID from openchoreo: %w", err)
 	}
 
-	enabled := true
 	// Build proxy configuration
 	proxyConfig := &models.LLMProxy{
 		Description: fmt.Sprintf("LLM proxy for agent %s", config.AgentID),
 		ProjectUUID: projectUUID,
 		Configuration: models.LLMProxyConfig{
-			Name:     proxyName,
-			Version:  models.DefaultProxyVersion,
-			Context:  &contextPath,
-			Provider: provider.UUID.String(),
-			Security: &models.SecurityConfig{
-				Enabled: &enabled,
-				APIKey: &models.APIKeySecurity{
-					Enabled: &enabled,
-					Key:     "API-Key",
-					In:      "header",
-				},
-			},
+			Name:       proxyName,
+			Version:    models.DefaultProxyVersion,
+			Context:    &contextPath,
+			Provider:   provider.UUID.String(),
+			Security:   newProxyIngressSecurity(provider),
 			Policies:   envMapping.Configuration.Policies,
 			Resilience: envMapping.Configuration.Resilience,
 		},
@@ -4316,6 +4358,13 @@ func (s *agentConfigurationService) buildLLMProxyConfig(
 
 		if providerApiKeyConfig != nil && providerApiKeyConfig.Enabled != nil && *providerApiKeyConfig.Enabled {
 			// Provider api key security is enabled.
+			// Resolved before anything is created, so a provider whose credential the
+			// upstream contract can't carry fails with nothing to roll back.
+			upstreamHeader, err := providerUpstreamAPIKeyAuth(provider)
+			if err != nil {
+				return nil, "", "", nil, "", err
+			}
+
 			apiKey, err := s.llmProviderAPIKeyService.CreateAPIKey(ctx, config.OUID, provider.UUID.String(), &models.CreateAPIKeyRequest{
 				Name:        proxyName,
 				DisplayName: proxyName,
@@ -4344,7 +4393,7 @@ func (s *agentConfigurationService) buildLLMProxyConfig(
 			}
 			encoded := base64.StdEncoding.EncodeToString(encrypted)
 			upstreamAuthConfig.Type = utils.StrAsStrPointer(models.AuthTypeAPIKey)
-			upstreamAuthConfig.Header = utils.StrAsStrPointer(providerApiKeyConfig.Key)
+			upstreamAuthConfig.Header = utils.StrAsStrPointer(upstreamHeader)
 			upstreamAuthConfig.SecretRef = &encoded // Store encrypted value instead of plaintext
 			upstreamAuthConfig.Value = nil          // No plaintext in DB
 			proxyConfig.Configuration.UpstreamAuth = &upstreamAuthConfig
@@ -5259,12 +5308,15 @@ func (s *agentConfigurationService) buildConfigResponse(ctx context.Context, con
 		var proxyInfo *models.LLMProxyInfo = nil
 		if mapping.LLMProxy != nil {
 			providerUUID := mapping.LLMProxy.ProviderUUID.String()
+			authName, authIn := llmProxyAPIKeySecurity(mapping.LLMProxy)
 			proxyInfo = &models.LLMProxyInfo{
-				ProxyUUID:    utils.StrAsStrPointer(mapping.LLMProxy.UUID.String()),
-				ProxyName:    utils.StrAsStrPointer(mapping.LLMProxy.Handle),
-				ProviderUUID: utils.StrAsStrPointer(providerUUID),
-				Policies:     mapping.PolicyConfiguration,
-				Resilience:   mapping.LLMProxy.Configuration.Resilience,
+				ProxyUUID:      utils.StrAsStrPointer(mapping.LLMProxy.UUID.String()),
+				ProxyName:      utils.StrAsStrPointer(mapping.LLMProxy.Handle),
+				ProviderUUID:   utils.StrAsStrPointer(providerUUID),
+				AuthHeaderName: utils.StrAsStrPointer(authName),
+				AuthIn:         utils.StrAsStrPointer(authIn),
+				Policies:       mapping.PolicyConfiguration,
+				Resilience:     mapping.LLMProxy.Configuration.Resilience,
 			}
 			if provider, err := s.llmProviderRepo.GetByUUID(providerUUID, config.OUID); err == nil {
 				if provider.Artifact != nil {
@@ -5394,12 +5446,15 @@ func (s *agentConfigurationService) buildExternalAgentConfigResponse(
 		var proxyInfo *models.LLMProxyInfo
 		if mapping.LLMProxy != nil {
 			providerUUID := mapping.LLMProxy.ProviderUUID.String()
+			authName, authIn := llmProxyAPIKeySecurity(mapping.LLMProxy)
 			proxyInfo = &models.LLMProxyInfo{
-				ProxyUUID:    utils.StrAsStrPointer(mapping.LLMProxy.UUID.String()),
-				ProxyName:    utils.StrAsStrPointer(mapping.LLMProxy.Handle),
-				ProviderUUID: utils.StrAsStrPointer(providerUUID),
-				Policies:     mapping.PolicyConfiguration,
-				Resilience:   mapping.LLMProxy.Configuration.Resilience,
+				ProxyUUID:      utils.StrAsStrPointer(mapping.LLMProxy.UUID.String()),
+				ProxyName:      utils.StrAsStrPointer(mapping.LLMProxy.Handle),
+				ProviderUUID:   utils.StrAsStrPointer(providerUUID),
+				AuthHeaderName: utils.StrAsStrPointer(authName),
+				AuthIn:         utils.StrAsStrPointer(authIn),
+				Policies:       mapping.PolicyConfiguration,
+				Resilience:     mapping.LLMProxy.Configuration.Resilience,
 			}
 			if provider, err := s.llmProviderRepo.GetByUUID(providerUUID, config.OUID); err == nil {
 				if provider.Artifact != nil {

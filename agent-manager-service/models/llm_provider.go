@@ -17,6 +17,9 @@
 package models
 
 import (
+	"fmt"
+	"strings"
+
 	"github.com/google/uuid"
 )
 
@@ -194,4 +197,49 @@ type APIKeySecurity struct {
 	Enabled *bool  `json:"enabled,omitempty" yaml:"enabled,omitempty"`
 	Key     string `json:"key,omitempty" yaml:"key,omitempty"`
 	In      string `json:"in,omitempty" yaml:"in,omitempty"`
+}
+
+// APIKeyNameAndLocation returns the credential's parameter name and location, defaulting
+// to defName and "header". It reports what is actually stored rather than coercing, so
+// legacy query-based rows still describe themselves accurately; new writes are held to
+// header-only by ValidateAPIKeyLocation.
+func (s *SecurityConfig) APIKeyNameAndLocation(defName string) (name, in string) {
+	if s == nil || s.APIKey == nil {
+		return defName, "header"
+	}
+	in = strings.ToLower(strings.TrimSpace(s.APIKey.In))
+	if in != "header" && in != "query" {
+		in = "header"
+	}
+	if key := strings.TrimSpace(s.APIKey.Key); key != "" {
+		return key, in
+	}
+	return defName, in
+}
+
+// RequiresAPIKey reports whether this config asks callers for an API key. Only an
+// explicit false removes the requirement: an absent security.enabled counts as enabled,
+// so a provider edit can't silently drop the key from proxies enforcing one today.
+func (s *SecurityConfig) RequiresAPIKey() bool {
+	return s != nil &&
+		(s.Enabled == nil || *s.Enabled) &&
+		s.APIKey != nil &&
+		s.APIKey.Enabled != nil && *s.APIKey.Enabled
+}
+
+// ValidateAPIKeyLocation rejects a location the gateway cannot enforce. The api-key-auth
+// policy declares `in` as enum: ["header"], so anything else yields proxies that 401
+// every request. Blank means the default, "header". Single definition of the rule —
+// callers needing a typed error wrap it.
+func (s *SecurityConfig) ValidateAPIKeyLocation() error {
+	if s == nil || s.APIKey == nil {
+		return nil
+	}
+	in := strings.ToLower(strings.TrimSpace(s.APIKey.In))
+	if in == "" || in == "header" {
+		return nil
+	}
+	return fmt.Errorf(
+		"api key location %q is not supported — the gateway's api-key-auth policy reads the credential from a header only",
+		s.APIKey.In)
 }

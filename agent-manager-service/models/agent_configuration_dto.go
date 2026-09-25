@@ -73,14 +73,18 @@ type EnvModelConfigResponse struct {
 
 // LLMProxyInfo contains proxy details exposed in response
 type LLMProxyInfo struct {
-	URL            *string     `json:"proxyUrl,omitempty"` // Included for external agents
-	APIKey         *string     `json:"apiKey,omitempty"`   // Only during creation for external agents
-	AuthHeaderName *string     `json:"authHeaderName,omitempty"`
-	ProxyUUID      *string     `json:"proxyUuid"`
-	ProxyName      *string     `json:"proxyName,omitempty"` // Handle of the LLM proxy (used to manage proxy API keys)
-	ProviderUUID   *string     `json:"providerUuid,omitempty"`
-	ProviderName   *string     `json:"providerName"` // Handle/name of the provider
-	Policies       []LLMPolicy `json:"policies,omitempty"`
+	URL            *string `json:"proxyUrl,omitempty"` // Included for external agents
+	APIKey         *string `json:"apiKey,omitempty"`   // Only during creation for external agents
+	AuthHeaderName *string `json:"authHeaderName,omitempty"`
+	// AuthIn is where AuthHeaderName's credential is carried: "header" or "query".
+	// Reported alongside the name rather than assumed, since a proxy's api-key
+	// security can be configured either way.
+	AuthIn       *string     `json:"authIn,omitempty"`
+	ProxyUUID    *string     `json:"proxyUuid"`
+	ProxyName    *string     `json:"proxyName,omitempty"` // Handle of the LLM proxy (used to manage proxy API keys)
+	ProviderUUID *string     `json:"providerUuid,omitempty"`
+	ProviderName *string     `json:"providerName"` // Handle/name of the provider
+	Policies     []LLMPolicy `json:"policies,omitempty"`
 	// ProviderPolicies are the guardrails configured on the org-level LLM
 	// provider itself, applied in addition to Policies.
 	ProviderPolicies []LLMPolicy `json:"providerPolicies,omitempty"`

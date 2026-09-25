@@ -259,7 +259,11 @@ func (r *LLMProxyRepo) ListByProvider(ouID, providerUUID string, limit, offset i
 		Select("llm_proxies.*, a.ou_id as artifact_org_uuid, a.handle as artifact_handle, a.name as artifact_name, a.version as artifact_version, a.created_at as artifact_created_at, a.updated_at as artifact_updated_at").
 		Joins("JOIN artifacts a ON llm_proxies.uuid = a.uuid").
 		Where("a.ou_id = ? AND llm_proxies.provider_uuid = ? AND a.kind = ?", ouID, providerUUID, models.KindLLMProxy).
-		Order("a.created_at DESC").
+		// uuid breaks ties on created_at: proxies provisioned together share a
+		// timestamp, and without a unique second key offset paging can repeat one
+		// row and skip another — a skipped proxy is one left permanently stale by
+		// any caller that pages through to reconcile.
+		Order("a.created_at DESC, llm_proxies.uuid").
 		Limit(limit).
 		Offset(offset).
 		Scan(&results).Error

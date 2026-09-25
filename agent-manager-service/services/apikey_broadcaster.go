@@ -226,13 +226,12 @@ func (b *apiKeyBroadcaster) broadcastRevokeUserManaged(ctx context.Context, orgI
 }
 
 // isAPIKeyAuthEnabled reports whether API key authentication is enabled in a security
-// config. Mirrors the persisted shape written by the LLM provider / MCP proxy Security
-// tabs (security.apiKey.enabled === true, security not globally disabled).
+// config. Delegates to models.SecurityConfig.RequiresAPIKey so this package agrees with
+// the deployment translators on what "enabled" means: an absent security.enabled used to
+// count as enabled here while emitting no gateway policy, so a proxy could be described
+// as needing a credential the gateway never asked for.
 func isAPIKeyAuthEnabled(sec *models.SecurityConfig) bool {
-	return sec != nil &&
-		(sec.Enabled == nil || *sec.Enabled) &&
-		sec.APIKey != nil &&
-		sec.APIKey.Enabled != nil && *sec.APIKey.Enabled
+	return sec.RequiresAPIKey()
 }
 
 func (b *apiKeyBroadcaster) broadcastRotate(ctx context.Context, orgID, apiID, artifactUUID, keyName string, req *models.RotateAPIKeyRequest) (*models.CreateAPIKeyResponse, error) {

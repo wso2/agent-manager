@@ -59,4 +59,13 @@ type LLMProxyConfig struct {
 	Resilience   *Resilience     `json:"resilience,omitempty"`
 	Policies     []LLMPolicy     `json:"policies,omitempty"`
 	Security     *SecurityConfig `json:"security,omitempty"`
+
+	// AuthRolloutPendingGateways names gateways for which no deployment of the config
+	// above was recorded. A gateway that is merely unreachable is not one of them:
+	// DeployLLMProxy persists the deployment and publishes a durable event, which the
+	// EventHub replays on reconnect. This covers the case that leaves nothing to replay
+	// — the deployment row itself failed to be created — where the gateway would
+	// otherwise keep serving the previous auth config with nothing to correct it.
+	// Empty means every deployed gateway has a deployment of the config above.
+	AuthRolloutPendingGateways []string `json:"authRolloutPendingGateways,omitempty"`
 }

@@ -87,13 +87,48 @@ function generateDisplayName(key: string): string {
   }
 }
 
+// A blank model fails with "you must provide a model parameter". The catalog carries no
+// model list, so these are examples keyed off the template. Bedrock is omitted on
+// purpose — its IDs are region- and version-specific.
+const EXAMPLE_MODEL_BY_TEMPLATE: Record<string, string> = {
+  openai: "gpt-4o-mini",
+  "azure-openai": "gpt-4o-mini",
+  "azureai-foundry": "gpt-4o-mini",
+  anthropic: "claude-sonnet-4-5",
+  gemini: "gemini-2.0-flash",
+  mistralai: "mistral-small-latest",
+};
+
 function getClientSetupSnippet(
   templateId: string | undefined,
   varKeys: string[],
+  authHeaderName: string | undefined,
+  authIn: string | undefined,
 ): { importLine: string; setup: string } | null {
-  if (!templateId) return null;
   const urlKey = varKeys.find((k) => /url/i.test(k));
-  const apiKeyKey = varKeys.find((k) => /key/i.test(k));
+  const apiKeyVar = varKeys.find((k) => /key/i.test(k));
+  // Without a template every snippet below would render `undefined` somewhere and fail
+  // on paste — show none at all instead.
+  if (!templateId) return null;
+  // An unsecured proxy has no apikey variable, but the SDKs still reject an empty
+  // api_key, so pass a placeholder rather than dropping the snippet — the base_url
+  // wiring is the point. Bare literal: these render inside argument lists, where a
+  // trailing comment would swallow the comma.
+  const apiKeyKey = apiKeyVar ?? '"unused-by-this-proxy"';
+  // Every branch below only knows how to attach the credential as a header. A proxy
+  // that reads it from the query string instead needs a different mechanism per
+  // library (not all expose a way to add an arbitrary query param to every request),
+  // so don't fabricate header-based code that would silently send the credential
+  // the wrong way — the surrounding prose already tells the reader it's a query
+  // parameter.
+  if (authHeaderName && authIn === "query") return null;
+
+  // Each SDK rejects an empty api_key at construction, so they all pass the same
+  // variable there; the credential the gateway actually checks (when one is
+  // required at all) is authHeaderName.
+  const headerLine = authHeaderName
+    ? `    default_headers={"${authHeaderName}": ${apiKeyKey}},`
+    : null;
 
   const build = (
     importLine: string,
@@ -108,15 +143,18 @@ function getClientSetupSnippet(
       return build("from openai import OpenAI", [
         "client = OpenAI(",
         urlKey ? `    base_url=${urlKey},` : null,
-        `    api_key="",`,
-        `    default_headers={"API-Key": ${apiKeyKey}, "Authorization": ""}`,
+        `    api_key=${apiKeyKey},`,
+        headerLine,
         ")",
       ]);
     case "anthropic":
+      // Blanking its headers instead raises "Could not resolve authentication
+      // method" — an empty string does not count as explicitly omitted.
       return build("from anthropic import Anthropic", [
         "client = Anthropic(",
         urlKey ? `    base_url=${urlKey},` : null,
-        `    default_headers={"API-Key": ${apiKeyKey}, "Authorization": ""}`,
+        `    api_key=${apiKeyKey},`,
+        headerLine,
         ")",
       ]);
     case "azure-openai":
@@ -124,27 +162,43 @@ function getClientSetupSnippet(
       return build("from openai import AzureOpenAI", [
         "client = AzureOpenAI(",
         urlKey ? `    azure_endpoint=${urlKey},` : null,
-        `    api_key="",`,
-        `    default_headers={"API-Key": ${apiKeyKey}, "Authorization": ""}`,
+        `    api_version="2024-02-01",  # match your Azure OpenAI deployment's API version`,
+        `    api_key=${apiKeyKey},`,
+        headerLine,
         ")",
       ]);
-    case "mistralai":
+    case "mistralai": {
+      // `client` serves sync calls and `async_client` the async ones; setting
+      // only the former leaves every async request without the header.
+      const headers = authHeaderName ? `{"${authHeaderName}": ${apiKeyKey}}` : null;
+      // `mistralai.client` is the v0.x module and exported MistralClient, not Mistral;
+      // the v1.x class this snippet configures (server_url, client, async_client) is
+      // exported from the package root, so the old path raised ImportError on paste.
       return build("import httpx\nfrom mistralai import Mistral", [
-        `_http_client = httpx.Client(headers={"API-Key": ${apiKeyKey}, "Authorization": ""})`,
+        headers ? `_headers = ${headers}` : null,
         "client = Mistral(",
         urlKey ? `    server_url=${urlKey},` : null,
-        "    client=_http_client,",
+        `    api_key=${apiKeyKey},`,
+        headers ? "    client=httpx.Client(headers=_headers)," : null,
+        headers ? "    async_client=httpx.AsyncClient(headers=_headers)," : null,
         ")",
       ]);
-    case "gemini":
+    }
+    case "gemini": {
+      // headers (not client_args) so async requests carry it too: client_args
+      // configures only the sync httpx client.
+      const headersArg = authHeaderName ? `headers={"${authHeaderName}": ${apiKeyKey}}` : null;
+      const httpOptionsArgs = [urlKey ? `base_url=${urlKey}` : null, headersArg]
+        .filter(Boolean)
+        .join(", ");
       return build("from google import genai\nfrom google.genai import types", [
-        urlKey
-          ? `_http_options = types.HttpOptions(base_url=${urlKey}, client_args={"headers": {"API-Key": ${apiKeyKey}, "Authorization": ""}})`
-          : `_http_options = types.HttpOptions(client_args={"headers": {"API-Key": ${apiKeyKey}, "Authorization": ""}})`,
+        httpOptionsArgs ? `_http_options = types.HttpOptions(${httpOptionsArgs})` : null,
         "client = genai.Client(",
-        `    http_options=_http_options`,
+        `    api_key=${apiKeyKey},`,
+        httpOptionsArgs ? `    http_options=_http_options,` : null,
         ")",
       ]);
+    }
     case "awsbedrock":
       return build("import boto3\nfrom botocore import UNSIGNED\nfrom botocore.config import Config", [
         "client = boto3.client(",
@@ -152,10 +206,10 @@ function getClientSetupSnippet(
         urlKey ? `    endpoint_url=${urlKey},` : null,
         `    config=Config(signature_version=UNSIGNED),`,
         ")",
-        `def _add_headers(request, **kwargs):`,
-        `    request.headers["API-Key"] = ${apiKeyKey}`,
-        `    request.headers["Authorization"] = ""`,
-        `client.meta.events.register("before-send", _add_headers)`,
+        authHeaderName ? `def _add_headers(request, **kwargs):` : null,
+        authHeaderName ? `    request.headers["${authHeaderName}"] = ${apiKeyKey}` : null,
+        authHeaderName ? `    request.headers["Authorization"] = ""` : null,
+        authHeaderName ? `client.meta.events.register("before-send", _add_headers)` : null,
       ]);
     default:
       return null;
@@ -754,6 +808,13 @@ export const ViewLLMProviderComponent: React.FC = () => {
 
   const apiKeyValue = providerConfig?.authInfo?.value;
 
+  // Stored per proxy, so only the server knows it — absent stays absent here
+  // rather than being guessed at. A proxy that requires no credential at all
+  // reports neither, so authHeaderName being falsy means "no auth", not "header".
+  const authHeaderName = providerConfig?.authInfo?.name;
+  const authIn = providerConfig?.authInfo?.in;
+  const isQueryAuth = authIn === "query";
+
   const pageTitle =
     config.name || catalogProvider?.name || providerConfig?.providerName;
 
@@ -770,6 +831,30 @@ export const ViewLLMProviderComponent: React.FC = () => {
     description: generateDisplayName(envVar.key),
   }));
 
+  const authCodeChip = (value: string) => (
+    <Box
+      component="code"
+      sx={{ px: 0.5, py: 0.125, borderRadius: 0.5, bgcolor: "action.hover", fontFamily: "monospace" }}
+    >
+      {value}
+    </Box>
+  );
+  const authRequirementNote = !authHeaderName ? (
+    "No authentication is required to call this proxy."
+  ) : isQueryAuth ? (
+    <>
+      Requests must carry the API key in the {authCodeChip(authHeaderName)} query parameter (e.g.
+      appended to the URL as{" "}
+      <Box component="code" sx={{ fontFamily: "monospace" }}>?{authHeaderName}=&lt;api-key&gt;</Box>) —
+      the SDK client below doesn&apos;t set this for you.
+    </>
+  ) : (
+    <>
+      Requests must carry the API key in the {authCodeChip(authHeaderName)} header.
+      The snippet sets it for you.
+    </>
+  );
+
   const integrationGuide = (
     <>
       <Divider sx={{ my: 2 }} />
@@ -780,6 +865,7 @@ export const ViewLLMProviderComponent: React.FC = () => {
             Copy the snippet below into your agent code. The environment variables will be
             injected automatically at runtime — do not hardcode their values.
           </Typography>
+          <Typography variant="body2" color="text.secondary">{authRequirementNote}</Typography>
         </Stack>
         <ToggleButtonGroup
           size="small"
@@ -799,6 +885,8 @@ export const ViewLLMProviderComponent: React.FC = () => {
               const clientSetup = getClientSetupSnippet(
                 catalogProvider?.template,
                 config.environmentVariables.map((ev) => ev.key),
+                authHeaderName,
+                authIn,
               );
               const imports = ["import os"];
               if (clientSetup) imports.push(clientSetup.importLine);
@@ -835,10 +923,20 @@ export const ViewLLMProviderComponent: React.FC = () => {
                 "",
                 "Requirements:",
                 `- Read the environment variables listed above to configure the client for ${providerName}.`,
-                `- Initialize the ${providerName} client with the URL and API key from those variables.`,
+                authHeaderName
+                  ? `- Initialize the ${providerName} client with the URL and API key from those variables.`
+                  : `- Initialize the ${providerName} client with the URL from those variables.`,
+                authHeaderName && !isQueryAuth
+                  ? `- Send the API key in the \`${authHeaderName}\` request header. The SDK's own authentication header is not sufficient, so set this one explicitly (e.g. via the client's default/extra headers).`
+                  : null,
+                authHeaderName && isQueryAuth
+                  ? `- Send the API key in the \`${authHeaderName}\` query parameter (e.g. appended to the URL as \`?${authHeaderName}=<api-key>\`), not as a header.`
+                  : null,
                 "- Do not hardcode any secrets or endpoint URLs.",
                 "- Keep the rest of my code unchanged.",
-              ].join("\n");
+              ]
+                .filter(Boolean)
+                .join("\n");
             })()}
           />
         )}
@@ -863,16 +961,46 @@ export const ViewLLMProviderComponent: React.FC = () => {
           {(() => {
             const authEntry = authInfoByEnv?.[selectedEnvName];
             const apiKeyEnvVar = config.environmentVariables?.find((ev) => ev.key === "apikey");
-            const headerName = authEntry?.name || providerConfig?.authInfo?.name || "api-key";
+            // A proxy that requires no credential reports neither an entry nor a
+            // stored name — that's "no auth", not an unknown header to guess at.
+            const noAuthRequired = !authEntry?.name && !authHeaderName;
+            // Matches how the URL and key below degrade when unknown, so the
+            // sample is never a working-looking command with an invented header.
+            const headerName = authEntry?.name || authHeaderName || "<header-name>";
             const headerValue = authEntry?.value || (apiKeyEnvVar ? `$${apiKeyEnvVar.name}` : "<api-key>");
+            const entryIsQueryAuth = (authEntry?.in || authIn) === "query";
+            const endpointUrl = providerConfig.url || "<endpoint-url>";
+            // Single-quoted: an endpoint carrying a query string or any other shell
+            // metacharacter would otherwise be split by the shell before curl sees it.
+            const requestUrl = `'${endpointUrl}/chat/completions'`;
+            const exampleModel =
+              EXAMPLE_MODEL_BY_TEMPLATE[catalogProvider?.template ?? ""] ?? "<model-id>";
             const curlCode = [
-              `curl -X POST ${providerConfig.url || "<endpoint-url>"}/chat/completions`,
-              `  --header "${headerName}: ${headerValue}"`,
-              `  -d '{"model": "", "messages": [{"role": "user", "content": "Hi..."}]}'`,
-            ].join(" \\\n");
+              `curl -X POST ${requestUrl}`,
+              // curl sends -d as application/x-www-form-urlencoded unless told
+              // otherwise, which every OpenAI-compatible endpoint rejects.
+              `  --header "Content-Type: application/json"`,
+              !noAuthRequired && !entryIsQueryAuth ? `  --header "${headerName}: ${headerValue}"` : null,
+              // curl encodes the value but expects the name pre-encoded, hence the
+              // asymmetry — the value is often a shell variable to expand.
+              !noAuthRequired && entryIsQueryAuth
+                ? `  --url-query "${encodeURIComponent(headerName)}=${headerValue}"`
+                : null,
+              `  -d '{"model": "${exampleModel}", "messages": [{"role": "user", "content": "Hi..."}]}'`,
+            ]
+              .filter(Boolean)
+              .join(" \\\n");
             return (
               <Stack spacing={2}>
-                {!authEntry && (
+                {!authEntry && noAuthRequired && (
+                  <Alert severity="info">
+                    <Typography variant="body2">
+                      This proxy requires no credential. To route your agent&apos;s traffic through
+                      the governance layer, configure your client with the endpoint below.
+                    </Typography>
+                  </Alert>
+                )}
+                {!authEntry && !noAuthRequired && (
                   <Alert severity="info">
                     <Typography variant="body2">
                       The credentials for this provider were issued during initial setup. To route
@@ -911,10 +1039,10 @@ export const ViewLLMProviderComponent: React.FC = () => {
                 )}
                 {authEntry && (
                   <TextInput
-                    label="Header Name"
+                    label={authEntry.in === "query" ? "Query Parameter Name" : "Header Name"}
                     value={authEntry.name}
                     copyable
-                    copyTooltipText="Copy Header Name"
+                    copyTooltipText={authEntry.in === "query" ? "Copy Query Parameter Name" : "Copy Header Name"}
                     slotProps={{ input: { readOnly: true } }}
                     size="small"
                   />

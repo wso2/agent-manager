@@ -799,7 +799,7 @@ func TestGenerateLLMProviderDeploymentYAML_ValidationErrors(t *testing.T) {
 		}
 	})
 
-	t.Run("invalid api key security - empty key", func(t *testing.T) {
+	t.Run("empty api key falls back to the provider's default header", func(t *testing.T) {
 		trueValue := true
 		provider := &models.LLMProvider{
 			TemplateHandle: "openai",
@@ -820,9 +820,17 @@ func TestGenerateLLMProviderDeploymentYAML_ValidationErrors(t *testing.T) {
 				},
 			},
 		}
-		_, err := service.generateLLMProviderDeploymentYAML(provider, "test-org")
-		if err == nil {
-			t.Fatalf("expected error for empty api key")
+		yamlStr, err := service.generateLLMProviderDeploymentYAML(provider, "test-org")
+		if err != nil {
+			t.Fatalf("expected no error, got: %v", err)
+		}
+
+		var out LLMProviderDeploymentYAML
+		if err := yaml.Unmarshal([]byte(yamlStr), &out); err != nil {
+			t.Fatalf("failed to unmarshal generated yaml: %v", err)
+		}
+		if len(out.Spec.Policies) != 1 || out.Spec.Policies[0].Paths[0].Params["key"] != models.DefaultLLMProxyAPIKeyHeader {
+			t.Fatalf("expected params.key to default to %q, got: %#v", models.DefaultLLMProxyAPIKeyHeader, out.Spec.Policies)
 		}
 	})
 

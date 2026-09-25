@@ -239,6 +239,14 @@ func (s *LLMProxyService) Update(proxyID, ouID string, updates *models.LLMProxy)
 		updates.Configuration.UpstreamAuth,
 	)
 
+	// Rollout bookkeeping, not caller-supplied config. The repository replaces the whole
+	// configuration document, so without this any unrelated proxy edit would clear a
+	// partial rollout and make it read as converged again. nil means "not specified";
+	// the auth sync passes a non-nil (possibly empty) slice to set or clear it.
+	if updates.Configuration.AuthRolloutPendingGateways == nil {
+		updates.Configuration.AuthRolloutPendingGateways = existing.Configuration.AuthRolloutPendingGateways
+	}
+
 	// Encrypt upstream auth value if a new value is provided
 	if updates.Configuration.UpstreamAuth != nil &&
 		updates.Configuration.UpstreamAuth.Value != nil {

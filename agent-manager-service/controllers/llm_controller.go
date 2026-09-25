@@ -513,6 +513,43 @@ func (c *llmController) GetLLMProvider(w http.ResponseWriter, r *http.Request) {
 	utils.WriteSuccessResponse(w, http.StatusOK, response)
 }
 
+// preserveOmittedProviderFields carries forward optional fields the request left out.
+// The repository replaces the whole configuration document, so without this a partial
+// update silently clears everything it didn't mention — including security, leaving the
+// provider and its proxies requiring no credential. Restored on the model because the
+// request carries spec types. For slices, nil means omitted; an empty list still clears.
+func preserveOmittedProviderFields(
+	provider *models.LLMProvider,
+	existing *models.LLMProvider,
+	req *spec.UpdateLLMProviderRequest,
+) {
+	if provider == nil || existing == nil || req == nil {
+		return
+	}
+	if req.Resilience == nil {
+		provider.Configuration.Resilience = existing.Configuration.Resilience
+	}
+	if req.Security == nil {
+		provider.Configuration.Security = existing.Configuration.Security
+	}
+	if req.AccessControl == nil {
+		provider.Configuration.AccessControl = existing.Configuration.AccessControl
+	}
+	if req.RateLimiting == nil {
+		provider.Configuration.RateLimiting = existing.Configuration.RateLimiting
+	}
+	if req.Policies == nil {
+		provider.Configuration.Policies = existing.Configuration.Policies
+	}
+	if req.ModelProviders == nil {
+		provider.ModelProviders = existing.ModelProviders
+		provider.ModelList = existing.ModelList
+	}
+	if req.Openapi == nil {
+		provider.OpenAPISpec = existing.OpenAPISpec
+	}
+}
+
 func (c *llmController) UpdateLLMProvider(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	log := logger.GetLogger(ctx)
@@ -588,9 +625,7 @@ func (c *llmController) UpdateLLMProvider(w http.ResponseWriter, r *http.Request
 	}
 
 	provider := utils.ConvertSpecToModelLLMProvider(providerReq, ouID)
-	if req.Resilience == nil {
-		provider.Configuration.Resilience = existing.Configuration.Resilience
-	}
+	preserveOmittedProviderFields(provider, existing, &req)
 
 	// Preserve upstream directly from the stored model to avoid the spec converter
 	// masking credentials with "***REDACTED***" (H-3). If the request supplies a new
@@ -702,6 +737,27 @@ func (c *llmController) UpdateLLMProvider(w http.ResponseWriter, r *http.Request
 	}
 
 	log.Info("UpdateLLMProvider: provider updated successfully", "ouID", ouID, "providerID", providerID, "providerUUID", updated.UUID)
+
+	// Each dependent proxy holds its own copy of the provider's api-key header, so a
+	// security change has to reach them or agents keep authenticating with the old name.
+	// Gated on an actual header diff: every proxy provisioned before this feature shipped
+	// still carries the old default, so an unconditional sync would redeploy the whole
+	// fleet on the next unrelated edit (name, description, policy) to any such provider.
+	// Detached and best-effort, the way MCP proxy edits refresh their dependents: the
+	// provider update has already succeeded and must not be failed by this.
+	if services.ProviderAuthHeadersChanged(existing, updated) {
+		// Detached from the request: the response is about to be written, so the request
+		// context is cancelled before the sync gets far. It keeps the request's values
+		// (trace and tenant metadata) so the minting it may do is still attributable.
+		syncCtx := context.WithoutCancel(r.Context())
+		go func() {
+			if err := c.providerService.SyncDependentProxyAuthHeaders(
+				syncCtx, updated, ouID, c.proxyService, c.proxyDeploymentService); err != nil {
+				log.Error("UpdateLLMProvider: failed to sync dependent proxy auth headers",
+					"ouID", ouID, "providerID", providerID, "error", err)
+			}
+		}()
+	}
 
 	// Convert model to spec response
 	response := utils.ConvertModelToSpecLLMProviderResponse(updated)

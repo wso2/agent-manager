@@ -207,6 +207,8 @@ export function normalizeAgentModelConfigResponse(
         providerName?: string;
         policies?: unknown[];
         apiKey?: string;
+        authHeaderName?: string;
+        authIn?: string;
       };
       configuration?: unknown;
     }>;
@@ -230,11 +232,13 @@ export function normalizeAgentModelConfigResponse(
                 proxyUuid: mapping.llmProxy.proxyUuid,
                 proxyName: mapping.llmProxy.proxyName,
                 url: mapping.llmProxy.proxyUrl,
-                authInfo: mapping.llmProxy.apiKey
+                // Keyed off the header rather than the key: the server reports
+                // the name on every read but the value only at creation.
+                authInfo: mapping.llmProxy.authHeaderName
                   ? {
                       type: "apikey",
-                      in: "header",
-                      name: "api-key",
+                      in: mapping.llmProxy.authIn || "header",
+                      name: mapping.llmProxy.authHeaderName,
                       value: mapping.llmProxy.apiKey,
                     }
                   : undefined,

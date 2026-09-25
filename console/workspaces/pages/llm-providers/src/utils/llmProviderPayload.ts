@@ -122,9 +122,11 @@ export function buildCreateLLMProviderRequest(
     security: values.apiKey
       ? {
           enabled: true,
+          // No key: the backend resolves the ingress header itself (providerProxyAPIKeySecurity),
+          // defaulting to the same header a legacy proxy uses so an agent doesn't need a
+          // different header name per environment.
           apiKey: {
             enabled: true,
-            key: "X-API-Key",
             in: "header",
           },
         }

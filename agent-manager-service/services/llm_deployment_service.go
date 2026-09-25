@@ -559,7 +559,10 @@ func (s *LLMProviderDeploymentService) generateLLMProviderDeploymentYAML(provide
 		if security.APIKey != nil && isBoolTrue(security.APIKey.Enabled) {
 			key := strings.TrimSpace(security.APIKey.Key)
 			if key == "" {
-				return "", fmt.Errorf("invalid api key security configuration: key is required")
+				// Falls back to the same default a provisioned proxy would use for this
+				// provider (see providerProxyAPIKeySecurity), so a provider created without
+				// an explicit key still deploys instead of failing here.
+				key, _ = providerProxyAPIKeySecurity(provider)
 			}
 
 			in := strings.ToLower(strings.TrimSpace(security.APIKey.In))

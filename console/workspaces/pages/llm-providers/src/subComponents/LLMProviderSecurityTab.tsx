@@ -18,7 +18,6 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import {
-  type APIKeyLocation,
   type LLMProviderResponse,
   type UpdateLLMProviderRequest,
   INPUT_LIMITS,
@@ -39,16 +38,32 @@ import {
   Typography,
 } from "@wso2/oxygen-ui";
 
-const KEY_LOCATION_OPTIONS: { value: APIKeyLocation; label: string }[] = [
-  { value: "header", label: "header" },
-  { value: "query", label: "query" },
-];
+// The api-key-auth policy declares `in` as enum: ["header"], so a location choice here
+// produced providers the gateway could never authenticate. Fixed, not selectable.
+const API_KEY_LOCATION = "header";
+
+type StoredAPIKeyConfig = { enabled?: boolean; key?: string; in?: string };
+
+/**
+ * The saved security config, mirroring SecurityConfig.RequiresAPIKey on the backend so
+ * the form never shows "apiKey" for a provider provisioned without one.
+ */
+function readStoredSecurity(providerData: LLMProviderResponse) {
+  const apiKeyConfig = providerData.security?.apiKey as StoredAPIKeyConfig | undefined;
+  const key = (apiKeyConfig?.key ?? "").trim();
+  const securityEnabled = providerData.security?.enabled !== false;
+  const hasApiKey = securityEnabled && apiKeyConfig?.enabled === true && !!key;
+  return {
+    authenticationType: hasApiKey ? ("apiKey" as const) : ("none" as const),
+    key: apiKeyConfig?.key ?? "",
+    in: apiKeyConfig?.in ?? API_KEY_LOCATION,
+  };
+}
 
 const securityFormSchema = z
   .object({
-    authenticationType: z.enum(["apiKey", ""]),
+    authenticationType: z.enum(["apiKey", "none"]),
     keyValue: z.string(),
-    keyIn: z.enum(["header", "query"]),
   })
   .refine(
     (data) => {
@@ -75,10 +90,9 @@ export function LLMProviderSecurityTab({
 }: LLMProviderSecurityTabProps) {
 
   const [authenticationType, setAuthenticationType] = useState<
-    "apiKey" | ""
+    "apiKey" | "none"
   >("apiKey");
   const [keyValue, setKeyValue] = useState("");
-  const [keyIn, setKeyIn] = useState<APIKeyLocation>("header");
   const [status, setStatus] = useState<{
     message: string;
     severity: "success" | "error";
@@ -87,65 +101,38 @@ export function LLMProviderSecurityTab({
 
   const isDirty = useMemo(() => {
     if (!providerData) return false;
-    const apiKeyConfig = providerData.security?.apiKey as
-      | { enabled?: boolean; key?: string; in?: string }
-      | undefined;
-    const hasApiKey =
-      !!apiKeyConfig &&
-      apiKeyConfig.enabled !== false &&
-      !!(apiKeyConfig.key ?? "").trim();
-    const savedType = hasApiKey ? "apiKey" : "";
-    const savedKey = providerData.security?.apiKey?.key ?? "";
-    const savedIn =
-      (providerData.security?.apiKey?.in as APIKeyLocation) ?? "header";
-    if (authenticationType !== savedType) return true;
-    if (keyValue.trim() !== savedKey) return true;
-    if (keyIn !== savedIn) return true;
-    return false;
-  }, [providerData, authenticationType, keyValue, keyIn]);
+    const saved = readStoredSecurity(providerData);
+    if (authenticationType !== saved.authenticationType) return true;
+    if (keyValue.trim() !== saved.key) return true;
+    // A provider still stored with a non-header location can no longer be expressed
+    // by this form, so surface it as unsaved — saving rewrites it to a header and
+    // repairs a proxy the gateway was rejecting every request for.
+    return saved.authenticationType === "apiKey" && saved.in !== API_KEY_LOCATION;
+  }, [providerData, authenticationType, keyValue]);
+
+  const resetToSaved = useCallback(() => {
+    if (!providerData) return;
+    const saved = readStoredSecurity(providerData);
+    setAuthenticationType(saved.authenticationType);
+    setKeyValue(saved.key);
+    setFieldErrors({});
+  }, [providerData]);
 
   useEffect(() => {
-    if (!providerData) return;
-    const apiKeyConfig = providerData.security?.apiKey as
-      | { enabled?: boolean; key?: string; in?: string }
-      | undefined;
-    const hasApiKey =
-      !!apiKeyConfig &&
-      apiKeyConfig.enabled !== false &&
-      !!(apiKeyConfig.key ?? "").trim();
-    setAuthenticationType(hasApiKey ? "apiKey" : "");
-    setKeyValue(providerData.security?.apiKey?.key ?? "");
-    setKeyIn(
-      (providerData.security?.apiKey?.in as APIKeyLocation) ?? "header",
-    );
-    setFieldErrors({});
-  }, [providerData]);
+    resetToSaved();
+  }, [resetToSaved]);
 
   const handleDiscard = useCallback(() => {
-    if (!providerData) return;
-    const apiKeyConfig = providerData.security?.apiKey as
-      | { enabled?: boolean; key?: string; in?: string }
-      | undefined;
-    const hasApiKey =
-      !!apiKeyConfig &&
-      apiKeyConfig.enabled !== false &&
-      !!(apiKeyConfig.key ?? "").trim();
-    setAuthenticationType(hasApiKey ? "apiKey" : "");
-    setKeyValue(providerData.security?.apiKey?.key ?? "");
-    setKeyIn(
-      (providerData.security?.apiKey?.in as APIKeyLocation) ?? "header",
-    );
-    setFieldErrors({});
+    resetToSaved();
     setStatus(null);
-  }, [providerData]);
+  }, [resetToSaved]);
 
   const handleSave = useCallback(async () => {
     if (!providerData) return;
 
     const result = securityFormSchema.safeParse({
-      authenticationType: authenticationType || "",
+      authenticationType,
       keyValue,
-      keyIn,
     });
 
     if (!result.success) {
@@ -163,7 +150,6 @@ export function LLMProviderSecurityTab({
     setFieldErrors({});
 
     const nextKey = result.data.keyValue.trim();
-    const nextIn = result.data.keyIn;
 
     try {
       await onUpdate({
@@ -172,7 +158,7 @@ export function LLMProviderSecurityTab({
           apiKey: {
             enabled: authenticationType === "apiKey",
             key: authenticationType === "apiKey" ? nextKey : "",
-            in: nextIn,
+            in: API_KEY_LOCATION,
           },
         },
       });
@@ -191,7 +177,6 @@ export function LLMProviderSecurityTab({
     providerData,
     authenticationType,
     keyValue,
-    keyIn,
     onUpdate,
   ]);
 
@@ -231,14 +216,14 @@ export function LLMProviderSecurityTab({
             <FormLabel>Method</FormLabel>
             <Select
               size="small"
-              value={authenticationType || ""}
+              value={authenticationType}
               onChange={(e) =>
-                setAuthenticationType(
-                  (e.target.value as "apiKey" | "") || "",
-                )
+                setAuthenticationType(e.target.value as "apiKey" | "none")
               }
             >
-              <MenuItem value="">None</MenuItem>
+              {/* "none" rather than "": MUI renders an empty-string value as no
+                  selection at all, which left the field blank after picking None. */}
+              <MenuItem value="none">None</MenuItem>
               <MenuItem value="apiKey">apiKey</MenuItem>
             </Select>
           </FormControl>
@@ -248,28 +233,8 @@ export function LLMProviderSecurityTab({
       {authenticationType === "apiKey" && (
         <Grid container spacing={3}>
           <Grid size={{ xs: 12, md: 5 }}>
-            <FormControl fullWidth disabled={isDisabled}>
-              <FormLabel>Key Location</FormLabel>
-              <Select
-                size="small"
-                value={keyIn}
-                onChange={(e) =>
-                  setKeyIn(e.target.value as APIKeyLocation)
-                }
-              >
-                {KEY_LOCATION_OPTIONS.map((opt) => (
-                  <MenuItem key={opt.value} value={opt.value}>
-                    {opt.label}
-                  </MenuItem>
-                ))}
-              </Select>
-            </FormControl>
-          </Grid>
-          <Grid size={{ xs: 12, md: 5 }}>
             <FormControl fullWidth disabled={isDisabled} error={!!fieldErrors.keyValue}>
-              <FormLabel>
-                {keyIn === "query" ? "Query Param Key" : "Header Key"}
-              </FormLabel>
+              <FormLabel>Header Key</FormLabel>
               <TextField
                 slotProps={{ htmlInput: { maxLength: INPUT_LIMITS.KEY } }}
                 size="small"

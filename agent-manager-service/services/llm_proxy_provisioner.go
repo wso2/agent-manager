@@ -173,7 +173,6 @@ func (p *LLMProxyProvisioner) ProvisionProxy(ctx context.Context, params Provisi
 	}
 
 	contextPath := fmt.Sprintf("/%s", uuid.New())
-	enabled := true
 	proxyConfig := &models.LLMProxy{
 		Description: params.Description,
 		ProjectUUID: params.ProjectUUID,
@@ -183,20 +182,20 @@ func (p *LLMProxyProvisioner) ProvisionProxy(ctx context.Context, params Provisi
 			Context:  &contextPath,
 			Provider: provider.UUID.String(),
 			Policies: params.Policies,
-			Security: &models.SecurityConfig{
-				Enabled: &enabled,
-				APIKey: &models.APIKeySecurity{
-					Enabled: &enabled,
-					Key:     "API-Key",
-					In:      "header",
-				},
-			},
+			Security: newProxyIngressSecurity(provider),
 		},
 	}
 
 	// Set up upstream auth if the provider requires an API key.
 	if sec := provider.Configuration.Security; sec != nil && sec.Enabled != nil && *sec.Enabled {
 		if akSec := sec.APIKey; akSec != nil && akSec.Enabled != nil && *akSec.Enabled {
+			// Resolved before anything is created, so a provider whose credential the
+			// upstream contract can't carry fails with nothing to roll back.
+			upstreamHeader, err := providerUpstreamAPIKeyAuth(provider)
+			if err != nil {
+				return nil, err
+			}
+
 			apiKey, err := p.llmProviderAPIKeyService.CreateAPIKey(ctx, params.OrgName, provider.UUID.String(), &models.CreateAPIKeyRequest{
 				Name:        params.ProxyName,
 				DisplayName: params.ProxyName,
@@ -225,7 +224,7 @@ func (p *LLMProxyProvisioner) ProvisionProxy(ctx context.Context, params Provisi
 			encoded := base64.StdEncoding.EncodeToString(encrypted)
 			proxyConfig.Configuration.UpstreamAuth = &models.UpstreamAuth{
 				Type:      utils.StrAsStrPointer(models.AuthTypeAPIKey),
-				Header:    utils.StrAsStrPointer(akSec.Key),
+				Header:    utils.StrAsStrPointer(upstreamHeader),
 				SecretRef: &encoded,
 				Value:     nil,
 			}
