@@ -898,6 +898,11 @@ type ClientInterface interface {
 	GetNameByDisplayNameWithBody(ctx context.Context, orgName string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
 
 	GetNameByDisplayName(ctx context.Context, orgName string, body GetNameByDisplayNameJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// ReportConsoleActionsWithBody request with any body
+	ReportConsoleActionsWithBody(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	ReportConsoleActions(ctx context.Context, body ReportConsoleActionsJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
 }
 
 func (c *Client) GetJWKS(ctx context.Context, reqEditors ...RequestEditorFn) (*http.Response, error) {
@@ -4442,6 +4447,30 @@ func (c *Client) GetNameByDisplayNameWithBody(ctx context.Context, orgName strin
 
 func (c *Client) GetNameByDisplayName(ctx context.Context, orgName string, body GetNameByDisplayNameJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
 	req, err := NewGetNameByDisplayNameRequest(c.Server, orgName, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) ReportConsoleActionsWithBody(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewReportConsoleActionsRequestWithBody(c.Server, contentType, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) ReportConsoleActions(ctx context.Context, body ReportConsoleActionsJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewReportConsoleActionsRequest(c.Server, body)
 	if err != nil {
 		return nil, err
 	}
@@ -16840,6 +16869,46 @@ func NewGetNameByDisplayNameRequestWithBody(server string, orgName string, conte
 	return req, nil
 }
 
+// NewReportConsoleActionsRequest calls the generic ReportConsoleActions builder with application/json body
+func NewReportConsoleActionsRequest(server string, body ReportConsoleActionsJSONRequestBody) (*http.Request, error) {
+	var bodyReader io.Reader
+	buf, err := json.Marshal(body)
+	if err != nil {
+		return nil, err
+	}
+	bodyReader = bytes.NewReader(buf)
+	return NewReportConsoleActionsRequestWithBody(server, "application/json", bodyReader)
+}
+
+// NewReportConsoleActionsRequestWithBody generates requests for ReportConsoleActions with any type of body
+func NewReportConsoleActionsRequestWithBody(server string, contentType string, body io.Reader) (*http.Request, error) {
+	var err error
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/telemetry/console-actions")
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest("POST", queryURL.String(), body)
+	if err != nil {
+		return nil, err
+	}
+
+	req.Header.Add("Content-Type", contentType)
+
+	return req, nil
+}
+
 func (c *Client) applyEditors(ctx context.Context, req *http.Request, additionalEditors []RequestEditorFn) error {
 	for _, r := range c.RequestEditors {
 		if err := r(ctx, req); err != nil {
@@ -17691,6 +17760,11 @@ type ClientWithResponsesInterface interface {
 	GetNameByDisplayNameWithBodyWithResponse(ctx context.Context, orgName string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*GetNameByDisplayNameResp, error)
 
 	GetNameByDisplayNameWithResponse(ctx context.Context, orgName string, body GetNameByDisplayNameJSONRequestBody, reqEditors ...RequestEditorFn) (*GetNameByDisplayNameResp, error)
+
+	// ReportConsoleActionsWithBodyWithResponse request with any body
+	ReportConsoleActionsWithBodyWithResponse(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*ReportConsoleActionsResp, error)
+
+	ReportConsoleActionsWithResponse(ctx context.Context, body ReportConsoleActionsJSONRequestBody, reqEditors ...RequestEditorFn) (*ReportConsoleActionsResp, error)
 }
 
 type GetJWKSResp struct {
@@ -23106,6 +23180,32 @@ func (r GetNameByDisplayNameResp) StatusCode() int {
 	return 0
 }
 
+type ReportConsoleActionsResp struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON202      *ConsoleActionBatchResponse
+	JSON400      *ErrorResponse
+	JSON401      *ErrorResponse
+	JSON413      *ErrorResponse
+	JSON429      *ErrorResponse
+}
+
+// Status returns HTTPResponse.Status
+func (r ReportConsoleActionsResp) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r ReportConsoleActionsResp) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
 // GetJWKSWithResponse request returning *GetJWKSResp
 func (c *ClientWithResponses) GetJWKSWithResponse(ctx context.Context, reqEditors ...RequestEditorFn) (*GetJWKSResp, error) {
 	rsp, err := c.GetJWKS(ctx, reqEditors...)
@@ -25689,6 +25789,23 @@ func (c *ClientWithResponses) GetNameByDisplayNameWithResponse(ctx context.Conte
 		return nil, err
 	}
 	return ParseGetNameByDisplayNameResp(rsp)
+}
+
+// ReportConsoleActionsWithBodyWithResponse request with arbitrary body returning *ReportConsoleActionsResp
+func (c *ClientWithResponses) ReportConsoleActionsWithBodyWithResponse(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*ReportConsoleActionsResp, error) {
+	rsp, err := c.ReportConsoleActionsWithBody(ctx, contentType, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseReportConsoleActionsResp(rsp)
+}
+
+func (c *ClientWithResponses) ReportConsoleActionsWithResponse(ctx context.Context, body ReportConsoleActionsJSONRequestBody, reqEditors ...RequestEditorFn) (*ReportConsoleActionsResp, error) {
+	rsp, err := c.ReportConsoleActions(ctx, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseReportConsoleActionsResp(rsp)
 }
 
 // ParseGetJWKSResp parses an HTTP response from a GetJWKSWithResponse call
@@ -35761,6 +35878,60 @@ func ParseGetNameByDisplayNameResp(rsp *http.Response) (*GetNameByDisplayNameRes
 			return nil, err
 		}
 		response.JSON500 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseReportConsoleActionsResp parses an HTTP response from a ReportConsoleActionsWithResponse call
+func ParseReportConsoleActionsResp(rsp *http.Response) (*ReportConsoleActionsResp, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &ReportConsoleActionsResp{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 202:
+		var dest ConsoleActionBatchResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON202 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
+		var dest ErrorResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON400 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
+		var dest ErrorResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON401 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 413:
+		var dest ErrorResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON413 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 429:
+		var dest ErrorResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON429 = &dest
 
 	}
 

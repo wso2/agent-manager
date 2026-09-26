@@ -343,6 +343,7 @@ export function DeploymentPipelineTable(
                                 color="error"
                                 onClick={() =>
                                   addConfirmation({
+                                    analytics: { entity: "deployment-pipeline", action: "delete" },
                                     title: "Delete Deployment Pipeline",
                                     description: `Are you sure you want to delete "${pipeline.displayName}"? This action cannot be undone.`,
                                     confirmButtonText: "Delete",

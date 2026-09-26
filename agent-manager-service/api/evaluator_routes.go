@@ -19,6 +19,7 @@ package api
 import (
 	"github.com/wso2/agent-manager/agent-manager-service/controllers"
 	"github.com/wso2/agent-manager/agent-manager-service/middleware"
+	"github.com/wso2/agent-manager/agent-manager-service/middleware/growthanalytics"
 	"github.com/wso2/agent-manager/agent-manager-service/rbac"
 )
 
@@ -27,10 +28,13 @@ func registerEvaluatorRoutes(rr *middleware.RouteRegistrar, controller controlle
 	rr.HandleFuncWithValidationAndAuthz("GET /orgs/{orgName}/evaluators", rbac.EvaluatorRead, controller.ListEvaluators)
 
 	// Custom evaluator CRUD — registered before the {evaluatorId} catch-all
-	rr.HandleFuncWithValidationAndAuthz("POST /orgs/{orgName}/evaluators/custom", rbac.EvaluatorCreate, controller.CreateCustomEvaluator)
+	rr.HandleFuncWithValidationAndAuthz("POST /orgs/{orgName}/evaluators/custom", rbac.EvaluatorCreate,
+		growthanalytics.Track("amp.observability.custom-evaluator", actionDims("created-custom-evaluator"), controller.CreateCustomEvaluator))
 	rr.HandleFuncWithValidationAndAuthz("GET /orgs/{orgName}/evaluators/custom/{identifier}", rbac.EvaluatorRead, controller.GetCustomEvaluator)
-	rr.HandleFuncWithValidationAndAuthz("PUT /orgs/{orgName}/evaluators/custom/{identifier}", rbac.EvaluatorUpdate, controller.UpdateCustomEvaluator)
-	rr.HandleFuncWithValidationAndAuthz("DELETE /orgs/{orgName}/evaluators/custom/{identifier}", rbac.EvaluatorDelete, controller.DeleteCustomEvaluator)
+	rr.HandleFuncWithValidationAndAuthz("PUT /orgs/{orgName}/evaluators/custom/{identifier}", rbac.EvaluatorUpdate,
+		growthanalytics.Track("amp.observability.custom-evaluator", actionDims("updated-custom-evaluator"), controller.UpdateCustomEvaluator))
+	rr.HandleFuncWithValidationAndAuthz("DELETE /orgs/{orgName}/evaluators/custom/{identifier}", rbac.EvaluatorDelete,
+		growthanalytics.Track("amp.observability.custom-evaluator", actionDims("deleted-custom-evaluator"), controller.DeleteCustomEvaluator))
 
 	// GET /orgs/{orgName}/evaluators/{evaluatorId} - Get evaluator details (built-in or custom)
 	rr.HandleFuncWithValidationAndAuthz("GET /orgs/{orgName}/evaluators/{evaluatorId}", rbac.EvaluatorRead, controller.GetEvaluator)

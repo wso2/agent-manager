@@ -243,6 +243,7 @@ export function ProjectList() {
   const handleDeleteProject = useCallback(
     (project: ProjectResponse) => {
       addConfirmation({
+        analytics: { entity: "project", action: "delete" },
         title: "Delete Project?",
         description: `Are you sure you want to delete the project "${project.displayName}"? This action cannot be undone.`,
         onConfirm: () => {

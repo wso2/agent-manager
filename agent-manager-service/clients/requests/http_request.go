@@ -35,6 +35,14 @@ type HttpRequest struct {
 	Method string
 	Query  map[string]string
 
+	// Host, if set, overrides the outgoing request's Host header. net/http
+	// ignores a "Host" entry placed in Header for client requests — the wire
+	// Host header is taken from Request.Host — so this is required for
+	// routing to a virtual host that differs from URL's host (e.g. a gateway
+	// reached through a port-forward, where the connection goes to
+	// localhost but must be routed by the real vhost name).
+	Host string
+
 	headers   http.Header
 	body      []byte
 	createErr error
@@ -67,6 +75,11 @@ func (r *HttpRequest) SetJson(body any) *HttpRequest {
 	return r
 }
 
+func (r *HttpRequest) SetHost(host string) *HttpRequest {
+	r.Host = host
+	return r
+}
+
 func (r *HttpRequest) SetFormData(data map[string]string) *HttpRequest {
 	form := url.Values{}
 	for k, v := range data {
@@ -91,5 +104,8 @@ func (r *HttpRequest) buildHttpRequest(ctx context.Context) (*http.Request, erro
 	}
 	request.URL.RawQuery = q.Encode()
 	request.Header = r.headers
+	if r.Host != "" {
+		request.Host = r.Host
+	}
 	return request, nil
 }

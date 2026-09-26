@@ -24,6 +24,7 @@ import (
 	"strconv"
 
 	"github.com/wso2/agent-manager/agent-manager-service/middleware"
+	"github.com/wso2/agent-manager/agent-manager-service/middleware/growthanalytics"
 	"github.com/wso2/agent-manager/agent-manager-service/middleware/logger"
 	"github.com/wso2/agent-manager/agent-manager-service/models"
 	"github.com/wso2/agent-manager/agent-manager-service/services"
@@ -75,6 +76,12 @@ func (c *mcpProxyController) CreateMCPProxy(w http.ResponseWriter, r *http.Reque
 		utils.WriteErrorResponse(w, http.StatusBadRequest, "Invalid request body")
 		return
 	}
+
+	// amp.connections.create-mcp-proxy's probed_first dimension: fetch-server-info
+	// returns the same prompts/resources/tools shape carried on an endpoint's
+	// Capabilities, so an endpoint arriving with Capabilities already set is the
+	// signal that the caller probed the server before registering it.
+	growthanalytics.SetDimension(ctx, "probed_first", mcpProxyWasProbedFirst(req.Endpoints))
 
 	resp, err := c.mcpProxyService.Create(ctx, ouID, "system", &req)
 	if err != nil {
@@ -310,6 +317,26 @@ func (c *mcpProxyController) FetchServerInfo(w http.ResponseWriter, r *http.Requ
 
 	log.Info("FetchMCPProxyServerInfo: completed", "ouID", ouID)
 	utils.WriteSuccessResponse(w, http.StatusOK, resp)
+}
+
+// mcpProxyWasProbedFirst reports whether any endpoint in the request already
+// carries Capabilities (prompts/resources/tools) — the shape
+// FetchServerInfo returns — which is the signal that the caller probed the
+// MCP server before registering it, for amp.connections.create-mcp-proxy's
+// probed_first dimension.
+func mcpProxyWasProbedFirst(endpoints []models.MCPProxyEndpointDTO) bool {
+	for _, ep := range endpoints {
+		if ep.Capabilities == nil {
+			continue
+		}
+		c := ep.Capabilities
+		if (c.Prompts != nil && len(*c.Prompts) > 0) ||
+			(c.Resources != nil && len(*c.Resources) > 0) ||
+			(c.Tools != nil && len(*c.Tools) > 0) {
+			return true
+		}
+	}
+	return false
 }
 
 func getMCPProxyIntQueryParam(r *http.Request, key string, defaultValue int) int {

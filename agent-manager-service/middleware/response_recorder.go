@@ -19,8 +19,9 @@ package middleware
 import "net/http"
 
 // responseRecorder captures the response status so middleware can record the
-// outcome of a request. Nothing else in this service wraps http.ResponseWriter,
-// so this is the only place status becomes observable to middleware.
+// outcome of a request. The only other ResponseWriter wrapper in this service
+// is middleware/growthanalytics' statusRecordingWriter, which records status
+// for telemetry; this one is what makes status observable to the audit trail.
 //
 // It implements Unwrap so http.ResponseController continues to find Flush,
 // Hijack and the rest on the underlying writer. Without that, wrapping a

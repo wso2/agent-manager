@@ -16,12 +16,18 @@
  * under the License.
  */
 
-import { cloneElement, type ReactElement } from "react";
+import { cloneElement, useCallback, useRef, type ReactElement } from "react";
 import { Tooltip } from "@wso2/oxygen-ui";
+import { ConsoleAction, useTrack } from "@agent-management-platform/api-client";
 import type { AccessDecision } from "../../utils/environmentTierAccess";
 
 export interface RestrictedActionProps {
   decision: AccessDecision;
+  /**
+   * Names the capability this control represents, e.g. "promote-deployment".
+   * Reported when a user reaches for a control their scopes do not allow.
+   */
+  feature?: string;
   /**
    * The control itself. A denial disables it, so the caller's own `disabled`
    * expression carries only its own conditions.
@@ -48,11 +54,39 @@ export interface RestrictedActionProps {
  * already how the console says "this environment has no downstream target", and
  * a missing permission is a different thing to say.
  */
-export function RestrictedAction({ decision, children }: RestrictedActionProps) {
+export function RestrictedAction({
+  decision,
+  feature,
+  children,
+}: RestrictedActionProps) {
+  const { track } = useTrack();
+  // A denied control renders once per list row, so reporting on render would
+  // count screens rather than people. What is worth knowing is that someone
+  // reached for it: hover or focus is the first observable moment of intent,
+  // and it is reported once per mounted control so hovering repeatedly still
+  // counts as one attempt.
+  const reported = useRef(false);
+
+  const reportAttempt = useCallback(() => {
+    if (reported.current) return;
+    reported.current = true;
+    track(ConsoleAction.PermissionDenied, {
+      feature: feature ?? "unspecified",
+      // The scope, not decision.reason: the reason is prose written for a
+      // tooltip and may name the environment or resource involved.
+      required_permission: decision.missingScope ?? "unspecified",
+    });
+  }, [track, feature, decision.missingScope]);
+
   if (decision.allowed) return children;
   return (
     <Tooltip title={decision.reason}>
-      <span tabIndex={0} style={{ display: "inline-flex" }}>
+      <span
+        tabIndex={0}
+        style={{ display: "inline-flex" }}
+        onMouseEnter={reportAttempt}
+        onFocus={reportAttempt}
+      >
         {cloneElement(children, { disabled: true })}
       </span>
     </Tooltip>

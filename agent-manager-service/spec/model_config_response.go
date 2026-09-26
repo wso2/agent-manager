@@ -21,6 +21,8 @@ var _ MappedNullable = &ConfigResponse{}
 type ConfigResponse struct {
 	// Base URL for the agent-manager-observer service
 	ObserverBaseUrl string `json:"observerBaseUrl"`
+	// Whether this deployment accepts console usage analytics. The console buffers and sends nothing when false, so CONSOLE_ANALYTICS_ENABLED on the service is the single switch for the whole path rather than one half of it. Absent is treated as false.
+	ConsoleAnalyticsEnabled *bool `json:"consoleAnalyticsEnabled,omitempty"`
 }
 
 // NewConfigResponse instantiates a new ConfigResponse object
@@ -65,6 +67,38 @@ func (o *ConfigResponse) SetObserverBaseUrl(v string) {
 	o.ObserverBaseUrl = v
 }
 
+// GetConsoleAnalyticsEnabled returns the ConsoleAnalyticsEnabled field value if set, zero value otherwise.
+func (o *ConfigResponse) GetConsoleAnalyticsEnabled() bool {
+	if o == nil || IsNil(o.ConsoleAnalyticsEnabled) {
+		var ret bool
+		return ret
+	}
+	return *o.ConsoleAnalyticsEnabled
+}
+
+// GetConsoleAnalyticsEnabledOk returns a tuple with the ConsoleAnalyticsEnabled field value if set, nil otherwise
+// and a boolean to check if the value has been set.
+func (o *ConfigResponse) GetConsoleAnalyticsEnabledOk() (*bool, bool) {
+	if o == nil || IsNil(o.ConsoleAnalyticsEnabled) {
+		return nil, false
+	}
+	return o.ConsoleAnalyticsEnabled, true
+}
+
+// HasConsoleAnalyticsEnabled returns a boolean if a field has been set.
+func (o *ConfigResponse) HasConsoleAnalyticsEnabled() bool {
+	if o != nil && !IsNil(o.ConsoleAnalyticsEnabled) {
+		return true
+	}
+
+	return false
+}
+
+// SetConsoleAnalyticsEnabled gets a reference to the given bool and assigns it to the ConsoleAnalyticsEnabled field.
+func (o *ConfigResponse) SetConsoleAnalyticsEnabled(v bool) {
+	o.ConsoleAnalyticsEnabled = &v
+}
+
 func (o ConfigResponse) MarshalJSON() ([]byte, error) {
 	toSerialize, err := o.ToMap()
 	if err != nil {
@@ -76,6 +110,9 @@ func (o ConfigResponse) MarshalJSON() ([]byte, error) {
 func (o ConfigResponse) ToMap() (map[string]interface{}, error) {
 	toSerialize := map[string]interface{}{}
 	toSerialize["observerBaseUrl"] = o.ObserverBaseUrl
+	if !IsNil(o.ConsoleAnalyticsEnabled) {
+		toSerialize["consoleAnalyticsEnabled"] = o.ConsoleAnalyticsEnabled
+	}
 	return toSerialize, nil
 }
 

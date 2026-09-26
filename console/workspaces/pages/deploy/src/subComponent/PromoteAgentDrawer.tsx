@@ -709,7 +709,7 @@ export function PromoteAgentDrawer({
               >
                 Cancel
               </Button>
-              <RestrictedAction decision={selectedTargetAccess}>
+              <RestrictedAction decision={selectedTargetAccess} feature="promote-agent">
                 <Button
                   type="submit"
                   variant="contained"

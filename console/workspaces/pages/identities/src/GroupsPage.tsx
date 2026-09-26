@@ -96,6 +96,7 @@ export const GroupsPage: React.FC = () => {
 
   const handleDelete = (group: ThunderGroup) => {
     addConfirmation({
+      analytics: { entity: "org-group", action: "delete" },
       title: "Delete Group",
       description: `Are you sure you want to delete "${group.name}"? This action cannot be undone.`,
       confirmButtonText: "Delete",

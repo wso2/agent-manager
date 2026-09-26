@@ -25,6 +25,7 @@ import (
 
 	"github.com/wso2/agent-manager/agent-manager-service/clients/openchoreosvc/client"
 	"github.com/wso2/agent-manager/agent-manager-service/middleware"
+	"github.com/wso2/agent-manager/agent-manager-service/middleware/growthanalytics"
 	"github.com/wso2/agent-manager/agent-manager-service/middleware/logger"
 	"github.com/wso2/agent-manager/agent-manager-service/models"
 	"github.com/wso2/agent-manager/agent-manager-service/repositories"
@@ -347,6 +348,15 @@ func (c *llmController) CreateLLMProvider(w http.ResponseWriter, r *http.Request
 		"Name", req.Name,
 		"Version", req.Version,
 		"gatewayCount", len(req.Gateways))
+
+	// amp.connections.create-llm-provider's from_template/provider_type dimensions:
+	// req.Template is the built-in provider template handle (e.g. "openai",
+	// "azure-openai", "awsbedrock") when the provider is created from one, and
+	// empty when configured from scratch.
+	growthanalytics.SetDimension(ctx, "from_template", req.Template != "")
+	if req.Template != "" {
+		growthanalytics.SetDimension(ctx, "provider_type", req.Template)
+	}
 
 	// Convert spec request to model
 	provider := utils.ConvertSpecToModelLLMProvider(&req, ouID)

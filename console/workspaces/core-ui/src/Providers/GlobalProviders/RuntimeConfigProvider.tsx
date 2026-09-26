@@ -17,7 +17,11 @@
  */
 
 import { useEffect, useState } from "react";
-import { useRuntimeConfig, setObserverBaseUrl } from "@agent-management-platform/api-client";
+import {
+  useRuntimeConfig,
+  setObserverBaseUrl,
+  setConsoleAnalyticsEnabled,
+} from "@agent-management-platform/api-client";
 import { FullPageLoader } from "@agent-management-platform/views";
 
 export function RuntimeConfigProvider({ children }: { children: React.ReactNode }) {
@@ -37,9 +41,13 @@ export function RuntimeConfigProvider({ children }: { children: React.ReactNode 
     // the "observer not configured" state.
     if (!isLoading) {
       setObserverBaseUrl(data?.observerBaseUrl);
+      // The service's CONSOLE_ANALYTICS_ENABLED decides this; the console has
+      // no flag of its own. On error data is undefined, which leaves analytics
+      // off — the safe direction for telemetry.
+      setConsoleAnalyticsEnabled(data?.consoleAnalyticsEnabled);
       setSynced(true);
     }
-  }, [isLoading, isError, data?.observerBaseUrl]);
+  }, [isLoading, isError, data?.observerBaseUrl, data?.consoleAnalyticsEnabled]);
 
   // Gate rendering until discovery settles so observability pages never
   // render against a transiently-empty observer URL. On error/timeout we

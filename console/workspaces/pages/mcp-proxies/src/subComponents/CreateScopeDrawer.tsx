@@ -45,6 +45,8 @@ import {
   listAgentIdentityRoles,
   useCreateMCPProxyScope,
   useUpdateAgentIdentityRole,
+  useDialogAnalytics,
+  useValidationErrorTracking,
 } from "@agent-management-platform/api-client";
 import {
   type AgentIdentityRoleListResponse,
@@ -134,6 +136,11 @@ export function CreateScopeDrawer({
 
   const { getToken } = useAuthHooks();
   const createScope = useCreateMCPProxyScope();
+  // Opening reports intent; closing without markCompleted reports an
+  // abandonment. Pair with amp.connections.manage-mcp-scope (the backend's own
+  // success event) for the conversion rate.
+  const { markCompleted } = useDialogAnalytics("mcp-scope", open);
+  const trackValidationError = useValidationErrorTracking("mcp-scope");
   const { reset: resetCreateScope } = createScope;
   const updateRole = useUpdateAgentIdentityRole();
 
@@ -197,10 +204,14 @@ export function CreateScopeDrawer({
   const handleFieldChange = useCallback(
     (field: keyof CreateScopeFormValues, value: string) => {
       const error = validateField(field, value);
+      if (error) {
+        // The field name only — never the value, which is the user's own input.
+        trackValidationError(String(field));
+      }
       setFieldError(field, error);
       setFormData((prev) => ({ ...prev, [field]: value }));
     },
-    [validateField, setFieldError],
+    [validateField, setFieldError, trackValidationError],
   );
 
   const handleSubmit = useCallback(
@@ -224,6 +235,8 @@ export function CreateScopeDrawer({
         setSubmitError("Failed to create scope. Please try again.");
         return;
       }
+
+      markCompleted();
 
       // Scope creation succeeded — close now rather than waiting on role
       // assignment below. A role-assignment failure is a separate, partial

@@ -139,6 +139,11 @@ func shouldAudit(method, path string) bool {
 var nonMutatingWritePaths = map[string]bool{
 	// Suggests an available agent name. Pure function, no persistence.
 	"/orgs/{orgName}/utils/generate-name": true,
+	// Reports console UI activity (page views, dialogs opened) to the
+	// analytics collector. Changes no platform state, and is emitted
+	// continuously by every open browser tab — auditing it would bury the
+	// trail under telemetry without recording a single thing a user changed.
+	"/telemetry/console-actions": true,
 }
 
 // sensitiveReadPaths are GET routes that disclose credential material or the

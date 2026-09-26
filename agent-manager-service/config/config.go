@@ -60,6 +60,11 @@ type Config struct {
 	IsOnPremDeployment       bool
 	ServerPublicURL          string
 
+	// GrowthAnalytics configures feature-usage telemetry export. A no-op
+	// unless GrowthAnalytics.Enabled is true and MoesifCollectorBaseURL is
+	// set (both off by default); IsOnPremDeployment isn't consulted.
+	GrowthAnalytics GrowthAnalyticsConfig
+
 	// ThunderHostBaseDomain is the domain suffix env-Thunder's developer-facing
 	// hostnames are built from: "<handle>.<ThunderHostBaseDomain>".
 	// Default "amp.localhost" matches local dev (k3d + the *.amp.localhost wildcard
@@ -306,6 +311,60 @@ type ObserverConfig struct {
 	// It has NO fallback to URL: empty means "observer not configured" and
 	// clients surface that loudly.
 	PublicURL string
+}
+
+// GrowthAnalyticsConfig configures feature-usage telemetry export via the
+// moesif-collector-api OpenChoreo proxy component, which authenticates
+// callers with a platform-idp JWT and forwards to Moesif, injecting the real
+// Moesif Application ID server-side (callers never see it). There is no
+// credential here: middleware/growthanalytics authenticates each event to
+// the proxy using the JWT already on the request being tracked (the same
+// token the caller authenticated to this service with), not a config value.
+type GrowthAnalyticsConfig struct {
+	// Enabled is the operational on/off switch for telemetry export, held
+	// separately from MoesifCollectorBaseURL so reporting can be turned off
+	// in an environment without deleting the rest of the configuration. The
+	// URL always resolves once deployed, so its presence cannot signal
+	// intent — this does. Both must be set for anything to be exported.
+	// Mirrors MOESIF_ENABLED on billing-service and platform-api-service.
+	Enabled bool
+	// ConsoleEnabled is a second, narrower switch covering only the console
+	// action stream (POST /telemetry/console-actions → Moesif's Actions API),
+	// held separately from Enabled because the two streams have wildly
+	// different volumes: console actions include page views and are driven by
+	// UI interaction, so they can arrive orders of magnitude more often than
+	// the endpoint events Enabled governs. Turning the noisy stream off must
+	// not also blind the feature-usage tracking that Track produces.
+	//
+	// It is an AND, not an override: console reporting needs Enabled,
+	// ConsoleEnabled and MoesifCollectorBaseURL all set. MOESIF_ENABLED=false
+	// still means "this deployment reports nothing to Moesif".
+	ConsoleEnabled bool
+	// MoesifCollectorBaseURL is the proxy's base URL, e.g.
+	// "http://<collector-host>:<port>/<collector-path>"
+	// in-cluster, or "http://localhost:18080/moesif-collector" for local dev
+	// through a `kubectl port-forward` of the internal gateway. Empty
+	// disables telemetry export entirely — the middleware/growthanalytics
+	// package no-ops when this is unset.
+	MoesifCollectorBaseURL string
+	// MoesifCollectorHostHeader overrides the outgoing Host header sent to
+	// the proxy. Required only for local dev through a port-forward, where
+	// the gateway routes purely on Host and localhost doesn't match the
+	// real virtual-host name. Leave empty when MoesifCollectorBaseURL's own
+	// host is already the real vhost (i.e. reached directly in-cluster).
+	MoesifCollectorHostHeader string
+	// DeploymentModel is reported as every event's "deployment_model"
+	// metadata field. Defaults to "on-prem"; the cloud deployment sets
+	// AMP_DEPLOYMENT_MODEL=saas so its events are labelled accordingly.
+	DeploymentModel string
+	// Environment names the deployment environment (e.g. "development",
+	// "production") this instance runs in, reported as every event's
+	// "environment" metadata field. All environments report into one Moesif
+	// application, so without this their usage is only separable by
+	// string-parsing the host out of each event's request URI. Empty — the
+	// local-dev default — omits the field rather than reporting a blank
+	// environment, so local traffic does not create an empty bucket.
+	Environment string
 }
 
 type POSTGRESQL struct {

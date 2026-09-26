@@ -25,9 +25,25 @@ import { InternalAgentFlow } from "./components/InternalAgentFlow";
 import { CatalogAgentFlow } from "./components/CatalogAgentFlow";
 import { CatalogKindSelect } from "./components/CatalogKindSelect";
 import { ExternalAgentFlow } from "./components/ExternalAgentFlow";
+import { ConsoleAction, useTrack } from "@agent-management-platform/api-client";
 
+/**
+ * Create-agent wizard.
+ *
+ * Steps are routes, so each one already produces a page view. What is tracked
+ * here on top of that is the *choice* made at each fork — which the route alone
+ * does not say, since a user can also arrive by deep link.
+ *
+ * Abandonment is deliberately not emitted from here. The wizard has no single
+ * unmount that means "gave up" (each flow navigates away on success), so any
+ * client-side flag would be bookkeeping that drifts. It is instead derived in
+ * Moesif: a wizard-step-viewed with no amp.agent-development.create-agent event
+ * later in the same session is an abandonment, and that join is exactly what
+ * having both streams under one user_id is for.
+ */
 export const AddNewAgent: React.FC = () => {
   const navigate = useNavigate();
+  const { track } = useTrack();
   const { orgId, projectId } = useParams<{
     orgId: string;
     projectId?: string;
@@ -38,19 +54,29 @@ export const AddNewAgent: React.FC = () => {
   const CONNECT_PATTERN = NEW_AGENT_ROUTES.children.connect.path;
 
   const handleSelect = useCallback((option: 'new' | 'existing') => {
+    track(ConsoleAction.WizardStepViewed, {
+      wizard: "create-agent",
+      step: option === 'new' ? "build-new" : "connect-existing",
+      step_index: 1,
+    });
     const target = option === 'new' ? CREATE_PATTERN : CONNECT_PATTERN;
     navigate(generatePath(target, {
       orgId: orgId ?? '',
       projectId: projectId ?? 'default',
     }));
-  }, [navigate, orgId, projectId, CREATE_PATTERN, CONNECT_PATTERN]);
+  }, [navigate, orgId, projectId, CREATE_PATTERN, CONNECT_PATTERN, track]);
 
   const handleSourceSelect = useCallback((option: 'source' | 'catalog') => {
+    track(ConsoleAction.WizardStepViewed, {
+      wizard: "create-agent",
+      step: option === 'source' ? "from-source" : "from-catalog",
+      step_index: 2,
+    });
     navigate(generatePath(`${CREATE_PATTERN}/${option}`, {
       orgId: orgId ?? '',
       projectId: projectId ?? 'default',
     }));
-  }, [navigate, orgId, projectId, CREATE_PATTERN]);
+  }, [navigate, orgId, projectId, CREATE_PATTERN, track]);
 
   return (
     <Routes>

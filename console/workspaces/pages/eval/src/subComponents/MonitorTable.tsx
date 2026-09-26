@@ -317,6 +317,7 @@ export function MonitorTable() {
                       aria-label={`Delete monitor ${monitor.displayName}`}
                       onClick={() =>
                         addConfirmation({
+                          analytics: { entity: "monitor", action: "delete" },
                           title: "Delete Monitor",
                           description:
                             "Are you sure you want to delete this monitor? This action cannot be undone.",

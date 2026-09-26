@@ -153,6 +153,7 @@ export const EvalEvaluatorsOrganization: React.FC = () => {
   const handleDelete = useCallback(
     (evaluator: EvaluatorResponse) => {
       addConfirmation({
+        analytics: { entity: "evaluator", action: "delete" },
         title: "Delete Evaluator",
         description: `Are you sure you want to delete "${evaluator.displayName}"? This action cannot be undone.`,
         confirmButtonText: "Delete",

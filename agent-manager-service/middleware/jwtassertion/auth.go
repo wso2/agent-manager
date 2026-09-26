@@ -311,6 +311,14 @@ func GetJWTFromContext(ctx context.Context) string {
 	return token
 }
 
+// ContextWithJWT returns ctx carrying the given raw bearer token, as if the
+// assertion middleware had validated it, so GetJWTFromContext returns it.
+// Intended for tests and non-HTTP entry points that establish identity out
+// of band — mirrors ContextWithTokenClaims.
+func ContextWithJWT(ctx context.Context, token string) context.Context {
+	return context.WithValue(ctx, jwtToken, token)
+}
+
 // effectiveScopes is the parsed scope set that decides one request. It is what
 // sits under scopesKey, rather than the raw claim, because a single request
 // consults it several times — once per permission the route declares, then

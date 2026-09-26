@@ -40,6 +40,17 @@ services:
       - SERVER_PUBLIC_URL=http://localhost:9000
       - OAUTH_AUTHORIZATION_SERVERS=http://thunder.amp.localhost:8080
       - OAUTH_SCOPES_SUPPORTED=amp:llm-proxy:deploy,amp:mcp-server:create,amp:org:invite-member,amp:role:delete,amp:monitor:read,amp:agent:env-production,amp:git-secret:delete,amp:llm-provider:delete,amp:mcp-server:configure-guardrail,amp:deployment-pipeline:create,amp:deployment-pipeline:read,amp:deployment-pipeline:update,amp:deployment-pipeline:delete,amp:gateway:delete,amp:group:delete,amp:llm-proxy:update,amp:monitor:score-read,amp:llm-provider-template:update,amp:agent:build,amp:agent:rollback,amp:agent:token-manage,amp:evaluator:read,amp:llm-provider-template:read,amp:monitor:create,amp:agent:suspend,amp:gateway:token-manage,amp:git-secret:read,amp:mcp-server:connect,amp:mcp-server:api-key-manage,amp:mcp-server:read,amp:observability:log-read,amp:group:create,amp:observability:trace-read,amp:org:remove-member,amp:agent:env-non-production,amp:group:read,amp:llm-provider-template:create,amp:project:delete,amp:agent:create,amp:evaluator:create,amp:llm-provider:read,amp:org:modify-settings,amp:catalog:read,amp:environment:update,amp:group:update,amp:llm-proxy:delete,amp:project:read,amp:data-plane:read,amp:agent:read,amp:environment:read,amp:llm-provider:configure-guardrail,amp:observability:build-log-read,amp:org:assign-role,amp:project:update,amp:mcp-server:delete,amp:environment:delete,amp:evaluator:update,amp:git-secret:create,amp:monitor:execute,amp:llm-provider:api-key-manage,amp:gateway:read,amp:agent:update,amp:llm-provider-template:delete,amp:monitor:delete,amp:org:view,amp:llm-provider:create,amp:mcp-server:update,amp:org:manage-idp,amp:role:read,amp:role:update,amp:agent:delete,amp:gateway:create,amp:llm-provider:deploy,amp:llm-proxy:api-key-manage,amp:monitor:update,amp:org:manage-service-account,amp:role:create,amp:evaluator:delete,amp:llm-provider:connect,amp:llm-provider:update,amp:llm-proxy:read,amp:monitor:score-publish,amp:observability:metric-read,amp:project:create,amp:repository:read,amp:gateway:update,amp:environment:create,amp:llm-proxy:create,amp:agent:api-key-manage,amp:agent-kind:read,amp:agent-kind:create,amp:agent-kind:update,amp:agent-kind:delete,amp:profile:read,amp:profile:update-attributes,amp:scope:create,amp:scope:read,amp:scope:update,amp:scope:delete,amp:agent-identity:read,amp:agent-identity:create,amp:agent-identity:update,amp:agent-identity:delete
+      # Growth analytics (Moesif, via a moesif-collector proxy) — off by
+      # default. Needs MOESIF_ENABLED=true and MOESIF_COLLECTOR_BASE_URL set;
+      # see agent-manager-service/.env.example for all the variables.
+      - IS_ON_PREM_DEPLOYMENT=${IS_ON_PREM_DEPLOYMENT:-true}
+      - MOESIF_ENABLED=${MOESIF_ENABLED:-false}
+      # Console UI actions only; also requires MOESIF_ENABLED=true.
+      - CONSOLE_ANALYTICS_ENABLED=${CONSOLE_ANALYTICS_ENABLED:-false}
+      - MOESIF_COLLECTOR_BASE_URL=${MOESIF_COLLECTOR_BASE_URL:-}
+      - MOESIF_COLLECTOR_HOST_HEADER=${MOESIF_COLLECTOR_HOST_HEADER:-}
+      - AMP_DEPLOYMENT_MODEL=${AMP_DEPLOYMENT_MODEL:-on-prem}
+      - AMP_ENVIRONMENT=${AMP_ENVIRONMENT:-}
       # Kubernetes Configuration
       - KUBECONFIG=/app/.kube/config
       - IS_LOCAL_DEV_ENV=true

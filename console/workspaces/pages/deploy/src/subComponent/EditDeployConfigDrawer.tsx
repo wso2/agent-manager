@@ -293,6 +293,7 @@ export function EditDeployConfigDrawer({
         onSuccess: (res) => {
           const expires = new Date(res.expiresAt * 1000).toLocaleDateString();
           addConfirmation({
+            analytics: { entity: "deploy-config", action: "apply-restart" },
             title: "Apply to restart the agent?",
             description:
               `Tracing API key regenerated (expires ${expires}). Apply the configuration to ` +
@@ -554,7 +555,7 @@ export function EditDeployConfigDrawer({
             <Button variant="outlined" onClick={onClose} disabled={isPending}>
               Cancel
             </Button>
-            <RestrictedAction decision={deployAccess}>
+            <RestrictedAction decision={deployAccess} feature="edit-deploy-config">
               <Button
                 variant="contained"
                 color="primary"

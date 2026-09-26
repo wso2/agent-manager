@@ -195,6 +195,7 @@ export function ConsumerConfigDrawer({
                         code={buildTokenCurl(provider.issuer)}
                         language="bash"
                         fieldId={`token-curl-${provider.name}`}
+                        analyticsId="token-curl"
                       />
                     </Box>
                   </Card>

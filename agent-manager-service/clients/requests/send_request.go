@@ -101,3 +101,20 @@ func (r *Result) GetHeader(key string) string {
 	}
 	return r.response.Header.Get(key)
 }
+
+// StatusCode returns the response's HTTP status code, or 0 if the request
+// never produced a response (e.g. it failed before or while connecting).
+func (r *Result) StatusCode() int {
+	if r.response == nil {
+		return 0
+	}
+	return r.response.StatusCode
+}
+
+// Err returns the error captured by SendRequest, if the request could not be
+// sent or its response could not be read. Callers with no meaningful
+// response body to decode (so ScanResponse doesn't fit) can check this and
+// StatusCode directly instead.
+func (r *Result) Err() error {
+	return r.err
+}

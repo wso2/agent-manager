@@ -19,17 +19,21 @@ package api
 import (
 	"github.com/wso2/agent-manager/agent-manager-service/controllers"
 	"github.com/wso2/agent-manager/agent-manager-service/middleware"
+	"github.com/wso2/agent-manager/agent-manager-service/middleware/growthanalytics"
 	"github.com/wso2/agent-manager/agent-manager-service/rbac"
 )
 
 func registerEnvironmentRoutes(rr *middleware.RouteRegistrar, ctrl controllers.EnvironmentController) {
-	rr.HandleFuncWithValidationAndAuthz("POST /orgs/{orgName}/environments", rbac.EnvironmentCreate, ctrl.CreateEnvironment)
+	rr.HandleFuncWithValidationAndAuthz("POST /orgs/{orgName}/environments", rbac.EnvironmentCreate,
+		growthanalytics.Track("amp.deployment-ops.create-environment", actionDims("created-environment"), ctrl.CreateEnvironment))
 	rr.HandleFuncWithValidationAndAnyAuthz("GET /orgs/{orgName}/environments", ctrl.ListEnvironments,
 		rbac.EnvironmentRead, rbac.LLMProviderRead, rbac.LLMProxyRead, rbac.GatewayRead)
 	rr.HandleFuncWithValidationAndAnyAuthz("GET /orgs/{orgName}/environments/{envID}", ctrl.GetEnvironment,
 		rbac.EnvironmentRead, rbac.LLMProviderRead, rbac.LLMProxyRead, rbac.GatewayRead)
-	rr.HandleFuncWithValidationAndAuthz("PUT /orgs/{orgName}/environments/{envID}", rbac.EnvironmentUpdate, ctrl.UpdateEnvironment)
-	rr.HandleFuncWithValidationAndAuthz("DELETE /orgs/{orgName}/environments/{envID}", rbac.EnvironmentDelete, ctrl.DeleteEnvironment)
+	rr.HandleFuncWithValidationAndAuthz("PUT /orgs/{orgName}/environments/{envID}", rbac.EnvironmentUpdate,
+		growthanalytics.Track("amp.deployment-ops.create-environment", actionDims("updated-environment"), ctrl.UpdateEnvironment))
+	rr.HandleFuncWithValidationAndAuthz("DELETE /orgs/{orgName}/environments/{envID}", rbac.EnvironmentDelete,
+		growthanalytics.Track("amp.deployment-ops.create-environment", actionDims("deleted-environment"), ctrl.DeleteEnvironment))
 	rr.HandleFuncWithValidationAndAnyAuthz("GET /orgs/{orgName}/environments/{envID}/gateways", ctrl.GetEnvironmentGateways,
 		rbac.EnvironmentRead, rbac.GatewayRead)
 	rr.HandleFuncWithValidationAndAuthz("GET /orgs/{orgName}/thunder-instances", rbac.EnvironmentRead, ctrl.ListThunderInstances)

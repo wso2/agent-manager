@@ -16,7 +16,7 @@
  * under the License.
  */
 
-import React, { useCallback, useEffect, useMemo, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { EnvironmentSelector } from "@agent-management-platform/shared-component";
 import { LogsPanel, PageLayout, TimeRangeSelector, useTimeRangeParams } from "@agent-management-platform/views";
 import { useParams, useSearchParams } from "react-router-dom";
@@ -25,7 +25,10 @@ import {
   type LogLevel,
 } from "@agent-management-platform/types";
 import { debounce } from "lodash";
-import { useAgentRuntimeLogs, isObserverConfigured } from "@agent-management-platform/api-client";
+import { useAgentRuntimeLogs, isObserverConfigured,
+  ConsoleAction,
+  useTrack,
+} from "@agent-management-platform/api-client";
 import {
   Alert,
   CircularProgress,
@@ -111,7 +114,44 @@ export const LogsComponent: React.FC = () => {
     },
     [searchParams, setSearchParams],
   );
+  const { track } = useTrack();
   const [searchPhrase, setSearchPhrase] = useState(search);
+
+  // One action per settled query rather than per keystroke: searchPhrase is
+  // already debounced above, and the level filter changes discretely. The
+  // phrase is never reported — users grep their own logs for their own data.
+  // Keyed on a string rather than the array: selectedLogLevels is rebuilt by
+  // useMemo on every searchParams change, so depending on it would re-report a
+  // query when only the sort order or an unrelated param moved.
+  const logLevelKey = selectedLogLevels.join(",");
+  // The phrase itself goes into the key so that changing one search to another
+  // (timeout → connection refused) counts as a new query. That is safe because
+  // the key never leaves the browser: it is only compared against
+  // lastReportedQuery below. What is reported is filter_count, which records
+  // only whether a phrase is present.
+  const logQueryKey = [
+    hasCustomRange ? "custom" : (timeRange ?? "unspecified"),
+    logLevelKey,
+    searchPhrase,
+  ].join("|");
+
+  // Seeded with the query the page opens on, so the first effect run reports
+  // nothing: arriving at Logs is a page view, not a query, and counting it as
+  // one would make this metric a copy of page views. Seeding (rather than a
+  // "first run" flag) also survives StrictMode's double-invoke in dev, where a
+  // flag would let the second run through.
+  const lastReportedQuery = useRef(logQueryKey);
+  useEffect(() => {
+    if (lastReportedQuery.current === logQueryKey) {
+      return;
+    }
+    lastReportedQuery.current = logQueryKey;
+    track(ConsoleAction.LogQuery, {
+      time_range: hasCustomRange ? "custom" : (timeRange ?? "unspecified"),
+      filter_count:
+        (logLevelKey ? logLevelKey.split(",").length : 0) + (searchPhrase ? 1 : 0),
+    });
+  }, [track, timeRange, hasCustomRange, logLevelKey, searchPhrase, logQueryKey]);
   const setDebouncedSearch = useMemo(
     () => debounce((searchValue: string) => setSearchPhrase(searchValue), DEBOUNCE_TIME),
     [setSearchPhrase],

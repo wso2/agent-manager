@@ -344,6 +344,7 @@ export function MCPProxySecurityTab({
       const savedType = resolveAuthenticationType(config);
       if (savedType && nextType !== savedType) {
         addConfirmation({
+          analytics: { entity: "mcp-proxy", action: "switch-auth-method" },
           title: "Switch authentication method?",
           description: `This proxy is currently secured with ${getAuthenticationTypeLabel(savedType)}. Switching to ${getAuthenticationTypeLabel(nextType)} will break any agent already configured to use it, until their tool configuration is updated to match.`,
           confirmButtonText: "Switch Method",
@@ -493,6 +494,7 @@ export function MCPProxySecurityTab({
     (scope: MCPProxyScopeResponse) => {
       if (!orgName || !proxyId) return;
       addConfirmation({
+        analytics: { entity: "mcp-scope", action: "delete" },
         title: "Delete Scope",
         description: `Are you sure you want to delete "${scope.action}"? Any tool it's currently assigned to will lose that requirement, and any role granted it will lose access through it. This action cannot be undone.`,
         confirmButtonText: "Delete",

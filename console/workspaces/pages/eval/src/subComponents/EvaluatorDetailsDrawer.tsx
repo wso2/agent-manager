@@ -474,6 +474,7 @@ export function EvaluatorDetailsDrawer({
       return;
     }
     addConfirmation({
+      analytics: { entity: "evaluator", action: "discard-changes" },
       title: "Discard unsaved changes?",
       description:
         "You have unsaved changes in this evaluator's configuration. Closing now will discard them.",

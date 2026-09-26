@@ -107,6 +107,7 @@ export const TokenGenerationStep = ({
     if (token || alreadyGenerated) {
       // Regenerating: confirm first, since a new token must be reconfigured wherever it is used.
       addConfirmation({
+        analytics: { entity: "agent-api-key", action: "regenerate" },
         title: "Regenerate API key?",
         description:
           "A new API key will be generated. Previously configured keys remain valid until they expire.",

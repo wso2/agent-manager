@@ -101,6 +101,7 @@ export const UsersPage: React.FC = () => {
 
   const handleDelete = (user: ThunderUser) => {
     addConfirmation({
+      analytics: { entity: "org-user", action: "delete" },
       title: "Delete User",
       description:
         `Are you sure you want to delete "${getUsername(user)}"?` +

@@ -69,6 +69,7 @@ export function MCPProxyTable() {
 
   return (
     <ResourceListShell
+      resourceName="mcp-proxies"
       searchValue={searchValue}
       onSearchChange={setSearchValue}
       searchPlaceholder="Search MCP servers..."
@@ -169,6 +170,7 @@ export function MCPProxyTable() {
                         size="small"
                         onClick={() =>
                           addConfirmation({
+                            analytics: { entity: "mcp-proxy", action: "delete" },
                             title: "Delete MCP Server",
                             description: `Are you sure you want to delete ${displayName}? This action cannot be undone.`,
                             confirmButtonText: "Delete",

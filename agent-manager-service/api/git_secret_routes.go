@@ -19,13 +19,16 @@ package api
 import (
 	"github.com/wso2/agent-manager/agent-manager-service/controllers"
 	"github.com/wso2/agent-manager/agent-manager-service/middleware"
+	"github.com/wso2/agent-manager/agent-manager-service/middleware/growthanalytics"
 	"github.com/wso2/agent-manager/agent-manager-service/rbac"
 )
 
 // RegisterGitSecretRoutes registers all git secret routes
 func RegisterGitSecretRoutes(rr *middleware.RouteRegistrar, ctrl controllers.GitSecretController) {
 	// Git Secrets (org-level)
-	rr.HandleFuncWithValidationAndAuthz("POST /orgs/{orgName}/git-secrets", rbac.GitSecretCreate, ctrl.CreateGitSecret)
+	rr.HandleFuncWithValidationAndAuthz("POST /orgs/{orgName}/git-secrets", rbac.GitSecretCreate,
+		growthanalytics.Track("amp.source-control.manage-git-secret", actionDims("created-git-secret"), ctrl.CreateGitSecret))
 	rr.HandleFuncWithValidationAndAuthz("GET /orgs/{orgName}/git-secrets", rbac.GitSecretRead, ctrl.ListGitSecrets)
-	rr.HandleFuncWithValidationAndAuthz("DELETE /orgs/{orgName}/git-secrets/{secretName}", rbac.GitSecretDelete, ctrl.DeleteGitSecret)
+	rr.HandleFuncWithValidationAndAuthz("DELETE /orgs/{orgName}/git-secrets/{secretName}", rbac.GitSecretDelete,
+		growthanalytics.Track("amp.source-control.manage-git-secret", actionDims("deleted-git-secret"), ctrl.DeleteGitSecret))
 }

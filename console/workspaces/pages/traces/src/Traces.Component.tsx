@@ -47,6 +47,8 @@ import {
   useListEnvironments,
   isObserverConfigured,
   type TraceListWithRange,
+  ConsoleAction,
+  useTrack,
 } from "@agent-management-platform/api-client";
 import { TraceDetails, TracesView } from "./subComponents";
 import {
@@ -71,6 +73,7 @@ const TIME_RANGE_OPTIONS = [
 export const TracesComponent: React.FC = () => {
   const { agentId, orgId, projectId, envId } = useParams();
   const [searchParams, setSearchParams] = useSearchParams();
+  const { track } = useTrack();
   const { mutateAsync: exportTracesAsync, isPending: isExporting } =
     useExportTraces();
 
@@ -180,11 +183,15 @@ export const TracesComponent: React.FC = () => {
 
   const handleTraceSelect = useCallback(
     (traceId: string) => {
+      // Opening a trace is a read, so no API event records it — this is the
+      // only signal that the trace explorer is being used at all. The trace id
+      // is not reported: it identifies a customer's own request.
+      track(ConsoleAction.TraceOpened, { source_page: "traces" });
       const next = new URLSearchParams(searchParams);
       next.set("selectedTrace", traceId);
       setSearchParams(next);
     },
-    [searchParams, setSearchParams],
+    [searchParams, setSearchParams, track],
   );
 
   const handleCloseDrawer = useCallback(() => {
@@ -230,6 +237,7 @@ export const TracesComponent: React.FC = () => {
         type: "application/json",
       });
 
+      track(ConsoleAction.DownloadArtifact, { artifact_type: "traces-export" });
       // Create download link
       const url = window.URL.createObjectURL(blob);
       const link = document.createElement("a");
@@ -260,6 +268,7 @@ export const TracesComponent: React.FC = () => {
     hasCustomRange,
     customStartTime,
     customEndTime,
+    track,
   ]);
 
   const handleTimeRangeChange = useCallback(

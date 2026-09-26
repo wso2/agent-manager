@@ -22,6 +22,7 @@ import (
 
 	"github.com/wso2/agent-manager/agent-manager-service/config"
 	"github.com/wso2/agent-manager/agent-manager-service/middleware"
+	"github.com/wso2/agent-manager/agent-manager-service/middleware/growthanalytics"
 	"github.com/wso2/agent-manager/agent-manager-service/middleware/logger"
 	"github.com/wso2/agent-manager/agent-manager-service/spec"
 )
@@ -40,9 +41,15 @@ func registerConfigRoutes(mux *http.ServeMux) {
 			return
 		}
 		cfg := config.GetConfig()
+		// Served from the service's own CONSOLE_ANALYTICS_ENABLED so that flag
+		// is the single switch for the whole path: the console asks here
+		// whether to report at all, rather than carrying a second flag of its
+		// own that could disagree with this one.
+		consoleAnalytics := growthanalytics.ConsoleEnabled(cfg.GrowthAnalytics)
 		w.Header().Set("Content-Type", "application/json")
 		if err := json.NewEncoder(w).Encode(spec.ConfigResponse{
-			ObserverBaseUrl: cfg.Observer.PublicURL,
+			ObserverBaseUrl:         cfg.Observer.PublicURL,
+			ConsoleAnalyticsEnabled: &consoleAnalytics,
 		}); err != nil {
 			logger.GetLogger(r.Context()).Error("failed to encode config response", "error", err)
 		}

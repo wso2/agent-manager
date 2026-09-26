@@ -931,6 +931,69 @@ paths:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
 
+  /telemetry/console-actions:
+    post:
+      tags:
+        - Telemetry
+      summary: Report a batch of console user actions
+      description: |
+        Accept a batch of UI interaction records from the console and forward
+        them to the analytics collector as Moesif Actions. Deliberately not
+        org-scoped in the path: the organization is taken from the caller's
+        token, and some console actions (sign-in landing, organization
+        switching) happen before an org is in scope.
+
+        Reporting is best-effort and never blocks the caller. The endpoint
+        answers 202 whenever the batch is well-formed, including when every
+        action in it was dropped for failing the server-side allowlist —
+        a client must never retry, and must never surface a failure here to
+        the user. Unknown action names and unknown dimension keys are
+        discarded rather than rejected, so a console that is newer than the
+        service degrades quietly instead of erroring.
+      operationId: reportConsoleActions
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ConsoleActionBatchRequest"
+      responses:
+        "202":
+          description: Batch accepted for forwarding
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ConsoleActionBatchResponse"
+        "400":
+          description: Malformed batch
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "401":
+          description: Unauthorized - invalid or missing authentication
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "413":
+          description: |
+            Batch exceeds the accepted size — either the body is over the byte
+            cap or it carries more than maxItems actions.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "429":
+          description: |
+            Per-user reporting rate limit exceeded. Clients must NOT retry:
+            telemetry is best-effort, and a retry into the limit is what the
+            limit exists to prevent. Drop the batch and carry on.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
   /orgs/{orgName}/projects/{projName}/agents/{agentName}/builds:
     post:
       summary: Build an agent
@@ -11215,6 +11278,13 @@ components:
         observerBaseUrl:
           type: string
           description: Base URL for the agent-manager-observer service
+        consoleAnalyticsEnabled:
+          type: boolean
+          description: |
+            Whether this deployment accepts console usage analytics. The
+            console buffers and sends nothing when false, so CONSOLE_ANALYTICS_ENABLED
+            on the service is the single switch for the whole path rather than
+            one half of it. Absent is treated as false.
 
     CreateLLMAPIKeyRequest:
       type: object
@@ -11901,6 +11971,82 @@ components:
             Display name/username of the creator, when resolvable. Omitted
             if the user has since been deleted.
           example: "john.doe"
+    ConsoleActionBatchRequest:
+      type: object
+      description: A flush of console actions buffered by the browser.
+      properties:
+        actions:
+          type: array
+          description: |
+            The buffered actions, oldest first. Capped so a single flush cannot
+            be used to push an unbounded payload through to the collector.
+          minItems: 1
+          maxItems: 50
+          items:
+            $ref: "#/components/schemas/ConsoleAction"
+      required:
+        - actions
+    ConsoleAction:
+      type: object
+      description: One thing a user did in the console UI.
+      properties:
+        action:
+          type: string
+          description: |
+            Action name from the console taxonomy, e.g.
+            "amp.console.navigation.page-view". Validated against a
+            server-side allowlist; an unrecognized name is dropped.
+          maxLength: 128
+        occurredAt:
+          type: string
+          format: date-time
+          description: |
+            When the user did this, per the browser clock. The server uses it
+            as-is so the ordering within a buffered flush survives, and falls
+            back to receipt time when it is absent. A value present but not
+            RFC 3339 fails decoding and makes the whole batch malformed (400)
+            — the client controls this field, so a bad value is a client bug
+            worth surfacing rather than silently rewriting.
+        page:
+          type: string
+          description: |
+            The console route the action happened on, e.g.
+            "/orgs/acme/projects/p1/agents/a1/deploy". Path only — the client
+            must not send query strings, which can carry identifiers.
+          maxLength: 512
+        sessionId:
+          type: string
+          description: |
+            Opaque per-tab identifier generated by the console, used to group
+            an individual browsing session. Not a credential and not derived
+            from one.
+          maxLength: 64
+        dimensions:
+          type: object
+          description: |
+            Taxonomy dimensions for this action, e.g. {"entity": "agent"}.
+            Keys are validated per action against the server-side allowlist;
+            unknown keys are dropped. Values must be scalars — never request
+            bodies, secrets, or free-form user input.
+          additionalProperties: true
+      required:
+        - action
+    ConsoleActionBatchResponse:
+      type: object
+      description: How much of the submitted batch survived validation.
+      properties:
+        accepted:
+          type: integer
+          description: Number of actions forwarded to the collector.
+        dropped:
+          type: integer
+          description: |
+            Number of actions discarded for failing the allowlist. Reported so
+            a console release that starts emitting an unregistered action is
+            visible without reading service logs.
+      required:
+        - accepted
+        - dropped
     ResourceNameRequest:
       type: object
       properties:

@@ -344,7 +344,7 @@ export function BuildCard(props: BuildCardProps) {
 
               <Divider />
 
-              <RestrictedAction decision={deployAccess}>
+              <RestrictedAction decision={deployAccess} feature="deploy-agent">
                 <Button
                   variant="contained"
                   color="primary"
@@ -468,7 +468,7 @@ export function BuildCard(props: BuildCardProps) {
 
             <Divider />
             {/* Selected Build Details */}
-            <RestrictedAction decision={deployAccess}>
+            <RestrictedAction decision={deployAccess} feature="deploy-agent">
               <Button
                 variant="contained"
                 color="primary"

@@ -26,6 +26,8 @@ import {
   useGetAllAgentBuilds,
   useListAgentMCPConfigs,
   useListAgentModelConfigs,
+  ConsoleAction,
+  useTrack,
 } from "@agent-management-platform/api-client";
 import {
   absoluteRouteMap,
@@ -102,6 +104,7 @@ function TabPanel({ value, index, children }: TabPanelProps) {
 
 export const ConfigureComponent: React.FC = () => {
   const [searchParams, setSearchParams] = useSearchParams();
+  const { track } = useTrack();
   const requestedTabIndex = CONFIGURE_TAB_KEYS.indexOf(
     searchParams.get(
       CONFIGURE_TAB_PARAM,
@@ -109,6 +112,10 @@ export const ConfigureComponent: React.FC = () => {
   );
   const tabIndex = requestedTabIndex === -1 ? 0 : requestedTabIndex;
   const handleTabChange = (_: React.SyntheticEvent, index: number) => {
+    track(ConsoleAction.TabSwitch, {
+      page: "configure-agent",
+      tab: CONFIGURE_TAB_KEYS[index],
+    });
     // Preserve any other query params already on the URL instead of
     // replacing the whole search string with just this one.
     setSearchParams(

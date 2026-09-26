@@ -20,4 +20,10 @@
 // agent-manager: GET /api/v1/config.
 export interface ConfigResponse {
   observerBaseUrl: string;
+  /**
+   * Whether this deployment accepts console usage analytics, from the
+   * service's CONSOLE_ANALYTICS_ENABLED. The console has no flag of its own —
+   * that one switch governs the whole path. Absent is treated as false.
+   */
+  consoleAnalyticsEnabled?: boolean;
 }

@@ -94,6 +94,7 @@ export const RolesPage: React.FC = () => {
 
   const handleDelete = (role: ThunderRole) => {
     addConfirmation({
+      analytics: { entity: "agent-identity-role", action: "delete" },
       title: "Delete Role",
       description: `Are you sure you want to delete "${role.name}"? This action cannot be undone.`,
       confirmButtonText: "Delete",

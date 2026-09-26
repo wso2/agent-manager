@@ -124,6 +124,7 @@ export function LLMProviderDeploymentTab({
       (providerData.gateways ?? []).length > 0;
     if (undeploysEverything) {
       addConfirmation({
+        analytics: { entity: "llm-provider", action: "undeploy" },
         title: "Undeploy from all gateways?",
         description:
           "This will undeploy the provider from all gateways. Invoke URLs " +

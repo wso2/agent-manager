@@ -7,6 +7,7 @@ import {
   DialogActions,
 } from "@wso2/oxygen-ui";
 import { createContext, useCallback, useContext, useMemo, useState } from "react";
+import { ConsoleAction, useTrack } from "@agent-management-platform/api-client";
 
 export interface ConfirmationEvent {
   title: string;
@@ -23,6 +24,18 @@ export interface ConfirmationEvent {
     | "success";
   confirmButtonText?: string;
   cancelButtonText?: string;
+  /**
+   * Optional analytics labels for this confirmation. Without them the
+   * cancellation is still counted, just labelled from confirmButtonText — the
+   * dialog's title and description are never reported, since they interpolate
+   * resource names.
+   */
+  analytics?: {
+    /** What is being acted on, e.g. "llm-provider", "agent", "pipeline". */
+    entity: string;
+    /** The action being confirmed, e.g. "delete", "undeploy". */
+    action: string;
+  };
 }
 
 export interface ConfirmationContextType {
@@ -46,6 +59,7 @@ export function ConfirmationDialogProvider({
   children: React.ReactNode;
 }) {
   const [confirmations, setConfirmations] = useState<ConfirmationEvent[]>([]);
+  const { track } = useTrack();
   const currentConfirmation = useMemo(() => {
     if (confirmations.length === 0) {
       return null;
@@ -59,9 +73,22 @@ export function ConfirmationDialogProvider({
   }, [currentConfirmation]);
 
   const handleCancel = useCallback(() => {
+    if (currentConfirmation) {
+      // A backed-out destructive action leaves no server-side trace at all —
+      // the whole point of tracking it here. Instrumented in the provider
+      // rather than at each of the ~26 call sites so a new confirmation
+      // cannot ship unmeasured.
+      track(ConsoleAction.ConfirmationCancelled, {
+        entity: currentConfirmation.analytics?.entity ?? "unspecified",
+        destructive_action:
+          currentConfirmation.analytics?.action ??
+          currentConfirmation.confirmButtonText ??
+          "unspecified",
+      });
+    }
     currentConfirmation?.onCancel?.();
     setConfirmations((prev) => prev.slice(0, -1));  
-  }, [currentConfirmation]);
+  }, [currentConfirmation, track]);
 
   const addConfirmation = useCallback(
     (confirmation: ConfirmationEvent) => {

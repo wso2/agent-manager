@@ -201,6 +201,7 @@ export const PublishedList: React.FC = () => {
 
   const handleUnpublishKind = useCallback(() => {
     addConfirmation({
+      analytics: { entity: "agent-kind", action: "unpublish" },
       title: "Unpublish Kind",
       description: "Are you sure you want to unpublish this Agent Kind? This removes it and all its versions from the catalog. This action cannot be undone.",
       confirmButtonText: "Unpublish",

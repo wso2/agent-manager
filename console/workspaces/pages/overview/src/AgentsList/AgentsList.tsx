@@ -454,6 +454,7 @@ export const AgentsList: React.FC = () => {
                                       onClick={(e) => {
                                         e.stopPropagation();
                                         addConfirmation({
+                                          analytics: { entity: "agent", action: "delete" },
                                           title: "Delete Agent?",
                                           description: `Are you sure you want to delete the agent "${agent.displayName}"? This action cannot be undone.`,
                                           onConfirm: () => {

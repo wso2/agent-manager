@@ -87,6 +87,9 @@ var unguardedRouteAllowlist = map[routeKey]string{
 		"api-key header verified in the handler (gatewayService.VerifyToken), not a user JWT.",
 	{"registerJWKSRoute", "HandleFunc", "GET /auth/external/jwks.json"}: "publishes public signing keys and must be unauthenticated.",
 	{"registerHealthCheck", "HandleFunc", "GET /healthz"}:               "unauthenticated liveness probe.",
+	{"registerTelemetryRoutes", "HandleFuncWithValidation", "POST /telemetry/console-actions"}: "lets an authenticated user report their own console UI activity under their own " +
+		"identity; any permission gating it would have to be granted to every role that can open the console, and the payload is " +
+		"validated against a server-side action allowlist rather than by RBAC.",
 	{"registerThunderAskRoute", "HandleFunc", "GET /internal/thunder-ask"}: "public Caddy on-demand TLS ask endpoint; it validates the requested environment handle, " +
 		"fails closed on lookup errors, and is rate-limited instead of using user RBAC.",
 	{"registerWellKnownRoutes", "HandleFunc", "GET /.well-known/oauth-protected-resource"}: "GET /.well-known/oauth-protected-resource is RFC 9728 resource metadata and must be " +

@@ -19,16 +19,21 @@ package api
 import (
 	"github.com/wso2/agent-manager/agent-manager-service/controllers"
 	"github.com/wso2/agent-manager/agent-manager-service/middleware"
+	"github.com/wso2/agent-manager/agent-manager-service/middleware/growthanalytics"
 	"github.com/wso2/agent-manager/agent-manager-service/rbac"
 )
 
 // RegisterMCPProxyRoutes registers MCP proxy routes.
 func RegisterMCPProxyRoutes(rr *middleware.RouteRegistrar, ctrl controllers.MCPProxyController) {
-	rr.HandleFuncWithValidationAndAuthz("POST /orgs/{orgName}/mcp-proxies/fetch-server-info", rbac.MCPServerConnect, ctrl.FetchServerInfo)
+	rr.HandleFuncWithValidationAndAuthz("POST /orgs/{orgName}/mcp-proxies/fetch-server-info", rbac.MCPServerConnect,
+		growthanalytics.Track("amp.connections.create-mcp-proxy", actionDims("probed-mcp-server"), ctrl.FetchServerInfo))
 	rr.HandleFuncWithValidationAndAuthz("GET /orgs/{orgName}/mcp-proxies/policies", rbac.MCPServerRead, ctrl.ListAvailableMCPPolicies)
-	rr.HandleFuncWithValidationAndAuthz("POST /orgs/{orgName}/mcp-proxies", rbac.MCPServerCreate, ctrl.CreateMCPProxy)
+	rr.HandleFuncWithValidationAndAuthz("POST /orgs/{orgName}/mcp-proxies", rbac.MCPServerCreate,
+		growthanalytics.Track("amp.connections.create-mcp-proxy", actionDims("created-mcp-proxy"), ctrl.CreateMCPProxy))
 	rr.HandleFuncWithValidationAndAuthz("GET /orgs/{orgName}/mcp-proxies", rbac.MCPServerRead, ctrl.ListMCPProxies)
 	rr.HandleFuncWithValidationAndAuthz("GET /orgs/{orgName}/mcp-proxies/{proxyId}", rbac.MCPServerRead, ctrl.GetMCPProxy)
-	rr.HandleFuncWithValidationAndAuthz("PUT /orgs/{orgName}/mcp-proxies/{proxyId}", rbac.MCPServerUpdate, ctrl.UpdateMCPProxy)
-	rr.HandleFuncWithValidationAndAuthz("DELETE /orgs/{orgName}/mcp-proxies/{proxyId}", rbac.MCPServerDelete, ctrl.DeleteMCPProxy)
+	rr.HandleFuncWithValidationAndAuthz("PUT /orgs/{orgName}/mcp-proxies/{proxyId}", rbac.MCPServerUpdate,
+		growthanalytics.Track("amp.connections.create-mcp-proxy", actionDims("updated-mcp-proxy"), ctrl.UpdateMCPProxy))
+	rr.HandleFuncWithValidationAndAuthz("DELETE /orgs/{orgName}/mcp-proxies/{proxyId}", rbac.MCPServerDelete,
+		growthanalytics.Track("amp.connections.create-mcp-proxy", actionDims("deleted-mcp-proxy"), ctrl.DeleteMCPProxy))
 }

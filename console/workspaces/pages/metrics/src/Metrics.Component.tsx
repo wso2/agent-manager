@@ -21,7 +21,13 @@ import { EnvironmentSelector } from "@agent-management-platform/shared-component
 import { NoDataFound, PageLayout, TimeRangeSelector, useTimeRangeParams } from "@agent-management-platform/views";
 import { useParams, useSearchParams } from "react-router-dom";
 import { TraceListTimeRange } from "@agent-management-platform/types";
-import { useGetAgentMetrics, useListAgentDeployments, isObserverConfigured } from "@agent-management-platform/api-client";
+import {
+  useGetAgentMetrics,
+  useListAgentDeployments,
+  isObserverConfigured,
+  ConsoleAction,
+  useTrack,
+} from "@agent-management-platform/api-client";
 import { MetricsView } from "./components/MetricsView/MetricsView";
 import {
   Alert,
@@ -44,6 +50,7 @@ const TIME_RANGE_OPTIONS = [
 export const MetricsComponent: React.FC = () => {
   const { agentId, orgId, projectId, envId } = useParams();
   const [searchParams, setSearchParams] = useSearchParams();
+  const { track } = useTrack();
 
   const {
     customStartTime,
@@ -100,13 +107,14 @@ export const MetricsComponent: React.FC = () => {
 
   const handleTimeRangeChange = useCallback(
     (newTimeRange: string) => {
+      track(ConsoleAction.MetricsRangeChanged, { time_range: newTimeRange });
       const next = new URLSearchParams(searchParams);
       next.set("timeRange", newTimeRange as TraceListTimeRange);
       next.delete("startTime");
       next.delete("endTime");
       setSearchParams(next);
     },
-    [searchParams, setSearchParams],
+    [searchParams, setSearchParams, track],
   );
 
   // Mirror Traces.Component: without a configured observer the request fails

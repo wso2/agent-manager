@@ -164,6 +164,7 @@ export function AgentConfigTableSection({
 
   const handleDelete = (config: AgentConfigListItem) => {
     addConfirmation({
+      analytics: { entity: "agent-config", action: "remove" },
       title: labels.removeTitle,
       description: labels.removeConfirmation(config),
       confirmButtonText: "Remove",

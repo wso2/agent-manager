@@ -22,6 +22,7 @@ import {
   Routes,
   Route,
   useParams,
+  useLocation,
   Outlet,
   Navigate,
   generatePath,
@@ -82,6 +83,7 @@ import {
   useListOrganizations,
   useGetProject,
   useGetAgent,
+  usePageViewTracking,
 } from "@agent-management-platform/api-client";
 import { MountPoints } from "../types";
 
@@ -104,6 +106,18 @@ function SecurityRouteElement() {
   const { agentId } = useParams();
   return <LazySecurityComponent key={agentId} />;
 }
+// Reports one page view per navigation.
+//
+// Mounted once here, inside BrowserRouter and beside Routes, rather than per
+// page: a single caller means no page can be forgotten and none can
+// double-report. It renders nothing and is inert unless console analytics is
+// enabled — see usePageViewTracking.
+function PageViewTracker() {
+  const { pathname } = useLocation();
+  usePageViewTracking(pathname);
+  return null;
+}
+
 function GuardedOutlet({
   isLoading,
   isError,
@@ -222,6 +236,7 @@ export function RootRouter() {
 
   return (
     <BrowserRouter>
+      <PageViewTracker />
       <Routes>
         <Route
           path={relativeRouteMap.children.login.path}

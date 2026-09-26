@@ -17,6 +17,8 @@
 package config
 
 import (
+	"bytes"
+	"log/slog"
 	"strings"
 	"testing"
 )
@@ -630,6 +632,166 @@ func TestValidateFileMountLimitsConfig(t *testing.T) {
 				if !found {
 					t.Errorf("expected an error containing %q, got %v", tc.errContains, r.errors)
 				}
+			}
+		})
+	}
+}
+
+// TestValidateGrowthAnalyticsConfig covers the deliberate asymmetry of this
+// validator: it never contributes a config-load error, because telemetry is
+// non-essential and must not stop the service from starting. A bad value
+// disables tracking (the collector URL is cleared, which is what makes Track
+// no-op) and the process carries on.
+func TestValidateGrowthAnalyticsConfig(t *testing.T) {
+	const vhost = "moesif-collector.example.internal"
+
+	tests := []struct {
+		name        string
+		baseURL     string
+		hostHeader  string
+		wantBaseURL string // "" means tracking ends up disabled
+	}{
+		{
+			name:        "both empty is the normal disabled state",
+			wantBaseURL: "",
+		},
+		{
+			name:        "in-cluster URL is kept",
+			baseURL:     "http://" + vhost + ":8080/moesif-collector",
+			wantBaseURL: "http://" + vhost + ":8080/moesif-collector",
+		},
+		{
+			name:        "local-dev port-forward URL with host header is kept",
+			baseURL:     "http://localhost:18080/moesif-collector",
+			hostHeader:  vhost,
+			wantBaseURL: "http://localhost:18080/moesif-collector",
+		},
+		{
+			name:        "host header without a base URL disables tracking",
+			hostHeader:  vhost,
+			wantBaseURL: "",
+		},
+		{
+			name:        "non-http(s) scheme disables tracking",
+			baseURL:     "ftp://collector.example.com",
+			wantBaseURL: "",
+		},
+		{
+			name:        "missing host disables tracking",
+			baseURL:     "https://",
+			wantBaseURL: "",
+		},
+		{
+			name:        "unparseable URL disables tracking",
+			baseURL:     "http://[::1",
+			wantBaseURL: "",
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			cfg := &Config{GrowthAnalytics: GrowthAnalyticsConfig{
+				MoesifCollectorBaseURL:    tc.baseURL,
+				MoesifCollectorHostHeader: tc.hostHeader,
+			}}
+
+			validateGrowthAnalyticsConfig(cfg)
+
+			if got := cfg.GrowthAnalytics.MoesifCollectorBaseURL; got != tc.wantBaseURL {
+				t.Errorf("MoesifCollectorBaseURL = %q, want %q", got, tc.wantBaseURL)
+			}
+		})
+	}
+}
+
+// TestValidateGrowthAnalyticsConfig_NeverFailsConfigLoad is the guarantee the
+// rest of the service depends on: no MOESIF_* value, however malformed, may
+// stop agent-manager-service from starting.
+func TestValidateGrowthAnalyticsConfig_NeverFailsConfigLoad(t *testing.T) {
+	for _, bad := range []struct{ baseURL, hostHeader string }{
+		{baseURL: "ftp://collector.example.com"},
+		{baseURL: "https://"},
+		{baseURL: "http://[::1"},
+		{baseURL: "not-a-url"},
+		{hostHeader: "some-vhost"},
+	} {
+		cfg := &Config{GrowthAnalytics: GrowthAnalyticsConfig{
+			MoesifCollectorBaseURL:    bad.baseURL,
+			MoesifCollectorHostHeader: bad.hostHeader,
+		}}
+		r := &configReader{}
+
+		validateGrowthAnalyticsConfig(cfg)
+
+		if len(r.errors) != 0 {
+			t.Errorf("baseURL=%q hostHeader=%q produced config errors %v, want none — "+
+				"telemetry misconfiguration must not stop the service", bad.baseURL, bad.hostHeader, r.errors)
+		}
+		if cfg.GrowthAnalytics.MoesifCollectorBaseURL != "" {
+			t.Errorf("baseURL=%q hostHeader=%q left the collector URL set, want tracking disabled",
+				bad.baseURL, bad.hostHeader)
+		}
+	}
+}
+
+// TestLogGrowthAnalyticsState covers the startup line that makes the on/off
+// state visible. Tracking being off produces no events and no logs at
+// runtime, so this is the only thing that distinguishes "disabled" from
+// "broken" without reading the pod's environment.
+func TestLogGrowthAnalyticsState(t *testing.T) {
+	tests := []struct {
+		name          string
+		ga            GrowthAnalyticsConfig
+		alreadyWarned bool
+		wantLevel     slog.Level
+		wantContains  string
+	}{
+		{
+			name:         "enabled reports the collector and environment",
+			ga:           GrowthAnalyticsConfig{Enabled: true, MoesifCollectorBaseURL: "http://collector:8080/moesif-collector", Environment: "development", DeploymentModel: "saas"},
+			wantLevel:    slog.LevelInfo,
+			wantContains: "tracking enabled",
+		},
+		{
+			name:         "no collector URL names that reason",
+			ga:           GrowthAnalyticsConfig{Enabled: true},
+			wantLevel:    slog.LevelInfo,
+			wantContains: "MOESIF_COLLECTOR_BASE_URL is unset",
+		},
+		{
+			name:         "kill switch names that reason instead",
+			ga:           GrowthAnalyticsConfig{Enabled: false, MoesifCollectorBaseURL: "http://collector:8080/moesif-collector"},
+			wantLevel:    slog.LevelInfo,
+			wantContains: "MOESIF_ENABLED is false",
+		},
+		{
+			name:          "stays quiet when a WARN already explained why",
+			ga:            GrowthAnalyticsConfig{Enabled: true},
+			alreadyWarned: true,
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			var buf bytes.Buffer
+			orig := slog.Default()
+			slog.SetDefault(slog.New(slog.NewTextHandler(&buf, &slog.HandlerOptions{Level: slog.LevelDebug})))
+			t.Cleanup(func() { slog.SetDefault(orig) })
+
+			logGrowthAnalyticsState(tc.ga, tc.alreadyWarned)
+
+			got := buf.String()
+			if tc.wantContains == "" {
+				if got != "" {
+					t.Errorf("expected no log output, got %q", got)
+				}
+				return
+			}
+			if !strings.Contains(got, tc.wantContains) {
+				t.Errorf("log %q does not contain %q", got, tc.wantContains)
+			}
+			if !strings.Contains(got, tc.wantLevel.String()) {
+				t.Errorf("log %q is not at level %s", got, tc.wantLevel)
 			}
 		})
 	}

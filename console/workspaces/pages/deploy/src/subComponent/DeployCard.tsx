@@ -796,7 +796,7 @@ export function DeployCard(props: DeployCardProps) {
                 </Tooltip>
                 <Stack direction="row" justifyContent="right" spacing={1} alignItems="center">
                 {currentDeployment?.status !== DeploymentStatus.SUSPENDED && (
-                  <RestrictedAction decision={deploymentStateAccess}>
+                  <RestrictedAction decision={deploymentStateAccess} feature="stop-deployment">
                     <Button
                       startIcon={<PauseCircle size={16} />}
                       variant="text"
@@ -814,7 +814,7 @@ export function DeployCard(props: DeployCardProps) {
                   </RestrictedAction>
                 )}
                 {currentDeployment?.status === DeploymentStatus.SUSPENDED && (
-                  <RestrictedAction decision={deploymentStateAccess}>
+                  <RestrictedAction decision={deploymentStateAccess} feature="redeploy">
                     <Button
                       startIcon={
                         isUpdating ? (
@@ -836,7 +836,7 @@ export function DeployCard(props: DeployCardProps) {
                 {hasPromotionTarget && (
                   <>
                     <Divider orientation="vertical" flexItem />
-                    <RestrictedAction decision={promoteAccess}>
+                    <RestrictedAction decision={promoteAccess} feature="promote-agent">
                       <Button
                         variant="contained"
                         size="small"

@@ -122,6 +122,7 @@ export function LLMProviderTable() {
 
   return (
     <ResourceListShell
+      resourceName="llm-providers"
       searchValue={searchValue}
       onSearchChange={setSearchValue}
       searchPlaceholder="Search providers..."
@@ -255,6 +256,7 @@ export function LLMProviderTable() {
                               size="small"
                               onClick={() =>
                                 addConfirmation({
+                                  analytics: { entity: "llm-provider", action: "delete" },
                                   title: "Delete LLM Provider",
                                   description:
                                     "Are you sure you want to delete this provider? This action cannot be undone.",

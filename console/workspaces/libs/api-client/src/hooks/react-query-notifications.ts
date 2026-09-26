@@ -8,9 +8,10 @@ import {
   type UseQueryResult,
 } from "@tanstack/react-query";
 import { useSnackBar } from "@agent-management-platform/views";
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useCallback} from "react";
 import { useAuthHooks } from "@agent-management-platform/auth";
 import { isRequestTooLargeError } from "../utils";
+import { ConsoleAction, markSessionExpired, useTrack } from "./telemetry";
 
 type MutationAction =
   | "assign"
@@ -153,9 +154,19 @@ export function extractServerErrorMessage(
  * where a generic error snackbar should not appear. Returns true when the
  * error is considered handled for notification purposes.
  */
+/**
+ * Classifies an error as an auth/expected one the user should not see a
+ * snackbar for, logging out when the token is no longer valid.
+ *
+ * `onSessionExpired`, when given, is called for exactly those cases — a
+ * session that ended under the user rather than a request that failed. It is a
+ * parameter rather than a hook call because this is a plain function shared by
+ * the query and mutation wrappers.
+ */
 function handleAuthAndExpectedErrors(
   error: unknown,
-  logout: () => void
+  logout: () => void,
+  onSessionExpired?: () => void
 ): boolean {
   if (
     error &&
@@ -167,12 +178,17 @@ function handleAuthAndExpectedErrors(
     error &&
     (error as { code?: string })?.code === "SPA-AUTH_CLIENT-VM-IV02"
   ) {
+    onSessionExpired?.();
     logout();
     return true;
   }
   const e = error as { status?: number; response?: { status?: number } };
   const status = e.status ?? e.response?.status;
-  return status === 401;
+  if (status === 401) {
+    onSessionExpired?.();
+    return true;
+  }
+  return false;
 }
 
 export type ApiQueryOptions<
@@ -201,6 +217,18 @@ export function useApiQuery<
 }: ApiQueryOptions<TQueryFnData, TError, TData, TQueryKey>): UseQueryResult<TData, TError> {
   const { pushSnackBar } = useSnackBar();
   const { isAuthenticated, logout } = useAuthHooks();
+  // No useTrack() here: this hook reports nothing itself, and it is
+  // instantiated once per query on a page — calling useTrack would register a
+  // set of unload listeners per instance for no benefit.
+  //
+  // Parked, not reported: the action cannot be delivered with the credentials
+  // that just stopped working. markSessionExpired stores it for the next
+  // session (which normalizes the route on the way in), and writing to one key
+  // collapses the several queries that fail together into a single record.
+  const reportSessionExpired = useCallback(
+    () => markSessionExpired(window.location.pathname),
+    [],
+  );
   const query = useQuery(options);
   const lastErrorMessageRef = useRef<string | null>(null);
   const handledErrorRef = useRef<unknown>(undefined);
@@ -231,7 +259,7 @@ export function useApiQuery<
     handledErrorRef.current = query.error;
 
     // Auth failures are handled (and can log the user out) even when silent.
-    if (handleAuthAndExpectedErrors(query.error, logout)) {
+    if (handleAuthAndExpectedErrors(query.error, logout, reportSessionExpired)) {
       lastErrorMessageRef.current = null;
       return;
     }
@@ -296,10 +324,20 @@ export function useApiQuery<
     query.error,
     query.isError,
     logout,
+    reportSessionExpired,
     silent,
   ]);
 
   return query;
+}
+
+/** Pulls the HTTP status off the error the http helpers throw, if present. */
+function errorStatus(error: unknown): number | undefined {
+  if (error && typeof error === "object" && "status" in error) {
+    const status = (error as { status: unknown }).status;
+    return typeof status === "number" ? status : undefined;
+  }
+  return undefined;
 }
 
 export function useApiMutation<
@@ -312,6 +350,20 @@ export function useApiMutation<
 ): UseMutationResult<TData, TError, TVariables, TContext> {
   const { pushSnackBar } = useSnackBar();
   const { isAuthenticated, logout } = useAuthHooks();
+  // Every error the user is actually shown is reported as one friction
+  // action. Hooked in here rather than at each call site because this is the
+  // single place that decides an error becomes visible — instrumenting the
+  // wrapper means no mutation can add a user-facing failure that analytics
+  // never hears about.
+  const { track } = useTrack();
+  // Parked, not reported: the action cannot be delivered with the credentials
+  // that just stopped working. markSessionExpired stores it for the next
+  // session (which normalizes the route on the way in), and writing to one key
+  // collapses the several queries that fail together into a single record.
+  const reportSessionExpired = useCallback(
+    () => markSessionExpired(window.location.pathname),
+    [],
+  );
   const {
     action,
     successMessage,
@@ -343,7 +395,7 @@ export function useApiMutation<
       if (
         showError &&
         isAuthenticated &&
-        !handleAuthAndExpectedErrors(error, logout)
+        !handleAuthAndExpectedErrors(error, logout, reportSessionExpired)
       ) {
         // Surface an explicit error message when available, preferring a
         // caller-supplied resolver, then the server-provided message (e.g. a
@@ -359,6 +411,13 @@ export function useApiMutation<
             extractServerErrorMessage(error, { maxReasonLength: MAX_SNACKBAR_REASON_LENGTH }) ??
             fallbackMessage,
           type: "error",
+        });
+
+        track(ConsoleAction.ErrorShown, {
+          operation: action ? `${action.verb}:${action.target}` : "unknown",
+          // The status is the fact worth keeping; the message is not reported,
+          // since a server error string can quote the payload that caused it.
+          status: errorStatus(error) ?? 0,
         });
       }
 

@@ -19,6 +19,7 @@ package api
 import (
 	"github.com/wso2/agent-manager/agent-manager-service/controllers"
 	"github.com/wso2/agent-manager/agent-manager-service/middleware"
+	"github.com/wso2/agent-manager/agent-manager-service/middleware/growthanalytics"
 	"github.com/wso2/agent-manager/agent-manager-service/rbac"
 )
 
@@ -26,7 +27,7 @@ import (
 func RegisterAgentConfigRoutes(rr *middleware.RouteRegistrar, ctrl controllers.AgentConfigurationController) {
 	rr.HandleFuncWithValidationAndAuthz(
 		"POST /orgs/{orgName}/projects/{projName}/agents/{agentName}/model-configs",
-		rbac.AgentUpdate, ctrl.CreateAgentModelConfig,
+		rbac.AgentUpdate, growthanalytics.Track("amp.agent-development.bind-model-config", actionDims("created-model-config-binding"), ctrl.CreateAgentModelConfig),
 	)
 
 	rr.HandleFuncWithValidationAndAuthz(
@@ -41,17 +42,17 @@ func RegisterAgentConfigRoutes(rr *middleware.RouteRegistrar, ctrl controllers.A
 
 	rr.HandleFuncWithValidationAndAuthz(
 		"PUT /orgs/{orgName}/projects/{projName}/agents/{agentName}/model-configs/{configId}",
-		rbac.AgentUpdate, ctrl.UpdateAgentModelConfig,
+		rbac.AgentUpdate, growthanalytics.Track("amp.agent-development.bind-model-config", actionDims("updated-model-config-binding"), ctrl.UpdateAgentModelConfig),
 	)
 
 	rr.HandleFuncWithValidationAndAuthz(
 		"DELETE /orgs/{orgName}/projects/{projName}/agents/{agentName}/model-configs/{configId}",
-		rbac.AgentDelete, ctrl.DeleteAgentModelConfig,
+		rbac.AgentDelete, growthanalytics.Track("amp.agent-development.bind-model-config", actionDims("deleted-model-config-binding"), ctrl.DeleteAgentModelConfig),
 	)
 
 	rr.HandleFuncWithValidationAndAuthz(
 		"POST /orgs/{orgName}/projects/{projName}/agents/{agentName}/mcp-configs",
-		rbac.AgentUpdate, ctrl.CreateAgentMCPConfig,
+		rbac.AgentUpdate, growthanalytics.Track("amp.agent-development.bind-mcp-config", actionDims("created-mcp-config-binding"), ctrl.CreateAgentMCPConfig),
 	)
 
 	rr.HandleFuncWithValidationAndAuthz(
@@ -66,12 +67,12 @@ func RegisterAgentConfigRoutes(rr *middleware.RouteRegistrar, ctrl controllers.A
 
 	rr.HandleFuncWithValidationAndAuthz(
 		"PUT /orgs/{orgName}/projects/{projName}/agents/{agentName}/mcp-configs/{configId}",
-		rbac.AgentUpdate, ctrl.UpdateAgentMCPConfig,
+		rbac.AgentUpdate, growthanalytics.Track("amp.agent-development.bind-mcp-config", actionDims("updated-mcp-config-binding"), ctrl.UpdateAgentMCPConfig),
 	)
 
 	rr.HandleFuncWithValidationAndAuthz(
 		"DELETE /orgs/{orgName}/projects/{projName}/agents/{agentName}/mcp-configs/{configId}",
-		rbac.AgentDelete, ctrl.DeleteAgentMCPConfig,
+		rbac.AgentDelete, growthanalytics.Track("amp.agent-development.bind-mcp-config", actionDims("deleted-mcp-config-binding"), ctrl.DeleteAgentMCPConfig),
 	)
 
 	// Per-config MCP API keys (external agents): the key an agent uses to call its
@@ -83,17 +84,17 @@ func RegisterAgentConfigRoutes(rr *middleware.RouteRegistrar, ctrl controllers.A
 
 	rr.HandleFuncWithValidationAndAuthz(
 		"POST /orgs/{orgName}/projects/{projName}/agents/{agentName}/mcp-configs/{configId}/environments/{envName}/api-keys",
-		rbac.AgentAPIKeyManage, ctrl.CreateMCPConfigAPIKey,
+		rbac.AgentAPIKeyManage, growthanalytics.Track("amp.security-access.config-scoped-api-key", configScopedAPIKeyDims("mcp-config", "issued-config-scoped-api-key"), ctrl.CreateMCPConfigAPIKey),
 	)
 
 	rr.HandleFuncWithValidationAndAuthz(
 		"PUT /orgs/{orgName}/projects/{projName}/agents/{agentName}/mcp-configs/{configId}/environments/{envName}/api-keys/{keyName}",
-		rbac.AgentAPIKeyManage, ctrl.RotateMCPConfigAPIKey,
+		rbac.AgentAPIKeyManage, growthanalytics.Track("amp.security-access.config-scoped-api-key", configScopedAPIKeyDims("mcp-config", "rotated-config-scoped-api-key"), ctrl.RotateMCPConfigAPIKey),
 	)
 
 	rr.HandleFuncWithValidationAndAuthz(
 		"DELETE /orgs/{orgName}/projects/{projName}/agents/{agentName}/mcp-configs/{configId}/environments/{envName}/api-keys/{keyName}",
-		rbac.AgentAPIKeyManage, ctrl.RevokeMCPConfigAPIKey,
+		rbac.AgentAPIKeyManage, growthanalytics.Track("amp.security-access.config-scoped-api-key", configScopedAPIKeyDims("mcp-config", "revoked-config-scoped-api-key"), ctrl.RevokeMCPConfigAPIKey),
 	)
 
 	// Per-config LLM API keys (external agents): the key an agent uses to call its
@@ -105,16 +106,32 @@ func RegisterAgentConfigRoutes(rr *middleware.RouteRegistrar, ctrl controllers.A
 
 	rr.HandleFuncWithValidationAndAuthz(
 		"POST /orgs/{orgName}/projects/{projName}/agents/{agentName}/model-configs/{configId}/environments/{envName}/api-keys",
-		rbac.AgentAPIKeyManage, ctrl.CreateLLMConfigAPIKey,
+		rbac.AgentAPIKeyManage, growthanalytics.Track("amp.security-access.config-scoped-api-key", configScopedAPIKeyDims("model-config", "issued-config-scoped-api-key"), ctrl.CreateLLMConfigAPIKey),
 	)
 
 	rr.HandleFuncWithValidationAndAuthz(
 		"PUT /orgs/{orgName}/projects/{projName}/agents/{agentName}/model-configs/{configId}/environments/{envName}/api-keys/{keyName}",
-		rbac.AgentAPIKeyManage, ctrl.RotateLLMConfigAPIKey,
+		rbac.AgentAPIKeyManage, growthanalytics.Track("amp.security-access.config-scoped-api-key", configScopedAPIKeyDims("model-config", "rotated-config-scoped-api-key"), ctrl.RotateLLMConfigAPIKey),
 	)
 
 	rr.HandleFuncWithValidationAndAuthz(
 		"DELETE /orgs/{orgName}/projects/{projName}/agents/{agentName}/model-configs/{configId}/environments/{envName}/api-keys/{keyName}",
-		rbac.AgentAPIKeyManage, ctrl.RevokeLLMConfigAPIKey,
+		rbac.AgentAPIKeyManage, growthanalytics.Track("amp.security-access.config-scoped-api-key", configScopedAPIKeyDims("model-config", "revoked-config-scoped-api-key"), ctrl.RevokeLLMConfigAPIKey),
 	)
+}
+
+// configScopedAPIKeyDims builds the growth-analytics dimensions for
+// "amp.security-access.config-scoped-api-key", tagging which kind of binding
+// the key is scoped to and which CRUD action this route performs on it.
+func configScopedAPIKeyDims(configType, action string) map[string]interface{} {
+	return map[string]interface{}{"config_type": configType, "action": action}
+}
+
+// actionDims builds a growth-analytics dimensions map tagging which action a
+// route performs, for any taxonomy feature whose declared dimensions are just
+// an "action" enum (e.g. bind-model-config/bind-mcp-config's create/update/
+// delete, deploy-llm-provider's deploy/undeploy/restore, llm-provider-api-key's
+// create/rotate/revoke).
+func actionDims(action string) map[string]interface{} {
+	return map[string]interface{}{"action": action}
 }

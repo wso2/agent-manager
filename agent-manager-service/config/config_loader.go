@@ -160,6 +160,14 @@ func loadEnvs() {
 	}
 	config.IsOnPremDeployment = r.readOptionalBool("IS_ON_PREM_DEPLOYMENT", true)
 	config.ServerPublicURL = r.readOptionalString("SERVER_PUBLIC_URL", "")
+	config.GrowthAnalytics = GrowthAnalyticsConfig{
+		Enabled:                   r.readOptionalBool("MOESIF_ENABLED", false),
+		ConsoleEnabled:            r.readOptionalBool("CONSOLE_ANALYTICS_ENABLED", false),
+		MoesifCollectorBaseURL:    r.readOptionalString("MOESIF_COLLECTOR_BASE_URL", ""),
+		MoesifCollectorHostHeader: r.readOptionalString("MOESIF_COLLECTOR_HOST_HEADER", ""),
+		DeploymentModel:           r.readOptionalString("AMP_DEPLOYMENT_MODEL", "on-prem"),
+		Environment:               r.readOptionalString("AMP_ENVIRONMENT", ""),
+	}
 	config.ThunderHostBaseDomain = r.readOptionalString("IDP_HOST_BASE_DOMAIN", "amp.localhost")
 	config.ThunderAskSecret = r.readOptionalString("THUNDER_ASK_SECRET", "")
 	config.OAuthAuthorizationServers = r.readOptionalStringList("OAUTH_AUTHORIZATION_SERVERS", "")
@@ -316,6 +324,7 @@ func loadEnvs() {
 	validateServerPublicURL(config, r)
 	validateInstrumentationURL(config, r)
 	validateObserverURLs(config, r)
+	validateGrowthAnalyticsConfig(config)
 	validateResourceLimitsConfig(config, r)
 	validateFileMountLimitsConfig(config, r)
 	validatePostgresTLSConfig(config, r)
@@ -493,6 +502,88 @@ func validateObserverURLs(cfg *Config, r *configReader) {
 	}
 	validate("AM_OBSERVER_URL", cfg.Observer.URL)
 	validate("AM_OBSERVER_PUBLIC_URL", cfg.Observer.PublicURL)
+}
+
+// validateGrowthAnalyticsConfig checks the feature-usage telemetry settings.
+//
+// Unlike every other validator here it never fails config load. Telemetry is
+// non-essential: a bad MOESIF_* value must not hold the whole API hostage, so
+// a misconfiguration disables only the tracking and the service starts
+// normally. Each problem is logged at WARN — loud enough to find, since the
+// alternative symptom is events silently never arriving — and the collector
+// URL is then cleared, which is what makes middleware/growthanalytics no-op.
+//
+// Clearing rather than merely warning matters for a malformed URL: leaving it
+// in place would let Track install its wrapper and fail per request, turning
+// one startup warning into an error line on every tracked call.
+//
+// MOESIF_COLLECTOR_HOST_HEADER only ever applies to a configured collector
+// URL, so setting it alone is a misconfiguration worth naming rather than
+// ignoring.
+//
+// It also reports the resolved on/off state once at startup. Without that
+// line, tracking being off is indistinguishable from tracking being broken:
+// Track no-ops at route-registration time, so a disabled deployment produces
+// no events and no log entries at all, and "why is Moesif empty" can only be
+// answered by reading the pod's environment. One INFO line at boot answers it
+// from the logs instead.
+func validateGrowthAnalyticsConfig(cfg *Config) {
+	warned := false
+	disable := func(msg string, args ...any) {
+		slog.Warn("configReader: "+msg+"; feature-usage tracking is disabled, the service is unaffected", args...)
+		cfg.GrowthAnalytics.MoesifCollectorBaseURL = ""
+		warned = true
+	}
+
+	switch cfg.GrowthAnalytics.MoesifCollectorBaseURL {
+	case "":
+		if cfg.GrowthAnalytics.MoesifCollectorHostHeader != "" {
+			disable("MOESIF_COLLECTOR_HOST_HEADER is set but MOESIF_COLLECTOR_BASE_URL is empty, "+
+				"and the host header only applies to a configured collector URL",
+				"hostHeader", cfg.GrowthAnalytics.MoesifCollectorHostHeader)
+		}
+	default:
+		u, err := url.Parse(cfg.GrowthAnalytics.MoesifCollectorBaseURL)
+		switch {
+		case err != nil:
+			disable("MOESIF_COLLECTOR_BASE_URL is not a valid URL",
+				"url", cfg.GrowthAnalytics.MoesifCollectorBaseURL, "error", err)
+		case u.Scheme != "http" && u.Scheme != "https":
+			disable("MOESIF_COLLECTOR_BASE_URL must use the http or https scheme",
+				"url", cfg.GrowthAnalytics.MoesifCollectorBaseURL, "scheme", u.Scheme)
+		case u.Host == "":
+			disable("MOESIF_COLLECTOR_BASE_URL must have a non-empty host",
+				"url", cfg.GrowthAnalytics.MoesifCollectorBaseURL)
+		}
+	}
+
+	logGrowthAnalyticsState(cfg.GrowthAnalytics, warned)
+}
+
+// logGrowthAnalyticsState records, once at startup, whether feature-usage
+// tracking will actually report anything — the two conditions Track checks
+// before it wraps a route. alreadyWarned suppresses the redundant "disabled"
+// line when a WARN above has already said so and given the real reason.
+func logGrowthAnalyticsState(ga GrowthAnalyticsConfig, alreadyWarned bool) {
+	if alreadyWarned {
+		return
+	}
+	switch {
+	case !ga.Enabled:
+		slog.Info("growthanalytics: feature-usage tracking disabled (MOESIF_ENABLED is false)")
+	case ga.MoesifCollectorBaseURL == "":
+		slog.Info("growthanalytics: feature-usage tracking disabled (MOESIF_COLLECTOR_BASE_URL is unset)")
+	default:
+		slog.Info("growthanalytics: feature-usage tracking enabled",
+			"collector", ga.MoesifCollectorBaseURL,
+			"environment", ga.Environment,
+			"deploymentModel", ga.DeploymentModel,
+			"consoleActions", ga.ConsoleEnabled)
+		if !ga.ConsoleEnabled {
+			slog.Info("growthanalytics: console action tracking disabled (CONSOLE_ANALYTICS_ENABLED is false); " +
+				"endpoint feature-usage events are unaffected")
+		}
+	}
 }
 
 func validateInternalServerConfigs(cfg *Config, r *configReader) {

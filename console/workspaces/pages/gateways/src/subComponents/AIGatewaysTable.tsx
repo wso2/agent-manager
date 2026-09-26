@@ -221,6 +221,7 @@ export function AIGatewaysTable({ onEditGateway }: AIGatewaysTableProps) {
                 onClick={(e) => {
                   e.stopPropagation();
                   addConfirmation({
+                    analytics: { entity: "gateway", action: "delete" },
                     title: "Delete Gateway",
                     description: `Are you sure you want to delete ${displayName}?`,
                     confirmButtonText: "Delete",

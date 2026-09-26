@@ -15,7 +15,8 @@
  * under the License.
  */
 
-import React from "react";
+import React, { useEffect, useRef } from "react";
+import { ConsoleAction, useTrack } from "@agent-management-platform/api-client";
 import {
   Alert,
   Box,
@@ -34,6 +35,11 @@ export interface ResourceListEmptyState {
 }
 
 export interface ResourceListShellProps {
+  /**
+   * What this list holds, e.g. "agents", "gateways". Used as the analytics
+   * label for searches and empty states; defaults to "unspecified".
+   */
+  resourceName?: string;
   /** Search input value. */
   searchValue: string;
   onSearchChange: (value: string) => void;
@@ -67,6 +73,9 @@ export interface ResourceListShellProps {
 
 const DEFAULT_LOADING_ROWS = 5;
 
+/** Long enough that typing a word reports one search, not eight. */
+const SEARCH_TRACK_DEBOUNCE_MS = 1200;
+
 function DefaultLoadingRows() {
   return (
     <Stack spacing={1} mt={1}>
@@ -95,6 +104,7 @@ function DefaultLoadingRows() {
 }
 
 export const ResourceListShell: React.FC<ResourceListShellProps> = ({
+  resourceName = "unspecified",
   searchValue,
   onSearchChange,
   searchPlaceholder = "Search...",
@@ -109,6 +119,37 @@ export const ResourceListShell: React.FC<ResourceListShellProps> = ({
   searchEmptyState,
   children,
 }) => {
+  const { track } = useTrack();
+
+  // Searching is a read, so nothing server-side records it. Reported on a
+  // debounce rather than per keystroke: the input is controlled, so a raw
+  // handler would emit one action per character typed.
+  useEffect(() => {
+    if (!searchValue) return;
+    const timer = setTimeout(() => {
+      track(ConsoleAction.Search, {
+        scope: resourceName,
+        // The query itself is never reported — users search for their own
+        // resource names. Only its length, which distinguishes a stray
+        // keystroke from a real search.
+        query_length: searchValue.length,
+        zero_results: isSearchEmpty === true,
+      });
+    }, SEARCH_TRACK_DEBOUNCE_MS);
+    return () => clearTimeout(timer);
+  }, [searchValue, isSearchEmpty, resourceName, track]);
+
+  // An empty list is where activation stalls: someone reached the page and had
+  // nothing to work with. Reported once per mount per state, not per render.
+  const reportedEmpty = useRef<string | undefined>(undefined);
+  useEffect(() => {
+    if (isLoading || error) return;
+    const state = isEmpty ? "empty" : isSearchEmpty ? "search-empty" : undefined;
+    if (!state || reportedEmpty.current === state) return;
+    reportedEmpty.current = state;
+    track(ConsoleAction.EmptyState, { resource: resourceName, state });
+  }, [isLoading, error, isEmpty, isSearchEmpty, resourceName, track]);
+
   const resolvedToolbar = toolbar ?? (
     <Stack direction="row" spacing={1} alignItems="center">
       <Box flexGrow={1}>

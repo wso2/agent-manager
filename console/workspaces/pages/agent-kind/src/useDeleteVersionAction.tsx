@@ -37,6 +37,7 @@ export function useDeleteVersionAction(
 
   const confirmDeleteVersion = useCallback((versionTag: string) => {
     addConfirmation({
+      analytics: { entity: "agent-kind-version", action: "delete" },
       title: "Delete Version",
       description: `Are you sure you want to delete version "${versionTag}"? This action cannot be undone.`,
       confirmButtonText: "Delete",

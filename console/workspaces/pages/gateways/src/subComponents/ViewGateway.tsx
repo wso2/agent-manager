@@ -110,6 +110,7 @@ export const ViewGateway: React.FC = () => {
   const handleRegenerateToken = useCallback(() => {
     if (isConfigured) {
       addConfirmation({
+        analytics: { entity: "gateway", action: "reconfigure" },
         title: "Reconfigure gateway",
         description:
           "Regenerating the registration token will revoke the existing token for this gateway and disconnect the gateway from the control plane. Do you want to continue?",
