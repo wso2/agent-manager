@@ -78,6 +78,8 @@ type TraceOverview struct {
 	Status          *TraceStatus `json:"status,omitempty"`
 	Input           any          `json:"input,omitempty"`
 	Output          any          `json:"output,omitempty"`
+	Models          []string     `json:"models,omitempty"`
+	ConversationID  string       `json:"conversationId,omitempty"`
 }
 
 type TraceOverviewResponse struct {

@@ -16,13 +16,17 @@
  * under the License.
  */
 
+import React from "react";
 import {
   Typography,
   Tooltip,
   ListingTable,
   DataGrid,
   Button,
+  Chip,
   CircularProgress,
+  Link,
+  Stack,
 } from "@wso2/oxygen-ui";
 import { FadeIn, scoreColor } from "@agent-management-platform/views";
 
@@ -38,6 +42,7 @@ import {
   XCircle,
 } from "@wso2/oxygen-ui-icons-react";
 import { format } from "date-fns";
+import { DEFAULT_TRACE_COLUMNS, type TraceColumn } from "../traceColumns";
 
 interface TracesTableProps {
   traces: TraceOverview[];
@@ -47,13 +52,103 @@ interface TracesTableProps {
   isLoading?: boolean;
   isLoadingOlder?: boolean;
   isLoadingNewer?: boolean;
+  hasOlder?: boolean;
+  hasActiveFilters?: boolean;
+  // Optional columns to show; the rest are always shown.
+  visibleColumns?: TraceColumn[];
+  lookedBackTo?: string;
   onLoadOlder?: () => void;
   onLoadNewer?: () => void;
+  onConversationSelect?: (conversationId: string) => void;
 }
 
 const toNStoSeconds = (ns: number) => {
   return ns / 1000_000_000;
 };
+
+const formatStartTime = (time: string) => format(new Date(time), "yyyy-MM-dd HH:mm:ss");
+
+const ellipsisSx = {
+  display: "block",
+  textOverflow: "ellipsis",
+  overflow: "hidden",
+  whiteSpace: "nowrap",
+  maxWidth: "100%",
+} as const;
+
+// Header label, width and alignment per column, in display order.
+const COLUMNS: {
+  field: string;
+  headerName: string;
+  width: number;
+  align: "left" | "center" | "right";
+  optional?: TraceColumn;
+}[] = [
+  { field: "status", headerName: "Status", width: 4, align: "center" },
+  { field: "name", headerName: "Name", width: 10, align: "left" },
+  { field: "input", headerName: "Input", width: 17, align: "left" },
+  { field: "output", headerName: "Output", width: 17, align: "left" },
+  { field: "conversation", headerName: "Conversation", width: 10, align: "left", optional: "conversation" },
+  { field: "model", headerName: "Model", width: 9, align: "left", optional: "model" },
+  { field: "startTime", headerName: "Start Time", width: 11, align: "center" },
+  { field: "duration", headerName: "Duration", width: 6, align: "right" },
+  { field: "tokens", headerName: "Tokens", width: 6, align: "right" },
+  { field: "spans", headerName: "Spans", width: 5, align: "right" },
+  { field: "score", headerName: "Score", width: 5, align: "right" },
+];
+
+// One model plainly; two or more as the first plus a "+N" chip listing all.
+function ModelsCell({ models }: { models?: string[] }) {
+  if (!models?.length) return null;
+  const [first, ...rest] = models;
+  return (
+    <Stack direction="row" spacing={0.5} alignItems="center" sx={{ minWidth: 0 }}>
+      <Typography variant="caption" component="span" title={first} sx={{ ...ellipsisSx, minWidth: 0 }}>
+        {first}
+      </Typography>
+      {rest.length > 0 && (
+        <Tooltip title={models.join(", ")}>
+          <Chip label={`+${rest.length}`} size="small" variant="outlined" sx={{ flexShrink: 0 }} />
+        </Tooltip>
+      )}
+    </Stack>
+  );
+}
+
+// Conversation ID, truncated, that sets the conversation filter on click.
+function ConversationCell({
+  conversationId,
+  onSelect,
+}: {
+  conversationId?: string;
+  onSelect?: (conversationId: string) => void;
+}) {
+  if (!conversationId) return null;
+  return (
+    <Tooltip title={conversationId}>
+      {onSelect ? (
+        <Link
+          component="button"
+          variant="caption"
+          underline="hover"
+          aria-label={`Filter by conversation ${conversationId}`}
+          onClick={(e: React.MouseEvent) => {
+            // The row opens the trace drawer; this click filters instead.
+            e.stopPropagation();
+            onSelect(conversationId);
+          }}
+          sx={{ ...ellipsisSx, textAlign: "left" }}
+        >
+          {conversationId}
+        </Link>
+      ) : (
+        <Typography variant="caption" component="span" sx={ellipsisSx}>
+          {conversationId}
+        </Typography>
+      )}
+    </Tooltip>
+  );
+}
 export function TracesTable({
   traces,
   onTraceSelect,
@@ -62,37 +157,81 @@ export function TracesTable({
   isLoading = false,
   isLoadingOlder = false,
   isLoadingNewer = false,
+  hasOlder = false,
+  hasActiveFilters = false,
+  visibleColumns = DEFAULT_TRACE_COLUMNS,
+  lookedBackTo,
   onLoadOlder,
   onLoadNewer,
+  onConversationSelect,
 }: TracesTableProps) {
+  const columns = COLUMNS.filter((c) => !c.optional || visibleColumns.includes(c.optional));
+  const showConversation = visibleColumns.includes("conversation");
+  const showModel = visibleColumns.includes("model");
   const isDesc = sortOrder === "desc";
-  const topLabel = isDesc ? "Load Newer Traces" : "Load Older Traces";
-  const topOnClick = isDesc ? onLoadNewer : onLoadOlder;
-  const topDisabled = isDesc ? (!onLoadNewer || isLoadingNewer) : (!onLoadOlder || isLoadingOlder);
-  const topLoading = isDesc ? isLoadingNewer : isLoadingOlder;
 
-  const bottomLabel = isDesc ? "Load Older Traces" : "Load Newer Traces";
-  const bottomOnClick = isDesc ? onLoadOlder : onLoadNewer;
-  const bottomDisabled = isDesc
-    ? !onLoadOlder || isLoadingOlder
-    : !onLoadNewer || isLoadingNewer;
-  const bottomLoading = isDesc ? isLoadingOlder : isLoadingNewer;
+  // Load older, shown only while the server has an older page, plus how far a filtered list looked.
+  const olderControl = (hasOlder && onLoadOlder) || (hasActiveFilters && lookedBackTo) ? (
+    <Stack direction="row" spacing={1} alignItems="center" justifyContent="center">
+      {hasOlder && onLoadOlder && (
+        <Button
+          size="small"
+          variant="text"
+          disabled={isLoadingOlder}
+          onClick={onLoadOlder}
+          startIcon={
+            isLoadingOlder ? (
+              <CircularProgress size={16} />
+            ) : isDesc ? (
+              <ArrowDown size={16} />
+            ) : (
+              <ArrowUp size={16} />
+            )
+          }
+        >
+          {isLoadingOlder ? "Loading..." : "Load Older Traces"}
+        </Button>
+      )}
+      {hasActiveFilters && lookedBackTo && (
+        <Typography variant="caption" color="text.secondary">
+          Looked back to {formatStartTime(lookedBackTo)}
+        </Typography>
+      )}
+    </Stack>
+  ) : null;
+
+  const newerControl = (
+    <Button
+      size="small"
+      variant="text"
+      disabled={!onLoadNewer || isLoadingNewer}
+      onClick={onLoadNewer}
+      startIcon={
+        isLoadingNewer ? (
+          <CircularProgress size={16} />
+        ) : isDesc ? (
+          <ArrowUp size={16} />
+        ) : (
+          <ArrowDown size={16} />
+        )
+      }
+    >
+      {isLoadingNewer ? "Loading..." : "Load Newer Traces"}
+    </Button>
+  );
+
+  const topControl = isDesc ? newerControl : olderControl;
+  const bottomControl = isDesc ? olderControl : newerControl;
   return (
     <FadeIn>
       {isLoading ? (
         <DataGridComponent
           rows={[]}
-          columns={[
-            { field: "status", headerName: "Status", flex: 5 },
-            { field: "name", headerName: "Name", flex: 10 },
-            { field: "input", headerName: "Input", flex: 18 },
-            { field: "output", headerName: "Output", flex: 18 },
-            { field: "startTime", headerName: "Start Time", flex: 12 },
-            { field: "duration", headerName: "Duration", flex: 8 },
-            { field: "tokens", headerName: "Tokens", flex: 8 },
-            { field: "spans", headerName: "Spans", flex: 8 },
-            { field: "score", headerName: "Score", flex: 8 },
-          ]}
+          columns={columns.map(({ field, headerName, width }) => ({
+            field,
+            headerName,
+            flex: width,
+          }))}
           loading
           hideFooter
         />
@@ -101,59 +240,26 @@ export function TracesTable({
           <ListingTable>
             <ListingTable.Head>
               <ListingTable.Row>
-                <ListingTable.Cell
-                  align="center"
-                  width="5%"
-                  sx={{ maxWidth: 20 }}
-                >
-                  Status
-                </ListingTable.Cell>
-                <ListingTable.Cell align="left" width="10%">
-                  Name
-                </ListingTable.Cell>
-                <ListingTable.Cell align="left" width="18%">
-                  Input
-                </ListingTable.Cell>
-                <ListingTable.Cell align="left" width="18%">
-                  Output
-                </ListingTable.Cell>
-                <ListingTable.Cell align="center" width="12%">
-                  Start Time
-                </ListingTable.Cell>
-                <ListingTable.Cell align="right" width="8%">
-                  Duration
-                </ListingTable.Cell>
-                <ListingTable.Cell align="right" width="8%">
-                  Tokens
-                </ListingTable.Cell>
-                <ListingTable.Cell align="right" width="8%">
-                  Spans
-                </ListingTable.Cell>
-                <ListingTable.Cell align="right" width="8%">
-                  Score
-                </ListingTable.Cell>
+                {columns.map((c) => (
+                  <ListingTable.Cell
+                    key={c.field}
+                    align={c.align}
+                    width={`${c.width}%`}
+                    sx={c.field === "status" ? { maxWidth: 20 } : undefined}
+                  >
+                    {c.headerName}
+                  </ListingTable.Cell>
+                ))}
               </ListingTable.Row>
             </ListingTable.Head>
             <ListingTable.Body>
-              <ListingTable.Row>
-                <ListingTable.Cell colSpan={9} align="center">
-                  <Button
-                    size="small"
-                    variant="text"
-                    disabled={topDisabled}
-                    onClick={topOnClick}
-                    startIcon={
-                      topLoading ? (
-                        <CircularProgress size={16} />
-                      ) : (
-                        <ArrowUp size={16} />
-                      )
-                    }
-                  >
-                    {topLoading ? "Loading..." : topLabel}
-                  </Button>
-                </ListingTable.Cell>
-              </ListingTable.Row>
+              {topControl && (
+                <ListingTable.Row>
+                  <ListingTable.Cell colSpan={columns.length} align="center">
+                    {topControl}
+                  </ListingTable.Cell>
+                </ListingTable.Row>
+              )}
               {traces.map((trace) => (
                 <ListingTable.Row
                   key={trace.traceId}
@@ -242,19 +348,22 @@ export function TracesTable({
                       </Typography>
                     </Tooltip>
                   </ListingTable.Cell>
+                  {showConversation && (
+                    <ListingTable.Cell align="left" sx={{ maxWidth: 160 }}>
+                      <ConversationCell
+                        conversationId={trace.conversationId}
+                        onSelect={onConversationSelect}
+                      />
+                    </ListingTable.Cell>
+                  )}
+                  {showModel && (
+                    <ListingTable.Cell align="left" sx={{ maxWidth: 160 }}>
+                      <ModelsCell models={trace.models} />
+                    </ListingTable.Cell>
+                  )}
                   <ListingTable.Cell align="center">
-                    <Typography
-                      variant="caption"
-                      component="span"
-                      sx={{
-                        display: "block",
-                        textOverflow: "ellipsis",
-                        overflow: "hidden",
-                        whiteSpace: "nowrap",
-                        maxWidth: "100%",
-                      }}
-                    >
-                      {format(new Date(trace.startTime), "yyyy-MM-dd HH:mm:ss")}
+                    <Typography variant="caption" component="span" sx={ellipsisSx}>
+                      {formatStartTime(trace.startTime)}
                     </Typography>
                   </ListingTable.Cell>
                   <ListingTable.Cell align="right">
@@ -330,25 +439,13 @@ export function TracesTable({
                   </ListingTable.Cell>
                 </ListingTable.Row>
               ))}
-              <ListingTable.Row>
-                <ListingTable.Cell colSpan={9} align="center">
-                  <Button
-                    size="small"
-                    variant="text"
-                    disabled={bottomDisabled}
-                    onClick={bottomOnClick}
-                    startIcon={
-                      bottomLoading ? (
-                        <CircularProgress size={16} />
-                      ) : (
-                        <ArrowDown size={16} />
-                      )
-                    }
-                  >
-                    {bottomLoading ? "Loading..." : bottomLabel}
-                  </Button>
-                </ListingTable.Cell>
-              </ListingTable.Row>
+              {bottomControl && (
+                <ListingTable.Row>
+                  <ListingTable.Cell colSpan={columns.length} align="center">
+                    {bottomControl}
+                  </ListingTable.Cell>
+                </ListingTable.Row>
+              )}
             </ListingTable.Body>
           </ListingTable>
         </ListingTable.Container>
@@ -357,8 +454,14 @@ export function TracesTable({
           <ListingTable.EmptyState
             illustration={<Workflow size={64} />}
             title="No traces found!"
-            description="Try changing the time range"
+            description={
+              hasActiveFilters
+                ? "Try changing the filters or the time range"
+                : "Try changing the time range"
+            }
           />
+          {/* A filtered page can be empty while older pages still hold matches. */}
+          {olderControl && <Stack sx={{ pb: 2 }}>{olderControl}</Stack>}
         </ListingTable.Container>
       )}
     </FadeIn>

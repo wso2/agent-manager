@@ -19,3 +19,5 @@
 export * from "./TracesTable";
 export * from "./TraceDetails";
 export * from "./TracesView";
+export * from "./TraceFilterBar";
+export * from "./TraceColumnsMenu";

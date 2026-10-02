@@ -2140,3 +2140,101 @@ func TestExtractTokenUsageSurvivesParentCycle(t *testing.T) {
 		t.Errorf("expected 10 input tokens without hanging, got %+v", usage)
 	}
 }
+
+// ExtractConversationID reads gen_ai.conversation.id off any root span, not
+// only those classified as agent spans: a Traceloop workflow root and a
+// CrewAI root both go through parsers that do not populate AgentData.
+func TestExtractConversationID(t *testing.T) {
+	tests := []struct {
+		name  string
+		span  *Span
+		want  string
+		kinds []SpanType
+	}{
+		{
+			name: "agent root via AgentData",
+			span: &Span{Name: "invoke_agent", Attributes: map[string]interface{}{
+				"gen_ai.operation.name":  "invoke_agent",
+				"gen_ai.conversation.id": "conv-agent",
+			}},
+			want:  "conv-agent",
+			kinds: []SpanType{SpanTypeAgent},
+		},
+		{
+			name: "traceloop workflow root falls back to the raw attribute",
+			span: &Span{Name: "LangGraph.workflow", Attributes: map[string]interface{}{
+				"traceloop.span.kind":    "workflow",
+				"gen_ai.conversation.id": "conv-workflow",
+			}},
+			want:  "conv-workflow",
+			kinds: []SpanType{SpanTypeChain},
+		},
+		{
+			name: "crewai root falls back to the raw attribute",
+			span: &Span{Name: "Crew.kickoff", Attributes: map[string]interface{}{
+				"traceloop.span.kind":    "agent",
+				"gen_ai.system":          "crewai",
+				"crewai.agent.role":      "Researcher",
+				"gen_ai.conversation.id": "conv-crew",
+			}},
+			want:  "conv-crew",
+			kinds: []SpanType{SpanTypeAgent},
+		},
+		{
+			name: "no conversation attribute",
+			span: &Span{Name: "LangGraph.workflow", Attributes: map[string]interface{}{
+				"traceloop.span.kind": "workflow",
+			}},
+			want: "",
+		},
+		{
+			name: "non-string attribute is ignored",
+			span: &Span{Name: "LangGraph.workflow", Attributes: map[string]interface{}{
+				"traceloop.span.kind":    "workflow",
+				"gen_ai.conversation.id": 42,
+			}},
+			want: "",
+		},
+		{
+			name: "nil span",
+			span: nil,
+			want: "",
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			span := tt.span
+			if span != nil {
+				processed := ProcessSpan(*span)
+				span = &processed
+				if len(tt.kinds) > 0 && SpanType(processed.AmpAttributes.Kind) != tt.kinds[0] {
+					t.Fatalf("span kind = %q, want %q (test precondition)", processed.AmpAttributes.Kind, tt.kinds[0])
+				}
+			}
+			if got := ExtractConversationID(span); got != tt.want {
+				t.Errorf("ExtractConversationID() = %q, want %q", got, tt.want)
+			}
+		})
+	}
+}
+
+// The CrewAI parser builds AgentData without reading gen_ai.conversation.id,
+// so the conversation ID must come from the attribute fallback.
+func TestExtractConversationID_CrewAIRootFallsBackPastEmptyAgentData(t *testing.T) {
+	span := ProcessSpan(Span{Name: "Crew.kickoff", Attributes: map[string]interface{}{
+		"traceloop.span.kind":    "agent",
+		"gen_ai.system":          "crewai",
+		"crewai.agent.role":      "Researcher",
+		"gen_ai.conversation.id": "conv-crew",
+	}})
+	data, ok := span.AmpAttributes.Data.(AgentData)
+	if !ok || data.Framework != "crewai" {
+		t.Fatalf("expected CrewAI AgentData, got %T (test precondition)", span.AmpAttributes.Data)
+	}
+	if data.ConversationID != "" {
+		t.Fatalf("expected the CrewAI parser to leave ConversationID empty, got %q (test precondition)", data.ConversationID)
+	}
+	if got := ExtractConversationID(&span); got != "conv-crew" {
+		t.Errorf("ExtractConversationID() = %q, want conv-crew", got)
+	}
+}

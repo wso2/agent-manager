@@ -26,5 +26,13 @@ export default defineConfig({
     globals: true,
     environment: 'jsdom',
     setupFiles: './setupTests.tsx',
+    server: {
+      deps: {
+        // oxygen-ui's dist imports prismjs subpaths without file extensions
+        // and @mui/x-data-grid and the icon package import raw .css, which
+        // Node's native ESM loader rejects; route them through Vite's resolver.
+        inline: ['@wso2/oxygen-ui', '@wso2/oxygen-ui-icons-react', '@mui/x-data-grid'],
+      },
+    },
   },
 });

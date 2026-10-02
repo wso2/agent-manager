@@ -67,6 +67,18 @@ paths:
         Returns paginated trace overviews for a component. Each trace includes input, output, token usage,
         and status extracted from the root span — the same richness as the v1 list endpoint.
         Uses the Observer Service instead of OpenSearch. No offset; use `limit` for page size.
+
+        The filter parameters (`status`, `minDurationMs`, `minTokens`, `minSpanCount`, `model`,
+        `conversationId`) are optional and combine with AND. With any filter set, the server walks
+        the window in sort order until it has `limit` matches, the window runs out, or it has
+        examined 500 traces (`truncated` is then true).
+        With no filter and no `cursor` set the request makes one upstream trace query.
+
+        To page, send the previous response's `nextCursor` as `cursor`, with the same `startTime`,
+        `endTime`, `sortOrder` and filters. Do not page by narrowing `endTime` or `startTime`: the
+        window bounds each span, so a narrowed window leaves out traces still running at its edge.
+        A page can repeat traces that start at exactly the previous page's last start time; those
+        do not count toward `limit`, so de-duplicate them by `traceId`.
       operationId: listTraces
       security:
         - bearerAuth: []
@@ -87,6 +99,39 @@ paths:
             maximum: 1000
             default: 10
         - $ref: "#/components/parameters/sortOrder"
+        - name: include
+          in: query
+          required: false
+          style: form
+          explode: false
+          description: |
+            Opt-in span-derived fields to fill on every trace, as a comma-separated
+            list. The parameter may be repeated. Unknown values return 400.
+
+            - `models`: read model names from the trace's span list, requested with
+              inline attributes. It adds one span-list call for traces that otherwise
+              need none, and makes the span-list call heavier for the rest. Traces
+              above the span-count threshold return no `models` either way.
+          schema:
+            type: array
+            items:
+              type: string
+              enum: [models]
+        - $ref: "#/components/parameters/traceStatusFilter"
+        - $ref: "#/components/parameters/minDurationMsFilter"
+        - $ref: "#/components/parameters/minTokensFilter"
+        - $ref: "#/components/parameters/minSpanCountFilter"
+        - $ref: "#/components/parameters/modelFilter"
+        - $ref: "#/components/parameters/conversationIdFilter"
+        - name: cursor
+          in: query
+          required: false
+          description: |
+            The `nextCursor` of the previous page. It is opaque and only valid with the same
+            `startTime`, `endTime`, `sortOrder` and filters as that page. A malformed cursor
+            returns 400.
+          schema:
+            type: string
       responses:
         "200":
           description: Trace overview list
@@ -465,6 +510,66 @@ components:
         type: string
         enum: [asc, desc]
         default: desc
+    traceStatusFilter:
+      name: status
+      in: query
+      required: false
+      description: |
+        `error` keeps traces whose status reports at least one error; `ok` keeps the rest,
+        including traces with no status.
+      schema:
+        type: string
+        enum: [error, ok]
+    minDurationMsFilter:
+      name: minDurationMs
+      in: query
+      required: false
+      description: Keep traces whose duration is at least this many milliseconds.
+      schema:
+        type: integer
+        format: int64
+        minimum: 0
+    minTokensFilter:
+      name: minTokens
+      in: query
+      required: false
+      description: |
+        Keep traces whose `tokenUsage.totalTokens` is at least this value. Traces without
+        `tokenUsage` never match, even with `minTokens=0`.
+      schema:
+        type: integer
+        format: int64
+        minimum: 0
+    minSpanCountFilter:
+      name: minSpanCount
+      in: query
+      required: false
+      description: Keep traces with at least this many spans.
+      schema:
+        type: integer
+        format: int64
+        minimum: 0
+    modelFilter:
+      name: model
+      in: query
+      required: false
+      description: |
+        Keep traces where any entry of `models` contains this value, ignoring case,
+        so `gpt-4o-mini` matches `gpt-4o-mini-2024-07-18`. Implies
+        `include=models`, so the server fills `models` on every trace and the request
+        carries that cost. Traces above the span-count threshold have no `models` and
+        never match.
+      schema:
+        type: string
+        example: gpt-4o
+    conversationIdFilter:
+      name: conversationId
+      in: query
+      required: false
+      description: Keep traces whose `conversationId` equals this value exactly.
+      schema:
+        type: string
+        example: conv-42
 
   responses:
     BadRequest:
@@ -720,12 +825,28 @@ components:
             - type: object
             - type: array
               items: {}
+        models:
+          type: array
+          description: |
+            Distinct model names across the trace's LLM spans, first-seen order.
+            Only present when `include=models`, or when the LLM spans were
+            fetched for other reasons (to fill `input`, `output` or `tokenUsage`).
+            Absent otherwise, and absent when no LLM span names a model.
+          items:
+            type: string
+          example: ["gpt-4o", "gpt-4o-mini"]
+        conversationId:
+          type: string
+          description: gen_ai.conversation.id of the root span.
+          example: conv-42
 
     TraceOverviewListResponse:
       type: object
       required:
         - traces
         - totalCount
+        - lookedBackTo
+        - truncated
       properties:
         traces:
           type: array
@@ -733,6 +854,32 @@ components:
             $ref: "#/components/schemas/TraceOverview"
         totalCount:
           type: integer
+          description: |
+            Upstream trace count for the window when no filter is set; the number of
+            matching traces in `traces` when any filter is set.
+        lookedBackTo:
+          type: string
+          format: date-time
+          description: |
+            How far the server examined traces, for display only, in UTC with sub-second
+            precision. It is the start time of the last trace examined in sort order (the oldest
+            for `desc`, the newest for `asc`), or the window edge (`startTime` for `desc`,
+            `endTime` for `asc`) when the window ran out. Page with `nextCursor`, not by passing
+            this value as a time bound.
+          example: "2026-04-01T00:00:00.5Z"
+        truncated:
+          type: boolean
+          description: |
+            True when the server stopped before filling the page and before the window ran out:
+            a filtered request reached its cap of 500 examined traces (`nextCursor` continues
+            past them), or a `cursor` page went deeper than the server fetches (5000 traces into
+            the window; there is no `nextCursor`, so narrow the window to see more).
+        nextCursor:
+          type: string
+          description: |
+            Opaque cursor for the next page; send it back as `cursor`. Present when the window
+            holds traces past this page, including when `truncated` is true after the examine
+            cap. Absent when the window ran out or the cursor depth was reached.
 
     SpanSummary:
       type: object

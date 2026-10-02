@@ -19,6 +19,7 @@
 import type {
   TraceListResponse,
   TraceExportResponse,
+  TraceFilters,
   Span,
   TraceSpanSummaryListResponse,
 } from "@agent-management-platform/types";
@@ -34,6 +35,33 @@ export interface ObserverTraceListParams {
   endTime: string;
   limit?: number;
   sortOrder?: 'asc' | 'desc';
+  filters?: TraceFilters;
+  /** Fill models on every trace; costs the server one extra upstream call per trace. */
+  includeModels?: boolean;
+  /** nextCursor from the previous page of the same window, sort order and filters. */
+  cursor?: string;
+}
+
+/** Returns only the set filter fields, in a fixed order. */
+export function normalizeTraceFilters(filters?: TraceFilters): TraceFilters {
+  const out: TraceFilters = {};
+  if (!filters) return out;
+  if (filters.status) out.status = filters.status;
+  if (filters.minDurationMs !== undefined) out.minDurationMs = filters.minDurationMs;
+  if (filters.minTokens !== undefined) out.minTokens = filters.minTokens;
+  if (filters.minSpanCount !== undefined) out.minSpanCount = filters.minSpanCount;
+  if (filters.model) out.model = filters.model;
+  if (filters.conversationId) out.conversationId = filters.conversationId;
+  return out;
+}
+
+/** Query params for the set filter fields. */
+export function traceFilterSearchParams(filters?: TraceFilters): Record<string, string> {
+  const params: Record<string, string> = {};
+  for (const [key, value] of Object.entries(normalizeTraceFilters(filters))) {
+    params[key] = String(value);
+  }
+  return params;
 }
 
 export interface ObserverTraceSpanListParams {
@@ -70,6 +98,9 @@ export async function getTraceList(
     endTime,
     limit,
     sortOrder,
+    filters,
+    includeModels,
+    cursor,
   } = params;
   assertRequired(organization, "organization");
   assertRequired(project, "project");
@@ -90,6 +121,9 @@ export async function getTraceList(
   };
   if (limit !== undefined) searchParams.limit = limit.toString();
   if (sortOrder) searchParams.sortOrder = sortOrder;
+  Object.assign(searchParams, traceFilterSearchParams(filters));
+  if (includeModels === true) searchParams.includeModels = "true";
+  if (cursor) searchParams.cursor = cursor;
 
   const res = await httpGETObserver("/api/v1/traces", { searchParams, token });
   return res.json();

@@ -51,12 +51,31 @@ export interface TraceOverview {
   status?: TraceStatus;
   input?: string;
   output?: string;
+  models?: string[];
+  conversationId?: string;
   score?: TraceScore | null;
 }
 
 export interface TraceListResponse {
   traces: TraceOverview[];
   totalCount: number;
+  /** How far back the server looked (RFC3339Nano). Display only, never a paging bound. */
+  lookedBackTo?: string;
+  /** True when a server cap stopped the request before the page filled. */
+  truncated?: boolean;
+  /** Opaque cursor for the next page of the same window; absent when the window ran out. */
+  nextCursor?: string;
+}
+
+/** Server-side trace list filters. Set fields AND together. */
+export interface TraceFilters {
+  status?: 'error' | 'ok';
+  minDurationMs?: number;
+  minTokens?: number;
+  minSpanCount?: number;
+  /** Case-insensitive substring of any entry in TraceOverview.models. Implies includeModels. */
+  model?: string;
+  conversationId?: string;
 }
 
 // Keep Trace as an alias for backward compatibility

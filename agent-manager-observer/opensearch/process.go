@@ -677,6 +677,65 @@ func IsLLMLeafSpan(spanName string) bool {
 	return strings.HasSuffix(lower, ".chat") || lower == "chat" || strings.HasPrefix(lower, "chat ")
 }
 
+// ExtractConversationID returns the span's gen_ai.conversation.id from
+// AgentData or, for non-agent roots, the raw attribute. "" when absent.
+func ExtractConversationID(span *Span) string {
+	if span == nil {
+		return ""
+	}
+	if span.AmpAttributes != nil {
+		switch d := span.AmpAttributes.Data.(type) {
+		case AgentData:
+			if d.ConversationID != "" {
+				return d.ConversationID
+			}
+		case *AgentData:
+			if d != nil && d.ConversationID != "" {
+				return d.ConversationID
+			}
+		}
+	}
+	if convID, ok := span.Attributes["gen_ai.conversation.id"].(string); ok {
+		return convID
+	}
+	return ""
+}
+
+// ExtractModels returns the distinct LLMData.Model values across processed
+// spans, in first-seen order. Nil when no span names a model.
+func ExtractModels(spans []Span) []string {
+	var models []string
+	seen := make(map[string]struct{})
+	for i := range spans {
+		model := llmModel(&spans[i])
+		if model == "" {
+			continue
+		}
+		if _, dup := seen[model]; dup {
+			continue
+		}
+		seen[model] = struct{}{}
+		models = append(models, model)
+	}
+	return models
+}
+
+// llmModel returns the LLMData.Model of a processed span, or "".
+func llmModel(span *Span) string {
+	if span.AmpAttributes == nil {
+		return ""
+	}
+	switch d := span.AmpAttributes.Data.(type) {
+	case LLMData:
+		return d.Model
+	case *LLMData:
+		if d != nil {
+			return d.Model
+		}
+	}
+	return ""
+}
+
 // ExtractInputPreviewFromLeaf returns a short preview of the user-facing
 // input on a leaf LLM span. It prefers the first message with role "user"
 // (since gen_ai.input.messages on a chat span typically carries the system

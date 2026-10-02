@@ -178,10 +178,12 @@ type TraceOverview struct {
 	EndTime         string       `json:"endTime"`
 	DurationInNanos int64        `json:"durationInNanos"` // Total trace duration in nanoseconds
 	SpanCount       int          `json:"spanCount"`
-	TokenUsage      *TokenUsage  `json:"tokenUsage,omitempty"` // Aggregated token usage from GenAI spans
-	Status          *TraceStatus `json:"status,omitempty"`     // Trace status including error information
-	Input           interface{}  `json:"input,omitempty"`      // Input from root span (nil if not found)
-	Output          interface{}  `json:"output,omitempty"`     // Output from root span (nil if not found)
+	TokenUsage      *TokenUsage  `json:"tokenUsage,omitempty"`     // Aggregated token usage from GenAI spans
+	Status          *TraceStatus `json:"status,omitempty"`         // Trace status including error information
+	Input           interface{}  `json:"input,omitempty"`          // Input from root span (nil if not found)
+	Output          interface{}  `json:"output,omitempty"`         // Output from root span (nil if not found)
+	Models          []string     `json:"models,omitempty"`         // Distinct model names across the trace's LLM spans, first-seen order
+	ConversationID  string       `json:"conversationId,omitempty"` // gen_ai.conversation.id from the root span
 }
 
 // TraceStatus represents the status of a trace
@@ -217,8 +219,11 @@ type TokenUsage struct {
 
 // TraceOverviewResponse represents the response for trace overview queries
 type TraceOverviewResponse struct {
-	Traces     []TraceOverview `json:"traces"`
-	TotalCount int             `json:"totalCount"`
+	Traces       []TraceOverview `json:"traces"`
+	TotalCount   int             `json:"totalCount"`
+	LookedBackTo string          `json:"lookedBackTo"`
+	Truncated    bool            `json:"truncated"`
+	NextCursor   string          `json:"nextCursor,omitempty"`
 }
 
 // FullTrace represents a complete trace with all spans and metadata

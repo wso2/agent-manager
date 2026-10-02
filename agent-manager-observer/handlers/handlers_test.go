@@ -18,9 +18,13 @@ package handlers
 
 import (
 	"context"
+	"encoding/base64"
 	"net/http"
 	"net/http/httptest"
+	"net/url"
+	"strings"
 	"testing"
+	"time"
 
 	"github.com/wso2/agent-manager/agent-manager-observer/controllers"
 	"github.com/wso2/agent-manager/agent-manager-observer/observer"
@@ -350,17 +354,20 @@ func TestGetLogs_InvalidSortOrder(t *testing.T) {
 	assertBadRequest(t, rec)
 }
 
-// fakeObserverClient is a minimal observer.Client that captures the request
-// passed to QueryLogs so handler tests can assert on pass-through parameters.
+// fakeObserverClient is a minimal observer.Client that captures requests so
+// handler tests can assert on pass-through parameters.
 type fakeObserverClient struct {
-	lastLogsReq observer.LogsQueryRequest
+	traces       []observer.TraceInfo
+	lastLogsReq  observer.LogsQueryRequest
+	lastSpansReq observer.TracesQueryRequest
 }
 
 func (f *fakeObserverClient) QueryTraces(_ context.Context, _ observer.TracesQueryRequest) (*observer.TracesQueryResponse, error) {
-	return &observer.TracesQueryResponse{}, nil
+	return &observer.TracesQueryResponse{Traces: f.traces, Total: len(f.traces)}, nil
 }
 
-func (f *fakeObserverClient) QueryTraceSpans(_ context.Context, _ string, _ observer.TracesQueryRequest) (*observer.TraceSpansQueryResponse, error) {
+func (f *fakeObserverClient) QueryTraceSpans(_ context.Context, _ string, req observer.TracesQueryRequest) (*observer.TraceSpansQueryResponse, error) {
+	f.lastSpansReq = req
 	return &observer.TraceSpansQueryResponse{}, nil
 }
 
@@ -379,6 +386,171 @@ func (f *fakeObserverClient) QueryMetrics(_ context.Context, _ observer.MetricsQ
 
 func (f *fakeObserverClient) NamespaceFor(_ string) string {
 	return "default"
+}
+
+// include=models maps to IncludeAttributes on the span-list request; unknown values are rejected.
+func TestGetTraceOverviews_IncludeQueryParam(t *testing.T) {
+	tests := []struct {
+		name       string
+		query      string
+		wantModels bool
+		wantStatus int
+	}{
+		{name: "models sets Models", query: "&include=models", wantModels: true, wantStatus: http.StatusOK},
+		{name: "models,models sets Models once", query: "&include=models,models", wantModels: true, wantStatus: http.StatusOK},
+		{name: "repeated parameter sets Models", query: "&include=models&include=models", wantModels: true, wantStatus: http.StatusOK},
+		{name: "spaces around items are trimmed", query: "&include=%20models%20,", wantModels: true, wantStatus: http.StatusOK},
+		{name: "absent leaves it off", query: "", wantStatus: http.StatusOK},
+		{name: "empty leaves it off", query: "&include=", wantStatus: http.StatusOK},
+		{name: "tools is rejected", query: "&include=tools", wantStatus: http.StatusBadRequest},
+		{name: "Models is rejected", query: "&include=Models", wantStatus: http.StatusBadRequest},
+		{name: "one bad item rejects the list", query: "&include=models,tools", wantStatus: http.StatusBadRequest},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			fake := &fakeObserverClient{traces: []observer.TraceInfo{{TraceID: "trace-1", RootSpanID: "root", SpanCount: 2}}}
+			h := NewHandler(controllers.NewTracingController(fake), nil)
+
+			r := httptest.NewRequest(http.MethodGet, "/api/v1/traces?"+baseParams()+tt.query, nil)
+			rec := httptest.NewRecorder()
+			h.GetTraceOverviews(rec, r)
+
+			assertStatus(t, rec, tt.wantStatus)
+			if tt.wantStatus != http.StatusOK {
+				if fake.lastSpansReq.Limit != nil {
+					t.Error("expected no upstream call for a rejected include value")
+				}
+				return
+			}
+			if fake.lastSpansReq.Limit == nil {
+				t.Fatal("expected the trace's spans to be listed upstream, got no QueryTraceSpans call")
+			}
+			if fake.lastSpansReq.IncludeAttributes != tt.wantModels {
+				t.Errorf("IncludeAttributes = %t, want %t for %q", fake.lastSpansReq.IncludeAttributes, tt.wantModels, tt.query)
+			}
+		})
+	}
+}
+
+// Rejected include values name the offending value in the error body.
+func TestParseInclude_ErrorNamesValue(t *testing.T) {
+	_, err := parseInclude([]string{"models,tools"})
+	if err == nil {
+		t.Fatal("expected an error for unknown include value")
+	}
+	if !strings.Contains(err.Error(), `"tools"`) {
+		t.Errorf("error %q does not name the bad value", err)
+	}
+}
+
+func TestGetTraceOverviews_InvalidFilters(t *testing.T) {
+	tests := []struct {
+		name  string
+		query string
+	}{
+		{name: "unknown status", query: "&status=failed"},
+		{name: "status is case-sensitive", query: "&status=ERROR"},
+		{name: "negative minTokens", query: "&minTokens=-1"},
+		{name: "non-numeric minTokens", query: "&minTokens=lots"},
+		{name: "negative minDurationMs", query: "&minDurationMs=-5"},
+		{name: "fractional minDurationMs", query: "&minDurationMs=1.5"},
+		{name: "negative minSpanCount", query: "&minSpanCount=-2"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			r := httptest.NewRequest(http.MethodGet, "/api/v1/traces?"+baseParams()+tt.query, nil)
+			rec := httptest.NewRecorder()
+			newHandler().GetTraceOverviews(rec, r)
+			assertBadRequest(t, rec)
+		})
+	}
+}
+
+func TestGetTraceOverviews_InvalidCursor(t *testing.T) {
+	enc := func(s string) string { return base64.RawURLEncoding.EncodeToString([]byte(s)) }
+	tests := map[string]string{
+		"not base64":    "not base64!",
+		"not JSON":      enc("nope"),
+		"negative rank": enc(`{"r":-1,"t":"2026-04-02T00:00:00Z"}`),
+		"missing time":  enc(`{"r":1}`),
+	}
+	for name, cursor := range tests {
+		t.Run(name, func(t *testing.T) {
+			r := httptest.NewRequest(http.MethodGet, "/api/v1/traces?"+baseParams()+"&cursor="+url.QueryEscape(cursor), nil)
+			rec := httptest.NewRecorder()
+			newHandler().GetTraceOverviews(rec, r)
+			assertBadRequest(t, rec)
+		})
+	}
+}
+
+func TestGetTraceOverviews_ValidCursorAccepted(t *testing.T) {
+	fake := &fakeObserverClient{traces: []observer.TraceInfo{{TraceID: "trace-1", RootSpanID: "root", SpanCount: 2}}}
+	h := NewHandler(controllers.NewTracingController(fake), nil)
+	cursor := controllers.TraceCursor{Rank: 5, Time: time.Date(2026, 4, 2, 0, 0, 0, 500, time.UTC)}.Encode()
+
+	r := httptest.NewRequest(http.MethodGet, "/api/v1/traces?"+baseParams()+"&cursor="+cursor, nil)
+	rec := httptest.NewRecorder()
+	h.GetTraceOverviews(rec, r)
+
+	assertStatus(t, rec, http.StatusOK)
+}
+
+func TestParseTraceFilters(t *testing.T) {
+	t.Run("absent leaves every filter unset", func(t *testing.T) {
+		f, err := parseTraceFilters(url.Values{})
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if !f.IsZero() {
+			t.Errorf("filters = %+v, want zero", f)
+		}
+	})
+
+	t.Run("all six parse", func(t *testing.T) {
+		q, _ := url.ParseQuery("status=error&minDurationMs=5000&minTokens=0&minSpanCount=20&model=gpt-4o&conversationId=conv-42")
+		f, err := parseTraceFilters(q)
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if f.Status != controllers.TraceStatusError {
+			t.Errorf("status = %q, want error", f.Status)
+		}
+		if f.MinDurationMs == nil || *f.MinDurationMs != 5000 {
+			t.Errorf("minDurationMs = %v, want 5000", f.MinDurationMs)
+		}
+		if f.MinTokens == nil || *f.MinTokens != 0 {
+			t.Errorf("minTokens = %v, want an explicit 0", f.MinTokens)
+		}
+		if f.MinSpanCount == nil || *f.MinSpanCount != 20 {
+			t.Errorf("minSpanCount = %v, want 20", f.MinSpanCount)
+		}
+		if f.Model != "gpt-4o" || f.ConversationID != "conv-42" {
+			t.Errorf("model/conversationId = %q/%q, want gpt-4o/conv-42", f.Model, f.ConversationID)
+		}
+	})
+
+	t.Run("error names the parameter", func(t *testing.T) {
+		_, err := parseTraceFilters(url.Values{"minTokens": {"-1"}})
+		if err == nil || !strings.Contains(err.Error(), "minTokens") {
+			t.Errorf("error = %v, want one naming minTokens", err)
+		}
+	})
+}
+
+// A model filter requests inline attributes without include=models.
+func TestGetTraceOverviews_ModelFilterPassedThrough(t *testing.T) {
+	fake := &fakeObserverClient{traces: []observer.TraceInfo{{TraceID: "trace-1", RootSpanID: "root", SpanCount: 2}}}
+	h := NewHandler(controllers.NewTracingController(fake), nil)
+
+	r := httptest.NewRequest(http.MethodGet, "/api/v1/traces?"+baseParams()+"&model=gpt-4o", nil)
+	rec := httptest.NewRecorder()
+	h.GetTraceOverviews(rec, r)
+
+	assertStatus(t, rec, http.StatusOK)
+	if !fake.lastSpansReq.IncludeAttributes {
+		t.Error("expected the span list to be requested with inline attributes")
+	}
 }
 
 func TestGetLogs_SearchPhrasePassedThrough(t *testing.T) {
