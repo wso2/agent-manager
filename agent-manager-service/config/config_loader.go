@@ -294,6 +294,10 @@ func loadEnvs() {
 	}
 	r.errors = append(r.errors, validateAuditConfig(config.Audit)...)
 
+	config.Alerting = AlertingConfig{
+		AllowPrivateEndpoints: r.readOptionalBool("ALERTING_ALLOW_PRIVATE_ENDPOINTS", false),
+	}
+
 	// Resource limits for agent resource configurations (operator-controlled ceilings)
 	config.PerAgentResourceLimits = ResourceLimitsConfig{
 		MaxReplicas: int(r.readOptionalInt64("RESOURCE_MAX_REPLICAS", 10)),

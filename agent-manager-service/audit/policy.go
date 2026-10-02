@@ -207,6 +207,11 @@ var sensitiveReadPaths = map[string]bool{
 // Keys are matched against the path with the method prefix stripped, so the
 // same path under different methods maps through methodActionOverrides first.
 var actionOverrides = map[string]Action{
+	// One permission, several operations — org alert endpoint.
+	"PUT /orgs/{orgName}/alerting/endpoint":       "alert-endpoint:configure",
+	"DELETE /orgs/{orgName}/alerting/endpoint":    "alert-endpoint:delete",
+	"POST /orgs/{orgName}/alerting/endpoint/test": "alert-endpoint:test",
+
 	// Gating permission names a different resource than the effect.
 	"POST /orgs/{orgName}/projects/{projName}/agents/{agentName}/publish-kind": "agent-kind:publish",
 

@@ -27,7 +27,7 @@ import {
   ListSubheader,
   Typography,
 } from "@wso2/oxygen-ui";
-import { Folder, Shield, Users } from "@wso2/oxygen-ui-icons-react";
+import { BellRing, Folder, Shield, Users } from "@wso2/oxygen-ui-icons-react";
 import {
   generatePath,
   matchPath,
@@ -93,6 +93,18 @@ export const SettingsLayout: React.FC<{ children: ReactNode }> = ({
   const sections: SubNavSection[] = userMgmtItems.length > 0
     ? [{ title: "User Management", items: userMgmtItems }]
     : [];
+  if (identityVisibility.alerting) {
+    const alertingNode = settingsRoute.children.alerting;
+    sections.push({
+      title: "Observability",
+      items: [{
+        label: "Alerting",
+        href: generatePath(alertingNode.path, { orgId }),
+        wildPath: alertingNode.wildPath,
+        icon: <BellRing size={18} />,
+      }],
+    });
+  }
 
   return (
     <PageLayout title="Settings" disableIcon>

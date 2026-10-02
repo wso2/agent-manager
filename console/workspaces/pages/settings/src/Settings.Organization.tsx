@@ -19,12 +19,14 @@ import React from "react";
 import { Navigate, Route, Routes } from "react-router-dom";
 import { IdentitiesOrganization } from "@agent-management-platform/identities";
 import { SettingsLayout } from "./SettingsLayout";
+import { SettingsAlerting } from "./Settings.Alerting";
 
 export const SettingsOrganization: React.FC = () => (
   <SettingsLayout>
     <Routes>
       <Route index element={<Navigate to="identities/users" replace />} />
       <Route path="identities/*" element={<IdentitiesOrganization />} />
+      <Route path="alerting" element={<SettingsAlerting />} />
       <Route path="*" element={<Navigate to="identities/users" replace />} />
     </Routes>
   </SettingsLayout>

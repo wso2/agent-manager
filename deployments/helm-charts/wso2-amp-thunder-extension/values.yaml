@@ -300,6 +300,8 @@ thunder:
       - "amp:monitor:execute"
       - "amp:monitor:score-read"
       - "amp:monitor:score-publish"
+      - "amp:alerting:read"
+      - "amp:alerting:manage"
       - "amp:observability:trace-read"
       - "amp:observability:log-read"
       - "amp:observability:build-log-read"

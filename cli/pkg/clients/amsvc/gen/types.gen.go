@@ -108,6 +108,27 @@ func (e AgentThunderStatus) Valid() bool {
 	}
 }
 
+// Defines values for AlertDeliveryResponseStatus.
+const (
+	AlertDeliveryResponseStatusDead    AlertDeliveryResponseStatus = "dead"
+	AlertDeliveryResponseStatusPending AlertDeliveryResponseStatus = "pending"
+	AlertDeliveryResponseStatusSent    AlertDeliveryResponseStatus = "sent"
+)
+
+// Valid indicates whether the value is a known member of the AlertDeliveryResponseStatus enum.
+func (e AlertDeliveryResponseStatus) Valid() bool {
+	switch e {
+	case AlertDeliveryResponseStatusDead:
+		return true
+	case AlertDeliveryResponseStatusPending:
+		return true
+	case AlertDeliveryResponseStatusSent:
+		return true
+	default:
+		return false
+	}
+}
+
 // Defines values for BatchTimeSeriesResponseGranularity.
 const (
 	BatchTimeSeriesResponseGranularityDay    BatchTimeSeriesResponseGranularity = "day"
@@ -845,16 +866,34 @@ func (e LogEntryLogLevel) Valid() bool {
 
 // Defines values for MCPEndpointEnvironmentDeploymentStatus.
 const (
-	Deployed   MCPEndpointEnvironmentDeploymentStatus = "Deployed"
-	Undeployed MCPEndpointEnvironmentDeploymentStatus = "Undeployed"
+	MCPEndpointEnvironmentDeploymentStatusDeployed   MCPEndpointEnvironmentDeploymentStatus = "Deployed"
+	MCPEndpointEnvironmentDeploymentStatusUndeployed MCPEndpointEnvironmentDeploymentStatus = "Undeployed"
 )
 
 // Valid indicates whether the value is a known member of the MCPEndpointEnvironmentDeploymentStatus enum.
 func (e MCPEndpointEnvironmentDeploymentStatus) Valid() bool {
 	switch e {
-	case Deployed:
+	case MCPEndpointEnvironmentDeploymentStatusDeployed:
 		return true
-	case Undeployed:
+	case MCPEndpointEnvironmentDeploymentStatusUndeployed:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for MonitorAlertThresholdOperator.
+const (
+	Lt  MonitorAlertThresholdOperator = "lt"
+	Lte MonitorAlertThresholdOperator = "lte"
+)
+
+// Valid indicates whether the value is a known member of the MonitorAlertThresholdOperator enum.
+func (e MonitorAlertThresholdOperator) Valid() bool {
+	switch e {
+	case Lt:
+		return true
+	case Lte:
 		return true
 	default:
 		return false
@@ -1684,6 +1723,68 @@ type AgentType struct {
 
 	// Type Type of the agent
 	Type string `json:"type"`
+}
+
+// AlertDeliveryListResponse defines model for AlertDeliveryListResponse.
+type AlertDeliveryListResponse struct {
+	Deliveries []AlertDeliveryResponse `json:"deliveries"`
+}
+
+// AlertDeliveryResponse defines model for AlertDeliveryResponse.
+type AlertDeliveryResponse struct {
+	Attempts         int                         `json:"attempts"`
+	CreatedAt        time.Time                   `json:"createdAt"`
+	DeliveredAt      *time.Time                  `json:"deliveredAt,omitempty"`
+	EventId          string                      `json:"eventId"`
+	EventType        string                      `json:"eventType"`
+	Id               string                      `json:"id"`
+	LastError        *string                     `json:"lastError,omitempty"`
+	LastResponseCode *int                        `json:"lastResponseCode,omitempty"`
+	MonitorName      *string                     `json:"monitorName,omitempty"`
+	NextAttemptAt    *time.Time                  `json:"nextAttemptAt,omitempty"`
+	Status           AlertDeliveryResponseStatus `json:"status"`
+}
+
+// AlertDeliveryResponseStatus defines model for AlertDeliveryResponse.Status.
+type AlertDeliveryResponseStatus string
+
+// AlertEndpointRequest defines model for AlertEndpointRequest.
+type AlertEndpointRequest struct {
+	Enabled *bool `json:"enabled,omitempty"`
+
+	// Headers Extra request headers (e.g. an Authorization token). Omit to keep the stored headers; send an empty object to clear them.
+	Headers *map[string]string `json:"headers,omitempty"`
+
+	// RegenerateSigningSecret Generate a new signing secret. The new secret is returned once in this response.
+	RegenerateSigningSecret *bool `json:"regenerateSigningSecret,omitempty"`
+
+	// Url HTTP(S) URL that receives alert POST requests.
+	Url string `json:"url"`
+}
+
+// AlertEndpointResponse defines model for AlertEndpointResponse.
+type AlertEndpointResponse struct {
+	// ConsecutiveFailures Deliveries that failed permanently in a row since the last success.
+	ConsecutiveFailures int       `json:"consecutiveFailures"`
+	CreatedAt           time.Time `json:"createdAt"`
+	Enabled             bool      `json:"enabled"`
+
+	// HeaderNames Names of the configured headers. Values are never returned.
+	HeaderNames   []string   `json:"headerNames"`
+	LastFailureAt *time.Time `json:"lastFailureAt,omitempty"`
+	LastSuccessAt *time.Time `json:"lastSuccessAt,omitempty"`
+
+	// SigningSecret Present only in the response that generated it. Used to verify the `X-AMP-Signature` header.
+	SigningSecret *string   `json:"signingSecret,omitempty"`
+	UpdatedAt     time.Time `json:"updatedAt"`
+	Url           string    `json:"url"`
+}
+
+// AlertTestResponse defines model for AlertTestResponse.
+type AlertTestResponse struct {
+	Delivered  bool    `json:"delivered"`
+	Error      *string `json:"error,omitempty"`
+	StatusCode *int    `json:"statusCode,omitempty"`
 }
 
 // AuthInfo defines model for AuthInfo.
@@ -4169,6 +4270,48 @@ type ModelConfigRequest struct {
 	ProviderName string `json:"providerName"`
 }
 
+// MonitorAlertConfigRequest defines model for MonitorAlertConfigRequest.
+type MonitorAlertConfigRequest struct {
+	AlertOnRunFailure *bool `json:"alertOnRunFailure,omitempty"`
+
+	// ConsecutiveBreaches Number of consecutive breached runs required before a threshold alert fires.
+	ConsecutiveBreaches *int `json:"consecutiveBreaches,omitempty"`
+
+	// CooldownMinutes Minimum time between two alerts for this monitor.
+	CooldownMinutes *int                     `json:"cooldownMinutes,omitempty"`
+	Enabled         bool                     `json:"enabled"`
+	Thresholds      *[]MonitorAlertThreshold `json:"thresholds,omitempty"`
+}
+
+// MonitorAlertConfigResponse defines model for MonitorAlertConfigResponse.
+type MonitorAlertConfigResponse struct {
+	AlertOnRunFailure   bool       `json:"alertOnRunFailure"`
+	ConsecutiveBreaches int        `json:"consecutiveBreaches"`
+	CooldownMinutes     int        `json:"cooldownMinutes"`
+	Enabled             bool       `json:"enabled"`
+	LastAlertedAt       *time.Time `json:"lastAlertedAt,omitempty"`
+
+	// OrgEndpointConfigured Whether the organization has an enabled alert endpoint. Alerts are not sent without one.
+	OrgEndpointConfigured bool                    `json:"orgEndpointConfigured"`
+	Thresholds            []MonitorAlertThreshold `json:"thresholds"`
+}
+
+// MonitorAlertThreshold defines model for MonitorAlertThreshold.
+type MonitorAlertThreshold struct {
+	// Aggregation Aggregation key reported for the evaluator (e.g. mean, median, min, p50).
+	Aggregation string `json:"aggregation"`
+
+	// Evaluator Display name of one of the monitor's evaluators.
+	Evaluator string `json:"evaluator"`
+
+	// Operator Alert when the aggregated score is below (lt) or at-or-below (lte) the value.
+	Operator *MonitorAlertThresholdOperator `json:"operator,omitempty"`
+	Value    float64                        `json:"value"`
+}
+
+// MonitorAlertThresholdOperator Alert when the aggregated score is below (lt) or at-or-below (lte) the value.
+type MonitorAlertThresholdOperator string
+
 // MonitorEvaluator defines model for MonitorEvaluator.
 type MonitorEvaluator struct {
 	// Config Evaluator-specific configuration parameters (includes 'level' for evaluation granularity)
@@ -5560,6 +5703,11 @@ type ListAgentKindsParams struct {
 	Label *[]string `form:"label,omitempty" json:"label,omitempty"`
 }
 
+// ListAlertDeliveriesParams defines parameters for ListAlertDeliveries.
+type ListAlertDeliveriesParams struct {
+	Limit *int `form:"limit,omitempty" json:"limit,omitempty"`
+}
+
 // ListCatalogResourcesParams defines parameters for ListCatalogResources.
 type ListCatalogResourcesParams struct {
 	// Kind Filter by resource type
@@ -5998,6 +6146,9 @@ type UpdateAgentKindJSONRequestBody = UpdateAgentKindRequest
 // AddAgentKindVersionJSONRequestBody defines body for AddAgentKindVersion for application/json ContentType.
 type AddAgentKindVersionJSONRequestBody = AddAgentKindVersionRequest
 
+// UpsertAlertEndpointJSONRequestBody defines body for UpsertAlertEndpoint for application/json ContentType.
+type UpsertAlertEndpointJSONRequestBody = AlertEndpointRequest
+
 // CreateDeploymentPipelineJSONRequestBody defines body for CreateDeploymentPipeline for application/json ContentType.
 type CreateDeploymentPipelineJSONRequestBody = CreateDeploymentPipelineRequest
 
@@ -6189,6 +6340,9 @@ type CreateMonitorJSONRequestBody = CreateMonitorRequest
 
 // UpdateMonitorJSONRequestBody defines body for UpdateMonitor for application/json ContentType.
 type UpdateMonitorJSONRequestBody = UpdateMonitorRequest
+
+// UpdateMonitorAlertConfigJSONRequestBody defines body for UpdateMonitorAlertConfig for application/json ContentType.
+type UpdateMonitorAlertConfigJSONRequestBody = MonitorAlertConfigRequest
 
 // PromoteAgentJSONRequestBody defines body for PromoteAgent for application/json ContentType.
 type PromoteAgentJSONRequestBody = PromoteAgentRequest

@@ -215,6 +215,14 @@ func Run(authProvider occlient.AuthProvider, secretProvider secretmanagersvc.Pro
 		os.Exit(1)
 	}
 
+	// Start the alert dispatcher. It drains the delivery outbox and is a no-op
+	// for orgs that never configured an alert endpoint.
+	alertDispatcherCtx, alertDispatcherCancel := context.WithCancel(backgroundCtx)
+	if err := dependencies.AlertDispatcher.Start(alertDispatcherCtx); err != nil {
+		slog.Error("failed to start alert dispatcher", "error", err)
+		os.Exit(1)
+	}
+
 	// Load built-in LLM provider templates into memory
 	if err := loadBuiltInLLMTemplates(dependencies); err != nil {
 		slog.Error("Failed to load built-in LLM provider templates", "error", err)
@@ -274,6 +282,11 @@ func Run(authProvider occlient.AuthProvider, secretProvider secretmanagersvc.Pro
 		a2aReconcilerCancel()
 		if err := dependencies.A2APublicationReconciler.Stop(); err != nil {
 			slog.Error("error stopping A2A publication reconciler", "error", err)
+		}
+
+		alertDispatcherCancel()
+		if err := dependencies.AlertDispatcher.Stop(); err != nil {
+			slog.Error("error stopping alert dispatcher", "error", err)
 		}
 
 		// Shutdown WebSocket manager in a goroutine since it blocks

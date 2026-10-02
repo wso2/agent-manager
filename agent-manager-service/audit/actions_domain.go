@@ -55,6 +55,12 @@ const (
 	ActionThunderURLSet    Action = "thunder-url:set"
 	ActionThunderURLDelete Action = "thunder-url:delete"
 
+	// The org alert endpoint holds auth headers and a signing secret, and
+	// decides where alert data leaves the platform.
+	ActionAlertEndpointConfigure Action = "alert-endpoint:configure"
+	ActionAlertEndpointDelete    Action = "alert-endpoint:delete"
+	ActionAlertEndpointTest      Action = "alert-endpoint:test"
+
 	// Identity and privilege. These are the escalation path: a record that says
 	// only "a role was updated" is useless, so each names what actually changed.
 	ActionRoleGrantPermission  Action = "role:grant-permission"
@@ -145,6 +151,7 @@ const (
 	ResourceEnvironment    = "environment"
 	ResourceServiceAccount = "service-account"
 	ResourceThunderURL     = "thunder-url"
+	ResourceAlertEndpoint  = "alert-endpoint"
 )
 
 // class, severity and permitted detail keys next to the action itself keeps the
@@ -246,6 +253,20 @@ func init() {
 	registerCredential(ActionServiceAccountRemove, map[string]FieldKind{
 		"environment": KindName,
 	})
+
+	// Header values and the signing secret never reach the record: only header
+	// names and whether the secret was rotated.
+	registerCredential(ActionAlertEndpointConfigure, map[string]FieldKind{
+		"endpointUrl":   KindURL,
+		"enabled":       KindFlag,
+		"headerNames":   KindNameList,
+		"secretRotated": KindFlag,
+	})
+	registerCredential(ActionAlertEndpointDelete, nil)
+	// A test send issues nothing and changes nothing, but it does send the
+	// stored headers to the configured URL, so it is recorded above info.
+	Register(ActionAlertEndpointTest, ClassConfig, SeverityNotice)
+	RegisterDetailSchema(ActionAlertEndpointTest, nil)
 
 	// Identity and privilege changes. Critical for the same reason credential
 	// changes are: they decide who can do what.

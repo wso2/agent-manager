@@ -11024,6 +11024,263 @@ paths:
         "404":
           description: Environment not found
 
+  # ============================================
+  # ALERTING ENDPOINTS
+  # ============================================
+
+  /orgs/{orgName}/alerting/endpoint:
+    parameters:
+      - name: orgName
+        in: path
+        required: true
+        description: Organization name
+        schema:
+          type: string
+    get:
+      tags:
+        - Alerting
+      summary: Get the organization's alert endpoint
+      description: |
+        Returns the HTTP endpoint that receives alerts for this organization.
+        Header values and the signing secret are never returned.
+      operationId: getAlertEndpoint
+      responses:
+        "200":
+          description: Alert endpoint
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AlertEndpointResponse"
+        "404":
+          description: No alert endpoint is configured for the organization
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "500":
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+    put:
+      tags:
+        - Alerting
+      summary: Create or update the organization's alert endpoint
+      description: |
+        Creates or replaces the HTTP endpoint that receives alerts. A signing
+        secret is generated on first creation, and again when
+        `regenerateSigningSecret` is true; it is returned in `signingSecret`
+        only in that response. Omitting `headers` keeps the stored headers.
+      operationId: upsertAlertEndpoint
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AlertEndpointRequest"
+      responses:
+        "200":
+          description: Alert endpoint saved
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AlertEndpointResponse"
+        "400":
+          description: Invalid request (e.g., URL not allowed)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "500":
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+    delete:
+      tags:
+        - Alerting
+      summary: Delete the organization's alert endpoint
+      operationId: deleteAlertEndpoint
+      responses:
+        "204":
+          description: Alert endpoint deleted
+        "404":
+          description: No alert endpoint is configured for the organization
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "500":
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /orgs/{orgName}/alerting/endpoint/test:
+    parameters:
+      - name: orgName
+        in: path
+        required: true
+        description: Organization name
+        schema:
+          type: string
+    post:
+      tags:
+        - Alerting
+      summary: Send a test alert
+      description: Sends a signed `alert.test` event to the configured endpoint synchronously and reports the outcome.
+      operationId: testAlertEndpoint
+      responses:
+        "200":
+          description: Test attempted; see `delivered` for the outcome
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AlertTestResponse"
+        "404":
+          description: No alert endpoint is configured for the organization
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "500":
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /orgs/{orgName}/alerting/deliveries:
+    parameters:
+      - name: orgName
+        in: path
+        required: true
+        description: Organization name
+        schema:
+          type: string
+    get:
+      tags:
+        - Alerting
+      summary: List recent alert deliveries
+      operationId: listAlertDeliveries
+      parameters:
+        - name: limit
+          in: query
+          required: false
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+            default: 50
+      responses:
+        "200":
+          description: Recent deliveries, newest first
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AlertDeliveryListResponse"
+        "500":
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /orgs/{orgName}/projects/{projName}/agents/{agentName}/monitors/{monitorName}/alerting:
+    parameters:
+      - name: orgName
+        in: path
+        required: true
+        schema:
+          type: string
+        description: Organization name
+      - name: projName
+        in: path
+        required: true
+        schema:
+          type: string
+        description: Project name
+      - name: agentName
+        in: path
+        required: true
+        schema:
+          type: string
+        description: Agent name
+      - name: monitorName
+        in: path
+        required: true
+        schema:
+          type: string
+        description: Monitor name
+    get:
+      tags:
+        - Alerting
+      summary: Get a monitor's alert configuration
+      description: Returns the monitor's alert configuration. A monitor that was never configured returns a disabled default.
+      operationId: getMonitorAlertConfig
+      responses:
+        "200":
+          description: Monitor alert configuration
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MonitorAlertConfigResponse"
+        "404":
+          description: Monitor not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "500":
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+    put:
+      tags:
+        - Alerting
+      summary: Set a monitor's alert configuration
+      description: |
+        Replaces the monitor's alert configuration. Alerts are sent only for
+        failures: a run that fails, or a completed run whose evaluator score
+        falls below a configured threshold.
+      operationId: updateMonitorAlertConfig
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/MonitorAlertConfigRequest"
+      responses:
+        "200":
+          description: Monitor alert configuration saved
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MonitorAlertConfigResponse"
+        "400":
+          description: Invalid configuration (e.g., unknown evaluator)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: Monitor not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "500":
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
 components:
   parameters:
     AgentIdentityOrgName:
@@ -18788,3 +19045,206 @@ components:
             The workload may keep referencing the revoked credential until this is confirmed
             or the workload is redeployed.
           example: Could not confirm whether this is the deployment pipeline's lowest environment, so its shared workload-level credentials were left untouched as a precaution.
+
+    AlertEndpointRequest:
+      type: object
+      required:
+        - url
+      properties:
+        url:
+          type: string
+          description: HTTP(S) URL that receives alert POST requests.
+          example: https://alerts.example.com/hooks/amp
+        enabled:
+          type: boolean
+          default: true
+        headers:
+          type: object
+          description: Extra request headers (e.g. an Authorization token). Omit to keep the stored headers; send an empty object to clear them.
+          additionalProperties:
+            type: string
+        regenerateSigningSecret:
+          type: boolean
+          default: false
+          description: Generate a new signing secret. The new secret is returned once in this response.
+
+    AlertEndpointResponse:
+      type: object
+      required:
+        - url
+        - enabled
+        - headerNames
+        - consecutiveFailures
+        - createdAt
+        - updatedAt
+      properties:
+        url:
+          type: string
+        enabled:
+          type: boolean
+        headerNames:
+          type: array
+          description: Names of the configured headers. Values are never returned.
+          items:
+            type: string
+        signingSecret:
+          type: string
+          description: Present only in the response that generated it. Used to verify the `X-AMP-Signature` header.
+        consecutiveFailures:
+          type: integer
+          description: Deliveries that failed permanently in a row since the last success.
+        lastSuccessAt:
+          type: string
+          format: date-time
+        lastFailureAt:
+          type: string
+          format: date-time
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+
+    AlertTestResponse:
+      type: object
+      required:
+        - delivered
+      properties:
+        delivered:
+          type: boolean
+        statusCode:
+          type: integer
+        error:
+          type: string
+
+    AlertDeliveryResponse:
+      type: object
+      required:
+        - id
+        - eventId
+        - eventType
+        - status
+        - attempts
+        - createdAt
+      properties:
+        id:
+          type: string
+        eventId:
+          type: string
+        eventType:
+          type: string
+          example: monitor.threshold_breached
+        monitorName:
+          type: string
+        status:
+          type: string
+          enum: [pending, sent, dead]
+        attempts:
+          type: integer
+        lastResponseCode:
+          type: integer
+        lastError:
+          type: string
+        nextAttemptAt:
+          type: string
+          format: date-time
+        deliveredAt:
+          type: string
+          format: date-time
+        createdAt:
+          type: string
+          format: date-time
+
+    AlertDeliveryListResponse:
+      type: object
+      required:
+        - deliveries
+      properties:
+        deliveries:
+          type: array
+          items:
+            $ref: "#/components/schemas/AlertDeliveryResponse"
+
+    MonitorAlertThreshold:
+      type: object
+      required:
+        - evaluator
+        - aggregation
+        - value
+      properties:
+        evaluator:
+          type: string
+          description: Display name of one of the monitor's evaluators.
+          example: Answer Relevancy
+        aggregation:
+          type: string
+          description: Aggregation key reported for the evaluator (e.g. mean, median, min, p50).
+          example: mean
+        operator:
+          type: string
+          enum: [lt, lte]
+          default: lt
+          description: Alert when the aggregated score is below (lt) or at-or-below (lte) the value.
+        value:
+          type: number
+          format: double
+          minimum: 0
+          maximum: 1
+          example: 0.7
+
+    MonitorAlertConfigRequest:
+      type: object
+      required:
+        - enabled
+      properties:
+        enabled:
+          type: boolean
+        alertOnRunFailure:
+          type: boolean
+          default: true
+        thresholds:
+          type: array
+          items:
+            $ref: "#/components/schemas/MonitorAlertThreshold"
+        cooldownMinutes:
+          type: integer
+          minimum: 0
+          maximum: 10080
+          default: 60
+          description: Minimum time between two alerts for this monitor.
+        consecutiveBreaches:
+          type: integer
+          minimum: 1
+          maximum: 100
+          default: 1
+          description: Number of consecutive breached runs required before a threshold alert fires.
+
+    MonitorAlertConfigResponse:
+      type: object
+      required:
+        - enabled
+        - alertOnRunFailure
+        - thresholds
+        - cooldownMinutes
+        - consecutiveBreaches
+        - orgEndpointConfigured
+      properties:
+        enabled:
+          type: boolean
+        alertOnRunFailure:
+          type: boolean
+        thresholds:
+          type: array
+          items:
+            $ref: "#/components/schemas/MonitorAlertThreshold"
+        cooldownMinutes:
+          type: integer
+        consecutiveBreaches:
+          type: integer
+        orgEndpointConfigured:
+          type: boolean
+          description: Whether the organization has an enabled alert endpoint. Alerts are not sent without one.
+        lastAlertedAt:
+          type: string
+          format: date-time

@@ -108,6 +108,10 @@ var serviceProviderSet = wire.NewSet(
 	services.NewLLMTemplateStore,
 	services.NewGitSecretService,
 	services.NewAIApplicationService,
+	services.NewAlertSender,
+	services.NewAlertingService,
+	ProvideMonitorRunAlerter,
+	services.NewAlertDispatcherService,
 )
 
 var instrumentationProviderSet = wire.NewSet(
@@ -144,6 +148,7 @@ var controllerProviderSet = wire.NewSet(
 	controllers.NewIdentityController,
 	controllers.NewMCPProxyScopeController,
 	controllers.NewAgentIdentityController,
+	controllers.NewAlertingController,
 )
 
 var testClientProviderSet = wire.NewSet(
@@ -386,6 +391,7 @@ var repositoryProviderSet = wire.NewSet(
 	ProvideEnvThunderSystemClientRepository,
 	ProvideEnvThunderURLRepository,
 	repositories.NewMCPProxyScopeRepository,
+	repositories.NewAlertRepository,
 )
 
 var websocketProviderSet = wire.NewSet(
@@ -577,6 +583,12 @@ func ProvideAgentIdentityInjectionService(
 	logger *slog.Logger,
 ) services.AgentIdentityInjectionService {
 	return services.NewAgentIdentityInjectionService(repo, agentConfigRepo, mcpProxyScopeRepo, ocClient, cfg.SecretManager.AgentIdentityRefreshInterval, logger)
+}
+
+// ProvideMonitorRunAlerter hands the monitor scheduler the alerting service's
+// narrow run-outcome surface.
+func ProvideMonitorRunAlerter(svc services.AlertingService) services.MonitorRunAlerter {
+	return svc
 }
 
 func ProvideThunderConfig(cfg config.Config) config.ThunderConfig {

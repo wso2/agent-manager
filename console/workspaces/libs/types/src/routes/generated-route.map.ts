@@ -145,6 +145,11 @@ export const generatedRouteMap =  {
                   }
                 }
               }
+            },
+            "alerting": {
+              "path": "/org/:orgId/settings/alerting",
+              "wildPath": "/org/:orgId/settings/alerting/*",
+              "children": {}
             }
           }
         },

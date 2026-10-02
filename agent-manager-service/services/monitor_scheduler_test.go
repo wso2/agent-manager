@@ -87,6 +87,7 @@ func newTestScheduler(executor MonitorExecutor) *monitorSchedulerService {
 		logger:      slog.Default(),
 		executor:    executor,
 		monitorRepo: repositories.NewMonitorRepo(db.GetDB()),
+		alerter:     NoopMonitorRunAlerter{},
 		stopCh:      make(chan struct{}),
 	}
 }
@@ -269,7 +270,7 @@ func TestTriggerMonitor_TimeWindowCalculation(t *testing.T) {
 
 func TestSchedulerStartStop(t *testing.T) {
 	executor := &mockExecutor{}
-	svc := NewMonitorSchedulerService(nil, NewStaticPublisherCredentialProvisioner(), slog.Default(), executor, repositories.NewMonitorRepo(db.GetDB()))
+	svc := NewMonitorSchedulerService(nil, NewStaticPublisherCredentialProvisioner(), slog.Default(), executor, repositories.NewMonitorRepo(db.GetDB()), NoopMonitorRunAlerter{})
 
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
@@ -283,7 +284,7 @@ func TestSchedulerStartStop(t *testing.T) {
 
 func TestSchedulerStopIdempotent(t *testing.T) {
 	executor := &mockExecutor{}
-	svc := NewMonitorSchedulerService(nil, NewStaticPublisherCredentialProvisioner(), slog.Default(), executor, repositories.NewMonitorRepo(db.GetDB()))
+	svc := NewMonitorSchedulerService(nil, NewStaticPublisherCredentialProvisioner(), slog.Default(), executor, repositories.NewMonitorRepo(db.GetDB()), NoopMonitorRunAlerter{})
 
 	// Calling Stop multiple times should not panic
 	err := svc.Stop()

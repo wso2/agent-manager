@@ -165,6 +165,11 @@ export const rootRouteMap: AppRoute = {
                                 },
                             },
                         },
+                        alerting: {
+                            path: 'alerting',
+                            index: true,
+                            children: {},
+                        },
                     },
                 },
                 mcpProxies: {

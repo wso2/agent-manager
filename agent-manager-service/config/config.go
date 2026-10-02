@@ -143,6 +143,9 @@ type Config struct {
 	// Audit configures the audit trail.
 	Audit AuditConfig
 
+	// Alerting configures outbound alert delivery.
+	Alerting AlertingConfig
+
 	// GatewayManifestCache configures where the gateway-reported policy manifest
 	// cache lives. The default in-memory backend is process-local and therefore
 	// inconsistent across replicas — set Backend to "redis" in HA deployments.
@@ -507,4 +510,12 @@ type ResourceLimitsConfig struct {
 	MaxCPU string
 	// MaxMemory is the maximum memory value (Kubernetes quantity string) applied to both requests and limits
 	MaxMemory string
+}
+
+// AlertingConfig configures outbound alert delivery.
+type AlertingConfig struct {
+	// AllowPrivateEndpoints lets alert endpoints resolve to private, loopback
+	// or link-local addresses. Off by default so an org admin cannot point the
+	// service at internal infrastructure; enable only for local development.
+	AllowPrivateEndpoints bool
 }
