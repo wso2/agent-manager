@@ -36,6 +36,8 @@ interface EnvironmentVariablesGuideDrawerProps {
   isDirty?: boolean;
   isSaving?: boolean;
   hasInvalidNames?: boolean;
+  /** When set, save is disabled and this reason is shown above the actions. */
+  saveBlockedReason?: string;
   error?: unknown;
   onClose: () => void;
   onCancel?: () => void;
@@ -52,6 +54,7 @@ export function EnvironmentVariablesGuideDrawer({
   isDirty = false,
   isSaving = false,
   hasInvalidNames = false,
+  saveBlockedReason,
   error,
   onClose,
   onCancel,
@@ -85,6 +88,10 @@ export function EnvironmentVariablesGuideDrawer({
             </Alert>
           )}
 
+          {saveBlockedReason && (
+            <Alert severity="warning">{saveBlockedReason}</Alert>
+          )}
+
           {isDirty && !errorMessage && (
             <Alert
               severity="warning"
@@ -101,7 +108,7 @@ export function EnvironmentVariablesGuideDrawer({
                     size="small"
                     variant="contained"
                     onClick={onSave}
-                    disabled={isSaving || hasInvalidNames}
+                    disabled={isSaving || hasInvalidNames || !!saveBlockedReason}
                   >
                     {isSaving ? "Saving..." : "Save changes"}
                   </Button>

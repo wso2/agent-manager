@@ -68,6 +68,10 @@ import { EmptyConfigCard } from "./Configure/subComponents/EmptyConfigCard";
 import { EnvironmentVariablesGuideDrawer } from "./Configure/subComponents/EnvironmentVariablesGuideDrawer";
 import { LLMProxyAPIKeysSection } from "./Configure/subComponents/LLMProxyAPIKeysSection";
 import { CONFIGURE_TAB_PARAM } from "./configureTabs";
+import {
+  BUILD_IN_PROGRESS_REASON,
+  useHasBuildInProgress,
+} from "./utils/buildInProgress";
 
 const DURATION_PATTERN = /^\d+(ms|s|m|h)$/;
 
@@ -292,6 +296,10 @@ export const ViewLLMProviderComponent: React.FC = () => {
   });
 
   const isExternal = agent?.provisioning?.type === "external";
+  const hasBuildInProgress = useHasBuildInProgress(
+    { orgName: orgId, projName: projectId, agentName: agentId },
+    { enabled: !!agent && !isExternal && !agent.kindName },
+  );
 
   const { data: catalogData } = useListCatalogLLMProviders(
     { orgName: orgId },
@@ -1092,6 +1100,9 @@ export const ViewLLMProviderComponent: React.FC = () => {
         onSave={handleSave}
         isDirty={isDirty}
         isSaving={updateConfig.isPending}
+        saveBlockedReason={
+          hasBuildInProgress ? BUILD_IN_PROGRESS_REASON : undefined
+        }
         hasInvalidNames={hasEmptyEnvVarName}
         error={updateConfig.isError ? updateConfig.error : undefined}
         description={
@@ -1323,6 +1334,9 @@ export const ViewLLMProviderComponent: React.FC = () => {
               />
             </Stack>
 
+            {isDirty && hasBuildInProgress && (
+              <Alert severity="warning">{BUILD_IN_PROGRESS_REASON}</Alert>
+            )}
             {isDirty && (
               <Stack direction="row" spacing={1} justifyContent="flex-end">
                 <Button
@@ -1339,7 +1353,11 @@ export const ViewLLMProviderComponent: React.FC = () => {
                   variant="contained"
                   size="small"
                   onClick={handleSave}
-                  disabled={updateConfig.isPending || hasEmptyEnvVarName}
+                  disabled={
+                    updateConfig.isPending ||
+                    hasEmptyEnvVarName ||
+                    hasBuildInProgress
+                  }
                 >
                   {updateConfig.isPending ? "Saving…" : "Save"}
                 </Button>

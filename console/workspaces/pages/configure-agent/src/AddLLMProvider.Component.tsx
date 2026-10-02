@@ -73,6 +73,10 @@ import {
   usePipelineEnvironmentsState,
   useUnsavedChangesGuard,
 } from "@agent-management-platform/shared-component";
+import {
+  BUILD_IN_PROGRESS_REASON,
+  useHasBuildInProgress,
+} from "./utils/buildInProgress";
 import { ProviderSelectDrawer } from "./ProviderSelectDrawer";
 import { ConfigNameSection } from "./Configure/subComponents/ConfigNameSection";
 import {
@@ -425,6 +429,10 @@ export const AddLLMProviderComponent: React.FC = () => {
     agentName: agentId,
   });
   const isExternal = agent?.provisioning?.type === "external";
+  const hasBuildInProgress = useHasBuildInProgress(
+    { orgName: orgId, projName: projectId, agentName: agentId },
+    { enabled: !!agent && !isExternal && !agent.kindName },
+  );
 
   const { environments, isLoading: isLoadingEnvironments } =
     usePipelineEnvironmentsState(orgId, projectId);
@@ -1117,6 +1125,10 @@ export const AddLLMProviderComponent: React.FC = () => {
           </Alert>
         )}
 
+        {hasBuildInProgress && (
+          <Alert severity="warning">{BUILD_IN_PROGRESS_REASON}</Alert>
+        )}
+
         {/* Actions */}
         <Box sx={{ display: "flex", gap: 1 }}>
           <Button variant="outlined" onClick={() => allowNavigation(() => navigate(backHref))}>
@@ -1124,7 +1136,9 @@ export const AddLLMProviderComponent: React.FC = () => {
           </Button>
           <Tooltip
             title={
-              !isFormValid && !isPending
+              hasBuildInProgress
+                ? BUILD_IN_PROGRESS_REASON
+                : !isFormValid && !isPending
                 ? "Select a service provider for at least one environment to enable save"
                 : ""
             }
@@ -1134,7 +1148,7 @@ export const AddLLMProviderComponent: React.FC = () => {
               <Button
                 variant="contained"
                 onClick={handleSave}
-                disabled={!isFormValid || isPending}
+                disabled={!isFormValid || isPending || hasBuildInProgress}
               >
                 {isPending ? "Saving…" : "Save"}
               </Button>

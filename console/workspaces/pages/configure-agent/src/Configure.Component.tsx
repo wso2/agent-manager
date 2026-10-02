@@ -20,6 +20,10 @@ import { generatePath, useParams, useSearchParams } from "react-router-dom";
 import { Box, Card, Divider, Tab, Tabs } from "@wso2/oxygen-ui";
 import { PageLayout } from "@agent-management-platform/views";
 import {
+  BUILD_IN_PROGRESS_REASON,
+  useHasBuildInProgress,
+} from "./utils/buildInProgress";
+import {
   useDeleteAgentMCPConfig,
   useDeleteAgentModelConfig,
   useGetAgent,
@@ -191,6 +195,17 @@ export const ConfigureComponent: React.FC = () => {
   const builds = useMemo(() => buildsData?.builds ?? [], [buildsData]);
   const hasNoCompletedBuild =
     buildsOwnImage && !isLoadingBuilds && !builds.some(isBuildComplete);
+  // Checked separately from the completed-build gate: once an agent has built
+  // once, every later rebuild must still block adds, since the service rejects
+  // config writes while any build is in flight.
+  const hasBuildInProgress = useHasBuildInProgress(
+    { orgName: orgId, projName: projectId, agentName: agentId },
+    { enabled: buildsOwnImage },
+  );
+  const addDisabled = hasNoCompletedBuild || hasBuildInProgress;
+  const addDisabledReason = hasBuildInProgress
+    ? BUILD_IN_PROGRESS_REASON
+    : NO_COMPLETED_BUILD_REASON;
 
   const { mutate: deleteLLMConfig, isPending: isRemovingLLM } =
     useDeleteAgentModelConfig();
@@ -257,8 +272,8 @@ export const ConfigureComponent: React.FC = () => {
             getViewPath={getLlmViewPath}
             isRemoving={isRemovingLLM}
             showTitle={false}
-            addDisabled={hasNoCompletedBuild}
-            addDisabledReason={NO_COMPLETED_BUILD_REASON}
+            addDisabled={addDisabled}
+            addDisabledReason={addDisabledReason}
             onRemove={(configId) =>
               deleteLLMConfig({
                 ...deleteParams,
@@ -278,8 +293,8 @@ export const ConfigureComponent: React.FC = () => {
             getViewPath={getMcpViewPath}
             isRemoving={isRemovingMCP}
             showTitle={false}
-            addDisabled={hasNoCompletedBuild}
-            addDisabledReason={NO_COMPLETED_BUILD_REASON}
+            addDisabled={addDisabled}
+            addDisabledReason={addDisabledReason}
             onRemove={(configId) =>
               deleteMCPConfig({
                 ...deleteParams,

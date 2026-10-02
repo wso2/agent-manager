@@ -63,6 +63,10 @@ import {
   generateUniqueConfigName,
   type EnvVarKey,
 } from "../../utils/envConfig";
+import {
+  BUILD_IN_PROGRESS_REASON,
+  useHasBuildInProgress,
+} from "../../utils/buildInProgress";
 
 const ENV_VAR_DESCRIPTIONS: Record<EnvVarKey, string> = {
   url: "Base URL of the MCP server endpoint",
@@ -102,6 +106,10 @@ export function AddMCPToolConfigPanel({
     agentName: agentId,
   });
   const isExternal = agent?.provisioning?.type === "external";
+  const hasBuildInProgress = useHasBuildInProgress(
+    { orgName: orgId, projName: projectId, agentName: agentId },
+    { enabled: !!agent && !isExternal && !agent.kindName },
+  );
 
   const { environments, isLoading: isLoadingEnvironments } =
     usePipelineEnvironmentsState(orgId, projectId);
@@ -287,6 +295,7 @@ export function AddMCPToolConfigPanel({
 
   const canSave =
     Boolean(selectedProxyId) &&
+    !hasBuildInProgress &&
     !createConfig.isPending &&
     !isLoadingEnvironments &&
     environments.length > 0 &&
@@ -538,6 +547,9 @@ export function AddMCPToolConfigPanel({
             </Stack>
           )}
 
+{hasBuildInProgress && (
+            <Alert severity="warning">{BUILD_IN_PROGRESS_REASON}</Alert>
+          )}
           <Box sx={{ display: "flex", gap: 1, justifyContent: "flex-end" }}>
             <Button variant="outlined" onClick={onClose}>
               Cancel
