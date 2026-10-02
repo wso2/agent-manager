@@ -1,0 +1,9 @@
+.env
+__pycache__/
+.venv/
+.pytest_cache/
+*.egg-info/
+data/
+node_modules/
+.next/
+.choreo/
