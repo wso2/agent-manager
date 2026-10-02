@@ -32,7 +32,7 @@ type CreateAgentRequest struct {
 	InputInterface *InputInterface `json:"inputInterface,omitempty"`
 	// Optional LLM configurations to create atomically with the agent. Applied to the component's initial (lowest) environment. Name and type are auto-generated.
 	ModelConfig []ModelConfigRequest `json:"modelConfig,omitempty"`
-	// Optional MCP proxy configurations to create atomically with the agent. Applied to the component's initial (lowest) environment. Name and type are auto-generated.
+	// Optional MCP proxy configurations to create atomically with the agent. Applied to every environment in the project's deployment pipeline, so the agent can be promoted without reconfiguring each one. Name and type are auto-generated.
 	McpConfig []MCPConfigRequest `json:"mcpConfig,omitempty"`
 	// User-defined key/value labels. Keys are 1-63 characters of [a-zA-Z0-9._-] starting and ending alphanumeric (not enforceable here as an OpenAPI 3.0 property-name pattern — validated server-side); values follow the same rules but may be empty. At most 10 labels per resource.
 	Labels *map[string]string `json:"labels,omitempty"`

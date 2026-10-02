@@ -49,6 +49,10 @@ func (s *spyConfigService) BuildSystemManagedEnvVarsFromConfig(_ context.Context
 	return s.systemEnvVars, s.systemEnvVarsE
 }
 
+// LLM providers are deliberately configured in the entry environment only: createLLMConfig
+// rolls the whole configuration back when a provider's gateway cannot be resolved in an
+// environment, so spanning the pipeline would make agent creation fail whenever a higher
+// environment is not yet set up. See createAgentLLMConfigs.
 func TestCreateAgentLLMConfigs_KeysUnderFirstEnv(t *testing.T) {
 	spy := &spyConfigService{}
 	s := &agentManagerService{agentConfigurationService: spy}
@@ -65,6 +69,30 @@ func TestCreateAgentLLMConfigs_KeysUnderFirstEnv(t *testing.T) {
 	got, ok := spy.lastReq.EnvMappings["Development"]
 	require.True(t, ok, "config must be keyed under firstEnv")
 	require.Equal(t, "openai", got.ProviderName)
+}
+
+// An MCP connection is environment-agnostic — the same proxy backs every environment — so
+// creation binds it across the whole pipeline for the same reason.
+func TestCreateAgentMCPConfigs_KeysUnderEveryPipelineEnvironment(t *testing.T) {
+	spy := &spyConfigService{}
+	s := &agentManagerService{agentConfigurationService: spy}
+
+	req := &spec.CreateAgentRequest{
+		Name:      "my-agent",
+		McpConfig: []spec.MCPConfigRequest{{ProxyName: "booking"}},
+	}
+
+	err := s.createAgentMCPConfigs(context.Background(), "org", "proj",
+		[]string{"Development", "Staging"}, req)
+	require.NoError(t, err)
+
+	require.Len(t, spy.lastReq.EnvMappings, 2, "every pipeline environment must be mapped")
+	for _, envName := range []string{"Development", "Staging"} {
+		got, ok := spy.lastReq.EnvMappings[envName]
+		require.Truef(t, ok, "MCP proxy must be bound in %s", envName)
+		// createMCPConfig reads the MCP proxy handle from ProviderName.
+		require.Equal(t, "booking", got.ProviderName)
+	}
 }
 
 // TestMergeKindWorkloadSystemEnvVars_InjectsLLMEnvVars verifies that for a kind-sourced agent
