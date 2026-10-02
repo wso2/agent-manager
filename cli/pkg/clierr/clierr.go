@@ -61,6 +61,7 @@ const (
 	SkillInstallFailed   = "SKILL_INSTALL_FAILED"
 	SkillRemoveFailed    = "SKILL_REMOVE_FAILED"
 	SkillListFailed      = "SKILL_LIST_FAILED"
+	AuthLoginCancelled   = "AUTH_LOGIN_CANCELLED"
 )
 
 // CLIError is both the wire body of an error envelope and a Go error value.
