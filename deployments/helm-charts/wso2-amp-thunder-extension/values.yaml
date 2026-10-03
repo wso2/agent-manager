@@ -458,6 +458,7 @@ thunder:
       publicClient: true
       accessTokenValidityPeriod: 3600
       idTokenValidityPeriod: 3600
+      refreshTokenValidityPeriod: 2592000
       userAttributes:
         - "given_name"
         - "family_name"
@@ -486,6 +487,7 @@ thunder:
       publicClient: true
       accessTokenValidityPeriod: 3600
       idTokenValidityPeriod: 3600
+      refreshTokenValidityPeriod: 2592000
       userAttributes:
         - "given_name"
         - "family_name"
@@ -519,6 +521,7 @@ thunder:
       publicClient: true
       accessTokenValidityPeriod: 3600
       idTokenValidityPeriod: 3600
+      refreshTokenValidityPeriod: 2592000
       # OIDC scopes only — the four observability data-read scopes are
       # appended from observabilityScopes at template render time
       # (73-am-obs-mcp-client.yaml).
@@ -578,6 +581,7 @@ thunder:
       publicClient: true
       accessTokenValidityPeriod: 3600
       idTokenValidityPeriod: 3600
+      refreshTokenValidityPeriod: 2592000
       userAttributes:
         - "given_name"
         - "family_name"

@@ -1878,6 +1878,12 @@
                   "title": "idTokenValidityPeriod",
                   "type": "integer"
                 },
+                "refreshTokenValidityPeriod": {
+                  "default": 2592000,
+                  "description": "Refresh token lifetime in seconds; fixed from login, not renewed on use",
+                  "title": "refreshTokenValidityPeriod",
+                  "type": "integer"
+                },
                 "userAttributes": {
                   "default": [
                     "given_name",
@@ -1998,6 +2004,12 @@
                   "title": "idTokenValidityPeriod",
                   "type": "integer"
                 },
+                "refreshTokenValidityPeriod": {
+                  "default": 2592000,
+                  "description": "Refresh token lifetime in seconds; fixed from login, not renewed on use",
+                  "title": "refreshTokenValidityPeriod",
+                  "type": "integer"
+                },
                 "userAttributes": {
                   "default": [
                     "given_name",
@@ -2116,6 +2128,12 @@
                   "default": 3600,
                   "description": "ID token lifetime in seconds",
                   "title": "idTokenValidityPeriod",
+                  "type": "integer"
+                },
+                "refreshTokenValidityPeriod": {
+                  "default": 2592000,
+                  "description": "Refresh token lifetime in seconds; fixed from login, not renewed on use",
+                  "title": "refreshTokenValidityPeriod",
                   "type": "integer"
                 },
                 "scopes": {
@@ -2299,6 +2317,12 @@
                   "default": 3600,
                   "description": "ID token lifetime in seconds",
                   "title": "idTokenValidityPeriod",
+                  "type": "integer"
+                },
+                "refreshTokenValidityPeriod": {
+                  "default": 2592000,
+                  "description": "Refresh token lifetime in seconds; fixed from login, not renewed on use",
+                  "title": "refreshTokenValidityPeriod",
                   "type": "integer"
                 },
                 "userAttributes": {
