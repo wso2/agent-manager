@@ -21,9 +21,10 @@ import (
 	"testing"
 
 	amsvc "github.com/wso2/agent-manager/cli/pkg/clients/amsvc/gen"
+	"github.com/wso2/agent-manager/cli/pkg/cmd/agent/modelconfig"
 )
 
-func Test_mergeExistingEnvMappings_translatesEveryEnv(t *testing.T) {
+func Test_toEnvModelConfigRequest_mergesEveryEnv(t *testing.T) {
 	policies := []amsvc.LLMPolicy{{Name: "rate-limit", Version: "v1"}}
 	resp := &amsvc.AgentModelConfigResponse{
 		EnvMappings: map[string]amsvc.EnvProviderConfigMappings{
@@ -42,7 +43,7 @@ func Test_mergeExistingEnvMappings_translatesEveryEnv(t *testing.T) {
 		},
 	}
 
-	got := mergeExistingEnvMappings(resp)
+	got := modelconfig.MergeExistingEnvMappings(resp, toEnvModelConfigRequest)
 
 	if len(got) != 2 {
 		t.Fatalf("len(got) = %d, want 2", len(got))

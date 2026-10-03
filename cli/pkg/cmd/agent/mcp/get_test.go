@@ -24,6 +24,7 @@ import (
 
 	amsvc "github.com/wso2/agent-manager/cli/pkg/clients/amsvc/gen"
 	"github.com/wso2/agent-manager/cli/pkg/clierr"
+	"github.com/wso2/agent-manager/cli/pkg/cmd/agent/modelconfig"
 	"github.com/wso2/agent-manager/cli/pkg/iostreams"
 )
 
@@ -38,8 +39,8 @@ func getResponseFixture() amsvc.AgentModelConfigResponse {
 		Description: &desc,
 		Uuid:        mustUUID(getUUID),
 		EnvMappings: map[string]amsvc.EnvProviderConfigMappings{
-			"dev":  {EnvironmentName: "dev", Configuration: &amsvc.ProviderConfig{ProviderName: "github", ProxyName: stringPtr("github"), Url: "https://dev.mcp", Status: &active}},
-			"prod": {EnvironmentName: "prod", Configuration: &amsvc.ProviderConfig{ProviderName: "gitlab", ProxyName: stringPtr("gitlab"), Url: "https://prod.mcp"}},
+			"dev":  {EnvironmentName: "dev", Configuration: &amsvc.ProviderConfig{ProviderName: "github", ProxyName: modelconfig.StringPtr("github"), Url: "https://dev.mcp", Status: &active}},
+			"prod": {EnvironmentName: "prod", Configuration: &amsvc.ProviderConfig{ProviderName: "gitlab", ProxyName: modelconfig.StringPtr("gitlab"), Url: "https://prod.mcp"}},
 		},
 		EnvironmentVariables: []amsvc.EnvironmentVariableConfig{
 			{Key: "url", Name: "MCP_URL"},

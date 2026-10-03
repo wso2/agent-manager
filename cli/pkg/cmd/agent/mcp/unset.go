@@ -27,6 +27,7 @@ import (
 
 	amsvc "github.com/wso2/agent-manager/cli/pkg/clients/amsvc/gen"
 	"github.com/wso2/agent-manager/cli/pkg/clierr"
+	"github.com/wso2/agent-manager/cli/pkg/cmd/agent/modelconfig"
 	"github.com/wso2/agent-manager/cli/pkg/cmdutil"
 	"github.com/wso2/agent-manager/cli/pkg/iostreams"
 	"github.com/wso2/agent-manager/cli/pkg/prompter"
@@ -155,7 +156,7 @@ func runUnsetEnv(ctx context.Context, o *UnsetOptions, client *amsvc.ClientWithR
 			cmdutil.FirstNonNil(current.JSON400, current.JSON404, current.JSON500)))
 	}
 
-	merged := mergeExistingEnvMappings(current.JSON200)
+	merged := modelconfig.MergeExistingEnvMappings(current.JSON200, toEnvModelConfigRequest)
 	if _, ok := merged[o.Env]; !ok {
 		return render.Error(o.IO, o.Scope, clierr.Newf(clierr.NotFound, "environment %q is not bound on MCP config %q", o.Env, o.Name))
 	}

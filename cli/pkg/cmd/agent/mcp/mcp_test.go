@@ -21,9 +21,10 @@ import (
 	"testing"
 
 	amsvc "github.com/wso2/agent-manager/cli/pkg/clients/amsvc/gen"
+	"github.com/wso2/agent-manager/cli/pkg/cmd/agent/modelconfig"
 )
 
-func Test_mergeExistingEnvMappings_translatesEveryEnv(t *testing.T) {
+func Test_toEnvModelConfigRequest_mergesEveryEnv(t *testing.T) {
 	policies := []amsvc.LLMPolicy{{Name: "rate-limit", Version: "v1"}}
 	resp := &amsvc.AgentModelConfigResponse{
 		EnvMappings: map[string]amsvc.EnvProviderConfigMappings{
@@ -31,19 +32,19 @@ func Test_mergeExistingEnvMappings_translatesEveryEnv(t *testing.T) {
 				EnvironmentName: "dev",
 				Configuration: &amsvc.ProviderConfig{
 					ProviderName: "github",
-					ProxyName:    stringPtr("github"),
+					ProxyName:    modelconfig.StringPtr("github"),
 					Url:          "https://server-managed.example.com",
 					Policies:     &policies,
 				},
 			},
 			"prod": {
 				EnvironmentName: "prod",
-				Configuration:   &amsvc.ProviderConfig{ProviderName: "gitlab", ProxyName: stringPtr("gitlab")},
+				Configuration:   &amsvc.ProviderConfig{ProviderName: "gitlab", ProxyName: modelconfig.StringPtr("gitlab")},
 			},
 		},
 	}
 
-	got := mergeExistingEnvMappings(resp)
+	got := modelconfig.MergeExistingEnvMappings(resp, toEnvModelConfigRequest)
 
 	if len(got) != 2 {
 		t.Fatalf("len(got) = %d, want 2", len(got))
@@ -75,7 +76,7 @@ func Test_toEnvModelConfigRequest_nilConfiguration(t *testing.T) {
 // providerName (which the server mirrors the proxy handle into).
 func Test_proxyNameFromConfig(t *testing.T) {
 	t.Run("prefers proxyName", func(t *testing.T) {
-		c := &amsvc.ProviderConfig{ProviderName: "github", ProxyName: stringPtr("github-proxy")}
+		c := &amsvc.ProviderConfig{ProviderName: "github", ProxyName: modelconfig.StringPtr("github-proxy")}
 		if got := proxyNameFromConfig(c); got != "github-proxy" {
 			t.Errorf("got %q, want github-proxy", got)
 		}

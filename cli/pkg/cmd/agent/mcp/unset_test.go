@@ -25,6 +25,7 @@ import (
 
 	amsvc "github.com/wso2/agent-manager/cli/pkg/clients/amsvc/gen"
 	"github.com/wso2/agent-manager/cli/pkg/clierr"
+	"github.com/wso2/agent-manager/cli/pkg/cmd/agent/modelconfig"
 	"github.com/wso2/agent-manager/cli/pkg/iostreams"
 )
 
@@ -183,7 +184,7 @@ func Test_runUnset_envLastRemainingRejected(t *testing.T) {
 	io, out, _ := newTestIO(true)
 	single := getResponseFixture()
 	single.EnvMappings = map[string]amsvc.EnvProviderConfigMappings{
-		"dev": {EnvironmentName: "dev", Configuration: &amsvc.ProviderConfig{ProviderName: "github", ProxyName: stringPtr("github")}},
+		"dev": {EnvironmentName: "dev", Configuration: &amsvc.ProviderConfig{ProviderName: "github", ProxyName: modelconfig.StringPtr("github")}},
 	}
 	client, cleanup := newClient(t, map[string]route{
 		listPath:                   okJSON(listResponse(mcpItem("primary", getUUID))),

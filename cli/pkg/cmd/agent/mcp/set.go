@@ -24,6 +24,7 @@ import (
 
 	amsvc "github.com/wso2/agent-manager/cli/pkg/clients/amsvc/gen"
 	"github.com/wso2/agent-manager/cli/pkg/clierr"
+	"github.com/wso2/agent-manager/cli/pkg/cmd/agent/modelconfig"
 	"github.com/wso2/agent-manager/cli/pkg/cmdutil"
 	"github.com/wso2/agent-manager/cli/pkg/iostreams"
 	"github.com/wso2/agent-manager/cli/pkg/render"
@@ -115,8 +116,8 @@ func runSet(ctx context.Context, o *SetOptions) error {
 		return render.Error(o.IO, o.Scope, err)
 	}
 
-	mapping := amsvc.EnvModelConfigRequest{ProxyName: stringPtr(o.Proxy)}
-	envVars := buildEnvVars(o)
+	mapping := amsvc.EnvModelConfigRequest{ProxyName: modelconfig.StringPtr(o.Proxy)}
+	envVars := modelconfig.BuildEnvVars(o.URLEnv, o.APIKeyEnv)
 
 	var result *amsvc.AgentModelConfigResponse
 	var verb string
@@ -126,7 +127,7 @@ func runSet(ctx context.Context, o *SetOptions) error {
 			Type:                 amsvc.CreateAgentModelConfigRequestTypeMcp,
 			EnvMappings:          map[string]amsvc.EnvModelConfigRequest{o.Env: mapping},
 			EnvironmentVariables: envVars,
-			Description:          descriptionPtr(o.Description),
+			Description:          modelconfig.OptionalString(o.Description),
 		}
 		resp, err := client.CreateAgentMCPConfigWithResponse(ctx, o.Org, o.Proj, o.AgentName, body)
 		if err != nil {
@@ -148,14 +149,14 @@ func runSet(ctx context.Context, o *SetOptions) error {
 			return render.Error(o.IO, o.Scope, cmdutil.ErrorFromServer(current.HTTPResponse,
 				cmdutil.FirstNonNil(current.JSON400, current.JSON404, current.JSON500)))
 		}
-		merged := mergeExistingEnvMappings(current.JSON200)
+		merged := modelconfig.MergeExistingEnvMappings(current.JSON200, toEnvModelConfigRequest)
 		merged[o.Env] = mapping
 
 		body := amsvc.UpdateAgentModelConfigRequest{EnvMappings: &merged}
 		if envVars != nil {
 			body.EnvironmentVariables = envVars
 		}
-		if d := descriptionPtr(o.Description); d != nil {
+		if d := modelconfig.OptionalString(o.Description); d != nil {
 			body.Description = d
 		}
 		resp, err := client.UpdateAgentMCPConfigWithResponse(ctx, o.Org, o.Proj, o.AgentName, id, body)
@@ -176,25 +177,4 @@ func runSet(ctx context.Context, o *SetOptions) error {
 	fmt.Fprintf(o.IO.ErrOut, "%s %s MCP config %q: bound proxy %q to environment %q\n",
 		cs.SuccessIcon(), verb, o.Name, o.Proxy, o.Env)
 	return nil
-}
-
-func buildEnvVars(o *SetOptions) *[]amsvc.EnvironmentVariableConfig {
-	var evs []amsvc.EnvironmentVariableConfig
-	if o.URLEnv != "" {
-		evs = append(evs, amsvc.EnvironmentVariableConfig{Key: "url", Name: o.URLEnv})
-	}
-	if o.APIKeyEnv != "" {
-		evs = append(evs, amsvc.EnvironmentVariableConfig{Key: "apikey", Name: o.APIKeyEnv})
-	}
-	if len(evs) == 0 {
-		return nil
-	}
-	return &evs
-}
-
-func descriptionPtr(d string) *string {
-	if d == "" {
-		return nil
-	}
-	return &d
 }

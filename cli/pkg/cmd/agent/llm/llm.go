@@ -25,6 +25,7 @@ import (
 
 	amsvc "github.com/wso2/agent-manager/cli/pkg/clients/amsvc/gen"
 	"github.com/wso2/agent-manager/cli/pkg/clierr"
+	"github.com/wso2/agent-manager/cli/pkg/cmd/agent/modelconfig"
 	"github.com/wso2/agent-manager/cli/pkg/cmdutil"
 )
 
@@ -53,24 +54,10 @@ const configType = "llm"
 func toEnvModelConfigRequest(m amsvc.EnvProviderConfigMappings) amsvc.EnvModelConfigRequest {
 	req := amsvc.EnvModelConfigRequest{}
 	if m.Configuration != nil {
-		req.ProviderName = stringPtr(m.Configuration.ProviderName)
+		req.ProviderName = modelconfig.StringPtr(m.Configuration.ProviderName)
 		req.Configuration = amsvc.EnvProviderConfiguration{Policies: m.Configuration.Policies}
 	}
 	return req
-}
-
-func stringPtr(v string) *string {
-	return &v
-}
-
-// mergeExistingEnvMappings translates the full env-mapping set of an existing
-// config into request shape — the read half of read-merge-write.
-func mergeExistingEnvMappings(resp *amsvc.AgentModelConfigResponse) map[string]amsvc.EnvModelConfigRequest {
-	out := make(map[string]amsvc.EnvModelConfigRequest, len(resp.EnvMappings))
-	for env, m := range resp.EnvMappings {
-		out[env] = toEnvModelConfigRequest(m)
-	}
-	return out
 }
 
 // findLLMConfigByName resolves a config name to its UUID via List, considering
