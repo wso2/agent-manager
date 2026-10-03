@@ -206,7 +206,10 @@ data:
     name: {{ .Values.thunder.bootstrap.amCliClient.name | quote }}
     description: {{ .Values.thunder.bootstrap.amCliClient.description | quote }}
     ouId: "01900000-0000-7000-8000-000000000001"
+    logoUrl: {{ .Values.thunder.bootstrap.amCliClient.logoUrl | quote }}
     authFlowHandle: default-flow
+    themeId: amp-console-theme
+    layoutId: {{ .Values.thunder.bootstrap.ampConsoleLayout.id | quote }}
     allowedUserTypes: {{ .Values.thunder.bootstrap.amCliClient.allowedUserTypes | toJson }}
     inboundAuthConfig:
       - type: oauth2
@@ -244,7 +247,10 @@ data:
     name: {{ .Values.thunder.bootstrap.amMcpClient.name | quote }}
     description: {{ .Values.thunder.bootstrap.amMcpClient.description | quote }}
     ouId: "01900000-0000-7000-8000-000000000001"
+    logoUrl: {{ .Values.thunder.bootstrap.amMcpClient.logoUrl | quote }}
     authFlowHandle: default-flow
+    themeId: amp-console-theme
+    layoutId: {{ .Values.thunder.bootstrap.ampConsoleLayout.id | quote }}
     allowedUserTypes: {{ .Values.thunder.bootstrap.amMcpClient.allowedUserTypes | toJson }}
     inboundAuthConfig:
       - type: oauth2
@@ -1316,7 +1322,10 @@ data:
     name: {{ .Values.thunder.bootstrap.amObsMcpClient.name | quote }}
     description: {{ .Values.thunder.bootstrap.amObsMcpClient.description | quote }}
     ouId: "01900000-0000-7000-8000-000000000001"
+    logoUrl: {{ .Values.thunder.bootstrap.amObsMcpClient.logoUrl | quote }}
     authFlowHandle: default-flow
+    themeId: amp-console-theme
+    layoutId: {{ .Values.thunder.bootstrap.ampConsoleLayout.id | quote }}
     allowedUserTypes: {{ .Values.thunder.bootstrap.amObsMcpClient.allowedUserTypes | toJson }}
     inboundAuthConfig:
       - type: oauth2

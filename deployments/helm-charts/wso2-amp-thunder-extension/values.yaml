@@ -444,6 +444,7 @@ thunder:
       clientId: "amctl"
       name: "AMCTL"
       description: "AMP CLI application for interactive user login"
+      logoUrl: "https://wso2.cachefly.net/wso2/sites/all/image_resources/logos/WSO2-Pulse-Orange.webp"
       redirectUris:
         - "http://127.0.0.1:10325/callback"
       grantTypes:
@@ -471,6 +472,7 @@ thunder:
       clientId: "am-mcp"
       name: "AMP MCP"
       description: "AMP MCP application for interactive user login"
+      logoUrl: "https://wso2.cachefly.net/wso2/sites/all/image_resources/logos/WSO2-Pulse-Orange.webp"
       redirectUris:
         - "http://127.0.0.1:33418/callback"
         - "http://localhost:33418/callback"
@@ -504,6 +506,7 @@ thunder:
       clientId: "am-obs-mcp"
       name: "AMP Observer MCP"
       description: "AMP Observer MCP application for interactive user login"
+      logoUrl: "https://wso2.cachefly.net/wso2/sites/all/image_resources/logos/WSO2-Pulse-Orange.webp"
       redirectUris:
         - "http://127.0.0.1:33419/callback"
         - "http://localhost:33419/callback"

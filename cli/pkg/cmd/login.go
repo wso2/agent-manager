@@ -74,8 +74,8 @@ func NewLoginCmd(f *cmdutil.Factory) *cobra.Command {
 		},
 	}
 
-	cmd.Flags().StringVar(&opts.URL, "url", "", "Agent Manager instance URL")
-	cmd.Flags().StringVar(&opts.Name, "name", "", "Agent Manager instance name")
+	cmd.Flags().StringVar(&opts.URL, "url", "", "Agent Manager instance URL (omit to sign in again to a stored instance)")
+	cmd.Flags().StringVar(&opts.Name, "name", "", "Agent Manager instance name (default: the current instance without --url, \"default\" with it)")
 	cmd.Flags().StringVar(&opts.ClientID, "client-id", "", "OAuth client ID (default \"amctl\" for interactive login)")
 	cmd.Flags().StringVar(&opts.ClientSecret, "client-secret", "", "OAuth client secret; when set, uses client_credentials grant instead of browser login")
 	cmd.Flags().StringVar(&opts.AuthServer, "auth-server", "", "Authorization server base URL; skips OAuth metadata discovery")
@@ -84,11 +84,17 @@ func NewLoginCmd(f *cmdutil.Factory) *cobra.Command {
 }
 
 func runLogin(ctx context.Context, opts *LoginOptions) error {
-	if opts.URL == "" {
-		return render.Error(opts.IO, render.Scope{}, cmdutil.FlagErrorf("--url is required"))
-	}
 	if opts.ClientSecret != "" && opts.ClientID == "" {
 		return render.Error(opts.IO, render.Scope{}, cmdutil.FlagErrorf("--client-id is required when --client-secret is set"))
+	}
+	cfg, err := opts.Config()
+	if err != nil {
+		return render.Error(opts.IO, render.Scope{Instance: opts.Name}, clierr.Newf(clierr.ConfigNotLoaded, "%v", err))
+	}
+	if opts.URL == "" {
+		if err := fillFromStoredInstance(opts, cfg); err != nil {
+			return render.Error(opts.IO, render.Scope{Instance: opts.Name}, err)
+		}
 	}
 	if opts.Name == "" {
 		opts.Name = "default"
@@ -106,11 +112,8 @@ func runLogin(ctx context.Context, opts *LoginOptions) error {
 	if err != nil {
 		return render.Error(opts.IO, scope, clierr.Newf(clierr.Transport, "%v", err))
 	}
+	inst.AuthServer = opts.AuthServer
 
-	cfg, err := opts.Config()
-	if err != nil {
-		return render.Error(opts.IO, scope, clierr.Newf(clierr.ConfigNotLoaded, "%v", err))
-	}
 	cleared := cfg.ClearLinksIfSwitching(opts.Name)
 	if cleared == 0 {
 		if prev, ok := cfg.Instances[opts.Name]; ok && prev.URL != inst.URL {
@@ -162,6 +165,31 @@ func runLogin(ctx context.Context, opts *LoginOptions) error {
 	}
 	if cleared > 0 {
 		fmt.Fprintf(opts.IO.ErrOut, "%s Cleared %d linked project(s). Run 'amctl link' to re-link.\n", cs.SuccessIcon(), cleared)
+	}
+	return nil
+}
+
+// fillFromStoredInstance re-logs into a known instance (default: the current one) with its stored URL and client.
+func fillFromStoredInstance(opts *LoginOptions, cfg *config.Config) error {
+	if opts.Name == "" {
+		opts.Name = cfg.CurrentInstance
+	}
+	stored, ok := cfg.Instances[opts.Name]
+	if !ok || stored.URL == "" {
+		if opts.Name == "" {
+			return cmdutil.FlagErrorf("--url is required for the first login")
+		}
+		return cmdutil.FlagErrorf("--url is required to log in to new instance '%s'", opts.Name)
+	}
+	opts.URL = stored.URL
+	if opts.AuthServer == "" {
+		opts.AuthServer = stored.AuthServer
+	}
+	if opts.ClientID == "" {
+		opts.ClientID = stored.Auth.ClientID
+		if stored.Auth.GrantType == "client_credentials" {
+			opts.ClientSecret = stored.Auth.ClientSecret
+		}
 	}
 	return nil
 }

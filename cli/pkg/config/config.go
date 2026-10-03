@@ -46,6 +46,7 @@ type Instance struct {
 	URL              string     `yaml:"url"`
 	TokenURL         string     `yaml:"token_url"`
 	AuthorizationURL string     `yaml:"authorization_url,omitempty"`
+	AuthServer       string     `yaml:"auth_server,omitempty"`
 	CurrentOrg       string     `yaml:"current_org,omitempty"`
 	Auth             AuthConfig `yaml:"auth,omitempty"`
 }

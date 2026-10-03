@@ -59,8 +59,6 @@ func authCodePKCE(ctx context.Context, cfg *oauth2.Config, io *iostreams.IOStrea
 
 	authURL := cfg.AuthCodeURL(state, oauth2.S256ChallengeOption(verifier))
 
-	fmt.Fprintf(io.ErrOut, "Redirect URI: %s\n", cfg.RedirectURL)
-
 	if io.CanPrompt() {
 		fmt.Fprintf(io.ErrOut, "\nPress Enter to open the browser...")
 		buf := make([]byte, 1)

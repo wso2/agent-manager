@@ -18,6 +18,7 @@ package cmdutil
 
 import (
 	"context"
+	"errors"
 	"net/http"
 	"net/url"
 	"strings"
@@ -222,7 +223,7 @@ func (f *Factory) refreshWithClientCredentials(ctx context.Context, cfg *config.
 
 func (f *Factory) refreshWithRefreshToken(ctx context.Context, cfg *config.Config, inst *config.Instance) (string, error) {
 	if inst.Auth.RefreshToken == "" || inst.TokenURL == "" {
-		return "", clierr.New(clierr.AuthRefreshFailed, "missing refresh token; please run `amctl login` again")
+		return "", sessionExpired(cfg.CurrentInstance, inst, "no refresh token stored")
 	}
 
 	oauthCfg := &oauth2.Config{
@@ -235,10 +236,36 @@ func (f *Factory) refreshWithRefreshToken(ctx context.Context, cfg *config.Confi
 	oldTok := &oauth2.Token{RefreshToken: inst.Auth.RefreshToken}
 	tok, err := oauthCfg.TokenSource(ctx, oldTok).Token()
 	if err != nil {
-		return "", clierr.Newf(clierr.AuthRefreshFailed, "refresh token grant failed (re-run `amctl login`): %v", err)
+		return "", refreshFailure(cfg.CurrentInstance, inst, err)
 	}
 
 	return f.persistToken(cfg, inst, tok)
+}
+
+// refreshFailure turns a refresh_token grant error into a user-facing message, keeping the raw error as the cause.
+func refreshFailure(name string, inst *config.Instance, err error) clierr.CLIError {
+	var retrieveErr *oauth2.RetrieveError
+	if !errors.As(err, &retrieveErr) {
+		e := clierr.Newf(clierr.AuthRefreshFailed,
+			"Could not reach the authorization server to refresh your session for '%s' (%s).", name, inst.URL)
+		e.AdditionalData["cause"] = err.Error()
+		return e
+	}
+	// Thunder answers invalid_grant for expired, revoked and malformed refresh tokens alike.
+	if retrieveErr.ErrorCode == "invalid_grant" {
+		return sessionExpired(name, inst, err.Error())
+	}
+	e := clierr.Newf(clierr.AuthRefreshFailed,
+		"Could not refresh your session for '%s' (%s). Run 'amctl login' to sign in again.", name, inst.URL)
+	e.AdditionalData["cause"] = err.Error()
+	return e
+}
+
+func sessionExpired(name string, inst *config.Instance, cause string) clierr.CLIError {
+	e := clierr.Newf(clierr.AuthTokenExpired,
+		"Your session for '%s' (%s) has expired. Run 'amctl login' to sign in again.", name, inst.URL)
+	e.AdditionalData["cause"] = cause
+	return e
 }
 
 func (f *Factory) persistToken(cfg *config.Config, inst *config.Instance, tok *oauth2.Token) (string, error) {

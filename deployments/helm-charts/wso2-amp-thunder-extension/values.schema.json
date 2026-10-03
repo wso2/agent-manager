@@ -1803,6 +1803,12 @@
                   "title": "description",
                   "type": "string"
                 },
+                "logoUrl": {
+                  "default": "https://wso2.cachefly.net/wso2/sites/all/image_resources/logos/WSO2-Pulse-Orange.webp",
+                  "description": "Logo shown on the login and consent screens.",
+                  "title": "logoUrl",
+                  "type": "string"
+                },
                 "redirectUris": {
                   "default": [
                     "http://127.0.0.1:10325/callback"
@@ -1920,6 +1926,12 @@
                   "default": "AMP MCP application for interactive user login",
                   "description": "Description of the OAuth application",
                   "title": "description",
+                  "type": "string"
+                },
+                "logoUrl": {
+                  "default": "https://wso2.cachefly.net/wso2/sites/all/image_resources/logos/WSO2-Pulse-Orange.webp",
+                  "description": "Logo shown on the login and consent screens.",
+                  "title": "logoUrl",
                   "type": "string"
                 },
                 "redirectUris": {
@@ -2040,6 +2052,12 @@
                   "default": "AMP Observer MCP application for interactive user login",
                   "description": "Description of the OAuth application",
                   "title": "description",
+                  "type": "string"
+                },
+                "logoUrl": {
+                  "default": "https://wso2.cachefly.net/wso2/sites/all/image_resources/logos/WSO2-Pulse-Orange.webp",
+                  "description": "Logo shown on the login and consent screens.",
+                  "title": "logoUrl",
                   "type": "string"
                 },
                 "redirectUris": {
