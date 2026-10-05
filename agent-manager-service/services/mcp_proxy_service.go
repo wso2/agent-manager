@@ -27,7 +27,6 @@ import (
 	"log/slog"
 	"net/http"
 	"regexp"
-	"sort"
 	"strings"
 	"time"
 
@@ -35,6 +34,7 @@ import (
 	"github.com/jackc/pgx/v5/pgconn"
 	"gorm.io/gorm"
 
+	"github.com/wso2/agent-manager/agent-manager-service/clients/policyhub"
 	"github.com/wso2/agent-manager/agent-manager-service/clients/thundersvc"
 	"github.com/wso2/agent-manager/agent-manager-service/models"
 	"github.com/wso2/agent-manager/agent-manager-service/repositories"
@@ -89,6 +89,7 @@ type MCPProxyService struct {
 	logger                 *slog.Logger
 	encryptionKey          []byte
 	resolver               thundersvc.EnvThunderResolver
+	policyHub              policyhub.Client
 }
 
 // NewMCPProxyService creates a new MCP proxy service.
@@ -108,6 +109,7 @@ func NewMCPProxyService(
 	encryptionKey []byte,
 	mcpProxyScopeRepo repositories.MCPProxyScopeRepository,
 	resolver thundersvc.EnvThunderResolver,
+	policyHub policyhub.Client,
 ) *MCPProxyService {
 	return &MCPProxyService{
 		db:                   db,
@@ -131,6 +133,7 @@ func NewMCPProxyService(
 		logger:                 logger,
 		encryptionKey:          encryptionKey,
 		resolver:               resolver,
+		policyHub:              policyHub,
 	}
 }
 
@@ -273,61 +276,40 @@ func (s *MCPProxyService) List(ctx context.Context, orgUUID string, limit, offse
 	return resp, nil
 }
 
-// ListAvailableMCPPolicies returns policy versions reported by active gateways in the organization.
+// ListAvailableMCPPolicies returns the display-ready MCP policies reported by active
+// gateways in the organization: each gateway definition (parameter schema) is enriched
+// with policy hub metadata, and only policies that apply to MCP are kept (see
+// buildPolicyCatalog). Versions are reduced to the major form ("v1") MCP proxy policy
+// references use; when a gateway reports several builds of one major, the last in
+// version order supplies the metadata.
 func (s *MCPProxyService) ListAvailableMCPPolicies(ctx context.Context, orgUUID string) (*models.MCPPolicyAvailabilityResponse, error) {
-	_ = ctx
-	if s.gatewayRepo == nil {
-		return &models.MCPPolicyAvailabilityResponse{List: []models.MCPPolicyAvailableItem{}}, nil
-	}
-
-	active := true
-	gateways, err := s.gatewayRepo.ListWithFilters(repositories.GatewayFilterOptions{
-		OrganizationID: orgUUID,
-		Status:         &active,
-	})
+	available, err := intersectActiveGatewayPolicies(s.gatewayRepo, orgUUID)
 	if err != nil {
-		return nil, fmt.Errorf("failed to list active gateways: %w", err)
+		return nil, err
 	}
 
-	var available map[string]models.MCPPolicyAvailableItem
-	seenGateway := false
-	for _, gateway := range gateways {
-		if gateway == nil {
+	entries := buildPolicyCatalog(ctx, s.policyHub, available, policyAPIKindMCP, orgUUID)
+	items := make([]models.MCPPolicyAvailableItem, 0, len(entries))
+	indexByKey := make(map[string]int, len(entries))
+	for _, entry := range entries {
+		item := models.MCPPolicyAvailableItem{
+			Name:                 entry.Name,
+			Version:              normalizePolicyVersionToMajor(entry.Version),
+			DisplayName:          entry.DisplayName,
+			Description:          entry.Description,
+			Categories:           entry.Categories,
+			RequiredSystemConfig: entry.RequiredSystemConfig,
+			Parameters:           entry.Parameters,
+			SystemParameters:     entry.SystemParameters,
+		}
+		key := item.Name + "\x00" + item.Version
+		if i, ok := indexByKey[key]; ok {
+			items[i] = item
 			continue
 		}
-		gatewayPolicies := map[string]models.MCPPolicyAvailableItem{}
-		for _, policy := range extractGatewayPolicyManifestItems(gatewayManifest(gateway)) {
-			if policy.Name == "" || policy.Version == "" {
-				continue
-			}
-			key := policy.Name + "\x00" + policy.Version
-			gatewayPolicies[key] = policy
-		}
-		if !seenGateway {
-			available = gatewayPolicies
-			seenGateway = true
-			continue
-		}
-		for key := range available {
-			if _, ok := gatewayPolicies[key]; !ok {
-				delete(available, key)
-			}
-		}
-	}
-
-	if available == nil {
-		available = map[string]models.MCPPolicyAvailableItem{}
-	}
-	items := make([]models.MCPPolicyAvailableItem, 0, len(available))
-	for _, item := range available {
+		indexByKey[key] = len(items)
 		items = append(items, item)
 	}
-	sort.Slice(items, func(i, j int) bool {
-		if items[i].Name == items[j].Name {
-			return items[i].Version < items[j].Version
-		}
-		return items[i].Name < items[j].Name
-	})
 
 	return &models.MCPPolicyAvailabilityResponse{
 		Count: int32(len(items)),

@@ -641,7 +641,7 @@ func (r ApiListAvailableMCPPoliciesRequest) Execute() (*MCPPolicyAvailabilityRes
 /*
 ListAvailableMCPPolicies List available MCP policies
 
-Returns MCP policy names and versions reported by active gateways.
+Returns display-ready MCP policy definitions (including parameter schemas) reported by active gateways in the organization, enriched with policy hub metadata (display name, description, categories). Only policies that apply to MCP are included. Versions are major versions (e.g. v1), as MCP proxy policy references use.
 
 	@param ctx context.Context - for authentication, logging, cancellation, deadlines, tracing, etc. Passed from http.Request or context.Background().
 	@param orgName Organization name/handle

@@ -209,6 +209,10 @@ func loadEnvs() {
 			TLSEnabled: r.readOptionalBool("GATEWAY_MANIFEST_CACHE_REDIS_TLS_ENABLED", false),
 		},
 	}
+	config.PolicyHub = PolicyHubConfig{
+		BaseURL:  r.readOptionalString("POLICY_HUB_BASE_URL", ""),
+		CacheTTL: r.readOptionalString("POLICY_HUB_CACHE_TTL", "10m"),
+	}
 	config.OpenChoreo = OpenChoreoConfig{
 		BaseURL:          r.readRequiredString("OPEN_CHOREO_BASE_URL"),
 		DefaultNamespace: r.readOptionalString("OPEN_CHOREO_DEFAULT_NAMESPACE", "default"),
@@ -332,6 +336,7 @@ func loadEnvs() {
 	validateSecretManagerConfig(config, r)
 	validateAgentWorkloadCORSConfig(agentWorkloadConfig, r)
 	validateGatewayManifestCacheConfig(config, r)
+	validatePolicyHubConfig(config, r)
 
 	r.logAndExitIfErrorsFound()
 
@@ -393,6 +398,30 @@ func validateGatewayManifestCacheConfig(cfg *Config, r *configReader) {
 	if strings.TrimSpace(cfg.GatewayManifestCache.Redis.Host) == "" {
 		r.errors = append(r.errors, fmt.Errorf(
 			"GATEWAY_MANIFEST_CACHE_REDIS_HOST is required when GATEWAY_MANIFEST_CACHE_BACKEND=redis",
+		))
+	}
+}
+
+// validatePolicyHubConfig fails config load on a malformed hub URL or cache TTL, so a
+// typo surfaces at startup instead of as silently unenriched policy listings.
+func validatePolicyHubConfig(cfg *Config, r *configReader) {
+	if baseURL := strings.TrimSpace(cfg.PolicyHub.BaseURL); baseURL != "" {
+		u, err := url.Parse(baseURL)
+		if err != nil || (u.Scheme != "http" && u.Scheme != "https") || u.Host == "" {
+			r.errors = append(r.errors, fmt.Errorf(
+				"POLICY_HUB_BASE_URL %q must be an absolute http(s) URL", cfg.PolicyHub.BaseURL,
+			))
+		}
+	}
+	d, err := time.ParseDuration(cfg.PolicyHub.CacheTTL)
+	switch {
+	case err != nil:
+		r.errors = append(r.errors, fmt.Errorf(
+			"POLICY_HUB_CACHE_TTL %q is not a valid duration: %w", cfg.PolicyHub.CacheTTL, err,
+		))
+	case d <= 0:
+		r.errors = append(r.errors, fmt.Errorf(
+			"POLICY_HUB_CACHE_TTL must be a positive duration, got %q", cfg.PolicyHub.CacheTTL,
 		))
 	}
 }

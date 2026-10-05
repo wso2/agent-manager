@@ -22,6 +22,8 @@ package wiring
 import (
 	"fmt"
 	"log/slog"
+	"net/http"
+	"strings"
 	"time"
 
 	"github.com/google/wire"
@@ -30,6 +32,7 @@ import (
 	"github.com/wso2/agent-manager/agent-manager-service/audit"
 	observersvc "github.com/wso2/agent-manager/agent-manager-service/clients/observersvc"
 	occlient "github.com/wso2/agent-manager/agent-manager-service/clients/openchoreosvc/client"
+	"github.com/wso2/agent-manager/agent-manager-service/clients/policyhub"
 	"github.com/wso2/agent-manager/agent-manager-service/clients/secretmanagersvc"
 	"github.com/wso2/agent-manager/agent-manager-service/clients/thundersvc"
 	"github.com/wso2/agent-manager/agent-manager-service/config"
@@ -58,6 +61,7 @@ var clientProviderSet = wire.NewSet(
 	ProvideIdentityClient,
 	ProvideOrgResolver,
 	thundersvc.NewProber,
+	ProvidePolicyHubClient,
 	// EnvThunderResolver is wired for AgentIdentityController's passthrough
 	// endpoints. AgentID provisioning itself is injected via
 	// app.Options.AgentThunderProvisioning, built with its own reader — see app.Run.
@@ -154,6 +158,7 @@ var testClientProviderSet = wire.NewSet(
 	ProvideIdentityClient,
 	ProvideOrgResolver,
 	thundersvc.NewProber,
+	ProvidePolicyHubClient,
 	ProvideEnvThunderSecretReader,
 	ProvideEnvThunderURLReader,
 	ProvideEnvThunderResolver,
@@ -338,6 +343,46 @@ func ProvideGatewayManifestCacheBackend(cfg config.Config) (services.GatewayMani
 		// built directly (e.g. in tests) bypassing that validation.
 		return nil, fmt.Errorf("unknown gateway manifest cache backend %q", cfg.GatewayManifestCache.Backend)
 	}
+}
+
+// defaultPolicyHubCacheTTL applies when a Config built directly (e.g. in tests) leaves
+// PolicyHub.CacheTTL empty; config loading always sets and validates it.
+const defaultPolicyHubCacheTTL = 10 * time.Minute
+
+// policyHubHTTPTimeout bounds a single hub page request.
+const policyHubHTTPTimeout = 10 * time.Second
+
+// ProvidePolicyHubClient builds the policy hub client the LLM and MCP policy listings
+// are enriched from. An empty PolicyHub.BaseURL yields a disabled client. With
+// GATEWAY_MANIFEST_CACHE_BACKEND=redis the last good catalog is also persisted to that
+// Redis, so it survives restarts and is shared across replicas; with "memory" it lives
+// in this process only.
+func ProvidePolicyHubClient(cfg config.Config) (policyhub.Client, error) {
+	ttl := defaultPolicyHubCacheTTL
+	if cfg.PolicyHub.CacheTTL != "" {
+		parsed, err := time.ParseDuration(cfg.PolicyHub.CacheTTL)
+		if err != nil || parsed <= 0 {
+			return nil, fmt.Errorf("invalid policy hub cache TTL %q", cfg.PolicyHub.CacheTTL)
+		}
+		ttl = parsed
+	}
+	if strings.TrimSpace(cfg.PolicyHub.BaseURL) == "" {
+		// Not an error (air-gapped installs run without a hub), but it changes what the
+		// LLM and MCP policy pickers show, so it must be visible in the startup logs.
+		slog.Warn("ProvidePolicyHubClient: POLICY_HUB_BASE_URL is empty, policy hub enrichment disabled; " +
+			"policy listings show raw names and the MCP listing is not filtered by hub categories")
+		return policyhub.NewClient(nil, "", ttl, nil), nil
+	}
+
+	var store policyhub.Store
+	storeBackend := "memory"
+	if cfg.GatewayManifestCache.Backend == "redis" {
+		store = policyhub.NewRedisStore(services.NewGatewayManifestCacheRedisClient(cfg.GatewayManifestCache.Redis))
+		storeBackend = "redis"
+	}
+	slog.Info("ProvidePolicyHubClient: policy hub enrichment enabled",
+		"baseURL", cfg.PolicyHub.BaseURL, "cacheTTL", ttl, "catalogStore", storeBackend)
+	return policyhub.NewClient(&http.Client{Timeout: policyHubHTTPTimeout}, cfg.PolicyHub.BaseURL, ttl, store), nil
 }
 
 // ProvideGitCredentialsService creates the git credentials service for fetching

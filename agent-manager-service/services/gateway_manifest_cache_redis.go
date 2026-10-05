@@ -47,6 +47,13 @@ type RedisGatewayManifestCache struct {
 // does not itself connect or ping — the first Get/Set surfaces any connectivity issue,
 // consistent with how other lazily-dialed clients in this codebase behave.
 func NewRedisGatewayManifestCache(cfg config.GatewayManifestCacheRedisConfig) *RedisGatewayManifestCache {
+	return &RedisGatewayManifestCache{client: NewGatewayManifestCacheRedisClient(cfg)}
+}
+
+// NewGatewayManifestCacheRedisClient builds a Redis client from the gateway manifest
+// cache's Redis config. Shared with the policy hub catalog store, which persists to the
+// same Redis when GATEWAY_MANIFEST_CACHE_BACKEND=redis.
+func NewGatewayManifestCacheRedisClient(cfg config.GatewayManifestCacheRedisConfig) *redis.Client {
 	opts := &redis.Options{
 		Addr:     fmt.Sprintf("%s:%d", cfg.Host, cfg.Port),
 		Password: cfg.Password,
@@ -55,7 +62,7 @@ func NewRedisGatewayManifestCache(cfg config.GatewayManifestCacheRedisConfig) *R
 	if cfg.TLSEnabled {
 		opts.TLSConfig = &tls.Config{MinVersion: tls.VersionTLS12}
 	}
-	return &RedisGatewayManifestCache{client: redis.NewClient(opts)}
+	return redis.NewClient(opts)
 }
 
 // Set implements GatewayManifestCacheBackend.

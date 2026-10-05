@@ -27,6 +27,10 @@ type LLMPolicyDefinition struct {
 	DisplayName *string `json:"displayName,omitempty"`
 	// Policy description
 	Description *string `json:"description,omitempty"`
+	// Policy hub categories; empty when the hub does not know the policy
+	Categories []string `json:"categories,omitempty"`
+	// Gateway config keys this policy reads with no default, so an operator must set them on the gateway for the policy to work. Empty when the policy needs no gateway configuration. Whether the keys are set on a given gateway is not known.
+	RequiredSystemConfig []string `json:"requiredSystemConfig,omitempty"`
 	// JSON-Schema describing the user-configurable parameters
 	Parameters map[string]interface{} `json:"parameters,omitempty"`
 	// JSON-Schema describing operator-level (gateway config) parameters
@@ -164,6 +168,70 @@ func (o *LLMPolicyDefinition) SetDescription(v string) {
 	o.Description = &v
 }
 
+// GetCategories returns the Categories field value if set, zero value otherwise.
+func (o *LLMPolicyDefinition) GetCategories() []string {
+	if o == nil || IsNil(o.Categories) {
+		var ret []string
+		return ret
+	}
+	return o.Categories
+}
+
+// GetCategoriesOk returns a tuple with the Categories field value if set, nil otherwise
+// and a boolean to check if the value has been set.
+func (o *LLMPolicyDefinition) GetCategoriesOk() ([]string, bool) {
+	if o == nil || IsNil(o.Categories) {
+		return nil, false
+	}
+	return o.Categories, true
+}
+
+// HasCategories returns a boolean if a field has been set.
+func (o *LLMPolicyDefinition) HasCategories() bool {
+	if o != nil && !IsNil(o.Categories) {
+		return true
+	}
+
+	return false
+}
+
+// SetCategories gets a reference to the given []string and assigns it to the Categories field.
+func (o *LLMPolicyDefinition) SetCategories(v []string) {
+	o.Categories = v
+}
+
+// GetRequiredSystemConfig returns the RequiredSystemConfig field value if set, zero value otherwise.
+func (o *LLMPolicyDefinition) GetRequiredSystemConfig() []string {
+	if o == nil || IsNil(o.RequiredSystemConfig) {
+		var ret []string
+		return ret
+	}
+	return o.RequiredSystemConfig
+}
+
+// GetRequiredSystemConfigOk returns a tuple with the RequiredSystemConfig field value if set, nil otherwise
+// and a boolean to check if the value has been set.
+func (o *LLMPolicyDefinition) GetRequiredSystemConfigOk() ([]string, bool) {
+	if o == nil || IsNil(o.RequiredSystemConfig) {
+		return nil, false
+	}
+	return o.RequiredSystemConfig, true
+}
+
+// HasRequiredSystemConfig returns a boolean if a field has been set.
+func (o *LLMPolicyDefinition) HasRequiredSystemConfig() bool {
+	if o != nil && !IsNil(o.RequiredSystemConfig) {
+		return true
+	}
+
+	return false
+}
+
+// SetRequiredSystemConfig gets a reference to the given []string and assigns it to the RequiredSystemConfig field.
+func (o *LLMPolicyDefinition) SetRequiredSystemConfig(v []string) {
+	o.RequiredSystemConfig = v
+}
+
 // GetParameters returns the Parameters field value if set, zero value otherwise.
 func (o *LLMPolicyDefinition) GetParameters() map[string]interface{} {
 	if o == nil || IsNil(o.Parameters) {
@@ -245,6 +313,12 @@ func (o LLMPolicyDefinition) ToMap() (map[string]interface{}, error) {
 	}
 	if !IsNil(o.Description) {
 		toSerialize["description"] = o.Description
+	}
+	if !IsNil(o.Categories) {
+		toSerialize["categories"] = o.Categories
+	}
+	if !IsNil(o.RequiredSystemConfig) {
+		toSerialize["requiredSystemConfig"] = o.RequiredSystemConfig
 	}
 	if !IsNil(o.Parameters) {
 		toSerialize["parameters"] = o.Parameters

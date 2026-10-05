@@ -5643,8 +5643,8 @@ paths:
     get:
       tags:
         - LLM Providers
-      summary: List available LLM guardrail policies
-      description: Returns full guardrail policy definitions (including parameter schemas) reported by active gateways in the organization. When providerId is given, the result is scoped to the gateways that provider is currently deployed to; otherwise it covers every active gateway in the organization.
+      summary: List available LLM policies
+      description: Returns display-ready LLM policy definitions (including parameter schemas) reported by active gateways in the organization, enriched with policy hub metadata (display name, description, categories). MCP-exclusive policies are excluded. When providerId is given, the result is scoped to the gateways that provider is currently deployed to; otherwise it covers every active gateway in the organization.
       operationId: listAvailableLLMPolicies
       parameters:
         - name: providerId
@@ -6452,7 +6452,7 @@ paths:
       tags:
         - MCP Proxies
       summary: List available MCP policies
-      description: Returns MCP policy names and versions reported by active gateways.
+      description: Returns display-ready MCP policy definitions (including parameter schemas) reported by active gateways in the organization, enriched with policy hub metadata (display name, description, categories). Only policies that apply to MCP are included. Versions are major versions (e.g. v1), as MCP proxy policy references use.
       operationId: listAvailableMCPPolicies
       responses:
         "200":
@@ -16260,9 +16260,39 @@ components:
         name:
           type: string
           description: Policy name
+          example: mcp-ratelimit
         version:
           type: string
-          description: Policy version
+          description: Policy major version
+          example: v1
+        displayName:
+          type: string
+          description: Human-readable policy name
+          example: MCP Rate Limit
+        description:
+          type: string
+          description: Policy description
+        categories:
+          type: array
+          items:
+            type: string
+          description: Policy hub categories; empty when the hub does not know the policy
+        requiredSystemConfig:
+          type: array
+          items:
+            type: string
+          description: Gateway config keys this policy reads with no default, so an operator must set them on the gateway for the policy to work. Empty when the policy needs no gateway configuration. Whether the keys are set on a given gateway is not known.
+          example:
+            - azurecontentsafety_endpoint
+            - azurecontentsafety_key
+        parameters:
+          type: object
+          additionalProperties: true
+          description: JSON-Schema describing the user-configurable parameters
+        systemParameters:
+          type: object
+          additionalProperties: true
+          description: JSON-Schema describing operator-level (gateway config) parameters
 
     MCPServerInfoFetchRequest:
       type: object
@@ -16572,6 +16602,19 @@ components:
         description:
           type: string
           description: Policy description
+        categories:
+          type: array
+          items:
+            type: string
+          description: Policy hub categories; empty when the hub does not know the policy
+        requiredSystemConfig:
+          type: array
+          items:
+            type: string
+          description: Gateway config keys this policy reads with no default, so an operator must set them on the gateway for the policy to work. Empty when the policy needs no gateway configuration. Whether the keys are set on a given gateway is not known.
+          example:
+            - azurecontentsafety_endpoint
+            - azurecontentsafety_key
         parameters:
           type: object
           additionalProperties: true
