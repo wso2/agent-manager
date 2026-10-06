@@ -16,10 +16,7 @@
  */
 
 import { useCallback, useMemo } from "react";
-import {
-  useMCPPoliciesCatalog,
-  type MCPPolicyDefinition,
-} from "@agent-management-platform/api-client";
+import { useMCPPoliciesCatalog } from "@agent-management-platform/api-client";
 import type {
   MCPEndpointConfig,
   MCPProxy,
@@ -154,9 +151,6 @@ export function MCPProxyPoliciesTab({
       catalogError={catalogError}
       filterPolicies={(items) =>
         items.filter((policy) => !isManagedMCPPolicy(policy.name))
-      }
-      getPolicyDefinitionVersion={(policy) =>
-        (policy as MCPPolicyDefinition).policyHubVersion ?? policy.version
       }
       title="Policies"
       description="Add policies to this server and drag to change their execution order."

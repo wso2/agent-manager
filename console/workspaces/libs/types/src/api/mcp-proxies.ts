@@ -39,7 +39,15 @@ export interface MCPProxyPolicy {
 
 export interface MCPPolicyAvailableItem {
   name: string;
+  /** Major version ("v1"), as MCP proxy policy references use. */
   version: string;
+  displayName?: string;
+  description?: string;
+  categories?: string[];
+  /** Gateway config keys the policy reads with no default; an operator must set them. */
+  requiredSystemConfig?: string[];
+  parameters?: Record<string, unknown>;
+  systemParameters?: Record<string, unknown>;
 }
 
 export interface MCPPolicyAvailabilityResponse {

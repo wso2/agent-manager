@@ -78,15 +78,6 @@ window.__RUNTIME_CONFIG__ = {
   agentManagerInternalCpHost: '$AGENT_MANAGER_INTERNAL_CP_HOST',
   idpHostBaseDomain: '$IDP_HOST_BASE_DOMAIN',
   tlsEnabled: '$TLS_ENABLED' === 'true',
-  guardrailsCatalogUrl: '$GUARDRAILS_CATALOG_URL',
-  guardrailsDefinitionBaseUrl: '$GUARDRAILS_DEFINITION_BASE_URL',
-  guardrailCapabilities: {
-    awsBedrock: '$GUARDRAIL_CAP_AWS_BEDROCK' === 'true',
-    azureContentSafety: '$GUARDRAIL_CAP_AZURE_CONTENT_SAFETY' === 'true',
-    graniteGuardian: '$GUARDRAIL_CAP_GRANITE_GUARDIAN' === 'true',
-    nemoGuard: '$GUARDRAIL_CAP_NEMO_GUARD' === 'true',
-    semanticGuardrails: '$GUARDRAIL_CAP_SEMANTIC_GUARDRAILS' === 'true',
-  },
   featureFlags: {
     enablePrivateRepoSupport: '$FEATURE_FLAG_ENABLE_PRIVATE_REPO_SUPPORT' === 'true',
     enableIdentityProviderManagedMode: '$FEATURE_FLAG_ENABLE_IDENTITY_PROVIDER_MANAGED_MODE' === 'true',
