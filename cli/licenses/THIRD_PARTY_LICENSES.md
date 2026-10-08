@@ -5,7 +5,7 @@ Direct (non-indirect) dependencies from `go.mod`.
 | Library | License | License Link |
 |---|---|---|
 | github.com/google/uuid | BSD-3-Clause | https://github.com/google/uuid/blob/master/LICENSE |
-| github.com/oapi-codegen/runtime | Apache-2.0 | https://github.com/oapi-codegen/oapi-codegen/blob/main/LICENSE |
+| github.com/oapi-codegen/runtime | Apache-2.0 | https://github.com/oapi-codegen/runtime/blob/main/LICENSE |
 | github.com/spf13/cobra | Apache-2.0 | https://github.com/spf13/cobra/blob/main/LICENSE.txt |
 | github.com/spf13/pflag | BSD-3-Clause | https://github.com/spf13/pflag/blob/master/LICENSE |
 | golang.org/x/oauth2 | BSD-3-Clause | https://github.com/golang/oauth2/blob/master/LICENSE |
