@@ -46,7 +46,14 @@ import {
   globalConfig,
   INPUT_LIMITS,
 } from "@agent-management-platform/types";
-import { useUnsavedChangesGuard } from "@agent-management-platform/shared-component";
+import {
+  HealthChecksEditor,
+  toHealthChecksForm,
+  toHealthChecksPayload,
+  useUnsavedChangesGuard,
+  validateHealthChecksForm,
+  type HealthChecksFormValues,
+} from "@agent-management-platform/shared-component";
 import { useEffect, useCallback, useMemo, useState } from "react";
 import { GitSecretSelect } from "./components/GitSecretSelect";
 
@@ -303,18 +310,34 @@ export function ConfigureBuildDrawer({
 
   const { mutate: updateBuildParameters, isPending } = useUpdateAgentBuildParameters();
 
-  // Reset form when drawer opens or agent changes
+  // Health checks: shown for agents whose ComponentType defines them (GET agent returns them).
+  const [healthChecks, setHealthChecks] = useState<HealthChecksFormValues | null>(null);
+  const [initialHealthChecks, setInitialHealthChecks] = useState<string | null>(null);
+  const healthCheckErrors = useMemo(
+    () => (healthChecks ? validateHealthChecksForm(healthChecks) : {}),
+    [healthChecks],
+  );
+  const healthChecksChanged =
+    healthChecks !== null && JSON.stringify(healthChecks) !== initialHealthChecks;
+
+    // Reset form when drawer opens or agent changes
   useEffect(() => {
     if (open) {
       setFormData(buildDefaults);
       setInitialSnapshot(JSON.stringify(buildDefaults));
+      const seededHealthChecks = agent.healthChecks ? toHealthChecksForm(agent.healthChecks) : null;
+      setHealthChecks(seededHealthChecks);
+      setInitialHealthChecks(JSON.stringify(seededHealthChecks));
       clearErrors();
     }
-  }, [open, buildDefaults, clearErrors]);
+  }, [open, buildDefaults, agent.healthChecks, clearErrors]);
 
   const isDirty = useMemo(
-    () => open && initialSnapshot !== null && JSON.stringify(formData) !== initialSnapshot,
-    [open, initialSnapshot, formData],
+    () =>
+      open &&
+      initialSnapshot !== null &&
+      (JSON.stringify(formData) !== initialSnapshot || healthChecksChanged),
+    [open, initialSnapshot, formData, healthChecksChanged],
   );
   // onClose drops a URL param, so the guard would otherwise block the
   // deliberate Cancel and post-save closes too.
@@ -398,7 +421,7 @@ export function ConfigureBuildDrawer({
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     
-    if (!validateForm(formData)) {
+    if (!validateForm(formData) || Object.keys(healthCheckErrors).length > 0) {
       return;
     }
 
@@ -452,6 +475,10 @@ export function ConfigureBuildDrawer({
             ? { port: Number(formData.port) }
             : {}),
       },
+      // Sent only when changed: the whole set replaces the agent's build-time health checks.
+      ...(healthChecks && healthChecksChanged && {
+        healthChecks: toHealthChecksPayload(healthChecks),
+      }),
     };
 
     updateBuildParameters(
@@ -802,7 +829,23 @@ export function ConfigureBuildDrawer({
                 </Box>
               </CardContent>
             </Card>
-
+            {healthChecks && (
+              <Card variant="outlined">
+                <CardContent sx={{ gap: 1, display: "flex", flexDirection: "column" }}>
+                  <Typography variant="h5">Health Checks</Typography>
+                  <Typography variant="body2" color="text.secondary">
+                    How the platform checks that your agent is up. Changes apply from the next
+                    deployment. Wait times can also be changed per environment.
+                  </Typography>
+                  <HealthChecksEditor
+                    value={healthChecks}
+                    onChange={setHealthChecks}
+                    errors={healthCheckErrors}
+                    disabled={isPending}
+                  />
+                </CardContent>
+              </Card>
+            )}
             <Box display="flex" justifyContent="flex-end" gap={1} mt={2}>
               <Button
                 variant="outlined"

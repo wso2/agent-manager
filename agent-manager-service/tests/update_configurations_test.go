@@ -51,7 +51,7 @@ func TestUpdateAgentConfigurations(t *testing.T) {
 
 	t.Run("replacing env vars returns 204", func(t *testing.T) {
 		ocClient := apitestutils.CreateMockOpenChoreoClient()
-		ocClient.ReplaceReleaseBindingWorkloadOverridesFunc = func(ctx context.Context, namespaceName, componentName, environment string, envOverrides []client.EnvVar, fileOverrides []client.FileVar) error {
+		ocClient.ReplaceReleaseBindingWorkloadOverridesFunc = func(ctx context.Context, namespaceName, componentName, environment string, envOverrides []client.EnvVar, fileOverrides []client.FileVar, probeTimings *client.HealthCheckTimings) error {
 			return nil
 		}
 		testClients := wiring.TestClients{
@@ -75,6 +75,53 @@ func TestUpdateAgentConfigurations(t *testing.T) {
 		call := ocClient.ReplaceReleaseBindingWorkloadOverridesCalls()[0]
 		require.Equal(t, agentName, call.ComponentName)
 		require.Equal(t, "development", call.Environment)
+	})
+
+	t.Run("saving health check wait times returns 204", func(t *testing.T) {
+		ocClient := apitestutils.CreateMockOpenChoreoClient()
+		ocClient.GetEnvHealthChecksFunc = func(ctx context.Context, ouID, componentName, environment string) (*client.HealthChecks, error) {
+			return &client.HealthChecks{}, nil
+		}
+		testClients := wiring.TestClients{
+			OpenChoreoClient: ocClient,
+			SecretMgmtClient: apitestutils.CreateMockSecretManagementClient(),
+		}
+		app := apitestutils.MakeAppClientWithDeps(t, testClients, authMiddleware)
+
+		body := []byte(`{"environmentName":"development","probes":{"startup":{"failureThreshold":80}}}`)
+		req := httptest.NewRequest(http.MethodPut, configurationsURL(testConfigurationsOrgName), bytes.NewBuffer(body))
+		req.Header.Set("Content-Type", "application/json")
+		rr := httptest.NewRecorder()
+		app.ServeHTTP(rr, req)
+
+		require.Equal(t, http.StatusNoContent, rr.Code)
+		require.Len(t, ocClient.ReplaceReleaseBindingWorkloadOverridesCalls(), 1)
+		call := ocClient.ReplaceReleaseBindingWorkloadOverridesCalls()[0]
+		require.NotNil(t, call.ProbeTimings)
+		require.NotNil(t, call.ProbeTimings.Startup)
+		require.Equal(t, int32(80), *call.ProbeTimings.Startup.FailureThreshold)
+	})
+
+	t.Run("returns 400 for a health check wait time out of range", func(t *testing.T) {
+		ocClient := apitestutils.CreateMockOpenChoreoClient()
+		ocClient.GetEnvHealthChecksFunc = func(ctx context.Context, ouID, componentName, environment string) (*client.HealthChecks, error) {
+			return &client.HealthChecks{}, nil
+		}
+		testClients := wiring.TestClients{
+			OpenChoreoClient: ocClient,
+			SecretMgmtClient: apitestutils.CreateMockSecretManagementClient(),
+		}
+		app := apitestutils.MakeAppClientWithDeps(t, testClients, authMiddleware)
+
+		body := []byte(`{"environmentName":"development","probes":{"readiness":{"periodSeconds":0}}}`)
+		req := httptest.NewRequest(http.MethodPut, configurationsURL(testConfigurationsOrgName), bytes.NewBuffer(body))
+		req.Header.Set("Content-Type", "application/json")
+		rr := httptest.NewRecorder()
+		app.ServeHTTP(rr, req)
+
+		require.Equal(t, http.StatusBadRequest, rr.Code)
+		require.Contains(t, rr.Body.String(), "readiness periodSeconds must be between 1 and 3600")
+		require.Empty(t, ocClient.ReplaceReleaseBindingWorkloadOverridesCalls())
 	})
 
 	t.Run("returns 400 when environmentName is missing", func(t *testing.T) {

@@ -45,6 +45,7 @@ import {
   SquareStack,
   MemoryStick,
   SlidersVertical,
+  Activity,
 } from "@wso2/oxygen-ui-icons-react";
 import { generatePath, Link, useParams, useSearchParams } from "react-router-dom";
 import {
@@ -439,6 +440,19 @@ export function DeployCard(props: DeployCardProps) {
     { environment: currentEnvironment.name },
   );
 
+  // Health checks overview: how many of the three checks run here, each one's details on hover.
+  const healthChecks = envConfig?.configurations?.probes;
+  const healthCheckRows = healthChecks
+    ? (["startup", "readiness", "liveness"] as const).map((name) => {
+        const check = healthChecks[name];
+        const title = name.charAt(0).toUpperCase() + name.slice(1);
+        if (!check?.enabled) return { title, on: false, detail: "Off" };
+        const target = check.type === "http" ? `HTTP GET ${check.path ?? "/health"}` : "TCP";
+        return { title, on: true, detail: target };
+      })
+    : [];
+  const healthChecksOn = healthCheckRows.filter((row) => row.on).length;
+
   const authMode: "none" | "apikey" | "oauth" = envConfig?.enableOAuthSecurity
     ? "oauth"
     : envConfig?.enableApiKeySecurity
@@ -738,7 +752,30 @@ export function DeployCard(props: DeployCardProps) {
                       />
                     </Box>
                   )}
-
+                  {/* Health checks overview */}
+                  {healthChecks && (
+                    <Box display="flex" alignItems="center" gap={1}>
+                      <Activity size={14} style={{ opacity: 0.6 }} />
+                      <Typography variant="body2">Health Checks</Typography>
+                      <Tooltip
+                        title={
+                          <Stack>
+                            {healthCheckRows.map((row) => (
+                              <span key={row.title}>{`${row.title}: ${row.detail}`}</span>
+                            ))}
+                          </Stack>
+                        }
+                      >
+                        <Chip
+                          size="small"
+                          label={`${healthChecksOn} of 3 on`}
+                          color={healthChecksOn > 0 ? "success" : "default"}
+                          variant="outlined"
+                          sx={{ height: 18, fontSize: "0.65rem", cursor: "default" }}
+                        />
+                      </Tooltip>
+                    </Box>
+                  )}
                   {/* Environment variables & file mounts (secrets) overview */}
                   <Box display="flex" alignItems="center" gap={1}>
                     <SlidersVertical size={14} style={{ opacity: 0.6 }} />

@@ -88,7 +88,9 @@ func ValidateAgentBuildParametersUpdatePayload(payload spec.UpdateAgentBuildPara
 	); err != nil {
 		return err
 	}
-
+	if err := ValidateHealthChecks(payload.HealthChecks); err != nil {
+		return NewValidationError("Invalid health checks", err.Error())
+	}
 	return nil
 }
 
@@ -348,6 +350,16 @@ func ValidateAgentCreatePayload(payload spec.CreateAgentRequest) error {
 			return err
 		}
 	}
+
+	if payload.HealthChecks != nil {
+		if payload.Provisioning.Type != string(InternalAgent) {
+			return NewValidationError("Invalid health checks", "health checks apply only to agents hosted by the platform")
+		}
+		if err := ValidateHealthChecks(payload.HealthChecks); err != nil {
+			return NewValidationError("Invalid health checks", err.Error())
+		}
+	}
+
 	return validateAgentPayload(agentPayload{
 		name:           payload.Name,
 		displayName:    payload.DisplayName,
@@ -1029,6 +1041,147 @@ func ValidateFileMounts(files []spec.FileMount) error {
 		return fmt.Errorf("file mounts total size %d bytes exceeds limit %d", total, limits.MaxTotalBytes)
 	}
 	return nil
+}
+
+// MaxStartupWindowSeconds caps how long the startup check may wait for a
+// starting agent: initial delay + failures allowed × the longer of interval and
+// timeout (an attempt that times out takes its full timeout).
+const MaxStartupWindowSeconds = 3600
+
+// ValidateHealthCheckTimings checks the wait times sent for one environment:
+// each value's range, and that the startup check, with the values sent on top
+// of those in effect (current), still gives up within MaxStartupWindowSeconds.
+func ValidateHealthCheckTimings(timings *spec.AgentHealthCheckTimings, current *spec.AgentHealthChecks) error {
+	if timings == nil {
+		return nil
+	}
+	checks := []struct {
+		name    string
+		timings *spec.AgentProbeTimings
+	}{
+		{"startup", timings.Startup},
+		{"readiness", timings.Readiness},
+		{"liveness", timings.Liveness},
+	}
+	for _, check := range checks {
+		if err := validateProbeTimings(check.name, check.timings); err != nil {
+			return err
+		}
+	}
+
+	sent := timings.Startup
+	if sent == nil || current == nil || current.Startup == nil {
+		return nil
+	}
+	inEffect := current.Startup
+	if inEffect.Enabled != nil && !*inEffect.Enabled {
+		return nil
+	}
+	initialDelay := int32ValueOr(sent.InitialDelaySeconds, inEffect.InitialDelaySeconds)
+	period := int32ValueOr(sent.PeriodSeconds, inEffect.PeriodSeconds)
+	timeout := int32ValueOr(sent.TimeoutSeconds, inEffect.TimeoutSeconds)
+	failures := int32ValueOr(sent.FailureThreshold, inEffect.FailureThreshold)
+	if window := initialDelay + failures*max(period, timeout); window > MaxStartupWindowSeconds {
+		return fmt.Errorf("startup check would wait up to %d seconds (initial delay + failures allowed × the longer of interval and timeout); the maximum is %d",
+			window, MaxStartupWindowSeconds)
+	}
+	return nil
+}
+
+// validateProbeTimings checks each wait time sent for one check is in range.
+func validateProbeTimings(check string, t *spec.AgentProbeTimings) error {
+	if t == nil {
+		return nil
+	}
+	fields := []struct {
+		name     string
+		value    *int32
+		min, max int32
+	}{
+		{"initialDelaySeconds", t.InitialDelaySeconds, 0, 3600},
+		{"periodSeconds", t.PeriodSeconds, 1, 3600},
+		{"timeoutSeconds", t.TimeoutSeconds, 1, 3600},
+		{"failureThreshold", t.FailureThreshold, 1, 1000},
+	}
+	for _, f := range fields {
+		if f.value != nil && (*f.value < f.min || *f.value > f.max) {
+			return fmt.Errorf("%s %s must be between %d and %d", check, f.name, f.min, f.max)
+		}
+	}
+	return nil
+}
+
+// int32ValueOr returns the first of v, fallback that is set, or 0.
+func int32ValueOr(v, fallback *int32) int32 {
+	if v != nil {
+		return *v
+	}
+	if fallback != nil {
+		return *fallback
+	}
+	return 0
+}
+
+// ValidateHealthChecks checks an agent's build-time health checks: each check's
+// type, port and path, its wait times' ranges and the startup check's limit.
+func ValidateHealthChecks(checks *spec.AgentHealthChecks) error {
+	if checks == nil {
+		return nil
+	}
+	all := []struct {
+		name  string
+		check *spec.AgentHealthCheck
+	}{
+		{"startup", checks.Startup},
+		{"readiness", checks.Readiness},
+		{"liveness", checks.Liveness},
+	}
+	for _, c := range all {
+		if c.check == nil {
+			continue
+		}
+		if t := c.check.Type; t != nil && *t != "tcp" && *t != "http" {
+			return fmt.Errorf("%s type must be tcp or http", c.name)
+		}
+		if p := c.check.Port; p != nil && (*p < 1 || *p > 65535) {
+			return fmt.Errorf("%s port must be between 1 and 65535", c.name)
+		}
+		if p := c.check.Path; p != nil && !strings.HasPrefix(*p, "/") {
+			return fmt.Errorf("%s path must start with /", c.name)
+		}
+	}
+	// A field left out uses the platform default, which this check cannot see, so a
+	// startup window mixing sent values with defaults could not be checked here.
+	if s := checks.Startup; s != nil && (s.Enabled == nil || *s.Enabled) {
+		set := 0
+		for _, v := range []*int32{s.InitialDelaySeconds, s.PeriodSeconds, s.FailureThreshold} {
+			if v != nil {
+				set++
+			}
+		}
+		if set > 0 && set < 3 {
+			return fmt.Errorf("startup initialDelaySeconds, periodSeconds and failureThreshold must be set together")
+		}
+	}
+	timings := &spec.AgentHealthCheckTimings{
+		Startup:   probeTimingsOf(checks.Startup),
+		Readiness: probeTimingsOf(checks.Readiness),
+		Liveness:  probeTimingsOf(checks.Liveness),
+	}
+	return ValidateHealthCheckTimings(timings, checks)
+}
+
+// probeTimingsOf returns a check's wait times, or nil for no check.
+func probeTimingsOf(c *spec.AgentHealthCheck) *spec.AgentProbeTimings {
+	if c == nil {
+		return nil
+	}
+	return &spec.AgentProbeTimings{
+		InitialDelaySeconds: c.InitialDelaySeconds,
+		PeriodSeconds:       c.PeriodSeconds,
+		TimeoutSeconds:      c.TimeoutSeconds,
+		FailureThreshold:    c.FailureThreshold,
+	}
 }
 
 // validateEnvironmentVariables validates environment variables if present in the payload

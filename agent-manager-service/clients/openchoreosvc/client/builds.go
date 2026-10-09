@@ -320,6 +320,19 @@ func (c *openChoreoClient) UpdateComponentBuildParameters(ctx context.Context, o
 		}
 	}
 
+	// Replace the build-time health checks (spec.parameters.probes) if provided.
+	if req.HealthChecks != nil {
+		probes, err := structToMap(req.HealthChecks)
+		if err != nil {
+			return fmt.Errorf("failed to convert health checks: %w", err)
+		}
+		if component.Spec.Parameters == nil {
+			params := make(map[string]interface{})
+			component.Spec.Parameters = &params
+		}
+		(*component.Spec.Parameters)[probesKey] = probes
+	}
+
 	// Initialize labels if needed
 	if component.Metadata.Labels == nil {
 		newLabels := make(map[string]string)

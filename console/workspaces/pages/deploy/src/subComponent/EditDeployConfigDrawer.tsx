@@ -70,6 +70,13 @@ import {
   toFileMount,
 } from "../utils/fileMounts";
 import { SecurityConfigSections, type SecurityConfigHandle } from "./SecurityConfigSections";
+import {
+  HealthChecksSection,
+  changedTimings,
+  toTimingsForm,
+  validateTimings,
+  type TimingsForm,
+} from "./HealthChecksSection";
 
 export interface EditDeployConfigDrawerProps {
   open: boolean;
@@ -140,6 +147,17 @@ export function EditDeployConfigDrawer({
   const [env, setEnv] = useState<EnvironmentVariable[]>([]);
   const [files, setFiles] = useState<FileMountRow[]>([]);
 
+  // Health checks: shown when the environment reports them (agents the platform runs).
+  // Only the wait times are edited here; what each check tests is set at build time.
+  const healthChecks = mode === "update" ? configurations?.configurations?.probes : undefined;
+  const [timings, setTimings] = useState<TimingsForm | null>(null);
+  const [initialTimings, setInitialTimings] = useState<TimingsForm | null>(null);
+  const timingErrors = useMemo(
+    () => (healthChecks && timings ? validateTimings(timings, healthChecks) : {}),
+    [healthChecks, timings],
+  );
+  const timingsValid = Object.keys(timingErrors).length === 0;
+
   // Tracing section: the environment card's drawer only. Offered for every language the
   // backend can instrument — Python and Ballerina alike, which is what makes it reachable
   // for kind-based agents. The version selector below stays Python-only: the
@@ -180,6 +198,9 @@ export function EditDeployConfigDrawer({
       }),
     ) ?? []));
     setFiles(seedFileMountRows(cfg?.files));
+    const seededTimings = cfg?.probes ? toTimingsForm(cfg.probes) : null;
+    setTimings(seededTimings);
+    setInitialTimings(seededTimings);
     setTracingEnabled(configurations.enableAutoInstrumentation ?? false);
     setInstrumentationVersion("");
     setVersionDirty(false);
@@ -223,11 +244,26 @@ export function EditDeployConfigDrawer({
         return;
       }
 
+            if (!timingsValid) {
+        pushSnackBar({
+          message: "Fix the highlighted health check wait times before applying",
+          type: "error",
+        });
+        return;
+      }
+      const probes =
+        timings && initialTimings ? changedTimings(timings, initialTimings) : undefined;
+
       const applyConfigs = () =>
         updateConfigs(
           {
             params: { orgName, projName, agentName },
-            body: { environmentName: environment, env: validEnv, files: validFiles },
+            body: {
+              environmentName: environment,
+              env: validEnv,
+              files: validFiles,
+              ...(probes && { probes }),
+            },
           },
           { onSuccess: () => onClose() },
         );
@@ -276,7 +312,7 @@ export function EditDeployConfigDrawer({
   }, [
     mode, env, files, environment, imageId, orgName, projName, agentName,
     showSecurity, showTracing, tracingEnabled, instrumentationVersion, versionDirty,
-    versionInCompatibleSet, isPythonBuildpack,
+    versionInCompatibleSet, isPythonBuildpack, timings, initialTimings, timingsValid,
     deployAgent, updateConfigs, updateDeploySettings, onClose, pushSnackBar,
   ]);
 
@@ -471,7 +507,19 @@ export function EditDeployConfigDrawer({
               </Stack>
             </Form.Section>
           )}
-
+          {healthChecks && timings && (
+            <HealthChecksSection
+              checks={healthChecks}
+              timings={timings}
+              errors={timingErrors}
+              disabled={isPending}
+              onChange={(name, field, value) =>
+                setTimings((prev) =>
+                  prev && { ...prev, [name]: { ...prev[name], [field]: value } },
+                )
+              }
+            />
+          )}
           <Form.Section>
             <Stack direction="row" justifyContent="space-between" alignItems="center">
               <Form.Header>Environment Variables</Form.Header>
@@ -561,7 +609,7 @@ export function EditDeployConfigDrawer({
                 color="primary"
                 onClick={handleSave}
                 disabled={
-                  isPending || isRegenerating || (showSecurity && !securityValid)
+                  isPending || isRegenerating || (showSecurity && !securityValid) || !timingsValid
                 }
                 startIcon={isPending ? <CircularProgress size={16} /> : undefined}
               >

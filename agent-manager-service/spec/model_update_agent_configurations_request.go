@@ -19,12 +19,13 @@ var _ MappedNullable = &UpdateAgentConfigurationsRequest{}
 
 // UpdateAgentConfigurationsRequest struct for UpdateAgentConfigurationsRequest
 type UpdateAgentConfigurationsRequest struct {
-	// Name of the environment whose env vars / file mounts to replace.
+	// Name of the environment whose env vars, file mounts, and health checks to replace.
 	EnvironmentName string `json:"environmentName"`
 	// Environment variables to apply to the agent's release binding for this environment. System-managed keys are filtered server-side and re-injected from the agent's LLM/MCP configuration. Sending an empty array clears all user-managed env vars.
 	Env []EnvironmentVariable `json:"env,omitempty"`
 	// File mounts to apply to the agent's release binding for this environment. Sending an empty array clears all user-managed file mounts.
-	Files []FileMount `json:"files,omitempty"`
+	Files  []FileMount              `json:"files,omitempty"`
+	Probes *AgentHealthCheckTimings `json:"probes,omitempty"`
 }
 
 // NewUpdateAgentConfigurationsRequest instantiates a new UpdateAgentConfigurationsRequest object
@@ -133,6 +134,38 @@ func (o *UpdateAgentConfigurationsRequest) SetFiles(v []FileMount) {
 	o.Files = v
 }
 
+// GetProbes returns the Probes field value if set, zero value otherwise.
+func (o *UpdateAgentConfigurationsRequest) GetProbes() AgentHealthCheckTimings {
+	if o == nil || IsNil(o.Probes) {
+		var ret AgentHealthCheckTimings
+		return ret
+	}
+	return *o.Probes
+}
+
+// GetProbesOk returns a tuple with the Probes field value if set, nil otherwise
+// and a boolean to check if the value has been set.
+func (o *UpdateAgentConfigurationsRequest) GetProbesOk() (*AgentHealthCheckTimings, bool) {
+	if o == nil || IsNil(o.Probes) {
+		return nil, false
+	}
+	return o.Probes, true
+}
+
+// HasProbes returns a boolean if a field has been set.
+func (o *UpdateAgentConfigurationsRequest) HasProbes() bool {
+	if o != nil && !IsNil(o.Probes) {
+		return true
+	}
+
+	return false
+}
+
+// SetProbes gets a reference to the given AgentHealthCheckTimings and assigns it to the Probes field.
+func (o *UpdateAgentConfigurationsRequest) SetProbes(v AgentHealthCheckTimings) {
+	o.Probes = &v
+}
+
 func (o UpdateAgentConfigurationsRequest) MarshalJSON() ([]byte, error) {
 	toSerialize, err := o.ToMap()
 	if err != nil {
@@ -149,6 +182,9 @@ func (o UpdateAgentConfigurationsRequest) ToMap() (map[string]interface{}, error
 	}
 	if !IsNil(o.Files) {
 		toSerialize["files"] = o.Files
+	}
+	if !IsNil(o.Probes) {
+		toSerialize["probes"] = o.Probes
 	}
 	return toSerialize, nil
 }

@@ -32,6 +32,20 @@ spec:
   validations:
     - rule: "${size(workload.endpoints) > 0}"
       message: "Agent API components must have at least one endpoint."
+    # The startup check may keep a starting agent for at most an hour. Checked on the
+    # values the probe is rendered from (defaults, the agent's own, the environment's),
+    # so it also covers combinations no single API request could see. Each attempt
+    # takes the longer of the interval and the timeout.
+    - rule: >-
+        ${!parameters.probes.startup.enabled ||
+          environmentConfigs.probes.startup.?initialDelaySeconds.orValue(parameters.probes.startup.initialDelaySeconds) +
+          environmentConfigs.probes.startup.?failureThreshold.orValue(parameters.probes.startup.failureThreshold) *
+          (environmentConfigs.probes.startup.?periodSeconds.orValue(parameters.probes.startup.periodSeconds) >
+            environmentConfigs.probes.startup.?timeoutSeconds.orValue(parameters.probes.startup.timeoutSeconds)
+            ? environmentConfigs.probes.startup.?periodSeconds.orValue(parameters.probes.startup.periodSeconds)
+            : environmentConfigs.probes.startup.?timeoutSeconds.orValue(parameters.probes.startup.timeoutSeconds))
+          <= 3600}
+      message: "The startup check may wait at most 3600 seconds (initial delay + failures allowed × the longer of interval and timeout)."
 
   # Baselines set at component creation time.
   parameters:
@@ -72,6 +86,143 @@ spec:
             routes instead of the distinct paths the legacy expression gave
             each; today every code path produces exactly one endpoint, so this
             is unreachable in practice.
+        # Health checks, set at build time: they depend on the agent image, so they are
+        # the same in every environment. Each check's `port` defaults to the agent's
+        # endpoint port. The wait times here are the baseline; an environment may
+        # override them (environmentConfigs.probes). Defaults reproduce the fixed probes
+        # agents had before this was configurable. agent-manager-service reads them from
+        # here; the Console's create wizard keeps a copy (DEFAULT_HEALTH_CHECKS) as the
+        # form's starting values.
+        probes:
+          type: object
+          default: {}
+          properties:
+            startup:
+              type: object
+              default: {}
+              properties:
+                enabled:
+                  type: boolean
+                  default: true
+                type:
+                  type: string
+                  enum:
+                    - tcp
+                    - http
+                  default: tcp
+                port:
+                  type: integer
+                  minimum: 1
+                  maximum: 65535
+                path:
+                  type: string
+                  pattern: '^/'
+                  maxLength: 1024
+                  default: /health
+                initialDelaySeconds:
+                  type: integer
+                  minimum: 0
+                  maximum: 3600
+                  default: 10
+                periodSeconds:
+                  type: integer
+                  minimum: 1
+                  maximum: 3600
+                  default: 5
+                timeoutSeconds:
+                  type: integer
+                  minimum: 1
+                  maximum: 3600
+                  default: 1
+                failureThreshold:
+                  type: integer
+                  minimum: 1
+                  maximum: 1000
+                  default: 60
+            readiness:
+              type: object
+              default: {}
+              properties:
+                enabled:
+                  type: boolean
+                  default: true
+                type:
+                  type: string
+                  enum:
+                    - tcp
+                    - http
+                  default: tcp
+                port:
+                  type: integer
+                  minimum: 1
+                  maximum: 65535
+                path:
+                  type: string
+                  pattern: '^/'
+                  maxLength: 1024
+                  default: /health
+                initialDelaySeconds:
+                  type: integer
+                  minimum: 0
+                  maximum: 3600
+                  default: 0
+                periodSeconds:
+                  type: integer
+                  minimum: 1
+                  maximum: 3600
+                  default: 5
+                timeoutSeconds:
+                  type: integer
+                  minimum: 1
+                  maximum: 3600
+                  default: 1
+                failureThreshold:
+                  type: integer
+                  minimum: 1
+                  maximum: 1000
+                  default: 6
+            liveness:
+              type: object
+              default: {}
+              properties:
+                enabled:
+                  type: boolean
+                  default: false
+                type:
+                  type: string
+                  enum:
+                    - tcp
+                    - http
+                  default: tcp
+                port:
+                  type: integer
+                  minimum: 1
+                  maximum: 65535
+                path:
+                  type: string
+                  pattern: '^/'
+                  maxLength: 1024
+                  default: /health
+                initialDelaySeconds:
+                  type: integer
+                  minimum: 0
+                  maximum: 3600
+                  default: 0
+                periodSeconds:
+                  type: integer
+                  minimum: 1
+                  maximum: 3600
+                  default: 10
+                timeoutSeconds:
+                  type: integer
+                  minimum: 1
+                  maximum: 3600
+                  default: 1
+                failureThreshold:
+                  type: integer
+                  minimum: 1
+                  maximum: 1000
+                  default: 3
 
   environmentConfigs:
     openAPIV3Schema:
@@ -135,6 +286,70 @@ spec:
           default: ""
         autoscaling:
           $ref: "#/$defs/AutoscalingConfig"
+        probes:
+          type: object
+          default: {}
+          properties:
+            startup:
+              type: object
+              default: {}
+              properties:
+                initialDelaySeconds:
+                  type: integer
+                  minimum: 0
+                  maximum: 3600
+                periodSeconds:
+                  type: integer
+                  minimum: 1
+                  maximum: 3600
+                timeoutSeconds:
+                  type: integer
+                  minimum: 1
+                  maximum: 3600
+                failureThreshold:
+                  type: integer
+                  minimum: 1
+                  maximum: 1000
+            readiness:
+              type: object
+              default: {}
+              properties:
+                initialDelaySeconds:
+                  type: integer
+                  minimum: 0
+                  maximum: 3600
+                periodSeconds:
+                  type: integer
+                  minimum: 1
+                  maximum: 3600
+                timeoutSeconds:
+                  type: integer
+                  minimum: 1
+                  maximum: 3600
+                failureThreshold:
+                  type: integer
+                  minimum: 1
+                  maximum: 1000
+            liveness:
+              type: object
+              default: {}
+              properties:
+                initialDelaySeconds:
+                  type: integer
+                  minimum: 0
+                  maximum: 3600
+                periodSeconds:
+                  type: integer
+                  minimum: 1
+                  maximum: 3600
+                timeoutSeconds:
+                  type: integer
+                  minimum: 1
+                  maximum: 3600
+                failureThreshold:
+                  type: integer
+                  minimum: 1
+                  maximum: 1000
 
   resources:
     - id: sandbox-template
@@ -197,17 +412,64 @@ spec:
                     limits:
                       cpu: ${environmentConfigs.resources.limits.?cpu.orValue(parameters.resources.limits.cpu)}
                       memory: ${environmentConfigs.resources.limits.?memory.orValue(parameters.resources.limits.memory)}
-                  startupProbe:
-                    tcpSocket:
-                      port: ${workload.endpoints.transformList(name, ep, [ep.port]).flatten()[0]}
-                    periodSeconds: 5
-                    failureThreshold: 60
-                    initialDelaySeconds: 10
-                  readinessProbe:
-                    tcpSocket:
-                      port: ${workload.endpoints.transformList(name, ep, [ep.port]).flatten()[0]}
-                    periodSeconds: 5
-                    failureThreshold: 6
+                  # Each probe: what to check (on/off, type, path, port) comes from the build-time
+                  # parameters.probes; each wait time from the environment's override, else the
+                  # build-time value. A check without a port uses the agent's endpoint port. A
+                  # disabled probe is omitted.
+                  startupProbe: |
+                    ${parameters.probes.startup.enabled ? oc_merge(
+                      {
+                        "initialDelaySeconds":
+                          environmentConfigs.probes.startup.?initialDelaySeconds.orValue(parameters.probes.startup.initialDelaySeconds),
+                        "periodSeconds":
+                          environmentConfigs.probes.startup.?periodSeconds.orValue(parameters.probes.startup.periodSeconds),
+                        "timeoutSeconds":
+                          environmentConfigs.probes.startup.?timeoutSeconds.orValue(parameters.probes.startup.timeoutSeconds),
+                        "failureThreshold":
+                          environmentConfigs.probes.startup.?failureThreshold.orValue(parameters.probes.startup.failureThreshold)
+                      },
+                      parameters.probes.startup.type == "http"
+                        ? {"httpGet": {"path": parameters.probes.startup.path, "port": parameters.probes.startup.?port.orValue(
+                            workload.endpoints.transformList(name, ep, [ep.port]).flatten()[0])}}
+                        : {"tcpSocket": {"port": parameters.probes.startup.?port.orValue(
+                            workload.endpoints.transformList(name, ep, [ep.port]).flatten()[0])}}
+                    ) : oc_omit()}
+                  readinessProbe: |
+                    ${parameters.probes.readiness.enabled ? oc_merge(
+                      {
+                        "initialDelaySeconds":
+                          environmentConfigs.probes.readiness.?initialDelaySeconds.orValue(parameters.probes.readiness.initialDelaySeconds),
+                        "periodSeconds":
+                          environmentConfigs.probes.readiness.?periodSeconds.orValue(parameters.probes.readiness.periodSeconds),
+                        "timeoutSeconds":
+                          environmentConfigs.probes.readiness.?timeoutSeconds.orValue(parameters.probes.readiness.timeoutSeconds),
+                        "failureThreshold":
+                          environmentConfigs.probes.readiness.?failureThreshold.orValue(parameters.probes.readiness.failureThreshold)
+                      },
+                      parameters.probes.readiness.type == "http"
+                        ? {"httpGet": {"path": parameters.probes.readiness.path, "port": parameters.probes.readiness.?port.orValue(
+                            workload.endpoints.transformList(name, ep, [ep.port]).flatten()[0])}}
+                        : {"tcpSocket": {"port": parameters.probes.readiness.?port.orValue(
+                            workload.endpoints.transformList(name, ep, [ep.port]).flatten()[0])}}
+                    ) : oc_omit()}
+                  livenessProbe: |
+                    ${parameters.probes.liveness.enabled ? oc_merge(
+                      {
+                        "initialDelaySeconds":
+                          environmentConfigs.probes.liveness.?initialDelaySeconds.orValue(parameters.probes.liveness.initialDelaySeconds),
+                        "periodSeconds":
+                          environmentConfigs.probes.liveness.?periodSeconds.orValue(parameters.probes.liveness.periodSeconds),
+                        "timeoutSeconds":
+                          environmentConfigs.probes.liveness.?timeoutSeconds.orValue(parameters.probes.liveness.timeoutSeconds),
+                        "failureThreshold":
+                          environmentConfigs.probes.liveness.?failureThreshold.orValue(parameters.probes.liveness.failureThreshold)
+                      },
+                      parameters.probes.liveness.type == "http"
+                        ? {"httpGet": {"path": parameters.probes.liveness.path, "port": parameters.probes.liveness.?port.orValue(
+                            workload.endpoints.transformList(name, ep, [ep.port]).flatten()[0])}}
+                        : {"tcpSocket": {"port": parameters.probes.liveness.?port.orValue(
+                            workload.endpoints.transformList(name, ep, [ep.port]).flatten()[0])}}
+                    ) : oc_omit()}
                   env: ${dependencies.toContainerEnvs()}
                   envFrom: ${configurations.toContainerEnvFrom()}
                   volumeMounts: |

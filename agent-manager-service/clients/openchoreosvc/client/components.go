@@ -125,6 +125,7 @@ func buildInternalAgentFromKindComponentRequestBody(namespaceName, projectName s
 		Exposed:   true,
 		Resources: resourceParams,
 		RoutePath: req.Name,
+		Probes:    req.HealthChecks,
 	}
 	parameters, err := structToMap(defaultParams)
 	if err != nil {
@@ -256,6 +257,7 @@ func buildInternalAgentFromSourceComponentRequestBody(namespaceName, projectName
 		Exposed:   true,
 		Resources: resourceParams,
 		RoutePath: req.Name,
+		Probes:    req.HealthChecks,
 	}
 
 	// Convert struct to map for OpenChoreo API
@@ -1012,14 +1014,36 @@ func (c *openChoreoClient) getEnvConfigDefaultsFromComponentType(ctx context.Con
 		return response, nil
 	}
 
-	// Get the ClusterComponentType name from component reference
+	ctSpec, err := c.getComponentTypeSpec(ctx, namespaceName, component)
+	if err != nil {
+		return nil, err
+	}
+
+	if ctSpec != nil && ctSpec.EnvironmentConfigs != nil && ctSpec.EnvironmentConfigs.OpenAPIV3Schema != nil {
+		// Extract defaults from schema (covers replicas/autoscaling, which the
+		// environmentConfigs schema declares defaults for).
+		applySchemaDefaults(response, *ctSpec.EnvironmentConfigs.OpenAPIV3Schema)
+	}
+
+	// The ComponentType template's resources fields fall back to the component's own
+	// baseline parameters (`parameters.resources.*`) at render time — the
+	// environmentConfigs schema declares no cpu/memory defaults, so relying on it alone
+	// (as above) always reports blank resources when no per-environment override
+	// exists. Overlay the component's actual baseline so this reports what the agent
+	// is really running with.
+	applyComponentResourceParameterDefaults(response.Resources, component.Spec.Parameters)
+	return response, nil
+}
+
+// getComponentTypeSpec fetches the spec of the ComponentType a component is built from — the
+// agent-api.yaml schemas and templates, including the defaults they declare.
+func (c *openChoreoClient) getComponentTypeSpec(ctx context.Context, namespaceName string, component *gen.Component) (*gen.ComponentTypeSpec, error) {
 	// The name may be prefixed with "deployment/" or similar, extract just the name part
 	ctName := component.Spec.ComponentType.Name
 	if parts := strings.Split(ctName, "/"); len(parts) > 1 {
 		ctName = parts[len(parts)-1]
 	}
 
-	// Fetch ClusterComponentType
 	ctResp, err := c.ocClient.GetComponentTypeWithResponse(ctx, namespaceName, ctName)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get cluster component type: %w", err)
@@ -1035,21 +1059,7 @@ func (c *openChoreoClient) getEnvConfigDefaultsFromComponentType(ctx context.Con
 	if ctResp.JSON200 == nil {
 		return nil, fmt.Errorf("empty response from get cluster component type")
 	}
-
-	if ctResp.JSON200.Spec != nil && ctResp.JSON200.Spec.EnvironmentConfigs != nil && ctResp.JSON200.Spec.EnvironmentConfigs.OpenAPIV3Schema != nil {
-		// Extract defaults from schema (covers replicas/autoscaling, which the
-		// environmentConfigs schema declares defaults for).
-		applySchemaDefaults(response, *ctResp.JSON200.Spec.EnvironmentConfigs.OpenAPIV3Schema)
-	}
-
-	// The ComponentType template's resources fields fall back to the component's own
-	// baseline parameters (`parameters.resources.*`) at render time — the
-	// environmentConfigs schema declares no cpu/memory defaults, so relying on it alone
-	// (as above) always reports blank resources when no per-environment override
-	// exists. Overlay the component's actual baseline so this reports what the agent
-	// is really running with.
-	applyComponentResourceParameterDefaults(response.Resources, component.Spec.Parameters)
-	return response, nil
+	return ctResp.JSON200.Spec, nil
 }
 
 // applyComponentResourceParameterDefaults overlays the component's own baseline
@@ -1239,6 +1249,247 @@ func toInt32(v interface{}) (int32, bool) {
 		return int32(val), true
 	}
 	return 0, false
+}
+
+// A health check's value comes from three layers, each later one getting priority over the previous:
+//  1. defaults    — the `default:` values in agent-api.yaml's parameters.probes schema
+//  2. build time  — the agent's parameters.probes (what to check + baseline wait times)
+//  3. environment — the ReleaseBinding's componentTypeEnvironmentConfigs.probes (wait times)
+//
+// For an environment, layers 1 and 2 come from the release the environment runs (frozen at
+// deploy), so a build-time change shows there only once it is deployed. Without an environment,
+// they come from the agent as it is now: its build-time health checks.
+func (c *openChoreoClient) GetEnvHealthChecks(ctx context.Context, ouID, componentName, environment string) (*HealthChecks, error) {
+	namespaceName := c.NamespaceFor(ouID)
+	if environment == "" {
+		return c.buildTimeHealthChecks(ctx, namespaceName, componentName)
+	}
+
+	binding, err := c.findReleaseBindingForEnv(ctx, namespaceName, componentName, environment)
+	if err != nil {
+		return nil, err
+	}
+	return c.bindingHealthChecks(ctx, namespaceName, binding)
+}
+
+// bindingHealthChecks returns the health checks an environment's binding renders: those
+// of the release it runs, with the binding's own wait times on top. nil when nothing is
+// deployed yet or the release's ComponentType defines no health checks.
+func (c *openChoreoClient) bindingHealthChecks(ctx context.Context, namespaceName string, binding *gen.ReleaseBinding) (*HealthChecks, error) {
+	if binding == nil || binding.Spec == nil || binding.Spec.ReleaseName == nil || *binding.Spec.ReleaseName == "" {
+		return nil, nil //nolint:nilnil // nothing is deployed in the environment yet
+	}
+	release, err := c.getComponentRelease(ctx, namespaceName, *binding.Spec.ReleaseName)
+	if err != nil {
+		return nil, err
+	}
+
+	parametersSchema, _ := lookupMap(release.Spec.ComponentType, "spec", "parameters", "openAPIV3Schema")
+	effective, ok := probeDefaults(parametersSchema)
+	if !ok {
+		return nil, nil //nolint:nilnil // the release's ComponentType defines no health checks
+	}
+	if profile := release.Spec.ComponentProfile; profile != nil && profile.Parameters != nil {
+		effective = mergeMaps(effective, probesIn(*profile.Parameters))
+	}
+	if binding.Spec.ComponentTypeEnvironmentConfigs != nil {
+		effective = mergeMaps(effective, probesIn(*binding.Spec.ComponentTypeEnvironmentConfigs))
+	}
+	return decodeHealthChecks(effective)
+}
+
+// buildTimeHealthChecks returns the agent's health checks as they are set now: its
+// ComponentType's defaults with its own parameters.probes on top.
+func (c *openChoreoClient) buildTimeHealthChecks(ctx context.Context, namespaceName, componentName string) (*HealthChecks, error) {
+	componentResponse, err := c.ocClient.GetComponentWithResponse(ctx, namespaceName, componentName)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get component: %w", err)
+	}
+	if componentResponse.StatusCode() != http.StatusOK {
+		return nil, handleErrorResponse(componentResponse.StatusCode(), ErrorResponses{
+			JSON401: componentResponse.JSON401,
+			JSON403: componentResponse.JSON403,
+			JSON404: componentResponse.JSON404,
+			JSON500: componentResponse.JSON500,
+		})
+	}
+	if componentResponse.JSON200 == nil || componentResponse.JSON200.Spec == nil {
+		return nil, fmt.Errorf("empty response from get component")
+	}
+	component := componentResponse.JSON200
+
+	ctSpec, err := c.getComponentTypeSpec(ctx, namespaceName, component)
+	if err != nil {
+		return nil, err
+	}
+	var parametersSchema map[string]interface{}
+	if ctSpec != nil && ctSpec.Parameters != nil && ctSpec.Parameters.OpenAPIV3Schema != nil {
+		parametersSchema = *ctSpec.Parameters.OpenAPIV3Schema
+	}
+	effective, ok := probeDefaults(parametersSchema)
+	if !ok {
+		return nil, nil //nolint:nilnil // the ComponentType defines no health checks
+	}
+	if component.Spec.Parameters != nil {
+		effective = mergeMaps(effective, probesIn(*component.Spec.Parameters))
+	}
+	return decodeHealthChecks(effective)
+}
+
+// getComponentRelease fetches a ComponentRelease: a frozen copy of the agent and
+// its ComponentType made on each deploy.
+func (c *openChoreoClient) getComponentRelease(ctx context.Context, namespaceName, releaseName string) (*gen.ComponentRelease, error) {
+	resp, err := c.ocClient.GetComponentReleaseWithResponse(ctx, namespaceName, releaseName)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get component release: %w", err)
+	}
+	if resp.StatusCode() != http.StatusOK {
+		return nil, handleErrorResponse(resp.StatusCode(), ErrorResponses{
+			JSON401: resp.JSON401,
+			JSON403: resp.JSON403,
+			JSON404: resp.JSON404,
+			JSON500: resp.JSON500,
+		})
+	}
+	if resp.JSON200 == nil || resp.JSON200.Spec == nil {
+		return nil, fmt.Errorf("empty response from get component release")
+	}
+	return resp.JSON200, nil
+}
+
+// probeDefaults reads layer 1 from a ComponentType's parameters schema. It reports
+// false when the ComponentType defines no health checks.
+func probeDefaults(parametersSchema map[string]interface{}) (map[string]interface{}, bool) {
+	probesSchema, ok := lookupMap(parametersSchema, "properties", probesKey)
+	if !ok {
+		return nil, false
+	}
+	defaults, ok := schemaDefaults(probesSchema).(map[string]interface{})
+	return defaults, ok
+}
+
+// decodeHealthChecks converts merged health-check values into HealthChecks.
+func decodeHealthChecks(values map[string]interface{}) (*HealthChecks, error) {
+	data, err := json.Marshal(values)
+	if err != nil {
+		return nil, fmt.Errorf("failed to read health checks: %w", err)
+	}
+	var checks HealthChecks
+	if err := json.Unmarshal(data, &checks); err != nil {
+		return nil, fmt.Errorf("failed to parse health checks: %w", err)
+	}
+	return &checks, nil
+}
+
+// schemaDefaults collects the `default:` values of a schema: for an object,
+// a map of its properties' defaults; otherwise the schema's own default.
+func schemaDefaults(schema map[string]interface{}) interface{} {
+	if properties, ok := schema["properties"].(map[string]interface{}); ok {
+		values := map[string]interface{}{}
+		for name, prop := range properties {
+			if propSchema, ok := prop.(map[string]interface{}); ok {
+				if v := schemaDefaults(propSchema); v != nil {
+					values[name] = v
+				}
+			}
+		}
+		return values
+	}
+	return schema["default"]
+}
+
+// lookupMap follows keys down nested maps, reporting false if any is missing.
+func lookupMap(m map[string]interface{}, keys ...string) (map[string]interface{}, bool) {
+	node := m
+	for _, key := range keys {
+		next, ok := node[key].(map[string]interface{})
+		if !ok {
+			return nil, false
+		}
+		node = next
+	}
+	return node, true
+}
+
+// probesIn returns the probes section of a parameters or environment configs
+// map, or nil when there is none.
+func probesIn(m map[string]interface{}) map[string]interface{} {
+	probes, _ := m[probesKey].(map[string]interface{})
+	return probes
+}
+
+// mergeMaps returns base with override laid on top: nested maps are merged key
+// by key, and any other value in override replaces base's. Neither input changes.
+func mergeMaps(base, override map[string]interface{}) map[string]interface{} {
+	merged := make(map[string]interface{}, len(base)+len(override))
+	for k, v := range base {
+		merged[k] = v
+	}
+	for k, v := range override {
+		baseMap, baseIsMap := merged[k].(map[string]interface{})
+		overrideMap, overrideIsMap := v.(map[string]interface{})
+		if baseIsMap && overrideIsMap {
+			merged[k] = mergeMaps(baseMap, overrideMap)
+		} else {
+			merged[k] = v
+		}
+	}
+	return merged
+}
+
+// mergeEnvProbeTimings lays wait times onto an environment's ReleaseBinding
+// (componentTypeEnvironmentConfigs.probes). Only the fields sent change; the
+// environment keeps any other wait time it already overrides.
+func mergeEnvProbeTimings(rb *gen.ReleaseBinding, sent map[string]interface{}) {
+	if len(sent) == 0 {
+		return
+	}
+	if rb.Spec.ComponentTypeEnvironmentConfigs == nil {
+		configs := make(map[string]interface{})
+		rb.Spec.ComponentTypeEnvironmentConfigs = &configs
+	}
+	configs := *rb.Spec.ComponentTypeEnvironmentConfigs
+	configs[probesKey] = mergeMaps(probesIn(configs), sent)
+}
+
+// setEnvProbes makes an environment's health check wait times (its binding's
+// componentTypeEnvironmentConfigs.probes) the given ones, or removes them when
+// probes is nil. Promote uses it to copy the source environment's wait times.
+func setEnvProbes(spec *gen.ReleaseBindingSpec, probes map[string]interface{}) {
+	if spec.ComponentTypeEnvironmentConfigs == nil {
+		if probes == nil {
+			return
+		}
+		configs := make(map[string]interface{})
+		spec.ComponentTypeEnvironmentConfigs = &configs
+	}
+	if probes == nil {
+		delete(*spec.ComponentTypeEnvironmentConfigs, probesKey)
+		return
+	}
+	(*spec.ComponentTypeEnvironmentConfigs)[probesKey] = probes
+}
+
+// checkStartupWindow rejects health checks whose startup check could keep a starting
+// agent longer than utils.MaxStartupWindowSeconds: initial delay + failures allowed ×
+// the longer of interval and timeout.
+func checkStartupWindow(checks *HealthChecks) error {
+	if checks == nil || checks.Startup == nil || checks.Startup.Enabled == nil || !*checks.Startup.Enabled {
+		return nil
+	}
+	value := func(v *int32) int32 {
+		if v == nil {
+			return 0
+		}
+		return *v
+	}
+	s := checks.Startup
+	window := value(s.InitialDelaySeconds) + value(s.FailureThreshold)*max(value(s.PeriodSeconds), value(s.TimeoutSeconds))
+	if window > utils.MaxStartupWindowSeconds {
+		return fmt.Errorf("%w: startup check would wait up to %d seconds (initial delay + failures allowed × the longer of interval and timeout); the maximum is %d",
+			utils.ErrInvalidInput, window, utils.MaxStartupWindowSeconds)
+	}
+	return nil
 }
 
 func (c *openChoreoClient) DeleteComponent(ctx context.Context, ouID, projectName, componentName string) error {

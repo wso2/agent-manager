@@ -22,7 +22,8 @@ type ConfigurationResponseConfigurations struct {
 	// List of environment variable configurations
 	Env []ConfigurationItem `json:"env"`
 	// List of file mount configurations
-	Files []FileMount `json:"files"`
+	Files  []FileMount        `json:"files"`
+	Probes *AgentHealthChecks `json:"probes,omitempty"`
 }
 
 // NewConfigurationResponseConfigurations instantiates a new ConfigurationResponseConfigurations object
@@ -92,6 +93,38 @@ func (o *ConfigurationResponseConfigurations) SetFiles(v []FileMount) {
 	o.Files = v
 }
 
+// GetProbes returns the Probes field value if set, zero value otherwise.
+func (o *ConfigurationResponseConfigurations) GetProbes() AgentHealthChecks {
+	if o == nil || IsNil(o.Probes) {
+		var ret AgentHealthChecks
+		return ret
+	}
+	return *o.Probes
+}
+
+// GetProbesOk returns a tuple with the Probes field value if set, nil otherwise
+// and a boolean to check if the value has been set.
+func (o *ConfigurationResponseConfigurations) GetProbesOk() (*AgentHealthChecks, bool) {
+	if o == nil || IsNil(o.Probes) {
+		return nil, false
+	}
+	return o.Probes, true
+}
+
+// HasProbes returns a boolean if a field has been set.
+func (o *ConfigurationResponseConfigurations) HasProbes() bool {
+	if o != nil && !IsNil(o.Probes) {
+		return true
+	}
+
+	return false
+}
+
+// SetProbes gets a reference to the given AgentHealthChecks and assigns it to the Probes field.
+func (o *ConfigurationResponseConfigurations) SetProbes(v AgentHealthChecks) {
+	o.Probes = &v
+}
+
 func (o ConfigurationResponseConfigurations) MarshalJSON() ([]byte, error) {
 	toSerialize, err := o.ToMap()
 	if err != nil {
@@ -104,6 +137,9 @@ func (o ConfigurationResponseConfigurations) ToMap() (map[string]interface{}, er
 	toSerialize := map[string]interface{}{}
 	toSerialize["env"] = o.Env
 	toSerialize["files"] = o.Files
+	if !IsNil(o.Probes) {
+		toSerialize["probes"] = o.Probes
+	}
 	return toSerialize, nil
 }
 

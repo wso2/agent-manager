@@ -42,6 +42,7 @@ export * from "./EntityHeader";
 export * from "./EditFormSkeleton";
 export * from "./ListingSkeletonRows";
 export * from "./ResilienceTimeoutFields";
+export * from "./HealthChecksEditor";
 export {
   RestrictedAction,
   type RestrictedActionProps,

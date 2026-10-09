@@ -72,6 +72,7 @@ type CreateComponentRequest struct {
 	Build            *BuildConfig          // nil for external or kind-sourced agents
 	Configurations   *Configurations       // nil for external agents or if no env vars
 	InputInterface   *InputInterfaceConfig // nil unless custom-api
+	HealthChecks     *HealthChecks         // nil for defaults or external agents
 	// Labels holds user-defined labels to attach to the component alongside
 	// the system-managed ones. User label keys can never collide with system
 	// keys (all system keys are namespaced "openchoreo.dev/...", which user
@@ -146,6 +147,7 @@ type UpdateComponentBuildParametersRequest struct {
 	Repository     *RepositoryConfig     // nil if no change
 	Build          *BuildConfig          // nil if no change
 	InputInterface *InputInterfaceConfig // nil if no change
+	HealthChecks   *HealthChecks         // nil if no change
 	AgentType      AgentTypeConfig       // Required for determining endpoint defaults
 }
 
@@ -196,6 +198,8 @@ type ComponentParameters struct {
 	// RoutePath is a bare path segment with no leading slash: the chart template
 	// supplies the "/" when it renders the HTTPRoute path from this parameter.
 	RoutePath string `json:"routePath,omitempty"`
+	// Probes holds the agent's build-time health checks; nil leaves the defaults.
+	Probes *HealthChecks `json:"probes,omitempty"`
 }
 
 // EnvOverrideParameters represents environment-specific overrides (must match agent-api.yaml envOverrides schema)
@@ -212,6 +216,53 @@ type ComponentResourceConfigsResponse struct {
 	Replicas    *int32             // Current replicas
 	Resources   *ResourceConfig    // Current resources
 	AutoScaling *AutoScalingConfig // Current autoscaling configuration (if applicable)
+}
+
+// Health check (probe) check types.
+const (
+	ProbeTypeTCP  = "tcp"
+	ProbeTypeHTTP = "http"
+)
+
+// probesKey is where health checks are stored: the Component's parameters.probes (build time)
+// and a ReleaseBinding's componentTypeEnvironmentConfigs.probes (per-environment wait times).
+const probesKey = "probes"
+
+// ProbeTimings holds one health check's wait times. Fields are pointers so a partial value (a
+// build-parameters update, an environment override) carries only the fields it sets. The JSON
+// names match the probes schemas in component-types/agent-api.yaml.
+type ProbeTimings struct {
+	InitialDelaySeconds *int32 `json:"initialDelaySeconds,omitempty"`
+	PeriodSeconds       *int32 `json:"periodSeconds,omitempty"`
+	TimeoutSeconds      *int32 `json:"timeoutSeconds,omitempty"`
+	FailureThreshold    *int32 `json:"failureThreshold,omitempty"`
+}
+
+// HealthCheck is one health check: what it checks and how long it waits. A nil Port means the
+// agent's endpoint port. ProbeTimings is embedded, so its fields are HealthCheck's own, in Go
+// and in JSON.
+type HealthCheck struct {
+	Enabled *bool   `json:"enabled,omitempty"`
+	Type    *string `json:"type,omitempty"`
+	Port    *int32  `json:"port,omitempty"`
+	Path    *string `json:"path,omitempty"`
+	ProbeTimings
+}
+
+// HealthChecks is an agent's health checks, set at build time and stored as the Component's
+// parameters.probes.
+type HealthChecks struct {
+	Startup   *HealthCheck `json:"startup,omitempty"`
+	Readiness *HealthCheck `json:"readiness,omitempty"`
+	Liveness  *HealthCheck `json:"liveness,omitempty"`
+}
+
+// HealthCheckTimings holds one environment's wait-time overrides, stored on its ReleaseBinding
+// as componentTypeEnvironmentConfigs.probes. A nil check or field follows the build-time value.
+type HealthCheckTimings struct {
+	Startup   *ProbeTimings `json:"startup,omitempty"`
+	Readiness *ProbeTimings `json:"readiness,omitempty"`
+	Liveness  *ProbeTimings `json:"liveness,omitempty"`
 }
 
 // CreateEnvironmentRequest contains data for creating an environment

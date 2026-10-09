@@ -32,7 +32,13 @@ import { FileMount } from "../components/FileMount";
 import { GitSecretSelector } from "../components/GitSecretSelector";
 import { LLMProviderSection } from "../components/LLMProviderSection";
 import { MCPProxySection } from "../components/MCPProxySection";
-import { LabelsEditor, MarkdownEditor } from "@agent-management-platform/shared-component";
+import {
+  HealthChecksEditor,
+  LabelsEditor,
+  MarkdownEditor,
+  type HealthChecksFormErrors,
+  type HealthChecksFormValues,
+} from "@agent-management-platform/shared-component";
 import type { CreateAgentFormValues, LLMProviderFormEntry, MCPProxyFormEntry } from "../form/schema";
 import { BuildpackIcon } from "@agent-management-platform/views";
 import { mcpEntryVarNames } from "../utils/mcpEnvVarNames";
@@ -60,6 +66,9 @@ interface InternalAgentFormProps {
   // the first env name so each section can warn that create-time config
   // applies only to that environment.
   firstEnvOnlyNotice?: string | undefined;
+  healthChecks: HealthChecksFormValues;
+  setHealthChecks: (next: HealthChecksFormValues) => void;
+  healthCheckErrors: HealthChecksFormErrors;
 }
 const languageOptions = [
   { label: "Python", value: "python" },
@@ -85,6 +94,10 @@ export const InternalAgentForm = ({
   initialEnvironmentName,
   isInitialEnvironmentLoading = false,
   firstEnvOnlyNotice,
+  healthChecks,
+  setHealthChecks,
+  healthCheckErrors,
+
 }: InternalAgentFormProps) => {
   const { orgId, projectId } = useParams<{ orgId: string; projectId: string }>();
 
@@ -686,6 +699,14 @@ export const InternalAgentForm = ({
         setFieldError={setFieldError}
         validateField={validateField}
       />
+      <Form.Section>
+        <Form.Subheader>Health Checks</Form.Subheader>
+        <HealthChecksEditor
+          value={healthChecks}
+          onChange={setHealthChecks}
+          errors={healthCheckErrors}
+        />
+      </Form.Section>
       {firstEnvOnlyNotice && (
         <Alert severity="info">
           LLM providers, environment variables, and file mounts below apply only
