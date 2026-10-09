@@ -940,15 +940,8 @@ export const ViewEvaluatorOrganization: React.FC = () => {
               label={evaluator.isBuiltin ? "Built-in" : "Custom"}
               size="small"
               variant="outlined"
-              color={evaluator.isBuiltin ? "default" : "info"}
+              color="default"
             />
-            {evaluator.type && (
-              <Chip
-                label={isLLMJudge ? "LLM Judge" : "Code"}
-                variant="outlined"
-                size="small"
-              />
-            )}
             <Chip
               label={
                 evaluator.level.charAt(0).toUpperCase() +
@@ -958,6 +951,14 @@ export const ViewEvaluatorOrganization: React.FC = () => {
               size="small"
               color="primary"
             />
+            {evaluator.type && (
+              <Chip
+                label={isLLMJudge ? "LLM Judge" : "Rule-based"}
+                variant="outlined"
+                size="small"
+                color="info"
+              />
+            )}
           </Stack>
         ) : undefined
       }
@@ -1010,15 +1011,8 @@ export const ViewEvaluatorOrganization: React.FC = () => {
               label={evaluator.isBuiltin ? "Built-in" : "Custom"}
               size="small"
               variant="outlined"
-              color={evaluator.isBuiltin ? "default" : "info"}
+              color="default"
             />
-            {evaluator.type && (
-              <Chip
-                label={isLLMJudge ? "LLM Judge" : "Code"}
-                variant="outlined"
-                size="small"
-              />
-            )}
             <Chip
               label={
                 evaluator.level.charAt(0).toUpperCase() +
@@ -1028,6 +1022,14 @@ export const ViewEvaluatorOrganization: React.FC = () => {
               size="small"
               color="primary"
             />
+            {evaluator.type && (
+              <Chip
+                label={isLLMJudge ? "LLM Judge" : "Rule-based"}
+                variant="outlined"
+                size="small"
+                color="info"
+              />
+            )}
           </Stack>
         )}
 

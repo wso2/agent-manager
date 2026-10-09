@@ -181,17 +181,14 @@ export function OxygenLayout() {
             <Footer.Copyright>
               © {new Date().getFullYear()} WSO2 LLC.
             </Footer.Copyright>
-            <Footer.Divider />
             {
-              globalConfig.ampVersion && (
-                <Footer.Version>
-                  {
-                    (
-                      `${globalConfig.ampVersion}`
-                    )
-                  }
-                </Footer.Version>
-              )
+              // Plain array, not a Fragment: Footer's React.Children.toArray() wouldn't unwrap it.
+              globalConfig.ampVersion && [
+                <Footer.Divider key="footer-divider" />,
+                <Footer.Version key="footer-version">
+                  {`${globalConfig.ampVersion}`}
+                </Footer.Version>,
+              ]
             }
             {
               externalBottomLeftComponentModules?.map((module) => (
@@ -212,7 +209,7 @@ export function OxygenLayout() {
               <Footer.Link href={globalConfig.docsUrl + "/get-started/what-is-amp/"} target="_blank" rel="noopener noreferrer">Documentation</Footer.Link>
             )}
             {globalConfig.footerLinks?.termsOfUseUrl && (
-              <Footer.Link href={globalConfig.footerLinks.termsOfUseUrl} target="_blank" rel="noopener noreferrer">Terms & Conditions</Footer.Link>
+              <Footer.Link href={globalConfig.footerLinks.termsOfUseUrl} target="_blank" rel="noopener noreferrer">Terms of Use</Footer.Link>
             )}
             {globalConfig.footerLinks?.privacyPolicyUrl && (
               <Footer.Link href={globalConfig.footerLinks.privacyPolicyUrl} target="_blank" rel="noopener noreferrer">Privacy Policy</Footer.Link>
