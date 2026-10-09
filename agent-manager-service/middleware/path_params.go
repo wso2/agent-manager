@@ -17,11 +17,13 @@
 package middleware
 
 import (
+	"log/slog"
 	"net/http"
 	"regexp"
 	"strings"
 
 	"github.com/wso2/agent-manager/agent-manager-service/audit"
+	"github.com/wso2/agent-manager/agent-manager-service/middleware/logger"
 	"github.com/wso2/agent-manager/agent-manager-service/rbac"
 	"github.com/wso2/agent-manager/agent-manager-service/utils"
 )
@@ -92,8 +94,9 @@ func (rr *RouteRegistrar) Routes() []audit.RouteMeta {
 // authz is applied by the caller-supplied function so that the differences
 // between the permission variants stay visible at each call site rather than
 // hiding behind a flag. Order, innermost first: path-param validation, authz,
-// org resolution, audit. Audit is outermost so it observes the 400 from
-// validation and the 403 from authz as well as the handler's own response.
+// org resolution, logger enrichment, audit. Audit is outermost so it observes
+// the 400 from validation and the 403 from authz as well as the handler's own
+// response.
 func (rr *RouteRegistrar) register(
 	pattern string,
 	perms []rbac.Permission,
@@ -109,6 +112,9 @@ func (rr *RouteRegistrar) register(
 	}
 	if strings.Contains(pattern, orgNamePlaceholder) {
 		handler = RequireOrgMatch(rr.orgResolver)(handler)
+	}
+	if len(params) > 0 {
+		handler = WithLoggerPathParams(handler, params...)
 	}
 
 	meta := audit.NewRouteMetaForSurface(pattern, params, perms, rr.surface)
@@ -168,6 +174,9 @@ func (rr *RouteRegistrar) registerRootOU(
 	if strings.Contains(pattern, orgNamePlaceholder) {
 		handler = RequireOrgMatchAllowRootOU(rr.orgResolver)(handler)
 	}
+	if len(params) > 0 {
+		handler = WithLoggerPathParams(handler, params...)
+	}
 
 	meta := audit.NewRouteMetaForSurface(pattern, params, perms, rr.surface)
 	rr.routes = append(rr.routes, meta)
@@ -190,6 +199,42 @@ func WithPathParamValidation(handler http.HandlerFunc, requiredParams ...string)
 		}
 
 		// All validations passed, call the original handler
+		handler(w, r)
+	}
+}
+
+// logFieldForParam maps well-known path parameter names to their structured
+// log field names. Only parameters listed here are added to the request-scoped
+// logger — keeping the set explicit controls log cardinality and avoids
+// leaking routing-only values like orgName (org identity comes from the token).
+var logFieldForParam = map[string]string{
+	utils.PathParamAgentName: "agent_name",
+	utils.PathParamProjName:  "project_name",
+	utils.PathParamEnvID:     "env_id",
+	utils.PathParamMonitorId: "monitor_id",
+	utils.PathParamGatewayId: "gateway_id",
+	"gatewayID":              "gateway_id",
+}
+
+// WithLoggerPathParams enriches the request-scoped logger with well-known path
+// parameter values. It runs after mux routing (so r.PathValue works) and before
+// org resolution, giving every downstream middleware and handler a logger that
+// carries the resource identifiers for the current request.
+func WithLoggerPathParams(handler http.HandlerFunc, routeParams ...string) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		ctx := r.Context()
+		var attrs []any
+		for _, p := range routeParams {
+			if field, ok := logFieldForParam[p]; ok {
+				if v := r.PathValue(p); v != "" {
+					attrs = append(attrs, slog.String(field, v))
+				}
+			}
+		}
+		if len(attrs) > 0 {
+			ctx = logger.WithLogger(ctx, logger.GetLogger(ctx).With(attrs...))
+			r = r.WithContext(ctx)
+		}
 		handler(w, r)
 	}
 }
