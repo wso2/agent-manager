@@ -393,7 +393,7 @@ func buildUpdatedWorkflowParameters(componentName string, existingParams map[str
 
 	// Update endpoints if InputInterface provided
 	if req.InputInterface != nil {
-		endpoints, err := buildEndpointsFromInputInterface(componentName, req.InputInterface, req.AgentType)
+		endpoints, err := buildEndpointsFromInputInterface(componentName, req.InputInterface, req.AgentType, buildLanguage(req.Build))
 		if err != nil {
 			return nil, fmt.Errorf("failed to build endpoints: %w", err)
 		}
@@ -403,17 +403,23 @@ func buildUpdatedWorkflowParameters(componentName string, existingParams map[str
 	return existingParams, nil
 }
 
-// buildEndpointsFromInputInterface builds endpoint configuration from InputInterface
-// For chat-api agents, uses default port from config; for custom-api, uses the provided port
-func buildEndpointsFromInputInterface(componentName string, inputInterface *InputInterfaceConfig, agentType AgentTypeConfig) ([]map[string]any, error) {
+// buildEndpointsFromInputInterface builds endpoint configuration from InputInterface.
+// A chat-api agent serves on the language's default chat port and base path unless the
+// request names its own (a Ballerina ai:Listener sets both); custom-api and a2a-agent
+// always carry their own. language is the buildpack language, "" when unknown.
+func buildEndpointsFromInputInterface(componentName string, inputInterface *InputInterfaceConfig, agentType AgentTypeConfig, language string) ([]map[string]any, error) {
 	var port int32
 	var basePath string
 
-	// Use default port and basePath for chat-api agents, similar to buildEndpoints in components.go.
-	// custom-api and a2a-agent both carry their own port and base path.
 	if agentType.Type == string(utils.AgentTypeAPI) && agentType.SubType == string(utils.AgentSubTypeChatAPI) {
-		port = int32(config.GetConfig().DefaultChatAPI.DefaultHTTPPort)
+		port = ChatAPIDefaultPort(language)
 		basePath = config.GetConfig().DefaultChatAPI.DefaultBasePath
+		if inputInterface.Port > 0 {
+			port = inputInterface.Port
+		}
+		if inputInterface.BasePath != "" {
+			basePath = inputInterface.BasePath
+		}
 	} else {
 		port = inputInterface.Port
 		basePath = inputInterface.BasePath

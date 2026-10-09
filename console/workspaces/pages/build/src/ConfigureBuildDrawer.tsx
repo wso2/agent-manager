@@ -78,6 +78,16 @@ interface ConfigureBuildFormValues {
 // base path.
 const interfacesNeedingPort = new Set<InputInterfaceType>(["CUSTOM", "A2A"]);
 
+// A Ballerina chat agent is a ballerina/ai ai:Listener serving POST <basePath>/chat
+// on its own port (default 9090), so it names a port and base path like a custom
+// API; other chat agents use the platform's fixed interface (port 8000, "/").
+const BALLERINA_CHAT_DEFAULT_PORT = 9090;
+const PLATFORM_CHAT_PORT = 8000;
+const isBallerinaChat = (data: { interfaceType?: string; language?: string }) =>
+  data.interfaceType === "DEFAULT" && data.language === "ballerina";
+const needsPort = (data: { interfaceType: InputInterfaceType; language?: string }) =>
+  interfacesNeedingPort.has(data.interfaceType) || isBallerinaChat(data);
+
 const subTypeByInterface: Record<InputInterfaceType, string> = {
   DEFAULT: "chat-api",
   CUSTOM: "custom-api",
@@ -134,15 +144,15 @@ const configureBuildSchema = z.object({
   openApiPath: z.string().trim().optional(),
 }).refine(
   (data) => {
-    if (interfacesNeedingPort.has(data.interfaceType) && !data.port) {
+    if (needsPort(data) && !data.port) {
       return false;
     }
     return true;
   },
-  { message: "Port is required for custom and A2A interfaces", path: ["port"] }
+  { message: "Port is required", path: ["port"] }
 ).refine(
   (data) => {
-    if (interfacesNeedingPort.has(data.interfaceType) && data.port !== undefined) {
+    if (needsPort(data) && data.port !== undefined) {
       if (isNaN(data.port)) return false;
       if (data.port < 1 || data.port > 65535) return false;
     }
@@ -275,7 +285,13 @@ export function ConfigureBuildDrawer({
       languageVersion: buildpackConfig?.languageVersion ?? "3.11",
       dockerfilePath: dockerConfig?.dockerfilePath ?? "/Dockerfile",
       interfaceType: resolvedInterfaceType,
-      port: inputInterface?.port,
+      // A Ballerina chat agent created before it could name a port has been served
+      // on the platform's chat port; keep that rather than moving it silently.
+      port:
+        inputInterface?.port ??
+        (resolvedInterfaceType === "DEFAULT" && buildpackConfig?.language === "ballerina"
+          ? PLATFORM_CHAT_PORT
+          : undefined),
       basePath: inputInterface?.basePath ?? "",
       openApiPath: inputInterface?.schema?.path ?? "",
     }),
@@ -327,6 +343,11 @@ export function ConfigureBuildDrawer({
     ) => {
     setFormData(prevData => {
       const newData: ConfigureBuildFormValues = { ...prevData, [field]: value };
+      // A Ballerina chat agent needs a port; seed the default it shows.
+      if (field === 'language' && value !== prevData.language && newData.interfaceType === "DEFAULT") {
+        newData.port = isBallerinaChat(newData) ? BALLERINA_CHAT_DEFAULT_PORT : undefined;
+        setFieldError('port', undefined);
+      }
 
       const error = validateField(field, value, newData);
       setFieldError(field, error);
@@ -368,7 +389,7 @@ export function ConfigureBuildDrawer({
           interfaceType: value,
           ...(value === "DEFAULT" ? {
             openApiPath: "",
-            port: undefined,
+            port: prevData.language === "ballerina" ? BALLERINA_CHAT_DEFAULT_PORT : undefined,
             basePath: "/",
           } : {}),
           ...(value === "A2A" ? {
@@ -450,7 +471,12 @@ export function ConfigureBuildDrawer({
             }
           : formData.interfaceType === "A2A"
             ? { port: Number(formData.port) }
-            : {}),
+            : isBallerinaChat(formData)
+              ? {
+                  port: Number(formData.port) || BALLERINA_CHAT_DEFAULT_PORT,
+                  basePath: formData.basePath || "/",
+                }
+              : {}),
       },
     };
 
@@ -679,7 +705,9 @@ export function ConfigureBuildDrawer({
                                 {interfaceOption.label}
                               </Typography>
                               <Typography variant="caption">
-                                {interfaceOption.description}
+                                {interfaceOption.value === "DEFAULT" && formData.language === "ballerina"
+                                  ? "ballerina/ai chat agent (ai:Listener) serving POST <base path>/chat"
+                                  : interfaceOption.description}
                               </Typography>
                             </Box>
                           </Box>
@@ -687,7 +715,54 @@ export function ConfigureBuildDrawer({
                       </Card>
                     ))}
                   </Box>
-                  <Collapse in={formData.interfaceType === "DEFAULT"}>
+                  <Collapse in={isBallerinaChat(formData)}>
+                    <Box display="flex" flexDirection="column" gap={1}>
+                      <Alert severity="info">
+                        A ballerina/ai <code>ai:Listener</code> chat service:{" "}
+                        <strong>POST &lt;base path&gt;/chat</strong>
+                        <br />
+                        Request: <code>{`{message: string, sessionId?: string}`}</code>
+                        <br />
+                        Response: <code>{`{message: string}`}</code>
+                      </Alert>
+                      <Box display="flex" flexDirection="row" gap={1}>
+                        <Box>
+                          <TextInput
+                            label="Port"
+                            placeholder={String(BALLERINA_CHAT_DEFAULT_PORT)}
+                            required={isBallerinaChat(formData)}
+                            value={formData.port ?? ""}
+                            onChange={(e) => {
+                              const next = e.target.value;
+                              if (/^\d*$/.test(next)) {
+                                handleFieldChange('port', next === "" ? undefined : Number(next));
+                              }
+                            }}
+                            size="small"
+                            type="number"
+                            error={!!errors.port}
+                            helperText={errors.port || "The ai:Listener port"}
+                            disabled={isPending}
+                          />
+                        </Box>
+                        <Box display="flex" flexDirection="column" flexGrow={1}>
+                          <TextInput
+                            maxLength={INPUT_LIMITS.PATH}
+                            label="Base Path"
+                            placeholder="/math-tutor"
+                            fullWidth
+                            size="small"
+                            value={formData.basePath || ""}
+                            onChange={(e) => handleFieldChange('basePath', e.target.value)}
+                            error={!!errors.basePath}
+                            helperText={errors.basePath || "The service path, e.g. /math-tutor"}
+                            disabled={isPending}
+                          />
+                        </Box>
+                      </Box>
+                    </Box>
+                  </Collapse>
+                  <Collapse in={formData.interfaceType === "DEFAULT" && !isBallerinaChat(formData)}>
                     <Alert severity="info">
                       Uses the standard chat interface:{" "}
                       <strong>POST /chat</strong> on port{" "}

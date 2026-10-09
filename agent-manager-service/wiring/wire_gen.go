@@ -85,7 +85,7 @@ func InitializeAppParams(cfg *config.Config, db *gorm.DB, authProvider client.Au
 	infraResourceManager := services.NewInfraResourceManager(openChoreoClient, logger)
 	agentThunderClientRepository := ProvideAgentThunderClientRepository(db)
 	mcpProxyScopeRepository := repositories.NewMCPProxyScopeRepository(db)
-	agentIdentityInjectionService := ProvideAgentIdentityInjectionService(agentThunderClientRepository, agentConfigurationRepository, mcpProxyScopeRepository, openChoreoClient, configConfig, logger)
+	agentIdentityInjectionService := ProvideAgentIdentityInjectionService(agentThunderClientRepository, agentConfigurationRepository, agentConfigRepository, mcpProxyScopeRepository, openChoreoClient, configConfig, logger)
 	envThunderSystemClientRepository := ProvideEnvThunderSystemClientRepository(db)
 	readSystemClientFunc := ProvideEnvThunderSecretReader(envThunderSystemClientRepository, v)
 	envThunderURLRepository := ProvideEnvThunderURLRepository(db)
@@ -270,7 +270,7 @@ func InitializeTestAppParamsWithClientMocks(cfg *config.Config, db *gorm.DB, aut
 	infraResourceManager := services.NewInfraResourceManager(openChoreoClient, logger)
 	agentThunderClientRepository := ProvideAgentThunderClientRepository(db)
 	mcpProxyScopeRepository := repositories.NewMCPProxyScopeRepository(db)
-	agentIdentityInjectionService := ProvideAgentIdentityInjectionService(agentThunderClientRepository, agentConfigurationRepository, mcpProxyScopeRepository, openChoreoClient, configConfig, logger)
+	agentIdentityInjectionService := ProvideAgentIdentityInjectionService(agentThunderClientRepository, agentConfigurationRepository, agentConfigRepository, mcpProxyScopeRepository, openChoreoClient, configConfig, logger)
 	envThunderSystemClientRepository := ProvideEnvThunderSystemClientRepository(db)
 	readSystemClientFunc := ProvideEnvThunderSecretReader(envThunderSystemClientRepository, v)
 	envThunderURLRepository := ProvideEnvThunderURLRepository(db)
@@ -845,12 +845,13 @@ func ProvideEnvThunderResolver(readSystemClient thundersvc.ReadSystemClientFunc,
 func ProvideAgentIdentityInjectionService(
 	repo repositories.AgentThunderClientRepository,
 	agentConfigRepo repositories.AgentConfigurationRepository,
+	envConfigRepo repositories.AgentConfigRepository,
 	mcpProxyScopeRepo repositories.MCPProxyScopeRepository,
 	ocClient client.OpenChoreoClient,
 	cfg config.Config,
 	logger *slog.Logger,
 ) services.AgentIdentityInjectionService {
-	return services.NewAgentIdentityInjectionService(repo, agentConfigRepo, mcpProxyScopeRepo, ocClient, cfg.SecretManager.AgentIdentityRefreshInterval, logger)
+	return services.NewAgentIdentityInjectionService(repo, agentConfigRepo, envConfigRepo, mcpProxyScopeRepo, ocClient, cfg.SecretManager.AgentIdentityRefreshInterval, logger)
 }
 
 func ProvideThunderConfig(cfg config.Config) config.ThunderConfig {

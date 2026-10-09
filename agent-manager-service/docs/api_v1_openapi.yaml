@@ -12396,6 +12396,9 @@ components:
           type: boolean
           description: Enable auto instrumentation for observability
           default: true
+        agentIdAsBallerinaConfigurables:
+          type: boolean
+          description: Ballerina agents only. Inject this environment's AgentID credentials as BAL_CONFIG_VAR_AMPAGENTID* (instead of AMP_AGENTID_*) so the program can read them as configurables. The program must declare the matching configurables or it will fail to start. Omit to keep the current value.
         enableApiKeySecurity:
           type: boolean
           description: Enable API key security for the agent endpoint
@@ -12474,6 +12477,9 @@ components:
           type: boolean
           description: Enable automatic OTEL instrumentation for the agent
           default: true
+        agentIdAsBallerinaConfigurables:
+          type: boolean
+          description: Ballerina agents only. Inject AgentID credentials as BAL_CONFIG_VAR_AMPAGENTID* (instead of AMP_AGENTID_*) so the program can read them as configurables. The program must declare the matching configurables or it will fail to start. Defaults to false.
         instrumentationVersion:
           type: string
           nullable: true
@@ -12903,6 +12909,9 @@ components:
         enableAutoInstrumentation:
           type: boolean
           description: Whether auto-instrumentation (tracing) is enabled for this environment
+        agentIdAsBallerinaConfigurables:
+          type: boolean
+          description: Whether AgentID credentials are injected as BAL_CONFIG_VAR_AMPAGENTID* Ballerina configurables in this environment
         instrumentationVersion:
           type: string
           description: AMP instrumentation version pinned for this environment, if any
@@ -14805,6 +14814,9 @@ components:
         enableAutoInstrumentation:
           type: boolean
           description: Enable auto instrumentation for observability in this environment. Omit to keep the current value.
+        agentIdAsBallerinaConfigurables:
+          type: boolean
+          description: Ballerina agents only. Inject AgentID credentials as BAL_CONFIG_VAR_AMPAGENTID* Ballerina configurables in this environment. The program must declare the matching configurables or it will fail to start. Omit to keep the current value.
         instrumentationVersion:
           type: string
           nullable: true
@@ -14872,6 +14884,9 @@ components:
         enableAutoInstrumentation:
           type: boolean
           description: Enable auto instrumentation for observability in the target environment
+        agentIdAsBallerinaConfigurables:
+          type: boolean
+          description: Ballerina agents only. Inject AgentID credentials as BAL_CONFIG_VAR_AMPAGENTID* Ballerina configurables in the target environment. Omit to inherit the source environment's value.
         instrumentationVersion:
           type: string
           nullable: true

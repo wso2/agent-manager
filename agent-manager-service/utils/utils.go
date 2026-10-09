@@ -797,6 +797,13 @@ func validateInputInterface(agentType spec.AgentType, inputInterface *spec.Input
 	if IsA2AAgentSubType(subType) {
 		return validateInputInterfacePort(inputInterface.Port)
 	}
+	// A chat-api port is optional (it falls back to the default), but one that
+	// is set routes gateway traffic, so it must be a valid port.
+	if subType == string(AgentSubTypeChatAPI) && inputInterface.Port != nil {
+		if err := validateInputInterfacePort(inputInterface.Port); err != nil {
+			return err
+		}
+	}
 	if subType == string(AgentSubTypeCustomAPI) {
 		if inputInterface.Schema == nil {
 			return NewValidationError(
@@ -932,6 +939,7 @@ func ValidatePromoteAgentRequest(payload *spec.PromoteAgentRequest) error {
 	if useSource {
 		if len(payload.Env) > 0 || len(payload.Files) > 0 ||
 			payload.EnableAutoInstrumentation != nil ||
+			payload.AgentIdAsBallerinaConfigurables != nil ||
 			payload.InstrumentationVersion.IsSet() ||
 			payload.EnableApiKeySecurity != nil ||
 			payload.CorsConfig != nil ||
@@ -939,7 +947,7 @@ func ValidatePromoteAgentRequest(payload *spec.PromoteAgentRequest) error {
 			payload.EnableOAuthSecurity != nil ||
 			payload.OauthConfig != nil ||
 			payload.ResilienceTimeoutSeconds != nil {
-			return fmt.Errorf("useConfigFromSourceEnv=true is mutually exclusive with env, files, enableAutoInstrumentation, instrumentationVersion, enableApiKeySecurity, corsConfig, agentCardCorsConfig, enableOAuthSecurity, oauthConfig, and resilienceTimeoutSeconds")
+			return fmt.Errorf("useConfigFromSourceEnv=true is mutually exclusive with env, files, enableAutoInstrumentation, agentIdAsBallerinaConfigurables, instrumentationVersion, enableApiKeySecurity, corsConfig, agentCardCorsConfig, enableOAuthSecurity, oauthConfig, and resilienceTimeoutSeconds")
 		}
 	}
 

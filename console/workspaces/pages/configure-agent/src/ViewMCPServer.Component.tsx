@@ -25,7 +25,9 @@ import {
 } from "@agent-management-platform/views";
 import {
   CodeBlock,
+  AGENTID_BALLERINA_CONFIGURABLE_ROWS,
   AGENTID_ENV_VAR_ROWS,
+  BallerinaConfigurablesNotice,
   copyToClipboard,
   EnvironmentVariablesReference,
   getErrorMessage,
@@ -39,6 +41,7 @@ import {
 } from "@agent-management-platform/shared-component";
 import {
   Alert,
+  Box,
   Button,
   Card,
   CardContent,
@@ -66,6 +69,7 @@ import {
 } from "@wso2/oxygen-ui-icons-react";
 import {
   useGetAgent,
+  useGetAgentConfigurations,
   useGetAgentMCPConfig,
   useGetMCPProxy,
   useListEnvironments,
@@ -377,6 +381,14 @@ export const ViewMCPServerComponent = () => {
     projName: projectId,
     agentName: agentId,
   });
+  // The AgentID variable names are per environment: a Ballerina agent can take
+  // them as BAL_CONFIG_VAR_AMPAGENTID* configurables in some environments.
+  const { data: selectedEnvConfig } = useGetAgentConfigurations(
+    { orgName: orgId, projName: projectId, agentName: agentId },
+    { environment: selectedEnvName },
+  );
+  const agentIdAsBalConfigurables =
+    selectedEnvConfig?.agentIdAsBallerinaConfigurables === true;
   const isExternal = agent?.provisioning?.type === "external";
   const hasBuildInProgress = useHasBuildInProgress(
     { orgName: orgId, projName: projectId, agentName: agentId },
@@ -942,10 +954,27 @@ export const ViewMCPServerComponent = () => {
             <Form.Section>
               <EnvironmentVariablesReference
                 variant="plain"
-                title="AgentID Variables"
-                description="These names are fixed, only their values change per environment, and they're injected automatically at runtime alongside the URL above."
-                rows={AGENTID_ENV_VAR_ROWS}
+                title={agentIdAsBalConfigurables ? "AgentID Ballerina Configurables" : "AgentID Variables"}
+                description={
+                  agentIdAsBalConfigurables
+                    ? `In ${selectedEnvName}, these values are injected as Ballerina configurables alongside the URL above. Declare them in your program, or the agent will fail to start.`
+                    : "These names are fixed, only their values change per environment, and they're injected automatically at runtime alongside the URL above."
+                }
+                nameColumnLabel={agentIdAsBalConfigurables ? "Configurable Name" : undefined}
+                rows={
+                  agentIdAsBalConfigurables
+                    ? AGENTID_BALLERINA_CONFIGURABLE_ROWS
+                    : AGENTID_ENV_VAR_ROWS
+                }
               />
+              {agentIdAsBalConfigurables && (
+                <Box sx={{ mt: 2 }}>
+                  <BallerinaConfigurablesNotice
+                    configurableNames={AGENTID_BALLERINA_CONFIGURABLE_ROWS.map((row) => row.name)}
+                    fieldId="view-mcp-agentid-configurables"
+                  />
+                </Box>
+              )}
             </Form.Section>
             <Form.Section>
               <Form.Subheader>Integration Guide</Form.Subheader>

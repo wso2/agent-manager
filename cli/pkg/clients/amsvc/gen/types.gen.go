@@ -2078,6 +2078,9 @@ type ConfigurationResponse struct {
 	// AgentCardCorsConfig CORS for the public Agent Card route (/.well-known/agent-card.json) of an A2A agent. The card route sits outside the agent-wide policy chain, so it has its own CORS. Methods are always GET and OPTIONS. Applies only to A2A agents.
 	AgentCardCorsConfig *AgentCardCORSConfig `json:"agentCardCorsConfig,omitempty"`
 
+	// AgentIdAsBallerinaConfigurables Whether AgentID credentials are injected as BAL_CONFIG_VAR_AMPAGENTID* Ballerina configurables in this environment
+	AgentIdAsBallerinaConfigurables *bool `json:"agentIdAsBallerinaConfigurables,omitempty"`
+
 	// AgentName Name of the agent
 	AgentName string `json:"agentName"`
 
@@ -2118,7 +2121,9 @@ type ConfigurationResponse struct {
 
 // Configurations defines model for Configurations.
 type Configurations struct {
-	CorsConfig *CORSConfig `json:"corsConfig,omitempty"`
+	// AgentIdAsBallerinaConfigurables Ballerina agents only. Inject AgentID credentials as BAL_CONFIG_VAR_AMPAGENTID* (instead of AMP_AGENTID_*) so the program can read them as configurables. The program must declare the matching configurables or it will fail to start. Defaults to false.
+	AgentIdAsBallerinaConfigurables *bool       `json:"agentIdAsBallerinaConfigurables,omitempty"`
+	CorsConfig                      *CORSConfig `json:"corsConfig,omitempty"`
 
 	// EnableApiKeySecurity Enable API key security for the agent endpoint
 	EnableApiKeySecurity *bool `json:"enableApiKeySecurity,omitempty"`
@@ -2597,7 +2602,10 @@ type DataPlaneListResponse = []DataPlane
 type DeployAgentRequest struct {
 	// AgentCardCorsConfig CORS for the public Agent Card route (/.well-known/agent-card.json) of an A2A agent. The card route sits outside the agent-wide policy chain, so it has its own CORS. Methods are always GET and OPTIONS. Applies only to A2A agents.
 	AgentCardCorsConfig *AgentCardCORSConfig `json:"agentCardCorsConfig,omitempty"`
-	CorsConfig          *CORSConfig          `json:"corsConfig,omitempty"`
+
+	// AgentIdAsBallerinaConfigurables Ballerina agents only. Inject this environment's AgentID credentials as BAL_CONFIG_VAR_AMPAGENTID* (instead of AMP_AGENTID_*) so the program can read them as configurables. The program must declare the matching configurables or it will fail to start. Omit to keep the current value.
+	AgentIdAsBallerinaConfigurables *bool       `json:"agentIdAsBallerinaConfigurables,omitempty"`
+	CorsConfig                      *CORSConfig `json:"corsConfig,omitempty"`
 
 	// EnableApiKeySecurity Enable API key security for the agent endpoint
 	EnableApiKeySecurity *bool `json:"enableApiKeySecurity,omitempty"`
@@ -4461,7 +4469,10 @@ type ProjectResponse struct {
 type PromoteAgentRequest struct {
 	// AgentCardCorsConfig CORS for the public Agent Card route (/.well-known/agent-card.json) of an A2A agent. The card route sits outside the agent-wide policy chain, so it has its own CORS. Methods are always GET and OPTIONS. Applies only to A2A agents.
 	AgentCardCorsConfig *AgentCardCORSConfig `json:"agentCardCorsConfig,omitempty"`
-	CorsConfig          *CORSConfig          `json:"corsConfig,omitempty"`
+
+	// AgentIdAsBallerinaConfigurables Ballerina agents only. Inject AgentID credentials as BAL_CONFIG_VAR_AMPAGENTID* Ballerina configurables in the target environment. Omit to inherit the source environment's value.
+	AgentIdAsBallerinaConfigurables *bool       `json:"agentIdAsBallerinaConfigurables,omitempty"`
+	CorsConfig                      *CORSConfig `json:"corsConfig,omitempty"`
 
 	// EnableApiKeySecurity Enable API key security for the agent endpoint in the target environment
 	EnableApiKeySecurity *bool `json:"enableApiKeySecurity,omitempty"`
@@ -5160,7 +5171,10 @@ type UpdateAgentConfigurationsRequest struct {
 type UpdateAgentDeploySettingsRequest struct {
 	// AgentCardCorsConfig CORS for the public Agent Card route (/.well-known/agent-card.json) of an A2A agent. The card route sits outside the agent-wide policy chain, so it has its own CORS. Methods are always GET and OPTIONS. Applies only to A2A agents.
 	AgentCardCorsConfig *AgentCardCORSConfig `json:"agentCardCorsConfig,omitempty"`
-	CorsConfig          *CORSConfig          `json:"corsConfig,omitempty"`
+
+	// AgentIdAsBallerinaConfigurables Ballerina agents only. Inject AgentID credentials as BAL_CONFIG_VAR_AMPAGENTID* Ballerina configurables in this environment. The program must declare the matching configurables or it will fail to start. Omit to keep the current value.
+	AgentIdAsBallerinaConfigurables *bool       `json:"agentIdAsBallerinaConfigurables,omitempty"`
+	CorsConfig                      *CORSConfig `json:"corsConfig,omitempty"`
 
 	// EnableApiKeySecurity Enable API key security for the agent endpoint in this environment. Omit to keep the current value.
 	EnableApiKeySecurity *bool `json:"enableApiKeySecurity,omitempty"`

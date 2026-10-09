@@ -8,27 +8,16 @@ import ballerinax/amp as _;
 // Provide the OpenAI API key via Config.toml (configurable).
 configurable string openAiApiKey = ?;
 
-// Platform posts session_id/message (open record: tolerates the extra
-// context field). ai:ChatReqMessage uses sessionId/message and ai:Listener
-// locks you into that shape, so this uses http:Listener instead.
-type ChatRequest record {
-    string session_id;
-    string message;
-};
+// A ballerina/ai chat service: POST /leave-assistant/chat with
+// {message, sessionId} -> {message}, on the default HTTP listener (port 9090).
+// This is the contract Agent Manager uses for a Ballerina "Chat Agent".
+listener ai:Listener leaveAssistantListener = new (listenOn = check http:getDefaultListener());
 
-// Same mismatch on the way out: ai:ChatRespMessage uses "message", the
-// platform expects "response". Closed record is fine here since outgoing
-// values are not validated the way incoming ones are.
-type ChatResponse record {|
-    string response;
-|};
-
-// Root-mounted: exposes exactly POST /chat on port 8000, per the Chat Agent contract.
-service / on new http:Listener(8000) {
-    resource function post chat(@http:Payload ChatRequest request)
-                        returns ChatResponse|error {
-        string reply = check leaveAssistantAgent.run(request.message, request.session_id);
-        return {response: reply};
+service /leave\-assistant on leaveAssistantListener {
+    resource function post chat(@http:Payload ai:ChatReqMessage request)
+                        returns ai:ChatRespMessage|error {
+        string reply = check leaveAssistantAgent.run(request.message, request.sessionId);
+        return {message: reply};
     }
 }
 

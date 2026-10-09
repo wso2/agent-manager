@@ -79,6 +79,36 @@ func TestValidateInputInterfaceA2APort(t *testing.T) {
 	}
 }
 
+// A chat-api port is optional, but one that is set must be a valid port: it
+// becomes the gateway's upstream port.
+func TestValidateInputInterfaceChatAPIPort(t *testing.T) {
+	subType := string(AgentSubTypeChatAPI)
+	agentType := spec.AgentType{Type: string(AgentTypeAPI), SubType: &subType}
+	portOf := func(p int32) *int32 { return &p }
+
+	tests := []struct {
+		name    string
+		port    *int32
+		wantErr bool
+	}{
+		{name: "omitted port uses the default", port: nil, wantErr: false},
+		{name: "valid port", port: portOf(9090), wantErr: false},
+		{name: "zero port", port: portOf(0), wantErr: true},
+		{name: "port above range", port: portOf(65536), wantErr: true},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			err := validateInputInterface(agentType, &spec.InputInterface{Type: "HTTP", Port: tt.port})
+			if !tt.wantErr {
+				assert.NoError(t, err)
+				return
+			}
+			require.Error(t, err)
+			assert.NotNil(t, IsValidationError(err))
+		})
+	}
+}
+
 func TestValidateInputInterfaceCustomAPI(t *testing.T) {
 	subType := string(AgentSubTypeCustomAPI)
 	agentType := spec.AgentType{Type: string(AgentTypeAPI), SubType: &subType}

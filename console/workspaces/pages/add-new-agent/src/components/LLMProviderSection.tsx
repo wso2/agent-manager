@@ -67,10 +67,13 @@ import {
   useListLLMProviderTemplates,
 } from "@agent-management-platform/api-client";
 import {
+  ballerinaConfigurableFor,
+  BallerinaConfigurablesNotice,
   PolicyListSection,
   type PolicySelection as GuardrailSelection,
 } from "@agent-management-platform/shared-component";
 import { AGENT_ENV_KEY_MAX_LENGTH, type LLMProviderFormEntry } from "../form/schema";
+import { envVarNaming, type EnvVarNaming } from "../utils/envVarNaming";
 import {
   absoluteRouteMap,
   type CatalogRateLimitingSummary,
@@ -286,7 +289,7 @@ interface EntryCardProps {
   providers: ProviderInfo[];
   templateMap: Map<string, { displayName: string; logoUrl?: string }>;
   environments: { name: string; displayName?: string }[];
-  agentNameUpper: string;
+  naming: EnvVarNaming;
   usedVarNames: Set<string>;
   onOpenDrawer: (index: number, envName: string) => void;
   onRemove: (index: number) => void;
@@ -299,7 +302,7 @@ const EntryCard: React.FC<EntryCardProps> = ({
   providers,
   templateMap,
   environments,
-  agentNameUpper,
+  naming,
   usedVarNames,
   onOpenDrawer,
   onRemove,
@@ -447,9 +450,9 @@ const EntryCard: React.FC<EntryCardProps> = ({
                   slotProps={{ htmlInput: { maxLength: AGENT_ENV_KEY_MAX_LENGTH } }}
                   size="small"
                   fullWidth
-                  value={entry.urlVarName ?? `${agentNameUpper}_${index + 1}_URL`}
+                  value={entry.urlVarName ?? naming.name("llmUrl", index)}
                   onChange={handleUrlVarChange}
-                  placeholder={`${agentNameUpper}_${index + 1}_URL`}
+                  placeholder={naming.name("llmUrl", index)}
                   error={
                     (entry.urlVarName !== undefined && !ENV_VAR_REGEX.test(entry.urlVarName)) ||
                     (entry.urlVarName !== undefined && usedVarNames.has(entry.urlVarName))
@@ -468,9 +471,9 @@ const EntryCard: React.FC<EntryCardProps> = ({
                   slotProps={{ htmlInput: { maxLength: AGENT_ENV_KEY_MAX_LENGTH } }}
                   size="small"
                   fullWidth
-                  value={entry.apikeyVarName ?? `${agentNameUpper}_${index + 1}_API_KEY`}
+                  value={entry.apikeyVarName ?? naming.name("llmApiKey", index)}
                   onChange={handleApikeyVarChange}
-                  placeholder={`${agentNameUpper}_${index + 1}_API_KEY`}
+                  placeholder={naming.name("llmApiKey", index)}
                   error={
                     (entry.apikeyVarName !== undefined && 
                       !ENV_VAR_REGEX.test(entry.apikeyVarName)) ||
@@ -486,6 +489,21 @@ const EntryCard: React.FC<EntryCardProps> = ({
                 />
               </Form.ElementWrapper>
             </Stack>
+            <Box sx={{ mt: 2 }}>
+              <BallerinaConfigurablesNotice
+                configurableNames={[
+                  ballerinaConfigurableFor(
+                    entry.urlVarName ?? naming.name("llmUrl", index),
+                    naming.configurable("llmUrl", index),
+                  ),
+                  ballerinaConfigurableFor(
+                    entry.apikeyVarName ?? naming.name("llmApiKey", index),
+                    naming.configurable("llmApiKey", index),
+                  ),
+                ].filter((name): name is string => !!name)}
+                fieldId={`llm-configurables-${index}`}
+              />
+            </Box>
           </Box>
 
           <PolicyListSection
@@ -520,6 +538,9 @@ interface LLMProviderSectionProps {
   llmProviders: LLMProviderFormEntry[];
   setLLMProviders: React.Dispatch<React.SetStateAction<LLMProviderFormEntry[]>>;
   agentDisplayName: string;
+  // Ballerina agents read configurables from BAL_CONFIG_VAR_<NAME>, so their
+  // generated variable names carry that prefix.
+  agentLanguage?: string;
   initialEnvironmentName: string | undefined;
   isInitialEnvironmentLoading?: boolean;
   externalEnvKeys?: Set<string>;
@@ -529,6 +550,7 @@ export const LLMProviderSection: React.FC<LLMProviderSectionProps> = ({
   llmProviders,
   setLLMProviders,
   agentDisplayName,
+  agentLanguage,
   initialEnvironmentName,
   isInitialEnvironmentLoading = false,
   externalEnvKeys = new Set(),
@@ -609,9 +631,10 @@ export const LLMProviderSection: React.FC<LLMProviderSectionProps> = ({
     [catalogData],
   );
 
-  const agentNameUpper = agentDisplayName
-    ? agentDisplayName.toUpperCase().replace(/[^A-Z0-9]/g, "_")
-    : "AGENT";
+  const naming = useMemo(
+    () => envVarNaming(agentDisplayName, agentLanguage),
+    [agentDisplayName, agentLanguage],
+  );
 
   const currentDrawerProviderUuid =
     editingIndex !== null
@@ -656,8 +679,8 @@ export const LLMProviderSection: React.FC<LLMProviderSectionProps> = ({
             ...prev,
             {
               selectedProviderByEnv,
-              urlVarName: `${agentNameUpper}_${newIndex + 1}_URL`,
-              apikeyVarName: `${agentNameUpper}_${newIndex + 1}_API_KEY`,
+              urlVarName: naming.name("llmUrl", newIndex),
+              apikeyVarName: naming.name("llmApiKey", newIndex),
               guardrails: [],
             },
           ];
@@ -684,7 +707,7 @@ export const LLMProviderSection: React.FC<LLMProviderSectionProps> = ({
       setProviderSearchQuery("");
       setDebouncedSearch("");
     },
-    [editingIndex, drawerEnvName, targetEnvironments, agentNameUpper, setLLMProviders],
+    [editingIndex, drawerEnvName, targetEnvironments, naming, setLLMProviders],
   );
 
   const handleRemoveEntry = useCallback(
@@ -721,8 +744,8 @@ export const LLMProviderSection: React.FC<LLMProviderSectionProps> = ({
           const usedVarNames = new Set([
             ...llmProviders.flatMap((e, i) =>
               i === index ? [] : [
-                e.urlVarName ?? `${agentNameUpper}_${i + 1}_URL`,
-                e.apikeyVarName ?? `${agentNameUpper}_${i + 1}_API_KEY`,
+                e.urlVarName ?? naming.name("llmUrl", i),
+                e.apikeyVarName ?? naming.name("llmApiKey", i),
               ],
             ),
             ...Array.from(externalEnvKeys),
@@ -735,7 +758,7 @@ export const LLMProviderSection: React.FC<LLMProviderSectionProps> = ({
               providers={providers}
               templateMap={templateMap}
               environments={targetEnvironments}
-              agentNameUpper={agentNameUpper}
+              naming={naming}
               usedVarNames={usedVarNames}
               onOpenDrawer={handleOpenDrawer}
               onRemove={handleRemoveEntry}

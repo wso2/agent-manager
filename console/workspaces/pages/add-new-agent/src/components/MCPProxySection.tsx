@@ -30,10 +30,12 @@ import {
   Avatar,
   Box,
   Button,
+  Checkbox,
   Chip,
   CircularProgress,
   Divider,
   Form,
+  FormControlLabel,
   IconButton,
   ListingTable,
   SearchBar,
@@ -61,16 +63,19 @@ import {
   useListMCPProxies,
 } from "@agent-management-platform/api-client";
 import {
+  AGENTID_BALLERINA_CONFIGURABLE_ROWS,
+  AGENTID_ENV_VAR_ROWS,
+  ballerinaConfigurableFor,
+  BallerinaConfigurablesNotice,
+  ballerinaConfigurableSnippet,
+  CodeBlock,
   EnvironmentVariablesReference,
   useMCPProxySecurity,
 } from "@agent-management-platform/shared-component";
 import { AGENT_ENV_KEY_MAX_LENGTH, type MCPProxyFormEntry } from "../form/schema";
 import { absoluteRouteMap } from "@agent-management-platform/types";
-import {
-  defaultMCPApiKeyVarName,
-  defaultMCPUrlVarName,
-  mcpEntryVarNames,
-} from "../utils/mcpEnvVarNames";
+import { mcpEntryHasAPIKeyVar } from "../utils/mcpEnvVarNames";
+import { envVarNaming, type EnvVarNaming } from "../utils/envVarNaming";
 
 interface ProxyInfo {
   id: string;
@@ -131,7 +136,11 @@ interface EntryCardProps {
   index: number;
   proxies: ProxyInfo[];
   environments: { name: string; displayName?: string; id?: string }[];
-  agentNameUpper: string;
+  naming: EnvVarNaming;
+  agentIdAsBallerinaConfigurables?: boolean;
+  // Set for a Ballerina agent: opts in to AgentID-as-configurables from here
+  // when it was not already enabled in the Build step.
+  onEnableAgentIdAsBallerinaConfigurables?: () => void;
   orgId?: string;
   usedVarNames: Set<string>;
   onOpenDrawer: (index: number, envName: string) => void;
@@ -144,7 +153,9 @@ const EntryCard: React.FC<EntryCardProps> = ({
   index,
   proxies,
   environments,
-  agentNameUpper,
+  naming,
+  agentIdAsBallerinaConfigurables,
+  onEnableAgentIdAsBallerinaConfigurables,
   orgId,
   usedVarNames,
   onOpenDrawer,
@@ -184,7 +195,7 @@ const EntryCard: React.FC<EntryCardProps> = ({
   useEffect(() => {
     if (isSecurityLoading || !isSecurityResolved) return;
     const nextApikeyVarName = showApiKeyField
-      ? (entry.apikeyVarName ?? defaultMCPApiKeyVarName(agentNameUpper, index))
+      ? (entry.apikeyVarName ?? naming.name("mcpApiKey", index))
       : undefined;
     if (
       entry.authenticationType === authenticationType &&
@@ -202,7 +213,7 @@ const EntryCard: React.FC<EntryCardProps> = ({
     isSecurityResolved,
     authenticationType,
     showApiKeyField,
-    agentNameUpper,
+    naming,
     entry,
     index,
     onUpdateEntry,
@@ -313,9 +324,9 @@ const EntryCard: React.FC<EntryCardProps> = ({
                   slotProps={{ htmlInput: { maxLength: AGENT_ENV_KEY_MAX_LENGTH } }}
                   size="small"
                   fullWidth
-                  value={entry.urlVarName ?? `${agentNameUpper}_MCP_${index + 1}_URL`}
+                  value={entry.urlVarName ?? naming.name("mcpUrl", index)}
                   onChange={handleUrlVarChange}
-                  placeholder={`${agentNameUpper}_MCP_${index + 1}_URL`}
+                  placeholder={naming.name("mcpUrl", index)}
                   error={
                     (entry.urlVarName !== undefined && !ENV_VAR_REGEX.test(entry.urlVarName)) ||
                     (entry.urlVarName !== undefined && usedVarNames.has(entry.urlVarName)) ||
@@ -346,9 +357,9 @@ const EntryCard: React.FC<EntryCardProps> = ({
                   slotProps={{ htmlInput: { maxLength: AGENT_ENV_KEY_MAX_LENGTH } }}
                   size="small"
                   fullWidth
-                  value={entry.apikeyVarName ?? `${agentNameUpper}_MCP_${index + 1}_API_KEY`}
+                  value={entry.apikeyVarName ?? naming.name("mcpApiKey", index)}
                   onChange={handleApikeyVarChange}
-                  placeholder={`${agentNameUpper}_MCP_${index + 1}_API_KEY`}
+                  placeholder={naming.name("mcpApiKey", index)}
                   error={
                     (entry.apikeyVarName !== undefined &&
                       !ENV_VAR_REGEX.test(entry.apikeyVarName)) ||
@@ -368,6 +379,27 @@ const EntryCard: React.FC<EntryCardProps> = ({
               </Form.ElementWrapper>
               )}
             </Stack>
+            {!isSecurityLoading && !isSecurityUnknown && (
+              <Box sx={{ mt: 2 }}>
+                <BallerinaConfigurablesNotice
+                  configurableNames={[
+                    ballerinaConfigurableFor(
+                      entry.urlVarName ?? naming.name("mcpUrl", index),
+                      naming.configurable("mcpUrl", index),
+                    ),
+                    ...(mcpEntryHasAPIKeyVar(entry)
+                      ? [
+                        ballerinaConfigurableFor(
+                          entry.apikeyVarName ?? naming.name("mcpApiKey", index),
+                          naming.configurable("mcpApiKey", index),
+                        ),
+                      ]
+                      : []),
+                  ].filter((name): name is string => !!name)}
+                  fieldId={`mcp-configurables-${index}`}
+                />
+              </Box>
+            )}
             {isSecurityUnknown && (
               <Alert severity="error" sx={{ mt: 2 }}>
                 Couldn&apos;t load this MCP server&apos;s security settings, so the
@@ -377,11 +409,43 @@ const EntryCard: React.FC<EntryCardProps> = ({
               </Alert>
             )}
             {!isSecurityLoading && !isSecurityUnknown && spec.referenceRows.length > 0 && (
-              <EnvironmentVariablesReference
-                title="Injected at runtime"
-                description="This MCP server uses OAuth (AgentID) security, so there is no API key to name. These values are injected into the agent's pod at runtime alongside the URL above; their names are fixed, only their values change per environment."
-                rows={spec.referenceRows}
-              />
+              agentIdAsBallerinaConfigurables ? (
+                <EnvironmentVariablesReference
+                  title="Injected at runtime as Ballerina configurables"
+                  description="This MCP server uses OAuth (AgentID) security, so there is no API key to name. These values are injected into the agent at runtime as Ballerina configurables; declare them in your program, or the agent will fail to start."
+                  nameColumnLabel="Configurable Name"
+                  rows={AGENTID_BALLERINA_CONFIGURABLE_ROWS}
+                >
+                  <CodeBlock
+                    code={ballerinaConfigurableSnippet(
+                      AGENTID_BALLERINA_CONFIGURABLE_ROWS.map((row) => row.name),
+                    )}
+                    language="text"
+                    fieldId={`mcp-agentid-configurables-${index}`}
+                    analyticsId="mcp-agentid-configurables"
+                  />
+                </EnvironmentVariablesReference>
+              ) : (
+                <EnvironmentVariablesReference
+                  title="Injected at runtime"
+                  description="This MCP server uses OAuth (AgentID) security, so there is no API key to name. These values are injected into the agent's pod at runtime alongside the URL above; their names are fixed, only their values change per environment."
+                  rows={AGENTID_ENV_VAR_ROWS}
+                >
+                  {onEnableAgentIdAsBallerinaConfigurables && (
+                    <FormControlLabel
+                      control={
+                        <Checkbox
+                          checked={false}
+                          onChange={(e) => {
+                            if (e.target.checked) onEnableAgentIdAsBallerinaConfigurables();
+                          }}
+                        />
+                      }
+                      label="Inject AgentID credentials as Ballerina configurables"
+                    />
+                  )}
+                </EnvironmentVariablesReference>
+              )
             )}
           </Box>
         </Stack>
@@ -396,6 +460,13 @@ interface MCPProxySectionProps {
   mcpProxies: MCPProxyFormEntry[];
   setMCPProxies: React.Dispatch<React.SetStateAction<MCPProxyFormEntry[]>>;
   agentDisplayName: string;
+  // Ballerina agents read configurables from BAL_CONFIG_VAR_<NAME>, so their
+  // generated variable names carry that prefix.
+  agentLanguage?: string;
+  // Whether AgentID credentials are injected as BAL_CONFIG_VAR_AMPAGENTID*.
+  agentIdAsBallerinaConfigurables?: boolean;
+  // Enables that setting (the same form field as the Build step checkbox).
+  onEnableAgentIdAsBallerinaConfigurables?: () => void;
   initialEnvironmentName: string | undefined;
   isInitialEnvironmentLoading?: boolean;
   externalEnvKeys?: Set<string>;
@@ -405,6 +476,9 @@ export const MCPProxySection: React.FC<MCPProxySectionProps> = ({
   mcpProxies,
   setMCPProxies,
   agentDisplayName,
+  agentLanguage,
+  agentIdAsBallerinaConfigurables,
+  onEnableAgentIdAsBallerinaConfigurables,
   initialEnvironmentName,
   isInitialEnvironmentLoading = false,
   externalEnvKeys = new Set(),
@@ -451,9 +525,10 @@ export const MCPProxySection: React.FC<MCPProxySectionProps> = ({
     [proxyData],
   );
 
-  const agentNameUpper = agentDisplayName
-    ? agentDisplayName.toUpperCase().replace(/[^A-Z0-9]/g, "_")
-    : "AGENT";
+  const naming = useMemo(
+    () => envVarNaming(agentDisplayName, agentLanguage),
+    [agentDisplayName, agentLanguage],
+  );
 
   const currentDrawerProxyId =
     editingIndex !== null
@@ -498,7 +573,7 @@ export const MCPProxySection: React.FC<MCPProxySectionProps> = ({
             ...prev,
             {
               selectedProxyByEnv,
-              urlVarName: defaultMCPUrlVarName(agentNameUpper, newIndex),
+              urlVarName: naming.name("mcpUrl", newIndex),
               // apikeyVarName is filled in by EntryCard once the proxy's security
               // resolves, and only when the endpoint actually uses an API key.
             },
@@ -535,7 +610,7 @@ export const MCPProxySection: React.FC<MCPProxySectionProps> = ({
       setProxySearchQuery("");
       setDebouncedSearch("");
     },
-    [editingIndex, drawerEnvName, targetEnvironments, agentNameUpper, setMCPProxies],
+    [editingIndex, drawerEnvName, targetEnvironments, naming, setMCPProxies],
   );
 
   const handleRemoveEntry = useCallback(
@@ -571,7 +646,12 @@ export const MCPProxySection: React.FC<MCPProxySectionProps> = ({
         {mcpProxies.map((entry, index) => {
           const usedVarNames = new Set([
             ...mcpProxies.flatMap((e, i) =>
-              i === index ? [] : mcpEntryVarNames(e, i, agentNameUpper),
+              i === index
+                ? []
+                : [
+                  e.urlVarName ?? naming.name("mcpUrl", i),
+                  ...(mcpEntryHasAPIKeyVar(e) ? [e.apikeyVarName ?? naming.name("mcpApiKey", i)] : []),
+                ],
             ),
             ...Array.from(externalEnvKeys),
           ]);
@@ -582,7 +662,11 @@ export const MCPProxySection: React.FC<MCPProxySectionProps> = ({
               index={index}
               proxies={proxies}
               environments={targetEnvironments}
-              agentNameUpper={agentNameUpper}
+              naming={naming}
+              agentIdAsBallerinaConfigurables={agentIdAsBallerinaConfigurables}
+              onEnableAgentIdAsBallerinaConfigurables={
+                agentLanguage === "ballerina" ? onEnableAgentIdAsBallerinaConfigurables : undefined
+              }
               orgId={orgId}
               usedVarNames={usedVarNames}
               onOpenDrawer={handleOpenDrawer}

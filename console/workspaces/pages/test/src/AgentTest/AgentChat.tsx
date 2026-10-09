@@ -27,6 +27,7 @@ import {
 } from "@wso2/oxygen-ui";
 import { MessageCircle, Send } from "@wso2/oxygen-ui-icons-react";
 import {
+  useGetAgent,
   useGetAgentConfigurations,
   useGetAgentEndpoints,
   useTestAgentAPIKey,
@@ -37,6 +38,12 @@ import { useParams } from "react-router-dom";
 import { ChatMessage } from "./subComponents/ChatMessage";
 import { FadeIn, useSnackBar } from "@agent-management-platform/views";
 import { readSSEStream, parseStreamChunk } from "./utils/sse";
+import {
+  buildChatRequestBody,
+  CHAT_REPLY_FORMAT_HINT,
+  chatContractFor,
+  readChatReply,
+} from "./utils/chatContract";
 import { INPUT_LIMITS } from "@agent-management-platform/types";
 
 interface ChatMessage {
@@ -60,23 +67,15 @@ const FORMAT_MISMATCH_SNACKBAR_TEXT: Record<"streaming" | "http", string> = {
 };
 
 
-const FORMAT_HINT_DETAIL: Record<"streaming" | "http", string> = {
-  streaming:
-    "Expected an SSE data:{node: string, content: [{type: string, text?: string}]}",
-  http: "Expected JSON body: {response: string}",
-};
+const STREAMING_FORMAT_HINT =
+  "Expected an SSE data:{node: string, content: [{type: string, text?: string}]}";
 
 export function AgentChat() {
   const { pushSnackBar } = useSnackBar();
   const [endpoint, setEndpoint] = useState("");
   const [message, setMessage] = useState("");
-  const defaultBody = useMemo(() => {
-    return {
-      session_id: `session-${Math.floor(Math.random() * 1000)}`,
-      message: "Hi, How can you help me?",
-      context: {},
-    };
-  }, []);
+  // One session per chat, kept for the whole conversation.
+  const sessionId = useMemo(() => `session-${Math.floor(Math.random() * 1000)}`, []);
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
@@ -89,6 +88,10 @@ export function AgentChat() {
   const abortControllerRef = useRef<AbortController | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const { agentId, orgId, projectId, envId } = useParams();
+  // A Ballerina chat agent is an ai:Listener, which speaks a different chat
+  // contract from the platform's standard one (see chatContract.ts).
+  const { data: agent } = useGetAgent({ orgName: orgId, projName: projectId, agentName: agentId });
+  const contract = chatContractFor(agent?.build);
   const { data: endpoints, isLoading: isEndpointsLoading } =
     useGetAgentEndpoints(
       {
@@ -183,7 +186,7 @@ export function AgentChat() {
           {
             id: assistantMessageId,
             role: "assistant",
-            content: `${FORMAT_HINT_DETAIL.streaming}`,
+            content: STREAMING_FORMAT_HINT,
             timestamp: new Date(),
           },
         ]);
@@ -240,10 +243,7 @@ export function AgentChat() {
     abortControllerRef.current = abortController;
 
     try {
-      const requestBody = {
-        ...defaultBody,
-        message: userMessage.content,
-      };
+      const requestBody = buildChatRequestBody(contract, sessionId, userMessage.content);
 
       const sendChatRequest = (apiKey?: string) => {
         const headers: Record<string, string> = {
@@ -340,10 +340,11 @@ export function AgentChat() {
         };
         setMessages((prev) => [...prev, errorMessageObj]);
       } else {
-        const hasExpectedShape = typeof responseData?.response === "string";
+        const reply = readChatReply(contract, responseData);
+        const hasExpectedShape = reply !== undefined;
         const responseText = hasExpectedShape
-          ? (responseData.response as string)
-          : `${JSON.stringify(responseData, null, 4)}\n\n${FORMAT_HINT_DETAIL.http}`;
+          ? reply
+          : `${JSON.stringify(responseData, null, 4)}\n\n${CHAT_REPLY_FORMAT_HINT[contract]}`;
 
         const assistantMessage: ChatMessage = {
           id: (Date.now() + 1).toString(),

@@ -42,7 +42,9 @@ import {
   useSnackBar,
 } from "@agent-management-platform/views";
 import {
+  AGENTID_BALLERINA_CONFIGURABLE_ROWS,
   ALLOWED,
+  BallerinaConfigurablesNotice,
   RestrictedAction,
   useAgentEnvironmentAccess,
   useConfirmationDialog,
@@ -151,6 +153,11 @@ export function EditDeployConfigDrawer({
   const [versionDirty, setVersionDirty] = useState(false);
   const [tokenExpiry, setTokenExpiry] = useState<string>(DEFAULT_TOKEN_EXPIRY);
 
+  // AgentID credential names: Ballerina agents can take them as
+  // BAL_CONFIG_VAR_AMPAGENTID* configurables, per environment like tracing.
+  const showAgentIdConfigurables = mode === "update" && !!isBallerinaBuildpack;
+  const [agentIdAsBalConfigurables, setAgentIdAsBalConfigurables] = useState(false);
+
   const { data: buildOptions } = useAgentBuildOptions({ orgName });
   const compatibleInstrumentation = useMemo(
     () => compatibleInstrumentationVersions(buildOptions, agentPythonVersion),
@@ -181,6 +188,7 @@ export function EditDeployConfigDrawer({
     ) ?? []));
     setFiles(seedFileMountRows(cfg?.files));
     setTracingEnabled(configurations.enableAutoInstrumentation ?? false);
+    setAgentIdAsBalConfigurables(configurations.agentIdAsBallerinaConfigurables ?? false);
     setInstrumentationVersion("");
     setVersionDirty(false);
     setTokenExpiry(DEFAULT_TOKEN_EXPIRY);
@@ -245,9 +253,12 @@ export function EditDeployConfigDrawer({
             ? { instrumentationVersion }
             : {}),
         }),
+        ...(showAgentIdConfigurables && {
+          agentIdAsBallerinaConfigurables: agentIdAsBalConfigurables,
+        }),
       };
 
-      if (showSecurity || showTracing) {
+      if (showSecurity || showTracing || showAgentIdConfigurables) {
         updateDeploySettings(
           { params: { orgName, projName, agentName }, body: deploySettingsBody },
           { onSuccess: applyConfigs },
@@ -276,7 +287,7 @@ export function EditDeployConfigDrawer({
   }, [
     mode, env, files, environment, imageId, orgName, projName, agentName,
     showSecurity, showTracing, tracingEnabled, instrumentationVersion, versionDirty,
-    versionInCompatibleSet, isPythonBuildpack,
+    versionInCompatibleSet, isPythonBuildpack, showAgentIdConfigurables, agentIdAsBalConfigurables,
     deployAgent, updateConfigs, updateDeploySettings, onClose, pushSnackBar,
   ]);
 
@@ -468,6 +479,33 @@ export function EditDeployConfigDrawer({
                     </Button>
                   </Stack>
                 </Stack>
+              </Stack>
+            </Form.Section>
+          )}
+
+          {showAgentIdConfigurables && (
+            <Form.Section>
+              <Form.Header>AgentID Credentials</Form.Header>
+              <Stack spacing={2}>
+                <Stack direction="row" justifyContent="space-between" alignItems="center">
+                  <Typography variant="body2">Inject as Ballerina configurables</Typography>
+                  <Switch
+                    size="small"
+                    checked={agentIdAsBalConfigurables}
+                    disabled={isPending}
+                    onChange={(_, checked) => setAgentIdAsBalConfigurables(checked)}
+                  />
+                </Stack>
+                <Typography variant="caption" color="text.secondary">
+                  Applies to {environment} only. Deploy code that declares the configurables
+                  below before turning this on; turning it off injects AMP_AGENTID_* instead.
+                </Typography>
+                {agentIdAsBalConfigurables && (
+                  <BallerinaConfigurablesNotice
+                    configurableNames={AGENTID_BALLERINA_CONFIGURABLE_ROWS.map((row) => row.name)}
+                    fieldId="deploy-agentid-configurables"
+                  />
+                )}
               </Stack>
             </Form.Section>
           )}

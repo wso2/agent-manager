@@ -501,15 +501,26 @@ func buildEndpoints(req CreateComponentRequest) ([]map[string]any, error) {
 	endpoints := make([]map[string]any, 0)
 
 	if req.AgentType.Type == string(utils.AgentTypeAPI) && req.AgentType.SubType == string(utils.AgentSubTypeChatAPI) {
-		schemaContent, err := getDefaultChatAPISchema()
+		language := buildLanguage(req.Build)
+		schemaContent, err := getChatAPISchema(language)
 		if err != nil {
 			return nil, fmt.Errorf("failed to read Chat API schema: %w", err)
 		}
+		// A Ballerina (ai:Listener) chat agent serves on its own port and service
+		// path; a request-supplied port wins, otherwise the language's default.
+		port := ChatAPIDefaultPort(language)
+		var basePath string
+		if req.InputInterface != nil {
+			if req.InputInterface.Port > 0 {
+				port = req.InputInterface.Port
+			}
+			basePath = req.InputInterface.BasePath
+		}
 		endpoints = append(endpoints, map[string]any{
 			"name":          fmt.Sprintf("%s-endpoint", req.Name),
-			"port":          config.GetConfig().DefaultChatAPI.DefaultHTTPPort,
+			"port":          port,
 			"type":          string(utils.InputInterfaceTypeHTTP),
-			"basePath":      req.InputInterface.BasePath,
+			"basePath":      basePath,
 			"visibility":    DefaultEndpointVisibility,
 			"schemaType":    SchemaTypeOpenAPI,
 			"schemaContent": schemaContent,

@@ -28,6 +28,7 @@ import {
 } from "@wso2/oxygen-ui";
 import { useCallback } from "react";
 import type { CreateAgentFormValues } from "../form/schema";
+import { BALLERINA_CHAT_DEFAULT_PORT, chatAgentHasOwnEndpoint } from "../utils/chatInterface";
 import { type InputInterfaceType, INPUT_LIMITS } from "@agent-management-platform/types";
 
 interface InputInterfaceProps {
@@ -80,6 +81,7 @@ export const InputInterface = ({
   setFieldError,
   validateField,
 }: InputInterfaceProps) => {
+  const ballerinaChat = chatAgentHasOwnEndpoint(formData.language);
   const handleFieldChange = useCallback(
     (field: keyof CreateAgentFormValues, value: unknown) => {
       // First update the form data
@@ -106,8 +108,11 @@ export const InputInterface = ({
           interfaceType: value,
           ...(value === "DEFAULT" ? {
             openApiPath: "",
-            port: "" as unknown as number,
-            basePath: "/",
+            // A Ballerina chat agent (ai:Listener) names its own port.
+            port: chatAgentHasOwnEndpoint(prevData.language)
+              ? (prevData.port || BALLERINA_CHAT_DEFAULT_PORT)
+              : "" as unknown as number,
+            basePath: chatAgentHasOwnEndpoint(prevData.language) ? (prevData.basePath || "/") : "/",
           } : {}),
         };
         return newData;
@@ -142,8 +147,9 @@ export const InputInterface = ({
             break;
           }
           default:
-            // DEFAULT: the platform fixes the port and paths.
-            setFieldError('port', undefined);
+            // DEFAULT: the platform fixes the port and paths — except for a
+            // Ballerina chat agent, whose port is validated like the others.
+            setFieldError('port', validateField('port', currentData.port, currentData));
             setFieldError('openApiPath', undefined);
             setFieldError('basePath', undefined);
         }
@@ -203,7 +209,9 @@ export const InputInterface = ({
                       {inputInterface.label}
                     </Typography>
                     <Typography variant="caption">
-                      {inputInterface.description}
+                      {inputInterface.value === "DEFAULT" && ballerinaChat
+                        ? "ballerina/ai chat agent (ai:Listener) serving POST <base path>/chat"
+                        : inputInterface.description}
                     </Typography>
                   </Box>
                 </Box>
@@ -211,7 +219,7 @@ export const InputInterface = ({
             </Form.CardButton>
           ))}
         </Box>
-        <Collapse in={formData.interfaceType === "DEFAULT"}>
+        <Collapse in={formData.interfaceType === "DEFAULT" && !ballerinaChat}>
           <Alert severity="info">
             Uses the standard chat interface: <strong>POST /chat</strong> on
             port <strong>8000</strong>
@@ -221,6 +229,51 @@ export const InputInterface = ({
             <br />
             Response: <code>{`{response: string}`}</code>
           </Alert>
+        </Collapse>
+        <Collapse in={formData.interfaceType === "DEFAULT" && ballerinaChat}>
+          <Form.Stack spacing={2}>
+            <Alert severity="info">
+              A ballerina/ai <code>ai:Listener</code> chat service:{" "}
+              <strong>POST &lt;base path&gt;/chat</strong>
+              <br />
+              Request: <code>{`{message: string, sessionId?: string}`}</code>
+              <br />
+              Response: <code>{`{message: string}`}</code>
+            </Alert>
+            <Form.Stack direction="row" spacing={2}>
+              <Box>
+                <Form.ElementWrapper label="Port" name="port">
+                  <TextField
+                    id="port"
+                    placeholder={String(BALLERINA_CHAT_DEFAULT_PORT)}
+                    required
+                    value={formData.port ?? ''}
+                    onChange={handlePortChange}
+                    type="number"
+                    error={!!errors.port}
+                    helperText={errors.port || "The ai:Listener port"}
+                  />
+                </Form.ElementWrapper>
+              </Box>
+              <Box display="flex" flexDirection="column" flexGrow={1}>
+                <Form.ElementWrapper label="Base Path" name="basePath">
+                  <TextField
+                    slotProps={{ htmlInput: { maxLength: INPUT_LIMITS.PATH } }}
+                    id="basePath"
+                    placeholder="/math-tutor"
+                    value={formData.basePath || ''}
+                    onChange={(e) => handleFieldChange('basePath', e.target.value)}
+                    error={!!errors.basePath}
+                    helperText={
+                      errors.basePath ||
+                      "The service path, e.g. /math-tutor for service /math\\-tutor"
+                    }
+                    fullWidth
+                  />
+                </Form.ElementWrapper>
+              </Box>
+            </Form.Stack>
+          </Form.Stack>
         </Collapse>
         <Collapse in={formData.interfaceType === "CUSTOM"}>
           <Form.Stack spacing={2}>

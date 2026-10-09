@@ -571,12 +571,13 @@ func ProvideEnvThunderResolver(readSystemClient thundersvc.ReadSystemClientFunc,
 func ProvideAgentIdentityInjectionService(
 	repo repositories.AgentThunderClientRepository,
 	agentConfigRepo repositories.AgentConfigurationRepository,
+	envConfigRepo repositories.AgentConfigRepository,
 	mcpProxyScopeRepo repositories.MCPProxyScopeRepository,
 	ocClient occlient.OpenChoreoClient,
 	cfg config.Config,
 	logger *slog.Logger,
 ) services.AgentIdentityInjectionService {
-	return services.NewAgentIdentityInjectionService(repo, agentConfigRepo, mcpProxyScopeRepo, ocClient, cfg.SecretManager.AgentIdentityRefreshInterval, logger)
+	return services.NewAgentIdentityInjectionService(repo, agentConfigRepo, envConfigRepo, mcpProxyScopeRepo, ocClient, cfg.SecretManager.AgentIdentityRefreshInterval, logger)
 }
 
 func ProvideThunderConfig(cfg config.Config) config.ThunderConfig {

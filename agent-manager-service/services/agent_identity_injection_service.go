@@ -86,6 +86,82 @@ var agentIdentityEnvVarKeySet = map[string]bool{
 	client.EnvVarAgentIDClientSecret:  true,
 	client.EnvVarAgentIDTokenEndpoint: true,
 	client.EnvVarAgentIDScopes:        true,
+	// The BAL_CONFIG_VAR_-prefixed set a Ballerina agent receives instead when
+	// AgentIDAsBalConfigurables is enabled (see agentIdentityEnvVarsAs). Both
+	// sets are identity-owned, so either is filtered and removed the same way.
+	client.BalConfigVarAgentIDClientID:      true,
+	client.BalConfigVarAgentIDClientSecret:  true,
+	client.BalConfigVarAgentIDTokenEndpoint: true,
+	client.BalConfigVarAgentIDScopes:        true,
+}
+
+// agentIdentityBalConfigVarNames maps each AMP_AGENTID_* name to the
+// BAL_CONFIG_VAR_* name a Ballerina agent receives it under instead.
+var agentIdentityBalConfigVarNames = map[string]string{
+	client.EnvVarAgentIDClientID:      client.BalConfigVarAgentIDClientID,
+	client.EnvVarAgentIDClientSecret:  client.BalConfigVarAgentIDClientSecret,
+	client.EnvVarAgentIDTokenEndpoint: client.BalConfigVarAgentIDTokenEndpoint,
+	client.EnvVarAgentIDScopes:        client.BalConfigVarAgentIDScopes,
+}
+
+// agentIdentityPlainEnvVarNames is the reverse of agentIdentityBalConfigVarNames.
+var agentIdentityPlainEnvVarNames = func() map[string]string {
+	m := make(map[string]string, len(agentIdentityBalConfigVarNames))
+	for plain, bal := range agentIdentityBalConfigVarNames {
+		m[bal] = plain
+	}
+	return m
+}()
+
+// plainAgentIdentityEnvVarName returns the AMP_AGENTID_* name for either form of
+// an identity key (other keys are returned unchanged).
+func plainAgentIdentityEnvVarName(key string) string {
+	if plain, ok := agentIdentityPlainEnvVarNames[key]; ok {
+		return plain
+	}
+	return key
+}
+
+// agentIdentityEnvVarsAs returns vars renamed to the identity name set chosen
+// for an environment: the BAL_CONFIG_VAR_* names (Ballerina configurables) when
+// asBalConfigurables is true, AMP_AGENTID_* otherwise. Values (and the client
+// secret's SecretKeyRef) are unchanged. Callers that resolve the setting
+// themselves within the same request — deploy and promote, which persist it
+// only afterwards — apply it to what EnvVarsForEnvironment returned (built
+// from the PERSISTED setting).
+func agentIdentityEnvVarsAs(vars []client.EnvVar, asBalConfigurables bool) []client.EnvVar {
+	if vars == nil {
+		return nil
+	}
+	out := make([]client.EnvVar, 0, len(vars))
+	for _, ev := range vars {
+		ev.Key = plainAgentIdentityEnvVarName(ev.Key)
+		if bal, ok := agentIdentityBalConfigVarNames[ev.Key]; ok && asBalConfigurables {
+			ev.Key = bal
+		}
+		out = append(out, ev)
+	}
+	return out
+}
+
+// otherAgentIdentityEnvVarKeys returns the identity keys NOT in desired — the
+// name set an environment must not carry alongside desired. Switching
+// AgentIDAsBalConfigurables swaps sets, and a stale BAL_CONFIG_VAR_* var with
+// no matching configurable stops a Ballerina program from starting, so the
+// other set is always removed in the same write that adds the desired one.
+func otherAgentIdentityEnvVarKeys(desired []client.EnvVar) []string {
+	want := make(map[string]bool, len(desired))
+	for _, ev := range desired {
+		want[ev.Key] = true
+	}
+	others := make([]string, 0, len(agentIdentityEnvVarKeySet))
+	for k := range agentIdentityEnvVarKeySet {
+		if !want[k] {
+			others = append(others, k)
+		}
+	}
+	sort.Strings(others)
+	return others
 }
 
 // AgentIdentityEnvVarKeys returns the set of env var names owned by AgentID
@@ -208,8 +284,11 @@ type AgentIdentityShutdownContextSetter interface {
 }
 
 type agentIdentityInjectionService struct {
-	repo              repositories.AgentThunderClientRepository
-	agentConfigRepo   repositories.AgentConfigurationRepository
+	repo            repositories.AgentThunderClientRepository
+	agentConfigRepo repositories.AgentConfigurationRepository
+	// envConfigRepo holds the per-environment agent settings (agent_configs),
+	// read for AgentIDAsBalConfigurables.
+	envConfigRepo     repositories.AgentConfigRepository
 	mcpProxyScopeRepo repositories.MCPProxyScopeRepository
 	ocClient          client.OpenChoreoClient
 	refreshInterval   string
@@ -237,6 +316,7 @@ type agentIdentityInjectionService struct {
 func NewAgentIdentityInjectionService(
 	repo repositories.AgentThunderClientRepository,
 	agentConfigRepo repositories.AgentConfigurationRepository,
+	envConfigRepo repositories.AgentConfigRepository,
 	mcpProxyScopeRepo repositories.MCPProxyScopeRepository,
 	ocClient client.OpenChoreoClient,
 	refreshInterval string,
@@ -245,6 +325,7 @@ func NewAgentIdentityInjectionService(
 	return &agentIdentityInjectionService{
 		repo:              repo,
 		agentConfigRepo:   agentConfigRepo,
+		envConfigRepo:     envConfigRepo,
 		mcpProxyScopeRepo: mcpProxyScopeRepo,
 		ocClient:          ocClient,
 		refreshInterval:   refreshInterval,
@@ -468,7 +549,11 @@ func (s *agentIdentityInjectionService) buildEnvVars(ctx context.Context, bindin
 	if err != nil {
 		return nil, err
 	}
-	return []client.EnvVar{
+	asBalConfigurables, err := s.agentIDAsBalConfigurables(ctx, binding)
+	if err != nil {
+		return nil, err
+	}
+	return agentIdentityEnvVarsAs([]client.EnvVar{
 		{Key: client.EnvVarAgentIDClientID, Value: binding.ThunderClientID},
 		{
 			Key: client.EnvVarAgentIDClientSecret,
@@ -481,7 +566,27 @@ func (s *agentIdentityInjectionService) buildEnvVars(ctx context.Context, bindin
 		},
 		{Key: client.EnvVarAgentIDTokenEndpoint, Value: thundersvc.ThunderTokenURL(ThunderOrgNamespace(), binding.EnvironmentName)},
 		{Key: client.EnvVarAgentIDScopes, Value: strings.Join(scopes, " ")},
-	}, nil
+	}, asBalConfigurables), nil
+}
+
+// agentIDAsBalConfigurables reads the binding environment's persisted
+// AgentIDAsBalConfigurables setting. No saved config for the environment
+// means the default (false); any other read error is returned rather than
+// guessed, because the wrong name set either crashes a Ballerina program
+// (stray BAL_CONFIG_VAR_*) or silently withholds its credentials.
+func (s *agentIdentityInjectionService) agentIDAsBalConfigurables(ctx context.Context, binding *models.AgentThunderClient) (bool, error) {
+	return s.agentIDAsBalConfigurablesFor(ctx, binding.OUID, binding.ProjectName, binding.AgentName, binding.EnvironmentName)
+}
+
+func (s *agentIdentityInjectionService) agentIDAsBalConfigurablesFor(ctx context.Context, ouID, projectName, agentName, envName string) (bool, error) {
+	cfg, err := s.envConfigRepo.Get(ctx, ouID, projectName, agentName, envName)
+	if err != nil {
+		if errors.Is(err, repositories.ErrAgentConfigNotFound) {
+			return false, nil
+		}
+		return false, fmt.Errorf("read agent config for identity env var names: %w", err)
+	}
+	return cfg.AgentIDAsBalConfigurables, nil
 }
 
 func (s *agentIdentityInjectionService) envVarsForEnvironment(ctx context.Context, ouID, projectName, agentName, envName string, templateAnnotations map[string]string) ([]client.EnvVar, error) {
@@ -509,12 +614,14 @@ func (s *agentIdentityInjectionService) InjectForEnvironment(ctx context.Context
 		s.logger.Debug("No agent identity env vars to inject", "agentName", agentName, "envName", envName)
 		return nil
 	}
-	// Merges into the ReleaseBinding's workload overrides and stamps
+	// Merges into the ReleaseBinding's workload overrides — removing the other
+	// identity name set in the same write, so switching
+	// AgentIDAsBalConfigurables never leaves a stale set behind — and stamps
 	// restartedAt for a pod rollout; silently no-ops when the agent is not
 	// deployed in this environment yet (kind-sourced agents, which have no
 	// ReleaseBinding, pick the vars up on their next deploy instead).
 	if err := withReleaseBindingRetry(ctx, func() error {
-		return s.ocClient.UpdateReleaseBindingEnvVars(ctx, ouID, projectName, agentName, envName, envVars)
+		return s.ocClient.ReplaceReleaseBindingEnvVars(ctx, ouID, projectName, agentName, envName, otherAgentIdentityEnvVarKeys(envVars), envVars)
 	}); err != nil {
 		return fmt.Errorf("inject agent identity env vars into release binding: %w", err)
 	}
@@ -546,7 +653,42 @@ func (s *agentIdentityInjectionService) ReconcileForEnvironment(ctx context.Cont
 	// from a first build that finished after provisioning, so it has none of
 	// the identity vars yet). InjectForEnvironment writes them and rolls the
 	// pod; it still safely no-ops if the ReleaseBinding does not exist yet.
-	return s.InjectForEnvironment(ctx, ouID, projectName, agentName, envName)
+	if err := s.InjectForEnvironment(ctx, ouID, projectName, agentName, envName); err != nil {
+		return err
+	}
+
+	// The other name set can also sit on the shared Workload (written there by
+	// older deploys), where this environment's ReleaseBinding override no
+	// longer shadows it once the name set changed. Strip it — only when it is
+	// actually present, since every Workload write rolls every environment.
+	// An environment that relied on those Workload-level vars gets its own
+	// ReleaseBinding copy on its next reconcile.
+	if stale := staleAgentIdentityEnvVarKeys(desired, current); len(stale) > 0 {
+		if err := withReleaseBindingRetry(ctx, func() error {
+			return s.ocClient.RemoveWorkloadEnvVars(ctx, ouID, agentName, stale)
+		}); err != nil {
+			return fmt.Errorf("remove stale agent identity env vars from workload: %w", err)
+		}
+		s.logger.Info("Removed stale agent identity env vars from workload", "agentName", agentName, "envName", envName, "keys", stale)
+	}
+	return nil
+}
+
+// staleAgentIdentityEnvVarKeys returns the identity keys present in current
+// that belong to the name set NOT in desired.
+func staleAgentIdentityEnvVarKeys(desired []client.EnvVar, current []models.EnvVars) []string {
+	others := make(map[string]bool)
+	for _, k := range otherAgentIdentityEnvVarKeys(desired) {
+		others[k] = true
+	}
+	var stale []string
+	for _, ev := range current {
+		if others[ev.Key] {
+			stale = append(stale, ev.Key)
+		}
+	}
+	sort.Strings(stale)
+	return stale
 }
 
 // identityEnvVarsInSync reports whether the live env vars already carry every
@@ -558,6 +700,10 @@ func (s *agentIdentityInjectionService) ReconcileForEnvironment(ctx context.Cont
 // (nothing read back), this returns false so the caller attempts an inject —
 // which itself no-ops when there is no ReleaseBinding to write to.
 func identityEnvVarsInSync(desired []client.EnvVar, current []models.EnvVars) bool {
+	if len(staleAgentIdentityEnvVarKeys(desired, current)) > 0 {
+		// The other name set is still live (AgentIDAsBalConfigurables changed).
+		return false
+	}
 	currentByKey := make(map[string]models.EnvVars, len(current))
 	for _, ev := range current {
 		currentByKey[ev.Key] = ev
@@ -568,8 +714,9 @@ func identityEnvVarsInSync(desired []client.EnvVar, current []models.EnvVars) bo
 			return false
 		}
 		// The scope list is the only identity var whose value changes in place;
-		// compare it exactly so scope edits re-inject.
-		if want.Key == client.EnvVarAgentIDScopes && got.Value != want.Value {
+		// compare it exactly (under whichever name set is in use) so scope
+		// edits re-inject.
+		if plainAgentIdentityEnvVarName(want.Key) == client.EnvVarAgentIDScopes && got.Value != want.Value {
 			return false
 		}
 	}
@@ -648,11 +795,21 @@ func (s *agentIdentityInjectionService) RefreshAfterRotation(ctx context.Context
 			}
 		}()
 
+		// AgentIDAsBalConfigurables may have changed during the wait, so the
+		// name set is re-read now, and the other set removed in the same write,
+		// rather than restoring the names captured before the wait.
+		asBalConfigurables, err := s.agentIDAsBalConfigurablesFor(refreshCtx, ouID, projectName, agentName, envName)
+		if err != nil {
+			s.logger.Warn("Failed to roll out pod after agent identity secret rotation", "agentName", agentName, "envName", envName, "error", err)
+			return
+		}
+		vars := agentIdentityEnvVarsAs(envVars, asBalConfigurables)
+
 		// Re-merging identical env vars is a no-op content-wise, but the call
 		// also stamps restartedAt on the ReleaseBinding — the pod rollout that
 		// makes the workload actually pick up the refreshed Secret.
 		if err := withReleaseBindingRetry(refreshCtx, func() error {
-			return s.ocClient.UpdateReleaseBindingEnvVars(refreshCtx, ouID, projectName, agentName, envName, envVars)
+			return s.ocClient.ReplaceReleaseBindingEnvVars(refreshCtx, ouID, projectName, agentName, envName, otherAgentIdentityEnvVarKeys(vars), vars)
 		}); err != nil {
 			s.logger.Warn("Failed to roll out pod after agent identity secret rotation", "agentName", agentName, "envName", envName, "error", err)
 			return

@@ -2,49 +2,49 @@ openapi: 3.0.1
 info:
   title: Leave Assistant API
   description: >-
-    Chat endpoint for the AI leave-request assistant. Send a natural-language
-    message and the agent manages employee leave balances and requests
-    (check a balance, file a request, list requests, cancel, approve, reject)
-    using its tools.
-  version: 0.1.0
+    Chat endpoint for the AI leave-request assistant, served by a ballerina/ai
+    ai:Listener. Send a natural-language message and the agent manages employee
+    leave balances and requests (check a balance, file a request, list
+    requests, cancel, approve, reject) using its tools.
+  version: 0.2.0
 servers:
-  - url: http://localhost:8000
+  - url: http://localhost:9090/leave-assistant
 paths:
   /chat:
     post:
       summary: Send a chat message to the leave assistant
-      operationId: chat
+      operationId: postChat
       requestBody:
         required: true
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/ChatRequest'
+              $ref: '#/components/schemas/ChatReqMessage'
             examples:
               checkBalance:
                 summary: Check a leave balance
                 value:
-                  session_id: s1
+                  sessionId: s1
                   message: What is my leave balance? My employee id is E-3001
               requestLeave:
                 summary: Request annual leave
                 value:
-                  session_id: s1
+                  sessionId: s1
                   message: I am E-3001, request 2 days annual leave starting tomorrow, family event
               listRequests:
                 summary: List leave requests
                 value:
-                  session_id: s1
+                  sessionId: s1
                   message: List my leave requests, employee id E-3001
               cancelRequest:
                 summary: Cancel a leave request
                 value:
-                  session_id: s1
+                  sessionId: s1
                   message: Cancel the family event leave request for E-3001
               approveRequest:
                 summary: Approve a pending leave request
                 value:
-                  session_id: s1
+                  sessionId: s1
                   message: Approve the pending 5-day leave request for E-3001
       responses:
         '200':
@@ -52,56 +52,45 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ChatResponse'
+                $ref: '#/components/schemas/ChatRespMessage'
               example:
-                response: Priya Fernando has 14 days of annual leave and 7 days of sick leave remaining.
-        '400':
-          description: The request body did not match the expected shape.
+                message: Priya Fernando has 14 days of annual leave and 7 days of sick leave remaining.
+        default:
+          description: Error occurred while attempting to process the request
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ErrorPayload'
-        '500':
-          description: Internal error while running the agent.
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ErrorPayload'
+                $ref: '#/components/schemas/Error'
 components:
   schemas:
-    ChatRequest:
+    ChatReqMessage:
       type: object
       required:
-        - session_id
         - message
       properties:
-        session_id:
-          type: string
-          description: Conversation/session identifier used for memory continuity.
         message:
           type: string
           description: The user's natural-language message to the agent.
-        context:
-          type: object
-          description: Optional context supplied by the platform. Not read by this agent.
-      additionalProperties: true
-    ChatResponse:
+        sessionId:
+          type: string
+          description: Conversation/session identifier used for memory continuity; defaults to a common session id if not provided.
+          default: default
+    ChatRespMessage:
       type: object
       required:
-        - response
+        - message
       properties:
-        response:
+        message:
           type: string
           description: The agent's natural-language reply.
-      additionalProperties: false
-    ErrorPayload:
+    Error:
       type: object
       properties:
         timestamp:
           type: string
+          format: date-time
         status:
           type: integer
-          format: int64
         reason:
           type: string
         message:

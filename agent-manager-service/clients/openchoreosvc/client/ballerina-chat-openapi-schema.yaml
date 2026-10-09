@@ -1,0 +1,71 @@
+openapi: 3.0.1
+info:
+  title: Ballerina Chat Agent API
+  description: >
+    Chat API served by a ballerina/ai ai:Listener: a message and an optional
+    session id in, the agent's reply out.
+  version: 1.0.0
+servers:
+  - url: http://localhost:9090
+paths:
+  /chat:
+    post:
+      operationId: postChat
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ChatReqMessage'
+        required: true
+      responses:
+        "200":
+          description: Ok
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ChatRespMessage'
+        default:
+          description: Error occurred while attempting to process the request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+components:
+  schemas:
+    ChatReqMessage:
+      type: object
+      required:
+        - message
+      properties:
+        message:
+          type: string
+          description: The chat message to be sent to the agent
+        sessionId:
+          type: string
+          description: Session id of the request; defaults to a common session
+            id if not provided
+          default: default
+    ChatRespMessage:
+      type: object
+      required:
+        - message
+      properties:
+        message:
+          type: string
+          description: The chat response from the agent
+    Error:
+      type: object
+      properties:
+        timestamp:
+          type: string
+          format: date-time
+        status:
+          type: integer
+        reason:
+          type: string
+        message:
+          type: string
+        path:
+          type: string
+        method:
+          type: string
