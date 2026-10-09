@@ -251,6 +251,9 @@ func convertToExternalAgentResponse(component *models.AgentResponse) spec.AgentR
 		},
 		CreatedBy: convertToCreatedBy(component.CreatedBy),
 	}
+	if component.Type.SubType != "" {
+		response.AgentType.SubType = &component.Type.SubType
+	}
 	if len(component.Labels) > 0 {
 		response.SetLabels(component.Labels)
 	}

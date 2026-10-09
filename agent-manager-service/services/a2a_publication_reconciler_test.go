@@ -30,9 +30,11 @@ import (
 	"gopkg.in/yaml.v3"
 
 	"github.com/wso2/agent-manager/agent-manager-service/clients/clientmocks"
+	"github.com/wso2/agent-manager/agent-manager-service/clients/openchoreosvc/client"
 	"github.com/wso2/agent-manager/agent-manager-service/models"
 	"github.com/wso2/agent-manager/agent-manager-service/repositories"
 	"github.com/wso2/agent-manager/agent-manager-service/repositories/repomocks"
+	"github.com/wso2/agent-manager/agent-manager-service/utils"
 )
 
 func testLogger() *slog.Logger {
@@ -61,6 +63,7 @@ type a2aReconcilerHarness struct {
 	gatewayRepo    *repomocks.GatewayRepositoryMock
 	hub            *recordingEventHub
 	pubRepo        *repomocks.A2APublicationRepositoryMock
+	cardRepo       *repomocks.A2AAgentCardRepositoryMock
 	deploymentRepo *repomocks.DeploymentRepositoryMock
 	ocClient       *clientmocks.OpenChoreoClientMock
 }
@@ -80,12 +83,24 @@ func newA2AReconcilerHarness(serviceURL string) *a2aReconcilerHarness {
 		},
 		MarkFailedFunc: func(ctx context.Context, read models.A2APublication, lastErr string) error { return nil },
 	}
+	cardRepo := &repomocks.A2AAgentCardRepositoryMock{
+		EnqueueFunc: func(context.Context, *models.A2AAgentCard) error { return nil },
+		GetFunc: func(context.Context, string, string, string, string) (*models.A2AAgentCard, error) {
+			return nil, repositories.ErrA2AAgentCardNotFound
+		},
+	}
 	deploymentRepo := &repomocks.DeploymentRepositoryMock{
 		CreateWithLimitEnforcementFunc: func(deployment *models.Deployment, maxDeployments int) error { return nil },
 	}
 	ocClient := &clientmocks.OpenChoreoClientMock{
 		GetReleaseBindingServiceURLFunc: func(ctx context.Context, ouID, componentName, environment string) (string, error) {
 			return serviceURL, nil
+		},
+		GetComponentFunc: func(_ context.Context, _, _, name string) (*models.AgentResponse, error) {
+			return &models.AgentResponse{Name: name}, nil
+		},
+		GetReleaseBindingRolloutFunc: func(context.Context, string, string, string) (client.ReleaseBindingRollout, error) {
+			return client.ReleaseBindingRollout{ServiceURL: serviceURL, ReleaseName: "trip-planner-r2", Serving: true}, nil
 		},
 	}
 	gatewayRepo := &repomocks.GatewayRepositoryMock{
@@ -108,10 +123,12 @@ func newA2AReconcilerHarness(serviceURL string) *a2aReconcilerHarness {
 		hub:            hub,
 		gatewayRepo:    gatewayRepo,
 		pubRepo:        pubRepo,
+		cardRepo:       cardRepo,
 		deploymentRepo: deploymentRepo,
 		ocClient:       ocClient,
 		svc: &a2aPublicationReconcilerService{
 			pubRepo:         pubRepo,
+			cardRepo:        cardRepo,
 			deploymentRepo:  deploymentRepo,
 			gatewayRepo:     gatewayRepo,
 			agentConfigRepo: agentConfigRepo,
@@ -293,6 +310,13 @@ func (h *a2aReconcilerHarness) withPublished(rows ...models.A2APublication) {
 	h.pubRepo.RequeueFunc = func(ctx context.Context, read models.A2APublication) error { return nil }
 }
 
+// withCard makes the drift check find a platform card row in the given state.
+func (h *a2aReconcilerHarness) withCard(status models.A2AAgentCardStatus, releaseName string) {
+	h.cardRepo.GetFunc = func(context.Context, string, string, string, string) (*models.A2AAgentCard, error) {
+		return &models.A2AAgentCard{Source: models.A2AAgentCardSourcePlatform, Status: status, ReleaseName: releaseName}, nil
+	}
+}
+
 // A new release with a changed port moves the Service; the gateway must follow.
 func TestDriftCheckRequeuesWhenTheUpstreamMoved(t *testing.T) {
 	h := newA2AReconcilerHarness("http://trip-planner.dp-default:8080")
@@ -324,8 +348,8 @@ func TestDriftCheckIgnoresAnUnknownCurrentUpstream(t *testing.T) {
 	h.svc.checkUpstreamDrift(context.Background())
 	assert.Empty(t, h.pubRepo.RequeueCalls())
 
-	h.ocClient.GetReleaseBindingServiceURLFunc = func(ctx context.Context, ouID, componentName, environment string) (string, error) {
-		return "", assert.AnError
+	h.ocClient.GetReleaseBindingRolloutFunc = func(context.Context, string, string, string) (client.ReleaseBindingRollout, error) {
+		return client.ReleaseBindingRollout{}, assert.AnError
 	}
 	h.svc.checkUpstreamDrift(context.Background())
 	assert.Empty(t, h.pubRepo.RequeueCalls())
@@ -357,4 +381,140 @@ func TestDriftCheckPagesThroughPublishedRowsAcrossTicks(t *testing.T) {
 	assert.Equal(t, uuid.Nil, cursors[0])
 	assert.Equal(t, page[len(page)-1].ID, cursors[1], "the next tick resumes after the last row checked")
 	assert.Equal(t, uuid.Nil, cursors[2], "a short page wraps the scan back to the start")
+}
+
+// The gateway serves the card only once it has the Agent, so publishing is the card's trigger.
+func TestReconcilerQueuesAPlatformCardFetchOncePublished(t *testing.T) {
+	h := newA2AReconcilerHarness("http://trip-planner.dp-default:9099")
+	pub := pendingPublication()
+
+	h.svc.publishOne(context.Background(), pub)
+
+	queued := h.cardRepo.EnqueueCalls()
+	require.Len(t, queued, 1)
+	got := queued[0].Card
+	assert.Equal(t, pub.OUID, got.OUID)
+	assert.Equal(t, pub.ProjectName, got.ProjectName)
+	assert.Equal(t, pub.AgentName, got.AgentName)
+	assert.Equal(t, pub.EnvironmentName, got.EnvironmentName)
+	assert.Equal(t, pub.EnvironmentUUID, got.EnvironmentUUID)
+	assert.Equal(t, models.A2AAgentCardSourcePlatform, got.Source)
+}
+
+// Best effort: the agent is published; a missed card row is recovered by the next deploy or a refresh.
+func TestReconcilerPublishesEvenWhenTheCardQueueFails(t *testing.T) {
+	h := newA2AReconcilerHarness("http://trip-planner.dp-default:9099")
+	h.cardRepo.EnqueueFunc = func(context.Context, *models.A2AAgentCard) error { return assert.AnError }
+
+	h.svc.publishOne(context.Background(), pendingPublication())
+
+	assert.Len(t, h.pubRepo.MarkPublishedCalls(), 1)
+	assert.Empty(t, h.pubRepo.MarkAttemptFailedCalls())
+}
+
+// A publish whose row was superseded is redone next tick; that publish queues the card.
+func TestReconcilerQueuesNoCardForASupersededPublish(t *testing.T) {
+	h := newA2AReconcilerHarness("http://trip-planner.dp-default:9099")
+	h.pubRepo.MarkPublishedFunc = func(context.Context, models.A2APublication, string) error {
+		return repositories.ErrA2APublicationSuperseded
+	}
+
+	h.svc.publishOne(context.Background(), pendingPublication())
+
+	assert.Empty(t, h.cardRepo.EnqueueCalls())
+}
+
+func TestReconcilerQueuesNoCardWhenThePublishFails(t *testing.T) {
+	h := newA2AReconcilerHarness("")
+
+	h.svc.publishOne(context.Background(), pendingPublication())
+
+	assert.Empty(t, h.cardRepo.EnqueueCalls())
+}
+
+// A delete that clears the card rows between MarkPublished and the enqueue must not leave an orphan.
+func TestReconcilerDropsTheCardRowWhenTheAgentWasDeletedMeanwhile(t *testing.T) {
+	h := newA2AReconcilerHarness("http://trip-planner.dp-default:9099")
+	h.ocClient.GetComponentFunc = func(context.Context, string, string, string) (*models.AgentResponse, error) {
+		return nil, utils.ErrNotFound
+	}
+	h.cardRepo.DeleteForAgentEnvFunc = func(context.Context, string, string, string, string) error { return nil }
+	pub := pendingPublication()
+
+	h.svc.publishOne(context.Background(), pub)
+
+	require.Len(t, h.cardRepo.EnqueueCalls(), 1)
+	deleted := h.cardRepo.DeleteForAgentEnvCalls()
+	require.Len(t, deleted, 1)
+	assert.Equal(t, pub.AgentName, deleted[0].AgentName)
+	assert.Equal(t, pub.EnvironmentName, deleted[0].EnvironmentName)
+}
+
+func TestReconcilerKeepsTheCardRowWhenTheAgentLookupFails(t *testing.T) {
+	h := newA2AReconcilerHarness("http://trip-planner.dp-default:9099")
+	h.ocClient.GetComponentFunc = func(context.Context, string, string, string) (*models.AgentResponse, error) {
+		return nil, assert.AnError
+	}
+
+	h.svc.publishOne(context.Background(), pendingPublication())
+
+	assert.Empty(t, h.cardRepo.DeleteForAgentEnvCalls())
+}
+
+// A rebuild or redeploy moves the binding to a new release without telling AMS; the card must follow.
+func TestDriftCheckRefetchesACardFromAnOlderRelease(t *testing.T) {
+	const upstream = "http://trip-planner.dp-default:9099"
+	for _, status := range []models.A2AAgentCardStatus{models.A2AAgentCardStatusFetched, models.A2AAgentCardStatusFailed} {
+		t.Run(string(status), func(t *testing.T) {
+			h := newA2AReconcilerHarness(upstream)
+			h.withCard(status, "trip-planner-r1")
+			pub := publishedPublication(upstream)
+			h.withPublished(pub)
+
+			h.svc.checkUpstreamDrift(context.Background())
+
+			queued := h.cardRepo.EnqueueCalls()
+			require.Len(t, queued, 1)
+			assert.Equal(t, pub.AgentName, queued[0].Card.AgentName)
+			assert.Equal(t, pub.EnvironmentName, queued[0].Card.EnvironmentName)
+			assert.Equal(t, pub.EnvironmentUUID, queued[0].Card.EnvironmentUUID)
+			assert.Equal(t, models.A2AAgentCardSourcePlatform, queued[0].Card.Source)
+			assert.Empty(t, h.pubRepo.RequeueCalls())
+		})
+	}
+}
+
+func TestDriftCheckLeavesACardAlone(t *testing.T) {
+	const upstream = "http://trip-planner.dp-default:9099"
+	cases := map[string]func(h *a2aReconcilerHarness){
+		"from the serving release": func(h *a2aReconcilerHarness) { h.withCard(models.A2AAgentCardStatusFetched, "trip-planner-r2") },
+		"already being fetched":    func(h *a2aReconcilerHarness) { h.withCard(models.A2AAgentCardStatusPending, "trip-planner-r1") },
+		"with no row": func(h *a2aReconcilerHarness) {
+			h.cardRepo.GetFunc = func(context.Context, string, string, string, string) (*models.A2AAgentCard, error) {
+				return nil, repositories.ErrA2AAgentCardNotFound
+			}
+		},
+		"while the new release is still rolling out": func(h *a2aReconcilerHarness) {
+			h.withCard(models.A2AAgentCardStatusFetched, "trip-planner-r1")
+			h.ocClient.GetReleaseBindingRolloutFunc = func(context.Context, string, string, string) (client.ReleaseBindingRollout, error) {
+				return client.ReleaseBindingRollout{ServiceURL: upstream, ReleaseName: "trip-planner-r2"}, nil
+			}
+		},
+		"of an external agent": func(h *a2aReconcilerHarness) {
+			h.cardRepo.GetFunc = func(context.Context, string, string, string, string) (*models.A2AAgentCard, error) {
+				return &models.A2AAgentCard{Source: models.A2AAgentCardSourceExternal, Status: models.A2AAgentCardStatusFetched}, nil
+			}
+		},
+	}
+	for name, setup := range cases {
+		t.Run(name, func(t *testing.T) {
+			h := newA2AReconcilerHarness(upstream)
+			h.withPublished(publishedPublication(upstream))
+			setup(h)
+
+			h.svc.checkUpstreamDrift(context.Background())
+
+			assert.Empty(t, h.cardRepo.EnqueueCalls())
+		})
+	}
 }

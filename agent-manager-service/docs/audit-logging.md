@@ -324,6 +324,7 @@ The operations below emit a record describing what actually changed, not just th
 | Gateways | `gateway:create` / `:update` / `:assign-environment` / `:unassign-environment` | Fail-open |
 | Internal | `gateway:push-manifest`, `api-key:sync` (bulk sync, coalesced per gateway) | Fail-open |
 | Agent config | `agent-config:update` / `:delete` | Fail-open |
+| A2A card source | `agent:set-card-source` / `agent:remove-card-source` | Fail-open |
 | Per-config API keys | `api-key:create` / `:rotate` / `:revoke` (model-config, mcp-config) | Fail-closed |
 | Monitors | `monitor:create` / `:update` / `:delete` / `:start` / `:stop` / `:rerun` | Fail-open |
 | Monitors | `monitor:run-failed` (scheduler, system actor) | Fail-open |
@@ -356,6 +357,8 @@ The registry is the source of truth (`audit/actions.go`, `audit/actions_domain.g
 | `agent:deploy` | deployment | 2 notice | `agentName`, `environment`, `imageId`, `isProduction` |
 | `agent:promote` | deployment | 3 warning | `agentName`, `environment`, `isProduction`, `sourceEnv`, `targetEnv` |
 | `agent:read` | read | 1 info | — |
+| `agent:remove-card-source` | config | 2 notice | `agentName` |
+| `agent:set-card-source` | config | 1 info | `agentName`, `sourceUrl` |
 | `api-key:create` | credential | 4 critical | `expiresAt`, `gatewayConnected`, `gatewayCount`, `keyName`, `ownerName`, `ownerType` |
 | `api-key:issue-test` | credential | 2 notice | `expiresAt`, `keyName`, `ownerName`, `ownerType`, `rotated` |
 | `api-key:revoke` | credential | 4 critical | `gatewayCount`, `keyName`, `ownerName`, `ownerType` |

@@ -129,3 +129,27 @@ func TestValidateAgentBuildParametersUpdateRejectsA2AWithoutPort(t *testing.T) {
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "inputInterface.port")
 }
+
+func externalAgentRequest(subType string) spec.CreateAgentRequest {
+	return spec.CreateAgentRequest{
+		Name:         "trip-planner",
+		DisplayName:  "Trip Planner",
+		Provisioning: spec.Provisioning{Type: string(ExternalAgent)},
+		AgentType:    &spec.AgentType{Type: string(AgentTypeExternalAPI), SubType: &subType},
+	}
+}
+
+// A near-miss would quietly create a non-A2A agent with no card support.
+func TestValidateAgentCreatePayloadRejectsAMiscasedA2ASubType(t *testing.T) {
+	for _, subType := range []string{"A2A-agent", "A2A-Agent", "a2a-AGENT"} {
+		err := ValidateAgentCreatePayload(externalAgentRequest(subType))
+		require.Error(t, err, subType)
+		assert.NotNil(t, IsValidationError(err), subType)
+	}
+}
+
+func TestValidateAgentCreatePayloadKeepsExternalSubTypesFreeForm(t *testing.T) {
+	for _, subType := range []string{"a2a-agent", "custom-api", "My Custom Agent!"} {
+		assert.NoError(t, ValidateAgentCreatePayload(externalAgentRequest(subType)), subType)
+	}
+}

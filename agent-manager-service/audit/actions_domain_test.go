@@ -44,6 +44,16 @@ func TestDomainActionsMatchRouteDerivedActions(t *testing.T) {
 	}{
 		{"POST /orgs/{orgName}/git-secrets", []rbac.Permission{rbac.GitSecretCreate}, ActionGitSecretCreate},
 		{"DELETE /orgs/{orgName}/git-secrets/{secretName}", []rbac.Permission{rbac.GitSecretDelete}, ActionGitSecretDelete},
+		{
+			"PUT /orgs/{orgName}/projects/{projName}/agents/{agentName}/environments/{envID}/agent-card/source",
+			[]rbac.Permission{rbac.AgentUpdate, rbac.AgentEnvNonProduction},
+			ActionAgentSetCardSource,
+		},
+		{
+			"DELETE /orgs/{orgName}/projects/{projName}/agents/{agentName}/environments/{envID}/agent-card/source",
+			[]rbac.Permission{rbac.AgentUpdate, rbac.AgentEnvNonProduction},
+			ActionAgentRemoveCardSource,
+		},
 		{"POST /orgs/{orgName}/llm-providers/{id}/api-keys", nil, ActionAPIKeyCreate},
 		{"PUT /orgs/{orgName}/llm-providers/{id}/api-keys/{keyName}", nil, ActionAPIKeyRotate},
 		{"DELETE /orgs/{orgName}/llm-providers/{id}/api-keys/{keyName}", nil, ActionAPIKeyRevoke},

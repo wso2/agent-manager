@@ -93,6 +93,8 @@ services:
       # Uses the default OpenBao that comes with OpenChoreo for both user and system secrets
       - SECRET_MANAGER_PROVIDER=openbao
       - OPENBAO_URL=http://host.docker.internal:8200
+      # Platform A2A card fetches dial the host gateway; *.localhost resolves to the container itself.
+      - A2A_CARD_FETCH_DIAL_ADDR=host.docker.internal:19080
       - OPENBAO_TOKEN=root
       - OPENBAO_PATH=secret
       - OPENBAO_VERSION=v2

@@ -111,6 +111,8 @@ type OpenChoreoClient interface {
 	// reports it. Empty string with a nil error means the binding has not
 	// published one yet.
 	GetReleaseBindingServiceURL(ctx context.Context, ouID, componentName, environment string) (string, error)
+	// GetReleaseBindingRollout reports the binding's release and whether its rollout has finished.
+	GetReleaseBindingRollout(ctx context.Context, ouID, componentName, environment string) (ReleaseBindingRollout, error)
 	GetComponentConfigurations(ctx context.Context, ouID, projectName, componentName, environment string) ([]models.EnvVars, error)
 	GetComponentFileMounts(ctx context.Context, ouID, projectName, componentName, environment string) ([]models.FileMountEntry, error)
 

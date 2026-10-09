@@ -16,7 +16,8 @@
  * under the License.
  */
 
-import { CircularProgress, Form, Stack, TextField, Typography } from "@wso2/oxygen-ui";
+import { Box, CircularProgress, Divider, Form, Stack, TextField, Typography } from "@wso2/oxygen-ui";
+import { CheckCircle, Circle } from "@wso2/oxygen-ui-icons-react";
 import { useCallback, useEffect, useMemo } from "react";
 import { useParams } from "react-router-dom";
 import { debounce } from "lodash";
@@ -24,6 +25,11 @@ import { useGenerateResourceName } from "@agent-management-platform/api-client";
 import { LabelsEditor, MarkdownEditor } from "@agent-management-platform/shared-component";
 import { ConnectAgentFormValues } from "../form/schema";
 import { INPUT_LIMITS } from "@agent-management-platform/types";
+
+const EXTERNAL_SUBTYPE_OPTIONS = [
+  { value: "custom-api", label: "Agent", description: "Any externally hosted agent. Observability only." },
+  { value: "a2a-agent", label: "A2A Agent", description: "Speaks A2A 1.0. Register its agent card URL per environment after creating it." },
+] as const;
 
 interface ExternalAgentFormProps {
   formData: ConnectAgentFormValues;
@@ -151,6 +157,35 @@ export const ExternalAgentForm = ({
               onChange={(labels) => handleFieldChange("labels", labels)}
             />
           </Form.ElementWrapper>
+        </Form.Stack>
+      </Form.Section>
+      <Form.Section>
+        <Form.Subheader>Agent Type</Form.Subheader>
+        <Form.Stack spacing={2}>
+          <Box display="flex" flexDirection="row" gap={1}>
+            {EXTERNAL_SUBTYPE_OPTIONS.map((option) => {
+              const selected = (formData.externalSubType ?? "custom-api") === option.value;
+              return (
+                <Form.CardButton
+                  key={option.value}
+                  onClick={() => handleFieldChange("externalSubType", option.value)}
+                  selected={selected}
+                  sx={{ maxWidth: 500, flexGrow: 1 }}
+                >
+                  <Form.CardContent sx={{ height: "100%" }}>
+                    <Box display="flex" flexDirection="row" alignItems="center" height="100%" gap={1}>
+                      <Box>{selected ? <CheckCircle size={16} /> : <Circle size={16} />}</Box>
+                      <Divider orientation="vertical" flexItem />
+                      <Box>
+                        <Typography variant="h6">{option.label}</Typography>
+                        <Typography variant="caption">{option.description}</Typography>
+                      </Box>
+                    </Box>
+                  </Form.CardContent>
+                </Form.CardButton>
+              );
+            })}
+          </Box>
         </Form.Stack>
       </Form.Section>
     </Form.Stack>

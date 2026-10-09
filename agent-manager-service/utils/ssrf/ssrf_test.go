@@ -18,6 +18,7 @@ package ssrf
 
 import (
 	"context"
+	"errors"
 	"net/netip"
 	"testing"
 )
@@ -91,5 +92,18 @@ func TestValidateURL(t *testing.T) {
 		if (err != nil) != c.wantErr {
 			t.Errorf("ValidateURL(%q) err = %v, wantErr %v", c.url, err, c.wantErr)
 		}
+	}
+}
+
+// Callers collapse these into one message so the reply never reveals internal DNS.
+func TestResolutionFailuresWrapErrHostNotPublic(t *testing.T) {
+	ctx := context.Background()
+	for _, host := range []string{"localhost", "10.0.0.1", "169.254.169.254", "nope.invalid"} {
+		if _, err := ResolvePublicIPs(ctx, host); !errors.Is(err, ErrHostNotPublic) {
+			t.Errorf("ResolvePublicIPs(%q) err = %v, want ErrHostNotPublic", host, err)
+		}
+	}
+	if err := ValidateURL(ctx, "ftp://8.8.8.8/x"); errors.Is(err, ErrHostNotPublic) {
+		t.Errorf("a malformed URL is not a host failure: %v", err)
 	}
 }

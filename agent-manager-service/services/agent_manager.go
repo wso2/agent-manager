@@ -96,6 +96,7 @@ type agentManagerService struct {
 	agentIdentityInjection    AgentIdentityInjectionService
 	identityClient            thundersvc.IdentityClient
 	a2aPublicationRepo        repositories.A2APublicationRepository
+	a2aCardRepo               repositories.A2AAgentCardRepository
 	deploymentRepo            repositories.DeploymentRepository
 	gatewayEventsService      *GatewayEventsService
 	logger                    *slog.Logger
@@ -118,6 +119,7 @@ func NewAgentManagerService(
 	agentIdentityInjection AgentIdentityInjectionService,
 	identityClient thundersvc.IdentityClient,
 	a2aPublicationRepo repositories.A2APublicationRepository,
+	a2aCardRepo repositories.A2AAgentCardRepository,
 	deploymentRepo repositories.DeploymentRepository,
 	gatewayEventsService *GatewayEventsService,
 	logger *slog.Logger,
@@ -136,6 +138,7 @@ func NewAgentManagerService(
 		agentIdentityInjection:    agentIdentityInjection,
 		identityClient:            identityClient,
 		a2aPublicationRepo:        a2aPublicationRepo,
+		a2aCardRepo:               a2aCardRepo,
 		deploymentRepo:            deploymentRepo,
 		gatewayEventsService:      gatewayEventsService,
 		artifactRepo:              artifactRepo,
@@ -1582,6 +1585,17 @@ func (s *agentManagerService) createComponentAgent(ctx context.Context, ouID, pr
 		return err
 	}
 
+	// After the create, so a duplicate-name request cannot wipe a live agent's rows.
+	if err := s.clearInheritedA2ACards(ctx, ouID, projectName, req.Name); err != nil {
+		if hasSecrets {
+			s.cleanupSecretsOnRollback(ctx, secretLocation)
+		}
+		if errDeletion := s.ocClient.DeleteComponent(ctx, ouID, projectName, req.Name); errDeletion != nil {
+			s.logger.Error("Failed to rollback agent component after card cleanup failure", "agentName", req.Name, "error", errDeletion)
+		}
+		return err
+	}
+
 	var agentAPIArtifact *models.Artifact
 	var firstEnvUUID string
 	if req.AgentType.Type == string(utils.AgentTypeAPI) {
@@ -2819,6 +2833,17 @@ func withAgentConfigCleanupRetry(ctx context.Context, logger *slog.Logger, confi
 	return lastErr
 }
 
+// clearInheritedA2ACards drops card rows a deleted same-named agent left behind.
+func (s *agentManagerService) clearInheritedA2ACards(ctx context.Context, ouID, projectName, agentName string) error {
+	if s.a2aCardRepo == nil {
+		return nil
+	}
+	if err := s.a2aCardRepo.DeleteForAgent(ctx, ouID, projectName, agentName); err != nil {
+		return fmt.Errorf("failed to clear leftover A2A agent card rows: %w", err)
+	}
+	return nil
+}
+
 // cleanupAgentMonitors removes all monitors owned by an agent. Best-effort: orphaned
 // monitors are logged but do not fail the delete, matching the other post-delete cleanups.
 func (s *agentManagerService) cleanupAgentMonitors(ctx context.Context, ouID, projectName, agentName string) {
@@ -2840,6 +2865,12 @@ func (s *agentManagerService) deleteAgentAPIArtifact(ctx context.Context, ouID, 
 		if pubErr := s.a2aPublicationRepo.DeleteForAgent(ctx, ouID, projectName, agentName); pubErr != nil {
 			s.logger.Warn("Failed to clear A2A publication queue rows for deleted agent",
 				"agentName", agentName, "error", pubErr)
+		}
+	}
+	if s.a2aCardRepo != nil {
+		if cardErr := s.a2aCardRepo.DeleteForAgent(ctx, ouID, projectName, agentName); cardErr != nil {
+			s.logger.Warn("Failed to clear A2A agent card rows for deleted agent",
+				"agentName", agentName, "error", cardErr)
 		}
 	}
 
@@ -3873,9 +3904,16 @@ func buildTraitEnvConfigs(agentName string, policies []map[string]interface{}, a
 func (s *agentManagerService) requireEnvTier(
 	ctx context.Context, ouID, envName string,
 ) (*models.EnvironmentResponse, error) {
-	env, err := s.ocClient.GetEnvironment(ctx, ouID, envName)
+	return requireEnvironmentTier(ctx, s.ocClient, s.logger, ouID, envName)
+}
+
+// requireEnvironmentTier is requireEnvTier without the service receiver, shared by other services.
+func requireEnvironmentTier(
+	ctx context.Context, oc client.OpenChoreoClient, logger *slog.Logger, ouID, envName string,
+) (*models.EnvironmentResponse, error) {
+	env, err := oc.GetEnvironment(ctx, ouID, envName)
 	if err != nil {
-		s.logger.Error("Failed to resolve environment for the tier check",
+		logger.Error("Failed to resolve environment for the tier check",
 			"ouID", ouID, "environment", envName, "error", err)
 		return nil, translateEnvironmentError(err)
 	}
@@ -5957,9 +5995,23 @@ func (s *agentManagerService) UpdateAgentDeploymentState(ctx context.Context, ou
 		s.logger.Error("Failed to update deployment state", "agentName", agentName, "environment", environment, "state", state, "error", err)
 		return fmt.Errorf("failed to update deployment state for agent %s in environment %s: %w", agentName, environment, err)
 	}
+	if bindingState == gen.ReleaseBindingSpecStateUndeploy {
+		s.dropPlatformCard(ctx, ouID, projectName, agentName, environment)
+	}
 
 	s.logger.Info("Updated deployment state successfully", "agentName", agentName, "ouID", ouID, "projectName", projectName, "environment", environment, "state", state)
 	return nil
+}
+
+// dropPlatformCard removes an undeployed agent's gateway card; a user-registered URL stays. Best effort.
+func (s *agentManagerService) dropPlatformCard(ctx context.Context, ouID, projectName, agentName, environment string) {
+	if s.a2aCardRepo == nil {
+		return
+	}
+	if err := s.a2aCardRepo.DeletePlatformForAgentEnv(ctx, ouID, projectName, agentName, environment); err != nil {
+		s.logger.Warn("Undeployed agent but failed to drop its A2A card",
+			"agentName", agentName, "environment", environment, "error", err)
+	}
 }
 
 func (s *agentManagerService) GetAgentEndpoints(ctx context.Context, ouID string, projectName string, agentName string, environmentName string) (map[string]models.EndpointsResponse, error) {

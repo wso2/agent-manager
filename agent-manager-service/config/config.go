@@ -52,6 +52,8 @@ type Config struct {
 	// Default Chat API configuration
 	DefaultChatAPI     DefaultChatAPIConfig
 	DefaultGatewayPort int
+	// A2ACardFetchDialAddr, when set, is the host:port every platform card fetch dials instead of its URL host.
+	A2ACardFetchDialAddr string
 
 	// JWT Signing configuration for agent API tokens
 	JWTSigning JWTSigningConfig

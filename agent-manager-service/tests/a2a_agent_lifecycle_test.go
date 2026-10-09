@@ -36,6 +36,7 @@ import (
 	"github.com/stretchr/testify/require"
 	"gopkg.in/yaml.v3"
 
+	"github.com/wso2/agent-manager/agent-manager-service/clients/openchoreosvc/client"
 	"github.com/wso2/agent-manager/agent-manager-service/db"
 	"github.com/wso2/agent-manager/agent-manager-service/eventhub"
 	"github.com/wso2/agent-manager/agent-manager-service/middleware/jwtassertion"
@@ -156,6 +157,9 @@ func TestA2AAgentLifecycle(t *testing.T) {
 	openChoreoClient.GetReleaseBindingServiceURLFunc = func(ctx context.Context, ouID, componentName, environment string) (string, error) {
 		return serviceURL, nil
 	}
+	openChoreoClient.GetReleaseBindingRolloutFunc = func(ctx context.Context, ouID, componentName, environment string) (client.ReleaseBindingRollout, error) {
+		return client.ReleaseBindingRollout{ServiceURL: serviceURL, ReleaseName: "a2a-lifecycle-r1", Serving: serviceURL != ""}, nil
+	}
 
 	app := apitestutils.MakeAppClientWithDeps(t, wiring.TestClients{
 		OpenChoreoClient: openChoreoClient,
@@ -164,6 +168,7 @@ func TestA2AAgentLifecycle(t *testing.T) {
 
 	gdb := db.GetDB()
 	pubRepo := repositories.NewA2APublicationRepository(gdb)
+	cardRepo := repositories.NewA2AAgentCardRepository(gdb)
 	deploymentRepo := repositories.NewDeploymentRepo(gdb)
 	gatewayRepo := repositories.NewGatewayRepo(gdb)
 	artifactRepo := repositories.NewArtifactRepo(gdb)
@@ -173,7 +178,7 @@ func TestA2AAgentLifecycle(t *testing.T) {
 
 	hub := &lifecycleEventHub{}
 	reconciler := services.NewA2APublicationReconcilerService(
-		pubRepo, deploymentRepo, gatewayRepo,
+		pubRepo, cardRepo, deploymentRepo, gatewayRepo,
 		repositories.NewAgentConfigRepo(gdb),
 		openChoreoClient,
 		services.NewGatewayEventsService(hub),
@@ -182,6 +187,7 @@ func TestA2AAgentLifecycle(t *testing.T) {
 
 	t.Cleanup(func() {
 		_ = pubRepo.DeleteForAgent(context.Background(), ouID, a2aLifecycleProjName, a2aLifecycleAgentName)
+		_ = cardRepo.DeleteForAgent(context.Background(), ouID, a2aLifecycleProjName, a2aLifecycleAgentName)
 	})
 
 	// duePublication returns the queue row for this agent, or nil.

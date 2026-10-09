@@ -22,6 +22,7 @@ export * from './instrumentation';
 export * from './agent-model-configs';
 export * from './agent-mcp-configs';
 export * from './agent-api-keys';
+export * from './agent-card';
 export * from './catalog';
 export * from './agents';
 export * from './builds';

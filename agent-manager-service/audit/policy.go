@@ -293,10 +293,13 @@ var actionOverrides = map[string]Action{
 	"DELETE /orgs/{orgName}/environments/{envID}/thunder-system-client": "service-account:remove",
 
 	// Agent sub-resource updates, all gated by agent:update.
-	"PUT /orgs/{orgName}/projects/{projName}/agents/{agentName}/build-parameters": "agent:update-build-parameters",
-	"PUT /orgs/{orgName}/projects/{projName}/agents/{agentName}/configurations":   "agent:update-configurations",
-	"PUT /orgs/{orgName}/projects/{projName}/agents/{agentName}/deploy-settings":  "agent:update-deploy-settings",
-	"PUT /orgs/{orgName}/projects/{projName}/agents/{agentName}/resource-configs": "agent:update-resource-configs",
+	"PUT /orgs/{orgName}/projects/{projName}/agents/{agentName}/build-parameters":                          "agent:update-build-parameters",
+	"PUT /orgs/{orgName}/projects/{projName}/agents/{agentName}/configurations":                            "agent:update-configurations",
+	"PUT /orgs/{orgName}/projects/{projName}/agents/{agentName}/deploy-settings":                           "agent:update-deploy-settings",
+	"PUT /orgs/{orgName}/projects/{projName}/agents/{agentName}/resource-configs":                          "agent:update-resource-configs",
+	"POST /orgs/{orgName}/projects/{projName}/agents/{agentName}/environments/{envID}/agent-card/refresh":  "agent:refresh-card",
+	"PUT /orgs/{orgName}/projects/{projName}/agents/{agentName}/environments/{envID}/agent-card/source":    "agent:set-card-source",
+	"DELETE /orgs/{orgName}/projects/{projName}/agents/{agentName}/environments/{envID}/agent-card/source": "agent:remove-card-source",
 
 	// Agent-kind versions, gated by the coarse kind update/delete permissions.
 	"POST /orgs/{orgName}/agent-kinds/{kindName}/versions":                "agent-kind:add-version",

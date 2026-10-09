@@ -435,6 +435,63 @@ func TestEnsureReleaseBindingRuntimeClass_SkipsWriteWhenAlreadyCorrect(t *testin
 	assert.Equal(t, 0, *puts)
 }
 
+func TestGetReleaseBindingRollout(t *testing.T) {
+	port := int32(8000)
+	aPath, bPath, scheme := "/a", "/b", "http"
+	binding := func(release string, conditions ...gen.Condition) gen.ReleaseBinding {
+		b := bindingWithConfigs(nil, nil)
+		b.Metadata.Name = "myagent-dev"
+		b.Spec.Environment = "dev"
+		b.Spec.ReleaseName = &release
+		b.Status = &gen.ReleaseBindingStatus{
+			Conditions: &conditions,
+			Endpoints: &[]gen.EndpointURLStatus{
+				{Name: "b", ServiceURL: &gen.EndpointURL{Host: "b.svc", Port: &port}, ExternalURLs: &gen.EndpointGatewayURLs{Http: &gen.EndpointURL{Scheme: &scheme, Host: "gw.example", Path: &bPath}}},
+				{Name: "a", ServiceURL: &gen.EndpointURL{Host: "dev.svc", Port: &port}, ExternalURLs: &gen.EndpointGatewayURLs{Http: &gen.EndpointURL{Scheme: &scheme, Host: "gw.example", Path: &aPath}}},
+			},
+		}
+		return b
+	}
+	serve := func(t *testing.T, items ...gen.ReleaseBinding) *openChoreoClient {
+		t.Helper()
+		return newTestClient(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			require.NoError(t, json.NewEncoder(w).Encode(gen.ReleaseBindingList{Items: items}))
+		}))
+	}
+	ready := gen.Condition{Type: "Ready", Status: "True", Reason: "Ready"}
+	progressing := gen.Condition{Type: "Ready", Status: "False", Reason: "ResourcesProgressing"}
+
+	t.Run("a ready binding serves its release", func(t *testing.T) {
+		got, err := serve(t, binding("myagent-r2", ready)).GetReleaseBindingRollout(context.Background(), "acme", "myagent", "dev")
+		require.NoError(t, err)
+		assert.Equal(t, ReleaseBindingRollout{
+			ServiceURL: "http://b.svc:8000", ExternalURL: "http://gw.example/a", ReleaseName: "myagent-r2", Serving: true,
+		}, got, "the external URL is the first endpoint by name, as the card fetch needs")
+	})
+
+	t.Run("a rollout in progress is not serving its release yet", func(t *testing.T) {
+		got, err := serve(t, binding("myagent-r2", progressing)).GetReleaseBindingRollout(context.Background(), "acme", "myagent", "dev")
+		require.NoError(t, err)
+		assert.Equal(t, "myagent-r2", got.ReleaseName)
+		assert.False(t, got.Serving)
+	})
+
+	t.Run("an undeployed binding is not serving", func(t *testing.T) {
+		b := binding("myagent-r2", ready)
+		undeploy := gen.ReleaseBindingSpecStateUndeploy
+		b.Spec.State = &undeploy
+		got, err := serve(t, b).GetReleaseBindingRollout(context.Background(), "acme", "myagent", "dev")
+		require.NoError(t, err)
+		assert.False(t, got.Serving)
+	})
+
+	t.Run("no binding for the environment is the zero rollout", func(t *testing.T) {
+		got, err := serve(t).GetReleaseBindingRollout(context.Background(), "acme", "myagent", "dev")
+		require.NoError(t, err)
+		assert.Equal(t, ReleaseBindingRollout{}, got)
+	})
+}
+
 func TestGetReleaseBindingServiceURL(t *testing.T) {
 	port := int32(8000)
 	https := "https"

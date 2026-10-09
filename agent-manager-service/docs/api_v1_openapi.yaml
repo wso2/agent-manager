@@ -7916,6 +7916,175 @@ paths:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
 
+  /orgs/{orgName}/projects/{projName}/agents/{agentName}/environments/{envID}/agent-card:
+    parameters: &agentCardPathParams
+      - name: orgName
+        in: path
+        required: true
+        description: Organization name/handle
+        schema:
+          type: string
+      - name: projName
+        in: path
+        required: true
+        description: Project name
+        schema:
+          type: string
+      - name: agentName
+        in: path
+        required: true
+        description: Agent name
+        schema:
+          type: string
+      - name: envID
+        in: path
+        required: true
+        description: Environment name
+        schema:
+          type: string
+    get:
+      tags:
+        - Agent Card
+      summary: Get an A2A agent's stored agent card for an environment
+      description: Returns the last good public agent card the platform fetched, and the state of the current fetch. Returns 404 when no fetch was ever queued for the environment; refreshing queues one.
+      operationId: getAgentCard
+      responses:
+        "200":
+          description: Stored agent card and fetch state
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AgentCardResponse"
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: Agent, environment or card not found, or the agent is not an A2A agent
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "500":
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /orgs/{orgName}/projects/{projName}/agents/{agentName}/environments/{envID}/agent-card/refresh:
+    parameters: *agentCardPathParams
+    post:
+      tags:
+        - Agent Card
+      summary: Re-fetch an A2A agent's card
+      description: Queues a fetch of the agent card. The stored card is kept until the new fetch succeeds.
+      operationId: refreshAgentCard
+      responses:
+        "202":
+          description: Fetch queued
+        "400":
+          description: The agent is not an A2A agent
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "403":
+          description: Missing the environment tier permission
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: Agent or environment not found, or an external agent has no card source
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "500":
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /orgs/{orgName}/projects/{projName}/agents/{agentName}/environments/{envID}/agent-card/source:
+    parameters: *agentCardPathParams
+    put:
+      tags:
+        - Agent Card
+      summary: Register an external A2A agent's card URL for an environment
+      description: Sets the URL the platform fetches the card from and queues a fetch. External A2A agents only.
+      operationId: setAgentCardSource
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/SetAgentCardSourceRequest"
+      responses:
+        "202":
+          description: Source saved and fetch queued
+        "400":
+          description: Invalid URL, or the agent is not an external A2A agent
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "403":
+          description: Missing the environment tier permission
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: Agent or environment not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "500":
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+    delete:
+      tags:
+        - Agent Card
+      summary: Remove an external A2A agent's card source for an environment
+      description: Deletes the stored card and its source. Idempotent. External A2A agents only.
+      operationId: deleteAgentCardSource
+      responses:
+        "204":
+          description: Source removed
+        "400":
+          description: The agent is not an external A2A agent
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "403":
+          description: Missing the environment tier permission
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: Agent or environment not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "500":
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
   /orgs/{orgName}/projects/{projName}/agents/{agentName}/monitors:
     get:
       summary: List all evaluation monitors for an agent
@@ -11835,6 +12004,46 @@ components:
           description: Whether credentials are allowed. Cannot be true when allowOrigin contains "*"
           default: false
 
+    AgentCardResponse:
+      type: object
+      description: An A2A agent's stored public agent card for one environment, and the state of its fetch.
+      required:
+        - source
+        - status
+        - sourceUrl
+        - lastError
+      properties:
+        source:
+          type: string
+          enum: [platform, external]
+          description: platform cards are fetched through the environment's gateway; external cards from a registered URL.
+        status:
+          type: string
+          enum: [pending, fetched, failed]
+          description: pending while a fetch is due or retrying; failed once the retry budget ran out.
+        sourceUrl:
+          type: string
+          description: The registered URL (external) or the URL last fetched (platform).
+        lastError:
+          type: string
+          description: Why the last attempt failed; empty after a success.
+        card:
+          type: object
+          additionalProperties: true
+          description: The last good card, as returned by the agent. Absent until the first successful fetch.
+        fetchedAt:
+          type: string
+          format: date-time
+          description: Time of the last successful fetch. Absent until then.
+    SetAgentCardSourceRequest:
+      type: object
+      required:
+        - url
+      properties:
+        url:
+          type: string
+          maxLength: 2048
+          description: Public http(s) URL of the agent card, normally ending in /.well-known/agent-card.json.
     AgentCardCORSConfig:
       type: object
       description: >-
@@ -12615,6 +12824,7 @@ components:
           type: string
           description: Visibility level of the endpoint
           enum: [Public, Private, Internal]
+          x-enum-varnames: [DeploymentEndpointVisibilityPublic, DeploymentEndpointVisibilityPrivate, DeploymentEndpointVisibilityInternal]
       required:
         - name
         - url

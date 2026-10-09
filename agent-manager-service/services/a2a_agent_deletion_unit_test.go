@@ -141,6 +141,7 @@ type agentArtifactDeletionFixture struct {
 	steps        []string
 	deletedUUIDs []string
 	queueDeletes int
+	cardDeletes  int
 }
 
 // newAgentArtifactDeletionFixture wires a pipeline dev -> staging -> prod, with
@@ -201,12 +202,20 @@ func newAgentArtifactDeletionFixture(t *testing.T, artifacts map[string]uuid.UUI
 			return nil
 		},
 	}
+	cardRepo := &repomocks.A2AAgentCardRepositoryMock{
+		DeleteForAgentFunc: func(context.Context, string, string, string) error {
+			f.steps = append(f.steps, "delete-cards")
+			f.cardDeletes++
+			return nil
+		},
+	}
 	f.svc = &agentManagerService{
 		ocClient:             oc,
 		artifactRepo:         artifactRepo,
 		deploymentRepo:       deploymentRepo,
 		gatewayRepo:          gatewayRepo,
 		a2aPublicationRepo:   pubRepo,
+		a2aCardRepo:          cardRepo,
 		gatewayEventsService: NewGatewayEventsService(f.hub),
 		logger:               testLogger(),
 	}
@@ -244,7 +253,7 @@ func TestDeleteAgentAPIArtifactBroadcastsLast(t *testing.T) {
 
 	f.svc.deleteAgentAPIArtifact(context.Background(), "org-1", "proj", "agent", true)
 
-	assert.Equal(t, []string{"delete-queue", "collect", "delete-artifact", "broadcast"}, f.steps)
+	assert.Equal(t, []string{"delete-queue", "delete-cards", "collect", "delete-artifact", "broadcast"}, f.steps)
 }
 
 // A REST agent's artifacts never reached a gateway as an A2A Agent: no events.
@@ -276,4 +285,15 @@ func TestDeleteAgentAPIArtifactContinuesPastALookupFailure(t *testing.T) {
 	f.svc.deleteAgentAPIArtifact(context.Background(), "org-1", "proj", "agent", false)
 
 	assert.Equal(t, []string{prodID.String()}, f.deletedUUIDs)
+}
+
+// Card rows go with the agent, external A2A agents included, so a same-named agent starts clean.
+func TestDeleteAgentAPIArtifactClearsCardRowsOnce(t *testing.T) {
+	devID := uuid.New()
+	f := newAgentArtifactDeletionFixture(t, map[string]uuid.UUID{"dev": devID}, nil)
+	f.svc.gatewayRepo = &repomocks.GatewayRepositoryMock{}
+
+	f.svc.deleteAgentAPIArtifact(context.Background(), "org-1", "proj", "agent", false)
+
+	assert.Equal(t, 1, f.cardDeletes)
 }

@@ -215,6 +215,13 @@ func Run(authProvider occlient.AuthProvider, secretProvider secretmanagersvc.Pro
 		os.Exit(1)
 	}
 
+	// Started unconditionally, like the publication reconciler that feeds it.
+	a2aCardReconcilerCtx, a2aCardReconcilerCancel := context.WithCancel(backgroundCtx)
+	if err := dependencies.A2ACardReconciler.Start(a2aCardReconcilerCtx); err != nil {
+		slog.Error("failed to start A2A card reconciler", "error", err)
+		os.Exit(1)
+	}
+
 	// Load built-in LLM provider templates into memory
 	if err := loadBuiltInLLMTemplates(dependencies); err != nil {
 		slog.Error("Failed to load built-in LLM provider templates", "error", err)
@@ -274,6 +281,11 @@ func Run(authProvider occlient.AuthProvider, secretProvider secretmanagersvc.Pro
 		a2aReconcilerCancel()
 		if err := dependencies.A2APublicationReconciler.Stop(); err != nil {
 			slog.Error("error stopping A2A publication reconciler", "error", err)
+		}
+
+		a2aCardReconcilerCancel()
+		if err := dependencies.A2ACardReconciler.Stop(); err != nil {
+			slog.Error("error stopping A2A card reconciler", "error", err)
 		}
 
 		// Shutdown WebSocket manager in a goroutine since it blocks

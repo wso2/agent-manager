@@ -95,6 +95,18 @@ func ValidateURL(ctx context.Context, rawURL string) error {
 	return nil
 }
 
+// ErrHostNotPublic marks a host that is unresolvable, localhost or non-public; its detail can reveal internal DNS.
+var ErrHostNotPublic = errors.New("url host is not publicly reachable")
+
+type hostNotPublicError struct{ err error }
+
+func (e *hostNotPublicError) Error() string   { return e.err.Error() }
+func (e *hostNotPublicError) Unwrap() []error { return []error{e.err, ErrHostNotPublic} }
+
+func hostNotPublic(format string, a ...any) error {
+	return &hostNotPublicError{err: fmt.Errorf(format, a...)}
+}
+
 // ValidateHost validates that host resolves only to public IP addresses.
 func ValidateHost(ctx context.Context, host string) error {
 	_, err := ResolvePublicIPs(ctx, host)
@@ -112,24 +124,24 @@ func ResolvePublicIPs(ctx context.Context, host string) ([]netip.Addr, error) {
 		return nil, fmt.Errorf("url host must not include an IPv6 zone identifier")
 	}
 	if strings.EqualFold(host, "localhost") || strings.HasSuffix(strings.ToLower(host), ".localhost") {
-		return nil, fmt.Errorf("url host must not resolve to localhost")
+		return nil, hostNotPublic("url host must not resolve to localhost")
 	}
 	if ip, err := netip.ParseAddr(host); err == nil {
 		if ip.Is4In6() {
 			ip = ip.Unmap()
 		}
 		if !IsPublicIP(ip) {
-			return nil, fmt.Errorf("url host resolves to a non-public IP address")
+			return nil, hostNotPublic("url host resolves to a non-public IP address")
 		}
 		return []netip.Addr{ip}, nil
 	}
 
 	ips, err := net.DefaultResolver.LookupNetIP(ctx, "ip", host)
 	if err != nil {
-		return nil, fmt.Errorf("url host could not be resolved: %w", err)
+		return nil, hostNotPublic("url host could not be resolved: %w", err)
 	}
 	if len(ips) == 0 {
-		return nil, fmt.Errorf("url host could not be resolved")
+		return nil, hostNotPublic("url host could not be resolved")
 	}
 	publicIPs := make([]netip.Addr, 0, len(ips))
 	for _, ip := range ips {
@@ -137,7 +149,7 @@ func ResolvePublicIPs(ctx context.Context, host string) ([]netip.Addr, error) {
 			ip = ip.Unmap()
 		}
 		if !IsPublicIP(ip) {
-			return nil, fmt.Errorf("url host resolves to a non-public IP address")
+			return nil, hostNotPublic("url host resolves to a non-public IP address")
 		}
 		publicIPs = append(publicIPs, ip)
 	}

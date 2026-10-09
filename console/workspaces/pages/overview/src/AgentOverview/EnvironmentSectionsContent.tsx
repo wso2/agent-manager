@@ -19,6 +19,7 @@
 import type { DeploymentStatus } from "@agent-management-platform/shared-component";
 import { EnvAgentInterfaceCard } from "./EnvAgentInterfaceCard";
 import { EnvAgentRolesGroupsSection } from "./EnvAgentRolesGroupsSection";
+import { EnvAgentCardSection } from "./EnvAgentCardSection";
 import { EnvCapabilitiesSection } from "./EnvCapabilitiesSection";
 import { EnvConfigsSection } from "./EnvConfigsSection";
 import { EnvMonitorsSection } from "./EnvMonitorsSection";
@@ -55,6 +56,13 @@ export function EnvironmentSectionsContent({
                 envId={envId}
                 external={external}
                 deploymentStatus={deploymentStatus}
+            />
+            <EnvAgentCardSection
+                orgId={orgId}
+                projectId={projectId}
+                agentId={agentId}
+                envId={envId}
+                external={external}
             />
             <Grid container spacing={2} sx={{ mb: 1.5 }}>
                 {/* EnvAgentInterfaceCard renders nothing for external agents

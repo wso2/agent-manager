@@ -649,6 +649,20 @@ type ClientInterface interface {
 	// GetAgentEndpoints request
 	GetAgentEndpoints(ctx context.Context, orgName string, projName string, agentName string, params *GetAgentEndpointsParams, reqEditors ...RequestEditorFn) (*http.Response, error)
 
+	// GetAgentCard request
+	GetAgentCard(ctx context.Context, orgName string, projName string, agentName string, envID string, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// RefreshAgentCard request
+	RefreshAgentCard(ctx context.Context, orgName string, projName string, agentName string, envID string, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// DeleteAgentCardSource request
+	DeleteAgentCardSource(ctx context.Context, orgName string, projName string, agentName string, envID string, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// SetAgentCardSourceWithBody request with any body
+	SetAgentCardSourceWithBody(ctx context.Context, orgName string, projName string, agentName string, envID string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	SetAgentCardSource(ctx context.Context, orgName string, projName string, agentName string, envID string, body SetAgentCardSourceJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
+
 	// ListAgentAPIKeys request
 	ListAgentAPIKeys(ctx context.Context, orgName string, projName string, agentName string, envID string, reqEditors ...RequestEditorFn) (*http.Response, error)
 
@@ -3343,6 +3357,66 @@ func (c *Client) UpdateAgentDeploymentState(ctx context.Context, orgName string,
 
 func (c *Client) GetAgentEndpoints(ctx context.Context, orgName string, projName string, agentName string, params *GetAgentEndpointsParams, reqEditors ...RequestEditorFn) (*http.Response, error) {
 	req, err := NewGetAgentEndpointsRequest(c.Server, orgName, projName, agentName, params)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) GetAgentCard(ctx context.Context, orgName string, projName string, agentName string, envID string, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewGetAgentCardRequest(c.Server, orgName, projName, agentName, envID)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) RefreshAgentCard(ctx context.Context, orgName string, projName string, agentName string, envID string, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewRefreshAgentCardRequest(c.Server, orgName, projName, agentName, envID)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) DeleteAgentCardSource(ctx context.Context, orgName string, projName string, agentName string, envID string, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewDeleteAgentCardSourceRequest(c.Server, orgName, projName, agentName, envID)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) SetAgentCardSourceWithBody(ctx context.Context, orgName string, projName string, agentName string, envID string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewSetAgentCardSourceRequestWithBody(c.Server, orgName, projName, agentName, envID, contentType, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) SetAgentCardSource(ctx context.Context, orgName string, projName string, agentName string, envID string, body SetAgentCardSourceJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewSetAgentCardSourceRequest(c.Server, orgName, projName, agentName, envID, body)
 	if err != nil {
 		return nil, err
 	}
@@ -12415,6 +12489,239 @@ func NewGetAgentEndpointsRequest(server string, orgName string, projName string,
 	return req, nil
 }
 
+// NewGetAgentCardRequest generates requests for GetAgentCard
+func NewGetAgentCardRequest(server string, orgName string, projName string, agentName string, envID string) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithOptions("simple", false, "orgName", orgName, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: ""})
+	if err != nil {
+		return nil, err
+	}
+
+	var pathParam1 string
+
+	pathParam1, err = runtime.StyleParamWithOptions("simple", false, "projName", projName, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: ""})
+	if err != nil {
+		return nil, err
+	}
+
+	var pathParam2 string
+
+	pathParam2, err = runtime.StyleParamWithOptions("simple", false, "agentName", agentName, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: ""})
+	if err != nil {
+		return nil, err
+	}
+
+	var pathParam3 string
+
+	pathParam3, err = runtime.StyleParamWithOptions("simple", false, "envID", envID, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: ""})
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/orgs/%s/projects/%s/agents/%s/environments/%s/agent-card", pathParam0, pathParam1, pathParam2, pathParam3)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest("GET", queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return req, nil
+}
+
+// NewRefreshAgentCardRequest generates requests for RefreshAgentCard
+func NewRefreshAgentCardRequest(server string, orgName string, projName string, agentName string, envID string) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithOptions("simple", false, "orgName", orgName, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: ""})
+	if err != nil {
+		return nil, err
+	}
+
+	var pathParam1 string
+
+	pathParam1, err = runtime.StyleParamWithOptions("simple", false, "projName", projName, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: ""})
+	if err != nil {
+		return nil, err
+	}
+
+	var pathParam2 string
+
+	pathParam2, err = runtime.StyleParamWithOptions("simple", false, "agentName", agentName, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: ""})
+	if err != nil {
+		return nil, err
+	}
+
+	var pathParam3 string
+
+	pathParam3, err = runtime.StyleParamWithOptions("simple", false, "envID", envID, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: ""})
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/orgs/%s/projects/%s/agents/%s/environments/%s/agent-card/refresh", pathParam0, pathParam1, pathParam2, pathParam3)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest("POST", queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return req, nil
+}
+
+// NewDeleteAgentCardSourceRequest generates requests for DeleteAgentCardSource
+func NewDeleteAgentCardSourceRequest(server string, orgName string, projName string, agentName string, envID string) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithOptions("simple", false, "orgName", orgName, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: ""})
+	if err != nil {
+		return nil, err
+	}
+
+	var pathParam1 string
+
+	pathParam1, err = runtime.StyleParamWithOptions("simple", false, "projName", projName, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: ""})
+	if err != nil {
+		return nil, err
+	}
+
+	var pathParam2 string
+
+	pathParam2, err = runtime.StyleParamWithOptions("simple", false, "agentName", agentName, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: ""})
+	if err != nil {
+		return nil, err
+	}
+
+	var pathParam3 string
+
+	pathParam3, err = runtime.StyleParamWithOptions("simple", false, "envID", envID, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: ""})
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/orgs/%s/projects/%s/agents/%s/environments/%s/agent-card/source", pathParam0, pathParam1, pathParam2, pathParam3)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest("DELETE", queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return req, nil
+}
+
+// NewSetAgentCardSourceRequest calls the generic SetAgentCardSource builder with application/json body
+func NewSetAgentCardSourceRequest(server string, orgName string, projName string, agentName string, envID string, body SetAgentCardSourceJSONRequestBody) (*http.Request, error) {
+	var bodyReader io.Reader
+	buf, err := json.Marshal(body)
+	if err != nil {
+		return nil, err
+	}
+	bodyReader = bytes.NewReader(buf)
+	return NewSetAgentCardSourceRequestWithBody(server, orgName, projName, agentName, envID, "application/json", bodyReader)
+}
+
+// NewSetAgentCardSourceRequestWithBody generates requests for SetAgentCardSource with any type of body
+func NewSetAgentCardSourceRequestWithBody(server string, orgName string, projName string, agentName string, envID string, contentType string, body io.Reader) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithOptions("simple", false, "orgName", orgName, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: ""})
+	if err != nil {
+		return nil, err
+	}
+
+	var pathParam1 string
+
+	pathParam1, err = runtime.StyleParamWithOptions("simple", false, "projName", projName, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: ""})
+	if err != nil {
+		return nil, err
+	}
+
+	var pathParam2 string
+
+	pathParam2, err = runtime.StyleParamWithOptions("simple", false, "agentName", agentName, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: ""})
+	if err != nil {
+		return nil, err
+	}
+
+	var pathParam3 string
+
+	pathParam3, err = runtime.StyleParamWithOptions("simple", false, "envID", envID, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: ""})
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/orgs/%s/projects/%s/agents/%s/environments/%s/agent-card/source", pathParam0, pathParam1, pathParam2, pathParam3)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest("PUT", queryURL.String(), body)
+	if err != nil {
+		return nil, err
+	}
+
+	req.Header.Add("Content-Type", contentType)
+
+	return req, nil
+}
+
 // NewListAgentAPIKeysRequest generates requests for ListAgentAPIKeys
 func NewListAgentAPIKeysRequest(server string, orgName string, projName string, agentName string, envID string) (*http.Request, error) {
 	var err error
@@ -17511,6 +17818,20 @@ type ClientWithResponsesInterface interface {
 	// GetAgentEndpointsWithResponse request
 	GetAgentEndpointsWithResponse(ctx context.Context, orgName string, projName string, agentName string, params *GetAgentEndpointsParams, reqEditors ...RequestEditorFn) (*GetAgentEndpointsResp, error)
 
+	// GetAgentCardWithResponse request
+	GetAgentCardWithResponse(ctx context.Context, orgName string, projName string, agentName string, envID string, reqEditors ...RequestEditorFn) (*GetAgentCardResp, error)
+
+	// RefreshAgentCardWithResponse request
+	RefreshAgentCardWithResponse(ctx context.Context, orgName string, projName string, agentName string, envID string, reqEditors ...RequestEditorFn) (*RefreshAgentCardResp, error)
+
+	// DeleteAgentCardSourceWithResponse request
+	DeleteAgentCardSourceWithResponse(ctx context.Context, orgName string, projName string, agentName string, envID string, reqEditors ...RequestEditorFn) (*DeleteAgentCardSourceResp, error)
+
+	// SetAgentCardSourceWithBodyWithResponse request with any body
+	SetAgentCardSourceWithBodyWithResponse(ctx context.Context, orgName string, projName string, agentName string, envID string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*SetAgentCardSourceResp, error)
+
+	SetAgentCardSourceWithResponse(ctx context.Context, orgName string, projName string, agentName string, envID string, body SetAgentCardSourceJSONRequestBody, reqEditors ...RequestEditorFn) (*SetAgentCardSourceResp, error)
+
 	// ListAgentAPIKeysWithResponse request
 	ListAgentAPIKeysWithResponse(ctx context.Context, orgName string, projName string, agentName string, envID string, reqEditors ...RequestEditorFn) (*ListAgentAPIKeysResp, error)
 
@@ -21511,6 +21832,106 @@ func (r GetAgentEndpointsResp) StatusCode() int {
 	return 0
 }
 
+type GetAgentCardResp struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON200      *AgentCardResponse
+	JSON401      *ErrorResponse
+	JSON404      *ErrorResponse
+	JSON500      *ErrorResponse
+}
+
+// Status returns HTTPResponse.Status
+func (r GetAgentCardResp) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r GetAgentCardResp) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+type RefreshAgentCardResp struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON400      *ErrorResponse
+	JSON403      *ErrorResponse
+	JSON404      *ErrorResponse
+	JSON500      *ErrorResponse
+}
+
+// Status returns HTTPResponse.Status
+func (r RefreshAgentCardResp) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r RefreshAgentCardResp) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+type DeleteAgentCardSourceResp struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON400      *ErrorResponse
+	JSON403      *ErrorResponse
+	JSON404      *ErrorResponse
+	JSON500      *ErrorResponse
+}
+
+// Status returns HTTPResponse.Status
+func (r DeleteAgentCardSourceResp) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r DeleteAgentCardSourceResp) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+type SetAgentCardSourceResp struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON400      *ErrorResponse
+	JSON403      *ErrorResponse
+	JSON404      *ErrorResponse
+	JSON500      *ErrorResponse
+}
+
+// Status returns HTTPResponse.Status
+func (r SetAgentCardSourceResp) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r SetAgentCardSourceResp) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
 type ListAgentAPIKeysResp struct {
 	Body         []byte
 	HTTPResponse *http.Response
@@ -24987,6 +25408,50 @@ func (c *ClientWithResponses) GetAgentEndpointsWithResponse(ctx context.Context,
 		return nil, err
 	}
 	return ParseGetAgentEndpointsResp(rsp)
+}
+
+// GetAgentCardWithResponse request returning *GetAgentCardResp
+func (c *ClientWithResponses) GetAgentCardWithResponse(ctx context.Context, orgName string, projName string, agentName string, envID string, reqEditors ...RequestEditorFn) (*GetAgentCardResp, error) {
+	rsp, err := c.GetAgentCard(ctx, orgName, projName, agentName, envID, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseGetAgentCardResp(rsp)
+}
+
+// RefreshAgentCardWithResponse request returning *RefreshAgentCardResp
+func (c *ClientWithResponses) RefreshAgentCardWithResponse(ctx context.Context, orgName string, projName string, agentName string, envID string, reqEditors ...RequestEditorFn) (*RefreshAgentCardResp, error) {
+	rsp, err := c.RefreshAgentCard(ctx, orgName, projName, agentName, envID, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseRefreshAgentCardResp(rsp)
+}
+
+// DeleteAgentCardSourceWithResponse request returning *DeleteAgentCardSourceResp
+func (c *ClientWithResponses) DeleteAgentCardSourceWithResponse(ctx context.Context, orgName string, projName string, agentName string, envID string, reqEditors ...RequestEditorFn) (*DeleteAgentCardSourceResp, error) {
+	rsp, err := c.DeleteAgentCardSource(ctx, orgName, projName, agentName, envID, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseDeleteAgentCardSourceResp(rsp)
+}
+
+// SetAgentCardSourceWithBodyWithResponse request with arbitrary body returning *SetAgentCardSourceResp
+func (c *ClientWithResponses) SetAgentCardSourceWithBodyWithResponse(ctx context.Context, orgName string, projName string, agentName string, envID string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*SetAgentCardSourceResp, error) {
+	rsp, err := c.SetAgentCardSourceWithBody(ctx, orgName, projName, agentName, envID, contentType, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseSetAgentCardSourceResp(rsp)
+}
+
+func (c *ClientWithResponses) SetAgentCardSourceWithResponse(ctx context.Context, orgName string, projName string, agentName string, envID string, body SetAgentCardSourceJSONRequestBody, reqEditors ...RequestEditorFn) (*SetAgentCardSourceResp, error) {
+	rsp, err := c.SetAgentCardSource(ctx, orgName, projName, agentName, envID, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseSetAgentCardSourceResp(rsp)
 }
 
 // ListAgentAPIKeysWithResponse request returning *ListAgentAPIKeysResp
@@ -32629,6 +33094,194 @@ func ParseGetAgentEndpointsResp(rsp *http.Response) (*GetAgentEndpointsResp, err
 			return nil, err
 		}
 		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
+		var dest ErrorResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON404 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
+		var dest ErrorResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON500 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseGetAgentCardResp parses an HTTP response from a GetAgentCardWithResponse call
+func ParseGetAgentCardResp(rsp *http.Response) (*GetAgentCardResp, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &GetAgentCardResp{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest AgentCardResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
+		var dest ErrorResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON401 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
+		var dest ErrorResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON404 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
+		var dest ErrorResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON500 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseRefreshAgentCardResp parses an HTTP response from a RefreshAgentCardWithResponse call
+func ParseRefreshAgentCardResp(rsp *http.Response) (*RefreshAgentCardResp, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &RefreshAgentCardResp{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
+		var dest ErrorResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON400 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 403:
+		var dest ErrorResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON403 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
+		var dest ErrorResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON404 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
+		var dest ErrorResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON500 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseDeleteAgentCardSourceResp parses an HTTP response from a DeleteAgentCardSourceWithResponse call
+func ParseDeleteAgentCardSourceResp(rsp *http.Response) (*DeleteAgentCardSourceResp, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &DeleteAgentCardSourceResp{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
+		var dest ErrorResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON400 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 403:
+		var dest ErrorResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON403 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
+		var dest ErrorResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON404 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
+		var dest ErrorResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON500 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseSetAgentCardSourceResp parses an HTTP response from a SetAgentCardSourceWithResponse call
+func ParseSetAgentCardSourceResp(rsp *http.Response) (*SetAgentCardSourceResp, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &SetAgentCardSourceResp{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
+		var dest ErrorResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON400 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 403:
+		var dest ErrorResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON403 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
 		var dest ErrorResponse

@@ -368,3 +368,54 @@ func TestConvertComponentFromTyped_KindVersion(t *testing.T) {
 		assert.Empty(t, agent.KindVersion)
 	})
 }
+
+// An external A2A agent's subtype is what the card API and M3 search filter on.
+func TestBuildExternalAgentComponentRequestBody_A2ASubTypeLabel(t *testing.T) {
+	req := CreateComponentRequest{
+		Name:             "agent-1",
+		DisplayName:      "Agent 1",
+		ProvisioningType: "external",
+		AgentType:        AgentTypeConfig{Type: "external-agent-api", SubType: "a2a-agent"},
+	}
+	body, err := buildExternalAgentComponentRequestBody("ns", "proj", req)
+	require.NoError(t, err)
+	labels := *body.Metadata.Labels
+	assert.Equal(t, "a2a-agent", labels[string(LabelKeyAgentSubType)])
+}
+
+// Other external subtypes stay free-form and are never validated as label values.
+func TestBuildExternalAgentComponentRequestBody_FreeFormSubTypeNotLabelled(t *testing.T) {
+	req := CreateComponentRequest{
+		Name:             "agent-1",
+		DisplayName:      "Agent 1",
+		ProvisioningType: "external",
+		AgentType:        AgentTypeConfig{Type: "external-agent-api", SubType: "My Custom Agent!"},
+	}
+	body, err := buildExternalAgentComponentRequestBody("ns", "proj", req)
+	require.NoError(t, err)
+	_, has := (*body.Metadata.Labels)[string(LabelKeyAgentSubType)]
+	assert.False(t, has)
+}
+
+func TestConvertComponentFromTyped_ExternalA2ASubType(t *testing.T) {
+	labels := map[string]string{
+		string(LabelKeyProvisioningType): "external",
+		string(LabelKeyAgentSubType):     "a2a-agent",
+	}
+	comp := &gen.Component{
+		Metadata: gen.ObjectMeta{Name: "agent-1", Labels: &labels},
+		Spec: &gen.ComponentSpec{
+			ComponentType: struct {
+				Kind *gen.ComponentSpecComponentTypeKind `json:"kind,omitempty"`
+				Name string                              `json:"name"`
+			}{Name: "external-agent/external-agent-api"},
+			Owner: struct {
+				ProjectName string `json:"projectName"`
+			}{ProjectName: "proj"},
+		},
+	}
+	agent, err := convertComponentFromTyped(comp)
+	require.NoError(t, err)
+	assert.Equal(t, "external", agent.Provisioning.Type)
+	assert.Equal(t, "a2a-agent", agent.Type.SubType)
+}

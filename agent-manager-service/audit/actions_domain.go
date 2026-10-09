@@ -91,6 +91,10 @@ const (
 	ActionAgentConfigUpdate Action = "agent-config:update"
 	ActionAgentConfigDelete Action = "agent-config:delete"
 
+	// A2A agent card source (external A2A agents).
+	ActionAgentSetCardSource    Action = "agent:set-card-source"
+	ActionAgentRemoveCardSource Action = "agent:remove-card-source"
+
 	// Platform: gateways and their trust configuration.
 	ActionGatewayCreate                 Action = "gateway:create"
 	ActionGatewayUpdate                 Action = "gateway:update"
@@ -384,6 +388,15 @@ func init() {
 		"configType":    KindEnum,
 		"agentName":     KindName,
 		"updatedFields": KindNameList,
+	})
+	Register(ActionAgentSetCardSource, ClassConfig, SeverityInfo)
+	RegisterDetailSchema(ActionAgentSetCardSource, map[string]FieldKind{
+		"agentName": KindName,
+		"sourceUrl": KindURL,
+	})
+	Register(ActionAgentRemoveCardSource, ClassConfig, SeverityNotice)
+	RegisterDetailSchema(ActionAgentRemoveCardSource, map[string]FieldKind{
+		"agentName": KindName,
 	})
 	Register(ActionAgentConfigDelete, ClassConfig, SeverityNotice)
 	RegisterDetailSchema(ActionAgentConfigDelete, map[string]FieldKind{

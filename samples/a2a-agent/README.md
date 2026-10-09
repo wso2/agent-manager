@@ -325,11 +325,10 @@ asyncio.run(main())
   to `a2a-sdk` below 1.1.5 has to give that up; point `amp-instrumentation` at
   the exporter yourself in that case — see the `manual-instrumentation-agent`
   sample for that path.
-- **The card the gateway serves is the agent's own body.** As of this writing the
-  gateway's passthrough rewrite does not touch A2A 1.0 `supportedInterfaces`
-  URLs, so a card fetched through the gateway still advertises the agent's own
-  address. Use the gateway paths above (`/<agent-name>/rpc`, `/rest`) when you
-  wire up a client, or resolve the card and rewrite the URL yourself.
+- **The card the gateway serves advertises the gateway.** The gateway's passthrough
+  rewrite points each gateway-fronted A2A 1.0 `supportedInterfaces[].url` at
+  itself (unfronted entries and `securitySchemes` are left as-is), so resolve the card
+  through the gateway and use the URLs it returns.
 
 ## File guide
 

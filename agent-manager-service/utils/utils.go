@@ -523,6 +523,14 @@ func validateAgentType(agentType spec.AgentType) error {
 	if agentType.Type != string(AgentTypeAPI) && agentType.Type != string(AgentTypeExternalAPI) {
 		return fmt.Errorf("unsupported agent type: %s", agentType.Type)
 	}
+	// External subtypes are free-form, so a miscased "a2a-agent" would silently lose A2A support.
+	subType := StrPointerAsStr(agentType.SubType, "")
+	if strings.EqualFold(subType, string(AgentSubTypeA2A)) && !IsA2AAgentSubType(subType) {
+		return NewValidationErrorf(
+			fmt.Sprintf("Use the agent subtype %q for an A2A agent", AgentSubTypeA2A),
+			"miscased A2A agent subtype: %s", subType,
+		)
+	}
 	return nil
 }
 

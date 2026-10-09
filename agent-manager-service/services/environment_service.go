@@ -99,10 +99,11 @@ type environmentService struct {
 	envThunderRepo     repositories.EnvThunderSystemClientRepository
 	envThunderURLRepo  repositories.EnvThunderURLRepository
 	encryptionKey      []byte
+	a2aCardRepo        repositories.A2AAgentCardRepository
 }
 
 // NewEnvironmentService creates a new environment service
-func NewEnvironmentService(logger *slog.Logger, gatewayRepo repositories.GatewayRepository, ocClient occlient.OpenChoreoClient, thunderProber thundersvc.Prober, agentConfigService AgentConfigurationService, envThunderRepo repositories.EnvThunderSystemClientRepository, envThunderURLRepo repositories.EnvThunderURLRepository, encryptionKey []byte) EnvironmentService {
+func NewEnvironmentService(logger *slog.Logger, gatewayRepo repositories.GatewayRepository, ocClient occlient.OpenChoreoClient, thunderProber thundersvc.Prober, agentConfigService AgentConfigurationService, envThunderRepo repositories.EnvThunderSystemClientRepository, envThunderURLRepo repositories.EnvThunderURLRepository, encryptionKey []byte, a2aCardRepo repositories.A2AAgentCardRepository) EnvironmentService {
 	return &environmentService{
 		logger:             logger,
 		gatewayRepo:        gatewayRepo,
@@ -112,6 +113,7 @@ func NewEnvironmentService(logger *slog.Logger, gatewayRepo repositories.Gateway
 		envThunderRepo:     envThunderRepo,
 		envThunderURLRepo:  envThunderURLRepo,
 		encryptionKey:      encryptionKey,
+		a2aCardRepo:        a2aCardRepo,
 	}
 }
 
@@ -356,6 +358,14 @@ func (s *environmentService) DeleteEnvironment(ctx context.Context, ouID string,
 	if s.agentConfigService != nil {
 		if err := s.agentConfigService.CleanupEnvironmentMCPArtifacts(ctx, ouID, envUUID, env.Name); err != nil {
 			s.logger.Warn("environment deleted; MCP artifact cleanup had errors",
+				"ouID", ouID, "envID", envID, "envUUID", envUUID, "error", err)
+		}
+	}
+
+	// Best-effort like the MCP cleanup: a same-named re-created env must not inherit these cards.
+	if s.a2aCardRepo != nil {
+		if err := s.a2aCardRepo.DeleteForEnvironment(ctx, ouID, envUUID); err != nil {
+			s.logger.Error("Environment deleted but its A2A agent cards were not removed",
 				"ouID", ouID, "envID", envID, "envUUID", envUUID, "error", err)
 		}
 	}

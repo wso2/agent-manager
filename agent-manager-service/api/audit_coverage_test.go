@@ -50,6 +50,7 @@ var controllerConstructors = []any{
 	controllers.NewLLMProviderAPIKeyController,
 	controllers.NewLLMProxyAPIKeyController,
 	controllers.NewAgentAPIKeyController,
+	controllers.NewA2AAgentCardController,
 	controllers.NewLLMProxyDeploymentController,
 	controllers.NewMCPProxyController,
 	controllers.NewMonitorController,

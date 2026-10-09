@@ -30,6 +30,45 @@ func (e APIKeySecurityIn) Valid() bool {
 	}
 }
 
+// Defines values for AgentCardResponseSource.
+const (
+	AgentCardResponseSourceExternal AgentCardResponseSource = "external"
+	AgentCardResponseSourcePlatform AgentCardResponseSource = "platform"
+)
+
+// Valid indicates whether the value is a known member of the AgentCardResponseSource enum.
+func (e AgentCardResponseSource) Valid() bool {
+	switch e {
+	case AgentCardResponseSourceExternal:
+		return true
+	case AgentCardResponseSourcePlatform:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for AgentCardResponseStatus.
+const (
+	AgentCardResponseStatusFailed  AgentCardResponseStatus = "failed"
+	AgentCardResponseStatusFetched AgentCardResponseStatus = "fetched"
+	AgentCardResponseStatusPending AgentCardResponseStatus = "pending"
+)
+
+// Valid indicates whether the value is a known member of the AgentCardResponseStatus enum.
+func (e AgentCardResponseStatus) Valid() bool {
+	switch e {
+	case AgentCardResponseStatusFailed:
+		return true
+	case AgentCardResponseStatusFetched:
+		return true
+	case AgentCardResponseStatusPending:
+		return true
+	default:
+		return false
+	}
+}
+
 // Defines values for AgentIdentityAssignmentEntryType.
 const (
 	AgentIdentityAssignmentEntryTypeAgent AgentIdentityAssignmentEntryType = "agent"
@@ -845,16 +884,16 @@ func (e LogEntryLogLevel) Valid() bool {
 
 // Defines values for MCPEndpointEnvironmentDeploymentStatus.
 const (
-	Deployed   MCPEndpointEnvironmentDeploymentStatus = "Deployed"
-	Undeployed MCPEndpointEnvironmentDeploymentStatus = "Undeployed"
+	MCPEndpointEnvironmentDeploymentStatusDeployed   MCPEndpointEnvironmentDeploymentStatus = "Deployed"
+	MCPEndpointEnvironmentDeploymentStatusUndeployed MCPEndpointEnvironmentDeploymentStatus = "Undeployed"
 )
 
 // Valid indicates whether the value is a known member of the MCPEndpointEnvironmentDeploymentStatus enum.
 func (e MCPEndpointEnvironmentDeploymentStatus) Valid() bool {
 	switch e {
-	case Deployed:
+	case MCPEndpointEnvironmentDeploymentStatusDeployed:
 		return true
-	case Undeployed:
+	case MCPEndpointEnvironmentDeploymentStatusUndeployed:
 		return true
 	default:
 		return false
@@ -1286,6 +1325,33 @@ type AgentCardCORSConfig struct {
 	// Inherit When true the card follows the agent's CORS: enabled when agent CORS is, with the agent's origins and credentials setting and Content-Type as the only header. On a request, true clears any stored override and the other fields are ignored. On a response, the other fields hold the effective values.
 	Inherit *bool `json:"inherit,omitempty"`
 }
+
+// AgentCardResponse An A2A agent's stored public agent card for one environment, and the state of its fetch.
+type AgentCardResponse struct {
+	// Card The last good card, as returned by the agent. Absent until the first successful fetch.
+	Card *map[string]interface{} `json:"card,omitempty"`
+
+	// FetchedAt Time of the last successful fetch. Absent until then.
+	FetchedAt *time.Time `json:"fetchedAt,omitempty"`
+
+	// LastError Why the last attempt failed; empty after a success.
+	LastError string `json:"lastError"`
+
+	// Source platform cards are fetched through the environment's gateway; external cards from a registered URL.
+	Source AgentCardResponseSource `json:"source"`
+
+	// SourceUrl The registered URL (external) or the URL last fetched (platform).
+	SourceUrl string `json:"sourceUrl"`
+
+	// Status pending while a fetch is due or retrying; failed once the retry budget ran out.
+	Status AgentCardResponseStatus `json:"status"`
+}
+
+// AgentCardResponseSource platform cards are fetched through the environment's gateway; external cards from a registered URL.
+type AgentCardResponseSource string
+
+// AgentCardResponseStatus pending while a fetch is due or retrying; failed once the retry budget ran out.
+type AgentCardResponseStatus string
 
 // AgentCreatedBy The user who created this agent. Resolved from an audit-only
 // requester id captured at creation time, so it is best-effort and
@@ -4891,6 +4957,12 @@ type SecuritySummary struct {
 	Enabled *bool `json:"enabled,omitempty"`
 }
 
+// SetAgentCardSourceRequest defines model for SetAgentCardSourceRequest.
+type SetAgentCardSourceRequest struct {
+	// Url Public http(s) URL of the agent card, normally ending in /.well-known/agent-card.json.
+	Url string `json:"url"`
+}
+
 // StoredAPIKey defines model for StoredAPIKey.
 type StoredAPIKey struct {
 	// ArtifactUuid UUID of the artifact this key is bound to.
@@ -6147,6 +6219,9 @@ type DeployAgentJSONRequestBody = DeployAgentRequest
 
 // UpdateAgentDeploymentStateJSONRequestBody defines body for UpdateAgentDeploymentState for application/json ContentType.
 type UpdateAgentDeploymentStateJSONRequestBody = UpdateDeploymentStateRequest
+
+// SetAgentCardSourceJSONRequestBody defines body for SetAgentCardSource for application/json ContentType.
+type SetAgentCardSourceJSONRequestBody = SetAgentCardSourceRequest
 
 // CreateAgentAPIKeyJSONRequestBody defines body for CreateAgentAPIKey for application/json ContentType.
 type CreateAgentAPIKeyJSONRequestBody = CreateLLMAPIKeyRequest

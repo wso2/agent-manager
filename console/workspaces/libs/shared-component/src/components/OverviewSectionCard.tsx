@@ -23,6 +23,8 @@ import { Link } from "react-router-dom";
 interface OverviewSectionCardProps {
   /** Uppercase caption shown in the section's own header row. */
   title: string;
+  /** Rendered right after the title, e.g. a value with an edit icon. */
+  titleAdornment?: ReactNode;
   /** Omit when there's nowhere to link out to — the action button is skipped entirely. */
   actionHref?: string;
   actionLabel?: string;
@@ -46,7 +48,7 @@ interface OverviewSectionCardProps {
  * variant="plain" to drop the card chrome and render into a plain Box instead.
  */
 export const OverviewSectionCard: React.FC<OverviewSectionCardProps> = ({
-  title, actionHref, actionLabel = "View all", headerAction, variant = "card", sx, children,
+  title, titleAdornment, actionHref, actionLabel = "View all", headerAction, variant = "card", sx, children,
 }) => {
   const content = (
     <>
@@ -59,6 +61,11 @@ export const OverviewSectionCard: React.FC<OverviewSectionCardProps> = ({
         >
           {title}
         </Typography>
+        {titleAdornment && (
+          <Box display="flex" alignItems="center" gap={0.5} sx={{ ml: 1.5, mr: 1, flex: 1, minWidth: 0 }}>
+            {titleAdornment}
+          </Box>
+        )}
         <Box display="flex" alignItems="center" gap={0.5}>
           {headerAction}
           {headerAction && actionHref && (

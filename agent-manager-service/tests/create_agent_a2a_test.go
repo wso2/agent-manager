@@ -32,6 +32,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/wso2/agent-manager/agent-manager-service/clients/openchoreosvc/client"
+	"github.com/wso2/agent-manager/agent-manager-service/db"
 	"github.com/wso2/agent-manager/agent-manager-service/middleware/jwtassertion"
 	"github.com/wso2/agent-manager/agent-manager-service/models"
 	"github.com/wso2/agent-manager/agent-manager-service/tests/apitestutils"
@@ -110,4 +111,40 @@ func TestCreateA2AAgentOmitsAPIConfigurationTrait(t *testing.T) {
 	}
 	require.NotEmpty(t, attachTraitsCalls[0].TraitRequests,
 		"the instrumentation traits are still attached")
+}
+
+// An external A2A agent gets no gateway route trait and no publication; only its subtype is recorded.
+func TestCreateExternalA2AAgentGetsNoGatewayPublication(t *testing.T) {
+	authMiddleware := jwtassertion.NewMockMiddleware(t)
+	openChoreoClient := apitestutils.CreateMockOpenChoreoClient()
+	testClients := wiring.TestClients{
+		OpenChoreoClient: openChoreoClient,
+		SecretMgmtClient: apitestutils.CreateMockSecretManagementClient(),
+	}
+	app := apitestutils.MakeAppClientWithDeps(t, testClients, authMiddleware)
+	agentName := fmt.Sprintf("ext-a2a-%s", uuid.New().String()[:5])
+
+	reqBody := new(bytes.Buffer)
+	require.NoError(t, json.NewEncoder(reqBody).Encode(map[string]interface{}{
+		"name":         agentName,
+		"displayName":  "External A2A",
+		"provisioning": map[string]interface{}{"type": "external"},
+		"agentType":    map[string]interface{}{"type": "external-agent-api", "subType": "a2a-agent"},
+	}))
+	req := httptest.NewRequest(http.MethodPost,
+		fmt.Sprintf("/api/v1/orgs/%s/projects/%s/agents", testOrgName, testProjName), reqBody)
+	req.Header.Set("Content-Type", "application/json")
+	rr := httptest.NewRecorder()
+	app.ServeHTTP(rr, req)
+	require.Equal(t, http.StatusAccepted, rr.Code, "body: %s", rr.Body.String())
+
+	created := openChoreoClient.CreateComponentCalls()
+	require.Len(t, created, 1)
+	require.Equal(t, "a2a-agent", created[0].Req.AgentType.SubType)
+	require.Empty(t, openChoreoClient.AttachTraitsCalls(), "no a2a-gateway-route or any other trait")
+
+	var queued int64
+	require.NoError(t, db.GetDB().Model(&models.A2APublication{}).
+		Where("agent_name = ?", agentName).Count(&queued).Error)
+	require.Zero(t, queued, "no gateway publication is queued")
 }

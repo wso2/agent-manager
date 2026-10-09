@@ -29,6 +29,7 @@ import (
 	"github.com/wso2/agent-manager/agent-manager-service/clients/openchoreosvc/client"
 	"github.com/wso2/agent-manager/agent-manager-service/models"
 	"github.com/wso2/agent-manager/agent-manager-service/repositories"
+	"github.com/wso2/agent-manager/agent-manager-service/utils"
 )
 
 const (
@@ -64,6 +65,7 @@ type A2APublicationReconcilerService interface {
 
 type a2aPublicationReconcilerService struct {
 	pubRepo         repositories.A2APublicationRepository
+	cardRepo        repositories.A2AAgentCardRepository
 	deploymentRepo  repositories.DeploymentRepository
 	gatewayRepo     repositories.GatewayRepository
 	agentConfigRepo repositories.AgentConfigRepository
@@ -79,6 +81,7 @@ type a2aPublicationReconcilerService struct {
 // NewA2APublicationReconcilerService creates an A2APublicationReconcilerService.
 func NewA2APublicationReconcilerService(
 	pubRepo repositories.A2APublicationRepository,
+	cardRepo repositories.A2AAgentCardRepository,
 	deploymentRepo repositories.DeploymentRepository,
 	gatewayRepo repositories.GatewayRepository,
 	agentConfigRepo repositories.AgentConfigRepository,
@@ -88,6 +91,7 @@ func NewA2APublicationReconcilerService(
 ) A2APublicationReconcilerService {
 	return &a2aPublicationReconcilerService{
 		pubRepo:         pubRepo,
+		cardRepo:        cardRepo,
 		deploymentRepo:  deploymentRepo,
 		gatewayRepo:     gatewayRepo,
 		agentConfigRepo: agentConfigRepo,
@@ -166,8 +170,13 @@ func (s *a2aPublicationReconcilerService) checkUpstreamDrift(ctx context.Context
 	}
 
 	for _, pub := range rows {
-		current, err := s.ocClient.GetReleaseBindingServiceURL(ctx, pub.OUID, pub.AgentName, pub.EnvironmentName)
-		if err != nil || current == "" || current == pub.PublishedUpstreamURL {
+		rollout, err := s.ocClient.GetReleaseBindingRollout(ctx, pub.OUID, pub.AgentName, pub.EnvironmentName)
+		if err != nil {
+			continue
+		}
+		current := rollout.ServiceURL
+		if current == "" || current == pub.PublishedUpstreamURL {
+			s.refetchCardOfNewRelease(ctx, pub, rollout)
 			continue
 		}
 		s.logger.Info("A2A agent upstream drifted from what its gateway was given; republishing",
@@ -184,6 +193,29 @@ func (s *a2aPublicationReconcilerService) checkUpstreamDrift(ctx context.Context
 	}
 }
 
+// refetchCardOfNewRelease re-queues a platform card fetched from an older release than the one now serving.
+func (s *a2aPublicationReconcilerService) refetchCardOfNewRelease(ctx context.Context, pub models.A2APublication, rollout client.ReleaseBindingRollout) {
+	if !rollout.Serving || rollout.ReleaseName == "" {
+		return
+	}
+	card, err := s.cardRepo.Get(ctx, pub.OUID, pub.ProjectName, pub.AgentName, pub.EnvironmentName)
+	if err != nil {
+		if !errors.Is(err, repositories.ErrA2AAgentCardNotFound) {
+			s.logger.Warn("Failed to read A2A agent card for release drift",
+				"agentName", pub.AgentName, "environment", pub.EnvironmentName, "error", err)
+		}
+		return
+	}
+	if card.Source != models.A2AAgentCardSourcePlatform || card.Status == models.A2AAgentCardStatusPending ||
+		card.ReleaseName == rollout.ReleaseName {
+		return
+	}
+	s.logger.Info("A2A agent serves a new release; re-fetching its card",
+		"agentName", pub.AgentName, "environment", pub.EnvironmentName,
+		"cardRelease", card.ReleaseName, "currentRelease", rollout.ReleaseName)
+	s.enqueueCardFetch(ctx, pub)
+}
+
 // publishOne emits one agent-environment pair's Agent resource, or schedules a
 // retry when it cannot yet.
 func (s *a2aPublicationReconcilerService) publishOne(ctx context.Context, pub models.A2APublication) {
@@ -198,6 +230,38 @@ func (s *a2aPublicationReconcilerService) publishOne(ctx context.Context, pub mo
 		s.logSuperseded(pub)
 	case err != nil:
 		s.logger.Error("Published A2A agent but failed to mark the queue row",
+			"agentName", pub.AgentName, "environment", pub.EnvironmentName, "error", err)
+	default:
+		s.enqueueCardFetch(ctx, pub)
+	}
+}
+
+// enqueueCardFetch queues a fetch of the card the gateway now serves; best effort.
+func (s *a2aPublicationReconcilerService) enqueueCardFetch(ctx context.Context, pub models.A2APublication) {
+	card := &models.A2AAgentCard{
+		OUID:            pub.OUID,
+		ProjectName:     pub.ProjectName,
+		AgentName:       pub.AgentName,
+		EnvironmentName: pub.EnvironmentName,
+		EnvironmentUUID: pub.EnvironmentUUID,
+		Source:          models.A2AAgentCardSourcePlatform,
+	}
+	if err := s.cardRepo.Enqueue(ctx, card); err != nil {
+		s.logger.Warn("Published A2A agent but failed to queue its card fetch",
+			"agentName", pub.AgentName, "environment", pub.EnvironmentName, "error", err)
+		return
+	}
+	s.dropCardIfAgentGone(ctx, pub)
+}
+
+// dropCardIfAgentGone removes a card row written after a racing DeleteAgent cleared the agent's rows.
+func (s *a2aPublicationReconcilerService) dropCardIfAgentGone(ctx context.Context, pub models.A2APublication) {
+	_, err := s.ocClient.GetComponent(ctx, pub.OUID, pub.ProjectName, pub.AgentName)
+	if !errors.Is(err, utils.ErrNotFound) {
+		return
+	}
+	if err := s.cardRepo.DeleteForAgentEnv(ctx, pub.OUID, pub.ProjectName, pub.AgentName, pub.EnvironmentName); err != nil {
+		s.logger.Warn("Failed to drop the card row of a deleted A2A agent",
 			"agentName", pub.AgentName, "environment", pub.EnvironmentName, "error", err)
 	}
 }
