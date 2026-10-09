@@ -147,6 +147,21 @@ type Config struct {
 	// cache lives. The default in-memory backend is process-local and therefore
 	// inconsistent across replicas — set Backend to "redis" in HA deployments.
 	GatewayManifestCache GatewayManifestCacheConfig
+
+	// PolicyHub configures the policy hub the LLM and MCP policy listings are
+	// enriched from (display names, descriptions, categories).
+	PolicyHub PolicyHubConfig
+}
+
+// PolicyHubConfig configures the policy hub client (see clients/policyhub).
+type PolicyHubConfig struct {
+	// BaseURL is the hub API root, e.g. ".../policy-hub-public/v1.0"; the client
+	// appends "/policies". Empty disables enrichment: policy listings are still
+	// served from gateway manifests, with raw names and no hub categories.
+	BaseURL string
+	// CacheTTL is how long a fetched hub catalog is served before it is refreshed,
+	// as a Go duration string. A failed refresh keeps serving the last good copy.
+	CacheTTL string
 }
 
 // GatewayManifestCacheConfig selects and configures the backend for the

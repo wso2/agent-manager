@@ -48,28 +48,21 @@ import {
 } from "@agent-management-platform/views";
 import {
   useLLMPoliciesCatalog,
-  useGuardrailPolicyDefinition,
   filterGuardrailPolicies,
   type GuardrailDefinition,
   type GuardrailsCatalogResponse,
 } from "@agent-management-platform/api-client";
-import { globalConfig } from "@agent-management-platform/types";
 import PolicyParameterEditor from "../PolicyParameterEditor/PolicyParameterEditor";
 import type { ParameterValues } from "../../utils/policyParameterEditor";
 import {
   useConfirmIfUnsaved,
   useUnsavedChangesGuard,
 } from "../../utils/useUnsavedChangesGuard";
-import {
-  hasInlinePolicyDefinition,
-  resolvePolicyDetail,
-} from "./resolvePolicyDetail";
+import { resolvePolicyDetail } from "./resolvePolicyDetail";
 
 const PolicyDetailView: React.FC<{
   policy: GuardrailDefinition;
   existingSettings?: Record<string, unknown>;
-  getPolicyDefinitionVersion?: (policy: GuardrailDefinition) => string;
-  policyNoun?: string;
   onBack: () => void;
   /** Explicit discard from the editor; defaults to `onBack`. */
   onCancel?: () => void;
@@ -78,84 +71,12 @@ const PolicyDetailView: React.FC<{
 }> = ({
   policy,
   existingSettings,
-  getPolicyDefinitionVersion,
-  policyNoun = "policy",
   onBack,
   onCancel = onBack,
   onDirtyChange,
   onSubmit,
 }) => {
-  const hasInlineDefinition = hasInlinePolicyDefinition(policy);
-
-  const {
-    data: yamlText,
-    isLoading,
-    error,
-  } = useGuardrailPolicyDefinition(
-    hasInlineDefinition ? undefined : policy.name,
-    hasInlineDefinition
-      ? undefined
-      : (getPolicyDefinitionVersion?.(policy) ?? policy.version),
-  );
-
-  const { policyDefinition, parseError } = useMemo(
-    () => resolvePolicyDetail(policy, yamlText),
-    [policy, yamlText],
-  );
-
-  if (!hasInlineDefinition && isLoading) {
-    return (
-      <Stack spacing={2} sx={{ mt: 1 }}>
-        <Typography variant="body2" color="text.secondary">
-          Loading definition...
-        </Typography>
-        <Skeleton variant="text" width="60%" height={28} />
-        <Skeleton variant="text" width="90%" height={16} />
-        <Skeleton variant="rounded" width="100%" height={48} />
-        <Skeleton variant="rounded" width="100%" height={48} />
-      </Stack>
-    );
-  }
-
-  if (error || parseError) {
-    return (
-      <Stack spacing={2} sx={{ py: 2 }}>
-        <Alert severity="error">
-          {parseError ||
-            (error as Error)?.message ||
-            `Failed to load ${policyNoun} definition.`}
-        </Alert>
-        <Button
-          variant="text"
-          startIcon={<ArrowLeft size={16} />}
-          onClick={onBack}
-        >
-          Back
-        </Button>
-      </Stack>
-    );
-  }
-
-  if (!policyDefinition) {
-    return (
-      <Stack spacing={2}>
-        <ListingTable.Container>
-          <ListingTable.EmptyState
-            illustration={<ShieldAlert size={64} />}
-            title="No definition available"
-            description={`This ${policyNoun} does not have a configuration schema.`}
-          />
-        </ListingTable.Container>
-        <Button
-          variant="text"
-          startIcon={<ArrowLeft size={16} />}
-          onClick={onBack}
-        >
-          Back
-        </Button>
-      </Stack>
-    );
-  }
+  const policyDefinition = useMemo(() => resolvePolicyDetail(policy), [policy]);
 
   return (
     <Stack spacing={2}>
@@ -169,6 +90,13 @@ const PolicyDetailView: React.FC<{
           Back
         </Button>
       </Box>
+      {policy.requiredSystemConfig.length > 0 && (
+        <Alert severity="warning">
+          This policy needs gateway configuration. Make sure these keys are set
+          on the gateway it is deployed to, or the policy will not work:{" "}
+          {policy.requiredSystemConfig.join(", ")}
+        </Alert>
+      )}
       <PolicyParameterEditor
         policyDefinition={policyDefinition}
         policyDisplayName={policy.displayName || policy.name}
@@ -195,7 +123,6 @@ export type PolicySelectorDrawerProps = {
    */
   providerId?: string;
   filterPolicies?: (policies: GuardrailDefinition[]) => GuardrailDefinition[];
-  getPolicyDefinitionVersion?: (policy: GuardrailDefinition) => string;
   /** Policy names that are already added - disable in list (e.g. create flow) */
   disabledPolicyNames?: string[];
   /** Policy keys (name@version) that are already added - more precise than names */
@@ -206,6 +133,10 @@ export type PolicySelectorDrawerProps = {
   editPolicyKey?: string;
   title?: string;
   subtitle?: string;
+  /**
+   * @deprecated No longer read: it only labelled the removed definition-loading
+   * error states. Kept so existing callers compile.
+   */
   policyNoun?: string;
   loadingLabel?: string;
   searchPlaceholder?: string;
@@ -227,14 +158,12 @@ export function PolicySelectorDrawer({
   catalogError: controlledCatalogError,
   providerId,
   filterPolicies,
-  getPolicyDefinitionVersion,
   disabledPolicyNames = [],
   disabledPolicyKeys = [],
   existingSettings,
   editPolicyKey,
   title = "Policies",
   subtitle = "Choose a policy to configure advanced options.",
-  policyNoun = "policy",
   loadingLabel = "Loading policies...",
   searchPlaceholder = "Search policies...",
   catalogErrorLabel = "Failed to load policies.",
@@ -278,7 +207,7 @@ export function PolicySelectorDrawer({
     const policies = activeCatalogData?.data ?? [];
     return filterPolicies
       ? filterPolicies(policies)
-      : filterGuardrailPolicies(policies, globalConfig?.guardrailCapabilities);
+      : filterGuardrailPolicies(policies);
   }, [activeCatalogData, filterPolicies]);
 
   const isDisabled = useCallback(
@@ -435,6 +364,18 @@ export function PolicySelectorDrawer({
                             size="small"
                             variant="outlined"
                           />
+                          {policy.requiredSystemConfig.length > 0 && (
+                            <Tooltip
+                              title={`Set on the gateway: ${policy.requiredSystemConfig.join(", ")}`}
+                            >
+                              <Chip
+                                label="Needs gateway configuration"
+                                size="small"
+                                color="warning"
+                                variant="outlined"
+                              />
+                            </Tooltip>
+                          )}
                         </Stack>
                         {policy.description && (
                           <Tooltip title={policy.description}>
@@ -476,8 +417,6 @@ export function PolicySelectorDrawer({
           <PolicyDetailView
             policy={selectedPolicy}
             existingSettings={existingSettings}
-            getPolicyDefinitionVersion={getPolicyDefinitionVersion}
-            policyNoun={policyNoun}
             onBack={editPolicyKey ? handleGuardedClose : handleGuardedBack}
             onDirtyChange={setIsEditorDirty}
             onCancel={

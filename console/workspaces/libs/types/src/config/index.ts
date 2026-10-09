@@ -89,13 +89,6 @@ export interface AppConfig {
    * provisions the matching scheme.
    */
   tlsEnabled?: boolean;
-  guardrailsCatalogUrl: string;
-  guardrailsDefinitionBaseUrl: string;
-  /**
-   * Capability flags that unlock guardrail policies requiring external system configuration.
-   * OOTB policies are always shown regardless of these flags.
-   */
-  guardrailCapabilities?: GuardrailCapabilities;
   /**
    * Largest request body, in bytes, the console will send on a write. Unset or
    * "0" means no limit (the default). Set it on deployments behind a WAF that
@@ -145,19 +138,6 @@ export type FeatureFlags = {
    * buttons on the Settings page are disabled.
    */
   enableUserManagement?: boolean;
-};
-
-export type GuardrailCapabilities = {
-  /** Unlocks: aws-bedrock-guardrail */
-  awsBedrock?: boolean;
-  /** Unlocks: azure-content-safety-content-moderation */
-  azureContentSafety?: boolean;
-  /** Unlocks: granite-guardian-prompt-injection */
-  graniteGuardian?: boolean;
-  /** Unlocks: nvidia-nemoguard-content-safety */
-  nemoGuard?: boolean;
-  /** Unlocks: semantic-prompt-guard, semantic-cache */
-  semanticGuardrails?: boolean;
 };
 
 // Extend the Window interface to include our config

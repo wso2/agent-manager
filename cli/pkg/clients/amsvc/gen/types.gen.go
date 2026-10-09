@@ -3487,6 +3487,9 @@ type LLMPolicyAvailabilityResponse struct {
 
 // LLMPolicyDefinition defines model for LLMPolicyDefinition.
 type LLMPolicyDefinition struct {
+	// Categories Policy hub categories; empty when the hub does not know the policy
+	Categories *[]string `json:"categories,omitempty"`
+
 	// Description Policy description
 	Description *string `json:"description,omitempty"`
 
@@ -3498,6 +3501,9 @@ type LLMPolicyDefinition struct {
 
 	// Parameters JSON-Schema describing the user-configurable parameters
 	Parameters *map[string]interface{} `json:"parameters,omitempty"`
+
+	// RequiredSystemConfig Gateway config keys this policy reads with no default, so an operator must set them on the gateway for the policy to work. Empty when the policy needs no gateway configuration. Whether the keys are set on a given gateway is not known.
+	RequiredSystemConfig *[]string `json:"requiredSystemConfig,omitempty"`
 
 	// SystemParameters JSON-Schema describing operator-level (gateway config) parameters
 	SystemParameters *map[string]interface{} `json:"systemParameters,omitempty"`
@@ -3948,10 +3954,28 @@ type MCPPolicyAvailabilityResponse struct {
 
 // MCPPolicyAvailableItem defines model for MCPPolicyAvailableItem.
 type MCPPolicyAvailableItem struct {
+	// Categories Policy hub categories; empty when the hub does not know the policy
+	Categories *[]string `json:"categories,omitempty"`
+
+	// Description Policy description
+	Description *string `json:"description,omitempty"`
+
+	// DisplayName Human-readable policy name
+	DisplayName *string `json:"displayName,omitempty"`
+
 	// Name Policy name
 	Name string `json:"name"`
 
-	// Version Policy version
+	// Parameters JSON-Schema describing the user-configurable parameters
+	Parameters *map[string]interface{} `json:"parameters,omitempty"`
+
+	// RequiredSystemConfig Gateway config keys this policy reads with no default, so an operator must set them on the gateway for the policy to work. Empty when the policy needs no gateway configuration. Whether the keys are set on a given gateway is not known.
+	RequiredSystemConfig *[]string `json:"requiredSystemConfig,omitempty"`
+
+	// SystemParameters JSON-Schema describing operator-level (gateway config) parameters
+	SystemParameters *map[string]interface{} `json:"systemParameters,omitempty"`
+
+	// Version Policy major version
 	Version string `json:"version"`
 }
 

@@ -413,7 +413,9 @@ func (s *PlatformGatewayService) SaveGatewayPolicyManifest(ctx context.Context, 
 	if gateway == nil {
 		return utils.ErrGatewayNotFound
 	}
-	slog.Info("Saving gateway policy manifest for gateway", "gatewayID", gatewayID)
+	policies, _ := manifest["policies"].([]interface{})
+	slog.Info("Saving gateway policy manifest for gateway", "gatewayID", gatewayID, "policyCount", len(policies))
+	slog.Debug("Gateway policy manifest payload", "gatewayID", gatewayID, "manifest", manifest)
 
 	return gatewayManifestCache.Set(ctx, manifest)
 }

@@ -21,8 +21,20 @@ var _ MappedNullable = &MCPPolicyAvailableItem{}
 type MCPPolicyAvailableItem struct {
 	// Policy name
 	Name string `json:"name"`
-	// Policy version
+	// Policy major version
 	Version string `json:"version"`
+	// Human-readable policy name
+	DisplayName *string `json:"displayName,omitempty"`
+	// Policy description
+	Description *string `json:"description,omitempty"`
+	// Policy hub categories; empty when the hub does not know the policy
+	Categories []string `json:"categories,omitempty"`
+	// Gateway config keys this policy reads with no default, so an operator must set them on the gateway for the policy to work. Empty when the policy needs no gateway configuration. Whether the keys are set on a given gateway is not known.
+	RequiredSystemConfig []string `json:"requiredSystemConfig,omitempty"`
+	// JSON-Schema describing the user-configurable parameters
+	Parameters map[string]interface{} `json:"parameters,omitempty"`
+	// JSON-Schema describing operator-level (gateway config) parameters
+	SystemParameters map[string]interface{} `json:"systemParameters,omitempty"`
 }
 
 // NewMCPPolicyAvailableItem instantiates a new MCPPolicyAvailableItem object
@@ -92,6 +104,198 @@ func (o *MCPPolicyAvailableItem) SetVersion(v string) {
 	o.Version = v
 }
 
+// GetDisplayName returns the DisplayName field value if set, zero value otherwise.
+func (o *MCPPolicyAvailableItem) GetDisplayName() string {
+	if o == nil || IsNil(o.DisplayName) {
+		var ret string
+		return ret
+	}
+	return *o.DisplayName
+}
+
+// GetDisplayNameOk returns a tuple with the DisplayName field value if set, nil otherwise
+// and a boolean to check if the value has been set.
+func (o *MCPPolicyAvailableItem) GetDisplayNameOk() (*string, bool) {
+	if o == nil || IsNil(o.DisplayName) {
+		return nil, false
+	}
+	return o.DisplayName, true
+}
+
+// HasDisplayName returns a boolean if a field has been set.
+func (o *MCPPolicyAvailableItem) HasDisplayName() bool {
+	if o != nil && !IsNil(o.DisplayName) {
+		return true
+	}
+
+	return false
+}
+
+// SetDisplayName gets a reference to the given string and assigns it to the DisplayName field.
+func (o *MCPPolicyAvailableItem) SetDisplayName(v string) {
+	o.DisplayName = &v
+}
+
+// GetDescription returns the Description field value if set, zero value otherwise.
+func (o *MCPPolicyAvailableItem) GetDescription() string {
+	if o == nil || IsNil(o.Description) {
+		var ret string
+		return ret
+	}
+	return *o.Description
+}
+
+// GetDescriptionOk returns a tuple with the Description field value if set, nil otherwise
+// and a boolean to check if the value has been set.
+func (o *MCPPolicyAvailableItem) GetDescriptionOk() (*string, bool) {
+	if o == nil || IsNil(o.Description) {
+		return nil, false
+	}
+	return o.Description, true
+}
+
+// HasDescription returns a boolean if a field has been set.
+func (o *MCPPolicyAvailableItem) HasDescription() bool {
+	if o != nil && !IsNil(o.Description) {
+		return true
+	}
+
+	return false
+}
+
+// SetDescription gets a reference to the given string and assigns it to the Description field.
+func (o *MCPPolicyAvailableItem) SetDescription(v string) {
+	o.Description = &v
+}
+
+// GetCategories returns the Categories field value if set, zero value otherwise.
+func (o *MCPPolicyAvailableItem) GetCategories() []string {
+	if o == nil || IsNil(o.Categories) {
+		var ret []string
+		return ret
+	}
+	return o.Categories
+}
+
+// GetCategoriesOk returns a tuple with the Categories field value if set, nil otherwise
+// and a boolean to check if the value has been set.
+func (o *MCPPolicyAvailableItem) GetCategoriesOk() ([]string, bool) {
+	if o == nil || IsNil(o.Categories) {
+		return nil, false
+	}
+	return o.Categories, true
+}
+
+// HasCategories returns a boolean if a field has been set.
+func (o *MCPPolicyAvailableItem) HasCategories() bool {
+	if o != nil && !IsNil(o.Categories) {
+		return true
+	}
+
+	return false
+}
+
+// SetCategories gets a reference to the given []string and assigns it to the Categories field.
+func (o *MCPPolicyAvailableItem) SetCategories(v []string) {
+	o.Categories = v
+}
+
+// GetRequiredSystemConfig returns the RequiredSystemConfig field value if set, zero value otherwise.
+func (o *MCPPolicyAvailableItem) GetRequiredSystemConfig() []string {
+	if o == nil || IsNil(o.RequiredSystemConfig) {
+		var ret []string
+		return ret
+	}
+	return o.RequiredSystemConfig
+}
+
+// GetRequiredSystemConfigOk returns a tuple with the RequiredSystemConfig field value if set, nil otherwise
+// and a boolean to check if the value has been set.
+func (o *MCPPolicyAvailableItem) GetRequiredSystemConfigOk() ([]string, bool) {
+	if o == nil || IsNil(o.RequiredSystemConfig) {
+		return nil, false
+	}
+	return o.RequiredSystemConfig, true
+}
+
+// HasRequiredSystemConfig returns a boolean if a field has been set.
+func (o *MCPPolicyAvailableItem) HasRequiredSystemConfig() bool {
+	if o != nil && !IsNil(o.RequiredSystemConfig) {
+		return true
+	}
+
+	return false
+}
+
+// SetRequiredSystemConfig gets a reference to the given []string and assigns it to the RequiredSystemConfig field.
+func (o *MCPPolicyAvailableItem) SetRequiredSystemConfig(v []string) {
+	o.RequiredSystemConfig = v
+}
+
+// GetParameters returns the Parameters field value if set, zero value otherwise.
+func (o *MCPPolicyAvailableItem) GetParameters() map[string]interface{} {
+	if o == nil || IsNil(o.Parameters) {
+		var ret map[string]interface{}
+		return ret
+	}
+	return o.Parameters
+}
+
+// GetParametersOk returns a tuple with the Parameters field value if set, nil otherwise
+// and a boolean to check if the value has been set.
+func (o *MCPPolicyAvailableItem) GetParametersOk() (map[string]interface{}, bool) {
+	if o == nil || IsNil(o.Parameters) {
+		return map[string]interface{}{}, false
+	}
+	return o.Parameters, true
+}
+
+// HasParameters returns a boolean if a field has been set.
+func (o *MCPPolicyAvailableItem) HasParameters() bool {
+	if o != nil && !IsNil(o.Parameters) {
+		return true
+	}
+
+	return false
+}
+
+// SetParameters gets a reference to the given map[string]interface{} and assigns it to the Parameters field.
+func (o *MCPPolicyAvailableItem) SetParameters(v map[string]interface{}) {
+	o.Parameters = v
+}
+
+// GetSystemParameters returns the SystemParameters field value if set, zero value otherwise.
+func (o *MCPPolicyAvailableItem) GetSystemParameters() map[string]interface{} {
+	if o == nil || IsNil(o.SystemParameters) {
+		var ret map[string]interface{}
+		return ret
+	}
+	return o.SystemParameters
+}
+
+// GetSystemParametersOk returns a tuple with the SystemParameters field value if set, nil otherwise
+// and a boolean to check if the value has been set.
+func (o *MCPPolicyAvailableItem) GetSystemParametersOk() (map[string]interface{}, bool) {
+	if o == nil || IsNil(o.SystemParameters) {
+		return map[string]interface{}{}, false
+	}
+	return o.SystemParameters, true
+}
+
+// HasSystemParameters returns a boolean if a field has been set.
+func (o *MCPPolicyAvailableItem) HasSystemParameters() bool {
+	if o != nil && !IsNil(o.SystemParameters) {
+		return true
+	}
+
+	return false
+}
+
+// SetSystemParameters gets a reference to the given map[string]interface{} and assigns it to the SystemParameters field.
+func (o *MCPPolicyAvailableItem) SetSystemParameters(v map[string]interface{}) {
+	o.SystemParameters = v
+}
+
 func (o MCPPolicyAvailableItem) MarshalJSON() ([]byte, error) {
 	toSerialize, err := o.ToMap()
 	if err != nil {
@@ -104,6 +308,24 @@ func (o MCPPolicyAvailableItem) ToMap() (map[string]interface{}, error) {
 	toSerialize := map[string]interface{}{}
 	toSerialize["name"] = o.Name
 	toSerialize["version"] = o.Version
+	if !IsNil(o.DisplayName) {
+		toSerialize["displayName"] = o.DisplayName
+	}
+	if !IsNil(o.Description) {
+		toSerialize["description"] = o.Description
+	}
+	if !IsNil(o.Categories) {
+		toSerialize["categories"] = o.Categories
+	}
+	if !IsNil(o.RequiredSystemConfig) {
+		toSerialize["requiredSystemConfig"] = o.RequiredSystemConfig
+	}
+	if !IsNil(o.Parameters) {
+		toSerialize["parameters"] = o.Parameters
+	}
+	if !IsNil(o.SystemParameters) {
+		toSerialize["systemParameters"] = o.SystemParameters
+	}
 	return toSerialize, nil
 }
 
