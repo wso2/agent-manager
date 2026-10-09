@@ -34,7 +34,9 @@ import {
   Button,
   Checkbox,
   Chip,
+  Divider,
   Form,
+  IconButton,
   InputAdornment,
   ListingTable,
   ListItemText,
@@ -59,6 +61,7 @@ import {
 import { generatePath, Link, useNavigate, useParams } from "react-router-dom";
 import {
   absoluteRouteMap,
+  type EvaluatorLevel,
   type EvaluatorResponse,
 } from "@agent-management-platform/types";
 import {
@@ -78,22 +81,17 @@ const sourceFilterOptions: { label: string; value: EvaluatorSource }[] = [
 const sourceLabel = (value: EvaluatorSource) =>
   sourceFilterOptions.find((option) => option.value === value)?.label ?? value;
 
-function getSourceLabel(evaluator: EvaluatorResponse): string {
-  return evaluator.isBuiltin ? "Built-in" : "Custom";
-}
+const LEVEL_DISPLAY: Record<EvaluatorLevel, { label: string }> = {
+  trace: { label: "Trace" },
+  agent: { label: "Agent" },
+  llm: { label: "LLM" },
+};
 
-function getSourceColor(
-  evaluator: EvaluatorResponse,
-):
-  | "default"
-  | "primary"
-  | "secondary"
-  | "success"
-  | "warning"
-  | "error"
-  | "info" {
-  return evaluator.isBuiltin ? "default" : "info";
-}
+const METHOD_LABELS: Record<string, string> = {
+  "rule-based": "Rule-based",
+  "code": "Rule-based",
+  "llm-judge": "LLM Judge",
+};
 
 export const EvalEvaluatorsOrganization: React.FC = () => {
   const { orgId } = useParams<{
@@ -312,17 +310,49 @@ export const EvalEvaluatorsOrganization: React.FC = () => {
                     event.stopPropagation();
                     handleDelete(evaluator);
                   };
-                  const tags = evaluator.tags ?? [];
+                  const allTags = evaluator.tags ?? [];
+                  const methodTag = allTags.find((tag) => tag in METHOD_LABELS);
+                  // `type` is authoritative for custom evaluators; built-ins have none, so fall back to their tag.
+                  const methodLabel =
+                    evaluator.type === "code"
+                      ? "Rule-based"
+                      : evaluator.type === "llm_judge"
+                        ? "LLM Judge"
+                        : methodTag
+                          ? METHOD_LABELS[methodTag]
+                          : undefined;
+                  const tags = allTags.filter((tag) => tag !== methodTag);
                   const desc = evaluator.description ?? "";
-                  const truncated =
-                    desc.length > 200 ? `${desc.slice(0, 200)}...` : desc;
+                  const levelDisplay = evaluator.level
+                    ? LEVEL_DISPLAY[evaluator.level]
+                    : undefined;
+                  const classificationChips: Array<{
+                    key: string;
+                    label: string;
+                    color: "default" | "primary" | "info";
+                  }> = [];
+                  if (!evaluator.isBuiltin) {
+                    classificationChips.push({ key: "origin", label: "Custom", color: "default" });
+                  }
+                  if (levelDisplay) {
+                    classificationChips.push({ key: "level", label: levelDisplay.label, color: "primary" });
+                  }
+                  if (methodLabel) {
+                    classificationChips.push({ key: "method", label: methodLabel, color: "info" });
+                  }
                   const descEl = (
                     <Typography
                       variant="caption"
                       color="text.secondary"
-                      sx={{ display: "block", mb: 1 }}
+                      sx={{
+                        display: "-webkit-box",
+                        WebkitLineClamp: 2,
+                        WebkitBoxOrient: "vertical",
+                        overflow: "hidden",
+                        mb: 1,
+                      }}
                     >
-                      {truncated}
+                      {desc}
                     </Typography>
                   );
                   return (
@@ -336,83 +366,61 @@ export const EvalEvaluatorsOrganization: React.FC = () => {
                           width: "100%",
                           textAlign: "left",
                           textDecoration: "none",
-                          height: 224,
+                          height: 200,
                           display: "flex",
                           flexDirection: "column",
                           justifyContent: "flex-start",
                         }}
                       >
                         <Form.CardHeader
+                          sx={{
+                            width: "100%",
+                            minWidth: 0,
+                            overflow: "hidden",
+                            "& .MuiCardHeader-content": { minWidth: 0 },
+                          }}
                           title={
-                            <Form.Stack direction="column" spacing={1}>
-                              <Form.Stack
-                                direction="row"
-                                spacing={1}
-                                alignItems="center"
-                                sx={{ minWidth: 0, overflow: "hidden" }}
-                              >
-                                <Tooltip
-                                  title={evaluator.displayName}
-                                  placement="top"
+                            <Form.Stack
+                              direction="column"
+                              spacing={1}
+                              sx={{ minWidth: 0, width: "100%" }}
+                            >
+                              <Tooltip title={evaluator.displayName} placement="top">
+                                <Typography
+                                  variant="h6"
+                                  noWrap
+                                  sx={{ minWidth: 0 }}
                                 >
-                                  <Typography
-                                    variant="h6"
-                                    textOverflow="ellipsis"
-                                    overflow="hidden"
-                                    whiteSpace="nowrap"
-                                    sx={{ flexShrink: 1, minWidth: 0 }}
-                                  >
-                                    {evaluator.displayName}
-                                  </Typography>
-                                </Tooltip>
-                                <Chip
-                                  label={getSourceLabel(evaluator)}
-                                  size="small"
-                                  variant="outlined"
-                                  color={getSourceColor(evaluator)}
-                                  sx={{ flexShrink: 0 }}
-                                />
-                                {evaluator.level && (
-                                  <Chip
-                                    label={
-                                      evaluator.level.charAt(0).toUpperCase() +
-                                      evaluator.level.slice(1)
-                                    }
-                                    size="small"
-                                    variant="outlined"
-                                    color="primary"
-                                    sx={{ flexShrink: 0 }}
-                                  />
-                                )}
-                              </Form.Stack>
-                              {tags.length > 0 && (
-                                <Form.Stack
+                                  {evaluator.displayName}
+                                </Typography>
+                              </Tooltip>
+
+                              {classificationChips.length > 0 && (
+                                <Stack
                                   direction="row"
                                   spacing={1}
                                   alignItems="center"
+                                  sx={{ opacity: 0.85 }}
                                 >
-                                  {tags.slice(0, 3).map((tag) => (
-                                    <Chip
-                                      key={tag}
-                                      size="small"
-                                      label={tag}
-                                      variant="outlined"
-                                    />
+                                  {classificationChips.map((chip, index) => (
+                                    <Stack key={chip.key} direction="row" spacing={1} alignItems="center">
+                                      {index > 0 && (
+                                        <Divider orientation="vertical" flexItem sx={{ height: 16, alignSelf: "center" }} />
+                                      )}
+                                      <Chip
+                                        label={chip.label}
+                                        size="small"
+                                        variant="outlined"
+                                        color={chip.color}
+                                        sx={{
+                                          height: 20,
+                                          fontSize: "0.7rem",
+                                          "& .MuiChip-label": { px: 0.75 },
+                                        }}
+                                      />
+                                    </Stack>
                                   ))}
-                                  {tags.length > 3 && (
-                                    <Tooltip
-                                      title={tags.join(", ")}
-                                      placement="top"
-                                    >
-                                      <Typography
-                                        variant="caption"
-                                        color="text.secondary"
-                                      >
-                                        {`+${tags.length - 3} more`}
-                                      </Typography>
-                                    </Tooltip>
-                                  )}
-                                </Form.Stack>
+                                </Stack>
                               )}
                             </Form.Stack>
                           }
@@ -422,47 +430,80 @@ export const EvalEvaluatorsOrganization: React.FC = () => {
                             width: "100%",
                             display: "flex",
                             flexDirection: "column",
+                            justifyContent: "space-between",
                             flexGrow: 1,
                             minHeight: 0,
+                            // Pinned to avoid MUI's `:last-child` padding bump, which otherwise toggles on first hover and shifts this row.
+                            pb: 2,
+                            "&.MuiCardContent-root:last-child": { pb: 2 },
                           }}
                         >
-                          {desc.length > 200 ? (
-                            <Tooltip title={desc} placement="top">
-                              {descEl}
-                            </Tooltip>
-                          ) : (
-                            descEl
-                          )}
-                          {!evaluator.isBuiltin && (
-                            <Form.CardActions
-                              sx={{
-                                justifyContent: "flex-end",
-                                p: 0,
-                                width: "100%",
-                                mt: "auto",
-                              }}
-                            >
+                          <Tooltip title={desc} placement="top">
+                            {descEl}
+                          </Tooltip>
+
+                          <Stack
+                            direction="row"
+                            alignItems="center"
+                            justifyContent="space-between"
+                            sx={{ width: "100%", minWidth: 0, pt: 1 }}
+                          >
+                            {tags.length > 0 ? (
+                              <Stack
+                                direction="row"
+                                spacing={0.75}
+                                alignItems="center"
+                                sx={{ minWidth: 0, overflow: "hidden", flexWrap: "nowrap" }}
+                              >
+                                {tags.slice(0, 2).map((tag) => (
+                                  <Chip
+                                    key={tag}
+                                    label={tag}
+                                    size="small"
+                                    variant="filled"
+                                    color="default"
+                                    sx={{ flexShrink: 0 }}
+                                  />
+                                ))}
+                                {tags.length > 2 && (
+                                  <Tooltip title={tags.join(", ")} placement="top">
+                                    <Typography
+                                      variant="caption"
+                                      color="text.secondary"
+                                      sx={{ flexShrink: 0, whiteSpace: "nowrap" }}
+                                    >
+                                      {`+${tags.length - 2} more`}
+                                    </Typography>
+                                  </Tooltip>
+                                )}
+                              </Stack>
+                            ) : (
+                              <span />
+                            )}
+                            {!evaluator.isBuiltin && (
                               <Form.DisappearingCardButtonContent>
-                                <Button
-                                  size="small"
-                                  variant="text"
-                                  startIcon={<EditIcon size={14} />}
-                                  onClick={handleEditClick}
-                                >
-                                  Edit
-                                </Button>
-                                <Button
-                                  size="small"
-                                  variant="text"
-                                  color="error"
-                                  startIcon={<Trash size={14} />}
-                                  onClick={handleDeleteClick}
-                                >
-                                  Delete
-                                </Button>
+                                <Tooltip title="Edit">
+                                  <IconButton
+                                    size="small"
+                                    aria-label="Edit"
+                                    onClick={handleEditClick}
+                                  >
+                                    <EditIcon size={16} />
+                                  </IconButton>
+                                </Tooltip>
+                                <Tooltip title="Delete">
+                                  <IconButton
+                                    size="small"
+                                    color="error"
+                                    aria-label="Delete"
+                                    onClick={handleDeleteClick}
+                                  >
+                                    <Trash size={16} />
+                                  </IconButton>
+                                </Tooltip>
                               </Form.DisappearingCardButtonContent>
-                            </Form.CardActions>
-                          )}
+                            )}
+                          </Stack>
                         </Form.CardContent>
                       </Form.CardButton>
                     </Link>
