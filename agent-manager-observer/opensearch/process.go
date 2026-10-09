@@ -682,9 +682,10 @@ func IsLLMLeafSpan(spanName string) bool {
 // conversationIDKeys name a span's conversation, in the order they're read.
 // langsmith.trace.session_id is left out: it names a LangSmith project.
 var conversationIDKeys = []string{
-	"gen_ai.conversation.id",                           // OTel GenAI, Google ADK, Traceloop @conversation
-	"session.id",                                       // OpenInference, Strands trace_attributes
-	"langfuse.session.id",                              // Langfuse SDK
+	"gen_ai.conversation.id", // OTel GenAI, Google ADK, Traceloop @conversation
+	"session.id",             // OpenInference, Strands trace_attributes
+	"langfuse.session.id",    // Langfuse SDK
+
 	"traceloop.association.properties.session_id",      // Traceloop associations, LangChain metadata
 	"traceloop.association.properties.conversation_id", // LangChain metadata
 	"traceloop.association.properties.thread_id",       // LangGraph thread via LangChain metadata
@@ -2196,6 +2197,58 @@ func DetermineSpanKindFromName(name string) SpanType {
 		return SpanTypeChain
 	}
 	return SpanTypeUnknown
+}
+
+// ToolNameFromSpanName returns the tool a tool span's name carries: the text
+// after "execute_tool ", or the text before the last "."-segment. ok is true
+// when DetermineSpanKindFromName calls the span a tool; tool may be empty.
+func ToolNameFromSpanName(name string) (tool string, ok bool) {
+	if DetermineSpanKindFromName(name) != SpanTypeTool {
+		return "", false
+	}
+	trimmed := strings.TrimSpace(name)
+	const prefix = "execute_tool"
+	if len(trimmed) >= len(prefix) && strings.EqualFold(trimmed[:len(prefix)], prefix) {
+		rest := trimmed[len(prefix):]
+		if !strings.HasPrefix(rest, " ") {
+			return "", true
+		}
+		return strings.TrimSpace(rest), true
+	}
+	i := strings.LastIndexByte(trimmed, '.')
+	if i < 0 {
+		return "", true
+	}
+	return strings.TrimSpace(trimmed[:i]), true
+}
+
+// IsMCPHandshakeSpan reports whether a span is a Traceloop MCP initialize span.
+func IsMCPHandshakeSpan(name string) bool {
+	return strings.EqualFold(strings.TrimSpace(name), "initialize.mcp")
+}
+
+// MCPServerFromHandshake returns the server an initialize span's
+// traceloop.entity.output names: serverInfo.name, else serverInfo.title.
+// It is empty when the output is missing, invalid or names no server.
+func MCPServerFromHandshake(attrs map[string]interface{}) string {
+	raw, ok := attrs["traceloop.entity.output"].(string)
+	if !ok {
+		return ""
+	}
+	// Only serverInfo is decoded; the icons and instructions are skipped.
+	var result struct {
+		ServerInfo struct {
+			Name  string `json:"name"`
+			Title string `json:"title"`
+		} `json:"serverInfo"`
+	}
+	if err := json.Unmarshal([]byte(raw), &result); err != nil {
+		return ""
+	}
+	if name := strings.TrimSpace(result.ServerInfo.Name); name != "" {
+		return name
+	}
+	return strings.TrimSpace(result.ServerInfo.Title)
 }
 
 func hasLLMAttributes(attrs map[string]interface{}) bool {

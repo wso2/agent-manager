@@ -21,8 +21,10 @@ import { createRoot, type Root } from "react-dom/client";
 import { QueryClient, QueryClientProvider, focusManager, onlineManager } from "@tanstack/react-query";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type {
+  AgentTraceScoresParams,
   TraceFilters,
   TraceListResponse,
+  TraceListTimeRange,
   TraceOverview,
 } from "@agent-management-platform/types";
 import type * as TracesApi from "../apis/traces";
@@ -73,8 +75,12 @@ type HookResult = ReturnType<typeof useTraceList>;
 
 let root: Root | undefined;
 
-/** Renders useTraceList and returns a ref to its latest result. */
-function renderTraceList(options?: TraceListOptions, sortOrder: "asc" | "desc" = "desc") {
+/** Renders useTraceList and returns a ref to its latest result; timeRange replaces START-END. */
+function renderTraceList(
+  options?: TraceListOptions,
+  sortOrder: "asc" | "desc" = "desc",
+  timeRange?: TraceListTimeRange,
+) {
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   const result = {} as {
     current: HookResult;
@@ -83,8 +89,9 @@ function renderTraceList(options?: TraceListOptions, sortOrder: "asc" | "desc" =
   function Probe() {
     const [opts, setOpts] = useState(options);
     result.setOptions = setOpts;
+    const [start, end] = timeRange ? [undefined, undefined] : [START, END];
     result.current = useTraceList(
-      "org", "proj", "agent", "dev", undefined, 10, sortOrder, START, END, opts,
+      "org", "proj", "agent", "dev", timeRange, 10, sortOrder, start, end, opts,
     );
     return null;
   }
@@ -119,6 +126,7 @@ afterEach(() => {
   act(() => root?.unmount());
   root = undefined;
   focusManager.setFocused(undefined);
+  vi.useRealTimers();
 });
 
 describe("useTraceList cursor paging", () => {
@@ -334,32 +342,6 @@ describe("useTraceList cursor paging", () => {
     expect(t3?.score).toEqual({ score: 0.5, totalCount: 1, skippedCount: 0 });
   });
 
-  it("pages through scores until every trace on a filtered page is found", async () => {
-    mockList.mockResolvedValueOnce(page(
-      [trace("t1", "2026-10-02T09:50:00Z"), trace("t2", "2026-10-02T09:10:00Z")],
-    ));
-    const others = Array.from({ length: 100 }, (_, i) => (
-      { traceId: `other${i}`, score: 0.1, totalCount: 1, skippedCount: 0 }
-    ));
-    mockScores
-      .mockResolvedValueOnce({
-        traces: [{ traceId: "t1", score: 0.9, totalCount: 1, skippedCount: 0 }, ...others.slice(1)],
-        totalCount: 200,
-      })
-      .mockResolvedValueOnce({
-        traces: [...others.slice(0, 99), { traceId: "t2", score: 0.2, totalCount: 1, skippedCount: 0 }],
-        totalCount: 200,
-      });
-
-    const result = renderTraceList({ filters: { status: "error" } });
-    await waitFor(() => result.current.traceList?.traces.length === 2);
-
-    expect(mockScores).toHaveBeenCalledTimes(2);
-    expect(mockScores.mock.calls[0][0]).toMatchObject({ limit: 100, offset: 0 });
-    expect(mockScores.mock.calls[1][0]).toMatchObject({ limit: 100, offset: 100 });
-    expect(result.current.traceList?.traces.map((t) => t.score?.score)).toEqual([0.9, 0.2]);
-  });
-
   it("sets loadError on a failed loadMore and clears it when the next loadMore starts", async () => {
     let resolveRetry: (res: TraceListResponse) => void = () => undefined;
     mockList
@@ -461,5 +443,246 @@ describe("useTraceList cursor paging", () => {
       filters: { conversationId: "conv-1" },
       includeModels: true,
     });
+  });
+});
+
+/** Scores every requested trace ID with the given value. */
+async function scoreEach(params: AgentTraceScoresParams, score = 0.5) {
+  const traces = (params.traceIds ?? []).map((traceId) => (
+    { traceId, score, totalCount: 1, skippedCount: 0 }
+  ));
+  return { traces, totalCount: traces.length };
+}
+
+describe("useTraceList scores", () => {
+  it("starts the unfiltered first page's score call, unchanged, before the list resolves", async () => {
+    let resolveList: (res: TraceListResponse) => void = () => undefined;
+    mockList.mockImplementationOnce(() => new Promise((resolve) => { resolveList = resolve; }));
+    mockScores.mockResolvedValueOnce({
+      traces: [{ traceId: "t1", score: 0.7, totalCount: 1, skippedCount: 0 }],
+      totalCount: 1,
+    });
+
+    const result = renderTraceList();
+    await waitFor(() => mockScores.mock.calls.length === 1);
+    expect(result.current.traceList).toBeUndefined();
+    expect(mockScores.mock.calls[0][0]).toEqual({
+      orgName: "org",
+      projName: "proj",
+      agentName: "agent",
+      startTime: START,
+      endTime: END,
+      limit: 10,
+      offset: 0,
+      sortOrder: "desc",
+    });
+    expect(mockScores.mock.calls[0][0].traceIds).toBeUndefined();
+
+    await act(async () => resolveList(page([trace("t1", "2026-10-02T09:50:00Z")])));
+    await waitFor(() => result.current.traceList?.traces.length === 1);
+    expect(result.current.traceList?.traces[0].score?.score).toBe(0.7);
+    expect(mockScores).toHaveBeenCalledTimes(1);
+  });
+
+  it("scores a filtered first page by exactly its trace IDs in one call", async () => {
+    mockList.mockResolvedValueOnce(page([
+      trace("t1", "2026-10-02T09:50:00Z"),
+      trace("t2", "2026-10-02T09:10:00Z"),
+      trace("t3", "2026-10-02T09:30:00Z"),
+    ]));
+    mockScores.mockResolvedValueOnce({
+      traces: [{ traceId: "t2", score: 0.2, totalCount: 1, skippedCount: 0 }],
+      totalCount: 1,
+    });
+
+    const result = renderTraceList({ filters: { tool: "search_web", maxScore: 0.5 } });
+    await waitFor(() => result.current.traceList?.traces.length === 3);
+
+    expect(mockScores).toHaveBeenCalledTimes(1);
+    expect(mockScores.mock.calls[0][0]).toMatchObject({
+      traceIds: ["t1", "t2", "t3"],
+      startTime: "2026-10-02T09:09:59.000Z",
+      endTime: "2026-10-02T09:50:01.000Z",
+      limit: 100,
+    });
+    expect(mockScores.mock.calls[0][0].evaluator).toBeUndefined();
+    expect(result.current.traceList?.traces.map((t) => t.score?.score))
+      .toEqual([undefined, 0.2, undefined]);
+  });
+
+  it("makes no score call for an empty filtered first page", async () => {
+    mockList.mockResolvedValueOnce(page([], { nextCursor: "c1" }));
+
+    const result = renderTraceList({ filters: { toolError: true } });
+    await waitFor(() => result.current.hasMore);
+    expect(mockScores).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    ["without filters", undefined],
+    ["with filters", { mcpServer: "github" } satisfies TraceFilters],
+  ])("scores a loadMore page by exactly its trace IDs %s", async (_, filters) => {
+    mockList
+      .mockResolvedValueOnce(page([trace("t1", "2026-10-02T09:50:00Z")], { nextCursor: "c1" }))
+      .mockResolvedValueOnce(page(
+        [trace("t2", "2026-10-02T09:40:00Z"), trace("t3", "2026-10-02T09:30:00Z")],
+      ));
+    mockScores.mockImplementation((params) => scoreEach(params));
+
+    const result = renderTraceList({ filters });
+    await waitFor(() => result.current.traceList?.traces.length === 1);
+    await act(() => result.current.loadMore());
+
+    expect(mockScores).toHaveBeenCalledTimes(2);
+    expect(mockScores.mock.calls[1][0].traceIds).toEqual(["t2", "t3"]);
+    expect(result.current.traceList?.traces.slice(1).map((t) => t.score?.score))
+      .toEqual([0.5, 0.5]);
+  });
+
+  it("splits a 150-trace page into two score calls", async () => {
+    const base = new Date("2026-10-02T09:50:00Z").getTime();
+    const traces = Array.from({ length: 150 }, (_, i) => (
+      trace(`t${i}`, new Date(base - i * 1000).toISOString())
+    ));
+    mockList.mockResolvedValueOnce(page(traces));
+    mockScores.mockImplementation((params) => scoreEach(params, 0.3));
+
+    const result = renderTraceList({ filters: { minSpanCount: 1 } });
+    await waitFor(() => result.current.traceList?.traces.length === 150);
+
+    expect(mockScores).toHaveBeenCalledTimes(2);
+    expect(mockScores.mock.calls[0][0]).toMatchObject({
+      traceIds: traces.slice(0, 100).map((t) => t.traceId),
+      startTime: "2026-10-02T09:48:20.000Z",
+      endTime: "2026-10-02T09:50:01.000Z",
+    });
+    expect(mockScores.mock.calls[1][0]).toMatchObject({
+      traceIds: traces.slice(100).map((t) => t.traceId),
+      startTime: "2026-10-02T09:47:30.000Z",
+      endTime: "2026-10-02T09:48:21.000Z",
+    });
+    expect(result.current.traceList?.traces.every((t) => t.score?.score === 0.3)).toBe(true);
+  });
+
+  it.each([
+    ["without filters", undefined],
+    ["with filters", { tool: "search_web" } satisfies TraceFilters],
+  ])("keeps loadNewer's window score call %s", async (_, filters) => {
+    vi.useFakeTimers({ toFake: ["setInterval", "clearInterval"] });
+    mockList
+      .mockResolvedValueOnce(page([trace("t1", "2026-10-02T09:50:00Z")]))
+      .mockResolvedValueOnce(page([trace("t2", "2026-10-02T09:55:00Z")]));
+
+    const result = renderTraceList({ filters, enableAutoRefresh: true }, "desc", "1h");
+    await waitFor(() => result.current.traceList?.traces.length === 1);
+    mockScores.mockClear();
+
+    act(() => { vi.advanceTimersByTime(30000); });
+    await waitFor(() => result.current.traceList?.traces.length === 2);
+
+    expect(mockScores).toHaveBeenCalledTimes(1);
+    expect(mockScores.mock.calls[0][0]).toEqual({
+      orgName: "org",
+      projName: "proj",
+      agentName: "agent",
+      startTime: "2026-10-02T09:50:00Z",
+      endTime: mockList.mock.calls[1][0].endTime,
+      limit: 10,
+      offset: 0,
+      sortOrder: "desc",
+    });
+    expect(mockScores.mock.calls[0][0].traceIds).toBeUndefined();
+  });
+});
+
+describe("useTraceList evaluator scores", () => {
+  const filters: TraceFilters = { maxScore: 0.5, evaluator: "Accuracy" };
+
+  it("scores the filtered first page and loadMore by the evaluator", async () => {
+    mockList
+      .mockResolvedValueOnce(page([trace("t1", "2026-10-02T09:50:00Z")], { nextCursor: "c1" }))
+      .mockResolvedValueOnce(page([trace("t2", "2026-10-02T09:40:00Z")]));
+    mockScores.mockImplementation((params) => scoreEach(params, 0.4));
+
+    const result = renderTraceList({ filters });
+    await waitFor(() => result.current.traceList?.traces.length === 1);
+    await act(() => result.current.loadMore());
+
+    expect(mockScores).toHaveBeenCalledTimes(2);
+    expect(mockScores.mock.calls[0][0]).toMatchObject({ traceIds: ["t1"], evaluator: "Accuracy" });
+    expect(mockScores.mock.calls[1][0]).toMatchObject({ traceIds: ["t2"], evaluator: "Accuracy" });
+    expect(result.current.traceList?.traces.map((t) => t.score?.score)).toEqual([0.4, 0.4]);
+  });
+
+  it("keeps loadNewer's window score call without the evaluator", async () => {
+    vi.useFakeTimers({ toFake: ["setInterval", "clearInterval"] });
+    mockList
+      .mockResolvedValueOnce(page([trace("t1", "2026-10-02T09:50:00Z")]))
+      .mockResolvedValueOnce(page([trace("t2", "2026-10-02T09:55:00Z")]));
+
+    const result = renderTraceList({ filters, enableAutoRefresh: true }, "desc", "1h");
+    await waitFor(() => result.current.traceList?.traces.length === 1);
+    mockScores.mockClear();
+
+    act(() => { vi.advanceTimersByTime(30000); });
+    await waitFor(() => result.current.traceList?.traces.length === 2);
+
+    expect(mockScores).toHaveBeenCalledTimes(1);
+    expect(mockScores.mock.calls[0][0]).toEqual({
+      orgName: "org",
+      projName: "proj",
+      agentName: "agent",
+      startTime: "2026-10-02T09:50:00Z",
+      endTime: mockList.mock.calls[1][0].endTime,
+      limit: 10,
+      offset: 0,
+      sortOrder: "desc",
+    });
+    expect(mockScores.mock.calls[0][0].evaluator).toBeUndefined();
+  });
+});
+
+describe("useTraceList include", () => {
+  it("sends include on the first page and loadMore, keyed by value", async () => {
+    mockList
+      .mockResolvedValueOnce(page([trace("t1", "2026-10-02T09:50:00Z")], { nextCursor: "c1" }))
+      .mockResolvedValueOnce(page([trace("t2", "2026-10-02T09:40:00Z")]));
+
+    const result = renderTraceList({ include: ["mcpServers", "tools"] });
+    await waitFor(() => result.current.traceList?.traces.length === 1);
+    await act(() => result.current.loadMore());
+
+    expect(mockList.mock.calls[0][0].include).toEqual(["tools", "mcpServers"]);
+    expect(mockList.mock.calls[1][0].include).toEqual(["tools", "mcpServers"]);
+    // Without filters, include leaves the first page's window score call as it is.
+    expect(mockScores.mock.calls[0][0].traceIds).toBeUndefined();
+
+    await act(async () => {
+      result.setOptions({ include: ["tools", "mcpServers"] });
+      await new Promise((resolve) => setTimeout(resolve, 0));
+    });
+    expect(mockList).toHaveBeenCalledTimes(2);
+    expect(result.current.traceList?.traces.map((t) => t.traceId)).toEqual(["t1", "t2"]);
+  });
+
+  it("sends no include by default", async () => {
+    mockList.mockResolvedValueOnce(page([]));
+
+    renderTraceList();
+    await waitFor(() => mockList.mock.calls.length === 1);
+    expect(mockList.mock.calls[0][0].include).toBeUndefined();
+  });
+
+  it("refetches the first page when include changes", async () => {
+    mockList
+      .mockResolvedValueOnce(page([trace("t1", "2026-10-02T09:50:00Z")]))
+      .mockResolvedValueOnce(page([trace("t1", "2026-10-02T09:50:00Z")]));
+
+    const result = renderTraceList();
+    await waitFor(() => result.current.traceList?.traces.length === 1);
+    act(() => result.setOptions({ include: ["tools"] }));
+
+    await waitFor(() => mockList.mock.calls.length === 2);
+    expect(mockList.mock.calls[1][0].include).toEqual(["tools"]);
   });
 });

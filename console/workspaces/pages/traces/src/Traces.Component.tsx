@@ -47,6 +47,7 @@ import {
   useGetAgent,
   useGetOrganization,
   useListEnvironments,
+  useListMonitors,
   isObserverConfigured,
   type TraceListWithRange,
   ConsoleAction,
@@ -58,7 +59,7 @@ import {
   TraceFilterBar,
   TracesView,
 } from "./subComponents";
-import { parseTraceFilters, withTraceFilters } from "./traceFilters";
+import { hasScoreFilter, parseTraceFilters, withTraceFilters } from "./traceFilters";
 import { type TraceColumn, parseTraceColumns, withTraceColumns } from "./traceColumns";
 import { formatStartTime } from "./traceTime";
 import {
@@ -192,6 +193,23 @@ export const TracesComponent: React.FC = () => {
 
   const filters = useMemo(() => parseTraceFilters(searchParams), [searchParams]);
   const hasActiveFilters = Object.keys(filters).length > 0;
+  const [filtersOpen, setFiltersOpen] = useState(false);
+
+  // Set when the Evaluator select first opens, so the default page sends no monitors request.
+  const [evaluatorsRequested, setEvaluatorsRequested] = useState(false);
+  const { data: monitorsData, isLoading: isMonitorsLoading } = useListMonitors(
+    { orgName: orgId ?? "", projName: projectId ?? "", agentName: agentId ?? "" },
+    undefined,
+    { enabled: evaluatorsRequested },
+  );
+  // The score filter's evaluator matches display names across all the agent's monitors.
+  const evaluatorNames = useMemo(
+    () =>
+      monitorsData &&
+      [...new Set(monitorsData.monitors.flatMap((m) => m.evaluators.map((e) => e.displayName)))]
+        .sort((a, b) => a.localeCompare(b)),
+    [monitorsData],
+  );
 
   const visibleColumns = useMemo(() => parseTraceColumns(searchParams), [searchParams]);
 
@@ -244,6 +262,8 @@ export const TracesComponent: React.FC = () => {
       // only signal that the trace explorer is being used at all. The trace id
       // is not reported: it identifies a customer's own request.
       track(ConsoleAction.TraceOpened, { source_page: "traces" });
+      // Close the filters drawer, discarding its draft, so the two drawers never show together.
+      setFiltersOpen(false);
       const next = new URLSearchParams(searchParams);
       next.set("selectedTrace", traceId);
       setSearchParams(next);
@@ -520,23 +540,31 @@ export const TracesComponent: React.FC = () => {
         <TraceFilterBar
           filters={filters}
           onChange={handleFiltersChange}
+          open={filtersOpen && !selectedTrace}
+          onOpenChange={setFiltersOpen}
           onTraceSearch={handleTraceSelect}
-        />
-        <TracesView
-          traces={traceData?.traces ?? []}
-          isLoading={prereqsPending || isLoading}
-          selectedTrace={selectedTrace}
-          isLoadingMore={isLoadingMore}
-          hasMore={hasMore}
-          hasActiveFilters={hasActiveFilters}
-          truncated={truncated}
-          lookedBackTo={lookedBackTo}
-          loadError={loadError}
-          visibleColumns={visibleColumns}
-          onTraceSelect={handleTraceSelect}
-          onLoadMore={loadMore}
-          onConversationSelect={handleConversationSelect}
-        />
+          evaluators={evaluatorNames}
+          evaluatorsLoading={isMonitorsLoading}
+          onEvaluatorsOpen={() => setEvaluatorsRequested(true)}
+        >
+          <TracesView
+            traces={traceData?.traces ?? []}
+            isLoading={prereqsPending || isLoading}
+            selectedTrace={selectedTrace}
+            isLoadingMore={isLoadingMore}
+            hasMore={hasMore}
+            hasActiveFilters={hasActiveFilters}
+            hasScoreFilter={hasScoreFilter(filters)}
+            scoreEvaluator={filters.evaluator}
+            truncated={truncated}
+            lookedBackTo={lookedBackTo}
+            loadError={loadError}
+            visibleColumns={visibleColumns}
+            onTraceSelect={handleTraceSelect}
+            onLoadMore={loadMore}
+            onConversationSelect={handleConversationSelect}
+          />
+        </TraceFilterBar>
         <DrawerWrapper
           open={!!selectedTrace}
           disableScroll

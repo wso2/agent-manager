@@ -398,6 +398,8 @@ export async function getAgentTraceScores(
   if (params.limit !== undefined) searchParams.limit = params.limit.toString();
   if (params.offset !== undefined) searchParams.offset = params.offset.toString();
   if (params.sortOrder) searchParams.sortOrder = params.sortOrder;
+  if (params.traceIds?.length) searchParams.traceIds = params.traceIds.join(",");
+  if (params.evaluator) searchParams.evaluator = params.evaluator;
 
   const res = await httpGET(
     `${SERVICE_BASE}/orgs/${org}/projects/${project}/agents/${agent}/scores`,

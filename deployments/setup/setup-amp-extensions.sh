@@ -150,13 +150,16 @@ if ! helm status wso2-amp-observability-extension -n openchoreo-observability-pl
     sleep 10
 fi
 echo "   Installing/upgrading Agent Manager Observer (local dev: JWKS disabled, unverified JWT parse)..."
+# Score filters call agent-manager-service, which local dev runs in docker-compose
+# on the host: the same URL evaluation jobs use from k3d.
 helm upgrade --install wso2-amp-observability-extension ${PROJECT_ROOT}/deployments/helm-charts/wso2-amp-observability-extension \
     --create-namespace \
     --namespace openchoreo-observability-plane \
     --timeout=10m \
     --set amObserver.developmentMode=true \
     --set amObserver.auth.isLocalDevEnv=true \
-    --set-string amObserver.auth.jwksUrl=""
+    --set-string amObserver.auth.jwksUrl="" \
+    --set amObserver.agentManagerService.url="http://agent-manager-service:8080"
 echo ""
 
 wait_for_namespace_ready amp-thunder 'Thunder Extension'

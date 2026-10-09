@@ -29,6 +29,7 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/wso2/agent-manager/agent-manager-observer/agentmanager"
 	"github.com/wso2/agent-manager/agent-manager-observer/config"
 	"github.com/wso2/agent-manager/agent-manager-observer/controllers"
 	"github.com/wso2/agent-manager/agent-manager-observer/handlers"
@@ -110,6 +111,10 @@ func newHandler(cfg *config.Config, tokenProvider observer.TokenProvider) http.H
 	// v1 routes — observer-backed
 	observerClient := observer.NewClient(cfg.Observer.BaseURL, tokenProvider, cfg.Observer.DefaultNamespace)
 	controller := controllers.NewTracingController(observerClient)
+	// Score filters return 503 until the service URL is set; nothing calls it at startup.
+	if cfg.AgentManager.BaseURL != "" {
+		controller = controller.WithScoreClient(agentmanager.NewClient(cfg.AgentManager.BaseURL))
+	}
 	obsController := controllers.NewObservabilityController(observerClient)
 	handler := handlers.NewHandler(controller, obsController)
 
@@ -136,7 +141,8 @@ func newHandler(cfg *config.Config, tokenProvider observer.TokenProvider) http.H
 	apiMux.Handle("/api/v1/build-logs", requireBuildLog(http.HandlerFunc(handler.GetBuildLogs)))
 	apiMux.Handle("/api/v1/metrics", requireMetric(http.HandlerFunc(handler.GetMetrics)))
 
-	slog.Info("v1 observer-backed routes registered", "observerBaseURL", cfg.Observer.BaseURL)
+	slog.Info("v1 observer-backed routes registered", "observerBaseURL", cfg.Observer.BaseURL,
+		"agentManagerServiceURL", cfg.AgentManager.BaseURL)
 
 	// Apply JWT auth middleware to API routes
 	authenticatedHandler := middleware.JWTAuth(cfg.Auth)(apiMux)

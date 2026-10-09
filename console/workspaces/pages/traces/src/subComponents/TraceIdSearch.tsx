@@ -53,7 +53,8 @@ export const TraceIdSearch: React.FC<TraceIdSearchProps> = ({ onSearch }) => {
           ),
         },
       }}
-      sx={{ minWidth: 220, ml: "auto" }}
+      // At the row's right end; on its own line once the row wraps.
+      sx={{ width: 300, maxWidth: "100%", ml: "auto" }}
     />
   );
 };

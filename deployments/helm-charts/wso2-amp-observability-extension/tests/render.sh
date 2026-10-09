@@ -91,6 +91,18 @@ assert_env "a stray comma in the audience does not produce an empty entry" \
   --set amObserver.publicUrl=https://traces.example.com \
   --set 'amObserver.auth.audience=amp\,'
 
+# --- amObserver.agentManagerService.url --------------------------------------
+# Score filters reach agent-manager-service through this URL. The default is the
+# reference install's in-cluster service; an empty value turns them off.
+assert_env "default points score filters at the in-cluster agent-manager-service" \
+  AGENT_MANAGER_SERVICE_URL "http://amp-api.wso2-amp.svc.cluster.local:9000"
+assert_env "an agentManagerService.url override reaches the observer" \
+  AGENT_MANAGER_SERVICE_URL "https://amp-api.example.com" \
+  --set amObserver.agentManagerService.url=https://amp-api.example.com
+assert_env "an empty agentManagerService.url renders empty" \
+  AGENT_MANAGER_SERVICE_URL "" \
+  --set-string amObserver.agentManagerService.url=
+
 # --- global.ampImageRegistry / global.imagePullSecrets -----------------------
 # A private-registry install needs both: the image redirected, and a pull secret
 # on the pod. Neither is visible from a default `helm template`.

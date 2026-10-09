@@ -199,3 +199,39 @@ func TestObserverConfig_ValidateClientCredentials(t *testing.T) {
 		})
 	}
 }
+
+// AGENT_MANAGER_SERVICE_URL is optional; when set it must be an absolute http(s) URL.
+func TestLoad_AgentManagerServiceURL(t *testing.T) {
+	t.Setenv("OPENCHOREO_OBSERVER_URL", "http://localhost:8085")
+	t.Setenv("IS_LOCAL_DEV_ENV", "true")
+	tests := []struct {
+		value   string
+		want    string
+		wantErr bool
+	}{
+		{value: "", want: ""},
+		{value: "http://agent-manager-service:8080", want: "http://agent-manager-service:8080"},
+		{value: " https://amp-api.example.com/ ", want: "https://amp-api.example.com/"},
+		{value: "agent-manager-service:8080", wantErr: true},
+		{value: "ftp://amp-api", wantErr: true},
+		{value: "http://", wantErr: true},
+	}
+	for _, tt := range tests {
+		t.Run(tt.value, func(t *testing.T) {
+			t.Setenv("AGENT_MANAGER_SERVICE_URL", tt.value)
+			cfg, err := Load()
+			if tt.wantErr {
+				if err == nil {
+					t.Fatal("expected an error, got nil")
+				}
+				return
+			}
+			if err != nil {
+				t.Fatalf("expected no error, got %v", err)
+			}
+			if cfg.AgentManager.BaseURL != tt.want {
+				t.Errorf("BaseURL = %q, want %q", cfg.AgentManager.BaseURL, tt.want)
+			}
+		})
+	}
+}

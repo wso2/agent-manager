@@ -20,6 +20,7 @@ import type {
   TraceListResponse,
   TraceExportResponse,
   TraceFilters,
+  TraceInclude,
   Span,
   TraceSpanSummaryListResponse,
 } from "@agent-management-platform/types";
@@ -38,12 +39,29 @@ export interface ObserverTraceListParams {
   filters?: TraceFilters;
   /** Fill models on every trace; costs the server one extra upstream call per trace. */
   includeModels?: boolean;
+  /** Optional fields to fill on every trace; merged with includeModels into one include param. */
+  include?: TraceInclude[];
   /** nextCursor from the previous page of the same window, sort order and filters. */
   cursor?: string;
 }
 
-/** Export takes the list's window and filters; it has no cursor or includeModels. */
-export type ExportTracesQueryParams = Omit<ObserverTraceListParams, "includeModels" | "cursor">;
+/** Export takes the list's window and filters; it has no cursor or include. */
+export type ExportTracesQueryParams = Omit<
+  ObserverTraceListParams,
+  "includeModels" | "include" | "cursor"
+>;
+
+const TRACE_INCLUDE_ORDER: TraceInclude[] = ["models", "tools", "mcpServers"];
+
+/** Returns the requested include values, de-duplicated and in a fixed order. */
+export function normalizeTraceInclude(
+  include?: TraceInclude[],
+  includeModels?: boolean,
+): TraceInclude[] {
+  const wanted = new Set(include);
+  if (includeModels === true) wanted.add("models");
+  return TRACE_INCLUDE_ORDER.filter((value) => wanted.has(value));
+}
 
 /** Returns only the set filter fields, in a fixed order. */
 export function normalizeTraceFilters(filters?: TraceFilters): TraceFilters {
@@ -55,6 +73,12 @@ export function normalizeTraceFilters(filters?: TraceFilters): TraceFilters {
   if (filters.minSpanCount !== undefined) out.minSpanCount = filters.minSpanCount;
   if (filters.model) out.model = filters.model;
   if (filters.conversationId) out.conversationId = filters.conversationId;
+  if (filters.tool) out.tool = filters.tool;
+  if (filters.toolError === true) out.toolError = true;
+  if (filters.mcpServer) out.mcpServer = filters.mcpServer;
+  if (filters.minScore !== undefined) out.minScore = filters.minScore;
+  if (filters.maxScore !== undefined) out.maxScore = filters.maxScore;
+  if (filters.evaluator) out.evaluator = filters.evaluator;
   return out;
 }
 
@@ -104,6 +128,7 @@ export async function getTraceList(
     sortOrder,
     filters,
     includeModels,
+    include,
     cursor,
   } = params;
   assertRequired(organization, "organization");
@@ -126,7 +151,8 @@ export async function getTraceList(
   if (limit !== undefined) searchParams.limit = limit.toString();
   if (sortOrder) searchParams.sortOrder = sortOrder;
   Object.assign(searchParams, traceFilterSearchParams(filters));
-  if (includeModels === true) searchParams.include = "models";
+  const includeValues = normalizeTraceInclude(include, includeModels);
+  if (includeValues.length > 0) searchParams.include = includeValues.join(",");
   if (cursor) searchParams.cursor = cursor;
 
   const res = await httpGETObserver("/api/v1/traces", { searchParams, token });

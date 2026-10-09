@@ -57,6 +57,13 @@ amObserver:
     existingSecretClientIdKey: "idpClientId"
     existingSecretClientSecretKey: "idpClientSecret"
     defaultNamespace: "default"
+  # agent-manager-service connection, used only by the trace list and export
+  # score filters (minScore, maxScore, evaluator). The observer forwards the
+  # caller's token, so it needs no credentials of its own. Empty turns score
+  # filters off (they return 503); no other request calls the service.
+  # When the observer runs in another cluster, set the service's public URL.
+  agentManagerService:
+    url: "http://amp-api.wso2-amp.svc.cluster.local:9000"
   # JWT authentication — must match the agent-manager keyManager config so the
   # same user token issued by Thunder is accepted by both services. Thunder
   # stamps the resource-server identifier as the token audience, so query tokens

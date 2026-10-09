@@ -69,10 +69,11 @@ paths:
         Uses the Observer Service instead of OpenSearch. No offset; use `limit` for page size.
 
         The filter parameters (`status`, `minDurationMs`, `minTokens`, `minSpanCount`, `model`,
-        `conversationId`) are optional and combine with AND. With any filter set, the server walks
+        `conversationId`, `tool`, `toolError`, `mcpServer`, `minScore`, `maxScore`, `evaluator`) are optional and combine with AND. With any filter set, the server walks
         the window in sort order until it has `limit` matches, the window runs out, it has examined
-        500 traces, or it has searched for 20 seconds (`truncated` is then true, and `nextCursor`
-        continues the search).
+        500 traces, it has fetched 100 MCP handshakes (only with `mcpServer` or `include=mcpServers`),
+        or it has searched for 20 seconds (`truncated` is then true, and `nextCursor` continues the
+        search).
         With no filter and no `cursor` set the request makes one upstream trace query, unless
         traces share a start time at the end of the page.
 
@@ -84,6 +85,14 @@ paths:
 
         A trace that can't be read is left out of the page; with a filter set it is retried once
         first. The request fails only when it could read none of the traces it examined.
+
+        Score filters (`minScore`, `maxScore`, `evaluator`) read scores from agent-manager-service
+        with the caller's token. Such a request returns 503 when the server has no
+        agent-manager-service URL, 403 when the service rejects the token, and 502 when a lookup
+        fails, times out or can't reach the service, never a partial page. The exception is a
+        lookup the 20-second search budget cuts off after earlier batches: the search stops there
+        and returns the matches so far, with `truncated` true and a `nextCursor`. A request
+        without a score filter never calls the service.
       operationId: listTraces
       security:
         - bearerAuth: []
@@ -117,17 +126,35 @@ paths:
               inline attributes. It adds one span-list call for traces that otherwise
               need none, and makes the span-list call heavier for the rest. Traces
               above the span-count threshold return no `models` either way.
+            - `tools`: read tool names and failures from the trace's span list,
+              without attributes. Most traces list their spans anyway, so it adds a
+              call only for traces whose root fills input, output and token usage by
+              itself. Traces above 200 spans return no `tools`, at no extra cost.
+            - `mcpServers`: read MCP server names from the trace's `initialize.mcp`
+              spans, found in the span list without attributes. One span fetch per
+              tool that opened a session, for its first handshake in start order, and
+              at most 5 per trace. With a filter set, the search stops once it has
+              fetched 100 handshakes, after the batch of up to 50 traces it is reading
+              (`truncated` is then true, and `nextCursor` continues the search).
+              Without a filter only the per-trace limit applies. Traces above 200
+              spans return no `mcpServers`, at no extra cost.
           schema:
             type: array
             items:
               type: string
-              enum: [models]
+              enum: [models, tools, mcpServers]
         - $ref: "#/components/parameters/traceStatusFilter"
         - $ref: "#/components/parameters/minDurationMsFilter"
         - $ref: "#/components/parameters/minTokensFilter"
         - $ref: "#/components/parameters/minSpanCountFilter"
         - $ref: "#/components/parameters/modelFilter"
         - $ref: "#/components/parameters/conversationIdFilter"
+        - $ref: "#/components/parameters/toolFilter"
+        - $ref: "#/components/parameters/toolErrorFilter"
+        - $ref: "#/components/parameters/mcpServerFilter"
+        - $ref: "#/components/parameters/minScoreFilter"
+        - $ref: "#/components/parameters/maxScoreFilter"
+        - $ref: "#/components/parameters/evaluatorFilter"
         - name: cursor
           in: query
           required: false
@@ -148,8 +175,12 @@ paths:
           $ref: "#/components/responses/BadRequest"
         "401":
           $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/TraceForbidden"
+        "502":
+          $ref: "#/components/responses/ScoreLookupFailed"
         "503":
-          $ref: "#/components/responses/ObserverUnavailable"
+          $ref: "#/components/responses/TraceServiceUnavailable"
         "500":
           $ref: "#/components/responses/InternalError"
 
@@ -168,8 +199,9 @@ paths:
 
         The filter parameters are the list endpoint's and select the same traces: they combine with
         AND, and with any filter set the server walks the window in sort order until it has `limit`
-        matches, the window runs out, it has examined 500 traces, or it has searched for 10 seconds
-        (`truncated` is then true, and `lookedBackTo` says how far it got). Spans are fetched only
+        matches, the window runs out, it has examined 500 traces, it has fetched 100 MCP handshakes
+        (only with `mcpServer`), or it has searched for 10 seconds (`truncated` is then true, and
+        `lookedBackTo` says how far it got). Spans are fetched only
         for the matches, so a filtered export returns at most 500 traces. There is no cursor: to
         export further back, narrow the window. With no filter set the export makes one upstream
         trace query, as before.
@@ -177,6 +209,9 @@ paths:
         A trace that can't be read, while selecting with a filter or while fetching its spans, is
         retried once, then left out and listed in `failedTraceIds`. The export fails only when it
         could read none of the traces it selected.
+
+        Score filters fail the export as they fail the list: 503 without an agent-manager-service
+        URL, 403 when the service rejects the token, and 502 when a lookup fails.
       operationId: exportTraces
       security:
         - bearerAuth: []
@@ -203,6 +238,12 @@ paths:
         - $ref: "#/components/parameters/minSpanCountFilter"
         - $ref: "#/components/parameters/modelFilter"
         - $ref: "#/components/parameters/conversationIdFilter"
+        - $ref: "#/components/parameters/toolFilter"
+        - $ref: "#/components/parameters/toolErrorFilter"
+        - $ref: "#/components/parameters/mcpServerFilter"
+        - $ref: "#/components/parameters/minScoreFilter"
+        - $ref: "#/components/parameters/maxScoreFilter"
+        - $ref: "#/components/parameters/evaluatorFilter"
       responses:
         "200":
           description: Export payload
@@ -220,8 +261,12 @@ paths:
           $ref: "#/components/responses/BadRequest"
         "401":
           $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/TraceForbidden"
+        "502":
+          $ref: "#/components/responses/ScoreLookupFailed"
         "503":
-          $ref: "#/components/responses/ObserverUnavailable"
+          $ref: "#/components/responses/TraceServiceUnavailable"
         "500":
           $ref: "#/components/responses/InternalError"
 
@@ -595,6 +640,102 @@ components:
         type: string
         maxLength: 256
         example: conv-42
+    toolFilter:
+      name: tool
+      in: query
+      required: false
+      description: |
+        Keep traces where any entry of `tools` contains this value, ignoring case. With
+        `toolError=true`, a failed tool (an entry of `failedTools`) must contain it, so
+        `tool=search_web&toolError=true` means "search_web failed". Implies `include=tools`,
+        so the server fills `tools` and `failedTools` on every trace and the request carries
+        that cost: a trace is judged on its span list, fetched without attributes before its
+        root, so a rejected trace costs one list call. Tools are read from span names only
+        (`execute_tool {name}`, `{name}.tool`). Traces above 200 spans have no `tools` and
+        never match.
+      schema:
+        type: string
+        maxLength: 256
+        example: search_web
+    toolErrorFilter:
+      name: toolError
+      in: query
+      required: false
+      description: |
+        `true` keeps traces with at least one failed tool, that is, `failedTools` is not
+        empty; empty or `false` sets no filter, and any other value returns 400. A tool
+        fails when a span with its name has OTel status error. When an MCP call fails, the
+        outer `execute_tool` span stays unset and the inner `.tool` span carries the error,
+        so the tool is reported as failed. With `tool` also set, the failed tool must match
+        it. Implies `include=tools`, with the cost and the 200-span cap described for `tool`.
+      schema:
+        type: string
+        enum: ["true", "false"]
+    mcpServerFilter:
+      name: mcpServer
+      in: query
+      required: false
+      description: |
+        Keep traces where any entry of `mcpServers` contains this value, ignoring case.
+        Implies `include=mcpServers`, with its cost and limits. The span list comes before
+        the root, as for `tool`, and the handshake fetches come after every other check,
+        so a trace without a handshake span costs one list call. Traces above 200 spans
+        never match. The search stops once it has fetched 100 handshakes, after the batch
+        of up to 50 traces it is reading, with `truncated` true; the list's `nextCursor`
+        continues it.
+      schema:
+        type: string
+        maxLength: 256
+        example: github-mcp-server
+    minScoreFilter:
+      name: minScore
+      in: query
+      required: false
+      description: |
+        Keep traces whose score is at least this value, inclusive. The score is the mean of the
+        trace's non-skipped evaluation scores across every monitor, evaluator and level: the
+        console's Score column. With `evaluator`, it is the mean of that evaluator's non-skipped
+        scores. A trace with no such score never matches. Monitors write scores when they run,
+        so recent traces may have none yet.
+
+        The server reads scores from agent-manager-service with the caller's token, which needs
+        `amp:monitor:score-read`. It makes one lookup per batch of up to 50 traces that pass
+        `minDurationMs`, `minSpanCount` and the tool and MCP span cap, before any other call for
+        them, so at most 10 per request, each bounded by 3 s. A trace out of range costs nothing
+        more and counts toward the 500 examined.
+      schema:
+        type: number
+        format: double
+        minimum: 0
+        maximum: 1
+        example: 0.5
+    maxScoreFilter:
+      name: maxScore
+      in: query
+      required: false
+      description: |
+        Keep traces whose score is at most this value, inclusive. See `minScore` for the score,
+        its cost, and traces with no score. With both set, `minScore` must not be greater than
+        `maxScore`.
+      schema:
+        type: number
+        format: double
+        minimum: 0
+        maximum: 1
+        example: 0.5
+    evaluatorFilter:
+      name: evaluator
+      in: query
+      required: false
+      description: |
+        Score each trace on this evaluator's rows only, matched by exact display name across all
+        the agent's monitors. With `minScore` or `maxScore`, that score must be in range. Alone, it
+        keeps traces with a non-skipped score from this evaluator. It costs the same lookups as a
+        score bound.
+      schema:
+        type: string
+        maxLength: 256
+        example: Answer Relevancy
 
   responses:
     BadRequest:
@@ -623,6 +764,30 @@ components:
             $ref: "#/components/schemas/ErrorResponse"
     Forbidden:
       description: Publisher-audience (`amp-publisher-*`) tokens are not permitted on this endpoint
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorResponse"
+    TraceForbidden:
+      description: |
+        The token lacks the trace-read scope, or a score filter is set and agent-manager-service
+        rejected the caller's token (it needs `amp:monitor:score-read`).
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorResponse"
+    ScoreLookupFailed:
+      description: |
+        A score filter is set and a score lookup failed: agent-manager-service was unreachable,
+        took longer than 3 s, or returned an error.
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorResponse"
+    TraceServiceUnavailable:
+      description: |
+        The Observer Service is not configured (OPENCHOREO_OBSERVER_URL unset), or a score filter
+        is set and agent-manager-service is not (AGENT_MANAGER_SERVICE_URL unset).
       content:
         application/json:
           schema:
@@ -806,7 +971,8 @@ components:
           type: boolean
           description: |
             True when the export was cut short: a filtered export reached its cap of 500 examined
-            traces or its 10-second search budget before the window ran out, or `spansTruncated`
+            traces or 100 MCP handshake fetches, or its 10-second search budget, before the window
+            ran out, or `spansTruncated`
             is true. With a filter set and `spansTruncated` true, it doesn't say whether the
             search also stopped early.
         spansTruncated:
@@ -903,6 +1069,49 @@ components:
             number is returned as its decimal string. Absent when none of those spans
             carries one.
           example: conv-42
+        tools:
+          type: array
+          description: |
+            Distinct tools the trace called, in first-call order. Only present with
+            `include=tools`, for traces of at most 200 spans, and when a tool span
+            names a tool.
+            Read from span names only: `execute_tool {name}` (OTel GenAI, Traceloop
+            LangGraph, Strands, Google ADK) and `{name}.tool` (Traceloop, its MCP
+            instrumentation and the OpenAI Agents SDK); also `.tools`, `.function` and
+            `.functions`. A span named only after the tool, as OpenInference and
+            Logfire name them, isn't recognised, and a bare `execute_tool` names no tool.
+          items:
+            type: string
+          example: ["search_issues", "check_system_status"]
+        failedTools:
+          type: array
+          description: |
+            The entries of `tools` with at least one span whose OTel status is error.
+            Failure attributes such as `error.type` aren't read, so a tool error that
+            leaves the status unset doesn't count. Present under the same conditions
+            as `tools`, and absent when no tool failed.
+          items:
+            type: string
+          example: ["search_issues"]
+        mcpServers:
+          type: array
+          description: |
+            Distinct MCP servers the trace connected to, in handshake order. Only present
+            with `include=mcpServers`, for traces of at most 200 spans, and when an
+            `initialize.mcp` span names a server.
+            Read from the MCP initialize result in that span's `traceloop.entity.output`:
+            `serverInfo.name`, else `serverInfo.title`. Limits:
+            - Only Traceloop's MCP instrumentation emits this span, and only when the agent
+              opens an MCP session inside the trace. A client that opens a session per tool
+              call (the default for langchain-mcp-adapters' `MultiServerMCPClient`) has one
+              per call; an agent that holds one session for its lifetime has none in later
+              traces, so they report no servers.
+            - One handshake is read per tool, the first in start order, keyed by the tool
+              span it sits under; a handshake under no tool span counts on its own. At most
+              5 are read per trace, so servers reached only through later tools are left out.
+          items:
+            type: string
+          example: ["github-mcp-server"]
 
     TraceOverviewListResponse:
       type: object
@@ -935,8 +1144,9 @@ components:
           type: boolean
           description: |
             True when the server stopped before filling the page and before the window ran out:
-            a filtered request reached its cap of 500 examined traces or its 20-second search
-            budget (`nextCursor` continues from where it stopped), or the page went deeper than
+            a filtered request reached its cap of 500 examined traces or 100 MCP handshake
+            fetches, or its 20-second search budget (`nextCursor` continues from where it
+            stopped), or the page went deeper than
             the server fetches (1000 traces into the window, reached by a deep `cursor` or by more
             traces at one start time than that; there is no `nextCursor`, so narrow the window to
             see more).
@@ -945,7 +1155,7 @@ components:
           description: |
             Opaque cursor for the next page; send it back as `cursor`. Present when the window
             holds traces past this page, including when `truncated` is true after the examine
-            cap or the search budget. Absent when the window ran out or the cursor depth was
+            cap, the handshake cap or the search budget. Absent when the window ran out or the cursor depth was
             reached.
 
     SpanSummary:

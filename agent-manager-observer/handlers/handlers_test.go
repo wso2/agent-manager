@@ -404,9 +404,9 @@ func TestGetTraceOverviews_IncludeQueryParam(t *testing.T) {
 		{name: "spaces around items are trimmed", query: "&include=%20models%20,", wantModels: true, wantStatus: http.StatusOK},
 		{name: "absent leaves it off", query: "", wantStatus: http.StatusOK},
 		{name: "empty leaves it off", query: "&include=", wantStatus: http.StatusOK},
-		{name: "tools is rejected", query: "&include=tools", wantStatus: http.StatusBadRequest},
+		{name: "spans is rejected", query: "&include=spans", wantStatus: http.StatusBadRequest},
 		{name: "Models is rejected", query: "&include=Models", wantStatus: http.StatusBadRequest},
-		{name: "one bad item rejects the list", query: "&include=models,tools", wantStatus: http.StatusBadRequest},
+		{name: "one bad item rejects the list", query: "&include=models,spans", wantStatus: http.StatusBadRequest},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -436,11 +436,11 @@ func TestGetTraceOverviews_IncludeQueryParam(t *testing.T) {
 
 // Rejected include values name the offending value in the error body.
 func TestParseInclude_ErrorNamesValue(t *testing.T) {
-	_, err := parseInclude([]string{"models,tools"})
+	_, err := parseInclude([]string{"models,spans"})
 	if err == nil {
 		t.Fatal("expected an error for unknown include value")
 	}
-	if !strings.Contains(err.Error(), `"tools"`) {
+	if !strings.Contains(err.Error(), `"spans"`) {
 		t.Errorf("error %q does not name the bad value", err)
 	}
 }

@@ -54,6 +54,9 @@ interface TracesTableProps {
   isLoadingMore?: boolean;
   hasMore?: boolean;
   hasActiveFilters?: boolean;
+  hasScoreFilter?: boolean;
+  // Labels the Score column, which then holds this evaluator's mean.
+  scoreEvaluator?: string;
   // Optional columns to show; the rest are always shown.
   visibleColumns?: TraceColumn[];
   lookedBackTo?: string;
@@ -179,13 +182,17 @@ export function TracesTable({
   isLoadingMore = false,
   hasMore = false,
   hasActiveFilters = false,
+  hasScoreFilter = false,
+  scoreEvaluator,
   visibleColumns = DEFAULT_TRACE_COLUMNS,
   lookedBackTo,
   loadError,
   onLoadMore,
   onConversationSelect,
 }: TracesTableProps) {
-  const columns = COLUMNS.filter((c) => !c.optional || visibleColumns.includes(c.optional));
+  const columns = COLUMNS.filter((c) => !c.optional || visibleColumns.includes(c.optional)).map(
+    (c) => (c.field === "score" && scoreEvaluator ? { ...c, headerName: scoreEvaluator } : c),
+  );
   const showTraceId = visibleColumns.includes("traceId");
   const showConversation = visibleColumns.includes("conversation");
 
@@ -282,7 +289,13 @@ export function TracesTable({
                     width={`${c.width}%`}
                     sx={c.field === "status" ? { maxWidth: 20 } : undefined}
                   >
-                    {c.headerName}
+                    {c.field === "score" && scoreEvaluator ? (
+                      <Box component="span" title={`${scoreEvaluator} score`} sx={ellipsisSx}>
+                        {c.headerName}
+                      </Box>
+                    ) : (
+                      c.headerName
+                    )}
                   </ListingTable.Cell>
                 ))}
               </ListingTable.Row>
@@ -500,9 +513,11 @@ export function TracesTable({
             illustration={<Workflow size={64} />}
             title="No traces found!"
             description={
-              hasActiveFilters
-                ? "Try changing the filters or the time range"
-                : "Try changing the time range"
+              hasScoreFilter
+                ? "Try changing the filters or the time range. Monitors score traces when they run, so recent traces may not have scores yet."
+                : hasActiveFilters
+                  ? "Try changing the filters or the time range"
+                  : "Try changing the time range"
             }
           />
           {/* A filtered page can be empty while later pages hold matches; load those on click. */}

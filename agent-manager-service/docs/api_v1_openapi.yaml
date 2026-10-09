@@ -8835,6 +8835,30 @@ paths:
             enum: [asc, desc]
             default: desc
           description: Sort order for traces by start time (asc or desc)
+        - name: traceIds
+          in: query
+          required: false
+          style: form
+          explode: false
+          schema:
+            type: array
+            minItems: 1
+            maxItems: 100
+            items:
+              type: string
+              minLength: 1
+          description: >-
+            Comma-separated trace IDs, at most 100. Only these traces are returned, and an ID without
+            scores in the time window is absent. limit and offset page over the matching traces as they
+            do without traceIds, so the default limit returns every ID in one page.
+        - name: evaluator
+          in: query
+          required: false
+          schema:
+            type: string
+          description: >-
+            Evaluator display name. score, totalCount and skippedCount then cover only this evaluator's
+            rows, and traces without them are absent.
       responses:
         "200":
           description: Aggregated trace scores

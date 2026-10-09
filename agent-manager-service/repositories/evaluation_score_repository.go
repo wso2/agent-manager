@@ -59,7 +59,7 @@ type ScoreRepository interface {
 
 	// Trace-level queries (cross-monitor)
 	GetScoresByTraceID(traceID string, ouID, projName, agentName string) ([]ScoreWithMonitor, error)
-	GetAgentTraceScores(ouID, projName, agentName string, startTime, endTime time.Time, limit, offset int, sortOrder string) ([]TraceAggregation, int, error)
+	GetAgentTraceScores(ouID, projName, agentName string, startTime, endTime time.Time, limit, offset int, sortOrder string, filters AgentTraceScoreFilters) ([]TraceAggregation, int, error)
 
 	// Monitor lookup
 	GetMonitorID(ouID, projName, agentName, monitorName string) (uuid.UUID, error)
@@ -69,6 +69,12 @@ type ScoreRepository interface {
 type ScoreFilters struct {
 	EvaluatorName string
 	Level         string
+}
+
+// AgentTraceScoreFilters narrows GetAgentTraceScores; zero values add no clauses.
+type AgentTraceScoreFilters struct {
+	TraceIDs      []string
+	EvaluatorName string
 }
 
 // EvaluatorAggregation is the result of aggregated scores per evaluator (from SQL GROUP BY)
@@ -404,6 +410,18 @@ func resolveSortDirection(sortOrder string) string {
 	return "DESC"
 }
 
+// applyAgentTraceScoreFilters adds a clause for each filter that is set.
+func applyAgentTraceScoreFilters(query *gorm.DB, filters AgentTraceScoreFilters) *gorm.DB {
+	if len(filters.TraceIDs) > 0 {
+		query = query.Where("s.trace_id IN ?", filters.TraceIDs)
+	}
+	if filters.EvaluatorName != "" {
+		query = query.Joins("JOIN monitor_run_evaluators mre ON s.run_evaluator_id = mre.id").
+			Where("mre.evaluator_name = ?", filters.EvaluatorName)
+	}
+	return query
+}
+
 // GetAgentTraceScores returns scores aggregated per trace across all monitors for an agent within a time window.
 // Returns the paginated results and the total count of traces with scores.
 func (r *ScoreRepo) GetAgentTraceScores(
@@ -411,19 +429,22 @@ func (r *ScoreRepo) GetAgentTraceScores(
 	startTime, endTime time.Time,
 	limit, offset int,
 	sortOrder string,
+	filters AgentTraceScoreFilters,
 ) ([]TraceAggregation, int, error) {
 	baseQuery := r.db.Table("scores s").
 		Joins("JOIN monitors m ON s.monitor_id = m.id").
 		Where("m.ou_id = ? AND m.project_name = ? AND m.agent_name = ?", ouID, projName, agentName).
 		Where("s.trace_start_time BETWEEN ? AND ?", startTime, endTime)
+	baseQuery = applyAgentTraceScoreFilters(baseQuery, filters)
 
 	// Count distinct traces with scores
 	var totalCount int64
-	if err := baseQuery.Session(&gorm.Session{NewDB: true}).
+	countQuery := baseQuery.Session(&gorm.Session{NewDB: true}).
 		Table("scores s").
 		Joins("JOIN monitors m ON s.monitor_id = m.id").
 		Where("m.ou_id = ? AND m.project_name = ? AND m.agent_name = ?", ouID, projName, agentName).
-		Where("s.trace_start_time BETWEEN ? AND ?", startTime, endTime).
+		Where("s.trace_start_time BETWEEN ? AND ?", startTime, endTime)
+	if err := applyAgentTraceScoreFilters(countQuery, filters).
 		Distinct("s.trace_id").
 		Count(&totalCount).Error; err != nil {
 		return nil, 0, err

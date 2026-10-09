@@ -37,7 +37,7 @@ const (
 	TraceStatusOK    TraceStatusFilter = "ok"
 )
 
-// MaxFilterValueLen caps the model and conversationId filters, in characters.
+// MaxFilterValueLen caps the model, conversationId, tool and mcpServer filters, in characters.
 const MaxFilterValueLen = 256
 
 // TraceFilters holds trace-list filters; set fields combine with AND.
@@ -49,6 +49,17 @@ type TraceFilters struct {
 	MinSpanCount   *int64
 	Model          string
 	ConversationID string
+	// Tool matches a tool name; with ToolError, a failed tool's name.
+	Tool string
+	// ToolError keeps traces with a failed tool.
+	ToolError bool
+	// MCPServer matches an MCP server name.
+	MCPServer string
+	// MinScore and MaxScore bound the trace's mean evaluation score, inclusive.
+	MinScore *float64
+	MaxScore *float64
+	// Evaluator scores the trace on one evaluator's rows only.
+	Evaluator string
 }
 
 // ParseTraceStatus accepts an empty status, "error" or "ok".
@@ -87,6 +98,29 @@ func (f TraceFilters) SummaryOnly() bool {
 	return !f.IsZero() && f == TraceFilters{MinDurationMs: f.MinDurationMs, MinSpanCount: f.MinSpanCount}
 }
 
+// HasScoreFilter reports whether a score filter is set.
+func (f TraceFilters) HasScoreFilter() bool {
+	return f.MinScore != nil || f.MaxScore != nil || f.Evaluator != ""
+}
+
+// hasToolFilter reports whether a tool filter is set.
+func (f TraceFilters) hasToolFilter() bool {
+	return f.Tool != "" || f.ToolError
+}
+
+// hasSpanListFilter reports whether a filter judged on the span list's names is set.
+func (f TraceFilters) hasSpanListFilter() bool {
+	return f.hasToolFilter() || f.MCPServer != ""
+}
+
+// impliedInclude adds the includes f's model, tool and MCP server filters need.
+func impliedInclude(include Include, f TraceFilters) Include {
+	include.Models = include.Models || f.Model != ""
+	include.Tools = include.Tools || f.hasToolFilter()
+	include.MCPServers = include.MCPServers || f.MCPServer != ""
+	return include
+}
+
 // LogValue logs only the set filters.
 func (f TraceFilters) LogValue() slog.Value {
 	var attrs []slog.Attr
@@ -107,6 +141,24 @@ func (f TraceFilters) LogValue() slog.Value {
 	if f.ConversationID != "" {
 		attrs = append(attrs, slog.String("conversationId", f.ConversationID))
 	}
+	if f.Tool != "" {
+		attrs = append(attrs, slog.String("tool", f.Tool))
+	}
+	if f.ToolError {
+		attrs = append(attrs, slog.Bool("toolError", true))
+	}
+	if f.MCPServer != "" {
+		attrs = append(attrs, slog.String("mcpServer", f.MCPServer))
+	}
+	if f.MinScore != nil {
+		attrs = append(attrs, slog.Float64("minScore", *f.MinScore))
+	}
+	if f.MaxScore != nil {
+		attrs = append(attrs, slog.Float64("maxScore", *f.MaxScore))
+	}
+	if f.Evaluator != "" {
+		attrs = append(attrs, slog.String("evaluator", f.Evaluator))
+	}
 	return slog.GroupValue(attrs...)
 }
 
@@ -121,7 +173,21 @@ func matchesFilters(overview opensearch.TraceOverview, f TraceFilters) bool {
 	if !matchesMinTokens(overview.TokenUsage, f) {
 		return false
 	}
-	return matchesModel(overview.Models, f)
+	return matchesTools(overview.Tools, overview.FailedTools, f) && matchesModel(overview.Models, f) &&
+		matchesMCPServer(overview.MCPServers, f)
+}
+
+// matchesMCPServer checks the mcpServer filter; a trace with no MCP servers fails it.
+func matchesMCPServer(servers []string, f TraceFilters) bool {
+	return f.MCPServer == "" || slices.ContainsFunc(servers, containsFold(f.MCPServer))
+}
+
+// matchesScore checks the minScore and maxScore filters; a trace with no score fails them.
+func matchesScore(score *float64, f TraceFilters) bool {
+	if !f.HasScoreFilter() {
+		return true
+	}
+	return score != nil && (f.MinScore == nil || *score >= *f.MinScore) && (f.MaxScore == nil || *score <= *f.MaxScore)
 }
 
 // matchesMinTokens checks the minTokens filter; a trace with no token usage fails it.
@@ -132,6 +198,20 @@ func matchesMinTokens(tokens *opensearch.TokenUsage, f TraceFilters) bool {
 // matchesModel checks the model filter; a trace with no models fails it.
 func matchesModel(models []string, f TraceFilters) bool {
 	return f.Model == "" || slices.ContainsFunc(models, containsFold(f.Model))
+}
+
+// matchesTools checks the tool and toolError filters; a trace with no tools fails them.
+// With both set, a failed tool must match the tool filter.
+func matchesTools(tools, failedTools []string, f TraceFilters) bool {
+	switch {
+	case f.ToolError && f.Tool != "":
+		return slices.ContainsFunc(failedTools, containsFold(f.Tool))
+	case f.ToolError:
+		return len(failedTools) > 0
+	case f.Tool != "":
+		return slices.ContainsFunc(tools, containsFold(f.Tool))
+	}
+	return true
 }
 
 // matchesStatus checks the status filter, which the root span alone answers.
@@ -162,19 +242,23 @@ func conversationPending(conversationID string, f TraceFilters) bool {
 	return f.ConversationID != "" && conversationID == ""
 }
 
-// containsFold reports whether a model name contains sub, ignoring case.
+// containsFold reports whether a model, tool or server name contains sub, ignoring case.
 func containsFold(sub string) func(string) bool {
 	sub = strings.ToLower(sub)
 	return func(model string) bool { return strings.Contains(strings.ToLower(model), sub) }
 }
 
-// matchesSummary checks the filters the trace list alone can answer.
+// matchesSummary checks the filters the trace list alone can answer. A trace
+// over maxToolListSpans has no tools or MCP servers, so it fails their filters.
 func matchesSummary(durationNs int64, spanCount int, f TraceFilters) bool {
 	// Compare in ms to avoid overflow.
 	if f.MinDurationMs != nil && durationNs/int64(time.Millisecond) < *f.MinDurationMs {
 		return false
 	}
 	if f.MinSpanCount != nil && int64(spanCount) < *f.MinSpanCount {
+		return false
+	}
+	if f.hasSpanListFilter() && spanCount > maxToolListSpans {
 		return false
 	}
 	return true

@@ -18,6 +18,7 @@ package config
 
 import (
 	"fmt"
+	"net/url"
 	"os"
 	"strconv"
 	"strings"
@@ -25,10 +26,17 @@ import (
 
 // Config holds all configuration for agent-manager-observer
 type Config struct {
-	Server   ServerConfig
-	Observer ObserverConfig
-	LogLevel string
-	Auth     AuthConfig
+	Server       ServerConfig
+	Observer     ObserverConfig
+	LogLevel     string
+	Auth         AuthConfig
+	AgentManager AgentManagerConfig
+}
+
+// AgentManagerConfig holds the optional agent-manager-service connection that score filters use.
+type AgentManagerConfig struct {
+	// BaseURL is the service's base URL; empty turns score filters off.
+	BaseURL string
 }
 
 // ObserverConfig holds configuration for the observer service HTTP client
@@ -94,6 +102,9 @@ func Load() (*Config, error) {
 			AuthorizationServers: getEnvAsOptionalList("OAUTH_AUTHORIZATION_SERVERS"),
 			ScopesSupported:      getEnvAsOptionalList("OAUTH_SCOPES_SUPPORTED"),
 		},
+		AgentManager: AgentManagerConfig{
+			BaseURL: strings.TrimSpace(getEnv("AGENT_MANAGER_SERVICE_URL", "")),
+		},
 	}
 
 	// Validate
@@ -113,6 +124,21 @@ func (c *Config) validate() error {
 	}
 	if err := c.Observer.validate(); err != nil {
 		return err
+	}
+	if err := c.AgentManager.validate(); err != nil {
+		return err
+	}
+	return nil
+}
+
+// validate accepts an unset URL or an absolute http(s) one.
+func (a *AgentManagerConfig) validate() error {
+	if a.BaseURL == "" {
+		return nil
+	}
+	u, err := url.Parse(a.BaseURL)
+	if err != nil || (u.Scheme != "http" && u.Scheme != "https") || u.Host == "" {
+		return fmt.Errorf("AGENT_MANAGER_SERVICE_URL must be an absolute http or https URL")
 	}
 	return nil
 }

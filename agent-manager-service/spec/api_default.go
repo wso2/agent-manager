@@ -3369,6 +3369,8 @@ type ApiGetAgentTraceScoresRequest struct {
 	limit      *int32
 	offset     *int32
 	sortOrder  *string
+	traceIds   *[]string
+	evaluator  *string
 }
 
 // Start time for the query window (RFC3339 format)
@@ -3398,6 +3400,18 @@ func (r ApiGetAgentTraceScoresRequest) Offset(offset int32) ApiGetAgentTraceScor
 // Sort order for traces by start time (asc or desc)
 func (r ApiGetAgentTraceScoresRequest) SortOrder(sortOrder string) ApiGetAgentTraceScoresRequest {
 	r.sortOrder = &sortOrder
+	return r
+}
+
+// Comma-separated trace IDs, at most 100. Only these traces are returned, and an ID without scores in the time window is absent. limit and offset page over the matching traces as they do without traceIds, so the default limit returns every ID in one page.
+func (r ApiGetAgentTraceScoresRequest) TraceIds(traceIds []string) ApiGetAgentTraceScoresRequest {
+	r.traceIds = &traceIds
+	return r
+}
+
+// Evaluator display name. score, totalCount and skippedCount then cover only this evaluator&#39;s rows, and traces without them are absent.
+func (r ApiGetAgentTraceScoresRequest) Evaluator(evaluator string) ApiGetAgentTraceScoresRequest {
+	r.evaluator = &evaluator
 	return r
 }
 
@@ -3467,6 +3481,12 @@ func (a *DefaultAPIService) GetAgentTraceScoresExecute(r ApiGetAgentTraceScoresR
 	}
 	if r.sortOrder != nil {
 		parameterAddToHeaderOrQuery(localVarQueryParams, "sortOrder", r.sortOrder, "")
+	}
+	if r.traceIds != nil {
+		parameterAddToHeaderOrQuery(localVarQueryParams, "traceIds", r.traceIds, "csv")
+	}
+	if r.evaluator != nil {
+		parameterAddToHeaderOrQuery(localVarQueryParams, "evaluator", r.evaluator, "")
 	}
 	// to determine the Content-Type header
 	localVarHTTPContentTypes := []string{}

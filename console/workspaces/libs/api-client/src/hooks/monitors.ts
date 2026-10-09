@@ -78,13 +78,18 @@ import {
 
 export function useListMonitors(
   params: ListMonitorsPathParams,
-  queryParams?: ListMonitorsQueryParams
+  queryParams?: ListMonitorsQueryParams,
+  options?: { enabled?: boolean }
 ) {
   const { getToken } = useAuthHooks();
   return useApiQuery<MonitorListResponse>({
     queryKey: ["monitors", params, queryParams],
     queryFn: () => listMonitors(params, queryParams, getToken),
-    enabled: !!params.orgName && !!params.projName && !!params.agentName,
+    enabled:
+      (options?.enabled ?? true) &&
+      !!params.orgName &&
+      !!params.projName &&
+      !!params.agentName,
   });
 }
 

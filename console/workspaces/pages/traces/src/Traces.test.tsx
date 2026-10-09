@@ -16,6 +16,7 @@
  * under the License.
  */
 
+import { useEffect } from "react";
 import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { MemoryRouter, Route, Routes, useLocation } from "react-router-dom";
@@ -48,16 +49,35 @@ vi.mock("@agent-management-platform/api-client", () => ({
   useTrace: vi.fn(() => ({ data: undefined, isLoading: true, isTruncated: false })),
   useTraceScores: vi.fn(() => ({ data: undefined, isLoading: true })),
   useSpanDetail: vi.fn(() => ({ data: undefined, isLoading: false })),
+  useListMonitors: vi.fn(() => ({ data: undefined, isLoading: false })),
 }));
 vi.mock("@agent-management-platform/shared-component", () => ({
   EnvironmentSelector: () => null,
   copyToClipboard: vi.fn(() => Promise.resolve(true)),
 }));
 
-import { useExportTraces, useTrace, useTraceList } from "@agent-management-platform/api-client";
+import {
+  useExportTraces,
+  useListMonitors,
+  useTrace,
+  useTraceList,
+} from "@agent-management-platform/api-client";
 import { copyToClipboard } from "@agent-management-platform/shared-component";
 import { TracesComponent } from "./Traces.Component";
-import { parseTraceFilters, traceFilterChips } from "./traceFilters";
+import {
+  appliedFilters,
+  crossesOtherBound,
+  customError,
+  isDraftValid,
+  latencyInputValue,
+  parseCountInput,
+  parseLatencyInput,
+  parseScoreInput,
+  parseTraceFilters,
+  scoreInputValue,
+  traceFilterChips,
+  withTraceFilters,
+} from "./traceFilters";
 import { parseTraceColumns } from "./traceColumns";
 import { formatStartTime } from "./traceTime";
 
@@ -103,6 +123,9 @@ const listFor = (filters: TraceFilters = {}) => {
 const lastFilters = () => mockUseTraceList.mock.lastCall?.[9]?.filters;
 const lastIncludeModels = () => mockUseTraceList.mock.lastCall?.[9]?.includeModels;
 
+// Each URL search the page showed, in order, so tests can count updates.
+const searchHistory: string[] = [];
+
 // Hook fields a test can override, such as truncated or hasMore.
 let hookOverrides: Record<string, unknown> = {};
 const loadMore = vi.fn();
@@ -142,6 +165,7 @@ beforeEach(() => {
   vi.clearAllMocks();
   listCache.clear();
   observers.length = 0;
+  searchHistory.length = 0;
   hookOverrides = {};
   mockUseTraceList.mockImplementation((...args) => ({
     data: listFor(args[9]?.filters),
@@ -157,9 +181,13 @@ beforeEach(() => {
   }) as unknown as ReturnType<typeof useTraceList>);
 });
 
-/** Renders the current URL search so tests can read it. */
+/** Renders the current URL search so tests can read it, and records each one. */
 function SearchProbe() {
-  return <div data-testid="search">{useLocation().search}</div>;
+  const location = useLocation();
+  useEffect(() => {
+    searchHistory.push(location.search);
+  }, [location]);
+  return <div data-testid="search">{location.search}</div>;
 }
 const currentParams = () => new URLSearchParams(screen.getByTestId("search").textContent ?? "");
 
@@ -188,11 +216,37 @@ const renderPage = (search = "") => {
   return { ...view, rerenderPage: () => view.rerender(pageTree(search)) };
 };
 
-// hidden: an open drawer marks the page behind it aria-hidden.
-const pickOption = (selectName: string, optionName: string) => {
-  fireEvent.mouseDown(screen.getByRole("combobox", { name: selectName, hidden: true }));
-  fireEvent.click(within(screen.getByRole("listbox")).getByRole("option", { name: optionName }));
-};
+// hidden: an open trace drawer marks the page behind it aria-hidden.
+const statusButton = (name: string) =>
+  within(screen.getByRole("group", { name: "Status", hidden: true })).getByRole("button", {
+    name,
+    hidden: true,
+  });
+const filtersButton = () => screen.getByRole("button", { name: "Filters", hidden: true });
+const openFilters = () => fireEvent.click(filtersButton());
+const queryDrawer = () => screen.queryByRole("complementary", { name: "Filters" });
+const drawer = () => screen.getByRole("complementary", { name: "Filters" });
+const pillGroup = (label: string) => within(drawer()).getByRole("group", { name: label });
+const pill = (group: string, name: string) =>
+  within(pillGroup(group)).getByRole("button", { name });
+const pickPill = (group: string, name: string) => fireEvent.click(pill(group, name));
+const pillLabels = (group: string) =>
+  within(pillGroup(group)).getAllByRole("button").map((b) => b.textContent);
+const pressedPill = (group: string) =>
+  within(pillGroup(group))
+    .getAllByRole("button")
+    .filter((b) => b.getAttribute("aria-pressed") === "true")
+    .map((b) => b.textContent);
+const drawerField = (name: string) => within(drawer()).getByRole("textbox", { name });
+const typeInto = (name: string, value: string) =>
+  fireEvent.change(drawerField(name), { target: { value } });
+const applyButton = () => within(drawer()).getByRole("button", { name: "Filter" });
+const applyFilters = () => fireEvent.click(applyButton());
+const toolFailedBox = () =>
+  within(drawer()).getByRole("checkbox", { name: "Only traces where a tool call failed" });
+const evaluatorSelect = () => within(drawer()).getByRole("combobox", { name: "Evaluator" });
+// Chips carry their full label as the title.
+const chip = (label: string) => screen.queryByTitle(label);
 
 describe("trace filter URL parsing", () => {
   it("keeps valid params and drops ones the API would reject", () => {
@@ -219,24 +273,108 @@ describe("trace filter URL parsing", () => {
       ),
     ).toEqual(["Latency ≥ 5s", "Tokens ≥ 10k", "Steps ≥ 20"]);
   });
+
+  it("splits each chip into a name and a value", () => {
+    expect(
+      traceFilterChips({
+        status: "error",
+        minDurationMs: 5000,
+        model: "gpt-4o",
+        tool: "reset_password",
+        minScore: 0.25,
+      }).map((c) => [c.name, c.value]),
+    ).toEqual([
+      ["Status", "Error"],
+      ["Latency", "≥ 5s"],
+      ["Model", "gpt-4o"],
+      ["Tool", "reset_password"],
+      ["Score", "≥ 25%"],
+    ]);
+    expect(traceFilterChips({ toolError: true }).map((c) => [c.name, c.value])).toEqual([
+      ["Tool", "any failed"],
+    ]);
+  });
+});
+
+describe("custom threshold parsing", () => {
+  it("reads latency as seconds and stores whole ms", () => {
+    expect(parseLatencyInput("2.5")).toBe(2500);
+    expect(parseLatencyInput(" 30 ")).toBe(30000);
+    expect(parseLatencyInput(".5")).toBe(500);
+    expect(parseLatencyInput("0")).toBe(0);
+    for (const bad of ["", "-1", "5k", "1e3", "2.5s", "1,5"]) {
+      expect(parseLatencyInput(bad)).toBeUndefined();
+    }
+  });
+
+  it("reads tokens and steps as whole non-negative numbers", () => {
+    expect(parseCountInput("7500")).toBe(7500);
+    expect(parseCountInput("0")).toBe(0);
+    for (const bad of ["", "-1", "5k", "1e3", "2.5"]) {
+      expect(parseCountInput(bad)).toBeUndefined();
+    }
+  });
+
+  it("reads a score as a percentage in [0, 100], rounded to 4 places", () => {
+    expect(parseScoreInput("33.5")).toBe(0.335);
+    expect(parseScoreInput("33.333")).toBe(0.3333);
+    expect(parseScoreInput("100")).toBe(1);
+    expect(parseScoreInput("0")).toBe(0);
+    for (const bad of ["", "-1", "5k", "1e3", "100.5", "50%"]) {
+      expect(parseScoreInput(bad)).toBeUndefined();
+    }
+  });
+
+  it("prefills a custom field in the field's unit", () => {
+    expect(latencyInputValue(2500)).toBe("2.5");
+    expect(scoreInputValue(0.335)).toBe("33.5");
+  });
+
+  it("applies a draft with custom values parsed, text trimmed and status kept", () => {
+    expect(
+      appliedFilters(
+        {
+          filters: { minDurationMs: 1000, model: " gpt-4o ", conversationId: "  ", toolError: false },
+          custom: { minDurationMs: "2.5", maxScore: "33.5" },
+        },
+        "error",
+      ),
+    ).toEqual({ status: "error", minDurationMs: 2500, model: "gpt-4o", maxScore: 0.335 });
+  });
+
+  it("rejects a score bound that crosses the other, allowing equal bounds", () => {
+    const draft = { filters: { minScore: 0.75 }, custom: { maxScore: "50" } };
+    expect(customError(draft, "maxScore")).toBe("Must be at least 75%");
+    expect(isDraftValid(draft)).toBe(false);
+    expect(isDraftValid({ ...draft, custom: { maxScore: "75" } })).toBe(true);
+    expect(crossesOtherBound({ filters: { maxScore: 0.25 }, custom: {} }, "minScore", 0.5)).toBe(
+      true,
+    );
+    expect(crossesOtherBound({ filters: { maxScore: 0.25 }, custom: {} }, "minScore", 0.25)).toBe(
+      false,
+    );
+  });
 });
 
 describe("TracesComponent filters", () => {
-  it("reproduces a pasted URL's filters in the request and the chips", () => {
+  it("reproduces a pasted URL's filters in the request, the toggle and the chips", () => {
     renderPage("?timeRange=1h&status=error&minDurationMs=5000&model=gpt-4o&minTokens=abc");
 
     expect(lastFilters()).toEqual({ status: "error", minDurationMs: 5000, model: "gpt-4o" });
-    expect(screen.getByText("Status: Error", { selector: ".MuiChip-label" })).toBeInTheDocument();
-    expect(screen.getByText("Latency ≥ 5s", { selector: ".MuiChip-label" })).toBeInTheDocument();
-    expect(screen.getByText("Model: gpt-4o", { selector: ".MuiChip-label" })).toBeInTheDocument();
-    expect(screen.queryByText(/^Tokens ≥/, { selector: ".MuiChip-label" })).not.toBeInTheDocument();
+    expect(statusButton("Errors")).toHaveAttribute("aria-pressed", "true");
+    expect(chip("Status: Error")).not.toBeInTheDocument();
+    expect(chip("Latency ≥ 5s")).toBeInTheDocument();
+    expect(chip("Model: gpt-4o")).toBeInTheDocument();
+    expect(screen.queryByTitle(/^Tokens ≥/)).not.toBeInTheDocument();
   });
 
   it("writes a picked filter to the URL under the API param name", () => {
     renderPage("?timeRange=1h&limit=20");
 
-    pickOption("Latency ≥", "10s");
-    pickOption("Tokens ≥", "5k");
+    openFilters();
+    pickPill("Latency at least", "10s");
+    pickPill("Tokens at least", "5k");
+    applyFilters();
 
     const params = currentParams();
     expect(params.get("minDurationMs")).toBe("10000");
@@ -246,29 +384,30 @@ describe("TracesComponent filters", () => {
     expect(lastFilters()).toEqual({ minDurationMs: 10000, minTokens: 5000 });
   });
 
-  it("commits text filters on Enter or blur, not per keystroke", () => {
+  it("applies text filters on Enter or Filter, not per keystroke", () => {
     renderPage();
 
-    const model = screen.getByRole("textbox", { name: "Model" });
-    fireEvent.change(model, { target: { value: "gpt-4o" } });
+    openFilters();
+    typeInto("Model", "gpt-4o");
     expect(currentParams().get("model")).toBeNull();
-    fireEvent.keyDown(model, { key: "Enter" });
+    fireEvent.keyDown(drawerField("Model"), { key: "Enter" });
     expect(currentParams().get("model")).toBe("gpt-4o");
+    expect(queryDrawer()).not.toBeInTheDocument();
 
-    const conversation = screen.getByRole("textbox", { name: "Conversation ID" });
-    fireEvent.change(conversation, { target: { value: " conv-1 " } });
-    fireEvent.blur(conversation);
+    openFilters();
+    typeInto("Conversation ID", " conv-1 ");
+    expect(currentParams().get("conversationId")).toBeNull();
+    applyFilters();
     expect(currentParams().get("conversationId")).toBe("conv-1");
   });
 
   it("caps the text filters at the API's 256 characters", () => {
     renderPage();
 
-    expect(screen.getByRole("textbox", { name: "Model" })).toHaveAttribute("maxLength", "256");
-    expect(screen.getByRole("textbox", { name: "Conversation ID" })).toHaveAttribute(
-      "maxLength",
-      "256",
-    );
+    openFilters();
+    for (const name of ["Model", "Tool called", "MCP server", "Conversation ID"]) {
+      expect(drawerField(name)).toHaveAttribute("maxLength", "256");
+    }
   });
 
   it("removes only the chip's filter, and Clear all removes the rest", () => {
@@ -288,23 +427,556 @@ describe("TracesComponent filters", () => {
     expect(lastFilters()).toEqual({});
   });
 
-  it("hides Clear all with a single active filter", () => {
-    renderPage("?status=ok");
-    expect(screen.getByText("Status: OK", { selector: ".MuiChip-label" })).toBeInTheDocument();
+  it("hides Clear all with a single active filter, status included", () => {
+    const { unmount } = renderPage("?status=ok");
+    expect(statusButton("OK")).toHaveAttribute("aria-pressed", "true");
+    expect(screen.queryByRole("button", { name: "Clear all" })).not.toBeInTheDocument();
+    unmount();
+
+    renderPage("?model=gpt-4o");
     expect(screen.queryByRole("button", { name: "Clear all" })).not.toBeInTheDocument();
   });
 
   it("keeps the drawer open when its trace is still in the filtered list", () => {
     renderPage("?selectedTrace=t-err");
-    pickOption("Status", "Error");
+    fireEvent.click(statusButton("Errors"));
     expect(currentParams().get("selectedTrace")).toBe("t-err");
   });
 
   it("closes the drawer when a filter drops its trace", () => {
     renderPage("?selectedTrace=t-ok");
-    pickOption("Status", "Error");
+    fireEvent.click(statusButton("Errors"));
     expect(currentParams().get("status")).toBe("error");
     expect(currentParams().get("selectedTrace")).toBeNull();
+  });
+
+  it("writes status=error from Errors, and All removes it", () => {
+    renderPage("?timeRange=1h");
+
+    expect(statusButton("All")).toHaveAttribute("aria-pressed", "true");
+    fireEvent.click(statusButton("Errors"));
+    expect(currentParams().get("status")).toBe("error");
+    expect(lastFilters()).toEqual({ status: "error" });
+    fireEvent.click(statusButton("OK"));
+    expect(currentParams().get("status")).toBe("ok");
+    fireEvent.click(statusButton("All"));
+    expect(currentParams().toString()).toBe("timeRange=1h");
+    expect(lastFilters()).toEqual({});
+  });
+
+  it("applies drawer picks only on Filter, in one URL update, then closes and shows chips", () => {
+    renderPage("?timeRange=1h");
+
+    openFilters();
+    expect(filtersButton()).toHaveAttribute("aria-expanded", "true");
+    pickPill("Latency at least", "5s");
+    typeInto("Model", "gpt-4o");
+    expect(currentParams().toString()).toBe("timeRange=1h");
+    expect(lastFilters()).toEqual({});
+
+    const updates = searchHistory.length;
+    applyFilters();
+    expect(searchHistory.length).toBe(updates + 1);
+    const params = currentParams();
+    expect(params.get("minDurationMs")).toBe("5000");
+    expect(params.get("model")).toBe("gpt-4o");
+    expect(queryDrawer()).not.toBeInTheDocument();
+    expect(filtersButton()).toHaveAttribute("aria-expanded", "false");
+    expect(chip("Latency ≥ 5s")).toBeInTheDocument();
+    expect(chip("Model: gpt-4o")).toBeInTheDocument();
+  });
+
+  it("writes nothing when the applied draft equals the URL's filters", () => {
+    renderPage("?timeRange=1h&minDurationMs=5000");
+
+    openFilters();
+    const updates = searchHistory.length;
+    applyFilters();
+    expect(searchHistory.length).toBe(updates);
+    expect(queryDrawer()).not.toBeInTheDocument();
+  });
+
+  it("discards the draft on the close button and on Escape", () => {
+    renderPage("?timeRange=1h");
+
+    openFilters();
+    pickPill("Latency at least", "5s");
+    fireEvent.click(within(drawer()).getByRole("button", { name: "Close filters" }));
+    expect(queryDrawer()).not.toBeInTheDocument();
+    expect(currentParams().toString()).toBe("timeRange=1h");
+    openFilters();
+    expect(pressedPill("Latency at least")).toEqual(["Any"]);
+
+    typeInto("Model", "gpt-4o");
+    fireEvent.keyDown(drawerField("Model"), { key: "Escape" });
+    expect(queryDrawer()).not.toBeInTheDocument();
+    expect(currentParams().toString()).toBe("timeRange=1h");
+    openFilters();
+    expect(drawerField("Model")).toHaveValue("");
+  });
+
+  it("resets the drawer's filters but not status, applying nothing until Filter", () => {
+    renderPage("?timeRange=1h&status=error&minDurationMs=5000&model=gpt-4o&toolError=true");
+
+    openFilters();
+    fireEvent.click(within(drawer()).getByRole("button", { name: "Reset" }));
+    expect(pressedPill("Latency at least")).toEqual(["Any"]);
+    expect(drawerField("Model")).toHaveValue("");
+    expect(toolFailedBox()).not.toBeChecked();
+    expect(currentParams().get("minDurationMs")).toBe("5000");
+    expect(currentParams().get("model")).toBe("gpt-4o");
+
+    applyFilters();
+    expect(currentParams().toString()).toBe("timeRange=1h&status=error");
+    expect(lastFilters()).toEqual({ status: "error" });
+  });
+
+  it("opens the drawer on the URL's values from a chip, and its × removes without opening", () => {
+    renderPage("?timeRange=1h&minDurationMs=5000&model=gpt-4o");
+
+    fireEvent.click(chip("Latency ≥ 5s")!);
+    expect(pressedPill("Latency at least")).toEqual(["5s"]);
+    expect(drawerField("Model")).toHaveValue("gpt-4o");
+    fireEvent.click(within(drawer()).getByRole("button", { name: "Close filters" }));
+
+    fireEvent.click(screen.getByRole("button", { name: "Remove Model: gpt-4o" }));
+    expect(currentParams().get("model")).toBeNull();
+    expect(currentParams().get("minDurationMs")).toBe("5000");
+    expect(queryDrawer()).not.toBeInTheDocument();
+  });
+
+  it("applies the toggle, a chip's × and Clear all straight away while the drawer is open", () => {
+    renderPage("?timeRange=1h&minDurationMs=5000&model=gpt-4o");
+
+    openFilters();
+    pickPill("Tokens at least", "5k");
+    fireEvent.click(statusButton("Errors"));
+    expect(currentParams().get("status")).toBe("error");
+    fireEvent.click(screen.getByRole("button", { name: "Remove Latency ≥ 5s" }));
+    expect(currentParams().get("minDurationMs")).toBeNull();
+    expect(pressedPill("Latency at least")).toEqual(["Any"]);
+    expect(pressedPill("Tokens at least")).toEqual(["5k"]);
+    expect(drawerField("Model")).toHaveValue("gpt-4o");
+
+    fireEvent.click(screen.getByRole("button", { name: "Clear all" }));
+    expect(currentParams().toString()).toBe("timeRange=1h");
+    expect(pressedPill("Tokens at least")).toEqual(["Any"]);
+    expect(drawerField("Model")).toHaveValue("");
+    expect(queryDrawer()).toBeInTheDocument();
+  });
+
+  it("clears status and every drawer filter with Clear all", () => {
+    renderPage(
+      "?timeRange=1h&status=error&minDurationMs=2500&minTokens=5000&minSpanCount=20&model=gpt-4o" +
+        "&conversationId=conv-1&tool=search_web&toolError=true&mcpServer=github" +
+        "&evaluator=Accuracy&minScore=0.25&maxScore=0.5",
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "Clear all" }));
+    expect(currentParams().toString()).toBe("timeRange=1h");
+    expect(lastFilters()).toEqual({});
+    expect(statusButton("All")).toHaveAttribute("aria-pressed", "true");
+    expect(screen.queryByRole("button", { name: /^Remove / })).not.toBeInTheDocument();
+  });
+
+  it("shows a pasted non-preset latency as its own selected pill", () => {
+    renderPage("?minDurationMs=2500");
+
+    expect(chip("Latency ≥ 2500ms")).toBeInTheDocument();
+    openFilters();
+    expect(pillLabels("Latency at least")).toEqual(["Any", "1s", "2500ms", "5s", "10s", "30s", "Custom"]);
+    expect(pressedPill("Latency at least")).toEqual(["2500ms"]);
+  });
+
+  it("writes custom latency and score values in API units", () => {
+    renderPage("?timeRange=1h");
+
+    openFilters();
+    pickPill("Latency at least", "Custom");
+    expect(drawerField("Custom latency at least")).toHaveValue("");
+    typeInto("Custom latency at least", "2.5");
+    pickPill("Score at most", "Custom");
+    typeInto("Custom score at most", "33.5");
+    applyFilters();
+
+    expect(currentParams().get("minDurationMs")).toBe("2500");
+    expect(currentParams().get("maxScore")).toBe("0.335");
+    expect(chip("Latency ≥ 2500ms")).toBeInTheDocument();
+    expect(chip("Score ≤ 33.5%")).toBeInTheDocument();
+
+    openFilters();
+    expect(pressedPill("Latency at least")).toEqual(["2500ms"]);
+    expect(pressedPill("Score at most")).toEqual(["33.5%"]);
+    pickPill("Latency at least", "Custom");
+    expect(drawerField("Custom latency at least")).toHaveValue("2.5");
+  });
+
+  it("marks an invalid custom value as an error and disables Filter", () => {
+    renderPage("?timeRange=1h");
+
+    openFilters();
+    pickPill("Latency at least", "Custom");
+    for (const bad of ["-1", "5k", "1e3"]) {
+      typeInto("Custom latency at least", bad);
+      expect(drawerField("Custom latency at least")).toHaveAttribute("aria-invalid", "true");
+      expect(applyButton()).toBeDisabled();
+    }
+    typeInto("Custom latency at least", "2.5");
+    expect(drawerField("Custom latency at least")).toHaveAttribute("aria-invalid", "false");
+    expect(applyButton()).toBeEnabled();
+
+    pickPill("Score at least", "Custom");
+    typeInto("Custom score at least", "100.5");
+    expect(drawerField("Custom score at least")).toHaveAttribute("aria-invalid", "true");
+    expect(applyButton()).toBeDisabled();
+    fireEvent.keyDown(drawerField("Custom score at least"), { key: "Enter" });
+    expect(queryDrawer()).toBeInTheDocument();
+    expect(currentParams().toString()).toBe("timeRange=1h");
+  });
+
+  it("disables score presets that would cross the other bound, both ways", () => {
+    renderPage("?timeRange=1h");
+
+    openFilters();
+    pickPill("Score at least", "75%");
+    expect(pill("Score at most", "25%")).toBeDisabled();
+    expect(pill("Score at most", "50%")).toBeDisabled();
+    expect(pill("Score at most", "75%")).toBeEnabled();
+    pickPill("Score at most", "Custom");
+    typeInto("Custom score at most", "50");
+    expect(within(drawer()).getByText("Must be at least 75%")).toBeInTheDocument();
+    expect(applyButton()).toBeDisabled();
+
+    pickPill("Score at least", "Any");
+    pickPill("Score at most", "25%");
+    expect(pill("Score at least", "50%")).toBeDisabled();
+    expect(pill("Score at least", "75%")).toBeDisabled();
+    expect(pill("Score at least", "25%")).toBeEnabled();
+  });
+});
+
+describe("tool, MCP server and score filter URL parsing", () => {
+  it("round-trips each new filter through the URL", () => {
+    const filters: TraceFilters = {
+      tool: "search_web",
+      toolError: true,
+      mcpServer: "github",
+      evaluator: "Accuracy",
+      minScore: 0.25,
+      maxScore: 0.5,
+    };
+    const params = withTraceFilters(new URLSearchParams("timeRange=1h"), filters);
+    expect(params.toString()).toBe(
+      "timeRange=1h&tool=search_web&toolError=true&mcpServer=github&evaluator=Accuracy" +
+        "&minScore=0.25&maxScore=0.5",
+    );
+    expect(parseTraceFilters(params)).toEqual(filters);
+  });
+
+  it("drops invalid scores and toolError other than true, and keeps a lone evaluator", () => {
+    expect(
+      parseTraceFilters(
+        new URLSearchParams("minScore=1.5&maxScore=abc&toolError=yes&evaluator=Accuracy"),
+      ),
+    ).toEqual({ evaluator: "Accuracy" });
+    expect(parseTraceFilters(new URLSearchParams("minScore=-0.1&maxScore=1e-1"))).toEqual({});
+    expect(parseTraceFilters(new URLSearchParams("minScore=0&maxScore=1"))).toEqual({
+      minScore: 0,
+      maxScore: 1,
+    });
+    // The API rejects minScore above maxScore.
+    expect(parseTraceFilters(new URLSearchParams("minScore=0.8&maxScore=0.2"))).toEqual({
+      maxScore: 0.2,
+    });
+    expect(parseTraceFilters(new URLSearchParams("toolError=false"))).toEqual({});
+  });
+
+  it("writes a lone evaluator, and toolError only when true", () => {
+    const params = withTraceFilters(new URLSearchParams("evaluator=Accuracy&toolError=true"), {
+      evaluator: "Accuracy",
+      toolError: false,
+    });
+    expect(params.toString()).toBe("evaluator=Accuracy");
+  });
+
+  it("labels the new chips, pairing tool with toolError", () => {
+    expect(
+      traceFilterChips({ tool: "search_web", mcpServer: "github", minScore: 0.25, maxScore: 0.5 })
+        .map((c) => c.label),
+    ).toEqual(["Tool: search_web", "MCP server: github", "Score ≥ 25%", "Score ≤ 50%"]);
+    expect(traceFilterChips({ toolError: true }).map((c) => c.label)).toEqual(["Tool failed"]);
+    expect(traceFilterChips({ tool: "search_web", toolError: true })).toEqual([
+      {
+        key: "tool",
+        label: "search_web failed",
+        name: "Tool",
+        value: "search_web failed",
+        alsoClears: ["toolError"],
+      },
+    ]);
+    expect(
+      traceFilterChips({ evaluator: "Accuracy", maxScore: 0.333 }).map((c) => c.label),
+    ).toEqual(["Evaluator: Accuracy", "Score ≤ 33.3%"]);
+  });
+});
+
+describe("TracesComponent tool, MCP server and score filters", () => {
+  // Two monitors sharing Helpfulness; the select lists each name once, sorted.
+  const MONITORS = {
+    monitors: [
+      {
+        evaluators: [
+          { identifier: "tool-use", displayName: "Tool Use" },
+          { identifier: "helpfulness", displayName: "Helpfulness" },
+        ],
+      },
+      {
+        evaluators: [
+          { identifier: "accuracy", displayName: "Accuracy" },
+          { identifier: "helpfulness", displayName: "Helpfulness" },
+        ],
+      },
+    ],
+    total: 2,
+  };
+  const mockMonitors = vi.mocked(useListMonitors);
+  const monitorsEnabled = () => mockMonitors.mock.calls.some((call) => call[2]?.enabled);
+  /** Opens the drawer's Evaluator select and picks name. */
+  const pickEvaluator = (name: string) => {
+    fireEvent.mouseDown(evaluatorSelect());
+    fireEvent.click(within(screen.getByRole("listbox")).getByRole("option", { name }));
+  };
+
+  beforeEach(() => {
+    mockMonitors.mockImplementation((_params, _query, options) => ({
+      data: options?.enabled ? MONITORS : undefined,
+      isLoading: false,
+    }) as unknown as ReturnType<typeof useListMonitors>);
+  });
+
+  it("sends today's request from the default page, and no monitors request", () => {
+    renderPage("?timeRange=1h");
+
+    expect(mockUseTraceList.mock.lastCall).toEqual([
+      "ns", "p", "a", "dev", "1h", 10, "desc", undefined, undefined, { filters: {}, paged: true },
+    ]);
+    expect(currentParams().toString()).toBe("timeRange=1h");
+    expect(mockMonitors).toHaveBeenCalled();
+    expect(monitorsEnabled()).toBe(false);
+  });
+
+  it("shows the default page's row with no chips and the drawer closed", () => {
+    renderPage("?timeRange=1h");
+
+    expect(statusButton("All")).toHaveAttribute("aria-pressed", "true");
+    expect(filtersButton()).toHaveAttribute("aria-expanded", "false");
+    expect(queryDrawer()).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /^Remove / })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Clear all" })).not.toBeInTheDocument();
+    expect(searchHistory).toEqual(["?timeRange=1h"]);
+  });
+
+  it("reproduces a pasted URL's new filters in the request, the drawer and the chips", () => {
+    renderPage(
+      "?timeRange=1h&tool=search_web&mcpServer=github&evaluator=Accuracy&minScore=0.25&maxScore=0.5",
+    );
+
+    expect(lastFilters()).toEqual({
+      tool: "search_web",
+      mcpServer: "github",
+      evaluator: "Accuracy",
+      minScore: 0.25,
+      maxScore: 0.5,
+    });
+    for (const label of [
+      "Tool: search_web",
+      "MCP server: github",
+      "Evaluator: Accuracy",
+      "Score ≥ 25%",
+      "Score ≤ 50%",
+    ]) {
+      expect(chip(label)).toBeInTheDocument();
+    }
+    openFilters();
+    expect(drawerField("Tool called")).toHaveValue("search_web");
+    expect(drawerField("MCP server")).toHaveValue("github");
+    expect(evaluatorSelect()).toHaveTextContent("Accuracy");
+    expect(pressedPill("Score at least")).toEqual(["25%"]);
+    expect(pressedPill("Score at most")).toEqual(["50%"]);
+    expect(monitorsEnabled()).toBe(false);
+  });
+
+  it("writes Tool, Tool failed and MCP server to the URL", () => {
+    renderPage("?timeRange=1h");
+
+    openFilters();
+    typeInto("Tool called", " search_web ");
+    fireEvent.click(toolFailedBox());
+    typeInto("MCP server", "github");
+    expect(currentParams().get("tool")).toBeNull();
+    applyFilters();
+
+    const params = currentParams();
+    expect(params.get("tool")).toBe("search_web");
+    expect(params.get("toolError")).toBe("true");
+    expect(params.get("mcpServer")).toBe("github");
+    expect(lastFilters()).toEqual({ tool: "search_web", toolError: true, mcpServer: "github" });
+
+    openFilters();
+    expect(toolFailedBox()).toBeChecked();
+    fireEvent.click(toolFailedBox());
+    applyFilters();
+    expect(currentParams().get("toolError")).toBeNull();
+  });
+
+  it("shows tool with toolError as one chip whose × clears both", () => {
+    renderPage("?timeRange=1h&status=error&tool=search_web&toolError=true");
+
+    expect(chip("search_web failed")).toBeInTheDocument();
+    expect(chip("search_web failed")).toHaveTextContent("Tool search_web failed");
+    expect(chip("Tool: search_web")).toBeNull();
+    expect(chip("Tool failed")).toBeNull();
+
+    fireEvent.click(screen.getByLabelText("Remove search_web failed"));
+    const params = currentParams();
+    expect(params.get("tool")).toBeNull();
+    expect(params.get("toolError")).toBeNull();
+    expect(params.get("status")).toBe("error");
+    expect(lastFilters()).toEqual({ status: "error" });
+  });
+
+  it("writes Score presets as decimals and lists a non-preset value from the URL", () => {
+    const { unmount } = renderPage("?timeRange=1h");
+    openFilters();
+    pickPill("Score at most", "50%");
+    applyFilters();
+    expect(currentParams().get("maxScore")).toBe("0.5");
+    expect(lastFilters()).toEqual({ maxScore: 0.5 });
+    expect(chip("Score ≤ 50%")).toBeInTheDocument();
+    openFilters();
+    pickPill("Score at most", "25%");
+    applyFilters();
+    expect(currentParams().get("maxScore")).toBe("0.25");
+    unmount();
+
+    renderPage("?maxScore=0.33");
+    openFilters();
+    expect(pillLabels("Score at most")).toEqual(["Any", "25%", "33%", "50%", "75%", "Custom"]);
+    expect(pressedPill("Score at most")).toEqual(["33%"]);
+  });
+
+  it("enables Evaluator without a score bound, loading monitors only once it opens", () => {
+    renderPage("?timeRange=1h&tool=search_web");
+
+    openFilters();
+    expect(evaluatorSelect()).not.toHaveAttribute("aria-disabled");
+    expect(evaluatorSelect()).toHaveTextContent("Any evaluator");
+    expect(monitorsEnabled()).toBe(false);
+    fireEvent.mouseDown(evaluatorSelect());
+    expect(monitorsEnabled()).toBe(true);
+  });
+
+  it("loads evaluators only once the select opens, then filters and labels the Score column", () => {
+    renderPage("?timeRange=1h&maxScore=0.5");
+    expect(monitorsEnabled()).toBe(false);
+    expect(screen.queryByRole("columnheader", { name: "Score" })).toBeInTheDocument();
+
+    openFilters();
+    fireEvent.mouseDown(evaluatorSelect());
+    expect(monitorsEnabled()).toBe(true);
+    expect(mockMonitors.mock.lastCall?.[0]).toEqual({ orgName: "o", projName: "p", agentName: "a" });
+    expect(
+      within(screen.getByRole("listbox")).getAllByRole("option").map((o) => o.textContent),
+    ).toEqual(["Any evaluator", "Accuracy", "Helpfulness", "Tool Use"]);
+    fireEvent.click(within(screen.getByRole("listbox")).getByRole("option", { name: "Accuracy" }));
+    applyFilters();
+
+    expect(currentParams().get("evaluator")).toBe("Accuracy");
+    expect(lastFilters()).toEqual({ maxScore: 0.5, evaluator: "Accuracy" });
+    expect(chip("Evaluator: Accuracy")).toBeInTheDocument();
+    expect(screen.queryByRole("columnheader", { name: "Score" })).not.toBeInTheDocument();
+    expect(screen.getByRole("columnheader", { name: "Accuracy" })).toBeInTheDocument();
+  });
+
+  it("writes a lone evaluator, keeps it from a pasted URL, and names the Score column", () => {
+    const { unmount } = renderPage("?timeRange=1h");
+    openFilters();
+    pickEvaluator("Accuracy");
+    applyFilters();
+    expect(currentParams().toString()).toBe("timeRange=1h&evaluator=Accuracy");
+    expect(lastFilters()).toEqual({ evaluator: "Accuracy" });
+    unmount();
+
+    renderPage("?timeRange=1h&evaluator=Accuracy");
+    expect(lastFilters()).toEqual({ evaluator: "Accuracy" });
+    expect(chip("Evaluator: Accuracy")).toBeInTheDocument();
+    expect(screen.getByRole("columnheader", { name: "Accuracy" })).toBeInTheDocument();
+    expect(screen.queryByRole("columnheader", { name: "Score" })).not.toBeInTheDocument();
+  });
+
+  it("clears the evaluator alone from its chip, and keeps it when the last score bound goes", () => {
+    renderPage("?timeRange=1h&evaluator=Accuracy&maxScore=0.5");
+
+    fireEvent.click(screen.getByLabelText("Remove Evaluator: Accuracy"));
+    expect(currentParams().get("evaluator")).toBeNull();
+    expect(currentParams().get("maxScore")).toBe("0.5");
+
+    openFilters();
+    pickEvaluator("Accuracy");
+    applyFilters();
+    expect(currentParams().get("evaluator")).toBe("Accuracy");
+    fireEvent.click(screen.getByLabelText("Remove Score ≤ 50%"));
+    expect(currentParams().get("maxScore")).toBeNull();
+    expect(currentParams().get("evaluator")).toBe("Accuracy");
+    expect(lastFilters()).toEqual({ evaluator: "Accuracy" });
+  });
+
+  it("drops an invalid score from a pasted URL and keeps a lone evaluator", () => {
+    renderPage("?timeRange=1h&evaluator=Accuracy&maxScore=2&minScore=abc&toolError=1");
+
+    expect(lastFilters()).toEqual({ evaluator: "Accuracy" });
+    expect(chip("Evaluator: Accuracy")).toBeInTheDocument();
+    expect(screen.queryByTitle(/^Score/)).not.toBeInTheDocument();
+    openFilters();
+    expect(evaluatorSelect()).toHaveTextContent("Accuracy");
+    expect(pressedPill("Score at most")).toEqual(["Any"]);
+    expect(pressedPill("Score at least")).toEqual(["Any"]);
+  });
+
+  it("clears the new filters with Clear all", () => {
+    renderPage("?timeRange=1h&tool=search_web&toolError=true&mcpServer=github&maxScore=0.5");
+
+    fireEvent.click(screen.getByRole("button", { name: "Clear all" }));
+    expect(currentParams().toString()).toBe("timeRange=1h");
+    expect(lastFilters()).toEqual({});
+  });
+
+  it("says recent traces may have no scores when a score filter empties the list", () => {
+    hookOverrides = { data: { traces: [], totalCount: 0 } };
+    const { unmount } = renderPage("?status=error");
+    expect(screen.queryByText(/Monitors score traces when they run/)).not.toBeInTheDocument();
+    unmount();
+
+    renderPage("?minScore=0.9");
+    expect(
+      screen.getByText(
+        "Try changing the filters or the time range. Monitors score traces when they run, so recent traces may not have scores yet.",
+      ),
+    ).toBeInTheDocument();
+  });
+
+  it("gives a lone evaluator the same empty-state score hint", () => {
+    hookOverrides = { data: { traces: [], totalCount: 0 } };
+    renderPage("?evaluator=Accuracy");
+    expect(screen.getByText(/Monitors score traces when they run/)).toBeInTheDocument();
+  });
+
+  it("never shows the filters drawer over an open trace", () => {
+    renderPage("?selectedTrace=t-err");
+
+    openFilters();
+    expect(queryDrawer()).not.toBeInTheDocument();
+    expect(currentParams().get("selectedTrace")).toBe("t-err");
   });
 });
 
@@ -343,6 +1015,27 @@ describe("TracesComponent trace ID search", () => {
     fireEvent.click(screen.getByRole("button", { name: "Go to trace" }));
 
     expect(currentParams().get("selectedTrace")).toBeNull();
+  });
+
+  it("closes the filters drawer, discarding its draft, when the search or a row opens a trace", () => {
+    const { unmount } = renderPage("?timeRange=1h");
+
+    openFilters();
+    pickPill("Latency at least", "5s");
+    fireEvent.change(screen.getByRole("textbox", { name: "Go to trace ID" }), {
+      target: { value: "abc123" },
+    });
+    fireEvent.keyDown(screen.getByRole("textbox", { name: "Go to trace ID" }), { key: "Enter" });
+    expect(currentParams().get("selectedTrace")).toBe("abc123");
+    expect(currentParams().get("minDurationMs")).toBeNull();
+    expect(queryDrawer()).not.toBeInTheDocument();
+    unmount();
+
+    renderPage("?timeRange=1h");
+    openFilters();
+    fireEvent.click(screen.getByText("root t-ok"));
+    expect(currentParams().get("selectedTrace")).toBe("t-ok");
+    expect(queryDrawer()).not.toBeInTheDocument();
   });
 
   it("reads the trace through the spans lookup over the page's window, not the list", () => {
@@ -396,7 +1089,7 @@ describe("TracesComponent columns and cap notice", () => {
     expect(columnHeader("Model")).not.toBeInTheDocument();
     expect(lastFilters()).toEqual({ model: "gpt-4o" });
     expect(lastIncludeModels()).toBeUndefined();
-    expect(screen.queryByText("gpt-4o")).not.toBeInTheDocument();
+    expect(within(screen.getByRole("table")).queryByText("gpt-4o")).not.toBeInTheDocument();
   });
 
   it("hides Conversation from the menu, which lists no Model item", () => {

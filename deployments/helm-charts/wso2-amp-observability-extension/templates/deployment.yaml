@@ -56,6 +56,9 @@ spec:
               value: "{{ .Values.amObserver.observer.idpTokenUrl }}"
             - name: OBSERVER_DEFAULT_NAMESPACE
               value: "{{ .Values.amObserver.observer.defaultNamespace }}"
+            # Score filters only; empty turns them off
+            - name: AGENT_MANAGER_SERVICE_URL
+              value: "{{ .Values.amObserver.agentManagerService.url }}"
             - name: IDP_CLIENT_ID
               valueFrom:
                 secretKeyRef:

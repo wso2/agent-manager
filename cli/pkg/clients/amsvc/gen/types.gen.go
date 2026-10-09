@@ -5945,6 +5945,12 @@ type GetAgentTraceScoresParams struct {
 
 	// SortOrder Sort order for traces by start time (asc or desc)
 	SortOrder *GetAgentTraceScoresParamsSortOrder `form:"sortOrder,omitempty" json:"sortOrder,omitempty"`
+
+	// TraceIds Comma-separated trace IDs, at most 100. Only these traces are returned, and an ID without scores in the time window is absent. limit and offset page over the matching traces as they do without traceIds, so the default limit returns every ID in one page.
+	TraceIds *[]string `form:"traceIds,omitempty" json:"traceIds,omitempty"`
+
+	// Evaluator Evaluator display name. score, totalCount and skippedCount then cover only this evaluator's rows, and traces without them are absent.
+	Evaluator *string `form:"evaluator,omitempty" json:"evaluator,omitempty"`
 }
 
 // GetAgentTraceScoresParamsSortOrder defines parameters for GetAgentTraceScores.

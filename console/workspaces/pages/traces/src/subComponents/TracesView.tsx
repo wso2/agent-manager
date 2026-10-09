@@ -30,6 +30,9 @@ export interface TracesViewProps {
   isLoadingMore?: boolean;
   hasMore?: boolean;
   hasActiveFilters?: boolean;
+  hasScoreFilter?: boolean;
+  // The evaluator the Score column shows while an evaluator filter is on.
+  scoreEvaluator?: string;
   // The server stopped early: the examine cap with hasMore, the cursor depth cap without.
   truncated?: boolean;
   lookedBackTo?: string;
@@ -49,6 +52,8 @@ export const TracesView: React.FC<TracesViewProps> = ({
   isLoadingMore = false,
   hasMore = false,
   hasActiveFilters = false,
+  hasScoreFilter = false,
+  scoreEvaluator,
   truncated = false,
   lookedBackTo,
   loadError,
@@ -74,6 +79,8 @@ export const TracesView: React.FC<TracesViewProps> = ({
         isLoadingMore={isLoadingMore}
         hasMore={hasMore}
         hasActiveFilters={hasActiveFilters}
+        hasScoreFilter={hasScoreFilter}
+        scoreEvaluator={scoreEvaluator}
         visibleColumns={visibleColumns}
         lookedBackTo={lookedBackTo}
         loadError={loadError}

@@ -22,6 +22,7 @@ import {
   type GetTraceListPathParams,
   type TraceExportResponse,
   type TraceFilters,
+  type TraceInclude,
   getTimeRange
 } from "@agent-management-platform/types";
 import {
@@ -30,6 +31,7 @@ import {
   getSpanDetail,
   listTraceSpans,
   normalizeTraceFilters,
+  normalizeTraceInclude,
   type ObserverTraceListParams,
 } from "../apis/traces";
 import { getAgentTraceScores } from "../apis/monitors";
@@ -64,12 +66,14 @@ async function fetchScoreMap(
   sortOrder: string,
   getToken: (() => Promise<string>) | undefined,
   offset = 0,
+  traceIds?: string[],
+  evaluator?: string,
 ): Promise<Map<string, { score?: number | null; totalCount: number; skippedCount: number }>> {
   try {
     const res = await getAgentTraceScores(
       {
         orgName, projName, agentName, startTime, endTime, limit, offset,
-        sortOrder: sortOrder as "asc" | "desc"
+        sortOrder: sortOrder as "asc" | "desc", traceIds, evaluator,
       },
       getToken,
     );
@@ -92,46 +96,47 @@ async function fetchScoreMap(
   }
 }
 
-/** Highest limit the scores endpoint accepts. */
+/** Highest limit, and most traceIds, the scores endpoint accepts. */
 const MAX_SCORES_PER_REQUEST = 100;
-
-/** Most score requests made for one page of traces. */
-const MAX_SCORE_PAGES = 10;
 
 /** Widens a page's score window to absorb timestamp precision differences. */
 const SCORE_WINDOW_PAD_MS = 1000;
 
-/** Fetch scores for one page of traces, bounded by the span of their start times. */
-async function fetchPageScoreMap(
-  scope: { organization: string; project: string; component: string; sortOrder?: string },
+/** Fetch a page's scores by trace ID, 100 per call; with filters.evaluator, that evaluator's. */
+async function fetchTraceIdScoreMap(
+  scope: {
+    organization: string;
+    project: string;
+    component: string;
+    sortOrder?: string;
+    filters?: TraceFilters;
+  },
   traces: TraceListResponse["traces"] | undefined,
   getToken: (() => Promise<string>) | undefined,
 ): ReturnType<typeof fetchScoreMap> {
-  if (!traces?.length) return new Map();
-  const times = traces.map((t) => new Date(t.startTime).getTime());
-  const startTime = new Date(Math.min(...times) - SCORE_WINDOW_PAD_MS).toISOString();
-  const endTime = new Date(Math.max(...times) + SCORE_WINDOW_PAD_MS).toISOString();
-  const missing = new Set(traces.map((t) => t.traceId));
-  const map: Awaited<ReturnType<typeof fetchScoreMap>> = new Map();
-  // Other scored traces can sit between a filtered page's matches, so page until all are found.
-  for (let i = 0; i < MAX_SCORE_PAGES && missing.size > 0; i += 1) {
-    const batch = await fetchScoreMap(
+  const all = traces ?? [];
+  const chunks: TraceListResponse["traces"][] = [];
+  for (let i = 0; i < all.length; i += MAX_SCORES_PER_REQUEST) {
+    chunks.push(all.slice(i, i + MAX_SCORES_PER_REQUEST));
+  }
+  const maps = await Promise.all(chunks.map((chunk) => {
+    // The endpoint still takes a window, so bound each call by its traces' start times.
+    const times = chunk.map((t) => new Date(t.startTime).getTime());
+    return fetchScoreMap(
       scope.organization,
       scope.project,
       scope.component,
-      startTime,
-      endTime,
+      new Date(Math.min(...times) - SCORE_WINDOW_PAD_MS).toISOString(),
+      new Date(Math.max(...times) + SCORE_WINDOW_PAD_MS).toISOString(),
       MAX_SCORES_PER_REQUEST,
       scope.sortOrder ?? "desc",
       getToken,
-      i * MAX_SCORES_PER_REQUEST,
+      0,
+      chunk.map((t) => t.traceId),
+      scope.filters?.evaluator,
     );
-    for (const [id, s] of batch) {
-      if (missing.delete(id)) map.set(id, s);
-    }
-    if (batch.size < MAX_SCORES_PER_REQUEST) break;
-  }
-  return map;
+  }));
+  return new Map(maps.flatMap((map) => [...map]));
 }
 
 export type TraceListWithRange = TraceListResponse & {
@@ -144,6 +149,8 @@ export interface TraceListOptions {
   filters?: TraceFilters;
   /** Fill models on every trace; costs the server one extra upstream call per trace. */
   includeModels?: boolean;
+  /** Optional fields to fill on every trace, sent with includeModels as one include param. */
+  include?: TraceInclude[];
   /** Turns off focus and reconnect refetches, which would drop pages loaded with loadMore. */
   paged?: boolean;
 }
@@ -174,6 +181,11 @@ export function useTraceList(
   const filters = useMemo<TraceFilters>(() => JSON.parse(filtersKey), [filtersKey]);
   const hasFilters = filtersKey !== "{}";
   const includeModels = options?.includeModels === true;
+  const includeKey = normalizeTraceInclude(options?.include).join(",");
+  const include = useMemo(
+    () => (includeKey ? (includeKey.split(",") as TraceInclude[]) : undefined),
+    [includeKey],
+  );
 
   // Non-time params — stable across refetches while org/project/etc don't change.
   const scopeParams = useMemo(() => {
@@ -188,8 +200,12 @@ export function useTraceList(
       sortOrder,
       filters,
       includeModels,
+      include,
     };
-  }, [organization, project, component, environment, pageSize, sortOrder, filters, includeModels]);
+  }, [
+    organization, project, component, environment, pageSize, sortOrder, filters, includeModels,
+    include,
+  ]);
 
   // Tracks the time range used in the most recent successful fetch so that
   // loadMore / loadNewer paginate against the same window.
@@ -222,6 +238,7 @@ export function useTraceList(
       customEndTime,
       filters,
       includeModels,
+      includeKey,
     ],
     queryFn: async () => {
       if (!scopeParams) {
@@ -240,7 +257,7 @@ export function useTraceList(
       if (hasFilters) {
         // Matches can sit anywhere in the window, so score the returned page itself.
         res = await getTraceList({ ...scopeParams, ...range }, getToken);
-        scoreMap = await fetchPageScoreMap(scopeParams, res.traces, getToken);
+        scoreMap = await fetchTraceIdScoreMap(scopeParams, res.traces, getToken);
       } else {
         [res, scoreMap] = await Promise.all([
           getTraceList({ ...scopeParams, ...range }, getToken),
@@ -332,7 +349,7 @@ export function useTraceList(
     if (!scopeParams || !range) return undefined;
 
     const response = await getTraceList({ ...scopeParams, ...range, cursor }, getToken);
-    const scoreMap = await fetchPageScoreMap(scopeParams, response.traces, getToken);
+    const scoreMap = await fetchTraceIdScoreMap(scopeParams, response.traces, getToken);
     // A refetch, scope change or concurrent call moved the cursor while this page was in flight.
     if (nextCursorRef.current !== cursor) return undefined;
 

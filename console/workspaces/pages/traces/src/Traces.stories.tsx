@@ -18,10 +18,12 @@
 
 import { useState } from 'react';
 import type { Meta, StoryObj } from '@storybook/react';
+import { userEvent, within } from '@storybook/test';
 import type { TraceFilters, TraceOverview } from '@agent-management-platform/types';
 // Direct file imports: the subComponents index pulls in api-client via TraceDetails.
 import { TraceFilterBar } from './subComponents/TraceFilterBar';
 import { TracesView } from './subComponents/TracesView';
+import { hasScoreFilter } from './traceFilters';
 
 const sampleTraces = [
   {
@@ -50,8 +52,12 @@ const sampleTraces = [
   },
 ] as TraceOverview[];
 
+const sampleEvaluators = ['Accuracy', 'Helpfulness', 'Tool Use'];
+
 interface FilteredTracesProps {
   initialFilters: TraceFilters;
+  // Opens the Filters drawer on the initial filters.
+  initialOpen?: boolean;
   traces: TraceOverview[];
   hasMore?: boolean;
   isLoadingMore?: boolean;
@@ -63,6 +69,7 @@ interface FilteredTracesProps {
 // The filter bar over the list, with filters held in local state instead of the URL.
 function FilteredTraces({
   initialFilters,
+  initialOpen = false,
   traces,
   hasMore,
   isLoadingMore,
@@ -71,9 +78,16 @@ function FilteredTraces({
   lookedBackTo,
 }: FilteredTracesProps) {
   const [filters, setFilters] = useState(initialFilters);
+  const [open, setOpen] = useState(initialOpen);
   return (
-    <>
-      <TraceFilterBar filters={filters} onChange={setFilters} />
+    <TraceFilterBar
+      filters={filters}
+      onChange={setFilters}
+      open={open}
+      onOpenChange={setOpen}
+      onTraceSearch={() => undefined}
+      evaluators={sampleEvaluators}
+    >
       <TracesView
         traces={traces}
         selectedTrace={null}
@@ -81,13 +95,15 @@ function FilteredTraces({
         isLoadingMore={isLoadingMore}
         loadError={loadError}
         hasActiveFilters={Object.keys(filters).length > 0}
+        hasScoreFilter={hasScoreFilter(filters)}
+        scoreEvaluator={filters.evaluator}
         truncated={truncated}
         lookedBackTo={lookedBackTo}
-        onTraceSelect={() => undefined}
+        onTraceSelect={() => setOpen(false)}
         onLoadMore={async () => undefined}
         onConversationSelect={(conversationId) => setFilters({ ...filters, conversationId })}
       />
-    </>
+    </TraceFilterBar>
   );
 }
 
@@ -119,6 +135,52 @@ export const SeveralActiveFilters: Story = {
       conversationId: 'conv-7f3a',
     },
     traces: sampleTraces,
+  },
+};
+
+// Tool, MCP server and score chips, and the Score column labelled by evaluator.
+export const ToolMcpAndScoreFilters: Story = {
+  args: {
+    initialFilters: {
+      tool: 'search_web',
+      toolError: true,
+      mcpServer: 'github',
+      evaluator: 'Accuracy',
+      minScore: 0.1,
+      maxScore: 0.5,
+    },
+    traces: [{ ...sampleTraces[1], score: { score: 0.2, totalCount: 1, skippedCount: 0 } }],
+  },
+};
+
+// The Filters drawer open over the list, as in optionD.png.
+export const FiltersDrawerOpen: Story = {
+  args: {
+    initialFilters: { status: 'error', minDurationMs: 5000, tool: 'reset_password' },
+    initialOpen: true,
+    traces: sampleTraces,
+  },
+};
+
+// A pasted 2500 ms shows as its own pill; Custom opens the field prefilled with 2.5 s.
+export const CustomValue: Story = {
+  args: {
+    initialFilters: { minDurationMs: 2500 },
+    initialOpen: true,
+    traces: sampleTraces,
+  },
+  play: async ({ canvasElement }) => {
+    const latency = within(canvasElement).getByRole('group', { name: 'Latency at least' });
+    await userEvent.click(within(latency).getByRole('button', { name: 'Custom' }));
+  },
+};
+
+// Both score bounds with an evaluator; Score at most 25% would cross Score at least 50%.
+export const ScoreRangeWithEvaluator: Story = {
+  args: {
+    initialFilters: { evaluator: 'Accuracy', minScore: 0.5, maxScore: 0.75 },
+    initialOpen: true,
+    traces: [{ ...sampleTraces[0], score: { score: 0.6, totalCount: 2, skippedCount: 0 } }],
   },
 };
 

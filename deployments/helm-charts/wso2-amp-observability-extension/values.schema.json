@@ -212,6 +212,21 @@
           "title": "observer",
           "type": "object"
         },
+        "agentManagerService": {
+          "additionalProperties": false,
+          "description": "agent-manager-service connection, used only by the trace list and export score filters (minScore, maxScore, evaluator). The observer forwards the caller's token, so it needs no credentials of its own. Empty turns score filters off (they return 503); no other request calls the service. When the observer runs in another cluster, set the service's public URL.",
+          "properties": {
+            "url": {
+              "default": "http://amp-api.wso2-amp.svc.cluster.local:9000",
+              "description": "Base URL of agent-manager-service, without /api/v1.",
+              "title": "url",
+              "type": "string"
+            }
+          },
+          "required": [],
+          "title": "agentManagerService",
+          "type": "object"
+        },
         "auth": {
           "additionalProperties": false,
           "description": "JWT authentication \u2014 must match the agent-manager keyManager config so the same user token issued by Thunder is accepted by both services. Thunder stamps the resource-server identifier as the token audience, so query tokens (console/CLI) carry aud=urn:wso2:amp \u2014 the amp resource server's identifier, which must stay in sync with 60-amp-resource-server.yaml in the Thunder extension chart. The agent-manager-service's own amp-api-client client-credentials token (used for the monitor-run-logs server-to-server call) requests the full amp:* scope set and resolves to the same resource-server audience; \"amp-api-client\" is listed too as a defensive fallback for any client-credentials request that carries no scope (in which case Thunder falls back to the client ID as the audience). Publisher tokens (aud amp-publisher-*) are matched by a separate regex in the observer's auth middleware and do not need to be listed here. MCP tokens minted for the observer MCP client (am-obs-mcp) carry the RFC 8707 resource identifier \u2014 this service's publicUrl with \"/mcp\" appended (no trailing slash, per the MCP spec's canonical-URI guidance) \u2014 as their audience. That URL is NOT listed here: the chart appends publicUrl+\"/mcp\" to this list automatically, so overriding publicUrl alone keeps MCP tokens valid. \"am-obs-mcp\" is listed defensively; MCP logins normally carry that resource URL as the audience, not the client ID (unlike amp-api-client's client-credentials fallback, this can't occur for am-obs-mcp, a public client restricted to authorization_code).",

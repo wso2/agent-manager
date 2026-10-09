@@ -254,6 +254,10 @@ export interface AgentTraceScoresParams extends AgentPathParams {
   limit?: number;
   offset?: number;
   sortOrder?: "asc" | "desc";
+  /** At most 100; sent comma-separated (server `?traceIds=`). */
+  traceIds?: string[];
+  /** Evaluator display name; scores then cover only its rows (server `?evaluator=`). */
+  evaluator?: string;
 }
 
 export interface TraceScoresPathParams extends AgentPathParams {

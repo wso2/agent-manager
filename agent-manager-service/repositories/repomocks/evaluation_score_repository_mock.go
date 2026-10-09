@@ -25,7 +25,7 @@ import (
 //			DeleteStaleScoresFunc: func(monitorID uuid.UUID, currentRunEvaluatorIDs []uuid.UUID, traceIDs []string) error {
 //				panic("mock out the DeleteStaleScores method")
 //			},
-//			GetAgentTraceScoresFunc: func(ouID string, projName string, agentName string, startTime time.Time, endTime time.Time, limit int, offset int, sortOrder string) ([]repositories.TraceAggregation, int, error) {
+//			GetAgentTraceScoresFunc: func(ouID string, projName string, agentName string, startTime time.Time, endTime time.Time, limit int, offset int, sortOrder string, filters repositories.AgentTraceScoreFilters) ([]repositories.TraceAggregation, int, error) {
 //				panic("mock out the GetAgentTraceScores method")
 //			},
 //			GetEvaluatorTimeSeriesAggregatedFunc: func(monitorID uuid.UUID, displayName string, startTime time.Time, endTime time.Time, granularity string) ([]repositories.TimeBucketAggregation, error) {
@@ -81,7 +81,7 @@ type ScoreRepositoryMock struct {
 	DeleteStaleScoresFunc func(monitorID uuid.UUID, currentRunEvaluatorIDs []uuid.UUID, traceIDs []string) error
 
 	// GetAgentTraceScoresFunc mocks the GetAgentTraceScores method.
-	GetAgentTraceScoresFunc func(ouID string, projName string, agentName string, startTime time.Time, endTime time.Time, limit int, offset int, sortOrder string) ([]repositories.TraceAggregation, int, error)
+	GetAgentTraceScoresFunc func(ouID string, projName string, agentName string, startTime time.Time, endTime time.Time, limit int, offset int, sortOrder string, filters repositories.AgentTraceScoreFilters) ([]repositories.TraceAggregation, int, error)
 
 	// GetEvaluatorTimeSeriesAggregatedFunc mocks the GetEvaluatorTimeSeriesAggregated method.
 	GetEvaluatorTimeSeriesAggregatedFunc func(monitorID uuid.UUID, displayName string, startTime time.Time, endTime time.Time, granularity string) ([]repositories.TimeBucketAggregation, error)
@@ -156,6 +156,8 @@ type ScoreRepositoryMock struct {
 			Offset int
 			// SortOrder is the sortOrder argument value.
 			SortOrder string
+			// Filters is the filters argument value.
+			Filters repositories.AgentTraceScoreFilters
 		}
 		// GetEvaluatorTimeSeriesAggregated holds details about calls to the GetEvaluatorTimeSeriesAggregated method.
 		GetEvaluatorTimeSeriesAggregated []struct {
@@ -374,7 +376,7 @@ func (mock *ScoreRepositoryMock) DeleteStaleScoresCalls() []struct {
 }
 
 // GetAgentTraceScores calls GetAgentTraceScoresFunc.
-func (mock *ScoreRepositoryMock) GetAgentTraceScores(ouID string, projName string, agentName string, startTime time.Time, endTime time.Time, limit int, offset int, sortOrder string) ([]repositories.TraceAggregation, int, error) {
+func (mock *ScoreRepositoryMock) GetAgentTraceScores(ouID string, projName string, agentName string, startTime time.Time, endTime time.Time, limit int, offset int, sortOrder string, filters repositories.AgentTraceScoreFilters) ([]repositories.TraceAggregation, int, error) {
 	if mock.GetAgentTraceScoresFunc == nil {
 		panic("ScoreRepositoryMock.GetAgentTraceScoresFunc: method is nil but ScoreRepository.GetAgentTraceScores was just called")
 	}
@@ -387,6 +389,7 @@ func (mock *ScoreRepositoryMock) GetAgentTraceScores(ouID string, projName strin
 		Limit     int
 		Offset    int
 		SortOrder string
+		Filters   repositories.AgentTraceScoreFilters
 	}{
 		OuID:      ouID,
 		ProjName:  projName,
@@ -396,11 +399,12 @@ func (mock *ScoreRepositoryMock) GetAgentTraceScores(ouID string, projName strin
 		Limit:     limit,
 		Offset:    offset,
 		SortOrder: sortOrder,
+		Filters:   filters,
 	}
 	mock.lockGetAgentTraceScores.Lock()
 	mock.calls.GetAgentTraceScores = append(mock.calls.GetAgentTraceScores, callInfo)
 	mock.lockGetAgentTraceScores.Unlock()
-	return mock.GetAgentTraceScoresFunc(ouID, projName, agentName, startTime, endTime, limit, offset, sortOrder)
+	return mock.GetAgentTraceScoresFunc(ouID, projName, agentName, startTime, endTime, limit, offset, sortOrder, filters)
 }
 
 // GetAgentTraceScoresCalls gets all the calls that were made to GetAgentTraceScores.
@@ -416,6 +420,7 @@ func (mock *ScoreRepositoryMock) GetAgentTraceScoresCalls() []struct {
 	Limit     int
 	Offset    int
 	SortOrder string
+	Filters   repositories.AgentTraceScoreFilters
 } {
 	var calls []struct {
 		OuID      string
@@ -426,6 +431,7 @@ func (mock *ScoreRepositoryMock) GetAgentTraceScoresCalls() []struct {
 		Limit     int
 		Offset    int
 		SortOrder string
+		Filters   repositories.AgentTraceScoreFilters
 	}
 	mock.lockGetAgentTraceScores.RLock()
 	calls = mock.calls.GetAgentTraceScores

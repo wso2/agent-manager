@@ -19,199 +19,205 @@
 import React, { useState } from "react";
 import type { TraceFilters } from "@agent-management-platform/types";
 import {
+  Box,
   Button,
-  Chip,
-  FormControl,
-  MenuItem,
-  Select,
+  ButtonGroup,
+  Divider,
   Stack,
-  TextField,
-  Typography,
+  ToggleButton,
+  ToggleButtonGroup,
 } from "@wso2/oxygen-ui";
-import { X as RemoveIcon } from "@wso2/oxygen-ui-icons-react";
+import { ListFilter, X as RemoveIcon } from "@wso2/oxygen-ui-icons-react";
 import {
-  LATENCY_PRESETS_MS,
-  MAX_TEXT_FILTER_LENGTH,
-  STEP_PRESETS,
-  TOKEN_PRESETS,
-  type TraceFilterKey,
-  formatLatency,
-  formatTokens,
+  EMPTY_DRAFT,
+  type TraceFilterChip,
+  type TraceFilterDraft,
+  appliedFilters,
+  draftFrom,
+  draftWithout,
   traceFilterChips,
 } from "../traceFilters";
 import { TraceIdSearch } from "./TraceIdSearch";
-
-const ANY = "";
+import {
+  TRACE_FILTERS_DRAWER_HEIGHT,
+  TRACE_FILTERS_DRAWER_ID,
+  TraceFiltersDrawer,
+} from "./TraceFiltersDrawer";
 
 export interface TraceFilterBarProps {
   filters: TraceFilters;
   onChange: (filters: TraceFilters) => void;
+  /** Whether the Filters drawer is open. */
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
   /** Opens one trace by ID; the field shows only when this is set. */
   onTraceSearch?: (traceId: string) => void;
+  /** Evaluator names for the Evaluator select; undefined until loaded. */
+  evaluators?: string[];
+  evaluatorsLoading?: boolean;
+  /** Called when the Evaluator select opens, so its options load only once someone looks. */
+  onEvaluatorsOpen?: () => void;
+  /** The list the drawer sits over. */
+  children?: React.ReactNode;
 }
 
-interface ThresholdSelectProps {
-  label: string;
-  value?: number;
-  presets: number[];
-  format: (n: number) => string;
-  onChange: (value?: number) => void;
+interface StatusToggleProps {
+  value?: TraceFilters["status"];
+  onChange: (value?: TraceFilters["status"]) => void;
 }
 
-// Preset select; a non-preset value from a pasted URL is listed so it still shows.
-function ThresholdSelect({ label, value, presets, format, onChange }: ThresholdSelectProps) {
-  const options = value === undefined || presets.includes(value)
-    ? presets
-    : [...presets, value].sort((a, b) => a - b);
-  return (
-    <FormControl size="small" sx={{ minWidth: 140 }}>
-      <Select
-        value={value === undefined ? ANY : String(value)}
-        displayEmpty
-        inputProps={{ "aria-label": label }}
-        onChange={(e) => {
-          const raw = e.target.value as string;
-          onChange(raw === ANY ? undefined : Number(raw));
+/** All, Errors or OK; applies straight away. */
+const StatusToggle: React.FC<StatusToggleProps> = ({ value, onChange }) => (
+  <ToggleButtonGroup
+    exclusive
+    size="small"
+    value={value ?? "all"}
+    aria-label="Status"
+    onChange={(_, next: string | null) => {
+      if (next !== null) onChange(next === "error" || next === "ok" ? next : undefined);
+    }}
+    sx={{ "& .MuiToggleButton-root": { px: 1.75, textTransform: "none" } }}
+  >
+    <ToggleButton value="all">All</ToggleButton>
+    <ToggleButton value="error">Errors</ToggleButton>
+    <ToggleButton value="ok">OK</ToggleButton>
+  </ToggleButtonGroup>
+);
+
+interface FilterChipProps {
+  chip: TraceFilterChip;
+  onOpen: () => void;
+  onRemove: () => void;
+}
+
+/** The filter's name and value, which open the drawer, and an × that removes it. */
+const FilterChip: React.FC<FilterChipProps> = ({ chip, onOpen, onRemove }) => (
+  <ButtonGroup
+    size="small"
+    variant="outlined"
+    color="inherit"
+    sx={{ maxWidth: 320, "& .MuiButton-root": { borderColor: "divider" } }}
+  >
+    <Button title={chip.label} onClick={onOpen} sx={{ textTransform: "none", minWidth: 0 }}>
+      <Box component="span" sx={{ color: "text.secondary", whiteSpace: "nowrap" }}>
+        {chip.name}
+      </Box>{" "}
+      <Box
+        component="span"
+        sx={{
+          ml: 0.75,
+          fontWeight: 600,
+          overflow: "hidden",
+          textOverflow: "ellipsis",
+          whiteSpace: "nowrap",
         }}
-        renderValue={(v) => `${label} ${v === ANY ? "Any" : format(Number(v))}`}
       >
-        <MenuItem value={ANY}>Any</MenuItem>
-        {options.map((n) => (
-          <MenuItem key={n} value={String(n)}>
-            {format(n)}
-          </MenuItem>
-        ))}
-      </Select>
-    </FormControl>
-  );
-}
+        {chip.value}
+      </Box>
+    </Button>
+    <Button aria-label={`Remove ${chip.label}`} onClick={onRemove} sx={{ minWidth: 0, px: 0.75 }}>
+      <RemoveIcon size={14} />
+    </Button>
+  </ButtonGroup>
+);
 
-interface CommitTextFieldProps {
-  label: string;
-  value?: string;
-  onCommit: (value?: string) => void;
-}
-
-// Text filter that commits on Enter or blur; remount it (via key) to reset the draft.
-function CommitTextField({ label, value, onCommit }: CommitTextFieldProps) {
-  const [draft, setDraft] = useState(value ?? "");
-  /** Commits the trimmed draft when it changed; empty clears the filter. */
-  const commit = () => {
-    const trimmed = draft.trim();
-    if (trimmed !== (value ?? "")) onCommit(trimmed || undefined);
-  };
-  return (
-    <TextField
-      size="small"
-      placeholder={label}
-      value={draft}
-      onChange={(e) => setDraft(e.target.value)}
-      onBlur={commit}
-      onKeyDown={(e) => {
-        if (e.key === "Enter") commit();
-      }}
-      slotProps={{ htmlInput: { "aria-label": label, maxLength: MAX_TEXT_FILTER_LENGTH } }}
-      sx={{ minWidth: 180 }}
-    />
-  );
-}
-
-/** Filter controls plus one removable chip per set filter. */
+/** One row: the status toggle, the Filters drawer button, the chips and the trace ID search. */
 export const TraceFilterBar: React.FC<TraceFilterBarProps> = ({
   filters,
   onChange,
+  open,
+  onOpenChange,
   onTraceSearch,
+  evaluators,
+  evaluatorsLoading,
+  onEvaluatorsOpen,
+  children,
 }) => {
-  const set = <K extends TraceFilterKey>(key: K, value: TraceFilters[K]) =>
-    onChange({ ...filters, [key]: value });
-  /** Clears one filter. */
-  const remove = (key: TraceFilterKey) => {
-    const next = { ...filters };
-    delete next[key];
-    onChange(next);
+  const [draft, setDraft] = useState<TraceFilterDraft>(() => draftFrom(filters));
+  // Status has the toggle, so it gets no chip.
+  const chips = traceFilterChips(filters).filter((c) => c.key !== "status");
+
+  /** Opens the drawer on the URL's filters; an open drawer keeps its draft. */
+  const openDrawer = () => {
+    if (open) return;
+    setDraft(draftFrom(filters));
+    onOpenChange(true);
   };
-  const chips = traceFilterChips(filters);
+  /** Clears the chip's filters, in the URL and in an open drawer's draft. */
+  const remove = (chip: TraceFilterChip) => {
+    const keys = [chip.key, ...(chip.alsoClears ?? [])];
+    const next = { ...filters };
+    for (const key of keys) delete next[key];
+    onChange(next);
+    setDraft((d) => draftWithout(d, keys));
+  };
+  /** Clears every filter, status included, and the draft. */
+  const clearAll = () => {
+    onChange({});
+    setDraft(EMPTY_DRAFT);
+  };
+  /** Applies the draft in one change and closes the drawer. */
+  const apply = () => {
+    onChange(appliedFilters(draft, filters.status));
+    onOpenChange(false);
+  };
 
   return (
-    <Stack spacing={1.5} sx={{ mb: 2 }}>
-      <Stack direction="row" spacing={1} useFlexGap flexWrap="wrap" alignItems="center">
-        <FormControl size="small" sx={{ minWidth: 140 }}>
-          <Select
-            value={filters.status ?? ANY}
-            displayEmpty
-            inputProps={{ "aria-label": "Status" }}
-            onChange={(e) => {
-              const raw = e.target.value as string;
-              set("status", raw === "error" || raw === "ok" ? raw : undefined);
-            }}
-            renderValue={(v) =>
-              `Status: ${v === "error" ? "Error" : v === "ok" ? "OK" : "Any"}`
-            }
-          >
-            <MenuItem value={ANY}>Any</MenuItem>
-            <MenuItem value="error">Error</MenuItem>
-            <MenuItem value="ok">OK</MenuItem>
-          </Select>
-        </FormControl>
-        <ThresholdSelect
-          label="Latency ≥"
-          value={filters.minDurationMs}
-          presets={LATENCY_PRESETS_MS}
-          format={formatLatency}
-          onChange={(v) => set("minDurationMs", v)}
+    // Keeps room for the drawer over a short list.
+    <Box sx={{ position: "relative", minHeight: open ? TRACE_FILTERS_DRAWER_HEIGHT : undefined }}>
+      <Stack
+        direction="row"
+        spacing={1}
+        useFlexGap
+        flexWrap="wrap"
+        alignItems="center"
+        sx={{ mb: 2 }}
+      >
+        <StatusToggle
+          value={filters.status}
+          onChange={(status) => onChange({ ...filters, status })}
         />
-        <ThresholdSelect
-          label="Tokens ≥"
-          value={filters.minTokens}
-          presets={TOKEN_PRESETS}
-          format={formatTokens}
-          onChange={(v) => set("minTokens", v)}
-        />
-        <ThresholdSelect
-          label="Steps ≥"
-          value={filters.minSpanCount}
-          presets={STEP_PRESETS}
-          format={String}
-          onChange={(v) => set("minSpanCount", v)}
-        />
-        <CommitTextField
-          key={`model:${filters.model ?? ""}`}
-          label="Model"
-          value={filters.model}
-          onCommit={(v) => set("model", v)}
-        />
-        <CommitTextField
-          key={`conversationId:${filters.conversationId ?? ""}`}
-          label="Conversation ID"
-          value={filters.conversationId}
-          onCommit={(v) => set("conversationId", v)}
-        />
+        <Button
+          variant="outlined"
+          color="inherit"
+          startIcon={<ListFilter size={16} />}
+          aria-expanded={open}
+          aria-controls={TRACE_FILTERS_DRAWER_ID}
+          onClick={() => (open ? onOpenChange(false) : openDrawer())}
+          sx={{ textTransform: "none", borderColor: "divider" }}
+        >
+          Filters
+        </Button>
+        {chips.length > 0 && (
+          <Divider orientation="vertical" sx={{ height: 20, alignSelf: "center", mx: 0.5 }} />
+        )}
+        {chips.map((chip) => (
+          <FilterChip
+            key={chip.key}
+            chip={chip}
+            onOpen={openDrawer}
+            onRemove={() => remove(chip)}
+          />
+        ))}
+        {chips.length + (filters.status ? 1 : 0) >= 2 && (
+          <Button size="small" variant="text" onClick={clearAll}>
+            Clear all
+          </Button>
+        )}
         {onTraceSearch && <TraceIdSearch onSearch={onTraceSearch} />}
       </Stack>
-      {chips.length > 0 && (
-        <Stack direction="row" spacing={1} useFlexGap flexWrap="wrap" alignItems="center">
-          <Typography variant="body2" color="text.secondary">
-            Active:
-          </Typography>
-          {chips.map((chip) => (
-            <Chip
-              key={chip.key}
-              label={chip.label}
-              title={chip.label}
-              size="small"
-              variant="outlined"
-              onDelete={() => remove(chip.key)}
-              deleteIcon={<RemoveIcon size={14} aria-label={`Remove ${chip.label}`} />}
-              sx={{ maxWidth: 320 }}
-            />
-          ))}
-          {chips.length >= 2 && (
-            <Button size="small" variant="text" onClick={() => onChange({})}>
-              Clear all
-            </Button>
-          )}
-        </Stack>
+      {children}
+      {open && (
+        <TraceFiltersDrawer
+          draft={draft}
+          onDraftChange={setDraft}
+          onApply={apply}
+          onClose={() => onOpenChange(false)}
+          evaluators={evaluators}
+          evaluatorsLoading={evaluatorsLoading}
+          onEvaluatorsOpen={onEvaluatorsOpen}
+        />
       )}
-    </Stack>
+    </Box>
   );
 };

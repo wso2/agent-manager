@@ -53,6 +53,9 @@ export interface TraceOverview {
   output?: string;
   models?: string[];
   conversationId?: string;
+  tools?: string[];
+  failedTools?: string[];
+  mcpServers?: string[];
   score?: TraceScore | null;
 }
 
@@ -76,7 +79,24 @@ export interface TraceFilters {
   /** Case-insensitive substring of any entry in TraceOverview.models. Implies includeModels. */
   model?: string;
   conversationId?: string;
+  /** Case-insensitive substring of any entry in TraceOverview.tools. */
+  tool?: string;
+  /** Only traces with a failed tool; with tool set, the failed tool must be one tool matches. */
+  toolError?: boolean;
+  /** Case-insensitive substring of any entry in TraceOverview.mcpServers. */
+  mcpServer?: string;
+  /**
+   * Inclusive bounds in [0, 1] on the trace's mean non-skipped evaluation score,
+   * the Score column's value. A trace with no score never matches.
+   */
+  minScore?: number;
+  maxScore?: number;
+  /** Evaluator display name; scores only its rows. Alone, keeps traces it scored. */
+  evaluator?: string;
 }
+
+/** Optional TraceOverview fields the list fills on request (`?include=`). */
+export type TraceInclude = 'models' | 'tools' | 'mcpServers';
 
 // Keep Trace as an alias for backward compatibility
 export type Trace = TraceOverview;

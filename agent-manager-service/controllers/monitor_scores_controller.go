@@ -282,6 +282,33 @@ func parseEvaluatorsList(param string) []string {
 	return result
 }
 
+// parseTraceIDs reads the optional traceIds param, deduplicated; on an invalid value it writes a 400 and returns false.
+func parseTraceIDs(w http.ResponseWriter, r *http.Request) ([]string, bool) {
+	if !r.URL.Query().Has("traceIds") {
+		return nil, true
+	}
+	parts := strings.Split(r.URL.Query().Get("traceIds"), ",")
+	seen := make(map[string]struct{}, len(parts))
+	traceIDs := make([]string, 0, len(parts))
+	for _, p := range parts {
+		id := strings.TrimSpace(p)
+		if id == "" {
+			utils.WriteErrorResponse(w, http.StatusBadRequest, "Invalid 'traceIds': trace IDs must be non-empty")
+			return nil, false
+		}
+		if _, exists := seen[id]; exists {
+			continue
+		}
+		seen[id] = struct{}{}
+		traceIDs = append(traceIDs, id)
+	}
+	if len(traceIDs) > MaxScoresPerRequest {
+		utils.WriteErrorResponse(w, http.StatusBadRequest, fmt.Sprintf("Too many traceIds: maximum is %d", MaxScoresPerRequest))
+		return nil, false
+	}
+	return traceIDs, true
+}
+
 // GetGroupedScores handles GET .../monitors/{monitorName}/scores/breakdown
 // Returns scores grouped by span label (agent name or model) for breakdown tables
 func (c *monitorScoresController) GetGroupedScores(w http.ResponseWriter, r *http.Request) {
@@ -405,7 +432,16 @@ func (c *monitorScoresController) GetAgentTraceScores(w http.ResponseWriter, r *
 		return
 	}
 
-	result, err := c.scoresService.GetAgentTraceScores(ouID, projName, agentName, startTime, endTime, limit, offset, sortOrder)
+	traceIDs, ok := parseTraceIDs(w, r)
+	if !ok {
+		return
+	}
+	filters := repositories.AgentTraceScoreFilters{
+		TraceIDs:      traceIDs,
+		EvaluatorName: r.URL.Query().Get("evaluator"),
+	}
+
+	result, err := c.scoresService.GetAgentTraceScores(ouID, projName, agentName, startTime, endTime, limit, offset, sortOrder, filters)
 	if err != nil {
 		log.Error("Failed to get agent trace scores", "agentName", agentName, "error", err)
 		utils.WriteErrorResponse(w, http.StatusInternalServerError, "Failed to get agent trace scores")
