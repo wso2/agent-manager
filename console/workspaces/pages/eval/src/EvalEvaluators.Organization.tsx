@@ -312,7 +312,7 @@ export const EvalEvaluatorsOrganization: React.FC = () => {
                   };
                   const allTags = evaluator.tags ?? [];
                   const methodTag = allTags.find((tag) => tag in METHOD_LABELS);
-                  // `type` is authoritative for custom evaluators; built-ins have none, so fall back to their tag.
+                  // `type` is authoritative for custom evaluators; built-ins fall back to tags.
                   const methodLabel =
                     evaluator.type === "code"
                       ? "Rule-based"
@@ -433,7 +433,7 @@ export const EvalEvaluatorsOrganization: React.FC = () => {
                             justifyContent: "space-between",
                             flexGrow: 1,
                             minHeight: 0,
-                            // Pinned to avoid MUI's `:last-child` padding bump, which otherwise toggles on first hover and shifts this row.
+                            // Avoids MUI's `:last-child` padding bump toggling after first hover.
                             pb: 2,
                             "&.MuiCardContent-root:last-child": { pb: 2 },
                           }}

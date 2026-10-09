@@ -83,7 +83,7 @@ function findParentLabel(items: NavigationItem[], childLabel: string): string | 
 export const flattenWithChildren = (items: NavigationItem[]): NavigationItem[] =>
   items.flatMap((item) => [item, ...flattenWithChildren(item.children ?? [])]);
 
-// Turns a section into a nav item whose children are its items, so Sidebar.Item's own chevron/expand handles it.
+// Turns a section into a nav item with its items as children; Sidebar.Item handles expand/collapse.
 export const sectionToItem = (section: NavigationSection): NavigationItem => ({
   label: section.title,
   type: 'item',
