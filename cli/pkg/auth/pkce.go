@@ -40,7 +40,7 @@ type callbackResult struct {
 	err  error
 }
 
-func authCodePKCE(ctx context.Context, cfg *oauth2.Config, io *iostreams.IOStreams, openBrowser func(string) error) (*oauth2.Token, error) {
+func authCodePKCE(ctx context.Context, cfg *oauth2.Config, io *iostreams.IOStreams, openBrowser func(string) error, authParams ...oauth2.AuthCodeOption) (*oauth2.Token, error) {
 	listenAddr := fmt.Sprintf("127.0.0.1:%d", defaultCallbackPort)
 	listener, err := net.Listen("tcp", listenAddr)
 	if err != nil {
@@ -57,7 +57,7 @@ func authCodePKCE(ctx context.Context, cfg *oauth2.Config, io *iostreams.IOStrea
 		return nil, fmt.Errorf("generate state: %w", err)
 	}
 
-	authURL := cfg.AuthCodeURL(state, oauth2.S256ChallengeOption(verifier))
+	authURL := cfg.AuthCodeURL(state, append([]oauth2.AuthCodeOption{oauth2.S256ChallengeOption(verifier)}, authParams...)...)
 
 	if io.CanPrompt() {
 		fmt.Fprintf(io.ErrOut, "\nPress Enter to open the browser...")

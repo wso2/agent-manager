@@ -143,7 +143,7 @@ func TestLogin_WithoutURLRequiresKnownInstance(t *testing.T) {
 	}{
 		{
 			name:    "first login",
-			wantErr: "--url is required for the first login",
+			wantErr: "--url or --cloud is required for the first login",
 		},
 		{
 			name:      "unknown named instance",

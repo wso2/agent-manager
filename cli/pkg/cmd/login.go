@@ -19,6 +19,7 @@ package cmd
 import (
 	"context"
 	"fmt"
+	"os"
 	"time"
 
 	"github.com/spf13/cobra"
@@ -26,6 +27,7 @@ import (
 	"github.com/wso2/agent-manager/cli/pkg/auth"
 	amsvc "github.com/wso2/agent-manager/cli/pkg/clients/amsvc/gen"
 	"github.com/wso2/agent-manager/cli/pkg/clierr"
+	"github.com/wso2/agent-manager/cli/pkg/cloud"
 	"github.com/wso2/agent-manager/cli/pkg/cmdutil"
 	"github.com/wso2/agent-manager/cli/pkg/config"
 	"github.com/wso2/agent-manager/cli/pkg/iostreams"
@@ -56,6 +58,12 @@ type LoginOptions struct {
 	ClientSecret string
 	AuthServer   string
 	OpenBrowser  func(string) error
+
+	// Cloud targets Agent Manager on WSO2 Cloud instead of URL; Getenv is consulted for
+	// the gateway override (see the cloud package).
+	Cloud    bool
+	Getenv   func(string) string
+	Resource string
 }
 
 func NewLoginCmd(f *cmdutil.Factory) *cobra.Command {
@@ -64,6 +72,7 @@ func NewLoginCmd(f *cmdutil.Factory) *cobra.Command {
 		Config:       f.Config,
 		Authenticate: auth.Login,
 		AgentManager: f.AgentManager,
+		Getenv:       os.Getenv,
 	}
 
 	cmd := &cobra.Command{
@@ -79,6 +88,7 @@ func NewLoginCmd(f *cmdutil.Factory) *cobra.Command {
 	cmd.Flags().StringVar(&opts.ClientID, "client-id", "", "OAuth client ID (default \"amctl\" for interactive login)")
 	cmd.Flags().StringVar(&opts.ClientSecret, "client-secret", "", "OAuth client secret; when set, uses client_credentials grant instead of browser login")
 	cmd.Flags().StringVar(&opts.AuthServer, "auth-server", "", "Authorization server base URL; skips OAuth metadata discovery")
+	cmd.Flags().BoolVar(&opts.Cloud, "cloud", false, fmt.Sprintf("Log in to Agent Manager on WSO2 Cloud (production, or the gateway in $%s)", cloud.GatewayURLEnv))
 
 	return cmd
 }
@@ -86,6 +96,13 @@ func NewLoginCmd(f *cmdutil.Factory) *cobra.Command {
 func runLogin(ctx context.Context, opts *LoginOptions) error {
 	if opts.ClientSecret != "" && opts.ClientID == "" {
 		return render.Error(opts.IO, render.Scope{}, cmdutil.FlagErrorf("--client-id is required when --client-secret is set"))
+	}
+	if opts.Cloud {
+		if opts.URL != "" {
+			return render.Error(opts.IO, render.Scope{}, cmdutil.FlagErrorf("--url cannot be used with --cloud"))
+		}
+		opts.URL = cloud.APIURL(opts.Getenv)
+		opts.Resource = cloud.Resource
 	}
 	cfg, err := opts.Config()
 	if err != nil {
@@ -106,6 +123,7 @@ func runLogin(ctx context.Context, opts *LoginOptions) error {
 		ClientID:     opts.ClientID,
 		ClientSecret: opts.ClientSecret,
 		AuthServer:   opts.AuthServer,
+		Resource:     opts.Resource,
 		IO:           opts.IO,
 		OpenBrowser:  opts.OpenBrowser,
 	})
@@ -177,13 +195,16 @@ func fillFromStoredInstance(opts *LoginOptions, cfg *config.Config) error {
 	stored, ok := cfg.Instances[opts.Name]
 	if !ok || stored.URL == "" {
 		if opts.Name == "" {
-			return cmdutil.FlagErrorf("--url is required for the first login")
+			return cmdutil.FlagErrorf("--url or --cloud is required for the first login")
 		}
 		return cmdutil.FlagErrorf("--url is required to log in to new instance '%s'", opts.Name)
 	}
 	opts.URL = stored.URL
 	if opts.AuthServer == "" {
 		opts.AuthServer = stored.AuthServer
+	}
+	if opts.Resource == "" {
+		opts.Resource = stored.Auth.Resource
 	}
 	if opts.ClientID == "" {
 		opts.ClientID = stored.Auth.ClientID

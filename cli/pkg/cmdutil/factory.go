@@ -28,6 +28,7 @@ import (
 	"golang.org/x/oauth2"
 	"golang.org/x/oauth2/clientcredentials"
 
+	"github.com/wso2/agent-manager/cli/pkg/auth"
 	"github.com/wso2/agent-manager/cli/pkg/clients"
 	amsvc "github.com/wso2/agent-manager/cli/pkg/clients/amsvc/gen"
 	"github.com/wso2/agent-manager/cli/pkg/clients/observersvc"
@@ -208,10 +209,11 @@ func (f *Factory) refreshWithClientCredentials(ctx context.Context, cfg *config.
 	}
 
 	cc := clientcredentials.Config{
-		ClientID:     inst.Auth.ClientID,
-		ClientSecret: inst.Auth.ClientSecret,
-		TokenURL:     inst.TokenURL,
-		Scopes:       scopes,
+		ClientID:       inst.Auth.ClientID,
+		ClientSecret:   inst.Auth.ClientSecret,
+		TokenURL:       inst.TokenURL,
+		Scopes:         scopes,
+		EndpointParams: auth.ClientCredentialsResourceParams(inst.Auth.Resource),
 	}
 	tok, err := cc.Token(ctx)
 	if err != nil {

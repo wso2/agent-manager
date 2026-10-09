@@ -19,6 +19,7 @@ package auth
 import (
 	"context"
 	"fmt"
+	"net/url"
 	"strings"
 
 	"golang.org/x/oauth2"
@@ -41,8 +42,16 @@ type LoginOptions struct {
 	ClientID     string
 	ClientSecret string
 	AuthServer   string
+	Resource     string
 	IO           *iostreams.IOStreams
 	OpenBrowser  func(string) error
+}
+
+func ClientCredentialsResourceParams(resource string) url.Values {
+	if resource == "" {
+		return nil
+	}
+	return url.Values{"resource": {resource}}
 }
 
 func Login(ctx context.Context, opts LoginOptions) (*config.Instance, error) {
@@ -67,10 +76,11 @@ func loginClientCredentials(ctx context.Context, opts LoginOptions) (*config.Ins
 	}
 
 	cc := clientcredentials.Config{
-		ClientID:     opts.ClientID,
-		ClientSecret: opts.ClientSecret,
-		TokenURL:     tokenEndpoint,
-		Scopes:       scopes,
+		ClientID:       opts.ClientID,
+		ClientSecret:   opts.ClientSecret,
+		TokenURL:       tokenEndpoint,
+		Scopes:         scopes,
+		EndpointParams: ClientCredentialsResourceParams(opts.Resource),
 	}
 	tok, err := cc.Token(ctx)
 	if err != nil {
@@ -88,6 +98,7 @@ func loginClientCredentials(ctx context.Context, opts LoginOptions) (*config.Ins
 			RefreshToken: tok.RefreshToken,
 			ExpiresAt:    tok.Expiry,
 			Scopes:       scopes,
+			Resource:     opts.Resource,
 		},
 	}, nil
 }
@@ -129,7 +140,12 @@ func loginPKCE(ctx context.Context, opts LoginOptions) (*config.Instance, error)
 		openBrowser = browser.Open
 	}
 
-	tok, err := authCodePKCE(ctx, oauthCfg, opts.IO, openBrowser)
+	var authParams []oauth2.AuthCodeOption
+	if opts.Resource != "" {
+		authParams = append(authParams, oauth2.SetAuthURLParam("resource", opts.Resource))
+	}
+
+	tok, err := authCodePKCE(ctx, oauthCfg, opts.IO, openBrowser, authParams...)
 	if err != nil {
 		return nil, fmt.Errorf("authorization code exchange: %w", err)
 	}
@@ -145,6 +161,7 @@ func loginPKCE(ctx context.Context, opts LoginOptions) (*config.Instance, error)
 			RefreshToken: tok.RefreshToken,
 			ExpiresAt:    tok.Expiry,
 			Scopes:       scopes,
+			Resource:     opts.Resource,
 		},
 	}, nil
 }
