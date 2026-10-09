@@ -10,6 +10,9 @@ APP_NAME=agent-manager-observer
 IMAGE_NAME=amp-observer
 DOCKER_IMAGE=$(IMAGE_NAME):$(TAG)
 CONTAINER_NAME=$(APP_NAME)
+
+# Pinned dev tools (`make tools` at the repo root); puts ../.tools/bin first on PATH.
+include ../tools.mk
 PORT=9098
 KIND_CLUSTER_NAME=openchoreo-local
 K3D_CLUSTER_NAME=openchoreo-local-setup
@@ -44,7 +47,7 @@ fmt: ## Format code
 	@echo "Formatting code..."
 	@gofmt -w .
 
-lint: ## Lint code (requires golangci-lint)
+lint: ## Lint code (golangci-lint from `make tools`)
 	@echo "Linting code..."
 	@golangci-lint run ./...
 
@@ -53,9 +56,9 @@ build: ## Build the Go application locally
 	@echo "Building $(APP_NAME)..."
 	@go build -o $(APP_NAME) .
 
-run: ## Run the application locally with hot reload (requires: go install github.com/air-verse/air@latest)
+run: ## Run the application locally with hot reload (air from `make tools`)
 	@command -v air >/dev/null 2>&1 || { \
-		echo "air is required. Install with: go install github.com/air-verse/air@latest"; \
+		echo "air is required. Install with: make tools (repo root)"; \
 		exit 1; \
 	}
 	@if [ -f .env ]; then set -a && . ./.env && set +a; fi && air
@@ -121,7 +124,7 @@ gen-instrumentation-contract: ## Regenerate the instrumentation-matrix JSON sche
 	@echo "Regenerated traceloop/v1 contract schemas."
 
 mock-traces: ## Generate mock traces using Makefile-configured values
-	@command -v telemetrygen >/dev/null 2>&1 || (echo "telemetrygen is required. Install with: go install github.com/open-telemetry/opentelemetry-collector-contrib/cmd/telemetrygen@latest" && exit 1)
+	@command -v telemetrygen >/dev/null 2>&1 || (echo "telemetrygen is required. Install with: make tools (repo root)" && exit 1)
 	@[ -n "$(OTLP_ENDPOINT)" ] || (echo "OTLP_ENDPOINT is required (host:port)" && exit 1)
 	@[ -n "$(OTLP_HTTP_PATH)" ] || (echo "OTLP_HTTP_PATH is required (for example: /otel/v1/traces)" && exit 1)
 	@[ -n "$(AMP_AGENT_API_KEY)" ] || (echo "AMP_AGENT_API_KEY is required" && exit 1)

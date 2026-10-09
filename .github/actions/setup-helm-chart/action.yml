@@ -4,17 +4,14 @@ inputs:
   chart-path:
     description: 'Path to the Helm chart'
     required: true
-  helm-version:
-    description: 'Helm version to install'
-    required: false
-    default: '3.14.0'
 runs:
   using: 'composite'
   steps:
-    - name: Install Helm
-      uses: azure/setup-helm@v4
+    - name: Install Helm (deployments/setup/cluster-tools.env)
+      uses: ./.github/actions/setup-cluster-clis
       with:
-        version: ${{ inputs.helm-version }}
+        k3d: "false"
+        kubectl: "false"
 
     - name: Cache Helm chart dependencies
       id: helm-cache

@@ -18,8 +18,6 @@ concurrency:
 
 env:
   HELM_CHART_VERSION: ${{ github.event.inputs.helm_chart_version || '0.0.0-latest-dev' }}
-  K3D_VERSION: v5.8.3
-  K3D_SHA256: dbaa79a76ace7f4ca230a1ff41dc7d8a5036a8ad0309e9c54f9bf3836dbe853e
   YQ_VERSION: v4.45.4
   YQ_SHA256: b96de04645707e14a12f52c37e6266832e03c29e95b9b139cddcae7314466e69
 
@@ -38,12 +36,8 @@ jobs:
       - name: Setup Go
         uses: ./.github/actions/setup-go
 
-      - name: Install k3d
-        run: |
-          curl -fsSL -o /tmp/k3d https://github.com/k3d-io/k3d/releases/download/${{ env.K3D_VERSION }}/k3d-linux-amd64
-          echo "${{ env.K3D_SHA256 }}  /tmp/k3d" | sha256sum -c -
-          sudo install /tmp/k3d /usr/local/bin/k3d
-          k3d version
+      - name: Install cluster CLIs (deployments/setup/cluster-tools.env)
+        uses: ./.github/actions/setup-cluster-clis
 
       - name: Install yq
         run: |
