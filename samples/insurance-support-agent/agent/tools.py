@@ -11,39 +11,19 @@ from strands import tool
 from data import CLAIMS, POLICIES, next_claim_number
 
 
-@tool
-def list_policies() -> str:
-    """List every insurance policy held by the current customer."""
-    summary = [
-        {
-            "policy_number": p["policy_number"],
-            "product": p["product"],
-            "status": p["status"],
-            "premium_monthly": p["premium_monthly"],
-            "renews_on": p["renews_on"],
-        }
-        for p in POLICIES.values()
-    ]
-    return json.dumps({"policies": summary})
+from policy_reads import (
+    list_policies as _list_policies,
+    lookup_policy as _lookup_policy,
+)
+
+list_policies = tool(_list_policies)
+lookup_policy = tool(_lookup_policy)
 
 
 @tool
 def list_claims() -> str:
     """List every claim the current customer has filed, with its status."""
     return json.dumps({"claims": list(CLAIMS.values())})
-
-
-@tool
-def lookup_policy(policy_number: str) -> str:
-    """Get the full details and cover of one policy.
-
-    Args:
-        policy_number: Policy number, e.g. OZ-AUTO-4417.
-    """
-    policy = POLICIES.get(policy_number.strip().upper())
-    if policy is None:
-        return json.dumps({"error": f"No policy found with number {policy_number}."})
-    return json.dumps(policy)
 
 
 @tool
@@ -73,7 +53,9 @@ def file_claim(policy_number: str, description: str, amount_claimed: float) -> s
     if policy is None:
         return json.dumps({"error": f"No policy found with number {policy_number}."})
     if policy["status"] not in ("active", "expires soon"):
-        return json.dumps({"error": f"Policy {ref} is {policy['status']}; it cannot accept a claim."})
+        return json.dumps(
+            {"error": f"Policy {ref} is {policy['status']}; it cannot accept a claim."}
+        )
 
     claim = {
         "claim_number": next_claim_number(),
