@@ -60,6 +60,10 @@ spec:
             - -migrate
             - -server=false
           env:
+            # With a separate dispatcher the webhook tables live in its own
+            # database, migrated by the dispatcher; "api" mode skips them.
+            - name: SERVICE_MODE
+              value: {{ include "agent-management-platform.serviceMode" . | quote }}
             - name: DB_HOST
               value: {{ include "agent-management-platform.postgresql.host" . | quote }}
             - name: DB_PORT

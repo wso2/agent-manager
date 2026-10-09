@@ -145,6 +145,11 @@ export const generatedRouteMap =  {
                   }
                 }
               }
+            },
+            "webhooks": {
+              "path": "/org/:orgId/settings/webhooks",
+              "wildPath": "/org/:orgId/settings/webhooks/*",
+              "children": {}
             }
           }
         },
@@ -227,6 +232,11 @@ export const generatedRouteMap =  {
           "path": "/org/:orgId/project/:projectId",
           "wildPath": "/org/:orgId/project/:projectId/*",
           "children": {
+            "webhooks": {
+              "path": "/org/:orgId/project/:projectId/webhooks",
+              "wildPath": "/org/:orgId/project/:projectId/webhooks/*",
+              "children": {}
+            },
             "newAgent": {
               "path": "/org/:orgId/project/:projectId/newAgent",
               "wildPath": "/org/:orgId/project/:projectId/newAgent/*",
@@ -428,6 +438,11 @@ export const generatedRouteMap =  {
                         "metrics": {
                           "path": "/org/:orgId/project/:projectId/agents/:agentId/environment/:envId/observability/metrics",
                           "wildPath": "/org/:orgId/project/:projectId/agents/:agentId/environment/:envId/observability/metrics/*",
+                          "children": {}
+                        },
+                        "webhooks": {
+                          "path": "/org/:orgId/project/:projectId/agents/:agentId/environment/:envId/observability/webhooks",
+                          "wildPath": "/org/:orgId/project/:projectId/agents/:agentId/environment/:envId/observability/webhooks/*",
                           "children": {}
                         }
                       }

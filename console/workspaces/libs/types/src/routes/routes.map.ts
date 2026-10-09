@@ -165,6 +165,11 @@ export const rootRouteMap: AppRoute = {
                                 },
                             },
                         },
+                        webhooks: {
+                            path: 'webhooks',
+                            index: true,
+                            children: {},
+                        },
                     },
                 },
                 mcpProxies: {
@@ -246,6 +251,11 @@ export const rootRouteMap: AppRoute = {
                     path: 'project/:projectId',
                     index: true,
                     children: {
+                        webhooks: {
+                            path: 'webhooks',
+                            index: true,
+                            children: {},
+                        },
                         newAgent: {
                             path: 'newAgent',
                             index: true,
@@ -446,6 +456,11 @@ export const rootRouteMap: AppRoute = {
                                                 },
                                                 metrics: {
                                                     path: 'metrics',
+                                                    index: true,
+                                                    children: {},
+                                                },
+                                                webhooks: {
+                                                    path: 'webhooks',
                                                     index: true,
                                                     children: {},
                                                 },

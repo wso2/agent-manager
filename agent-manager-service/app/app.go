@@ -38,6 +38,7 @@ import (
 	"github.com/wso2/agent-manager/agent-manager-service/config"
 	"github.com/wso2/agent-manager/agent-manager-service/db"
 	dbmigrations "github.com/wso2/agent-manager/agent-manager-service/db_migrations"
+	"github.com/wso2/agent-manager/agent-manager-service/events"
 	"github.com/wso2/agent-manager/agent-manager-service/resources"
 	"github.com/wso2/agent-manager/agent-manager-service/server"
 	"github.com/wso2/agent-manager/agent-manager-service/services"
@@ -103,10 +104,24 @@ func Run(authProvider occlient.AuthProvider, secretProvider secretmanagersvc.Pro
 		}
 	}
 
+	// The dispatcher runs on its own database with its own schema, and none
+	// of the API's dependencies.
+	if cfg.Mode == config.ModeDispatcher {
+		runDispatcher(cfg, opts)
+		return
+	}
+
 	if opts.Migrate {
 		if err := dbmigrations.Migrate(); err != nil {
 			slog.Error("error occurred while migrating", "error", err)
 			os.Exit(1)
+		}
+		// In "all" mode the dispatcher's tables live in the service database.
+		if cfg.Mode == config.ModeAll {
+			if err := dbmigrations.MigrateDispatcher(); err != nil {
+				slog.Error("error occurred while migrating the webhook tables", "error", err)
+				os.Exit(1)
+			}
 		}
 	}
 
@@ -215,6 +230,13 @@ func Run(authProvider occlient.AuthProvider, secretProvider secretmanagersvc.Pro
 		os.Exit(1)
 	}
 
+	// Start publishing events and, on instances that run it, the webhook
+	// dispatcher. Both wait for the NATS streams, which are created in the
+	// background so a NATS server that is still starting does not hold up
+	// the API.
+	eventsCtx, eventsCancel := context.WithCancel(backgroundCtx)
+	startEvents(eventsCtx, dependencies, cfg.Mode == config.ModeAll)
+
 	// Load built-in LLM provider templates into memory
 	if err := loadBuiltInLLMTemplates(dependencies); err != nil {
 		slog.Error("Failed to load built-in LLM provider templates", "error", err)
@@ -311,6 +333,11 @@ func Run(authProvider occlient.AuthProvider, secretProvider secretmanagersvc.Pro
 		if err := internalServer.Shutdown(shutdownCtx); err != nil {
 			slog.Error("Internal server forced shutdown after timeout", "error", err)
 		}
+
+		// Stop events after the servers, so events of the last requests are
+		// published before the connection closes.
+		eventsCancel()
+		stopEvents(dependencies)
 
 		// Flush the audit buffer last. Both servers have stopped, so no further
 		// events can be produced and every in-flight request has finished
@@ -413,4 +440,51 @@ func loadBuiltInLLMTemplates(dependencies *wiring.AppParams) error {
 
 	slog.Info("Loaded built-in LLM provider templates into memory", "count", len(templates))
 	return nil
+}
+
+// startEvents sets up the event bus, retrying until it answers, then starts
+// the publisher and the webhook dispatcher. A no-op with events off.
+func startEvents(ctx context.Context, deps *wiring.AppParams, runDispatcher bool) {
+	if deps.EventBus == nil {
+		return
+	}
+	publisher, _ := deps.EventPublisher.(*events.AsyncPublisher)
+	if publisher != nil {
+		publisher.Start()
+	}
+	go func() {
+		for {
+			streamsCtx, cancel := context.WithTimeout(ctx, 10*time.Second)
+			err := deps.EventBus.Setup(streamsCtx)
+			cancel()
+			if err == nil {
+				break
+			}
+			slog.Warn("Event bus not ready; retrying", "error", err)
+			select {
+			case <-ctx.Done():
+				return
+			case <-time.After(5 * time.Second):
+			}
+		}
+		// In "api" mode a separate dispatcher instance delivers.
+		if !runDispatcher {
+			return
+		}
+		if err := deps.WebhookDispatcher.Start(ctx); err != nil {
+			slog.Error("failed to start webhook dispatcher", "error", err)
+		}
+	}()
+}
+
+// stopEvents stops the dispatcher, flushes queued events and closes the bus.
+func stopEvents(deps *wiring.AppParams) {
+	if deps.EventBus == nil {
+		return
+	}
+	deps.WebhookDispatcher.Stop()
+	if publisher, ok := deps.EventPublisher.(*events.AsyncPublisher); ok {
+		publisher.Stop()
+	}
+	deps.EventBus.Close()
 }

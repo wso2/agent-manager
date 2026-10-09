@@ -27,7 +27,7 @@ import {
   ListSubheader,
   Typography,
 } from "@wso2/oxygen-ui";
-import { Folder, Shield, Users } from "@wso2/oxygen-ui-icons-react";
+import { Webhook, Folder, Shield, Users } from "@wso2/oxygen-ui-icons-react";
 import {
   generatePath,
   matchPath,
@@ -93,6 +93,18 @@ export const SettingsLayout: React.FC<{ children: ReactNode }> = ({
   const sections: SubNavSection[] = userMgmtItems.length > 0
     ? [{ title: "User Management", items: userMgmtItems }]
     : [];
+  if (identityVisibility.webhooks) {
+    const webhooksNode = settingsRoute.children.webhooks;
+    sections.push({
+      title: "Integrations",
+      items: [{
+        label: "Webhooks",
+        href: generatePath(webhooksNode.path, { orgId }),
+        wildPath: webhooksNode.wildPath,
+        icon: <Webhook size={18} />,
+      }],
+    });
+  }
 
   return (
     <PageLayout title="Settings" disableIcon>

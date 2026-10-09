@@ -22,6 +22,7 @@ import (
 	"strings"
 
 	"github.com/wso2/agent-manager/agent-manager-service/audit"
+	"github.com/wso2/agent-manager/agent-manager-service/events"
 	"github.com/wso2/agent-manager/agent-manager-service/rbac"
 	"github.com/wso2/agent-manager/agent-manager-service/utils"
 )
@@ -49,6 +50,16 @@ type RouteRegistrar struct {
 	// walks it to assert that no mutating route shipped unaudited; it is never
 	// consulted at request time.
 	routes []audit.RouteMeta
+	// events publishes the catalog event of a route after it succeeds. Nil
+	// until SetEventPublisher is called, and then only for routes registered
+	// after it.
+	events events.Publisher
+}
+
+// SetEventPublisher makes routes registered from now on publish their
+// catalog events (see events.RouteEventType).
+func (rr *RouteRegistrar) SetEventPublisher(p events.Publisher) {
+	rr.events = p
 }
 
 // NewRouteRegistrar creates a RouteRegistrar backed by the given mux and resolver.
@@ -101,6 +112,9 @@ func (rr *RouteRegistrar) register(
 	handler http.HandlerFunc,
 ) {
 	params := extractPathParams(pattern)
+	meta := audit.NewRouteMetaForSurface(pattern, params, perms, rr.surface)
+	// Innermost, so the resolved org and the caller are on its context.
+	handler = WithEvents(rr.events, meta)(handler)
 	if len(params) > 0 {
 		handler = WithPathParamValidation(handler, params...)
 	}
@@ -111,7 +125,6 @@ func (rr *RouteRegistrar) register(
 		handler = RequireOrgMatch(rr.orgResolver)(handler)
 	}
 
-	meta := audit.NewRouteMetaForSurface(pattern, params, perms, rr.surface)
 	rr.routes = append(rr.routes, meta)
 	handler = WithAudit(rr.auditor, meta)(handler)
 
@@ -161,6 +174,9 @@ func (rr *RouteRegistrar) registerRootOU(
 	handler http.HandlerFunc,
 ) {
 	params := extractPathParams(pattern)
+	meta := audit.NewRouteMetaForSurface(pattern, params, perms, rr.surface)
+	// Innermost, so the resolved org and the caller are on its context.
+	handler = WithEvents(rr.events, meta)(handler)
 	if len(params) > 0 {
 		handler = WithPathParamValidation(handler, params...)
 	}
@@ -169,7 +185,6 @@ func (rr *RouteRegistrar) registerRootOU(
 		handler = RequireOrgMatchAllowRootOU(rr.orgResolver)(handler)
 	}
 
-	meta := audit.NewRouteMetaForSurface(pattern, params, perms, rr.surface)
 	rr.routes = append(rr.routes, meta)
 	handler = WithAudit(rr.auditor, meta)(handler)
 

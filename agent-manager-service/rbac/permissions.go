@@ -216,6 +216,14 @@ const (
 	MonitorScorePublish Permission = "monitor:score-publish"
 )
 
+// Alerting permissions — org-level webhook endpoints, granted to Admin only.
+// Project and agent webhooks are part of the project or agent and use their
+// read and update permissions.
+const (
+	AlertingRead   Permission = "alerting:read"
+	AlertingManage Permission = "alerting:manage"
+)
+
 // Observability permissions — data-read scopes enforced by agent-manager-observer
 const (
 	ObservabilityTraceRead    Permission = "observability:trace-read"

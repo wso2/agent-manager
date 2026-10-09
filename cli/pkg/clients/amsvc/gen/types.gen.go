@@ -905,22 +905,22 @@ func (e MonitorResponseType) Valid() bool {
 
 // Defines values for MonitorRunResponseStatus.
 const (
-	Failed  MonitorRunResponseStatus = "failed"
-	Pending MonitorRunResponseStatus = "pending"
-	Running MonitorRunResponseStatus = "running"
-	Success MonitorRunResponseStatus = "success"
+	MonitorRunResponseStatusFailed  MonitorRunResponseStatus = "failed"
+	MonitorRunResponseStatusPending MonitorRunResponseStatus = "pending"
+	MonitorRunResponseStatusRunning MonitorRunResponseStatus = "running"
+	MonitorRunResponseStatusSuccess MonitorRunResponseStatus = "success"
 )
 
 // Valid indicates whether the value is a known member of the MonitorRunResponseStatus enum.
 func (e MonitorRunResponseStatus) Valid() bool {
 	switch e {
-	case Failed:
+	case MonitorRunResponseStatusFailed:
 		return true
-	case Pending:
+	case MonitorRunResponseStatusPending:
 		return true
-	case Running:
+	case MonitorRunResponseStatusRunning:
 		return true
-	case Success:
+	case MonitorRunResponseStatusSuccess:
 		return true
 	default:
 		return false
@@ -1044,6 +1044,69 @@ func (e UpstreamAuthType) Valid() bool {
 	}
 }
 
+// Defines values for WebhookDeliveryResponseStatus.
+const (
+	WebhookDeliveryResponseStatusDelivered WebhookDeliveryResponseStatus = "delivered"
+	WebhookDeliveryResponseStatusFailed    WebhookDeliveryResponseStatus = "failed"
+	WebhookDeliveryResponseStatusPending   WebhookDeliveryResponseStatus = "pending"
+)
+
+// Valid indicates whether the value is a known member of the WebhookDeliveryResponseStatus enum.
+func (e WebhookDeliveryResponseStatus) Valid() bool {
+	switch e {
+	case WebhookDeliveryResponseStatusDelivered:
+		return true
+	case WebhookDeliveryResponseStatusFailed:
+		return true
+	case WebhookDeliveryResponseStatusPending:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for WebhookEventTypeScope.
+const (
+	WebhookEventTypeScopeAgent   WebhookEventTypeScope = "agent"
+	WebhookEventTypeScopeOrg     WebhookEventTypeScope = "org"
+	WebhookEventTypeScopeProject WebhookEventTypeScope = "project"
+)
+
+// Valid indicates whether the value is a known member of the WebhookEventTypeScope enum.
+func (e WebhookEventTypeScope) Valid() bool {
+	switch e {
+	case WebhookEventTypeScopeAgent:
+		return true
+	case WebhookEventTypeScopeOrg:
+		return true
+	case WebhookEventTypeScopeProject:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for WebhookResponseScope.
+const (
+	WebhookResponseScopeAgent   WebhookResponseScope = "agent"
+	WebhookResponseScopeOrg     WebhookResponseScope = "org"
+	WebhookResponseScopeProject WebhookResponseScope = "project"
+)
+
+// Valid indicates whether the value is a known member of the WebhookResponseScope enum.
+func (e WebhookResponseScope) Valid() bool {
+	switch e {
+	case WebhookResponseScopeAgent:
+		return true
+	case WebhookResponseScopeOrg:
+		return true
+	case WebhookResponseScopeProject:
+		return true
+	default:
+		return false
+	}
+}
+
 // Defines values for ListCatalogResourcesParamsKind.
 const (
 	ListCatalogResourcesParamsKindAgent       ListCatalogResourcesParamsKind = "agent"
@@ -1136,16 +1199,16 @@ func (e GetMonitorScoresParamsLevel) Valid() bool {
 
 // Defines values for GetGroupedScoresParamsLevel.
 const (
-	Agent GetGroupedScoresParamsLevel = "agent"
-	Llm   GetGroupedScoresParamsLevel = "llm"
+	GetGroupedScoresParamsLevelAgent GetGroupedScoresParamsLevel = "agent"
+	GetGroupedScoresParamsLevelLlm   GetGroupedScoresParamsLevel = "llm"
 )
 
 // Valid indicates whether the value is a known member of the GetGroupedScoresParamsLevel enum.
 func (e GetGroupedScoresParamsLevel) Valid() bool {
 	switch e {
-	case Agent:
+	case GetGroupedScoresParamsLevelAgent:
 		return true
-	case Llm:
+	case GetGroupedScoresParamsLevelLlm:
 		return true
 	default:
 		return false
@@ -1164,6 +1227,27 @@ func (e GetAgentTraceScoresParamsSortOrder) Valid() bool {
 	case Asc:
 		return true
 	case Desc:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for ListWebhookEventTypesParamsScope.
+const (
+	ListWebhookEventTypesParamsScopeAgent   ListWebhookEventTypesParamsScope = "agent"
+	ListWebhookEventTypesParamsScopeOrg     ListWebhookEventTypesParamsScope = "org"
+	ListWebhookEventTypesParamsScopeProject ListWebhookEventTypesParamsScope = "project"
+)
+
+// Valid indicates whether the value is a known member of the ListWebhookEventTypesParamsScope enum.
+func (e ListWebhookEventTypesParamsScope) Valid() bool {
+	switch e {
+	case ListWebhookEventTypesParamsScopeAgent:
+		return true
+	case ListWebhookEventTypesParamsScopeOrg:
+		return true
+	case ListWebhookEventTypesParamsScopeProject:
 		return true
 	default:
 		return false
@@ -5524,6 +5608,100 @@ type UserResponse struct {
 	OuId *string `json:"ouId,omitempty"`
 }
 
+// WebhookDeliveryListResponse defines model for WebhookDeliveryListResponse.
+type WebhookDeliveryListResponse struct {
+	Deliveries []WebhookDeliveryResponse `json:"deliveries"`
+}
+
+// WebhookDeliveryResponse defines model for WebhookDeliveryResponse.
+type WebhookDeliveryResponse struct {
+	Attempts     int                           `json:"attempts"`
+	CreatedAt    time.Time                     `json:"createdAt"`
+	DeliveredAt  *time.Time                    `json:"deliveredAt,omitempty"`
+	EventId      string                        `json:"eventId"`
+	EventType    string                        `json:"eventType"`
+	Id           string                        `json:"id"`
+	LastError    *string                       `json:"lastError,omitempty"`
+	ResponseCode *int                          `json:"responseCode,omitempty"`
+	Status       WebhookDeliveryResponseStatus `json:"status"`
+	UpdatedAt    time.Time                     `json:"updatedAt"`
+}
+
+// WebhookDeliveryResponseStatus defines model for WebhookDeliveryResponse.Status.
+type WebhookDeliveryResponseStatus string
+
+// WebhookEventType defines model for WebhookEventType.
+type WebhookEventType struct {
+	Category    string                `json:"category"`
+	Description string                `json:"description"`
+	Scope       WebhookEventTypeScope `json:"scope"`
+	Type        string                `json:"type"`
+}
+
+// WebhookEventTypeScope defines model for WebhookEventType.Scope.
+type WebhookEventTypeScope string
+
+// WebhookEventTypeListResponse defines model for WebhookEventTypeListResponse.
+type WebhookEventTypeListResponse struct {
+	EventTypes []WebhookEventType `json:"eventTypes"`
+}
+
+// WebhookListResponse defines model for WebhookListResponse.
+type WebhookListResponse struct {
+	Webhooks []WebhookResponse `json:"webhooks"`
+}
+
+// WebhookRequest defines model for WebhookRequest.
+type WebhookRequest struct {
+	Description *string `json:"description,omitempty"`
+	Enabled     *bool   `json:"enabled,omitempty"`
+
+	// Environments Environments whose agent events the webhook receives. At least one
+	// is required for agent webhooks; ignored for org and project
+	// webhooks. Agent events not tied to an environment, such as builds,
+	// are sent to every agent webhook.
+	Environments *[]string `json:"environments,omitempty"`
+
+	// EventTypes Event types to send. Every type must belong to the webhook's scope. Empty sends nothing.
+	EventTypes []string `json:"eventTypes"`
+	Name       string   `json:"name"`
+
+	// Url HTTPS URL that receives event POST requests.
+	Url string `json:"url"`
+}
+
+// WebhookResponse defines model for WebhookResponse.
+type WebhookResponse struct {
+	CreatedAt    time.Time            `json:"createdAt"`
+	Description  string               `json:"description"`
+	Enabled      bool                 `json:"enabled"`
+	Environments []string             `json:"environments"`
+	EventTypes   []string             `json:"eventTypes"`
+	Id           string               `json:"id"`
+	Name         string               `json:"name"`
+	Scope        WebhookResponseScope `json:"scope"`
+
+	// SigningSecret Present only in the response that created the webhook. Used to verify the webhook-signature header.
+	SigningSecret *string   `json:"signingSecret,omitempty"`
+	UpdatedAt     time.Time `json:"updatedAt"`
+	Url           string    `json:"url"`
+}
+
+// WebhookResponseScope defines model for WebhookResponse.Scope.
+type WebhookResponseScope string
+
+// WebhookSecretResponse defines model for WebhookSecretResponse.
+type WebhookSecretResponse struct {
+	SigningSecret string `json:"signingSecret"`
+}
+
+// WebhookTestResponse defines model for WebhookTestResponse.
+type WebhookTestResponse struct {
+	Delivered  bool    `json:"delivered"`
+	Error      *string `json:"error,omitempty"`
+	StatusCode *int    `json:"statusCode,omitempty"`
+}
+
 // AgentIdentityEnvName defines model for AgentIdentityEnvName.
 type AgentIdentityEnvName = string
 
@@ -5956,6 +6134,11 @@ type GenerateAgentTokenParams struct {
 	Environment *string `form:"environment,omitempty" json:"environment,omitempty"`
 }
 
+// ListAgentWebhookDeliveriesParams defines parameters for ListAgentWebhookDeliveries.
+type ListAgentWebhookDeliveriesParams struct {
+	Limit *int `form:"limit,omitempty" json:"limit,omitempty"`
+}
+
 // ListLLMProxiesParams defines parameters for ListLLMProxies.
 type ListLLMProxiesParams struct {
 	// Limit Maximum number of results to return
@@ -5963,6 +6146,11 @@ type ListLLMProxiesParams struct {
 
 	// Offset Number of results to skip
 	Offset *int32 `form:"offset,omitempty" json:"offset,omitempty"`
+}
+
+// ListProjectWebhookDeliveriesParams defines parameters for ListProjectWebhookDeliveries.
+type ListProjectWebhookDeliveriesParams struct {
+	Limit *int `form:"limit,omitempty" json:"limit,omitempty"`
 }
 
 // ListRepositoryBranchesParams defines parameters for ListRepositoryBranches.
@@ -5987,6 +6175,20 @@ type ListRepositoryCommitsParams struct {
 type CheckThunderUrlAvailabilityParams struct {
 	// Handle The candidate env-Thunder URL handle to check.
 	Handle string `form:"handle" json:"handle"`
+}
+
+// ListWebhookEventTypesParams defines parameters for ListWebhookEventTypes.
+type ListWebhookEventTypesParams struct {
+	// Scope Only event types of this scope.
+	Scope *ListWebhookEventTypesParamsScope `form:"scope,omitempty" json:"scope,omitempty"`
+}
+
+// ListWebhookEventTypesParamsScope defines parameters for ListWebhookEventTypes.
+type ListWebhookEventTypesParamsScope string
+
+// ListOrgWebhookDeliveriesParams defines parameters for ListOrgWebhookDeliveries.
+type ListOrgWebhookDeliveriesParams struct {
+	Limit *int `form:"limit,omitempty" json:"limit,omitempty"`
 }
 
 // CreateOrganizationJSONRequestBody defines body for CreateOrganization for application/json ContentType.
@@ -6205,6 +6407,12 @@ type GenerateAgentTokenJSONRequestBody = TokenRequest
 // RegenerateAgentTracingTokenJSONRequestBody defines body for RegenerateAgentTracingToken for application/json ContentType.
 type RegenerateAgentTracingTokenJSONRequestBody = TracingTokenRegenerateRequest
 
+// CreateAgentWebhookJSONRequestBody defines body for CreateAgentWebhook for application/json ContentType.
+type CreateAgentWebhookJSONRequestBody = WebhookRequest
+
+// UpdateAgentWebhookJSONRequestBody defines body for UpdateAgentWebhook for application/json ContentType.
+type UpdateAgentWebhookJSONRequestBody = WebhookRequest
+
 // CreateLLMProxyJSONRequestBody defines body for CreateLLMProxy for application/json ContentType.
 type CreateLLMProxyJSONRequestBody = CreateLLMProxyRequest
 
@@ -6217,6 +6425,12 @@ type CreateLLMProxyAPIKeyJSONRequestBody = CreateLLMAPIKeyRequest
 // RotateLLMProxyAPIKeyJSONRequestBody defines body for RotateLLMProxyAPIKey for application/json ContentType.
 type RotateLLMProxyAPIKeyJSONRequestBody = RotateLLMAPIKeyRequest
 
+// CreateProjectWebhookJSONRequestBody defines body for CreateProjectWebhook for application/json ContentType.
+type CreateProjectWebhookJSONRequestBody = WebhookRequest
+
+// UpdateProjectWebhookJSONRequestBody defines body for UpdateProjectWebhook for application/json ContentType.
+type UpdateProjectWebhookJSONRequestBody = WebhookRequest
+
 // ListRepositoryBranchesJSONRequestBody defines body for ListRepositoryBranches for application/json ContentType.
 type ListRepositoryBranchesJSONRequestBody = ListBranchesRequest
 
@@ -6225,6 +6439,12 @@ type ListRepositoryCommitsJSONRequestBody = ListCommitsRequest
 
 // GetNameByDisplayNameJSONRequestBody defines body for GetNameByDisplayName for application/json ContentType.
 type GetNameByDisplayNameJSONRequestBody = ResourceNameRequest
+
+// CreateOrgWebhookJSONRequestBody defines body for CreateOrgWebhook for application/json ContentType.
+type CreateOrgWebhookJSONRequestBody = WebhookRequest
+
+// UpdateOrgWebhookJSONRequestBody defines body for UpdateOrgWebhook for application/json ContentType.
+type UpdateOrgWebhookJSONRequestBody = WebhookRequest
 
 // ReportConsoleActionsJSONRequestBody defines body for ReportConsoleActions for application/json ContentType.
 type ReportConsoleActionsJSONRequestBody = ConsoleActionBatchRequest

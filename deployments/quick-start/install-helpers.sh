@@ -205,6 +205,12 @@ install_registry_credentials() {
     return 1
 }
 
+# Quick start runs the event bus inside the API (embedded NATS, in memory)
+# instead of a NATS pod: one less workload on a laptop cluster, at the cost of
+# losing queued webhook deliveries on a restart. Production installs keep the
+# chart default (a NATS server). AMP_HELM_ARGS comes last, so passing
+# --set agentManagerService.config.events.mode=nats --set nats.enabled=true
+# there switches a quick-start install back to NATS.
 install_agent_management_platform() {
     local chart_ref="oci://${HELM_CHART_REGISTRY}/${AMP_CHART_NAME}"
     local chart_version="${VERSION}"
@@ -216,6 +222,8 @@ install_agent_management_platform() {
         --version "${chart_version}" \
         --set console.config.instrumentationUrl="http://default-default.gateway.localhost:19080/otel" \
         --set agentManagerService.config.amObserverPublicURL="http://traces.amp.localhost:11080" \
+        --set agentManagerService.config.events.mode=embedded \
+        --set nats.enabled=false \
         "${AMP_HELM_ARGS[@]}" >"${helm_log}" 2>&1; then
         echo "Helm installation log (last 50 lines):"
         tail -50 "${helm_log}" 2>/dev/null || cat "${helm_log}" 2>/dev/null || echo "Log file not available"

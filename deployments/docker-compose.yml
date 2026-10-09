@@ -19,6 +19,24 @@ services:
     networks:
       - agent-manager
 
+  # NATS JetStream: carries platform events to the webhook dispatcher
+  nats:
+    image: nats:2.12-alpine
+    container_name: agent-manager-nats
+    command: ["--jetstream", "--store_dir=/data", "--http_port=8222"]
+    ports:
+      - "4222:4222"
+      - "8222:8222"
+    volumes:
+      - nats_data:/data
+    healthcheck:
+      test: ["CMD", "wget", "-q", "-O-", "http://localhost:8222/healthz?js-enabled-only=true"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+    networks:
+      - agent-manager
+
   # Agent Manager Service (Go Backend)
   agent-manager-service:
     build:
@@ -39,7 +57,7 @@ services:
       - SERVER_PORT=8080
       - SERVER_PUBLIC_URL=http://localhost:9000
       - OAUTH_AUTHORIZATION_SERVERS=http://thunder.amp.localhost:8080
-      - OAUTH_SCOPES_SUPPORTED=amp:llm-proxy:deploy,amp:mcp-server:create,amp:org:invite-member,amp:role:delete,amp:monitor:read,amp:agent:env-production,amp:git-secret:delete,amp:llm-provider:delete,amp:mcp-server:configure-guardrail,amp:deployment-pipeline:create,amp:deployment-pipeline:read,amp:deployment-pipeline:update,amp:deployment-pipeline:delete,amp:gateway:delete,amp:group:delete,amp:llm-proxy:update,amp:monitor:score-read,amp:llm-provider-template:update,amp:agent:build,amp:agent:rollback,amp:agent:token-manage,amp:evaluator:read,amp:llm-provider-template:read,amp:monitor:create,amp:agent:suspend,amp:gateway:token-manage,amp:git-secret:read,amp:mcp-server:connect,amp:mcp-server:api-key-manage,amp:mcp-server:read,amp:observability:log-read,amp:group:create,amp:observability:trace-read,amp:org:remove-member,amp:agent:env-non-production,amp:group:read,amp:llm-provider-template:create,amp:project:delete,amp:agent:create,amp:evaluator:create,amp:llm-provider:read,amp:org:modify-settings,amp:catalog:read,amp:environment:update,amp:group:update,amp:llm-proxy:delete,amp:project:read,amp:data-plane:read,amp:agent:read,amp:environment:read,amp:llm-provider:configure-guardrail,amp:observability:build-log-read,amp:org:assign-role,amp:project:update,amp:mcp-server:delete,amp:environment:delete,amp:evaluator:update,amp:git-secret:create,amp:monitor:execute,amp:llm-provider:api-key-manage,amp:gateway:read,amp:agent:update,amp:llm-provider-template:delete,amp:monitor:delete,amp:org:view,amp:llm-provider:create,amp:mcp-server:update,amp:org:manage-idp,amp:role:read,amp:role:update,amp:agent:delete,amp:gateway:create,amp:llm-provider:deploy,amp:llm-proxy:api-key-manage,amp:monitor:update,amp:org:manage-service-account,amp:role:create,amp:evaluator:delete,amp:llm-provider:connect,amp:llm-provider:update,amp:llm-proxy:read,amp:monitor:score-publish,amp:observability:metric-read,amp:project:create,amp:repository:read,amp:gateway:update,amp:environment:create,amp:llm-proxy:create,amp:agent:api-key-manage,amp:agent-kind:read,amp:agent-kind:create,amp:agent-kind:update,amp:agent-kind:delete,amp:profile:read,amp:profile:update-attributes,amp:scope:create,amp:scope:read,amp:scope:update,amp:scope:delete,amp:agent-identity:read,amp:agent-identity:create,amp:agent-identity:update,amp:agent-identity:delete
+      - OAUTH_SCOPES_SUPPORTED=amp:llm-proxy:deploy,amp:mcp-server:create,amp:org:invite-member,amp:role:delete,amp:monitor:read,amp:agent:env-production,amp:git-secret:delete,amp:llm-provider:delete,amp:mcp-server:configure-guardrail,amp:deployment-pipeline:create,amp:deployment-pipeline:read,amp:deployment-pipeline:update,amp:deployment-pipeline:delete,amp:gateway:delete,amp:group:delete,amp:llm-proxy:update,amp:monitor:score-read,amp:llm-provider-template:update,amp:agent:build,amp:agent:rollback,amp:agent:token-manage,amp:evaluator:read,amp:llm-provider-template:read,amp:monitor:create,amp:agent:suspend,amp:gateway:token-manage,amp:git-secret:read,amp:mcp-server:connect,amp:mcp-server:api-key-manage,amp:mcp-server:read,amp:observability:log-read,amp:group:create,amp:observability:trace-read,amp:org:remove-member,amp:agent:env-non-production,amp:group:read,amp:llm-provider-template:create,amp:project:delete,amp:agent:create,amp:evaluator:create,amp:llm-provider:read,amp:org:modify-settings,amp:catalog:read,amp:environment:update,amp:group:update,amp:llm-proxy:delete,amp:project:read,amp:data-plane:read,amp:agent:read,amp:environment:read,amp:llm-provider:configure-guardrail,amp:observability:build-log-read,amp:org:assign-role,amp:project:update,amp:mcp-server:delete,amp:environment:delete,amp:evaluator:update,amp:git-secret:create,amp:monitor:execute,amp:llm-provider:api-key-manage,amp:gateway:read,amp:agent:update,amp:llm-provider-template:delete,amp:monitor:delete,amp:org:view,amp:llm-provider:create,amp:mcp-server:update,amp:org:manage-idp,amp:role:read,amp:role:update,amp:agent:delete,amp:gateway:create,amp:llm-provider:deploy,amp:llm-proxy:api-key-manage,amp:monitor:update,amp:org:manage-service-account,amp:role:create,amp:evaluator:delete,amp:llm-provider:connect,amp:llm-provider:update,amp:llm-proxy:read,amp:monitor:score-publish,amp:alerting:read,amp:alerting:manage,amp:observability:metric-read,amp:project:create,amp:repository:read,amp:gateway:update,amp:environment:create,amp:llm-proxy:create,amp:agent:api-key-manage,amp:agent-kind:read,amp:agent-kind:create,amp:agent-kind:update,amp:agent-kind:delete,amp:profile:read,amp:profile:update-attributes,amp:scope:create,amp:scope:read,amp:scope:update,amp:scope:delete,amp:agent-identity:read,amp:agent-identity:create,amp:agent-identity:update,amp:agent-identity:delete
       # Growth analytics (Moesif, directly or via a collector proxy) — off by
       # default. Needs MOESIF_ENABLED=true and MOESIF_APPLICATION_ID or
       # MOESIF_COLLECTOR_BASE_URL set;
@@ -72,6 +90,15 @@ services:
       # - OPENCHOREO_API_URL=http://host.docker.internal:8000
       # - OPENSEARCH_URL=http://host.docker.internal:9200
       - AM_OBSERVER_URL=http://host.docker.internal:9098
+      # Platform events go to NATS JetStream; the webhook dispatcher in this
+      # process delivers them to the configured webhooks. Private and plain
+      # http endpoints (a receiver on your machine) are allowed for local dev.
+      # EVENTS_MODE=embedded runs NATS inside the service instead (in memory,
+      # no nats container needed).
+      - EVENTS_MODE=nats
+      - EVENTS_NATS_URL=nats://nats:4222
+      - WEBHOOKS_DISPATCHER_ENABLED=true
+      - WEBHOOKS_ALLOW_PRIVATE_ENDPOINTS=true
       # Externally reachable observer URL returned to the CLI via /api/v1/config.
       # No internal fallback: unset means clients surface "observer not configured".
       - AM_OBSERVER_PUBLIC_URL=http://localhost:9098
@@ -118,6 +145,8 @@ services:
     depends_on:
       postgres:
         condition: service_healthy
+      nats:
+        condition: service_healthy
     networks:
       agent-manager:
       k3d-openchoreo-local-setup: # Connect to k3d cluster network for hostname resolution
@@ -152,7 +181,7 @@ services:
       - SIGN_OUT_REDIRECT_URL=http://localhost:3000/login
       - API_BASE_URL=http://localhost:9000
       - DISABLE_AUTH=false
-      - AUTH_SCOPES=openid profile email amp:org:view amp:org:modify-settings amp:org:invite-member amp:org:remove-member amp:org:assign-role amp:org:manage-idp amp:org:manage-service-account amp:project:create amp:project:read amp:project:update amp:project:delete amp:environment:create amp:environment:read amp:environment:update amp:environment:delete amp:gateway:create amp:gateway:read amp:gateway:update amp:gateway:delete amp:gateway:token-manage amp:data-plane:read amp:deployment-pipeline:create amp:deployment-pipeline:read amp:deployment-pipeline:update amp:deployment-pipeline:delete amp:git-secret:create amp:git-secret:read amp:git-secret:delete amp:llm-provider-template:create amp:llm-provider-template:read amp:llm-provider-template:update amp:llm-provider-template:delete amp:llm-provider:create amp:llm-provider:read amp:llm-provider:update amp:llm-provider:delete amp:llm-provider:configure-guardrail amp:llm-provider:connect amp:llm-provider:deploy amp:llm-provider:api-key-manage amp:mcp-server:create amp:mcp-server:read amp:mcp-server:update amp:mcp-server:delete amp:mcp-server:configure-guardrail amp:mcp-server:connect amp:mcp-server:api-key-manage amp:llm-proxy:create amp:llm-proxy:read amp:llm-proxy:update amp:llm-proxy:delete amp:llm-proxy:deploy amp:llm-proxy:api-key-manage amp:evaluator:create amp:evaluator:read amp:evaluator:update amp:evaluator:delete amp:agent:create amp:agent:read amp:agent:update amp:agent:delete amp:agent:build amp:agent:env-non-production amp:agent:env-production amp:agent:rollback amp:agent:suspend amp:agent:token-manage amp:agent:api-key-manage amp:monitor:create amp:monitor:read amp:monitor:update amp:monitor:delete amp:monitor:execute amp:monitor:score-read amp:monitor:score-publish amp:observability:trace-read amp:observability:log-read amp:observability:build-log-read amp:observability:metric-read amp:role:create amp:role:read amp:role:update amp:role:delete amp:group:create amp:group:read amp:group:update amp:group:delete amp:catalog:read amp:repository:read amp:agent-kind:read amp:agent-kind:create amp:agent-kind:update amp:agent-kind:delete amp:profile:read amp:profile:update-attributes amp:scope:create amp:scope:read amp:scope:update amp:scope:delete amp:agent-identity:read amp:agent-identity:create amp:agent-identity:update amp:agent-identity:delete
+      - AUTH_SCOPES=openid profile email amp:org:view amp:org:modify-settings amp:org:invite-member amp:org:remove-member amp:org:assign-role amp:org:manage-idp amp:org:manage-service-account amp:project:create amp:project:read amp:project:update amp:project:delete amp:environment:create amp:environment:read amp:environment:update amp:environment:delete amp:gateway:create amp:gateway:read amp:gateway:update amp:gateway:delete amp:gateway:token-manage amp:data-plane:read amp:deployment-pipeline:create amp:deployment-pipeline:read amp:deployment-pipeline:update amp:deployment-pipeline:delete amp:git-secret:create amp:git-secret:read amp:git-secret:delete amp:llm-provider-template:create amp:llm-provider-template:read amp:llm-provider-template:update amp:llm-provider-template:delete amp:llm-provider:create amp:llm-provider:read amp:llm-provider:update amp:llm-provider:delete amp:llm-provider:configure-guardrail amp:llm-provider:connect amp:llm-provider:deploy amp:llm-provider:api-key-manage amp:mcp-server:create amp:mcp-server:read amp:mcp-server:update amp:mcp-server:delete amp:mcp-server:configure-guardrail amp:mcp-server:connect amp:mcp-server:api-key-manage amp:llm-proxy:create amp:llm-proxy:read amp:llm-proxy:update amp:llm-proxy:delete amp:llm-proxy:deploy amp:llm-proxy:api-key-manage amp:evaluator:create amp:evaluator:read amp:evaluator:update amp:evaluator:delete amp:agent:create amp:agent:read amp:agent:update amp:agent:delete amp:agent:build amp:agent:env-non-production amp:agent:env-production amp:agent:rollback amp:agent:suspend amp:agent:token-manage amp:agent:api-key-manage amp:monitor:create amp:monitor:read amp:monitor:update amp:monitor:delete amp:monitor:execute amp:monitor:score-read amp:monitor:score-publish amp:alerting:read amp:alerting:manage amp:observability:trace-read amp:observability:log-read amp:observability:build-log-read amp:observability:metric-read amp:role:create amp:role:read amp:role:update amp:role:delete amp:group:create amp:group:read amp:group:update amp:group:delete amp:catalog:read amp:repository:read amp:agent-kind:read amp:agent-kind:create amp:agent-kind:update amp:agent-kind:delete amp:profile:read amp:profile:update-attributes amp:scope:create amp:scope:read amp:scope:update amp:scope:delete amp:agent-identity:read amp:agent-identity:create amp:agent-identity:update amp:agent-identity:delete
       - GATEWAY_CONTROL_PLANE_URL=http://localhost:9243
       - GATEWAY_VERSION=v2026.09.24
       # Agent Manager release version — pins the deployment-script git tag (amp/vX.Y.Z).
@@ -200,6 +229,7 @@ services:
 
 volumes:
   postgres_data:
+  nats_data:
   console_node_modules:
   agent_manager_keys:
 

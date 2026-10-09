@@ -50,12 +50,16 @@ type InfraResourceController interface {
 
 type infraResourceController struct {
 	infraResourceManager services.InfraResourceManager
+	webhooks             services.WebhookCleaner
 }
 
 // NewInfraResourceController returns a new InfraResourceController instance.
-func NewInfraResourceController(infraResourceManager services.InfraResourceManager) InfraResourceController {
+func NewInfraResourceController(
+	infraResourceManager services.InfraResourceManager, webhooks services.WebhookCleaner,
+) InfraResourceController {
 	return &infraResourceController{
 		infraResourceManager: infraResourceManager,
+		webhooks:             webhooks,
 	}
 }
 
@@ -273,6 +277,9 @@ func (c *infraResourceController) DeleteProject(w http.ResponseWriter, r *http.R
 		log.Error("DeleteProject: failed to delete project", "error", err)
 		handleCommonErrors(w, err, "Failed to delete project")
 		return
+	}
+	if c.webhooks != nil {
+		c.webhooks.RemoveForProject(ctx, ouID, projectName)
 	}
 
 	utils.WriteSuccessResponse(w, http.StatusNoContent, "")

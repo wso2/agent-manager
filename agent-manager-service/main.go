@@ -31,6 +31,10 @@ func main() {
 	// Parse command-line flags
 	serverFlag := flag.Bool("server", true, "start the http Server")
 	migrateFlag := flag.Bool("migrate", false, "migrate the database")
+	// Read by the config package before flags are parsed (it decides which
+	// settings are required); declared here for -help and validation.
+	flag.String("mode", config.ModeAll,
+		"service mode: all (API and webhook dispatcher), api (API only) or dispatcher (webhook dispatcher only); overrides SERVICE_MODE")
 	flag.Parse()
 
 	cfg := config.GetConfig()

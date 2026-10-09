@@ -30,6 +30,7 @@ export interface IdentityVisibility {
   users: boolean;
   roles: boolean;
   groups: boolean;
+  webhooks: boolean;
 }
 
 /**
@@ -40,11 +41,11 @@ export function useIdentityVisibility(): IdentityVisibility {
   const { userInfo } = useAuthHooks();
   return useMemo(() => {
     if (globalConfig.disableAuth) {
-      return { users: true, roles: true, groups: true };
+      return { users: true, roles: true, groups: true, webhooks: true };
     }
     const scopeStr = userInfo?.scope;
     if (!scopeStr) {
-      return { users: false, roles: false, groups: false };
+      return { users: false, roles: false, groups: false, webhooks: false };
     }
     const s = new Set(scopeStr.split(" ").filter(Boolean));
     return {
@@ -59,6 +60,29 @@ export function useIdentityVisibility(): IdentityVisibility {
         s.has("amp:group:create") ||
         s.has("amp:group:update") ||
         s.has("amp:group:delete"),
+      webhooks: s.has("amp:alerting:read") || s.has("amp:alerting:manage"),
     };
+  }, [userInfo?.scope]);
+}
+
+export interface WebhooksAccess {
+  canRead: boolean;
+  canManage: boolean;
+}
+
+/**
+ * Org webhooks are gated by the alerting scopes, granted to the Admin role
+ * only. Manage implies read: the manage-only routes are useless without seeing
+ * the webhooks.
+ */
+export function useWebhooksAccess(): WebhooksAccess {
+  const { userInfo } = useAuthHooks();
+  return useMemo(() => {
+    if (globalConfig.disableAuth) {
+      return { canRead: true, canManage: true };
+    }
+    const s = new Set((userInfo?.scope ?? "").split(" ").filter(Boolean));
+    const canManage = s.has("amp:alerting:manage");
+    return { canRead: canManage || s.has("amp:alerting:read"), canManage };
   }, [userInfo?.scope]);
 }

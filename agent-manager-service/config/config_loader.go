@@ -59,6 +59,10 @@ func loadEnvs() {
 	}
 
 	r := &configReader{}
+	config.Mode = modeFromArgs(os.Args[1:])
+	if config.Mode == "" {
+		config.Mode = r.readOptionalString("SERVICE_MODE", ModeAll)
+	}
 	config.ServerHost = r.readOptionalString("SERVER_HOST", "")
 	config.ServerPort = int(r.readOptionalInt64("SERVER_PORT", 8080))
 	config.AuthHeader = r.readOptionalString("AUTH_HEADER", "Authorization")
@@ -210,7 +214,7 @@ func loadEnvs() {
 		},
 	}
 	config.OpenChoreo = OpenChoreoConfig{
-		BaseURL:          r.readRequiredString("OPEN_CHOREO_BASE_URL"),
+		BaseURL:          r.readStringRequiredUnlessDispatcher("OPEN_CHOREO_BASE_URL"),
 		DefaultNamespace: r.readOptionalString("OPEN_CHOREO_DEFAULT_NAMESPACE", "default"),
 		SystemLabelKeyPrefixes: r.readOptionalStringList(
 			"OPEN_CHOREO_SYSTEM_LABEL_KEY_PREFIXES", "openchoreo.dev/",
@@ -293,6 +297,37 @@ func loadEnvs() {
 		FlushIntervalMs: int(r.readOptionalInt64("AUDIT_FLUSH_INTERVAL_MS", 1000)),
 	}
 	r.errors = append(r.errors, validateAuditConfig(config.Audit)...)
+
+	config.Events = EventsConfig{
+		Mode:    r.readOptionalString("EVENTS_MODE", ""),
+		NATSURL: r.readOptionalString("EVENTS_NATS_URL", ""),
+	}
+	if config.Events.Mode == "" {
+		config.Events.Mode = EventsModeOff
+		if config.Events.NATSURL != "" {
+			config.Events.Mode = EventsModeNATS
+		}
+	}
+	switch config.Events.Mode {
+	case EventsModeOff, EventsModeEmbedded:
+	case EventsModeNATS:
+		if config.Events.NATSURL == "" {
+			r.errors = append(r.errors, fmt.Errorf("EVENTS_NATS_URL is required when EVENTS_MODE is nats"))
+		}
+	default:
+		r.errors = append(r.errors, fmt.Errorf("EVENTS_MODE must be nats, embedded or off, got %q", config.Events.Mode))
+	}
+	config.Webhooks = WebhooksConfig{
+		DispatcherEnabled:     r.readOptionalBool("WEBHOOKS_DISPATCHER_ENABLED", true),
+		DispatcherURL:         strings.TrimRight(r.readOptionalString("WEBHOOKS_DISPATCHER_URL", ""), "/"),
+		DispatcherAPIKey:      r.readOptionalString("WEBHOOKS_DISPATCHER_API_KEY", ""),
+		DispatcherPort:        int(r.readOptionalInt64("WEBHOOKS_DISPATCHER_PORT", 8090)),
+		MaxAttempts:           int(r.readOptionalInt64("WEBHOOKS_MAX_ATTEMPTS", 6)),
+		DeliveryRetentionDays: int(r.readOptionalInt64("WEBHOOKS_DELIVERY_RETENTION_DAYS", 14)),
+		AllowPrivateEndpoints: r.readOptionalBool("WEBHOOKS_ALLOW_PRIVATE_ENDPOINTS", false),
+	}
+
+	r.errors = append(r.errors, validateServiceMode(config)...)
 
 	// Resource limits for agent resource configurations (operator-controlled ceilings)
 	config.PerAgentResourceLimits = ResourceLimitsConfig{
@@ -706,6 +741,66 @@ func validateAuditConfig(cfg AuditConfig) []error {
 			"AUDIT_BATCH_SIZE (%d) must not exceed AUDIT_BUFFER_SIZE (%d)",
 			cfg.BatchSize, cfg.BufferSize,
 		))
+	}
+	return errs
+}
+
+// modeFromArgs reads -mode / --mode from the command line. The config loads
+// before main parses flags, and the mode decides which settings are
+// required, so it is read here; main declares the same flag for -help.
+func modeFromArgs(args []string) string {
+	for i, a := range args {
+		name, value, hasValue := strings.Cut(strings.TrimLeft(a, "-"), "=")
+		if !strings.HasPrefix(a, "-") || name != "mode" {
+			continue
+		}
+		if hasValue {
+			return value
+		}
+		if i+1 < len(args) {
+			return args[i+1]
+		}
+	}
+	return ""
+}
+
+// readStringRequiredUnlessDispatcher reads a setting the dispatcher does not
+// use: required in the other modes, optional in "dispatcher" mode.
+func (r *configReader) readStringRequiredUnlessDispatcher(name string) string {
+	if config.Mode == ModeDispatcher {
+		return r.readOptionalString(name, "")
+	}
+	return r.readRequiredString(name)
+}
+
+// validateServiceMode checks the settings each mode depends on.
+func validateServiceMode(cfg *Config) []error {
+	var errs []error
+	switch cfg.Mode {
+	case ModeAll:
+		return nil
+	case ModeAPI:
+		if cfg.Events.Mode == EventsModeOff {
+			return nil
+		}
+		if cfg.Events.Mode == EventsModeEmbedded {
+			errs = append(errs, fmt.Errorf("EVENTS_MODE=embedded needs SERVICE_MODE=all: the dispatcher cannot reach an in-process bus"))
+		}
+		if cfg.Webhooks.DispatcherURL == "" {
+			errs = append(errs, fmt.Errorf("WEBHOOKS_DISPATCHER_URL is required in api mode"))
+		}
+		if cfg.Webhooks.DispatcherAPIKey == "" {
+			errs = append(errs, fmt.Errorf("WEBHOOKS_DISPATCHER_API_KEY is required in api mode"))
+		}
+	case ModeDispatcher:
+		if cfg.Events.Mode != EventsModeNATS {
+			errs = append(errs, fmt.Errorf("dispatcher mode needs EVENTS_MODE=nats and EVENTS_NATS_URL"))
+		}
+		if cfg.Webhooks.DispatcherAPIKey == "" {
+			errs = append(errs, fmt.Errorf("WEBHOOKS_DISPATCHER_API_KEY is required in dispatcher mode"))
+		}
+	default:
+		errs = append(errs, fmt.Errorf("mode must be all, api or dispatcher, got %q", cfg.Mode))
 	}
 	return errs
 }

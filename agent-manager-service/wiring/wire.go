@@ -35,6 +35,7 @@ import (
 	"github.com/wso2/agent-manager/agent-manager-service/config"
 	"github.com/wso2/agent-manager/agent-manager-service/controllers"
 	"github.com/wso2/agent-manager/agent-manager-service/eventhub"
+	"github.com/wso2/agent-manager/agent-manager-service/events"
 	"github.com/wso2/agent-manager/agent-manager-service/instrumentation"
 	"github.com/wso2/agent-manager/agent-manager-service/middleware"
 	"github.com/wso2/agent-manager/agent-manager-service/middleware/jwtassertion"
@@ -108,6 +109,14 @@ var serviceProviderSet = wire.NewSet(
 	services.NewLLMTemplateStore,
 	services.NewGitSecretService,
 	services.NewAIApplicationService,
+	ProvideEventBus,
+	ProvideEventPublisher,
+	services.NewWebhookSender,
+	ProvideWebhookStore,
+	services.NewWebhookService,
+	wire.Bind(new(services.WebhookCleaner), new(services.WebhookService)),
+	services.NewWebhookDispatcherService,
+	services.NewMonitorRunEvents,
 )
 
 var instrumentationProviderSet = wire.NewSet(
@@ -144,6 +153,7 @@ var controllerProviderSet = wire.NewSet(
 	controllers.NewIdentityController,
 	controllers.NewMCPProxyScopeController,
 	controllers.NewAgentIdentityController,
+	controllers.NewWebhookController,
 )
 
 var testClientProviderSet = wire.NewSet(
@@ -386,6 +396,7 @@ var repositoryProviderSet = wire.NewSet(
 	ProvideEnvThunderSystemClientRepository,
 	ProvideEnvThunderURLRepository,
 	repositories.NewMCPProxyScopeRepository,
+	repositories.NewWebhookRepository,
 )
 
 var websocketProviderSet = wire.NewSet(
@@ -577,6 +588,51 @@ func ProvideAgentIdentityInjectionService(
 	logger *slog.Logger,
 ) services.AgentIdentityInjectionService {
 	return services.NewAgentIdentityInjectionService(repo, agentConfigRepo, mcpProxyScopeRepo, ocClient, cfg.SecretManager.AgentIdentityRefreshInterval, logger)
+}
+
+// ProvideWebhookStore picks where webhooks are kept: the dispatcher's
+// database through its internal API in "api" mode, this process's database
+// otherwise.
+func ProvideWebhookStore(
+	cfg config.Config, repo repositories.WebhookRepository, sender services.WebhookSender, encryptionKey []byte, logger *slog.Logger,
+) services.WebhookStore {
+	if cfg.Mode == config.ModeAPI {
+		return services.NewRemoteWebhookStore(cfg.Webhooks.DispatcherURL, cfg.Webhooks.DispatcherAPIKey, logger)
+	}
+	return services.NewLocalWebhookStore(repo, sender, encryptionKey, logger)
+}
+
+// ProvideEventBus connects to NATS, or starts the embedded in-memory server,
+// as EVENTS_MODE says. With events off it returns nil: nothing is published
+// and the dispatcher does not run.
+func ProvideEventBus(cfg config.Config, logger *slog.Logger) (events.Bus, error) {
+	switch cfg.Events.Mode {
+	case config.EventsModeEmbedded:
+		bus, err := events.StartEmbedded(logger)
+		if err != nil {
+			return nil, err
+		}
+		return bus, nil
+	case config.EventsModeNATS:
+		bus, err := events.Connect(cfg.Events.NATSURL, "agent-manager-service", logger)
+		if err != nil {
+			return nil, err
+		}
+		return bus, nil
+	default:
+		// A nil interface, not a nil *NATSBus, so callers' nil checks work.
+		logger.Info("Events disabled: EVENTS_MODE is off")
+		return nil, nil
+	}
+}
+
+// ProvideEventPublisher returns the publisher routes and the monitor
+// scheduler use. Without a bus, events are discarded.
+func ProvideEventPublisher(bus events.Bus, logger *slog.Logger) events.Publisher {
+	if bus == nil {
+		return events.NoopPublisher{}
+	}
+	return events.NewAsyncPublisher(bus, logger)
 }
 
 func ProvideThunderConfig(cfg config.Config) config.ThunderConfig {

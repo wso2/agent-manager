@@ -890,7 +890,7 @@
               "type": "string"
             },
             "oauthScopesSupported": {
-              "default": "amp:llm-proxy:deploy,amp:mcp-server:create,amp:org:invite-member,amp:role:delete,amp:monitor:read,amp:agent:env-production,amp:git-secret:delete,amp:llm-provider:delete,amp:mcp-server:configure-guardrail,amp:deployment-pipeline:create,amp:deployment-pipeline:read,amp:deployment-pipeline:update,amp:deployment-pipeline:delete,amp:gateway:delete,amp:group:delete,amp:llm-proxy:update,amp:monitor:score-read,amp:llm-provider-template:update,amp:agent:build,amp:agent:rollback,amp:agent:token-manage,amp:evaluator:read,amp:llm-provider-template:read,amp:monitor:create,amp:agent:suspend,amp:gateway:token-manage,amp:git-secret:read,amp:mcp-server:connect,amp:mcp-server:api-key-manage,amp:mcp-server:read,amp:observability:log-read,amp:group:create,amp:observability:trace-read,amp:org:remove-member,amp:agent:env-non-production,amp:group:read,amp:llm-provider-template:create,amp:project:delete,amp:agent:create,amp:evaluator:create,amp:llm-provider:read,amp:org:modify-settings,amp:catalog:read,amp:environment:update,amp:group:update,amp:llm-proxy:delete,amp:project:read,amp:data-plane:read,amp:agent:read,amp:environment:read,amp:llm-provider:configure-guardrail,amp:observability:build-log-read,amp:org:assign-role,amp:project:update,amp:mcp-server:delete,amp:environment:delete,amp:evaluator:update,amp:git-secret:create,amp:monitor:execute,amp:llm-provider:api-key-manage,amp:gateway:read,amp:agent:update,amp:llm-provider-template:delete,amp:monitor:delete,amp:org:view,amp:llm-provider:create,amp:mcp-server:update,amp:org:manage-idp,amp:role:read,amp:role:update,amp:agent:delete,amp:gateway:create,amp:llm-provider:deploy,amp:llm-proxy:api-key-manage,amp:monitor:update,amp:org:manage-service-account,amp:role:create,amp:evaluator:delete,amp:llm-provider:connect,amp:llm-provider:update,amp:llm-proxy:read,amp:monitor:score-publish,amp:observability:metric-read,amp:project:create,amp:repository:read,amp:gateway:update,amp:environment:create,amp:llm-proxy:create,amp:agent:api-key-manage,amp:agent-kind:read,amp:agent-kind:create,amp:agent-kind:update,amp:agent-kind:delete,amp:profile:read,amp:profile:update-attributes,amp:scope:create,amp:scope:read,amp:scope:update,amp:scope:delete,amp:agent-identity:read,amp:agent-identity:create,amp:agent-identity:update,amp:agent-identity:delete",
+              "default": "amp:llm-proxy:deploy,amp:mcp-server:create,amp:org:invite-member,amp:role:delete,amp:monitor:read,amp:agent:env-production,amp:git-secret:delete,amp:llm-provider:delete,amp:mcp-server:configure-guardrail,amp:deployment-pipeline:create,amp:deployment-pipeline:read,amp:deployment-pipeline:update,amp:deployment-pipeline:delete,amp:gateway:delete,amp:group:delete,amp:llm-proxy:update,amp:monitor:score-read,amp:llm-provider-template:update,amp:agent:build,amp:agent:rollback,amp:agent:token-manage,amp:evaluator:read,amp:llm-provider-template:read,amp:monitor:create,amp:agent:suspend,amp:gateway:token-manage,amp:git-secret:read,amp:mcp-server:connect,amp:mcp-server:api-key-manage,amp:mcp-server:read,amp:observability:log-read,amp:group:create,amp:observability:trace-read,amp:org:remove-member,amp:agent:env-non-production,amp:group:read,amp:llm-provider-template:create,amp:project:delete,amp:agent:create,amp:evaluator:create,amp:llm-provider:read,amp:org:modify-settings,amp:catalog:read,amp:environment:update,amp:group:update,amp:llm-proxy:delete,amp:project:read,amp:data-plane:read,amp:agent:read,amp:environment:read,amp:llm-provider:configure-guardrail,amp:observability:build-log-read,amp:org:assign-role,amp:project:update,amp:mcp-server:delete,amp:environment:delete,amp:evaluator:update,amp:git-secret:create,amp:monitor:execute,amp:llm-provider:api-key-manage,amp:gateway:read,amp:agent:update,amp:llm-provider-template:delete,amp:monitor:delete,amp:org:view,amp:llm-provider:create,amp:mcp-server:update,amp:org:manage-idp,amp:role:read,amp:role:update,amp:agent:delete,amp:gateway:create,amp:llm-provider:deploy,amp:llm-proxy:api-key-manage,amp:monitor:update,amp:org:manage-service-account,amp:role:create,amp:evaluator:delete,amp:llm-provider:connect,amp:llm-provider:update,amp:llm-proxy:read,amp:monitor:score-publish,amp:alerting:read,amp:alerting:manage,amp:observability:metric-read,amp:project:create,amp:repository:read,amp:gateway:update,amp:environment:create,amp:llm-proxy:create,amp:agent:api-key-manage,amp:agent-kind:read,amp:agent-kind:create,amp:agent-kind:update,amp:agent-kind:delete,amp:profile:read,amp:profile:update-attributes,amp:scope:create,amp:scope:read,amp:scope:update,amp:scope:delete,amp:agent-identity:read,amp:agent-identity:create,amp:agent-identity:update,amp:agent-identity:delete",
               "description": "Comma-separated list of OAuth 2.0 scopes supported by this resource, advertised in RFC 9728 protected resource metadata.",
               "title": "oauthScopesSupported",
               "type": "string"
@@ -1079,6 +1079,67 @@
               },
               "required": [],
               "title": "openbao",
+              "type": "object"
+            },
+            "events": {
+              "additionalProperties": false,
+              "description": "Publishing platform events to NATS JetStream.",
+              "properties": {
+                "mode": {
+                  "default": "nats",
+                  "description": "nats uses a NATS server (natsUrl or the bundled one); embedded runs NATS in the API process with in-memory JetStream, for quick start; off publishes no events.",
+                  "enum": [
+                    "nats",
+                    "embedded",
+                    "off"
+                  ],
+                  "title": "mode",
+                  "type": "string"
+                },
+                "natsUrl": {
+                  "default": "",
+                  "description": "NATS server URL. Empty uses the bundled NATS when nats.enabled.",
+                  "title": "natsUrl",
+                  "type": "string"
+                }
+              },
+              "required": [],
+              "title": "events",
+              "type": "object"
+            },
+            "webhooks": {
+              "additionalProperties": false,
+              "description": "Delivering events to webhook endpoints.",
+              "properties": {
+                "dispatcherEnabled": {
+                  "default": true,
+                  "description": "Run the webhook dispatcher in this deployment.",
+                  "title": "dispatcherEnabled",
+                  "type": "boolean"
+                },
+                "maxAttempts": {
+                  "default": 6,
+                  "description": "Delivery attempts before an event is marked failed.",
+                  "title": "maxAttempts",
+                  "type": "integer",
+                  "minimum": 1
+                },
+                "deliveryRetentionDays": {
+                  "default": 14,
+                  "description": "Days the delivery log is kept.",
+                  "title": "deliveryRetentionDays",
+                  "type": "integer",
+                  "minimum": 1
+                },
+                "allowPrivateEndpoints": {
+                  "default": false,
+                  "description": "Let webhook URLs resolve to private addresses or use plain http. Local development only.",
+                  "title": "allowPrivateEndpoints",
+                  "type": "boolean"
+                }
+              },
+              "required": [],
+              "title": "webhooks",
               "type": "object"
             },
             "workflowPlaneOpenbao": {
@@ -1688,7 +1749,7 @@
                   "type": "string"
                 },
                 "scopes": {
-                  "default": "openid profile email amp:llm-proxy:deploy amp:mcp-server:create amp:org:invite-member amp:role:delete amp:monitor:read amp:agent:env-production amp:git-secret:delete amp:llm-provider:delete amp:mcp-server:configure-guardrail amp:deployment-pipeline:create amp:deployment-pipeline:read amp:deployment-pipeline:update amp:deployment-pipeline:delete amp:gateway:delete amp:group:delete amp:llm-proxy:update amp:monitor:score-read amp:llm-provider-template:update amp:agent:build amp:agent:rollback amp:agent:token-manage amp:evaluator:read amp:llm-provider-template:read amp:monitor:create amp:agent:suspend amp:gateway:token-manage amp:git-secret:read amp:mcp-server:connect amp:mcp-server:api-key-manage amp:mcp-server:read amp:observability:log-read amp:group:create amp:observability:trace-read amp:org:remove-member amp:agent:env-non-production amp:group:read amp:llm-provider-template:create amp:project:delete amp:agent:create amp:evaluator:create amp:llm-provider:read amp:org:modify-settings amp:catalog:read amp:environment:update amp:group:update amp:llm-proxy:delete amp:project:read amp:data-plane:read amp:agent:read amp:environment:read amp:llm-provider:configure-guardrail amp:observability:build-log-read amp:org:assign-role amp:project:update amp:mcp-server:delete amp:environment:delete amp:evaluator:update amp:git-secret:create amp:monitor:execute amp:llm-provider:api-key-manage amp:gateway:read amp:agent:update amp:llm-provider-template:delete amp:monitor:delete amp:org:view amp:llm-provider:create amp:mcp-server:update amp:org:manage-idp amp:role:read amp:role:update amp:agent:delete amp:gateway:create amp:llm-provider:deploy amp:llm-proxy:api-key-manage amp:monitor:update amp:org:manage-service-account amp:role:create amp:evaluator:delete amp:llm-provider:connect amp:llm-provider:update amp:llm-proxy:read amp:monitor:score-publish amp:observability:metric-read amp:project:create amp:repository:read amp:gateway:update amp:environment:create amp:llm-proxy:create amp:agent:api-key-manage amp:agent-kind:read amp:agent-kind:create amp:agent-kind:update amp:agent-kind:delete amp:profile:read amp:profile:update-attributes amp:scope:create amp:scope:read amp:scope:update amp:scope:delete amp:agent-identity:read amp:agent-identity:create amp:agent-identity:update amp:agent-identity:delete",
+                  "default": "openid profile email amp:llm-proxy:deploy amp:mcp-server:create amp:org:invite-member amp:role:delete amp:monitor:read amp:agent:env-production amp:git-secret:delete amp:llm-provider:delete amp:mcp-server:configure-guardrail amp:deployment-pipeline:create amp:deployment-pipeline:read amp:deployment-pipeline:update amp:deployment-pipeline:delete amp:gateway:delete amp:group:delete amp:llm-proxy:update amp:monitor:score-read amp:llm-provider-template:update amp:agent:build amp:agent:rollback amp:agent:token-manage amp:evaluator:read amp:llm-provider-template:read amp:monitor:create amp:agent:suspend amp:gateway:token-manage amp:git-secret:read amp:mcp-server:connect amp:mcp-server:api-key-manage amp:mcp-server:read amp:observability:log-read amp:group:create amp:observability:trace-read amp:org:remove-member amp:agent:env-non-production amp:group:read amp:llm-provider-template:create amp:project:delete amp:agent:create amp:evaluator:create amp:llm-provider:read amp:org:modify-settings amp:catalog:read amp:environment:update amp:group:update amp:llm-proxy:delete amp:project:read amp:data-plane:read amp:agent:read amp:environment:read amp:llm-provider:configure-guardrail amp:observability:build-log-read amp:org:assign-role amp:project:update amp:mcp-server:delete amp:environment:delete amp:evaluator:update amp:git-secret:create amp:monitor:execute amp:llm-provider:api-key-manage amp:gateway:read amp:agent:update amp:llm-provider-template:delete amp:monitor:delete amp:org:view amp:llm-provider:create amp:mcp-server:update amp:org:manage-idp amp:role:read amp:role:update amp:agent:delete amp:gateway:create amp:llm-provider:deploy amp:llm-proxy:api-key-manage amp:monitor:update amp:org:manage-service-account amp:role:create amp:evaluator:delete amp:llm-provider:connect amp:llm-provider:update amp:llm-proxy:read amp:monitor:score-publish amp:alerting:read amp:alerting:manage amp:observability:metric-read amp:project:create amp:repository:read amp:gateway:update amp:environment:create amp:llm-proxy:create amp:agent:api-key-manage amp:agent-kind:read amp:agent-kind:create amp:agent-kind:update amp:agent-kind:delete amp:profile:read amp:profile:update-attributes amp:scope:create amp:scope:read amp:scope:update amp:scope:delete amp:agent-identity:read amp:agent-identity:create amp:agent-identity:update amp:agent-identity:delete",
                   "description": "Scopes the console requests at login.",
                   "title": "scopes",
                   "type": "string"
@@ -2412,6 +2473,194 @@
       },
       "required": [],
       "title": "serviceAccount",
+      "type": "object"
+    },
+    "webhookDispatcher": {
+      "additionalProperties": false,
+      "description": "Webhook dispatcher as a separate deployment with its own database.",
+      "properties": {
+        "enabled": {
+          "default": false,
+          "description": "Run the dispatcher as its own deployment; the API then runs in api mode.",
+          "title": "enabled",
+          "type": "boolean"
+        },
+        "replicaCount": {
+          "default": 1,
+          "description": "Dispatcher replicas.",
+          "title": "replicaCount",
+          "type": "integer",
+          "minimum": 1
+        },
+        "port": {
+          "default": 8090,
+          "description": "Internal API port.",
+          "title": "port",
+          "type": "integer"
+        },
+        "apiKey": {
+          "additionalProperties": false,
+          "description": "Key shared by the API and the dispatcher.",
+          "properties": {
+            "value": {
+              "default": "",
+              "description": "Key value; generated when empty.",
+              "title": "value",
+              "type": "string"
+            },
+            "existingSecret": {
+              "default": "",
+              "description": "Secret holding the key.",
+              "title": "existingSecret",
+              "type": "string"
+            },
+            "existingSecretKey": {
+              "default": "dispatcher-api-key",
+              "description": "Key in existingSecret.",
+              "title": "existingSecretKey",
+              "type": "string"
+            }
+          },
+          "required": [],
+          "title": "apiKey",
+          "type": "object"
+        },
+        "database": {
+          "additionalProperties": false,
+          "description": "The dispatcher's own database; unset fields fall back to the chart's PostgreSQL.",
+          "properties": {
+            "host": {
+              "default": "",
+              "description": "Database host.",
+              "title": "host",
+              "type": "string"
+            },
+            "port": {
+              "default": "",
+              "description": "Database port.",
+              "title": "port",
+              "type": "string"
+            },
+            "name": {
+              "default": "amp_webhooks",
+              "description": "Database name.",
+              "title": "name",
+              "type": "string"
+            },
+            "user": {
+              "default": "",
+              "description": "Database user.",
+              "title": "user",
+              "type": "string"
+            },
+            "existingSecret": {
+              "default": "",
+              "description": "Secret holding the password.",
+              "title": "existingSecret",
+              "type": "string"
+            },
+            "existingSecretPasswordKey": {
+              "default": "",
+              "description": "Password key in existingSecret.",
+              "title": "existingSecretPasswordKey",
+              "type": "string"
+            },
+            "create": {
+              "default": true,
+              "description": "Create the database when missing.",
+              "title": "create",
+              "type": "boolean"
+            }
+          },
+          "required": [],
+          "title": "database",
+          "type": "object"
+        },
+        "resources": {
+          "description": "Container resources.",
+          "title": "resources",
+          "type": "object"
+        },
+        "podAnnotations": {
+          "description": "Pod annotations.",
+          "title": "podAnnotations",
+          "type": "object"
+        }
+      },
+      "required": [],
+      "title": "webhookDispatcher",
+      "type": "object"
+    },
+    "nats": {
+      "additionalProperties": false,
+      "description": "Bundled NATS with JetStream for platform events.",
+      "properties": {
+        "enabled": {
+          "default": true,
+          "description": "Deploy NATS with this chart.",
+          "title": "enabled",
+          "type": "boolean"
+        },
+        "image": {
+          "additionalProperties": false,
+          "properties": {
+            "repository": {
+              "default": "nats",
+              "description": "Image repository.",
+              "title": "repository",
+              "type": "string"
+            },
+            "tag": {
+              "default": "2.12-alpine",
+              "description": "Image tag.",
+              "title": "tag",
+              "type": "string"
+            },
+            "pullPolicy": {
+              "default": "IfNotPresent",
+              "description": "Image pull policy.",
+              "title": "pullPolicy",
+              "type": "string"
+            }
+          },
+          "required": [],
+          "title": "image",
+          "type": "object"
+        },
+        "persistence": {
+          "additionalProperties": false,
+          "properties": {
+            "enabled": {
+              "default": true,
+              "description": "Keep JetStream data on a persistent volume.",
+              "title": "enabled",
+              "type": "boolean"
+            },
+            "size": {
+              "default": "2Gi",
+              "description": "Volume size.",
+              "title": "size",
+              "type": "string"
+            },
+            "storageClass": {
+              "default": "",
+              "description": "Storage class; empty uses the cluster default.",
+              "title": "storageClass",
+              "type": "string"
+            }
+          },
+          "required": [],
+          "title": "persistence",
+          "type": "object"
+        },
+        "resources": {
+          "description": "Container resources.",
+          "title": "resources",
+          "type": "object"
+        }
+      },
+      "required": [],
+      "title": "nats",
       "type": "object"
     },
     "rbac": {

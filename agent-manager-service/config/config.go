@@ -143,6 +143,13 @@ type Config struct {
 	// Audit configures the audit trail.
 	Audit AuditConfig
 
+	// Mode is all, api or dispatcher; see ModeAll.
+	Mode string
+	// Events configures publishing platform events to NATS.
+	Events EventsConfig
+	// Webhooks configures delivering events to webhook endpoints.
+	Webhooks WebhooksConfig
+
 	// GatewayManifestCache configures where the gateway-reported policy manifest
 	// cache lives. The default in-memory backend is process-local and therefore
 	// inconsistent across replicas — set Backend to "redis" in HA deployments.
@@ -507,4 +514,65 @@ type ResourceLimitsConfig struct {
 	MaxCPU string
 	// MaxMemory is the maximum memory value (Kubernetes quantity string) applied to both requests and limits
 	MaxMemory string
+}
+
+// Event bus modes.
+const (
+	// EventsModeNATS connects to a NATS server (EVENTS_NATS_URL).
+	EventsModeNATS = "nats"
+	// EventsModeEmbedded runs NATS inside the process with JetStream in
+	// memory: no server to run, but queued events are lost on restart and it
+	// supports one replica only. For quick-start installs.
+	EventsModeEmbedded = "embedded"
+	// EventsModeOff publishes no events.
+	EventsModeOff = "off"
+)
+
+// EventsConfig configures publishing platform events to NATS JetStream.
+type EventsConfig struct {
+	// Mode is nats, embedded or off. When unset it is nats if NATSURL is set,
+	// off otherwise.
+	Mode string
+	// NATSURL is the NATS server for nats mode, e.g. nats://nats:4222.
+	NATSURL string
+}
+
+// Service modes. One binary runs as the whole service, as the API only, or as
+// the webhook dispatcher only; production runs an "api" and a "dispatcher"
+// instance, each with its own database.
+const (
+	// ModeAll runs the API and the dispatcher in one process on one
+	// database. The default; for development and quick-start installs.
+	ModeAll = "all"
+	// ModeAPI serves the API without the dispatcher. Webhook endpoint calls
+	// are forwarded to the dispatcher's internal API.
+	ModeAPI = "api"
+	// ModeDispatcher runs only the dispatcher and its internal webhook API,
+	// on its own database.
+	ModeDispatcher = "dispatcher"
+)
+
+// WebhooksConfig configures delivering events to webhook endpoints.
+type WebhooksConfig struct {
+	// DispatcherEnabled runs the dispatcher in "all" mode. The "api" mode
+	// never runs it and the "dispatcher" mode always does.
+	DispatcherEnabled bool
+	// DispatcherURL is the dispatcher's internal API, for "api" mode, e.g.
+	// http://amp-webhook-dispatcher:8090.
+	DispatcherURL string
+	// DispatcherAPIKey authenticates the API to the dispatcher's internal
+	// API. Both instances must share it.
+	DispatcherAPIKey string
+	// DispatcherPort is the internal API port in "dispatcher" mode.
+	DispatcherPort int
+	// MaxAttempts is how many times a delivery is tried before it is marked
+	// failed.
+	MaxAttempts int
+	// DeliveryRetentionDays is how long the delivery log is kept.
+	DeliveryRetentionDays int
+	// AllowPrivateEndpoints lets endpoint URLs resolve to private, loopback
+	// or link-local addresses, and allows plain http. Off by default so an
+	// admin cannot point the service at internal infrastructure; enable only
+	// for local development.
+	AllowPrivateEndpoints bool
 }

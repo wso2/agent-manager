@@ -497,6 +497,13 @@ data:
           - { name: Execute, handle: execute, description: "Start, stop, and rerun monitors" }
           - { name: Read Score, handle: score-read, description: "View scores, breakdowns, and timeseries" }
           - { name: Publish Score, handle: score-publish, description: "Publish monitor scores (internal/system use)" }
+      - name: Alerting
+        handle: alerting
+        parent: amp
+        description: Organization alert endpoint management
+        actions:
+          - { name: Read, handle: read, description: "View the alert endpoint and delivery history" }
+          - { name: Manage, handle: manage, description: "Configure, test, and delete the alert endpoint" }
       - name: Observability
         handle: observability
         parent: amp
@@ -698,6 +705,8 @@ data:
           - "amp:monitor:execute"
           - "amp:monitor:score-read"
           - "amp:monitor:score-publish"
+          - "amp:alerting:read"
+          - "amp:alerting:manage"
           - "amp:observability:trace-read"
           - "amp:observability:log-read"
           - "amp:observability:build-log-read"

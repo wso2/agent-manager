@@ -56,7 +56,7 @@ const ampScopes = "amp:agent-identity:create amp:agent-identity:delete amp:agent
 	"amp:llm-provider:delete amp:llm-provider:deploy amp:llm-provider:read amp:llm-provider:update " +
 	"amp:llm-proxy:api-key-manage amp:llm-proxy:create amp:llm-proxy:delete amp:llm-proxy:deploy amp:llm-proxy:read amp:llm-proxy:update " +
 	"amp:mcp-server:api-key-manage amp:mcp-server:configure-guardrail amp:mcp-server:connect amp:mcp-server:create amp:mcp-server:delete amp:mcp-server:read amp:mcp-server:update " +
-	"amp:monitor:create amp:monitor:delete amp:monitor:execute amp:monitor:read amp:monitor:score-publish amp:monitor:score-read amp:monitor:update " +
+	"amp:monitor:create amp:monitor:delete amp:monitor:execute amp:monitor:read amp:monitor:score-publish amp:alerting:read amp:alerting:manage amp:monitor:score-read amp:monitor:update " +
 	"amp:observability:build-log-read amp:observability:metric-read amp:observability:trace-read amp:observability:log-read " +
 	"amp:org:assign-role amp:org:invite-member amp:org:manage-idp amp:org:manage-service-account amp:org:modify-settings amp:org:remove-member amp:org:view " +
 	"amp:project:create amp:project:delete amp:project:read amp:project:update amp:repository:read " +

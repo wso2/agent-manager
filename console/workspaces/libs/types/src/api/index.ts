@@ -45,3 +45,4 @@ export * from './agent-kinds';
 export * from './thunder-instances';
 export * from './mcp-proxy-scopes';
 export * from './agent-identity';
+export * from './webhooks';

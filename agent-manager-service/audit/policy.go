@@ -207,6 +207,24 @@ var sensitiveReadPaths = map[string]bool{
 // Keys are matched against the path with the method prefix stripped, so the
 // same path under different methods maps through methodActionOverrides first.
 var actionOverrides = map[string]Action{
+	// Webhook endpoints are gated by the permission of the scope they belong
+	// to (alerting, project or agent), which says nothing about the operation.
+	"POST /orgs/{orgName}/webhooks":                                                                  "webhook:create",
+	"PUT /orgs/{orgName}/webhooks/{webhookId}":                                                       "webhook:update",
+	"DELETE /orgs/{orgName}/webhooks/{webhookId}":                                                    "webhook:delete",
+	"POST /orgs/{orgName}/webhooks/{webhookId}/rotate-secret":                                        "webhook:rotate-secret",
+	"POST /orgs/{orgName}/webhooks/{webhookId}/test":                                                 "webhook:test",
+	"POST /orgs/{orgName}/projects/{projName}/webhooks":                                              "webhook:create",
+	"PUT /orgs/{orgName}/projects/{projName}/webhooks/{webhookId}":                                   "webhook:update",
+	"DELETE /orgs/{orgName}/projects/{projName}/webhooks/{webhookId}":                                "webhook:delete",
+	"POST /orgs/{orgName}/projects/{projName}/webhooks/{webhookId}/rotate-secret":                    "webhook:rotate-secret",
+	"POST /orgs/{orgName}/projects/{projName}/webhooks/{webhookId}/test":                             "webhook:test",
+	"POST /orgs/{orgName}/projects/{projName}/agents/{agentName}/webhooks":                           "webhook:create",
+	"PUT /orgs/{orgName}/projects/{projName}/agents/{agentName}/webhooks/{webhookId}":                "webhook:update",
+	"DELETE /orgs/{orgName}/projects/{projName}/agents/{agentName}/webhooks/{webhookId}":             "webhook:delete",
+	"POST /orgs/{orgName}/projects/{projName}/agents/{agentName}/webhooks/{webhookId}/rotate-secret": "webhook:rotate-secret",
+	"POST /orgs/{orgName}/projects/{projName}/agents/{agentName}/webhooks/{webhookId}/test":          "webhook:test",
+
 	// Gating permission names a different resource than the effect.
 	"POST /orgs/{orgName}/projects/{projName}/agents/{agentName}/publish-kind": "agent-kind:publish",
 

@@ -1,0 +1,99 @@
+{{- if .Values.nats.enabled }}
+# NATS with JetStream: carries platform events from the API to the webhook
+# dispatcher. A single node; JetStream keeps events and pending deliveries on
+# the volume so a restart does not lose them.
+apiVersion: v1
+kind: Service
+metadata:
+  name: amp-nats
+  labels:
+    {{- include "agent-management-platform.labels" . | nindent 4 }}
+    app.kubernetes.io/component: nats
+spec:
+  selector:
+    {{- include "agent-management-platform.selectorLabels" . | nindent 4 }}
+    app.kubernetes.io/component: nats
+  ports:
+    - name: client
+      port: 4222
+      targetPort: client
+    - name: monitor
+      port: 8222
+      targetPort: monitor
+---
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: amp-nats
+  labels:
+    {{- include "agent-management-platform.labels" . | nindent 4 }}
+    app.kubernetes.io/component: nats
+spec:
+  serviceName: amp-nats
+  replicas: 1
+  selector:
+    matchLabels:
+      {{- include "agent-management-platform.selectorLabels" . | nindent 6 }}
+      app.kubernetes.io/component: nats
+  template:
+    metadata:
+      labels:
+        {{- include "agent-management-platform.selectorLabels" . | nindent 8 }}
+        app.kubernetes.io/component: nats
+    spec:
+      {{- include "agent-management-platform.imagePullSecrets" . | nindent 6 }}
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1000
+        fsGroup: 1000
+      containers:
+        - name: nats
+          image: "{{ .Values.nats.image.repository }}:{{ .Values.nats.image.tag }}"
+          imagePullPolicy: {{ .Values.nats.image.pullPolicy }}
+          args: ["--jetstream", "--store_dir=/data", "--http_port=8222"]
+          ports:
+            - name: client
+              containerPort: 4222
+            - name: monitor
+              containerPort: 8222
+          readinessProbe:
+            httpGet:
+              path: /healthz?js-enabled-only=true
+              port: monitor
+            periodSeconds: 5
+          livenessProbe:
+            httpGet:
+              path: /healthz
+              port: monitor
+            periodSeconds: 10
+            failureThreshold: 6
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: ["ALL"]
+          resources:
+            {{- toYaml .Values.nats.resources | nindent 12 }}
+          volumeMounts:
+            - name: data
+              mountPath: /data
+      {{- if not .Values.nats.persistence.enabled }}
+      volumes:
+        - name: data
+          emptyDir: {}
+      {{- end }}
+  {{- if .Values.nats.persistence.enabled }}
+  volumeClaimTemplates:
+    - metadata:
+        name: data
+      spec:
+        accessModes: ["ReadWriteOnce"]
+        {{- $sc := .Values.nats.persistence.storageClass | default .Values.global.storageClass }}
+        {{- if $sc }}
+        storageClassName: {{ $sc }}
+        {{- end }}
+        resources:
+          requests:
+            storage: {{ .Values.nats.persistence.size }}
+  {{- end }}
+{{- end }}

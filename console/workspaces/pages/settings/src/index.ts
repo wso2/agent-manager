@@ -36,4 +36,6 @@ export const settingsMetadata = {
 };
 
 export { SettingsOrganization };
+export { ProjectWebhooks } from "./ProjectWebhooks";
+export { AgentWebhooks } from "./AgentWebhooks";
 export default SettingsOrganization;

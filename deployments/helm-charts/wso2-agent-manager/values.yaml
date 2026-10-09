@@ -282,7 +282,7 @@ agentManagerService:
 
     # Comma-separated list of OAuth 2.0 scopes supported by this resource,
     # advertised in RFC 9728 protected resource metadata.
-    oauthScopesSupported: "amp:llm-proxy:deploy,amp:mcp-server:create,amp:org:invite-member,amp:role:delete,amp:monitor:read,amp:agent:env-production,amp:git-secret:delete,amp:llm-provider:delete,amp:mcp-server:configure-guardrail,amp:deployment-pipeline:create,amp:deployment-pipeline:read,amp:deployment-pipeline:update,amp:deployment-pipeline:delete,amp:gateway:delete,amp:group:delete,amp:llm-proxy:update,amp:monitor:score-read,amp:llm-provider-template:update,amp:agent:build,amp:agent:rollback,amp:agent:token-manage,amp:evaluator:read,amp:llm-provider-template:read,amp:monitor:create,amp:agent:suspend,amp:gateway:token-manage,amp:git-secret:read,amp:mcp-server:connect,amp:mcp-server:api-key-manage,amp:mcp-server:read,amp:observability:log-read,amp:group:create,amp:observability:trace-read,amp:org:remove-member,amp:agent:env-non-production,amp:group:read,amp:llm-provider-template:create,amp:project:delete,amp:agent:create,amp:evaluator:create,amp:llm-provider:read,amp:org:modify-settings,amp:catalog:read,amp:environment:update,amp:group:update,amp:llm-proxy:delete,amp:project:read,amp:data-plane:read,amp:agent:read,amp:environment:read,amp:llm-provider:configure-guardrail,amp:observability:build-log-read,amp:org:assign-role,amp:project:update,amp:mcp-server:delete,amp:environment:delete,amp:evaluator:update,amp:git-secret:create,amp:monitor:execute,amp:llm-provider:api-key-manage,amp:gateway:read,amp:agent:update,amp:llm-provider-template:delete,amp:monitor:delete,amp:org:view,amp:llm-provider:create,amp:mcp-server:update,amp:org:manage-idp,amp:role:read,amp:role:update,amp:agent:delete,amp:gateway:create,amp:llm-provider:deploy,amp:llm-proxy:api-key-manage,amp:monitor:update,amp:org:manage-service-account,amp:role:create,amp:evaluator:delete,amp:llm-provider:connect,amp:llm-provider:update,amp:llm-proxy:read,amp:monitor:score-publish,amp:observability:metric-read,amp:project:create,amp:repository:read,amp:gateway:update,amp:environment:create,amp:llm-proxy:create,amp:agent:api-key-manage,amp:agent-kind:read,amp:agent-kind:create,amp:agent-kind:update,amp:agent-kind:delete,amp:profile:read,amp:profile:update-attributes,amp:scope:create,amp:scope:read,amp:scope:update,amp:scope:delete,amp:agent-identity:read,amp:agent-identity:create,amp:agent-identity:update,amp:agent-identity:delete"
+    oauthScopesSupported: "amp:llm-proxy:deploy,amp:mcp-server:create,amp:org:invite-member,amp:role:delete,amp:monitor:read,amp:agent:env-production,amp:git-secret:delete,amp:llm-provider:delete,amp:mcp-server:configure-guardrail,amp:deployment-pipeline:create,amp:deployment-pipeline:read,amp:deployment-pipeline:update,amp:deployment-pipeline:delete,amp:gateway:delete,amp:group:delete,amp:llm-proxy:update,amp:monitor:score-read,amp:llm-provider-template:update,amp:agent:build,amp:agent:rollback,amp:agent:token-manage,amp:evaluator:read,amp:llm-provider-template:read,amp:monitor:create,amp:agent:suspend,amp:gateway:token-manage,amp:git-secret:read,amp:mcp-server:connect,amp:mcp-server:api-key-manage,amp:mcp-server:read,amp:observability:log-read,amp:group:create,amp:observability:trace-read,amp:org:remove-member,amp:agent:env-non-production,amp:group:read,amp:llm-provider-template:create,amp:project:delete,amp:agent:create,amp:evaluator:create,amp:llm-provider:read,amp:org:modify-settings,amp:catalog:read,amp:environment:update,amp:group:update,amp:llm-proxy:delete,amp:project:read,amp:data-plane:read,amp:agent:read,amp:environment:read,amp:llm-provider:configure-guardrail,amp:observability:build-log-read,amp:org:assign-role,amp:project:update,amp:mcp-server:delete,amp:environment:delete,amp:evaluator:update,amp:git-secret:create,amp:monitor:execute,amp:llm-provider:api-key-manage,amp:gateway:read,amp:agent:update,amp:llm-provider-template:delete,amp:monitor:delete,amp:org:view,amp:llm-provider:create,amp:mcp-server:update,amp:org:manage-idp,amp:role:read,amp:role:update,amp:agent:delete,amp:gateway:create,amp:llm-provider:deploy,amp:llm-proxy:api-key-manage,amp:monitor:update,amp:org:manage-service-account,amp:role:create,amp:evaluator:delete,amp:llm-provider:connect,amp:llm-provider:update,amp:llm-proxy:read,amp:monitor:score-publish,amp:alerting:read,amp:alerting:manage,amp:observability:metric-read,amp:project:create,amp:repository:read,amp:gateway:update,amp:environment:create,amp:llm-proxy:create,amp:agent:api-key-manage,amp:agent-kind:read,amp:agent-kind:create,amp:agent-kind:update,amp:agent-kind:delete,amp:profile:read,amp:profile:update-attributes,amp:scope:create,amp:scope:read,amp:scope:update,amp:scope:delete,amp:agent-identity:read,amp:agent-identity:create,amp:agent-identity:update,amp:agent-identity:delete"
 
     # On-premise deployment flag
     isOnPremDeployment: "true"
@@ -355,6 +355,31 @@ agentManagerService:
       # Key to read from existingSecret. Applies ONLY when existingSecret is set;
       # the chart-managed Secret always uses the fixed key "openbao-token".
       existingSecretKey: "openbao-token"
+
+    # Platform events (a project created, an agent deployed, a monitor run
+    # finished) are published to NATS JetStream and delivered to the webhooks
+    # orgs, projects and agents configure.
+    events:
+      # nats: use a NATS server: natsUrl, or the bundled one (nats.enabled).
+      #   Events and pending retries are kept on disk. Use for production.
+      # embedded: run NATS inside the API process with JetStream in memory.
+      #   No server to run, but queued events and pending retries are lost
+      #   when a pod restarts. For quick-start installs; set nats.enabled=false.
+      # off: publish no events.
+      mode: "nats"
+      natsUrl: ""
+    webhooks:
+      # Run the webhook dispatcher in this deployment. Turn it off where a
+      # separate dispatcher deployment delivers instead.
+      dispatcherEnabled: true
+      # Delivery attempts before an event is marked failed. Retries back off
+      # 10s, 1m, 5m, 30m, then every 2h.
+      maxAttempts: 6
+      # Days the delivery log is kept.
+      deliveryRetentionDays: 14
+      # Let webhook URLs resolve to private addresses or use plain http.
+      # Local development only.
+      allowPrivateEndpoints: false
 
     # Workflow Plane OpenBao configuration (for Git Secrets)
     # Used to fetch git credentials for private repository access
@@ -522,7 +547,7 @@ console:
     auth:
       clientId: "amp-console-client"
       baseUrl: "http://thunder.amp.localhost:8080"
-      scopes: "openid profile email amp:llm-proxy:deploy amp:mcp-server:create amp:org:invite-member amp:role:delete amp:monitor:read amp:agent:env-production amp:git-secret:delete amp:llm-provider:delete amp:mcp-server:configure-guardrail amp:deployment-pipeline:create amp:deployment-pipeline:read amp:deployment-pipeline:update amp:deployment-pipeline:delete amp:gateway:delete amp:group:delete amp:llm-proxy:update amp:monitor:score-read amp:llm-provider-template:update amp:agent:build amp:agent:rollback amp:agent:token-manage amp:evaluator:read amp:llm-provider-template:read amp:monitor:create amp:agent:suspend amp:gateway:token-manage amp:git-secret:read amp:mcp-server:connect amp:mcp-server:api-key-manage amp:mcp-server:read amp:observability:log-read amp:group:create amp:observability:trace-read amp:org:remove-member amp:agent:env-non-production amp:group:read amp:llm-provider-template:create amp:project:delete amp:agent:create amp:evaluator:create amp:llm-provider:read amp:org:modify-settings amp:catalog:read amp:environment:update amp:group:update amp:llm-proxy:delete amp:project:read amp:data-plane:read amp:agent:read amp:environment:read amp:llm-provider:configure-guardrail amp:observability:build-log-read amp:org:assign-role amp:project:update amp:mcp-server:delete amp:environment:delete amp:evaluator:update amp:git-secret:create amp:monitor:execute amp:llm-provider:api-key-manage amp:gateway:read amp:agent:update amp:llm-provider-template:delete amp:monitor:delete amp:org:view amp:llm-provider:create amp:mcp-server:update amp:org:manage-idp amp:role:read amp:role:update amp:agent:delete amp:gateway:create amp:llm-provider:deploy amp:llm-proxy:api-key-manage amp:monitor:update amp:org:manage-service-account amp:role:create amp:evaluator:delete amp:llm-provider:connect amp:llm-provider:update amp:llm-proxy:read amp:monitor:score-publish amp:observability:metric-read amp:project:create amp:repository:read amp:gateway:update amp:environment:create amp:llm-proxy:create amp:agent:api-key-manage amp:agent-kind:read amp:agent-kind:create amp:agent-kind:update amp:agent-kind:delete amp:profile:read amp:profile:update-attributes amp:scope:create amp:scope:read amp:scope:update amp:scope:delete amp:agent-identity:read amp:agent-identity:create amp:agent-identity:update amp:agent-identity:delete"
+      scopes: "openid profile email amp:llm-proxy:deploy amp:mcp-server:create amp:org:invite-member amp:role:delete amp:monitor:read amp:agent:env-production amp:git-secret:delete amp:llm-provider:delete amp:mcp-server:configure-guardrail amp:deployment-pipeline:create amp:deployment-pipeline:read amp:deployment-pipeline:update amp:deployment-pipeline:delete amp:gateway:delete amp:group:delete amp:llm-proxy:update amp:monitor:score-read amp:llm-provider-template:update amp:agent:build amp:agent:rollback amp:agent:token-manage amp:evaluator:read amp:llm-provider-template:read amp:monitor:create amp:agent:suspend amp:gateway:token-manage amp:git-secret:read amp:mcp-server:connect amp:mcp-server:api-key-manage amp:mcp-server:read amp:observability:log-read amp:group:create amp:observability:trace-read amp:org:remove-member amp:agent:env-non-production amp:group:read amp:llm-provider-template:create amp:project:delete amp:agent:create amp:evaluator:create amp:llm-provider:read amp:org:modify-settings amp:catalog:read amp:environment:update amp:group:update amp:llm-proxy:delete amp:project:read amp:data-plane:read amp:agent:read amp:environment:read amp:llm-provider:configure-guardrail amp:observability:build-log-read amp:org:assign-role amp:project:update amp:mcp-server:delete amp:environment:delete amp:evaluator:update amp:git-secret:create amp:monitor:execute amp:llm-provider:api-key-manage amp:gateway:read amp:agent:update amp:llm-provider-template:delete amp:monitor:delete amp:org:view amp:llm-provider:create amp:mcp-server:update amp:org:manage-idp amp:role:read amp:role:update amp:agent:delete amp:gateway:create amp:llm-provider:deploy amp:llm-proxy:api-key-manage amp:monitor:update amp:org:manage-service-account amp:role:create amp:evaluator:delete amp:llm-provider:connect amp:llm-provider:update amp:llm-proxy:read amp:monitor:score-publish amp:alerting:read amp:alerting:manage amp:observability:metric-read amp:project:create amp:repository:read amp:gateway:update amp:environment:create amp:llm-proxy:create amp:agent:api-key-manage amp:agent-kind:read amp:agent-kind:create amp:agent-kind:update amp:agent-kind:delete amp:profile:read amp:profile:update-attributes amp:scope:create amp:scope:read amp:scope:update amp:scope:delete amp:agent-identity:read amp:agent-identity:create amp:agent-identity:update amp:agent-identity:delete"
       signInRedirectURL: "http://console.amp.localhost:8080/login"
       signOutRedirectURL: "http://console.amp.localhost:8080/login"
       existingSecret: ""
@@ -714,6 +739,66 @@ serviceAccount:
   name: "agent-management-platform"
   annotations: {}
   automount: false
+
+# Webhook dispatcher as a separate deployment, for production. When enabled,
+# the API runs in "api" mode (no dispatcher) and forwards webhook endpoint
+# calls to this deployment, which runs in "dispatcher" mode on its own
+# database: it stores the endpoints and delivery log, consumes events from
+# NATS and delivers them. Requires agentManagerService.config.events.mode=nats.
+# When disabled, the API runs in "all" mode and delivers in-process.
+webhookDispatcher:
+  enabled: false
+  replicaCount: 1
+  # Internal API port; only the API instance calls it.
+  port: 8090
+  # Key the API and the dispatcher share. Generated and kept in the chart
+  # Secret when empty; for production use existingSecret.
+  apiKey:
+    value: ""
+    existingSecret: ""
+    existingSecretKey: "dispatcher-api-key"
+  # The dispatcher's own database. Unset fields fall back to the chart's
+  # PostgreSQL server and credentials, with a separate database name.
+  database:
+    host: ""
+    port: ""
+    name: "amp_webhooks"
+    user: ""
+    existingSecret: ""
+    existingSecretPasswordKey: ""
+    # Create the database on first start if it is missing. The user must be
+    # allowed to create databases; turn off when the database is provisioned
+    # separately.
+    create: true
+  resources:
+    requests:
+      cpu: 50m
+      memory: 64Mi
+    limits:
+      memory: 256Mi
+  podAnnotations: {}
+
+# Bundled NATS with JetStream, carrying platform events to the webhook
+# dispatcher. Disable it to use an existing NATS server through
+# agentManagerService.config.events.natsUrl.
+nats:
+  enabled: true
+  image:
+    repository: nats
+    tag: "2.12-alpine"
+    pullPolicy: IfNotPresent
+  # JetStream storage. Without persistence, queued deliveries are lost when
+  # the pod restarts.
+  persistence:
+    enabled: true
+    size: 2Gi
+    storageClass: ""
+  resources:
+    requests:
+      cpu: 50m
+      memory: 64Mi
+    limits:
+      memory: 512Mi
 
 # RBAC Configuration
 # Scoped to exactly what the pre-install/pre-upgrade hook Jobs (TLS certs,

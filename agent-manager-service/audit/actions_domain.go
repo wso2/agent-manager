@@ -55,6 +55,14 @@ const (
 	ActionThunderURLSet    Action = "thunder-url:set"
 	ActionThunderURLDelete Action = "thunder-url:delete"
 
+	// A webhook endpoint decides where event data leaves the platform and
+	// holds a signing secret.
+	ActionWebhookCreate       Action = "webhook:create"
+	ActionWebhookUpdate       Action = "webhook:update"
+	ActionWebhookDelete       Action = "webhook:delete"
+	ActionWebhookRotateSecret Action = "webhook:rotate-secret"
+	ActionWebhookTest         Action = "webhook:test"
+
 	// Identity and privilege. These are the escalation path: a record that says
 	// only "a role was updated" is useless, so each names what actually changed.
 	ActionRoleGrantPermission  Action = "role:grant-permission"
@@ -145,6 +153,7 @@ const (
 	ResourceEnvironment    = "environment"
 	ResourceServiceAccount = "service-account"
 	ResourceThunderURL     = "thunder-url"
+	ResourceWebhook        = "webhook"
 )
 
 // class, severity and permitted detail keys next to the action itself keeps the
@@ -246,6 +255,24 @@ func init() {
 	registerCredential(ActionServiceAccountRemove, map[string]FieldKind{
 		"environment": KindName,
 	})
+
+	// The URL is recorded as scheme and host only, since a webhook path is
+	// often a credential. The signing secret never reaches the record.
+	webhookFields := map[string]FieldKind{
+		"scope":        KindEnum,
+		"endpointUrl":  KindURL,
+		"eventCount":   KindCount,
+		"enabled":      KindFlag,
+		"environments": KindNameList,
+	}
+	registerCredential(ActionWebhookCreate, webhookFields)
+	registerCredential(ActionWebhookUpdate, webhookFields)
+	registerCredential(ActionWebhookDelete, webhookFields)
+	registerCredential(ActionWebhookRotateSecret, webhookFields)
+	// A test send changes nothing, but it does send a signed request to the
+	// configured URL, so it is recorded above info.
+	Register(ActionWebhookTest, ClassConfig, SeverityNotice)
+	RegisterDetailSchema(ActionWebhookTest, nil)
 
 	// Identity and privilege changes. Critical for the same reason credential
 	// changes are: they decide who can do what.

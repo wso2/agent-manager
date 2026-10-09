@@ -151,7 +151,7 @@ func TestPredefinedRolesHoldOnlyCatalogScopes(t *testing.T) {
 // Keep it for the friction; do not mistake it for coverage.
 func TestPredefinedRoleSizes(t *testing.T) {
 	want := map[string]int{
-		RoleAdmin:            103,
+		RoleAdmin:            105,
 		RoleDeveloper:        56,
 		RoleAILead:           51,
 		RolePlatformEngineer: 69,

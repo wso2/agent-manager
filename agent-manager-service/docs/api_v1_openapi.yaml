@@ -11024,6 +11024,885 @@ paths:
         "404":
           description: Environment not found
 
+  # ============================================
+  # WEBHOOK ENDPOINTS
+  # ============================================
+
+  /orgs/{orgName}/webhook-event-types:
+    parameters:
+      - name: orgName
+        in: path
+        required: true
+        description: Organization name
+        schema:
+          type: string
+    get:
+      tags:
+        - Webhooks
+      summary: List the event types webhooks can subscribe to
+      operationId: listWebhookEventTypes
+      parameters:
+        - name: scope
+          in: query
+          required: false
+          description: Only event types of this scope.
+          schema:
+            type: string
+            enum: [org, project, agent]
+      responses:
+        "200":
+          description: Event types
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/WebhookEventTypeListResponse"
+        "400":
+          description: Invalid scope
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /orgs/{orgName}/webhooks:
+    parameters:
+      - name: orgName
+        in: path
+        required: true
+        description: Organization name
+        schema:
+          type: string
+    get:
+      tags:
+        - Webhooks
+      summary: List organization webhooks
+      description: Organization-level events, such as projects, MCP servers and LLM providers being created or changed. Organization administrators only.
+      operationId: listOrgWebhooks
+      responses:
+        "200":
+          description: Webhooks
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/WebhookListResponse"
+        "500":
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+    post:
+      tags:
+        - Webhooks
+      summary: Create a organization webhook
+      description: |
+        Creates an endpoint that receives the selected events as signed JSON
+        POST requests (Standard Webhooks: webhook-id, webhook-timestamp and
+        webhook-signature headers). The signing secret is returned only in
+        this response.
+      operationId: createOrgWebhook
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/WebhookRequest"
+      responses:
+        "201":
+          description: Webhook created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/WebhookResponse"
+        "400":
+          description: Invalid request
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "500":
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /orgs/{orgName}/webhooks/{webhookId}:
+    parameters:
+      - name: orgName
+        in: path
+        required: true
+        description: Organization name
+        schema:
+          type: string
+      - name: webhookId
+        in: path
+        required: true
+        description: Webhook ID
+        schema:
+          type: string
+    get:
+      tags:
+        - Webhooks
+      summary: Get a organization webhook
+      operationId: getOrgWebhook
+      responses:
+        "200":
+          description: Webhook
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/WebhookResponse"
+        "404":
+          description: Webhook not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+    put:
+      tags:
+        - Webhooks
+      summary: Update a organization webhook
+      operationId: updateOrgWebhook
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/WebhookRequest"
+      responses:
+        "200":
+          description: Webhook updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/WebhookResponse"
+        "400":
+          description: Invalid request
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: Webhook not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+    delete:
+      tags:
+        - Webhooks
+      summary: Delete a organization webhook
+      operationId: deleteOrgWebhook
+      responses:
+        "204":
+          description: Webhook deleted
+        "404":
+          description: Webhook not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /orgs/{orgName}/webhooks/{webhookId}/rotate-secret:
+    parameters:
+      - name: orgName
+        in: path
+        required: true
+        description: Organization name
+        schema:
+          type: string
+      - name: webhookId
+        in: path
+        required: true
+        description: Webhook ID
+        schema:
+          type: string
+    post:
+      tags:
+        - Webhooks
+      summary: Rotate a organization webhook's signing secret
+      description: Replaces the signing secret. The new secret is returned only in this response.
+      operationId: rotateOrgWebhookSecret
+      responses:
+        "200":
+          description: New signing secret
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/WebhookSecretResponse"
+        "404":
+          description: Webhook not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /orgs/{orgName}/webhooks/{webhookId}/test:
+    parameters:
+      - name: orgName
+        in: path
+        required: true
+        description: Organization name
+        schema:
+          type: string
+      - name: webhookId
+        in: path
+        required: true
+        description: Webhook ID
+        schema:
+          type: string
+    post:
+      tags:
+        - Webhooks
+      summary: Send a test event to a organization webhook
+      description: Sends a signed webhook.test event straight to the endpoint and reports the outcome.
+      operationId: testOrgWebhook
+      responses:
+        "200":
+          description: Test attempted; see delivered for the outcome
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/WebhookTestResponse"
+        "404":
+          description: Webhook not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /orgs/{orgName}/webhooks/{webhookId}/deliveries:
+    parameters:
+      - name: orgName
+        in: path
+        required: true
+        description: Organization name
+        schema:
+          type: string
+      - name: webhookId
+        in: path
+        required: true
+        description: Webhook ID
+        schema:
+          type: string
+    get:
+      tags:
+        - Webhooks
+      summary: List recent deliveries of a organization webhook
+      operationId: listOrgWebhookDeliveries
+      parameters:
+        - name: limit
+          in: query
+          required: false
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+            default: 50
+      responses:
+        "200":
+          description: Recent deliveries, newest first
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/WebhookDeliveryListResponse"
+        "404":
+          description: Webhook not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /orgs/{orgName}/projects/{projName}/webhooks:
+    parameters:
+      - name: orgName
+        in: path
+        required: true
+        description: Organization name
+        schema:
+          type: string
+      - name: projName
+        in: path
+        required: true
+        description: Project name
+        schema:
+          type: string
+    get:
+      tags:
+        - Webhooks
+      summary: List project webhooks
+      description: Project-level events, such as agents being created or deleted and the project being updated.
+      operationId: listProjectWebhooks
+      responses:
+        "200":
+          description: Webhooks
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/WebhookListResponse"
+        "500":
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+    post:
+      tags:
+        - Webhooks
+      summary: Create a project webhook
+      description: |
+        Creates an endpoint that receives the selected events as signed JSON
+        POST requests (Standard Webhooks: webhook-id, webhook-timestamp and
+        webhook-signature headers). The signing secret is returned only in
+        this response.
+      operationId: createProjectWebhook
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/WebhookRequest"
+      responses:
+        "201":
+          description: Webhook created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/WebhookResponse"
+        "400":
+          description: Invalid request
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "500":
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /orgs/{orgName}/projects/{projName}/webhooks/{webhookId}:
+    parameters:
+      - name: orgName
+        in: path
+        required: true
+        description: Organization name
+        schema:
+          type: string
+      - name: projName
+        in: path
+        required: true
+        description: Project name
+        schema:
+          type: string
+      - name: webhookId
+        in: path
+        required: true
+        description: Webhook ID
+        schema:
+          type: string
+    get:
+      tags:
+        - Webhooks
+      summary: Get a project webhook
+      operationId: getProjectWebhook
+      responses:
+        "200":
+          description: Webhook
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/WebhookResponse"
+        "404":
+          description: Webhook not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+    put:
+      tags:
+        - Webhooks
+      summary: Update a project webhook
+      operationId: updateProjectWebhook
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/WebhookRequest"
+      responses:
+        "200":
+          description: Webhook updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/WebhookResponse"
+        "400":
+          description: Invalid request
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: Webhook not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+    delete:
+      tags:
+        - Webhooks
+      summary: Delete a project webhook
+      operationId: deleteProjectWebhook
+      responses:
+        "204":
+          description: Webhook deleted
+        "404":
+          description: Webhook not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /orgs/{orgName}/projects/{projName}/webhooks/{webhookId}/rotate-secret:
+    parameters:
+      - name: orgName
+        in: path
+        required: true
+        description: Organization name
+        schema:
+          type: string
+      - name: projName
+        in: path
+        required: true
+        description: Project name
+        schema:
+          type: string
+      - name: webhookId
+        in: path
+        required: true
+        description: Webhook ID
+        schema:
+          type: string
+    post:
+      tags:
+        - Webhooks
+      summary: Rotate a project webhook's signing secret
+      description: Replaces the signing secret. The new secret is returned only in this response.
+      operationId: rotateProjectWebhookSecret
+      responses:
+        "200":
+          description: New signing secret
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/WebhookSecretResponse"
+        "404":
+          description: Webhook not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /orgs/{orgName}/projects/{projName}/webhooks/{webhookId}/test:
+    parameters:
+      - name: orgName
+        in: path
+        required: true
+        description: Organization name
+        schema:
+          type: string
+      - name: projName
+        in: path
+        required: true
+        description: Project name
+        schema:
+          type: string
+      - name: webhookId
+        in: path
+        required: true
+        description: Webhook ID
+        schema:
+          type: string
+    post:
+      tags:
+        - Webhooks
+      summary: Send a test event to a project webhook
+      description: Sends a signed webhook.test event straight to the endpoint and reports the outcome.
+      operationId: testProjectWebhook
+      responses:
+        "200":
+          description: Test attempted; see delivered for the outcome
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/WebhookTestResponse"
+        "404":
+          description: Webhook not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /orgs/{orgName}/projects/{projName}/webhooks/{webhookId}/deliveries:
+    parameters:
+      - name: orgName
+        in: path
+        required: true
+        description: Organization name
+        schema:
+          type: string
+      - name: projName
+        in: path
+        required: true
+        description: Project name
+        schema:
+          type: string
+      - name: webhookId
+        in: path
+        required: true
+        description: Webhook ID
+        schema:
+          type: string
+    get:
+      tags:
+        - Webhooks
+      summary: List recent deliveries of a project webhook
+      operationId: listProjectWebhookDeliveries
+      parameters:
+        - name: limit
+          in: query
+          required: false
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+            default: 50
+      responses:
+        "200":
+          description: Recent deliveries, newest first
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/WebhookDeliveryListResponse"
+        "404":
+          description: Webhook not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /orgs/{orgName}/projects/{projName}/agents/{agentName}/webhooks:
+    parameters:
+      - name: orgName
+        in: path
+        required: true
+        description: Organization name
+        schema:
+          type: string
+      - name: projName
+        in: path
+        required: true
+        description: Project name
+        schema:
+          type: string
+      - name: agentName
+        in: path
+        required: true
+        description: Agent name
+        schema:
+          type: string
+    get:
+      tags:
+        - Webhooks
+      summary: List agent webhooks
+      description: Agent-level events in the selected environments, such as builds, deployments, monitors and monitor runs.
+      operationId: listAgentWebhooks
+      responses:
+        "200":
+          description: Webhooks
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/WebhookListResponse"
+        "500":
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+    post:
+      tags:
+        - Webhooks
+      summary: Create a agent webhook
+      description: |
+        Creates an endpoint that receives the selected events as signed JSON
+        POST requests (Standard Webhooks: webhook-id, webhook-timestamp and
+        webhook-signature headers). The signing secret is returned only in
+        this response.
+      operationId: createAgentWebhook
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/WebhookRequest"
+      responses:
+        "201":
+          description: Webhook created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/WebhookResponse"
+        "400":
+          description: Invalid request
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "500":
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /orgs/{orgName}/projects/{projName}/agents/{agentName}/webhooks/{webhookId}:
+    parameters:
+      - name: orgName
+        in: path
+        required: true
+        description: Organization name
+        schema:
+          type: string
+      - name: projName
+        in: path
+        required: true
+        description: Project name
+        schema:
+          type: string
+      - name: agentName
+        in: path
+        required: true
+        description: Agent name
+        schema:
+          type: string
+      - name: webhookId
+        in: path
+        required: true
+        description: Webhook ID
+        schema:
+          type: string
+    get:
+      tags:
+        - Webhooks
+      summary: Get a agent webhook
+      operationId: getAgentWebhook
+      responses:
+        "200":
+          description: Webhook
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/WebhookResponse"
+        "404":
+          description: Webhook not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+    put:
+      tags:
+        - Webhooks
+      summary: Update a agent webhook
+      operationId: updateAgentWebhook
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/WebhookRequest"
+      responses:
+        "200":
+          description: Webhook updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/WebhookResponse"
+        "400":
+          description: Invalid request
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: Webhook not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+    delete:
+      tags:
+        - Webhooks
+      summary: Delete a agent webhook
+      operationId: deleteAgentWebhook
+      responses:
+        "204":
+          description: Webhook deleted
+        "404":
+          description: Webhook not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /orgs/{orgName}/projects/{projName}/agents/{agentName}/webhooks/{webhookId}/rotate-secret:
+    parameters:
+      - name: orgName
+        in: path
+        required: true
+        description: Organization name
+        schema:
+          type: string
+      - name: projName
+        in: path
+        required: true
+        description: Project name
+        schema:
+          type: string
+      - name: agentName
+        in: path
+        required: true
+        description: Agent name
+        schema:
+          type: string
+      - name: webhookId
+        in: path
+        required: true
+        description: Webhook ID
+        schema:
+          type: string
+    post:
+      tags:
+        - Webhooks
+      summary: Rotate a agent webhook's signing secret
+      description: Replaces the signing secret. The new secret is returned only in this response.
+      operationId: rotateAgentWebhookSecret
+      responses:
+        "200":
+          description: New signing secret
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/WebhookSecretResponse"
+        "404":
+          description: Webhook not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /orgs/{orgName}/projects/{projName}/agents/{agentName}/webhooks/{webhookId}/test:
+    parameters:
+      - name: orgName
+        in: path
+        required: true
+        description: Organization name
+        schema:
+          type: string
+      - name: projName
+        in: path
+        required: true
+        description: Project name
+        schema:
+          type: string
+      - name: agentName
+        in: path
+        required: true
+        description: Agent name
+        schema:
+          type: string
+      - name: webhookId
+        in: path
+        required: true
+        description: Webhook ID
+        schema:
+          type: string
+    post:
+      tags:
+        - Webhooks
+      summary: Send a test event to a agent webhook
+      description: Sends a signed webhook.test event straight to the endpoint and reports the outcome.
+      operationId: testAgentWebhook
+      responses:
+        "200":
+          description: Test attempted; see delivered for the outcome
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/WebhookTestResponse"
+        "404":
+          description: Webhook not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /orgs/{orgName}/projects/{projName}/agents/{agentName}/webhooks/{webhookId}/deliveries:
+    parameters:
+      - name: orgName
+        in: path
+        required: true
+        description: Organization name
+        schema:
+          type: string
+      - name: projName
+        in: path
+        required: true
+        description: Project name
+        schema:
+          type: string
+      - name: agentName
+        in: path
+        required: true
+        description: Agent name
+        schema:
+          type: string
+      - name: webhookId
+        in: path
+        required: true
+        description: Webhook ID
+        schema:
+          type: string
+    get:
+      tags:
+        - Webhooks
+      summary: List recent deliveries of a agent webhook
+      operationId: listAgentWebhookDeliveries
+      parameters:
+        - name: limit
+          in: query
+          required: false
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+            default: 50
+      responses:
+        "200":
+          description: Recent deliveries, newest first
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/WebhookDeliveryListResponse"
+        "404":
+          description: Webhook not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
 components:
   parameters:
     AgentIdentityOrgName:
@@ -18788,3 +19667,160 @@ components:
             The workload may keep referencing the revoked credential until this is confirmed
             or the workload is redeployed.
           example: Could not confirm whether this is the deployment pipeline's lowest environment, so its shared workload-level credentials were left untouched as a precaution.
+
+    WebhookEventType:
+      type: object
+      required: [type, scope, category, description]
+      properties:
+        type:
+          type: string
+          example: agent.deployed
+        scope:
+          type: string
+          enum: [org, project, agent]
+        category:
+          type: string
+        description:
+          type: string
+
+    WebhookEventTypeListResponse:
+      type: object
+      required: [eventTypes]
+      properties:
+        eventTypes:
+          type: array
+          items:
+            $ref: "#/components/schemas/WebhookEventType"
+
+    WebhookRequest:
+      type: object
+      required: [name, url, eventTypes]
+      properties:
+        name:
+          type: string
+          maxLength: 100
+        description:
+          type: string
+          maxLength: 500
+        url:
+          type: string
+          description: HTTPS URL that receives event POST requests.
+          example: https://hooks.example.com/amp
+        environments:
+          type: array
+          description: |
+            Environments whose agent events the webhook receives. At least one
+            is required for agent webhooks; ignored for org and project
+            webhooks. Agent events not tied to an environment, such as builds,
+            are sent to every agent webhook.
+          items:
+            type: string
+        eventTypes:
+          type: array
+          description: Event types to send. Every type must belong to the webhook's scope. Empty sends nothing.
+          items:
+            type: string
+        enabled:
+          type: boolean
+          default: true
+
+    WebhookResponse:
+      type: object
+      required: [id, scope, name, description, url, environments, eventTypes, enabled, createdAt, updatedAt]
+      properties:
+        id:
+          type: string
+        scope:
+          type: string
+          enum: [org, project, agent]
+        name:
+          type: string
+        description:
+          type: string
+        url:
+          type: string
+        environments:
+          type: array
+          items:
+            type: string
+        eventTypes:
+          type: array
+          items:
+            type: string
+        enabled:
+          type: boolean
+        signingSecret:
+          type: string
+          description: Present only in the response that created the webhook. Used to verify the webhook-signature header.
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+
+    WebhookListResponse:
+      type: object
+      required: [webhooks]
+      properties:
+        webhooks:
+          type: array
+          items:
+            $ref: "#/components/schemas/WebhookResponse"
+
+    WebhookSecretResponse:
+      type: object
+      required: [signingSecret]
+      properties:
+        signingSecret:
+          type: string
+
+    WebhookTestResponse:
+      type: object
+      required: [delivered]
+      properties:
+        delivered:
+          type: boolean
+        statusCode:
+          type: integer
+        error:
+          type: string
+
+    WebhookDeliveryResponse:
+      type: object
+      required: [id, eventId, eventType, status, attempts, createdAt, updatedAt]
+      properties:
+        id:
+          type: string
+        eventId:
+          type: string
+        eventType:
+          type: string
+        status:
+          type: string
+          enum: [pending, delivered, failed]
+        attempts:
+          type: integer
+        responseCode:
+          type: integer
+        lastError:
+          type: string
+        deliveredAt:
+          type: string
+          format: date-time
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+
+    WebhookDeliveryListResponse:
+      type: object
+      required: [deliveries]
+      properties:
+        deliveries:
+          type: array
+          items:
+            $ref: "#/components/schemas/WebhookDeliveryResponse"
+

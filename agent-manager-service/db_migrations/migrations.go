@@ -40,7 +40,34 @@ type migration struct {
 	Migrate gormigrate.MigrateFunc
 }
 
+// Migrate brings the service database up to date.
 func Migrate() error {
+	return run(migrateOptions, migrations, latestVersion)
+}
+
+// dispatcherMigrateOptions keeps the dispatcher's schema history apart from
+// the service's, so in "all" mode the two sets share one database.
+var dispatcherMigrateOptions = &gormigrate.Options{
+	TableName:                 "dispatcher_migration_history",
+	IDColumnName:              "id",
+	IDColumnSize:              255,
+	UseTransaction:            true,
+	ValidateUnknownMigrations: true,
+}
+
+// dispatcherMigrations is the webhook dispatcher's schema, sorted by version.
+var dispatcherMigrations = []migration{
+	dispatcherMigration001,
+}
+
+const dispatcherLatestVersion = 1
+
+// MigrateDispatcher brings the webhook dispatcher's database up to date.
+func MigrateDispatcher() error {
+	return run(dispatcherMigrateOptions, dispatcherMigrations, dispatcherLatestVersion)
+}
+
+func run(opts *gormigrate.Options, migrations []migration, latestVersion int32) error {
 	dbConn := db.DB(context.Background())
 
 	successCount := 0
@@ -62,7 +89,7 @@ func Migrate() error {
 	}
 	latestId := generateIdStr(latestVersion)
 	slog.Info("dbmigrations:starting migration", "latest", latestId)
-	m := gormigrate.New(dbConn, migrateOptions, list)
+	m := gormigrate.New(dbConn, opts, list)
 	if err := m.MigrateTo(latestId); err != nil {
 		return err
 	}

@@ -116,6 +116,24 @@ data:
   AUDIT_BUFFER_SIZE: {{ .Values.agentManagerService.config.audit.bufferSize | default 4096 | quote }}
   AUDIT_BATCH_SIZE: {{ .Values.agentManagerService.config.audit.batchSize | default 200 | quote }}
   AUDIT_FLUSH_INTERVAL_MS: {{ .Values.agentManagerService.config.audit.flushIntervalMs | default 1000 | quote }}
+  # all: API and webhook dispatcher in one process. api: the dispatcher runs
+  # as its own deployment (webhookDispatcher.enabled).
+  SERVICE_MODE: {{ include "agent-management-platform.serviceMode" . | quote }}
+  {{- if .Values.webhookDispatcher.enabled }}
+  {{- if ne (include "agent-management-platform.eventsMode" .) "nats" }}
+  {{- fail "webhookDispatcher.enabled requires agentManagerService.config.events.mode=nats with a NATS server" }}
+  {{- end }}
+  WEBHOOKS_DISPATCHER_URL: {{ printf "http://%s.%s.svc.cluster.local:%v" (include "agent-management-platform.webhookDispatcher.fullname" .) .Release.Namespace .Values.webhookDispatcher.port | quote }}
+  {{- end }}
+  # Platform events and webhook delivery.
+  EVENTS_MODE: {{ include "agent-management-platform.eventsMode" . | quote }}
+  EVENTS_NATS_URL: {{ include "agent-management-platform.natsUrl" . | quote }}
+  {{- with .Values.agentManagerService.config.webhooks }}
+  WEBHOOKS_DISPATCHER_ENABLED: {{ dig "dispatcherEnabled" true . | quote }}
+  WEBHOOKS_MAX_ATTEMPTS: {{ .maxAttempts | default 6 | quote }}
+  WEBHOOKS_DELIVERY_RETENTION_DAYS: {{ .deliveryRetentionDays | default 14 | quote }}
+  WEBHOOKS_ALLOW_PRIVATE_ENDPOINTS: {{ dig "allowPrivateEndpoints" false . | quote }}
+  {{- end }}
   # Gateway manifest cache backend. Must be "redis" whenever replicaCount > 1 — see
   # the gatewayManifestCache note in values.yaml.
   GATEWAY_MANIFEST_CACHE_BACKEND: {{ .Values.agentManagerService.config.gatewayManifestCache.backend | default "memory" | quote }}

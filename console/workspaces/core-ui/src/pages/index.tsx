@@ -196,6 +196,18 @@ export const LazySettingsOrg = lazy(() =>
   }))
 );
 
+// Webhooks (project and agent levels; the org level lives in settings)
+export const LazyProjectWebhooks = lazy(() =>
+  import("@agent-management-platform/settings").then((m) => ({
+    default: m.ProjectWebhooks as ComponentType,
+  }))
+);
+export const LazyAgentWebhooks = lazy(() =>
+  import("@agent-management-platform/settings").then((m) => ({
+    default: m.AgentWebhooks as ComponentType,
+  }))
+);
+
 // Deployment Pipelines
 export const LazyDeploymentPipelinesOrg = lazy(() =>
   import("@agent-management-platform/deployment-pipelines").then((m) => ({

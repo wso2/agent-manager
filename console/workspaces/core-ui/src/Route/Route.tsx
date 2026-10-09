@@ -47,6 +47,8 @@ import {
   LazyGatewaysOrg,
   LazyThunderInstancesOrg,
   LazySettingsOrg,
+  LazyProjectWebhooks,
+  LazyAgentWebhooks,
   LazyDeploymentPipelinesOrg,
   LazyEnvironmentsOrg,
   LazyCatalogOrg,
@@ -389,6 +391,17 @@ export function RootRouter() {
               <Route
                 path={
                   relativeRouteMap.children.org.children.projects.children
+                    .webhooks.path + "/*"
+                }
+                element={
+                  <Suspense fallback={<LoadingFallback />}>
+                    <LazyProjectWebhooks />
+                  </Suspense>
+                }
+              />
+              <Route
+                path={
+                  relativeRouteMap.children.org.children.projects.children
                     .newAgent.path + "/*"
                 }
                 element={
@@ -587,6 +600,23 @@ export function RootRouter() {
                         .children.logs.path
                     }
                     element={<LazyLogsComponent />}
+                  />
+                  <Route
+                    path={
+                      relativeRouteMap.children.org.children.projects.children
+                        .agents.children.environment.children.observability
+                        .path +
+                      "/" +
+                      relativeRouteMap.children.org.children.projects.children
+                        .agents.children.environment.children.observability
+                        .children.webhooks.path +
+                      "/*"
+                    }
+                    element={
+                      <Suspense fallback={<LoadingFallback />}>
+                        <LazyAgentWebhooks />
+                      </Suspense>
+                    }
                   />
                   <Route
                     path={

@@ -36,6 +36,7 @@ import {
   ServerCrash,
   Server,
   ShieldCheck,
+  Webhook,
 } from "@wso2/oxygen-ui-icons-react";
 import {
   generatePath,
@@ -496,6 +497,23 @@ export function useNavigationItems(): Array<
               { orgId, projectId, agentId, envId: defaultEnv },
             ),
           },
+          {
+            label: "Webhooks",
+            type: "item",
+            icon: <Webhook size={20} />,
+            isActive: !!matchPath(
+              absoluteRouteMap.children.org.children.projects.children.agents
+                .children.environment.children.observability.children.webhooks
+                .wildPath,
+              pathname,
+            ),
+            href: generatePath(
+              absoluteRouteMap.children.org.children.projects.children.agents
+                .children.environment.children.observability.children.webhooks
+                .path,
+              { orgId, projectId, agentId, envId: defaultEnv },
+            ),
+          },
         ],
       },
       {
@@ -723,6 +741,23 @@ export function useNavigationItems(): Array<
               { orgId, projectId, agentId, envId: defaultEnv },
             ),
           },
+          {
+            label: "Webhooks",
+            type: "item",
+            icon: <Webhook size={20} />,
+            isActive: !!matchPath(
+              absoluteRouteMap.children.org.children.projects.children.agents
+                .children.environment.children.observability.children.webhooks
+                .wildPath,
+              pathname,
+            ),
+            href: generatePath(
+              absoluteRouteMap.children.org.children.projects.children.agents
+                .children.environment.children.observability.children.webhooks
+                .path,
+              { orgId, projectId, agentId, envId: defaultEnv },
+            ),
+          },
         ],
       },
       {
@@ -779,6 +814,20 @@ export function useNavigationItems(): Array<
               .wildPath,
             pathname,
           ),
+      },
+      {
+        label: "Webhooks",
+        type: "item",
+        icon: <Webhook size={20} />,
+        href: generatePath(
+          absoluteRouteMap.children.org.children.projects.children.webhooks.path,
+          { orgId, projectId },
+        ),
+        isActive: !!matchPath(
+          absoluteRouteMap.children.org.children.projects.children.webhooks
+            .wildPath,
+          pathname,
+        ),
       },
     ];
   }

@@ -359,3 +359,77 @@ Usage: include "agent-management-platform.image" (dict "image" .Values.console.i
 {{- end -}}
 {{- printf "%s:%s" $repository ($image.tag | default $ctx.Chart.AppVersion) -}}
 {{- end -}}
+
+{{/*
+NATS URL the service publishes events to: the configured one, else the
+bundled NATS, else empty (events off).
+*/}}
+{{- define "agent-management-platform.natsUrl" -}}
+{{- if ne (.Values.agentManagerService.config.events.mode | default "nats") "nats" -}}
+{{- else if .Values.agentManagerService.config.events.natsUrl -}}
+{{- .Values.agentManagerService.config.events.natsUrl -}}
+{{- else if .Values.nats.enabled -}}
+{{- printf "nats://amp-nats.%s.svc.cluster.local:4222" .Release.Namespace -}}
+{{- end -}}
+{{- end }}
+
+{{/*
+Event bus mode. "nats" with no URL and no bundled NATS has nothing to connect
+to, so it renders as "off" rather than failing the API at startup.
+*/}}
+{{- define "agent-management-platform.eventsMode" -}}
+{{- $mode := .Values.agentManagerService.config.events.mode | default "nats" -}}
+{{- if and (eq $mode "nats") (not (include "agent-management-platform.natsUrl" .)) -}}
+off
+{{- else -}}
+{{- $mode -}}
+{{- end -}}
+{{- end }}
+
+{{/*
+Webhook dispatcher name, and settings that fall back to the chart's PostgreSQL.
+*/}}
+{{- define "agent-management-platform.webhookDispatcher.fullname" -}}
+amp-webhook-dispatcher
+{{- end }}
+
+{{- define "agent-management-platform.webhookDispatcher.dbHost" -}}
+{{- .Values.webhookDispatcher.database.host | default (include "agent-management-platform.postgresql.host" .) -}}
+{{- end }}
+
+{{- define "agent-management-platform.webhookDispatcher.dbPort" -}}
+{{- .Values.webhookDispatcher.database.port | default (include "agent-management-platform.postgresql.port" .) -}}
+{{- end }}
+
+{{- define "agent-management-platform.webhookDispatcher.dbUser" -}}
+{{- .Values.webhookDispatcher.database.user | default (include "agent-management-platform.postgresql.username" .) -}}
+{{- end }}
+
+{{- define "agent-management-platform.webhookDispatcher.dbSecretName" -}}
+{{- .Values.webhookDispatcher.database.existingSecret | default (include "agent-management-platform.postgresql.secretName" .) -}}
+{{- end }}
+
+{{- define "agent-management-platform.webhookDispatcher.dbSecretKey" -}}
+{{- .Values.webhookDispatcher.database.existingSecretPasswordKey | default (include "agent-management-platform.postgresql.secretPasswordKey" .) -}}
+{{- end }}
+
+{{/*
+Secret reference for the key the API and the dispatcher share.
+*/}}
+{{- define "agent-management-platform.webhookDispatcher.apiKeyRef" -}}
+secretKeyRef:
+  {{- if .Values.webhookDispatcher.apiKey.existingSecret }}
+  name: {{ .Values.webhookDispatcher.apiKey.existingSecret }}
+  key: {{ .Values.webhookDispatcher.apiKey.existingSecretKey | default "dispatcher-api-key" }}
+  {{- else }}
+  name: {{ include "agent-management-platform.agentManagerService.fullname" . }}
+  key: dispatcher-api-key
+  {{- end }}
+{{- end }}
+
+{{/*
+Service mode of the API deployment.
+*/}}
+{{- define "agent-management-platform.serviceMode" -}}
+{{- if .Values.webhookDispatcher.enabled -}}api{{- else -}}all{{- end -}}
+{{- end }}

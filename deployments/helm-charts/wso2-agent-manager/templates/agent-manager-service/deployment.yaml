@@ -158,6 +158,11 @@ spec:
                   key: workflow-plane-openbao-token
                   {{- end }}
             {{- end }}
+            {{- if .Values.webhookDispatcher.enabled }}
+            - name: WEBHOOKS_DISPATCHER_API_KEY
+              valueFrom:
+                {{- include "agent-management-platform.webhookDispatcher.apiKeyRef" . | nindent 16 }}
+            {{- end }}
             - name: ENCRYPTION_KEY
               valueFrom:
                 secretKeyRef:

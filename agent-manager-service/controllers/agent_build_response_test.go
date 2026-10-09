@@ -69,7 +69,7 @@ func TestBuildAgent_ResponseMatchesSpec(t *testing.T) {
 		},
 	}
 
-	ctrl := NewAgentController(svc, nil)
+	ctrl := NewAgentController(svc, nil, nil)
 	req := httptest.NewRequest(http.MethodPost, "/orgs/o/projects/default/agents/yolo/builds", nil)
 	w := httptest.NewRecorder()
 	ctrl.BuildAgent(w, req)
@@ -146,7 +146,7 @@ func TestCreateAgent_DoesNotEchoSecretValues(t *testing.T) {
 		t.Fatalf("marshal request: %v", err)
 	}
 
-	ctrl := NewAgentController(createOnlyAgentService{}, nil)
+	ctrl := NewAgentController(createOnlyAgentService{}, nil, nil)
 	req := httptest.NewRequest(http.MethodPost, "/orgs/o/projects/default/agents", bytes.NewReader(body))
 	req.Header.Set("Content-Type", "application/json")
 	w := httptest.NewRecorder()

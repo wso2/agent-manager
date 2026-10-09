@@ -843,6 +843,34 @@ type ClientInterface interface {
 
 	RegenerateAgentTracingToken(ctx context.Context, orgName string, projName string, agentName string, body RegenerateAgentTracingTokenJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
 
+	// ListAgentWebhooks request
+	ListAgentWebhooks(ctx context.Context, orgName string, projName string, agentName string, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// CreateAgentWebhookWithBody request with any body
+	CreateAgentWebhookWithBody(ctx context.Context, orgName string, projName string, agentName string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	CreateAgentWebhook(ctx context.Context, orgName string, projName string, agentName string, body CreateAgentWebhookJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// DeleteAgentWebhook request
+	DeleteAgentWebhook(ctx context.Context, orgName string, projName string, agentName string, webhookId string, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// GetAgentWebhook request
+	GetAgentWebhook(ctx context.Context, orgName string, projName string, agentName string, webhookId string, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// UpdateAgentWebhookWithBody request with any body
+	UpdateAgentWebhookWithBody(ctx context.Context, orgName string, projName string, agentName string, webhookId string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	UpdateAgentWebhook(ctx context.Context, orgName string, projName string, agentName string, webhookId string, body UpdateAgentWebhookJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// ListAgentWebhookDeliveries request
+	ListAgentWebhookDeliveries(ctx context.Context, orgName string, projName string, agentName string, webhookId string, params *ListAgentWebhookDeliveriesParams, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// RotateAgentWebhookSecret request
+	RotateAgentWebhookSecret(ctx context.Context, orgName string, projName string, agentName string, webhookId string, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// TestAgentWebhook request
+	TestAgentWebhook(ctx context.Context, orgName string, projName string, agentName string, webhookId string, reqEditors ...RequestEditorFn) (*http.Response, error)
+
 	// GetDeploymentPipeline request
 	GetDeploymentPipeline(ctx context.Context, orgName string, projName string, reqEditors ...RequestEditorFn) (*http.Response, error)
 
@@ -881,6 +909,34 @@ type ClientInterface interface {
 
 	RotateLLMProxyAPIKey(ctx context.Context, orgName string, projName string, id string, keyName string, body RotateLLMProxyAPIKeyJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
 
+	// ListProjectWebhooks request
+	ListProjectWebhooks(ctx context.Context, orgName string, projName string, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// CreateProjectWebhookWithBody request with any body
+	CreateProjectWebhookWithBody(ctx context.Context, orgName string, projName string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	CreateProjectWebhook(ctx context.Context, orgName string, projName string, body CreateProjectWebhookJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// DeleteProjectWebhook request
+	DeleteProjectWebhook(ctx context.Context, orgName string, projName string, webhookId string, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// GetProjectWebhook request
+	GetProjectWebhook(ctx context.Context, orgName string, projName string, webhookId string, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// UpdateProjectWebhookWithBody request with any body
+	UpdateProjectWebhookWithBody(ctx context.Context, orgName string, projName string, webhookId string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	UpdateProjectWebhook(ctx context.Context, orgName string, projName string, webhookId string, body UpdateProjectWebhookJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// ListProjectWebhookDeliveries request
+	ListProjectWebhookDeliveries(ctx context.Context, orgName string, projName string, webhookId string, params *ListProjectWebhookDeliveriesParams, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// RotateProjectWebhookSecret request
+	RotateProjectWebhookSecret(ctx context.Context, orgName string, projName string, webhookId string, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// TestProjectWebhook request
+	TestProjectWebhook(ctx context.Context, orgName string, projName string, webhookId string, reqEditors ...RequestEditorFn) (*http.Response, error)
+
 	// ListRepositoryBranchesWithBody request with any body
 	ListRepositoryBranchesWithBody(ctx context.Context, orgName string, params *ListRepositoryBranchesParams, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
 
@@ -898,6 +954,37 @@ type ClientInterface interface {
 	GetNameByDisplayNameWithBody(ctx context.Context, orgName string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
 
 	GetNameByDisplayName(ctx context.Context, orgName string, body GetNameByDisplayNameJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// ListWebhookEventTypes request
+	ListWebhookEventTypes(ctx context.Context, orgName string, params *ListWebhookEventTypesParams, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// ListOrgWebhooks request
+	ListOrgWebhooks(ctx context.Context, orgName string, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// CreateOrgWebhookWithBody request with any body
+	CreateOrgWebhookWithBody(ctx context.Context, orgName string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	CreateOrgWebhook(ctx context.Context, orgName string, body CreateOrgWebhookJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// DeleteOrgWebhook request
+	DeleteOrgWebhook(ctx context.Context, orgName string, webhookId string, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// GetOrgWebhook request
+	GetOrgWebhook(ctx context.Context, orgName string, webhookId string, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// UpdateOrgWebhookWithBody request with any body
+	UpdateOrgWebhookWithBody(ctx context.Context, orgName string, webhookId string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	UpdateOrgWebhook(ctx context.Context, orgName string, webhookId string, body UpdateOrgWebhookJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// ListOrgWebhookDeliveries request
+	ListOrgWebhookDeliveries(ctx context.Context, orgName string, webhookId string, params *ListOrgWebhookDeliveriesParams, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// RotateOrgWebhookSecret request
+	RotateOrgWebhookSecret(ctx context.Context, orgName string, webhookId string, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// TestOrgWebhook request
+	TestOrgWebhook(ctx context.Context, orgName string, webhookId string, reqEditors ...RequestEditorFn) (*http.Response, error)
 
 	// ReportConsoleActionsWithBody request with any body
 	ReportConsoleActionsWithBody(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
@@ -4205,6 +4292,126 @@ func (c *Client) RegenerateAgentTracingToken(ctx context.Context, orgName string
 	return c.Client.Do(req)
 }
 
+func (c *Client) ListAgentWebhooks(ctx context.Context, orgName string, projName string, agentName string, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewListAgentWebhooksRequest(c.Server, orgName, projName, agentName)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) CreateAgentWebhookWithBody(ctx context.Context, orgName string, projName string, agentName string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewCreateAgentWebhookRequestWithBody(c.Server, orgName, projName, agentName, contentType, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) CreateAgentWebhook(ctx context.Context, orgName string, projName string, agentName string, body CreateAgentWebhookJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewCreateAgentWebhookRequest(c.Server, orgName, projName, agentName, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) DeleteAgentWebhook(ctx context.Context, orgName string, projName string, agentName string, webhookId string, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewDeleteAgentWebhookRequest(c.Server, orgName, projName, agentName, webhookId)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) GetAgentWebhook(ctx context.Context, orgName string, projName string, agentName string, webhookId string, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewGetAgentWebhookRequest(c.Server, orgName, projName, agentName, webhookId)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) UpdateAgentWebhookWithBody(ctx context.Context, orgName string, projName string, agentName string, webhookId string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewUpdateAgentWebhookRequestWithBody(c.Server, orgName, projName, agentName, webhookId, contentType, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) UpdateAgentWebhook(ctx context.Context, orgName string, projName string, agentName string, webhookId string, body UpdateAgentWebhookJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewUpdateAgentWebhookRequest(c.Server, orgName, projName, agentName, webhookId, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) ListAgentWebhookDeliveries(ctx context.Context, orgName string, projName string, agentName string, webhookId string, params *ListAgentWebhookDeliveriesParams, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewListAgentWebhookDeliveriesRequest(c.Server, orgName, projName, agentName, webhookId, params)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) RotateAgentWebhookSecret(ctx context.Context, orgName string, projName string, agentName string, webhookId string, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewRotateAgentWebhookSecretRequest(c.Server, orgName, projName, agentName, webhookId)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) TestAgentWebhook(ctx context.Context, orgName string, projName string, agentName string, webhookId string, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewTestAgentWebhookRequest(c.Server, orgName, projName, agentName, webhookId)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
 func (c *Client) GetDeploymentPipeline(ctx context.Context, orgName string, projName string, reqEditors ...RequestEditorFn) (*http.Response, error) {
 	req, err := NewGetDeploymentPipelineRequest(c.Server, orgName, projName)
 	if err != nil {
@@ -4373,6 +4580,126 @@ func (c *Client) RotateLLMProxyAPIKey(ctx context.Context, orgName string, projN
 	return c.Client.Do(req)
 }
 
+func (c *Client) ListProjectWebhooks(ctx context.Context, orgName string, projName string, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewListProjectWebhooksRequest(c.Server, orgName, projName)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) CreateProjectWebhookWithBody(ctx context.Context, orgName string, projName string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewCreateProjectWebhookRequestWithBody(c.Server, orgName, projName, contentType, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) CreateProjectWebhook(ctx context.Context, orgName string, projName string, body CreateProjectWebhookJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewCreateProjectWebhookRequest(c.Server, orgName, projName, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) DeleteProjectWebhook(ctx context.Context, orgName string, projName string, webhookId string, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewDeleteProjectWebhookRequest(c.Server, orgName, projName, webhookId)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) GetProjectWebhook(ctx context.Context, orgName string, projName string, webhookId string, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewGetProjectWebhookRequest(c.Server, orgName, projName, webhookId)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) UpdateProjectWebhookWithBody(ctx context.Context, orgName string, projName string, webhookId string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewUpdateProjectWebhookRequestWithBody(c.Server, orgName, projName, webhookId, contentType, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) UpdateProjectWebhook(ctx context.Context, orgName string, projName string, webhookId string, body UpdateProjectWebhookJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewUpdateProjectWebhookRequest(c.Server, orgName, projName, webhookId, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) ListProjectWebhookDeliveries(ctx context.Context, orgName string, projName string, webhookId string, params *ListProjectWebhookDeliveriesParams, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewListProjectWebhookDeliveriesRequest(c.Server, orgName, projName, webhookId, params)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) RotateProjectWebhookSecret(ctx context.Context, orgName string, projName string, webhookId string, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewRotateProjectWebhookSecretRequest(c.Server, orgName, projName, webhookId)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) TestProjectWebhook(ctx context.Context, orgName string, projName string, webhookId string, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewTestProjectWebhookRequest(c.Server, orgName, projName, webhookId)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
 func (c *Client) ListRepositoryBranchesWithBody(ctx context.Context, orgName string, params *ListRepositoryBranchesParams, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
 	req, err := NewListRepositoryBranchesRequestWithBody(c.Server, orgName, params, contentType, body)
 	if err != nil {
@@ -4447,6 +4774,138 @@ func (c *Client) GetNameByDisplayNameWithBody(ctx context.Context, orgName strin
 
 func (c *Client) GetNameByDisplayName(ctx context.Context, orgName string, body GetNameByDisplayNameJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
 	req, err := NewGetNameByDisplayNameRequest(c.Server, orgName, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) ListWebhookEventTypes(ctx context.Context, orgName string, params *ListWebhookEventTypesParams, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewListWebhookEventTypesRequest(c.Server, orgName, params)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) ListOrgWebhooks(ctx context.Context, orgName string, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewListOrgWebhooksRequest(c.Server, orgName)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) CreateOrgWebhookWithBody(ctx context.Context, orgName string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewCreateOrgWebhookRequestWithBody(c.Server, orgName, contentType, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) CreateOrgWebhook(ctx context.Context, orgName string, body CreateOrgWebhookJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewCreateOrgWebhookRequest(c.Server, orgName, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) DeleteOrgWebhook(ctx context.Context, orgName string, webhookId string, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewDeleteOrgWebhookRequest(c.Server, orgName, webhookId)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) GetOrgWebhook(ctx context.Context, orgName string, webhookId string, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewGetOrgWebhookRequest(c.Server, orgName, webhookId)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) UpdateOrgWebhookWithBody(ctx context.Context, orgName string, webhookId string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewUpdateOrgWebhookRequestWithBody(c.Server, orgName, webhookId, contentType, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) UpdateOrgWebhook(ctx context.Context, orgName string, webhookId string, body UpdateOrgWebhookJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewUpdateOrgWebhookRequest(c.Server, orgName, webhookId, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) ListOrgWebhookDeliveries(ctx context.Context, orgName string, webhookId string, params *ListOrgWebhookDeliveriesParams, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewListOrgWebhookDeliveriesRequest(c.Server, orgName, webhookId, params)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) RotateOrgWebhookSecret(ctx context.Context, orgName string, webhookId string, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewRotateOrgWebhookSecretRequest(c.Server, orgName, webhookId)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) TestOrgWebhook(ctx context.Context, orgName string, webhookId string, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewTestOrgWebhookRequest(c.Server, orgName, webhookId)
 	if err != nil {
 		return nil, err
 	}
@@ -16037,6 +16496,480 @@ func NewRegenerateAgentTracingTokenRequestWithBody(server string, orgName string
 	return req, nil
 }
 
+// NewListAgentWebhooksRequest generates requests for ListAgentWebhooks
+func NewListAgentWebhooksRequest(server string, orgName string, projName string, agentName string) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithOptions("simple", false, "orgName", orgName, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: ""})
+	if err != nil {
+		return nil, err
+	}
+
+	var pathParam1 string
+
+	pathParam1, err = runtime.StyleParamWithOptions("simple", false, "projName", projName, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: ""})
+	if err != nil {
+		return nil, err
+	}
+
+	var pathParam2 string
+
+	pathParam2, err = runtime.StyleParamWithOptions("simple", false, "agentName", agentName, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: ""})
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/orgs/%s/projects/%s/agents/%s/webhooks", pathParam0, pathParam1, pathParam2)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest("GET", queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return req, nil
+}
+
+// NewCreateAgentWebhookRequest calls the generic CreateAgentWebhook builder with application/json body
+func NewCreateAgentWebhookRequest(server string, orgName string, projName string, agentName string, body CreateAgentWebhookJSONRequestBody) (*http.Request, error) {
+	var bodyReader io.Reader
+	buf, err := json.Marshal(body)
+	if err != nil {
+		return nil, err
+	}
+	bodyReader = bytes.NewReader(buf)
+	return NewCreateAgentWebhookRequestWithBody(server, orgName, projName, agentName, "application/json", bodyReader)
+}
+
+// NewCreateAgentWebhookRequestWithBody generates requests for CreateAgentWebhook with any type of body
+func NewCreateAgentWebhookRequestWithBody(server string, orgName string, projName string, agentName string, contentType string, body io.Reader) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithOptions("simple", false, "orgName", orgName, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: ""})
+	if err != nil {
+		return nil, err
+	}
+
+	var pathParam1 string
+
+	pathParam1, err = runtime.StyleParamWithOptions("simple", false, "projName", projName, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: ""})
+	if err != nil {
+		return nil, err
+	}
+
+	var pathParam2 string
+
+	pathParam2, err = runtime.StyleParamWithOptions("simple", false, "agentName", agentName, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: ""})
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/orgs/%s/projects/%s/agents/%s/webhooks", pathParam0, pathParam1, pathParam2)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest("POST", queryURL.String(), body)
+	if err != nil {
+		return nil, err
+	}
+
+	req.Header.Add("Content-Type", contentType)
+
+	return req, nil
+}
+
+// NewDeleteAgentWebhookRequest generates requests for DeleteAgentWebhook
+func NewDeleteAgentWebhookRequest(server string, orgName string, projName string, agentName string, webhookId string) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithOptions("simple", false, "orgName", orgName, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: ""})
+	if err != nil {
+		return nil, err
+	}
+
+	var pathParam1 string
+
+	pathParam1, err = runtime.StyleParamWithOptions("simple", false, "projName", projName, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: ""})
+	if err != nil {
+		return nil, err
+	}
+
+	var pathParam2 string
+
+	pathParam2, err = runtime.StyleParamWithOptions("simple", false, "agentName", agentName, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: ""})
+	if err != nil {
+		return nil, err
+	}
+
+	var pathParam3 string
+
+	pathParam3, err = runtime.StyleParamWithOptions("simple", false, "webhookId", webhookId, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: ""})
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/orgs/%s/projects/%s/agents/%s/webhooks/%s", pathParam0, pathParam1, pathParam2, pathParam3)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest("DELETE", queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return req, nil
+}
+
+// NewGetAgentWebhookRequest generates requests for GetAgentWebhook
+func NewGetAgentWebhookRequest(server string, orgName string, projName string, agentName string, webhookId string) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithOptions("simple", false, "orgName", orgName, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: ""})
+	if err != nil {
+		return nil, err
+	}
+
+	var pathParam1 string
+
+	pathParam1, err = runtime.StyleParamWithOptions("simple", false, "projName", projName, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: ""})
+	if err != nil {
+		return nil, err
+	}
+
+	var pathParam2 string
+
+	pathParam2, err = runtime.StyleParamWithOptions("simple", false, "agentName", agentName, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: ""})
+	if err != nil {
+		return nil, err
+	}
+
+	var pathParam3 string
+
+	pathParam3, err = runtime.StyleParamWithOptions("simple", false, "webhookId", webhookId, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: ""})
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/orgs/%s/projects/%s/agents/%s/webhooks/%s", pathParam0, pathParam1, pathParam2, pathParam3)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest("GET", queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return req, nil
+}
+
+// NewUpdateAgentWebhookRequest calls the generic UpdateAgentWebhook builder with application/json body
+func NewUpdateAgentWebhookRequest(server string, orgName string, projName string, agentName string, webhookId string, body UpdateAgentWebhookJSONRequestBody) (*http.Request, error) {
+	var bodyReader io.Reader
+	buf, err := json.Marshal(body)
+	if err != nil {
+		return nil, err
+	}
+	bodyReader = bytes.NewReader(buf)
+	return NewUpdateAgentWebhookRequestWithBody(server, orgName, projName, agentName, webhookId, "application/json", bodyReader)
+}
+
+// NewUpdateAgentWebhookRequestWithBody generates requests for UpdateAgentWebhook with any type of body
+func NewUpdateAgentWebhookRequestWithBody(server string, orgName string, projName string, agentName string, webhookId string, contentType string, body io.Reader) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithOptions("simple", false, "orgName", orgName, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: ""})
+	if err != nil {
+		return nil, err
+	}
+
+	var pathParam1 string
+
+	pathParam1, err = runtime.StyleParamWithOptions("simple", false, "projName", projName, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: ""})
+	if err != nil {
+		return nil, err
+	}
+
+	var pathParam2 string
+
+	pathParam2, err = runtime.StyleParamWithOptions("simple", false, "agentName", agentName, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: ""})
+	if err != nil {
+		return nil, err
+	}
+
+	var pathParam3 string
+
+	pathParam3, err = runtime.StyleParamWithOptions("simple", false, "webhookId", webhookId, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: ""})
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/orgs/%s/projects/%s/agents/%s/webhooks/%s", pathParam0, pathParam1, pathParam2, pathParam3)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest("PUT", queryURL.String(), body)
+	if err != nil {
+		return nil, err
+	}
+
+	req.Header.Add("Content-Type", contentType)
+
+	return req, nil
+}
+
+// NewListAgentWebhookDeliveriesRequest generates requests for ListAgentWebhookDeliveries
+func NewListAgentWebhookDeliveriesRequest(server string, orgName string, projName string, agentName string, webhookId string, params *ListAgentWebhookDeliveriesParams) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithOptions("simple", false, "orgName", orgName, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: ""})
+	if err != nil {
+		return nil, err
+	}
+
+	var pathParam1 string
+
+	pathParam1, err = runtime.StyleParamWithOptions("simple", false, "projName", projName, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: ""})
+	if err != nil {
+		return nil, err
+	}
+
+	var pathParam2 string
+
+	pathParam2, err = runtime.StyleParamWithOptions("simple", false, "agentName", agentName, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: ""})
+	if err != nil {
+		return nil, err
+	}
+
+	var pathParam3 string
+
+	pathParam3, err = runtime.StyleParamWithOptions("simple", false, "webhookId", webhookId, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: ""})
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/orgs/%s/projects/%s/agents/%s/webhooks/%s/deliveries", pathParam0, pathParam1, pathParam2, pathParam3)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	if params != nil {
+		queryValues := queryURL.Query()
+
+		if params.Limit != nil {
+
+			if queryFrag, err := runtime.StyleParamWithOptions("form", true, "limit", *params.Limit, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "integer", Format: ""}); err != nil {
+				return nil, err
+			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+				return nil, err
+			} else {
+				for k, v := range parsed {
+					for _, v2 := range v {
+						queryValues.Add(k, v2)
+					}
+				}
+			}
+
+		}
+
+		queryURL.RawQuery = queryValues.Encode()
+	}
+
+	req, err := http.NewRequest("GET", queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return req, nil
+}
+
+// NewRotateAgentWebhookSecretRequest generates requests for RotateAgentWebhookSecret
+func NewRotateAgentWebhookSecretRequest(server string, orgName string, projName string, agentName string, webhookId string) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithOptions("simple", false, "orgName", orgName, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: ""})
+	if err != nil {
+		return nil, err
+	}
+
+	var pathParam1 string
+
+	pathParam1, err = runtime.StyleParamWithOptions("simple", false, "projName", projName, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: ""})
+	if err != nil {
+		return nil, err
+	}
+
+	var pathParam2 string
+
+	pathParam2, err = runtime.StyleParamWithOptions("simple", false, "agentName", agentName, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: ""})
+	if err != nil {
+		return nil, err
+	}
+
+	var pathParam3 string
+
+	pathParam3, err = runtime.StyleParamWithOptions("simple", false, "webhookId", webhookId, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: ""})
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/orgs/%s/projects/%s/agents/%s/webhooks/%s/rotate-secret", pathParam0, pathParam1, pathParam2, pathParam3)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest("POST", queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return req, nil
+}
+
+// NewTestAgentWebhookRequest generates requests for TestAgentWebhook
+func NewTestAgentWebhookRequest(server string, orgName string, projName string, agentName string, webhookId string) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithOptions("simple", false, "orgName", orgName, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: ""})
+	if err != nil {
+		return nil, err
+	}
+
+	var pathParam1 string
+
+	pathParam1, err = runtime.StyleParamWithOptions("simple", false, "projName", projName, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: ""})
+	if err != nil {
+		return nil, err
+	}
+
+	var pathParam2 string
+
+	pathParam2, err = runtime.StyleParamWithOptions("simple", false, "agentName", agentName, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: ""})
+	if err != nil {
+		return nil, err
+	}
+
+	var pathParam3 string
+
+	pathParam3, err = runtime.StyleParamWithOptions("simple", false, "webhookId", webhookId, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: ""})
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/orgs/%s/projects/%s/agents/%s/webhooks/%s/test", pathParam0, pathParam1, pathParam2, pathParam3)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest("POST", queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return req, nil
+}
+
 // NewGetDeploymentPipelineRequest generates requests for GetDeploymentPipeline
 func NewGetDeploymentPipelineRequest(server string, orgName string, projName string) (*http.Request, error) {
 	var err error
@@ -16600,6 +17533,424 @@ func NewRotateLLMProxyAPIKeyRequestWithBody(server string, orgName string, projN
 	return req, nil
 }
 
+// NewListProjectWebhooksRequest generates requests for ListProjectWebhooks
+func NewListProjectWebhooksRequest(server string, orgName string, projName string) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithOptions("simple", false, "orgName", orgName, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: ""})
+	if err != nil {
+		return nil, err
+	}
+
+	var pathParam1 string
+
+	pathParam1, err = runtime.StyleParamWithOptions("simple", false, "projName", projName, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: ""})
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/orgs/%s/projects/%s/webhooks", pathParam0, pathParam1)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest("GET", queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return req, nil
+}
+
+// NewCreateProjectWebhookRequest calls the generic CreateProjectWebhook builder with application/json body
+func NewCreateProjectWebhookRequest(server string, orgName string, projName string, body CreateProjectWebhookJSONRequestBody) (*http.Request, error) {
+	var bodyReader io.Reader
+	buf, err := json.Marshal(body)
+	if err != nil {
+		return nil, err
+	}
+	bodyReader = bytes.NewReader(buf)
+	return NewCreateProjectWebhookRequestWithBody(server, orgName, projName, "application/json", bodyReader)
+}
+
+// NewCreateProjectWebhookRequestWithBody generates requests for CreateProjectWebhook with any type of body
+func NewCreateProjectWebhookRequestWithBody(server string, orgName string, projName string, contentType string, body io.Reader) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithOptions("simple", false, "orgName", orgName, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: ""})
+	if err != nil {
+		return nil, err
+	}
+
+	var pathParam1 string
+
+	pathParam1, err = runtime.StyleParamWithOptions("simple", false, "projName", projName, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: ""})
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/orgs/%s/projects/%s/webhooks", pathParam0, pathParam1)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest("POST", queryURL.String(), body)
+	if err != nil {
+		return nil, err
+	}
+
+	req.Header.Add("Content-Type", contentType)
+
+	return req, nil
+}
+
+// NewDeleteProjectWebhookRequest generates requests for DeleteProjectWebhook
+func NewDeleteProjectWebhookRequest(server string, orgName string, projName string, webhookId string) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithOptions("simple", false, "orgName", orgName, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: ""})
+	if err != nil {
+		return nil, err
+	}
+
+	var pathParam1 string
+
+	pathParam1, err = runtime.StyleParamWithOptions("simple", false, "projName", projName, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: ""})
+	if err != nil {
+		return nil, err
+	}
+
+	var pathParam2 string
+
+	pathParam2, err = runtime.StyleParamWithOptions("simple", false, "webhookId", webhookId, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: ""})
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/orgs/%s/projects/%s/webhooks/%s", pathParam0, pathParam1, pathParam2)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest("DELETE", queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return req, nil
+}
+
+// NewGetProjectWebhookRequest generates requests for GetProjectWebhook
+func NewGetProjectWebhookRequest(server string, orgName string, projName string, webhookId string) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithOptions("simple", false, "orgName", orgName, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: ""})
+	if err != nil {
+		return nil, err
+	}
+
+	var pathParam1 string
+
+	pathParam1, err = runtime.StyleParamWithOptions("simple", false, "projName", projName, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: ""})
+	if err != nil {
+		return nil, err
+	}
+
+	var pathParam2 string
+
+	pathParam2, err = runtime.StyleParamWithOptions("simple", false, "webhookId", webhookId, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: ""})
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/orgs/%s/projects/%s/webhooks/%s", pathParam0, pathParam1, pathParam2)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest("GET", queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return req, nil
+}
+
+// NewUpdateProjectWebhookRequest calls the generic UpdateProjectWebhook builder with application/json body
+func NewUpdateProjectWebhookRequest(server string, orgName string, projName string, webhookId string, body UpdateProjectWebhookJSONRequestBody) (*http.Request, error) {
+	var bodyReader io.Reader
+	buf, err := json.Marshal(body)
+	if err != nil {
+		return nil, err
+	}
+	bodyReader = bytes.NewReader(buf)
+	return NewUpdateProjectWebhookRequestWithBody(server, orgName, projName, webhookId, "application/json", bodyReader)
+}
+
+// NewUpdateProjectWebhookRequestWithBody generates requests for UpdateProjectWebhook with any type of body
+func NewUpdateProjectWebhookRequestWithBody(server string, orgName string, projName string, webhookId string, contentType string, body io.Reader) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithOptions("simple", false, "orgName", orgName, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: ""})
+	if err != nil {
+		return nil, err
+	}
+
+	var pathParam1 string
+
+	pathParam1, err = runtime.StyleParamWithOptions("simple", false, "projName", projName, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: ""})
+	if err != nil {
+		return nil, err
+	}
+
+	var pathParam2 string
+
+	pathParam2, err = runtime.StyleParamWithOptions("simple", false, "webhookId", webhookId, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: ""})
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/orgs/%s/projects/%s/webhooks/%s", pathParam0, pathParam1, pathParam2)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest("PUT", queryURL.String(), body)
+	if err != nil {
+		return nil, err
+	}
+
+	req.Header.Add("Content-Type", contentType)
+
+	return req, nil
+}
+
+// NewListProjectWebhookDeliveriesRequest generates requests for ListProjectWebhookDeliveries
+func NewListProjectWebhookDeliveriesRequest(server string, orgName string, projName string, webhookId string, params *ListProjectWebhookDeliveriesParams) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithOptions("simple", false, "orgName", orgName, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: ""})
+	if err != nil {
+		return nil, err
+	}
+
+	var pathParam1 string
+
+	pathParam1, err = runtime.StyleParamWithOptions("simple", false, "projName", projName, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: ""})
+	if err != nil {
+		return nil, err
+	}
+
+	var pathParam2 string
+
+	pathParam2, err = runtime.StyleParamWithOptions("simple", false, "webhookId", webhookId, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: ""})
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/orgs/%s/projects/%s/webhooks/%s/deliveries", pathParam0, pathParam1, pathParam2)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	if params != nil {
+		queryValues := queryURL.Query()
+
+		if params.Limit != nil {
+
+			if queryFrag, err := runtime.StyleParamWithOptions("form", true, "limit", *params.Limit, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "integer", Format: ""}); err != nil {
+				return nil, err
+			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+				return nil, err
+			} else {
+				for k, v := range parsed {
+					for _, v2 := range v {
+						queryValues.Add(k, v2)
+					}
+				}
+			}
+
+		}
+
+		queryURL.RawQuery = queryValues.Encode()
+	}
+
+	req, err := http.NewRequest("GET", queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return req, nil
+}
+
+// NewRotateProjectWebhookSecretRequest generates requests for RotateProjectWebhookSecret
+func NewRotateProjectWebhookSecretRequest(server string, orgName string, projName string, webhookId string) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithOptions("simple", false, "orgName", orgName, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: ""})
+	if err != nil {
+		return nil, err
+	}
+
+	var pathParam1 string
+
+	pathParam1, err = runtime.StyleParamWithOptions("simple", false, "projName", projName, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: ""})
+	if err != nil {
+		return nil, err
+	}
+
+	var pathParam2 string
+
+	pathParam2, err = runtime.StyleParamWithOptions("simple", false, "webhookId", webhookId, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: ""})
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/orgs/%s/projects/%s/webhooks/%s/rotate-secret", pathParam0, pathParam1, pathParam2)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest("POST", queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return req, nil
+}
+
+// NewTestProjectWebhookRequest generates requests for TestProjectWebhook
+func NewTestProjectWebhookRequest(server string, orgName string, projName string, webhookId string) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithOptions("simple", false, "orgName", orgName, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: ""})
+	if err != nil {
+		return nil, err
+	}
+
+	var pathParam1 string
+
+	pathParam1, err = runtime.StyleParamWithOptions("simple", false, "projName", projName, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: ""})
+	if err != nil {
+		return nil, err
+	}
+
+	var pathParam2 string
+
+	pathParam2, err = runtime.StyleParamWithOptions("simple", false, "webhookId", webhookId, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: ""})
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/orgs/%s/projects/%s/webhooks/%s/test", pathParam0, pathParam1, pathParam2)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest("POST", queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return req, nil
+}
+
 // NewListRepositoryBranchesRequest calls the generic ListRepositoryBranches builder with application/json body
 func NewListRepositoryBranchesRequest(server string, orgName string, params *ListRepositoryBranchesParams, body ListRepositoryBranchesJSONRequestBody) (*http.Request, error) {
 	var bodyReader io.Reader
@@ -16865,6 +18216,424 @@ func NewGetNameByDisplayNameRequestWithBody(server string, orgName string, conte
 	}
 
 	req.Header.Add("Content-Type", contentType)
+
+	return req, nil
+}
+
+// NewListWebhookEventTypesRequest generates requests for ListWebhookEventTypes
+func NewListWebhookEventTypesRequest(server string, orgName string, params *ListWebhookEventTypesParams) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithOptions("simple", false, "orgName", orgName, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: ""})
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/orgs/%s/webhook-event-types", pathParam0)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	if params != nil {
+		queryValues := queryURL.Query()
+
+		if params.Scope != nil {
+
+			if queryFrag, err := runtime.StyleParamWithOptions("form", true, "scope", *params.Scope, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+				return nil, err
+			} else {
+				for k, v := range parsed {
+					for _, v2 := range v {
+						queryValues.Add(k, v2)
+					}
+				}
+			}
+
+		}
+
+		queryURL.RawQuery = queryValues.Encode()
+	}
+
+	req, err := http.NewRequest("GET", queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return req, nil
+}
+
+// NewListOrgWebhooksRequest generates requests for ListOrgWebhooks
+func NewListOrgWebhooksRequest(server string, orgName string) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithOptions("simple", false, "orgName", orgName, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: ""})
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/orgs/%s/webhooks", pathParam0)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest("GET", queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return req, nil
+}
+
+// NewCreateOrgWebhookRequest calls the generic CreateOrgWebhook builder with application/json body
+func NewCreateOrgWebhookRequest(server string, orgName string, body CreateOrgWebhookJSONRequestBody) (*http.Request, error) {
+	var bodyReader io.Reader
+	buf, err := json.Marshal(body)
+	if err != nil {
+		return nil, err
+	}
+	bodyReader = bytes.NewReader(buf)
+	return NewCreateOrgWebhookRequestWithBody(server, orgName, "application/json", bodyReader)
+}
+
+// NewCreateOrgWebhookRequestWithBody generates requests for CreateOrgWebhook with any type of body
+func NewCreateOrgWebhookRequestWithBody(server string, orgName string, contentType string, body io.Reader) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithOptions("simple", false, "orgName", orgName, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: ""})
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/orgs/%s/webhooks", pathParam0)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest("POST", queryURL.String(), body)
+	if err != nil {
+		return nil, err
+	}
+
+	req.Header.Add("Content-Type", contentType)
+
+	return req, nil
+}
+
+// NewDeleteOrgWebhookRequest generates requests for DeleteOrgWebhook
+func NewDeleteOrgWebhookRequest(server string, orgName string, webhookId string) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithOptions("simple", false, "orgName", orgName, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: ""})
+	if err != nil {
+		return nil, err
+	}
+
+	var pathParam1 string
+
+	pathParam1, err = runtime.StyleParamWithOptions("simple", false, "webhookId", webhookId, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: ""})
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/orgs/%s/webhooks/%s", pathParam0, pathParam1)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest("DELETE", queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return req, nil
+}
+
+// NewGetOrgWebhookRequest generates requests for GetOrgWebhook
+func NewGetOrgWebhookRequest(server string, orgName string, webhookId string) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithOptions("simple", false, "orgName", orgName, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: ""})
+	if err != nil {
+		return nil, err
+	}
+
+	var pathParam1 string
+
+	pathParam1, err = runtime.StyleParamWithOptions("simple", false, "webhookId", webhookId, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: ""})
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/orgs/%s/webhooks/%s", pathParam0, pathParam1)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest("GET", queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return req, nil
+}
+
+// NewUpdateOrgWebhookRequest calls the generic UpdateOrgWebhook builder with application/json body
+func NewUpdateOrgWebhookRequest(server string, orgName string, webhookId string, body UpdateOrgWebhookJSONRequestBody) (*http.Request, error) {
+	var bodyReader io.Reader
+	buf, err := json.Marshal(body)
+	if err != nil {
+		return nil, err
+	}
+	bodyReader = bytes.NewReader(buf)
+	return NewUpdateOrgWebhookRequestWithBody(server, orgName, webhookId, "application/json", bodyReader)
+}
+
+// NewUpdateOrgWebhookRequestWithBody generates requests for UpdateOrgWebhook with any type of body
+func NewUpdateOrgWebhookRequestWithBody(server string, orgName string, webhookId string, contentType string, body io.Reader) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithOptions("simple", false, "orgName", orgName, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: ""})
+	if err != nil {
+		return nil, err
+	}
+
+	var pathParam1 string
+
+	pathParam1, err = runtime.StyleParamWithOptions("simple", false, "webhookId", webhookId, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: ""})
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/orgs/%s/webhooks/%s", pathParam0, pathParam1)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest("PUT", queryURL.String(), body)
+	if err != nil {
+		return nil, err
+	}
+
+	req.Header.Add("Content-Type", contentType)
+
+	return req, nil
+}
+
+// NewListOrgWebhookDeliveriesRequest generates requests for ListOrgWebhookDeliveries
+func NewListOrgWebhookDeliveriesRequest(server string, orgName string, webhookId string, params *ListOrgWebhookDeliveriesParams) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithOptions("simple", false, "orgName", orgName, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: ""})
+	if err != nil {
+		return nil, err
+	}
+
+	var pathParam1 string
+
+	pathParam1, err = runtime.StyleParamWithOptions("simple", false, "webhookId", webhookId, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: ""})
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/orgs/%s/webhooks/%s/deliveries", pathParam0, pathParam1)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	if params != nil {
+		queryValues := queryURL.Query()
+
+		if params.Limit != nil {
+
+			if queryFrag, err := runtime.StyleParamWithOptions("form", true, "limit", *params.Limit, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "integer", Format: ""}); err != nil {
+				return nil, err
+			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+				return nil, err
+			} else {
+				for k, v := range parsed {
+					for _, v2 := range v {
+						queryValues.Add(k, v2)
+					}
+				}
+			}
+
+		}
+
+		queryURL.RawQuery = queryValues.Encode()
+	}
+
+	req, err := http.NewRequest("GET", queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return req, nil
+}
+
+// NewRotateOrgWebhookSecretRequest generates requests for RotateOrgWebhookSecret
+func NewRotateOrgWebhookSecretRequest(server string, orgName string, webhookId string) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithOptions("simple", false, "orgName", orgName, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: ""})
+	if err != nil {
+		return nil, err
+	}
+
+	var pathParam1 string
+
+	pathParam1, err = runtime.StyleParamWithOptions("simple", false, "webhookId", webhookId, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: ""})
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/orgs/%s/webhooks/%s/rotate-secret", pathParam0, pathParam1)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest("POST", queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return req, nil
+}
+
+// NewTestOrgWebhookRequest generates requests for TestOrgWebhook
+func NewTestOrgWebhookRequest(server string, orgName string, webhookId string) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithOptions("simple", false, "orgName", orgName, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: ""})
+	if err != nil {
+		return nil, err
+	}
+
+	var pathParam1 string
+
+	pathParam1, err = runtime.StyleParamWithOptions("simple", false, "webhookId", webhookId, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: ""})
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/orgs/%s/webhooks/%s/test", pathParam0, pathParam1)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest("POST", queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
 
 	return req, nil
 }
@@ -17705,6 +19474,34 @@ type ClientWithResponsesInterface interface {
 
 	RegenerateAgentTracingTokenWithResponse(ctx context.Context, orgName string, projName string, agentName string, body RegenerateAgentTracingTokenJSONRequestBody, reqEditors ...RequestEditorFn) (*RegenerateAgentTracingTokenResp, error)
 
+	// ListAgentWebhooksWithResponse request
+	ListAgentWebhooksWithResponse(ctx context.Context, orgName string, projName string, agentName string, reqEditors ...RequestEditorFn) (*ListAgentWebhooksResp, error)
+
+	// CreateAgentWebhookWithBodyWithResponse request with any body
+	CreateAgentWebhookWithBodyWithResponse(ctx context.Context, orgName string, projName string, agentName string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*CreateAgentWebhookResp, error)
+
+	CreateAgentWebhookWithResponse(ctx context.Context, orgName string, projName string, agentName string, body CreateAgentWebhookJSONRequestBody, reqEditors ...RequestEditorFn) (*CreateAgentWebhookResp, error)
+
+	// DeleteAgentWebhookWithResponse request
+	DeleteAgentWebhookWithResponse(ctx context.Context, orgName string, projName string, agentName string, webhookId string, reqEditors ...RequestEditorFn) (*DeleteAgentWebhookResp, error)
+
+	// GetAgentWebhookWithResponse request
+	GetAgentWebhookWithResponse(ctx context.Context, orgName string, projName string, agentName string, webhookId string, reqEditors ...RequestEditorFn) (*GetAgentWebhookResp, error)
+
+	// UpdateAgentWebhookWithBodyWithResponse request with any body
+	UpdateAgentWebhookWithBodyWithResponse(ctx context.Context, orgName string, projName string, agentName string, webhookId string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*UpdateAgentWebhookResp, error)
+
+	UpdateAgentWebhookWithResponse(ctx context.Context, orgName string, projName string, agentName string, webhookId string, body UpdateAgentWebhookJSONRequestBody, reqEditors ...RequestEditorFn) (*UpdateAgentWebhookResp, error)
+
+	// ListAgentWebhookDeliveriesWithResponse request
+	ListAgentWebhookDeliveriesWithResponse(ctx context.Context, orgName string, projName string, agentName string, webhookId string, params *ListAgentWebhookDeliveriesParams, reqEditors ...RequestEditorFn) (*ListAgentWebhookDeliveriesResp, error)
+
+	// RotateAgentWebhookSecretWithResponse request
+	RotateAgentWebhookSecretWithResponse(ctx context.Context, orgName string, projName string, agentName string, webhookId string, reqEditors ...RequestEditorFn) (*RotateAgentWebhookSecretResp, error)
+
+	// TestAgentWebhookWithResponse request
+	TestAgentWebhookWithResponse(ctx context.Context, orgName string, projName string, agentName string, webhookId string, reqEditors ...RequestEditorFn) (*TestAgentWebhookResp, error)
+
 	// GetDeploymentPipelineWithResponse request
 	GetDeploymentPipelineWithResponse(ctx context.Context, orgName string, projName string, reqEditors ...RequestEditorFn) (*GetDeploymentPipelineResp, error)
 
@@ -17743,6 +19540,34 @@ type ClientWithResponsesInterface interface {
 
 	RotateLLMProxyAPIKeyWithResponse(ctx context.Context, orgName string, projName string, id string, keyName string, body RotateLLMProxyAPIKeyJSONRequestBody, reqEditors ...RequestEditorFn) (*RotateLLMProxyAPIKeyResp, error)
 
+	// ListProjectWebhooksWithResponse request
+	ListProjectWebhooksWithResponse(ctx context.Context, orgName string, projName string, reqEditors ...RequestEditorFn) (*ListProjectWebhooksResp, error)
+
+	// CreateProjectWebhookWithBodyWithResponse request with any body
+	CreateProjectWebhookWithBodyWithResponse(ctx context.Context, orgName string, projName string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*CreateProjectWebhookResp, error)
+
+	CreateProjectWebhookWithResponse(ctx context.Context, orgName string, projName string, body CreateProjectWebhookJSONRequestBody, reqEditors ...RequestEditorFn) (*CreateProjectWebhookResp, error)
+
+	// DeleteProjectWebhookWithResponse request
+	DeleteProjectWebhookWithResponse(ctx context.Context, orgName string, projName string, webhookId string, reqEditors ...RequestEditorFn) (*DeleteProjectWebhookResp, error)
+
+	// GetProjectWebhookWithResponse request
+	GetProjectWebhookWithResponse(ctx context.Context, orgName string, projName string, webhookId string, reqEditors ...RequestEditorFn) (*GetProjectWebhookResp, error)
+
+	// UpdateProjectWebhookWithBodyWithResponse request with any body
+	UpdateProjectWebhookWithBodyWithResponse(ctx context.Context, orgName string, projName string, webhookId string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*UpdateProjectWebhookResp, error)
+
+	UpdateProjectWebhookWithResponse(ctx context.Context, orgName string, projName string, webhookId string, body UpdateProjectWebhookJSONRequestBody, reqEditors ...RequestEditorFn) (*UpdateProjectWebhookResp, error)
+
+	// ListProjectWebhookDeliveriesWithResponse request
+	ListProjectWebhookDeliveriesWithResponse(ctx context.Context, orgName string, projName string, webhookId string, params *ListProjectWebhookDeliveriesParams, reqEditors ...RequestEditorFn) (*ListProjectWebhookDeliveriesResp, error)
+
+	// RotateProjectWebhookSecretWithResponse request
+	RotateProjectWebhookSecretWithResponse(ctx context.Context, orgName string, projName string, webhookId string, reqEditors ...RequestEditorFn) (*RotateProjectWebhookSecretResp, error)
+
+	// TestProjectWebhookWithResponse request
+	TestProjectWebhookWithResponse(ctx context.Context, orgName string, projName string, webhookId string, reqEditors ...RequestEditorFn) (*TestProjectWebhookResp, error)
+
 	// ListRepositoryBranchesWithBodyWithResponse request with any body
 	ListRepositoryBranchesWithBodyWithResponse(ctx context.Context, orgName string, params *ListRepositoryBranchesParams, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*ListRepositoryBranchesResp, error)
 
@@ -17760,6 +19585,37 @@ type ClientWithResponsesInterface interface {
 	GetNameByDisplayNameWithBodyWithResponse(ctx context.Context, orgName string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*GetNameByDisplayNameResp, error)
 
 	GetNameByDisplayNameWithResponse(ctx context.Context, orgName string, body GetNameByDisplayNameJSONRequestBody, reqEditors ...RequestEditorFn) (*GetNameByDisplayNameResp, error)
+
+	// ListWebhookEventTypesWithResponse request
+	ListWebhookEventTypesWithResponse(ctx context.Context, orgName string, params *ListWebhookEventTypesParams, reqEditors ...RequestEditorFn) (*ListWebhookEventTypesResp, error)
+
+	// ListOrgWebhooksWithResponse request
+	ListOrgWebhooksWithResponse(ctx context.Context, orgName string, reqEditors ...RequestEditorFn) (*ListOrgWebhooksResp, error)
+
+	// CreateOrgWebhookWithBodyWithResponse request with any body
+	CreateOrgWebhookWithBodyWithResponse(ctx context.Context, orgName string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*CreateOrgWebhookResp, error)
+
+	CreateOrgWebhookWithResponse(ctx context.Context, orgName string, body CreateOrgWebhookJSONRequestBody, reqEditors ...RequestEditorFn) (*CreateOrgWebhookResp, error)
+
+	// DeleteOrgWebhookWithResponse request
+	DeleteOrgWebhookWithResponse(ctx context.Context, orgName string, webhookId string, reqEditors ...RequestEditorFn) (*DeleteOrgWebhookResp, error)
+
+	// GetOrgWebhookWithResponse request
+	GetOrgWebhookWithResponse(ctx context.Context, orgName string, webhookId string, reqEditors ...RequestEditorFn) (*GetOrgWebhookResp, error)
+
+	// UpdateOrgWebhookWithBodyWithResponse request with any body
+	UpdateOrgWebhookWithBodyWithResponse(ctx context.Context, orgName string, webhookId string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*UpdateOrgWebhookResp, error)
+
+	UpdateOrgWebhookWithResponse(ctx context.Context, orgName string, webhookId string, body UpdateOrgWebhookJSONRequestBody, reqEditors ...RequestEditorFn) (*UpdateOrgWebhookResp, error)
+
+	// ListOrgWebhookDeliveriesWithResponse request
+	ListOrgWebhookDeliveriesWithResponse(ctx context.Context, orgName string, webhookId string, params *ListOrgWebhookDeliveriesParams, reqEditors ...RequestEditorFn) (*ListOrgWebhookDeliveriesResp, error)
+
+	// RotateOrgWebhookSecretWithResponse request
+	RotateOrgWebhookSecretWithResponse(ctx context.Context, orgName string, webhookId string, reqEditors ...RequestEditorFn) (*RotateOrgWebhookSecretResp, error)
+
+	// TestOrgWebhookWithResponse request
+	TestOrgWebhookWithResponse(ctx context.Context, orgName string, webhookId string, reqEditors ...RequestEditorFn) (*TestOrgWebhookResp, error)
 
 	// ReportConsoleActionsWithBodyWithResponse request with any body
 	ReportConsoleActionsWithBodyWithResponse(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*ReportConsoleActionsResp, error)
@@ -22820,6 +24676,191 @@ func (r RegenerateAgentTracingTokenResp) StatusCode() int {
 	return 0
 }
 
+type ListAgentWebhooksResp struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON200      *WebhookListResponse
+	JSON500      *ErrorResponse
+}
+
+// Status returns HTTPResponse.Status
+func (r ListAgentWebhooksResp) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r ListAgentWebhooksResp) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+type CreateAgentWebhookResp struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON201      *WebhookResponse
+	JSON400      *ErrorResponse
+	JSON500      *ErrorResponse
+}
+
+// Status returns HTTPResponse.Status
+func (r CreateAgentWebhookResp) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r CreateAgentWebhookResp) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+type DeleteAgentWebhookResp struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON404      *ErrorResponse
+}
+
+// Status returns HTTPResponse.Status
+func (r DeleteAgentWebhookResp) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r DeleteAgentWebhookResp) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+type GetAgentWebhookResp struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON200      *WebhookResponse
+	JSON404      *ErrorResponse
+}
+
+// Status returns HTTPResponse.Status
+func (r GetAgentWebhookResp) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r GetAgentWebhookResp) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+type UpdateAgentWebhookResp struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON200      *WebhookResponse
+	JSON400      *ErrorResponse
+	JSON404      *ErrorResponse
+}
+
+// Status returns HTTPResponse.Status
+func (r UpdateAgentWebhookResp) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r UpdateAgentWebhookResp) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+type ListAgentWebhookDeliveriesResp struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON200      *WebhookDeliveryListResponse
+	JSON404      *ErrorResponse
+}
+
+// Status returns HTTPResponse.Status
+func (r ListAgentWebhookDeliveriesResp) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r ListAgentWebhookDeliveriesResp) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+type RotateAgentWebhookSecretResp struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON200      *WebhookSecretResponse
+	JSON404      *ErrorResponse
+}
+
+// Status returns HTTPResponse.Status
+func (r RotateAgentWebhookSecretResp) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r RotateAgentWebhookSecretResp) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+type TestAgentWebhookResp struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON200      *WebhookTestResponse
+	JSON404      *ErrorResponse
+}
+
+// Status returns HTTPResponse.Status
+func (r TestAgentWebhookResp) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r TestAgentWebhookResp) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
 type GetDeploymentPipelineResp struct {
 	Body         []byte
 	HTTPResponse *http.Response
@@ -23078,6 +25119,191 @@ func (r RotateLLMProxyAPIKeyResp) StatusCode() int {
 	return 0
 }
 
+type ListProjectWebhooksResp struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON200      *WebhookListResponse
+	JSON500      *ErrorResponse
+}
+
+// Status returns HTTPResponse.Status
+func (r ListProjectWebhooksResp) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r ListProjectWebhooksResp) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+type CreateProjectWebhookResp struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON201      *WebhookResponse
+	JSON400      *ErrorResponse
+	JSON500      *ErrorResponse
+}
+
+// Status returns HTTPResponse.Status
+func (r CreateProjectWebhookResp) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r CreateProjectWebhookResp) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+type DeleteProjectWebhookResp struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON404      *ErrorResponse
+}
+
+// Status returns HTTPResponse.Status
+func (r DeleteProjectWebhookResp) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r DeleteProjectWebhookResp) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+type GetProjectWebhookResp struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON200      *WebhookResponse
+	JSON404      *ErrorResponse
+}
+
+// Status returns HTTPResponse.Status
+func (r GetProjectWebhookResp) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r GetProjectWebhookResp) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+type UpdateProjectWebhookResp struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON200      *WebhookResponse
+	JSON400      *ErrorResponse
+	JSON404      *ErrorResponse
+}
+
+// Status returns HTTPResponse.Status
+func (r UpdateProjectWebhookResp) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r UpdateProjectWebhookResp) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+type ListProjectWebhookDeliveriesResp struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON200      *WebhookDeliveryListResponse
+	JSON404      *ErrorResponse
+}
+
+// Status returns HTTPResponse.Status
+func (r ListProjectWebhookDeliveriesResp) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r ListProjectWebhookDeliveriesResp) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+type RotateProjectWebhookSecretResp struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON200      *WebhookSecretResponse
+	JSON404      *ErrorResponse
+}
+
+// Status returns HTTPResponse.Status
+func (r RotateProjectWebhookSecretResp) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r RotateProjectWebhookSecretResp) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+type TestProjectWebhookResp struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON200      *WebhookTestResponse
+	JSON404      *ErrorResponse
+}
+
+// Status returns HTTPResponse.Status
+func (r TestProjectWebhookResp) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r TestProjectWebhookResp) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
 type ListRepositoryBranchesResp struct {
 	Body         []byte
 	HTTPResponse *http.Response
@@ -23174,6 +25400,214 @@ func (r GetNameByDisplayNameResp) Status() string {
 
 // StatusCode returns HTTPResponse.StatusCode
 func (r GetNameByDisplayNameResp) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+type ListWebhookEventTypesResp struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON200      *WebhookEventTypeListResponse
+	JSON400      *ErrorResponse
+}
+
+// Status returns HTTPResponse.Status
+func (r ListWebhookEventTypesResp) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r ListWebhookEventTypesResp) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+type ListOrgWebhooksResp struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON200      *WebhookListResponse
+	JSON500      *ErrorResponse
+}
+
+// Status returns HTTPResponse.Status
+func (r ListOrgWebhooksResp) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r ListOrgWebhooksResp) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+type CreateOrgWebhookResp struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON201      *WebhookResponse
+	JSON400      *ErrorResponse
+	JSON500      *ErrorResponse
+}
+
+// Status returns HTTPResponse.Status
+func (r CreateOrgWebhookResp) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r CreateOrgWebhookResp) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+type DeleteOrgWebhookResp struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON404      *ErrorResponse
+}
+
+// Status returns HTTPResponse.Status
+func (r DeleteOrgWebhookResp) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r DeleteOrgWebhookResp) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+type GetOrgWebhookResp struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON200      *WebhookResponse
+	JSON404      *ErrorResponse
+}
+
+// Status returns HTTPResponse.Status
+func (r GetOrgWebhookResp) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r GetOrgWebhookResp) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+type UpdateOrgWebhookResp struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON200      *WebhookResponse
+	JSON400      *ErrorResponse
+	JSON404      *ErrorResponse
+}
+
+// Status returns HTTPResponse.Status
+func (r UpdateOrgWebhookResp) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r UpdateOrgWebhookResp) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+type ListOrgWebhookDeliveriesResp struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON200      *WebhookDeliveryListResponse
+	JSON404      *ErrorResponse
+}
+
+// Status returns HTTPResponse.Status
+func (r ListOrgWebhookDeliveriesResp) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r ListOrgWebhookDeliveriesResp) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+type RotateOrgWebhookSecretResp struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON200      *WebhookSecretResponse
+	JSON404      *ErrorResponse
+}
+
+// Status returns HTTPResponse.Status
+func (r RotateOrgWebhookSecretResp) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r RotateOrgWebhookSecretResp) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+type TestOrgWebhookResp struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON200      *WebhookTestResponse
+	JSON404      *ErrorResponse
+}
+
+// Status returns HTTPResponse.Status
+func (r TestOrgWebhookResp) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r TestOrgWebhookResp) StatusCode() int {
 	if r.HTTPResponse != nil {
 		return r.HTTPResponse.StatusCode
 	}
@@ -25609,6 +28043,94 @@ func (c *ClientWithResponses) RegenerateAgentTracingTokenWithResponse(ctx contex
 	return ParseRegenerateAgentTracingTokenResp(rsp)
 }
 
+// ListAgentWebhooksWithResponse request returning *ListAgentWebhooksResp
+func (c *ClientWithResponses) ListAgentWebhooksWithResponse(ctx context.Context, orgName string, projName string, agentName string, reqEditors ...RequestEditorFn) (*ListAgentWebhooksResp, error) {
+	rsp, err := c.ListAgentWebhooks(ctx, orgName, projName, agentName, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseListAgentWebhooksResp(rsp)
+}
+
+// CreateAgentWebhookWithBodyWithResponse request with arbitrary body returning *CreateAgentWebhookResp
+func (c *ClientWithResponses) CreateAgentWebhookWithBodyWithResponse(ctx context.Context, orgName string, projName string, agentName string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*CreateAgentWebhookResp, error) {
+	rsp, err := c.CreateAgentWebhookWithBody(ctx, orgName, projName, agentName, contentType, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseCreateAgentWebhookResp(rsp)
+}
+
+func (c *ClientWithResponses) CreateAgentWebhookWithResponse(ctx context.Context, orgName string, projName string, agentName string, body CreateAgentWebhookJSONRequestBody, reqEditors ...RequestEditorFn) (*CreateAgentWebhookResp, error) {
+	rsp, err := c.CreateAgentWebhook(ctx, orgName, projName, agentName, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseCreateAgentWebhookResp(rsp)
+}
+
+// DeleteAgentWebhookWithResponse request returning *DeleteAgentWebhookResp
+func (c *ClientWithResponses) DeleteAgentWebhookWithResponse(ctx context.Context, orgName string, projName string, agentName string, webhookId string, reqEditors ...RequestEditorFn) (*DeleteAgentWebhookResp, error) {
+	rsp, err := c.DeleteAgentWebhook(ctx, orgName, projName, agentName, webhookId, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseDeleteAgentWebhookResp(rsp)
+}
+
+// GetAgentWebhookWithResponse request returning *GetAgentWebhookResp
+func (c *ClientWithResponses) GetAgentWebhookWithResponse(ctx context.Context, orgName string, projName string, agentName string, webhookId string, reqEditors ...RequestEditorFn) (*GetAgentWebhookResp, error) {
+	rsp, err := c.GetAgentWebhook(ctx, orgName, projName, agentName, webhookId, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseGetAgentWebhookResp(rsp)
+}
+
+// UpdateAgentWebhookWithBodyWithResponse request with arbitrary body returning *UpdateAgentWebhookResp
+func (c *ClientWithResponses) UpdateAgentWebhookWithBodyWithResponse(ctx context.Context, orgName string, projName string, agentName string, webhookId string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*UpdateAgentWebhookResp, error) {
+	rsp, err := c.UpdateAgentWebhookWithBody(ctx, orgName, projName, agentName, webhookId, contentType, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseUpdateAgentWebhookResp(rsp)
+}
+
+func (c *ClientWithResponses) UpdateAgentWebhookWithResponse(ctx context.Context, orgName string, projName string, agentName string, webhookId string, body UpdateAgentWebhookJSONRequestBody, reqEditors ...RequestEditorFn) (*UpdateAgentWebhookResp, error) {
+	rsp, err := c.UpdateAgentWebhook(ctx, orgName, projName, agentName, webhookId, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseUpdateAgentWebhookResp(rsp)
+}
+
+// ListAgentWebhookDeliveriesWithResponse request returning *ListAgentWebhookDeliveriesResp
+func (c *ClientWithResponses) ListAgentWebhookDeliveriesWithResponse(ctx context.Context, orgName string, projName string, agentName string, webhookId string, params *ListAgentWebhookDeliveriesParams, reqEditors ...RequestEditorFn) (*ListAgentWebhookDeliveriesResp, error) {
+	rsp, err := c.ListAgentWebhookDeliveries(ctx, orgName, projName, agentName, webhookId, params, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseListAgentWebhookDeliveriesResp(rsp)
+}
+
+// RotateAgentWebhookSecretWithResponse request returning *RotateAgentWebhookSecretResp
+func (c *ClientWithResponses) RotateAgentWebhookSecretWithResponse(ctx context.Context, orgName string, projName string, agentName string, webhookId string, reqEditors ...RequestEditorFn) (*RotateAgentWebhookSecretResp, error) {
+	rsp, err := c.RotateAgentWebhookSecret(ctx, orgName, projName, agentName, webhookId, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseRotateAgentWebhookSecretResp(rsp)
+}
+
+// TestAgentWebhookWithResponse request returning *TestAgentWebhookResp
+func (c *ClientWithResponses) TestAgentWebhookWithResponse(ctx context.Context, orgName string, projName string, agentName string, webhookId string, reqEditors ...RequestEditorFn) (*TestAgentWebhookResp, error) {
+	rsp, err := c.TestAgentWebhook(ctx, orgName, projName, agentName, webhookId, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseTestAgentWebhookResp(rsp)
+}
+
 // GetDeploymentPipelineWithResponse request returning *GetDeploymentPipelineResp
 func (c *ClientWithResponses) GetDeploymentPipelineWithResponse(ctx context.Context, orgName string, projName string, reqEditors ...RequestEditorFn) (*GetDeploymentPipelineResp, error) {
 	rsp, err := c.GetDeploymentPipeline(ctx, orgName, projName, reqEditors...)
@@ -25731,6 +28253,94 @@ func (c *ClientWithResponses) RotateLLMProxyAPIKeyWithResponse(ctx context.Conte
 	return ParseRotateLLMProxyAPIKeyResp(rsp)
 }
 
+// ListProjectWebhooksWithResponse request returning *ListProjectWebhooksResp
+func (c *ClientWithResponses) ListProjectWebhooksWithResponse(ctx context.Context, orgName string, projName string, reqEditors ...RequestEditorFn) (*ListProjectWebhooksResp, error) {
+	rsp, err := c.ListProjectWebhooks(ctx, orgName, projName, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseListProjectWebhooksResp(rsp)
+}
+
+// CreateProjectWebhookWithBodyWithResponse request with arbitrary body returning *CreateProjectWebhookResp
+func (c *ClientWithResponses) CreateProjectWebhookWithBodyWithResponse(ctx context.Context, orgName string, projName string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*CreateProjectWebhookResp, error) {
+	rsp, err := c.CreateProjectWebhookWithBody(ctx, orgName, projName, contentType, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseCreateProjectWebhookResp(rsp)
+}
+
+func (c *ClientWithResponses) CreateProjectWebhookWithResponse(ctx context.Context, orgName string, projName string, body CreateProjectWebhookJSONRequestBody, reqEditors ...RequestEditorFn) (*CreateProjectWebhookResp, error) {
+	rsp, err := c.CreateProjectWebhook(ctx, orgName, projName, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseCreateProjectWebhookResp(rsp)
+}
+
+// DeleteProjectWebhookWithResponse request returning *DeleteProjectWebhookResp
+func (c *ClientWithResponses) DeleteProjectWebhookWithResponse(ctx context.Context, orgName string, projName string, webhookId string, reqEditors ...RequestEditorFn) (*DeleteProjectWebhookResp, error) {
+	rsp, err := c.DeleteProjectWebhook(ctx, orgName, projName, webhookId, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseDeleteProjectWebhookResp(rsp)
+}
+
+// GetProjectWebhookWithResponse request returning *GetProjectWebhookResp
+func (c *ClientWithResponses) GetProjectWebhookWithResponse(ctx context.Context, orgName string, projName string, webhookId string, reqEditors ...RequestEditorFn) (*GetProjectWebhookResp, error) {
+	rsp, err := c.GetProjectWebhook(ctx, orgName, projName, webhookId, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseGetProjectWebhookResp(rsp)
+}
+
+// UpdateProjectWebhookWithBodyWithResponse request with arbitrary body returning *UpdateProjectWebhookResp
+func (c *ClientWithResponses) UpdateProjectWebhookWithBodyWithResponse(ctx context.Context, orgName string, projName string, webhookId string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*UpdateProjectWebhookResp, error) {
+	rsp, err := c.UpdateProjectWebhookWithBody(ctx, orgName, projName, webhookId, contentType, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseUpdateProjectWebhookResp(rsp)
+}
+
+func (c *ClientWithResponses) UpdateProjectWebhookWithResponse(ctx context.Context, orgName string, projName string, webhookId string, body UpdateProjectWebhookJSONRequestBody, reqEditors ...RequestEditorFn) (*UpdateProjectWebhookResp, error) {
+	rsp, err := c.UpdateProjectWebhook(ctx, orgName, projName, webhookId, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseUpdateProjectWebhookResp(rsp)
+}
+
+// ListProjectWebhookDeliveriesWithResponse request returning *ListProjectWebhookDeliveriesResp
+func (c *ClientWithResponses) ListProjectWebhookDeliveriesWithResponse(ctx context.Context, orgName string, projName string, webhookId string, params *ListProjectWebhookDeliveriesParams, reqEditors ...RequestEditorFn) (*ListProjectWebhookDeliveriesResp, error) {
+	rsp, err := c.ListProjectWebhookDeliveries(ctx, orgName, projName, webhookId, params, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseListProjectWebhookDeliveriesResp(rsp)
+}
+
+// RotateProjectWebhookSecretWithResponse request returning *RotateProjectWebhookSecretResp
+func (c *ClientWithResponses) RotateProjectWebhookSecretWithResponse(ctx context.Context, orgName string, projName string, webhookId string, reqEditors ...RequestEditorFn) (*RotateProjectWebhookSecretResp, error) {
+	rsp, err := c.RotateProjectWebhookSecret(ctx, orgName, projName, webhookId, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseRotateProjectWebhookSecretResp(rsp)
+}
+
+// TestProjectWebhookWithResponse request returning *TestProjectWebhookResp
+func (c *ClientWithResponses) TestProjectWebhookWithResponse(ctx context.Context, orgName string, projName string, webhookId string, reqEditors ...RequestEditorFn) (*TestProjectWebhookResp, error) {
+	rsp, err := c.TestProjectWebhook(ctx, orgName, projName, webhookId, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseTestProjectWebhookResp(rsp)
+}
+
 // ListRepositoryBranchesWithBodyWithResponse request with arbitrary body returning *ListRepositoryBranchesResp
 func (c *ClientWithResponses) ListRepositoryBranchesWithBodyWithResponse(ctx context.Context, orgName string, params *ListRepositoryBranchesParams, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*ListRepositoryBranchesResp, error) {
 	rsp, err := c.ListRepositoryBranchesWithBody(ctx, orgName, params, contentType, body, reqEditors...)
@@ -25789,6 +28399,103 @@ func (c *ClientWithResponses) GetNameByDisplayNameWithResponse(ctx context.Conte
 		return nil, err
 	}
 	return ParseGetNameByDisplayNameResp(rsp)
+}
+
+// ListWebhookEventTypesWithResponse request returning *ListWebhookEventTypesResp
+func (c *ClientWithResponses) ListWebhookEventTypesWithResponse(ctx context.Context, orgName string, params *ListWebhookEventTypesParams, reqEditors ...RequestEditorFn) (*ListWebhookEventTypesResp, error) {
+	rsp, err := c.ListWebhookEventTypes(ctx, orgName, params, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseListWebhookEventTypesResp(rsp)
+}
+
+// ListOrgWebhooksWithResponse request returning *ListOrgWebhooksResp
+func (c *ClientWithResponses) ListOrgWebhooksWithResponse(ctx context.Context, orgName string, reqEditors ...RequestEditorFn) (*ListOrgWebhooksResp, error) {
+	rsp, err := c.ListOrgWebhooks(ctx, orgName, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseListOrgWebhooksResp(rsp)
+}
+
+// CreateOrgWebhookWithBodyWithResponse request with arbitrary body returning *CreateOrgWebhookResp
+func (c *ClientWithResponses) CreateOrgWebhookWithBodyWithResponse(ctx context.Context, orgName string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*CreateOrgWebhookResp, error) {
+	rsp, err := c.CreateOrgWebhookWithBody(ctx, orgName, contentType, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseCreateOrgWebhookResp(rsp)
+}
+
+func (c *ClientWithResponses) CreateOrgWebhookWithResponse(ctx context.Context, orgName string, body CreateOrgWebhookJSONRequestBody, reqEditors ...RequestEditorFn) (*CreateOrgWebhookResp, error) {
+	rsp, err := c.CreateOrgWebhook(ctx, orgName, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseCreateOrgWebhookResp(rsp)
+}
+
+// DeleteOrgWebhookWithResponse request returning *DeleteOrgWebhookResp
+func (c *ClientWithResponses) DeleteOrgWebhookWithResponse(ctx context.Context, orgName string, webhookId string, reqEditors ...RequestEditorFn) (*DeleteOrgWebhookResp, error) {
+	rsp, err := c.DeleteOrgWebhook(ctx, orgName, webhookId, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseDeleteOrgWebhookResp(rsp)
+}
+
+// GetOrgWebhookWithResponse request returning *GetOrgWebhookResp
+func (c *ClientWithResponses) GetOrgWebhookWithResponse(ctx context.Context, orgName string, webhookId string, reqEditors ...RequestEditorFn) (*GetOrgWebhookResp, error) {
+	rsp, err := c.GetOrgWebhook(ctx, orgName, webhookId, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseGetOrgWebhookResp(rsp)
+}
+
+// UpdateOrgWebhookWithBodyWithResponse request with arbitrary body returning *UpdateOrgWebhookResp
+func (c *ClientWithResponses) UpdateOrgWebhookWithBodyWithResponse(ctx context.Context, orgName string, webhookId string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*UpdateOrgWebhookResp, error) {
+	rsp, err := c.UpdateOrgWebhookWithBody(ctx, orgName, webhookId, contentType, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseUpdateOrgWebhookResp(rsp)
+}
+
+func (c *ClientWithResponses) UpdateOrgWebhookWithResponse(ctx context.Context, orgName string, webhookId string, body UpdateOrgWebhookJSONRequestBody, reqEditors ...RequestEditorFn) (*UpdateOrgWebhookResp, error) {
+	rsp, err := c.UpdateOrgWebhook(ctx, orgName, webhookId, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseUpdateOrgWebhookResp(rsp)
+}
+
+// ListOrgWebhookDeliveriesWithResponse request returning *ListOrgWebhookDeliveriesResp
+func (c *ClientWithResponses) ListOrgWebhookDeliveriesWithResponse(ctx context.Context, orgName string, webhookId string, params *ListOrgWebhookDeliveriesParams, reqEditors ...RequestEditorFn) (*ListOrgWebhookDeliveriesResp, error) {
+	rsp, err := c.ListOrgWebhookDeliveries(ctx, orgName, webhookId, params, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseListOrgWebhookDeliveriesResp(rsp)
+}
+
+// RotateOrgWebhookSecretWithResponse request returning *RotateOrgWebhookSecretResp
+func (c *ClientWithResponses) RotateOrgWebhookSecretWithResponse(ctx context.Context, orgName string, webhookId string, reqEditors ...RequestEditorFn) (*RotateOrgWebhookSecretResp, error) {
+	rsp, err := c.RotateOrgWebhookSecret(ctx, orgName, webhookId, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseRotateOrgWebhookSecretResp(rsp)
+}
+
+// TestOrgWebhookWithResponse request returning *TestOrgWebhookResp
+func (c *ClientWithResponses) TestOrgWebhookWithResponse(ctx context.Context, orgName string, webhookId string, reqEditors ...RequestEditorFn) (*TestOrgWebhookResp, error) {
+	rsp, err := c.TestOrgWebhook(ctx, orgName, webhookId, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseTestOrgWebhookResp(rsp)
 }
 
 // ReportConsoleActionsWithBodyWithResponse request with arbitrary body returning *ReportConsoleActionsResp
@@ -35156,6 +37863,277 @@ func ParseRegenerateAgentTracingTokenResp(rsp *http.Response) (*RegenerateAgentT
 	return response, nil
 }
 
+// ParseListAgentWebhooksResp parses an HTTP response from a ListAgentWebhooksWithResponse call
+func ParseListAgentWebhooksResp(rsp *http.Response) (*ListAgentWebhooksResp, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &ListAgentWebhooksResp{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest WebhookListResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
+		var dest ErrorResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON500 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseCreateAgentWebhookResp parses an HTTP response from a CreateAgentWebhookWithResponse call
+func ParseCreateAgentWebhookResp(rsp *http.Response) (*CreateAgentWebhookResp, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &CreateAgentWebhookResp{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 201:
+		var dest WebhookResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON201 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
+		var dest ErrorResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON400 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
+		var dest ErrorResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON500 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseDeleteAgentWebhookResp parses an HTTP response from a DeleteAgentWebhookWithResponse call
+func ParseDeleteAgentWebhookResp(rsp *http.Response) (*DeleteAgentWebhookResp, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &DeleteAgentWebhookResp{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
+		var dest ErrorResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON404 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseGetAgentWebhookResp parses an HTTP response from a GetAgentWebhookWithResponse call
+func ParseGetAgentWebhookResp(rsp *http.Response) (*GetAgentWebhookResp, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &GetAgentWebhookResp{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest WebhookResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
+		var dest ErrorResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON404 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseUpdateAgentWebhookResp parses an HTTP response from a UpdateAgentWebhookWithResponse call
+func ParseUpdateAgentWebhookResp(rsp *http.Response) (*UpdateAgentWebhookResp, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &UpdateAgentWebhookResp{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest WebhookResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
+		var dest ErrorResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON400 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
+		var dest ErrorResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON404 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseListAgentWebhookDeliveriesResp parses an HTTP response from a ListAgentWebhookDeliveriesWithResponse call
+func ParseListAgentWebhookDeliveriesResp(rsp *http.Response) (*ListAgentWebhookDeliveriesResp, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &ListAgentWebhookDeliveriesResp{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest WebhookDeliveryListResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
+		var dest ErrorResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON404 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseRotateAgentWebhookSecretResp parses an HTTP response from a RotateAgentWebhookSecretWithResponse call
+func ParseRotateAgentWebhookSecretResp(rsp *http.Response) (*RotateAgentWebhookSecretResp, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &RotateAgentWebhookSecretResp{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest WebhookSecretResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
+		var dest ErrorResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON404 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseTestAgentWebhookResp parses an HTTP response from a TestAgentWebhookWithResponse call
+func ParseTestAgentWebhookResp(rsp *http.Response) (*TestAgentWebhookResp, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &TestAgentWebhookResp{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest WebhookTestResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
+		var dest ErrorResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON404 = &dest
+
+	}
+
+	return response, nil
+}
+
 // ParseGetDeploymentPipelineResp parses an HTTP response from a GetDeploymentPipelineWithResponse call
 func ParseGetDeploymentPipelineResp(rsp *http.Response) (*GetDeploymentPipelineResp, error) {
 	bodyBytes, err := io.ReadAll(rsp.Body)
@@ -35682,6 +38660,277 @@ func ParseRotateLLMProxyAPIKeyResp(rsp *http.Response) (*RotateLLMProxyAPIKeyRes
 	return response, nil
 }
 
+// ParseListProjectWebhooksResp parses an HTTP response from a ListProjectWebhooksWithResponse call
+func ParseListProjectWebhooksResp(rsp *http.Response) (*ListProjectWebhooksResp, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &ListProjectWebhooksResp{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest WebhookListResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
+		var dest ErrorResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON500 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseCreateProjectWebhookResp parses an HTTP response from a CreateProjectWebhookWithResponse call
+func ParseCreateProjectWebhookResp(rsp *http.Response) (*CreateProjectWebhookResp, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &CreateProjectWebhookResp{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 201:
+		var dest WebhookResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON201 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
+		var dest ErrorResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON400 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
+		var dest ErrorResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON500 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseDeleteProjectWebhookResp parses an HTTP response from a DeleteProjectWebhookWithResponse call
+func ParseDeleteProjectWebhookResp(rsp *http.Response) (*DeleteProjectWebhookResp, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &DeleteProjectWebhookResp{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
+		var dest ErrorResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON404 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseGetProjectWebhookResp parses an HTTP response from a GetProjectWebhookWithResponse call
+func ParseGetProjectWebhookResp(rsp *http.Response) (*GetProjectWebhookResp, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &GetProjectWebhookResp{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest WebhookResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
+		var dest ErrorResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON404 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseUpdateProjectWebhookResp parses an HTTP response from a UpdateProjectWebhookWithResponse call
+func ParseUpdateProjectWebhookResp(rsp *http.Response) (*UpdateProjectWebhookResp, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &UpdateProjectWebhookResp{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest WebhookResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
+		var dest ErrorResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON400 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
+		var dest ErrorResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON404 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseListProjectWebhookDeliveriesResp parses an HTTP response from a ListProjectWebhookDeliveriesWithResponse call
+func ParseListProjectWebhookDeliveriesResp(rsp *http.Response) (*ListProjectWebhookDeliveriesResp, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &ListProjectWebhookDeliveriesResp{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest WebhookDeliveryListResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
+		var dest ErrorResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON404 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseRotateProjectWebhookSecretResp parses an HTTP response from a RotateProjectWebhookSecretWithResponse call
+func ParseRotateProjectWebhookSecretResp(rsp *http.Response) (*RotateProjectWebhookSecretResp, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &RotateProjectWebhookSecretResp{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest WebhookSecretResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
+		var dest ErrorResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON404 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseTestProjectWebhookResp parses an HTTP response from a TestProjectWebhookWithResponse call
+func ParseTestProjectWebhookResp(rsp *http.Response) (*TestProjectWebhookResp, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &TestProjectWebhookResp{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest WebhookTestResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
+		var dest ErrorResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON404 = &dest
+
+	}
+
+	return response, nil
+}
+
 // ParseListRepositoryBranchesResp parses an HTTP response from a ListRepositoryBranchesWithResponse call
 func ParseListRepositoryBranchesResp(rsp *http.Response) (*ListRepositoryBranchesResp, error) {
 	bodyBytes, err := io.ReadAll(rsp.Body)
@@ -35878,6 +39127,310 @@ func ParseGetNameByDisplayNameResp(rsp *http.Response) (*GetNameByDisplayNameRes
 			return nil, err
 		}
 		response.JSON500 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseListWebhookEventTypesResp parses an HTTP response from a ListWebhookEventTypesWithResponse call
+func ParseListWebhookEventTypesResp(rsp *http.Response) (*ListWebhookEventTypesResp, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &ListWebhookEventTypesResp{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest WebhookEventTypeListResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
+		var dest ErrorResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON400 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseListOrgWebhooksResp parses an HTTP response from a ListOrgWebhooksWithResponse call
+func ParseListOrgWebhooksResp(rsp *http.Response) (*ListOrgWebhooksResp, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &ListOrgWebhooksResp{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest WebhookListResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
+		var dest ErrorResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON500 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseCreateOrgWebhookResp parses an HTTP response from a CreateOrgWebhookWithResponse call
+func ParseCreateOrgWebhookResp(rsp *http.Response) (*CreateOrgWebhookResp, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &CreateOrgWebhookResp{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 201:
+		var dest WebhookResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON201 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
+		var dest ErrorResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON400 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
+		var dest ErrorResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON500 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseDeleteOrgWebhookResp parses an HTTP response from a DeleteOrgWebhookWithResponse call
+func ParseDeleteOrgWebhookResp(rsp *http.Response) (*DeleteOrgWebhookResp, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &DeleteOrgWebhookResp{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
+		var dest ErrorResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON404 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseGetOrgWebhookResp parses an HTTP response from a GetOrgWebhookWithResponse call
+func ParseGetOrgWebhookResp(rsp *http.Response) (*GetOrgWebhookResp, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &GetOrgWebhookResp{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest WebhookResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
+		var dest ErrorResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON404 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseUpdateOrgWebhookResp parses an HTTP response from a UpdateOrgWebhookWithResponse call
+func ParseUpdateOrgWebhookResp(rsp *http.Response) (*UpdateOrgWebhookResp, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &UpdateOrgWebhookResp{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest WebhookResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
+		var dest ErrorResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON400 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
+		var dest ErrorResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON404 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseListOrgWebhookDeliveriesResp parses an HTTP response from a ListOrgWebhookDeliveriesWithResponse call
+func ParseListOrgWebhookDeliveriesResp(rsp *http.Response) (*ListOrgWebhookDeliveriesResp, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &ListOrgWebhookDeliveriesResp{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest WebhookDeliveryListResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
+		var dest ErrorResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON404 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseRotateOrgWebhookSecretResp parses an HTTP response from a RotateOrgWebhookSecretWithResponse call
+func ParseRotateOrgWebhookSecretResp(rsp *http.Response) (*RotateOrgWebhookSecretResp, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &RotateOrgWebhookSecretResp{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest WebhookSecretResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
+		var dest ErrorResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON404 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseTestOrgWebhookResp parses an HTTP response from a TestOrgWebhookWithResponse call
+func ParseTestOrgWebhookResp(rsp *http.Response) (*TestOrgWebhookResp, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &TestOrgWebhookResp{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest WebhookTestResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
+		var dest ErrorResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON404 = &dest
 
 	}
 

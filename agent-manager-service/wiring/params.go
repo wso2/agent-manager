@@ -23,6 +23,8 @@ import (
 	"net/http"
 	"strings"
 
+	"github.com/wso2/agent-manager/agent-manager-service/events"
+
 	"gorm.io/gorm"
 
 	"github.com/wso2/agent-manager/agent-manager-service/audit"
@@ -75,6 +77,7 @@ type AppParams struct {
 	IdentityController               controllers.IdentityController
 	MCPProxyScopeController          controllers.MCPProxyScopeController
 	AgentIdentityController          controllers.AgentIdentityController
+	WebhookController                controllers.WebhookController
 	MonitorScheduler                 services.MonitorSchedulerService
 	AgentThunderReconciler           services.AgentThunderReconcilerService
 	A2APublicationReconciler         services.A2APublicationReconcilerService
@@ -86,6 +89,11 @@ type AppParams struct {
 	AgentTokenManagerService      services.AgentTokenManagerService
 	AgentIdentityInjectionService services.AgentIdentityInjectionService
 	EnvironmentService            services.EnvironmentService
+	WebhookDispatcher             services.WebhookDispatcherService
+
+	// Events
+	EventBus       events.Bus
+	EventPublisher events.Publisher
 
 	// Clients
 	OpenChoreoClient  occlient.OpenChoreoClient

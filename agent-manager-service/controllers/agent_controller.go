@@ -26,6 +26,7 @@ import (
 
 	"github.com/wso2/agent-manager/agent-manager-service/audit"
 	"github.com/wso2/agent-manager/agent-manager-service/config"
+	"github.com/wso2/agent-manager/agent-manager-service/events"
 	"github.com/wso2/agent-manager/agent-manager-service/middleware"
 	"github.com/wso2/agent-manager/agent-manager-service/middleware/growthanalytics"
 	"github.com/wso2/agent-manager/agent-manager-service/middleware/logger"
@@ -71,13 +72,19 @@ type AgentController interface {
 type agentController struct {
 	agentService     services.AgentManagerService
 	agentKindService services.AgentKindService
+	webhooks         services.WebhookCleaner
 }
 
 // NewAgentController returns a new AgentController instance.
-func NewAgentController(agentService services.AgentManagerService, agentKindService services.AgentKindService) AgentController {
+func NewAgentController(
+	agentService services.AgentManagerService,
+	agentKindService services.AgentKindService,
+	webhooks services.WebhookCleaner,
+) AgentController {
 	return &agentController{
 		agentService:     agentService,
 		agentKindService: agentKindService, // kept for PublishKind
+		webhooks:         webhooks,
 	}
 }
 
@@ -522,6 +529,9 @@ func (c *agentController) DeleteAgent(w http.ResponseWriter, r *http.Request) {
 		handleCommonErrors(w, err, "Failed to delete agent")
 		return
 	}
+	if c.webhooks != nil {
+		c.webhooks.RemoveForAgent(ctx, ouID, projName, agentName)
+	}
 	utils.WriteSuccessResponse(w, http.StatusNoContent, "")
 }
 
@@ -648,6 +658,7 @@ func (c *agentController) UpdateAgentDeploySettings(w http.ResponseWriter, r *ht
 		utils.WriteErrorResponse(w, http.StatusBadRequest, "environmentName is required")
 		return
 	}
+	events.SetEnvironment(ctx, payload.EnvironmentName)
 
 	if err := c.agentService.UpdateAgentDeploySettings(ctx, ouID, projName, agentName, &payload); err != nil {
 		log.Error("UpdateAgentDeploySettings: failed to update deploy settings", "error", err)
@@ -675,6 +686,7 @@ func (c *agentController) UpdateAgentConfigurations(w http.ResponseWriter, r *ht
 		utils.WriteErrorResponse(w, http.StatusBadRequest, "environmentName is required")
 		return
 	}
+	events.SetEnvironment(ctx, payload.EnvironmentName)
 
 	if err := c.agentService.UpdateAgentConfigurations(ctx, ouID, projName, agentName, &payload); err != nil {
 		log.Error("UpdateAgentConfigurations: failed to update configurations", "error", err)

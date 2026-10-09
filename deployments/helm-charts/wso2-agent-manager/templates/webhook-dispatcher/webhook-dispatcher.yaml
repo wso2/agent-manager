@@ -1,0 +1,170 @@
+{{- if .Values.webhookDispatcher.enabled }}
+# Webhook dispatcher: the agent-manager-service binary in "dispatcher" mode.
+# It owns the webhook endpoints and delivery log in its own database, consumes
+# events from NATS and delivers them. The API reaches its internal API through
+# this Service with a shared key; nothing outside the cluster calls it.
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "agent-management-platform.webhookDispatcher.fullname" . }}
+  labels:
+    {{- include "agent-management-platform.labels" . | nindent 4 }}
+    app.kubernetes.io/component: webhook-dispatcher
+spec:
+  type: ClusterIP
+  selector:
+    {{- include "agent-management-platform.selectorLabels" . | nindent 4 }}
+    app.kubernetes.io/component: webhook-dispatcher
+  ports:
+    - name: http
+      port: {{ .Values.webhookDispatcher.port }}
+      targetPort: http
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "agent-management-platform.webhookDispatcher.fullname" . }}
+  labels:
+    {{- include "agent-management-platform.labels" . | nindent 4 }}
+    app.kubernetes.io/component: webhook-dispatcher
+spec:
+  replicas: {{ .Values.webhookDispatcher.replicaCount }}
+  selector:
+    matchLabels:
+      {{- include "agent-management-platform.selectorLabels" . | nindent 6 }}
+      app.kubernetes.io/component: webhook-dispatcher
+  template:
+    metadata:
+      annotations:
+        checksum/secret: {{ include (print $.Template.BasePath "/agent-manager-service/secret.yaml") . | sha256sum }}
+        {{- with .Values.webhookDispatcher.podAnnotations }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+      labels:
+        {{- include "agent-management-platform.selectorLabels" . | nindent 8 }}
+        app.kubernetes.io/component: webhook-dispatcher
+    spec:
+      {{- include "agent-management-platform.imagePullSecrets" . | nindent 6 }}
+      serviceAccountName: {{ include "agent-management-platform.serviceAccountName" . }}
+      automountServiceAccountToken: false
+      securityContext:
+        fsGroup: 1000
+      {{- if .Values.webhookDispatcher.database.create }}
+      initContainers:
+        # Waits for PostgreSQL and creates the dispatcher's database when it
+        # does not exist yet; the dispatcher migrates its schema on start.
+        - name: create-database
+          image: postgres:16-alpine
+          securityContext:
+            runAsNonRoot: true
+            runAsUser: 1000
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: ["ALL"]
+          command:
+            - sh
+            - -c
+            - |
+              until pg_isready -h "$PGHOST" -p "$PGPORT" -U "$PGUSER"; do
+                echo "Waiting for PostgreSQL to be ready..."
+                sleep 2
+              done
+              if psql -d postgres -tAc "SELECT 1 FROM pg_database WHERE datname = '$DB_NAME'" | grep -q 1; then
+                echo "Database $DB_NAME exists"
+              else
+                psql -d postgres -c "CREATE DATABASE \"$DB_NAME\"" && echo "Created database $DB_NAME"
+              fi
+          env:
+            - name: PGHOST
+              value: {{ include "agent-management-platform.webhookDispatcher.dbHost" . | quote }}
+            - name: PGPORT
+              value: {{ include "agent-management-platform.webhookDispatcher.dbPort" . | quote }}
+            - name: PGUSER
+              value: {{ include "agent-management-platform.webhookDispatcher.dbUser" . | quote }}
+            - name: PGPASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "agent-management-platform.webhookDispatcher.dbSecretName" . }}
+                  key: {{ include "agent-management-platform.webhookDispatcher.dbSecretKey" . }}
+            - name: DB_NAME
+              value: {{ .Values.webhookDispatcher.database.name | quote }}
+      {{- end }}
+      containers:
+        - name: webhook-dispatcher
+          securityContext:
+            runAsNonRoot: true
+            runAsUser: 1000
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: ["ALL"]
+          image: "{{ include "agent-management-platform.image" (dict "image" .Values.agentManagerService.image "ctx" .) }}"
+          imagePullPolicy: {{ .Values.agentManagerService.image.pullPolicy }}
+          command:
+            - /go/bin/agent-manager-service
+            - -mode=dispatcher
+            - -migrate
+          ports:
+            - name: http
+              containerPort: {{ .Values.webhookDispatcher.port }}
+              protocol: TCP
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: http
+            periodSeconds: 10
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: http
+            periodSeconds: 20
+            failureThreshold: 6
+          env:
+            - name: LOG_LEVEL
+              value: {{ .Values.agentManagerService.config.logLevel | default "INFO" | quote }}
+            - name: DB_HOST
+              value: {{ include "agent-management-platform.webhookDispatcher.dbHost" . | quote }}
+            - name: DB_PORT
+              value: {{ include "agent-management-platform.webhookDispatcher.dbPort" . | quote }}
+            - name: DB_NAME
+              value: {{ .Values.webhookDispatcher.database.name | quote }}
+            - name: DB_USER
+              value: {{ include "agent-management-platform.webhookDispatcher.dbUser" . | quote }}
+            - name: DB_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "agent-management-platform.webhookDispatcher.dbSecretName" . }}
+                  key: {{ include "agent-management-platform.webhookDispatcher.dbSecretKey" . }}
+            {{- with (include "agent-management-platform.postgresql.tlsEnv" . | trim) }}
+            {{- . | nindent 12 }}
+            {{- end }}
+            - name: EVENTS_MODE
+              value: "nats"
+            - name: EVENTS_NATS_URL
+              value: {{ include "agent-management-platform.natsUrl" . | quote }}
+            - name: WEBHOOKS_DISPATCHER_PORT
+              value: {{ .Values.webhookDispatcher.port | quote }}
+            - name: WEBHOOKS_DISPATCHER_API_KEY
+              valueFrom:
+                {{- include "agent-management-platform.webhookDispatcher.apiKeyRef" . | nindent 16 }}
+            {{- with .Values.agentManagerService.config.webhooks }}
+            - name: WEBHOOKS_MAX_ATTEMPTS
+              value: {{ .maxAttempts | default 6 | quote }}
+            - name: WEBHOOKS_DELIVERY_RETENTION_DAYS
+              value: {{ .deliveryRetentionDays | default 14 | quote }}
+            - name: WEBHOOKS_ALLOW_PRIVATE_ENDPOINTS
+              value: {{ dig "allowPrivateEndpoints" false . | quote }}
+            {{- end }}
+            # Webhook signing secrets are encrypted with this key.
+            - name: ENCRYPTION_KEY
+              valueFrom:
+                secretKeyRef:
+                  {{- if .Values.agentManagerService.config.encryptionKey.existingSecret }}
+                  name: {{ .Values.agentManagerService.config.encryptionKey.existingSecret }}
+                  key: {{ .Values.agentManagerService.config.encryptionKey.existingSecretKey | default "encryption-key" }}
+                  {{- else }}
+                  name: {{ include "agent-management-platform.agentManagerService.fullname" . }}
+                  key: encryption-key
+                  {{- end }}
+          resources:
+            {{- toYaml .Values.webhookDispatcher.resources | nindent 12 }}
+{{- end }}
