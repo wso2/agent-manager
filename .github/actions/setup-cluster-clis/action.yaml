@@ -1,0 +1,53 @@
+name: Setup cluster CLIs
+description: >
+  Installs k3d, kubectl and helm at the versions pinned in
+  deployments/setup/cluster-tools.env, so every workflow uses the same ones.
+inputs:
+  k3d:
+    description: Install k3d
+    required: false
+    default: "true"
+  kubectl:
+    description: Install kubectl
+    required: false
+    default: "true"
+  helm:
+    description: Install helm
+    required: false
+    default: "true"
+runs:
+  using: composite
+  steps:
+    - name: Read pinned versions
+      id: versions
+      shell: bash
+      run: grep -E '^[A-Z0-9_]+=' "$GITHUB_WORKSPACE/deployments/setup/cluster-tools.env" >> "$GITHUB_OUTPUT"
+
+    - name: Install k3d
+      if: inputs.k3d == 'true'
+      shell: bash
+      env:
+        K3D_VERSION: ${{ steps.versions.outputs.K3D_VERSION }}
+        K3D_SHA256: ${{ steps.versions.outputs.K3D_SHA256_LINUX_AMD64 }}
+      run: |
+        curl -fsSL -o /tmp/k3d "https://github.com/k3d-io/k3d/releases/download/${K3D_VERSION}/k3d-linux-amd64"
+        echo "${K3D_SHA256}  /tmp/k3d" | sha256sum -c -
+        sudo install /tmp/k3d /usr/local/bin/k3d
+        k3d version
+
+    - name: Install kubectl
+      if: inputs.kubectl == 'true'
+      shell: bash
+      env:
+        KUBECTL_VERSION: ${{ steps.versions.outputs.KUBECTL_VERSION }}
+      run: |
+        curl -fsSL -o /tmp/kubectl "https://dl.k8s.io/release/${KUBECTL_VERSION}/bin/linux/amd64/kubectl"
+        echo "$(curl -fsSL "https://dl.k8s.io/release/${KUBECTL_VERSION}/bin/linux/amd64/kubectl.sha256")  /tmp/kubectl" | sha256sum -c -
+        sudo install /tmp/kubectl /usr/local/bin/kubectl
+        kubectl version --client
+
+    - name: Install helm
+      if: inputs.helm == 'true'
+      uses: azure/setup-helm@v4
+      with:
+        version: ${{ steps.versions.outputs.HELM_VERSION }}

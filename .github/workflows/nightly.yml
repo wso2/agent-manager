@@ -233,10 +233,11 @@ jobs:
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
 
-      - name: Install Helm
-        uses: azure/setup-helm@v4
+      - name: Install Helm (deployments/setup/cluster-tools.env)
+        uses: ./.github/actions/setup-cluster-clis
         with:
-          version: '3.14.0'
+          k3d: "false"
+          kubectl: "false"
 
       - name: Cache Helm chart dependencies
         if: hashFiles(format('{0}/Chart.lock', matrix.chart.path)) != ''
@@ -329,15 +330,8 @@ jobs:
       - name: Setup Go
         uses: ./.github/actions/setup-go
 
-      - name: Install k3d
-        env:
-          K3D_VERSION: v5.8.3
-          K3D_SHA256: dbaa79a76ace7f4ca230a1ff41dc7d8a5036a8ad0309e9c54f9bf3836dbe853e
-        run: |
-          curl -fsSL -o /tmp/k3d "https://github.com/k3d-io/k3d/releases/download/${K3D_VERSION}/k3d-linux-amd64"
-          echo "${K3D_SHA256}  /tmp/k3d" | sha256sum -c -
-          sudo install /tmp/k3d /usr/local/bin/k3d
-          k3d version
+      - name: Install cluster CLIs (deployments/setup/cluster-tools.env)
+        uses: ./.github/actions/setup-cluster-clis
 
       - name: Install yq
         env:
