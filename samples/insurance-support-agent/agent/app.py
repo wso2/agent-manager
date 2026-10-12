@@ -4,6 +4,8 @@ import os
 os.environ.setdefault("OTEL_SEMCONV_STABILITY_OPT_IN", "gen_ai_latest_experimental")
 
 import logging
+import asyncio
+from contextlib import asynccontextmanager
 import threading
 import uuid
 from collections import OrderedDict
@@ -18,6 +20,7 @@ load_dotenv()
 
 from agent import build_agent
 from config import Config
+from mcp_client import create_mcp_client
 
 logging.basicConfig(level=logging.INFO)
 log = logging.getLogger("insurance-support")
@@ -29,7 +32,28 @@ MAX_SESSIONS = 500
 SESSIONS: "OrderedDict[str, Agent]" = OrderedDict()
 _sessions_lock = threading.Lock()
 
-app = FastAPI(title="Insurance Support Agent", version="1.0.0")
+MCP_TOOLS = None
+
+
+@asynccontextmanager
+async def lifespan(app):
+    global MCP_TOOLS
+    if not CONFIG.use_mcp:
+        yield
+        return
+    client = create_mcp_client(CONFIG)
+    try:
+        await asyncio.to_thread(client.start)
+        MCP_TOOLS = await asyncio.to_thread(client.list_tools_sync)
+        if {tool.tool_name for tool in MCP_TOOLS} != {"list_policies", "lookup_policy"}:
+            raise RuntimeError("Both read-only insurance MCP tools must be authorized")
+        yield
+    finally:
+        MCP_TOOLS = None
+        await asyncio.to_thread(client.stop, None, None, None)
+
+
+app = FastAPI(title="Insurance Support Agent", version="1.0.0", lifespan=lifespan)
 
 # Local only: when deployed, CORS belongs in Agent Manager — two sets of headers break browsers.
 _cors_origins = [o for o in os.environ.get("CORS_ALLOW_ORIGINS", "").split(",") if o]
@@ -57,7 +81,7 @@ def _agent_for(session_id: str) -> Agent:
     with _sessions_lock:
         agent = SESSIONS.get(session_id)
         if agent is None:
-            agent = build_agent(CONFIG)
+            agent = build_agent(CONFIG, MCP_TOOLS)
             SESSIONS[session_id] = agent
             while len(SESSIONS) > MAX_SESSIONS:
                 SESSIONS.popitem(last=False)

@@ -1,0 +1,89 @@
+{
+  "family": "insurance-agent",
+  "networkMode": "awsvpc",
+  "requiresCompatibilities": [
+    "FARGATE"
+  ],
+  "cpu": "512",
+  "memory": "1024",
+  "executionRoleArn": "<execution-role-arn>",
+  "runtimePlatform": {
+    "cpuArchitecture": "X86_64",
+    "operatingSystemFamily": "LINUX"
+  },
+  "containerDefinitions": [
+    {
+      "name": "insurance-agent",
+      "image": "<account-id>.dkr.ecr.<region>.amazonaws.com/insurance-agent:<image-tag>",
+      "essential": true,
+      "portMappings": [
+        {
+          "containerPort": 8000,
+          "protocol": "tcp"
+        }
+      ],
+      "environment": [
+        {
+          "name": "MODEL_PROVIDER",
+          "value": "bedrock-gateway"
+        },
+        {
+          "name": "BEDROCK_REGION",
+          "value": "us-east-1"
+        },
+        {
+          "name": "BEDROCK_MODEL_ID",
+          "value": "amazon.nova-micro-v1:0"
+        },
+        {
+          "name": "LLM_GATEWAY_URL",
+          "value": "<provider-gateway-url>"
+        },
+        {
+          "name": "AMP_OTEL_ENDPOINT",
+          "value": "<instrumentation-url>"
+        },
+        {
+          "name": "COMPANY_NAME",
+          "value": "AnyCompany Insurance"
+        },
+        {
+          "name": "USE_MCP",
+          "value": "false"
+        },
+        {
+          "name": "OTEL_SEMCONV_STABILITY_OPT_IN",
+          "value": "gen_ai_latest_experimental"
+        }
+      ],
+      "secrets": [
+        {
+          "name": "AMP_AGENT_API_KEY",
+          "valueFrom": "<agent-secret-arn>:AMP_AGENT_API_KEY::"
+        },
+        {
+          "name": "LLM_GATEWAY_API_KEY",
+          "valueFrom": "<agent-secret-arn>:LLM_GATEWAY_API_KEY::"
+        }
+      ],
+      "logConfiguration": {
+        "logDriver": "awslogs",
+        "options": {
+          "awslogs-group": "/ecs/insurance-agent",
+          "awslogs-region": "<region>",
+          "awslogs-stream-prefix": "ecs"
+        }
+      },
+      "healthCheck": {
+        "command": [
+          "CMD-SHELL",
+          "python -c \"import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/health', timeout=3)\""
+        ],
+        "interval": 30,
+        "timeout": 5,
+        "retries": 3,
+        "startPeriod": 60
+      }
+    }
+  ]
+}
