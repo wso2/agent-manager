@@ -40,6 +40,9 @@ const (
 	// maxLogRangeDays is the maximum startTime..endTime span accepted by
 	// /api/v1/logs, ported from agent-manager-service/utils/constants.go.
 	maxLogRangeDays = 14
+	// defaultMonitorRunLogsLimit is the line cap /api/v1/monitor-run-logs
+	// applies when the caller supplies no limit, matching GetBuildLogs.
+	defaultMonitorRunLogsLimit = 1000
 )
 
 // validLogLevels are the log levels accepted (case-insensitively) by the
@@ -463,6 +466,54 @@ func (h *Handler) GetBuildLogs(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, result)
 }
 
+// GetMonitorRunLogs handles GET /api/v1/monitor-run-logs
+func (h *Handler) GetMonitorRunLogs(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+		writeError(w, http.StatusMethodNotAllowed, "method not allowed")
+		return
+	}
+
+	log := logger.GetLogger(r.Context())
+	query := r.URL.Query()
+
+	organization := query.Get("organization")
+	if organization == "" {
+		writeError(w, http.StatusBadRequest, "organization is required")
+		return
+	}
+
+	runName := query.Get("runName")
+	if runName == "" {
+		writeError(w, http.StatusBadRequest, "runName is required")
+		return
+	}
+
+	startTime, endTime, err := parseOptionalLogRange(query.Get("startTime"), query.Get("endTime"))
+	if err != nil {
+		writeError(w, http.StatusBadRequest, err.Error())
+		return
+	}
+
+	limit, err := parseOptionalLimit(query.Get("limit"), maxLogLimit)
+	if err != nil {
+		writeError(w, http.StatusBadRequest, err.Error())
+		return
+	}
+	resolvedLimit := defaultMonitorRunLogsLimit
+	if limit != nil {
+		resolvedLimit = *limit
+	}
+
+	result, err := h.obs.GetMonitorRunLogs(r.Context(), organization, runName, startTime, endTime, resolvedLimit)
+	if err != nil {
+		log.Error("Failed to get monitor run logs", "runName", runName, "error", err)
+		writeError(w, http.StatusBadGateway, "failed to query upstream observer")
+		return
+	}
+
+	writeJSON(w, http.StatusOK, result)
+}
+
 // GetMetrics handles GET /api/v1/metrics
 func (h *Handler) GetMetrics(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodGet {
@@ -725,6 +776,34 @@ func validateLogTimeRange(start, end time.Time) error {
 		return fmt.Errorf("time range cannot exceed %d days", maxLogRangeDays)
 	}
 	return nil
+}
+
+// parseOptionalLogRange resolves an optional startTime/endTime pair. Both
+// absent falls back to the shared workflow-log lookback ending now; both
+// present are validated by validateLogTimeRange; exactly one present is
+// rejected, because guessing the missing bound would silently serve a window
+// the caller never asked for.
+func parseOptionalLogRange(rawStart, rawEnd string) (time.Time, time.Time, error) {
+	if rawStart == "" && rawEnd == "" {
+		end := time.Now()
+		return end.Add(-controllers.DefaultWorkflowLogsWindow), end, nil
+	}
+	if rawStart == "" || rawEnd == "" {
+		return time.Time{}, time.Time{}, fmt.Errorf("startTime and endTime must be supplied together")
+	}
+
+	start, err := parseRFC3339(rawStart)
+	if err != nil {
+		return time.Time{}, time.Time{}, fmt.Errorf("invalid startTime: %w", err)
+	}
+	end, err := parseRFC3339(rawEnd)
+	if err != nil {
+		return time.Time{}, time.Time{}, fmt.Errorf("invalid endTime: %w", err)
+	}
+	if err := validateLogTimeRange(start, end); err != nil {
+		return time.Time{}, time.Time{}, err
+	}
+	return start, end, nil
 }
 
 // parseLogLevels splits a comma-separated logLevels value, uppercases each

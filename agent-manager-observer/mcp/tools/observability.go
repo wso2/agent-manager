@@ -20,6 +20,7 @@ import (
 	"context"
 	"fmt"
 	"strings"
+	"time"
 
 	gomcp "github.com/modelcontextprotocol/go-sdk/mcp"
 
@@ -74,6 +75,33 @@ type buildLogsInput struct {
 	BuildName    string `json:"build_name" jsonschema:"required"`
 }
 
+type monitorRunLogsInput struct {
+	Organization string `json:"organization" jsonschema:"required"`
+	RunName      string `json:"run_name" jsonschema:"required"`
+	StartTime    string `json:"start_time,omitempty"`
+	EndTime      string `json:"end_time,omitempty"`
+}
+
+// monitorRunLogsLimit is the line cap get_monitor_run_logs applies, mirroring
+// defaultMonitorRunLogsLimit in handlers/handlers.go.
+const monitorRunLogsLimit = 1000
+
+// resolveMonitorRunWindow mirrors REST /api/v1/monitor-run-logs: both bounds or
+// neither, defaulting to the 30-day workflow lookback so a caller that cannot
+// know a run's timestamps still finds its logs.
+func resolveMonitorRunWindow(start, end string) (time.Time, time.Time, error) {
+	start = strings.TrimSpace(start)
+	end = strings.TrimSpace(end)
+	if start == "" && end == "" {
+		endTime := time.Now().UTC()
+		return endTime.Add(-controllers.DefaultWorkflowLogsWindow), endTime, nil
+	}
+	if start == "" || end == "" {
+		return time.Time{}, time.Time{}, fmt.Errorf("start_time and end_time must be supplied together")
+	}
+	return resolveWindowWithLimit(start, end, logsMetricsMaxWindow)
+}
+
 type metricsInput struct {
 	Organization string `json:"organization" jsonschema:"required"`
 	Project      string `json:"project" jsonschema:"required"`
@@ -95,6 +123,12 @@ func (t *Toolsets) registerObservabilityTools(server *gomcp.Server) {
 		Description: "Return logs for a specific build of an internal agent. " +
 			"Build logs are the step-by-step output produced while packaging the agent source into a runnable image.",
 	}, withToolLogging("get_build_logs", getBuildLogs(t.Observability, t.guard(rbac.BuildLogRead))))
+
+	gomcp.AddTool(server, &gomcp.Tool{
+		Name: "get_monitor_run_logs",
+		Description: "Return logs for a specific monitor evaluation run. " +
+			"Monitor run logs are the output produced while a monitor evaluates agent traces against its evaluators.",
+	}, withToolLogging("get_monitor_run_logs", getMonitorRunLogs(t.Observability, t.guard(rbac.MonitorLogRead))))
 
 	gomcp.AddTool(server, &gomcp.Tool{
 		Name: "get_metrics",
@@ -230,6 +264,36 @@ func getMetrics(obs *controllers.ObservabilityController, authorize func(*gomcp.
 		result, err := obs.GetMetrics(ctx, params)
 		if err != nil {
 			return nil, nil, wrapToolError("get_metrics", err)
+		}
+		return handleToolResult(result, nil)
+	}
+}
+
+func getMonitorRunLogs(obs *controllers.ObservabilityController, authorize func(*gomcp.CallToolRequest) error) func(context.Context, *gomcp.CallToolRequest, monitorRunLogsInput) (*gomcp.CallToolResult, any, error) {
+	return func(ctx context.Context, req *gomcp.CallToolRequest, input monitorRunLogsInput) (*gomcp.CallToolResult, any, error) {
+		if err := authorize(req); err != nil {
+			return nil, nil, err
+		}
+		organization, err := requireField(input.Organization, "organization")
+		if err != nil {
+			return nil, nil, err
+		}
+		runName, err := requireField(input.RunName, "run_name")
+		if err != nil {
+			return nil, nil, err
+		}
+
+		startTime, endTime, err := resolveMonitorRunWindow(input.StartTime, input.EndTime)
+		if err != nil {
+			return nil, nil, err
+		}
+		if err := rejectFutureLogStartTime(startTime); err != nil {
+			return nil, nil, err
+		}
+
+		result, err := obs.GetMonitorRunLogs(ctx, organization, runName, startTime, endTime, monitorRunLogsLimit)
+		if err != nil {
+			return nil, nil, wrapToolError("get_monitor_run_logs", err)
 		}
 		return handleToolResult(result, nil)
 	}

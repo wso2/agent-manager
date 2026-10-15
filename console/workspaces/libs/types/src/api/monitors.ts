@@ -45,6 +45,7 @@ export interface MonitorLLMProviderInfo {
 
 export interface MonitorRunResponse {
   id: string;
+  runName: string;
   monitorName?: string;
   evaluators: MonitorEvaluator[];
   traceStart: string;

@@ -1197,6 +1197,7 @@
                 "amp:observability:trace-read",
                 "amp:observability:log-read",
                 "amp:observability:build-log-read",
+                "amp:observability:monitor-log-read",
                 "amp:observability:metric-read"
               ],
               "description": "The observability data-read scopes, single-sourced: 59-am-mcp-client.yaml subtracts this list from am-mcp's allowance and 73-am-obs-mcp-client.yaml appends it to am-obs-mcp's OIDC scopes (both at template render time). The same scopes also appear in ampScopes below as part of the full catalog for the other interactive clients.",
@@ -1293,6 +1294,7 @@
                 "amp:observability:trace-read",
                 "amp:observability:log-read",
                 "amp:observability:build-log-read",
+                "amp:observability:monitor-log-read",
                 "amp:observability:metric-read",
                 "amp:role:create",
                 "amp:role:read",
@@ -2046,7 +2048,7 @@
             },
             "amObsMcpClient": {
               "additionalProperties": true,
-              "description": "AMP Observer MCP Client configuration (public PKCE client for the observer MCP server's interactive login). Allowed ONLY the OIDC scopes plus the four observability data-read scopes; the am-service MCP client (amMcpClient above) is allowed the rest of the catalog. NOTE: pre-install bootstrap job only \u2014 see the upgrade note on mcpResourceServers below / docs/reference/mcp-server.mdx.",
+              "description": "AMP Observer MCP Client configuration (public PKCE client for the observer MCP server's interactive login). Allowed ONLY the OIDC scopes plus the five observability data-read scopes; the am-service MCP client (amMcpClient above) is allowed the rest of the catalog. NOTE: pre-install bootstrap job only \u2014 see the upgrade note on mcpResourceServers below / docs/reference/mcp-server.mdx.",
               "properties": {
                 "clientId": {
                   "default": "am-obs-mcp",
@@ -2160,7 +2162,7 @@
                     "profile",
                     "email"
                   ],
-                  "description": "OIDC scopes only \u2014 the four observability data-read scopes are appended from observabilityScopes at template render time (73-am-obs-mcp-client.yaml).",
+                  "description": "OIDC scopes only \u2014 the five observability data-read scopes are appended from observabilityScopes at template render time (73-am-obs-mcp-client.yaml).",
                   "items": {
                     "type": "string"
                   },

@@ -31,11 +31,9 @@ import  {
   type ListMonitorRunsQueryParams,
   type ListMonitorsPathParams,
   type ListMonitorsQueryParams,
-  type LogsResponse,
   type MonitorListResponse,
   type MonitorResponse,
   type MonitorRunListResponse,
-  type MonitorRunLogsPathParams,
   type MonitorRunResponse,
   type MonitorRunScoresResponse,
   type MonitorRunPathParams,
@@ -62,7 +60,6 @@ import {
   deleteMonitor,
   getGroupedScores,
   getMonitor,
-  getMonitorRunLogs,
   getMonitorRunScores,
   getMonitorScores,
   getMonitorScoresTimeSeries,
@@ -196,20 +193,6 @@ export function useRerunMonitor() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["monitor-runs"] });
     },
-  });
-}
-
-export function useMonitorRunLogs(params: MonitorRunLogsPathParams) {
-  const { getToken } = useAuthHooks();
-  return useApiQuery<LogsResponse>({
-    queryKey: ["monitor-run-logs", params],
-    queryFn: () => getMonitorRunLogs(params, getToken),
-    enabled:
-      !!params.orgName &&
-      !!params.projName &&
-      !!params.agentName &&
-      !!params.monitorName &&
-      !!params.runId,
   });
 }
 

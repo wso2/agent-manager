@@ -126,9 +126,11 @@ func resolveWindowWithLimit(start, end string, maxDuration time.Duration) (time.
 // handlers/handlers.go: REST's /api/v1/logs route (GetLogs) rejects a
 // startTime in the future. No other REST route applies this rule — GetMetrics
 // and the trace routes (GetTraceOverviews/ExportTraces/GetTraceSpans) never
-// call validateLogTimeRange — so this is invoked only from get_runtime_logs,
-// not from resolveTimeWindow/resolveTraceTimeWindow (which are also shared
-// with get_metrics/list_traces/get_traces/get_trace_details).
+// call validateLogTimeRange — so this is invoked only from get_runtime_logs and
+// get_monitor_run_logs (REST /api/v1/monitor-run-logs applies
+// validateLogTimeRange), not from resolveTimeWindow/resolveTraceTimeWindow
+// (which are also shared with get_metrics/list_traces/get_traces/
+// get_trace_details).
 func rejectFutureLogStartTime(start time.Time) error {
 	if start.After(time.Now()) {
 		return fmt.Errorf("start_time cannot be in the future")

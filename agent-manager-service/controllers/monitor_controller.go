@@ -42,7 +42,6 @@ type MonitorController interface {
 	StartMonitor(w http.ResponseWriter, r *http.Request)
 	ListMonitorRuns(w http.ResponseWriter, r *http.Request)
 	RerunMonitor(w http.ResponseWriter, r *http.Request)
-	GetMonitorRunLogs(w http.ResponseWriter, r *http.Request)
 }
 
 type monitorController struct {
@@ -360,37 +359,6 @@ func (c *monitorController) RerunMonitor(w http.ResponseWriter, r *http.Request)
 	if err := json.NewEncoder(w).Encode(response); err != nil {
 		log.Error("Failed to encode response", "error", err)
 	}
-}
-
-// GetMonitorRunLogs handles GET /orgs/{ouID}/projects/{projName}/agents/{agentName}/monitors/{monitorName}/runs/{runId}/logs
-func (c *monitorController) GetMonitorRunLogs(w http.ResponseWriter, r *http.Request) {
-	ctx := r.Context()
-	log := logger.GetLogger(ctx)
-
-	ouID := middleware.OUIDFromRequest(r)
-	orgHandle := middleware.OrgHandleFromRequest(r)
-	projName := r.PathValue(utils.PathParamProjName)
-	agentName := r.PathValue(utils.PathParamAgentName)
-	monitorName := r.PathValue(utils.PathParamMonitorName)
-	runID := r.PathValue(utils.PathParamRunId)
-
-	result, err := c.monitorService.GetMonitorRunLogs(ctx, ouID, orgHandle, projName, agentName, monitorName, runID)
-	if err != nil {
-		if errors.Is(err, utils.ErrMonitorNotFound) {
-			utils.WriteErrorResponse(w, http.StatusNotFound, "Monitor not found")
-			return
-		}
-		if errors.Is(err, utils.ErrMonitorRunNotFound) {
-			utils.WriteErrorResponse(w, http.StatusNotFound, "Monitor run not found")
-			return
-		}
-		log.Error("Failed to get monitor run logs", "error", err)
-		utils.WriteErrorResponse(w, http.StatusInternalServerError, "Failed to get monitor run logs")
-		return
-	}
-
-	logsResponse := utils.ConvertToLogsResponse(*result)
-	utils.WriteSuccessResponse(w, http.StatusOK, logsResponse)
 }
 
 // StopMonitor handles POST /orgs/{ouID}/projects/{projName}/agents/{agentName}/monitors/{monitorName}/stop

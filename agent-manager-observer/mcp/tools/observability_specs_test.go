@@ -54,6 +54,17 @@ func observabilityToolSpecs() []toolTestSpec {
 			},
 		},
 		{
+			name:                "get_monitor_run_logs",
+			descriptionKeywords: []string{"monitor"},
+			descriptionMinLen:   20,
+			requiredParams:      []string{"organization", "run_name"},
+			optionalParams:      []string{"start_time", "end_time"},
+			testArgs: map[string]any{
+				"organization": testOrgName,
+				"run_name":     testRunName,
+			},
+		},
+		{
 			name:                "get_metrics",
 			descriptionKeywords: []string{"metric"},
 			descriptionMinLen:   20,

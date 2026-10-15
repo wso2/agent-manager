@@ -2,6 +2,7 @@ package monitor
 
 import (
 	"fmt"
+	"net/url"
 	"time"
 
 	"github.com/onsi/ginkgo/v2"
@@ -52,18 +53,27 @@ func GetMonitorRunScores(g Gomega, client *framework.AMPClient, orgName, projNam
 // GetMonitorRunLogsParams holds parameters for getting monitor run logs.
 type GetMonitorRunLogsParams struct {
 	OrgName     string
-	ProjectName string
-	AgentName   string
-	MonitorName string
-	RunID       string
+	RunName     string
+	StartedAt   *time.Time
+	CompletedAt *time.Time
 }
 
-// GetMonitorRunLogs retrieves logs for a specific monitor run.
+// GetMonitorRunLogs retrieves logs for a monitor run from the observer,
+// keyed on the run name the monitor run response now carries. Sends the same
+// absolute startedAt..completedAt range the console does for a completed run,
+// and omits the range otherwise so the server's default lookback applies.
 func GetMonitorRunLogs(g Gomega, client *framework.AMPClient, params *GetMonitorRunLogsParams) framework.LogsResponse {
-	path := fmt.Sprintf("/api/v1/orgs/%s/projects/%s/agents/%s/monitors/%s/runs/%s/logs",
-		params.OrgName, params.ProjectName, params.AgentName, params.MonitorName, params.RunID)
+	q := url.Values{}
+	q.Set("organization", params.OrgName)
+	q.Set("runName", params.RunName)
+	if params.StartedAt != nil && params.CompletedAt != nil {
+		q.Set("startTime", params.StartedAt.UTC().Format(time.RFC3339Nano))
+		q.Set("endTime", params.CompletedAt.UTC().Format(time.RFC3339Nano))
+	}
 
-	resp, err := client.Get(path)
+	logsURL := fmt.Sprintf("%s/api/v1/monitor-run-logs?%s", client.Cfg().ObserverBaseURL, q.Encode())
+
+	resp, err := client.DoRaw("GET", logsURL)
 	g.Expect(err).NotTo(HaveOccurred(), "get monitor run logs request failed")
 	defer resp.Body.Close()
 	framework.ExpectStatus(g, resp, 200)

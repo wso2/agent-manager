@@ -33,8 +33,9 @@ func (p Permission) Scope() string { return ResourceServer + ":" + string(p) }
 
 // Observability data-read permissions, one per observer data endpoint family.
 const (
-	TraceRead    Permission = "observability:trace-read"
-	LogRead      Permission = "observability:log-read"
-	BuildLogRead Permission = "observability:build-log-read"
-	MetricRead   Permission = "observability:metric-read"
+	TraceRead      Permission = "observability:trace-read"
+	LogRead        Permission = "observability:log-read"
+	BuildLogRead   Permission = "observability:build-log-read"
+	MonitorLogRead Permission = "observability:monitor-log-read"
+	MetricRead     Permission = "observability:metric-read"
 )

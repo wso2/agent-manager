@@ -30,6 +30,7 @@ export * from './organizations';
 export * from './projects';
 export * from './metrics';
 export * from './monitors';
+export * from './monitor-run-logs';
 export * from './runtime-config';
 export * from './runtime-logs';
 export * from './repositories';

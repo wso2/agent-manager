@@ -36,6 +36,7 @@ const (
 	testProjectName = "default-project"
 	testAgentName   = "default-agent"
 	testBuildName   = "default-build"
+	testRunName     = "default-monitor-run"
 	testEnvName     = "default-env"
 	testTraceID     = "test-trace-id"
 	testSpanID      = "test-span-id"

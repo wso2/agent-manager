@@ -19,6 +19,7 @@ package utils
 import (
 	"testing"
 
+	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -136,4 +137,32 @@ func TestConvertToAgentResponse_ExternalOmitsEmptySubType(t *testing.T) {
 		Type:         models.AgentType{Type: "external-agent-api"},
 	})
 	assert.Nil(t, got.AgentType.SubType)
+}
+
+// The wire response is built field-by-field in ConvertToMonitorRunResponse, so
+// a field added to models.MonitorRunResponse reaches clients only if it is
+// mapped here too. runName is what lets the console query the observer for a
+// run's logs without an am-svc round trip.
+func TestConvertToMonitorRunResponse_CarriesRunName(t *testing.T) {
+	run := &models.MonitorRunResponse{
+		ID:      "660e8400-e29b-41d4-a716-446655440001",
+		RunName: "quality-monitor-abc12345",
+		Status:  "success",
+	}
+
+	got := ConvertToMonitorRunResponse(run)
+
+	assert.Equal(t, "quality-monitor-abc12345", got.RunName)
+}
+
+// ToResponse is the single funnel every monitor-run conversion site uses, so
+// this is what makes runName appear on list, get, rerun and latestRun alike.
+func TestMonitorRunToResponse_CarriesRunName(t *testing.T) {
+	run := &models.MonitorRun{
+		ID:     uuid.New(),
+		Name:   "quality-monitor-abc12345",
+		Status: "success",
+	}
+
+	assert.Equal(t, "quality-monitor-abc12345", run.ToResponse().RunName)
 }

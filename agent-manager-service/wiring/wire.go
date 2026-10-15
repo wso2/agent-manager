@@ -28,7 +28,6 @@ import (
 	"gorm.io/gorm"
 
 	"github.com/wso2/agent-manager/agent-manager-service/audit"
-	observersvc "github.com/wso2/agent-manager/agent-manager-service/clients/observersvc"
 	occlient "github.com/wso2/agent-manager/agent-manager-service/clients/openchoreosvc/client"
 	"github.com/wso2/agent-manager/agent-manager-service/clients/secretmanagersvc"
 	"github.com/wso2/agent-manager/agent-manager-service/clients/thundersvc"
@@ -51,7 +50,6 @@ var configProviderSet = wire.NewSet(
 )
 
 var clientProviderSet = wire.NewSet(
-	ProvideObserverClient,
 	ProvideOCClient,
 	ProvideSecretManagementClient,
 	ProvidePublisherProvisioner,
@@ -152,7 +150,6 @@ var controllerProviderSet = wire.NewSet(
 
 var testClientProviderSet = wire.NewSet(
 	ProvideTestOpenChoreoClient,
-	ProvideTestObserverClient,
 	ProvideTestSecretManagementClient,
 	ProvidePublisherProvisioner,
 	ProvideIdentityClient,
@@ -297,13 +294,6 @@ func ProvideOCClient(cfg config.Config, authProvider occlient.AuthProvider) (occ
 	})
 }
 
-func ProvideObserverClient(cfg config.Config, authProvider occlient.AuthProvider) (observersvc.ObserverSvcClient, error) {
-	return observersvc.NewObserverClient(&observersvc.Config{
-		BaseURL:      cfg.Observer.URL,
-		AuthProvider: authProvider,
-	})
-}
-
 // ProvideSecretManagementClient creates the secret management service client.
 // If the provider implements secretmanagersvc.SecretReferenceManager and
 // reports that it manages SecretReferences itself, the OpenChoreo client is
@@ -410,10 +400,6 @@ func ProvideGatewayConnectionChecker(m *websocket.Manager) services.GatewayConne
 // Test client providers
 func ProvideTestOpenChoreoClient(testClients TestClients) occlient.OpenChoreoClient {
 	return testClients.OpenChoreoClient
-}
-
-func ProvideTestObserverClient(testClients TestClients) observersvc.ObserverSvcClient {
-	return testClients.ObserverSvcClient
 }
 
 func ProvideTestSecretManagementClient(testClients TestClients) secretmanagersvc.SecretManagementClient {

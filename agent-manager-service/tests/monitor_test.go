@@ -69,7 +69,7 @@ func timePtr(t time.Time) *time.Time {
 func createBaseMockChoreoClient() *clientmocks.OpenChoreoClientMock {
 	return &clientmocks.OpenChoreoClientMock{
 		// Resolve the namespace the same way the real client does — from the
-		// configured default namespace — so callers (e.g. GetMonitorRunLogs) get a
+		// configured default namespace — so callers get a
 		// realistic value rather than triggering the "method is nil" panic.
 		NamespaceForFunc: func(ouID string) string {
 			return config.GetConfig().OpenChoreo.DefaultNamespace
@@ -1408,104 +1408,6 @@ func TestRerunMonitor(t *testing.T) {
 	err = json.Unmarshal(w.Body.Bytes(), &rerunResult)
 	require.NoError(t, err)
 	assert.NotEqual(t, runsResponse.Runs[0].Id, rerunResult.Id, "Rerun should create a new run with different ID")
-}
-
-// TestGetMonitorRunLogs tests retrieving logs for a monitor run
-func TestGetMonitorRunLogs(t *testing.T) {
-	authMiddleware := jwtassertion.NewMockMiddleware(t)
-
-	mockChoreoClient := createBaseMockChoreoClient()
-
-	mockObserverClient := &clientmocks.ObserverSvcClientMock{
-		GetWorkflowRunLogsFunc: func(ctx context.Context, organization string, workflowRunName string) (*models.LogsResponse, error) {
-			return &models.LogsResponse{
-				Logs: []models.LogEntry{
-					{
-						Timestamp: time.Now(),
-						Log:       "Sample log output for workflow run",
-						LogLevel:  "INFO",
-					},
-				},
-				TotalCount: 1,
-				TookMs:     10.5,
-			}, nil
-		},
-	}
-
-	testClients := wiring.TestClients{
-		OpenChoreoClient:  mockChoreoClient,
-		ObserverSvcClient: mockObserverClient,
-	}
-
-	app := apitestutils.MakeAppClientWithDeps(t, testClients, authMiddleware)
-
-	// Create past monitor
-	startTime := time.Now().Add(-2 * time.Hour)
-	endTime := time.Now().Add(-1 * time.Hour)
-
-	monitorName := uniqueMonitorName("logs-test")
-	reqBody := spec.CreateMonitorRequest{
-		Name:            monitorName,
-		DisplayName:     "Logs Test",
-		EnvironmentName: "dev",
-		Type:            "past",
-		TraceStart:      timePtr(startTime),
-		TraceEnd:        timePtr(endTime),
-		Evaluators:      []spec.MonitorEvaluator{{Identifier: "latency_performance", DisplayName: "Latency Check", Config: map[string]interface{}{}}},
-		SamplingRate:    float32Ptr(1.0),
-	}
-
-	body, _ := json.Marshal(reqBody)
-	req := httptest.NewRequest(http.MethodPost, "/api/v1/orgs/test-org/projects/test-project/agents/test-agent/monitors", bytes.NewReader(body))
-	req.Header.Set("Content-Type", "application/json")
-
-	w := httptest.NewRecorder()
-	app.ServeHTTP(w, req)
-
-	if w.Code == http.StatusNotFound {
-		t.Skip("Skipping test - agent doesn't exist (expected in isolated test)")
-		return
-	}
-
-	require.Equal(t, http.StatusCreated, w.Code)
-
-	var created spec.MonitorResponse
-	err := json.Unmarshal(w.Body.Bytes(), &created)
-	require.NoError(t, err)
-
-	// List runs
-	req = httptest.NewRequest(http.MethodGet, "/api/v1/orgs/test-org/projects/test-project/agents/test-agent/monitors/"+created.Name+"/runs", nil)
-
-	w = httptest.NewRecorder()
-	app.ServeHTTP(w, req)
-	require.Equal(t, http.StatusOK, w.Code)
-
-	var runsResponse spec.MonitorRunListResponse
-	err = json.Unmarshal(w.Body.Bytes(), &runsResponse)
-	require.NoError(t, err)
-
-	// Skip test if no runs exist yet
-	if len(runsResponse.Runs) == 0 {
-		t.Skip("No runs available yet - skipping logs test")
-		return
-	}
-
-	// Get logs
-	req = httptest.NewRequest(http.MethodGet, "/api/v1/orgs/test-org/projects/test-project/agents/test-agent/monitors/"+created.Name+"/runs/"+runsResponse.Runs[0].Id+"/logs", nil)
-
-	w = httptest.NewRecorder()
-	app.ServeHTTP(w, req)
-
-	require.Equal(t, http.StatusOK, w.Code)
-	assert.Contains(t, w.Body.String(), "Sample log output")
-
-	// Verify the correct organization was passed to the observer client.
-	// The observer's "organization" param is the org handle (as sent by every
-	// other consumer), not the OU UUID. The mock middleware derives the handle
-	// from the request path, so it matches "test-org" here.
-	calls := mockObserverClient.GetWorkflowRunLogsCalls()
-	require.Len(t, calls, 1)
-	assert.Equal(t, "test-org", calls[0].Organization)
 }
 
 // TestStopMonitor tests stopping a future monitor

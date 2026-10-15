@@ -26,6 +26,7 @@ func TestPermissionScope(t *testing.T) {
 		{TraceRead, "amp:observability:trace-read"},
 		{LogRead, "amp:observability:log-read"},
 		{BuildLogRead, "amp:observability:build-log-read"},
+		{MonitorLogRead, "amp:observability:monitor-log-read"},
 		{MetricRead, "amp:observability:metric-read"},
 	}
 	for _, tc := range cases {

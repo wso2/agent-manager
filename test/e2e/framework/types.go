@@ -949,6 +949,7 @@ type EvaluatorScoreSummary struct {
 
 type MonitorRunResponse struct {
 	ID           string                  `json:"id"`
+	RunName      string                  `json:"runName"`
 	MonitorName  *string                 `json:"monitorName,omitempty"`
 	Evaluators   []MonitorEvaluator      `json:"evaluators"`
 	TraceStart   time.Time               `json:"traceStart"`

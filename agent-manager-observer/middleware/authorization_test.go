@@ -70,6 +70,9 @@ func TestRequirePermission(t *testing.T) {
 		{"publisher 403 on logs", rbac.LogRead, publisherClaims(), http.StatusForbidden, false},
 		{"publisher 403 on build-logs", rbac.BuildLogRead, publisherClaims(), http.StatusForbidden, false},
 		{"publisher 403 on metrics", rbac.MetricRead, publisherClaims(), http.StatusForbidden, false},
+		{"monitor-log scope present passes", rbac.MonitorLogRead, userClaims("amp:observability:monitor-log-read"), http.StatusOK, true},
+		{"monitor-log scope missing 403", rbac.MonitorLogRead, userClaims("amp:observability:build-log-read"), http.StatusForbidden, false},
+		{"publisher 403 on monitor-logs", rbac.MonitorLogRead, publisherClaims(), http.StatusForbidden, false},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {

@@ -262,7 +262,7 @@
               "type": "string"
             },
             "scopesSupported": {
-              "default": "amp:observability:log-read,amp:observability:trace-read,amp:observability:metric-read,amp:observability:build-log-read",
+              "default": "amp:observability:log-read,amp:observability:trace-read,amp:observability:metric-read,amp:observability:build-log-read,amp:observability:monitor-log-read",
               "description": "Comma-separated list of OAuth 2.0 scopes supported by this resource, advertised in RFC 9728 protected resource metadata.",
               "title": "scopesSupported",
               "type": "string"

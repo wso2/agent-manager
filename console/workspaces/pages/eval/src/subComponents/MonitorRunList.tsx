@@ -453,9 +453,6 @@ export default function MonitorRunList() {
             onClose={handleDrawerClose}
             onFullscreenChange={setDrawerFullscreen}
             orgName={orgId ?? ""}
-            projectName={projectId ?? ""}
-            agentName={agentId ?? ""}
-            monitorName={monitorId ?? ""}
             traceWindowLabel={formatTraceWindow(
               dateFormatter,
               selectedRun.traceStart,

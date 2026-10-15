@@ -421,6 +421,70 @@ paths:
         "502":
           $ref: "#/components/responses/UpstreamObserverError"
 
+  /api/v1/monitor-run-logs:
+    get:
+      tags:
+        - logs
+      summary: Query monitor run logs
+      description: |
+        Returns log entries for a monitor evaluation run, oldest first. `startTime` and `endTime`
+        are optional but all-or-nothing: send both or neither. When both are omitted the lookback
+        is the 30 days ending now. That default is intentionally wider than the 14-day cap on an
+        explicit range (`/api/v1/build-logs` likewise queries a fixed 30-day window), so a caller
+        that cannot know the run's timestamps still finds its logs. `limit` defaults to 1000.
+        Requires the `amp:observability:monitor-log-read` scope. Not available to
+        `amp-publisher-*` tokens.
+      operationId: queryMonitorRunLogs
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/organization"
+        - name: runName
+          in: query
+          required: true
+          description: Monitor run name
+          schema:
+            type: string
+        - name: startTime
+          in: query
+          required: false
+          description: Start of the range (RFC3339). Must be supplied together with `endTime`, and must not be in the future.
+          schema:
+            type: string
+            format: date-time
+            example: "2026-04-01T00:00:00Z"
+        - name: endTime
+          in: query
+          required: false
+          description: End of the range (RFC3339). Must be supplied together with `startTime`; the span must not exceed 14 days.
+          schema:
+            type: string
+            format: date-time
+            example: "2026-04-06T23:59:59Z"
+        - name: limit
+          in: query
+          required: false
+          description: Max log lines to return (optional; default 1000, max 10000)
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 10000
+      responses:
+        "200":
+          description: Log entries
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/LogsResponse"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "502":
+          $ref: "#/components/responses/UpstreamObserverError"
+
   /api/v1/metrics:
     get:
       tags:
@@ -1215,7 +1279,7 @@ components:
 
     LogEntry:
       type: object
-      description: Single log line as returned by GET /api/v1/logs and GET /api/v1/build-logs.
+      description: Single log line as returned by GET /api/v1/logs, GET /api/v1/build-logs and GET /api/v1/monitor-run-logs.
       required:
         - timestamp
         - log

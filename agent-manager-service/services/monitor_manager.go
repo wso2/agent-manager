@@ -29,7 +29,6 @@ import (
 	"gorm.io/gorm"
 
 	"github.com/wso2/agent-manager/agent-manager-service/audit"
-	"github.com/wso2/agent-manager/agent-manager-service/clients/observersvc"
 	"github.com/wso2/agent-manager/agent-manager-service/clients/openchoreosvc/client"
 	"github.com/wso2/agent-manager/agent-manager-service/clients/secretmanagersvc"
 	"github.com/wso2/agent-manager/agent-manager-service/middleware/jwtassertion"
@@ -59,18 +58,12 @@ type MonitorManagerService interface {
 	StartMonitor(ctx context.Context, ouID, projectName, agentName, monitorName string) (*models.MonitorResponse, error)
 	ListMonitorRuns(ctx context.Context, ouID, projectName, agentName, monitorName string, limit, offset int, includeScores bool) (*models.MonitorRunsListResponse, error)
 	RerunMonitor(ctx context.Context, ouID, projectName, agentName, monitorName, runID string) (*models.MonitorRunResponse, error)
-	// GetMonitorRunLogs retrieves logs for a specific monitor run. orgHandle is
-	// the token's OU handle (human-readable org name) — distinct from ouID
-	// (the OU UUID) — and is forwarded to the observer as the "organization"
-	// query parameter, matching every other consumer of the observer's API.
-	GetMonitorRunLogs(ctx context.Context, ouID, orgHandle, projectName, agentName, monitorName, runID string) (*models.LogsResponse, error)
 }
 
 type monitorManagerService struct {
 	logger                *slog.Logger
 	db                    *gorm.DB
 	ocClient              client.OpenChoreoClient
-	observerClient        observersvc.ObserverSvcClient
 	executor              MonitorExecutor
 	evaluatorService      EvaluatorManagerService
 	monitorRepo           repositories.MonitorRepository
@@ -85,7 +78,6 @@ func NewMonitorManagerService(
 	logger *slog.Logger,
 	db *gorm.DB,
 	ocClient client.OpenChoreoClient,
-	observerClient observersvc.ObserverSvcClient,
 	executor MonitorExecutor,
 	evaluatorService EvaluatorManagerService,
 	monitorRepo repositories.MonitorRepository,
@@ -98,7 +90,6 @@ func NewMonitorManagerService(
 		logger:                logger,
 		db:                    db,
 		ocClient:              ocClient,
-		observerClient:        observerClient,
 		executor:              executor,
 		evaluatorService:      evaluatorService,
 		monitorRepo:           monitorRepo,
@@ -1075,47 +1066,6 @@ func (s *monitorManagerService) RerunMonitor(ctx context.Context, ouID, projectN
 	resp := result.Run.ToResponse()
 	resp.MonitorName = monitorName
 	return resp, nil
-}
-
-// GetMonitorRunLogs retrieves logs for a specific monitor run
-func (s *monitorManagerService) GetMonitorRunLogs(ctx context.Context, ouID, orgHandle, projectName, agentName, monitorName, runID string) (*models.LogsResponse, error) {
-	s.logger.Info("Getting monitor run logs", "ouID", ouID, "monitorName", monitorName, "runID", runID)
-
-	runUUID, err := uuid.Parse(runID)
-	if err != nil {
-		return nil, fmt.Errorf("invalid run ID: %w", utils.ErrInvalidInput)
-	}
-
-	// Get the monitor
-	monitor, err := s.monitorRepo.GetMonitorByName(ouID, projectName, agentName, monitorName)
-	if err != nil {
-		if errors.Is(err, gorm.ErrRecordNotFound) {
-			return nil, utils.ErrMonitorNotFound
-		}
-		return nil, fmt.Errorf("failed to get monitor: %w", err)
-	}
-
-	// Get the monitor run
-	run, err := s.monitorRepo.GetMonitorRunByID(runUUID, monitor.ID)
-	if err != nil {
-		if errors.Is(err, gorm.ErrRecordNotFound) {
-			return nil, utils.ErrMonitorRunNotFound
-		}
-		return nil, fmt.Errorf("failed to get monitor run: %w", err)
-	}
-
-	// Fetch logs from observer service using the workflow run name. The
-	// observer's "organization" query parameter is the org name/handle, not
-	// the OU UUID — every other consumer (console, CLI, MCP tools) sends the
-	// handle, so this s2s call does too.
-	logs, err := s.observerClient.GetWorkflowRunLogs(ctx, orgHandle, run.Name)
-	if err != nil {
-		s.logger.Error("Failed to get workflow run logs from observer service", "runID", runID, "error", err)
-		return nil, fmt.Errorf("failed to get workflow run logs: %w", err)
-	}
-
-	s.logger.Info("Fetched monitor run logs successfully", "runID", runID, "logCount", len(logs.Logs))
-	return logs, nil
 }
 
 // getLatestRun fetches the most recent run for a monitor

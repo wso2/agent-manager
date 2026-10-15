@@ -138,6 +138,7 @@ func (r *MonitorRun) ToResponse() *MonitorRunResponse {
 	return &MonitorRunResponse{
 		ID:           r.ID.String(),
 		MonitorName:  "",
+		RunName:      r.Name,
 		Evaluators:   r.Evaluators,
 		TraceStart:   r.TraceStart,
 		TraceEnd:     r.TraceEnd,
@@ -214,6 +215,7 @@ type MonitorListResponse struct {
 type MonitorRunResponse struct {
 	ID           string                  `json:"id"`
 	MonitorName  string                  `json:"monitorName,omitempty"`
+	RunName      string                  `json:"runName"`
 	Evaluators   []MonitorEvaluator      `json:"evaluators"`
 	TraceStart   time.Time               `json:"traceStart"`
 	TraceEnd     time.Time               `json:"traceEnd"`

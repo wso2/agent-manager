@@ -13,7 +13,6 @@ import (
 
 	"github.com/google/wire"
 	"github.com/wso2/agent-manager/agent-manager-service/audit"
-	"github.com/wso2/agent-manager/agent-manager-service/clients/observersvc"
 	"github.com/wso2/agent-manager/agent-manager-service/clients/openchoreosvc/client"
 	"github.com/wso2/agent-manager/agent-manager-service/clients/secretmanagersvc"
 	"github.com/wso2/agent-manager/agent-manager-service/clients/thundersvc"
@@ -101,10 +100,6 @@ func InitializeAppParams(cfg *config.Config, db *gorm.DB, authProvider client.Au
 	agentKindRepository := ProvideAgentKindRepository(db)
 	agentKindService := services.NewAgentKindService(agentKindRepository, openChoreoClient)
 	artifactRepository := ProvideArtifactRepository(db)
-	observerSvcClient, err := ProvideObserverClient(configConfig, authProvider)
-	if err != nil {
-		return nil, err
-	}
 	monitorRepository := ProvideMonitorRepository(db)
 	customEvaluatorRepository := ProvideCustomEvaluatorRepository(db)
 	orgPublisherCredentialRepository := ProvideOrgPublisherCredentialRepository(db)
@@ -118,7 +113,7 @@ func InitializeAppParams(cfg *config.Config, db *gorm.DB, authProvider client.Au
 	evaluatorManagerService := services.NewEvaluatorManagerService(logger, customEvaluatorRepository, monitorRepository)
 	scoreRepository := ProvideScoreRepository(db)
 	llmProxyProvisioner := services.NewLLMProxyProvisioner(logger, llmProviderRepository, gatewayRepository, llmProxyService, llmProxyDeploymentService, llmProxyAPIKeyService, llmProviderAPIKeyService, secretManagementClient, v)
-	monitorManagerService := services.NewMonitorManagerService(logger, db, openChoreoClient, observerSvcClient, monitorExecutor, evaluatorManagerService, monitorRepository, scoreRepository, llmProxyProvisioner, monitorLLMMappingRepository, publisherCredentialProvisioner)
+	monitorManagerService := services.NewMonitorManagerService(logger, db, openChoreoClient, monitorExecutor, evaluatorManagerService, monitorRepository, scoreRepository, llmProxyProvisioner, monitorLLMMappingRepository, publisherCredentialProvisioner)
 	a2APublicationRepository := ProvideA2APublicationRepository(db)
 	a2AAgentCardRepository := ProvideA2AAgentCardRepository(db)
 	agentManagerService := services.NewAgentManagerService(db, openChoreoClient, secretManagementClient, repositoryService, agentTokenManagerService, agentConfigRepository, agentConfigurationService, agentKindService, artifactRepository, aiApplicationService, gatewayRepository, agentThunderProvisioning, monitorManagerService, agentIdentityInjectionService, identityClient, a2APublicationRepository, a2AAgentCardRepository, deploymentRepository, gatewayEventsService, logger)
@@ -224,7 +219,6 @@ func InitializeAppParams(cfg *config.Config, db *gorm.DB, authProvider client.Au
 		AgentIdentityInjectionService:    agentIdentityInjectionService,
 		EnvironmentService:               environmentService,
 		OpenChoreoClient:                 openChoreoClient,
-		ObserverSvcClient:                observerSvcClient,
 		WebSocketManager:                 manager,
 		EventHub:                         eventHub,
 		DB:                               db,
@@ -294,7 +288,6 @@ func InitializeTestAppParamsWithClientMocks(cfg *config.Config, db *gorm.DB, aut
 	agentKindService := services.NewAgentKindService(agentKindRepository, openChoreoClient)
 	artifactRepository := ProvideArtifactRepository(db)
 	agentThunderProvisioningService := services.NewAgentThunderProvisioningService(agentThunderClientRepository, envThunderResolver, secretManagementClient, openChoreoClient, agentIdentityInjectionService, logger)
-	observerSvcClient := ProvideTestObserverClient(testClients)
 	monitorRepository := ProvideMonitorRepository(db)
 	customEvaluatorRepository := ProvideCustomEvaluatorRepository(db)
 	orgPublisherCredentialRepository := ProvideOrgPublisherCredentialRepository(db)
@@ -308,7 +301,7 @@ func InitializeTestAppParamsWithClientMocks(cfg *config.Config, db *gorm.DB, aut
 	evaluatorManagerService := services.NewEvaluatorManagerService(logger, customEvaluatorRepository, monitorRepository)
 	scoreRepository := ProvideScoreRepository(db)
 	llmProxyProvisioner := services.NewLLMProxyProvisioner(logger, llmProviderRepository, gatewayRepository, llmProxyService, llmProxyDeploymentService, llmProxyAPIKeyService, llmProviderAPIKeyService, secretManagementClient, v)
-	monitorManagerService := services.NewMonitorManagerService(logger, db, openChoreoClient, observerSvcClient, monitorExecutor, evaluatorManagerService, monitorRepository, scoreRepository, llmProxyProvisioner, monitorLLMMappingRepository, publisherCredentialProvisioner)
+	monitorManagerService := services.NewMonitorManagerService(logger, db, openChoreoClient, monitorExecutor, evaluatorManagerService, monitorRepository, scoreRepository, llmProxyProvisioner, monitorLLMMappingRepository, publisherCredentialProvisioner)
 	a2APublicationRepository := ProvideA2APublicationRepository(db)
 	a2AAgentCardRepository := ProvideA2AAgentCardRepository(db)
 	agentManagerService := services.NewAgentManagerService(db, openChoreoClient, secretManagementClient, repositoryService, agentTokenManagerService, agentConfigRepository, agentConfigurationService, agentKindService, artifactRepository, aiApplicationService, gatewayRepository, agentThunderProvisioningService, monitorManagerService, agentIdentityInjectionService, identityClient, a2APublicationRepository, a2AAgentCardRepository, deploymentRepository, gatewayEventsService, logger)
@@ -414,7 +407,6 @@ func InitializeTestAppParamsWithClientMocks(cfg *config.Config, db *gorm.DB, aut
 		AgentIdentityInjectionService:    agentIdentityInjectionService,
 		EnvironmentService:               environmentService,
 		OpenChoreoClient:                 openChoreoClient,
-		ObserverSvcClient:                observerSvcClient,
 		WebSocketManager:                 manager,
 		EventHub:                         eventHub,
 		DB:                               db,
@@ -431,7 +423,6 @@ var configProviderSet = wire.NewSet(
 )
 
 var clientProviderSet = wire.NewSet(
-	ProvideObserverClient,
 	ProvideOCClient,
 	ProvideSecretManagementClient,
 	ProvidePublisherProvisioner,
@@ -453,7 +444,6 @@ var controllerProviderSet = wire.NewSet(controllers.NewAgentController, controll
 
 var testClientProviderSet = wire.NewSet(
 	ProvideTestOpenChoreoClient,
-	ProvideTestObserverClient,
 	ProvideTestSecretManagementClient,
 	ProvidePublisherProvisioner,
 	ProvideIdentityClient,
@@ -594,13 +584,6 @@ func ProvideOCClient(cfg config.Config, authProvider client.AuthProvider) (clien
 	})
 }
 
-func ProvideObserverClient(cfg config.Config, authProvider client.AuthProvider) (observersvc.ObserverSvcClient, error) {
-	return observersvc.NewObserverClient(&observersvc.Config{
-		BaseURL:      cfg.Observer.URL,
-		AuthProvider: authProvider,
-	})
-}
-
 // ProvideSecretManagementClient creates the secret management service client.
 // If the provider implements secretmanagersvc.SecretReferenceManager and
 // reports that it manages SecretReferences itself, the OpenChoreo client is
@@ -694,10 +677,6 @@ func ProvideGatewayConnectionChecker(m *websocket.Manager) services.GatewayConne
 // Test client providers
 func ProvideTestOpenChoreoClient(testClients TestClients) client.OpenChoreoClient {
 	return testClients.OpenChoreoClient
-}
-
-func ProvideTestObserverClient(testClients TestClients) observersvc.ObserverSvcClient {
-	return testClients.ObserverSvcClient
 }
 
 func ProvideTestSecretManagementClient(testClients TestClients) secretmanagersvc.SecretManagementClient {

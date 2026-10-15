@@ -20,6 +20,7 @@ import (
 	"context"
 	"net/http"
 	"testing"
+	"time"
 
 	"github.com/golang-jwt/jwt/v5"
 	gomcp "github.com/modelcontextprotocol/go-sdk/mcp"
@@ -49,9 +50,9 @@ func requestWithAuth(authHeader string) *gomcp.CallToolRequest {
 	return req
 }
 
-// The three observability tools must reject publisher-audience tokens:
+// The four observability tools must reject publisher-audience tokens:
 // publishers are confined to their implicit trace-read permission, so the /mcp
-// trace-tool carve-out can't be used to read logs/build-logs/metrics.
+// trace-tool carve-out can't be used to read logs/build-logs/monitor-run-logs/metrics.
 func TestObservabilityTools_RejectPublisherToken(t *testing.T) {
 	validLogsInput := runtimeLogsInput{
 		Organization: testOrgName,
@@ -60,6 +61,7 @@ func TestObservabilityTools_RejectPublisherToken(t *testing.T) {
 		Environment:  testEnvName,
 	}
 	validBuildLogsInput := buildLogsInput{Organization: testOrgName, BuildName: testBuildName}
+	validMonitorRunLogsInput := monitorRunLogsInput{Organization: testOrgName, RunName: testRunName}
 	validMetricsInput := metricsInput{
 		Organization: testOrgName,
 		Project:      testProjectName,
@@ -95,6 +97,15 @@ func TestObservabilityTools_RejectPublisherToken(t *testing.T) {
 			scope:          rbac.BuildLogRead.Scope(),
 		},
 		{
+			name: "get_monitor_run_logs",
+			call: func(fake *fakeObserverClient, req *gomcp.CallToolRequest) error {
+				_, _, err := getMonitorRunLogs(controllers.NewObservabilityController(fake), requireToolPermission(rbac.MonitorLogRead))(context.Background(), req, validMonitorRunLogsInput)
+				return err
+			},
+			upstreamMethod: "QueryLogs",
+			scope:          rbac.MonitorLogRead.Scope(),
+		},
+		{
 			name: "get_metrics",
 			call: func(fake *fakeObserverClient, req *gomcp.CallToolRequest) error {
 				_, _, err := getMetrics(controllers.NewObservabilityController(fake), requireToolPermission(rbac.MetricRead))(context.Background(), req, validMetricsInput)
@@ -126,6 +137,37 @@ func TestObservabilityTools_RejectPublisherToken(t *testing.T) {
 			}
 			if len(fake.calls[tc.upstreamMethod]) == 0 {
 				t.Errorf("expected upstream %s to be called for a non-publisher token", tc.upstreamMethod)
+			}
+		})
+	}
+}
+
+func TestGetMonitorRunLogs_WindowValidation(t *testing.T) {
+	past := time.Now().UTC().Add(-time.Hour).Format(time.RFC3339)
+	pastEnd := time.Now().UTC().Add(-time.Minute).Format(time.RFC3339)
+	future := time.Now().UTC().Add(time.Hour).Format(time.RFC3339)
+	futureEnd := time.Now().UTC().Add(2 * time.Hour).Format(time.RFC3339)
+
+	tests := []struct {
+		name       string
+		start, end string
+		wantErr    string
+	}{
+		{"start only", past, "", "start_time and end_time must be supplied together"},
+		{"end only", "", pastEnd, "start_time and end_time must be supplied together"},
+		{"future start", future, futureEnd, "start_time cannot be in the future"},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			fake := newFakeObserverClient()
+			handler := getMonitorRunLogs(controllers.NewObservabilityController(fake), allowEveryCall(rbac.MonitorLogRead))
+			input := monitorRunLogsInput{Organization: testOrgName, RunName: testRunName, StartTime: tc.start, EndTime: tc.end}
+			_, _, err := handler(context.Background(), &gomcp.CallToolRequest{}, input)
+			if err == nil || err.Error() != tc.wantErr {
+				t.Fatalf("error = %v, want %q", err, tc.wantErr)
+			}
+			if len(fake.calls["QueryLogs"]) != 0 {
+				t.Errorf("upstream QueryLogs called %d times, want 0", len(fake.calls["QueryLogs"]))
 			}
 		})
 	}

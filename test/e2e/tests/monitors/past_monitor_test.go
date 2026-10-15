@@ -119,21 +119,21 @@ var _ = Describe("Past monitor with a built-in evaluator:", Ordered, Label("moni
 		})
 		Expect(runs.Runs).NotTo(BeEmpty())
 
-		var completedRunID string
-		for _, r := range runs.Runs {
+		var completedRun *framework.MonitorRunResponse
+		for i, r := range runs.Runs {
 			if r.Status == "success" {
-				completedRunID = r.ID
+				completedRun = &runs.Runs[i]
 				break
 			}
 		}
-		Expect(completedRunID).NotTo(BeEmpty(), "expected a completed run")
+		Expect(completedRun).NotTo(BeNil(), "expected a completed run")
+		Expect(completedRun.RunName).NotTo(BeEmpty(), "expected the run response to carry runName")
 
 		logs := monitor.GetMonitorRunLogs(Default, Client, &monitor.GetMonitorRunLogsParams{
 			OrgName:     Cfg.DefaultOrg,
-			ProjectName: SharedITHelpdeskAgent.ProjectName,
-			AgentName:   SharedITHelpdeskAgent.AgentName,
-			MonitorName: pastMonitorName,
-			RunID:       completedRunID,
+			RunName:     completedRun.RunName,
+			StartedAt:   completedRun.StartedAt,
+			CompletedAt: completedRun.CompletedAt,
 		})
 		Expect(logs.Logs).NotTo(BeEmpty(), "expected logs for the monitor run")
 		GinkgoWriter.Printf("Past monitor run logs: %d entries\n", len(logs.Logs))

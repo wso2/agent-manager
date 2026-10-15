@@ -393,6 +393,7 @@ register_amp_permissions() {
     create_action "$rs_id" "$r_obs"          "Trace Read"             "trace-read"             "Read traces and spans"
     create_action "$rs_id" "$r_obs"          "Log Read"               "log-read"               "Read runtime logs"
     create_action "$rs_id" "$r_obs"          "Build Log Read"         "build-log-read"         "Read build logs"
+    create_action "$rs_id" "$r_obs"          "Monitor Log Read"       "monitor-log-read"       "Read monitor run logs"
     create_action "$rs_id" "$r_obs"          "Metric Read"            "metric-read"            "Read runtime and infrastructure metrics"
   fi
 }

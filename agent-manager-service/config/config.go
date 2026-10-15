@@ -40,8 +40,7 @@ type Config struct {
 	// OpenTelemetry configuration
 	OTEL OTELConfig
 
-	// Observer service configuration (agent-manager-observer: build logs,
-	// trace tools in MCP, and the console/CLI discovery endpoint)
+	// Observer public URL handed to console/CLI via GET /api/v1/config
 	Observer ObserverConfig
 
 	// Instrumentation url for MCP
@@ -304,14 +303,9 @@ type OTELConfig struct {
 }
 
 type ObserverConfig struct {
-	// URL is the observer service URL the agent-manager-service itself
-	// uses (server-side, in-cluster) for monitor-run log fetches and trace
-	// data queries.
-	URL string
 	// PublicURL is the externally reachable observer URL handed to
 	// out-of-cluster clients (console, CLI) via the GET /api/v1/config endpoint.
-	// It has NO fallback to URL: empty means "observer not configured" and
-	// clients surface that loudly.
+	// Empty means "observer not configured" and clients surface that loudly.
 	PublicURL string
 }
 

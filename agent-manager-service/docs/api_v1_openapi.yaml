@@ -8605,62 +8605,6 @@ paths:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
 
-  /orgs/{orgName}/projects/{projName}/agents/{agentName}/monitors/{monitorName}/runs/{runId}/logs:
-    get:
-      summary: Get monitor run logs
-      description: Retrieves execution logs for a specific monitor run
-      operationId: getMonitorRunLogs
-      parameters:
-        - name: orgName
-          in: path
-          required: true
-          schema:
-            type: string
-          description: Organization name
-        - name: projName
-          in: path
-          required: true
-          schema:
-            type: string
-          description: Project name
-        - name: agentName
-          in: path
-          required: true
-          schema:
-            type: string
-          description: Agent name
-        - name: monitorName
-          in: path
-          required: true
-          schema:
-            type: string
-          description: Monitor name
-        - name: runId
-          in: path
-          required: true
-          schema:
-            type: string
-          description: Run ID
-      responses:
-        "200":
-          description: Monitor run logs
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/LogsResponse"
-        "404":
-          description: Monitor or run not found
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/ErrorResponse"
-        "500":
-          description: Internal server error
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/ErrorResponse"
-
   /orgs/{orgName}/projects/{projName}/agents/{agentName}/monitors/{monitorName}/scores:
     get:
       summary: Get evaluation scores for a monitor within a time range
@@ -12496,37 +12440,6 @@ components:
         - agentName
         - startedAt
         - buildParameters
-    LogEntry:
-      type: object
-      properties:
-        timestamp:
-          type: string
-          format: date-time
-        log:
-          type: string
-        logLevel:
-          type: string
-          enum: [INFO, WARN, ERROR, DEBUG]
-      required:
-        - timestamp
-        - log
-        - logLevel
-    LogsResponse:
-      type: object
-      properties:
-        logs:
-          type: array
-          items:
-            $ref: "#/components/schemas/LogEntry"
-        totalCount:
-          type: integer
-        tookMs:
-          type: number
-          format: float
-      required:
-        - logs
-        - totalCount
-        - tookMs
     BuildStep:
       type: object
       properties:
@@ -13564,6 +13477,7 @@ components:
       type: object
       required:
         - id
+        - runName
         - evaluators
         - traceStart
         - traceEnd
@@ -13573,6 +13487,10 @@ components:
           type: string
           description: Unique identifier for the run
           example: "660e8400-e29b-41d4-a716-446655440001"
+        runName:
+          type: string
+          description: Name of the underlying workflow run, used to query run logs from the observer
+          example: "customer-support-quality-660e8400"
         monitorName:
           type: string
           description: Name of the monitor

@@ -512,6 +512,7 @@ data:
           - { name: Trace Read, handle: trace-read, description: "Read agent execution traces" }
           - { name: Log Read, handle: log-read, description: "Read agent runtime logs" }
           - { name: Build Log Read, handle: build-log-read, description: "Read agent build logs" }
+          - { name: Monitor Log Read, handle: monitor-log-read, description: "Read monitor run logs" }
           - { name: Metric Read, handle: metric-read, description: "Read agent and system metrics" }
       - name: Role
         handle: role
@@ -575,6 +576,7 @@ data:
           - { name: Trace Read, handle: trace-read, description: "Read agent execution traces" }
           - { name: Log Read, handle: log-read, description: "Read agent runtime logs" }
           - { name: Build Log Read, handle: build-log-read, description: "Read agent build logs" }
+          - { name: Monitor Log Read, handle: monitor-log-read, description: "Read monitor run logs" }
           - { name: Metric Read, handle: metric-read, description: "Read agent and system metrics" }
     {{- else }}
       - name: Project
@@ -701,6 +703,7 @@ data:
           - "amp:observability:trace-read"
           - "amp:observability:log-read"
           - "amp:observability:build-log-read"
+          - "amp:observability:monitor-log-read"
           - "amp:observability:metric-read"
           - "amp:role:create"
           - "amp:role:read"
@@ -726,6 +729,7 @@ data:
           - "amp:observability:trace-read"
           - "amp:observability:log-read"
           - "amp:observability:build-log-read"
+          - "amp:observability:monitor-log-read"
           - "amp:observability:metric-read"
     {{- else }}
           - "amp:project:create"
@@ -805,6 +809,7 @@ data:
           - "amp:observability:trace-read"
           - "amp:observability:log-read"
           - "amp:observability:build-log-read"
+          - "amp:observability:monitor-log-read"
           - "amp:observability:metric-read"
           - "amp:agent-identity:read"
           - "amp:catalog:read"
@@ -819,6 +824,7 @@ data:
           - "amp:observability:trace-read"
           - "amp:observability:log-read"
           - "amp:observability:build-log-read"
+          - "amp:observability:monitor-log-read"
           - "amp:observability:metric-read"
     {{- else }}
           - "amp:project:create"
@@ -889,6 +895,7 @@ data:
           - "amp:monitor:execute"
           - "amp:monitor:score-read"
           - "amp:observability:trace-read"
+          - "amp:observability:monitor-log-read"
           - "amp:observability:metric-read"
           - "amp:catalog:read"
           - "amp:repository:read"
@@ -900,6 +907,7 @@ data:
         permissions:
     {{- if eq $server.permissionSet "observability-only" }}
           - "amp:observability:trace-read"
+          - "amp:observability:monitor-log-read"
           - "amp:observability:metric-read"
     {{- else }}
           - "amp:project:read"
@@ -982,6 +990,7 @@ data:
           - "amp:observability:trace-read"
           - "amp:observability:log-read"
           - "amp:observability:build-log-read"
+          - "amp:observability:monitor-log-read"
           - "amp:observability:metric-read"
           - "amp:agent-identity:read"
           - "amp:agent-identity:create"
@@ -998,6 +1007,7 @@ data:
           - "amp:observability:trace-read"
           - "amp:observability:log-read"
           - "amp:observability:build-log-read"
+          - "amp:observability:monitor-log-read"
           - "amp:observability:metric-read"
     {{- else }}
           - "amp:project:create"
@@ -1318,7 +1328,7 @@ data:
                 validityPeriod: {{ .Values.thunder.bootstrap.amObserverClient.accessTokenValidityPeriod }}
                 attributes: ["ouId", "ouHandle"]
 
-  {{- /* am-obs-mcp gets its OIDC scopes (amObsMcpClient.scopes) plus the four
+  {{- /* am-obs-mcp gets its OIDC scopes (amObsMcpClient.scopes) plus the five
        observability data-read scopes, single-sourced from
        thunder.bootstrap.observabilityScopes. */}}
   73-am-obs-mcp-client.yaml: |

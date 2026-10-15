@@ -96,6 +96,7 @@ var _ = Describe("SEC-PUB-002: Observer publisher confinement", Label("security"
 	confinedRoutes := []string{
 		"/api/v1/logs",
 		"/api/v1/build-logs",
+		"/api/v1/monitor-run-logs",
 		"/api/v1/metrics",
 	}
 	for _, path := range confinedRoutes {
@@ -104,6 +105,9 @@ var _ = Describe("SEC-PUB-002: Observer publisher confinement", Label("security"
 			actualPath := path + "?organization=" + cfg.DefaultOrg
 			if path == "/api/v1/build-logs" {
 				actualPath += "&buildId=e2e-test-sec-absent"
+			}
+			if path == "/api/v1/monitor-run-logs" {
+				actualPath += "&runName=e2e-test-sec-absent"
 			}
 			resp := observerGet(ctx, publisherClient.Token, actualPath)
 			defer resp.Body.Close()

@@ -56,7 +56,7 @@ observer_permissions = {
     for resource in observer["resources"]
     for action in resource.get("actions", [])
 }
-assert observer_permissions == {"trace-read", "log-read", "build-log-read", "metric-read"}
+assert observer_permissions == {"trace-read", "log-read", "build-log-read", "monitor-log-read", "metric-read"}
 
 for filename in (
     "61-amp-role-admin.yaml",

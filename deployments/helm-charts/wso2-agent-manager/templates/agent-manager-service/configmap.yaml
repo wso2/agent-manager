@@ -6,7 +6,6 @@ metadata:
   labels:
     {{- include "agent-management-platform.agentManagerService.labels" . | nindent 4 }}
 data:
-  AM_OBSERVER_URL: {{ .Values.agentManagerService.config.amObserverURL | quote }}
   # Externally reachable observer URL handed to out-of-cluster clients
   # (console bootstrap, CLI) via /api/v1/config. No internal fallback:
   # unset means clients surface "observer not configured".

@@ -682,6 +682,111 @@ func TestGetBuildLogs_MethodNotAllowed(t *testing.T) {
 	assertStatus(t, rec, http.StatusMethodNotAllowed)
 }
 
+// ── GetMonitorRunLogs ────────────────────────────────────────────────────────
+
+func TestGetMonitorRunLogs_MissingOrganization(t *testing.T) {
+	h := newHandler()
+	r := httptest.NewRequest(http.MethodGet, "/api/v1/monitor-run-logs?runName=run-1", nil)
+	rec := httptest.NewRecorder()
+	h.GetMonitorRunLogs(rec, r)
+	assertBadRequest(t, rec)
+}
+
+func TestGetMonitorRunLogs_MissingRunName(t *testing.T) {
+	h := newHandler()
+	r := httptest.NewRequest(http.MethodGet, "/api/v1/monitor-run-logs?organization=default", nil)
+	rec := httptest.NewRecorder()
+	h.GetMonitorRunLogs(rec, r)
+	assertBadRequest(t, rec)
+}
+
+func TestGetMonitorRunLogs_MethodNotAllowed(t *testing.T) {
+	h := newHandler()
+	r := httptest.NewRequest(http.MethodPost, "/api/v1/monitor-run-logs?organization=default&runName=run-1", nil)
+	rec := httptest.NewRecorder()
+	h.GetMonitorRunLogs(rec, r)
+	assertStatus(t, rec, http.StatusMethodNotAllowed)
+}
+
+func TestGetMonitorRunLogs_InvalidStartTime(t *testing.T) {
+	h := newHandler()
+	r := httptest.NewRequest(http.MethodGet, "/api/v1/monitor-run-logs?organization=default&runName=run-1&startTime=not-a-time&endTime=2026-04-01T01:00:00Z", nil)
+	rec := httptest.NewRecorder()
+	h.GetMonitorRunLogs(rec, r)
+	assertBadRequest(t, rec)
+}
+
+// A half-specified range is a caller bug, not something to guess at: guessing
+// the missing bound would silently return a window the caller never asked for.
+func TestGetMonitorRunLogs_HalfSpecifiedRangeRejected(t *testing.T) {
+	for _, q := range []string{"&startTime=2026-04-01T00:00:00Z", "&endTime=2026-04-01T01:00:00Z"} {
+		h := newHandler()
+		r := httptest.NewRequest(http.MethodGet, "/api/v1/monitor-run-logs?organization=default&runName=run-1"+q, nil)
+		rec := httptest.NewRecorder()
+		h.GetMonitorRunLogs(rec, r)
+		assertBadRequest(t, rec)
+	}
+}
+
+func TestGetMonitorRunLogs_TimeRangeExceeds14Days(t *testing.T) {
+	h := newHandler()
+	r := httptest.NewRequest(http.MethodGet, "/api/v1/monitor-run-logs?organization=default&runName=run-1&startTime=2026-04-01T00:00:00Z&endTime=2026-04-20T00:00:00Z", nil)
+	rec := httptest.NewRecorder()
+	h.GetMonitorRunLogs(rec, r)
+	assertBadRequest(t, rec)
+}
+
+func TestGetMonitorRunLogs_LimitTooHigh(t *testing.T) {
+	h := newHandler()
+	r := httptest.NewRequest(http.MethodGet, "/api/v1/monitor-run-logs?organization=default&runName=run-1&limit=99999", nil)
+	rec := httptest.NewRecorder()
+	h.GetMonitorRunLogs(rec, r)
+	assertBadRequest(t, rec)
+}
+
+// With no range supplied the handler falls back to the shared 30-day lookback,
+// so an MCP client that cannot know a run's timestamps still finds its logs.
+func TestGetMonitorRunLogs_NoRangeUsesDefaultWindow(t *testing.T) {
+	fake := &fakeObserverClient{}
+	h := NewHandler(nil, controllers.NewObservabilityController(fake))
+
+	before := time.Now()
+	r := httptest.NewRequest(http.MethodGet, "/api/v1/monitor-run-logs?organization=default&runName=run-1", nil)
+	rec := httptest.NewRecorder()
+	h.GetMonitorRunLogs(rec, r)
+	after := time.Now()
+
+	assertStatus(t, rec, http.StatusOK)
+	if fake.lastLogsReq.EndTime.Before(before) || fake.lastLogsReq.EndTime.After(after) {
+		t.Errorf("EndTime = %v, want between %v and %v", fake.lastLogsReq.EndTime, before, after)
+	}
+	gotWindow := fake.lastLogsReq.EndTime.Sub(fake.lastLogsReq.StartTime)
+	if gotWindow != controllers.DefaultWorkflowLogsWindow {
+		t.Errorf("window = %v, want %v", gotWindow, controllers.DefaultWorkflowLogsWindow)
+	}
+	if fake.lastLogsReq.Limit == nil || *fake.lastLogsReq.Limit != 1000 {
+		t.Errorf("Limit = %v, want the 1000 default", fake.lastLogsReq.Limit)
+	}
+}
+
+func TestGetMonitorRunLogs_ExplicitRangeAndLimitForwarded(t *testing.T) {
+	fake := &fakeObserverClient{}
+	h := NewHandler(nil, controllers.NewObservabilityController(fake))
+
+	r := httptest.NewRequest(http.MethodGet, "/api/v1/monitor-run-logs?organization=default&runName=run-1&startTime=2026-04-01T00:00:00Z&endTime=2026-04-01T00:05:00Z&limit=250", nil)
+	rec := httptest.NewRecorder()
+	h.GetMonitorRunLogs(rec, r)
+
+	assertStatus(t, rec, http.StatusOK)
+	wantStart := time.Date(2026, 4, 1, 0, 0, 0, 0, time.UTC)
+	if !fake.lastLogsReq.StartTime.Equal(wantStart) {
+		t.Errorf("StartTime = %v, want %v", fake.lastLogsReq.StartTime, wantStart)
+	}
+	if fake.lastLogsReq.Limit == nil || *fake.lastLogsReq.Limit != 250 {
+		t.Errorf("Limit = %v, want 250", fake.lastLogsReq.Limit)
+	}
+}
+
 // ── GetMetrics ───────────────────────────────────────────────────────────────
 
 func TestGetMetrics_MissingOrganization(t *testing.T) {

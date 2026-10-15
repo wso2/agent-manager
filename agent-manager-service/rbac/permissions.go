@@ -218,10 +218,11 @@ const (
 
 // Observability permissions — data-read scopes enforced by agent-manager-observer
 const (
-	ObservabilityTraceRead    Permission = "observability:trace-read"
-	ObservabilityLogRead      Permission = "observability:log-read"
-	ObservabilityBuildLogRead Permission = "observability:build-log-read"
-	ObservabilityMetricRead   Permission = "observability:metric-read"
+	ObservabilityTraceRead      Permission = "observability:trace-read"
+	ObservabilityLogRead        Permission = "observability:log-read"
+	ObservabilityBuildLogRead   Permission = "observability:build-log-read"
+	ObservabilityMonitorLogRead Permission = "observability:monitor-log-read"
+	ObservabilityMetricRead     Permission = "observability:metric-read"
 )
 
 // Role management permissions

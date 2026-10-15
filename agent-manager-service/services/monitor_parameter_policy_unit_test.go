@@ -53,7 +53,7 @@ func TestMonitorTemperatureValidation(t *testing.T) {
 				},
 			}
 			evaluators := NewEvaluatorManagerService(discardLogger(), cust, nil)
-			svc := NewMonitorManagerService(discardLogger(), nil, nil, nil, nil, evaluators, nil, nil, nil, nil, nil).(*monitorManagerService)
+			svc := NewMonitorManagerService(discardLogger(), nil, nil, nil, evaluators, nil, nil, nil, nil, nil).(*monitorManagerService)
 			configs := []models.MonitorEvaluator{{Identifier: "custom-policy-judge", DisplayName: "Judge", Config: tc.config}}
 			_, err := svc.validateEvaluators(context.Background(), "org-1", configs, func() (bool, error) {
 				return tc.optional, nil
@@ -79,7 +79,7 @@ func TestMonitorTemperaturePolicyLookupError(t *testing.T) {
 		},
 	}
 	evaluators := NewEvaluatorManagerService(discardLogger(), cust, nil)
-	svc := NewMonitorManagerService(discardLogger(), nil, nil, nil, nil, evaluators, nil, nil, nil, nil, nil).(*monitorManagerService)
+	svc := NewMonitorManagerService(discardLogger(), nil, nil, nil, evaluators, nil, nil, nil, nil, nil).(*monitorManagerService)
 	_, err := svc.validateEvaluators(context.Background(), "org-1", []models.MonitorEvaluator{{Identifier: "custom-policy-judge"}}, func() (bool, error) {
 		return false, lookupErr
 	})
@@ -108,7 +108,7 @@ func TestMonitorTemperatureEffectiveProvider(t *testing.T) {
 		},
 	}
 	provisioner := NewLLMProxyProvisioner(discardLogger(), providers, nil, nil, nil, nil, nil, nil, nil)
-	svc := NewMonitorManagerService(discardLogger(), nil, nil, nil, nil, nil, nil, nil, provisioner, mappings, nil).(*monitorManagerService)
+	svc := NewMonitorManagerService(discardLogger(), nil, nil, nil, nil, nil, nil, provisioner, mappings, nil).(*monitorManagerService)
 
 	optional, err := svc.monitorTemperatureOptional(context.Background(), "org-1", nil, monitorID)
 	require.NoError(t, err)

@@ -611,24 +611,6 @@ func ConvertToProjectListResponse(projects []*models.ProjectResponse) []spec.Pro
 	return responses
 }
 
-func ConvertToLogsResponse(buildLogs models.LogsResponse) spec.LogsResponse {
-	logEntries := make([]spec.LogEntry, len(buildLogs.Logs))
-	for i, logEntry := range buildLogs.Logs {
-		logEntries[i] = spec.LogEntry{
-			Timestamp: logEntry.Timestamp,
-			Log:       logEntry.Log,
-			LogLevel:  logEntry.LogLevel,
-		}
-	}
-	responses := spec.LogsResponse{
-		Logs:       logEntries,
-		TotalCount: buildLogs.TotalCount,
-		TookMs:     buildLogs.TookMs,
-	}
-
-	return responses
-}
-
 func ConvertToDataPlaneListResponse(dataPlanes []*models.DataPlaneResponse) []spec.DataPlane {
 	if len(dataPlanes) == 0 {
 		return []spec.DataPlane{}
@@ -829,6 +811,7 @@ func ConvertToMonitorRunResponse(run *models.MonitorRunResponse) spec.MonitorRun
 
 	response := spec.MonitorRunResponse{
 		Id:           run.ID,
+		RunName:      run.RunName,
 		Evaluators:   convertModelsEvaluatorsToSpec(run.Evaluators),
 		TraceStart:   run.TraceStart,
 		TraceEnd:     run.TraceEnd,

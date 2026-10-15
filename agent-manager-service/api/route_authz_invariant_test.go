@@ -162,10 +162,11 @@ func TestSecurityInvariantEveryRouteIsAuthorized(t *testing.T) {
 // the boundary actually lives, or admit that it does not exist.
 var declaredButUnenforcedPermissions = map[string]string{
 	// --- Enforced by a different service -----------------------------------
-	"ObservabilityTraceRead":    "enforced by agent-manager-observer (its own rbac package + RequirePermission)",
-	"ObservabilityLogRead":      "enforced by agent-manager-observer",
-	"ObservabilityMetricRead":   "enforced by agent-manager-observer",
-	"ObservabilityBuildLogRead": "enforced by agent-manager-observer",
+	"ObservabilityTraceRead":      "enforced by agent-manager-observer (its own rbac package + RequirePermission)",
+	"ObservabilityLogRead":        "enforced by agent-manager-observer",
+	"ObservabilityMetricRead":     "enforced by agent-manager-observer",
+	"ObservabilityMonitorLogRead": "enforced by agent-manager-observer",
+	"ObservabilityBuildLogRead":   "enforced by agent-manager-observer",
 
 	// --- Enforced by a different mechanism ---------------------------------
 	"MonitorScorePublish": "the publisher route uses PublisherClientAuthMiddleware (audience check) " +

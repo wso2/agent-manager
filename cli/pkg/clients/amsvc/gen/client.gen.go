@@ -796,9 +796,6 @@ type ClientInterface interface {
 	// ListMonitorRuns request
 	ListMonitorRuns(ctx context.Context, orgName string, projName string, agentName string, monitorName string, params *ListMonitorRunsParams, reqEditors ...RequestEditorFn) (*http.Response, error)
 
-	// GetMonitorRunLogs request
-	GetMonitorRunLogs(ctx context.Context, orgName string, projName string, agentName string, monitorName string, runId string, reqEditors ...RequestEditorFn) (*http.Response, error)
-
 	// RerunMonitor request
 	RerunMonitor(ctx context.Context, orgName string, projName string, agentName string, monitorName string, runId string, reqEditors ...RequestEditorFn) (*http.Response, error)
 
@@ -4005,18 +4002,6 @@ func (c *Client) UpdateMonitor(ctx context.Context, orgName string, projName str
 
 func (c *Client) ListMonitorRuns(ctx context.Context, orgName string, projName string, agentName string, monitorName string, params *ListMonitorRunsParams, reqEditors ...RequestEditorFn) (*http.Response, error) {
 	req, err := NewListMonitorRunsRequest(c.Server, orgName, projName, agentName, monitorName, params)
-	if err != nil {
-		return nil, err
-	}
-	req = req.WithContext(ctx)
-	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
-		return nil, err
-	}
-	return c.Client.Do(req)
-}
-
-func (c *Client) GetMonitorRunLogs(ctx context.Context, orgName string, projName string, agentName string, monitorName string, runId string, reqEditors ...RequestEditorFn) (*http.Response, error) {
-	req, err := NewGetMonitorRunLogsRequest(c.Server, orgName, projName, agentName, monitorName, runId)
 	if err != nil {
 		return nil, err
 	}
@@ -15071,68 +15056,6 @@ func NewListMonitorRunsRequest(server string, orgName string, projName string, a
 	return req, nil
 }
 
-// NewGetMonitorRunLogsRequest generates requests for GetMonitorRunLogs
-func NewGetMonitorRunLogsRequest(server string, orgName string, projName string, agentName string, monitorName string, runId string) (*http.Request, error) {
-	var err error
-
-	var pathParam0 string
-
-	pathParam0, err = runtime.StyleParamWithOptions("simple", false, "orgName", orgName, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: ""})
-	if err != nil {
-		return nil, err
-	}
-
-	var pathParam1 string
-
-	pathParam1, err = runtime.StyleParamWithOptions("simple", false, "projName", projName, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: ""})
-	if err != nil {
-		return nil, err
-	}
-
-	var pathParam2 string
-
-	pathParam2, err = runtime.StyleParamWithOptions("simple", false, "agentName", agentName, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: ""})
-	if err != nil {
-		return nil, err
-	}
-
-	var pathParam3 string
-
-	pathParam3, err = runtime.StyleParamWithOptions("simple", false, "monitorName", monitorName, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: ""})
-	if err != nil {
-		return nil, err
-	}
-
-	var pathParam4 string
-
-	pathParam4, err = runtime.StyleParamWithOptions("simple", false, "runId", runId, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: ""})
-	if err != nil {
-		return nil, err
-	}
-
-	serverURL, err := url.Parse(server)
-	if err != nil {
-		return nil, err
-	}
-
-	operationPath := fmt.Sprintf("/orgs/%s/projects/%s/agents/%s/monitors/%s/runs/%s/logs", pathParam0, pathParam1, pathParam2, pathParam3, pathParam4)
-	if operationPath[0] == '/' {
-		operationPath = "." + operationPath
-	}
-
-	queryURL, err := serverURL.Parse(operationPath)
-	if err != nil {
-		return nil, err
-	}
-
-	req, err := http.NewRequest("GET", queryURL.String(), nil)
-	if err != nil {
-		return nil, err
-	}
-
-	return req, nil
-}
-
 // NewRerunMonitorRequest generates requests for RerunMonitor
 func NewRerunMonitorRequest(server string, orgName string, projName string, agentName string, monitorName string, runId string) (*http.Request, error) {
 	var err error
@@ -17964,9 +17887,6 @@ type ClientWithResponsesInterface interface {
 
 	// ListMonitorRunsWithResponse request
 	ListMonitorRunsWithResponse(ctx context.Context, orgName string, projName string, agentName string, monitorName string, params *ListMonitorRunsParams, reqEditors ...RequestEditorFn) (*ListMonitorRunsResp, error)
-
-	// GetMonitorRunLogsWithResponse request
-	GetMonitorRunLogsWithResponse(ctx context.Context, orgName string, projName string, agentName string, monitorName string, runId string, reqEditors ...RequestEditorFn) (*GetMonitorRunLogsResp, error)
 
 	// RerunMonitorWithResponse request
 	RerunMonitorWithResponse(ctx context.Context, orgName string, projName string, agentName string, monitorName string, runId string, reqEditors ...RequestEditorFn) (*RerunMonitorResp, error)
@@ -22814,30 +22734,6 @@ func (r ListMonitorRunsResp) StatusCode() int {
 	return 0
 }
 
-type GetMonitorRunLogsResp struct {
-	Body         []byte
-	HTTPResponse *http.Response
-	JSON200      *LogsResponse
-	JSON404      *ErrorResponse
-	JSON500      *ErrorResponse
-}
-
-// Status returns HTTPResponse.Status
-func (r GetMonitorRunLogsResp) Status() string {
-	if r.HTTPResponse != nil {
-		return r.HTTPResponse.Status
-	}
-	return http.StatusText(0)
-}
-
-// StatusCode returns HTTPResponse.StatusCode
-func (r GetMonitorRunLogsResp) StatusCode() int {
-	if r.HTTPResponse != nil {
-		return r.HTTPResponse.StatusCode
-	}
-	return 0
-}
-
 type RerunMonitorResp struct {
 	Body         []byte
 	HTTPResponse *http.Response
@@ -25879,15 +25775,6 @@ func (c *ClientWithResponses) ListMonitorRunsWithResponse(ctx context.Context, o
 		return nil, err
 	}
 	return ParseListMonitorRunsResp(rsp)
-}
-
-// GetMonitorRunLogsWithResponse request returning *GetMonitorRunLogsResp
-func (c *ClientWithResponses) GetMonitorRunLogsWithResponse(ctx context.Context, orgName string, projName string, agentName string, monitorName string, runId string, reqEditors ...RequestEditorFn) (*GetMonitorRunLogsResp, error) {
-	rsp, err := c.GetMonitorRunLogs(ctx, orgName, projName, agentName, monitorName, runId, reqEditors...)
-	if err != nil {
-		return nil, err
-	}
-	return ParseGetMonitorRunLogsResp(rsp)
 }
 
 // RerunMonitorWithResponse request returning *RerunMonitorResp
@@ -34972,46 +34859,6 @@ func ParseListMonitorRunsResp(rsp *http.Response) (*ListMonitorRunsResp, error) 
 	switch {
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
 		var dest MonitorRunListResponse
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON200 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
-		var dest ErrorResponse
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON404 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
-		var dest ErrorResponse
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON500 = &dest
-
-	}
-
-	return response, nil
-}
-
-// ParseGetMonitorRunLogsResp parses an HTTP response from a GetMonitorRunLogsWithResponse call
-func ParseGetMonitorRunLogsResp(rsp *http.Response) (*GetMonitorRunLogsResp, error) {
-	bodyBytes, err := io.ReadAll(rsp.Body)
-	defer func() { _ = rsp.Body.Close() }()
-	if err != nil {
-		return nil, err
-	}
-
-	response := &GetMonitorRunLogsResp{
-		Body:         bodyBytes,
-		HTTPResponse: rsp,
-	}
-
-	switch {
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
-		var dest LogsResponse
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}

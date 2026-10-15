@@ -137,16 +137,13 @@ func loadEnvs() {
 
 	config.IsLocalDevEnv = r.readOptionalBool("IS_LOCAL_DEV_ENV", false)
 
-	// Observer service configuration. URL is used server-side (in-cluster) for
-	// monitor-run log fetches. PublicURL is handed to out-of-cluster clients
-	// (console, CLI) via GET /api/v1/config. It has NO internal-URL fallback:
-	// empty means "observer not configured" and clients surface that loudly.
+	// PublicURL is handed to out-of-cluster clients (console, CLI) via
+	// GET /api/v1/config. Empty means "observer not configured".
 	publicURLDefault := ""
 	if config.IsLocalDevEnv {
 		publicURLDefault = "http://localhost:9098"
 	}
 	config.Observer = ObserverConfig{
-		URL:       r.readOptionalString("AM_OBSERVER_URL", "http://localhost:9098"),
 		PublicURL: r.readOptionalString("AM_OBSERVER_PUBLIC_URL", publicURLDefault),
 	}
 
@@ -509,7 +506,6 @@ func validateObserverURLs(cfg *Config, r *configReader) {
 			r.errors = append(r.errors, fmt.Errorf("%s %q must have a non-empty host", envVar, raw))
 		}
 	}
-	validate("AM_OBSERVER_URL", cfg.Observer.URL)
 	validate("AM_OBSERVER_PUBLIC_URL", cfg.Observer.PublicURL)
 }
 

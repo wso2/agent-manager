@@ -210,6 +210,7 @@ thunder:
       - "amp:observability:trace-read"
       - "amp:observability:log-read"
       - "amp:observability:build-log-read"
+      - "amp:observability:monitor-log-read"
       - "amp:observability:metric-read"
     # Full list of AMP OAuth2 scopes that interactive clients are allowed to request.
     # Thunder only grants scopes that appear in an app's registered scope list, so all
@@ -303,6 +304,7 @@ thunder:
       - "amp:observability:trace-read"
       - "amp:observability:log-read"
       - "amp:observability:build-log-read"
+      - "amp:observability:monitor-log-read"
       - "amp:observability:metric-read"
       - "amp:role:create"
       - "amp:role:read"
@@ -500,7 +502,7 @@ thunder:
         - "ouHandle"
     # AMP Observer MCP Client configuration (public PKCE client for the
     # observer MCP server's interactive login). Allowed ONLY the OIDC scopes
-    # plus the four observability data-read scopes; the am-service MCP client
+    # plus the five observability data-read scopes; the am-service MCP client
     # (amMcpClient above) is allowed the rest of the catalog.
     # NOTE: pre-install bootstrap job only — see the upgrade note on
     # mcpResourceServers below / docs/reference/mcp-server.mdx.
@@ -525,7 +527,7 @@ thunder:
       accessTokenValidityPeriod: 3600
       idTokenValidityPeriod: 3600
       refreshTokenValidityPeriod: 2592000
-      # OIDC scopes only — the four observability data-read scopes are
+      # OIDC scopes only — the five observability data-read scopes are
       # appended from observabilityScopes at template render time
       # (73-am-obs-mcp-client.yaml).
       scopes:

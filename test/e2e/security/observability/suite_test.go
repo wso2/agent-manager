@@ -41,20 +41,21 @@ var Cfg *framework.Config
 
 var observerHTTPClient = &http.Client{Timeout: 30 * time.Second}
 
-// The four observability scopes, as the observer's rbac package builds them
+// The five observability scopes, as the observer's rbac package builds them
 // (rbac.Permission.Scope() → "amp:observability:<action>").
 const (
-	scopeTraceRead    = "amp:observability:trace-read"
-	scopeLogRead      = "amp:observability:log-read"
-	scopeBuildLogRead = "amp:observability:build-log-read"
-	scopeMetricRead   = "amp:observability:metric-read"
+	scopeTraceRead      = "amp:observability:trace-read"
+	scopeLogRead        = "amp:observability:log-read"
+	scopeBuildLogRead   = "amp:observability:build-log-read"
+	scopeMetricRead     = "amp:observability:metric-read"
+	scopeMonitorLogRead = "amp:observability:monitor-log-read"
 )
 
 // observabilityScopes is every scope the observer's data routes distinguish.
 // Each route is driven with its own scope (must pass) and with every other one
 // (must 403) — that off-diagonal is what proves the scopes are not
 // interchangeable, which a single positive test per route would miss.
-var observabilityScopes = []string{scopeTraceRead, scopeLogRead, scopeBuildLogRead, scopeMetricRead}
+var observabilityScopes = []string{scopeTraceRead, scopeLogRead, scopeBuildLogRead, scopeMonitorLogRead, scopeMetricRead}
 
 func TestSecurityObservability(t *testing.T) {
 	RegisterFailHandler(Fail)

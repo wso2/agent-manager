@@ -22,6 +22,8 @@ var _ MappedNullable = &MonitorRunResponse{}
 type MonitorRunResponse struct {
 	// Unique identifier for the run
 	Id string `json:"id"`
+	// Name of the underlying workflow run, used to query run logs from the observer
+	RunName string `json:"runName"`
 	// Name of the monitor
 	MonitorName *string `json:"monitorName,omitempty"`
 	// Evaluators used in this run (snapshot at run time)
@@ -46,9 +48,10 @@ type MonitorRunResponse struct {
 // This constructor will assign default values to properties that have it defined,
 // and makes sure properties required by API are set, but the set of arguments
 // will change when the set of required properties is changed
-func NewMonitorRunResponse(id string, evaluators []MonitorEvaluator, traceStart time.Time, traceEnd time.Time, status string) *MonitorRunResponse {
+func NewMonitorRunResponse(id string, runName string, evaluators []MonitorEvaluator, traceStart time.Time, traceEnd time.Time, status string) *MonitorRunResponse {
 	this := MonitorRunResponse{}
 	this.Id = id
+	this.RunName = runName
 	this.Evaluators = evaluators
 	this.TraceStart = traceStart
 	this.TraceEnd = traceEnd
@@ -86,6 +89,30 @@ func (o *MonitorRunResponse) GetIdOk() (*string, bool) {
 // SetId sets field value
 func (o *MonitorRunResponse) SetId(v string) {
 	o.Id = v
+}
+
+// GetRunName returns the RunName field value
+func (o *MonitorRunResponse) GetRunName() string {
+	if o == nil {
+		var ret string
+		return ret
+	}
+
+	return o.RunName
+}
+
+// GetRunNameOk returns a tuple with the RunName field value
+// and a boolean to check if the value has been set.
+func (o *MonitorRunResponse) GetRunNameOk() (*string, bool) {
+	if o == nil {
+		return nil, false
+	}
+	return &o.RunName, true
+}
+
+// SetRunName sets field value
+func (o *MonitorRunResponse) SetRunName(v string) {
+	o.RunName = v
 }
 
 // GetMonitorName returns the MonitorName field value if set, zero value otherwise.
@@ -355,6 +382,7 @@ func (o MonitorRunResponse) MarshalJSON() ([]byte, error) {
 func (o MonitorRunResponse) ToMap() (map[string]interface{}, error) {
 	toSerialize := map[string]interface{}{}
 	toSerialize["id"] = o.Id
+	toSerialize["runName"] = o.RunName
 	if !IsNil(o.MonitorName) {
 		toSerialize["monitorName"] = o.MonitorName
 	}

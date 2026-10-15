@@ -89,7 +89,4 @@ func registerMonitorRoutes(rr *middleware.RouteRegistrar, controller controllers
 	// POST /orgs/{orgName}/projects/{projName}/agents/{agentName}/monitors/{monitorName}/runs/{runId}/rerun - Create a new run with same time parameters
 	rr.HandleFuncWithValidationAndAuthz(route("POST", base+"/{monitorName}/runs/{runId}/rerun"), rbac.MonitorExecute,
 		growthanalytics.Track("amp.observability.create-monitor.rerun", actionDims("reran-monitor"), controller.RerunMonitor))
-
-	// GET /orgs/{orgName}/projects/{projName}/agents/{agentName}/monitors/{monitorName}/runs/{runId}/logs - Get monitor run logs
-	rr.HandleFuncWithValidationAndAuthz(route("GET", base+"/{monitorName}/runs/{runId}/logs"), rbac.MonitorRead, controller.GetMonitorRunLogs)
 }

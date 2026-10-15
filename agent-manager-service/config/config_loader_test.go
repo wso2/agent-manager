@@ -176,47 +176,39 @@ func TestValidateServerPublicURL(t *testing.T) {
 func TestValidateObserverURLs(t *testing.T) {
 	tests := []struct {
 		name        string
-		url         string
 		publicURL   string
 		wantErrors  int
 		errContains string
 	}{
 		{
-			name:       "valid in-cluster and public URLs",
-			url:        "http://amp-observer.openchoreo-observability-plane.svc.cluster.local:9098",
+			name:       "valid public URL",
 			publicURL:  "https://observer.example.com",
 			wantErrors: 0,
 		},
 		{
 			name:       "valid http URL with port",
-			url:        "http://localhost:9098",
 			publicURL:  "http://localhost:9098",
 			wantErrors: 0,
 		},
 		{
-			name:        "malformed in-cluster URL rejected",
-			url:         "not-a-url",
-			publicURL:   "https://observer.example.com",
-			wantErrors:  2, // missing scheme + missing host
-			errContains: "AM_OBSERVER_URL",
+			name:       "empty public URL is allowed",
+			publicURL:  "",
+			wantErrors: 0,
 		},
 		{
 			name:        "malformed public URL rejected",
-			url:         "http://localhost:9098",
 			publicURL:   "not-a-url",
 			wantErrors:  2, // missing scheme + missing host
 			errContains: "AM_OBSERVER_PUBLIC_URL",
 		},
 		{
 			name:        "non-http(s) scheme rejected",
-			url:         "ftp://observer.example.com",
-			publicURL:   "https://observer.example.com",
+			publicURL:   "ftp://observer.example.com",
 			wantErrors:  1,
 			errContains: "must use http or https",
 		},
 		{
 			name:        "missing host rejected",
-			url:         "http://localhost:9098",
 			publicURL:   "https://",
 			wantErrors:  1,
 			errContains: "must have a non-empty host",
@@ -225,7 +217,7 @@ func TestValidateObserverURLs(t *testing.T) {
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			cfg := &Config{Observer: ObserverConfig{URL: tc.url, PublicURL: tc.publicURL}}
+			cfg := &Config{Observer: ObserverConfig{PublicURL: tc.publicURL}}
 			r := &configReader{}
 			validateObserverURLs(cfg, r)
 
@@ -465,16 +457,13 @@ func TestLoadEnvs_ObserverConfig(t *testing.T) {
 		}
 	}
 
-	t.Run("defaults: URL set, PublicURL empty", func(t *testing.T) {
+	t.Run("defaults: PublicURL empty", func(t *testing.T) {
 		setEnv(t, requiredEnv)
 		// Pinned rather than left ambient: .env.test sets IS_LOCAL_DEV_ENV=true, which would
 		// otherwise supply the localhost PublicURL default this case exists to rule out.
 		t.Setenv("IS_LOCAL_DEV_ENV", "false")
 		loadEnvs()
 
-		if got := config.Observer.URL; got != "http://localhost:9098" {
-			t.Errorf("Observer.URL = %q, want %q", got, "http://localhost:9098")
-		}
 		if got := config.Observer.PublicURL; got != "" {
 			t.Errorf("Observer.PublicURL = %q, want empty", got)
 		}
@@ -498,16 +487,6 @@ func TestLoadEnvs_ObserverConfig(t *testing.T) {
 
 		if got := config.Observer.PublicURL; got != "https://observer.example.com" {
 			t.Errorf("Observer.PublicURL = %q, want %q", got, "https://observer.example.com")
-		}
-	})
-
-	t.Run("explicit AM_OBSERVER_URL wins over default", func(t *testing.T) {
-		setEnv(t, requiredEnv)
-		t.Setenv("AM_OBSERVER_URL", "http://observer.internal:9099")
-		loadEnvs()
-
-		if got := config.Observer.URL; got != "http://observer.internal:9099" {
-			t.Errorf("Observer.URL = %q, want %q", got, "http://observer.internal:9099")
 		}
 	})
 }

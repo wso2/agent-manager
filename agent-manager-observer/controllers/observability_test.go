@@ -452,3 +452,41 @@ func TestGetMetrics_AlignsWindowToStep(t *testing.T) {
 		}
 	}
 }
+
+// GetMonitorRunLogs passes the caller's window and limit straight through —
+// unlike GetBuildLogs it imposes no window of its own — while still building
+// the same WorkflowSearchScope and ascending sort.
+func TestGetMonitorRunLogs_PassesCallerWindowAndLimitThrough(t *testing.T) {
+	fake := &fakeObservabilityClient{defaultNamespace: "ns-1"}
+	c := NewObservabilityController(fake)
+
+	start := time.Date(2026, 4, 1, 10, 0, 0, 0, time.UTC)
+	end := time.Date(2026, 4, 1, 10, 5, 0, 0, time.UTC)
+
+	if _, err := c.GetMonitorRunLogs(context.Background(), "org-1", "monitor-1-abc12345", start, end, 250); err != nil {
+		t.Fatalf("GetMonitorRunLogs returned error: %v", err)
+	}
+
+	scope, ok := fake.lastLogsReq.SearchScope.(observer.WorkflowSearchScope)
+	if !ok {
+		t.Fatalf("expected WorkflowSearchScope, got %T", fake.lastLogsReq.SearchScope)
+	}
+	if scope.Namespace != "ns-1" {
+		t.Errorf("scope.Namespace = %q, want ns-1", scope.Namespace)
+	}
+	if scope.WorkflowRunName == nil || *scope.WorkflowRunName != "monitor-1-abc12345" {
+		t.Errorf("scope.WorkflowRunName = %v, want monitor-1-abc12345", scope.WorkflowRunName)
+	}
+	if !fake.lastLogsReq.StartTime.Equal(start) {
+		t.Errorf("StartTime = %v, want %v", fake.lastLogsReq.StartTime, start)
+	}
+	if !fake.lastLogsReq.EndTime.Equal(end) {
+		t.Errorf("EndTime = %v, want %v", fake.lastLogsReq.EndTime, end)
+	}
+	if fake.lastLogsReq.Limit == nil || *fake.lastLogsReq.Limit != 250 {
+		t.Errorf("Limit = %v, want 250", fake.lastLogsReq.Limit)
+	}
+	if fake.lastLogsReq.SortOrder == nil || *fake.lastLogsReq.SortOrder != "asc" {
+		t.Errorf("SortOrder = %v, want asc", fake.lastLogsReq.SortOrder)
+	}
+}

@@ -33,7 +33,10 @@ import {
   DrawerHeader,
   LogsPanel,
 } from "@agent-management-platform/views";
-import { useMonitorRunLogs } from "@agent-management-platform/api-client";
+import {
+  useMonitorRunLogs,
+  isObserverConfigured,
+} from "@agent-management-platform/api-client";
 import {
   type EvaluationLevel,
   type EvaluatorScoreSummary,
@@ -63,33 +66,40 @@ const RUN_STATUS_LABEL_MAP: Record<MonitorRunStatus, string> = {
 export interface MonitorRunDrawerProps {
   run: MonitorRunResponse;
   orgName: string;
-  projectName: string;
-  agentName: string;
-  monitorName: string;
   onClose: () => void;
   onFullscreenChange?: (fullscreen: boolean) => void;
   traceWindowLabel: string;
   durationLabel: string;
 }
 
+const ONE_HOUR_MS = 60 * 60 * 1000;
+
+const startedAtPlusOneHour = (startedAt: string) =>
+  new Date(Date.parse(startedAt) + ONE_HOUR_MS).toISOString();
+
+const earlierOf = (completedAt: string | undefined, bound: string) =>
+  completedAt && Date.parse(completedAt) <= Date.parse(bound) ? completedAt : bound;
+
 export function MonitorRunDrawer({
   run,
   orgName,
-  projectName,
-  agentName,
-  monitorName,
   onClose,
   onFullscreenChange,
   traceWindowLabel,
   durationLabel,
 }: MonitorRunDrawerProps) {
-  const { data, isLoading, error } = useMonitorRunLogs({
-    orgName,
-    projName: projectName,
-    agentName,
-    monitorName,
-    runId: run.id ?? "",
-  });
+  // Runs are force-completed after 45m, so startedAt+1h bounds any real run (never "now").
+  const logRange = run.startedAt
+    ? {
+        startTime: run.startedAt,
+        endTime: earlierOf(run.completedAt, startedAtPlusOneHour(run.startedAt)),
+      }
+    : undefined;
+
+  const { data, isLoading, error } = useMonitorRunLogs(
+    { organization: orgName, runName: run.runName, ...logRange },
+    run.status,
+  );
 
   const theme = useTheme();
   const isDark = theme.palette.mode === "dark";
@@ -147,6 +157,27 @@ export function MonitorRunDrawer({
       iconColor: "secondary" as const,
     },
   ];
+
+  if (!isObserverConfigured()) {
+    return (
+      <Stack direction="column" height="100%" width="100%">
+        <DrawerHeader
+          icon={<Logs size={24} />}
+          title="Run Details"
+          onClose={onClose}
+          isFullscreen={isFullscreen}
+          onToggleFullscreen={handleToggleFullscreen}
+        />
+        <DrawerContent>
+          <Alert severity="error" sx={{ mt: 2 }}>
+            <strong>Observer not configured.</strong> Ask your platform
+            administrator to set <code>AM_OBSERVER_PUBLIC_URL</code> on the
+            agent-manager service.
+          </Alert>
+        </DrawerContent>
+      </Stack>
+    );
+  }
 
   return (
     <Stack direction="column" height="100%" width="100%">

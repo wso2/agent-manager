@@ -55,24 +55,3 @@ type PromotionPath struct {
 type TargetEnvironmentRef struct {
 	Name string `json:"name"`
 }
-
-type LogEntry struct {
-	Timestamp     time.Time         `json:"timestamp"`
-	Log           string            `json:"log"`
-	LogLevel      string            `json:"logLevel"` // ERROR, WARN, INFO, DEBUG
-	ComponentId   string            `json:"componentId"`
-	EnvironmentId string            `json:"environmentId"`
-	ProjectId     string            `json:"projectId"`
-	Version       string            `json:"version"`
-	VersionId     string            `json:"versionId"`
-	Namespace     string            `json:"namespace"`
-	PodId         string            `json:"podId"`
-	ContainerName string            `json:"containerName"`
-	Labels        map[string]string `json:"labels"`
-}
-
-type LogsResponse struct {
-	Logs       []LogEntry `json:"logs"`
-	TotalCount int32      `json:"totalCount"`
-	TookMs     float32    `json:"tookMs"`
-}

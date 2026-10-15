@@ -27,7 +27,7 @@ import (
 )
 
 // Verifies that every tool described by allToolSpecs is actually registered
-// on a fully-wired MCP server, and that there are exactly seven of them.
+// on a fully-wired MCP server, and that there are exactly eight of them.
 func TestToolRegistration(t *testing.T) {
 	clientSession, _ := setupTestServer(t)
 
@@ -37,7 +37,7 @@ func TestToolRegistration(t *testing.T) {
 		t.Fatalf("ListTools failed: %v", err)
 	}
 
-	if got, want := len(toolsResult.Tools), 7; got != want {
+	if got, want := len(toolsResult.Tools), 8; got != want {
 		t.Errorf("registered tool count: got %d, want %d", got, want)
 	}
 

@@ -30,12 +30,18 @@ const (
 	buildLogsWindow = 30 * 24 * time.Hour
 	// buildLogsLimit is the fixed max number of log lines GetBuildLogs fetches.
 	buildLogsLimit = 1000
-	// buildLogsSortOrder is the fixed sort order GetBuildLogs requests (oldest first).
-	buildLogsSortOrder = "asc"
+	// workflowLogsSortOrder is the sort order every workflow-log query
+	// requests (oldest first).
+	workflowLogsSortOrder = "asc"
 	// maxMetricsPoints caps how many points a metrics series may have; the
 	// step is the smallest entry of metricsSteps that stays within it.
 	maxMetricsPoints = 200
 )
+
+// DefaultWorkflowLogsWindow is the lookback a caller falls back to when it
+// cannot supply an explicit range for GetMonitorRunLogs — an MCP client has no
+// access to the monitor_runs table and so cannot know a run's timestamps.
+const DefaultWorkflowLogsWindow = buildLogsWindow
 
 // metricsSteps are the query resolutions GetMetrics chooses between.
 var metricsSteps = []time.Duration{
@@ -137,13 +143,13 @@ func (c *ObservabilityController) GetLogs(ctx context.Context, params LogsQueryP
 	return convertLogsQueryResponse(resp), nil
 }
 
-// GetBuildLogs fetches workflow log entries for an Argo build run, over a
-// fixed 30-day window, oldest-first, capped at 1000 lines.
-func (c *ObservabilityController) GetBuildLogs(ctx context.Context, organization, buildName string) (*LogsResponse, error) {
-	endTime := time.Now()
-	startTime := endTime.Add(-buildLogsWindow)
-	limit := buildLogsLimit
-	sortOrder := buildLogsSortOrder
+// queryWorkflowLogs fetches log entries for a single Argo workflow run over an
+// explicit window, oldest-first.
+func (c *ObservabilityController) queryWorkflowLogs(
+	ctx context.Context, organization, runName string,
+	startTime, endTime time.Time, limit int,
+) (*LogsResponse, error) {
+	sortOrder := workflowLogsSortOrder
 
 	req := observer.LogsQueryRequest{
 		StartTime: startTime,
@@ -152,7 +158,7 @@ func (c *ObservabilityController) GetBuildLogs(ctx context.Context, organization
 		SortOrder: &sortOrder,
 		SearchScope: observer.WorkflowSearchScope{
 			Namespace:       c.observerClient.NamespaceFor(organization),
-			WorkflowRunName: &buildName,
+			WorkflowRunName: &runName,
 		},
 	}
 
@@ -162,6 +168,23 @@ func (c *ObservabilityController) GetBuildLogs(ctx context.Context, organization
 	}
 
 	return convertLogsQueryResponse(resp), nil
+}
+
+// GetBuildLogs fetches workflow log entries for an Argo build run, over a
+// fixed 30-day window, oldest-first, capped at 1000 lines.
+func (c *ObservabilityController) GetBuildLogs(ctx context.Context, organization, buildName string) (*LogsResponse, error) {
+	endTime := time.Now()
+	return c.queryWorkflowLogs(ctx, organization, buildName, endTime.Add(-buildLogsWindow), endTime, buildLogsLimit)
+}
+
+// GetMonitorRunLogs fetches workflow log entries for a monitor run over the
+// window the caller asked for. Unlike build runs, a monitor run can be
+// arbitrarily old, so the window is the caller's to choose.
+func (c *ObservabilityController) GetMonitorRunLogs(
+	ctx context.Context, organization, runName string,
+	startTime, endTime time.Time, limit int,
+) (*LogsResponse, error) {
+	return c.queryWorkflowLogs(ctx, organization, runName, startTime, endTime, limit)
 }
 
 // GetMetrics fetches a resource metrics time series matching the given params.

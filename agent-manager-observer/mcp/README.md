@@ -33,7 +33,7 @@ JWT middleware, which means every tool call goes through the standard OAuth
    - `--client-id am-obs-mcp` matches the observer's dedicated public PKCE
      OAuth client registered in Thunder (provisioned automatically by the
      `wso2-amp-thunder-extension` chart). It is allowed only the OIDC
-     scopes plus the four `amp:observability:*-read` scopes — the
+     scopes plus the five `amp:observability:*-read` scopes — the
      am-service MCP client (`am-mcp`) cannot be used here.
    - `--callback-port 33419` pins Claude Code's local OAuth listener to a
      fixed port that matches the redirect URI registered in Thunder
@@ -61,6 +61,7 @@ JWT middleware, which means every tool call goes through the standard OAuth
 | --- | --- |
 | `get_runtime_logs` | Runtime logs for an agent, filterable by time window, level, sort order, or text search |
 | `get_build_logs` | Step-by-step build output for a specific build of an internal agent |
+| `get_monitor_run_logs` | Logs for a specific monitor evaluation run (requires `amp:observability:monitor-log-read`). `start_time` and `end_time` are optional but must be supplied together, `start_time` must not be in the future, and the range is capped at 14 days; with both omitted it looks back 30 days |
 | `get_metrics` | CPU/memory usage, request and limit metrics for an agent over a time range |
 
 ## Configuration
@@ -71,7 +72,7 @@ discovery is controlled by three env vars (see `.env.example`):
 ```bash
 SERVER_PUBLIC_URL=http://traces.amp.localhost:11080
 OAUTH_AUTHORIZATION_SERVERS=http://thunder.amp.localhost:8080
-OAUTH_SCOPES_SUPPORTED=amp:observability:trace-read,amp:observability:log-read,amp:observability:build-log-read,amp:observability:metric-read
+OAUTH_SCOPES_SUPPORTED=amp:observability:trace-read,amp:observability:log-read,amp:observability:build-log-read,amp:observability:monitor-log-read,amp:observability:metric-read
 ```
 
 When either `SERVER_PUBLIC_URL` or `OAUTH_AUTHORIZATION_SERVERS` is unset,

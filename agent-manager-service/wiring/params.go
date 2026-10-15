@@ -26,7 +26,6 @@ import (
 	"gorm.io/gorm"
 
 	"github.com/wso2/agent-manager/agent-manager-service/audit"
-	observersvc "github.com/wso2/agent-manager/agent-manager-service/clients/observersvc"
 	occlient "github.com/wso2/agent-manager/agent-manager-service/clients/openchoreosvc/client"
 	"github.com/wso2/agent-manager/agent-manager-service/clients/secretmanagersvc"
 
@@ -90,8 +89,7 @@ type AppParams struct {
 	EnvironmentService            services.EnvironmentService
 
 	// Clients
-	OpenChoreoClient  occlient.OpenChoreoClient
-	ObserverSvcClient observersvc.ObserverSvcClient
+	OpenChoreoClient occlient.OpenChoreoClient
 
 	// WebSocket
 	WebSocketManager *websocket.Manager
@@ -105,9 +103,8 @@ type AppParams struct {
 
 // TestClients contains all mock clients needed for testing
 type TestClients struct {
-	OpenChoreoClient  occlient.OpenChoreoClient
-	SecretMgmtClient  secretmanagersvc.SecretManagementClient
-	ObserverSvcClient observersvc.ObserverSvcClient
+	OpenChoreoClient occlient.OpenChoreoClient
+	SecretMgmtClient secretmanagersvc.SecretManagementClient
 }
 
 func ProvideConfigFromPtr(config *config.Config) config.Config {

@@ -116,6 +116,7 @@ func newHandler(cfg *config.Config, tokenProvider observer.TokenProvider) http.H
 	requireTrace := middleware.RequirePermission(rbac.TraceRead)
 	requireLog := middleware.RequirePermission(rbac.LogRead)
 	requireBuildLog := middleware.RequirePermission(rbac.BuildLogRead)
+	requireMonitorLog := middleware.RequirePermission(rbac.MonitorLogRead)
 	requireMetric := middleware.RequirePermission(rbac.MetricRead)
 
 	apiMux.Handle("/api/v1/traces", requireTrace(http.HandlerFunc(handler.GetTraceOverviews)))
@@ -134,6 +135,7 @@ func newHandler(cfg *config.Config, tokenProvider observer.TokenProvider) http.H
 	// former RejectPublisherAudience guard).
 	apiMux.Handle("/api/v1/logs", requireLog(http.HandlerFunc(handler.GetLogs)))
 	apiMux.Handle("/api/v1/build-logs", requireBuildLog(http.HandlerFunc(handler.GetBuildLogs)))
+	apiMux.Handle("/api/v1/monitor-run-logs", requireMonitorLog(http.HandlerFunc(handler.GetMonitorRunLogs)))
 	apiMux.Handle("/api/v1/metrics", requireMetric(http.HandlerFunc(handler.GetMetrics)))
 
 	slog.Info("v1 observer-backed routes registered", "observerBaseURL", cfg.Observer.BaseURL)
