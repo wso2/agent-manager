@@ -71,7 +71,7 @@ func TestRegisterGateway_DeprecatedAliasesDecodeAndNormalize(t *testing.T) {
 				},
 			}
 			svc := services.NewPlatformGatewayService(gatewayRepo, nil)
-			ctrl := NewGatewayController(svc, nil)
+			ctrl := NewGatewayController(svc, nil, nil)
 
 			body := `{"name":"gw-` + strings.ToLower(tt.gatewayType) + `","displayName":"Gateway",` +
 				`"gatewayType":"` + tt.gatewayType + `","vhost":"gw.example.com"}`
@@ -96,7 +96,7 @@ func TestRegisterGateway_DeprecatedAliasesDecodeAndNormalize(t *testing.T) {
 func TestRegisterGateway_UnknownGatewayTypeRejected(t *testing.T) {
 	gatewayRepo := &repomocks.GatewayRepositoryMock{} // no calls expected
 	svc := services.NewPlatformGatewayService(gatewayRepo, nil)
-	ctrl := NewGatewayController(svc, nil)
+	ctrl := NewGatewayController(svc, nil, nil)
 
 	body := `{"name":"gw-1","displayName":"Gateway","gatewayType":"SIDEWAYS","vhost":"gw.example.com"}`
 	req := httptest.NewRequest(http.MethodPost, "/orgs/o1/gateways", strings.NewReader(body))
