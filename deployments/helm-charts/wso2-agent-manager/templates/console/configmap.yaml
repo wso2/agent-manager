@@ -53,15 +53,6 @@ data:
   # 1000000 as "1e+06".
   MAX_REQUEST_BODY_BYTES: {{ dig "maxRequestBodyBytes" 0 .Values.console.config | int | quote }}
   FILE_MOUNT_MAX_FILE_BYTES: {{ .Values.console.config.fileMountMaxFileBytes | default (dig "fileMountLimits" "maxFileBytes" 1000000 .Values.agentManagerService.config) | int | quote }}
-  # Guardrails configuration
-  GUARDRAILS_CATALOG_URL: {{ .Values.console.config.guardrailsCatalogUrl | default "" | quote }}
-  GUARDRAILS_DEFINITION_BASE_URL: {{ .Values.console.config.guardrailsDefinitionBaseUrl | default "" | quote }}
-  # Guardrail capability flags — enable policies that require external system configuration
-  GUARDRAIL_CAP_AWS_BEDROCK: {{ dig "guardrailCapabilities" "awsBedrock" false .Values.console.config | quote }}
-  GUARDRAIL_CAP_AZURE_CONTENT_SAFETY: {{ dig "guardrailCapabilities" "azureContentSafety" false .Values.console.config | quote }}
-  GUARDRAIL_CAP_GRANITE_GUARDIAN: {{ dig "guardrailCapabilities" "graniteGuardian" false .Values.console.config | quote }}
-  GUARDRAIL_CAP_NEMO_GUARD: {{ dig "guardrailCapabilities" "nemoGuard" false .Values.console.config | quote }}
-  GUARDRAIL_CAP_SEMANTIC_GUARDRAILS: {{ dig "guardrailCapabilities" "semanticGuardrails" false .Values.console.config | quote }}
   # Feature flags — all default to false (disabled) unless explicitly enabled.
   FEATURE_FLAG_ENABLE_PRIVATE_REPO_SUPPORT: {{ dig "featureFlags" "enablePrivateRepoSupport" false .Values.console.config | quote }}
   FEATURE_FLAG_ENABLE_IDENTITY_PROVIDER_MANAGED_MODE: {{ dig "featureFlags" "enableIdentityProviderManagedMode" false .Values.console.config | quote }}

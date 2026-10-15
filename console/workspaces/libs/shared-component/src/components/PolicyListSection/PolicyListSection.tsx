@@ -59,7 +59,6 @@ export interface PolicyListSectionProps {
    */
   providerId?: string;
   filterPolicies?: (policies: GuardrailDefinition[]) => GuardrailDefinition[];
-  getPolicyDefinitionVersion?: (policy: GuardrailDefinition) => string;
   title?: string;
   description?: string;
   addButtonLabel?: string;
@@ -88,7 +87,6 @@ export const PolicyListSection: React.FC<PolicyListSectionProps> = ({
   catalogError,
   providerId,
   filterPolicies,
-  getPolicyDefinitionVersion,
   title = "Policies",
   description = "Add policies to enforce consistent protections.",
   addButtonLabel = "Add Policy",
@@ -339,7 +337,6 @@ export const PolicyListSection: React.FC<PolicyListSectionProps> = ({
         catalogError={catalogError}
         providerId={providerId}
         filterPolicies={filterPolicies}
-        getPolicyDefinitionVersion={getPolicyDefinitionVersion}
         disabledPolicyKeys={
           editingPolicy
             ? []

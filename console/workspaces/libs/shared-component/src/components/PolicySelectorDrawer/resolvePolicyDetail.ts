@@ -18,52 +18,23 @@
 
 import type { GuardrailDefinition } from "@agent-management-platform/api-client";
 import {
-  parsePolicyYaml,
   normalizeRootSchema,
   type PolicyDefinition,
 } from "../../utils/policyParameterEditor";
 
 /**
- * True for gateway-manifest-sourced policies (see useLLMPoliciesCatalog), which already
- * carry their parameter schema inline. Hub-sourced policies (MCP, and any other future
- * non-gateway source) never set `parameters`, so this is naturally always false there.
- */
-export function hasInlinePolicyDefinition(policy: GuardrailDefinition): boolean {
-  return policy.parameters !== undefined;
-}
-
-export type ResolvedPolicyDetail =
-  | { policyDefinition: PolicyDefinition; parseError: null }
-  | { policyDefinition: null; parseError: string | null };
-
-/**
- * Derives the policy's configuration schema either from its inline `parameters` (no
- * network round-trip) or by parsing a fetched YAML definition — mirroring whichever
- * source `useGuardrailPolicyDefinition` was actually asked to fetch.
+ * Derives the policy's configuration schema from the parameter schemas the LLM and
+ * MCP policy listings carry inline (reported by the gateway manifest), so opening a
+ * policy never needs a definition round-trip.
  */
 export function resolvePolicyDetail(
   policy: GuardrailDefinition,
-  yamlText: string | undefined,
-): ResolvedPolicyDetail {
-  if (hasInlinePolicyDefinition(policy)) {
-    return {
-      policyDefinition: {
-        name: policy.name,
-        version: policy.version,
-        description: policy.description ?? "",
-        parameters: normalizeRootSchema(policy.parameters),
-        systemParameters: normalizeRootSchema(policy.systemParameters),
-      },
-      parseError: null,
-    };
-  }
-  if (!yamlText) return { policyDefinition: null, parseError: null };
-  try {
-    return { policyDefinition: parsePolicyYaml(yamlText), parseError: null };
-  } catch {
-    return {
-      policyDefinition: null,
-      parseError: "Failed to parse policy definition.",
-    };
-  }
+): PolicyDefinition {
+  return {
+    name: policy.name,
+    version: policy.version,
+    description: policy.description ?? "",
+    parameters: normalizeRootSchema(policy.parameters),
+    systemParameters: normalizeRootSchema(policy.systemParameters),
+  };
 }

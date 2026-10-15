@@ -32,6 +32,7 @@ import (
 	"github.com/jackc/pgx/v5/pgconn"
 	"gorm.io/gorm"
 
+	"github.com/wso2/agent-manager/agent-manager-service/clients/policyhub"
 	"github.com/wso2/agent-manager/agent-manager-service/models"
 	"github.com/wso2/agent-manager/agent-manager-service/repositories"
 	"github.com/wso2/agent-manager/agent-manager-service/utils"
@@ -71,6 +72,7 @@ type LLMProviderService struct {
 	agentMappingRepo   repositories.EnvAgentModelMappingRepository
 	monitorMappingRepo repositories.MonitorLLMMappingRepository
 	apiKeyService      *LLMProviderAPIKeyService
+	policyHub          policyhub.Client
 
 	// proxySyncLocks serialises dependent-proxy syncs per provider. Zero value is
 	// usable, so it needs no wiring in the constructor.
@@ -103,6 +105,7 @@ func NewLLMProviderService(
 	agentMappingRepo repositories.EnvAgentModelMappingRepository,
 	monitorMappingRepo repositories.MonitorLLMMappingRepository,
 	apiKeyService *LLMProviderAPIKeyService,
+	policyHub policyhub.Client,
 ) *LLMProviderService {
 	return &LLMProviderService{
 		db:                 db,
@@ -117,6 +120,7 @@ func NewLLMProviderService(
 		agentMappingRepo:   agentMappingRepo,
 		monitorMappingRepo: monitorMappingRepo,
 		apiKeyService:      apiKeyService,
+		policyHub:          policyHub,
 	}
 }
 
@@ -473,15 +477,14 @@ func (s *LLMProviderService) List(ouID string, limit, offset int) ([]*models.LLM
 	return providers, totalCount, nil
 }
 
-// ListAvailableLLMPolicies returns full guardrail policy definitions reported by active
-// gateways in the organization, so the console can list and configure them directly
-// without depending on the external policy hub. When providerID is non-empty, the result
-// is scoped to the gateways that provider is currently deployed to, instead of every
-// active gateway in the org.
+// ListAvailableLLMPolicies returns the display-ready LLM policies reported by active
+// gateways in the organization: each gateway definition (version, parameter schema) is
+// enriched with policy hub metadata, and MCP-exclusive policies are left out (see
+// buildPolicyCatalog). When providerID is non-empty, the result is scoped to the gateways
+// that provider is currently deployed to, instead of every active gateway in the org.
+// Returns utils.ErrLLMProviderNotFound when providerID doesn't resolve in the org.
 func (s *LLMProviderService) ListAvailableLLMPolicies(ctx context.Context, ouID, providerID string) (*models.LLMPolicyAvailabilityResponse, error) {
-	_ = ctx
-
-	var available map[string]llmPolicyManifestItem
+	var available map[string]gatewayPolicyManifestItem
 	var err error
 	if providerID != "" {
 		provider, resolveErr := s.resolveProvider(providerID, ouID)
@@ -494,24 +497,26 @@ func (s *LLMProviderService) ListAvailableLLMPolicies(ctx context.Context, ouID,
 		if provider == nil {
 			return nil, utils.ErrLLMProviderNotFound
 		}
-		available, err = intersectDeployedGatewayLLMPolicies(s.gatewayRepo, s.deploymentRepo, provider.UUID, ouID)
+		available, err = intersectDeployedGatewayPolicies(s.gatewayRepo, s.deploymentRepo, provider.UUID, ouID)
 	} else {
-		available, err = intersectActiveGatewayLLMPolicies(s.gatewayRepo, ouID)
+		available, err = intersectActiveGatewayPolicies(s.gatewayRepo, ouID)
 	}
 	if err != nil {
 		return nil, err
 	}
 
-	sorted := sortedLLMPolicyManifestItems(available)
-	items := make([]models.LLMPolicyDefinition, 0, len(sorted))
-	for _, item := range sorted {
+	entries := buildPolicyCatalog(ctx, s.policyHub, available, policyAPIKindLLM, ouID)
+	items := make([]models.LLMPolicyDefinition, 0, len(entries))
+	for _, item := range entries {
 		items = append(items, models.LLMPolicyDefinition{
-			Name:             item.Name,
-			Version:          item.Version,
-			DisplayName:      item.DisplayName,
-			Description:      item.Description,
-			Parameters:       item.Parameters,
-			SystemParameters: item.SystemParameters,
+			Name:                 item.Name,
+			Version:              item.Version,
+			DisplayName:          item.DisplayName,
+			Description:          item.Description,
+			Categories:           item.Categories,
+			RequiredSystemConfig: item.RequiredSystemConfig,
+			Parameters:           item.Parameters,
+			SystemParameters:     item.SystemParameters,
 		})
 	}
 

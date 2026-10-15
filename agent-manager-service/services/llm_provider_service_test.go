@@ -33,8 +33,9 @@ import (
 )
 
 // -----------------------------------------------------------------------------
-// ListAvailableLLMPolicies — surfaces full gateway-reported guardrail definitions
-// for the console, replacing the external policy-hub catalog for LLM guardrails.
+// ListAvailableLLMPolicies: surfaces full gateway-reported policy definitions for
+// the console. With no policy hub configured (these tests), entries keep the
+// gateway's own metadata; hub enrichment is covered in policy_catalog_unit_test.go.
 // -----------------------------------------------------------------------------
 
 func TestLLMProviderService_ListAvailableLLMPolicies_NilGatewayRepoReturnsEmpty(t *testing.T) {
@@ -53,7 +54,7 @@ func TestLLMProviderService_ListAvailableLLMPolicies_SurfacesFullDefinitions(t *
 	repo := &repomocks.GatewayRepositoryMock{
 		ListWithFiltersFunc: func(_ repositories.GatewayFilterOptions) ([]*models.Gateway, error) {
 			return []*models.Gateway{
-				gatewayWithLLMPolicyManifest(map[string]interface{}{
+				gatewayWithPolicyDefinitions(map[string]interface{}{
 					"name":        "word-count-guardrail",
 					"version":     "v1.0.0",
 					"displayName": "Word Count Guardrail",
@@ -86,11 +87,11 @@ func TestLLMProviderService_ListAvailableLLMPolicies_IntersectsAcrossActiveGatew
 	repo := &repomocks.GatewayRepositoryMock{
 		ListWithFiltersFunc: func(_ repositories.GatewayFilterOptions) ([]*models.Gateway, error) {
 			return []*models.Gateway{
-				gatewayWithLLMPolicyManifest(
+				gatewayWithPolicyDefinitions(
 					map[string]interface{}{"name": "shared-guardrail", "version": "v1"},
 					map[string]interface{}{"name": "only-on-first-gateway", "version": "v1"},
 				),
-				gatewayWithLLMPolicyManifest(
+				gatewayWithPolicyDefinitions(
 					map[string]interface{}{"name": "shared-guardrail", "version": "v1"},
 				),
 			}, nil
@@ -122,7 +123,7 @@ func TestLLMProviderService_ListAvailableLLMPolicies_ScopesToProviderDeployment(
 	}
 	gatewayRepo := &repomocks.GatewayRepositoryMock{
 		GetByUUIDFunc: func(_ string) (*models.Gateway, error) {
-			gw := gatewayWithLLMPolicyManifest(
+			gw := gatewayWithPolicyDefinitions(
 				map[string]interface{}{"name": "deployed-policy", "version": "v1"},
 			)
 			gw.OUID = "org-uuid"

@@ -887,3 +887,37 @@ func TestGrowthAnalyticsAuthMode(t *testing.T) {
 		t.Errorf("without ID = %q, want caller-jwt", got)
 	}
 }
+
+func TestValidatePolicyHubConfig(t *testing.T) {
+	tests := []struct {
+		name        string
+		baseURL     string
+		cacheTTL    string
+		errContains []string
+	}{
+		{name: "empty base URL disables the hub", baseURL: "", cacheTTL: "10m"},
+		{name: "https base URL accepted", baseURL: "https://hub.example.com/v1.0", cacheTTL: "10m"},
+		{name: "relative base URL rejected", baseURL: "hub.example.com/v1.0", cacheTTL: "10m", errContains: []string{"POLICY_HUB_BASE_URL"}},
+		{name: "non-http scheme rejected", baseURL: "ftp://hub.example.com", cacheTTL: "10m", errContains: []string{"POLICY_HUB_BASE_URL"}},
+		{name: "malformed TTL rejected", baseURL: "", cacheTTL: "ten minutes", errContains: []string{"POLICY_HUB_CACHE_TTL"}},
+		{name: "zero TTL rejected", baseURL: "", cacheTTL: "0s", errContains: []string{"POLICY_HUB_CACHE_TTL must be a positive duration"}},
+		{name: "both invalid reports both", baseURL: "nope", cacheTTL: "-1m", errContains: []string{"POLICY_HUB_BASE_URL", "POLICY_HUB_CACHE_TTL"}},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			cfg := &Config{PolicyHub: PolicyHubConfig{BaseURL: tc.baseURL, CacheTTL: tc.cacheTTL}}
+			r := &configReader{}
+			validatePolicyHubConfig(cfg, r)
+
+			if len(r.errors) != len(tc.errContains) {
+				t.Fatalf("expected %d errors, got %d: %v", len(tc.errContains), len(r.errors), r.errors)
+			}
+			for i, want := range tc.errContains {
+				if !strings.Contains(r.errors[i].Error(), want) {
+					t.Errorf("error %d = %q, want it to contain %q", i, r.errors[i], want)
+				}
+			}
+		})
+	}
+}

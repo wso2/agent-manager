@@ -191,6 +191,9 @@ export interface LLMPolicyDefinition {
   version: string;
   displayName?: string;
   description?: string;
+  categories?: string[];
+  /** Gateway config keys the policy reads with no default; an operator must set them. */
+  requiredSystemConfig?: string[];
   parameters?: Record<string, unknown>;
   systemParameters?: Record<string, unknown>;
 }

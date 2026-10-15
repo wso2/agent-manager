@@ -514,9 +514,9 @@ func (r ApiListAvailableLLMPoliciesRequest) Execute() (*LLMPolicyAvailabilityRes
 }
 
 /*
-ListAvailableLLMPolicies List available LLM guardrail policies
+ListAvailableLLMPolicies List available LLM policies
 
-Returns full guardrail policy definitions (including parameter schemas) reported by active gateways in the organization. When providerId is given, the result is scoped to the gateways that provider is currently deployed to; otherwise it covers every active gateway in the organization.
+Returns display-ready LLM policy definitions (including parameter schemas) reported by active gateways in the organization, enriched with policy hub metadata (display name, description, categories). MCP-exclusive policies are excluded. When providerId is given, the result is scoped to the gateways that provider is currently deployed to; otherwise it covers every active gateway in the organization.
 
 	@param ctx context.Context - for authentication, logging, cancellation, deadlines, tracing, etc. Passed from http.Request or context.Background().
 	@param orgName Organization name/handle
