@@ -136,19 +136,36 @@ const (
 	EnvVarAgentIDClientSecret  = "AMP_AGENTID_CLIENT_SECRET" //nolint:gosec // env var NAME, not a credential value
 	EnvVarAgentIDTokenEndpoint = "AMP_AGENTID_TOKEN_ENDPOINT"
 	EnvVarAgentIDScopes        = "AMP_AGENTID_SCOPES"
+
+	// A Ballerina agent with AgentIDAsBalConfigurables enabled for an
+	// environment receives the AgentID credentials under these names INSTEAD of
+	// the AMP_AGENTID_* ones. Ballerina binds a configurable from
+	// BAL_CONFIG_VAR_<NAME>, where <NAME> is the configurable's name upper-cased
+	// with no separators added, so these bind the program's configurables
+	// ampAgentidClientId, ampAgentidClientSecret, ampAgentidTokenEndpoint and
+	// ampAgentidScopes. Ballerina fails to start on a BAL_CONFIG_VAR_* var with
+	// no matching configurable, so these are opt-in, never injected by default.
+	BalConfigVarAgentIDClientID      = "BAL_CONFIG_VAR_AMPAGENTIDCLIENTID"
+	BalConfigVarAgentIDClientSecret  = "BAL_CONFIG_VAR_AMPAGENTIDCLIENTSECRET" //nolint:gosec // env var NAME, not a credential value
+	BalConfigVarAgentIDTokenEndpoint = "BAL_CONFIG_VAR_AMPAGENTIDTOKENENDPOINT"
+	BalConfigVarAgentIDScopes        = "BAL_CONFIG_VAR_AMPAGENTIDSCOPES"
 )
 
 // SystemInjectedEnvVars is a set of environment variable names that are automatically
 // injected by the system and should be filtered out from user-facing configuration APIs
 var SystemInjectedEnvVars = map[string]struct{}{
-	EnvVarOTELEndpoint:         {},
-	EnvVarAgentAPIKey:          {},
-	BalConfigVarOTELEndpoint:   {},
-	BalConfigVarAgentAPIKey:    {},
-	EnvVarAgentIDClientID:      {},
-	EnvVarAgentIDClientSecret:  {},
-	EnvVarAgentIDTokenEndpoint: {},
-	EnvVarAgentIDScopes:        {},
+	EnvVarOTELEndpoint:               {},
+	EnvVarAgentAPIKey:                {},
+	BalConfigVarOTELEndpoint:         {},
+	BalConfigVarAgentAPIKey:          {},
+	EnvVarAgentIDClientID:            {},
+	EnvVarAgentIDClientSecret:        {},
+	EnvVarAgentIDTokenEndpoint:       {},
+	EnvVarAgentIDScopes:              {},
+	BalConfigVarAgentIDClientID:      {},
+	BalConfigVarAgentIDClientSecret:  {},
+	BalConfigVarAgentIDTokenEndpoint: {},
+	BalConfigVarAgentIDScopes:        {},
 }
 
 // -----------------------------------------------------------------------------

@@ -25,6 +25,8 @@ type Configurations struct {
 	Files []FileMount `json:"files,omitempty"`
 	// Enable automatic OTEL instrumentation for the agent
 	EnableAutoInstrumentation *bool `json:"enableAutoInstrumentation,omitempty"`
+	// Ballerina agents only. Inject AgentID credentials as BAL_CONFIG_VAR_AMPAGENTID* (instead of AMP_AGENTID_*) so the program can read them as configurables. The program must declare the matching configurables or it will fail to start. Defaults to false.
+	AgentIdAsBallerinaConfigurables *bool `json:"agentIdAsBallerinaConfigurables,omitempty"`
 	// AMP instrumentation version to use for the agent. Selects the pre-built init-container image (`amp-python-instrumentation-provider:<version>-python<X.Y>`) and the `traceloop-sdk` it pins. Omit (or send null) to use the platform default. Must be one of the versions supported by the deployment; unknown values are rejected.
 	InstrumentationVersion NullableString `json:"instrumentationVersion,omitempty"`
 	// Enable API key security for the agent endpoint
@@ -160,6 +162,38 @@ func (o *Configurations) HasEnableAutoInstrumentation() bool {
 // SetEnableAutoInstrumentation gets a reference to the given bool and assigns it to the EnableAutoInstrumentation field.
 func (o *Configurations) SetEnableAutoInstrumentation(v bool) {
 	o.EnableAutoInstrumentation = &v
+}
+
+// GetAgentIdAsBallerinaConfigurables returns the AgentIdAsBallerinaConfigurables field value if set, zero value otherwise.
+func (o *Configurations) GetAgentIdAsBallerinaConfigurables() bool {
+	if o == nil || IsNil(o.AgentIdAsBallerinaConfigurables) {
+		var ret bool
+		return ret
+	}
+	return *o.AgentIdAsBallerinaConfigurables
+}
+
+// GetAgentIdAsBallerinaConfigurablesOk returns a tuple with the AgentIdAsBallerinaConfigurables field value if set, nil otherwise
+// and a boolean to check if the value has been set.
+func (o *Configurations) GetAgentIdAsBallerinaConfigurablesOk() (*bool, bool) {
+	if o == nil || IsNil(o.AgentIdAsBallerinaConfigurables) {
+		return nil, false
+	}
+	return o.AgentIdAsBallerinaConfigurables, true
+}
+
+// HasAgentIdAsBallerinaConfigurables returns a boolean if a field has been set.
+func (o *Configurations) HasAgentIdAsBallerinaConfigurables() bool {
+	if o != nil && !IsNil(o.AgentIdAsBallerinaConfigurables) {
+		return true
+	}
+
+	return false
+}
+
+// SetAgentIdAsBallerinaConfigurables gets a reference to the given bool and assigns it to the AgentIdAsBallerinaConfigurables field.
+func (o *Configurations) SetAgentIdAsBallerinaConfigurables(v bool) {
+	o.AgentIdAsBallerinaConfigurables = &v
 }
 
 // GetInstrumentationVersion returns the InstrumentationVersion field value if set, zero value otherwise (both if not set or set to explicit null).
@@ -383,6 +417,9 @@ func (o Configurations) ToMap() (map[string]interface{}, error) {
 	}
 	if !IsNil(o.EnableAutoInstrumentation) {
 		toSerialize["enableAutoInstrumentation"] = o.EnableAutoInstrumentation
+	}
+	if !IsNil(o.AgentIdAsBallerinaConfigurables) {
+		toSerialize["agentIdAsBallerinaConfigurables"] = o.AgentIdAsBallerinaConfigurables
 	}
 	if o.InstrumentationVersion.IsSet() {
 		toSerialize["instrumentationVersion"] = o.InstrumentationVersion.Get()

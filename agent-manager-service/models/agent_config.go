@@ -57,6 +57,10 @@ type AgentConfig struct {
 	CardCORSAllowOrigins     []string `gorm:"column:card_cors_allow_origins;type:jsonb;serializer:json"`
 	CardCORSAllowHeaders     []string `gorm:"column:card_cors_allow_headers;type:jsonb;serializer:json"`
 	CardCORSAllowCredentials *bool    `gorm:"column:card_cors_allow_credentials"`
+	// AgentIDAsBalConfigurables makes a Ballerina agent receive its AgentID
+	// credentials in this environment as BAL_CONFIG_VAR_AMPAGENTID* (Ballerina
+	// configurables) instead of AMP_AGENTID_*. Always false for other languages.
+	AgentIDAsBalConfigurables bool `gorm:"column:agentid_as_bal_configurables;not null;default:false"`
 }
 
 func (AgentConfig) TableName() string { return "agent_configs" }

@@ -127,6 +127,13 @@ export interface Configurations {
   env?: EnvironmentVariable[];
   files?: FileMount[];
   enableAutoInstrumentation?: boolean;
+  /**
+   * Ballerina agents only: AgentID credentials are injected as
+   * BAL_CONFIG_VAR_AMPAGENTID* (instead of AMP_AGENTID_*) so the program
+   * can read them as configurables. The program must declare them or it will
+   * fail to start. Defaults to false.
+   */
+  agentIdAsBallerinaConfigurables?: boolean;
   instrumentationVersion?: string;
   enableApiKeySecurity?: boolean;
   enableOAuthSecurity?: boolean;

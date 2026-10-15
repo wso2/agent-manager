@@ -67,6 +67,8 @@ import {
   useUpdateAgentModelConfig,
 } from "@agent-management-platform/api-client";
 import {
+  ballerinaConfigurableFor,
+  BallerinaConfigurablesNotice,
   getErrorMessage,
   PolicyListSection,
   type PolicySelection as GuardrailSelection,
@@ -1115,6 +1117,14 @@ export const AddLLMProviderComponent: React.FC = () => {
                 </ListingTable.Body>
               </ListingTable>
             </ListingTable.Container>
+            <Box sx={{ mt: 2 }}>
+              <BallerinaConfigurablesNotice
+                configurableNames={ENV_VAR_KEYS.map((key) =>
+                  ballerinaConfigurableFor((envVarNames[key] ?? "").trim()),
+                ).filter((name): name is string => !!name)}
+                fieldId="add-llm-provider-configurables"
+              />
+            </Box>
           </Form.Section>
         )}
 

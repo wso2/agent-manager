@@ -106,11 +106,25 @@ func noMCPProxyScopeRepo() *repomocks.MCPProxyScopeRepositoryMock {
 	return &repomocks.MCPProxyScopeRepositoryMock{}
 }
 
+// envConfigRepoReturning returns an AgentConfigRepository mock whose Get reports
+// cfg as the environment's saved agent config — nil meaning no saved config,
+// so the identity vars keep their default AMP_AGENTID_* names.
+func envConfigRepoReturning(cfg *models.AgentConfig) *repomocks.AgentConfigRepositoryMock {
+	return &repomocks.AgentConfigRepositoryMock{
+		GetFunc: func(_ context.Context, _, _, _, _ string) (*models.AgentConfig, error) {
+			if cfg == nil {
+				return nil, repositories.ErrAgentConfigNotFound
+			}
+			return cfg, nil
+		},
+	}
+}
+
 func newTestIdentityInjectionService(
 	repo *repomocks.AgentThunderClientRepositoryMock,
 	oc *clientmocks.OpenChoreoClientMock,
 ) AgentIdentityInjectionService {
-	return NewAgentIdentityInjectionService(repo, noMCPConfigRepo(), noMCPProxyScopeRepo(), oc, "1h", discardLogger())
+	return NewAgentIdentityInjectionService(repo, noMCPConfigRepo(), envConfigRepoReturning(nil), noMCPProxyScopeRepo(), oc, "1h", discardLogger())
 }
 
 // injectableOCClient returns an OpenChoreoClientMock with CreateSecretReferenceFunc
@@ -255,7 +269,7 @@ func mcpBoundAgentConfigRepo(bindings ...mcpProxyBinding) (*repomocks.AgentConfi
 
 func TestResolveAgentIdentityScopes_NoAgentConfiguration_ReturnsEmpty(t *testing.T) {
 	repo := identityRepoReturning(completedInternalBinding(), nil)
-	svc := NewAgentIdentityInjectionService(repo, noMCPConfigRepo(), noMCPProxyScopeRepo(), &clientmocks.OpenChoreoClientMock{}, "1h", discardLogger())
+	svc := NewAgentIdentityInjectionService(repo, noMCPConfigRepo(), envConfigRepoReturning(nil), noMCPProxyScopeRepo(), &clientmocks.OpenChoreoClientMock{}, "1h", discardLogger())
 	impl := svc.(*agentIdentityInjectionService)
 
 	scopes, err := impl.resolveAgentIdentityScopes(context.Background(), completedInternalBinding())
@@ -276,7 +290,7 @@ func TestResolveAgentIdentityScopes_SingleProxySingleTool_ReturnsItsScopes(t *te
 		},
 	}
 	svc := NewAgentIdentityInjectionService(identityRepoReturning(completedInternalBinding(), nil),
-		configRepo, scopeRepo, oc, "1h", discardLogger())
+		configRepo, envConfigRepoReturning(nil), scopeRepo, oc, "1h", discardLogger())
 	impl := svc.(*agentIdentityInjectionService)
 
 	scopes, err := impl.resolveAgentIdentityScopes(context.Background(), completedInternalBinding())
@@ -304,7 +318,7 @@ func TestResolveAgentIdentityScopes_MultipleProxies_ReturnsSortedUnion(t *testin
 		},
 	}
 	svc := NewAgentIdentityInjectionService(identityRepoReturning(completedInternalBinding(), nil),
-		configRepo, scopeRepo, oc, "1h", discardLogger())
+		configRepo, envConfigRepoReturning(nil), scopeRepo, oc, "1h", discardLogger())
 	impl := svc.(*agentIdentityInjectionService)
 
 	scopes, err := impl.resolveAgentIdentityScopes(context.Background(), completedInternalBinding())
@@ -345,7 +359,7 @@ func TestResolveAgentIdentityScopes_MappingForDifferentEnvironment_Ignored(t *te
 		},
 	}
 	svc := NewAgentIdentityInjectionService(identityRepoReturning(completedInternalBinding(), nil),
-		configRepo, scopeRepo, oc, "1h", discardLogger())
+		configRepo, envConfigRepoReturning(nil), scopeRepo, oc, "1h", discardLogger())
 	impl := svc.(*agentIdentityInjectionService)
 
 	scopes, err := impl.resolveAgentIdentityScopes(context.Background(), completedInternalBinding())
@@ -368,7 +382,7 @@ func TestResolveAgentIdentityScopes_AgentConfigLoadError_PropagatesError(t *test
 		},
 	}
 	svc := NewAgentIdentityInjectionService(identityRepoReturning(completedInternalBinding(), nil),
-		failingRepo, noMCPProxyScopeRepo(), &clientmocks.OpenChoreoClientMock{}, "1h", discardLogger())
+		failingRepo, envConfigRepoReturning(nil), noMCPProxyScopeRepo(), &clientmocks.OpenChoreoClientMock{}, "1h", discardLogger())
 	impl := svc.(*agentIdentityInjectionService)
 
 	scopes, err := impl.resolveAgentIdentityScopes(context.Background(), completedInternalBinding())
@@ -389,7 +403,7 @@ func TestResolveAgentIdentityScopes_EnvironmentResolveError_PropagatesError(t *t
 		},
 	}
 	svc := NewAgentIdentityInjectionService(identityRepoReturning(completedInternalBinding(), nil),
-		configRepo, scopeRepo, oc, "1h", discardLogger())
+		configRepo, envConfigRepoReturning(nil), scopeRepo, oc, "1h", discardLogger())
 	impl := svc.(*agentIdentityInjectionService)
 
 	scopes, err := impl.resolveAgentIdentityScopes(context.Background(), completedInternalBinding())
@@ -456,7 +470,7 @@ func TestAgentIdentityInjection_InjectForEnvironment_PushesVarsIntoReleaseBindin
 	var injectedEnv string
 	var injectedVars []client.EnvVar
 	oc := injectableOCClient()
-	oc.UpdateReleaseBindingEnvVarsFunc = func(_ context.Context, _, _, _, envName string, envVars []client.EnvVar) error {
+	oc.ReplaceReleaseBindingEnvVarsFunc = func(_ context.Context, _, _, _, envName string, _ []string, envVars []client.EnvVar) error {
 		injectedEnv = envName
 		injectedVars = envVars
 		return nil
@@ -470,7 +484,7 @@ func TestAgentIdentityInjection_InjectForEnvironment_PushesVarsIntoReleaseBindin
 
 func TestAgentIdentityInjection_InjectForEnvironment_NothingToInject_NoWorkloadCalls(t *testing.T) {
 	repo := identityRepoReturning(nil, repositories.ErrAgentThunderClientNotFound)
-	// UpdateReleaseBindingEnvVarsFunc nil — a call would panic.
+	// ReplaceReleaseBindingEnvVarsFunc nil — a call would panic.
 	svc := newTestIdentityInjectionService(repo, &clientmocks.OpenChoreoClientMock{})
 
 	assert.NoError(t, svc.InjectForEnvironment(context.Background(), testIdentityOrg, testIdentityProject, testIdentityAgent, testIdentityEnv))
@@ -480,7 +494,7 @@ func TestAgentIdentityInjection_InjectForEnvironment_WorkloadUpdateErrorPropagat
 	repo := identityRepoReturning(completedInternalBinding(), nil)
 	updateErr := errors.New("binding update failed")
 	oc := injectableOCClient()
-	oc.UpdateReleaseBindingEnvVarsFunc = func(_ context.Context, _, _, _, _ string, _ []client.EnvVar) error {
+	oc.ReplaceReleaseBindingEnvVarsFunc = func(_ context.Context, _, _, _, _ string, _ []string, _ []client.EnvVar) error {
 		return updateErr
 	}
 	svc := newTestIdentityInjectionService(repo, oc)
@@ -510,7 +524,7 @@ func TestAgentIdentityInjection_ReconcileForEnvironment_InSync_DoesNotWrite(t *t
 	oc.GetComponentConfigurationsFunc = func(_ context.Context, _, _, _, _ string) ([]models.EnvVars, error) {
 		return inSyncIdentityEnvVars(), nil
 	}
-	// UpdateReleaseBindingEnvVarsFunc left nil — a call would panic, proving
+	// ReplaceReleaseBindingEnvVarsFunc left nil — a call would panic, proving
 	// an already-in-sync workload is never re-written (no needless pod roll).
 	svc := newTestIdentityInjectionService(repo, oc)
 
@@ -525,7 +539,7 @@ func TestAgentIdentityInjection_ReconcileForEnvironment_MissingVars_Injects(t *t
 		// Workload just came up from a first build; only base vars present, no identity vars.
 		return []models.EnvVars{{Key: "AMP_OTEL_ENDPOINT", Value: "http://otel"}}, nil
 	}
-	oc.UpdateReleaseBindingEnvVarsFunc = func(_ context.Context, _, _, _, _ string, envVars []client.EnvVar) error {
+	oc.ReplaceReleaseBindingEnvVarsFunc = func(_ context.Context, _, _, _, _ string, _ []string, envVars []client.EnvVar) error {
 		injectedVars = len(envVars)
 		return nil
 	}
@@ -558,7 +572,7 @@ func TestAgentIdentityInjection_ReconcileForEnvironment_ScopeDrift_Reinjects(t *
 			{Key: client.EnvVarAgentIDScopes, Value: ""},
 		}, nil
 	}
-	oc.UpdateReleaseBindingEnvVarsFunc = func(_ context.Context, _, _, _, _ string, envVars []client.EnvVar) error {
+	oc.ReplaceReleaseBindingEnvVarsFunc = func(_ context.Context, _, _, _, _ string, _ []string, envVars []client.EnvVar) error {
 		for _, ev := range envVars {
 			if ev.Key == client.EnvVarAgentIDScopes {
 				injectedScopes = ev.Value
@@ -567,7 +581,7 @@ func TestAgentIdentityInjection_ReconcileForEnvironment_ScopeDrift_Reinjects(t *
 		return nil
 	}
 	svc := NewAgentIdentityInjectionService(identityRepoReturning(completedInternalBinding(), nil),
-		configRepo, scopeRepo, oc, "1h", discardLogger())
+		configRepo, envConfigRepoReturning(nil), scopeRepo, oc, "1h", discardLogger())
 
 	require.NoError(t, svc.ReconcileForEnvironment(context.Background(), testIdentityOrg, testIdentityProject, testIdentityAgent, testIdentityEnv))
 	assert.Equal(t, "tickets:read", injectedScopes, "a drifted scope list must be re-injected with the current scopes")
@@ -575,7 +589,7 @@ func TestAgentIdentityInjection_ReconcileForEnvironment_ScopeDrift_Reinjects(t *
 
 func TestAgentIdentityInjection_ReconcileForEnvironment_NothingToInject_NoReadOrWrite(t *testing.T) {
 	repo := identityRepoReturning(nil, repositories.ErrAgentThunderClientNotFound)
-	// GetComponentConfigurationsFunc / UpdateReleaseBindingEnvVarsFunc left nil —
+	// GetComponentConfigurationsFunc / ReplaceReleaseBindingEnvVarsFunc left nil —
 	// a call would panic, proving an uninjectable binding short-circuits before
 	// touching the workload at all.
 	svc := newTestIdentityInjectionService(repo, &clientmocks.OpenChoreoClientMock{})
@@ -589,7 +603,7 @@ func TestAgentIdentityInjection_ReconcileForEnvironment_ConfigReadError_Propagat
 	oc.GetComponentConfigurationsFunc = func(_ context.Context, _, _, _, _ string) ([]models.EnvVars, error) {
 		return nil, errors.New("openchoreo unavailable")
 	}
-	// UpdateReleaseBindingEnvVarsFunc left nil — must not write when it can't
+	// ReplaceReleaseBindingEnvVarsFunc left nil — must not write when it can't
 	// determine the current state.
 	svc := newTestIdentityInjectionService(repo, oc)
 
@@ -612,7 +626,7 @@ func TestAgentIdentityInjection_RefreshAfterRotation_StampsAnnotationAndRollsPod
 		createdReq = req
 		return &client.SecretReferenceInfo{Name: req.Name}, nil
 	}
-	oc.UpdateReleaseBindingEnvVarsFunc = func(_ context.Context, _, _, _, _ string, envVars []client.EnvVar) error {
+	oc.ReplaceReleaseBindingEnvVarsFunc = func(_ context.Context, _, _, _, _ string, _ []string, envVars []client.EnvVar) error {
 		assert.Len(t, envVars, 4)
 		close(rolled)
 		return nil
@@ -644,17 +658,72 @@ func TestAgentIdentityInjection_RefreshAfterRotation_StampsAnnotationAndRollsPod
 	assert.Equal(t, secretSyncWaitDuration("1h"), slept, "the roll must wait out the configured refresh cadence before rolling")
 }
 
+// TestAgentIdentityInjection_RefreshAfterRotation_UsesNamingModeAtRollTime
+// guards against a rotation restoring a retired identity name set: if
+// AgentIDAsBalConfigurables is switched on while the rotation waits, the roll
+// must write the BAL_CONFIG_VAR_* names and remove the AMP_AGENTID_* ones, not
+// re-add the names captured before the wait.
+func TestAgentIdentityInjection_RefreshAfterRotation_UsesNamingModeAtRollTime(t *testing.T) {
+	repo := identityRepoReturning(completedInternalBinding(), nil)
+	oc := injectableOCClient()
+
+	var gotRemoved []string
+	var gotVars []client.EnvVar
+	rolled := make(chan struct{})
+	oc.ReplaceReleaseBindingEnvVarsFunc = func(_ context.Context, _, _, _, _ string, keysToRemove []string, envVars []client.EnvVar) error {
+		gotRemoved, gotVars = keysToRemove, envVars
+		close(rolled)
+		return nil
+	}
+
+	var asBal atomic.Bool
+	envConfigRepo := &repomocks.AgentConfigRepositoryMock{
+		GetFunc: func(_ context.Context, _, _, _, _ string) (*models.AgentConfig, error) {
+			return &models.AgentConfig{AgentIDAsBalConfigurables: asBal.Load()}, nil
+		},
+	}
+	svc := NewAgentIdentityInjectionService(repo, noMCPConfigRepo(), envConfigRepo, noMCPProxyScopeRepo(), oc, "1h", discardLogger())
+	impl, ok := svc.(*agentIdentityInjectionService)
+	require.True(t, ok)
+	impl.after = func(time.Duration) <-chan time.Time {
+		asBal.Store(true) // the setting changes while the rotation waits
+		ch := make(chan time.Time, 1)
+		ch <- time.Now()
+		return ch
+	}
+
+	require.NoError(t, svc.RefreshAfterRotation(context.Background(), testIdentityOrg, testIdentityProject, testIdentityAgent, testIdentityEnv))
+
+	select {
+	case <-rolled:
+	case <-time.After(2 * time.Second):
+		t.Fatal("rotation must roll the pod")
+	}
+	keys := make([]string, 0, len(gotVars))
+	for _, ev := range gotVars {
+		keys = append(keys, ev.Key)
+	}
+	assert.ElementsMatch(t, []string{
+		client.BalConfigVarAgentIDClientID, client.BalConfigVarAgentIDClientSecret,
+		client.BalConfigVarAgentIDTokenEndpoint, client.BalConfigVarAgentIDScopes,
+	}, keys, "the roll must use the naming mode saved at roll time")
+	assert.Subset(t, gotRemoved, []string{
+		client.EnvVarAgentIDClientID, client.EnvVarAgentIDClientSecret,
+		client.EnvVarAgentIDTokenEndpoint, client.EnvVarAgentIDScopes,
+	}, "the roll must remove the retired AMP_AGENTID_* names")
+}
+
 // TestAgentIdentityInjection_RefreshAfterRotation_CoalescesRapidRotations
 // guards against a second regenerate for the same binding, fired before the
 // first one's deferred roll runs, causing two pod rollouts instead of one:
-// only the latest rotation's roll must actually call UpdateReleaseBindingEnvVars.
+// only the latest rotation's roll must actually call ReplaceReleaseBindingEnvVars.
 func TestAgentIdentityInjection_RefreshAfterRotation_CoalescesRapidRotations(t *testing.T) {
 	repo := identityRepoReturning(completedInternalBinding(), nil)
 	oc := injectableOCClient()
 
 	var rollCount int32
 	rolled := make(chan struct{}, 2)
-	oc.UpdateReleaseBindingEnvVarsFunc = func(_ context.Context, _, _, _, _ string, _ []client.EnvVar) error {
+	oc.ReplaceReleaseBindingEnvVarsFunc = func(_ context.Context, _, _, _, _ string, _ []string, _ []client.EnvVar) error {
 		atomic.AddInt32(&rollCount, 1)
 		rolled <- struct{}{}
 		return nil
@@ -714,7 +783,7 @@ func TestAgentIdentityInjection_RefreshAfterRotation_AbortsOnShutdown(t *testing
 	oc := injectableOCClient()
 
 	rolled := make(chan struct{})
-	oc.UpdateReleaseBindingEnvVarsFunc = func(_ context.Context, _, _, _, _ string, _ []client.EnvVar) error {
+	oc.ReplaceReleaseBindingEnvVarsFunc = func(_ context.Context, _, _, _, _ string, _ []string, _ []client.EnvVar) error {
 		close(rolled)
 		return nil
 	}
@@ -750,7 +819,7 @@ func TestAgentIdentityInjection_RefreshAfterRotation_AbortsOnShutdown(t *testing
 
 // TestAgentIdentityInjection_RefreshAfterRotation_CancelsInFlightRollOnShutdown
 // guards the roll itself, not just the wait before it: shutdown must cancel
-// an already-in-flight UpdateReleaseBindingEnvVars call rather than letting
+// an already-in-flight ReplaceReleaseBindingEnvVars call rather than letting
 // it run to completion.
 func TestAgentIdentityInjection_RefreshAfterRotation_CancelsInFlightRollOnShutdown(t *testing.T) {
 	repo := identityRepoReturning(completedInternalBinding(), nil)
@@ -758,7 +827,7 @@ func TestAgentIdentityInjection_RefreshAfterRotation_CancelsInFlightRollOnShutdo
 
 	callStarted := make(chan struct{})
 	cancelled := make(chan struct{})
-	oc.UpdateReleaseBindingEnvVarsFunc = func(ctx context.Context, _, _, _, _ string, _ []client.EnvVar) error {
+	oc.ReplaceReleaseBindingEnvVarsFunc = func(ctx context.Context, _, _, _, _ string, _ []string, _ []client.EnvVar) error {
 		close(callStarted)
 		<-ctx.Done() // blocks until the shutdown bridge cancels this call's context
 		close(cancelled)
@@ -782,7 +851,7 @@ func TestAgentIdentityInjection_RefreshAfterRotation_CancelsInFlightRollOnShutdo
 	select {
 	case <-callStarted:
 	case <-time.After(2 * time.Second):
-		t.Fatal("the roll must start calling UpdateReleaseBindingEnvVars")
+		t.Fatal("the roll must start calling ReplaceReleaseBindingEnvVars")
 	}
 
 	shutdownCancel() // app starts shutting down while the roll call is in flight
@@ -836,7 +905,7 @@ func TestAgentIdentityInjection_RemoveForEnvironment_IncludeWorkloadLevel(t *tes
 		RemoveReleaseBindingEnvVarsFunc: func(_ context.Context, _, _, _, _ string, _ []string) error { return nil },
 		RemoveWorkloadEnvVarsFunc: func(_ context.Context, _, _ string, keys []string) error {
 			workloadRemoved = true
-			assert.Len(t, keys, 4)
+			assert.Len(t, keys, len(AgentIdentityEnvVarKeys()))
 			return nil
 		},
 		DeleteSecretReferenceFunc: func(_ context.Context, _, _ string) error { return nil },
@@ -891,7 +960,7 @@ func TestAgentIdentityInjection_InjectForEnvironment_RetriesOnTransientConflictT
 
 	attempts := 0
 	oc := injectableOCClient()
-	oc.UpdateReleaseBindingEnvVarsFunc = func(_ context.Context, _, _, _, _ string, _ []client.EnvVar) error {
+	oc.ReplaceReleaseBindingEnvVarsFunc = func(_ context.Context, _, _, _, _ string, _ []string, _ []client.EnvVar) error {
 		attempts++
 		if attempts < 2 {
 			return utils.ErrConflict
@@ -916,7 +985,7 @@ func TestAgentIdentityInjection_InjectForEnvironment_RetriesOnInternalServerErro
 
 	attempts := 0
 	oc := injectableOCClient()
-	oc.UpdateReleaseBindingEnvVarsFunc = func(_ context.Context, _, _, _, _ string, _ []client.EnvVar) error {
+	oc.ReplaceReleaseBindingEnvVarsFunc = func(_ context.Context, _, _, _, _ string, _ []string, _ []client.EnvVar) error {
 		attempts++
 		if attempts < 2 {
 			return utils.ErrInternalServerError
@@ -935,7 +1004,7 @@ func TestAgentIdentityInjection_InjectForEnvironment_GivesUpAfterRetriesExhauste
 
 	attempts := 0
 	oc := injectableOCClient()
-	oc.UpdateReleaseBindingEnvVarsFunc = func(_ context.Context, _, _, _, _ string, _ []client.EnvVar) error {
+	oc.ReplaceReleaseBindingEnvVarsFunc = func(_ context.Context, _, _, _, _ string, _ []string, _ []client.EnvVar) error {
 		attempts++
 		return utils.ErrConflict
 	}
@@ -953,7 +1022,7 @@ func TestAgentIdentityInjection_InjectForEnvironment_DoesNotRetryPermanentError(
 	attempts := 0
 	permanentErr := errors.New("release binding validation failed")
 	oc := injectableOCClient()
-	oc.UpdateReleaseBindingEnvVarsFunc = func(_ context.Context, _, _, _, _ string, _ []client.EnvVar) error {
+	oc.ReplaceReleaseBindingEnvVarsFunc = func(_ context.Context, _, _, _, _ string, _ []string, _ []client.EnvVar) error {
 		attempts++
 		return permanentErr
 	}
@@ -971,7 +1040,7 @@ func TestAgentIdentityInjection_InjectForEnvironment_StopsRetryingOnContextCance
 	ctx, cancel := context.WithCancel(context.Background())
 	attempts := 0
 	oc := injectableOCClient()
-	oc.UpdateReleaseBindingEnvVarsFunc = func(_ context.Context, _, _, _, _ string, _ []client.EnvVar) error {
+	oc.ReplaceReleaseBindingEnvVarsFunc = func(_ context.Context, _, _, _, _ string, _ []string, _ []client.EnvVar) error {
 		attempts++
 		cancel() // simulate the caller's context being cancelled mid-retry
 		return utils.ErrConflict

@@ -880,7 +880,7 @@ func (s *agentManagerService) resolveInstrumentationImageOverride(isPythonBuildp
 // persistInstrumentationConfig saves the instrumentation config to the database.
 // instrumentationVersion is nil when the caller did not pin a specific version —
 // the column stays NULL and the resolver falls back to the platform default.
-func (s *agentManagerService) persistInstrumentationConfig(ctx context.Context, ouID, projectName, agentName string, enableAutoInstrumentation bool, instrumentationVersion *string) {
+func (s *agentManagerService) persistInstrumentationConfig(ctx context.Context, ouID, projectName, agentName string, enableAutoInstrumentation bool, instrumentationVersion *string, agentIDAsBalConfigurables bool) {
 	// Get the first/lowest environment
 	pipeline, err := s.ocClient.GetProjectDeploymentPipeline(ctx, ouID, projectName)
 	if err != nil {
@@ -916,9 +916,10 @@ func (s *agentManagerService) persistInstrumentationConfig(ctx context.Context, 
 		CORSAllowCredentials:      defaultCORS.AllowCredentials,
 		// OAuth off by default; header columns are NOT NULL so set the defaults
 		// explicitly (the Select("*") Upsert would otherwise write empty strings).
-		EnableOAuthSecurity:   false,
-		OAuthHeaderName:       models.DefaultOAuthHeaderName,
-		OAuthAuthHeaderPrefix: models.DefaultOAuthAuthHeaderPrefix,
+		EnableOAuthSecurity:       false,
+		OAuthHeaderName:           models.DefaultOAuthHeaderName,
+		OAuthAuthHeaderPrefix:     models.DefaultOAuthAuthHeaderPrefix,
+		AgentIDAsBalConfigurables: agentIDAsBalConfigurables,
 	}
 
 	if err := s.agentConfigRepo.Upsert(ctx, agentConfig); err != nil {
@@ -1122,6 +1123,7 @@ func (s *agentManagerService) GetAgent(ctx context.Context, ouID string, project
 				defaultEnabled := true
 				defaultCORSEnabled := true
 				defaultOAuthDisabled := false
+				defaultAgentIDAsBal := false
 				defCORS := config.GetAgentWorkloadConfig().CORS
 				defaultResilience := client.DefaultResilienceTimeoutSeconds
 				agent.Configurations = &models.Configurations{
@@ -1134,8 +1136,9 @@ func (s *agentManagerService) GetAgent(ctx context.Context, ouID string, project
 						AllowHeaders:     strings.Split(defCORS.AllowHeaders, ","),
 						AllowCredentials: &defCORS.AllowCredentials,
 					},
-					EnableOAuthSecurity:      &defaultOAuthDisabled,
-					ResilienceTimeoutSeconds: &defaultResilience,
+					EnableOAuthSecurity:       &defaultOAuthDisabled,
+					ResilienceTimeoutSeconds:  &defaultResilience,
+					AgentIDAsBalConfigurables: &defaultAgentIDAsBal,
 				}
 			} else if configErr != nil {
 				s.logger.Error("Failed to read agent config from database", "agentName", agentName, "environment", lowestEnv, "error", configErr)
@@ -1152,9 +1155,10 @@ func (s *agentManagerService) GetAgent(ctx context.Context, ouID string, project
 						AllowHeaders:     agentConfig.CORSAllowHeaders,
 						AllowCredentials: &agentConfig.CORSAllowCredentials,
 					},
-					EnableOAuthSecurity:      &agentConfig.EnableOAuthSecurity,
-					OAuthConfig:              oauthConfigFromAgentConfig(agentConfig),
-					ResilienceTimeoutSeconds: agentConfig.ResilienceTimeoutSeconds,
+					EnableOAuthSecurity:       &agentConfig.EnableOAuthSecurity,
+					OAuthConfig:               oauthConfigFromAgentConfig(agentConfig),
+					ResilienceTimeoutSeconds:  agentConfig.ResilienceTimeoutSeconds,
+					AgentIDAsBalConfigurables: &agentConfig.AgentIDAsBalConfigurables,
 				}
 			}
 
@@ -1446,6 +1450,17 @@ func (s *agentManagerService) CreateAgent(ctx context.Context, ouID string, proj
 			}
 		}
 		imageID = kindVersion.ImageId
+	}
+
+	// Rejected before anything is created: only a Ballerina agent can opt in.
+	// Checked after the kind block, which replaces req.Build with the build the
+	// agent will actually run (it is empty in a kind-based request).
+	if req.Configurations != nil {
+		isBallerina := req.Build != nil && req.Build.BuildpackBuild != nil &&
+			req.Build.BuildpackBuild.Buildpack.Language == string(utils.LanguageBallerina)
+		if _, err := resolveAgentIDAsBalConfigurables(isBallerina, nil, req.Configurations.AgentIdAsBallerinaConfigurables); err != nil {
+			return err
+		}
 	}
 
 	// Pair-check the python/instrumentation combo after any kind-based
@@ -1762,7 +1777,9 @@ func (s *agentManagerService) createComponentAgent(ctx context.Context, ouID, pr
 			}
 			instrumentationVersion = req.Configurations.InstrumentationVersion.Get()
 		}
-		s.persistInstrumentationConfig(ctx, ouID, projectName, req.Name, enableAutoInstrumentation, instrumentationVersion)
+		// Validated in CreateAgent: true only for a Ballerina agent.
+		agentIDAsBalConfigurables := req.Configurations != nil && req.Configurations.GetAgentIdAsBallerinaConfigurables()
+		s.persistInstrumentationConfig(ctx, ouID, projectName, req.Name, enableAutoInstrumentation, instrumentationVersion, agentIDAsBalConfigurables)
 		// Queued after the config row exists; the reconciler waits out the first bind.
 		s.enqueueCreatedA2AAgent(ctx, utils.StrPointerAsStr(req.AgentType.SubType, ""), ouID, projectName, req.Name, firstEnv, firstEnvUUID, agentAPIArtifact)
 	}
@@ -3218,8 +3235,9 @@ func (s *agentManagerService) DeployAgent(ctx context.Context, ouID string, proj
 	// to the Workload: the Workload is a single component-wide base that every environment merges
 	// into its render, so config written there leaks into every other environment and can never be
 	// unset by an override. Deploy() itself only updates the image.
+	// The identity vars are appended once AgentIDAsBalConfigurables is resolved
+	// below, since it decides which name set they are written under.
 	overrideEnvVars := append(envVars, systemManagedEnvVars...)
-	overrideEnvVars = append(overrideEnvVars, identityEnvVars...)
 
 	// Non-nil so the override write means "this is the full set" rather than "leave existing
 	// alone" — an empty slice clears the environment's env vars.
@@ -3264,6 +3282,11 @@ func (s *agentManagerService) DeployAgent(ctx context.Context, ouID string, proj
 	if err != nil {
 		return "", err
 	}
+	agentIDAsBalConfigurables, err := resolveAgentIDAsBalConfigurables(isBallerinaBuildpackAgent(agent), existingConfig, req.AgentIdAsBallerinaConfigurables)
+	if err != nil {
+		return "", err
+	}
+	overrideEnvVars = append(overrideEnvVars, agentIdentityEnvVarsAs(identityEnvVars, agentIDAsBalConfigurables)...)
 	if err := validateAuthExclusivity(apiCfg); err != nil {
 		return "", err
 	}
@@ -3491,6 +3514,7 @@ func (s *agentManagerService) DeployAgent(ctx context.Context, ouID string, proj
 		OAuthAuthHeaderPrefix:     apiCfg.OAuthAuthHeaderPrefix,
 		OAuthForwardToken:         apiCfg.OAuthForwardToken,
 		ResilienceTimeoutSeconds:  deployResilienceTimeoutSeconds,
+		AgentIDAsBalConfigurables: agentIDAsBalConfigurables,
 	}
 	agentConfig.SetCardCORSOverride(cardCORSOverride)
 	if configErr := s.agentConfigRepo.Upsert(ctx, agentConfig); configErr != nil {
@@ -3590,6 +3614,31 @@ func resolveTracingConfig(existingConfig *models.AgentConfig, enableAutoInstrume
 		resolved.EnableAutoInstrumentation = *enableAutoInstrumentation
 	}
 	return resolved
+}
+
+// isBallerinaBuildpackAgent reports whether the agent is built with the
+// Ballerina buildpack.
+func isBallerinaBuildpackAgent(agent *models.AgentResponse) bool {
+	return agent != nil && agent.Build != nil && agent.Build.Buildpack != nil &&
+		agent.Build.Buildpack.Language == string(utils.LanguageBallerina)
+}
+
+// resolveAgentIDAsBalConfigurables resolves the per-environment
+// AgentIDAsBalConfigurables setting with the same precedence as tracing:
+// request > saved config > off. Only a Ballerina agent can enable it — an
+// explicit true for any other agent is rejected, and a saved value never
+// applies to one.
+func resolveAgentIDAsBalConfigurables(isBallerina bool, existingConfig *models.AgentConfig, requested *bool) (bool, error) {
+	if requested != nil {
+		if *requested && !isBallerina {
+			return false, fmt.Errorf("%w: agentIdAsBallerinaConfigurables is supported only for Ballerina agents", utils.ErrInvalidInput)
+		}
+		return *requested, nil
+	}
+	if existingConfig != nil {
+		return existingConfig.AgentIDAsBalConfigurables && isBallerina, nil
+	}
+	return false, nil
 }
 
 // resolveAPIConfig resolves CORS, API key, and OAuth security config: request > DB > env-var defaults (only if withDefaults).
@@ -4535,7 +4584,9 @@ func (s *agentManagerService) PromoteAgent(ctx context.Context, ouID string, pro
 	// Same for the target env's own AgentID credentials (nil when the target's
 	// identity hasn't finished provisioning — the post-provisioning hook injects
 	// them once it does).
-	envOverrides = append(envOverrides, tgtIdentityEnvVars...)
+	// The target's identity vars are appended below, once its
+	// AgentIDAsBalConfigurables is resolved (it picks their name set).
+	var agentIDAsBalConfigurables bool
 
 	// Build trait environment configs for per-environment trait overrides
 	var traitEnvConfigs map[string]interface{}
@@ -4565,6 +4616,12 @@ func (s *agentManagerService) PromoteAgent(ctx context.Context, ouID string, pro
 		isA2AAgent := utils.IsA2AAgentSubType(agent.Type.SubType)
 		if isA2AAgent {
 			apiCfg = withA2AVersionHeader(apiCfg)
+		}
+		// Same precedence as tracing: request > SOURCE environment's saved value
+		// > off, so by default the setting travels with the promoted code.
+		agentIDAsBalConfigurables, err = resolveAgentIDAsBalConfigurables(isBallerinaBuildpackAgent(agent), existingConfig, req.AgentIdAsBallerinaConfigurables)
+		if err != nil {
+			return err
 		}
 		cardCORSOverride := resolveCardCORSOverride(existingConfig, req.AgentCardCorsConfig)
 		if err := validateCardCORS(isA2AAgent, req.AgentCardCorsConfig, cardCORSOverride); err != nil {
@@ -4650,6 +4707,7 @@ func (s *agentManagerService) PromoteAgent(ctx context.Context, ouID string, pro
 			OAuthAuthHeaderPrefix:     apiCfg.OAuthAuthHeaderPrefix,
 			OAuthForwardToken:         apiCfg.OAuthForwardToken,
 			ResilienceTimeoutSeconds:  promoteResilienceTimeoutSeconds,
+			AgentIDAsBalConfigurables: agentIDAsBalConfigurables,
 		}
 		agentConfig.SetCardCORSOverride(cardCORSOverride)
 		if upsertErr := s.agentConfigRepo.Upsert(ctx, agentConfig); upsertErr != nil {
@@ -4686,6 +4744,8 @@ func (s *agentManagerService) PromoteAgent(ctx context.Context, ouID string, pro
 			"agentName", agentName, "error", auditErr)
 		return auditErr
 	}
+
+	envOverrides = append(envOverrides, agentIdentityEnvVarsAs(tgtIdentityEnvVars, agentIDAsBalConfigurables)...)
 
 	if err := s.ocClient.PromoteComponent(ctx, ouID, projectName, agentName, req.SourceEnvironment, req.TargetEnvironment, envOverrides, fileOverrides, traitEnvConfigs, promoteCTConfigs); err != nil {
 		promoteAttempt.Complete(ctx, err)
@@ -5054,6 +5114,12 @@ func (s *agentManagerService) UpdateAgentDeploySettings(ctx context.Context, ouI
 	if isA2AAgent {
 		apiCfg = withA2AVersionHeader(apiCfg)
 	}
+	agentIDAsBalConfigurables, err := resolveAgentIDAsBalConfigurables(isBallerinaBuildpackAgent(agent), existingConfig, req.AgentIdAsBallerinaConfigurables)
+	if err != nil {
+		return err
+	}
+	// No saved config means the setting was off (the default).
+	agentIDNamesChanged := (existingConfig != nil && existingConfig.AgentIDAsBalConfigurables) != agentIDAsBalConfigurables
 	cardCORSOverride := resolveCardCORSOverride(existingConfig, req.AgentCardCorsConfig)
 	if err := validateCardCORS(isA2AAgent, req.AgentCardCorsConfig, cardCORSOverride); err != nil {
 		return err
@@ -5133,11 +5199,25 @@ func (s *agentManagerService) UpdateAgentDeploySettings(ctx context.Context, ouI
 		OAuthAuthHeaderPrefix:     apiCfg.OAuthAuthHeaderPrefix,
 		OAuthForwardToken:         apiCfg.OAuthForwardToken,
 		ResilienceTimeoutSeconds:  settingsResilienceTimeoutSeconds,
+		AgentIDAsBalConfigurables: agentIDAsBalConfigurables,
 	}
 	agentConfig.SetCardCORSOverride(cardCORSOverride)
 	if upsertErr := s.agentConfigRepo.Upsert(ctx, agentConfig); upsertErr != nil {
 		s.logger.Error("Failed to persist agent deploy settings", "agentName", agentName, "environment", req.EnvironmentName, "error", upsertErr)
 		return fmt.Errorf("failed to persist agent deploy settings: %w", upsertErr)
+	}
+
+	// Deploy settings never rewrite env vars, so a changed AgentID name set is
+	// applied here: the reconcile reads the setting just persisted and swaps the
+	// name sets in one write (rolling the pod), or no-ops if already in sync.
+	// An explicit request reconciles even when the saved value already matches:
+	// a reconcile that failed after the save leaves the two in agreement, so
+	// comparing them alone would make a retry skip the names it never applied.
+	if agentIDNamesChanged || req.AgentIdAsBallerinaConfigurables != nil {
+		if err := s.agentIdentityInjection.ReconcileForEnvironment(ctx, ouID, projectName, agentName, req.EnvironmentName); err != nil {
+			s.logger.Error("Failed to apply AgentID env var names after deploy settings update", "agentName", agentName, "environment", req.EnvironmentName, "error", err)
+			return fmt.Errorf("deploy settings saved but failed to apply AgentID env var names in %q (retry to reconcile): %w", req.EnvironmentName, err)
+		}
 	}
 
 	if err := s.republishA2AAgent(ctx, agent, ouID, projectName, agentName, req.EnvironmentName, targetEnv.UUID, artifact.UUID); err != nil {

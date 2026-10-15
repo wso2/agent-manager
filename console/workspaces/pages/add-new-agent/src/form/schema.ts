@@ -107,6 +107,9 @@ export const createAgentSchema = z.object({
   ...baseAgentFields,
   deploymentType: z.literal('new').optional(),
   enableAutoInstrumentation: z.boolean().default(true),
+  // Ballerina only: inject AgentID credentials as BAL_CONFIG_VAR_AMPAGENTID*
+  // configurables instead of AMP_AGENTID_*.
+  agentIdAsBallerinaConfigurables: z.boolean().optional(),
   // instrumentationVersion is a plain string; the dropdown is populated
   // dynamically from the agent-build-options endpoint and the server is
   // the authoritative gate. nullable for the case where no AMP-provided

@@ -25,7 +25,9 @@ import {
 } from "@agent-management-platform/views";
 import {
   CodeBlock,
+  AGENTID_BALLERINA_CONFIGURABLE_ROWS,
   AGENTID_ENV_VAR_ROWS,
+  BallerinaConfigurablesNotice,
   copyToClipboard,
   EnvironmentVariablesReference,
   getErrorMessage,
@@ -39,6 +41,7 @@ import {
 } from "@agent-management-platform/shared-component";
 import {
   Alert,
+  Box,
   Button,
   Card,
   CardContent,
@@ -66,6 +69,7 @@ import {
 } from "@wso2/oxygen-ui-icons-react";
 import {
   useGetAgent,
+  useGetAgentConfigurations,
   useGetAgentMCPConfig,
   useGetMCPProxy,
   useListEnvironments,
@@ -377,7 +381,30 @@ export const ViewMCPServerComponent = () => {
     projName: projectId,
     agentName: agentId,
   });
+  // The AgentID variable names are per environment: a Ballerina agent can take
+  // them as BAL_CONFIG_VAR_AMPAGENTID* configurables in some environments.
+  const {
+    data: selectedEnvConfig,
+    isPending: isSelectedEnvConfigPending,
+    isError: isSelectedEnvConfigError,
+    error: selectedEnvConfigError,
+  } = useGetAgentConfigurations(
+    { orgName: orgId, projName: projectId, agentName: agentId },
+    { environment: selectedEnvName },
+  );
+  const agentIdAsBalConfigurables =
+    selectedEnvConfig?.agentIdAsBallerinaConfigurables === true;
+  // Until the environment's configuration loads, which AgentID name set it
+  // injects is unknown, and guessing the plain names would be wrong for an
+  // environment that injects Ballerina configurables.
+  const isAgentIdNamingUnknown = isSelectedEnvConfigPending || isSelectedEnvConfigError;
   const isExternal = agent?.provisioning?.type === "external";
+  // The integration guides are Python snippets, so they have no place for a
+  // Ballerina agent. Until the agent loads its language is unknown, so the
+  // guides stay hidden rather than guessing.
+  const showPythonGuide =
+    !!agent &&
+    !(agent.build?.type === "buildpack" && agent.build.buildpack.language === "ballerina");
   const hasBuildInProgress = useHasBuildInProgress(
     { orgName: orgId, projName: projectId, agentName: agentId },
     { enabled: !!agent && !isExternal && !agent.kindName },
@@ -666,6 +693,11 @@ export const ViewMCPServerComponent = () => {
     (isExternal && !!providerConfig) ||
     (!isExternal && (envVarRows.length > 0 || usesIdentitySecurity));
 
+  // Without a guide (a Ballerina agent, or one still loading), a URL/API-key
+  // server has nothing below the variable table.
+  const hasGuideSection =
+    isMCPSecurityUnresolved || usesIdentitySecurity || showPythonGuide;
+
   const envVarsPanel =
     showPanel &&
     (isExternal && providerConfig ? (
@@ -884,6 +916,7 @@ export const ViewMCPServerComponent = () => {
     ) : (
       <EnvironmentVariablesGuideDrawer
         open={panelOpen}
+        title={showPythonGuide ? undefined : "Environment Variables"}
         // Closing discards the renamed variables (rather than hiding them from
         // the guard while they sit in state), so confirm first when dirty.
         onClose={() =>
@@ -915,7 +948,7 @@ export const ViewMCPServerComponent = () => {
           }))
         }
       >
-        <Divider sx={{ my: 2 }} />
+        {hasGuideSection && <Divider sx={{ my: 2 }} />}
         {isMCPSecurityUnresolved ? (
           isLoadingProxyDetails ? (
             <Skeleton variant="rounded" height={160} />
@@ -939,28 +972,56 @@ export const ViewMCPServerComponent = () => {
                 MCP Server&apos;s own security settings.
               </Typography>
             </Alert>
-            <Form.Section>
-              <EnvironmentVariablesReference
-                variant="plain"
-                title="AgentID Variables"
-                description="These names are fixed, only their values change per environment, and they're injected automatically at runtime alongside the URL above."
-                rows={AGENTID_ENV_VAR_ROWS}
+            {isAgentIdNamingUnknown ? (
+              <ConnectQueryFallback
+                isLoading={!isSelectedEnvConfigError}
+                error={selectedEnvConfigError}
               />
-            </Form.Section>
-            <Form.Section>
-              <Form.Subheader>Integration Guide</Form.Subheader>
-              <Typography variant="body2" color="text.secondary">
-                Copy this pattern into your agent code to request a token
-                and call the tool with it.
-              </Typography>
-              <CodeBlock
-                language="python"
-                fieldId="mcp-identity-python-snippet"
-                code={agentIDPythonSnippet}
-              />
-            </Form.Section>
+            ) : (
+              <Form.Section>
+                <EnvironmentVariablesReference
+                  variant="plain"
+                  title={agentIdAsBalConfigurables ? "AgentID Ballerina Configurables" : "AgentID Variables"}
+                  description={
+                    agentIdAsBalConfigurables
+                      ? `In ${selectedEnvName}, these values are injected as Ballerina configurables alongside the URL above. Declare them in your program, or the agent will fail to start.`
+                      : "These names are fixed, only their values change per environment, and they're injected automatically at runtime alongside the URL above."
+                  }
+                  nameColumnLabel={agentIdAsBalConfigurables ? "Configurable Name" : undefined}
+                  rows={
+                    agentIdAsBalConfigurables
+                      ? AGENTID_BALLERINA_CONFIGURABLE_ROWS
+                      : AGENTID_ENV_VAR_ROWS
+                  }
+                />
+                {agentIdAsBalConfigurables && (
+                  <Box sx={{ mt: 2 }}>
+                    <BallerinaConfigurablesNotice
+                      configurableNames={AGENTID_BALLERINA_CONFIGURABLE_ROWS.map((row) => row.name)}
+                      fieldId="view-mcp-agentid-configurables"
+                    />
+                  </Box>
+                )}
+              </Form.Section>
+            )}
+            {/* The Python guide reads AMP_AGENTID_*, so it only fits the plain
+                names; with configurables, the notice above has the declarations. */}
+            {!isAgentIdNamingUnknown && !agentIdAsBalConfigurables && showPythonGuide && (
+              <Form.Section>
+                <Form.Subheader>Integration Guide</Form.Subheader>
+                <Typography variant="body2" color="text.secondary">
+                  Copy this pattern into your agent code to request a token
+                  and call the tool with it.
+                </Typography>
+                <CodeBlock
+                  language="python"
+                  fieldId="mcp-identity-python-snippet"
+                  code={agentIDPythonSnippet}
+                />
+              </Form.Section>
+            )}
           </Stack>
-        ) : (
+        ) : !showPythonGuide ? null : (
           <Form.Section>
             <Form.Subheader>Integration Guide</Form.Subheader>
             <Typography variant="body2" color="text.secondary">
@@ -994,7 +1055,9 @@ export const ViewMCPServerComponent = () => {
           >
             {isExternal
               ? "Connect to MCP Server"
-              : "Environment Variables & Integration Guide"}
+              : showPythonGuide
+                ? "Environment Variables & Integration Guide"
+                : "Environment Variables"}
           </Button>
         ) : undefined
       }
