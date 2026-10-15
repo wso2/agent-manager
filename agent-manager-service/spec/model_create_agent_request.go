@@ -25,11 +25,12 @@ type CreateAgentRequest struct {
 	DisplayName  string       `json:"displayName"`
 	Provisioning Provisioning `json:"provisioning"`
 	// Description of the agent
-	Description    *string         `json:"description,omitempty"`
-	AgentType      *AgentType      `json:"agentType,omitempty"`
-	Build          *Build          `json:"build,omitempty"`
-	Configurations *Configurations `json:"configurations,omitempty"`
-	InputInterface *InputInterface `json:"inputInterface,omitempty"`
+	Description    *string            `json:"description,omitempty"`
+	AgentType      *AgentType         `json:"agentType,omitempty"`
+	Build          *Build             `json:"build,omitempty"`
+	Configurations *Configurations    `json:"configurations,omitempty"`
+	InputInterface *InputInterface    `json:"inputInterface,omitempty"`
+	HealthChecks   *AgentHealthChecks `json:"healthChecks,omitempty"`
 	// Optional LLM configurations to create atomically with the agent. Applied to the component's initial (lowest) environment. Name and type are auto-generated.
 	ModelConfig []ModelConfigRequest `json:"modelConfig,omitempty"`
 	// Optional MCP proxy configurations to create atomically with the agent. Applied to the component's initial (lowest) environment. Name and type are auto-generated.
@@ -290,6 +291,38 @@ func (o *CreateAgentRequest) SetInputInterface(v InputInterface) {
 	o.InputInterface = &v
 }
 
+// GetHealthChecks returns the HealthChecks field value if set, zero value otherwise.
+func (o *CreateAgentRequest) GetHealthChecks() AgentHealthChecks {
+	if o == nil || IsNil(o.HealthChecks) {
+		var ret AgentHealthChecks
+		return ret
+	}
+	return *o.HealthChecks
+}
+
+// GetHealthChecksOk returns a tuple with the HealthChecks field value if set, nil otherwise
+// and a boolean to check if the value has been set.
+func (o *CreateAgentRequest) GetHealthChecksOk() (*AgentHealthChecks, bool) {
+	if o == nil || IsNil(o.HealthChecks) {
+		return nil, false
+	}
+	return o.HealthChecks, true
+}
+
+// HasHealthChecks returns a boolean if a field has been set.
+func (o *CreateAgentRequest) HasHealthChecks() bool {
+	if o != nil && !IsNil(o.HealthChecks) {
+		return true
+	}
+
+	return false
+}
+
+// SetHealthChecks gets a reference to the given AgentHealthChecks and assigns it to the HealthChecks field.
+func (o *CreateAgentRequest) SetHealthChecks(v AgentHealthChecks) {
+	o.HealthChecks = &v
+}
+
 // GetModelConfig returns the ModelConfig field value if set, zero value otherwise.
 func (o *CreateAgentRequest) GetModelConfig() []ModelConfigRequest {
 	if o == nil || IsNil(o.ModelConfig) {
@@ -413,6 +446,9 @@ func (o CreateAgentRequest) ToMap() (map[string]interface{}, error) {
 	}
 	if !IsNil(o.InputInterface) {
 		toSerialize["inputInterface"] = o.InputInterface
+	}
+	if !IsNil(o.HealthChecks) {
+		toSerialize["healthChecks"] = o.HealthChecks
 	}
 	if !IsNil(o.ModelConfig) {
 		toSerialize["modelConfig"] = o.ModelConfig

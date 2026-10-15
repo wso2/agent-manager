@@ -70,6 +70,7 @@ import {
   toFileMount,
 } from "../utils/fileMounts";
 import { SecurityConfigSections, type SecurityConfigHandle } from "./SecurityConfigSections";
+import { HealthChecksSection } from "./HealthChecksSection";
 
 export interface EditDeployConfigDrawerProps {
   open: boolean;
@@ -139,6 +140,10 @@ export function EditDeployConfigDrawer({
 
   const [env, setEnv] = useState<EnvironmentVariable[]>([]);
   const [files, setFiles] = useState<FileMountRow[]>([]);
+
+  // Health checks of the release this environment runs, shown read-only. Absent for
+  // agents the platform does not run.
+  const healthChecks = mode === "update" ? configurations?.configurations?.probes : undefined;
 
   // Tracing section: the environment card's drawer only. Offered for every language the
   // backend can instrument — Python and Ballerina alike, which is what makes it reachable
@@ -471,7 +476,7 @@ export function EditDeployConfigDrawer({
               </Stack>
             </Form.Section>
           )}
-
+          {healthChecks && <HealthChecksSection checks={healthChecks} />}
           <Form.Section>
             <Stack direction="row" justifyContent="space-between" alignItems="center">
               <Form.Header>Environment Variables</Form.Header>

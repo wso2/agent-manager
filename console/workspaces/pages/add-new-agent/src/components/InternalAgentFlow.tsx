@@ -42,6 +42,7 @@ import {
   hasUnresolvedMCPSecurity,
   mcpEntryVarNames,
 } from "../utils/mcpEnvVarNames";
+import { readinessOptionFor } from "../utils/readinessCheck";
 
 export const InternalAgentFlow: React.FC = () => {
   const navigate = useNavigate();
@@ -70,6 +71,8 @@ export const InternalAgentFlow: React.FC = () => {
     port: "" as unknown as number,
     basePath: "/",
     openApiPath: "",
+    readinessType: "tcp" as const,
+    readinessPath: readinessOptionFor("DEFAULT")?.httpPath ?? "",
     env: [],
     files: [],
   }));

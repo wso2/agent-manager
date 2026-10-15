@@ -51,8 +51,11 @@ type AgentKindVersion struct {
 	ImageId      string                 `gorm:"column:image_id"`
 	ConfigSchema []KindConfigSchemaItem `gorm:"column:config_schema;type:jsonb;serializer:json"`
 	Metadata     json.RawMessage        `gorm:"column:metadata;type:jsonb"`
-	CreatedAt    time.Time              `gorm:"column:created_at"`
-	Kind         *AgentKind             `gorm:"foreignKey:AgentKindID"`
+	// HealthChecks are the source agent's health checks when the version was
+	// published. nil for versions published before they were recorded.
+	HealthChecks json.RawMessage `gorm:"column:health_checks;type:jsonb"`
+	CreatedAt    time.Time       `gorm:"column:created_at"`
+	Kind         *AgentKind      `gorm:"foreignKey:AgentKindID"`
 }
 
 func (AgentKindVersion) TableName() string { return "agent_kind_versions" }

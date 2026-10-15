@@ -24,6 +24,7 @@ import (
 	"regexp"
 	"strings"
 	"time"
+	"unicode"
 
 	"github.com/wso2/agent-manager/agent-manager-service/config"
 	"github.com/wso2/agent-manager/agent-manager-service/spec"
@@ -88,7 +89,9 @@ func ValidateAgentBuildParametersUpdatePayload(payload spec.UpdateAgentBuildPara
 	); err != nil {
 		return err
 	}
-
+	if err := ValidateHealthChecks(payload.HealthChecks); err != nil {
+		return NewValidationError("Invalid health checks", err.Error())
+	}
 	return nil
 }
 
@@ -348,6 +351,16 @@ func ValidateAgentCreatePayload(payload spec.CreateAgentRequest) error {
 			return err
 		}
 	}
+
+	if payload.HealthChecks != nil {
+		if payload.Provisioning.Type != string(InternalAgent) {
+			return NewValidationError("Invalid health checks", "health checks apply only to agents hosted by the platform")
+		}
+		if err := ValidateHealthChecks(payload.HealthChecks); err != nil {
+			return NewValidationError("Invalid health checks", err.Error())
+		}
+	}
+
 	return validateAgentPayload(agentPayload{
 		name:           payload.Name,
 		displayName:    payload.DisplayName,
@@ -1035,6 +1048,98 @@ func ValidateFileMounts(files []spec.FileMount) error {
 	}
 	if total > limits.MaxTotalBytes {
 		return fmt.Errorf("file mounts total size %d bytes exceeds limit %d", total, limits.MaxTotalBytes)
+	}
+	return nil
+}
+
+// MaxStartupWindowSeconds caps how long the startup check may wait for a
+// starting agent: initial delay + failures allowed × the longer of interval and
+// timeout (an attempt that times out takes its full timeout).
+const MaxStartupWindowSeconds = 3600
+
+// ValidateHealthChecks checks an agent's health checks: each check's type, port,
+// path and wait-time ranges. The startup check's limit also needs the platform
+// defaults for the fields left out, so the service checks it (ValidateStartupWindow).
+func ValidateHealthChecks(checks *spec.AgentHealthChecks) error {
+	if checks == nil {
+		return nil
+	}
+	all := []struct {
+		name  string
+		check *spec.AgentHealthCheck
+	}{
+		{"startup", checks.Startup},
+		{"readiness", checks.Readiness},
+		{"liveness", checks.Liveness},
+	}
+	for _, c := range all {
+		if c.check == nil {
+			continue
+		}
+		if t := c.check.Type; t != nil && *t != "tcp" && *t != "http" {
+			return fmt.Errorf("%s type must be tcp or http", c.name)
+		}
+		if p := c.check.Port; p != nil && (*p < 1 || *p > 65535) {
+			return fmt.Errorf("%s port must be between 1 and 65535", c.name)
+		}
+		if p := c.check.Path; p != nil {
+			if err := validateProbePath(c.name, *p); err != nil {
+				return err
+			}
+		}
+		if err := validateProbeTimings(c.name, c.check); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+// MaxProbePathLength is the longest health check path, as in agent-api.yaml.
+const MaxProbePathLength = 1024
+
+// validateProbePath checks a health check's path the way agent-api.yaml's schema does,
+// so a bad path is a 400 here rather than a failed write to OpenChoreo.
+func validateProbePath(name, path string) error {
+	if !strings.HasPrefix(path, "/") {
+		return fmt.Errorf("%s path must start with /", name)
+	}
+	if len(path) > MaxProbePathLength {
+		return fmt.Errorf("%s path must be at most %d characters", name, MaxProbePathLength)
+	}
+	if strings.IndexFunc(path, unicode.IsSpace) >= 0 {
+		return fmt.Errorf("%s path must not contain spaces", name)
+	}
+	return nil
+}
+
+// validateProbeTimings checks each wait time sent for one check is in range.
+func validateProbeTimings(name string, c *spec.AgentHealthCheck) error {
+	fields := []struct {
+		name     string
+		value    *int32
+		min, max int32
+	}{
+		{"initialDelaySeconds", c.InitialDelaySeconds, 0, 3600},
+		{"periodSeconds", c.PeriodSeconds, 1, 3600},
+		{"timeoutSeconds", c.TimeoutSeconds, 1, 3600},
+		{"failureThreshold", c.FailureThreshold, 1, 1000},
+	}
+	for _, f := range fields {
+		if f.value != nil && (*f.value < f.min || *f.value > f.max) {
+			return fmt.Errorf("%s %s must be between %d and %d", name, f.name, f.min, f.max)
+		}
+	}
+	return nil
+}
+
+// ValidateStartupWindow checks a startup check gives up on a starting agent within
+// MaxStartupWindowSeconds. It takes the values the check runs with: the ones sent,
+// and the platform defaults for the rest.
+func ValidateStartupWindow(initialDelaySeconds, periodSeconds, timeoutSeconds, failureThreshold int32) error {
+	window := initialDelaySeconds + failureThreshold*max(periodSeconds, timeoutSeconds)
+	if window > MaxStartupWindowSeconds {
+		return fmt.Errorf("startup check would wait up to %d seconds (initial delay + failures allowed × the longer of interval and timeout); the maximum is %d",
+			window, MaxStartupWindowSeconds)
 	}
 	return nil
 }

@@ -18,6 +18,7 @@ package services
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"log/slog"
@@ -63,6 +64,7 @@ type AgentManagerService interface {
 	GetAgentConfigurations(ctx context.Context, ouID string, projectName string, agentName string, environment string) ([]models.EnvVars, error)
 	GetAgentFileMounts(ctx context.Context, ouID string, projectName string, agentName string, environment string) ([]models.FileMountEntry, error)
 	GetAgentEnvConfig(ctx context.Context, ouID string, projectName string, agentName string, environment string) (*models.AgentConfig, error)
+	GetAgentHealthChecks(ctx context.Context, ouID string, projectName string, agentName string, environment string) (*spec.AgentHealthChecks, error)
 	GenerateName(ctx context.Context, ouID string, payload spec.ResourceNameRequest) (string, error)
 	GetAgentResourceConfigs(ctx context.Context, ouID string, projectName string, agentName string, environment string) (*spec.AgentResourceConfigsResponse, error)
 	UpdateAgentResourceConfigs(ctx context.Context, ouID string, projectName string, agentName string, environment string, req *spec.UpdateAgentResourceConfigsRequest) (*spec.AgentResourceConfigsResponse, error)
@@ -1369,6 +1371,10 @@ func paginateSlice[T any](items []T, offset, limit int32) []T {
 }
 
 func (s *agentManagerService) CreateAgent(ctx context.Context, ouID string, projectName string, req *spec.CreateAgentRequest) error {
+	if err := s.checkStartupWindow(ctx, ouID, req.HealthChecks); err != nil {
+		return err
+	}
+
 	var requestedVersion *string
 	autoInstr := true
 	if req.Configurations != nil {
@@ -1444,6 +1450,17 @@ func (s *agentManagerService) CreateAgent(ctx context.Context, ouID string, proj
 			if iface.Schema != nil && iface.Schema.Path != "" {
 				req.InputInterface.Schema = &spec.InputInterfaceSchema{Path: &iface.Schema.Path}
 			}
+		}
+		// Health checks describe the app in the image, like the port above, so a
+		// catalog agent starts with the ones published with the version unless the
+		// wizard sends its own. A version published before they were recorded has
+		// none, and its image dates from the platform defaults, so it gets those.
+		if req.HealthChecks == nil && len(kindVersion.HealthChecks) > 0 {
+			var published client.HealthChecks
+			if err := json.Unmarshal(kindVersion.HealthChecks, &published); err != nil {
+				return fmt.Errorf("failed to read kind version health checks: %w", err)
+			}
+			req.HealthChecks = convertClientHealthChecksToSpec(&published)
 		}
 		imageID = kindVersion.ImageId
 	}
@@ -1969,6 +1986,7 @@ func (s *agentManagerService) toCreateAgentRequestWithSecrets(req *spec.CreateAg
 		AgentKind:        agentKindRef,
 		Build:            mapBuildConfig(req.Build),
 		InputInterface:   mapInputInterface(req.InputInterface),
+		HealthChecks:     convertSpecHealthChecksToClient(req.HealthChecks),
 		Labels:           labels,
 	}
 
@@ -2186,6 +2204,10 @@ func (s *agentManagerService) UpdateAgentBuildParameters(ctx context.Context, ou
 				return nil, err
 			}
 		}
+	}
+
+	if err := s.checkStartupWindow(ctx, ouID, req.HealthChecks); err != nil {
+		return nil, err
 	}
 
 	// Update agent build parameters in OpenChoreo
@@ -2436,6 +2458,7 @@ func buildUpdateBuildParametersRequest(req *spec.UpdateAgentBuildParametersReque
 		Repository:     mapRepository(req.Provisioning.Repository),
 		Build:          mapBuildConfig(&req.Build),
 		InputInterface: mapInputInterface(&req.InputInterface),
+		HealthChecks:   convertSpecHealthChecksToClient(req.HealthChecks),
 		AgentType: client.AgentTypeConfig{
 			Type:    req.AgentType.Type,
 			SubType: subType,
@@ -6128,6 +6151,113 @@ func (s *agentManagerService) GetAgentEnvConfig(ctx context.Context, ouID, proje
 		return nil, fmt.Errorf("failed to get agent env config: %w", err)
 	}
 	return cfg, nil
+}
+
+// GetAgentHealthChecks returns an agent's health checks: those of the release the
+// environment runs, or its current ones when environment is "". nil when the
+// agent's ComponentType defines none (an external agent, say).
+func (s *agentManagerService) GetAgentHealthChecks(ctx context.Context, ouID, projectName, agentName, environment string) (*spec.AgentHealthChecks, error) {
+	checks, err := s.ocClient.GetEnvHealthChecks(ctx, ouID, agentName, environment)
+	if err != nil {
+		return nil, translateAgentError(err)
+	}
+	if checks == nil {
+		return nil, nil //nolint:nilnil // the agent's ComponentType defines no health checks, which is not an error
+	}
+	return convertClientHealthChecksToSpec(checks), nil
+}
+
+// checkStartupWindow checks that the startup check sent gives up within
+// utils.MaxStartupWindowSeconds, with the platform defaults filled in for the wait
+// times left out (sending just failureThreshold is fine).
+func (s *agentManagerService) checkStartupWindow(ctx context.Context, ouID string, checks *spec.AgentHealthChecks) error {
+	if checks == nil || checks.Startup == nil || (checks.Startup.Enabled != nil && !*checks.Startup.Enabled) {
+		return nil
+	}
+	sent := checks.Startup
+	if sent.InitialDelaySeconds == nil && sent.PeriodSeconds == nil && sent.TimeoutSeconds == nil && sent.FailureThreshold == nil {
+		return nil // the defaults, which are within the limit
+	}
+	defaults, err := s.ocClient.GetHealthCheckDefaults(ctx, ouID)
+	if err != nil {
+		return fmt.Errorf("failed to read health check defaults: %w", err)
+	}
+	var startupDefaults client.ProbeTimings
+	if defaults != nil && defaults.Startup != nil {
+		startupDefaults = defaults.Startup.ProbeTimings
+	}
+	valueOr := func(v, def *int32) int32 {
+		switch {
+		case v != nil:
+			return *v
+		case def != nil:
+			return *def
+		default:
+			return 0
+		}
+	}
+	if err := utils.ValidateStartupWindow(
+		valueOr(sent.InitialDelaySeconds, startupDefaults.InitialDelaySeconds),
+		valueOr(sent.PeriodSeconds, startupDefaults.PeriodSeconds),
+		valueOr(sent.TimeoutSeconds, startupDefaults.TimeoutSeconds),
+		valueOr(sent.FailureThreshold, startupDefaults.FailureThreshold),
+	); err != nil {
+		return utils.NewValidationError("Invalid health checks", err.Error())
+	}
+	return nil
+}
+
+// convertClientHealthChecksToSpec maps the client's health checks to the API type.
+func convertClientHealthChecksToSpec(h *client.HealthChecks) *spec.AgentHealthChecks {
+	convert := func(c *client.HealthCheck) *spec.AgentHealthCheck {
+		if c == nil {
+			return nil
+		}
+		return &spec.AgentHealthCheck{
+			Enabled:             c.Enabled,
+			Type:                c.Type,
+			Port:                c.Port,
+			Path:                c.Path,
+			InitialDelaySeconds: c.InitialDelaySeconds,
+			PeriodSeconds:       c.PeriodSeconds,
+			TimeoutSeconds:      c.TimeoutSeconds,
+			FailureThreshold:    c.FailureThreshold,
+		}
+	}
+	return &spec.AgentHealthChecks{
+		Startup:   convert(h.Startup),
+		Readiness: convert(h.Readiness),
+		Liveness:  convert(h.Liveness),
+	}
+}
+
+// convertSpecHealthChecksToClient maps the API's health checks to the client's type.
+func convertSpecHealthChecksToClient(h *spec.AgentHealthChecks) *client.HealthChecks {
+	if h == nil {
+		return nil
+	}
+	convert := func(c *spec.AgentHealthCheck) *client.HealthCheck {
+		if c == nil {
+			return nil
+		}
+		return &client.HealthCheck{
+			Enabled: c.Enabled,
+			Type:    c.Type,
+			Port:    c.Port,
+			Path:    c.Path,
+			ProbeTimings: client.ProbeTimings{
+				InitialDelaySeconds: c.InitialDelaySeconds,
+				PeriodSeconds:       c.PeriodSeconds,
+				TimeoutSeconds:      c.TimeoutSeconds,
+				FailureThreshold:    c.FailureThreshold,
+			},
+		}
+	}
+	return &client.HealthChecks{
+		Startup:   convert(h.Startup),
+		Readiness: convert(h.Readiness),
+		Liveness:  convert(h.Liveness),
+	}
 }
 
 // modelBuildToSpecBuild converts a models.Build (from GetComponent) into a spec.Build for CreateAgent enrichment.

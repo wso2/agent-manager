@@ -46,6 +46,7 @@ import (
 	"gorm.io/gorm"
 
 	"github.com/wso2/agent-manager/agent-manager-service/clients/clientmocks"
+	"github.com/wso2/agent-manager/agent-manager-service/clients/openchoreosvc/client"
 	"github.com/wso2/agent-manager/agent-manager-service/models"
 	"github.com/wso2/agent-manager/agent-manager-service/repositories/repomocks"
 	"github.com/wso2/agent-manager/agent-manager-service/spec"
@@ -343,6 +344,11 @@ func TestAgentKindService_AddVersion_Gates(t *testing.T) {
 			GetBuildFunc: func(_ context.Context, _, _, _, _ string) (*models.BuildDetailsResponse, error) {
 				return buildWithImage("sha256:abc"), nil
 			},
+			GetEnvHealthChecksFunc: func(_ context.Context, _, _, environment string) (*client.HealthChecks, error) {
+				require.Empty(t, environment, "the source agent's current health checks")
+				checkType, path := "http", "/health"
+				return &client.HealthChecks{Readiness: &client.HealthCheck{Type: &checkType, Path: &path}}, nil
+			},
 		}
 		svc := newKindService(repo, oc)
 
@@ -352,6 +358,38 @@ func TestAgentKindService_AddVersion_Gates(t *testing.T) {
 		require.NotNil(t, created, "expected CreateVersion to be called")
 		assert.Equal(t, "sha256:abc", created.ImageId)
 		assert.Equal(t, kindID, created.AgentKindID)
+		// The version keeps the source agent's health checks as they are now.
+		assert.JSONEq(t, `{"readiness": {"type": "http", "path": "/health"}}`, string(created.HealthChecks))
+	})
+
+	t.Run("does not publish when the source agent's health checks cannot be read", func(t *testing.T) {
+		repo := baseRepo()
+		repo.GetVersionFunc = func(_ context.Context, _ uuid.UUID, _ string) (*models.AgentKindVersion, error) {
+			return nil, gorm.ErrRecordNotFound
+		}
+		repo.GetVersionByImageIDFunc = func(_ context.Context, _ uuid.UUID, _ string) (*models.AgentKindVersion, error) {
+			return nil, gorm.ErrRecordNotFound
+		}
+		repo.FindVersionByImageIDInOrgFunc = func(_ context.Context, _, _ string) (*models.AgentKindVersion, error) {
+			return nil, gorm.ErrRecordNotFound
+		}
+		oc := &clientmocks.OpenChoreoClientMock{
+			GetComponentFunc: func(_ context.Context, _, _, _ string) (*models.AgentResponse, error) {
+				return &models.AgentResponse{Name: "src-agent"}, nil
+			},
+			GetBuildFunc: func(_ context.Context, _, _, _, _ string) (*models.BuildDetailsResponse, error) {
+				return buildWithImage("sha256:abc"), nil
+			},
+			GetEnvHealthChecksFunc: func(_ context.Context, _, _, _ string) (*client.HealthChecks, error) {
+				return nil, errors.New("openchoreo unavailable")
+			},
+		}
+		svc := newKindService(repo, oc)
+
+		_, err := svc.AddVersion(context.Background(), org, kindName, req)
+
+		require.Error(t, err)
+		assert.Empty(t, repo.CreateVersionCalls())
 	})
 }
 

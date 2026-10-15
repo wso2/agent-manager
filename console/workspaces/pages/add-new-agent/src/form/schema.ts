@@ -203,6 +203,13 @@ export const createAgentSchema = z.object({
       message: 'OpenAPI path must start with / and contain only letters, numbers, ., _, - and /',
     })
     .optional(),
+  // Readiness check: TCP (the platform default) or an HTTP GET to readinessPath.
+  readinessType: z.enum(['tcp', 'http']).optional(),
+  readinessPath: z
+    .string()
+    .trim()
+    .max(1024, 'Path must be at most 1024 characters')
+    .optional(),
   env: z
     .array(
       z.object({
@@ -282,6 +289,12 @@ export const createAgentSchema = z.object({
     return true;
   },
   { message: 'OpenAPI spec path is required when using custom interface', path: ['openApiPath'] }
+).refine(
+  (data) => data.readinessType !== 'http' || !!data.readinessPath,
+  { message: 'Path is required for an HTTP GET check', path: ['readinessPath'] }
+).refine(
+  (data) => data.readinessType !== 'http' || !data.readinessPath || /^\/\S*$/.test(data.readinessPath),
+  { message: 'Path must start with / and contain no spaces', path: ['readinessPath'] }
 ).refine(
   (data) => {
     // Validate Python-specific fields: runCommand is required for Python

@@ -27,12 +27,13 @@ type AgentResponse struct {
 	CreatedAt   time.Time `json:"createdAt"`
 	ProjectName string    `json:"projectName"`
 	// Current status of the agent
-	Status         *string         `json:"status,omitempty"`
-	Provisioning   Provisioning    `json:"provisioning"`
-	AgentType      AgentType       `json:"agentType"`
-	Configurations *Configurations `json:"configurations,omitempty"`
-	InputInterface *InputInterface `json:"inputInterface,omitempty"`
-	Build          *Build          `json:"build,omitempty"`
+	Status         *string            `json:"status,omitempty"`
+	Provisioning   Provisioning       `json:"provisioning"`
+	AgentType      AgentType          `json:"agentType"`
+	Configurations *Configurations    `json:"configurations,omitempty"`
+	InputInterface *InputInterface    `json:"inputInterface,omitempty"`
+	HealthChecks   *AgentHealthChecks `json:"healthChecks,omitempty"`
+	Build          *Build             `json:"build,omitempty"`
 	// Name of the Agent Kind this agent was instantiated from (absent for source-built agents)
 	KindName *string `json:"kindName,omitempty"`
 	// Version tag of the Agent Kind this agent was instantiated from (absent for source-built agents, and for kind-sourced agents created before the version was recorded)
@@ -355,6 +356,38 @@ func (o *AgentResponse) SetInputInterface(v InputInterface) {
 	o.InputInterface = &v
 }
 
+// GetHealthChecks returns the HealthChecks field value if set, zero value otherwise.
+func (o *AgentResponse) GetHealthChecks() AgentHealthChecks {
+	if o == nil || IsNil(o.HealthChecks) {
+		var ret AgentHealthChecks
+		return ret
+	}
+	return *o.HealthChecks
+}
+
+// GetHealthChecksOk returns a tuple with the HealthChecks field value if set, nil otherwise
+// and a boolean to check if the value has been set.
+func (o *AgentResponse) GetHealthChecksOk() (*AgentHealthChecks, bool) {
+	if o == nil || IsNil(o.HealthChecks) {
+		return nil, false
+	}
+	return o.HealthChecks, true
+}
+
+// HasHealthChecks returns a boolean if a field has been set.
+func (o *AgentResponse) HasHealthChecks() bool {
+	if o != nil && !IsNil(o.HealthChecks) {
+		return true
+	}
+
+	return false
+}
+
+// SetHealthChecks gets a reference to the given AgentHealthChecks and assigns it to the HealthChecks field.
+func (o *AgentResponse) SetHealthChecks(v AgentHealthChecks) {
+	o.HealthChecks = &v
+}
+
 // GetBuild returns the Build field value if set, zero value otherwise.
 func (o *AgentResponse) GetBuild() Build {
 	if o == nil || IsNil(o.Build) {
@@ -541,6 +574,9 @@ func (o AgentResponse) ToMap() (map[string]interface{}, error) {
 	}
 	if !IsNil(o.InputInterface) {
 		toSerialize["inputInterface"] = o.InputInterface
+	}
+	if !IsNil(o.HealthChecks) {
+		toSerialize["healthChecks"] = o.HealthChecks
 	}
 	if !IsNil(o.Build) {
 		toSerialize["build"] = o.Build

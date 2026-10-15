@@ -388,6 +388,20 @@ func (s *agentKindService) publishVersion(
 		return nil, fmt.Errorf("failed to check for duplicate image across org: %w", orgDupErr)
 	}
 
+	// Health checks describe the app in the image, so the version keeps the ones the
+	// source agent has now. A later change to the source agent then leaves agents
+	// created from this version alone.
+	healthChecks, err := s.ocClient.GetEnvHealthChecks(ctx, ouID, sourceAgentName, "")
+	if err != nil {
+		return nil, fmt.Errorf("failed to get the source agent's health checks: %w", err)
+	}
+	var healthChecksJSON json.RawMessage
+	if healthChecks != nil {
+		if healthChecksJSON, err = json.Marshal(healthChecks); err != nil {
+			return nil, fmt.Errorf("failed to encode health checks: %w", err)
+		}
+	}
+
 	version := &models.AgentKindVersion{
 		AgentKindID:  kind.ID,
 		Version:      versionTag,
@@ -395,6 +409,7 @@ func (s *agentKindService) publishVersion(
 		ImageId:      build.ImageId,
 		ConfigSchema: toModelConfigSchema(configSchema),
 		Metadata:     metadata,
+		HealthChecks: healthChecksJSON,
 		CreatedAt:    time.Now(),
 	}
 

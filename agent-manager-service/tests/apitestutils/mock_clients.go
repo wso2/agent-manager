@@ -226,6 +226,19 @@ func CreateMockOpenChoreoClient() *clientmocks.OpenChoreoClientMock {
 		EnsureReleaseBindingRuntimeClassFunc: func(ctx context.Context, namespaceName, componentName, environment, desiredRuntimeClass string) error {
 			return nil
 		},
+		// No health checks by default. GET agent and GET configurations read them, so
+		// every test reaching those paths gets a working default.
+		GetEnvHealthChecksFunc: func(ctx context.Context, ouID, componentName, environment string) (*client.HealthChecks, error) {
+			return nil, nil
+		},
+		// The startup defaults in agent-api.yaml: 10s + 60 x max(5s, 1s) = 310s. A
+		// startup check sent in part is checked with these filled in.
+		GetHealthCheckDefaultsFunc: func(ctx context.Context, ouID string) (*client.HealthChecks, error) {
+			delay, period, timeout, failures := int32(10), int32(5), int32(1), int32(60)
+			return &client.HealthChecks{Startup: &client.HealthCheck{ProbeTimings: client.ProbeTimings{
+				InitialDelaySeconds: &delay, PeriodSeconds: &period, TimeoutSeconds: &timeout, FailureThreshold: &failures,
+			}}}, nil
+		},
 	}
 }
 

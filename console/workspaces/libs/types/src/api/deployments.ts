@@ -51,6 +51,28 @@ export interface UpdateAgentDeploySettingsRequest {
 
 export type UpdateAgentDeploySettingsPathParams = AgentPathParams;
 
+export type HealthCheckName = "startup" | "readiness" | "liveness";
+export type HealthCheckType = "tcp" | "http";
+
+/** Wait times of one health check. */
+export interface ProbeTimings {
+  initialDelaySeconds?: number;
+  periodSeconds?: number;
+  timeoutSeconds?: number;
+  failureThreshold?: number;
+}
+
+/** One health check: what it checks and how long it waits. Set on the agent. */
+export interface HealthCheck extends ProbeTimings {
+  enabled?: boolean;
+  type?: HealthCheckType;
+  /** Omitted when the check uses the agent's endpoint port. */
+  port?: number;
+  path?: string;
+}
+
+export type HealthChecks = Partial<Record<HealthCheckName, HealthCheck>>;
+
 export interface UpdateAgentConfigurationsRequest {
   environmentName: string;
   env?: EnvironmentVariable[];
@@ -133,6 +155,8 @@ export interface ConfigurationItem {
 export interface ConfigurationData {
   env: ConfigurationItem[];
   files?: FileMount[];
+  /** Health checks of the release this environment runs. Read-only. */
+  probes?: HealthChecks;
 }
 
 export interface ConfigurationResponse {

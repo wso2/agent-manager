@@ -19,11 +19,12 @@ var _ MappedNullable = &UpdateAgentBuildParametersRequest{}
 
 // UpdateAgentBuildParametersRequest struct for UpdateAgentBuildParametersRequest
 type UpdateAgentBuildParametersRequest struct {
-	Provisioning   Provisioning    `json:"provisioning"`
-	AgentType      AgentType       `json:"agentType"`
-	Build          Build           `json:"build"`
-	InputInterface InputInterface  `json:"inputInterface"`
-	Configurations *Configurations `json:"configurations,omitempty"`
+	Provisioning   Provisioning       `json:"provisioning"`
+	AgentType      AgentType          `json:"agentType"`
+	Build          Build              `json:"build"`
+	InputInterface InputInterface     `json:"inputInterface"`
+	HealthChecks   *AgentHealthChecks `json:"healthChecks,omitempty"`
+	Configurations *Configurations    `json:"configurations,omitempty"`
 }
 
 // NewUpdateAgentBuildParametersRequest instantiates a new UpdateAgentBuildParametersRequest object
@@ -143,6 +144,38 @@ func (o *UpdateAgentBuildParametersRequest) SetInputInterface(v InputInterface) 
 	o.InputInterface = v
 }
 
+// GetHealthChecks returns the HealthChecks field value if set, zero value otherwise.
+func (o *UpdateAgentBuildParametersRequest) GetHealthChecks() AgentHealthChecks {
+	if o == nil || IsNil(o.HealthChecks) {
+		var ret AgentHealthChecks
+		return ret
+	}
+	return *o.HealthChecks
+}
+
+// GetHealthChecksOk returns a tuple with the HealthChecks field value if set, nil otherwise
+// and a boolean to check if the value has been set.
+func (o *UpdateAgentBuildParametersRequest) GetHealthChecksOk() (*AgentHealthChecks, bool) {
+	if o == nil || IsNil(o.HealthChecks) {
+		return nil, false
+	}
+	return o.HealthChecks, true
+}
+
+// HasHealthChecks returns a boolean if a field has been set.
+func (o *UpdateAgentBuildParametersRequest) HasHealthChecks() bool {
+	if o != nil && !IsNil(o.HealthChecks) {
+		return true
+	}
+
+	return false
+}
+
+// SetHealthChecks gets a reference to the given AgentHealthChecks and assigns it to the HealthChecks field.
+func (o *UpdateAgentBuildParametersRequest) SetHealthChecks(v AgentHealthChecks) {
+	o.HealthChecks = &v
+}
+
 // GetConfigurations returns the Configurations field value if set, zero value otherwise.
 func (o *UpdateAgentBuildParametersRequest) GetConfigurations() Configurations {
 	if o == nil || IsNil(o.Configurations) {
@@ -189,6 +222,9 @@ func (o UpdateAgentBuildParametersRequest) ToMap() (map[string]interface{}, erro
 	toSerialize["agentType"] = o.AgentType
 	toSerialize["build"] = o.Build
 	toSerialize["inputInterface"] = o.InputInterface
+	if !IsNil(o.HealthChecks) {
+		toSerialize["healthChecks"] = o.HealthChecks
+	}
 	if !IsNil(o.Configurations) {
 		toSerialize["configurations"] = o.Configurations
 	}

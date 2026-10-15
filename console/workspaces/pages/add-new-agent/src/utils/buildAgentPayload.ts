@@ -31,6 +31,7 @@ import {
   MCPProxyFormEntry,
 } from "../form/schema";
 import { mcpEntryHasAPIKeyVar } from "./mcpEnvVarNames";
+import { buildReadinessHealthChecks, subTypeByInterface } from "./readinessCheck";
 
 export interface CatalogEnvSeed {
   env: { key: string; value: string; isSensitive: boolean }[];
@@ -167,12 +168,6 @@ export function buildMCPConfig(
   return configs.length > 0 ? configs : undefined;
 }
 
-const subTypeByInterface = {
-  CUSTOM: "custom-api",
-  A2A: "a2a-agent",
-  DEFAULT: "chat-api",
-} as const;
-
 export const buildAgentCreationPayload = (
   data: AddAgentFormValues,
   params: OrgProjPathParams,
@@ -187,6 +182,7 @@ export const buildAgentCreationPayload = (
     data.labels && Object.keys(data.labels).length > 0 ? data.labels : undefined;
 
   if (data.deploymentType === "new") {
+    const healthChecks = buildReadinessHealthChecks(data);
     return {
       params,
       body: {
@@ -273,6 +269,7 @@ export const buildAgentCreationPayload = (
         },
         ...(modelConfig ? { modelConfig } : {}),
         ...(mcpConfig ? { mcpConfig } : {}),
+        ...(healthChecks ? { healthChecks } : {}),
       },
     };
   }

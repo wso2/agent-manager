@@ -81,6 +81,12 @@ type OpenChoreoClient interface {
 	UpdateComponentBasicInfo(ctx context.Context, ouID, projectName, componentName string, req UpdateComponentBasicInfoRequest) error
 	GetEnvResourceConfigs(ctx context.Context, ouID, projectName, componentName, environment string) (*ComponentResourceConfigsResponse, error)
 	UpdateEnvResourceConfigs(ctx context.Context, ouID, projectName, componentName, environment string, req UpdateComponentResourceConfigsRequest) error
+	// GetEnvHealthChecks returns an agent's health checks: those of the release an environment runs,
+	// or the agent's current ones when environment is "".
+	GetEnvHealthChecks(ctx context.Context, ouID, componentName, environment string) (*HealthChecks, error)
+	// GetHealthCheckDefaults returns the health-check defaults of the ComponentType new
+	// agents are created with, or nil when it defines none.
+	GetHealthCheckDefaults(ctx context.Context, ouID string) (*HealthChecks, error)
 	DeleteComponent(ctx context.Context, ouID, projectName, componentName string) error
 	// ListComponents returns only the agent components in the project. Projects are shared
 	// across WSO2 Cloud products, so a project can also hold components another product

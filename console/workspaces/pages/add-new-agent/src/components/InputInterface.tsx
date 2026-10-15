@@ -24,11 +24,14 @@ import {
   Divider,
   Typography,
   Form,
+  MenuItem,
+  Select,
   TextField,
 } from "@wso2/oxygen-ui";
 import { useCallback } from "react";
 import type { CreateAgentFormValues } from "../form/schema";
 import { type InputInterfaceType, INPUT_LIMITS } from "@agent-management-platform/types";
+import { readinessOnTypeChange, readinessOptionFor } from "../utils/readinessCheck";
 
 interface InputInterfaceProps {
   formData: CreateAgentFormValues;
@@ -109,6 +112,7 @@ export const InputInterface = ({
             port: "" as unknown as number,
             basePath: "/",
           } : {}),
+          ...readinessOnTypeChange(prevData, value),
         };
         return newData;
       });
@@ -117,6 +121,10 @@ export const InputInterface = ({
       setFormData(currentData => {
         const error = validateField('interfaceType', value, currentData);
         setFieldError('interfaceType', error);
+        setFieldError(
+          'readinessPath',
+          validateField('readinessPath', currentData.readinessPath, currentData),
+        );
         
         switch (value) {
           case 'CUSTOM': {
@@ -163,6 +171,21 @@ export const InputInterface = ({
     },
     [handleFieldChange]
   );
+
+  const handleReadinessTypeChange = useCallback(
+    (readinessType: "tcp" | "http") => {
+      setFormData(prevData => ({
+        ...prevData,
+        readinessType,
+        readinessPath:
+          prevData.readinessPath || readinessOptionFor(prevData.interfaceType)?.httpPath || "",
+      }));
+      if (readinessType === "tcp") setFieldError('readinessPath', undefined);
+    },
+    [setFormData, setFieldError]
+  );
+
+  const readinessOption = readinessOptionFor(formData.interfaceType);
 
   return (
     <Form.Section>
@@ -305,6 +328,47 @@ export const InputInterface = ({
             </Box>
           </Form.Stack>
         </Collapse>
+        {readinessOption && (
+          <Form.Stack spacing={1}>
+            <Form.Stack direction="row" spacing={2}>
+              <Box minWidth={280}>
+                <Form.ElementWrapper label="Readiness Check" name="readinessType">
+                  <Select
+                    id="readinessType"
+                    fullWidth
+                    value={formData.readinessType ?? "tcp"}
+                    onChange={(e) => handleReadinessTypeChange(e.target.value as "tcp" | "http")}
+                  >
+                    <MenuItem value="tcp">TCP: the port accepts connections</MenuItem>
+                    <MenuItem value="http">HTTP GET: the path returns 2xx or 3xx</MenuItem>
+                  </Select>
+                </Form.ElementWrapper>
+              </Box>
+              {formData.readinessType === "http" && (
+                <Box display="flex" flexDirection="column" flexGrow={1}>
+                  <Form.ElementWrapper label="Path" name="readinessPath">
+                    <TextField
+                      slotProps={{ htmlInput: { maxLength: INPUT_LIMITS.PATH } }}
+                      id="readinessPath"
+                      placeholder={readinessOption.httpPath}
+                      required
+                      value={formData.readinessPath || ''}
+                      onChange={(e) => handleFieldChange('readinessPath', e.target.value)}
+                      error={!!errors.readinessPath}
+                      helperText={errors.readinessPath}
+                      fullWidth
+                    />
+                  </Form.ElementWrapper>
+                </Box>
+              )}
+            </Form.Stack>
+            <Typography variant="caption" color="text.secondary">
+              When the agent is ready to take requests. Checked on the agent&apos;s port. The
+              wait times and the startup and liveness checks can be changed in the agent&apos;s
+              build configuration.
+            </Typography>
+          </Form.Stack>
+        )}
       </Form.Stack>
     </Form.Section>
   );

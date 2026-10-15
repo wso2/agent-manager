@@ -69,6 +69,24 @@ func (e AgentCardResponseStatus) Valid() bool {
 	}
 }
 
+// Defines values for AgentHealthCheckType.
+const (
+	Http AgentHealthCheckType = "http"
+	Tcp  AgentHealthCheckType = "tcp"
+)
+
+// Valid indicates whether the value is a known member of the AgentHealthCheckType enum.
+func (e AgentHealthCheckType) Valid() bool {
+	switch e {
+	case Http:
+		return true
+	case Tcp:
+		return true
+	default:
+		return false
+	}
+}
+
 // Defines values for AgentIdentityAssignmentEntryType.
 const (
 	AgentIdentityAssignmentEntryTypeAgent AgentIdentityAssignmentEntryType = "agent"
@@ -1366,6 +1384,48 @@ type AgentCreatedBy struct {
 	Id string `json:"id"`
 }
 
+// AgentHealthCheck defines model for AgentHealthCheck.
+type AgentHealthCheck struct {
+	// Enabled Whether the check runs.
+	Enabled *bool `json:"enabled,omitempty"`
+
+	// FailureThreshold Consecutive failures before Kubernetes acts on the check.
+	FailureThreshold *int32 `json:"failureThreshold,omitempty"`
+
+	// InitialDelaySeconds Seconds after the container starts before the first check.
+	InitialDelaySeconds *int32 `json:"initialDelaySeconds,omitempty"`
+
+	// Path Path requested when type is http (e.g. "/health"). No spaces.
+	Path *string `json:"path,omitempty"`
+
+	// PeriodSeconds Seconds between checks.
+	PeriodSeconds *int32 `json:"periodSeconds,omitempty"`
+
+	// Port Port this check runs against. Defaults to the agent's endpoint port.
+	Port *int32 `json:"port,omitempty"`
+
+	// TimeoutSeconds Seconds a check may take before it counts as failed.
+	TimeoutSeconds *int32 `json:"timeoutSeconds,omitempty"`
+
+	// Type tcp passes when the check's port accepts a connection; http passes when a GET to path on the check's port returns a 2xx or 3xx status.
+	Type *AgentHealthCheckType `json:"type,omitempty"`
+}
+
+// AgentHealthCheckType tcp passes when the check's port accepts a connection; http passes when a GET to path on the check's port returns a 2xx or 3xx status.
+type AgentHealthCheckType string
+
+// AgentHealthChecks The agent's health checks (startup, readiness, liveness): whether each one runs, what it checks and how long it waits. They belong to the agent, not to an environment; an environment picks up a change on its next deploy. In a create or build-parameters request, the checks sent replace the agent's health checks, and any field left out uses the platform default. In a configurations response, the health checks of the release that environment runs.
+type AgentHealthChecks struct {
+	// Liveness One Kubernetes health probe for the agent container: what it checks and how long it waits.
+	Liveness *AgentHealthCheck `json:"liveness,omitempty"`
+
+	// Readiness One Kubernetes health probe for the agent container: what it checks and how long it waits.
+	Readiness *AgentHealthCheck `json:"readiness,omitempty"`
+
+	// Startup One Kubernetes health probe for the agent container: what it checks and how long it waits.
+	Startup *AgentHealthCheck `json:"startup,omitempty"`
+}
+
 // AgentIdentityActionRequest Request body for regenerating an AgentID secret
 type AgentIdentityActionRequest struct {
 	// Environment Environment name to regenerate the AgentID secret in
@@ -1639,6 +1699,21 @@ type AgentModelConfigResponse struct {
 	Uuid openapi_types.UUID `json:"uuid"`
 }
 
+// AgentProbeTimings Wait times of one health check.
+type AgentProbeTimings struct {
+	// FailureThreshold Consecutive failures before Kubernetes acts on the check.
+	FailureThreshold *int32 `json:"failureThreshold,omitempty"`
+
+	// InitialDelaySeconds Seconds after the container starts before the first check.
+	InitialDelaySeconds *int32 `json:"initialDelaySeconds,omitempty"`
+
+	// PeriodSeconds Seconds between checks.
+	PeriodSeconds *int32 `json:"periodSeconds,omitempty"`
+
+	// TimeoutSeconds Seconds a check may take before it counts as failed.
+	TimeoutSeconds *int32 `json:"timeoutSeconds,omitempty"`
+}
+
 // AgentProvisioningType Whether the agent runs on the platform (`internal`) or outside it (`external`)
 type AgentProvisioningType = string
 
@@ -1683,6 +1758,9 @@ type AgentResponse struct {
 	CreatedBy   *AgentCreatedBy `json:"createdBy,omitempty"`
 	Description string          `json:"description"`
 	DisplayName string          `json:"displayName"`
+
+	// HealthChecks The agent's health checks (startup, readiness, liveness): whether each one runs, what it checks and how long it waits. They belong to the agent, not to an environment; an environment picks up a change on its next deploy. In a create or build-parameters request, the checks sent replace the agent's health checks, and any field left out uses the platform default. In a configurations response, the health checks of the release that environment runs.
+	HealthChecks *AgentHealthChecks `json:"healthChecks,omitempty"`
 
 	// InputInterface Endpoint configurations
 	InputInterface *InputInterface `json:"inputInterface,omitempty"`
@@ -2154,6 +2232,9 @@ type ConfigurationResponse struct {
 
 		// Files List of file mount configurations
 		Files []FileMount `json:"files"`
+
+		// Probes The agent's health checks (startup, readiness, liveness): whether each one runs, what it checks and how long it waits. They belong to the agent, not to an environment; an environment picks up a change on its next deploy. In a create or build-parameters request, the checks sent replace the agent's health checks, and any field left out uses the platform default. In a configurations response, the health checks of the release that environment runs.
+		Probes *AgentHealthChecks `json:"probes,omitempty"`
 	} `json:"configurations"`
 	CorsConfig *CORSConfig `json:"corsConfig,omitempty"`
 
@@ -2308,6 +2389,9 @@ type CreateAgentRequest struct {
 
 	// DisplayName Display name of the agent
 	DisplayName string `json:"displayName"`
+
+	// HealthChecks The agent's health checks (startup, readiness, liveness): whether each one runs, what it checks and how long it waits. They belong to the agent, not to an environment; an environment picks up a change on its next deploy. In a create or build-parameters request, the checks sent replace the agent's health checks, and any field left out uses the platform default. In a configurations response, the health checks of the release that environment runs.
+	HealthChecks *AgentHealthChecks `json:"healthChecks,omitempty"`
 
 	// InputInterface Endpoint configurations
 	InputInterface *InputInterface `json:"inputInterface,omitempty"`
@@ -5210,6 +5294,9 @@ type UpdateAgentBuildParametersRequest struct {
 	AgentType      AgentType       `json:"agentType"`
 	Build          Build           `json:"build"`
 	Configurations *Configurations `json:"configurations,omitempty"`
+
+	// HealthChecks The agent's health checks (startup, readiness, liveness): whether each one runs, what it checks and how long it waits. They belong to the agent, not to an environment; an environment picks up a change on its next deploy. In a create or build-parameters request, the checks sent replace the agent's health checks, and any field left out uses the platform default. In a configurations response, the health checks of the release that environment runs.
+	HealthChecks *AgentHealthChecks `json:"healthChecks,omitempty"`
 
 	// InputInterface Endpoint configurations
 	InputInterface InputInterface `json:"inputInterface"`

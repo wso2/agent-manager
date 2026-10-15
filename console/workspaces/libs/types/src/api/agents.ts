@@ -18,6 +18,7 @@
 
 import { type AgentPathParams, type Build, type Configurations, type ListQuery, type OrgPathParams, type OrgProjPathParams, type PaginationMeta, type RepositoryConfig } from './common';
 import type { EnvProviderConfiguration, EnvironmentVariableConfig } from './agent-model-configs';
+import type { HealthChecks } from './deployments';
 import type { ThunderGroup, ThunderRole } from './identities';
 
 export interface ModelConfigRequest {
@@ -44,6 +45,7 @@ interface AgentRequestBase {
   modelConfig?: ModelConfigRequest[];
   mcpConfig?: MCPConfigRequest[];
   labels?: Record<string, string>;
+  healthChecks?: HealthChecks;
 }
 
 interface UpdateAgentBasicInfoRequest {
@@ -59,6 +61,7 @@ interface UpdateAgentBuildParametersRequest {
   build?: Build;
   configurations?: Configurations;
   inputInterface?: InputInterface;
+  healthChecks?: HealthChecks;
 }
 
 export type CreateAgentRequest = AgentRequestBase;
@@ -122,6 +125,7 @@ export interface AgentResponse {
   kindVersion?: string;
   labels?: Record<string, string>;
   createdBy?: AgentCreatedBy;
+  healthChecks?: HealthChecks;
 }
 
 export interface AgentListResponse extends PaginationMeta {
