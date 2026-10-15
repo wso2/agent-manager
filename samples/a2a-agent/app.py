@@ -20,7 +20,6 @@ from typing import Any, Awaitable, Callable
 
 from dotenv import load_dotenv
 from fastapi import FastAPI
-from a2a.server.request_handlers import DefaultRequestHandler
 from a2a.server.routes.agent_card_routes import create_agent_card_routes
 from a2a.server.routes.fastapi_routes import add_a2a_routes_to_fastapi
 from a2a.server.routes.jsonrpc_routes import create_jsonrpc_routes
@@ -34,10 +33,12 @@ from a2a.types.a2a_pb2 import (
 )
 
 from agent import SKILL_ACTION_ITEMS, SKILL_SUMMARIZE, NotesAgentExecutor
+from tracing import TracedRequestHandler, init_tracing
 
 # For local runs only: the deployed pod gets its environment from AMP. Loading
 # here means the agent card below sees AGENT_PUBLIC_BASE_URL either way.
 load_dotenv()
+init_tracing()
 
 PORT = 9099
 RPC_PATH = "/rpc"
@@ -146,13 +147,15 @@ card = build_agent_card()
 
 # One handler and one task store behind both transports, so a task sent over
 # JSON-RPC can be read back over HTTP+JSON.
-handler = DefaultRequestHandler(
+handler = TracedRequestHandler(
     agent_executor=NotesAgentExecutor(),
     task_store=InMemoryTaskStore(),
     agent_card=card,
 )
 
-app = FastAPI(title="A2A Notes Agent")
+# FastAPI's own request spans are off: TracedRequestHandler opens the server
+# span, named after the A2A operation rather than the URL it arrived on.
+app = FastAPI(title="A2A Notes Agent", telemetry={"tracing": False})
 app.add_middleware(DefaultProtocolVersion)
 add_a2a_routes_to_fastapi(
     app,
