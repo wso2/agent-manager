@@ -161,6 +161,15 @@ echo ""
 
 wait_for_namespace_ready amp-thunder 'Thunder Extension'
 
+# openchoreo-api caches Thunder's JWKS for an hour (openchoreo-api-config
+# jwks.refresh_interval). A Thunder reinstall (teardown-amp, version mismatch)
+# rotates the signing keys, so until that cache expires every AMS call to
+# OpenChoreo fails with 401 INVALID_TOKEN and the gateway bootstrap job dies.
+# Restarting forces a fresh JWKS fetch.
+echo "🔄 Restarting openchoreo-api to pick up Thunder's current signing keys..."
+kubectl rollout restart deployment/openchoreo-api -n openchoreo-control-plane
+kubectl rollout status deployment/openchoreo-api -n openchoreo-control-plane --timeout=120s
+
 # The gateway-operator is base-layer, but a stale install breaks the AMP
 # gateway charts when the env.sh pin moves (their CRs need the newer CRDs) —
 # reconcile it here so setup-amp works on long-lived clusters.
