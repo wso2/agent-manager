@@ -1,0 +1,15 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 300 100">
+  <!-- WSO text in orange -->
+  <text x="20" y="70" font-family="Arial, sans-serif" font-size="60" font-weight="bold" fill="#FF7300">WSO</text>
+  
+  <!-- Circle with heartbeat -->
+  <circle cx="220" cy="45" r="35" fill="#FF7300"/>
+  <circle cx="220" cy="45" r="30" fill="#000000"/>
+  
+  <!-- Heartbeat line -->
+  <path d="M 195 45 L 205 45 L 210 35 L 215 55 L 220 40 L 225 50 L 230 45 L 245 45" 
+        stroke="#FF7300" stroke-width="3" fill="none"/>
+  
+  <!-- Number 2 -->
+  <text x="255" y="80" font-family="Arial, sans-serif" font-size="80" font-weight="bold" fill="#000000">2</text>
+</svg>
