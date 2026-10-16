@@ -19,7 +19,7 @@
 import { useThunderID, useUser } from "@thunderid/react";
 import type { ThunderIDUserProfile, UserInfo } from "../../types";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { globalConfig } from "@agent-management-platform/types";
+import { globalConfig, withBasePath } from "@agent-management-platform/types";
 
 const decodeJWTPart = (part: string): Record<string, unknown> | null => {
   try {
@@ -138,7 +138,7 @@ export const useAuthHooks = (): AuthHooks => {
       console.error("Error during signOut:", error);
     } finally {
       window.location.assign(
-        globalConfig.authConfig.afterSignOutUrl ?? "/login",
+        globalConfig.authConfig.afterSignOutUrl ?? withBasePath("/login"),
       );
     }
   }, [signOut]);

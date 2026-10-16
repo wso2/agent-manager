@@ -18,6 +18,7 @@
 
 import { useCallback, useEffect, useRef } from "react";
 import { useNavigate } from "react-router-dom";
+import { stripBasePath } from "@agent-management-platform/types";
 import { useConfirmationDialog } from "../components/ConfirmationDialog/ConfirmationDialogProvider";
 
 type ShowLeaveDialog = (onLeave: () => void) => void;
@@ -88,8 +89,10 @@ function interceptHistory(replace: boolean): History["pushState"] {
       return;
     }
     const usr = (data as { usr?: unknown } | null)?.usr;
+    // target.pathname is the browser path (base path included); routerNavigate
+    // re-applies the basename, so strip it first.
     openLeaveDialog(() =>
-      routerNavigate?.(`${target.pathname}${target.search}${target.hash}`, {
+      routerNavigate?.(`${stripBasePath(target.pathname)}${target.search}${target.hash}`, {
         replace,
         state: usr,
       }),

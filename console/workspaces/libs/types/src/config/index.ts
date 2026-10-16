@@ -21,6 +21,14 @@ import { TraceListTimeRange } from "../api/traces";
 import { type Duration, sub } from "date-fns";
 export interface AppConfig {
   authConfig: ThunderIDProviderProps;
+  /**
+   * URL path prefix the console is served under, e.g. "/console" when it
+   * sits behind a shared host. Empty or "/" means
+   * the origin root. Must match the Vite `base` the bundle was built with
+   * (both come from BASE_PATH); the router basename and every hard
+   * navigation outside the router go through `withBasePath`.
+   */
+  basePath?: string;
   apiBaseUrl: string;
   /**
    * Base URL for the unauthenticated GET /api/v1/config discovery request that
@@ -168,6 +176,39 @@ declare global {
 }
 
 export const globalConfig: AppConfig = window.__RUNTIME_CONFIG__;
+
+/**
+ * Normalised base path: no trailing slash, leading slash when non-empty.
+ * "" when the console is served from the origin root.
+ */
+export const getBasePath = (): string => {
+  const raw = (globalConfig?.basePath ?? "").trim();
+  if (!raw || raw === "/") return "";
+  return `/${raw.replace(/^\/+|\/+$/g, "")}`;
+};
+
+/**
+ * Prefix a router-relative path ("/org/x") with the base path for use in
+ * `window.location.assign`, `window.open`, `href` and anything else that
+ * bypasses react-router (which already applies the basename).
+ */
+export const withBasePath = (path: string): string => {
+  const base = getBasePath();
+  if (!base) return path;
+  if (path === base || path.startsWith(`${base}/`)) return path;
+  return `${base}${path.startsWith("/") ? "" : "/"}${path}`;
+};
+
+/**
+ * Inverse of `withBasePath`: strip the base path from a browser pathname so it
+ * can be handed to react-router's `navigate`, which re-applies the basename.
+ */
+export const stripBasePath = (pathname: string): string => {
+  const base = getBasePath();
+  if (!base) return pathname;
+  if (pathname === base) return "/";
+  return pathname.startsWith(`${base}/`) ? pathname.slice(base.length) : pathname;
+};
 
 const buildRange = (duration: Duration) => {
   const endTime = new Date();

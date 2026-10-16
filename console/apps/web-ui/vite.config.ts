@@ -2,8 +2,15 @@ import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
 import { workspaceSourceAliases } from '../../workspace-aliases.mjs'
 
+// URL path prefix the console is served under (e.g. "/console" behind a
+// shared host). Baked into asset URLs at build time; the same BASE_PATH env reaches
+// the runtime config (config.template.js -> basePath) for the router basename.
+const basePath = (process.env.BASE_PATH ?? '/').trim()
+const base = basePath && basePath !== '/' ? `/${basePath.replace(/^\/+|\/+$/g, '')}/` : '/'
+
 // https://vite.dev/config/
 export default defineConfig({
+  base,
   plugins: [react()],
   resolve: {
     dedupe: ['react', 'react-dom', 'react-router-dom'],

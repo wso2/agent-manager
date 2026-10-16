@@ -16,7 +16,7 @@
  * under the License.
  */
 
-import { globalConfig } from "@agent-management-platform/types";
+import { globalConfig, withBasePath } from "@agent-management-platform/types";
 import { LogOut } from "@wso2/oxygen-ui-icons-react";
 
 export const createUserMenuItems = ({ logout }: { logout: () => Promise<void> }) => [
@@ -24,6 +24,6 @@ export const createUserMenuItems = ({ logout }: { logout: () => Promise<void> })
     label: "Sign out",
     onClick: logout,
     icon: <LogOut />,
-    href: globalConfig.authConfig.afterSignOutUrl ?? "/login",
+    href: globalConfig.authConfig.afterSignOutUrl ?? withBasePath("/login"),
   },
 ];

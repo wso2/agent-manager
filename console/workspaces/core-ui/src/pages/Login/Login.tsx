@@ -17,6 +17,7 @@
  */
 
 import { useAuthHooks } from "@agent-management-platform/auth";
+import { withBasePath } from "@agent-management-platform/types";
 import { FullPageLoader } from "@agent-management-platform/views";
 import { useEffect, useMemo } from "react";
 import { useLocation } from "react-router-dom";
@@ -63,7 +64,8 @@ export function Login() {
     }
 
     if (isAuthenticated || userInfo?.sub) {
-      window.location.assign(safeRedirectPath);
+      // `from` is router-relative; a hard navigation bypasses the basename.
+      window.location.assign(withBasePath(safeRedirectPath));
       return;
     }
 

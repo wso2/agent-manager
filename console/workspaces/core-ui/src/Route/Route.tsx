@@ -74,6 +74,7 @@ import { LoadingFallback } from "../components/LoadingFallback";
 import {
   relativeRouteMap,
   absoluteRouteMap,
+  getBasePath,
 } from "@agent-management-platform/types";
 import {
   useExternalPageModules,
@@ -235,7 +236,7 @@ export function RootRouter() {
     monitorRoutes.path;
 
   return (
-    <BrowserRouter>
+    <BrowserRouter basename={getBasePath() || undefined}>
       <PageViewTracker />
       <Routes>
         <Route
