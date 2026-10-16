@@ -1,8 +1,9 @@
 name: WSO2 AI Agent Management Platform Release Promotion
 
 # Promotes an existing release to a new version without rebuilding it: images are
-# retagged by digest, and every version-stamped artifact (charts, amctl, install
-# bundle) is regenerated from the source release's own commit. See
+# retagged by digest, and every version-stamped artifact (charts, install bundle) is
+# regenerated from the source release's own commit. amctl is not part of this release:
+# it ships on its own version line (.github/workflows/amctl_release.yaml). See
 # docs/superpowers/specs/2026-09-07-release-promotion-design.md.
 #
 # The documentation release for the target version must already be merged in
@@ -436,43 +437,6 @@ jobs:
           TARGET_VERSION: ${{ inputs.target_version }}
         shell: bash
 
-  build-amctl:
-    name: Build amctl CLI
-    needs: prepare-promotion
-    runs-on: ubuntu-latest
-    permissions:
-      contents: read
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v6
-        with:
-          ref: amp/v${{ inputs.target_version }}
-          fetch-depth: 0
-
-      - name: Setup Go
-        uses: actions/setup-go@v6.1.0
-        with:
-          go-version-file: cli/go.mod
-          cache-dependency-path: cli/go.sum
-
-      - name: Run CLI tests
-        run: cd cli && go test ./...
-
-      - name: Build release artifacts
-        run: |
-          scripts/build-amctl.sh \
-            --version "${{ inputs.target_version }}" \
-            --commit "$(git rev-parse --short HEAD)" \
-            --date "$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
-            --output-dir dist/
-
-      - name: Upload amctl artifacts
-        uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7.0.0
-        with:
-          name: amctl-dist
-          path: dist/
-          retention-days: 7
-
   package-charts:
     name: Package ${{ matrix.chart.name }}
     needs: [load-config, retag-images]
@@ -632,7 +596,7 @@ jobs:
     name: Create Release
     # E2E is intentionally NOT a dependency here: it runs in parallel and reports
     # red/green for the same run, but it does not gate the release.
-    needs: [prepare-promotion, retag-images, package-charts, build-amctl]
+    needs: [prepare-promotion, retag-images, package-charts]
     runs-on:
       - codebuild-wso2_agent-manager-${{ github.run_id }}-${{ github.run_attempt }}
     permissions:
@@ -671,9 +635,6 @@ jobs:
               echo "- \`${HELM_REGISTRY}/${chart}:${VERSION}\`"
             done
 
-            echo ""
-            echo "### CLI (amctl)"
-            echo "Prebuilt \`amctl\` binaries (Linux, macOS, Windows) and \`checksums.txt\` are attached to this release."
 
             echo ""
             echo "### Install bundle"
@@ -713,12 +674,6 @@ jobs:
           # names a registry namespace and need not match the GitHub owner.
           REPO_OWNER: ${{ github.repository_owner }}
         shell: bash
-
-      - name: Download amctl artifacts
-        uses: actions/download-artifact@v8
-        with:
-          name: amctl-dist
-          path: dist/
 
       - name: Package install bundle
         run: |
