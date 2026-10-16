@@ -31,7 +31,6 @@ import (
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"
 
-	"github.com/wso2/agent-manager/agent-manager-service/clients/clientmocks"
 	"github.com/wso2/agent-manager/agent-manager-service/clients/openchoreosvc/client"
 	"github.com/wso2/agent-manager/agent-manager-service/db"
 	"github.com/wso2/agent-manager/agent-manager-service/middleware/jwtassertion"
@@ -102,23 +101,28 @@ func seedReadyAgentIdentityRow(t *testing.T, orgName, projectName, agentName, en
 	require.NoError(t, db.DB(context.Background()).Create(binding).Error)
 }
 
-// stubReadyAgentIdentitySecretReference stubs the OpenChoreo mock's
-// SecretReference methods for the "not found yet, create it" path —
-// EnvVarsForEnvironment calls these once per invocation, and each subtest
-// constructs its own fresh ocClient mock (unlike the DB row, which is
-// shared), so this must be called once per subtest.
-func stubReadyAgentIdentitySecretReference(ocClient *clientmocks.OpenChoreoClientMock) {
-	ocClient.GetSecretReferenceFunc = func(_ context.Context, _, _ string) (*client.SecretReferenceInfo, error) {
-		return nil, utils.ErrNotFound
-	}
-	ocClient.CreateSecretReferenceFunc = func(_ context.Context, _ string, req client.CreateSecretReferenceRequest) (*client.SecretReferenceInfo, error) {
-		return &client.SecretReferenceInfo{Name: req.Name}, nil
-	}
+// seedEnvironmentThunderURL mirrors the URL registration performed by the
+// cloud environment-provisioning flow. Completed AgentID bindings need this
+// public URL to construct the token endpoint injected during promotion.
+func seedEnvironmentThunderURL(t *testing.T, ouID, envName, thunderURL string) {
+	t.Helper()
+	handle := "test-" + envName
+	require.NoError(t, db.DB(context.Background()).Create(&models.EnvThunderURL{
+		OUID:          ouID,
+		EnvName:       envName,
+		ThunderHandle: &handle,
+		ThunderURL:    thunderURL,
+	}).Error)
 }
 
 func TestPromoteAgent(t *testing.T) {
 	authMiddleware := jwtassertion.NewMockMiddleware(t)
 	agentName := fmt.Sprintf("agent-%s", uuid.New().String()[:8])
+	thunderServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{"keys":[{"kty":"RSA"}]}`))
+	}))
+	t.Cleanup(thunderServer.Close)
 
 	// PromoteAgent hard-blocks promotion when the target environment's
 	// AgentID identity isn't ready (see agent_manager.go) — seed a completed
@@ -133,6 +137,7 @@ func TestPromoteAgent(t *testing.T) {
 	// org handle in the URL path (see its doc comment), and PromoteAgent's
 	// identity lookup is keyed by that token OUID — not the path org.
 	seedReadyAgentIdentityRow(t, jwtassertion.MockOUID, "my-project", agentName, "production")
+	seedEnvironmentThunderURL(t, jwtassertion.MockOUID, "production", thunderServer.URL+"/production")
 
 	promoteURL := func(org string) string {
 		return fmt.Sprintf("/api/v1/orgs/%s/projects/my-project/agents/%s/promote", org, agentName)
@@ -140,7 +145,6 @@ func TestPromoteAgent(t *testing.T) {
 
 	t.Run("promoting along a valid path returns 202", func(t *testing.T) {
 		ocClient := apitestutils.CreateMockOpenChoreoClient()
-		stubReadyAgentIdentitySecretReference(ocClient)
 		ocClient.GetProjectDeploymentPipelineFunc = pipelineWithPath("development", "production")
 		// System-managed env var resolution parses the environment UUID, so it must be valid.
 		ocClient.GetEnvironmentFunc = func(ctx context.Context, namespaceName, environmentName string) (*models.EnvironmentResponse, error) {
@@ -167,7 +171,6 @@ func TestPromoteAgent(t *testing.T) {
 
 	t.Run("with useConfigFromSourceEnv=true clones the source env overrides", func(t *testing.T) {
 		ocClient := apitestutils.CreateMockOpenChoreoClient()
-		stubReadyAgentIdentitySecretReference(ocClient)
 		ocClient.GetProjectDeploymentPipelineFunc = pipelineWithPath("development", "production")
 		ocClient.GetEnvironmentFunc = func(ctx context.Context, namespaceName, environmentName string) (*models.EnvironmentResponse, error) {
 			return &models.EnvironmentResponse{UUID: uuid.New().String(), Name: environmentName}, nil
@@ -222,7 +225,6 @@ func TestPromoteAgent(t *testing.T) {
 
 	t.Run("with useConfigFromSourceEnv=false forwards the provided env overrides", func(t *testing.T) {
 		ocClient := apitestutils.CreateMockOpenChoreoClient()
-		stubReadyAgentIdentitySecretReference(ocClient)
 		ocClient.GetProjectDeploymentPipelineFunc = pipelineWithPath("development", "production")
 		ocClient.GetEnvironmentFunc = func(ctx context.Context, namespaceName, environmentName string) (*models.EnvironmentResponse, error) {
 			return &models.EnvironmentResponse{UUID: uuid.New().String(), Name: environmentName}, nil
@@ -359,9 +361,9 @@ func TestPromoteAgent(t *testing.T) {
 		// be seeded here — otherwise promotion proceeds and panics on the
 		// unconfigured PromoteComponentFunc mock below.
 		seedReadyAgentIdentityRow(t, jwtassertion.MockOUID, "my-project", agentName, "development")
+		seedEnvironmentThunderURL(t, jwtassertion.MockOUID, "development", thunderServer.URL+"/development")
 
 		ocClient := apitestutils.CreateMockOpenChoreoClient()
-		stubReadyAgentIdentitySecretReference(ocClient)
 		ocClient.GetProjectDeploymentPipelineFunc = pipelineWithPath("development", "unready-env")
 		ocClient.GetEnvironmentFunc = func(ctx context.Context, namespaceName, environmentName string) (*models.EnvironmentResponse, error) {
 			return &models.EnvironmentResponse{UUID: uuid.New().String(), Name: environmentName}, nil

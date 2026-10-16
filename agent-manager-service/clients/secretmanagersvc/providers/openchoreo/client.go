@@ -116,6 +116,12 @@ func (c *Client) PushSecret(ctx context.Context, location secretmanagersvc.Secre
 				Data:   data,
 				Labels: userLabels(metadata.Labels, metadata.ManagedBy),
 			}); updateErr != nil {
+				// The name is taken, yet the secret API cannot find a secret to
+				// update: the SecretReference was created outside this client.
+				if errors.Is(updateErr, utils.ErrNotFound) {
+					return "", fmt.Errorf("failed to update secret after create conflict: %w: %w",
+						secretmanagersvc.ErrReferenceNameTaken, updateErr)
+				}
 				return "", fmt.Errorf("failed to update secret after create conflict: %w", updateErr)
 			}
 			return name, nil

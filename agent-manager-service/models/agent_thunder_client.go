@@ -57,8 +57,9 @@ type AgentThunderClient struct {
 	ProvisioningType AgentProvisioningType `gorm:"column:provisioning_type;not null"`
 	ThunderAgentID   string                `gorm:"column:thunder_agent_id;not null;default:''"`
 	ThunderClientID  string                `gorm:"column:thunder_client_id;not null;default:''"`
-	// SecretRefPath is the OpenBao KV path holding the credential (internal agents only).
-	// Read directly by services.AgentIdentityInjectionService.
+	// SecretRefPath stores the provider-managed SecretReference name for the
+	// credential (internal agents only). The column name is retained for schema
+	// compatibility.
 	SecretRefPath string             `gorm:"column:secret_ref_path;not null;default:''"`
 	Status        AgentThunderStatus `gorm:"column:status;not null;default:'pending'"`
 	// RequestedBy is the calling user's own subject (from AMS's existing

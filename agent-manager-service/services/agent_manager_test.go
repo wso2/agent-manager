@@ -82,13 +82,6 @@ func (s *stubAgentThunderProvisioning) GetIdentityViews(ctx context.Context, ouI
 	return s.GetIdentityViewsFunc(ctx, ouID, projectName, agentName)
 }
 
-// HealSecretRef is a no-op override: no test using this stub exercises the
-// reconciler's startup heal pass, but leaving it unimplemented would panic on
-// the nil embedded interface if that ever changes.
-func (s *stubAgentThunderProvisioning) HealSecretRef(ctx context.Context, binding models.AgentThunderClient) error {
-	return nil
-}
-
 func (s *stubAgentThunderProvisioning) ProvisionForEnvironmentIfMissing(ctx context.Context, ouID, projectName, agentName, envName string, ownership models.AgentProvisioningType, requestedBy string) (bool, error) {
 	return s.ProvisionForEnvironmentIfMissingFunc(ctx, ouID, projectName, agentName, envName, ownership, requestedBy)
 }

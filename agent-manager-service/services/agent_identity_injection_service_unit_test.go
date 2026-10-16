@@ -48,20 +48,11 @@ const (
 	testIdentityEnv     = "staging"
 )
 
-// testIdentitySecretRefName is the deterministic SecretReference name
-// agentIdentitySecretLocation computes for the fixed (org, project, agent,
-// env) tuple above — the same value storeCredential now persists into
-// SecretRefPath (CreateSecret's own returned name, not a locally-computed
-// path; see storeCredential's doc comment).
+// testIdentitySecretRefName represents the provider-managed SecretReference
+// name returned by CreateSecret and persisted in SecretRefPath.
 func testIdentitySecretRefName() string {
-	return agentIdentitySecretLocation(testIdentityOrg, testIdentityProject, testIdentityAgent, testIdentityEnv).SecretRefName()
+	return "cred-agent-identity-a1b2c3d4"
 }
-
-// testIdentityKVPath is a remote KV path distinct from
-// testIdentitySecretRefName(), so tests asserting createdReq.KVPath actually
-// exercise "value came from binding.SecretRefPath" rather than passing
-// vacuously because both happened to be the same string.
-const testIdentityKVPath = "openbao/agent-identities/test-agent/dev"
 
 func completedInternalBinding() *models.AgentThunderClient {
 	return &models.AgentThunderClient{
@@ -73,7 +64,7 @@ func completedInternalBinding() *models.AgentThunderClient {
 		Status:           models.AgentThunderStatusCompleted,
 		ThunderAgentID:   "thunder-agent-1",
 		ThunderClientID:  "client-abc",
-		SecretRefPath:    testIdentityKVPath,
+		SecretRefPath:    testIdentitySecretRefName(),
 	}
 }
 
@@ -113,34 +104,23 @@ func newTestIdentityInjectionService(
 	return NewAgentIdentityInjectionService(repo, noMCPConfigRepo(), noMCPProxyScopeRepo(), oc, "1h", discardLogger())
 }
 
-// injectableOCClient returns an OpenChoreoClientMock with CreateSecretReferenceFunc
-// stubbed to succeed — the data-plane SecretReference write every injectable
-// binding now makes via ensureSecretReference on every EnvVarsForEnvironment
-// call. Tests that also exercise other OpenChoreo calls set their own funcs
-// on the returned mock before use.
+// injectableOCClient returns a base OpenChoreo client mock. SecretReference
+// creation is deliberately not stubbed: injection must use the stored
+// provider-managed reference directly and must not create another one.
 func injectableOCClient() *clientmocks.OpenChoreoClientMock {
 	return &clientmocks.OpenChoreoClientMock{
-		CreateSecretReferenceFunc: func(_ context.Context, _ string, req client.CreateSecretReferenceRequest) (*client.SecretReferenceInfo, error) {
-			return &client.SecretReferenceInfo{Name: req.Name}, nil
+		CreateSecretReferenceFunc: func(context.Context, string, client.CreateSecretReferenceRequest) (*client.SecretReferenceInfo, error) {
+			panic("injection must not create a second SecretReference")
 		},
 	}
 }
 
-// TestAgentIdentityInjection_EnvVarsForEnvironment_BuildsVarsFromResolvedSecretReference
-// guards the core fix: the SecretKeyRef's Name comes from ensureSecretReference
-// asserting the data-plane SecretReference from binding.SecretRefPath — the
-// remote KV key agentThunderProvisioningService.storeCredential resolved
-// once, at creation/rotation (see its doc comment) — never independently
-// recomputed or guessed here.
-func TestAgentIdentityInjection_EnvVarsForEnvironment_BuildsVarsFromResolvedSecretReference(t *testing.T) {
+// TestAgentIdentityInjection_EnvVarsForEnvironment_UsesStoredSecretReference
+// guards the core flow: the pod SecretKeyRef uses the exact provider-managed
+// reference name persisted in binding.SecretRefPath.
+func TestAgentIdentityInjection_EnvVarsForEnvironment_UsesStoredSecretReference(t *testing.T) {
 	repo := identityRepoReturning(completedInternalBinding(), nil)
 	oc := injectableOCClient()
-	var createdReq client.CreateSecretReferenceRequest
-	oc.CreateSecretReferenceFunc = func(_ context.Context, ouID string, req client.CreateSecretReferenceRequest) (*client.SecretReferenceInfo, error) {
-		assert.Equal(t, testIdentityOrg, ouID)
-		createdReq = req
-		return &client.SecretReferenceInfo{Name: req.Name}, nil
-	}
 	svc := newTestIdentityInjectionService(repo, oc)
 
 	envVars, err := svc.EnvVarsForEnvironment(context.Background(), testIdentityOrg, testIdentityProject, testIdentityAgent, testIdentityEnv)
@@ -148,10 +128,6 @@ func TestAgentIdentityInjection_EnvVarsForEnvironment_BuildsVarsFromResolvedSecr
 	require.Len(t, envVars, 4)
 
 	expectedRefName := testIdentitySecretRefName()
-	assert.Equal(t, testIdentityKVPath, createdReq.KVPath,
-		"KVPath must come from binding.SecretRefPath, never recomputed independently")
-	assert.Equal(t, []string{thundersvc.AgentSecretKeyClientSecret}, createdReq.SecretKeys)
-	assert.Empty(t, createdReq.TemplateAnnotations, "a plain read must not stamp a rotated-at annotation")
 
 	byKey := map[string]client.EnvVar{}
 	for _, ev := range envVars {
@@ -169,6 +145,27 @@ func TestAgentIdentityInjection_EnvVarsForEnvironment_BuildsVarsFromResolvedSecr
 	assert.Equal(t, thundersvc.ThunderTokenURL(ThunderOrgNamespace(), testIdentityEnv), byKey[client.EnvVarAgentIDTokenEndpoint].Value,
 		"token endpoint must be built from the org's Thunder namespace, NOT the raw ouID")
 	assert.Empty(t, byKey[client.EnvVarAgentIDScopes].Value, "no agent configuration means no MCP bindings, so no scopes to request")
+}
+
+func TestAgentIdentityInjection_EnvVarsForEnvironment_UsesExistingReferenceForLegacyPath(t *testing.T) {
+	binding := completedInternalBinding()
+	binding.SecretRefPath = "wc-secrets/org/generic/credential"
+	svc := newTestIdentityInjectionService(identityRepoReturning(binding, nil), injectableOCClient())
+
+	envVars, err := svc.EnvVarsForEnvironment(context.Background(), testIdentityOrg, testIdentityProject, testIdentityAgent, testIdentityEnv)
+	require.NoError(t, err)
+	for _, envVar := range envVars {
+		if envVar.Key == client.EnvVarAgentIDClientSecret {
+			require.NotNil(t, envVar.ValueFrom)
+			require.NotNil(t, envVar.ValueFrom.SecretKeyRef)
+			assert.Equal(t,
+				agentIdentitySecretLocation(testIdentityOrg, testIdentityProject, testIdentityAgent, testIdentityEnv).SecretRefName(),
+				envVar.ValueFrom.SecretKeyRef.Name,
+			)
+			return
+		}
+	}
+	t.Fatal("Agent ID client secret env var was not injected")
 }
 
 func TestAgentIdentityInjection_EnvVarsForEnvironment_UsesDeploymentTokenEndpoint(t *testing.T) {
@@ -208,29 +205,6 @@ func TestAgentIdentityInjection_EnvVarsForEnvironment_PropagatesTokenEndpointErr
 	envVars, err := svc.EnvVarsForEnvironment(context.Background(), testIdentityOrg, testIdentityProject, testIdentityAgent, testIdentityEnv)
 	require.ErrorIs(t, err, expectedErr)
 	require.Nil(t, envVars)
-}
-
-// TestAgentIdentityInjection_EnvVarsForEnvironment_CreateConflictFallsBackToUpdate
-// guards the concurrent-writer case: a create conflict (another request for
-// this same binding, or the reconciler, already created it) must fall back
-// to asserting the same spec via update rather than failing.
-func TestAgentIdentityInjection_EnvVarsForEnvironment_CreateConflictFallsBackToUpdate(t *testing.T) {
-	repo := identityRepoReturning(completedInternalBinding(), nil)
-	oc := injectableOCClient()
-	updated := false
-	oc.CreateSecretReferenceFunc = func(_ context.Context, _ string, _ client.CreateSecretReferenceRequest) (*client.SecretReferenceInfo, error) {
-		return nil, utils.ErrConflict
-	}
-	oc.UpdateSecretReferenceFunc = func(_ context.Context, _, _ string, _ client.CreateSecretReferenceRequest) (*client.SecretReferenceInfo, error) {
-		updated = true
-		return &client.SecretReferenceInfo{}, nil
-	}
-	svc := newTestIdentityInjectionService(repo, oc)
-
-	envVars, err := svc.EnvVarsForEnvironment(context.Background(), testIdentityOrg, testIdentityProject, testIdentityAgent, testIdentityEnv)
-	require.NoError(t, err)
-	assert.Len(t, envVars, 4)
-	assert.True(t, updated, "create conflict must fall back to update, not fail")
 }
 
 // mcpProxyBinding is one EnvAgentMCPMapping's worth of fixture data: a proxy
@@ -636,21 +610,14 @@ func TestAgentIdentityInjection_ReconcileForEnvironment_ConfigReadError_Propagat
 	assert.Error(t, err, "an unreadable current state must not silently proceed to a blind write")
 }
 
-// TestAgentIdentityInjection_RefreshAfterRotation_StampsAnnotationAndRollsPod
-// guards rotation's contract: the SecretReference gets a fresh rotated-at
-// annotation, and the pod rolls only after waiting out the refresh cadence
-// (see RefreshAfterRotation for why the roll is deferred and detached).
-func TestAgentIdentityInjection_RefreshAfterRotation_StampsAnnotationAndRollsPod(t *testing.T) {
+// TestAgentIdentityInjection_RefreshAfterRotation_WaitsAndRollsPod guards
+// rotation's contract: the provider updates the existing SecretReference, then
+// the pod rolls only after waiting out the refresh cadence.
+func TestAgentIdentityInjection_RefreshAfterRotation_WaitsAndRollsPod(t *testing.T) {
 	repo := identityRepoReturning(completedInternalBinding(), nil)
 
-	fixedNow := time.Date(2026, 7, 8, 10, 30, 0, 0, time.UTC)
-	var createdReq client.CreateSecretReferenceRequest
 	rolled := make(chan struct{})
 	oc := injectableOCClient()
-	oc.CreateSecretReferenceFunc = func(_ context.Context, _ string, req client.CreateSecretReferenceRequest) (*client.SecretReferenceInfo, error) {
-		createdReq = req
-		return &client.SecretReferenceInfo{Name: req.Name}, nil
-	}
 	oc.UpdateReleaseBindingEnvVarsFunc = func(_ context.Context, _, _, _, _ string, envVars []client.EnvVar) error {
 		assert.Len(t, envVars, 4)
 		close(rolled)
@@ -660,7 +627,6 @@ func TestAgentIdentityInjection_RefreshAfterRotation_StampsAnnotationAndRollsPod
 	svc := newTestIdentityInjectionService(repo, oc)
 	impl, ok := svc.(*agentIdentityInjectionService)
 	require.True(t, ok)
-	impl.now = func() time.Time { return fixedNow }
 	var slept time.Duration
 	impl.after = func(d time.Duration) <-chan time.Time {
 		slept = d
@@ -670,10 +636,6 @@ func TestAgentIdentityInjection_RefreshAfterRotation_StampsAnnotationAndRollsPod
 	}
 
 	require.NoError(t, svc.RefreshAfterRotation(context.Background(), testIdentityOrg, testIdentityProject, testIdentityAgent, testIdentityEnv))
-	require.NotNil(t, createdReq.TemplateAnnotations)
-	assert.Equal(t, fixedNow.Format(secretRotatedAtFormat), createdReq.TemplateAnnotations[secretRotatedAtAnnotation],
-		"rotation must stamp a fresh annotation marking the SecretReference spec as changed")
-	assert.Equal(t, testIdentityKVPath, createdReq.KVPath, "rotation must not change the resolved KV path")
 
 	select {
 	case <-rolled:
@@ -914,10 +876,8 @@ func TestAgentIdentitySecretLocation_EntityNameIsAgentScoped(t *testing.T) {
 	assert.Contains(t, locA.EntityName, "agent-a")
 }
 
-// TestAgentIdentitySecretLocation_IsDeterministic guards the property
-// agentThunderProvisioningService.HealSecretRef relies on: the same (org,
-// project, agent, env) tuple must always compute the exact same
-// SecretReference name, with no stored or round-tripped state required.
+// TestAgentIdentitySecretLocation_IsDeterministic guards stable secret naming
+// for create, rotate, and delete operations.
 func TestAgentIdentitySecretLocation_IsDeterministic(t *testing.T) {
 	loc1 := agentIdentitySecretLocation(testIdentityOrg, testIdentityProject, testIdentityAgent, testIdentityEnv)
 	loc2 := agentIdentitySecretLocation(testIdentityOrg, testIdentityProject, testIdentityAgent, testIdentityEnv)
