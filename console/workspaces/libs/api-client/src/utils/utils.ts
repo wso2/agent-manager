@@ -38,6 +38,26 @@ export const OBS_SERVICE_BASE = '/api';
 export const POLL_INTERVAL = 5000;
 export const SLOW_POLL_INTERVAL = 15000;
 
+/** Re-poll while pending; stop on any other status or no data. */
+export function pendingRefetchInterval(
+    data: { status?: string } | null | undefined,
+): number | false {
+    return data?.status === 'pending' ? POLL_INTERVAL : false;
+}
+
+export const isNotFoundError = (error: unknown): boolean =>
+    (error as { status?: number } | null)?.status === 404;
+
+/** Resolves a 404 to null, for resources whose absence is a valid state. */
+export async function nullIfNotFound<T>(request: Promise<T>): Promise<T | null> {
+    try {
+        return await request;
+    } catch (error) {
+        if (isNotFoundError(error)) return null;
+        throw error;
+    }
+}
+
 const DEFAULT_TIMEOUT = 1000;
 
 export interface HttpOptions {

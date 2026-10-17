@@ -1688,6 +1688,9 @@ importers:
       '@agent-management-platform/build':
         specifier: workspace:*
         version: link:../build
+      '@agent-management-platform/deploy':
+        specifier: workspace:*
+        version: link:../deploy
       '@agent-management-platform/llm-providers':
         specifier: workspace:*
         version: link:../llm-providers

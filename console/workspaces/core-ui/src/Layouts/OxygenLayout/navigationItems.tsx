@@ -92,6 +92,27 @@ const MCPLogo = ({
   />
 );
 
+function credentialsNavItem(
+  pathname: string,
+  params: {
+    orgId: string | undefined;
+    projectId: string | undefined;
+    agentId: string | undefined;
+    envId: string | undefined;
+  },
+) {
+  const security =
+    absoluteRouteMap.children.org.children.projects.children.agents.children
+      .environment.children.security;
+  return {
+    label: "Credentials",
+    type: "item" as const,
+    icon: <ShieldCheck size={20} />,
+    isActive: !!matchPath(security.wildPath, pathname),
+    href: generatePath(security.path, params),
+  };
+}
+
 /**
  * TODO: Use nav bar instead of navigate to the items.
  */
@@ -291,6 +312,16 @@ export function useNavigationItems(): Array<
               { orgId, projectId, agentId },
             ),
           },
+          ...(agent?.agentType?.subType === "a2a-agent"
+            ? [
+                credentialsNavItem(pathname, {
+                  orgId,
+                  projectId,
+                  agentId,
+                  envId: defaultEnv,
+                }),
+              ]
+            : []),
         ],
       },
       {
@@ -434,21 +465,12 @@ export function useNavigationItems(): Array<
           },
           ...(agent?.agentType?.type === "agent-api"
             ? [
-                {
-                  label: "Credentials",
-                  type: "item" as const,
-                  icon: <ShieldCheck size={20} />,
-                  isActive: !!matchPath(
-                    absoluteRouteMap.children.org.children.projects.children
-                      .agents.children.environment.children.security.wildPath,
-                    pathname,
-                  ),
-                  href: generatePath(
-                    absoluteRouteMap.children.org.children.projects.children
-                      .agents.children.environment.children.security.path,
-                    { orgId, projectId, agentId, envId: defaultEnv },
-                  ),
-                },
+                credentialsNavItem(pathname, {
+                  orgId,
+                  projectId,
+                  agentId,
+                  envId: defaultEnv,
+                }),
               ]
             : []),
         ],
@@ -665,21 +687,12 @@ export function useNavigationItems(): Array<
           },
           ...(agent?.agentType?.type === "agent-api"
             ? [
-                {
-                  label: "Credentials",
-                  type: "item" as const,
-                  icon: <ShieldCheck size={20} />,
-                  isActive: !!matchPath(
-                    absoluteRouteMap.children.org.children.projects.children
-                      .agents.children.environment.children.security.wildPath,
-                    pathname,
-                  ),
-                  href: generatePath(
-                    absoluteRouteMap.children.org.children.projects.children
-                      .agents.children.environment.children.security.path,
-                    { orgId, projectId, agentId, envId: defaultEnv },
-                  ),
-                },
+                credentialsNavItem(pathname, {
+                  orgId,
+                  projectId,
+                  agentId,
+                  envId: defaultEnv,
+                }),
               ]
             : []),
         ],

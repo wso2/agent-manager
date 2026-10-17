@@ -51,6 +51,7 @@ import {
   Typography,
 } from "@wso2/oxygen-ui";
 import { ChevronDown, Info } from "@wso2/oxygen-ui-icons-react";
+import { isExternalA2AAgent } from "@agent-management-platform/views";
 import {
   forwardRef,
   useEffect,
@@ -124,12 +125,15 @@ export const SecurityConfigSections = forwardRef<SecurityConfigHandle, SecurityC
     // GetAgent is used only for the env-independent agent type; CORS + Auth are seeded from the
     // env-scoped `configurations` prop below.
     const { data: agent } = useGetAgent({ orgName, projName, agentName });
-    const isApiAgent = agent?.agentType?.type === "agent-api";
+    // A proxied external A2A agent takes inbound auth and CORS at the gateway, like an API agent.
+    const hasGatewayPolicies = agent?.agentType?.type === "agent-api" || isExternalA2AAgent(agent);
     const isA2AAgent = agent?.agentType?.subType === "a2a-agent";
+    // A proxied external agent is a third-party origin, so it never receives our IdP's tokens.
+    const canForwardToken = !isExternalA2AAgent(agent);
 
     const { data: idpResp } = useListEnvironmentIdentityProviders({
       orgName,
-      environmentId: open && isApiAgent ? environment : undefined,
+      environmentId: open && hasGatewayPolicies ? environment : undefined,
     });
     const identityProviderOptions = useMemo(
       () => (idpResp?.list ?? []).map((p) => p.name),
@@ -224,17 +228,18 @@ export const SecurityConfigSections = forwardRef<SecurityConfigHandle, SecurityC
       configurations?.oauthConfig,
     ]);
 
+    const forwardToken = canForwardToken && oauthForwardToken;
     const hasWildcardOrigin = corsAllowAll || corsOrigins.includes("*");
     const editableCorsHeaders = isA2AAgent
       ? corsHeaders.filter((header) => !isA2AVersionHeader(header))
       : corsHeaders;
     const cardInvalid = isA2AAgent && isCardDraftInvalid(cardDraft);
-    const oauthInvalid = isApiAgent && authMode === "oauth" && oauthIssuers.length === 0;
+    const oauthInvalid = hasGatewayPolicies && authMode === "oauth" && oauthIssuers.length === 0;
 
     const resilienceTimeoutSeconds = timeoutUnit === "minutes"
       ? Number(timeoutDuration) * 60
       : Number(timeoutDuration);
-    const timeoutInvalid = isApiAgent && !isA2AAgent && (
+    const timeoutInvalid = hasGatewayPolicies && !isA2AAgent && (
       timeoutDuration.trim() === ""
       || !Number.isFinite(resilienceTimeoutSeconds)
       || !Number.isInteger(resilienceTimeoutSeconds)
@@ -258,7 +263,7 @@ export const SecurityConfigSections = forwardRef<SecurityConfigHandle, SecurityC
       () => ({
         validate: () => !oauthInvalid && !timeoutInvalid && !cardInvalid,
         buildBody: () => {
-          if (!isApiAgent) return {};
+          if (!hasGatewayPolicies) return {};
           return {
             enableApiKeySecurity: authMode === "apikey",
             enableOAuthSecurity: authMode === "oauth",
@@ -268,7 +273,7 @@ export const SecurityConfigSections = forwardRef<SecurityConfigHandle, SecurityC
                 audiences: oauthAudiences,
                 headerName: oauthHeaderName.trim() || "Authorization",
                 authHeaderPrefix: oauthHeaderPrefix.trim() || "Bearer",
-                forwardToken: oauthForwardToken,
+                forwardToken,
               },
             }),
             corsConfig: {
@@ -288,14 +293,14 @@ export const SecurityConfigSections = forwardRef<SecurityConfigHandle, SecurityC
         },
       }),
       [
-        isApiAgent, oauthInvalid, authMode, oauthIssuers, oauthAudiences, oauthHeaderName,
-        oauthHeaderPrefix, oauthForwardToken, corsEnabled, corsOrigins, corsMethods,
+        hasGatewayPolicies, oauthInvalid, authMode, oauthIssuers, oauthAudiences, oauthHeaderName,
+        oauthHeaderPrefix, forwardToken, corsEnabled, corsOrigins, corsMethods,
         corsAllowCredentials, hasWildcardOrigin, timeoutInvalid,
         resilienceTimeoutSeconds, isA2AAgent, editableCorsHeaders, cardDraft, cardInvalid,
       ],
     );
 
-    if (!isApiAgent) return null;
+    if (!hasGatewayPolicies) return null;
 
     return (
       <>
@@ -630,9 +635,9 @@ export const SecurityConfigSections = forwardRef<SecurityConfigHandle, SecurityC
                 <FormControlLabel
                   control={
                     <Switch
-                      checked={oauthForwardToken}
+                      checked={forwardToken}
                       onChange={(_, checked) => setOauthForwardToken(checked)}
-                      disabled={disabled}
+                      disabled={disabled || !canForwardToken}
                     />
                   }
                   label={
@@ -649,8 +654,9 @@ export const SecurityConfigSections = forwardRef<SecurityConfigHandle, SecurityC
                   }
                 />
                 <Typography variant="caption" color="text.secondary" sx={{ mt: -1 }}>
-                  Forward the token header to the upstream service after validation. Disable to
-                  strip it before proxying.
+                  {canForwardToken
+                    ? "Forward the token header to the upstream service after validation. Disable to strip it before proxying."
+                    : "The token is never forwarded to an external agent. It is stripped after validation."}
                 </Typography>
               </Form.Stack>
             </Collapse>

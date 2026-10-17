@@ -53,6 +53,7 @@
     "@agent-management-platform/llm-providers": "workspace:*",
     "@agent-management-platform/mcp-proxies": "workspace:*",
     "@agent-management-platform/build": "workspace:*",
+    "@agent-management-platform/deploy": "workspace:*",
     "zod": "4.3.6"
   },
   "devDependencies": {

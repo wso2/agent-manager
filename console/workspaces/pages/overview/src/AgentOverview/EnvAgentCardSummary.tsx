@@ -19,10 +19,9 @@
 import { Box, Chip, CircularProgress, IconButton, Stack, Typography } from "@wso2/oxygen-ui";
 import { ExternalLink, Plus } from "@wso2/oxygen-ui-icons-react";
 import { Link } from "react-router-dom";
-import { isAgentCardNotFound, useGetAgent, useGetAgentCard } from "@agent-management-platform/api-client";
+import { useGetAgent, useGetAgentCard } from "@agent-management-platform/api-client";
 import { OverviewSectionCard, validateEndpointUrl } from "@agent-management-platform/shared-component";
-import { TextInput } from "@agent-management-platform/views";
-import { buildConfigureTabHref } from "./configureTabLink";
+import { buildConfigureTabHref, TextInput } from "@agent-management-platform/views";
 
 interface EnvAgentCardSummaryProps {
   orgId: string;
@@ -122,7 +121,7 @@ export function EnvAgentCardSummary({
 }: EnvAgentCardSummaryProps) {
   const { data: agent } = useGetAgent({ orgName: orgId, projName: projectId, agentName: agentId });
   const isA2A = agent?.agentType?.subType === "a2a-agent";
-  const { data, isLoading, isError, error } = useGetAgentCard(
+  const { data, isLoading, isError } = useGetAgentCard(
     { orgName: orgId, projName: projectId, agentName: agentId, envId },
     { enabled: isA2A },
   );
@@ -131,9 +130,8 @@ export function EnvAgentCardSummary({
     return null;
   }
   const configureHref = buildConfigureTabHref(orgId, projectId, agentId, "a2a", envId);
-  const noSource = isError && isAgentCardNotFound(error);
-  // A 404 leaves the previous card cached; it no longer exists.
-  const card = !noSource && isObject(data?.card) ? data.card : undefined;
+  const noSource = data === null;
+  const card = isObject(data?.card) ? data.card : undefined;
 
   let body;
   if (isLoading) {
