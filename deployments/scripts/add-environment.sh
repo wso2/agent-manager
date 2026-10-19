@@ -622,7 +622,9 @@ if [ -n "$CHART_VERSION" ]; then
     HELM_ARGS+=(--version "${CHART_VERSION}")
 fi
 
+IDP_SECRET_COPIED=false
 if copy_idp_secret "${GATEWAY_NAMESPACE}"; then
+    IDP_SECRET_COPIED=true
     echo "🔑 Using the gateway IDP credentials from openchoreo-data-plane/gateway-idp-credentials"
     HELM_ARGS+=(--set agentManager.idp.existingSecret=gateway-idp-credentials)
 fi
@@ -704,7 +706,13 @@ if [ "$GATEWAY_TOPOLOGY" = "split" ]; then
     # connection timeout at agent runtime with nothing in the control plane explaining why.
     kubectl create namespace "${EGRESS_NAMESPACE}" --dry-run=client -o yaml | kubectl apply -f - > /dev/null
     kubectl label namespace "${EGRESS_NAMESPACE}" "amp.wso2.com/api-platform-gateway=true" --overwrite > /dev/null
-    copy_idp_secret "${EGRESS_NAMESPACE}" || true
+    # The egress release shares HELM_ARGS, so it also references the Secret. If it cannot
+    # be copied here, clear the setting (a later --set wins) rather than point the egress
+    # bootstrap job at a Secret that is not in its namespace.
+    if [ "${IDP_SECRET_COPIED}" = "true" ] && ! copy_idp_secret "${EGRESS_NAMESPACE}"; then
+        echo "⚠️  Could not copy gateway-idp-credentials into '${EGRESS_NAMESPACE}'; the egress gateway will use the chart's default IDP credentials." >&2
+        HELM_ARGS+=(--set agentManager.idp.existingSecret=)
+    fi
 
     # gateway.name MUST be set: apiGatewayName (_helpers.tpl:56-62) defaults to
     # api-platform-<org>-<env> with no discriminator, so both releases would produce the
