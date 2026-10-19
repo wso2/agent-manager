@@ -581,6 +581,18 @@ else
     exit 1
 fi
 
+# The production guide keeps the real gateway IDP credentials in this Secret. A pod cannot read a
+# Secret from another namespace, so put a copy beside each gateway. When it does not exist
+# (quick-start, k3d, VM) nothing changes: the chart's default credentials are used, as before.
+copy_idp_secret() {
+    local id sec
+    id="$(kubectl get secret gateway-idp-credentials -n openchoreo-data-plane -o jsonpath='{.data.client-id}' 2>/dev/null)" || return 1
+    sec="$(kubectl get secret gateway-idp-credentials -n openchoreo-data-plane -o jsonpath='{.data.client-secret}' 2>/dev/null)" || return 1
+    [ -n "${id}" ] && [ -n "${sec}" ] || return 1
+    printf 'apiVersion: v1\nkind: Secret\nmetadata:\n  name: gateway-idp-credentials\ndata:\n  client-id: %s\n  client-secret: %s\n' "${id}" "${sec}" \
+        | kubectl apply -n "$1" -f - > /dev/null
+}
+
 # Release name must match the gateway runtime service lookup expected by
 # the kgateway routes (api-platform-<org>-<env> derives from _helpers.tpl
 # apiGatewayName). DO NOT duplicate the org segment.
@@ -608,6 +620,11 @@ HELM_ARGS=(
 )
 if [ -n "$CHART_VERSION" ]; then
     HELM_ARGS+=(--version "${CHART_VERSION}")
+fi
+
+if copy_idp_secret "${GATEWAY_NAMESPACE}"; then
+    echo "🔑 Using the gateway IDP credentials from openchoreo-data-plane/gateway-idp-credentials"
+    HELM_ARGS+=(--set agentManager.idp.existingSecret=gateway-idp-credentials)
 fi
 
 if [ "$THUNDER_PROVISIONED" = "true" ]; then
@@ -687,6 +704,7 @@ if [ "$GATEWAY_TOPOLOGY" = "split" ]; then
     # connection timeout at agent runtime with nothing in the control plane explaining why.
     kubectl create namespace "${EGRESS_NAMESPACE}" --dry-run=client -o yaml | kubectl apply -f - > /dev/null
     kubectl label namespace "${EGRESS_NAMESPACE}" "amp.wso2.com/api-platform-gateway=true" --overwrite > /dev/null
+    copy_idp_secret "${EGRESS_NAMESPACE}" || true
 
     # gateway.name MUST be set: apiGatewayName (_helpers.tpl:56-62) defaults to
     # api-platform-<org>-<env> with no discriminator, so both releases would produce the
