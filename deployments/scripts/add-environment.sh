@@ -592,9 +592,15 @@ ensure_gateway_encryption_key "${GATEWAY_NAMESPACE}"
 # The production guide keeps the real gateway IDP credentials in this Secret. A pod cannot read a
 # Secret from another namespace, so put a copy beside each gateway. When it does not exist
 # (quick-start, k3d, VM) nothing changes: the chart's default credentials are used, as before.
+# Returns 0 when copied, 2 when the Secret does not exist, 1 on any other failure.
 copy_idp_secret() {
-    local id sec
-    id="$(kubectl get secret gateway-idp-credentials -n openchoreo-data-plane -o jsonpath='{.data.client-id}' 2>/dev/null)" || return 1
+    local id sec err
+    err="$(mktemp)"
+    if ! id="$(kubectl get secret gateway-idp-credentials -n openchoreo-data-plane -o jsonpath='{.data.client-id}' 2>"${err}")"; then
+        if grep -q 'NotFound' "${err}"; then rm -f "${err}"; return 2; fi
+        cat "${err}" >&2; rm -f "${err}"; return 1
+    fi
+    rm -f "${err}"
     sec="$(kubectl get secret gateway-idp-credentials -n openchoreo-data-plane -o jsonpath='{.data.client-secret}' 2>/dev/null)" || return 1
     [ -n "${id}" ] && [ -n "${sec}" ] || return 1
     printf 'apiVersion: v1\nkind: Secret\nmetadata:\n  name: gateway-idp-credentials\ndata:\n  client-id: %s\n  client-secret: %s\n' "${id}" "${sec}" \
@@ -631,10 +637,17 @@ if [ -n "$CHART_VERSION" ]; then
 fi
 
 IDP_SECRET_COPIED=false
-if copy_idp_secret "${GATEWAY_NAMESPACE}"; then
+IDP_COPY_RC=0
+copy_idp_secret "${GATEWAY_NAMESPACE}" || IDP_COPY_RC=$?
+if [ "${IDP_COPY_RC}" -eq 0 ]; then
     IDP_SECRET_COPIED=true
     echo "🔑 Using the gateway IDP credentials from openchoreo-data-plane/gateway-idp-credentials"
     HELM_ARGS+=(--set agentManager.idp.existingSecret=gateway-idp-credentials)
+elif [ "${IDP_COPY_RC}" -ne 2 ]; then
+    # Only a missing Secret may fall back to the chart default; any other failure would
+    # install a gateway with the wrong password.
+    echo "❌ Could not copy openchoreo-data-plane/gateway-idp-credentials into '${GATEWAY_NAMESPACE}'." >&2
+    exit 1
 fi
 
 if [ "$THUNDER_PROVISIONED" = "true" ]; then
