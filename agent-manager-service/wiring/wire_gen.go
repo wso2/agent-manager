@@ -88,7 +88,7 @@ func InitializeAppParamsWithEnvThunderEndpoints(cfg *config.Config, db *gorm.DB,
 	mcpProxyScopeRepository := repositories.NewMCPProxyScopeRepository(db)
 	envThunderURLRepository := ProvideEnvThunderURLRepository(db)
 	readThunderURLFunc := ProvideEnvThunderURLReader(envThunderURLRepository)
-	agentIdentityInjectionService := ProvideAgentIdentityInjectionServiceWithEndpointResolver(agentThunderClientRepository, agentConfigurationRepository, mcpProxyScopeRepository, openChoreoClient, readThunderURLFunc, endpointResolver, configConfig, logger)
+	agentIdentityInjectionService := ProvideAgentIdentityInjectionServiceWithEndpointResolver(agentThunderClientRepository, agentConfigurationRepository, agentConfigRepository, mcpProxyScopeRepository, openChoreoClient, readThunderURLFunc, endpointResolver, configConfig, logger)
 	envThunderSystemClientRepository := ProvideEnvThunderSystemClientRepository(db)
 	readSystemClientFunc := ProvideEnvThunderSecretReader(envThunderSystemClientRepository, v)
 	envThunderResolver := ProvideEnvThunderResolverWithEndpoints(readSystemClientFunc, readThunderURLFunc, endpointResolver)
@@ -289,7 +289,7 @@ func InitializeTestAppParamsWithClientMocks(cfg *config.Config, db *gorm.DB, aut
 	envThunderURLRepository := ProvideEnvThunderURLRepository(db)
 	readThunderURLFunc := ProvideEnvThunderURLReader(envThunderURLRepository)
 	envThunderEndpointResolver := ProvideNilEnvThunderEndpointResolver()
-	agentIdentityInjectionService := ProvideAgentIdentityInjectionServiceWithEndpointResolver(agentThunderClientRepository, agentConfigurationRepository, mcpProxyScopeRepository, openChoreoClient, readThunderURLFunc, envThunderEndpointResolver, configConfig, logger)
+	agentIdentityInjectionService := ProvideAgentIdentityInjectionServiceWithEndpointResolver(agentThunderClientRepository, agentConfigurationRepository, agentConfigRepository, mcpProxyScopeRepository, openChoreoClient, readThunderURLFunc, envThunderEndpointResolver, configConfig, logger)
 	envThunderSystemClientRepository := ProvideEnvThunderSystemClientRepository(db)
 	readSystemClientFunc := ProvideEnvThunderSecretReader(envThunderSystemClientRepository, v)
 	envThunderResolver := ProvideEnvThunderResolver(readSystemClientFunc, readThunderURLFunc)
@@ -919,17 +919,19 @@ func ProvideNilEnvThunderEndpointResolver() thundersvc.EnvThunderEndpointResolve
 func ProvideAgentIdentityInjectionService(
 	repo repositories.AgentThunderClientRepository,
 	agentConfigRepo repositories.AgentConfigurationRepository,
+	envConfigRepo repositories.AgentConfigRepository,
 	mcpProxyScopeRepo repositories.MCPProxyScopeRepository,
 	ocClient client.OpenChoreoClient,
 	cfg config.Config,
 	logger *slog.Logger,
 ) services.AgentIdentityInjectionService {
-	return services.NewAgentIdentityInjectionService(repo, agentConfigRepo, mcpProxyScopeRepo, ocClient, cfg.SecretManager.AgentIdentityRefreshInterval, logger)
+	return services.NewAgentIdentityInjectionService(repo, agentConfigRepo, envConfigRepo, mcpProxyScopeRepo, ocClient, cfg.SecretManager.AgentIdentityRefreshInterval, logger)
 }
 
 func ProvideAgentIdentityInjectionServiceWithEndpointResolver(
 	repo repositories.AgentThunderClientRepository,
 	agentConfigRepo repositories.AgentConfigurationRepository,
+	envConfigRepo repositories.AgentConfigRepository,
 	mcpProxyScopeRepo repositories.MCPProxyScopeRepository,
 	ocClient client.OpenChoreoClient,
 	readThunderURL thundersvc.ReadThunderURLFunc,
@@ -938,12 +940,12 @@ func ProvideAgentIdentityInjectionServiceWithEndpointResolver(
 	logger *slog.Logger,
 ) services.AgentIdentityInjectionService {
 	if endpointResolver == nil {
-		return services.NewAgentIdentityInjectionService(repo, agentConfigRepo, mcpProxyScopeRepo, ocClient, cfg.SecretManager.AgentIdentityRefreshInterval, logger)
+		return services.NewAgentIdentityInjectionService(repo, agentConfigRepo, envConfigRepo, mcpProxyScopeRepo, ocClient, cfg.SecretManager.AgentIdentityRefreshInterval, logger)
 	}
 	resolveTokenEndpoint := func(ctx context.Context, ouID, orgNamespace, envName string) (string, error) {
 		return thundersvc.ResolveEnvThunderTokenEndpoint(ctx, endpointResolver, readThunderURL, ouID, orgNamespace, envName)
 	}
-	return services.NewAgentIdentityInjectionServiceWithTokenEndpointResolver(repo, agentConfigRepo, mcpProxyScopeRepo, ocClient, cfg.SecretManager.AgentIdentityRefreshInterval, logger, resolveTokenEndpoint)
+	return services.NewAgentIdentityInjectionServiceWithTokenEndpointResolver(repo, agentConfigRepo, envConfigRepo, mcpProxyScopeRepo, ocClient, cfg.SecretManager.AgentIdentityRefreshInterval, logger, resolveTokenEndpoint)
 }
 
 func ProvideThunderConfig(cfg config.Config) config.ThunderConfig {

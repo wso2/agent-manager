@@ -18,6 +18,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
+  Alert,
   Box,
   Button,
   CircularProgress,
@@ -42,7 +43,9 @@ import {
   useSnackBar,
 } from "@agent-management-platform/views";
 import {
+  AGENTID_BALLERINA_CONFIGURABLE_ROWS,
   ALLOWED,
+  BallerinaConfigurablesNotice,
   RestrictedAction,
   useAgentEnvironmentAccess,
   useConfirmationDialog,
@@ -132,7 +135,7 @@ export function EditDeployConfigDrawer({
   const securityRef = useRef<SecurityConfigHandle>(null);
   const [securityValid, setSecurityValid] = useState(true);
 
-  const { data: configurations } = useGetAgentConfigurations(
+  const { data: configurations, isError: isConfigurationsError } = useGetAgentConfigurations(
     { orgName, projName, agentName },
     { environment },
   );
@@ -150,6 +153,11 @@ export function EditDeployConfigDrawer({
   const [instrumentationVersion, setInstrumentationVersion] = useState<string>("");
   const [versionDirty, setVersionDirty] = useState(false);
   const [tokenExpiry, setTokenExpiry] = useState<string>(DEFAULT_TOKEN_EXPIRY);
+
+  // AgentID credential names: Ballerina agents can take them as
+  // BAL_CONFIG_VAR_AMPAGENTID* configurables, per environment like tracing.
+  const showAgentIdConfigurables = mode === "update" && !!isBallerinaBuildpack;
+  const [agentIdAsBalConfigurables, setAgentIdAsBalConfigurables] = useState(false);
 
   const { data: buildOptions } = useAgentBuildOptions({ orgName });
   const compatibleInstrumentation = useMemo(
@@ -181,6 +189,7 @@ export function EditDeployConfigDrawer({
     ) ?? []));
     setFiles(seedFileMountRows(cfg?.files));
     setTracingEnabled(configurations.enableAutoInstrumentation ?? false);
+    setAgentIdAsBalConfigurables(configurations.agentIdAsBallerinaConfigurables ?? false);
     setInstrumentationVersion("");
     setVersionDirty(false);
     setTokenExpiry(DEFAULT_TOKEN_EXPIRY);
@@ -212,6 +221,10 @@ export function EditDeployConfigDrawer({
   const isPending = isDeploying || isUpdating || isUpdatingSettings;
 
   const handleSave = useCallback(() => {
+    // Every path into a save (Apply, and the confirmation after a token
+    // regeneration) waits for the seed: before it, env/files are empty and the
+    // toggles hold their defaults, so a save would overwrite the real values.
+    if (!seededRef.current) return;
     const validEnv = toSubmittableEnv(env);
     const validFiles = files
       .filter((f) => f.key && f.mountPath)
@@ -245,9 +258,12 @@ export function EditDeployConfigDrawer({
             ? { instrumentationVersion }
             : {}),
         }),
+        ...(showAgentIdConfigurables && {
+          agentIdAsBallerinaConfigurables: agentIdAsBalConfigurables,
+        }),
       };
 
-      if (showSecurity || showTracing) {
+      if (showSecurity || showTracing || showAgentIdConfigurables) {
         updateDeploySettings(
           { params: { orgName, projName, agentName }, body: deploySettingsBody },
           { onSuccess: applyConfigs },
@@ -276,7 +292,7 @@ export function EditDeployConfigDrawer({
   }, [
     mode, env, files, environment, imageId, orgName, projName, agentName,
     showSecurity, showTracing, tracingEnabled, instrumentationVersion, versionDirty,
-    versionInCompatibleSet, isPythonBuildpack,
+    versionInCompatibleSet, isPythonBuildpack, showAgentIdConfigurables, agentIdAsBalConfigurables,
     deployAgent, updateConfigs, updateDeploySettings, onClose, pushSnackBar,
   ]);
 
@@ -383,6 +399,12 @@ export function EditDeployConfigDrawer({
       <DrawerHeader icon={<SlidersVertical size={24} />} title={title} onClose={onClose} />
       <DrawerContent>
         <Form.Stack spacing={3}>
+          {isConfigurationsError && !seededRef.current && (
+            <Alert severity="error">
+              Could not load this environment&apos;s current configuration, so it
+              can&apos;t be edited right now. Close the drawer and try again.
+            </Alert>
+          )}
           {showSecurity && (
             <SecurityConfigSections
               ref={securityRef}
@@ -462,12 +484,39 @@ export function EditDeployConfigDrawer({
                         isRegenerating ? <CircularProgress size={14} /> : <RefreshCw size={14} />
                       }
                       onClick={handleRegenerateToken}
-                      disabled={isRegenerating || isPending}
+                      disabled={isRegenerating || isPending || !seededRef.current}
                     >
                       Regenerate
                     </Button>
                   </Stack>
                 </Stack>
+              </Stack>
+            </Form.Section>
+          )}
+
+          {showAgentIdConfigurables && (
+            <Form.Section>
+              <Form.Header>AgentID Credentials</Form.Header>
+              <Stack spacing={2}>
+                <Stack direction="row" justifyContent="space-between" alignItems="center">
+                  <Typography variant="body2">Inject as Ballerina configurables</Typography>
+                  <Switch
+                    size="small"
+                    checked={agentIdAsBalConfigurables}
+                    disabled={isPending}
+                    onChange={(_, checked) => setAgentIdAsBalConfigurables(checked)}
+                  />
+                </Stack>
+                <Typography variant="caption" color="text.secondary">
+                  Applies to {environment} only. Deploy code that declares the configurables
+                  below before turning this on; turning it off injects AMP_AGENTID_* instead.
+                </Typography>
+                {agentIdAsBalConfigurables && (
+                  <BallerinaConfigurablesNotice
+                    configurableNames={AGENTID_BALLERINA_CONFIGURABLE_ROWS.map((row) => row.name)}
+                    fieldId="deploy-agentid-configurables"
+                  />
+                )}
               </Stack>
             </Form.Section>
           )}
@@ -561,7 +610,10 @@ export function EditDeployConfigDrawer({
                 color="primary"
                 onClick={handleSave}
                 disabled={
-                  isPending || isRegenerating || (showSecurity && !securityValid)
+                  // Until the saved configuration has seeded the form, Apply would
+                  // send its initial values (e.g. AgentID configurables off) as edits.
+                  isPending || isRegenerating || !seededRef.current
+                  || (showSecurity && !securityValid)
                 }
                 startIcon={isPending ? <CircularProgress size={16} /> : undefined}
               >

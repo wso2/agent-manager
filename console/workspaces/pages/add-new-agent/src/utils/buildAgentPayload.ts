@@ -251,6 +251,9 @@ export const buildAgentCreationPayload = (
               isSensitive: f.isSensitive || false,
             })),
           enableAutoInstrumentation: data.enableAutoInstrumentation,
+          ...(data.language === "ballerina" && data.agentIdAsBallerinaConfigurables
+            ? { agentIdAsBallerinaConfigurables: true }
+            : {}),
           ...(data.language === "python" &&
           data.enableAutoInstrumentation !== false &&
           data.instrumentationVersion

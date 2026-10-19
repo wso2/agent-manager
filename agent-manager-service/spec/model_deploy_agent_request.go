@@ -27,6 +27,8 @@ type DeployAgentRequest struct {
 	Files []FileMount `json:"files,omitempty"`
 	// Enable auto instrumentation for observability
 	EnableAutoInstrumentation *bool `json:"enableAutoInstrumentation,omitempty"`
+	// Ballerina agents only. Inject this environment's AgentID credentials as BAL_CONFIG_VAR_AMPAGENTID* (instead of AMP_AGENTID_*) so the program can read them as configurables. The program must declare the matching configurables or it will fail to start. Omit to keep the current value.
+	AgentIdAsBallerinaConfigurables *bool `json:"agentIdAsBallerinaConfigurables,omitempty"`
 	// Enable API key security for the agent endpoint
 	EnableApiKeySecurity *bool                `json:"enableApiKeySecurity,omitempty"`
 	CorsConfig           *CORSConfig          `json:"corsConfig,omitempty"`
@@ -184,6 +186,38 @@ func (o *DeployAgentRequest) HasEnableAutoInstrumentation() bool {
 // SetEnableAutoInstrumentation gets a reference to the given bool and assigns it to the EnableAutoInstrumentation field.
 func (o *DeployAgentRequest) SetEnableAutoInstrumentation(v bool) {
 	o.EnableAutoInstrumentation = &v
+}
+
+// GetAgentIdAsBallerinaConfigurables returns the AgentIdAsBallerinaConfigurables field value if set, zero value otherwise.
+func (o *DeployAgentRequest) GetAgentIdAsBallerinaConfigurables() bool {
+	if o == nil || IsNil(o.AgentIdAsBallerinaConfigurables) {
+		var ret bool
+		return ret
+	}
+	return *o.AgentIdAsBallerinaConfigurables
+}
+
+// GetAgentIdAsBallerinaConfigurablesOk returns a tuple with the AgentIdAsBallerinaConfigurables field value if set, nil otherwise
+// and a boolean to check if the value has been set.
+func (o *DeployAgentRequest) GetAgentIdAsBallerinaConfigurablesOk() (*bool, bool) {
+	if o == nil || IsNil(o.AgentIdAsBallerinaConfigurables) {
+		return nil, false
+	}
+	return o.AgentIdAsBallerinaConfigurables, true
+}
+
+// HasAgentIdAsBallerinaConfigurables returns a boolean if a field has been set.
+func (o *DeployAgentRequest) HasAgentIdAsBallerinaConfigurables() bool {
+	if o != nil && !IsNil(o.AgentIdAsBallerinaConfigurables) {
+		return true
+	}
+
+	return false
+}
+
+// SetAgentIdAsBallerinaConfigurables gets a reference to the given bool and assigns it to the AgentIdAsBallerinaConfigurables field.
+func (o *DeployAgentRequest) SetAgentIdAsBallerinaConfigurables(v bool) {
+	o.AgentIdAsBallerinaConfigurables = &v
 }
 
 // GetEnableApiKeySecurity returns the EnableApiKeySecurity field value if set, zero value otherwise.
@@ -365,6 +399,9 @@ func (o DeployAgentRequest) ToMap() (map[string]interface{}, error) {
 	}
 	if !IsNil(o.EnableAutoInstrumentation) {
 		toSerialize["enableAutoInstrumentation"] = o.EnableAutoInstrumentation
+	}
+	if !IsNil(o.AgentIdAsBallerinaConfigurables) {
+		toSerialize["agentIdAsBallerinaConfigurables"] = o.AgentIdAsBallerinaConfigurables
 	}
 	if !IsNil(o.EnableApiKeySecurity) {
 		toSerialize["enableApiKeySecurity"] = o.EnableApiKeySecurity

@@ -32,7 +32,12 @@ import { FileMount } from "../components/FileMount";
 import { GitSecretSelector } from "../components/GitSecretSelector";
 import { LLMProviderSection } from "../components/LLMProviderSection";
 import { MCPProxySection } from "../components/MCPProxySection";
-import { LabelsEditor, MarkdownEditor } from "@agent-management-platform/shared-component";
+import {
+  AGENTID_BALLERINA_CONFIGURABLE_ROWS,
+  BallerinaConfigurablesNotice,
+  LabelsEditor,
+  MarkdownEditor,
+} from "@agent-management-platform/shared-component";
 import type { CreateAgentFormValues, LLMProviderFormEntry, MCPProxyFormEntry } from "../form/schema";
 import { BuildpackIcon } from "@agent-management-platform/views";
 import { mcpEntryVarNames } from "../utils/mcpEnvVarNames";
@@ -588,6 +593,22 @@ export const InternalAgentForm = ({
                   </Typography>
                 </Alert>
               </Collapse>
+              <FormControlLabel
+                control={
+                  <Checkbox
+                    checked={formData.agentIdAsBallerinaConfigurables ?? false}
+                    onChange={(e) => handleFieldChange('agentIdAsBallerinaConfigurables', e.target.checked)}
+                  />
+                }
+                label="Inject AgentID credentials as Ballerina configurables"
+              />
+              <Collapse in={formData.agentIdAsBallerinaConfigurables === true}>
+                <BallerinaConfigurablesNotice
+                  configurableNames={AGENTID_BALLERINA_CONFIGURABLE_ROWS.map((row) => row.name)}
+                  fieldId="agentid-configurables"
+                  description="The agent's AgentID credentials are injected as Ballerina configurables instead of AMP_AGENTID_* environment variables. Declare these configurables in your program, or the agent will fail to start:"
+                />
+              </Collapse>
             </Stack>
           </Collapse>
 
@@ -697,6 +718,7 @@ export const InternalAgentForm = ({
         llmProviders={llmProviders}
         setLLMProviders={setLLMProviders}
         agentDisplayName={formData.displayName}
+        agentLanguage={formData.language}
         initialEnvironmentName={initialEnvironmentName}
         isInitialEnvironmentLoading={isInitialEnvironmentLoading}
         externalEnvKeys={(() => {
@@ -713,6 +735,13 @@ export const InternalAgentForm = ({
         mcpProxies={mcpProxies}
         setMCPProxies={setMCPProxies}
         agentDisplayName={formData.displayName}
+        agentLanguage={formData.language}
+        agentIdAsBallerinaConfigurables={
+          formData.language === "ballerina" && formData.agentIdAsBallerinaConfigurables === true
+        }
+        onEnableAgentIdAsBallerinaConfigurables={() =>
+          handleFieldChange('agentIdAsBallerinaConfigurables', true)
+        }
         initialEnvironmentName={initialEnvironmentName}
         isInitialEnvironmentLoading={isInitialEnvironmentLoading}
         externalEnvKeys={(() => {

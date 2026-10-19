@@ -15,10 +15,12 @@
  * under the License.
  */
 
-import { type ChangeEvent, type ReactNode } from "react";
+import { type ChangeEvent, type ReactNode, useId } from "react";
 import { Alert, Box, ListingTable, Stack, Typography } from "@wso2/oxygen-ui";
 import { TextInput } from "@agent-management-platform/views";
 import type { EnvVarReferenceRow } from "../../utils/mcpEnvVarSpec";
+import { ballerinaConfigurableFor } from "../../utils/ballerinaConfigurables";
+import { BallerinaConfigurablesNotice } from "../BallerinaConfigurablesNotice/BallerinaConfigurablesNotice";
 
 export type { EnvVarReferenceRow };
 
@@ -37,6 +39,8 @@ interface EnvironmentVariablesReferenceProps {
   onNameChange?: (key: string, value: string) => void;
   /** Optional content (e.g. code snippets) rendered below the table. */
   children?: ReactNode;
+  /** Heading of the name column, e.g. "Configurable Name" for Ballerina configurables. */
+  nameColumnLabel?: string;
 }
 
 /**
@@ -53,8 +57,15 @@ export function EnvironmentVariablesReference({
   variant = "alert",
   onNameChange,
   children,
+  nameColumnLabel = "Variable Name",
 }: EnvironmentVariablesReferenceProps) {
   const editable = Boolean(onNameChange);
+  const noticeId = useId();
+  // Any BAL_CONFIG_VAR_* variable binds a Ballerina configurable the program
+  // must declare (it fails to start otherwise), so show the declarations.
+  const configurableNames = rows
+    .map((row) => ballerinaConfigurableFor(row.name))
+    .filter((name): name is string => !!name);
   const content = (
     <>
       <Typography variant="body2" fontWeight={600} sx={{ mb: 1 }}>
@@ -70,7 +81,7 @@ export function EnvironmentVariablesReference({
             <ListingTable.Head>
               <ListingTable.Row>
                 <ListingTable.Cell>
-                  Variable Name{" "}
+                  {nameColumnLabel}{" "}
                   {editable && (
                     <Typography component="span" variant="caption" color="text.secondary">
                       (editable)
@@ -110,6 +121,10 @@ export function EnvironmentVariablesReference({
             </ListingTable.Body>
           </ListingTable>
         </ListingTable.Container>
+        <BallerinaConfigurablesNotice
+          configurableNames={configurableNames}
+          fieldId={`env-var-reference-configurables-${noticeId}`}
+        />
         {children}
       </Stack>
     </>

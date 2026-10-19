@@ -331,6 +331,12 @@ export const ViewLLMProviderComponent: React.FC = () => {
   });
 
   const isExternal = agent?.provisioning?.type === "external";
+  // The integration guide is a Python snippet, so it has no place for a
+  // Ballerina agent. Until the agent loads its language is unknown, so the
+  // guide stays hidden rather than guessing.
+  const showPythonGuide =
+    !!agent &&
+    !(agent.build?.type === "buildpack" && agent.build.buildpack.language === "ballerina");
   const hasBuildInProgress = useHasBuildInProgress(
     { orgName: orgId, projName: projectId, agentName: agentId },
     { enabled: !!agent && !isExternal && !agent.kindName },
@@ -1150,8 +1156,9 @@ export const ViewLLMProviderComponent: React.FC = () => {
             [key]: value,
           }))
         }
+        title={showPythonGuide ? undefined : "Environment Variables"}
       >
-        {integrationGuide}
+        {showPythonGuide && integrationGuide}
       </EnvironmentVariablesGuideDrawer>
     )
   );
@@ -1170,7 +1177,11 @@ export const ViewLLMProviderComponent: React.FC = () => {
             startIcon={<BookOpen size={16} />}
             onClick={() => setPanelOpen(true)}
           >
-            {isExternal ? "Connect to LLM Provider" : "Environment Variables & Integration Guide"}
+            {isExternal
+              ? "Connect to LLM Provider"
+              : showPythonGuide
+                ? "Environment Variables & Integration Guide"
+                : "Environment Variables"}
           </Button>
         ) : undefined
       }

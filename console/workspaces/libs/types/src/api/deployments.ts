@@ -25,6 +25,13 @@ export interface DeployAgentRequest {
   env?: EnvironmentVariable[];
   files?: FileMount[];
   enableAutoInstrumentation?: boolean;
+  /**
+   * Ballerina agents only: AgentID credentials are injected as
+   * BAL_CONFIG_VAR_AMPAGENTID* (instead of AMP_AGENTID_*) so the program
+   * can read them as configurables. The program must declare them or it will
+   * fail to start. Omit to keep the current value.
+   */
+  agentIdAsBallerinaConfigurables?: boolean;
   instrumentationVersion?: string;
   enableApiKeySecurity?: boolean;
   enableOAuthSecurity?: boolean;
@@ -36,6 +43,13 @@ export interface DeployAgentRequest {
 export interface UpdateAgentDeploySettingsRequest {
   environmentName: string;
   enableAutoInstrumentation?: boolean;
+  /**
+   * Ballerina agents only: AgentID credentials are injected as
+   * BAL_CONFIG_VAR_AMPAGENTID* (instead of AMP_AGENTID_*) so the program
+   * can read them as configurables. The program must declare them or it will
+   * fail to start. Omit to keep the current value.
+   */
+  agentIdAsBallerinaConfigurables?: boolean;
   /**
    * AMP instrumentation version to pin for this Python buildpack agent in this
    * environment. Omit to keep the currently-pinned version.
@@ -140,6 +154,13 @@ export interface ConfigurationResponse {
   agentName: string;
   environment: string;
   enableAutoInstrumentation?: boolean;
+  /**
+   * Ballerina agents only: AgentID credentials are injected as
+   * BAL_CONFIG_VAR_AMPAGENTID* (instead of AMP_AGENTID_*) so the program
+   * can read them as configurables. The program must declare them or it will
+   * fail to start.
+   */
+  agentIdAsBallerinaConfigurables?: boolean;
   instrumentationVersion?: string;
   enableApiKeySecurity?: boolean;
   enableOAuthSecurity?: boolean;
@@ -254,6 +275,13 @@ export interface PromoteAgentRequest {
   env?: EnvironmentVariable[];
   files?: FileMount[];
   enableAutoInstrumentation?: boolean;
+  /**
+   * Ballerina agents only: AgentID credentials are injected as
+   * BAL_CONFIG_VAR_AMPAGENTID* (instead of AMP_AGENTID_*) so the program
+   * can read them as configurables. The program must declare them or it will
+   * fail to start. Omit to inherit the source environment's value.
+   */
+  agentIdAsBallerinaConfigurables?: boolean;
   /**
    * AMP instrumentation version to pin for this Python buildpack agent in the
    * target environment. Omit to inherit the currently-pinned version.
