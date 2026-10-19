@@ -558,28 +558,36 @@ kubectl label namespace "${GATEWAY_NAMESPACE}" "amp.wso2.com/api-platform-gatewa
 GATEWAY_ENCRYPTION_SECRET_NAME="${GATEWAY_ENCRYPTION_SECRET_NAME:-gateway-encryption-keys}"
 GATEWAY_ENCRYPTION_SECRET_KEY="${GATEWAY_ENCRYPTION_SECRET_KEY:-default-aesgcm256-v1.bin}"
 
-if ! kubectl auth can-i get secrets -n "${GATEWAY_NAMESPACE}" &>/dev/null; then
-    echo "❌ Missing 'get' permission on secrets in '${GATEWAY_NAMESPACE}' — required to detect an existing gateway encryption key secret. Grant get (in addition to create) on secrets in this namespace to the identity running this script." >&2
-    exit 1
-fi
+# Creates the encryption key Secret in <namespace>, or keeps the one already there.
+# Called once per gateway namespace: the controller mounts it from its own namespace.
+ensure_gateway_encryption_key() {   # <namespace>
+    local ns="$1"
+    if ! kubectl auth can-i get secrets -n "${ns}" &>/dev/null; then
+        echo "❌ Missing 'get' permission on secrets in '${ns}' — required to detect an existing gateway encryption key secret. Grant get (in addition to create) on secrets in this namespace to the identity running this script." >&2
+        exit 1
+    fi
 
-key_tmp="$(mktemp)"
-# Remove the plaintext key on every exit path — openssl/kubectl failure (set -e)
-# or an interrupt — not only via the normal cleanup below.
-trap 'rm -f "${key_tmp}"' EXIT INT TERM
-openssl rand 32 > "${key_tmp}"
-enc_create_out="$(kubectl create secret generic "${GATEWAY_ENCRYPTION_SECRET_NAME}" -n "${GATEWAY_NAMESPACE}" \
-    "--from-file=${GATEWAY_ENCRYPTION_SECRET_KEY}=${key_tmp}" 2>&1)" && enc_create_rc=0 || enc_create_rc=$?
-rm -f "${key_tmp}" # normal cleanup: don't leave the plaintext key on disk
-trap - EXIT INT TERM
-if [ "${enc_create_rc}" -eq 0 ]; then
-    echo "✅ Gateway encryption key secret created in '${GATEWAY_NAMESPACE}'"
-elif kubectl get secret "${GATEWAY_ENCRYPTION_SECRET_NAME}" -n "${GATEWAY_NAMESPACE}" &>/dev/null; then
-    echo "⏭️  Gateway encryption key secret '${GATEWAY_ENCRYPTION_SECRET_NAME}' already exists in '${GATEWAY_NAMESPACE}', leaving it untouched."
-else
-    echo "❌ Failed to create gateway encryption key secret '${GATEWAY_ENCRYPTION_SECRET_NAME}' in '${GATEWAY_NAMESPACE}': ${enc_create_out}" >&2
-    exit 1
-fi
+    # Global on purpose: the trap below runs after this function returns.
+    key_tmp="$(mktemp)"
+    # Remove the plaintext key on every exit path — openssl/kubectl failure (set -e)
+    # or an interrupt — not only via the normal cleanup below.
+    trap 'rm -f "${key_tmp}"' EXIT INT TERM
+    openssl rand 32 > "${key_tmp}"
+    enc_create_out="$(kubectl create secret generic "${GATEWAY_ENCRYPTION_SECRET_NAME}" -n "${ns}" \
+        "--from-file=${GATEWAY_ENCRYPTION_SECRET_KEY}=${key_tmp}" 2>&1)" && enc_create_rc=0 || enc_create_rc=$?
+    rm -f "${key_tmp}" # normal cleanup: don't leave the plaintext key on disk
+    trap - EXIT INT TERM
+    if [ "${enc_create_rc}" -eq 0 ]; then
+        echo "✅ Gateway encryption key secret created in '${ns}'"
+    elif kubectl get secret "${GATEWAY_ENCRYPTION_SECRET_NAME}" -n "${ns}" &>/dev/null; then
+        echo "⏭️  Gateway encryption key secret '${GATEWAY_ENCRYPTION_SECRET_NAME}' already exists in '${ns}', leaving it untouched."
+    else
+        echo "❌ Failed to create gateway encryption key secret '${GATEWAY_ENCRYPTION_SECRET_NAME}' in '${ns}': ${enc_create_out}" >&2
+        exit 1
+    fi
+}
+
+ensure_gateway_encryption_key "${GATEWAY_NAMESPACE}"
 
 # The production guide keeps the real gateway IDP credentials in this Secret. A pod cannot read a
 # Secret from another namespace, so put a copy beside each gateway. When it does not exist
@@ -706,6 +714,9 @@ if [ "$GATEWAY_TOPOLOGY" = "split" ]; then
     # connection timeout at agent runtime with nothing in the control plane explaining why.
     kubectl create namespace "${EGRESS_NAMESPACE}" --dry-run=client -o yaml | kubectl apply -f - > /dev/null
     kubectl label namespace "${EGRESS_NAMESPACE}" "amp.wso2.com/api-platform-gateway=true" --overwrite > /dev/null
+    # The egress controller mounts the encryption key from ITS namespace; without this copy
+    # its pod stays in ContainerCreating and the egress gateway never becomes Programmed.
+    ensure_gateway_encryption_key "${EGRESS_NAMESPACE}"
     # The egress release shares HELM_ARGS, so it also references the Secret. If it cannot
     # be copied here, clear the setting (a later --set wins) rather than point the egress
     # bootstrap job at a Secret that is not in its namespace.
