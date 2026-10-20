@@ -23,6 +23,7 @@ import (
 	"github.com/wso2/agent-manager/agent-manager-service/audit"
 	"github.com/wso2/agent-manager/agent-manager-service/config"
 	"github.com/wso2/agent-manager/agent-manager-service/middleware/jwtassertion"
+	"github.com/wso2/agent-manager/agent-manager-service/middleware/logger"
 	"github.com/wso2/agent-manager/agent-manager-service/rbac"
 	"github.com/wso2/agent-manager/agent-manager-service/utils"
 )
@@ -83,13 +84,13 @@ func resolveOrgFromToken() func(http.HandlerFunc) http.HandlerFunc {
 		return func(w http.ResponseWriter, r *http.Request) {
 			claims := jwtassertion.GetTokenClaims(r.Context())
 			if claims == nil {
-				slog.Warn("RequireOrgMatch rejected", "reason", "missing token claims", "path", r.URL.Path)
+				logger.GetLogger(r.Context()).Warn("RequireOrgMatch rejected", "reason", "missing token claims")
 				recordAuthzDeny(r, "missing-token-claims")
 				utils.WriteErrorResponse(w, http.StatusForbidden, "missing token claims")
 				return
 			}
 			if claims.OuId == "" || claims.OuHandle == "" {
-				slog.Warn("RequireOrgMatch rejected", "reason", "missing ou identity in token", "sub", claims.Sub, "path", r.URL.Path)
+				logger.GetLogger(r.Context()).Warn("RequireOrgMatch rejected", "reason", "missing ou identity in token", "sub", claims.Sub)
 				recordAuthzDeny(r, "missing-ou-identity")
 				utils.WriteErrorResponse(w, http.StatusForbidden, "missing ou identity in token")
 				return
@@ -100,6 +101,9 @@ func resolveOrgFromToken() func(http.HandlerFunc) http.HandlerFunc {
 				OuHandle: claims.OuHandle,
 				OUID:     claims.OuId,
 			})
+			ctx = logger.WithLogger(ctx,
+				logger.GetLogger(ctx).With(slog.String("org_id", claims.OuId)),
+			)
 			next(w, r.WithContext(ctx))
 		}
 	}
