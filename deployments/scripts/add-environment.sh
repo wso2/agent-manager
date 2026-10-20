@@ -730,12 +730,13 @@ if [ "$GATEWAY_TOPOLOGY" = "split" ]; then
     # The egress controller mounts the encryption key from ITS namespace; without this copy
     # its pod stays in ContainerCreating and the egress gateway never becomes Programmed.
     ensure_gateway_encryption_key "${EGRESS_NAMESPACE}"
-    # The egress release shares HELM_ARGS, so it also references the Secret. If it cannot
-    # be copied here, clear the setting (a later --set wins) rather than point the egress
-    # bootstrap job at a Secret that is not in its namespace.
-    if [ "${IDP_SECRET_COPIED}" = "true" ] && ! copy_idp_secret "${EGRESS_NAMESPACE}"; then
-        echo "⚠️  Could not copy gateway-idp-credentials into '${EGRESS_NAMESPACE}'; the egress gateway will use the chart's default IDP credentials." >&2
-        HELM_ARGS+=(--set agentManager.idp.existingSecret=)
+    # The egress release shares HELM_ARGS, so it also references the Secret and needs its own
+    # copy. Stop on failure, as for the main gateway: the default credentials would be wrong.
+    if [ "${IDP_SECRET_COPIED}" = "true" ]; then
+        copy_idp_secret "${EGRESS_NAMESPACE}" || {
+            echo "❌ Could not copy openchoreo-data-plane/gateway-idp-credentials into '${EGRESS_NAMESPACE}'." >&2
+            exit 1
+        }
     fi
 
     # gateway.name MUST be set: apiGatewayName (_helpers.tpl:56-62) defaults to
