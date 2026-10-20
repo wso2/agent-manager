@@ -49,7 +49,11 @@ import {
   useLocation,
   useParams,
 } from "react-router-dom";
-import { absoluteRouteMap } from "@agent-management-platform/types";
+import {
+  absoluteRouteMap,
+  isEnvironmentManagedMode,
+  isDeploymentPipelineManagedMode,
+} from "@agent-management-platform/types";
 import {
   useGetAgent,
   useTokenScopes,
@@ -912,28 +916,38 @@ export function useNavigationItems(): Array<
                   href: generatePath(gatewaysOrgRoute.path, { orgId }),
                   isActive: !!matchPath(gatewaysOrgRoute.wildPath, pathname),
                 },
-                {
-                  label: "Environments",
-                  type: "item" as const,
-                  icon: <Layers size={20} />,
-                  href: generatePath(environmentsOrgRoute.path, { orgId }),
-                  isActive: !!matchPath(
-                    environmentsOrgRoute.wildPath,
-                    pathname,
-                  ),
-                },
-                {
-                  label: "Deployment Pipelines",
-                  type: "item" as const,
-                  icon: <Workflow size={20} />,
-                  href: generatePath(deploymentPipelinesOrgRoute.path, {
-                    orgId,
-                  }),
-                  isActive: !!matchPath(
-                    deploymentPipelinesOrgRoute.wildPath,
-                    pathname,
-                  ),
-                },
+                ...(isEnvironmentManagedMode()
+                  ? []
+                  : [
+                      {
+                        label: "Environments",
+                        type: "item" as const,
+                        icon: <Layers size={20} />,
+                        href: generatePath(environmentsOrgRoute.path, {
+                          orgId,
+                        }),
+                        isActive: !!matchPath(
+                          environmentsOrgRoute.wildPath,
+                          pathname,
+                        ),
+                      },
+                    ]),
+                ...(isDeploymentPipelineManagedMode()
+                  ? []
+                  : [
+                      {
+                        label: "Deployment Pipelines",
+                        type: "item" as const,
+                        icon: <Workflow size={20} />,
+                        href: generatePath(deploymentPipelinesOrgRoute.path, {
+                          orgId,
+                        }),
+                        isActive: !!matchPath(
+                          deploymentPipelinesOrgRoute.wildPath,
+                          pathname,
+                        ),
+                      },
+                    ]),
               ],
             },
           ]

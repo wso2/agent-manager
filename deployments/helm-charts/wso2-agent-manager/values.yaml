@@ -287,6 +287,16 @@ agentManagerService:
     # On-premise deployment flag
     isOnPremDeployment: "true"
 
+    # When true, environment create, update and delete are refused with 403 and the
+    # console hides the Environments pages, for deployments where environments are
+    # managed outside Agent Manager. The console reads this same value.
+    enableEnvironmentManagedMode: false
+
+    # When true, deployment pipeline create, update and delete are refused with 403
+    # and the console hides the Deployment Pipelines pages, for deployments where
+    # pipelines are managed outside Agent Manager. The console reads this same value.
+    enableDeploymentPipelineManagedMode: false
+
     # OIDC configuration for Thunder integration
     oidc:
       tokenUrl: "http://amp-thunder-extension-service.amp-thunder.svc.cluster.local:8090/oauth2/token"

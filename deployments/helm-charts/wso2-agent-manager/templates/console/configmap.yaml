@@ -47,6 +47,8 @@ data:
   # and TLS_ENABLED match this deployment instead of being omitted.
   IDP_HOST_BASE_DOMAIN: {{ .Values.console.config.idpHostBaseDomain | default "amp.localhost" | quote }}
   TLS_ENABLED: {{ .Values.console.config.tlsEnabled | default "false" | quote }}
+  ENABLE_ENVIRONMENT_MANAGED_MODE: {{ .Values.agentManagerService.config.enableEnvironmentManagedMode | default false | quote }}
+  ENABLE_DEPLOYMENT_PIPELINE_MANAGED_MODE: {{ .Values.agentManagerService.config.enableDeploymentPipelineManagedMode | default false | quote }}
   # Request and file-mount size limits in bytes. `dig`, not `default`, for the
   # body limit: 0 is a real setting (no limit) and `default` would replace it.
   # `int` because Helm reads YAML numbers as floats and `quote` would render

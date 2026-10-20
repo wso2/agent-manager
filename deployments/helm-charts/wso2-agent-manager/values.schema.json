@@ -901,6 +901,18 @@
               "title": "isOnPremDeployment",
               "type": "string"
             },
+            "enableEnvironmentManagedMode": {
+              "default": false,
+              "description": "When true, environment create, update and delete are refused with 403 and the console hides the Environments pages, for deployments where environments are managed outside Agent Manager. The console reads this same value.",
+              "title": "enableEnvironmentManagedMode",
+              "type": "boolean"
+            },
+            "enableDeploymentPipelineManagedMode": {
+              "default": false,
+              "description": "When true, deployment pipeline create, update and delete are refused with 403 and the console hides the Deployment Pipelines pages, for deployments where pipelines are managed outside Agent Manager. The console reads this same value.",
+              "title": "enableDeploymentPipelineManagedMode",
+              "type": "boolean"
+            },
             "oidc": {
               "additionalProperties": false,
               "description": "OIDC configuration for Thunder integration",

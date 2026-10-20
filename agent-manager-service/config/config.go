@@ -62,7 +62,13 @@ type Config struct {
 
 	KeyManagerConfigurations KeyManagerConfigurations
 	IsOnPremDeployment       bool
-	ServerPublicURL          string
+	// EnableEnvironmentManagedMode, when true, refuses environment create, update
+	// and delete with 403: the deployment manages environments outside Agent Manager.
+	EnableEnvironmentManagedMode bool
+	// EnableDeploymentPipelineManagedMode, when true, refuses deployment pipeline create,
+	// update and delete with 403: the deployment manages pipelines outside Agent Manager.
+	EnableDeploymentPipelineManagedMode bool
+	ServerPublicURL                     string
 
 	// GrowthAnalytics configures feature-usage telemetry export. A no-op
 	// unless GrowthAnalytics.Enabled is true and MoesifCollectorBaseURL is

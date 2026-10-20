@@ -23,6 +23,7 @@ import (
 	"net/http"
 	"strconv"
 
+	"github.com/wso2/agent-manager/agent-manager-service/config"
 	"github.com/wso2/agent-manager/agent-manager-service/middleware"
 	"github.com/wso2/agent-manager/agent-manager-service/middleware/logger"
 	"github.com/wso2/agent-manager/agent-manager-service/models"
@@ -389,7 +390,21 @@ func convertSpecPromotionPaths(specPaths []spec.PromotionPath) []models.Promotio
 	return modelPaths
 }
 
+// refuseInDeploymentPipelineManagedMode writes 403 and returns true when the deployment
+// manages deployment pipelines outside Agent Manager, so they must not be changed here.
+func refuseInDeploymentPipelineManagedMode(w http.ResponseWriter) bool {
+	if !config.GetConfig().EnableDeploymentPipelineManagedMode {
+		return false
+	}
+	utils.WriteErrorResponse(w, http.StatusForbidden,
+		"Deployment pipelines are managed outside Agent Manager in this deployment")
+	return true
+}
+
 func (c *infraResourceController) CreateOrgDeploymentPipeline(w http.ResponseWriter, r *http.Request) {
+	if refuseInDeploymentPipelineManagedMode(w) {
+		return
+	}
 	ctx := r.Context()
 	log := logger.GetLogger(ctx)
 
@@ -423,6 +438,9 @@ func (c *infraResourceController) CreateOrgDeploymentPipeline(w http.ResponseWri
 }
 
 func (c *infraResourceController) UpdateOrgDeploymentPipeline(w http.ResponseWriter, r *http.Request) {
+	if refuseInDeploymentPipelineManagedMode(w) {
+		return
+	}
 	ctx := r.Context()
 	log := logger.GetLogger(ctx)
 
@@ -470,6 +488,9 @@ func (c *infraResourceController) GetProjectDeploymentPipeline(w http.ResponseWr
 }
 
 func (c *infraResourceController) DeleteOrgDeploymentPipeline(w http.ResponseWriter, r *http.Request) {
+	if refuseInDeploymentPipelineManagedMode(w) {
+		return
+	}
 	ctx := r.Context()
 	log := logger.GetLogger(ctx)
 

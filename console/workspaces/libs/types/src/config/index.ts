@@ -97,6 +97,18 @@ export interface AppConfig {
    * provisions the matching scheme.
    */
   tlsEnabled?: boolean;
+  /**
+   * When true, the Environments pages are hidden: environments are managed outside
+   * Agent Manager. Mirrors the backend's ENABLE_ENVIRONMENT_MANAGED_MODE. Read it
+   * through isEnvironmentManagedMode().
+   */
+  environmentManagedMode?: boolean;
+  /**
+   * When true, the Deployment Pipelines pages are hidden: pipelines are managed outside
+   * Agent Manager. Mirrors the backend's ENABLE_DEPLOYMENT_PIPELINE_MANAGED_MODE. Read it
+   * through isDeploymentPipelineManagedMode().
+   */
+  deploymentPipelineManagedMode?: boolean;
   guardrailsCatalogUrl: string;
   guardrailsDefinitionBaseUrl: string;
   /**
@@ -211,6 +223,16 @@ export const stripBasePath = (pathname: string): string => {
   if (pathname === base) return "/";
   return pathname.startsWith(`${base}/`) ? pathname.slice(base.length) : pathname;
 };
+
+/** True when environments are managed outside Agent Manager (ENABLE_ENVIRONMENT_MANAGED_MODE). */
+export const isEnvironmentManagedMode = (): boolean => globalConfig.environmentManagedMode === true;
+
+/**
+ * True when deployment pipelines are managed outside Agent Manager
+ * (ENABLE_DEPLOYMENT_PIPELINE_MANAGED_MODE).
+ */
+export const isDeploymentPipelineManagedMode = (): boolean =>
+  globalConfig.deploymentPipelineManagedMode === true;
 
 const buildRange = (duration: Duration) => {
   const endTime = new Date();

@@ -53,6 +53,8 @@ data:
   GATEWAY_VHOST_PORT: {{ .Values.agentManagerService.config.gatewayVhostPort | default "19080" | quote }}
   OAUTH_SCOPES_SUPPORTED: {{ .Values.agentManagerService.config.oauthScopesSupported | default "" | quote }}
   IS_ON_PREM_DEPLOYMENT: {{ .Values.agentManagerService.config.isOnPremDeployment | quote }}
+  ENABLE_ENVIRONMENT_MANAGED_MODE: {{ .Values.agentManagerService.config.enableEnvironmentManagedMode | default false | quote }}
+  ENABLE_DEPLOYMENT_PIPELINE_MANAGED_MODE: {{ .Values.agentManagerService.config.enableDeploymentPipelineManagedMode | default false | quote }}
   {{- with .Values.agentManagerService.config.growthAnalytics }}
   MOESIF_ENABLED: {{ .enabled | default false | quote }}
   CONSOLE_ANALYTICS_ENABLED: {{ .consoleEnabled | default false | quote }}

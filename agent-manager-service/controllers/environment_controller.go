@@ -24,6 +24,7 @@ import (
 	"strconv"
 
 	"github.com/wso2/agent-manager/agent-manager-service/audit"
+	"github.com/wso2/agent-manager/agent-manager-service/config"
 	"github.com/wso2/agent-manager/agent-manager-service/middleware"
 	"github.com/wso2/agent-manager/agent-manager-service/middleware/logger"
 	"github.com/wso2/agent-manager/agent-manager-service/models"
@@ -79,7 +80,21 @@ func handleEnvironmentErrors(w http.ResponseWriter, err error, fallbackMsg strin
 	}
 }
 
+// refuseInEnvironmentManagedMode writes 403 and returns true when the deployment
+// manages environments outside Agent Manager, so they must not be changed here.
+func refuseInEnvironmentManagedMode(w http.ResponseWriter) bool {
+	if !config.GetConfig().EnableEnvironmentManagedMode {
+		return false
+	}
+	utils.WriteErrorResponse(w, http.StatusForbidden,
+		"Environments are managed outside Agent Manager in this deployment")
+	return true
+}
+
 func (c *environmentController) CreateEnvironment(w http.ResponseWriter, r *http.Request) {
+	if refuseInEnvironmentManagedMode(w) {
+		return
+	}
 	ctx := r.Context()
 	log := logger.GetLogger(ctx)
 
@@ -177,6 +192,9 @@ func (c *environmentController) ListEnvironments(w http.ResponseWriter, r *http.
 }
 
 func (c *environmentController) UpdateEnvironment(w http.ResponseWriter, r *http.Request) {
+	if refuseInEnvironmentManagedMode(w) {
+		return
+	}
 	ctx := r.Context()
 	log := logger.GetLogger(ctx)
 
@@ -215,6 +233,9 @@ func (c *environmentController) UpdateEnvironment(w http.ResponseWriter, r *http
 }
 
 func (c *environmentController) DeleteEnvironment(w http.ResponseWriter, r *http.Request) {
+	if refuseInEnvironmentManagedMode(w) {
+		return
+	}
 	ctx := r.Context()
 	log := logger.GetLogger(ctx)
 

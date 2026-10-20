@@ -22,7 +22,11 @@ import {
   useListEnvironments,
   useUpdateProject,
 } from "@agent-management-platform/api-client";
-import { absoluteRouteMap, type Environment } from "@agent-management-platform/types";
+import {
+  absoluteRouteMap,
+  isDeploymentPipelineManagedMode,
+  type Environment,
+} from "@agent-management-platform/types";
 import {
   Box,
   Button,
@@ -171,19 +175,22 @@ export function DeploymentPipelineCard() {
 
               <Box display="flex" flexWrap="wrap" alignItems="center" gap={0.75}>
                 <PromotionChainChips chain={promotionChain} envMap={envMap} />
-                <Tooltip title="Edit Promotion Chain">
-                  <Button
-                    size="small"
-                    startIcon={<Edit size={14} />}
-                    component={Link}
-                    to={generatePath(
-                      absoluteRouteMap.children.org.children.deploymentPipelines.children.view.path,
-                      { orgId, pipelineName: pipeline.name },
-                    )}
-                  >
-                    Edit
-                  </Button>
-                </Tooltip>
+                {!isDeploymentPipelineManagedMode() && (
+                  <Tooltip title="Edit Promotion Chain">
+                    <Button
+                      size="small"
+                      startIcon={<Edit size={14} />}
+                      component={Link}
+                      to={generatePath(
+                        absoluteRouteMap.children.org.children.deploymentPipelines.children.view
+                          .path,
+                        { orgId, pipelineName: pipeline.name },
+                      )}
+                    >
+                      Edit
+                    </Button>
+                  </Tooltip>
+                )}
               </Box>
             </Box>
           )}
