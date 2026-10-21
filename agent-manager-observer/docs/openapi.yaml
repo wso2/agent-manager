@@ -132,6 +132,7 @@ paths:
               spans return no `mcpServers`, at no extra cost.
           schema:
             type: array
+            maxItems: 3
             items:
               type: string
               enum: [models, tools, mcpServers]

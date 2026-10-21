@@ -558,6 +558,9 @@ paths:
           explode: true
           schema:
             type: array
+            # A resource carries at most 10 labels (MaxLabelsPerResource), so more
+            # selectors than that can never match.
+            maxItems: 10
             items:
               type: string
       responses:
@@ -9551,6 +9554,9 @@ paths:
           explode: true
           schema:
             type: array
+            # A resource carries at most 10 labels (MaxLabelsPerResource), so more
+            # selectors than that can never match.
+            maxItems: 10
             items:
               type: string
       responses:

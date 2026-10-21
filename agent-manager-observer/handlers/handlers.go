@@ -40,6 +40,9 @@ const (
 	// maxLogRangeDays is the maximum startTime..endTime span accepted by
 	// /api/v1/logs, ported from agent-manager-service/utils/constants.go.
 	maxLogRangeDays = 14
+	// maxIncludeItems caps the include param of /api/v1/traces at its enum
+	// size, matching maxItems in docs/openapi.yaml.
+	maxIncludeItems = 3
 )
 
 // validLogLevels are the log levels accepted (case-insensitively) by the
@@ -602,12 +605,22 @@ func parseSortOrder(s, defaultVal string) (string, error) {
 }
 
 // parseInclude parses the comma-separated include query parameter of
-// GET /api/v1/traces; unknown values are an error.
+// GET /api/v1/traces; unknown values are an error. At most maxIncludeItems
+// non-empty items are accepted (the spec's maxItems); duplicates count toward
+// the limit.
 func parseInclude(raw []string) (controllers.Include, error) {
 	var include controllers.Include
+	items := 0
 	for _, list := range raw {
 		for _, item := range strings.Split(list, ",") {
-			switch v := strings.TrimSpace(item); v {
+			v := strings.TrimSpace(item)
+			if v != "" {
+				items++
+				if items > maxIncludeItems {
+					return controllers.Include{}, fmt.Errorf("too many include values: at most %d are allowed", maxIncludeItems)
+				}
+			}
+			switch v {
 			case "":
 			case "models":
 				include.Models = true
