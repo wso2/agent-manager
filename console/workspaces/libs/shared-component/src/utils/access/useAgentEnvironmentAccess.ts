@@ -24,9 +24,9 @@ import {
 
 import {
   evaluateAgentEnvironmentAccess,
-  type AccessDecision,
   type EnvironmentTier,
-} from "./environmentTierAccess";
+} from "./environmentTier";
+import type { AccessDecision } from "./types";
 
 /**
  * Hook form of {@link evaluateAgentEnvironmentAccess}, bound to the current

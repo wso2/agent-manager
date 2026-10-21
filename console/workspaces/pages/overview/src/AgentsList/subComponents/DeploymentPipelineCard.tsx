@@ -20,7 +20,6 @@ import {
   useGetProject,
   useListDeploymentPipelines,
   useListEnvironments,
-  useUpdateProject,
 } from "@agent-management-platform/api-client";
 import { absoluteRouteMap, type Environment } from "@agent-management-platform/types";
 import {
@@ -34,9 +33,8 @@ import {
   Typography,
 } from "@wso2/oxygen-ui";
 import { ArrowLeftRight, Edit, GitBranch } from "@wso2/oxygen-ui-icons-react";
-import { useMemo, useState } from "react";
+import { useMemo } from "react";
 import { generatePath, Link, useParams } from "react-router-dom";
-import { SelectPipelineDrawer } from "./SelectPipelineDrawer";
 import { buildPromotionChain, PromotionChainChips } from "./promotionChain";
 
 const CARD_SX = {
@@ -44,15 +42,19 @@ const CARD_SX = {
   flexGrow: 1,
 };
 
+/**
+ * Read-only summary of the project's deployment pipeline and its environments.
+ * Both edit affordances link out to project settings.
+ */
 export function DeploymentPipelineCard() {
   const { orgId, projectId } = useParams<{ orgId: string; projectId: string }>();
-  const [selectDrawerOpen, setSelectDrawerOpen] = useState(false);
-  const [selectDrawerKey, setSelectDrawerKey] = useState(0);
 
-  const openSelectDrawer = () => {
-    setSelectDrawerKey((key) => key + 1);
-    setSelectDrawerOpen(true);
-  };
+  // Picking the pipeline belongs to project settings, next to the other
+  // project-level fields, rather than to a panel over the agent list.
+  const projectSettingsHref = generatePath(
+    absoluteRouteMap.children.org.children.projects.children.settings.path,
+    { orgId, projectId },
+  );
 
   const { data: project, isLoading: isLoadingProject } = useGetProject({
     orgName: orgId,
@@ -64,11 +66,6 @@ export function DeploymentPipelineCard() {
   );
 
   const { data: environments } = useListEnvironments({ orgName: orgId });
-
-  const { mutate: updateProject, isPending: isUpdatingPipeline } = useUpdateProject({
-    orgName: orgId,
-    projName: projectId,
-  });
 
   const pipeline = useMemo(
     () => pipelinesData?.deploymentPipelines?.find((p) => p.name === project?.deploymentPipeline),
@@ -85,122 +82,97 @@ export function DeploymentPipelineCard() {
     [pipeline]
   );
 
-  const handleSelectPipeline = (pipelineName: string) => {
-    if (!project || pipelineName === project.deploymentPipeline) {
-      setSelectDrawerOpen(false);
-      return;
-    }
-    updateProject(
-      {
-        name: project.name,
-        displayName: project.displayName,
-        description: project.description,
-        deploymentPipeline: pipelineName,
-      },
-      { onSuccess: () => setSelectDrawerOpen(false) }
-    );
-  };
-
   const isLoading = isLoadingProject || isLoadingPipelines;
 
   return (
-    <>
-      <Card variant="outlined" sx={CARD_SX}>
-        <CardContent>
-          {isLoading ? (
-            <Box display="flex" flexDirection="column" gap={1.5}>
-              <Box display="flex" alignItems="center" gap={1}>
-                <Skeleton variant="circular" width={18} height={18} />
-                <Skeleton variant="text" width="60%" height={28} />
-              </Box>
-              <Skeleton variant="text" width="85%" height={16} />
-              <Divider />
-              <Skeleton variant="text" width="45%" height={12} />
-              <Box display="flex" alignItems="center" gap={1}>
-                <Skeleton variant="rounded" width={64} height={24} sx={{ borderRadius: 4 }} />
-                <Skeleton variant="text" width={14} height={14} />
-                <Skeleton variant="rounded" width={72} height={24} sx={{ borderRadius: 4 }} />
-                <Skeleton variant="text" width={14} height={14} />
-                <Skeleton variant="rounded" width={80} height={24} sx={{ borderRadius: 4 }} />
-              </Box>
+    <Card variant="outlined" sx={CARD_SX}>
+      <CardContent>
+        {isLoading ? (
+          <Box display="flex" flexDirection="column" gap={1.5}>
+            <Box display="flex" alignItems="center" gap={1}>
+              <Skeleton variant="circular" width={18} height={18} />
+              <Skeleton variant="text" width="60%" height={28} />
             </Box>
-          ) : !pipeline ? (
-            <Box display="flex" flexDirection="column" gap={1.5}>
-              <Box display="flex" alignItems="center" justifyContent="space-between" gap={1}>
-                <Typography variant="h6">Deployment Environments</Typography>
-                <Button size="small" startIcon={<ArrowLeftRight size={14} />} onClick={openSelectDrawer}>
-                  Select Pipeline
-                </Button>
-              </Box>
-              <Divider />
-              <Typography variant="body2" color="text.secondary" sx={{ fontStyle: "italic" }}>
-                No deployment pipeline configured for this project.
-              </Typography>
+            <Skeleton variant="text" width="85%" height={16} />
+            <Divider />
+            <Skeleton variant="text" width="45%" height={12} />
+            <Box display="flex" alignItems="center" gap={1}>
+              <Skeleton variant="rounded" width={64} height={24} sx={{ borderRadius: 4 }} />
+              <Skeleton variant="text" width={14} height={14} />
+              <Skeleton variant="rounded" width={72} height={24} sx={{ borderRadius: 4 }} />
+              <Skeleton variant="text" width={14} height={14} />
+              <Skeleton variant="rounded" width={80} height={24} sx={{ borderRadius: 4 }} />
             </Box>
-          ) : (
-            <Box display="flex" flexDirection="column" gap={1.5}>
-              <Typography variant="h6">Project Environments</Typography>
-              <Divider />
-              <Box display="flex" flexDirection="column" gap={0.5}>
-                <Box display="flex" alignItems="center" justifyContent="space-between" gap={0.75}>
-                  <Box display="flex" alignItems="center" gap={0.75}>
-                    <GitBranch size={14} style={{ opacity: 0.6, flexShrink: 0 }} />
-                    <Typography variant="body2" fontWeight={500}>
-                      {pipeline.displayName || pipeline.name}
-                    </Typography>
-                  </Box>
-                  <Tooltip title="Change Deployment Pipeline">
-                    <Button
-                      size="small"
-                      startIcon={<ArrowLeftRight size={14} />}
-                      onClick={openSelectDrawer}
-                      disabled={isUpdatingPipeline}
-                    >
-                      Change
-                    </Button>
-                  </Tooltip>
-                </Box>
-                {pipeline.description && (
-                  <Typography variant="body2" color="text.disabled" sx={{ pl: 2.75 }}>
-                    {pipeline.description}
+          </Box>
+        ) : !pipeline ? (
+          <Box display="flex" flexDirection="column" gap={1.5}>
+            <Box display="flex" alignItems="center" justifyContent="space-between" gap={1}>
+              <Typography variant="h6">Deployment Environments</Typography>
+              <Button
+                size="small"
+                startIcon={<ArrowLeftRight size={14} />}
+                component={Link}
+                to={projectSettingsHref}
+              >
+                Select Pipeline
+              </Button>
+            </Box>
+            <Divider />
+            <Typography variant="body2" color="text.secondary" sx={{ fontStyle: "italic" }}>
+              No deployment pipeline configured for this project.
+            </Typography>
+          </Box>
+        ) : (
+          <Box display="flex" flexDirection="column" gap={1.5}>
+            <Typography variant="h6">Project Environments</Typography>
+            <Divider />
+            <Box display="flex" flexDirection="column" gap={0.5}>
+              <Box display="flex" alignItems="center" justifyContent="space-between" gap={0.75}>
+                <Box display="flex" alignItems="center" gap={0.75}>
+                  <GitBranch size={14} style={{ opacity: 0.6, flexShrink: 0 }} />
+                  <Typography variant="body2" fontWeight={500}>
+                    {pipeline.displayName || pipeline.name}
                   </Typography>
-                )}
-              </Box>
-
-              <Divider />
-
-              <Box display="flex" flexWrap="wrap" alignItems="center" gap={0.75}>
-                <PromotionChainChips chain={promotionChain} envMap={envMap} />
-                <Tooltip title="Edit Promotion Chain">
+                </Box>
+                <Tooltip title="Change Deployment Pipeline">
                   <Button
                     size="small"
-                    startIcon={<Edit size={14} />}
+                    startIcon={<ArrowLeftRight size={14} />}
                     component={Link}
-                    to={generatePath(
-                      absoluteRouteMap.children.org.children.deploymentPipelines.children.view.path,
-                      { orgId, pipelineName: pipeline.name },
-                    )}
+                    to={projectSettingsHref}
                   >
-                    Edit
+                    Change
                   </Button>
                 </Tooltip>
               </Box>
+              {pipeline.description && (
+                <Typography variant="body2" color="text.disabled" sx={{ pl: 2.75 }}>
+                  {pipeline.description}
+                </Typography>
+              )}
             </Box>
-          )}
-        </CardContent>
-      </Card>
-      {project && (
-        <SelectPipelineDrawer
-          key={selectDrawerKey}
-          open={selectDrawerOpen}
-          onClose={() => setSelectDrawerOpen(false)}
-          pipelines={pipelinesData?.deploymentPipelines ?? []}
-          envMap={envMap}
-          selectedName={project.deploymentPipeline}
-          isUpdating={isUpdatingPipeline}
-          onSelect={handleSelectPipeline}
-        />
-      )}
-    </>
+
+            <Divider />
+
+            <Box display="flex" flexWrap="wrap" alignItems="center" gap={0.75}>
+              <PromotionChainChips chain={promotionChain} envMap={envMap} />
+              <Tooltip title="Edit Promotion Chain">
+                <Button
+                  size="small"
+                  startIcon={<Edit size={14} />}
+                  component={Link}
+                  to={generatePath(
+                    absoluteRouteMap.children.org.children.deploymentPipelines.children.view.path,
+                    { orgId, pipelineName: pipeline.name },
+                  )}
+                >
+                  Edit
+                </Button>
+              </Tooltip>
+            </Box>
+          </Box>
+        )}
+      </CardContent>
+    </Card>
   );
 }

@@ -233,6 +233,11 @@ export const generatedRouteMap =  {
           "path": "/org/:orgId/project/:projectId",
           "wildPath": "/org/:orgId/project/:projectId/*",
           "children": {
+            "settings": {
+              "path": "/org/:orgId/project/:projectId/settings",
+              "wildPath": "/org/:orgId/project/:projectId/settings/*",
+              "children": {}
+            },
             "newAgent": {
               "path": "/org/:orgId/project/:projectId/newAgent",
               "wildPath": "/org/:orgId/project/:projectId/newAgent/*",
@@ -270,6 +275,11 @@ export const generatedRouteMap =  {
               "path": "/org/:orgId/project/:projectId/agents/:agentId",
               "wildPath": "/org/:orgId/project/:projectId/agents/:agentId/*",
               "children": {
+                "settings": {
+                  "path": "/org/:orgId/project/:projectId/agents/:agentId/settings",
+                  "wildPath": "/org/:orgId/project/:projectId/agents/:agentId/settings/*",
+                  "children": {}
+                },
                 "agentId": {
                   "path": "/org/:orgId/project/:projectId/agents/:agentId/agent-id",
                   "wildPath": "/org/:orgId/project/:projectId/agents/:agentId/agent-id/*",

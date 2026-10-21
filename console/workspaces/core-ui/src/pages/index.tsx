@@ -195,6 +195,16 @@ export const LazySettingsOrg = lazy(() =>
     default: m.metaData.levels!.organization as ComponentType,
   }))
 );
+export const LazySettingsProject = lazy(() =>
+  import("@agent-management-platform/settings").then((m) => ({
+    default: m.metaData.levels!.project as ComponentType,
+  }))
+);
+export const LazySettingsComponent = lazy(() =>
+  import("@agent-management-platform/settings").then((m) => ({
+    default: m.metaData.levels!.component as ComponentType,
+  }))
+);
 
 // Deployment Pipelines
 export const LazyDeploymentPipelinesOrg = lazy(() =>

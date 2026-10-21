@@ -22,8 +22,8 @@ import {
   AGENT_ENV_PRODUCTION_SCOPE,
   AGENT_SUSPEND_SCOPE,
   evaluateAgentEnvironmentAccess,
-  type ScopeState,
-} from "./environmentTierAccess";
+} from "./environmentTier";
+import type { ScopeState } from "./types";
 
 // The scope set a Developer carries after the role rebalance: the tier floor but
 // not the production grant.

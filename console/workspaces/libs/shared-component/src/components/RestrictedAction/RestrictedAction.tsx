@@ -19,7 +19,7 @@
 import { cloneElement, useCallback, useRef, type ReactElement } from "react";
 import { Tooltip } from "@wso2/oxygen-ui";
 import { ConsoleAction, useTrack } from "@agent-management-platform/api-client";
-import type { AccessDecision } from "../../utils/environmentTierAccess";
+import type { AccessDecision } from "../../utils/access/types";
 
 export interface RestrictedActionProps {
   decision: AccessDecision;

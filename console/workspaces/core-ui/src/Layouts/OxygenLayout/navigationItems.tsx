@@ -24,6 +24,7 @@ import {
   Hammer,
   FlaskConical,
   Workflow,
+  Wrench,
   Logs,
   Rocket,
   Code,
@@ -59,10 +60,17 @@ import { thunderInstancesMetadata } from "@agent-management-platform/env-thunder
 import { useExternalNavItems } from "@agent-management-platform/views";
 import type { NavigationItem, NavigationSection } from "./LeftNavigation";
 
+const projectSettingsRoute =
+  absoluteRouteMap.children.org.children.projects.children.settings;
+const agentSettingsRoute =
+  absoluteRouteMap.children.org.children.projects.children.agents.children
+    .settings;
+
 // MCP logo inlined here so mcp-proxies package stays in its own async chunk.
 const MCP_LOGO_MASK =
   "data:image/png;base64,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";
 
+/** The MCP mark, inlined as a data URI so the nav icon needs no network fetch. */
 const MCPLogo = ({
   size = 20,
   className,
@@ -114,9 +122,11 @@ function credentialsNavItem(
 }
 
 /**
+ * The left navigation for the current scope, selected from the route params:
+ * organization, project, or one of the three agent shapes.
+ *
  * TODO: Use nav bar instead of navigate to the items.
  */
-
 export function useNavigationItems(): Array<
   NavigationSection | NavigationItem
 > {
@@ -182,6 +192,21 @@ export function useNavigationItems(): Array<
   const defaultEnv =
     envId ?? (environments.length > 0 ? environments[0]?.name : "");
   const { pathname } = useLocation();
+
+  // Settings is the same pinned item at every scope, differing only in route
+  // and params; built on demand because generatePath throws unless the branch
+  // has already proven those params exist.
+  const settingsNavItem = (
+    route: { path: string; wildPath: string },
+    params: Record<string, string | undefined>,
+  ): NavigationItem => ({
+    label: "Settings",
+    type: "item",
+    icon: <Settings size={20} />,
+    isActive: !!matchPath(route.wildPath, pathname),
+    href: generatePath(route.path, params),
+    pinBottom: true,
+  });
 
   const llmProvidersOrgRoute = (
     absoluteRouteMap.children.org.children as unknown as Record<
@@ -277,7 +302,7 @@ export function useNavigationItems(): Array<
           {
             label: "Configure",
             type: "item",
-            icon: <Settings size={20} />,
+            icon: <Wrench size={20} />,
             isActive: !!matchPath(
               absoluteRouteMap.children.org.children.projects.children.agents
                 .children.configure.wildPath,
@@ -373,6 +398,7 @@ export function useNavigationItems(): Array<
           },
         ],
       },
+      settingsNavItem(agentSettingsRoute, { orgId, projectId, agentId }),
     ];
   }
 
@@ -400,7 +426,7 @@ export function useNavigationItems(): Array<
           {
             label: "Configure",
             type: "item",
-            icon: <Settings size={20} />,
+            icon: <Wrench size={20} />,
             isActive: !!matchPath(
               agentsChildren.configure?.wildPath ?? "",
               pathname,
@@ -566,6 +592,7 @@ export function useNavigationItems(): Array<
           isActive: !!matchPath(item.route, pathname),
           href: generatePath(item.route, { orgId, projectId, agentId }),
         })),
+      settingsNavItem(agentSettingsRoute, { orgId, projectId, agentId }),
     ];
   }
   if (orgId && projectId && agentId && defaultEnv && !agent?.kindName) {
@@ -592,7 +619,7 @@ export function useNavigationItems(): Array<
           {
             label: "Configure",
             type: "item",
-            icon: <Settings size={20} />,
+            icon: <Wrench size={20} />,
             isActive: !!matchPath(
               agentsChildren.configure?.wildPath ?? "",
               pathname,
@@ -788,6 +815,7 @@ export function useNavigationItems(): Array<
           isActive: !!matchPath(item.route, pathname),
           href: generatePath(item.route, { orgId, projectId, agentId }),
         })),
+      settingsNavItem(agentSettingsRoute, { orgId, projectId, agentId }),
     ];
   }
   if (orgId && projectId) {
@@ -811,6 +839,7 @@ export function useNavigationItems(): Array<
             pathname,
           ),
       },
+      settingsNavItem(projectSettingsRoute, { orgId, projectId }),
     ];
   }
   if (orgId) {

@@ -16,6 +16,8 @@
  * under the License.
  */
 
+import { ALLOWED, deny, type AccessDecision, type ScopeState } from "./types";
+
 /**
  * The environment tier is an authorization axis of its own: it is about where an
  * action lands rather than what the action is. The floor says "may act on
@@ -38,44 +40,9 @@ export const AGENT_ENV_PRODUCTION_SCOPE = "amp:agent:env-production";
 /** The capability scope the deployment-state route demands beside the tier. */
 export const AGENT_SUSPEND_SCOPE = "amp:agent:suspend";
 
-/** The scopes the current token carries, and whether they are enforced at all. */
-export interface ScopeState {
-  /**
-   * False when auth is disabled outright, so no token exists to carry scopes.
-   * Every check then passes, exactly as the service gates nothing.
-   */
-  enforced: boolean;
-  /**
-   * False while the access token is still being decoded, when `scopes` is empty
-   * only because nothing has been read yet. The rule needs it because an empty
-   * set is otherwise indistinguishable from a token that genuinely carries no
-   * scopes at all.
-   */
-  resolved: boolean;
-  scopes: ReadonlySet<string>;
-}
-
 /** Only the part of an Environment that decides the tier. */
 export interface EnvironmentTier {
   isProduction?: boolean;
-}
-
-export interface AccessDecision {
-  allowed: boolean;
-  /** The scope whose absence decided it. Undefined when allowed. */
-  missingScope?: string;
-  /** A sentence for the disabled control's tooltip. Empty when allowed. */
-  reason: string;
-}
-
-export const ALLOWED: AccessDecision = { allowed: true, reason: "" };
-
-function deny(missingScope: string, what: string): AccessDecision {
-  return {
-    allowed: false,
-    missingScope,
-    reason: `You do not have permission to ${what}. This requires the ${missingScope} scope.`,
-  };
 }
 
 /**

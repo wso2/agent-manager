@@ -37,7 +37,6 @@ import {
   Plus as Add,
   Trash2 as DeleteOutlineOutlined,
   User,
-  Edit,
 } from "@wso2/oxygen-ui-icons-react";
 
 const { DataGrid: DataGridComponent } = DataGrid;
@@ -68,8 +67,8 @@ import {
   getErrorMessage,
   useConfirmationDialog,
 } from "@agent-management-platform/shared-component";
-import { EditProjectDrawer } from "../ProjectList/EditProjectDrawer";
 
+/** Placeholder for the whole two-column agent list, including the summary rail. */
 export function ListPageSkeleton() {
   return (
     <Stack direction="row" justifyContent="space-between" gap={4}>
@@ -113,12 +112,12 @@ export interface AgentWithHref extends AgentResponse {
   agentInfo: { name: string; displayName: string; description: string };
 }
 
+/** Project landing page: the project's agents, with search, pagination and a type summary. */
 export const AgentsList: React.FC = () => {
   const [search, setSearch] = useState("");
   const [hoveredAgentId, setHoveredAgentId] = useState<string | null>(null);
   const [page, setPage] = useState(0);
   const [rowsPerPage, setRowsPerPage] = useState(5);
-  const [editProjectDrawerOpen, setEditProjectDrawerOpen] = useState(false);
   const [addAgentAnchorEl, setAddAgentAnchorEl] = useState<null | HTMLElement>(
     null,
   );
@@ -306,18 +305,6 @@ export const AgentsList: React.FC = () => {
           ) : undefined
         }
         isLoading={isPageLoading}
-        actions={
-          <Button
-            variant="outlined"
-            color="primary"
-            size="small"
-            startIcon={<Edit size={16} />}
-            onClick={() => setEditProjectDrawerOpen(true)}
-            disabled={!project}
-          >
-            Edit Project
-          </Button>
-        }
       >
         {project?.description && (
           <DescriptionCard content={project.description} sx={{ mb: 4 }} />
@@ -576,15 +563,6 @@ export const AgentsList: React.FC = () => {
           </Stack>
         )}
       </PageLayout>
-
-      {project && (
-        <EditProjectDrawer
-          open={editProjectDrawerOpen}
-          onClose={() => setEditProjectDrawerOpen(false)}
-          project={project}
-          orgId={orgId || "default"}
-        />
-      )}
     </>
   );
 };

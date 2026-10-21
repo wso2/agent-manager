@@ -18,6 +18,8 @@
 import { Settings } from "@wso2/oxygen-ui-icons-react";
 import type { PageMetadata } from "@agent-management-platform/types";
 import { SettingsOrganization } from "./Settings.Organization";
+import { SettingsProject } from "./Settings.Project";
+import { SettingsAgent } from "./Settings.Agent";
 
 export const metaData: PageMetadata = {
   title: "Settings",
@@ -27,6 +29,8 @@ export const metaData: PageMetadata = {
   component: SettingsOrganization,
   levels: {
     organization: SettingsOrganization,
+    project: SettingsProject,
+    component: SettingsAgent,
   },
 };
 
