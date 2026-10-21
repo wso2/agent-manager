@@ -1,0 +1,8 @@
+{
+  "scanSettings": {
+    "configMode": "LOCAL",
+    "uaConfigMergeSetting": "APPEND",
+    "enableLicenseViolations": true,
+    "cloneSubmodules": false
+  }
+}
