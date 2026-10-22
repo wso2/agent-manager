@@ -20,7 +20,7 @@ import { Box, Chip, CircularProgress, IconButton, Stack, Typography } from "@wso
 import { ExternalLink, Plus } from "@wso2/oxygen-ui-icons-react";
 import { Link } from "react-router-dom";
 import { useGetAgent, useGetAgentCard } from "@agent-management-platform/api-client";
-import { OverviewSectionCard, validateEndpointUrl } from "@agent-management-platform/shared-component";
+import { OverviewSectionCard, parseA2ACard } from "@agent-management-platform/shared-component";
 import { buildConfigureTabHref, TextInput } from "@agent-management-platform/views";
 
 interface EnvAgentCardSummaryProps {
@@ -31,30 +31,14 @@ interface EnvAgentCardSummaryProps {
   external?: boolean;
 }
 
-type Json = Record<string, unknown>;
+const isCardObject = (v: unknown): v is object => typeof v === "object" && v !== null && !Array.isArray(v);
 
-const isObject = (v: unknown): v is Json => typeof v === "object" && v !== null && !Array.isArray(v);
-const asString = (v: unknown): string | undefined => (typeof v === "string" && v !== "" ? v : undefined);
-const objectsIn = (v: unknown): Json[] => (Array.isArray(v) ? v.filter(isObject) : []);
-
-/** Card content is third-party: read it defensively and link only http(s) URLs. */
-function summarizeCard(card: Json) {
-  const provider = isObject(card.provider) ? card.provider : {};
-  const providerUrl = asString(provider.url);
-  return {
-    organization: asString(provider.organization),
-    providerUrl: providerUrl && validateEndpointUrl(providerUrl) === null ? providerUrl : undefined,
-    interfaces: objectsIn(card.supportedInterfaces).flatMap((iface) => {
-      const url = asString(iface.url);
-      return url ? [{ url, binding: asString(iface.protocolBinding) }] : [];
-    }),
-    skillNames: objectsIn(card.skills).flatMap((skill) => asString(skill.name) ?? []),
-  };
-}
-
-function CardSummary({ card }: { card: Json }) {
-  const { organization, providerUrl, interfaces, skillNames } = summarizeCard(card);
-  if (!organization && interfaces.length === 0 && skillNames.length === 0) {
+function CardSummary({ card }: { card: object }) {
+  const {
+    providerOrganization: organization, providerUrl, interfaces, skills,
+  } = parseA2ACard(card);
+  const skillNames = skills.map((s) => s.name).filter((n) => n !== "");
+  if (organization === "" && interfaces.length === 0 && skillNames.length === 0) {
     return (
       <Typography variant="body2" color="text.secondary">
         The agent card lists no provider, interfaces or skills.
@@ -63,12 +47,12 @@ function CardSummary({ card }: { card: Json }) {
   }
   return (
     <Stack spacing={1.5}>
-      {organization && (
+      {organization !== "" && (
         <Box>
           <Typography variant="overline" color="text.secondary" display="block">Provider</Typography>
           <Box display="flex" alignItems="center" gap={0.5}>
             <Typography variant="body2">{organization}</Typography>
-            {providerUrl && (
+            {providerUrl !== "" && (
               <IconButton
                 size="small"
                 component="a"
@@ -88,9 +72,9 @@ function CardSummary({ card }: { card: Json }) {
         <Box>
           <Typography variant="overline" color="text.secondary" display="block" sx={{ mb: 0.5 }}>Interfaces</Typography>
           <Stack spacing={1}>
-            {interfaces.map(({ url, binding }, i) => (
+            {interfaces.map(({ url, protocolBinding: binding }, i) => (
               <Box key={`${i}-${url}`} display="flex" gap={1.5} alignItems="center">
-                {binding && <Chip size="small" label={binding} sx={{ minWidth: 96 }} />}
+                {binding !== "" && <Chip size="small" label={binding} sx={{ minWidth: 96 }} />}
                 <TextInput
                   value={url}
                   copyable
@@ -131,7 +115,7 @@ export function EnvAgentCardSummary({
   }
   const configureHref = buildConfigureTabHref(orgId, projectId, agentId, "a2a", envId);
   const noSource = data === null;
-  const card = isObject(data?.card) ? data.card : undefined;
+  const card = isCardObject(data?.card) ? data.card : undefined;
 
   let body;
   if (isLoading) {

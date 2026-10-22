@@ -18,6 +18,7 @@ package services
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"log/slog"
@@ -177,6 +178,45 @@ func (p *A2APublisher) GatewayURL(ouID string, envUUID uuid.UUID, agentName stri
 // Publication returns the environment's publication row.
 func (p *A2APublisher) Publication(ctx context.Context, ouID, projectName, agentName string, envUUID uuid.UUID) (*models.A2APublication, error) {
 	return p.pubRepo.Get(ctx, ouID, projectName, agentName, envUUID)
+}
+
+// A2AGatewayStatus is what the gateway currently does for an agent in one environment.
+type A2AGatewayStatus struct {
+	GatewayURL string // "" while no ingress gateway is mapped
+	Status     models.A2APublicationStatus
+	LastError  string
+	Transports []A2ATransport // nil when the row's stored transports are NULL
+}
+
+// a2aNoPublicationMsg reports an environment with no publication row, naming what re-queues one: a missing row
+// never resolves on its own.
+var a2aNoPublicationMsg = map[models.A2APublicationSource]string{
+	models.A2APublicationSourceExternal: "no gateway publication is queued for this environment; refresh to publish it again",
+	models.A2APublicationSourcePlatform: "no gateway publication is queued for this environment; redeploy the agent or save its deploy settings to publish it again",
+}
+
+// GatewayStatus reads the environment's gateway URL and publication; a missing publication reports failed.
+func (p *A2APublisher) GatewayStatus(
+	ctx context.Context, ouID, projectName, agentName string, envUUID uuid.UUID, source models.A2APublicationSource,
+) (A2AGatewayStatus, error) {
+	gatewayURL, err := p.GatewayURL(ouID, envUUID, agentName)
+	if err != nil {
+		return A2AGatewayStatus{}, err
+	}
+	pub, err := p.Publication(ctx, ouID, projectName, agentName, envUUID)
+	switch {
+	case errors.Is(err, repositories.ErrA2APublicationNotFound):
+		return A2AGatewayStatus{GatewayURL: gatewayURL, Status: models.A2APublicationStatusFailed, LastError: a2aNoPublicationMsg[source]}, nil
+	case err != nil:
+		return A2AGatewayStatus{}, fmt.Errorf("failed to read the A2A publication: %w", err)
+	}
+	status := A2AGatewayStatus{GatewayURL: gatewayURL, Status: pub.Status, LastError: pub.LastError}
+	if len(pub.PublishedTransports) > 0 {
+		if err := json.Unmarshal(pub.PublishedTransports, &status.Transports); err != nil {
+			return A2AGatewayStatus{}, fmt.Errorf("failed to read the published A2A transports: %w", err)
+		}
+	}
+	return status, nil
 }
 
 // TeardownEnv drops one environment's publication and gateway deployments in tx but keeps the artifact and its API keys; send the result after commit.

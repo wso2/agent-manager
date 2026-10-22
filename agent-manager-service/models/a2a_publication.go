@@ -17,6 +17,7 @@
 package models
 
 import (
+	"encoding/json"
 	"time"
 
 	"github.com/google/uuid"
@@ -78,9 +79,11 @@ type A2APublication struct {
 	LastError     string               `gorm:"column:last_error;not null;default:''"`
 	NextAttemptAt *time.Time           `gorm:"column:next_attempt_at"`
 	// PublishedUpstreamURL is the upstream the gateway was last given, for drift checks.
-	PublishedUpstreamURL string    `gorm:"column:published_upstream_url;not null;default:''"`
-	CreatedAt            time.Time `gorm:"column:created_at;not null;default:NOW()"`
-	UpdatedAt            time.Time `gorm:"column:updated_at;not null;default:NOW()"`
+	PublishedUpstreamURL string `gorm:"column:published_upstream_url;not null;default:''"`
+	// PublishedTransports are the transports the gateway was last given; nil on rows published before it was recorded.
+	PublishedTransports json.RawMessage `gorm:"column:published_transports;type:jsonb"`
+	CreatedAt           time.Time       `gorm:"column:created_at;not null;default:NOW()"`
+	UpdatedAt           time.Time       `gorm:"column:updated_at;not null;default:NOW()"`
 }
 
 func (A2APublication) TableName() string { return "a2a_publications" }

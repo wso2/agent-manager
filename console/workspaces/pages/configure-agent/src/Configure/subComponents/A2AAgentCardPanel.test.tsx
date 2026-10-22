@@ -104,8 +104,14 @@ describe("A2AAgentCardPanel", () => {
         fetchedAt: "2026-10-07T10:00:00Z",
         card: {
           name: "Trip Planner", description: "Plans trips", version: "1.2.0",
-          supportedInterfaces: [{ url: "https://gw/a/rpc", protocolBinding: "JSONRPC" }],
-          skills: [{ name: "plan", description: "Plan a trip", tags: ["travel"] }],
+          supportedInterfaces: [
+            { url: "https://gw/a/rpc", protocolBinding: "JSONRPC" },
+            { protocolBinding: "HTTP+JSON" },
+          ],
+          skills: [{
+            name: "plan", description: "Plan a trip", tags: ["travel"],
+            inputModes: ["text/plain"], examples: ["Plan Paris"],
+          }],
         },
       },
     });
@@ -116,6 +122,11 @@ describe("A2AAgentCardPanel", () => {
     expect(screen.getByText("plan")).toBeInTheDocument();
     expect(screen.getByDisplayValue("https://gw/a/rpc")).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Copy URL" })).toBeInTheDocument();
+    expect(screen.getAllByRole("button", { name: "Copy URL" })).toHaveLength(1);
+    expect(screen.queryByText("HTTP+JSON")).not.toBeInTheDocument();
+    expect(screen.getByText("text/plain")).toBeInTheDocument();
+    expect(screen.getByText("e.g. Plan Paris")).toBeInTheDocument();
+    expect(screen.getByText("v1.2.0")).toBeInTheDocument();
   });
 
   it("shows the last error when the fetch failed", () => {
@@ -347,6 +358,17 @@ describe("A2AAgentCardPanel", () => {
     });
     renderPanel();
     expect(screen.getByText("v2.0")).toBeInTheDocument();
+  });
+
+  it("normalises a v-prefixed version", () => {
+    mockCard({
+      data: {
+        source: "platform", status: "fetched", sourceUrl: "", lastError: "",
+        card: { name: "Trip Planner", version: "v2.0", supportedInterfaces: [], skills: [] },
+      },
+    });
+    renderPanel();
+    expect(screen.getAllByText("v2.0")).toHaveLength(1);
   });
 
   it("keeps Save disabled for a URL with no host, and caps its length", () => {

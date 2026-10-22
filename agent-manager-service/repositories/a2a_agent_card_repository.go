@@ -50,19 +50,26 @@ type A2AAgentCardRepository interface {
 	// Requeue resets an existing row to pending without creating one; it returns ErrA2AAgentCardNotFound when absent.
 	Requeue(ctx context.Context, ouID, projectName, agentName, environmentName string) error
 
-	// ClearCard drops the stored card and parks the row (pending, never due) until Requeue; ErrA2AAgentCardNotFound when absent.
+	// ClearCard drops the stored card and its projection and parks the row (pending, never due) until Requeue; ErrA2AAgentCardNotFound when absent.
 	ClearCard(ctx context.Context, ouID, projectName, agentName string, environmentUUID uuid.UUID) error
 	// FailParked marks a row ClearCard parked as failed with lastErr; any other row is left alone.
 	FailParked(ctx context.Context, ouID, projectName, agentName string, environmentUUID uuid.UUID, lastErr string) error
 
 	// ClaimDue leases up to limit pending rows whose next_attempt_at has passed; NULL is never due.
 	ClaimDue(ctx context.Context, now time.Time, limit int) ([]models.A2AAgentCard, error)
+	// RequeueFetchedWithoutProjection makes every fetched card that has no fingerprint due again and reports how many;
+	// during a rolling upgrade a pod from before the projection can store a card without one.
+	RequeueFetchedWithoutProjection(ctx context.Context) (int64, error)
 
 	// The Mark* methods act on the row as ClaimDue returned it and return
 	// ErrA2AAgentCardSuperseded when updated_at moved (a newer Enqueue).
 
 	// MarkFetched rewrites card and card_hash only when cardHash differs from read.CardHash, and source_url only for platform rows.
-	MarkFetched(ctx context.Context, read models.A2AAgentCard, card json.RawMessage, cardHash, fetchedURL, releaseName string) error
+	// It always writes the projection, so a card stored before the projection existed gains one on its next fetch.
+	MarkFetched(
+		ctx context.Context, read models.A2AAgentCard, card json.RawMessage, cardHash, fetchedURL, releaseName string,
+		projection models.A2ACardProjection,
+	) error
 	MarkAttemptFailed(ctx context.Context, read models.A2AAgentCard, lastErr, releaseName string, nextAttemptAt time.Time) error
 	MarkFailed(ctx context.Context, read models.A2AAgentCard, lastErr, releaseName string) error
 
@@ -168,6 +175,8 @@ func newSourceURLAssignments(changed string) []clause.Assignment {
 	return []clause.Assignment{
 		keepUnlessChanged("card", "NULL"),
 		keepUnlessChanged("card_hash", "''"),
+		keepUnlessChanged("card_fingerprint", "''"),
+		keepUnlessChanged("card_search_text", "''"),
 		keepUnlessChanged("fetched_at", "NULL"),
 		keepUnlessChanged("release_name", "''"),
 		keepUnlessChanged("source_url", "excluded.source_url"),
@@ -187,15 +196,17 @@ func (r *a2aAgentCardRepository) ClearCard(ctx context.Context, ouID, projectNam
 		Where("ou_id = ? AND project_name = ? AND agent_name = ? AND environment_uuid = ?",
 			ouID, projectName, agentName, environmentUUID).
 		Updates(map[string]interface{}{
-			"card":            nil,
-			"card_hash":       "",
-			"fetched_at":      nil,
-			"release_name":    "",
-			"status":          models.A2AAgentCardStatusPending,
-			"attempt_count":   0,
-			"last_error":      "",
-			"next_attempt_at": nil,
-			"updated_at":      time.Now().Truncate(time.Microsecond),
+			"card":             nil,
+			"card_hash":        "",
+			"card_fingerprint": "",
+			"card_search_text": "",
+			"fetched_at":       nil,
+			"release_name":     "",
+			"status":           models.A2AAgentCardStatusPending,
+			"attempt_count":    0,
+			"last_error":       "",
+			"next_attempt_at":  nil,
+			"updated_at":       time.Now().Truncate(time.Microsecond),
 		})
 	if result.Error != nil {
 		return result.Error
@@ -240,13 +251,29 @@ func (r *a2aAgentCardRepository) ClaimDue(ctx context.Context, now time.Time, li
 	return claimed, nil
 }
 
-func (r *a2aAgentCardRepository) MarkFetched(ctx context.Context, read models.A2AAgentCard, card json.RawMessage, cardHash, fetchedURL, releaseName string) error {
+func (r *a2aAgentCardRepository) RequeueFetchedWithoutProjection(ctx context.Context) (int64, error) {
+	res := r.db.WithContext(ctx).Model(&models.A2AAgentCard{}).
+		Where("status = ? AND card IS NOT NULL AND card_fingerprint = ''", models.A2AAgentCardStatusFetched).
+		Updates(map[string]interface{}{
+			"status":          models.A2AAgentCardStatusPending,
+			"attempt_count":   0,
+			"next_attempt_at": time.Now(),
+		})
+	return res.RowsAffected, res.Error
+}
+
+func (r *a2aAgentCardRepository) MarkFetched(
+	ctx context.Context, read models.A2AAgentCard, card json.RawMessage, cardHash, fetchedURL, releaseName string,
+	projection models.A2ACardProjection,
+) error {
 	updates := map[string]interface{}{
-		"status":          models.A2AAgentCardStatusFetched,
-		"fetched_at":      time.Now(),
-		"last_error":      "",
-		"next_attempt_at": nil,
-		"release_name":    releaseName,
+		"status":           models.A2AAgentCardStatusFetched,
+		"fetched_at":       time.Now(),
+		"last_error":       "",
+		"next_attempt_at":  nil,
+		"release_name":     releaseName,
+		"card_fingerprint": projection.Fingerprint,
+		"card_search_text": projection.SearchText,
 	}
 	// An external row's source_url is the registered URL; a fetch through the gateway must not replace it.
 	if read.Source == models.A2AAgentCardSourcePlatform {

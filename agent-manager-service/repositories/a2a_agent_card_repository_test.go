@@ -91,6 +91,8 @@ func claimedNames(rows []models.A2AAgentCard) []string {
 
 const sampleCard = `{"name":"Trip Planner","supportedInterfaces":[{"url":"https://a.example/rpc"}],"skills":[]}`
 
+var sampleProjection = models.A2ACardProjection{Fingerprint: "fp-sample", SearchText: "trip planner"}
+
 // A redeploy settles over minutes; readers must keep the last good card meanwhile.
 func TestA2AAgentCardEnqueuePreservesTheLastGoodCard(t *testing.T) {
 	repo := NewA2AAgentCardRepository(db.GetDB())
@@ -100,7 +102,7 @@ func TestA2AAgentCardEnqueuePreservesTheLastGoodCard(t *testing.T) {
 
 	require.NoError(t, repo.Enqueue(ctx, card))
 	read := dueCardFor(t, repo, card.AgentName)
-	require.NoError(t, repo.MarkFetched(ctx, read, json.RawMessage(sampleCard), "hash-1", "https://gw.example/a/.well-known/agent-card.json", ""))
+	require.NoError(t, repo.MarkFetched(ctx, read, json.RawMessage(sampleCard), "hash-1", "https://gw.example/a/.well-known/agent-card.json", "", sampleProjection))
 	fetched := cardRowOf(t, card)
 	require.NotNil(t, fetched.FetchedAt)
 
@@ -150,7 +152,7 @@ func fetchedExternalCard(t *testing.T, repo A2AAgentCardRepository, sourceURL st
 	cleanupCard(t, repo, card)
 	require.NoError(t, repo.Enqueue(ctx, card))
 	read := dueCardFor(t, repo, card.AgentName)
-	require.NoError(t, repo.MarkFetched(ctx, read, json.RawMessage(sampleCard), "hash-a", sourceURL, ""))
+	require.NoError(t, repo.MarkFetched(ctx, read, json.RawMessage(sampleCard), "hash-a", sourceURL, "", sampleProjection))
 	return card
 }
 
@@ -216,7 +218,7 @@ func TestA2AAgentCardEnqueueSwitchesPlatformToExternal(t *testing.T) {
 	cleanupCard(t, repo, card)
 	require.NoError(t, repo.Enqueue(ctx, card))
 	read := dueCardFor(t, repo, card.AgentName)
-	require.NoError(t, repo.MarkFetched(ctx, read, json.RawMessage(sampleCard), "hash-a", "http://gw.internal/.well-known/agent-card.json", "plat-r1"))
+	require.NoError(t, repo.MarkFetched(ctx, read, json.RawMessage(sampleCard), "hash-a", "http://gw.internal/.well-known/agent-card.json", "plat-r1", sampleProjection))
 
 	reenqueueExternal(t, repo, card, "https://b.example/.well-known/agent-card.json")
 
@@ -236,7 +238,7 @@ func TestA2AAgentCardMarkFetchedRecordsTheRelease(t *testing.T) {
 	cleanupCard(t, repo, card)
 	require.NoError(t, repo.Enqueue(ctx, card))
 
-	require.NoError(t, repo.MarkFetched(ctx, dueCardFor(t, repo, card.AgentName), json.RawMessage(sampleCard), "h", "u", "agent-r7"))
+	require.NoError(t, repo.MarkFetched(ctx, dueCardFor(t, repo, card.AgentName), json.RawMessage(sampleCard), "h", "u", "agent-r7", sampleProjection))
 	assert.Equal(t, "agent-r7", cardRowOf(t, card).ReleaseName)
 	assert.Equal(t, "agent-r7", cardRowOf(t, card).AttemptedReleaseName)
 
@@ -248,6 +250,44 @@ func newTestCardLike(card *models.A2AAgentCard) *models.A2AAgentCard {
 	again := newTestCard(card.AgentName, card.Source)
 	again.OUID = card.OUID
 	return again
+}
+
+// A pod from before the projection stores a requeued card without one during a rolling upgrade; the sweep makes
+// that row due again, keeping its card, and leaves projected and pending rows as they were.
+func TestA2AAgentCardRequeueFetchedWithoutProjectionResetsOnlyUnprojectedRows(t *testing.T) {
+	repo := NewA2AAgentCardRepository(db.GetDB())
+	ctx := context.Background()
+	fetchCard := func(prefix string, projection models.A2ACardProjection) *models.A2AAgentCard {
+		card := newTestCard(prefix+uuid.New().String()[:8], models.A2AAgentCardSourcePlatform)
+		cleanupCard(t, repo, card)
+		require.NoError(t, repo.Enqueue(ctx, card))
+		require.NoError(t, repo.MarkFetched(ctx, dueCardFor(t, repo, card.AgentName), json.RawMessage(sampleCard), "h", "u", "", projection))
+		return card
+	}
+	unprojected := fetchCard("unprojected-", models.A2ACardProjection{})
+	projected := fetchCard("projected-", sampleProjection)
+	pending := newTestCard("pending-"+uuid.New().String()[:8], models.A2AAgentCardSourcePlatform)
+	cleanupCard(t, repo, pending)
+	require.NoError(t, repo.Enqueue(ctx, pending))
+	retryAt := time.Now().Add(time.Hour).Truncate(time.Microsecond)
+	require.NoError(t, repo.MarkAttemptFailed(ctx, dueCardFor(t, repo, pending.AgentName), "not ready", "", retryAt))
+
+	n, err := repo.RequeueFetchedWithoutProjection(ctx)
+	require.NoError(t, err)
+	assert.GreaterOrEqual(t, n, int64(1))
+
+	got := cardRowOf(t, unprojected)
+	assert.Equal(t, models.A2AAgentCardStatusPending, got.Status)
+	assert.Zero(t, got.AttemptCount)
+	require.NotNil(t, got.NextAttemptAt)
+	assert.False(t, got.NextAttemptAt.After(time.Now()), "the row is due now")
+	assert.JSONEq(t, sampleCard, string(got.Card), "readers keep the card until the refetch lands")
+
+	assert.Equal(t, models.A2AAgentCardStatusFetched, cardRowOf(t, projected).Status, "a projected card is not refetched")
+	stillPending := cardRowOf(t, pending)
+	assert.Equal(t, 1, stillPending.AttemptCount, "a pending row keeps its budget")
+	require.NotNil(t, stillPending.NextAttemptAt)
+	assert.WithinDuration(t, retryAt, *stillPending.NextAttemptAt, time.Millisecond, "a pending row keeps its backoff")
 }
 
 // A row whose retry is scheduled for later is not handed out until then.
@@ -344,7 +384,7 @@ func TestA2AAgentCardClaimDueLeasesTheRow(t *testing.T) {
 	afterLease, err := repo.ClaimDue(ctx, time.Now().Add(A2AAgentCardClaimLease+time.Minute), 100)
 	require.NoError(t, err)
 	assert.Contains(t, claimedNames(afterLease), card.AgentName)
-	require.NoError(t, repo.MarkFetched(ctx, claimed, json.RawMessage(sampleCard), "h", "u", ""),
+	require.NoError(t, repo.MarkFetched(ctx, claimed, json.RawMessage(sampleCard), "h", "u", "", sampleProjection),
 		"claiming is not mistaken for a re-enqueue")
 }
 
@@ -355,13 +395,13 @@ func TestA2AAgentCardMarkFetchedSkipsTheWriteForAnUnchangedHash(t *testing.T) {
 	card := newTestCard("hash-"+uuid.New().String()[:8], models.A2AAgentCardSourcePlatform)
 	cleanupCard(t, repo, card)
 	require.NoError(t, repo.Enqueue(ctx, card))
-	require.NoError(t, repo.MarkFetched(ctx, dueCardFor(t, repo, card.AgentName), json.RawMessage(sampleCard), "same", "u", ""))
+	require.NoError(t, repo.MarkFetched(ctx, dueCardFor(t, repo, card.AgentName), json.RawMessage(sampleCard), "same", "u", "", sampleProjection))
 
 	again := newTestCard(card.AgentName, models.A2AAgentCardSourcePlatform)
 	again.OUID = card.OUID
 	require.NoError(t, repo.Enqueue(ctx, again))
 	read := dueCardFor(t, repo, card.AgentName)
-	require.NoError(t, repo.MarkFetched(ctx, read, json.RawMessage(`{"name":"other"}`), "same", "u", ""))
+	require.NoError(t, repo.MarkFetched(ctx, read, json.RawMessage(`{"name":"other"}`), "same", "u", "", sampleProjection))
 
 	row := cardRowOf(t, card)
 	assert.Equal(t, models.A2AAgentCardStatusFetched, row.Status)
@@ -382,7 +422,7 @@ func TestA2AAgentCardMarkFetchedDoesNotSwallowANewerEnqueue(t *testing.T) {
 	moved.SourceURL = "https://new.example/.well-known/agent-card.json"
 	require.NoError(t, repo.Enqueue(ctx, &moved))
 
-	require.ErrorIs(t, repo.MarkFetched(ctx, read, json.RawMessage(sampleCard), "h", read.SourceURL, ""), ErrA2AAgentCardSuperseded)
+	require.ErrorIs(t, repo.MarkFetched(ctx, read, json.RawMessage(sampleCard), "h", read.SourceURL, "", sampleProjection), ErrA2AAgentCardSuperseded)
 	require.ErrorIs(t, repo.MarkAttemptFailed(ctx, read, "x", "", time.Now().Add(time.Hour)), ErrA2AAgentCardSuperseded)
 	require.ErrorIs(t, repo.MarkFailed(ctx, read, "x", ""), ErrA2AAgentCardSuperseded)
 
@@ -556,7 +596,7 @@ func TestA2AAgentCardClaimDueLeavesTheCardBodyBehind(t *testing.T) {
 	card := newTestCard("claim-body-"+uuid.New().String()[:8], models.A2AAgentCardSourcePlatform)
 	cleanupCard(t, repo, card)
 	require.NoError(t, repo.Enqueue(ctx, card))
-	require.NoError(t, repo.MarkFetched(ctx, dueCardFor(t, repo, card.AgentName), json.RawMessage(sampleCard), "h1", "u", ""))
+	require.NoError(t, repo.MarkFetched(ctx, dueCardFor(t, repo, card.AgentName), json.RawMessage(sampleCard), "h1", "u", "", sampleProjection))
 	again := newTestCardLike(card)
 	require.NoError(t, repo.Enqueue(ctx, again))
 
@@ -685,7 +725,7 @@ func TestA2AAgentCardClearCardParksTheRow(t *testing.T) {
 	card.SourceURL = "https://agent.example/.well-known/agent-card.json"
 	cleanupCard(t, repo, card)
 	require.NoError(t, repo.Enqueue(ctx, card))
-	require.NoError(t, repo.MarkFetched(ctx, dueCardFor(t, repo, card.AgentName), json.RawMessage(sampleCard), "h", card.SourceURL, ""))
+	require.NoError(t, repo.MarkFetched(ctx, dueCardFor(t, repo, card.AgentName), json.RawMessage(sampleCard), "h", card.SourceURL, "", sampleProjection))
 
 	require.NoError(t, repo.ClearCard(ctx, card.OUID, card.ProjectName, card.AgentName, card.EnvironmentUUID))
 
@@ -719,7 +759,7 @@ func TestA2AAgentCardClearCardSupersedesAnInFlightFetch(t *testing.T) {
 
 	require.NoError(t, repo.ClearCard(ctx, card.OUID, card.ProjectName, card.AgentName, card.EnvironmentUUID))
 
-	require.ErrorIs(t, repo.MarkFetched(ctx, read, json.RawMessage(sampleCard), "h", card.SourceURL, ""), ErrA2AAgentCardSuperseded)
+	require.ErrorIs(t, repo.MarkFetched(ctx, read, json.RawMessage(sampleCard), "h", card.SourceURL, "", sampleProjection), ErrA2AAgentCardSuperseded)
 	assert.Nil(t, cardRowOf(t, card).Card)
 }
 
@@ -739,7 +779,7 @@ func TestA2AAgentCardMarkFetchedKeepsAnExternalSourceURL(t *testing.T) {
 	require.NoError(t, repo.Enqueue(ctx, card))
 
 	gatewayURL := "https://gw.example/agent/.well-known/agent-card.json"
-	require.NoError(t, repo.MarkFetched(ctx, dueCardFor(t, repo, card.AgentName), json.RawMessage(sampleCard), "h", gatewayURL, ""))
+	require.NoError(t, repo.MarkFetched(ctx, dueCardFor(t, repo, card.AgentName), json.RawMessage(sampleCard), "h", gatewayURL, "", sampleProjection))
 	assert.Equal(t, card.SourceURL, cardRowOf(t, card).SourceURL)
 
 	again := newTestCardLike(card)
@@ -771,4 +811,53 @@ func TestA2AAgentCardFailParkedTouchesOnlyAParkedRow(t *testing.T) {
 	assert.Equal(t, models.A2AAgentCardStatusPending, untouched.Status)
 	assert.Empty(t, untouched.LastError)
 	assert.NotNil(t, untouched.NextAttemptAt)
+}
+
+// A card fetched before the projection existed keeps its hash, so the projection must still be written.
+func TestA2AAgentCardMarkFetchedAlwaysWritesTheProjection(t *testing.T) {
+	repo := NewA2AAgentCardRepository(db.GetDB())
+	ctx := context.Background()
+	card := newTestCard("proj-"+uuid.New().String()[:8], models.A2AAgentCardSourcePlatform)
+	cleanupCard(t, repo, card)
+	require.NoError(t, repo.Enqueue(ctx, card))
+	first := models.A2ACardProjection{Fingerprint: "fp-1", SearchText: "first"}
+	require.NoError(t, repo.MarkFetched(ctx, dueCardFor(t, repo, card.AgentName), json.RawMessage(sampleCard), "same", "u", "", first))
+
+	require.NoError(t, repo.Requeue(ctx, card.OUID, card.ProjectName, card.AgentName, card.EnvironmentName))
+	second := models.A2ACardProjection{Fingerprint: "fp-2", SearchText: "second"}
+	require.NoError(t, repo.MarkFetched(ctx, dueCardFor(t, repo, card.AgentName), json.RawMessage(`{"name":"other"}`), "same", "u", "", second))
+
+	row := cardRowOf(t, card)
+	assert.Equal(t, "fp-2", row.CardFingerprint)
+	assert.Equal(t, "second", row.CardSearchText)
+	assert.JSONEq(t, sampleCard, string(row.Card), "same hash, so the body was not rewritten")
+}
+
+func TestA2AAgentCardClearCardResetsTheProjection(t *testing.T) {
+	repo := NewA2AAgentCardRepository(db.GetDB())
+	ctx := context.Background()
+	card := fetchedExternalCard(t, repo, "https://agent.example/.well-known/agent-card.json")
+	require.NotEmpty(t, cardRowOf(t, card).CardFingerprint)
+
+	require.NoError(t, repo.ClearCard(ctx, card.OUID, card.ProjectName, card.AgentName, card.EnvironmentUUID))
+
+	row := cardRowOf(t, card)
+	assert.Empty(t, row.CardFingerprint)
+	assert.Empty(t, row.CardSearchText)
+}
+
+func TestA2AAgentCardReenqueueKeepsOrResetsTheProjection(t *testing.T) {
+	repo := NewA2AAgentCardRepository(db.GetDB())
+	card := fetchedExternalCard(t, repo, "https://a.example/.well-known/agent-card.json")
+
+	reenqueueExternal(t, repo, card, "https://a.example/.well-known/agent-card.json")
+	kept := cardRowOf(t, card)
+	assert.Equal(t, sampleProjection.Fingerprint, kept.CardFingerprint)
+	assert.Equal(t, sampleProjection.SearchText, kept.CardSearchText)
+
+	reenqueueExternal(t, repo, card, "https://b.example/.well-known/agent-card.json")
+	reset := cardRowOf(t, card)
+	assert.Empty(t, reset.CardFingerprint)
+	assert.Empty(t, reset.CardSearchText)
+	assert.Nil(t, reset.Card)
 }

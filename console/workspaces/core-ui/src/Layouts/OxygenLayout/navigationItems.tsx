@@ -835,6 +835,19 @@ export function useNavigationItems(): Array<
           pathname,
         ),
       },
+      {
+        label: "A2A Agents",
+        type: "item",
+        icon: <Network size={20} />,
+        href: generatePath(
+          absoluteRouteMap.children.org.children.a2aAgents.path,
+          { orgId },
+        ),
+        isActive: !!matchPath(
+          absoluteRouteMap.children.org.children.a2aAgents.wildPath,
+          pathname,
+        ),
+      },
       ...(navVisibility.identityUsers ||
       navVisibility.identityRoles ||
       navVisibility.identityGroups

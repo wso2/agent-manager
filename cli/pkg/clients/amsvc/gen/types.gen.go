@@ -12,6 +12,114 @@ import (
 	openapi_types "github.com/oapi-codegen/runtime/types"
 )
 
+// Defines values for A2ACatalogAgentKind.
+const (
+	A2ACatalogAgentKindExternal A2ACatalogAgentKind = "external"
+	A2ACatalogAgentKindPlatform A2ACatalogAgentKind = "platform"
+)
+
+// Valid indicates whether the value is a known member of the A2ACatalogAgentKind enum.
+func (e A2ACatalogAgentKind) Valid() bool {
+	switch e {
+	case A2ACatalogAgentKindExternal:
+		return true
+	case A2ACatalogAgentKindPlatform:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for A2ACatalogEnvironmentStatus.
+const (
+	A2ACatalogEnvironmentStatusFailed  A2ACatalogEnvironmentStatus = "failed"
+	A2ACatalogEnvironmentStatusFetched A2ACatalogEnvironmentStatus = "fetched"
+	A2ACatalogEnvironmentStatusPending A2ACatalogEnvironmentStatus = "pending"
+)
+
+// Valid indicates whether the value is a known member of the A2ACatalogEnvironmentStatus enum.
+func (e A2ACatalogEnvironmentStatus) Valid() bool {
+	switch e {
+	case A2ACatalogEnvironmentStatusFailed:
+		return true
+	case A2ACatalogEnvironmentStatusFetched:
+		return true
+	case A2ACatalogEnvironmentStatusPending:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for A2AConnectPublicationStatus.
+const (
+	A2AConnectPublicationStatusFailed    A2AConnectPublicationStatus = "failed"
+	A2AConnectPublicationStatusNone      A2AConnectPublicationStatus = "none"
+	A2AConnectPublicationStatusPending   A2AConnectPublicationStatus = "pending"
+	A2AConnectPublicationStatusPublished A2AConnectPublicationStatus = "published"
+)
+
+// Valid indicates whether the value is a known member of the A2AConnectPublicationStatus enum.
+func (e A2AConnectPublicationStatus) Valid() bool {
+	switch e {
+	case A2AConnectPublicationStatusFailed:
+		return true
+	case A2AConnectPublicationStatusNone:
+		return true
+	case A2AConnectPublicationStatusPending:
+		return true
+	case A2AConnectPublicationStatusPublished:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for A2AConnectResponseKind.
+const (
+	A2AConnectResponseKindExternal A2AConnectResponseKind = "external"
+	A2AConnectResponseKindPlatform A2AConnectResponseKind = "platform"
+)
+
+// Valid indicates whether the value is a known member of the A2AConnectResponseKind enum.
+func (e A2AConnectResponseKind) Valid() bool {
+	switch e {
+	case A2AConnectResponseKindExternal:
+		return true
+	case A2AConnectResponseKindPlatform:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for A2AConnectSecurityMode.
+const (
+	A2AConnectSecurityModeApiKey    A2AConnectSecurityMode = "apiKey"
+	A2AConnectSecurityModeNone      A2AConnectSecurityMode = "none"
+	A2AConnectSecurityModeOauth     A2AConnectSecurityMode = "oauth"
+	A2AConnectSecurityModeUnknown   A2AConnectSecurityMode = "unknown"
+	A2AConnectSecurityModeUnmanaged A2AConnectSecurityMode = "unmanaged"
+)
+
+// Valid indicates whether the value is a known member of the A2AConnectSecurityMode enum.
+func (e A2AConnectSecurityMode) Valid() bool {
+	switch e {
+	case A2AConnectSecurityModeApiKey:
+		return true
+	case A2AConnectSecurityModeNone:
+		return true
+	case A2AConnectSecurityModeOauth:
+		return true
+	case A2AConnectSecurityModeUnknown:
+		return true
+	case A2AConnectSecurityModeUnmanaged:
+		return true
+	default:
+		return false
+	}
+}
+
 // Defines values for A2AProxyResponseStatus.
 const (
 	A2AProxyResponseStatusFailed    A2AProxyResponseStatus = "failed"
@@ -965,22 +1073,22 @@ func (e MonitorResponseType) Valid() bool {
 
 // Defines values for MonitorRunResponseStatus.
 const (
-	Failed  MonitorRunResponseStatus = "failed"
-	Pending MonitorRunResponseStatus = "pending"
-	Running MonitorRunResponseStatus = "running"
-	Success MonitorRunResponseStatus = "success"
+	MonitorRunResponseStatusFailed  MonitorRunResponseStatus = "failed"
+	MonitorRunResponseStatusPending MonitorRunResponseStatus = "pending"
+	MonitorRunResponseStatusRunning MonitorRunResponseStatus = "running"
+	MonitorRunResponseStatusSuccess MonitorRunResponseStatus = "success"
 )
 
 // Valid indicates whether the value is a known member of the MonitorRunResponseStatus enum.
 func (e MonitorRunResponseStatus) Valid() bool {
 	switch e {
-	case Failed:
+	case MonitorRunResponseStatusFailed:
 		return true
-	case Pending:
+	case MonitorRunResponseStatusPending:
 		return true
-	case Running:
+	case MonitorRunResponseStatusRunning:
 		return true
-	case Success:
+	case MonitorRunResponseStatusSuccess:
 		return true
 	default:
 		return false
@@ -1070,16 +1178,16 @@ func (e UpdateDeploymentStateRequestState) Valid() bool {
 
 // Defines values for UpdateDeploymentStateResponseState.
 const (
-	UpdateDeploymentStateResponseStateActive   UpdateDeploymentStateResponseState = "Active"
-	UpdateDeploymentStateResponseStateUndeploy UpdateDeploymentStateResponseState = "Undeploy"
+	Active   UpdateDeploymentStateResponseState = "Active"
+	Undeploy UpdateDeploymentStateResponseState = "Undeploy"
 )
 
 // Valid indicates whether the value is a known member of the UpdateDeploymentStateResponseState enum.
 func (e UpdateDeploymentStateResponseState) Valid() bool {
 	switch e {
-	case UpdateDeploymentStateResponseStateActive:
+	case Active:
 		return true
-	case UpdateDeploymentStateResponseStateUndeploy:
+	case Undeploy:
 		return true
 	default:
 		return false
@@ -1098,6 +1206,48 @@ func (e UpstreamAuthType) Valid() bool {
 	case ApiKey:
 		return true
 	case None:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for ListA2AAgentsParamsKind.
+const (
+	External ListA2AAgentsParamsKind = "external"
+	Platform ListA2AAgentsParamsKind = "platform"
+	Proxied  ListA2AAgentsParamsKind = "proxied"
+)
+
+// Valid indicates whether the value is a known member of the ListA2AAgentsParamsKind enum.
+func (e ListA2AAgentsParamsKind) Valid() bool {
+	switch e {
+	case External:
+		return true
+	case Platform:
+		return true
+	case Proxied:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for ListA2AAgentsParamsStatus.
+const (
+	ListA2AAgentsParamsStatusFailed  ListA2AAgentsParamsStatus = "failed"
+	ListA2AAgentsParamsStatusFetched ListA2AAgentsParamsStatus = "fetched"
+	ListA2AAgentsParamsStatusPending ListA2AAgentsParamsStatus = "pending"
+)
+
+// Valid indicates whether the value is a known member of the ListA2AAgentsParamsStatus enum.
+func (e ListA2AAgentsParamsStatus) Valid() bool {
+	switch e {
+	case ListA2AAgentsParamsStatusFailed:
+		return true
+	case ListA2AAgentsParamsStatusFetched:
+		return true
+	case ListA2AAgentsParamsStatusPending:
 		return true
 	default:
 		return false
@@ -1229,6 +1379,159 @@ func (e GetAgentTraceScoresParamsSortOrder) Valid() bool {
 		return false
 	}
 }
+
+// A2ACatalogAgent name, description, version and skills come from the lead environment's card; name falls back to agentName when no card has been fetched.
+type A2ACatalogAgent struct {
+	// AgentName Agent (component) name.
+	AgentName string `json:"agentName"`
+
+	// Description The lead environment's card description; empty when none.
+	Description string `json:"description"`
+
+	// Environments Environments in pipeline order, lead first
+	Environments []A2ACatalogEnvironment `json:"environments"`
+
+	// Kind The card source of the agent.
+	Kind A2ACatalogAgentKind `json:"kind"`
+
+	// LeadEnvironment The first environment in pipeline order with a fetched card; the summary and cardDiffers are relative to it.
+	LeadEnvironment string `json:"leadEnvironment"`
+
+	// Name Display name from the lead environment's card, else agentName.
+	Name string `json:"name"`
+
+	// ProjectName Project the agent belongs to.
+	ProjectName string `json:"projectName"`
+
+	// Skills Names of the lead environment's card skills, in card order; empty when none.
+	Skills []string `json:"skills"`
+
+	// Version The lead environment's card version; empty when none.
+	Version string `json:"version"`
+}
+
+// A2ACatalogAgentKind The card source of the agent.
+type A2ACatalogAgentKind string
+
+// A2ACatalogEnvironment The state of an A2A agent's card in one environment.
+type A2ACatalogEnvironment struct {
+	// CardDiffers True when this environment's card differs from the lead environment's card.
+	CardDiffers bool `json:"cardDiffers"`
+
+	// FetchedAt Time of the last successful fetch. Absent until then.
+	FetchedAt *time.Time `json:"fetchedAt,omitempty"`
+
+	// Matched True only when q was given and this environment's card matched it
+	Matched bool `json:"matched"`
+
+	// Name Environment name.
+	Name string `json:"name"`
+
+	// Proxied True when the environment's gateway fronts this external agent.
+	Proxied bool `json:"proxied"`
+
+	// Status The card's fetch state in this environment.
+	Status A2ACatalogEnvironmentStatus `json:"status"`
+}
+
+// A2ACatalogEnvironmentStatus The card's fetch state in this environment.
+type A2ACatalogEnvironmentStatus string
+
+// A2ACatalogListResponse A page of the organization's A2A agent catalogue.
+type A2ACatalogListResponse struct {
+	// Agents The page of agents; empty when none match.
+	Agents []A2ACatalogAgent `json:"agents"`
+
+	// Limit The limit applied.
+	Limit int32 `json:"limit"`
+
+	// Offset The offset applied.
+	Offset int32 `json:"offset"`
+
+	// Total Number of agents matching the filters, before paging.
+	Total int32 `json:"total"`
+}
+
+// A2AConnectIssuer An identity provider whose tokens the gateway accepts.
+type A2AConnectIssuer struct {
+	// Issuer Empty when the name no longer resolves
+	Issuer string `json:"issuer"`
+
+	// Name The identity provider name saved in the agent config.
+	Name string `json:"name"`
+}
+
+// A2AConnectOAuth The OAuth token a client must present when mode is oauth.
+type A2AConnectOAuth struct {
+	// Audiences The accepted token audiences; empty when none.
+	Audiences []string `json:"audiences"`
+
+	// AuthHeaderPrefix The scheme prefix before the token in the header.
+	AuthHeaderPrefix string `json:"authHeaderPrefix"`
+
+	// HeaderName The header carrying the token.
+	HeaderName string `json:"headerName"`
+
+	// Issuers The accepted token issuers, in configured order; empty when none.
+	Issuers []A2AConnectIssuer `json:"issuers"`
+}
+
+// A2AConnectPublication The state of the agent's publication on the environment's gateway.
+type A2AConnectPublication struct {
+	// LastError Why the last publish attempt failed, or why the agent is not published; empty otherwise.
+	LastError string `json:"lastError"`
+
+	// Status none means a direct external agent, where the gateway isn't involved
+	Status A2AConnectPublicationStatus `json:"status"`
+}
+
+// A2AConnectPublicationStatus none means a direct external agent, where the gateway isn't involved
+type A2AConnectPublicationStatus string
+
+// A2AConnectResponse What a client needs to connect to an A2A agent in one environment.
+type A2AConnectResponse struct {
+	// CardUrl Where clients fetch the agent card: the gateway's copy when the gateway fronts the agent, otherwise the card's own URL. Empty when neither is known.
+	CardUrl string `json:"cardUrl"`
+
+	// GatewayUrl Where the environment's gateway serves the agent. Empty for a direct external agent or while no gateway is mapped. This is the endpoint clients must use for platform and proxied agents.
+	GatewayUrl string `json:"gatewayUrl"`
+
+	// IsProduction Whether the environment is a production environment.
+	IsProduction bool `json:"isProduction"`
+
+	// JsonRpcUrl The JSON-RPC endpoint clients should call: the gateway's when it fronts the agent, otherwise the card's declared JSON-RPC interface. Empty when there is none.
+	JsonRpcUrl string `json:"jsonRpcUrl"`
+
+	// Kind The card source of the agent.
+	Kind A2AConnectResponseKind `json:"kind"`
+
+	// Proxied True when the environment's gateway fronts this external agent; always false for platform agents.
+	Proxied bool `json:"proxied"`
+
+	// Publication The state of the agent's publication on the environment's gateway.
+	Publication A2AConnectPublication `json:"publication"`
+
+	// Security The security a client must satisfy to call the agent.
+	Security A2AConnectSecurity `json:"security"`
+}
+
+// A2AConnectResponseKind The card source of the agent.
+type A2AConnectResponseKind string
+
+// A2AConnectSecurity The security a client must satisfy to call the agent.
+type A2AConnectSecurity struct {
+	// ApiKeyHeader X-API-Key when mode is apiKey
+	ApiKeyHeader *string `json:"apiKeyHeader,omitempty"`
+
+	// Mode How calls to the agent are secured.
+	Mode A2AConnectSecurityMode `json:"mode"`
+
+	// Oauth The OAuth token a client must present when mode is oauth.
+	Oauth *A2AConnectOAuth `json:"oauth,omitempty"`
+}
+
+// A2AConnectSecurityMode How calls to the agent are secured.
+type A2AConnectSecurityMode string
 
 // A2AProxyResponse How an external A2A agent is published through the environment's ingress gateway.
 type A2AProxyResponse struct {
@@ -5706,6 +6009,36 @@ type ListOrganizationsParams struct {
 	// Offset Number of results to skip
 	Offset *int `form:"offset,omitempty" json:"offset,omitempty"`
 }
+
+// ListA2AAgentsParams defines parameters for ListA2AAgents.
+type ListA2AAgentsParams struct {
+	// Q Case-insensitive substring match over agent names, card names and descriptions, and skill names, descriptions, tags and examples.
+	Q *string `form:"q,omitempty" json:"q,omitempty"`
+
+	// Kind Restrict to platform or external agents, or to proxied agents
+	Kind *ListA2AAgentsParamsKind `form:"kind,omitempty" json:"kind,omitempty"`
+
+	// Environment Restrict to agents deployed in this environment (name)
+	Environment *string `form:"environment,omitempty" json:"environment,omitempty"`
+
+	// Project Restrict to this project (name)
+	Project *string `form:"project,omitempty" json:"project,omitempty"`
+
+	// Status Restrict to agents with a card in this fetch state
+	Status *ListA2AAgentsParamsStatus `form:"status,omitempty" json:"status,omitempty"`
+
+	// Limit Maximum number of agents to return
+	Limit *int32 `form:"limit,omitempty" json:"limit,omitempty"`
+
+	// Offset Number of agents to skip
+	Offset *int32 `form:"offset,omitempty" json:"offset,omitempty"`
+}
+
+// ListA2AAgentsParamsKind defines parameters for ListA2AAgents.
+type ListA2AAgentsParamsKind string
+
+// ListA2AAgentsParamsStatus defines parameters for ListA2AAgents.
+type ListA2AAgentsParamsStatus string
 
 // ListAgentKindsParams defines parameters for ListAgentKinds.
 type ListAgentKindsParams struct {

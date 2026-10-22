@@ -63,11 +63,14 @@ type cardReconcilerHarness struct {
 // and whose agent exposes one endpoint at endpointURL.
 func newCardReconcilerHarness(endpointURL string) *cardReconcilerHarness {
 	repo := &repomocks.A2AAgentCardRepositoryMock{
-		MarkFetchedFunc: func(context.Context, models.A2AAgentCard, json.RawMessage, string, string, string) error { return nil },
+		MarkFetchedFunc: func(context.Context, models.A2AAgentCard, json.RawMessage, string, string, string, models.A2ACardProjection) error {
+			return nil
+		},
 		MarkAttemptFailedFunc: func(context.Context, models.A2AAgentCard, string, string, time.Time) error {
 			return nil
 		},
-		MarkFailedFunc: func(context.Context, models.A2AAgentCard, string, string) error { return nil },
+		MarkFailedFunc:                      func(context.Context, models.A2AAgentCard, string, string) error { return nil },
+		RequeueFetchedWithoutProjectionFunc: func(context.Context) (int64, error) { return 0, nil },
 	}
 	fetcher := &fakeA2ACardFetcher{
 		FetchFunc: func(context.Context, string, bool) (json.RawMessage, error) {
@@ -114,6 +117,29 @@ func TestCardReconcilerFetchesAPlatformCardThroughTheEndpoint(t *testing.T) {
 	assert.Equal(t, wantHash, marked[0].CardHash)
 	assert.Equal(t, h.fetcher.calls[0].URL, marked[0].FetchedURL)
 	assert.Equal(t, "trip-planner-r1", marked[0].ReleaseName, "the drift check compares against it")
+}
+
+// Invalid JSON fails the hash and the projection alike; either way the attempt is charged and nothing is stored.
+func TestCardReconcilerChargesAnAttemptWhenTheCardCannotBeProjected(t *testing.T) {
+	h := newCardReconcilerHarness("http://trip-planner.example")
+	h.fetcher.FetchFunc = func(context.Context, string, bool) (json.RawMessage, error) { return json.RawMessage(`{`), nil }
+
+	h.svc.fetchOne(context.Background(), pendingCard(models.A2AAgentCardSourcePlatform))
+
+	assert.Empty(t, h.repo.MarkFetchedCalls())
+	require.Len(t, h.repo.MarkAttemptFailedCalls(), 1)
+}
+
+func TestCardReconcilerStoresTheProjectionWithTheCard(t *testing.T) {
+	h := newCardReconcilerHarness("http://trip-planner.example")
+
+	h.svc.fetchOne(context.Background(), pendingCard(models.A2AAgentCardSourcePlatform))
+
+	want, err := a2aCardProjection(json.RawMessage(validTestCard))
+	require.NoError(t, err)
+	require.Len(t, h.repo.MarkFetchedCalls(), 1)
+	assert.Equal(t, want, h.repo.MarkFetchedCalls()[0].Projection)
+	assert.NotEmpty(t, want.Fingerprint)
 }
 
 // Mid-rollout the old pods still answer, so a fetch then would store the old release's card.
@@ -200,7 +226,7 @@ func TestCardReconcilerPlatformFailuresNameTheURL(t *testing.T) {
 
 func TestCardReconcilerTreatsSupersededAsBenign(t *testing.T) {
 	h := newCardReconcilerHarness("http://gw.example/a")
-	h.repo.MarkFetchedFunc = func(context.Context, models.A2AAgentCard, json.RawMessage, string, string, string) error {
+	h.repo.MarkFetchedFunc = func(context.Context, models.A2AAgentCard, json.RawMessage, string, string, string, models.A2ACardProjection) error {
 		return repositories.ErrA2AAgentCardSuperseded
 	}
 
@@ -222,6 +248,31 @@ func TestCardReconcilerRunOnceDrainsTheDueBatch(t *testing.T) {
 	assert.Len(t, h.repo.MarkFetchedCalls(), 2)
 }
 
+// During a rolling upgrade an old pod can store a requeued card without its projection; every tick makes such
+// rows due again, within one attempt's timeout, and a failure to do so does not stop the tick's batch.
+func TestCardReconcilerRequeuesFetchedCardsWithoutAProjectionEachTick(t *testing.T) {
+	for name, sweepErr := range map[string]error{"requeued": nil, "requeue failed": assert.AnError} {
+		t.Run(name, func(t *testing.T) {
+			h := newCardReconcilerHarness("http://gw.example/a")
+			var deadlineSet bool
+			h.repo.RequeueFetchedWithoutProjectionFunc = func(ctx context.Context) (int64, error) {
+				_, deadlineSet = ctx.Deadline()
+				return 3, sweepErr
+			}
+			h.repo.ClaimDueFunc = func(context.Context, time.Time, int) ([]models.A2AAgentCard, error) {
+				return []models.A2AAgentCard{pendingCard(models.A2AAgentCardSourcePlatform)}, nil
+			}
+
+			h.svc.RunOnce(context.Background())
+			h.svc.RunOnce(context.Background())
+
+			assert.Len(t, h.repo.RequeueFetchedWithoutProjectionCalls(), 2)
+			assert.True(t, deadlineSet, "the update is bounded like an attempt")
+			assert.Len(t, h.repo.MarkFetchedCalls(), 2, "the due batch is still drained")
+		})
+	}
+}
+
 func TestA2ACardHashIgnoresKeyOrderAndWhitespace(t *testing.T) {
 	a, err := a2aCardHash(json.RawMessage(`{"name":"n","skills":[],"n":12345678901234567890}`))
 	require.NoError(t, err)
@@ -238,7 +289,7 @@ func TestA2ACardHashIgnoresKeyOrderAndWhitespace(t *testing.T) {
 // A card the store rejects (e.g. JSONB refusing \u0000) must charge an attempt, not loop pending.
 func TestCardReconcilerChargesAnAttemptWhenTheCardCannotBeStored(t *testing.T) {
 	h := newCardReconcilerHarness("http://gw.example/a")
-	h.repo.MarkFetchedFunc = func(context.Context, models.A2AAgentCard, json.RawMessage, string, string, string) error {
+	h.repo.MarkFetchedFunc = func(context.Context, models.A2AAgentCard, json.RawMessage, string, string, string, models.A2ACardProjection) error {
 		return errors.New("ERROR: unsupported Unicode escape sequence (SQLSTATE 22P05)")
 	}
 
@@ -251,7 +302,7 @@ func TestCardReconcilerChargesAnAttemptWhenTheCardCannotBeStored(t *testing.T) {
 
 func TestCardReconcilerFailsTheRowWhenTheLastCardCannotBeStored(t *testing.T) {
 	h := newCardReconcilerHarness("http://gw.example/a")
-	h.repo.MarkFetchedFunc = func(context.Context, models.A2AAgentCard, json.RawMessage, string, string, string) error {
+	h.repo.MarkFetchedFunc = func(context.Context, models.A2AAgentCard, json.RawMessage, string, string, string, models.A2ACardProjection) error {
 		return errors.New("SQLSTATE 22003")
 	}
 	row := pendingCard(models.A2AAgentCardSourcePlatform)
@@ -273,7 +324,7 @@ func TestCardReconcilerReportsAnUnstorableCard(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			h := newCardReconcilerHarness("http://gw.example/a")
-			h.repo.MarkFetchedFunc = func(context.Context, models.A2AAgentCard, json.RawMessage, string, string, string) error {
+			h.repo.MarkFetchedFunc = func(context.Context, models.A2AAgentCard, json.RawMessage, string, string, string, models.A2ACardProjection) error {
 				return fmt.Errorf("wrap: %w", &pgconn.PgError{Code: tt.code, Message: "unsupported Unicode escape sequence"})
 			}
 

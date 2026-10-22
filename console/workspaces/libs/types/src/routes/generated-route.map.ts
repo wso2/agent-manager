@@ -224,6 +224,17 @@ export const generatedRouteMap =  {
             }
           }
         },
+        "a2aAgents": {
+          "path": "/org/:orgId/a2a-agents",
+          "wildPath": "/org/:orgId/a2a-agents/*",
+          "children": {
+            "view": {
+              "path": "/org/:orgId/a2a-agents/view/:projectName/:agentName",
+              "wildPath": "/org/:orgId/a2a-agents/view/:projectName/:agentName/*",
+              "children": {}
+            }
+          }
+        },
         "newProject": {
           "path": "/org/:orgId/newProject",
           "wildPath": "/org/:orgId/newProject/*",

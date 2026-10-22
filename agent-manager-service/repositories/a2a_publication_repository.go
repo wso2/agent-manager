@@ -18,6 +18,7 @@ package repositories
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"time"
 
@@ -74,8 +75,8 @@ type A2APublicationRepository interface {
 	// longer matches was re-enqueued mid-attempt; it is left pending for the next
 	// tick and ErrA2APublicationSuperseded is returned.
 
-	// MarkPublished also records the upstream URL the gateway was given.
-	MarkPublished(ctx context.Context, read models.A2APublication, upstreamURL string) error
+	// MarkPublished also records the upstream URL and the JSON transports the gateway was given; nil transports store NULL.
+	MarkPublished(ctx context.Context, read models.A2APublication, upstreamURL string, transports json.RawMessage) error
 
 	// MarkAttemptFailed records a retryable failure and schedules the next try.
 	MarkAttemptFailed(ctx context.Context, read models.A2APublication, lastErr string, nextAttemptAt time.Time) error
@@ -174,12 +175,17 @@ func (r *a2aPublicationRepository) ClaimDue(ctx context.Context, now time.Time, 
 	return claimed, nil
 }
 
-func (r *a2aPublicationRepository) MarkPublished(ctx context.Context, read models.A2APublication, upstreamURL string) error {
+func (r *a2aPublicationRepository) MarkPublished(ctx context.Context, read models.A2APublication, upstreamURL string, transports json.RawMessage) error {
+	var publishedTransports interface{}
+	if len(transports) > 0 {
+		publishedTransports = transports
+	}
 	return r.updateIfUnchanged(ctx, read, map[string]interface{}{
 		"status":                 models.A2APublicationStatusPublished,
 		"last_error":             "",
 		"next_attempt_at":        nil,
 		"published_upstream_url": upstreamURL,
+		"published_transports":   publishedTransports,
 	})
 }
 

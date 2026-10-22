@@ -196,11 +196,10 @@ export const SecurityComponent: React.FC = () => {
             <Button
               variant="contained"
               component={Link}
-              to={generatePath(agentRoutes.children.environment.children.deploy.path, {
+              to={generatePath(agentRoutes.children.deployment.path, {
                 orgId,
                 projectId,
                 agentId,
-                envId,
               })}
             >
               Go to Deployment Settings

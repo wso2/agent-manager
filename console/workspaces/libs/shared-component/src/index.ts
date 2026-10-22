@@ -24,6 +24,8 @@ export * from './utils/useAgentEnvironmentAccess';
 export * from './utils/policyParameterEditor';
 export * from './utils/format';
 export * from './utils/url';
+export * from './utils/a2aCard';
+export * from './utils/a2aCardDiff';
 export * from './utils/gatewayScripts';
 export * from './utils/promptGuides';
 export * from './utils/clipboard';

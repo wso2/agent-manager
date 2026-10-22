@@ -18,6 +18,7 @@ package services
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"log/slog"
@@ -280,7 +281,12 @@ func (s *a2aPublicationReconcilerService) publishOne(ctx context.Context, pub mo
 		s.recordAttemptFailure(ctx, pub, err)
 		return
 	}
-	err = s.pubRepo.MarkPublished(ctx, pub, published.upstreamURL)
+	transports, err := json.Marshal(published.transports)
+	if err != nil {
+		s.recordAttemptFailure(ctx, pub, fmt.Errorf("failed to encode the published transports: %w", err))
+		return
+	}
+	err = s.pubRepo.MarkPublished(ctx, pub, published.upstreamURL, transports)
 	switch {
 	case errors.Is(err, repositories.ErrA2APublicationSuperseded):
 		s.logSuperseded(pub)
@@ -450,10 +456,11 @@ type resolvedUpstream struct {
 	auth       *models.UpstreamAuth
 }
 
-// a2aPublishResult is where an attempt published the Agent.
+// a2aPublishResult is where an attempt published the Agent and the transports its route binds.
 type a2aPublishResult struct {
 	upstreamURL string
 	gatewayID   string
+	transports  []A2ATransport
 }
 
 // a2aOrigin is a proxied external agent's registered card URL and the stored credential to fetch it with.
@@ -577,13 +584,14 @@ func (s *a2aPublicationReconcilerService) attemptPublish(ctx context.Context, pu
 		apiCfg.OAuthForwardToken = false
 	}
 	policies := buildPolicies(apiCfg)
+	transports := a2aEffectiveTransports(upstream.transports)
 
 	yamlStr, err := generateA2AAgentDeploymentYAML(A2AAgentDeploymentInput{
 		ArtifactName: a2aAgentEnvArtifactName(pub.ProjectName, pub.AgentName, pub.EnvironmentUUID.String()),
 		DisplayName:  pub.AgentName,
 		AgentName:    pub.AgentName,
 		UpstreamURL:  upstream.url,
-		Transports:   upstream.transports,
+		Transports:   transports,
 		UpstreamAuth: upstream.auth,
 		Policies:     policies,
 		CardPolicies: buildCardPolicies(cfg.EffectiveCardCORS()),
@@ -620,5 +628,5 @@ func (s *a2aPublicationReconcilerService) attemptPublish(ctx context.Context, pu
 	s.logger.Info("Published A2A agent to gateway",
 		"agentName", pub.AgentName, "environment", pub.EnvironmentName,
 		"artifactID", pub.ArtifactUUID, "gateway", gateway.Name, "upstream", upstream.url)
-	return a2aPublishResult{upstreamURL: upstream.url, gatewayID: gateway.UUID.String()}, nil
+	return a2aPublishResult{upstreamURL: upstream.url, gatewayID: gateway.UUID.String(), transports: transports}, nil
 }

@@ -1,12 +1,12 @@
 /**
- * Copyright (c) 2025, WSO2 LLC. (https://www.wso2.com).
+ * Copyright (c) 2026, WSO2 LLC. (https://www.wso2.com).
  *
  * WSO2 LLC. licenses this file to you under the Apache License,
  * Version 2.0 (the "License"); you may not use this file except
  * in compliance with the License.
  * You may obtain a copy of the License at
  *
- * http://www.apache.org/licenses/LICENSE-2.0
+ *     http://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing,
  * software distributed under the License is distributed on an
@@ -16,31 +16,4 @@
  * under the License.
  */
 
-import React from 'react';
-import { expect } from 'vitest';
-import * as matchers from '@testing-library/jest-dom/matchers';
-import { TestingLibraryMatchers } from '@testing-library/jest-dom/matchers';
-
-// Extend vitest expect with jest-dom matchers
-declare module 'vitest' {
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  interface Assertion<T = any>
-    extends jest.Matchers<void, T>,
-      TestingLibraryMatchers<T, void> {}
-}
-
-expect.extend(matchers);
-
-// Mock MUI theme for testing
-import { ThemeProvider } from '@mui/material/styles';
-import { aiAgentTheme } from './src/theme';
-
-export const testTheme = aiAgentTheme;
-
-export const TestWrapper = ({ children }: { children: React.ReactNode }) => (
-  <ThemeProvider theme={testTheme}>
-    {children}
-  </ThemeProvider>
-);
-
-
+import '@testing-library/jest-dom';

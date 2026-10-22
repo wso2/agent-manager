@@ -89,6 +89,7 @@ var serviceProviderSet = wire.NewSet(
 	ProvideTxRunner,
 	services.NewA2APublisher,
 	services.NewA2AProxyService,
+	services.NewA2ACatalogService,
 	ProvideA2AProxyHooks,
 	services.NewEvaluatorManagerService,
 	services.NewEnvironmentService,
@@ -139,6 +140,7 @@ var controllerProviderSet = wire.NewSet(
 	controllers.NewAgentAPIKeyController,
 	controllers.NewA2AAgentCardController,
 	controllers.NewA2AProxyController,
+	controllers.NewA2ACatalogController,
 	controllers.NewLLMProxyDeploymentController,
 	controllers.NewMCPProxyController,
 	ProvideWebSocketController,
@@ -386,6 +388,7 @@ var repositoryProviderSet = wire.NewSet(
 	ProvideA2APublicationRepository,
 	ProvideA2AAgentCardRepository,
 	ProvideA2AProxyRepository,
+	ProvideA2ACatalogRepository,
 	ProvideArtifactRepository,
 	ProvideScoreRepository,
 	ProvideCatalogRepository,
@@ -505,6 +508,10 @@ func ProvideA2AAgentCardRepository(db *gorm.DB) repositories.A2AAgentCardReposit
 
 func ProvideA2AProxyRepository(db *gorm.DB) repositories.A2AProxyRepository {
 	return repositories.NewA2AProxyRepository(db)
+}
+
+func ProvideA2ACatalogRepository(db *gorm.DB) repositories.A2ACatalogRepository {
+	return repositories.NewA2ACatalogRepository(db)
 }
 
 // ProvideA2AProxyHooks gives the card service the proxy hooks only, not the whole proxy service.

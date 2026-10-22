@@ -17,6 +17,7 @@
  */
 
 export * from "./AgentTypeChips";
+export * from "./A2ASkillItem";
 export * from "./BuildLogs";
 export * from "./BuildPanel";
 export * from "./BuildSteps";

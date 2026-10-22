@@ -107,7 +107,10 @@ func NewA2ACardReconcilerService(
 }
 
 func (s *a2aCardReconcilerService) Start(ctx context.Context) error {
-	go s.runLoop(ctx)
+	go func() {
+		s.requeueFetchedWithoutProjection(ctx)
+		s.runLoop(ctx)
+	}()
 	s.logger.Info("A2A card reconciler started")
 	return nil
 }
@@ -136,6 +139,7 @@ func (s *a2aCardReconcilerService) runLoop(ctx context.Context) {
 }
 
 func (s *a2aCardReconcilerService) RunOnce(ctx context.Context) {
+	s.requeueFetchedWithoutProjection(ctx)
 	claimedAt := time.Now()
 	due, err := s.cardRepo.ClaimDue(ctx, claimedAt, a2aCardBatch)
 	if err != nil {
@@ -143,6 +147,23 @@ func (s *a2aCardReconcilerService) RunOnce(ctx context.Context) {
 		return
 	}
 	drainWithinLease(ctx, s.logger, claimedAt.Add(s.batchBudget), due, "A2A card", s.fetchOne)
+}
+
+// requeueFetchedWithoutProjection runs at start and on every tick, not only in migration 049: while a rolling upgrade
+// lasts, a pod from before the projection can claim a requeued row and store its card without one. Once every pod
+// writes the projection the update matches nothing.
+func (s *a2aCardReconcilerService) requeueFetchedWithoutProjection(ctx context.Context) {
+	ctx, cancel := context.WithTimeout(ctx, s.attemptTimeout)
+	defer cancel()
+	n, err := s.cardRepo.RequeueFetchedWithoutProjection(ctx)
+	if err != nil {
+		s.logger.Error("Failed to requeue A2A agent cards stored without a projection; retrying next tick",
+			"error", err)
+		return
+	}
+	if n > 0 {
+		s.logger.Info("Requeued A2A agent cards stored without a projection", "count", n)
+	}
 }
 
 // fetchOne fetches one row's card and records the outcome.
@@ -163,7 +184,12 @@ func (s *a2aCardReconcilerService) fetchOne(ctx context.Context, row models.A2AA
 		s.recordAttemptFailure(ctx, row, fetched.releaseName, err)
 		return
 	}
-	err = s.cardRepo.MarkFetched(ctx, row, fetched.body, hash, fetched.url, fetched.releaseName)
+	projection, err := a2aCardProjection(fetched.body)
+	if err != nil {
+		s.recordAttemptFailure(ctx, row, fetched.releaseName, err)
+		return
+	}
+	err = s.cardRepo.MarkFetched(ctx, row, fetched.body, hash, fetched.url, fetched.releaseName, projection)
 	switch {
 	case errors.Is(err, repositories.ErrA2AAgentCardSuperseded):
 		s.logSuperseded(row)

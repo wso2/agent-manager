@@ -18,15 +18,9 @@
 
 import React, { useState } from "react";
 import type { TraceFilters } from "@agent-management-platform/types";
-import {
-  Box,
-  Button,
-  ButtonGroup,
-  Stack,
-  ToggleButton,
-  ToggleButtonGroup,
-} from "@wso2/oxygen-ui";
-import { ListFilter, X as RemoveIcon } from "@wso2/oxygen-ui-icons-react";
+import { FilterBar, FilterChip, FilterToggle } from "@agent-management-platform/views";
+import { Button } from "@wso2/oxygen-ui";
+import { ListFilter } from "@wso2/oxygen-ui-icons-react";
 import {
   EMPTY_DRAFT,
   type TraceFilterChip,
@@ -51,65 +45,10 @@ export interface TraceFilterBarProps {
   children?: React.ReactNode;
 }
 
-interface StatusToggleProps {
-  value?: TraceFilters["status"];
-  onChange: (value?: TraceFilters["status"]) => void;
-}
-
-/** All, Errors or Success; applies straight away. */
-const StatusToggle: React.FC<StatusToggleProps> = ({ value, onChange }) => (
-  <ToggleButtonGroup
-    exclusive
-    size="small"
-    value={value ?? "all"}
-    aria-label="Status"
-    onChange={(_, next: string | null) => {
-      if (next !== null) onChange(next === "error" || next === "ok" ? next : undefined);
-    }}
-    sx={{ "& .MuiToggleButton-root": { px: 1.75, textTransform: "none" } }}
-  >
-    <ToggleButton value="all">All</ToggleButton>
-    <ToggleButton value="error">Errors</ToggleButton>
-    <ToggleButton value="ok">Success</ToggleButton>
-  </ToggleButtonGroup>
-);
-
-interface FilterChipProps {
-  chip: TraceFilterChip;
-  onOpen: () => void;
-  onRemove: () => void;
-}
-
-/** The filter's name and value, which open the drawer, and an × that removes it. */
-const FilterChip: React.FC<FilterChipProps> = ({ chip, onOpen, onRemove }) => (
-  <ButtonGroup
-    size="small"
-    variant="outlined"
-    color="inherit"
-    sx={{ maxWidth: 320, "& .MuiButton-root": { borderColor: "divider" } }}
-  >
-    <Button title={chip.label} onClick={onOpen} sx={{ textTransform: "none", minWidth: 0 }}>
-      <Box component="span" sx={{ color: "text.secondary", whiteSpace: "nowrap" }}>
-        {chip.name}
-      </Box>{" "}
-      <Box
-        component="span"
-        sx={{
-          ml: 0.75,
-          fontWeight: 600,
-          overflow: "hidden",
-          textOverflow: "ellipsis",
-          whiteSpace: "nowrap",
-        }}
-      >
-        {chip.value}
-      </Box>
-    </Button>
-    <Button aria-label={`Remove ${chip.label}`} onClick={onRemove} sx={{ minWidth: 0, px: 0.75 }}>
-      <RemoveIcon size={14} />
-    </Button>
-  </ButtonGroup>
-);
+const STATUS_OPTIONS = [
+  { value: "error", label: "Errors" },
+  { value: "ok", label: "Success" },
+];
 
 /** Status toggle and chips on the left, trace ID search and Filters fixed on the right. */
 export const TraceFilterBar: React.FC<TraceFilterBarProps> = ({
@@ -152,45 +91,41 @@ export const TraceFilterBar: React.FC<TraceFilterBarProps> = ({
 
   return (
     <>
-      {/* Search and Filters float right on the first line; chips that don't fit wrap below,
-          across the full width, so the Filters button never moves. */}
-      <Box
-        sx={{
-          display: "flow-root",
-          mb: 1,
-          "& > *": { display: "inline-flex", verticalAlign: "middle", mr: 1, mb: 1 },
-        }}
+      <FilterBar
+        actions={
+          <>
+            {onTraceSearch && <TraceIdSearch onSearch={onTraceSearch} />}
+            <Button
+              ref={setFiltersButton}
+              variant="outlined"
+              color="inherit"
+              startIcon={<ListFilter size={16} />}
+              aria-expanded={open}
+              aria-controls={TRACE_FILTERS_DRAWER_ID}
+              onClick={() => (open ? onOpenChange(false) : openDrawer())}
+              sx={{ textTransform: "none", borderColor: "divider" }}
+            >
+              Advanced Filters
+            </Button>
+          </>
+        }
       >
-        <Stack
-          direction="row"
-          spacing={1}
-          useFlexGap
-          flexWrap="wrap"
-          alignItems="center"
-          sx={{ float: "right", maxWidth: "100%", minWidth: 0, "&&": { mr: 0, ml: 1 } }}
-        >
-          {onTraceSearch && <TraceIdSearch onSearch={onTraceSearch} />}
-          <Button
-            ref={setFiltersButton}
-            variant="outlined"
-            color="inherit"
-            startIcon={<ListFilter size={16} />}
-            aria-expanded={open}
-            aria-controls={TRACE_FILTERS_DRAWER_ID}
-            onClick={() => (open ? onOpenChange(false) : openDrawer())}
-            sx={{ textTransform: "none", borderColor: "divider" }}
-          >
-            Advanced Filters
-          </Button>
-        </Stack>
-        <StatusToggle
+        <FilterToggle
+          label="Status"
           value={filters.status}
-          onChange={(status) => onChange({ ...filters, status })}
+          options={STATUS_OPTIONS}
+          onChange={(status) =>
+            onChange({
+              ...filters,
+              status: status === "error" || status === "ok" ? status : undefined,
+            })}
         />
         {chips.map((chip) => (
           <FilterChip
             key={chip.key}
-            chip={chip}
+            name={chip.name}
+            value={chip.value}
+            label={chip.label}
             onOpen={openDrawer}
             onRemove={() => remove(chip)}
           />
@@ -200,7 +135,7 @@ export const TraceFilterBar: React.FC<TraceFilterBarProps> = ({
             Clear all
           </Button>
         )}
-      </Box>
+      </FilterBar>
       {children}
       {open && filtersButton && (
         <TraceFiltersDrawer

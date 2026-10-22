@@ -125,6 +125,17 @@ type A2ATransport struct {
 	PathPrefix      string `yaml:"pathPrefix,omitempty" json:"pathPrefix,omitempty"`
 }
 
+// a2aEffectiveTransports is what the gateway route binds: an upstream's own transports, or M1's /rpc and /rest when it declares none.
+func a2aEffectiveTransports(transports []A2ATransport) []A2ATransport {
+	if transports != nil {
+		return transports
+	}
+	return []A2ATransport{
+		{ProtocolBinding: a2aTransportJSONRPC, PathPrefix: a2aPathPrefixJSONRPC},
+		{ProtocolBinding: a2aTransportHTTPJSON, PathPrefix: a2aPathPrefixHTTPRPC},
+	}
+}
+
 // A2AAgentDeploymentInput is everything the builder needs, already resolved.
 // Keeping resolution out of the builder is what lets the emitted contract be
 // tested as a pure function against a golden file.
@@ -199,18 +210,10 @@ func buildA2AAgentDeploymentYAML(in A2AAgentDeploymentInput) (*A2AAgentDeploymen
 		policies = []map[string]interface{}{}
 	}
 
-	transports := in.Transports
-	if transports == nil {
-		transports = []A2ATransport{
-			{ProtocolBinding: a2aTransportJSONRPC, PathPrefix: a2aPathPrefixJSONRPC},
-			{ProtocolBinding: a2aTransportHTTPJSON, PathPrefix: a2aPathPrefixHTTPRPC},
-		}
-	}
-
 	a2a := A2AConfig{
 		ProtocolVersion: a2aProtocolVersion,
 		OperationConfigs: A2AOperationConfigs{
-			Transports: transports,
+			Transports: a2aEffectiveTransports(in.Transports),
 			Policies:   policies,
 		},
 	}

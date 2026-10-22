@@ -180,6 +180,298 @@ func (a *AgentCardAPIService) DeleteAgentCardSourceExecute(r ApiDeleteAgentCardS
 	return localVarHTTPResponse, nil
 }
 
+type ApiGetA2ACatalogEntryRequest struct {
+	ctx        context.Context
+	ApiService *AgentCardAPIService
+	orgName    string
+	projName   string
+	agentName  string
+}
+
+func (r ApiGetA2ACatalogEntryRequest) Execute() (*A2ACatalogAgent, *http.Response, error) {
+	return r.ApiService.GetA2ACatalogEntryExecute(r)
+}
+
+/*
+GetA2ACatalogEntry Get one agent's A2A catalogue entry
+
+Returns the agent's entry in the organization's A2A agent catalogue, with the per-environment state of its agent card.
+
+	@param ctx context.Context - for authentication, logging, cancellation, deadlines, tracing, etc. Passed from http.Request or context.Background().
+	@param orgName Organization name/handle
+	@param projName Project name
+	@param agentName Agent name
+	@return ApiGetA2ACatalogEntryRequest
+*/
+func (a *AgentCardAPIService) GetA2ACatalogEntry(ctx context.Context, orgName string, projName string, agentName string) ApiGetA2ACatalogEntryRequest {
+	return ApiGetA2ACatalogEntryRequest{
+		ApiService: a,
+		ctx:        ctx,
+		orgName:    orgName,
+		projName:   projName,
+		agentName:  agentName,
+	}
+}
+
+// Execute executes the request
+//
+//	@return A2ACatalogAgent
+func (a *AgentCardAPIService) GetA2ACatalogEntryExecute(r ApiGetA2ACatalogEntryRequest) (*A2ACatalogAgent, *http.Response, error) {
+	var (
+		localVarHTTPMethod  = http.MethodGet
+		localVarPostBody    interface{}
+		formFiles           []formFile
+		localVarReturnValue *A2ACatalogAgent
+	)
+
+	localBasePath, err := a.client.cfg.ServerURLWithContext(r.ctx, "AgentCardAPIService.GetA2ACatalogEntry")
+	if err != nil {
+		return localVarReturnValue, nil, &GenericOpenAPIError{error: err.Error()}
+	}
+
+	localVarPath := localBasePath + "/orgs/{orgName}/projects/{projName}/agents/{agentName}/a2a-catalog-entry"
+	localVarPath = strings.Replace(localVarPath, "{"+"orgName"+"}", url.PathEscape(parameterValueToString(r.orgName, "orgName")), -1)
+	localVarPath = strings.Replace(localVarPath, "{"+"projName"+"}", url.PathEscape(parameterValueToString(r.projName, "projName")), -1)
+	localVarPath = strings.Replace(localVarPath, "{"+"agentName"+"}", url.PathEscape(parameterValueToString(r.agentName, "agentName")), -1)
+
+	localVarHeaderParams := make(map[string]string)
+	localVarQueryParams := url.Values{}
+	localVarFormParams := url.Values{}
+
+	// to determine the Content-Type header
+	localVarHTTPContentTypes := []string{}
+
+	// set Content-Type header
+	localVarHTTPContentType := selectHeaderContentType(localVarHTTPContentTypes)
+	if localVarHTTPContentType != "" {
+		localVarHeaderParams["Content-Type"] = localVarHTTPContentType
+	}
+
+	// to determine the Accept header
+	localVarHTTPHeaderAccepts := []string{"application/json"}
+
+	// set Accept header
+	localVarHTTPHeaderAccept := selectHeaderAccept(localVarHTTPHeaderAccepts)
+	if localVarHTTPHeaderAccept != "" {
+		localVarHeaderParams["Accept"] = localVarHTTPHeaderAccept
+	}
+	req, err := a.client.prepareRequest(r.ctx, localVarPath, localVarHTTPMethod, localVarPostBody, localVarHeaderParams, localVarQueryParams, localVarFormParams, formFiles)
+	if err != nil {
+		return localVarReturnValue, nil, err
+	}
+
+	localVarHTTPResponse, err := a.client.callAPI(req)
+	if err != nil || localVarHTTPResponse == nil {
+		return localVarReturnValue, localVarHTTPResponse, err
+	}
+
+	localVarBody, err := io.ReadAll(localVarHTTPResponse.Body)
+	localVarHTTPResponse.Body.Close()
+	localVarHTTPResponse.Body = io.NopCloser(bytes.NewBuffer(localVarBody))
+	if err != nil {
+		return localVarReturnValue, localVarHTTPResponse, err
+	}
+
+	if localVarHTTPResponse.StatusCode >= 300 {
+		newErr := &GenericOpenAPIError{
+			body:  localVarBody,
+			error: localVarHTTPResponse.Status,
+		}
+		if localVarHTTPResponse.StatusCode == 401 {
+			var v ErrorResponse
+			err = a.client.decode(&v, localVarBody, localVarHTTPResponse.Header.Get("Content-Type"))
+			if err != nil {
+				newErr.error = err.Error()
+				return localVarReturnValue, localVarHTTPResponse, newErr
+			}
+			newErr.error = formatErrorMessage(localVarHTTPResponse.Status, &v)
+			newErr.model = v
+			return localVarReturnValue, localVarHTTPResponse, newErr
+		}
+		if localVarHTTPResponse.StatusCode == 404 {
+			var v ErrorResponse
+			err = a.client.decode(&v, localVarBody, localVarHTTPResponse.Header.Get("Content-Type"))
+			if err != nil {
+				newErr.error = err.Error()
+				return localVarReturnValue, localVarHTTPResponse, newErr
+			}
+			newErr.error = formatErrorMessage(localVarHTTPResponse.Status, &v)
+			newErr.model = v
+			return localVarReturnValue, localVarHTTPResponse, newErr
+		}
+		if localVarHTTPResponse.StatusCode == 500 {
+			var v ErrorResponse
+			err = a.client.decode(&v, localVarBody, localVarHTTPResponse.Header.Get("Content-Type"))
+			if err != nil {
+				newErr.error = err.Error()
+				return localVarReturnValue, localVarHTTPResponse, newErr
+			}
+			newErr.error = formatErrorMessage(localVarHTTPResponse.Status, &v)
+			newErr.model = v
+		}
+		return localVarReturnValue, localVarHTTPResponse, newErr
+	}
+
+	err = a.client.decode(&localVarReturnValue, localVarBody, localVarHTTPResponse.Header.Get("Content-Type"))
+	if err != nil {
+		newErr := &GenericOpenAPIError{
+			body:  localVarBody,
+			error: err.Error(),
+		}
+		return localVarReturnValue, localVarHTTPResponse, newErr
+	}
+
+	return localVarReturnValue, localVarHTTPResponse, nil
+}
+
+type ApiGetA2AConnectRequest struct {
+	ctx        context.Context
+	ApiService *AgentCardAPIService
+	orgName    string
+	projName   string
+	agentName  string
+	envID      string
+}
+
+func (r ApiGetA2AConnectRequest) Execute() (*A2AConnectResponse, *http.Response, error) {
+	return r.ApiService.GetA2AConnectExecute(r)
+}
+
+/*
+GetA2AConnect Get what a client needs to connect to an A2A agent in an environment
+
+Returns the endpoint, security requirements and gateway publication state a client needs to call the agent in the environment.
+
+	@param ctx context.Context - for authentication, logging, cancellation, deadlines, tracing, etc. Passed from http.Request or context.Background().
+	@param orgName Organization name/handle
+	@param projName Project name
+	@param agentName Agent name
+	@param envID Environment name
+	@return ApiGetA2AConnectRequest
+*/
+func (a *AgentCardAPIService) GetA2AConnect(ctx context.Context, orgName string, projName string, agentName string, envID string) ApiGetA2AConnectRequest {
+	return ApiGetA2AConnectRequest{
+		ApiService: a,
+		ctx:        ctx,
+		orgName:    orgName,
+		projName:   projName,
+		agentName:  agentName,
+		envID:      envID,
+	}
+}
+
+// Execute executes the request
+//
+//	@return A2AConnectResponse
+func (a *AgentCardAPIService) GetA2AConnectExecute(r ApiGetA2AConnectRequest) (*A2AConnectResponse, *http.Response, error) {
+	var (
+		localVarHTTPMethod  = http.MethodGet
+		localVarPostBody    interface{}
+		formFiles           []formFile
+		localVarReturnValue *A2AConnectResponse
+	)
+
+	localBasePath, err := a.client.cfg.ServerURLWithContext(r.ctx, "AgentCardAPIService.GetA2AConnect")
+	if err != nil {
+		return localVarReturnValue, nil, &GenericOpenAPIError{error: err.Error()}
+	}
+
+	localVarPath := localBasePath + "/orgs/{orgName}/projects/{projName}/agents/{agentName}/environments/{envID}/a2a-connect"
+	localVarPath = strings.Replace(localVarPath, "{"+"orgName"+"}", url.PathEscape(parameterValueToString(r.orgName, "orgName")), -1)
+	localVarPath = strings.Replace(localVarPath, "{"+"projName"+"}", url.PathEscape(parameterValueToString(r.projName, "projName")), -1)
+	localVarPath = strings.Replace(localVarPath, "{"+"agentName"+"}", url.PathEscape(parameterValueToString(r.agentName, "agentName")), -1)
+	localVarPath = strings.Replace(localVarPath, "{"+"envID"+"}", url.PathEscape(parameterValueToString(r.envID, "envID")), -1)
+
+	localVarHeaderParams := make(map[string]string)
+	localVarQueryParams := url.Values{}
+	localVarFormParams := url.Values{}
+
+	// to determine the Content-Type header
+	localVarHTTPContentTypes := []string{}
+
+	// set Content-Type header
+	localVarHTTPContentType := selectHeaderContentType(localVarHTTPContentTypes)
+	if localVarHTTPContentType != "" {
+		localVarHeaderParams["Content-Type"] = localVarHTTPContentType
+	}
+
+	// to determine the Accept header
+	localVarHTTPHeaderAccepts := []string{"application/json"}
+
+	// set Accept header
+	localVarHTTPHeaderAccept := selectHeaderAccept(localVarHTTPHeaderAccepts)
+	if localVarHTTPHeaderAccept != "" {
+		localVarHeaderParams["Accept"] = localVarHTTPHeaderAccept
+	}
+	req, err := a.client.prepareRequest(r.ctx, localVarPath, localVarHTTPMethod, localVarPostBody, localVarHeaderParams, localVarQueryParams, localVarFormParams, formFiles)
+	if err != nil {
+		return localVarReturnValue, nil, err
+	}
+
+	localVarHTTPResponse, err := a.client.callAPI(req)
+	if err != nil || localVarHTTPResponse == nil {
+		return localVarReturnValue, localVarHTTPResponse, err
+	}
+
+	localVarBody, err := io.ReadAll(localVarHTTPResponse.Body)
+	localVarHTTPResponse.Body.Close()
+	localVarHTTPResponse.Body = io.NopCloser(bytes.NewBuffer(localVarBody))
+	if err != nil {
+		return localVarReturnValue, localVarHTTPResponse, err
+	}
+
+	if localVarHTTPResponse.StatusCode >= 300 {
+		newErr := &GenericOpenAPIError{
+			body:  localVarBody,
+			error: localVarHTTPResponse.Status,
+		}
+		if localVarHTTPResponse.StatusCode == 401 {
+			var v ErrorResponse
+			err = a.client.decode(&v, localVarBody, localVarHTTPResponse.Header.Get("Content-Type"))
+			if err != nil {
+				newErr.error = err.Error()
+				return localVarReturnValue, localVarHTTPResponse, newErr
+			}
+			newErr.error = formatErrorMessage(localVarHTTPResponse.Status, &v)
+			newErr.model = v
+			return localVarReturnValue, localVarHTTPResponse, newErr
+		}
+		if localVarHTTPResponse.StatusCode == 404 {
+			var v ErrorResponse
+			err = a.client.decode(&v, localVarBody, localVarHTTPResponse.Header.Get("Content-Type"))
+			if err != nil {
+				newErr.error = err.Error()
+				return localVarReturnValue, localVarHTTPResponse, newErr
+			}
+			newErr.error = formatErrorMessage(localVarHTTPResponse.Status, &v)
+			newErr.model = v
+			return localVarReturnValue, localVarHTTPResponse, newErr
+		}
+		if localVarHTTPResponse.StatusCode == 500 {
+			var v ErrorResponse
+			err = a.client.decode(&v, localVarBody, localVarHTTPResponse.Header.Get("Content-Type"))
+			if err != nil {
+				newErr.error = err.Error()
+				return localVarReturnValue, localVarHTTPResponse, newErr
+			}
+			newErr.error = formatErrorMessage(localVarHTTPResponse.Status, &v)
+			newErr.model = v
+		}
+		return localVarReturnValue, localVarHTTPResponse, newErr
+	}
+
+	err = a.client.decode(&localVarReturnValue, localVarBody, localVarHTTPResponse.Header.Get("Content-Type"))
+	if err != nil {
+		newErr := &GenericOpenAPIError{
+			body:  localVarBody,
+			error: err.Error(),
+		}
+		return localVarReturnValue, localVarHTTPResponse, newErr
+	}
+
+	return localVarReturnValue, localVarHTTPResponse, nil
+}
+
 type ApiGetAgentCardRequest struct {
 	ctx        context.Context
 	ApiService *AgentCardAPIService
@@ -293,6 +585,212 @@ func (a *AgentCardAPIService) GetAgentCardExecute(r ApiGetAgentCardRequest) (*Ag
 			return localVarReturnValue, localVarHTTPResponse, newErr
 		}
 		if localVarHTTPResponse.StatusCode == 404 {
+			var v ErrorResponse
+			err = a.client.decode(&v, localVarBody, localVarHTTPResponse.Header.Get("Content-Type"))
+			if err != nil {
+				newErr.error = err.Error()
+				return localVarReturnValue, localVarHTTPResponse, newErr
+			}
+			newErr.error = formatErrorMessage(localVarHTTPResponse.Status, &v)
+			newErr.model = v
+			return localVarReturnValue, localVarHTTPResponse, newErr
+		}
+		if localVarHTTPResponse.StatusCode == 500 {
+			var v ErrorResponse
+			err = a.client.decode(&v, localVarBody, localVarHTTPResponse.Header.Get("Content-Type"))
+			if err != nil {
+				newErr.error = err.Error()
+				return localVarReturnValue, localVarHTTPResponse, newErr
+			}
+			newErr.error = formatErrorMessage(localVarHTTPResponse.Status, &v)
+			newErr.model = v
+		}
+		return localVarReturnValue, localVarHTTPResponse, newErr
+	}
+
+	err = a.client.decode(&localVarReturnValue, localVarBody, localVarHTTPResponse.Header.Get("Content-Type"))
+	if err != nil {
+		newErr := &GenericOpenAPIError{
+			body:  localVarBody,
+			error: err.Error(),
+		}
+		return localVarReturnValue, localVarHTTPResponse, newErr
+	}
+
+	return localVarReturnValue, localVarHTTPResponse, nil
+}
+
+type ApiListA2AAgentsRequest struct {
+	ctx         context.Context
+	ApiService  *AgentCardAPIService
+	orgName     string
+	q           *string
+	kind        *string
+	environment *string
+	project     *string
+	status      *string
+	limit       *int32
+	offset      *int32
+}
+
+// Case-insensitive substring match over agent names, card names and descriptions, and skill names, descriptions, tags and examples.
+func (r ApiListA2AAgentsRequest) Q(q string) ApiListA2AAgentsRequest {
+	r.q = &q
+	return r
+}
+
+// Restrict to platform or external agents, or to proxied agents
+func (r ApiListA2AAgentsRequest) Kind(kind string) ApiListA2AAgentsRequest {
+	r.kind = &kind
+	return r
+}
+
+// Restrict to agents deployed in this environment (name)
+func (r ApiListA2AAgentsRequest) Environment(environment string) ApiListA2AAgentsRequest {
+	r.environment = &environment
+	return r
+}
+
+// Restrict to this project (name)
+func (r ApiListA2AAgentsRequest) Project(project string) ApiListA2AAgentsRequest {
+	r.project = &project
+	return r
+}
+
+// Restrict to agents with a card in this fetch state
+func (r ApiListA2AAgentsRequest) Status(status string) ApiListA2AAgentsRequest {
+	r.status = &status
+	return r
+}
+
+// Maximum number of agents to return
+func (r ApiListA2AAgentsRequest) Limit(limit int32) ApiListA2AAgentsRequest {
+	r.limit = &limit
+	return r
+}
+
+// Number of agents to skip
+func (r ApiListA2AAgentsRequest) Offset(offset int32) ApiListA2AAgentsRequest {
+	r.offset = &offset
+	return r
+}
+
+func (r ApiListA2AAgentsRequest) Execute() (*A2ACatalogListResponse, *http.Response, error) {
+	return r.ApiService.ListA2AAgentsExecute(r)
+}
+
+/*
+ListA2AAgents List the organization's A2A agent catalogue
+
+Returns one entry per A2A agent in the organization, with the per-environment state of its agent card. Results are ordered by project and agent name.
+
+	@param ctx context.Context - for authentication, logging, cancellation, deadlines, tracing, etc. Passed from http.Request or context.Background().
+	@param orgName Organization name/handle
+	@return ApiListA2AAgentsRequest
+*/
+func (a *AgentCardAPIService) ListA2AAgents(ctx context.Context, orgName string) ApiListA2AAgentsRequest {
+	return ApiListA2AAgentsRequest{
+		ApiService: a,
+		ctx:        ctx,
+		orgName:    orgName,
+	}
+}
+
+// Execute executes the request
+//
+//	@return A2ACatalogListResponse
+func (a *AgentCardAPIService) ListA2AAgentsExecute(r ApiListA2AAgentsRequest) (*A2ACatalogListResponse, *http.Response, error) {
+	var (
+		localVarHTTPMethod  = http.MethodGet
+		localVarPostBody    interface{}
+		formFiles           []formFile
+		localVarReturnValue *A2ACatalogListResponse
+	)
+
+	localBasePath, err := a.client.cfg.ServerURLWithContext(r.ctx, "AgentCardAPIService.ListA2AAgents")
+	if err != nil {
+		return localVarReturnValue, nil, &GenericOpenAPIError{error: err.Error()}
+	}
+
+	localVarPath := localBasePath + "/orgs/{orgName}/a2a-agents"
+	localVarPath = strings.Replace(localVarPath, "{"+"orgName"+"}", url.PathEscape(parameterValueToString(r.orgName, "orgName")), -1)
+
+	localVarHeaderParams := make(map[string]string)
+	localVarQueryParams := url.Values{}
+	localVarFormParams := url.Values{}
+
+	if r.q != nil {
+		parameterAddToHeaderOrQuery(localVarQueryParams, "q", r.q, "")
+	}
+	if r.kind != nil {
+		parameterAddToHeaderOrQuery(localVarQueryParams, "kind", r.kind, "")
+	}
+	if r.environment != nil {
+		parameterAddToHeaderOrQuery(localVarQueryParams, "environment", r.environment, "")
+	}
+	if r.project != nil {
+		parameterAddToHeaderOrQuery(localVarQueryParams, "project", r.project, "")
+	}
+	if r.status != nil {
+		parameterAddToHeaderOrQuery(localVarQueryParams, "status", r.status, "")
+	}
+	if r.limit != nil {
+		parameterAddToHeaderOrQuery(localVarQueryParams, "limit", r.limit, "")
+	}
+	if r.offset != nil {
+		parameterAddToHeaderOrQuery(localVarQueryParams, "offset", r.offset, "")
+	}
+	// to determine the Content-Type header
+	localVarHTTPContentTypes := []string{}
+
+	// set Content-Type header
+	localVarHTTPContentType := selectHeaderContentType(localVarHTTPContentTypes)
+	if localVarHTTPContentType != "" {
+		localVarHeaderParams["Content-Type"] = localVarHTTPContentType
+	}
+
+	// to determine the Accept header
+	localVarHTTPHeaderAccepts := []string{"application/json"}
+
+	// set Accept header
+	localVarHTTPHeaderAccept := selectHeaderAccept(localVarHTTPHeaderAccepts)
+	if localVarHTTPHeaderAccept != "" {
+		localVarHeaderParams["Accept"] = localVarHTTPHeaderAccept
+	}
+	req, err := a.client.prepareRequest(r.ctx, localVarPath, localVarHTTPMethod, localVarPostBody, localVarHeaderParams, localVarQueryParams, localVarFormParams, formFiles)
+	if err != nil {
+		return localVarReturnValue, nil, err
+	}
+
+	localVarHTTPResponse, err := a.client.callAPI(req)
+	if err != nil || localVarHTTPResponse == nil {
+		return localVarReturnValue, localVarHTTPResponse, err
+	}
+
+	localVarBody, err := io.ReadAll(localVarHTTPResponse.Body)
+	localVarHTTPResponse.Body.Close()
+	localVarHTTPResponse.Body = io.NopCloser(bytes.NewBuffer(localVarBody))
+	if err != nil {
+		return localVarReturnValue, localVarHTTPResponse, err
+	}
+
+	if localVarHTTPResponse.StatusCode >= 300 {
+		newErr := &GenericOpenAPIError{
+			body:  localVarBody,
+			error: localVarHTTPResponse.Status,
+		}
+		if localVarHTTPResponse.StatusCode == 400 {
+			var v ErrorResponse
+			err = a.client.decode(&v, localVarBody, localVarHTTPResponse.Header.Get("Content-Type"))
+			if err != nil {
+				newErr.error = err.Error()
+				return localVarReturnValue, localVarHTTPResponse, newErr
+			}
+			newErr.error = formatErrorMessage(localVarHTTPResponse.Status, &v)
+			newErr.model = v
+			return localVarReturnValue, localVarHTTPResponse, newErr
+		}
+		if localVarHTTPResponse.StatusCode == 401 {
 			var v ErrorResponse
 			err = a.client.decode(&v, localVarBody, localVarHTTPResponse.Header.Get("Content-Type"))
 			if err != nil {

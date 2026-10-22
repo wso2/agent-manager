@@ -154,6 +154,9 @@ func InitializeAppParamsWithEnvThunderEndpoints(cfg *config.Config, db *gorm.DB,
 	a2AAgentCardService := services.NewA2AAgentCardService(openChoreoClient, a2AAgentCardRepository, a2AProxyHooks, logger)
 	a2AAgentCardController := controllers.NewA2AAgentCardController(a2AAgentCardService)
 	a2AProxyController := controllers.NewA2AProxyController(a2AProxyService)
+	a2ACatalogRepository := ProvideA2ACatalogRepository(db)
+	a2ACatalogService := services.NewA2ACatalogService(a2ACatalogRepository, a2AAgentCardService, a2AProxyRepository, a2APublisher, agentConfigRepository, gatewayRepository, openChoreoClient, logger)
+	a2ACatalogController := controllers.NewA2ACatalogController(a2ACatalogService)
 	llmProxyDeploymentController := controllers.NewLLMProxyDeploymentController(llmProxyDeploymentService)
 	mcpProxyController := controllers.NewMCPProxyController(mcpProxyService, agentConfigurationService)
 	deploymentAckHandler := ProvideDeploymentAckHandler(deploymentRepository)
@@ -206,6 +209,7 @@ func InitializeAppParamsWithEnvThunderEndpoints(cfg *config.Config, db *gorm.DB,
 		AgentAPIKeyController:            agentAPIKeyController,
 		A2AAgentCardController:           a2AAgentCardController,
 		A2AProxyController:               a2AProxyController,
+		A2ACatalogController:             a2ACatalogController,
 		LLMProxyDeploymentController:     llmProxyDeploymentController,
 		MCPProxyController:               mcpProxyController,
 		WebSocketController:              webSocketController,
@@ -354,6 +358,9 @@ func InitializeTestAppParamsWithClientMocks(cfg *config.Config, db *gorm.DB, aut
 	a2AAgentCardService := services.NewA2AAgentCardService(openChoreoClient, a2AAgentCardRepository, a2AProxyHooks, logger)
 	a2AAgentCardController := controllers.NewA2AAgentCardController(a2AAgentCardService)
 	a2AProxyController := controllers.NewA2AProxyController(a2AProxyService)
+	a2ACatalogRepository := ProvideA2ACatalogRepository(db)
+	a2ACatalogService := services.NewA2ACatalogService(a2ACatalogRepository, a2AAgentCardService, a2AProxyRepository, a2APublisher, agentConfigRepository, gatewayRepository, openChoreoClient, logger)
+	a2ACatalogController := controllers.NewA2ACatalogController(a2ACatalogService)
 	llmProxyDeploymentController := controllers.NewLLMProxyDeploymentController(llmProxyDeploymentService)
 	mcpProxyController := controllers.NewMCPProxyController(mcpProxyService, agentConfigurationService)
 	deploymentAckHandler := ProvideDeploymentAckHandler(deploymentRepository)
@@ -406,6 +413,7 @@ func InitializeTestAppParamsWithClientMocks(cfg *config.Config, db *gorm.DB, aut
 		AgentAPIKeyController:            agentAPIKeyController,
 		A2AAgentCardController:           a2AAgentCardController,
 		A2AProxyController:               a2AProxyController,
+		A2ACatalogController:             a2ACatalogController,
 		LLMProxyDeploymentController:     llmProxyDeploymentController,
 		MCPProxyController:               mcpProxyController,
 		WebSocketController:              webSocketController,
@@ -460,7 +468,7 @@ var clientProviderSet = wire.NewSet(
 	ProvideEnvThunderResolverWithEndpoints,
 )
 
-var serviceProviderSet = wire.NewSet(services.NewAgentManagerService, services.NewAgentKindService, services.NewInfraResourceManager, services.NewAgentTokenManagerService, ProvideGitCredentialsService, services.NewRepositoryService, services.NewMonitorExecutor, services.NewMonitorManagerService, ProvideThunderConfig, services.NewMonitorSchedulerService, ProvideAgentIdentityInjectionServiceWithEndpointResolver, services.NewAgentThunderReconcilerService, services.NewA2APublicationReconcilerService, services.NewA2ACardFetcher, services.NewA2ACardReconcilerService, services.NewA2AAgentCardService, ProvideTxRunner, services.NewA2APublisher, services.NewA2AProxyService, ProvideA2AProxyHooks, services.NewEvaluatorManagerService, services.NewEnvironmentService, services.NewPlatformGatewayService, services.NewLLMProviderTemplateService, services.NewLLMProviderService, services.NewLLMProxyService, services.NewLLMProviderDeploymentService, services.NewLLMProviderAPIKeyService, services.NewLLMProxyAPIKeyService, services.NewAgentAPIKeyService, services.NewLLMProxyDeploymentService, services.NewMCPProxyService, services.NewMCPProxyScopeService, wire.Bind(new(services.MCPProxyRedeployer), new(*services.MCPProxyService)), wire.Bind(new(controllers.MCPResourceServerIdentifierResolver), new(*services.MCPProxyService)), services.NewGatewayInternalAPIService, services.NewMonitorScoresService, services.NewCatalogService, services.NewLLMProxyProvisioner, services.NewAgentConfigurationService, services.NewLLMTemplateStore, services.NewGitSecretService, services.NewAIApplicationService)
+var serviceProviderSet = wire.NewSet(services.NewAgentManagerService, services.NewAgentKindService, services.NewInfraResourceManager, services.NewAgentTokenManagerService, ProvideGitCredentialsService, services.NewRepositoryService, services.NewMonitorExecutor, services.NewMonitorManagerService, ProvideThunderConfig, services.NewMonitorSchedulerService, ProvideAgentIdentityInjectionServiceWithEndpointResolver, services.NewAgentThunderReconcilerService, services.NewA2APublicationReconcilerService, services.NewA2ACardFetcher, services.NewA2ACardReconcilerService, services.NewA2AAgentCardService, ProvideTxRunner, services.NewA2APublisher, services.NewA2AProxyService, services.NewA2ACatalogService, ProvideA2AProxyHooks, services.NewEvaluatorManagerService, services.NewEnvironmentService, services.NewPlatformGatewayService, services.NewLLMProviderTemplateService, services.NewLLMProviderService, services.NewLLMProxyService, services.NewLLMProviderDeploymentService, services.NewLLMProviderAPIKeyService, services.NewLLMProxyAPIKeyService, services.NewAgentAPIKeyService, services.NewLLMProxyDeploymentService, services.NewMCPProxyService, services.NewMCPProxyScopeService, wire.Bind(new(services.MCPProxyRedeployer), new(*services.MCPProxyService)), wire.Bind(new(controllers.MCPResourceServerIdentifierResolver), new(*services.MCPProxyService)), services.NewGatewayInternalAPIService, services.NewMonitorScoresService, services.NewCatalogService, services.NewLLMProxyProvisioner, services.NewAgentConfigurationService, services.NewLLMTemplateStore, services.NewGitSecretService, services.NewAIApplicationService)
 
 var instrumentationProviderSet = wire.NewSet(
 	ProvideInstrumentationCatalog,
@@ -468,7 +476,7 @@ var instrumentationProviderSet = wire.NewSet(
 	ProvideDefaultPythonVersion,
 )
 
-var controllerProviderSet = wire.NewSet(controllers.NewAgentController, controllers.NewAgentKindController, controllers.NewInfraResourceController, controllers.NewAgentTokenController, controllers.NewRepositoryController, controllers.NewEnvironmentController, controllers.NewGatewayController, controllers.NewLLMController, controllers.NewLLMDeploymentController, controllers.NewLLMProviderAPIKeyController, controllers.NewLLMProxyAPIKeyController, controllers.NewAgentAPIKeyController, controllers.NewA2AAgentCardController, controllers.NewA2AProxyController, controllers.NewLLMProxyDeploymentController, controllers.NewMCPProxyController, ProvideWebSocketController, controllers.NewGatewayInternalController, controllers.NewMonitorController, controllers.NewMonitorScoresController, controllers.NewMonitorScoresPublisherController, controllers.NewEvaluatorController, controllers.NewCatalogController, ProvideAgentBuildOptionsController, controllers.NewAgentConfigurationController, controllers.NewGitSecretController, controllers.NewIdentityController, controllers.NewMCPProxyScopeController, controllers.NewAgentIdentityController)
+var controllerProviderSet = wire.NewSet(controllers.NewAgentController, controllers.NewAgentKindController, controllers.NewInfraResourceController, controllers.NewAgentTokenController, controllers.NewRepositoryController, controllers.NewEnvironmentController, controllers.NewGatewayController, controllers.NewLLMController, controllers.NewLLMDeploymentController, controllers.NewLLMProviderAPIKeyController, controllers.NewLLMProxyAPIKeyController, controllers.NewAgentAPIKeyController, controllers.NewA2AAgentCardController, controllers.NewA2AProxyController, controllers.NewA2ACatalogController, controllers.NewLLMProxyDeploymentController, controllers.NewMCPProxyController, ProvideWebSocketController, controllers.NewGatewayInternalController, controllers.NewMonitorController, controllers.NewMonitorScoresController, controllers.NewMonitorScoresPublisherController, controllers.NewEvaluatorController, controllers.NewCatalogController, ProvideAgentBuildOptionsController, controllers.NewAgentConfigurationController, controllers.NewGitSecretController, controllers.NewIdentityController, controllers.NewMCPProxyScopeController, controllers.NewAgentIdentityController)
 
 var testClientProviderSet = wire.NewSet(
 	ProvideTestOpenChoreoClient,
@@ -692,6 +700,7 @@ var repositoryProviderSet = wire.NewSet(
 	ProvideA2APublicationRepository,
 	ProvideA2AAgentCardRepository,
 	ProvideA2AProxyRepository,
+	ProvideA2ACatalogRepository,
 	ProvideArtifactRepository,
 	ProvideScoreRepository,
 	ProvideCatalogRepository,
@@ -802,6 +811,10 @@ func ProvideA2AAgentCardRepository(db *gorm.DB) repositories.A2AAgentCardReposit
 
 func ProvideA2AProxyRepository(db *gorm.DB) repositories.A2AProxyRepository {
 	return repositories.NewA2AProxyRepository(db)
+}
+
+func ProvideA2ACatalogRepository(db *gorm.DB) repositories.A2ACatalogRepository {
+	return repositories.NewA2ACatalogRepository(db)
 }
 
 // ProvideA2AProxyHooks gives the card service the proxy hooks only, not the whole proxy service.

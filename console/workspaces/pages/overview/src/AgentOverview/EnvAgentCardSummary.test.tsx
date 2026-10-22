@@ -71,7 +71,7 @@ describe("EnvAgentCardSummary", () => {
           name: "Trip Planner",
           provider: { organization: "Acme", url: "https://acme.example" },
           supportedInterfaces: [{ url: "https://gw/a/rpc", protocolBinding: "JSONRPC" }],
-          skills: [{ name: "plan", description: "Plan a trip", tags: ["travel"] }, { name: "book" }],
+          skills: [{ name: "plan", description: "Plan a trip", tags: ["travel"] }, { name: "book" }, { description: "no name" }],
         },
       },
     });
@@ -88,6 +88,22 @@ describe("EnvAgentCardSummary", () => {
     expect(screen.queryByText("travel")).not.toBeInTheDocument();
     expect(screen.queryByText("https://a.example/card.json")).not.toBeInTheDocument();
     expect(screen.getByRole("link", { name: /configure/i })).toHaveAttribute("href", CONFIGURE_HREF);
+    const skillsRow = screen.getByText("Skills").parentElement!;
+    const skillChips = Array.from(skillsRow.querySelectorAll(".MuiChip-label")).map((chip) => chip.textContent);
+    expect(skillChips).toEqual(["plan", "book"]);
+  });
+
+  it("lists a binding-less interface without a chip", () => {
+    mockCard({
+      data: {
+        source: "platform", status: "fetched", sourceUrl: "", lastError: "",
+        card: { supportedInterfaces: [{ url: "https://gw/a/rest" }] },
+      },
+    });
+    renderSummary();
+    expect(screen.getByDisplayValue("https://gw/a/rest")).toBeInTheDocument();
+    expect(screen.queryByText("JSONRPC")).not.toBeInTheDocument();
+    expect(document.querySelector(".MuiChip-root")).toBeNull();
   });
 
   it("does not link a non-http provider URL", () => {

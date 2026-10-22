@@ -8272,6 +8272,184 @@ paths:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
 
+  /orgs/{orgName}/a2a-agents:
+    get:
+      tags:
+        - Agent Card
+      summary: List the organization's A2A agent catalogue
+      description: Returns one entry per A2A agent in the organization, with the per-environment state of its agent card. Results are ordered by project and agent name.
+      operationId: listA2AAgents
+      parameters:
+        - name: orgName
+          in: path
+          required: true
+          description: Organization name/handle
+          schema:
+            type: string
+        - name: q
+          in: query
+          required: false
+          description: Case-insensitive substring match over agent names, card names and descriptions, and skill names, descriptions, tags and examples.
+          schema:
+            type: string
+            maxLength: 255
+        - name: kind
+          in: query
+          required: false
+          description: Restrict to platform or external agents, or to proxied agents
+          schema:
+            type: string
+            enum: [platform, external, proxied]
+        - name: environment
+          in: query
+          required: false
+          description: Restrict to agents deployed in this environment (name)
+          schema:
+            type: string
+        - name: project
+          in: query
+          required: false
+          description: Restrict to this project (name)
+          schema:
+            type: string
+        - name: status
+          in: query
+          required: false
+          description: Restrict to agents with a card in this fetch state
+          schema:
+            type: string
+            enum: [pending, fetched, failed]
+        - name: limit
+          in: query
+          required: false
+          description: Maximum number of agents to return
+          schema:
+            type: integer
+            format: int32
+            default: 50
+            minimum: 1
+            maximum: 100
+        - name: offset
+          in: query
+          required: false
+          description: Number of agents to skip
+          schema:
+            type: integer
+            format: int32
+            default: 0
+            minimum: 0
+      responses:
+        "200":
+          description: A page of the A2A agent catalogue
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/A2ACatalogListResponse"
+        "400":
+          description: Invalid query parameter
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "500":
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /orgs/{orgName}/projects/{projName}/agents/{agentName}/a2a-catalog-entry:
+    parameters:
+      - name: orgName
+        in: path
+        required: true
+        description: Organization name/handle
+        schema:
+          type: string
+      - name: projName
+        in: path
+        required: true
+        description: Project name
+        schema:
+          type: string
+      - name: agentName
+        in: path
+        required: true
+        description: Agent name
+        schema:
+          type: string
+    get:
+      tags:
+        - Agent Card
+      summary: Get one agent's A2A catalogue entry
+      description: Returns the agent's entry in the organization's A2A agent catalogue, with the per-environment state of its agent card.
+      operationId: getA2ACatalogEntry
+      responses:
+        "200":
+          description: The agent's catalogue entry
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/A2ACatalogAgent"
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: The agent is not in the A2A catalogue
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "500":
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /orgs/{orgName}/projects/{projName}/agents/{agentName}/environments/{envID}/a2a-connect:
+    parameters: *agentCardPathParams
+    get:
+      tags:
+        - Agent Card
+      summary: Get what a client needs to connect to an A2A agent in an environment
+      description: Returns the endpoint, security requirements and gateway publication state a client needs to call the agent in the environment.
+      operationId: getA2AConnect
+      responses:
+        "200":
+          description: Connection details
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/A2AConnectResponse"
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: Agent or environment not found, or the agent is not an A2A agent
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "500":
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
   /orgs/{orgName}/projects/{projName}/agents/{agentName}/monitors:
     get:
       summary: List all evaluation monitors for an agent
@@ -12319,6 +12497,211 @@ components:
           description: >-
             Header value: at most 8192 bytes, with no quote, "%", control character (including line breaks and tabs) or "{{". Omit it to keep
             the stored secret.
+    A2ACatalogListResponse:
+      type: object
+      description: A page of the organization's A2A agent catalogue.
+      required:
+        - agents
+        - total
+        - limit
+        - offset
+      properties:
+        agents:
+          type: array
+          items:
+            $ref: "#/components/schemas/A2ACatalogAgent"
+          description: The page of agents; empty when none match.
+        total:
+          type: integer
+          format: int32
+          description: Number of agents matching the filters, before paging.
+        limit:
+          type: integer
+          format: int32
+          description: The limit applied.
+        offset:
+          type: integer
+          format: int32
+          description: The offset applied.
+    A2ACatalogAgent:
+      type: object
+      description: name, description, version and skills come from the lead environment's card; name falls back to agentName when no card has been fetched.
+      required:
+        - projectName
+        - agentName
+        - kind
+        - name
+        - description
+        - version
+        - skills
+        - leadEnvironment
+        - environments
+      properties:
+        projectName:
+          type: string
+          description: Project the agent belongs to.
+        agentName:
+          type: string
+          description: Agent (component) name.
+        kind:
+          type: string
+          enum: [platform, external]
+          description: The card source of the agent.
+        name:
+          type: string
+          description: Display name from the lead environment's card, else agentName.
+        description:
+          type: string
+          description: The lead environment's card description; empty when none.
+        version:
+          type: string
+          description: The lead environment's card version; empty when none.
+        skills:
+          type: array
+          items:
+            type: string
+          description: Names of the lead environment's card skills, in card order; empty when none.
+        leadEnvironment:
+          type: string
+          description: The first environment in pipeline order with a fetched card; the summary and cardDiffers are relative to it.
+        environments:
+          type: array
+          items:
+            $ref: "#/components/schemas/A2ACatalogEnvironment"
+          description: Environments in pipeline order, lead first
+    A2ACatalogEnvironment:
+      type: object
+      description: The state of an A2A agent's card in one environment.
+      required:
+        - name
+        - status
+        - proxied
+        - cardDiffers
+        - matched
+      properties:
+        name:
+          type: string
+          description: Environment name.
+        status:
+          type: string
+          enum: [pending, fetched, failed]
+          description: The card's fetch state in this environment.
+        fetchedAt:
+          type: string
+          format: date-time
+          description: Time of the last successful fetch. Absent until then.
+        proxied:
+          type: boolean
+          description: True when the environment's gateway fronts this external agent.
+        cardDiffers:
+          type: boolean
+          description: True when this environment's card differs from the lead environment's card.
+        matched:
+          type: boolean
+          description: True only when q was given and this environment's card matched it
+    A2AConnectResponse:
+      type: object
+      description: What a client needs to connect to an A2A agent in one environment.
+      required:
+        - kind
+        - proxied
+        - isProduction
+        - gatewayUrl
+        - cardUrl
+        - jsonRpcUrl
+        - security
+        - publication
+      properties:
+        kind:
+          type: string
+          enum: [platform, external]
+          description: The card source of the agent.
+        proxied:
+          type: boolean
+          description: True when the environment's gateway fronts this external agent; always false for platform agents.
+        isProduction:
+          type: boolean
+          description: Whether the environment is a production environment.
+        gatewayUrl:
+          type: string
+          description: Where the environment's gateway serves the agent. Empty for a direct external agent or while no gateway is mapped. This is the endpoint clients must use for platform and proxied agents.
+        cardUrl:
+          type: string
+          description: "Where clients fetch the agent card: the gateway's copy when the gateway fronts the agent, otherwise the card's own URL. Empty when neither is known."
+        jsonRpcUrl:
+          type: string
+          description: "The JSON-RPC endpoint clients should call: the gateway's when it fronts the agent, otherwise the card's declared JSON-RPC interface. Empty when there is none."
+        security:
+          $ref: "#/components/schemas/A2AConnectSecurity"
+        publication:
+          $ref: "#/components/schemas/A2AConnectPublication"
+    A2AConnectSecurity:
+      type: object
+      description: The security a client must satisfy to call the agent.
+      required:
+        - mode
+      properties:
+        mode:
+          type: string
+          enum: [none, apiKey, oauth, unmanaged, unknown]
+          description: How calls to the agent are secured.
+        apiKeyHeader:
+          type: string
+          description: X-API-Key when mode is apiKey
+        oauth:
+          $ref: "#/components/schemas/A2AConnectOAuth"
+    A2AConnectOAuth:
+      type: object
+      description: The OAuth token a client must present when mode is oauth.
+      required:
+        - issuers
+        - audiences
+        - headerName
+        - authHeaderPrefix
+      properties:
+        issuers:
+          type: array
+          items:
+            $ref: "#/components/schemas/A2AConnectIssuer"
+          description: The accepted token issuers, in configured order; empty when none.
+        audiences:
+          type: array
+          items:
+            type: string
+          description: The accepted token audiences; empty when none.
+        headerName:
+          type: string
+          description: The header carrying the token.
+        authHeaderPrefix:
+          type: string
+          description: The scheme prefix before the token in the header.
+    A2AConnectIssuer:
+      type: object
+      description: An identity provider whose tokens the gateway accepts.
+      required:
+        - name
+        - issuer
+      properties:
+        name:
+          type: string
+          description: The identity provider name saved in the agent config.
+        issuer:
+          type: string
+          description: Empty when the name no longer resolves
+    A2AConnectPublication:
+      type: object
+      description: The state of the agent's publication on the environment's gateway.
+      required:
+        - status
+        - lastError
+      properties:
+        status:
+          type: string
+          enum: [pending, published, failed, none]
+          description: none means a direct external agent, where the gateway isn't involved
+        lastError:
+          type: string
+          description: Why the last publish attempt failed, or why the agent is not published; empty otherwise.
     AgentCardCORSConfig:
       type: object
       description: >-

@@ -85,7 +85,9 @@ type a2aReconcilerHarness struct {
 func newA2AReconcilerHarness(serviceURL string) *a2aReconcilerHarness {
 	hub := &recordingEventHub{}
 	pubRepo := &repomocks.A2APublicationRepositoryMock{
-		MarkPublishedFunc: func(ctx context.Context, read models.A2APublication, upstreamURL string) error { return nil },
+		MarkPublishedFunc: func(ctx context.Context, read models.A2APublication, upstreamURL string, transports json.RawMessage) error {
+			return nil
+		},
 		MarkAttemptFailedFunc: func(ctx context.Context, read models.A2APublication, lastErr string, nextAttemptAt time.Time) error {
 			return nil
 		},
@@ -465,7 +467,7 @@ func TestReconcilerPublishesEvenWhenTheCardQueueFails(t *testing.T) {
 // A publish whose row was superseded is redone next tick; that publish queues the card.
 func TestReconcilerQueuesNoCardForASupersededPublish(t *testing.T) {
 	h := newA2AReconcilerHarness("http://trip-planner.dp-default:9099")
-	h.pubRepo.MarkPublishedFunc = func(context.Context, models.A2APublication, string) error {
+	h.pubRepo.MarkPublishedFunc = func(context.Context, models.A2APublication, string, json.RawMessage) error {
 		return repositories.ErrA2APublicationSuperseded
 	}
 
@@ -707,6 +709,52 @@ func TestReconcilerPublishesAnExternalAgentFromItsOriginCard(t *testing.T) {
 	assert.Equal(t, pub.EnvironmentName, requeued[0].EnvironmentName)
 }
 
+// The recorded transports are exactly what the gateway route was given, so the platform defaults are stored too.
+func TestReconcilerRecordsThePlatformTransports(t *testing.T) {
+	h := newA2AReconcilerHarness("http://trip-planner.dp-default:9099")
+
+	h.svc.publishOne(context.Background(), pendingPublication())
+
+	marked := h.pubRepo.MarkPublishedCalls()
+	require.Len(t, marked, 1)
+	assert.JSONEq(t,
+		`[{"protocolBinding":"JSONRPC","pathPrefix":"/rpc"},{"protocolBinding":"HTTP+JSON","pathPrefix":"/rest"}]`,
+		string(marked[0].Transports))
+}
+
+func TestReconcilerRecordsTheOriginsTransports(t *testing.T) {
+	cases := map[string]struct {
+		iface string
+		want  string
+	}{
+		"only HTTP+JSON below the origin": {
+			iface: `{"url":"https://agent.example/rest","protocolBinding":"HTTP+JSON","protocolVersion":"1.0"}`,
+			want:  `[{"protocolBinding":"HTTP+JSON","pathPrefix":"/rest"}]`,
+		},
+		"JSONRPC at the origin root": {
+			iface: `{"url":"https://agent.example","protocolBinding":"JSONRPC","protocolVersion":"1.0"}`,
+			want:  `[{"protocolBinding":"JSONRPC"}]`,
+		},
+	}
+	for name, tc := range cases {
+		t.Run(name, func(t *testing.T) {
+			h := newA2AReconcilerHarness("")
+			pub := pendingPublication()
+			h.withExternalOrigin(&pub)
+			card := `{"name":"Weather","skills":[],"supportedInterfaces":[` + tc.iface + `]}`
+			h.fetcher.FetchFunc = func(context.Context, string, bool) (json.RawMessage, error) {
+				return json.RawMessage(card), nil
+			}
+
+			h.svc.publishOne(context.Background(), pub)
+
+			marked := h.pubRepo.MarkPublishedCalls()
+			require.Len(t, marked, 1)
+			assert.JSONEq(t, tc.want, string(marked[0].Transports))
+		})
+	}
+}
+
 // oauthForwardingConfig is an environment config with OAuth on and the caller's token forwarded upstream.
 func oauthForwardingConfig() *models.AgentConfig {
 	return &models.AgentConfig{EnableOAuthSecurity: true, OAuthIssuers: []string{"idp"}, OAuthForwardToken: true}
@@ -911,7 +959,7 @@ func TestReconcilerWithdrawsAnAgentTornDownMidPublish(t *testing.T) {
 	h := newA2AReconcilerHarness("")
 	pub := pendingPublication()
 	h.withExternalOrigin(&pub)
-	h.pubRepo.MarkPublishedFunc = func(context.Context, models.A2APublication, string) error {
+	h.pubRepo.MarkPublishedFunc = func(context.Context, models.A2APublication, string, json.RawMessage) error {
 		return repositories.ErrA2APublicationSuperseded
 	}
 	h.pubRepo.GetFunc = func(context.Context, string, string, string, uuid.UUID) (*models.A2APublication, error) {
@@ -934,7 +982,7 @@ func TestReconcilerLeavesAReEnqueuedRowForTheNextTick(t *testing.T) {
 	h := newA2AReconcilerHarness("")
 	pub := pendingPublication()
 	h.withExternalOrigin(&pub)
-	h.pubRepo.MarkPublishedFunc = func(context.Context, models.A2APublication, string) error {
+	h.pubRepo.MarkPublishedFunc = func(context.Context, models.A2APublication, string, json.RawMessage) error {
 		return repositories.ErrA2APublicationSuperseded
 	}
 	h.pubRepo.GetFunc = func(context.Context, string, string, string, uuid.UUID) (*models.A2APublication, error) {
@@ -953,7 +1001,7 @@ func TestReconcilerLogsWhenItCannotTellIfASupersededRowWasTornDown(t *testing.T)
 	h.withExternalOrigin(&pub)
 	var logs bytes.Buffer
 	h.svc.logger = slog.New(slog.NewTextHandler(&logs, nil))
-	h.pubRepo.MarkPublishedFunc = func(context.Context, models.A2APublication, string) error {
+	h.pubRepo.MarkPublishedFunc = func(context.Context, models.A2APublication, string, json.RawMessage) error {
 		return repositories.ErrA2APublicationSuperseded
 	}
 	h.pubRepo.GetFunc = func(context.Context, string, string, string, uuid.UUID) (*models.A2APublication, error) {

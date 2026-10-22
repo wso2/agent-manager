@@ -58,7 +58,10 @@ type A2AAgentCard struct {
 	SourceURL string          `gorm:"column:source_url;not null;default:''"`
 	Card      json.RawMessage `gorm:"column:card;type:jsonb"`
 	CardHash  string          `gorm:"column:card_hash;not null;default:''"`
-	FetchedAt *time.Time      `gorm:"column:fetched_at"`
+	// CardFingerprint and CardSearchText are the card's A2ACardProjection; empty until the card is next fetched.
+	CardFingerprint string     `gorm:"column:card_fingerprint;not null;default:''"`
+	CardSearchText  string     `gorm:"column:card_search_text;not null;default:''"`
+	FetchedAt       *time.Time `gorm:"column:fetched_at"`
 	// ReleaseName is the binding release a platform card was fetched from.
 	ReleaseName string `gorm:"column:release_name;not null;default:''"`
 	// AttemptedReleaseName is the release the last platform fetch ran against.
@@ -69,6 +72,13 @@ type A2AAgentCard struct {
 	NextAttemptAt        *time.Time         `gorm:"column:next_attempt_at"`
 	CreatedAt            time.Time          `gorm:"column:created_at;not null;default:NOW()"`
 	UpdatedAt            time.Time          `gorm:"column:updated_at;not null;default:NOW()"`
+}
+
+// A2ACardProjection is what the reconciler stores alongside the card: a fingerprint
+// for comparing cards across environments and the text the catalogue searches.
+type A2ACardProjection struct {
+	Fingerprint string
+	SearchText  string
 }
 
 func (A2AAgentCard) TableName() string { return "a2a_agent_cards" }

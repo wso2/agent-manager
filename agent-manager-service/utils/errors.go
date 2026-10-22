@@ -90,6 +90,7 @@ var (
 	ErrAgentAlreadyExists            = errors.New("agent already exists")
 	ErrAgentNotFound                 = errors.New("agent not found")
 	ErrAgentCardNotFound             = errors.New("agent card not found")
+	ErrAgentNotInA2ACatalog          = errors.New("agent is not in the A2A catalogue")
 	ErrAgentNotDeployedInEnvironment = errors.New("agent is not deployed in this environment")
 	ErrAgentNotA2A                   = errors.New("agent is not an A2A agent")
 	ErrAgentCardSourceNotExternal    = errors.New("a card source can be set only for external A2A agents")

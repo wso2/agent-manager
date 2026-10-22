@@ -1069,7 +1069,7 @@ func (c *openChoreoClient) GetDeployments(ctx context.Context, ouID, pipelineNam
 	}
 
 	// Create environment order based on the deployment pipeline
-	environmentOrder := buildEnvironmentOrder(pipeline.PromotionPaths)
+	environmentOrder := BuildEnvironmentOrder(pipeline.PromotionPaths)
 
 	// Get release bindings for the component
 	bindingsResp, err := c.ocClient.ListReleaseBindingsWithResponse(ctx, namespaceName, &gen.ListReleaseBindingsParams{
@@ -1201,15 +1201,15 @@ func (c *openChoreoClient) GetDeployments(ctx context.Context, ouID, pipelineNam
 // FindFirstEnvironment returns the name of the first (source/dev) environment
 // from the deployment pipeline promotion paths, or "" if none.
 func FindFirstEnvironment(promotionPaths []models.PromotionPath) string {
-	order := buildEnvironmentOrder(promotionPaths)
+	order := BuildEnvironmentOrder(promotionPaths)
 	if len(order) == 0 {
 		return ""
 	}
 	return order[0]
 }
 
-// buildEnvironmentOrder creates an ordered list of environments based on promotion paths
-func buildEnvironmentOrder(promotionPaths []models.PromotionPath) []string {
+// BuildEnvironmentOrder creates an ordered list of environments based on promotion paths
+func BuildEnvironmentOrder(promotionPaths []models.PromotionPath) []string {
 	if len(promotionPaths) == 0 {
 		return []string{}
 	}

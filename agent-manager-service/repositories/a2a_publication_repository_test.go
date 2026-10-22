@@ -20,6 +20,7 @@ package repositories
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"testing"
 	"time"
@@ -120,7 +121,7 @@ func TestA2APublicationMarkPublishedRemovesItFromTheQueue(t *testing.T) {
 	pub := newTestPublication("published-" + uuid.New().String()[:8])
 	cleanupPublication(t, repo, pub)
 	require.NoError(t, repo.Enqueue(ctx, pub))
-	require.NoError(t, repo.MarkPublished(ctx, *pub, "http://agent:9099"))
+	require.NoError(t, repo.MarkPublished(ctx, *pub, "http://agent:9099", nil))
 
 	due, err := repo.ClaimDue(ctx, time.Now(), 100)
 	require.NoError(t, err)
@@ -154,7 +155,7 @@ func TestA2APublicationClaimDueLeasesTheRow(t *testing.T) {
 	}
 	assert.True(t, reclaimed, "an attempt that never reported back is retried once the lease runs out")
 
-	require.NoError(t, repo.MarkPublished(ctx, claimed, "http://agent:9099"),
+	require.NoError(t, repo.MarkPublished(ctx, claimed, "http://agent:9099", nil),
 		"claiming is not mistaken for a re-enqueue")
 }
 
@@ -186,7 +187,7 @@ func TestA2APublicationEnqueueReplacesARowFromADeletedEnvironment(t *testing.T) 
 	old := newTestPublication("recreated-" + uuid.New().String()[:8])
 	cleanupPublication(t, repo, old)
 	require.NoError(t, repo.Enqueue(ctx, old))
-	require.NoError(t, repo.MarkPublished(ctx, *old, "http://agent:9099"))
+	require.NoError(t, repo.MarkPublished(ctx, *old, "http://agent:9099", nil))
 
 	recreated := newTestPublication(old.AgentName)
 	recreated.OUID = old.OUID
@@ -223,7 +224,7 @@ func TestA2APublicationFindPublishedSkipsExternalRows(t *testing.T) {
 	for _, pub := range []*models.A2APublication{platform, external} {
 		cleanupPublication(t, repo, pub)
 		require.NoError(t, repo.Enqueue(ctx, pub))
-		require.NoError(t, repo.MarkPublished(ctx, *pub, "http://agent:9099"))
+		require.NoError(t, repo.MarkPublished(ctx, *pub, "http://agent:9099", nil))
 	}
 
 	var names []string
@@ -330,7 +331,7 @@ func TestA2APublicationMarkPublishedDoesNotSwallowANewerEnqueue(t *testing.T) {
 
 	requeue := *pub
 	require.NoError(t, repo.Enqueue(ctx, &requeue))
-	require.ErrorIs(t, repo.MarkPublished(ctx, read, "http://agent:9099"), ErrA2APublicationSuperseded)
+	require.ErrorIs(t, repo.MarkPublished(ctx, read, "http://agent:9099", nil), ErrA2APublicationSuperseded)
 
 	assert.Equal(t, models.A2APublicationStatusPending, statusOf(t, pub).Status,
 		"the newer enqueue is still owed a publish")
@@ -386,12 +387,35 @@ func TestA2APublicationMarkPublishedRecordsTheUpstream(t *testing.T) {
 	pub := newTestPublication("upstream-" + uuid.New().String()[:8])
 	cleanupPublication(t, repo, pub)
 	require.NoError(t, repo.Enqueue(ctx, pub))
-	require.NoError(t, repo.MarkPublished(ctx, *pub, "http://agent:9099"))
+	require.NoError(t, repo.MarkPublished(ctx, *pub, "http://agent:9099", nil))
 	assert.Equal(t, "http://agent:9099", statusOf(t, pub).PublishedUpstreamURL)
 
 	requeue := *pub
 	require.NoError(t, repo.Enqueue(ctx, &requeue))
 	assert.Equal(t, "http://agent:9099", statusOf(t, pub).PublishedUpstreamURL)
+}
+
+// The transports are what a later read reports as routed; NULL stays distinct from an empty list.
+func TestA2APublicationMarkPublishedStoresTheTransports(t *testing.T) {
+	repo := NewA2APublicationRepository(db.GetDB())
+	ctx := context.Background()
+
+	pub := newTestPublication("transports-" + uuid.New().String()[:8])
+	cleanupPublication(t, repo, pub)
+	require.NoError(t, repo.Enqueue(ctx, pub))
+	transports := json.RawMessage(`[{"protocolBinding":"JSONRPC","pathPrefix":"/rpc"}]`)
+	require.NoError(t, repo.MarkPublished(ctx, *pub, "http://agent:9099", transports))
+	got, err := repo.Get(ctx, pub.OUID, pub.ProjectName, pub.AgentName, pub.EnvironmentUUID)
+	require.NoError(t, err)
+	assert.JSONEq(t, string(transports), string(got.PublishedTransports))
+
+	require.NoError(t, repo.Requeue(ctx, *got))
+	requeued, err := repo.Get(ctx, pub.OUID, pub.ProjectName, pub.AgentName, pub.EnvironmentUUID)
+	require.NoError(t, err)
+	require.NoError(t, repo.MarkPublished(ctx, *requeued, "http://agent:9099", nil))
+	got, err = repo.Get(ctx, pub.OUID, pub.ProjectName, pub.AgentName, pub.EnvironmentUUID)
+	require.NoError(t, err)
+	assert.Nil(t, got.PublishedTransports, "no transports are stored as NULL")
 }
 
 // Waiting on a binding is not charged against the attempt budget.
@@ -458,7 +482,7 @@ func TestA2APublicationRequeueMakesAPublishedRowDue(t *testing.T) {
 	pub := newTestPublication("requeue-" + uuid.New().String()[:8])
 	cleanupPublication(t, repo, pub)
 	require.NoError(t, repo.Enqueue(ctx, pub))
-	require.NoError(t, repo.MarkPublished(ctx, *pub, "http://agent:9099"))
+	require.NoError(t, repo.MarkPublished(ctx, *pub, "http://agent:9099", nil))
 	published := statusOf(t, pub)
 
 	require.NoError(t, repo.Requeue(ctx, published))
@@ -481,7 +505,7 @@ func TestA2APublicationFindPublishedPagesPublishedRows(t *testing.T) {
 	cleanupPublication(t, repo, pending)
 	require.NoError(t, repo.Enqueue(ctx, published))
 	require.NoError(t, repo.Enqueue(ctx, pending))
-	require.NoError(t, repo.MarkPublished(ctx, *published, "http://agent:9099"))
+	require.NoError(t, repo.MarkPublished(ctx, *published, "http://agent:9099", nil))
 
 	var seen []models.A2APublication
 	cursor := uuid.Nil

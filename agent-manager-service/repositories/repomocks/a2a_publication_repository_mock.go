@@ -5,6 +5,7 @@ package repomocks
 
 import (
 	"context"
+	"encoding/json"
 	"sync"
 	"time"
 
@@ -53,7 +54,7 @@ import (
 //			MarkFailedFunc: func(ctx context.Context, read models.A2APublication, lastErr string) error {
 //				panic("mock out the MarkFailed method")
 //			},
-//			MarkPublishedFunc: func(ctx context.Context, read models.A2APublication, upstreamURL string) error {
+//			MarkPublishedFunc: func(ctx context.Context, read models.A2APublication, upstreamURL string, transports json.RawMessage) error {
 //				panic("mock out the MarkPublished method")
 //			},
 //			MarkWaitingFunc: func(ctx context.Context, read models.A2APublication, reason string, nextAttemptAt time.Time) error {
@@ -109,7 +110,7 @@ type A2APublicationRepositoryMock struct {
 	MarkFailedFunc func(ctx context.Context, read models.A2APublication, lastErr string) error
 
 	// MarkPublishedFunc mocks the MarkPublished method.
-	MarkPublishedFunc func(ctx context.Context, read models.A2APublication, upstreamURL string) error
+	MarkPublishedFunc func(ctx context.Context, read models.A2APublication, upstreamURL string, transports json.RawMessage) error
 
 	// MarkWaitingFunc mocks the MarkWaiting method.
 	MarkWaitingFunc func(ctx context.Context, read models.A2APublication, reason string, nextAttemptAt time.Time) error
@@ -242,6 +243,8 @@ type A2APublicationRepositoryMock struct {
 			Read models.A2APublication
 			// UpstreamURL is the upstreamURL argument value.
 			UpstreamURL string
+			// Transports is the transports argument value.
+			Transports json.RawMessage
 		}
 		// MarkWaiting holds details about calls to the MarkWaiting method.
 		MarkWaiting []struct {
@@ -751,7 +754,7 @@ func (mock *A2APublicationRepositoryMock) MarkFailedCalls() []struct {
 }
 
 // MarkPublished calls MarkPublishedFunc.
-func (mock *A2APublicationRepositoryMock) MarkPublished(ctx context.Context, read models.A2APublication, upstreamURL string) error {
+func (mock *A2APublicationRepositoryMock) MarkPublished(ctx context.Context, read models.A2APublication, upstreamURL string, transports json.RawMessage) error {
 	if mock.MarkPublishedFunc == nil {
 		panic("A2APublicationRepositoryMock.MarkPublishedFunc: method is nil but A2APublicationRepository.MarkPublished was just called")
 	}
@@ -759,15 +762,17 @@ func (mock *A2APublicationRepositoryMock) MarkPublished(ctx context.Context, rea
 		Ctx         context.Context
 		Read        models.A2APublication
 		UpstreamURL string
+		Transports  json.RawMessage
 	}{
 		Ctx:         ctx,
 		Read:        read,
 		UpstreamURL: upstreamURL,
+		Transports:  transports,
 	}
 	mock.lockMarkPublished.Lock()
 	mock.calls.MarkPublished = append(mock.calls.MarkPublished, callInfo)
 	mock.lockMarkPublished.Unlock()
-	return mock.MarkPublishedFunc(ctx, read, upstreamURL)
+	return mock.MarkPublishedFunc(ctx, read, upstreamURL, transports)
 }
 
 // MarkPublishedCalls gets all the calls that were made to MarkPublished.
@@ -778,11 +783,13 @@ func (mock *A2APublicationRepositoryMock) MarkPublishedCalls() []struct {
 	Ctx         context.Context
 	Read        models.A2APublication
 	UpstreamURL string
+	Transports  json.RawMessage
 } {
 	var calls []struct {
 		Ctx         context.Context
 		Read        models.A2APublication
 		UpstreamURL string
+		Transports  json.RawMessage
 	}
 	mock.lockMarkPublished.RLock()
 	calls = mock.calls.MarkPublished

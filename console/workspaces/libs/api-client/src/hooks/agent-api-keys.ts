@@ -127,3 +127,14 @@ export function useTestAgentAPIKey(
     refetchOnWindowFocus: true,
   });
 }
+
+// Issues (or rotates) the caller's own test key on demand. It leaves the
+// useTestAgentAPIKey cache alone, so nothing is invalidated.
+export function useIssueTestAgentAPIKey() {
+  const { getToken } = useAuthHooks();
+  return useApiMutation<IssueTestAgentAPIKeyResponse, unknown, IssueTestAgentAPIKeyPathParams>({
+    action: { verb: 'create', target: 'test API key' },
+    showSuccess: false,
+    mutationFn: (params) => issueTestAgentAPIKey(params, getToken),
+  });
+}

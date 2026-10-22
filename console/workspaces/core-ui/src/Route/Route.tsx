@@ -39,6 +39,7 @@ import {
   LazyAgentIdComponent,
   LazyLLMProvidersOrg,
   LazyMCPProxiesOrg,
+  LazyA2AAgentsOrg,
   LazyAddLLMProvidersComponent,
   LazyLLMProvidersComponent,
   LazyViewLLMProviderComponent,
@@ -308,6 +309,12 @@ export function RootRouter() {
                 relativeRouteMap.children.org.children.llmProviders.path + "/*"
               }
               element={<LazyLLMProvidersOrg />}
+            />
+            <Route
+              path={
+                relativeRouteMap.children.org.children.a2aAgents.path + "/*"
+              }
+              element={<LazyA2AAgentsOrg />}
             />
             <Route
               path={

@@ -18,7 +18,9 @@ package services
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
+	"strings"
 	"testing"
 
 	"github.com/google/uuid"
@@ -500,4 +502,121 @@ func TestA2APublisherEnvironmentUUIDsListsProxiesWhenPublicationsFail(t *testing
 
 	require.Error(t, err)
 	assert.Contains(t, ids, id)
+}
+
+// gatewayStatusMocks maps an ingress gateway to the environment and answers the publication read with get.
+func gatewayStatusMocks(t *testing.T, get func(context.Context, string, string, string, uuid.UUID) (*models.A2APublication, error)) *publisherMocks {
+	m := newPublisherMocks(t)
+	m.gateways.ListWithFiltersFunc = func(repositories.GatewayFilterOptions) ([]*models.Gateway, error) {
+		return []*models.Gateway{{Vhost: "agents.example.com", GatewayFunctionalityType: models.GatewayRoleIngress}}, nil
+	}
+	m.pubs.GetFunc = get
+	return m
+}
+
+func readGatewayStatus(m *publisherMocks, source models.A2APublicationSource) (A2AGatewayStatus, error) {
+	key := testA2AKey()
+	return m.publisher().GatewayStatus(context.Background(), key.OUID, key.ProjectName, key.AgentName, key.EnvironmentUUID, source)
+}
+
+func publicationRow(pub models.A2APublication) func(context.Context, string, string, string, uuid.UUID) (*models.A2APublication, error) {
+	return func(context.Context, string, string, string, uuid.UUID) (*models.A2APublication, error) {
+		return &pub, nil
+	}
+}
+
+func publicationReadFails(err error) func(context.Context, string, string, string, uuid.UUID) (*models.A2APublication, error) {
+	return func(context.Context, string, string, string, uuid.UUID) (*models.A2APublication, error) {
+		return nil, err
+	}
+}
+
+func TestGatewayStatusReportsAMissingPublicationPerSource(t *testing.T) {
+	for _, tc := range []struct {
+		source models.A2APublicationSource
+		want   string
+	}{
+		{models.A2APublicationSourceExternal, "no gateway publication is queued for this environment; refresh to publish it again"},
+		{models.A2APublicationSourcePlatform, "no gateway publication is queued for this environment; redeploy the agent or save its deploy settings to publish it again"},
+	} {
+		t.Run(string(tc.source), func(t *testing.T) {
+			m := gatewayStatusMocks(t, publicationReadFails(repositories.ErrA2APublicationNotFound))
+
+			got, err := readGatewayStatus(m, tc.source)
+
+			require.NoError(t, err)
+			assert.Contains(t, got.GatewayURL, "agents.example.com")
+			assert.Equal(t, models.A2APublicationStatusFailed, got.Status)
+			assert.Equal(t, tc.want, got.LastError)
+			assert.Nil(t, got.Transports)
+		})
+	}
+}
+
+func TestGatewayStatusCopiesTheRow(t *testing.T) {
+	for _, tc := range []struct {
+		name       string
+		transports json.RawMessage
+		want       []A2ATransport
+	}{
+		{"recorded transports", json.RawMessage(`[{"protocolBinding":"JSONRPC","pathPrefix":""}]`), []A2ATransport{{ProtocolBinding: "JSONRPC", PathPrefix: ""}}},
+		{"unrecorded transports", nil, nil},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			m := gatewayStatusMocks(t, publicationRow(models.A2APublication{
+				Status: models.A2APublicationStatusPublished, LastError: "", PublishedTransports: tc.transports,
+			}))
+
+			got, err := readGatewayStatus(m, models.A2APublicationSourcePlatform)
+
+			require.NoError(t, err)
+			assert.Contains(t, got.GatewayURL, "agents.example.com")
+			assert.Equal(t, models.A2APublicationStatusPublished, got.Status)
+			assert.Empty(t, got.LastError)
+			assert.Equal(t, tc.want, got.Transports)
+		})
+	}
+}
+
+func TestGatewayStatusCopiesTheRowsLastError(t *testing.T) {
+	m := gatewayStatusMocks(t, publicationRow(models.A2APublication{
+		Status: models.A2APublicationStatusFailed, LastError: "gateway rejected the agent",
+	}))
+
+	got, err := readGatewayStatus(m, models.A2APublicationSourceExternal)
+
+	require.NoError(t, err)
+	assert.Equal(t, models.A2APublicationStatusFailed, got.Status)
+	assert.Equal(t, "gateway rejected the agent", got.LastError)
+}
+
+func TestGatewayStatusFailsOnUnparseableTransports(t *testing.T) {
+	m := gatewayStatusMocks(t, publicationRow(models.A2APublication{
+		Status: models.A2APublicationStatusPublished, PublishedTransports: json.RawMessage(`{`),
+	}))
+
+	_, err := readGatewayStatus(m, models.A2APublicationSourcePlatform)
+
+	require.Error(t, err)
+	assert.NotErrorIs(t, err, repositories.ErrA2APublicationNotFound)
+}
+
+func TestGatewayStatusFailsWhenTheGatewayLookupFails(t *testing.T) {
+	m := gatewayStatusMocks(t, publicationRow(models.A2APublication{Status: models.A2APublicationStatusPublished}))
+	m.gateways.ListWithFiltersFunc = func(repositories.GatewayFilterOptions) ([]*models.Gateway, error) {
+		return nil, assert.AnError
+	}
+
+	_, err := readGatewayStatus(m, models.A2APublicationSourcePlatform)
+
+	require.ErrorIs(t, err, assert.AnError)
+}
+
+func TestGatewayStatusWrapsPublicationReadErrors(t *testing.T) {
+	m := gatewayStatusMocks(t, publicationReadFails(assert.AnError))
+
+	_, err := readGatewayStatus(m, models.A2APublicationSourceExternal)
+
+	require.ErrorIs(t, err, assert.AnError)
+	assert.True(t, strings.HasPrefix(err.Error(), "failed to read the A2A publication"), err.Error())
 }

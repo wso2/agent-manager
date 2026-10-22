@@ -243,6 +243,17 @@ export const rootRouteMap: AppRoute = {
                         }
                     },
                 },
+                a2aAgents: {
+                    path: 'a2a-agents',
+                    index: true,
+                    children: {
+                        view: {
+                            path: 'view/:projectName/:agentName',
+                            index: true,
+                            children: {},
+                        },
+                    },
+                },
                 newProject: {
                     path: 'newProject',
                     index: true,

@@ -149,6 +149,6 @@ describe("SecurityComponent", () => {
     securityDisabled();
     renderPage();
     expect(screen.getByText(/deployment settings and redeploy/i)).toBeInTheDocument();
-    expect(screen.getByRole("link", { name: "Go to Deployment Settings" })).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "Go to Deployment Settings" })).toHaveAttribute("href", "/org/o/project/p/agents/a/deployment");
   });
 });

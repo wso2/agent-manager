@@ -43,3 +43,4 @@ export * from './ExternalModuleManager';
 export * from './TimeRangeSelector';
 export * from './TokenExpirySelector';
 export * from './PageHeaderContext';
+export * from './FilterBar';

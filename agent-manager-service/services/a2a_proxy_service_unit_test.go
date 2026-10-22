@@ -530,7 +530,7 @@ func TestGetA2AProxyWithoutAPublicationReportsFailed(t *testing.T) {
 
 	require.NoError(t, err)
 	assert.Equal(t, models.A2APublicationStatusFailed, got.Status)
-	assert.NotEmpty(t, got.LastError)
+	assert.Equal(t, "no gateway publication is queued for this environment; refresh to publish it again", got.LastError)
 }
 
 // The artifact, and the API keys bound to it, survive a switch to direct: the gateway is told to

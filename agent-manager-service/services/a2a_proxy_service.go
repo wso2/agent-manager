@@ -40,8 +40,6 @@ import (
 const (
 	a2aUpstreamHeaderMaxLen = 255
 	a2aUpstreamValueMaxLen  = 8192
-	// a2aProxyNoPublicationMsg reports a proxied environment with no publication queued; a refresh queues one.
-	a2aProxyNoPublicationMsg = "no gateway publication is queued for this environment; refresh to publish it again"
 )
 
 // a2aUpstreamHeaderPattern is the gateway's set-headers name schema.
@@ -147,22 +145,13 @@ func (s *a2aProxyService) GetA2AProxy(ctx context.Context, ouID, projectName, ag
 	if err != nil {
 		return nil, fmt.Errorf("failed to read the A2A proxy: %w", err)
 	}
-	gatewayURL, err := s.publisher.GatewayURL(t.key.OUID, t.key.EnvironmentUUID, t.key.AgentName)
+	gw, err := s.publisher.GatewayStatus(ctx, t.key.OUID, t.key.ProjectName, t.key.AgentName, t.key.EnvironmentUUID, models.A2APublicationSourceExternal)
 	if err != nil {
 		return nil, err
 	}
-	status := &models.A2AProxyStatus{UpstreamAuthHeader: proxy.UpstreamAuthHeader, GatewayURL: gatewayURL}
-	pub, err := s.publisher.Publication(ctx, t.key.OUID, t.key.ProjectName, t.key.AgentName, t.key.EnvironmentUUID)
-	switch {
-	case errors.Is(err, repositories.ErrA2APublicationNotFound):
-		// Enabling writes both rows together, so a missing publication never resolves on its own.
-		status.Status, status.LastError = models.A2APublicationStatusFailed, a2aProxyNoPublicationMsg
-	case err != nil:
-		return nil, fmt.Errorf("failed to read the A2A publication: %w", err)
-	default:
-		status.Status, status.LastError = pub.Status, pub.LastError
-	}
-	return status, nil
+	return &models.A2AProxyStatus{
+		UpstreamAuthHeader: proxy.UpstreamAuthHeader, GatewayURL: gw.GatewayURL, Status: gw.Status, LastError: gw.LastError,
+	}, nil
 }
 
 func (s *a2aProxyService) SetA2AProxy(

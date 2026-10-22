@@ -23,13 +23,19 @@ import type {
 } from "@agent-management-platform/types";
 import { encodeRequired, httpDELETE, httpGET, httpPOST, httpPUT, SERVICE_BASE } from "../utils";
 
-function agentCardPath(params: AgentCardPathParams): string {
+export function agentEnvironmentResourcePath(
+  params: AgentCardPathParams,
+  resource: string,
+): string {
   const org = encodeRequired(params.orgName, "orgName");
   const proj = encodeRequired(params.projName, "projName");
   const agent = encodeRequired(params.agentName, "agentName");
   const env = encodeRequired(params.envId, "envId");
-  return `${SERVICE_BASE}/orgs/${org}/projects/${proj}/agents/${agent}/environments/${env}/agent-card`;
+  return `${SERVICE_BASE}/orgs/${org}/projects/${proj}/agents/${agent}/environments/${env}/${resource}`;
 }
+
+const agentCardPath = (params: AgentCardPathParams): string =>
+  agentEnvironmentResourcePath(params, "agent-card");
 
 // The http helpers throw on non-2xx, so a 404 surfaces as an error with status 404.
 export async function getAgentCard(

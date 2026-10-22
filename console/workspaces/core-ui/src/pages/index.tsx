@@ -182,6 +182,13 @@ export const LazyMCPProxiesOrg = lazy(() =>
   }))
 );
 
+// A2A Agents
+export const LazyA2AAgentsOrg = lazy(() =>
+  import("@agent-management-platform/a2a-agents").then((m) => ({
+    default: m.metaData.levels!.organization as ComponentType,
+  }))
+);
+
 // Gateways
 export const LazyGatewaysOrg = lazy(() =>
   import("@agent-management-platform/gateways").then((m) => ({

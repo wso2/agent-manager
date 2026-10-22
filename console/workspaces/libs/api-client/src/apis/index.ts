@@ -21,6 +21,7 @@ export * from './agent-mcp-configs';
 export * from './agent-api-keys';
 export * from './agent-card';
 export * from './a2a-proxy';
+export * from './a2a-catalog';
 export * from './catalog';
 export * from './agents';
 export * from './builds';

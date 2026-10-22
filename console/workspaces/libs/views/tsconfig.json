@@ -26,7 +26,7 @@
       "outDir": "dist",
       "forceConsistentCasingInFileNames": true
     },
-    "include": ["src", ".storybook", "vite.config.ts", "setupTests.ts"],
+    "include": ["src", ".storybook", "vite.config.ts", "setupTests.tsx"],
     "exclude": [
       "src/**/__docs__",
       "src/**/__test__",
