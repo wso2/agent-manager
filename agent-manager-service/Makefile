@@ -99,7 +99,7 @@ OAPI_CODEGEN := go run github.com/oapi-codegen/oapi-codegen/v2/cmd/oapi-codegen@
 .PHONY: gen-oc-client
 gen-oc-client: ## Generate OpenChoreo API client from upstream OpenAPI spec.
 	@echo "Generating OpenChoreo client from upstream spec"
-	@curl -sL "https://raw.githubusercontent.com/openchoreo/openchoreo/v1.2.0/openapi/openchoreo-api.yaml" -o /tmp/openchoreo-api.yaml
+	@curl -sL "https://raw.githubusercontent.com/openchoreo/openchoreo/v1.3.1/openapi/openchoreo-api.yaml" -o /tmp/openchoreo-api.yaml
 	@$(OAPI_CODEGEN) -config clients/openchoreosvc/gen/oapi-codegen.yaml /tmp/openchoreo-api.yaml
 	@$(OAPI_CODEGEN) -config clients/openchoreosvc/gen/oapi-codegen-client.yaml /tmp/openchoreo-api.yaml
 	@rm /tmp/openchoreo-api.yaml

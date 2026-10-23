@@ -252,7 +252,8 @@ fb_print_helm_command() {
     echo "           --kube-context ${CLUSTER_CONTEXT} --namespace ${FB_NAMESPACE} \\"
     echo "           --version <installed chart version, from: helm list -n ${FB_NAMESPACE}> \\"
     echo "           --reuse-values \\"
-    echo "           --set \"fluent-bit.tolerations[0].operator=Exists\""
+    echo "           --set \"fluent-bit.tolerations[0].operator=Exists\" \\"
+    echo "           --set \"fluentBitCustomizations.clusterInstance=${CLUSTER_NAME}\""
 }
 if kubectl get daemonset fluent-bit -n "$FB_NAMESPACE" --context "$CLUSTER_CONTEXT" &>/dev/null; then
     echo "🪵 Ensuring Fluent Bit tolerates the gVisor taint (so logs are collected here)..."
@@ -279,7 +280,8 @@ if kubectl get daemonset fluent-bit -n "$FB_NAMESPACE" --context "$CLUSTER_CONTE
             --namespace "$FB_NAMESPACE" \
             --version "$FB_CHART_VERSION" \
             --reuse-values \
-            --set "fluent-bit.tolerations[0].operator=Exists" >/dev/null; then
+            --set "fluent-bit.tolerations[0].operator=Exists" \
+            --set "fluentBitCustomizations.clusterInstance=${CLUSTER_NAME}" >/dev/null; then
         echo "   ✅ Set fluent-bit.tolerations on the ${FB_RELEASE} release (chart ${FB_CHART_VERSION})"
     elif fb_tolerates_all "$(kubectl get daemonset fluent-bit -n "$FB_NAMESPACE" --context "$CLUSTER_CONTEXT" \
             -o jsonpath="$FB_TOLERATIONS_JSONPATH")"; then

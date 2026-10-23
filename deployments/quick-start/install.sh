@@ -17,7 +17,7 @@ set -euo pipefail
 # Configuration
 CLUSTER_NAME="amp-local"
 CLUSTER_CONTEXT="k3d-${CLUSTER_NAME}"
-OPENCHOREO_VERSION="1.2.0"
+OPENCHOREO_VERSION="1.3.1"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 K3D_CONFIG="${K3D_CONFIG:-${SCRIPT_DIR}/k3d-config.yaml}"
 
@@ -53,9 +53,9 @@ GATEWAY_ENCRYPTION_SECRET_NAME="gateway-encryption-keys"
 GATEWAY_ENCRYPTION_SECRET_KEY="default-aesgcm256-v1.bin"
 
 # OpenChoreo community module versions compatible with OpenChoreo ${OPENCHOREO_VERSION}
-OBSERVABILITY_LOGS_OPENSEARCH_VERSION="0.5.3"
+OBSERVABILITY_LOGS_OPENSEARCH_VERSION="0.6.0"
 OBSERVABILITY_TRACING_OPENSEARCH_VERSION="0.6.0"
-OBSERVABILITY_METRICS_PROMETHEUS_VERSION="0.6.1"
+OBSERVABILITY_METRICS_PROMETHEUS_VERSION="0.7.1"
 
 # Source AMP installation helpers
 source "${SCRIPT_DIR}/install-helpers.sh"
@@ -1316,6 +1316,7 @@ if helm upgrade --install observability-logs-opensearch \
     --version "${OBSERVABILITY_LOGS_OPENSEARCH_VERSION}" \
     --set openSearchSetup.openSearchSecretName="opensearch-admin-credentials" \
     --set adapter.openSearchSecretName="opensearch-admin-credentials" \
+    --set fluentBitCustomizations.clusterInstance="${CLUSTER_NAME}" \
     --timeout 10m; then
     log_success "observability-logs-opensearch installed successfully"
 else
@@ -1330,6 +1331,7 @@ if helm upgrade observability-logs-opensearch \
     --version "${OBSERVABILITY_LOGS_OPENSEARCH_VERSION}" \
     --reuse-values \
     --set fluent-bit.enabled=true \
+    --set fluentBitCustomizations.clusterInstance="${CLUSTER_NAME}" \
     --timeout 10m; then
     log_success "Log collection enabled with fluent-bit"
 else

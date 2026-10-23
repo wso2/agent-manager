@@ -258,6 +258,7 @@ install_logs_module() {
       --version "${OBSERVABILITY_LOGS_OPENSEARCH_VERSION}" \
       --set openSearchSetup.openSearchSecretName="opensearch-admin-credentials" \
       --set adapter.openSearchSecretName="opensearch-admin-credentials" \
+      --set fluentBitCustomizations.clusterInstance="${CLUSTER_NAME}" \
       --timeout 10m
     echo "✅ OpenSearch based logs module installed"
 
@@ -278,6 +279,7 @@ install_logs_module() {
       --reuse-values \
       --set fluent-bit.enabled=true \
       --set "fluent-bit.tolerations[0].operator=Exists" \
+      --set "fluentBitCustomizations.clusterInstance=${CLUSTER_NAME}" \
       --timeout 10m
     echo "✅ OpenSearch Log collection enabled"
 }

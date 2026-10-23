@@ -836,6 +836,9 @@ type ClientInterface interface {
 
 	HandleAutoBuild(ctx context.Context, params *HandleAutoBuildParams, body HandleAutoBuildJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
 
+	// GetMetadata request
+	GetMetadata(ctx context.Context, reqEditors ...RequestEditorFn) (*http.Response, error)
+
 	// ListGitSecrets request
 	ListGitSecrets(ctx context.Context, namespaceName NamespaceNameParam, reqEditors ...RequestEditorFn) (*http.Response, error)
 
@@ -847,8 +850,10 @@ type ClientInterface interface {
 	// DeleteGitSecret request
 	DeleteGitSecret(ctx context.Context, namespaceName NamespaceNameParam, gitSecretName GitSecretNameParam, reqEditors ...RequestEditorFn) (*http.Response, error)
 
-	// TriggerReleaseBindingCronJob request
-	TriggerReleaseBindingCronJob(ctx context.Context, namespaceName NamespaceNameParam, releaseBindingName ReleaseBindingNameParam, reqEditors ...RequestEditorFn) (*http.Response, error)
+	// TriggerReleaseBindingCronJobWithBody request with any body
+	TriggerReleaseBindingCronJobWithBody(ctx context.Context, namespaceName NamespaceNameParam, releaseBindingName ReleaseBindingNameParam, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	TriggerReleaseBindingCronJob(ctx context.Context, namespaceName NamespaceNameParam, releaseBindingName ReleaseBindingNameParam, body TriggerReleaseBindingCronJobJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
 
 	// ListSecrets request
 	ListSecrets(ctx context.Context, namespaceName NamespaceNameParam, params *ListSecretsParams, reqEditors ...RequestEditorFn) (*http.Response, error)
@@ -4158,6 +4163,18 @@ func (c *Client) HandleAutoBuild(ctx context.Context, params *HandleAutoBuildPar
 	return c.Client.Do(req)
 }
 
+func (c *Client) GetMetadata(ctx context.Context, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewGetMetadataRequest(c.Server)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
 func (c *Client) ListGitSecrets(ctx context.Context, namespaceName NamespaceNameParam, reqEditors ...RequestEditorFn) (*http.Response, error) {
 	req, err := NewListGitSecretsRequest(c.Server, namespaceName)
 	if err != nil {
@@ -4206,8 +4223,20 @@ func (c *Client) DeleteGitSecret(ctx context.Context, namespaceName NamespaceNam
 	return c.Client.Do(req)
 }
 
-func (c *Client) TriggerReleaseBindingCronJob(ctx context.Context, namespaceName NamespaceNameParam, releaseBindingName ReleaseBindingNameParam, reqEditors ...RequestEditorFn) (*http.Response, error) {
-	req, err := NewTriggerReleaseBindingCronJobRequest(c.Server, namespaceName, releaseBindingName)
+func (c *Client) TriggerReleaseBindingCronJobWithBody(ctx context.Context, namespaceName NamespaceNameParam, releaseBindingName ReleaseBindingNameParam, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewTriggerReleaseBindingCronJobRequestWithBody(c.Server, namespaceName, releaseBindingName, contentType, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) TriggerReleaseBindingCronJob(ctx context.Context, namespaceName NamespaceNameParam, releaseBindingName ReleaseBindingNameParam, body TriggerReleaseBindingCronJobJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewTriggerReleaseBindingCronJobRequest(c.Server, namespaceName, releaseBindingName, body)
 	if err != nil {
 		return nil, err
 	}
@@ -14909,6 +14938,33 @@ func NewHandleAutoBuildRequestWithBody(server string, params *HandleAutoBuildPar
 	return req, nil
 }
 
+// NewGetMetadataRequest generates requests for GetMetadata
+func NewGetMetadataRequest(server string) (*http.Request, error) {
+	var err error
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/api/v1alpha1/metadata")
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest("GET", queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return req, nil
+}
+
 // NewListGitSecretsRequest generates requests for ListGitSecrets
 func NewListGitSecretsRequest(server string, namespaceName NamespaceNameParam) (*http.Request, error) {
 	var err error
@@ -15031,8 +15087,19 @@ func NewDeleteGitSecretRequest(server string, namespaceName NamespaceNameParam, 
 	return req, nil
 }
 
-// NewTriggerReleaseBindingCronJobRequest generates requests for TriggerReleaseBindingCronJob
-func NewTriggerReleaseBindingCronJobRequest(server string, namespaceName NamespaceNameParam, releaseBindingName ReleaseBindingNameParam) (*http.Request, error) {
+// NewTriggerReleaseBindingCronJobRequest calls the generic TriggerReleaseBindingCronJob builder with application/json body
+func NewTriggerReleaseBindingCronJobRequest(server string, namespaceName NamespaceNameParam, releaseBindingName ReleaseBindingNameParam, body TriggerReleaseBindingCronJobJSONRequestBody) (*http.Request, error) {
+	var bodyReader io.Reader
+	buf, err := json.Marshal(body)
+	if err != nil {
+		return nil, err
+	}
+	bodyReader = bytes.NewReader(buf)
+	return NewTriggerReleaseBindingCronJobRequestWithBody(server, namespaceName, releaseBindingName, "application/json", bodyReader)
+}
+
+// NewTriggerReleaseBindingCronJobRequestWithBody generates requests for TriggerReleaseBindingCronJob with any type of body
+func NewTriggerReleaseBindingCronJobRequestWithBody(server string, namespaceName NamespaceNameParam, releaseBindingName ReleaseBindingNameParam, contentType string, body io.Reader) (*http.Request, error) {
 	var err error
 
 	var pathParam0 string
@@ -15064,10 +15131,12 @@ func NewTriggerReleaseBindingCronJobRequest(server string, namespaceName Namespa
 		return nil, err
 	}
 
-	req, err := http.NewRequest("POST", queryURL.String(), nil)
+	req, err := http.NewRequest("POST", queryURL.String(), body)
 	if err != nil {
 		return nil, err
 	}
+
+	req.Header.Add("Content-Type", contentType)
 
 	return req, nil
 }
@@ -16225,6 +16294,9 @@ type ClientWithResponsesInterface interface {
 
 	HandleAutoBuildWithResponse(ctx context.Context, params *HandleAutoBuildParams, body HandleAutoBuildJSONRequestBody, reqEditors ...RequestEditorFn) (*HandleAutoBuildResp, error)
 
+	// GetMetadataWithResponse request
+	GetMetadataWithResponse(ctx context.Context, reqEditors ...RequestEditorFn) (*GetMetadataResp, error)
+
 	// ListGitSecretsWithResponse request
 	ListGitSecretsWithResponse(ctx context.Context, namespaceName NamespaceNameParam, reqEditors ...RequestEditorFn) (*ListGitSecretsResp, error)
 
@@ -16236,8 +16308,10 @@ type ClientWithResponsesInterface interface {
 	// DeleteGitSecretWithResponse request
 	DeleteGitSecretWithResponse(ctx context.Context, namespaceName NamespaceNameParam, gitSecretName GitSecretNameParam, reqEditors ...RequestEditorFn) (*DeleteGitSecretResp, error)
 
-	// TriggerReleaseBindingCronJobWithResponse request
-	TriggerReleaseBindingCronJobWithResponse(ctx context.Context, namespaceName NamespaceNameParam, releaseBindingName ReleaseBindingNameParam, reqEditors ...RequestEditorFn) (*TriggerReleaseBindingCronJobResp, error)
+	// TriggerReleaseBindingCronJobWithBodyWithResponse request with any body
+	TriggerReleaseBindingCronJobWithBodyWithResponse(ctx context.Context, namespaceName NamespaceNameParam, releaseBindingName ReleaseBindingNameParam, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*TriggerReleaseBindingCronJobResp, error)
+
+	TriggerReleaseBindingCronJobWithResponse(ctx context.Context, namespaceName NamespaceNameParam, releaseBindingName ReleaseBindingNameParam, body TriggerReleaseBindingCronJobJSONRequestBody, reqEditors ...RequestEditorFn) (*TriggerReleaseBindingCronJobResp, error)
 
 	// ListSecretsWithResponse request
 	ListSecretsWithResponse(ctx context.Context, namespaceName NamespaceNameParam, params *ListSecretsParams, reqEditors ...RequestEditorFn) (*ListSecretsResp, error)
@@ -21613,6 +21687,30 @@ func (r HandleAutoBuildResp) StatusCode() int {
 	return 0
 }
 
+type GetMetadataResp struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON200      *MetadataResponse
+	JSON401      *Unauthorized
+	JSON500      *InternalError
+}
+
+// Status returns HTTPResponse.Status
+func (r GetMetadataResp) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r GetMetadataResp) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
 type ListGitSecretsResp struct {
 	Body         []byte
 	HTTPResponse *http.Response
@@ -24329,6 +24427,15 @@ func (c *ClientWithResponses) HandleAutoBuildWithResponse(ctx context.Context, p
 	return ParseHandleAutoBuildResp(rsp)
 }
 
+// GetMetadataWithResponse request returning *GetMetadataResp
+func (c *ClientWithResponses) GetMetadataWithResponse(ctx context.Context, reqEditors ...RequestEditorFn) (*GetMetadataResp, error) {
+	rsp, err := c.GetMetadata(ctx, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseGetMetadataResp(rsp)
+}
+
 // ListGitSecretsWithResponse request returning *ListGitSecretsResp
 func (c *ClientWithResponses) ListGitSecretsWithResponse(ctx context.Context, namespaceName NamespaceNameParam, reqEditors ...RequestEditorFn) (*ListGitSecretsResp, error) {
 	rsp, err := c.ListGitSecrets(ctx, namespaceName, reqEditors...)
@@ -24364,9 +24471,17 @@ func (c *ClientWithResponses) DeleteGitSecretWithResponse(ctx context.Context, n
 	return ParseDeleteGitSecretResp(rsp)
 }
 
-// TriggerReleaseBindingCronJobWithResponse request returning *TriggerReleaseBindingCronJobResp
-func (c *ClientWithResponses) TriggerReleaseBindingCronJobWithResponse(ctx context.Context, namespaceName NamespaceNameParam, releaseBindingName ReleaseBindingNameParam, reqEditors ...RequestEditorFn) (*TriggerReleaseBindingCronJobResp, error) {
-	rsp, err := c.TriggerReleaseBindingCronJob(ctx, namespaceName, releaseBindingName, reqEditors...)
+// TriggerReleaseBindingCronJobWithBodyWithResponse request with arbitrary body returning *TriggerReleaseBindingCronJobResp
+func (c *ClientWithResponses) TriggerReleaseBindingCronJobWithBodyWithResponse(ctx context.Context, namespaceName NamespaceNameParam, releaseBindingName ReleaseBindingNameParam, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*TriggerReleaseBindingCronJobResp, error) {
+	rsp, err := c.TriggerReleaseBindingCronJobWithBody(ctx, namespaceName, releaseBindingName, contentType, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseTriggerReleaseBindingCronJobResp(rsp)
+}
+
+func (c *ClientWithResponses) TriggerReleaseBindingCronJobWithResponse(ctx context.Context, namespaceName NamespaceNameParam, releaseBindingName ReleaseBindingNameParam, body TriggerReleaseBindingCronJobJSONRequestBody, reqEditors ...RequestEditorFn) (*TriggerReleaseBindingCronJobResp, error) {
+	rsp, err := c.TriggerReleaseBindingCronJob(ctx, namespaceName, releaseBindingName, body, reqEditors...)
 	if err != nil {
 		return nil, err
 	}
@@ -36123,6 +36238,46 @@ func ParseHandleAutoBuildResp(rsp *http.Response) (*HandleAutoBuildResp, error) 
 			return nil, err
 		}
 		response.JSON422 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
+		var dest InternalError
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON500 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseGetMetadataResp parses an HTTP response from a GetMetadataWithResponse call
+func ParseGetMetadataResp(rsp *http.Response) (*GetMetadataResp, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &GetMetadataResp{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest MetadataResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
+		var dest Unauthorized
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON401 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
 		var dest InternalError
