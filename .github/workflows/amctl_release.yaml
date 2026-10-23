@@ -1,0 +1,105 @@
+name: amctl CLI Release
+
+# Releases the amctl CLI on its own version line (tag amctl/v<version>), independent of
+# the platform release (amp/v<version>), which does not ship amctl. amctl's update check
+# (cli/pkg/update) reads this stream.
+
+on:
+  workflow_dispatch:
+    inputs:
+      branch:
+        description: "Branch or commit to release from"
+        required: true
+        default: "main"
+        type: string
+      target_version:
+        description: "amctl version to release (e.g., 1.1.0 or 1.1.0-rc.1)"
+        required: true
+        type: string
+
+run-name: amctl Release ${{ inputs.target_version }}
+
+jobs:
+  release:
+    name: Release amctl
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v6
+        with:
+          ref: ${{ inputs.branch }}
+          fetch-depth: 0
+
+      - name: Validate and set release metadata
+        env:
+          TARGET_VERSION: ${{ inputs.target_version }}
+        run: |
+          if ! [[ "$TARGET_VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.-]+)?$ ]]; then
+            echo "Error: target_version must be semver (e.g., 1.2.3 or 1.2.3-rc.1)"
+            exit 1
+          fi
+          printf 'VERSION=%s\n' "$TARGET_VERSION" >> "$GITHUB_ENV"
+          printf 'RELEASE_TAG=amctl/v%s\n' "$TARGET_VERSION" >> "$GITHUB_ENV"
+          printf 'COMMIT=%s\n' "$(git rev-parse --short HEAD)" >> "$GITHUB_ENV"
+          printf 'BUILD_DATE=%s\n' "$(date -u +%Y-%m-%dT%H:%M:%SZ)" >> "$GITHUB_ENV"
+          if [[ "$TARGET_VERSION" == *-* ]]; then
+            echo "IS_PRERELEASE=true" >> "$GITHUB_ENV"
+          else
+            echo "IS_PRERELEASE=false" >> "$GITHUB_ENV"
+          fi
+
+      - name: Check tag does not already exist
+        run: |
+          if git ls-remote --exit-code --tags origin "refs/tags/$RELEASE_TAG" >/dev/null; then
+            echo "Error: tag $RELEASE_TAG already exists. Use a different version."
+            exit 1
+          fi
+
+      - name: Setup Go
+        uses: actions/setup-go@v6.1.0
+        with:
+          go-version-file: cli/go.mod
+          cache-dependency-path: cli/go.sum
+
+      - name: Run CLI tests
+        run: cd cli && go test ./...
+
+      # Build before tagging, so a failed build leaves no tag behind.
+      - name: Build release artifacts
+        run: |
+          scripts/build-amctl.sh \
+            --version "$VERSION" \
+            --commit "$COMMIT" \
+            --date "$BUILD_DATE" \
+            --output-dir dist/
+
+      - name: Create and push tag
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git tag -a "$RELEASE_TAG" -m "Release amctl v${VERSION}"
+          git push origin "$RELEASE_TAG"
+
+      - name: Create draft GitHub release
+        uses: softprops/action-gh-release@b4309332981a82ec1c5618f44dd2e27cc8bfbfda # v3.0.0
+        with:
+          tag_name: ${{ env.RELEASE_TAG }}
+          name: "WSO2 Agent Manager - CLI amctl v${{ env.VERSION }}"
+          draft: true
+          prerelease: ${{ env.IS_PRERELEASE == 'true' }}
+          # The platform release keeps the repository's "Latest" badge.
+          make_latest: false
+          body: |
+            ## amctl v${{ env.VERSION }}
+
+            **Commit:** ${{ env.COMMIT }}
+            **Built:** ${{ env.BUILD_DATE }}
+            **Source:** ${{ inputs.branch }}
+
+            Prebuilt `amctl` binaries (Linux, macOS, Windows) and `checksums.txt` are attached.
+
+            ---
+            _Draft release: add release notes, then publish. amctl's update check only sees published, non-pre-release versions._
+          files: dist/*

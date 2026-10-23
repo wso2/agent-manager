@@ -60,3 +60,24 @@ Unit tests build `*XxxOptions` directly — no cobra tree needed. See `agent/get
 All exported functions and types must have doc comments. Internal (unexported) functions in shared packages (`cmdutil`, `render`, `clierr`, `clients`) should too. Leaf command internals (`cmd/<group>/*.go`) are lower priority — add doc comments when the intent isn't obvious from the name and signature.
 
 Doc comments explain **why** something exists and when to use it — the code already explains the what. Don't restate the signature in prose.
+
+## WSO2 Cloud
+
+Cloud-only knowledge lives in `pkg/cloud` — keep it out of the instance-agnostic `login` / `auth` code.
+
+- `amctl login --cloud` builds the instance URL from `cloud.APIURL` (gateway in `AMCTL_CLOUD_URL`, production by default, plus the API path) and sends the RFC 8707 resource indicator `cloud.Resource` (`urn:wso2:amp`). The cloud IdP is shared across WSO2 Cloud products and does not default to the Agent Manager resource server, so without it the token has no `amp:*` scopes
+- The resource indicator is cloud-only and deliberately not a flag; re-login restores it from the stored instance (`auth.resource` in `~/.amctl/config`)
+- Scopes always come from discovery (`/.well-known/oauth-protected-resource` → `scopes_supported`); don't add a client-side scope list
+
+## Releases and updates
+
+amctl has its own version line, independent of the platform.
+
+- **Released by `.github/workflows/amctl_release.yaml`** (manual dispatch: source branch + semver). It tests, builds with `scripts/build-amctl.sh` (all platforms + `checksums.txt`), then tags `amctl/v<version>` and creates a **draft** release with `make_latest: false` so the platform release keeps the repo's "Latest" badge. A `-` suffix (`1.1.0-rc.1`) makes a pre-release. Publish the draft to ship it
+- **The platform release does not ship amctl** — `release.yml` / `release-promote.yml` (`amp/v<version>`) have no amctl job. Don't add it back; two streams would publish conflicting `amctl` versions
+- **Version stamping:** `pkg/version` (`Version`, `Commit`, `Date`) is set via `-ldflags` by `scripts/build-amctl.sh` (`make amctl-build` for the local platform, `make amctl-release-dry-run` for all). Plain `go build` reports `dev`
+- **Update check (`pkg/update`):** reads only published, non-pre-release `amctl/v…` releases (following GitHub's `Link: rel="next"` pages), takes the highest version (skipping releases with no `amctl_v…` binaries), and links the `amctl_v<version>_<os>_<arch>` binary for the running platform, or the release page when that release has no binary for it. `cmd/login.go` (`warnIfOutdated`) runs it on cloud logins only: 3s timeout, never fails the login, skipped for `dev` builds
+- **Keep the contract in sync:** the tag prefix (`amctl/v`) and asset names (`amctl_v<version>_<os>_<arch>.*`) are shared by the workflow, `scripts/build-amctl.sh` and `pkg/update` (where the repo and the `amctl` marker are defined once, as `repo` and `stream`) — change them together
+- **Version ordering:** binaries attached to the earlier platform release `amp/v1.0.0` report `1.0.0`; keep `amctl/v` versions above that, or those users are never told to upgrade
+- Users are pointed at the amctl releases listing (`update.ReleasesPageURL`, `releases?q=amctl`), never `/releases/latest` — that is the platform release
+

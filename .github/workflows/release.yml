@@ -386,43 +386,6 @@ jobs:
             PYTHON_VERSION=${{ matrix.image.python_version }}
             TRACELOOP_VERSION=${{ matrix.image.traceloop_version }}
 
-  build-amctl:
-    name: Build amctl CLI
-    needs: prepare-release
-    runs-on: ubuntu-latest
-    permissions:
-      contents: read
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v6
-        with:
-          ref: amp/v${{ inputs.target_version }}
-          fetch-depth: 0
-
-      - name: Setup Go
-        uses: actions/setup-go@v6.1.0
-        with:
-          go-version-file: cli/go.mod
-          cache-dependency-path: cli/go.sum
-
-      - name: Run CLI tests
-        run: cd cli && go test ./...
-
-      - name: Build release artifacts
-        run: |
-          scripts/build-amctl.sh \
-            --version "${{ inputs.target_version }}" \
-            --commit "$(git rev-parse --short HEAD)" \
-            --date "$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
-            --output-dir dist/
-
-      - name: Upload amctl artifacts
-        uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7.0.0
-        with:
-          name: amctl-dist
-          path: dist/
-          retention-days: 7
-
   package-charts:
     name: Package ${{ matrix.chart.name }}
     needs:
@@ -612,7 +575,6 @@ jobs:
         build-images,
         build-python-instrumentation-provider-images,
         package-charts,
-        build-amctl,
       ]
     runs-on:
       - codebuild-wso2_agent-manager-${{ github.run_id }}-${{ github.run_attempt }}
@@ -660,9 +622,6 @@ jobs:
               echo "- \`${HELM_REGISTRY}/${chart}:${VERSION}\`"
             done
 
-            echo ""
-            echo "### CLI (amctl)"
-            echo "Prebuilt \`amctl\` binaries (Linux, macOS, Windows) and \`checksums.txt\` are attached to this release."
 
             echo ""
             echo "### Install bundle"
@@ -690,12 +649,6 @@ jobs:
           # names a registry namespace and need not match the GitHub owner.
           REPO_OWNER: ${{ github.repository_owner }}
         shell: bash
-
-      - name: Download amctl artifacts
-        uses: actions/download-artifact@v8
-        with:
-          name: amctl-dist
-          path: dist/
 
       - name: Package install bundle
         run: |
