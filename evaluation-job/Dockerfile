@@ -34,7 +34,8 @@ RUN apk add --no-cache git
 COPY libs/amp-evaluation/pyproject.toml libs/amp-evaluation/README.md ./sdk/
 COPY libs/amp-evaluation/src/ ./sdk/src/
 COPY evaluation-job/requirements.txt ./
-RUN pip install --no-cache-dir --prefer-binary ./sdk -r requirements.txt
+RUN pip install --no-cache-dir setuptools==84.2.1 && \
+    pip install --no-cache-dir --prefer-binary ./sdk -r requirements.txt
 
 # Copy the job entrypoint
 COPY evaluation-job/main.py ./
