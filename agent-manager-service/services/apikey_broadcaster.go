@@ -25,6 +25,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"gorm.io/gorm"
 
 	"github.com/wso2/agent-manager/agent-manager-service/models"
 	"github.com/wso2/agent-manager/agent-manager-service/repositories"
@@ -273,10 +274,31 @@ func (b *apiKeyBroadcaster) broadcastRotateToGateways(gateways []*models.Gateway
 		expiresAt = &t
 	}
 
+	// Determine the UUID to use for both the persistent store and the rotation
+	// event. The gateway controller's replica-sync handler matches events against
+	// its in-memory store by (artifactUUID, keyName, uuid); the event must carry
+	// the same UUID as the stored key. We look up the existing key first:
+	//   - found + same org: reuse its UUID so the controller sees a stable identity
+	//   - not found (first rotation): generate a new UUID used for both upsert and event
+	//   - other error: surface it — a silently wrong UUID is worse than a failed rotation
+	keyUUID := uuid.Must(uuid.NewV7())
+	if b.apiKeyRepo != nil {
+		existing, err := b.apiKeyRepo.GetByArtifactAndName(artifactUUID, keyName)
+		if err != nil && !errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil, fmt.Errorf("failed to look up existing API key UUID before rotation: %w", err)
+		}
+		if existing != nil {
+			if existing.OUID != orgID {
+				return nil, fmt.Errorf("API key %q belongs to a different organization", keyName)
+			}
+			keyUUID = existing.UUID
+		}
+	}
+
 	// Update key in persistent store
 	if b.apiKeyRepo != nil {
 		storedKey := &models.StoredAPIKey{
-			UUID:         uuid.Must(uuid.NewV7()),
+			UUID:         keyUUID,
 			Name:         keyName,
 			ArtifactUUID: parsedArtifactUUID,
 			OUID:         orgID,
@@ -293,6 +315,7 @@ func (b *apiKeyBroadcaster) broadcastRotateToGateways(gateways []*models.Gateway
 	}
 
 	event := &models.APIKeyUpdatedEvent{
+		UUID:         keyUUID.String(),
 		APIID:        apiID,
 		KeyName:      keyName,
 		ApiKeyHashes: hashAPIKeyToJSON(newAPIKey),

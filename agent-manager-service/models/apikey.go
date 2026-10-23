@@ -222,6 +222,13 @@ type APIKeyRevokedEvent struct {
 
 // APIKeyUpdatedEvent represents the event payload for "apikey.updated" event type
 type APIKeyUpdatedEvent struct {
+	// UUID is the stable identifier for the key being updated, matching the UUID
+	// used in the original "apikey.created" event. The gateway controller's
+	// replica-sync handler keys its in-memory store on (artifactUUID, keyName, uuid);
+	// sending a random UUID here causes "already exists with a different ID" on every
+	// rotation, which prevents the rotated key from ever being validated.
+	UUID string `json:"uuid,omitempty"`
+
 	// APIID identifies the LLM provider or proxy this key belongs to
 	APIID string `json:"apiId"`
 
