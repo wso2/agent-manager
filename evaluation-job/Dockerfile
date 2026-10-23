@@ -27,7 +27,7 @@ LABEL org.opencontainers.image.licenses="Apache-2.0"
 WORKDIR /app
 
 # Install system dependencies
-RUN apk add --no-cache git
+RUN apk add --no-cache git 'ca-certificates>=20261020'
 
 # Install amp-evaluation SDK from local source
 # This is temporary until amp-evaluation is published to PyPI. It allows us to use the latest code without needing a release.
