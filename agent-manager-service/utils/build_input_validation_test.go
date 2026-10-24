@@ -103,7 +103,36 @@ func TestValidateRepoDetails(t *testing.T) {
 		{"empty branch", okURL, "", okAppPath, true},
 		{"empty app path", okURL, okBranch, "", true},
 		{"empty URL", "", okBranch, okAppPath, true},
-		{"non-GitHub host", "https://gitlab.com/wso2/agent-manager", okBranch, okAppPath, true},
+		// Non-GitHub HTTPS Git hosts: now accepted.
+		{"gitlab.com owner/repo", "https://gitlab.com/myorg/myrepo", okBranch, okAppPath, false},
+		{"gitlab.com with group path", "https://gitlab.com/myorg/mygroup/myrepo", okBranch, okAppPath, false},
+		{"gitlab.com with deep group path", "https://gitlab.com/myorg/group-a/group-b/myrepo", okBranch, okAppPath, false},
+		{"self-hosted git", "https://git.example.com/myorg/myrepo", okBranch, okAppPath, false},
+		{"self-hosted git deep path", "https://git.example.com/myorg/mygroup/myrepo", okBranch, okAppPath, false},
+		{"bitbucket.org", "https://bitbucket.org/myorg/myrepo", okBranch, okAppPath, false},
+		// Self-hosted GitLab: the gitlab.<domain> subdomain pattern is the most common
+		// naming convention for self-hosted instances and is the shape validated in
+		// production. A group-nested path is also expected and must be accepted.
+		{"self-hosted gitlab hostname", "https://gitlab.example.com/myorg/myrepo", okBranch, okAppPath, false},
+		{"self-hosted gitlab with group path", "https://gitlab.example.com/myorg/group/myrepo", okBranch, okAppPath, false},
+		{"self-hosted gitlab .git suffix", "https://gitlab.example.com/myorg/myrepo.git", okBranch, okAppPath, false},
+		// The non-GitHub path must be equally hostile to injection; these exercise
+		// the gitRepoURLRe path-segment allowlist through a self-hosted host.
+		{
+			"command separator in non-GitHub URL path",
+			"https://gitlab.example.com/myorg/myrepo;echo injected",
+			okBranch, okAppPath, true,
+		},
+		{
+			"path traversal in non-GitHub URL",
+			"https://gitlab.example.com/myorg/../etc/myrepo",
+			okBranch, okAppPath, true,
+		},
+		// Non-HTTPS and non-domain URLs must still be rejected.
+		{"plain http", "http://github.com/wso2/agent-manager", okBranch, okAppPath, true},
+		{"localhost rejected", "https://localhost/myorg/myrepo", okBranch, okAppPath, true},
+		{"IP address rejected", "https://192.168.1.1/myorg/myrepo", okBranch, okAppPath, true},
+		{"bare hostname rejected", "https://internal/myorg/myrepo", okBranch, okAppPath, true},
 		{"over-long URL", okURL + strings.Repeat("a", MaxRepositoryURLLength), okBranch, okAppPath, true},
 		{"over-long branch", okURL, strings.Repeat("b", MaxGitBranchLength+1), okAppPath, true},
 	}
