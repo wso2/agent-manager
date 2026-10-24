@@ -1,0 +1,7 @@
+{
+  "server": "agent-manager",
+  "env": "AMP_MCP",
+  "clientId": "am-mcp",
+  "callbackPort": 33418,
+  "url": "http://localhost:9000/mcp"
+}
