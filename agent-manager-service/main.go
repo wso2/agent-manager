@@ -18,7 +18,6 @@ package main
 
 import (
 	"flag"
-	"strings"
 
 	"github.com/wso2/agent-manager/agent-manager-service/app"
 	ocauth "github.com/wso2/agent-manager/agent-manager-service/clients/openchoreosvc/auth"
@@ -35,12 +34,15 @@ func main() {
 
 	cfg := config.GetConfig()
 
-	// Open-source: OAuth2 client credentials auth
+	// Open-source: OAuth2 client credentials auth.
+	// Scope is intentionally empty: OAuthScopesSupported is for validating
+	// incoming tokens, not for requesting scopes on outbound OpenChoreo calls.
+	// Keycloak rejects the grant when passed amp:* scopes that the amp-api
+	// service account does not hold.
 	authProvider := ocauth.NewAuthProvider(ocauth.Config{
 		TokenURL:     cfg.IDP.TokenURL,
 		ClientID:     cfg.IDP.ClientID,
 		ClientSecret: cfg.IDP.ClientSecret,
-		Scope:        strings.Join(cfg.OAuthScopesSupported, " "),
 	})
 
 	// Secret management via the OpenChoreo secret management API

@@ -147,6 +147,19 @@ func MakeInternalHTTPHandler(params *wiring.AppParams) http.Handler {
 		}
 	})
 
+	// Gateway controller well-known endpoint: allows the egress gateway controller to
+	// discover that this is an on-prem-style control plane (IsOnPrem() = true), which
+	// switches it to the WebSocket-event-driven route-loading path instead of the
+	// platform-API SaaS path that requires POST /deployments/fetch-batch (not yet
+	// implemented). The response mirrors the on-prem APIM format.
+	mux.HandleFunc("GET /internal/gateway/.well-known", func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusOK)
+		if _, err := w.Write([]byte(`{"gatewayPath":"api/internal/v1"}`)); err != nil {
+			logger.GetLogger(r.Context()).Error("Failed to write gateway well-known response", "error", err)
+		}
+	})
+
 	// Create internal mux for gateway internal and WebSocket routes (NO JWT middleware)
 	// These routes use api-key header authentication instead
 	internalMux := http.NewServeMux()

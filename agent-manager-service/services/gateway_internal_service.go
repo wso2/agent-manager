@@ -162,7 +162,7 @@ func (s *GatewayInternalAPIService) GetActiveDeploymentByGateway(apiID, ouID, ga
 
 // GetActiveLLMProviderDeploymentByGateway retrieves the currently deployed LLM provider artifact
 func (s *GatewayInternalAPIService) GetActiveLLMProviderDeploymentByGateway(ctx context.Context, providerID, ouID, gatewayID string) (map[string]string, error) {
-	provider, err := s.providerRepo.GetByUUID(providerID, ouID)
+	provider, err := s.providerRepo.GetByHandle(providerID, ouID)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get LLM provider: %w", err)
 	}
