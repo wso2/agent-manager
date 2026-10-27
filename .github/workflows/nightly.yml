@@ -19,9 +19,12 @@ run-name: Nightly Dev Build #${{ github.run_number }}${{ inputs.dry_run && ' (dr
 # No git tag is deleted or created, no real nightly image is touched, and no
 # Chat message is posted. Scheduled runs are never dry runs.
 #
-# Build, package, cleanup and notify always run on GitHub-hosted runners.
-# Only the e2e job runs on the dedicated self-hosted VM (runner label
-# `amp-nightly-e2e`), on every run.
+# Every job runs on the dedicated self-hosted VM (runner label
+# `amp-nightly-e2e`). With one runner the jobs, including each matrix entry,
+# run one after another. Nothing is installed on the VM; it must already have,
+# on the runner user's PATH: git, curl, jq, gh, docker (usable without sudo,
+# with buildx), k3d, yq, kubectl and helm, plus the kernel limits OpenSearch
+# needs (vm.max_map_count >= 262144). Check with nightly-vm-check.sh.
 
 on:
   schedule:
@@ -61,7 +64,7 @@ jobs:
   # nightly's images (which share today's 0.0.0-dev-<date> tag).
   compute-version:
     name: Compute Version
-    runs-on: ubuntu-24.04
+    runs-on: [self-hosted, amp-nightly-e2e]
     timeout-minutes: 10
     outputs:
       dev-version: ${{ steps.version.outputs.dev-version }}
@@ -86,7 +89,7 @@ jobs:
   # Load release-config.json and emit job matrices (mirrors release.yml pattern).
   load-config:
     name: Load Config
-    runs-on: ubuntu-24.04
+    runs-on: [self-hosted, amp-nightly-e2e]
     timeout-minutes: 10
     outputs:
       images: ${{ steps.set-matrix.outputs.images }}
@@ -119,7 +122,7 @@ jobs:
   build-images:
     name: Build ${{ matrix.image.name }}
     needs: [compute-version, load-config]
-    runs-on: ubuntu-24.04
+    runs-on: [self-hosted, amp-nightly-e2e]
     timeout-minutes: 45
     permissions:
       contents: read
@@ -141,6 +144,11 @@ jobs:
             echo "::error::Dockerfile not found at ${DOCKERFILE} (from .github/release-config.json). Fix the config or restore the file."
             exit 1
           fi
+
+      # Images are built for amd64 and arm64. The VM is amd64, so arm64 needs
+      # QEMU emulation (GitHub-hosted runners had it preinstalled).
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@v3
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
@@ -165,7 +173,7 @@ jobs:
   package-charts:
     name: Package ${{ matrix.chart.name }}
     needs: [compute-version, build-images, load-config]
-    runs-on: ubuntu-24.04
+    runs-on: [self-hosted, amp-nightly-e2e]
     timeout-minutes: 30
     permissions:
       contents: read
@@ -220,13 +228,15 @@ jobs:
           REGISTRY_USERNAME: ${{ secrets.REGISTRY_USERNAME }}
           REGISTRY_PASSWORD: ${{ secrets.REGISTRY_PASSWORD }}
 
+      # package-helm-chart.sh logs in with `helm registry login`, which stores
+      # the credentials in the runner user's home on the long-lived VM.
+      - name: Log out of the Helm registry
+        if: always()
+        run: helm registry logout "${HELM_REGISTRY#oci://}" || true
+
   e2e:
     name: E2E
     needs: [compute-version, package-charts]
-    # Always the dedicated nightly VM. Nothing is installed on it; it must
-    # already have, on the runner user's PATH: git, docker (usable without
-    # sudo), k3d, yq, kubectl and helm, plus the kernel limits OpenSearch
-    # needs (vm.max_map_count >= 262144). Check with nightly-vm-check.sh.
     runs-on: [self-hosted, amp-nightly-e2e]
     # Each long step below has its own timeout (install 60 + tests 120 +
     # security 60). This job timeout is larger than their sum on purpose: if a
@@ -484,7 +494,7 @@ jobs:
     name: Publish Nightly Git Tag
     needs: [compute-version, e2e]
     if: ${{ needs.e2e.result == 'success' && needs.compute-version.outputs.dry-run != 'true' }}
-    runs-on: ubuntu-24.04
+    runs-on: [self-hosted, amp-nightly-e2e]
     timeout-minutes: 15
     permissions:
       contents: write
@@ -545,7 +555,7 @@ jobs:
         (always() && needs.compute-version.outputs.dry-run == 'true') ||
         (needs.e2e.result == 'success' && needs.compute-version.outputs.dry-run != 'true')
       ) }}
-    runs-on: ubuntu-24.04
+    runs-on: [self-hosted, amp-nightly-e2e]
     timeout-minutes: 30
     continue-on-error: true
     permissions:
@@ -609,7 +619,7 @@ jobs:
     name: Notify Google Chat
     needs: [compute-version, load-config, build-images, package-charts, e2e, publish-dev-tag]
     if: ${{ !cancelled() && needs.compute-version.outputs.dry-run != 'true' }}
-    runs-on: ubuntu-24.04
+    runs-on: [self-hosted, amp-nightly-e2e]
     timeout-minutes: 10
     steps:
       - name: Post run status
