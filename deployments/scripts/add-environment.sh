@@ -119,6 +119,36 @@ if [ "${PROVISION_THUNDER:-true}" != "true" ] && storage_settings_requested; the
     exit 1
 fi
 
+# Wrong storage settings are rejected here as well, before the environment is created:
+# the Thunder step that would reject them runs after Step 1, and a rejected run would
+# leave a new environment behind with no Thunder. The rules are the ones
+# add-environment-thunder.sh applies (deployments/scripts/thunder-storage.sh, same
+# prefer-sibling, fall-back-to-fetch loading as thunder-naming.sh below). Nothing is
+# loaded or fetched when no storage setting was given, so the default flow is unchanged.
+if storage_settings_requested; then
+    if [ -n "${BASH_SOURCE[0]:-}" ] && [ -f "$(dirname "${BASH_SOURCE[0]}")/thunder-storage.sh" ]; then
+        # shellcheck source=thunder-storage.sh
+        source "$(dirname "${BASH_SOURCE[0]}")/thunder-storage.sh"
+    else
+        _storage_lib_url="${THUNDER_STORAGE_LIB_URL:-${SCRIPT_BASE_URL}/thunder-storage.sh}"
+        _storage_lib_tmp="$(mktemp)"
+        if ! curl -fsSL "${_storage_lib_url}" -o "${_storage_lib_tmp}"; then
+            echo "❌ Failed to fetch the Thunder storage validation helpers from ${_storage_lib_url}" >&2
+            echo "   THUNDER_* storage settings were given, so they cannot be checked; nothing was created." >&2
+            rm -f "${_storage_lib_tmp}"
+            exit 1
+        fi
+        # shellcheck source=/dev/null
+        source "${_storage_lib_tmp}"
+        rm -f "${_storage_lib_tmp}"
+        unset _storage_lib_url _storage_lib_tmp
+    fi
+    if ! validate_storage_config; then
+        echo "   Fix the THUNDER_* settings above and re-run; nothing was created." >&2
+        exit 1
+    fi
+fi
+
 # --- Configuration (can be overridden via env vars) ---
 ORG_NAME="${ORG_NAME:-default}"
 # Namespace the OpenChoreo Environment CRs are created in. The platform-resources
@@ -526,8 +556,11 @@ if [ "${PROVISION_THUNDER:-true}" = "true" ]; then
       else
         if storage_settings_requested; then
           echo "❌ Thunder ID provisioning failed, and THUNDER_* storage settings were given, so this run" >&2
-          echo "   will not fall back to the shared platform Thunder or an existing instance. Fix the error" >&2
-          echo "   above and re-run this script with the same ENV_NAME (idempotent)." >&2
+          echo "   will not fall back to the shared platform Thunder or an existing instance." >&2
+          echo "   Fix the error above, then re-run this script with the same ENV_NAME and THUNDER_* settings." >&2
+          echo "   If the error says the Thunder install failed on its first run, remove it first, because a" >&2
+          echo "   plain re-run is refused until you do:" >&2
+          echo "     curl -fsSL ${SCRIPT_BASE_URL}/remove-environment-thunder.sh | ENV_NAME=${ENV_NAME} ORG_NAME=${ORG_NAME} bash" >&2
           rm -f "$script_tmp"
           exit 1
         fi
