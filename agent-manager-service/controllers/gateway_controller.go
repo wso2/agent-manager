@@ -21,9 +21,12 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"log/slog"
 	"net/http"
 	"strings"
+	"time"
 
+	"github.com/google/uuid"
 	"gorm.io/gorm"
 
 	"github.com/wso2/agent-manager/agent-manager-service/audit"
@@ -42,7 +45,42 @@ const (
 
 	// Default offset for pagination
 	defaultOffset = 0
+
+	// mcpBindingReconcileTimeout bounds the post-assignment MCP binding reconcile, which
+	// runs in the background detached from the request context (see
+	// AssignGatewayToEnvironment). Detaching removes the caller's cancellation as a stop
+	// condition, so the work needs one of its own or a wedged gateway or database call
+	// would leak the goroutine indefinitely.
+	mcpBindingReconcileTimeout = 2 * time.Minute
 )
+
+// reconcileMCPBindingsInBackground runs an MCP binding reconcile off the request path, on a
+// context detached from the request and bounded by mcpBindingReconcileTimeout.
+//
+// The triggering write is already committed and the reconcile writes real resources —
+// mapping rows, API keys, injected variables — so a client disconnect must not tear it off
+// halfway. It also must not hold the response: across many agents it can outlast the
+// server's HTTP write timeout, and a response dropped after the write committed shows the
+// client an error for something that succeeded. Its result is only ever logged.
+//
+// A panic is recovered and logged: the panic-recovery middleware guards only the request
+// goroutine, so one escaping here would take the whole service down.
+func reconcileMCPBindingsInBackground(
+	ctx context.Context, log *slog.Logger, op string, reconcile func(context.Context) error, attrs ...any,
+) {
+	reconcileCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), mcpBindingReconcileTimeout)
+	go func() {
+		defer cancel()
+		defer func() {
+			if rec := recover(); rec != nil {
+				log.Error(op+": MCP binding reconcile panicked", append(attrs, "panic", rec)...)
+			}
+		}()
+		if err := reconcile(reconcileCtx); err != nil {
+			log.Warn(op+": failed to reconcile agent MCP bindings", append(attrs, "error", err)...)
+		}
+	}()
+}
 
 // GatewayController defines interface for gateway HTTP handlers
 type GatewayController interface {
@@ -60,6 +98,10 @@ type GatewayController interface {
 	RevokeGatewayToken(w http.ResponseWriter, r *http.Request)
 	GetGatewayStatus(w http.ResponseWriter, r *http.Request)
 
+	// Cross-organization, platform-admin only. Not org-scoped like everything
+	// else on this interface — see the handler.
+	GetPlatformGatewayFailureSummary(w http.ResponseWriter, r *http.Request)
+
 	// Identity provider handlers
 	ListIdentityProviders(w http.ResponseWriter, r *http.Request)
 	ListGatewayIdentityProviders(w http.ResponseWriter, r *http.Request)
@@ -70,18 +112,21 @@ type GatewayController interface {
 }
 
 type gatewayController struct {
-	gatewayService *services.PlatformGatewayService
-	ocClient       occlient.OpenChoreoClient
+	gatewayService     *services.PlatformGatewayService
+	ocClient           occlient.OpenChoreoClient
+	agentConfigService services.AgentConfigurationService
 }
 
 // NewGatewayController creates a new gateway controller
 func NewGatewayController(
 	gatewayService *services.PlatformGatewayService,
 	ocClient occlient.OpenChoreoClient,
+	agentConfigService services.AgentConfigurationService,
 ) GatewayController {
 	return &gatewayController{
-		gatewayService: gatewayService,
-		ocClient:       ocClient,
+		gatewayService:     gatewayService,
+		ocClient:           ocClient,
+		agentConfigService: agentConfigService,
 	}
 }
 
@@ -246,10 +291,31 @@ func (c *gatewayController) GetGateway(w http.ResponseWriter, r *http.Request) {
 	utils.WriteSuccessResponse(w, http.StatusOK, response)
 }
 
+// impersonatedOUID returns the organization a trusted caller asked to act on
+// instead of its token's, as decided by the deployment's OrgOverrideResolver.
+// With no resolver installed (the open-source default) it never overrides, so
+// the token stays the sole source of org identity. Only the handlers a
+// deployment's control plane drives on a tenant's behalf consult it.
+func impersonatedOUID(r *http.Request) (string, bool) {
+	return middleware.OrgOverride(r)
+}
+
 func (c *gatewayController) ListGateways(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	log := logger.GetLogger(ctx)
 	ouID := middleware.OUIDFromRequest(r)
+
+	// A trusted control-plane caller may act on a tenant's behalf (see
+	// impersonatedOUID); its override wins over the token, and the context is
+	// rewritten too. Without a deployment-installed resolver this never fires.
+	if impersonated, ok := impersonatedOUID(r); ok && impersonated != ouID {
+		log.Warn("ListGateways: org impersonation header overrides token org",
+			"tokenOuID", ouID, "impersonatedOuID", impersonated)
+		ouID = impersonated
+		org, _ := middleware.GetResolvedOrg(ctx)
+		org.OUID = impersonated
+		ctx = middleware.WithResolvedOrg(ctx, org)
+	}
 
 	// Parse and validate pagination parameters
 	limit := getIntQueryParam(r, "limit", defaultLimit)
@@ -439,6 +505,36 @@ func (c *gatewayController) AssignGatewayToEnvironment(w http.ResponseWriter, r 
 		log.Error("AssignGatewayToEnvironment: failed to assign", "error", err)
 		handleGatewayErrors(w, err, "Failed to assign gateway to environment")
 		return
+	}
+
+	// An environment with no egress gateway can host no MCP proxy artifact, so every agent
+	// whose MCP connection points into it was left with its URL and API-key variables
+	// injected but empty — a binding nothing could write. Mapping a gateway here is what
+	// makes those environments bindable, and it is the only signal that says so: the proxy
+	// itself did not change, so no proxy update will follow to trigger the reconcile.
+	//
+	// Best-effort: a failure leaves the assignment intact — promotion self-heals the same
+	// state per agent, so a missed reconcile costs a retry, not a stuck agent.
+	//
+	// Runs in the background on a context detached from the request. The assignment is
+	// already committed, and the reconcile writes real resources — mapping rows, API keys,
+	// injected variables — so a client disconnect must not tear it off halfway. It also must
+	// not hold the response: it can take as long as mcpBindingReconcileTimeout, which is past
+	// the server's HTTP write timeout (90s by default), and a response dropped after the
+	// assignment committed leaves the client seeing an error for something that succeeded —
+	// and a retry hits "already assigned" without re-running the reconcile. Its result is only
+	// ever logged, so nothing the caller needs is lost by not waiting for it.
+	if c.agentConfigService != nil {
+		if envUUID, parseErr := uuid.Parse(resolvedEnvID); parseErr != nil {
+			log.Warn("AssignGatewayToEnvironment: skipping MCP binding reconcile; unparseable environment id",
+				"envID", resolvedEnvID, "error", parseErr)
+		} else {
+			reconcileMCPBindingsInBackground(ctx, log, "AssignGatewayToEnvironment",
+				func(reconcileCtx context.Context) error {
+					return c.agentConfigService.ReconcileMCPBindingsForEnvironment(reconcileCtx, ouID, envUUID)
+				},
+				"ouID", ouID, "envID", resolvedEnvID)
+		}
 	}
 
 	utils.WriteSuccessResponse(w, http.StatusCreated, map[string]string{"message": "Gateway assigned successfully"})

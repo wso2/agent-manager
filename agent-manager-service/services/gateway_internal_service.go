@@ -18,7 +18,6 @@ package services
 
 import (
 	"context"
-	"encoding/base64"
 	"errors"
 	"fmt"
 	"log/slog"
@@ -365,13 +364,9 @@ func (s *GatewayInternalAPIService) decryptSecretRefsIn(v interface{}) (bool, er
 }
 
 func (s *GatewayInternalAPIService) decryptSecretRef(secretRef string) (string, error) {
-	ciphertext, err := base64.StdEncoding.DecodeString(secretRef)
-	if err != nil {
-		return "", fmt.Errorf("failed to base64-decode secretRef: %w", err)
-	}
-	plaintext, err := utils.DecryptBytes(ciphertext, s.encryptionKey)
+	plaintext, err := utils.DecryptSecretRef(secretRef, s.encryptionKey)
 	if err != nil {
 		return "", fmt.Errorf("failed to decrypt secretRef: %w", err)
 	}
-	return string(plaintext), nil
+	return plaintext, nil
 }

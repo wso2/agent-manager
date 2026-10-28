@@ -19,6 +19,7 @@ package controllers
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"log/slog"
 	"net/http"
 	"strings"
@@ -26,6 +27,7 @@ import (
 	"time"
 
 	"github.com/gorilla/websocket"
+	"gorm.io/gorm"
 
 	"github.com/wso2/agent-manager/agent-manager-service/eventhub"
 	"github.com/wso2/agent-manager/agent-manager-service/middleware/logger"
@@ -218,8 +220,23 @@ func (c *websocketController) Connect(w http.ResponseWriter, r *http.Request) {
 		"gatewayID", gatewayID, "gatewayName", gatewayName,
 		"ouID", ouID, "connectionID", connection.ConnectionID, "ip", clientIP)
 
-	// Update gateway active status to true when connection is established
+	// Update gateway active status to true when connection is established.
+	// A not-found error here means the gateway was deleted (or soft-deleted)
+	// after VerifyToken succeeded but before this point - the connection must
+	// not be allowed to proceed as if it belongs to a live gateway.
 	if err := c.gatewayService.UpdateGatewayActiveStatus(gatewayID, true); err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			log.Warn("Gateway no longer exists, closing connection",
+				"gatewayID", gatewayID, "gatewayName", gatewayName,
+				"ouID", ouID, "connectionID", connection.ConnectionID)
+			c.manager.Unregister(gatewayID, connection.ConnectionID)
+			if closeErr := connection.Close(websocket.CloseNormalClosure, "gateway no longer exists"); closeErr != nil {
+				log.Debug("Connection close returned error",
+					"gatewayID", gatewayID, "gatewayName", gatewayName,
+					"ouID", ouID, "error", closeErr)
+			}
+			return
+		}
 		log.Error("Failed to update gateway active status to true",
 			"gatewayID", gatewayID, "gatewayName", gatewayName,
 			"ouID", ouID, "error", err)

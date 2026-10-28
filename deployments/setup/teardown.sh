@@ -9,10 +9,11 @@ source "$SCRIPT_DIR/utils.sh"
 echo "=== Tearing Down Agent Manager Development Environment ==="
 
 # ============================================================================
-# Step 1: Stop Docker Compose services
+# Step 1: Stop the console and Docker Compose services
 # ============================================================================
 echo ""
-echo "1️⃣  Stop Docker Compose services"
+echo "1️⃣  Stop the console and Docker Compose services"
+"$SCRIPT_DIR/stop-console.sh" 2>/dev/null || true
 if [ -f "$SCRIPT_DIR/../docker-compose.yml" ]; then
     echo "🛑 Stopping Agent Manager platform services..."
     docker compose -f "$SCRIPT_DIR/../docker-compose.yml" down -v

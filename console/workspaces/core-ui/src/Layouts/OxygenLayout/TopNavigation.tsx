@@ -5,23 +5,32 @@ import {
 } from "@agent-management-platform/api-client";
 import { absoluteRouteMap } from "@agent-management-platform/types";
 import {
-  ButtonBase,
-  ComplexSelect,
   Header,
   MenuItem,
   Stack,
-  Tooltip,
   Typography,
   useTheme,
 } from "@wso2/oxygen-ui";
-import { Building2, Plus } from "@wso2/oxygen-ui-icons-react";
+import { Plus } from "@wso2/oxygen-ui-icons-react";
 import { useMemo, useState } from "react";
 import { generatePath, useNavigate, useParams } from "react-router-dom";
-import { asLink, hoverBorderSx, LevelSwitcherCard } from "./LevelSwitcherCard";
+import { asLink, LevelSwitcherCard } from "./LevelSwitcherCard";
 import { useActiveAgentPage, useActiveOrgPage, useActiveProjectPage } from "./path-map";
+import { useAuthHooks } from "@agent-management-platform/auth";
+
+const orgLabel = (
+  org?: { name: string; displayName: string },
+  fallbackName?: string,
+) => {
+  if (org?.displayName) {
+    return org.displayName;
+  }
+  return fallbackName || org?.name;
+};
 
 export function TopNavigation() {
   const navigate = useNavigate();
+  const { userInfo } = useAuthHooks();
   const theme = useTheme();
   const { orgId, projectId, agentId } = useParams<{
     orgId: string;
@@ -32,6 +41,8 @@ export function TopNavigation() {
   const commonOrgPages = useActiveOrgPage();
   const commonProjectPages = useActiveProjectPage();
   const commonAgentPages = useActiveAgentPage();
+  const [orgAnchorEl, setOrgAnchorEl] = useState<null | HTMLElement>(null);
+
   const [projectAnchorEl, setProjectAnchorEl] = useState<null | HTMLElement>(
     null,
   );
@@ -45,6 +56,12 @@ export function TopNavigation() {
       (organization) => organization.name === orgId,
     );
   }, [organizations, orgId]);
+  const hasOtherOrgs = (organizations?.total ?? 0) > 1;
+  // With a single org, its displayName may not be set yet — fall back to the
+  // org name/handle from the user's own IDP claims rather than the raw org id.
+  const soloOrgFallbackName = !hasOtherOrgs
+    ? userInfo?.ouName || userInfo?.ouHandle
+    : undefined;
 
   // Get all projects for the organization
   const { data: projects } = useListProjects({
@@ -68,60 +85,43 @@ export function TopNavigation() {
   return (
     <>
       <Header.Switchers showDivider={false}>
-        {organizations?.organizations && (
-          <>
-            {selectedOrganization && organizations.total > 1 && (
-              <ComplexSelect
-                value={orgId}
-                size="small"
-                sx={{ minWidth: 180 }}
-                label="Organizations"
-                renderValue={() => (
-                  <ComplexSelect.MenuItem.Text
-                    primary={selectedOrganization?.displayName}
-                  />
-                )}
-              >
-                {organizations.organizations.map((organization) => (
-                  <ComplexSelect.MenuItem
-                    key={organization.name}
-                    value={organization.name}
-                    {...asLink(
-                      generatePath(absoluteRouteMap.children.org.path, {
-                        orgId: organization.name,
-                      }) + (commonOrgPages ? `/${commonOrgPages}` : ""),
-                    )}
-                  >
-                    <ComplexSelect.MenuItem.Text
-                      primary={organization.displayName ?? organization.name}
-                    />
-                  </ComplexSelect.MenuItem>
-                ))}
-              </ComplexSelect>
-            )}
-            {selectedOrganization && organizations.total == 1 && (
-              <>
-                <Tooltip title="Go to organization">
-                  <ButtonBase
-                   aria-label="Go to organization"
-                   {...asLink(
-                        generatePath(absoluteRouteMap.children.org.path, {
-                          orgId: selectedOrganization.name,
-                        }) + (commonOrgPages ? `/${commonOrgPages}` : ""),
-                      )}
-
-                  sx={{
-                    color: theme.vars?.palette.text.primary,
-                    p: theme.spacing(1.75, 1.75),
-                    ...hoverBorderSx(theme),
-                  }}>
-                    <Building2 size={22} />
-                  </ButtonBase>
-                </Tooltip>
-              </>
-            )}
-
-          </>
+        {organizations?.organizations && selectedOrganization && (
+          <LevelSwitcherCard
+            label={hasOtherOrgs ? "Organizations" : "Organization"}
+            chevronLabel="Switch organization"
+            canSwitch={hasOtherOrgs}
+            anchorEl={orgAnchorEl}
+            onOpenMenu={(e) => setOrgAnchorEl(e.currentTarget)}
+            onCloseMenu={() => setOrgAnchorEl(null)}
+            selected={{
+              to:
+                generatePath(absoluteRouteMap.children.org.path, {
+                  orgId: selectedOrganization.name,
+                }) + (commonOrgPages ? `/${commonOrgPages}` : ""),
+              goToLabel: `Go to ${orgLabel(selectedOrganization, soloOrgFallbackName)}`,
+              content: (
+                <Typography variant="body1" noWrap sx={{ maxWidth: "100%" }}>
+                  {orgLabel(selectedOrganization, soloOrgFallbackName)}
+                </Typography>
+              ),
+            }}
+          >
+            {hasOtherOrgs &&
+              organizations.organizations.map((organization) => (
+                <MenuItem
+                  key={organization.name}
+                  selected={organization.name === orgId}
+                  onClick={() => setOrgAnchorEl(null)}
+                  {...asLink(
+                    generatePath(absoluteRouteMap.children.org.path, {
+                      orgId: organization.name,
+                    }) + (commonOrgPages ? `/${commonOrgPages}` : ""),
+                  )}
+                >
+                  {orgLabel(organization)}
+                </MenuItem>
+              ))}
+          </LevelSwitcherCard>
         )}
 
         {projects?.projects && (

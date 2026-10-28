@@ -135,12 +135,16 @@ type IdentityClient interface {
 // baseURL is the platform Thunder public/issuer URL, so it also derives the System
 // resource indicator used to obtain system-scoped tokens for the admin identity APIs.
 func NewIdentityClient(baseURL, clientID, clientSecret string) IdentityClient {
+	httpClient := &http.Client{Timeout: httpClientTimeout}
 	return &thunderClient{
-		baseURL:        baseURL,
-		clientID:       clientID,
-		clientSecret:   clientSecret,
-		systemResource: SystemResourceIdentifier(baseURL),
-		httpClient:     &http.Client{Timeout: httpClientTimeout},
+		baseURL:          baseURL,
+		tokenURL:         strings.TrimRight(baseURL, "/") + "/oauth2/token",
+		clientID:         clientID,
+		clientSecret:     clientSecret,
+		systemTokenScope: "system",
+		systemResource:   SystemResourceIdentifier(baseURL),
+		httpClient:       httpClient,
+		tokenHTTPClient:  httpClient,
 	}
 }
 
@@ -154,7 +158,17 @@ func NewIdentityClient(baseURL, clientID, clientSecret string) IdentityClient {
 // resolves via the host machine's own DNS/hosts setup. An empty resolveToHost
 // behaves exactly like NewIdentityClient.
 func NewIdentityClientWithDialOverride(baseURL, clientID, clientSecret, resolveToHost string) IdentityClient {
-	c := NewThunderClientWithDialOverride(baseURL, clientID, clientSecret, resolveToHost, SystemResourceIdentifier(baseURL))
+	return NewIdentityClientWithSystemResource(
+		baseURL, clientID, clientSecret, resolveToHost, SystemResourceIdentifier(baseURL),
+	)
+}
+
+// NewIdentityClientWithSystemResource creates a Thunder identity client with an
+// explicitly selected System resource server. When systemResource is empty, the
+// OAuth token request omits the RFC 8707 resource parameter and Thunder resolves
+// its configured default resource server.
+func NewIdentityClientWithSystemResource(baseURL, clientID, clientSecret, resolveToHost, systemResource string) IdentityClient {
+	c := NewThunderClientWithDialOverride(baseURL, clientID, clientSecret, resolveToHost, systemResource)
 	return c.(IdentityClient)
 }
 

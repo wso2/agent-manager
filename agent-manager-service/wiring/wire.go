@@ -20,6 +20,7 @@
 package wiring
 
 import (
+	"context"
 	"fmt"
 	"log/slog"
 	"time"
@@ -63,7 +64,7 @@ var clientProviderSet = wire.NewSet(
 	// app.Options.AgentThunderProvisioning, built with its own reader — see app.Run.
 	ProvideEnvThunderSecretReader,
 	ProvideEnvThunderURLReader,
-	ProvideEnvThunderResolver,
+	ProvideEnvThunderResolverWithEndpoints,
 )
 
 var serviceProviderSet = wire.NewSet(
@@ -79,12 +80,16 @@ var serviceProviderSet = wire.NewSet(
 	services.NewMonitorSchedulerService,
 	// Provisioning service is injected (see InitializeAppParams); only the
 	// reconciler that consumes it is wired here.
-	ProvideAgentIdentityInjectionService,
+	ProvideAgentIdentityInjectionServiceWithEndpointResolver,
 	services.NewAgentThunderReconcilerService,
 	services.NewA2APublicationReconcilerService,
 	services.NewA2ACardFetcher,
 	services.NewA2ACardReconcilerService,
 	services.NewA2AAgentCardService,
+	ProvideTxRunner,
+	services.NewA2APublisher,
+	services.NewA2AProxyService,
+	ProvideA2AProxyHooks,
 	services.NewEvaluatorManagerService,
 	services.NewEnvironmentService,
 	services.NewPlatformGatewayService,
@@ -133,6 +138,7 @@ var controllerProviderSet = wire.NewSet(
 	controllers.NewLLMProxyAPIKeyController,
 	controllers.NewAgentAPIKeyController,
 	controllers.NewA2AAgentCardController,
+	controllers.NewA2AProxyController,
 	controllers.NewLLMProxyDeploymentController,
 	controllers.NewMCPProxyController,
 	ProvideWebSocketController,
@@ -350,6 +356,13 @@ func ProvideGitCredentialsService(ocClient occlient.OpenChoreoClient, cfg config
 	return services.NewGitCredentialsService(ocClient, cfg)
 }
 
+// ProvideNilBuildSecretProvisioner supplies a nil BuildSecretProvisioner for wiring
+// paths (e.g. tests) that do not inject one. The real injector receives it as a
+// parameter instead (from app.Options); nil is the open-source default and a no-op.
+func ProvideNilBuildSecretProvisioner() services.BuildSecretProvisioner {
+	return nil
+}
+
 // ProvidePublisherProvisioner creates the publisher credential provisioner
 // for per-org Thunder OAuth app creation and secret storage via SecretManagementClient
 func ProvidePublisherProvisioner(cfg config.Config, encryptionKey []byte, logger *slog.Logger, secretClient secretmanagersvc.SecretManagementClient, ocClient occlient.OpenChoreoClient, credRepo repositories.OrgPublisherCredentialRepository, schedulerCredRepo repositories.OrgSchedulerCredentialRepository) (services.PublisherCredentialProvisioner, error) {
@@ -372,6 +385,7 @@ var repositoryProviderSet = wire.NewSet(
 	ProvideDeploymentRepository,
 	ProvideA2APublicationRepository,
 	ProvideA2AAgentCardRepository,
+	ProvideA2AProxyRepository,
 	ProvideArtifactRepository,
 	ProvideScoreRepository,
 	ProvideCatalogRepository,
@@ -489,6 +503,22 @@ func ProvideA2AAgentCardRepository(db *gorm.DB) repositories.A2AAgentCardReposit
 	return repositories.NewA2AAgentCardRepository(db)
 }
 
+func ProvideA2AProxyRepository(db *gorm.DB) repositories.A2AProxyRepository {
+	return repositories.NewA2AProxyRepository(db)
+}
+
+// ProvideA2AProxyHooks gives the card service the proxy hooks only, not the whole proxy service.
+func ProvideA2AProxyHooks(svc services.A2AProxyService) services.A2AProxyHooks {
+	return svc
+}
+
+// ProvideTxRunner opens database transactions for the services that hold no *gorm.DB.
+func ProvideTxRunner(db *gorm.DB) services.TxRunner {
+	return func(ctx context.Context, fn func(tx *gorm.DB) error) error {
+		return db.WithContext(ctx).Transaction(fn)
+	}
+}
+
 func ProvideA2APublicationRepository(db *gorm.DB) repositories.A2APublicationRepository {
 	return repositories.NewA2APublicationRepository(db)
 }
@@ -573,6 +603,18 @@ func ProvideEnvThunderResolver(readSystemClient thundersvc.ReadSystemClientFunc,
 	return thundersvc.NewEnvThunderResolver(readSystemClient, readThunderURL)
 }
 
+func ProvideEnvThunderResolverWithEndpoints(readSystemClient thundersvc.ReadSystemClientFunc, readThunderURL thundersvc.ReadThunderURLFunc, endpointResolver thundersvc.EnvThunderEndpointResolver) thundersvc.EnvThunderResolver {
+	return thundersvc.NewEnvThunderResolverWithEndpoints(readSystemClient, readThunderURL, endpointResolver)
+}
+
+// ProvideNilEnvThunderEndpointResolver supplies the nil endpoint resolver that
+// on-premises deployments run with (app.Options leaves it unset), so wiring paths
+// that do not inject one (e.g. tests) exercise the same identity-injection path
+// as production: the in-cluster token endpoint, with no env-Thunder URL lookup.
+func ProvideNilEnvThunderEndpointResolver() thundersvc.EnvThunderEndpointResolver {
+	return nil
+}
+
 // ProvideAgentIdentityInjectionService creates the Gateway Binding service that
 // delivers AgentID credentials into internal agents' workloads. It reuses the
 // secret manager's SecretReference refresh interval so AgentID Secrets follow
@@ -588,16 +630,38 @@ func ProvideAgentIdentityInjectionService(
 	return services.NewAgentIdentityInjectionService(repo, agentConfigRepo, mcpProxyScopeRepo, ocClient, cfg.SecretManager.AgentIdentityRefreshInterval, logger)
 }
 
+func ProvideAgentIdentityInjectionServiceWithEndpointResolver(
+	repo repositories.AgentThunderClientRepository,
+	agentConfigRepo repositories.AgentConfigurationRepository,
+	mcpProxyScopeRepo repositories.MCPProxyScopeRepository,
+	ocClient occlient.OpenChoreoClient,
+	readThunderURL thundersvc.ReadThunderURLFunc,
+	endpointResolver thundersvc.EnvThunderEndpointResolver,
+	cfg config.Config,
+	logger *slog.Logger,
+) services.AgentIdentityInjectionService {
+	if endpointResolver == nil {
+		return services.NewAgentIdentityInjectionService(repo, agentConfigRepo, mcpProxyScopeRepo, ocClient, cfg.SecretManager.AgentIdentityRefreshInterval, logger)
+	}
+	resolveTokenEndpoint := func(ctx context.Context, ouID, orgNamespace, envName string) (string, error) {
+		return thundersvc.ResolveEnvThunderTokenEndpoint(ctx, endpointResolver, readThunderURL, ouID, orgNamespace, envName)
+	}
+	return services.NewAgentIdentityInjectionServiceWithTokenEndpointResolver(repo, agentConfigRepo, mcpProxyScopeRepo, ocClient, cfg.SecretManager.AgentIdentityRefreshInterval, logger, resolveTokenEndpoint)
+}
+
 func ProvideThunderConfig(cfg config.Config) config.ThunderConfig {
 	return cfg.Thunder
 }
 
 // ProvideIdentityClient creates a Thunder identity client using the Thunder system app credentials.
 func ProvideIdentityClient(cfg config.ThunderConfig) thundersvc.IdentityClient {
-	if cfg.ResolveToHost != "" {
-		return thundersvc.NewIdentityClientWithDialOverride(cfg.BaseURL, cfg.ClientID, cfg.ClientSecret, cfg.ResolveToHost)
-	}
-	return thundersvc.NewIdentityClient(cfg.BaseURL, cfg.ClientID, cfg.ClientSecret)
+	return thundersvc.NewIdentityClientWithSystemResource(
+		cfg.BaseURL,
+		cfg.ClientID,
+		cfg.ClientSecret,
+		cfg.ResolveToHost,
+		cfg.ResolvedSystemResourceIdentifier(),
+	)
 }
 
 // ProvideOrgResolver creates the org resolver backed by Thunder, with a per-org OU ID cache.
@@ -605,9 +669,14 @@ func ProvideOrgResolver(client thundersvc.IdentityClient) middleware.OrgResolver
 	return middleware.NewOrgResolver(client)
 }
 
-// InitializeAppParams wires up all application dependencies. agentThunderProvisioning
-// is the deployment-injected AgentID provisioning implementation (nil to disable).
-func InitializeAppParams(cfg *config.Config, db *gorm.DB, authProvider occlient.AuthProvider, secretProvider secretmanagersvc.Provider, gatewayApplier services.GatewayConfigApplier, agentThunderProvisioning services.AgentThunderProvisioningService) (*AppParams, error) {
+// InitializeAppParams preserves the standard on-premises dependency graph.
+func InitializeAppParams(cfg *config.Config, db *gorm.DB, authProvider occlient.AuthProvider, secretProvider secretmanagersvc.Provider, gatewayApplier services.GatewayConfigApplier, agentThunderProvisioning services.AgentThunderProvisioningService, buildSecretProvisioner services.BuildSecretProvisioner) (*AppParams, error) {
+	return InitializeAppParamsWithEnvThunderEndpoints(cfg, db, authProvider, secretProvider, gatewayApplier, agentThunderProvisioning, buildSecretProvisioner, nil)
+}
+
+// InitializeAppParamsWithEnvThunderEndpoints wires dependencies with an
+// optional deployment-specific environment-Thunder endpoint resolver.
+func InitializeAppParamsWithEnvThunderEndpoints(cfg *config.Config, db *gorm.DB, authProvider occlient.AuthProvider, secretProvider secretmanagersvc.Provider, gatewayApplier services.GatewayConfigApplier, agentThunderProvisioning services.AgentThunderProvisioningService, buildSecretProvisioner services.BuildSecretProvisioner, endpointResolver thundersvc.EnvThunderEndpointResolver) (*AppParams, error) {
 	wire.Build(
 		configProviderSet,
 		clientProviderSet,
@@ -643,6 +712,8 @@ func InitializeTestAppParamsWithClientMocks(
 		controllerProviderSet,
 		configProviderSet,
 		ProvideJWTSigningConfig,
+		ProvideNilBuildSecretProvisioner,
+		ProvideNilEnvThunderEndpointResolver,
 		wire.Struct(new(AppParams), "*"),
 	)
 	return &AppParams{}, nil

@@ -19,6 +19,7 @@ package config
 import (
 	"fmt"
 	"log/slog"
+	"math"
 	"net"
 	"net/url"
 	"os"
@@ -207,6 +208,9 @@ func loadEnvs() {
 	// Gateway manifest cache backend. "memory" (default) is process-local and only
 	// safe for a single replica; HA deployments must set this to "redis" so every
 	// replica reads and writes the same cached manifest.
+	config.GatewayPublicVhostFallback = r.readOptionalBool("GATEWAY_PUBLIC_VHOST_FALLBACK", false)
+	config.EvalJobsUsePublicGatewayURL = r.readOptionalBool("EVAL_JOBS_USE_PUBLIC_GATEWAY_URL", false)
+
 	config.GatewayManifestCache = GatewayManifestCacheConfig{
 		Backend: r.readOptionalString("GATEWAY_MANIFEST_CACHE_BACKEND", "memory"),
 		Redis: GatewayManifestCacheRedisConfig{
@@ -223,7 +227,9 @@ func loadEnvs() {
 		SystemLabelKeyPrefixes: r.readOptionalStringList(
 			"OPEN_CHOREO_SYSTEM_LABEL_KEY_PREFIXES", "openchoreo.dev/",
 		),
+		BuildWorkflowKind: strings.TrimSpace(r.readOptionalString("OPEN_CHOREO_BUILD_WORKFLOW_KIND", "")),
 	}
+	validateOpenChoreoBuildWorkflowKind(config, r)
 
 	// Internal Server configuration (for WebSocket and gateway internal APIs)
 	config.InternalServer = InternalServerConfig{
@@ -267,10 +273,12 @@ func loadEnvs() {
 
 	// Thunder admin API configuration for provisioning per-org OAuth apps
 	config.Thunder = ThunderConfig{
-		BaseURL:       r.readOptionalString("THUNDER_BASE_URL", ""),
-		ClientID:      r.readOptionalString("THUNDER_CLIENT_ID", ""),
-		ClientSecret:  r.readOptionalString("THUNDER_CLIENT_SECRET", ""),
-		ResolveToHost: r.readOptionalString("THUNDER_RESOLVE_TO_HOST", ""),
+		BaseURL:                  r.readOptionalString("THUNDER_BASE_URL", ""),
+		ClientID:                 r.readOptionalString("THUNDER_CLIENT_ID", ""),
+		ClientSecret:             r.readOptionalString("THUNDER_CLIENT_SECRET", ""),
+		ResolveToHost:            r.readOptionalString("THUNDER_RESOLVE_TO_HOST", ""),
+		UseDefaultResourceServer: r.readOptionalBool("AMP_USE_THUNDER_DEFAULT_RESOURCE_SERVER", false),
+		SystemResourceIdentifier: r.readOptionalString("AMP_THUNDER_SYSTEM_RESOURCE_IDENTIFIER", ""),
 	}
 	if config.Thunder.BaseURL != "" && (config.Thunder.ClientID == "" || config.Thunder.ClientSecret == "") {
 		r.errors = append(r.errors, fmt.Errorf("THUNDER_BASE_URL is set but THUNDER_CLIENT_ID and/or THUNDER_CLIENT_SECRET are missing"))
@@ -285,12 +293,57 @@ func loadEnvs() {
 			r.errors = append(r.errors, fmt.Errorf("THUNDER_RESOLVE_TO_HOST must contain a non-empty host and port"))
 		}
 	}
+	validateThunderConfig(config, r)
 
 	config.TLSConfig = TLSConfig{
 		EnableTLS: r.readOptionalBool("TLS_ENABLED", false),
 	}
 
 	config.RootOUHandle = r.readOptionalString("ROOT_OU_HANDLE", "admin")
+
+	// Cross-organization platform routes. Deliberately no default: an unset
+	// PLATFORM_ADMIN_OU_ID leaves the routes registered but refusing every
+	// caller, which is the safe end of the failure mode. Warned about rather
+	// than fatal so open-source and local-dev deployments — which have no
+	// platform-admin org at all — still start.
+	config.PlatformAdminOUID = strings.TrimSpace(r.readOptionalString("PLATFORM_ADMIN_OU_ID", ""))
+	if config.PlatformAdminOUID == "" {
+		slog.Warn("PLATFORM_ADMIN_OU_ID is not set; cross-organization platform routes will deny every request")
+	}
+	config.GatewayFailureThresholdSeconds = int(r.readOptionalInt64("GATEWAY_FAILURE_THRESHOLD_SECONDS", 300))
+	if config.GatewayFailureThresholdSeconds <= 0 {
+		r.errors = append(r.errors, fmt.Errorf(
+			"GATEWAY_FAILURE_THRESHOLD_SECONDS must be greater than 0, got %d", config.GatewayFailureThresholdSeconds))
+	}
+	// 604800 = 7 days. Checked against the staleness threshold rather than only
+	// on its own: co-dependent values are validated together, and an upper bound
+	// at or below the lower one leaves an empty window that reports every fleet
+	// healthy — a failure mode with no symptom.
+	config.GatewayFailureMaxAgeSeconds = int(r.readOptionalInt64("GATEWAY_FAILURE_MAX_AGE_SECONDS", 604800))
+	if config.GatewayFailureMaxAgeSeconds <= config.GatewayFailureThresholdSeconds {
+		r.errors = append(r.errors, fmt.Errorf(
+			"GATEWAY_FAILURE_MAX_AGE_SECONDS (%d) must be greater than GATEWAY_FAILURE_THRESHOLD_SECONDS (%d), "+
+				"or no gateway can ever be reported as failed",
+			config.GatewayFailureMaxAgeSeconds, config.GatewayFailureThresholdSeconds))
+	}
+	// Both ends are rejected rather than clamped, because either would make the
+	// health verdict a constant: at 0 an empty fleet already reports unhealthy,
+	// and above 100 no fleet ever can.
+	//
+	// NaN is checked explicitly because it slips through a range test: every
+	// comparison against NaN is false, so `<= 0` and `> 100` both say "in
+	// range". ParseFloat accepts the literal "NaN", and the verdict downstream
+	// is `percentage < threshold`, also false — so an operator typo would boot
+	// a service that reports the fleet unhealthy on every single request.
+	// +Inf/-Inf need no special case; the range test already catches them.
+	config.GatewayFailurePercentageThreshold = r.readOptionalFloat64("GATEWAY_FAILURE_PERCENTAGE_THRESHOLD", 10)
+	if math.IsNaN(config.GatewayFailurePercentageThreshold) ||
+		config.GatewayFailurePercentageThreshold <= 0 ||
+		config.GatewayFailurePercentageThreshold > 100 {
+		r.errors = append(r.errors, fmt.Errorf(
+			"GATEWAY_FAILURE_PERCENTAGE_THRESHOLD must be greater than 0 and at most 100, got %v",
+			config.GatewayFailurePercentageThreshold))
+	}
 
 	// Audit defaults to on. A deployment that wants no audit trail has to say
 	// so explicitly, rather than acquiring one by omission.
@@ -455,6 +508,54 @@ func validateOAuthAuthorizationServers(cfg *Config, r *configReader) {
 		if u.Host == "" {
 			r.errors = append(r.errors, fmt.Errorf("OAUTH_AUTHORIZATION_SERVERS entry %q must have a non-empty host", raw))
 		}
+	}
+}
+
+func validateThunderConfig(cfg *Config, r *configReader) {
+	thunder := cfg.Thunder
+	if thunder.UseDefaultResourceServer && thunder.SystemResourceIdentifier != "" {
+		r.errors = append(r.errors, fmt.Errorf(
+			"AMP_USE_THUNDER_DEFAULT_RESOURCE_SERVER cannot be true when AMP_THUNDER_SYSTEM_RESOURCE_IDENTIFIER is set",
+		))
+	}
+	if (thunder.UseDefaultResourceServer || thunder.SystemResourceIdentifier != "") && thunder.BaseURL == "" {
+		r.errors = append(r.errors, fmt.Errorf(
+			"AMP_USE_THUNDER_DEFAULT_RESOURCE_SERVER and AMP_THUNDER_SYSTEM_RESOURCE_IDENTIFIER require THUNDER_BASE_URL",
+		))
+	}
+	if thunder.SystemResourceIdentifier == "" {
+		return
+	}
+	u, err := url.Parse(thunder.SystemResourceIdentifier)
+	if err != nil || !u.IsAbs() {
+		r.errors = append(r.errors, fmt.Errorf(
+			"AMP_THUNDER_SYSTEM_RESOURCE_IDENTIFIER %q must be an absolute URI", thunder.SystemResourceIdentifier,
+		))
+		return
+	}
+	if u.Fragment != "" {
+		r.errors = append(r.errors, fmt.Errorf(
+			"AMP_THUNDER_SYSTEM_RESOURCE_IDENTIFIER %q must not contain a fragment", thunder.SystemResourceIdentifier,
+		))
+	}
+	if (u.Scheme == "http" || u.Scheme == "https") && u.Host == "" {
+		r.errors = append(r.errors, fmt.Errorf(
+			"AMP_THUNDER_SYSTEM_RESOURCE_IDENTIFIER %q must have a non-empty host", thunder.SystemResourceIdentifier,
+		))
+	}
+}
+
+// validateOpenChoreoBuildWorkflowKind accepts only the kinds OpenChoreo knows, or
+// empty for "record none". A typo would otherwise reach every new Component's
+// workflow reference and fail its builds rather than the service's startup.
+func validateOpenChoreoBuildWorkflowKind(cfg *Config, r *configReader) {
+	switch cfg.OpenChoreo.BuildWorkflowKind {
+	case "", "Workflow", "ClusterWorkflow":
+	default:
+		r.errors = append(r.errors, fmt.Errorf(
+			"OPEN_CHOREO_BUILD_WORKFLOW_KIND must be empty, \"Workflow\" or \"ClusterWorkflow\", got %q",
+			cfg.OpenChoreo.BuildWorkflowKind,
+		))
 	}
 }
 

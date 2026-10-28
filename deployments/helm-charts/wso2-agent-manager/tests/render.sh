@@ -58,6 +58,16 @@ assert_cm "default audience keeps the gateway resource entry" \
   KEY_MANAGER_AUDIENCE "${CLIENTS},http://api.amp.localhost:8080/mcp"
 assert_cm "default authorization servers fall back to the default issuer" \
   OAUTH_AUTHORIZATION_SERVERS "http://thunder.amp.localhost:8080"
+assert_cm "platform Thunder targets its derived System resource by default" \
+  AMP_USE_THUNDER_DEFAULT_RESOURCE_SERVER "false"
+assert_cm "platform Thunder has no custom System resource identifier by default" \
+  AMP_THUNDER_SYSTEM_RESOURCE_IDENTIFIER ""
+assert_cm "platform Thunder can use its configured default resource server" \
+  AMP_USE_THUNDER_DEFAULT_RESOURCE_SERVER "true" \
+  --set agentManagerService.config.thunder.useDefaultResourceServer=true
+assert_cm "platform Thunder accepts a custom System resource identifier" \
+  AMP_THUNDER_SYSTEM_RESOURCE_IDENTIFIER "urn:example:thunder-system" \
+  --set agentManagerService.config.thunder.systemResourceIdentifier=urn:example:thunder-system
 
 # Issue #1424: one issuer override has to move the advertised authorization
 # server too, or MCP clients discover an authorization server whose tokens this

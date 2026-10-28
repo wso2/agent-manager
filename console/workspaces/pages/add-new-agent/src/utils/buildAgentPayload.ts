@@ -31,9 +31,10 @@ import {
   MCPProxyFormEntry,
 } from "../form/schema";
 import { mcpEntryHasAPIKeyVar } from "./mcpEnvVarNames";
+import { SampleAgentDefinition } from "../data/sampleAgents";
 
 export interface CatalogEnvSeed {
-  env: { key: string; value: string; isSensitive: boolean }[];
+  env: { key: string; value: string; isSensitive: boolean; isInherited: boolean }[];
   lockedEnvKeys: Set<string>;
   /**
    * Keys that are both kind-declared secrets AND have a real default set — only
@@ -48,15 +49,46 @@ export interface CatalogEnvSeed {
 
 export function deriveCatalogEnvSeed(schema: AgentKindConfigSchemaItem[]): CatalogEnvSeed {
   return {
-    env: schema.map((item) => ({
-      key: item.name,
-      value: item.isSecret ? "" : (item.defaultValue ?? ""),
-      isSensitive: item.isSecret,
-    })),
+    env: schema.map((item) => {
+      // A kind-declared secret with a real default is intentionally seeded
+      // empty — the default itself is never sent to the client — and left
+      // blank it falls back to that default server-side, so it must stay
+      // exempt from the "value required" rule the empty env schema enforces.
+      const isInherited = item.isSecret && !!item.defaultValue;
+      return {
+        key: item.name,
+        value: item.isSecret ? "" : (item.defaultValue ?? ""),
+        isSensitive: item.isSecret,
+        isInherited,
+      };
+    }),
     lockedEnvKeys: new Set(schema.map((item) => item.name)),
     kindSecretKeysWithDefault: new Set(
       schema.filter((item) => item.isSecret && !!item.defaultValue).map((item) => item.name),
     ),
+  };
+}
+
+// Seeds a Platform-Hosted Agent form from a picked "Start Quickly with a
+// Sample" entry — the create-from-source counterpart to deriveCatalogEnvSeed
+// above, which seeds env vars from an agent kind's config schema instead.
+export function deriveSampleAgentSeed(
+  sample: SampleAgentDefinition,
+): Partial<CreateAgentFormValues> {
+  return {
+    displayName: sample.title,
+    description: sample.description,
+    repositoryUrl: sample.repositoryUrl,
+    branch: sample.branch,
+    appPath: sample.appPath,
+    runCommand: sample.runCommand,
+    language: sample.language,
+    languageVersion: sample.languageVersion,
+    env: sample.envVars.map((envVar) => ({
+      key: envVar.key,
+      value: envVar.value ?? "",
+      isSensitive: !!envVar.isSensitive,
+    })),
   };
 }
 
@@ -203,6 +235,7 @@ export const buildAgentCreationPayload = (
             secretRef: data.gitSecretRef || null,
           },
         },
+        ...(data.githubApp ? { githubApp: data.githubApp } : {}),
         // Three subtypes now, so a two-way ternary would silently map A2A to
         // chat. An A2A agent needs a port and no schema: it serves its own
         // agent card and the platform stores no copy.

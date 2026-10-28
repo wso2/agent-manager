@@ -63,5 +63,5 @@ def chat(req: ChatRequest) -> ChatResponse:
         )
     except Exception as exc:  # noqa: BLE001 - surface agent failures as HTTP 500
         log.exception("agent run failed")
-        raise HTTPException(status_code=500, detail=str(exc)) from exc
+        raise HTTPException(status_code=500, detail="agent run failed") from exc
     return ChatResponse(response=answer, session_id=req.session_id)

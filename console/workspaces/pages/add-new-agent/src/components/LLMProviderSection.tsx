@@ -73,6 +73,7 @@ import {
 import { AGENT_ENV_KEY_MAX_LENGTH, type LLMProviderFormEntry } from "../form/schema";
 import {
   absoluteRouteMap,
+  withBasePath,
   type CatalogRateLimitingSummary,
   type CatalogSecuritySummary,
 } from "@agent-management-platform/types";
@@ -831,11 +832,11 @@ export const LLMProviderSection: React.FC<LLMProviderSectionProps> = ({
                             size="small"
                             startIcon={<Link size={16} />}
                             component="a"
-                            href={generatePath(
+                            href={withBasePath(generatePath(
                               absoluteRouteMap.children.org.children.
                                 llmProviders.children.add.path,
                               { orgId },
-                            )}
+                            ))}
                             target="_blank"
                             rel="noopener noreferrer"
                           >
@@ -875,10 +876,10 @@ export const LLMProviderSection: React.FC<LLMProviderSectionProps> = ({
                 <Divider sx={{ mt: 2 }} />
                 <Box
                   component="a"
-                  href={generatePath(
+                  href={withBasePath(generatePath(
                     absoluteRouteMap.children.org.children.llmProviders.children.add.path,
                     { orgId },
-                  )}
+                  ))}
                   target="_blank"
                   rel="noopener noreferrer"
                   sx={{

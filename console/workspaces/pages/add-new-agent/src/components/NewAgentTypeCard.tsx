@@ -27,11 +27,12 @@ interface NewAgentTypeCardProps {
   title: string;
   subheader: string;
   icon: React.ReactNode;
+  ctaLabel: string;
   onClick: (type: string) => void;
 }
 
 export const NewAgentTypeCard = (props: NewAgentTypeCardProps) => {
-  const { type, title, subheader, icon, onClick } = props;
+  const { type, title, subheader, icon, ctaLabel, onClick } = props;
   const handleClick = () => {
     onClick(type);
   };
@@ -40,8 +41,15 @@ export const NewAgentTypeCard = (props: NewAgentTypeCardProps) => {
     <Form.CardButton
       onClick={handleClick}
       sx={{
-        width: 450,
+        width: { xs: "100%", sm: 450 },
         py: 2,
+        // The CTA pill below is purely visual (a real <button> can't nest inside
+        // this CardButton's own <button>), so it fills in on hover/focus of the
+        // whole card, not on its own hover — clicking anywhere still does the same thing.
+        "&:hover .cta-pill, &:focus-visible .cta-pill": {
+          bgcolor: "primary.main",
+          color: "primary.contrastText",
+        },
       }}
     >
       <Typography width="100%" variant="h4" textAlign="center">
@@ -53,13 +61,35 @@ export const NewAgentTypeCard = (props: NewAgentTypeCardProps) => {
             display: "flex",
             justifyContent: "center",
             alignItems: "flex-end",
-            height: 250,
-            mb: 10,
+            height: 180,
+            mb: 2,
           }}
         >
           {icon}
         </Box>
-        <Typography variant="body2" textAlign="center">{subheader}</Typography>
+        <Typography variant="body2" color="text.primary" textAlign="center">{subheader}</Typography>
+        <Box display="flex" justifyContent="center" mt={3}>
+          <Box
+            component="span"
+            className="cta-pill"
+            sx={{
+              display: "inline-flex",
+              alignItems: "center",
+              justifyContent: "center",
+              px: 3,
+              py: 1,
+              borderRadius: 999,
+              border: "1px solid",
+              borderColor: "primary.main",
+              color: "primary.main",
+              fontWeight: 700,
+              whiteSpace: "nowrap",
+              transition: "background-color 0.15s ease, color 0.15s ease",
+            }}
+          >
+            {ctaLabel}
+          </Box>
+        </Box>
       </Form.CardContent>
     </Form.CardButton>
   );

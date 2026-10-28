@@ -93,7 +93,12 @@ func tierCtx(t *testing.T, scopes ...rbac.Permission) context.Context {
 // it is actually about. Tests about the tier check itself use tierCtx.
 func tierGrantedCtx(t *testing.T) context.Context {
 	t.Helper()
-	return jwtassertion.ContextWithTokenClaimsAndScope(auditableCtx(t), &jwtassertion.TokenClaims{
+	return tierGrantedOn(auditableCtx(t))
+}
+
+// tierGrantedOn grants both environment tiers on top of base.
+func tierGrantedOn(base context.Context) context.Context {
+	return jwtassertion.ContextWithTokenClaimsAndScope(base, &jwtassertion.TokenClaims{
 		Scope: audit.ScopesOf([]rbac.Permission{rbac.AgentEnvNonProduction, rbac.AgentEnvProduction}),
 	})
 }

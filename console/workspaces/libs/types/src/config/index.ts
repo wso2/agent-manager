@@ -21,6 +21,14 @@ import { TraceListTimeRange } from "../api/traces";
 import { type Duration, sub } from "date-fns";
 export interface AppConfig {
   authConfig: ThunderIDProviderProps;
+  /**
+   * URL path prefix the console is served under, e.g. "/console" when it
+   * sits behind a shared host. Empty or "/" means
+   * the origin root. Must match the Vite `base` the bundle was built with
+   * (both come from BASE_PATH); the router basename and every hard
+   * navigation outside the router go through `withBasePath`.
+   */
+  basePath?: string;
   apiBaseUrl: string;
   /**
    * Base URL for the unauthenticated GET /api/v1/config discovery request that
@@ -115,6 +123,7 @@ export interface AppConfig {
   footerLinks?: {
     privacyPolicyUrl?: string;
     termsOfUseUrl?: string;
+    supportUrl?: string;
   };
   /** Documentation deep-link paths for AMP instrumentation, appended to docsUrl. */
   instrumentationDocLinks?: {
@@ -128,6 +137,8 @@ export interface AppConfig {
 }
 
 export type FeatureFlags = {
+  /** Hides the environment ThunderID console link; other Agent ID features are unchanged. */
+  disableThunderConsole?: boolean;
   /** Shows the private Git repository option when building agents from source. */
   enablePrivateRepoSupport?: boolean;
   /**
@@ -137,7 +148,10 @@ export type FeatureFlags = {
   enableIdentityProviderManagedMode?: boolean;
   /**
    * When false, the Profile Settings text fields and Save Changes button are
-   * hidden/disabled, and the Change Password tab is disabled.
+   * hidden/disabled, and the Change Password tab is disabled. It also hides the
+   * organization Settings navigation (users, roles, groups) and the Profile
+   * Settings menu entry, for deployments where an external identity platform
+   * owns user and organization management.
    */
   enableProfileManagement?: boolean;
   /**
@@ -145,6 +159,12 @@ export type FeatureFlags = {
    * buttons on the Settings page are disabled.
    */
   enableUserManagement?: boolean;
+  /**
+   * Shows the Agent ID surfaces: the per-agent Agent ID page, the
+   * organization-level identity groups/roles pages, and the roles & groups
+   * section on the agent overview.
+   */
+  enableAgentIdentity?: boolean;
 };
 
 export type GuardrailCapabilities = {
@@ -168,6 +188,50 @@ declare global {
 }
 
 export const globalConfig: AppConfig = window.__RUNTIME_CONFIG__;
+
+/**
+ * Whether the Agent ID surfaces are shown. Read through this rather than the
+ * flag directly — the feature spans the nav, routes and the agent overview, and
+ * every "value missing" path (older hand-written config.js, unsubstituted
+ * template placeholder) has to land on disabled.
+ */
+export const isAgentIdentityEnabled = (): boolean =>
+  globalConfig.featureFlags?.enableAgentIdentity === true;
+
+/**
+ * Normalised base path: no trailing slash, leading slash when non-empty.
+ * "" when the console is served from the origin root.
+ */
+export const getBasePath = (): string => {
+  const trimmed = (globalConfig?.basePath ?? "").trim().replace(/^\/+|\/+$/g, "");
+  return trimmed ? `/${trimmed}` : "";
+};
+
+/**
+ * Prefix a router-relative path ("/org/x") with the base path for use in
+ * `window.location.assign`, `window.open`, `href` and anything else that
+ * bypasses react-router (which already applies the basename).
+ *
+ * The prefix is always applied: the input is a router route, never a browser
+ * pathname, so a route that happens to start with the base path (base `/login`,
+ * route `/login`) is still prefixed. `stripBasePath` is the inverse.
+ */
+export const withBasePath = (path: string): string => {
+  const base = getBasePath();
+  if (!base) return path;
+  return `${base}${path.startsWith("/") ? "" : "/"}${path}`;
+};
+
+/**
+ * Inverse of `withBasePath`: strip the base path from a browser pathname so it
+ * can be handed to react-router's `navigate`, which re-applies the basename.
+ */
+export const stripBasePath = (pathname: string): string => {
+  const base = getBasePath();
+  if (!base) return pathname;
+  if (pathname === base) return "/";
+  return pathname.startsWith(`${base}/`) ? pathname.slice(base.length) : pathname;
+};
 
 const buildRange = (duration: Duration) => {
   const endTime = new Date();

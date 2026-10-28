@@ -125,10 +125,59 @@ func TestNewEnvThunderClient_HardensOnlyTheNoOverrideDial(t *testing.T) {
 	})
 }
 
-// TestCreateApp_SendsRequiredApplicationType guards against a regression:
-// applications require a "type" field on create, and a POST /applications
-// missing it fails outright. createApp's payload must always include it.
-func TestCreateApp_SendsRequiredApplicationType(t *testing.T) {
+func TestFetchSystemToken_ResourceSelection(t *testing.T) {
+	tests := []struct {
+		name           string
+		systemResource string
+		wantResource   string
+	}{
+		{
+			name:           "explicit system resource is sent",
+			systemResource: "https://idp.example.com/mcp",
+			wantResource:   "https://idp.example.com/mcp",
+		},
+		{
+			name:           "empty system resource uses Thunder default",
+			systemResource: "",
+			wantResource:   "",
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			var gotResource string
+			var resourcePresent bool
+			mux := http.NewServeMux()
+			mux.HandleFunc("/oauth2/token", func(w http.ResponseWriter, r *http.Request) {
+				require.NoError(t, r.ParseForm())
+				gotResource = r.Form.Get("resource")
+				_, resourcePresent = r.Form["resource"]
+				assert.Equal(t, "client_credentials", r.Form.Get("grant_type"))
+				assert.Equal(t, "system", r.Form.Get("scope"))
+				w.Header().Set("Content-Type", "application/json")
+				_ = json.NewEncoder(w).Encode(map[string]any{
+					"access_token": "token",
+					"expires_in":   3600,
+				})
+			})
+			server := httptest.NewServer(mux)
+			defer server.Close()
+
+			client := NewThunderClientWithDialOverride(server.URL, "cid", "secret", "", tc.systemResource)
+			thunder, ok := client.(*thunderClient)
+			require.True(t, ok)
+
+			_, _, err := thunder.fetchSystemToken(context.Background())
+			require.NoError(t, err)
+			assert.Equal(t, tc.wantResource, gotResource)
+			assert.Equal(t, tc.wantResource != "", resourcePresent)
+		})
+	}
+}
+
+// TestCreateApp_SendsRequiredApplicationConfiguration guards the application type
+// and OU claims required by Agent Manager and Cloud Obs Proxy.
+func TestCreateApp_SendsRequiredApplicationConfiguration(t *testing.T) {
 	var gotBody map[string]any
 	mux := http.NewServeMux()
 	mux.HandleFunc("/applications", func(w http.ResponseWriter, r *http.Request) {
@@ -157,6 +206,6 @@ func TestCreateApp_SendsRequiredApplicationType(t *testing.T) {
 	require.True(t, ok)
 	clientConfig, ok := config["token"].(map[string]any)["accessToken"].(map[string]any)["clientConfig"].(map[string]any)
 	require.True(t, ok)
-	assert.ElementsMatch(t, []any{"ouId", "ouHandle"}, clientConfig["attributes"],
-		"clientConfig.attributes must opt this client_credentials app into ouId/ouHandle token claims, or RequireOrgMatch rejects its tokens as missing ou identity")
+	assert.ElementsMatch(t, []any{"ouId", "ouName", "ouHandle"}, clientConfig["attributes"],
+		"clientConfig.attributes must include every OU claim required by Agent Manager and Cloud Obs Proxy")
 }

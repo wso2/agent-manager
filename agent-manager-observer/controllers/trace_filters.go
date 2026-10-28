@@ -82,6 +82,27 @@ func CheckMinThreshold(name string, v int64) error {
 	return nil
 }
 
+// ParseMissingField adds the field a missing value names to m. conversationKey is
+// the caller's name for the conversation ID; an empty value adds nothing.
+func ParseMissingField(m *MissingFields, value, conversationKey string) error {
+	switch v := strings.TrimSpace(value); v {
+	case "":
+	case conversationKey:
+		m.ConversationID = true
+	default:
+		return fmt.Errorf("invalid missing value %q: must be '%s'", v, conversationKey)
+	}
+	return nil
+}
+
+// CheckMissingConflict rejects a conversation ID filter combined with a missing conversation ID.
+func CheckMissingConflict(f TraceFilters, conversationKey string) error {
+	if f.Missing.ConversationID && f.ConversationID != "" {
+		return fmt.Errorf("%s and missing=%s can't be combined", conversationKey, conversationKey)
+	}
+	return nil
+}
+
 // CheckFilterValue rejects a string filter longer than MaxFilterValueLen characters.
 func CheckFilterValue(name, s string) error {
 	if utf8.RuneCountInString(s) > MaxFilterValueLen {

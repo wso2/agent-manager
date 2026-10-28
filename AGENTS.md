@@ -55,10 +55,13 @@ cli (amctl) ──HTTP──▶ agent-manager-service   (same API as the console
 ```bash
 make tools        # pinned Go dev tools (codegen, linters, ginkgo) into .tools/bin; versions in tools.mk
 make setup        # first-time: tools + Colima + k3d + OpenChoreo + platform + console
-make dev-up       # start all services
-make dev-down     # stop
-make dev-logs     # tail logs
-make dev-rebuild  # full rebuild
+make dev-up       # start service + db (compose) and the console (native, background, :3000)
+make dev-down     # stop them
+make dev-logs     # tail compose logs (service, db)
+make dev-rebuild  # full image rebuild
+make console      # (re)start the console dev server; BACKGROUND=true to detach
+make stop-console # stop the console dev server
+make console-logs # tail the background console's log (.make/console.log)
 make dev-migrate  # run DB migrations
 make e2e-test     # run the e2e suite against the local stack
 ```
@@ -77,6 +80,12 @@ These apply everywhere; each aspect guide restates the specifics for its stack.
 - **Observability** — log with correlation context (org, resource ID, request ID); hot paths at Debug, rare events at Info, destructive ops at Error.
 - **Audit trail** — in `agent-manager-service`, every mutating route and MCP tool is audited automatically and a test fails the build if one is not. Operations touching credentials, privileges, membership, deployment or deletion additionally record *what changed* — see the `add-audit-event` skill. Never put a request or response body, or any secret value, into a record. Design and open questions: [discussion #1500](https://github.com/wso2/agent-manager/discussions/1500).
 - **Generated code is never hand-edited** — regenerate and commit (OpenAPI types + wire + mocks in the Go service; `dist/` in the console). See the aspect guides for the exact commands.
+
+## Releases
+
+- **Platform** — `.github/workflows/release.yml` (and `release-promote.yml` to promote an existing release): images, Helm charts and the install bundle, tagged `amp/v<version>`
+- **amctl** — its own version line via `.github/workflows/amctl_release.yaml`, tagged `amctl/v<version>`. The platform release does not ship amctl; see [`cli/AGENTS.md`](cli/AGENTS.md#releases-and-updates)
+- **Python libraries** — `amp_instrumentation_release.yaml`, `amp_evaluation_release.yaml`
 
 ## Contributing
 

@@ -18,11 +18,13 @@ package services
 
 import (
 	"context"
+	"encoding/base64"
 	"errors"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"gopkg.in/yaml.v3"
 
 	"github.com/wso2/agent-manager/agent-manager-service/models"
 	"github.com/wso2/agent-manager/agent-manager-service/repositories/repomocks"
@@ -105,6 +107,39 @@ func TestActiveArtifactDeploymentByGatewayRepoErrorIsNotNotFound(t *testing.T) {
 			assert.NotErrorIs(t, err, tt.notFound)
 		})
 	}
+}
+
+// The stored Agent YAML holds the proxy's upstream secret only as secretRef; the gateway is served the value.
+func TestActiveAgentDeploymentDecryptsTheUpstreamSecret(t *testing.T) {
+	key := make([]byte, 32)
+	ciphertext, err := utils.EncryptBytes([]byte("s3cret"), key)
+	require.NoError(t, err)
+	in := proxiedA2AInput()
+	secretRef := base64.StdEncoding.EncodeToString(ciphertext)
+	in.UpstreamAuth.SecretRef = &secretRef
+	stored, err := generateA2AAgentDeploymentYAML(in)
+	require.NoError(t, err)
+	repo := &repomocks.DeploymentRepositoryMock{
+		GetCurrentByGatewayFunc: func(string, string, string) (*models.Deployment, error) {
+			return &models.Deployment{Content: []byte(stored)}, nil
+		},
+	}
+	svc := NewGatewayInternalAPIService(nil, nil, repo, nil, nil, key)
+
+	got, err := svc.GetActiveAgentDeploymentByGateway(context.Background(), "artifact-1", "ou-1", "gw-1")
+	require.NoError(t, err)
+
+	var doc struct {
+		Spec struct {
+			Upstream struct {
+				Auth map[string]interface{} `yaml:"auth"`
+			} `yaml:"upstream"`
+		} `yaml:"spec"`
+	}
+	require.NoError(t, yaml.Unmarshal([]byte(got["artifact-1"]), &doc))
+	assert.Equal(t, "s3cret", doc.Spec.Upstream.Auth["value"])
+	assert.Equal(t, "X-Upstream-Key", doc.Spec.Upstream.Auth["header"])
+	assert.NotContains(t, doc.Spec.Upstream.Auth, "secretRef")
 }
 
 func TestActiveArtifactDeploymentByGatewayUnparseableYaml(t *testing.T) {

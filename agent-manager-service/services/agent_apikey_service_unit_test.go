@@ -316,3 +316,34 @@ func TestAgentAPIKeyService_CreateAPIKey_ReservedTestKeyPrefix(t *testing.T) {
 		assert.True(t, *resp.GatewayConnected)
 	})
 }
+
+func TestAgentAPIKeyService_CreateAPIKey_MinNameLength(t *testing.T) {
+	const org, proj, agent, env = "default", "default", "customeragent", "dev"
+
+	rejected := map[string]*models.CreateAPIKeyRequest{
+		"explicit name":                     {Name: "ab"},
+		"name derived from display name":    {DisplayName: "ab"},
+		"display name that sanitizes short": {DisplayName: "a!!"},
+	}
+	for desc, req := range rejected {
+		t.Run("rejects a too-short "+desc+" without storing the key", func(t *testing.T) {
+			fx := newAPIKeyServiceFixture(t, nil)
+
+			_, err := fx.svc.CreateAPIKey(auditableCtx(t), org, proj, agent, env, req)
+
+			assert.ErrorIs(t, err, utils.ErrBadRequest)
+			assert.Empty(t, *fx.upsertedKeys)
+		})
+	}
+
+	t.Run("accepts a name at the minimum length", func(t *testing.T) {
+		fx := newAPIKeyServiceFixture(t, nil)
+
+		_, err := fx.svc.CreateAPIKey(auditableCtx(t), org, proj, agent, env,
+			&models.CreateAPIKeyRequest{DisplayName: "abc"})
+
+		require.NoError(t, err)
+		require.Len(t, *fx.upsertedKeys, 1)
+		assert.Equal(t, "abc", (*fx.upsertedKeys)[0].Name)
+	})
+}

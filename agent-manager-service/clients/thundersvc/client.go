@@ -87,18 +87,17 @@ type ThunderClient interface {
 }
 
 type thunderClient struct {
-	baseURL      string // Thunder API base URL (e.g. http://thunder:8090)
-	clientID     string // OAuth2 client ID of the system app (with Administrator role)
-	clientSecret string // OAuth2 client secret of the system app
-	// systemResource is the resource indicator (RFC 8707) sent with the client_credentials
-	// token request so the issued token is scoped to Thunder's built-in System resource
-	// server (identifier "<issuer>/mcp"), which owns the "system" permission. Admin APIs
-	// (/users, /applications, ...) require that permission, granted only when the token
-	// is scoped to the System RS. Without this, the server-wide default resource server
-	// (amp-resource-server) resolves the request instead, the "system" scope is dropped,
-	// and every admin call fails with AUTH-4030 Forbidden.
-	systemResource string
-	httpClient     *http.Client
+	baseURL          string // Thunder management API base URL (e.g. http://thunder:8090)
+	tokenURL         string // Complete OAuth2 token endpoint URL
+	clientID         string // OAuth2 client ID of the system app (with Administrator role)
+	clientSecret     string // OAuth2 client secret of the system app
+	systemTokenScope string
+	// systemResource is the optional RFC 8707 resource indicator sent with the
+	// system client token request. Empty deliberately lets Thunder select its
+	// configured default resource server.
+	systemResource  string
+	httpClient      *http.Client
+	tokenHTTPClient *http.Client
 
 	mu          sync.RWMutex
 	cachedToken string
@@ -125,12 +124,16 @@ func SystemResourceIdentifier(issuerURL string) string {
 // baseURL is the platform Thunder public/issuer URL, so it also derives the System
 // resource indicator used to obtain system-scoped tokens.
 func NewThunderClient(baseURL, clientID, clientSecret string) ThunderClient {
+	httpClient := &http.Client{Timeout: httpClientTimeout}
 	return &thunderClient{
-		baseURL:        baseURL,
-		clientID:       clientID,
-		clientSecret:   clientSecret,
-		systemResource: SystemResourceIdentifier(baseURL),
-		httpClient:     &http.Client{Timeout: httpClientTimeout},
+		baseURL:          baseURL,
+		tokenURL:         strings.TrimRight(baseURL, "/") + "/oauth2/token",
+		clientID:         clientID,
+		clientSecret:     clientSecret,
+		systemTokenScope: "system",
+		systemResource:   SystemResourceIdentifier(baseURL),
+		httpClient:       httpClient,
+		tokenHTTPClient:  httpClient,
 	}
 }
 
@@ -189,12 +192,67 @@ func newThunderClientWithDialOverride(baseURL, clientID, clientSecret, resolveTo
 		httpClient = ssrf.NewClient(httpClientTimeout)
 	}
 	return &thunderClient{
-		baseURL:        baseURL,
-		clientID:       clientID,
-		clientSecret:   clientSecret,
-		systemResource: systemResource,
-		httpClient:     httpClient,
+		baseURL:          baseURL,
+		tokenURL:         strings.TrimRight(baseURL, "/") + "/oauth2/token",
+		clientID:         clientID,
+		clientSecret:     clientSecret,
+		systemTokenScope: "system",
+		systemResource:   systemResource,
+		httpClient:       httpClient,
+		tokenHTTPClient:  httpClient,
 	}
+}
+
+// NewEnvThunderClientWithEndpoints creates a client whose management and token
+// traffic may use different endpoints. Existing constructors remain unchanged.
+func NewEnvThunderClientWithEndpoints(endpoints EnvThunderEndpoints, clientID, clientSecret string) (ThunderClient, error) {
+	managementURL := strings.TrimRight(strings.TrimSpace(endpoints.ManagementURL), "/")
+	tokenURL := strings.TrimSpace(endpoints.TokenURL)
+	if managementURL == "" || tokenURL == "" || strings.TrimSpace(endpoints.SystemTokenScope) == "" {
+		return nil, fmt.Errorf("management URL, token URL, and system token scope are required")
+	}
+	if err := validateThunderEndpointURL(managementURL); err != nil {
+		return nil, fmt.Errorf("invalid management URL: %w", err)
+	}
+	if err := validateThunderEndpointURL(tokenURL); err != nil {
+		return nil, fmt.Errorf("invalid token URL: %w", err)
+	}
+	managementURL, managementClient := thunderEndpointHTTPClient(managementURL, endpoints.ManagementResolveToHost, endpoints.ManagementURLTrusted)
+	tokenURL, tokenClient := thunderEndpointHTTPClient(tokenURL, endpoints.TokenResolveToHost, endpoints.TokenURLTrusted)
+	return &thunderClient{
+		baseURL: managementURL, tokenURL: tokenURL,
+		clientID: clientID, clientSecret: clientSecret,
+		systemTokenScope: endpoints.SystemTokenScope, systemResource: endpoints.SystemTokenResource,
+		httpClient: managementClient, tokenHTTPClient: tokenClient,
+	}, nil
+}
+
+func validateThunderEndpointURL(endpoint string) error {
+	parsed, err := url.Parse(endpoint)
+	if err != nil {
+		return err
+	}
+	if (parsed.Scheme != "http" && parsed.Scheme != "https") || parsed.Host == "" {
+		return fmt.Errorf("must be an absolute HTTP(S) URL")
+	}
+	if parsed.User != nil || parsed.Fragment != "" {
+		return fmt.Errorf("must not contain user information or a fragment")
+	}
+	return nil
+}
+
+func thunderEndpointHTTPClient(endpoint, resolveToHost string, trusted bool) (string, *http.Client) {
+	httpClient := &http.Client{Timeout: httpClientTimeout}
+	if resolveToHost != "" {
+		httpClient.Transport = &http.Transport{DialContext: func(ctx context.Context, network, _ string) (net.Conn, error) {
+			var d net.Dialer
+			return d.DialContext(ctx, network, resolveToHost)
+		}}
+		endpoint = "http://" + strings.TrimPrefix(strings.TrimPrefix(endpoint, "https://"), "http://")
+	} else if !trusted {
+		httpClient = ssrf.NewClient(httpClientTimeout)
+	}
+	return endpoint, httpClient
 }
 
 // getSystemToken returns a cached system token or fetches a new one.
@@ -244,29 +302,29 @@ func (c *thunderClient) getSystemToken(ctx context.Context) (string, error) {
 	return result.(string), nil
 }
 
-// fetchSystemToken obtains a system-scoped access token from Thunder's OAuth2 token endpoint
-// using client_credentials grant with scope=system.
-// The system app must have the Administrator role assigned in Thunder.
+// fetchSystemToken obtains a management token from the configured OAuth2 token
+// endpoint using client_credentials and the deployment's system scope/resource.
 func (c *thunderClient) fetchSystemToken(ctx context.Context) (string, int, error) {
 	data := url.Values{
 		"grant_type": {"client_credentials"},
-		"scope":      {"system"},
+		"scope":      {c.systemTokenScope},
 	}
-	// Scope the token to Thunder's System resource server so the "system" permission is
-	// actually granted (see systemResource field). Omitting this drops the scope and the
-	// admin APIs reject the call with AUTH-4030.
+	// Scope the token to Thunder's System resource server when the deployment has one.
+	// An empty value deliberately omits the RFC 8707 resource parameter so Thunder can
+	// use its configured default resource server; that default must grant this system
+	// client the "system" permission required by the admin APIs.
 	if c.systemResource != "" {
 		data.Set("resource", c.systemResource)
 	}
 
-	req, err := http.NewRequestWithContext(ctx, http.MethodPost, c.baseURL+"/oauth2/token", strings.NewReader(data.Encode()))
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, c.tokenURL, strings.NewReader(data.Encode()))
 	if err != nil {
 		return "", 0, fmt.Errorf("thunder token request build: %w", err)
 	}
 	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 	req.SetBasicAuth(c.clientID, c.clientSecret)
 
-	resp, err := c.httpClient.Do(req)
+	resp, err := c.tokenHTTPClient.Do(req)
 	if err != nil {
 		return "", 0, fmt.Errorf("thunder token request: %w", err)
 	}
@@ -614,14 +672,13 @@ func (c *thunderClient) createApp(ctx context.Context, token, appName, ouID stri
 					"clientId":                appName,
 					"grantTypes":              []string{"client_credentials"},
 					"tokenEndpointAuthMethod": "client_secret_basic",
-					// Thunder only embeds ouId/ouHandle as token claims when a client's own
-					// clientConfig.attributes opts in — without this, RequireOrgMatch in
-					// agent-manager-service rejects this app's tokens as "missing ou
-					// identity in token" even though ouId above is set correctly.
+					// Thunder only embeds configured OU attributes as token claims. Agent
+					// Manager requires ouId/ouHandle, while Cloud Obs Proxy also requires
+					// ouName when the evaluation job's token is passed through for trace reads.
 					"token": map[string]any{
 						"accessToken": map[string]any{
 							"clientConfig": map[string]any{
-								"attributes": []string{"ouId", "ouHandle"},
+								"attributes": []string{"ouId", "ouName", "ouHandle"},
 							},
 						},
 					},

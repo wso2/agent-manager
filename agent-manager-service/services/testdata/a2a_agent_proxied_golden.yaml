@@ -1,0 +1,40 @@
+apiVersion: gateway.api-platform.wso2.com/v1
+kind: Agent
+metadata:
+    name: checkout-weather-0192f4c19a7d7c3e
+spec:
+    displayName: weather
+    version: v1.0
+    context: /weather
+    upstream:
+        url: https://agent.example/team
+        auth:
+            type: api-key
+            header: X-Upstream-Key
+            secretRef: c2VjcmV0
+    a2a:
+        protocolVersion: "1.0"
+        operationConfigs:
+            transports:
+                - protocolBinding: JSONRPC
+                  pathPrefix: /a2a/jsonrpc
+                - protocolBinding: HTTP+JSON
+            policies:
+                - name: cors
+                  params:
+                    allowCredentials: false
+                    allowedHeaders:
+                        - Content-Type
+                        - A2A-Version
+                    allowedMethods:
+                        - GET
+                        - POST
+                        - OPTIONS
+                    allowedOrigins:
+                        - '*'
+                  version: v1
+                - name: api-key-auth
+                  params:
+                    in: header
+                    key: X-API-Key
+                  version: v1

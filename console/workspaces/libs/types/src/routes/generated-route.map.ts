@@ -188,7 +188,13 @@ export const generatedRouteMap =  {
         "deploymentPipelines": {
           "path": "/org/:orgId/deployment-pipelines",
           "wildPath": "/org/:orgId/deployment-pipelines/*",
-          "children": {}
+          "children": {
+            "view": {
+              "path": "/org/:orgId/deployment-pipelines/:pipelineName",
+              "wildPath": "/org/:orgId/deployment-pipelines/:pipelineName/*",
+              "children": {}
+            }
+          }
         },
         "environments": {
           "path": "/org/:orgId/environments",

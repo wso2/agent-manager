@@ -16,6 +16,7 @@
  * under the License.
  */
 
+export * from './configureTabLink';
 export * from './entityAvatar';
 export * from './formatTraceWindow';
 export * from './provisionTypes';

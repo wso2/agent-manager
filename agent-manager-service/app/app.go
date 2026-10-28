@@ -35,9 +35,11 @@ import (
 	"github.com/wso2/agent-manager/agent-manager-service/audit"
 	occlient "github.com/wso2/agent-manager/agent-manager-service/clients/openchoreosvc/client"
 	"github.com/wso2/agent-manager/agent-manager-service/clients/secretmanagersvc"
+	"github.com/wso2/agent-manager/agent-manager-service/clients/thundersvc"
 	"github.com/wso2/agent-manager/agent-manager-service/config"
 	"github.com/wso2/agent-manager/agent-manager-service/db"
 	dbmigrations "github.com/wso2/agent-manager/agent-manager-service/db_migrations"
+	"github.com/wso2/agent-manager/agent-manager-service/middleware"
 	"github.com/wso2/agent-manager/agent-manager-service/resources"
 	"github.com/wso2/agent-manager/agent-manager-service/server"
 	"github.com/wso2/agent-manager/agent-manager-service/services"
@@ -63,6 +65,13 @@ type Options struct {
 	// default) preserves the script-driven behavior; cloud deployments inject an
 	// implementation. See services.GatewayConfigApplier.
 	GatewayConfigApplier services.GatewayConfigApplier
+	// EnvThunderEndpointResolver optionally separates environment-Thunder
+	// management and OAuth endpoints. nil preserves on-premises behavior. Run
+	// automatically applies it to endpoint-aware provisioning implementations.
+	EnvThunderEndpointResolver thundersvc.EnvThunderEndpointResolver
+	// BackgroundContextDecorator optionally marks contexts created for trusted
+	// background workers. Request contexts never pass through this hook.
+	BackgroundContextDecorator func(context.Context) context.Context
 	// AgentThunderProvisioning is the deployment-specific AgentID provisioning
 	// implementation. A factory because the open-source impl is DB-backed and the
 	// DB is initialized inside Run. nil disables provisioning (identity endpoints
@@ -73,11 +82,28 @@ type Options struct {
 	// the env-Thunder system-client credential from AMS's own Postgres — that one
 	// is not read back from a key vault.
 	AgentThunderProvisioning func(db *gorm.DB, secretMgmtClient secretmanagersvc.SecretManagementClient, ocClient occlient.OpenChoreoClient, encryptionKey []byte) services.AgentThunderProvisioningService
+	// BuildSecretProvisioner provisions the per-run git clone secret before a source
+	// build's WorkflowRun is created. nil (the open-source default) is a no-op: private
+	// repos are cloned via the PAT-backed git secret the user created (or public repos
+	// anonymously). A deployment can inject an implementation that mints a short-lived
+	// token from a platform GitHub App. See services.BuildSecretProvisioner.
+	BuildSecretProvisioner services.BuildSecretProvisioner
+	// RepositoryCommitProvider optionally resolves commit history from a
+	// deployment-specific component source binding. nil preserves the standard
+	// anonymous/static-token and PAT-backed repository behavior.
+	RepositoryCommitProvider services.RepositoryCommitProvider
 	// ResourceLabels are stamped on every Component and ReleaseBinding Agent
 	// Manager writes to OpenChoreo. nil (the open-source default) stamps none;
 	// cloud deployments inject their own, e.g. the product label WSO2 Cloud's
 	// product-scoped suspension selects ReleaseBindings by.
 	ResourceLabels map[string]string
+	// OrgOverrideResolver lets a deployment's control plane act on a tenant's
+	// behalf on the few routes it drives (gateway listing, environment Thunder
+	// registration, gateway identity providers), typically by trusting an
+	// X-Impersonate-Org header from its own service token. nil (the open-source
+	// default) ignores any such header: the token is the sole source of org
+	// identity. See middleware.OrgOverrideResolver.
+	OrgOverrideResolver middleware.OrgOverrideResolver
 }
 
 // Run starts the application with the provided providers and options.
@@ -90,6 +116,8 @@ func Run(authProvider occlient.AuthProvider, secretProvider secretmanagersvc.Pro
 	cfg := config.GetConfig()
 	// Set before anything builds an OpenChoreo client, which all read it from config.
 	cfg.OpenChoreo.ResourceLabels = maps.Clone(opts.ResourceLabels)
+	// Installed before the HTTP server starts, so no request sees it change.
+	middleware.SetOrgOverrideResolver(opts.OrgOverrideResolver)
 
 	setupLogger(cfg)
 
@@ -153,9 +181,12 @@ func Run(authProvider occlient.AuthProvider, secretProvider secretmanagersvc.Pro
 			os.Exit(1)
 		}
 		agentThunderProvisioning = opts.AgentThunderProvisioning(database, secretMgmtClientForProvisioning, ocClientForProvisioning, encryptionKey)
+		if setter, ok := agentThunderProvisioning.(services.EnvThunderEndpointResolverSetter); ok {
+			setter.SetEnvThunderEndpointResolver(opts.EnvThunderEndpointResolver)
+		}
 	}
 
-	dependencies, err := wiring.InitializeAppParams(cfg, database, authProvider, secretProvider, opts.GatewayConfigApplier, agentThunderProvisioning)
+	dependencies, err := wiring.InitializeAppParamsWithEnvThunderEndpoints(cfg, database, authProvider, secretProvider, opts.GatewayConfigApplier, agentThunderProvisioning, opts.BuildSecretProvisioner, opts.EnvThunderEndpointResolver)
 	if err != nil {
 		slog.Error("failed to initialize app dependencies", "error", err)
 		os.Exit(1)
@@ -173,6 +204,7 @@ func Run(authProvider occlient.AuthProvider, secretProvider secretmanagersvc.Pro
 	if setter, ok := agentThunderProvisioning.(services.WorkloadInjectorSetter); ok {
 		setter.SetWorkloadInjector(dependencies.AgentIdentityInjectionService)
 	}
+	dependencies.RepositoryService.SetCommitProvider(opts.RepositoryCommitProvider)
 
 	// Background workers have no request behind them, so nothing installs a
 	// recorder on their contexts the way the HTTP middleware does. Install one
@@ -180,6 +212,9 @@ func Run(authProvider occlient.AuthProvider, secretProvider secretmanagersvc.Pro
 	// be lost — silently, which is the failure mode a context-carried recorder
 	// is most prone to.
 	backgroundCtx := audit.WithRecorder(context.Background(), dependencies.AuditRecorder)
+	if opts.BackgroundContextDecorator != nil {
+		backgroundCtx = opts.BackgroundContextDecorator(backgroundCtx)
+	}
 
 	// So a rotated agent's deferred pod rollout (see RefreshAfterRotation)
 	// stops waiting, or aborts an in-flight roll, once shutdown starts below

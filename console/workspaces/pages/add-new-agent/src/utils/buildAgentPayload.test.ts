@@ -171,7 +171,9 @@ describe("deriveCatalogEnvSeed", () => {
       schemaItem({ name: "MODEL_NAME", defaultValue: "gpt-4" }),
     ]);
 
-    expect(seed.env).toEqual([{ key: "MODEL_NAME", value: "gpt-4", isSensitive: false }]);
+    expect(seed.env).toEqual([
+      { key: "MODEL_NAME", value: "gpt-4", isSensitive: false, isInherited: false },
+    ]);
     expect(seed.lockedEnvKeys.has("MODEL_NAME")).toBe(true);
     expect(seed.kindSecretKeysWithDefault.has("MODEL_NAME")).toBe(false);
   });
@@ -185,7 +187,9 @@ describe("deriveCatalogEnvSeed", () => {
       schemaItem({ name: "OPENAI_API_KEY", isSecret: true, isMandatory: true }),
     ]);
 
-    expect(seed.env).toEqual([{ key: "OPENAI_API_KEY", value: "", isSensitive: true }]);
+    expect(seed.env).toEqual([
+      { key: "OPENAI_API_KEY", value: "", isSensitive: true, isInherited: false },
+    ]);
     expect(seed.lockedEnvKeys.has("OPENAI_API_KEY")).toBe(true);
     expect(seed.kindSecretKeysWithDefault.has("OPENAI_API_KEY")).toBe(false);
   });
@@ -195,8 +199,26 @@ describe("deriveCatalogEnvSeed", () => {
       schemaItem({ name: "OPENAI_API_KEY", isSecret: true, defaultValue: "••••••••" }),
     ]);
 
-    expect(seed.env).toEqual([{ key: "OPENAI_API_KEY", value: "", isSensitive: true }]);
+    expect(seed.env).toEqual([
+      { key: "OPENAI_API_KEY", value: "", isSensitive: true, isInherited: true },
+    ]);
     expect(seed.kindSecretKeysWithDefault.has("OPENAI_API_KEY")).toBe(true);
+  });
+
+  // Only a secret with a default inherits; a non-secret default is seeded as a real value.
+  it("marks only the secret-with-default row as inherited in a mixed schema", () => {
+    const seed = deriveCatalogEnvSeed([
+      schemaItem({ name: "MODEL_NAME", defaultValue: "gpt-4" }),
+      schemaItem({ name: "OPENAI_API_KEY", isSecret: true, defaultValue: "••••••••" }),
+      schemaItem({ name: "TAVILY_API_KEY", isSecret: true, isMandatory: true }),
+    ]);
+
+    expect(seed.env).toEqual([
+      { key: "MODEL_NAME", value: "gpt-4", isSensitive: false, isInherited: false },
+      { key: "OPENAI_API_KEY", value: "", isSensitive: true, isInherited: true },
+      { key: "TAVILY_API_KEY", value: "", isSensitive: true, isInherited: false },
+    ]);
+    expect([...seed.kindSecretKeysWithDefault]).toEqual(["OPENAI_API_KEY"]);
   });
 
   it("returns an empty seed for an empty schema", () => {

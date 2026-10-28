@@ -112,8 +112,11 @@ func writeAgentCardError(w http.ResponseWriter, r *http.Request, err error, fall
 		utils.WriteErrorResponse(w, http.StatusNotFound, "Agent is not deployed in this environment")
 	case errors.Is(err, utils.ErrAgentNotA2A),
 		errors.Is(err, utils.ErrAgentCardSourceNotExternal),
-		errors.Is(err, utils.ErrInvalidURL):
+		errors.Is(err, utils.ErrInvalidURL),
+		errors.Is(err, utils.ErrA2ACardURLNotProxyable):
 		utils.WriteErrorResponse(w, http.StatusBadRequest, err.Error())
+	case errors.Is(err, utils.ErrA2AProxyOriginChangeNeedsAuthReset):
+		utils.WriteErrorResponse(w, http.StatusConflict, utils.ErrA2AProxyOriginChangeNeedsAuthReset.Error())
 	default:
 		handleCommonErrors(w, err, fallback)
 	}

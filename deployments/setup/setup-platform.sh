@@ -83,19 +83,6 @@ fi
 # ============================================================================
 echo ""
 echo "2️⃣  Start platform services"
-# Export console host path so docker-compose can align WORKDIR with the host,
-# preventing pnpm virtual-store / node_modules path mismatches.
-export CONSOLE_HOST_PATH="$(cd "$SCRIPT_DIR/../../console" && pwd)"
-
-# The console service mounts named volumes at these two paths inside the
-# bind-mounted console directory. Any that do not exist yet, Docker creates as
-# the container's user — root — and on Linux that ownership lands on the host
-# verbatim, so the later host-side `rush install` gets EACCES. (macOS remaps
-# bind-mount ownership to the invoking user, which is why it only bites here.)
-# Creating them first leaves them owned by this user; Docker never re-chowns an
-# existing mountpoint.
-mkdir -p "$CONSOLE_HOST_PATH/node_modules" "$CONSOLE_HOST_PATH/common/temp"
-
 # Must migrate before agent-manager-service starts: it crashes on a fresh volume
 # (missing tables), and Air never auto-restarts a crash — only rebuilds on file changes.
 echo "🐘 Starting Postgres and waiting for it to be healthy..."
@@ -118,23 +105,13 @@ fi
 echo "✅ Migrations completed"
 
 echo "🚀 Starting Agent Manager platform services..."
-# COMPOSE_SERVICES optionally restricts the bring-up to a subset of services
-# (e.g. CI heavy tier skips the console). Unset = all services (local default).
-# Split on whitespace into an array so multiple services work without exposing
-# the value to glob expansion.
-#
 # --build is required, not an optimisation: plain `up -d` builds an image only
 # when none exists, so an image left over from an earlier checkout is reused
 # even after its Dockerfile changed. That silently runs a stale toolchain — a
 # pre-1.26 image against a go.mod requiring go >= 1.26.0 fails inside Air with
 # "GOTOOLCHAIN=local", and the only symptom is a health check timing out much
 # later. Layer caching makes the no-change case cost a couple of seconds.
-if [ -n "${COMPOSE_SERVICES:-}" ]; then
-    read -r -a compose_services <<< "${COMPOSE_SERVICES}"
-    docker compose -f "$COMPOSE_FILE" up -d --build "${compose_services[@]}"
-else
-    docker compose -f "$COMPOSE_FILE" up -d --build
-fi
+docker compose -f "$COMPOSE_FILE" up -d --build
 
 echo ""
 echo "⏳ Waiting for services to be healthy..."
@@ -152,7 +129,6 @@ echo ""
 echo "✅ Agent Manager platform is running!"
 echo ""
 echo "🌐 Access points:"
-echo "   Console:   http://localhost:3000"
 echo "   API:       http://localhost:9000"
 echo "   Database:  postgresql://agentmanager:agentmanager@localhost:5432/agentmanager"
 echo ""

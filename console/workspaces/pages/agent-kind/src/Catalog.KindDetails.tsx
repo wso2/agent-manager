@@ -34,7 +34,7 @@ import {
   Typography,
 } from "@wso2/oxygen-ui";
 import { PageLayout, DescriptionCard, PageMetaItem } from "@agent-management-platform/views";
-import { absoluteRouteMap } from "@agent-management-platform/types";
+import { absoluteRouteMap, withBasePath } from "@agent-management-platform/types";
 import { LabelChips, SwaggerSpecViewer, parseOpenApiSpecContent } from "@agent-management-platform/shared-component";
 import { useGetAgentKind, useGetBuild, useListKindAgents, useListProjects, useGetAgentKindVersion } from "@agent-management-platform/api-client";
 import { SectionCard } from "./SectionCard";
@@ -328,10 +328,11 @@ export const CatalogKindDetails: React.FC = () => {
                 </ListingTable.Head>
                 <ListingTable.Body>
                   {kindAgents.map((agent) => {
-                    const agentHref = generatePath(
+                    // Opened in a new tab via window.open, which bypasses the router basename.
+                    const agentHref = withBasePath(generatePath(
                       absoluteRouteMap.children.org.children.projects.children.agents.path,
                       { orgId: orgId ?? "", projectId: agent.projectName, agentId: agent.name },
-                    );
+                    ));
                     return (
                       <ListingTable.Row
                         key={`${agent.projectName}/${agent.name}`}

@@ -32,6 +32,8 @@ export interface ResourceListEmptyState {
   illustration: React.ReactNode;
   title: string;
   description: string;
+  /** Call-to-action rendered under the description, e.g. a "Create" button. */
+  action?: React.ReactNode;
 }
 
 export interface ResourceListShellProps {
@@ -44,6 +46,8 @@ export interface ResourceListShellProps {
   searchValue: string;
   onSearchChange: (value: string) => void;
   searchPlaceholder?: string;
+  /** Greys out the search input; useful while the list is still loading. */
+  searchDisabled?: boolean;
   /** Right-aligned button rendered next to the search bar. */
   addButton?: {
     label: string;
@@ -108,6 +112,7 @@ export const ResourceListShell: React.FC<ResourceListShellProps> = ({
   searchValue,
   onSearchChange,
   searchPlaceholder = "Search...",
+  searchDisabled,
   addButton,
   toolbar,
   error,
@@ -162,6 +167,7 @@ export const ResourceListShell: React.FC<ResourceListShellProps> = ({
           onChange={(e: React.ChangeEvent<HTMLInputElement>) =>
             onSearchChange(e.target.value)
           }
+          disabled={searchDisabled}
         />
       </Box>
       {addButton && (
@@ -212,13 +218,14 @@ export const ResourceListShell: React.FC<ResourceListShellProps> = ({
             illustration={emptyState.illustration}
             title={emptyState.title}
             description={emptyState.description}
+            action={emptyState.action}
           />
         </ListingTable.Container>
       );
     }
 
     if (isSearchEmpty) {
-      const empty = searchEmptyState ?? {
+      const empty: ResourceListEmptyState = searchEmptyState ?? {
         illustration: <Search size={64} />,
         title: "No results match your search",
         description: "Try a different keyword or clear the search filter.",
@@ -229,6 +236,7 @@ export const ResourceListShell: React.FC<ResourceListShellProps> = ({
             illustration={empty.illustration}
             title={empty.title}
             description={empty.description}
+            action={empty.action}
           />
         </ListingTable.Container>
       );

@@ -30,7 +30,7 @@ install_thunder_extension() {
 
     # Detect an image mismatch and do a clean uninstall+install so the
     # pre-install setup job re-runs and re-bootstraps the database.
-    local target_image="ghcr.io/thunder-id/thunderid:1.0.0"
+    local target_image="ghcr.io/thunder-id/thunderid:1.0.1"
     local selector="app.kubernetes.io/instance=amp-thunder-extension"
     if helm status amp-thunder-extension -n amp-thunder &>/dev/null; then
         local current_image
@@ -140,26 +140,16 @@ run_parallel_tasks \
 echo "✅ All AMP extensions installed successfully"
 echo ""
 
-# ============================================================================
-# Observability Extension (Agent Manager Observer)
-# ============================================================================
-echo "📦 Observability Extension (Agent Manager Observer)"
-if ! helm status wso2-amp-observability-extension -n openchoreo-observability-plane &>/dev/null; then
-    echo "Building and loading Agent Manager Observer Docker image into k3d cluster..."
-    make -C ${PROJECT_ROOT}/agent-manager-observer docker-load-k3d
-    sleep 10
-fi
-echo "   Installing/upgrading Agent Manager Observer (local dev: JWKS disabled, unverified JWT parse)..."
-helm upgrade --install wso2-amp-observability-extension ${PROJECT_ROOT}/deployments/helm-charts/wso2-amp-observability-extension \
-    --create-namespace \
-    --namespace openchoreo-observability-plane \
-    --timeout=10m \
-    --set amObserver.developmentMode=true \
-    --set amObserver.auth.isLocalDevEnv=true \
-    --set-string amObserver.auth.jwksUrl=""
-echo ""
-
 wait_for_namespace_ready amp-thunder 'Thunder Extension'
+
+# openchoreo-api caches Thunder's JWKS for an hour (openchoreo-api-config
+# jwks.refresh_interval). A Thunder reinstall (teardown-amp, version mismatch)
+# rotates the signing keys, so until that cache expires every AMS call to
+# OpenChoreo fails with 401 INVALID_TOKEN and the gateway bootstrap job dies.
+# Restarting forces a fresh JWKS fetch.
+echo "🔄 Restarting openchoreo-api to pick up Thunder's current signing keys..."
+kubectl rollout restart deployment/openchoreo-api -n openchoreo-control-plane
+kubectl rollout status deployment/openchoreo-api -n openchoreo-control-plane --timeout=120s
 
 # The gateway-operator is base-layer, but a stale install breaks the AMP
 # gateway charts when the env.sh pin moves (their CRs need the newer CRDs) —

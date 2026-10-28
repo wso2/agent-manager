@@ -19,7 +19,7 @@ thunder:
     image:
       registry: ghcr.io/thunder-id
       repository: thunderid
-      tag: "1.0.0"
+      tag: "1.0.1"
       pullPolicy: Always
     container:
       port: 8090
@@ -547,11 +547,13 @@ thunder:
     # that install actually serves (docker-compose dev, k3d, a VM, or a real
     # domain); there is no separate "dev" scalar to keep in sync, the same way
     # observerMcpBaseUrl has never needed one.
+    # Each id must be at most 36 characters: Thunder stores it in
+    # RESOURCE_SERVER.ID VARCHAR(36), which PostgreSQL enforces (SQLite does not).
     agentManagerMcpBaseUrl: "http://api.amp.localhost:8080"
     observerMcpBaseUrl: "http://traces.amp.localhost:11080"
     mcpResourceServers:
       - name: "AMP Agent Manager MCP"
-        id: "amp-agent-manager-mcp-resource-server"
+        id: "amp-agent-manager-mcp-resource-srv"
         handle: ""
         baseUrlValue: "agentManagerMcpBaseUrl"
         description: "Resource identifier for the agent-manager MCP endpoint"

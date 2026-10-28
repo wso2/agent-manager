@@ -38,3 +38,9 @@ export function displayAgentSubType(subType?: string) {
       return "A2A";
   }
 }
+
+/** External A2A agent; agentType.type is "external-agent-api" iff provisioning is external. */
+export function isExternalA2AAgent(agent?: { agentType?: { type?: string; subType?: string } }) {
+  return agent?.agentType?.type === "external-agent-api" &&
+    agent.agentType.subType === "a2a-agent";
+}

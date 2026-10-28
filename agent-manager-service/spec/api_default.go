@@ -7485,8 +7485,10 @@ func (r ApiListRepositoryCommitsRequest) Execute() (*ListCommitsResponse, *http.
 /*
 ListRepositoryCommits List commits for a repository
 
-Returns a list of commits for the specified public repository.
-Currently supports GitHub repositories only.
+Returns a list of commits for the specified repository.
+Deployments may use projectName and componentName to resolve a
+deployment-specific repository binding. When no binding exists, the
+request uses the standard public or secretRef-backed GitHub flow.
 
 	@param ctx context.Context - for authentication, logging, cancellation, deadlines, tracing, etc. Passed from http.Request or context.Background().
 	@param orgName Organization name/handle

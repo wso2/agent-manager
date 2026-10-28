@@ -72,7 +72,7 @@ async def chat(req: ChatRequest) -> ChatResponse:
         )
     except Exception as exc:  # noqa: BLE001
         log.exception("agent invocation failed")
-        raise HTTPException(status_code=500, detail=str(exc)) from exc
+        raise HTTPException(status_code=500, detail="agent invocation failed") from exc
 
     final: Any = None
     for m in reversed(result.get("messages", [])):

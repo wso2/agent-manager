@@ -125,6 +125,10 @@ func (c *llmProxyAPIKeyController) CreateAPIKey(w http.ResponseWriter, r *http.R
 	response, err := c.apiKeyService.CreateAPIKey(ctx, ouID, proxyID, req)
 	if err != nil {
 		switch {
+		case errors.Is(err, utils.ErrBadRequest):
+			log.Warn("CreateLLMProxyAPIKey: invalid request", "ouID", ouID, "proxyID", proxyID, "error", err)
+			utils.WriteErrorResponse(w, http.StatusBadRequest, err.Error())
+			return
 		case errors.Is(err, utils.ErrLLMProxyNotFound):
 			log.Warn("CreateLLMProxyAPIKey: proxy not found", "ouID", ouID, "proxyID", proxyID)
 			utils.WriteErrorResponse(w, http.StatusNotFound, "LLM proxy not found")

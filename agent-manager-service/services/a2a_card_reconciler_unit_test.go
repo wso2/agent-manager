@@ -19,12 +19,14 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"strings"
 	"testing"
 	"time"
 	"unicode/utf8"
 
 	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -53,6 +55,8 @@ type cardReconcilerHarness struct {
 	repo     *repomocks.A2AAgentCardRepositoryMock
 	fetcher  *fakeA2ACardFetcher
 	ocClient *clientmocks.OpenChoreoClientMock
+	proxies  *repomocks.A2AProxyRepositoryMock
+	gateways *repomocks.GatewayRepositoryMock
 }
 
 // newCardReconcilerHarness wires a reconciler whose fetch succeeds with validTestCard
@@ -75,9 +79,19 @@ func newCardReconcilerHarness(endpointURL string) *cardReconcilerHarness {
 			return client.ReleaseBindingRollout{ReleaseName: "trip-planner-r1", ExternalURL: endpointURL, Serving: true, Deployed: true}, nil
 		},
 	}
+	proxies := &repomocks.A2AProxyRepositoryMock{
+		GetByEnvUUIDFunc: func(context.Context, string, string, string, uuid.UUID) (*models.A2AProxy, error) {
+			return nil, repositories.ErrA2AProxyNotFound
+		},
+	}
+	gateways := &repomocks.GatewayRepositoryMock{
+		ListWithFiltersFunc: func(repositories.GatewayFilterOptions) ([]*models.Gateway, error) {
+			return []*models.Gateway{{UUID: uuid.New(), Vhost: "https://gw.example/"}}, nil
+		},
+	}
 	return &cardReconcilerHarness{
-		repo: repo, fetcher: fetcher, ocClient: oc,
-		svc: NewA2ACardReconcilerService(repo, fetcher, oc, testLogger()).(*a2aCardReconcilerService),
+		repo: repo, fetcher: fetcher, ocClient: oc, proxies: proxies, gateways: gateways,
+		svc: NewA2ACardReconcilerService(repo, proxies, gateways, fetcher, oc, testLogger()).(*a2aCardReconcilerService),
 	}
 }
 
@@ -129,6 +143,7 @@ func TestCardReconcilerFetchesAnExternalCardGuarded(t *testing.T) {
 	require.Len(t, h.fetcher.calls, 1)
 	assert.Equal(t, row.SourceURL, h.fetcher.calls[0].URL)
 	assert.True(t, h.fetcher.calls[0].Guarded)
+	assert.Nil(t, h.fetcher.calls[0].Header)
 	require.Len(t, h.repo.MarkFetchedCalls(), 1)
 }
 
@@ -157,7 +172,7 @@ func TestCardReconcilerBacksOffExponentially(t *testing.T) {
 func TestCardReconcilerGivesUpPastTheBudget(t *testing.T) {
 	h := newCardReconcilerHarness("http://gw.example/a")
 	h.fetcher.FetchFunc = func(context.Context, string, bool) (json.RawMessage, error) {
-		return nil, errors.New("agent card request returned HTTP 503")
+		return nil, newA2APublicError("agent card request returned HTTP 503", nil)
 	}
 	row := pendingCard(models.A2AAgentCardSourcePlatform)
 	row.AttemptCount = a2aCardAttemptBudget - 1
@@ -173,7 +188,7 @@ func TestCardReconcilerGivesUpPastTheBudget(t *testing.T) {
 func TestCardReconcilerPlatformFailuresNameTheURL(t *testing.T) {
 	h := newCardReconcilerHarness("http://gw.example/a")
 	h.fetcher.FetchFunc = func(context.Context, string, bool) (json.RawMessage, error) {
-		return nil, errors.New("agent card request returned HTTP 404")
+		return nil, newA2APublicError("agent card request returned HTTP 404", nil)
 	}
 
 	h.svc.fetchOne(context.Background(), pendingCard(models.A2AAgentCardSourcePlatform))
@@ -231,8 +246,7 @@ func TestCardReconcilerChargesAnAttemptWhenTheCardCannotBeStored(t *testing.T) {
 
 	retries := h.repo.MarkAttemptFailedCalls()
 	require.Len(t, retries, 1)
-	assert.Contains(t, retries[0].LastErr, "failed to store agent card")
-	assert.Contains(t, retries[0].LastErr, "22P05")
+	assert.Equal(t, a2aCardInternalError, retries[0].LastErr)
 }
 
 func TestCardReconcilerFailsTheRowWhenTheLastCardCannotBeStored(t *testing.T) {
@@ -248,10 +262,35 @@ func TestCardReconcilerFailsTheRowWhenTheLastCardCannotBeStored(t *testing.T) {
 	require.Len(t, h.repo.MarkFailedCalls(), 1)
 }
 
+func TestCardReconcilerReportsAnUnstorableCard(t *testing.T) {
+	tests := []struct {
+		name string
+		code string
+	}{
+		{name: "unsupported unicode escape", code: "22P05"},
+		{name: "invalid byte sequence", code: "22021"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			h := newCardReconcilerHarness("http://gw.example/a")
+			h.repo.MarkFetchedFunc = func(context.Context, models.A2AAgentCard, json.RawMessage, string, string, string) error {
+				return fmt.Errorf("wrap: %w", &pgconn.PgError{Code: tt.code, Message: "unsupported Unicode escape sequence"})
+			}
+
+			h.svc.fetchOne(context.Background(), pendingCard(models.A2AAgentCardSourcePlatform))
+
+			retries := h.repo.MarkAttemptFailedCalls()
+			require.Len(t, retries, 1)
+			assert.Equal(t, a2aCardUnstorableError, retries[0].LastErr)
+			assert.NotContains(t, retries[0].LastErr, "SQLSTATE")
+		})
+	}
+}
+
 func TestCardReconcilerStoresAValidUTF8LastError(t *testing.T) {
 	h := newCardReconcilerHarness("http://gw.example/a")
 	h.fetcher.FetchFunc = func(context.Context, string, bool) (json.RawMessage, error) {
-		return nil, errors.New("dial tcp: lookup \xff\x00host: no such host")
+		return nil, newA2APublicError("agent card request returned HTTP 502 \xff\x00 from upstream", nil)
 	}
 
 	h.svc.fetchOne(context.Background(), pendingCard(models.A2AAgentCardSourcePlatform))
@@ -260,20 +299,20 @@ func TestCardReconcilerStoresAValidUTF8LastError(t *testing.T) {
 	require.Len(t, retries, 1)
 	assert.True(t, utf8.ValidString(retries[0].LastErr))
 	assert.NotContains(t, retries[0].LastErr, "\x00")
-	assert.Contains(t, retries[0].LastErr, "no such host")
+	assert.Contains(t, retries[0].LastErr, "HTTP 502")
 }
 
 func TestCardReconcilerCapsTheLastErrorLength(t *testing.T) {
 	h := newCardReconcilerHarness("http://gw.example/a")
 	h.fetcher.FetchFunc = func(context.Context, string, bool) (json.RawMessage, error) {
-		return nil, errors.New(strings.Repeat("é", 10*a2aCardLastErrorMaxRunes))
+		return nil, newA2APublicError(strings.Repeat("é", 10*a2aLastErrorMaxRunes), nil)
 	}
 
 	h.svc.fetchOne(context.Background(), pendingCard(models.A2AAgentCardSourcePlatform))
 
 	retries := h.repo.MarkAttemptFailedCalls()
 	require.Len(t, retries, 1)
-	assert.LessOrEqual(t, utf8.RuneCountInString(retries[0].LastErr), a2aCardLastErrorMaxRunes)
+	assert.LessOrEqual(t, utf8.RuneCountInString(retries[0].LastErr), a2aLastErrorMaxRunes)
 	assert.True(t, utf8.ValidString(retries[0].LastErr))
 }
 
@@ -349,17 +388,51 @@ func TestCardReconcilerStopsTheBatchBeforeTheLeaseEnds(t *testing.T) {
 	rolloutBlocksUntilCancelled(h)
 	h.svc.batchBudget = 20 * time.Millisecond
 	h.repo.ClaimDueFunc = func(context.Context, time.Time, int) ([]models.A2AAgentCard, error) {
-		return []models.A2AAgentCard{
-			pendingCard(models.A2AAgentCardSourcePlatform),
-			pendingCard(models.A2AAgentCardSourcePlatform),
-			pendingCard(models.A2AAgentCardSourcePlatform),
-		}, nil
+		rows := make([]models.A2AAgentCard, a2aWorkerConcurrency+2)
+		for i := range rows {
+			rows[i] = pendingCard(models.A2AAgentCardSourcePlatform)
+		}
+		return rows, nil
 	}
 
 	runWithin(t, 2*time.Second, func() { h.svc.RunOnce(context.Background()) })
 
-	assert.Len(t, h.ocClient.GetReleaseBindingRolloutCalls(), 1, "rows left at the deadline wait for their lease to lapse")
-	assert.Len(t, h.repo.MarkAttemptFailedCalls(), 1, "only the cut-off row is charged")
+	assert.Len(t, h.ocClient.GetReleaseBindingRolloutCalls(), a2aWorkerConcurrency,
+		"rows left at the deadline wait for their lease to lapse")
+	assert.Len(t, h.repo.MarkAttemptFailedCalls(), a2aWorkerConcurrency, "only the cut-off rows are charged")
+}
+
+// One slow origin must not hold up the rest of the batch.
+func TestCardReconcilerFetchesRowsConcurrently(t *testing.T) {
+	h := newCardReconcilerHarness("http://gw.example/a")
+	started := make(chan struct{}, a2aWorkerConcurrency)
+	release := make(chan struct{})
+	h.fetcher.FetchFunc = func(context.Context, string, bool) (json.RawMessage, error) {
+		started <- struct{}{}
+		<-release
+		return json.RawMessage(validTestCard), nil
+	}
+	h.repo.ClaimDueFunc = func(context.Context, time.Time, int) ([]models.A2AAgentCard, error) {
+		rows := make([]models.A2AAgentCard, a2aWorkerConcurrency)
+		for i := range rows {
+			rows[i] = pendingCard(models.A2AAgentCardSourcePlatform)
+		}
+		return rows, nil
+	}
+
+	done := make(chan struct{})
+	go func() { h.svc.RunOnce(context.Background()); close(done) }()
+	for range a2aWorkerConcurrency {
+		select {
+		case <-started:
+		case <-time.After(2 * time.Second):
+			require.FailNow(t, "rows were not fetched concurrently")
+		}
+	}
+	close(release)
+	<-done
+
+	assert.Len(t, h.repo.MarkFetchedCalls(), a2aWorkerConcurrency)
 }
 
 func TestCardReconcilerBatchFitsInsideTheClaimLease(t *testing.T) {
@@ -455,4 +528,97 @@ func TestCardReconcilerKeepsAnUndeployedRowReenqueuedMeanwhile(t *testing.T) {
 
 	assert.Empty(t, h.repo.MarkAttemptFailedCalls())
 	assert.Empty(t, h.repo.MarkFailedCalls())
+}
+
+// Only the gateway's copy of a proxied card advertises gateway URLs.
+func TestCardReconcilerFetchesAProxiedCardThroughTheGateway(t *testing.T) {
+	h := newCardReconcilerHarness("")
+	h.ocClient.GetReleaseBindingRolloutFunc = nil // external rows never ask OpenChoreo
+	var lookedUp uuid.UUID
+	h.proxies.GetByEnvUUIDFunc = func(_ context.Context, _, _, _ string, envUUID uuid.UUID) (*models.A2AProxy, error) {
+		lookedUp = envUUID
+		return &models.A2AProxy{}, nil
+	}
+	var asked repositories.GatewayFilterOptions
+	h.gateways.ListWithFiltersFunc = func(opts repositories.GatewayFilterOptions) ([]*models.Gateway, error) {
+		asked = opts
+		return []*models.Gateway{{UUID: uuid.New(), Vhost: "https://gw.example/"}}, nil
+	}
+	row := pendingCard(models.A2AAgentCardSourceExternal)
+	row.EnvironmentUUID = uuid.New()
+	row.SourceURL = "https://agent.example/.well-known/agent-card.json"
+
+	h.svc.fetchOne(context.Background(), row)
+
+	require.Len(t, h.fetcher.calls, 1)
+	assert.Equal(t, fakeFetchCall{URL: "https://gw.example/trip-planner/.well-known/agent-card.json", Guarded: false},
+		h.fetcher.calls[0], "a platform-derived URL, loopback in local setups")
+	assert.Equal(t, row.EnvironmentUUID, lookedUp)
+	require.NotNil(t, asked.EnvironmentID)
+	assert.Equal(t, row.EnvironmentUUID.String(), *asked.EnvironmentID)
+	assert.Equal(t, models.IngressGatewayRoles, asked.FunctionalityTypeIn)
+	require.Len(t, h.repo.MarkFetchedCalls(), 1)
+}
+
+// The fetched card path sits under the context the published Agent is served at.
+func TestCardReconcilerGatewayCardURLFollowsTheAgentContext(t *testing.T) {
+	for _, vhost := range []string{"gw.example", "https://gw.example", "https://gw.example/"} {
+		t.Run(vhost, func(t *testing.T) {
+			h := newCardReconcilerHarness("")
+			h.proxies.GetByEnvUUIDFunc = func(context.Context, string, string, string, uuid.UUID) (*models.A2AProxy, error) {
+				return &models.A2AProxy{}, nil
+			}
+			h.gateways.ListWithFiltersFunc = func(repositories.GatewayFilterOptions) ([]*models.Gateway, error) {
+				return []*models.Gateway{{UUID: uuid.New(), Vhost: vhost}}, nil
+			}
+
+			h.svc.fetchOne(context.Background(), pendingCard(models.A2AAgentCardSourceExternal))
+
+			require.Len(t, h.fetcher.calls, 1)
+			assert.Equal(t, "https://gw.example/trip-planner/.well-known/agent-card.json", h.fetcher.calls[0].URL)
+		})
+	}
+}
+
+func TestCardReconcilerRetriesWhenTheProxyLookupFails(t *testing.T) {
+	h := newCardReconcilerHarness("")
+	h.proxies.GetByEnvUUIDFunc = func(context.Context, string, string, string, uuid.UUID) (*models.A2AProxy, error) {
+		return nil, assert.AnError
+	}
+	row := pendingCard(models.A2AAgentCardSourceExternal)
+	row.SourceURL = "https://agent.example/.well-known/agent-card.json"
+
+	h.svc.fetchOne(context.Background(), row)
+
+	assert.Empty(t, h.fetcher.calls, "a failed lookup must not fall back to the origin")
+	require.Len(t, h.repo.MarkAttemptFailedCalls(), 1)
+}
+
+func TestCardReconcilerRetriesUntilTheIngressGatewayIsMapped(t *testing.T) {
+	h := newCardReconcilerHarness("")
+	h.proxies.GetByEnvUUIDFunc = func(context.Context, string, string, string, uuid.UUID) (*models.A2AProxy, error) {
+		return &models.A2AProxy{}, nil
+	}
+	h.gateways.ListWithFiltersFunc = func(repositories.GatewayFilterOptions) ([]*models.Gateway, error) {
+		return []*models.Gateway{}, nil
+	}
+
+	h.svc.fetchOne(context.Background(), pendingCard(models.A2AAgentCardSourceExternal))
+
+	failed := h.repo.MarkAttemptFailedCalls()
+	require.Len(t, failed, 1)
+	assert.Contains(t, failed[0].LastErr, "no ingress gateway")
+}
+
+func TestCardReconcilerHidesInternalErrorsFromLastError(t *testing.T) {
+	h := newCardReconcilerHarness("")
+	h.proxies.GetByEnvUUIDFunc = func(context.Context, string, string, string, uuid.UUID) (*models.A2AProxy, error) {
+		return nil, errors.New("failed to connect to `user=ams database=amdb`: SQLSTATE 28P01")
+	}
+
+	h.svc.fetchOne(context.Background(), pendingCard(models.A2AAgentCardSourceExternal))
+
+	retries := h.repo.MarkAttemptFailedCalls()
+	require.Len(t, retries, 1)
+	assert.Equal(t, a2aCardInternalError, retries[0].LastErr)
 }

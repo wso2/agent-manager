@@ -18,7 +18,7 @@
 
 import { Alert, Box, Checkbox, Collapse, Form, FormControl, FormControlLabel, FormHelperText, IconButton, MenuItem, Select, Stack, TextField, Tooltip, Typography, CircularProgress } from "@wso2/oxygen-ui";
 import { Copy as ContentCopy } from "@wso2/oxygen-ui-icons-react";
-import { useEffect, useMemo, useCallback, useState } from "react";
+import { useEffect, useMemo, useCallback, useState, type ComponentType } from "react";
 import { useParams } from "react-router-dom";
 import { debounce } from "lodash";
 import {
@@ -34,7 +34,16 @@ import { LLMProviderSection } from "../components/LLMProviderSection";
 import { MCPProxySection } from "../components/MCPProxySection";
 import { LabelsEditor, MarkdownEditor } from "@agent-management-platform/shared-component";
 import type { CreateAgentFormValues, LLMProviderFormEntry, MCPProxyFormEntry } from "../form/schema";
-import { BuildpackIcon } from "@agent-management-platform/views";
+import {
+  BuildpackIcon,
+  useExternalComponentModulesByMountPoint,
+  type PrivateRepoSourceProps,
+} from "@agent-management-platform/views";
+
+// Mount point where a deployment can inject its own repository-source component
+// (e.g. a GitHub App connect flow). Kept as a string literal to avoid a core-ui
+// dependency from this page workspace; matches MountPoints.PrivateRepoSource.
+const PRIVATE_REPO_SOURCE_MOUNT_POINT = "private-repo-source";
 import { mcpEntryVarNames } from "../utils/mcpEnvVarNames";
 
 interface InternalAgentFormProps {
@@ -100,6 +109,13 @@ export const InternalAgentForm = ({
   }, []);
 
   const isPrivateRepoEnabled = globalConfig.featureFlags?.enablePrivateRepoSupport === true;
+
+  // A deployment can override the entire repository-source region (e.g. to connect
+  // private repos through a GitHub App instead of a stored PAT). When nothing is
+  // injected, the built-in fields + PAT git-secret selector render unchanged.
+  const RepoSourceOverride = useExternalComponentModulesByMountPoint(
+    PRIVATE_REPO_SOURCE_MOUNT_POINT,
+  )[0]?.component as unknown as ComponentType<PrivateRepoSourceProps> | undefined;
 
   const { mutate: generateName, isPending: isGeneratingName } = useGenerateResourceName({
     orgName: orgId,
@@ -317,51 +333,77 @@ export const InternalAgentForm = ({
       <Form.Section>
         <Form.Subheader>Repository Details</Form.Subheader>
         <Form.Stack spacing={2}>
-          <Form.ElementWrapper label="GitHub Repository" name="repositoryUrl">
-            <TextField
-              slotProps={{ htmlInput: { maxLength: INPUT_LIMITS.URL } }}
-              id="repositoryUrl"
-              placeholder="https://github.com/username/repo"
-              value={formData.repositoryUrl}
-              onChange={(e) => handleFieldChange('repositoryUrl', e.target.value)}
-              error={!!errors.repositoryUrl}
-              helperText={errors.repositoryUrl}
-              fullWidth
+          {RepoSourceOverride ? (
+            <RepoSourceOverride
+              values={{
+                repositoryUrl: formData.repositoryUrl,
+                branch: formData.branch,
+                appPath: formData.appPath,
+                gitSecretRef: formData.gitSecretRef,
+              }}
+              errors={{
+                repositoryUrl: errors.repositoryUrl,
+                branch: errors.branch,
+                appPath: errors.appPath,
+                gitSecretRef: errors.gitSecretRef,
+              }}
+              onFieldChange={(field, value) => handleFieldChange(field, value)}
+              sourceBinding={formData.githubApp}
+              sourceBindingError={errors.githubApp}
+              onSourceBindingChange={(binding) => handleFieldChange('githubApp', binding)}
+              orgId={orgId ?? ""}
+              projectName={projectId}
+              componentName={formData.name}
             />
-          </Form.ElementWrapper>
-          {isPrivateRepoEnabled && (
-            <GitSecretSelector
-              formData={formData}
-              handleFieldChange={handleFieldChange}
-              errors={errors}
-            />
+          ) : (
+            <>
+              <Form.ElementWrapper label="GitHub Repository" name="repositoryUrl">
+                <TextField
+                  slotProps={{ htmlInput: { maxLength: INPUT_LIMITS.URL } }}
+                  id="repositoryUrl"
+                  placeholder="https://github.com/username/repo"
+                  value={formData.repositoryUrl}
+                  onChange={(e) => handleFieldChange('repositoryUrl', e.target.value)}
+                  error={!!errors.repositoryUrl}
+                  helperText={errors.repositoryUrl}
+                  fullWidth
+                />
+              </Form.ElementWrapper>
+              {isPrivateRepoEnabled && (
+                <GitSecretSelector
+                  formData={formData}
+                  handleFieldChange={handleFieldChange}
+                  errors={errors}
+                />
+              )}
+              <Form.Stack direction="row" spacing={2}>
+                <Form.ElementWrapper label="Branch" name="branch">
+                  <TextField
+                    slotProps={{ htmlInput: { maxLength: INPUT_LIMITS.SHORT_TEXT } }}
+                    id="branch"
+                    placeholder="main"
+                    value={formData.branch}
+                    onChange={(e) => handleFieldChange('branch', e.target.value)}
+                    error={!!errors.branch}
+                    helperText={errors.branch}
+                    fullWidth
+                  />
+                </Form.ElementWrapper>
+                <Form.ElementWrapper label="Project Path" name="appPath">
+                  <TextField
+                    slotProps={{ htmlInput: { maxLength: INPUT_LIMITS.PATH } }}
+                    id="appPath"
+                    placeholder="my-agent"
+                    value={formData.appPath}
+                    onChange={(e) => handleFieldChange('appPath', e.target.value)}
+                    error={!!errors.appPath}
+                    helperText={errors.appPath}
+                    fullWidth
+                  />
+                </Form.ElementWrapper>
+              </Form.Stack>
+            </>
           )}
-          <Form.Stack direction="row" spacing={2}>
-            <Form.ElementWrapper label="Branch" name="branch">
-              <TextField
-                slotProps={{ htmlInput: { maxLength: INPUT_LIMITS.SHORT_TEXT } }}
-                id="branch"
-                placeholder="main"
-                value={formData.branch}
-                onChange={(e) => handleFieldChange('branch', e.target.value)}
-                error={!!errors.branch}
-                helperText={errors.branch}
-                fullWidth
-              />
-            </Form.ElementWrapper>
-            <Form.ElementWrapper label="Project Path" name="appPath">
-              <TextField
-                slotProps={{ htmlInput: { maxLength: INPUT_LIMITS.PATH } }}
-                id="appPath"
-                placeholder="my-agent"
-                value={formData.appPath}
-                onChange={(e) => handleFieldChange('appPath', e.target.value)}
-                error={!!errors.appPath}
-                helperText={errors.appPath}
-                fullWidth
-              />
-            </Form.ElementWrapper>
-          </Form.Stack>
         </Form.Stack>
       </Form.Section>
 
@@ -743,6 +785,7 @@ export const InternalAgentForm = ({
             ...mcpProxies.flatMap((e, i) => mcpEntryVarNames(e, i, agentNameUpper)),
           ]);
         })()}
+        showMissingValueError={!!errors.env}
       />
       <FileMount
         formData={formData}

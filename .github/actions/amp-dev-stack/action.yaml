@@ -13,31 +13,22 @@ runs:
   using: composite
   steps:
     - uses: ./.github/actions/setup-go
-    - name: Install k3d
-      shell: bash
-      run: |
-        curl -fsSL -o /tmp/k3d https://github.com/k3d-io/k3d/releases/download/v5.8.3/k3d-linux-amd64
-        echo "dbaa79a76ace7f4ca230a1ff41dc7d8a5036a8ad0309e9c54f9bf3836dbe853e  /tmp/k3d" | sha256sum -c -
-        sudo install /tmp/k3d /usr/local/bin/k3d
-        k3d version
+    - name: Install cluster CLIs (deployments/setup/cluster-tools.env)
+      uses: ./.github/actions/setup-cluster-clis
     - name: Install yq
       shell: bash
       run: |
         curl -fsSL -o /tmp/yq https://github.com/mikefarah/yq/releases/download/v4.45.4/yq_linux_amd64
         echo "b96de04645707e14a12f52c37e6266832e03c29e95b9b139cddcae7314466e69  /tmp/yq" | sha256sum -c -
         sudo install /tmp/yq /usr/local/bin/yq
-    - name: Install helm + kubectl
-      shell: bash
-      run: |
-        set -euo pipefail
-        # get-helm-3 verifies the downloaded archive's checksum itself.
-        curl -fsSL https://raw.githubusercontent.com/helm/helm/main/scripts/get-helm-3 | bash
-        # kubectl: verify against the official published sha256 (self-fetched,
-        # so no hardcoded hash to rot when the pin bumps).
-        curl -fsSL -o /tmp/kubectl "https://dl.k8s.io/release/v1.31.0/bin/linux/amd64/kubectl"
-        curl -fsSL -o /tmp/kubectl.sha256 "https://dl.k8s.io/release/v1.31.0/bin/linux/amd64/kubectl.sha256"
-        echo "$(cat /tmp/kubectl.sha256)  /tmp/kubectl" | sha256sum --check
-        sudo install /tmp/kubectl /usr/local/bin/kubectl
+    # The Dockerfiles the setup chain below builds.
+    - name: Cache base images
+      uses: ./.github/actions/cache-base-images
+      with:
+        dockerfiles: |
+          agent-manager-observer/Dockerfile
+          agent-manager-service/Dockerfile.dev
+          evaluation-job/Dockerfile.dev
     - name: Bring up AMP (build-from-source)
       shell: bash
       run: |
@@ -55,14 +46,11 @@ runs:
         # setup-openchoreo (needs the openchoreo-data-plane namespace).
         make setup-sandbox
         # Build + start the core platform (agent-manager-service via compose).
-        # COMPOSE_SERVICES restricts the compose bring-up to the service (+ its
-        # postgres dependency), skipping the slow console image the heavy tier
-        # doesn't use.
         # setup-platform seeds agent-manager-service/.env from the tracked
         # example, runs DB migrations against the compose-exposed Postgres, and
         # only then starts the service — so it boots cleanly against a migrated
         # schema with no extra host-side migrate/restart needed here.
-        COMPOSE_SERVICES=agent-manager-service make setup-platform
+        make setup-platform
         # Expose AMP API (9000) + amp-observer (9098). Bind 0.0.0.0 so the
         # agent-manager container can reach the forwards via the bridge gateway
         # (a 127.0.0.1-only forward is unreachable from inside the container).

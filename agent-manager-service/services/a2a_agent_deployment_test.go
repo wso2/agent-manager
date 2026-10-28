@@ -163,3 +163,55 @@ func TestGenerateA2AAgentDeploymentYAMLRoundTrips(t *testing.T) {
 	require.Len(t, back.Spec.A2A.OperationConfigs.Policies, 2)
 	assert.Equal(t, "cors", back.Spec.A2A.OperationConfigs.Policies[0]["name"])
 }
+
+// proxiedA2AInput is an external agent fronted at derived routes, with a stored upstream secret.
+func proxiedA2AInput() A2AAgentDeploymentInput {
+	in := a2aInput()
+	in.ArtifactName = "checkout-weather-0192f4c19a7d7c3e"
+	in.DisplayName, in.AgentName = "weather", "weather"
+	in.UpstreamURL = "https://agent.example/team"
+	in.Transports = []A2ATransport{{ProtocolBinding: "JSONRPC", PathPrefix: "/a2a/jsonrpc"}, {ProtocolBinding: "HTTP+JSON"}}
+	authType, header, secret := models.AuthTypeAPIKey, "X-Upstream-Key", "c2VjcmV0"
+	in.UpstreamAuth = &models.UpstreamAuth{Type: &authType, Header: &header, SecretRef: &secret}
+	return in
+}
+
+func TestGenerateProxiedA2AAgentYAMLMatchesGolden(t *testing.T) {
+	got, err := generateA2AAgentDeploymentYAML(proxiedA2AInput())
+	require.NoError(t, err)
+
+	goldenPath := filepath.Join("testdata", "a2a_agent_proxied_golden.yaml")
+	if os.Getenv("UPDATE_GOLDEN") != "" {
+		require.NoError(t, os.WriteFile(goldenPath, []byte(got), 0o600))
+	}
+	want, err := os.ReadFile(goldenPath)
+	require.NoError(t, err)
+	assert.Equal(t, string(want), got)
+}
+
+// The gateway honours header and value only, and never sees secretRef: the internal API swaps it for value.
+func TestGenerateProxiedA2AAgentYAMLCarriesTheSecretOnlyAsARef(t *testing.T) {
+	got, err := generateA2AAgentDeploymentYAML(proxiedA2AInput())
+	require.NoError(t, err)
+
+	var doc struct {
+		Spec struct {
+			Upstream map[string]interface{} `yaml:"upstream"`
+			A2A      struct {
+				OperationConfigs struct {
+					Transports []map[string]interface{} `yaml:"transports"`
+				} `yaml:"operationConfigs"`
+			} `yaml:"a2a"`
+		} `yaml:"spec"`
+	}
+	require.NoError(t, yaml.Unmarshal([]byte(got), &doc))
+	assert.Equal(t, map[string]interface{}{"type": "api-key", "header": "X-Upstream-Key", "secretRef": "c2VjcmV0"},
+		doc.Spec.Upstream["auth"])
+	assert.NotContains(t, got, "value:")
+	assert.NotContains(t, got, "hostRewrite")
+
+	transports := doc.Spec.A2A.OperationConfigs.Transports
+	require.Len(t, transports, 2)
+	assert.Equal(t, "/a2a/jsonrpc", transports[0]["pathPrefix"])
+	assert.NotContains(t, transports[1], "pathPrefix", "the gateway rejects an explicit empty prefix")
+}

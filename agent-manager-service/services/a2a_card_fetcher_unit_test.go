@@ -24,6 +24,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"strings"
+	"sync"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -48,7 +49,7 @@ func cardServer(t *testing.T, status int, body string) *httptest.Server {
 
 func TestA2ACardFetcherReturnsTheCardAsServed(t *testing.T) {
 	srv := cardServer(t, http.StatusOK, validTestCard)
-	got, err := newA2ACardFetcher(time.Second, "").Fetch(context.Background(), srv.URL+a2aAgentCardPath, false)
+	got, err := newA2ACardFetcher(time.Second, "").Fetch(context.Background(), srv.URL+a2aAgentCardPath)
 	require.NoError(t, err)
 	assert.JSONEq(t, validTestCard, string(got), "unknown fields pass through")
 }
@@ -62,7 +63,7 @@ func TestA2ACardFetcherPinnedDialKeepsTheURLHost(t *testing.T) {
 	t.Cleanup(srv.Close)
 
 	url := "http://default-default.gateway.invalid:19080" + a2aAgentCardPath
-	_, err := newA2ACardFetcher(time.Second, srv.Listener.Addr().String()).Fetch(context.Background(), url, false)
+	_, err := newA2ACardFetcher(time.Second, srv.Listener.Addr().String()).Fetch(context.Background(), url)
 	require.NoError(t, err)
 	assert.Equal(t, "default-default.gateway.invalid:19080", gotHost)
 }
@@ -86,7 +87,7 @@ func TestA2ACardFetcherRejectsInvalidCards(t *testing.T) {
 	for name, body := range cases {
 		t.Run(name, func(t *testing.T) {
 			srv := cardServer(t, http.StatusOK, body)
-			_, err := newA2ACardFetcher(time.Second, "").Fetch(context.Background(), srv.URL, false)
+			_, err := newA2ACardFetcher(time.Second, "").Fetch(context.Background(), srv.URL)
 			require.Error(t, err)
 		})
 	}
@@ -95,14 +96,14 @@ func TestA2ACardFetcherRejectsInvalidCards(t *testing.T) {
 func TestA2ACardFetcherRejectsNonObjects(t *testing.T) {
 	for _, body := range []string{`[]`, `"card"`, `null`, `42`} {
 		srv := cardServer(t, http.StatusOK, body)
-		_, err := newA2ACardFetcher(time.Second, "").Fetch(context.Background(), srv.URL, false)
+		_, err := newA2ACardFetcher(time.Second, "").Fetch(context.Background(), srv.URL)
 		require.Error(t, err, body)
 	}
 }
 
 func TestA2ACardFetcherReportsTheStatusCode(t *testing.T) {
 	srv := cardServer(t, http.StatusNotFound, `{"name":"n"}`)
-	_, err := newA2ACardFetcher(time.Second, "").Fetch(context.Background(), srv.URL, false)
+	_, err := newA2ACardFetcher(time.Second, "").Fetch(context.Background(), srv.URL)
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "404")
 }
@@ -111,7 +112,7 @@ func TestA2ACardFetcherRejectsAnOversizedBody(t *testing.T) {
 	padding := strings.Repeat("a", a2aCardMaxBytes)
 	body := `{"name":"n","supportedInterfaces":[{"url":"u"}],"skills":[],"pad":"` + padding + `"}`
 	srv := cardServer(t, http.StatusOK, body)
-	_, err := newA2ACardFetcher(time.Second, "").Fetch(context.Background(), srv.URL, false)
+	_, err := newA2ACardFetcher(time.Second, "").Fetch(context.Background(), srv.URL)
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "1 MiB")
 }
@@ -122,7 +123,7 @@ func TestA2ACardFetcherTimesOut(t *testing.T) {
 		_, _ = w.Write([]byte(validTestCard))
 	}))
 	t.Cleanup(srv.Close)
-	_, err := newA2ACardFetcher(50*time.Millisecond, "").Fetch(context.Background(), srv.URL, false)
+	_, err := newA2ACardFetcher(50*time.Millisecond, "").Fetch(context.Background(), srv.URL)
 	require.Error(t, err)
 }
 
@@ -138,7 +139,7 @@ func TestA2ACardFetcherGuardedModeRejectsLoopback(t *testing.T) {
 	require.NoError(t, err)
 
 	for _, url := range []string{srv.URL, "http://localhost:" + port} {
-		_, err := newA2ACardFetcher(time.Second, "").Fetch(context.Background(), url, true)
+		_, err := newA2ACardFetcher(time.Second, "").FetchOrigin(context.Background(), url, nil)
 		require.Error(t, err, url)
 		assert.Contains(t, err.Error(), "agent card URL is not allowed", url)
 	}
@@ -148,17 +149,34 @@ func TestA2ACardFetcherGuardedModeRejectsLoopback(t *testing.T) {
 type fakeFetchCall struct {
 	URL     string
 	Guarded bool
+	Header  *A2ACardFetchHeader
 }
 
-// fakeA2ACardFetcher is the hand-written stub for the in-package A2ACardFetcher.
+// fakeA2ACardFetcher is the hand-written stub for the in-package A2ACardFetcher; FetchFunc serves both modes.
 type fakeA2ACardFetcher struct {
-	FetchFunc func(ctx context.Context, url string, guarded bool) (json.RawMessage, error)
-	calls     []fakeFetchCall
+	FetchFunc       func(ctx context.Context, url string, guarded bool) (json.RawMessage, error)
+	FetchOriginFunc func(ctx context.Context, url string, header *A2ACardFetchHeader) (json.RawMessage, error)
+	mu              sync.Mutex
+	calls           []fakeFetchCall
 }
 
-func (f *fakeA2ACardFetcher) Fetch(ctx context.Context, url string, guarded bool) (json.RawMessage, error) {
-	f.calls = append(f.calls, fakeFetchCall{URL: url, Guarded: guarded})
-	return f.FetchFunc(ctx, url, guarded)
+func (f *fakeA2ACardFetcher) record(call fakeFetchCall) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.calls = append(f.calls, call)
+}
+
+func (f *fakeA2ACardFetcher) Fetch(ctx context.Context, url string) (json.RawMessage, error) {
+	f.record(fakeFetchCall{URL: url, Guarded: false, Header: nil})
+	return f.FetchFunc(ctx, url, false)
+}
+
+func (f *fakeA2ACardFetcher) FetchOrigin(ctx context.Context, url string, header *A2ACardFetchHeader) (json.RawMessage, error) {
+	f.record(fakeFetchCall{URL: url, Guarded: true, Header: header})
+	if f.FetchOriginFunc != nil {
+		return f.FetchOriginFunc(ctx, url, header)
+	}
+	return f.FetchFunc(ctx, url, true)
 }
 
 func TestA2ACardFetcherPlatformDoesNotFollowRedirectsToOtherHosts(t *testing.T) {
@@ -173,7 +191,7 @@ func TestA2ACardFetcherPlatformDoesNotFollowRedirectsToOtherHosts(t *testing.T) 
 	}))
 	t.Cleanup(redirector.Close)
 
-	_, err := newA2ACardFetcher(time.Second, "").Fetch(context.Background(), redirector.URL+a2aAgentCardPath, false)
+	_, err := newA2ACardFetcher(time.Second, "").Fetch(context.Background(), redirector.URL+a2aAgentCardPath)
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "redirected to "+strings.TrimPrefix(other.URL, "http://"))
 	assert.Contains(t, err.Error(), "not followed")
@@ -187,7 +205,7 @@ func TestA2ACardFetcherReportsA3xxWithoutLocationByStatus(t *testing.T) {
 	}))
 	t.Cleanup(srv.Close)
 
-	_, err := newA2ACardFetcher(time.Second, "").Fetch(context.Background(), srv.URL+a2aAgentCardPath, false)
+	_, err := newA2ACardFetcher(time.Second, "").Fetch(context.Background(), srv.URL+a2aAgentCardPath)
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "HTTP 300")
 }
@@ -195,8 +213,8 @@ func TestA2ACardFetcherReportsA3xxWithoutLocationByStatus(t *testing.T) {
 // The error becomes last_error, which any project reader can see.
 func TestA2ACardFetcherGuardedModeHidesWhyAHostIsRefused(t *testing.T) {
 	f := newA2ACardFetcher(time.Second, "")
-	_, internal := f.Fetch(context.Background(), "https://10.0.0.1/c", true)
-	_, unresolvable := f.Fetch(context.Background(), "https://nope.invalid/c", true)
+	_, internal := f.FetchOrigin(context.Background(), "https://10.0.0.1/c", nil)
+	_, unresolvable := f.FetchOrigin(context.Background(), "https://nope.invalid/c", nil)
 
 	require.Error(t, internal)
 	require.Error(t, unresolvable)
@@ -219,9 +237,9 @@ func TestA2ACardFetcherSendsEachModeThroughItsOwnClient(t *testing.T) {
 	plain, guarded := &recordingTransport{}, &recordingTransport{}
 	f := &a2aCardFetcher{plain: &http.Client{Transport: plain}, guarded: &http.Client{Transport: guarded}}
 
-	_, err := f.Fetch(context.Background(), "https://93.184.215.14/card", true)
+	_, err := f.FetchOrigin(context.Background(), "https://93.184.215.14/card", nil)
 	require.NoError(t, err)
-	_, err = f.Fetch(context.Background(), "http://gw.example/card", false)
+	_, err = f.Fetch(context.Background(), "http://gw.example/card")
 	require.NoError(t, err)
 
 	assert.Equal(t, []string{"93.184.215.14"}, guarded.hosts, "tenant URLs use the guarded client")
@@ -245,4 +263,66 @@ func TestA2ACardFetcherPlatformRedirectPolicy(t *testing.T) {
 	assert.False(t, redirectAllowed(t, "https://gw.example/a", "http://gw.example/a"), "downgrade")
 	assert.False(t, redirectAllowed(t, "http://gw.example/a", "https://other.example/a"))
 	assert.False(t, redirectAllowed(t, "http://gw.example:8080/a", "https://gw.example:9443/a"), "upgrade to another port")
+}
+
+// A dial failure on the platform client must not leak the address it dialled.
+func TestA2ACardFetcherDialFailuresArePublicAndAddressFree(t *testing.T) {
+	_, err := newA2ACardFetcher(time.Second, "127.0.0.1:1").Fetch(context.Background(),
+		"http://gw.invalid/a"+a2aAgentCardPath)
+	require.Error(t, err)
+	assert.Equal(t, "could not reach the agent card URL", userFacingA2AError(err, "internal"))
+}
+
+// permissiveOriginFetcher stands in for the guarded client, which rejects loopback.
+func permissiveOriginFetcher() *a2aCardFetcher {
+	return &a2aCardFetcher{
+		plain:   &http.Client{Timeout: time.Second},
+		guarded: &http.Client{Timeout: time.Second},
+	}
+}
+
+func TestA2ACardFetcherOriginSendsTheHeader(t *testing.T) {
+	var got string
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		got = r.Header.Get("X-Upstream-Key")
+		_, _ = w.Write([]byte(validTestCard))
+	}))
+	t.Cleanup(srv.Close)
+
+	_, err := permissiveOriginFetcher().FetchOrigin(context.Background(), srv.URL+a2aAgentCardPath,
+		&A2ACardFetchHeader{Name: "X-Upstream-Key", Value: "s3cret"})
+	require.NoError(t, err)
+	assert.Equal(t, "s3cret", got)
+}
+
+func TestA2ACardFetcherOriginKeepsTheHeaderOnTheOrigin(t *testing.T) {
+	var leaked atomic.Bool
+	other := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		leaked.Store(r.Header.Get("X-Upstream-Key") != "")
+		_, _ = w.Write([]byte(validTestCard))
+	}))
+	t.Cleanup(other.Close)
+	origin := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		http.Redirect(w, r, other.URL+a2aAgentCardPath, http.StatusFound)
+	}))
+	t.Cleanup(origin.Close)
+
+	_, err := permissiveOriginFetcher().FetchOrigin(context.Background(), origin.URL+a2aAgentCardPath,
+		&A2ACardFetchHeader{Name: "X-Upstream-Key", Value: "s3cret"})
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "redirects to another host are not followed")
+	assert.False(t, leaked.Load(), "the credential must not reach another origin")
+}
+
+func TestA2ACardFetcherOriginWithoutAHeaderSendsNone(t *testing.T) {
+	var got string
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		got = r.Header.Get("X-Upstream-Key")
+		_, _ = w.Write([]byte(validTestCard))
+	}))
+	t.Cleanup(srv.Close)
+
+	_, err := permissiveOriginFetcher().FetchOrigin(context.Background(), srv.URL+a2aAgentCardPath, nil)
+	require.NoError(t, err)
+	assert.Empty(t, got)
 }

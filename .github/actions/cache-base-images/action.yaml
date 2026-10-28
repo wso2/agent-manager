@@ -1,0 +1,113 @@
+name: Cache Dockerfile base images
+description: >
+  Loads the base images of the given Dockerfiles from the Actions cache so that
+  `docker build` (default docker driver) uses them locally instead of pulling
+  from the registry. On a cache miss it pulls them once, with retries, and
+  saves them for later runs. Keeps anonymous public.ecr.aws pulls from
+  GitHub-hosted runners, which share egress IPs, from hitting its rate limit.
+
+  The cache key changes when the image list changes and once a week, so moving
+  tags such as alpine:3.24 still pick up upstream fixes. When a refresh pull
+  fails, last week's images (restored as a fallback) are used instead.
+inputs:
+  dockerfiles:
+    description: Newline-separated Dockerfile paths, relative to the repository root.
+    required: true
+runs:
+  using: composite
+  steps:
+    - name: Resolve base images
+      id: images
+      shell: bash
+      env:
+        DOCKERFILES: ${{ inputs.dockerfiles }}
+      run: |
+        set -euo pipefail
+        list="$RUNNER_TEMP/base-images.txt"
+        : > "$list"
+        while read -r dockerfile; do
+          [ -n "$dockerfile" ] || continue
+          # Substitute ARG defaults, skip earlier stage names and scratch.
+          awk '
+            # Replace each whole $NAME or ${NAME} reference in one pass.
+            function expand(s,   out, ref, name) {
+              while (match(s, /\$\{[A-Za-z_][A-Za-z0-9_]*\}|\$[A-Za-z_][A-Za-z0-9_]*/)) {
+                ref = substr(s, RSTART, RLENGTH)
+                name = ref; gsub(/[${}]/, "", name)
+                out = out substr(s, 1, RSTART - 1) ((name in args) ? args[name] : ref)
+                s = substr(s, RSTART + RLENGTH)
+              }
+              return out s
+            }
+            toupper($1) == "ARG" { split($2, kv, "="); if (kv[2] != "") args[kv[1]] = kv[2]; next }
+            toupper($1) == "FROM" {
+              i = 2; if ($i ~ /^--platform=/) i++
+              image = expand($i)
+              if (tolower($(i + 1)) == "as") stages[$(i + 2)] = 1
+              if (image != "scratch" && !(image in stages)) print image
+            }
+          ' "$dockerfile" >> "$list"
+        done <<< "$DOCKERFILES"
+        sort -u -o "$list" "$list"
+        echo "Base images:"; sed 's/^/  /' "$list"
+        {
+          echo "list=$list"
+          echo "hash=$(sha256sum "$list" | cut -c1-16)"
+          echo "week=$(date -u +%G-W%V)"
+          echo "tar=$RUNNER_TEMP/base-images.tar"
+        } >> "$GITHUB_OUTPUT"
+
+    - name: Restore base images
+      id: restore
+      uses: actions/cache/restore@v5
+      with:
+        path: ${{ steps.images.outputs.tar }}
+        key: base-images-${{ runner.os }}-${{ steps.images.outputs.hash }}-${{ steps.images.outputs.week }}
+        restore-keys: base-images-${{ runner.os }}-${{ steps.images.outputs.hash }}-
+
+    - name: Load or pull base images
+      id: pull
+      shell: bash
+      env:
+        LIST: ${{ steps.images.outputs.list }}
+        TAR: ${{ steps.images.outputs.tar }}
+        EXACT_HIT: ${{ steps.restore.outputs.cache-hit }}
+      run: |
+        set -euo pipefail
+        if [ -f "$TAR" ]; then
+          docker load -i "$TAR"
+        fi
+        if [ "$EXACT_HIT" = "true" ]; then
+          exit 0
+        fi
+        complete=true
+        while read -r image; do
+          pulled=false
+          for delay in 15 30 60 120 0; do
+            if docker pull -q "$image"; then pulled=true; break; fi
+            if [ "$delay" -gt 0 ]; then
+              echo "Pull of $image failed; retrying in ${delay}s"
+              sleep "$delay"
+            fi
+          done
+          if [ "$pulled" = false ]; then
+            complete=false
+            if docker image inspect "$image" >/dev/null 2>&1; then
+              echo "::warning::Could not refresh $image; using the cached copy."
+            else
+              echo "::warning::Could not pull $image; the build will try again."
+            fi
+          fi
+        done < "$LIST"
+        # Only a full, fresh set is saved under this week's key.
+        if [ "$complete" = true ]; then
+          xargs docker save -o "$TAR" < "$LIST"
+          echo "save=true" >> "$GITHUB_OUTPUT"
+        fi
+
+    - name: Save base images
+      if: steps.pull.outputs.save == 'true'
+      uses: actions/cache/save@v5
+      with:
+        path: ${{ steps.images.outputs.tar }}
+        key: base-images-${{ runner.os }}-${{ steps.images.outputs.hash }}-${{ steps.images.outputs.week }}

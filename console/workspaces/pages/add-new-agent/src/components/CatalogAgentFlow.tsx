@@ -430,6 +430,7 @@ export const CatalogAgentFlow: React.FC = () => {
           resetKey={effectiveVersion}
           hideAdd
           llmReservedNames={llmReservedNames}
+          showMissingValueError={!!errors.env}
         />
 
         <FileMount

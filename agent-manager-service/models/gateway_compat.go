@@ -150,6 +150,14 @@ type AgentDeploymentEvent struct {
 	PerformedAt  time.Time `json:"performedAt"`
 }
 
+// AgentUndeploymentEvent represents an A2A Agent undeployment event, matching the gateway's
+// AgentUndeployedEventPayload. The gateway keeps an undeployed Agent's API keys.
+type AgentUndeploymentEvent struct {
+	AgentID      string    `json:"proxyId"`
+	DeploymentID string    `json:"deploymentId"`
+	PerformedAt  time.Time `json:"performedAt"`
+}
+
 // AgentDeletionEvent represents an A2A Agent deletion event. Matches the
 // gateway's AgentDeletedEventPayload, which carries only the agent ID, also
 // under "proxyId".

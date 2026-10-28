@@ -35,6 +35,7 @@ type HTTPError struct {
 	RawBody    []byte
 }
 
+// Error returns the status code and message.
 func (e *HTTPError) Error() string {
 	if e.Body != nil && e.Body.Message != "" {
 		return fmt.Sprintf("observer: %d %s: %s", e.StatusCode, e.Body.Error, e.Body.Message)
@@ -158,9 +159,21 @@ type ListTracesParams struct {
 	MinSpanCount   *int64
 	Model          string
 	ConversationID string
+	// Missing names fields a trace must lack, in the API's spelling (conversationId).
+	Missing []string
 
-	// IncludeModels fills TraceOverview.Models; only ListTraces sends it.
-	IncludeModels bool
+	// Tool and MCPServer are substrings; with Tool set, ToolError needs that tool to fail.
+	Tool      string
+	ToolError bool
+	MCPServer string
+
+	// Include* fill the matching TraceOverview fields; only ListTraces sends them.
+	IncludeModels     bool
+	IncludeTools      bool
+	IncludeMCPServers bool
+
+	// Cursor is an earlier page's nextCursor; only ListTraces sends it.
+	Cursor string
 }
 
 type ExportTracesParams = ListTracesParams

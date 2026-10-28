@@ -10,6 +10,8 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/wso2/agent-manager/agent-manager-service/models"
+	"github.com/wso2/agent-manager/agent-manager-service/repositories"
+	"gorm.io/gorm"
 )
 
 // DeploymentRepositoryMock is a mock implementation of repositories.DeploymentRepository.
@@ -23,6 +25,9 @@ import (
 //			},
 //			DeleteFunc: func(deploymentID string, artifactUUID string, orgUUID string) error {
 //				panic("mock out the Delete method")
+//			},
+//			DeleteForArtifactFunc: func(ctx context.Context, artifactUUID uuid.UUID, orgUUID string) error {
+//				panic("mock out the DeleteForArtifact method")
 //			},
 //			DeleteStatusFunc: func(artifactUUID string, orgUUID string, gatewayID string) error {
 //				panic("mock out the DeleteStatus method")
@@ -72,6 +77,9 @@ import (
 //			UpdateStatusByDeploymentIDFunc: func(deploymentID string, gatewayUUID string, status models.DeploymentStatus) (time.Time, error) {
 //				panic("mock out the UpdateStatusByDeploymentID method")
 //			},
+//			WithTxFunc: func(tx *gorm.DB) repositories.DeploymentRepository {
+//				panic("mock out the WithTx method")
+//			},
 //		}
 //
 //		// use mockedDeploymentRepository in code that requires repositories.DeploymentRepository
@@ -84,6 +92,9 @@ type DeploymentRepositoryMock struct {
 
 	// DeleteFunc mocks the Delete method.
 	DeleteFunc func(deploymentID string, artifactUUID string, orgUUID string) error
+
+	// DeleteForArtifactFunc mocks the DeleteForArtifact method.
+	DeleteForArtifactFunc func(ctx context.Context, artifactUUID uuid.UUID, orgUUID string) error
 
 	// DeleteStatusFunc mocks the DeleteStatus method.
 	DeleteStatusFunc func(artifactUUID string, orgUUID string, gatewayID string) error
@@ -133,6 +144,9 @@ type DeploymentRepositoryMock struct {
 	// UpdateStatusByDeploymentIDFunc mocks the UpdateStatusByDeploymentID method.
 	UpdateStatusByDeploymentIDFunc func(deploymentID string, gatewayUUID string, status models.DeploymentStatus) (time.Time, error)
 
+	// WithTxFunc mocks the WithTx method.
+	WithTxFunc func(tx *gorm.DB) repositories.DeploymentRepository
+
 	// calls tracks calls to the methods.
 	calls struct {
 		// CreateWithLimitEnforcement holds details about calls to the CreateWithLimitEnforcement method.
@@ -148,6 +162,15 @@ type DeploymentRepositoryMock struct {
 			DeploymentID string
 			// ArtifactUUID is the artifactUUID argument value.
 			ArtifactUUID string
+			// OrgUUID is the orgUUID argument value.
+			OrgUUID string
+		}
+		// DeleteForArtifact holds details about calls to the DeleteForArtifact method.
+		DeleteForArtifact []struct {
+			// Ctx is the ctx argument value.
+			Ctx context.Context
+			// ArtifactUUID is the artifactUUID argument value.
+			ArtifactUUID uuid.UUID
 			// OrgUUID is the orgUUID argument value.
 			OrgUUID string
 		}
@@ -305,9 +328,15 @@ type DeploymentRepositoryMock struct {
 			// Status is the status argument value.
 			Status models.DeploymentStatus
 		}
+		// WithTx holds details about calls to the WithTx method.
+		WithTx []struct {
+			// Tx is the tx argument value.
+			Tx *gorm.DB
+		}
 	}
 	lockCreateWithLimitEnforcement      sync.RWMutex
 	lockDelete                          sync.RWMutex
+	lockDeleteForArtifact               sync.RWMutex
 	lockDeleteStatus                    sync.RWMutex
 	lockGetByArtifactAndGateway         sync.RWMutex
 	lockGetCurrentByGateway             sync.RWMutex
@@ -324,6 +353,7 @@ type DeploymentRepositoryMock struct {
 	lockSetCurrent                      sync.RWMutex
 	lockSetCurrentCtx                   sync.RWMutex
 	lockUpdateStatusByDeploymentID      sync.RWMutex
+	lockWithTx                          sync.RWMutex
 }
 
 // CreateWithLimitEnforcement calls CreateWithLimitEnforcementFunc.
@@ -399,6 +429,46 @@ func (mock *DeploymentRepositoryMock) DeleteCalls() []struct {
 	mock.lockDelete.RLock()
 	calls = mock.calls.Delete
 	mock.lockDelete.RUnlock()
+	return calls
+}
+
+// DeleteForArtifact calls DeleteForArtifactFunc.
+func (mock *DeploymentRepositoryMock) DeleteForArtifact(ctx context.Context, artifactUUID uuid.UUID, orgUUID string) error {
+	if mock.DeleteForArtifactFunc == nil {
+		panic("DeploymentRepositoryMock.DeleteForArtifactFunc: method is nil but DeploymentRepository.DeleteForArtifact was just called")
+	}
+	callInfo := struct {
+		Ctx          context.Context
+		ArtifactUUID uuid.UUID
+		OrgUUID      string
+	}{
+		Ctx:          ctx,
+		ArtifactUUID: artifactUUID,
+		OrgUUID:      orgUUID,
+	}
+	mock.lockDeleteForArtifact.Lock()
+	mock.calls.DeleteForArtifact = append(mock.calls.DeleteForArtifact, callInfo)
+	mock.lockDeleteForArtifact.Unlock()
+	return mock.DeleteForArtifactFunc(ctx, artifactUUID, orgUUID)
+}
+
+// DeleteForArtifactCalls gets all the calls that were made to DeleteForArtifact.
+// Check the length with:
+//
+//	len(mockedDeploymentRepository.DeleteForArtifactCalls())
+func (mock *DeploymentRepositoryMock) DeleteForArtifactCalls() []struct {
+	Ctx          context.Context
+	ArtifactUUID uuid.UUID
+	OrgUUID      string
+} {
+	var calls []struct {
+		Ctx          context.Context
+		ArtifactUUID uuid.UUID
+		OrgUUID      string
+	}
+	mock.lockDeleteForArtifact.RLock()
+	calls = mock.calls.DeleteForArtifact
+	mock.lockDeleteForArtifact.RUnlock()
 	return calls
 }
 
@@ -1059,5 +1129,37 @@ func (mock *DeploymentRepositoryMock) UpdateStatusByDeploymentIDCalls() []struct
 	mock.lockUpdateStatusByDeploymentID.RLock()
 	calls = mock.calls.UpdateStatusByDeploymentID
 	mock.lockUpdateStatusByDeploymentID.RUnlock()
+	return calls
+}
+
+// WithTx calls WithTxFunc.
+func (mock *DeploymentRepositoryMock) WithTx(tx *gorm.DB) repositories.DeploymentRepository {
+	if mock.WithTxFunc == nil {
+		panic("DeploymentRepositoryMock.WithTxFunc: method is nil but DeploymentRepository.WithTx was just called")
+	}
+	callInfo := struct {
+		Tx *gorm.DB
+	}{
+		Tx: tx,
+	}
+	mock.lockWithTx.Lock()
+	mock.calls.WithTx = append(mock.calls.WithTx, callInfo)
+	mock.lockWithTx.Unlock()
+	return mock.WithTxFunc(tx)
+}
+
+// WithTxCalls gets all the calls that were made to WithTx.
+// Check the length with:
+//
+//	len(mockedDeploymentRepository.WithTxCalls())
+func (mock *DeploymentRepositoryMock) WithTxCalls() []struct {
+	Tx *gorm.DB
+} {
+	var calls []struct {
+		Tx *gorm.DB
+	}
+	mock.lockWithTx.RLock()
+	calls = mock.calls.WithTx
+	mock.lockWithTx.RUnlock()
 	return calls
 }

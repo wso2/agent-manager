@@ -38,6 +38,9 @@ const (
 	// Each user gets their own row (prefix + truncated SHA-256 of their JWT sub),
 	// so concurrent sessions across users don't invalidate each other's keys.
 	APIKeyTestKeyPrefix = "console-test-"
+	// MinAPIKeyNameLength is the shortest key name the gateway accepts. It
+	// rejects shorter names asynchronously, after the API has answered.
+	MinAPIKeyNameLength = 3
 )
 
 // StoredAPIKey represents an API key persisted in the database for gateway bulk-sync

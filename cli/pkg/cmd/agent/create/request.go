@@ -316,7 +316,7 @@ func droppedExternalFlags(opts *CreateOptions) []string {
 		}
 	}
 
-	disallow("--subtype", opts.SubType != "")
+	disallow("--subtype", opts.SubType != "" && opts.SubType != subTypeA2A)
 	disallow("--repo-url", opts.RepoURL != "")
 	disallow("--repo-branch", opts.RepoBranch != "")
 	disallow("--repo-path", opts.RepoPath != "")

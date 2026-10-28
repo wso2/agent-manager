@@ -32,7 +32,7 @@
  */
 
 import { useCallback, useEffect, useMemo, useRef } from "react";
-import { absoluteRouteMap } from "@agent-management-platform/types";
+import { absoluteRouteMap, stripBasePath } from "@agent-management-platform/types";
 import {
   reportConsoleActions,
   reportConsoleActionsOnUnload,
@@ -396,7 +396,7 @@ export function useTrack() {
         buffer.push({
           action,
           occurredAt: new Date().toISOString(),
-          page: normalizeRoute(page ?? window.location.pathname),
+          page: normalizeRoute(page ?? stripBasePath(window.location.pathname)),
           sessionId,
           dimensions,
         });

@@ -1252,6 +1252,18 @@
                   "title": "resolveToHost",
                   "type": "string"
                 },
+                "useDefaultResourceServer": {
+                  "default": false,
+                  "description": "Omit the OAuth resource parameter and let Thunder select its configured default resource server. Keep false when this Thunder instance registers its own <baseURL>/mcp System resource server.",
+                  "title": "useDefaultResourceServer",
+                  "type": "boolean"
+                },
+                "systemResourceIdentifier": {
+                  "default": "",
+                  "description": "Optional absolute URI overriding the derived <baseURL>/mcp identifier. Cannot be set together with useDefaultResourceServer=true.",
+                  "title": "systemResourceIdentifier",
+                  "type": "string"
+                },
                 "clientId": {
                   "default": "amp-system-client",
                   "description": "OAuth2 client ID of the system app (with Administrator role)",

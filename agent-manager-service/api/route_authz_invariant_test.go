@@ -46,11 +46,12 @@ import (
 // permission check. Any other registration path leaves the route open to any
 // authenticated caller.
 var authzBearingRegistrars = map[string]bool{
-	"HandleFuncWithValidationAndAuthz":            true,
-	"HandleFuncWithValidationAndAuthzAllowRootOU": true,
-	"HandleFuncWithValidationAndAnyAuthz":         true,
-	"HandleFuncWithValidationAndAllAuthz":         true,
-	"HandleFuncWithValidationAndDynamicAuthz":     true,
+	"HandleFuncWithValidationAndAuthz":              true,
+	"HandleFuncWithValidationAndAuthzAllowRootOU":   true,
+	"HandleFuncWithValidationAndAnyAuthz":           true,
+	"HandleFuncWithValidationAndAllAuthz":           true,
+	"HandleFuncWithValidationAndDynamicAuthz":       true,
+	"HandleFuncWithValidationAndPlatformAdminAuthz": true,
 }
 
 type routeRegistration struct {

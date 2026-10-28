@@ -278,12 +278,12 @@ func TestListTraces_TruncatedNotice(t *testing.T) {
 		{
 			name: "search stopped early",
 			resp: observersvc.TraceOverviewResponse{Traces: []observersvc.TraceOverview{trace}, Truncated: true, NextCursor: "c"},
-			want: "Showing matches from the traces searched so far; narrow the time range to see more.\n",
+			want: "Showing matches from the traces searched so far; for the next page, run:\n  amctl agent traces my-agent --limit 10 --status error --cursor c\n",
 		},
 		{
 			name: "no matches yet",
 			resp: observersvc.TraceOverviewResponse{Truncated: true, NextCursor: "c"},
-			want: "Showing matches from the traces searched so far; narrow the time range to see more.\n",
+			want: "Showing matches from the traces searched so far; for the next page, run:\n  amctl agent traces my-agent --limit 10 --status error --cursor c\n",
 		},
 		{
 			name: "depth cap",
@@ -324,7 +324,6 @@ func TestListTraces_JSONCarriesTruncatedWithoutCursor(t *testing.T) {
 		Traces:       []observersvc.TraceOverview{},
 		LookedBackTo: "2026-05-12T03:00:00Z",
 		Truncated:    true,
-		NextCursor:   "c",
 	})
 	defer closeFn()
 
@@ -361,5 +360,86 @@ func assertFilterQuery(t *testing.T, q url.Values, want map[string]string) {
 		if q.Get(key) != wantVal {
 			t.Errorf("%s = %q, want %q", key, q.Get(key), wantVal)
 		}
+	}
+}
+
+// failedToolTrace is a tool_call_fails match whose root span is ok.
+func failedToolTrace() observersvc.FullTrace {
+	return observersvc.FullTrace{
+		TraceOverview: observersvc.TraceOverview{
+			TraceID: "t1", RootSpanID: "root", Status: &observersvc.TraceStatus{ErrorCount: 1},
+		},
+		Spans: []observersvc.Span{
+			{SpanID: "root", AmpAttributes: &observersvc.AmpAttributes{Kind: "agent", Status: &observersvc.SpanStatus{}}},
+			{SpanID: "tool", ParentSpanID: "root", AmpAttributes: &observersvc.AmpAttributes{Kind: "tool", Status: &observersvc.SpanStatus{Error: true}}},
+		},
+	}
+}
+
+func TestRenderFilteredOverview_JSONMatchesListShape(t *testing.T) {
+	ios, out, _ := newTraceTestIO(true)
+	resp := &observersvc.TraceExportResponse{LookedBackTo: "2026-10-01T00:00:00Z", Truncated: true}
+	if err := renderFilteredOverview(&ListTracesOptions{IO: ios, Scope: traceBaseScope()}, resp, []observersvc.FullTrace{failedToolTrace()}); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	data, _ := decodeEnvelope(t, out.String())["data"].(map[string]any)
+	for _, key := range []string{"traces", "totalCount", "lookedBackTo", "truncated"} {
+		if _, ok := data[key]; !ok {
+			t.Errorf("data missing %q: %s", key, out.String())
+		}
+	}
+	if _, ok := data["count"]; ok {
+		t.Errorf("data should not have \"count\": %s", out.String())
+	}
+	if n, _ := data["totalCount"].(float64); n != 1 {
+		t.Errorf("totalCount = %v, want 1", data["totalCount"])
+	}
+}
+
+func TestRenderFilteredOverview_TruncatedNotice(t *testing.T) {
+	for _, truncated := range []bool{true, false} {
+		ios, _, errOut := newTraceTestIO(false)
+		resp := &observersvc.TraceExportResponse{Truncated: truncated}
+		if err := renderFilteredOverview(&ListTracesOptions{IO: ios, Scope: traceBaseScope()}, resp, []observersvc.FullTrace{failedToolTrace()}); err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if got := strings.Contains(errOut.String(), "The list stops here"); got != truncated {
+			t.Errorf("truncated=%v: stderr = %q", truncated, errOut.String())
+		}
+	}
+}
+
+func TestRenderFilteredOverview_FailedTraceCount(t *testing.T) {
+	ios, _, errOut := newTraceTestIO(false)
+	resp := &observersvc.TraceExportResponse{FailedTraceIDs: []string{"a", "b"}}
+	if err := renderFilteredOverview(&ListTracesOptions{IO: ios, Scope: traceBaseScope()}, resp, nil); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if !strings.Contains(errOut.String(), "2 traces couldn't be read") {
+		t.Errorf("stderr = %q, want the failed trace count", errOut.String())
+	}
+}
+
+func TestRenderOverviewTable_FullConversationID(t *testing.T) {
+	ios, out, _ := newTraceTestIO(false)
+	id := "123e4567-e89b-12d3-a456-426614174000"
+	traces := []observersvc.TraceOverview{{TraceID: "t1", ConversationID: id}}
+	if err := renderOverviewTable(&ListTracesOptions{IO: ios}, traces, overviewColumns{conversation: true}); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if !strings.Contains(out.String(), id) {
+		t.Errorf("table should show the full conversation ID, got %q", out.String())
+	}
+}
+
+func TestRenderFilteredOverview_StatusFromRootSpan(t *testing.T) {
+	ios, out, _ := newTraceTestIO(false)
+	o := &ListTracesOptions{IO: ios, Scope: traceBaseScope(), Condition: "tool_call_fails", Status: "ok"}
+	if err := renderFilteredOverview(o, &observersvc.TraceExportResponse{}, []observersvc.FullTrace{failedToolTrace()}); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	lines := strings.Split(strings.TrimSpace(out.String()), "\n")
+	if len(lines) < 2 || !strings.HasPrefix(lines[1], "ok ") {
+		t.Errorf("STATUS should be ok from the root span, got %q", out.String())
 	}
 }

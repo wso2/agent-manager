@@ -19,7 +19,7 @@
 import { useThunderID, useUser } from "@thunderid/react";
 import type { ThunderIDUserProfile, UserInfo } from "../../types";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { globalConfig } from "@agent-management-platform/types";
+import { globalConfig, withBasePath } from "@agent-management-platform/types";
 
 const decodeJWTPart = (part: string): Record<string, unknown> | null => {
   try {
@@ -65,6 +65,7 @@ export type AuthHooks = {
 export const useAuthHooks = (): AuthHooks => {
   const {
     signIn,
+    signInOptions,
     getAccessToken,
     signInSilently,
     signOut,
@@ -128,7 +129,18 @@ export const useAuthHooks = (): AuthHooks => {
   }, [profileAttributes, accessTokenPayload]);
 
   const customLogin = () => {
-    void signIn?.();
+    // signInOptions has to be passed explicitly. The provider prop is only
+    // applied automatically by <SignInButton>; this console redirects to
+    // sign-in from the Login page instead, and a bare signIn() sends no custom
+    // authorize params at all, so the RFC 8707 resource indicator would be
+    // silently dropped.
+    //
+    // Without it ThunderID evaluates the requested permission scopes against
+    // the deployment's default resource server rather than urn:wso2:amp, and
+    // drops every amp: scope it cannot resolve there — the token comes back
+    // with aud=amp-console-client and openid profile email only, so every
+    // scope-gated surface reads as "no permissions" once RBAC is enforced.
+    void signIn?.(signInOptions);
   };
 
   const handleLogout = useCallback(async () => {
@@ -138,7 +150,7 @@ export const useAuthHooks = (): AuthHooks => {
       console.error("Error during signOut:", error);
     } finally {
       window.location.assign(
-        globalConfig.authConfig.afterSignOutUrl ?? "/login",
+        globalConfig.authConfig.afterSignOutUrl ?? withBasePath("/login"),
       );
     }
   }, [signOut]);

@@ -17,6 +17,7 @@
 package repositories
 
 import (
+	"context"
 	"errors"
 	"time"
 
@@ -37,6 +38,7 @@ type ArtifactRepository interface {
 	Exists(kind, handle, orgUUID string) (bool, error)
 	GetByHandle(handle, orgUUID string) (*models.Artifact, error)
 	GetByUUID(artifactUUID, orgUUID string) (*models.Artifact, error)
+	ListByHandlePrefix(ctx context.Context, kind, handlePrefix, orgUUID string) ([]*models.Artifact, error)
 	CountByKindAndOrg(kind, orgUUID string) (int, error)
 }
 
@@ -135,6 +137,15 @@ func (r *ArtifactRepo) GetByUUID(artifactUUID, orgUUID string) (*models.Artifact
 		return nil, err
 	}
 	return &artifact, nil
+}
+
+// ListByHandlePrefix returns the org's artifacts of a kind whose handle starts with handlePrefix.
+func (r *ArtifactRepo) ListByHandlePrefix(ctx context.Context, kind, handlePrefix, orgUUID string) ([]*models.Artifact, error) {
+	var artifacts []*models.Artifact
+	err := r.db.WithContext(ctx).
+		Where(`kind = ? AND ou_id = ? AND handle LIKE ? ESCAPE '\'`, kind, orgUUID, escapeLikeWildcards(handlePrefix)+"%").
+		Find(&artifacts).Error
+	return artifacts, err
 }
 
 // CountByKindAndOrg counts artifacts by kind and organization

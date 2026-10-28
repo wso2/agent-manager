@@ -22,6 +22,7 @@ import (
 	"log/slog"
 	"sort"
 	"strings"
+	"time"
 
 	"github.com/google/uuid"
 	"gopkg.in/yaml.v3"
@@ -66,10 +67,8 @@ const (
 //     default precisely because A2A streaming operations are long-lived.
 //     Writing agent-manager's resilienceTimeoutSeconds here would override that
 //     and sever every stream at the timeout.
-//   - vhost. Clients reach the gateway through the agent's own HTTPRoute (the
-//     a2a-gateway-route trait), which keeps the host they dialled —
-//     <env>-<org>.<ingress host>, per agent environment — so a vhost naming the
-//     gateway's own host would reject every request that route forwards.
+//   - vhost. A platform agent answers on its per-environment host and a proxied
+//     agent on the gateway's own host; a vhost naming either rejects the other's requests.
 type A2AAgentDeploymentYAML struct {
 	ApiVersion string                 `yaml:"apiVersion" json:"apiVersion"`
 	Kind       string                 `yaml:"kind" json:"kind"`
@@ -86,9 +85,10 @@ type A2AAgentDeploymentSpec struct {
 	A2A         A2AConfig   `yaml:"a2a" json:"a2a"`
 }
 
-// A2AUpstream is the address the gateway dials to reach the agent.
+// A2AUpstream is the address the gateway dials, plus a proxied origin's credential.
 type A2AUpstream struct {
-	URL string `yaml:"url" json:"url"`
+	URL  string               `yaml:"url" json:"url"`
+	Auth *models.UpstreamAuth `yaml:"auth,omitempty" json:"auth,omitempty"`
 }
 
 // A2AConfig carries the protocol version, the per-operation configuration and,
@@ -119,10 +119,10 @@ type A2AOperationConfigs struct {
 	Policies   []map[string]interface{} `yaml:"policies" json:"policies"`
 }
 
-// A2ATransport binds one A2A protocol to a gateway-facing path prefix.
+// A2ATransport binds one A2A protocol to a gateway path prefix, omitted when empty.
 type A2ATransport struct {
 	ProtocolBinding string `yaml:"protocolBinding" json:"protocolBinding"`
-	PathPrefix      string `yaml:"pathPrefix" json:"pathPrefix"`
+	PathPrefix      string `yaml:"pathPrefix,omitempty" json:"pathPrefix,omitempty"`
 }
 
 // A2AAgentDeploymentInput is everything the builder needs, already resolved.
@@ -135,7 +135,7 @@ type A2AAgentDeploymentInput struct {
 	DisplayName  string
 	// AgentName is the component name, which becomes the URL context.
 	AgentName string
-	// UpstreamURL comes from the release binding's status. Empty is an error.
+	// UpstreamURL is the release binding's service URL, or a proxied origin's base URL. Empty is an error.
 	UpstreamURL string
 	// Policies is the output of buildPolicies — already in the gateway's
 	// {name, version, params} shape, so no translation layer is needed.
@@ -143,6 +143,10 @@ type A2AAgentDeploymentInput struct {
 	// CardPolicies is the output of buildCardPolicies. Empty means no agentCard
 	// block is written.
 	CardPolicies []map[string]interface{}
+	// Transports are a proxied external agent's derived routes; nil keeps M1's /rpc and /rest.
+	Transports []A2ATransport
+	// UpstreamAuth is a proxied origin's credential, as a secretRef the internal API decrypts.
+	UpstreamAuth *models.UpstreamAuth
 }
 
 // a2aAgentEnvArtifactName builds the per-environment Kubernetes resource name
@@ -156,6 +160,11 @@ type A2AAgentDeploymentInput struct {
 func a2aAgentEnvArtifactName(projectName, agentName, envID string) string {
 	suffix := strings.ReplaceAll(strings.TrimSpace(envID), "-", "")
 	return fmt.Sprintf("%s-%s-%s", strings.TrimSpace(projectName), strings.TrimSpace(agentName), suffix)
+}
+
+// a2aAgentContext is the agent's gateway context, shaped like a REST agent's (buildAPIConfigurationTraitParameters).
+func a2aAgentContext(agentName string) string {
+	return "/" + strings.TrimPrefix(strings.TrimSpace(agentName), "/")
 }
 
 // generateA2AAgentDeploymentYAML renders the Agent resource as YAML.
@@ -190,14 +199,19 @@ func buildA2AAgentDeploymentYAML(in A2AAgentDeploymentInput) (*A2AAgentDeploymen
 		policies = []map[string]interface{}{}
 	}
 
+	transports := in.Transports
+	if transports == nil {
+		transports = []A2ATransport{
+			{ProtocolBinding: a2aTransportJSONRPC, PathPrefix: a2aPathPrefixJSONRPC},
+			{ProtocolBinding: a2aTransportHTTPJSON, PathPrefix: a2aPathPrefixHTTPRPC},
+		}
+	}
+
 	a2a := A2AConfig{
 		ProtocolVersion: a2aProtocolVersion,
 		OperationConfigs: A2AOperationConfigs{
-			Transports: []A2ATransport{
-				{ProtocolBinding: a2aTransportJSONRPC, PathPrefix: a2aPathPrefixJSONRPC},
-				{ProtocolBinding: a2aTransportHTTPJSON, PathPrefix: a2aPathPrefixHTTPRPC},
-			},
-			Policies: policies,
+			Transports: transports,
+			Policies:   policies,
 		},
 	}
 	if len(in.CardPolicies) > 0 {
@@ -211,12 +225,9 @@ func buildA2AAgentDeploymentYAML(in A2AAgentDeploymentInput) (*A2AAgentDeploymen
 		Spec: A2AAgentDeploymentSpec{
 			DisplayName: in.DisplayName,
 			Version:     a2aAgentVersion,
-			// Matches what the api-configuration trait sets for a REST agent
-			// (buildAPIConfigurationTraitParameters), so A2A and REST agents
-			// keep consistent URL shapes.
-			Context:  "/" + strings.TrimPrefix(strings.TrimSpace(in.AgentName), "/"),
-			Upstream: A2AUpstream{URL: upstreamURL},
-			A2A:      a2a,
+			Context:     a2aAgentContext(in.AgentName),
+			Upstream:    A2AUpstream{URL: upstreamURL, Auth: in.UpstreamAuth},
+			A2A:         a2a,
 		},
 	}, nil
 }
@@ -286,26 +297,37 @@ func collectA2AAgentDeletionTargets(
 	return targets
 }
 
-// sendA2AAgentDeletion tells each gateway to drop the artifact's Agent.
+// sendA2AAgentWithdrawal tells each gateway to stop serving the artifact's Agent: undeployed when
+// keepKeys, so a later publish reuses its API keys, else deleted together with them.
 //
-// Best effort and detached from request cancellation: the agent is already
-// deleted, so a returning handler must not strand a gateway still holding it.
-func sendA2AAgentDeletion(
+// Best effort and detached from request cancellation: the change has committed, so a returning
+// handler must not strand a gateway still serving the Agent.
+func sendA2AAgentWithdrawal(
 	ctx context.Context,
 	events *GatewayEventsService,
 	artifactUUID uuid.UUID,
 	gatewayIDs []string,
+	keepKeys bool,
 	logger *slog.Logger,
 ) {
 	if events == nil || artifactUUID == uuid.Nil {
 		return
 	}
 	ctx = context.WithoutCancel(ctx)
-	event := &models.AgentDeletionEvent{AgentID: artifactUUID.String()}
+	agentID := artifactUUID.String()
+	broadcast := func(gatewayID string) error {
+		return events.BroadcastAgentDeletionEvent(ctx, gatewayID, &models.AgentDeletionEvent{AgentID: agentID})
+	}
+	if keepKeys {
+		event := &models.AgentUndeploymentEvent{AgentID: agentID, PerformedAt: time.Now().Truncate(time.Millisecond)}
+		broadcast = func(gatewayID string) error {
+			return events.BroadcastAgentUndeploymentEvent(ctx, gatewayID, event)
+		}
+	}
 	for _, gatewayID := range gatewayIDs {
-		if err := events.BroadcastAgentDeletionEvent(ctx, gatewayID, event); err != nil {
-			logger.Warn("Failed to broadcast A2A agent deletion event",
-				"artifactID", artifactUUID, "gatewayID", gatewayID, "error", err)
+		if err := broadcast(gatewayID); err != nil {
+			logger.Warn("Failed to withdraw the A2A agent from a gateway",
+				"artifactID", artifactUUID, "gatewayID", gatewayID, "keepKeys", keepKeys, "error", err)
 		}
 	}
 }

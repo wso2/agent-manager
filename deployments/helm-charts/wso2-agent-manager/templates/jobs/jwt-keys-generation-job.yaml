@@ -33,7 +33,7 @@ spec:
           securityContext:
             {{- toYaml . | nindent 12 }}
           {{- end }}
-          image: "alpine:3.21"
+          image: "alpine:3.24"
           imagePullPolicy: IfNotPresent
           command:
             - /bin/sh

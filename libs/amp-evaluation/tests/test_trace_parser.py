@@ -192,6 +192,31 @@ class TestTraceParser:
         assert llm_span.metrics.token_usage.output_tokens == 5
         assert llm_span.metrics.token_usage.total_tokens == 15
 
+    @pytest.mark.parametrize(
+        "output,expected",
+        [
+            ({"content": None, "tool_calls": [{"name": "search", "arguments": "{}"}]}, "[tool_call: search({})]"),
+            ({"tool_calls": [{"name": "search", "arguments": "{}"}]}, "[tool_call: search({})]"),
+            ({"content": "Let me check.", "tool_calls": [{"name": "search", "arguments": "{}"}]}, "Let me check."),
+            ({"tool_calls": [{"function": {"name": "search", "arguments": "{}"}}]}, "[tool_call: search({})]"),
+            ({"tool_calls": [{"name": "search", "arguments": "{}", "function": None}]}, "[tool_call: search({})]"),
+            ({"role": "assistant"}, ""),
+            ({"text": "Hi there!"}, "{'text': 'Hi there!'}"),
+        ],
+    )
+    def test_parse_llm_dict_output(self, output, expected):
+        """Test a message dict parses to its text, else its tool-call summary, else empty. Other dicts stay as text."""
+        raw_trace_dict = {
+            "trace_id": "trace_llm_dict",
+            "input": "Hello",
+            "output": "",
+            "spans": [{"span_id": "span_1", "kind": "llm", "input": [], "output": output}],
+        }
+
+        eval_trace = parse_trace_for_evaluation(dict_to_otel_trace(raw_trace_dict))
+
+        assert eval_trace.get_llm_calls()[0].output == expected
+
     def test_parse_tool_span(self):
         """Test parsing a tool execution span."""
         raw_trace_dict = {

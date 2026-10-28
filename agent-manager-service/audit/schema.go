@@ -80,6 +80,10 @@ var detailSchema = map[Action]map[string]FieldKind{
 		"reason":        KindEnum,
 		"missingScope":  KindName,
 		"grantedScopes": KindCount,
+		// A deploy refused because the agent does not own the image. The image is
+		// the whole point of that denial; without it the event cannot say what
+		// was attempted.
+		"imageId": KindIdentifier,
 	},
 	ActionAuthzRootOUBypass: {
 		"rootOUBypass": KindFlag,

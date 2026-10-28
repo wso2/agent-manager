@@ -193,6 +193,28 @@ func DecryptBytes(ciphertext, key []byte) ([]byte, error) {
 	return plaintext, nil
 }
 
+// EncryptSecretRef encrypts plaintext with EncryptBytes into a base64 secretRef.
+func EncryptSecretRef(plaintext string, key []byte) (string, error) {
+	ciphertext, err := EncryptBytes([]byte(plaintext), key)
+	if err != nil {
+		return "", err
+	}
+	return base64.StdEncoding.EncodeToString(ciphertext), nil
+}
+
+// DecryptSecretRef reverses EncryptSecretRef.
+func DecryptSecretRef(ref string, key []byte) (string, error) {
+	ciphertext, err := base64.StdEncoding.DecodeString(ref)
+	if err != nil {
+		return "", fmt.Errorf("failed to base64-decode: %w", err)
+	}
+	plaintext, err := DecryptBytes(ciphertext, key)
+	if err != nil {
+		return "", err
+	}
+	return string(plaintext), nil
+}
+
 // GenerateEncryptionKey generates a cryptographically secure random key for AES-256-GCM.
 // This function should be used to generate a new encryption key during initial setup.
 // The generated key should be stored securely (e.g., in a key management service).

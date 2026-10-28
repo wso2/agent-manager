@@ -18,6 +18,7 @@ package controllers
 
 import (
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -25,6 +26,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/wso2/agent-manager/agent-manager-service/audit"
 	"github.com/wso2/agent-manager/agent-manager-service/spec"
 	"github.com/wso2/agent-manager/agent-manager-service/utils"
 )
@@ -49,4 +51,17 @@ func TestHandleCommonErrors_ValidationErrorWithSentinel_KeepsItsOwnMessage(t *te
 	require.NotNil(t, body.Reason)
 	assert.Equal(t, "retry once provisioning completes", *body.Reason)
 	assert.Equal(t, utils.ErrCodeValidation, body.Code)
+}
+
+// A fail-closed service that refuses to act unrecorded answers 503 on every route, not only the proxy's.
+func TestHandleCommonErrors_AuditRecorderUnavailable_Is503(t *testing.T) {
+	rr := httptest.NewRecorder()
+
+	handleCommonErrors(rr, fmt.Errorf("wrapped: %w", audit.ErrRecorderUnavailable), "Failed to remove the card source")
+
+	assert.Equal(t, http.StatusServiceUnavailable, rr.Code)
+	var body spec.ErrorResponse
+	require.NoError(t, json.Unmarshal(rr.Body.Bytes(), &body))
+	assert.Equal(t, utils.ErrCodeServiceUnavailable, body.Code)
+	assert.Nil(t, body.Reason, "the sink's error stays in the log")
 }

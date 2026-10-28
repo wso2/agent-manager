@@ -17,6 +17,13 @@
 # (image="") stay container="" and excluded, avoiding double counting; on
 # runc the relabeled pause series adds only its real ~200KiB.
 kube-prometheus-stack:
+  # The chart defaults this to LoadBalancer, which on a cloud cluster puts the
+  # unauthenticated Prometheus API on a public IP. Everything that queries it
+  # (metrics adapter, observer) uses the in-cluster Service name.
+  prometheus:
+    service:
+      type: ClusterIP
+
   kubelet:
     serviceMonitor:
       cAdvisorMetricRelabelings:

@@ -178,9 +178,12 @@ func TestA2AAgentLifecycle(t *testing.T) {
 
 	hub := &lifecycleEventHub{}
 	reconciler := services.NewA2APublicationReconcilerService(
-		pubRepo, cardRepo, deploymentRepo, gatewayRepo,
+		wiring.ProvideTxRunner(gdb),
+		pubRepo, cardRepo, repositories.NewA2AProxyRepository(gdb), deploymentRepo, gatewayRepo,
 		repositories.NewAgentConfigRepo(gdb),
 		openChoreoClient,
+		services.NewA2ACardFetcher(),
+		bytes.Repeat([]byte{7}, 32), // a platform agent has no upstream secret to decrypt
 		services.NewGatewayEventsService(hub),
 		testLifecycleLogger(),
 	)

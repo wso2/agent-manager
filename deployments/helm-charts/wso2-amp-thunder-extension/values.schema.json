@@ -125,7 +125,7 @@
                   "type": "string"
                 },
                 "tag": {
-                  "default": "1.0.0",
+                  "default": "1.0.1",
                   "description": "Container image tag. Define either tag or digest, not both.",
                   "title": "tag",
                   "type": "string"
@@ -2205,7 +2205,7 @@
               "default": [
                 {
                   "name": "AMP Agent Manager MCP",
-                  "id": "amp-agent-manager-mcp-resource-server",
+                  "id": "amp-agent-manager-mcp-resource-srv",
                   "handle": "",
                   "baseUrlValue": "agentManagerMcpBaseUrl",
                   "description": "Resource identifier for the agent-manager MCP endpoint",
@@ -2222,6 +2222,17 @@
               ],
               "description": "MCP resource servers registered so agent tokens can be scoped to them.",
               "items": {
+                "properties": {
+                  "id": {
+                    "description": "Thunder resource-server ID. Thunder stores it in RESOURCE_SERVER.ID VARCHAR(36), which PostgreSQL enforces, so it must be at most 36 characters.",
+                    "maxLength": 36,
+                    "minLength": 1,
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "id"
+                ],
                 "type": "object"
               },
               "title": "mcpResourceServers",

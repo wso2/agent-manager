@@ -362,3 +362,34 @@ func TestValidateResourceRequestsWithinLimits(t *testing.T) {
 		})
 	}
 }
+
+func TestValidateListCommitsRequest_ComponentIdentity(t *testing.T) {
+	t.Run("accepts project and component together", func(t *testing.T) {
+		req := &spec.ListCommitsRequest{
+			Owner:         "acme",
+			Repo:          "agents",
+			ProjectName:   strPtrForTest(" default "),
+			ComponentName: strPtrForTest(" private-agent "),
+		}
+
+		if err := ValidateListCommitsRequest(req); err != nil {
+			t.Fatalf("ValidateListCommitsRequest() unexpected error = %v", err)
+		}
+		if req.GetProjectName() != "default" || req.GetComponentName() != "private-agent" {
+			t.Fatalf("component identity was not normalized: %q/%q", req.GetProjectName(), req.GetComponentName())
+		}
+	})
+
+	t.Run("rejects a partial component identity", func(t *testing.T) {
+		req := &spec.ListCommitsRequest{
+			Owner:       "acme",
+			Repo:        "agents",
+			ProjectName: strPtrForTest("default"),
+		}
+
+		err := ValidateListCommitsRequest(req)
+		if err == nil || !strings.Contains(err.Error(), "must be provided together") {
+			t.Fatalf("ValidateListCommitsRequest() error = %v, want paired-field validation error", err)
+		}
+	})
+}

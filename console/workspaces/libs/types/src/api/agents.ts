@@ -44,6 +44,17 @@ interface AgentRequestBase {
   modelConfig?: ModelConfigRequest[];
   mcpConfig?: MCPConfigRequest[];
   labels?: Record<string, string>;
+  /** Optional GitHub App source binding. Omitted by the built-in PAT flow. */
+  githubApp?: GitHubAppSource;
+}
+
+export interface GitHubAppSource {
+  installationId: number;
+  owner: string;
+  repo: string;
+  branch?: string;
+  appPath?: string;
+  repositoryUrl?: string;
 }
 
 interface UpdateAgentBasicInfoRequest {
@@ -247,4 +258,3 @@ export type RevokeAgentIdentitySecretPathParams = AgentPathParams;
 export interface RevokeAgentIdentitySecretQuery {
   environment: string;
 }
-

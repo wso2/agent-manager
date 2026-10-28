@@ -65,6 +65,11 @@ type DeploymentRepository interface {
 	GetDeployedProvidersByGateway(gatewayUUID uuid.UUID, orgUUID string) ([]string, error)
 	IsProviderDeployedToGateway(artifactUUID uuid.UUID, gatewayUUID uuid.UUID, orgUUID string) (bool, error)
 	GetByArtifactAndGateway(artifactUUID, gatewayUUID, orgUUID string) (*models.Deployment, error)
+
+	// DeleteForArtifact removes every deployment of the artifact; their deployment_status rows cascade.
+	DeleteForArtifact(ctx context.Context, artifactUUID uuid.UUID, orgUUID string) error
+	// WithTx returns the repository bound to tx.
+	WithTx(tx *gorm.DB) DeploymentRepository
 }
 
 // DeploymentRepo implements DeploymentRepository using GORM
@@ -152,6 +157,18 @@ func (r *DeploymentRepo) CreateWithLimitEnforcement(deployment *models.Deploymen
 			DoUpdates: clause.AssignmentColumns([]string{"deployment_id", "status", "updated_at"}),
 		}).Create(deploymentStatus).Error
 	})
+}
+
+// DeleteForArtifact removes every deployment of the artifact; their deployment_status rows cascade.
+func (r *DeploymentRepo) DeleteForArtifact(ctx context.Context, artifactUUID uuid.UUID, orgUUID string) error {
+	return r.db.WithContext(ctx).
+		Where("artifact_uuid = ? AND ou_id = ?", artifactUUID, orgUUID).
+		Delete(&models.Deployment{}).Error
+}
+
+// WithTx returns the repository bound to tx.
+func (r *DeploymentRepo) WithTx(tx *gorm.DB) DeploymentRepository {
+	return &DeploymentRepo{db: tx}
 }
 
 // GetWithContent retrieves a deployment including its content

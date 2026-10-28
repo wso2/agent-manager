@@ -18,7 +18,9 @@ package traces
 
 import (
 	"context"
+	"errors"
 	"fmt"
+	"net/http"
 	"strings"
 	"time"
 
@@ -74,9 +76,33 @@ type ListTracesOptions struct {
 	MinSpans       *int64
 	Model          string
 	ConversationID string
+	NoConversation bool
 	ShowModels     bool
+
+	Tool           string
+	ToolError      bool
+	MCPServer      string
+	ShowTools      bool
+	ShowMCPServers bool
+
+	// Cursor continues an earlier list; CommandPath starts the printed next-page command.
+	Cursor      string
+	CommandPath string
+
+	// Since is --since when it set the window; ShowConsoleURL prints the console link.
+	Since          string
+	ShowConsoleURL bool
 }
 
+// consoleLinkFor is the list's console link, or "" without --console-url.
+func consoleLinkFor(o *ListTracesOptions) string {
+	if !o.ShowConsoleURL {
+		return ""
+	}
+	return consoleLink(o, consoleParams, "")
+}
+
+// parseTimeOrZero parses an RFC 3339 time, or returns the zero time.
 func parseTimeOrZero(s string) time.Time {
 	t, err := time.Parse(time.RFC3339, s)
 	if err != nil {
@@ -89,28 +115,41 @@ func parseTimeOrZero(s string) time.Time {
 func listParams(o *ListTracesOptions) *observersvc.ListTracesParams {
 	limit := o.Limit
 	sortOrder := o.SortOrder
-	return &observersvc.ListTracesParams{
-		Organization:   o.Org,
-		Project:        o.Proj,
-		Agent:          o.AgentName,
-		Environment:    o.Env,
-		StartTime:      parseTimeOrZero(o.StartTime),
-		EndTime:        parseTimeOrZero(o.EndTime),
-		Limit:          &limit,
-		SortOrder:      &sortOrder,
-		Status:         o.Status,
-		MinDurationMs:  o.MinDurationMs,
-		MinTokens:      o.MinTokens,
-		MinSpanCount:   o.MinSpans,
-		Model:          o.Model,
-		ConversationID: o.ConversationID,
+	p := &observersvc.ListTracesParams{
+		Organization: o.Org,
+		Project:      o.Proj,
+		Agent:        o.AgentName,
+		Environment:  o.Env,
+		StartTime:    parseTimeOrZero(o.StartTime),
+		EndTime:      parseTimeOrZero(o.EndTime),
+		Limit:        &limit,
+		SortOrder:    &sortOrder,
 	}
+	setFilterParams(p, o)
+	return p
+}
+
+// setFilterParams copies o's filters onto p.
+func setFilterParams(p *observersvc.ListTracesParams, o *ListTracesOptions) {
+	p.Status = o.Status
+	p.MinDurationMs = o.MinDurationMs
+	p.MinTokens = o.MinTokens
+	p.MinSpanCount = o.MinSpans
+	p.Model = o.Model
+	p.ConversationID = o.ConversationID
+	if o.NoConversation {
+		p.Missing = []string{"conversationId"}
+	}
+	p.Tool = o.Tool
+	p.ToolError = o.ToolError
+	p.MCPServer = o.MCPServer
 }
 
 // hasFilters reports whether any filter flag is set.
 func hasFilters(o *ListTracesOptions) bool {
 	return o.Status != "" || o.MinDurationMs != nil || o.MinTokens != nil || o.MinSpans != nil ||
-		o.Model != "" || o.ConversationID != ""
+		o.Model != "" || o.ConversationID != "" || o.NoConversation || o.Tool != "" || o.ToolError ||
+		o.MCPServer != ""
 }
 
 // runListTraces lists trace overviews, filtered server-side.
@@ -125,15 +164,24 @@ func runListTraces(ctx context.Context, o *ListTracesOptions) error {
 
 	params := listParams(o)
 	params.IncludeModels = o.ShowModels
+	params.IncludeTools = o.ShowTools
+	params.IncludeMCPServers = o.ShowMCPServers
+	params.Cursor = o.Cursor
 	resp, err := client.ListTraces(ctx, params)
 	if err != nil {
+		if o.Cursor != "" && isInvalidCursor(err) {
+			return render.Error(o.IO, o.Scope, cmdutil.FlagErrorf("--cursor: not a nextCursor the server accepts"))
+		}
 		return render.Error(o.IO, o.Scope, cmdutil.ObserverErrorFromResponse(err))
 	}
 
+	link := consoleLinkFor(o)
 	if o.IO.JSON {
-		// The CLI takes no cursor, so don't print one.
-		resp.NextCursor = ""
-		return render.JSONSuccess(o.IO, o.Scope, resp)
+		data, err := withConsoleURL(resp, link)
+		if err != nil {
+			return render.Error(o.IO, o.Scope, err)
+		}
+		return render.JSONSuccess(o.IO, o.Scope, data)
 	}
 
 	if len(resp.Traces) == 0 {
@@ -142,56 +190,87 @@ func runListTraces(ctx context.Context, o *ListTracesOptions) error {
 		} else {
 			fmt.Fprintln(o.IO.Out, "No traces found.")
 		}
-	} else if err := renderOverviewTable(o, resp.Traces, true, o.ShowModels || o.Model != ""); err != nil {
+	} else if err := renderOverviewTable(o, resp.Traces, overviewColumns{
+		conversation: true,
+		models:       o.ShowModels || o.Model != "",
+		tools:        o.ShowTools || o.Tool != "" || o.ToolError,
+		mcpServers:   o.ShowMCPServers || o.MCPServer != "",
+	}); err != nil {
 		return err
 	}
+	printConsoleLink(o.IO, link)
 	if resp.Truncated {
-		fmt.Fprintln(o.IO.ErrOut, truncatedNotice(resp.NextCursor != ""))
+		fmt.Fprintln(o.IO.ErrOut, truncatedNotice(o, resp.NextCursor))
 	}
 	return nil
 }
 
+// isInvalidCursor reports whether the server rejected the request's cursor.
+func isInvalidCursor(err error) bool {
+	var herr *observersvc.HTTPError
+	// Must match the message in agent-manager-observer/handlers/handlers.go.
+	return errors.As(err, &herr) && herr.StatusCode == http.StatusBadRequest &&
+		herr.Body != nil && herr.Body.Message == "invalid cursor"
+}
+
 // truncatedNotice explains a truncated list. With a cursor the examine cap or
-// the time budget stopped the search; without one the list hit the depth cap.
-func truncatedNotice(hasCursor bool) string {
-	if hasCursor {
-		return "Showing matches from the traces searched so far; narrow the time range to see more."
+// the time budget stopped the search, and the notice gives the next page's
+// command; without one the list hit the depth cap.
+func truncatedNotice(o *ListTracesOptions, cursor string) string {
+	if cursor != "" {
+		return "Showing matches from the traces searched so far; for the next page, run:\n  " + nextPageCommand(o, cursor)
 	}
 	return "The list stops here: the remaining traces are more than 1,000 traces into this time range; narrow the time range to see more."
 }
 
-// renderOverviewTable prints traces as a table, with optional conversation and model columns.
-func renderOverviewTable(o *ListTracesOptions, traces []observersvc.TraceOverview, showConversation, showModels bool) error {
-	headers := []string{"trace id", "status", "duration", "spans", "tokens", "root span"}
-	if showConversation {
+// overviewColumns picks the optional columns of the overview table.
+type overviewColumns struct {
+	conversation, models, tools, mcpServers bool
+}
+
+// renderOverviewTable prints traces as a table, with the optional columns cols picks.
+func renderOverviewTable(o *ListTracesOptions, traces []observersvc.TraceOverview, cols overviewColumns) error {
+	headers := []string{"status", "trace id"}
+	if cols.conversation {
 		headers = append(headers, "conversation")
 	}
-	if showModels {
+	headers = append(headers, "started", "duration", "tokens", "spans")
+	if cols.models {
 		headers = append(headers, "model")
 	}
-	tp := tableprinter.New(o.IO, append(headers, "started")...)
+	if cols.tools {
+		headers = append(headers, "tools")
+	}
+	if cols.mcpServers {
+		headers = append(headers, "mcp servers")
+	}
+	tp := tableprinter.New(o.IO, headers...)
 	for _, tr := range traces {
-		tp.AddField(tr.TraceID)
 		tp.AddField(traceStatus(tr.Status))
-		tp.AddField(formatDuration(tr.DurationInNanos))
-		tp.AddField(fmt.Sprintf("%d", tr.SpanCount))
-		tp.AddField(tokenCount(tr.TokenUsage))
-		tp.AddField(truncate(tr.RootSpanName, 20))
-		if showConversation {
-			tp.AddField(orDash(truncate(tr.ConversationID, 20)))
-		}
-		if showModels {
-			tp.AddField(modelList(tr.Models))
+		tp.AddField(tr.TraceID)
+		if cols.conversation {
+			tp.AddField(orDash(tr.ConversationID))
 		}
 		tp.AddField(timeAgo(tr.StartTime))
+		tp.AddField(formatDuration(tr.DurationInNanos))
+		tp.AddField(tokenCount(tr.TokenUsage))
+		tp.AddField(fmt.Sprintf("%d", tr.SpanCount))
+		if cols.models {
+			tp.AddField(modelList(tr.Models))
+		}
+		if cols.tools {
+			tp.AddField(toolList(tr.Tools, tr.FailedTools))
+		}
+		if cols.mcpServers {
+			tp.AddField(orDash(strings.Join(tr.MCPServers, ", ")))
+		}
 		tp.EndRow()
 	}
 	return tp.Render()
 }
 
-// runToolCallFails lists traces with a failed tool span. The server has no
-// tool filter until Milestone 2, so this checks the spans of one exported
-// page client-side; the other filters still run server-side.
+// runToolCallFails lists traces with a failed tool span, checked client-side
+// over one exported page by span attributes; the other filters run server-side.
 func runToolCallFails(ctx context.Context, o *ListTracesOptions) error {
 	if err := cmdutil.ValidatePathParam("agent name", o.AgentName); err != nil {
 		return render.Error(o.IO, o.Scope, err)
@@ -205,32 +284,71 @@ func runToolCallFails(ctx context.Context, o *ListTracesOptions) error {
 	if err != nil {
 		return render.Error(o.IO, o.Scope, cmdutil.ObserverErrorFromResponse(err))
 	}
-	filtered := make([]observersvc.TraceOverview, 0, len(resp.Traces))
+	var filtered []observersvc.FullTrace
 	for _, tr := range resp.Traces {
 		if matchesFullCondition(tr) {
-			filtered = append(filtered, tr.TraceOverview)
+			filtered = append(filtered, tr)
 		}
 	}
-	return renderFilteredOverview(o, filtered)
+	return renderFilteredOverview(o, resp, filtered)
 }
 
 // renderFilteredOverview prints the tool_call_fails result. Export carries no
 // conversation ID or models, so the table leaves those columns out.
-func renderFilteredOverview(o *ListTracesOptions, traces []observersvc.TraceOverview) error {
+func renderFilteredOverview(o *ListTracesOptions, resp *observersvc.TraceExportResponse, traces []observersvc.FullTrace) error {
+	overviews := make([]observersvc.TraceOverview, 0, len(traces))
+	for _, tr := range traces {
+		overviews = append(overviews, tr.TraceOverview)
+	}
+	link := consoleLinkFor(o)
 	if o.IO.JSON {
-		if traces == nil {
-			traces = []observersvc.TraceOverview{}
+		data, err := withConsoleURL(observersvc.TraceOverviewResponse{
+			Traces:       overviews,
+			TotalCount:   len(overviews),
+			LookedBackTo: resp.LookedBackTo,
+			Truncated:    resp.Truncated,
+		}, link)
+		if err != nil {
+			return render.Error(o.IO, o.Scope, err)
 		}
-		return render.JSONSuccess(o.IO, o.Scope, map[string]any{
-			"traces": traces,
-			"count":  len(traces),
-		})
+		return render.JSONSuccess(o.IO, o.Scope, data)
 	}
 	if len(traces) == 0 {
 		fmt.Fprintln(o.IO.Out, "No traces match the condition.")
-		return nil
+	} else {
+		rows := make([]observersvc.TraceOverview, 0, len(traces))
+		for _, tr := range traces {
+			row := tr.TraceOverview
+			row.Status = rootStatus(tr)
+			rows = append(rows, row)
+		}
+		if err := renderOverviewTable(o, rows, overviewColumns{}); err != nil {
+			return err
+		}
 	}
-	return renderOverviewTable(o, traces, false, false)
+	printConsoleLink(o.IO, link)
+	if resp.Truncated {
+		fmt.Fprintln(o.IO.ErrOut, truncatedNotice(o, ""))
+	}
+	if n := len(resp.FailedTraceIDs); n == 1 {
+		fmt.Fprintln(o.IO.ErrOut, "1 trace couldn't be read, so the list may be missing it.")
+	} else if n > 1 {
+		fmt.Fprintf(o.IO.ErrOut, "%d traces couldn't be read, so the list may be missing them.\n", n)
+	}
+	return nil
+}
+
+// rootStatus is the root span's status, as the server's --status filter reads it.
+func rootStatus(tr observersvc.FullTrace) *observersvc.TraceStatus {
+	for _, sp := range tr.Spans {
+		if sp.SpanID == tr.RootSpanID {
+			if sp.AmpAttributes != nil && sp.AmpAttributes.Status != nil && sp.AmpAttributes.Status.Error {
+				return &observersvc.TraceStatus{ErrorCount: 1}
+			}
+			return &observersvc.TraceStatus{}
+		}
+	}
+	return tr.Status
 }
 
 var validConditions = []string{
@@ -241,6 +359,7 @@ var validConditions = []string{
 	conditionExcessiveSteps,
 }
 
+// validateCondition checks c is empty or a known --condition.
 func validateCondition(c string) error {
 	if c == "" {
 		return nil
@@ -276,10 +395,37 @@ func resolveFilters(o *ListTracesOptions) error {
 			return cmdutil.FlagErrorf("%s must not be negative", m.flag)
 		}
 	}
+	if o.NoConversation && o.ConversationID != "" {
+		return cmdutil.FlagErrorf("--no-conversation can't be used with --conversation")
+	}
 	if o.ShowModels && o.Condition == conditionToolCallFails {
 		return cmdutil.FlagErrorf("--show-models can't be used with --condition %s", conditionToolCallFails)
 	}
+	if err := checkToolFilters(o); err != nil {
+		return err
+	}
 	return applyCondition(o)
+}
+
+// checkToolFilters rejects the flags --condition tool_call_fails can't take.
+func checkToolFilters(o *ListTracesOptions) error {
+	if o.Condition != conditionToolCallFails {
+		return nil
+	}
+	for _, f := range []struct {
+		flag string
+		set  bool
+	}{
+		{"--tool-error", o.ToolError},
+		{"--show-tools", o.ShowTools},
+		{"--show-mcp-servers", o.ShowMCPServers},
+		{"--cursor", o.Cursor != ""},
+	} {
+		if f.set {
+			return cmdutil.FlagErrorf("%s can't be used with --condition %s", f.flag, conditionToolCallFails)
+		}
+	}
+	return nil
 }
 
 // applyCondition turns a --condition shorthand into the filter it stands for.
@@ -316,6 +462,7 @@ func applyCondition(o *ListTracesOptions) error {
 // int64Ptr returns a pointer to v.
 func int64Ptr(v int64) *int64 { return &v }
 
+// matchesFullCondition reports whether tr has a failed tool span.
 func matchesFullCondition(tr observersvc.FullTrace) bool {
 	for _, span := range tr.Spans {
 		attrs := span.AmpAttributes
@@ -332,6 +479,7 @@ func matchesFullCondition(tr observersvc.FullTrace) bool {
 	return false
 }
 
+// traceStatus is error when the trace has errors, else ok.
 func traceStatus(status *observersvc.TraceStatus) string {
 	if status != nil && status.ErrorCount > 0 {
 		return "error"
@@ -339,6 +487,7 @@ func traceStatus(status *observersvc.TraceStatus) string {
 	return "ok"
 }
 
+// tokenCount is the trace's total tokens, or 0 when unset.
 func tokenCount(usage *observersvc.TokenUsage) string {
 	if usage == nil {
 		return "0"
@@ -352,6 +501,25 @@ func orDash(s string) string {
 		return "-"
 	}
 	return s
+}
+
+// toolList shows every tool, marking the ones that failed.
+func toolList(tools, failed []string) string {
+	if len(tools) == 0 {
+		return "-"
+	}
+	failedSet := make(map[string]bool, len(failed))
+	for _, t := range failed {
+		failedSet[t] = true
+	}
+	names := make([]string, len(tools))
+	for i, t := range tools {
+		names[i] = t
+		if failedSet[t] {
+			names[i] += " (failed)"
+		}
+	}
+	return strings.Join(names, ", ")
 }
 
 // modelList shows the first model and how many more there are.

@@ -34,6 +34,9 @@ export interface ListCommitsRequest {
   until?: string;
   // Git secret reference name for private repository authentication
   secretRef?: string;
+  // Optional component identity for deployment-specific repository bindings
+  projectName?: string;
+  componentName?: string;
 }
 
 // Query parameters

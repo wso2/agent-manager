@@ -16,6 +16,9 @@
  * under the License.
  */
 
+import {
+    isAgentIdentityEnabled,
+} from "@agent-management-platform/types";
 import type { DeploymentStatus } from "@agent-management-platform/shared-component";
 import { EnvAgentInterfaceCard } from "./EnvAgentInterfaceCard";
 import { EnvAgentRolesGroupsSection } from "./EnvAgentRolesGroupsSection";
@@ -46,6 +49,8 @@ interface EnvironmentSectionsContentProps {
 export function EnvironmentSectionsContent({
     orgId, projectId, agentId, envId, external, deploymentStatus,
 }: EnvironmentSectionsContentProps) {
+    const agentIdEnabled = isAgentIdentityEnabled();
+
     return (
         <>
             <Divider sx={{ my: 1.5, mt: 0 }} />
@@ -68,15 +73,17 @@ export function EnvironmentSectionsContent({
                 {/* EnvAgentInterfaceCard renders nothing for external agents
                     (they aren't deployed through this platform), so Agent ID
                     takes the full row instead of leaving an empty half. */}
-                <Grid size={{ xs: 12, md: external ? 12 : 6 }}>
-                    <EnvAgentRolesGroupsSection
-                        orgId={orgId}
-                        projectId={projectId}
-                        agentId={agentId}
-                        envId={envId}
-                    />
-                </Grid>
-                <Grid size={{ xs: 12, md: 6 }}>
+                {agentIdEnabled && (
+                    <Grid size={{ xs: 12, md: external ? 12 : 6 }}>
+                        <EnvAgentRolesGroupsSection
+                            orgId={orgId}
+                            projectId={projectId}
+                            agentId={agentId}
+                            envId={envId}
+                        />
+                    </Grid>
+                )}
+                <Grid size={{ xs: 12, md: agentIdEnabled ? 6 : 12 }}>
                     <EnvAgentInterfaceCard
                         orgId={orgId}
                         projectId={projectId}

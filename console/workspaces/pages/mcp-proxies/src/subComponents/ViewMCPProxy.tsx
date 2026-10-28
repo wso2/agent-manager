@@ -30,6 +30,7 @@ import {
 } from "@agent-management-platform/api-client";
 import {
   absoluteRouteMap,
+  stripBasePath,
   type Environment,
   type MCPEndpointConfig,
   type MCPProxyEndpoint,
@@ -176,7 +177,9 @@ export function ViewMCPProxy() {
         setPendingLeave(() => () => {
           leaving = true;
           // Replace the sentinel so it doesn't linger as a stray history entry.
-          navigate(`${target.pathname}${target.search}${target.hash}`, {
+          // target.pathname is the browser path (base path included); navigate
+          // re-applies the basename, so strip it first.
+          navigate(`${stripBasePath(target.pathname)}${target.search}${target.hash}`, {
             replace: replace || isSentinel(),
             state,
           });

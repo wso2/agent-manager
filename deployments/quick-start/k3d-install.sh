@@ -92,6 +92,3 @@ QUICK_START_DIR="${DIST_DIR}/deployments/quick-start"
 log "Installing Agent Manager ${VERSION} on k3d (~15-20 minutes)"
 cd "$QUICK_START_DIR"
 bash ./install.sh
-
-log "To remove everything:          k3d cluster delete amp-local"
-log "To uninstall but keep cluster: bash ${QUICK_START_DIR}/uninstall.sh"

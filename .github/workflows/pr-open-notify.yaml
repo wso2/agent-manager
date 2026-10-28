@@ -26,6 +26,7 @@ name: PR Open Notification
 # the URL -- so a different space cannot reuse an existing webhook, and PR
 # traffic wants a different audience than nightly failures anyway. Until the
 # secret exists the job logs a warning and passes, so it never blocks a PR.
+# The secret is also the only gate: any repo carrying this file that sets it gets notices.
 
 on:
   pull_request_target:
@@ -39,9 +40,7 @@ jobs:
     name: Post new PR to Google Chat
     runs-on: ubuntu-latest
     # Draft PRs stay quiet until they are marked ready for review.
-    if: >-
-      github.repository == 'wso2/agent-manager' &&
-      github.event.pull_request.draft == false
+    if: github.event.pull_request.draft == false
     steps:
       - name: Notify Google Chat
         env:

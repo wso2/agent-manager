@@ -189,6 +189,21 @@ func TestSystemManagedLLMURLFailsClosedWithoutRuntimeURL(t *testing.T) {
 	require.ErrorIs(t, err, errGatewayRuntimeURLUnregistered)
 }
 
+// TestSystemManagedLLMURLFallsBackToVhostWhenEnabled covers the cloud gateway: nothing
+// registers a runtimeUrl there, and the pod reaches the gateway over the public vhost, so
+// with the fallback enabled the injection must resolve rather than abort.
+func TestSystemManagedLLMURLFallsBackToVhostWhenEnabled(t *testing.T) {
+	enableGatewayPublicVhostFallback(t)
+	gateway := newGateway(t, models.GatewayRoleEgress, true)
+	gateway.Vhost = "https://gateway.example.com"
+	gateway.RuntimeURL = ""
+
+	url, err := callSystemManagedLLMURL(t, gateway, "/llm/proxy")
+
+	require.NoError(t, err)
+	require.Equal(t, "https://gateway.example.com/llm/proxy", url)
+}
+
 // callSystemManagedLLMURL resolves the LLM URL for a config whose single mapping is deployed
 // to gateway, reusing gatewayFixtureRepo so gateway lookup behaves as the real SQL does.
 func callSystemManagedLLMURL(t *testing.T, gateway *models.Gateway, contextPath string) (string, error) {

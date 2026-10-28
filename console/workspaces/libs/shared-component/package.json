@@ -40,7 +40,7 @@
   "dependencies": {
     "clsx": "2.1.1",
     "react-dom": "19.2.3",
-    "react-router-dom": "6.28.0",
+    "react-router-dom": "6.30.6",
     "@mui/material": "7.0.0",
     "@mui/icons-material": "7.0.0",
     "@emotion/react": "11.13.5",
@@ -51,10 +51,10 @@
     "@agent-management-platform/api-client": "workspace:*",
     "@agent-management-platform/types": "workspace:*",
     "date-fns": "4.1.0",
-    "js-yaml": "4.1.1",
-    "zod": "4.3.6",
+    "js-yaml": "4.3.2",
+    "zod": "4.6.7",
     "react-syntax-highlighter": "15.6.1",
-    "swagger-ui-react": "5.19.0"
+    "swagger-ui-react": "5.34.0"
   },
   "devDependencies": {
     "@storybook/addon-essentials": "8.6.13",
@@ -104,7 +104,7 @@
   },
   "peerDependencies": {
     "react": "19.2.3",
-    "lodash": "4.17.21",
-    "@babel/runtime-corejs3": "7.11.2"
+    "lodash": "4.18.1",
+    "@babel/runtime-corejs3": "7.29.7"
   }
 }

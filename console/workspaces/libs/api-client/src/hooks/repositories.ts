@@ -67,6 +67,8 @@ export function useListCommits(
         repo: body.repo,
         branch: body.branch,
         secretRef: body.secretRef,
+        projectName: body.projectName,
+        componentName: body.componentName,
       },
       query,
     ],

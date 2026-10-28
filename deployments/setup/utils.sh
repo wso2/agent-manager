@@ -477,65 +477,94 @@ create_plane_cert_resources() {
 
 }
 
-# Util: Run multiple tasks in parallel and collect results
-# Usage: run_parallel_tasks "task1_name:task1_func" "task2_name:task2_func" ...
-# Each task is a "name:function" pair. Function args can be passed after the function name.
-run_parallel_tasks() {
-    local tasks=("$@")
-    local pids=()
-    local logs=()
-    local names=()
+# Fork-join over named shell commands. start_task forks one with its output
+# captured; collect_tasks waits for every task forked so far, prints each one's
+# output and fails if any failed. run_parallel_tasks is the common case of
+# forking several and collecting at once. Forking one, doing other work in the
+# foreground, then collecting is the same two calls spread apart; that
+# foreground work may itself call run_parallel_tasks, which collects only the
+# tasks it forked and leaves the earlier ones outstanding.
+#
+# While tasks are outstanding the script's EXIT trap belongs to abandon_tasks,
+# so a script that fails before collecting stops the tasks (and everything they
+# forked) instead of leaving them running, and removes their log files.
+TASK_NAMES=()
+TASK_PIDS=()
+TASK_LOGS=()
 
-    # Start all tasks in background
-    for task in "${tasks[@]}"; do
-        local name="${task%%:*}"
-        local func="${task#*:}"
-        local log_file
-        log_file=$(mktemp)
+start_task() {
+    local name="$1"
+    local command="$2"
+    local log_file
+    log_file=$(mktemp)
 
-        names+=("$name")
-        logs+=("$log_file")
+    # The child starts with an empty task list so its own fork-joins never try
+    # to wait on the parent's tasks.
+    (TASK_NAMES=(); TASK_PIDS=(); TASK_LOGS=(); eval "$command") > "$log_file" 2>&1 &
+    TASK_NAMES+=("$name")
+    TASK_PIDS+=("$!")
+    TASK_LOGS+=("$log_file")
+    trap abandon_tasks EXIT
+    echo "   Started: $name (PID: $!)"
+}
 
-        # Run function in background, capturing output
-        eval "$func" > "$log_file" 2>&1 &
-        local pid=$!
-        pids+=("$pid")
-        echo "   Started: $name (PID: $pid)"
+kill_process_tree() {
+    local pid="$1"
+    local child
+    for child in $(pgrep -P "$pid" 2>/dev/null); do
+        kill_process_tree "$child"
     done
+    kill "$pid" 2>/dev/null || true
+}
 
-    echo ""
-
-    # Wait for all tasks and collect exit statuses
-    local statuses=()
-    local status
-    for pid in "${pids[@]}"; do
-        wait "$pid" && status=0 || status=$?
-        statuses+=("$status")
+abandon_tasks() {
+    local i
+    for i in "${!TASK_PIDS[@]}"; do
+        echo "⚠️  Stopping unfinished background task: ${TASK_NAMES[$i]} (PID: ${TASK_PIDS[$i]})" >&2
+        kill_process_tree "${TASK_PIDS[$i]}"
+        wait "${TASK_PIDS[$i]}" 2>/dev/null || true
+        rm -f "${TASK_LOGS[$i]}"
     done
+    TASK_NAMES=()
+    TASK_PIDS=()
+    TASK_LOGS=()
+}
 
-    # Output all logs
-    echo ""
-    for i in "${!names[@]}"; do
-        echo "========== ${names[$i]} =========="
-        cat "${logs[$i]}"
-        echo ""
-    done
-
-    # Cleanup temp files
-    for log_file in "${logs[@]}"; do
-        rm -f "$log_file"
-    done
-
-    # Check for failures
+# Usage: collect_tasks [first]
+# Collects the tasks forked since index `first` (every task by default).
+collect_tasks() {
+    local first="${1:-0}"
     local failed=0
-    for i in "${!statuses[@]}"; do
-        if [ "${statuses[$i]}" -ne 0 ]; then
-            echo "❌ ${names[$i]} failed with exit code: ${statuses[$i]}"
+    local i status
+    for ((i = first; i < ${#TASK_PIDS[@]}; i++)); do
+        wait "${TASK_PIDS[$i]}" && status=0 || status=$?
+        echo ""
+        echo "========== ${TASK_NAMES[$i]} =========="
+        cat "${TASK_LOGS[$i]}"
+        echo ""
+        rm -f "${TASK_LOGS[$i]}"
+        if [ "$status" -ne 0 ]; then
+            echo "❌ ${TASK_NAMES[$i]} failed with exit code: $status"
             failed=1
         fi
     done
-
+    TASK_NAMES=("${TASK_NAMES[@]:0:$first}")
+    TASK_PIDS=("${TASK_PIDS[@]:0:$first}")
+    TASK_LOGS=("${TASK_LOGS[@]:0:$first}")
+    if [ "${#TASK_PIDS[@]}" -eq 0 ]; then
+        trap - EXIT
+    fi
     return $failed
+}
+
+# Usage: run_parallel_tasks "task1_name:task1_cmd" "task2_name:task2_cmd" ...
+run_parallel_tasks() {
+    local first="${#TASK_PIDS[@]}"
+    local task
+    for task in "$@"; do
+        start_task "${task%%:*}" "${task#*:}"
+    done
+    collect_tasks "$first"
 }
 
 # Util: Wait for all deployments in a namespace to be ready
@@ -640,4 +669,43 @@ pin_serverlb_ip() {
         return 1
     fi
     echo "✅ Loadbalancer pinned to ${current}"
+}
+
+# Pods that exit while their backend is still starting (the observability
+# adapters do this until OpenSearch or Prometheus is up) land in
+# CrashLoopBackOff, where Kubernetes waits up to 5 minutes before retrying.
+# Deleting such a pod restarts it immediately. The delete is forced because a
+# crash-looped container has nothing to shut down, yet a graceful delete still
+# holds the pod for ~20s before the replacement is created.
+restart_crashlooping_pods() {
+    local ns="$1"
+    local selector="$2"
+    kubectl get pods -n "$ns" -l "$selector" \
+        -o jsonpath='{range .items[*]}{.metadata.name}{"\t"}{.status.containerStatuses[*].state.waiting.reason}{"\n"}{end}' 2>/dev/null \
+        | awk -F'\t' '$2 ~ /CrashLoopBackOff/ {print $1}' \
+        | while read -r pod; do
+            echo "   ↻ Restarting $pod (CrashLoopBackOff)"
+            kubectl delete pod "$pod" -n "$ns" --force --grace-period=0 --wait=false 2>/dev/null \
+                || echo "❌ Failed to delete $pod in $ns; it stays in CrashLoopBackOff until the kubelet retries" >&2
+        done || true
+}
+
+# Waits for every deployment in the namespace, restarting only the pods matching
+# the selector out of CrashLoopBackOff on the way. Anything else that crash-loops
+# keeps its restart history and surfaces in the timeout report.
+wait_for_deployments_restarting_crashloops() {
+    local ns="$1"
+    local crashloop_selector="$2"
+    local timeout_seconds="$3"
+    local deadline=$(( $(date +%s) + timeout_seconds ))
+
+    while true; do
+        restart_crashlooping_pods "$ns" "$crashloop_selector"
+        kubectl wait -n "$ns" --for=condition=available --timeout=10s deployment --all &>/dev/null && return 0
+        if [ "$(date +%s)" -ge "$deadline" ]; then
+            echo "❌ Deployments in $ns not available after ${timeout_seconds}s:"
+            kubectl get pods -n "$ns"
+            return 1
+        fi
+    done
 }

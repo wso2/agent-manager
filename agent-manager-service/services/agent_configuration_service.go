@@ -34,6 +34,7 @@ import (
 	"github.com/wso2/agent-manager/agent-manager-service/audit"
 	"github.com/wso2/agent-manager/agent-manager-service/clients/openchoreosvc/client"
 	"github.com/wso2/agent-manager/agent-manager-service/clients/secretmanagersvc"
+	"github.com/wso2/agent-manager/agent-manager-service/config"
 	"github.com/wso2/agent-manager/agent-manager-service/models"
 	"github.com/wso2/agent-manager/agent-manager-service/repositories"
 	"github.com/wso2/agent-manager/agent-manager-service/utils"
@@ -96,6 +97,17 @@ type AgentConfigurationService interface {
 	// injected but empty, and nothing else ever revisits that binding. Called after an
 	// MCP proxy update, whose endpoint changes are what make an environment deployable.
 	ReconcileMCPBindingsForProxy(ctx context.Context, ouID, proxyHandle string) error
+
+	// ReconcileMCPBindingsForEnvironment reconciles every MCP proxy with an endpoint bound
+	// to this environment. Deployability also flips on gateway topology — mapping the first
+	// egress gateway to an environment makes every proxy bound there deployable — and that
+	// path has no proxy update to hang a reconcile off.
+	ReconcileMCPBindingsForEnvironment(ctx context.Context, ouID string, envUUID uuid.UUID) error
+
+	// ReconcileMCPBindingsForAgentEnvironment binds every MCP connection of one agent in
+	// one environment. For callers that know the agent and environment but not the proxy —
+	// promotion, which self-heals a target environment before judging it.
+	ReconcileMCPBindingsForAgentEnvironment(ctx context.Context, agentID, ouID, projectName, environmentName string) error
 
 	// ListUnresolvedMCPBindings returns the names of the agent's MCP connections that are
 	// configured for this environment but resolve to no proxy URL, so their injected
@@ -351,14 +363,22 @@ func buildPublicProxyURL(gateway *models.Gateway, contextPath *string) string {
 
 // errGatewayRuntimeURLUnregistered means the gateway has no in-cluster address recorded, so
 // no internal caller can reach it. Falling back to the public vhost would hairpin the caller
-// out through an ingress its NetworkPolicy denies, so this fails closed.
+// out through an ingress its NetworkPolicy denies, so this fails closed unless the deployment
+// opts into the fallback (config.GatewayPublicVhostFallback).
 var errGatewayRuntimeURLUnregistered = errors.New("gateway has no runtimeUrl registered")
 
 // buildInternalProxyURL constructs the proxy base URL from the gateway's in-cluster runtime
 // address, for callers that run inside the cluster.
+//
+// A gateway with no runtimeUrl fails closed by default. When the deployment enables
+// config.GatewayPublicVhostFallback (its gateways register a vhost only, as WSO2 Cloud's do),
+// it falls back to the public vhost instead — the address the agent's MCP proxies already use.
 func buildInternalProxyURL(gateway *models.Gateway, contextPath *string) (string, error) {
 	base := strings.TrimSpace(gateway.RuntimeURL)
 	if base == "" {
+		if config.GetConfig().GatewayPublicVhostFallback {
+			return buildPublicProxyURL(gateway, contextPath), nil
+		}
 		return "", fmt.Errorf("%w: %s", errGatewayRuntimeURLUnregistered, gateway.UUID)
 	}
 	if contextPath != nil {
@@ -1462,6 +1482,9 @@ func (s *agentConfigurationService) createMCPConfig(ctx context.Context, ouID, p
 		}
 		proxiesByEnv[envName] = proxy
 	}
+	if err := requireSingleMCPProxy(proxiesByEnv); err != nil {
+		return nil, err
+	}
 
 	envs, err := s.infraResourceManager.ListOrgEnvironments(ctx, ouID)
 	if err != nil {
@@ -1492,6 +1515,24 @@ func (s *agentConfigurationService) createMCPConfig(ctx context.Context, ouID, p
 			return nil, utils.ErrAgentConfigAlreadyExists
 		}
 		return nil, fmt.Errorf("failed to create MCP configuration: %w", err)
+	}
+
+	// Recorded straight after the configuration row and before the per-environment loop
+	// below, so a connection whose proxy is deployable in no environment at all still
+	// carries a resolvable reference and stays reachable from ReconcileMCPBindingsForProxy.
+	// It cannot be part of the literal above: agent_mcp_config_proxy's composite foreign
+	// key requires the configuration row to exist first.
+	if err := s.setConfigMCPProxy(ctx, config, soleMCPProxyUUID(proxiesByEnv)); err != nil {
+		s.cleanupMCPConfig(ctx, config.UUID, ouID)
+		return nil, err
+	}
+
+	// Record the scope before the per-environment loop, so a reconcile racing this create
+	// cannot widen a connection the request deliberately keeps narrow (a CLI `set --env dev`
+	// creates a dev-only connection).
+	if err := s.recordMCPRequestScope(ctx, mcpScopeCreate, config, ouID, projectName, envMap, req.EnvMappings); err != nil {
+		s.cleanupMCPConfig(ctx, config.UUID, ouID)
+		return nil, err
 	}
 
 	firstEnvName := ""
@@ -1530,9 +1571,27 @@ func (s *agentConfigurationService) createMCPConfig(ctx context.Context, ouID, p
 		// env vars.
 		gateway, gwErr := s.resolveDeployableMCPGateway(ctx, sourceProxy, ouID, envUUID)
 		if gwErr != nil {
-			if !errors.Is(gwErr, errMCPEnvNotDeployable) {
+			// A connection now spans the whole pipeline at creation, so a misconfigured or
+			// flaky higher environment (no egress-designated gateway, an ambiguous one, a
+			// transient lookup failure) must not fail the create — which, from the agent
+			// wizard, rolls back the entire agent. It degrades to "configured, not yet bound",
+			// exactly what a not-yet-deployable environment gets, and the reconcile or the
+			// next promotion binds it once the gateway is sorted out; deployableMCPEnvs treats
+			// the same errors the same way. The entry environment stays strict: the agent
+			// deploys there immediately, so a binding that cannot be made is a real failure.
+			//
+			// Only agent creation opts into this (DeferUnbindableMCPEnvs). A direct create
+			// names the environments it wants, so it stays strict everywhere: deferring there
+			// would answer "success" with a connection that cannot bind until the gateway is
+			// fixed, and an external agent would get no credentials for it at all.
+			strict := !req.DeferUnbindableMCPEnvs || (firstEnvName != "" && envName == firstEnvName)
+			if !errors.Is(gwErr, errMCPEnvNotDeployable) && strict {
 				s.cleanupMCPConfig(ctx, config.UUID, ouID)
 				return nil, fmt.Errorf("failed to resolve gateway for MCP environment %s: %w", envName, gwErr)
+			}
+			if !errors.Is(gwErr, errMCPEnvNotDeployable) {
+				s.logger.Warn("Gateway lookup failed for a non-entry MCP environment; recording it unbound for the reconcile to bind later",
+					"configName", config.Name, "agentName", agentID, "environment", envName, "error", gwErr)
 			}
 			if err := s.provisionUnconfiguredMCPEnv(ctx, config, envUUID, envName, ouID, projectName, agentID,
 				envTemplates, isExternalAgent, firstEnvName, envCredentials); err != nil {
@@ -2467,6 +2526,9 @@ func (s *agentConfigurationService) updateMCPConfig(ctx context.Context, existin
 		}
 		proxiesByEnv[envName] = proxy
 	}
+	if err := requireSingleMCPProxy(proxiesByEnv); err != nil {
+		return nil, err
+	}
 
 	existingEnvMap := make(map[string]*models.EnvAgentMCPMapping, len(existingConfig.EnvMCPMappings))
 	for i := range existingConfig.EnvMCPMappings {
@@ -2490,6 +2552,18 @@ func (s *agentConfigurationService) updateMCPConfig(ctx context.Context, existin
 	}
 	for envName := range req.EnvMappings {
 		touchedEnvNames[envName] = struct{}{}
+	}
+
+	// Record the scope the request expresses before any environment is applied or torn
+	// down — see recordMCPRequestScope. The per-environment steps below commit one by one,
+	// so recording intent last let a mid-update failure (a teardown that errored after an
+	// earlier one succeeded) return before the exclusion was written, and the next
+	// reconcile re-bound the environment the user had just removed. Recording first is safe
+	// in both directions: an exclusion only makes a racing reconcile do less, and an
+	// inclusion only lets it bind what this request asked for anyway.
+	// existingConfig still holds the pre-update mappings, so removals are visible.
+	if err := s.recordMCPRequestScope(ctx, mcpScopeUpdate, existingConfig, ouID, projectName, envMap, req.EnvMappings); err != nil {
+		return nil, err
 	}
 
 	for envName := range req.EnvMappings {
@@ -2577,6 +2651,19 @@ func (s *agentConfigurationService) updateMCPConfig(ctx context.Context, existin
 		if err := s.removeMCPMappingEnvironment(ctx, existingConfig, mapping, envName, ouID, projectName, agentName, envTemplates, isExternalAgent, isLastEnv); err != nil {
 			return nil, err
 		}
+	}
+
+	// Re-pointed only once every environment above has been dealt with. Writing it earlier
+	// would leave a half-applied proxy switch permanently unrepairable: the reference would
+	// name the new proxy while the environments the loop never reached still had mapping
+	// rows to the old one, and neither side's reconcile would claim them — the new proxy's
+	// sees those environments as already mapped, and the old proxy's no longer recognises
+	// the configuration as its own.
+	//
+	// A reconcile racing this update therefore acts on the OLD proxy, which is safe: the
+	// loop above re-points anything it bound (see the sourceChanged branch).
+	if err := s.setConfigMCPProxy(ctx, existingConfig, soleMCPProxyUUID(proxiesByEnv)); err != nil {
+		return nil, err
 	}
 
 	// Detached onto its own goroutine, off the request path — cost scales

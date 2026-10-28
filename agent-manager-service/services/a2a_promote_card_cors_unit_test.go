@@ -126,7 +126,7 @@ func TestPromoteAgent_A2AInheritsSourceCardCORSAndRepublishes(t *testing.T) {
 			return nil
 		},
 	}
-	s.a2aPublicationRepo = pubRepo
+	s.a2aPublisher = NewA2APublisher(nil, pubRepo, &repomocks.A2AProxyRepositoryMock{}, nil, nil, nil, nil, nil, testLogger())
 
 	err := s.PromoteAgent(tierGrantedCtx(t), "acme", "proj1", "my-agent", &spec.PromoteAgentRequest{
 		SourceEnvironment: "dev",

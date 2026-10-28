@@ -141,6 +141,30 @@ func (rr *RouteRegistrar) HandleFuncWithValidationAndAuthzAllowRootOU(pattern st
 	rr.registerRootOU(pattern, []rbac.Permission{perm}, RequirePermissionAllowRootOU(perm), handler)
 }
 
+// HandleFuncWithValidationAndPlatformAdminAuthz registers a route that reads
+// across every organization, admitting only the platform-admin OU.
+//
+// perm is declared so the route carries a permission for the audit action label
+// and the route-table invariants, and its scope check always runs. It is not
+// what separates tenants: RequirePlatformAdminOU is, and it is composed outside
+// the scope check so a caller from the wrong organization is refused before its
+// scopes are looked at — see that function for why a scope alone cannot be
+// relied on here.
+//
+// Patterns registered through this must NOT contain {orgName}: the org comes
+// from the token for every other route, and these routes have no single org.
+func (rr *RouteRegistrar) HandleFuncWithValidationAndPlatformAdminAuthz(
+	pattern string, perm rbac.Permission, handler http.HandlerFunc,
+) {
+	if strings.Contains(pattern, orgNamePlaceholder) {
+		panic("middleware: a platform-admin route must not be org-scoped: " + pattern)
+	}
+	authz := func(next http.HandlerFunc) http.HandlerFunc {
+		return RequirePlatformAdminOU()(RequirePermission(perm)(next))
+	}
+	rr.register(pattern, []rbac.Permission{perm}, authz, handler)
+}
+
 func (rr *RouteRegistrar) HandleFuncWithValidationAndAnyAuthz(pattern string, handler http.HandlerFunc, perms ...rbac.Permission) {
 	rr.register(pattern, perms, RequireAnyPermission(perms...), handler)
 }

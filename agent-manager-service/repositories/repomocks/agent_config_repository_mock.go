@@ -8,6 +8,8 @@ import (
 	"sync"
 
 	"github.com/wso2/agent-manager/agent-manager-service/models"
+	"github.com/wso2/agent-manager/agent-manager-service/repositories"
+	"gorm.io/gorm"
 )
 
 // AgentConfigRepositoryMock is a mock implementation of repositories.AgentConfigRepository.
@@ -16,14 +18,23 @@ import (
 //
 //		// make and configure a mocked repositories.AgentConfigRepository
 //		mockedAgentConfigRepository := &AgentConfigRepositoryMock{
+//			CreateIfAbsentFunc: func(ctx context.Context, config *models.AgentConfig) error {
+//				panic("mock out the CreateIfAbsent method")
+//			},
 //			DeleteAllByAgentFunc: func(ctx context.Context, ouID string, projectName string, agentName string) error {
 //				panic("mock out the DeleteAllByAgent method")
+//			},
+//			DeleteForEnvironmentFunc: func(ctx context.Context, ouID string, environmentName string) error {
+//				panic("mock out the DeleteForEnvironment method")
 //			},
 //			GetFunc: func(ctx context.Context, ouID string, projectName string, agentName string, environmentName string) (*models.AgentConfig, error) {
 //				panic("mock out the Get method")
 //			},
 //			UpsertFunc: func(ctx context.Context, config *models.AgentConfig) error {
 //				panic("mock out the Upsert method")
+//			},
+//			WithTxFunc: func(tx *gorm.DB) repositories.AgentConfigRepository {
+//				panic("mock out the WithTx method")
 //			},
 //		}
 //
@@ -32,8 +43,14 @@ import (
 //
 //	}
 type AgentConfigRepositoryMock struct {
+	// CreateIfAbsentFunc mocks the CreateIfAbsent method.
+	CreateIfAbsentFunc func(ctx context.Context, config *models.AgentConfig) error
+
 	// DeleteAllByAgentFunc mocks the DeleteAllByAgent method.
 	DeleteAllByAgentFunc func(ctx context.Context, ouID string, projectName string, agentName string) error
+
+	// DeleteForEnvironmentFunc mocks the DeleteForEnvironment method.
+	DeleteForEnvironmentFunc func(ctx context.Context, ouID string, environmentName string) error
 
 	// GetFunc mocks the Get method.
 	GetFunc func(ctx context.Context, ouID string, projectName string, agentName string, environmentName string) (*models.AgentConfig, error)
@@ -41,8 +58,18 @@ type AgentConfigRepositoryMock struct {
 	// UpsertFunc mocks the Upsert method.
 	UpsertFunc func(ctx context.Context, config *models.AgentConfig) error
 
+	// WithTxFunc mocks the WithTx method.
+	WithTxFunc func(tx *gorm.DB) repositories.AgentConfigRepository
+
 	// calls tracks calls to the methods.
 	calls struct {
+		// CreateIfAbsent holds details about calls to the CreateIfAbsent method.
+		CreateIfAbsent []struct {
+			// Ctx is the ctx argument value.
+			Ctx context.Context
+			// Config is the config argument value.
+			Config *models.AgentConfig
+		}
 		// DeleteAllByAgent holds details about calls to the DeleteAllByAgent method.
 		DeleteAllByAgent []struct {
 			// Ctx is the ctx argument value.
@@ -53,6 +80,15 @@ type AgentConfigRepositoryMock struct {
 			ProjectName string
 			// AgentName is the agentName argument value.
 			AgentName string
+		}
+		// DeleteForEnvironment holds details about calls to the DeleteForEnvironment method.
+		DeleteForEnvironment []struct {
+			// Ctx is the ctx argument value.
+			Ctx context.Context
+			// OuID is the ouID argument value.
+			OuID string
+			// EnvironmentName is the environmentName argument value.
+			EnvironmentName string
 		}
 		// Get holds details about calls to the Get method.
 		Get []struct {
@@ -74,10 +110,54 @@ type AgentConfigRepositoryMock struct {
 			// Config is the config argument value.
 			Config *models.AgentConfig
 		}
+		// WithTx holds details about calls to the WithTx method.
+		WithTx []struct {
+			// Tx is the tx argument value.
+			Tx *gorm.DB
+		}
 	}
-	lockDeleteAllByAgent sync.RWMutex
-	lockGet              sync.RWMutex
-	lockUpsert           sync.RWMutex
+	lockCreateIfAbsent       sync.RWMutex
+	lockDeleteAllByAgent     sync.RWMutex
+	lockDeleteForEnvironment sync.RWMutex
+	lockGet                  sync.RWMutex
+	lockUpsert               sync.RWMutex
+	lockWithTx               sync.RWMutex
+}
+
+// CreateIfAbsent calls CreateIfAbsentFunc.
+func (mock *AgentConfigRepositoryMock) CreateIfAbsent(ctx context.Context, config *models.AgentConfig) error {
+	if mock.CreateIfAbsentFunc == nil {
+		panic("AgentConfigRepositoryMock.CreateIfAbsentFunc: method is nil but AgentConfigRepository.CreateIfAbsent was just called")
+	}
+	callInfo := struct {
+		Ctx    context.Context
+		Config *models.AgentConfig
+	}{
+		Ctx:    ctx,
+		Config: config,
+	}
+	mock.lockCreateIfAbsent.Lock()
+	mock.calls.CreateIfAbsent = append(mock.calls.CreateIfAbsent, callInfo)
+	mock.lockCreateIfAbsent.Unlock()
+	return mock.CreateIfAbsentFunc(ctx, config)
+}
+
+// CreateIfAbsentCalls gets all the calls that were made to CreateIfAbsent.
+// Check the length with:
+//
+//	len(mockedAgentConfigRepository.CreateIfAbsentCalls())
+func (mock *AgentConfigRepositoryMock) CreateIfAbsentCalls() []struct {
+	Ctx    context.Context
+	Config *models.AgentConfig
+} {
+	var calls []struct {
+		Ctx    context.Context
+		Config *models.AgentConfig
+	}
+	mock.lockCreateIfAbsent.RLock()
+	calls = mock.calls.CreateIfAbsent
+	mock.lockCreateIfAbsent.RUnlock()
+	return calls
 }
 
 // DeleteAllByAgent calls DeleteAllByAgentFunc.
@@ -121,6 +201,46 @@ func (mock *AgentConfigRepositoryMock) DeleteAllByAgentCalls() []struct {
 	mock.lockDeleteAllByAgent.RLock()
 	calls = mock.calls.DeleteAllByAgent
 	mock.lockDeleteAllByAgent.RUnlock()
+	return calls
+}
+
+// DeleteForEnvironment calls DeleteForEnvironmentFunc.
+func (mock *AgentConfigRepositoryMock) DeleteForEnvironment(ctx context.Context, ouID string, environmentName string) error {
+	if mock.DeleteForEnvironmentFunc == nil {
+		panic("AgentConfigRepositoryMock.DeleteForEnvironmentFunc: method is nil but AgentConfigRepository.DeleteForEnvironment was just called")
+	}
+	callInfo := struct {
+		Ctx             context.Context
+		OuID            string
+		EnvironmentName string
+	}{
+		Ctx:             ctx,
+		OuID:            ouID,
+		EnvironmentName: environmentName,
+	}
+	mock.lockDeleteForEnvironment.Lock()
+	mock.calls.DeleteForEnvironment = append(mock.calls.DeleteForEnvironment, callInfo)
+	mock.lockDeleteForEnvironment.Unlock()
+	return mock.DeleteForEnvironmentFunc(ctx, ouID, environmentName)
+}
+
+// DeleteForEnvironmentCalls gets all the calls that were made to DeleteForEnvironment.
+// Check the length with:
+//
+//	len(mockedAgentConfigRepository.DeleteForEnvironmentCalls())
+func (mock *AgentConfigRepositoryMock) DeleteForEnvironmentCalls() []struct {
+	Ctx             context.Context
+	OuID            string
+	EnvironmentName string
+} {
+	var calls []struct {
+		Ctx             context.Context
+		OuID            string
+		EnvironmentName string
+	}
+	mock.lockDeleteForEnvironment.RLock()
+	calls = mock.calls.DeleteForEnvironment
+	mock.lockDeleteForEnvironment.RUnlock()
 	return calls
 }
 
@@ -205,5 +325,37 @@ func (mock *AgentConfigRepositoryMock) UpsertCalls() []struct {
 	mock.lockUpsert.RLock()
 	calls = mock.calls.Upsert
 	mock.lockUpsert.RUnlock()
+	return calls
+}
+
+// WithTx calls WithTxFunc.
+func (mock *AgentConfigRepositoryMock) WithTx(tx *gorm.DB) repositories.AgentConfigRepository {
+	if mock.WithTxFunc == nil {
+		panic("AgentConfigRepositoryMock.WithTxFunc: method is nil but AgentConfigRepository.WithTx was just called")
+	}
+	callInfo := struct {
+		Tx *gorm.DB
+	}{
+		Tx: tx,
+	}
+	mock.lockWithTx.Lock()
+	mock.calls.WithTx = append(mock.calls.WithTx, callInfo)
+	mock.lockWithTx.Unlock()
+	return mock.WithTxFunc(tx)
+}
+
+// WithTxCalls gets all the calls that were made to WithTx.
+// Check the length with:
+//
+//	len(mockedAgentConfigRepository.WithTxCalls())
+func (mock *AgentConfigRepositoryMock) WithTxCalls() []struct {
+	Tx *gorm.DB
+} {
+	var calls []struct {
+		Tx *gorm.DB
+	}
+	mock.lockWithTx.RLock()
+	calls = mock.calls.WithTx
+	mock.lockWithTx.RUnlock()
 	return calls
 }

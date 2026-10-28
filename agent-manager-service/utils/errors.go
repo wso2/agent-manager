@@ -93,11 +93,18 @@ var (
 	ErrAgentNotDeployedInEnvironment = errors.New("agent is not deployed in this environment")
 	ErrAgentNotA2A                   = errors.New("agent is not an A2A agent")
 	ErrAgentCardSourceNotExternal    = errors.New("a card source can be set only for external A2A agents")
-	ErrTraitNotFound                 = errors.New("trait not found")
-	ErrOrganizationNotFound          = errors.New("organization not found")
-	ErrBuildNotFound                 = errors.New("build not found")
-	ErrEnvironmentNotFound           = errors.New("environment not found")
-	ErrAgentIdentityNotProvisioned   = errors.New("agent identity not yet provisioned for this environment")
+	ErrEnvironmentNotProxied         = errors.New("the environment does not route this agent through its gateway")
+	ErrA2AProxyAgentNotExternal      = errors.New("only external A2A agents can be routed through the gateway")
+	ErrA2AProxyNeedsCardSource       = errors.New("register the agent's card URL for this environment before routing it through the gateway")
+	ErrA2ACardURLNotProxyable        = errors.New("the card URL cannot be routed through the gateway")
+	ErrInvalidUpstreamAuth           = errors.New("invalid upstream auth")
+	// ErrA2AProxyUpstreamAuthNeedsHTTPS keeps a stored upstream credential off an origin that would receive it in cleartext. Maps to 400.
+	ErrA2AProxyUpstreamAuthNeedsHTTPS = errors.New("the card URL must use https before an upstream credential can be stored, as the gateway would otherwise send it in cleartext")
+	ErrTraitNotFound                  = errors.New("trait not found")
+	ErrOrganizationNotFound           = errors.New("organization not found")
+	ErrBuildNotFound                  = errors.New("build not found")
+	ErrEnvironmentNotFound            = errors.New("environment not found")
+	ErrAgentIdentityNotProvisioned    = errors.New("agent identity not yet provisioned for this environment")
 	// ErrAgentIdentityRetryNotAllowed is returned when a retry is requested for
 	// a binding whose current status is not failed. Maps to 409.
 	ErrAgentIdentityRetryNotAllowed = errors.New("agent identity binding is not in a failed state and cannot be retried")
@@ -110,8 +117,15 @@ var (
 	// while a build is running. Argo Workflows resolves workflow.parameters once
 	// at WorkflowRun submission, so a config change written to the Component CR
 	// after that point is never picked up by the in-flight build. Maps to 409.
-	ErrBuildInProgress                = errors.New("a build is already in progress for this agent")
-	ErrProjectHasAssociatedAgents     = errors.New("project has associated agents")
+	ErrBuildInProgress            = errors.New("a build is already in progress for this agent")
+	ErrProjectHasAssociatedAgents = errors.New("project has associated agents")
+	// ErrComponentNotReconcilable reports that OpenChoreo cannot reconcile the agent's Component,
+	// so a deploy or promote would be silently discarded: the writes land on the Component and
+	// Workload, but no new ComponentRelease is cut, so the pods restart on the previous snapshot
+	// with the old image and env. Both operations are refused up front rather than reporting a
+	// success that did nothing. The wording says "deployed" for both, since a promote is the
+	// deploy of an existing release into the next environment.
+	ErrComponentNotReconcilable       = errors.New("agent cannot be deployed in its current state")
 	ErrMonitorNotFound                = errors.New("monitor not found")
 	ErrMonitorAlreadyExists           = errors.New("monitor already exists")
 	ErrMonitorRunNotFound             = errors.New("monitor run not found")
@@ -125,6 +139,9 @@ var (
 	ErrInvalidInput                   = errors.New("invalid input")
 	ErrImmutableFieldChange           = errors.New("cannot change immutable field")
 	ErrScopeNotFound                  = errors.New("scope not found")
+	// ErrA2AProxyOriginChangeNeedsAuthReset keeps a stored upstream secret from following the card URL to another origin. Maps to 409.
+	ErrA2AProxyOriginChangeNeedsAuthReset = errors.New(
+		"the stored upstream credential would be sent to the new card URL's origin; clear the upstream auth before moving the card to another origin, then enter it again")
 
 	// HTTP errors
 	ErrBadRequest   = errors.New("bad request")

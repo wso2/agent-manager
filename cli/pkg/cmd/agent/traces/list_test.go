@@ -94,10 +94,10 @@ func TestRunToolCallFails_SameColumnsAsList(t *testing.T) {
 		t.Fatalf("unexpected error: %v", err)
 	}
 	got := out.String()
-	if !strings.Contains(got, "handle_request") {
-		t.Errorf("filtered output should show RootSpanName (handle_request), got %q", got)
+	if !strings.Contains(got, "abc123") {
+		t.Errorf("filtered output should show the matching trace (abc123), got %q", got)
 	}
-	if strings.Contains(got, "no_tool_error") {
+	if strings.Contains(got, "ok456") {
 		t.Errorf("a trace without a failed tool span should be left out, got %q", got)
 	}
 	if strings.Contains(got, "rootspanidshould") {
@@ -138,7 +138,7 @@ func TestRenderFilteredOverview_JSONShapeStableWhenEmpty(t *testing.T) {
 	ios, _, out, _ := iostreams.Test()
 	ios.JSON = true
 
-	err := renderFilteredOverview(&ListTracesOptions{IO: ios, Scope: traceBaseScope()}, nil)
+	err := renderFilteredOverview(&ListTracesOptions{IO: ios, Scope: traceBaseScope()}, &observersvc.TraceExportResponse{}, nil)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -159,11 +159,11 @@ func TestRenderFilteredOverview_JSONShapeStableWhenEmpty(t *testing.T) {
 	if arr, ok := traces.([]any); !ok || len(arr) != 0 {
 		t.Errorf("traces should be empty array, got %T %v", traces, traces)
 	}
-	count, ok := envelope.Data["count"]
+	count, ok := envelope.Data["totalCount"]
 	if !ok {
-		t.Fatalf("data missing \"count\" key (non-empty branch uses \"count\"): %s", out.String())
+		t.Fatalf("data missing \"totalCount\" key: %s", out.String())
 	}
 	if n, _ := count.(float64); n != 0 {
-		t.Errorf("count = %v, want 0", count)
+		t.Errorf("totalCount = %v, want 0", count)
 	}
 }

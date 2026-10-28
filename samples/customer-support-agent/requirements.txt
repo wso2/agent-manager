@@ -6,6 +6,6 @@ pandas
 openai
 fastapi
 uvicorn
-sqlalchemy
+sqlalchemy==2.0.55
 psycopg2-binary
 pytz

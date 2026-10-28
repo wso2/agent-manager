@@ -19,12 +19,14 @@ package create
 import (
 	"context"
 	"fmt"
+	"strings"
 
 	"github.com/spf13/cobra"
 
 	amsvc "github.com/wso2/agent-manager/cli/pkg/clients/amsvc/gen"
 	"github.com/wso2/agent-manager/cli/pkg/clients/observersvc"
 	"github.com/wso2/agent-manager/cli/pkg/clierr"
+	"github.com/wso2/agent-manager/cli/pkg/cmd/agent/a2acard"
 	"github.com/wso2/agent-manager/cli/pkg/cmdutil"
 	"github.com/wso2/agent-manager/cli/pkg/iostreams"
 	"github.com/wso2/agent-manager/cli/pkg/render"
@@ -76,6 +78,9 @@ type CreateOptions struct {
 	LLMProvider  string
 	LLMURLEnv    string
 	LLMAPIKeyEnv string
+
+	CardURL   string
+	CardProxy bool
 }
 
 func NewCreateCmd(f *cmdutil.Factory) *cobra.Command {
@@ -145,7 +150,7 @@ func NewCreateCmd(f *cmdutil.Factory) *cobra.Command {
 	cmd.Flags().StringVar(&opts.DisplayName, "display-name", "", "Human-readable name (required)")
 	cmd.Flags().StringVar(&opts.Type, "type", "", "Agent type (auto-derived from --provisioning)")
 	cmd.Flags().StringVar(&opts.Description, "description", "", "Agent description")
-	cmd.Flags().StringVar(&opts.SubType, "subtype", "", "Agent sub-type: chat-api, custom-api or a2a-agent")
+	cmd.Flags().StringVar(&opts.SubType, "subtype", "", "Agent sub-type: chat-api, custom-api or a2a-agent (external: a2a-agent only)")
 
 	_ = cmd.Flags().MarkHidden("type")
 
@@ -169,6 +174,8 @@ func NewCreateCmd(f *cmdutil.Factory) *cobra.Command {
 	cmd.Flags().StringVar(&opts.LLMProvider, "llm-provider", "", "Handle of a configured LLM provider to attach (internal only)")
 	cmd.Flags().StringVar(&opts.LLMURLEnv, "llm-url-env", "", "Env var name for the provider URL (default: auto-generated)")
 	cmd.Flags().StringVar(&opts.LLMAPIKeyEnv, "llm-api-key-env", "", "Env var name for the provider API key (default: auto-generated)")
+	cmd.Flags().StringVar(&opts.CardURL, "card-url", "", "Agent card URL to register for the entry environment (external a2a-agent only)")
+	cmd.Flags().BoolVar(&opts.CardProxy, "proxy", false, "Route the entry environment through its gateway (requires --card-url)")
 
 	_ = cmd.RegisterFlagCompletionFunc("provisioning", func(*cobra.Command, []string, string) ([]string, cobra.ShellCompDirective) {
 		return []string{provisioningInternal, provisioningExternal}, cobra.ShellCompDirectiveNoFileComp
@@ -210,16 +217,68 @@ func runCreate(ctx context.Context, opts *CreateOptions, req amsvc.CreateAgentRe
 		return nil
 	}
 
+	env, err := cmdutil.ResolveEntryEnvironment(ctx, client, opts.Org, opts.Proj)
+	if err != nil {
+		fmt.Fprintf(opts.IO.ErrOut, "warning: agent created but could not resolve the entry environment (token and card setup skipped): %v\n", err)
+		var card *cardOutcome
+		if opts.CardURL != "" {
+			card = &cardOutcome{SourceResult: a2acard.SourceResult{URL: opts.CardURL}, Error: err.Error()}
+		}
+		return renderAgentWithCard(opts, resp.JSON202, card)
+	}
+
+	var card *cardOutcome
+	if opts.CardURL != "" {
+		card = applyCardURL(ctx, opts, client, resp.JSON202.Name, env)
+	}
+
 	// The agent is already created server-side, so a post-create failure (token
 	// mint, observer discovery) is a warning, not an error — otherwise the
 	// user retries and hits 409.
-	if err := runExternalPostCreate(ctx, opts, resp.JSON202, client); err != nil {
+	if err := runExternalPostCreate(ctx, opts, resp.JSON202, client, env, card); err != nil {
 		fmt.Fprintf(opts.IO.ErrOut, "warning: agent created but failed to generate token: %v\n", err)
-		if opts.IO.JSON {
-			return render.JSONSuccess(opts.IO, opts.Scope, map[string]any{"agent": resp.JSON202})
-		}
+		return renderAgentWithCard(opts, resp.JSON202, card)
 	}
 	return nil
+}
+
+// renderAgentWithCard emits the JSON envelope for a create that stopped before the token was minted.
+func renderAgentWithCard(opts *CreateOptions, agent *amsvc.AgentResponse, card *cardOutcome) error {
+	if !opts.IO.JSON {
+		return nil
+	}
+	data := map[string]any{"agent": agent}
+	if card != nil {
+		data["card"] = card
+	}
+	return render.JSONSuccess(opts.IO, opts.Scope, data)
+}
+
+// applyCardURL registers the card URL; failure is a warning because the agent already exists.
+func applyCardURL(ctx context.Context, opts *CreateOptions, client *amsvc.ClientWithResponses, name, env string) *cardOutcome {
+	target := a2acard.Target{Org: opts.Org, Proj: opts.Proj, Agent: name, Env: env}
+	res, err := a2acard.ApplySource(ctx, client, target, opts.CardURL, opts.CardProxy)
+	card := &cardOutcome{SourceResult: res}
+	card.Environment, card.URL = env, opts.CardURL
+	if err == nil {
+		if !opts.IO.JSON {
+			cs := opts.IO.StderrColorScheme()
+			fmt.Fprintf(opts.IO.ErrOut, "%s Registered card URL for %s (%s)\n", cs.SuccessIcon(), env, res.Routing)
+		}
+		return card
+	}
+	card.Error = err.Error()
+	fmt.Fprintf(opts.IO.ErrOut, "warning: agent created but card setup failed: %v\n", err)
+	retry := fmt.Sprintf("amctl agent card set %s --env %s --url %s", name, env, shellQuote(opts.CardURL))
+	if opts.CardProxy {
+		retry += " --proxy"
+	}
+	fmt.Fprintf(opts.IO.ErrOut, "  finish with: %s\n", retry)
+	return card
+}
+
+func shellQuote(s string) string {
+	return "'" + strings.ReplaceAll(s, "'", `'\''`) + "'"
 }
 
 func printAgentSummary(io *iostreams.IOStreams, a *amsvc.AgentResponse) {

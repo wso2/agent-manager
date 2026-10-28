@@ -47,34 +47,44 @@ const (
 	// traceDetailsSortOrder is the fixed sort order get_trace_details
 	// requests, mirroring GetTraceSpans' REST default ("asc" — chronological).
 	traceDetailsSortOrder = "asc"
+
+	// traceFiltersDescription lists the filter inputs list_traces and get_traces share.
+	traceFiltersDescription = "Filters (optional; all set filters must match, across the whole window): " +
+		"status, min_duration_ms, min_tokens, min_span_count, model, conversation_id, missing, tool, tool_error, mcp_server."
 )
 
 // tracesInput backs get_traces (-> ExportTraces) and is the base of
 // listTracesInput: both REST routes accept the same scope, time-window,
 // paging and filter inputs. Set filters AND together.
 type tracesInput struct {
-	Organization   string `json:"organization" jsonschema:"required"`
-	Project        string `json:"project" jsonschema:"required"`
-	Agent          string `json:"agent" jsonschema:"required"`
-	Environment    string `json:"environment" jsonschema:"required"`
-	StartTime      string `json:"start_time,omitempty"`
-	EndTime        string `json:"end_time,omitempty"`
-	Limit          *int   `json:"limit,omitempty"`
-	SortOrder      string `json:"sort_order,omitempty"`
-	Status         string `json:"status,omitempty" jsonschema:"Only traces whose root span is 'error' or 'ok'. ANDs with the other filters."`
-	MinDurationMs  *int64 `json:"min_duration_ms,omitempty" jsonschema:"Only traces lasting at least this many milliseconds. ANDs with the other filters."`
-	MinTokens      *int64 `json:"min_tokens,omitempty" jsonschema:"Only traces using at least this many tokens in total; a trace with no token usage never matches. ANDs with the other filters."`
-	MinSpanCount   *int64 `json:"min_span_count,omitempty" jsonschema:"Only traces with at least this many spans. ANDs with the other filters."`
-	Model          string `json:"model,omitempty" jsonschema:"Only traces where a model name contains this value, ignoring case (gpt-4o also matches gpt-4o-mini). ANDs with the other filters."`
-	ConversationID string `json:"conversation_id,omitempty" jsonschema:"Only traces with exactly this conversation ID. ANDs with the other filters."`
+	Organization   string   `json:"organization" jsonschema:"required"`
+	Project        string   `json:"project" jsonschema:"required"`
+	Agent          string   `json:"agent" jsonschema:"required"`
+	Environment    string   `json:"environment" jsonschema:"required"`
+	StartTime      string   `json:"start_time,omitempty"`
+	EndTime        string   `json:"end_time,omitempty"`
+	Limit          *int     `json:"limit,omitempty"`
+	SortOrder      string   `json:"sort_order,omitempty"`
+	Status         string   `json:"status,omitempty" jsonschema:"Root span status: 'ok' or 'error'."`
+	MinDurationMs  *int64   `json:"min_duration_ms,omitempty" jsonschema:"Minimum trace duration, in milliseconds."`
+	MinTokens      *int64   `json:"min_tokens,omitempty" jsonschema:"Minimum total tokens."`
+	MinSpanCount   *int64   `json:"min_span_count,omitempty" jsonschema:"Minimum number of spans."`
+	Model          string   `json:"model,omitempty" jsonschema:"Model name contains this text (case-insensitive)."`
+	ConversationID string   `json:"conversation_id,omitempty" jsonschema:"Exact conversation ID."`
+	Tool           string   `json:"tool,omitempty" jsonschema:"Tool name contains this text (case-insensitive)."`
+	ToolError      bool     `json:"tool_error,omitempty" jsonschema:"Only traces where a tool failed; with tool set, that tool must have failed."`
+	MCPServer      string   `json:"mcp_server,omitempty" jsonschema:"MCP server name contains this text (case-insensitive)."`
+	Missing        []string `json:"missing,omitempty" jsonschema:"Only traces missing these fields. Accepts: conversation_id."`
 }
 
 // listTracesInput backs list_traces (-> GetTraceOverviews), which also takes
-// include_models and a paging cursor.
+// the includes and a paging cursor.
 type listTracesInput struct {
 	tracesInput
-	IncludeModels bool   `json:"include_models,omitempty" jsonschema:"Fill models on every trace. Costs one extra upstream call per trace; the model filter implies it."`
-	Cursor        string `json:"cursor,omitempty" jsonschema:"nextCursor from a previous list_traces result, to get the next page. Send the same time window, sort order and filters."`
+	IncludeModels     bool   `json:"include_models,omitempty" jsonschema:"Add the models used to each trace; off by default."`
+	IncludeTools      bool   `json:"include_tools,omitempty" jsonschema:"Add the tools called, and those that failed, to each trace; off by default."`
+	IncludeMCPServers bool   `json:"include_mcp_servers,omitempty" jsonschema:"Add the MCP servers used to each trace; off by default."`
+	Cursor            string `json:"cursor,omitempty" jsonschema:"nextCursor from the previous page. Keep the other inputs unchanged."`
 }
 
 // traceDetailsInput mirrors REST GetTraceSpans: only organization + trace_id
@@ -98,6 +108,7 @@ type spanDetailsInput struct {
 	SpanID  string `json:"span_id" jsonschema:"required"`
 }
 
+// registerTraceTools registers the trace tools on server.
 func (t *Toolsets) registerTraceTools(server *gomcp.Server) {
 	authorize := t.guard(rbac.TraceRead)
 
@@ -105,17 +116,16 @@ func (t *Toolsets) registerTraceTools(server *gomcp.Server) {
 		Name: "list_traces",
 		Description: "Returns a summary view of recent traces for an agent within a time window. " +
 			"A trace is a single end-to-end execution record for an agent request. " +
-			"Filters are applied server-side across the whole window, not just one page. " +
-			"The result reports lookedBackTo (how far back the search got) and truncated (the search stopped early); " +
-			"pass nextCursor back as cursor to continue.",
+			"Returns lookedBackTo (how far back the search got) and truncated (the search stopped early); pass nextCursor back as cursor for the next page.\n\n" +
+			traceFiltersDescription,
 	}, withToolLogging("list_traces", listTraces(t.Tracing, authorize)))
 
 	gomcp.AddTool(server, &gomcp.Tool{
 		Name: "get_traces",
 		Description: "Returns the traces for an agent including full span details within a time window. " +
 			"A trace is a single end-to-end execution record for an agent which contains spans that record the internal steps of an execution. " +
-			"Filters are applied server-side across the whole window. " +
-			"The result reports lookedBackTo (how far back a filtered search got) and truncated (the search stopped early or a trace's spans were cut).",
+			"Returns lookedBackTo (how far back a filtered search got) and truncated (the search stopped early or a trace's spans were cut).\n\n" +
+			traceFiltersDescription,
 	}, withToolLogging("get_traces", getTraces(t.Tracing, authorize)))
 
 	gomcp.AddTool(server, &gomcp.Tool{
@@ -139,6 +149,7 @@ type scopedTraceInput struct {
 	Environment  string
 }
 
+// requireTraceScope checks the organization, project, agent and environment are set.
 func requireTraceScope(organization, project, agent, environment string) (scopedTraceInput, error) {
 	org, err := requireField(organization, "organization")
 	if err != nil {
@@ -217,14 +228,49 @@ func (in tracesInput) filters() (controllers.TraceFilters, error) {
 	if err := controllers.CheckFilterValue("conversation_id", in.ConversationID); err != nil {
 		return controllers.TraceFilters{}, err
 	}
-	return controllers.TraceFilters{
+	if err := controllers.CheckFilterValue("tool", in.Tool); err != nil {
+		return controllers.TraceFilters{}, err
+	}
+	if err := controllers.CheckFilterValue("mcp_server", in.MCPServer); err != nil {
+		return controllers.TraceFilters{}, err
+	}
+	var missing controllers.MissingFields
+	for _, v := range in.Missing {
+		if err := controllers.ParseMissingField(&missing, v, "conversation_id"); err != nil {
+			return controllers.TraceFilters{}, err
+		}
+	}
+	f := controllers.TraceFilters{
 		Status:         status,
 		MinDurationMs:  in.MinDurationMs,
 		MinTokens:      in.MinTokens,
 		MinSpanCount:   in.MinSpanCount,
 		Model:          in.Model,
 		ConversationID: in.ConversationID,
-	}, nil
+		Tool:           in.Tool,
+		ToolError:      in.ToolError,
+		MCPServer:      in.MCPServer,
+		Missing:        missing,
+	}
+	if err := controllers.CheckMissingConflict(f, "conversation_id"); err != nil {
+		return controllers.TraceFilters{}, err
+	}
+	return f, nil
+}
+
+// listQueryParams validates list_traces' inputs: the shared ones, the includes and the cursor.
+func (in listTracesInput) listQueryParams() (controllers.TraceQueryParams, error) {
+	params, err := in.queryParams(defaultTraceListLimit, maxTraceListLimit)
+	if err != nil {
+		return controllers.TraceQueryParams{}, err
+	}
+	params.Include = controllers.Include{Models: in.IncludeModels, Tools: in.IncludeTools, MCPServers: in.IncludeMCPServers}
+	if in.Cursor != "" {
+		if params.Cursor, err = controllers.DecodeTraceCursor(in.Cursor); err != nil {
+			return controllers.TraceQueryParams{}, fmt.Errorf("invalid cursor")
+		}
+	}
+	return params, nil
 }
 
 // listTraces handles list_traces: one page of trace overviews, filtered and paged by cursor.
@@ -233,15 +279,9 @@ func listTraces(tracing *controllers.TracingController, authorize func(*gomcp.Ca
 		if err := authorize(req); err != nil {
 			return nil, nil, err
 		}
-		params, err := input.queryParams(defaultTraceListLimit, maxTraceListLimit)
+		params, err := input.listQueryParams()
 		if err != nil {
 			return nil, nil, err
-		}
-		params.Include.Models = input.IncludeModels
-		if input.Cursor != "" {
-			if params.Cursor, err = controllers.DecodeTraceCursor(input.Cursor); err != nil {
-				return nil, nil, fmt.Errorf("invalid cursor")
-			}
 		}
 
 		result, err := tracing.GetTraceOverviews(ctx, params)
@@ -271,6 +311,7 @@ func getTraces(tracing *controllers.TracingController, authorize func(*gomcp.Cal
 	}
 }
 
+// getTraceDetails returns the handler for the trace details tool.
 func getTraceDetails(tracing *controllers.TracingController, authorize func(*gomcp.CallToolRequest) error) func(context.Context, *gomcp.CallToolRequest, traceDetailsInput) (*gomcp.CallToolResult, any, error) {
 	return func(ctx context.Context, req *gomcp.CallToolRequest, input traceDetailsInput) (*gomcp.CallToolResult, any, error) {
 		if err := authorize(req); err != nil {
@@ -309,6 +350,7 @@ func getTraceDetails(tracing *controllers.TracingController, authorize func(*gom
 	}
 }
 
+// getSpanDetails returns the handler for the span details tool.
 func getSpanDetails(tracing *controllers.TracingController, authorize func(*gomcp.CallToolRequest) error) func(context.Context, *gomcp.CallToolRequest, spanDetailsInput) (*gomcp.CallToolResult, any, error) {
 	return func(ctx context.Context, req *gomcp.CallToolRequest, input spanDetailsInput) (*gomcp.CallToolResult, any, error) {
 		if err := authorize(req); err != nil {

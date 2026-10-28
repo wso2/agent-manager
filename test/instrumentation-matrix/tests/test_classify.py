@@ -99,6 +99,19 @@ def test_embedding_inside_task_wrapper_still_classified_as_embedding():
     assert classify_span(s) == "embedding"
 
 
+def test_openclaw_span_names():
+    cases = {
+        "openclaw.harness.run": "agent",
+        "openclaw.run": "agent",
+        "openclaw.model.usage": "llm",
+        "openclaw.tool.execution": "tool",
+        "openclaw.context.assembled": "chain",
+        "openclaw.gateway.rpc.handler": "unknown",
+    }
+    for name, kind in cases.items():
+        assert classify_span(_span(name, {"openclaw.agent": "main"})) == kind, name
+
+
 def test_unknown_when_no_signals():
     s = _span("anonymous", {})
     assert classify_span(s) == "unknown"

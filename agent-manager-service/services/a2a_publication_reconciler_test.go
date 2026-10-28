@@ -17,21 +17,26 @@
 package services
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"io"
 	"log/slog"
 	"testing"
 	"time"
+	"unicode/utf8"
 
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"gopkg.in/yaml.v3"
+	"gorm.io/gorm"
 
 	"github.com/wso2/agent-manager/agent-manager-service/clients/clientmocks"
 	"github.com/wso2/agent-manager/agent-manager-service/clients/openchoreosvc/client"
 	"github.com/wso2/agent-manager/agent-manager-service/models"
+	"github.com/wso2/agent-manager/agent-manager-service/orgctx"
 	"github.com/wso2/agent-manager/agent-manager-service/repositories"
 	"github.com/wso2/agent-manager/agent-manager-service/repositories/repomocks"
 	"github.com/wso2/agent-manager/agent-manager-service/utils"
@@ -55,6 +60,9 @@ func pendingPublication() models.A2APublication {
 	}
 }
 
+// sentinelTx hands fn the shared transaction sentinel; publisherMocks.tx adds a counter and an injected failure on top.
+func sentinelTx(_ context.Context, fn func(tx *gorm.DB) error) error { return fn(txSentinel) }
+
 // a2aReconcilerHarness holds the reconciler and the mocks behind it, so each
 // test can assert on what the publication attempt did rather than only on what
 // it returned.
@@ -64,8 +72,11 @@ type a2aReconcilerHarness struct {
 	hub            *recordingEventHub
 	pubRepo        *repomocks.A2APublicationRepositoryMock
 	cardRepo       *repomocks.A2AAgentCardRepositoryMock
+	proxyRepo      *repomocks.A2AProxyRepositoryMock
 	deploymentRepo *repomocks.DeploymentRepositoryMock
 	ocClient       *clientmocks.OpenChoreoClientMock
+	fetcher        *fakeA2ACardFetcher
+	upstreamSecret string
 }
 
 // newA2AReconcilerHarness wires a reconciler whose every dependency succeeds and
@@ -82,6 +93,9 @@ func newA2AReconcilerHarness(serviceURL string) *a2aReconcilerHarness {
 			return nil
 		},
 		MarkFailedFunc: func(ctx context.Context, read models.A2APublication, lastErr string) error { return nil },
+		GetFunc: func(context.Context, string, string, string, uuid.UUID) (*models.A2APublication, error) {
+			return &models.A2APublication{}, nil
+		},
 	}
 	cardRepo := &repomocks.A2AAgentCardRepositoryMock{
 		EnqueueFunc: func(context.Context, *models.A2AAgentCard) error { return nil },
@@ -119,6 +133,14 @@ func newA2AReconcilerHarness(serviceURL string) *a2aReconcilerHarness {
 		},
 	}
 
+	proxyRepo := &repomocks.A2AProxyRepositoryMock{
+		LockAgentEnvFunc: func(context.Context, string, string, string, uuid.UUID) error { return nil },
+	}
+	// The reads happen inside the transaction; the tx-bound repositories are the mocks themselves.
+	proxyRepo.WithTxFunc = func(tx *gorm.DB) repositories.A2AProxyRepository { return proxyRepo }
+	cardRepo.WithTxFunc = func(tx *gorm.DB) repositories.A2AAgentCardRepository { return cardRepo }
+	fetcher := &fakeA2ACardFetcher{}
+
 	return &a2aReconcilerHarness{
 		hub:            hub,
 		gatewayRepo:    gatewayRepo,
@@ -126,16 +148,10 @@ func newA2AReconcilerHarness(serviceURL string) *a2aReconcilerHarness {
 		cardRepo:       cardRepo,
 		deploymentRepo: deploymentRepo,
 		ocClient:       ocClient,
-		svc: &a2aPublicationReconcilerService{
-			pubRepo:         pubRepo,
-			cardRepo:        cardRepo,
-			deploymentRepo:  deploymentRepo,
-			gatewayRepo:     gatewayRepo,
-			agentConfigRepo: agentConfigRepo,
-			ocClient:        ocClient,
-			events:          NewGatewayEventsService(hub),
-			logger:          testLogger(),
-		},
+		proxyRepo:      proxyRepo,
+		fetcher:        fetcher,
+		svc: NewA2APublicationReconcilerService(sentinelTx, pubRepo, cardRepo, proxyRepo, deploymentRepo, gatewayRepo,
+			agentConfigRepo, ocClient, fetcher, proxyTestKey, NewGatewayEventsService(hub), testLogger()).(*a2aPublicationReconcilerService),
 	}
 }
 
@@ -383,6 +399,40 @@ func TestDriftCheckPagesThroughPublishedRowsAcrossTicks(t *testing.T) {
 	assert.Equal(t, uuid.Nil, cursors[2], "a short page wraps the scan back to the start")
 }
 
+// The reconciler runs off the request path, so no middleware resolves an org
+// for it. The OpenChoreo client stamps X-Impersonate-Org only from the context's
+// resolved org, and a platform that requires the header rejects the lookup — so
+// every attempt fails until the budget runs out.
+func TestReconcilerLooksUpTheBindingAsThePublicationsOrg(t *testing.T) {
+	h := newA2AReconcilerHarness("http://trip-planner.dp-default:9099")
+
+	h.svc.publishOne(context.Background(), pendingPublication())
+
+	lookups := h.ocClient.GetReleaseBindingServiceURLCalls()
+	require.Len(t, lookups, 1)
+	org, ok := orgctx.GetResolvedOrg(lookups[0].Ctx)
+	require.True(t, ok, "the lookup context carries a resolved org")
+	assert.Equal(t, "org-1", org.OUID)
+}
+
+func TestDriftCheckLooksUpEachBindingAsItsOwnOrg(t *testing.T) {
+	h := newA2AReconcilerHarness("http://trip-planner.dp-default:9099")
+	first := publishedPublication("http://trip-planner.dp-default:9099")
+	second := publishedPublication("http://trip-planner.dp-default:9099")
+	second.OUID = "org-2"
+	h.withPublished(first, second)
+
+	h.svc.checkUpstreamDrift(context.Background())
+
+	lookups := h.ocClient.GetReleaseBindingRolloutCalls()
+	require.Len(t, lookups, 2)
+	for i, want := range []string{"org-1", "org-2"} {
+		org, ok := orgctx.GetResolvedOrg(lookups[i].Ctx)
+		require.True(t, ok, "lookup %d carries a resolved org", i)
+		assert.Equal(t, want, org.OUID)
+	}
+}
+
 // The gateway serves the card only once it has the Agent, so publishing is the card's trigger.
 func TestReconcilerQueuesAPlatformCardFetchOncePublished(t *testing.T) {
 	h := newA2AReconcilerHarness("http://trip-planner.dp-default:9099")
@@ -597,4 +647,452 @@ func TestDriftCheckRetriesAFailedCardOnANewRelease(t *testing.T) {
 	h.svc.checkUpstreamDrift(context.Background())
 
 	require.Len(t, h.cardRepo.EnqueueCalls(), 1)
+}
+
+const originTestCardURL = "https://agent.example/.well-known/agent-card.json"
+
+const originTestCard = `{"name":"Weather","skills":[],"supportedInterfaces":[` +
+	`{"url":"https://agent.example/rpc","protocolBinding":"JSONRPC","protocolVersion":"1.0"}]}`
+
+// withExternalOrigin makes pub an external row whose environment is proxied with a stored secret.
+func (h *a2aReconcilerHarness) withExternalOrigin(pub *models.A2APublication) {
+	pub.Source = models.A2APublicationSourceExternal
+	secret, err := utils.EncryptSecretRef("s3cret", proxyTestKey)
+	if err != nil {
+		panic(err)
+	}
+	h.upstreamSecret = secret
+	h.ocClient.GetReleaseBindingServiceURLFunc = nil // an external agent has no release binding
+	h.proxyRepo.GetByEnvUUIDFunc = func(context.Context, string, string, string, uuid.UUID) (*models.A2AProxy, error) {
+		return &models.A2AProxy{UpstreamAuthHeader: "X-Upstream-Key", UpstreamAuthSecret: secret}, nil
+	}
+	h.cardRepo.GetFunc = func(context.Context, string, string, string, string) (*models.A2AAgentCard, error) {
+		return &models.A2AAgentCard{Source: models.A2AAgentCardSourceExternal, SourceURL: originTestCardURL}, nil
+	}
+	h.cardRepo.EnqueueFunc = nil // an upsert would rewrite the registered source
+	h.cardRepo.RequeueFunc = func(context.Context, string, string, string, string) error { return nil }
+	h.cardRepo.FailParkedFunc = func(context.Context, string, string, string, uuid.UUID, string) error { return nil }
+	h.fetcher.FetchFunc = func(context.Context, string, bool) (json.RawMessage, error) {
+		return json.RawMessage(originTestCard), nil
+	}
+}
+
+func TestReconcilerPublishesAnExternalAgentFromItsOriginCard(t *testing.T) {
+	h := newA2AReconcilerHarness("")
+	pub := pendingPublication()
+	h.withExternalOrigin(&pub)
+
+	h.svc.publishOne(context.Background(), pub)
+
+	require.Len(t, h.fetcher.calls, 1)
+	assert.Equal(t, fakeFetchCall{
+		URL: originTestCardURL, Guarded: true,
+		Header: &A2ACardFetchHeader{Name: "X-Upstream-Key", Value: "s3cret"},
+	}, h.fetcher.calls[0], "the origin is SSRF-checked and sent the stored credential")
+	created := h.deploymentRepo.CreateWithLimitEnforcementCalls()
+	require.Len(t, created, 1)
+	var doc A2AAgentDeploymentYAML
+	require.NoError(t, yaml.Unmarshal(created[0].Deployment.Content, &doc))
+	assert.Equal(t, "https://agent.example", doc.Spec.Upstream.URL)
+	assert.Equal(t, []A2ATransport{{ProtocolBinding: "JSONRPC", PathPrefix: "/rpc"}}, doc.Spec.A2A.OperationConfigs.Transports)
+	require.NotNil(t, doc.Spec.Upstream.Auth)
+	assert.Equal(t, "X-Upstream-Key", *doc.Spec.Upstream.Auth.Header)
+	assert.Equal(t, h.upstreamSecret, *doc.Spec.Upstream.Auth.SecretRef)
+
+	published := h.pubRepo.MarkPublishedCalls()
+	require.Len(t, published, 1)
+	assert.Equal(t, "https://agent.example", published[0].UpstreamURL)
+	requeued := h.cardRepo.RequeueCalls()
+	require.Len(t, requeued, 1, "the parked card row is made due in place")
+	assert.Equal(t, pub.EnvironmentName, requeued[0].EnvironmentName)
+}
+
+// oauthForwardingConfig is an environment config with OAuth on and the caller's token forwarded upstream.
+func oauthForwardingConfig() *models.AgentConfig {
+	return &models.AgentConfig{EnableOAuthSecurity: true, OAuthIssuers: []string{"idp"}, OAuthForwardToken: true}
+}
+
+// publishedJWTAuthParams returns the params of the jwt-auth policy in the one Agent the harness published.
+func publishedJWTAuthParams(t *testing.T, h *a2aReconcilerHarness) map[string]interface{} {
+	t.Helper()
+	created := h.deploymentRepo.CreateWithLimitEnforcementCalls()
+	require.Len(t, created, 1)
+	var doc A2AAgentDeploymentYAML
+	require.NoError(t, yaml.Unmarshal(created[0].Deployment.Content, &doc))
+	for _, p := range doc.Spec.A2A.OperationConfigs.Policies {
+		if p["name"] == client.OAuthPolicyName {
+			return p["params"].(map[string]interface{})
+		}
+	}
+	require.FailNow(t, "no jwt-auth policy was published")
+	return nil
+}
+
+func TestReconcilerNeverForwardsTheCallersTokenToAnExternalOrigin(t *testing.T) {
+	h := newA2AReconcilerHarness("")
+	pub := pendingPublication()
+	h.withExternalOrigin(&pub)
+	h.svc.agentConfigRepo = &repomocks.AgentConfigRepositoryMock{
+		GetFunc: func(context.Context, string, string, string, string) (*models.AgentConfig, error) {
+			return oauthForwardingConfig(), nil
+		},
+	}
+
+	h.svc.publishOne(context.Background(), pub)
+
+	assert.Equal(t, false, publishedJWTAuthParams(t, h)["forwardToken"], "a third-party origin never sees the caller's token")
+}
+
+func TestReconcilerForwardsTheCallersTokenToAPlatformAgentWhenConfigured(t *testing.T) {
+	h := newA2AReconcilerHarness("http://trip-planner.dp-default:9099")
+	h.svc.agentConfigRepo = &repomocks.AgentConfigRepositoryMock{
+		GetFunc: func(context.Context, string, string, string, string) (*models.AgentConfig, error) {
+			return oauthForwardingConfig(), nil
+		},
+	}
+
+	h.svc.publishOne(context.Background(), pendingPublication())
+
+	assert.Equal(t, true, publishedJWTAuthParams(t, h)["forwardToken"])
+}
+
+func TestReconcilerFailsAnUnproxyableExternalRowAtOnce(t *testing.T) {
+	h := newA2AReconcilerHarness("")
+	pub := pendingPublication()
+	h.withExternalOrigin(&pub)
+	h.cardRepo.GetFunc = func(context.Context, string, string, string, string) (*models.A2AAgentCard, error) {
+		return &models.A2AAgentCard{Source: models.A2AAgentCardSourceExternal, SourceURL: "https://agent.example/card.json"}, nil
+	}
+
+	h.svc.publishOne(context.Background(), pub)
+
+	failed := h.pubRepo.MarkFailedCalls()
+	require.Len(t, failed, 1, "no attempt budget is spent on a card that can never be fronted")
+	assert.Contains(t, failed[0].LastErr, "/.well-known/agent-card.json")
+	assert.Empty(t, h.pubRepo.MarkAttemptFailedCalls())
+	assert.Empty(t, h.fetcher.calls, "a URL the gateway cannot fetch from is rejected before any network call")
+	assert.Empty(t, h.deploymentRepo.CreateWithLimitEnforcementCalls())
+	cardFailed := h.cardRepo.FailParkedCalls()
+	require.Len(t, cardFailed, 1, "the parked card says why it will not arrive instead of staying pending")
+	assert.Contains(t, cardFailed[0].LastErr, "/.well-known/agent-card.json")
+	assert.Equal(t, pub.EnvironmentUUID, cardFailed[0].EnvironmentUUID)
+	assert.Empty(t, h.cardRepo.RequeueCalls())
+}
+
+// A pod from before the external source claims external rows during a rolling upgrade and fails them; the
+// new reconciler makes them due again before its first tick, within one attempt's timeout, and a failure to
+// do so is logged rather than stopping the loop.
+func TestReconcilerRequeuesFailedExternalRowsBeforeTheFirstTick(t *testing.T) {
+	for name, requeueErr := range map[string]error{"requeued": nil, "requeue failed": assert.AnError} {
+		t.Run(name, func(t *testing.T) {
+			h := newA2AReconcilerHarness("")
+			var deadlineSet bool
+			h.pubRepo.RequeueFailedExternalFunc = func(ctx context.Context) (int64, error) {
+				_, deadlineSet = ctx.Deadline()
+				return 2, requeueErr
+			}
+
+			h.svc.requeueFailedExternal(context.Background())
+
+			assert.Len(t, h.pubRepo.RequeueFailedExternalCalls(), 1)
+			assert.True(t, deadlineSet, "the update is bounded like an attempt")
+		})
+	}
+}
+
+// The proxy service clears a credential and moves a card URL under the environment's lock, in separate
+// transactions; reading the two rows under that same lock keeps an attempt from pairing the old secret
+// with the new origin.
+func TestReconcilerReadsTheProxyAndTheCardUnderTheEnvironmentLock(t *testing.T) {
+	h := newA2AReconcilerHarness("")
+	pub := pendingPublication()
+	h.withExternalOrigin(&pub)
+	var steps []string
+	h.proxyRepo.LockAgentEnvFunc = func(_ context.Context, _, _, _ string, envUUID uuid.UUID) error {
+		assert.Equal(t, pub.EnvironmentUUID, envUUID)
+		steps = append(steps, "lock")
+		return nil
+	}
+	h.proxyRepo.WithTxFunc = func(tx *gorm.DB) repositories.A2AProxyRepository {
+		assert.Same(t, txSentinel, tx)
+		steps = append(steps, "proxies-in-tx")
+		return h.proxyRepo
+	}
+	h.cardRepo.WithTxFunc = func(tx *gorm.DB) repositories.A2AAgentCardRepository {
+		assert.Same(t, txSentinel, tx)
+		steps = append(steps, "cards-in-tx")
+		return h.cardRepo
+	}
+
+	h.svc.publishOne(context.Background(), pub)
+
+	assert.Equal(t, []string{"proxies-in-tx", "lock", "cards-in-tx"}, steps)
+	require.Len(t, h.fetcher.calls, 1, "the fetch happens after the transaction released the lock")
+}
+
+func TestReconcilerFailsWhenTheEnvironmentLockCannotBeTaken(t *testing.T) {
+	h := newA2AReconcilerHarness("")
+	pub := pendingPublication()
+	h.withExternalOrigin(&pub)
+	h.proxyRepo.LockAgentEnvFunc = func(context.Context, string, string, string, uuid.UUID) error { return assert.AnError }
+
+	h.svc.publishOne(context.Background(), pub)
+
+	assert.Empty(t, h.fetcher.calls)
+	require.Len(t, h.pubRepo.MarkAttemptFailedCalls(), 1)
+}
+
+func TestReconcilerFailsAnExternalRowWhoseProxyIsGone(t *testing.T) {
+	h := newA2AReconcilerHarness("")
+	pub := pendingPublication()
+	h.withExternalOrigin(&pub)
+	h.proxyRepo.GetByEnvUUIDFunc = func(context.Context, string, string, string, uuid.UUID) (*models.A2AProxy, error) {
+		return nil, repositories.ErrA2AProxyNotFound
+	}
+
+	h.svc.publishOne(context.Background(), pub)
+
+	require.Len(t, h.pubRepo.MarkFailedCalls(), 1)
+	assert.Empty(t, h.fetcher.calls)
+}
+
+// The third-party origin is not called for a publish a local lookup already rules out.
+func TestReconcilerFetchesTheOriginOnlyAfterTheLocalLookups(t *testing.T) {
+	t.Run("no ingress gateway", func(t *testing.T) {
+		h := newA2AReconcilerHarness("")
+		pub := pendingPublication()
+		h.withExternalOrigin(&pub)
+		h.svc.gatewayRepo = &repomocks.GatewayRepositoryMock{
+			ListWithFiltersFunc: func(repositories.GatewayFilterOptions) ([]*models.Gateway, error) {
+				return []*models.Gateway{}, nil
+			},
+		}
+
+		h.svc.publishOne(context.Background(), pub)
+
+		assert.Empty(t, h.fetcher.calls)
+		retries := h.pubRepo.MarkAttemptFailedCalls()
+		require.Len(t, retries, 1)
+		assert.Contains(t, retries[0].LastErr, "no ingress gateway")
+	})
+	t.Run("unreadable agent config", func(t *testing.T) {
+		h := newA2AReconcilerHarness("")
+		pub := pendingPublication()
+		h.withExternalOrigin(&pub)
+		h.svc.agentConfigRepo = &repomocks.AgentConfigRepositoryMock{
+			GetFunc: func(context.Context, string, string, string, string) (*models.AgentConfig, error) {
+				return nil, assert.AnError
+			},
+		}
+
+		h.svc.publishOne(context.Background(), pub)
+
+		assert.Empty(t, h.fetcher.calls)
+		require.Len(t, h.pubRepo.MarkAttemptFailedCalls(), 1)
+	})
+}
+
+func TestReconcilerRetriesWhileTheOriginIsUnreachable(t *testing.T) {
+	h := newA2AReconcilerHarness("")
+	pub := pendingPublication()
+	h.withExternalOrigin(&pub)
+	h.fetcher.FetchFunc = func(context.Context, string, bool) (json.RawMessage, error) {
+		return nil, newA2APublicError("could not reach the agent card URL", nil)
+	}
+
+	h.svc.publishOne(context.Background(), pub)
+
+	require.Len(t, h.pubRepo.MarkAttemptFailedCalls(), 1)
+	assert.Empty(t, h.pubRepo.MarkFailedCalls())
+}
+
+// A switch to direct committed while this attempt was publishing.
+func TestReconcilerWithdrawsAnAgentTornDownMidPublish(t *testing.T) {
+	h := newA2AReconcilerHarness("")
+	pub := pendingPublication()
+	h.withExternalOrigin(&pub)
+	h.pubRepo.MarkPublishedFunc = func(context.Context, models.A2APublication, string) error {
+		return repositories.ErrA2APublicationSuperseded
+	}
+	h.pubRepo.GetFunc = func(context.Context, string, string, string, uuid.UUID) (*models.A2APublication, error) {
+		return nil, repositories.ErrA2APublicationNotFound
+	}
+	h.deploymentRepo.DeleteForArtifactFunc = func(context.Context, uuid.UUID, string) error { return nil }
+
+	h.svc.publishOne(context.Background(), pub)
+
+	deleted := h.deploymentRepo.DeleteForArtifactCalls()
+	require.Len(t, deleted, 1)
+	assert.Equal(t, pub.ArtifactUUID, deleted[0].ArtifactUUID)
+	require.Len(t, h.hub.published, 2, "the deploy event, then its withdrawal")
+	assert.Equal(t, pub.ArtifactUUID.String(), undeployedAgentID(t, h.hub.published[1]), "the artifact and its keys may still be wanted")
+	assert.Empty(t, h.cardRepo.RequeueCalls())
+}
+
+// A plain re-enqueue also reports superseded; that row is published again next tick, untouched.
+func TestReconcilerLeavesAReEnqueuedRowForTheNextTick(t *testing.T) {
+	h := newA2AReconcilerHarness("")
+	pub := pendingPublication()
+	h.withExternalOrigin(&pub)
+	h.pubRepo.MarkPublishedFunc = func(context.Context, models.A2APublication, string) error {
+		return repositories.ErrA2APublicationSuperseded
+	}
+	h.pubRepo.GetFunc = func(context.Context, string, string, string, uuid.UUID) (*models.A2APublication, error) {
+		return &pub, nil
+	}
+	// DeleteForArtifactFunc is nil: withdrawing would panic.
+
+	h.svc.publishOne(context.Background(), pub)
+
+	assert.Len(t, h.hub.published, 1)
+}
+
+func TestReconcilerLogsWhenItCannotTellIfASupersededRowWasTornDown(t *testing.T) {
+	h := newA2AReconcilerHarness("")
+	pub := pendingPublication()
+	h.withExternalOrigin(&pub)
+	var logs bytes.Buffer
+	h.svc.logger = slog.New(slog.NewTextHandler(&logs, nil))
+	h.pubRepo.MarkPublishedFunc = func(context.Context, models.A2APublication, string) error {
+		return repositories.ErrA2APublicationSuperseded
+	}
+	h.pubRepo.GetFunc = func(context.Context, string, string, string, uuid.UUID) (*models.A2APublication, error) {
+		return nil, errors.New("connection reset")
+	}
+	// DeleteForArtifactFunc is nil: withdrawing would panic.
+
+	h.svc.publishOne(context.Background(), pub)
+
+	assert.Contains(t, logs.String(), "level=ERROR")
+	assert.Contains(t, logs.String(), pub.ArtifactUUID.String())
+	assert.Contains(t, logs.String(), "connection reset")
+	assert.Len(t, h.hub.published, 1, "nothing is withdrawn")
+}
+
+func TestReconcilerSkipsTheCardTriggerWhenTheExternalRowIsGone(t *testing.T) {
+	h := newA2AReconcilerHarness("")
+	pub := pendingPublication()
+	h.withExternalOrigin(&pub)
+	h.cardRepo.RequeueFunc = func(context.Context, string, string, string, string) error {
+		return repositories.ErrA2AAgentCardNotFound
+	}
+
+	h.svc.publishOne(context.Background(), pub)
+
+	require.Len(t, h.pubRepo.MarkPublishedCalls(), 1)
+	assert.Empty(t, h.ocClient.GetComponentCalls(), "nothing was written, so nothing to drop")
+}
+
+func TestReconcilerStoresAValidUTF8LastError(t *testing.T) {
+	h := newA2AReconcilerHarness("")
+	h.ocClient.GetReleaseBindingServiceURLFunc = func(context.Context, string, string, string) (string, error) {
+		return "", errors.New("lookup \xff failed")
+	}
+
+	h.svc.publishOne(context.Background(), pendingPublication())
+
+	failed := h.pubRepo.MarkAttemptFailedCalls()
+	require.Len(t, failed, 1)
+	assert.True(t, utf8.ValidString(failed[0].LastErr))
+}
+
+func serviceURLBlocksUntilCancelled(h *a2aReconcilerHarness) {
+	h.ocClient.GetReleaseBindingServiceURLFunc = func(ctx context.Context, _, _, _ string) (string, error) {
+		<-ctx.Done()
+		return "", ctx.Err()
+	}
+}
+
+func TestReconcilerBoundsEachPublishAttempt(t *testing.T) {
+	h := newA2AReconcilerHarness("")
+	serviceURLBlocksUntilCancelled(h)
+	h.svc.attemptTimeout = 20 * time.Millisecond
+
+	runWithin(t, 2*time.Second, func() { h.svc.publishOne(context.Background(), pendingPublication()) })
+
+	require.Len(t, h.pubRepo.MarkAttemptFailedCalls(), 1, "a timed-out attempt is still recorded")
+}
+
+// Rows still running when the lease ends could be re-claimed and published twice.
+func TestReconcilerStopsTheBatchBeforeTheLeaseEnds(t *testing.T) {
+	h := newA2AReconcilerHarness("")
+	serviceURLBlocksUntilCancelled(h)
+	h.svc.batchBudget = 20 * time.Millisecond
+	h.pubRepo.ClaimDueFunc = func(context.Context, time.Time, int) ([]models.A2APublication, error) {
+		rows := make([]models.A2APublication, a2aWorkerConcurrency+2)
+		for i := range rows {
+			rows[i] = pendingPublication()
+		}
+		return rows, nil
+	}
+	h.pubRepo.FindPublishedFunc = func(context.Context, uuid.UUID, int) ([]models.A2APublication, error) {
+		return []models.A2APublication{}, nil
+	}
+
+	runWithin(t, 2*time.Second, func() { h.svc.RunOnce(context.Background()) })
+
+	assert.Len(t, h.ocClient.GetReleaseBindingServiceURLCalls(), a2aWorkerConcurrency)
+	assert.Len(t, h.pubRepo.MarkAttemptFailedCalls(), a2aWorkerConcurrency, "only the cut-off rows are charged")
+}
+
+func TestPublicationBatchFitsInsideTheClaimLease(t *testing.T) {
+	assert.Less(t, a2aPublicationBatchBudget, repositories.A2APublicationClaimLease)
+}
+
+func TestReconcilerHidesInternalErrorsFromLastError(t *testing.T) {
+	h := newA2AReconcilerHarness("http://svc.dev:8080")
+	h.deploymentRepo.CreateWithLimitEnforcementFunc = func(*models.Deployment, int) error {
+		return errors.New("failed to connect to `user=ams database=amdb host=10.0.0.5`: SQLSTATE 28P01")
+	}
+
+	h.svc.publishOne(context.Background(), pendingPublication())
+
+	retries := h.pubRepo.MarkAttemptFailedCalls()
+	require.Len(t, retries, 1)
+	assert.Equal(t, a2aPublishInternalError, retries[0].LastErr)
+}
+
+func TestReconcilerNamesTheOriginInAFetchFailure(t *testing.T) {
+	h := newA2AReconcilerHarness("")
+	pub := pendingPublication()
+	h.withExternalOrigin(&pub)
+	h.fetcher.FetchFunc = func(context.Context, string, bool) (json.RawMessage, error) {
+		return nil, newA2APublicError("agent card request returned HTTP 503", nil)
+	}
+
+	h.svc.publishOne(context.Background(), pub)
+
+	retries := h.pubRepo.MarkAttemptFailedCalls()
+	require.Len(t, retries, 1)
+	assert.Equal(t, "could not fetch the origin agent card: agent card request returned HTTP 503", retries[0].LastErr)
+}
+
+func TestReconcilerFetchesAnUnauthenticatedOriginWithoutAHeader(t *testing.T) {
+	h := newA2AReconcilerHarness("")
+	pub := pendingPublication()
+	h.withExternalOrigin(&pub)
+	h.proxyRepo.GetByEnvUUIDFunc = func(context.Context, string, string, string, uuid.UUID) (*models.A2AProxy, error) {
+		return &models.A2AProxy{}, nil
+	}
+
+	h.svc.publishOne(context.Background(), pub)
+
+	require.Len(t, h.fetcher.calls, 1)
+	assert.Nil(t, h.fetcher.calls[0].Header)
+}
+
+func TestReconcilerRetriesWhenTheUpstreamSecretCannotBeDecrypted(t *testing.T) {
+	h := newA2AReconcilerHarness("")
+	pub := pendingPublication()
+	h.withExternalOrigin(&pub)
+	h.proxyRepo.GetByEnvUUIDFunc = func(context.Context, string, string, string, uuid.UUID) (*models.A2AProxy, error) {
+		return &models.A2AProxy{UpstreamAuthHeader: "X-Upstream-Key", UpstreamAuthSecret: "bm90LWNpcGhlcnRleHQ="}, nil
+	}
+
+	h.svc.publishOne(context.Background(), pub)
+
+	assert.Empty(t, h.fetcher.calls, "no fetch without the credential the origin needs")
+	retries := h.pubRepo.MarkAttemptFailedCalls()
+	require.Len(t, retries, 1)
+	assert.Equal(t, a2aPublishInternalError, retries[0].LastErr)
 }

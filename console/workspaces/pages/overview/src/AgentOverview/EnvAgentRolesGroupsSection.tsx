@@ -24,6 +24,7 @@ import {
   useProvisionAgentIdentity,
   useRetryAgentIdentityProvisioning,
 } from "@agent-management-platform/api-client";
+import { isAgentIdentityEnabled } from "@agent-management-platform/types";
 import {
   OverviewSectionCard,
   useAgentRolesAndGroups,
@@ -50,11 +51,16 @@ interface EnvAgentRolesGroupsSectionProps {
 export const EnvAgentRolesGroupsSection: React.FC<EnvAgentRolesGroupsSectionProps> = ({
   orgId, projectId, agentId, envId,
 }) => {
+  // useAgentIdentityBinding has no `enabled` option, so the ids are withheld
+  // when Agent ID is disabled to keep the identity request from firing.
+  const agentIdEnabled = isAgentIdentityEnabled();
   const {
     binding, provisioned, isLoading: isLoadingIdentity, isError: isIdentityError,
-  } = useAgentIdentityBinding({
-    orgId, projectId, agentId, envId,
-  });
+  } = useAgentIdentityBinding(
+    agentIdEnabled
+      ? { orgId, projectId, agentId, envId }
+      : { orgId: "", projectId: "", agentId: "", envId: "" },
+  );
   const isFailed = binding?.status === "failed";
   // No binding row exists for this environment at all yet — distinct from
   // "pending"/"in_progress" (already attempted, still running) or "failed"
@@ -93,9 +99,9 @@ export const EnvAgentRolesGroupsSection: React.FC<EnvAgentRolesGroupsSectionProp
 
   // Same lookup the agent-id page uses: the Thunder Agent ID is a field on the
   // per-env identity-agents list, matched by agent + project name.
-  const { data: identityAgentsData, isError: isAgentsError } = useListAgentIdentityAgents({
-    orgName: orgId, envName: envId,
-  });
+  const { data: identityAgentsData, isError: isAgentsError } = useListAgentIdentityAgents(
+    agentIdEnabled ? { orgName: orgId, envName: envId } : { orgName: "", envName: "" },
+  );
   const thunderAgentId = useMemo(
     () => identityAgentsData?.agents.find(
       (item) => item.agentName === agentId && item.projectName === projectId,
@@ -112,6 +118,8 @@ export const EnvAgentRolesGroupsSection: React.FC<EnvAgentRolesGroupsSectionProp
   };
 
   const hasTags = roles.length > 0 || groups.length > 0;
+
+  if (!agentIdEnabled) return null;
 
   return (
     <OverviewSectionCard

@@ -5330,8 +5330,10 @@ paths:
     post:
       summary: List commits for a repository
       description: |
-        Returns a list of commits for the specified public repository.
-        Currently supports GitHub repositories only.
+        Returns a list of commits for the specified repository.
+        Deployments may use projectName and componentName to resolve a
+        deployment-specific repository binding. When no binding exists, the
+        request uses the standard public or secretRef-backed GitHub flow.
       operationId: listRepositoryCommits
       parameters:
         - name: limit
@@ -8028,7 +8030,10 @@ paths:
         "202":
           description: Source saved and fetch queued
         "400":
-          description: Invalid URL, or the agent is not an external A2A agent
+          description: >-
+            Invalid URL, the agent is not an external A2A agent, or the environment routes the agent
+            through its gateway and the gateway cannot fetch the card from this URL (it must end in
+            /.well-known/agent-card.json with no query)
           content:
             application/json:
               schema:
@@ -8041,6 +8046,14 @@ paths:
                 $ref: "#/components/schemas/ErrorResponse"
         "404":
           description: Agent or environment not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "409":
+          description: >-
+            The environment is routed through the gateway with a stored upstream credential, and the
+            new URL is on another origin (scheme, host or port). Clear the upstream auth first.
           content:
             application/json:
               schema:
@@ -8074,6 +8087,180 @@ paths:
                 $ref: "#/components/schemas/ErrorResponse"
         "404":
           description: Agent or environment not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "500":
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "503":
+          description: The audit trail is unavailable; nothing was changed
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /orgs/{orgName}/projects/{projName}/agents/{agentName}/environments/{envID}/a2a-proxy:
+    parameters: *agentCardPathParams
+    get:
+      tags:
+        - A2A Proxy
+      summary: Get how an external A2A agent is routed through the environment's gateway
+      description: >-
+        Reports the gateway publication of a proxied environment. The upstream secret is never
+        returned; a non-empty upstreamAuthHeader means one is stored.
+      operationId: getA2AProxy
+      responses:
+        "200":
+          description: Proxy state
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/A2AProxyResponse"
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: The environment is not proxied, or the agent or environment does not exist
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "500":
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+    put:
+      tags:
+        - A2A Proxy
+      summary: Route an external A2A agent through the environment's gateway, or change its upstream auth
+      description: >-
+        Publishes the agent through the environment's ingress gateway, with routes derived from its
+        registered card URL. Omitting upstreamAuth clears the stored credential; upstreamAuth without
+        a value keeps the stored secret; a value replaces it. External A2A agents only.
+      operationId: setA2AProxy
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/SetA2AProxyRequest"
+      responses:
+        "202":
+          description: Saved; the gateway publication is queued
+        "400":
+          description: >-
+            Invalid upstream auth, the agent is not an external A2A agent, or the gateway cannot fetch
+            the card from the registered URL (it must end in /.well-known/agent-card.json with no query)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "403":
+          description: Missing the environment tier permission
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: Agent or environment not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "409":
+          description: No card URL is registered for the environment
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "500":
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "503":
+          description: The audit trail is unavailable; nothing was changed
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+    delete:
+      tags:
+        - A2A Proxy
+      summary: Stop routing an external A2A agent through the environment's gateway
+      description: >-
+        Removes the agent from the gateway, discards the stored upstream secret and fetches the
+        agent's own card again. The environment's API keys are kept.
+      operationId: deleteA2AProxy
+      responses:
+        "204":
+          description: The environment is direct again
+        "400":
+          description: The agent is not an external A2A agent
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "403":
+          description: Missing the environment tier permission
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: The environment is not proxied, or the agent or environment does not exist
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "500":
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "503":
+          description: The audit trail is unavailable; nothing was changed
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /orgs/{orgName}/projects/{projName}/agents/{agentName}/environments/{envID}/a2a-proxy/refresh:
+    parameters: *agentCardPathParams
+    post:
+      tags:
+        - A2A Proxy
+      summary: Re-derive a proxied agent's routes from its card and republish it
+      operationId: refreshA2AProxy
+      responses:
+        "202":
+          description: Republish queued; the card is fetched again once it lands
+        "400":
+          description: The agent is not an external A2A agent
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "403":
+          description: Missing the environment tier permission
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: The environment is not proxied, or the agent or environment does not exist
           content:
             application/json:
               schema:
@@ -11460,10 +11647,11 @@ components:
       properties:
         name:
           type: string
+          minLength: 3
           description: Unique identifier for the API key. If omitted, generated from displayName.
         displayName:
           type: string
-          description: Human-readable display name for the API key.
+          description: Human-readable display name for the API key. When name is omitted, the name generated from it (lowercase letters, digits and hyphens) must be at least 3 characters long.
         expiresAt:
           type: string
           description: Optional expiration time in ISO 8601 format (e.g. 2026-12-31T23:59:59Z).
@@ -11810,6 +11998,8 @@ components:
           description: Display name of the agent
         provisioning:
           $ref: "#/components/schemas/Provisioning"
+        githubApp:
+          $ref: "#/components/schemas/GitHubAppSource"
         description:
           type: string
           description: Description of the agent
@@ -11833,12 +12023,49 @@ components:
           type: array
           description: >-
             Optional MCP proxy configurations to create atomically with the
-            agent. Applied to the component's initial (lowest) environment. Name
-            and type are auto-generated.
+            agent. Applied to every environment in the project's deployment
+            pipeline, so the agent can be promoted without reconfiguring each
+            one. Name and type are auto-generated.
           items:
             $ref: "#/components/schemas/MCPConfigRequest"
         labels:
           $ref: "#/components/schemas/Labels"
+
+    GitHubAppSource:
+      type: object
+      description: >-
+        Optional GitHub App source binding for cloud deployments. The control
+        plane consumes this metadata, persists it through the deployment-provided
+        repository source provider, and never forwards it to OpenChoreo. When
+        omitted, public-repository and PAT-backed behavior is unchanged.
+      required:
+        - installationId
+        - owner
+        - repo
+      properties:
+        installationId:
+          type: integer
+          format: int64
+          minimum: 1
+          description: GitHub App installation that grants access to the repository
+        owner:
+          type: string
+          minLength: 1
+          description: GitHub repository owner or organization
+        repo:
+          type: string
+          minLength: 1
+          description: GitHub repository name without the owner prefix
+        branch:
+          type: string
+          description: Branch to build; defaults to provisioning.repository.branch
+        appPath:
+          type: string
+          description: Source directory; defaults to provisioning.repository.appPath
+        repositoryUrl:
+          type: string
+          format: uri
+          description: Repository clone URL; defaults to provisioning.repository.url
 
     ModelConfigRequest:
       type: object
@@ -11867,8 +12094,10 @@ components:
         proxyName:
           type: string
           description: >-
-            Handle of an already-configured MCP proxy. Applied to the
-            component's initial (lowest) environment.
+            Handle of an already-configured MCP proxy. Applied to every
+            environment in the project's deployment pipeline. An environment
+            the proxy has no endpoint in yet is still recorded, and is bound
+            automatically once the proxy becomes available there.
         environmentVariables:
           type: array
           description: Optional custom environment variable names exposed to the agent
@@ -12044,6 +12273,56 @@ components:
           type: string
           maxLength: 2048
           description: Public http(s) URL of the agent card, normally ending in /.well-known/agent-card.json.
+    A2AProxyResponse:
+      type: object
+      description: How an external A2A agent is published through the environment's ingress gateway.
+      required:
+        - status
+        - lastError
+        - upstreamAuthHeader
+        - gatewayUrl
+      properties:
+        status:
+          type: string
+          enum: [pending, published, failed]
+          description: The gateway publication's state.
+        lastError:
+          type: string
+          description: Why the last publish attempt failed; empty after a success.
+        upstreamAuthHeader:
+          type: string
+          description: >-
+            The header the gateway adds upstream; empty when none. A non-empty header means a
+            secret is stored. The secret itself is never returned.
+        gatewayUrl:
+          type: string
+          description: >-
+            The agent's base URL on the environment's ingress gateway, where its card is served at
+            /.well-known/agent-card.json once published. Empty while no ingress gateway is mapped to
+            the environment.
+    SetA2AProxyRequest:
+      type: object
+      properties:
+        upstreamAuth:
+          $ref: "#/components/schemas/A2AProxyUpstreamAuth"
+    A2AProxyUpstreamAuth:
+      type: object
+      description: A static header the gateway adds to every call to the agent, card fetch included.
+      required:
+        - header
+      properties:
+        header:
+          type: string
+          maxLength: 255
+          pattern: "^[A-Za-z0-9_-]+$"
+          description: Header name. Host is not allowed.
+        value:
+          type: string
+          minLength: 1
+          writeOnly: true
+          description: >-
+            Header value: at most 8192 bytes, with no quote, "%", control character (including line breaks and tabs) or "{{". Omit it to keep
+            the stored secret.
     AgentCardCORSConfig:
       type: object
       description: >-
@@ -13216,6 +13495,9 @@ components:
         name:
           type: string
           description: Name of the organization
+        displayName:
+          type: string
+          description: Display name of the organization
         createdAt:
           type: string
           format: date-time
@@ -13223,6 +13505,7 @@ components:
       required:
         - name
         - createdAt
+        - displayName
 
     OrganizationListResponse:
       type: object
@@ -14625,6 +14908,12 @@ components:
         secretRef:
           type: string
           description: Secret reference name for private repository Git credentials
+        projectName:
+          type: string
+          description: Optional project name used to resolve a deployment-specific repository binding
+        componentName:
+          type: string
+          description: Optional component name used to resolve a deployment-specific repository binding
 
     ListCommitsResponse:
       type: object

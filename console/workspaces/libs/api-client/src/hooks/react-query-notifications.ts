@@ -8,6 +8,7 @@ import {
   type UseQueryResult,
 } from "@tanstack/react-query";
 import { useSnackBar } from "@agent-management-platform/views";
+import { stripBasePath } from "@agent-management-platform/types";
 import { useEffect, useRef, useCallback} from "react";
 import { useAuthHooks } from "@agent-management-platform/auth";
 import { isRequestTooLargeError } from "../utils";
@@ -226,7 +227,7 @@ export function useApiQuery<
   // session (which normalizes the route on the way in), and writing to one key
   // collapses the several queries that fail together into a single record.
   const reportSessionExpired = useCallback(
-    () => markSessionExpired(window.location.pathname),
+    () => markSessionExpired(stripBasePath(window.location.pathname)),
     [],
   );
   const query = useQuery(options);
@@ -361,7 +362,7 @@ export function useApiMutation<
   // session (which normalizes the route on the way in), and writing to one key
   // collapses the several queries that fail together into a single record.
   const reportSessionExpired = useCallback(
-    () => markSessionExpired(window.location.pathname),
+    () => markSessionExpired(stripBasePath(window.location.pathname)),
     [],
   );
   const {

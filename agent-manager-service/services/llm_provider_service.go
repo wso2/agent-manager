@@ -18,7 +18,6 @@ package services
 
 import (
 	"context"
-	"encoding/base64"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -382,13 +381,12 @@ func (s *LLMProviderService) Create(ctx context.Context, ouID, createdBy string,
 		provider.Configuration.Upstream.Main.Auth != nil &&
 		provider.Configuration.Upstream.Main.Auth.Value != nil {
 
-		encrypted, err := utils.EncryptBytes([]byte(*provider.Configuration.Upstream.Main.Auth.Value), s.encryptionKey)
+		encoded, err := utils.EncryptSecretRef(*provider.Configuration.Upstream.Main.Auth.Value, s.encryptionKey)
 		if err != nil {
 			slog.Error("LLMProviderService.Create: failed to encrypt upstream key",
 				"ouID", ouID, "handle", handle, "error", err)
 			return nil, fmt.Errorf("failed to encrypt upstream API key: %w", err)
 		}
-		encoded := base64.StdEncoding.EncodeToString(encrypted)
 
 		// Replace plaintext with encrypted reference
 		provider.Configuration.Upstream.Main.Auth.SecretRef = &encoded
@@ -616,13 +614,12 @@ func (s *LLMProviderService) Update(ctx context.Context, providerID, ouID string
 		updates.Configuration.Upstream.Main.Auth != nil &&
 		updates.Configuration.Upstream.Main.Auth.Value != nil {
 
-		encrypted, err := utils.EncryptBytes([]byte(*updates.Configuration.Upstream.Main.Auth.Value), s.encryptionKey)
+		encoded, err := utils.EncryptSecretRef(*updates.Configuration.Upstream.Main.Auth.Value, s.encryptionKey)
 		if err != nil {
 			slog.Error("LLMProviderService.Update: failed to encrypt upstream key",
 				"ouID", ouID, "providerID", providerID, "error", err)
 			return nil, fmt.Errorf("failed to encrypt upstream API key: %w", err)
 		}
-		encoded := base64.StdEncoding.EncodeToString(encrypted)
 		// Replace plaintext with encrypted reference
 		updates.Configuration.Upstream.Main.Auth.SecretRef = &encoded
 		updates.Configuration.Upstream.Main.Auth.Value = nil
@@ -1375,7 +1372,7 @@ func (s *LLMProviderService) nextProxyUpstreamAuth(
 		if err != nil {
 			return nil, fmt.Errorf("failed to mint upstream api key for proxy %s: %w", proxy.Handle, err)
 		}
-		encrypted, err := utils.EncryptBytes([]byte(apiKey.APIKey), s.encryptionKey)
+		encoded, err := utils.EncryptSecretRef(apiKey.APIKey, s.encryptionKey)
 		if err != nil {
 			if revokeErr := s.apiKeyService.RevokeAPIKey(ctx, ouID, provider.UUID.String(), keyName); revokeErr != nil {
 				slog.Error("nextProxyUpstreamAuth: failed to revoke api key after encryption failure",
@@ -1383,7 +1380,6 @@ func (s *LLMProviderService) nextProxyUpstreamAuth(
 			}
 			return nil, fmt.Errorf("failed to encrypt upstream api key for proxy %s: %w", proxy.Handle, err)
 		}
-		encoded := base64.StdEncoding.EncodeToString(encrypted)
 		return &models.UpstreamAuth{
 			Type:      utils.StrAsStrPointer(models.AuthTypeAPIKey),
 			Header:    utils.StrAsStrPointer(upstreamHeader),

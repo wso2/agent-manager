@@ -40,7 +40,7 @@
   "description": "Agent Kind pages for organization and agent levels",
   "dependencies": {
     "react-dom": "19.2.3",
-    "react-router-dom": "6.28.0",
+    "react-router-dom": "6.30.6",
     "@mui/material": "7.0.0",
     "@mui/icons-material": "7.0.0",
     "@emotion/react": "11.13.5",

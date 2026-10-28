@@ -35,6 +35,8 @@ func TestToolNameFromSpanName(t *testing.T) {
 		{"mcp.client.search.tools", "mcp.client.search", true},
 		{"get_weather.function", "get_weather", true},
 		{"tool", "", true},
+		// OpenClaw's span name carries no tool name.
+		{"openclaw.tool.execution", "", true},
 		// Named after the bare tool, as OpenInference does: not recognised.
 		{"search_issues", "", false},
 	}

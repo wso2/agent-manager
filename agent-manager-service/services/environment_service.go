@@ -27,6 +27,7 @@ import (
 	"regexp"
 	"strings"
 	"sync"
+	"time"
 
 	"github.com/google/uuid"
 
@@ -90,6 +91,11 @@ type EnvironmentService interface {
 	ThunderHandleRegistered(ctx context.Context, handle string) (bool, error)
 }
 
+const (
+	envCleanupAttempts = 3
+	envCleanupBackoff  = 200 * time.Millisecond
+)
+
 type environmentService struct {
 	logger             *slog.Logger
 	ocClient           occlient.OpenChoreoClient
@@ -100,10 +106,14 @@ type environmentService struct {
 	envThunderURLRepo  repositories.EnvThunderURLRepository
 	encryptionKey      []byte
 	a2aCardRepo        repositories.A2AAgentCardRepository
+	a2aPublisher       *A2APublisher
+	agentConfigRepo    repositories.AgentConfigRepository
+	cleanupAttempts    int
+	cleanupBackoff     time.Duration
 }
 
 // NewEnvironmentService creates a new environment service
-func NewEnvironmentService(logger *slog.Logger, gatewayRepo repositories.GatewayRepository, ocClient occlient.OpenChoreoClient, thunderProber thundersvc.Prober, agentConfigService AgentConfigurationService, envThunderRepo repositories.EnvThunderSystemClientRepository, envThunderURLRepo repositories.EnvThunderURLRepository, encryptionKey []byte, a2aCardRepo repositories.A2AAgentCardRepository) EnvironmentService {
+func NewEnvironmentService(logger *slog.Logger, gatewayRepo repositories.GatewayRepository, ocClient occlient.OpenChoreoClient, thunderProber thundersvc.Prober, agentConfigService AgentConfigurationService, envThunderRepo repositories.EnvThunderSystemClientRepository, envThunderURLRepo repositories.EnvThunderURLRepository, encryptionKey []byte, a2aCardRepo repositories.A2AAgentCardRepository, a2aPublisher *A2APublisher, agentConfigRepo repositories.AgentConfigRepository) EnvironmentService {
 	return &environmentService{
 		logger:             logger,
 		gatewayRepo:        gatewayRepo,
@@ -114,6 +124,10 @@ func NewEnvironmentService(logger *slog.Logger, gatewayRepo repositories.Gateway
 		envThunderURLRepo:  envThunderURLRepo,
 		encryptionKey:      encryptionKey,
 		a2aCardRepo:        a2aCardRepo,
+		a2aPublisher:       a2aPublisher,
+		agentConfigRepo:    agentConfigRepo,
+		cleanupAttempts:    envCleanupAttempts,
+		cleanupBackoff:     envCleanupBackoff,
 	}
 }
 
@@ -310,6 +324,8 @@ func (s *environmentService) DeleteEnvironment(ctx context.Context, ouID string,
 	if err != nil {
 		s.logger.Error("Failed to look up environment", "ouID", ouID, "envID", envID, "error", err)
 		if errors.Is(err, utils.ErrNotFound) || errors.Is(err, utils.ErrEnvironmentNotFound) {
+			// A repeat DELETE is how a failed or skipped cleanup is retried.
+			s.cleanUpDeletedEnvironment(ctx, ouID, envID, uuid.Nil)
 			return utils.ErrEnvironmentNotFound
 		}
 		return fmt.Errorf("failed to look up environment: %w", err)
@@ -352,23 +368,7 @@ func (s *environmentService) DeleteEnvironment(ctx context.Context, ouID string,
 		}
 	}
 
-	// Cascade MCP-proxy cleanup: tear down every agent-scoped MCP mapping deployed into this
-	// env and strip the env block from every org-level MCP proxy blueprint. Best-effort — the
-	// environment is already gone from OpenChoreo, so cleanup errors are logged, not fatal.
-	if s.agentConfigService != nil {
-		if err := s.agentConfigService.CleanupEnvironmentMCPArtifacts(ctx, ouID, envUUID, env.Name); err != nil {
-			s.logger.Warn("environment deleted; MCP artifact cleanup had errors",
-				"ouID", ouID, "envID", envID, "envUUID", envUUID, "error", err)
-		}
-	}
-
-	// Best-effort like the MCP cleanup: a same-named re-created env must not inherit these cards.
-	if s.a2aCardRepo != nil {
-		if err := s.a2aCardRepo.DeleteForEnvironment(ctx, ouID, envUUID); err != nil {
-			s.logger.Error("Environment deleted but its A2A agent cards were not removed",
-				"ouID", ouID, "envID", envID, "envUUID", envUUID, "error", err)
-		}
-	}
+	s.cleanUpDeletedEnvironment(ctx, ouID, env.Name, envUUID)
 
 	// Local cleanup: gateway↔env mapping rows. The gateway themselves are unaffected.
 	deleted, err := s.gatewayRepo.DeleteEnvironmentMappingsByEnvironmentID(envUUID.String())
@@ -379,6 +379,119 @@ func (s *environmentService) DeleteEnvironment(ctx context.Context, ouID string,
 	}
 	s.logger.Info("Deleted environment", "envID", envID, "envUUID", envUUID, "gatewayMappingsDeleted", deleted)
 	return nil
+}
+
+// envCleanupStep is one idempotent removal of a deleted environment's local state; failed is logged once its retries are spent.
+type envCleanupStep struct {
+	name   string
+	failed string
+	attrs  []any
+	run    func(ctx context.Context) error
+}
+
+// cleanUpDeletedEnvironment runs every cleanup step with retries; envUUID is uuid.Nil once OpenChoreo no longer knows the environment.
+func (s *environmentService) cleanUpDeletedEnvironment(ctx context.Context, ouID, name string, envUUID uuid.UUID) {
+	// The DELETE has committed in OpenChoreo; a disconnecting client must not cut the cleanup short.
+	ctx, cancel := detachedCleanupContext(ctx)
+	defer cancel()
+	retry := fixedCleanupRetry(s.cleanupAttempts, s.cleanupBackoff)
+	for _, step := range s.envCleanupSteps(ctx, ouID, name, envUUID) {
+		attrs := append([]any{"ouID", ouID, "envName", name}, step.attrs...)
+		if err := retryCleanup(ctx, s.logger, retry, step.name, func() error { return step.run(ctx) }, attrs...); err != nil {
+			s.logger.Error(step.failed, append(attrs, "step", step.name, "error", err)...)
+		}
+	}
+}
+
+// envCleanupSteps orders MCP artifacts, then agent configs, then the A2A state of envUUID and every environment once recorded under name.
+func (s *environmentService) envCleanupSteps(ctx context.Context, ouID, name string, envUUID uuid.UUID) []envCleanupStep {
+	var steps []envCleanupStep
+	if s.agentConfigService != nil && envUUID != uuid.Nil {
+		steps = append(steps, envCleanupStep{
+			name:   "MCP artifact cleanup",
+			failed: "Environment deleted but its MCP artifacts were not fully removed; repeat the DELETE to retry",
+			attrs:  []any{"envUUID", envUUID},
+			run: func(ctx context.Context) error {
+				return s.agentConfigService.CleanupEnvironmentMCPArtifacts(ctx, ouID, envUUID, name)
+			},
+		})
+	}
+	if s.agentConfigRepo != nil {
+		steps = append(steps, envCleanupStep{
+			name:   "Agent config cleanup",
+			failed: "Environment deleted but its agent configs were not removed; repeat the DELETE before re-creating the environment to retry",
+			run:    func(ctx context.Context) error { return s.agentConfigRepo.DeleteForEnvironment(ctx, ouID, name) },
+		})
+	}
+	if s.a2aCardRepo == nil && s.a2aPublisher == nil {
+		return steps
+	}
+	ids, err := s.a2aEnvironmentUUIDs(ctx, ouID, name)
+	if err != nil {
+		s.logger.Error("Could not list all leftover A2A state for the environment name", "ouID", ouID, "envName", name, "error", err)
+	}
+	if envUUID != uuid.Nil {
+		ids = append(ids, envUUID)
+	}
+	for _, id := range uniqueUUIDs(ids) {
+		steps = append(steps, envCleanupStep{
+			name:   "A2A teardown",
+			failed: "Environment deleted but its A2A state was not fully removed; repeat the DELETE to retry, and any agent artifacts left behind are removed when their agent is deleted",
+			attrs:  []any{"envUUID", id},
+			run:    func(ctx context.Context) error { return s.tearDownA2AEnvironment(ctx, ouID, id) },
+		})
+	}
+	return steps
+}
+
+// a2aEnvironmentUUIDs returns what every listing found, even when another failed.
+func (s *environmentService) a2aEnvironmentUUIDs(ctx context.Context, ouID, name string) ([]uuid.UUID, error) {
+	var ids []uuid.UUID
+	var errs []error
+	if s.a2aCardRepo != nil {
+		cards, err := s.a2aCardRepo.ListEnvironmentUUIDs(ctx, ouID, name)
+		if err != nil {
+			errs = append(errs, fmt.Errorf("failed to list A2A card environments: %w", err))
+		}
+		ids = append(ids, cards...)
+	}
+	if s.a2aPublisher != nil {
+		published, err := s.a2aPublisher.EnvironmentUUIDs(ctx, ouID, name)
+		if err != nil {
+			errs = append(errs, err)
+		}
+		ids = append(ids, published...)
+	}
+	return ids, errors.Join(errs...)
+}
+
+// tearDownA2AEnvironment withdraws publications and proxies, then drops the cards that named their agents; both are idempotent.
+func (s *environmentService) tearDownA2AEnvironment(ctx context.Context, ouID string, envUUID uuid.UUID) error {
+	var errs []error
+	if s.a2aPublisher != nil {
+		if err := s.a2aPublisher.TeardownEnvironment(ctx, ouID, envUUID); err != nil {
+			errs = append(errs, err)
+		}
+	}
+	if s.a2aCardRepo != nil {
+		if err := s.a2aCardRepo.DeleteForEnvironment(ctx, ouID, envUUID); err != nil {
+			errs = append(errs, fmt.Errorf("failed to delete A2A agent cards: %w", err))
+		}
+	}
+	return errors.Join(errs...)
+}
+
+func uniqueUUIDs(ids []uuid.UUID) []uuid.UUID {
+	seen := make(map[uuid.UUID]struct{}, len(ids))
+	out := make([]uuid.UUID, 0, len(ids))
+	for _, id := range ids {
+		if _, ok := seen[id]; ok {
+			continue
+		}
+		seen[id] = struct{}{}
+		out = append(out, id)
+	}
+	return out
 }
 
 func (s *environmentService) GetEnvironmentGateways(ctx context.Context, ouID string, envID string) ([]models.GatewayResponse, error) {

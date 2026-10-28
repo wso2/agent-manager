@@ -15,22 +15,18 @@
  * under the License.
  */
 
-import { type ChangeEvent, Fragment, useMemo, useState } from "react";
+import { Fragment, useMemo, useState } from "react";
 import {
-  Alert,
   Avatar,
-  Box,
   Chip,
   IconButton,
   ListingTable,
-  SearchBar,
   Skeleton,
   Stack,
   Tooltip,
   Typography,
 } from "@wso2/oxygen-ui";
 import {
-  AlertTriangle,
   Edit,
   Search,
   DoorClosedLocked,
@@ -44,6 +40,7 @@ import {
 } from "@agent-management-platform/api-client";
 import {
   GatewayTypeChip,
+  ResourceListShell,
   formatRelativeTime,
   getAvatarInitials,
   useConfirmationDialog,
@@ -72,7 +69,11 @@ const AVATAR_SX = {
 } as const;
 
 const matchesQuery = (gateway: GatewayResponse, query: string) => {
-  const haystack = [gateway.name ?? "", gateway.displayName ?? "", gateway.vhost ?? ""].join(" ");
+  const haystack = [
+    gateway.name ?? "",
+    gateway.displayName ?? "",
+    gateway.vhost ?? "",
+  ].join(" ");
   return haystack.toLowerCase().includes(query);
 };
 
@@ -133,20 +134,47 @@ export function AIGatewaysTable({ onEditGateway }: AIGatewaysTableProps) {
     return grouped;
   }, [environments, filteredGateways]);
 
-  const toolbar = (
-    <Stack direction="row" spacing={1} alignItems="center">
-      <Box flexGrow={1}>
-        <SearchBar
-          placeholder="Search Gateways..."
-          size="small"
-          fullWidth
-          value={searchQuery}
-          onChange={(e: ChangeEvent<HTMLInputElement>) =>
-            setSearchQuery(e.target.value)
-          }
-          disabled={isLoading}
-        />
-      </Box>
+  const loadingRows = (
+    <Stack spacing={1} mt={1}>
+      {Array.from({ length: 5 }).map((_, i) => (
+        <Stack
+          key={i}
+          direction="row"
+          alignItems="center"
+          spacing={2}
+          sx={{
+            px: 2,
+            py: 1.5,
+            borderRadius: 1,
+            border: "1px solid",
+            borderColor: "divider",
+            bgcolor: "background.paper",
+          }}
+        >
+          <Stack
+            direction="row"
+            alignItems="center"
+            spacing={1.5}
+            sx={{ width: 300, flexShrink: 0 }}
+          >
+            <Skeleton variant="circular" width={36} height={36} />
+            <Skeleton variant="text" width={140} height={20} />
+          </Stack>
+          <Skeleton
+            variant="rounded"
+            width={72}
+            height={24}
+            sx={{ flexShrink: 0 }}
+          />
+          <Skeleton variant="text" sx={{ flex: 1 }} height={18} />
+          <Skeleton
+            variant="rounded"
+            width={100}
+            height={24}
+            sx={{ flexShrink: 0, ml: "auto" }}
+          />
+        </Stack>
+      ))}
     </Stack>
   );
 
@@ -246,146 +274,73 @@ export function AIGatewaysTable({ onEditGateway }: AIGatewaysTableProps) {
     );
   };
 
-  // The body renders below a toolbar that stays mounted at a stable tree
-  // position across all states — swapping the toolbar's parent structure
-  // between renders would remount the search input and drop its focus.
-  const renderBody = () => {
-    if (error) {
-      const failedResource = gatewaysError ? "gateways" : "environments";
-      return (
-        <ListingTable.Container>
-          <Alert
-            severity="error"
-            icon={<AlertTriangle size={18} />}
-            sx={{ alignSelf: "stretch" }}
-          >
-            Failed to load {failedResource}.{" "}
-            {error instanceof Error ? error.message : "Please try again."}
-          </Alert>
-        </ListingTable.Container>
-      );
-    }
-
-    if (isLoading) {
-      return (
-        <ListingTable.Container disablePaper>
-          <Stack spacing={1} mt={1}>
-            {Array.from({ length: 5 }).map((_, i) => (
-              <Stack
-                key={i}
-                direction="row"
-                alignItems="center"
-                spacing={2}
-                sx={{
-                  px: 2,
-                  py: 1.5,
-                  borderRadius: 1,
-                  border: "1px solid",
-                  borderColor: "divider",
-                  bgcolor: "background.paper",
-                }}
-              >
-                <Stack
-                  direction="row"
-                  alignItems="center"
-                  spacing={1.5}
-                  sx={{ width: 300, flexShrink: 0 }}
-                >
-                  <Skeleton variant="circular" width={36} height={36} />
-                  <Skeleton variant="text" width={140} height={20} />
-                </Stack>
-                <Skeleton
-                  variant="rounded"
-                  width={72}
-                  height={24}
-                  sx={{ flexShrink: 0 }}
-                />
-                <Skeleton variant="text" sx={{ flex: 1 }} height={18} />
-                <Skeleton
-                  variant="rounded"
-                  width={100}
-                  height={24}
-                  sx={{ flexShrink: 0, ml: "auto" }}
-                />
-              </Stack>
-            ))}
-          </Stack>
-        </ListingTable.Container>
-      );
-    }
-
-    if (gateways.length === 0) {
-      return (
-        <ListingTable.Container>
-          <ListingTable.EmptyState
-            illustration={<DoorClosedLocked size={64} />}
-            title="No available gateway"
-            description="No gateways have been configured yet."
-          />
-        </ListingTable.Container>
-      );
-    }
-
-    if (filteredGateways.length === 0) {
-      return (
-        <ListingTable.Container>
-          <ListingTable.EmptyState
-            illustration={<Search size={64} />}
-            title="No Gateways found."
-            description="Try a different keyword or clear the search filter."
-          />
-        </ListingTable.Container>
-      );
-    }
-
-    return (
-      <Stack pt={3}>
-        <ListingTable.Container disablePaper>
-          <ListingTable variant="card">
-            <ListingTable.Head>
-              <ListingTable.Row>
-                <ListingTable.Cell>Name</ListingTable.Cell>
-                <ListingTable.Cell align="left" width="120px">
-                  Type
-                </ListingTable.Cell>
-                <ListingTable.Cell align="center" width="120px">
-                  Status
-                </ListingTable.Cell>
-                <ListingTable.Cell align="right" width="140px">
-                  Last Updated
-                </ListingTable.Cell>
-                <ListingTable.Cell align="center" width="96px" />
-              </ListingTable.Row>
-            </ListingTable.Head>
-            <ListingTable.Body>
-              {sections.map((section) => (
-                <Fragment key={section.key}>
-                  <ListingTable.Row>
-                    {/* "&&" outranks the table's descendant padding rule on
-                        .MuiTableCell-root, which beats a plain sx padding. */}
-                    <ListingTable.Cell
-                      colSpan={5}
-                      sx={{ "&&": { border: 0, p: 0 } }}
-                    >
-                      <Typography variant="overline" color="text.secondary">
-                        {section.title}
-                      </Typography>
-                    </ListingTable.Cell>
-                  </ListingTable.Row>
-                  {section.gateways.map(renderGatewayRow)}
-                </Fragment>
-              ))}
-            </ListingTable.Body>
-          </ListingTable>
-        </ListingTable.Container>
-      </Stack>
-    );
-  };
-
   return (
-    <Stack spacing={1}>
-      {toolbar}
-      {renderBody()}
-    </Stack>
+    <ResourceListShell
+      resourceName="gateways"
+      searchValue={searchQuery}
+      onSearchChange={setSearchQuery}
+      searchPlaceholder="Search Gateways..."
+      searchDisabled={isLoading}
+      error={
+        error
+          ? new Error(
+              `Failed to load ${gatewaysError ? "gateways" : "environments"}. ${
+                error instanceof Error ? error.message : "Please try again."
+              }`,
+            )
+          : undefined
+      }
+      isLoading={isLoading}
+      isEmpty={gateways.length === 0}
+      isSearchEmpty={filteredGateways.length === 0}
+      loadingPlaceholder={loadingRows}
+      emptyState={{
+        illustration: <DoorClosedLocked size={64} />,
+        title: "No available gateway",
+        description: "No gateways have been configured yet.",
+      }}
+      searchEmptyState={{
+        illustration: <Search size={64} />,
+        title: "No Gateways found.",
+        description: "Try a different keyword or clear the search filter.",
+      }}
+    >
+      <ListingTable variant="card">
+        <ListingTable.Head>
+          <ListingTable.Row>
+            <ListingTable.Cell>Name</ListingTable.Cell>
+            <ListingTable.Cell align="left" width="120px">
+              Type
+            </ListingTable.Cell>
+            <ListingTable.Cell align="center" width="120px">
+              Status
+            </ListingTable.Cell>
+            <ListingTable.Cell align="right" width="140px">
+              Last Updated
+            </ListingTable.Cell>
+            <ListingTable.Cell align="center" width="96px" />
+          </ListingTable.Row>
+        </ListingTable.Head>
+        <ListingTable.Body>
+          {sections.map((section) => (
+            <Fragment key={section.key}>
+              <ListingTable.Row>
+                {/* "&&" outranks the table's descendant padding rule on
+                        .MuiTableCell-root, which beats a plain sx padding. */}
+                <ListingTable.Cell
+                  colSpan={5}
+                  sx={{ "&&": { border: 0, p: 0 } }}
+                >
+                  <Typography variant="overline" color="text.secondary">
+                    {section.title}
+                  </Typography>
+                </ListingTable.Cell>
+              </ListingTable.Row>
+              {section.gateways.map(renderGatewayRow)}
+            </Fragment>
+          ))}
+        </ListingTable.Body>
+      </ListingTable>
+    </ResourceListShell>
   );
 }

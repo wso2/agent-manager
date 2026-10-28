@@ -22,8 +22,6 @@ import {
   Stack,
   Typography,
   Button,
-  Menu,
-  MenuItem,
   Alert,
   Tooltip,
   Skeleton,
@@ -63,6 +61,7 @@ import { AgentTypeSummery } from "./subComponents/AgentTypeSummery";
 import { DeploymentPipelineCard } from "./subComponents/DeploymentPipelineCard";
 import {
   AgentTypeChips,
+  ResourceListShell,
   formatRelativeTime,
   getErrorMessage,
   useConfirmationDialog,
@@ -88,12 +87,7 @@ export function ListPageSkeleton() {
 
           {/* Table rows */}
           {Array.from({ length: 5 }).map((_, index) => (
-            <Skeleton
-              key={index}
-              variant="rounded"
-              width="100%"
-              height={72}
-            />
+            <Skeleton key={index} variant="rounded" width="100%" height={72} />
           ))}
         </Box>
 
@@ -123,7 +117,6 @@ export const AgentsList: React.FC = () => {
   const [page, setPage] = useState(0);
   const [rowsPerPage, setRowsPerPage] = useState(5);
   const [editProjectDrawerOpen, setEditProjectDrawerOpen] = useState(false);
-  const [addAgentAnchorEl, setAddAgentAnchorEl] = useState<null | HTMLElement>(null);
 
   // Detect touch device for alternative interaction pattern
   const isTouchDevice =
@@ -135,12 +128,7 @@ export const AgentsList: React.FC = () => {
     projectId: string;
   }>();
   const navigate = useNavigate();
-  const {
-    data,
-    isLoading,
-    error,
-    isRefetching,
-  } = useListAgents({
+  const { data, isLoading, error, isRefetching } = useListAgents({
     orgName: orgId,
     projName: projectId,
   });
@@ -167,52 +155,28 @@ export const AgentsList: React.FC = () => {
         agentName: agentId,
       });
     },
-    [deleteAgent, orgId, projectId]
+    [deleteAgent, orgId, projectId],
   );
 
   const handleRowMouseEnter = useCallback(
     (row: AgentResponse & { id: string }) => {
       setHoveredAgentId(row.id);
     },
-    []
+    [],
   );
 
   const handleRowMouseLeave = useCallback(() => {
     setHoveredAgentId(null);
   }, []);
 
-  const handleOpenAddAgentMenu = useCallback(
-    (event: React.MouseEvent<HTMLElement>) => {
-      setAddAgentAnchorEl(event.currentTarget);
-    },
-    []
-  );
-
-  const handleCloseAddAgentMenu = useCallback(() => {
-    setAddAgentAnchorEl(null);
-  }, []);
-
-  const handleAddExternalAgent = useCallback(() => {
-    handleCloseAddAgentMenu();
+  const handleAddAgent = useCallback(() => {
     navigate(
       generatePath(
-        absoluteRouteMap.children.org.children.projects.children.newAgent.children
-          .connect.path,
-        { orgId: orgId ?? "", projectId: projectId ?? "" }
-      )
+        absoluteRouteMap.children.org.children.projects.children.newAgent.path,
+        { orgId: orgId ?? "", projectId: projectId ?? "" },
+      ),
     );
-  }, [handleCloseAddAgentMenu, navigate, orgId, projectId]);
-
-  const handleAddPlatformHostedAgent = useCallback(() => {
-    handleCloseAddAgentMenu();
-    navigate(
-      generatePath(
-        absoluteRouteMap.children.org.children.projects.children.newAgent.children
-          .create.path,
-        { orgId: orgId ?? "", projectId: projectId ?? "" }
-      )
-    );
-  }, [handleCloseAddAgentMenu, navigate, orgId, projectId]);
+  }, [navigate, orgId, projectId]);
 
   const getRelativeTime = useCallback(
     (date?: string) => formatRelativeTime(date, { fallback: "—" }),
@@ -241,8 +205,8 @@ export const AgentsList: React.FC = () => {
         generatePath(
           absoluteRouteMap.children.org.children.projects.children.newAgent
             .path,
-          { orgId: orgId ?? "", projectId: projectId ?? "" }
-        )
+          { orgId: orgId ?? "", projectId: projectId ?? "" },
+        ),
       );
     }
   }, [orgId, projectId, data?.agents, isLoading, isRefetching, navigate]);
@@ -258,7 +222,7 @@ export const AgentsList: React.FC = () => {
             // Labels match as `key:value`, so typing "env:prod" (or a
             // fragment of it) filters by label.
             Object.entries(agent.labels ?? {}).some(([k, v]) =>
-              `${k}:${v}`.toLowerCase().includes(term)
+              `${k}:${v}`.toLowerCase().includes(term),
             )
           );
         })
@@ -270,7 +234,7 @@ export const AgentsList: React.FC = () => {
               orgId: orgId ?? "",
               projectId: agent.projectName,
               agentId: agent.name,
-            }
+            },
           ),
           id: agent.name,
           agentInfo: {
@@ -279,7 +243,7 @@ export const AgentsList: React.FC = () => {
             description: agent.description,
           },
         })) ?? [],
-    [data?.agents, search, orgId]
+    [data?.agents, search, orgId],
   );
 
   // Reset page to 0 when search or filtered list changes
@@ -289,11 +253,16 @@ export const AgentsList: React.FC = () => {
 
   // Paginate agents
   const paginatedAgents = useMemo(
-    () => agentsWithHref.slice(page * rowsPerPage, page * rowsPerPage + rowsPerPage),
-    [agentsWithHref, page, rowsPerPage]
+    () =>
+      agentsWithHref.slice(
+        page * rowsPerPage,
+        page * rowsPerPage + rowsPerPage,
+      ),
+    [agentsWithHref, page, rowsPerPage],
   );
 
-  const isPageLoading = isProjectLoading ||
+  const isPageLoading =
+    isProjectLoading ||
     (isRefetching && !data?.agents?.length) ||
     isDeletingAgent;
 
@@ -302,7 +271,11 @@ export const AgentsList: React.FC = () => {
       <PageLayout
         variant="card"
         title={project?.displayName ?? "Agents"}
-        meta={project ? <CreatedMetadata createdAt={project.createdAt} /> : undefined}
+        meta={
+          project ? (
+            <CreatedMetadata createdAt={project.createdAt} />
+          ) : undefined
+        }
         isLoading={isPageLoading}
         actions={
           <Button
@@ -323,11 +296,7 @@ export const AgentsList: React.FC = () => {
         {isLoading ? (
           <ListPageSkeleton />
         ) : (
-          <Stack
-            direction="row"
-            justifyContent="space-between"
-            gap={2}
-          >
+          <Stack direction="row" justifyContent="space-between" gap={2}>
             <Stack
               direction="column"
               sx={{
@@ -335,69 +304,89 @@ export const AgentsList: React.FC = () => {
               }}
               spacing={2}
             >
-              <Stack direction="row" spacing={1}>
-                <Box flexGrow={1}>
-                  <SearchBar
-                    placeholder="Search agents"
-                    size="small"
-                    fullWidth
-                    onChange={(e: React.ChangeEvent<HTMLInputElement>) => setSearch(e.target.value)}
-                    value={search}
-                    disabled={!data?.agents?.length}
-                  />
-                </Box>
-                <Button
-                  variant="contained"
-                  color="primary"
-                  size="small"
-                  startIcon={<Add size={16} />}
-                  onClick={handleOpenAddAgentMenu}
-                  aria-controls={addAgentAnchorEl ? "add-agent-menu" : undefined}
-                  aria-haspopup="true"
-                  aria-expanded={Boolean(addAgentAnchorEl)}
-                >
-                  Add Agent
-                </Button>
-                <Menu
-                  id="add-agent-menu"
-                  anchorEl={addAgentAnchorEl}
-                  open={Boolean(addAgentAnchorEl)}
-                  onClose={handleCloseAddAgentMenu}
-                  anchorOrigin={{ vertical: "bottom", horizontal: "right" }}
-                  transformOrigin={{ vertical: "top", horizontal: "right" }}
-                >
-                  <MenuItem onClick={handleAddExternalAgent}>
-                    External Agent
-                  </MenuItem>
-                  <MenuItem onClick={handleAddPlatformHostedAgent}>
-                    Platform-Hosted Agent
-                  </MenuItem>
-                </Menu>
-              </Stack>
-
               {error ? (
                 <Alert severity="error" variant="outlined">
                   {getErrorMessage(error)}
                 </Alert>
               ) : null}
 
-              {isLoading ? (
-                <DataGridComponent
-                  rows={[]}
-                  columns={[
-                    { field: 'name', headerName: 'Agent Name', flex: 1 },
-                    { field: 'lastUpdated', headerName: 'Last Updated', flex: 1 },
-                  ]}
-                  loading
-                  hideFooter
-                />
-              ) : !!data?.agents?.length && agentsWithHref.length > 0 ? (
-                <ListingTable.Container sx={{ minWidth: 600 }} disablePaper>
+              <ResourceListShell
+                resourceName="agents"
+                searchValue={search}
+                onSearchChange={setSearch}
+                toolbar={
+                  <Stack direction="row" spacing={1}>
+                    <Box flexGrow={1}>
+                      <SearchBar
+                        placeholder="Search agents"
+                        size="small"
+                        fullWidth
+                        onChange={(e: React.ChangeEvent<HTMLInputElement>) =>
+                          setSearch(e.target.value)
+                        }
+                        value={search}
+                        disabled={!data?.agents?.length}
+                      />
+                    </Box>
+                    <Button
+                      variant="contained"
+                      color="primary"
+                      size="small"
+                      startIcon={<Add size={16} />}
+                      onClick={handleAddAgent}
+                    >
+                      Add Agent
+                    </Button>
+                  </Stack>
+                }
+                isLoading={isRefetching && !data?.agents?.length}
+                isEmpty={!data?.agents?.length}
+                isSearchEmpty={agentsWithHref.length === 0}
+                loadingPlaceholder={
+                  <DataGridComponent
+                    rows={[]}
+                    columns={[
+                      { field: "name", headerName: "Agent Name", flex: 1 },
+                      {
+                        field: "lastUpdated",
+                        headerName: "Last Updated",
+                        flex: 1,
+                      },
+                    ]}
+                    loading
+                    hideFooter
+                  />
+                }
+                emptyState={{
+                  illustration: <User size={64} />,
+                  title: "No agents found",
+                  description: "Create a new agent to get started",
+                  action: (
+                    <Button
+                      variant="contained"
+                      color="primary"
+                      startIcon={<Add />}
+                      onClick={handleAddAgent}
+                    >
+                      Add New Agent
+                    </Button>
+                  ),
+                }}
+                searchEmptyState={{
+                  illustration: <User size={64} />,
+                  title: "No agents found",
+                  description:
+                    "No agents match your search criteria. Try adjusting your search.",
+                }}
+              >
+                <Box sx={{ minWidth: 600 }}>
                   <ListingTable variant="card">
                     <ListingTable.Head>
                       <ListingTable.Row>
                         <ListingTable.Cell>Agent Name</ListingTable.Cell>
-                        <ListingTable.Cell align="right">Last Updated</ListingTable.Cell>
+                        <ListingTable.Cell align="right">
+                          Last Updated
+                        </ListingTable.Cell>
                       </ListingTable.Row>
                     </ListingTable.Head>
                     <ListingTable.Body>
@@ -414,7 +403,12 @@ export const AgentsList: React.FC = () => {
                           onBlur={handleRowMouseLeave}
                         >
                           <ListingTable.Cell>
-                            <Stack direction="row" alignItems="center" spacing={2} sx={{ width: "100%", minWidth: 0 }}>
+                            <Stack
+                              direction="row"
+                              alignItems="center"
+                              spacing={2}
+                              sx={{ width: "100%", minWidth: 0 }}
+                            >
                               <EntityAvatar
                                 name={agent.displayName}
                                 color="primary.main"
@@ -422,8 +416,16 @@ export const AgentsList: React.FC = () => {
                                 size={32}
                                 sx={{ flexShrink: 0 }}
                               />
-                              <Stack direction="row" alignItems="flex-start" spacing={1} sx={{ minWidth: 0, flex: 1 }}>
-                                <Typography variant="body1" sx={{ flexShrink: 0 }}>
+                              <Stack
+                                direction="row"
+                                alignItems="flex-start"
+                                spacing={1}
+                                sx={{ minWidth: 0, flex: 1 }}
+                              >
+                                <Typography
+                                  variant="body1"
+                                  sx={{ flexShrink: 0 }}
+                                >
                                   {agent.displayName}
                                 </Typography>
                                 <AgentTypeChips
@@ -431,7 +433,9 @@ export const AgentsList: React.FC = () => {
                                   agentType={agent.agentType}
                                   kindName={agent.kindName}
                                   kindDisplayName={
-                                    agent.kindName ? kindDisplayNameMap[agent.kindName] : undefined
+                                    agent.kindName
+                                      ? kindDisplayNameMap[agent.kindName]
+                                      : undefined
                                   }
                                 />
                               </Stack>
@@ -454,14 +458,19 @@ export const AgentsList: React.FC = () => {
                                       onClick={(e) => {
                                         e.stopPropagation();
                                         addConfirmation({
-                                          analytics: { entity: "agent", action: "delete" },
+                                          analytics: {
+                                            entity: "agent",
+                                            action: "delete",
+                                          },
                                           title: "Delete Agent?",
                                           description: `Are you sure you want to delete the agent "${agent.displayName}"? This action cannot be undone.`,
                                           onConfirm: () => {
                                             handleDeleteAgent(agent.name);
                                           },
                                           confirmButtonColor: "error",
-                                          confirmButtonIcon: <DeleteOutlineOutlined size={16} />,
+                                          confirmButtonIcon: (
+                                            <DeleteOutlineOutlined size={16} />
+                                          ),
                                           confirmButtonText: "Delete",
                                         });
                                       }}
@@ -471,7 +480,11 @@ export const AgentsList: React.FC = () => {
                                   </Tooltip>
                                 </FadeIn>
                               ) : (
-                                <Typography variant="body2" color="text.secondary" noWrap>
+                                <Typography
+                                  variant="body2"
+                                  color="text.secondary"
+                                  noWrap
+                                >
                                   {getRelativeTime(agent.createdAt)}
                                 </Typography>
                               )}
@@ -493,39 +506,16 @@ export const AgentsList: React.FC = () => {
                       setPage(0);
                     }}
                   />
-                </ListingTable.Container>
-              ) : !!data?.agents?.length && agentsWithHref.length === 0 ? (
-                <ListingTable.Container>
-                  <ListingTable.EmptyState
-                    illustration={<User size={64} />}
-                    title="No agents found"
-                    description="No agents match your search criteria. Try adjusting your search."
-                  />
-                </ListingTable.Container>
-              ) : !data?.agents?.length && !isRefetching ? (
-                <ListingTable.Container>
-                  <ListingTable.EmptyState
-                    illustration={<User size={64} />}
-                    title="No agents found"
-                    description="Create a new agent to get started"
-                    action={
-                      <Button
-                        variant="contained"
-                        color="primary"
-                        startIcon={<Add />}
-                        onClick={handleOpenAddAgentMenu}
-                        aria-controls={addAgentAnchorEl ? "add-agent-menu" : undefined}
-                        aria-haspopup="true"
-                        aria-expanded={Boolean(addAgentAnchorEl)}
-                      >
-                        Add New Agent
-                      </Button>
-                    }
-                  />
-                </ListingTable.Container>
-              ) : null}
+                </Box>
+              </ResourceListShell>
             </Stack>
-            <Box display="flex" flexDirection="column" gap={2} width={450} height="fit-content">
+            <Box
+              display="flex"
+              flexDirection="column"
+              gap={2}
+              width={450}
+              height="fit-content"
+            >
               <AgentTypeSummery />
               <DeploymentPipelineCard />
             </Box>
@@ -538,7 +528,7 @@ export const AgentsList: React.FC = () => {
           open={editProjectDrawerOpen}
           onClose={() => setEditProjectDrawerOpen(false)}
           project={project}
-          orgId={orgId || 'default'}
+          orgId={orgId || "default"}
         />
       )}
     </>

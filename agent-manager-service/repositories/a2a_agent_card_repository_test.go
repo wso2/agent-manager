@@ -462,6 +462,31 @@ func TestA2AAgentCardListForAgentOrdersByEnvironment(t *testing.T) {
 	assert.Empty(t, none, "rows are org-scoped")
 }
 
+func TestA2AAgentCardListForEnvironmentNamesEveryAgentInIt(t *testing.T) {
+	repo := NewA2AAgentCardRepository(db.GetDB())
+	ctx := context.Background()
+	first := newTestCard("env-a-"+uuid.New().String()[:8], models.A2AAgentCardSourceExternal)
+	second := newTestCard("env-b-"+uuid.New().String()[:8], models.A2AAgentCardSourcePlatform)
+	second.OUID, second.EnvironmentUUID = first.OUID, first.EnvironmentUUID
+	elsewhere := inEnv(newTestCard(first.AgentName, models.A2AAgentCardSourcePlatform), "Production")
+	elsewhere.OUID = first.OUID
+	cleanupCard(t, repo, first)
+	cleanupCard(t, repo, second)
+	require.NoError(t, repo.Enqueue(ctx, second))
+	require.NoError(t, repo.Enqueue(ctx, first))
+	require.NoError(t, repo.Enqueue(ctx, elsewhere))
+
+	rows, err := repo.ListForEnvironment(ctx, first.OUID, first.EnvironmentUUID)
+	require.NoError(t, err)
+	require.Len(t, rows, 2)
+	assert.Equal(t, first.AgentName, rows[0].AgentName)
+	assert.Equal(t, second.AgentName, rows[1].AgentName)
+
+	none, err := repo.ListForEnvironment(ctx, "other-org", first.EnvironmentUUID)
+	require.NoError(t, err)
+	assert.Empty(t, none, "rows are org-scoped")
+}
+
 func TestA2AAgentCardGetAndDelete(t *testing.T) {
 	repo := NewA2AAgentCardRepository(db.GetDB())
 	ctx := context.Background()
@@ -650,4 +675,100 @@ func TestA2AAgentCardDeleteIfUnchanged(t *testing.T) {
 		_, err := repo.Get(ctx, card.OUID, card.ProjectName, card.AgentName, card.EnvironmentName)
 		assert.NoError(t, err)
 	})
+}
+
+// Switching modes parks the row: no card, and not due until the publish requeues it.
+func TestA2AAgentCardClearCardParksTheRow(t *testing.T) {
+	repo := NewA2AAgentCardRepository(db.GetDB())
+	ctx := context.Background()
+	card := newTestCard("park-"+uuid.New().String()[:8], models.A2AAgentCardSourceExternal)
+	card.SourceURL = "https://agent.example/.well-known/agent-card.json"
+	cleanupCard(t, repo, card)
+	require.NoError(t, repo.Enqueue(ctx, card))
+	require.NoError(t, repo.MarkFetched(ctx, dueCardFor(t, repo, card.AgentName), json.RawMessage(sampleCard), "h", card.SourceURL, ""))
+
+	require.NoError(t, repo.ClearCard(ctx, card.OUID, card.ProjectName, card.AgentName, card.EnvironmentUUID))
+
+	row := cardRowOf(t, card)
+	assert.Equal(t, models.A2AAgentCardStatusPending, row.Status)
+	assert.Nil(t, row.Card)
+	assert.Empty(t, row.CardHash)
+	assert.Nil(t, row.FetchedAt)
+	assert.Nil(t, row.NextAttemptAt)
+	assert.Equal(t, 0, row.AttemptCount)
+	assert.Empty(t, row.LastError)
+	assert.Equal(t, card.SourceURL, row.SourceURL, "the registered URL stays")
+
+	due, err := repo.ClaimDue(ctx, time.Now().Add(24*time.Hour), 100)
+	require.NoError(t, err)
+	assert.NotContains(t, claimedNames(due), card.AgentName, "a parked row waits for the publish")
+
+	require.NoError(t, repo.Requeue(ctx, card.OUID, card.ProjectName, card.AgentName, card.EnvironmentName))
+	assert.Equal(t, card.AgentName, dueCardFor(t, repo, card.AgentName).AgentName)
+}
+
+// A fetch that read the row before the switch must not write the old mode's card back.
+func TestA2AAgentCardClearCardSupersedesAnInFlightFetch(t *testing.T) {
+	repo := NewA2AAgentCardRepository(db.GetDB())
+	ctx := context.Background()
+	card := newTestCard("park-race-"+uuid.New().String()[:8], models.A2AAgentCardSourceExternal)
+	card.SourceURL = "https://agent.example/.well-known/agent-card.json"
+	cleanupCard(t, repo, card)
+	require.NoError(t, repo.Enqueue(ctx, card))
+	read := dueCardFor(t, repo, card.AgentName)
+
+	require.NoError(t, repo.ClearCard(ctx, card.OUID, card.ProjectName, card.AgentName, card.EnvironmentUUID))
+
+	require.ErrorIs(t, repo.MarkFetched(ctx, read, json.RawMessage(sampleCard), "h", card.SourceURL, ""), ErrA2AAgentCardSuperseded)
+	assert.Nil(t, cardRowOf(t, card).Card)
+}
+
+func TestA2AAgentCardClearCardNeedsARow(t *testing.T) {
+	repo := NewA2AAgentCardRepository(db.GetDB())
+	err := repo.ClearCard(context.Background(), "ou-none", "checkout", "ghost", uuid.New())
+	assert.ErrorIs(t, err, ErrA2AAgentCardNotFound)
+}
+
+// A proxied card is fetched through the gateway; the registered origin URL must survive that.
+func TestA2AAgentCardMarkFetchedKeepsAnExternalSourceURL(t *testing.T) {
+	repo := NewA2AAgentCardRepository(db.GetDB())
+	ctx := context.Background()
+	card := newTestCard("keep-url-"+uuid.New().String()[:8], models.A2AAgentCardSourceExternal)
+	card.SourceURL = "https://agent.example/.well-known/agent-card.json"
+	cleanupCard(t, repo, card)
+	require.NoError(t, repo.Enqueue(ctx, card))
+
+	gatewayURL := "https://gw.example/agent/.well-known/agent-card.json"
+	require.NoError(t, repo.MarkFetched(ctx, dueCardFor(t, repo, card.AgentName), json.RawMessage(sampleCard), "h", gatewayURL, ""))
+	assert.Equal(t, card.SourceURL, cardRowOf(t, card).SourceURL)
+
+	again := newTestCardLike(card)
+	again.SourceURL = card.SourceURL
+	require.NoError(t, repo.Enqueue(ctx, again))
+	assert.JSONEq(t, sampleCard, string(cardRowOf(t, card).Card), "the same URL is not a change, so the card survives")
+}
+
+// Only a row ClearCard parked is failed; a due or fetched row keeps showing what it showed.
+func TestA2AAgentCardFailParkedTouchesOnlyAParkedRow(t *testing.T) {
+	repo := NewA2AAgentCardRepository(db.GetDB())
+	ctx := context.Background()
+	parked := newTestCard("fail-parked-"+uuid.New().String()[:8], models.A2AAgentCardSourceExternal)
+	due := newTestCard("fail-due-"+uuid.New().String()[:8], models.A2AAgentCardSourceExternal)
+	for _, card := range []*models.A2AAgentCard{parked, due} {
+		cleanupCard(t, repo, card)
+		require.NoError(t, repo.Enqueue(ctx, card))
+	}
+	require.NoError(t, repo.ClearCard(ctx, parked.OUID, parked.ProjectName, parked.AgentName, parked.EnvironmentUUID))
+
+	for _, card := range []*models.A2AAgentCard{parked, due} {
+		require.NoError(t, repo.FailParked(ctx, card.OUID, card.ProjectName, card.AgentName, card.EnvironmentUUID, "gateway said no"))
+	}
+
+	failed := cardRowOf(t, parked)
+	assert.Equal(t, models.A2AAgentCardStatusFailed, failed.Status)
+	assert.Equal(t, "gateway said no", failed.LastError)
+	untouched := cardRowOf(t, due)
+	assert.Equal(t, models.A2AAgentCardStatusPending, untouched.Status)
+	assert.Empty(t, untouched.LastError)
+	assert.NotNil(t, untouched.NextAttemptAt)
 }

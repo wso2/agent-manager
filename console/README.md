@@ -49,37 +49,38 @@ This command will:
 ### 2. Start Development Server
 
 ```bash
-make dev
+make dev   # or: pnpm dev
 ```
 
 This will:
-- Launch the Vite dev server at `http://localhost:3000`
+- Launch the Vite dev server at `http://localhost:3000`, serving the runtime `config.js`
+  (see [Environment Configuration](#3-environment-configuration))
 - Hot-reload on edits to any workspace package, not just the app
+
+From the repo root, `make console` starts the same server (`make console BACKGROUND=true`
+detaches it, logging to `.make/console.log`; stop it with `make stop-console`). `make setup`
+starts it in the background for you.
 
 No separate build step is needed for development — Vite resolves
 `@agent-management-platform/*` imports straight to each package's `src/`, so there are
 no library watchers to run. Run `make build` only to produce production output.
 
-Press `Ctrl+C` to stop.
-
 ### 3. Environment Configuration
 
-Copy the configuration template and customize it:
+The dev server serves `config.js` by filling `apps/web-ui/public/config.template.js`
+from `apps/web-ui/.env.development`, which holds the defaults for the local stack.
+Override any value with an env var, or in a gitignored `.env.development.local`:
 
 ```bash
-cp apps/web-ui/public/config.template.js apps/web-ui/public/config.js
+DISABLE_AUTH=true pnpm dev
 ```
 
-The template is written for env-var substitution at deploy time, so a local `config.js`
-needs the `$PLACEHOLDER` values replaced with real ones. At minimum, point
-`apiBaseUrl` at your backend:
+Because the process env wins, a generic variable already exported in your shell
+(`TLS_ENABLED`, `AMP_VERSION`, `API_BASE_URL`, `BASE_PATH`, ...) also changes the dev
+config. If `config.js` shows a value you didn't expect, check `env` first.
 
-```javascript
-window.__RUNTIME_CONFIG__ = {
-  // ...the rest of the template
-  apiBaseUrl: 'http://localhost:8080',
-};
-```
+Production builds don't use this: the Docker image renders `config.js` from the same
+template when nginx starts.
 
 ## Available Commands
 

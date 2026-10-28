@@ -78,8 +78,9 @@ func (h *DeploymentAckHandler) handleDeploymentAck(gatewayID string, payload jso
 	}
 
 	// Only process acks for deployable gateway artifacts with current deployment state.
+	// The gateway sends "agentproxy" for Agent acks up to v2026.09.24 and "Agent" after.
 	switch ack.ResourceType {
-	case "llmprovider", "llmproxy", "mcpproxy", "agentproxy":
+	case "llmprovider", "llmproxy", "mcpproxy", "agentproxy", "Agent":
 		// Update deployment status based on ack
 		if ack.DeploymentID == "" {
 			log.Warn("DeploymentAckHandler: missing deploymentID in ack, skipping status update")

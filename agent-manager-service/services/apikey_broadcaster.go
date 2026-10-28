@@ -23,6 +23,7 @@ import (
 	"errors"
 	"fmt"
 	"time"
+	"unicode/utf8"
 
 	"github.com/google/uuid"
 
@@ -58,19 +59,22 @@ func (b *apiKeyBroadcaster) broadcastCreateToGateways(gateways []*models.Gateway
 	if req == nil {
 		return nil, fmt.Errorf("nil request")
 	}
-	apiKey, err := utils.GenerateAPIKey()
-	if err != nil {
-		return nil, fmt.Errorf("failed to generate API key: %w", err)
-	}
-
-	var keyName string
-	if req.Name != "" {
-		keyName = req.Name
-	} else {
+	keyName := req.Name
+	if keyName == "" {
+		var err error
 		keyName, err = utils.GenerateHandle(req.DisplayName)
 		if err != nil {
 			return nil, fmt.Errorf("failed to generate API key name: %w", err)
 		}
+	}
+	if utf8.RuneCountInString(keyName) < models.MinAPIKeyNameLength {
+		return nil, fmt.Errorf("%w: API key name %q must be at least %d characters",
+			utils.ErrBadRequest, keyName, models.MinAPIKeyNameLength)
+	}
+
+	apiKey, err := utils.GenerateAPIKey()
+	if err != nil {
+		return nil, fmt.Errorf("failed to generate API key: %w", err)
 	}
 
 	displayName := req.DisplayName

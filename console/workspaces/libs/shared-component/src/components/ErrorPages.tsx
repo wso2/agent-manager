@@ -19,6 +19,7 @@
 import { Box, Button, Card, CardContent, Stack, Typography } from "@wso2/oxygen-ui";
 import { LogOut, RefreshCw, TriangleAlert } from "@wso2/oxygen-ui-icons-react";
 import type { ReactNode } from "react";
+import { withBasePath } from "@agent-management-platform/types";
 
 interface ErrorLayoutProps {
     /** Visual anchor shown above the title — an icon or a large glyph. */
@@ -102,7 +103,7 @@ function NotFoundErrorPage() {
             title="Page Not Found"
             message="The page you are looking for does not exist or has been moved."
             action={
-                <Button variant="contained" color="primary" href="/">
+                <Button variant="contained" color="primary" href={withBasePath("/")}>
                     Go to Home
                 </Button>
             }
@@ -117,7 +118,7 @@ function OopsErrorPage() {
             title="Something went wrong."
             message="An unexpected error has occurred. Please try again later."
             action={
-                <Button variant="contained" color="primary" href="/">
+                <Button variant="contained" color="primary" href={withBasePath("/")}>
                     Go to Home
                 </Button>
             }

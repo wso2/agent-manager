@@ -23,6 +23,7 @@ import (
 
 	amsvc "github.com/wso2/agent-manager/cli/pkg/clients/amsvc/gen"
 	"github.com/wso2/agent-manager/cli/pkg/clierr"
+	"github.com/wso2/agent-manager/cli/pkg/cmd/agent/a2acard"
 	"github.com/wso2/agent-manager/cli/pkg/cmdutil"
 	"github.com/wso2/agent-manager/cli/pkg/render"
 )
@@ -30,20 +31,18 @@ import (
 // 1 year — matches the MCP create_agent flow.
 const externalTokenExpiresIn = "8760h"
 
-func runExternalPostCreate(ctx context.Context, opts *CreateOptions, agent *amsvc.AgentResponse, client *amsvc.ClientWithResponses) error {
+// cardOutcome is the "card" field of create's JSON output, present whenever --card-url was given.
+type cardOutcome struct {
+	a2acard.SourceResult
+	Error string `json:"error,omitempty"`
+}
+
+func runExternalPostCreate(ctx context.Context, opts *CreateOptions, agent *amsvc.AgentResponse, client *amsvc.ClientWithResponses, env string, card *cardOutcome) error {
 	oc, err := opts.Observer(ctx)
 	if err != nil {
 		return err
 	}
 	observerURL := oc.URL()
-
-	// The token's environment claim must name a real environment. Resolve the
-	// lowest (entry) environment of the project's deployment pipeline — the same
-	// environment internal agent deploys target first — and send it explicitly.
-	env, err := cmdutil.ResolveEntryEnvironment(ctx, client, opts.Org, opts.Proj)
-	if err != nil {
-		return err
-	}
 
 	expires := externalTokenExpiresIn
 	body := amsvc.TokenRequest{ExpiresIn: &expires}
@@ -61,13 +60,17 @@ func runExternalPostCreate(ctx context.Context, opts *CreateOptions, agent *amsv
 	instructions := buildPythonInstructions(endpoint, tokenResp.JSON200.Token)
 
 	if opts.IO.JSON {
-		return render.JSONSuccess(opts.IO, opts.Scope, map[string]any{
+		data := map[string]any{
 			"agent":                       agent,
 			"token":                       tokenResp.JSON200.Token,
 			"tokenExpiresAt":              tokenResp.JSON200.ExpiresAt,
 			"otelEndpoint":                endpoint,
 			"instrumentationInstructions": instructions,
-		})
+		}
+		if card != nil {
+			data["card"] = card
+		}
+		return render.JSONSuccess(opts.IO, opts.Scope, data)
 	}
 
 	fmt.Fprintln(opts.IO.ErrOut)

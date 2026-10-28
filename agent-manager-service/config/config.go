@@ -16,6 +16,8 @@
 
 package config
 
+import "strings"
+
 // Config holds all configuration for the application
 type Config struct {
 	PackageVersion      string
@@ -133,6 +135,51 @@ type Config struct {
 	// system clients always carry the root OU rather than a specific tenant's OU.
 	RootOUHandle string
 
+	// PlatformAdminOUID is the Thunder OU ID (claims.ouId) of the single
+	// organization allowed to call the cross-organization platform routes —
+	// today only the gateway failure summary. Empty denies every request to
+	// them; there is deliberately no "unset means allow all" reading, because
+	// these routes read every tenant's data and the check below is the only
+	// thing standing in front of them.
+	//
+	// Matched on the OU ID rather than the handle (unlike RootOUHandle above)
+	// because a handle is a renameable, re-claimable label: if an org handle is
+	// ever released and re-registered, a handle-based allowlist would silently
+	// hand platform-admin access to whoever claims it next. The OU ID does not
+	// move.
+	PlatformAdminOUID string
+
+	// GatewayFailureThresholdSeconds is how long a gateway must have been
+	// disconnected (is_active false) before it counts as failed. Configurable
+	// rather than a constant because the SLO differs per deployment shape, and
+	// it is read once per request so a change needs no code release.
+	GatewayFailureThresholdSeconds int
+
+	// GatewayFailureMaxAgeSeconds is the far edge of the failure window: a
+	// disconnected gateway whose last update is older than this is no longer
+	// reported as failed.
+	//
+	// Without an upper bound, a gateway that was decommissioned — or simply
+	// abandoned — counts as a fresh failure forever, and enough of them push the
+	// fleet permanently over its percentage threshold, which makes the whole
+	// signal useless. Must exceed GatewayFailureThresholdSeconds, or the window
+	// is empty and nothing can ever be reported failed.
+	//
+	// In seconds, matching its sibling above rather than being friendlier to read
+	// as days, so the two can be compared directly at startup — and so
+	// mistakenly setting "7" instead of 604800 is caught there rather than
+	// silently narrowing the window to seven seconds.
+	GatewayFailureMaxAgeSeconds int
+
+	// GatewayFailurePercentageThreshold is the share of failed gateways, as a
+	// percentage of the whole fleet, at or above which the fleet is reported
+	// unhealthy — the summary route answers with 503 rather than 200.
+	//
+	// A float, not an int, because a large fleet's SLO lives below one percent:
+	// with whole numbers the strictest expressible threshold is 1%, which is
+	// 4 dead gateways out of 400 before anything is reported wrong.
+	GatewayFailurePercentageThreshold float64
+
 	// TLS Configurations
 	TLSConfig TLSConfig
 
@@ -149,6 +196,23 @@ type Config struct {
 	// cache lives. The default in-memory backend is process-local and therefore
 	// inconsistent across replicas — set Backend to "redis" in HA deployments.
 	GatewayManifestCache GatewayManifestCacheConfig
+
+	// GatewayPublicVhostFallback hands a platform-hosted agent the gateway's
+	// public vhost for its LLM proxy URL when the gateway registered no
+	// in-cluster runtimeUrl. Off by default: on-premises gateways always
+	// register one, and an in-cluster caller sent out through the public
+	// ingress is usually blocked by its NetworkPolicy, so a missing runtimeUrl
+	// fails closed. Deployments whose gateways register only a vhost (WSO2
+	// Cloud) turn it on. GATEWAY_PUBLIC_VHOST_FALLBACK.
+	GatewayPublicVhostFallback bool
+
+	// EvalJobsUsePublicGatewayURL points scheduled evaluation jobs at the LLM
+	// proxy's public gateway vhost instead of the gateway's in-cluster address.
+	// Off by default: on-premises evaluation jobs run in the same cluster as the
+	// gateway, and the public vhost may not be trusted there (self-signed TLS).
+	// Deployments that run evaluation jobs in a separate workflow-plane cluster
+	// (WSO2 Cloud) turn it on. EVAL_JOBS_USE_PUBLIC_GATEWAY_URL.
+	EvalJobsUsePublicGatewayURL bool
 }
 
 // GatewayManifestCacheConfig selects and configures the backend for the
@@ -213,9 +277,12 @@ type SecretManagerConfig struct {
 	// RefreshInterval is how often SecretReference CRs should refresh from the
 	// secret store (default: "1h")
 	RefreshInterval string
-	// AgentIdentityRefreshInterval is the AgentID SecretReference's refresh
-	// cadence (default: "15s"), kept separate from RefreshInterval above so
-	// AgentID's fast rotation-to-pod requirement never depends on it.
+	// AgentIdentityRefreshInterval is how long to wait after rotating an
+	// AgentID credential before rolling the pod (default: "15s"). It must cover
+	// the refresh interval of the workload's secret-env ExternalSecret, which is
+	// what delivers the rotated value to the pod (15s in the agent component
+	// types). Kept separate from RefreshInterval above so AgentID's fast
+	// rotation-to-pod requirement never depends on it.
 	AgentIdentityRefreshInterval string
 }
 
@@ -246,6 +313,14 @@ type OpenChoreoConfig struct {
 	// through app.Options.ResourceLabels. Their keys are treated as system
 	// labels, so they are never surfaced or replaced as user labels.
 	ResourceLabels map[string]string
+	// BuildWorkflowKind is the kind recorded on a new source-built agent's
+	// Component workflow reference: "Workflow" (namespaced, resolves the
+	// WorkflowPlane in the organization's own namespace) or "ClusterWorkflow".
+	// Empty (the default) records no kind, which OpenChoreo and builds.go both
+	// treat as ClusterWorkflow — the single cluster-wide workflow plane every
+	// on-premises install uses. Existing agents keep the kind they were created
+	// with.
+	BuildWorkflowKind string
 }
 
 // GitHubConfig holds GitHub API configuration
@@ -462,10 +537,10 @@ type InternalServerConfig struct {
 // ThunderConfig holds Thunder admin API configuration for provisioning OAuth apps
 type ThunderConfig struct {
 	// BaseURL is the Thunder API base URL (if empty, provisioner uses static defaults).
-	// Must be Thunder's public/issuer URL: it also derives the System resource server
-	// identifier (RFC 8707) admin API tokens are scoped to — see
-	// thundersvc.systemResourceIdentifier. It does NOT need to be directly dialable
-	// from this process; see ResolveToHost below.
+	// Must be Thunder's public/issuer URL. Unless UseDefaultResourceServer is true or
+	// SystemResourceIdentifier overrides it, this also derives the System resource
+	// server identifier (RFC 8707) admin API tokens are scoped to. It does NOT need
+	// to be directly dialable from this process; see ResolveToHost below.
 	BaseURL string
 	// ClientID is the OAuth2 client ID of the system app (with Administrator role)
 	ClientID string
@@ -473,12 +548,37 @@ type ThunderConfig struct {
 	ClientSecret string `json:"-"`
 	// ResolveToHost, if set, is the host:port this process actually dials for every
 	// Thunder request, while requests still carry BaseURL's host as the HTTP Host
-	// header and BaseURL still derives the System resource server identifier. Set
-	// this when BaseURL isn't directly dialable from here — e.g. agent-manager-service
+	// header and BaseURL still identifies the public Thunder instance. Set this when
+	// BaseURL isn't directly dialable from here — e.g. agent-manager-service
 	// running in-cluster while Thunder's public URL only resolves via the host
 	// machine's own DNS/hosts setup (typically the in-cluster Thunder service's own
 	// cluster-DNS address). Leave empty when BaseURL is already directly dialable.
 	ResolveToHost string
+	// UseDefaultResourceServer omits the RFC 8707 resource parameter from system-token
+	// requests, allowing Thunder to resolve the deployment's configured default resource
+	// server. This is intended for deployments such as WSO2 Cloud where the platform
+	// Thunder does not register its own <issuer>/mcp System resource server.
+	UseDefaultResourceServer bool
+	// SystemResourceIdentifier overrides the System resource server identifier used for
+	// administrative token requests. When empty and UseDefaultResourceServer is false,
+	// the identifier defaults to <BaseURL>/mcp for backward compatibility.
+	SystemResourceIdentifier string
+}
+
+// ResolvedSystemResourceIdentifier returns the RFC 8707 resource parameter for
+// platform-Thunder administrative token requests. An empty result deliberately means
+// "omit resource and let Thunder use its configured default resource server".
+func (c ThunderConfig) ResolvedSystemResourceIdentifier() string {
+	if c.UseDefaultResourceServer {
+		return ""
+	}
+	if c.SystemResourceIdentifier != "" {
+		return c.SystemResourceIdentifier
+	}
+	if c.BaseURL == "" {
+		return ""
+	}
+	return strings.TrimRight(c.BaseURL, "/") + "/mcp"
 }
 
 // WebSocketConfig holds WebSocket-specific configuration

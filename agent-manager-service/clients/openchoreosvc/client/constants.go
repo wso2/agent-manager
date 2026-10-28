@@ -168,6 +168,27 @@ const (
 const resourceKindSandboxWarmPool = "SandboxWarmPool"
 
 // -----------------------------------------------------------------------------
+// Component reconcile-blocking condition reasons
+// -----------------------------------------------------------------------------
+
+// componentBlockingReasons are the Ready=False reasons that stop the Component controller before
+// it cuts a new ComponentRelease. While one holds, writes to the Component and Workload are
+// accepted but never reach a pod — the ReleaseBinding keeps rendering the previous snapshot.
+//
+// An allow-list, not "any Ready=False": WorkloadNotFound is the normal pre-build state and
+// Progressing is healthy, so blocking on those would refuse legitimate deploys. Unknown reasons
+// therefore fail open.
+var componentBlockingReasons = map[string]struct{}{
+	"ComponentTypeNotFound":      {},
+	"InvalidConfiguration":       {},
+	"ProjectNotFound":            {},
+	"DeploymentPipelineNotFound": {},
+	"TraitNotFound":              {},
+	"WorkflowNotFound":           {},
+	"WorkflowNotAllowed":         {},
+}
+
+// -----------------------------------------------------------------------------
 // OpenChoreo binding status values
 // -----------------------------------------------------------------------------
 

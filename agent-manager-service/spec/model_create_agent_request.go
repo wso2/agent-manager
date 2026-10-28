@@ -22,8 +22,9 @@ type CreateAgentRequest struct {
 	// Unique name of the agent
 	Name string `json:"name"`
 	// Display name of the agent
-	DisplayName  string       `json:"displayName"`
-	Provisioning Provisioning `json:"provisioning"`
+	DisplayName  string           `json:"displayName"`
+	Provisioning Provisioning     `json:"provisioning"`
+	GithubApp    *GitHubAppSource `json:"githubApp,omitempty"`
 	// Description of the agent
 	Description    *string         `json:"description,omitempty"`
 	AgentType      *AgentType      `json:"agentType,omitempty"`
@@ -32,7 +33,7 @@ type CreateAgentRequest struct {
 	InputInterface *InputInterface `json:"inputInterface,omitempty"`
 	// Optional LLM configurations to create atomically with the agent. Applied to the component's initial (lowest) environment. Name and type are auto-generated.
 	ModelConfig []ModelConfigRequest `json:"modelConfig,omitempty"`
-	// Optional MCP proxy configurations to create atomically with the agent. Applied to the component's initial (lowest) environment. Name and type are auto-generated.
+	// Optional MCP proxy configurations to create atomically with the agent. Applied to every environment in the project's deployment pipeline, so the agent can be promoted without reconfiguring each one. Name and type are auto-generated.
 	McpConfig []MCPConfigRequest `json:"mcpConfig,omitempty"`
 	// User-defined key/value labels. Keys are 1-63 characters of [a-zA-Z0-9._-] starting and ending alphanumeric (not enforceable here as an OpenAPI 3.0 property-name pattern — validated server-side); values follow the same rules but may be empty. At most 10 labels per resource.
 	Labels *map[string]string `json:"labels,omitempty"`
@@ -128,6 +129,38 @@ func (o *CreateAgentRequest) GetProvisioningOk() (*Provisioning, bool) {
 // SetProvisioning sets field value
 func (o *CreateAgentRequest) SetProvisioning(v Provisioning) {
 	o.Provisioning = v
+}
+
+// GetGithubApp returns the GithubApp field value if set, zero value otherwise.
+func (o *CreateAgentRequest) GetGithubApp() GitHubAppSource {
+	if o == nil || IsNil(o.GithubApp) {
+		var ret GitHubAppSource
+		return ret
+	}
+	return *o.GithubApp
+}
+
+// GetGithubAppOk returns a tuple with the GithubApp field value if set, nil otherwise
+// and a boolean to check if the value has been set.
+func (o *CreateAgentRequest) GetGithubAppOk() (*GitHubAppSource, bool) {
+	if o == nil || IsNil(o.GithubApp) {
+		return nil, false
+	}
+	return o.GithubApp, true
+}
+
+// HasGithubApp returns a boolean if a field has been set.
+func (o *CreateAgentRequest) HasGithubApp() bool {
+	if o != nil && !IsNil(o.GithubApp) {
+		return true
+	}
+
+	return false
+}
+
+// SetGithubApp gets a reference to the given GitHubAppSource and assigns it to the GithubApp field.
+func (o *CreateAgentRequest) SetGithubApp(v GitHubAppSource) {
+	o.GithubApp = &v
 }
 
 // GetDescription returns the Description field value if set, zero value otherwise.
@@ -399,6 +432,9 @@ func (o CreateAgentRequest) ToMap() (map[string]interface{}, error) {
 	toSerialize["name"] = o.Name
 	toSerialize["displayName"] = o.DisplayName
 	toSerialize["provisioning"] = o.Provisioning
+	if !IsNil(o.GithubApp) {
+		toSerialize["githubApp"] = o.GithubApp
+	}
 	if !IsNil(o.Description) {
 		toSerialize["description"] = o.Description
 	}

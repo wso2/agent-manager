@@ -29,7 +29,9 @@ spec:
           namespace: {{ .Values.apiGateway.namespace }}
           port: 22893
       timeouts:
-        request: 30s
+        # A2A streams and long LLM/MCP responses outlive any fixed cap; "0s" disables the
+        # request timeout, and the gateway's own 5m idle timeout stays as the liveness guard.
+        request: 0s
 {{- if ne .Values.apiGateway.namespace .Values.kgateway.namespace }}
 ---
 # ReferenceGrant: Gateway API blocks cross-namespace backendRefs unless the

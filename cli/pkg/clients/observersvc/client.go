@@ -38,6 +38,7 @@ type Client struct {
 
 type Option func(*Client)
 
+// WithHTTPClient sets the HTTP client the Client uses.
 func WithHTTPClient(h *http.Client) Option {
 	return func(c *Client) {
 		if h != nil {
@@ -46,10 +47,12 @@ func WithHTTPClient(h *http.Client) Option {
 	}
 }
 
+// WithRequestEditor adds fn to edit each request before it's sent.
 func WithRequestEditor(fn RequestEditorFn) Option {
 	return func(c *Client) { c.editor = fn }
 }
 
+// NewClient returns a Client for the observer at baseURL.
 func NewClient(baseURL string, opts ...Option) (*Client, error) {
 	if baseURL == "" {
 		return nil, fmt.Errorf("observersvc: baseURL is required")
@@ -64,8 +67,10 @@ func NewClient(baseURL string, opts ...Option) (*Client, error) {
 	return c, nil
 }
 
+// URL returns the observer's base URL.
 func (c *Client) URL() string { return c.baseURL }
 
+// do sends a request and decodes the JSON response into out.
 func (c *Client) do(ctx context.Context, method, path string, q url.Values, out any) error {
 	u := c.baseURL + path
 	if len(q) > 0 {
@@ -141,6 +146,18 @@ func setCommonParams(q url.Values, p *ListTracesParams) {
 	if p.ConversationID != "" {
 		q.Set("conversationId", p.ConversationID)
 	}
+	if len(p.Missing) > 0 {
+		q.Set("missing", strings.Join(p.Missing, ","))
+	}
+	if p.Tool != "" {
+		q.Set("tool", p.Tool)
+	}
+	if p.ToolError {
+		q.Set("toolError", "true")
+	}
+	if p.MCPServer != "" {
+		q.Set("mcpServer", p.MCPServer)
+	}
 }
 
 // setOptionalInt64 sets key only when val is non-nil.
@@ -150,6 +167,7 @@ func setOptionalInt64(q url.Values, key string, val *int64) {
 	}
 }
 
+// setTimeRange sets startTime and endTime on q when they're set.
 func setTimeRange(q url.Values, start, end time.Time) {
 	if !start.IsZero() {
 		q.Set("startTime", start.Format(time.RFC3339))
@@ -159,11 +177,15 @@ func setTimeRange(q url.Values, start, end time.Time) {
 	}
 }
 
+// ListTraces lists trace overviews for p.
 func (c *Client) ListTraces(ctx context.Context, p *ListTracesParams) (*TraceOverviewResponse, error) {
 	q := url.Values{}
 	setCommonParams(q, p)
-	if p.IncludeModels {
-		q.Set("include", "models")
+	if include := includeValues(p); len(include) > 0 {
+		q.Set("include", strings.Join(include, ","))
+	}
+	if p.Cursor != "" {
+		q.Set("cursor", p.Cursor)
 	}
 	var out TraceOverviewResponse
 	if err := c.do(ctx, http.MethodGet, "/api/v1/traces", q, &out); err != nil {
@@ -172,6 +194,22 @@ func (c *Client) ListTraces(ctx context.Context, p *ListTracesParams) (*TraceOve
 	return &out, nil
 }
 
+// includeValues lists the include values p asks for.
+func includeValues(p *ListTracesParams) []string {
+	var include []string
+	if p.IncludeModels {
+		include = append(include, "models")
+	}
+	if p.IncludeTools {
+		include = append(include, "tools")
+	}
+	if p.IncludeMCPServers {
+		include = append(include, "mcpServers")
+	}
+	return include
+}
+
+// ExportTraces exports full traces for p.
 func (c *Client) ExportTraces(ctx context.Context, p *ExportTracesParams) (*TraceExportResponse, error) {
 	q := url.Values{}
 	setCommonParams(q, p)
@@ -182,6 +220,7 @@ func (c *Client) ExportTraces(ctx context.Context, p *ExportTracesParams) (*Trac
 	return &out, nil
 }
 
+// GetTraceSpans lists a trace's spans.
 func (c *Client) GetTraceSpans(ctx context.Context, traceID string, p *GetTraceSpansParams) (*SpanListResponse, error) {
 	q := url.Values{}
 	if p.Organization != "" {
@@ -202,6 +241,7 @@ func (c *Client) GetTraceSpans(ctx context.Context, traceID string, p *GetTraceS
 	return &out, nil
 }
 
+// GetSpanDetail returns one span of a trace.
 func (c *Client) GetSpanDetail(ctx context.Context, traceID, spanID string) (*Span, error) {
 	var out Span
 	path := "/api/v1/traces/" + url.PathEscape(traceID) + "/spans/" + url.PathEscape(spanID)
@@ -211,12 +251,14 @@ func (c *Client) GetSpanDetail(ctx context.Context, traceID, spanID string) (*Sp
 	return &out, nil
 }
 
+// setOptionalString sets key on q when val is set.
 func setOptionalString(q url.Values, key string, val *string) {
 	if val != nil && *val != "" {
 		q.Set(key, *val)
 	}
 }
 
+// GetRuntimeLogs returns an agent's runtime logs.
 func (c *Client) GetRuntimeLogs(ctx context.Context, p RuntimeLogsParams) (*LogsResponse, error) {
 	q := url.Values{}
 	q.Set("organization", p.Organization)
@@ -248,6 +290,7 @@ func (c *Client) GetRuntimeLogs(ctx context.Context, p RuntimeLogsParams) (*Logs
 	return &out, nil
 }
 
+// GetBuildLogs returns a build's logs.
 func (c *Client) GetBuildLogs(ctx context.Context, p BuildLogsParams) (*LogsResponse, error) {
 	q := url.Values{}
 	q.Set("organization", p.Organization)
@@ -259,6 +302,7 @@ func (c *Client) GetBuildLogs(ctx context.Context, p BuildLogsParams) (*LogsResp
 	return &out, nil
 }
 
+// GetMetrics returns an agent's resource metrics.
 func (c *Client) GetMetrics(ctx context.Context, p MetricsParams) (*MetricsResponse, error) {
 	q := url.Values{}
 	q.Set("organization", p.Organization)

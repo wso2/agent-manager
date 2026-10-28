@@ -26,7 +26,7 @@
     "@thunderid/react": "1.0.6",
     "@agent-management-platform/eslint-config": "workspace:*",
     "date-fns": "4.1.0",
-    "zod": "4.3.6"
+    "zod": "4.6.7"
   }
 }
 

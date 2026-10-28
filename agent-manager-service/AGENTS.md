@@ -58,7 +58,9 @@ rr.HandleFuncWithValidationAndAuthz(
     "GET /orgs/{orgName}/projects/{projName}/agents", rbac.AgentRead, ctrl.ListAgents)
 ```
 
-`HandleFuncWithValidationAndAuthz` composes: path-param validation → `RequirePermission` (token scope via `jwtassertion.HasAllScopes`) → `RequireOrgMatch` (when the path has `{orgName}`). Variants: `...AndAnyAuthz` (any-of), `RequireDynamicPermission` (permission depends on the request).
+`HandleFuncWithValidationAndAuthz` composes: path-param validation → `RequirePermission` (token scope via `jwtassertion.HasAllScopes`) → `RequireOrgMatch` (when the path has `{orgName}`). Variants: `...AndAnyAuthz` (any-of), `RequireDynamicPermission` (permission depends on the request), `...AndPlatformAdminAuthz` (see below).
+
+**The one non-org-scoped surface: `/platform/...`.** Every other route in the table takes its org from the token. Routes under `/platform` read across *all* organizations with no `ou_id` predicate, and are registered with `HandleFuncWithValidationAndPlatformAdminAuthz`, which panics at startup on a pattern containing `{orgName}`. They are guarded by `middleware.RequirePlatformAdminOU` — a check on `claims.OuId` against `config.PlatformAdminOUID` (`PLATFORM_ADMIN_OU_ID`) that is **unconditional and fail-closed**, because the permission such a route declares (`gateway:read`) is an ordinary org-level grant every tenant's admin holds, so its scope check — which always runs — cannot separate tenants. Handlers on these routes must also call `middleware.IsPlatformAdminRequest(ctx)` and refuse when false, so a route re-registered through the ordinary registrar fails closed instead of leaking cross-tenant data. Currently one route: `GET /platform/gateways/failure-summary`.
 
 Rules:
 

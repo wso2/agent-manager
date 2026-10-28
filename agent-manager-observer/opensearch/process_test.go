@@ -384,6 +384,27 @@ func TestDetermineSpanType(t *testing.T) {
 			expected: SpanTypeAgent,
 		},
 		{
+			name: "OpenClaw harness run with only openclaw attributes",
+			span: Span{
+				Name: "openclaw.harness.run",
+				Attributes: map[string]interface{}{
+					"openclaw.agent":    "main",
+					"openclaw.provider": "openai",
+				},
+			},
+			expected: SpanTypeAgent,
+		},
+		{
+			name: "OpenClaw context assembled with trailing whitespace",
+			span: Span{
+				Name: "openclaw.context.assembled ",
+				Attributes: map[string]interface{}{
+					"openclaw.agent": "main",
+				},
+			},
+			expected: SpanTypeChain,
+		},
+		{
 			name: "unknown span type",
 			span: Span{
 				Name: "some-operation",
@@ -1775,6 +1796,14 @@ func TestDetermineSpanKindFromName(t *testing.T) {
 		{"Traceloop openai.chat", "openai.chat", SpanTypeLLM},
 		{"Traceloop openai.embeddings", "openai.embeddings", SpanTypeEmbedding},
 		{"Traceloop LangGraph.workflow", "LangGraph.workflow", SpanTypeChain},
+		{"OpenClaw harness run", "openclaw.harness.run", SpanTypeAgent},
+		{"OpenClaw run", "openclaw.run", SpanTypeAgent},
+		{"OpenClaw run with whitespace", " openclaw.run ", SpanTypeAgent},
+		{"OpenClaw model usage", "openclaw.model.usage", SpanTypeLLM},
+		{"OpenClaw model call", "openclaw.model.call", SpanTypeLLM},
+		{"OpenClaw tool execution", "openclaw.tool.execution", SpanTypeTool},
+		{"OpenClaw context assembled", "openclaw.context.assembled", SpanTypeChain},
+		{"OpenClaw gateway rpc stays unknown", "openclaw.gateway.rpc.handler", SpanTypeUnknown},
 		{"unknown", "some random span", SpanTypeUnknown},
 		{"empty", "", SpanTypeUnknown},
 	}

@@ -44,6 +44,7 @@ import {
 } from "@agent-management-platform/api-client";
 import {
   absoluteRouteMap,
+  isAgentIdentityEnabled,
   type GatewayResponse,
   type GatewayStatus,
 } from "@agent-management-platform/types";
@@ -94,8 +95,12 @@ export function EnvironmentViewPage() {
 
   const gateways = gatewaysData?.gateways ?? [];
 
+  // Thunder Id is part of the Agent ID feature set; skip the fetch entirely when
+  // the flag is off so the hidden section costs nothing.
+  const agentIdEnabled = isAgentIdentityEnabled();
+
   const { data: thunderInstancesData, isLoading: isLoadingProviders } =
-    useListThunderInstances({ orgName: orgId });
+    useListThunderInstances({ orgName: agentIdEnabled ? orgId : undefined });
   const thunderInstance = thunderInstancesData?.thunderInstances.find(
     (i) => i.envName === envName,
   );
@@ -278,6 +283,7 @@ export function EnvironmentViewPage() {
             )}
           </Stack>
 
+          {agentIdEnabled && (
           <Stack spacing={1.5}>
             <Typography variant="overline" color="text.secondary">
               Identity Providers
@@ -369,6 +375,7 @@ export function EnvironmentViewPage() {
               </ListingTable.Container>
             )}
           </Stack>
+          )}
         </Stack>
       )}
     </PageLayout>

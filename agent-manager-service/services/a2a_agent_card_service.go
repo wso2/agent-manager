@@ -47,18 +47,20 @@ type A2AAgentCardService interface {
 }
 
 type a2aAgentCardService struct {
-	ocClient client.OpenChoreoClient
-	cardRepo repositories.A2AAgentCardRepository
-	logger   *slog.Logger
+	ocClient   client.OpenChoreoClient
+	cardRepo   repositories.A2AAgentCardRepository
+	proxyHooks A2AProxyHooks
+	logger     *slog.Logger
 }
 
 // NewA2AAgentCardService creates an A2AAgentCardService.
 func NewA2AAgentCardService(
 	ocClient client.OpenChoreoClient,
 	cardRepo repositories.A2AAgentCardRepository,
+	proxyHooks A2AProxyHooks,
 	logger *slog.Logger,
 ) A2AAgentCardService {
-	return &a2aAgentCardService{ocClient: ocClient, cardRepo: cardRepo, logger: logger}
+	return &a2aAgentCardService{ocClient: ocClient, cardRepo: cardRepo, proxyHooks: proxyHooks, logger: logger}
 }
 
 func (s *a2aAgentCardService) GetA2AAgentCard(
@@ -72,7 +74,7 @@ func (s *a2aAgentCardService) GetA2AAgentCard(
 	if !errors.Is(err, repositories.ErrA2AAgentCardNotFound) {
 		return nil, fmt.Errorf("failed to read agent card: %w", err)
 	}
-	if _, err := s.getAgent(ctx, ouID, projectName, agentName); err != nil {
+	if _, err := getAgent(ctx, s.ocClient, ouID, projectName, agentName); err != nil {
 		return nil, err
 	}
 	// No row means no fetch is queued; a synthetic pending would never resolve.
@@ -82,7 +84,7 @@ func (s *a2aAgentCardService) GetA2AAgentCard(
 func (s *a2aAgentCardService) RefreshA2AAgentCard(
 	ctx context.Context, ouID, projectName, agentName, envName string,
 ) error {
-	agent, err := s.getA2AAgent(ctx, ouID, projectName, agentName)
+	agent, err := getA2AAgent(ctx, s.ocClient, ouID, projectName, agentName)
 	if err != nil {
 		return err
 	}
@@ -94,16 +96,10 @@ func (s *a2aAgentCardService) RefreshA2AAgentCard(
 		if err := s.requireDeployed(ctx, ouID, agent.Name, envName); err != nil {
 			return err
 		}
-		return s.enqueue(ctx, agent, ouID, projectName, env, models.A2AAgentCardSourcePlatform, "")
+		return s.enqueuePlatform(ctx, agent, ouID, projectName, env)
 	}
-	// Update-only, so a concurrent remove can't be undone by an upsert.
-	if err := s.cardRepo.Requeue(ctx, ouID, projectName, agentName, envName); err != nil {
-		if errors.Is(err, repositories.ErrA2AAgentCardNotFound) {
-			return utils.ErrAgentCardNotFound
-		}
-		return fmt.Errorf("failed to queue agent card fetch: %w", err)
-	}
-	return s.dropIfAgentGone(ctx, agent, ouID, projectName, envName)
+	// A plain requeue would un-park a proxied card before the gateway has the republished Agent.
+	return s.proxyHooks.RefreshCardSource(ctx, agent, ouID, projectName, env)
 }
 
 // requireDeployed refuses a platform fetch the card worker could only wait out and fail.
@@ -121,7 +117,7 @@ func (s *a2aAgentCardService) requireDeployed(ctx context.Context, ouID, agentNa
 func (s *a2aAgentCardService) SetA2ACardSource(
 	ctx context.Context, ouID, projectName, agentName, envName, sourceURL string,
 ) error {
-	agent, err := s.getExternalA2AAgent(ctx, ouID, projectName, agentName)
+	agent, err := getExternalA2AAgent(ctx, s.ocClient, ouID, projectName, agentName, utils.ErrAgentCardSourceNotExternal)
 	if err != nil {
 		return err
 	}
@@ -133,7 +129,7 @@ func (s *a2aAgentCardService) SetA2ACardSource(
 	if err := validateCardSourceURL(ctx, sourceURL); err != nil {
 		return err
 	}
-	err = s.enqueue(ctx, agent, ouID, projectName, env, models.A2AAgentCardSourceExternal, sourceURL)
+	err = s.proxyHooks.StoreCardSource(ctx, agent, ouID, projectName, env, sourceURL)
 	recordCardSourceChange(ctx, audit.ActionAgentSetCardSource, agent, ouID, projectName, envName, err,
 		audit.Detail("sourceUrl", sourceURL))
 	return err
@@ -142,17 +138,15 @@ func (s *a2aAgentCardService) SetA2ACardSource(
 func (s *a2aAgentCardService) DeleteA2ACardSource(
 	ctx context.Context, ouID, projectName, agentName, envName string,
 ) error {
-	agent, err := s.getExternalA2AAgent(ctx, ouID, projectName, agentName)
+	agent, err := getExternalA2AAgent(ctx, s.ocClient, ouID, projectName, agentName, utils.ErrAgentCardSourceNotExternal)
 	if err != nil {
 		return err
 	}
-	if _, err := requireEnvironmentTier(ctx, s.ocClient, s.logger, ouID, envName); err != nil {
+	env, err := requireEnvironmentTier(ctx, s.ocClient, s.logger, ouID, envName)
+	if err != nil {
 		return err
 	}
-	err = s.cardRepo.DeleteForAgentEnv(ctx, ouID, projectName, agentName, envName)
-	if err != nil {
-		err = fmt.Errorf("failed to delete agent card: %w", err)
-	}
+	err = s.proxyHooks.RemoveCardSource(ctx, agent, ouID, projectName, env)
 	recordCardSourceChange(ctx, audit.ActionAgentRemoveCardSource, agent, ouID, projectName, envName, err)
 	return err
 }
@@ -173,9 +167,9 @@ func recordCardSourceChange(
 	audit.Record(ctx, action, opts...)
 }
 
-func (s *a2aAgentCardService) enqueue(
+// enqueuePlatform queues a fetch of a platform agent's card; external sources go through the proxy hooks.
+func (s *a2aAgentCardService) enqueuePlatform(
 	ctx context.Context, agent *models.AgentResponse, ouID, projectName string, env *models.EnvironmentResponse,
-	source models.A2AAgentCardSource, sourceURL string,
 ) error {
 	envUUID, err := uuid.Parse(env.UUID)
 	if err != nil {
@@ -187,8 +181,7 @@ func (s *a2aAgentCardService) enqueue(
 		AgentName:       agent.Name,
 		EnvironmentName: env.Name,
 		EnvironmentUUID: envUUID,
-		Source:          source,
-		SourceURL:       sourceURL,
+		Source:          models.A2AAgentCardSourcePlatform,
 	}
 	if err := s.cardRepo.Enqueue(ctx, card); err != nil {
 		return fmt.Errorf("failed to queue agent card fetch: %w", err)
@@ -200,13 +193,9 @@ func (s *a2aAgentCardService) enqueue(
 func (s *a2aAgentCardService) dropIfAgentGone(
 	ctx context.Context, agent *models.AgentResponse, ouID, projectName, envName string,
 ) error {
-	current, err := s.getAgent(ctx, ouID, projectName, agent.Name)
-	switch {
-	case errors.Is(err, utils.ErrAgentNotFound):
-	case err != nil:
+	gone, err := agentGoneOrReplaced(ctx, s.ocClient, ouID, projectName, agent.Name, agent.UUID)
+	if err != nil || !gone {
 		return err
-	case current.UUID == agent.UUID:
-		return nil
 	}
 	if err := s.cardRepo.DeleteForAgentEnv(ctx, ouID, projectName, agent.Name, envName); err != nil {
 		return fmt.Errorf("failed to drop agent card of a deleted agent: %w", err)
@@ -214,20 +203,18 @@ func (s *a2aAgentCardService) dropIfAgentGone(
 	return utils.ErrAgentNotFound
 }
 
-func (s *a2aAgentCardService) getAgent(
-	ctx context.Context, ouID, projectName, agentName string,
-) (*models.AgentResponse, error) {
-	agent, err := s.ocClient.GetComponent(ctx, ouID, projectName, agentName)
+// getAgent reads the agent from OpenChoreo, reporting a miss as utils.ErrAgentNotFound.
+func getAgent(ctx context.Context, oc client.OpenChoreoClient, ouID, projectName, agentName string) (*models.AgentResponse, error) {
+	agent, err := oc.GetComponent(ctx, ouID, projectName, agentName)
 	if err != nil {
 		return nil, translateAgentError(err)
 	}
 	return agent, nil
 }
 
-func (s *a2aAgentCardService) getA2AAgent(
-	ctx context.Context, ouID, projectName, agentName string,
-) (*models.AgentResponse, error) {
-	agent, err := s.getAgent(ctx, ouID, projectName, agentName)
+// getA2AAgent is getAgent refusing a non-A2A agent with utils.ErrAgentNotA2A.
+func getA2AAgent(ctx context.Context, oc client.OpenChoreoClient, ouID, projectName, agentName string) (*models.AgentResponse, error) {
+	agent, err := getAgent(ctx, oc, ouID, projectName, agentName)
 	if err != nil {
 		return nil, err
 	}
@@ -237,17 +224,30 @@ func (s *a2aAgentCardService) getA2AAgent(
 	return agent, nil
 }
 
-func (s *a2aAgentCardService) getExternalA2AAgent(
-	ctx context.Context, ouID, projectName, agentName string,
+// getExternalA2AAgent is getA2AAgent refusing a platform-provisioned agent with notExternalErr.
+func getExternalA2AAgent(
+	ctx context.Context, oc client.OpenChoreoClient, ouID, projectName, agentName string, notExternalErr error,
 ) (*models.AgentResponse, error) {
-	agent, err := s.getA2AAgent(ctx, ouID, projectName, agentName)
+	agent, err := getA2AAgent(ctx, oc, ouID, projectName, agentName)
 	if err != nil {
 		return nil, err
 	}
 	if !isExternalProvisioned(agent) {
-		return nil, utils.ErrAgentCardSourceNotExternal
+		return nil, notExternalErr
 	}
 	return agent, nil
+}
+
+// agentGoneOrReplaced is true when the agent read as agentUUID was since deleted or its name reused.
+func agentGoneOrReplaced(ctx context.Context, oc client.OpenChoreoClient, ouID, projectName, agentName, agentUUID string) (bool, error) {
+	current, err := getAgent(ctx, oc, ouID, projectName, agentName)
+	switch {
+	case errors.Is(err, utils.ErrAgentNotFound):
+		return true, nil
+	case err != nil:
+		return false, err
+	}
+	return current.UUID != agentUUID, nil
 }
 
 func isExternalProvisioned(agent *models.AgentResponse) bool {

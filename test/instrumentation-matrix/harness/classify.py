@@ -29,6 +29,16 @@ _KINDS = {
 # and types.go: SpanTypeChain = "Generic tasks/workflows").
 _TRACELOOP_CHAIN_KINDS = {"workflow", "task"}
 
+# Mirrors openClawSpanKinds in opensearch/process.go.
+_OPENCLAW_SPAN_KINDS = {
+    "openclaw.harness.run": "agent",
+    "openclaw.run": "agent",
+    "openclaw.model.usage": "llm",
+    "openclaw.model.call": "llm",
+    "openclaw.tool.execution": "tool",
+    "openclaw.context.assembled": "chain",
+}
+
 
 def classify_span(span: dict[str, Any]) -> str:
     attrs = span.get("attributes", {}) or {}
@@ -79,10 +89,11 @@ def classify_span(span: dict[str, Any]) -> str:
 
     # Strands names its reasoning-cycle spans this way. The Observer has the
     # same name fallback in opensearch/process.go.
-    if (span.get("name") or "").lower().startswith("execute_event_loop_cycle"):
+    name = (span.get("name") or "").lower()
+    if name.startswith("execute_event_loop_cycle"):
         return "chain"
 
-    return "unknown"
+    return _OPENCLAW_SPAN_KINDS.get(name.strip(), "unknown")
 
 
 # OTel GenAI semconv lets a tool call ride on the assistant LLM span as an

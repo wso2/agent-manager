@@ -24,6 +24,7 @@ import (
 	"github.com/spf13/cobra"
 
 	amsvc "github.com/wso2/agent-manager/cli/pkg/clients/amsvc/gen"
+	"github.com/wso2/agent-manager/cli/pkg/cmd/agent/a2acard"
 	"github.com/wso2/agent-manager/cli/pkg/cmdutil"
 )
 
@@ -39,6 +40,7 @@ var contentFlags = []string{
 	"port", "base-path", "openapi-spec", "no-auto-instrumentation",
 	"env", "env-secret", "env-from-secret",
 	"llm-provider", "llm-url-env", "llm-api-key-env",
+	"card-url", "proxy",
 }
 
 // changedContentFlags uses Changed (not zero-value checks) because --port
@@ -93,11 +95,29 @@ func validateFileMode(cmd *cobra.Command, args []string) error {
 // violations are aggregated into a single error.
 func prepare(opts *CreateOptions) (amsvc.CreateAgentRequest, error) {
 	req, v := Build(opts)
+	v = append(v, validateCardFlags(opts)...)
 	v = append(v, validateRequest(req)...)
 	if len(v) > 0 {
 		return req, cmdutil.FlagErrorsHeader("invalid agent spec", v)
 	}
 	return req, nil
+}
+
+// validateCardFlags reports --card-url/--proxy misuse in flag mode.
+func validateCardFlags(opts *CreateOptions) []string {
+	var v []string
+	if opts.CardURL != "" && (opts.Provisioning != provisioningExternal || opts.SubType != subTypeA2A) {
+		v = append(v, "--card-url requires --provisioning external and --subtype a2a-agent")
+	}
+	if opts.CardProxy && opts.CardURL == "" {
+		v = append(v, "--proxy requires --card-url")
+	}
+	if opts.CardProxy && opts.CardURL != "" {
+		if err := a2acard.CheckProxyableURL("--card-url", opts.CardURL); err != nil {
+			v = append(v, err.Error())
+		}
+	}
+	return v
 }
 
 // validateRequest is the shared semantic rule set for both flag mode and file

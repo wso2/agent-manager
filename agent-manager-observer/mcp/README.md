@@ -50,8 +50,8 @@ JWT middleware, which means every tool call goes through the standard OAuth
 
 | Tool | Purpose |
 | --- | --- |
-| `list_traces` | Summary view of recent traces for an agent within a time window, with optional server-side filters and cursor paging |
-| `get_traces` | Traces for an agent including full span details within a time window, with optional server-side filters |
+| `list_traces` | Summary view of recent traces for an agent within a time window, with optional server-side filters and cursor paging. `missing: ["conversation_id"]` keeps traces without a conversation ID |
+| `get_traces` | Traces for an agent including full span details within a time window, with the same server-side filters as `list_traces` |
 | `get_trace_details` | Metadata plus span list for one trace |
 | `get_span_details` | Execution details for a single span (LLM call, tool invocation, retriever lookup, …) |
 

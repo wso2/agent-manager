@@ -36,11 +36,45 @@ import (
 	"github.com/wso2/agent-manager/agent-manager-service/utils"
 )
 
+// withRunEnvVars returns params with envVars appended to its environmentVariables, replacing
+// any entry with the same name. The component's map is copied rather than modified, so the
+// extra vars reach only this WorkflowRun.
+func withRunEnvVars(params map[string]interface{}, envVars []EnvVar) map[string]interface{} {
+	if len(envVars) == 0 {
+		return params
+	}
+	runKeys := make(map[string]bool, len(envVars))
+	for _, ev := range envVars {
+		runKeys[ev.Key] = true
+	}
+	merged := make([]interface{}, 0)
+	if existing, ok := params[workflowParamEnvironmentVariables].([]interface{}); ok {
+		for _, item := range existing {
+			if m, ok := item.(map[string]interface{}); ok {
+				if name, _ := m["name"].(string); runKeys[name] {
+					continue
+				}
+			}
+			merged = append(merged, item)
+		}
+	}
+	for _, env := range buildEnvironmentVariables(CreateComponentRequest{Configurations: &Configurations{Env: envVars}}) {
+		merged = append(merged, env)
+	}
+
+	out := make(map[string]interface{}, len(params)+1)
+	for k, v := range params {
+		out[k] = v
+	}
+	out[workflowParamEnvironmentVariables] = merged
+	return out
+}
+
 // workflowRunWorkloadAnnotationKey is set by AMP's generate-workload workflow on successful runs
 // to the JSON workload object (including spec.container.image).
 const workflowRunWorkloadAnnotationKey = "openchoreo.dev/workload"
 
-func (c *openChoreoClient) TriggerBuild(ctx context.Context, ouID, projectName, componentName, commitID string) (*models.BuildResponse, error) {
+func (c *openChoreoClient) TriggerBuild(ctx context.Context, ouID, projectName, componentName, commitID, workflowRunName string, runEnvVars []EnvVar) (*models.BuildResponse, error) {
 	namespaceName := c.NamespaceFor(ouID)
 	// Get the component to find its workflow configuration
 	compResp, err := c.ocClient.GetComponentWithResponse(ctx, namespaceName, componentName)
@@ -89,9 +123,13 @@ func (c *openChoreoClient) TriggerBuild(ctx context.Context, ouID, projectName, 
 			}
 		}
 	}
+	params = withRunEnvVars(params, runEnvVars)
 
-	// Generate a unique name for the workflow run using timestamp
-	workflowRunName := fmt.Sprintf("%s-%d", componentName, time.Now().UnixMilli())
+	// Preserve the open-source behavior when no deployment-specific name is supplied.
+	if workflowRunName == "" {
+		workflowRunName = fmt.Sprintf("%s-%d", componentName, time.Now().UnixMilli())
+	}
+
 	apiReq := gen.CreateWorkflowRunJSONRequestBody{
 		Metadata: gen.ObjectMeta{
 			Name:      workflowRunName,

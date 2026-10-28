@@ -117,6 +117,27 @@ describe("useUnsavedChangesGuard", () => {
     expect(confirmations).toHaveLength(1);
   });
 
+  it("Leave replays the navigation under a base path without doubling it", () => {
+    const config = (window as unknown as { __RUNTIME_CONFIG__: { basePath?: string } })
+      .__RUNTIME_CONFIG__;
+    config.basePath = "/console";
+    try {
+      window.history.replaceState(null, "", "/console/form");
+      render(
+        <BrowserRouter basename="/console">
+          <Harness dirty />
+        </BrowserRouter>,
+      );
+      act(() => api.navigate("/other"));
+      expect(window.location.pathname).toBe("/console/form");
+      act(() => lastDialog().onConfirm());
+      expect(currentPath()).toBe("/other");
+      expect(window.location.pathname).toBe("/console/other");
+    } finally {
+      config.basePath = undefined;
+    }
+  });
+
   it("allowNavigation bypasses the guard for deliberate exits", () => {
     renderAt("/form", true);
     act(() => api.allowNavigation(() => api.navigate("/saved")));

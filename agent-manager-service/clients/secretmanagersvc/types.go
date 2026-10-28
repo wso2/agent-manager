@@ -34,6 +34,12 @@ var ErrMetadataNotFound = errors.New("secret metadata not found")
 // ErrNotSupported is returned when an operation is not supported by the provider.
 var ErrNotSupported = errors.New("operation not supported by this provider")
 
+// ErrReferenceNameTaken is returned when a secret cannot be created because its
+// SecretReference name is already taken by a reference the secret API cannot see
+// or update — one created outside this client, directly as a SecretReference.
+// The caller can delete that reference and create the secret again.
+var ErrReferenceNameTaken = errors.New("secret reference name is taken by a reference this client cannot manage")
+
 // SecretMetadata contains metadata for a secret.
 type SecretMetadata struct {
 	// ManagedBy identifies who manages this secret.

@@ -95,6 +95,10 @@ const (
 	ActionAgentSetCardSource    Action = "agent:set-card-source"
 	ActionAgentRemoveCardSource Action = "agent:remove-card-source"
 
+	// A2A proxy (external A2A agents published through the ingress gateway).
+	ActionAgentSetA2AProxy    Action = "agent:set-a2a-proxy"
+	ActionAgentRemoveA2AProxy Action = "agent:remove-a2a-proxy"
+
 	// Platform: gateways and their trust configuration.
 	ActionGatewayCreate                 Action = "gateway:create"
 	ActionGatewayUpdate                 Action = "gateway:update"
@@ -398,6 +402,14 @@ func init() {
 	RegisterDetailSchema(ActionAgentRemoveCardSource, map[string]FieldKind{
 		"agentName": KindName,
 	})
+	// A proxy holds the credential the gateway sends upstream: setting or dropping it is a credential change.
+	a2aProxyFields := map[string]FieldKind{
+		"agentName":           KindName,
+		"upstreamAuthHeader":  KindName,
+		"upstreamAuthChanged": KindFlag,
+	}
+	registerCredential(ActionAgentSetA2AProxy, a2aProxyFields)
+	registerCredential(ActionAgentRemoveA2AProxy, a2aProxyFields)
 	Register(ActionAgentConfigDelete, ClassConfig, SeverityNotice)
 	RegisterDetailSchema(ActionAgentConfigDelete, map[string]FieldKind{
 		"configName":       KindName,

@@ -26,23 +26,38 @@ export function useOpenApiSpec(
 ): {
   text: string;
   setText: (value: string) => void;
+  /** True when `text` differs from the spec as loaded (or last marked saved). */
+  isModified: boolean;
+  /** Treat the current `text` as the unmodified baseline (e.g. after a save). */
+  markSaved: () => void;
+  /** Revert `text` to the baseline. */
+  reset: () => void;
   isLoading: boolean;
   error: Error | null;
 } {
   const [text, setText] = useState(fallbackText ?? "");
+  // The spec as loaded from the provider or the template URL. Loading updates
+  // both values together, so only user edits (e.g. importing a spec) make
+  // `text` diverge from it.
+  const [baseline, setBaseline] = useState(fallbackText ?? "");
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<Error | null>(null);
 
+  const setLoaded = useCallback((value: string) => {
+    setText(value);
+    setBaseline(value);
+  }, []);
+
   useEffect(() => {
-    setText(fallbackText ?? "");
-  }, [fallbackText]);
+    setLoaded(fallbackText ?? "");
+  }, [fallbackText, setLoaded]);
 
   useEffect(() => {
     if (!url || (fallbackText ?? "").trim()) return;
 
     const cached = specCache.get(url);
     if (cached) {
-      setText(cached);
+      setLoaded(cached);
       return;
     }
 
@@ -58,7 +73,7 @@ export function useOpenApiSpec(
       })
       .then((t) => {
         specCache.set(url, t);
-        setText(t);
+        setLoaded(t);
       })
       .catch((err) => {
         if (err?.name !== "AbortError") {
@@ -68,11 +83,27 @@ export function useOpenApiSpec(
       .finally(() => setIsLoading(false));
 
     return () => controller.abort();
-  }, [url, fallbackText]);
+  }, [url, fallbackText, setLoaded]);
 
   const setTextStable = useCallback((value: string) => {
     setText(value);
   }, []);
 
-  return { text, setText: setTextStable, isLoading, error };
+  const markSaved = useCallback(() => {
+    setBaseline(text);
+  }, [text]);
+
+  const reset = useCallback(() => {
+    setText(baseline);
+  }, [baseline]);
+
+  return {
+    text,
+    setText: setTextStable,
+    isModified: text !== baseline,
+    markSaved,
+    reset,
+    isLoading,
+    error,
+  };
 }

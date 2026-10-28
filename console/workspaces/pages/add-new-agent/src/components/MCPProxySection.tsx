@@ -65,7 +65,7 @@ import {
   useMCPProxySecurity,
 } from "@agent-management-platform/shared-component";
 import { AGENT_ENV_KEY_MAX_LENGTH, type MCPProxyFormEntry } from "../form/schema";
-import { absoluteRouteMap } from "@agent-management-platform/types";
+import { absoluteRouteMap, withBasePath } from "@agent-management-platform/types";
 import {
   defaultMCPApiKeyVarName,
   defaultMCPUrlVarName,
@@ -707,10 +707,10 @@ export const MCPProxySection: React.FC<MCPProxySectionProps> = ({
                 <Divider sx={{ mt: 2 }} />
                 <Box
                   component="a"
-                  href={generatePath(
+                  href={withBasePath(generatePath(
                     absoluteRouteMap.children.org.children.mcpProxies.children.add.path,
                     { orgId },
-                  )}
+                  ))}
                   target="_blank"
                   rel="noopener noreferrer"
                   sx={{

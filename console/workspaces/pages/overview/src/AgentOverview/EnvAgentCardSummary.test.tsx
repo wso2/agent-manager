@@ -21,7 +21,6 @@ import { MemoryRouter } from "react-router-dom";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 vi.mock("@agent-management-platform/api-client", () => ({
-  isAgentCardNotFound: (error: unknown) => (error as { status?: number } | null)?.status === 404,
   useGetAgent: vi.fn(),
   useGetAgentCard: vi.fn(),
 }));
@@ -41,7 +40,8 @@ const mockCard = (value: Partial<ReturnType<typeof useGetAgentCard>>) =>
     data: undefined, isLoading: false, isError: false, error: null, ...value,
   } as unknown as ReturnType<typeof useGetAgentCard>);
 
-const notFound = { isError: true as const, error: Object.assign(new Error("nf"), { status: 404 }) };
+// The hook reads a 404 (no card source) as null.
+const notFound = { data: null };
 
 const renderSummary = (external = false) =>
   render(
@@ -121,18 +121,5 @@ describe("EnvAgentCardSummary", () => {
     expect(screen.getByText(/not available yet/i)).toBeInTheDocument();
     expect(screen.queryByText(/HTTP 404/)).not.toBeInTheDocument();
     expect(screen.queryByText(/register agent card url/i)).not.toBeInTheDocument();
-  });
-
-  it("drops the stale card once its source is gone", () => {
-    mockCard({
-      ...notFound,
-      data: {
-        source: "external", status: "fetched", sourceUrl: "https://old.example/card.json", lastError: "",
-        card: { provider: { organization: "Old Co" }, skills: [{ name: "old" }] },
-      },
-    });
-    renderSummary(true);
-    expect(screen.queryByText("Old Co")).not.toBeInTheDocument();
-    expect(screen.getByRole("link", { name: /register agent card url/i })).toBeInTheDocument();
   });
 });

@@ -74,6 +74,8 @@ import { LoadingFallback } from "../components/LoadingFallback";
 import {
   relativeRouteMap,
   absoluteRouteMap,
+  getBasePath,
+  isAgentIdentityEnabled,
 } from "@agent-management-platform/types";
 import {
   useExternalPageModules,
@@ -203,6 +205,8 @@ function AgentGuard() {
 
 export function RootRouter() {
   const externalOrgPageModules = useExternalPageModules();
+  // Keep the Agent ID pages unreachable by URL too, not just hidden in the nav.
+  const agentIdEnabled = isAgentIdentityEnabled();
 
   const { projectPageModules, orgPageModules, componentPageModules } =
     externalOrgPageModules.reduce(
@@ -235,7 +239,7 @@ export function RootRouter() {
     monitorRoutes.path;
 
   return (
-    <BrowserRouter>
+    <BrowserRouter basename={getBasePath() || undefined}>
       <PageViewTracker />
       <Routes>
         <Route
@@ -266,17 +270,19 @@ export function RootRouter() {
                 }
               />
             ))}
-            <Route
-              path={
-                relativeRouteMap.children.org.children.thunderInstances.path +
-                "/*"
-              }
-              element={
-                <Suspense fallback={<LoadingFallback />}>
-                  <LazyThunderInstancesOrg />
-                </Suspense>
-              }
-            />
+            {agentIdEnabled && (
+              <Route
+                path={
+                  relativeRouteMap.children.org.children.thunderInstances.path +
+                  "/*"
+                }
+                element={
+                  <Suspense fallback={<LoadingFallback />}>
+                    <LazyThunderInstancesOrg />
+                  </Suspense>
+                }
+              />
+            )}
             <Route
               path={relativeRouteMap.children.org.children.gateways.path + "/*"}
               element={<LazyGatewaysOrg />}
@@ -427,17 +433,19 @@ export function RootRouter() {
                     </Suspense>
                   }
                 />
-                <Route
-                  path={
-                    relativeRouteMap.children.org.children.projects.children
-                      .agents.children.agentId.path
-                  }
-                  element={
-                    <Suspense fallback={<LoadingFallback />}>
-                      <LazyAgentIdComponent />
-                    </Suspense>
-                  }
-                />
+                {agentIdEnabled && (
+                  <Route
+                    path={
+                      relativeRouteMap.children.org.children.projects.children
+                        .agents.children.agentId.path
+                    }
+                    element={
+                      <Suspense fallback={<LoadingFallback />}>
+                        <LazyAgentIdComponent />
+                      </Suspense>
+                    }
+                  />
+                )}
                 <Route
                   path={
                     relativeRouteMap.children.org.children.projects.children

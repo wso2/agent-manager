@@ -134,7 +134,6 @@ export function DeleteEnvironmentDrawer({
           </Alert>
 
           <Stack spacing={1}>
-            <Typography variant="body2">Run from the root of your repo clone:</Typography>
             <Box
               sx={{
                 position: "relative",

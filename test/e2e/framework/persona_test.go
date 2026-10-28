@@ -97,7 +97,7 @@ func TestRolePersonaLifecycle(t *testing.T) {
 			// Second group's scope must be excluded from RolePermissions.
 			_, _ = fmt.Fprint(w, `{"id":"role-1","ouId":"ou-1","name":"developer","permissions":[`+
 				`{"resourceServerId":"amp-resource-server","permissions":["amp:project:create","amp:project:read"]},`+
-				`{"resourceServerId":"amp-agent-manager-mcp-resource-server","permissions":["amp:project:read"]}`+
+				`{"resourceServerId":"amp-agent-manager-mcp-resource-srv","permissions":["amp:project:read"]}`+
 				`]}`)
 		case r.Method == http.MethodPost && r.URL.Path == "/applications":
 			assertBearer(t, r, "system-token")

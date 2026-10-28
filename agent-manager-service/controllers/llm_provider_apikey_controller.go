@@ -120,6 +120,10 @@ func (c *llmProviderAPIKeyController) CreateAPIKey(w http.ResponseWriter, r *htt
 	response, err := c.apiKeyService.CreateAPIKey(ctx, ouID, providerID, req)
 	if err != nil {
 		switch {
+		case errors.Is(err, utils.ErrBadRequest):
+			log.Warn("CreateLLMProviderAPIKey: invalid request", "ouID", ouID, "providerID", providerID, "error", err)
+			utils.WriteErrorResponse(w, http.StatusBadRequest, err.Error())
+			return
 		case errors.Is(err, utils.ErrLLMProviderNotFound):
 			log.Warn("CreateLLMProviderAPIKey: provider not found", "ouID", ouID, "providerID", providerID)
 			utils.WriteErrorResponse(w, http.StatusNotFound, "LLM provider not found")

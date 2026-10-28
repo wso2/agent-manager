@@ -14,6 +14,7 @@
 // specific language governing permissions and limitations
 // under the License.
 
+using System.Diagnostics;
 using System.Text.Json.Serialization;
 using AmpDotnetAgent;
 
@@ -34,6 +35,11 @@ app.MapGet("/healthz", () => Results.Ok("ok"));
 // One /chat request -> one trace (invoke_agent -> chat -> execute_tool).
 app.MapPost("/chat", async (ChatRequest req) =>
 {
+    // Detach from ASP.NET Core's request activity. It isn't exported, so leaving
+    // it as the parent would make invoke_agent an orphan and AMP would find no
+    // root span for the trace. With no current activity, invoke_agent is the root.
+    Activity.Current = null;
+
     var response = await agent.RunAsync(req.Message);
     return Results.Ok(new ChatResponse(req.SessionId, response.Text));
 });

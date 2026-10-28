@@ -19,9 +19,11 @@
 import React from "react";
 import { Link, generatePath, useParams } from "react-router-dom";
 import { Alert, Button, ListingTable, Skeleton } from "@wso2/oxygen-ui";
-import { KeyRound, Rocket, ShieldOff } from "@wso2/oxygen-ui-icons-react";
+import { AlertTriangle, KeyRound, Rocket, ShieldOff } from "@wso2/oxygen-ui-icons-react";
 import {
   useCreateAgentAPIKey,
+  useGetA2AProxy,
+  useGetAgent,
   useGetAgentConfigurations,
   useListAgentDeployments,
   useListAgentAPIKeys,
@@ -32,8 +34,14 @@ import {
   EnvironmentSelector,
   type CreateAPIKeyInput,
 } from "@agent-management-platform/shared-component";
-import { PageLayout } from "@agent-management-platform/views";
+import {
+  buildConfigureTabHref,
+  isExternalA2AAgent,
+  PageLayout,
+} from "@agent-management-platform/views";
 import { absoluteRouteMap } from "@agent-management-platform/types";
+
+const agentRoutes = absoluteRouteMap.children.org.children.projects.children.agents;
 
 export const SecurityComponent: React.FC = () => {
   const { orgId, projectId, agentId, envId } = useParams();
@@ -50,9 +58,28 @@ export const SecurityComponent: React.FC = () => {
         environment: envId ?? "",
       },
     );
+  const {
+    data: agent,
+    isLoading: isLoadingAgent,
+    isError: isAgentLookupFailed,
+  } = useGetAgent({
+    orgName: orgId,
+    projName: projectId,
+    agentName: agentId,
+  });
+  const isExternalA2A = isExternalA2AAgent(agent);
+  // Null while the environment is direct.
+  const {
+    data: proxy,
+    isLoading: isLoadingProxy,
+    isError: isProxyLookupFailed,
+  } = useGetA2AProxy(
+    { orgName: orgId, projName: projectId, agentName: agentId, envId },
+    { enabled: isExternalA2A },
+  );
   const { data: deployments, isLoading: isLoadingDeployments } =
     useListAgentDeployments({
-      orgName: orgId,
+      orgName: agent && !isExternalA2A ? orgId : undefined,
       projName: projectId,
       agentName: agentId,
     });
@@ -60,11 +87,14 @@ export const SecurityComponent: React.FC = () => {
   const securityEnabled = envConfig?.enableApiKeySecurity ?? true;
   const oauthEnabled = envConfig?.enableOAuthSecurity ?? false;
   const currentDeployment = envId ? deployments?.[envId] : undefined;
-  const hasActiveDeployment = currentDeployment?.status === "active";
+  // A proxied external agent is served by the gateway, so its keys work without a deployment.
+  const servedByGateway = isExternalA2A
+    ? !!proxy
+    : currentDeployment?.status === "active";
   const shouldLoadKeys =
     !isLoadingConfig &&
     !isLoadingDeployments &&
-    hasActiveDeployment &&
+    servedByGateway &&
     securityEnabled &&
     !!envId;
   const {
@@ -78,7 +108,11 @@ export const SecurityComponent: React.FC = () => {
     envId: shouldLoadKeys ? envId : undefined,
   });
   const isLoading =
-    isLoadingConfig || isLoadingDeployments || (shouldLoadKeys && isLoadingKeys);
+    isLoadingAgent ||
+    isLoadingProxy ||
+    isLoadingConfig ||
+    isLoadingDeployments ||
+    (shouldLoadKeys && isLoadingKeys);
 
   const { mutateAsync: createKey, isPending: isCreating } =
     useCreateAgentAPIKey();
@@ -109,12 +143,40 @@ export const SecurityComponent: React.FC = () => {
     });
   };
 
-  const emptyState = !hasActiveDeployment
+  const a2aSettingsHref = orgId && projectId && agentId && envId
+    ? buildConfigureTabHref(orgId, projectId, agentId, "a2a", envId)
+    : undefined;
+  const a2aSettingsAction = a2aSettingsHref ? (
+    <Button variant="contained" component={Link} to={a2aSettingsHref}>
+      Go to A2A settings
+    </Button>
+  ) : undefined;
+
+  const emptyState = isAgentLookupFailed
     ? {
-        illustration: <Rocket size={48} />,
-        title: "Agent is not deployed",
-        description: "Deploy this agent to manage its API keys. Use the Deploy tab to get started.",
+        illustration: <AlertTriangle size={48} />,
+        title: "Could not load the agent",
+        description: "Reload the page to try again.",
       }
+    : isExternalA2A && isProxyLookupFailed
+    ? {
+        illustration: <AlertTriangle size={48} />,
+        title: "Could not load gateway routing",
+        description: "Reload the page to try again.",
+      }
+    : !servedByGateway
+    ? isExternalA2A
+      ? {
+          illustration: <Rocket size={48} />,
+          title: "Agent is not routed through the gateway",
+          description: "Turn on Route through gateway for this environment under Configure → A2A to manage its API keys.",
+          action: a2aSettingsAction,
+        }
+      : {
+          illustration: <Rocket size={48} />,
+          title: "Agent is not deployed",
+          description: "Deploy this agent to manage its API keys. Use the Deploy tab to get started.",
+        }
     : !securityEnabled && oauthEnabled
     ? {
         illustration: <KeyRound size={48} />,
@@ -125,20 +187,25 @@ export const SecurityComponent: React.FC = () => {
     ? {
         illustration: <ShieldOff size={48} />,
         title: "Agent security is disabled",
-        description: "Enable API Key Security from the deployment settings and redeploy to manage API keys.",
-        action: orgId && projectId && agentId && envId ? (
-          <Button
-            variant="contained"
-            component={Link}
-            to={generatePath(
-              absoluteRouteMap.children.org.children.projects.children.agents.children.environment
-                .children.deploy.path,
-              { orgId, projectId, agentId, envId },
-            )}
-          >
-            Go to Deployment Settings
-          </Button>
-        ) : undefined,
+        description: isExternalA2A
+          ? "Enable API Key Security in the gateway security settings under Configure → A2A to manage API keys."
+          : "Enable API Key Security from the deployment settings and redeploy to manage API keys.",
+        action: isExternalA2A
+          ? a2aSettingsAction
+          : orgId && projectId && agentId && envId ? (
+            <Button
+              variant="contained"
+              component={Link}
+              to={generatePath(agentRoutes.children.environment.children.deploy.path, {
+                orgId,
+                projectId,
+                agentId,
+                envId,
+              })}
+            >
+              Go to Deployment Settings
+            </Button>
+          ) : undefined,
       }
     : null;
 

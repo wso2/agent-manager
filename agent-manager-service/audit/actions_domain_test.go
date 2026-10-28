@@ -54,6 +54,16 @@ func TestDomainActionsMatchRouteDerivedActions(t *testing.T) {
 			[]rbac.Permission{rbac.AgentUpdate, rbac.AgentEnvNonProduction},
 			ActionAgentRemoveCardSource,
 		},
+		{
+			"PUT /orgs/{orgName}/projects/{projName}/agents/{agentName}/environments/{envID}/a2a-proxy",
+			[]rbac.Permission{rbac.AgentUpdate, rbac.AgentEnvNonProduction},
+			ActionAgentSetA2AProxy,
+		},
+		{
+			"DELETE /orgs/{orgName}/projects/{projName}/agents/{agentName}/environments/{envID}/a2a-proxy",
+			[]rbac.Permission{rbac.AgentUpdate, rbac.AgentEnvNonProduction},
+			ActionAgentRemoveA2AProxy,
+		},
 		{"POST /orgs/{orgName}/llm-providers/{id}/api-keys", nil, ActionAPIKeyCreate},
 		{"PUT /orgs/{orgName}/llm-providers/{id}/api-keys/{keyName}", nil, ActionAPIKeyRotate},
 		{"DELETE /orgs/{orgName}/llm-providers/{id}/api-keys/{keyName}", nil, ActionAPIKeyRevoke},
@@ -142,6 +152,7 @@ func TestCredentialAndIdentityActionsAreCritical(t *testing.T) {
 		ActionUserInvite, ActionUserCreate, ActionUserUpdate, ActionUserDelete,
 		// Changing a gateway's trusted issuers decides whose tokens it accepts.
 		ActionGatewaySetIdentityProvider, ActionGatewayRemoveIdentityProvider,
+		ActionAgentSetA2AProxy, ActionAgentRemoveA2AProxy,
 	}
 
 	for _, action := range critical {

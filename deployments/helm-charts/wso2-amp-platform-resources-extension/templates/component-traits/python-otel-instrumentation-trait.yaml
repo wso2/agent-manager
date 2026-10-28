@@ -65,7 +65,7 @@ spec:
           value:
             name: setup-instrumentation
             image: "${has(environmentConfigs.instrumentationImage) ? environmentConfigs.instrumentationImage : parameters.instrumentationImage}"
-            imagePullPolicy: IfNotPresent
+            imagePullPolicy: Always
             volumeMounts:
               - name: ${parameters.sdkVolumeName}
                 mountPath: ${parameters.sdkMountPath}

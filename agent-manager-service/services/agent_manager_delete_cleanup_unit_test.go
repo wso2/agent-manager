@@ -223,15 +223,15 @@ func TestCheckNoOrphanedConfigs(t *testing.T) {
 	})
 }
 
-// TestWithAgentConfigCleanupRetry covers the bounded retry that fronts each configuration
+// TestRetryCleanup covers the bounded retry that fronts each configuration
 // teardown. Revocation fails under cluster load — a transient condition — and every step of
 // DeleteForAgentDeletion tolerates an already-gone resource, so re-running it converges.
-func TestWithAgentConfigCleanupRetry(t *testing.T) {
+func TestRetryCleanup(t *testing.T) {
 	t.Run("returns immediately on first success without sleeping", func(t *testing.T) {
 		calls := 0
 		start := time.Now()
 
-		err := withAgentConfigCleanupRetry(context.Background(), discardLogger(), "cfg-1", func() error {
+		err := retryCleanup(context.Background(), discardLogger(), agentConfigCleanupRetry(), "Configuration teardown", func() error {
 			calls++
 			return nil
 		})
@@ -245,7 +245,7 @@ func TestWithAgentConfigCleanupRetry(t *testing.T) {
 		shrinkCleanupRetryDelay(t)
 		calls := 0
 
-		err := withAgentConfigCleanupRetry(context.Background(), discardLogger(), "cfg-1", func() error {
+		err := retryCleanup(context.Background(), discardLogger(), agentConfigCleanupRetry(), "Configuration teardown", func() error {
 			calls++
 			if calls < 2 {
 				return errors.New("gateway unavailable")
@@ -262,7 +262,7 @@ func TestWithAgentConfigCleanupRetry(t *testing.T) {
 		calls := 0
 		wantErr := errors.New("proxy API key revocation failed")
 
-		err := withAgentConfigCleanupRetry(context.Background(), discardLogger(), "cfg-1", func() error {
+		err := retryCleanup(context.Background(), discardLogger(), agentConfigCleanupRetry(), "Configuration teardown", func() error {
 			calls++
 			return wantErr
 		})
@@ -276,7 +276,7 @@ func TestWithAgentConfigCleanupRetry(t *testing.T) {
 		calls := 0
 		start := time.Now()
 
-		err := withAgentConfigCleanupRetry(ctx, discardLogger(), "cfg-1", func() error {
+		err := retryCleanup(ctx, discardLogger(), agentConfigCleanupRetry(), "Configuration teardown", func() error {
 			calls++
 			cancel()
 			return errors.New("gateway unavailable")
@@ -287,5 +287,20 @@ func TestWithAgentConfigCleanupRetry(t *testing.T) {
 		require.Error(t, err)
 		assert.Equal(t, 1, calls)
 		assert.Less(t, time.Since(start), agentConfigCleanupRetryDelay)
+	})
+
+	t.Run("does not sleep after the final attempt", func(t *testing.T) {
+		done := make(chan error, 1)
+		go func() {
+			done <- retryCleanup(context.Background(), discardLogger(), fixedCleanupRetry(1, time.Hour), "Teardown",
+				func() error { return errors.New("boom") })
+		}()
+
+		select {
+		case err := <-done:
+			require.Error(t, err)
+		case <-time.After(5 * time.Second):
+			t.Fatal("retryCleanup slept after its final attempt")
+		}
 	})
 }

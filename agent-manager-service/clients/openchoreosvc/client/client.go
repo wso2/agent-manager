@@ -78,6 +78,9 @@ type OpenChoreoClient interface {
 	// Component Operations
 	CreateComponent(ctx context.Context, ouID, projectName string, req CreateComponentRequest) error
 	GetComponent(ctx context.Context, ouID, projectName, componentName string) (*models.AgentResponse, error)
+	// GetComponentReconcileBlock reports why OpenChoreo cannot reconcile the component, or nil when
+	// nothing is blocking it. Used to refuse writes the Component controller would silently discard.
+	GetComponentReconcileBlock(ctx context.Context, ouID, componentName string) (*ComponentReconcileBlock, error)
 	UpdateComponentBasicInfo(ctx context.Context, ouID, projectName, componentName string, req UpdateComponentBasicInfoRequest) error
 	GetEnvResourceConfigs(ctx context.Context, ouID, projectName, componentName, environment string) (*ComponentResourceConfigsResponse, error)
 	UpdateEnvResourceConfigs(ctx context.Context, ouID, projectName, componentName, environment string, req UpdateComponentResourceConfigsRequest) error
@@ -117,7 +120,12 @@ type OpenChoreoClient interface {
 	GetComponentFileMounts(ctx context.Context, ouID, projectName, componentName, environment string) ([]models.FileMountEntry, error)
 
 	// Build Operations
-	TriggerBuild(ctx context.Context, ouID, projectName, componentName, commitID string) (*models.BuildResponse, error)
+	// workflowRunName may be supplied by the service when deployment-specific work must
+	// happen before the run is created. An empty value preserves the default behavior and
+	// lets the client generate the name. runEnvVars are added to this run's environment
+	// variables only, never to the component; the build applies them only if it creates the
+	// first environment's ReleaseBinding, so they don't change a binding that already exists.
+	TriggerBuild(ctx context.Context, ouID, projectName, componentName, commitID, workflowRunName string, runEnvVars []EnvVar) (*models.BuildResponse, error)
 	GetBuild(ctx context.Context, ouID, projectName, componentName, buildName string) (*models.BuildDetailsResponse, error)
 	ListBuilds(ctx context.Context, ouID, projectName, componentName string) ([]*models.BuildResponse, error)
 	UpdateComponentBuildParameters(ctx context.Context, ouID, projectName, componentName string, req UpdateComponentBuildParametersRequest) error

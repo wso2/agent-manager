@@ -18,7 +18,6 @@ package services
 
 import (
 	"context"
-	"encoding/base64"
 	"errors"
 	"fmt"
 	"log/slog"
@@ -118,11 +117,10 @@ func (s *LLMProxyService) Create(ctx context.Context, ouID, createdBy string, pr
 	// Encrypt upstream auth value if provided
 	if proxy.Configuration.UpstreamAuth != nil &&
 		proxy.Configuration.UpstreamAuth.Value != nil {
-		encrypted, err := utils.EncryptBytes([]byte(*proxy.Configuration.UpstreamAuth.Value), s.encryptionKey)
+		encoded, err := utils.EncryptSecretRef(*proxy.Configuration.UpstreamAuth.Value, s.encryptionKey)
 		if err != nil {
 			return nil, fmt.Errorf("failed to encrypt upstream auth: %w", err)
 		}
-		encoded := base64.StdEncoding.EncodeToString(encrypted)
 		proxy.Configuration.UpstreamAuth.SecretRef = &encoded
 		proxy.Configuration.UpstreamAuth.Value = nil
 	}
@@ -250,11 +248,10 @@ func (s *LLMProxyService) Update(proxyID, ouID string, updates *models.LLMProxy)
 	// Encrypt upstream auth value if a new value is provided
 	if updates.Configuration.UpstreamAuth != nil &&
 		updates.Configuration.UpstreamAuth.Value != nil {
-		encrypted, err := utils.EncryptBytes([]byte(*updates.Configuration.UpstreamAuth.Value), s.encryptionKey)
+		encoded, err := utils.EncryptSecretRef(*updates.Configuration.UpstreamAuth.Value, s.encryptionKey)
 		if err != nil {
 			return nil, fmt.Errorf("failed to encrypt upstream auth: %w", err)
 		}
-		encoded := base64.StdEncoding.EncodeToString(encrypted)
 		updates.Configuration.UpstreamAuth.SecretRef = &encoded
 		updates.Configuration.UpstreamAuth.Value = nil
 	}

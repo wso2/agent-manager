@@ -28,6 +28,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/wso2/agent-manager/agent-manager-service/clients/openchoreosvc/client"
 	"github.com/wso2/agent-manager/agent-manager-service/models"
 	"github.com/wso2/agent-manager/agent-manager-service/repositories"
@@ -44,17 +45,17 @@ const (
 	a2aCardBatchBudget = repositories.A2AAgentCardClaimLease - time.Minute
 	// a2aCardAttemptBudget is about 10 minutes of backoff.
 	a2aCardAttemptBudget = 14
-	// a2aCardLastErrorMaxRunes keeps last_error readable in the console.
-	a2aCardLastErrorMaxRunes = 1024
 	// a2aCardUnrecordableError replaces a cause the store refused to record.
 	a2aCardUnrecordableError = "agent card fetch failed; the error could not be recorded"
+	// a2aCardUnstorableError replaces a card the store refuses to take as text.
+	a2aCardUnstorableError = "the agent card contains characters that cannot be stored"
 )
 
 // errA2ACardEndpointNotReady means the agent's environment has no public endpoint URL yet.
-var errA2ACardEndpointNotReady = errors.New("agent has no public endpoint in this environment yet")
+var errA2ACardEndpointNotReady = newA2APublicError("agent has no public endpoint in this environment yet", nil)
 
 // errA2ACardRolloutInProgress means the agent's latest release is not serving in this environment yet.
-var errA2ACardRolloutInProgress = errors.New("agent is still rolling out in this environment")
+var errA2ACardRolloutInProgress = newA2APublicError("agent is still rolling out in this environment", nil)
 
 // errA2ACardNotDeployed means the agent has no live binding in the row's environment.
 var errA2ACardNotDeployed = errors.New("agent is not deployed in this environment")
@@ -68,12 +69,14 @@ type A2ACardReconcilerService interface {
 }
 
 type a2aCardReconcilerService struct {
-	cardRepo repositories.A2AAgentCardRepository
-	fetcher  A2ACardFetcher
-	ocClient client.OpenChoreoClient
-	logger   *slog.Logger
-	stopCh   chan struct{}
-	stopOnce sync.Once
+	cardRepo    repositories.A2AAgentCardRepository
+	proxyRepo   repositories.A2AProxyRepository
+	gatewayRepo repositories.GatewayRepository
+	fetcher     A2ACardFetcher
+	ocClient    client.OpenChoreoClient
+	logger      *slog.Logger
+	stopCh      chan struct{}
+	stopOnce    sync.Once
 
 	attemptTimeout time.Duration
 	batchBudget    time.Duration
@@ -82,17 +85,21 @@ type a2aCardReconcilerService struct {
 // NewA2ACardReconcilerService creates an A2ACardReconcilerService.
 func NewA2ACardReconcilerService(
 	cardRepo repositories.A2AAgentCardRepository,
+	proxyRepo repositories.A2AProxyRepository,
+	gatewayRepo repositories.GatewayRepository,
 	fetcher A2ACardFetcher,
 	ocClient client.OpenChoreoClient,
 	logger *slog.Logger,
 ) A2ACardReconcilerService {
 	return &a2aCardReconcilerService{
-		cardRepo: cardRepo,
-		fetcher:  fetcher,
-		ocClient: ocClient,
-		logger:   logger,
-		stopCh:   make(chan struct{}),
-		stopOnce: sync.Once{},
+		cardRepo:    cardRepo,
+		proxyRepo:   proxyRepo,
+		gatewayRepo: gatewayRepo,
+		fetcher:     fetcher,
+		ocClient:    ocClient,
+		logger:      logger,
+		stopCh:      make(chan struct{}),
+		stopOnce:    sync.Once{},
 
 		attemptTimeout: a2aCardAttemptTimeout,
 		batchBudget:    a2aCardBatchBudget,
@@ -135,23 +142,13 @@ func (s *a2aCardReconcilerService) RunOnce(ctx context.Context) {
 		s.logger.Error("Failed to claim due A2A agent cards", "error", err)
 		return
 	}
-	batchCtx, cancel := context.WithDeadline(ctx, claimedAt.Add(s.batchBudget))
-	defer cancel()
-	for i, row := range due {
-		if batchCtx.Err() != nil {
-			s.logger.Info("A2A card batch ran out of lease; leaving the rest for a later claim", "remaining", len(due)-i)
-			return
-		}
-		s.fetchOne(batchCtx, row)
-	}
+	drainWithinLease(ctx, s.logger, claimedAt.Add(s.batchBudget), due, "A2A card", s.fetchOne)
 }
 
 // fetchOne fetches one row's card and records the outcome.
 func (s *a2aCardReconcilerService) fetchOne(ctx context.Context, row models.A2AAgentCard) {
-	attemptCtx, cancel := context.WithTimeout(ctx, s.attemptTimeout)
+	attemptCtx, ctx, cancel := a2aAttemptContexts(ctx, s.attemptTimeout)
 	defer cancel()
-	// The outcome must be recorded even when the attempt ran out of time.
-	ctx = context.WithoutCancel(ctx)
 	fetched, err := s.attemptFetch(attemptCtx, row)
 	if errors.Is(err, errA2ACardNotDeployed) {
 		s.dropUndeployedCard(ctx, row)
@@ -170,9 +167,17 @@ func (s *a2aCardReconcilerService) fetchOne(ctx context.Context, row models.A2AA
 	switch {
 	case errors.Is(err, repositories.ErrA2AAgentCardSuperseded):
 		s.logSuperseded(row)
+	case isUnstorableTextError(err):
+		s.recordAttemptFailure(ctx, row, fetched.releaseName, newA2APublicError(a2aCardUnstorableError, err))
 	case err != nil:
 		s.recordAttemptFailure(ctx, row, fetched.releaseName, fmt.Errorf("failed to store agent card: %w", err))
 	}
+}
+
+// isUnstorableTextError reports Postgres refusing text it cannot represent: a \u0000 escape or invalid UTF-8.
+func isUnstorableTextError(err error) bool {
+	var pgErr *pgconn.PgError
+	return errors.As(err, &pgErr) && (pgErr.Code == "22P05" || pgErr.Code == "22021")
 }
 
 // dropUndeployedCard removes the row as undeploy would; a row re-queued meanwhile is kept.
@@ -200,13 +205,43 @@ type a2aCardFetch struct {
 func (s *a2aCardReconcilerService) attemptFetch(ctx context.Context, row models.A2AAgentCard) (a2aCardFetch, error) {
 	switch row.Source {
 	case models.A2AAgentCardSourceExternal:
-		body, err := s.fetcher.Fetch(ctx, row.SourceURL, true)
-		return a2aCardFetch{url: row.SourceURL, body: body}, err
+		return s.fetchExternalCard(ctx, row)
 	case models.A2AAgentCardSourcePlatform:
 		return s.fetchPlatformCard(ctx, row)
 	default:
 		return a2aCardFetch{}, fmt.Errorf("unknown agent card source %q", row.Source)
 	}
+}
+
+// fetchExternalCard fetches through the gateway while the environment is proxied, since only the gateway's copy advertises gateway URLs; otherwise from the registered URL, SSRF-guarded.
+func (s *a2aCardReconcilerService) fetchExternalCard(ctx context.Context, row models.A2AAgentCard) (a2aCardFetch, error) {
+	_, err := s.proxyRepo.GetByEnvUUID(ctx, row.OUID, row.ProjectName, row.AgentName, row.EnvironmentUUID)
+	switch {
+	case errors.Is(err, repositories.ErrA2AProxyNotFound):
+		return s.fetchRegisteredCard(ctx, row)
+	case err != nil:
+		return a2aCardFetch{}, fmt.Errorf("failed to read the A2A proxy: %w", err)
+	}
+	return s.fetchCardThroughGateway(ctx, row)
+}
+
+func (s *a2aCardReconcilerService) fetchRegisteredCard(ctx context.Context, row models.A2AAgentCard) (a2aCardFetch, error) {
+	body, err := s.fetcher.FetchOrigin(ctx, row.SourceURL, nil)
+	return a2aCardFetch{url: row.SourceURL, body: body}, err
+}
+
+// fetchCardThroughGateway uses the plain client: the URL is platform-derived and resolves to loopback in local setups.
+func (s *a2aCardReconcilerService) fetchCardThroughGateway(ctx context.Context, row models.A2AAgentCard) (a2aCardFetch, error) {
+	gateway, err := resolveIngressGateway(s.gatewayRepo, row.OUID, row.EnvironmentUUID)
+	if err != nil {
+		return a2aCardFetch{}, err
+	}
+	url := a2aGatewayURL(gateway, row.AgentName) + a2aAgentCardPath
+	body, err := s.fetcher.Fetch(ctx, url)
+	if err != nil {
+		return a2aCardFetch{url: url}, prefixA2APublicError(url, err)
+	}
+	return a2aCardFetch{url: url, body: body}, nil
 }
 
 // fetchPlatformCard waits out a rollout first, since until it finishes the old release can still answer.
@@ -226,17 +261,19 @@ func (s *a2aCardReconcilerService) fetchPlatformCard(ctx context.Context, row mo
 		return attempt, errA2ACardEndpointNotReady
 	}
 	attempt.url = strings.TrimRight(rollout.ExternalURL, "/") + a2aAgentCardPath
-	body, err := s.fetcher.Fetch(ctx, attempt.url, false)
+	body, err := s.fetcher.Fetch(ctx, attempt.url)
 	if err != nil {
 		// The derived URL is otherwise invisible to the user.
-		return attempt, fmt.Errorf("%s: %w", attempt.url, err)
+		return attempt, prefixA2APublicError(attempt.url, err)
 	}
 	attempt.body = body
 	return attempt, nil
 }
 
 func (s *a2aCardReconcilerService) recordAttemptFailure(ctx context.Context, row models.A2AAgentCard, releaseName string, cause error) {
-	lastErr := sanitizeA2ACardError(cause.Error())
+	lastErr := userFacingA2AError(cause, a2aCardInternalError)
+	warnIfInternalA2AError(s.logger, lastErr, a2aCardInternalError, cause, "A2A agent card fetch failed internally",
+		"agentName", row.AgentName, "environment", row.EnvironmentName)
 	err := s.markAttemptFailed(ctx, row, cause, lastErr, releaseName)
 	if err != nil && !errors.Is(err, repositories.ErrA2AAgentCardSuperseded) {
 		s.logger.Error("Failed to record A2A agent card attempt; retrying with a fixed message",
@@ -255,22 +292,13 @@ func (s *a2aCardReconcilerService) recordAttemptFailure(ctx context.Context, row
 func (s *a2aCardReconcilerService) markAttemptFailed(ctx context.Context, row models.A2AAgentCard, cause error, lastErr, releaseName string) error {
 	if row.AttemptCount+1 >= a2aCardAttemptBudget {
 		s.logger.Warn("A2A agent card could not be fetched within the attempt budget",
-			"agentName", row.AgentName, "environment", row.EnvironmentName, "error", cause)
+			"agentName", row.AgentName, "environment", row.EnvironmentName, "error", a2aLogError(cause))
 		return s.cardRepo.MarkFailed(ctx, row, lastErr, releaseName)
 	}
 	s.logger.Debug("A2A agent card not fetchable yet, will retry",
 		"agentName", row.AgentName, "environment", row.EnvironmentName,
-		"attempt", row.AttemptCount+1, "reason", cause)
+		"attempt", row.AttemptCount+1, "reason", a2aLogError(cause))
 	return s.cardRepo.MarkAttemptFailed(ctx, row, lastErr, releaseName, time.Now().Add(a2aCardRetryIn(row.AttemptCount)))
-}
-
-// sanitizeA2ACardError makes msg storable in a Postgres TEXT column and bounded in length.
-func sanitizeA2ACardError(msg string) string {
-	msg = strings.ReplaceAll(strings.ToValidUTF8(msg, "\uFFFD"), "\x00", "")
-	if runes := []rune(msg); len(runes) > a2aCardLastErrorMaxRunes {
-		msg = string(runes[:a2aCardLastErrorMaxRunes-1]) + "…"
-	}
-	return msg
 }
 
 func (s *a2aCardReconcilerService) logSuperseded(row models.A2AAgentCard) {

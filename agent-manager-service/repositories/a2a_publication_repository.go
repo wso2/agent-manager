@@ -33,6 +33,9 @@ import (
 // that is no longer current and was not recorded.
 var ErrA2APublicationSuperseded = errors.New("a2a publication was re-enqueued since it was read")
 
+// ErrA2APublicationNotFound means no publication row exists for the agent and environment.
+var ErrA2APublicationNotFound = errors.New("a2a publication not found")
+
 // A2APublicationRepository is the queue of outstanding A2A gateway publications.
 //
 //go:generate moq -rm -fmt goimports -skip-ensure -pkg repomocks -out repomocks/a2a_publication_repository_mock.go . A2APublicationRepository:A2APublicationRepositoryMock
@@ -40,8 +43,25 @@ type A2APublicationRepository interface {
 	// Enqueue records that an agent-environment pair needs publishing, resetting
 	// any existing row for that pair to pending with a fresh attempt budget. A
 	// redeploy must re-publish, and a pair that previously exhausted its budget
-	// must get another chance.
+	// must get another chance. A same-named row from a deleted environment is replaced.
 	Enqueue(ctx context.Context, pub *models.A2APublication) error
+
+	// WithTx returns the repository bound to tx, so its writes commit or roll back with the caller's.
+	WithTx(tx *gorm.DB) A2APublicationRepository
+
+	// Get returns ErrA2APublicationNotFound when no row exists.
+	Get(ctx context.Context, ouID, projectName, agentName string, environmentUUID uuid.UUID) (*models.A2APublication, error)
+
+	// ListForEnvironment returns every agent's row in one environment.
+	ListForEnvironment(ctx context.Context, ouID string, environmentUUID uuid.UUID) ([]models.A2APublication, error)
+
+	// DeleteForAgentEnv removes one environment's row.
+	DeleteForAgentEnv(ctx context.Context, ouID, projectName, agentName string, environmentUUID uuid.UUID) error
+
+	// DeleteForEnvironment removes every agent's row in a deleted environment.
+	DeleteForEnvironment(ctx context.Context, ouID string, environmentUUID uuid.UUID) error
+	// ListEnvironmentUUIDs returns the distinct environment UUIDs with rows recorded under environmentName.
+	ListEnvironmentUUIDs(ctx context.Context, ouID, environmentName string) ([]uuid.UUID, error)
 
 	// ClaimDue returns up to limit pending rows whose next attempt time has
 	// arrived, pushing each one's next attempt out by a lease so no other
@@ -65,8 +85,11 @@ type A2APublicationRepository interface {
 
 	// Requeue resets a published row to pending with a fresh attempt budget.
 	Requeue(ctx context.Context, read models.A2APublication) error
+	// RequeueFailedExternal makes every failed external row due again and reports how many; a rolling upgrade's
+	// old pods fail those rows, as they publish nothing but release bindings.
+	RequeueFailedExternal(ctx context.Context) (int64, error)
 
-	// FindPublished pages through published rows in id order, starting after afterID.
+	// FindPublished pages through published platform rows in id order, starting after afterID. External origins are never drift-checked.
 	FindPublished(ctx context.Context, afterID uuid.UUID, limit int) ([]models.A2APublication, error)
 
 	// MarkFailed ends the retry cycle. The row is kept as the record of an agent
@@ -77,8 +100,8 @@ type A2APublicationRepository interface {
 	DeleteForAgent(ctx context.Context, ouID, projectName, agentName string) error
 }
 
-// a2aPublicationClaimLease comfortably outlasts one publish attempt.
-const a2aPublicationClaimLease = 5 * time.Minute
+// A2APublicationClaimLease comfortably outlasts one publish attempt.
+const A2APublicationClaimLease = 5 * time.Minute
 
 type a2aPublicationRepository struct {
 	db *gorm.DB
@@ -87,6 +110,10 @@ type a2aPublicationRepository struct {
 // NewA2APublicationRepository creates an A2APublicationRepository.
 func NewA2APublicationRepository(db *gorm.DB) A2APublicationRepository {
 	return &a2aPublicationRepository{db: db}
+}
+
+func (r *a2aPublicationRepository) WithTx(tx *gorm.DB) A2APublicationRepository {
+	return &a2aPublicationRepository{db: tx}
 }
 
 func (r *a2aPublicationRepository) Enqueue(ctx context.Context, pub *models.A2APublication) error {
@@ -98,19 +125,31 @@ func (r *a2aPublicationRepository) Enqueue(ctx context.Context, pub *models.A2AP
 	pub.LastError = ""
 	pub.NextAttemptAt = &now
 	pub.UpdatedAt = now
+	if pub.Source == "" {
+		pub.Source = models.A2APublicationSourcePlatform
+	}
 
-	return r.db.WithContext(ctx).Clauses(clause.OnConflict{
-		Columns: []clause.Column{
-			{Name: "ou_id"},
-			{Name: "project_name"},
-			{Name: "agent_name"},
-			{Name: "environment_name"},
-		},
-		DoUpdates: clause.AssignmentColumns([]string{
-			"environment_uuid", "artifact_uuid", "agent_uuid", "status",
-			"attempt_count", "last_error", "next_attempt_at", "updated_at",
-		}),
-	}).Create(pub).Error
+	return r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		// A same-named row from a deleted environment must not outlive its replacement.
+		err := tx.Where("ou_id = ? AND project_name = ? AND agent_name = ? AND environment_name = ? AND environment_uuid <> ?",
+			pub.OUID, pub.ProjectName, pub.AgentName, pub.EnvironmentName, pub.EnvironmentUUID).
+			Delete(&models.A2APublication{}).Error
+		if err != nil {
+			return err
+		}
+		return tx.Clauses(clause.OnConflict{
+			Columns: []clause.Column{
+				{Name: "ou_id"},
+				{Name: "project_name"},
+				{Name: "agent_name"},
+				{Name: "environment_uuid"},
+			},
+			DoUpdates: clause.AssignmentColumns([]string{
+				"environment_name", "artifact_uuid", "agent_uuid", "source", "status",
+				"attempt_count", "last_error", "next_attempt_at", "updated_at",
+			}),
+		}).Create(pub).Error
+	})
 }
 
 func (r *a2aPublicationRepository) ClaimDue(ctx context.Context, now time.Time, limit int) ([]models.A2APublication, error) {
@@ -127,7 +166,7 @@ func (r *a2aPublicationRepository) ClaimDue(ctx context.Context, now time.Time, 
 			FOR UPDATE SKIP LOCKED
 		)
 		RETURNING *`,
-		now.Add(a2aPublicationClaimLease), models.A2APublicationStatusPending, now, limit,
+		now.Add(A2APublicationClaimLease), models.A2APublicationStatusPending, now, limit,
 	).Scan(&claimed).Error
 	if err != nil {
 		return nil, err
@@ -152,18 +191,31 @@ func (r *a2aPublicationRepository) MarkWaiting(ctx context.Context, read models.
 }
 
 func (r *a2aPublicationRepository) Requeue(ctx context.Context, read models.A2APublication) error {
-	return r.updateIfUnchanged(ctx, read, map[string]interface{}{
+	return r.updateIfUnchanged(ctx, read, dueWithFreshBudget())
+}
+
+// dueWithFreshBudget makes a row pending now with its attempts and last error cleared.
+func dueWithFreshBudget() map[string]interface{} {
+	return map[string]interface{}{
 		"status":          models.A2APublicationStatusPending,
 		"attempt_count":   0,
 		"last_error":      "",
 		"next_attempt_at": time.Now(),
-	})
+	}
+}
+
+func (r *a2aPublicationRepository) RequeueFailedExternal(ctx context.Context) (int64, error) {
+	res := r.db.WithContext(ctx).Model(&models.A2APublication{}).
+		Where("source = ? AND status = ?", models.A2APublicationSourceExternal, models.A2APublicationStatusFailed).
+		Updates(dueWithFreshBudget())
+	return res.RowsAffected, res.Error
 }
 
 func (r *a2aPublicationRepository) FindPublished(ctx context.Context, afterID uuid.UUID, limit int) ([]models.A2APublication, error) {
 	var rows []models.A2APublication
 	err := r.db.WithContext(ctx).
-		Where("status = ? AND id > ?", models.A2APublicationStatusPublished, afterID).
+		Where("status = ? AND source = ? AND id > ?",
+			models.A2APublicationStatusPublished, models.A2APublicationSourcePlatform, afterID).
 		Order("id ASC").
 		Limit(limit).
 		Find(&rows).Error
@@ -171,6 +223,36 @@ func (r *a2aPublicationRepository) FindPublished(ctx context.Context, afterID uu
 		return nil, err
 	}
 	return rows, nil
+}
+
+func (r *a2aPublicationRepository) Get(ctx context.Context, ouID, projectName, agentName string, environmentUUID uuid.UUID) (*models.A2APublication, error) {
+	var row models.A2APublication
+	err := r.db.WithContext(ctx).
+		Where("ou_id = ? AND project_name = ? AND agent_name = ? AND environment_uuid = ?",
+			ouID, projectName, agentName, environmentUUID).
+		First(&row).Error
+	if errors.Is(err, gorm.ErrRecordNotFound) {
+		return nil, ErrA2APublicationNotFound
+	}
+	if err != nil {
+		return nil, err
+	}
+	return &row, nil
+}
+
+func (r *a2aPublicationRepository) ListForEnvironment(ctx context.Context, ouID string, environmentUUID uuid.UUID) ([]models.A2APublication, error) {
+	return listForEnvironment[models.A2APublication](ctx, r.db, ouID, environmentUUID, "agent_name ASC")
+}
+
+func (r *a2aPublicationRepository) DeleteForAgentEnv(ctx context.Context, ouID, projectName, agentName string, environmentUUID uuid.UUID) error {
+	return r.db.WithContext(ctx).
+		Where("ou_id = ? AND project_name = ? AND agent_name = ? AND environment_uuid = ?",
+			ouID, projectName, agentName, environmentUUID).
+		Delete(&models.A2APublication{}).Error
+}
+
+func (r *a2aPublicationRepository) DeleteForEnvironment(ctx context.Context, ouID string, environmentUUID uuid.UUID) error {
+	return deleteForEnvironment[models.A2APublication](ctx, r.db, ouID, environmentUUID)
 }
 
 func (r *a2aPublicationRepository) MarkAttemptFailed(ctx context.Context, read models.A2APublication, lastErr string, nextAttemptAt time.Time) error {
@@ -208,4 +290,8 @@ func (r *a2aPublicationRepository) DeleteForAgent(ctx context.Context, ouID, pro
 	return r.db.WithContext(ctx).
 		Where("ou_id = ? AND project_name = ? AND agent_name = ?", ouID, projectName, agentName).
 		Delete(&models.A2APublication{}).Error
+}
+
+func (r *a2aPublicationRepository) ListEnvironmentUUIDs(ctx context.Context, ouID, environmentName string) ([]uuid.UUID, error) {
+	return listEnvironmentUUIDs[models.A2APublication](ctx, r.db, ouID, environmentName)
 }

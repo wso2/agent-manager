@@ -1,0 +1,238 @@
+name: Dev Build
+
+run-name: Dev Build from ${{ inputs.source-ref }}
+
+# Builds and publishes every image and chart from a ref, without E2E, so a
+# build can be installed and tested by hand. Earlier builds are kept.
+on:
+  workflow_dispatch:
+    inputs:
+      source-ref:
+        description: "Branch, tag or commit SHA to build"
+        required: false
+        default: "main"
+        type: string
+
+concurrency:
+  group: dev-build
+  cancel-in-progress: false
+
+# Fixed to the registry the quick-start installer and the charts default to.
+env:
+  REGISTRY: ghcr.io
+  REGISTRY_ORG: wso2
+  HELM_REGISTRY: oci://ghcr.io/wso2
+
+permissions:
+  contents: read
+
+jobs:
+  # Pin the source commit once; every job builds that exact commit.
+  prepare:
+    name: Prepare
+    runs-on:
+      - codebuild-wso2_agent-manager-${{ github.run_id }}-${{ github.run_attempt }}
+    outputs:
+      sha: ${{ steps.version.outputs.sha }}
+      version: ${{ steps.version.outputs.version }}
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          ref: ${{ inputs.source-ref }}
+
+      # A prefix other than 0.0.0-dev keeps the nightly cleanup off these builds.
+      - name: Compute version
+        id: version
+        run: |
+          SHA=$(git rev-parse HEAD)
+          VERSION="0.0.0-snapshot-$(date -u +%Y%m%d)-${SHA:0:7}"
+          echo "sha=$SHA" >> "$GITHUB_OUTPUT"
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+          echo "Building $VERSION from $SHA"
+
+  load-config:
+    name: Load Config
+    needs: prepare
+    runs-on:
+      - codebuild-wso2_agent-manager-${{ github.run_id }}-${{ github.run_attempt }}
+    outputs:
+      images: ${{ steps.set-matrix.outputs.images }}
+      charts: ${{ steps.set-matrix.outputs.charts }}
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          ref: ${{ needs.prepare.outputs.sha }}
+
+      - name: Load configuration and set matrix
+        id: set-matrix
+        run: |
+          CONFIG_FILE=".github/release-config.json"
+          CHARTS_BASE_PATH=$(jq -r '.config["charts-base-path"]' "$CONFIG_FILE")
+
+          IMAGES=$(jq -c '[.images[] | {
+            name: .name,
+            "service-dir": .dir,
+            context: (.context // "")
+          }]' "$CONFIG_FILE")
+
+          CHARTS=$(jq -c --arg base "$CHARTS_BASE_PATH" '[.charts[] | {
+            name: .,
+            path: ($base + "/" + .)
+          }]' "$CONFIG_FILE")
+
+          echo "images=$IMAGES" >> "$GITHUB_OUTPUT"
+          echo "charts=$CHARTS" >> "$GITHUB_OUTPUT"
+
+  build-images:
+    name: Build ${{ matrix.image.name }}
+    needs: [prepare, load-config]
+    runs-on:
+      - codebuild-wso2_agent-manager-${{ github.run_id }}-${{ github.run_attempt }}
+    permissions:
+      contents: read
+      packages: write
+    strategy:
+      fail-fast: false
+      matrix:
+        image: ${{ fromJson(needs.load-config.outputs.images) }}
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          ref: ${{ needs.prepare.outputs.sha }}
+
+      # The quick-start image then installs this build without a VERSION override.
+      - name: Stamp quick-start version
+        if: matrix.image.name == 'amp-quick-start'
+        run: |
+          bash .github/scripts/update-install-helpers.sh \
+            "$VERSION" \
+            "./deployments/quick-start/install-helpers.sh"
+        env:
+          VERSION: ${{ needs.prepare.outputs.version }}
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to the container registry
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build and push ${{ matrix.image.name }}
+        uses: ./.github/actions/build-docker-image
+        with:
+          service-dir: ${{ matrix.image.service-dir }}
+          image-name: ${{ matrix.image.name }}
+          registry: ${{ env.REGISTRY }}
+          registry-org: ${{ env.REGISTRY_ORG }}
+          tag: ${{ needs.prepare.outputs.version }}
+          context: ${{ matrix.image.context }}
+
+  package-charts:
+    name: Package ${{ matrix.chart.name }}
+    needs: [prepare, load-config, build-images]
+    runs-on:
+      - codebuild-wso2_agent-manager-${{ github.run_id }}-${{ github.run_attempt }}
+    permissions:
+      contents: read
+      packages: write
+    strategy:
+      fail-fast: false
+      matrix:
+        chart: ${{ fromJson(needs.load-config.outputs.charts) }}
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          ref: ${{ needs.prepare.outputs.sha }}
+
+      - name: Install Helm (deployments/setup/cluster-tools.env)
+        uses: ./.github/actions/setup-cluster-clis
+        with:
+          k3d: "false"
+          kubectl: "false"
+
+      - name: Cache Helm chart dependencies
+        if: hashFiles(format('{0}/Chart.lock', matrix.chart.path)) != ''
+        uses: actions/cache@v5
+        with:
+          path: ${{ matrix.chart.path }}/charts
+          key: helm-charts-${{ hashFiles(format('{0}/Chart.lock', matrix.chart.path)) }}
+
+      # Images are tagged without a v prefix, as in the nightly. ampVersion pins the
+      # console's scripts to this build's git tag instead of main.
+      - name: Patch chart image tags and ampVersion
+        env:
+          VERSION: ${{ needs.prepare.outputs.version }}
+        run: |
+          find ./deployments/helm-charts -name "values.yaml" -type f | while read -r f; do
+            sed -i.bak \
+              -e "s|tag: \"0\.0\.0-dev\"|tag: \"${VERSION}\"|g" \
+              -e "s|ampVersion: \"0\.0\.0-dev\"|ampVersion: \"${VERSION}\"|g" \
+              "$f"
+            rm -f "${f}.bak"
+          done
+
+      - name: Package and push ${{ matrix.chart.name }}
+        run: |
+          bash .github/scripts/package-helm-chart.sh \
+            "$CHART_PATH" \
+            "$VERSION" \
+            "$HELM_REGISTRY" \
+            "$HELM_TOKEN"
+        env:
+          CHART_PATH: ${{ matrix.chart.path }}
+          VERSION: ${{ needs.prepare.outputs.version }}
+          HELM_REGISTRY: ${{ env.HELM_REGISTRY }}
+          HELM_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  # install.sh fetches environment scripts from this tag, so only a complete build gets one.
+  tag:
+    name: Create Git Tag
+    needs: [prepare, package-charts]
+    runs-on:
+      - codebuild-wso2_agent-manager-${{ github.run_id }}-${{ github.run_attempt }}
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          ref: ${{ needs.prepare.outputs.sha }}
+
+      - name: Configure Git
+        run: |
+          git config --local user.email "action@github.com"
+          git config --local user.name "GitHub Action"
+
+      - name: Create and push tag
+        env:
+          SHA: ${{ needs.prepare.outputs.sha }}
+          VERSION: ${{ needs.prepare.outputs.version }}
+        # The version embeds the commit, so an existing tag is a same-day rerun of this commit.
+        run: |
+          TAG="amp/v${VERSION}"
+          if git ls-remote --exit-code --tags origin "refs/tags/$TAG" >/dev/null; then
+            echo "Tag $TAG already exists; keeping it."
+          else
+            git tag -a "$TAG" -m "Dev build ${VERSION} from ${SHA:0:7}" "$SHA"
+            git push origin "$TAG"
+          fi
+
+      - name: Write run instructions
+        env:
+          VERSION: ${{ needs.prepare.outputs.version }}
+        run: |
+          IMAGE="${REGISTRY}/${REGISTRY_ORG}/amp-quick-start:${VERSION}"
+          {
+            echo "## Dev build \`${VERSION}\`"
+            echo
+            echo '```'
+            echo "docker run --rm -it --name amp-quick-start \\"
+            echo "  -v /var/run/docker.sock:/var/run/docker.sock \\"
+            echo "  --network=host \\"
+            echo "  ${IMAGE}"
+            echo '```'
+            echo
+            echo 'Then run `./install.sh` inside the container.'
+          } >> "$GITHUB_STEP_SUMMARY"

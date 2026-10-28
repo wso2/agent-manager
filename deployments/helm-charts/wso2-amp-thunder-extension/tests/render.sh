@@ -28,7 +28,7 @@ assert amp["identifier"] == "urn:wso2:amp", amp["identifier"]
 servers = list(yaml.safe_load_all(data["60-mcp-resource-servers.yaml"]))
 assert all(isinstance(server, dict) for server in servers)
 by_id = {server["id"]: server for server in servers}
-main = by_id["amp-agent-manager-mcp-resource-server"]
+main = by_id["amp-agent-manager-mcp-resource-srv"]
 observer = by_id["amp-observer-mcp-resource-server"]
 assert main["identifier"] == "http://api.amp.localhost:8080/mcp"
 assert observer["identifier"] == "http://traces.amp.localhost:11080/mcp"
@@ -66,9 +66,16 @@ for filename in (
 ):
     role = yaml.safe_load(data[filename])
     ids = {entry["resourceServerId"] for entry in role["permissions"]}
+    assert all(isinstance(i, str) for i in ids), ids
     assert "amp-resource-server" in ids
-    assert "amp-agent-manager-mcp-resource-server" in ids
+    assert "amp-agent-manager-mcp-resource-srv" in ids
     assert "amp-observer-mcp-resource-server" in ids
+
+# Thunder's PostgreSQL schema declares RESOURCE_SERVER.ID VARCHAR(36). SQLite
+# ignores the length, so a longer id only fails on PostgreSQL installs.
+THUNDER_RESOURCE_SERVER_ID_MAX = 36
+for server in [amp, *servers]:
+    assert len(server["id"]) <= THUNDER_RESOURCE_SERVER_ID_MAX, server["id"]
 
 print("Thunder MCP resource-server render checks passed")
 PY

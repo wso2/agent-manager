@@ -37,11 +37,19 @@ type AgentConfigRepository interface {
 	// Upsert creates or updates an agent config for a specific environment
 	Upsert(ctx context.Context, config *models.AgentConfig) error
 
+	// CreateIfAbsent inserts the config unless the environment already has one, which it leaves untouched.
+	CreateIfAbsent(ctx context.Context, config *models.AgentConfig) error
+
+	// WithTx returns the repository bound to tx.
+	WithTx(tx *gorm.DB) AgentConfigRepository
+
 	// Get retrieves agent config for a specific agent and environment
 	Get(ctx context.Context, ouID, projectName, agentName, environmentName string) (*models.AgentConfig, error)
 
 	// DeleteAllByAgent removes all configs for an agent (used when agent is deleted)
 	DeleteAllByAgent(ctx context.Context, ouID, projectName, agentName string) error
+	// DeleteForEnvironment removes every agent's config for a deleted environment.
+	DeleteForEnvironment(ctx context.Context, ouID, environmentName string) error
 }
 
 // AgentConfigRepo implements AgentConfigRepository using GORM
@@ -93,6 +101,19 @@ func (r *AgentConfigRepo) Upsert(ctx context.Context, config *models.AgentConfig
 	}).Create(config).Error
 }
 
+// CreateIfAbsent inserts the config unless the environment already has one.
+func (r *AgentConfigRepo) CreateIfAbsent(ctx context.Context, config *models.AgentConfig) error {
+	return r.db.WithContext(ctx).Select("*").Clauses(clause.OnConflict{
+		Columns:   []clause.Column{{Name: "ou_id"}, {Name: "project_name"}, {Name: "agent_name"}, {Name: "environment_name"}},
+		DoNothing: true,
+	}).Create(config).Error
+}
+
+// WithTx returns the repository bound to tx.
+func (r *AgentConfigRepo) WithTx(tx *gorm.DB) AgentConfigRepository {
+	return &AgentConfigRepo{db: tx}
+}
+
 // nullableJSONB writes a nil slice as SQL NULL rather than the JSON literal
 // null, so an inheriting card leaves its columns genuinely empty.
 func nullableJSONB(values []string) interface{} {
@@ -121,4 +142,10 @@ func (r *AgentConfigRepo) Get(ctx context.Context, ouID, projectName, agentName,
 func (r *AgentConfigRepo) DeleteAllByAgent(ctx context.Context, ouID, projectName, agentName string) error {
 	return r.db.WithContext(ctx).Where("ou_id = ? AND project_name = ? AND agent_name = ?",
 		ouID, projectName, agentName).Delete(&models.AgentConfig{}).Error
+}
+
+// DeleteForEnvironment removes every agent's config for a deleted environment.
+func (r *AgentConfigRepo) DeleteForEnvironment(ctx context.Context, ouID, environmentName string) error {
+	return r.db.WithContext(ctx).Where("ou_id = ? AND environment_name = ?", ouID, environmentName).
+		Delete(&models.AgentConfig{}).Error
 }

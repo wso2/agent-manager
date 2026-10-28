@@ -176,7 +176,10 @@ export function DeploymentPipelineCard() {
                     size="small"
                     startIcon={<Edit size={14} />}
                     component={Link}
-                    to={generatePath(absoluteRouteMap.children.org.children.deploymentPipelines.path, { orgId }) + `?edit=${pipeline.name}`}
+                    to={generatePath(
+                      absoluteRouteMap.children.org.children.deploymentPipelines.children.view.path,
+                      { orgId, pipelineName: pipeline.name },
+                    )}
                   >
                     Edit
                   </Button>

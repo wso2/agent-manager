@@ -8,7 +8,7 @@ import {
   type Theme,
 } from "@wso2/oxygen-ui";
 import { ChevronDown, ChevronRight, X } from "@wso2/oxygen-ui-icons-react";
-import { type ElementType, type MouseEvent, type ReactNode } from "react";
+import { useRef, type ElementType, type MouseEvent, type ReactNode } from "react";
 import { Link, type LinkProps } from "react-router-dom";
 
 /**
@@ -49,8 +49,13 @@ interface LevelSwitcherCardProps {
     goToLabel: string;
     /** The value row rendered below the label, e.g. the display name (+ badge). */
     content: ReactNode;
-    closeLabel: string;
-    onClose: () => void;
+    /**
+     * Close action that steps back up to the parent level. Omit for the
+     * top-most level (e.g. Organizations), which has no parent to step back
+     * to — the close button is then hidden.
+     */
+    closeLabel?: string;
+    onClose?: () => void;
   };
   /** aria-label for the control that opens the switcher menu. */
   chevronLabel: string;
@@ -59,6 +64,7 @@ interface LevelSwitcherCardProps {
   onCloseMenu: () => void;
   /** Menu items rendered inside the switcher dropdown. */
   children: ReactNode;
+  canSwitch?: boolean;
 }
 
 /**
@@ -77,11 +83,16 @@ export function LevelSwitcherCard({
   onOpenMenu,
   onCloseMenu,
   children,
+  canSwitch = true,
 }: LevelSwitcherCardProps) {
   const theme = useTheme();
+  const boxRef = useRef<HTMLDivElement>(null);
   const menuOpen = Boolean(anchorEl);
 
   if (!selected) {
+    if (!canSwitch) {
+      return null;
+    }
     return (
       <>
         <IconButton
@@ -109,8 +120,11 @@ export function LevelSwitcherCard({
     );
   }
 
+  const hasRightControls = Boolean(selected.onClose) || canSwitch;
+
   return (
     <Box
+      ref={boxRef}
       position="relative"
       sx={{
         minWidth: 180,
@@ -128,7 +142,7 @@ export function LevelSwitcherCard({
           width: "100%",
           textAlign: "left",
           borderRadius: theme.spacing(1),
-          p: theme.spacing(0.75, 4.5, 0.75, 1.5),
+          p: theme.spacing(0.75, hasRightControls ? 4.5 : 1.5, 0.75, 1.5),
         }}
       >
         <Typography variant="caption" color="text.secondary">
@@ -136,37 +150,52 @@ export function LevelSwitcherCard({
         </Typography>
         {selected.content}
       </ButtonBase>
-      <IconButton
-        size="small"
-        aria-label={selected.closeLabel}
-        sx={{
-          position: "absolute",
-          top: 2,
-          right: 2,
-          color: theme.vars?.palette.text.disabled,
-        }}
-        onClick={selected.onClose}
-      >
-        <X size={14} />
-      </IconButton>
-      <IconButton
-        size="small"
-        aria-label={chevronLabel}
-        aria-haspopup="menu"
-        aria-expanded={menuOpen}
-        onClick={onOpenMenu}
-        sx={{
-          position: "absolute",
-          bottom: 2,
-          right: 2,
-          color: theme.vars?.palette.text.secondary,
-        }}
-      >
-        <ChevronDown size={18} />
-      </IconButton>
-      <Menu anchorEl={anchorEl} open={menuOpen} onClose={onCloseMenu}>
-        {children}
-      </Menu>
+      {selected.onClose && (
+        <IconButton
+          size="small"
+          aria-label={selected.closeLabel}
+          sx={{
+            position: "absolute",
+            top: 2,
+            right: 2,
+            color: theme.vars?.palette.text.disabled,
+          }}
+          onClick={selected.onClose}
+        >
+          <X size={14} />
+        </IconButton>
+      )}
+      {canSwitch && (
+        <>
+          <IconButton
+            size="small"
+            aria-label={chevronLabel}
+            aria-haspopup="menu"
+            aria-expanded={menuOpen}
+            onClick={onOpenMenu}
+            sx={{
+              position: "absolute",
+              bottom: 2,
+              right: 2,
+              color: theme.vars?.palette.text.secondary,
+            }}
+          >
+            <ChevronDown size={18} />
+          </IconButton>
+          <Menu
+            anchorEl={boxRef.current}
+            anchorOrigin={{ vertical: "bottom", horizontal: "left" }}
+            transformOrigin={{ vertical: "top", horizontal: "left" }}
+            open={menuOpen}
+            onClose={onCloseMenu}
+            slotProps={{
+              paper: { sx: { minWidth: boxRef.current?.offsetWidth } },
+            }}
+          >
+            {children}
+          </Menu>
+        </>
+      )}
     </Box>
   );
 }

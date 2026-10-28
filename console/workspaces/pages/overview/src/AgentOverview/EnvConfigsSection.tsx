@@ -25,10 +25,8 @@ import type {
     ListAgentModelConfigsPathParams,
     ListAgentModelConfigsQuery,
 } from "@agent-management-platform/types";
-import {
-    buildAddLLMProviderHref,
-    buildConfigureTabHref,
-} from "./configureTabLink";
+import { buildConfigureTabHref } from "@agent-management-platform/views";
+import { buildAddLLMProviderHref } from "./configureTabLink";
 import { EnvConfigGroup } from "./EnvConfigGroup";
 import { LLMProviderConfigCard } from "./LLMProviderConfigCard";
 import { MCPProxyConfigCard } from "./MCPProxyConfigCard";

@@ -39,6 +39,9 @@ var ErrA2AAgentCardNotFound = errors.New("a2a agent card not found")
 //
 //go:generate moq -rm -fmt goimports -skip-ensure -pkg repomocks -out repomocks/a2a_agent_card_repository_mock.go . A2AAgentCardRepository:A2AAgentCardRepositoryMock
 type A2AAgentCardRepository interface {
+	// WithTx returns the repository bound to tx, so its writes commit or roll back with the caller's.
+	WithTx(tx *gorm.DB) A2AAgentCardRepository
+
 	// Enqueue upserts the environment's row as pending, replacing a same-named row from a deleted environment,
 	// and leaves it with a fresh budget, keeping card, card_hash and fetched_at.
 	// A different source, or an external row naming a different source_url, replaces them and clears the card state.
@@ -47,13 +50,18 @@ type A2AAgentCardRepository interface {
 	// Requeue resets an existing row to pending without creating one; it returns ErrA2AAgentCardNotFound when absent.
 	Requeue(ctx context.Context, ouID, projectName, agentName, environmentName string) error
 
+	// ClearCard drops the stored card and parks the row (pending, never due) until Requeue; ErrA2AAgentCardNotFound when absent.
+	ClearCard(ctx context.Context, ouID, projectName, agentName string, environmentUUID uuid.UUID) error
+	// FailParked marks a row ClearCard parked as failed with lastErr; any other row is left alone.
+	FailParked(ctx context.Context, ouID, projectName, agentName string, environmentUUID uuid.UUID, lastErr string) error
+
 	// ClaimDue leases up to limit pending rows whose next_attempt_at has passed; NULL is never due.
 	ClaimDue(ctx context.Context, now time.Time, limit int) ([]models.A2AAgentCard, error)
 
 	// The Mark* methods act on the row as ClaimDue returned it and return
 	// ErrA2AAgentCardSuperseded when updated_at moved (a newer Enqueue).
 
-	// MarkFetched rewrites card and card_hash only when cardHash differs from read.CardHash.
+	// MarkFetched rewrites card and card_hash only when cardHash differs from read.CardHash, and source_url only for platform rows.
 	MarkFetched(ctx context.Context, read models.A2AAgentCard, card json.RawMessage, cardHash, fetchedURL, releaseName string) error
 	MarkAttemptFailed(ctx context.Context, read models.A2AAgentCard, lastErr, releaseName string, nextAttemptAt time.Time) error
 	MarkFailed(ctx context.Context, read models.A2AAgentCard, lastErr, releaseName string) error
@@ -70,6 +78,10 @@ type A2AAgentCardRepository interface {
 	DeleteIfUnchanged(ctx context.Context, read models.A2AAgentCard) error
 	// DeleteForEnvironment drops every agent's row in a deleted environment.
 	DeleteForEnvironment(ctx context.Context, ouID string, environmentUUID uuid.UUID) error
+	// ListForEnvironment returns every agent's row for the environment, ordered by project and agent name.
+	ListForEnvironment(ctx context.Context, ouID string, environmentUUID uuid.UUID) ([]models.A2AAgentCard, error)
+	// ListEnvironmentUUIDs returns the distinct environment UUIDs with rows recorded under environmentName.
+	ListEnvironmentUUIDs(ctx context.Context, ouID, environmentName string) ([]uuid.UUID, error)
 }
 
 // A2AAgentCardClaimLease is how long a claimed row stays invisible to other claimers.
@@ -166,6 +178,47 @@ func newSourceURLAssignments(changed string) []clause.Assignment {
 const a2aCardClaimColumns = `id, ou_id, project_name, agent_name, environment_name, environment_uuid, source, source_url, card_hash,
 	fetched_at, release_name, attempted_release_name, status, attempt_count, last_error, next_attempt_at, created_at, updated_at`
 
+func (r *a2aAgentCardRepository) WithTx(tx *gorm.DB) A2AAgentCardRepository {
+	return &a2aAgentCardRepository{db: tx}
+}
+
+func (r *a2aAgentCardRepository) ClearCard(ctx context.Context, ouID, projectName, agentName string, environmentUUID uuid.UUID) error {
+	result := r.db.WithContext(ctx).Model(&models.A2AAgentCard{}).
+		Where("ou_id = ? AND project_name = ? AND agent_name = ? AND environment_uuid = ?",
+			ouID, projectName, agentName, environmentUUID).
+		Updates(map[string]interface{}{
+			"card":            nil,
+			"card_hash":       "",
+			"fetched_at":      nil,
+			"release_name":    "",
+			"status":          models.A2AAgentCardStatusPending,
+			"attempt_count":   0,
+			"last_error":      "",
+			"next_attempt_at": nil,
+			"updated_at":      time.Now().Truncate(time.Microsecond),
+		})
+	if result.Error != nil {
+		return result.Error
+	}
+	if result.RowsAffected == 0 {
+		return ErrA2AAgentCardNotFound
+	}
+	return nil
+}
+
+func (r *a2aAgentCardRepository) FailParked(
+	ctx context.Context, ouID, projectName, agentName string, environmentUUID uuid.UUID, lastErr string,
+) error {
+	return r.db.WithContext(ctx).Model(&models.A2AAgentCard{}).
+		Where("ou_id = ? AND project_name = ? AND agent_name = ? AND environment_uuid = ? AND status = ? AND next_attempt_at IS NULL",
+			ouID, projectName, agentName, environmentUUID, models.A2AAgentCardStatusPending).
+		Updates(map[string]interface{}{
+			"status":     models.A2AAgentCardStatusFailed,
+			"last_error": lastErr,
+			"updated_at": time.Now().Truncate(time.Microsecond),
+		}).Error
+}
+
 func (r *a2aAgentCardRepository) ClaimDue(ctx context.Context, now time.Time, limit int) ([]models.A2AAgentCard, error) {
 	var claimed []models.A2AAgentCard
 	err := r.db.WithContext(ctx).Raw(
@@ -193,8 +246,11 @@ func (r *a2aAgentCardRepository) MarkFetched(ctx context.Context, read models.A2
 		"fetched_at":      time.Now(),
 		"last_error":      "",
 		"next_attempt_at": nil,
-		"source_url":      fetchedURL,
 		"release_name":    releaseName,
+	}
+	// An external row's source_url is the registered URL; a fetch through the gateway must not replace it.
+	if read.Source == models.A2AAgentCardSourcePlatform {
+		updates["source_url"] = fetchedURL
 	}
 	if cardHash != read.CardHash {
 		updates["card"] = card
@@ -303,7 +359,42 @@ func (r *a2aAgentCardRepository) DeletePlatformForAgentEnv(ctx context.Context, 
 }
 
 func (r *a2aAgentCardRepository) DeleteForEnvironment(ctx context.Context, ouID string, environmentUUID uuid.UUID) error {
-	return r.db.WithContext(ctx).
+	return deleteForEnvironment[models.A2AAgentCard](ctx, r.db, ouID, environmentUUID)
+}
+
+func (r *a2aAgentCardRepository) ListForEnvironment(ctx context.Context, ouID string, environmentUUID uuid.UUID) ([]models.A2AAgentCard, error) {
+	return listForEnvironment[models.A2AAgentCard](ctx, r.db, ouID, environmentUUID, "project_name ASC, agent_name ASC")
+}
+
+func (r *a2aAgentCardRepository) ListEnvironmentUUIDs(ctx context.Context, ouID, environmentName string) ([]uuid.UUID, error) {
+	return listEnvironmentUUIDs[models.A2AAgentCard](ctx, r.db, ouID, environmentName)
+}
+
+// deleteForEnvironment deletes every T row of the environment.
+func deleteForEnvironment[T any](ctx context.Context, db *gorm.DB, ouID string, environmentUUID uuid.UUID) error {
+	return db.WithContext(ctx).
 		Where("ou_id = ? AND environment_uuid = ?", ouID, environmentUUID).
-		Delete(&models.A2AAgentCard{}).Error
+		Delete(new(T)).Error
+}
+
+// listForEnvironment lists the T rows of one environment in the given order.
+func listForEnvironment[T any](ctx context.Context, db *gorm.DB, ouID string, environmentUUID uuid.UUID, order string) ([]T, error) {
+	var rows []T
+	err := db.WithContext(ctx).
+		Where("ou_id = ? AND environment_uuid = ?", ouID, environmentUUID).
+		Order(order).
+		Find(&rows).Error
+	if err != nil {
+		return nil, err
+	}
+	return rows, nil
+}
+
+// listEnvironmentUUIDs lists the distinct environment UUIDs of the T rows recorded under environmentName.
+func listEnvironmentUUIDs[T any](ctx context.Context, db *gorm.DB, ouID, environmentName string) ([]uuid.UUID, error) {
+	var ids []uuid.UUID
+	err := db.WithContext(ctx).Model(new(T)).
+		Where("ou_id = ? AND environment_name = ?", ouID, environmentName).
+		Distinct().Pluck("environment_uuid", &ids).Error
+	return ids, err
 }

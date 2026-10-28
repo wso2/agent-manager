@@ -28,7 +28,7 @@ set -euo pipefail
 #     release so an added env runs the same chart. Injected by the console.
 # Optional:
 #   - CHART_VERSION: gateway-extension chart version (e.g. 0.15.0). Injected by the console.
-#   - THUNDER_CHART_VERSION: ThunderID chart version for the per-env instance (default: 1.0.0).
+#   - THUNDER_CHART_VERSION: ThunderID chart version for the per-env instance (default: 1.0.1).
 #   - GATEWAY_CHART: path to a local chart directory or tarball (e.g. ./deployments/helm-charts/wso2-amp-api-platform-gateway-extension).
 #     When set, CHART_VERSION is ignored and the local chart is used directly.
 #   - IS_PRODUCTION (default: false)
@@ -598,28 +598,54 @@ kubectl label namespace "${GATEWAY_NAMESPACE}" "amp.wso2.com/api-platform-gatewa
 GATEWAY_ENCRYPTION_SECRET_NAME="${GATEWAY_ENCRYPTION_SECRET_NAME:-gateway-encryption-keys}"
 GATEWAY_ENCRYPTION_SECRET_KEY="${GATEWAY_ENCRYPTION_SECRET_KEY:-default-aesgcm256-v1.bin}"
 
-if ! kubectl auth can-i get secrets -n "${GATEWAY_NAMESPACE}" &>/dev/null; then
-    echo "❌ Missing 'get' permission on secrets in '${GATEWAY_NAMESPACE}' — required to detect an existing gateway encryption key secret. Grant get (in addition to create) on secrets in this namespace to the identity running this script." >&2
-    exit 1
-fi
+# Creates the encryption key Secret in <namespace>, or keeps the one already there.
+# Called once per gateway namespace: the controller mounts it from its own namespace.
+ensure_gateway_encryption_key() {   # <namespace>
+    local ns="$1"
+    if ! kubectl auth can-i get secrets -n "${ns}" &>/dev/null; then
+        echo "❌ Missing 'get' permission on secrets in '${ns}' — required to detect an existing gateway encryption key secret. Grant get (in addition to create) on secrets in this namespace to the identity running this script." >&2
+        exit 1
+    fi
 
-key_tmp="$(mktemp)"
-# Remove the plaintext key on every exit path — openssl/kubectl failure (set -e)
-# or an interrupt — not only via the normal cleanup below.
-trap 'rm -f "${key_tmp}"' EXIT INT TERM
-openssl rand 32 > "${key_tmp}"
-enc_create_out="$(kubectl create secret generic "${GATEWAY_ENCRYPTION_SECRET_NAME}" -n "${GATEWAY_NAMESPACE}" \
-    "--from-file=${GATEWAY_ENCRYPTION_SECRET_KEY}=${key_tmp}" 2>&1)" && enc_create_rc=0 || enc_create_rc=$?
-rm -f "${key_tmp}" # normal cleanup: don't leave the plaintext key on disk
-trap - EXIT INT TERM
-if [ "${enc_create_rc}" -eq 0 ]; then
-    echo "✅ Gateway encryption key secret created in '${GATEWAY_NAMESPACE}'"
-elif kubectl get secret "${GATEWAY_ENCRYPTION_SECRET_NAME}" -n "${GATEWAY_NAMESPACE}" &>/dev/null; then
-    echo "⏭️  Gateway encryption key secret '${GATEWAY_ENCRYPTION_SECRET_NAME}' already exists in '${GATEWAY_NAMESPACE}', leaving it untouched."
-else
-    echo "❌ Failed to create gateway encryption key secret '${GATEWAY_ENCRYPTION_SECRET_NAME}' in '${GATEWAY_NAMESPACE}': ${enc_create_out}" >&2
-    exit 1
-fi
+    # Global on purpose: the trap below runs after this function returns.
+    key_tmp="$(mktemp)"
+    # Remove the plaintext key on every exit path — openssl/kubectl failure (set -e)
+    # or an interrupt — not only via the normal cleanup below.
+    trap 'rm -f "${key_tmp}"' EXIT INT TERM
+    openssl rand 32 > "${key_tmp}"
+    enc_create_out="$(kubectl create secret generic "${GATEWAY_ENCRYPTION_SECRET_NAME}" -n "${ns}" \
+        "--from-file=${GATEWAY_ENCRYPTION_SECRET_KEY}=${key_tmp}" 2>&1)" && enc_create_rc=0 || enc_create_rc=$?
+    rm -f "${key_tmp}" # normal cleanup: don't leave the plaintext key on disk
+    trap - EXIT INT TERM
+    if [ "${enc_create_rc}" -eq 0 ]; then
+        echo "✅ Gateway encryption key secret created in '${ns}'"
+    elif kubectl get secret "${GATEWAY_ENCRYPTION_SECRET_NAME}" -n "${ns}" &>/dev/null; then
+        echo "⏭️  Gateway encryption key secret '${GATEWAY_ENCRYPTION_SECRET_NAME}' already exists in '${ns}', leaving it untouched."
+    else
+        echo "❌ Failed to create gateway encryption key secret '${GATEWAY_ENCRYPTION_SECRET_NAME}' in '${ns}': ${enc_create_out}" >&2
+        exit 1
+    fi
+}
+
+ensure_gateway_encryption_key "${GATEWAY_NAMESPACE}"
+
+# The production guide keeps the real gateway IDP credentials in this Secret. A pod cannot read a
+# Secret from another namespace, so put a copy beside each gateway. When it does not exist
+# (quick-start, k3d, VM) nothing changes: the chart's default credentials are used, as before.
+# Returns 0 when copied, 2 when the Secret does not exist, 1 on any other failure.
+copy_idp_secret() {
+    local id sec err
+    err="$(mktemp)"
+    if ! id="$(kubectl get secret gateway-idp-credentials -n openchoreo-data-plane -o jsonpath='{.data.client-id}' 2>"${err}")"; then
+        if grep -q 'NotFound' "${err}"; then rm -f "${err}"; return 2; fi
+        cat "${err}" >&2; rm -f "${err}"; return 1
+    fi
+    rm -f "${err}"
+    sec="$(kubectl get secret gateway-idp-credentials -n openchoreo-data-plane -o jsonpath='{.data.client-secret}' 2>/dev/null)" || return 1
+    [ -n "${id}" ] && [ -n "${sec}" ] || return 1
+    printf 'apiVersion: v1\nkind: Secret\nmetadata:\n  name: gateway-idp-credentials\ndata:\n  client-id: %s\n  client-secret: %s\n' "${id}" "${sec}" \
+        | kubectl apply -n "$1" -f - > /dev/null
+}
 
 # Release name must match the gateway runtime service lookup expected by
 # the kgateway routes (api-platform-<org>-<env> derives from _helpers.tpl
@@ -648,6 +674,20 @@ HELM_ARGS=(
 )
 if [ -n "$CHART_VERSION" ]; then
     HELM_ARGS+=(--version "${CHART_VERSION}")
+fi
+
+IDP_SECRET_COPIED=false
+IDP_COPY_RC=0
+copy_idp_secret "${GATEWAY_NAMESPACE}" || IDP_COPY_RC=$?
+if [ "${IDP_COPY_RC}" -eq 0 ]; then
+    IDP_SECRET_COPIED=true
+    echo "🔑 Using the gateway IDP credentials from openchoreo-data-plane/gateway-idp-credentials"
+    HELM_ARGS+=(--set agentManager.idp.existingSecret=gateway-idp-credentials)
+elif [ "${IDP_COPY_RC}" -ne 2 ]; then
+    # Only a missing Secret may fall back to the chart default; any other failure would
+    # install a gateway with the wrong password.
+    echo "❌ Could not copy openchoreo-data-plane/gateway-idp-credentials into '${GATEWAY_NAMESPACE}'." >&2
+    exit 1
 fi
 
 if [ "$THUNDER_PROVISIONED" = "true" ]; then
@@ -727,6 +767,17 @@ if [ "$GATEWAY_TOPOLOGY" = "split" ]; then
     # connection timeout at agent runtime with nothing in the control plane explaining why.
     kubectl create namespace "${EGRESS_NAMESPACE}" --dry-run=client -o yaml | kubectl apply -f - > /dev/null
     kubectl label namespace "${EGRESS_NAMESPACE}" "amp.wso2.com/api-platform-gateway=true" --overwrite > /dev/null
+    # The egress controller mounts the encryption key from ITS namespace; without this copy
+    # its pod stays in ContainerCreating and the egress gateway never becomes Programmed.
+    ensure_gateway_encryption_key "${EGRESS_NAMESPACE}"
+    # The egress release shares HELM_ARGS, so it also references the Secret and needs its own
+    # copy. Stop on failure, as for the main gateway: the default credentials would be wrong.
+    if [ "${IDP_SECRET_COPIED}" = "true" ]; then
+        copy_idp_secret "${EGRESS_NAMESPACE}" || {
+            echo "❌ Could not copy openchoreo-data-plane/gateway-idp-credentials into '${EGRESS_NAMESPACE}'." >&2
+            exit 1
+        }
+    fi
 
     # gateway.name MUST be set: apiGatewayName (_helpers.tpl:56-62) defaults to
     # api-platform-<org>-<env> with no discriminator, so both releases would produce the

@@ -21,7 +21,7 @@ var _ MappedNullable = &CreateLLMAPIKeyRequest{}
 type CreateLLMAPIKeyRequest struct {
 	// Unique identifier for the API key. If omitted, generated from displayName.
 	Name *string `json:"name,omitempty"`
-	// Human-readable display name for the API key.
+	// Human-readable display name for the API key. When name is omitted, the name generated from it (lowercase letters, digits and hyphens) must be at least 3 characters long.
 	DisplayName *string `json:"displayName,omitempty"`
 	// Optional expiration time in ISO 8601 format (e.g. 2026-12-31T23:59:59Z).
 	ExpiresAt *string `json:"expiresAt,omitempty"`

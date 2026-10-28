@@ -162,6 +162,13 @@ var coalesceWindows = map[string]time.Duration{
 	"/llm-providers/api-keys": 5 * time.Minute,
 	"/llm-proxies/api-keys":   5 * time.Minute,
 	"/apis/api-keys":          5 * time.Minute,
+
+	// The gateway failure summary answers 503 when the fleet is over its
+	// failure threshold, so it is built to be a monitor's target and will be
+	// polled on a timer. Coalesced for the same reason as the bulk-sync routes
+	// above: the record worth keeping is that the platform-admin org read every
+	// tenant's fleet and when it started, not each poll in a degraded hour.
+	"/platform/gateways/failure-summary": 5 * time.Minute,
 }
 
 var sensitiveReadPaths = map[string]bool{
@@ -188,6 +195,20 @@ var sensitiveReadPaths = map[string]bool{
 	"/orgs/{orgName}/identities/roles/{roleID}/assignments":           true,
 	"/orgs/{orgName}/gateways/{gatewayID}/identity-providers":         true,
 	"/orgs/{orgName}/environments/{environmentId}/identity-providers": true,
+
+	// Cross-tenant infrastructure state. This route discloses every
+	// organization's gateway fleet health to the platform-admin OU, so who read
+	// it and when is worth keeping even though nothing changed. It is also the
+	// only route here that is not org-scoped, which is the reason to record it
+	// rather than a reason to skip it.
+	//
+	// Read its records with one caveat: the route answers 503 to report a
+	// degraded fleet, and outcomeForStatus maps every status at or above 400 to
+	// OutcomeFailure. So a successful read of an unhealthy fleet is recorded as
+	// a failed gateway:read. The 503 is about the gateways, not about this
+	// request — statusCode tells them apart, outcome does not. Coalesced; see
+	// coalesceWindows.
+	"/platform/gateways/failure-summary": true,
 }
 
 // actionOverrides maps a route path to the action it actually performs, for
@@ -300,6 +321,9 @@ var actionOverrides = map[string]Action{
 	"POST /orgs/{orgName}/projects/{projName}/agents/{agentName}/environments/{envID}/agent-card/refresh":  "agent:refresh-card",
 	"PUT /orgs/{orgName}/projects/{projName}/agents/{agentName}/environments/{envID}/agent-card/source":    "agent:set-card-source",
 	"DELETE /orgs/{orgName}/projects/{projName}/agents/{agentName}/environments/{envID}/agent-card/source": "agent:remove-card-source",
+	"PUT /orgs/{orgName}/projects/{projName}/agents/{agentName}/environments/{envID}/a2a-proxy":            "agent:set-a2a-proxy",
+	"DELETE /orgs/{orgName}/projects/{projName}/agents/{agentName}/environments/{envID}/a2a-proxy":         "agent:remove-a2a-proxy",
+	"POST /orgs/{orgName}/projects/{projName}/agents/{agentName}/environments/{envID}/a2a-proxy/refresh":   "agent:refresh-a2a-proxy",
 
 	// Agent-kind versions, gated by the coarse kind update/delete permissions.
 	"POST /orgs/{orgName}/agent-kinds/{kindName}/versions":                "agent-kind:add-version",

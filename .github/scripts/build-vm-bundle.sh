@@ -7,9 +7,10 @@
 # reproduces the repo layout so install.sh resolves DEPLOYMENTS_DIR (=deployments/)
 # and its single-cluster/values/k8s/scripts siblings exactly as in a checkout.
 #
-# Also copies bootstrap.sh, start.sh and k3d-install.sh out alongside the tarball
-# so each can be attached as its own release asset (the stable curl entry points
-# for the VM, dev-container and host k3d install paths respectively — piping a tarball to bash doesn't work,
+# Also copies bootstrap.sh, start.sh, k3d-install.sh and k3d-install-subscription.sh
+# out alongside the tarball so each can be attached as its own release asset (the
+# stable curl entry points for the VM, dev-container, host k3d and subscription
+# host k3d install paths respectively — piping a tarball to bash doesn't work,
 # so these stay standalone files even though a copy also lives inside the bundle).
 #
 # Usage: build-vm-bundle.sh <version> <out-dir>   (run from the repo root)
@@ -39,6 +40,7 @@ tar -czf "$BUNDLE" \
 cp deployments/vm/bootstrap.sh "${OUT_DIR}/bootstrap.sh"
 cp deployments/quick-start/start.sh "${OUT_DIR}/start.sh"
 cp deployments/quick-start/k3d-install.sh "${OUT_DIR}/k3d-install.sh"
+cp deployments/quick-start/k3d-install-subscription.sh "${OUT_DIR}/k3d-install-subscription.sh"
 
 # MANIFEST.json — what this bundle expects to find at install time, in a form a
 # downstream publisher can read without parsing release notes. The download is
@@ -97,3 +99,4 @@ tar -tzf "$BUNDLE" | head -n 20 | sed 's/^/     /' || true
 echo "✅ Copied bootstrap.sh: ${OUT_DIR}/bootstrap.sh"
 echo "✅ Copied start.sh: ${OUT_DIR}/start.sh"
 echo "✅ Copied k3d-install.sh: ${OUT_DIR}/k3d-install.sh"
+echo "✅ Copied k3d-install-subscription.sh: ${OUT_DIR}/k3d-install-subscription.sh"

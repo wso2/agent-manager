@@ -540,6 +540,13 @@ class ToneEvaluator(LLMAsJudgeEvaluator):
         ),
     )
 
+    def evaluate(self, llm_span: LLMSpan) -> EvalResult:
+        """Skip LLM calls that only request tools. Judge the rest as usual."""
+        # A tool-only call's output is the parser's [tool_call: ...] summary, not reply text.
+        if llm_span._tool_calls and llm_span.output.startswith("[tool_call:"):
+            return EvalResult.skip("LLM call only requested tools, so there is no response text to judge for tone")
+        return super().evaluate(llm_span)
+
     def build_prompt(self, llm_span: LLMSpan) -> str:
         context_line = f"\nExpected context: {self.context}" if self.context else ""
 

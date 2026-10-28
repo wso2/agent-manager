@@ -58,6 +58,21 @@ export function isApiKeyAuthEnabled(security?: SecurityConfig | null): boolean {
   return security?.enabled !== false && security?.apiKey?.enabled === true;
 }
 
+/** The gateway silently drops keys whose name is shorter than this (models.MinAPIKeyNameLength). */
+const MIN_API_KEY_NAME_LENGTH = 3;
+
+/**
+ * Mirrors the service's utils.GenerateHandle, which names a key from its display
+ * name. An empty result is fine: the service then picks a random name.
+ */
+function toAPIKeyName(displayName: string): string {
+  return displayName
+    .replace(/[A-Z]/g, (c) => c.toLowerCase())
+    .replace(/[ _-]/g, "-")
+    .replace(/[^a-z0-9-]/g, "")
+    .replace(/^-+|-+$/g, "");
+}
+
 export interface CreateAPIKeyInput {
   displayName: string;
   /** RFC3339 expiry timestamp. */
@@ -104,7 +119,9 @@ function CreateAPIKeyDrawer({
 
   const trimmedDisplayName = displayName.trim();
   const isValidExpiry = !!expiresAt && !Number.isNaN(expiresAt.getTime());
-  const canSubmit = trimmedDisplayName.length > 0 && isValidExpiry;
+  const keyNameLength = toAPIKeyName(trimmedDisplayName).length;
+  const isNameTooShort = keyNameLength > 0 && keyNameLength < MIN_API_KEY_NAME_LENGTH;
+  const canSubmit = trimmedDisplayName.length > 0 && !isNameTooShort && isValidExpiry;
 
   const handleClose = () => {
     setDisplayName("");
@@ -149,6 +166,12 @@ function CreateAPIKeyDrawer({
                     size="small"
                     placeholder="production key"
                     disabled={isCreating}
+                    error={isNameTooShort}
+                    helperText={
+                      isNameTooShort
+                        ? `Use at least ${MIN_API_KEY_NAME_LENGTH} letters or digits`
+                        : undefined
+                    }
                   />
                 </Form.ElementWrapper>
                 <Form.ElementWrapper label="Expires" name="expiresAt">

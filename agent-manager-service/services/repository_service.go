@@ -35,13 +35,24 @@ type RepositoryService interface {
 	// ListCommits returns commits for a repository. ouID comes from the caller's
 	// token, never the request body — it scopes the secretRef lookup.
 	ListCommits(ctx context.Context, req spec.ListCommitsRequest, ouID string, providerType gitprovider.ProviderType, limit, offset int) (*spec.ListCommitsResponse, error)
+	// SetCommitProvider installs an optional deployment-specific commit source.
+	// It is called once during startup, before the HTTP server begins serving.
+	SetCommitProvider(provider RepositoryCommitProvider)
 	// GetLatestCommit returns the latest commit SHA for a given branch
 	GetLatestCommit(ctx context.Context, owner, repo, branch string) (string, error)
 }
 
 type repositoryService struct {
 	gitCredentialsService GitCredentialsService
+	commitProvider        RepositoryCommitProvider
 	logger                *slog.Logger
+}
+
+// RepositoryCommitProvider lists commits for a deployment-specific component
+// source binding. handled=false means no binding exists and the standard
+// public/PAT repository path must be used unchanged.
+type RepositoryCommitProvider interface {
+	ListCommits(ctx context.Context, projectName, componentName string, opts gitprovider.ListCommitsOptions) (result *gitprovider.ListCommitsResponse, handled bool, err error)
 }
 
 // NewRepositoryService creates a new repository service
@@ -50,6 +61,10 @@ func NewRepositoryService(gitCredentialsService GitCredentialsService, logger *s
 		gitCredentialsService: gitCredentialsService,
 		logger:                logger,
 	}
+}
+
+func (s *repositoryService) SetCommitProvider(provider RepositoryCommitProvider) {
+	s.commitProvider = provider
 }
 
 // getGitProviderConfig returns the git provider configuration with token from server config
@@ -142,6 +157,29 @@ func (s *repositoryService) ListBranches(ctx context.Context, req spec.ListBranc
 
 // ListCommits returns commits for a repository
 func (s *repositoryService) ListCommits(ctx context.Context, req spec.ListCommitsRequest, ouID string, providerType gitprovider.ProviderType, limit, offset int) (*spec.ListCommitsResponse, error) {
+	opts := gitprovider.ListCommitsOptions{
+		SHA:    req.GetBranch(),
+		Path:   req.GetPath(),
+		Author: req.GetAuthor(),
+		Since:  req.Since,
+		Until:  req.Until,
+	}
+
+	if s.commitProvider != nil && req.HasProjectName() && req.HasComponentName() {
+		result, handled, err := listCommitsWindow(limit, offset, func(page int) (*gitprovider.ListCommitsResponse, bool, error) {
+			componentOpts := opts
+			componentOpts.PerPage = limit
+			componentOpts.Page = page
+			return s.commitProvider.ListCommits(ctx, req.GetProjectName(), req.GetComponentName(), componentOpts)
+		})
+		if err != nil {
+			return nil, fmt.Errorf("list commits from component repository binding: %w", err)
+		}
+		if handled {
+			return mapListCommitsResponse(result, limit, offset), nil
+		}
+	}
+
 	// Determine git provider configuration
 	providerConfig := getGitProviderConfig()
 
@@ -170,21 +208,61 @@ func (s *repositoryService) ListCommits(ctx context.Context, req spec.ListCommit
 	if err != nil {
 		return nil, err
 	}
-	// Build options
-	opts := gitprovider.ListCommitsOptions{
-		SHA:    req.GetBranch(),
-		Path:   req.GetPath(),
-		Author: req.GetAuthor(),
-		Since:  req.Since,
-		Until:  req.Until,
-	}
-
 	// List commits
 	result, err := provider.ListCommits(ctx, req.Owner, req.Repo, opts)
 	if err != nil {
 		return nil, err
 	}
 
+	return mapListCommitsResponse(result, limit, offset), nil
+}
+
+// listCommitsWindow returns exactly the commits in [offset, offset+limit) from a source
+// that only serves fixed-size pages of limit commits. An offset that is not a multiple of
+// limit starts part-way into a page, so the window then spans two pages: the tail of the
+// page holding offset and the head of the next one. The next page is fetched only when
+// the first is full and reports more; HasMore reflects whether anything lies past the
+// window. handled=false from the first fetch is passed straight through.
+func listCommitsWindow(
+	limit, offset int, fetch func(page int) (*gitprovider.ListCommitsResponse, bool, error),
+) (*gitprovider.ListCommitsResponse, bool, error) {
+	if limit <= 0 {
+		return nil, false, fmt.Errorf("limit must be greater than 0, got %d", limit)
+	}
+	page := offset/limit + 1
+	skip := offset % limit
+
+	first, handled, err := fetch(page)
+	if err != nil || !handled {
+		return first, handled, err
+	}
+	if first == nil {
+		first = &gitprovider.ListCommitsResponse{}
+	}
+	commits := first.Commits[min(skip, len(first.Commits)):]
+	hasMore := first.HasMore
+
+	if skip > 0 && hasMore {
+		next, nextHandled, err := fetch(page + 1)
+		if err != nil {
+			return nil, false, err
+		}
+		if nextHandled && next != nil {
+			commits = append(commits[:len(commits):len(commits)], next.Commits...)
+			hasMore = next.HasMore
+		}
+	}
+	if len(commits) > limit {
+		commits = commits[:limit]
+		hasMore = true
+	}
+	return &gitprovider.ListCommitsResponse{Commits: commits, HasMore: hasMore}, true, nil
+}
+
+func mapListCommitsResponse(result *gitprovider.ListCommitsResponse, limit, offset int) *spec.ListCommitsResponse {
+	if result == nil {
+		result = &gitprovider.ListCommitsResponse{}
+	}
 	// Convert to response model
 	commits := make([]spec.Commit, len(result.Commits))
 	for i, c := range result.Commits {
@@ -220,7 +298,7 @@ func (s *repositoryService) ListCommits(ctx context.Context, req spec.ListCommit
 		nextOffset := int32(offset + limit)
 		response.NextOffset = &nextOffset
 	}
-	return response, nil
+	return response
 }
 
 // GetLatestCommit returns the latest commit SHA for a given branch

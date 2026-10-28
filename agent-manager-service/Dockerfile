@@ -25,7 +25,7 @@ RUN CGO_ENABLED=0 GOOS=${TARGETOS} GOARCH=${TARGETARCH} go build \
     -o /go/bin/agent-manager-service \
     -buildvcs=false
 
-FROM public.ecr.aws/docker/library/alpine:3.21
+FROM public.ecr.aws/docker/library/alpine:3.24
 
 # Install runtime dependencies for HTTPS, timezone support, bash and openssl for key generation
 RUN apk add --no-cache ca-certificates tzdata bash openssl

@@ -95,7 +95,7 @@ type GatewayMessage struct {
 type DeploymentAckPayload struct {
 	DeploymentID string    `json:"deploymentId"`
 	ArtifactID   string    `json:"artifactId"`
-	ResourceType string    `json:"resourceType"` // "api", "llmprovider", "llmproxy", "mcpproxy"
+	ResourceType string    `json:"resourceType"` // "api", "llmprovider", "llmproxy", "mcpproxy", "agentproxy", "Agent"
 	Action       string    `json:"action"`       // "deploy" or "undeploy"
 	Status       string    `json:"status"`       // "success" or "failed"
 	PerformedAt  time.Time `json:"performedAt"`

@@ -720,7 +720,7 @@ data:
           - "amp:profile:update-attributes"
     {{- range $server := .Values.thunder.bootstrap.mcpResourceServers }}
     {{- if index $.Values.thunder.bootstrap $server.baseUrlValue }}
-      - resourceServerId: {{ $server.id }}
+      - resourceServerId: {{ $server.id | quote }}
         permissions:
     {{- if eq $server.permissionSet "observability-only" }}
           - "amp:observability:trace-read"
@@ -813,7 +813,7 @@ data:
           - "amp:profile:update-attributes"
     {{- range $server := .Values.thunder.bootstrap.mcpResourceServers }}
     {{- if index $.Values.thunder.bootstrap $server.baseUrlValue }}
-      - resourceServerId: {{ $server.id }}
+      - resourceServerId: {{ $server.id | quote }}
         permissions:
     {{- if eq $server.permissionSet "observability-only" }}
           - "amp:observability:trace-read"
@@ -896,7 +896,7 @@ data:
           - "amp:profile:update-attributes"
     {{- range $server := .Values.thunder.bootstrap.mcpResourceServers }}
     {{- if index $.Values.thunder.bootstrap $server.baseUrlValue }}
-      - resourceServerId: {{ $server.id }}
+      - resourceServerId: {{ $server.id | quote }}
         permissions:
     {{- if eq $server.permissionSet "observability-only" }}
           - "amp:observability:trace-read"
@@ -992,7 +992,7 @@ data:
           - "amp:profile:update-attributes"
     {{- range $server := .Values.thunder.bootstrap.mcpResourceServers }}
     {{- if index $.Values.thunder.bootstrap $server.baseUrlValue }}
-      - resourceServerId: {{ $server.id }}
+      - resourceServerId: {{ $server.id | quote }}
         permissions:
     {{- if eq $server.permissionSet "observability-only" }}
           - "amp:observability:trace-read"

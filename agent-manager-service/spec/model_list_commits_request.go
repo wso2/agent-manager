@@ -36,6 +36,10 @@ type ListCommitsRequest struct {
 	Until *time.Time `json:"until,omitempty"`
 	// Secret reference name for private repository Git credentials
 	SecretRef *string `json:"secretRef,omitempty"`
+	// Optional project name used to resolve a deployment-specific repository binding
+	ProjectName *string `json:"projectName,omitempty"`
+	// Optional component name used to resolve a deployment-specific repository binding
+	ComponentName *string `json:"componentName,omitempty"`
 }
 
 // NewListCommitsRequest instantiates a new ListCommitsRequest object
@@ -297,6 +301,70 @@ func (o *ListCommitsRequest) SetSecretRef(v string) {
 	o.SecretRef = &v
 }
 
+// GetProjectName returns the ProjectName field value if set, zero value otherwise.
+func (o *ListCommitsRequest) GetProjectName() string {
+	if o == nil || IsNil(o.ProjectName) {
+		var ret string
+		return ret
+	}
+	return *o.ProjectName
+}
+
+// GetProjectNameOk returns a tuple with the ProjectName field value if set, nil otherwise
+// and a boolean to check if the value has been set.
+func (o *ListCommitsRequest) GetProjectNameOk() (*string, bool) {
+	if o == nil || IsNil(o.ProjectName) {
+		return nil, false
+	}
+	return o.ProjectName, true
+}
+
+// HasProjectName returns a boolean if a field has been set.
+func (o *ListCommitsRequest) HasProjectName() bool {
+	if o != nil && !IsNil(o.ProjectName) {
+		return true
+	}
+
+	return false
+}
+
+// SetProjectName gets a reference to the given string and assigns it to the ProjectName field.
+func (o *ListCommitsRequest) SetProjectName(v string) {
+	o.ProjectName = &v
+}
+
+// GetComponentName returns the ComponentName field value if set, zero value otherwise.
+func (o *ListCommitsRequest) GetComponentName() string {
+	if o == nil || IsNil(o.ComponentName) {
+		var ret string
+		return ret
+	}
+	return *o.ComponentName
+}
+
+// GetComponentNameOk returns a tuple with the ComponentName field value if set, nil otherwise
+// and a boolean to check if the value has been set.
+func (o *ListCommitsRequest) GetComponentNameOk() (*string, bool) {
+	if o == nil || IsNil(o.ComponentName) {
+		return nil, false
+	}
+	return o.ComponentName, true
+}
+
+// HasComponentName returns a boolean if a field has been set.
+func (o *ListCommitsRequest) HasComponentName() bool {
+	if o != nil && !IsNil(o.ComponentName) {
+		return true
+	}
+
+	return false
+}
+
+// SetComponentName gets a reference to the given string and assigns it to the ComponentName field.
+func (o *ListCommitsRequest) SetComponentName(v string) {
+	o.ComponentName = &v
+}
+
 func (o ListCommitsRequest) MarshalJSON() ([]byte, error) {
 	toSerialize, err := o.ToMap()
 	if err != nil {
@@ -326,6 +394,12 @@ func (o ListCommitsRequest) ToMap() (map[string]interface{}, error) {
 	}
 	if !IsNil(o.SecretRef) {
 		toSerialize["secretRef"] = o.SecretRef
+	}
+	if !IsNil(o.ProjectName) {
+		toSerialize["projectName"] = o.ProjectName
+	}
+	if !IsNil(o.ComponentName) {
+		toSerialize["componentName"] = o.ComponentName
 	}
 	return toSerialize, nil
 }

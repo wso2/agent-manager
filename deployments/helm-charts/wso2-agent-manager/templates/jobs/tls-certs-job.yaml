@@ -39,7 +39,7 @@ spec:
       serviceAccountName: {{ include "agent-management-platform.hookServiceAccountName" . }}
       containers:
         - name: generate-tls-certs
-          image: alpine:3.21
+          image: alpine:3.24
           {{- if .Values.tlsCertsGeneration.securityContext }}
           securityContext:
             {{- toYaml .Values.tlsCertsGeneration.securityContext | nindent 12 }}

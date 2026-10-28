@@ -23,6 +23,7 @@ import (
 
 	"github.com/stretchr/testify/require"
 
+	"github.com/wso2/agent-manager/agent-manager-service/config"
 	"github.com/wso2/agent-manager/agent-manager-service/models"
 )
 
@@ -121,4 +122,47 @@ func TestBuildInternalProxyURLRejectsMissingRuntimeURL(t *testing.T) {
 	whitespace := &models.Gateway{UUID: uuid.New(), Vhost: "https://gw.example.com", RuntimeURL: "   "}
 	_, err = buildInternalProxyURL(whitespace, &contextPath)
 	require.ErrorIs(t, err, errGatewayRuntimeURLUnregistered)
+}
+
+// enableGatewayPublicVhostFallback turns on config.GatewayPublicVhostFallback for one
+// test and restores it afterwards.
+func enableGatewayPublicVhostFallback(t *testing.T) {
+	t.Helper()
+	cfg := config.GetConfig()
+	orig := cfg.GatewayPublicVhostFallback
+	cfg.GatewayPublicVhostFallback = true
+	t.Cleanup(func() { cfg.GatewayPublicVhostFallback = orig })
+}
+
+func TestBuildInternalProxyURLFallsBackToVhostWhenEnabled(t *testing.T) {
+	// A gateway registered with no in-cluster address — every cloud gateway, since only the
+	// on-prem gateway extension chart POSTs a runtimeUrl. With the fallback enabled the agent
+	// reaches it over the same public host its MCP proxies already use, so this must not fail.
+	enableGatewayPublicVhostFallback(t)
+	contextPath := "/llm/proxy"
+
+	empty := &models.Gateway{UUID: uuid.New(), Vhost: "https://gw.example.com"}
+	withContext, err := buildInternalProxyURL(empty, &contextPath)
+	require.NoError(t, err)
+	require.Equal(t, "https://gw.example.com/llm/proxy", withContext)
+	bare, err := buildInternalProxyURL(empty, nil)
+	require.NoError(t, err)
+	require.Equal(t, "https://gw.example.com", bare)
+
+	whitespace := &models.Gateway{UUID: uuid.New(), Vhost: "https://gw.example.com", RuntimeURL: "   "}
+	got, err := buildInternalProxyURL(whitespace, &contextPath)
+	require.NoError(t, err)
+	require.Equal(t, "https://gw.example.com/llm/proxy", got)
+
+	// A bare vhost still picks up the https default, as the public builder does.
+	noScheme := &models.Gateway{UUID: uuid.New(), Vhost: "gw.example.com"}
+	got, err = buildInternalProxyURL(noScheme, &contextPath)
+	require.NoError(t, err)
+	require.Equal(t, "https://gw.example.com/llm/proxy", got)
+
+	// A registered runtimeUrl still wins: the fallback only covers its absence.
+	registered := &models.Gateway{UUID: uuid.New(), Vhost: "https://gw.example.com", RuntimeURL: "http://gw-runtime:22893"}
+	got, err = buildInternalProxyURL(registered, &contextPath)
+	require.NoError(t, err)
+	require.Equal(t, "http://gw-runtime:22893/llm/proxy", got)
 }

@@ -16,12 +16,15 @@
  */
 
 import { useState, type ComponentType } from "react";
-import { Navigate, Route, Routes, useParams } from "react-router-dom";
+import { generatePath, Navigate, Route, Routes, useParams } from "react-router-dom";
 import {
   PageLayout,
   useExternalComponentModulesByMountPoint,
 } from "@agent-management-platform/views";
-import type { Environment } from "@agent-management-platform/types";
+import {
+  absoluteRouteMap,
+  type Environment,
+} from "@agent-management-platform/types";
 import { EnvironmentTable } from "./subComponents/EnvironmentTable";
 import { EditEnvironmentDrawer } from "./subComponents/EditEnvironmentDrawer";
 import { CreateEnvironmentDrawer } from "./subComponents/CreateEnvironmentDrawer";
@@ -60,6 +63,12 @@ export function EnvironmentsOrganization() {
     ENVIRONMENT_DELETE_DRAWER_MOUNT_POINT,
   )[0];
 
+  const listHref = orgId
+    ? generatePath(absoluteRouteMap.children.org.children.environments.path, {
+        orgId,
+      })
+    : "/";
+
   const CreateDrawer = (externalCreate?.component ??
     CreateEnvironmentDrawer) as ComponentType<CreateDrawerProps>;
   const DeleteDrawer = (externalDelete?.component ??
@@ -82,10 +91,7 @@ export function EnvironmentsOrganization() {
         />
         <Route path=":envName" element={<EnvironmentViewPage />} />
         <Route path=":envName/identity-provider" element={<ViewThunderInstance />} />
-        <Route
-          path="*"
-          element={<Navigate to={`/org/${orgId}/environments`} replace />}
-        />
+        <Route path="*" element={<Navigate to={listHref} replace />} />
       </Routes>
 
       {createOpen && orgId && (

@@ -524,3 +524,48 @@ func assertContains(t *testing.T, details []string, want string) {
 	}
 	t.Errorf("details %v does not contain %q", details, want)
 }
+
+func TestDroppedExternalFlags_AllowsA2ASubtype(t *testing.T) {
+	opts := validExternalOpts()
+	opts.SubType = "a2a-agent"
+	for _, m := range droppedExternalFlags(opts) {
+		if m == "--subtype is not allowed for external provisioning" {
+			t.Errorf("a2a-agent subtype was rejected: %s", m)
+		}
+	}
+}
+
+func TestValidateCardFlags(t *testing.T) {
+	const reqMsg = "--card-url requires --provisioning external and --subtype a2a-agent"
+	tests := []struct {
+		name string
+		mod  func(*CreateOptions)
+		want string
+	}{
+		{"internal", func(o *CreateOptions) { o.Provisioning = "internal"; o.CardURL = "https://a.example/c" }, reqMsg},
+		{"external custom-api", func(o *CreateOptions) { o.SubType = "custom-api"; o.CardURL = "https://a.example/c" }, reqMsg},
+		{"external a2a", func(o *CreateOptions) { o.SubType = "a2a-agent"; o.CardURL = "https://a.example/c" }, ""},
+		{"proxy without card-url", func(o *CreateOptions) { o.SubType = "a2a-agent"; o.CardProxy = true }, "--proxy requires --card-url"},
+		{"proxy bad path", func(o *CreateOptions) {
+			o.SubType = "a2a-agent"
+			o.CardURL = "https://a.example/card.json"
+			o.CardProxy = true
+		}, "--card-url must end in /.well-known/agent-card.json"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			opts := validExternalOpts()
+			tt.mod(opts)
+			got := validateCardFlags(opts)
+			if tt.want == "" {
+				if len(got) != 0 {
+					t.Errorf("want no violations, got %v", got)
+				}
+				return
+			}
+			if len(got) != 1 || !strings.Contains(got[0], tt.want) {
+				t.Errorf("got %v, want to contain %q", got, tt.want)
+			}
+		})
+	}
+}

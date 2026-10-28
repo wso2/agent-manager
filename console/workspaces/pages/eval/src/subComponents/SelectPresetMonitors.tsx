@@ -45,6 +45,7 @@ import {
 } from "@wso2/oxygen-ui-icons-react";
 import {
   absoluteRouteMap,
+  withBasePath,
   type EvaluatorResponse,
   type MonitorEvaluator,
   type MonitorLLMProviderRef,
@@ -430,11 +431,12 @@ export function SelectPresetMonitors({
     selectedEvaluatorNames,
   ]);
 
+  // Opened in a new tab via window.open, which bypasses the router basename.
   const createEvaluatorHref = orgId
-    ? generatePath(
+    ? withBasePath(generatePath(
         absoluteRouteMap.children.org.children.evaluators.children.create.path,
         { orgId },
-      )
+      ))
     : undefined;
 
   return (

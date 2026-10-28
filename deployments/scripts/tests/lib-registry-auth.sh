@@ -185,6 +185,34 @@ else
     FAILURES=$((FAILURES + 1))
 fi
 
+# --- amp_registry_helm_login --------------------------------------------------
+# helm is stubbed to record its argv and stdin, so the cases below show both
+# when it is called and that the token travels on stdin rather than argv.
+STUB3="$TMP/stub3"; mkdir -p "$STUB3"
+cat > "$STUB3/helm" <<EOF
+#!/bin/sh
+printf '%s\n' "\$*" > "$TMP/helm.args"
+cat > "$TMP/helm.stdin"
+EOF
+chmod +x "$STUB3/helm"
+helm_login() {
+    rm -f "$TMP/helm.args" "$TMP/helm.stdin"
+    ( export PATH="$STUB3:$PATH" AMP_REGISTRY_ALLOW_INSECURE=true \
+             AMP_REGISTRY_USERNAME='robot$proj+ci' AMP_REGISTRY_PASSWORD=s3cret "$@"
+      . "$LIB"; amp_registry_helm_login >/dev/null 2>&1 )
+}
+helm_login AMP_IMAGE_REGISTRY=registry.example.com/proj HELM_CHART_REGISTRY=registry.example.com/proj
+assert_eq "charts on the image host log helm in to that host" \
+    'registry login registry.example.com --username robot$proj+ci --password-stdin' "$(cat "$TMP/helm.args" 2>/dev/null)"
+assert_eq "the token reaches helm on stdin" "s3cret" "$(cat "$TMP/helm.stdin" 2>/dev/null)"
+helm_login AMP_IMAGE_REGISTRY=registry.example.com/proj HELM_CHART_REGISTRY=oci://registry.example.com/proj
+assert_eq "an oci:// chart registry resolves to the same host" \
+    'registry login registry.example.com --username robot$proj+ci --password-stdin' "$(cat "$TMP/helm.args" 2>/dev/null)"
+helm_login AMP_IMAGE_REGISTRY=registry.example.com/proj HELM_CHART_REGISTRY=ghcr.io/wso2
+assert_eq "charts on another host are left alone" "" "$(cat "$TMP/helm.args" 2>/dev/null)"
+helm_login HELM_CHART_REGISTRY=ghcr.io/wso2
+assert_eq "a public install never calls helm" "" "$(cat "$TMP/helm.args" 2>/dev/null)"
+
 if ((FAILURES > 0)); then
     printf '\n%d assertion(s) failed\n' "$FAILURES"
     exit 1

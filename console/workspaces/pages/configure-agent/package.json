@@ -40,7 +40,7 @@
   "dependencies": {
     "clsx": "2.1.1",
     "react-dom": "19.2.3",
-    "react-router-dom": "6.28.0",
+    "react-router-dom": "6.30.6",
     "date-fns": "4.1.0",
     "@emotion/react": "11.13.5",
     "@emotion/styled": "11.13.5",
@@ -53,7 +53,8 @@
     "@agent-management-platform/llm-providers": "workspace:*",
     "@agent-management-platform/mcp-proxies": "workspace:*",
     "@agent-management-platform/build": "workspace:*",
-    "zod": "4.3.6"
+    "@agent-management-platform/deploy": "workspace:*",
+    "zod": "4.6.7"
   },
   "devDependencies": {
     "@testing-library/jest-dom": "6.6.3",
@@ -91,7 +92,7 @@
   },
   "peerDependencies": {
     "react": "19.2.3",
-    "lodash": "4.17.21",
-    "@babel/runtime-corejs3": "7.11.2"
+    "lodash": "4.18.1",
+    "@babel/runtime-corejs3": "7.29.7"
   }
 }

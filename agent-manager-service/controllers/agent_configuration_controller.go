@@ -929,6 +929,8 @@ func (c *agentConfigurationController) configEnvAPIKeyParams(w http.ResponseWrit
 // responses for the create/rotate/revoke handlers. operation labels the log line.
 func (c *agentConfigurationController) writeConfigAPIKeyError(w http.ResponseWriter, log *slog.Logger, operation string, err error) {
 	switch {
+	case errors.Is(err, utils.ErrBadRequest):
+		utils.WriteErrorResponse(w, http.StatusBadRequest, err.Error())
 	case errors.Is(err, utils.ErrAgentConfigNotFound):
 		utils.WriteErrorResponse(w, http.StatusNotFound, "Configuration not found")
 	case errors.Is(err, utils.ErrAgentConfigNotExternal):

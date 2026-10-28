@@ -124,3 +124,38 @@ func TestBroadcastAgentDeletionEvent(t *testing.T) {
 	assert.Equal(t, "agent.deleted", envelope.Type)
 	assert.Equal(t, "0192f4c1-9a7d-7c3e-b4f2-1a2b3c4d5e6f", envelope.Payload.AgentID)
 }
+
+func TestBroadcastAgentUndeploymentEvent(t *testing.T) {
+	hub := &recordingEventHub{}
+	svc := NewGatewayEventsService(hub)
+	performedAt := time.Date(2026, 10, 13, 9, 30, 0, 0, time.UTC)
+
+	type ctxKey struct{}
+	ctx := context.WithValue(context.Background(), ctxKey{}, "trace-1")
+	err := svc.BroadcastAgentUndeploymentEvent(ctx, "gw-1", &models.AgentUndeploymentEvent{
+		AgentID:     "0192f4c1-9a7d-7c3e-b4f2-1a2b3c4d5e6f",
+		PerformedAt: performedAt,
+	})
+	require.NoError(t, err)
+	require.Len(t, hub.published, 1)
+	assert.Equal(t, "trace-1", hub.contexts[0].Value(ctxKey{}), "the caller's context reaches the hub")
+
+	evt := hub.published[0]
+	assert.Equal(t, eventhub.EventType("agent.undeployed"), evt.EventType)
+	assert.Equal(t, "DELETE", evt.Action)
+
+	var envelope struct {
+		Type    string `json:"type"`
+		Payload struct {
+			AgentID      string    `json:"proxyId"`
+			DeploymentID *string   `json:"deploymentId"`
+			PerformedAt  time.Time `json:"performedAt"`
+		} `json:"payload"`
+	}
+	require.NoError(t, json.Unmarshal([]byte(evt.EventData), &envelope))
+	assert.Equal(t, "agent.undeployed", envelope.Type)
+	assert.Equal(t, "0192f4c1-9a7d-7c3e-b4f2-1a2b3c4d5e6f", envelope.Payload.AgentID)
+	require.NotNil(t, envelope.Payload.DeploymentID)
+	assert.Empty(t, *envelope.Payload.DeploymentID, "an empty ID passes the gateway's deployment-ID guard")
+	assert.True(t, performedAt.Equal(envelope.Payload.PerformedAt))
+}

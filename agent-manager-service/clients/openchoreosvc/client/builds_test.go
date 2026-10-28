@@ -299,3 +299,33 @@ func TestListBuilds_DoesNotWarnTruncatedOnCleanStop(t *testing.T) {
 	assert.NotContains(t, logs.String(), "truncated",
 		"a clean end of list must not be reported as a truncated build list")
 }
+
+func TestWithRunEnvVars_AddsToRunWithoutTouchingComponent(t *testing.T) {
+	userEnv := map[string]interface{}{"name": "LOG_LEVEL", "value": "debug"}
+	staleID := map[string]interface{}{"name": EnvVarAgentIDClientID, "value": "old"}
+	params := map[string]interface{}{
+		workflowParamEnvironmentVariables: []interface{}{userEnv, staleID},
+		"repository":                      map[string]interface{}{"url": "https://example.com/repo"},
+	}
+
+	got := withRunEnvVars(params, []EnvVar{
+		{Key: EnvVarAgentIDClientID, Value: "new"},
+		{Key: EnvVarAgentIDClientSecret, ValueFrom: &EnvVarValueFrom{SecretKeyRef: &SecretKeyRef{Name: "agent-secret", Key: "client-secret"}}},
+	})
+
+	assert.Equal(t, []interface{}{
+		userEnv,
+		map[string]any{"name": EnvVarAgentIDClientID, "value": "new"},
+		map[string]any{"name": EnvVarAgentIDClientSecret, "valueFrom": map[string]any{
+			"secretKeyRef": map[string]any{"name": "agent-secret", "key": "client-secret"},
+		}},
+	}, got[workflowParamEnvironmentVariables])
+	assert.Equal(t, params["repository"], got["repository"])
+	// The component's own parameters keep only what the user configured.
+	assert.Equal(t, []interface{}{userEnv, staleID}, params[workflowParamEnvironmentVariables])
+}
+
+func TestWithRunEnvVars_NoVarsReturnsParamsUnchanged(t *testing.T) {
+	params := map[string]interface{}{workflowParamEnvironmentVariables: []interface{}{}}
+	assert.Equal(t, params, withRunEnvVars(params, nil))
+}

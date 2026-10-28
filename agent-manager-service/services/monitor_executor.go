@@ -31,6 +31,7 @@ import (
 
 	"github.com/wso2/agent-manager/agent-manager-service/catalog"
 	"github.com/wso2/agent-manager/agent-manager-service/clients/openchoreosvc/client"
+	"github.com/wso2/agent-manager/agent-manager-service/config"
 	"github.com/wso2/agent-manager/agent-manager-service/models"
 	"github.com/wso2/agent-manager/agent-manager-service/repositories"
 )
@@ -231,7 +232,7 @@ func (e *monitorExecutor) resolveLLMProxyConfig(ctx context.Context, monitor *mo
 		return "", "", "", fmt.Errorf("monitor LLM mapping for monitor %s has no secret KV path — was it provisioned correctly?", monitor.ID)
 	}
 
-	resolvedURL, err := e.resolveInternalProxyURL(ctx, monitor.OUID, monitor.EnvironmentID, mapping.LLMProxy)
+	resolvedURL, err := e.resolveProxyURL(ctx, monitor.OUID, monitor.EnvironmentID, mapping.LLMProxy)
 	if err != nil {
 		return "", "", "", fmt.Errorf("failed to resolve proxy URL: %w", err)
 	}
@@ -247,13 +248,15 @@ func (e *monitorExecutor) resolveLLMProxyConfig(ctx context.Context, monitor *mo
 	return mapping.SecretKVPath, resolvedURL, templateHandle, nil
 }
 
-// resolveInternalProxyURL derives the proxy base URL from the preloaded LLMProxy and the gateway
+// resolveProxyURL derives the proxy base URL from the preloaded LLMProxy and the gateway
 // the proxy is actually deployed to in this environment. Anchoring matters here more than
 // anywhere else: this runs on every scheduled monitor execution, on resources nobody
 // touched, so re-selecting from the environment would break every pre-existing monitor
-// the moment a second egress gateway appears. The consumer is the in-cluster evaluation job,
-// so the address is the gateway's internal one, not its vhost.
-func (e *monitorExecutor) resolveInternalProxyURL(ctx context.Context, ouID, environmentID string, proxy *models.LLMProxy) (string, error) {
+// the moment a second egress gateway appears. The consumer is the evaluation job: on-premises it
+// runs in the gateway's cluster, so the address is the gateway's internal one. Deployments whose
+// evaluation jobs run in a separate workflow-plane cluster (WSO2 Cloud) set
+// config.EvalJobsUsePublicGatewayURL to hand them the public vhost instead.
+func (e *monitorExecutor) resolveProxyURL(ctx context.Context, ouID, environmentID string, proxy *models.LLMProxy) (string, error) {
 	_ = ctx
 	if proxy == nil {
 		return "", fmt.Errorf("LLM proxy not preloaded for mapping")
@@ -274,6 +277,9 @@ func (e *monitorExecutor) resolveInternalProxyURL(ctx context.Context, ouID, env
 	gateway, err := resolveEgressGatewayForArtifact(e.gatewayRepo, ouID, envUUID, deployed, nil)
 	if err != nil {
 		return "", fmt.Errorf("failed to resolve gateway for environment %s: %w", environmentID, err)
+	}
+	if config.GetConfig().EvalJobsUsePublicGatewayURL {
+		return buildPublicProxyURL(gateway, proxy.Configuration.Context), nil
 	}
 	return buildInternalProxyURL(gateway, proxy.Configuration.Context)
 }

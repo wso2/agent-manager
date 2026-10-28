@@ -18,10 +18,198 @@ package config
 
 import (
 	"bytes"
+	"fmt"
 	"log/slog"
 	"strings"
 	"testing"
 )
+
+func TestThunderConfigResolvedSystemResourceIdentifier(t *testing.T) {
+	tests := []struct {
+		name string
+		cfg  ThunderConfig
+		want string
+	}{
+		{
+			name: "derives mcp identifier by default",
+			cfg:  ThunderConfig{BaseURL: "https://idp.example.com"},
+			want: "https://idp.example.com/mcp",
+		},
+		{
+			name: "trims trailing slash before deriving identifier",
+			cfg:  ThunderConfig{BaseURL: "https://idp.example.com/"},
+			want: "https://idp.example.com/mcp",
+		},
+		{
+			name: "uses explicit identifier",
+			cfg: ThunderConfig{
+				BaseURL:                  "https://idp.example.com",
+				SystemResourceIdentifier: "urn:example:thunder-system",
+			},
+			want: "urn:example:thunder-system",
+		},
+		{
+			name: "omits resource for Thunder default",
+			cfg: ThunderConfig{
+				BaseURL:                  "https://idp.example.com",
+				UseDefaultResourceServer: true,
+			},
+			want: "",
+		},
+		{
+			name: "disabled Thunder has no identifier",
+			cfg:  ThunderConfig{},
+			want: "",
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			if got := tc.cfg.ResolvedSystemResourceIdentifier(); got != tc.want {
+				t.Errorf("ResolvedSystemResourceIdentifier() = %q, want %q", got, tc.want)
+			}
+		})
+	}
+}
+
+func TestValidateThunderConfig(t *testing.T) {
+	tests := []struct {
+		name        string
+		cfg         ThunderConfig
+		wantErrors  int
+		errContains string
+	}{
+		{
+			name:       "derived system resource is valid",
+			cfg:        ThunderConfig{BaseURL: "https://idp.example.com"},
+			wantErrors: 0,
+		},
+		{
+			name: "configured default resource server is valid",
+			cfg: ThunderConfig{
+				BaseURL:                  "https://idp.example.com",
+				UseDefaultResourceServer: true,
+			},
+			wantErrors: 0,
+		},
+		{
+			name: "absolute URN override is valid",
+			cfg: ThunderConfig{
+				BaseURL:                  "https://idp.example.com",
+				SystemResourceIdentifier: "urn:example:thunder-system",
+			},
+			wantErrors: 0,
+		},
+		{
+			name: "default and explicit identifier conflict",
+			cfg: ThunderConfig{
+				BaseURL:                  "https://idp.example.com",
+				UseDefaultResourceServer: true,
+				SystemResourceIdentifier: "https://idp.example.com/mcp",
+			},
+			wantErrors:  1,
+			errContains: "cannot be true",
+		},
+		{
+			name: "default requires Thunder base URL",
+			cfg: ThunderConfig{
+				UseDefaultResourceServer: true,
+			},
+			wantErrors:  1,
+			errContains: "require THUNDER_BASE_URL",
+		},
+		{
+			name: "relative identifier is rejected",
+			cfg: ThunderConfig{
+				BaseURL:                  "https://idp.example.com",
+				SystemResourceIdentifier: "/mcp",
+			},
+			wantErrors:  1,
+			errContains: "absolute URI",
+		},
+		{
+			name: "identifier fragment is rejected",
+			cfg: ThunderConfig{
+				BaseURL:                  "https://idp.example.com",
+				SystemResourceIdentifier: "https://idp.example.com/mcp#fragment",
+			},
+			wantErrors:  1,
+			errContains: "must not contain a fragment",
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			cfg := &Config{Thunder: tc.cfg}
+			r := &configReader{}
+			validateThunderConfig(cfg, r)
+
+			if len(r.errors) != tc.wantErrors {
+				t.Fatalf("expected %d errors, got %d: %v", tc.wantErrors, len(r.errors), r.errors)
+			}
+			if tc.errContains == "" {
+				return
+			}
+			for _, err := range r.errors {
+				if strings.Contains(err.Error(), tc.errContains) {
+					return
+				}
+			}
+			t.Errorf("expected an error containing %q, got %v", tc.errContains, r.errors)
+		})
+	}
+}
+
+func TestLoadEnvs_ThunderResourceServerSelection(t *testing.T) {
+	requiredEnv := map[string]string{
+		"OPEN_CHOREO_BASE_URL":  "http://localhost/api/v1",
+		"DB_HOST":               "localhost",
+		"DB_USER":               "unit",
+		"DB_PASSWORD":           "unit",
+		"DB_NAME":               "unit",
+		"THUNDER_BASE_URL":      "https://idp.example.com",
+		"THUNDER_CLIENT_ID":     "system-client",
+		"THUNDER_CLIENT_SECRET": "system-secret",
+	}
+
+	setBaseEnv := func(t *testing.T) {
+		t.Helper()
+		for key, value := range requiredEnv {
+			t.Setenv(key, value)
+		}
+		t.Setenv("AMP_USE_THUNDER_DEFAULT_RESOURCE_SERVER", "")
+		t.Setenv("AMP_THUNDER_SYSTEM_RESOURCE_IDENTIFIER", "")
+	}
+
+	t.Run("defaults to derived mcp resource", func(t *testing.T) {
+		setBaseEnv(t)
+		loadEnvs()
+
+		if got := config.Thunder.ResolvedSystemResourceIdentifier(); got != "https://idp.example.com/mcp" {
+			t.Errorf("resolved system resource = %q, want derived /mcp resource", got)
+		}
+	})
+
+	t.Run("AMP flag selects Thunder default resource server", func(t *testing.T) {
+		setBaseEnv(t)
+		t.Setenv("AMP_USE_THUNDER_DEFAULT_RESOURCE_SERVER", "true")
+		loadEnvs()
+
+		if got := config.Thunder.ResolvedSystemResourceIdentifier(); got != "" {
+			t.Errorf("resolved system resource = %q, want empty", got)
+		}
+	})
+
+	t.Run("AMP resource identifier overrides derived resource", func(t *testing.T) {
+		setBaseEnv(t)
+		t.Setenv("AMP_THUNDER_SYSTEM_RESOURCE_IDENTIFIER", "urn:example:thunder-system")
+		loadEnvs()
+
+		if got := config.Thunder.ResolvedSystemResourceIdentifier(); got != "urn:example:thunder-system" {
+			t.Errorf("resolved system resource = %q, want custom URN", got)
+		}
+	})
+}
 
 func TestValidateOAuthAuthorizationServers(t *testing.T) {
 	tests := []struct {
@@ -885,5 +1073,29 @@ func TestGrowthAnalyticsAuthMode(t *testing.T) {
 	}
 	if got := growthAnalyticsAuthMode(GrowthAnalyticsConfig{}); got != "caller-jwt" {
 		t.Errorf("without ID = %q, want caller-jwt", got)
+	}
+}
+
+func TestValidateOpenChoreoBuildWorkflowKind(t *testing.T) {
+	for _, tc := range []struct {
+		kind    string
+		wantErr bool
+	}{
+		{kind: "", wantErr: false},
+		{kind: "Workflow", wantErr: false},
+		{kind: "ClusterWorkflow", wantErr: false},
+		{kind: "workflow", wantErr: true},
+		{kind: "Pipeline", wantErr: true},
+	} {
+		t.Run(fmt.Sprintf("kind=%q", tc.kind), func(t *testing.T) {
+			r := &configReader{}
+			validateOpenChoreoBuildWorkflowKind(&Config{OpenChoreo: OpenChoreoConfig{BuildWorkflowKind: tc.kind}}, r)
+			if tc.wantErr && len(r.errors) == 0 {
+				t.Fatalf("expected an error for %q", tc.kind)
+			}
+			if !tc.wantErr && len(r.errors) != 0 {
+				t.Fatalf("unexpected errors for %q: %v", tc.kind, r.errors)
+			}
+		})
 	}
 }

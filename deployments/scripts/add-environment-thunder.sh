@@ -39,7 +39,7 @@ set -euo pipefail
 #   - ORG_NAME (default: default)
 #   - THUNDER_CHART: override the chart ref (default: oci://ghcr.io/thunder-id/helm-charts/thunderid —
 #     the upstream ThunderID release chart, pulled directly, NOT the agent-manager chart)
-#   - CHART_VERSION: pin the chart version (default: 1.0.0; OCI charts only)
+#   - CHART_VERSION: pin the chart version (default: 1.0.1; OCI charts only)
 #   - THUNDER_HANDLE (default: unset) — an unguessable label that becomes this
 #     environment's externally-reachable hostname segment:
 #     "<handle>.<THUNDER_HOST_BASE_DOMAIN>". If unset,
@@ -818,7 +818,7 @@ main() {
   # whatever version platform Thunder happens to run.
   local version_args=()
   if printf '%s' "$chart" | grep -q '^oci://'; then
-    local chart_version="${CHART_VERSION:-1.0.0}"
+    local chart_version="${CHART_VERSION:-1.0.1}"
     echo "📌 Using Thunder chart version: ${chart_version}"
     version_args=(--version "$chart_version")
   fi
@@ -880,7 +880,7 @@ main() {
     # AMP component assumes, e.g. agent-manager-service/clients/thundersvc/naming.go's
     # "<release>-service" convention) instead of the chart's default fullname suffix.
     --set-string "fullnameOverride=${release}"
-    --set-string "deployment.image.tag=${CHART_VERSION:-1.0.0}"
+    --set-string "deployment.image.tag=${CHART_VERSION:-1.0.1}"
     # Single replica + writable root FS: required for SQLite (single-pod, local file DB).
     --set "deployment.replicaCount=1"
     --set "deployment.securityContext.readOnlyRootFilesystem=false"
@@ -1101,7 +1101,7 @@ ${ca_pem}"
   echo "  Environment:     ${ENV_NAME}"
   echo "  Namespace:       ${ns}"
   echo "  Release:         ${release}"
-  echo "  Chart:           ${chart} (${CHART_VERSION:-1.0.0})"
+  echo "  Chart:           ${chart} (${CHART_VERSION:-1.0.1})"
   echo "  Issuer:          ${issuer}"
   echo "  JWKS:            ${issuer}/oauth2/jwks"
   echo "  Trusted issuer:  ${pt_issuer}"

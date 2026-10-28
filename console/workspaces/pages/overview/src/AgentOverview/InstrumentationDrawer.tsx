@@ -27,7 +27,7 @@ import {
   DrawerContent,
 } from "@agent-management-platform/views";
 
-type Language = "python" | "ballerina";
+type Language = "python" | "ballerina" | "other";
 
 interface InstrumentationDrawerProps {
   open: boolean;
@@ -76,7 +76,11 @@ export const InstrumentationDrawer = ({
       />
       <DrawerContent>
         <Stack direction="row" justifyContent="space-between" alignItems="center">
-          <Typography variant="h5">Zero-code Instrumentation Guide</Typography>
+          <Typography variant="h5">
+            {selectedLanguage === "other"
+              ? "OpenTelemetry Export Guide"
+              : "Zero-code Instrumentation Guide"}
+          </Typography>
           <Stack direction="row" alignItems="center" gap={1}>
             <Typography variant="body2">Language:</Typography>
           <Select
@@ -85,6 +89,7 @@ export const InstrumentationDrawer = ({
           >
             <MenuItem value="python">Python</MenuItem>
             <MenuItem value="ballerina">Ballerina</MenuItem>
+            <MenuItem value="other">Other</MenuItem>
           </Select>
           </Stack>
         </Stack>
@@ -134,7 +139,7 @@ export AMP_AGENT_API_KEY="${effectiveApiKey}"`}
                 description="Replace <run_command> with your agent's start command. For example: amp-instrument python app.py"
               />
             </>
-          ) : (
+          ) : selectedLanguage === "ballerina" ? (
             <>
               <SetupStep
                 stepNumber={1}
@@ -180,6 +185,28 @@ export BAL_CONFIG_VAR_BALLERINAX_AMP_APIKEY="${effectiveApiKey}"`}
                 language="bash"
                 fieldId="env-vars"
                 description="Configure the exporter using environment variables."
+              />
+            </>
+          ) : (
+            <>
+              <TokenGenerationStep
+                stepNumber={1}
+                orgName={orgName}
+                projName={projName}
+                agentName={agentName}
+                environment={environment}
+                onTokenGenerated={setGeneratedApiKey}
+                autoGenerate={autoGenerate}
+              />
+              <SetupStep
+                stepNumber={2}
+                title="Configure Your OTLP Exporter"
+                code={`export OTEL_EXPORTER_OTLP_TRACES_ENDPOINT="${instrumentationUrl}/v1/traces"
+export OTEL_EXPORTER_OTLP_TRACES_PROTOCOL="http/protobuf"
+export OTEL_EXPORTER_OTLP_TRACES_HEADERS="x-amp-api-key=${effectiveApiKey}"`}
+                language="bash"
+                fieldId="otlp-env"
+                description="Point any OpenTelemetry OTLP/HTTP exporter at this endpoint with the x-amp-api-key header. Emit spans using the OpenTelemetry GenAI semantic conventions."
               />
             </>
           )}

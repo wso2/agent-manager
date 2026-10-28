@@ -155,6 +155,78 @@ func TestExportTraces_SendsFiltersButNotInclude(t *testing.T) {
 	}
 }
 
+func TestListTraces_SendsToolAndMCPFilters(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		q := r.URL.Query()
+		for key, want := range map[string]string{
+			"tool": "search_web", "toolError": "true", "mcpServer": "github",
+			"include": "models,tools,mcpServers",
+		} {
+			if q.Get(key) != want {
+				t.Errorf("%s = %q, want %q", key, q.Get(key), want)
+			}
+		}
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{"traces":[{"traceId":"t1","tools":["search_web"],"failedTools":["search_web"],"mcpServers":["github-mcp-server"]}],"totalCount":1}`))
+	}))
+	defer srv.Close()
+
+	c, _ := NewClient(srv.URL)
+	resp, err := c.ListTraces(context.Background(), &ListTracesParams{
+		Organization: "acme", Tool: "search_web", ToolError: true, MCPServer: "github",
+		IncludeModels: true, IncludeTools: true, IncludeMCPServers: true,
+	})
+	if err != nil {
+		t.Fatalf("ListTraces: %v", err)
+	}
+	tr := resp.Traces[0]
+	if len(tr.Tools) != 1 || len(tr.FailedTools) != 1 || len(tr.MCPServers) != 1 {
+		t.Errorf("tools, failedTools and mcpServers should decode, got %+v", tr)
+	}
+}
+
+func TestListTraces_OmitsUnsetToolAndMCPFilters(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		q := r.URL.Query()
+		for _, key := range []string{"tool", "toolError", "mcpServer", "include"} {
+			if q.Has(key) {
+				t.Errorf("%s = %q, want unset", key, q.Get(key))
+			}
+		}
+		w.Header().Set("Content-Type", "application/json")
+		_ = json.NewEncoder(w).Encode(TraceOverviewResponse{})
+	}))
+	defer srv.Close()
+
+	c, _ := NewClient(srv.URL)
+	if _, err := c.ListTraces(context.Background(), &ListTracesParams{Organization: "acme"}); err != nil {
+		t.Fatalf("ListTraces: %v", err)
+	}
+}
+
+func TestExportTraces_SendsToolFiltersButNoInclude(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		q := r.URL.Query()
+		if q.Get("tool") != "search" || q.Get("toolError") != "true" || q.Get("mcpServer") != "github" {
+			t.Errorf("filters missing: %v", q)
+		}
+		if q.Has("include") {
+			t.Errorf("export takes no include, got %q", q.Get("include"))
+		}
+		w.Header().Set("Content-Type", "application/json")
+		_ = json.NewEncoder(w).Encode(TraceExportResponse{})
+	}))
+	defer srv.Close()
+
+	c, _ := NewClient(srv.URL)
+	if _, err := c.ExportTraces(context.Background(), &ExportTracesParams{
+		Organization: "acme", Tool: "search", ToolError: true, MCPServer: "github",
+		IncludeTools: true, IncludeMCPServers: true,
+	}); err != nil {
+		t.Fatalf("ExportTraces: %v", err)
+	}
+}
+
 func TestExportTraces_DecodesFullTrace(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.URL.Path != "/api/v1/traces/export" {
@@ -442,5 +514,62 @@ func TestGetMetrics_NonOKReturnsHTTPError(t *testing.T) {
 	var herr *HTTPError
 	if !errors.As(err, &herr) {
 		t.Fatalf("expected *HTTPError, got %T: %v", err, err)
+	}
+}
+
+func TestListTraces_SendsMissingAndCursor(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		q := r.URL.Query()
+		if q.Get("missing") != "conversationId" || q.Get("cursor") != "abc" {
+			t.Errorf("missing = %q, cursor = %q; want conversationId and abc", q.Get("missing"), q.Get("cursor"))
+		}
+		w.Header().Set("Content-Type", "application/json")
+		_ = json.NewEncoder(w).Encode(TraceOverviewResponse{})
+	}))
+	defer srv.Close()
+
+	c, _ := NewClient(srv.URL)
+	if _, err := c.ListTraces(context.Background(), &ListTracesParams{
+		Organization: "acme", Missing: []string{"conversationId"}, Cursor: "abc",
+	}); err != nil {
+		t.Fatalf("ListTraces: %v", err)
+	}
+}
+
+func TestExportTraces_SendsMissingButNoCursor(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		q := r.URL.Query()
+		if q.Get("missing") != "conversationId" {
+			t.Errorf("missing = %q, want conversationId", q.Get("missing"))
+		}
+		if q.Has("cursor") {
+			t.Errorf("export sent cursor %q", q.Get("cursor"))
+		}
+		w.Header().Set("Content-Type", "application/json")
+		_ = json.NewEncoder(w).Encode(TraceExportResponse{})
+	}))
+	defer srv.Close()
+
+	c, _ := NewClient(srv.URL)
+	if _, err := c.ExportTraces(context.Background(), &ExportTracesParams{
+		Organization: "acme", Missing: []string{"conversationId"}, Cursor: "abc",
+	}); err != nil {
+		t.Fatalf("ExportTraces: %v", err)
+	}
+}
+
+func TestListTraces_OmitsUnsetMissingAndCursor(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if q := r.URL.Query(); q.Has("missing") || q.Has("cursor") {
+			t.Errorf("unset params sent: %v", q)
+		}
+		w.Header().Set("Content-Type", "application/json")
+		_ = json.NewEncoder(w).Encode(TraceOverviewResponse{})
+	}))
+	defer srv.Close()
+
+	c, _ := NewClient(srv.URL)
+	if _, err := c.ListTraces(context.Background(), &ListTracesParams{Organization: "acme"}); err != nil {
+		t.Fatalf("ListTraces: %v", err)
 	}
 }

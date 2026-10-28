@@ -102,7 +102,6 @@ export function LLMProviderAccessControlTab({
   const lastSavedRef = useRef<{
     mode: AccessControlMode;
     exceptionKeys: string[];
-    openapi: string;
   } | null>(null);
 
   const [mode, setMode] = useState<AccessControlMode>("allow");
@@ -111,6 +110,9 @@ export function LLMProviderAccessControlTab({
   const {
     text: openapiText,
     setText: setOpenapiText,
+    isModified: isSpecModified,
+    markSaved: markSpecSaved,
+    reset: resetSpec,
     isLoading: specLoading,
     error: specError,
   } = useOpenApiSpec(openapiSpecUrl, fallbackOpenapi);
@@ -132,7 +134,6 @@ export function LLMProviderAccessControlTab({
       .replace(/-/g, "_");
     const resolvedMode: AccessControlMode =
       rawMode === "deny_all" ? "deny" : "allow";
-    const openapi = providerData.openapi?.trim() ?? "";
     const exceptions = providerData.accessControl?.exceptions || [];
     const exceptionItems = exceptions.flatMap((ex) =>
       (ex.methods ?? ["GET"]).map((method) => ({
@@ -146,7 +147,6 @@ export function LLMProviderAccessControlTab({
     lastSavedRef.current = {
       mode: resolvedMode,
       exceptionKeys: nextExceptionKeys,
-      openapi,
     };
   }, [providerData]);
 
@@ -186,12 +186,12 @@ export function LLMProviderAccessControlTab({
     if (!saved) return false;
     const currentKeys = [...exceptionKeys].sort().join("\0");
     const savedKeys = [...saved.exceptionKeys].sort().join("\0");
+    // The spec counts only when the user imported one; the spec fetched from
+    // the template URL is the baseline, not an unsaved change.
     return (
-      mode !== saved.mode ||
-      currentKeys !== savedKeys ||
-      openapiText !== saved.openapi
+      mode !== saved.mode || currentKeys !== savedKeys || isSpecModified
     );
-  }, [mode, exceptionKeys, openapiText]);
+  }, [mode, exceptionKeys, isSpecModified]);
 
   useUnsavedChangesGuard(isDirty);
 
@@ -224,8 +224,8 @@ export function LLMProviderAccessControlTab({
       lastSavedRef.current = {
         mode,
         exceptionKeys: [...exceptionKeys],
-        openapi: openapiText,
       };
+      markSpecSaved();
       setStatus({
         message: "Access control updated successfully.",
         severity: "success",
@@ -236,7 +236,7 @@ export function LLMProviderAccessControlTab({
         severity: "error",
       });
     }
-  }, [providerData, mode, exceptionKeys, normalized, openapiText, onUpdate]);
+  }, [providerData, mode, exceptionKeys, normalized, markSpecSaved, onUpdate]);
 
   const handleImportSpec = useCallback(
     async (file: File) => {
@@ -270,7 +270,6 @@ export function LLMProviderAccessControlTab({
     if (saved) {
       setMode(saved.mode);
       setExceptionKeys([...saved.exceptionKeys]);
-      setOpenapiText(saved.openapi);
     } else if (providerData) {
       const rawMode = String(providerData.accessControl?.mode || "")
         .toLowerCase()
@@ -286,10 +285,10 @@ export function LLMProviderAccessControlTab({
       );
       setMode(resolvedMode);
       setExceptionKeys(exceptionItems.map((e) => getResourceKey(e)));
-      setOpenapiText(providerData.openapi?.trim() ?? "");
     }
+    resetSpec();
     setStatus(null);
-  }, [providerData, setOpenapiText]);
+  }, [providerData, resetSpec]);
 
   if (!isLoading && !specLoading && !providerData) {
     return null;

@@ -94,7 +94,7 @@ type (
 type envThunderResolver struct {
 	readSystemClient ReadSystemClientFunc
 	readThunderURL   ReadThunderURLFunc
-	resolveBaseURL   resolveBaseURLFunc
+	endpointResolver EnvThunderEndpointResolver
 	ttl              time.Duration
 	now              func() time.Time
 
@@ -112,16 +112,29 @@ type cachedThunderClient struct {
 // system-client reader (which decrypts the credential from AMS's Postgres) and
 // URL reader (which looks up the registered origin, if any, from the same DB).
 func NewEnvThunderResolver(readSystemClient ReadSystemClientFunc, readThunderURL ReadThunderURLFunc) EnvThunderResolver {
-	return newEnvThunderResolverWithReader(readSystemClient, readThunderURL, ResolveThunderBaseURL)
+	return NewEnvThunderResolverWithEndpoints(readSystemClient, readThunderURL, nil)
+}
+
+// NewEnvThunderResolverWithEndpoints creates a resolver with a deployment-specific
+// endpoint policy. A nil policy preserves the standard on-premises behavior.
+func NewEnvThunderResolverWithEndpoints(readSystemClient ReadSystemClientFunc, readThunderURL ReadThunderURLFunc, endpointResolver EnvThunderEndpointResolver) EnvThunderResolver {
+	if endpointResolver == nil {
+		endpointResolver = DefaultEnvThunderEndpointResolver()
+	}
+	return newEnvThunderResolverWithEndpointResolver(readSystemClient, readThunderURL, endpointResolver)
 }
 
 // newEnvThunderResolverWithReader builds a resolver from injected readers and a
 // base-URL resolver — real implementations in production, fakes in tests.
 func newEnvThunderResolverWithReader(readSystemClient ReadSystemClientFunc, readThunderURL ReadThunderURLFunc, resolveBaseURL resolveBaseURLFunc) *envThunderResolver {
+	return newEnvThunderResolverWithEndpointResolver(readSystemClient, readThunderURL, defaultEnvThunderEndpointResolver{resolveBaseURL: resolveBaseURL})
+}
+
+func newEnvThunderResolverWithEndpointResolver(readSystemClient ReadSystemClientFunc, readThunderURL ReadThunderURLFunc, endpointResolver EnvThunderEndpointResolver) *envThunderResolver {
 	return &envThunderResolver{
 		readSystemClient: readSystemClient,
 		readThunderURL:   readThunderURL,
-		resolveBaseURL:   resolveBaseURL,
+		endpointResolver: endpointResolver,
 		ttl:              envThunderClientCacheTTL,
 		now:              time.Now,
 		cache:            make(map[string]cachedThunderClient),
@@ -182,23 +195,14 @@ func (r *envThunderResolver) Resolve(ctx context.Context, ouID, orgNamespace, en
 			return nil, ErrThunderNotProvisioned
 		}
 
-		baseURL, resolveToHost, ok := r.resolveBaseURL(ctx, orgNamespace, envName, thunderURL, callerSupplied)
-		if !ok {
-			return nil, fmt.Errorf("%w: %s/%s", ErrThunderUnreachable, orgNamespace, envName)
+		endpoints, err := r.endpointResolver.ResolveEndpoints(ctx, ouID, orgNamespace, envName, thunderURL, callerSupplied)
+		if err != nil {
+			return nil, err
 		}
-		// The System RS identifier is "<issuer>/mcp", derived from the env-Thunder issuer
-		// URL — not the (possibly cluster-internal) dialable base URL selected above.
-		systemResource := SystemResourceIdentifier(ThunderIssuerURL(thunderURL))
-		// baseURL==thunderURL with no override identifies the plain-external
-		// candidate; callerSupplied says whether ITS VALUE is attacker-influenced
-		// (a caller-supplied row) rather than AMS's own trusted computation (a
-		// handle-derived row, which can legitimately be a private address — see
-		// thunderURLCandidate's doc comment). Both must hold to harden the dial.
-		newClient := NewThunderClientWithDialOverride
-		if resolveToHost == "" && baseURL == thunderURL && callerSupplied {
-			newClient = NewEnvThunderClient
+		client, err := NewEnvThunderClientWithEndpoints(endpoints, clientID, clientSecret)
+		if err != nil {
+			return nil, fmt.Errorf("invalid env-thunder endpoints for %s/%s: %w", orgNamespace, envName, err)
 		}
-		client := newClient(baseURL, clientID, clientSecret, resolveToHost, systemResource)
 
 		r.mu.Lock()
 		r.cache[cacheKey] = cachedThunderClient{client: client, cachedAt: r.now()}

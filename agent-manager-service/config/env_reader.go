@@ -91,6 +91,19 @@ func (c *configReader) readOptionalInt64(envVarName string, defaultValue int64) 
 	return value
 }
 
+func (c *configReader) readOptionalFloat64(envVarName string, defaultValue float64) float64 {
+	v := os.Getenv(envVarName)
+	if v == "" {
+		return defaultValue
+	}
+	value, err := strconv.ParseFloat(v, 64)
+	if err != nil {
+		c.errors = append(c.errors, fmt.Errorf("optional environment variable %s is not a valid number [%w]", envVarName, err))
+		return 0
+	}
+	return value
+}
+
 func (c *configReader) readNullableInt64(envVarName string) *int64 {
 	v := os.Getenv(envVarName)
 	if v == "" {

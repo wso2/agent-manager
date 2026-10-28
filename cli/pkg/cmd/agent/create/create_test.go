@@ -45,6 +45,7 @@ type capturedRequest struct {
 	path   string
 	query  string
 	body   []byte
+	count  int
 }
 
 func newTestClient(t *testing.T, status int, respBody any) (func(context.Context) (*amsvc.ClientWithResponses, error), *capturedRequest, func()) {
@@ -94,6 +95,10 @@ func newTestRouter(t *testing.T, routes map[string]routeResponse) (func(context.
 			route := routes[pattern]
 			cap := &capturedRequest{method: r.Method, path: r.URL.Path, query: r.URL.RawQuery}
 			cap.body, _ = io.ReadAll(r.Body)
+			if prev := captured[pattern]; prev != nil {
+				cap.count = prev.count
+			}
+			cap.count++
 			captured[pattern] = cap
 			w.Header().Set("Content-Type", "application/json")
 			w.WriteHeader(route.Status)
@@ -833,5 +838,218 @@ func TestCreate_External_TokenFailure_TextMode(t *testing.T) {
 	}
 	if strings.Contains(stderr, "amp-instrument") {
 		t.Errorf("stderr should not contain instrumentation block when token mint failed: %q", stderr)
+	}
+}
+
+func externalA2AAgentRoutes() map[string]routeResponse {
+	return map[string]routeResponse{
+		"/orgs/acme/projects/triage/agents/testing/token": {
+			Status: 200,
+			Body:   amsvc.TokenResponse{Token: "tok-abc", ExpiresAt: 1700000000, IssuedAt: 1690000000, TokenType: "Bearer"},
+		},
+		"/orgs/acme/projects/triage/agents": {
+			Status: 202,
+			Body: amsvc.AgentResponse{
+				Name:         "testing",
+				DisplayName:  "Testing",
+				AgentType:    amsvc.AgentType{Type: "external-agent-api", SubType: ptr("a2a-agent")},
+				Provisioning: amsvc.Provisioning{Type: amsvc.ProvisioningTypeExternal},
+				ProjectName:  "triage",
+				Uuid:         "u",
+			},
+		},
+	}
+}
+
+func ptr[T any](v T) *T { return &v }
+
+const testCardURL = "https://a.example/.well-known/agent-card.json"
+
+func TestCreate_External_A2ASubtype(t *testing.T) {
+	ios, _, _ := newTestIO(false)
+	clientFn, captured, cleanup := newTestRouter(t, externalA2AAgentRoutes())
+	defer cleanup()
+
+	cmd := testCreateCmd(t, ios, clientFn, "https://otel.example")
+	cmd.SetArgs([]string{
+		"agent", "create", "testing", "--project", "triage", "--display-name", "Testing",
+		"--provisioning", "external", "--subtype", "a2a-agent",
+	})
+	if err := cmd.Execute(); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	var body struct {
+		AgentType struct {
+			SubType string `json:"subType"`
+		} `json:"agentType"`
+	}
+	if err := json.Unmarshal(captured["/orgs/acme/projects/triage/agents"].body, &body); err != nil {
+		t.Fatal(err)
+	}
+	if body.AgentType.SubType != "a2a-agent" {
+		t.Errorf("subType = %q, want a2a-agent", body.AgentType.SubType)
+	}
+}
+
+func TestCreate_External_CardURL_JSON(t *testing.T) {
+	ios, out, _ := newTestIO(true)
+	routes := externalA2AAgentRoutes()
+	routes["/orgs/acme/projects/triage/agents/testing/environments/development/agent-card/source"] = routeResponse{Status: 202, Body: map[string]string{}}
+	routes["/orgs/acme/projects/triage/agents/testing/environments/development/a2a-proxy"] = routeResponse{Status: 404, Body: amsvc.ErrorResponse{Code: "NOT_FOUND", Message: "none"}}
+	routes["/orgs/acme/projects/triage/deployment-pipeline"] = routeResponse{
+		Status: 200,
+		Body: amsvc.DeploymentPipelineResponse{
+			Name:           "default",
+			PromotionPaths: []amsvc.PromotionPath{{SourceEnvironmentRef: "development"}},
+		},
+	}
+	clientFn, captured, cleanup := newTestRouter(t, routes)
+	defer cleanup()
+
+	cmd := testCreateCmd(t, ios, clientFn, "https://otel.example")
+	cmd.SetArgs([]string{
+		"agent", "create", "testing", "--project", "triage", "--display-name", "Testing",
+		"--provisioning", "external", "--subtype", "a2a-agent", "--card-url", testCardURL, "--json",
+	})
+	if err := cmd.Execute(); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	src := captured["/orgs/acme/projects/triage/agents/testing/environments/development/agent-card/source"]
+	if src == nil {
+		t.Fatal("card source was not set")
+	}
+	if want := `{"url":"` + testCardURL + `"}`; strings.TrimSpace(string(src.body)) != want {
+		t.Errorf("source body = %s, want %s", src.body, want)
+	}
+	if n := captured["/orgs/acme/projects/triage/deployment-pipeline"].count; n != 1 {
+		t.Errorf("pipeline requested %d times, want 1", n)
+	}
+	data := decodeEnvelope(t, out.String())["data"].(map[string]any)
+	card, _ := data["card"].(map[string]any)
+	if card["environment"] != "development" || card["url"] != testCardURL || card["routing"] != "direct" {
+		t.Errorf("data.card = %v", data["card"])
+	}
+}
+
+func cardFailureRoutes() map[string]routeResponse {
+	routes := externalA2AAgentRoutes()
+	routes["/orgs/acme/projects/triage/agents/testing/environments/development/agent-card/source"] = routeResponse{
+		Status: 400,
+		Body:   map[string]string{"message": "invalid URL: url host must be publicly reachable"},
+	}
+	return routes
+}
+
+func TestCreate_External_CardURLFailure_JSON(t *testing.T) {
+	ios, out, _ := newTestIO(true)
+	clientFn, _, cleanup := newTestRouter(t, cardFailureRoutes())
+	defer cleanup()
+
+	cmd := testCreateCmd(t, ios, clientFn, "https://otel.example")
+	cmd.SetArgs([]string{
+		"agent", "create", "testing", "--project", "triage", "--display-name", "Testing",
+		"--provisioning", "external", "--subtype", "a2a-agent", "--card-url", testCardURL, "--json",
+	})
+	if err := cmd.Execute(); err != nil {
+		t.Fatalf("expected nil error, got %v", err)
+	}
+	data := decodeEnvelope(t, out.String())["data"].(map[string]any)
+	card, _ := data["card"].(map[string]any)
+	if msg, _ := card["error"].(string); !strings.Contains(msg, "publicly reachable") {
+		t.Errorf("data.card.error = %v", card["error"])
+	}
+	if data["token"] != "tok-abc" {
+		t.Errorf("data.token = %v, want tok-abc", data["token"])
+	}
+}
+
+func TestCreate_External_CardURLFailure_Text(t *testing.T) {
+	ios, _, errOut := newTestIO(false)
+	clientFn, _, cleanup := newTestRouter(t, cardFailureRoutes())
+	defer cleanup()
+
+	cmd := testCreateCmd(t, ios, clientFn, "https://otel.example")
+	cmd.SetArgs([]string{
+		"agent", "create", "testing", "--project", "triage", "--display-name", "Testing",
+		"--provisioning", "external", "--subtype", "a2a-agent", "--card-url", testCardURL,
+	})
+	if err := cmd.Execute(); err != nil {
+		t.Fatalf("expected nil error, got %v", err)
+	}
+	stderr := errOut.String()
+	for _, want := range []string{"warning: agent created but card setup failed", "amctl agent card set testing --env development --url '" + testCardURL + "'"} {
+		if !strings.Contains(stderr, want) {
+			t.Errorf("stderr missing %q: %q", want, stderr)
+		}
+	}
+}
+
+func TestCreate_FileMode_RejectsCardURL(t *testing.T) {
+	ios, _, _ := newTestIO(true)
+	cmd := testCreateCmd(t, ios, nil, "")
+	cmd.SetArgs([]string{"agent", "create", "-f", "x.yaml", "--project", "triage", "--card-url", testCardURL})
+	details := mustFlagDetails(t, cmd.Execute())
+	assertContains(t, details, "--card-url is not allowed with --file")
+}
+
+func TestCreate_External_EnvResolutionFailure_CardURL_JSON(t *testing.T) {
+	ios, out, errOut := newTestIO(true)
+	routes := externalA2AAgentRoutes()
+	routes["/orgs/acme/projects/triage/deployment-pipeline"] = routeResponse{Status: 500, Body: amsvc.ErrorResponse{Code: "INTERNAL", Message: "boom"}}
+	clientFn, captured, cleanup := newTestRouter(t, routes)
+	defer cleanup()
+
+	cmd := testCreateCmd(t, ios, clientFn, "https://otel.example")
+	cmd.SetArgs([]string{
+		"agent", "create", "testing", "--project", "triage", "--display-name", "Testing",
+		"--provisioning", "external", "--subtype", "a2a-agent", "--card-url", testCardURL, "--json",
+	})
+	if err := cmd.Execute(); err != nil {
+		t.Fatalf("expected nil error, got %v", err)
+	}
+	if !strings.Contains(errOut.String(), "could not resolve the entry environment (token and card setup skipped)") {
+		t.Errorf("stderr = %q", errOut.String())
+	}
+	data := decodeEnvelope(t, out.String())["data"].(map[string]any)
+	if data["agent"] == nil {
+		t.Errorf("data.agent missing: %v", data)
+	}
+	card, _ := data["card"].(map[string]any)
+	if msg, _ := card["error"].(string); msg == "" {
+		t.Errorf("data.card.error empty: %v", data["card"])
+	}
+	if _, ok := data["token"]; ok {
+		t.Errorf("data.token present: %v", data["token"])
+	}
+	if captured["/orgs/acme/projects/triage/agents/testing/environments/development/agent-card/source"] != nil {
+		t.Error("card source was requested")
+	}
+}
+
+func TestCreate_External_CardURL_TokenFailure_JSON(t *testing.T) {
+	ios, out, _ := newTestIO(true)
+	routes := externalA2AAgentRoutes()
+	routes["/orgs/acme/projects/triage/agents/testing/token"] = routeResponse{Status: 500, Body: amsvc.ErrorResponse{Code: "INTERNAL", Message: "boom"}}
+	routes["/orgs/acme/projects/triage/agents/testing/environments/development/agent-card/source"] = routeResponse{Status: 202, Body: map[string]string{}}
+	routes["/orgs/acme/projects/triage/agents/testing/environments/development/a2a-proxy"] = routeResponse{Status: 404, Body: amsvc.ErrorResponse{Code: "NOT_FOUND", Message: "none"}}
+	clientFn, _, cleanup := newTestRouter(t, routes)
+	defer cleanup()
+
+	cmd := testCreateCmd(t, ios, clientFn, "https://otel.example")
+	cmd.SetArgs([]string{
+		"agent", "create", "testing", "--project", "triage", "--display-name", "Testing",
+		"--provisioning", "external", "--subtype", "a2a-agent", "--card-url", testCardURL, "--json",
+	})
+	if err := cmd.Execute(); err != nil {
+		t.Fatalf("expected nil error, got %v", err)
+	}
+	data := decodeEnvelope(t, out.String())["data"].(map[string]any)
+	if data["agent"] == nil {
+		t.Errorf("data.agent missing: %v", data)
+	}
+	card, _ := data["card"].(map[string]any)
+	if card["routing"] != "direct" {
+		t.Errorf("data.card.routing = %v, want direct", card["routing"])
 	}
 }

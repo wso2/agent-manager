@@ -160,6 +160,22 @@ amp_registry_docker_login() {
         | docker login "$(amp_registry_host)" -u "$AMP_REGISTRY_USERNAME" --password-stdin
 }
 
+# amp_registry_helm_login
+# Authenticates helm for the charts. Charts are pulled by helm on the host, not
+# by a node, so neither the pull secret nor the node's registries.yaml covers
+# them. Only acts when HELM_CHART_REGISTRY is on the same private host as the
+# images, which is the one case these credentials are for.
+amp_registry_helm_login() {
+    amp_registry_is_private || return 0
+    local chart_host="${HELM_CHART_REGISTRY:-}"
+    chart_host="${chart_host#oci://}"
+    chart_host="${chart_host%%/*}"
+    [ "$chart_host" = "$(amp_registry_host)" ] || return 0
+    amp_registry_load_credentials || return 1
+    printf '%s' "$AMP_REGISTRY_PASSWORD" \
+        | helm registry login "$chart_host" --username "$AMP_REGISTRY_USERNAME" --password-stdin
+}
+
 # amp_create_pull_secret <namespace>...
 # Creates or updates the docker-registry Secret in each namespace. Idempotent,
 # so it is safe to re-run on an upgrade.

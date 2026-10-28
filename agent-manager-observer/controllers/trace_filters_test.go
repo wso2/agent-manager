@@ -289,3 +289,25 @@ func TestGetTraceOverviews_LookedBackToIsWindowStart(t *testing.T) {
 		})
 	}
 }
+
+// The missing checks name the field in the caller's spelling, as the HTTP handler always has.
+func TestMissingChecks(t *testing.T) {
+	var m MissingFields
+	if err := ParseMissingField(&m, " conversationId", "conversationId"); err != nil || !m.ConversationID {
+		t.Errorf("ParseMissingField = %v, %+v; want conversationId set", err, m)
+	}
+	if err := ParseMissingField(&m, "", "conversationId"); err != nil {
+		t.Errorf("empty value: %v", err)
+	}
+	err := ParseMissingField(&MissingFields{}, "model", "conversationId")
+	if want := `invalid missing value "model": must be 'conversationId'`; err == nil || err.Error() != want {
+		t.Errorf("unknown value error = %v, want %q", err, want)
+	}
+	err = CheckMissingConflict(TraceFilters{ConversationID: "c", Missing: m}, "conversationId")
+	if want := "conversationId and missing=conversationId can't be combined"; err == nil || err.Error() != want {
+		t.Errorf("conflict error = %v, want %q", err, want)
+	}
+	if err := CheckMissingConflict(TraceFilters{Missing: m}, "conversationId"); err != nil {
+		t.Errorf("missing alone: %v", err)
+	}
+}

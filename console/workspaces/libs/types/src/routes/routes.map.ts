@@ -207,7 +207,13 @@ export const rootRouteMap: AppRoute = {
                 deploymentPipelines: {
                     path: 'deployment-pipelines',
                     index: true,
-                    children: {},
+                    children: {
+                        view: {
+                            path: ':pipelineName',
+                            index: true,
+                            children: {},
+                        },
+                    },
                 },
                 environments: {
                     path: 'environments',

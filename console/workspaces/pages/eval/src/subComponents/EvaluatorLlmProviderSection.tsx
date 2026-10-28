@@ -16,7 +16,7 @@
  * under the License.
  */
 
-import { absoluteRouteMap } from "@agent-management-platform/types";
+import { absoluteRouteMap, withBasePath } from "@agent-management-platform/types";
 import { useListLLMProviders } from "@agent-management-platform/api-client";
 import {
   CircularProgress,
@@ -51,11 +51,12 @@ export function EvaluatorLlmProviderSection({
   const { data, isFetching, refetch } = useListLLMProviders({ orgName: orgId });
   const availableProviders = data?.providers ?? [];
 
+  // Opened in a new tab via window.open, which bypasses the router basename.
   const addProviderPath = orgId
-    ? generatePath(
+    ? withBasePath(generatePath(
         absoluteRouteMap.children.org.children.llmProviders.children.add.path,
         { orgId },
-      )
+      ))
     : null;
 
   return (

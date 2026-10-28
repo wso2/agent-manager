@@ -33,7 +33,7 @@ data:
   PROMPTS_BASE_URL: {{ .Values.console.config.promptsBaseUrl | default "" | quote }}
   # Documentation base URL for the console's in-product doc links. Built from
   # the docs version so only the version segment varies per release.
-  DOCS_URL: {{ printf "https://wso2.com/agent-platform/docs/%s/" (.Values.console.config.docsVersion | default "latest") | quote }}
+  DOCS_URL: {{ printf "https://wso2.com/agent-platform/docs/%s" (.Values.console.config.docsVersion | default "latest") | quote }}
   # Agent Instrumentation URL
   INSTRUMENTATION_URL: {{ .Values.console.config.instrumentationUrl | quote }}
   # Cluster-internal URLs the gateway uses to reach Agent Manager — surfaced to

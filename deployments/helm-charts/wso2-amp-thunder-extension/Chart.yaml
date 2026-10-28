@@ -21,4 +21,4 @@ dependencies:
     alias: thunder
     condition: thunder.enabled
     repository: oci://ghcr.io/thunder-id/helm-charts
-    version: "1.0.0"
+    version: "1.0.1"

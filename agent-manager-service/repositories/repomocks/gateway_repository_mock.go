@@ -24,6 +24,9 @@ import (
 //			CountActiveTokensFunc: func(gatewayId string) (int, error) {
 //				panic("mock out the CountActiveTokens method")
 //			},
+//			CountFailureSummaryAllOrgsFunc: func(ctx context.Context, window repositories.GatewayFailureWindow) (repositories.GatewayFailureCounts, error) {
+//				panic("mock out the CountFailureSummaryAllOrgs method")
+//			},
 //			CountIngressCapableInEnvironmentFunc: func(tx *gorm.DB, environmentID string) (int64, error) {
 //				panic("mock out the CountIngressCapableInEnvironment method")
 //			},
@@ -99,6 +102,9 @@ import (
 //			ListFunc: func() ([]*models.Gateway, error) {
 //				panic("mock out the List method")
 //			},
+//			ListFailedGatewaysAllOrgsFunc: func(ctx context.Context, window repositories.GatewayFailureWindow, limit int) ([]*models.Gateway, error) {
+//				panic("mock out the ListFailedGatewaysAllOrgs method")
+//			},
 //			ListIdentityProvidersByEnvironmentFunc: func(environmentID string) ([]models.GatewayIdentityProvider, error) {
 //				panic("mock out the ListIdentityProvidersByEnvironment method")
 //			},
@@ -141,6 +147,9 @@ type GatewayRepositoryMock struct {
 
 	// CountActiveTokensFunc mocks the CountActiveTokens method.
 	CountActiveTokensFunc func(gatewayId string) (int, error)
+
+	// CountFailureSummaryAllOrgsFunc mocks the CountFailureSummaryAllOrgs method.
+	CountFailureSummaryAllOrgsFunc func(ctx context.Context, window repositories.GatewayFailureWindow) (repositories.GatewayFailureCounts, error)
 
 	// CountIngressCapableInEnvironmentFunc mocks the CountIngressCapableInEnvironment method.
 	CountIngressCapableInEnvironmentFunc func(tx *gorm.DB, environmentID string) (int64, error)
@@ -217,6 +226,9 @@ type GatewayRepositoryMock struct {
 	// ListFunc mocks the List method.
 	ListFunc func() ([]*models.Gateway, error)
 
+	// ListFailedGatewaysAllOrgsFunc mocks the ListFailedGatewaysAllOrgs method.
+	ListFailedGatewaysAllOrgsFunc func(ctx context.Context, window repositories.GatewayFailureWindow, limit int) ([]*models.Gateway, error)
+
 	// ListIdentityProvidersByEnvironmentFunc mocks the ListIdentityProvidersByEnvironment method.
 	ListIdentityProvidersByEnvironmentFunc func(environmentID string) ([]models.GatewayIdentityProvider, error)
 
@@ -260,6 +272,13 @@ type GatewayRepositoryMock struct {
 		CountActiveTokens []struct {
 			// GatewayId is the gatewayId argument value.
 			GatewayId string
+		}
+		// CountFailureSummaryAllOrgs holds details about calls to the CountFailureSummaryAllOrgs method.
+		CountFailureSummaryAllOrgs []struct {
+			// Ctx is the ctx argument value.
+			Ctx context.Context
+			// Window is the window argument value.
+			Window repositories.GatewayFailureWindow
 		}
 		// CountIngressCapableInEnvironment holds details about calls to the CountIngressCapableInEnvironment method.
 		CountIngressCapableInEnvironment []struct {
@@ -410,6 +429,15 @@ type GatewayRepositoryMock struct {
 		// List holds details about calls to the List method.
 		List []struct {
 		}
+		// ListFailedGatewaysAllOrgs holds details about calls to the ListFailedGatewaysAllOrgs method.
+		ListFailedGatewaysAllOrgs []struct {
+			// Ctx is the ctx argument value.
+			Ctx context.Context
+			// Window is the window argument value.
+			Window repositories.GatewayFailureWindow
+			// Limit is the limit argument value.
+			Limit int
+		}
 		// ListIdentityProvidersByEnvironment holds details about calls to the ListIdentityProvidersByEnvironment method.
 		ListIdentityProvidersByEnvironment []struct {
 			// EnvironmentID is the environmentID argument value.
@@ -467,6 +495,7 @@ type GatewayRepositoryMock struct {
 	}
 	lockAcquireEnvironmentLock                   sync.RWMutex
 	lockCountActiveTokens                        sync.RWMutex
+	lockCountFailureSummaryAllOrgs               sync.RWMutex
 	lockCountIngressCapableInEnvironment         sync.RWMutex
 	lockCountWithFilters                         sync.RWMutex
 	lockCreate                                   sync.RWMutex
@@ -492,6 +521,7 @@ type GatewayRepositoryMock struct {
 	lockHasGatewayAssociationsOrDeployments      sync.RWMutex
 	lockHasGatewayDeployments                    sync.RWMutex
 	lockList                                     sync.RWMutex
+	lockListFailedGatewaysAllOrgs                sync.RWMutex
 	lockListIdentityProvidersByEnvironment       sync.RWMutex
 	lockListIdentityProvidersByGateway           sync.RWMutex
 	lockListIdentityProvidersByOrg               sync.RWMutex
@@ -569,6 +599,42 @@ func (mock *GatewayRepositoryMock) CountActiveTokensCalls() []struct {
 	mock.lockCountActiveTokens.RLock()
 	calls = mock.calls.CountActiveTokens
 	mock.lockCountActiveTokens.RUnlock()
+	return calls
+}
+
+// CountFailureSummaryAllOrgs calls CountFailureSummaryAllOrgsFunc.
+func (mock *GatewayRepositoryMock) CountFailureSummaryAllOrgs(ctx context.Context, window repositories.GatewayFailureWindow) (repositories.GatewayFailureCounts, error) {
+	if mock.CountFailureSummaryAllOrgsFunc == nil {
+		panic("GatewayRepositoryMock.CountFailureSummaryAllOrgsFunc: method is nil but GatewayRepository.CountFailureSummaryAllOrgs was just called")
+	}
+	callInfo := struct {
+		Ctx    context.Context
+		Window repositories.GatewayFailureWindow
+	}{
+		Ctx:    ctx,
+		Window: window,
+	}
+	mock.lockCountFailureSummaryAllOrgs.Lock()
+	mock.calls.CountFailureSummaryAllOrgs = append(mock.calls.CountFailureSummaryAllOrgs, callInfo)
+	mock.lockCountFailureSummaryAllOrgs.Unlock()
+	return mock.CountFailureSummaryAllOrgsFunc(ctx, window)
+}
+
+// CountFailureSummaryAllOrgsCalls gets all the calls that were made to CountFailureSummaryAllOrgs.
+// Check the length with:
+//
+//	len(mockedGatewayRepository.CountFailureSummaryAllOrgsCalls())
+func (mock *GatewayRepositoryMock) CountFailureSummaryAllOrgsCalls() []struct {
+	Ctx    context.Context
+	Window repositories.GatewayFailureWindow
+} {
+	var calls []struct {
+		Ctx    context.Context
+		Window repositories.GatewayFailureWindow
+	}
+	mock.lockCountFailureSummaryAllOrgs.RLock()
+	calls = mock.calls.CountFailureSummaryAllOrgs
+	mock.lockCountFailureSummaryAllOrgs.RUnlock()
 	return calls
 }
 
@@ -1416,6 +1482,46 @@ func (mock *GatewayRepositoryMock) ListCalls() []struct {
 	mock.lockList.RLock()
 	calls = mock.calls.List
 	mock.lockList.RUnlock()
+	return calls
+}
+
+// ListFailedGatewaysAllOrgs calls ListFailedGatewaysAllOrgsFunc.
+func (mock *GatewayRepositoryMock) ListFailedGatewaysAllOrgs(ctx context.Context, window repositories.GatewayFailureWindow, limit int) ([]*models.Gateway, error) {
+	if mock.ListFailedGatewaysAllOrgsFunc == nil {
+		panic("GatewayRepositoryMock.ListFailedGatewaysAllOrgsFunc: method is nil but GatewayRepository.ListFailedGatewaysAllOrgs was just called")
+	}
+	callInfo := struct {
+		Ctx    context.Context
+		Window repositories.GatewayFailureWindow
+		Limit  int
+	}{
+		Ctx:    ctx,
+		Window: window,
+		Limit:  limit,
+	}
+	mock.lockListFailedGatewaysAllOrgs.Lock()
+	mock.calls.ListFailedGatewaysAllOrgs = append(mock.calls.ListFailedGatewaysAllOrgs, callInfo)
+	mock.lockListFailedGatewaysAllOrgs.Unlock()
+	return mock.ListFailedGatewaysAllOrgsFunc(ctx, window, limit)
+}
+
+// ListFailedGatewaysAllOrgsCalls gets all the calls that were made to ListFailedGatewaysAllOrgs.
+// Check the length with:
+//
+//	len(mockedGatewayRepository.ListFailedGatewaysAllOrgsCalls())
+func (mock *GatewayRepositoryMock) ListFailedGatewaysAllOrgsCalls() []struct {
+	Ctx    context.Context
+	Window repositories.GatewayFailureWindow
+	Limit  int
+} {
+	var calls []struct {
+		Ctx    context.Context
+		Window repositories.GatewayFailureWindow
+		Limit  int
+	}
+	mock.lockListFailedGatewaysAllOrgs.RLock()
+	calls = mock.calls.ListFailedGatewaysAllOrgs
+	mock.lockListFailedGatewaysAllOrgs.RUnlock()
 	return calls
 }
 

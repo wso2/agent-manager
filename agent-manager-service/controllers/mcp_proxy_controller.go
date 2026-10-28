@@ -17,6 +17,7 @@
 package controllers
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -233,17 +234,20 @@ func (c *mcpProxyController) UpdateMCPProxy(w http.ResponseWriter, r *http.Reque
 	// failure leaves the proxy updated and is retried on the next update.
 	//
 	// This covers the proxy-side trigger only. Deployability also flips on gateway topology
-	// — PlatformGatewayService.AssignGatewayToEnvironment mapping the first egress gateway to
-	// an environment resolves the same dead state for every proxy already bound there — and
-	// those paths do not reconcile. Agents stuck that way stay stuck until this proxy is
-	// updated again.
+	// — mapping the first egress gateway to an environment resolves the same dead state for
+	// every proxy already bound there — and GatewayController.AssignGatewayToEnvironment
+	// reconciles that case itself. Promotion self-heals per agent either way.
 	//
-	// Run inline rather than detached so the caller reads back a bound agent immediately.
-	// Nothing here calls out to the gateway or OpenChoreo until an environment is genuinely
-	// bindable, so the steady state is a handful of indexed reads.
-	if err := c.agentConfigService.ReconcileMCPBindingsForProxy(ctx, ouID, proxyID); err != nil {
-		log.Warn("UpdateMCPProxy: failed to reconcile agent MCP bindings", "ouID", ouID, "proxyID", proxyID, "error", err)
-	}
+	// Runs in the background, for the same reasons as the gateway-assignment trigger (see
+	// reconcileMCPBindingsInBackground): binding many agents mints a key and injects
+	// variables per agent, which can outlast the HTTP write timeout and would then report a
+	// committed update as a failure. A caller reading agents straight back may briefly see
+	// them still unbound.
+	reconcileMCPBindingsInBackground(ctx, log, "UpdateMCPProxy",
+		func(reconcileCtx context.Context) error {
+			return c.agentConfigService.ReconcileMCPBindingsForProxy(reconcileCtx, ouID, proxyID)
+		},
+		"ouID", ouID, "proxyID", proxyID)
 
 	log.Info("UpdateMCPProxy: completed", "ouID", ouID, "proxyID", proxyID)
 	utils.WriteSuccessResponse(w, http.StatusOK, resp)

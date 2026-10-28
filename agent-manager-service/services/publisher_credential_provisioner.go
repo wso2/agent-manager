@@ -152,26 +152,18 @@ func NewPublisherCredentialProvisioner(
 		}, nil
 	}
 
-	var thunderCl thundersvc.ThunderClient
-	if cfg.Thunder.ResolveToHost != "" {
-		thunderCl = thundersvc.NewThunderClientWithDialOverride(
-			cfg.Thunder.BaseURL,
-			cfg.Thunder.ClientID,
-			cfg.Thunder.ClientSecret,
-			cfg.Thunder.ResolveToHost,
-			thundersvc.SystemResourceIdentifier(cfg.Thunder.BaseURL),
-		)
-	} else {
-		thunderCl = thundersvc.NewThunderClient(
-			cfg.Thunder.BaseURL,
-			cfg.Thunder.ClientID,
-			cfg.Thunder.ClientSecret,
-		)
-	}
+	thunderCl := thundersvc.NewThunderClientWithDialOverride(
+		cfg.Thunder.BaseURL,
+		cfg.Thunder.ClientID,
+		cfg.Thunder.ClientSecret,
+		cfg.Thunder.ResolveToHost,
+		cfg.Thunder.ResolvedSystemResourceIdentifier(),
+	)
 
 	logger.Info(
 		"Publisher credential provisioner initialized with Thunder",
 		"thunderBaseURL", cfg.Thunder.BaseURL,
+		"usesDefaultResourceServer", cfg.Thunder.UseDefaultResourceServer,
 	)
 
 	return &publisherCredentialProvisioner{

@@ -31,6 +31,7 @@ import (
 var traceListOptionalParams = []string{
 	"start_time", "end_time", "limit", "sort_order",
 	"status", "min_duration_ms", "min_tokens", "min_span_count", "model", "conversation_id",
+	"tool", "tool_error", "mcp_server", "missing",
 }
 
 // Returns the test specs for tools registered by registerTraceTools.
@@ -49,7 +50,7 @@ func tracesToolSpecs() []toolTestSpec {
 			descriptionKeywords: []string{"trace"},
 			descriptionMinLen:   20,
 			requiredParams:      []string{"organization", "project", "agent", "environment"},
-			optionalParams:      append(slices.Clone(traceListOptionalParams), "include_models", "cursor"),
+			optionalParams:      append(slices.Clone(traceListOptionalParams), "include_models", "include_tools", "include_mcp_servers", "cursor"),
 			testArgs:            baseTraceArgs,
 		},
 		{

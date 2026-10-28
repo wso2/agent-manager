@@ -46,8 +46,12 @@ type ExportTracesOptions struct {
 	EndTime   string
 	Limit     int
 	SortOrder string
+
+	// Filters holds the list's filter flags; only its filter fields are read.
+	Filters ListTracesOptions
 }
 
+// NewExportCmd returns the `agent traces export` command.
 func NewExportCmd(f *cmdutil.Factory) *cobra.Command {
 	opts := &ExportTracesOptions{
 		IO:           f.IOStreams,
@@ -58,12 +62,18 @@ func NewExportCmd(f *cmdutil.Factory) *cobra.Command {
 		ResolveEnv:   f.ResolveEnvironment,
 		MakeScope:    f.EnvScope,
 	}
-	var since string
+	var (
+		window  windowFlags
+		filters filterFlagValues
+	)
 
 	cmd := &cobra.Command{
 		Use:   "export <agent>",
 		Short: "Export traces with full span data as JSON",
-		Args:  cobra.MaximumNArgs(1),
+		Long: "Export traces with full span data as JSON.\n\n" +
+			"Takes the same filters as `amctl agent traces`, run on the server across the whole window. " +
+			"Set the window with --since, or with --start and --end.",
+		Args: cobra.MaximumNArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			opts.IO.JSON = true
 			org, proj, err := opts.ResolveScope(cmd, true, true)
@@ -82,13 +92,18 @@ func NewExportCmd(f *cmdutil.Factory) *cobra.Command {
 			scope := opts.MakeScope(org, proj, agentName, env)
 			opts.Org, opts.Proj, opts.AgentName, opts.Env, opts.Scope = org, proj, agentName, env, scope
 
-			opts.StartTime, opts.EndTime, err = cmdutil.ResolveSinceWindow(since)
+			opts.StartTime, opts.EndTime, err = resolveWindow(&window, cmd.Flags().Changed("since"))
 			if err != nil {
-				return render.Error(opts.IO, scope, cmdutil.FlagErrorf("--since: %v", err))
+				return render.Error(opts.IO, scope, err)
 			}
 
 			if opts.Limit < 1 || opts.Limit > 100 {
 				return render.Error(opts.IO, scope, cmdutil.FlagErrorf("--limit must be between 1 and 100"))
+			}
+
+			applyFilterFlags(cmd.Flags().Changed, &opts.Filters, &filters)
+			if err := resolveFilters(&opts.Filters); err != nil {
+				return render.Error(opts.IO, scope, err)
 			}
 
 			if err := preflightEnv(cmd.Context(), opts.AMClient, org, env); err != nil {
@@ -98,10 +113,11 @@ func NewExportCmd(f *cmdutil.Factory) *cobra.Command {
 			return runExportTraces(cmd.Context(), opts)
 		},
 	}
-	cmd.Flags().StringVar(&since, "since", "", "Time window (required, e.g. 1h, 30m, 7d)")
-	_ = cmd.MarkFlagRequired("since")
+	cmd.Flags().StringVar(&window.since, "since", "", "Time window (required unless --start and --end are set, e.g. 1h, 30m, 7d)")
+	addWindowFlags(cmd, &window)
 	cmd.Flags().IntVar(&opts.Limit, "limit", 100, "Max traces to export (1-100)")
 	cmd.Flags().StringVar(&opts.SortOrder, "sort", "desc", "Sort order: asc or desc")
+	addFilterFlags(cmd, &opts.Filters, &filters, false)
 	cmdutil.AddEnvFlag(cmd)
 	cmd.ValidArgsFunction = func(cmd *cobra.Command, args []string, _ string) ([]string, cobra.ShellCompDirective) {
 		if len(args) > 0 {
@@ -112,6 +128,7 @@ func NewExportCmd(f *cmdutil.Factory) *cobra.Command {
 	return cmd
 }
 
+// runExportTraces exports the traces and writes them out.
 func runExportTraces(ctx context.Context, o *ExportTracesOptions) error {
 	if err := cmdutil.ValidatePathParam("agent name", o.AgentName); err != nil {
 		return render.Error(o.IO, o.Scope, err)
@@ -123,7 +140,7 @@ func runExportTraces(ctx context.Context, o *ExportTracesOptions) error {
 
 	limit := o.Limit
 	sortOrder := o.SortOrder
-	resp, err := client.ExportTraces(ctx, &observersvc.ExportTracesParams{
+	params := &observersvc.ExportTracesParams{
 		Organization: o.Org,
 		Project:      o.Proj,
 		Agent:        o.AgentName,
@@ -132,7 +149,9 @@ func runExportTraces(ctx context.Context, o *ExportTracesOptions) error {
 		EndTime:      parseTimeOrZero(o.EndTime),
 		Limit:        &limit,
 		SortOrder:    &sortOrder,
-	})
+	}
+	setFilterParams(params, &o.Filters)
+	resp, err := client.ExportTraces(ctx, params)
 	if err != nil {
 		return render.Error(o.IO, o.Scope, cmdutil.ObserverErrorFromResponse(err))
 	}

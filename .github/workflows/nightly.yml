@@ -169,10 +169,11 @@ jobs:
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
 
-      - name: Install Helm
-        uses: azure/setup-helm@v4
+      - name: Install Helm (deployments/setup/cluster-tools.env)
+        uses: ./.github/actions/setup-cluster-clis
         with:
-          version: '3.14.0'
+          k3d: "false"
+          kubectl: "false"
 
       - name: Cache Helm chart dependencies
         if: hashFiles(format('{0}/Chart.lock', matrix.chart.path)) != ''

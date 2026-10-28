@@ -20,12 +20,14 @@ package repositories
 
 import (
 	"context"
+	"errors"
 	"testing"
 	"time"
 
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"gorm.io/gorm"
 
 	"github.com/wso2/agent-manager/agent-manager-service/db"
 	"github.com/wso2/agent-manager/agent-manager-service/models"
@@ -144,7 +146,7 @@ func TestA2APublicationClaimDueLeasesTheRow(t *testing.T) {
 		assert.NotEqual(t, pub.AgentName, row.AgentName, "a claimed row is not handed out twice")
 	}
 
-	afterLease, err := repo.ClaimDue(ctx, time.Now().Add(a2aPublicationClaimLease+time.Minute), 100)
+	afterLease, err := repo.ClaimDue(ctx, time.Now().Add(A2APublicationClaimLease+time.Minute), 100)
 	require.NoError(t, err)
 	var reclaimed bool
 	for _, row := range afterLease {
@@ -168,6 +170,142 @@ func dueRowFor(t *testing.T, repo A2APublicationRepository, agentName string) mo
 	}
 	require.FailNow(t, "no due row", "agent %s", agentName)
 	return models.A2APublication{}
+}
+
+func publicationRowsFor(t *testing.T, pub *models.A2APublication) []models.A2APublication {
+	t.Helper()
+	var rows []models.A2APublication
+	require.NoError(t, db.GetDB().Where("ou_id = ? AND agent_name = ?", pub.OUID, pub.AgentName).Find(&rows).Error)
+	return rows
+}
+
+// A re-created environment of the same name has a new UUID; it must not inherit the old row.
+func TestA2APublicationEnqueueReplacesARowFromADeletedEnvironment(t *testing.T) {
+	repo := NewA2APublicationRepository(db.GetDB())
+	ctx := context.Background()
+	old := newTestPublication("recreated-" + uuid.New().String()[:8])
+	cleanupPublication(t, repo, old)
+	require.NoError(t, repo.Enqueue(ctx, old))
+	require.NoError(t, repo.MarkPublished(ctx, *old, "http://agent:9099"))
+
+	recreated := newTestPublication(old.AgentName)
+	recreated.OUID = old.OUID
+	require.NoError(t, repo.Enqueue(ctx, recreated))
+
+	rows := publicationRowsFor(t, old)
+	require.Len(t, rows, 1)
+	assert.Equal(t, recreated.EnvironmentUUID, rows[0].EnvironmentUUID)
+	assert.Empty(t, rows[0].PublishedUpstreamURL, "nothing carries over from the deleted environment")
+}
+
+// A mode switch re-enqueues the same environment with the other source.
+func TestA2APublicationEnqueueRewritesTheSource(t *testing.T) {
+	repo := NewA2APublicationRepository(db.GetDB())
+	ctx := context.Background()
+	pub := newTestPublication("source-" + uuid.New().String()[:8])
+	cleanupPublication(t, repo, pub)
+	require.NoError(t, repo.Enqueue(ctx, pub))
+	assert.Equal(t, models.A2APublicationSourcePlatform, statusOf(t, pub).Source, "an unset source is platform")
+
+	external := *pub
+	external.Source = models.A2APublicationSourceExternal
+	require.NoError(t, repo.Enqueue(ctx, &external))
+	assert.Equal(t, models.A2APublicationSourceExternal, statusOf(t, pub).Source)
+}
+
+// External origins are never polled for drift; filtering after the fetch would break paging.
+func TestA2APublicationFindPublishedSkipsExternalRows(t *testing.T) {
+	repo := NewA2APublicationRepository(db.GetDB())
+	ctx := context.Background()
+	platform := newTestPublication("drift-platform-" + uuid.New().String()[:8])
+	external := newTestPublication("drift-external-" + uuid.New().String()[:8])
+	external.Source = models.A2APublicationSourceExternal
+	for _, pub := range []*models.A2APublication{platform, external} {
+		cleanupPublication(t, repo, pub)
+		require.NoError(t, repo.Enqueue(ctx, pub))
+		require.NoError(t, repo.MarkPublished(ctx, *pub, "http://agent:9099"))
+	}
+
+	var names []string
+	cursor := uuid.Nil
+	for {
+		page, err := repo.FindPublished(ctx, cursor, 50)
+		require.NoError(t, err)
+		for _, row := range page {
+			names = append(names, row.AgentName)
+		}
+		if len(page) < 50 {
+			break
+		}
+		cursor = page[len(page)-1].ID
+	}
+	assert.Contains(t, names, platform.AgentName)
+	assert.NotContains(t, names, external.AgentName)
+}
+
+func TestA2APublicationGetIsByEnvironmentUUID(t *testing.T) {
+	repo := NewA2APublicationRepository(db.GetDB())
+	ctx := context.Background()
+	pub := newTestPublication("get-" + uuid.New().String()[:8])
+	cleanupPublication(t, repo, pub)
+	require.NoError(t, repo.Enqueue(ctx, pub))
+
+	got, err := repo.Get(ctx, pub.OUID, pub.ProjectName, pub.AgentName, pub.EnvironmentUUID)
+	require.NoError(t, err)
+	assert.Equal(t, pub.ID, got.ID)
+
+	_, err = repo.Get(ctx, pub.OUID, pub.ProjectName, pub.AgentName, uuid.New())
+	assert.ErrorIs(t, err, ErrA2APublicationNotFound)
+}
+
+func TestA2APublicationListsAndDeletesByEnvironment(t *testing.T) {
+	repo := NewA2APublicationRepository(db.GetDB())
+	ctx := context.Background()
+	dev := newTestPublication("env-" + uuid.New().String()[:8])
+	prod := newTestPublication(dev.AgentName)
+	prod.OUID, prod.EnvironmentName = dev.OUID, "Production"
+	neighbour := newTestPublication("env-other-" + uuid.New().String()[:8])
+	neighbour.OUID, neighbour.EnvironmentName, neighbour.EnvironmentUUID = dev.OUID, "Production", prod.EnvironmentUUID
+	for _, pub := range []*models.A2APublication{dev, prod, neighbour} {
+		cleanupPublication(t, repo, pub)
+		require.NoError(t, repo.Enqueue(ctx, pub))
+	}
+
+	inProd, err := repo.ListForEnvironment(ctx, dev.OUID, prod.EnvironmentUUID)
+	require.NoError(t, err)
+	var ids []uuid.UUID
+	for _, row := range inProd {
+		ids = append(ids, row.ID)
+	}
+	assert.ElementsMatch(t, []uuid.UUID{prod.ID, neighbour.ID}, ids)
+
+	require.NoError(t, repo.DeleteForAgentEnv(ctx, dev.OUID, dev.ProjectName, dev.AgentName, dev.EnvironmentUUID))
+	_, err = repo.Get(ctx, dev.OUID, dev.ProjectName, dev.AgentName, dev.EnvironmentUUID)
+	assert.ErrorIs(t, err, ErrA2APublicationNotFound)
+	_, err = repo.Get(ctx, prod.OUID, prod.ProjectName, prod.AgentName, prod.EnvironmentUUID)
+	require.NoError(t, err, "only that environment's row is gone")
+
+	require.NoError(t, repo.DeleteForEnvironment(ctx, dev.OUID, prod.EnvironmentUUID))
+	inProd, err = repo.ListForEnvironment(ctx, dev.OUID, prod.EnvironmentUUID)
+	require.NoError(t, err)
+	assert.Empty(t, inProd)
+}
+
+// Writes through a transaction-bound repository roll back with the transaction.
+func TestA2APublicationWithTxRollsBack(t *testing.T) {
+	repo := NewA2APublicationRepository(db.GetDB())
+	ctx := context.Background()
+	pub := newTestPublication("tx-" + uuid.New().String()[:8])
+	cleanupPublication(t, repo, pub)
+
+	err := db.GetDB().Transaction(func(tx *gorm.DB) error {
+		require.NoError(t, repo.WithTx(tx).Enqueue(ctx, pub))
+		return errors.New("roll back")
+	})
+	require.Error(t, err)
+
+	_, err = repo.Get(ctx, pub.OUID, pub.ProjectName, pub.AgentName, pub.EnvironmentUUID)
+	assert.ErrorIs(t, err, ErrA2APublicationNotFound)
 }
 
 func statusOf(t *testing.T, pub *models.A2APublication) models.A2APublication {
@@ -273,6 +411,45 @@ func TestA2APublicationMarkWaitingDoesNotCountAnAttempt(t *testing.T) {
 	assert.True(t, row.NextAttemptAt.After(time.Now()), "the next check is backed off")
 }
 
+// Pods from before the external source existed claim and fail external rows during a rolling upgrade; a new
+// pod gives those rows their budget back at start, leaving platform rows and pending rows as they were.
+func TestA2APublicationRequeueFailedExternalResetsOnlyFailedExternalRows(t *testing.T) {
+	repo := NewA2APublicationRepository(db.GetDB())
+	ctx := context.Background()
+	failedExternal := newTestPublication("ext-failed-" + uuid.New().String()[:8])
+	failedExternal.Source = models.A2APublicationSourceExternal
+	failedPlatform := newTestPublication("plat-failed-" + uuid.New().String()[:8])
+	pendingExternal := newTestPublication("ext-pending-" + uuid.New().String()[:8])
+	pendingExternal.Source = models.A2APublicationSourceExternal
+	for _, pub := range []*models.A2APublication{failedExternal, failedPlatform, pendingExternal} {
+		cleanupPublication(t, repo, pub)
+		require.NoError(t, repo.Enqueue(ctx, pub))
+	}
+	// One claim leases every due row, so both failures come from the same batch.
+	due, err := repo.ClaimDue(ctx, time.Now(), 100)
+	require.NoError(t, err)
+	failed := 0
+	for _, row := range due {
+		if row.AgentName == failedExternal.AgentName || row.AgentName == failedPlatform.AgentName {
+			require.NoError(t, repo.MarkFailed(ctx, row, "old pod: no release binding"))
+			failed++
+		}
+	}
+	require.Equal(t, 2, failed)
+
+	n, err := repo.RequeueFailedExternal(ctx)
+	require.NoError(t, err)
+	assert.EqualValues(t, 1, n)
+
+	got := statusOf(t, failedExternal)
+	assert.Equal(t, models.A2APublicationStatusPending, got.Status)
+	assert.Zero(t, got.AttemptCount)
+	assert.Empty(t, got.LastError)
+	require.NotNil(t, got.NextAttemptAt)
+	assert.Equal(t, models.A2APublicationStatusFailed, statusOf(t, failedPlatform).Status, "platform rows are not touched")
+	assert.Equal(t, models.A2APublicationStatusPending, statusOf(t, pendingExternal).Status)
+}
+
 // A drifted published row goes back on the queue with a fresh budget.
 func TestA2APublicationRequeueMakesAPublishedRowDue(t *testing.T) {
 	repo := NewA2APublicationRepository(db.GetDB())
@@ -342,7 +519,7 @@ func TestA2APublicationEnqueueRecordsTheAgentUUID(t *testing.T) {
 	assert.Equal(t, first, *statusOf(t, pub).AgentUUID)
 
 	again := newTestPublication(pub.AgentName)
-	again.OUID = pub.OUID
+	again.OUID, again.EnvironmentUUID = pub.OUID, pub.EnvironmentUUID
 	second := uuid.New()
 	again.AgentUUID = &second
 	require.NoError(t, repo.Enqueue(ctx, again))

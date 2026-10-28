@@ -19,10 +19,12 @@
 import { useState } from "react";
 import { Box, Button, IconButton, TextField, Tooltip } from "@wso2/oxygen-ui";
 import { Check, X } from "@wso2/oxygen-ui-icons-react";
-import { useSetAgentCardSource } from "@agent-management-platform/api-client";
+import { useSetA2AProxy, useSetAgentCardSource } from "@agent-management-platform/api-client";
 import { INPUT_LIMITS, type AgentCardPathParams } from "@agent-management-platform/types";
 import { validateEndpointUrl } from "@agent-management-platform/shared-component";
 import { TextInput } from "@agent-management-platform/views";
+import { A2AProxyFields } from "./A2AProxyFields";
+import { draftFromProxy, KEEP_ORIGIN_HINT, originOf, proxyRequestOf, upstreamAuthError } from "./a2aProxyDraft";
 
 interface AgentCardSourceFormProps {
   params: AgentCardPathParams;
@@ -31,22 +33,46 @@ interface AgentCardSourceFormProps {
   inline?: boolean;
   /** Called after a successful save or on cancel. */
   onDone?: () => void;
+  /** Offers gateway routing with the new URL; only once the environment is known to be direct. */
+  offerRouting?: boolean;
+  /** A stored upstream secret pins the card to the origin of currentUrl. */
+  keepOrigin?: boolean;
 }
 
 const INVALID_HINT = "Enter a public http(s) URL";
 
+// useApiMutation already shows the failure in a snackbar.
+const alreadyReported = () => undefined;
+
 /** Card URL for an external A2A agent in one environment. */
 export function AgentCardSourceForm({
-  params, currentUrl, inline, onDone,
+  params, currentUrl, inline, onDone, offerRouting = false, keepOrigin = false,
 }: AgentCardSourceFormProps) {
   const [url, setUrl] = useState(currentUrl ?? "");
-  const { mutate: save, isPending: isSaving } = useSetAgentCardSource();
+  const { mutateAsync: saveSource, isPending: isSaving } = useSetAgentCardSource();
+  const { mutateAsync: saveProxy, isPending: isRouting } = useSetA2AProxy();
+  const [proxyDraft, setProxyDraft] = useState(() => draftFromProxy(undefined));
+  const routes = !inline && offerRouting && proxyDraft.enabled;
 
   const trimmed = url.trim();
+  const proxyError = routes ? upstreamAuthError(proxyDraft, undefined, trimmed) : null;
   const invalid = trimmed !== "" && validateEndpointUrl(trimmed) !== null;
-  const canSave = !!trimmed && !invalid && trimmed !== currentUrl && !isSaving;
-  const submit = () => {
-    if (canSave) save({ params, body: { url: trimmed } }, { onSuccess: onDone });
+  const leavesOrigin =
+    keepOrigin && trimmed !== "" && !invalid && originOf(trimmed) !== originOf(currentUrl ?? "");
+  const busy = isSaving || isRouting;
+  const canSave =
+    !!trimmed && !invalid && !leavesOrigin && trimmed !== currentUrl && !busy && !proxyError;
+  // Awaited rather than chained on mutate callbacks: saving the URL unmounts this form.
+  const submit = async () => {
+    if (!canSave) return;
+    const sourceSaved = await saveSource({ params, body: { url: trimmed }, routingFollows: routes })
+      .then(() => true, () => false);
+    if (!sourceSaved) return;
+    onDone?.();
+    // The URL stays saved if routing fails; the environment is then left direct.
+    if (routes) {
+      await saveProxy({ params, body: proxyRequestOf(proxyDraft) }).catch(alreadyReported);
+    }
   };
 
   if (inline) {
@@ -59,7 +85,7 @@ export function AgentCardSourceForm({
           value={url}
           onChange={(e) => setUrl(e.target.value)}
           onKeyDown={(e) => {
-            if (e.key === "Enter") submit();
+            if (e.key === "Enter") void submit();
             if (e.key === "Escape") onDone?.();
           }}
           error={invalid}
@@ -69,14 +95,14 @@ export function AgentCardSourceForm({
             style: { fontFamily: "monospace" },
           }}
         />
-        <Tooltip title={invalid ? INVALID_HINT : "Save"}>
+        <Tooltip title={invalid ? INVALID_HINT : leavesOrigin ? KEEP_ORIGIN_HINT : "Save"}>
           <span>
             <IconButton
               size="small"
               color="primary"
               aria-label="Save agent card URL"
               disabled={!canSave}
-              onClick={submit}
+              onClick={() => void submit()}
             >
               <Check size={16} />
             </IconButton>
@@ -96,26 +122,36 @@ export function AgentCardSourceForm({
       component="form"
       onSubmit={(e: React.FormEvent) => {
         e.preventDefault();
-        submit();
+        void submit();
       }}
-      display="flex"
-      gap={1}
-      alignItems="flex-start"
       sx={{ mb: 1 }}
     >
-      <TextInput
-        label="Agent card URL"
-        placeholder="https://agent.example.com/.well-known/agent-card.json"
-        value={url}
-        onChange={(e: React.ChangeEvent<HTMLInputElement>) => setUrl(e.target.value)}
-        error={invalid}
-        helperText={invalid ? INVALID_HINT : undefined}
-        maxLength={INPUT_LIMITS.URL}
-        fullWidth
-      />
-      <Button type="submit" variant="contained" size="small" disabled={!canSave} sx={{ mt: 3 }}>
-        Save
-      </Button>
+      <Box display="flex" gap={1} alignItems="flex-start">
+        <TextInput
+          label="Agent card URL"
+          placeholder="https://agent.example.com/.well-known/agent-card.json"
+          value={url}
+          onChange={(e: React.ChangeEvent<HTMLInputElement>) => setUrl(e.target.value)}
+          error={invalid}
+          helperText={invalid ? INVALID_HINT : undefined}
+          maxLength={INPUT_LIMITS.URL}
+          fullWidth
+        />
+        <Button type="submit" variant="contained" size="small" disabled={!canSave} sx={{ mt: 3 }}>
+          Save
+        </Button>
+      </Box>
+      {offerRouting && (
+        <Box sx={{ mt: 1 }}>
+          <A2AProxyFields
+            draft={proxyDraft}
+            onChange={setProxyDraft}
+            hasStoredSecret={false}
+            error={proxyError}
+            disabled={busy}
+          />
+        </Box>
+      )}
     </Box>
   );
 }

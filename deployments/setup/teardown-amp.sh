@@ -28,12 +28,13 @@ else
 fi
 
 # ============================================================================
-# Step 1: Stop port-forwards
+# Step 1: Stop port-forwards and the console
 # ============================================================================
 echo ""
-echo "1️⃣  Stop port-forwards"
+echo "1️⃣  Stop port-forwards and the console"
 "$SCRIPT_DIR/stop-port-forward.sh" 2>/dev/null || true
-echo "✅ Port-forwards stopped"
+"$SCRIPT_DIR/stop-console.sh" 2>/dev/null || true
+echo "✅ Port-forwards and console stopped"
 
 # ============================================================================
 # Step 2: Stop Docker Compose services (wipes DB volume)

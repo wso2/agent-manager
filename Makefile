@@ -1,9 +1,4 @@
-.PHONY: help tools setup setup-colima setup-k3d setup-openchoreo setup-default-env-thunder setup-sandbox setup-gvisor setup-kata setup-platform setup-gateway setup-console-local setup-console-local-force setup-amp teardown-amp reset-amp dev-up dev-down dev-restart dev-rebuild dev-logs dev-migrate openchoreo-up openchoreo-down openchoreo-status thunder-up thunder-down thunder-restart thunder-reset teardown db-connect db-logs service-logs service-shell console-logs port-forward stop-port-forward gen-eval-artifacts gen-instrumentation-contract check-contract-drift check-matrix-manifest e2e-test security-test security-test-static security-test-live
-
-# Absolute path to the console directory on the host. Passed to docker-compose
-# so the container mounts and builds at the same path, keeping pnpm
-# symlinks valid on both the host and inside the container.
-export CONSOLE_HOST_PATH := $(realpath $(CURDIR)/console)
+.PHONY: help tools setup setup-colima setup-k3d setup-openchoreo setup-default-env-thunder setup-sandbox setup-gvisor setup-kata setup-platform setup-gateway setup-console-local setup-console-local-force setup-amp teardown-amp reset-amp dev-up dev-down dev-restart dev-rebuild dev-logs dev-migrate openchoreo-up openchoreo-down openchoreo-status thunder-up thunder-down thunder-restart thunder-reset teardown db-connect db-logs service-logs service-shell console-logs console stop-console port-forward stop-port-forward gen-eval-artifacts gen-instrumentation-contract check-contract-drift check-matrix-manifest e2e-test security-test security-test-static security-test-live
 
 # Default target
 help:
@@ -20,15 +15,17 @@ help:
 	@echo "  make setup-kata              - Join a real (non-Docker) node to the cluster and install Kata there (needs nested virt; run after make setup)"
 	@echo "  make setup-platform          - Build images and start core platform services"
 	@echo "  make setup-gateway           - Install API Platform Gateway (run via make setup)"
-	@echo "  make setup-console-local     - Install console deps (only if changed), then build"
+	@echo "  make setup-console-local     - Install console deps (only if changed)"
 	@echo "  make setup-console-local-force - Force reinstall console deps"
 	@echo ""
 	@echo "💻 Daily Development:"
-	@echo "  make dev-up                  - Start platform services (console, service, db)"
-	@echo "  make dev-down                - Stop platform services"
-	@echo "  make dev-restart             - Restart platform services"
+	@echo "  make dev-up                  - Start platform services (service, db) and the console"
+	@echo "  make dev-down                - Stop platform services and the console"
+	@echo "  make dev-restart             - Restart platform services and the console"
 	@echo "  make dev-rebuild             - Rebuild images and restart services"
-	@echo "  make dev-logs                - Tail all platform logs"
+	@echo "  make dev-logs                - Tail compose logs (service, db)"
+	@echo "  make console                 - Start (or restart) the console dev server on :3000 (BACKGROUND=true to detach)"
+	@echo "  make stop-console            - Stop the console dev server"
 	@echo "  make dev-migrate             - Generate evaluators and run database migrations (run after dev-up/setup)"
 	@echo ""
 	@echo "☸️  OpenChoreo Runtime:"
@@ -51,7 +48,7 @@ help:
 	@echo "🔧 Service Debugging:"
 	@echo "  make service-logs       - View service logs"
 	@echo "  make service-shell      - Shell into service container"
-	@echo "  make console-logs       - View console logs"
+	@echo "  make console-logs       - Tail console dev server logs"
 	@echo ""
 	@echo "🔧 Code Generation:"
 	@echo "  make gen-eval-artifacts - Regenerate evaluator Go catalog + console TS models"
@@ -81,12 +78,14 @@ help:
 include tools.mk
 
 # Complete setup
-setup: tools setup-colima setup-k3d setup-openchoreo setup-console-local setup-platform setup-sandbox
+setup: tools setup-colima setup-k3d setup-openchoreo setup-platform setup-sandbox
 	@$(MAKE) dev-migrate
 	@cd deployments/setup && ./port-forward.sh --platform --background
+	@$(MAKE) wait-ams-healthy
 	@$(MAKE) setup-default-env-thunder
 	@$(MAKE) setup-gateway
 	@cd deployments/setup && ./port-forward.sh --background
+	@$(MAKE) console BACKGROUND=true
 	@echo ""
 	@echo "✅ Setup complete!"
 	@echo ""
@@ -96,6 +95,7 @@ setup: tools setup-colima setup-k3d setup-openchoreo setup-console-local setup-p
 	@echo ""
 	@echo "Run 'make stop-port-forward' to stop port-forwards"
 	@echo "Run 'make port-forward' to restart in a dedicated terminal"
+	@echo "Run 'make stop-console' to stop the console"
 
 # AMP-layer lifecycle: rebuild everything above the OpenChoreo base (colima,
 # k3d, prerequisites, planes, gateway-operator, agent-sandbox stay untouched).
@@ -107,8 +107,10 @@ reset-amp:
 teardown-amp:
 	@cd deployments/setup && ./teardown-amp.sh
 
-setup-amp: setup-console-local
+setup-amp:
 	@cd deployments/setup && ./setup-amp-extensions.sh $(CURDIR)
+	@$(MAKE) -C agent-manager-observer docker-load-k3d
+	@cd deployments/setup && ./setup-amp-observability-extension.sh $(CURDIR)
 	@$(MAKE) setup-platform
 	@$(MAKE) dev-migrate
 	@cd deployments/setup && ./port-forward.sh --platform --background
@@ -116,6 +118,7 @@ setup-amp: setup-console-local
 	@$(MAKE) setup-default-env-thunder
 	@$(MAKE) setup-gateway
 	@cd deployments/setup && ./port-forward.sh --background
+	@$(MAKE) console BACKGROUND=true
 	@echo ""
 	@echo "✅ AMP layer ready!"
 	@echo "   Console: http://localhost:3000"
@@ -194,9 +197,6 @@ setup-gateway:
 	@touch .make/console-deps-installed
 
 setup-console-local: .make/console-deps-installed
-	@echo "🔨 Building monorepo packages..."
-	@cd console && pnpm build
-	@echo "✅ Console packages built"
 
 # Force reinstall of console dependencies (ignores timestamps)
 setup-console-local-force:
@@ -206,10 +206,11 @@ setup-console-local-force:
 # Daily development commands
 # --build: plain `up -d` reuses an image built from an older Dockerfile, silently
 # running a stale toolchain. Cached layers keep the no-change case near-free.
-dev-up: setup-console-local gen-keys
+dev-up: gen-keys
 	@cd deployments/setup && ./ensure-k3d-running.sh
 	@echo "🚀 Starting Agent Manager platform..."
 	@cd deployments && docker compose up -d --build
+	@$(MAKE) console BACKGROUND=true
 	@echo "✅ Platform is running!"
 	@echo "   Console: http://localhost:3000"
 	@echo "   API:     http://localhost:8080"
@@ -217,26 +218,21 @@ dev-up: setup-console-local gen-keys
 dev-down:
 	@echo "🛑 Stopping Agent Manager platform..."
 	@cd deployments && docker compose down
+	@$(MAKE) stop-console
 	@echo "✅ Platform stopped"
 
 dev-restart:
 	@echo "🔄 Restarting Agent Manager platform..."
 	@cd deployments && docker compose restart
+	@$(MAKE) console BACKGROUND=true
 	@echo "✅ Platform restarted"
 
-dev-rebuild: setup-console-local
+dev-rebuild:
 	@echo "🧹 Stopping services..."
 	@cd deployments && docker compose down
-	@echo "🧹 Removing console volumes (preserving database)..."
-	@docker volume rm deployments_console_node_modules 2>/dev/null || true
 	@echo "🔨 Rebuilding Docker images..."
 	@cd deployments && docker compose build --no-cache
-	@echo "🔄 Starting services..."
-	@cd deployments/setup && ./ensure-k3d-running.sh
-	@cd deployments && docker compose up -d
-	@echo "✅ Rebuild complete!"
-	@echo "   Console: http://localhost:3000"
-	@echo "   API:     http://localhost:8080"
+	@$(MAKE) dev-up
 
 dev-logs:
 	@cd deployments && docker compose logs -f
@@ -326,6 +322,13 @@ port-forward:
 stop-port-forward:
 	@cd deployments/setup && ./stop-port-forward.sh
 
+# Console dev server (pnpm dev on :3000)
+console: setup-console-local
+	@cd deployments/setup && ./console.sh $(if $(filter true,$(BACKGROUND)),--background)
+
+stop-console:
+	@cd deployments/setup && ./stop-console.sh
+
 # Database commands
 db-connect:
 	@docker exec -it agent-manager-db psql -U agentmanager -d agentmanager
@@ -341,7 +344,8 @@ service-shell:
 	@docker exec -it agent-manager-service sh
 
 console-logs:
-	@docker logs -f agent-manager-console
+	@test -f .make/console.log || { echo "ℹ️  No console log: logs are only written by 'make console BACKGROUND=true'"; exit 1; }
+	@tail -f .make/console.log
 
 # amctl CLI client codegen (oapi-codegen against local OpenAPI spec)
 # oapi-codegen comes from `make tools`, pinned to match .github/workflows/cli-codegen-check.yaml

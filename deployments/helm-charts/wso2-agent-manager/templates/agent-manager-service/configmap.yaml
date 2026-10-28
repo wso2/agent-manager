@@ -84,11 +84,13 @@ data:
   WORKFLOW_PLANE_OPENBAO_URL: {{ .Values.agentManagerService.config.workflowPlaneOpenbao.url | default "" | quote }}
   WORKFLOW_PLANE_OPENBAO_PATH: {{ .Values.agentManagerService.config.workflowPlaneOpenbao.path | default "secret" | quote }}
   # Thunder admin API configuration (for per-org publisher credentials and the
-  # identity APIs). resolveToHost lets baseURL stay Thunder's public URL (required
-  # for the System resource server identifier) even when that hostname isn't
-  # directly dialable from this pod — see values.yaml's thunder.resolveToHost.
+  # identity APIs). resolveToHost lets baseURL stay Thunder's public URL even when
+  # that hostname isn't directly dialable from this pod. The AMP-prefixed settings
+  # select an explicit/derived resource server or Thunder's configured default.
   THUNDER_BASE_URL: {{ .Values.agentManagerService.config.thunder.baseURL | default "" | quote }}
   THUNDER_RESOLVE_TO_HOST: {{ .Values.agentManagerService.config.thunder.resolveToHost | default "" | quote }}
+  AMP_USE_THUNDER_DEFAULT_RESOURCE_SERVER: {{ .Values.agentManagerService.config.thunder.useDefaultResourceServer | default false | quote }}
+  AMP_THUNDER_SYSTEM_RESOURCE_IDENTIFIER: {{ .Values.agentManagerService.config.thunder.systemResourceIdentifier | default "" | quote }}
   THUNDER_CLIENT_ID: {{ .Values.agentManagerService.config.thunder.clientId | default "" | quote }}
   # Agent resource limits (per-agent upper bounds)
   RESOURCE_MAX_REPLICAS: {{ .Values.agentManagerService.config.perAgentResourceLimits.maxReplicas | default 10 | quote }}

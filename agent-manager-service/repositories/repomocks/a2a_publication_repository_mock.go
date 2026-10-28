@@ -10,6 +10,8 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/wso2/agent-manager/agent-manager-service/models"
+	"github.com/wso2/agent-manager/agent-manager-service/repositories"
+	"gorm.io/gorm"
 )
 
 // A2APublicationRepositoryMock is a mock implementation of repositories.A2APublicationRepository.
@@ -24,11 +26,26 @@ import (
 //			DeleteForAgentFunc: func(ctx context.Context, ouID string, projectName string, agentName string) error {
 //				panic("mock out the DeleteForAgent method")
 //			},
+//			DeleteForAgentEnvFunc: func(ctx context.Context, ouID string, projectName string, agentName string, environmentUUID uuid.UUID) error {
+//				panic("mock out the DeleteForAgentEnv method")
+//			},
+//			DeleteForEnvironmentFunc: func(ctx context.Context, ouID string, environmentUUID uuid.UUID) error {
+//				panic("mock out the DeleteForEnvironment method")
+//			},
 //			EnqueueFunc: func(ctx context.Context, pub *models.A2APublication) error {
 //				panic("mock out the Enqueue method")
 //			},
 //			FindPublishedFunc: func(ctx context.Context, afterID uuid.UUID, limit int) ([]models.A2APublication, error) {
 //				panic("mock out the FindPublished method")
+//			},
+//			GetFunc: func(ctx context.Context, ouID string, projectName string, agentName string, environmentUUID uuid.UUID) (*models.A2APublication, error) {
+//				panic("mock out the Get method")
+//			},
+//			ListEnvironmentUUIDsFunc: func(ctx context.Context, ouID string, environmentName string) ([]uuid.UUID, error) {
+//				panic("mock out the ListEnvironmentUUIDs method")
+//			},
+//			ListForEnvironmentFunc: func(ctx context.Context, ouID string, environmentUUID uuid.UUID) ([]models.A2APublication, error) {
+//				panic("mock out the ListForEnvironment method")
 //			},
 //			MarkAttemptFailedFunc: func(ctx context.Context, read models.A2APublication, lastErr string, nextAttemptAt time.Time) error {
 //				panic("mock out the MarkAttemptFailed method")
@@ -45,6 +62,12 @@ import (
 //			RequeueFunc: func(ctx context.Context, read models.A2APublication) error {
 //				panic("mock out the Requeue method")
 //			},
+//			RequeueFailedExternalFunc: func(ctx context.Context) (int64, error) {
+//				panic("mock out the RequeueFailedExternal method")
+//			},
+//			WithTxFunc: func(tx *gorm.DB) repositories.A2APublicationRepository {
+//				panic("mock out the WithTx method")
+//			},
 //		}
 //
 //		// use mockedA2APublicationRepository in code that requires repositories.A2APublicationRepository
@@ -58,11 +81,26 @@ type A2APublicationRepositoryMock struct {
 	// DeleteForAgentFunc mocks the DeleteForAgent method.
 	DeleteForAgentFunc func(ctx context.Context, ouID string, projectName string, agentName string) error
 
+	// DeleteForAgentEnvFunc mocks the DeleteForAgentEnv method.
+	DeleteForAgentEnvFunc func(ctx context.Context, ouID string, projectName string, agentName string, environmentUUID uuid.UUID) error
+
+	// DeleteForEnvironmentFunc mocks the DeleteForEnvironment method.
+	DeleteForEnvironmentFunc func(ctx context.Context, ouID string, environmentUUID uuid.UUID) error
+
 	// EnqueueFunc mocks the Enqueue method.
 	EnqueueFunc func(ctx context.Context, pub *models.A2APublication) error
 
 	// FindPublishedFunc mocks the FindPublished method.
 	FindPublishedFunc func(ctx context.Context, afterID uuid.UUID, limit int) ([]models.A2APublication, error)
+
+	// GetFunc mocks the Get method.
+	GetFunc func(ctx context.Context, ouID string, projectName string, agentName string, environmentUUID uuid.UUID) (*models.A2APublication, error)
+
+	// ListEnvironmentUUIDsFunc mocks the ListEnvironmentUUIDs method.
+	ListEnvironmentUUIDsFunc func(ctx context.Context, ouID string, environmentName string) ([]uuid.UUID, error)
+
+	// ListForEnvironmentFunc mocks the ListForEnvironment method.
+	ListForEnvironmentFunc func(ctx context.Context, ouID string, environmentUUID uuid.UUID) ([]models.A2APublication, error)
 
 	// MarkAttemptFailedFunc mocks the MarkAttemptFailed method.
 	MarkAttemptFailedFunc func(ctx context.Context, read models.A2APublication, lastErr string, nextAttemptAt time.Time) error
@@ -78,6 +116,12 @@ type A2APublicationRepositoryMock struct {
 
 	// RequeueFunc mocks the Requeue method.
 	RequeueFunc func(ctx context.Context, read models.A2APublication) error
+
+	// RequeueFailedExternalFunc mocks the RequeueFailedExternal method.
+	RequeueFailedExternalFunc func(ctx context.Context) (int64, error)
+
+	// WithTxFunc mocks the WithTx method.
+	WithTxFunc func(tx *gorm.DB) repositories.A2APublicationRepository
 
 	// calls tracks calls to the methods.
 	calls struct {
@@ -101,6 +145,28 @@ type A2APublicationRepositoryMock struct {
 			// AgentName is the agentName argument value.
 			AgentName string
 		}
+		// DeleteForAgentEnv holds details about calls to the DeleteForAgentEnv method.
+		DeleteForAgentEnv []struct {
+			// Ctx is the ctx argument value.
+			Ctx context.Context
+			// OuID is the ouID argument value.
+			OuID string
+			// ProjectName is the projectName argument value.
+			ProjectName string
+			// AgentName is the agentName argument value.
+			AgentName string
+			// EnvironmentUUID is the environmentUUID argument value.
+			EnvironmentUUID uuid.UUID
+		}
+		// DeleteForEnvironment holds details about calls to the DeleteForEnvironment method.
+		DeleteForEnvironment []struct {
+			// Ctx is the ctx argument value.
+			Ctx context.Context
+			// OuID is the ouID argument value.
+			OuID string
+			// EnvironmentUUID is the environmentUUID argument value.
+			EnvironmentUUID uuid.UUID
+		}
 		// Enqueue holds details about calls to the Enqueue method.
 		Enqueue []struct {
 			// Ctx is the ctx argument value.
@@ -116,6 +182,37 @@ type A2APublicationRepositoryMock struct {
 			AfterID uuid.UUID
 			// Limit is the limit argument value.
 			Limit int
+		}
+		// Get holds details about calls to the Get method.
+		Get []struct {
+			// Ctx is the ctx argument value.
+			Ctx context.Context
+			// OuID is the ouID argument value.
+			OuID string
+			// ProjectName is the projectName argument value.
+			ProjectName string
+			// AgentName is the agentName argument value.
+			AgentName string
+			// EnvironmentUUID is the environmentUUID argument value.
+			EnvironmentUUID uuid.UUID
+		}
+		// ListEnvironmentUUIDs holds details about calls to the ListEnvironmentUUIDs method.
+		ListEnvironmentUUIDs []struct {
+			// Ctx is the ctx argument value.
+			Ctx context.Context
+			// OuID is the ouID argument value.
+			OuID string
+			// EnvironmentName is the environmentName argument value.
+			EnvironmentName string
+		}
+		// ListForEnvironment holds details about calls to the ListForEnvironment method.
+		ListForEnvironment []struct {
+			// Ctx is the ctx argument value.
+			Ctx context.Context
+			// OuID is the ouID argument value.
+			OuID string
+			// EnvironmentUUID is the environmentUUID argument value.
+			EnvironmentUUID uuid.UUID
 		}
 		// MarkAttemptFailed holds details about calls to the MarkAttemptFailed method.
 		MarkAttemptFailed []struct {
@@ -164,16 +261,33 @@ type A2APublicationRepositoryMock struct {
 			// Read is the read argument value.
 			Read models.A2APublication
 		}
+		// RequeueFailedExternal holds details about calls to the RequeueFailedExternal method.
+		RequeueFailedExternal []struct {
+			// Ctx is the ctx argument value.
+			Ctx context.Context
+		}
+		// WithTx holds details about calls to the WithTx method.
+		WithTx []struct {
+			// Tx is the tx argument value.
+			Tx *gorm.DB
+		}
 	}
-	lockClaimDue          sync.RWMutex
-	lockDeleteForAgent    sync.RWMutex
-	lockEnqueue           sync.RWMutex
-	lockFindPublished     sync.RWMutex
-	lockMarkAttemptFailed sync.RWMutex
-	lockMarkFailed        sync.RWMutex
-	lockMarkPublished     sync.RWMutex
-	lockMarkWaiting       sync.RWMutex
-	lockRequeue           sync.RWMutex
+	lockClaimDue              sync.RWMutex
+	lockDeleteForAgent        sync.RWMutex
+	lockDeleteForAgentEnv     sync.RWMutex
+	lockDeleteForEnvironment  sync.RWMutex
+	lockEnqueue               sync.RWMutex
+	lockFindPublished         sync.RWMutex
+	lockGet                   sync.RWMutex
+	lockListEnvironmentUUIDs  sync.RWMutex
+	lockListForEnvironment    sync.RWMutex
+	lockMarkAttemptFailed     sync.RWMutex
+	lockMarkFailed            sync.RWMutex
+	lockMarkPublished         sync.RWMutex
+	lockMarkWaiting           sync.RWMutex
+	lockRequeue               sync.RWMutex
+	lockRequeueFailedExternal sync.RWMutex
+	lockWithTx                sync.RWMutex
 }
 
 // ClaimDue calls ClaimDueFunc.
@@ -260,6 +374,94 @@ func (mock *A2APublicationRepositoryMock) DeleteForAgentCalls() []struct {
 	return calls
 }
 
+// DeleteForAgentEnv calls DeleteForAgentEnvFunc.
+func (mock *A2APublicationRepositoryMock) DeleteForAgentEnv(ctx context.Context, ouID string, projectName string, agentName string, environmentUUID uuid.UUID) error {
+	if mock.DeleteForAgentEnvFunc == nil {
+		panic("A2APublicationRepositoryMock.DeleteForAgentEnvFunc: method is nil but A2APublicationRepository.DeleteForAgentEnv was just called")
+	}
+	callInfo := struct {
+		Ctx             context.Context
+		OuID            string
+		ProjectName     string
+		AgentName       string
+		EnvironmentUUID uuid.UUID
+	}{
+		Ctx:             ctx,
+		OuID:            ouID,
+		ProjectName:     projectName,
+		AgentName:       agentName,
+		EnvironmentUUID: environmentUUID,
+	}
+	mock.lockDeleteForAgentEnv.Lock()
+	mock.calls.DeleteForAgentEnv = append(mock.calls.DeleteForAgentEnv, callInfo)
+	mock.lockDeleteForAgentEnv.Unlock()
+	return mock.DeleteForAgentEnvFunc(ctx, ouID, projectName, agentName, environmentUUID)
+}
+
+// DeleteForAgentEnvCalls gets all the calls that were made to DeleteForAgentEnv.
+// Check the length with:
+//
+//	len(mockedA2APublicationRepository.DeleteForAgentEnvCalls())
+func (mock *A2APublicationRepositoryMock) DeleteForAgentEnvCalls() []struct {
+	Ctx             context.Context
+	OuID            string
+	ProjectName     string
+	AgentName       string
+	EnvironmentUUID uuid.UUID
+} {
+	var calls []struct {
+		Ctx             context.Context
+		OuID            string
+		ProjectName     string
+		AgentName       string
+		EnvironmentUUID uuid.UUID
+	}
+	mock.lockDeleteForAgentEnv.RLock()
+	calls = mock.calls.DeleteForAgentEnv
+	mock.lockDeleteForAgentEnv.RUnlock()
+	return calls
+}
+
+// DeleteForEnvironment calls DeleteForEnvironmentFunc.
+func (mock *A2APublicationRepositoryMock) DeleteForEnvironment(ctx context.Context, ouID string, environmentUUID uuid.UUID) error {
+	if mock.DeleteForEnvironmentFunc == nil {
+		panic("A2APublicationRepositoryMock.DeleteForEnvironmentFunc: method is nil but A2APublicationRepository.DeleteForEnvironment was just called")
+	}
+	callInfo := struct {
+		Ctx             context.Context
+		OuID            string
+		EnvironmentUUID uuid.UUID
+	}{
+		Ctx:             ctx,
+		OuID:            ouID,
+		EnvironmentUUID: environmentUUID,
+	}
+	mock.lockDeleteForEnvironment.Lock()
+	mock.calls.DeleteForEnvironment = append(mock.calls.DeleteForEnvironment, callInfo)
+	mock.lockDeleteForEnvironment.Unlock()
+	return mock.DeleteForEnvironmentFunc(ctx, ouID, environmentUUID)
+}
+
+// DeleteForEnvironmentCalls gets all the calls that were made to DeleteForEnvironment.
+// Check the length with:
+//
+//	len(mockedA2APublicationRepository.DeleteForEnvironmentCalls())
+func (mock *A2APublicationRepositoryMock) DeleteForEnvironmentCalls() []struct {
+	Ctx             context.Context
+	OuID            string
+	EnvironmentUUID uuid.UUID
+} {
+	var calls []struct {
+		Ctx             context.Context
+		OuID            string
+		EnvironmentUUID uuid.UUID
+	}
+	mock.lockDeleteForEnvironment.RLock()
+	calls = mock.calls.DeleteForEnvironment
+	mock.lockDeleteForEnvironment.RUnlock()
+	return calls
+}
+
 // Enqueue calls EnqueueFunc.
 func (mock *A2APublicationRepositoryMock) Enqueue(ctx context.Context, pub *models.A2APublication) error {
 	if mock.EnqueueFunc == nil {
@@ -333,6 +535,134 @@ func (mock *A2APublicationRepositoryMock) FindPublishedCalls() []struct {
 	mock.lockFindPublished.RLock()
 	calls = mock.calls.FindPublished
 	mock.lockFindPublished.RUnlock()
+	return calls
+}
+
+// Get calls GetFunc.
+func (mock *A2APublicationRepositoryMock) Get(ctx context.Context, ouID string, projectName string, agentName string, environmentUUID uuid.UUID) (*models.A2APublication, error) {
+	if mock.GetFunc == nil {
+		panic("A2APublicationRepositoryMock.GetFunc: method is nil but A2APublicationRepository.Get was just called")
+	}
+	callInfo := struct {
+		Ctx             context.Context
+		OuID            string
+		ProjectName     string
+		AgentName       string
+		EnvironmentUUID uuid.UUID
+	}{
+		Ctx:             ctx,
+		OuID:            ouID,
+		ProjectName:     projectName,
+		AgentName:       agentName,
+		EnvironmentUUID: environmentUUID,
+	}
+	mock.lockGet.Lock()
+	mock.calls.Get = append(mock.calls.Get, callInfo)
+	mock.lockGet.Unlock()
+	return mock.GetFunc(ctx, ouID, projectName, agentName, environmentUUID)
+}
+
+// GetCalls gets all the calls that were made to Get.
+// Check the length with:
+//
+//	len(mockedA2APublicationRepository.GetCalls())
+func (mock *A2APublicationRepositoryMock) GetCalls() []struct {
+	Ctx             context.Context
+	OuID            string
+	ProjectName     string
+	AgentName       string
+	EnvironmentUUID uuid.UUID
+} {
+	var calls []struct {
+		Ctx             context.Context
+		OuID            string
+		ProjectName     string
+		AgentName       string
+		EnvironmentUUID uuid.UUID
+	}
+	mock.lockGet.RLock()
+	calls = mock.calls.Get
+	mock.lockGet.RUnlock()
+	return calls
+}
+
+// ListEnvironmentUUIDs calls ListEnvironmentUUIDsFunc.
+func (mock *A2APublicationRepositoryMock) ListEnvironmentUUIDs(ctx context.Context, ouID string, environmentName string) ([]uuid.UUID, error) {
+	if mock.ListEnvironmentUUIDsFunc == nil {
+		panic("A2APublicationRepositoryMock.ListEnvironmentUUIDsFunc: method is nil but A2APublicationRepository.ListEnvironmentUUIDs was just called")
+	}
+	callInfo := struct {
+		Ctx             context.Context
+		OuID            string
+		EnvironmentName string
+	}{
+		Ctx:             ctx,
+		OuID:            ouID,
+		EnvironmentName: environmentName,
+	}
+	mock.lockListEnvironmentUUIDs.Lock()
+	mock.calls.ListEnvironmentUUIDs = append(mock.calls.ListEnvironmentUUIDs, callInfo)
+	mock.lockListEnvironmentUUIDs.Unlock()
+	return mock.ListEnvironmentUUIDsFunc(ctx, ouID, environmentName)
+}
+
+// ListEnvironmentUUIDsCalls gets all the calls that were made to ListEnvironmentUUIDs.
+// Check the length with:
+//
+//	len(mockedA2APublicationRepository.ListEnvironmentUUIDsCalls())
+func (mock *A2APublicationRepositoryMock) ListEnvironmentUUIDsCalls() []struct {
+	Ctx             context.Context
+	OuID            string
+	EnvironmentName string
+} {
+	var calls []struct {
+		Ctx             context.Context
+		OuID            string
+		EnvironmentName string
+	}
+	mock.lockListEnvironmentUUIDs.RLock()
+	calls = mock.calls.ListEnvironmentUUIDs
+	mock.lockListEnvironmentUUIDs.RUnlock()
+	return calls
+}
+
+// ListForEnvironment calls ListForEnvironmentFunc.
+func (mock *A2APublicationRepositoryMock) ListForEnvironment(ctx context.Context, ouID string, environmentUUID uuid.UUID) ([]models.A2APublication, error) {
+	if mock.ListForEnvironmentFunc == nil {
+		panic("A2APublicationRepositoryMock.ListForEnvironmentFunc: method is nil but A2APublicationRepository.ListForEnvironment was just called")
+	}
+	callInfo := struct {
+		Ctx             context.Context
+		OuID            string
+		EnvironmentUUID uuid.UUID
+	}{
+		Ctx:             ctx,
+		OuID:            ouID,
+		EnvironmentUUID: environmentUUID,
+	}
+	mock.lockListForEnvironment.Lock()
+	mock.calls.ListForEnvironment = append(mock.calls.ListForEnvironment, callInfo)
+	mock.lockListForEnvironment.Unlock()
+	return mock.ListForEnvironmentFunc(ctx, ouID, environmentUUID)
+}
+
+// ListForEnvironmentCalls gets all the calls that were made to ListForEnvironment.
+// Check the length with:
+//
+//	len(mockedA2APublicationRepository.ListForEnvironmentCalls())
+func (mock *A2APublicationRepositoryMock) ListForEnvironmentCalls() []struct {
+	Ctx             context.Context
+	OuID            string
+	EnvironmentUUID uuid.UUID
+} {
+	var calls []struct {
+		Ctx             context.Context
+		OuID            string
+		EnvironmentUUID uuid.UUID
+	}
+	mock.lockListForEnvironment.RLock()
+	calls = mock.calls.ListForEnvironment
+	mock.lockListForEnvironment.RUnlock()
 	return calls
 }
 
@@ -537,5 +867,69 @@ func (mock *A2APublicationRepositoryMock) RequeueCalls() []struct {
 	mock.lockRequeue.RLock()
 	calls = mock.calls.Requeue
 	mock.lockRequeue.RUnlock()
+	return calls
+}
+
+// RequeueFailedExternal calls RequeueFailedExternalFunc.
+func (mock *A2APublicationRepositoryMock) RequeueFailedExternal(ctx context.Context) (int64, error) {
+	if mock.RequeueFailedExternalFunc == nil {
+		panic("A2APublicationRepositoryMock.RequeueFailedExternalFunc: method is nil but A2APublicationRepository.RequeueFailedExternal was just called")
+	}
+	callInfo := struct {
+		Ctx context.Context
+	}{
+		Ctx: ctx,
+	}
+	mock.lockRequeueFailedExternal.Lock()
+	mock.calls.RequeueFailedExternal = append(mock.calls.RequeueFailedExternal, callInfo)
+	mock.lockRequeueFailedExternal.Unlock()
+	return mock.RequeueFailedExternalFunc(ctx)
+}
+
+// RequeueFailedExternalCalls gets all the calls that were made to RequeueFailedExternal.
+// Check the length with:
+//
+//	len(mockedA2APublicationRepository.RequeueFailedExternalCalls())
+func (mock *A2APublicationRepositoryMock) RequeueFailedExternalCalls() []struct {
+	Ctx context.Context
+} {
+	var calls []struct {
+		Ctx context.Context
+	}
+	mock.lockRequeueFailedExternal.RLock()
+	calls = mock.calls.RequeueFailedExternal
+	mock.lockRequeueFailedExternal.RUnlock()
+	return calls
+}
+
+// WithTx calls WithTxFunc.
+func (mock *A2APublicationRepositoryMock) WithTx(tx *gorm.DB) repositories.A2APublicationRepository {
+	if mock.WithTxFunc == nil {
+		panic("A2APublicationRepositoryMock.WithTxFunc: method is nil but A2APublicationRepository.WithTx was just called")
+	}
+	callInfo := struct {
+		Tx *gorm.DB
+	}{
+		Tx: tx,
+	}
+	mock.lockWithTx.Lock()
+	mock.calls.WithTx = append(mock.calls.WithTx, callInfo)
+	mock.lockWithTx.Unlock()
+	return mock.WithTxFunc(tx)
+}
+
+// WithTxCalls gets all the calls that were made to WithTx.
+// Check the length with:
+//
+//	len(mockedA2APublicationRepository.WithTxCalls())
+func (mock *A2APublicationRepositoryMock) WithTxCalls() []struct {
+	Tx *gorm.DB
+} {
+	var calls []struct {
+		Tx *gorm.DB
+	}
+	mock.lockWithTx.RLock()
+	calls = mock.calls.WithTx
+	mock.lockWithTx.RUnlock()
 	return calls
 }

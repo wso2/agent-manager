@@ -38,10 +38,18 @@ const (
 	a2aCardMaxBytes     = 1 << 20
 )
 
+// A2ACardFetchHeader is a credential sent on a card fetch.
+type A2ACardFetchHeader struct {
+	Name  string
+	Value string
+}
+
 // A2ACardFetcher fetches and minimally validates an A2A 1.0 public agent card.
 type A2ACardFetcher interface {
-	// Fetch returns the card as served. guarded selects the SSRF-hardened client for user-supplied URLs.
-	Fetch(ctx context.Context, url string, guarded bool) (json.RawMessage, error)
+	// Fetch returns the card as served from a platform-derived URL, unguarded.
+	Fetch(ctx context.Context, url string) (json.RawMessage, error)
+	// FetchOrigin fetches a user-supplied URL SSRF-guarded; with a header, redirects stay on the URL's origin.
+	FetchOrigin(ctx context.Context, url string, header *A2ACardFetchHeader) (json.RawMessage, error)
 }
 
 type a2aCardFetcher struct {
@@ -107,47 +115,71 @@ func refusedRedirectHost(resp *http.Response) string {
 	return loc.Host
 }
 
-func (f *a2aCardFetcher) Fetch(ctx context.Context, url string, guarded bool) (json.RawMessage, error) {
-	client := f.plain
-	if guarded {
-		client = f.guarded
-	}
+func (f *a2aCardFetcher) Fetch(ctx context.Context, url string) (json.RawMessage, error) {
+	return f.fetch(ctx, f.plain, url, false, nil)
+}
 
+func (f *a2aCardFetcher) FetchOrigin(ctx context.Context, url string, header *A2ACardFetchHeader) (json.RawMessage, error) {
+	client := f.guarded
+	if header != nil {
+		client = sameOriginClient(f.guarded)
+	}
+	return f.fetch(ctx, client, url, true, header)
+}
+
+// sameOriginClient is base that additionally refuses redirects off the original origin.
+func sameOriginClient(base *http.Client) *http.Client {
+	c := *base
+	c.CheckRedirect = func(req *http.Request, via []*http.Request) error {
+		if base.CheckRedirect != nil {
+			if err := base.CheckRedirect(req, via); err != nil {
+				return err
+			}
+		}
+		return sameHostRedirectOnly(req, via)
+	}
+	return &c
+}
+
+func (f *a2aCardFetcher) fetch(
+	ctx context.Context, client *http.Client, url string, guarded bool, header *A2ACardFetchHeader,
+) (json.RawMessage, error) {
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
 	if err != nil {
-		return nil, fmt.Errorf("invalid agent card URL: %w", err)
+		return nil, newA2APublicError("the agent card URL is invalid", err)
 	}
 	req.Header.Set("Accept", "application/json")
+	if header != nil {
+		req.Header.Set(header.Name, header.Value)
+	}
 
 	resp, err := client.Do(req)
 	if err != nil {
-		if guarded {
-			if errors.Is(err, utils.ErrInvalidURL) {
-				return nil, refusedCardURL(err)
-			}
-			// Raw dial errors are not surfaced for user-supplied hosts.
-			return nil, errors.New("could not reach the agent card URL")
+		if guarded && errors.Is(err, utils.ErrInvalidURL) {
+			return nil, refusedCardURL(err)
 		}
-		return nil, fmt.Errorf("could not reach the agent card URL: %w", err)
+		// The dial error can name internal addresses; the cause is logged via a2aLogError, never shown.
+		return nil, newA2APublicError("could not reach the agent card URL", err)
 	}
 	defer func() { _ = resp.Body.Close() }()
 
 	if target := refusedRedirectHost(resp); target != "" {
-		return nil, fmt.Errorf("agent card request was redirected to %s; redirects to another host are not followed", target)
+		return nil, newA2APublicError(fmt.Sprintf(
+			"agent card request was redirected to %s; redirects to another host are not followed", target), nil)
 	}
 
 	if resp.StatusCode < 200 || resp.StatusCode > 299 {
-		return nil, fmt.Errorf("agent card request returned HTTP %d", resp.StatusCode)
+		return nil, newA2APublicError(fmt.Sprintf("agent card request returned HTTP %d", resp.StatusCode), nil)
 	}
 	body, err := io.ReadAll(io.LimitReader(resp.Body, a2aCardMaxBytes+1))
 	if err != nil {
-		return nil, fmt.Errorf("failed to read the agent card: %w", err)
+		return nil, newA2APublicError("failed to read the agent card", err)
 	}
 	if len(body) > a2aCardMaxBytes {
-		return nil, errors.New("agent card exceeds 1 MiB")
+		return nil, newA2APublicError("agent card exceeds 1 MiB", nil)
 	}
 	if err := validateA2ACard(body); err != nil {
-		return nil, err
+		return nil, newA2APublicError(err.Error(), nil)
 	}
 	return json.RawMessage(body), nil
 }
@@ -155,9 +187,9 @@ func (f *a2aCardFetcher) Fetch(ctx context.Context, url string, guarded bool) (j
 // refusedCardURL keeps SSRF refusals free of DNS detail, since last_error is user-visible.
 func refusedCardURL(err error) error {
 	if errors.Is(err, ssrf.ErrHostNotPublic) {
-		return errors.New("agent card URL is not allowed: " + a2aCardHostNotPublicMsg)
+		return newA2APublicError("agent card URL is not allowed: "+a2aCardHostNotPublicMsg, err)
 	}
-	return fmt.Errorf("agent card URL is not allowed: %w", err)
+	return newA2APublicError("agent card URL is not allowed: "+err.Error(), err)
 }
 
 // validateA2ACard checks the minimal A2A 1.0 shape with exact key names, as the console reads them.

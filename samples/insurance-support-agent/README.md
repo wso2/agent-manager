@@ -14,11 +14,15 @@ The browser client is a separate app with its own README — see [`web/`](web/RE
 | Path                       | Purpose                                                                  |
 | -------------------------- | ------------------------------------------------------------------------ |
 | `agent/main.py`, `app.py`  | FastAPI service exposing `POST /chat`, port 8000 (override `PORT`)       |
-| `agent/agent.py`           | Strands agent and OpenAI model wiring                                    |
+| `agent/agent.py`           | Strands agent with OpenAI or Bedrock gateway model wiring                |
 | `agent/tools.py`           | Five tools: list policies, list claims, lookup, claim status, file claim |
+| `agent/mcp_client.py`      | AgentID OAuth client for the remote policy tools (`USE_MCP=true`)        |
 | `agent/data.py`            | In-memory policies and claims — no database to set up                    |
 | `agent/system_prompt.py`   | The agent's instructions. Edit this to change behaviour.                 |
 | `web/`                     | React + TypeScript chat client. See [`web/README.md`](web/README.md).    |
+| `mcp-server/`              | Read-only policy MCP server. See [MCP-TOOLS.md](MCP-TOOLS.md).           |
+| `ecs/`                     | Fargate task definitions for the agent and MCP server                    |
+| `tests/`                   | Offline Bedrock adapter and MCP tests                                    |
 
 The agent handles five things: list the customer's policies, list their claims,
 show the full cover on one policy, check a claim's status, and open a new claim.
@@ -27,6 +31,16 @@ It will say so if you ask "what can you do?".
 Sample data (all Ada Lovelace): policies `OZ-AUTO-4417` (motor), `OZ-HOME-2280`
 (home and contents), `OZ-TRAV-9153` (travel); claims `CLM-10432` (in review) and
 `CLM-10876` (settled).
+
+## External AWS deployment
+
+For an instrumented ECS container, see [Run on Amazon ECS](ECS-EXTERNAL.md).
+To use Amazon Bedrock through the Agent Manager AI gateway, see
+[Bedrock gateway configuration](BEDROCK-GATEWAY.md). OpenAI remains the default.
+
+For a supplied read-only insurance MCP server and AgentID OAuth client, follow
+[Connect the insurance MCP tools](MCP-TOOLS.md). This mode requires configuration
+and deployment, not custom server or client code.
 
 ## Prerequisites
 
@@ -66,6 +80,11 @@ setup.
 | `OPENAI_BASE_URL`    | no       | OpenAI's default | Any OpenAI-compatible endpoint — an AM LLM provider, a proxy             |
 | `OPENAI_MODEL`       | no       | `gpt-4o-mini`    | Model id                                                                 |
 | `COMPANY_NAME`       | no       | `O2 Insurance`   | Used in the system prompt and the UI header                              |
+
+Bedrock gateway and MCP variables (`MODEL_PROVIDER`, `LLM_GATEWAY_URL`,
+`USE_MCP`, `AMP_AGENTID_*`, and others) are listed in
+[BEDROCK-GATEWAY.md](BEDROCK-GATEWAY.md) and [MCP-TOOLS.md](MCP-TOOLS.md).
+With `MODEL_PROVIDER=bedrock-gateway`, `OPENAI_API_KEY` is not required.
 
 Set `OPENAI_BASE_URL` when routing model calls through a gateway; the key you
 supply in `OPENAI_API_KEY` is then the gateway's key.

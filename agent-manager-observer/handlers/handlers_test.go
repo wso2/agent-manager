@@ -19,6 +19,7 @@ package handlers
 import (
 	"context"
 	"encoding/base64"
+	"encoding/json"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
@@ -532,6 +533,14 @@ func TestGetTraceOverviews_InvalidCursor(t *testing.T) {
 			rec := httptest.NewRecorder()
 			newHandler().GetTraceOverviews(rec, r)
 			assertBadRequest(t, rec)
+			// amctl matches this exact message (cli/pkg/cmd/agent/traces/list.go).
+			var body ErrorResponse
+			if err := json.NewDecoder(rec.Body).Decode(&body); err != nil {
+				t.Fatalf("decode body: %v", err)
+			}
+			if body.Message != "invalid cursor" {
+				t.Errorf("message = %q, want %q", body.Message, "invalid cursor")
+			}
 		})
 	}
 }

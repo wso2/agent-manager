@@ -66,6 +66,9 @@ window.__RUNTIME_CONFIG__ = {
     storage: 'localStorage',
   },
   disableAuth: '$DISABLE_AUTH' === 'true',
+  // Pinned at image build to the BASE_PATH the assets were built with (see the
+  // Dockerfile), so the router basename always matches the Vite asset base.
+  basePath: '$BASE_PATH',
   apiBaseUrl: '$API_BASE_URL',
   configDiscoveryBaseUrl: '$CONFIG_DISCOVERY_BASE_URL',
   gatewayControlPlaneUrl: '$GATEWAY_CONTROL_PLANE_URL',
@@ -92,6 +95,7 @@ window.__RUNTIME_CONFIG__ = {
     enableIdentityProviderManagedMode: '$FEATURE_FLAG_ENABLE_IDENTITY_PROVIDER_MANAGED_MODE' === 'true',
     enableProfileManagement: '$FEATURE_FLAG_ENABLE_PROFILE_MANAGEMENT' === 'true',
     enableUserManagement: '$FEATURE_FLAG_ENABLE_USER_MANAGEMENT' === 'true',
+    enableAgentIdentity: true,
   },
   maxRequestBodyBytes: '$MAX_REQUEST_BODY_BYTES',
   fileMountMaxFileBytes: '$FILE_MOUNT_MAX_FILE_BYTES',
@@ -99,6 +103,7 @@ window.__RUNTIME_CONFIG__ = {
   footerLinks: {
     privacyPolicyUrl: 'https://wso2.com/agent-platform/agent-manager/',
     termsOfUseUrl: 'https://wso2.com/agent-platform/agent-manager/',
+    supportUrl: 'https://discord.com/invite/wso2',
   },
   instrumentationDocLinks: {
     manualInstrumentation: '/guides/amp-instrumentation/#manual-instrumentation',

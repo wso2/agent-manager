@@ -38,6 +38,8 @@ export type UserInfo = {
     orgName?: string;
     sessionState?: string;
     sub?: string;
+    ouName?: string;
+    ouHandle?: string;
     username?: string;
 }
 

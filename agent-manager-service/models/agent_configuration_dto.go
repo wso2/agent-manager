@@ -27,6 +27,13 @@ type CreateAgentModelConfigRequest struct {
 	Type                 string                           `json:"type" binding:"required,oneof=llm mcp other"`
 	EnvMappings          map[string]EnvModelConfigRequest `json:"envMappings" binding:"required,min=1"`
 	EnvironmentVariables []EnvironmentVariableConfig      `json:"environmentVariables,omitempty"`
+
+	// DeferUnbindableMCPEnvs lets an MCP create record a non-entry environment as
+	// configured-but-unbound when its gateway lookup fails, instead of failing the create.
+	// Server-internal (json:"-"), so API clients cannot set it: only agent creation, which
+	// configures every pipeline environment at once, opts in. A direct create names the
+	// environments it wants and must hear about a gateway it cannot use.
+	DeferUnbindableMCPEnvs bool `json:"-"`
 }
 
 // EnvModelConfigRequest represents per-environment configuration

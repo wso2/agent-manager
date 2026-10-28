@@ -56,12 +56,12 @@ def search_policies_route(hotel_id: str, q: str, k: int = Query(5, ge=1, le=20))
     try:
         docs = _store.similarity_search(q, k=k, filter=search_filter)
     except Exception:
-        logger.exception("policy search failed: hotel_id=%s", hotel_id)
+        logger.exception("policy search failed: hotel_id=%r", hotel_id)
         return JSONResponse(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             content={"message": "Policy search failed", "error_code": "POLICY_SEARCH_FAILED"},
         )
-    logger.info("policy search (%s) returned %s results for hotel_id=%s", _backend, len(docs), hotel_id)
+    logger.info("policy search (%s) returned %s results for hotel_id=%r", _backend, len(docs), hotel_id)
     return {
         "hotel_id": hotel_id,
         "source": _backend,

@@ -90,7 +90,7 @@ func (c *agentAPIKeyController) CreateAPIKey(w http.ResponseWriter, r *http.Requ
 
 	// If a caller supplies an explicit name, validate it against the gateway
 	// regex up front. When name is empty, the broadcaster falls back to
-	// utils.GenerateHandle(displayName), which always produces a safe handle.
+	// utils.GenerateHandle(displayName) and rejects a handle that is too short.
 	if name != "" && !apiKeyNameRegex.MatchString(name) {
 		log.Warn("CreateAgentAPIKey: invalid name", "name", name)
 		utils.WriteErrorResponse(w, http.StatusBadRequest,

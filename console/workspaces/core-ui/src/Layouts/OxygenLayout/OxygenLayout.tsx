@@ -149,7 +149,7 @@ export function OxygenLayout() {
                   avatar={avatar}
                 />
                 <UserMenu.Divider />
-                {orgId && (
+                {orgId && globalConfig.featureFlags?.enableProfileManagement === true && (
                   <UserMenu.Item
                     icon={<Settings />}
                     label="Profile Settings"
@@ -207,6 +207,9 @@ export function OxygenLayout() {
 
             {globalConfig.docsUrl && (
               <Footer.Link href={globalConfig.docsUrl + "/get-started/what-is-amp/"} target="_blank" rel="noopener noreferrer">Documentation</Footer.Link>
+            )}
+            {globalConfig.footerLinks?.supportUrl && (
+              <Footer.Link href={globalConfig.footerLinks.supportUrl} target="_blank" rel="noopener noreferrer">Support</Footer.Link>
             )}
             {globalConfig.footerLinks?.termsOfUseUrl && (
               <Footer.Link href={globalConfig.footerLinks.termsOfUseUrl} target="_blank" rel="noopener noreferrer">Terms of Use</Footer.Link>

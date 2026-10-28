@@ -551,8 +551,9 @@ func ConvertToOrganizationListItems(org *models.OrganizationResponse) spec.Organ
 	}
 
 	return spec.OrganizationListItem{
-		Name:      org.Name,
-		CreatedAt: org.CreatedAt,
+		Name:        org.Name,
+		DisplayName: org.DisplayName,
+		CreatedAt:   org.CreatedAt,
 	}
 }
 

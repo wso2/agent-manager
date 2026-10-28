@@ -17,8 +17,6 @@
 package traces
 
 import (
-	"time"
-
 	"github.com/spf13/cobra"
 
 	"github.com/wso2/agent-manager/cli/pkg/cmdutil"
@@ -37,10 +35,9 @@ func NewTracesCmd(f *cmdutil.Factory) *cobra.Command {
 		MakeScope:    f.EnvScope,
 	}
 	var (
-		since       string
-		minDuration time.Duration
-		minTokens   int64
-		minSpans    int64
+		window  windowFlags
+		filters filterFlagValues
+		fromURL string
 	)
 
 	cmd := &cobra.Command{
@@ -52,9 +49,34 @@ func NewTracesCmd(f *cmdutil.Factory) *cobra.Command {
 			"--condition is a shorthand for one filter: error_status is --status error, " +
 			"high_latency is a duration above --max-latency, high_token_usage is tokens above --max-tokens, " +
 			"and excessive_steps is spans above --max-spans. tool_call_fails is checked in the CLI " +
-			"over one page of exported traces, since the server has no tool filter yet.",
+			"over one page of exported traces.\n\n" +
+			"--tool and --mcp-server match any tool or MCP server whose name contains the value, ignoring case. " +
+			"--tool-error keeps traces with a failed tool; with --tool, the failed tool must be one --tool matches. " +
+			"--tool-error searches the whole window on the server, but it knows a tool span only by its name " +
+			"and a failure only by the span's OTel status. tool_call_fails reads span attributes instead, so it also " +
+			"finds tool spans named after the function and failures marked only by error.type or gen_ai.tool.status. " +
+			"MCP servers show only for traces that open an MCP session.\n\n" +
+			"--no-conversation keeps traces with no conversation ID. --start and --end set a fixed window " +
+			"instead of --since. When the server stops searching early in table output, the notice prints the " +
+			"command for the next page; JSON output carries nextCursor, which --cursor takes with the same " +
+			"window, sort and filters.\n\n" +
+			"--console-url prints the console path that shows the same list; paste it after your console's host. " +
+			"--from-url takes a console URL, path or \"?...\" query and lists the same traces. Its path sets the " +
+			"org, project, agent and environment, so <agent> is optional; with no time range in the URL, the window " +
+			"is the console's 1h. A filter can't come from both the URL and its flag; --limit, --sort, --since, " +
+			"--start and --end override the URL.\n\n" +
+			"Examples:\n" +
+			"  amctl agent traces my-agent --env dev --min-duration 5s --since 3h --console-url\n" +
+			"  amctl agent traces --from-url 'https://console.example.com/org/acme/project/triage/agents/my-agent/" +
+			"environment/dev/observability/traces?minDurationMs=5000&timeRange=3h'",
 		Args: cobra.MaximumNArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
+			if fromURL != "" {
+				var err error
+				if args, err = applyFromURL(cmd, opts.IO.ErrOut, fromURL, args, opts.Condition); err != nil {
+					return render.Error(opts.IO, render.Scope{}, err)
+				}
+			}
 			org, proj, err := opts.ResolveScope(cmd, true, true)
 			if err != nil {
 				return render.Error(opts.IO, render.Scope{}, err)
@@ -71,24 +93,20 @@ func NewTracesCmd(f *cmdutil.Factory) *cobra.Command {
 			scope := opts.MakeScope(org, proj, agentName, env)
 			opts.Org, opts.Proj, opts.AgentName, opts.Env, opts.Scope = org, proj, agentName, env, scope
 
-			opts.StartTime, opts.EndTime, err = cmdutil.ResolveSinceWindow(since)
+			opts.StartTime, opts.EndTime, err = resolveWindow(&window, cmd.Flags().Changed("since"))
 			if err != nil {
-				return render.Error(opts.IO, scope, cmdutil.FlagErrorf("--since: %v", err))
+				return render.Error(opts.IO, scope, err)
 			}
+			if window.start == "" {
+				opts.Since = window.since
+			}
+			opts.CommandPath = cmd.CommandPath()
 
 			if opts.Limit < 1 || opts.Limit > 100 {
 				return render.Error(opts.IO, scope, cmdutil.FlagErrorf("--limit must be between 1 and 100"))
 			}
 
-			if cmd.Flags().Changed("min-duration") {
-				opts.MinDurationMs = int64Ptr(minDuration.Milliseconds())
-			}
-			if cmd.Flags().Changed("min-tokens") {
-				opts.MinTokens = &minTokens
-			}
-			if cmd.Flags().Changed("min-spans") {
-				opts.MinSpans = &minSpans
-			}
+			applyFilterFlags(cmd.Flags().Changed, opts, &filters)
 			if err := resolveFilters(opts); err != nil {
 				return render.Error(opts.IO, scope, err)
 			}
@@ -103,20 +121,20 @@ func NewTracesCmd(f *cmdutil.Factory) *cobra.Command {
 			return runListTraces(cmd.Context(), opts)
 		},
 	}
-	cmd.Flags().StringVar(&since, "since", "24h", "Time window (e.g. 1h, 30m, 7d)")
+	cmd.Flags().StringVar(&window.since, "since", "24h", "Time window (e.g. 1h, 30m, 7d)")
+	addWindowFlags(cmd, &window)
 	cmd.Flags().IntVar(&opts.Limit, "limit", 10, "Max traces to return (1-100)")
 	cmd.Flags().StringVar(&opts.SortOrder, "sort", "desc", "Sort order: asc or desc")
-	cmd.Flags().StringVar(&opts.Status, "status", "", "Only traces with this status: error or ok")
-	cmd.Flags().DurationVar(&minDuration, "min-duration", 0, "Only traces lasting at least this long (e.g. 500ms, 30s)")
-	cmd.Flags().Int64Var(&minTokens, "min-tokens", 0, "Only traces using at least this many tokens")
-	cmd.Flags().Int64Var(&minSpans, "min-spans", 0, "Only traces with at least this many spans")
-	cmd.Flags().StringVar(&opts.Model, "model", "", "Only traces where a model name contains this value, ignoring case (implies --show-models)")
-	cmd.Flags().StringVar(&opts.ConversationID, "conversation", "", "Only traces with exactly this conversation ID")
+	cmd.Flags().StringVar(&opts.Cursor, "cursor", "", "Continue from the nextCursor of an earlier run; keep its window, sort and filters")
+	addFilterFlags(cmd, opts, &filters, true)
 	cmd.Flags().BoolVar(&opts.ShowModels, "show-models", false, "Add a Model column (costs the server one extra call per trace)")
+	cmd.Flags().BoolVar(&opts.ShowTools, "show-tools", false, "Add a Tools column, with failed tools marked (costs the server up to one extra call per trace)")
+	cmd.Flags().BoolVar(&opts.ShowMCPServers, "show-mcp-servers", false, "Add an MCP Servers column (costs the server extra calls per trace)")
 	cmd.Flags().StringVar(&opts.Condition, "condition", "", "Shorthand filter: error_status, high_latency, high_token_usage, tool_call_fails, excessive_steps")
 	cmd.Flags().IntVar(&opts.MaxLatency, "max-latency", 30000, "Latency threshold in ms; high_latency matches traces above it")
 	cmd.Flags().IntVar(&opts.MaxTokens, "max-tokens", 10000, "Token threshold; high_token_usage matches traces above it")
 	cmd.Flags().IntVar(&opts.MaxSpans, "max-spans", 40, "Span count threshold; excessive_steps matches traces above it")
+	addConsoleFlags(cmd, &opts.ShowConsoleURL, &fromURL)
 	cmdutil.AddEnvFlag(cmd)
 	cmd.ValidArgsFunction = func(cmd *cobra.Command, args []string, _ string) ([]string, cobra.ShellCompDirective) {
 		if len(args) > 0 {

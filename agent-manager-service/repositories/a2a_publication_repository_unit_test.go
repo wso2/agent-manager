@@ -31,4 +31,6 @@ func TestA2APublicationTableAndStatuses(t *testing.T) {
 	assert.Equal(t, models.A2APublicationStatus("pending"), models.A2APublicationStatusPending)
 	assert.Equal(t, models.A2APublicationStatus("published"), models.A2APublicationStatusPublished)
 	assert.Equal(t, models.A2APublicationStatus("failed"), models.A2APublicationStatusFailed)
+	assert.Equal(t, models.A2APublicationSource("platform"), models.A2APublicationSourcePlatform)
+	assert.Equal(t, models.A2APublicationSource("external"), models.A2APublicationSourceExternal)
 }

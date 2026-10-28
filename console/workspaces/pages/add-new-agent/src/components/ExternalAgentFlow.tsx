@@ -110,10 +110,10 @@ export const ExternalAgentFlow: React.FC = () => {
 
 
   const backHref = useMemo(() => {
-    return generatePath(absoluteRouteMap.children.org.children.projects.path, {
-      orgId: orgId ?? "",
-      projectId: projectId ?? "default",
-    });
+    return generatePath(
+      absoluteRouteMap.children.org.children.projects.children.newAgent.path,
+      { orgId: orgId ?? "", projectId: projectId ?? "default" },
+    );
   }, [orgId, projectId]);
 
 
@@ -123,7 +123,7 @@ export const ExternalAgentFlow: React.FC = () => {
       description="Provide basic information to register your externally-hosted agent on the platform."
       disableIcon
       backHref={backHref}
-      backLabel="Back to Agents"
+      backLabel="Back to Add New Agent"
     >
       <Form.Stack spacing={3}>
         <ExternalAgentForm
