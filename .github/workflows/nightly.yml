@@ -24,7 +24,7 @@ run-name: Nightly Dev Build #${{ github.run_number }}${{ inputs.dry_run && ' (dr
 # run one after another. Nothing is installed on the VM; it must already have,
 # on the runner user's PATH: git, curl, jq, gh, docker (usable without sudo,
 # with buildx), k3d, yq, kubectl and helm, plus the kernel limits OpenSearch
-# needs (vm.max_map_count >= 262144). Check with nightly-vm-check.sh.
+# needs (vm.max_map_count >= 262144).
 
 on:
   schedule:
@@ -298,7 +298,7 @@ jobs:
           PROVISION_THUNDER: "false"
         run: |
           set -o pipefail
-          # --procs=1: the single 4-vCPU k3d node cannot run several test
+          # --procs=1: the single k3d node cannot run several test
           # environments at once (pods got "Insufficient cpu"), so suites run
           # one after another. --timeout 90m is the total budget; suites run in
           # alphabetical order, so monitors/project/traces are cut off first.
