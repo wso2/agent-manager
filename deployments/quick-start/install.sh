@@ -90,8 +90,7 @@ log_error() {
     echo -e "${RED}✗${NC} $1"
 }
 
-# Output of the third-party helm installs below (was /dev/null, so failures
-# had no details). CI uploads this file with the pod logs.
+# Output of the third-party helm installs below.
 HELM_LOG="${HELM_LOG:-${TMPDIR:-/tmp}/amp-install-helm.log}"
 : > "${HELM_LOG}"
 

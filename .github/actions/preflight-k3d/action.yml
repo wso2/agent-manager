@@ -1,11 +1,7 @@
 name: Preflight for k3d-based jobs
 description: >
-  Verifies a runner can actually host the k3d-based AMP stack before anything
-  expensive is attempted: the Docker daemon is reachable, container ports it
-  publishes land on *this* runner's loopback (the Docker-in-Docker trap from
-  PR #1233, where k3d creates the cluster and then every kubectl call hangs),
-  and the host ports the k3d config publishes are free. Also reports vCPU,
-  memory and disk, warning when the host is below what the full platform needs.
+  Checks that the runner can host the k3d cluster: enough CPU, memory and
+  disk, Docker is reachable, and the required ports are free.
 
 inputs:
   required-ports:

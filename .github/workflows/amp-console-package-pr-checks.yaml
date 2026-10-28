@@ -35,15 +35,8 @@ jobs:
       - name: Run ${{ matrix.task }}
         run: pnpm ${{ matrix.task }}
 
-  # `pnpm build` above runs against the full checkout; the Docker build runs
-  # against only what console/Dockerfile COPYs into the image. The two have
-  # drifted four times (nightly runs #34, #47, #75, #108) and only the
-  # nightly noticed — three weeks late in the last case, because the image
-  # is built nowhere else. Build it here, same Dockerfile, no push.
-  #
-  # Runs on a GitHub-hosted runner rather than CodeBuild: that is where the
-  # nightly and release builds run, so a pass here means the same thing.
-  # amd64 only; the nightly's arm64 half is built from the same stage.
+  # Build the console image (amd64, no push) so a broken Dockerfile is
+  # caught on the PR.
   docker-image:
     name: docker image
     runs-on: ubuntu-24.04

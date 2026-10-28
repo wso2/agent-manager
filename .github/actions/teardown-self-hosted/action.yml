@@ -1,35 +1,20 @@
 name: Teardown self-hosted runner state
 description: >
-  Returns the long-lived self-hosted runner VM to a "tools installed, nothing
-  else" state: deletes every k3d cluster, removes leftover containers, volumes,
-  networks and buildx builders, prunes the image cache, and drops registry
-  credentials. Tool installations are deliberately left in place — only the
-  environment under test is torn down, so the next nightly installs from
-  scratch on a clean host.
-
-  Always invoke with `if: always()`. Every step is best-effort and the action
-  never fails the job.
+  Removes what a run leaves on a self-hosted runner (k3d clusters,
+  containers, volumes, networks and images) so the next run starts clean.
+  Use with `if: always()`. It never fails the job.
 
 inputs:
   prune-images:
-    description: >
-      Remove all unused images as well ("true"), not just stopped containers
-      and dangling layers. On by default: the nightly tags a fresh image set
-      every day, so without it the VM's disk grows without bound.
+    description: Also remove all unused images.
     required: false
     default: 'true'
   registry:
-    description: >
-      Container/OCI registry to log out of, clearing the credentials
-      docker/login-action and `helm registry login` leave in the runner user's
-      home directory. Empty to skip.
+    description: Registry to log out of. Empty to skip.
     required: false
     default: ''
   keep-containers:
-    description: >
-      Extended regex of container names to preserve during the sweep, for a VM
-      that also hosts unrelated containers. The job's own container (when the
-      runner itself is containerised) is always preserved.
+    description: Regex of container names to keep.
     required: false
     default: ''
 

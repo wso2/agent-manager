@@ -1,25 +1,11 @@
 #!/usr/bin/env bash
 #
-# Fail-fast checks for a runner that is about to stand up the k3d-based AMP
-# stack.
-#
-# The expensive failure this exists to prevent is the one from #1233: on a
-# runner whose Docker daemon lives in a *different* network namespace
-# (Docker-in-Docker, a remote DOCKER_HOST, a rootful daemon reached from a
-# container), k3d reports "Cluster created successfully" and then every
-# kubectl call against the published API port hangs, because the port was
-# published onto the daemon's host rather than this one. quick-start's
-# installer only surfaces that as a generic readiness timeout, minutes later.
-# A three-second probe with a throwaway container settles it up front.
-#
-# The remaining checks catch the other two ways a long-lived VM differs from a
-# fresh GitHub-hosted image: host ports still held by a previous run, and a
-# machine too small for the full platform.
+# Checks that the runner can host the k3d cluster before the install starts.
 
 set -uo pipefail
 
 PROBE_PORT="${PROBE_PORT:-6551}"
-# ECR mirror (like the repo's Dockerfiles) to avoid Docker Hub pull limits.
+# Small image used to test port publishing.
 PROBE_IMAGE="${PROBE_IMAGE:-public.ecr.aws/docker/library/busybox:1.37}"
 REQUIRED_PORTS="${REQUIRED_PORTS:-6550 8080 8443 10082 11080 11082 11085 19080 19443}"
 MIN_CPUS="${MIN_CPUS:-4}"
@@ -38,14 +24,11 @@ failed=0
 # ---------------------------------------------------------------------------
 # Host capacity
 #
-# Prints vCPU / RAM / disk and warns when below the minimums. With
-# ENFORCE_CAPACITY=true (self-hosted runners) it fails instead: a too-small
-# VM would just repeat a known 2-hour failure (run #96, 4 vCPU / 7 GiB).
+# Warns when below the minimums, or fails with ENFORCE_CAPACITY=true.
 # ---------------------------------------------------------------------------
 
 echo "::group::Host capacity"
-# Fall back to 0 on anything non-numeric so a missing/limited coreutils turns
-# into a warning rather than a "integer expression expected" error.
+# Treat a non-numeric value as 0.
 numeric_or_zero() {
   case "$1" in
     ''|*[!0-9]*) echo 0 ;;
@@ -82,7 +65,7 @@ log "daemon:  $(docker info --format '{{.Name}} / {{.ServerVersion}} / {{.Operat
 echo "::endgroup::"
 
 # ---------------------------------------------------------------------------
-# Published-port reachability — the #1233 guard
+# Published ports are reachable from the runner
 # ---------------------------------------------------------------------------
 
 echo "::group::Docker published-port reachability"
@@ -131,10 +114,7 @@ echo "::endgroup::"
 # ---------------------------------------------------------------------------
 # Host ports the k3d config publishes
 #
-# On a discarded GitHub-hosted runner these are free by construction. On a VM
-# they are only free if the previous run's teardown actually ran, so check
-# explicitly and name the holder — quick-start/install.sh's own check reports
-# the port but not the process.
+# Fails if a port is still in use, for example by a previous run.
 # ---------------------------------------------------------------------------
 
 echo "::group::Required host ports"

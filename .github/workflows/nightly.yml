@@ -8,23 +8,11 @@ run-name: Nightly Dev Build #${{ github.run_number }}${{ inputs.dry_run && ' (dr
 #   load-config ─────┘                                          ├─> cleanup-images     (only if e2e passed; always on a dry run)
 #                                                               └─> notify-google-chat (always; never on a dry run)
 #
-# Old images and the git tag are cleaned up / moved only AFTER e2e passes.
-# Before, they were removed before the build; when the build then failed
-# (run #108) the registry had no nightly images and the tag pointed at a
-# broken commit. Now a red night keeps yesterday's good images and tag.
+# Old nightly images and the git tag are replaced only after e2e passes.
 #
-# Dry run (manual runs only, ticked by default): images and charts are pushed
-# under a throwaway 0.0.0-dryrun-<date>-<run id> version, e2e runs against
-# them, and cleanup-images then deletes exactly that version, pass or fail.
-# No git tag is deleted or created, no real nightly image is touched, and no
-# Chat message is posted. Scheduled runs are never dry runs.
-#
-# Every job runs on the dedicated self-hosted VM (runner label
-# `amp-nightly-e2e`). With one runner the jobs, including each matrix entry,
-# run one after another. Nothing is installed on the VM; it must already have,
-# on the runner user's PATH: git, curl, jq, gh, docker (usable without sudo,
-# with buildx), k3d, yq, kubectl and helm, plus the kernel limits OpenSearch
-# needs (vm.max_map_count >= 262144).
+# Manual runs are dry runs by default: they use a temporary version that is
+# deleted at the end, with no git tag, image cleanup or notification.
+# Scheduled runs are never dry runs.
 
 on:
   schedule:
@@ -59,9 +47,7 @@ env:
   HELM_REGISTRY: ${{ vars.AMP_HELM_REGISTRY || 'oci://ghcr.io/wso2' }}
 
 jobs:
-  # Compute the dated version string once; all jobs consume it via needs.
-  # A dry run gets its own version so its cleanup can never delete the real
-  # nightly's images (which share today's 0.0.0-dev-<date> tag).
+  # Dated version used by all jobs. A dry run gets its own version.
   compute-version:
     name: Compute Version
     runs-on: [self-hosted, amp-nightly-e2e]
@@ -134,8 +120,7 @@ jobs:
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
 
-      # A missing Dockerfile used to be skipped silently (job stayed green and
-      # e2e failed later with ImagePullBackOff). Fail here instead.
+      # Fail early if the Dockerfile is missing.
       - name: Check Dockerfile exists
         env:
           DOCKERFILE: ${{ matrix.image.dockerfile }}
@@ -145,8 +130,7 @@ jobs:
             exit 1
           fi
 
-      # Images are built for amd64 and arm64. The VM is amd64, so arm64 needs
-      # QEMU emulation (GitHub-hosted runners had it preinstalled).
+      # Needed to build the arm64 image.
       - name: Set up QEMU
         uses: docker/setup-qemu-action@v3
 
@@ -222,14 +206,11 @@ jobs:
           DEV_VERSION: ${{ needs.compute-version.outputs.dev-version }}
           HELM_REGISTRY: ${{ env.HELM_REGISTRY }}
           HELM_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          # package-helm-chart.sh prefers these over the positional token, so a
-          # custom HELM_REGISTRY authenticates with its own credentials instead of
-          # a GITHUB_TOKEN that means nothing to it.
+          # Used instead of HELM_TOKEN when set.
           REGISTRY_USERNAME: ${{ secrets.REGISTRY_USERNAME }}
           REGISTRY_PASSWORD: ${{ secrets.REGISTRY_PASSWORD }}
 
-      # package-helm-chart.sh logs in with `helm registry login`, which stores
-      # the credentials in the runner user's home on the long-lived VM.
+      # Log out after pushing the charts.
       - name: Log out of the Helm registry
         if: always()
         run: helm registry logout "${HELM_REGISTRY#oci://}" || true
@@ -238,10 +219,8 @@ jobs:
     name: E2E
     needs: [compute-version, package-charts]
     runs-on: [self-hosted, amp-nightly-e2e]
-    # Each long step below has its own timeout (install 60 + tests 120 +
-    # security 60). This job timeout is larger than their sum on purpose: if a
-    # step hangs, the step fails and the log-dump/upload steps still run. A job
-    # timeout would cancel everything, including the diagnostics.
+    # Larger than the step timeouts combined, so the log steps still run if a
+    # step times out.
     timeout-minutes: 260
     permissions:
       contents: read
@@ -251,16 +230,14 @@ jobs:
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
 
-      # Remove yesterday's cluster, otherwise install.sh would reuse it.
+      # Start from a clean state.
       - name: Clean leftover state from a previous run
         uses: ./.github/actions/teardown-self-hosted
 
       - name: Setup Go
         uses: ./.github/actions/setup-go
 
-      # Quick checks before the long install: Docker works for k3d, the k3d
-      # ports are free, and the machine size is printed to the log. A
-      # too-small machine fails here (1 min) instead of after a 2-hour run.
+      # Check the runner is ready before the long install.
       - name: Preflight
         uses: ./.github/actions/preflight-k3d
         with:
@@ -287,27 +264,19 @@ jobs:
         env:
           TAVILY_API_KEY: ${{ secrets.TAVILY_API_KEY }}
           OPENAI_API_KEY: ${{ secrets.INSTRUMENTATION_TEST_OPENAI_API_KEY }}
-          # add-environment.sh requires CHART_VERSION; pin it to the same chart
-          # version the platform was installed with above.
+          # Same chart version as the install above.
           CHART_VERSION: ${{ needs.compute-version.outputs.dev-version }}
           GINKGO_PROCS: ${{ inputs.ginkgo_procs || '1' }}
-          # Don't install a separate Thunder for each test environment. In CI
-          # that install always timed out (5 min, 3 times per run) and the
-          # script fell back to the shared Thunder anyway. Remove this line
-          # once the per-env Thunder install works in k3d.
+          # Use the shared Thunder instead of one per test environment.
           PROVISION_THUNDER: "false"
         run: |
           set -o pipefail
-          # --procs=1: the single k3d node cannot run several test
-          # environments at once (pods got "Insufficient cpu"), so suites run
-          # one after another. --timeout 90m is the total budget; suites run in
-          # alphabetical order, so monitors/project/traces are cut off first.
+          # Suites run one at a time by default. --timeout is the total budget.
           cd test/e2e && go run github.com/onsi/ginkgo/v2/ginkgo -v --procs="${GINKGO_PROCS}" --timeout 90m \
             --poll-progress-after=600s --keep-going --junit-report=report.xml \
             ./tests/... 2>&1 | tee e2e-output.log
 
-      # Runs even if the product tests failed; most security suites do not
-      # depend on them. Reported separately in the summary.
+      # Runs even if the e2e tests failed.
       - name: Run security conformance tests
         id: security-tests
         if: ${{ !cancelled() && steps.install-platform.outcome == 'success' }}
@@ -319,9 +288,7 @@ jobs:
           set -o pipefail
           make security-test-live 2>&1 | tee test/e2e/security-output.log
 
-      # Print the key cluster state into the job log (kept ~90 days), so a
-      # failure can still be understood after the 7-day artifact is gone.
-      # Output is capped so it cannot flood the log.
+      # Print a short cluster summary to help debug failures.
       - name: Dump cluster state to the job log
         if: ${{ always() && steps.install-platform.outcome != 'skipped' }}
         run: |
@@ -334,8 +301,7 @@ jobs:
           echo "::group::Node allocated resources"
           kubectl describe nodes 2>/dev/null | sed -n '/Allocated resources/,/^Events/p' || true
           echo "::endgroup::"
-          # Agent pods live in dp-* namespaces; a deployment is "active" only
-          # when its pod is ready, so this shows why one is stuck.
+          # Agent pods run in the dp-* namespaces.
           for ns in $(kubectl get ns --no-headers -o custom-columns=":metadata.name" 2>/dev/null | grep '^dp-'); do
             echo "::group::Agent runtime pods in ${ns}"
             kubectl get pods -n "$ns" -o wide 2>/dev/null || true
@@ -351,7 +317,6 @@ jobs:
           kubectl get jobs,cronjobs,pods -n wso2-amp -o wide 2>/dev/null | head -60 || true
           echo "::endgroup::"
 
-      # always(): also runs after a step timeout; cheap on a green run.
       - name: Dump pod logs
         if: ${{ always() && steps.install-platform.outcome != 'skipped' }}
         run: |
@@ -361,44 +326,27 @@ jobs:
           kubectl logs deployment/openchoreo-api -n openchoreo-control-plane --tail=500 --all-containers=true > /tmp/pod-logs/openchoreo-api.txt 2>&1 || true
           kubectl logs deployment/amp-observer -n openchoreo-observability-plane --tail=500 --all-containers=true > /tmp/pod-logs/amp-observer.txt 2>&1 || true
           kubectl logs deployment/observer -n openchoreo-observability-plane --tail=500 --all-containers=true > /tmp/pod-logs/observer.txt 2>&1 || true
-          # openchoreo reconciler (drives data-plane Release/ReleaseBinding rollout)
           kubectl logs deployment/controller-manager -n openchoreo-control-plane --tail=500 --all-containers=true > /tmp/pod-logs/openchoreo-controller-manager.txt 2>&1 || true
-          # OpenBao + external-secrets: the secret-sync path. When an ExternalSecret
-          # never materializes (install times out "Waiting for secret ..."), the
-          # actual cause — e.g. a ClusterSecretStore not ready, or an OpenBao
-          # Kubernetes-auth failure — appears only in these logs.
           kubectl logs -n openbao openbao-0 --tail=500 > /tmp/pod-logs/openbao.txt 2>&1 || true
           kubectl logs -n external-secrets -l app.kubernetes.io/name=external-secrets --tail=500 --all-containers=true > /tmp/pod-logs/external-secrets.txt 2>&1 || true
           kubectl get clustersecretstores,externalsecrets -A -o wide > /tmp/pod-logs/secret-stores.txt 2>&1 || true
           kubectl describe clustersecretstore default > /tmp/pod-logs/clustersecretstore-default.txt 2>&1 || true
-          # Cluster-wide pod state, plus Warning events only (surfaces stuck data-plane agent rollouts)
           kubectl get pods -A -o wide > /tmp/pod-logs/all-pods.txt 2>&1 || true
           kubectl get events -A --field-selector type=Warning --sort-by=.lastTimestamp > /tmp/pod-logs/warning-events.txt 2>&1 || true
-          # Node allocatable vs. requested — the "Allocated resources" table here is
-          # what makes an "Insufficient cpu" scheduling failure diagnosable (shows
-          # how close total pod CPU requests are to the node's allocatable).
           kubectl describe nodes > /tmp/pod-logs/nodes-describe.txt 2>&1 || true
           kubectl top nodes > /tmp/pod-logs/nodes-top.txt 2>&1 || true
           kubectl top pods -A --sort-by=cpu > /tmp/pod-logs/pods-top-cpu.txt 2>&1 || true
           for pod in $(kubectl get pods -n workflows-default --no-headers -o custom-columns=":metadata.name" 2>/dev/null); do
             kubectl logs "$pod" -n workflows-default --all-containers=true --tail=200 > "/tmp/pod-logs/wf-pod-${pod}.txt" 2>&1 || true
           done
-          # User workload (agent runtime) pods live in per-env data-plane namespaces
-          # (dp-<org>-<project>-<env>-<hash>). These carry the actual agent invocation
-          # errors (e.g. "500 Connection error"), so capture logs for every pod in them.
+          # Agent pods.
           for ns in $(kubectl get ns --no-headers -o custom-columns=":metadata.name" 2>/dev/null | grep '^dp-'); do
             for pod in $(kubectl get pods -n "$ns" --no-headers -o custom-columns=":metadata.name" 2>/dev/null); do
               kubectl logs "$pod" -n "$ns" --all-containers=true --tail=500 > "/tmp/pod-logs/dp-${ns}-${pod}.txt" 2>&1 || true
               kubectl describe pod "$pod" -n "$ns" > "/tmp/pod-logs/describe-${ns}--${pod}.txt" 2>&1 || true
             done
           done
-          # Per-env API Platform Gateway + Thunder pods. Each environment's gateway
-          # stack lives in its own "<org>-<env>" namespace and its Thunder in
-          # "amp-thunder-<org>-<env>"; the gateway's Helm pre-install bootstrap Job
-          # runs there. Capturing these makes "failed pre-install: timed out
-          # waiting for the condition" debuggable (the bootstrap Job pod log is the
-          # only place the actual healthz/IDP/registration error appears). Also
-          # describe non-Running pods to surface exit reasons and scheduling events.
+          # Gateway and Thunder pods of each environment.
           for ns in $(kubectl get ns --no-headers -o custom-columns=":metadata.name" 2>/dev/null \
               | grep -E '^(default-|amp-thunder-)' || true); do
             for pod in $(kubectl get pods -n "$ns" --no-headers -o custom-columns=":metadata.name" 2>/dev/null); do
@@ -411,7 +359,6 @@ jobs:
                 done
           done
 
-      # Kept 7 days: download it within a week of a red run.
       - name: Upload pod logs
         if: ${{ always() && steps.install-platform.outcome != 'skipped' }}
         uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7.0.0
@@ -420,8 +367,7 @@ jobs:
           path: /tmp/pod-logs/
           retention-days: 7
 
-      # The reporter only publishes; it must not fail the job again (the test
-      # step already did) or fail when there is no report (install failed).
+      # Only publishes; the test step decides pass or fail.
       - name: Publish test results
         if: always()
         uses: dorny/test-reporter@6e6a65b7a0bd2c9197df7d0ae36ac5cee784230c # v2.0.0
@@ -452,8 +398,7 @@ jobs:
             test/e2e/security-output.log
           retention-days: 7
 
-      # One-line summary of both JUnit reports (e2e + security) for the Chat
-      # message. Sums all <testsuite> elements.
+      # One-line test summary for the notification.
       - name: Build test summary
         id: test-summary
         if: always()
@@ -482,14 +427,12 @@ jobs:
           echo "summary=$SUMMARY" >> "$GITHUB_OUTPUT"
           echo "Test summary: $SUMMARY"
 
-      # Last step on purpose: the steps above still read the cluster.
+      # Last step, as the steps above still use the cluster.
       - name: Teardown
         if: ${{ always() }}
         uses: ./.github/actions/teardown-self-hosted
 
-  # Only after e2e passed: delete the older amp/v0.0.0-dev-* tags and tag
-  # today's commit. So the tag always points at a fully green commit.
-  # Never on a dry run.
+  # After e2e passes, move the nightly git tag to this commit. Not on a dry run.
   publish-dev-tag:
     name: Publish Nightly Git Tag
     needs: [compute-version, e2e]
@@ -540,11 +483,8 @@ jobs:
           git push origin "$TAG"
           echo "✅ Created tag $TAG at ${COMMIT_SHA:0:7}"
 
-  # Real run: only after e2e passed, delete older 0.0.0-dev-* image tags,
-  # never today's.
-  # Dry run: always (also after a failure or cancel), delete exactly this
-  # run's 0.0.0-dryrun-* images and charts. Real nightly tags are untouched.
-  # Housekeeping only; it can never fail the nightly.
+  # Real run: after e2e passes, delete older nightly images.
+  # Dry run: always delete this run's images.
   cleanup-images:
     name: Cleanup Nightly Images
     needs: [compute-version, e2e]
@@ -599,9 +539,7 @@ jobs:
             exit 1
           fi
 
-      # Real run: today's tag is kept (exclude-tags), so GHCR's "cannot
-      # delete the last tagged version" error cannot happen. Dry run: only
-      # this run's version is deleted; the real nightly tags remain.
+      # Today's tag is always kept.
       - name: Delete nightly tags for ${{ matrix.package }}
         if: steps.check-package.outputs.exists == 'true'
         uses: dataaxiom/ghcr-cleanup-action@d52806a0dc70b430571a37da1fde39733ffd640f # v1.2.2
@@ -613,8 +551,7 @@ jobs:
           exclude-tags: ${{ needs.compute-version.outputs.dry-run != 'true' && needs.compute-version.outputs.dev-version || '' }}
           delete-untagged: false
 
-  # Posts after every run: 🔴 with the earliest failed stage, 🟢 one-liner
-  # otherwise. Quiet on a manual cancel and on a dry run.
+  # Posts the result of every run, except cancelled runs and dry runs.
   notify-google-chat:
     name: Notify Google Chat
     needs: [compute-version, load-config, build-images, package-charts, e2e, publish-dev-tag]
@@ -644,8 +581,7 @@ jobs:
           if [ "${BUILD_RESULT}" = "success" ] && [ "${PACKAGE_RESULT}" = "success" ] && [ "${E2E_RESULT}" = "success" ] && [ "${TAG_RESULT}" = "success" ]; then
             HEADLINE="*🟢 Nightly passed* — \`${DEV_VERSION}\`"
           else
-            # Name the earliest stage(s) that failed. If compute-version or
-            # load-config fails, everything after is only "skipped".
+            # Report the earliest stage that failed.
             FAILED_STAGE="tag"
             [ "${E2E_RESULT}" != "success" ] && FAILED_STAGE="e2e"
             [ "${PACKAGE_RESULT}" != "success" ] && FAILED_STAGE="package"

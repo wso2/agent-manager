@@ -1,17 +1,7 @@
 #!/usr/bin/env bash
 #
-# Teardown for the long-lived self-hosted runner VM.
-#
-# A GitHub-hosted runner is discarded after every job, so the nightly could
-# assume a pristine host. A dedicated VM cannot: a k3d cluster, its containers,
-# volumes and published host ports all survive the job that created them, and
-# the *next* nightly would then either reuse a half-broken cluster
-# (quick-start/install.sh is idempotent and adopts an existing `amp-local`
-# instead of building it fresh) or fail its port-availability check outright.
-#
-# So this runs with `if: always()` and returns the VM to "tools installed,
-# nothing else" — every command is best-effort and the script always exits 0,
-# because a cleanup hiccup must never turn a green nightly red.
+# Cleans up a self-hosted runner after a run so the next run starts clean.
+# Every command is best-effort and the script always exits 0.
 
 set -uo pipefail
 
@@ -28,9 +18,7 @@ have() { command -v "$1" >/dev/null 2>&1; }
 echo "::group::Teardown — cluster and workloads"
 
 # --- k3d ------------------------------------------------------------------
-# Deleting the cluster is what frees the published host ports (6550, 8080,
-# 8443, 10082, 11080/11082/11085, 19080, 19443) the next run's port check
-# requires, and it drops the kubeconfig contexts along with the containers.
+# Deleting the clusters also frees their host ports.
 if have k3d; then
   clusters="$(k3d cluster list --no-headers 2>/dev/null | awk '{print $1}')"
   if [ -n "${clusters}" ]; then
@@ -44,17 +32,14 @@ else
 fi
 
 # --- compose --------------------------------------------------------------
-# The nightly's e2e job installs via quick-start (no compose), but jobs that
-# reuse this action may have started the deployments/docker-compose.yml stack;
-# leaving its postgres volume behind would carry state into the next run.
+# In case a job started the docker compose stack.
 if have docker && [ -f deployments/docker-compose.yml ]; then
   docker compose -f deployments/docker-compose.yml down -v --remove-orphans >/dev/null 2>&1 \
     && log "Compose stack removed" || true
 fi
 
 # --- stray port-forwards ---------------------------------------------------
-# deployments/setup/port-forward.sh backgrounds kubectl processes that outlive
-# the job and would hold host ports (and log noise) into the next one.
+# Stop leftover kubectl port-forwards.
 pkill -f 'kubectl.*port-forward' >/dev/null 2>&1 && log "Killed stray kubectl port-forwards" || true
 
 echo "::endgroup::"
@@ -67,11 +52,8 @@ fi
 echo "::group::Teardown — containers, volumes, networks"
 
 # --- containers ------------------------------------------------------------
-# Force-remove everything left over. If the runner itself runs in a container
-# on the same daemon, that container must survive. Its id is taken only from
-# /proc/self/cgroup (cgroup v1 "/docker/<id>" or v2 "docker-<id>.scope") and
-# must exist in `docker ps`. If the runner looks containerised but the id
-# cannot be confirmed, the container sweep is skipped rather than guessing.
+# Remove leftover containers, except the runner's own container if it runs
+# in one. Skipped if that container cannot be identified.
 containerised=false
 [ -f /.dockerenv ] && containerised=true
 self_cid="$(grep -oE '(/docker/|docker-)[0-9a-f]{64}' /proc/self/cgroup 2>/dev/null \
@@ -109,9 +91,7 @@ else
 fi
 
 # --- buildx ----------------------------------------------------------------
-# docker/setup-buildx-action creates a builder per job. Its own post-step
-# removes it on a clean finish, but a cancelled or killed job leaks both the
-# builder and its cache volume.
+# Remove buildx builders left by cancelled jobs.
 if docker buildx version >/dev/null 2>&1; then
   # Parse the plain table rather than --format, which older buildx lacks.
   docker buildx ls 2>/dev/null | awk '{gsub(/\*$/, "", $1); print $1}' | grep -E '^builder-' | while read -r b; do
@@ -122,11 +102,8 @@ fi
 
 # --- images, volumes, networks --------------------------------------------
 if [ "${PRUNE_IMAGES}" = "true" ]; then
-  # -a (not just dangling) is deliberate: the nightly's whole point is that the
-  # next run installs from scratch, and the dated 0.0.0-dev-* tags would
-  # otherwise accumulate a new full image set on disk every single night.
-  # `docker system prune` also removes stopped containers, so use it only when
-  # no container has to be kept.
+  # `docker system prune` also removes containers, so use it only when no
+  # container has to be kept.
   if [ -z "${KEEP_CONTAINERS}" ] && [ "${skip_containers}" = "false" ]; then
     docker system prune -af --volumes >/dev/null 2>&1 || true
     ok "Pruned all unused images, volumes and networks"
@@ -149,9 +126,7 @@ echo "::endgroup::"
 
 echo "::group::Teardown — credentials and workspace"
 
-# --- registry credentials --------------------------------------------------
-# docker/login-action writes ~/.docker/config.json, which persists on a VM
-# runner; the same for `helm registry login` inside package-helm-chart.sh.
+# --- registry logout -------------------------------------------------------
 if [ -n "${REGISTRY}" ]; then
   docker logout "${REGISTRY}" >/dev/null 2>&1 && log "docker logout ${REGISTRY}" || true
   have helm && helm registry logout "${REGISTRY}" >/dev/null 2>&1 && log "helm registry logout ${REGISTRY}" || true
