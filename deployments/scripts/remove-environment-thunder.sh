@@ -109,6 +109,15 @@ main() {
   release="$(thunder_release_name "$org" "$ENV_NAME")"
   ns="$(thunder_namespace "$org" "$ENV_NAME")"
 
+  # An external PostgreSQL (THUNDER_DB_TYPE=postgres in add-environment-thunder.sh) is
+  # not ours to drop. Detect it now, while the Secret that records it still exists
+  # (it goes away with the namespace), and say so again at the end.
+  local external_db=false external_prefix=""
+  if [ -n "$(kubectl get secret "${release}-storage-credentials" -n "$ns" -o jsonpath='{.data.db-password}' 2>/dev/null)" ]; then
+    external_db=true
+    external_prefix="$(kubectl get secret "${release}-storage-credentials" -n "$ns" -o jsonpath='{.data.db-name-prefix}' 2>/dev/null | openssl base64 -d -A 2>/dev/null || true)"
+  fi
+
   echo "=== Removing Thunder ID for environment '${ENV_NAME}' (org '${org}') ==="
   echo ""
   echo "  Release:   ${release}"
@@ -233,6 +242,15 @@ main() {
   echo "  Release:     ${release}"
   echo "  Namespace:   ${ns}"
   echo ""
+  if [ "$external_db" = true ]; then
+    echo "ℹ️  This environment used an external PostgreSQL. Its databases were NOT dropped:"
+    echo "   ${external_prefix:-<prefix>}configdb, ${external_prefix:-<prefix>}entitydb,"
+    echo "   ${external_prefix:-<prefix>}runtime_transient, ${external_prefix:-<prefix>}runtime_persistent"
+    echo "   They still hold this environment's identity data. Thunder seeds a database only once,"
+    echo "   at first install, so adding the environment again against them will NOT re-seed them:"
+    echo "   drop and recreate them (and reload the schema), or use a new THUNDER_DB_NAME_PREFIX."
+    echo ""
+  fi
 }
 
 # Run main only when executed directly — not when sourced (e.g. by tests).

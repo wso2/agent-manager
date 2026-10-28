@@ -56,6 +56,14 @@ set -euo pipefail
 #   - AMS_CONFIGMAP_NAME / AMS_CONFIGMAP_NAMESPACE (default: amp-api / wso2-amp):
 #     where the recorded values above are read from on a non-default release.
 #   - IDP_SKIP_TLS_VERIFY (default: true): skipTlsVerify for the seeded env-Thunder identity provider.
+#   - THUNDER_DB_TYPE, THUNDER_DB_*, THUNDER_CACHE_TYPE, THUNDER_REDIS_*, THUNDER_REPLICAS,
+#     THUNDER_STATE_ACCESS_MODE, THUNDER_FORCE_STORAGE_CHANGE: database, cache and replica
+#     settings for this environment's Thunder (default: SQLite, in-memory cache, 1 replica).
+#     Set them on the same command as this script, on `bash` (the last stage of a
+#     curl | bash pipeline), not on `curl`; they are inherited by the chained
+#     add-environment-thunder.sh, which documents them. When any of them is set, a
+#     failed Thunder step stops this script instead of falling back to the shared
+#     platform Thunder.
 
 # --- Required inputs ---
 : "${ENV_NAME:?ENV_NAME is required (e.g. ENV_NAME=staging)}"
@@ -88,6 +96,26 @@ esac
 if ! printf '%s' "$ENV_NAME" | grep -Eq '^[a-z0-9]([a-z0-9-]*[a-z0-9])?$'; then
     echo "❌ Invalid ENV_NAME '${ENV_NAME}'"
     echo "   Must be lowercase alphanumeric with hyphens (no leading/trailing hyphen)."
+    exit 1
+fi
+
+# storage_settings_requested: 0 if any of the env-Thunder database/cache/replica settings
+# (see the THUNDER_DB_* block in the header) was given. Thunder provisioning failures are
+# otherwise tolerated below, falling back to the shared platform Thunder; that fallback is
+# wrong when the caller asked for specific storage, so a failure must stop the run.
+storage_settings_requested() {
+    local v
+    for v in $(compgen -v | grep -E '^THUNDER_(DB_|CACHE_|REDIS_|REPLICAS$|STATE_ACCESS_MODE$|FORCE_STORAGE_CHANGE$)'); do
+        [ -n "${!v:-}" ] && return 0
+    done
+    return 1
+}
+
+# Pure environment checks belong before anything is created: storage settings need a
+# per-environment Thunder to apply to.
+if [ "${PROVISION_THUNDER:-true}" != "true" ] && storage_settings_requested; then
+    echo "❌ THUNDER_* storage settings were given but PROVISION_THUNDER=false, so they would be ignored." >&2
+    echo "   Unset one or the other." >&2
     exit 1
 fi
 
@@ -496,6 +524,13 @@ if [ "${PROVISION_THUNDER:-true}" = "true" ]; then
         echo "✅ Thunder ID instance provisioned"
         THUNDER_PROVISIONED=true
       else
+        if storage_settings_requested; then
+          echo "❌ Thunder ID provisioning failed, and THUNDER_* storage settings were given, so this run" >&2
+          echo "   will not fall back to the shared platform Thunder or an existing instance. Fix the error" >&2
+          echo "   above and re-run this script with the same ENV_NAME (idempotent)." >&2
+          rm -f "$script_tmp"
+          exit 1
+        fi
         echo "⚠️  Thunder ID provisioning failed."
         if [ "$THUNDER_PROVISIONED" = "true" ]; then
           echo "    Existing Thunder instance retained — gateway wiring will use it."
@@ -507,6 +542,12 @@ if [ "${PROVISION_THUNDER:-true}" = "true" ]; then
         fi
       fi
     else
+      if storage_settings_requested; then
+        echo "❌ Failed to fetch the Thunder ID provisioning script from ${THUNDER_SCRIPT_URL}, and THUNDER_*" >&2
+        echo "   storage settings were given, so this run will not continue without it." >&2
+        rm -f "$script_tmp"
+        exit 1
+      fi
       echo "⚠️  Failed to fetch Thunder ID provisioning script from ${THUNDER_SCRIPT_URL}"
       if [ "$THUNDER_PROVISIONED" = "true" ]; then
         echo "    Existing Thunder instance retained — gateway wiring will use it."
