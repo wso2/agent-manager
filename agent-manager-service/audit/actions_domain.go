@@ -89,6 +89,19 @@ const (
 	ActionAgentRead       Action = "agent:read"
 	ActionProjectRead     Action = "project:read"
 	ActionEnvironmentRead Action = "environment:read"
+	ActionGatewayRead     Action = "gateway:read"
+
+	// Connections: LLM providers and MCP proxies. Each equals the action the
+	// REST route for the same operation derives from its gating permission.
+	ActionLLMProviderTemplateRead Action = "llm-provider-template:read"
+	ActionLLMProviderRead         Action = "llm-provider:read"
+	ActionLLMProviderCreate       Action = "llm-provider:create"
+	ActionMCPServerRead           Action = "mcp-server:read"
+	ActionMCPServerCreate         Action = "mcp-server:create"
+
+	// Binding a model or MCP config to an agent; the REST routes are gated by
+	// agent:update alone, so that is the action they derive.
+	ActionAgentUpdate Action = "agent:update"
 
 	// Agent lifecycle.
 	ActionAgentCreate                Action = "agent:create"
