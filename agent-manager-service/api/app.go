@@ -120,6 +120,12 @@ func MakeHTTPHandlerWithPolicy(params *wiring.AppParams, extraAPIRoutes func(*ht
 		AgentManagerService:      params.AgentManagerService,
 		AgentTokenManagerService: params.AgentTokenManagerService,
 		EnvironmentService:       params.EnvironmentService,
+		LLMProviderTemplateService:   params.LLMProviderTemplateService,
+		LLMProviderService:           params.LLMProviderService,
+		LLMProviderDeploymentService: params.LLMProviderDeploymentService,
+		PlatformGatewayService:       params.PlatformGatewayService,
+		MCPProxyService:              params.MCPProxyService,
+		AgentConfigurationService:    params.AgentConfigurationService,
 	}, mcpMiddleware)
 
 	// Authentication is rejected before route matching, so the audit middleware

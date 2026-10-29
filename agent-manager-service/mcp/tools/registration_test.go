@@ -57,6 +57,10 @@ func TestToolPermissionsMatchSpecs(t *testing.T) {
 		BuildToolset:       mock,
 		DeploymentToolset:  mock,
 		EnvironmentToolset: mock,
+		LLMProviderToolset: mock,
+		GatewayToolset    : mock,
+		MCPProxyToolset   : mock,
+		AgentConfigToolset: mock,
 	}
 	server := gomcp.NewServer(&gomcp.Implementation{Name: "t", Version: "0"}, nil)
 	reg := toolsets.register(server)

@@ -100,6 +100,13 @@ type AppParams struct {
 	EnvironmentService            services.EnvironmentService
 	EventDispatcher               services.EventDispatcherService
 	MonitorAlerts                 services.MonitorAlertProcessor
+	// Services the MCP connection tools call directly.
+	LLMProviderTemplateService   *services.LLMProviderTemplateService
+	LLMProviderService           *services.LLMProviderService
+	LLMProviderDeploymentService *services.LLMProviderDeploymentService
+	PlatformGatewayService       *services.PlatformGatewayService
+	MCPProxyService              *services.MCPProxyService
+	AgentConfigurationService    services.AgentConfigurationService
 
 	// Events
 	EventBus       events.Bus

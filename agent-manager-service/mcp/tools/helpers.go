@@ -145,6 +145,22 @@ func wrapToolError(toolName string, err error) error {
 		return fmt.Errorf("%s: monitor is already stopped", toolName)
 	case errors.Is(err, utils.ErrMonitorAlreadyActive):
 		return fmt.Errorf("%s: monitor is already active", toolName)
+	case errors.Is(err, utils.ErrLLMProviderTemplateNotFound):
+		return fmt.Errorf("%s: invalid template. Call list_llm_provider_templates to see valid templates", toolName)
+	case errors.Is(err, utils.ErrLLMProviderNotFound):
+		return fmt.Errorf("%s: LLM provider not found. Call list_llm_providers to see valid providers", toolName)
+	case errors.Is(err, utils.ErrLLMProviderExists):
+		return fmt.Errorf("%s: an LLM provider with this name already exists. Call list_llm_providers, then reuse it or pick another name", toolName)
+	case errors.Is(err, utils.ErrMCPProxyNotFound):
+		return fmt.Errorf("%s: MCP proxy not found. Call list_mcp_proxies to see valid proxies", toolName)
+	case errors.Is(err, utils.ErrMCPProxyExists), errors.Is(err, utils.ErrArtifactExists):
+		return fmt.Errorf("%s: this name is already in use. Call list_mcp_proxies or list_llm_providers, then reuse it or pick another name", toolName)
+	case errors.Is(err, utils.ErrAgentConfigAlreadyExists):
+		return fmt.Errorf("%s: the agent already has a configuration with this name. Pass a different config_name", toolName)
+	case errors.Is(err, utils.ErrURLUnreachable):
+		return fmt.Errorf("%s: the MCP server URL is unreachable from Agent Manager. Check the URL", toolName)
+	case errors.Is(err, utils.ErrMCPServerUnauthorized):
+		return fmt.Errorf("%s: the MCP server returned 401 Unauthorized. Check auth_header and auth_value", toolName)
 	case errors.Is(err, utils.ErrNotFound):
 		msg := strings.ToLower(err.Error())
 		switch {
