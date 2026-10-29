@@ -23,7 +23,7 @@ import { useUnsavedChangesGuard } from '@agent-management-platform/shared-compon
 import { generatePath, useNavigate, useParams } from 'react-router-dom';
 import { absoluteRouteMap } from '@agent-management-platform/types';
 import { addProjectSchema, type AddProjectFormValues } from './form/schema';
-import { useCreateProject } from '@agent-management-platform/api-client';
+import { useCreateProject, useListDeploymentPipelines } from '@agent-management-platform/api-client';
 import { CreateButtons } from './components/CreateButtons';
 import { ProjectForm } from './components/ProjectForm';
 
@@ -35,7 +35,6 @@ export const AddNewProject: React.FC = () => {
     name: '',
     displayName: '',
     description: '',
-    deploymentPipeline: 'default',
   });
 
   const {
@@ -54,6 +53,14 @@ export const AddNewProject: React.FC = () => {
   }), [orgId]);
 
   const { mutate: createProject, isPending, error } = useCreateProject(params);
+  const { data: pipelinesData, isLoading: isPipelinesLoading } =
+    useListDeploymentPipelines({ orgName: orgId });
+
+  // Projects start on the "default" pipeline (else the first one); it can be changed later.
+  const defaultPipeline = useMemo(() => {
+    const pipelines = pipelinesData?.deploymentPipelines ?? [];
+    return (pipelines.find((p) => p.name === 'default') ?? pipelines[0])?.name;
+  }, [pipelinesData]);
 
   const handleCancel = useCallback(() => {
     allowNavigation(() => navigate(generatePath(
@@ -63,7 +70,7 @@ export const AddNewProject: React.FC = () => {
   }, [allowNavigation, navigate, orgId]);
 
   const [lastSubmittedValidationErrors, setLastSubmittedValidationErrors] = useState<
-    typeof errors
+    Record<string, string>
   >({});
 
   const handleCreateProject = useCallback(() => {
@@ -74,11 +81,18 @@ export const AddNewProject: React.FC = () => {
       setLastSubmittedValidationErrors({});
     }
 
+    if (!defaultPipeline) {
+      setLastSubmittedValidationErrors({
+        deploymentPipeline: 'No deployment pipeline is available. Create one in the organization first.',
+      });
+      return;
+    }
+
     createProject({
       name: formData.name,
       displayName: formData.displayName,
       description: formData.description?.trim() || undefined,
-      deploymentPipeline: formData.deploymentPipeline,
+      deploymentPipeline: defaultPipeline,
     }, {
       onSuccess: () => {
         resetDirty();
@@ -97,7 +111,7 @@ export const AddNewProject: React.FC = () => {
       }
     });
   }, [formData, validateForm, createProject,
-    navigate, allowNavigation, params.orgName, resetDirty, clearErrors, errors]);
+    navigate, allowNavigation, params.orgName, defaultPipeline, resetDirty, clearErrors, errors]);
 
   return (
     <PageLayout
@@ -126,7 +140,7 @@ export const AddNewProject: React.FC = () => {
         )}
         <CreateButtons
           lastSubmittedValidationErrors={lastSubmittedValidationErrors}
-          isPending={isPending}
+          isPending={isPending || isPipelinesLoading}
           onCancel={handleCancel}
           onSubmit={handleCreateProject}
           isNameEmpty={!formData.name.trim()}

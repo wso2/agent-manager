@@ -23,7 +23,6 @@ export interface AddProjectFormValues {
   name: string;
   displayName: string;
   description?: string;
-  deploymentPipeline: string;
 }
 
 export const addProjectSchema = z.object({
@@ -36,15 +35,15 @@ export const addProjectSchema = z.object({
   name: z
     .string()
     .trim()
-    .max(50, 'Name must be at most 50 characters'),
+    .max(50, 'Name must be at most 50 characters')
+    .refine(
+      (v) => v === '' || /^[a-z][a-z0-9-]*[a-z0-9]$|^[a-z]$/.test(v),
+      'Name must be lowercase alphanumeric or "-", start with a letter and end with a letter or digit',
+    ),
   description: z
     .string()
     .trim()
     .max(INPUT_LIMITS.DESCRIPTION, `Description must be at most ${INPUT_LIMITS.DESCRIPTION} characters`)
     .optional(),
-  deploymentPipeline: z
-    .string()
-    .trim()
-    .min(1, 'Deployment pipeline is required'),
 });
 
