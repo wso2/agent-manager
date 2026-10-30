@@ -16,7 +16,11 @@
 package tools
 
 import (
+	"context"
+	"strings"
 	"testing"
+
+	gomcp "github.com/modelcontextprotocol/go-sdk/mcp"
 
 	"github.com/wso2/agent-manager/agent-manager-service/models"
 	"github.com/wso2/agent-manager/agent-manager-service/rbac"
@@ -53,6 +57,21 @@ func llmProviderToolSpecs() []toolTestSpec {
 			validateCall: func(t *testing.T, args []interface{}) {
 				if got := args[0]; got != testOrgName {
 					t.Errorf("ouID: got %v, want %q", got, testOrgName)
+				}
+			},
+		},
+		{
+			name:                "get_llm_provider",
+			toolset:             "llm-provider",
+			permissions:         []rbac.Permission{rbac.LLMProviderRead},
+			descriptionKeywords: []string{"provider", "guardrail", "deployed"},
+			descriptionMinLen:   20,
+			requiredParams:      []string{"provider_id"},
+			testArgs:            map[string]any{"provider_id": testProviderID},
+			expectedMethod:      "GetLLMProvider",
+			validateCall: func(t *testing.T, args []interface{}) {
+				if got := args[1]; got != testProviderID {
+					t.Errorf("providerID: got %v, want %q", got, testProviderID)
 				}
 			},
 		},
@@ -148,6 +167,21 @@ func mcpProxyToolSpecs() []toolTestSpec {
 			validateCall: func(t *testing.T, args []interface{}) {
 				if got := args[0]; got != testOrgName {
 					t.Errorf("ouID: got %v, want %q", got, testOrgName)
+				}
+			},
+		},
+		{
+			name:                "get_mcp_proxy",
+			toolset:             "mcp-proxy",
+			permissions:         []rbac.Permission{rbac.MCPServerRead},
+			descriptionKeywords: []string{"mcp proxy", "tools", "deployed"},
+			descriptionMinLen:   20,
+			requiredParams:      []string{"proxy_id"},
+			testArgs:            map[string]any{"proxy_id": testProxyID},
+			expectedMethod:      "GetMCPProxy",
+			validateCall: func(t *testing.T, args []interface{}) {
+				if got := args[1]; got != testProxyID {
+					t.Errorf("proxyID: got %v, want %q", got, testProxyID)
 				}
 			},
 		},
@@ -253,5 +287,44 @@ func agentConfigToolSpecs() []toolTestSpec {
 				}
 			},
 		},
+	}
+}
+
+// The detail tools read records that hold upstream credentials. They must
+// report that auth is configured without ever returning the credential.
+func TestDetailToolsNeverReturnCredentials(t *testing.T) {
+	session, _ := setupTestServer(t)
+	cases := []struct {
+		tool string
+		args map[string]any
+		want []string
+	}{
+		{"get_llm_provider", map[string]any{"provider_id": testProviderID},
+			[]string{`"upstream_url":"https://api.openai.com/v1"`, `"upstream_auth_configured":true`, testGuardrailName, `"status":"DEPLOYED"`}},
+		{"get_mcp_proxy", map[string]any{"proxy_id": testProxyID},
+			[]string{`"upstream_auth_configured":true`, `"tools":["search"]`, `"name":"` + testEnvName + `"`}},
+	}
+	for _, tc := range cases {
+		t.Run(tc.tool, func(t *testing.T) {
+			res, err := session.CallTool(context.Background(), &gomcp.CallToolParams{Name: tc.tool, Arguments: tc.args})
+			if err != nil {
+				t.Fatalf("CallTool: %v", err)
+			}
+			if res.IsError {
+				t.Fatalf("tool returned an error: %+v", res.Content)
+			}
+			text := res.Content[0].(*gomcp.TextContent).Text
+			if strings.Contains(text, "ARCHIVED") {
+				t.Errorf("output lists archived deployments: %s", text)
+			}
+			if strings.Contains(text, "sk-must-never-be-returned") {
+				t.Fatalf("output leaks the upstream credential: %s", text)
+			}
+			for _, w := range tc.want {
+				if !strings.Contains(text, w) {
+					t.Errorf("output missing %s: %s", w, text)
+				}
+			}
+		})
 	}
 }

@@ -41,6 +41,8 @@ const (
 	testGatewayID     = "00000000-0000-0000-0000-0000000000a1"
 	testProxyID       = "test-proxy"
 	testGuardrailName = "pii-masking"
+	// testSecret stands in for an upstream credential; no tool output may contain it.
+	testSecret = "Bearer sk-must-never-be-returned"
 )
 
 // Creates an MCP server with all toolsets backed by the same mock handler,
@@ -57,8 +59,8 @@ func setupTestServer(t *testing.T) (*gomcp.ClientSession, *MockToolsetHandler) {
 		DeploymentToolset:  mock,
 		EnvironmentToolset: mock,
 		LLMProviderToolset: mock,
-		GatewayToolset    : mock,
-		MCPProxyToolset   : mock,
+		GatewayToolset:     mock,
+		MCPProxyToolset:    mock,
 		AgentConfigToolset: mock,
 	}
 	return setupTestServerWithToolsets(t, toolsets), mock

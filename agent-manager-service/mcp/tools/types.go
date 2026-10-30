@@ -70,6 +70,7 @@ type LLMProviderToolsetHandler interface {
 	ListLLMProviders(ctx context.Context, ouID string, limit int, offset int) ([]*models.LLMProvider, int, error)
 	ListLLMGuardrails(ctx context.Context, ouID string, providerID string) (*models.LLMPolicyAvailabilityResponse, error)
 	CreateLLMProvider(ctx context.Context, ouID string, req *spec.CreateLLMProviderRequest) (*models.LLMProvider, []services.DeploymentResult, error)
+	GetLLMProvider(ctx context.Context, ouID string, providerID string) (*models.LLMProvider, []*models.Deployment, error)
 }
 
 type GatewayToolsetHandler interface {
@@ -80,6 +81,7 @@ type MCPProxyToolsetHandler interface {
 	ListMCPProxies(ctx context.Context, ouID string, limit int, offset int) (*models.MCPProxyListResponse, error)
 	FetchMCPServerInfo(ctx context.Context, req *models.MCPServerInfoFetchRequest) (*models.MCPServerInfoFetchResponse, error)
 	CreateMCPProxy(ctx context.Context, ouID string, req *models.MCPProxyDTO) (*models.MCPProxyDTO, error)
+	GetMCPProxy(ctx context.Context, ouID string, proxyID string) (*models.MCPProxyDTO, error)
 }
 
 type AgentConfigToolsetHandler interface {
