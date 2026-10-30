@@ -17,7 +17,6 @@
  */
 
 import { Alert, Box, Button, Collapse } from "@wso2/oxygen-ui";
-import { Link, PackagePlus } from "@wso2/oxygen-ui-icons-react";
 
 interface CreateButtonsProps {
     lastSubmittedValidationErrors: Record<string, string>;
@@ -53,9 +52,6 @@ export const CreateButtons = (
                     variant="contained"
                     color="primary"
                     size='medium'
-                    startIcon={isConnectMode ?
-                        <Link size={16} /> :
-                        <PackagePlus size={16} />}
                     onClick={onSubmit}
                     disabled={isPending || isNameEmpty}
                 >

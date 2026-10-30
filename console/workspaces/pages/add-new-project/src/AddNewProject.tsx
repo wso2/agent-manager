@@ -115,14 +115,13 @@ export const AddNewProject: React.FC = () => {
 
   return (
     <PageLayout
-      title="Create a New Project"
-      description="Create a new project to organize and manage your agents."
-      disableIcon
+      title="Create a Project"
       backHref={generatePath(
         absoluteRouteMap.children.org.path,
         { orgId: orgId ?? '' }
       )}
-      backLabel="Back to Organization"
+      avatar={null}
+      backLabel="Back to Projects"
     >
       <Box display="flex" flexDirection="column" gap={2}>
         <ProjectForm
