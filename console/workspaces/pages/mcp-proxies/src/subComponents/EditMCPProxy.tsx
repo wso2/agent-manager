@@ -15,7 +15,7 @@
  * under the License.
  */
 
-import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import React, { useCallback, useMemo, useState } from "react";
 import {
   Alert,
   Box,
@@ -23,23 +23,25 @@ import {
   Form,
   FormControl,
   FormLabel,
+  Skeleton,
   Stack,
   TextField,
   Typography,
 } from "@wso2/oxygen-ui";
-import { Edit } from "@wso2/oxygen-ui-icons-react";
+import { PageLayout, useFormValidation } from "@agent-management-platform/views";
 import {
-  DrawerWrapper,
-  DrawerHeader,
-  DrawerContent,
-  useFormValidation,
-} from "@agent-management-platform/views";
-import { useUpdateMCPProxy } from "@agent-management-platform/api-client";
+  useGetMCPProxy,
+  useListEnvironments,
+  useUpdateMCPProxy,
+} from "@agent-management-platform/api-client";
+import { useUnsavedChangesGuard } from "@agent-management-platform/shared-component";
 import {
-  useConfirmIfUnsaved,
-  useUnsavedChangesGuard,
-} from "@agent-management-platform/shared-component";
-import { type Environment, type MCPProxy, INPUT_LIMITS } from "@agent-management-platform/types";
+  absoluteRouteMap,
+  type Environment,
+  type MCPProxy,
+  INPUT_LIMITS,
+} from "@agent-management-platform/types";
+import { generatePath, useNavigate, useParams } from "react-router-dom";
 import { z } from "zod";
 import { type EndpointDraft } from "./EndpointFormFields";
 import { EndpointsEditorSection } from "./EndpointsEditorSection";
@@ -59,21 +61,20 @@ const editMCPProxySchema = z.object({
   description: z.string().trim().optional(),
 });
 
-interface EditMCPProxyDrawerProps {
-  open: boolean;
-  onClose: () => void;
+interface EditMCPProxyFormProps {
   proxy: MCPProxy;
   orgId: string;
   environments: Environment[];
+  viewHref: string;
 }
 
-export function EditMCPProxyDrawer({
-  open,
-  onClose,
+function EditMCPProxyForm({
   proxy,
   orgId,
   environments,
-}: EditMCPProxyDrawerProps) {
+  viewHref,
+}: EditMCPProxyFormProps) {
+  const navigate = useNavigate();
   const [formData, setFormData] = useState<EditMCPProxyFormValues>({
     name: proxy.name,
     version: proxy.version,
@@ -81,66 +82,35 @@ export function EditMCPProxyDrawer({
     description: proxy.description ?? "",
   });
 
-  const { errors, validateField, validateForm, clearErrors, setFieldError } =
+  const { errors, validateField, validateForm, setFieldError } =
     useFormValidation<EditMCPProxyFormValues>(editMCPProxySchema);
 
   const {
     mutateAsync: updateMCPProxy,
     isPending,
     error: updateError,
-    reset: resetMutation,
   } = useUpdateMCPProxy();
 
   // --- Endpoints section state ---
-  const [endpoints, setEndpoints] = useState<EndpointDraft[]>([]);
+  // Seeded once from the proxy's native endpoints; a draft seeded from a backend
+  // endpoint keeps its handle as its id.
+  const [endpoints, setEndpoints] = useState<EndpointDraft[]>(() =>
+    (proxy.endpoints ?? []).map(endpointToDraft),
+  );
   const [addOpen, setAddOpen] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
 
-  const [seededSnapshot, setSeededSnapshot] = useState<string | null>(null);
+  const [seededSnapshot] = useState(() => JSON.stringify({ formData, endpoints }));
   // An endpoint being added/edited inline isn't in `endpoints` until the user
   // applies it, so its form reports its own dirty state.
   const [isEndpointFormDirty, setIsEndpointFormDirty] = useState(false);
   const isDirty =
-    open &&
-    (isEndpointFormDirty ||
-      (seededSnapshot !== null &&
-        JSON.stringify({ formData, endpoints }) !== seededSnapshot));
-  useUnsavedChangesGuard(isDirty);
-  const confirmIfUnsaved = useConfirmIfUnsaved();
-  // Backdrop and header X discard edits, so confirm first; Cancel and the
-  // post-save close stay direct.
-  const handleGuardedClose = () => confirmIfUnsaved(onClose, isDirty);
+    isEndpointFormDirty || JSON.stringify({ formData, endpoints }) !== seededSnapshot;
+  const { allowNavigation } = useUnsavedChangesGuard(isDirty);
 
-  const wasOpenRef = useRef(false);
-
-  useEffect(() => {
-    const justOpened = open && !wasOpenRef.current;
-    wasOpenRef.current = open;
-    // Only (re)seed on the closed→open transition — proxy can change while the
-    // drawer is already open (e.g. a background refetch), and reseeding then
-    // would clobber whatever the user is mid-editing.
-    if (!justOpened) return;
-
-    const seededFormData = {
-      name: proxy.name,
-      version: proxy.version,
-      context: proxy.context ?? "",
-      description: proxy.description ?? "",
-    };
-    const seededEndpoints = (proxy.endpoints ?? []).map(endpointToDraft);
-    setFormData(seededFormData);
-    setSeededSnapshot(
-      JSON.stringify({ formData: seededFormData, endpoints: seededEndpoints }),
-    );
-    clearErrors();
-    resetMutation();
-
-    // Seed the working list from the proxy's native endpoints each time the drawer is
-    // opened. A draft seeded from a backend endpoint keeps its handle as its id.
-    setEndpoints(seededEndpoints);
-    setAddOpen(false);
-    setEditingId(null);
-  }, [proxy, open, clearErrors, resetMutation]);
+  const handleCancel = useCallback(() => {
+    allowNavigation(() => navigate(viewHref));
+  }, [allowNavigation, navigate, viewHref]);
 
   const handleFieldChange = useCallback(
     (field: keyof EditMCPProxyFormValues, value: string) => {
@@ -184,12 +154,15 @@ export function EditMCPProxyDrawer({
             endpoints: nextEndpoints,
           },
         });
-        onClose();
+        allowNavigation(() => navigate(viewHref));
       } catch {
         // Error is surfaced via updateError below.
       }
     },
-    [formData, validateForm, endpoints, updateMCPProxy, orgId, proxy, onClose],
+    [
+      formData, validateForm, endpoints, updateMCPProxy, orgId, proxy,
+      allowNavigation, navigate, viewHref,
+    ],
   );
 
   const errorMessage = useMemo(() => {
@@ -204,143 +177,167 @@ export function EditMCPProxyDrawer({
     formData.version.trim().length > 0;
 
   return (
-    <DrawerWrapper open={open} onClose={handleGuardedClose}>
-      <DrawerHeader
-        icon={<Edit size={24} />}
-        title="Edit MCP Server"
-        onClose={handleGuardedClose}
-      />
-      <DrawerContent>
-        <form onSubmit={handleSubmit}>
-          <Stack spacing={3}>
-            {errorMessage && (
-              <Alert severity="error">
-                <Typography variant="body2">{errorMessage}</Typography>
-              </Alert>
-            )}
+    <form onSubmit={handleSubmit}>
+      <Stack spacing={3}>
+        {errorMessage && (
+          <Alert severity="error">
+            <Typography variant="body2">{errorMessage}</Typography>
+          </Alert>
+        )}
 
-            <Form.Section>
-              <Form.Header>MCP Server Details</Form.Header>
-              <Form.Stack spacing={2}>
-                <FormControl fullWidth>
-                  <FormLabel>Handle</FormLabel>
-                  <TextField fullWidth size="small" value={proxy.id} disabled />
-                  <Typography variant="caption" color="text.secondary">
-                    Unique, immutable identifier for the MCP Server.
-                    Cannot be changed after the server is registered.
-                  </Typography>
-                </FormControl>
-                <FormControl fullWidth error={Boolean(errors.name)}>
-                  <FormLabel required>Name</FormLabel>
-                  <TextField
-                    slotProps={{ htmlInput: { maxLength: INPUT_LIMITS.NAME } }}
-                    fullWidth
-                    size="small"
-                    value={formData.name}
-                    onChange={(e) => handleFieldChange("name", e.target.value)}
-                    error={Boolean(errors.name)}
-                    helperText={errors.name}
-                    disabled={isPending}
-                  />
-                </FormControl>
-                <FormControl fullWidth error={Boolean(errors.version)}>
-                  <FormLabel required>Version</FormLabel>
-                  <TextField
-                    slotProps={{ htmlInput: { maxLength: INPUT_LIMITS.SHORT_TEXT } }}
-                    fullWidth
-                    size="small"
-                    value={formData.version}
-                    onChange={(e) =>
-                      handleFieldChange("version", e.target.value)
-                    }
-                    error={Boolean(errors.version)}
-                    helperText={errors.version}
-                    disabled={isPending}
-                  />
-                </FormControl>
-                <FormControl fullWidth error={Boolean(errors.context)}>
-                  <FormLabel>Context</FormLabel>
-                  <TextField
-                    slotProps={{ htmlInput: { maxLength: INPUT_LIMITS.PATH } }}
-                    fullWidth
-                    size="small"
-                    placeholder="/default/my-mcp-proxy"
-                    value={formData.context}
-                    onChange={(e) =>
-                      handleFieldChange("context", e.target.value)
-                    }
-                    error={Boolean(errors.context)}
-                    helperText={errors.context}
-                    disabled={isPending}
-                  />
-                </FormControl>
-                <FormControl fullWidth error={Boolean(errors.description)}>
-                  <FormLabel>Description</FormLabel>
-                  <TextField
-                    slotProps={{ htmlInput: { maxLength: INPUT_LIMITS.DESCRIPTION } }}
-                    fullWidth
-                    size="small"
-                    multiline
-                    minRows={3}
-                    value={formData.description}
-                    onChange={(e) =>
-                      handleFieldChange("description", e.target.value)
-                    }
-                    error={Boolean(errors.description)}
-                    helperText={errors.description}
-                    disabled={isPending}
-                  />
-                </FormControl>
-              </Form.Stack>
-            </Form.Section>
+        <Form.Section>
+          <Form.Header>MCP Server Details</Form.Header>
+          <Form.Stack spacing={2}>
+            <FormControl fullWidth>
+              <FormLabel>Handle</FormLabel>
+              <TextField fullWidth size="small" value={proxy.id} disabled />
+              <Typography variant="caption" color="text.secondary">
+                Unique, immutable identifier for the MCP Server.
+                Cannot be changed after the server is registered.
+              </Typography>
+            </FormControl>
+            <FormControl fullWidth error={Boolean(errors.name)}>
+              <FormLabel required>Name</FormLabel>
+              <TextField
+                slotProps={{ htmlInput: { maxLength: INPUT_LIMITS.NAME } }}
+                fullWidth
+                size="small"
+                value={formData.name}
+                onChange={(e) => handleFieldChange("name", e.target.value)}
+                error={Boolean(errors.name)}
+                helperText={errors.name}
+                disabled={isPending}
+              />
+            </FormControl>
+            <FormControl fullWidth error={Boolean(errors.version)}>
+              <FormLabel required>Version</FormLabel>
+              <TextField
+                slotProps={{ htmlInput: { maxLength: INPUT_LIMITS.SHORT_TEXT } }}
+                fullWidth
+                size="small"
+                value={formData.version}
+                onChange={(e) =>
+                  handleFieldChange("version", e.target.value)
+                }
+                error={Boolean(errors.version)}
+                helperText={errors.version}
+                disabled={isPending}
+              />
+            </FormControl>
+            <FormControl fullWidth error={Boolean(errors.context)}>
+              <FormLabel>Context</FormLabel>
+              <TextField
+                slotProps={{ htmlInput: { maxLength: INPUT_LIMITS.PATH } }}
+                fullWidth
+                size="small"
+                placeholder="/default/my-mcp-proxy"
+                value={formData.context}
+                onChange={(e) =>
+                  handleFieldChange("context", e.target.value)
+                }
+                error={Boolean(errors.context)}
+                helperText={errors.context}
+                disabled={isPending}
+              />
+            </FormControl>
+            <FormControl fullWidth error={Boolean(errors.description)}>
+              <FormLabel>Description</FormLabel>
+              <TextField
+                slotProps={{ htmlInput: { maxLength: INPUT_LIMITS.DESCRIPTION } }}
+                fullWidth
+                size="small"
+                multiline
+                minRows={3}
+                value={formData.description}
+                onChange={(e) =>
+                  handleFieldChange("description", e.target.value)
+                }
+                error={Boolean(errors.description)}
+                helperText={errors.description}
+                disabled={isPending}
+              />
+            </FormControl>
+          </Form.Stack>
+        </Form.Section>
 
-            <Form.Section>
-              <Form.Header>Endpoints</Form.Header>
-              <Form.Stack spacing={2}>
-                <Typography variant="body2" color="text.secondary">
-                  {environments.length > 1
-                    ? "Endpoints map backend MCP servers to environments. Editing an endpoint updates the upstream URL, authentication, and capabilities for the environments it serves. Environments left without an endpoint become unconfigured."
-                    : "Editing an endpoint updates the upstream URL, authentication, and capabilities for this MCP Server."}
-                </Typography>
+        <Form.Section>
+          <Form.Header>Endpoints</Form.Header>
+          <Form.Stack spacing={2}>
+            <Typography variant="body2" color="text.secondary">
+              {environments.length > 1
+                ? "Endpoints map backend MCP servers to environments. Editing an endpoint updates the upstream URL, authentication, and capabilities for the environments it serves. Environments left without an endpoint become unconfigured."
+                : "Editing an endpoint updates the upstream URL, authentication, and capabilities for this MCP Server."}
+            </Typography>
 
-                <EndpointsEditorSection
-                  orgId={orgId}
-                  environments={environments}
-                  endpoints={endpoints}
-                  onEndpointsChange={setEndpoints}
-                  addOpen={addOpen}
-                  onAddOpenChange={setAddOpen}
-                  editingId={editingId}
-                  onEditingIdChange={setEditingId}
-                  emptyStateText="No endpoints configured yet."
-                  onEndpointFormDirtyChange={setIsEndpointFormDirty}
-                />
-              </Form.Stack>
-            </Form.Section>
+            <EndpointsEditorSection
+              orgId={orgId}
+              environments={environments}
+              endpoints={endpoints}
+              onEndpointsChange={setEndpoints}
+              addOpen={addOpen}
+              onAddOpenChange={setAddOpen}
+              editingId={editingId}
+              onEditingIdChange={setEditingId}
+              emptyStateText="No endpoints configured yet."
+              onEndpointFormDirtyChange={setIsEndpointFormDirty}
+            />
+          </Form.Stack>
+        </Form.Section>
 
-            {addOpen || editingId !== null ? null : (
-              <Box display="flex" justifyContent="flex-end" gap={1} mt={2}>
-                <Button
-                  variant="outlined"
-                  color="inherit"
-                  onClick={onClose}
-                  disabled={isPending}
-                >
-                  Cancel
-                </Button>
-                <Button
-                  type="submit"
-                  variant="contained"
-                  color="primary"
-                  disabled={!isValid || isPending}
-                >
-                  {isPending ? "Saving..." : "Save"}
-                </Button>
-              </Box>
-            )}
-          </Stack>
-        </form>
-      </DrawerContent>
-    </DrawerWrapper>
+        {addOpen || editingId !== null ? null : (
+          <Box display="flex" justifyContent="flex-end" gap={1} mt={2}>
+            <Button
+              variant="outlined"
+              color="inherit"
+              onClick={handleCancel}
+              disabled={isPending}
+            >
+              Cancel
+            </Button>
+            <Button
+              type="submit"
+              variant="contained"
+              color="primary"
+              disabled={!isValid || isPending}
+            >
+              {isPending ? "Saving..." : "Save"}
+            </Button>
+          </Box>
+        )}
+      </Stack>
+    </form>
   );
 }
+
+export function EditMCPProxy() {
+  const { orgId = "", proxyId = "" } = useParams<{ orgId: string; proxyId: string }>();
+  const { data: proxy, isLoading } = useGetMCPProxy({ orgName: orgId, proxyId });
+  const { data: environments = [], isLoading: isEnvironmentsLoading } =
+    useListEnvironments({ orgName: orgId });
+  const viewHref = generatePath(
+    absoluteRouteMap.children.org.children.mcpProxies.children.view.path,
+    { orgId, proxyId },
+  );
+
+  return (
+    <PageLayout
+      title="Edit MCP Server"
+      disableIcon
+      backHref={viewHref}
+      backLabel="Back to MCP server"
+    >
+      {isLoading || isEnvironmentsLoading || !proxy ? (
+        <Skeleton variant="rounded" width="100%" height={400} />
+      ) : (
+        <EditMCPProxyForm
+          proxy={proxy}
+          orgId={orgId}
+          environments={environments}
+          viewHref={viewHref}
+        />
+      )}
+    </PageLayout>
+  );
+}
+
+export default EditMCPProxy;

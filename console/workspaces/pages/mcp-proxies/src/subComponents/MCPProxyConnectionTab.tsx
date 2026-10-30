@@ -114,11 +114,12 @@ export function MCPProxyConnectionTab({
   }, [config]);
 
   useEffect(() => {
-    if (!selectedEndpointId) return;
+    // Wait for config too, or the form seeds empty and reads as dirty.
+    if (!selectedEndpointId || !config) return;
     if (initializedEnvIdRef.current === selectedEndpointId) return;
     initializedEnvIdRef.current = selectedEndpointId;
     resetFromConfig();
-  }, [selectedEndpointId, resetFromConfig]);
+  }, [selectedEndpointId, config, resetFromConfig]);
 
   const validateEndpoint = useCallback((value: string): string | null => {
     const err = validateEndpointUrl(value, {

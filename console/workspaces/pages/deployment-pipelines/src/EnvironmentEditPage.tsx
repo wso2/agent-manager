@@ -15,7 +15,7 @@
  * under the License.
  */
 
-import React, { useCallback, useEffect, useMemo, useState } from "react";
+import React, { useCallback, useMemo, useState } from "react";
 import {
   Alert,
   Box,
@@ -26,48 +26,40 @@ import {
   FormControl,
   FormControlLabel,
   FormLabel,
+  Skeleton,
   Stack,
   TextField,
   Typography,
 } from "@wso2/oxygen-ui";
-import { Edit } from "@wso2/oxygen-ui-icons-react";
+import { generatePath, useNavigate, useParams } from "react-router-dom";
+import { PageLayout, useFormValidation } from "@agent-management-platform/views";
+import { useGetEnvironment, useUpdateEnvironment } from "@agent-management-platform/api-client";
+import { useUnsavedChangesGuard } from "@agent-management-platform/shared-component";
 import {
-  DrawerContent,
-  DrawerHeader,
-  DrawerWrapper,
-  useFormValidation,
-} from "@agent-management-platform/views";
-import { useUpdateEnvironment } from "@agent-management-platform/api-client";
-import {
-  useConfirmIfUnsaved,
-  useUnsavedChangesGuard,
-} from "@agent-management-platform/shared-component";
-import { type Environment, INPUT_LIMITS } from "@agent-management-platform/types";
+  absoluteRouteMap,
+  type Environment,
+  INPUT_LIMITS,
+} from "@agent-management-platform/types";
 import {
   editEnvironmentSchema,
   ENVIRONMENT_DISPLAY_NAME_MAX_LENGTH,
   type EditEnvironmentFormValues,
-} from "../form/environmentSchema";
+} from "./form/environmentSchema";
 
-interface EditEnvironmentDrawerProps {
-  open: boolean;
-  onClose: () => void;
+interface EditEnvironmentFormProps {
   environment: Environment;
   orgId: string;
+  listHref: string;
 }
 
-export function EditEnvironmentDrawer({
-  open,
-  onClose,
-  environment,
-  orgId,
-}: EditEnvironmentDrawerProps) {
+function EditEnvironmentForm({ environment, orgId, listHref }: EditEnvironmentFormProps) {
+  const navigate = useNavigate();
   const [formData, setFormData] = useState<EditEnvironmentFormValues>({
     displayName: environment.displayName ?? "",
     description: "",
     isProduction: environment.isProduction,
   });
-  const [initialSnapshot, setInitialSnapshot] = useState<string | null>(null);
+  const [initialSnapshot] = useState(() => JSON.stringify(formData));
 
   const { errors, validateForm, setFieldError, validateField } =
     useFormValidation<EditEnvironmentFormValues>(editEnvironmentSchema);
@@ -79,32 +71,17 @@ export function EditEnvironmentDrawer({
     mutateAsync: updateEnvironment,
     isPending: isUpdating,
     error: updateError,
-    reset: resetMutation,
   } = useUpdateEnvironment();
 
-  useEffect(() => {
-    if (open) {
-      const seed = {
-        displayName: environment.displayName ?? "",
-        description: "",
-        isProduction: environment.isProduction,
-      };
-      setFormData(seed);
-      setInitialSnapshot(JSON.stringify(seed));
-      setLastSubmittedValidationErrors({});
-      resetMutation();
-    }
-  }, [open, environment, resetMutation]);
-
   const isDirty = useMemo(
-    () => open && initialSnapshot !== null && JSON.stringify(formData) !== initialSnapshot,
-    [open, initialSnapshot, formData],
+    () => JSON.stringify(formData) !== initialSnapshot,
+    [initialSnapshot, formData],
   );
-  useUnsavedChangesGuard(isDirty);
-  const confirmIfUnsaved = useConfirmIfUnsaved();
-  // Backdrop and header X discard edits, so confirm first; Cancel and the
-  // post-save close stay direct.
-  const handleGuardedClose = () => confirmIfUnsaved(onClose, isDirty);
+  const { allowNavigation } = useUnsavedChangesGuard(isDirty);
+
+  const handleCancel = useCallback(() => {
+    allowNavigation(() => navigate(listHref));
+  }, [allowNavigation, navigate, listHref]);
 
   const handleFieldChange = useCallback(
     (field: keyof EditEnvironmentFormValues, value: string | boolean) => {
@@ -144,12 +121,13 @@ export function EditEnvironmentDrawer({
             isProduction: result.data.isProduction,
           },
         });
-        onClose();
+        allowNavigation(() => navigate(listHref));
       } catch {
         // handled by updateError
       }
     },
-    [formData, validateForm, updateEnvironment, environment, onClose, orgId],
+    [formData, validateForm, updateEnvironment, environment, orgId, allowNavigation, navigate,
+      listHref],
   );
 
   const errorMessage = useMemo(() => {
@@ -162,80 +140,100 @@ export function EditEnvironmentDrawer({
   const validationErrorsList = Object.values(lastSubmittedValidationErrors).filter(Boolean);
 
   return (
-    <DrawerWrapper open={open} onClose={handleGuardedClose}>
-      <DrawerHeader icon={<Edit size={24} />} title="Edit Environment" onClose={handleGuardedClose} />
-      <DrawerContent>
-        <form onSubmit={handleSubmit}>
-          <Stack spacing={3}>
-            {errorMessage && (
-              <Alert severity="error">
-                <Typography variant="body2">{errorMessage}</Typography>
-              </Alert>
-            )}
+    <form onSubmit={handleSubmit}>
+      <Stack spacing={3}>
+        {errorMessage && (
+          <Alert severity="error">
+            <Typography variant="body2">{errorMessage}</Typography>
+          </Alert>
+        )}
 
-            <Collapse in={validationErrorsList.length > 0} timeout="auto" unmountOnExit>
-              <Alert severity="error" sx={{ mb: 2 }}>
-                {validationErrorsList.map((error, index) => (
-                  <Box key={index}>{error}</Box>
-                ))}
-              </Alert>
-            </Collapse>
+        <Collapse in={validationErrorsList.length > 0} timeout="auto" unmountOnExit>
+          <Alert severity="error" sx={{ mb: 2 }}>
+            {validationErrorsList.map((error, index) => (
+              <Box key={index}>{error}</Box>
+            ))}
+          </Alert>
+        </Collapse>
 
-            <Form.Section>
-              <Form.Header>Environment Details</Form.Header>
-              <Form.Stack spacing={2}>
-                <FormControl fullWidth error={Boolean(errors.displayName)}>
-                  <FormLabel required>Display Name</FormLabel>
-                  <TextField
-                    slotProps={{ htmlInput: { maxLength: ENVIRONMENT_DISPLAY_NAME_MAX_LENGTH } }}
-                    fullWidth
-                    size="small"
-                    value={formData.displayName}
-                    onChange={(e) => handleFieldChange("displayName", e.target.value)}
-                    placeholder="e.g., Production Environment"
-                    error={Boolean(errors.displayName)}
-                    helperText={errors.displayName}
-                    disabled={isUpdating}
-                  />
-                </FormControl>
-                <FormControl fullWidth>
-                  <FormLabel>Description</FormLabel>
-                  <TextField
-                    slotProps={{ htmlInput: { maxLength: INPUT_LIMITS.DESCRIPTION } }}
-                    fullWidth
-                    size="small"
-                    multiline
-                    rows={2}
-                    value={formData.description ?? ""}
-                    onChange={(e) => handleFieldChange("description", e.target.value)}
-                    placeholder="Optional description"
-                    disabled={isUpdating}
-                  />
-                </FormControl>
-                <FormControlLabel
-                  control={
-                    <Checkbox
-                      checked={formData.isProduction ?? false}
-                      onChange={(e) => handleFieldChange("isProduction", e.target.checked)}
-                      disabled={isUpdating}
-                    />
-                  }
-                  label="Production environment"
+        <Form.Section>
+          <Form.Header>Environment Details</Form.Header>
+          <Form.Stack spacing={2}>
+            <FormControl fullWidth error={Boolean(errors.displayName)}>
+              <FormLabel required>Display Name</FormLabel>
+              <TextField
+                slotProps={{ htmlInput: { maxLength: ENVIRONMENT_DISPLAY_NAME_MAX_LENGTH } }}
+                fullWidth
+                size="small"
+                value={formData.displayName}
+                onChange={(e) => handleFieldChange("displayName", e.target.value)}
+                placeholder="e.g., Production Environment"
+                error={Boolean(errors.displayName)}
+                helperText={errors.displayName}
+                disabled={isUpdating}
+              />
+            </FormControl>
+            <FormControl fullWidth>
+              <FormLabel>Description</FormLabel>
+              <TextField
+                slotProps={{ htmlInput: { maxLength: INPUT_LIMITS.DESCRIPTION } }}
+                fullWidth
+                size="small"
+                multiline
+                rows={2}
+                value={formData.description ?? ""}
+                onChange={(e) => handleFieldChange("description", e.target.value)}
+                placeholder="Optional description"
+                disabled={isUpdating}
+              />
+            </FormControl>
+            <FormControlLabel
+              control={
+                <Checkbox
+                  checked={formData.isProduction ?? false}
+                  onChange={(e) => handleFieldChange("isProduction", e.target.checked)}
+                  disabled={isUpdating}
                 />
-              </Form.Stack>
-            </Form.Section>
+              }
+              label="Production environment"
+            />
+          </Form.Stack>
+        </Form.Section>
 
-            <Box display="flex" justifyContent="flex-end" gap={1} mt={2}>
-              <Button variant="outlined" color="inherit" onClick={onClose} disabled={isUpdating}>
-                Cancel
-              </Button>
-              <Button type="submit" variant="contained" color="primary" disabled={isUpdating}>
-                {isUpdating ? "Saving..." : "Save"}
-              </Button>
-            </Box>
-          </Stack>
-        </form>
-      </DrawerContent>
-    </DrawerWrapper>
+        <Box display="flex" justifyContent="flex-end" gap={1} mt={2}>
+          <Button variant="outlined" color="inherit" onClick={handleCancel} disabled={isUpdating}>
+            Cancel
+          </Button>
+          <Button type="submit" variant="contained" color="primary" disabled={isUpdating}>
+            {isUpdating ? "Saving..." : "Save"}
+          </Button>
+        </Box>
+      </Stack>
+    </form>
   );
 }
+
+export function EnvironmentEditPage() {
+  const { orgId = "", envName = "" } = useParams<{ orgId: string; envName: string }>();
+  const { data: environment, isLoading } = useGetEnvironment({ orgName: orgId, envName });
+  const listHref = generatePath(absoluteRouteMap.children.org.children.environments.path, {
+    orgId,
+  });
+
+  return (
+    <PageLayout
+      title="Edit Environment"
+      disableIcon
+      backHref={listHref}
+      backLabel="Back to environments"
+    >
+      {isLoading || !environment ? (
+        <Skeleton variant="rounded" width="100%" height={400} />
+      ) : (
+        <EditEnvironmentForm environment={environment} orgId={orgId} listHref={listHref} />
+      )}
+    </PageLayout>
+  );
+}
+
+export default EnvironmentEditPage;

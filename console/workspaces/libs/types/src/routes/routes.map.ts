@@ -113,6 +113,11 @@ export const rootRouteMap: AppRoute = {
                             path: 'view/:providerId',
                             index: true,
                             children: {
+                                edit: {
+                                    path: 'edit',
+                                    index: true,
+                                    children: {},
+                                },
                                 deploy: {
                                     path: 'deploy',
                                     index: true,
@@ -179,7 +184,13 @@ export const rootRouteMap: AppRoute = {
                         view: {
                             path: 'view/:proxyId',
                             index: true,
-                            children: {},
+                            children: {
+                                edit: {
+                                    path: 'edit',
+                                    index: true,
+                                    children: {},
+                                },
+                            },
                         },
                     },
                 },
@@ -223,6 +234,11 @@ export const rootRouteMap: AppRoute = {
                             path: ':envName',
                             index: true,
                             children: {
+                                edit: {
+                                    path: 'edit',
+                                    index: true,
+                                    children: {},
+                                },
                                 identityProvider: {
                                     path: 'identity-provider',
                                     index: true,

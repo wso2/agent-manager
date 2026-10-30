@@ -94,6 +94,11 @@ export const generatedRouteMap =  {
               "path": "/org/:orgId/llm-providers/view/:providerId",
               "wildPath": "/org/:orgId/llm-providers/view/:providerId/*",
               "children": {
+                "edit": {
+                  "path": "/org/:orgId/llm-providers/view/:providerId/edit",
+                  "wildPath": "/org/:orgId/llm-providers/view/:providerId/edit/*",
+                  "children": {}
+                },
                 "deploy": {
                   "path": "/org/:orgId/llm-providers/view/:providerId/deploy",
                   "wildPath": "/org/:orgId/llm-providers/view/:providerId/deploy/*",
@@ -160,7 +165,13 @@ export const generatedRouteMap =  {
             "view": {
               "path": "/org/:orgId/mcp-proxies/view/:proxyId",
               "wildPath": "/org/:orgId/mcp-proxies/view/:proxyId/*",
-              "children": {}
+              "children": {
+                "edit": {
+                  "path": "/org/:orgId/mcp-proxies/view/:proxyId/edit",
+                  "wildPath": "/org/:orgId/mcp-proxies/view/:proxyId/edit/*",
+                  "children": {}
+                }
+              }
             }
           }
         },
@@ -204,6 +215,11 @@ export const generatedRouteMap =  {
               "path": "/org/:orgId/environments/:envName",
               "wildPath": "/org/:orgId/environments/:envName/*",
               "children": {
+                "edit": {
+                  "path": "/org/:orgId/environments/:envName/edit",
+                  "wildPath": "/org/:orgId/environments/:envName/edit/*",
+                  "children": {}
+                },
                 "identityProvider": {
                   "path": "/org/:orgId/environments/:envName/identity-provider",
                   "wildPath": "/org/:orgId/environments/:envName/identity-provider/*",

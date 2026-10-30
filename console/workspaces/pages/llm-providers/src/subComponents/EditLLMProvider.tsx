@@ -15,7 +15,7 @@
  * under the License.
  */
 
-import React, { useCallback, useEffect, useMemo, useState } from "react";
+import React, { useCallback, useMemo, useState } from "react";
 import {
   Alert,
   Box,
@@ -24,26 +24,25 @@ import {
   Form,
   FormControl,
   FormLabel,
+  Skeleton,
   Stack,
   TextField,
   Typography,
 } from "@wso2/oxygen-ui";
-import { Edit } from "@wso2/oxygen-ui-icons-react";
 import {
   getErrorMessage,
-  useConfirmIfUnsaved,
   useUnsavedChangesGuard,
 } from "@agent-management-platform/shared-component";
+import { PageLayout, useFormValidation } from "@agent-management-platform/views";
 import {
-  DrawerWrapper,
-  DrawerHeader,
-  DrawerContent,
-  useFormValidation,
-} from "@agent-management-platform/views";
+  useGetLLMProvider,
+  useUpdateLLMProvider,
+} from "@agent-management-platform/api-client";
 import {
+  absoluteRouteMap,
   type LLMProviderResponse,
-  type UpdateLLMProviderRequest,
 } from "@agent-management-platform/types";
+import { generatePath, useNavigate, useParams } from "react-router-dom";
 import {
   editLLMProviderSchema,
   type EditLLMProviderFormValues,
@@ -51,27 +50,26 @@ import {
   LLM_PROVIDER_DESCRIPTION_MAX_LENGTH,
 } from "../form/schema";
 
-interface EditLLMProviderDrawerProps {
-  open: boolean;
-  onClose: () => void;
+interface EditLLMProviderFormProps {
   provider: LLMProviderResponse;
-  onUpdate: (fields: UpdateLLMProviderRequest) => Promise<LLMProviderResponse>;
-  isUpdating: boolean;
+  orgId: string;
+  providerId: string;
+  viewHref: string;
 }
 
-export function EditLLMProviderDrawer({
-  open,
-  onClose,
+function EditLLMProviderForm({
   provider,
-  onUpdate,
-  isUpdating,
-}: EditLLMProviderDrawerProps) {
+  orgId,
+  providerId,
+  viewHref,
+}: EditLLMProviderFormProps) {
+  const navigate = useNavigate();
   const [formData, setFormData] = useState<EditLLMProviderFormValues>({
     name: provider.name ?? "",
     description: provider.description ?? "",
   });
   const [saveError, setSaveError] = useState<string | null>(null);
-  const [initialSnapshot, setInitialSnapshot] = useState<string | null>(null);
+  const [initialSnapshot] = useState(() => JSON.stringify(formData));
 
   const { errors, validateForm, setFieldError, validateField } =
     useFormValidation<EditLLMProviderFormValues>(editLLMProviderSchema);
@@ -79,28 +77,14 @@ export function EditLLMProviderDrawer({
   const [lastSubmittedValidationErrors, setLastSubmittedValidationErrors] =
     useState<Partial<Record<keyof EditLLMProviderFormValues, string>>>({});
 
-  useEffect(() => {
-    if (open) {
-      const seed = {
-        name: provider.name ?? "",
-        description: provider.description ?? "",
-      };
-      setFormData(seed);
-      setInitialSnapshot(JSON.stringify(seed));
-      setLastSubmittedValidationErrors({});
-      setSaveError(null);
-    }
-  }, [provider, open]);
+  const { mutateAsync: updateProvider, isPending: isUpdating } =
+    useUpdateLLMProvider();
 
   const isDirty = useMemo(
-    () => open && initialSnapshot !== null && JSON.stringify(formData) !== initialSnapshot,
-    [open, initialSnapshot, formData],
+    () => JSON.stringify(formData) !== initialSnapshot,
+    [initialSnapshot, formData],
   );
-  useUnsavedChangesGuard(isDirty);
-  const confirmIfUnsaved = useConfirmIfUnsaved();
-  // Backdrop and header X discard edits, so confirm first; Cancel and the
-  // post-save close stay direct.
-  const handleGuardedClose = () => confirmIfUnsaved(onClose, isDirty);
+  const { allowNavigation } = useUnsavedChangesGuard(isDirty);
 
   const handleFieldChange = useCallback(
     (field: keyof EditLLMProviderFormValues, value: string) => {
@@ -113,6 +97,8 @@ export function EditLLMProviderDrawer({
     },
     [setFieldError, validateField],
   );
+
+  const handleCancel = () => allowNavigation(() => navigate(viewHref));
 
   const handleSubmit = useCallback(
     async (e: React.FormEvent) => {
@@ -134,16 +120,21 @@ export function EditLLMProviderDrawer({
       setSaveError(null);
 
       try {
-        await onUpdate({
-          name: formData.name.trim(),
-          description: formData.description?.trim() || undefined,
+        await updateProvider({
+          params: { orgName: orgId, providerId },
+          body: {
+            ...provider,
+            name: formData.name.trim(),
+            description: formData.description?.trim() || undefined,
+          },
         });
-        onClose();
+        allowNavigation(() => navigate(viewHref));
       } catch (err) {
         setSaveError(getErrorMessage(err) || "Failed to update LLM provider");
       }
     },
-    [formData, validateForm, onUpdate, onClose],
+    [formData, validateForm, updateProvider, orgId, providerId, provider,
+      allowNavigation, navigate, viewHref],
   );
 
   const validationErrorsList = Object.values(lastSubmittedValidationErrors).filter(
@@ -152,88 +143,116 @@ export function EditLLMProviderDrawer({
   const hasValidationErrors = validationErrorsList.length > 0;
 
   return (
-    <DrawerWrapper open={open} onClose={handleGuardedClose}>
-      <DrawerHeader
-        icon={<Edit size={24} />}
-        title="Edit LLM Provider"
-        onClose={handleGuardedClose}
-      />
-      <DrawerContent>
-        <form onSubmit={handleSubmit}>
-          <Stack spacing={3}>
-            {saveError && (
-              <Alert severity="error">
-                <Typography variant="body2">{saveError}</Typography>
-              </Alert>
-            )}
+    <form onSubmit={handleSubmit}>
+      <Stack spacing={3}>
+        {saveError && (
+          <Alert severity="error">
+            <Typography variant="body2">{saveError}</Typography>
+          </Alert>
+        )}
 
-            <Collapse in={hasValidationErrors} timeout="auto" unmountOnExit>
-              <Alert severity="error" sx={{ mb: 2 }}>
-                {validationErrorsList.map((error, index) => (
-                  <Box key={index}>{error}</Box>
-                ))}
-              </Alert>
-            </Collapse>
+        <Collapse in={hasValidationErrors} timeout="auto" unmountOnExit>
+          <Alert severity="error" sx={{ mb: 2 }}>
+            {validationErrorsList.map((error, index) => (
+              <Box key={index}>{error}</Box>
+            ))}
+          </Alert>
+        </Collapse>
 
-            <Form.Section>
-              <Form.Header>Provider Details</Form.Header>
-              <Form.Stack spacing={2}>
-                <FormControl fullWidth error={Boolean(errors.name)}>
-                  <FormLabel required>Name</FormLabel>
-                  <TextField
-                    slotProps={{ htmlInput: { maxLength: LLM_PROVIDER_NAME_MAX_LENGTH } }}
-                    fullWidth
-                    size="small"
-                    value={formData.name}
-                    onChange={(e) => handleFieldChange("name", e.target.value)}
-                    placeholder="e.g., Production OpenAI"
-                    error={Boolean(errors.name)}
-                    helperText={errors.name}
-                    disabled={isUpdating}
-                  />
-                </FormControl>
-                <FormControl fullWidth error={Boolean(errors.description)}>
-                  <FormLabel>Description</FormLabel>
-                  <TextField
-                    slotProps={{ htmlInput: { maxLength: LLM_PROVIDER_DESCRIPTION_MAX_LENGTH } }}
-                    fullWidth
-                    multiline
-                    minRows={2}
-                    size="small"
-                    value={formData.description}
-                    onChange={(e) =>
-                      handleFieldChange("description", e.target.value)
-                    }
-                    placeholder="Optional description"
-                    error={Boolean(errors.description)}
-                    helperText={errors.description}
-                    disabled={isUpdating}
-                  />
-                </FormControl>
-              </Form.Stack>
-            </Form.Section>
-
-            <Box display="flex" justifyContent="flex-end" gap={1} mt={2}>
-              <Button
-                variant="outlined"
-                color="inherit"
-                onClick={onClose}
+        <Form.Section>
+          <Form.Header>Provider Details</Form.Header>
+          <Form.Stack spacing={2}>
+            <FormControl fullWidth error={Boolean(errors.name)}>
+              <FormLabel required>Name</FormLabel>
+              <TextField
+                slotProps={{ htmlInput: { maxLength: LLM_PROVIDER_NAME_MAX_LENGTH } }}
+                fullWidth
+                size="small"
+                value={formData.name}
+                onChange={(e) => handleFieldChange("name", e.target.value)}
+                placeholder="e.g., Production OpenAI"
+                error={Boolean(errors.name)}
+                helperText={errors.name}
                 disabled={isUpdating}
-              >
-                Cancel
-              </Button>
-              <Button
-                type="submit"
-                variant="contained"
-                color="primary"
+              />
+            </FormControl>
+            <FormControl fullWidth error={Boolean(errors.description)}>
+              <FormLabel>Description</FormLabel>
+              <TextField
+                slotProps={{ htmlInput: { maxLength: LLM_PROVIDER_DESCRIPTION_MAX_LENGTH } }}
+                fullWidth
+                multiline
+                minRows={2}
+                size="small"
+                value={formData.description}
+                onChange={(e) =>
+                  handleFieldChange("description", e.target.value)
+                }
+                placeholder="Optional description"
+                error={Boolean(errors.description)}
+                helperText={errors.description}
                 disabled={isUpdating}
-              >
-                {isUpdating ? "Saving..." : "Save"}
-              </Button>
-            </Box>
-          </Stack>
-        </form>
-      </DrawerContent>
-    </DrawerWrapper>
+              />
+            </FormControl>
+          </Form.Stack>
+        </Form.Section>
+
+        <Box display="flex" justifyContent="flex-end" gap={1} mt={2}>
+          <Button
+            variant="outlined"
+            color="inherit"
+            onClick={handleCancel}
+            disabled={isUpdating}
+          >
+            Cancel
+          </Button>
+          <Button
+            type="submit"
+            variant="contained"
+            color="primary"
+            disabled={isUpdating}
+          >
+            {isUpdating ? "Saving..." : "Save"}
+          </Button>
+        </Box>
+      </Stack>
+    </form>
   );
 }
+
+export function EditLLMProvider() {
+  const { orgId = "", providerId = "" } = useParams<{
+    orgId: string;
+    providerId: string;
+  }>();
+  const { data: provider, isLoading } = useGetLLMProvider({
+    orgName: orgId,
+    providerId,
+  });
+  const viewHref = generatePath(
+    absoluteRouteMap.children.org.children.llmProviders.children.view.path,
+    { orgId, providerId },
+  );
+
+  return (
+    <PageLayout
+      title="Edit LLM Provider"
+      disableIcon
+      backHref={viewHref}
+      backLabel="Back to LLM provider"
+    >
+      {isLoading || !provider ? (
+        <Skeleton variant="rounded" width="100%" height={300} />
+      ) : (
+        <EditLLMProviderForm
+          provider={provider}
+          orgId={orgId}
+          providerId={providerId}
+          viewHref={viewHref}
+        />
+      )}
+    </PageLayout>
+  );
+}
+
+export default EditLLMProvider;

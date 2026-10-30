@@ -15,7 +15,7 @@
  * under the License.
  */
 
-import React, { useCallback, useEffect, useMemo, useState } from "react";
+import React, { useCallback, useMemo, useState } from "react";
 import {
   Alert,
   Box,
@@ -24,52 +24,43 @@ import {
   Form,
   FormControl,
   FormLabel,
+  Skeleton,
   Stack,
   TextField,
   Typography,
 } from "@wso2/oxygen-ui";
-import { Edit } from "@wso2/oxygen-ui-icons-react";
 import {
-  DrawerWrapper,
-  DrawerHeader,
-  DrawerContent,
+  PageLayout,
   useFormValidation,
 } from "@agent-management-platform/views";
 import {
+  useGetGateway,
   useUpdateGateway,
   useUpdateSelfHostedGateway,
 } from "@agent-management-platform/api-client";
+import { useUnsavedChangesGuard } from "@agent-management-platform/shared-component";
 import {
-  useConfirmIfUnsaved,
-  useUnsavedChangesGuard,
-} from "@agent-management-platform/shared-component";
-import {
+  absoluteRouteMap,
   type GatewayResponse,
   isSelfHostedGateway,
   type UpdateGatewayRequest,
 } from "@agent-management-platform/types";
+import { generatePath, useNavigate, useParams } from "react-router-dom";
 import { editGatewaySchema, type EditGatewayFormValues, GATEWAY_DISPLAY_NAME_MAX_LENGTH } from "../form/schema";
 
-interface EditGatewayDrawerProps {
-  open: boolean;
-  onClose: () => void;
+interface EditGatewayFormProps {
   gateway: GatewayResponse;
   orgId: string;
-  onSuccess?: () => void;
+  listHref: string;
 }
 
-export function EditGatewayDrawer({
-  open,
-  onClose,
-  gateway,
-  orgId,
-  onSuccess,
-}: EditGatewayDrawerProps) {
+function EditGatewayForm({ gateway, orgId, listHref }: EditGatewayFormProps) {
+  const navigate = useNavigate();
   const [formData, setFormData] = useState<EditGatewayFormValues>({
     displayName: gateway.displayName,
     isCritical: gateway.isCritical,
   });
-  const [initialSnapshot, setInitialSnapshot] = useState<string | null>(null);
+  const [initialSnapshot] = useState(() => JSON.stringify(formData));
 
   const { errors, validateForm, setFieldError, validateField } =
     useFormValidation<EditGatewayFormValues>(editGatewaySchema);
@@ -85,32 +76,19 @@ export function EditGatewayDrawer({
     mutateAsync: updateGateway,
     isPending: isUpdating,
     error: updateError,
-    reset: resetMutation,
   } = isSelfHosted ? selfHostedUpdate : managedUpdate;
 
   const isPending = isUpdating;
 
-  useEffect(() => {
-    if (open) {
-      const seed = {
-        displayName: gateway.displayName,
-        isCritical: gateway.isCritical,
-      };
-      setFormData(seed);
-      setInitialSnapshot(JSON.stringify(seed));
-      resetMutation();
-    }
-  }, [gateway, open, resetMutation]);
-
   const isDirty = useMemo(
-    () => open && initialSnapshot !== null && JSON.stringify(formData) !== initialSnapshot,
-    [open, initialSnapshot, formData],
+    () => JSON.stringify(formData) !== initialSnapshot,
+    [initialSnapshot, formData],
   );
-  useUnsavedChangesGuard(isDirty);
-  const confirmIfUnsaved = useConfirmIfUnsaved();
-  // Backdrop and header X discard edits, so confirm first; Cancel and the
-  // post-save close stay direct.
-  const handleGuardedClose = () => confirmIfUnsaved(onClose, isDirty);
+  const { allowNavigation } = useUnsavedChangesGuard(isDirty);
+
+  const handleCancel = useCallback(() => {
+    allowNavigation(() => navigate(listHref));
+  }, [allowNavigation, navigate, listHref]);
 
   const handleFieldChange = useCallback(
     (
@@ -154,20 +132,14 @@ export function EditGatewayDrawer({
           params: { orgName: orgId, gatewayId: gateway.uuid },
           body: payload,
         });
-        onClose();
-        onSuccess?.();
+        allowNavigation(() => navigate(listHref));
       } catch {
         // Error is handled by updateError from useUpdateGateway
       }
     },
     [
-      formData,
-      validateForm,
-      updateGateway,
-      orgId,
-      gateway.uuid,
-      onClose,
-      onSuccess,
+      formData, validateForm, updateGateway, orgId, gateway.uuid,
+      allowNavigation, navigate, listHref,
     ],
   );
 
@@ -182,72 +154,88 @@ export function EditGatewayDrawer({
   const hasValidationErrors = validationErrorsList.length > 0;
 
   return (
-    <DrawerWrapper open={open} onClose={handleGuardedClose}>
-      <DrawerHeader
-        icon={<Edit size={24} />}
-        title="Edit Gateway"
-        onClose={handleGuardedClose}
-      />
-      <DrawerContent>
-        <form onSubmit={handleSubmit}>
-          <Stack spacing={3}>
-            {errorMessage && (
-              <Alert severity="error">
-                <Typography variant="body2">{errorMessage}</Typography>
-              </Alert>
-            )}
+    <form onSubmit={handleSubmit}>
+      <Stack spacing={3}>
+        {errorMessage && (
+          <Alert severity="error">
+            <Typography variant="body2">{errorMessage}</Typography>
+          </Alert>
+        )}
 
-            <Collapse in={hasValidationErrors} timeout="auto" unmountOnExit>
-              <Alert severity="error" sx={{ mb: 2 }}>
-                {validationErrorsList.map((error, index) => (
-                  <Box key={index}>{error}</Box>
-                ))}
-              </Alert>
-            </Collapse>
+        <Collapse in={hasValidationErrors} timeout="auto" unmountOnExit>
+          <Alert severity="error" sx={{ mb: 2 }}>
+            {validationErrorsList.map((error, index) => (
+              <Box key={index}>{error}</Box>
+            ))}
+          </Alert>
+        </Collapse>
 
-            <Form.Section>
-              <Form.Header>Gateway Details</Form.Header>
-              <Form.Stack spacing={2}>
-                <FormControl fullWidth error={Boolean(errors.displayName)}>
-                  <FormLabel required>Display Name</FormLabel>
-                  <TextField
-                    slotProps={{ htmlInput: { maxLength: GATEWAY_DISPLAY_NAME_MAX_LENGTH } }}
-                    fullWidth
-                    size="small"
-                    value={formData.displayName}
-                    onChange={(e) =>
-                      handleFieldChange("displayName", e.target.value)
-                    }
-                    placeholder="e.g., Production Gateway"
-                    error={Boolean(errors.displayName)}
-                    helperText={errors.displayName}
-                    disabled={isPending}
-                  />
-                </FormControl>
-              </Form.Stack>
-            </Form.Section>
-
-            <Box display="flex" justifyContent="flex-end" gap={1} mt={2}>
-              <Button
-                variant="outlined"
-                color="inherit"
-                onClick={onClose}
+        <Form.Section>
+          <Form.Header>Gateway Details</Form.Header>
+          <Form.Stack spacing={2}>
+            <FormControl fullWidth error={Boolean(errors.displayName)}>
+              <FormLabel required>Display Name</FormLabel>
+              <TextField
+                slotProps={{ htmlInput: { maxLength: GATEWAY_DISPLAY_NAME_MAX_LENGTH } }}
+                fullWidth
+                size="small"
+                value={formData.displayName}
+                onChange={(e) =>
+                  handleFieldChange("displayName", e.target.value)
+                }
+                placeholder="e.g., Production Gateway"
+                error={Boolean(errors.displayName)}
+                helperText={errors.displayName}
                 disabled={isPending}
-              >
-                Cancel
-              </Button>
-              <Button
-                type="submit"
-                variant="contained"
-                color="primary"
-                disabled={isPending}
-              >
-                {isPending ? "Saving..." : "Save"}
-              </Button>
-            </Box>
-          </Stack>
-        </form>
-      </DrawerContent>
-    </DrawerWrapper>
+              />
+            </FormControl>
+          </Form.Stack>
+        </Form.Section>
+
+        <Box display="flex" justifyContent="flex-end" gap={1} mt={2}>
+          <Button
+            variant="outlined"
+            color="inherit"
+            onClick={handleCancel}
+            disabled={isPending}
+          >
+            Cancel
+          </Button>
+          <Button
+            type="submit"
+            variant="contained"
+            color="primary"
+            disabled={isPending}
+          >
+            {isPending ? "Saving..." : "Save"}
+          </Button>
+        </Box>
+      </Stack>
+    </form>
   );
 }
+
+export function EditGateway() {
+  const { orgId = "", gatewayId = "" } = useParams<{ orgId: string; gatewayId: string }>();
+  const { data: gateway, isLoading } = useGetGateway({ orgName: orgId, gatewayId });
+  const listHref = generatePath(absoluteRouteMap.children.org.children.gateways.path, {
+    orgId,
+  });
+
+  return (
+    <PageLayout
+      title="Edit Gateway"
+      disableIcon
+      backHref={listHref}
+      backLabel="Back to gateways"
+    >
+      {isLoading || !gateway ? (
+        <Skeleton variant="rounded" width="100%" height={240} />
+      ) : (
+        <EditGatewayForm gateway={gateway} orgId={orgId} listHref={listHref} />
+      )}
+    </PageLayout>
+  );
+}
+
+export default EditGateway;

@@ -28,6 +28,7 @@ import {
 } from "react-router-dom";
 import { absoluteRouteMap } from "@agent-management-platform/types";
 import { ViewLLMProvider } from "./subComponents/ViewLLMProvider";
+import { EditLLMProvider } from "./subComponents/EditLLMProvider";
 
 export const LLMProvidersOrganization: React.FC = () => {
   const { orgId } = useParams<{ orgId: string }>();
@@ -42,6 +43,7 @@ export const LLMProvidersOrganization: React.FC = () => {
         }
       />
       <Route path="view/:providerId" element={<ViewLLMProvider />} />
+      <Route path="view/:providerId/edit" element={<EditLLMProvider />} />
       <Route
         path="*"
         element={

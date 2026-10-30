@@ -2,6 +2,7 @@ import { PageLayout } from "@agent-management-platform/views";
 import { AddMCPProxyOrganization } from "./AddMCPProxy.Organization";
 import { MCPProxyTable } from "./subComponents/MCPProxyTable";
 import { ViewMCPProxy } from "./subComponents/ViewMCPProxy";
+import { EditMCPProxy } from "./subComponents/EditMCPProxy";
 import {
   generatePath,
   Navigate,
@@ -27,6 +28,7 @@ export const MCPProxiesOrganization = () => {
       />
       <Route path="add" element={<AddMCPProxyOrganization />} />
       <Route path="view/:proxyId" element={<ViewMCPProxy />} />
+      <Route path="view/:proxyId/edit" element={<EditMCPProxy />} />
       <Route
         path="*"
         element={

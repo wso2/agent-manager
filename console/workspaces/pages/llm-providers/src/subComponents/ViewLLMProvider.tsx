@@ -42,8 +42,7 @@ import {
   Tabs,
 } from "@wso2/oxygen-ui";
 import { Edit } from "@wso2/oxygen-ui-icons-react";
-import { generatePath, useParams } from "react-router-dom";
-import { EditLLMProviderDrawer } from "./EditLLMProviderDrawer";
+import { generatePath, useNavigate, useParams } from "react-router-dom";
 import { LLMProviderAccessControlTab } from "./LLMProviderAccessControlTab";
 import { LLMProviderAPIKeysTab } from "./LLMProviderAPIKeysTab";
 import { LLMProviderConnectionTab } from "./LLMProviderConnectionTab";
@@ -96,7 +95,7 @@ export const ViewLLMProvider: React.FC = () => {
     },
     [confirmIfUnsaved, tabIndex],
   );
-  const [isEditDrawerOpen, setIsEditDrawerOpen] = useState(false);
+  const navigate = useNavigate();
 
   const { providerId, orgId } = useParams<{
     providerId: string;
@@ -175,7 +174,15 @@ export const ViewLLMProvider: React.FC = () => {
             variant="outlined"
             size="small"
             startIcon={<Edit size={16} />}
-            onClick={() => setIsEditDrawerOpen(true)}
+            onClick={() =>
+              navigate(
+                generatePath(
+                  absoluteRouteMap.children.org.children.llmProviders.children.view
+                    .children.edit.path,
+                  { orgId: orgId ?? "", providerId: providerId ?? "" },
+                ),
+              )
+            }
           >
             Edit LLM Provider
           </Button>
@@ -346,15 +353,6 @@ export const ViewLLMProvider: React.FC = () => {
           </Box>
         </Card>
       </Stack>
-      {providerData && (
-        <EditLLMProviderDrawer
-          open={isEditDrawerOpen}
-          onClose={() => setIsEditDrawerOpen(false)}
-          provider={providerData}
-          onUpdate={updateProvider}
-          isUpdating={isUpdating}
-        />
-      )}
     </PageLayout>
   );
 };

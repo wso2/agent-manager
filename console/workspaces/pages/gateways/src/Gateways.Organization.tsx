@@ -22,6 +22,7 @@ import {
   Navigate,
   Route,
   Routes,
+  useNavigate,
   useParams,
 } from "react-router-dom";
 import {
@@ -30,25 +31,21 @@ import {
 } from "@agent-management-platform/types";
 import { AIGatewaysTable } from "./subComponents/AIGatewaysTable";
 import { ViewGateway } from "./subComponents/ViewGateway";
-import { EditGatewayDrawer } from "./subComponents/EditGatewayDrawer";
+import { EditGateway } from "./subComponents/EditGateway";
 import { AddSelfHostedGatewayDrawer } from "./subComponents/AddSelfHostedGatewayDrawer";
 
 export const GatewaysOrganization: React.FC = () => {
   const { orgId } = useParams<{ orgId: string }>();
+  const navigate = useNavigate();
   const [addDrawerOpen, setAddDrawerOpen] = useState(false);
-  const [editDrawerOpen, setEditDrawerOpen] = useState(false);
-  const [gatewayToEdit, setGatewayToEdit] = useState<GatewayResponse | null>(
-    null,
-  );
 
   const handleEditGateway = (gateway: GatewayResponse) => {
-    setGatewayToEdit(gateway);
-    setEditDrawerOpen(true);
-  };
-
-  const handleEditDrawerClose = () => {
-    setEditDrawerOpen(false);
-    setGatewayToEdit(null);
+    navigate(
+      generatePath(absoluteRouteMap.children.org.children.gateways.children.edit.path, {
+        orgId: orgId ?? "",
+        gatewayId: gateway.uuid,
+      }),
+    );
   };
 
   return (
@@ -66,6 +63,7 @@ export const GatewaysOrganization: React.FC = () => {
           }
         />
         <Route path="view/:gatewayId" element={<ViewGateway />} />
+        <Route path="edit/:gatewayId" element={<EditGateway />} />
         <Route
           path="*"
           element={
@@ -84,16 +82,6 @@ export const GatewaysOrganization: React.FC = () => {
         onClose={() => setAddDrawerOpen(false)}
         orgId={orgId ?? ""}
       />
-
-      {gatewayToEdit && (
-        <EditGatewayDrawer
-          open={editDrawerOpen}
-          onClose={handleEditDrawerClose}
-          gateway={gatewayToEdit}
-          orgId={orgId ?? ""}
-          onSuccess={handleEditDrawerClose}
-        />
-      )}
     </>
   );
 };
