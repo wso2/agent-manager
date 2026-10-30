@@ -56,6 +56,7 @@ func MainMCPScopes() []string {
 		LLMProviderTemplateRead,
 		LLMProviderRead,
 		LLMProviderCreate,
+		LLMProviderUpdate,
 		MCPServerRead,
 		MCPServerCreate,
 		MCPServerConnect,

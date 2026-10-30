@@ -82,3 +82,48 @@ func (h *LLMProviderHandler) GetLLMProvider(_ context.Context, ouID string, prov
 	}
 	return provider, deployments, nil
 }
+
+// SetLLMProviderGuardrails replaces the provider's guardrails and redeploys it
+// to every gateway it is currently deployed to, which is what makes the change
+// reach live traffic. This is the console's guardrail save: it sends the
+// provider back with its current gateway list, and UpdateAndSync redeploys to
+// each gateway already in that list.
+//
+// The stored provider is saved back as read, so the upstream credential stays
+// the encrypted reference it already is and nothing else changes.
+func (h *LLMProviderHandler) SetLLMProviderGuardrails(ctx context.Context, ouID string, providerID string, guardrails []models.LLMPolicy) (*models.LLMProvider, []services.DeploymentResult, error) {
+	provider, err := h.providerSvc.Get(providerID, ouID)
+	if err != nil {
+		return nil, nil, err
+	}
+	provider.Configuration.Policies = guardrails
+	// Get resolves a handle or a UUID, but the update path keys on the UUID
+	// alone, so use the one the lookup resolved to from here on.
+	providerID = provider.UUID.String()
+
+	deployed := string(models.DeploymentStatusDeployed)
+	deployments, err := h.deploymentSvc.GetLLMProviderDeployments(providerID, ouID, nil, &deployed)
+	if err != nil {
+		return nil, nil, err
+	}
+	gateways := make([]string, 0, len(deployments))
+	seen := make(map[string]bool, len(deployments))
+	for _, d := range deployments {
+		if d == nil {
+			continue
+		}
+		if gw := d.GatewayUUID.String(); !seen[gw] {
+			seen[gw] = true
+			gateways = append(gateways, gw)
+		}
+	}
+	if len(gateways) == 0 {
+		updated, err := h.providerSvc.Update(ctx, providerID, ouID, provider)
+		return updated, nil, err
+	}
+	resp, err := h.providerSvc.UpdateAndSync(ctx, providerID, ouID, provider, gateways, h.deploymentSvc)
+	if err != nil {
+		return nil, nil, err
+	}
+	return resp.Provider, resp.Deployments, nil
+}

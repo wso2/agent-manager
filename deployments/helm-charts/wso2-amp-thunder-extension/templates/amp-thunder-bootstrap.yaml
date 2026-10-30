@@ -628,6 +628,7 @@ data:
         actions:
           - { name: Read, handle: read, description: "View LLM providers and guardrails" }
           - { name: Create, handle: create, description: "Create an LLM provider" }
+          - { name: Update, handle: update, description: "Change LLM provider guardrails" }
       - name: MCP Server
         handle: mcp-server
         parent: amp
@@ -782,6 +783,7 @@ data:
           - "amp:mcp-server:read"
           - "amp:mcp-server:create"
           - "amp:mcp-server:connect"
+          - "amp:llm-provider:update"
     {{- end }}
     {{- end }}
     {{- end }}
@@ -965,6 +967,7 @@ data:
           - "amp:mcp-server:read"
           - "amp:mcp-server:create"
           - "amp:mcp-server:connect"
+          - "amp:llm-provider:update"
     {{- end }}
     {{- end }}
     {{- end }}
@@ -1071,6 +1074,7 @@ data:
           - "amp:mcp-server:read"
           - "amp:mcp-server:create"
           - "amp:mcp-server:connect"
+          - "amp:llm-provider:update"
     {{- end }}
     {{- end }}
     {{- end }}

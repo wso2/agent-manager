@@ -76,6 +76,51 @@ func llmProviderToolSpecs() []toolTestSpec {
 			},
 		},
 		{
+			name:                "add_llm_provider_guardrails",
+			toolset:             "llm-provider",
+			permissions:         []rbac.Permission{rbac.LLMProviderUpdate},
+			descriptionKeywords: []string{"guardrail", "provider", "redeployed"},
+			descriptionMinLen:   20,
+			requiredParams:      []string{"provider_id", "guardrails"},
+			testArgs: map[string]any{
+				"provider_id": testProviderID,
+				"guardrails": []any{
+					map[string]any{"name": testGuardrailName, "version": "v2", "params": map[string]any{"mask": false}},
+					map[string]any{"name": "word-count", "version": "v1"},
+				},
+			},
+			expectedMethod: "SetLLMProviderGuardrails",
+			validateCall: func(t *testing.T, args []interface{}) {
+				got, ok := args[2].([]models.LLMPolicy)
+				if !ok {
+					t.Fatalf("guardrails: got %T", args[2])
+				}
+				// The provider already has pii-masking v1: it is replaced in place,
+				// and word-count is appended.
+				if len(got) != 2 || got[0].Name != testGuardrailName || got[0].Version != "v2" || got[1].Name != "word-count" {
+					t.Fatalf("guardrails: got %+v", got)
+				}
+				if got[0].Paths[0].Params["mask"] != false || got[0].Paths[0].Path != guardrailPathAll {
+					t.Errorf("replaced guardrail params/path: got %+v", got[0].Paths)
+				}
+			},
+		},
+		{
+			name:                "remove_llm_provider_guardrail",
+			toolset:             "llm-provider",
+			permissions:         []rbac.Permission{rbac.LLMProviderUpdate},
+			descriptionKeywords: []string{"remove", "guardrail", "redeployed"},
+			descriptionMinLen:   20,
+			requiredParams:      []string{"provider_id", "name"},
+			testArgs:            map[string]any{"provider_id": testProviderID, "name": testGuardrailName},
+			expectedMethod:      "SetLLMProviderGuardrails",
+			validateCall: func(t *testing.T, args []interface{}) {
+				if got, ok := args[2].([]models.LLMPolicy); !ok || len(got) != 0 {
+					t.Fatalf("guardrails after removal: got %v", args[2])
+				}
+			},
+		},
+		{
 			name:                "list_llm_guardrails",
 			toolset:             "llm-provider",
 			permissions:         []rbac.Permission{rbac.LLMProviderRead},
@@ -326,5 +371,24 @@ func TestDetailToolsNeverReturnCredentials(t *testing.T) {
 				}
 			}
 		})
+	}
+}
+
+// Removing a guardrail the provider does not have is an error, not a silent
+// no-op redeploy.
+func TestRemoveMissingGuardrailIsAnError(t *testing.T) {
+	session, mock := setupTestServer(t)
+	res, err := session.CallTool(context.Background(), &gomcp.CallToolParams{
+		Name:      "remove_llm_provider_guardrail",
+		Arguments: map[string]any{"provider_id": testProviderID, "name": "not-there"},
+	})
+	if err != nil {
+		t.Fatalf("CallTool: %v", err)
+	}
+	if !res.IsError {
+		t.Fatal("expected an error for a guardrail the provider does not have")
+	}
+	if _, called := mock.calls["SetLLMProviderGuardrails"]; called {
+		t.Error("provider was saved and redeployed for a no-op removal")
 	}
 }
