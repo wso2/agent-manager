@@ -36,6 +36,16 @@ export const LazyOverviewComponent = lazy(() =>
     default: m.metaData.levels!.component as ComponentType,
   }))
 );
+export const LazyEditProject = lazy(() =>
+  import("@agent-management-platform/overview").then((m) => ({
+    default: m.EditProject,
+  }))
+);
+export const LazyEditAgent = lazy(() =>
+  import("@agent-management-platform/overview").then((m) => ({
+    default: m.EditAgent,
+  }))
+);
 
 // Build
 export const LazyBuildComponent = lazy(() =>

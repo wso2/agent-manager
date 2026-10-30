@@ -18,6 +18,8 @@
 import { OverviewComponent } from './Overview.Component';
 import { OverviewProject } from './Overview.Project';
 import { OverviewOrganization } from './Overview.Organization';
+import { EditProject } from './ProjectList/EditProject';
+import { EditAgent } from './AgentOverview/EditAgent';
 import type { PageMetadata } from '@agent-management-platform/types';
 import { Home } from '@wso2/oxygen-ui-icons-react';
 
@@ -34,6 +36,6 @@ export const metaData: PageMetadata = {
   },
 };
 
-export { OverviewComponent, OverviewProject, OverviewOrganization };
+export { OverviewComponent, OverviewProject, OverviewOrganization, EditProject, EditAgent };
 
 export default OverviewComponent;

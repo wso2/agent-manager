@@ -30,7 +30,8 @@ export function useActiveProjectPage() {
         if (
             page !== "agents" &&
             page !== relativeRouteMap.children.org.children.projects.children.agents.path &&
-            page !== relativeRouteMap.children.org.children.projects.children.newAgent.path
+            page !== relativeRouteMap.children.org.children.projects.children.newAgent.path &&
+            page !== relativeRouteMap.children.org.children.projects.children.edit.path
         ) {
             return page;
         }
@@ -54,7 +55,10 @@ export function useActiveAgentPage() {
                     .children.build.path &&
             page !==
                 relativeRouteMap.children.org.children.projects.children.agents
-                    .children.deployment.path
+                    .children.deployment.path &&
+            page !==
+                relativeRouteMap.children.org.children.projects.children.agents
+                    .children.edit.path
         ) {
             return page;
         }

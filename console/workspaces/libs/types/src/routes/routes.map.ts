@@ -252,6 +252,11 @@ export const rootRouteMap: AppRoute = {
                     path: 'project/:projectId',
                     index: true,
                     children: {
+                        edit: {
+                            path: 'edit',
+                            index: true,
+                            children: {},
+                        },
                         newAgent: {
                             path: 'newAgent',
                             index: true,
@@ -289,6 +294,11 @@ export const rootRouteMap: AppRoute = {
                             path: 'agents/:agentId',
                             index: true,
                             children: {
+                                edit: {
+                                    path: 'edit',
+                                    index: true,
+                                    children: {},
+                                },
                                 agentId: {
                                     path: 'agent-id',
                                     index: true,

@@ -66,7 +66,6 @@ import {
   getErrorMessage,
   useConfirmationDialog,
 } from "@agent-management-platform/shared-component";
-import { EditProjectDrawer } from "../ProjectList/EditProjectDrawer";
 
 export function ListPageSkeleton() {
   return (
@@ -116,7 +115,6 @@ export const AgentsList: React.FC = () => {
   const [hoveredAgentId, setHoveredAgentId] = useState<string | null>(null);
   const [page, setPage] = useState(0);
   const [rowsPerPage, setRowsPerPage] = useState(5);
-  const [editProjectDrawerOpen, setEditProjectDrawerOpen] = useState(false);
 
   // Detect touch device for alternative interaction pattern
   const isTouchDevice =
@@ -267,271 +265,267 @@ export const AgentsList: React.FC = () => {
     isDeletingAgent;
 
   return (
-    <>
-      <PageLayout
-        variant="card"
-        title={project?.displayName ?? "Agents"}
-        meta={
-          project ? (
-            <CreatedMetadata createdAt={project.createdAt} />
-          ) : undefined
-        }
-        isLoading={isPageLoading}
-        actions={
-          <Button
-            variant="outlined"
-            color="primary"
-            size="small"
-            startIcon={<Edit size={16} />}
-            onClick={() => setEditProjectDrawerOpen(true)}
-            disabled={!project}
+    <PageLayout
+      variant="card"
+      title={project?.displayName ?? "Agents"}
+      meta={
+        project ? (
+          <CreatedMetadata createdAt={project.createdAt} />
+        ) : undefined
+      }
+      isLoading={isPageLoading}
+      actions={
+        <Button
+          variant="outlined"
+          color="primary"
+          size="small"
+          startIcon={<Edit size={16} />}
+          onClick={() =>
+            navigate(
+              generatePath(
+                absoluteRouteMap.children.org.children.projects.children.edit.path,
+                { orgId: orgId ?? "", projectId: projectId ?? "" },
+              ),
+            )
+          }
+          disabled={!project}
+        >
+          Edit Project
+        </Button>
+      }
+    >
+      {project?.description && (
+        <DescriptionCard content={project.description} sx={{ mb: 4 }} />
+      )}
+      {isLoading ? (
+        <ListPageSkeleton />
+      ) : (
+        <Stack direction="row" justifyContent="space-between" gap={2}>
+          <Stack
+            direction="column"
+            sx={{
+              flexGrow: 1,
+            }}
+            spacing={2}
           >
-            Edit Project
-          </Button>
-        }
-      >
-        {project?.description && (
-          <DescriptionCard content={project.description} sx={{ mb: 4 }} />
-        )}
-        {isLoading ? (
-          <ListPageSkeleton />
-        ) : (
-          <Stack direction="row" justifyContent="space-between" gap={2}>
-            <Stack
-              direction="column"
-              sx={{
-                flexGrow: 1,
-              }}
-              spacing={2}
-            >
-              {error ? (
-                <Alert severity="error" variant="outlined">
-                  {getErrorMessage(error)}
-                </Alert>
-              ) : null}
+            {error ? (
+              <Alert severity="error" variant="outlined">
+                {getErrorMessage(error)}
+              </Alert>
+            ) : null}
 
-              <ResourceListShell
-                resourceName="agents"
-                searchValue={search}
-                onSearchChange={setSearch}
-                toolbar={
-                  <Stack direction="row" spacing={1}>
-                    <Box flexGrow={1}>
-                      <SearchBar
-                        placeholder="Search agents"
-                        size="small"
-                        fullWidth
-                        onChange={(e: React.ChangeEvent<HTMLInputElement>) =>
-                          setSearch(e.target.value)
-                        }
-                        value={search}
-                        disabled={!data?.agents?.length}
-                      />
-                    </Box>
-                    <Button
-                      variant="contained"
-                      color="primary"
+            <ResourceListShell
+              resourceName="agents"
+              searchValue={search}
+              onSearchChange={setSearch}
+              toolbar={
+                <Stack direction="row" spacing={1}>
+                  <Box flexGrow={1}>
+                    <SearchBar
+                      placeholder="Search agents"
                       size="small"
-                      startIcon={<Add size={16} />}
-                      onClick={handleAddAgent}
-                    >
-                      Add Agent
-                    </Button>
-                  </Stack>
-                }
-                isLoading={isRefetching && !data?.agents?.length}
-                isEmpty={!data?.agents?.length}
-                isSearchEmpty={agentsWithHref.length === 0}
-                loadingPlaceholder={
-                  <DataGridComponent
-                    rows={[]}
-                    columns={[
-                      { field: "name", headerName: "Agent Name", flex: 1 },
-                      {
-                        field: "lastUpdated",
-                        headerName: "Last Updated",
-                        flex: 1,
-                      },
-                    ]}
-                    loading
-                    hideFooter
-                  />
-                }
-                emptyState={{
-                  illustration: <User size={64} />,
-                  title: "No agents found",
-                  description: "Create a new agent to get started",
-                  action: (
-                    <Button
-                      variant="contained"
-                      color="primary"
-                      startIcon={<Add />}
-                      onClick={handleAddAgent}
-                    >
-                      Add New Agent
-                    </Button>
-                  ),
-                }}
-                searchEmptyState={{
-                  illustration: <User size={64} />,
-                  title: "No agents found",
-                  description:
-                    "No agents match your search criteria. Try adjusting your search.",
-                }}
-              >
-                <Box sx={{ minWidth: 600 }}>
-                  <ListingTable variant="card">
-                    <ListingTable.Head>
-                      <ListingTable.Row>
-                        <ListingTable.Cell>Agent Name</ListingTable.Cell>
+                      fullWidth
+                      onChange={(e: React.ChangeEvent<HTMLInputElement>) =>
+                        setSearch(e.target.value)
+                      }
+                      value={search}
+                      disabled={!data?.agents?.length}
+                    />
+                  </Box>
+                  <Button
+                    variant="contained"
+                    color="primary"
+                    size="small"
+                    startIcon={<Add size={16} />}
+                    onClick={handleAddAgent}
+                  >
+                    Add Agent
+                  </Button>
+                </Stack>
+              }
+              isLoading={isRefetching && !data?.agents?.length}
+              isEmpty={!data?.agents?.length}
+              isSearchEmpty={agentsWithHref.length === 0}
+              loadingPlaceholder={
+                <DataGridComponent
+                  rows={[]}
+                  columns={[
+                    { field: "name", headerName: "Agent Name", flex: 1 },
+                    {
+                      field: "lastUpdated",
+                      headerName: "Last Updated",
+                      flex: 1,
+                    },
+                  ]}
+                  loading
+                  hideFooter
+                />
+              }
+              emptyState={{
+                illustration: <User size={64} />,
+                title: "No agents found",
+                description: "Create a new agent to get started",
+                action: (
+                  <Button
+                    variant="contained"
+                    color="primary"
+                    startIcon={<Add />}
+                    onClick={handleAddAgent}
+                  >
+                    Add New Agent
+                  </Button>
+                ),
+              }}
+              searchEmptyState={{
+                illustration: <User size={64} />,
+                title: "No agents found",
+                description:
+                  "No agents match your search criteria. Try adjusting your search.",
+              }}
+            >
+              <Box sx={{ minWidth: 600 }}>
+                <ListingTable variant="card">
+                  <ListingTable.Head>
+                    <ListingTable.Row>
+                      <ListingTable.Cell>Agent Name</ListingTable.Cell>
+                      <ListingTable.Cell align="right">
+                        Last Updated
+                      </ListingTable.Cell>
+                    </ListingTable.Row>
+                  </ListingTable.Head>
+                  <ListingTable.Body>
+                    {paginatedAgents.map((agent) => (
+                      <ListingTable.Row
+                        key={agent.id}
+                        variant="card"
+                        hover
+                        clickable
+                        onClick={() => navigate(agent.href)}
+                        onMouseEnter={() => handleRowMouseEnter(agent)}
+                        onMouseLeave={handleRowMouseLeave}
+                        onFocus={() => handleRowMouseEnter(agent)}
+                        onBlur={handleRowMouseLeave}
+                      >
+                        <ListingTable.Cell>
+                          <Stack
+                            direction="row"
+                            alignItems="center"
+                            spacing={2}
+                            sx={{ width: "100%", minWidth: 0 }}
+                          >
+                            <EntityAvatar
+                              name={agent.displayName}
+                              color="primary.main"
+                              shape="circular"
+                              size={32}
+                              sx={{ flexShrink: 0 }}
+                            />
+                            <Stack
+                              direction="row"
+                              alignItems="flex-start"
+                              spacing={1}
+                              sx={{ minWidth: 0, flex: 1 }}
+                            >
+                              <Typography
+                                variant="body1"
+                                sx={{ flexShrink: 0 }}
+                              >
+                                {agent.displayName}
+                              </Typography>
+                              <AgentTypeChips
+                                provisioning={agent.provisioning}
+                                agentType={agent.agentType}
+                                kindName={agent.kindName}
+                                kindDisplayName={
+                                  agent.kindName
+                                    ? kindDisplayNameMap[agent.kindName]
+                                    : undefined
+                                }
+                              />
+                            </Stack>
+                          </Stack>
+                        </ListingTable.Cell>
                         <ListingTable.Cell align="right">
-                          Last Updated
+                          <Stack
+                            direction="row"
+                            alignItems="center"
+                            spacing={1}
+                            justifyContent="flex-end"
+                            sx={{ minWidth: 150 }}
+                          >
+                            {hoveredAgentId === agent.id || isTouchDevice ? (
+                              <FadeIn>
+                                <Tooltip title="Delete Agent">
+                                  <IconButton
+                                    color="error"
+                                    size="small"
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      addConfirmation({
+                                        analytics: {
+                                          entity: "agent",
+                                          action: "delete",
+                                        },
+                                        title: "Delete Agent?",
+                                        description: `Are you sure you want to delete the agent "${agent.displayName}"? This action cannot be undone.`,
+                                        onConfirm: () => {
+                                          handleDeleteAgent(agent.name);
+                                        },
+                                        confirmButtonColor: "error",
+                                        confirmButtonIcon: (
+                                          <DeleteOutlineOutlined size={16} />
+                                        ),
+                                        confirmButtonText: "Delete",
+                                      });
+                                    }}
+                                  >
+                                    <DeleteOutlineOutlined size={14} />
+                                  </IconButton>
+                                </Tooltip>
+                              </FadeIn>
+                            ) : (
+                              <Typography
+                                variant="body2"
+                                color="text.secondary"
+                                noWrap
+                              >
+                                {getRelativeTime(agent.createdAt)}
+                              </Typography>
+                            )}
+                          </Stack>
                         </ListingTable.Cell>
                       </ListingTable.Row>
-                    </ListingTable.Head>
-                    <ListingTable.Body>
-                      {paginatedAgents.map((agent) => (
-                        <ListingTable.Row
-                          key={agent.id}
-                          variant="card"
-                          hover
-                          clickable
-                          onClick={() => navigate(agent.href)}
-                          onMouseEnter={() => handleRowMouseEnter(agent)}
-                          onMouseLeave={handleRowMouseLeave}
-                          onFocus={() => handleRowMouseEnter(agent)}
-                          onBlur={handleRowMouseLeave}
-                        >
-                          <ListingTable.Cell>
-                            <Stack
-                              direction="row"
-                              alignItems="center"
-                              spacing={2}
-                              sx={{ width: "100%", minWidth: 0 }}
-                            >
-                              <EntityAvatar
-                                name={agent.displayName}
-                                color="primary.main"
-                                shape="circular"
-                                size={32}
-                                sx={{ flexShrink: 0 }}
-                              />
-                              <Stack
-                                direction="row"
-                                alignItems="flex-start"
-                                spacing={1}
-                                sx={{ minWidth: 0, flex: 1 }}
-                              >
-                                <Typography
-                                  variant="body1"
-                                  sx={{ flexShrink: 0 }}
-                                >
-                                  {agent.displayName}
-                                </Typography>
-                                <AgentTypeChips
-                                  provisioning={agent.provisioning}
-                                  agentType={agent.agentType}
-                                  kindName={agent.kindName}
-                                  kindDisplayName={
-                                    agent.kindName
-                                      ? kindDisplayNameMap[agent.kindName]
-                                      : undefined
-                                  }
-                                />
-                              </Stack>
-                            </Stack>
-                          </ListingTable.Cell>
-                          <ListingTable.Cell align="right">
-                            <Stack
-                              direction="row"
-                              alignItems="center"
-                              spacing={1}
-                              justifyContent="flex-end"
-                              sx={{ minWidth: 150 }}
-                            >
-                              {hoveredAgentId === agent.id || isTouchDevice ? (
-                                <FadeIn>
-                                  <Tooltip title="Delete Agent">
-                                    <IconButton
-                                      color="error"
-                                      size="small"
-                                      onClick={(e) => {
-                                        e.stopPropagation();
-                                        addConfirmation({
-                                          analytics: {
-                                            entity: "agent",
-                                            action: "delete",
-                                          },
-                                          title: "Delete Agent?",
-                                          description: `Are you sure you want to delete the agent "${agent.displayName}"? This action cannot be undone.`,
-                                          onConfirm: () => {
-                                            handleDeleteAgent(agent.name);
-                                          },
-                                          confirmButtonColor: "error",
-                                          confirmButtonIcon: (
-                                            <DeleteOutlineOutlined size={16} />
-                                          ),
-                                          confirmButtonText: "Delete",
-                                        });
-                                      }}
-                                    >
-                                      <DeleteOutlineOutlined size={14} />
-                                    </IconButton>
-                                  </Tooltip>
-                                </FadeIn>
-                              ) : (
-                                <Typography
-                                  variant="body2"
-                                  color="text.secondary"
-                                  noWrap
-                                >
-                                  {getRelativeTime(agent.createdAt)}
-                                </Typography>
-                              )}
-                            </Stack>
-                          </ListingTable.Cell>
-                        </ListingTable.Row>
-                      ))}
-                    </ListingTable.Body>
-                  </ListingTable>
-                  <TablePagination
-                    rowsPerPageOptions={[5, 10, 25]}
-                    component="div"
-                    count={agentsWithHref.length}
-                    rowsPerPage={rowsPerPage}
-                    page={page}
-                    onPageChange={(_, newPage) => setPage(newPage)}
-                    onRowsPerPageChange={(e) => {
-                      setRowsPerPage(parseInt(e.target.value, 10));
-                      setPage(0);
-                    }}
-                  />
-                </Box>
-              </ResourceListShell>
-            </Stack>
-            <Box
-              display="flex"
-              flexDirection="column"
-              gap={2}
-              width={450}
-              height="fit-content"
-            >
-              <AgentTypeSummery />
-              <DeploymentPipelineCard />
-            </Box>
+                    ))}
+                  </ListingTable.Body>
+                </ListingTable>
+                <TablePagination
+                  rowsPerPageOptions={[5, 10, 25]}
+                  component="div"
+                  count={agentsWithHref.length}
+                  rowsPerPage={rowsPerPage}
+                  page={page}
+                  onPageChange={(_, newPage) => setPage(newPage)}
+                  onRowsPerPageChange={(e) => {
+                    setRowsPerPage(parseInt(e.target.value, 10));
+                    setPage(0);
+                  }}
+                />
+              </Box>
+            </ResourceListShell>
           </Stack>
-        )}
-      </PageLayout>
-
-      {project && (
-        <EditProjectDrawer
-          open={editProjectDrawerOpen}
-          onClose={() => setEditProjectDrawerOpen(false)}
-          project={project}
-          orgId={orgId || "default"}
-        />
+          <Box
+            display="flex"
+            flexDirection="column"
+            gap={2}
+            width={450}
+            height="fit-content"
+          >
+            <AgentTypeSummery />
+            <DeploymentPipelineCard />
+          </Box>
+        </Stack>
       )}
-    </>
+    </PageLayout>
   );
 };
 
