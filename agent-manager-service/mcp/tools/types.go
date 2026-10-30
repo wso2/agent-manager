@@ -71,6 +71,7 @@ type LLMProviderToolsetHandler interface {
 	ListLLMGuardrails(ctx context.Context, ouID string, providerID string) (*models.LLMPolicyAvailabilityResponse, error)
 	CreateLLMProvider(ctx context.Context, ouID string, req *spec.CreateLLMProviderRequest) (*models.LLMProvider, []services.DeploymentResult, error)
 	GetLLMProvider(ctx context.Context, ouID string, providerID string) (*models.LLMProvider, []*models.Deployment, error)
+	SetLLMProviderGuardrails(ctx context.Context, ouID string, providerID string, guardrails []models.LLMPolicy) (*models.LLMProvider, []services.DeploymentResult, error)
 }
 
 type GatewayToolsetHandler interface {

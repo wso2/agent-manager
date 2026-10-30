@@ -96,6 +96,7 @@ const (
 	ActionLLMProviderTemplateRead Action = "llm-provider-template:read"
 	ActionLLMProviderRead         Action = "llm-provider:read"
 	ActionLLMProviderCreate       Action = "llm-provider:create"
+	ActionLLMProviderUpdate       Action = "llm-provider:update"
 	ActionMCPServerRead           Action = "mcp-server:read"
 	ActionMCPServerCreate         Action = "mcp-server:create"
 

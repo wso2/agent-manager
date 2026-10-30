@@ -55,6 +55,14 @@ type listLLMProvidersInput struct {
 type getLLMProviderInput struct {
 	ProviderID string `json:"provider_id"`
 }
+type addLLMProviderGuardrailsInput struct {
+	ProviderID string           `json:"provider_id"`
+	Guardrails []guardrailInput `json:"guardrails"`
+}
+type removeLLMProviderGuardrailInput struct {
+	ProviderID string `json:"provider_id"`
+	Name       string `json:"name"`
+}
 type listLLMGuardrailsInput struct {
 	ProviderID string `json:"provider_id,omitempty"`
 }
@@ -132,6 +140,12 @@ type getLLMProviderOutput struct {
 	Deployments    []providerGatewayDeploymentItem `json:"deployments"`
 	ModelProviders []string                        `json:"model_providers,omitempty"`
 }
+type setGuardrailsOutput struct {
+	ProviderID  string                   `json:"provider_id"`
+	Guardrails  []providerGuardrailItem  `json:"guardrails"`
+	Deployments []providerDeploymentItem `json:"redeployments"`
+	Note        string                   `json:"note"`
+}
 type createLLMProviderOutput struct {
 	llmProviderItem
 	Guardrails  []string                 `json:"guardrails,omitempty"`
@@ -182,6 +196,29 @@ func (t *Toolsets) registerLLMProviderTools(server *gomcp.Server, reg *toolRegis
 			"provider_id": stringProperty("Required. LLM provider id from list_llm_providers."),
 		}, []string{"provider_id"}),
 	}, audit.ActionLLMProviderRead, getLLMProvider(t.LLMProviderToolset), rbac.LLMProviderRead)
+
+	addTool(reg, server, &gomcp.Tool{
+		Name: "add_llm_provider_guardrails",
+		Description: "Add guardrails to an existing LLM provider; they apply to every agent that uses it. " +
+			"A guardrail with the same name as one already on the provider replaces it, so this also changes a guardrail's settings. " +
+			"The provider is redeployed to the gateways it is already on so the change takes effect. " +
+			"Call list_llm_guardrails for valid guardrails and get_llm_provider to see the current ones.",
+		InputSchema: createSchema(map[string]any{
+			"provider_id": stringProperty("Required. LLM provider id from list_llm_providers."),
+			"guardrails":  arrayProperty("Required. Guardrails to add or replace.", guardrailSchema()),
+		}, []string{"provider_id", "guardrails"}),
+	}, audit.ActionLLMProviderUpdate, addLLMProviderGuardrails(t.LLMProviderToolset), rbac.LLMProviderUpdate)
+
+	addTool(reg, server, &gomcp.Tool{
+		Name: "remove_llm_provider_guardrail",
+		Description: "Remove one guardrail from an LLM provider by name. " +
+			"The provider is redeployed to the gateways it is already on so the change takes effect. " +
+			"Call get_llm_provider to see the provider's current guardrails.",
+		InputSchema: createSchema(map[string]any{
+			"provider_id": stringProperty("Required. LLM provider id from list_llm_providers."),
+			"name":        stringProperty("Required. Name of the guardrail to remove, as get_llm_provider lists it."),
+		}, []string{"provider_id", "name"}),
+	}, audit.ActionLLMProviderUpdate, removeLLMProviderGuardrail(t.LLMProviderToolset), rbac.LLMProviderUpdate)
 
 	addTool(reg, server, &gomcp.Tool{
 		Name: "list_llm_guardrails",
@@ -313,6 +350,130 @@ func getLLMProvider(handler LLMProviderToolsetHandler) func(context.Context, *go
 		}
 		return handleToolResult(out, nil)
 	}
+}
+
+func addLLMProviderGuardrails(handler LLMProviderToolsetHandler) func(context.Context, *gomcp.CallToolRequest, addLLMProviderGuardrailsInput) (*gomcp.CallToolResult, any, error) {
+	return func(ctx context.Context, _ *gomcp.CallToolRequest, input addLLMProviderGuardrailsInput) (*gomcp.CallToolResult, any, error) {
+		const toolName = "add_llm_provider_guardrails"
+		providerID := strings.TrimSpace(input.ProviderID)
+		if providerID == "" {
+			return nil, nil, fmt.Errorf("provider_id is required. Call list_llm_providers to see valid providers")
+		}
+		if len(input.Guardrails) == 0 {
+			return nil, nil, fmt.Errorf("guardrails is required. Call list_llm_guardrails to see valid guardrails")
+		}
+		added, err := toModelGuardrails(input.Guardrails)
+		if err != nil {
+			return nil, nil, err
+		}
+		return updateProviderGuardrails(ctx, toolName, handler, providerID, func(current []models.LLMPolicy) ([]models.LLMPolicy, error) {
+			next := make([]models.LLMPolicy, 0, len(current)+len(added))
+			replaced := make(map[string]bool, len(added))
+			for _, p := range current {
+				if g, ok := findGuardrail(added, p.Name); ok {
+					next = append(next, g)
+					replaced[p.Name] = true
+					continue
+				}
+				next = append(next, p)
+			}
+			for _, g := range added {
+				if !replaced[g.Name] {
+					next = append(next, g)
+					replaced[g.Name] = true
+				}
+			}
+			return next, nil
+		})
+	}
+}
+
+func removeLLMProviderGuardrail(handler LLMProviderToolsetHandler) func(context.Context, *gomcp.CallToolRequest, removeLLMProviderGuardrailInput) (*gomcp.CallToolResult, any, error) {
+	return func(ctx context.Context, _ *gomcp.CallToolRequest, input removeLLMProviderGuardrailInput) (*gomcp.CallToolResult, any, error) {
+		const toolName = "remove_llm_provider_guardrail"
+		providerID, name := strings.TrimSpace(input.ProviderID), strings.TrimSpace(input.Name)
+		if providerID == "" {
+			return nil, nil, fmt.Errorf("provider_id is required. Call list_llm_providers to see valid providers")
+		}
+		if name == "" {
+			return nil, nil, fmt.Errorf("name is required. Call get_llm_provider to see the provider's guardrails")
+		}
+		return updateProviderGuardrails(ctx, toolName, handler, providerID, func(current []models.LLMPolicy) ([]models.LLMPolicy, error) {
+			next := make([]models.LLMPolicy, 0, len(current))
+			for _, p := range current {
+				if p.Name != name {
+					next = append(next, p)
+				}
+			}
+			if len(next) == len(current) {
+				return nil, fmt.Errorf("%s: provider %q has no guardrail named %q. Call get_llm_provider to see its guardrails", toolName, providerID, name)
+			}
+			return next, nil
+		})
+	}
+}
+
+// updateProviderGuardrails reads the provider's current guardrails, applies
+// change, and saves the result, reporting the redeployments that carried it to
+// the gateways.
+func updateProviderGuardrails(
+	ctx context.Context, toolName string, handler LLMProviderToolsetHandler, providerID string,
+	change func([]models.LLMPolicy) ([]models.LLMPolicy, error),
+) (*gomcp.CallToolResult, any, error) {
+	ouID := resolveOUID(ctx)
+	current, _, err := handler.GetLLMProvider(ctx, ouID, providerID)
+	if err != nil {
+		return nil, nil, wrapToolError(toolName, err)
+	}
+	if current == nil {
+		return nil, nil, fmt.Errorf("%s: provider service returned an empty response", toolName)
+	}
+	next, err := change(current.Configuration.Policies)
+	if err != nil {
+		return nil, nil, err
+	}
+	updated, results, err := handler.SetLLMProviderGuardrails(ctx, ouID, providerID, next)
+	if err != nil {
+		return nil, nil, wrapToolError(toolName, err)
+	}
+
+	out := setGuardrailsOutput{ProviderID: providerID, Guardrails: []providerGuardrailItem{}, Deployments: []providerDeploymentItem{}}
+	saved := next
+	if updated != nil {
+		saved = updated.Configuration.Policies
+	}
+	for _, p := range saved {
+		g := providerGuardrailItem{Name: p.Name, Version: p.Version}
+		if len(p.Paths) > 0 {
+			g.Params = p.Paths[0].Params
+		}
+		out.Guardrails = append(out.Guardrails, g)
+	}
+	failed := 0
+	for _, d := range results {
+		out.Deployments = append(out.Deployments, providerDeploymentItem{GatewayID: d.GatewayID, Success: d.Success, Error: d.Error})
+		if !d.Success {
+			failed++
+		}
+	}
+	switch {
+	case len(results) == 0:
+		out.Note = "Guardrails saved. The provider is not deployed to any gateway, so they take effect when it is deployed."
+	case failed > 0:
+		out.Note = fmt.Sprintf("Guardrails saved; %d of %d gateway redeployments failed, so those gateways still enforce the old guardrails. See redeployments for the errors.", failed, len(results))
+	default:
+		out.Note = "Guardrails saved and the provider redeployed; they now apply to every agent using it."
+	}
+	return handleToolResult(out, nil)
+}
+
+func findGuardrail(guardrails []models.LLMPolicy, name string) (models.LLMPolicy, bool) {
+	for _, g := range guardrails {
+		if g.Name == name {
+			return g, true
+		}
+	}
+	return models.LLMPolicy{}, false
 }
 
 func listLLMGuardrails(handler LLMProviderToolsetHandler) func(context.Context, *gomcp.CallToolRequest, listLLMGuardrailsInput) (*gomcp.CallToolResult, any, error) {

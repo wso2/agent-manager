@@ -244,6 +244,15 @@ func (m *MockToolsetHandler) GetLLMProvider(
 	return p, []*models.Deployment{{Status: &status}, {Status: &archived}}, nil
 }
 
+func (m *MockToolsetHandler) SetLLMProviderGuardrails(
+	ctx context.Context, ouID string, providerID string, guardrails []models.LLMPolicy,
+) (*models.LLMProvider, []services.DeploymentResult, error) {
+	m.recordCall("SetLLMProviderGuardrails", ouID, providerID, guardrails)
+	p := &models.LLMProvider{Artifact: &models.Artifact{Handle: providerID}}
+	p.Configuration.Policies = guardrails
+	return p, []services.DeploymentResult{{GatewayID: testGatewayID, Success: true}}, nil
+}
+
 // Gateway Toolset Handler
 
 func (m *MockToolsetHandler) ListGateways(
