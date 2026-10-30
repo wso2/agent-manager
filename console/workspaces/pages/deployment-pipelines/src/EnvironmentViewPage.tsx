@@ -121,7 +121,7 @@ export function EnvironmentViewPage() {
     <PageLayout
       title={displayName}
       backHref={backHref}
-      backLabel="Back to Environments"
+      backLabel="Back to environments"
       description={
         env?.createdAt
           ? `Created ${formatDistanceToNow(new Date(env.createdAt), { addSuffix: true })}`

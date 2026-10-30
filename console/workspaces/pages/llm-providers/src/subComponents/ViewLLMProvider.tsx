@@ -159,7 +159,7 @@ export const ViewLLMProvider: React.FC = () => {
         absoluteRouteMap.children.org.children.llmProviders.path,
         { orgId: orgId ?? "" },
       )}
-      backLabel="Back to LLM Providers"
+      backLabel="Back to LLM providers"
       isLoading={isLoading}
       // The template's own logo identifies the provider better than a letter
       // tile; use a white background so dark logos (e.g. OpenAI's black mark)

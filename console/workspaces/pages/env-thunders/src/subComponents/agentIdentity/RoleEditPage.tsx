@@ -295,7 +295,7 @@ export const RoleEditPage: React.FC = () => {
 
   if (isLoading) {
     return (
-      <PageLayout title="Role" backHref={rolesPath} backLabel="Back to Roles" disableIcon>
+      <PageLayout title="Role" backHref={rolesPath} backLabel="Back to roles" disableIcon>
         <EditFormSkeleton tabs={3} />
       </PageLayout>
     );
@@ -305,7 +305,7 @@ export const RoleEditPage: React.FC = () => {
     <PageLayout
       title={roleData?.name || "Role"}
       backHref={rolesPath}
-      backLabel="Back to Roles"
+      backLabel="Back to roles"
       description={roleData?.description}
       disableIcon
       titleTail={isPermissionsReadOnly ? <Chip label="Read-only" size="small" /> : undefined}

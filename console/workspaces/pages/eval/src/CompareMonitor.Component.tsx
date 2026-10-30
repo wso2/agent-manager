@@ -395,7 +395,7 @@ export const CompareMonitorComponent: React.FC = () => {
       <PageLayout
         title="Compare Monitors"
         disableIcon
-        backLabel="Back to Monitor"
+        backLabel="Back to monitor"
         backHref={backHref}
       >
         <Alert severity="error">

@@ -270,7 +270,7 @@ export const GroupEditPage: React.FC = () => {
 
   if (isLoading) {
     return (
-      <PageLayout title="Group" backHref={groupsPath} backLabel="Back to Groups" disableIcon>
+      <PageLayout title="Group" backHref={groupsPath} backLabel="Back to groups" disableIcon>
         <EditFormSkeleton tabs={2} />
       </PageLayout>
     );
@@ -280,7 +280,7 @@ export const GroupEditPage: React.FC = () => {
     <PageLayout
       title={groupData?.name || "Group"}
       backHref={groupsPath}
-      backLabel="Back to Groups"
+      backLabel="Back to groups"
       description={groupData?.description}
       disableIcon
     >

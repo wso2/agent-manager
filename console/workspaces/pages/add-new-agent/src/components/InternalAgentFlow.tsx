@@ -250,7 +250,7 @@ export const InternalAgentFlow: React.FC = () => {
       description="Specify the source repository, select the agent type, and deploy it on the platform."
       disableIcon
       backHref={backHref}
-      backLabel={selectedSample ? "Back to Add New Agent" : "Back to Source Type Selection"}
+      backLabel={selectedSample ? "Back to add new agent" : "Back to source type selection"}
     >
       <Form.Stack spacing={3}>
         {selectedSample && (

@@ -378,7 +378,7 @@ export function ViewMCPProxy() {
         variant="card"
         title={displayName}
         backHref={backHref}
-        backLabel="Back to MCP Servers"
+        backLabel="Back to MCP servers"
         isLoading={isLoading}
         titleTail={
           proxy?.version ? (

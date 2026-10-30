@@ -121,7 +121,7 @@ export const AddNewProject: React.FC = () => {
         { orgId: orgId ?? '' }
       )}
       avatar={null}
-      backLabel="Back to Projects"
+      backLabel="Back to projects"
     >
       <Box display="flex" flexDirection="column" gap={2}>
         <ProjectForm

@@ -888,7 +888,7 @@ export const ViewEvaluatorOrganization: React.FC = () => {
       <PageLayout
         title="Evaluator"
         backHref={backHref}
-        backLabel="Back to Evaluators"
+        backLabel="Back to evaluators"
         disableIcon
       >
         <Alert severity="error">
@@ -903,7 +903,7 @@ export const ViewEvaluatorOrganization: React.FC = () => {
       <PageLayout
         title="Evaluator"
         backHref={backHref}
-        backLabel="Back to Evaluators"
+        backLabel="Back to evaluators"
         disableIcon
       >
         <Typography>Evaluator not found.</Typography>
@@ -931,7 +931,7 @@ export const ViewEvaluatorOrganization: React.FC = () => {
       title={isEditing ? "Edit Evaluator" : evaluator.displayName}
       description={!isEditing ? evaluator.description : undefined}
       backHref={backHref}
-      backLabel="Back to Evaluators"
+      backLabel="Back to evaluators"
       disableIcon
       titleTail={
         !isEditing ? (

@@ -84,7 +84,7 @@ export const PublishVersionDetails: React.FC = () => {
       description={version ? `Build Id: ${version.buildName ?? "—"}` : ""}
       disableIcon
       backHref={backHref}
-      backLabel="Back to Publish"
+      backLabel="Back to publish"
     >
       {isVersionLoading ? (
         <Box sx={{ p: 2 }}>

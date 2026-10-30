@@ -52,7 +52,7 @@ function RoleCreateWrapper() {
   return (
     <AgentIdentityEnvironmentGate title="Create Role">
       {() => (
-        <PageLayout title="Create Role" backHref={backHref} backLabel="Back to Roles" disableIcon>
+        <PageLayout title="Create Role" backHref={backHref} backLabel="Back to roles" disableIcon>
           <RoleCreatePage />
         </PageLayout>
       )}

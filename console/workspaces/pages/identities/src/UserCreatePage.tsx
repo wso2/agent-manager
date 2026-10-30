@@ -102,7 +102,7 @@ export const UserCreatePage: React.FC = () => {
 
   return (
     <>
-      <BackButton to={usersPath} label="Back to Users" />
+      <BackButton to={usersPath} label="Back to users" />
       <Stack spacing={3} sx={{ maxWidth: 700 }}>
         {createError != null && (
           <Alert severity="error">

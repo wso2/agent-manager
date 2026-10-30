@@ -802,7 +802,7 @@ export const AddLLMProviderComponent: React.FC = () => {
         title={isEditMode ? "Edit LLM Configuration" : "Add LLM Configuration"}
         backHref={backHref}
         disableIcon
-        backLabel="Back to Configure"
+        backLabel="Back to configure"
       >
         <Stack spacing={2}>
           <Skeleton variant="rounded" height={56} />
@@ -819,7 +819,7 @@ export const AddLLMProviderComponent: React.FC = () => {
         title="Edit LLM Configuration"
         backHref={backHref}
         disableIcon
-        backLabel="Back to Configure"
+        backLabel="Back to configure"
       >
         <Alert severity="error" icon={<AlertTriangle size={18} />}>
           Config not found or failed to load.
@@ -833,7 +833,7 @@ export const AddLLMProviderComponent: React.FC = () => {
       title={isEditMode ? "Edit LLM Configuration" : "Add LLM Configuration"}
       backHref={backHref}
       disableIcon
-      backLabel="Back to Configure"
+      backLabel="Back to configure"
     >
       <Stack spacing={3}>
         {mutationError ? (

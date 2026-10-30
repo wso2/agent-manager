@@ -52,7 +52,7 @@ function GroupCreateWrapper() {
   return (
     <AgentIdentityEnvironmentGate title="Create Group">
       {() => (
-        <PageLayout title="Create Group" backHref={backHref} backLabel="Back to Groups" disableIcon>
+        <PageLayout title="Create Group" backHref={backHref} backLabel="Back to groups" disableIcon>
           <GroupCreatePage />
         </PageLayout>
       )}

@@ -47,7 +47,7 @@ export const CatalogKindSelect: React.FC = () => {
       description="Browse the catalog and pick a Agent Kind to create your agent from."
       disableIcon
       backHref={backHref}
-      backLabel="Back to Source Type Selection"
+      backLabel="Back to source type selection"
     >
       <CatalogKindListing
         items={data?.kinds ?? []}

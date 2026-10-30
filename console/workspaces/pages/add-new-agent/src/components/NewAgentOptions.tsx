@@ -60,7 +60,7 @@ export const NewAgentOptions = ({ onSelect, onSelectSample }: NewAgentOptionsPro
             description="Choose how you want to get started. You can deploy an agent on the platform or register an agent that already runs elsewhere."
             disableIcon
             backHref={backHref}
-            backLabel="Back to Projects Home"
+            backLabel="Back to projects home"
         >
             <Box display="flex" flexDirection="column" gap={3} width={1}>
                 <Box display="flex" flexDirection={{ xs: "column", sm: "row" }} gap={3}>

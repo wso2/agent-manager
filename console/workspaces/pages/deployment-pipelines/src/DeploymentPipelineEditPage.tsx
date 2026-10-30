@@ -333,7 +333,7 @@ export function DeploymentPipelineEditPage() {
       title={pipeline?.displayName ?? pipelineName ?? "Deployment Pipeline"}
       description={pipeline?.description || undefined}
       backHref={listHref}
-      backLabel="Back to Deployment Pipelines"
+      backLabel="Back to deployment pipelines"
       isLoading={isLoading}
       disableIcon
     >

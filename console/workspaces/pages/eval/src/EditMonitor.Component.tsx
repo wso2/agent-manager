@@ -157,7 +157,7 @@ export const EditMonitorComponent: React.FC = () => {
         title="Edit Monitor"
         description="Update monitor configuration and evaluator settings."
         disableIcon
-        backLabel="Back to Monitors"
+        backLabel="Back to monitors"
         backHref={backHref}
       >
         <Alert severity="error">{missingParamsMessage}</Alert>
@@ -171,7 +171,7 @@ export const EditMonitorComponent: React.FC = () => {
         title="Edit Monitor"
         description="Update monitor configuration and evaluator settings."
         disableIcon
-        backLabel="Back to Monitors"
+        backLabel="Back to monitors"
         backHref={backHref}
       >
         <Stack spacing={3}>
@@ -188,7 +188,7 @@ export const EditMonitorComponent: React.FC = () => {
         title="Edit Monitor"
         description="Update monitor configuration and evaluator settings."
         disableIcon
-        backLabel="Back to Monitors"
+        backLabel="Back to monitors"
         backHref={backHref}
       >
         <Alert severity="error">
@@ -205,7 +205,7 @@ export const EditMonitorComponent: React.FC = () => {
       <PageLayout
         title="Edit Monitor"
         disableIcon
-        backLabel="Back to Monitors"
+        backLabel="Back to monitors"
         backHref={backHref}
       >
         <Alert severity="error">Unable to load monitor details.</Alert>

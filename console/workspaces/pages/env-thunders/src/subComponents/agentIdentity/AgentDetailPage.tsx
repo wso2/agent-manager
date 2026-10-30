@@ -347,7 +347,7 @@ export const AgentDetailPage: React.FC = () => {
 
   if (isLoading) {
     return (
-      <PageLayout title={title} backHref={agentsPath} backLabel="Back to Agents" disableIcon>
+      <PageLayout title={title} backHref={agentsPath} backLabel="Back to agents" disableIcon>
         <EditFormSkeleton tabs={2} />
       </PageLayout>
     );
@@ -359,7 +359,7 @@ export const AgentDetailPage: React.FC = () => {
     <PageLayout
       title={title}
       backHref={agentsPath}
-      backLabel="Back to Agents"
+      backLabel="Back to agents"
       description={projectData?.displayName || projectName}
       disableIcon
     >

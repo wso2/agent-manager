@@ -71,7 +71,7 @@ export const ViewGateway: React.FC = () => {
           absoluteRouteMap.children.org.children.gateways.path,
           { orgId: orgId ?? "" },
         )}
-        backLabel="Back to Gateways"
+        backLabel="Back to gateways"
         description={
           gateway?.createdAt
             ? `Created ${formatDistanceToNow(new Date(gateway.createdAt), {

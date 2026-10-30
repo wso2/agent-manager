@@ -811,7 +811,7 @@ export const ViewLLMProviderComponent: React.FC = () => {
         title="LLM Configuration"
         backHref={backHref}
         disableIcon
-        backLabel="Back to Configure"
+        backLabel="Back to configure"
       >
         <Stack spacing={2}>
           <Skeleton variant="rounded" height={56} />
@@ -828,7 +828,7 @@ export const ViewLLMProviderComponent: React.FC = () => {
         title="LLM Configuration"
         backHref={backHref}
         disableIcon
-        backLabel="Back to Configure"
+        backLabel="Back to configure"
       >
         <Alert severity="error" icon={<AlertTriangle size={18} />}>
           Failed to load the project&apos;s deployment pipeline environments. Please try again.
@@ -843,7 +843,7 @@ export const ViewLLMProviderComponent: React.FC = () => {
         title="LLM Configuration"
         backHref={backHref}
         disableIcon
-        backLabel="Back to Configure"
+        backLabel="Back to configure"
       >
         <Alert severity="error" icon={<AlertTriangle size={18} />}>
           Configuration not found or failed to load.
@@ -1161,7 +1161,7 @@ export const ViewLLMProviderComponent: React.FC = () => {
       title={pageTitle}
       backHref={backHref}
       disableIcon
-      backLabel="Back to Configure"
+      backLabel="Back to configure"
       actions={
         showPanel ? (
           <Button

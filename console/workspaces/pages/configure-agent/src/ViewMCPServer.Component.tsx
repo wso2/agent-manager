@@ -632,7 +632,7 @@ export const ViewMCPServerComponent = () => {
         title="Tool Configuration"
         backHref={backHref}
         disableIcon
-        backLabel="Back to Configure"
+        backLabel="Back to configure"
       >
         <Stack spacing={2}>
           <Skeleton variant="rounded" height={56} />
@@ -649,7 +649,7 @@ export const ViewMCPServerComponent = () => {
         title="Tool Configuration"
         backHref={backHref}
         disableIcon
-        backLabel="Back to Configure"
+        backLabel="Back to configure"
       >
         <Alert severity="error" icon={<AlertTriangle size={18} />}>
           {error instanceof Error
@@ -983,7 +983,7 @@ export const ViewMCPServerComponent = () => {
       title={pageTitle}
       backHref={backHref}
       disableIcon
-      backLabel="Back to Configuration Listing"
+      backLabel="Back to configuration listing"
       actions={
         showPanel ? (
           <Button

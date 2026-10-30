@@ -304,7 +304,7 @@ export const CatalogAgentFlow: React.FC = () => {
       description="Add agent details and configure deployment settings."
       disableIcon
       backHref={backHref}
-      backLabel="Back to Kind Selection"
+      backLabel="Back to kind selection"
     >
       {isKindLoading && (
         <>

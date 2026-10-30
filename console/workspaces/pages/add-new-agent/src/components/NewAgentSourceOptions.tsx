@@ -61,7 +61,7 @@ export const NewAgentSourceOptions = ({ onSelect }: NewAgentSourceOptionsProps) 
             description="Pick a source type for the agent"
             disableIcon
             backHref={backHref}
-            backLabel="Back to Add New Agent"
+            backLabel="Back to add new agent"
         >
             <Box display="flex" flexDirection="row" gap={3} flexWrap="wrap">
                 {sourceOptions.map((option) => (
