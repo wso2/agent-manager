@@ -1779,6 +1779,12 @@
                   "description": "When false, the Add User, Invite User, Create Role, and Create Group buttons on the Settings page are disabled.",
                   "title": "enableUserManagement",
                   "type": "boolean"
+                },
+                "enableIdentityPromotionUi": {
+                  "default": false,
+                  "description": "When true, the environment wise roles and groups listing and creation are removed from the console: roles and groups are created once, in the default environment, and are promoted with the agent. When false, the per-environment roles and groups UI is unchanged.",
+                  "title": "enableIdentityPromotionUi",
+                  "type": "boolean"
                 }
               },
               "required": [],

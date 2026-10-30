@@ -79,4 +79,5 @@ data:
   FEATURE_FLAG_ENABLE_IDENTITY_PROVIDER_MANAGED_MODE: {{ dig "featureFlags" "enableIdentityProviderManagedMode" false .Values.console.config | quote }}
   FEATURE_FLAG_ENABLE_PROFILE_MANAGEMENT: {{ dig "featureFlags" "enableProfileManagement" false .Values.console.config | quote }}
   FEATURE_FLAG_ENABLE_USER_MANAGEMENT: {{ dig "featureFlags" "enableUserManagement" false .Values.console.config | quote }}
+  FEATURE_FLAG_ENABLE_IDENTITY_PROMOTION_UI: {{ dig "featureFlags" "enableIdentityPromotionUi" false .Values.console.config | quote }}
 {{- end }}

@@ -19,11 +19,18 @@ import type { ReactNode } from "react";
 import { Button, ListingTable } from "@wso2/oxygen-ui";
 import { AlertTriangle, KeyRound } from "@wso2/oxygen-ui-icons-react";
 import { Navigate, useLocation, useSearchParams } from "react-router-dom";
+import { isIdentityPromotionUiEnabled } from "@agent-management-platform/types";
 import { PageLayout } from "@agent-management-platform/views";
 import { useAgentIdentityEnvName } from "../../context/AgentIdentityEnvironmentContext";
 
 interface AgentIdentityEnvironmentGateProps {
   title: string;
+  /**
+   * Roles and groups pages. With the identity promotion UI on they are not
+   * environment wise: the page is pinned to the default environment and any
+   * other `envName` is redirected to it. Off, this changes nothing.
+   */
+  environmentAgnostic?: boolean;
   children: (envName: string) => ReactNode;
 }
 
@@ -34,12 +41,21 @@ interface AgentIdentityEnvironmentGateProps {
  */
 export function AgentIdentityEnvironmentGate({
   title,
+  environmentAgnostic = false,
   children,
 }: AgentIdentityEnvironmentGateProps) {
   const { pathname } = useLocation();
   const [searchParams] = useSearchParams();
-  const { envName, defaultEnvName, hasNoEnvironments, hasEnvironmentsError, refetchEnvironments } =
-    useAgentIdentityEnvName();
+  const {
+    envName,
+    defaultEnvName,
+    pinnedEnvName,
+    hasNoEnvironments,
+    hasEnvironmentsError,
+    refetchEnvironments,
+  } = useAgentIdentityEnvName();
+  const pinToDefault = environmentAgnostic && isIdentityPromotionUiEnabled();
+  const redirectEnvName = pinToDefault ? pinnedEnvName : defaultEnvName;
 
   if (hasEnvironmentsError) {
     return (
@@ -74,8 +90,8 @@ export function AgentIdentityEnvironmentGate({
     );
   }
 
-  if (!envName) {
-    if (!defaultEnvName) {
+  if (!envName || (pinToDefault && envName !== redirectEnvName)) {
+    if (!redirectEnvName) {
       return (
         <PageLayout title={title} disableIcon isLoading>
           {null}
@@ -83,7 +99,7 @@ export function AgentIdentityEnvironmentGate({
       );
     }
     const next = new URLSearchParams(searchParams);
-    next.set("envName", defaultEnvName);
+    next.set("envName", redirectEnvName);
     return <Navigate to={`${pathname}?${next.toString()}`} replace />;
   }
 
