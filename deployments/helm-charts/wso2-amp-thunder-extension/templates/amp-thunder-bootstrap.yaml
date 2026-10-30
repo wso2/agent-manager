@@ -608,6 +608,34 @@ data:
           - { name: Act on Non-Production Environments, handle: env-non-production, description: "Deploy or suspend an agent in a non-production environment" }
           - { name: Suspend, handle: suspend, description: "Suspend an agent deployment" }
           - { name: Manage Token, handle: token-manage, description: "Generate agent tokens" }
+          - { name: Update, handle: update, description: "Attach LLM providers and MCP proxies to an agent" }
+      - name: Gateway
+        handle: gateway
+        parent: amp
+        description: Gateway operations exposed by Agent Manager MCP
+        actions:
+          - { name: Read, handle: read, description: "View AI gateways" }
+      - name: LLM Provider Template
+        handle: llm-provider-template
+        parent: amp
+        description: LLM provider template operations exposed by Agent Manager MCP
+        actions:
+          - { name: Read, handle: read, description: "View LLM provider templates" }
+      - name: LLM Provider
+        handle: llm-provider
+        parent: amp
+        description: LLM provider operations exposed by Agent Manager MCP
+        actions:
+          - { name: Read, handle: read, description: "View LLM providers and guardrails" }
+          - { name: Create, handle: create, description: "Create an LLM provider" }
+      - name: MCP Server
+        handle: mcp-server
+        parent: amp
+        description: MCP proxy operations exposed by Agent Manager MCP
+        actions:
+          - { name: Read, handle: read, description: "View MCP proxies" }
+          - { name: Create, handle: create, description: "Create an MCP proxy" }
+          - { name: Connect, handle: connect, description: "Connect to an MCP server to discover its tools" }
     {{- end }}
   {{- $firstMCPResourceServer = false }}
   {{- end }}
@@ -746,6 +774,14 @@ data:
           - "amp:agent:env-non-production"
           - "amp:agent:suspend"
           - "amp:agent:token-manage"
+          - "amp:agent:update"
+          - "amp:gateway:read"
+          - "amp:llm-provider-template:read"
+          - "amp:llm-provider:read"
+          - "amp:llm-provider:create"
+          - "amp:mcp-server:read"
+          - "amp:mcp-server:create"
+          - "amp:mcp-server:connect"
     {{- end }}
     {{- end }}
     {{- end }}
@@ -839,6 +875,12 @@ data:
           - "amp:agent:env-non-production"
           - "amp:agent:suspend"
           - "amp:agent:token-manage"
+          - "amp:agent:update"
+          - "amp:gateway:read"
+          - "amp:llm-provider-template:read"
+          - "amp:llm-provider:read"
+          - "amp:mcp-server:read"
+          - "amp:mcp-server:connect"
     {{- end }}
     {{- end }}
     {{- end }}
@@ -917,6 +959,12 @@ data:
           - "amp:agent:build"
           - "amp:agent:env-non-production"
           - "amp:agent:suspend"
+          - "amp:llm-provider-template:read"
+          - "amp:llm-provider:read"
+          - "amp:llm-provider:create"
+          - "amp:mcp-server:read"
+          - "amp:mcp-server:create"
+          - "amp:mcp-server:connect"
     {{- end }}
     {{- end }}
     {{- end }}
@@ -1016,6 +1064,13 @@ data:
           - "amp:agent:build"
           - "amp:agent:env-non-production"
           - "amp:agent:suspend"
+          - "amp:gateway:read"
+          - "amp:llm-provider-template:read"
+          - "amp:llm-provider:read"
+          - "amp:llm-provider:create"
+          - "amp:mcp-server:read"
+          - "amp:mcp-server:create"
+          - "amp:mcp-server:connect"
     {{- end }}
     {{- end }}
     {{- end }}
