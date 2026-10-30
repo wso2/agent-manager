@@ -52,7 +52,12 @@ import {
   type ThunderGroup,
   type ThunderRole,
 } from "@agent-management-platform/types";
-import { EditFormSkeleton, useUnsavedChangesGuard } from "@agent-management-platform/shared-component";
+import {
+  EditFormSkeleton,
+  RolesGroupsReadOnlyNote,
+  useIdentityPromotedEnvironment,
+  useUnsavedChangesGuard,
+} from "@agent-management-platform/shared-component";
 import { PageLayout } from "@agent-management-platform/views";
 import { useAssignmentDelta } from "./useAssignmentDelta";
 import { withSearchParams } from "../../utils/withSearchParams";
@@ -188,6 +193,17 @@ export const AgentDetailPage: React.FC = () => {
   const [isSaving, setIsSaving] = useState(false);
   const [saveError, setSaveError] = useState<string | undefined>();
   const [saveSuccess, setSaveSuccess] = useState(false);
+
+  // Roles and groups of an environment that receives its identity from the
+  // first environment are managed there and shown here read only. Inert unless
+  // the identity promotion UI flag is on.
+  const {
+    isLoading: isLoadingPromotedEnv,
+    isPromotedEnvironment: readOnlyByPromotion,
+    homeEnvironmentLabel,
+  } = useIdentityPromotedEnvironment({
+    orgId: orgId ?? "", projectId: projectName ?? "", envId: envName,
+  });
 
   const { data: rolesData, isLoading: isLoadingRoles, error: rolesError } =
     useGetAgentRoles(
@@ -338,7 +354,8 @@ export const AgentDetailPage: React.FC = () => {
     isLoadingGroups ||
     isLoadingAgent ||
     isLoadingProject ||
-    isLoadingIdentityAgents;
+    isLoadingIdentityAgents ||
+    isLoadingPromotedEnv;
 
   const title = agentData?.displayName || agentName || "Agent";
 
@@ -353,7 +370,7 @@ export const AgentDetailPage: React.FC = () => {
     );
   }
 
-  const canEdit = !!thunderAgentId;
+  const canEdit = !!thunderAgentId && !readOnlyByPromotion;
 
   return (
     <PageLayout
@@ -369,7 +386,10 @@ export const AgentDetailPage: React.FC = () => {
             Failed to load this agent&apos;s roles/groups. Please try again.
           </Alert>
         )}
-        {!canEdit && (
+        {readOnlyByPromotion && (
+          <RolesGroupsReadOnlyNote homeEnvironment={homeEnvironmentLabel} />
+        )}
+        {!canEdit && !readOnlyByPromotion && (
           <Alert severity="info">
             This agent has no active identity binding in {envName}, so roles
             and groups can&apos;t be assigned yet.

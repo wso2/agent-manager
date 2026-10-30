@@ -28,6 +28,7 @@ import { isAgentIdentityEnabled } from "@agent-management-platform/types";
 import {
   OverviewSectionCard,
   useAgentRolesAndGroups,
+  useIdentityPromotedEnvironment,
 } from "@agent-management-platform/shared-component";
 import { buildAgentIdHref } from "./agentIdLink";
 
@@ -92,6 +93,19 @@ export const EnvAgentRolesGroupsSection: React.FC<EnvAgentRolesGroupsSectionProp
       query: { environment: envId },
     });
   };
+
+  // Inert unless the identity promotion UI flag is on: with it off nothing below
+  // changes. An environment after the project's first one gets its identity set
+  // up by the platform, so "Create Agent ID" gives way to a status line there.
+  const {
+    enabled: promotionUiEnabled,
+    isLoading: isLoadingPromotedEnv,
+    isPromotedEnvironment,
+    envLabel,
+  } = useIdentityPromotedEnvironment({ orgId, projectId, envId });
+  const showCreateAction = canSelfProvision
+    && !(promotionUiEnabled && (isLoadingPromotedEnv || isPromotedEnvironment));
+  const isSettingUp = binding?.status === "pending" || binding?.status === "in_progress";
 
   const { roles, groups, isLoading, isError: isRolesGroupsError } = useAgentRolesAndGroups({
     orgId, projectId, agentId, envId, enabled: provisioned,
@@ -177,11 +191,17 @@ export const EnvAgentRolesGroupsSection: React.FC<EnvAgentRolesGroupsSectionProp
             </Typography>
           ) : canSelfProvision ? (
             <Typography variant="body2" color="text.disabled">
-              Not created for this environment yet
+              {isPromotedEnvironment
+                ? "Identity is being set up for this environment."
+                : "Not created for this environment yet"}
             </Typography>
           ) : provisioned ? (
             <Typography variant="body2" color="text.disabled">
               Provisioning identity…
+            </Typography>
+          ) : isPromotedEnvironment && isSettingUp ? (
+            <Typography variant="body2" color="text.disabled">
+              Setting up identity in {envLabel}…
             </Typography>
           ) : (
             <Typography variant="body2" color="text.disabled">
@@ -249,7 +269,7 @@ export const EnvAgentRolesGroupsSection: React.FC<EnvAgentRolesGroupsSectionProp
           Provisioning failed{binding?.lastError ? `: ${binding.lastError}` : ""}
         </Alert>
       )}
-      {canSelfProvision && (
+      {showCreateAction && (
         <Alert
           severity={isProvisionError ? "error" : "info"}
           icon={isProvisionError ? <AlertTriangle size={18} /> : <Info size={18} />}
