@@ -61,6 +61,7 @@ export const TextInput = ({
   hideCharacterCount = false,
   helperText,
   error,
+  id,
   ...props
 }: TextInputProps) => {
   const [copied, setCopied] = useState(false);
@@ -86,7 +87,7 @@ export const TextInput = ({
   };
 
   // Shared by the label and the input so clicking the label focuses the field.
-  const inputId = props.id ?? label;
+  const inputId = id ?? label;
 
   const isPasswordField = type === 'password' && showPasswordToggle;
   const displayType = isPasswordField && showPassword ? 'text' : type;
