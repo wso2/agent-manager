@@ -1247,6 +1247,26 @@ func (c *thunderClient) ensureProxyResourceServerMu(proxyHandle string) *sync.Mu
 	return mu.(*sync.Mutex)
 }
 
+// ProxyResourceServerExists reports, without changing anything, whether the
+// proxy's resource server exists. It is an optional capability of a client (see
+// ProxyResourceServerReader).
+func (c *thunderClient) ProxyResourceServerExists(ctx context.Context, proxyHandle, identifier string) (bool, error) {
+	identifier, err := canonicalMCPResourceIdentifier(identifier)
+	if err != nil {
+		return false, err
+	}
+	token, err := c.getSystemToken(ctx)
+	if err != nil {
+		return false, err
+	}
+	rs, err := c.findProxyResourceServer(ctx, token, proxyHandle, identifier)
+	if err != nil {
+		return false, err
+	}
+	// A server whose identifier drifted is not present: the ensure rewrites it.
+	return rs != nil && rs.Identifier == identifier, nil
+}
+
 // EnsureProxyResourceServer makes sure the resource server for a proxy exists
 // (handle = proxyHandle, identifier = the proxy's public invocation URI,
 // delimiter ":", type MCP), that its permission-anchor resource exists (see
