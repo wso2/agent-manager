@@ -12,6 +12,10 @@ import (
 	openapi_types "github.com/oapi-codegen/runtime/types"
 )
 
+const (
+	BearerAuthScopes = "bearerAuth.Scopes"
+)
+
 // Defines values for A2AProxyResponseStatus.
 const (
 	A2AProxyResponseStatusFailed    A2AProxyResponseStatus = "failed"

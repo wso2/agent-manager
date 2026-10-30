@@ -42,5 +42,9 @@ COPY setup-instrumentation.py /usr/local/bin/setup-instrumentation.py
 # Make the script executable so the container can run it as an entrypoint.
 RUN chmod +x /usr/local/bin/setup-instrumentation.py
 
+# Run as non-root. The init container only reads the bundled packages and writes
+# them into the pod's emptyDir (world-writable), so it needs no root access.
+USER 1000:1000
+
 ENV INSTRUMENTATION_PROVIDER=otel-tracing
 CMD ["python3", "/usr/local/bin/setup-instrumentation.py"]

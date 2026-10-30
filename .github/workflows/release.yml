@@ -25,6 +25,11 @@ env:
   REGISTRY_ORG: ${{ vars.AMP_REGISTRY_ORG || 'wso2' }}
   HELM_REGISTRY: ${{ vars.AMP_HELM_REGISTRY || 'oci://ghcr.io/wso2' }}
 
+# Default token scope is read-only; jobs that publish, push or deploy
+# request the extra scopes they need at job level.
+permissions:
+  contents: read
+
 jobs:
   prepare-release:
     name: Prepare Release

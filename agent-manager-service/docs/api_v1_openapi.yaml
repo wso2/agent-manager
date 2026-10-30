@@ -4,9 +4,12 @@ info:
   title: Agent Manager Service API
 servers:
   - url: /api/v1
+security:
+  - bearerAuth: []
 paths:
   /config:
     get:
+      security: []
       summary: Get service configuration
       description: Returns service URLs that CLI clients need for direct backend access.
       operationId: getConfig
@@ -558,6 +561,9 @@ paths:
           explode: true
           schema:
             type: array
+            # A resource carries at most 10 labels (MaxLabelsPerResource), so more
+            # selectors than that can never match.
+            maxItems: 10
             items:
               type: string
       responses:
@@ -5126,6 +5132,7 @@ paths:
         This endpoint is public and does not require authentication.
         Clients can use these keys to verify tokens issued by the service.
       operationId: getJWKS
+      security: []
       responses:
         "200":
           description: JWKS retrieved successfully
@@ -9557,6 +9564,9 @@ paths:
           explode: true
           schema:
             type: array
+            # A resource carries at most 10 labels (MaxLabelsPerResource), so more
+            # selectors than that can never match.
+            maxItems: 10
             items:
               type: string
       responses:
@@ -11387,6 +11397,11 @@ paths:
           description: Environment not found
 
 components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
   parameters:
     AgentIdentityOrgName:
       name: orgName

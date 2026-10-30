@@ -14,6 +14,11 @@ on:
       - "python-instrumentation-provider/Dockerfile"
       - ".github/workflows/instrumentation-provider-lock-check.yaml"
 
+# Default token scope is read-only; jobs that publish, push or deploy
+# request the extra scopes they need at job level.
+permissions:
+  contents: read
+
 jobs:
   check-locks:
     name: Verify locks cover the matrix

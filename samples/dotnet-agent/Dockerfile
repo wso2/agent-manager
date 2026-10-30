@@ -8,6 +8,7 @@ RUN dotnet publish -c Release -o /app
 
 # Runtime stage
 FROM mcr.microsoft.com/dotnet/aspnet:10.0
+RUN apt-get update && apt-get install -y --no-install-recommends curl && rm -rf /var/lib/apt/lists/*
 WORKDIR /app
 COPY --from=build /app .
 
@@ -32,5 +33,8 @@ EXPOSE 8000
 #     OTEL_DOTNET_AUTO_HOME=/otel-dotnet-auto \
 #     OTEL_DOTNET_AUTO_TRACES_ADDITIONAL_SOURCES=amp-dotnet-agent
 # NOTE: use linux-musl-x64 instead of linux-x64 on Alpine base images.
+
+HEALTHCHECK --interval=30s --timeout=5s --start-period=30s --retries=3 \
+    CMD curl --fail --silent --max-time 4 http://127.0.0.1:8000/healthz > /dev/null || exit 1
 
 ENTRYPOINT ["dotnet", "dotnet-agent.dll"]

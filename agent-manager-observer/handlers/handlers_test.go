@@ -408,6 +408,9 @@ func TestGetTraceOverviews_IncludeQueryParam(t *testing.T) {
 		{name: "spans is rejected", query: "&include=spans", wantStatus: http.StatusBadRequest},
 		{name: "Models is rejected", query: "&include=Models", wantStatus: http.StatusBadRequest},
 		{name: "one bad item rejects the list", query: "&include=models,spans", wantStatus: http.StatusBadRequest},
+		{name: "all three values are accepted", query: "&include=models,tools,mcpServers", wantModels: true, wantStatus: http.StatusOK},
+		{name: "more than three items are rejected", query: "&include=models,tools,mcpServers,models", wantStatus: http.StatusBadRequest},
+		{name: "items across repeated parameters count toward the limit", query: "&include=models,tools&include=models,tools", wantStatus: http.StatusBadRequest},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -460,6 +463,8 @@ func TestTraceEndpoints_InvalidFilters(t *testing.T) {
 		{name: "fractional minDurationMs", query: "&minDurationMs=1.5"},
 		{name: "negative minSpanCount", query: "&minSpanCount=-2"},
 		{name: "unknown missing value", query: "&missing=model"},
+		{name: "too many missing values", query: "&missing=conversationId,conversationId"},
+		{name: "repeated missing parameters", query: "&missing=conversationId&missing=conversationId"},
 		{name: "conversationId with missing=conversationId", query: "&conversationId=conv-42&missing=conversationId"},
 	}
 	endpoints := map[string]func(*Handler) http.HandlerFunc{

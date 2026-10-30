@@ -83,8 +83,16 @@ func ValidateLabelValue(value, field string) error {
 // satisfy the same rules as stored labels. Repeating the same key with
 // different values would make the AND-semantics filter impossible to satisfy
 // (no label can equal two different values at once), so that's rejected
-// rather than silently keeping only the last one.
+// rather than silently keeping only the last one. The raw parameter count is
+// capped at MaxLabelsPerResource (the spec's maxItems) before deduplication,
+// so repeated identical selectors cannot bypass the limit.
 func ParseLabelSelectors(params []string) (map[string]string, error) {
+	if len(params) > MaxLabelsPerResource {
+		return nil, NewValidationErrorf(
+			fmt.Sprintf("At most %d label filters can be specified", MaxLabelsPerResource),
+			"label: %d filters provided, maximum is %d", len(params), MaxLabelsPerResource,
+		)
+	}
 	selectors := make(map[string]string, len(params))
 	for _, param := range params {
 		key, value, found := strings.Cut(param, ":")
