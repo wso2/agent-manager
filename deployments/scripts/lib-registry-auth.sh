@@ -25,6 +25,18 @@ AMP_IMAGE_REGISTRY="${AMP_IMAGE_REGISTRY:-$AMP_PUBLIC_IMAGE_REGISTRY}"
 # different script cannot disagree.
 AMP_REGISTRY_SECRET_NAME="${AMP_REGISTRY_SECRET_NAME:-wso2-registry-credentials}"
 
+# Registry prefix the WSO2 API Platform gateway (its chart and its controller and
+# runtime images) is pulled from. The gateway is not built from this repository,
+# only published beside it, so it keeps this location even when
+# AMP_IMAGE_REGISTRY points somewhere else, such as a stage project.
+GATEWAY_REGISTRY="${GATEWAY_REGISTRY:-registry.wso2.com/wso2-agent-manager/sts}"
+
+# The gateway's own pull Secret. It is separate from AMP_REGISTRY_SECRET_NAME
+# because both registries can sit on one host, and a docker config holds one
+# credential per host: a stage test pulls AMP from the stage project and the
+# gateway from the release project, each with its own robot.
+GATEWAY_REGISTRY_SECRET_NAME="${GATEWAY_REGISTRY_SECRET_NAME:-wso2-gateway-registry-credentials}"
+
 # amp_registry_host -> the registry hostname alone, without the organization.
 # `docker login`, the containerd configs: key and --docker-server all key on the
 # host; the organization belongs only in the image reference. Keeps any port.
@@ -52,12 +64,12 @@ amp_registry_is_private() {
 #
 # AMP_REGISTRY_ALLOW_INSECURE=true opts out, for a mirror deliberately served
 # over plain HTTP on a trusted network.
-amp_registry_verify_tls() {
+amp_registry_verify_tls() {    # [host], defaults to the AMP registry host
     if [ "${AMP_REGISTRY_ALLOW_INSECURE:-false}" = "true" ]; then
         return 0
     fi
     local host code
-    host="$(amp_registry_host)"
+    host="${1:-$(amp_registry_host)}"
     code="$(curl -sS -o /dev/null --max-time 15 -w '%{http_code}' "https://${host}/v2/" 2>/dev/null || true)"
     case "$code" in
         [1-5][0-9][0-9]) return 0 ;;
@@ -181,19 +193,39 @@ amp_registry_helm_login() {
 # so it is safe to re-run on an upgrade.
 amp_create_pull_secret() {
     amp_registry_load_credentials || return 1
+    _amp_apply_pull_secret "$AMP_REGISTRY_SECRET_NAME" "$(amp_registry_host)" \
+        "$AMP_REGISTRY_USERNAME" "$AMP_REGISTRY_PASSWORD" "" "$@"
+}
+
+# _amp_apply_pull_secret <secret> <host> <username> <password> <with-plain-keys> <namespace>...
+# Creates or updates a docker-registry Secret for <host> in each namespace. When
+# <with-plain-keys> is non-empty the Secret also carries the credential as plain
+# username/password keys, the form the gateway operator reads to pull a chart.
+_amp_apply_pull_secret() {
+    local secret="$1" host="$2" user="$3" pass="$4" plain="$5"
+    shift 5
     # Build the docker config here rather than letting kubectl take the token as
     # --docker-password: argv is readable by any user on the host through ps,
     # which is the same reason these credentials are not accepted as a flag.
     # base64 output is alphanumeric, so neither value can break the JSON.
-    local cfg ns rc=0
+    local cfg ns rc=0 user_file pass_file
+    local extra=()
     cfg="$(mktemp)"
     chmod 600 "$cfg"
     if ! printf '{"auths":{"%s":{"auth":"%s"}}}' \
-        "$(amp_registry_host)" \
-        "$(printf '%s:%s' "$AMP_REGISTRY_USERNAME" "$AMP_REGISTRY_PASSWORD" | base64 | tr -d '\n')" \
+        "$host" \
+        "$(printf '%s:%s' "$user" "$pass" | base64 | tr -d '\n')" \
         > "$cfg"; then
         rm -f "$cfg"
         return 1
+    fi
+    if [ -n "$plain" ]; then
+        # Files, not --from-literal, to keep the token out of argv.
+        user_file="$(mktemp)"; pass_file="$(mktemp)"
+        chmod 600 "$user_file" "$pass_file"
+        printf '%s' "$user" > "$user_file"
+        printf '%s' "$pass" > "$pass_file"
+        extra=(--from-file=username="$user_file" --from-file=password="$pass_file")
     fi
     for ns in "$@"; do
         # Create the namespace only when absent. Several of these namespaces are
@@ -212,13 +244,14 @@ amp_create_pull_secret() {
         if [ -z "$found" ]; then
             kubectl create namespace "$ns" >/dev/null || { rc=1; continue; }
         fi
-        kubectl create secret generic "$AMP_REGISTRY_SECRET_NAME" \
+        kubectl create secret generic "$secret" \
             --namespace "$ns" \
             --type=kubernetes.io/dockerconfigjson \
             --from-file=.dockerconfigjson="$cfg" \
+            ${extra[@]+"${extra[@]}"} \
             --dry-run=client -o yaml | kubectl apply -f - >/dev/null || rc=1
     done
-    rm -f "$cfg"
+    rm -f "$cfg" ${user_file:+"$user_file"} ${pass_file:+"$pass_file"}
     # Return the failure explicitly. Both callers test this in an `if`, which
     # disables errexit inside the function, so the cleanup above would otherwise
     # be the last command and report success over a Secret that was never
@@ -256,4 +289,69 @@ amp_pull_secret_helm_args() {
     printf '%s\n' \
         "--set" "global.ampImageRegistry=${AMP_IMAGE_REGISTRY}" \
         "--set" "global.imagePullSecrets[0]=${AMP_REGISTRY_SECRET_NAME}"
+}
+
+# amp_gateway_registry_host -> the gateway registry's hostname alone.
+amp_gateway_registry_host() {
+    printf '%s' "${GATEWAY_REGISTRY%%/*}"
+}
+
+# amp_gateway_load_credentials
+# Populates GATEWAY_REGISTRY_USERNAME / GATEWAY_REGISTRY_PASSWORD. Without both
+# set, they are the AMP registry credentials: a customer has one robot for the
+# release project, which holds AMP and the gateway alike. Only a stage test sets
+# them apart.
+amp_gateway_load_credentials() {
+    if [ -z "${GATEWAY_REGISTRY_USERNAME:-}" ] || [ -z "${GATEWAY_REGISTRY_PASSWORD:-}" ]; then
+        amp_registry_load_credentials || return 1
+        GATEWAY_REGISTRY_USERNAME="$AMP_REGISTRY_USERNAME"
+        GATEWAY_REGISTRY_PASSWORD="$AMP_REGISTRY_PASSWORD"
+    fi
+    amp_registry_verify_tls "$(amp_gateway_registry_host)"
+}
+
+# amp_create_gateway_pull_secret <namespace>...
+# Creates the gateway's pull Secret in each namespace: the gateway operator's,
+# where it pulls the gateway chart, and every namespace a gateway runs in. Each
+# gateway pod lists it, so its images are pulled with these credentials and not
+# the k3d node's, which are the AMP registry's.
+amp_create_gateway_pull_secret() {
+    amp_gateway_load_credentials || return 1
+    _amp_apply_pull_secret "$GATEWAY_REGISTRY_SECRET_NAME" "$(amp_gateway_registry_host)" \
+        "$GATEWAY_REGISTRY_USERNAME" "$GATEWAY_REGISTRY_PASSWORD" plain "$@"
+}
+
+# amp_gateway_operator_helm_args
+# Prints the gateway-operator flags that pull the gateway chart and images from
+# GATEWAY_REGISTRY with the gateway's pull Secret, one token per line. The
+# operator reads the Secret from its own namespace for the chart, and each
+# gateway lists it as an image pull secret.
+amp_gateway_operator_helm_args() {
+    printf '%s\n' \
+        "--set" "gateway.helm.chartName=oci://${GATEWAY_REGISTRY}/helm-charts/gateway" \
+        "--set" "gateway.helm.registryCredentialsSecret.name=${GATEWAY_REGISTRY_SECRET_NAME}" \
+        "--set" "gateway.values.imagePullSecrets[0]=${GATEWAY_REGISTRY_SECRET_NAME}" \
+        "--set" "gateway.values.gateway.controller.image.repository=${GATEWAY_REGISTRY}/gateway-controller" \
+        "--set" "gateway.values.gateway.gatewayRuntime.image.repository=${GATEWAY_REGISTRY}/gateway-runtime"
+}
+
+# amp_gateway_release_pins
+# Reads a gateway extension chart's values.yaml on stdin and prints, one per
+# line, the gateway chart version, the gateway image tag and the gateway-operator
+# chart version from its gatewayRelease block. Prints nothing when the block or
+# any pin is missing, as in a chart published before the block existed, so the
+# caller keeps its own defaults.
+# Parsed with awk rather than yq, which the installer does not require.
+amp_gateway_release_pins() {
+    awk '
+        /^gatewayRelease:/ { block = 1; next }
+        block && /^[^[:space:]#]/ { block = 0 }
+        block && $1 == "chartVersion:" { chart = $2 }
+        block && $1 == "imageVersion:" { image = $2 }
+        block && $1 == "operatorVersion:" { operator = $2 }
+        END {
+            gsub(/["\047]/, "", chart); gsub(/["\047]/, "", image); gsub(/["\047]/, "", operator)
+            if (chart != "" && image != "" && operator != "") { print chart; print image; print operator }
+        }
+    '
 }

@@ -1,17 +1,29 @@
 #!/bin/bash
 set -euo pipefail
 
-# Ensures the WSO2 API Platform Gateway Operator is installed AT THE VERSION
-# pinned in env.sh, upgrading a stale install if needed. Called by
+# Ensures the WSO2 API Platform Gateway Operator, and the gateway it deploys,
+# are installed AT THE VERSIONS pinned in the gateway extension chart's
+# gatewayRelease values, upgrading a stale install if needed. Called by
 # setup-openchoreo.sh (full setup) and setup-amp-extensions.sh (setup-amp):
-# the operator is base-layer, but a version-pin bump in env.sh must still land
+# the operator is base-layer, but a version-pin bump must still land
 # on long-lived clusters or the AMP gateway charts render CRs (e.g.
 # APIGateway .../v1) the old operator's CRDs don't serve.
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 source "$SCRIPT_DIR/env.sh"
+# shellcheck source=../scripts/lib-registry-auth.sh
+source "$SCRIPT_DIR/../scripts/lib-registry-auth.sh"
 
 OPERATOR_CHART="oci://ghcr.io/wso2/api-platform/helm-charts/gateway-operator"
+
+# The gateway release the gateway extension chart in this tree is tested with.
+GATEWAY_PINS="$(amp_gateway_release_pins \
+    < "$SCRIPT_DIR/../helm-charts/wso2-amp-api-platform-gateway-extension/values.yaml")"
+if [ -z "$GATEWAY_PINS" ]; then
+    echo "❌ No gatewayRelease pins in the gateway extension chart's values.yaml" >&2
+    exit 1
+fi
+{ read -r GATEWAY_CHART_VERSION; read -r GATEWAY_IMAGE_VERSION; read -r GATEWAY_OPERATOR_VERSION; } <<< "$GATEWAY_PINS"
 TARGET_CHART="gateway-operator-${GATEWAY_OPERATOR_VERSION}"
 
 current_chart="$(helm list -n openchoreo-data-plane -f '^gateway-operator$' -o json 2>/dev/null \
@@ -30,6 +42,12 @@ elif [ -n "$current_chart" ]; then
         | kubectl apply --server-side --force-conflicts -f -
 fi
 
+# The gateway chart and images come from GATEWAY_REGISTRY with their own pull
+# Secret, which the operator reads from its namespace.
+amp_create_gateway_pull_secret openchoreo-data-plane
+GATEWAY_REGISTRY_HELM_ARGS=()
+while IFS= read -r arg; do GATEWAY_REGISTRY_HELM_ARGS+=("$arg"); done < <(amp_gateway_operator_helm_args)
+
 helm upgrade --install gateway-operator "$OPERATOR_CHART" \
     --version "${GATEWAY_OPERATOR_VERSION}" \
     --namespace openchoreo-data-plane \
@@ -37,10 +55,9 @@ helm upgrade --install gateway-operator "$OPERATOR_CHART" \
     --set logging.level=debug \
     --set gatewayApi.installStandardCRDs=false \
     --set "gateway.helm.chartVersion=${GATEWAY_CHART_VERSION}" \
+    "${GATEWAY_REGISTRY_HELM_ARGS[@]}" \
     --set "gateway.values.gateway.controller.image.tag=${GATEWAY_IMAGE_VERSION}" \
-    --set gateway.values.gateway.controller.image.repository=ghcr.io/wso2/api-platform/gateway-controller \
     --set "gateway.values.gateway.gatewayRuntime.image.tag=${GATEWAY_IMAGE_VERSION}" \
-    --set gateway.values.gateway.gatewayRuntime.image.repository=ghcr.io/wso2/api-platform/gateway-runtime \
     --set gateway.values.gateway.controller.encryptionKeys.enabled=true \
     --set "gateway.values.gateway.controller.encryptionKeys.secretName=${GATEWAY_ENCRYPTION_SECRET_NAME}" \
     --set gateway.values.gateway.controller.deployment.livenessProbe.httpGet.path=/api/admin/v1/health \

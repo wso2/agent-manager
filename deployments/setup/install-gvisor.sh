@@ -7,7 +7,7 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
 # The release this script ships with. The release workflow stamps the version it
 # tags into this default, so a copy downloaded from a release tag knows its release.
-AMP_RELEASE_REF="${AMP_RELEASE_REF:-amp/v0.0.0-dev}"
+AMP_RELEASE_REF="${AMP_RELEASE_REF:-amp/v2026.11.0}"
 
 # install-gvisor.sh — Install gVisor (runsc) on a Linux Kubernetes node.
 #

@@ -213,6 +213,72 @@ assert_eq "charts on another host are left alone" "" "$(cat "$TMP/helm.args" 2>/
 helm_login HELM_CHART_REGISTRY=ghcr.io/wso2
 assert_eq "a public install never calls helm" "" "$(cat "$TMP/helm.args" 2>/dev/null)"
 
+# --- gateway registry ---------------------------------------------------------
+# A stage test pulls AMP from one project and the gateway from another on the
+# same host, so the gateway Secret must carry the gateway robot, scoped to the
+# gateway host, and the operator must be pointed at it.
+assert_eq "the gateway defaults to the release project" "registry.wso2.com/wso2-agent-manager/sts" \
+  "$( ( unset GATEWAY_REGISTRY; export AMP_IMAGE_REGISTRY=registry.example.com/stage
+        . "$LIB"; printf '%s' "$GATEWAY_REGISTRY" ) )"
+assert_eq "the operator pulls the chart and images from the gateway registry with its Secret" \
+  "--set gateway.helm.chartName=oci://r.example.com/prod/gateway/helm-charts/gateway --set gateway.helm.registryCredentialsSecret.name=wso2-gateway-registry-credentials --set gateway.values.imagePullSecrets[0]=wso2-gateway-registry-credentials --set gateway.values.gateway.controller.image.repository=r.example.com/prod/gateway/gateway-controller --set gateway.values.gateway.gatewayRuntime.image.repository=r.example.com/prod/gateway/gateway-runtime" \
+  "$( ( export GATEWAY_REGISTRY=r.example.com/prod/gateway; . "$LIB"; amp_gateway_operator_helm_args | tr '\n' ' ' | sed 's/ $//' ) )"
+
+# kubectl is stubbed to keep what each `create secret` was given; the files are
+# removed once the call returns.
+STUB3="$TMP/stub3"; mkdir -p "$STUB3"
+cat > "$STUB3/kubectl" <<EOF
+#!/bin/bash
+case "\$1 \$2" in
+  "get namespace") echo "namespace/\$3" ;;
+  "create secret")
+    for a in "\$@"; do
+      case "\$a" in
+        --from-file=.dockerconfigjson=*) cp "\${a#*=*=}" "$TMP/gw.config" ;;
+        --from-file=username=*) cp "\${a#*=*=}" "$TMP/gw.user" ;;
+        --from-file=password=*) cp "\${a#*=*=}" "$TMP/gw.pass" ;;
+      esac
+    done
+    echo "\$4" > "$TMP/gw.name" ;;
+esac
+exit 0
+EOF
+chmod +x "$STUB3/kubectl"
+gateway_secret() {
+    rm -f "$TMP"/gw.*
+    ( export PATH="$STUB3:$PATH" AMP_REGISTRY_ALLOW_INSECURE=true \
+             AMP_IMAGE_REGISTRY=registry.example.com/stage AMP_REGISTRY_USERNAME=stage-robot AMP_REGISTRY_PASSWORD=stage-tok \
+             GATEWAY_REGISTRY=registry.example.com/prod "$@"
+      . "$LIB"; amp_create_gateway_pull_secret ns-gw >/dev/null 2>&1 )
+}
+gateway_secret GATEWAY_REGISTRY_USERNAME=prod-robot GATEWAY_REGISTRY_PASSWORD=prod-tok
+assert_eq "the gateway Secret has its own name" "wso2-gateway-registry-credentials" "$(cat "$TMP/gw.name" 2>/dev/null)"
+assert_eq "the gateway Secret carries the gateway robot for the gateway host" \
+  "{\"auths\":{\"registry.example.com\":{\"auth\":\"$(printf 'prod-robot:prod-tok' | base64)\"}}}" "$(cat "$TMP/gw.config" 2>/dev/null)"
+assert_eq "the operator's plain username key is the gateway robot" "prod-robot" "$(cat "$TMP/gw.user" 2>/dev/null)"
+assert_eq "the operator's plain password key is the gateway token" "prod-tok" "$(cat "$TMP/gw.pass" 2>/dev/null)"
+gateway_secret
+assert_eq "without gateway credentials the AMP robot is used" "stage-robot" "$(cat "$TMP/gw.user" 2>/dev/null)"
+gateway_secret GATEWAY_REGISTRY_USERNAME=prod-robot
+assert_eq "half a gateway credential is not mixed with the AMP one" "stage-robot:stage-tok" \
+  "$(cat "$TMP/gw.user" 2>/dev/null):$(cat "$TMP/gw.pass" 2>/dev/null)"
+
+# The gateway release pins install.sh reads from the gateway extension chart.
+pins() { ( . "$LIB"; amp_gateway_release_pins ) | paste -sd' ' -; }
+CHART_VALUES="$(dirname "$LIB")/../helm-charts/wso2-amp-api-platform-gateway-extension/values.yaml"
+assert_eq "the chart's own values carry all three pins" "3" "$(pins < "$CHART_VALUES" | wc -w | tr -d ' ')"
+assert_eq "an update's pins are read apart, chart then images then operator" "2026.10.0-u1 2026.10.0.1 0.12.0" \
+  "$(printf 'kubectl:\n  image: x\ngatewayRelease:\n  operatorVersion: "0.12.0"\n  chartVersion: "2026.10.0-u1"\n  imageVersion: "2026.10.0.1"\nagentManager:\n  orgName: d\n' | pins)"
+assert_eq "single quotes, no quotes and comments are accepted" "1.2.3 1.2.3.4 0.1.0" \
+  "$(printf "gatewayRelease:\n  # pins\n  chartVersion: '1.2.3'\n  imageVersion: 1.2.3.4 # tag\n  operatorVersion: 0.1.0\n" | pins)"
+assert_eq "the same keys in another block are not read" "" \
+  "$(printf 'other:\n  chartVersion: "9.9.9"\n  imageVersion: "9.9.9"\n  operatorVersion: "9.9.9"\ngatewayRelease: {}\n' | pins)"
+assert_eq "the block ends at the next top-level key" "" \
+  "$(printf 'gatewayRelease:\n  chartVersion: "1.0.0"\n  operatorVersion: "0.1.0"\nother:\n  imageVersion: "9.9.9"\n' | pins)"
+assert_eq "a block without the operator pin yields nothing" "" \
+  "$(printf 'gatewayRelease:\n  chartVersion: "1.0.0"\n  imageVersion: "1.0.0"\n' | pins)"
+assert_eq "a chart without the block yields nothing" "" "$(printf 'kubectl:\n  image: x\n' | pins)"
+
 if ((FAILURES > 0)); then
     printf '\n%d assertion(s) failed\n' "$FAILURES"
     exit 1

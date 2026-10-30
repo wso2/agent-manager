@@ -8,13 +8,13 @@
 # <project> is your registry project: wso2-agent-manager for a subscription, or
 # wso2-agent-manager-evaluations for an evaluation. The installer itself comes
 # from this release's public bundle on GitHub, as with k3d-install.sh; only the
-# Helm charts and Agent Manager images come from registry.wso2.com/<project>,
+# Helm charts and Agent Manager images come from registry.wso2.com/<project>/sts,
 # pulled by helm and by the cluster with your registry credentials.
 #
 # Each copy is tied to the release it shipped with, and installs that release or
-# one of its updates: 1.0.0 is the release itself, and 1.0.0-u<N> its update N
-# (images 1.0.0.<N>). Without --version it installs the newest one published to
-# the project, so new updates need no new copy of this script.
+# one of its updates: 2026.11.0 is the release itself, and 2026.11.0-u<N> its
+# update N (images 2026.11.0.<N>). Without --version it installs the newest
+# one published to the project, so new updates need no new copy of this script.
 #
 # Credentials come from AMP_REGISTRY_USERNAME and AMP_REGISTRY_PASSWORD, from a
 # file named by AMP_REGISTRY_CREDENTIALS_FILE holding both, or from a prompt on
@@ -23,11 +23,13 @@
 set -euo pipefail
 
 # Stamped to the release version at build time (see .github/scripts/update-install-helpers.sh).
-DEFAULT_VERSION="0.0.0-dev"
+DEFAULT_VERSION="2026.11.0"
 REGISTRY_HOST="${AMP_SUBSCRIPTION_REGISTRY:-registry.wso2.com}"
 PROJECTS=(wso2-agent-manager wso2-agent-manager-evaluations)
-# Charts sit under this path in each project, apart from the images.
-CHARTS_SUBPATH="helm-charts"
+# This short-term support release sits under sts/ in each project, with its
+# charts under helm-charts/ there, apart from the images.
+IMAGES_SUBPATH="sts"
+CHARTS_SUBPATH="${IMAGES_SUBPATH}/helm-charts"
 REPO="${AMP_REPO:-wso2/agent-manager}"
 AMP_HOME="${AMP_HOME:-${HOME}/.wso2-agent-manager}"
 
@@ -46,7 +48,7 @@ OpenChoreo and Agent Manager on it, from your WSO2 registry project. Needs Docke
   --project        wso2-agent-manager (subscription) or
                    wso2-agent-manager-evaluations (evaluation)
   --version        Version to install: the release this script shipped with
-                   (e.g. 1.0.0) or one of its updates (e.g. 1.0.0-u2).
+                   (e.g. 2026.11.0) or one of its updates (e.g. 2026.11.0-u2).
                    Default: the newest published to the project
   --download-only  Check the credentials, find the version, download the
                    installer, print where it is, and stop without installing
@@ -62,7 +64,7 @@ while [[ $# -gt 0 ]]; do
   case "$1" in
     --project) PROJECT="${2:?--project requires a value}"; shift 2 ;;
     --version) REQUESTED="${2:?--version requires a value}"; shift 2 ;;
-    --update-level) die "--update-level was replaced by --version (e.g. --version 1.0.0-u2)" ;;
+    --update-level) die "--update-level was replaced by --version (e.g. --version 2026.11.0-u2)" ;;
     --download-only) DOWNLOAD_ONLY=true; shift ;;
     -h|--help) usage; exit 0 ;;
     *) die "unknown argument: $1 (see --help)" ;;
@@ -76,10 +78,11 @@ VERSION="${VERSION#v}"
 # Matched by suffix, not the literal placeholder, which the release stamping rewrites.
 [[ "$VERSION" != *-dev ]] || \
   die "this copy of the script is not tied to a release — set AMP_SUBSCRIPTION_RELEASE=<release>"
-[[ "$VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]] || die "AMP_SUBSCRIPTION_RELEASE must look like 1.0.0 (got '${VERSION}')"
+[[ "$VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]] || die "AMP_SUBSCRIPTION_RELEASE must look like 2026.11.0 (got '${VERSION}')"
 
-# --version names the release (level 0) or an update of it (1.0.0-u2). The image
-# form of an update (1.0.0.2) is accepted too, since that is what pods show.
+# --version names the release (level 0) or an update of it (2026.11.0-u2). The
+# image form of an update (2026.11.0.2) is accepted too, since that is what
+# pods show.
 if [[ -n "$REQUESTED" ]]; then
   REQUESTED="${REQUESTED#v}"
   RELEASE_RE="${VERSION//./\\.}"
@@ -272,7 +275,7 @@ log "Installer unpacked in ${DIST_DIR}"
 
 if [[ "$DOWNLOAD_ONLY" == true ]]; then
   log "Download only: to install, run"
-  log "  cd ${QUICK_START_DIR} && AMP_IMAGE_REGISTRY=${REGISTRY_HOST}/${PROJECT} HELM_CHART_REGISTRY=${REGISTRY_HOST}/${PROJECT}/${CHARTS_SUBPATH} VERSION=${CHART_VERSION} ./install.sh"
+  log "  cd ${QUICK_START_DIR} && AMP_IMAGE_REGISTRY=${REGISTRY_HOST}/${PROJECT}/${IMAGES_SUBPATH} GATEWAY_REGISTRY=${REGISTRY_HOST}/${PROJECT}/${IMAGES_SUBPATH} HELM_CHART_REGISTRY=${REGISTRY_HOST}/${PROJECT}/${CHARTS_SUBPATH} VERSION=${CHART_VERSION} ./install.sh"
   log "with AMP_REGISTRY_USERNAME and AMP_REGISTRY_PASSWORD (or AMP_REGISTRY_CREDENTIALS_FILE) set."
   exit 0
 fi
@@ -290,13 +293,15 @@ fi
 # so values left in the shell from an earlier guided install cannot redirect it.
 # The installer takes the credentials from here for the node's registry
 # configuration, the image pull secrets and its own helm sign-in.
-export AMP_IMAGE_REGISTRY="${REGISTRY_HOST}/${PROJECT}"
+export AMP_IMAGE_REGISTRY="${REGISTRY_HOST}/${PROJECT}/${IMAGES_SUBPATH}"
 export HELM_CHART_REGISTRY="${REGISTRY_HOST}/${PROJECT}/${CHARTS_SUBPATH}"
+# Each project carries the gateway beside AMP, so one robot pulls both.
+export GATEWAY_REGISTRY="${REGISTRY_HOST}/${PROJECT}/${IMAGES_SUBPATH}"
 export VERSION="$CHART_VERSION"
 export AMP_REGISTRY_USERNAME AMP_REGISTRY_PASSWORD
-unset AMP_REGISTRY_CREDENTIALS_FILE HELM_REGISTRY_CONFIG
+unset AMP_REGISTRY_CREDENTIALS_FILE HELM_REGISTRY_CONFIG GATEWAY_REGISTRY_USERNAME GATEWAY_REGISTRY_PASSWORD
 
 log "Installing Agent Manager ${CHART_VERSION} on k3d (~15-20 minutes)"
 cd "$QUICK_START_DIR"
 bash ./install.sh
-log "Installed WSO2 Agent Manager ${CHART_VERSION} (images ${TAG}) from ${REGISTRY_HOST}/${PROJECT}"
+log "Installed WSO2 Agent Manager ${CHART_VERSION} (images ${TAG}) from ${REGISTRY_HOST}/${PROJECT}/${IMAGES_SUBPATH}"

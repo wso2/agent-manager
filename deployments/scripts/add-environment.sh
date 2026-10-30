@@ -72,12 +72,13 @@ set -euo pipefail
 # CHART_VERSION is required when pulling from OCI but ignored when GATEWAY_CHART is set.
 CHART_VERSION="${CHART_VERSION:-}"
 
-# CHART_VERSION carries the Agent Manager release version here (console sets
-# it from ampVersion, see getAmpVersionHelm()), so pin script fetches (below,
-# and the chained add-environment-thunder.sh) to that release tag instead of
-# `main` — same convention as getScriptRef(). Falls back to main when
-# unset/dev (no matching tag). Computed early so both this script's own
-# thunder-naming.sh fetch and the later Thunder-provisioning fetch agree.
+# CHART_VERSION carries the Agent Manager release version here, so pin script
+# fetches (below, and the chained add-environment-thunder.sh) to that release
+# tag instead of `main` — same convention as getScriptRef(). Falls back to main
+# when unset/dev (no matching tag). Computed early so both this script's own
+# thunder-naming.sh fetch and the later Thunder-provisioning fetch agree. An
+# update's chart version (2.0.0-u1) has no tag of its own, so the console passes
+# SCRIPT_BASE_URL whenever it runs the script from a release bundle.
 script_ref="main"
 if [ -n "$CHART_VERSION" ] && [[ "$CHART_VERSION" != *dev* ]]; then
     script_ref="amp/v${CHART_VERSION#v}"
@@ -206,24 +207,13 @@ CHART_REF="${CHART_REF:-oci://ghcr.io/wso2/wso2-amp-api-platform-gateway-extensi
 # or a tarball). When unset, the published OCI chart at CHART_REF is used.
 GATEWAY_CHART="${GATEWAY_CHART:-}"
 
-# --- Resolve chart reference and version ---
-# When GATEWAY_CHART is set, use it directly (no --version flag).
-# Otherwise resolve the latest OCI version or use the pinned CHART_VERSION.
+# --- Resolve chart reference ---
+# When GATEWAY_CHART is set, use it directly (no --version flag). The version of
+# an OCI chart is resolved further down, once helm is signed in to its registry.
 if [ -n "$GATEWAY_CHART" ]; then
     echo "📦 Using gateway chart: ${GATEWAY_CHART}"
     CHART_REF="${GATEWAY_CHART}"
     CHART_VERSION=""
-elif [ -z "$CHART_VERSION" ]; then
-    echo "🔎 Resolving latest gateway chart version from ${CHART_REF}..."
-    CHART_VERSION=$(helm show chart "${CHART_REF}" 2>/dev/null | awk '/^version:/ {print $2; exit}')
-    if [ -z "$CHART_VERSION" ]; then
-        echo "❌ Could not resolve the latest chart version from ${CHART_REF}"
-        echo "   Pin a version explicitly and retry (e.g. CHART_VERSION=0.15.0)."
-        exit 1
-    fi
-    echo "✅ Using latest chart version: ${CHART_VERSION}"
-else
-    echo "📌 Using pinned chart version: ${CHART_VERSION}"
 fi
 
 # GATEWAY_VHOST_PORT is resolved further down, together with the other values the
@@ -340,6 +330,49 @@ if declare -F amp_registry_is_private >/dev/null 2>&1 && amp_registry_is_private
     else
         echo "❌ Failed to create the image pull secret in workflows-${ENV_NAME}" >&2
         exit 1
+    fi
+fi
+
+# A gateway extension chart in the private registry is pulled by helm on this
+# machine, which neither the pull secret nor a node's registry config covers, so
+# sign helm in with the same credentials. amp_registry_helm_login only acts when
+# the chart is on the image registry's host.
+case "$CHART_REF" in
+    oci://*)
+        if declare -F amp_registry_helm_login >/dev/null 2>&1 && amp_registry_is_private; then
+            HELM_CHART_REGISTRY="${HELM_CHART_REGISTRY:-${CHART_REF#oci://}}"
+            _chart_host="${CHART_REF#oci://}"
+            _chart_host="${_chart_host%%/*}"
+            if [ "$_chart_host" != "$(amp_registry_host)" ]; then
+                # Different credentials from the image registry's; say so rather
+                # than fail later with a bare 401 from helm.
+                echo "ℹ️  The gateway extension chart is on ${_chart_host}, not the image registry."
+                echo "   If that registry is private, helm must already be signed in to it"
+                echo "   (helm registry login ${_chart_host})."
+            elif ! amp_registry_helm_login; then
+                echo "❌ Failed to sign helm in to the chart registry for ${CHART_REF}" >&2
+                exit 1
+            fi
+            unset _chart_host
+        fi
+        ;;
+esac
+
+# --- Resolve chart version ---
+# Resolve the latest OCI version or use the pinned CHART_VERSION. After the
+# sign-in above, which a private chart needs before helm can read it.
+if [ -z "$GATEWAY_CHART" ]; then
+    if [ -z "$CHART_VERSION" ]; then
+        echo "🔎 Resolving latest gateway chart version from ${CHART_REF}..."
+        CHART_VERSION=$(helm show chart "${CHART_REF}" 2>/dev/null | awk '/^version:/ {print $2; exit}')
+        if [ -z "$CHART_VERSION" ]; then
+            echo "❌ Could not resolve the latest chart version from ${CHART_REF}"
+            echo "   Pin a version explicitly and retry (e.g. CHART_VERSION=0.15.0)."
+            exit 1
+        fi
+        echo "✅ Using latest chart version: ${CHART_VERSION}"
+    else
+        echo "📌 Using pinned chart version: ${CHART_VERSION}"
     fi
 fi
 
@@ -667,6 +700,22 @@ echo "🌐 Installing API Platform Gateway for '${ENV_NAME}'..."
 kubectl create namespace "${GATEWAY_NAMESPACE}" --dry-run=client -o yaml | kubectl apply -f - > /dev/null
 kubectl label namespace "${GATEWAY_NAMESPACE}" "amp.wso2.com/api-platform-gateway=true" --overwrite > /dev/null
 
+# The gateway images come from a private registry, pulled with the gateway's own
+# Secret from the gateway's namespace (see lib-registry-auth.sh).
+ensure_gateway_pull_secret() {   # <namespace>
+    if ! declare -F amp_create_gateway_pull_secret > /dev/null 2>&1; then
+        echo "❌ lib-registry-auth.sh was not found next to this script, so the gateway" >&2
+        echo "   pull secret cannot be created in '$1'. Run add-environment.sh from the" >&2
+        echo "   extracted release bundle." >&2
+        exit 1
+    fi
+    if ! amp_create_gateway_pull_secret "$1"; then
+        echo "❌ Failed to create the gateway pull secret in '$1'" >&2
+        exit 1
+    fi
+}
+ensure_gateway_pull_secret "${GATEWAY_NAMESPACE}"
+
 # gateway-controller (1.2.0-beta+) requires an AES-256 at-rest encryption key,
 # mounted from a Secret in the SAME namespace as the gateway release
 GATEWAY_ENCRYPTION_SECRET_NAME="${GATEWAY_ENCRYPTION_SECRET_NAME:-gateway-encryption-keys}"
@@ -844,6 +893,7 @@ if [ "$GATEWAY_TOPOLOGY" = "split" ]; then
     # The egress controller mounts the encryption key from ITS namespace; without this copy
     # its pod stays in ContainerCreating and the egress gateway never becomes Programmed.
     ensure_gateway_encryption_key "${EGRESS_NAMESPACE}"
+    ensure_gateway_pull_secret "${EGRESS_NAMESPACE}"
     # The egress release shares HELM_ARGS, so it also references the Secret and needs its own
     # copy. Stop on failure, as for the main gateway: the default credentials would be wrong.
     if [ "${IDP_SECRET_COPIED}" = "true" ]; then
