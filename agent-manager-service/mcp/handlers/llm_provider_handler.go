@@ -68,3 +68,17 @@ func (h *LLMProviderHandler) CreateLLMProvider(ctx context.Context, ouID string,
 	}
 	return resp.Provider, resp.Deployments, nil
 }
+
+// GetLLMProvider returns the provider and its gateway deployments, the two
+// reads the console's provider page makes.
+func (h *LLMProviderHandler) GetLLMProvider(_ context.Context, ouID string, providerID string) (*models.LLMProvider, []*models.Deployment, error) {
+	provider, err := h.providerSvc.Get(providerID, ouID)
+	if err != nil {
+		return nil, nil, err
+	}
+	deployments, err := h.deploymentSvc.GetLLMProviderDeployments(providerID, ouID, nil, nil)
+	if err != nil {
+		return nil, nil, err
+	}
+	return provider, deployments, nil
+}

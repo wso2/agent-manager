@@ -52,6 +52,9 @@ type listLLMProvidersInput struct {
 	Limit  *int `json:"limit,omitempty"`
 	Offset *int `json:"offset,omitempty"`
 }
+type getLLMProviderInput struct {
+	ProviderID string `json:"provider_id"`
+}
 type listLLMGuardrailsInput struct {
 	ProviderID string `json:"provider_id,omitempty"`
 }
@@ -110,6 +113,25 @@ type providerDeploymentItem struct {
 	Success   bool   `json:"success"`
 	Error     string `json:"error,omitempty"`
 }
+type providerGuardrailItem struct {
+	Name    string         `json:"name"`
+	Version string         `json:"version"`
+	Params  map[string]any `json:"params,omitempty"`
+}
+type providerGatewayDeploymentItem struct {
+	GatewayID string `json:"gateway_id"`
+	Status    string `json:"status,omitempty"`
+}
+type getLLMProviderOutput struct {
+	llmProviderItem
+	Description    string                          `json:"description,omitempty"`
+	Version        string                          `json:"version,omitempty"`
+	UpstreamURL    string                          `json:"upstream_url,omitempty"`
+	UpstreamAuth   bool                            `json:"upstream_auth_configured"`
+	Guardrails     []providerGuardrailItem         `json:"guardrails"`
+	Deployments    []providerGatewayDeploymentItem `json:"deployments"`
+	ModelProviders []string                        `json:"model_providers,omitempty"`
+}
 type createLLMProviderOutput struct {
 	llmProviderItem
 	Guardrails  []string                 `json:"guardrails,omitempty"`
@@ -150,6 +172,16 @@ func (t *Toolsets) registerLLMProviderTools(server *gomcp.Server, reg *toolRegis
 			"offset": intProperty(fmt.Sprintf("Optional. Pagination offset (default %d, min %d).", utils.DefaultOffset, utils.MinOffset)),
 		}, nil),
 	}, audit.ActionLLMProviderRead, listLLMProviders(t.LLMProviderToolset), rbac.LLMProviderRead)
+
+	addTool(reg, server, &gomcp.Tool{
+		Name: "get_llm_provider",
+		Description: "Get one LLM provider's details: its template, upstream URL, the guardrails enforced on it, " +
+			"and the gateways it is deployed to with each deployment's status. " +
+			"Use it to check a provider is deployed before attach_llm_provider_to_agent. Credentials are never returned.",
+		InputSchema: createSchema(map[string]any{
+			"provider_id": stringProperty("Required. LLM provider id from list_llm_providers."),
+		}, []string{"provider_id"}),
+	}, audit.ActionLLMProviderRead, getLLMProvider(t.LLMProviderToolset), rbac.LLMProviderRead)
 
 	addTool(reg, server, &gomcp.Tool{
 		Name: "list_llm_guardrails",
@@ -225,6 +257,61 @@ func listLLMProviders(handler LLMProviderToolsetHandler) func(context.Context, *
 			}
 		}
 		return handleToolResult(listLLMProvidersOutput{Total: total, Providers: items}, nil)
+	}
+}
+
+func getLLMProvider(handler LLMProviderToolsetHandler) func(context.Context, *gomcp.CallToolRequest, getLLMProviderInput) (*gomcp.CallToolResult, any, error) {
+	return func(ctx context.Context, _ *gomcp.CallToolRequest, input getLLMProviderInput) (*gomcp.CallToolResult, any, error) {
+		providerID := strings.TrimSpace(input.ProviderID)
+		if providerID == "" {
+			return nil, nil, fmt.Errorf("provider_id is required. Call list_llm_providers to see valid providers")
+		}
+		provider, deployments, err := handler.GetLLMProvider(ctx, resolveOUID(ctx), providerID)
+		if err != nil {
+			return nil, nil, wrapToolError("get_llm_provider", err)
+		}
+		if provider == nil {
+			return nil, nil, fmt.Errorf("get_llm_provider: provider service returned an empty response")
+		}
+
+		cfg := provider.Configuration
+		out := getLLMProviderOutput{
+			llmProviderItem: toLLMProviderItem(provider),
+			Description:     provider.Description,
+			Version:         cfg.Version,
+			Guardrails:      []providerGuardrailItem{},
+			Deployments:     []providerGatewayDeploymentItem{},
+		}
+		// Only the URL and whether auth is set: the auth value is the vendor key.
+		if cfg.Upstream != nil && cfg.Upstream.Main != nil {
+			out.UpstreamURL = cfg.Upstream.Main.URL
+			out.UpstreamAuth = cfg.Upstream.Main.Auth != nil
+		}
+		for _, p := range cfg.Policies {
+			g := providerGuardrailItem{Name: p.Name, Version: p.Version}
+			if len(p.Paths) > 0 {
+				g.Params = p.Paths[0].Params
+			}
+			out.Guardrails = append(out.Guardrails, g)
+		}
+		for _, d := range deployments {
+			// Archived rows are superseded history; showing them beside the live
+			// deployment on the same gateway reads as a half-deployed provider.
+			if d == nil || (d.Status != nil && *d.Status == models.DeploymentStatusArchived) {
+				continue
+			}
+			item := providerGatewayDeploymentItem{GatewayID: d.GatewayUUID.String()}
+			if d.Status != nil {
+				item.Status = string(*d.Status)
+			}
+			out.Deployments = append(out.Deployments, item)
+		}
+		for _, mp := range provider.ModelProviders {
+			if mp.Name != "" {
+				out.ModelProviders = append(out.ModelProviders, mp.Name)
+			}
+		}
+		return handleToolResult(out, nil)
 	}
 }
 

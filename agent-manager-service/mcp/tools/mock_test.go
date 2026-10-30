@@ -153,7 +153,7 @@ func (m *MockToolsetHandler) ListEnvironments(
 	m.recordCall("ListEnvironments", ouID, limit, offset)
 	return &models.EnvironmentListResponse{
 		Environments: []models.GatewayEnvironmentResponse{
-			{Name: testEnvName, DisplayName: "Default Env", IsProduction: false},
+			{UUID: testEnvUUID, Name: testEnvName, DisplayName: "Default Env", IsProduction: false},
 		},
 		Total:  1,
 		Limit:  limit,
@@ -222,6 +222,28 @@ func (m *MockToolsetHandler) CreateLLMProvider(
 	return p, deployments, nil
 }
 
+func (m *MockToolsetHandler) GetLLMProvider(
+	ctx context.Context, ouID string, providerID string,
+) (*models.LLMProvider, []*models.Deployment, error) {
+	m.recordCall("GetLLMProvider", ouID, providerID)
+	authType, header, value := "api-key", "Authorization", testSecret
+	status, archived := models.DeploymentStatusDeployed, models.DeploymentStatusArchived
+	p := &models.LLMProvider{
+		TemplateHandle: testTemplateID, Status: "deployed",
+		Artifact: &models.Artifact{Handle: providerID, Name: "Test Provider"},
+		Configuration: models.LLMProviderConfig{
+			Version: "v1.0",
+			Upstream: &models.UpstreamConfig{Main: &models.UpstreamEndpoint{
+				URL:  "https://api.openai.com/v1",
+				Auth: &models.UpstreamAuth{Type: &authType, Header: &header, Value: &value},
+			}},
+			Policies: []models.LLMPolicy{{Name: testGuardrailName, Version: "v1",
+				Paths: []models.LLMPolicyPath{{Path: "/*", Methods: []string{"*"}, Params: map[string]interface{}{"mask": true}}}}},
+		},
+	}
+	return p, []*models.Deployment{{Status: &status}, {Status: &archived}}, nil
+}
+
 // Gateway Toolset Handler
 
 func (m *MockToolsetHandler) ListGateways(
@@ -262,6 +284,26 @@ func (m *MockToolsetHandler) CreateMCPProxy(
 ) (*models.MCPProxyDTO, error) {
 	m.recordCall("CreateMCPProxy", ouID, req)
 	return req, nil
+}
+
+func (m *MockToolsetHandler) GetMCPProxy(
+	ctx context.Context, ouID string, proxyID string,
+) (*models.MCPProxyDTO, error) {
+	m.recordCall("GetMCPProxy", ouID, proxyID)
+	authType, header, value := "api-key", "Authorization", testSecret
+	tools := []map[string]interface{}{{"name": "search"}}
+	return &models.MCPProxyDTO{
+		ID: proxyID, Name: "Test Proxy", Version: "1.0.0",
+		Endpoints: []models.MCPProxyEndpointDTO{{
+			ID: "default",
+			Upstream: models.UpstreamConfig{Main: &models.UpstreamEndpoint{
+				URL:  "https://mcp.example.com/mcp",
+				Auth: &models.UpstreamAuth{Type: &authType, Header: &header, Value: &value},
+			}},
+			Capabilities: &models.MCPProxyCapabilities{Tools: &tools},
+			Environments: []models.MCPEndpointEnvironmentDTO{{EnvironmentUUID: testEnvUUID, DeploymentStatus: "Deployed"}},
+		}},
+	}, nil
 }
 
 // Agent Config Toolset Handler
