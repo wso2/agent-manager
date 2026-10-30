@@ -696,6 +696,11 @@ func validateSafePath(path, field, userMessage string) error {
 	return nil
 }
 
+// validateRepoDetails checks that a RepositoryConfig contains a valid URL,
+// branch, and app path for internal agent provisioning. GitHub URLs are
+// validated via ParseGitHubURL; other HTTPS hosts with a proper registered
+// domain are accepted via gitRepoURLRe and per-segment identifier checks,
+// supporting GitLab group-namespaced paths at arbitrary nesting depth.
 func validateRepoDetails(repo *spec.RepositoryConfig) error {
 	if repo == nil {
 		return NewValidationError(
@@ -715,28 +720,62 @@ func validateRepoDetails(repo *spec.RepositoryConfig) error {
 			"repository URL is longer than %d characters", MaxRepositoryURLLength,
 		)
 	}
-	if !strings.HasPrefix(repo.Url, "https://github.com/") {
+	if strings.HasPrefix(repo.Url, "https://github.com/") {
+		// GitHub: exactly owner/repo — use the existing narrow parser.
+		owner, repoName := ParseGitHubURL(repo.Url)
+		if owner == "" || repoName == "" {
+			return NewValidationError(
+				"Invalid repository URL format. Please use: https://github.com/owner/repo",
+				"invalid GitHub repository format (expected: https://github.com/owner/repo)",
+			)
+		}
+		if !isValidGitHubIdentifier(owner) || !isValidGitHubIdentifier(repoName) {
+			return NewValidationError(
+				"Invalid repository URL. Please use: https://github.com/owner/repo",
+				"repository owner and name may contain only letters, digits, '.', '_' and '-'",
+			)
+		}
+	} else if gitRepoURLRe.MatchString(repo.Url) {
+		// Non-GitHub HTTPS Git host (GitLab, Bitbucket, self-hosted, etc.).
+		// Path may be deep: host/group/subgroup/.../repo — validate every segment.
+		//
+		// Reject cluster-internal hostnames. The regex accepts any name with a TLD
+		// (e.g. *.svc.cluster.local), so we enforce a suffix denylist here as
+		// defence-in-depth against a build pod being redirected to an internal service.
+		host := strings.TrimPrefix(repo.Url, "https://")
+		if slashIdx := strings.Index(host, "/"); slashIdx > 0 {
+			host = host[:slashIdx]
+		}
+		if colonIdx := strings.LastIndex(host, ":"); colonIdx > 0 {
+			host = host[:colonIdx]
+		}
+		for _, suffix := range []string{".svc.cluster.local", ".cluster.local", ".local", ".internal"} {
+			if strings.HasSuffix(host, suffix) {
+				return NewValidationError(
+					"Cluster-internal hostnames are not supported. Use an externally-reachable Git hosting service (e.g. GitHub, GitLab, Bitbucket)",
+					"repository hostname must not be a cluster-internal address",
+				)
+			}
+		}
+		segments := gitURLPathSegments(repo.Url)
+		if len(segments) < 2 {
+			return NewValidationError(
+				"Invalid repository URL. The path must contain at least owner/group and repository name",
+				"repository URL path must have at least two segments",
+			)
+		}
+		for _, seg := range segments {
+			if !isValidGitHubIdentifier(seg) {
+				return NewValidationError(
+					"Invalid repository URL. Path segments may only contain letters, digits, '.', '_' and '-'",
+					"repository path segments may contain only letters, digits, '.', '_' and '-'",
+				)
+			}
+		}
+	} else {
 		return NewValidationError(
-			"Only GitHub repositories are supported. Please use a URL in format: https://github.com/owner/repo",
-			"only GitHub URLs are supported (format: https://github.com/owner/repo)",
-		)
-	}
-	// Validate repository path format (owner/repo)
-	owner, repoName := ParseGitHubURL(repo.Url)
-	if owner == "" || repoName == "" {
-		return NewValidationError(
-			"Invalid repository URL format. Please use: https://github.com/owner/repo",
-			"invalid GitHub repository format (expected: https://github.com/owner/repo)",
-		)
-	}
-	// ParseGitHubURL's owner/repo groups exclude only "/", so the URL still has
-	// to be held to the character set GitHub itself allows. Both halves are
-	// passed to git inside the build container, where anything else is either
-	// unusable or hostile.
-	if !isValidGitHubIdentifier(owner) || !isValidGitHubIdentifier(repoName) {
-		return NewValidationError(
-			"Invalid repository URL. Please use: https://github.com/owner/repo",
-			"repository owner and name may contain only letters, digits, '.', '_' and '-'",
+			"Only HTTPS repositories are supported. For GitHub use https://github.com/owner/repo; for other Git providers use https://hostname/path/to/repo",
+			"repository URL must use HTTPS with a valid domain (not localhost or an IP address)",
 		)
 	}
 	if repo.Branch == "" {
@@ -1291,8 +1330,8 @@ func isValidGitHubIdentifier(value string) bool {
 	if !validPattern.MatchString(value) {
 		return false
 	}
-	// Reject path traversal patterns
-	if strings.Contains(value, "..") {
+	// Reject path traversal patterns and lone dots
+	if strings.Contains(value, "..") || value == "." {
 		return false
 	}
 	return true
@@ -1495,6 +1534,48 @@ func ValidateListCommitsRequest(payload *spec.ListCommitsRequest) error {
 		payload.ComponentName = &componentName
 	}
 	return nil
+}
+
+// gitRepoURLRe matches any HTTPS URL with a proper registered domain: at least
+// one dot in the hostname, a TLD of two or more characters, and a non-empty
+// path. Rejects plain HTTP, localhost, bare hostnames, and IPv4/v6 literals.
+// GitHub URLs are handled separately via ParseGitHubURL; this regex is the
+// gate for all other Git providers (GitLab, Bitbucket, self-hosted, etc.).
+var gitRepoURLRe = regexp.MustCompile(
+	`^https://` + // HTTPS only
+		`(?:[a-zA-Z0-9](?:[a-zA-Z0-9-]*[a-zA-Z0-9])?\.)+` + // one-or-more labels, each ending in a dot
+		`[a-zA-Z]{2,}` + // TLD, no digits (rules out raw IPs)
+		`(?::\d+)?` + // optional port
+		`/[^?#]+$`, // non-empty path, no query/fragment
+)
+
+// gitURLPathSegments returns the individual path segments from a non-GitHub
+// HTTPS repository URL, stripping a trailing ".git" suffix and ignoring empty
+// segments caused by leading or trailing slashes.
+// e.g. "https://gitlab.example.com/group/sub/repo.git" → ["group","sub","repo"]
+// Returns nil if the URL has no path component.
+func gitURLPathSegments(rawURL string) []string {
+	// Strip scheme and host
+	rest := rawURL
+	if idx := strings.Index(rest, "://"); idx >= 0 {
+		rest = rest[idx+3:]
+	}
+	// Remove host (up to first slash)
+	if idx := strings.Index(rest, "/"); idx >= 0 {
+		rest = rest[idx+1:]
+	} else {
+		return nil
+	}
+	// Strip optional .git suffix and trailing slash
+	rest = strings.TrimSuffix(rest, "/")
+	rest = strings.TrimSuffix(rest, ".git")
+	var segs []string
+	for _, s := range strings.Split(rest, "/") {
+		if s != "" {
+			segs = append(segs, s)
+		}
+	}
+	return segs
 }
 
 // ParseGitHubURL extracts the owner and repository name from a GitHub URL.
