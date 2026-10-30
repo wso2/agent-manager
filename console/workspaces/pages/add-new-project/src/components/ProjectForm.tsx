@@ -19,9 +19,9 @@
 import {
   CircularProgress,
   Form,
+  Grid,
   IconButton,
   InputAdornment,
-  TextField,
   Typography,
   Stack,
 } from "@wso2/oxygen-ui";
@@ -32,6 +32,7 @@ import { debounce } from "lodash";
 import { useGenerateResourceName } from "@agent-management-platform/api-client";
 import { AddProjectFormValues } from "../form/schema";
 import { INPUT_LIMITS } from "@agent-management-platform/types";
+import { TextInput } from "@agent-management-platform/views";
 
 interface ProjectFormProps {
   formData: AddProjectFormValues;
@@ -127,83 +128,84 @@ export const ProjectForm = ({
       debouncedGenerateName.cancel();
       setFormData((prev) => ({ ...prev, name: "" }));
     }
-  }, [formData.displayName, isNameEditable, setFormData, debouncedGenerateName]);
+  }, [
+    formData.displayName,
+    isNameEditable,
+    setFormData,
+    debouncedGenerateName,
+  ]);
 
   return (
     <Form.Stack spacing={3}>
-      <Form.Section>
-        <Form.Subheader>Project Details</Form.Subheader>
-        <Form.Stack spacing={2}>
-          <Form.ElementWrapper label="Name" name="displayName">
-            <TextField
-              slotProps={{ htmlInput: { maxLength: INPUT_LIMITS.NAME } }}
-              id="displayName"
-              value={formData.displayName}
-              onChange={(e) => handleFieldChange("displayName", e.target.value)}
-              placeholder="e.g., Customer Support Platform"
-              error={!!errors.displayName}
-              helperText={
-                isGeneratingName ? (
-                  <Stack direction="row" alignItems="center" gap={1}>
-                    <CircularProgress size={12} />
-                    <Typography variant="caption">Validating name...</Typography>
-                  </Stack>
-                ) : (
-                  errors.displayName
-                )
-              }
-              fullWidth
-            />
-          </Form.ElementWrapper>
 
-          <Form.ElementWrapper label="Project ID" name="name">
-            <TextField
-              id="name"
-              value={formData.name}
-              onChange={(e) => handleFieldChange("name", e.target.value)}
-              placeholder="e.g., customer-support-platform"
-              error={!!errors.name}
-              helperText={errors.name}
-              disabled={!isNameEditable && !formData.name}
-              slotProps={{
-                htmlInput: { maxLength: 50, readOnly: !isNameEditable },
-                input: {
-                  endAdornment: !isNameEditable && (
-                    <InputAdornment position="end">
-                      <IconButton
-                        size="small"
-                        aria-label="Edit project ID"
-                        onClick={() => setIsNameEditable(true)}
-                        disabled={!formData.name}
-                      >
-                        <Edit size={16} />
-                      </IconButton>
-                    </InputAdornment>
-                  ),
-                },
-              }}
-              fullWidth
-            />
-          </Form.ElementWrapper>
-
-          <Form.ElementWrapper
+      <Grid container spacing={2}>
+        <Grid size={{ xs: 12, md: 6, xl: 4 }}>
+          <TextInput
+            label="Name"
+            id="displayName"
+            maxLength={INPUT_LIMITS.NAME}
+            hideCharacterCount={formData.displayName.length < INPUT_LIMITS.NAME}
+            value={formData.displayName}
+            onChange={(e) => handleFieldChange("displayName", e.target.value)}
+            placeholder="e.g. Customer Support Platform"
+            error={!!errors.displayName}
+            helperText={
+              isGeneratingName ? (
+                <Stack component="span" direction="row" alignItems="center" gap={1}>
+                  <CircularProgress size={12} />
+                  <Typography variant="caption">Validating name...</Typography>
+                </Stack>
+              ) : (
+                errors.displayName
+              )
+            }
+          />
+        </Grid>
+        <Grid size={{ xs: 12, md: 6, xl: 4 }}>
+          <TextInput
+            label="Project ID"
+            id="name"
+            maxLength={INPUT_LIMITS.HANDLE}
+            hideCharacterCount={!isNameEditable || formData.name.length < INPUT_LIMITS.HANDLE}
+            value={formData.name}
+            onChange={(e) => handleFieldChange("name", e.target.value)}
+            placeholder="e.g., customer-support-platform"
+            error={!!errors.name}
+            helperText={errors.name}
+            disabled={!isNameEditable && !formData.name}
+            slotProps={{
+              htmlInput: { readOnly: !isNameEditable },
+              input: {
+                endAdornment: !isNameEditable && (
+                  <InputAdornment position="end">
+                    <IconButton
+                      size="small"
+                      aria-label="Edit project ID"
+                      onClick={() => setIsNameEditable(true)}
+                      disabled={!formData.name}
+                    >
+                      <Edit size={16} />
+                    </IconButton>
+                  </InputAdornment>
+                ),
+              },
+            }}
+          />
+        </Grid>
+        <Grid size={{ xs: 12, md: 12, xl: 8 }}>
+          <TextInput
             label="Description (optional)"
-            name="description"
-          >
-            <TextField
-              id="description"
-              value={formData.description || ""}
-              onChange={(e) => handleFieldChange("description", e.target.value)}
-              placeholder="Short description of this project"
-              error={!!errors.description}
-              helperText={errors.description}
-              multiline
-              minRows={3}
-              fullWidth
-            />
-          </Form.ElementWrapper>
-        </Form.Stack>
-      </Form.Section>
+            maxLength={INPUT_LIMITS.DESCRIPTION}
+            hideCharacterCount={(formData.description?.length ?? 0) < INPUT_LIMITS.DESCRIPTION}
+            id="description"
+            value={formData.description || ""}
+            onChange={(e) => handleFieldChange("description", e.target.value)}
+            placeholder="What is this project for?"
+            error={!!errors.description}
+            helperText={errors.description}
+          />
+        </Grid>
+      </Grid>
     </Form.Stack>
   );
 };
