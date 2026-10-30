@@ -92,7 +92,7 @@ export interface MCPProxyEndpoint extends MCPEndpointConfig {
 }
 
 /**
- * MCPProxy is an org-level grouping. Name/version/context/vhost/mcpSpecVersion are shared
+ * MCPProxy is an org-level grouping. Name/version/context/vhost/mcpSpecVersions are shared
  * metadata; the deployable config lives on each endpoint in endpoints. The proxy itself
  * deploys nothing to any gateway.
  */
@@ -105,7 +105,9 @@ export interface MCPProxy {
   createdBy?: string;
   context?: string;
   vhost?: string;
+  /** Deprecated: accepted on create/update only; responses return mcpSpecVersions. */
   mcpSpecVersion?: string;
+  mcpSpecVersions?: string[];
   endpoints: MCPProxyEndpoint[];
   createdAt?: string;
   updatedAt?: string;
@@ -119,7 +121,9 @@ export interface MCPProxyListItem {
   createdBy?: string;
   context?: string;
   status?: "pending" | "deployed" | "failed";
+  /** Deprecated: not returned any more; read mcpSpecVersions. */
   mcpSpecVersion?: string;
+  mcpSpecVersions?: string[];
   createdAt?: string;
   updatedAt?: string;
 }
@@ -147,6 +151,7 @@ export interface MCPServerInfoFetchResponse {
   tools?: Record<string, unknown>[];
   resources?: Record<string, unknown>[];
   prompts?: Record<string, unknown>[];
+  supportedVersions?: string[];
 }
 
 export type CreateMCPProxyPathParams = OrgPathParams;

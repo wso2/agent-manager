@@ -5135,6 +5135,7 @@ func buildAgentMCPConfigProxy(
 			Context:      &context,
 			Vhost:        source.Configuration.Vhost,
 			SpecVersion:  source.Configuration.SpecVersion,
+			SpecVersions: source.Configuration.SpecVersions,
 			Upstream:     upstream,
 			Resilience:   resilience,
 			Policies:     policies,

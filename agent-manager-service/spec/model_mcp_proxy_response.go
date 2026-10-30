@@ -32,8 +32,11 @@ type MCPProxyResponse struct {
 	Context *string `json:"context,omitempty"`
 	// Virtual host assigned to the MCP proxy
 	Vhost *string `json:"vhost,omitempty"`
-	// MCP specification version implemented by the upstream server
+	// Deprecated: no longer returned; read mcpSpecVersions instead.
+	// Deprecated
 	McpSpecVersion *string `json:"mcpSpecVersion,omitempty"`
+	// MCP specification versions the upstream server supports, for example from the supportedVersions of /mcp-proxies/fetch-server-info. Each value is a date (YYYY-MM-DD). Cannot be set together with mcpSpecVersion.
+	McpSpecVersions []string `json:"mcpSpecVersions,omitempty"`
 	// Deployable endpoint definitions of the MCP proxy. Each endpoint reports its per-environment deployment status.
 	Endpoints []MCPProxyEndpoint `json:"endpoints,omitempty"`
 	// Whether the MCP proxy is available in the catalog
@@ -237,6 +240,7 @@ func (o *MCPProxyResponse) SetVhost(v string) {
 }
 
 // GetMcpSpecVersion returns the McpSpecVersion field value if set, zero value otherwise.
+// Deprecated
 func (o *MCPProxyResponse) GetMcpSpecVersion() string {
 	if o == nil || IsNil(o.McpSpecVersion) {
 		var ret string
@@ -247,6 +251,7 @@ func (o *MCPProxyResponse) GetMcpSpecVersion() string {
 
 // GetMcpSpecVersionOk returns a tuple with the McpSpecVersion field value if set, nil otherwise
 // and a boolean to check if the value has been set.
+// Deprecated
 func (o *MCPProxyResponse) GetMcpSpecVersionOk() (*string, bool) {
 	if o == nil || IsNil(o.McpSpecVersion) {
 		return nil, false
@@ -264,8 +269,41 @@ func (o *MCPProxyResponse) HasMcpSpecVersion() bool {
 }
 
 // SetMcpSpecVersion gets a reference to the given string and assigns it to the McpSpecVersion field.
+// Deprecated
 func (o *MCPProxyResponse) SetMcpSpecVersion(v string) {
 	o.McpSpecVersion = &v
+}
+
+// GetMcpSpecVersions returns the McpSpecVersions field value if set, zero value otherwise.
+func (o *MCPProxyResponse) GetMcpSpecVersions() []string {
+	if o == nil || IsNil(o.McpSpecVersions) {
+		var ret []string
+		return ret
+	}
+	return o.McpSpecVersions
+}
+
+// GetMcpSpecVersionsOk returns a tuple with the McpSpecVersions field value if set, nil otherwise
+// and a boolean to check if the value has been set.
+func (o *MCPProxyResponse) GetMcpSpecVersionsOk() ([]string, bool) {
+	if o == nil || IsNil(o.McpSpecVersions) {
+		return nil, false
+	}
+	return o.McpSpecVersions, true
+}
+
+// HasMcpSpecVersions returns a boolean if a field has been set.
+func (o *MCPProxyResponse) HasMcpSpecVersions() bool {
+	if o != nil && !IsNil(o.McpSpecVersions) {
+		return true
+	}
+
+	return false
+}
+
+// SetMcpSpecVersions gets a reference to the given []string and assigns it to the McpSpecVersions field.
+func (o *MCPProxyResponse) SetMcpSpecVersions(v []string) {
+	o.McpSpecVersions = v
 }
 
 // GetEndpoints returns the Endpoints field value if set, zero value otherwise.
@@ -484,6 +522,9 @@ func (o MCPProxyResponse) ToMap() (map[string]interface{}, error) {
 	}
 	if !IsNil(o.McpSpecVersion) {
 		toSerialize["mcpSpecVersion"] = o.McpSpecVersion
+	}
+	if !IsNil(o.McpSpecVersions) {
+		toSerialize["mcpSpecVersions"] = o.McpSpecVersions
 	}
 	if !IsNil(o.Endpoints) {
 		toSerialize["endpoints"] = o.Endpoints

@@ -42,7 +42,6 @@ import { z } from "zod";
 import { type EndpointDraft } from "./EndpointFormFields";
 import { EndpointsEditorSection } from "./EndpointsEditorSection";
 import { draftToEndpoint } from "./mcpEndpoints";
-import { MCP_SPEC_VERSION } from "../constants";
 
 const DEFAULT_PROXY_VERSION = "1.0.0";
 // Matches the service's handle length limit (agent-manager-service/services/mcp_proxy_service.go).
@@ -159,6 +158,9 @@ export function AddMCPProxyForm({ onCancel }: AddMCPProxyFormProps) {
     if (!validateForm({ version: proxyVersion })) return;
 
     const name = proxyName.trim();
+    // The MCP versions come from the first endpoint's fetched server.
+    // Left out when the server reported none, so the backend's default applies.
+    const firstEndpointVersions = endpoints[0]?.fetchedInfo.supportedVersions;
 
     // Each endpoint carries its own upstream, fetched capabilities and default security,
     // and is bound to one or more environments. The org-level proxy is a grouping and
@@ -169,7 +171,7 @@ export function AddMCPProxyForm({ onCancel }: AddMCPProxyFormProps) {
       version: proxyVersion.trim(),
       description: proxyDescription.trim() || undefined,
       context: proxyContext.trim() || undefined,
-      mcpSpecVersion: MCP_SPEC_VERSION,
+      mcpSpecVersions: firstEndpointVersions?.length ? firstEndpointVersions : undefined,
       endpoints: (() => {
         const usedHandles = new Set<string>();
         return endpoints.map((endpoint, index) =>

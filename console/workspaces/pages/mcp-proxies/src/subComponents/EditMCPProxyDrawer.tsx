@@ -172,6 +172,11 @@ export function EditMCPProxyDrawer({
         ),
       );
 
+      // A first endpoint fetched in this drawer replaces the MCP versions; otherwise the
+      // proxy's saved versions are sent back unchanged. Saved endpoints carry no versions
+      // until they are fetched again.
+      const firstEndpointVersions = endpoints[0]?.fetchedInfo.supportedVersions;
+
       try {
         await updateMCPProxy({
           params: { orgName: orgId, proxyId: proxy.id },
@@ -181,6 +186,9 @@ export function EditMCPProxyDrawer({
             version: formData.version.trim(),
             context: formData.context?.trim() || undefined,
             description: formData.description?.trim() || undefined,
+            mcpSpecVersions: firstEndpointVersions?.length
+              ? firstEndpointVersions
+              : proxy.mcpSpecVersions,
             endpoints: nextEndpoints,
           },
         });

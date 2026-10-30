@@ -79,6 +79,7 @@ type MCPProxyConfig struct {
 	Context      *string               `json:"context,omitempty"`
 	Vhost        *string               `json:"vhost,omitempty"`
 	SpecVersion  string                `json:"specVersion,omitempty"`
+	SpecVersions []string              `json:"specVersions,omitempty"`
 	Upstream     UpstreamConfig        `json:"upstream,omitempty"`
 	Resilience   *Resilience           `json:"resilience,omitempty"`
 	Policies     []MCPPolicy           `json:"policies,omitempty"`
@@ -169,19 +170,20 @@ type MCPProxyCapabilities struct {
 
 // MCPProxyDTO is the request/response body for an MCP proxy.
 type MCPProxyDTO struct {
-	Context        *string               `json:"context,omitempty"`
-	CreatedAt      *time.Time            `json:"createdAt,omitempty"`
-	CreatedBy      *string               `json:"createdBy,omitempty"`
-	Description    *string               `json:"description,omitempty"`
-	Gateways       []string              `json:"gateways,omitempty"`
-	ID             string                `json:"id"`
-	InCatalog      bool                  `json:"inCatalog"`
-	McpSpecVersion *string               `json:"mcpSpecVersion,omitempty"`
-	Name           string                `json:"name"`
-	Endpoints      []MCPProxyEndpointDTO `json:"endpoints,omitempty"`
-	UpdatedAt      *time.Time            `json:"updatedAt,omitempty"`
-	Version        string                `json:"version"`
-	Vhost          *string               `json:"vhost,omitempty"`
+	Context         *string               `json:"context,omitempty"`
+	CreatedAt       *time.Time            `json:"createdAt,omitempty"`
+	CreatedBy       *string               `json:"createdBy,omitempty"`
+	Description     *string               `json:"description,omitempty"`
+	Gateways        []string              `json:"gateways,omitempty"`
+	ID              string                `json:"id"`
+	InCatalog       bool                  `json:"inCatalog"`
+	McpSpecVersion  *string               `json:"mcpSpecVersion,omitempty"`
+	McpSpecVersions *[]string             `json:"mcpSpecVersions,omitempty"`
+	Name            string                `json:"name"`
+	Endpoints       []MCPProxyEndpointDTO `json:"endpoints,omitempty"`
+	UpdatedAt       *time.Time            `json:"updatedAt,omitempty"`
+	Version         string                `json:"version"`
+	Vhost           *string               `json:"vhost,omitempty"`
 }
 
 // MCPProxyEndpointDTO is one endpoint in an MCP proxy request/response body. On write,
@@ -224,16 +226,17 @@ type MCPPolicyAvailableItem struct {
 
 // MCPProxyListItem is the list representation for an MCP proxy.
 type MCPProxyListItem struct {
-	Context        *string    `json:"context,omitempty"`
-	CreatedAt      *time.Time `json:"createdAt,omitempty"`
-	CreatedBy      *string    `json:"createdBy,omitempty"`
-	Description    *string    `json:"description,omitempty"`
-	ID             *string    `json:"id,omitempty"`
-	McpSpecVersion *string    `json:"mcpSpecVersion,omitempty"`
-	Name           *string    `json:"name,omitempty"`
-	Status         *string    `json:"status,omitempty"`
-	UpdatedAt      *time.Time `json:"updatedAt,omitempty"`
-	Version        *string    `json:"version,omitempty"`
+	Context         *string    `json:"context,omitempty"`
+	CreatedAt       *time.Time `json:"createdAt,omitempty"`
+	CreatedBy       *string    `json:"createdBy,omitempty"`
+	Description     *string    `json:"description,omitempty"`
+	ID              *string    `json:"id,omitempty"`
+	McpSpecVersion  *string    `json:"mcpSpecVersion,omitempty"`
+	McpSpecVersions *[]string  `json:"mcpSpecVersions,omitempty"`
+	Name            *string    `json:"name,omitempty"`
+	Status          *string    `json:"status,omitempty"`
+	UpdatedAt       *time.Time `json:"updatedAt,omitempty"`
+	Version         *string    `json:"version,omitempty"`
 }
 
 // MCPProxyListResponse is the response body for listing MCP proxies.
@@ -252,8 +255,9 @@ type MCPServerInfoFetchRequest struct {
 
 // MCPServerInfoFetchResponse contains the MCP server metadata and capabilities.
 type MCPServerInfoFetchResponse struct {
-	Prompts    *[]map[string]interface{} `json:"prompts,omitempty"`
-	Resources  *[]map[string]interface{} `json:"resources,omitempty"`
-	ServerInfo *map[string]interface{}   `json:"serverInfo,omitempty"`
-	Tools      *[]map[string]interface{} `json:"tools,omitempty"`
+	Prompts           *[]map[string]interface{} `json:"prompts,omitempty"`
+	Resources         *[]map[string]interface{} `json:"resources,omitempty"`
+	ServerInfo        *map[string]interface{}   `json:"serverInfo,omitempty"`
+	SupportedVersions *[]string                 `json:"supportedVersions,omitempty"`
+	Tools             *[]map[string]interface{} `json:"tools,omitempty"`
 }

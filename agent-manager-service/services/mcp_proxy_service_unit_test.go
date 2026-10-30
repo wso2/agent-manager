@@ -18,7 +18,11 @@ package services
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
+	"fmt"
+	"net/http"
+	"net/http/httptest"
 	"strings"
 	"testing"
 
@@ -669,4 +673,421 @@ func TestBuildMCPEndpointDTOsForResponse_StripsUpstreamCredentials(t *testing.T)
 	assert.Len(t, dtos, 1)
 	assert.Nil(t, dtos[0].Upstream.Main.Auth.Value)
 	assert.Nil(t, dtos[0].Upstream.Main.Auth.SecretRef)
+}
+
+// oldMCPServerForTest is a fake old MCP server (2025-xx). It refuses server/discover the way the
+// Go SDK v1.5 does, and answers initialize and tools/list. It records what it received.
+type oldMCPServerForTest struct {
+	// refuseDiscoverInJSONRPC makes it refuse server/discover with HTTP 200 and a JSON-RPC
+	// "Method not found" error, the other way an old server can refuse.
+	refuseDiscoverInJSONRPC bool
+	// discoverStatus and discoverBody, when set, make it answer server/discover with that HTTP
+	// status and body instead.
+	discoverStatus int
+	discoverBody   string
+
+	methods        []string // the JSON-RPC method of each request, in order
+	discoverHeader http.Header
+	discoverMeta   map[string]interface{}
+}
+
+func (f *oldMCPServerForTest) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+	var req struct {
+		ID     int    `json:"id"`
+		Method string `json:"method"`
+		Params struct {
+			Meta map[string]interface{} `json:"_meta"`
+		} `json:"params"`
+	}
+	_ = json.NewDecoder(r.Body).Decode(&req)
+	f.methods = append(f.methods, req.Method)
+
+	switch req.Method {
+	case "server/discover":
+		f.discoverHeader = r.Header.Clone()
+		f.discoverMeta = req.Params.Meta
+		if f.discoverStatus != 0 {
+			w.WriteHeader(f.discoverStatus)
+			_, _ = w.Write([]byte(f.discoverBody))
+			return
+		}
+		if f.refuseDiscoverInJSONRPC {
+			_, _ = fmt.Fprintf(w, `{"jsonrpc":"2.0","id":%d,"error":{"code":-32601,"message":"Method not found"}}`, req.ID)
+			return
+		}
+		http.Error(w, "Bad Request: Unsupported protocol version", http.StatusBadRequest)
+	case "initialize":
+		w.Header().Set("Mcp-Session-Id", "session-1")
+		_, _ = fmt.Fprintf(w, `{"jsonrpc":"2.0","id":%d,"result":{"protocolVersion":"2025-06-18","serverInfo":{"name":"old-server"}}}`, req.ID)
+	case "notifications/initialized":
+		w.WriteHeader(http.StatusAccepted)
+	case "tools/list":
+		_, _ = fmt.Fprintf(w, `{"jsonrpc":"2.0","id":%d,"result":{"tools":[{"name":"greet_old"}]}}`, req.ID)
+	default:
+		_, _ = fmt.Fprintf(w, `{"jsonrpc":"2.0","id":%d,"result":{}}`, req.ID)
+	}
+}
+
+// Agent Manager asks server/discover first, in the MCP 2026-07-28 format. A server before
+// 2026-07-28 refuses it with an HTTP error, and the fetch carries on with initialize.
+func TestFetchMCPServerInfo_AsksServerDiscoverFirst(t *testing.T) {
+	fake := &oldMCPServerForTest{}
+	srv := httptest.NewServer(fake)
+	defer srv.Close()
+	// The real client refuses localhost (SSRF guard), so use the test server's own client.
+	svc := &MCPProxyService{client: srv.Client(), logger: discardLogger()}
+
+	resp, err := svc.fetchMCPServerInfo(context.Background(), srv.URL, "", "")
+
+	// The old server refused server/discover, but the fetch still works the old way.
+	assert.NoError(t, err)
+	if assert.NotNil(t, resp.Tools) {
+		assert.Equal(t, "greet_old", (*resp.Tools)[0]["name"])
+	}
+
+	// server/discover is sent first, then the old flow.
+	wantOrder := []string{
+		"server/discover",
+		"initialize", "notifications/initialized",
+		"tools/list", "prompts/list", "resources/list",
+	}
+	assert.Equal(t, wantOrder, fake.methods)
+
+	// server/discover uses the new format: headers and params._meta.
+	assert.Equal(t, "2026-07-28", fake.discoverHeader.Get("MCP-Protocol-Version"))
+	assert.Equal(t, "server/discover", fake.discoverHeader.Get("Mcp-Method"))
+	assert.Equal(t, "2026-07-28", fake.discoverMeta["io.modelcontextprotocol/protocolVersion"])
+	assert.NotNil(t, fake.discoverMeta["io.modelcontextprotocol/clientInfo"])
+	assert.NotNil(t, fake.discoverMeta["io.modelcontextprotocol/clientCapabilities"])
+}
+
+// A server before MCP 2026-07-28 can also refuse server/discover with HTTP 200 and a JSON-RPC
+// error. That still counts as a refusal, so Agent Manager connects with initialize.
+func TestFetchMCPServerInfo_OldServerRefusesDiscoverInJSONRPC(t *testing.T) {
+	fake := &oldMCPServerForTest{refuseDiscoverInJSONRPC: true}
+	srv := httptest.NewServer(fake)
+	defer srv.Close()
+	svc := &MCPProxyService{client: srv.Client(), logger: discardLogger()}
+
+	resp, err := svc.fetchMCPServerInfo(context.Background(), srv.URL, "", "")
+
+	assert.NoError(t, err)
+	if assert.NotNil(t, resp.Tools) {
+		assert.Equal(t, "greet_old", (*resp.Tools)[0]["name"])
+	}
+	assert.Equal(t, []string{"server/discover", "initialize"}, fake.methods[:2])
+}
+
+// newMCPServerForTest is a fake new MCP server (2026-07-28 only). It answers server/discover,
+// refuses initialize (new servers don't have it), and is strict: it refuses any request that
+// lacks the new format (params._meta and the MCP-Protocol-Version and Mcp-Method headers).
+// It records what it received.
+type newMCPServerForTest struct {
+	methods    []string // the JSON-RPC method of each request, in order
+	sessionIDs []string // the Mcp-Session-Id header of each request, in order
+}
+
+func (f *newMCPServerForTest) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+	var req struct {
+		ID     int    `json:"id"`
+		Method string `json:"method"`
+		Params struct {
+			Meta map[string]interface{} `json:"_meta"`
+		} `json:"params"`
+	}
+	_ = json.NewDecoder(r.Body).Decode(&req)
+	f.methods = append(f.methods, req.Method)
+	f.sessionIDs = append(f.sessionIDs, r.Header.Get("Mcp-Session-Id"))
+
+	hasNewFormat := r.Header.Get("MCP-Protocol-Version") == "2026-07-28" &&
+		r.Header.Get("Mcp-Method") == req.Method &&
+		req.Params.Meta["io.modelcontextprotocol/protocolVersion"] == "2026-07-28"
+	if !hasNewFormat {
+		http.Error(w, "Bad Request: missing MCP 2026-07-28 headers or _meta", http.StatusBadRequest)
+		return
+	}
+
+	switch req.Method {
+	case "server/discover":
+		_, _ = fmt.Fprintf(w, `{"jsonrpc":"2.0","id":%d,"result":{"supportedVersions":["2026-07-28"],"capabilities":{"tools":{}},`+
+			`"_meta":{"io.modelcontextprotocol/serverInfo":{"name":"new-server","version":"1.0.0"}}}}`, req.ID)
+	case "tools/list":
+		_, _ = fmt.Fprintf(w, `{"jsonrpc":"2.0","id":%d,"result":{"resultType":"complete","tools":[{"name":"greet_new"}]}}`, req.ID)
+	case "prompts/list", "resources/list":
+		_, _ = fmt.Fprintf(w, `{"jsonrpc":"2.0","id":%d,"result":{"resultType":"complete"}}`, req.ID)
+	default:
+		_, _ = fmt.Fprintf(w, `{"jsonrpc":"2.0","id":%d,"error":{"code":-32601,"message":"Method not found"}}`, req.ID)
+	}
+}
+
+// A server that answers server/discover speaks MCP 2026-07-28. Agent Manager never sends it
+// initialize, and lists its tools, prompts and resources in the 2026-07-28 format: params._meta
+// and the MCP-Protocol-Version and Mcp-Method headers on every request, and no session.
+func TestFetchMCPServerInfo_NewServerListsToolsTheNewWay(t *testing.T) {
+	fake := &newMCPServerForTest{}
+	srv := httptest.NewServer(fake)
+	defer srv.Close()
+	svc := &MCPProxyService{client: srv.Client(), logger: discardLogger()}
+
+	resp, err := svc.fetchMCPServerInfo(context.Background(), srv.URL, "", "")
+
+	assert.NoError(t, err)
+	if assert.NotNil(t, resp.Tools) {
+		assert.Equal(t, "greet_new", (*resp.Tools)[0]["name"])
+	}
+	// The server's name comes from the server/discover answer.
+	if assert.NotNil(t, resp.ServerInfo) {
+		assert.Equal(t, "new-server", (*resp.ServerInfo)["name"])
+	}
+	// No initialize, and no notifications/initialized: straight from discover to the lists.
+	assert.Equal(t, []string{"server/discover", "tools/list", "prompts/list", "resources/list"}, fake.methods)
+	// No session on any request.
+	assert.Equal(t, []string{"", "", "", ""}, fake.sessionIDs)
+}
+
+// MCP versions are dates, so the check compares dates. An empty version counts as old.
+func TestMCPVersionNeedsInitialize(t *testing.T) {
+	assert.True(t, mcpVersionNeedsInitialize("2025-06-18"))
+	assert.True(t, mcpVersionNeedsInitialize("2025-11-25"))
+	assert.False(t, mcpVersionNeedsInitialize("2026-07-28"))
+	assert.False(t, mcpVersionNeedsInitialize("2027-01-01"))
+	assert.True(t, mcpVersionNeedsInitialize(""))
+}
+
+// When server/discover fails, Agent Manager tries initialize only if the server refused the
+// method. Credential, rate-limit and server problems are reported instead: initialize would
+// fail the same way and hide the real error.
+func TestFetchMCPServerInfo_WhenToFallBackToInitialize(t *testing.T) {
+	jsonRPCError := `{"jsonrpc":"2.0","id":1,"error":{"code":-32601,"message":"Method not found"}}`
+	tests := []struct {
+		name           string
+		discoverStatus int
+		discoverBody   string
+		wantFallBack   bool
+		wantErrorIs    error // checked only when not falling back; nil means any error
+	}{
+		{name: "404 refuses the method", discoverStatus: 404, discoverBody: "not found", wantFallBack: true},
+		{name: "405 refuses the method", discoverStatus: 405, discoverBody: "method not allowed", wantFallBack: true},
+		{name: "500 with a JSON-RPC error refuses the method", discoverStatus: 500, discoverBody: jsonRPCError, wantFallBack: true},
+		{name: "400 with an old server's own JSON-RPC error refuses the method", discoverStatus: 400, discoverBody: `{"jsonrpc":"2.0","id":1,"error":{"code":-32000,"message":"Bad Request: Server not initialized"}}`, wantFallBack: true},
+		{name: "400 unsupported protocol version (-32022) is reported", discoverStatus: 400, discoverBody: `{"jsonrpc":"2.0","id":1,"error":{"code":-32022,"message":"Unsupported protocol version","data":{"supported":["2027-03-01"],"requested":"2026-07-28"}}}`},
+		{name: "400 header mismatch (-32020) is reported", discoverStatus: 400, discoverBody: `{"jsonrpc":"2.0","id":1,"error":{"code":-32020,"message":"Header mismatch"}}`},
+		{name: "401 is reported", discoverStatus: 401, discoverBody: "unauthorized", wantErrorIs: utils.ErrMCPServerUnauthorized},
+		{name: "403 is reported", discoverStatus: 403, discoverBody: "forbidden"},
+		{name: "429 is reported", discoverStatus: 429, discoverBody: "slow down"},
+		{name: "500 without JSON-RPC is reported", discoverStatus: 500, discoverBody: "internal error"},
+		{name: "200 that is not JSON-RPC is reported", discoverStatus: 200, discoverBody: "<html>sign in</html>"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			fake := &oldMCPServerForTest{discoverStatus: tt.discoverStatus, discoverBody: tt.discoverBody}
+			srv := httptest.NewServer(fake)
+			defer srv.Close()
+			svc := &MCPProxyService{client: srv.Client(), logger: discardLogger()}
+
+			resp, err := svc.fetchMCPServerInfo(context.Background(), srv.URL, "", "")
+
+			if tt.wantFallBack {
+				assert.NoError(t, err)
+				assert.Equal(t, []string{"server/discover", "initialize"}, fake.methods[:2])
+				if assert.NotNil(t, resp.Tools) {
+					assert.Equal(t, "greet_old", (*resp.Tools)[0]["name"])
+				}
+				return
+			}
+			assert.Error(t, err)
+			if tt.wantErrorIs != nil {
+				assert.ErrorIs(t, err, tt.wantErrorIs)
+			}
+			assert.Equal(t, []string{"server/discover"}, fake.methods, "initialize must not be sent")
+		})
+	}
+}
+
+// A server that can't be reached is reported as unreachable, without trying initialize.
+func TestFetchMCPServerInfo_UnreachableServerIsReported(t *testing.T) {
+	srv := httptest.NewServer(&oldMCPServerForTest{})
+	client := srv.Client()
+	srv.Close() // nothing listens on the URL any more
+
+	svc := &MCPProxyService{client: client, logger: discardLogger()}
+	_, err := svc.fetchMCPServerInfo(context.Background(), srv.URL, "", "")
+
+	assert.ErrorIs(t, err, utils.ErrURLUnreachable)
+}
+
+// The status error keeps the text it had before it became a type.
+func TestMCPHTTPStatusError_KeepsOldText(t *testing.T) {
+	err := &mcpHTTPStatusError{StatusCode: 403, Body: "forbidden"}
+	assert.Equal(t, "request failed with status 403: forbidden", err.Error())
+}
+
+func TestChooseMCPVersion(t *testing.T) {
+	tests := []struct {
+		name           string
+		serverVersions []string
+		want           string
+	}{
+		{name: "highest shared version", serverVersions: []string{"2025-11-25", "2026-07-28"}, want: "2026-07-28"},
+		{name: "only versions before 2026-07-28", serverVersions: []string{"2025-06-18", "2025-11-25"}, want: "2025-11-25"},
+		{name: "versions Agent Manager doesn't support are skipped", serverVersions: []string{"2027-03-01", "2026-07-28"}, want: "2026-07-28"},
+		{name: "empty list: none", serverVersions: []string{}, want: ""},
+		{name: "no version in common: none", serverVersions: []string{"2027-03-01"}, want: ""},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			assert.Equal(t, tt.want, chooseMCPVersion(tt.serverVersions))
+		})
+	}
+}
+
+// A server can answer server/discover yet give no 2026-07-28 or later version Agent Manager
+// supports. Like the Go MCP SDK's client, Agent Manager then connects with initialize.
+func TestFetchMCPServerInfo_DiscoverAnsweredButInitializeStillNeeded(t *testing.T) {
+	tests := []struct {
+		name              string
+		supportedVersions string
+	}{
+		{name: "only versions before 2026-07-28", supportedVersions: `["2025-11-25","2025-06-18"]`},
+		{name: "empty list", supportedVersions: `[]`},
+		{name: "no version in common", supportedVersions: `["2027-03-01"]`},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			fake := &oldMCPServerForTest{
+				discoverStatus: 200,
+				discoverBody:   `{"jsonrpc":"2.0","id":1,"result":{"supportedVersions":` + tt.supportedVersions + `}}`,
+			}
+			srv := httptest.NewServer(fake)
+			defer srv.Close()
+			svc := &MCPProxyService{client: srv.Client(), logger: discardLogger()}
+
+			resp, err := svc.fetchMCPServerInfo(context.Background(), srv.URL, "", "")
+
+			assert.NoError(t, err)
+			if assert.NotNil(t, resp.Tools) {
+				assert.Equal(t, "greet_old", (*resp.Tools)[0]["name"])
+			}
+			assert.Equal(t, []string{"server/discover", "initialize"}, fake.methods[:2])
+		})
+	}
+}
+
+// The fetch response reports which MCP versions the server supports, so the proxy can be
+// configured with them.
+func TestFetchMCPServerInfo_ReportsSupportedVersions(t *testing.T) {
+	tests := []struct {
+		name   string
+		server http.Handler
+		want   *[]string
+	}{
+		{
+			name:   "server before 2026-07-28: the version initialize agreed on",
+			server: &oldMCPServerForTest{},
+			want:   &[]string{"2025-06-18"},
+		},
+		{
+			name:   "server on 2026-07-28: the versions server/discover reported",
+			server: &newMCPServerForTest{},
+			want:   &[]string{"2026-07-28"},
+		},
+		{
+			name: "server/discover answered with only earlier versions: that list, not just initialize's one",
+			server: &oldMCPServerForTest{
+				discoverStatus: 200,
+				discoverBody:   `{"jsonrpc":"2.0","id":1,"result":{"supportedVersions":["2025-11-25","2025-06-18"]}}`,
+			},
+			want: &[]string{"2025-11-25", "2025-06-18"},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			srv := httptest.NewServer(tt.server)
+			defer srv.Close()
+			svc := &MCPProxyService{client: srv.Client(), logger: discardLogger()}
+
+			resp, err := svc.fetchMCPServerInfo(context.Background(), srv.URL, "", "")
+
+			assert.NoError(t, err)
+			assert.Equal(t, tt.want, resp.SupportedVersions)
+		})
+	}
+}
+
+// Only values shaped like an MCP version (a date) are reported; none left means no field.
+func TestObtainValidMCPVersionsFromServer(t *testing.T) {
+	assert.Equal(t, &[]string{"2026-07-28", "2025-06-18"},
+		obtainValidMCPVersionsFromServer([]string{"2026-07-28", "latest", "", "2025-06-18", "2026-7-28"}))
+	assert.Nil(t, obtainValidMCPVersionsFromServer([]string{"latest"}))
+	assert.Nil(t, obtainValidMCPVersionsFromServer(nil))
+}
+
+func TestValidateMCPSpecVersionsInRequest(t *testing.T) {
+	tests := []struct {
+		name    string
+		req     models.MCPProxyDTO
+		wantErr bool
+	}{
+		{name: "neither set", req: models.MCPProxyDTO{}},
+		{name: "only the deprecated single version", req: models.MCPProxyDTO{McpSpecVersion: strPtr("2025-06-18")}},
+		{name: "a list of versions", req: models.MCPProxyDTO{McpSpecVersions: &[]string{"2026-07-28", "2025-11-25"}}},
+		{name: "both set", req: models.MCPProxyDTO{McpSpecVersion: strPtr("2025-06-18"), McpSpecVersions: &[]string{"2026-07-28"}}, wantErr: true},
+		{name: "empty list", req: models.MCPProxyDTO{McpSpecVersions: &[]string{}}, wantErr: true},
+		{name: "a value that isn't a date", req: models.MCPProxyDTO{McpSpecVersions: &[]string{"2026-07-28", "latest"}}, wantErr: true},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			err := validateMCPSpecVersionsInRequest(tt.req.McpSpecVersion, tt.req.McpSpecVersions)
+			if tt.wantErr {
+				assert.ErrorIs(t, err, utils.ErrInvalidInput)
+				return
+			}
+			assert.NoError(t, err)
+		})
+	}
+}
+
+// A proxy saved before mcpSpecVersions existed has only the single version; it reads back as a
+// one-item list.
+func TestObtainStoredMCPSpecVersions(t *testing.T) {
+	assert.Equal(t, &[]string{"2026-07-28", "2025-11-25"},
+		obtainStoredMCPSpecVersions(models.MCPProxyConfig{SpecVersions: []string{"2026-07-28", "2025-11-25"}}))
+	assert.Equal(t, &[]string{"2025-06-18"},
+		obtainStoredMCPSpecVersions(models.MCPProxyConfig{SpecVersion: "2025-06-18"}))
+	assert.Nil(t, obtainStoredMCPSpecVersions(models.MCPProxyConfig{}))
+}
+
+// The proxy and list-item responses both return the versions as mcpSpecVersions only; the
+// deprecated mcpSpecVersion is not returned, even for a proxy saved before the list existed.
+func TestConvertModelMCPProxy_ReturnsMCPSpecVersions(t *testing.T) {
+	for name, config := range map[string]models.MCPProxyConfig{
+		"saved with a list":             {SpecVersions: []string{"2026-07-28"}},
+		"saved before the list existed": {SpecVersion: "2026-07-28"},
+	} {
+		t.Run(name, func(t *testing.T) {
+			proxy := &models.MCPProxy{Configuration: config}
+
+			assert.Equal(t, &[]string{"2026-07-28"}, convertModelMCPProxyToSpec(proxy).McpSpecVersions)
+			assert.Nil(t, convertModelMCPProxyToSpec(proxy).McpSpecVersion)
+			assert.Equal(t, &[]string{"2026-07-28"}, convertModelMCPProxyToListItem(proxy).McpSpecVersions)
+			assert.Nil(t, convertModelMCPProxyToListItem(proxy).McpSpecVersion)
+		})
+	}
+}
+
+// The console edits a proxy by sending back what GET returned, with its changes. That must pass
+// the version check, including for a proxy saved before the list existed.
+func TestConvertModelMCPProxy_ResponseSentBackPassesVersionCheck(t *testing.T) {
+	got := convertModelMCPProxyToSpec(&models.MCPProxy{Configuration: models.MCPProxyConfig{SpecVersion: "2025-06-18"}})
+
+	assert.NoError(t, validateMCPSpecVersionsInRequest(got.McpSpecVersion, got.McpSpecVersions))
+}
+
+// Only the list is saved: a request using the deprecated single mcpSpecVersion is saved as a
+// one-item list.
+func TestObtainMCPSpecVersionsFromRequest(t *testing.T) {
+	assert.Equal(t, []string{"2026-07-28", "2025-11-25"},
+		obtainMCPSpecVersionsFromRequest(nil, &[]string{"2026-07-28", "2025-11-25"}))
+	assert.Equal(t, []string{"2025-06-18"}, obtainMCPSpecVersionsFromRequest(strPtr("2025-06-18"), nil))
+	assert.Nil(t, obtainMCPSpecVersionsFromRequest(nil, nil))
 }

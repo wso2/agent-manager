@@ -465,13 +465,13 @@ export function ViewMCPProxy() {
                       color="text.secondary"
                       sx={{ fontWeight: 500 }}
                     >
-                      MCP Spec Version
+                      MCP Spec Versions
                     </Typography>
                     <Typography
                       variant="body2"
                       sx={{ fontFamily: "monospace" }}
                     >
-                      {proxy.mcpSpecVersion || "—"}
+                      {proxy.mcpSpecVersions?.join(", ") || "—"}
                     </Typography>
                   </Stack>
                 </Card>

@@ -26,5 +26,3 @@ export const MANAGED_MCP_POLICY_NAMES: readonly string[] = [
   AUTHORIZATION_POLICY_NAME,
   REWRITE_POLICY_NAME,
 ];
-
-export const MCP_SPEC_VERSION = "2025-06-18";
