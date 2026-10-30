@@ -11,8 +11,8 @@
 set -euo pipefail
 
 # Stamped to the release version at build time (see .github/scripts/update-install-helpers.sh
-# for the equivalent 0.0.0-dev -> version substitution pattern applied to this file).
-DEFAULT_VERSION="0.0.0-dev"
+# for the equivalent 2026.11.0 -> version substitution pattern applied to this file).
+DEFAULT_VERSION="2026.11.0"
 IMAGE="${QUICK_START_IMAGE:-${AMP_IMAGE_REGISTRY:-ghcr.io/wso2}/amp-quick-start}"
 
 log() { printf '\033[0;34m[start]\033[0m %s\n' "$*"; }

@@ -31,6 +31,8 @@ esac
 source "${SCRIPT_DIR}/../scripts/thunder-naming.sh"
 # shellcheck source=../scripts/ams-auth.sh
 source "${SCRIPT_DIR}/../scripts/ams-auth.sh"
+# shellcheck source=../scripts/lib-registry-auth.sh
+source "${SCRIPT_DIR}/../scripts/lib-registry-auth.sh"
 
 echo "=== Installing API Platform Gateway ==="
 
@@ -55,6 +57,9 @@ echo "✅ Agent Manager is healthy"
 # match --namespace — it drives where the chart renders the APIGateway CR,
 # config, RestApis, kgateway backendRef and token secret.
 GATEWAY_NAMESPACE="${GATEWAY_NAMESPACE:-${ORG_NAME}-${ENV_NAME}}"
+
+# The gateway pods pull their images with this Secret, from their own namespace.
+amp_create_gateway_pull_secret "${GATEWAY_NAMESPACE}"
 
 # Wire the gateway's ThunderKeyManager to this environment's own Thunder instance
 # when it exists, mirroring the THUNDER_PROVISIONED logic in add-environment.sh.

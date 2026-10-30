@@ -15,7 +15,7 @@
 set -euo pipefail
 
 # Stamped to the release version at build time (see .github/scripts/update-install-helpers.sh).
-DEFAULT_VERSION="0.0.0-dev"
+DEFAULT_VERSION="2026.11.0"
 REPO="${AMP_REPO:-wso2/agent-manager}"
 AMP_HOME="${AMP_HOME:-${HOME}/.wso2-agent-manager}"
 

@@ -9,7 +9,7 @@ set -euo pipefail
 # ============================================================================
 
 # Version
-VERSION="${VERSION:-0.0.0-dev}"
+VERSION="${VERSION:-2026.11.0}"
 
 # Helm chart registry and versions
 HELM_CHART_REGISTRY="${HELM_CHART_REGISTRY:-ghcr.io/wso2}"
@@ -522,6 +522,12 @@ install_gateway_extension() {
     if ! kubectl label namespace "${gateway_namespace}" \
         "amp.wso2.com/api-platform-gateway=true" --overwrite >/dev/null; then
         log_error "Failed to label gateway namespace ${gateway_namespace}"
+        return 1
+    fi
+
+    # The gateway pods pull their images with this Secret, from their own namespace.
+    if ! amp_create_gateway_pull_secret "${gateway_namespace}"; then
+        log_error "Failed to create the gateway pull secret in ${gateway_namespace}"
         return 1
     fi
 

@@ -16,6 +16,17 @@
 kubectl:
   image: alpine/k8s:1.32.3
 
+# API Platform Gateway release this chart version is tested with: the
+# gateway-operator chart, and the gateway chart and images it deploys. Nothing
+# here renders; install.sh reads it with `helm show values` and installs the
+# operator at these versions, so a gateway or operator update ships as an Agent
+# Manager update rather than as a new installer. The gateway chart and images
+# are versioned apart (an update N is chart <release>-uN, images <release>.N).
+gatewayRelease:
+  operatorVersion: "0.11.3"
+  chartVersion: "2026.10.0"
+  imageVersion: "2026.10.0"
+
 # Agent Manager API connection details (used by bootstrap job to register gateway)
 agentManager:
   # Public API URL (port 8080 = JWT-authenticated API)

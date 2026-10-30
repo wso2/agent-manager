@@ -36,7 +36,8 @@ else
     DEPLOYMENTS_DIR="${SCRIPT_DIR}"
 fi
 
-# WSO2 API Platform / Gateway Operator versions
+# WSO2 API Platform / Gateway Operator versions. Like the gateway pins below,
+# only the fallback for a gateway extension chart that names no release.
 GATEWAY_OPERATOR_VERSION="0.11.3"
 # gateway-controller/gateway-runtime 1.1.x reject every RestApi/LlmProvider
 # deployment with a bare 404 despite correctly-configured basic auth (confirmed
@@ -45,17 +46,19 @@ GATEWAY_OPERATOR_VERSION="0.11.3"
 # reaches Programmed=True). Chart *version* and container *image tag* are
 # pinned separately below — setting chartVersion alone still runs an older
 # default image, so GATEWAY_IMAGE_VERSION must also be threaded through.
-GATEWAY_CHART_VERSION="2026.09.24"
-GATEWAY_IMAGE_VERSION="2026.09.24"
+# These are only the fallback: the gateway release is read from the gateway
+# extension chart of the version being installed, before the operator install.
+GATEWAY_CHART_VERSION="2026.10.0"
+GATEWAY_IMAGE_VERSION="2026.10.0"
 
 # The gateway chart (1.2.0-beta+) requires an encryption key to be mounted from a Kubernetes Secret
 GATEWAY_ENCRYPTION_SECRET_NAME="gateway-encryption-keys"
 GATEWAY_ENCRYPTION_SECRET_KEY="default-aesgcm256-v1.bin"
 
 # OpenChoreo community module versions compatible with OpenChoreo ${OPENCHOREO_VERSION}
-OBSERVABILITY_LOGS_OPENSEARCH_VERSION="0.5.3"
-OBSERVABILITY_TRACING_OPENSEARCH_VERSION="0.6.0"
-OBSERVABILITY_METRICS_PROMETHEUS_VERSION="0.6.1"
+OBSERVABILITY_LOGS_OPENSEARCH_VERSION="0.5.5"
+OBSERVABILITY_TRACING_OPENSEARCH_VERSION="0.8.1"
+OBSERVABILITY_METRICS_PROMETHEUS_VERSION="0.8.1"
 
 # Source AMP installation helpers
 source "${SCRIPT_DIR}/install-helpers.sh"
@@ -1355,6 +1358,14 @@ fi
 
 # Install observability-metrics-prometheus
 log_info "Installing observability-metrics-prometheus..."
+# Helm never upgrades CRDs, so on a re-run over an older release apply the
+# Prometheus Operator CRDs that the target chart bundles first.
+if helm status observability-metrics-prometheus -n openchoreo-observability-plane &>/dev/null; then
+    helm show crds oci://ghcr.io/openchoreo/helm-charts/observability-metrics-prometheus \
+        --version "${OBSERVABILITY_METRICS_PROMETHEUS_VERSION}" \
+        | kubectl apply --server-side --force-conflicts -f - >/dev/null \
+        || log_warning "Failed to sync Prometheus Operator CRDs (non-fatal)"
+fi
 if helm upgrade --install observability-metrics-prometheus \
     oci://ghcr.io/openchoreo/helm-charts/observability-metrics-prometheus \
     --create-namespace \
@@ -1497,6 +1508,31 @@ log_info "Installing Gateway Operator..."
 # Admin API on this image is served under /api/admin/v1 on the "admin" named
 # port — GET /health on the "rest" port goes through Gin + basic auth and
 # returns 401 for kube-probe (see gateway-controller admin OpenAPI spec).
+# The gateway release (operator, chart and images) comes from the gateway
+# extension chart of this version, so a gateway or operator update ships as an
+# Agent Manager update and this script stays as it is. A chart published before it carried the pins keeps the fallback above.
+if _gw_values="$(helm show values "oci://${HELM_CHART_REGISTRY}/${GATEWAY_EXTENSION_CHART_NAME}" \
+        --version "${VERSION}" 2>/dev/null)"; then
+    _gw_pins="$(printf '%s\n' "$_gw_values" | amp_gateway_release_pins)"
+    if [ -n "$_gw_pins" ]; then
+        { read -r GATEWAY_CHART_VERSION; read -r GATEWAY_IMAGE_VERSION; read -r GATEWAY_OPERATOR_VERSION; } <<< "$_gw_pins"
+    fi
+else
+    log_warning "Could not read the gateway release from ${GATEWAY_EXTENSION_CHART_NAME} ${VERSION}; using the installer's own"
+fi
+unset _gw_values _gw_pins
+log_info "Gateway release: operator ${GATEWAY_OPERATOR_VERSION}, chart ${GATEWAY_CHART_VERSION}, images ${GATEWAY_IMAGE_VERSION}"
+# The gateway chart and images come from GATEWAY_REGISTRY with their own pull
+# Secret, which the operator reads from its namespace (see lib-registry-auth.sh).
+if ! amp_create_gateway_pull_secret "openchoreo-data-plane"; then
+    log_error "Failed to create the gateway pull secret for $(amp_gateway_registry_host)"
+    exit 1
+fi
+GATEWAY_REGISTRY_HELM_ARGS=()
+while IFS= read -r _gw_arg; do
+    GATEWAY_REGISTRY_HELM_ARGS+=("$_gw_arg")
+done < <(amp_gateway_operator_helm_args)
+unset _gw_arg
 helm_install_idempotent \
     "gateway-operator" \
     "oci://ghcr.io/wso2/api-platform/helm-charts/gateway-operator" \
@@ -1506,10 +1542,9 @@ helm_install_idempotent \
     --set "logging.level=debug" \
     --set gatewayApi.installStandardCRDs=false \
     --set "gateway.helm.chartVersion=${GATEWAY_CHART_VERSION}" \
+    "${GATEWAY_REGISTRY_HELM_ARGS[@]}" \
     --set "gateway.values.gateway.controller.image.tag=${GATEWAY_IMAGE_VERSION}" \
-    --set gateway.values.gateway.controller.image.repository=ghcr.io/wso2/api-platform/gateway-controller \
     --set "gateway.values.gateway.gatewayRuntime.image.tag=${GATEWAY_IMAGE_VERSION}" \
-    --set gateway.values.gateway.gatewayRuntime.image.repository=ghcr.io/wso2/api-platform/gateway-runtime \
     --set gateway.values.gateway.controller.encryptionKeys.enabled=true \
     --set "gateway.values.gateway.controller.encryptionKeys.secretName=${GATEWAY_ENCRYPTION_SECRET_NAME}" \
     --set gateway.values.gateway.controller.deployment.livenessProbe.httpGet.path=/api/admin/v1/health \

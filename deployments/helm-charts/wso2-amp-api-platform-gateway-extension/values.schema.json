@@ -19,6 +19,33 @@
       "title": "kubectl",
       "type": "object"
     },
+    "gatewayRelease": {
+      "additionalProperties": false,
+      "description": "API Platform Gateway release this chart version is tested with: the gateway-operator chart, and the gateway chart and images it deploys. Not rendered; install.sh reads it and installs the operator at these versions.",
+      "properties": {
+        "operatorVersion": {
+          "default": "0.11.3",
+          "description": "Version of the gateway-operator Helm chart",
+          "title": "operatorVersion",
+          "type": "string"
+        },
+        "chartVersion": {
+          "default": "2026.10.0",
+          "description": "Version of the gateway Helm chart",
+          "title": "chartVersion",
+          "type": "string"
+        },
+        "imageVersion": {
+          "default": "2026.10.0",
+          "description": "Tag of the gateway-controller and gateway-runtime images",
+          "title": "imageVersion",
+          "type": "string"
+        }
+      },
+      "required": [],
+      "title": "gatewayRelease",
+      "type": "object"
+    },
     "agentManager": {
       "additionalProperties": false,
       "description": "Agent Manager API connection details (used by bootstrap job to register gateway)",

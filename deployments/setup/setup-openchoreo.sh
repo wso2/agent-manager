@@ -319,6 +319,14 @@ install_metrics_module() {
     # environments (usage lives in the sandbox cgroup, not per-container
     # cgroups, on those runtimes).
     echo "Installing Prometheus based metrics module..."
+    # Helm never upgrades CRDs, so on a re-run over an older release apply the
+    # Prometheus Operator CRDs that the target chart bundles first.
+    if helm status observability-metrics-prometheus -n openchoreo-observability-plane >/dev/null 2>&1; then
+        helm show crds oci://ghcr.io/openchoreo/helm-charts/observability-metrics-prometheus \
+          --version "${OBSERVABILITY_METRICS_PROMETHEUS_VERSION}" \
+          | kubectl apply --server-side --force-conflicts -f - >/dev/null \
+          || echo "⚠️  Failed to sync Prometheus Operator CRDs; continuing with the upgrade"
+    fi
     install_metrics_prometheus() {
         helm upgrade --install observability-metrics-prometheus \
           oci://ghcr.io/openchoreo/helm-charts/observability-metrics-prometheus \
