@@ -30,7 +30,7 @@ import { useParams } from "react-router-dom";
 import { Edit } from "@wso2/oxygen-ui-icons-react";
 import { debounce } from "lodash";
 import { useGenerateResourceName } from "@agent-management-platform/api-client";
-import { AddProjectFormValues } from "../form/schema";
+import { AddProjectFormValues, PROJECT_NAME_MAX_LENGTH } from "../form/schema";
 import { INPUT_LIMITS } from "@agent-management-platform/types";
 import { TextInput } from "@agent-management-platform/views";
 
@@ -165,8 +165,8 @@ export const ProjectForm = ({
           <TextInput
             label="Project ID"
             id="name"
-            maxLength={INPUT_LIMITS.HANDLE}
-            hideCharacterCount={!isNameEditable || formData.name.length < INPUT_LIMITS.HANDLE}
+            maxLength={PROJECT_NAME_MAX_LENGTH}
+            hideCharacterCount={!isNameEditable || formData.name.length < PROJECT_NAME_MAX_LENGTH}
             value={formData.name}
             onChange={(e) => handleFieldChange("name", e.target.value)}
             placeholder="e.g., customer-support-platform"
@@ -182,7 +182,6 @@ export const ProjectForm = ({
                       size="small"
                       aria-label="Edit project ID"
                       onClick={() => setIsNameEditable(true)}
-                      disabled={!formData.name}
                     >
                       <Edit size={16} />
                     </IconButton>

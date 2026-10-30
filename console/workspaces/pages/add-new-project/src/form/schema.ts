@@ -19,6 +19,9 @@
 import { z } from 'zod';
 import { INPUT_LIMITS } from '@agent-management-platform/types';
 
+// Matches the backend's MaxResourceNameLength.
+export const PROJECT_NAME_MAX_LENGTH = 25;
+
 export interface AddProjectFormValues {
   name: string;
   displayName: string;
@@ -35,7 +38,7 @@ export const addProjectSchema = z.object({
   name: z
     .string()
     .trim()
-    .max(50, 'Name must be at most 50 characters')
+    .max(PROJECT_NAME_MAX_LENGTH, `Name must be at most ${PROJECT_NAME_MAX_LENGTH} characters`)
     .refine(
       (v) => v === '' || /^[a-z][a-z0-9-]*[a-z0-9]$|^[a-z]$/.test(v),
       'Name must be lowercase alphanumeric or "-", start with a letter and end with a letter or digit',
