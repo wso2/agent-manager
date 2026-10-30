@@ -54,6 +54,7 @@ import {
   type MCPProxyScopeResponse,
   type ThunderRole,
   INPUT_LIMITS,
+  isIdentityPromotionUiEnabled,
 } from "@agent-management-platform/types";
 import { z } from "zod";
 
@@ -120,6 +121,11 @@ export function CreateScopeDrawer({
   tools,
   blockedTools,
 }: CreateScopeDrawerProps) {
+  const identityPromotionEnabled = isIdentityPromotionUiEnabled();
+  const roleEnvironments = useMemo(
+    () => identityPromotionEnabled ? environments.slice(0, 1) : environments,
+    [identityPromotionEnabled, environments],
+  );
   const [formData, setFormData] = useState<CreateScopeFormValues>(DEFAULT_FORM);
   const [selectedTools, setSelectedTools] = useState<string[]>([]);
   // Keyed by `env.name` (not position in `environments`) so a reorder or
@@ -166,7 +172,7 @@ export function CreateScopeDrawer({
   const handleGuardedClose = () => confirmIfUnsaved(onClose, isDirty);
 
   const roleQueries = useQueries({
-    queries: environments.map(
+    queries: roleEnvironments.map(
       (env): UseQueryOptions<AgentIdentityRoleListResponse> => ({
         queryKey: [
           "agent-identity-roles",
@@ -187,14 +193,14 @@ export function CreateScopeDrawer({
   // Assignable roles per environment, in the same order as `environments`.
   const roleOptionsByEnv: ThunderRole[][] = useMemo(
     () =>
-      environments.map((_env, index) => {
+      roleEnvironments.map((_env, index) => {
         const roles = roleQueries[index]?.data?.roles ?? [];
         return roles.filter(
           (role) =>
             !role.isReadOnly && role.name.trim().toLowerCase() !== NATIVE_DEFAULT_ROLE_NAME,
         );
       }),
-    [environments, roleQueries],
+    [roleEnvironments, roleQueries],
   );
 
   const handleRolesChangeForEnv = useCallback((envName: string, roles: ThunderRole[]) => {
@@ -244,7 +250,7 @@ export function CreateScopeDrawer({
       // scope-creation error above.
       onClose();
 
-      const roleAssignments = environments.flatMap((env) =>
+      const roleAssignments = roleEnvironments.flatMap((env) =>
         (selectedRolesByEnv[env.name] ?? []).map((role) => ({
           role,
           envName: env.name,
@@ -284,7 +290,7 @@ export function CreateScopeDrawer({
       createScope,
       orgName,
       proxyId,
-      environments,
+      roleEnvironments,
       selectedRolesByEnv,
       updateRole,
       onClose,
@@ -403,20 +409,22 @@ export function CreateScopeDrawer({
 
             <Stack spacing={1.5}>
               <FormLabel>
-                {environments.length > 1
+                {!identityPromotionEnabled && environments.length > 1
                   ? "Assigned Roles for each environment"
                   : "Assigned Roles"}
               </FormLabel>
-              {environments.length === 0 ? (
+              {roleEnvironments.length === 0 ? (
                 <Typography variant="body2" color="text.secondary">
                   This endpoint isn&apos;t deployed to any environment yet.
                 </Typography>
               ) : (
-                environments.map((env, index) => (
+                roleEnvironments.map((env, index) => (
                   <FormControl fullWidth key={env.id ?? env.name}>
-                    <FormLabel sx={{ fontSize: "0.8125rem" }}>
-                      {env.displayName ?? env.name}
-                    </FormLabel>
+                    {!identityPromotionEnabled && (
+                      <FormLabel sx={{ fontSize: "0.8125rem" }}>
+                        {env.displayName ?? env.name}
+                      </FormLabel>
+                    )}
                     <Autocomplete
                       multiple
                       size="small"
@@ -451,8 +459,9 @@ export function CreateScopeDrawer({
                 ))
               )}
               <Typography variant="caption" color="text.secondary">
-                Roles to grant this scope to, per environment this MCP Server is
-                deployed to.
+                {identityPromotionEnabled
+                  ? "Roles to grant this scope to."
+                  : "Roles to grant this scope to, per environment this MCP Server is deployed to."}
               </Typography>
             </Stack>
 

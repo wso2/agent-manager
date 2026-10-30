@@ -69,6 +69,8 @@ export {
   RolesGroupsChips,
   useAgentRolesAndGroups,
 } from "./AgentRolesGroups/AgentRolesGroups";
+export { PromotedWithAgentNote } from "./AgentRolesGroups/PromotedWithAgentNote";
+export { RolesGroupsReadOnlyNote } from "./AgentRolesGroups/RolesGroupsReadOnlyNote";
 export {
   useAgentIdentityCredentials,
   monospaceInputSx,
