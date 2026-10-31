@@ -197,6 +197,12 @@ func (s *MCPProxyService) EnsureResourceServersForProxy(ctx context.Context, ouI
 				continue
 			}
 			s.logger.Info("ensure resource server: registered", "proxy", handle, "env", name, "actions", actions)
+			// The resource server and its actions are what roles reference: the agents
+			// that hold such a role carry the new content into the later environments
+			// of their pipelines.
+			if trigger := s.identitySyncTrigger(); trigger != nil {
+				trigger.MCPProxyChanged(ctx, ouID, name, handle)
+			}
 		}
 	}
 }

@@ -346,6 +346,7 @@ The registry is the source of truth (`audit/actions.go`, `audit/actions_domain.g
 |---|---|---|---|
 | `agent-config:delete` | config | 2 notice | `agentName`, `configName`, `configType`, `environmentCount` |
 | `agent-config:update` | config | 1 info | `agentName`, `configName`, `configType`, `updatedFields` |
+| `agent-identity:promote` | credential | 4 critical | `agentName`, `carried`, `clientId`, `environment`, `groupCount`, `provisioningType`, `resourceServerCount`, `roleCount`, `sourceEnvironment`, `trigger` |
 | `agent-identity:provision` | credential | 4 critical | `agentName`, `alreadyExisted`, `clientId`, `environment` |
 | `agent-identity:regenerate-secret` | credential | 4 critical | `agentName`, `clientId`, `environment` |
 | `agent-identity:retry-provisioning` | credential | 4 critical | `agentName`, `environment` |

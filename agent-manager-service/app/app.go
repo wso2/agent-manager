@@ -245,6 +245,15 @@ func Run(authProvider occlient.AuthProvider, secretProvider secretmanagersvc.Pro
 	if setter, ok := agentThunderProvisioning.(services.AgentIdentityResourceResolverSetter); ok {
 		setter.SetAgentIdentityResourceResolver(dependencies.MCPProxyService)
 	}
+	// Changes to roles, groups and MCP servers reach the later environments of the
+	// agents' pipelines through the provisioning service. Only a deployment that
+	// promotes identity (a promotion manager is installed) acts on them.
+	if trigger, ok := agentThunderProvisioning.(services.AgentIdentitySyncTrigger); ok {
+		if setter, ok := dependencies.AgentIdentityController.(services.AgentIdentitySyncTriggerSetter); ok {
+			setter.SetAgentIdentitySyncTrigger(trigger)
+		}
+		dependencies.MCPProxyService.SetAgentIdentitySyncTrigger(trigger)
+	}
 	// The reconciler reads project pipelines to backfill the bindings of agents
 	// created before identity followed the pipeline.
 	if setter, ok := dependencies.AgentThunderReconciler.(services.AgentIdentityPipelineReaderSetter); ok {
