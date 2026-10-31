@@ -1,0 +1,20 @@
+- description: list-agents
+  metadata: { tags: [read] }
+  vars:
+    prompt: List my agents.
+  assert:
+    - type: javascript
+      metric: used-agent-listing
+      value: file://node_modules/@wso2/eval-kit/lib/asserts.js:calledAnyOf
+      config: { tools: [list_agents, list_project_agent_pairs] }
+    - type: javascript
+      metric: matches-tool-results
+      value: file://node_modules/@wso2/eval-kit/lib/judge.js:verdict
+      config:
+        subject: an assistant using the Agent Manager tools
+        rubric: >-
+          FAIL if no list_agents or list_project_agent_pairs call has "isError" false, or if the agent listed agents
+          per project with list_agents and skipped a project that list_projects returned.
+          Otherwise PASS if the reply names every agent that the tool results contain, says which project each belongs to,
+          and names no agent the tool results do not contain. If the tool results contain no agents, PASS only if
+          the reply says there are none. FAIL otherwise.
