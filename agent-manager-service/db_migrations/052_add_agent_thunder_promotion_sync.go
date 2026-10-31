@@ -18,7 +18,7 @@ package dbmigrations
 
 import "gorm.io/gorm"
 
-// migration051 lets an agent's identity follow its project pipeline by promotion.
+// migration052 lets an agent's identity follow its project pipeline by promotion.
 //
 // promotion_source records, for a binding whose environment receives its
 // identity by promotion, the environment it is promoted from. Without it the
@@ -36,8 +36,8 @@ import "gorm.io/gorm"
 // version of the service, which never reads them, are unaffected. The partial
 // index covers only the rows that are waiting, so the reconciler's poll stays
 // cheap however many bindings exist.
-var migration051 = migration{
-	ID: 51,
+var migration052 = migration{
+	ID: 52,
 	Migrate: func(db *gorm.DB) error {
 		return db.Transaction(func(tx *gorm.DB) error {
 			return runSQL(
