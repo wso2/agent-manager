@@ -61,6 +61,7 @@ export const TextInput = ({
   hideCharacterCount = false,
   helperText,
   error,
+  id,
   ...props
 }: TextInputProps) => {
   const [copied, setCopied] = useState(false);
@@ -84,6 +85,9 @@ export const TextInput = ({
     }
     return copied ? 'Copied!' : 'Copy';
   };
+
+  // Shared by the label and the input so clicking the label focuses the field.
+  const inputId = id ?? label;
 
   const isPasswordField = type === 'password' && showPasswordToggle;
   const displayType = isPasswordField && showPassword ? 'text' : type;
@@ -150,7 +154,7 @@ export const TextInput = ({
   return (
     <FormControl fullWidth>
       {label && (
-        <FormLabel htmlFor={label} required={required}>
+        <FormLabel htmlFor={inputId} required={required}>
           <Box component="span" sx={{ display: 'inline-flex', alignItems: 'center', gap: 0.5 }}>
             {label}
             {labelAction}
@@ -158,7 +162,7 @@ export const TextInput = ({
         </FormLabel>
       )}
       <TextField
-        id={label}
+        id={inputId}
         sx={{
           minWidth: 100,
         }}
