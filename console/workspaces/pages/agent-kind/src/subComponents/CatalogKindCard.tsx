@@ -1,11 +1,12 @@
 import React from "react";
-import { Avatar, Box, Divider, Form, Tooltip, Typography } from "@wso2/oxygen-ui";
+import { Chip, ListingCard, Stack } from "@wso2/oxygen-ui";
 import { formatRelativeTime } from "@agent-management-platform/shared-component";
 import { Link } from "react-router-dom";
-import { BookOpenText, Tag, Clock as TimerOutlined } from "@wso2/oxygen-ui-icons-react";
+import { BookOpenText } from "@wso2/oxygen-ui-icons-react";
 import type { AgentKindResponse } from "@agent-management-platform/types";
 
-export const CARD_HEIGHT = 116;
+/** Matches ListingCard's own minimum so the loading skeletons line up with it. */
+export const CARD_HEIGHT = 160;
 
 interface CatalogKindCardProps {
     item: AgentKindResponse;
@@ -13,92 +14,38 @@ interface CatalogKindCardProps {
 }
 
 export const CatalogKindCard: React.FC<CatalogKindCardProps> = ({ item, viewPath }) => {
+    const labels = Object.entries(item.labels ?? {});
 
-    const createdAtText = item.createdAt
-        ? formatRelativeTime(item.createdAt)
-        : "—";
+    // The card's metadata reads as chips rather than prose: the version is the
+    // thing people scan a catalog for.
+    const decorators = (
+        <Stack direction="row" spacing={0.5} useFlexGap flexWrap="wrap" alignItems="center">
+            <Chip
+                size="small"
+                variant="outlined"
+                label={item.latestVersion ? `v${item.latestVersion}` : "No versions"}
+            />
+            {labels.slice(0, 2).map(([key, value]) => (
+                <Chip key={key} size="small" variant="outlined" label={`${key}: ${value}`} />
+            ))}
+            {labels.length > 2 && (
+                <Chip size="small" variant="outlined" label={`+${labels.length - 2}`} />
+            )}
+        </Stack>
+    );
 
     return (
+        // ListingCard's own `href` renders a plain anchor, which would reload the
+        // app; the router Link keeps navigation client-side.
         <Link to={viewPath} style={{ textDecoration: "none" }}>
-            <Form.CardButton
-                sx={{
-                    position: "relative",
-                    width: "100%",
-                    height: CARD_HEIGHT,
-                    textAlign: "left",
-                    display: "flex",
-                    flexDirection: "column",
-                    p: 2,
-                    pt: 3,
-                    boxSizing: "border-box",
-                    overflow: "hidden",
-                }}
-            >
-                {/* Top: avatar + name + latest version */}
-                <Box sx={{ display: "flex", alignItems: "flex-start", gap: 1.5, width: "100%", minWidth: 0 }}>
-                    <Avatar
-                        sx={{
-                            bgcolor: "secondary.main",
-                            color: "primary.light",
-                            height: 44,
-                            width: 44,
-                            flexShrink: 0,
-                        }}
-                    >
-                        <BookOpenText size={26} />
-                    </Avatar>
-                    <Box sx={{ flex: 1, minWidth: 0 }}>
-                        <Tooltip title={item.displayName} placement="top-start">
-                            <Typography
-                                variant="h5"
-                                sx={{
-                                    lineHeight: 1.3,
-                                    mb: 0.4,
-                                    overflow: "hidden",
-                                    textOverflow: "ellipsis",
-                                    whiteSpace: "nowrap",
-                                    minWidth: 0,
-                                }}
-                            >
-                                {item.displayName}
-                            </Typography>
-                        </Tooltip>
-                        <Box sx={{ display: "flex", alignItems: "center", gap: 0.5, overflow: "hidden" }}>
-                            <Tag size={13} style={{ opacity: 0.5, flexShrink: 0 }} />
-                            {item.latestVersion ? (
-                                <Typography
-                                    variant="caption"
-                                    color="text.secondary"
-                                    noWrap
-                                    sx={{ minWidth: 0 }}
-                                >
-                                    Latest: {item.latestVersion}
-                                </Typography>
-                            ) : (
-                                <Typography variant="caption" color="text.disabled" sx={{ fontStyle: "italic" }}>
-                                    No versions published
-                                </Typography>
-                            )}
-                        </Box>
-                    </Box>
-                </Box>
-
-                <Box sx={{ flex: 1 }} />
-
-                <Divider sx={{ mb: 1 }} />
-
-                {/* Bottom: time */}
-                <Box sx={{ width: "100%", minWidth: 0 }}>
-                    <Typography
-                        variant="caption"
-                        color="text.disabled"
-                        sx={{ display: "flex", alignItems: "center", gap: 0.4 }}
-                    >
-                        <TimerOutlined size={12} />
-                        {createdAtText}
-                    </Typography>
-                </Box>
-            </Form.CardButton>
+            <ListingCard
+                title={item.displayName}
+                description={decorators}
+                icon={<BookOpenText size={20} />}
+                updatedLabel="Created"
+                updatedTime={formatRelativeTime(item.createdAt)}
+                updatedDateTime={item.createdAt}
+            />
         </Link>
     );
 };
