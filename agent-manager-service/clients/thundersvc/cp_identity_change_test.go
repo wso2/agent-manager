@@ -30,13 +30,15 @@ func TestCPClientActivatesRoleAndGroupChangesThroughCaptureApplyAndVerify(t *tes
 		calls = append(calls, r.Method+" "+r.URL.Path)
 		switch r.URL.Path {
 		case "/configuration-versions":
-			_, _ = w.Write([]byte(`{"version":"v1"}`))
+			if r.Method == http.MethodGet {
+				_, _ = w.Write([]byte(`[{"version":"v1"}]`))
+			} else {
+				_, _ = w.Write([]byte(`{"version":"v1"}`))
+			}
 		case "/gateways/gateway-dev/apply":
 			_, _ = w.Write([]byte(`{}`))
 		case "/gateways/gateway-dev/applied-version":
 			_, _ = w.Write([]byte(`{"gatewayId":"gateway-dev","appliedVersion":"v1"}`))
-		case "/configuration-versions/latest":
-			_, _ = w.Write([]byte(`{"version":"v1"}`))
 		}
 	}))
 	defer server.Close()
@@ -55,7 +57,7 @@ func TestCPClientActivatesRoleAndGroupChangesThroughCaptureApplyAndVerify(t *tes
 	if err := activator.ActivateIdentityChange(context.Background()); err != nil {
 		t.Fatal(err)
 	}
-	want := "POST /configuration-versions,POST /gateways/gateway-dev/apply,GET /gateways/gateway-dev/applied-version,GET /configuration-versions/latest"
+	want := "POST /configuration-versions,POST /gateways/gateway-dev/apply,GET /gateways/gateway-dev/applied-version,GET /configuration-versions"
 	if got := strings.Join(calls, ","); got != want {
 		t.Fatalf("CP calls = %s, want %s", got, want)
 	}

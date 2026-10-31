@@ -51,13 +51,15 @@ func TestCPIdentityBackendCreatesAgentThroughControlPlaneAndActivates(t *testing
 			w.WriteHeader(http.StatusCreated)
 			_, _ = w.Write([]byte(`{"id":"agent-1","inboundAuthConfig":[{"config":{"clientId":"client-1","clientSecret":"secret-1"}}]}`))
 		case "/configuration-versions":
-			_, _ = w.Write([]byte(`{"version":"v1"}`))
+			if r.Method == http.MethodGet {
+				_, _ = w.Write([]byte(`[{"version":"v1"}]`))
+			} else {
+				_, _ = w.Write([]byte(`{"version":"v1"}`))
+			}
 		case "/gateways/gateway-dev/apply":
 			_, _ = w.Write([]byte(`{}`))
 		case "/gateways/gateway-dev/applied-version":
 			_, _ = w.Write([]byte(`{"gatewayId":"gateway-dev","appliedVersion":"v1"}`))
-		case "/configuration-versions/latest":
-			_, _ = w.Write([]byte(`{"version":"v1"}`))
 		default:
 			t.Errorf("unexpected CP path %s", r.URL.Path)
 		}
@@ -80,7 +82,7 @@ func TestCPIdentityBackendCreatesAgentThroughControlPlaneAndActivates(t *testing
 	if err := activator.ActivateAgentIdentity(context.Background(), agentID); err != nil {
 		t.Fatal(err)
 	}
-	want := "POST /agents,POST /configuration-versions,POST /gateways/gateway-dev/apply,GET /gateways/gateway-dev/applied-version,GET /configuration-versions/latest"
+	want := "POST /agents,POST /configuration-versions,POST /gateways/gateway-dev/apply,GET /gateways/gateway-dev/applied-version,GET /configuration-versions"
 	if got := strings.Join(calls, ","); got != want {
 		t.Fatalf("CP calls = %s, want %s", got, want)
 	}

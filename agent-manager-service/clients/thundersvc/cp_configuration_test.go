@@ -57,6 +57,10 @@ func TestCPConfigurationClientActivateCapturesAppliesAndVerifies(t *testing.T) {
 		}
 		switch r.URL.Path {
 		case "/configuration-versions":
+			if r.Method == http.MethodGet {
+				_, _ = w.Write([]byte(`[{"version":"version-1"}]`))
+				break
+			}
 			var body map[string]any
 			if err := json.NewDecoder(r.Body).Decode(&body); err != nil || body["current"] != true {
 				t.Errorf("capture must keep the configuration current: %v, %v", body, err)
@@ -76,8 +80,6 @@ func TestCPConfigurationClientActivateCapturesAppliesAndVerifies(t *testing.T) {
 			_, _ = w.Write([]byte(`{"missing":null}`))
 		case "/gateways/gateway-dev/applied-version":
 			_, _ = w.Write([]byte(`{"gatewayId":"gateway-dev","appliedVersion":"version-1"}`))
-		case "/configuration-versions/latest":
-			_, _ = w.Write([]byte(`{"version":"version-1"}`))
 		default:
 			t.Errorf("unexpected CP path %s", r.URL.Path)
 		}
@@ -91,7 +93,7 @@ func TestCPConfigurationClientActivateCapturesAppliesAndVerifies(t *testing.T) {
 	if err := client.Activate(context.Background(), cpTestTarget(server.URL), "AgentID update"); err != nil {
 		t.Fatal(err)
 	}
-	want := []string{"POST /configuration-versions", "POST /gateways/gateway-dev/apply", "GET /gateways/gateway-dev/applied-version", "GET /configuration-versions/latest"}
+	want := []string{"POST /configuration-versions", "POST /gateways/gateway-dev/apply", "GET /gateways/gateway-dev/applied-version", "GET /configuration-versions"}
 	if strings.Join(calls, ",") != strings.Join(want, ",") {
 		t.Fatalf("CP calls = %v, want %v", calls, want)
 	}
@@ -102,7 +104,11 @@ func TestCPConfigurationClientRetriesWhenAnotherReplicaCapturesANewerVersion(t *
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch r.URL.Path {
 		case "/configuration-versions":
-			_, _ = w.Write([]byte(`{"version":"version-1"}`))
+			if r.Method == http.MethodGet {
+				_, _ = w.Write([]byte(`[{"version":"version-2"}]`))
+			} else {
+				_, _ = w.Write([]byte(`{"version":"version-1"}`))
+			}
 		case "/gateways/gateway-dev/apply":
 			var body map[string]any
 			if err := json.NewDecoder(r.Body).Decode(&body); err != nil || body["version"] != "latest" {
@@ -112,8 +118,6 @@ func TestCPConfigurationClientRetriesWhenAnotherReplicaCapturesANewerVersion(t *
 			_, _ = w.Write([]byte(`{"missing":null}`))
 		case "/gateways/gateway-dev/applied-version":
 			_, _ = fmt.Fprintf(w, `{"gatewayId":"gateway-dev","appliedVersion":"version-%d"}`, applies)
-		case "/configuration-versions/latest":
-			_, _ = w.Write([]byte(`{"version":"version-2"}`))
 		default:
 			t.Errorf("unexpected CP path %s", r.URL.Path)
 		}
@@ -190,13 +194,15 @@ func TestCPConfigurationClientRejectsIncompleteActivation(t *testing.T) {
 			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 				switch r.URL.Path {
 				case "/configuration-versions":
-					_, _ = w.Write([]byte(`{"version":"version-1"}`))
+					if r.Method == http.MethodGet {
+						_, _ = w.Write([]byte(`[{"version":"version-1"}]`))
+					} else {
+						_, _ = w.Write([]byte(`{"version":"version-1"}`))
+					}
 				case "/gateways/gateway-dev/apply":
 					_, _ = w.Write([]byte(test.applyBody))
 				case "/gateways/gateway-dev/applied-version":
 					_, _ = w.Write([]byte(`{"gatewayId":"gateway-dev","appliedVersion":"` + test.appliedVersion + `"}`))
-				case "/configuration-versions/latest":
-					_, _ = w.Write([]byte(`{"version":"version-1"}`))
 				default:
 					t.Errorf("unexpected path %s", r.URL.Path)
 				}

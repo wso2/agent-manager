@@ -128,16 +128,16 @@ func (c *CPConfigurationClient) apply(ctx context.Context, target EnvironmentIde
 }
 
 func (c *CPConfigurationClient) latestVersion(ctx context.Context, target EnvironmentIdentityTarget) (string, error) {
-	var response struct {
+	var response []struct {
 		Version string `json:"version"`
 	}
-	if err := c.request(ctx, target, http.MethodGet, "/configuration-versions/latest", nil, &response); err != nil {
+	if err := c.request(ctx, target, http.MethodGet, "/configuration-versions", nil, &response); err != nil {
 		return "", err
 	}
-	if response.Version == "" {
+	if len(response) == 0 || response[0].Version == "" {
 		return "", errors.New("CP returned no latest configuration version")
 	}
-	return response.Version, nil
+	return response[0].Version, nil
 }
 
 func (c *CPConfigurationClient) appliedVersion(ctx context.Context, target EnvironmentIdentityTarget) (string, error) {
