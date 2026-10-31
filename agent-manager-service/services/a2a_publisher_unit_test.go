@@ -316,7 +316,7 @@ func TestA2APublisherTeardownEnvironmentDropsEachArtifactWithItsDeleteEvents(t *
 	m := newPublisherMocks(t)
 	envUUID, artifactUUID, gateway := uuid.New(), uuid.New(), uuid.New()
 	m.exposures.ListForEnvironmentFunc = func(context.Context, string, uuid.UUID) ([]models.PlatformAgentExposure, error) {
-		return []models.PlatformAgentExposure{{AgentName: "trip-planner", ArtifactUUID: artifactUUID}}, nil
+		return []models.PlatformAgentExposure{{AgentName: "trip-planner", ArtifactUUID: artifactUUID, Protocol: models.AgentExposureProtocolA2A}}, nil
 	}
 	m.exposures.DeleteForEnvironmentFunc = func(context.Context, string, uuid.UUID) error { return nil }
 	m.proxies.DeleteForEnvironmentFunc = func(context.Context, string, uuid.UUID) error { return nil }

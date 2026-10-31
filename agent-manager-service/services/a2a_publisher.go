@@ -194,7 +194,12 @@ func (p *A2APublisher) TeardownEnvironment(ctx context.Context, ouID string, env
 	var errs []error
 	dropped := map[uuid.UUID]struct{}{}
 	for _, exposure := range exposures {
-		artifact := models.ArtifactRef{OUID: ouID, ArtifactUUID: exposure.ArtifactUUID, Kind: models.KindAgent}
+		shape, ok := agentGatewayShapeForProtocol(exposure.Protocol)
+		if !ok {
+			errs = append(errs, fmt.Errorf("agent %s: unknown exposure protocol %q", exposure.AgentName, exposure.Protocol))
+			continue
+		}
+		artifact := models.ArtifactRef{OUID: ouID, ArtifactUUID: exposure.ArtifactUUID, Kind: shape.ArtifactKind}
 		if err := p.exposure.dropArtifact(ctx, artifact); err != nil {
 			errs = append(errs, fmt.Errorf("agent %s: %w", exposure.AgentName, err))
 			continue
@@ -261,7 +266,7 @@ func (p *A2APublisher) dropAgentsArtifacts(
 ) error {
 	var errs []error
 	for _, agent := range agents {
-		artifact, err := agentEnvAPIArtifact(p.artifactRepo, ouID, agent.projectName, agent.agentName, envUUID.String())
+		artifact, err := agentEnvAPIArtifact(p.artifactRepo, ouID, agent.projectName, agent.agentName, envUUID.String(), models.AgentArtifactKinds...)
 		if errors.Is(err, utils.ErrArtifactNotFound) {
 			continue
 		}

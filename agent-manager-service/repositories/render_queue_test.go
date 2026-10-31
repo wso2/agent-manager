@@ -490,12 +490,14 @@ func TestAbandonRender(t *testing.T) {
 func TestListDeployedForDrift(t *testing.T) {
 	ouID := testOU()
 	gateway := seedPlacement(t, models.KindAgent).GatewayUUID
-	exposed := func(t *testing.T) models.Placement {
+	exposed := func(t *testing.T, kind string, protocol models.AgentExposureProtocol) models.Placement {
 		exposure := newTestExposure(t, ouID, "agent-"+uuid.NewString()[:8], uuid.New())
+		exposure.Protocol = protocol
+		require.NoError(t, db.GetDB().Exec(`UPDATE artifacts SET kind = ? WHERE uuid = ?`, kind, exposure.ArtifactUUID).Error)
 		require.NoError(t, NewPlatformAgentExposureRepository(db.GetDB()).Upsert(context.Background(), exposure))
 		return models.Placement{
 			ArtifactRef: models.ArtifactRef{
-				OUID: ouID, ArtifactUUID: exposure.ArtifactUUID, Kind: models.KindAgent,
+				OUID: ouID, ArtifactUUID: exposure.ArtifactUUID, Kind: kind,
 				Handle: "checkout/" + exposure.AgentName + "/" + exposure.EnvironmentUUID.String(),
 			},
 			GatewayUUID: gateway,
@@ -505,39 +507,43 @@ func TestListDeployedForDrift(t *testing.T) {
 		deployment := startDeploy(t, p)
 		require.True(t, applyAck(t, p, deployAck(deployment.DeploymentID, models.DeploymentAckStatusSuccess, ""), nil))
 	}
+	listed := func(t *testing.T, kind string) []models.Placement {
+		var placements []models.Placement
+		afterKey := ""
+		for {
+			page, err := renderQueue().ListDeployedForDrift(context.Background(), kind, afterKey, 2)
+			require.NoError(t, err)
+			if len(page) == 0 {
+				return placements
+			}
+			for _, p := range page {
+				if p.OUID == ouID {
+					placements = append(placements, p)
+				}
+			}
+			afterKey = DriftKey(page[len(page)-1])
+		}
+	}
 
 	var platform []models.Placement
 	for range 3 {
-		p := exposed(t)
+		p := exposed(t, models.KindAgent, models.AgentExposureProtocolA2A)
 		live(t, p)
 		platform = append(platform, p)
 	}
-	deploying := exposed(t)
+	rest := exposed(t, models.KindRestAPI, models.AgentExposureProtocolREST)
+	live(t, rest)
+	deploying := exposed(t, models.KindAgent, models.AgentExposureProtocolA2A)
 	startDeploy(t, deploying)
 	external := seedArtifactOn(t, models.Placement{GatewayUUID: gateway}, ouID, models.KindAgent)
 	live(t, external)
-	queued := exposed(t)
+	queued := exposed(t, models.KindAgent, models.AgentExposureProtocolA2A)
 	live(t, queued)
 	queue(t, queued, nil, QueueScopePlaced)
 
-	var listed []models.Placement
-	afterKey := ""
-	for {
-		page, err := renderQueue().ListDeployedForDrift(context.Background(), models.KindAgent, afterKey, 2)
-		require.NoError(t, err)
-		if len(page) == 0 {
-			break
-		}
-		for _, p := range page {
-			if p.OUID == ouID {
-				listed = append(listed, p)
-			}
-		}
-		afterKey = DriftKey(page[len(page)-1])
-	}
-
-	assert.ElementsMatch(t, platform, listed,
+	assert.ElementsMatch(t, platform, listed(t, models.KindAgent),
 		"only DEPLOYED platform rows with no render owed; external agents have no exposure")
+	assert.Equal(t, []models.Placement{rest}, listed(t, models.KindRestAPI))
 }
 
 func TestGatewayDeleteRemovesItsStatusRows(t *testing.T) {

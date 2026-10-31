@@ -1786,7 +1786,7 @@ func (s *agentManagerService) createComponentAgent(ctx context.Context, ouID, pr
 			return translateEnvironmentError(envErr)
 		}
 		firstEnvUUID = firstEnvDetails.UUID
-		agentAPIArtifact, err = ensureAgentEnvAPIArtifact(s.db, s.artifactRepo, ouID, projectName, req.Name, firstEnvDetails.UUID)
+		agentAPIArtifact, err = ensureAgentEnvAPIArtifact(s.db, s.artifactRepo, ouID, projectName, req.Name, firstEnvDetails.UUID, models.KindAgent)
 		if err != nil {
 			s.logger.Error("Failed to create agent API artifact record", "agentName", req.Name, "environment", firstEnv, "environmentUUID", firstEnvDetails.UUID, "error", err)
 			if hasSecrets {
@@ -3174,7 +3174,7 @@ func (s *agentManagerService) deleteAgentAPIArtifact(ctx context.Context, ouID, 
 func (s *agentManagerService) cleanUpAgentAPIArtifacts(ctx context.Context, ouID, projectName, agentName string, isA2AAgent bool) error {
 	// Listed by handle, not by pipeline: routing can put an artifact in any org environment.
 	prefix := agentAPIArtifactHandlePrefix(projectName, agentName)
-	artifacts, err := s.artifactRepo.ListByHandlePrefix(ctx, models.KindAgent, prefix, ouID)
+	artifacts, err := s.artifactRepo.ListByHandlePrefix(ctx, models.AgentArtifactKinds, prefix, ouID)
 	if err != nil {
 		return fmt.Errorf("failed to list agent API artifacts for cleanup: %w", err)
 	}
@@ -3682,7 +3682,7 @@ func (s *agentManagerService) DeployAgent(ctx context.Context, ouID string, proj
 	// environment's ReleaseBinding instead — see applyEnvScopedWorkloadConfig.
 
 	if isAPIAgent && !isA2AAgent {
-		apiArtifact, artifactErr := ensureAgentEnvAPIArtifact(s.db, s.artifactRepo, ouID, projectName, agentName, targetEnv.UUID)
+		apiArtifact, artifactErr := ensureAgentEnvAPIArtifact(s.db, s.artifactRepo, ouID, projectName, agentName, targetEnv.UUID, models.KindAgent)
 		if artifactErr != nil {
 			return "", fmt.Errorf("cannot deploy API agent without environment API artifact record: %w", artifactErr)
 		}
@@ -3809,7 +3809,7 @@ func (s *agentManagerService) DeployAgent(ctx context.Context, ouID string, proj
 		// is what the agent's API keys are already bound to and what the gateway
 		// is told about, so the entire API-key path is inherited with no new code.
 		a2aArtifact = func(tx *gorm.DB) (*models.Artifact, error) {
-			artifact, err := ensureAgentEnvAPIArtifact(tx, s.artifactRepo, ouID, projectName, agentName, targetEnv.UUID)
+			artifact, err := ensureAgentEnvAPIArtifact(tx, s.artifactRepo, ouID, projectName, agentName, targetEnv.UUID, models.KindAgent)
 			if err != nil {
 				return nil, fmt.Errorf("cannot deploy A2A agent without environment API artifact record: %w", err)
 			}
@@ -4969,7 +4969,7 @@ func (s *agentManagerService) PromoteAgent(ctx context.Context, ouID string, pro
 			return err
 		}
 
-		artifact, artifactErr := ensureAgentEnvAPIArtifact(s.db, s.artifactRepo, ouID, projectName, agentName, targetEnv.UUID)
+		artifact, artifactErr := ensureAgentEnvAPIArtifact(s.db, s.artifactRepo, ouID, projectName, agentName, targetEnv.UUID, models.KindAgent)
 		if artifactErr != nil {
 			return fmt.Errorf("failed to ensure target env API artifact: %w", artifactErr)
 		}
@@ -5533,7 +5533,7 @@ func (s *agentManagerService) UpdateAgentDeploySettings(ctx context.Context, ouI
 	// Each environment must keep its own existing API artifact UUID so we don't churn the
 	// gateway's RestApi binding. ensureAgentEnvAPIArtifact is idempotent: returns the existing
 	// row if one is already allocated for (agent, env).
-	artifact, artifactErr := ensureAgentEnvAPIArtifact(s.db, s.artifactRepo, ouID, projectName, agentName, targetEnv.UUID)
+	artifact, artifactErr := ensureAgentEnvAPIArtifact(s.db, s.artifactRepo, ouID, projectName, agentName, targetEnv.UUID, models.KindAgent)
 	if artifactErr != nil {
 		return fmt.Errorf("failed to ensure agent env API artifact: %w", artifactErr)
 	}

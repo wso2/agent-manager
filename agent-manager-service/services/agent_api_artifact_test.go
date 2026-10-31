@@ -75,9 +75,9 @@ func TestEnsureAgentEnvAPIArtifactReadsThroughTheCallersTransaction(t *testing.T
 	ouID, envID := "ou-"+uuid.New().String()[:8], uuid.New().String()
 
 	err := db.GetDB().Transaction(func(tx *gorm.DB) error {
-		created, err := ensureAgentEnvAPIArtifact(tx, artifacts, ouID, "checkout", "weather", envID)
+		created, err := ensureAgentEnvAPIArtifact(tx, artifacts, ouID, "checkout", "weather", envID, models.KindAgent)
 		require.NoError(t, err)
-		again, err := ensureAgentEnvAPIArtifact(tx, artifacts, ouID, "checkout", "weather", envID)
+		again, err := ensureAgentEnvAPIArtifact(tx, artifacts, ouID, "checkout", "weather", envID, models.KindAgent)
 		require.NoError(t, err)
 		assert.Equal(t, created.UUID, again.UUID)
 		return errRollback
@@ -89,7 +89,7 @@ func TestEnsureAgentEnvAPIArtifactSurvivesLosingTheInsertRaceInsideATransaction(
 	ouID, envID, winner, racing := lostInsertRace(t)
 
 	err := db.GetDB().Transaction(func(tx *gorm.DB) error {
-		got, err := ensureAgentEnvAPIArtifact(tx, racing, ouID, "checkout", "weather", envID)
+		got, err := ensureAgentEnvAPIArtifact(tx, racing, ouID, "checkout", "weather", envID, models.KindAgent)
 		require.NoError(t, err)
 		assert.Equal(t, winner.UUID, got.UUID)
 		require.NoError(t, tx.Exec("SELECT 1").Error, "the caller's transaction is still usable")
@@ -101,31 +101,56 @@ func TestEnsureAgentEnvAPIArtifactSurvivesLosingTheInsertRaceInsideATransaction(
 func TestEnsureAgentEnvAPIArtifactReturnsTheWinnerOutsideATransaction(t *testing.T) {
 	ouID, envID, winner, racing := lostInsertRace(t)
 
-	got, err := ensureAgentEnvAPIArtifact(db.GetDB(), racing, ouID, "checkout", "weather", envID)
+	got, err := ensureAgentEnvAPIArtifact(db.GetDB(), racing, ouID, "checkout", "weather", envID, models.KindAgent)
 
 	require.NoError(t, err)
 	assert.Equal(t, winner.UUID, got.UUID)
+}
+
+func TestEnsureAgentEnvAPIArtifactCreatesKind(t *testing.T) {
+	artifacts := repositories.NewArtifactRepo(db.GetDB())
+	ouID, envID := "ou-"+uuid.New().String()[:8], uuid.New().String()
+
+	err := db.GetDB().Transaction(func(tx *gorm.DB) error {
+		created, err := ensureAgentEnvAPIArtifact(tx, artifacts, ouID, "checkout", "weather", envID, models.KindRestAPI)
+		require.NoError(t, err)
+		assert.Equal(t, models.KindRestAPI, created.Kind)
+
+		_, err = ensureAgentEnvAPIArtifact(tx, artifacts, ouID, "checkout", "weather", envID, models.KindAgent)
+		assert.Error(t, err, "an existing artifact of another kind is not switched")
+		return errRollback
+	})
+	require.ErrorIs(t, err, errRollback)
+}
+
+func TestEnsureAgentEnvAPIArtifactRefusesTheWinnerOfAnotherKindInTheInsertRace(t *testing.T) {
+	ouID, envID, _, racing := lostInsertRace(t)
+
+	_, err := ensureAgentEnvAPIArtifact(db.GetDB(), racing, ouID, "checkout", "weather", envID, models.KindRestAPI)
+
+	assert.Error(t, err)
 }
 
 // An agent's prefix must not match a longer agent name, or a name its LIKE wildcards would.
 func TestListByHandlePrefixFindsOnlyThatAgentsArtifacts(t *testing.T) {
 	artifacts := repositories.NewArtifactRepo(db.GetDB())
 	ouID := "ou-" + uuid.New().String()[:8]
-	create := func(agentName string) *models.Artifact {
+	create := func(agentName, kind string) *models.Artifact {
 		envID := uuid.New().String()
 		a := &models.Artifact{
 			UUID: uuid.New(), Handle: agentEnvAPIArtifactHandle("checkout", agentName, envID),
-			Name: agentName + "-" + envID[:8], Version: "v1.0", Kind: models.KindAgent, OUID: ouID,
+			Name: agentName + "-" + envID[:8], Version: "v1.0", Kind: kind, OUID: ouID,
 		}
 		require.NoError(t, artifacts.Create(db.GetDB(), a))
 		t.Cleanup(func() { _ = artifacts.Delete(db.GetDB(), a.UUID.String()) })
 		return a
 	}
-	dev, qa := create("we_ther"), create("we_ther")
-	create("we_ther-2")
-	create("weather")
+	dev, qa := create("we_ther", models.KindAgent), create("we_ther", models.KindRestAPI)
+	create("we_ther", models.KindWebSubAPI)
+	create("we_ther-2", models.KindAgent)
+	create("weather", models.KindAgent)
 
-	got, err := artifacts.ListByHandlePrefix(context.Background(), models.KindAgent, agentAPIArtifactHandlePrefix("checkout", "we_ther"), ouID)
+	got, err := artifacts.ListByHandlePrefix(context.Background(), models.AgentArtifactKinds, agentAPIArtifactHandlePrefix("checkout", "we_ther"), ouID)
 
 	require.NoError(t, err)
 	gotUUIDs := make([]uuid.UUID, 0, len(got))

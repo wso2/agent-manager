@@ -137,7 +137,7 @@ func (f *a2aFixture) proxy(t *testing.T) models.ArtifactRef {
 func (f *a2aFixture) externalArtifact(t *testing.T) models.ArtifactRef {
 	t.Helper()
 	artifact, err := agentEnvAPIArtifact(repositories.NewArtifactRepo(db.GetDB()), f.sync.ouID, "proj", f.external.Name,
-		f.env.String())
+		f.env.String(), models.KindAgent)
 	require.NoError(t, err)
 	return agentArtifactRef(artifact)
 }
@@ -167,7 +167,7 @@ func (f *a2aFixture) platformAgent(t *testing.T) (models.ArtifactRef, agentExpos
 	t.Helper()
 	name := "agent-" + uuid.NewString()[:8]
 	artifact, err := ensureAgentEnvAPIArtifact(db.GetDB(), repositories.NewArtifactRepo(db.GetDB()), f.sync.ouID, "proj",
-		name, f.env.String())
+		name, f.env.String(), models.KindAgent)
 	require.NoError(t, err)
 	t.Cleanup(func() { db.GetDB().Exec(`DELETE FROM artifacts WHERE uuid = ?`, artifact.UUID) })
 	agentUUID := uuid.New()
@@ -389,7 +389,7 @@ func TestPlacementPassPlacesAnExternalAgentFromItsProxyAlone(t *testing.T) {
 		OUID: f.sync.ouID, ProjectName: "proj", AgentName: f.external.Name, EnvironmentName: "dev", EnvironmentUUID: f.env,
 	}))
 	_, err := ensureAgentEnvAPIArtifact(db.GetDB(), repositories.NewArtifactRepo(db.GetDB()), f.sync.ouID, "proj",
-		f.external.Name, f.env.String())
+		f.external.Name, f.env.String(), models.KindAgent)
 	require.NoError(t, err)
 	artifact := f.externalArtifact(t)
 	require.Nil(t, f.row(t, artifact))

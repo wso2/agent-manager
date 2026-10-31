@@ -48,7 +48,7 @@ func TestListGatewayDeploymentsNamesEachArtifactAsTheGatewayStoresIt(t *testing.
 	mapping := syncRow(models.KindMCPMapping, "mapping", models.GatewaySyncStateUndeployed, "", deployedAt)
 	mcpProxy := syncRow(models.KindMCPProxy, "mcp", models.GatewaySyncStateDeployed, uuid.NewString(), deployedAt)
 	agent := syncRow(models.KindAgent, "p/a/env", models.GatewaySyncStateUndeployed, "", deployedAt)
-	restAPI := syncRow(models.KindRestAPI, "api", models.GatewaySyncStateDeployed, uuid.NewString(), deployedAt)
+	restAPI := syncRow(models.KindWebSubAPI, "api", models.GatewaySyncStateDeployed, uuid.NewString(), deployedAt)
 	repo := &repomocks.DeploymentRepositoryMock{
 		ListForGatewaySyncFunc: func(_ context.Context, ouID, gatewayID string) ([]models.GatewaySyncRow, error) {
 			assert.Equal(t, "ou-1", ouID)
@@ -99,7 +99,7 @@ func (stubGatewayArtifacts) GatewayArtifact(ref models.ArtifactRef) (string, str
 
 // The sync routes name an artifact as its kind does.
 func TestGatewaySyncRoutesAskTheKinds(t *testing.T) {
-	row := syncRow(models.KindRestAPI, "the-handle", models.GatewaySyncStateDeployed, uuid.NewString(), time.Now())
+	row := syncRow(models.KindWebSubAPI, "the-handle", models.GatewaySyncStateDeployed, uuid.NewString(), time.Now())
 	repo := &repomocks.DeploymentRepositoryMock{
 		ListForGatewaySyncFunc: func(context.Context, string, string) ([]models.GatewaySyncRow, error) {
 			return []models.GatewaySyncRow{row}, nil
@@ -146,7 +146,7 @@ func TestFetchDeploymentBatch(t *testing.T) {
 		Content:      []byte("spec:\n  policies:\n  - params:\n      secretRef: " + secretRef + "\n"),
 	}
 	restAPI := models.GatewayDeploymentContent{
-		ArtifactRef:  models.ArtifactRef{OUID: "ou-1", ArtifactUUID: uuid.New(), Kind: models.KindRestAPI},
+		ArtifactRef:  models.ArtifactRef{OUID: "ou-1", ArtifactUUID: uuid.New(), Kind: models.KindWebSubAPI},
 		DeploymentID: uuid.New(),
 		Content:      []byte("kind: RestApi\n"),
 	}

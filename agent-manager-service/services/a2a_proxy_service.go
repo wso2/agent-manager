@@ -419,7 +419,7 @@ func (s *a2aProxyService) switchFromDirect(ctx context.Context, tx *gorm.DB, t a
 
 // ensureArtifact creates the proxied environment's agent artifact, which the gateway serves the agent and its keys under.
 func (s *a2aProxyService) ensureArtifact(tx *gorm.DB, t a2aProxyTarget) (models.ArtifactRef, error) {
-	artifact, err := ensureAgentEnvAPIArtifact(tx, s.artifactRepo, t.key.OUID, t.key.ProjectName, t.key.AgentName, t.env.UUID)
+	artifact, err := ensureAgentEnvAPIArtifact(tx, s.artifactRepo, t.key.OUID, t.key.ProjectName, t.key.AgentName, t.env.UUID, models.KindAgent)
 	if err != nil {
 		return models.ArtifactRef{}, fmt.Errorf("failed to ensure the agent's API artifact: %w", err)
 	}
@@ -542,7 +542,7 @@ func (s *a2aProxyService) switchToDirect(ctx context.Context, tx *gorm.DB, t a2a
 
 // artifact is the environment's agent artifact; its ArtifactUUID is uuid.Nil when it has none.
 func (s *a2aProxyService) artifact(t a2aProxyTarget) (models.ArtifactRef, error) {
-	artifact, err := agentEnvAPIArtifact(s.artifactRepo, t.key.OUID, t.key.ProjectName, t.key.AgentName, t.env.UUID)
+	artifact, err := agentEnvAPIArtifact(s.artifactRepo, t.key.OUID, t.key.ProjectName, t.key.AgentName, t.env.UUID, models.KindAgent)
 	if errors.Is(err, utils.ErrArtifactNotFound) {
 		return models.ArtifactRef{OUID: t.key.OUID, Kind: models.KindAgent}, nil
 	}

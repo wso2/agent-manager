@@ -41,7 +41,7 @@ type ArtifactRepository interface {
 	ListExisting(ctx context.Context, ouID string, uuids []uuid.UUID, llmProxyHandles []string) ([]models.ArtifactRef, error)
 	GetByHandle(handle, orgUUID string) (*models.Artifact, error)
 	GetByUUID(artifactUUID, orgUUID string) (*models.Artifact, error)
-	ListByHandlePrefix(ctx context.Context, kind, handlePrefix, orgUUID string) ([]*models.Artifact, error)
+	ListByHandlePrefix(ctx context.Context, kinds []string, handlePrefix, orgUUID string) ([]*models.Artifact, error)
 	CountByKindAndOrg(kind, orgUUID string) (int, error)
 	// WithTx returns the repository bound to tx.
 	WithTx(tx *gorm.DB) ArtifactRepository
@@ -177,11 +177,11 @@ func (r *ArtifactRepo) GetByUUID(artifactUUID, orgUUID string) (*models.Artifact
 	return &artifact, nil
 }
 
-// ListByHandlePrefix returns the org's artifacts of a kind whose handle starts with handlePrefix.
-func (r *ArtifactRepo) ListByHandlePrefix(ctx context.Context, kind, handlePrefix, orgUUID string) ([]*models.Artifact, error) {
+// ListByHandlePrefix returns the org's artifacts of any of the kinds whose handle starts with handlePrefix.
+func (r *ArtifactRepo) ListByHandlePrefix(ctx context.Context, kinds []string, handlePrefix, orgUUID string) ([]*models.Artifact, error) {
 	var artifacts []*models.Artifact
 	err := r.db.WithContext(ctx).
-		Where(`kind = ? AND ou_id = ? AND handle LIKE ? ESCAPE '\'`, kind, orgUUID, escapeLikeWildcards(handlePrefix)+"%").
+		Where(`kind IN ? AND ou_id = ? AND handle LIKE ? ESCAPE '\'`, kinds, orgUUID, escapeLikeWildcards(handlePrefix)+"%").
 		Find(&artifacts).Error
 	return artifacts, err
 }

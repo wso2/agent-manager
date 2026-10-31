@@ -212,7 +212,8 @@ func (p *AgentExposurePublisher) ResolveURL(ctx context.Context, key agentExposu
 }
 
 func (p *AgentExposurePublisher) statusRecords(ctx context.Context, key agentExposureKey) ([]models.DeploymentStatusRecord, error) {
-	artifact, err := agentEnvAPIArtifact(p.artifactRepo, key.OUID, key.ProjectName, key.AgentName, key.EnvironmentUUID.String())
+	artifact, err := agentEnvAPIArtifact(
+		p.artifactRepo, key.OUID, key.ProjectName, key.AgentName, key.EnvironmentUUID.String(), models.AgentArtifactKinds...)
 	switch {
 	case err == nil:
 		return p.deploymentRepo.StatusRecords(ctx, key.OUID, artifact.UUID)

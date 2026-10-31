@@ -281,7 +281,7 @@ func (c *gatewayInternalController) GetAgent(w http.ResponseWriter, r *http.Requ
 
 // GetLLMProviderAPIKeys handles GET /api/internal/v1/llm-providers/api-keys
 func (c *gatewayInternalController) GetLLMProviderAPIKeys(w http.ResponseWriter, r *http.Request) {
-	c.getAPIKeysByKind(w, r, models.KindLLMProvider)
+	c.getAPIKeysByKinds(w, r, models.KindLLMProvider)
 }
 
 // GetLLMProxyAPIKeys handles GET /api/internal/v1/llm-proxies/api-keys
@@ -291,7 +291,36 @@ func (c *gatewayInternalController) GetLLMProxyAPIKeys(w http.ResponseWriter, r 
 
 // GetAPIKeys handles GET /api/internal/v1/apis/api-keys
 func (c *gatewayInternalController) GetAPIKeys(w http.ResponseWriter, r *http.Request) {
-	c.getAPIKeysByKind(w, r, models.KindAgent)
+	identity, ok := c.authenticateGateway(w, r, "internal-read")
+	if !ok {
+		return
+	}
+	c.getAgentAPIKeys(w, r, identity)
+}
+
+// getAgentAPIKeys serves the keys of both agent artifact kinds. Agent API keys are environment-scoped: only keys
+// for environments assigned to this gateway are returned, so the gateway controller doesn't try to load API
+// configurations that belong to a different environment's data plane.
+func (c *gatewayInternalController) getAgentAPIKeys(w http.ResponseWriter, r *http.Request, identity gatewayIdentity) {
+	log := logger.GetLogger(r.Context())
+
+	mappings, err := c.gatewayService.GetGatewayEnvironmentMappings(identity.ID)
+	if err != nil {
+		log.Error("Failed to get gateway environment mappings", "gatewayID", identity.ID, "error", err)
+		http.Error(w, "Failed to list API keys", http.StatusInternalServerError)
+		return
+	}
+	envUUIDs := make([]string, 0, len(mappings))
+	for _, m := range mappings {
+		envUUIDs = append(envUUIDs, m.EnvironmentUUID.String())
+	}
+	keys, err := c.apiKeyRepo.ListByArtifactKindAndEnvs(identity.OUID, models.AgentArtifactKinds, envUUIDs)
+	if err != nil {
+		log.Error("Failed to list API keys", "kinds", models.AgentArtifactKinds, "error", err)
+		http.Error(w, "Failed to list API keys", http.StatusInternalServerError)
+		return
+	}
+	writeAPIKeys(w, keys)
 }
 
 // controlPlaneAPIKeyResponse matches the structure expected by the gateway controller's bulk-sync
@@ -309,10 +338,6 @@ type controlPlaneAPIKeyResponse struct {
 	Source       string            `json:"source"`
 }
 
-func (c *gatewayInternalController) getAPIKeysByKind(w http.ResponseWriter, r *http.Request, kind string) {
-	c.getAPIKeysByKinds(w, r, kind)
-}
-
 func (c *gatewayInternalController) getAPIKeysByKinds(w http.ResponseWriter, r *http.Request, kinds ...string) {
 	log := logger.GetLogger(r.Context())
 
@@ -322,32 +347,8 @@ func (c *gatewayInternalController) getAPIKeysByKinds(w http.ResponseWriter, r *
 	}
 
 	keys := make([]models.StoredAPIKey, 0)
-	var envUUIDs []string
 	for _, kind := range kinds {
-		var (
-			kindKeys []models.StoredAPIKey
-			err      error
-		)
-		if kind == models.KindAgent {
-			// Agent API keys are environment-scoped: only return keys for environments
-			// assigned to this gateway so the gateway controller doesn't try to load
-			// API configurations that belong to a different environment's data plane.
-			if envUUIDs == nil {
-				mappings, mappingErr := c.gatewayService.GetGatewayEnvironmentMappings(identity.ID)
-				if mappingErr != nil {
-					log.Error("Failed to get gateway environment mappings", "gatewayID", identity.ID, "error", mappingErr)
-					http.Error(w, "Failed to list API keys", http.StatusInternalServerError)
-					return
-				}
-				envUUIDs = make([]string, 0, len(mappings))
-				for _, m := range mappings {
-					envUUIDs = append(envUUIDs, m.EnvironmentUUID.String())
-				}
-			}
-			kindKeys, err = c.apiKeyRepo.ListByArtifactKindAndEnvs(identity.OUID, kind, envUUIDs)
-		} else {
-			kindKeys, err = c.apiKeyRepo.ListByArtifactKind(identity.OUID, kind)
-		}
+		kindKeys, err := c.apiKeyRepo.ListByArtifactKind(identity.OUID, kind)
 		if err != nil {
 			log.Error("Failed to list API keys", "kind", kind, "error", err)
 			http.Error(w, "Failed to list API keys", http.StatusInternalServerError)
@@ -355,7 +356,10 @@ func (c *gatewayInternalController) getAPIKeysByKinds(w http.ResponseWriter, r *
 		}
 		keys = append(keys, kindKeys...)
 	}
+	writeAPIKeys(w, keys)
+}
 
+func writeAPIKeys(w http.ResponseWriter, keys []models.StoredAPIKey) {
 	result := make([]controlPlaneAPIKeyResponse, 0, len(keys))
 	for _, k := range keys {
 		resp := controlPlaneAPIKeyResponse{

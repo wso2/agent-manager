@@ -25,7 +25,10 @@ import (
 // AgentExposureProtocol is how the gateway exposes a platform agent.
 type AgentExposureProtocol string
 
-const AgentExposureProtocolA2A AgentExposureProtocol = "a2a"
+const (
+	AgentExposureProtocolA2A  AgentExposureProtocol = "a2a"
+	AgentExposureProtocolREST AgentExposureProtocol = "rest"
+)
 
 // PlatformAgentExposure records that AMS exposes an agent it hosts in OpenChoreo through the environment's ingress
 // gateway. Nothing else in AMS says so: the agent's subtype lives in OpenChoreo, and its card row only appears once
@@ -39,7 +42,7 @@ type PlatformAgentExposure struct {
 	// EnvironmentName is kept because OpenChoreo calls are by name.
 	EnvironmentName string    `gorm:"column:environment_name;not null"`
 	EnvironmentUUID uuid.UUID `gorm:"column:environment_uuid;type:uuid;not null"`
-	// ArtifactUUID is the per-environment models.KindAgent artifact: the agentId the gateway is told about and the
+	// ArtifactUUID is the per-environment artifact (one of models.AgentArtifactKinds): the agentId the gateway is told about and the
 	// key its API keys are bound to. The exposure goes with it.
 	ArtifactUUID uuid.UUID `gorm:"column:artifact_uuid;type:uuid;not null"`
 	// AgentUUID is the OpenChoreo component; nil when it couldn't be read.
