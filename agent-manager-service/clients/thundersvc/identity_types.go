@@ -17,6 +17,7 @@
 package thundersvc
 
 import (
+	"context"
 	"encoding/json"
 )
 
@@ -296,4 +297,9 @@ type ThunderOU struct {
 type thunderChildOUList struct {
 	TotalResults      int         `json:"totalResults"`
 	OrganizationUnits []ThunderOU `json:"organizationUnits"`
+}
+
+// ProxyResourceServerReader is an optional read-only capability of an identity client.
+type ProxyResourceServerReader interface {
+	ProxyResourceServerExists(ctx context.Context, proxyHandle, identifier string) (bool, error)
 }
