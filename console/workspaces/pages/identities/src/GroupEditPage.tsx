@@ -345,18 +345,20 @@ export const GroupEditPage: React.FC = () => {
                       ))}
                     </ListingTable.Body>
                   </ListingTable>
-                  <TablePagination
-                    component="div"
-                    count={membersTotal}
-                    page={membersPage}
-                    rowsPerPage={membersRowsPerPage}
-                    onPageChange={(_e, newPage) => setMembersPage(newPage)}
-                    onRowsPerPageChange={(e) => {
-                      setMembersRowsPerPage(parseInt(e.target.value, 10));
-                      setMembersPage(0);
-                    }}
-                    rowsPerPageOptions={[5, 10, 25, 50]}
-                  />
+                  {membersTotal > 5 && (
+                    <TablePagination
+                      component="div"
+                      count={membersTotal}
+                      page={membersPage}
+                      rowsPerPage={membersRowsPerPage}
+                      onPageChange={(_e, newPage) => setMembersPage(newPage)}
+                      onRowsPerPageChange={(e) => {
+                        setMembersRowsPerPage(parseInt(e.target.value, 10));
+                        setMembersPage(0);
+                      }}
+                      rowsPerPageOptions={[5, 10, 25, 50]}
+                    />
+                  )}
                 </ListingTable.Container>
               ) : null}
             </>

@@ -284,6 +284,7 @@ export function AgentConfigTableSection({
       emptyState={getEmptyState()}
       standaloneEmptyState={standaloneEmptyState}
       pagination={
+        totalCount > ROWS_PER_PAGE_OPTIONS[0] ? (
         <TablePagination
           rowsPerPageOptions={ROWS_PER_PAGE_OPTIONS}
           component="div"
@@ -296,6 +297,7 @@ export function AgentConfigTableSection({
             setPage(0);
           }}
         />
+        ) : undefined
       }
     >
       {paginatedConfigs.map((config) => (

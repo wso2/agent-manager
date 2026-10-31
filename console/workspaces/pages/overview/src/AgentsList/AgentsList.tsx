@@ -497,18 +497,20 @@ export const AgentsList: React.FC = () => {
                     ))}
                   </ListingTable.Body>
                 </ListingTable>
-                <TablePagination
-                  rowsPerPageOptions={[5, 10, 25]}
-                  component="div"
-                  count={agentsWithHref.length}
-                  rowsPerPage={rowsPerPage}
-                  page={page}
-                  onPageChange={(_, newPage) => setPage(newPage)}
-                  onRowsPerPageChange={(e) => {
-                    setRowsPerPage(parseInt(e.target.value, 10));
-                    setPage(0);
-                  }}
-                />
+                {agentsWithHref.length > 5 && (
+                  <TablePagination
+                    rowsPerPageOptions={[5, 10, 25]}
+                    component="div"
+                    count={agentsWithHref.length}
+                    rowsPerPage={rowsPerPage}
+                    page={page}
+                    onPageChange={(_, newPage) => setPage(newPage)}
+                    onRowsPerPageChange={(e) => {
+                      setRowsPerPage(parseInt(e.target.value, 10));
+                      setPage(0);
+                    }}
+                  />
+                )}
               </Box>
             </ResourceListShell>
           </Stack>

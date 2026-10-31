@@ -193,7 +193,7 @@ export const RolesPage: React.FC<RolesPageProps> = ({ createAction }) => {
               </ListingTable.Body>
             </ListingTable>
           )}
-          {!isLoading && total >= 5 && (
+          {!isLoading && total > 5 && (
             <TablePagination
               component="div"
               count={total}

@@ -191,7 +191,7 @@ export const GroupsPage: React.FC<GroupsPageProps> = ({ createAction }) => {
               </ListingTable.Body>
             </ListingTable>
           )}
-          {!isLoading && total >= 5 && (
+          {!isLoading && total > 5 && (
             <TablePagination
               component="div"
               count={total}
