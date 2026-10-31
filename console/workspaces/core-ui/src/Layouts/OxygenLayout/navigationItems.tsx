@@ -797,10 +797,15 @@ export function useNavigationItems(): Array<
           absoluteRouteMap.children.org.children.projects.path,
           { orgId, projectId },
         ),
-        isActive: !!matchPath(
-          absoluteRouteMap.children.org.children.projects.path,
-          pathname,
-        ),
+        isActive:
+          !!matchPath(
+            absoluteRouteMap.children.org.children.projects.path,
+            pathname,
+          ) ||
+          !!matchPath(
+            absoluteRouteMap.children.org.children.projects.children.edit.path,
+            pathname,
+          ),
       },
       {
         label: "Agents",

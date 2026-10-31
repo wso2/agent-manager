@@ -25,8 +25,17 @@ export function useActiveOrgPage() {
 
 export function useActiveProjectPage() {
     const { page } = usePagePath(absoluteRouteMap.children.org.children.projects.path);
+    // `agents` is both the listing and the agent-detail prefix; only the bare
+    // listing is a project-level page worth keeping when switching projects.
+    const onAgentListing = !!useMatch(
+        absoluteRouteMap.children.org.children.projects.children.agentListing.path,
+    );
 
     return useMemo(() => {
+        if (onAgentListing) {
+            return relativeRouteMap.children.org.children.projects.children
+                .agentListing.path;
+        }
         if (
             page !== "agents" &&
             page !== relativeRouteMap.children.org.children.projects.children.agents.path &&
@@ -36,7 +45,7 @@ export function useActiveProjectPage() {
             return page;
         }
         return null;
-    }, [page]);
+    }, [page, onAgentListing]);
 }
 
 export function useActiveAgentPage() {

@@ -131,15 +131,18 @@ export const Protected = ({ children }: { children: React.ReactNode }) => {
     if (!orgId && shouldResolveLanding) {
         const projects = projectList?.projects ?? [];
         // Prefer the default project, fall back to the first available
-        // project, and if the org has no projects yet, land on the org
-        // overview (project listing) so the user can create one.
+        // project, and if the org has no projects yet, land on the
+        // project listing so the user can create one.
         const landingProject = projects.find((p) => p.name === "default") ?? projects[0];
         const landingPath = landingProject
             ? generatePath(absoluteRouteMap.children.org.children.projects.path, {
                 orgId: targetOrgId,
                 projectId: landingProject.name,
             })
-            : generatePath(absoluteRouteMap.children.org.path, { orgId: targetOrgId });
+            : generatePath(
+                absoluteRouteMap.children.org.children.projectListing.path,
+                { orgId: targetOrgId },
+            );
         return <Navigate to={landingPath} state={navigationState} />;
     }
 

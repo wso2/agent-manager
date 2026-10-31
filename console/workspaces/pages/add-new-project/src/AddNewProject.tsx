@@ -64,7 +64,7 @@ export const AddNewProject: React.FC = () => {
 
   const handleCancel = useCallback(() => {
     allowNavigation(() => navigate(generatePath(
-      absoluteRouteMap.children.org.path,
+      absoluteRouteMap.children.org.children.projectListing.path,
       { orgId: orgId ?? '' }
     )));
   }, [allowNavigation, navigate, orgId]);
@@ -117,7 +117,7 @@ export const AddNewProject: React.FC = () => {
     <PageLayout
       title="Create a Project"
       backHref={generatePath(
-        absoluteRouteMap.children.org.path,
+        absoluteRouteMap.children.org.children.projectListing.path,
         { orgId: orgId ?? '' }
       )}
       avatar={null}

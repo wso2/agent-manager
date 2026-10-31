@@ -45,11 +45,12 @@ export const ProjectOverview: React.FC = () => {
     orgName: orgId,
     projName: projectId,
   });
-  const { data: agents, isFetching: isAgentsFetching } = useListAgents({
+  const { data: agents, isSuccess: isAgentsLoaded, isFetching: isAgentsFetching } = useListAgents({
     orgName: orgId,
     projName: projectId,
   });
-  const hasNoAgents = !agents?.agents?.length;
+  // Only a successful, empty response counts; a failed load must not redirect.
+  const hasNoAgents = isAgentsLoaded && !agents?.agents?.length;
 
   // A project with no agents has nothing to overview; send the user to create one.
   useEffect(() => {
