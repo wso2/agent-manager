@@ -52,6 +52,10 @@ What that means in code:
 - **The task lifecycle is explicit**: `submitted -> working -> completed`, or
   `rejected` when there are no notes to work on and `failed` when the model call
   fails. Task state is readable by id afterwards.
+- **Every task is traced by hand** (`tracing.py`): one trace per A2A operation,
+  carrying the protocol details — operation, binding, version, task, context and
+  skill — and continuing the caller's W3C trace context, as the A2A spec's
+  observability guidance asks. See [Traces](#traces).
 
 ## Prerequisites
 
@@ -78,22 +82,14 @@ What that means in code:
 | **Language Version** | `3.11` |
 | **Start Command** | `python main.py` |
 | **Port** | `9099` |
-| **Enable auto instrumentation** | **On** |
+| **Enable auto instrumentation** | **Off** |
 
-Auto instrumentation works with this agent, but only because `requirements.txt`
-pins `a2a-sdk` 1.1.5 or newer. AMP's instrumentation init container injects its
-own Python packages onto `PYTHONPATH`, including `protobuf` 7.x, and SDK
-releases 1.1.2 through 1.1.4 both required `protobuf<7` and read
-`FieldDescriptor.label`, which protobuf 7 removed. An agent on one of those
-fails every A2A message with JSON-RPC `-32603` and this in its logs:
-
-```text
-a2a/utils/proto_utils.py:217: AttributeError: 'google._upb._message.FieldDescriptor' object has no attribute 'label'
-```
-
-If you pin an older SDK, turn instrumentation off instead: the agent then runs
-on the protobuf its own build installed, at the cost of the OpenAI calls no
-longer emitting traces.
+The agent instruments itself (see [Traces](#traces)), so auto instrumentation
+stays off. With it off, AMP attaches the env-injection trait instead of the
+instrumentation init container, and the trait still supplies the
+`AMP_OTEL_ENDPOINT` and `AMP_AGENT_API_KEY` the agent exports its spans with.
+Turning it on would add Traceloop's OpenAI spans next to the agent's own, so
+every model call would appear twice.
 
 ### Step 3: Select the agent interface
 
@@ -114,7 +110,7 @@ Optional, with defaults:
 
 | Key | Default | Purpose |
 |---|---|---|
-| `OPENAI_MODEL` | `gpt-4o-mini` | Model used by both skills |
+| `OPENAI_MODEL` | `gpt-5.6-luna` | Model used by both skills |
 | `AGENT_PUBLIC_BASE_URL` | `http://localhost:9099` | The address the agent advertises in its own card. The gateway rewrites the card it serves, so leave this unset for deployed agents. |
 
 ### Step 5: Deploy
@@ -138,6 +134,7 @@ amctl agent create a2a-notes-agent \
   --language python \
   --language-version 3.11 \
   --run-command "python main.py" \
+  --no-auto-instrumentation \
   --env-secret OPENAI_API_KEY=<your-openai-key>
 
 amctl agent build create a2a-notes-agent     # takes a few minutes
@@ -202,6 +199,75 @@ than answered with a summary:
 
 Any A2A client works too — see [Call it from an A2A client](#call-it-from-an-a2a-client).
 
+## Traces
+
+The agent emits its own OpenTelemetry spans — no Traceloop, no `amp-instrument`
+— and `init_otel()` from `amp-instrumentation` exports them to AMP. One
+`SendMessage` is one trace:
+
+```text
+A2A SendMessage                     server span: the A2A operation
+└── invoke_agent a2a-notes-agent    agent span: the task the executor ran
+    └── chat gpt-5.6-luna           LLM span: the OpenAI call
+```
+
+`SendStreamingMessage`, `CancelTask` and `SubscribeToTask` get the same server
+span. The reads — `GetTask`, `ListTasks`, the push-config and extended-card
+operations — are left untraced, so a client polling a task does not fill the
+trace list.
+
+**Trace context.** The server span continues the caller's trace when the request
+carries a W3C `traceparent` header, which is how the A2A spec's enterprise
+guidance asks clients and servers to take part in distributed tracing. A calling
+agent that propagates its context sees this agent's work inside its own trace.
+Without the header, the server span is the trace's root.
+
+**A2A attributes.** OpenTelemetry has no semantic conventions for A2A yet, so
+the protocol details sit under `a2a.*`, named after the spec's fields:
+
+| Attribute | Span | Value |
+|---|---|---|
+| `a2a.method` | server | The spec's operation name: `SendMessage`, `SendStreamingMessage`, `CancelTask`, `SubscribeToTask` |
+| `a2a.protocol.binding` | server | `JSONRPC` or `HTTP+JSON`: the interface the request arrived on |
+| `a2a.protocol.version` | server | The `A2A-Version` service parameter |
+| `a2a.extensions` | server | The extension URIs the `A2A-Extensions` service parameter requested |
+| `a2a.jsonrpc.request.id` | server | The JSON-RPC request `id` (JSON-RPC binding only) |
+| `a2a.message.id` | server, agent | The inbound `Message.messageId` |
+| `a2a.task.id` | server, agent | The `Task.id` the operation ran or touched |
+| `a2a.context.id` | server, agent | The `contextId`; also set as `gen_ai.conversation.id`, so AMP groups a context's tasks as one conversation |
+| `a2a.task.state` | server, agent | The task's final `TaskState`, such as `TASK_STATE_COMPLETED` or `TASK_STATE_REJECTED` |
+| `a2a.skill.id` | agent | The skill the task ran: `summarize-notes` or `extract-action-items` |
+
+A `TASK_STATE_FAILED` task, or an operation that answers with an A2A error such
+as `TaskNotCancelableError`, marks its span as an error.
+
+**The server span's Overview.** Its input is the operation's request and its
+output the resulting `Task` (or `Message`), both in the A2A JSON form the wire
+uses, so the Console shows exactly what crossed the protocol. A streamed
+operation's output is the task as it stands when the stream ends. The span is
+marked `traceloop.span.kind=workflow`: AMP reads input and output only for span
+kinds it recognises, and an A2A operation wrapping the agent is a workflow.
+
+**GenAI attributes.** The agent and LLM spans follow the OpenTelemetry GenAI
+semantic conventions AMP's observer reads: `gen_ai.operation.name`
+(`invoke_agent`, `chat`), the agent's name and description, the model,
+`gen_ai.input.messages` and `gen_ai.output.messages`, the response ID, finish
+reason and token usage.
+
+**Message content.** Like AMP's own instrumentation, the sample records message
+content by default, so anyone who can read the agent's traces can read the
+notes it was sent. Set `AMP_TRACE_CONTENT=false` when that content may be
+sensitive. The spans then redact message text, part content, the system prompt
+and exception messages, and keep the spans, their IDs and their states.
+
+**The SDK's own spans are off.** With OpenTelemetry installed, `a2a-sdk` wraps
+its internal methods in spans named after the Python method, with no A2A
+attributes, and FastAPI adds a request span named after the URL. `main.py`
+sets `OTEL_INSTRUMENTATION_A2A_SDK_ENABLED=false` before anything imports `a2a`,
+and `app.py` turns FastAPI's tracing off, so the trace holds only the spans
+above. Start the agent through `python main.py`, or set that variable yourself
+if you run it with `uvicorn app:app`.
+
 ## Run it locally
 
 ```bash
@@ -212,6 +278,10 @@ pip install -r requirements.txt
 export OPENAI_API_KEY="<your-openai-key>"
 python main.py          # serves on http://localhost:9099
 ```
+
+Without `AMP_OTEL_ENDPOINT` the agent runs untraced. To send a local run's spans
+to AMP, register the agent in the Console and set `AMP_OTEL_ENDPOINT` and
+`AMP_AGENT_API_KEY` before starting it.
 
 The agent card:
 
@@ -309,9 +379,10 @@ asyncio.run(main())
   arrives without one.
 - **`a2a-sdk` is pinned to `1.1.5`.** The sample is written against that
   generation of the SDK's routing helpers (`create_jsonrpc_routes`,
-  `create_rest_routes`, `create_agent_card_routes`), and 1.1.5 is the first
-  release that accepts `protobuf` 7.x — the reason auto instrumentation can
-  stay on (see Step 2).
+  `create_rest_routes`, `create_agent_card_routes`), and against
+  `DefaultRequestHandler`'s operation methods, which `tracing.py` wraps.
+  `fastapi` is pinned too: `FastAPI(telemetry=...)`, which turns its request
+  spans off, is recent.
 - **Tasks live in memory.** `InMemoryTaskStore` means a restart forgets task
   history. Swap in the SDK's database task store if you need tasks to survive;
   the sample is about the protocol, not about durable task storage.
@@ -320,11 +391,9 @@ asyncio.run(main())
   pretending to store a webhook. The agent publishes **no extended card**
   either: `extendedAgentCard` is false, and the gateway only serves an extended
   card to a caller whose policy chain authenticated the request.
-- **Observability comes from auto instrumentation.** With it on (see Step 2),
-  the OpenAI calls emit traces through AMP's instrumentation. An agent pinned
-  to `a2a-sdk` below 1.1.5 has to give that up; point `amp-instrumentation` at
-  the exporter yourself in that case — see the `manual-instrumentation-agent`
-  sample for that path.
+- **Observability is manual instrumentation.** See [Traces](#traces). The
+  `manual-instrumentation-agent` sample covers the remaining span kinds
+  (embedding, retriever, rerank, tool) against the same contract.
 - **The card the gateway serves advertises the gateway.** The gateway's passthrough
   rewrite points each gateway-fronted A2A 1.0 `supportedInterfaces[].url` at
   itself (unfronted entries and `securitySchemes` are left as-is), so resolve the card
@@ -336,6 +405,7 @@ asyncio.run(main())
 |---|---|
 | `agent.py` | The agent: the OpenAI calls, the two skills, and the task events they publish |
 | `app.py` | The A2A server: agent card, JSON-RPC and HTTP+JSON routes, one handler and task store behind both |
-| `main.py` | Local runner (`python main.py`), and the deployed start command |
-| `requirements.txt` | `a2a-sdk[fastapi]`, `openai`, `uvicorn`, `python-dotenv` |
+| `tracing.py` | The manual instrumentation: the A2A server span, trace-context propagation, and the agent and LLM spans |
+| `main.py` | Local runner (`python main.py`), and the deployed start command; switches the SDK's own spans off |
+| `requirements.txt` | `a2a-sdk[fastapi]`, `amp-instrumentation`, `fastapi`, `openai`, `opentelemetry-api`, `uvicorn`, `python-dotenv` |
 | `.env.example` | Environment variable template for local runs |

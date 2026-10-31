@@ -28,15 +28,22 @@ from a2a.helpers import new_data_part, new_task_from_user_message, new_text_part
 from a2a.server.agent_execution import AgentExecutor, RequestContext
 from a2a.server.events import EventQueue
 from a2a.server.tasks import TaskUpdater
+from a2a.types.a2a_pb2 import TaskState
 from google.protobuf.json_format import MessageToDict
 from openai import AsyncOpenAI
+from opentelemetry.trace import Span
+
+from tracing import AgentRun, agent_span, llm_span, record_exception
 
 log = logging.getLogger("a2a-agent")
+
+AGENT_NAME = "a2a-notes-agent"
+AGENT_DESCRIPTION = "Summarizes meeting notes and extracts their action items."
 
 SKILL_SUMMARIZE = "summarize-notes"
 SKILL_ACTION_ITEMS = "extract-action-items"
 
-DEFAULT_MODEL = "gpt-4o-mini"
+DEFAULT_MODEL = "gpt-5.6-luna"
 
 # A streaming summary is flushed to the task every this many characters, so a
 # client sees the text arrive in pieces instead of in one lump at the end.
@@ -82,47 +89,78 @@ def model() -> str:
     return os.getenv("OPENAI_MODEL") or DEFAULT_MODEL
 
 
-async def stream_summary(notes: str, on_chunk: Callable[[str], Awaitable[None]]) -> str:
+async def stream_summary(
+    notes: str, on_chunk: Callable[[str], Awaitable[None]], run: AgentRun
+) -> str:
     """Summarize ``notes``, handing each piece of text to ``on_chunk`` as it
     arrives. Returns the complete summary.
     """
     summary = ""
     pending = ""
-    stream = await client().chat.completions.create(
+    with llm_span(
         model=model(),
-        messages=[
-            {"role": "system", "content": SUMMARY_PROMPT},
-            {"role": "user", "content": notes},
-        ],
-        temperature=0.2,
-        stream=True,
-    )
-    async for chunk in stream:
-        if not chunk.choices:
-            continue
-        delta = chunk.choices[0].delta.content or ""
-        summary += delta
-        pending += delta
-        if len(pending) >= STREAM_CHUNK_CHARS:
-            await on_chunk(pending)
-            pending = ""
+        system_instructions=SUMMARY_PROMPT,
+        user_input=notes,
+    ) as (_, call):
+        stream = await client().chat.completions.create(
+            model=model(),
+            messages=[
+                {"role": "system", "content": SUMMARY_PROMPT},
+                {"role": "user", "content": notes},
+            ],
+            stream=True,
+            # A stream reports token usage only when asked, in a final chunk with no choices.
+            stream_options={"include_usage": True},
+        )
+        async for chunk in stream:
+            call.response_id = chunk.id
+            call.response_model = chunk.model
+            if chunk.usage:
+                call.input_tokens = chunk.usage.prompt_tokens
+                call.output_tokens = chunk.usage.completion_tokens
+            if not chunk.choices:
+                continue
+            choice = chunk.choices[0]
+            if choice.finish_reason:
+                call.finish_reasons = [choice.finish_reason]
+            delta = choice.delta.content or ""
+            summary += delta
+            pending += delta
+            if len(pending) >= STREAM_CHUNK_CHARS:
+                await on_chunk(pending)
+                pending = ""
+        call.output = summary.strip()
+    run.add_usage(call)
     if pending:
         await on_chunk(pending.rstrip())
     return summary.strip()
 
 
-async def extract_action_items(notes: str) -> dict[str, Any]:
+async def extract_action_items(notes: str, run: AgentRun) -> dict[str, Any]:
     """Extract action items from ``notes`` as the JSON object the skill promises."""
-    response = await client().chat.completions.create(
+    with llm_span(
         model=model(),
-        messages=[
-            {"role": "system", "content": ACTION_ITEMS_PROMPT},
-            {"role": "user", "content": notes},
-        ],
-        temperature=0,
-        response_format={"type": "json_object"},
-    )
-    content = response.choices[0].message.content or "{}"
+        system_instructions=ACTION_ITEMS_PROMPT,
+        user_input=notes,
+    ) as (_, call):
+        response = await client().chat.completions.create(
+            model=model(),
+            messages=[
+                {"role": "system", "content": ACTION_ITEMS_PROMPT},
+                {"role": "user", "content": notes},
+            ],
+            response_format={"type": "json_object"},
+        )
+        choice = response.choices[0]
+        content = choice.message.content or "{}"
+        call.response_id = response.id
+        call.response_model = response.model
+        call.finish_reasons = [choice.finish_reason]
+        call.output = content
+        if response.usage:
+            call.input_tokens = response.usage.prompt_tokens
+            call.output_tokens = response.usage.completion_tokens
+    run.add_usage(call)
     parsed = json.loads(content)
     items = parsed.get("action_items")
     if not isinstance(items, list):
@@ -165,14 +203,35 @@ class NotesAgentExecutor(AgentExecutor):
     """Runs one task: read the notes, do the requested work, publish the result."""
 
     async def execute(self, context: RequestContext, event_queue: EventQueue) -> None:
+        user_input = context.get_user_input().strip()
+        with agent_span(
+            agent_name=AGENT_NAME,
+            agent_description=AGENT_DESCRIPTION,
+            model=model(),
+            task_id=context.task_id,
+            context_id=context.context_id,
+            message_id=context.message.message_id,
+            user_input=user_input,
+        ) as (span, run):
+            await self._run_task(context, event_queue, user_input, span, run)
+
+    async def _run_task(
+        self,
+        context: RequestContext,
+        event_queue: EventQueue,
+        user_input: str,
+        span: Span,
+        run: AgentRun,
+    ) -> None:
         # The agent owns the task: it publishes the Task before touching its
         # status, carrying the caller's message as the first history entry.
         await event_queue.enqueue_event(new_task_from_user_message(context.message))
         updater = TaskUpdater(event_queue, context.task_id, context.context_id)
 
         try:
-            skill, notes = route(context, context.get_user_input().strip())
+            skill, notes = route(context, user_input)
         except UnknownSkillError as exc:
+            run.state = TaskState.TASK_STATE_REJECTED
             await updater.reject(
                 updater.new_agent_message(
                     [
@@ -184,7 +243,9 @@ class NotesAgentExecutor(AgentExecutor):
                 )
             )
             return
+        run.skill = skill
         if not notes:
+            run.state = TaskState.TASK_STATE_REJECTED
             await updater.reject(
                 updater.new_agent_message(
                     [new_text_part("Send the meeting notes as the message text.")]
@@ -195,18 +256,22 @@ class NotesAgentExecutor(AgentExecutor):
         await updater.start_work()
         try:
             if skill == SKILL_ACTION_ITEMS:
-                await self._extract_action_items(updater, notes)
+                await self._extract_action_items(updater, notes, run)
             else:
-                await self._summarize(updater, notes)
+                await self._summarize(updater, notes, run)
         except Exception as exc:  # noqa: BLE001 - report any failure on the task
             log.exception("task %s failed", context.task_id)
+            record_exception(span, exc)
+            run.state = TaskState.TASK_STATE_FAILED
             await updater.failed(
                 updater.new_agent_message(
                     [new_text_part(f"The agent could not finish this task: {exc}")]
                 )
             )
+            return
+        run.state = TaskState.TASK_STATE_COMPLETED
 
-    async def _summarize(self, updater: TaskUpdater, notes: str) -> None:
+    async def _summarize(self, updater: TaskUpdater, notes: str, run: AgentRun) -> None:
         # One artifact, built up from several chunks. A streaming client renders
         # them as they arrive; a blocking client gets the merged artifact.
         artifact_id = str(uuid.uuid4())
@@ -222,7 +287,8 @@ class NotesAgentExecutor(AgentExecutor):
             )
             first = False
 
-        summary = await stream_summary(notes, add_chunk)
+        summary = await stream_summary(notes, add_chunk, run)
+        run.output = summary
         if first:  # the model returned nothing to stream
             await add_chunk("")
         await updater.complete(
@@ -230,8 +296,11 @@ class NotesAgentExecutor(AgentExecutor):
         )
         log.info("summarized %d characters into %d", len(notes), len(summary))
 
-    async def _extract_action_items(self, updater: TaskUpdater, notes: str) -> None:
-        items = await extract_action_items(notes)
+    async def _extract_action_items(
+        self, updater: TaskUpdater, notes: str, run: AgentRun
+    ) -> None:
+        items = await extract_action_items(notes, run)
+        run.output = json.dumps(items)
         await updater.add_artifact(
             [new_data_part(items, media_type="application/json")],
             name="action-items.json",
