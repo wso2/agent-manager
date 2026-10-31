@@ -77,14 +77,15 @@ const (
 
 // TracingController provides tracing functionality via the observer service.
 type TracingController struct {
-	observerClient observer.Client
+	observerClient observer.TraceReader
 	// budget bounds a look-back walk's context.
 	budget func(context.Context, time.Duration) (context.Context, context.CancelFunc)
 }
 
 // NewTracingController creates a new tracing controller.
-func NewTracingController(observerClient observer.Client) *TracingController {
-	return &TracingController{observerClient: observerClient, budget: context.WithTimeout}
+func NewTracingController(observerClient observer.TraceReader) *TracingController {
+	c := &TracingController{observerClient: observerClient, budget: context.WithTimeout}
+	return c
 }
 
 // TraceQueryParams holds parameters for trace queries.
