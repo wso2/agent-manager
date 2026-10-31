@@ -3181,7 +3181,7 @@ func (s *agentManagerService) cleanUpAgentAPIArtifacts(ctx context.Context, ouID
 
 	var errs []error
 	for _, artifact := range artifacts {
-		key := a2aPublicationKey{OUID: ouID, ProjectName: projectName, AgentName: agentName}
+		key := agentExposureKey{OUID: ouID, ProjectName: projectName, AgentName: agentName}
 		if err := s.dropAgentArtifact(ctx, key, strings.TrimPrefix(artifact.Handle, prefix), artifact, isA2AAgent); err != nil {
 			errs = append(errs, fmt.Errorf("failed to delete agent API artifact %s: %w", artifact.Handle, err))
 		}
@@ -3206,7 +3206,7 @@ func (s *agentManagerService) cleanUpAgentAPIArtifacts(ctx context.Context, ouID
 // dropAgentArtifact deletes one per-environment agent artifact, with the agent's A2A rows in its environment, writing
 // its delete events in the same transaction. An artifact whose handle names no environment UUID goes alone.
 func (s *agentManagerService) dropAgentArtifact(
-	ctx context.Context, key a2aPublicationKey, envID string, artifact *models.Artifact, isA2AAgent bool,
+	ctx context.Context, key agentExposureKey, envID string, artifact *models.Artifact, isA2AAgent bool,
 ) error {
 	if s.a2aPublisher == nil {
 		return s.artifactRepo.Delete(s.db, artifact.UUID.String())
@@ -3215,7 +3215,7 @@ func (s *agentManagerService) dropAgentArtifact(
 	key.EnvironmentUUID = envUUID
 	return s.a2aPublisher.tx(ctx, func(tx *gorm.DB) error {
 		if envErr != nil {
-			return s.a2aPublisher.DropArtifact(ctx, tx, agentArtifactRef(artifact))
+			return s.a2aPublisher.exposure.DropArtifact(ctx, tx, agentArtifactRef(artifact))
 		}
 		return s.a2aPublisher.DropAgentArtifact(ctx, tx, key, agentArtifactRef(artifact), isA2AAgent)
 	})
@@ -6683,14 +6683,14 @@ func (s *agentManagerService) enqueueCreatedA2AAgent(
 	} else {
 		agentUUID = parseAgentUUID(agent.UUID)
 	}
-	key := a2aPublicationKey{OUID: ouID, ProjectName: projectName, AgentName: agentName, EnvironmentName: environmentName, EnvironmentUUID: envUUID, AgentUUID: agentUUID}
-	err = s.a2aPublisher.tx(ctx, func(tx *gorm.DB) error { return s.a2aPublisher.Publish(ctx, tx, key, agentArtifactRef(artifact)) })
+	key := agentExposureKey{OUID: ouID, ProjectName: projectName, AgentName: agentName, EnvironmentName: environmentName, EnvironmentUUID: envUUID, AgentUUID: agentUUID}
+	err = s.a2aPublisher.tx(ctx, func(tx *gorm.DB) error { return s.a2aPublisher.publish(ctx, tx, key, agentArtifactRef(artifact)) })
 	if err != nil {
 		s.logger.Error("Failed to record the new A2A agent's gateway exposure; its first deploy records it",
 			"agentName", agentName, "environment", environmentName, "error", err)
 		return
 	}
-	s.a2aPublisher.Nudge()
+	s.a2aPublisher.exposure.Nudge()
 }
 
 // parseAgentUUID returns nil for a missing or malformed UUID; the reconciler then checks by name.
@@ -6705,7 +6705,7 @@ func parseAgentUUID(raw string) *uuid.UUID {
 // saveDeploySettings persists the environment's config; an A2A agent's republish, which the gateway reads the new
 // settings from, is queued in the same transaction so neither can land without the other.
 func (s *agentManagerService) saveDeploySettings(
-	ctx context.Context, agent *models.AgentResponse, key a2aPublicationKey, artifact models.ArtifactRef, cfg *models.AgentConfig,
+	ctx context.Context, agent *models.AgentResponse, key agentExposureKey, artifact models.ArtifactRef, cfg *models.AgentConfig,
 ) error {
 	if s.a2aPublisher == nil {
 		return s.agentConfigRepo.Upsert(ctx, cfg)
@@ -6725,7 +6725,7 @@ func (s *agentManagerService) recordAgentEnvDeploy(
 	ctx context.Context, agent *models.AgentResponse, cfg *models.AgentConfig, environmentUUID string,
 	artifact func(tx *gorm.DB) (*models.Artifact, error),
 ) error {
-	var key a2aPublicationKey
+	var key agentExposureKey
 	expose := false
 	if artifact != nil && !isExternalProvisioned(agent) {
 		var err error
@@ -6750,12 +6750,12 @@ func (s *agentManagerService) recordAgentEnvDeploy(
 		if err := s.agentConfigRepo.WithTx(tx).Upsert(ctx, cfg); err != nil {
 			return err
 		}
-		return s.a2aPublisher.Publish(ctx, tx, key, agentArtifactRef(a))
+		return s.a2aPublisher.publish(ctx, tx, key, agentArtifactRef(a))
 	})
 	if err != nil {
 		return err
 	}
-	s.a2aPublisher.Nudge()
+	s.a2aPublisher.exposure.Nudge()
 	return nil
 }
 
@@ -6764,17 +6764,17 @@ func (s *agentManagerService) a2aRepublicationKey(
 	ctx context.Context,
 	agent *models.AgentResponse,
 	ouID, projectName, agentName, environmentName, environmentUUID string,
-) (a2aPublicationKey, bool, error) {
+) (agentExposureKey, bool, error) {
 	if s.a2aPublisher == nil || !a2aCapable(agent) {
-		return a2aPublicationKey{}, false, nil
+		return agentExposureKey{}, false, nil
 	}
 	envUUID, err := uuid.Parse(environmentUUID)
 	if err != nil {
-		return a2aPublicationKey{}, false, fmt.Errorf("environment %q has an unparseable UUID %q: %w", environmentName, environmentUUID, err)
+		return agentExposureKey{}, false, fmt.Errorf("environment %q has an unparseable UUID %q: %w", environmentName, environmentUUID, err)
 	}
 	publish, err := s.a2aPublisher.ShouldPublish(ctx, nil, agent, ouID, projectName, envUUID)
 	if err != nil || !publish {
-		return a2aPublicationKey{}, false, err
+		return agentExposureKey{}, false, err
 	}
-	return a2aPublicationKey{OUID: ouID, ProjectName: projectName, AgentName: agentName, EnvironmentName: environmentName, EnvironmentUUID: envUUID, AgentUUID: parseAgentUUID(agent.UUID)}, true, nil
+	return agentExposureKey{OUID: ouID, ProjectName: projectName, AgentName: agentName, EnvironmentName: environmentName, EnvironmentUUID: envUUID, AgentUUID: parseAgentUUID(agent.UUID)}, true, nil
 }

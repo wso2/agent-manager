@@ -97,12 +97,13 @@ func newA2AFixture(t *testing.T) *a2aFixture {
 	proxies := repositories.NewA2AProxyRepository(gormDB)
 	cards := repositories.NewA2AAgentCardRepository(gormDB)
 	gateways := repositories.NewGatewayRepo(gormDB)
-	kind := NewA2AAgentKind(tx, exposures, proxies, cards, gateways, f.sync.repo, configs, oc, fetcher, nil, testLogger())
+	kind := NewA2AAgentKind(tx, NewPlatformAgentExposures(exposures, gateways, oc), proxies, cards, f.sync.repo, configs, oc, fetcher, nil, testLogger())
 	f.core = reconcile.NewCore(gormDB, f.sync.repo, f.hub, reconcile.Kinds{kind},
 		reconcile.Config{Lease: time.Minute, AttemptBudget: 3}, slog.New(slog.DiscardHandler))
 	f.worker = reconcile.NewWorker(f.core, slog.New(slog.DiscardHandler))
-	f.publisher = NewA2APublisher(tx, exposures, proxies, cards, repositories.NewArtifactRepo(gormDB), f.sync.repo,
-		gateways, testLogger(), f.core, kind)
+	artifacts := repositories.NewArtifactRepo(gormDB)
+	f.publisher = NewA2APublisher(tx, exposures, proxies, cards, artifacts, f.sync.repo, testLogger(),
+		NewAgentExposurePublisher(tx, exposures, artifacts, f.sync.repo, gateways, f.core, testLogger()), kind)
 	f.proxies = NewA2AProxyService(tx, proxies, cards, repositories.NewAgentConfigRepo(gormDB),
 		repositories.NewArtifactRepo(gormDB), f.publisher, oc, make([]byte, 32), testLogger())
 	t.Cleanup(func() {
@@ -162,7 +163,7 @@ func (f *a2aFixture) ack(t *testing.T, artifact models.ArtifactRef, action strin
 }
 
 // platformAgent is a platform agent's per-environment artifact and its publication key.
-func (f *a2aFixture) platformAgent(t *testing.T) (models.ArtifactRef, a2aPublicationKey) {
+func (f *a2aFixture) platformAgent(t *testing.T) (models.ArtifactRef, agentExposureKey) {
 	t.Helper()
 	name := "agent-" + uuid.NewString()[:8]
 	artifact, err := ensureAgentEnvAPIArtifact(db.GetDB(), repositories.NewArtifactRepo(db.GetDB()), f.sync.ouID, "proj",
@@ -170,7 +171,7 @@ func (f *a2aFixture) platformAgent(t *testing.T) (models.ArtifactRef, a2aPublica
 	require.NoError(t, err)
 	t.Cleanup(func() { db.GetDB().Exec(`DELETE FROM artifacts WHERE uuid = ?`, artifact.UUID) })
 	agentUUID := uuid.New()
-	return agentArtifactRef(artifact), a2aPublicationKey{
+	return agentArtifactRef(artifact), agentExposureKey{
 		OUID: f.sync.ouID, ProjectName: "proj", AgentName: name, EnvironmentName: "dev", EnvironmentUUID: f.env,
 		AgentUUID: &agentUUID,
 	}
@@ -190,7 +191,7 @@ func TestPlatformA2AAgentWaitsForItsEndpointThenGoesLive(t *testing.T) {
 	artifact, key := f.platformAgent(t)
 	publish := func() {
 		require.NoError(t, f.publisher.tx(context.Background(), func(tx *gorm.DB) error {
-			return f.publisher.Publish(context.Background(), tx, key, artifact)
+			return f.publisher.publish(context.Background(), tx, key, artifact)
 		}))
 		require.NoError(t, f.worker.RunOnceFor(context.Background(), artifact.OUID, artifact.ArtifactUUID))
 	}
@@ -231,7 +232,7 @@ func TestPlatformA2AAgentWaitsForItsEndpointThenGoesLive(t *testing.T) {
 func TestPlacementPassPlacesAPlatformAgentFromItsExposure(t *testing.T) {
 	f := newA2AFixture(t)
 	artifact, key := f.platformAgent(t)
-	require.NoError(t, f.publisher.Expose(context.Background(), nil, key, artifact.ArtifactUUID))
+	require.NoError(t, f.publisher.exposure.Expose(context.Background(), nil, key, artifact.ArtifactUUID, models.AgentExposureProtocolA2A))
 	f.url.Store("http://agent.dev.svc:8080")
 
 	require.NoError(t, f.worker.PlaceEnv(context.Background(), f.sync.ouID, f.env))
@@ -248,7 +249,7 @@ func TestAgentDeleteIsAtomicPerEnvironment(t *testing.T) {
 	artifact, key := f.platformAgent(t)
 	f.url.Store("http://agent.dev.svc:8080")
 	require.NoError(t, f.publisher.tx(context.Background(), func(tx *gorm.DB) error {
-		return f.publisher.Publish(context.Background(), tx, key, artifact)
+		return f.publisher.publish(context.Background(), tx, key, artifact)
 	}))
 	require.NoError(t, f.worker.RunOnceFor(context.Background(), artifact.OUID, artifact.ArtifactUUID))
 	require.Equal(t, models.DeploymentStatusDeploying, f.row(t, artifact).Status)

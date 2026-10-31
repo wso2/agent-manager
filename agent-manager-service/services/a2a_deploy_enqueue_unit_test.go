@@ -34,8 +34,8 @@ import (
 // a2aPublishingAgentService is an agentManagerService whose only A2A collaborator is the publisher.
 func a2aPublishingAgentService(pubs *repomocks.PlatformAgentExposureRepositoryMock, proxies *repomocks.A2AProxyRepositoryMock) *agentManagerService {
 	pubs.WithTxFunc = func(*gorm.DB) repositories.PlatformAgentExposureRepository { return pubs }
-	publisher := withA2ACore(NewA2APublisher(sentinelTx, pubs, proxies, nil, nil, a2aRenderQueue(), a2aIngressGateways(),
-		testLogger(), nil, nil), nil)
+	publisher := withA2ACore(NewA2APublisher(sentinelTx, pubs, proxies, nil, nil, a2aRenderQueue(),
+		testLogger(), NewAgentExposurePublisher(sentinelTx, pubs, nil, a2aRenderQueue(), a2aIngressGateways(), nil, testLogger()), nil), nil)
 	return NewAgentManagerService(nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil,
 		publisher, nil, nil, nil, testLogger()).(*agentManagerService)
 }

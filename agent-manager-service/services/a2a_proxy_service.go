@@ -108,7 +108,7 @@ func NewA2AProxyService(
 type a2aProxyTarget struct {
 	agent *models.AgentResponse
 	env   *models.EnvironmentResponse
-	key   a2aPublicationKey
+	key   agentExposureKey
 }
 
 func newA2AProxyTarget(agent *models.AgentResponse, ouID, projectName string, env *models.EnvironmentResponse) (a2aProxyTarget, error) {
@@ -116,7 +116,7 @@ func newA2AProxyTarget(agent *models.AgentResponse, ouID, projectName string, en
 	if err != nil {
 		return a2aProxyTarget{}, fmt.Errorf("invalid UUID for environment %s: %w", env.Name, err)
 	}
-	key := a2aPublicationKey{
+	key := agentExposureKey{
 		OUID: ouID, ProjectName: projectName, AgentName: agent.Name, EnvironmentName: env.Name, EnvironmentUUID: envUUID,
 		AgentUUID: parseAgentUUID(agent.UUID),
 	}
@@ -145,11 +145,11 @@ func (s *a2aProxyService) GetA2AProxy(ctx context.Context, ouID, projectName, ag
 	if err != nil {
 		return nil, fmt.Errorf("failed to read the A2A proxy: %w", err)
 	}
-	gatewayURL, err := s.publisher.GatewayURL(t.key.OUID, t.key.EnvironmentUUID, t.key.AgentName)
+	gatewayURL, err := s.publisher.exposure.GatewayURL(t.key.OUID, t.key.EnvironmentUUID, t.key.AgentName)
 	if err != nil {
 		return nil, err
 	}
-	shown, err := s.publisher.ShownStatus(ctx, t.key, gatewayURL != "")
+	shown, err := s.publisher.exposure.ShownStatus(ctx, t.key, gatewayURL != "")
 	if err != nil {
 		return nil, err
 	}
@@ -204,10 +204,10 @@ func (s *a2aProxyService) SetA2AProxy(
 		if err != nil {
 			return err
 		}
-		return s.publisher.DeployRecord(ctx, tx, t.key, artifact)
+		return s.publisher.exposure.DeployRecord(ctx, tx, s.publisher.kind, t.key.EnvironmentUUID, artifact)
 	})
 	if err == nil {
-		s.publisher.Nudge()
+		s.publisher.exposure.Nudge()
 		// Completed after the agent-gone check, so the record says whether the credential change stayed.
 		err = s.dropIfAgentGone(ctx, t)
 	}
@@ -268,12 +268,12 @@ func (s *a2aProxyService) StoreCardSource(
 		if err != nil {
 			return err
 		}
-		return s.publisher.DeployRecord(ctx, tx, t.key, artifact)
+		return s.publisher.exposure.DeployRecord(ctx, tx, s.publisher.kind, t.key.EnvironmentUUID, artifact)
 	})
 	if err != nil {
 		return err
 	}
-	s.publisher.Nudge()
+	s.publisher.exposure.Nudge()
 	return s.dropIfAgentGone(ctx, t)
 }
 
@@ -427,7 +427,7 @@ func (s *a2aProxyService) ensureArtifact(tx *gorm.DB, t a2aProxyTarget) (models.
 }
 
 func agentArtifactRef(artifact *models.Artifact) models.ArtifactRef {
-	return models.ArtifactRef{OUID: artifact.OUID, ArtifactUUID: artifact.UUID, Kind: models.KindAgent, Handle: artifact.Handle}
+	return models.ArtifactRef{OUID: artifact.OUID, ArtifactUUID: artifact.UUID, Kind: artifact.Kind, Handle: artifact.Handle}
 }
 
 // republish re-derives the routes from the origin card, then refetches it; a direct environment gets ifDirect (nil: ErrEnvironmentNotProxied).
@@ -448,7 +448,7 @@ func (s *a2aProxyService) republish(ctx context.Context, t a2aProxyTarget, ifDir
 		return err
 	}
 	if artifact.ArtifactUUID != uuid.Nil {
-		if err := s.publisher.MarkStale(ctx, artifact, "the agent's origin card was refreshed"); err != nil {
+		if err := s.publisher.exposure.MarkStale(ctx, artifact, "the agent's origin card was refreshed"); err != nil {
 			return err
 		}
 	}
@@ -456,10 +456,10 @@ func (s *a2aProxyService) republish(ctx context.Context, t a2aProxyTarget, ifDir
 }
 
 // a2aCardStep is what happens to the card row when an environment stops being proxied.
-type a2aCardStep func(ctx context.Context, cards repositories.A2AAgentCardRepository, key a2aPublicationKey) error
+type a2aCardStep func(ctx context.Context, cards repositories.A2AAgentCardRepository, key agentExposureKey) error
 
 // requeueDirectCardFetch replaces the gateway's card, which advertised gateway URLs, with a fresh one from the origin.
-func requeueDirectCardFetch(ctx context.Context, cards repositories.A2AAgentCardRepository, key a2aPublicationKey) error {
+func requeueDirectCardFetch(ctx context.Context, cards repositories.A2AAgentCardRepository, key agentExposureKey) error {
 	err := cards.ClearCard(ctx, key.OUID, key.ProjectName, key.AgentName, key.EnvironmentUUID)
 	if errors.Is(err, repositories.ErrA2AAgentCardNotFound) {
 		return nil // the source was removed meanwhile, so there is nothing to fetch
@@ -474,7 +474,7 @@ func requeueDirectCardFetch(ctx context.Context, cards repositories.A2AAgentCard
 }
 
 // requeueCardFetch makes the direct card row due in place; an upsert could recreate a removed row.
-func requeueCardFetch(ctx context.Context, cards repositories.A2AAgentCardRepository, key a2aPublicationKey) error {
+func requeueCardFetch(ctx context.Context, cards repositories.A2AAgentCardRepository, key agentExposureKey) error {
 	err := cards.Requeue(ctx, key.OUID, key.ProjectName, key.AgentName, key.EnvironmentName)
 	if errors.Is(err, repositories.ErrA2AAgentCardNotFound) {
 		return utils.ErrAgentCardNotFound
@@ -494,7 +494,7 @@ func onDirect(ctx context.Context, tx *gorm.DB, cards repositories.A2AAgentCardR
 }
 
 // deleteCardRow drops the card row together with its removed source.
-func deleteCardRow(ctx context.Context, cards repositories.A2AAgentCardRepository, key a2aPublicationKey) error {
+func deleteCardRow(ctx context.Context, cards repositories.A2AAgentCardRepository, key agentExposureKey) error {
 	if err := cards.DeleteForAgentEnv(ctx, key.OUID, key.ProjectName, key.AgentName, key.EnvironmentName); err != nil {
 		return fmt.Errorf("failed to delete the agent card: %w", err)
 	}
@@ -530,7 +530,7 @@ func (s *a2aProxyService) switchToDirect(ctx context.Context, tx *gorm.DB, t a2a
 	if err != nil {
 		return err
 	}
-	if err := s.publisher.TeardownEnv(ctx, tx, t.key, artifact); err != nil {
+	if err := s.publisher.exposure.TeardownEnv(ctx, tx, t.key, artifact); err != nil {
 		return err
 	}
 	err = s.proxyRepo.WithTx(tx).Delete(ctx, t.key.OUID, t.key.ProjectName, t.key.AgentName, t.key.EnvironmentUUID)
@@ -594,7 +594,7 @@ func (s *a2aProxyService) forget(ctx context.Context, t a2aProxyTarget) error {
 		if artifact.ArtifactUUID == uuid.Nil {
 			return nil
 		}
-		return s.publisher.DropArtifact(ctx, tx, artifact)
+		return s.publisher.exposure.DropArtifact(ctx, tx, artifact)
 	})
 }
 
@@ -624,7 +624,7 @@ func (s *a2aProxyService) beginAudit(
 
 // ensureDefaultAgentConfig gives a newly proxied environment a platform A2A agent's inbound defaults, minus forwarding the
 // caller's token to the third-party origin; a saved config wins.
-func ensureDefaultAgentConfig(ctx context.Context, configs repositories.AgentConfigRepository, key a2aPublicationKey) error {
+func ensureDefaultAgentConfig(ctx context.Context, configs repositories.AgentConfigRepository, key agentExposureKey) error {
 	api := withA2AVersionHeader(resolveAPIConfig(nil, nil, nil, nil, nil, true))
 	api.OAuthForwardToken = false
 	err := configs.CreateIfAbsent(ctx, agentConfigFromAPIConfig(key.OUID, key.ProjectName, key.AgentName, key.EnvironmentName, api))

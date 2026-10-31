@@ -182,8 +182,9 @@ func TestA2AAgentLifecycle(t *testing.T) {
 
 	hub := &lifecycleEventHub{}
 	tx := services.NewTxRunner(gdb)
-	kind := services.NewA2AAgentKind(tx, exposureRepo, repositories.NewA2AProxyRepository(gdb), cardRepo,
-		repositories.NewGatewayRepo(gdb), deploymentRepo, repositories.NewAgentConfigRepo(gdb), openChoreoClient,
+	kind := services.NewA2AAgentKind(tx,
+		services.NewPlatformAgentExposures(exposureRepo, repositories.NewGatewayRepo(gdb), openChoreoClient),
+		repositories.NewA2AProxyRepository(gdb), cardRepo, deploymentRepo, repositories.NewAgentConfigRepo(gdb), openChoreoClient,
 		services.NewA2ACardFetcher(), bytes.Repeat([]byte{7}, 32), testLifecycleLogger())
 	core := reconcile.NewCore(gdb, deploymentRepo, hub, reconcile.Kinds{kind},
 		reconcile.Config{Lease: time.Minute, AttemptBudget: 3}, testLifecycleLogger())
