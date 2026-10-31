@@ -354,28 +354,36 @@ func (k *A2AAgentKind) Drifted(ctx context.Context, p models.Placement) (string,
 	if err != nil {
 		return "", false, err
 	}
-	deployed, err := k.deployedUpstream(ctx, p)
+	deployed, err := deployedUpstream(ctx, k.deploymentRepo, p, func(y A2AAgentDeploymentYAML) string {
+		return y.Spec.Upstream.URL
+	})
 	if err != nil {
 		return "", false, err
 	}
 	if rollout.ServiceURL != "" && rollout.ServiceURL != deployed {
-		return "the agent's endpoint changed", true, nil
+		return endpointChangedReason, true, nil
 	}
 	k.refetchCardOfNewRelease(ctx, exposure, rollout)
 	return "", false, nil
 }
 
-// deployedUpstream is the upstream URL the placement's current deployment was rendered with.
-func (k *A2AAgentKind) deployedUpstream(ctx context.Context, p models.Placement) (string, error) {
-	deployment, err := k.deploymentRepo.GetPullable(ctx, p.OUID, p.ArtifactUUID, p.GatewayUUID.String())
+// endpointChangedReason is why a placement is re-rendered when its release binding serves another URL.
+const endpointChangedReason = "the agent's endpoint changed"
+
+// deployedUpstream is the upstream URL the placement's current deployment was rendered with, read from its YAML
+// as T; empty when nothing is deployed.
+func deployedUpstream[T any](
+	ctx context.Context, repo repositories.DeploymentRepository, p models.Placement, upstream func(T) string,
+) (string, error) {
+	deployment, err := repo.GetPullable(ctx, p.OUID, p.ArtifactUUID, p.GatewayUUID.String())
 	if err != nil || deployment == nil {
 		return "", err
 	}
-	var content A2AAgentDeploymentYAML
+	var content T
 	if err := yaml.Unmarshal(deployment.Content, &content); err != nil {
 		return "", fmt.Errorf("failed to read the deployed agent's upstream: %w", err)
 	}
-	return content.Spec.Upstream.URL, nil
+	return upstream(content), nil
 }
 
 func (k *A2AAgentKind) refetchCardOfNewRelease(

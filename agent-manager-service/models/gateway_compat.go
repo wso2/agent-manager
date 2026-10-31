@@ -179,3 +179,23 @@ type AgentUndeploymentEvent struct {
 type AgentDeletionEvent struct {
 	AgentID string `json:"proxyId"`
 }
+
+// APIDeploymentEvent represents a RestApi deployment event, matching the gateway's APIDeployedEventPayload.
+type APIDeploymentEvent struct {
+	APIID        string    `json:"apiId"`
+	DeploymentID string    `json:"deploymentId"`
+	PerformedAt  time.Time `json:"performedAt"`
+}
+
+// APIUndeploymentEvent represents a RestApi undeployment event, matching the gateway's APIUndeployedEventPayload.
+// DeploymentID is always empty: the gateway then undeploys whatever version of the API it holds.
+type APIUndeploymentEvent struct {
+	APIID        string    `json:"apiId"`
+	DeploymentID string    `json:"deploymentId"`
+	PerformedAt  time.Time `json:"performedAt"`
+}
+
+// APIDeletionEvent represents a RestApi deletion event, matching the gateway's APIDeletedEventPayload.
+type APIDeletionEvent struct {
+	APIID string `json:"apiId"`
+}

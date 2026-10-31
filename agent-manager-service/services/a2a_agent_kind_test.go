@@ -52,6 +52,7 @@ type a2aFixture struct {
 	core      *reconcile.Core
 	worker    *reconcile.Worker
 	publisher *A2APublisher
+	restKind  *RestAgentKind
 	// proxies serves external agents; external is the agent OpenChoreo reports, with no subtype (#2184).
 	proxies  A2AProxyService
 	external *models.AgentResponse
@@ -98,7 +99,8 @@ func newA2AFixture(t *testing.T) *a2aFixture {
 	cards := repositories.NewA2AAgentCardRepository(gormDB)
 	gateways := repositories.NewGatewayRepo(gormDB)
 	kind := NewA2AAgentKind(tx, NewPlatformAgentExposures(exposures, gateways, oc), proxies, cards, f.sync.repo, configs, oc, fetcher, nil, testLogger())
-	f.core = reconcile.NewCore(gormDB, f.sync.repo, f.hub, reconcile.Kinds{kind},
+	f.restKind = NewRestAgentKind(NewPlatformAgentExposures(exposures, gateways, oc), configs, f.sync.repo, testLogger())
+	f.core = reconcile.NewCore(gormDB, f.sync.repo, f.hub, reconcile.Kinds{kind, f.restKind},
 		reconcile.Config{Lease: time.Minute, AttemptBudget: 3}, slog.New(slog.DiscardHandler))
 	f.worker = reconcile.NewWorker(f.core, slog.New(slog.DiscardHandler))
 	artifacts := repositories.NewArtifactRepo(gormDB)
@@ -110,7 +112,7 @@ func newA2AFixture(t *testing.T) *a2aFixture {
 		for _, table := range []string{"a2a_proxies", "a2a_agent_cards", "agent_configs"} {
 			gormDB.Exec(`DELETE FROM `+table+` WHERE ou_id = ?`, f.sync.ouID)
 		}
-		gormDB.Exec(`DELETE FROM artifacts WHERE ou_id = ? AND kind = ?`, f.sync.ouID, models.KindAgent)
+		gormDB.Exec(`DELETE FROM artifacts WHERE ou_id = ? AND kind IN ?`, f.sync.ouID, models.AgentArtifactKinds)
 	})
 	return f
 }

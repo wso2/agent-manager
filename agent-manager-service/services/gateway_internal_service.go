@@ -50,12 +50,6 @@ type GatewayArtifacts interface {
 	GatewayArtifact(ref models.ArtifactRef) (kind, artifactID string, ok bool)
 }
 
-// DeploymentNotification represents the notification from gateway
-type DeploymentNotification struct {
-	ProjectIdentifier string
-	Configuration     APIDeploymentYAML
-}
-
 // GatewayDeploymentResponse represents the response for gateway deployment
 type GatewayDeploymentResponse struct {
 	APIId        string `json:"apiId"`
@@ -64,31 +58,9 @@ type GatewayDeploymentResponse struct {
 	Created      bool   `json:"created"`
 }
 
-// APIDeploymentYAML represents the API deployment YAML structure
-type APIDeploymentYAML struct {
-	ApiVersion string             `yaml:"apiVersion"`
-	Kind       string             `yaml:"kind"`
-	Metadata   DeploymentMetadata `yaml:"metadata"`
-	Spec       APIDeploymentSpec  `yaml:"spec"`
-}
-
 // DeploymentMetadata represents metadata in deployment
 type DeploymentMetadata struct {
 	Name string `yaml:"name"`
-}
-
-// APIDeploymentSpec represents the spec section
-type APIDeploymentSpec struct {
-	Name       string      `yaml:"name"`
-	Version    string      `yaml:"version"`
-	Context    string      `yaml:"context"`
-	Operations []Operation `yaml:"operations"`
-}
-
-// Operation represents an API operation
-type Operation struct {
-	Method string `yaml:"method"`
-	Path   string `yaml:"path"`
 }
 
 // NewGatewayInternalAPIService creates a new gateway internal API service
