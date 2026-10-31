@@ -69,6 +69,13 @@ type Options struct {
 	// management and OAuth endpoints. nil preserves on-premises behavior. Run
 	// automatically applies it to endpoint-aware provisioning implementations.
 	EnvThunderEndpointResolver thundersvc.EnvThunderEndpointResolver
+	// These optional backends enable CP-managed identity operations. Both are
+	// required in CP_MANAGED or MIXED mode; neither is used in LEGACY_DIRECT.
+	EnvIdentityTargetResolver thundersvc.EnvironmentIdentityTargetResolver
+	CPIdentityBackend         thundersvc.CPEnvironmentIdentityBackend
+	// IdentityPromotionManager carries an AgentID into environments whose identity
+	// is created by promotion. Optional; only valid in CP_MANAGED or MIXED mode.
+	IdentityPromotionManager services.IdentityPromotionManager
 	// BackgroundContextDecorator optionally marks contexts created for trusted
 	// background workers. Request contexts never pass through this hook.
 	BackgroundContextDecorator func(context.Context) context.Context
@@ -114,6 +121,17 @@ type Options struct {
 // secret management backend (e.g., the OpenChoreo secret API for open-source, cloud-specific for cloud).
 func Run(authProvider occlient.AuthProvider, secretProvider secretmanagersvc.Provider, opts Options) {
 	cfg := config.GetConfig()
+	if err := validateIdentityBackendConfiguration(cfg.IdentityManagementMode, opts.EnvIdentityTargetResolver, opts.CPIdentityBackend, opts.IdentityPromotionManager); err != nil {
+		slog.Error("invalid identity management configuration", "error", err)
+		os.Exit(1)
+	}
+	var identityDecorator thundersvc.EnvThunderResolverDecorator
+	if cfg.IdentityManagementMode != string(thundersvc.IdentityManagementLegacyDirect) {
+		identityDecorator = func(legacy thundersvc.EnvThunderResolver) (thundersvc.EnvThunderResolver, error) {
+			return thundersvc.NewRoutingEnvThunderResolver(thundersvc.IdentityManagementMode(cfg.IdentityManagementMode),
+				opts.EnvIdentityTargetResolver, legacy, opts.CPIdentityBackend)
+		}
+	}
 	// Set before anything builds an OpenChoreo client, which all read it from config.
 	cfg.OpenChoreo.ResourceLabels = maps.Clone(opts.ResourceLabels)
 	// Installed before the HTTP server starts, so no request sees it change.
@@ -184,9 +202,24 @@ func Run(authProvider occlient.AuthProvider, secretProvider secretmanagersvc.Pro
 		if setter, ok := agentThunderProvisioning.(services.EnvThunderEndpointResolverSetter); ok {
 			setter.SetEnvThunderEndpointResolver(opts.EnvThunderEndpointResolver)
 		}
+		if setter, ok := agentThunderProvisioning.(services.EnvThunderResolverDecoratorSetter); ok {
+			if err := setter.SetEnvThunderResolverDecorator(identityDecorator); err != nil {
+				slog.Error("failed to initialize AgentID identity backend", "error", err)
+				os.Exit(1)
+			}
+		} else if identityDecorator != nil {
+			slog.Error("AgentID provisioning does not support identity backend routing")
+			os.Exit(1)
+		}
+		if setter, ok := agentThunderProvisioning.(services.IdentityPromotionManagerSetter); ok {
+			setter.SetIdentityPromotionManager(opts.IdentityPromotionManager)
+		} else if opts.IdentityPromotionManager != nil {
+			slog.Error("AgentID provisioning does not support identity promotion")
+			os.Exit(1)
+		}
 	}
 
-	dependencies, err := wiring.InitializeAppParamsWithEnvThunderEndpoints(cfg, database, authProvider, secretProvider, opts.GatewayConfigApplier, agentThunderProvisioning, opts.BuildSecretProvisioner, opts.EnvThunderEndpointResolver)
+	dependencies, err := wiring.InitializeAppParamsWithIdentityBackend(cfg, database, authProvider, secretProvider, opts.GatewayConfigApplier, agentThunderProvisioning, opts.BuildSecretProvisioner, opts.EnvThunderEndpointResolver, identityDecorator)
 	if err != nil {
 		slog.Error("failed to initialize app dependencies", "error", err)
 		os.Exit(1)
@@ -203,6 +236,19 @@ func Run(authProvider occlient.AuthProvider, secretProvider secretmanagersvc.Pro
 	// doesn't implement this optional interface.
 	if setter, ok := agentThunderProvisioning.(services.WorkloadInjectorSetter); ok {
 		setter.SetWorkloadInjector(dependencies.AgentIdentityInjectionService)
+	}
+	// Same backfill for the MCP resource-server lookup used by identity promotion.
+	if setter, ok := agentThunderProvisioning.(services.AgentMCPResourceServerResolverSetter); ok {
+		setter.SetAgentMCPResourceServerResolver(dependencies.MCPProxyService)
+	}
+	// And for the roles, groups and role-referenced resource servers a promotion carries.
+	if setter, ok := agentThunderProvisioning.(services.AgentIdentityResourceResolverSetter); ok {
+		setter.SetAgentIdentityResourceResolver(dependencies.MCPProxyService)
+	}
+	// The reconciler reads project pipelines to backfill the bindings of agents
+	// created before identity followed the pipeline.
+	if setter, ok := dependencies.AgentThunderReconciler.(services.AgentIdentityPipelineReaderSetter); ok {
+		setter.SetAgentIdentityPipelineReader(services.NewAgentIdentityPipelineReader(dependencies.OpenChoreoClient))
 	}
 	dependencies.RepositoryService.SetCommitProvider(opts.RepositoryCommitProvider)
 
@@ -399,6 +445,24 @@ func Run(authProvider occlient.AuthProvider, secretProvider secretmanagersvc.Pro
 	// Wait for graceful shutdown to complete
 	wg.Wait()
 	slog.Info("All servers shut down successfully")
+}
+
+func validateIdentityBackendConfiguration(mode string, targets thundersvc.EnvironmentIdentityTargetResolver,
+	backend thundersvc.CPEnvironmentIdentityBackend, promotion services.IdentityPromotionManager,
+) error {
+	switch thundersvc.IdentityManagementMode(mode) {
+	case thundersvc.IdentityManagementLegacyDirect:
+		if targets != nil || backend != nil || promotion != nil {
+			return errors.New("LEGACY_DIRECT mode cannot install CP identity components")
+		}
+	case thundersvc.IdentityManagementCPManaged, thundersvc.IdentityManagementMixed:
+		if targets == nil || backend == nil {
+			return errors.New("CP identity management mode requires a target resolver and backend")
+		}
+	default:
+		return fmt.Errorf("unsupported identity management mode %q", mode)
+	}
+	return nil
 }
 
 // recordStartupPosture writes the audit trail's own opening bookend. The record

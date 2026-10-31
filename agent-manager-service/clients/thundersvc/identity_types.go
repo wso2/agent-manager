@@ -16,7 +16,10 @@
 
 package thundersvc
 
-import "encoding/json"
+import (
+	"context"
+	"encoding/json"
+)
 
 // ThunderUser represents a user in Thunder.
 type ThunderUser struct {
@@ -294,4 +297,11 @@ type ThunderOU struct {
 type thunderChildOUList struct {
 	TotalResults      int         `json:"totalResults"`
 	OrganizationUnits []ThunderOU `json:"organizationUnits"`
+}
+
+// ProxyResourceServerReader is an optional capability of an EnvIdentityClient:
+// a read only check that a proxy's resource server exists. A client without it
+// is treated as unable to answer.
+type ProxyResourceServerReader interface {
+	ProxyResourceServerExists(ctx context.Context, proxyHandle, identifier string) (bool, error)
 }

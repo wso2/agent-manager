@@ -280,6 +280,8 @@ func loadEnvs() {
 		UseDefaultResourceServer: r.readOptionalBool("AMP_USE_THUNDER_DEFAULT_RESOURCE_SERVER", false),
 		SystemResourceIdentifier: r.readOptionalString("AMP_THUNDER_SYSTEM_RESOURCE_IDENTIFIER", ""),
 	}
+	config.IdentityManagementMode = r.readOptionalString("IDENTITY_MANAGEMENT_MODE", "LEGACY_DIRECT")
+	validateIdentityManagementMode(config, r)
 	if config.Thunder.BaseURL != "" && (config.Thunder.ClientID == "" || config.Thunder.ClientSecret == "") {
 		r.errors = append(r.errors, fmt.Errorf("THUNDER_BASE_URL is set but THUNDER_CLIENT_ID and/or THUNDER_CLIENT_SECRET are missing"))
 	}
@@ -397,6 +399,14 @@ func loadEnvs() {
 	r.logAndExitIfErrorsFound()
 
 	slog.Info("configReader: configs loaded")
+}
+
+func validateIdentityManagementMode(cfg *Config, r *configReader) {
+	switch cfg.IdentityManagementMode {
+	case "LEGACY_DIRECT", "CP_MANAGED", "MIXED":
+	default:
+		r.errors = append(r.errors, fmt.Errorf("IDENTITY_MANAGEMENT_MODE must be LEGACY_DIRECT, CP_MANAGED, or MIXED"))
+	}
 }
 
 // validPostgresSSLModes is the set of libpq sslmode values pgx accepts. Kept as

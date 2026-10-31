@@ -64,7 +64,7 @@ var clientProviderSet = wire.NewSet(
 	// app.Options.AgentThunderProvisioning, built with its own reader — see app.Run.
 	ProvideEnvThunderSecretReader,
 	ProvideEnvThunderURLReader,
-	ProvideEnvThunderResolverWithEndpoints,
+	ProvideEnvThunderResolverWithIdentityBackend,
 )
 
 var serviceProviderSet = wire.NewSet(
@@ -607,6 +607,23 @@ func ProvideEnvThunderResolverWithEndpoints(readSystemClient thundersvc.ReadSyst
 	return thundersvc.NewEnvThunderResolverWithEndpoints(readSystemClient, readThunderURL, endpointResolver)
 }
 
+func ProvideEnvThunderResolverWithIdentityBackend(readSystemClient thundersvc.ReadSystemClientFunc, readThunderURL thundersvc.ReadThunderURLFunc,
+	endpointResolver thundersvc.EnvThunderEndpointResolver, decorator thundersvc.EnvThunderResolverDecorator,
+) (thundersvc.EnvThunderResolver, error) {
+	legacy := ProvideEnvThunderResolverWithEndpoints(readSystemClient, readThunderURL, endpointResolver)
+	if decorator == nil {
+		return legacy, nil
+	}
+	resolver, err := decorator(legacy)
+	if err != nil {
+		return nil, fmt.Errorf("initialize environment identity backend: %w", err)
+	}
+	if resolver == nil {
+		return nil, fmt.Errorf("environment identity backend returned nil resolver")
+	}
+	return resolver, nil
+}
+
 // ProvideNilEnvThunderEndpointResolver supplies the nil endpoint resolver that
 // on-premises deployments run with (app.Options leaves it unset), so wiring paths
 // that do not inject one (e.g. tests) exercise the same identity-injection path
@@ -677,6 +694,12 @@ func InitializeAppParams(cfg *config.Config, db *gorm.DB, authProvider occlient.
 // InitializeAppParamsWithEnvThunderEndpoints wires dependencies with an
 // optional deployment-specific environment-Thunder endpoint resolver.
 func InitializeAppParamsWithEnvThunderEndpoints(cfg *config.Config, db *gorm.DB, authProvider occlient.AuthProvider, secretProvider secretmanagersvc.Provider, gatewayApplier services.GatewayConfigApplier, agentThunderProvisioning services.AgentThunderProvisioningService, buildSecretProvisioner services.BuildSecretProvisioner, endpointResolver thundersvc.EnvThunderEndpointResolver) (*AppParams, error) {
+	return InitializeAppParamsWithIdentityBackend(cfg, db, authProvider, secretProvider, gatewayApplier, agentThunderProvisioning, buildSecretProvisioner, endpointResolver, nil)
+}
+
+// InitializeAppParamsWithIdentityBackend wires a deployment-specific identity
+// resolver while preserving direct Thunder behavior when decorator is nil.
+func InitializeAppParamsWithIdentityBackend(cfg *config.Config, db *gorm.DB, authProvider occlient.AuthProvider, secretProvider secretmanagersvc.Provider, gatewayApplier services.GatewayConfigApplier, agentThunderProvisioning services.AgentThunderProvisioningService, buildSecretProvisioner services.BuildSecretProvisioner, endpointResolver thundersvc.EnvThunderEndpointResolver, decorator thundersvc.EnvThunderResolverDecorator) (*AppParams, error) {
 	wire.Build(
 		configProviderSet,
 		clientProviderSet,
