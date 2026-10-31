@@ -21,6 +21,7 @@ package services
 import (
 	"context"
 	"testing"
+	"time"
 
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
@@ -75,6 +76,10 @@ func TestRestAgentLifecycle(t *testing.T) {
 	assert.Equal(t, "api.deployed", string(f.hub.published[0].EventType))
 	assert.Equal(t, artifact.ArtifactUUID.String(), f.hub.published[0].EntityID)
 
+	f.seedAPIKey(t, artifact, "kept", "active", nil)
+	deleted := f.seedAPIKey(t, artifact, "deleted", "active", nil)
+	require.NoError(t, repositories.NewAPIKeyRepo(db.GetDB()).Delete(artifact.ArtifactUUID.String(), deleted.Name))
+
 	applied, err := f.sync.repo.ApplyAck(context.Background(), f.gateway.String(), models.DeploymentAck{
 		DeploymentID: row.DeploymentID.String(), ArtifactID: artifact.ArtifactUUID.String(), Action: "deploy",
 		Status: "success", PerformedAt: row.PerformedAt,
@@ -82,6 +87,25 @@ func TestRestAgentLifecycle(t *testing.T) {
 	require.NoError(t, err)
 	require.True(t, applied)
 	assert.Equal(t, models.DeploymentStatusDeployed, f.row(t, artifact).Status)
+	assert.Equal(t, []string{"kept"}, f.replayedKeyNames(t))
+	assert.Equal(t, f.gateway.String(), f.hub.published[len(f.hub.published)-1].GatewayID)
+}
+
+// Only keys a gateway would still accept are replayed: not revoked, not expired.
+func TestRestAgentKeyReplaySkipsInactiveAndExpiredKeys(t *testing.T) {
+	f := newA2AFixture(t)
+	artifact, key := f.restAgent(t)
+	f.url.Store("http://agent.dev.svc:8080")
+	f.publishREST(t, key, artifact)
+	yesterday, tomorrow := time.Now().Add(-24*time.Hour), time.Now().Add(24*time.Hour)
+	f.seedAPIKey(t, artifact, "live", "active", nil)
+	f.seedAPIKey(t, artifact, "later", "active", &tomorrow)
+	f.seedAPIKey(t, artifact, "expired", "active", &yesterday)
+	f.seedAPIKey(t, artifact, "inactive", "revoked", nil)
+
+	f.ack(t, artifact, "deploy")
+
+	assert.ElementsMatch(t, []string{"live", "later"}, f.replayedKeyNames(t))
 }
 
 // An exposure with no ingress gateway has no row; mapping a gateway makes the placement pass create it.

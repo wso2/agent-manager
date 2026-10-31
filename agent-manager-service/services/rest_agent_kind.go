@@ -21,6 +21,7 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"time"
 
 	"github.com/google/uuid"
 	"gorm.io/gorm"
@@ -40,6 +41,8 @@ type RestAgentKind struct {
 	exposures       *PlatformAgentExposures
 	agentConfigRepo repositories.AgentConfigRepository
 	deploymentRepo  repositories.DeploymentRepository
+	apiKeyRepo      repositories.APIKeyRepository
+	events          *GatewayEventsService
 	logger          *slog.Logger
 }
 
@@ -48,10 +51,13 @@ func NewRestAgentKind(
 	exposures *PlatformAgentExposures,
 	agentConfigRepo repositories.AgentConfigRepository,
 	deploymentRepo repositories.DeploymentRepository,
+	apiKeyRepo repositories.APIKeyRepository,
+	events *GatewayEventsService,
 	logger *slog.Logger,
 ) *RestAgentKind {
 	return &RestAgentKind{
-		exposures: exposures, agentConfigRepo: agentConfigRepo, deploymentRepo: deploymentRepo, logger: logger,
+		exposures: exposures, agentConfigRepo: agentConfigRepo, deploymentRepo: deploymentRepo,
+		apiKeyRepo: apiKeyRepo, events: events, logger: logger,
 	}
 }
 
@@ -144,6 +150,11 @@ func (k *RestAgentKind) PlacedOn(ctx context.Context, tx *gorm.DB, env, gateway 
 // Targets is the environment's ingress gateway.
 func (k *RestAgentKind) Targets(ctx context.Context, record reconcile.Record) (uuid.UUID, bool, error) {
 	return k.exposures.target(ctx, record)
+}
+
+// AfterLive replays the agent's API keys to the gateway that has just started serving it.
+func (k *RestAgentKind) AfterLive(ctx context.Context, tx *gorm.DB, p models.Placement, _ uuid.UUID) error {
+	return replayAgentKeys(ctx, tx, k.apiKeyRepo, k.events, p, time.Now())
 }
 
 // Drifted reports an agent whose release binding now serves a URL other than the one its current deployment was

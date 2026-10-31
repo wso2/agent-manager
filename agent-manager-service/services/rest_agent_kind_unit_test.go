@@ -78,7 +78,7 @@ func newRestKindFixture() *restKindFixture {
 			return &models.Deployment{Content: f.deployed}, nil
 		},
 	}
-	f.kind = NewRestAgentKind(NewPlatformAgentExposures(exposures, nil, oc), configs, deployments, testLogger())
+	f.kind = NewRestAgentKind(NewPlatformAgentExposures(exposures, nil, oc), configs, deployments, nil, nil, testLogger())
 	return f
 }
 

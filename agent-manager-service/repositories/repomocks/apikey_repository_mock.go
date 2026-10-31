@@ -6,8 +6,11 @@ package repomocks
 import (
 	"context"
 	"sync"
+	"time"
 
+	"github.com/google/uuid"
 	"github.com/wso2/agent-manager/agent-manager-service/models"
+	"gorm.io/gorm"
 )
 
 // APIKeyRepositoryMock is a mock implementation of repositories.APIKeyRepository.
@@ -21,6 +24,9 @@ import (
 //			},
 //			GetByArtifactAndNameFunc: func(artifactUUID string, name string) (*models.StoredAPIKey, error) {
 //				panic("mock out the GetByArtifactAndName method")
+//			},
+//			ListActiveByArtifactTxFunc: func(ctx context.Context, tx *gorm.DB, artifactUUID uuid.UUID, now time.Time) ([]models.StoredAPIKey, error) {
+//				panic("mock out the ListActiveByArtifactTx method")
 //			},
 //			ListByApplicationUUIDFunc: func(applicationUUID string) ([]models.StoredAPIKey, error) {
 //				panic("mock out the ListByApplicationUUID method")
@@ -52,6 +58,9 @@ type APIKeyRepositoryMock struct {
 
 	// GetByArtifactAndNameFunc mocks the GetByArtifactAndName method.
 	GetByArtifactAndNameFunc func(artifactUUID string, name string) (*models.StoredAPIKey, error)
+
+	// ListActiveByArtifactTxFunc mocks the ListActiveByArtifactTx method.
+	ListActiveByArtifactTxFunc func(ctx context.Context, tx *gorm.DB, artifactUUID uuid.UUID, now time.Time) ([]models.StoredAPIKey, error)
 
 	// ListByApplicationUUIDFunc mocks the ListByApplicationUUID method.
 	ListByApplicationUUIDFunc func(applicationUUID string) ([]models.StoredAPIKey, error)
@@ -86,6 +95,17 @@ type APIKeyRepositoryMock struct {
 			ArtifactUUID string
 			// Name is the name argument value.
 			Name string
+		}
+		// ListActiveByArtifactTx holds details about calls to the ListActiveByArtifactTx method.
+		ListActiveByArtifactTx []struct {
+			// Ctx is the ctx argument value.
+			Ctx context.Context
+			// Tx is the tx argument value.
+			Tx *gorm.DB
+			// ArtifactUUID is the artifactUUID argument value.
+			ArtifactUUID uuid.UUID
+			// Now is the now argument value.
+			Now time.Time
 		}
 		// ListByApplicationUUID holds details about calls to the ListByApplicationUUID method.
 		ListByApplicationUUID []struct {
@@ -130,6 +150,7 @@ type APIKeyRepositoryMock struct {
 	}
 	lockDelete                       sync.RWMutex
 	lockGetByArtifactAndName         sync.RWMutex
+	lockListActiveByArtifactTx       sync.RWMutex
 	lockListByApplicationUUID        sync.RWMutex
 	lockListByArtifact               sync.RWMutex
 	lockListByArtifactKind           sync.RWMutex
@@ -207,6 +228,50 @@ func (mock *APIKeyRepositoryMock) GetByArtifactAndNameCalls() []struct {
 	mock.lockGetByArtifactAndName.RLock()
 	calls = mock.calls.GetByArtifactAndName
 	mock.lockGetByArtifactAndName.RUnlock()
+	return calls
+}
+
+// ListActiveByArtifactTx calls ListActiveByArtifactTxFunc.
+func (mock *APIKeyRepositoryMock) ListActiveByArtifactTx(ctx context.Context, tx *gorm.DB, artifactUUID uuid.UUID, now time.Time) ([]models.StoredAPIKey, error) {
+	if mock.ListActiveByArtifactTxFunc == nil {
+		panic("APIKeyRepositoryMock.ListActiveByArtifactTxFunc: method is nil but APIKeyRepository.ListActiveByArtifactTx was just called")
+	}
+	callInfo := struct {
+		Ctx          context.Context
+		Tx           *gorm.DB
+		ArtifactUUID uuid.UUID
+		Now          time.Time
+	}{
+		Ctx:          ctx,
+		Tx:           tx,
+		ArtifactUUID: artifactUUID,
+		Now:          now,
+	}
+	mock.lockListActiveByArtifactTx.Lock()
+	mock.calls.ListActiveByArtifactTx = append(mock.calls.ListActiveByArtifactTx, callInfo)
+	mock.lockListActiveByArtifactTx.Unlock()
+	return mock.ListActiveByArtifactTxFunc(ctx, tx, artifactUUID, now)
+}
+
+// ListActiveByArtifactTxCalls gets all the calls that were made to ListActiveByArtifactTx.
+// Check the length with:
+//
+//	len(mockedAPIKeyRepository.ListActiveByArtifactTxCalls())
+func (mock *APIKeyRepositoryMock) ListActiveByArtifactTxCalls() []struct {
+	Ctx          context.Context
+	Tx           *gorm.DB
+	ArtifactUUID uuid.UUID
+	Now          time.Time
+} {
+	var calls []struct {
+		Ctx          context.Context
+		Tx           *gorm.DB
+		ArtifactUUID uuid.UUID
+		Now          time.Time
+	}
+	mock.lockListActiveByArtifactTx.RLock()
+	calls = mock.calls.ListActiveByArtifactTx
+	mock.lockListActiveByArtifactTx.RUnlock()
 	return calls
 }
 

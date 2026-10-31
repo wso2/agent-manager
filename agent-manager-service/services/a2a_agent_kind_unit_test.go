@@ -113,7 +113,7 @@ func goldenA2AKind(t *testing.T, proxy *models.A2AProxy, fetcher A2ACardFetcher)
 			return goldenA2APlatformURL, nil
 		},
 	}
-	return NewA2AAgentKind(sentinelTx, NewPlatformAgentExposures(exposures, nil, oc), proxies, cards, nil, configs, oc, fetcher,
+	return NewA2AAgentKind(sentinelTx, NewPlatformAgentExposures(exposures, nil, oc), proxies, cards, nil, configs, oc, fetcher, nil, nil,
 		bytes.Repeat([]byte{7}, 32), testLogger())
 }
 
@@ -165,7 +165,7 @@ func TestA2AAgentKindTargetsReadThroughTheSavesTransaction(t *testing.T) {
 		assert.Same(t, txSentinel, tx)
 		return txGateways
 	}}
-	kind := NewA2AAgentKind(nil, NewPlatformAgentExposures(nil, pool, nil), nil, nil, nil, nil, nil, nil, nil, testLogger())
+	kind := NewA2AAgentKind(nil, NewPlatformAgentExposures(nil, pool, nil), nil, nil, nil, nil, nil, nil, nil, nil, nil, testLogger())
 
 	gateway, ok, err := kind.Targets(db.CtxWithTx(context.Background(), txSentinel), reconcile.Record{
 		ArtifactRef:     models.ArtifactRef{OUID: "ou-1", ArtifactUUID: uuid.New(), Kind: models.KindAgent},

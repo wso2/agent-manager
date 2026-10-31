@@ -49,6 +49,7 @@ type a2aFixture struct {
 	gateway   uuid.UUID
 	url       atomic.Value
 	hub       *recordingEventHub
+	events    *GatewayEventsService
 	core      *reconcile.Core
 	worker    *reconcile.Worker
 	publisher *A2APublisher
@@ -93,13 +94,15 @@ func newA2AFixture(t *testing.T) *a2aFixture {
 			return &models.AgentConfig{}, nil
 		},
 	}
+	f.events = NewGatewayEventsService(f.hub)
+	apiKeys := repositories.NewAPIKeyRepo(gormDB)
 	tx := NewTxRunner(gormDB)
 	exposures := repositories.NewPlatformAgentExposureRepository(gormDB)
 	proxies := repositories.NewA2AProxyRepository(gormDB)
 	cards := repositories.NewA2AAgentCardRepository(gormDB)
 	gateways := repositories.NewGatewayRepo(gormDB)
-	kind := NewA2AAgentKind(tx, NewPlatformAgentExposures(exposures, gateways, oc), proxies, cards, f.sync.repo, configs, oc, fetcher, nil, testLogger())
-	f.restKind = NewRestAgentKind(NewPlatformAgentExposures(exposures, gateways, oc), configs, f.sync.repo, testLogger())
+	kind := NewA2AAgentKind(tx, NewPlatformAgentExposures(exposures, gateways, oc), proxies, cards, f.sync.repo, configs, oc, fetcher, apiKeys, f.events, nil, testLogger())
+	f.restKind = NewRestAgentKind(NewPlatformAgentExposures(exposures, gateways, oc), configs, f.sync.repo, apiKeys, f.events, testLogger())
 	f.core = reconcile.NewCore(gormDB, f.sync.repo, f.hub, reconcile.Kinds{kind, f.restKind},
 		reconcile.Config{Lease: time.Minute, AttemptBudget: 3}, slog.New(slog.DiscardHandler))
 	f.worker = reconcile.NewWorker(f.core, slog.New(slog.DiscardHandler))
@@ -162,6 +165,31 @@ func (f *a2aFixture) ack(t *testing.T, artifact models.ArtifactRef, action strin
 	applied, err := f.sync.repo.ApplyAck(context.Background(), f.gateway.String(), ack, f.core.AfterLive())
 	require.NoError(t, err)
 	require.True(t, applied)
+}
+
+// seedAPIKey stores a key of the artifact; a nil expiry never expires.
+func (f *a2aFixture) seedAPIKey(t *testing.T, artifact models.ArtifactRef, name, status string, expiresAt *time.Time) models.StoredAPIKey {
+	t.Helper()
+	stored := models.StoredAPIKey{
+		UUID: uuid.New(), Name: name, DisplayName: name, ArtifactUUID: artifact.ArtifactUUID, OUID: f.sync.ouID,
+		APIKeyHash: "hash-" + name, MaskedAPIKey: "****" + name, Status: status,
+		CreatedAt: time.Now(), UpdatedAt: time.Now(), ExpiresAt: expiresAt,
+	}
+	require.NoError(t, repositories.NewAPIKeyRepo(db.GetDB()).Upsert(&stored))
+	t.Cleanup(func() { db.GetDB().Exec(`DELETE FROM api_keys WHERE uuid = ?`, stored.UUID) })
+	return stored
+}
+
+// replayedKeyNames are the keys the hub was told to create, by name.
+func (f *a2aFixture) replayedKeyNames(t *testing.T) []string {
+	t.Helper()
+	var names []string
+	for _, evt := range f.hub.published {
+		if string(evt.EventType) == "apikey.created" {
+			names = append(names, createdPayload(t, evt).Name)
+		}
+	}
+	return names
 }
 
 // platformAgent is a platform agent's per-environment artifact and its publication key.
@@ -470,4 +498,26 @@ func TestGetA2AProxyFollowsTheDeployment(t *testing.T) {
 	assert.Equal(t, models.DeploymentStatusDeployed, got.Status)
 	assert.Empty(t, got.StatusReason)
 	assert.NotEmpty(t, got.GatewayURL)
+}
+
+// Only keys a gateway would still accept are replayed: not revoked, not expired.
+func TestA2AAgentKeyReplay(t *testing.T) {
+	f := newA2AFixture(t)
+	artifact, key := f.platformAgent(t)
+	f.url.Store("http://agent.dev.svc:8080")
+	require.NoError(t, f.publisher.tx(context.Background(), func(tx *gorm.DB) error {
+		return f.publisher.publish(context.Background(), tx, key, artifact)
+	}))
+	require.NoError(t, f.worker.RunOnceFor(context.Background(), artifact.OUID, artifact.ArtifactUUID))
+	yesterday, tomorrow := time.Now().Add(-24*time.Hour), time.Now().Add(24*time.Hour)
+	f.seedAPIKey(t, artifact, "live", "active", nil)
+	f.seedAPIKey(t, artifact, "later", "active", &tomorrow)
+	f.seedAPIKey(t, artifact, "expired", "active", &yesterday)
+	f.seedAPIKey(t, artifact, "inactive", "revoked", nil)
+	deleted := f.seedAPIKey(t, artifact, "deleted", "active", nil)
+	require.NoError(t, repositories.NewAPIKeyRepo(db.GetDB()).Delete(artifact.ArtifactUUID.String(), deleted.Name))
+
+	f.ack(t, artifact, "deploy")
+
+	assert.ElementsMatch(t, []string{"live", "later"}, f.replayedKeyNames(t))
 }

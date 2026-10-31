@@ -18,6 +18,9 @@ package repositories
 
 import (
 	"context"
+	"time"
+
+	"github.com/google/uuid"
 
 	"github.com/wso2/agent-manager/agent-manager-service/models"
 	"gorm.io/gorm"
@@ -44,6 +47,8 @@ type APIKeyRepository interface {
 	// ListByApplicationUUID returns all API keys whose artifact_uuid matches the given AI application UUID.
 	// Used by the gateway bulk-sync path to populate per-application key bindings.
 	ListByApplicationUUID(applicationUUID string) ([]models.StoredAPIKey, error)
+	// ListActiveByArtifactTx returns the artifact's keys a gateway would still accept at now.
+	ListActiveByArtifactTx(ctx context.Context, tx *gorm.DB, artifactUUID uuid.UUID, now time.Time) ([]models.StoredAPIKey, error)
 }
 
 // APIKeyRepo implements APIKeyRepository using GORM
@@ -135,5 +140,19 @@ func (r *APIKeyRepo) GetByArtifactAndName(artifactUUID, name string) (*models.St
 func (r *APIKeyRepo) ListByApplicationUUID(applicationUUID string) ([]models.StoredAPIKey, error) {
 	var keys []models.StoredAPIKey
 	err := r.db.Where("artifact_uuid = ?", applicationUUID).Find(&keys).Error
+	return keys, err
+}
+
+// ListActiveByArtifactTx returns the artifact's active keys that have not expired at now, oldest first. The rows are
+// held FOR SHARE until tx commits, so a concurrent revoke waits for the keys tx publishes instead of racing them.
+func (r *APIKeyRepo) ListActiveByArtifactTx(
+	ctx context.Context, tx *gorm.DB, artifactUUID uuid.UUID, now time.Time,
+) ([]models.StoredAPIKey, error) {
+	var keys []models.StoredAPIKey
+	err := tx.WithContext(ctx).
+		Clauses(clause.Locking{Strength: "SHARE"}).
+		Where("artifact_uuid = ? AND status = 'active' AND (expires_at IS NULL OR expires_at > ?)", artifactUUID, now).
+		Order("created_at, uuid").
+		Find(&keys).Error
 	return keys, err
 }

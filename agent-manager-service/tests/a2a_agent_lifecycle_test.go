@@ -185,7 +185,7 @@ func TestA2AAgentLifecycle(t *testing.T) {
 	kind := services.NewA2AAgentKind(tx,
 		services.NewPlatformAgentExposures(exposureRepo, repositories.NewGatewayRepo(gdb), openChoreoClient),
 		repositories.NewA2AProxyRepository(gdb), cardRepo, deploymentRepo, repositories.NewAgentConfigRepo(gdb), openChoreoClient,
-		services.NewA2ACardFetcher(), bytes.Repeat([]byte{7}, 32), testLifecycleLogger())
+		services.NewA2ACardFetcher(), repositories.NewAPIKeyRepo(gdb), services.NewGatewayEventsService(hub), bytes.Repeat([]byte{7}, 32), testLifecycleLogger())
 	core := reconcile.NewCore(gdb, deploymentRepo, hub, reconcile.Kinds{kind},
 		reconcile.Config{Lease: time.Minute, AttemptBudget: 3}, testLifecycleLogger())
 	worker := reconcile.NewWorker(core, testLifecycleLogger())

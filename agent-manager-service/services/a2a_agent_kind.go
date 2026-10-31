@@ -21,6 +21,7 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"time"
 
 	"github.com/google/uuid"
 	"gopkg.in/yaml.v3"
@@ -54,6 +55,8 @@ type A2AAgentKind struct {
 	agentConfigRepo repositories.AgentConfigRepository
 	ocClient        client.OpenChoreoClient
 	fetcher         A2ACardFetcher
+	apiKeyRepo      repositories.APIKeyRepository
+	events          *GatewayEventsService
 	encryptionKey   []byte
 	logger          *slog.Logger
 }
@@ -68,13 +71,15 @@ func NewA2AAgentKind(
 	agentConfigRepo repositories.AgentConfigRepository,
 	ocClient client.OpenChoreoClient,
 	fetcher A2ACardFetcher,
+	apiKeyRepo repositories.APIKeyRepository,
+	events *GatewayEventsService,
 	encryptionKey []byte,
 	logger *slog.Logger,
 ) *A2AAgentKind {
 	return &A2AAgentKind{
 		tx: tx, exposures: exposures, proxyRepo: proxyRepo, cardRepo: cardRepo,
 		deploymentRepo: deploymentRepo, agentConfigRepo: agentConfigRepo, ocClient: ocClient, fetcher: fetcher,
-		encryptionKey: encryptionKey, logger: logger,
+		apiKeyRepo: apiKeyRepo, events: events, encryptionKey: encryptionKey, logger: logger,
 	}
 }
 
@@ -310,10 +315,17 @@ func (k *A2AAgentKind) Targets(ctx context.Context, record reconcile.Record) (uu
 	return k.exposures.target(ctx, record)
 }
 
-// AfterLive queues the agent's card fetch once the gateway serves it. A platform card carries the component UUID
-// from the exposure, so the card reconciler can tell a replaced agent's card apart; an external card was queued
-// when its URL was registered and is only requeued.
+// AfterLive queues the agent's card fetch once the gateway serves it, then replays its API keys to that gateway.
 func (k *A2AAgentKind) AfterLive(ctx context.Context, tx *gorm.DB, p models.Placement, _ uuid.UUID) error {
+	if err := k.queueCardFetch(ctx, tx, p); err != nil {
+		return err
+	}
+	return replayAgentKeys(ctx, tx, k.apiKeyRepo, k.events, p, time.Now())
+}
+
+// queueCardFetch: a platform card carries the component UUID from the exposure, so the card reconciler can tell a
+// replaced agent's card apart; an external card was queued when its URL was registered and is only requeued.
+func (k *A2AAgentKind) queueCardFetch(ctx context.Context, tx *gorm.DB, p models.Placement) error {
 	exposure, err := k.exposures.exposure(ctx, tx, p.ArtifactRef)
 	switch {
 	case err == nil:
