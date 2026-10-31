@@ -24,6 +24,7 @@ import (
 	"net/http"
 	"sort"
 	"strings"
+	"sync"
 
 	"github.com/google/uuid"
 	"gorm.io/gorm"
@@ -76,8 +77,10 @@ type AgentIdentityController interface {
 type MCPResourceServerIdentifierResolver interface {
 	EnvironmentUUIDByName(ctx context.Context, ouID, envName string) (uuid.UUID, error)
 	MCPResourceServerIdentifier(ctx context.Context, ouID string, envID uuid.UUID, proxy *models.MCPProxy) (string, error)
-	// EnsureResourceServer ensures proxy's resource server exists with exactly actions.
-	EnsureResourceServer(ctx context.Context, ouID string, envID uuid.UUID, client thundersvc.EnvIdentityClient, proxy *models.MCPProxy, actions []string) (string, error)
+	// EnsureResourceServerWithoutActivation ensures proxy's resource server exists
+	// with exactly actions and does not activate it. The role handlers activate once
+	// after their own writes, so one request is one capture and apply.
+	EnsureResourceServerWithoutActivation(ctx context.Context, ouID string, envID uuid.UUID, client thundersvc.EnvIdentityClient, proxy *models.MCPProxy, actions []string) (string, error)
 }
 
 type agentIdentityController struct {
@@ -86,6 +89,40 @@ type agentIdentityController struct {
 	proxyRepo     repositories.MCPProxyRepository
 	scopeRepo     repositories.MCPProxyScopeRepository
 	rsIdentifiers MCPResourceServerIdentifierResolver
+
+	// syncTrigger is told about every successful role and group change, so the
+	// agents it reaches are promoted again into the later environments of their
+	// pipelines. Optional: nil in a deployment that promotes no identity. It is set
+	// once at startup, before requests are served.
+	syncMu      sync.RWMutex
+	syncTrigger services.AgentIdentitySyncTrigger
+}
+
+var _ services.AgentIdentitySyncTriggerSetter = (*agentIdentityController)(nil)
+
+// SetAgentIdentitySyncTrigger installs the trigger told about role and group
+// changes.
+func (c *agentIdentityController) SetAgentIdentitySyncTrigger(trigger services.AgentIdentitySyncTrigger) {
+	c.syncMu.Lock()
+	c.syncTrigger = trigger
+	c.syncMu.Unlock()
+}
+
+func (c *agentIdentityController) identitySync() services.AgentIdentitySyncTrigger {
+	c.syncMu.RLock()
+	defer c.syncMu.RUnlock()
+	return c.syncTrigger
+}
+
+// beforeDeleteSync reads who a delete affects while it is still readable, and
+// returns what to call once the delete succeeded. Without a trigger it does
+// nothing.
+func (c *agentIdentityController) beforeDeleteSync(r *http.Request, read func(t services.AgentIdentitySyncTrigger, ouID, env string) func()) func() {
+	trigger := c.identitySync()
+	if trigger == nil {
+		return func() {}
+	}
+	return read(trigger, middleware.OUIDFromRequest(r), r.PathValue("envName"))
 }
 
 // NewAgentIdentityController creates a new agent-identity passthrough controller.
@@ -126,7 +163,7 @@ func (c *agentIdentityController) ensureGroupResourceServer(w http.ResponseWrite
 	ctx := r.Context()
 	ouID := middleware.OUIDFromRequest(r)
 	envName := r.PathValue("envName")
-	rsID, err := c.rsIdentifiers.EnsureResourceServer(ctx, ouID, envID, client, g.proxy, g.actions)
+	rsID, err := c.rsIdentifiers.EnsureResourceServerWithoutActivation(ctx, ouID, envID, client, g.proxy, g.actions)
 	if err != nil {
 		if errors.Is(err, services.ErrMCPProxyNotDeployedToEnvironment) {
 			utils.WriteErrorResponse(w, http.StatusBadRequest,
@@ -145,17 +182,46 @@ func (c *agentIdentityController) ensureGroupResourceServer(w http.ResponseWrite
 // writing the error response itself when resolution fails (returns ok=false).
 // An unprovisioned or unreachable environment surfaces 503 so callers know to
 // retry once the environment's Thunder is available, rather than a generic 500.
+// An environment that receives its identity by promotion is different: retrying
+// never helps, so it is a 409 that says where roles and groups are managed.
 func (c *agentIdentityController) envClient(w http.ResponseWriter, r *http.Request) (thundersvc.EnvIdentityClient, bool) {
 	ouID := middleware.OUIDFromRequest(r)
 	envName := r.PathValue("envName")
 	client, err := services.ResolveEnvThunderIdentity(r.Context(), c.resolver, ouID, envName)
 	if err != nil {
 		logger.GetLogger(r.Context()).Error("agent-identity: env-thunder resolve failed", "ouID", ouID, "env", envName, "error", err)
+		if errors.Is(err, thundersvc.ErrIdentityEnvironmentUnsupported) {
+			utils.WriteErrorResponseWithReason(w, http.StatusConflict,
+				"Roles and groups are not managed in this environment",
+				"This environment receives its identity by promotion from the environment where identity is managed. Manage roles and groups there; changes reach this environment automatically.",
+				utils.ErrCodeConflict)
+			return nil, false
+		}
 		utils.WriteErrorResponse(w, http.StatusServiceUnavailable,
 			"The environment's identity provider is not available; retry after it is provisioned")
 		return nil, false
 	}
 	return client, true
+}
+
+// activateChange makes a successful write visible on the environment gateway,
+// once per request. It does nothing for a client that needs no activation (direct
+// identity management). The write is already saved in the control plane when this
+// runs, so a failure says so: it is not hidden behind a generic error, and doing
+// the same thing again activates it, because activation is idempotent. It writes
+// the HTTP error itself and returns false when activation fails.
+func (c *agentIdentityController) activateChange(w http.ResponseWriter, r *http.Request, client thundersvc.EnvIdentityClient, what string) bool {
+	activator, ok := client.(thundersvc.EnvironmentIdentityChangeActivator)
+	if !ok {
+		return true
+	}
+	if err := activator.ActivateIdentityChange(r.Context()); err != nil {
+		logger.GetLogger(r.Context()).Error("agent-identity: activating the change failed", "env", r.PathValue("envName"), "change", what, "error", err)
+		utils.WriteErrorResponse(w, http.StatusBadGateway,
+			fmt.Sprintf("The %s was saved but could not be activated on the environment yet. Try the same action again to activate it.", what))
+		return false
+	}
+	return true
 }
 
 // --- Groups ---
@@ -252,6 +318,9 @@ func (c *agentIdentityController) CreateGroup(w http.ResponseWriter, r *http.Req
 		utils.WriteErrorResponse(w, http.StatusInternalServerError, "Failed to create group")
 		return
 	}
+	if !c.activateChange(w, r, client, "group") {
+		return
+	}
 	utils.WriteSuccessResponse(w, http.StatusCreated, group)
 }
 
@@ -307,6 +376,12 @@ func (c *agentIdentityController) UpdateGroup(w http.ResponseWriter, r *http.Req
 		utils.WriteErrorResponse(w, http.StatusInternalServerError, "Failed to update group")
 		return
 	}
+	if !c.activateChange(w, r, client, "group change") {
+		return
+	}
+	if trigger := c.identitySync(); trigger != nil {
+		trigger.GroupChanged(ctx, middleware.OUIDFromRequest(r), r.PathValue("envName"), groupID)
+	}
 	utils.WriteSuccessResponse(w, http.StatusOK, group)
 }
 
@@ -322,6 +397,9 @@ func (c *agentIdentityController) DeleteGroup(w http.ResponseWriter, r *http.Req
 	if _, ok := c.managedGroup(w, r, client, groupID); !ok {
 		return
 	}
+	afterDelete := c.beforeDeleteSync(r, func(t services.AgentIdentitySyncTrigger, ouID, env string) func() {
+		return t.BeforeGroupDelete(ctx, ouID, env, groupID)
+	})
 	if err := client.DeleteGroup(ctx, groupID); err != nil {
 		if thundersvc.IsNotFound(err) {
 			utils.WriteErrorResponse(w, http.StatusNotFound, "Group not found")
@@ -331,6 +409,10 @@ func (c *agentIdentityController) DeleteGroup(w http.ResponseWriter, r *http.Req
 		utils.WriteErrorResponse(w, http.StatusInternalServerError, "Failed to delete group")
 		return
 	}
+	if !c.activateChange(w, r, client, "group removal") {
+		return
+	}
+	afterDelete()
 	w.WriteHeader(http.StatusNoContent)
 }
 
@@ -385,6 +467,12 @@ func (c *agentIdentityController) AddGroupMembers(w http.ResponseWriter, r *http
 		utils.WriteErrorResponse(w, http.StatusInternalServerError, "Failed to add group members")
 		return
 	}
+	if !c.activateChange(w, r, client, "group membership change") {
+		return
+	}
+	if trigger := c.identitySync(); trigger != nil {
+		trigger.GroupMembersChanged(ctx, middleware.OUIDFromRequest(r), r.PathValue("envName"), groupID, agentMemberEntries(body.AgentIds))
+	}
 	utils.WriteSuccessResponse(w, http.StatusOK, struct{}{})
 }
 
@@ -414,6 +502,14 @@ func (c *agentIdentityController) RemoveGroupMembers(w http.ResponseWriter, r *h
 		log.Error("agent-identity RemoveGroupMembers failed", "groupID", groupID, "error", err)
 		utils.WriteErrorResponse(w, http.StatusInternalServerError, "Failed to remove group members")
 		return
+	}
+	if !c.activateChange(w, r, client, "group membership change") {
+		return
+	}
+	// Promotion is additive: removing members does not remove their access in later
+	// environments. The agents are still marked, so the carried set is current.
+	if trigger := c.identitySync(); trigger != nil {
+		trigger.GroupMembersChanged(ctx, middleware.OUIDFromRequest(r), r.PathValue("envName"), groupID, agentMemberEntries(body.AgentIds))
 	}
 	utils.WriteSuccessResponse(w, http.StatusOK, struct{}{})
 }
@@ -557,6 +653,11 @@ func (c *agentIdentityController) CreateRole(w http.ResponseWriter, r *http.Requ
 	} else {
 		role = reconciled
 	}
+	// One activation for the whole request: the resource servers above were ensured
+	// without activating.
+	if !c.activateChange(w, r, client, "role") {
+		return
+	}
 	utils.WriteSuccessResponse(w, http.StatusCreated, role)
 }
 
@@ -657,6 +758,10 @@ func (c *agentIdentityController) UpdateRole(w http.ResponseWriter, r *http.Requ
 	// permissions untouched and skip every resource-server write. An explicit
 	// (possibly empty) slice falls through to reconcile the permissions to it.
 	if body.Scopes == nil {
+		if !c.activateChange(w, r, client, "role change") {
+			return
+		}
+		c.roleChanged(r, roleID)
 		utils.WriteSuccessResponse(w, http.StatusOK, updated)
 		return
 	}
@@ -728,7 +833,20 @@ func (c *agentIdentityController) UpdateRole(w http.ResponseWriter, r *http.Requ
 	} else {
 		updated = reconciled
 	}
+	if !c.activateChange(w, r, client, "role change") {
+		return
+	}
+	c.roleChanged(r, roleID)
 	utils.WriteSuccessResponse(w, http.StatusOK, updated)
+}
+
+// roleChanged tells the trigger a role's name, description or permissions changed
+// and is active, so the agents that hold it are promoted again with the new
+// content. It returns at once.
+func (c *agentIdentityController) roleChanged(r *http.Request, roleID string) {
+	if trigger := c.identitySync(); trigger != nil {
+		trigger.RoleChanged(r.Context(), middleware.OUIDFromRequest(r), r.PathValue("envName"), roleID)
+	}
 }
 
 func (c *agentIdentityController) DeleteRole(w http.ResponseWriter, r *http.Request) {
@@ -743,6 +861,9 @@ func (c *agentIdentityController) DeleteRole(w http.ResponseWriter, r *http.Requ
 	if _, ok := c.managedRole(w, r, client, roleID); !ok {
 		return
 	}
+	afterDelete := c.beforeDeleteSync(r, func(t services.AgentIdentitySyncTrigger, ouID, env string) func() {
+		return t.BeforeRoleDelete(ctx, ouID, env, roleID)
+	})
 	if err := client.DeleteRole(ctx, roleID); err != nil {
 		if thundersvc.IsNotFound(err) {
 			utils.WriteErrorResponse(w, http.StatusNotFound, "Role not found")
@@ -752,6 +873,10 @@ func (c *agentIdentityController) DeleteRole(w http.ResponseWriter, r *http.Requ
 		utils.WriteErrorResponse(w, http.StatusInternalServerError, "Failed to delete role")
 		return
 	}
+	if !c.activateChange(w, r, client, "role removal") {
+		return
+	}
+	afterDelete()
 	w.WriteHeader(http.StatusNoContent)
 }
 
@@ -800,7 +925,21 @@ func (c *agentIdentityController) AddRoleAssignees(w http.ResponseWriter, r *htt
 		utils.WriteErrorResponse(w, http.StatusInternalServerError, "Failed to add role assignees")
 		return
 	}
+	if !c.activateChange(w, r, client, "role assignment") {
+		return
+	}
+	c.roleAssigneesChanged(r, roleID, assignments.Assignments)
 	utils.WriteSuccessResponse(w, http.StatusOK, struct{}{})
+}
+
+// roleAssigneesChanged tells the trigger assignees were added to or removed from
+// a role. The agents it reaches are promoted again with the role. Promotion is
+// additive, so a removal does not take the role away in later environments; the
+// agents are still marked so the carried set is current.
+func (c *agentIdentityController) roleAssigneesChanged(r *http.Request, roleID string, assignees []thundersvc.AssignmentEntry) {
+	if trigger := c.identitySync(); trigger != nil {
+		trigger.RoleAssigneesChanged(r.Context(), middleware.OUIDFromRequest(r), r.PathValue("envName"), roleID, assignees)
+	}
 }
 
 func (c *agentIdentityController) RemoveRoleAssignees(w http.ResponseWriter, r *http.Request) {
@@ -823,6 +962,10 @@ func (c *agentIdentityController) RemoveRoleAssignees(w http.ResponseWriter, r *
 		utils.WriteErrorResponse(w, http.StatusInternalServerError, "Failed to remove role assignees")
 		return
 	}
+	if !c.activateChange(w, r, client, "role assignment") {
+		return
+	}
+	c.roleAssigneesChanged(r, roleID, assignments.Assignments)
 	utils.WriteSuccessResponse(w, http.StatusOK, struct{}{})
 }
 

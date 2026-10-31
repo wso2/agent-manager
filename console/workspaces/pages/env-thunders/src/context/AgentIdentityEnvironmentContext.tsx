@@ -56,6 +56,11 @@ interface ResolvedAgentIdentityEnvName {
   envName: string | undefined;
   /** The environment to redirect to when `envName` is missing from the URL. */
   defaultEnvName: string | undefined;
+  /**
+   * The environment roles and groups are managed in when the identity promotion
+   * UI is on: the org's first environment, regardless of any `envName` param.
+   */
+  pinnedEnvName: string | undefined;
   /** True once environments have loaded successfully and there isn't one to default to. */
   hasNoEnvironments: boolean;
   /** True when the environments list failed to load. */
@@ -98,6 +103,7 @@ export function useAgentIdentityEnvName(): ResolvedAgentIdentityEnvName {
   return {
     envName,
     defaultEnvName,
+    pinnedEnvName: environments?.[0]?.name,
     hasNoEnvironments: !isLoading && !isError && !defaultEnvName,
     hasEnvironmentsError: isError,
     refetchEnvironments: refetch,

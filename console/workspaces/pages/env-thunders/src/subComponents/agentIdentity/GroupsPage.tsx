@@ -32,7 +32,11 @@ import {
   useListAgentIdentityGroups,
 } from "@agent-management-platform/api-client";
 import { ListingSkeletonRows, useConfirmationDialog } from "@agent-management-platform/shared-component";
-import { absoluteRouteMap, type ThunderGroup } from "@agent-management-platform/types";
+import {
+  absoluteRouteMap,
+  isIdentityPromotionUiEnabled,
+  type ThunderGroup,
+} from "@agent-management-platform/types";
 import { withSearchParams } from "../../utils/withSearchParams";
 import { AgentIdentityEnvironmentTabs } from "./AgentIdentityEnvironmentTabs";
 
@@ -115,7 +119,7 @@ export const GroupsPage: React.FC = () => {
 
       <ListingTable.Provider searchValue={search} onSearchChange={setSearch}>
         <ListingTable.Container>
-          <AgentIdentityEnvironmentTabs />
+          {!isIdentityPromotionUiEnabled() && <AgentIdentityEnvironmentTabs />}
           <ListingTable.Toolbar
             showSearch
             searchPlaceholder="Search groups..."

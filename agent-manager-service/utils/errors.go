@@ -149,6 +149,10 @@ var (
 	ErrForbidden    = errors.New("forbidden")
 	ErrNotFound     = errors.New("not found")
 	ErrConflict     = errors.New("conflict")
+	// ErrIdentityHomeMismatch means the project pipeline's first environment is not
+	// where identity is managed: it receives its identity by promotion, so an agent
+	// identity can be neither created nor promoted from it.
+	ErrIdentityHomeMismatch = errors.New("the first environment of the project is not where identity is managed")
 	// ErrResourceBeingDeleted is returned when a create collides with a same-named
 	// resource that has been deleted but is still waiting on its cleanup finalizer.
 	// It deliberately does not wrap ErrConflict: callers that recover from a conflict
@@ -289,3 +293,36 @@ var (
 	ErrKindImageAlreadyPublished = errors.New("this build image is already published as a kind version")
 	ErrSourceAgentNotFound       = errors.New("source agent not found; cannot publish a kind from a deleted agent")
 )
+
+// AgentIdentityNotReadyError means an agent's identity in an environment is not
+// completed yet, so a workload promotion into it is refused. The identity is
+// promoted by the identity platform in the background; the Agent ID page shows its
+// progress. Message and Reason are written for the user: they name the
+// environment and a short sanitized reason, and never an internal identifier.
+type AgentIdentityNotReadyError struct {
+	Environment string
+	// Failed is true when setting the identity up failed, false while it is still
+	// being set up.
+	Failed  bool
+	Message string
+	Reason  string
+}
+
+// NewAgentIdentityNotReadyError builds the refusal for environment. detail is a
+// short, already sanitized reason, empty when there is none.
+func NewAgentIdentityNotReadyError(environment string, failed bool, detail string) *AgentIdentityNotReadyError {
+	e := &AgentIdentityNotReadyError{Environment: environment, Failed: failed}
+	if failed {
+		e.Message = fmt.Sprintf("The agent identity for %q could not be set up", environment)
+		e.Reason = fmt.Sprintf("retry the identity for %q on the Agent ID page, then promote", environment)
+	} else {
+		e.Message = fmt.Sprintf("The agent identity for %q is still being set up", environment)
+		e.Reason = fmt.Sprintf("retry once the identity for %q shows as completed on the Agent ID page", environment)
+	}
+	if detail != "" {
+		e.Reason += " (" + detail + ")"
+	}
+	return e
+}
+
+func (e *AgentIdentityNotReadyError) Error() string { return e.Message + ": " + e.Reason }

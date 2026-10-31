@@ -24,6 +24,21 @@ import (
 	"testing"
 )
 
+func TestValidateIdentityManagementMode(t *testing.T) {
+	for _, mode := range []string{"LEGACY_DIRECT", "CP_MANAGED", "MIXED"} {
+		r := &configReader{}
+		validateIdentityManagementMode(&Config{IdentityManagementMode: mode}, r)
+		if len(r.errors) != 0 {
+			t.Fatalf("mode %q: unexpected errors: %v", mode, r.errors)
+		}
+	}
+	r := &configReader{}
+	validateIdentityManagementMode(&Config{IdentityManagementMode: "UNKNOWN"}, r)
+	if len(r.errors) != 1 {
+		t.Fatalf("expected one validation error, got %v", r.errors)
+	}
+}
+
 func TestThunderConfigResolvedSystemResourceIdentifier(t *testing.T) {
 	tests := []struct {
 		name string

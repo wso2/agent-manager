@@ -18,7 +18,8 @@
 
 import React from "react";
 import { Navigate, Route, Routes, generatePath, useParams, useSearchParams } from "react-router-dom";
-import { absoluteRouteMap } from "@agent-management-platform/types";
+import { absoluteRouteMap, isIdentityPromotionUiEnabled } from "@agent-management-platform/types";
+import { PromotedWithAgentNote } from "@agent-management-platform/shared-component";
 import { PageLayout } from "@agent-management-platform/views";
 import { RolesPage } from "./subComponents/agentIdentity/RolesPage";
 import { RoleCreatePage } from "./subComponents/agentIdentity/RoleCreatePage";
@@ -31,13 +32,20 @@ const TITLE = "Roles";
 
 function RolesListPage() {
   return (
-    <AgentIdentityEnvironmentGate title={TITLE}>
+    <AgentIdentityEnvironmentGate title={TITLE} environmentAgnostic>
       {() => (
         <PageLayout
           title={TITLE}
-          description="Roles available in the selected environment's identity provider."
+          description={
+            isIdentityPromotionUiEnabled()
+              ? "Roles that agents in this organization can be given."
+              : "Roles available in the selected environment's identity provider."
+          }
           disableIcon
         >
+          {isIdentityPromotionUiEnabled() && (
+            <PromotedWithAgentNote variant="alert" />
+          )}
           <RolesPage />
         </PageLayout>
       )}
@@ -50,9 +58,12 @@ function RoleCreateWrapper() {
   const [searchParams] = useSearchParams();
   const backHref = withSearchParams(generatePath(rolesNode.path, { orgId: orgId ?? "" }), searchParams);
   return (
-    <AgentIdentityEnvironmentGate title="Create Role">
+    <AgentIdentityEnvironmentGate title="Create Role" environmentAgnostic>
       {() => (
         <PageLayout title="Create Role" backHref={backHref} backLabel="Back to Roles" disableIcon>
+          {isIdentityPromotionUiEnabled() && (
+            <PromotedWithAgentNote variant="alert" />
+          )}
           <RoleCreatePage />
         </PageLayout>
       )}
@@ -62,7 +73,7 @@ function RoleCreateWrapper() {
 
 function RoleEditWrapper() {
   return (
-    <AgentIdentityEnvironmentGate title="Role">
+    <AgentIdentityEnvironmentGate title="Role" environmentAgnostic>
       {() => <RoleEditPage />}
     </AgentIdentityEnvironmentGate>
   );

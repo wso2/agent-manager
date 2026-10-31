@@ -19,6 +19,7 @@
 export * from './components';
 export * from './utils/errorHelpers';
 export * from './utils/usePipelineEnvironments';
+export * from './utils/useIdentityPromotedEnvironment';
 export * from './utils/environmentTierAccess';
 export * from './utils/useAgentEnvironmentAccess';
 export * from './utils/policyParameterEditor';

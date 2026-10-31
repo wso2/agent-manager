@@ -16,7 +16,7 @@
 
 package dbmigrations
 
-const latestVersion = 50
+const latestVersion = 51
 
 // migration list sorted by version.  Add new migrations to the end of the list.
 // Previous migrations should not be modified.
@@ -71,4 +71,5 @@ var migrations = []migration{
 	migration048,
 	migration049,
 	migration050,
+	migration051,
 }

@@ -43,6 +43,7 @@ import {
   AlertTriangle,
   Folder,
   HelpCircle,
+  RefreshCw,
   RotateCcwKey,
   Shield,
   ShieldAlert,
@@ -50,7 +51,12 @@ import {
   Trash,
 } from "@wso2/oxygen-ui-icons-react";
 import { useParams, useSearchParams } from "react-router-dom";
-import { IDENTITY_ENV_PARAM, type ThunderGroup, type ThunderRole } from "@agent-management-platform/types";
+import {
+  IDENTITY_ENV_PARAM,
+  type AgentThunderStatus,
+  type ThunderGroup,
+  type ThunderRole,
+} from "@agent-management-platform/types";
 import { PageLayout, TextInput } from "@agent-management-platform/views";
 import {
   useAddAgentIdentityGroupMembers,
@@ -61,12 +67,15 @@ import {
   useListEnvironments,
   useRemoveAgentIdentityGroupMembers,
   useRemoveAgentIdentityRoleAssignees,
+  useRetryAgentIdentityProvisioning,
 } from "@agent-management-platform/api-client";
 import {
   getErrorMessage,
   monospaceInputSx,
+  RolesGroupsReadOnlyNote,
   useAgentIdentityCredentials,
   useAgentRolesAndGroups,
+  useIdentityPromotedEnvironment,
   usePipelineEnvironmentsState,
   useThunderInstanceForEnv,
   useUnsavedChangesGuard,
@@ -80,6 +89,11 @@ type IdentityItem = {
 };
 
 const CATALOG_PAGE_SIZE = 100;
+
+// A failed binding's reason is shown as a short line, not the full error text.
+const MAX_ERROR_LENGTH = 200;
+const shortError = (message: string) =>
+  message.length > MAX_ERROR_LENGTH ? `${message.slice(0, MAX_ERROR_LENGTH)}…` : message;
 
 function IdentityAssignmentTable({
   items,
@@ -226,11 +240,63 @@ const QueryStateFallback: React.FC<{
     return null;
   };
 
+interface IdentitySetupStatusProps {
+  status: AgentThunderStatus;
+  stageLabel: string;
+  lastError?: string;
+  onRetry: () => void;
+  isRetrying: boolean;
+}
+
+/**
+ * Where this environment's identity setup stands, for a binding that has not
+ * completed. Environments after the first get their identity set up by the
+ * platform along the deployment pipeline, so this is where its progress, or
+ * the reason it failed, shows.
+ */
+const IdentitySetupStatus: React.FC<IdentitySetupStatusProps> = ({
+  status, stageLabel, lastError, onRetry, isRetrying,
+}) => {
+  if (status === "failed") {
+    return (
+      <Alert
+        severity="error"
+        icon={<AlertTriangle size={18} />}
+        action={
+          <Button
+            color="inherit"
+            size="small"
+            onClick={onRetry}
+            disabled={isRetrying}
+            startIcon={isRetrying ? <CircularProgress size={14} color="inherit" /> : <RefreshCw size={14} />}
+            sx={{ whiteSpace: "nowrap" }}
+          >
+            {isRetrying ? "Retrying..." : "Retry"}
+          </Button>
+        }
+        sx={{ flexWrap: "wrap", "& .MuiAlert-action": { flexShrink: 0 } }}
+      >
+        Setting up identity in {stageLabel} failed{lastError ? `: ${shortError(lastError)}` : "."}
+      </Alert>
+    );
+  }
+  return (
+    <Box display="flex" alignItems="center" gap={1}>
+      <CircularProgress size={14} />
+      <Typography variant="body2" color="text.secondary">
+        Setting up identity in {stageLabel}…
+      </Typography>
+    </Box>
+  );
+};
+
 interface AgentIdentitySectionProps {
   orgId: string;
   projectId: string;
   agentId: string;
   envId: string;
+  /** Display name of this environment, for text shown to the user. */
+  envLabel: string;
 }
 
 /**
@@ -241,7 +307,7 @@ interface AgentIdentitySectionProps {
  * apply to both.
  */
 const AgentIdentitySection: React.FC<AgentIdentitySectionProps> = ({
-  orgId, projectId, agentId, envId,
+  orgId, projectId, agentId, envId, envLabel,
 }) => {
   const [activeTab, setActiveTab] = useState(0);
   const [isSaving, setIsSaving] = useState(false);
@@ -251,6 +317,21 @@ const AgentIdentitySection: React.FC<AgentIdentitySectionProps> = ({
     binding, provisioned, isLoading, isError, error,
     revealed, isRegenerating, regenerate: handleRegenerate,
   } = useAgentIdentityCredentials({ orgId, projectId, agentId, envId });
+
+  const { mutate: retryProvisioning, isPending: isRetrying } = useRetryAgentIdentityProvisioning();
+  const handleRetry = () => {
+    retryProvisioning({
+      params: { orgName: orgId, projName: projectId, agentName: agentId },
+      body: { environment: envId },
+    });
+  };
+
+  // Inert unless the identity promotion UI flag is on.
+  const {
+    isLoading: isLoadingPromotedEnv,
+    isPromotedEnvironment: rolesGroupsReadOnly,
+    homeEnvironmentLabel,
+  } = useIdentityPromotedEnvironment({ orgId, projectId, envId });
 
   const {
     thunderInstance,
@@ -323,7 +404,9 @@ const AgentIdentitySection: React.FC<AgentIdentitySectionProps> = ({
     [allGroups, groupDelta.excludedIds],
   );
 
-  const canEditAssignments = !!thunderAgentId && provisioned;
+  // Roles and groups of an environment that receives its identity from the
+  // first environment are managed there and shown here read only.
+  const canEditAssignments = !!thunderAgentId && provisioned && !rolesGroupsReadOnly;
   const isDirty = roleDelta.isDirty || groupDelta.isDirty;
   useUnsavedChangesGuard(isDirty);
 
@@ -419,6 +502,23 @@ const AgentIdentitySection: React.FC<AgentIdentitySectionProps> = ({
   };
 
   if (isLoading || isError || !binding) {
+    // No binding row yet in an environment after the first: the platform is
+    // still setting the identity up there, which is not an error and has no
+    // action to offer.
+    if (!isLoading && !isError && !binding && isLoadingPromotedEnv) {
+      return <Skeleton variant="rounded" height={120} />;
+    }
+    if (!isLoading && !isError && !binding && rolesGroupsReadOnly) {
+      return (
+        <Card variant="outlined">
+          <Box sx={{ p: 2 }}>
+            <Typography variant="body2" color="text.secondary">
+              Identity is being set up for this environment.
+            </Typography>
+          </Box>
+        </Card>
+      );
+    }
     return (
       <QueryStateFallback
         isLoading={isLoading}
@@ -441,7 +541,10 @@ const AgentIdentitySection: React.FC<AgentIdentitySectionProps> = ({
     </Tooltip>
   ) : undefined;
 
-  let body: React.ReactNode;
+  // The credentials are shown whenever a client ID exists, even while a later
+  // step of the setup is still running or has failed; the setup status below
+  // says where it stands either way.
+  let body: React.ReactNode = null;
   if (revealed || binding.clientId) {
     // The client ID itself isn't sensitive, unlike the secret, so it's always
     // safe to show. Outside of `revealed` (only populated once, right after
@@ -477,19 +580,17 @@ const AgentIdentitySection: React.FC<AgentIdentitySectionProps> = ({
         </Typography>
       </Stack>
     );
-  } else if (binding.status === "failed") {
-    body = (
-      <Typography variant="body2" color="text.secondary">
-        Provisioning failed — check the identity settings for details.
-      </Typography>
-    );
-  } else {
-    body = (
-      <Typography variant="body2" color="text.secondary">
-        Provisioning in progress…
-      </Typography>
-    );
   }
+
+  const setupStatus = binding.status !== "completed" ? (
+    <IdentitySetupStatus
+      status={binding.status}
+      stageLabel={envLabel}
+      lastError={binding.lastError}
+      onRetry={handleRetry}
+      isRetrying={isRetrying}
+    />
+  ) : null;
 
   return (
     <Card variant="outlined">
@@ -510,7 +611,7 @@ const AgentIdentitySection: React.FC<AgentIdentitySectionProps> = ({
           {saveError}
         </Alert>
       )}
-      {!canEditAssignments && !isLoadingIdentityAgents && (
+      {!canEditAssignments && !isLoadingIdentityAgents && !rolesGroupsReadOnly && (
         <Alert severity="info" sx={{ mx: 2, mt: 2 }}>
           This agent has no active identity binding in this environment, so roles and groups
           cannot be changed yet.
@@ -537,6 +638,7 @@ const AgentIdentitySection: React.FC<AgentIdentitySectionProps> = ({
               )}
             </Box>
 
+            {setupStatus}
             {body}
 
             {thunderAgentId && (
@@ -613,6 +715,9 @@ const AgentIdentitySection: React.FC<AgentIdentitySectionProps> = ({
 
       <TabPanel value={activeTab} index={1}>
         <Stack spacing={2}>
+          {rolesGroupsReadOnly && (
+            <RolesGroupsReadOnlyNote homeEnvironment={homeEnvironmentLabel} />
+          )}
           {canEditAssignments && (
             <Form.ElementWrapper label="Add Group" name="add-group">
               {isLoadingAllGroups ? (
@@ -652,6 +757,9 @@ const AgentIdentitySection: React.FC<AgentIdentitySectionProps> = ({
 
       <TabPanel value={activeTab} index={2}>
         <Stack spacing={2}>
+          {rolesGroupsReadOnly && (
+            <RolesGroupsReadOnlyNote homeEnvironment={homeEnvironmentLabel} />
+          )}
           {canEditAssignments && (
             <Form.ElementWrapper label="Add Role" name="add-role">
               {isLoadingAllRoles ? (
@@ -780,6 +888,7 @@ export const AgentIdComponent: React.FC = () => {
         projectId={projectId ?? ""}
         agentId={agentId ?? ""}
         envId={envName}
+        envLabel={getEnvDisplayName(envName)}
       />
     );
   }
