@@ -1,0 +1,78 @@
+version: 2
+
+# Security-update PRs require dependency graph, Dependabot alerts, and
+# Dependabot security updates to be enabled in repository settings.
+# Keep target-branch unset so these rules also apply to security updates.
+updates:
+  - package-ecosystem: "pip"
+    directories:
+      - "/samples/a2a-agent"
+      - "/samples/crewai-agent"
+      - "/samples/customer-support-agent"
+      - "/samples/hotel-booking-agent/agent"
+      - "/samples/hotel-booking-agent/services/hotel_api"
+      - "/samples/insurance-support-agent/agent"
+      - "/samples/insurance-support-agent/mcp-server"
+      - "/samples/it-helpdesk-agent"
+      - "/samples/manual-instrumentation-agent"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+      time: "09:00"
+      timezone: "Asia/Kolkata"
+    groups:
+      sample-python-routine:
+        applies-to: "version-updates"
+        patterns: ["*"]
+        update-types: ["minor", "patch"]
+      sample-python-security:
+        applies-to: "security-updates"
+        patterns: ["*"]
+
+  - package-ecosystem: "npm"
+    directory: "/samples/insurance-support-agent/web"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+      time: "09:00"
+      timezone: "Asia/Kolkata"
+    groups:
+      sample-web-routine:
+        applies-to: "version-updates"
+        patterns: ["*"]
+        update-types: ["minor", "patch"]
+      sample-web-security:
+        applies-to: "security-updates"
+        patterns: ["*"]
+
+  - package-ecosystem: "nuget"
+    directory: "/samples/dotnet-agent"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+      time: "09:00"
+      timezone: "Asia/Kolkata"
+    groups:
+      sample-dotnet-routine:
+        applies-to: "version-updates"
+        patterns: ["*"]
+        update-types: ["minor", "patch"]
+      sample-dotnet-security:
+        applies-to: "security-updates"
+        patterns: ["*"]
+
+  - package-ecosystem: "docker"
+    directories:
+      - "/samples/dotnet-agent"
+      - "/samples/insurance-support-agent/agent"
+      - "/samples/insurance-support-agent/mcp-server"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+      time: "09:00"
+      timezone: "Asia/Kolkata"
+    groups:
+      sample-images-routine:
+        applies-to: "version-updates"
+        patterns: ["*"]
+        update-types: ["minor", "patch"]
