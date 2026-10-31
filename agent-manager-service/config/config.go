@@ -127,6 +127,9 @@ type Config struct {
 
 	// Thunder admin API configuration for provisioning OAuth apps
 	Thunder ThunderConfig
+	// IdentityManagementMode selects legacy direct Thunder management or an
+	// explicitly configured CP backend. Existing installations use LEGACY_DIRECT.
+	IdentityManagementMode string
 
 	// RootOUHandle identifies the root/admin Organization Unit in Thunder.
 	// Client-credentials tokens issued to this OU are allowed to access any
