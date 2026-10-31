@@ -64,6 +64,24 @@ func TestAgentThunderEndpointResolverCanBeConfiguredAfterFactoryConstruction(t *
 	require.Equal(t, "http://internal.example.com", endpoints.ManagementURL)
 }
 
+func TestAgentThunderProvisioningUsesIdentityBackendDecorator(t *testing.T) {
+	legacy := &clientmocks.EnvThunderResolverMock{}
+	decorated := &clientmocks.EnvThunderResolverMock{}
+	service := &agentThunderProvisioningService{envResolver: legacy}
+	err := service.SetEnvThunderResolverDecorator(func(got thundersvc.EnvThunderResolver) (thundersvc.EnvThunderResolver, error) {
+		require.Same(t, legacy, got)
+		return decorated, nil
+	})
+	require.NoError(t, err)
+	require.Same(t, decorated, service.envResolver)
+
+	err = service.SetEnvThunderResolverDecorator(func(thundersvc.EnvThunderResolver) (thundersvc.EnvThunderResolver, error) {
+		return nil, nil //nolint:nilnil // the case under test: a decorator that returns neither a resolver nor an error
+	})
+	require.Error(t, err)
+	require.Same(t, decorated, service.envResolver)
+}
+
 func newTestProvisioningService(
 	repo *repomocks.AgentThunderClientRepositoryMock,
 	resolver *clientmocks.EnvThunderResolverMock,
@@ -87,6 +105,79 @@ func fakeThunderClientMock() *clientmocks.ThunderClientMock {
 	return &clientmocks.ThunderClientMock{
 		GetDefaultOUIDFunc: func(_ context.Context) (string, error) { return "ou-1", nil },
 	}
+}
+
+type activatingThunderClient struct {
+	thundersvc.ThunderClient
+	activateAgent func(context.Context, string) error
+}
+
+func (c activatingThunderClient) ActivateAgentIdentity(ctx context.Context, id string) error {
+	return c.activateAgent(ctx, id)
+}
+
+func (activatingThunderClient) ActivateMCPResourceServer(context.Context, string) error { return nil }
+
+func (activatingThunderClient) ActivateDeletedMCPResourceServer(context.Context, string) error {
+	return nil
+}
+
+func TestAttemptProvision_CPGatewayActivationFollowsSecretStorage(t *testing.T) {
+	stored := false
+	failActivation := true
+	tc := fakeThunderClientMock()
+	tc.CreateAgentIdentityFunc = func(context.Context, string, string, string) (string, string, string, bool, error) {
+		return "agent-id", "client-id", "YOUR_CLIENT_SECRET_HERE", true, nil
+	}
+	client := activatingThunderClient{ThunderClient: tc, activateAgent: func(_ context.Context, id string) error {
+		require.Equal(t, "agent-id", id)
+		require.True(t, stored, "the reveal-once secret must be stored before gateway activation")
+		if failActivation {
+			return errors.New("gateway unavailable")
+		}
+		return nil
+	}}
+	store := &clientmocks.SecretManagementClientMock{
+		CreateSecretFunc: func(context.Context, secretmanagersvc.SecretLocation, map[string]string) (string, error) {
+			stored = true
+			return "stored-reference", nil
+		},
+	}
+	resolver := &clientmocks.EnvThunderResolverMock{
+		ResolveFunc: func(context.Context, string, string, string) (thundersvc.ThunderClient, error) {
+			return client, nil
+		},
+	}
+	var recorded repositories.AgentThunderAttemptUpdate
+	repo := &repomocks.AgentThunderClientRepositoryMock{
+		ClaimForAttemptFunc: func(context.Context, uuid.UUID) (bool, error) { return true, nil },
+		UpdateAfterAttemptFunc: func(_ context.Context, _ uuid.UUID, fields repositories.AgentThunderAttemptUpdate) error {
+			recorded = fields
+			return nil
+		},
+	}
+	svc := newTestProvisioningService(repo, resolver, store)
+	ctx := auditableCtx(t)
+	svc.AttemptProvision(ctx, models.AgentThunderClient{
+		ID: uuid.New(), OUID: "org-id", ProjectName: "default", AgentName: "scout",
+		EnvironmentName: "development", ProvisioningType: models.AgentProvisioningTypeInternal,
+	})
+	require.Equal(t, models.AgentThunderStatusPending, recorded.Status)
+	require.Equal(t, "agent-id", *recorded.ThunderAgentID)
+	require.Equal(t, "client-id", *recorded.ThunderClientID)
+	require.Equal(t, "stored-reference", *recorded.SecretRefPath)
+	require.Equal(t, "Identity provisioning failed. Please retry.", recorded.LastError)
+
+	failActivation = false
+	svc.AttemptProvision(ctx, models.AgentThunderClient{
+		ID: uuid.New(), OUID: "org-id", ProjectName: "default", AgentName: "scout",
+		EnvironmentName: "development", ProvisioningType: models.AgentProvisioningTypeInternal,
+		ThunderAgentID: *recorded.ThunderAgentID, ThunderClientID: *recorded.ThunderClientID,
+		SecretRefPath: *recorded.SecretRefPath,
+	})
+	require.Equal(t, models.AgentThunderStatusCompleted, recorded.Status)
+	require.Len(t, tc.CreateAgentIdentityCalls(), 1, "retry must reuse the existing identity and secret")
+	require.Len(t, store.CreateSecretCalls(), 1, "retry must not create another credential")
 }
 
 func TestAttemptProvision_Success_CreatesIdentityAndStoresSecret(t *testing.T) {
@@ -748,6 +839,12 @@ func TestProvisionForAgent_TransientUpsertBlip_RecoveredOnRetry(t *testing.T) {
 // TestRegenerateSecret_Internal_StoresSecret guards internal agents' one
 // storage requirement: their secret must persist so it can later be injected
 // into the workload.
+// patchSecretNotFound makes the credential store fall back to creating the
+// secret, as it does for a binding whose secret does not exist yet.
+func patchSecretNotFound(context.Context, secretmanagersvc.SecretLocation, map[string]string, []string) (string, error) {
+	return "", secretmanagersvc.ErrSecretNotFound
+}
+
 func TestRegenerateSecret_Internal_StoresSecret(t *testing.T) {
 	tc := fakeThunderClientMock()
 	tc.RegenerateAgentSecretFunc = func(_ context.Context, thunderAgentID string) (string, error) {
@@ -759,6 +856,7 @@ func TestRegenerateSecret_Internal_StoresSecret(t *testing.T) {
 	}
 	var storedSecret string
 	store := &clientmocks.SecretManagementClientMock{
+		PatchSecretFunc: patchSecretNotFound,
 		CreateSecretFunc: func(_ context.Context, _ secretmanagersvc.SecretLocation, data map[string]string) (string, error) {
 			storedSecret = data[thundersvc.AgentSecretKeyClientSecret]
 			return "ref", nil
@@ -804,6 +902,7 @@ func TestRegenerateSecret_Internal_CreateSecretErrorPropagatesDirectly_NoInjecto
 	}
 	var createCalls int
 	store := &clientmocks.SecretManagementClientMock{
+		PatchSecretFunc: patchSecretNotFound,
 		CreateSecretFunc: func(context.Context, secretmanagersvc.SecretLocation, map[string]string) (string, error) {
 			createCalls++
 			return "", fmt.Errorf("failed to upsert secret: failed to update secret after create conflict: %w: %w", secretmanagersvc.ErrReferenceNameTaken, utils.ErrNotFound)
@@ -892,6 +991,7 @@ func TestRegenerateSecret_ConcurrentCallsForSameBinding_Serialized(t *testing.T)
 		ResolveFunc: func(_ context.Context, _, _, _ string) (thundersvc.ThunderClient, error) { return tc, nil },
 	}
 	store := &clientmocks.SecretManagementClientMock{
+		PatchSecretFunc: patchSecretNotFound,
 		CreateSecretFunc: func(_ context.Context, _ secretmanagersvc.SecretLocation, _ map[string]string) (string, error) {
 			return "ref", nil
 		},
@@ -1591,6 +1691,7 @@ func TestDeleteAllBindings_ReleasesEachBindingsLockAfterItsOwnCleanup_NotAfterAl
 		ResolveFunc: func(_ context.Context, _, _, _ string) (thundersvc.ThunderClient, error) { return tc, nil },
 	}
 	store := &clientmocks.SecretManagementClientMock{
+		PatchSecretFunc:  patchSecretNotFound,
 		DeleteSecretFunc: func(context.Context, secretmanagersvc.SecretLocation, string) error { return nil },
 	}
 	repo := &repomocks.AgentThunderClientRepositoryMock{
@@ -2433,6 +2534,7 @@ func TestAttemptProvision_SerializesWithRegenerateSecret(t *testing.T) {
 		ResolveFunc: func(_ context.Context, _, _, _ string) (thundersvc.ThunderClient, error) { return tc, nil },
 	}
 	store := &clientmocks.SecretManagementClientMock{
+		PatchSecretFunc: patchSecretNotFound,
 		CreateSecretFunc: func(_ context.Context, _ secretmanagersvc.SecretLocation, _ map[string]string) (string, error) {
 			return "ref", nil
 		},
@@ -2498,6 +2600,7 @@ func TestStoreCredential_ReferenceNameTaken_CleansUpAndRetries(t *testing.T) {
 	}
 	var createCalls int
 	store := &clientmocks.SecretManagementClientMock{
+		PatchSecretFunc: patchSecretNotFound,
 		CreateSecretFunc: func(context.Context, secretmanagersvc.SecretLocation, map[string]string) (string, error) {
 			createCalls++
 			if createCalls == 1 {
@@ -2554,6 +2657,7 @@ func TestStoreCredential_PlainNotFound_IsNotRetried(t *testing.T) {
 	}
 	var createCalls int
 	store := &clientmocks.SecretManagementClientMock{
+		PatchSecretFunc: patchSecretNotFound,
 		CreateSecretFunc: func(context.Context, secretmanagersvc.SecretLocation, map[string]string) (string, error) {
 			createCalls++
 			return "", fmt.Errorf("failed to upsert secret: failed to update secret after create conflict: %w", utils.ErrNotFound)
@@ -2597,6 +2701,7 @@ func TestStoreCredential_ReferenceNameTaken_CleanupFails_WrapsBothErrors(t *test
 	}
 	var createCalls int
 	store := &clientmocks.SecretManagementClientMock{
+		PatchSecretFunc: patchSecretNotFound,
 		CreateSecretFunc: func(context.Context, secretmanagersvc.SecretLocation, map[string]string) (string, error) {
 			createCalls++
 			return "", fmt.Errorf("failed to upsert secret: failed to update secret after create conflict: %w: %w", secretmanagersvc.ErrReferenceNameTaken, utils.ErrNotFound)

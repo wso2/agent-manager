@@ -7664,6 +7664,13 @@ Promotes an agent from a source environment to a target environment by
 moving the release binding. The promotion path must be valid according
 to the project's deployment pipeline.
 
+Promoting the workload does not promote the agent's identity. The identity
+is promoted, in the background, to every environment of the project's
+pipeline when the agent is created and again when its roles, groups or
+MCP servers change. When the target environment receives its identity by
+promotion, the promotion is refused with `409` until the agent's identity
+there is completed. Its progress is on the Agent ID page.
+
 	@param ctx context.Context - for authentication, logging, cancellation, deadlines, tracing, etc. Passed from http.Request or context.Background().
 	@param agentName Unique name of the agent
 	@param orgName Organization name

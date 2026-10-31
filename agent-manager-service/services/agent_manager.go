@@ -1667,6 +1667,14 @@ func (s *agentManagerService) createComponentAgent(ctx context.Context, ouID, pr
 		s.logger.Error("No environment found in deployment pipeline", "projectName", projectName)
 		return fmt.Errorf("no environment found in deployment pipeline")
 	}
+	// An agent identity is created in the first environment only, so a pipeline
+	// that starts in an environment that receives its identity by promotion cannot
+	// hold one. Refuse before anything is created.
+	if s.agentThunderProvisioning != nil {
+		if err := s.requireIdentityHome(ctx, ouID, firstEnv); err != nil {
+			return err
+		}
+	}
 	// The agent's workload is only released into firstEnv here; promotion carries it
 	// upward. Its MCP connections, by contrast, are bound across the whole pipeline (see
 	// createAgentMCPConfigs), because a promotion into an environment with no binding of
@@ -1879,7 +1887,7 @@ func (s *agentManagerService) createComponentAgent(ctx context.Context, ouID, pr
 		// AgentID is provisioned here, ahead of the first ReleaseBinding write, so
 		// the first environment's identity env vars go into that write. Left to
 		// the reconciler, they would land a minute later and roll the pod again.
-		identityProvisioned = s.provisionAgentIdentities(ctx, ouID, projectName, req, firstEnv)
+		identityProvisioned = s.provisionAgentIdentities(ctx, ouID, projectName, req, firstEnv, pipeline.PromotionPaths)
 		identityEnvVars := s.firstBindingIdentityEnvVars(ctx, ouID, projectName, req.Name, firstEnv)
 
 		if isFromKind {
@@ -1963,25 +1971,48 @@ func (s *agentManagerService) createComponentAgent(ctx context.Context, ouID, pr
 	// External agents have no ReleaseBinding to wait for, so their AgentID is
 	// provisioned last; internal agents were provisioned above.
 	if !isInternal {
-		s.provisionAgentIdentities(ctx, ouID, projectName, req, "")
+		s.provisionAgentIdentities(ctx, ouID, projectName, req, "", pipeline.PromotionPaths)
 	}
 
 	s.logger.Info("Agent created successfully", "agentName", req.Name, "ouID", ouID, "projectName", projectName, "provisioningType", req.Provisioning.Type)
 	return nil
 }
 
-// provisionAgentIdentities starts AgentID provisioning for the agent: one Thunder
-// identity per org-level environment (not just this project's deployment
-// pipeline — see the AgentID architecture doc, which project-level UIs filter
-// down to their own pipeline environments when displaying bindings). A Thunder
-// hiccup never fails agent creation; the write-ahead + retry reconciler make it
-// durable. awaitEnv, when set, is provisioned inline (see
-// AgentThunderProvisioningService.ProvisionForAgent). Returns whether
-// provisioning was started, false when this deployment injects no provisioning
-// implementation or the environments could not be listed.
-func (s *agentManagerService) provisionAgentIdentities(ctx context.Context, ouID, projectName string, req *spec.CreateAgentRequest, awaitEnv string) bool {
+// provisionAgentIdentities starts AgentID provisioning for the agent. When the
+// project's pipeline has environments that receive their identity by promotion,
+// the identity is created in the first environment and promoted, in the
+// background and in pipeline order, into every other environment of the
+// pipeline. Otherwise it is one Thunder identity per org-level environment (not
+// just this project's deployment pipeline — see the AgentID architecture doc,
+// which project-level UIs filter down to their own pipeline environments when
+// displaying bindings). A Thunder hiccup never fails agent creation; the
+// write-ahead + retry reconciler make it durable. awaitEnv, when set, is
+// provisioned inline (see AgentThunderProvisioningService.ProvisionForAgent).
+// Returns whether provisioning was started, false when this deployment injects no
+// provisioning implementation or the environments could not be listed.
+func (s *agentManagerService) provisionAgentIdentities(ctx context.Context, ouID, projectName string, req *spec.CreateAgentRequest,
+	awaitEnv string, pipelinePaths []models.PromotionPath,
+) bool {
 	if s.agentThunderProvisioning == nil {
 		return false
+	}
+	ownership := models.AgentProvisioningType(req.Provisioning.Type)
+	// requestedBy is captured now, synchronously, because the retry reconciler
+	// may not attempt some of these bindings until minutes or hours later, long
+	// after this request's own caller identity would otherwise be gone. It is
+	// AMS's own audit record only — never sent to Thunder (see
+	// models.AgentThunderClient.RequestedBy for why Thunder's own "owner" field
+	// cannot carry this).
+	var requestedBy string
+	if callerClaims := jwtassertion.GetTokenClaims(ctx); callerClaims != nil {
+		requestedBy = callerClaims.Sub
+	}
+	if pipelineProvisioner, ok := s.agentThunderProvisioning.(AgentIdentityPipelineProvisioner); ok {
+		if pipelineProvisioner.ProvisionForAgentInPipeline(ctx,
+			AgentIdentityRef{OUID: ouID, ProjectName: projectName, AgentName: req.Name, Ownership: ownership},
+			orderedPipelineIdentityEnvironments(pipelinePaths), requestedBy, awaitEnv) {
+			return true
+		}
 	}
 	envs, envErr := s.ocClient.ListEnvironments(ctx, ouID)
 	if envErr != nil {
@@ -1994,17 +2025,6 @@ func (s *agentManagerService) provisionAgentIdentities(ctx context.Context, ouID
 	envNames := make([]string, 0, len(envs))
 	for _, e := range envs {
 		envNames = append(envNames, e.Name)
-	}
-	ownership := models.AgentProvisioningType(req.Provisioning.Type)
-	// requestedBy is captured now, synchronously, because the retry reconciler
-	// may not attempt some of these bindings until minutes or hours later, long
-	// after this request's own caller identity would otherwise be gone. It is
-	// AMS's own audit record only — never sent to Thunder (see
-	// models.AgentThunderClient.RequestedBy for why Thunder's own "owner" field
-	// cannot carry this).
-	var requestedBy string
-	if callerClaims := jwtassertion.GetTokenClaims(ctx); callerClaims != nil {
-		requestedBy = callerClaims.Sub
 	}
 	s.agentThunderProvisioning.ProvisionForAgent(ctx, ouID, projectName, req.Name, ownership, envNames, requestedBy, awaitEnv)
 	return true
@@ -4414,6 +4434,23 @@ func (s *agentManagerService) GetAgentGroups(ctx context.Context, ouID, projectN
 	return s.agentThunderProvisioning.GetAgentGroups(ctx, ouID, projectName, agentName, environmentName)
 }
 
+// requireIdentityHome refuses when home receives its identity by promotion.
+// Deployments with no promotion placement (direct identity management) pass.
+func (s *agentManagerService) requireIdentityHome(ctx context.Context, ouID, home string) error {
+	promoter, ok := s.agentThunderProvisioning.(AgentIdentityPromoter)
+	if !ok {
+		return nil
+	}
+	byPromotion, err := promoter.IdentityCreatedByPromotion(ctx, ouID, home)
+	if err != nil {
+		return fmt.Errorf("resolve identity placement for %s: %w", home, err)
+	}
+	if byPromotion {
+		return fmt.Errorf("%w: %s", utils.ErrIdentityHomeMismatch, home)
+	}
+	return nil
+}
+
 // RegenerateAgentIdentitySecret rotates the AgentID secret for one environment.
 // The new secret is returned in the response for BOTH Internal and External
 // agents — the caller already holds agent:update and just explicitly asked
@@ -4761,15 +4798,36 @@ func (s *agentManagerService) PromoteAgent(ctx context.Context, ouID string, pro
 	srcSystemKeys = mergeAgentIdentityEnvVarKeys(srcSystemKeys)
 	tgtSystemKeys = mergeAgentIdentityEnvVarKeys(tgtSystemKeys)
 
-	// Best-effort kick-off: the target environment may have been added to the
-	// org AFTER this agent was created, so its AgentID binding could be
-	// missing entirely (agent-creation only provisions into environments that
-	// existed at that time). Must happen BEFORE building envOverrides below,
-	// since the hard block right after this call needs the binding's state
-	// already resolved. Skipped when AgentThunder provisioning is disabled
-	// for this deployment — nothing can create a new binding in that case,
-	// but the readiness check and hard block below still apply.
+	// A target whose identity is created by promotion gets it from the identity
+	// platform, in the background, as soon as the agent is created. Promoting the
+	// workload does not promote identity: it only requires the target's own
+	// identity to be completed, so the promoted pod never starts with another
+	// environment's credentials.
+	targetByPromotion := false
 	if s.agentThunderProvisioning != nil {
+		if err := s.requireIdentityHome(ctx, ouID, findLowestEnvironment(pipeline.PromotionPaths)); err != nil {
+			return err
+		}
+		var placementErr error
+		if targetByPromotion, placementErr = s.identityCreatedByPromotion(ctx, ouID, req.TargetEnvironment); placementErr != nil {
+			return fmt.Errorf("resolve identity placement for %s: %w", req.TargetEnvironment, placementErr)
+		}
+		if targetByPromotion {
+			if err := s.requireTargetIdentityCompleted(ctx, ouID, projectName, agentName, req.TargetEnvironment); err != nil {
+				return err
+			}
+		}
+	}
+
+	// Best-effort kick-off for an environment that gets its identity directly: it
+	// may have been added to the org AFTER this agent was created, so its AgentID
+	// binding could be missing entirely (agent-creation only provisions into
+	// environments that existed at that time). Must happen BEFORE building
+	// envOverrides below, since the hard block right after this call needs the
+	// binding's state already resolved. Skipped when AgentThunder provisioning is
+	// disabled for this deployment — nothing can create a new binding in that case,
+	// but the readiness check and hard block below still apply.
+	if s.agentThunderProvisioning != nil && !targetByPromotion {
 		var requestedBy string
 		if callerClaims := jwtassertion.GetTokenClaims(ctx); callerClaims != nil {
 			requestedBy = callerClaims.Sub
@@ -4792,7 +4850,7 @@ func (s *agentManagerService) PromoteAgent(ctx context.Context, ouID string, pro
 			"agentName", agentName, "environment", req.TargetEnvironment, "error", idErr)
 		return fmt.Errorf("failed to build target env agent identity env vars: %w", idErr)
 	}
-	if len(tgtIdentityEnvVars) == 0 && s.agentThunderProvisioning != nil {
+	if len(tgtIdentityEnvVars) == 0 && s.agentThunderProvisioning != nil && !targetByPromotion {
 		// The kick-off above only just wrote a PENDING row and kicked off its
 		// Thunder call on a detached goroutine — checking readiness this soon
 		// virtually always sees it still in flight, so promoting to a brand
@@ -5361,6 +5419,42 @@ func (s *agentManagerService) pollForTargetIdentityReady(ctx context.Context, ou
 		}
 	}
 	return nil
+}
+
+// identityCreatedByPromotion reports whether envName receives its agent identity
+// by promotion. A deployment with no promotion placement answers false.
+func (s *agentManagerService) identityCreatedByPromotion(ctx context.Context, ouID, envName string) (bool, error) {
+	promoter, ok := s.agentThunderProvisioning.(AgentIdentityPromoter)
+	if !ok {
+		return false, nil
+	}
+	return promoter.IdentityCreatedByPromotion(ctx, ouID, envName)
+}
+
+// requireTargetIdentityCompleted refuses a workload promotion while the agent's
+// identity in the target environment is not completed. That identity is promoted
+// by the identity platform in the background and its progress is on the Agent ID
+// page, so the refusal says which state it is in and nothing more.
+func (s *agentManagerService) requireTargetIdentityCompleted(ctx context.Context, ouID, projectName, agentName, envName string) error {
+	state, err := s.agentThunderProvisioning.GetBindingState(ctx, ouID, projectName, agentName, envName)
+	if err != nil {
+		s.logger.Error("Failed to read agent thunder binding state while checking a promotion",
+			"agentName", agentName, "projectName", projectName, "ouID", ouID, "environment", envName, "error", err)
+		return fmt.Errorf("read AgentID binding state for environment %q: %w", envName, err)
+	}
+	if state != nil && state.Status == models.AgentThunderStatusCompleted {
+		return nil
+	}
+	failed := state != nil && state.Status == models.AgentThunderStatusFailed
+	lastError := ""
+	status := "missing"
+	if state != nil {
+		lastError, status = state.LastError, string(state.Status)
+	}
+	s.logPromotionBlocked(ouID, projectName, agentName, envName,
+		"the agent identity for the target environment is not completed, so promoting would start the pod without its own credentials",
+		"status", status, "lastError", lastError)
+	return utils.NewAgentIdentityNotReadyError(envName, failed, briefUIDetail(lastError))
 }
 
 // buildPromotionIdentityBlockedError builds a state-specific error for

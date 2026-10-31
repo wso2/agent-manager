@@ -38,6 +38,61 @@ func mcpIdentitySecurity() *models.SecurityConfig {
 	return &models.SecurityConfig{Enabled: &on, Identity: &models.IdentitySecurity{Enabled: &on}}
 }
 
+type activatingMCPClient struct {
+	thundersvc.EnvIdentityClient
+	activate func(context.Context, string) error
+}
+
+func (activatingMCPClient) ActivateAgentIdentity(context.Context, string) error { return nil }
+func (c activatingMCPClient) ActivateMCPResourceServer(ctx context.Context, id string) error {
+	return c.activate(ctx, id)
+}
+
+func (activatingMCPClient) ActivateDeletedMCPResourceServer(context.Context, string) error {
+	return nil
+}
+
+func TestEnsureResourceServer_RequiresGatewayActivation(t *testing.T) {
+	envID := uuid.New()
+	artifactID := uuid.New()
+	gwID := uuid.New()
+	handle := "fetch"
+	proxy := &models.MCPProxy{
+		Handle:   handle,
+		Artifact: &models.Artifact{Handle: handle},
+		Endpoints: []models.MCPProxyEndpoint{{
+			Environments: []models.MCPProxyEndpointEnvironment{{EnvironmentUUID: envID, ArtifactUUID: artifactID}},
+		}},
+	}
+	svc := &MCPProxyService{
+		deploymentRepo: &repomocks.DeploymentRepositoryMock{
+			GetDeployedGatewaysByProviderFunc: func(uuid.UUID, string) ([]string, error) {
+				return []string{gwID.String()}, nil
+			},
+		},
+		gatewayRepo: &repomocks.GatewayRepositoryMock{
+			EnvironmentMappingExistsFunc: func(string, string) (bool, error) { return true, nil },
+			GetByUUIDFunc: func(string) (*models.Gateway, error) {
+				return &models.Gateway{UUID: gwID, Vhost: "https://gateway.example.test"}, nil
+			},
+		},
+	}
+	client := activatingMCPClient{
+		EnvIdentityClient: &clientmocks.EnvIdentityClientMock{
+			EnsureProxyResourceServerFunc: func(_ context.Context, _, _, identifier string, _ []string) (string, error) {
+				require.Equal(t, "https://gateway.example.test/mcp", identifier)
+				return "rs-id", nil
+			},
+		},
+		activate: func(_ context.Context, id string) error {
+			require.Equal(t, "rs-id", id)
+			return errors.New("gateway apply failed")
+		},
+	}
+	_, err := svc.EnsureResourceServer(context.Background(), "org-id", envID, client, proxy, []string{"read"})
+	require.ErrorContains(t, err, "gateway apply failed")
+}
+
 func TestMCPResourceServerIdentifier_DerivesPublicURI(t *testing.T) {
 	envUUID := uuid.New()
 	gwUUID := uuid.New()
@@ -257,4 +312,104 @@ func TestEnsureResourceServersForProxy_SurvivesResolverError(t *testing.T) {
 	require.NotPanics(t, func() {
 		svc.EnsureResourceServersForProxy(context.Background(), "ou-1", proxy, []string{"read"})
 	})
+}
+
+func TestResolveAgentMCPResourceServers_ReturnsTargetIdentifiersOncePerIdentitySecuredProxy(t *testing.T) {
+	envID, otherEnvID := uuid.New(), uuid.New()
+	gwID := uuid.New()
+	secured := &models.MCPProxy{
+		UUID: uuid.New(), Handle: "booking", Artifact: &models.Artifact{Handle: "booking", Name: "Booking"},
+		Endpoints: []models.MCPProxyEndpoint{{
+			Configuration: models.MCPEndpointConfig{Security: mcpIdentitySecurity()},
+			Environments:  []models.MCPProxyEndpointEnvironment{{EnvironmentUUID: envID, ArtifactUUID: uuid.New()}},
+		}},
+	}
+	plain := &models.MCPProxy{
+		UUID: uuid.New(), Handle: "plain",
+		Endpoints: []models.MCPProxyEndpoint{{
+			Environments: []models.MCPProxyEndpointEnvironment{{EnvironmentUUID: envID, ArtifactUUID: uuid.New()}},
+		}},
+	}
+	notInTarget := &models.MCPProxy{
+		UUID: uuid.New(), Handle: "elsewhere",
+		Endpoints: []models.MCPProxyEndpoint{{
+			Configuration: models.MCPEndpointConfig{Security: mcpIdentitySecurity()},
+			Environments:  []models.MCPProxyEndpointEnvironment{{EnvironmentUUID: otherEnvID, ArtifactUUID: uuid.New()}},
+		}},
+	}
+	configs := []models.AgentConfiguration{
+		{UUID: uuid.New(), Name: "a", TypeID: models.AgentConfigTypeIDMCP},
+		{UUID: uuid.New(), Name: "b", TypeID: models.AgentConfigTypeIDMCP},
+		{UUID: uuid.New(), Name: "llm", TypeID: models.AgentConfigTypeIDLLM},
+	}
+	mappings := map[uuid.UUID][]models.EnvAgentMCPMapping{
+		configs[0].UUID: {
+			{EnvironmentUUID: envID, MCPProxy: secured},
+			{EnvironmentUUID: envID, MCPProxy: plain},
+			{EnvironmentUUID: otherEnvID, MCPProxy: notInTarget},
+		},
+		configs[1].UUID: {{EnvironmentUUID: envID, MCPProxy: secured}}, // same proxy through a second connection
+	}
+	svc := &MCPProxyService{
+		logger: discardLogger(),
+		infraManager: stubInfraManager{listOrgEnvs: func(context.Context, string) ([]*models.EnvironmentResponse, error) {
+			return []*models.EnvironmentResponse{{UUID: envID.String(), Name: "staging"}}, nil
+		}},
+		agentConfigRepo: &repomocks.AgentConfigurationRepositoryMock{
+			ListByAgentFunc: func(context.Context, string, string, string, int, int) ([]models.AgentConfiguration, error) {
+				return configs, nil
+			},
+		},
+		envMCPMappingRepo: &repomocks.EnvAgentMCPMappingRepositoryMock{
+			ListByConfigFunc: func(_ context.Context, id uuid.UUID) ([]models.EnvAgentMCPMapping, error) { return mappings[id], nil },
+		},
+		deploymentRepo: &repomocks.DeploymentRepositoryMock{
+			GetDeployedGatewaysByProviderFunc: func(uuid.UUID, string) ([]string, error) { return []string{gwID.String()}, nil },
+		},
+		gatewayRepo: &repomocks.GatewayRepositoryMock{
+			EnvironmentMappingExistsFunc: func(string, string) (bool, error) { return true, nil },
+			GetByUUIDFunc: func(string) (*models.Gateway, error) {
+				return &models.Gateway{UUID: gwID, Vhost: "https://stage.example.test"}, nil
+			},
+		},
+	}
+
+	servers, err := svc.ResolveAgentMCPResourceServers(context.Background(), "org-id", "default", "scout", "staging")
+	require.NoError(t, err)
+	require.Equal(t, []MCPResourceServerPromotion{{ProxyHandle: "booking", DisplayName: "Booking", Identifier: "https://stage.example.test/mcp"}}, servers)
+}
+
+// The resource server identifier is the audience of the tokens the agent asks
+// for, and the agent asks for its injected MCP URL. They must be the same URL
+// in every environment, including a proxy with its own context and vhost.
+func TestMCPResourceServerIdentifier_EqualsTheURLInjectedIntoTheAgent(t *testing.T) {
+	envUUID, gwUUID := uuid.New(), uuid.New()
+	ctxPath, vhost := "/booking", "mcp.stage.example.test"
+	proxy := &models.MCPProxy{
+		UUID: uuid.New(), Handle: "booking",
+		Configuration: models.MCPProxyConfig{Context: &ctxPath, Vhost: &vhost},
+		Endpoints: []models.MCPProxyEndpoint{{
+			Environments: []models.MCPProxyEndpointEnvironment{{EnvironmentUUID: envUUID, ArtifactUUID: uuid.New()}},
+		}},
+	}
+	gateway := &models.Gateway{UUID: gwUUID, Vhost: "gateway.stage.example.test"}
+	svc := &MCPProxyService{
+		deploymentRepo: &repomocks.DeploymentRepositoryMock{
+			GetDeployedGatewaysByProviderFunc: func(uuid.UUID, string) ([]string, error) { return []string{gwUUID.String()}, nil },
+		},
+		gatewayRepo: &repomocks.GatewayRepositoryMock{
+			EnvironmentMappingExistsFunc: func(string, string) (bool, error) { return true, nil },
+			GetByUUIDFunc:                func(string) (*models.Gateway, error) { return gateway, nil },
+		},
+	}
+
+	identifier, err := svc.MCPResourceServerIdentifier(context.Background(), "org-id", envUUID, proxy)
+	require.NoError(t, err)
+
+	mapping := &models.EnvAgentMCPMapping{EnvironmentUUID: envUUID, MCPProxyUUID: proxy.UUID}
+	injected := buildMCPProxyURL(gateway,
+		buildAgentMCPConfigProxy(&models.AgentConfiguration{ProjectName: "default", AgentID: "scout", Name: "booking"},
+			mapping, proxy, "staging", "org-id", "handle").Configuration)
+	require.Equal(t, injected, identifier)
+	require.Equal(t, "https://mcp.stage.example.test/booking/mcp", identifier)
 }

@@ -113,6 +113,63 @@ type AgentThunderClientRepository interface {
 	// strictly past it, letting a caller page through every eligible row
 	// (not just the oldest limit of them) via keyset pagination.
 	FindRecentlyCompletedInternal(ctx context.Context, createdAfter time.Time, after *ReconcileCursor, limit int) ([]models.AgentThunderClient, error)
+
+	// MarkSyncAfter sets sync_after to at on the given bindings that carry an
+	// identity by promotion (promotion_source is set) and are completed or in
+	// progress. An in progress attempt may have read the carried set before the
+	// change, so it is marked too. A pending or failed binding is left alone: its
+	// next attempt reads the set as it is then. It overwrites an earlier value: a
+	// later request moves the time later, so a burst of changes becomes one
+	// promotion.
+	MarkSyncAfter(ctx context.Context, ids []uuid.UUID, at time.Time) error
+
+	// FindSyncDue returns up to limit completed bindings whose sync_after has
+	// passed, oldest first.
+	FindSyncDue(ctx context.Context, now time.Time, limit int) ([]models.AgentThunderClient, error)
+
+	// ClaimSync takes a due binding for one re-promotion by moving its sync_after
+	// from observed to leaseUntil, so another replica cannot take it and a crash
+	// is retried once the lease passes. claimed is false when sync_after is no
+	// longer observed: a newer request moved it, or someone else claimed it.
+	ClaimSync(ctx context.Context, id uuid.UUID, observed, leaseUntil time.Time) (claimed bool, err error)
+
+	// FinishSync ends a claimed re-promotion. It only acts while sync_after still
+	// equals claimed, so a request that arrived during the promotion (and moved
+	// sync_after) is never lost. A nil retryAt clears sync_after; otherwise it is
+	// set to retryAt for a later attempt. done is false when the claim was
+	// superseded.
+	FinishSync(ctx context.Context, id uuid.UUID, claimed time.Time, retryAt *time.Time) (done bool, err error)
+
+	// Defer pushes the next attempt of a PENDING binding to nextRetryAt and records
+	// a short user safe note, without consuming an attempt. It never touches a
+	// binding another attempt has claimed. Used while a promotion waits for the
+	// environment it is promoted from. It returns ErrAgentThunderClientNotFound
+	// when no pending binding was updated.
+	Defer(ctx context.Context, id uuid.UUID, nextRetryAt time.Time, note string) error
+
+	// ReleaseClaim returns a binding this caller claimed (in progress) to pending,
+	// with the next attempt at nextRetryAt and a short user safe note, without
+	// consuming an attempt. Used when a promotion needs a user to change
+	// something. It returns ErrAgentThunderClientNotFound when the binding is not
+	// in progress.
+	ReleaseClaim(ctx context.Context, id uuid.UUID, nextRetryAt time.Time, note string) error
+
+	// SetLastError records a short user safe note on a binding without touching
+	// its status or attempt bookkeeping. An empty note clears it.
+	SetLastError(ctx context.Context, id uuid.UUID, note string) error
+
+	// ListHomeAgents pages through the distinct agents that have a completed
+	// binding created directly in an environment (promotion_source is empty),
+	// ordered by (org, project, agent). after is nil for the first page.
+	ListHomeAgents(ctx context.Context, after *AgentRef, limit int) ([]AgentRef, error)
+}
+
+// AgentRef identifies one agent. It doubles as the keyset cursor of ListHomeAgents.
+type AgentRef struct {
+	OUID             string
+	ProjectName      string
+	AgentName        string
+	ProvisioningType models.AgentProvisioningType
 }
 
 // ReconcileCursor identifies the last row returned by a previous
@@ -329,4 +386,115 @@ func (r *AgentThunderClientRepo) FindRecentlyCompletedInternal(ctx context.Conte
 		return nil, fmt.Errorf("find recently completed internal agent thunder clients: %w", err)
 	}
 	return rows, nil
+}
+
+func (r *AgentThunderClientRepo) MarkSyncAfter(ctx context.Context, ids []uuid.UUID, at time.Time) error {
+	if len(ids) == 0 {
+		return nil
+	}
+	if err := r.db.WithContext(ctx).Model(&models.AgentThunderClient{}).
+		Where("id IN ? AND promotion_source <> '' AND status IN ?", ids, []models.AgentThunderStatus{
+			models.AgentThunderStatusCompleted, models.AgentThunderStatusInProgress,
+		}).
+		Updates(map[string]interface{}{
+			"sync_after": at,
+			"updated_at": clause.Expr{SQL: "NOW()"},
+		}).Error; err != nil {
+		return fmt.Errorf("mark agent thunder clients for sync: %w", err)
+	}
+	return nil
+}
+
+func (r *AgentThunderClientRepo) FindSyncDue(ctx context.Context, now time.Time, limit int) ([]models.AgentThunderClient, error) {
+	var rows []models.AgentThunderClient
+	if err := r.db.WithContext(ctx).
+		Where("status = ? AND sync_after IS NOT NULL AND sync_after <= ?", models.AgentThunderStatusCompleted, now).
+		Order("sync_after, id").
+		Limit(limit).
+		Find(&rows).Error; err != nil {
+		return nil, fmt.Errorf("find agent thunder clients due for sync: %w", err)
+	}
+	return rows, nil
+}
+
+func (r *AgentThunderClientRepo) ClaimSync(ctx context.Context, id uuid.UUID, observed, leaseUntil time.Time) (bool, error) {
+	result := r.db.WithContext(ctx).Model(&models.AgentThunderClient{}).
+		Where("id = ? AND status = ? AND sync_after = ?", id, models.AgentThunderStatusCompleted, observed).
+		Updates(map[string]interface{}{"sync_after": leaseUntil})
+	if result.Error != nil {
+		return false, fmt.Errorf("claim agent thunder client for sync: %w", result.Error)
+	}
+	return result.RowsAffected > 0, nil
+}
+
+func (r *AgentThunderClientRepo) FinishSync(ctx context.Context, id uuid.UUID, claimed time.Time, retryAt *time.Time) (bool, error) {
+	// A nil *time.Time is stored as NULL, which clears the marker.
+	result := r.db.WithContext(ctx).Model(&models.AgentThunderClient{}).
+		Where("id = ? AND sync_after = ?", id, claimed).
+		Updates(map[string]interface{}{"sync_after": retryAt})
+	if result.Error != nil {
+		return false, fmt.Errorf("finish agent thunder client sync: %w", result.Error)
+	}
+	return result.RowsAffected > 0, nil
+}
+
+func (r *AgentThunderClientRepo) Defer(ctx context.Context, id uuid.UUID, nextRetryAt time.Time, note string) error {
+	return r.setNextAttempt(ctx, id, models.AgentThunderStatusPending, nextRetryAt, note)
+}
+
+func (r *AgentThunderClientRepo) ReleaseClaim(ctx context.Context, id uuid.UUID, nextRetryAt time.Time, note string) error {
+	return r.setNextAttempt(ctx, id, models.AgentThunderStatusInProgress, nextRetryAt, note)
+}
+
+// setNextAttempt moves a binding that is currently in the given status to pending
+// with its next attempt and note, leaving attempt_count alone.
+func (r *AgentThunderClientRepo) setNextAttempt(ctx context.Context, id uuid.UUID, from models.AgentThunderStatus,
+	nextRetryAt time.Time, note string,
+) error {
+	result := r.db.WithContext(ctx).Model(&models.AgentThunderClient{}).
+		Where("id = ? AND status = ?", id, from).
+		Updates(map[string]interface{}{
+			"status":        models.AgentThunderStatusPending,
+			"next_retry_at": nextRetryAt,
+			"last_error":    note,
+			"updated_at":    clause.Expr{SQL: "NOW()"},
+		})
+	if result.Error != nil {
+		return fmt.Errorf("set next agent thunder client attempt: %w", result.Error)
+	}
+	if result.RowsAffected == 0 {
+		return ErrAgentThunderClientNotFound
+	}
+	return nil
+}
+
+func (r *AgentThunderClientRepo) SetLastError(ctx context.Context, id uuid.UUID, note string) error {
+	if err := r.db.WithContext(ctx).Model(&models.AgentThunderClient{}).Where("id = ?", id).
+		Updates(map[string]interface{}{
+			"last_error": note,
+			"updated_at": clause.Expr{SQL: "NOW()"},
+		}).Error; err != nil {
+		return fmt.Errorf("set agent thunder client note: %w", err)
+	}
+	return nil
+}
+
+func (r *AgentThunderClientRepo) ListHomeAgents(ctx context.Context, after *AgentRef, limit int) ([]AgentRef, error) {
+	q := r.db.WithContext(ctx).Model(&models.AgentThunderClient{}).
+		Select("DISTINCT ON (ou_id, project_name, agent_name) ou_id, project_name, agent_name, provisioning_type").
+		Where("status = ? AND promotion_source = ''", models.AgentThunderStatusCompleted)
+	if after != nil {
+		q = q.Where("(ou_id, project_name, agent_name) > (?, ?, ?)", after.OUID, after.ProjectName, after.AgentName)
+	}
+	var rows []models.AgentThunderClient
+	if err := q.Order("ou_id, project_name, agent_name").Limit(limit).Find(&rows).Error; err != nil {
+		return nil, fmt.Errorf("list agents with a completed identity: %w", err)
+	}
+	refs := make([]AgentRef, 0, len(rows))
+	for _, row := range rows {
+		refs = append(refs, AgentRef{
+			OUID: row.OUID, ProjectName: row.ProjectName, AgentName: row.AgentName, ProvisioningType: row.ProvisioningType,
+		})
+	}
+	return refs, nil
 }

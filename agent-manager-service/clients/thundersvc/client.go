@@ -98,6 +98,9 @@ type thunderClient struct {
 	systemResource  string
 	httpClient      *http.Client
 	tokenHTTPClient *http.Client
+	// cpManaged marks a client whose requests are authorized by its transport
+	// against the control plane. It never mints a DP system token.
+	cpManaged bool
 
 	mu          sync.RWMutex
 	cachedToken string
@@ -259,6 +262,9 @@ func thunderEndpointHTTPClient(endpoint, resolveToHost string, trusted bool) (st
 // Uses RWMutex for the cache-hit fast path and singleflight for the fetch
 // so concurrent callers share a single network round-trip instead of blocking.
 func (c *thunderClient) getSystemToken(ctx context.Context) (string, error) {
+	if c.cpManaged {
+		return cpManagedPlaceholderToken, nil
+	}
 	// Fast path: read lock for cache hit
 	c.mu.RLock()
 	if c.cachedToken != "" && time.Now().Before(c.tokenExpiry) {
@@ -550,6 +556,23 @@ func generateRandomSecret() (string, error) {
 		return "", err
 	}
 	return base64.URLEncoding.WithPadding(base64.NoPadding).EncodeToString(b), nil
+}
+
+// GenerateClientSecret returns a new random client secret, for a credential
+// that is set on an environment rather than created by Thunder.
+func GenerateClientSecret() (string, error) {
+	return generateRandomSecret()
+}
+
+// GenerateClientID returns a new random OAuth client ID in the shape Thunder
+// generates (16 random bytes, base64url), for an environment that supplies its
+// own client ID for a carried identity.
+func GenerateClientID() (string, error) {
+	b := make([]byte, 16)
+	if _, err := rand.Read(b); err != nil {
+		return "", err
+	}
+	return base64.RawURLEncoding.EncodeToString(b), nil
 }
 
 // thunderNamedResource represents the fields needed from one page of a

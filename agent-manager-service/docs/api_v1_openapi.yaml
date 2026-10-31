@@ -1375,6 +1375,13 @@ paths:
         Promotes an agent from a source environment to a target environment by
         moving the release binding. The promotion path must be valid according
         to the project's deployment pipeline.
+
+        Promoting the workload does not promote the agent's identity. The identity
+        is promoted, in the background, to every environment of the project's
+        pipeline when the agent is created and again when its roles, groups or
+        MCP servers change. When the target environment receives its identity by
+        promotion, the promotion is refused with `409` until the agent's identity
+        there is completed. Its progress is on the Agent ID page.
       operationId: promoteAgent
       parameters:
         - name: agentName
@@ -1421,7 +1428,10 @@ paths:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
         "409":
-          description: Deployment already in progress in target environment
+          description: |
+            Deployment already in progress in target environment, or the agent's
+            identity in the target environment is not completed yet (still being
+            set up, or failed)
           content:
             application/json:
               schema:
@@ -3767,6 +3777,12 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
+        "409":
+          description: Identity management is not available for this environment, or its identity is created by promoting the agent identity into it
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
         "500":
           description: Internal server error
           content:
@@ -3822,6 +3838,18 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
+        "409":
+          description: Identity management is not available for this environment, or its identity is created by promoting the agent identity into it
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "503":
+          description: The identity service could not be reached or refused the change; no secret was changed
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
         "500":
           description: Internal server error
           content:
@@ -3868,6 +3896,18 @@ paths:
                 $ref: "#/components/schemas/ErrorResponse"
         "404":
           description: Agent identity not yet provisioned for this environment
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "409":
+          description: Identity management is not available for this environment, or its identity is created by promoting the agent identity into it
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "503":
+          description: The identity service could not be reached or refused the change
           content:
             application/json:
               schema:
@@ -4022,6 +4062,18 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
+        "409":
+          description: Listing is not available for this environment (its identity is created by promotion and no control-plane reader is configured)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "503":
+          description: The identity service could not be reached
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
         "500":
           description: Internal server error
           content:
@@ -4088,6 +4140,18 @@ paths:
                 $ref: "#/components/schemas/ErrorResponse"
         "404":
           description: Agent, environment, or agent identity not yet provisioned for this environment
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "409":
+          description: Listing is not available for this environment (its identity is created by promotion and no control-plane reader is configured)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "503":
+          description: The identity service could not be reached
           content:
             application/json:
               schema:
@@ -10836,6 +10900,12 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
+        "409":
+          description: The environment receives its identity by promotion, so roles and groups are not managed in it
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
         "500":
           description: Internal server error
           content:
@@ -10868,6 +10938,18 @@ paths:
                 $ref: "#/components/schemas/ErrorResponse"
         "503":
           description: The environment's identity provider is not available
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "409":
+          description: The environment receives its identity by promotion, so roles and groups are not managed in it
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "502":
+          description: The change was saved but could not be activated on the environment yet. Repeating the same request activates it
           content:
             application/json:
               schema:
@@ -10908,6 +10990,12 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
+        "409":
+          description: The environment receives its identity by promotion, so roles and groups are not managed in it
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
     put:
       tags:
         - Agent Identity
@@ -10938,6 +11026,18 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
+        "409":
+          description: The environment receives its identity by promotion, so roles and groups are not managed in it
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "502":
+          description: The change was saved but could not be activated on the environment yet. Repeating the same request activates it
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
     delete:
       tags:
         - Agent Identity
@@ -10954,6 +11054,18 @@ paths:
                 $ref: "#/components/schemas/ErrorResponse"
         "503":
           description: The environment's identity provider is not available
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "409":
+          description: The environment receives its identity by promotion, so roles and groups are not managed in it
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "502":
+          description: The change was saved but could not be activated on the environment yet. Repeating the same request activates it
           content:
             application/json:
               schema:
@@ -10981,6 +11093,12 @@ paths:
                 type: object
         "503":
           description: The environment's identity provider is not available
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "409":
+          description: The environment receives its identity by promotion, so roles and groups are not managed in it
           content:
             application/json:
               schema:
@@ -11021,6 +11139,18 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
+        "409":
+          description: The environment receives its identity by promotion, so roles and groups are not managed in it
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "502":
+          description: The change was saved but could not be activated on the environment yet. Repeating the same request activates it
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
 
   /orgs/{orgName}/environments/{envName}/agent-identities/groups/{groupID}/members/remove:
     parameters:
@@ -11057,6 +11187,18 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
+        "409":
+          description: The environment receives its identity by promotion, so roles and groups are not managed in it
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "502":
+          description: The change was saved but could not be activated on the environment yet. Repeating the same request activates it
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
 
   /orgs/{orgName}/environments/{envName}/agent-identities/groups/{groupID}/roles:
     parameters:
@@ -11077,6 +11219,12 @@ paths:
                 type: object
         "503":
           description: The environment's identity provider is not available
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "409":
+          description: The environment receives its identity by promotion, so roles and groups are not managed in it
           content:
             application/json:
               schema:
@@ -11103,6 +11251,12 @@ paths:
                 type: object
         "503":
           description: The environment's identity provider is not available
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "409":
+          description: The environment receives its identity by promotion, so roles and groups are not managed in it
           content:
             application/json:
               schema:
@@ -11144,6 +11298,12 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
+        "409":
+          description: The environment receives its identity by promotion, so roles and groups are not managed in it
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
 
   /orgs/{orgName}/environments/{envName}/agent-identities/roles/{roleID}:
     parameters:
@@ -11170,6 +11330,12 @@ paths:
                 $ref: "#/components/schemas/ErrorResponse"
         "503":
           description: The environment's identity provider is not available
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "409":
+          description: The environment receives its identity by promotion, so roles and groups are not managed in it
           content:
             application/json:
               schema:
@@ -11217,6 +11383,13 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
+        "409":
+          description: The environment receives its identity by promotion, so roles and groups are not managed in it
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
     delete:
       tags:
         - Agent Identity
@@ -11233,6 +11406,18 @@ paths:
                 $ref: "#/components/schemas/ErrorResponse"
         "503":
           description: The environment's identity provider is not available
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "409":
+          description: The environment receives its identity by promotion, so roles and groups are not managed in it
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "502":
+          description: The change was saved but could not be activated on the environment yet. Repeating the same request activates it
           content:
             application/json:
               schema:
@@ -11258,6 +11443,12 @@ paths:
                 $ref: "#/components/schemas/AgentIdentityRoleAssignmentsResponse"
         "503":
           description: The environment's identity provider is not available
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "409":
+          description: The environment receives its identity by promotion, so roles and groups are not managed in it
           content:
             application/json:
               schema:
@@ -11298,6 +11489,18 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
+        "409":
+          description: The environment receives its identity by promotion, so roles and groups are not managed in it
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "502":
+          description: The change was saved but could not be activated on the environment yet. Repeating the same request activates it
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
 
   /orgs/{orgName}/environments/{envName}/agent-identities/roles/{roleID}/assignments/remove:
     parameters:
@@ -11330,6 +11533,18 @@ paths:
                 $ref: "#/components/schemas/ErrorResponse"
         "503":
           description: The environment's identity provider is not available
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "409":
+          description: The environment receives its identity by promotion, so roles and groups are not managed in it
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "502":
+          description: The change was saved but could not be activated on the environment yet. Repeating the same request activates it
           content:
             application/json:
               schema:
