@@ -53,10 +53,11 @@ func (s stubRSIdentifierResolver) MCPResourceServerIdentifier(_ context.Context,
 	return "https://gw.example.com/" + proxy.Handle + "/mcp", nil
 }
 
-// EnsureResourceServer mirrors services.MCPProxyService.EnsureResourceServer's
-// shape (derive identifier, then call the client) so tests exercise the same
-// error propagation the real implementation does.
-func (s stubRSIdentifierResolver) EnsureResourceServer(
+// EnsureResourceServerWithoutActivation mirrors
+// services.MCPProxyService.EnsureResourceServerWithoutActivation's shape (derive
+// identifier, then call the client) so tests exercise the same error
+// propagation the real implementation does.
+func (s stubRSIdentifierResolver) EnsureResourceServerWithoutActivation(
 	ctx context.Context, ouID string, envID uuid.UUID, client thundersvc.EnvIdentityClient,
 	proxy *models.MCPProxy, actions []string,
 ) (string, error) {

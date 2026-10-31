@@ -19759,6 +19759,7 @@ type ListAgentIdentityGroupsResp struct {
 	Body         []byte
 	HTTPResponse *http.Response
 	JSON200      *map[string]interface{}
+	JSON409      *ErrorResponse
 	JSON500      *ErrorResponse
 	JSON503      *ErrorResponse
 }
@@ -19784,7 +19785,9 @@ type CreateAgentIdentityGroupResp struct {
 	HTTPResponse *http.Response
 	JSON201      *map[string]interface{}
 	JSON400      *ErrorResponse
+	JSON409      *ErrorResponse
 	JSON500      *ErrorResponse
+	JSON502      *ErrorResponse
 	JSON503      *ErrorResponse
 }
 
@@ -19808,6 +19811,8 @@ type DeleteAgentIdentityGroupResp struct {
 	Body         []byte
 	HTTPResponse *http.Response
 	JSON404      *ErrorResponse
+	JSON409      *ErrorResponse
+	JSON502      *ErrorResponse
 	JSON503      *ErrorResponse
 }
 
@@ -19832,6 +19837,7 @@ type GetAgentIdentityGroupResp struct {
 	HTTPResponse *http.Response
 	JSON200      *map[string]interface{}
 	JSON404      *ErrorResponse
+	JSON409      *ErrorResponse
 	JSON503      *ErrorResponse
 }
 
@@ -19856,6 +19862,8 @@ type UpdateAgentIdentityGroupResp struct {
 	HTTPResponse *http.Response
 	JSON200      *map[string]interface{}
 	JSON404      *ErrorResponse
+	JSON409      *ErrorResponse
+	JSON502      *ErrorResponse
 	JSON503      *ErrorResponse
 }
 
@@ -19879,6 +19887,7 @@ type GetAgentIdentityGroupMembersResp struct {
 	Body         []byte
 	HTTPResponse *http.Response
 	JSON200      *map[string]interface{}
+	JSON409      *ErrorResponse
 	JSON503      *ErrorResponse
 }
 
@@ -19903,6 +19912,8 @@ type AddAgentIdentityGroupMembersResp struct {
 	HTTPResponse *http.Response
 	JSON200      *map[string]interface{}
 	JSON400      *ErrorResponse
+	JSON409      *ErrorResponse
+	JSON502      *ErrorResponse
 	JSON503      *ErrorResponse
 }
 
@@ -19927,6 +19938,8 @@ type RemoveAgentIdentityGroupMembersResp struct {
 	HTTPResponse *http.Response
 	JSON200      *map[string]interface{}
 	JSON400      *ErrorResponse
+	JSON409      *ErrorResponse
+	JSON502      *ErrorResponse
 	JSON503      *ErrorResponse
 }
 
@@ -19950,6 +19963,7 @@ type GetAgentIdentityGroupRolesResp struct {
 	Body         []byte
 	HTTPResponse *http.Response
 	JSON200      *map[string]interface{}
+	JSON409      *ErrorResponse
 	JSON503      *ErrorResponse
 }
 
@@ -19973,6 +19987,7 @@ type ListAgentIdentityRolesResp struct {
 	Body         []byte
 	HTTPResponse *http.Response
 	JSON200      *map[string]interface{}
+	JSON409      *ErrorResponse
 	JSON503      *ErrorResponse
 }
 
@@ -19997,6 +20012,7 @@ type CreateAgentIdentityRoleResp struct {
 	HTTPResponse *http.Response
 	JSON201      *map[string]interface{}
 	JSON400      *ErrorResponse
+	JSON409      *ErrorResponse
 	JSON502      *ErrorResponse
 	JSON503      *ErrorResponse
 }
@@ -20021,6 +20037,8 @@ type DeleteAgentIdentityRoleResp struct {
 	Body         []byte
 	HTTPResponse *http.Response
 	JSON404      *ErrorResponse
+	JSON409      *ErrorResponse
+	JSON502      *ErrorResponse
 	JSON503      *ErrorResponse
 }
 
@@ -20045,6 +20063,7 @@ type GetAgentIdentityRoleResp struct {
 	HTTPResponse *http.Response
 	JSON200      *map[string]interface{}
 	JSON404      *ErrorResponse
+	JSON409      *ErrorResponse
 	JSON503      *ErrorResponse
 }
 
@@ -20070,6 +20089,7 @@ type UpdateAgentIdentityRoleResp struct {
 	JSON200      *map[string]interface{}
 	JSON400      *ErrorResponse
 	JSON404      *ErrorResponse
+	JSON409      *ErrorResponse
 	JSON502      *ErrorResponse
 	JSON503      *ErrorResponse
 }
@@ -20094,6 +20114,7 @@ type GetAgentIdentityRoleAssignmentsResp struct {
 	Body         []byte
 	HTTPResponse *http.Response
 	JSON200      *AgentIdentityRoleAssignmentsResponse
+	JSON409      *ErrorResponse
 	JSON503      *ErrorResponse
 }
 
@@ -20118,6 +20139,8 @@ type AddAgentIdentityRoleAssigneesResp struct {
 	HTTPResponse *http.Response
 	JSON200      *map[string]interface{}
 	JSON400      *ErrorResponse
+	JSON409      *ErrorResponse
+	JSON502      *ErrorResponse
 	JSON503      *ErrorResponse
 }
 
@@ -20142,6 +20165,8 @@ type RemoveAgentIdentityRoleAssigneesResp struct {
 	HTTPResponse *http.Response
 	JSON200      *map[string]interface{}
 	JSON400      *ErrorResponse
+	JSON409      *ErrorResponse
+	JSON502      *ErrorResponse
 	JSON503      *ErrorResponse
 }
 
@@ -23034,7 +23059,9 @@ type GetAgentGroupsResp struct {
 	JSON400      *ErrorResponse
 	JSON401      *ErrorResponse
 	JSON404      *ErrorResponse
+	JSON409      *ErrorResponse
 	JSON500      *ErrorResponse
+	JSON503      *ErrorResponse
 }
 
 // Status returns HTTPResponse.Status
@@ -23060,7 +23087,9 @@ type RevokeAgentIdentitySecretResp struct {
 	JSON400      *ErrorResponse
 	JSON401      *ErrorResponse
 	JSON404      *ErrorResponse
+	JSON409      *ErrorResponse
 	JSON500      *ErrorResponse
+	JSON503      *ErrorResponse
 }
 
 // Status returns HTTPResponse.Status
@@ -23111,7 +23140,9 @@ type RegenerateAgentIdentitySecretResp struct {
 	JSON400      *ErrorResponse
 	JSON401      *ErrorResponse
 	JSON404      *ErrorResponse
+	JSON409      *ErrorResponse
 	JSON500      *ErrorResponse
+	JSON503      *ErrorResponse
 }
 
 // Status returns HTTPResponse.Status
@@ -23138,6 +23169,7 @@ type ProvisionAgentIdentityResp struct {
 	JSON400      *ErrorResponse
 	JSON401      *ErrorResponse
 	JSON404      *ErrorResponse
+	JSON409      *ErrorResponse
 	JSON500      *ErrorResponse
 }
 
@@ -24088,7 +24120,9 @@ type GetAgentRolesResp struct {
 	JSON400      *ErrorResponse
 	JSON401      *ErrorResponse
 	JSON404      *ErrorResponse
+	JSON409      *ErrorResponse
 	JSON500      *ErrorResponse
+	JSON503      *ErrorResponse
 }
 
 // Status returns HTTPResponse.Status
@@ -28952,6 +28986,13 @@ func ParseListAgentIdentityGroupsResp(rsp *http.Response) (*ListAgentIdentityGro
 		}
 		response.JSON200 = &dest
 
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 409:
+		var dest ErrorResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON409 = &dest
+
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
 		var dest ErrorResponse
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
@@ -28999,12 +29040,26 @@ func ParseCreateAgentIdentityGroupResp(rsp *http.Response) (*CreateAgentIdentity
 		}
 		response.JSON400 = &dest
 
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 409:
+		var dest ErrorResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON409 = &dest
+
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
 		var dest ErrorResponse
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
 		response.JSON500 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 502:
+		var dest ErrorResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON502 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 503:
 		var dest ErrorResponse
@@ -29038,6 +29093,20 @@ func ParseDeleteAgentIdentityGroupResp(rsp *http.Response) (*DeleteAgentIdentity
 			return nil, err
 		}
 		response.JSON404 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 409:
+		var dest ErrorResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON409 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 502:
+		var dest ErrorResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON502 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 503:
 		var dest ErrorResponse
@@ -29079,6 +29148,13 @@ func ParseGetAgentIdentityGroupResp(rsp *http.Response) (*GetAgentIdentityGroupR
 		}
 		response.JSON404 = &dest
 
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 409:
+		var dest ErrorResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON409 = &dest
+
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 503:
 		var dest ErrorResponse
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
@@ -29119,6 +29195,20 @@ func ParseUpdateAgentIdentityGroupResp(rsp *http.Response) (*UpdateAgentIdentity
 		}
 		response.JSON404 = &dest
 
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 409:
+		var dest ErrorResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON409 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 502:
+		var dest ErrorResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON502 = &dest
+
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 503:
 		var dest ErrorResponse
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
@@ -29151,6 +29241,13 @@ func ParseGetAgentIdentityGroupMembersResp(rsp *http.Response) (*GetAgentIdentit
 			return nil, err
 		}
 		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 409:
+		var dest ErrorResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON409 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 503:
 		var dest ErrorResponse
@@ -29192,6 +29289,20 @@ func ParseAddAgentIdentityGroupMembersResp(rsp *http.Response) (*AddAgentIdentit
 		}
 		response.JSON400 = &dest
 
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 409:
+		var dest ErrorResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON409 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 502:
+		var dest ErrorResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON502 = &dest
+
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 503:
 		var dest ErrorResponse
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
@@ -29232,6 +29343,20 @@ func ParseRemoveAgentIdentityGroupMembersResp(rsp *http.Response) (*RemoveAgentI
 		}
 		response.JSON400 = &dest
 
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 409:
+		var dest ErrorResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON409 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 502:
+		var dest ErrorResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON502 = &dest
+
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 503:
 		var dest ErrorResponse
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
@@ -29265,6 +29390,13 @@ func ParseGetAgentIdentityGroupRolesResp(rsp *http.Response) (*GetAgentIdentityG
 		}
 		response.JSON200 = &dest
 
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 409:
+		var dest ErrorResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON409 = &dest
+
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 503:
 		var dest ErrorResponse
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
@@ -29297,6 +29429,13 @@ func ParseListAgentIdentityRolesResp(rsp *http.Response) (*ListAgentIdentityRole
 			return nil, err
 		}
 		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 409:
+		var dest ErrorResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON409 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 503:
 		var dest ErrorResponse
@@ -29338,6 +29477,13 @@ func ParseCreateAgentIdentityRoleResp(rsp *http.Response) (*CreateAgentIdentityR
 		}
 		response.JSON400 = &dest
 
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 409:
+		var dest ErrorResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON409 = &dest
+
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 502:
 		var dest ErrorResponse
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
@@ -29378,6 +29524,20 @@ func ParseDeleteAgentIdentityRoleResp(rsp *http.Response) (*DeleteAgentIdentityR
 		}
 		response.JSON404 = &dest
 
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 409:
+		var dest ErrorResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON409 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 502:
+		var dest ErrorResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON502 = &dest
+
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 503:
 		var dest ErrorResponse
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
@@ -29417,6 +29577,13 @@ func ParseGetAgentIdentityRoleResp(rsp *http.Response) (*GetAgentIdentityRoleRes
 			return nil, err
 		}
 		response.JSON404 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 409:
+		var dest ErrorResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON409 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 503:
 		var dest ErrorResponse
@@ -29465,6 +29632,13 @@ func ParseUpdateAgentIdentityRoleResp(rsp *http.Response) (*UpdateAgentIdentityR
 		}
 		response.JSON404 = &dest
 
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 409:
+		var dest ErrorResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON409 = &dest
+
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 502:
 		var dest ErrorResponse
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
@@ -29504,6 +29678,13 @@ func ParseGetAgentIdentityRoleAssignmentsResp(rsp *http.Response) (*GetAgentIden
 			return nil, err
 		}
 		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 409:
+		var dest ErrorResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON409 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 503:
 		var dest ErrorResponse
@@ -29545,6 +29726,20 @@ func ParseAddAgentIdentityRoleAssigneesResp(rsp *http.Response) (*AddAgentIdenti
 		}
 		response.JSON400 = &dest
 
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 409:
+		var dest ErrorResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON409 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 502:
+		var dest ErrorResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON502 = &dest
+
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 503:
 		var dest ErrorResponse
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
@@ -29584,6 +29779,20 @@ func ParseRemoveAgentIdentityRoleAssigneesResp(rsp *http.Response) (*RemoveAgent
 			return nil, err
 		}
 		response.JSON400 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 409:
+		var dest ErrorResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON409 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 502:
+		var dest ErrorResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON502 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 503:
 		var dest ErrorResponse
@@ -35082,12 +35291,26 @@ func ParseGetAgentGroupsResp(rsp *http.Response) (*GetAgentGroupsResp, error) {
 		}
 		response.JSON404 = &dest
 
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 409:
+		var dest ErrorResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON409 = &dest
+
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
 		var dest ErrorResponse
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
 		response.JSON500 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 503:
+		var dest ErrorResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON503 = &dest
 
 	}
 
@@ -35136,12 +35359,26 @@ func ParseRevokeAgentIdentitySecretResp(rsp *http.Response) (*RevokeAgentIdentit
 		}
 		response.JSON404 = &dest
 
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 409:
+		var dest ErrorResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON409 = &dest
+
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
 		var dest ErrorResponse
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
 		response.JSON500 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 503:
+		var dest ErrorResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON503 = &dest
 
 	}
 
@@ -35237,12 +35474,26 @@ func ParseRegenerateAgentIdentitySecretResp(rsp *http.Response) (*RegenerateAgen
 		}
 		response.JSON404 = &dest
 
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 409:
+		var dest ErrorResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON409 = &dest
+
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
 		var dest ErrorResponse
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
 		response.JSON500 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 503:
+		var dest ErrorResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON503 = &dest
 
 	}
 
@@ -35297,6 +35548,13 @@ func ParseProvisionAgentIdentityResp(rsp *http.Response) (*ProvisionAgentIdentit
 			return nil, err
 		}
 		response.JSON404 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 409:
+		var dest ErrorResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON409 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
 		var dest ErrorResponse
@@ -37084,12 +37342,26 @@ func ParseGetAgentRolesResp(rsp *http.Response) (*GetAgentRolesResp, error) {
 		}
 		response.JSON404 = &dest
 
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 409:
+		var dest ErrorResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON409 = &dest
+
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
 		var dest ErrorResponse
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
 		response.JSON500 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 503:
+		var dest ErrorResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON503 = &dest
 
 	}
 
