@@ -99,7 +99,7 @@ func TestEnsureResourceServersForProxy_TellsTheSyncTriggerWhichServerChanged(t *
 			return []*models.EnvironmentResponse{{Name: "env-a", UUID: envA.String()}, {Name: "env-b", UUID: envB.String()}}, nil
 		}},
 		deploymentRepo: &repomocks.DeploymentRepositoryMock{
-			GetDeployedGatewaysByProviderFunc: func(uuid.UUID, string) ([]string, error) { return []string{gwUUID.String()}, nil },
+			PlacedGatewaysFunc: func(context.Context, string, uuid.UUID) ([]string, error) { return []string{gwUUID.String()}, nil },
 		},
 		gatewayRepo: &repomocks.GatewayRepositoryMock{
 			EnvironmentMappingExistsFunc: func(_, _ string) (bool, error) { return true, nil },
