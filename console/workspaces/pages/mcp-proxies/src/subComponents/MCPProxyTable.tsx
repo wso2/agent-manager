@@ -25,7 +25,7 @@ import {
   Typography,
 } from "@wso2/oxygen-ui";
 import { Plus, Trash } from "@wso2/oxygen-ui-icons-react";
-import { generatePath, Link, useNavigate, useParams } from "react-router-dom";
+import { generatePath, useNavigate, useParams } from "react-router-dom";
 import { useDeleteMCPProxy, useListMCPProxies } from "@agent-management-platform/api-client";
 import {
   formatRelativeTime,
@@ -43,7 +43,6 @@ export function MCPProxyTable() {
   const { orgId } = useParams<{ orgId: string }>();
   const navigate = useNavigate();
   const [searchValue, setSearchValue] = useState("");
-  const routeParams = { orgId: orgId ?? "" };
   const { data, isLoading, error } = useListMCPProxies({ orgName: orgId });
   const { mutate: deleteMCPProxy } = useDeleteMCPProxy();
   const { addConfirmation } = useConfirmationDialog();
@@ -73,14 +72,6 @@ export function MCPProxyTable() {
       searchValue={searchValue}
       onSearchChange={setSearchValue}
       searchPlaceholder="Search MCP servers..."
-      addButton={{
-        label: "Register MCP Server",
-        component: Link,
-        to: generatePath(
-          absoluteRouteMap.children.org.children.mcpProxies.children.add.path,
-          routeParams,
-        ),
-      }}
       error={error}
       isLoading={isLoading}
       isEmpty={!proxies.length}

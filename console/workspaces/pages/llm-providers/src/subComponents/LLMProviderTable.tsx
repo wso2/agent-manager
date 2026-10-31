@@ -29,7 +29,7 @@ import {
   Typography,
 } from "@wso2/oxygen-ui";
 import { ServerCog, Trash } from "@wso2/oxygen-ui-icons-react";
-import { generatePath, Link, useNavigate, useParams } from "react-router-dom";
+import { generatePath, useNavigate, useParams } from "react-router-dom";
 import {
   useDeleteLLMProvider,
   useListLLMProviders,
@@ -126,14 +126,6 @@ export function LLMProviderTable() {
       searchValue={searchValue}
       onSearchChange={setSearchValue}
       searchPlaceholder="Search providers..."
-      addButton={{
-        label: "Add Service Provider",
-        component: Link,
-        to: generatePath(
-          absoluteRouteMap.children.org.children.llmProviders.children.add.path,
-          { orgId },
-        ),
-      }}
       error={error}
       isLoading={isLoading}
       isEmpty={!providers.length}

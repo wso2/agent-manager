@@ -25,6 +25,8 @@ import {
   useSearchParams,
 } from "react-router-dom";
 import { absoluteRouteMap } from "@agent-management-platform/types";
+import { Button } from "@wso2/oxygen-ui";
+import { Plus } from "@wso2/oxygen-ui-icons-react";
 import { PageLayout } from "@agent-management-platform/views";
 import { DeploymentPipelineTable } from "./subComponents/DeploymentPipelineTable";
 import { CreateDeploymentPipelineDrawer } from "./subComponents/CreateDeploymentPipelineDrawer";
@@ -70,7 +72,20 @@ export function DeploymentPipelinesOrganization() {
           index
           element={
             <LegacyEditRedirect>
-              <PageLayout title="Deployment Pipelines" disableIcon>
+              <PageLayout
+                title="Deployment Pipelines"
+                disableIcon
+                actions={
+                  <Button
+                    variant="contained"
+                    color="primary"
+                    startIcon={<Plus size={16} />}
+                    onClick={() => setCreateOpen(true)}
+                  >
+                    Create Pipeline
+                  </Button>
+                }
+              >
                 <DeploymentPipelineTable
                   onCreatePipeline={() => setCreateOpen(true)}
                 />

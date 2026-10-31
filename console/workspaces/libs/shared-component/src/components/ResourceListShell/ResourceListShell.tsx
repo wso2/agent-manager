@@ -19,14 +19,12 @@ import React, { useEffect, useRef } from "react";
 import { ConsoleAction, useTrack } from "@agent-management-platform/api-client";
 import {
   Alert,
-  Box,
-  Button,
   ListingTable,
   SearchBar,
   Skeleton,
   Stack,
 } from "@wso2/oxygen-ui";
-import { AlertTriangle, Plus, Search } from "@wso2/oxygen-ui-icons-react";
+import { AlertTriangle, Search } from "@wso2/oxygen-ui-icons-react";
 
 export interface ResourceListEmptyState {
   illustration: React.ReactNode;
@@ -48,13 +46,6 @@ export interface ResourceListShellProps {
   searchPlaceholder?: string;
   /** Greys out the search input; useful while the list is still loading. */
   searchDisabled?: boolean;
-  /** Right-aligned button rendered next to the search bar. */
-  addButton?: {
-    label: string;
-    to?: string;
-    onClick?: () => void;
-    component?: React.ElementType;
-  };
   /** A render override for the toolbar — when provided, replaces the default toolbar entirely. */
   toolbar?: React.ReactNode;
 
@@ -113,7 +104,6 @@ export const ResourceListShell: React.FC<ResourceListShellProps> = ({
   onSearchChange,
   searchPlaceholder = "Search...",
   searchDisabled,
-  addButton,
   toolbar,
   error,
   isLoading,
@@ -156,34 +146,17 @@ export const ResourceListShell: React.FC<ResourceListShellProps> = ({
   }, [isLoading, error, isEmpty, isSearchEmpty, resourceName, track]);
 
   const resolvedToolbar = toolbar ?? (
-    <Stack direction="row" spacing={1} alignItems="center">
-      <Box flexGrow={1}>
-        <SearchBar
-          key="search-bar"
-          placeholder={searchPlaceholder}
-          size="small"
-          fullWidth
-          value={searchValue}
-          onChange={(e: React.ChangeEvent<HTMLInputElement>) =>
-            onSearchChange(e.target.value)
-          }
-          disabled={searchDisabled}
-        />
-      </Box>
-      {addButton && (
-        <Button
-          {...(addButton.component
-            ? { component: addButton.component, to: addButton.to }
-            : {})}
-          onClick={addButton.onClick}
-          variant="contained"
-          color="primary"
-          startIcon={<Plus size={16} />}
-        >
-          {addButton.label}
-        </Button>
-      )}
-    </Stack>
+    <SearchBar
+      key="search-bar"
+      placeholder={searchPlaceholder}
+      size="small"
+      fullWidth
+      value={searchValue}
+      onChange={(e: React.ChangeEvent<HTMLInputElement>) =>
+        onSearchChange(e.target.value)
+      }
+      disabled={searchDisabled}
+    />
   );
 
   const renderBody = () => {

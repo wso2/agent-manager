@@ -174,7 +174,21 @@ export const EvalEvaluatorsOrganization: React.FC = () => {
 
   return (
     <>
-      <PageLayout title="Evaluators" disableIcon>
+      <PageLayout
+        title="Evaluators"
+        disableIcon
+        actions={
+          <Button
+            variant="contained"
+            component={Link}
+            to={generatePath(evaluatorsRouteMap.children.create.path, routeParams)}
+            startIcon={<Plus />}
+            color="primary"
+          >
+            Create Evaluator
+          </Button>
+        }
+      >
         <Stack spacing={2}>
           <Stack
             direction="row"
@@ -227,18 +241,6 @@ export const EvalEvaluatorsOrganization: React.FC = () => {
                 </MenuItem>
               ))}
             </Select>
-            <Button
-              variant="contained"
-              component={Link}
-              to={generatePath(
-                evaluatorsRouteMap.children.create.path,
-                routeParams,
-              )}
-              startIcon={<Plus />}
-              color="primary"
-            >
-              Create Evaluator
-            </Button>
           </Stack>
 
           {evaluatorsError ? (

@@ -17,10 +17,13 @@
  */
 
 import React from "react";
+import { Button } from "@wso2/oxygen-ui";
+import { Plus } from "@wso2/oxygen-ui-icons-react";
 import { PageLayout } from "@agent-management-platform/views";
 import { LLMProviderTable } from "./subComponents/LLMProviderTable";
 import {
   generatePath,
+  Link,
   Navigate,
   Route,
   Routes,
@@ -37,7 +40,25 @@ export const LLMProvidersOrganization: React.FC = () => {
       <Route
         index
         element={
-          <PageLayout title="LLM Service Providers" disableIcon>
+          <PageLayout
+            title="LLM Service Providers"
+            disableIcon
+            actions={
+              <Button
+                variant="contained"
+                color="primary"
+                component={Link}
+                to={generatePath(
+                  absoluteRouteMap.children.org.children.llmProviders.children.add
+                    .path,
+                  { orgId },
+                )}
+                startIcon={<Plus size={16} />}
+              >
+                Add Service Provider
+              </Button>
+            }
+          >
             <LLMProviderTable />
           </PageLayout>
         }

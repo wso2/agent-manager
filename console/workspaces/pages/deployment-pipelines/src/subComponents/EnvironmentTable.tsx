@@ -167,11 +167,6 @@ export function EnvironmentTable({
       onSearchChange={setSearch}
       searchPlaceholder="Search environments..."
       searchDisabled={isLoading}
-      addButton={
-        onCreateEnvironment && items.length > 0
-          ? { label: "Create Environment", onClick: onCreateEnvironment }
-          : undefined
-      }
       error={
         error
           ? new Error(

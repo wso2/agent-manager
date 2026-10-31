@@ -17,7 +17,9 @@
  */
 
 import React from "react";
-import { Navigate, Route, Routes, generatePath, useParams, useSearchParams } from "react-router-dom";
+import { Link, Navigate, Route, Routes, generatePath, useParams, useSearchParams } from "react-router-dom";
+import { Button } from "@wso2/oxygen-ui";
+import { Plus } from "@wso2/oxygen-ui-icons-react";
 import { absoluteRouteMap } from "@agent-management-platform/types";
 import { PageLayout } from "@agent-management-platform/views";
 import { RolesPage } from "./subComponents/agentIdentity/RolesPage";
@@ -30,6 +32,12 @@ const rolesNode = absoluteRouteMap.children.org.children.thunderInstances.childr
 const TITLE = "Roles";
 
 function RolesListPage() {
+  const { orgId } = useParams<{ orgId: string }>();
+  const [searchParams] = useSearchParams();
+  const createPath = orgId
+    ? withSearchParams(generatePath(rolesNode.children.create.path, { orgId }), searchParams)
+    : "#";
+
   return (
     <AgentIdentityEnvironmentGate title={TITLE}>
       {() => (
@@ -37,6 +45,17 @@ function RolesListPage() {
           title={TITLE}
           description="Roles available in the selected environment's identity provider."
           disableIcon
+          actions={
+            <Button
+              variant="contained"
+              color="primary"
+              component={Link}
+              to={createPath}
+              startIcon={<Plus size={16} />}
+            >
+              Create Role
+            </Button>
+          }
         >
           <RolesPage />
         </PageLayout>

@@ -19,13 +19,12 @@ import React, { useEffect, useMemo, useState } from "react";
 import {
   Alert,
   Avatar,
-  Button,
   IconButton,
   ListingTable,
   TablePagination,
   Tooltip,
 } from "@wso2/oxygen-ui";
-import { Folder, Plus, Trash } from "@wso2/oxygen-ui-icons-react";
+import { Folder, Trash } from "@wso2/oxygen-ui-icons-react";
 import { generatePath, useNavigate, useParams, useSearchParams } from "react-router-dom";
 import {
   useDeleteAgentIdentityGroup,
@@ -70,10 +69,6 @@ export const GroupsPage: React.FC = () => {
   const groupsNode =
     absoluteRouteMap.children.org.children.thunderInstances.children.groups;
 
-  const createPath = orgId
-    ? withSearchParams(generatePath(groupsNode.children.create.path, { orgId }), searchParams)
-    : "#";
-
   const editGroupPath = (groupId: string) =>
     orgId
       ? withSearchParams(
@@ -116,19 +111,7 @@ export const GroupsPage: React.FC = () => {
       <ListingTable.Provider searchValue={search} onSearchChange={setSearch}>
         <ListingTable.Container>
           <AgentIdentityEnvironmentTabs />
-          <ListingTable.Toolbar
-            showSearch
-            searchPlaceholder="Search groups..."
-            actions={
-              <Button
-                variant="contained"
-                startIcon={<Plus />}
-                onClick={() => navigate(createPath)}
-              >
-                Create Group
-              </Button>
-            }
-          />
+          <ListingTable.Toolbar showSearch searchPlaceholder="Search groups..." />
           {!isLoading && filteredGroups.length === 0 ? (
             search ? (
               <ListingTable.EmptyState

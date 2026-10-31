@@ -17,6 +17,8 @@
 
 import { useState, type ComponentType } from "react";
 import { generatePath, Navigate, Route, Routes, useNavigate, useParams } from "react-router-dom";
+import { Button } from "@wso2/oxygen-ui";
+import { Plus } from "@wso2/oxygen-ui-icons-react";
 import {
   PageLayout,
   useExternalComponentModulesByMountPoint,
@@ -80,7 +82,20 @@ export function EnvironmentsOrganization() {
         <Route
           index
           element={
-            <PageLayout title="Environments" disableIcon>
+            <PageLayout
+              title="Environments"
+              disableIcon
+              actions={
+                <Button
+                  variant="contained"
+                  color="primary"
+                  startIcon={<Plus size={16} />}
+                  onClick={() => setCreateOpen(true)}
+                >
+                  Create Environment
+                </Button>
+              }
+            >
               <EnvironmentTable
                 onEditEnvironment={(env) =>
                   navigate(

@@ -261,11 +261,6 @@ export function DeploymentPipelineTable({
       }}
       searchPlaceholder="Search pipelines..."
       searchDisabled={isLoading}
-      addButton={
-        onCreatePipeline && pipelines.length > 0
-          ? { label: "Create Pipeline", onClick: onCreatePipeline }
-          : undefined
-      }
       error={
         error
           ? new Error(

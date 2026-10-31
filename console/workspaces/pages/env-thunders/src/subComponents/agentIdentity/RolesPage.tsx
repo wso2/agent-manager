@@ -19,13 +19,12 @@ import React, { useEffect, useMemo, useState } from "react";
 import {
   Alert,
   Avatar,
-  Button,
   IconButton,
   ListingTable,
   TablePagination,
   Tooltip,
 } from "@wso2/oxygen-ui";
-import { Plus, Shield, Trash } from "@wso2/oxygen-ui-icons-react";
+import { Shield, Trash } from "@wso2/oxygen-ui-icons-react";
 import { generatePath, useNavigate, useParams, useSearchParams } from "react-router-dom";
 import {
   useDeleteAgentIdentityRole,
@@ -70,10 +69,6 @@ export const RolesPage: React.FC = () => {
   const rolesNode =
     absoluteRouteMap.children.org.children.thunderInstances.children.roles;
 
-  const createPath = orgId
-    ? withSearchParams(generatePath(rolesNode.children.create.path, { orgId }), searchParams)
-    : "#";
-
   const editRolePath = (roleId: string) =>
     orgId
       ? withSearchParams(
@@ -116,19 +111,7 @@ export const RolesPage: React.FC = () => {
       <ListingTable.Provider searchValue={search} onSearchChange={setSearch}>
         <ListingTable.Container>
           <AgentIdentityEnvironmentTabs />
-          <ListingTable.Toolbar
-            showSearch
-            searchPlaceholder="Search roles..."
-            actions={
-              <Button
-                variant="contained"
-                startIcon={<Plus />}
-                onClick={() => navigate(createPath)}
-              >
-                Create Role
-              </Button>
-            }
-          />
+          <ListingTable.Toolbar showSearch searchPlaceholder="Search roles..." />
           {!isLoading && filteredRoles.length === 0 ? (
             search ? (
               <ListingTable.EmptyState

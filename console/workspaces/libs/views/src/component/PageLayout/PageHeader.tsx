@@ -22,12 +22,9 @@ import { Link } from 'react-router-dom';
 import { resolveEntityAvatarProps, type EntityAvatarProps } from '../EntityAvatar';
 import { PageMetaList } from '../PageMeta';
 
-const AVATAR_SIZE = 55;
-
 // Hoisted so this header — which every page renders, and which re-renders with
 // whatever page state sits above it — doesn't hand emotion new style objects to
 // serialize on each pass.
-const TITLE_BLOCK_SX = { mb: 2 } as const;
 const TITLE_SX = { display: 'inline-flex', alignItems: 'center', width: '100%' } as const;
 const TITLE_TEXT_SX = {
   overflow: 'hidden',
@@ -88,7 +85,6 @@ export function PageHeader({
           name: title,
           color: 'primary.main',
           shape: 'circular',
-          size: AVATAR_SIZE,
           ...avatar,
         });
 
@@ -109,7 +105,7 @@ export function PageHeader({
    * extracted into components of our own.
    */
   return (
-    <PageTitle sx={TITLE_BLOCK_SX}>
+    <PageTitle>
       {backHref && (
         <PageTitle.BackButton component={<Link to={backHref} />}>
           {backLabel || 'Back'}
@@ -119,12 +115,12 @@ export function PageHeader({
         (isLoading ? (
           <PageTitle.Avatar
             variant={avatarProps.variant}
-            sx={{ width: AVATAR_SIZE, height: AVATAR_SIZE, bgcolor: 'transparent' }}
+            sx={{ bgcolor: 'transparent' }}
           >
             <Skeleton
               variant={avatarProps.variant === 'circular' ? 'circular' : 'rounded'}
-              width={AVATAR_SIZE}
-              height={AVATAR_SIZE}
+              width="100%"
+              height="100%"
             />
           </PageTitle.Avatar>
         ) : (

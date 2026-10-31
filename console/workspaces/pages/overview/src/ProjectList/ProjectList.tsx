@@ -271,30 +271,27 @@ export function ProjectList() {
     <PageLayout
       title="All Projects"
       disableIcon
+      actions={
+        <Button
+          variant="contained"
+          color="primary"
+          startIcon={<Plus size={16} />}
+          component={Link}
+          to={generatePath(absoluteRouteMap.children.org.children.newProject.path, { orgId })}
+        >
+          Add Project
+        </Button>
+      }
     >
       <Box sx={{ display: "flex", flexDirection: "column", gap: 4 }}>
-        <Box display="flex" gap={2}>
-          <Box flexGrow={1}>
-            <SearchBar
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              placeholder="Search Projects"
-              disabled={!projects?.projects?.length}
-              size="small"
-              fullWidth
-            />
-          </Box>
-          <Button
-            variant="contained"
-            color="primary"
-            size="small"
-            startIcon={<Plus size={16} />}
-            component={Link}
-            to={generatePath(absoluteRouteMap.children.org.children.newProject.path, { orgId })}
-          >
-            Add Project
-          </Button>
-        </Box>
+        <SearchBar
+          value={search}
+          onChange={(e) => setSearch(e.target.value)}
+          placeholder="Search Projects"
+          disabled={!projects?.projects?.length}
+          size="small"
+          fullWidth
+        />
 
         {filteredProjects.length === 0 && !isLoadingProjects && (
           <NoDataFound
