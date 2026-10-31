@@ -48,6 +48,7 @@ const (
 	ActionAgentIdentityRegenerateSecret  Action = "agent-identity:regenerate-secret"
 	ActionAgentIdentityRevokeSecret      Action = "agent-identity:revoke-secret"
 	ActionAgentIdentityRetryProvisioning Action = "agent-identity:retry-provisioning"
+	ActionAgentIdentityPromote           Action = "agent-identity:promote"
 
 	ActionServiceAccountConfigure Action = "service-account:configure"
 	ActionServiceAccountRemove    Action = "service-account:remove"
@@ -241,6 +242,18 @@ func init() {
 		"agentName":   KindName,
 		"environment": KindName,
 		"clientId":    KindIdentifier,
+	})
+	registerCredential(ActionAgentIdentityPromote, map[string]FieldKind{
+		"agentName":           KindName,
+		"environment":         KindName,
+		"sourceEnvironment":   KindName,
+		"provisioningType":    KindName,
+		"clientId":            KindIdentifier,
+		"roleCount":           KindCount,
+		"groupCount":          KindCount,
+		"resourceServerCount": KindCount,
+		"carried":             KindFlag,
+		"trigger":             KindName,
 	})
 	registerCredential(ActionAgentIdentityRetryProvisioning, map[string]FieldKind{
 		"agentName":   KindName,

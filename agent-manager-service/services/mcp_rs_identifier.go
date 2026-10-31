@@ -95,8 +95,26 @@ func (s *MCPProxyService) MCPResourceServerIdentifier(ctx context.Context, ouID 
 
 // EnsureResourceServer ensures proxy's resource server and given actions
 // exist in envID's env-Thunder, so role creation and scope save register the
-// identical server. Returns the resource server's Thunder ID.
+// identical server, then activates it on the environment gateway. Returns the
+// resource server's Thunder ID.
 func (s *MCPProxyService) EnsureResourceServer(
+	ctx context.Context, ouID string, envID uuid.UUID, client thundersvc.EnvIdentityClient,
+	proxy *models.MCPProxy, actions []string,
+) (string, error) {
+	rsID, err := s.EnsureResourceServerWithoutActivation(ctx, ouID, envID, client, proxy, actions)
+	if err != nil {
+		return "", err
+	}
+	if err := activateMCPResourceServer(ctx, client, rsID); err != nil {
+		return "", err
+	}
+	return rsID, nil
+}
+
+// EnsureResourceServerWithoutActivation is EnsureResourceServer without the
+// activation. A caller that ensures several servers, or writes more after
+// ensuring, activates once itself, so one request is one capture and apply.
+func (s *MCPProxyService) EnsureResourceServerWithoutActivation(
 	ctx context.Context, ouID string, envID uuid.UUID, client thundersvc.EnvIdentityClient,
 	proxy *models.MCPProxy, actions []string,
 ) (string, error) {
@@ -110,6 +128,19 @@ func (s *MCPProxyService) EnsureResourceServer(
 		name = proxy.Artifact.Name
 	}
 	return client.EnsureProxyResourceServer(ctx, handle, name, identifier, actions)
+}
+
+// activateMCPResourceServer makes a resource server write visible on the
+// environment gateway. A client without activation (direct Thunder) needs none.
+func activateMCPResourceServer(ctx context.Context, client thundersvc.EnvIdentityClient, rsID string) error {
+	activator, ok := client.(thundersvc.EnvironmentIdentityActivator)
+	if !ok {
+		return nil
+	}
+	if err := activator.ActivateMCPResourceServer(ctx, rsID); err != nil {
+		return fmt.Errorf("activate MCP resource server on environment gateway: %w", err)
+	}
+	return nil
 }
 
 // EnsureResourceServersForProxy best-effort registers proxy's resource server
@@ -183,4 +214,78 @@ func (s *MCPProxyService) ensureResourceServersForCurrentScopes(ctx context.Cont
 		actions = append(actions, sc.Action)
 	}
 	s.EnsureResourceServersForProxy(ctx, ouID, proxy, actions)
+}
+
+var _ AgentMCPResourceServerResolver = (*MCPProxyService)(nil)
+
+// ResolveAgentMCPResourceServers lists the MCP resource servers the agent's
+// OAuth-secured connections need in envName, each with the identifier its proxy
+// is served under there. A proxy that is not identity secured, or not deployed
+// to envName, needs none. Each proxy appears once however many connections use it.
+func (s *MCPProxyService) ResolveAgentMCPResourceServers(ctx context.Context, ouID, projectName, agentName,
+	envName string,
+) ([]MCPResourceServerPromotion, error) {
+	envUUID, err := s.EnvironmentUUIDByName(ctx, ouID, envName)
+	if err != nil {
+		return nil, err
+	}
+	configs, err := s.agentConfigRepo.ListByAgent(ctx, ouID, projectName, agentName, agentConfigListAll, 0)
+	if err != nil {
+		return nil, fmt.Errorf("list agent configurations: %w", err)
+	}
+	var servers []MCPResourceServerPromotion
+	seen := map[uuid.UUID]bool{}
+	for i := range configs {
+		if configs[i].TypeID != models.AgentConfigTypeIDMCP {
+			continue
+		}
+		mappings, err := s.envMCPMappingRepo.ListByConfig(ctx, configs[i].UUID)
+		if err != nil {
+			return nil, fmt.Errorf("list MCP mappings for %s: %w", configs[i].Name, err)
+		}
+		for j := range mappings {
+			proxy := mappings[j].MCPProxy
+			if mappings[j].EnvironmentUUID != envUUID || proxy == nil || seen[proxy.UUID] {
+				continue
+			}
+			seen[proxy.UUID] = true
+			if !proxyIdentitySecuredIn(proxy, envUUID) {
+				continue
+			}
+			identifier, err := s.MCPResourceServerIdentifier(ctx, ouID, envUUID, proxy)
+			if errors.Is(err, ErrMCPProxyNotDeployedToEnvironment) {
+				s.logger.Warn("MCP proxy is not deployed to the promotion target; no resource server is carried",
+					"proxy", proxyHandleOf(proxy), "env", envName)
+				continue
+			}
+			if err != nil {
+				return nil, err
+			}
+			displayName := proxyHandleOf(proxy)
+			if proxy.Artifact != nil && proxy.Artifact.Name != "" {
+				displayName = proxy.Artifact.Name
+			}
+			servers = append(servers, MCPResourceServerPromotion{
+				ProxyHandle: proxyHandleOf(proxy), DisplayName: displayName, Identifier: identifier,
+			})
+		}
+	}
+	return servers, nil
+}
+
+// proxyIdentitySecuredIn reports whether the proxy has an identity-secured
+// endpoint deployed to the environment.
+func proxyIdentitySecuredIn(proxy *models.MCPProxy, envUUID uuid.UUID) bool {
+	for i := range proxy.Endpoints {
+		endpoint := &proxy.Endpoints[i]
+		if !mcpIdentityEnabled(endpoint.Configuration.Security) {
+			continue
+		}
+		for j := range endpoint.Environments {
+			if endpoint.Environments[j].EnvironmentUUID == envUUID && endpoint.Environments[j].ArtifactUUID != uuid.Nil {
+				return true
+			}
+		}
+	}
+	return false
 }
