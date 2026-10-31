@@ -1341,7 +1341,7 @@ func (c *openChoreoClient) ListComponents(ctx context.Context, ouID, projectName
 		return nil, fmt.Errorf("failed to list components: %w", err)
 	}
 	if resp.StatusCode() != http.StatusOK {
-		return nil, handleErrorResponse(resp.StatusCode(), ErrorResponses{
+		return nil, handleProjectErrorResponse(resp.StatusCode(), projectName, ErrorResponses{
 			JSON401: resp.JSON401,
 			JSON403: resp.JSON403,
 			JSON404: resp.JSON404,
@@ -1395,7 +1395,7 @@ func (c *openChoreoClient) CountProjectComponents(ctx context.Context, ouID, pro
 			return 0, fmt.Errorf("failed to list components: %w", err)
 		}
 		if resp.StatusCode() != http.StatusOK {
-			return 0, handleErrorResponse(resp.StatusCode(), ErrorResponses{
+			return 0, handleProjectErrorResponse(resp.StatusCode(), projectName, ErrorResponses{
 				JSON401: resp.JSON401,
 				JSON403: resp.JSON403,
 				JSON404: resp.JSON404,

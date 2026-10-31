@@ -70,6 +70,66 @@ func TestDefaultProjectTypeName(t *testing.T) {
 	assert.Equal(t, "default", DefaultProjectTypeName)
 }
 
+// Controllers map ErrProjectNotFound to a 404 and DeleteProject treats it as an
+// idempotent success; a bare ErrNotFound reaches the client as a 500. Callers that
+// translate the generic ErrNotFound themselves must keep matching it.
+func TestProjectScopedCalls_NotFoundIsProjectNotFound(t *testing.T) {
+	ctx := context.Background()
+	calls := map[string]func(c *openChoreoClient) error{
+		"GetProject": func(c *openChoreoClient) error {
+			_, err := c.GetProject(ctx, "acme", "missing")
+			return err
+		},
+		"PatchProject": func(c *openChoreoClient) error {
+			return c.PatchProject(ctx, "acme", "missing", PatchProjectRequest{DeploymentPipeline: "default"})
+		},
+		"DeleteProject": func(c *openChoreoClient) error {
+			return c.DeleteProject(ctx, "acme", "missing")
+		},
+		"ListComponents": func(c *openChoreoClient) error {
+			_, err := c.ListComponents(ctx, "acme", "missing")
+			return err
+		},
+		"CountProjectComponents": func(c *openChoreoClient) error {
+			_, err := c.CountProjectComponents(ctx, "acme", "missing")
+			return err
+		},
+	}
+
+	for name, call := range calls {
+		t.Run(name+"/404", func(t *testing.T) {
+			c := newTestClient(t, statusServer(http.StatusNotFound, gen.NOTFOUND))
+			err := call(c)
+			require.ErrorIs(t, err, utils.ErrProjectNotFound)
+			require.ErrorIs(t, err, utils.ErrNotFound)
+		})
+		t.Run(name+"/404 without OpenChoreo body", func(t *testing.T) {
+			c := newTestClientRawHeaders(t, http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+				w.Header().Set("Content-Type", "text/html")
+				w.WriteHeader(http.StatusNotFound)
+				_, _ = w.Write([]byte("<html>404 Not Found</html>"))
+			}))
+			err := call(c)
+			require.Error(t, err)
+			require.NotErrorIs(t, err, utils.ErrProjectNotFound)
+			require.NotErrorIs(t, err, utils.ErrNotFound)
+		})
+		t.Run(name+"/500", func(t *testing.T) {
+			c := newTestClient(t, statusServer(http.StatusInternalServerError, gen.INTERNALERROR))
+			err := call(c)
+			require.ErrorIs(t, err, utils.ErrInternalServerError)
+			require.NotErrorIs(t, err, utils.ErrProjectNotFound)
+		})
+	}
+}
+
+func statusServer(status int, code gen.ErrorResponseCode) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.WriteHeader(status)
+		_ = json.NewEncoder(w).Encode(gen.ErrorResponse{Code: code, Error: "upstream says " + string(code)})
+	})
+}
+
 // A missing project must reach the controller as a project-specific 404,
 // including when cleanup polls after a successful deletion.
 func TestGetProject_ErrorMapping(t *testing.T) {

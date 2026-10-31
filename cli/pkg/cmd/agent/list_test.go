@@ -81,3 +81,24 @@ func TestList_JSONOutput(t *testing.T) {
 		t.Fatal("expected data key in JSON envelope")
 	}
 }
+
+func TestList_ProjectNotFound(t *testing.T) {
+	io, out, _ := newTestIO(true)
+	client, _, closeFn := newTestClient(t, http.StatusNotFound, amsvc.ErrorResponse{
+		Code:    "PROJECT_NOT_FOUND",
+		Message: "Project not found",
+	})
+	defer closeFn()
+
+	err := runList(context.Background(), &ListOptions{
+		IO: io, Client: client, Scope: baseScope(),
+		Org: "acme", Proj: "missing",
+	})
+	if err == nil {
+		t.Fatal("expected error for 404")
+	}
+	errBody := decodeEnvelope(t, out.String())["error"].(map[string]any)
+	if errBody["code"] != "PROJECT_NOT_FOUND" {
+		t.Errorf("code = %v, want PROJECT_NOT_FOUND", errBody["code"])
+	}
+}

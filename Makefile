@@ -406,12 +406,16 @@ setup-ai-gateway: dev-migrate
 # Run one suite:         make e2e-test SUITE=monitors
 # Run a suite group:     make e2e-test SUITE=cli            (recursive: all suites under tests/cli/)
 # Run with focus filter to run a specific test case: make e2e-test FOCUS="Project Deletion Conflict"
-# A focused run (FOCUS) runs serially (--procs=1); everything else uses -p.
-GINKGO_PROCS := $(if $(FOCUS),--procs=1,-p)
+# A focused run (FOCUS) runs serially (--procs=1); everything else uses --procs=2,
+# matching CI: a single-node k3d cluster can't fit more concurrent per-environment
+# stacks. At --procs=2 a full run needs the longer timeout. Override either:
+#   make e2e-test GINKGO_PROCS=-p E2E_TIMEOUT=45m
+GINKGO_PROCS ?= $(if $(FOCUS),--procs=1,--procs=2)
+E2E_TIMEOUT ?= 70m
 e2e-test:
 	@echo "Running E2E tests..."
 	@cd test/e2e && set -a && [ -f .env ] && . ./.env; set +a && \
-		go run github.com/onsi/ginkgo/v2/ginkgo -v $(GINKGO_PROCS) --timeout 45m --poll-progress-after=600s \
+		go run github.com/onsi/ginkgo/v2/ginkgo -v $(GINKGO_PROCS) --timeout $(E2E_TIMEOUT) --poll-progress-after=600s \
 		--keep-going --junit-report=e2e-report.xml --output-dir=. \
 		$(if $(FOCUS),--focus="$(FOCUS)") $(if $(SUITE),./tests/$(SUITE)/...,./tests/...)
 

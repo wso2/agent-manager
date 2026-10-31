@@ -7,7 +7,7 @@ HTTP API. Written in Go with [Ginkgo](https://onsi.github.io/ginkgo/) /
 ## Quick start
 
 ```bash
-cp .env.example .env          # set OPENAI_API_KEY; other defaults match quick-start install
+cp .env.example .env          # set OPENAI_API_KEY; other defaults match quick-start install (for `make setup`, see below)
 make e2e-test                          # run all suites (from repo root)
 make e2e-test SUITE=monitors           # one suite
 make e2e-test FOCUS="Project Deletion Conflict"   # one spec by description
@@ -28,7 +28,41 @@ A spec reads as `It` steps that delegate to `operations/` and `testsetup/`.
 ## Configuration
 
 All config is environment variables with defaults matching the quick-start
-install (see `.env.example`). 
+install (see `.env.example`).
+
+## Running against `make setup`
+
+`make setup` runs agent-manager-service in docker-compose on `:9000` rather than
+in the cluster, so the quick-start defaults point at the wrong places. In `.env`,
+uncomment the four values in the "Local `make setup` cluster" block:
+
+| Variable | Value | Without it |
+|----------|-------|------------|
+| `AMP_API_BASE_URL` | `http://localhost:9000` | every suite waits on `/healthz` (404) until `READINESS_TIMEOUT`, then aborts |
+| `GATEWAY_CHART` | `deployments/helm-charts/wso2-amp-api-platform-gateway-extension` | `add-environment.sh` pulls the OCI chart, which has no `0.0.0-dev` tag |
+| `AGENT_MANAGER_INTERNAL_BASE_URL` | `http://host.docker.internal:9000` | a new environment's gateway bootstrap Job can't reach the API; the Helm install times out |
+| `AGENT_MANAGER_INTERNAL_CP` | `host.docker.internal:9243` | the new gateway can't reach the control plane |
+
+`GATEWAY_CHART` may be repo-relative; the harness resolves it against the
+checkout root.
+
+Before a run, check the things that fail slowly and look like test bugs:
+
+- **The OpenChoreo API port-forward is alive.**
+  `curl -s -o /dev/null -w '%{http_code}' http://localhost:8195/api/v1/namespaces`
+  should print `401`. If it can't connect, every `/orgs` call returns 500.
+  Restart the forwards with `make stop-port-forward && make port-forward PLATFORM=true BACKGROUND=true`.
+- **The evaluation image is in k3d.**
+  `docker exec k3d-openchoreo-local-setup-server-0 crictl images | grep amp-evaluation-monitor`.
+  The kubelet garbage-collects unused images when the node disk is nearly full,
+  and monitor runs then sit in `ImagePullBackOff`. Reload it with
+  `make -C evaluation-job docker-load-k3d`.
+- **`OPENAI_API_KEY` has no space after `=`.** The file is sourced as shell, so
+  `OPENAI_API_KEY= sk-...` leaves the key empty.
+
+Shared fixtures are reused by name even when an earlier run left them broken
+(for example a second environment whose gateway never installed). After an
+aborted run, delete the `e2e-` environments and projects before running again.
 
 ## Shared fixtures
 
@@ -51,7 +85,7 @@ The `agent` suite is the canonical builder; other suites reuse by name. All
 
 ## Parallel execution (important for setup code)
 
-CI and `make e2e-test` run with `ginkgo -p`. What that means:
+CI and `make e2e-test` run with `ginkgo --procs=2`. What that means:
 
 - One suite runs at a time, but Ginkgo runs **that suite as N separate OS
   processes** and splits its specs (`Describe` blocks) across them. So specs in
