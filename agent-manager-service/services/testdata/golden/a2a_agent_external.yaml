@@ -1,7 +1,7 @@
 apiVersion: gateway.api-platform.wso2.com/v1
 kind: Agent
 metadata:
-    name: checkout-trip-planner-11111111222233334444555555555555
+    name: trip-plann-244504ba118da08d
 spec:
     displayName: trip-planner
     version: v1.0

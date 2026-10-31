@@ -208,7 +208,7 @@ func (p *A2APublisher) GatewayURL(ouID string, envUUID uuid.UUID, agentName stri
 	if err != nil || gateway == nil {
 		return "", err
 	}
-	return a2aGatewayURL(gateway, agentName), nil
+	return agentGatewayURL(gateway, agentName), nil
 }
 
 const (

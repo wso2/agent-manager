@@ -174,7 +174,7 @@ func (k *A2AAgentKind) render(
 		apiCfg.OAuthForwardToken = false
 	}
 	content, err := generateA2AAgentDeploymentYAML(A2AAgentDeploymentInput{
-		ArtifactName: a2aAgentEnvArtifactName(env.projectName, env.agentName, env.environmentUUID.String()),
+		ArtifactName: agentGatewayName(env.projectName, env.agentName, env.environmentUUID.String()),
 		DisplayName:  env.agentName,
 		AgentName:    env.agentName,
 		UpstreamURL:  upstream.url,

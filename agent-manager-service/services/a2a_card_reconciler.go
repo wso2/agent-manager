@@ -278,7 +278,7 @@ func (s *a2aCardReconcilerService) fetchCardThroughGateway(ctx context.Context, 
 	if err != nil {
 		return a2aCardFetch{}, err
 	}
-	url := a2aGatewayURL(gateway, row.AgentName) + a2aAgentCardPath
+	url := agentGatewayURL(gateway, row.AgentName) + a2aAgentCardPath
 	body, err := s.fetcher.Fetch(ctx, url)
 	if err != nil {
 		return a2aCardFetch{url: url}, prefixA2APublicError(url, err)

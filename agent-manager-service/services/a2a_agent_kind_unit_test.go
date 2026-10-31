@@ -35,8 +35,8 @@ import (
 	"github.com/wso2/agent-manager/agent-manager-service/repositories/repomocks"
 )
 
-// The fixture below is copied verbatim into the a20829291 writer that produced testdata/golden/a2a_agent_*.yaml
-// from main's publication reconciler inputs (attemptPublish).
+// testdata/golden/a2a_agent_*.yaml were first produced by the a20829291 writer from this fixture (main's
+// publication reconciler inputs, attemptPublish); they are hand-edited since: metadata.name is now agentGatewayName.
 
 // goldenA2AConfig is an A2A agent's environment config with every part of the Agent render: API-key security,
 // agent CORS and its own card CORS.
