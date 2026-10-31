@@ -66,7 +66,7 @@ func TestEnsureResourceServer_RequiresGatewayActivation(t *testing.T) {
 	}
 	svc := &MCPProxyService{
 		deploymentRepo: &repomocks.DeploymentRepositoryMock{
-			GetDeployedGatewaysByProviderFunc: func(uuid.UUID, string) ([]string, error) {
+			PlacedGatewaysFunc: func(context.Context, string, uuid.UUID) ([]string, error) {
 				return []string{gwID.String()}, nil
 			},
 		},
@@ -364,7 +364,7 @@ func TestResolveAgentMCPResourceServers_ReturnsTargetIdentifiersOncePerIdentityS
 			ListByConfigFunc: func(_ context.Context, id uuid.UUID) ([]models.EnvAgentMCPMapping, error) { return mappings[id], nil },
 		},
 		deploymentRepo: &repomocks.DeploymentRepositoryMock{
-			GetDeployedGatewaysByProviderFunc: func(uuid.UUID, string) ([]string, error) { return []string{gwID.String()}, nil },
+			PlacedGatewaysFunc: func(context.Context, string, uuid.UUID) ([]string, error) { return []string{gwID.String()}, nil },
 		},
 		gatewayRepo: &repomocks.GatewayRepositoryMock{
 			EnvironmentMappingExistsFunc: func(string, string) (bool, error) { return true, nil },
@@ -395,7 +395,7 @@ func TestMCPResourceServerIdentifier_EqualsTheURLInjectedIntoTheAgent(t *testing
 	gateway := &models.Gateway{UUID: gwUUID, Vhost: "gateway.stage.example.test"}
 	svc := &MCPProxyService{
 		deploymentRepo: &repomocks.DeploymentRepositoryMock{
-			GetDeployedGatewaysByProviderFunc: func(uuid.UUID, string) ([]string, error) { return []string{gwUUID.String()}, nil },
+			PlacedGatewaysFunc: func(context.Context, string, uuid.UUID) ([]string, error) { return []string{gwUUID.String()}, nil },
 		},
 		gatewayRepo: &repomocks.GatewayRepositoryMock{
 			EnvironmentMappingExistsFunc: func(string, string) (bool, error) { return true, nil },

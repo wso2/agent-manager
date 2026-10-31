@@ -457,7 +457,7 @@ func newIdentityResourceFixture(t *testing.T) *identityResourceFixture {
 			return []*models.EnvironmentResponse{{Name: "staging", UUID: stagingUUID.String()}}, nil
 		}},
 		deploymentRepo: &repomocks.DeploymentRepositoryMock{
-			GetDeployedGatewaysByProviderFunc: func(uuid.UUID, string) ([]string, error) { return []string{gwUUID.String()}, nil },
+			PlacedGatewaysFunc: func(context.Context, string, uuid.UUID) ([]string, error) { return []string{gwUUID.String()}, nil },
 		},
 		gatewayRepo: &repomocks.GatewayRepositoryMock{
 			EnvironmentMappingExistsFunc: func(string, string) (bool, error) { return true, nil },
