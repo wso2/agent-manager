@@ -35,15 +35,13 @@ import {
   Plus as Add,
   Trash2 as DeleteOutlineOutlined,
   User,
-  Edit,
 } from "@wso2/oxygen-ui-icons-react";
 
 const { DataGrid: DataGridComponent } = DataGrid;
+
 import {
   PageLayout,
   FadeIn,
-  DescriptionCard,
-  CreatedMetadata,
   EntityAvatar,
 } from "@agent-management-platform/views";
 import { generatePath, useNavigate, useParams } from "react-router-dom";
@@ -54,11 +52,8 @@ import {
 import {
   useListAgents,
   useDeleteAgent,
-  useGetProject,
   useListAgentKinds,
 } from "@agent-management-platform/api-client";
-import { AgentTypeSummery } from "./subComponents/AgentTypeSummery";
-import { DeploymentPipelineCard } from "./subComponents/DeploymentPipelineCard";
 import {
   AgentTypeChips,
   ResourceListShell,
@@ -67,17 +62,19 @@ import {
   useConfirmationDialog,
 } from "@agent-management-platform/shared-component";
 
-export function ListPageSkeleton() {
+const agentPath =
+  absoluteRouteMap.children.org.children.projects.children.agents.path;
+
+// Detect touch device for alternative interaction pattern
+const isTouchDevice =
+  typeof window !== "undefined" &&
+  ("ontouchstart" in window || navigator.maxTouchPoints > 0);
+
+function ListPageSkeleton() {
   return (
     <Stack direction="row" justifyContent="space-between" gap={4}>
       <Stack direction="column" sx={{ flexGrow: 1 }} spacing={4}>
-        {/* Search and Add Agent button skeleton */}
-        <Stack direction="row" spacing={1}>
-          <Box flexGrow={1}>
-            <Skeleton variant="rounded" width="100%" height={40} />
-          </Box>
-          <Skeleton variant="rounded" width={120} height={40} />
-        </Stack>
+        <Skeleton variant="rounded" width="100%" height={40} />
 
         {/* Table skeleton */}
         <Box display="flex" flexDirection="column" gap={1}>
@@ -96,30 +93,20 @@ export function ListPageSkeleton() {
         </Box>
       </Stack>
 
-      {/* Agent Type Summary skeleton */}
-      <Box width={250}>
-        <Skeleton variant="rounded" width="100%" height={200} />
-      </Box>
     </Stack>
   );
 }
 
-export interface AgentWithHref extends AgentResponse {
+interface AgentWithHref extends AgentResponse {
   href: string;
   id: string;
-  agentInfo: { name: string; displayName: string; description: string };
 }
 
-export const AgentsList: React.FC = () => {
+export const AgentListing: React.FC = () => {
   const [search, setSearch] = useState("");
   const [hoveredAgentId, setHoveredAgentId] = useState<string | null>(null);
   const [page, setPage] = useState(0);
   const [rowsPerPage, setRowsPerPage] = useState(5);
-
-  // Detect touch device for alternative interaction pattern
-  const isTouchDevice =
-    typeof window !== "undefined" &&
-    ("ontouchstart" in window || navigator.maxTouchPoints > 0);
 
   const { orgId, projectId } = useParams<{
     orgId: string;
@@ -131,10 +118,6 @@ export const AgentsList: React.FC = () => {
     projName: projectId,
   });
   const { mutate: deleteAgent, isPending: isDeletingAgent } = useDeleteAgent();
-  const { data: project, isLoading: isProjectLoading } = useGetProject({
-    orgName: orgId,
-    projName: projectId,
-  });
   const { data: kindsData } = useListAgentKinds({ orgName: orgId });
 
   const kindDisplayNameMap = useMemo(() => {
@@ -176,39 +159,6 @@ export const AgentsList: React.FC = () => {
     );
   }, [navigate, orgId, projectId]);
 
-  const getRelativeTime = useCallback(
-    (date?: string) => formatRelativeTime(date, { fallback: "—" }),
-    [],
-  );
-
-  const getAgentPath = (isInternal: boolean) => {
-    let path =
-      absoluteRouteMap.children.org.children.projects.children.agents.path;
-    if (isInternal) {
-      path =
-        absoluteRouteMap.children.org.children.projects.children.agents.path;
-    }
-    return path;
-  };
-
-  useEffect(() => {
-    if (
-      orgId &&
-      projectId &&
-      !data?.agents?.length &&
-      !isLoading &&
-      !isRefetching
-    ) {
-      navigate(
-        generatePath(
-          absoluteRouteMap.children.org.children.projects.children.newAgent
-            .path,
-          { orgId: orgId ?? "", projectId: projectId ?? "" },
-        ),
-      );
-    }
-  }, [orgId, projectId, data?.agents, isLoading, isRefetching, navigate]);
-
   const agentsWithHref: AgentWithHref[] = useMemo(
     () =>
       data?.agents
@@ -227,7 +177,7 @@ export const AgentsList: React.FC = () => {
         .map((agent) => ({
           ...agent,
           href: generatePath(
-            getAgentPath(agent.provisioning.type === "internal"),
+            agentPath,
             {
               orgId: orgId ?? "",
               projectId: agent.projectName,
@@ -235,11 +185,6 @@ export const AgentsList: React.FC = () => {
             },
           ),
           id: agent.name,
-          agentInfo: {
-            name: agent.name,
-            displayName: agent.displayName,
-            description: agent.description,
-          },
         })) ?? [],
     [data?.agents, search, orgId],
   );
@@ -260,42 +205,24 @@ export const AgentsList: React.FC = () => {
   );
 
   const isPageLoading =
-    isProjectLoading ||
-    (isRefetching && !data?.agents?.length) ||
-    isDeletingAgent;
+    (isRefetching && !data?.agents?.length) || isDeletingAgent;
 
   return (
     <PageLayout
-      title={project?.displayName ?? "Agents"}
-      meta={
-        project ? (
-          <CreatedMetadata createdAt={project.createdAt} />
-        ) : undefined
-      }
+      title="Agents"
       isLoading={isPageLoading}
       actions={
         <Button
-          variant="outlined"
+          variant="contained"
           color="primary"
           size="small"
-          startIcon={<Edit size={16} />}
-          onClick={() =>
-            navigate(
-              generatePath(
-                absoluteRouteMap.children.org.children.projects.children.edit.path,
-                { orgId: orgId ?? "", projectId: projectId ?? "" },
-              ),
-            )
-          }
-          disabled={!project}
+          startIcon={<Add size={16} />}
+          onClick={handleAddAgent}
         >
-          Edit Project
+          Create Agent
         </Button>
       }
     >
-      {project?.description && (
-        <DescriptionCard content={project.description} sx={{ mb: 4 }} />
-      )}
       {isLoading ? (
         <ListPageSkeleton />
       ) : (
@@ -318,29 +245,16 @@ export const AgentsList: React.FC = () => {
               searchValue={search}
               onSearchChange={setSearch}
               toolbar={
-                <Stack direction="row" spacing={1}>
-                  <Box flexGrow={1}>
-                    <SearchBar
-                      placeholder="Search agents"
-                      size="small"
-                      fullWidth
-                      onChange={(e: React.ChangeEvent<HTMLInputElement>) =>
-                        setSearch(e.target.value)
-                      }
-                      value={search}
-                      disabled={!data?.agents?.length}
-                    />
-                  </Box>
-                  <Button
-                    variant="contained"
-                    color="primary"
-                    size="small"
-                    startIcon={<Add size={16} />}
-                    onClick={handleAddAgent}
-                  >
-                    Add Agent
-                  </Button>
-                </Stack>
+                <SearchBar
+                  placeholder="Search agents"
+                  size="small"
+                  fullWidth
+                  onChange={(e: React.ChangeEvent<HTMLInputElement>) =>
+                    setSearch(e.target.value)
+                  }
+                  value={search}
+                  disabled={!data?.agents?.length}
+                />
               }
               isLoading={isRefetching && !data?.agents?.length}
               isEmpty={!data?.agents?.length}
@@ -371,7 +285,7 @@ export const AgentsList: React.FC = () => {
                     startIcon={<Add />}
                     onClick={handleAddAgent}
                   >
-                    Add New Agent
+                    Create Agent
                   </Button>
                 ),
               }}
@@ -488,7 +402,7 @@ export const AgentsList: React.FC = () => {
                                 color="text.secondary"
                                 noWrap
                               >
-                                {getRelativeTime(agent.createdAt)}
+                                {formatRelativeTime(agent.createdAt, { fallback: "—" })}
                               </Typography>
                             )}
                           </Stack>
@@ -514,20 +428,10 @@ export const AgentsList: React.FC = () => {
               </Box>
             </ResourceListShell>
           </Stack>
-          <Box
-            display="flex"
-            flexDirection="column"
-            gap={2}
-            width={450}
-            height="fit-content"
-          >
-            <AgentTypeSummery />
-            <DeploymentPipelineCard />
-          </Box>
         </Stack>
       )}
     </PageLayout>
   );
 };
 
-export default AgentsList;
+export default AgentListing;

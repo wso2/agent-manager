@@ -102,7 +102,7 @@ function SkeletonCard() {
   return <Skeleton variant="rounded" height={CARD_HEIGHT} />;
 }
 
-export function ProjectList() {
+export function ProjectListing() {
   const { orgId } = useParams();
 
   const {

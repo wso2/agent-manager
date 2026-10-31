@@ -46,6 +46,7 @@
     "@agent-management-platform/shared-component": "workspace:*",
     "js-yaml": "4.3.2",
     "zod": "4.6.7",
+    "@agent-management-platform/level-resource-listing": "workspace:*",
     "@agent-management-platform/overview": "workspace:*",
     "@agent-management-platform/configure-agent": "workspace:*",
     "@agent-management-platform/build": "workspace:*",

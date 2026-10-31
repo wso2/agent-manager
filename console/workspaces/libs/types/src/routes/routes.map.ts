@@ -264,10 +264,20 @@ export const rootRouteMap: AppRoute = {
                     index: true,
                     children: {},
                 },
+                projectListing: {
+                    path: 'projects',
+                    index: true,
+                    children: {},
+                },
                 projects: {
                     path: 'project/:projectId',
                     index: true,
                     children: {
+                        agentListing: {
+                            path: 'agents',
+                            index: true,
+                            children: {},
+                        },
                         edit: {
                             path: 'edit',
                             index: true,

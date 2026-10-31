@@ -245,10 +245,20 @@ export const generatedRouteMap =  {
           "wildPath": "/org/:orgId/newProject/*",
           "children": {}
         },
+        "projectListing": {
+          "path": "/org/:orgId/projects",
+          "wildPath": "/org/:orgId/projects/*",
+          "children": {}
+        },
         "projects": {
           "path": "/org/:orgId/project/:projectId",
           "wildPath": "/org/:orgId/project/:projectId/*",
           "children": {
+            "agentListing": {
+              "path": "/org/:orgId/project/:projectId/agents",
+              "wildPath": "/org/:orgId/project/:projectId/agents/*",
+              "children": {}
+            },
             "edit": {
               "path": "/org/:orgId/project/:projectId/edit",
               "wildPath": "/org/:orgId/project/:projectId/edit/*",
