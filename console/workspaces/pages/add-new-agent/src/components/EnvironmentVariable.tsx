@@ -16,7 +16,7 @@
  * under the License.
  */
 
-import { Box, Button, Card, CardContent, Typography } from "@wso2/oxygen-ui";
+import { Box, Button, Form, Typography } from "@wso2/oxygen-ui";
 import { Plus as Add } from "@wso2/oxygen-ui-icons-react";
 import { EnvFileUploadButton, EnvVariableEditor } from "@agent-management-platform/views";
 import { CreateAgentFormValues } from "../form/schema";
@@ -107,71 +107,69 @@ export const EnvironmentVariable = ({
   };
 
   return (
-    <Card variant="outlined">
-      <CardContent>
-        <Typography variant="h5">
-          {hideAdd ? "Environment Variables" : "Environment Variables (Optional)"}
-        </Typography>
-        <Box display="flex" flexDirection="column" py={2} gap={2}>
-          {envVariables.map((item, index) => {
-            const siblingKeys = new Set(
-              envVariables.flatMap((e, i) => (i !== index && e.key ? [e.key] : [])),
-            );
-            const isLocked = !!item.key && lockedKeys.has(item.key);
-            const isKindSecret = !!item.key && kindSecretKeys.has(item.key);
-            const keyError = item.key && llmReservedNames.has(item.key)
-              ? "Already used as an LLM provider variable"
-              : item.key && siblingKeys.has(item.key)
-                ? "Duplicate key"
-                : undefined;
-            // A kind-declared secret with a default (isKindSecret) is intentionally
-            // left blank to inherit that default server-side — not a missing value.
-            const valueError =
-              showMissingValueError && item.key && !item.value?.trim() && !isKindSecret
-                ? "Value is required"
-                : undefined;
-            return (
-              <EnvVariableEditor
-                key={`env-${resetKey}-${index}`}
-                index={index}
-                keyValue={item.key || ''}
-                valueValue={item.value || ''}
-                isSensitive={item.isSensitive || false}
-                isExistingSecret={isKindSecret}
-                valueLabel={isKindSecret ? "Value (uses kind default unless edited)" : undefined}
-                onKeyChange={(value) => handleChange(index, 'key', value)}
-                onValueChange={(value) => handleChange(index, 'value', value)}
-                onBulkPaste={isLocked ? undefined : handleEnvFileParsed}
-                onSensitiveChange={isKindSecret ? undefined : (value: boolean) => handleChange(index, 'isSensitive', value)}
-                onRemove={isLocked ? () => {} : () => handleRemove(index)}
-                keyDisabled={isLocked}
-                keyError={keyError}
-                valueError={valueError}
-              />
-            );
-          })}
-        </Box>
-        {!hideAdd && (
-          <Box display="flex" flexDirection="row" alignItems="center" gap={1.5} flexWrap="wrap">
-            <Button
-              startIcon={<Add fontSize="small" />}
-              disabled={isOneEmpty}
-              variant="outlined"
-              color="primary"
-              size="small"
-              onClick={handleAdd}
-            >
-              Add
-            </Button>
-            <Box display="flex" flexDirection="column" alignItems="flex-start">
-              <EnvFileUploadButton onParsed={handleEnvFileParsed} />
-            </Box>
-            <Typography variant="caption" color="text.secondary">
-              or paste .env text into a Key field above
-            </Typography>
+    <Form.Section>
+      <Form.Subheader>
+        {hideAdd ? "Environment Variables" : "Environment Variables (Optional)"}
+      </Form.Subheader>
+      <Box display="flex" flexDirection="column" gap={2}>
+        {envVariables.map((item, index) => {
+          const siblingKeys = new Set(
+            envVariables.flatMap((e, i) => (i !== index && e.key ? [e.key] : [])),
+          );
+          const isLocked = !!item.key && lockedKeys.has(item.key);
+          const isKindSecret = !!item.key && kindSecretKeys.has(item.key);
+          const keyError = item.key && llmReservedNames.has(item.key)
+            ? "Already used as an LLM provider variable"
+            : item.key && siblingKeys.has(item.key)
+              ? "Duplicate key"
+              : undefined;
+          // A kind-declared secret with a default (isKindSecret) is intentionally
+          // left blank to inherit that default server-side — not a missing value.
+          const valueError =
+            showMissingValueError && item.key && !item.value?.trim() && !isKindSecret
+              ? "Value is required"
+              : undefined;
+          return (
+            <EnvVariableEditor
+              key={`env-${resetKey}-${index}`}
+              index={index}
+              keyValue={item.key || ''}
+              valueValue={item.value || ''}
+              isSensitive={item.isSensitive || false}
+              isExistingSecret={isKindSecret}
+              valueLabel={isKindSecret ? "Value (uses kind default unless edited)" : undefined}
+              onKeyChange={(value) => handleChange(index, 'key', value)}
+              onValueChange={(value) => handleChange(index, 'value', value)}
+              onBulkPaste={isLocked ? undefined : handleEnvFileParsed}
+              onSensitiveChange={isKindSecret ? undefined : (value: boolean) => handleChange(index, 'isSensitive', value)}
+              onRemove={isLocked ? () => {} : () => handleRemove(index)}
+              keyDisabled={isLocked}
+              keyError={keyError}
+              valueError={valueError}
+            />
+          );
+        })}
+      </Box>
+      {!hideAdd && (
+        <Box display="flex" flexDirection="row" alignItems="center" gap={1.5} flexWrap="wrap">
+          <Button
+            startIcon={<Add fontSize="small" />}
+            disabled={isOneEmpty}
+            variant="outlined"
+            color="primary"
+            size="small"
+            onClick={handleAdd}
+          >
+            Add
+          </Button>
+          <Box display="flex" flexDirection="column" alignItems="flex-start">
+            <EnvFileUploadButton onParsed={handleEnvFileParsed} />
           </Box>
-        )}
-      </CardContent>
-    </Card>
+          <Typography variant="caption" color="text.secondary">
+            or paste .env text into a Key field above
+          </Typography>
+        </Box>
+      )}
+    </Form.Section>
   );
 };

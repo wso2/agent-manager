@@ -16,7 +16,7 @@
  * under the License.
  */
 
-import { Box, Button, Card, CardContent, Typography } from "@wso2/oxygen-ui";
+import { Box, Button, Form } from "@wso2/oxygen-ui";
 import { Plus as Add } from "@wso2/oxygen-ui-icons-react";
 import { FileMountEditor } from "@agent-management-platform/views";
 import { CreateAgentFormValues } from "../form/schema";
@@ -57,50 +57,45 @@ export const FileMount = ({
   };
 
   return (
-    <Card variant="outlined">
-      <CardContent>
-        <Box display="flex" flexDirection="row" alignItems="center" gap={1}>
-          <Typography variant="h5">
-            File Mounts (Optional)
-          </Typography>
-        </Box>
-        <Box display="flex" flexDirection="column" py={2} gap={2}>
-          {fileMounts.map((item, index) => {
-            const siblingKeys = new Set(
-              fileMounts.flatMap((f, i) => (i !== index && f.key ? [f.key] : [])),
-            );
-            const keyError = item.key && siblingKeys.has(item.key)
-              ? "Duplicate file name"
-              : undefined;
-            return (
-              <FileMountEditor
-                key={`file-${index}`}
-                index={index}
-                keyValue={item.key || ''}
-                mountPathValue={item.mountPath || ''}
-                contentValue={item.value || ''}
-                isSensitive={item.isSensitive || false}
-                onKeyChange={(value) => handleChange(index, 'key', value)}
-                onMountPathChange={(value) => handleChange(index, 'mountPath', value)}
-                onContentChange={(value) => handleChange(index, 'value', value)}
-                onSensitiveChange={(value: boolean) => handleChange(index, 'isSensitive', value)}
-                onRemove={() => handleRemove(index)}
-                keyError={keyError}
-              />
-            );
-          })}
-        </Box>
-        <Button
-          startIcon={<Add fontSize="small" />}
-          disabled={isOneEmpty}
-          variant="outlined"
-          color="primary"
-          size="small"
-          onClick={handleAdd}
-        >
-          Add File
-        </Button>
-      </CardContent>
-    </Card>
+    <Form.Section>
+      <Form.Subheader>File Mounts (Optional)</Form.Subheader>
+      <Box display="flex" flexDirection="column" gap={2}>
+        {fileMounts.map((item, index) => {
+          const siblingKeys = new Set(
+            fileMounts.flatMap((f, i) => (i !== index && f.key ? [f.key] : [])),
+          );
+          const keyError = item.key && siblingKeys.has(item.key)
+            ? "Duplicate file name"
+            : undefined;
+          return (
+            <FileMountEditor
+              key={`file-${index}`}
+              index={index}
+              keyValue={item.key || ''}
+              mountPathValue={item.mountPath || ''}
+              contentValue={item.value || ''}
+              isSensitive={item.isSensitive || false}
+              onKeyChange={(value) => handleChange(index, 'key', value)}
+              onMountPathChange={(value) => handleChange(index, 'mountPath', value)}
+              onContentChange={(value) => handleChange(index, 'value', value)}
+              onSensitiveChange={(value: boolean) => handleChange(index, 'isSensitive', value)}
+              onRemove={() => handleRemove(index)}
+              keyError={keyError}
+            />
+          );
+        })}
+      </Box>
+      <Button
+        startIcon={<Add fontSize="small" />}
+        disabled={isOneEmpty}
+        variant="outlined"
+        color="primary"
+        size="small"
+        onClick={handleAdd}
+        sx={{ alignSelf: "flex-start" }}
+      >
+        Add File
+      </Button>
+    </Form.Section>
   );
 };
