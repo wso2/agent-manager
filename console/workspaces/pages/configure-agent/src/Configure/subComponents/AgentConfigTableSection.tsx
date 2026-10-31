@@ -25,7 +25,6 @@ import {
   Tooltip,
   Typography,
 } from "@wso2/oxygen-ui";
-import { formatDistanceToNow } from "date-fns";
 import {
   AlertTriangle,
   Plus,
@@ -33,7 +32,7 @@ import {
   Trash,
 } from "@wso2/oxygen-ui-icons-react";
 import { Link, useNavigate, useParams } from "react-router-dom";
-import { useConfirmationDialog } from "@agent-management-platform/shared-component";
+import { formatRelativeTime, useConfirmationDialog } from "@agent-management-platform/shared-component";
 // This table is generic over an agent's configs (LLM, MCP, ...). The types lib
 // intentionally aliases the MCP list response to the model-config one, so the
 // item shape is genuinely shared; alias it to a neutral name for readability.
@@ -311,9 +310,7 @@ export function AgentConfigTableSection({
           </ListingTable.Cell>
           <ListingTable.Cell>
             {config.createdAt
-              ? formatDistanceToNow(new Date(config.createdAt), {
-                  addSuffix: true,
-                })
+              ? formatRelativeTime(config.createdAt)
               : "-"}
           </ListingTable.Cell>
           <ListingTable.Cell align="right">

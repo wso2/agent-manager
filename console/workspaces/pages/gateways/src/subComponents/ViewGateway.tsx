@@ -17,8 +17,9 @@
 
 import React from "react";
 import {
-  getErrorMessage,
+  formatRelativeTime,
   GatewayTypeChip,
+  getErrorMessage,
 } from "@agent-management-platform/shared-component";
 import {
   Alert,
@@ -30,7 +31,6 @@ import {
   Typography,
 } from "@wso2/oxygen-ui";
 import { AlertTriangle } from "@wso2/oxygen-ui-icons-react";
-import { formatDistanceToNow } from "date-fns";
 import { generatePath, useParams } from "react-router-dom";
 import { useGetGateway } from "@agent-management-platform/api-client";
 import {
@@ -74,9 +74,7 @@ export const ViewGateway: React.FC = () => {
         backLabel="Back to gateways"
         description={
           gateway?.createdAt
-            ? `Created ${formatDistanceToNow(new Date(gateway.createdAt), {
-                addSuffix: true,
-              })}`
+            ? `Created ${formatRelativeTime(gateway.createdAt)}`
             : undefined
         }
         isLoading={isLoading}

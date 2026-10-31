@@ -37,7 +37,6 @@ import {
   Search,
   Trash,
 } from "@wso2/oxygen-ui-icons-react";
-import { formatDistanceToNow } from "date-fns";
 import { generatePath, useNavigate, useParams } from "react-router-dom";
 import {
   useDeleteDeploymentPipeline,
@@ -49,6 +48,7 @@ import {
   type DeploymentPipelineResponse,
 } from "@agent-management-platform/types";
 import {
+  formatRelativeTime,
   getIsolationTierMeta,
   ResourceListShell,
   useConfirmationDialog,
@@ -385,9 +385,7 @@ export function DeploymentPipelineTable({
                     </FadeIn>
                   ) : (
                     <Typography variant="caption" color="text.secondary">
-                      {formatDistanceToNow(new Date(pipeline.createdAt), {
-                        addSuffix: true,
-                      })}
+                      {formatRelativeTime(pipeline.createdAt)}
                     </Typography>
                   )}
                 </Stack>

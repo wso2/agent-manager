@@ -1,5 +1,6 @@
 import React from "react";
-import { Avatar, Box, Divider, Form, formatRelativeTime, Tooltip, Typography } from "@wso2/oxygen-ui";
+import { Avatar, Box, Divider, Form, Tooltip, Typography } from "@wso2/oxygen-ui";
+import { formatRelativeTime } from "@agent-management-platform/shared-component";
 import { Link } from "react-router-dom";
 import { BookOpenText, Tag, Clock as TimerOutlined } from "@wso2/oxygen-ui-icons-react";
 import type { AgentKindResponse } from "@agent-management-platform/types";
@@ -14,7 +15,7 @@ interface CatalogKindCardProps {
 export const CatalogKindCard: React.FC<CatalogKindCardProps> = ({ item, viewPath }) => {
 
     const createdAtText = item.createdAt
-        ? formatRelativeTime(new Date(item.createdAt))
+        ? formatRelativeTime(item.createdAt)
         : "—";
 
     return (

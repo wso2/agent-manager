@@ -18,6 +18,7 @@
 
 import { useGetAgentKind } from "@agent-management-platform/api-client";
 import { absoluteRouteMap } from "@agent-management-platform/types";
+import { formatRelativeTime } from "@agent-management-platform/shared-component";
 import { MarkdownView } from "@agent-management-platform/views";
 import {
     Box,
@@ -30,7 +31,6 @@ import {
     Typography,
 } from "@wso2/oxygen-ui";
 import { ExternalLink, Tag } from "@wso2/oxygen-ui-icons-react";
-import { formatDistanceToNow } from "date-fns";
 import React from "react";
 import { generatePath, Link } from "react-router-dom";
 import { UppercaseCaptionLabel } from "./SectionHeader";
@@ -104,10 +104,7 @@ export const KindInfoCard: React.FC<KindInfoCardProps> = ({
                                     </Box>
                                     {versionData && (
                                         <Typography variant="body2" color="text.secondary" noWrap>
-                                            {formatDistanceToNow(
-                                                new Date(versionData.createdAt),
-                                                { addSuffix: true },
-                                            )}
+                                            {formatRelativeTime(versionData.createdAt)}
                                         </Typography>
                                     )}
                                 </Box>

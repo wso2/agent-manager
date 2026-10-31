@@ -28,10 +28,10 @@ import {
   Typography,
 } from "@wso2/oxygen-ui";
 import { AlertTriangle, Copy, DoorClosedLocked, KeyRound } from "@wso2/oxygen-ui-icons-react";
-import { formatDistanceToNow } from "date-fns";
 import { generatePath, useNavigate, useParams } from "react-router-dom";
 import {
   copyToClipboard,
+  formatRelativeTime,
   GatewayTypeChip,
   getAvatarInitials,
   getErrorMessage,
@@ -124,7 +124,7 @@ export function EnvironmentViewPage() {
       backLabel="Back to environments"
       description={
         env?.createdAt
-          ? `Created ${formatDistanceToNow(new Date(env.createdAt), { addSuffix: true })}`
+          ? `Created ${formatRelativeTime(env.createdAt)}`
           : undefined
       }
       isLoading={isLoadingEnv}

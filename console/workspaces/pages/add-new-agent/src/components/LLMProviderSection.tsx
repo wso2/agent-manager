@@ -59,7 +59,6 @@ import {
   Trash2,
   Zap,
 } from "@wso2/oxygen-ui-icons-react";
-import { formatDistanceToNow } from "date-fns";
 import { useParams, generatePath } from "react-router-dom";
 import {
   useListCatalogLLMProviders,
@@ -67,6 +66,7 @@ import {
   useListLLMProviderTemplates,
 } from "@agent-management-platform/api-client";
 import {
+  formatRelativeTime,
   PolicyListSection,
   type PolicySelection as GuardrailSelection,
 } from "@agent-management-platform/shared-component";
@@ -240,7 +240,7 @@ const ProviderDisplay: React.FC<{
         </Stack>
         {latest?.deployedAt && (
           <Typography variant="caption" color="text.secondary">
-            Deployed {formatDistanceToNow(new Date(latest.deployedAt), { addSuffix: true })}
+            Deployed {formatRelativeTime(latest.deployedAt)}
           </Typography>
         )}
         <Divider orientation="vertical" />

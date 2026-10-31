@@ -29,10 +29,10 @@ import {
   Typography,
 } from "@wso2/oxygen-ui";
 import { Edit, Plus, Search, Server, Trash } from "@wso2/oxygen-ui-icons-react";
-import { formatDistanceToNow } from "date-fns";
 import { generatePath, useNavigate, useParams } from "react-router-dom";
 import { useListEnvironments } from "@agent-management-platform/api-client";
 import {
+  formatRelativeTime,
   getErrorMessage,
   IsolationTierChip,
   ResourceListShell,
@@ -297,9 +297,7 @@ export function EnvironmentTable({
                     </FadeIn>
                   ) : (
                     <Typography variant="caption" color="text.secondary">
-                      {formatDistanceToNow(new Date(env.createdAt), {
-                        addSuffix: true,
-                      })}
+                      {formatRelativeTime(env.createdAt)}
                     </Typography>
                   )}
                 </Stack>

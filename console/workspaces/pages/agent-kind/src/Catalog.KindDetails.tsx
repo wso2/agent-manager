@@ -18,7 +18,6 @@
 
 
 import React, { useMemo, useState } from "react";
-import { formatDistanceToNow } from "date-fns";
 import { Link, generatePath, useNavigate, useParams, useSearchParams } from "react-router-dom";
 import {
   Alert,
@@ -35,7 +34,7 @@ import {
 } from "@wso2/oxygen-ui";
 import { PageLayout, DescriptionCard, PageMetaItem } from "@agent-management-platform/views";
 import { absoluteRouteMap, withBasePath } from "@agent-management-platform/types";
-import { LabelChips, SwaggerSpecViewer, parseOpenApiSpecContent } from "@agent-management-platform/shared-component";
+import { formatRelativeTime, LabelChips, parseOpenApiSpecContent, SwaggerSpecViewer } from "@agent-management-platform/shared-component";
 import { useGetAgentKind, useGetBuild, useListKindAgents, useListProjects, useGetAgentKindVersion } from "@agent-management-platform/api-client";
 import { SectionCard } from "./SectionCard";
 import { Clock, ExternalLink, BookOpenText, Plus, Tag } from "@wso2/oxygen-ui-icons-react";
@@ -351,7 +350,7 @@ export const CatalogKindDetails: React.FC = () => {
                         <ListingTable.Cell>
                           {agent.createdAt ? (
                             <Typography variant="body2" color="text.secondary">
-                              {formatDistanceToNow(new Date(agent.createdAt), { addSuffix: true })}
+                              {formatRelativeTime(agent.createdAt)}
                             </Typography>
                           ) : (
                             <Typography variant="body2" color="text.secondary">—</Typography>

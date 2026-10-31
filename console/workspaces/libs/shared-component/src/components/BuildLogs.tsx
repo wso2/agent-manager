@@ -26,9 +26,9 @@ import {
   LogsPanel,
 } from "@agent-management-platform/views";
 import { Clock, FileText, Logs } from "@wso2/oxygen-ui-icons-react";
+import { formatRelativeTime } from "../utils/format";
 import { Alert, Box, Skeleton, Stack, Typography } from "@wso2/oxygen-ui";
 import { BuildSteps } from "./BuildSteps";
-import { formatDistanceToNow } from "date-fns";
 
 import { getErrorMessage } from "../utils/errorHelpers";
 import { useMemo, useState } from "react";
@@ -145,7 +145,7 @@ export function BuildLogs({
             <Stack direction="row" gap={1} alignItems="center">
               <Clock size={16} />
               <Typography variant="body2" color="text.secondary">
-                Triggered {formatDistanceToNow(new Date(build.startedAt), { addSuffix: true })}
+                Triggered {formatRelativeTime(build.startedAt)}
               </Typography>
             </Stack>
           )}

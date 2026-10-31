@@ -48,7 +48,6 @@ import {
   Search,
   ServerCog,
 } from "@wso2/oxygen-ui-icons-react";
-import { formatDistanceToNow } from "date-fns";
 import { generatePath, useNavigate, useParams } from "react-router-dom";
 import {
   absoluteRouteMap,
@@ -67,6 +66,7 @@ import {
   useUpdateAgentModelConfig,
 } from "@agent-management-platform/api-client";
 import {
+  formatRelativeTime,
   getErrorMessage,
   PolicyListSection,
   type PolicySelection as GuardrailSelection,
@@ -329,9 +329,7 @@ export const ProviderDisplay: React.FC<{
           {latest?.deployedAt && (
             <Typography variant="caption" color="text.secondary">
               Deployed{" "}
-              {formatDistanceToNow(new Date(latest.deployedAt), {
-                addSuffix: true,
-              })}
+              {formatRelativeTime(latest.deployedAt)}
             </Typography>
           )}
 

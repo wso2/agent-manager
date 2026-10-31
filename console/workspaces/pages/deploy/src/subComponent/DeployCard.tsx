@@ -71,11 +71,12 @@ import {
   ALLOWED,
   DeploymentStatus,
   EnvStatus,
+  formatRelativeTime,
+  formatUsagePercent,
+  getUsagePercentVariant,
   IsolationTierBadge,
   ResourceMetricChip,
   RestrictedAction,
-  formatUsagePercent,
-  getUsagePercentVariant,
   useAgentEnvironmentAccess,
 } from "@agent-management-platform/shared-component";
 import { EditDeployConfigDrawer } from "./EditDeployConfigDrawer";
@@ -92,7 +93,6 @@ import {
   isInstrumentableLanguage,
   normalizePythonMinor,
 } from "../utils/instrumentation";
-import { formatDistanceToNow } from "date-fns";
 import { useCallback, useMemo, useState } from "react";
 import { EditResourceConfigsDrawer } from "./EditResourceConfigsDrawer";
 import { PromoteAgentDrawer } from "./PromoteAgentDrawer";
@@ -467,9 +467,7 @@ export function DeployCard(props: DeployCardProps) {
 
   const selectedBuildId = extractBuildIdFromImageId(currentDeployment?.imageId);
   const lastDeployedText = currentDeployment?.lastDeployed
-    ? formatDistanceToNow(new Date(currentDeployment.lastDeployed), {
-      addSuffix: true,
-    })
+    ? formatRelativeTime(currentDeployment.lastDeployed)
     : "Unknown";
 
   const handleStop = () => {

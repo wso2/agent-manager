@@ -15,7 +15,7 @@
  * under the License.
  */
 
-import { formatDistanceToNow } from "date-fns";
+import { formatRelativeTime as oxygenFormatRelativeTime } from "@wso2/oxygen-ui";
 
 export function normalizeVersion(value: string): string;
 export function normalizeVersion(value: string | undefined): string | undefined;
@@ -38,6 +38,13 @@ export function capitalize(value: string): string {
   return value.charAt(0).toUpperCase() + value.slice(1);
 }
 
+/**
+ * Relative timestamp in the design system's wording ("Just now", "2 hours
+ * ago"), falling back to an absolute date once "ago" stops being useful.
+ *
+ * Wraps Oxygen's formatter rather than restating it, adding only the guards
+ * Oxygen's `Date`-only signature lacks: missing and unparseable values.
+ */
 export function formatRelativeTime(
   value: string | number | Date | undefined,
   options: { fallback?: string } = {},
@@ -46,5 +53,5 @@ export function formatRelativeTime(
   if (value === undefined || value === null || value === "") return fallback;
   const date = value instanceof Date ? value : new Date(value);
   if (Number.isNaN(date.getTime())) return fallback;
-  return formatDistanceToNow(date, { addSuffix: true });
+  return oxygenFormatRelativeTime(date);
 }

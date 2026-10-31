@@ -34,7 +34,6 @@ import {
   Button,
   Divider,
   Form,
-  formatRelativeTime,
   IconButton,
   ListingTable,
   SearchBar,
@@ -51,7 +50,11 @@ import {
   Trash2 as TrashOutline,
 } from "@wso2/oxygen-ui-icons-react";
 import { type MouseEvent, useCallback, useMemo, useState } from "react";
-import { isListEmpty, useConfirmationDialog } from "@agent-management-platform/shared-component";
+import {
+  formatRelativeTime,
+  isListEmpty,
+  useConfirmationDialog,
+} from "@agent-management-platform/shared-component";
 
 const CARD_HEIGHT = 116;
 
@@ -78,7 +81,7 @@ function ProjectCard(props: {
   );
 
   const createdAtText = project.createdAt
-    ? formatRelativeTime(new Date(project.createdAt))
+    ? formatRelativeTime(project.createdAt)
     : "—";
 
   const handleDeleteClick = useCallback(
