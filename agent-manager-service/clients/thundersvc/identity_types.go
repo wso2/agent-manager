@@ -16,7 +16,9 @@
 
 package thundersvc
 
-import "encoding/json"
+import (
+	"encoding/json"
+)
 
 // ThunderUser represents a user in Thunder.
 type ThunderUser struct {
