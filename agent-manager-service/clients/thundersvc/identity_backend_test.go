@@ -109,6 +109,32 @@ func cpTarget() EnvironmentIdentityTarget {
 	}
 }
 
+func TestCPManagementURLRequiresSecureTransport(t *testing.T) {
+	for _, tc := range []struct {
+		name    string
+		url     string
+		allowed bool
+	}{
+		{name: "https", url: "https://cp.example.test", allowed: true},
+		{name: "localhost", url: "http://localhost:8090", allowed: true},
+		{name: "ipv4 loopback", url: "http://127.0.0.1:8090", allowed: true},
+		{name: "ipv6 loopback", url: "http://[::1]:8090", allowed: true},
+		{name: "remote http", url: "http://cp.example.test", allowed: false},
+		{name: "localhost suffix", url: "http://localhost.example.test", allowed: false},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			target := cpTarget()
+			target.ManagementURL = tc.url
+			err := target.validateManagement()
+			if tc.allowed {
+				require.NoError(t, err)
+			} else {
+				require.ErrorContains(t, err, "https is required")
+			}
+		})
+	}
+}
+
 func TestRoutingEnvThunderResolverDefaultsToLegacy(t *testing.T) {
 	legacy := &legacyBackendStub{}
 	resolver, err := NewRoutingEnvThunderResolver("", nil, legacy, nil)
@@ -226,15 +252,16 @@ func TestRoutingEnvThunderResolverMixedLegacy(t *testing.T) {
 
 func TestRoutingEnvThunderResolverRejectsAmbiguousTargets(t *testing.T) {
 	for name, mutate := range map[string]func(*EnvironmentIdentityTarget){
-		"organization": func(target *EnvironmentIdentityTarget) { target.OUID = "other-org" },
-		"namespace":    func(target *EnvironmentIdentityTarget) { target.OrgNamespace = "other-namespace" },
-		"environment":  func(target *EnvironmentIdentityTarget) { target.Environment = "development" },
-		"deployment":   func(target *EnvironmentIdentityTarget) { target.DeploymentID = "" },
-		"gateway":      func(target *EnvironmentIdentityTarget) { target.GatewayID = "" },
-		"runtime":      func(target *EnvironmentIdentityTarget) { target.TokenURL = "" },
-		"url-userinfo": func(target *EnvironmentIdentityTarget) { target.ManagementURL = "https://name:secret@cp.example.test" },
-		"url-fragment": func(target *EnvironmentIdentityTarget) { target.JWKSURL += "#fragment" },
-		"url-scheme":   func(target *EnvironmentIdentityTarget) { target.IssuerURL = "file:///tmp/thunder" },
+		"organization":   func(target *EnvironmentIdentityTarget) { target.OUID = "other-org" },
+		"namespace":      func(target *EnvironmentIdentityTarget) { target.OrgNamespace = "other-namespace" },
+		"environment":    func(target *EnvironmentIdentityTarget) { target.Environment = "development" },
+		"deployment":     func(target *EnvironmentIdentityTarget) { target.DeploymentID = "" },
+		"gateway":        func(target *EnvironmentIdentityTarget) { target.GatewayID = "" },
+		"runtime":        func(target *EnvironmentIdentityTarget) { target.TokenURL = "" },
+		"url-userinfo":   func(target *EnvironmentIdentityTarget) { target.ManagementURL = "https://name:secret@cp.example.test" },
+		"url-plain-http": func(target *EnvironmentIdentityTarget) { target.ManagementURL = "http://cp.example.test" },
+		"url-fragment":   func(target *EnvironmentIdentityTarget) { target.JWKSURL += "#fragment" },
+		"url-scheme":     func(target *EnvironmentIdentityTarget) { target.IssuerURL = "file:///tmp/thunder" },
 	} {
 		t.Run(name, func(t *testing.T) {
 			legacy := &legacyBackendStub{}

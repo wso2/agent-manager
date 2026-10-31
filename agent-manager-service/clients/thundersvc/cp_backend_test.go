@@ -134,7 +134,7 @@ func TestCPIdentityBackendNeverSendsOutsideManagementHost(t *testing.T) {
 		t.Fatal(err)
 	}
 	managed := client.(*cpManagedClient)
-	req, err := http.NewRequest(http.MethodGet, other.URL+"/agents", nil)
+	req, err := http.NewRequestWithContext(context.Background(), http.MethodGet, other.URL+"/agents", nil)
 	if err != nil {
 		t.Fatal(err)
 	}

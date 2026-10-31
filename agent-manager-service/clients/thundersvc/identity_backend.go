@@ -20,8 +20,10 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"net"
 	"net/http"
 	"net/url"
+	"strings"
 )
 
 type IdentityManagementMode string
@@ -73,7 +75,7 @@ func (t EnvironmentIdentityTarget) validateManagement() error {
 		t.DeploymentID == "" || t.GatewayID == "" {
 		return errors.New("complete CP organization, environment, deployment, and gateway target is required")
 	}
-	if err := validateIdentityURL(t.ManagementURL); err != nil {
+	if err := validateCPManagementURL(t.ManagementURL); err != nil {
 		return fmt.Errorf("invalid CP management URL: %w", err)
 	}
 	return nil
@@ -234,10 +236,10 @@ func (r *routingEnvThunderResolver) selectTarget(ctx context.Context, ouID, orgN
 		}
 		return target, false, nil
 	case IdentityManagementCPManaged:
-		if target.DeploymentID == "" || target.GatewayID == "" {
-			return EnvironmentIdentityTarget{}, false, errors.New("CP identity target lacks management, gateway, or runtime metadata")
+		if err := target.validateManagement(); err != nil {
+			return EnvironmentIdentityTarget{}, false, err
 		}
-		for _, value := range []string{target.ManagementURL, target.IssuerURL, target.TokenURL, target.JWKSURL} {
+		for _, value := range []string{target.IssuerURL, target.TokenURL, target.JWKSURL} {
 			if err := validateIdentityURL(value); err != nil {
 				return EnvironmentIdentityTarget{}, false, fmt.Errorf("invalid CP identity target URL: %w", err)
 			}
@@ -255,4 +257,21 @@ func validateIdentityURL(value string) error {
 		return errors.New("expected an absolute HTTP(S) URL without credentials, query, or fragment")
 	}
 	return nil
+}
+
+func validateCPManagementURL(value string) error {
+	if err := validateIdentityURL(value); err != nil {
+		return err
+	}
+	parsed, err := url.Parse(value)
+	if err != nil {
+		return err
+	}
+	if parsed.Scheme == "https" || strings.EqualFold(parsed.Hostname(), "localhost") {
+		return nil
+	}
+	if ip := net.ParseIP(parsed.Hostname()); ip != nil && ip.IsLoopback() {
+		return nil
+	}
+	return errors.New("https is required for non-loopback CP management URLs")
 }
