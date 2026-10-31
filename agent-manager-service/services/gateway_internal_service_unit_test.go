@@ -54,6 +54,12 @@ var activeDeploymentLookups = []struct {
 		notFound:    utils.ErrMCPProxyNotFound,
 		notNotFound: utils.ErrAgentArtifactNotFound,
 	},
+	{
+		name:        "rest api",
+		lookup:      (*GatewayInternalAPIService).GetActiveRestAPIDeploymentByGateway,
+		notFound:    utils.ErrAPINotFound,
+		notNotFound: utils.ErrAgentArtifactNotFound,
+	},
 }
 
 const testArtifactID = "0192f4c1-9a7d-7c3e-b4f2-1a2b3c4d5e6f"

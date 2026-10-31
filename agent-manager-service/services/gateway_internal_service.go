@@ -130,27 +130,9 @@ func (s *GatewayInternalAPIService) getActiveArtifactDeploymentByGateway(
 	return map[string]string{artifactID: resolvedYaml}, nil
 }
 
-// GetActiveDeploymentByGateway retrieves the currently deployed API artifact for a specific gateway
-func (s *GatewayInternalAPIService) GetActiveDeploymentByGateway(apiID, ouID, gatewayID string) (map[string]string, error) {
-	apiUUID, err := uuid.Parse(apiID)
-	if err != nil {
-		return nil, utils.ErrDeploymentNotActive
-	}
-	deployment, err := s.deploymentRepo.GetPullable(context.Background(), ouID, apiUUID, gatewayID)
-	if err != nil {
-		return nil, fmt.Errorf("failed to get deployment: %w", err)
-	}
-	if deployment == nil {
-		return nil, utils.ErrDeploymentNotActive
-	}
-
-	// Deployment content is already stored as YAML
-	apiYaml := string(deployment.Content)
-
-	apiYamlMap := map[string]string{
-		apiID: apiYaml,
-	}
-	return apiYamlMap, nil
+// GetActiveRestAPIDeploymentByGateway returns the deployed RestApi YAML of a REST agent's per-environment artifact.
+func (s *GatewayInternalAPIService) GetActiveRestAPIDeploymentByGateway(ctx context.Context, apiID, ouID, gatewayID string) (map[string]string, error) {
+	return s.getActiveArtifactDeploymentByGateway(ctx, apiID, ouID, gatewayID, models.KindRestAPI, utils.ErrAPINotFound)
 }
 
 // GetActiveLLMProviderDeploymentByGateway retrieves the currently deployed LLM provider artifact

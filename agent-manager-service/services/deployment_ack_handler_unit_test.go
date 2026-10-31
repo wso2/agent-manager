@@ -80,11 +80,20 @@ func TestDeploymentAckHandlerAppliesAnUndeployAckWithNoDeploymentID(t *testing.T
 
 func TestDeploymentAckHandlerSkipsUnsupportedResourceTypes(t *testing.T) {
 	repo := recordingAckRepo()
-	msg := `{"type":"deployment.ack","payload":{"deploymentId":"d-1","artifactId":"a-1","resourceType":"api",` +
+	msg := `{"type":"deployment.ack","payload":{"deploymentId":"d-1","artifactId":"a-1","resourceType":"websubapi",` +
 		`"action":"deploy","status":"success"}}`
 
 	assert.True(t, NewDeploymentAckHandler(repo, nil).HandleMessage("gw-1", []byte(msg)))
 	assert.Empty(t, repo.ApplyAckCalls())
+}
+
+func TestAckAcceptsAPIResourceType(t *testing.T) {
+	repo := recordingAckRepo()
+	msg := `{"type":"deployment.ack","payload":{"deploymentId":"d-1","artifactId":"a-1","resourceType":"api",` +
+		`"action":"deploy","status":"success"}}`
+
+	assert.True(t, NewDeploymentAckHandler(repo, nil).HandleMessage("gw-1", []byte(msg)))
+	assert.Len(t, repo.ApplyAckCalls(), 1)
 }
 
 func TestDeploymentAckHandlerPassesItsAfterLiveHook(t *testing.T) {

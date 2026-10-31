@@ -109,6 +109,7 @@ var gatewayInternalRoutes = []string{
 	"GET /llm-providers/api-keys",
 	"GET /llm-proxies/api-keys",
 	"GET /apis/api-keys",
+	"GET /apis/{apiId}",
 	"GET /subscription-plans",
 	"GET /deployments",
 	"POST /deployments/fetch-batch",

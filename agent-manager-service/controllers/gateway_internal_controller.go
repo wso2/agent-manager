@@ -39,6 +39,7 @@ type GatewayInternalController interface {
 	GetLLMProxy(w http.ResponseWriter, r *http.Request)
 	GetMCPProxy(w http.ResponseWriter, r *http.Request)
 	GetAgent(w http.ResponseWriter, r *http.Request)
+	GetAPI(w http.ResponseWriter, r *http.Request)
 	GetLLMProviderAPIKeys(w http.ResponseWriter, r *http.Request)
 	GetLLMProxyAPIKeys(w http.ResponseWriter, r *http.Request)
 	GetAPIKeys(w http.ResponseWriter, r *http.Request)
@@ -276,6 +277,56 @@ func (c *gatewayInternalController) GetAgent(w http.ResponseWriter, r *http.Requ
 	w.WriteHeader(http.StatusOK)
 	if _, err := w.Write(zipData); err != nil {
 		log.Error("Failed to write ZIP response", "agentID", agentID, "error", err)
+	}
+}
+
+// GetAPI handles GET /api/internal/v1/apis/:apiId
+//
+// The gateway calls this after an api.deployed event for a REST agent, so the response must be a ZIP containing
+// the RestApi YAML — see CreateAPIYamlZip.
+func (c *gatewayInternalController) GetAPI(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	log := logger.GetLogger(ctx)
+	identity, ok := c.authenticateGateway(w, r, "internal-read")
+	if !ok {
+		return
+	}
+
+	apiID := r.PathValue("apiId")
+	if apiID == "" {
+		http.Error(w, "API ID is required", http.StatusBadRequest)
+		return
+	}
+	if _, err := uuid.Parse(apiID); err != nil {
+		http.Error(w, "API ID must be an artifact UUID", http.StatusBadRequest)
+		return
+	}
+
+	api, err := c.gatewayInternalService.GetActiveRestAPIDeploymentByGateway(ctx, apiID, identity.OUID, identity.ID)
+	if err != nil {
+		if errors.Is(err, utils.ErrAPINotFound) {
+			http.Error(w, "No active deployment found for this API on this gateway", http.StatusNotFound)
+			return
+		}
+		log.Error("Failed to get API", "error", err)
+		http.Error(w, "Failed to get API", http.StatusInternalServerError)
+		return
+	}
+
+	zipData, err := utils.CreateAPIYamlZip(api)
+	if err != nil {
+		log.Error("Failed to create ZIP file for API", "apiID", apiID, "error", err)
+		http.Error(w, "Failed to create API package", http.StatusInternalServerError)
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/zip")
+	w.Header().Set("Content-Disposition", fmt.Sprintf("attachment; filename=\"api-%s.zip\"", apiID))
+	w.Header().Set("Content-Length", fmt.Sprintf("%d", len(zipData)))
+
+	w.WriteHeader(http.StatusOK)
+	if _, err := w.Write(zipData); err != nil {
+		log.Error("Failed to write ZIP response", "apiID", apiID, "error", err)
 	}
 }
 
