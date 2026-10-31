@@ -9,6 +9,9 @@ package wiring
 import (
 	"context"
 	"fmt"
+	"log/slog"
+	"time"
+
 	"github.com/google/wire"
 	"github.com/wso2/agent-manager/agent-manager-service/audit"
 	"github.com/wso2/agent-manager/agent-manager-service/clients/observersvc"
@@ -27,8 +30,6 @@ import (
 	"github.com/wso2/agent-manager/agent-manager-service/utils"
 	"github.com/wso2/agent-manager/agent-manager-service/websocket"
 	"gorm.io/gorm"
-	"log/slog"
-	"time"
 )
 
 // Injectors from wire.go:
