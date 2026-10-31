@@ -19,31 +19,29 @@ export const MCPProxiesOrganization = () => {
   const { orgId } = useParams<{ orgId: string }>();
   const routeParams = { orgId: orgId ?? "" };
 
+  // One definition, used both as the page action and as the empty state's CTA.
+  const createButton = (
+    <Button
+      variant="contained"
+      color="primary"
+      component={Link}
+      to={generatePath(
+        absoluteRouteMap.children.org.children.mcpProxies.children.add.path,
+        routeParams,
+      )}
+      startIcon={<Plus size={16} />}
+    >
+      Register MCP Server
+    </Button>
+  );
+
   return (
     <Routes>
       <Route
         index
         element={
-          <PageLayout
-            title="MCP Servers"
-            disableIcon
-            actions={
-              <Button
-                variant="contained"
-                color="primary"
-                component={Link}
-                to={generatePath(
-                  absoluteRouteMap.children.org.children.mcpProxies.children.add
-                    .path,
-                  routeParams,
-                )}
-                startIcon={<Plus size={16} />}
-              >
-                Register MCP Server
-              </Button>
-            }
-          >
-            <MCPProxyTable />
+          <PageLayout title="MCP Servers" disableIcon actions={createButton}>
+            <MCPProxyTable createAction={createButton} />
           </PageLayout>
         }
       />

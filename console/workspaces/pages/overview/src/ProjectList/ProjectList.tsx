@@ -36,6 +36,7 @@ import {
   Form,
   formatRelativeTime,
   IconButton,
+  ListingTable,
   SearchBar,
   Skeleton,
   Tooltip,
@@ -267,60 +268,73 @@ export function ProjectList() {
     [projects, search]
   );
 
-  return (
-    <PageLayout
-      title="All Projects"
-      disableIcon
-      actions={
-        <Button
-          variant="contained"
-          color="primary"
-          startIcon={<Plus size={16} />}
-          component={Link}
-          to={generatePath(absoluteRouteMap.children.org.children.newProject.path, { orgId })}
-        >
-          Add Project
-        </Button>
-      }
+  const createButton = (
+    <Button
+      variant="contained"
+      color="primary"
+      startIcon={<Plus size={16} />}
+      component={Link}
+      to={generatePath(absoluteRouteMap.children.org.children.newProject.path, { orgId })}
     >
-      <Box sx={{ display: "flex", flexDirection: "column", gap: 4 }}>
-        <SearchBar
-          value={search}
-          onChange={(e) => setSearch(e.target.value)}
-          placeholder="Search Projects"
-          disabled={!projects?.projects?.length}
-          size="small"
-          fullWidth
-        />
+      Add Project
+    </Button>
+  );
 
-        {filteredProjects.length === 0 && !isLoadingProjects && (
+  // No projects at all is a different state from a search that matched none:
+  // the first has nothing to search, so the field goes away with the grid.
+  const isEmpty = !isLoadingProjects && !projects?.projects?.length;
+
+  return (
+    <PageLayout title="All Projects" disableIcon actions={createButton}>
+      <Box sx={{ display: "flex", flexDirection: "column", gap: 4 }}>
+        {!isEmpty && (
+          <SearchBar
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            placeholder="Search Projects"
+            disabled={!projects?.projects?.length}
+            size="small"
+            fullWidth
+          />
+        )}
+
+        {isEmpty && (
+          <ListingTable.Container>
+            <ListingTable.EmptyState
+              illustration={<Package size={64} />}
+              title="No projects yet"
+              description="Create a project to group your agents and their configuration."
+              action={createButton}
+            />
+          </ListingTable.Container>
+        )}
+
+        {!isEmpty && filteredProjects.length === 0 && !isLoadingProjects && (
           <NoDataFound
             message="No Projects Found"
-            subtitle={
-              search
-                ? "Looks like there are no projects matching your search."
-                : "Create a New Project to Get Started"
-            }
+            subtitle="Looks like there are no projects matching your search."
             iconElement={Package}
           />
         )}
 
-        <Box sx={{ display: "grid", gridTemplateColumns: projectGridTemplate, gap: 2, width: "100%" }}>
-          {isLoadingProjects || isDeletingProject
-            ? Array.from({ length: 4 }).map((_, i) => <SkeletonCard key={i} />)
-            : filteredProjects.map((project) => (
-              <ProjectCard
-                key={project.name}
-                project={project}
-                pipeline={
-                  project.deploymentPipeline
-                    ? pipelineMap.get(project.deploymentPipeline)
-                    : undefined
-                }
-                handleDeleteProject={handleDeleteProject}
-              />
-            ))}
-        </Box>
+        {!isEmpty && (
+          <Box sx={{ display: "grid", gridTemplateColumns: projectGridTemplate, gap: 2, width: "100%" }}>
+            {isLoadingProjects || isDeletingProject
+              ? Array.from({ length: 4 }).map((_, i) => <SkeletonCard key={i} />)
+              : filteredProjects.map((project) => (
+                <ProjectCard
+                  key={project.name}
+                  project={project}
+                  pipeline={
+                    project.deploymentPipeline
+                      ? pipelineMap.get(project.deploymentPipeline)
+                      : undefined
+                  }
+                  handleDeleteProject={handleDeleteProject}
+                />
+              ))}
+          </Box>
+        )}
       </Box>
     </PageLayout>
   );

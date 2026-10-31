@@ -15,7 +15,7 @@
  * under the License.
  */
 
-import { useMemo, useState } from "react";
+import { useMemo, useState, type ReactNode } from "react";
 import {
   Avatar,
   IconButton,
@@ -39,7 +39,12 @@ import {
 } from "@agent-management-platform/types";
 import { MCPLogo } from "../components/MCPLogo";
 
-export function MCPProxyTable() {
+interface MCPProxyTableProps {
+  /** CTA shown in the empty state; the page owns how a server gets registered. */
+  createAction?: ReactNode;
+}
+
+export function MCPProxyTable({ createAction }: MCPProxyTableProps) {
   const { orgId } = useParams<{ orgId: string }>();
   const navigate = useNavigate();
   const [searchValue, setSearchValue] = useState("");
@@ -80,6 +85,7 @@ export function MCPProxyTable() {
         illustration: <MCPLogo size={64} />,
         title: "No MCP Servers Yet",
         description: "Add an MCP Server to provide tools for agents.",
+        action: createAction,
       }}
       searchEmptyState={{
         illustration: <Plus size={64} />,

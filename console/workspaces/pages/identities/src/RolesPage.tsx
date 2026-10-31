@@ -60,6 +60,10 @@ export const RolesPage: React.FC = () => {
   const roles = useMemo(() => data?.roles ?? [], [data]);
   const total = data?.total ?? 0;
 
+  // Distinct from a search that matched nothing: with no roles at all there is
+  // nothing to search, so the toolbar goes away with the table.
+  const isEmpty = !isLoading && roles.length === 0 && !search;
+
   useEffect(() => {
     if (roles.length === 0 && total > 0) {
       const lastPage = Math.max(0, Math.ceil(total / rowsPerPage) - 1);
@@ -102,6 +106,18 @@ export const RolesPage: React.FC = () => {
     });
   };
 
+  // One definition, used by the toolbar and by the empty state's CTA.
+  const createButton = (
+    <Button
+      variant="contained"
+      startIcon={<Plus />}
+      onClick={() => navigate(createPath)}
+      disabled={!isUserManagementEnabled}
+    >
+      Create Role
+    </Button>
+  );
+
   return (
     <>
       {error != null && (
@@ -112,20 +128,13 @@ export const RolesPage: React.FC = () => {
 
       <ListingTable.Provider searchValue={search} onSearchChange={setSearch}>
         <ListingTable.Container>
-          <ListingTable.Toolbar
-            showSearch
-            searchPlaceholder="Search roles..."
-            actions={
-              <Button
-                variant="contained"
-                startIcon={<Plus />}
-                onClick={() => navigate(createPath)}
-                disabled={!isUserManagementEnabled}
-              >
-                Create Role
-              </Button>
-            }
-          />
+          {!isEmpty && (
+            <ListingTable.Toolbar
+              showSearch
+              searchPlaceholder="Search roles..."
+              actions={createButton}
+            />
+          )}
           {!isLoading && filteredRoles.length === 0 ? (
             search ? (
               <ListingTable.EmptyState
@@ -137,7 +146,8 @@ export const RolesPage: React.FC = () => {
               <ListingTable.EmptyState
                 illustration={<Shield size={64} />}
                 title="No roles yet"
-                description='Click "Create Role" to add one.'
+                description="Create a role to grant users a set of permissions."
+                action={createButton}
               />
             )
           ) : (

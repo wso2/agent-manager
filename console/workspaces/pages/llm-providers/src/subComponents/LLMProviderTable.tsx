@@ -16,7 +16,7 @@
  * under the License.
  */
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState, type ReactNode } from "react";
 import {
   Avatar,
   Box,
@@ -43,7 +43,12 @@ import {
 import { absoluteRouteMap } from "@agent-management-platform/types";
 import { FadeIn } from "@agent-management-platform/views";
 
-export function LLMProviderTable() {
+interface LLMProviderTableProps {
+  /** CTA shown in the empty state; the page owns how a provider gets created. */
+  createAction?: ReactNode;
+}
+
+export function LLMProviderTable({ createAction }: LLMProviderTableProps) {
   const navigate = useNavigate();
   const { orgId } = useParams<{ orgId: string }>();
   const [searchValue, setSearchValue] = useState("");
@@ -135,6 +140,7 @@ export function LLMProviderTable() {
         title: "No LLM service providers yet",
         description:
           "Add an LLM service provider to start routing AI traffic through the gateway.",
+        action: createAction,
       }}
       searchEmptyState={{
         illustration: <ServerCog size={64} />,

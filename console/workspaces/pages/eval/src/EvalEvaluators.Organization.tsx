@@ -124,6 +124,13 @@ export const EvalEvaluatorsOrganization: React.FC = () => {
   const evaluators = useMemo(() => data?.evaluators ?? [], [data]);
   const totalItems = data?.total ?? evaluators.length;
 
+  // The query is server-filtered, so an empty result only means "nothing here
+  // yet" when neither the search nor the source filter is narrowing it.
+  const hasFilters =
+    Boolean(search.trim()) || (selectedSources.length > 0 && selectedSources.length < 2);
+  const isEmpty =
+    !isLoading && !evaluatorsError && evaluators.length === 0 && !hasFilters;
+
   const {
     mutate: deleteEvaluator,
     error: deleteError,
@@ -172,76 +179,77 @@ export const EvalEvaluatorsOrganization: React.FC = () => {
 
   const routeParams = { orgId };
 
+  // One definition, used both as the page action and as the empty state's CTA.
+  const createButton = (
+    <Button
+      variant="contained"
+      component={Link}
+      to={generatePath(evaluatorsRouteMap.children.create.path, routeParams)}
+      startIcon={<Plus />}
+      color="primary"
+    >
+      Create Evaluator
+    </Button>
+  );
+
   return (
     <>
-      <PageLayout
-        title="Evaluators"
-        disableIcon
-        actions={
-          <Button
-            variant="contained"
-            component={Link}
-            to={generatePath(evaluatorsRouteMap.children.create.path, routeParams)}
-            startIcon={<Plus />}
-            color="primary"
-          >
-            Create Evaluator
-          </Button>
-        }
-      >
+      <PageLayout title="Evaluators" disableIcon actions={createButton}>
         <Stack spacing={2}>
-          <Stack
-            direction="row"
-            spacing={1}
-            alignItems="center"
-            flexWrap="wrap"
-            useFlexGap
-          >
-            <Box flexGrow={1}>
-              <SearchBar
-                placeholder="Search evaluators"
-                size="small"
-                fullWidth
-                value={search}
-                onChange={(event) => {
-                  setSearch(event.target.value);
-                  debouncedSetSearch(event.target.value);
-                }}
-              />
-            </Box>
-            <Select
-              size="small"
-              variant="outlined"
-              multiple
-              value={selectedSources}
-              onChange={(event) => {
-                setSelectedSources(event.target.value as EvaluatorSource[]);
-                setPage(0);
-              }}
-              displayEmpty
-              renderValue={(selected) =>
-                (selected as EvaluatorSource[]).length === 0
-                  ? sourceFilterOptions.map((option) => sourceLabel(option.value)).join(", ")
-                  : (selected as EvaluatorSource[]).map(sourceLabel).join(", ")
-              }
-              startAdornment={
-                <InputAdornment position="start">
-                  <Filter size={16} />
-                </InputAdornment>
-              }
-              sx={{ minWidth: 180 }}
+          {!isEmpty && (
+            <Stack
+              direction="row"
+              spacing={1}
+              alignItems="center"
+              flexWrap="wrap"
+              useFlexGap
             >
-              {sourceFilterOptions.map((option) => (
-                <MenuItem key={option.value} value={option.value}>
-                  <Checkbox
-                    checked={selectedSources.includes(option.value)}
-                    size="small"
-                  />
-                  <ListItemText primary={option.label} />
-                </MenuItem>
-              ))}
-            </Select>
-          </Stack>
+              <Box flexGrow={1}>
+                <SearchBar
+                  placeholder="Search evaluators"
+                  size="small"
+                  fullWidth
+                  value={search}
+                  onChange={(event) => {
+                    setSearch(event.target.value);
+                    debouncedSetSearch(event.target.value);
+                  }}
+                />
+              </Box>
+              <Select
+                size="small"
+                variant="outlined"
+                multiple
+                value={selectedSources}
+                onChange={(event) => {
+                  setSelectedSources(event.target.value as EvaluatorSource[]);
+                  setPage(0);
+                }}
+                displayEmpty
+                renderValue={(selected) =>
+                  (selected as EvaluatorSource[]).length === 0
+                    ? sourceFilterOptions.map((option) => sourceLabel(option.value)).join(", ")
+                    : (selected as EvaluatorSource[]).map(sourceLabel).join(", ")
+                }
+                startAdornment={
+                  <InputAdornment position="start">
+                    <Filter size={16} />
+                  </InputAdornment>
+                }
+                sx={{ minWidth: 180 }}
+              >
+                {sourceFilterOptions.map((option) => (
+                  <MenuItem key={option.value} value={option.value}>
+                    <Checkbox
+                      checked={selectedSources.includes(option.value)}
+                      size="small"
+                    />
+                    <ListItemText primary={option.label} />
+                  </MenuItem>
+                ))}
+              </Select>
+            </Stack>
+          )}
 
           {evaluatorsError ? (
             <Alert severity="error">
@@ -258,25 +266,23 @@ export const EvalEvaluatorsOrganization: React.FC = () => {
             </Stack>
           )}
 
-          {!isLoading &&
-            !evaluatorsError &&
-            evaluators.length === 0 &&
-            !search.trim() && (
-              <ListingTable.Container sx={{ my: 3 }}>
-                <ListingTable.EmptyState
-                  illustration={<CircleIcon size={64} />}
-                  title="No evaluators yet"
-                  description="Create a custom evaluator or browse built-in evaluators."
-                />
-              </ListingTable.Container>
-            )}
+          {isEmpty && (
+            <ListingTable.Container sx={{ my: 3 }}>
+              <ListingTable.EmptyState
+                illustration={<CircleIcon size={64} />}
+                title="No evaluators yet"
+                description="Create a custom evaluator or browse built-in evaluators."
+                action={createButton}
+              />
+            </ListingTable.Container>
+          )}
 
-          {evaluators.length === 0 && !isLoading && search.trim() && (
+          {evaluators.length === 0 && !isLoading && hasFilters && (
             <ListingTable.Container sx={{ my: 3 }}>
               <ListingTable.EmptyState
                 illustration={<SearchIcon size={64} />}
-                title="No evaluators match your search"
-                description="Try a different keyword or clear the search filter."
+                title="No evaluators match your filters"
+                description="Try a different keyword or clear the search and source filters."
               />
             </ListingTable.Container>
           )}

@@ -35,6 +35,23 @@ import { EditLLMProvider } from "./subComponents/EditLLMProvider";
 
 export const LLMProvidersOrganization: React.FC = () => {
   const { orgId } = useParams<{ orgId: string }>();
+
+  // One definition, used both as the page action and as the empty state's CTA.
+  const createButton = (
+    <Button
+      variant="contained"
+      color="primary"
+      component={Link}
+      to={generatePath(
+        absoluteRouteMap.children.org.children.llmProviders.children.add.path,
+        { orgId },
+      )}
+      startIcon={<Plus size={16} />}
+    >
+      Add Service Provider
+    </Button>
+  );
+
   return (
     <Routes>
       <Route
@@ -43,23 +60,9 @@ export const LLMProvidersOrganization: React.FC = () => {
           <PageLayout
             title="LLM Service Providers"
             disableIcon
-            actions={
-              <Button
-                variant="contained"
-                color="primary"
-                component={Link}
-                to={generatePath(
-                  absoluteRouteMap.children.org.children.llmProviders.children.add
-                    .path,
-                  { orgId },
-                )}
-                startIcon={<Plus size={16} />}
-              >
-                Add Service Provider
-              </Button>
-            }
+            actions={createButton}
           >
-            <LLMProviderTable />
+            <LLMProviderTable createAction={createButton} />
           </PageLayout>
         }
       />

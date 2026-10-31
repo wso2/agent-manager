@@ -33,6 +33,28 @@ export const EvalMonitorsComponent: React.FC = () => {
     projectId: string;
   }>();
 
+  // One definition, used both as the page action and as the empty state's CTA.
+  const createButton = (
+    <Button
+      variant="contained"
+      component={Link}
+      to={generatePath(
+        absoluteRouteMap.children.org.children.projects.children.agents.children
+          .environment.children.evaluation.children.monitor.children.create.path,
+        {
+          orgId: orgId,
+          projectId: projectId,
+          agentId: agentId,
+          envId: envId,
+        },
+      )}
+      startIcon={<Plus />}
+      color="primary"
+    >
+      Add monitor
+    </Button>
+  );
+
   return (
     <PageLayout
       title="Eval Monitors"
@@ -40,29 +62,11 @@ export const EvalMonitorsComponent: React.FC = () => {
       actions={
         <Stack direction="row" spacing={2} alignItems="center" flexWrap="wrap">
           <EnvironmentSelector />
-          <Button
-            variant="contained"
-            component={Link}
-            to={generatePath(
-              absoluteRouteMap.children.org.children.projects.children.agents
-                .children.environment.children.evaluation.children.monitor
-                .children.create.path,
-              {
-                orgId: orgId,
-                projectId: projectId,
-                agentId: agentId,
-                envId: envId,
-              },
-            )}
-            startIcon={<Plus />}
-            color="primary"
-          >
-            Add monitor
-          </Button>
+          {createButton}
         </Stack>
       }
     >
-      <MonitorTable />
+      <MonitorTable createAction={createButton} />
     </PageLayout>
   );
 };

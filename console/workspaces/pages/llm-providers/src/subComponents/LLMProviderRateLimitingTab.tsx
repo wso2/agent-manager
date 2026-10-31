@@ -866,11 +866,14 @@ export function LLMProviderRateLimitingTab({
                 </Accordion>
               </Paper>
 
-              <SearchBar
-                placeholder="Search resources…"
-                value={resourceSearch}
-                onChange={(e) => setResourceSearch(e.target.value)}
-              />
+              {/* No resources in the spec means nothing to search. */}
+              {!(!specLoading && resources.length === 0) && (
+                <SearchBar
+                  placeholder="Search resources…"
+                  value={resourceSearch}
+                  onChange={(e) => setResourceSearch(e.target.value)}
+                />
+              )}
 
               {specLoading ? (
                 <Box sx={{ display: "flex", alignItems: "center", gap: 1, py: 2 }}>

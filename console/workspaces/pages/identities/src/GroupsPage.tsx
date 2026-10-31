@@ -60,6 +60,10 @@ export const GroupsPage: React.FC = () => {
   const groups = useMemo(() => data?.groups ?? [], [data]);
   const total = data?.total ?? 0;
 
+  // Distinct from a search that matched nothing: with no groups at all there is
+  // nothing to search, so the toolbar goes away with the table.
+  const isEmpty = !isLoading && groups.length === 0 && !search;
+
   useEffect(() => {
     if (groups.length === 0 && total > 0) {
       const lastPage = Math.max(0, Math.ceil(total / rowsPerPage) - 1);
@@ -106,6 +110,18 @@ export const GroupsPage: React.FC = () => {
     });
   };
 
+  // One definition, used by the toolbar and by the empty state's CTA.
+  const createButton = (
+    <Button
+      variant="contained"
+      startIcon={<Plus />}
+      onClick={() => navigate(createPath)}
+      disabled={!isUserManagementEnabled}
+    >
+      Create Group
+    </Button>
+  );
+
   return (
     <>
       {error != null && (
@@ -116,20 +132,13 @@ export const GroupsPage: React.FC = () => {
 
       <ListingTable.Provider searchValue={search} onSearchChange={setSearch}>
         <ListingTable.Container>
-          <ListingTable.Toolbar
-            showSearch
-            searchPlaceholder="Search groups..."
-            actions={
-              <Button
-                variant="contained"
-                startIcon={<Plus />}
-                onClick={() => navigate(createPath)}
-                disabled={!isUserManagementEnabled}
-              >
-                Create Group
-              </Button>
-            }
-          />
+          {!isEmpty && (
+            <ListingTable.Toolbar
+              showSearch
+              searchPlaceholder="Search groups..."
+              actions={createButton}
+            />
+          )}
           {!isLoading && filteredGroups.length === 0 ? (
             search ? (
               <ListingTable.EmptyState
@@ -141,7 +150,8 @@ export const GroupsPage: React.FC = () => {
               <ListingTable.EmptyState
                 illustration={<Folder size={64} />}
                 title="No groups yet"
-                description='Click "Create Group" to add one.'
+                description="Create a group to manage a set of users together."
+                action={createButton}
               />
             )
           ) : (

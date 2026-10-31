@@ -15,7 +15,7 @@
  * under the License.
  */
 
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useEffect, useMemo, useState, type ReactNode } from "react";
 import {
   Alert,
   Avatar,
@@ -37,7 +37,12 @@ import { AgentIdentityEnvironmentTabs } from "./AgentIdentityEnvironmentTabs";
 
 const AVATAR_SX = { width: 28, height: 28, fontSize: 12 } as const;
 
-export const GroupsPage: React.FC = () => {
+interface GroupsPageProps {
+  /** CTA shown in the empty state; the page owns how a group gets created. */
+  createAction?: ReactNode;
+}
+
+export const GroupsPage: React.FC<GroupsPageProps> = ({ createAction }) => {
   const { orgId } = useParams<{ orgId: string }>();
   const [searchParams] = useSearchParams();
   const envName = searchParams.get("envName") ?? "";
@@ -56,6 +61,10 @@ export const GroupsPage: React.FC = () => {
 
   const groups = useMemo(() => data?.groups ?? [], [data]);
   const total = data?.total ?? 0;
+
+  // Distinct from a search that matched nothing: with no groups at all there is
+  // nothing to search, so the toolbar goes away with the table.
+  const isEmpty = !isLoading && groups.length === 0 && !search;
 
   useEffect(() => {
     if (groups.length === 0 && total > 0) {
@@ -111,7 +120,9 @@ export const GroupsPage: React.FC = () => {
       <ListingTable.Provider searchValue={search} onSearchChange={setSearch}>
         <ListingTable.Container>
           <AgentIdentityEnvironmentTabs />
-          <ListingTable.Toolbar showSearch searchPlaceholder="Search groups..." />
+          {!isEmpty && (
+            <ListingTable.Toolbar showSearch searchPlaceholder="Search groups..." />
+          )}
           {!isLoading && filteredGroups.length === 0 ? (
             search ? (
               <ListingTable.EmptyState
@@ -123,7 +134,8 @@ export const GroupsPage: React.FC = () => {
               <ListingTable.EmptyState
                 illustration={<Folder size={64} />}
                 title="No groups yet"
-                description='Click "Create Group" to add one.'
+                description="Create a group to organize agent identities in this environment."
+                action={createAction}
               />
             )
           ) : (

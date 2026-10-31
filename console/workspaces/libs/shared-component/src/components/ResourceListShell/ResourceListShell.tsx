@@ -221,9 +221,14 @@ export const ResourceListShell: React.FC<ResourceListShellProps> = ({
       </ListingTable.Container>
     );
   };
+  // A list with nothing in it has nothing to search or filter, so the toolbar
+  // would only offer dead controls beside the empty state. It stays while
+  // loading and on error, where the count isn't settled yet.
+  const showToolbar = Boolean(error) || isLoading || !isEmpty;
+
   return (
     <Stack spacing={1}>
-      {resolvedToolbar}
+      {showToolbar && resolvedToolbar}
       {renderBody()}
     </Stack>
   );

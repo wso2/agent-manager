@@ -15,7 +15,7 @@
  * under the License.
  */
 
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useEffect, useMemo, useState, type ReactNode } from "react";
 import {
   Alert,
   Avatar,
@@ -37,7 +37,12 @@ import { AgentIdentityEnvironmentTabs } from "./AgentIdentityEnvironmentTabs";
 
 const AVATAR_SX = { width: 28, height: 28, fontSize: 12 } as const;
 
-export const RolesPage: React.FC = () => {
+interface RolesPageProps {
+  /** CTA shown in the empty state; the page owns how a role gets created. */
+  createAction?: ReactNode;
+}
+
+export const RolesPage: React.FC<RolesPageProps> = ({ createAction }) => {
   const { orgId } = useParams<{ orgId: string }>();
   const [searchParams] = useSearchParams();
   const envName = searchParams.get("envName") ?? "";
@@ -56,6 +61,10 @@ export const RolesPage: React.FC = () => {
 
   const roles = useMemo(() => data?.roles ?? [], [data]);
   const total = data?.total ?? 0;
+
+  // Distinct from a search that matched nothing: with no roles at all there is
+  // nothing to search, so the toolbar goes away with the table.
+  const isEmpty = !isLoading && roles.length === 0 && !search;
 
   useEffect(() => {
     if (roles.length === 0 && total > 0) {
@@ -111,7 +120,9 @@ export const RolesPage: React.FC = () => {
       <ListingTable.Provider searchValue={search} onSearchChange={setSearch}>
         <ListingTable.Container>
           <AgentIdentityEnvironmentTabs />
-          <ListingTable.Toolbar showSearch searchPlaceholder="Search roles..." />
+          {!isEmpty && (
+            <ListingTable.Toolbar showSearch searchPlaceholder="Search roles..." />
+          )}
           {!isLoading && filteredRoles.length === 0 ? (
             search ? (
               <ListingTable.EmptyState
@@ -123,7 +134,8 @@ export const RolesPage: React.FC = () => {
               <ListingTable.EmptyState
                 illustration={<Shield size={64} />}
                 title="No roles yet"
-                description='Click "Create Role" to add one.'
+                description="Create a role to grant agent identities a set of permissions."
+                action={createAction}
               />
             )
           ) : (

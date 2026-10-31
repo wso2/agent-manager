@@ -38,6 +38,19 @@ function GroupsListPage() {
     ? withSearchParams(generatePath(groupsNode.children.create.path, { orgId }), searchParams)
     : "#";
 
+  // One definition, used both as the page action and as the empty state's CTA.
+  const createButton = (
+    <Button
+      variant="contained"
+      color="primary"
+      component={Link}
+      to={createPath}
+      startIcon={<Plus size={16} />}
+    >
+      Create Group
+    </Button>
+  );
+
   return (
     <AgentIdentityEnvironmentGate title={TITLE}>
       {() => (
@@ -45,19 +58,9 @@ function GroupsListPage() {
           title={TITLE}
           description="Groups available in the selected environment's identity provider."
           disableIcon
-          actions={
-            <Button
-              variant="contained"
-              color="primary"
-              component={Link}
-              to={createPath}
-              startIcon={<Plus size={16} />}
-            >
-              Create Group
-            </Button>
-          }
+          actions={createButton}
         >
-          <GroupsPage />
+          <GroupsPage createAction={createButton} />
         </PageLayout>
       )}
     </AgentIdentityEnvironmentGate>

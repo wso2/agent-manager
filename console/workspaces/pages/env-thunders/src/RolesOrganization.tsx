@@ -38,6 +38,19 @@ function RolesListPage() {
     ? withSearchParams(generatePath(rolesNode.children.create.path, { orgId }), searchParams)
     : "#";
 
+  // One definition, used both as the page action and as the empty state's CTA.
+  const createButton = (
+    <Button
+      variant="contained"
+      color="primary"
+      component={Link}
+      to={createPath}
+      startIcon={<Plus size={16} />}
+    >
+      Create Role
+    </Button>
+  );
+
   return (
     <AgentIdentityEnvironmentGate title={TITLE}>
       {() => (
@@ -45,19 +58,9 @@ function RolesListPage() {
           title={TITLE}
           description="Roles available in the selected environment's identity provider."
           disableIcon
-          actions={
-            <Button
-              variant="contained"
-              color="primary"
-              component={Link}
-              to={createPath}
-              startIcon={<Plus size={16} />}
-            >
-              Create Role
-            </Button>
-          }
+          actions={createButton}
         >
-          <RolesPage />
+          <RolesPage createAction={createButton} />
         </PageLayout>
       )}
     </AgentIdentityEnvironmentGate>

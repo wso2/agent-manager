@@ -61,6 +61,10 @@ export const AgentsTab: React.FC = () => {
 
   const agents = useMemo(() => data?.agents ?? [], [data]);
 
+  // Distinct from a search that matched nothing: with no agents at all there is
+  // nothing to search, so the toolbar goes away with the table.
+  const isEmpty = !isLoading && agents.length === 0 && !search;
+
   // Resolve each row's display name/project display name once here — every
   // downstream consumer (search filtering, the rendered cells) reads the
   // precomputed fields instead of re-resolving on every render.
@@ -118,7 +122,9 @@ export const AgentsTab: React.FC = () => {
   return (
     <ListingTable.Provider searchValue={search} onSearchChange={setSearch}>
       <ListingTable.Container>
-        <ListingTable.Toolbar showSearch searchPlaceholder="Search agents..." />
+        {!isEmpty && (
+          <ListingTable.Toolbar showSearch searchPlaceholder="Search agents..." />
+        )}
         {!isLoading && filteredAgents.length === 0 ? (
           search ? (
             <ListingTable.EmptyState

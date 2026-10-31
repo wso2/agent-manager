@@ -62,6 +62,10 @@ export const UsersPage: React.FC = () => {
   const users = useMemo(() => data?.users ?? [], [data]);
   const total = data?.total ?? 0;
 
+  // Distinct from a search that matched nothing: with no users at all there is
+  // nothing to search, so the toolbar goes away with the table.
+  const isEmpty = !isLoading && users.length === 0 && !search;
+
   useEffect(() => {
     if (users.length === 0 && total > 0) {
       const lastPage = Math.max(0, Math.ceil(total / rowsPerPage) - 1);
@@ -113,6 +117,28 @@ export const UsersPage: React.FC = () => {
     });
   };
 
+  // One definition, used by the toolbar and by the empty state's CTA.
+  const createButtons = (
+    <Stack direction="row" spacing={1}>
+      <Button
+        variant="outlined"
+        startIcon={<Plus />}
+        onClick={() => navigate(addUserPath)}
+        disabled={!isUserManagementEnabled}
+      >
+        Add User
+      </Button>
+      <Button
+        variant="contained"
+        startIcon={<Plus />}
+        onClick={() => navigate(invitePath)}
+        disabled={!isUserManagementEnabled}
+      >
+        Invite User
+      </Button>
+    </Stack>
+  );
+
   return (
     <>
       {error != null && (
@@ -123,30 +149,13 @@ export const UsersPage: React.FC = () => {
 
       <ListingTable.Provider searchValue={search} onSearchChange={setSearch}>
         <ListingTable.Container>
-          <ListingTable.Toolbar
-            showSearch
-            searchPlaceholder="Search users..."
-            actions={
-              <Stack direction="row" spacing={1}>
-                <Button
-                  variant="outlined"
-                  startIcon={<Plus />}
-                  onClick={() => navigate(addUserPath)}
-                  disabled={!isUserManagementEnabled}
-                >
-                  Add User
-                </Button>
-                <Button
-                  variant="contained"
-                  startIcon={<Plus />}
-                  onClick={() => navigate(invitePath)}
-                  disabled={!isUserManagementEnabled}
-                >
-                  Invite User
-                </Button>
-              </Stack>
-            }
-          />
+          {!isEmpty && (
+            <ListingTable.Toolbar
+              showSearch
+              searchPlaceholder="Search users..."
+              actions={createButtons}
+            />
+          )}
           {!isLoading && filteredUsers.length === 0 ? (
             search ? (
               <ListingTable.EmptyState
@@ -158,7 +167,8 @@ export const UsersPage: React.FC = () => {
               <ListingTable.EmptyState
                 illustration={<Users size={64} />}
                 title="No users yet"
-                description='Click "Add User" to create one or "Invite User" to invite someone.'
+                description="Add a user directly, or invite someone to join this organization."
+                action={createButtons}
               />
             )
           ) : (

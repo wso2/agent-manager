@@ -291,6 +291,20 @@ export const PublishedList: React.FC = () => {
     );
   };
 
+  // One definition, used both as the page action and as the empty state's CTA.
+  const createVersionButton = (
+    <Button
+      key="create-version"
+      variant="contained"
+      component={Link}
+      to={createVersionPath}
+      startIcon={<Plus />}
+      color="primary"
+    >
+      Create Version
+    </Button>
+  );
+
   return (
     <>
       <PageLayout
@@ -309,16 +323,7 @@ export const PublishedList: React.FC = () => {
               Edit Kind
             </Button>
           ),
-          <Button
-            key="create-version"
-            variant="contained"
-            component={Link}
-            to={createVersionPath}
-            startIcon={<Plus />}
-            color="primary"
-          >
-            Create Version
-          </Button>,
+          createVersionButton,
         ].filter(Boolean)}
       >
         {existingKind?.description && (
@@ -338,6 +343,7 @@ export const PublishedList: React.FC = () => {
               illustration={<BookOpenText size={64} />}
               title="No versions published yet"
               description="Publish a build as a version to make this Agent Kind available in the catalog."
+              action={createVersionButton}
             />
           ) : (
             <ListingTable>
