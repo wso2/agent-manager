@@ -25,6 +25,7 @@ import (
 	"net/http/httptest"
 	"strings"
 	"testing"
+	"time"
 )
 
 type testCPAuthorizer func(context.Context, EnvironmentIdentityTarget, *http.Request) error
@@ -77,7 +78,7 @@ func TestCPConfigurationClientActivateCapturesAppliesAndVerifies(t *testing.T) {
 			if _, confirms := body["confirmRemovals"]; confirms {
 				t.Errorf("apply must never confirm removals, got %v", body)
 			}
-			_, _ = w.Write([]byte(`{"missing":null}`))
+			_, _ = w.Write([]byte(`{"recorded":true,"import":{"summary":{"failed":0}}}`))
 		case "/gateways/gateway-dev/applied-version":
 			_, _ = w.Write([]byte(`{"gatewayId":"gateway-dev","appliedVersion":"version-1"}`))
 		default:
@@ -115,7 +116,7 @@ func TestCPConfigurationClientRetriesWhenAnotherReplicaCapturesANewerVersion(t *
 				t.Errorf("expected latest apply, got %v, %v", body, err)
 			}
 			applies++
-			_, _ = w.Write([]byte(`{"missing":null}`))
+			_, _ = w.Write([]byte(`{"recorded":true,"import":{"summary":{"failed":0}}}`))
 		case "/gateways/gateway-dev/applied-version":
 			_, _ = fmt.Fprintf(w, `{"gatewayId":"gateway-dev","appliedVersion":"version-%d"}`, applies)
 		default:
@@ -132,6 +133,90 @@ func TestCPConfigurationClientRetriesWhenAnotherReplicaCapturesANewerVersion(t *
 	}
 	if applies != 2 {
 		t.Fatalf("apply attempts = %d, want 2", applies)
+	}
+}
+
+func TestCPConfigurationClientRejectsSkippedCapture(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/configuration-versions" {
+			t.Errorf("unexpected request after skipped capture: %s", r.URL.Path)
+		}
+		_, _ = w.Write([]byte(`{"version":"version-1","skipped":[{"resourceType":"agent","resourceId":"agent-1","error":"unavailable"}]}`))
+	}))
+	defer server.Close()
+	client, err := NewCPConfigurationClient(bearerAuthorizer("management-token"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	err = client.Activate(context.Background(), cpTestTarget(server.URL), "")
+	if err == nil || !strings.Contains(err.Error(), "skipped 1 resource") || strings.Contains(err.Error(), "unavailable") {
+		t.Fatalf("expected redacted skipped-resource error, got %v", err)
+	}
+}
+
+func TestCPConfigurationClientWaitsForQueuedApplyAndChecksImport(t *testing.T) {
+	var applies, polls int
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case "/configuration-versions":
+			if r.Method == http.MethodGet {
+				_, _ = w.Write([]byte(`[{"version":"version-1"}]`))
+			} else {
+				_, _ = w.Write([]byte(`{"version":"version-1"}`))
+			}
+		case "/gateways/gateway-dev/apply":
+			applies++
+			if applies == 1 {
+				w.WriteHeader(http.StatusAccepted)
+				_, _ = w.Write([]byte(`{"queued":true,"queuedVersion":"version-1"}`))
+			} else {
+				_, _ = w.Write([]byte(`{"recorded":true,"import":{"summary":{"failed":0}}}`))
+			}
+		case "/gateways/gateway-dev/applied-version":
+			polls++
+			version := "version-older"
+			if polls >= 3 {
+				version = "version-1"
+			}
+			_, _ = fmt.Fprintf(w, `{"gatewayId":"gateway-dev","appliedVersion":%q}`, version)
+		default:
+			t.Errorf("unexpected CP path %s", r.URL.Path)
+		}
+	}))
+	defer server.Close()
+	client, err := NewCPConfigurationClient(bearerAuthorizer("management-token"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := client.Activate(context.Background(), cpTestTarget(server.URL), ""); err != nil {
+		t.Fatal(err)
+	}
+	if applies != 2 || polls < 3 {
+		t.Fatalf("applies = %d, polls = %d; queued apply must finish before a checked apply", applies, polls)
+	}
+}
+
+func TestCPConfigurationClientRejectsRefusedImport(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case "/configuration-versions":
+			_, _ = w.Write([]byte(`{"version":"version-1"}`))
+		case "/gateways/gateway-dev/apply":
+			_, _ = w.Write([]byte(`{"recorded":true,"import":{"summary":{"failed":1},"results":[{"resourceType":"agent","resourceId":"agent-1","status":"failed","message":"sensitive"}]}}`))
+		case "/gateways/gateway-dev/applied-version":
+			t.Error("a refused import must fail before version verification")
+		default:
+			t.Errorf("unexpected CP path %s", r.URL.Path)
+		}
+	}))
+	defer server.Close()
+	client, err := NewCPConfigurationClient(bearerAuthorizer("management-token"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	err = client.Activate(context.Background(), cpTestTarget(server.URL), "")
+	if err == nil || !strings.Contains(err.Error(), "agent agent-1") || strings.Contains(err.Error(), "sensitive") {
+		t.Fatalf("expected resource-specific but redacted import failure, got %v", err)
 	}
 }
 
@@ -187,7 +272,7 @@ func TestCPConfigurationClientRejectsIncompleteActivation(t *testing.T) {
 		name, applyBody, appliedVersion string
 	}{
 		{name: "missing values", applyBody: `{"missing":{"secrets":["AGENT_SECRET"]}}`, appliedVersion: "version-1"},
-		{name: "wrong applied version", applyBody: `{}`, appliedVersion: "version-older"},
+		{name: "wrong applied version", applyBody: `{"recorded":true,"import":{"summary":{"failed":0}}}`, appliedVersion: "version-older"},
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
@@ -212,7 +297,9 @@ func TestCPConfigurationClientRejectsIncompleteActivation(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			if err := client.Activate(context.Background(), cpTestTarget(server.URL), ""); err == nil {
+			ctx, cancel := context.WithTimeout(context.Background(), 30*time.Millisecond)
+			defer cancel()
+			if err := client.Activate(ctx, cpTestTarget(server.URL), ""); err == nil {
 				t.Fatal("incomplete activation must fail")
 			}
 		})

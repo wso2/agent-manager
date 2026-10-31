@@ -36,7 +36,7 @@ func TestCPClientActivatesRoleAndGroupChangesThroughCaptureApplyAndVerify(t *tes
 				_, _ = w.Write([]byte(`{"version":"v1"}`))
 			}
 		case "/gateways/gateway-dev/apply":
-			_, _ = w.Write([]byte(`{}`))
+			_, _ = w.Write([]byte(`{"recorded":true,"import":{"summary":{"failed":0}}}`))
 		case "/gateways/gateway-dev/applied-version":
 			_, _ = w.Write([]byte(`{"gatewayId":"gateway-dev","appliedVersion":"v1"}`))
 		}

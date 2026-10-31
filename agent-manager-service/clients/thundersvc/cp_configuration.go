@@ -32,6 +32,9 @@ import (
 // maxCPResponseBytes bounds a CP response.
 const maxCPResponseBytes int64 = 1 << 20
 
+const cpApplyPollInterval = 250 * time.Millisecond
+const cpActivationTimeout = 60 * time.Second
+
 // CPRequestError is a CP management request the CP answered with a non success
 // status. It carries the status only, never the response body.
 type CPRequestError struct{ Status int }
@@ -73,14 +76,28 @@ func newCPHTTPClient(transport http.RoundTripper) *http.Client {
 // resources is refused by the CP and surfaces here as an error. Activation is
 // idempotent and safe to retry.
 func (c *CPConfigurationClient) Activate(ctx context.Context, target EnvironmentIdentityTarget, note string) error {
+	ctx, cancel := context.WithTimeout(ctx, cpActivationTimeout)
+	defer cancel()
 	if _, err := c.capture(ctx, target, note); err != nil {
 		return fmt.Errorf("capture CP configuration: %w", err)
 	}
 	// Named versions can roll a gateway back when another replica captures and
 	// applies a newer version. Apply the latest and verify it is still current.
-	for attempt := 0; attempt < 3; attempt++ {
-		if err := c.apply(ctx, target, "latest"); err != nil {
+	for {
+		result, err := c.apply(ctx, target, "latest")
+		if err != nil {
 			return fmt.Errorf("apply CP configuration to gateway: %w", err)
+		}
+		if result.Queued {
+			if result.QueuedVersion == "" {
+				return errors.New("CP gateway queued an apply without a version")
+			}
+			if err := c.waitForAppliedVersion(ctx, target, result.QueuedVersion); err != nil {
+				return fmt.Errorf("wait for queued CP gateway apply: %w", err)
+			}
+			// The queued apply has no import report in its 202 response. Apply
+			// again so a refused resource cannot be mistaken for success.
+			continue
 		}
 		applied, err := c.appliedVersion(ctx, target)
 		if err != nil {
@@ -93,15 +110,51 @@ func (c *CPConfigurationClient) Activate(ctx context.Context, target Environment
 		if applied == latest {
 			return nil
 		}
+		if err := waitForCPPoll(ctx); err != nil {
+			return fmt.Errorf("CP gateway did not report the latest configuration version: %w", err)
+		}
 	}
-	return errors.New("CP gateway did not report the latest configuration version")
+}
+
+func (c *CPConfigurationClient) waitForAppliedVersion(ctx context.Context, target EnvironmentIdentityTarget, queued string) error {
+	for {
+		applied, err := c.appliedVersion(ctx, target)
+		if err != nil {
+			return err
+		}
+		if applied == queued {
+			return nil
+		}
+		latest, err := c.latestVersion(ctx, target)
+		if err != nil {
+			return err
+		}
+		if applied == latest {
+			return nil
+		}
+		if err := waitForCPPoll(ctx); err != nil {
+			return err
+		}
+	}
+}
+
+func waitForCPPoll(ctx context.Context) error {
+	timer := time.NewTimer(cpApplyPollInterval)
+	defer timer.Stop()
+	select {
+	case <-ctx.Done():
+		return ctx.Err()
+	case <-timer.C:
+		return nil
+	}
 }
 
 // capture records the configuration as the current version, as the CP's own
 // change capture does, and returns its hash.
 func (c *CPConfigurationClient) capture(ctx context.Context, target EnvironmentIdentityTarget, note string) (string, error) {
 	var response struct {
-		Version string `json:"version"`
+		Version string            `json:"version"`
+		Skipped []json.RawMessage `json:"skipped"`
 	}
 	payload := map[string]any{"current": true, "note": note}
 	if err := c.request(ctx, target, http.MethodPost, "/configuration-versions", payload, &response); err != nil {
@@ -110,21 +163,66 @@ func (c *CPConfigurationClient) capture(ctx context.Context, target EnvironmentI
 	if response.Version == "" {
 		return "", errors.New("CP configuration capture returned no version")
 	}
+	if len(response.Skipped) > 0 {
+		return "", fmt.Errorf("CP configuration capture skipped %d resource(s)", len(response.Skipped))
+	}
 	return response.Version, nil
 }
 
-func (c *CPConfigurationClient) apply(ctx context.Context, target EnvironmentIdentityTarget, version string) error {
-	var response struct {
-		Missing json.RawMessage `json:"missing"`
-	}
+type cpApplyResult struct {
+	Missing       json.RawMessage `json:"missing"`
+	Import        json.RawMessage `json:"import"`
+	Recorded      bool            `json:"recorded"`
+	Queued        bool            `json:"queued"`
+	QueuedVersion string          `json:"queuedVersion"`
+}
+
+func (c *CPConfigurationClient) apply(ctx context.Context, target EnvironmentIdentityTarget, version string) (cpApplyResult, error) {
+	var response cpApplyResult
 	path := "/gateways/" + url.PathEscape(target.GatewayID) + "/apply"
 	if err := c.request(ctx, target, http.MethodPost, path, map[string]any{"version": version}, &response); err != nil {
-		return err
+		return response, err
 	}
 	if m := strings.TrimSpace(string(response.Missing)); m != "" && m != "null" && m != "{}" && m != "[]" {
-		return errors.New("CP gateway apply reported missing environment values")
+		return response, errors.New("CP gateway apply reported missing environment values")
 	}
-	return nil
+	if response.Queued {
+		return response, nil
+	}
+	if !response.Recorded {
+		return response, errors.New("CP gateway apply did not record the version")
+	}
+	var report struct {
+		Summary *struct {
+			Failed int `json:"failed"`
+		} `json:"summary"`
+		Results []struct {
+			ResourceType string `json:"resourceType"`
+			ResourceID   string `json:"resourceId"`
+			Status       string `json:"status"`
+		} `json:"results"`
+	}
+	if len(response.Import) == 0 || json.Unmarshal(response.Import, &report) != nil || report.Summary == nil {
+		return response, errors.New("CP gateway apply returned no valid import report")
+	}
+	var refused []string
+	failedResults := 0
+	for _, item := range report.Results {
+		if item.Status == "failed" {
+			failedResults++
+			if len(refused) < 5 {
+				refused = append(refused, strings.TrimSpace(item.ResourceType+" "+item.ResourceID))
+			}
+		}
+	}
+	if report.Summary.Failed > 0 || failedResults > 0 {
+		failed := max(report.Summary.Failed, failedResults)
+		if len(refused) > 0 {
+			return response, fmt.Errorf("CP gateway refused %d resource(s): %s", failed, strings.Join(refused, ", "))
+		}
+		return response, fmt.Errorf("CP gateway refused %d resource(s)", failed)
+	}
+	return response, nil
 }
 
 func (c *CPConfigurationClient) latestVersion(ctx context.Context, target EnvironmentIdentityTarget) (string, error) {
