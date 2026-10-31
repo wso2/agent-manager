@@ -26,8 +26,10 @@ import (
 	"log/slog"
 	"net/http"
 	"regexp"
+	"slices"
 	"sort"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/google/uuid"
@@ -88,6 +90,29 @@ type MCPProxyService struct {
 	logger                 *slog.Logger
 	encryptionKey          []byte
 	resolver               thundersvc.EnvThunderResolver
+
+	// syncTrigger tells the identity platform's promotion that the roles which
+	// reference this proxy's resource server changed. Optional; set once at startup.
+	syncMu      sync.RWMutex
+	syncTrigger AgentIdentitySyncTrigger
+}
+
+var (
+	_ AgentIdentitySyncTriggerSetter = (*MCPProxyService)(nil)
+	_ identitySyncProvider           = (*MCPProxyService)(nil)
+)
+
+// SetAgentIdentitySyncTrigger installs the trigger told about MCP server changes.
+func (s *MCPProxyService) SetAgentIdentitySyncTrigger(trigger AgentIdentitySyncTrigger) {
+	s.syncMu.Lock()
+	s.syncTrigger = trigger
+	s.syncMu.Unlock()
+}
+
+func (s *MCPProxyService) identitySyncTrigger() AgentIdentitySyncTrigger {
+	s.syncMu.RLock()
+	defer s.syncMu.RUnlock()
+	return s.syncTrigger
 }
 
 // NewMCPProxyService creates a new MCP proxy service.
@@ -748,9 +773,22 @@ func (s *MCPProxyService) cleanupProxyResourceServers(ctx context.Context, ouID 
 				s.logger.Warn("proxy delete: resource server delete failed", "env", name, "proxy", handle, "error", err)
 				continue
 			}
-			for _, scopeStr := range scopeStrs {
-				sweepRolePermission(ctx, s.logger, client, name, scopeStr)
+			if activator, ok := client.(thundersvc.EnvironmentIdentityActivator); ok {
+				if err := activator.ActivateDeletedMCPResourceServer(ctx, handle); err != nil {
+					s.logger.Warn("proxy delete: resource server deletion not active on gateway", "env", name,
+						"proxy", handle, "error", err)
+					continue
+				}
 			}
+			var stripped []string
+			for _, scopeStr := range scopeStrs {
+				for _, roleID := range sweepRolePermission(ctx, s.logger, client, name, scopeStr) {
+					if !slices.Contains(stripped, roleID) {
+						stripped = append(stripped, roleID)
+					}
+				}
+			}
+			finishRoleSweep(ctx, s.logger, client, s.identitySyncTrigger(), ouID, name, stripped)
 		}
 	}
 }
