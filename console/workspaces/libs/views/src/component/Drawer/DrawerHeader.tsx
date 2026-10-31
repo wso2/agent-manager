@@ -16,8 +16,8 @@
  * under the License.
  */
 
-import { Box, IconButton, Typography } from "@wso2/oxygen-ui";
-import { Maximize2, Minimize2, X as Close } from "@wso2/oxygen-ui-icons-react";
+import { DrawerPanel, IconButton } from "@wso2/oxygen-ui";
+import { Maximize2, Minimize2 } from "@wso2/oxygen-ui-icons-react";
 import type { ReactNode } from "react";
 
 export interface DrawerHeaderProps {
@@ -28,33 +28,29 @@ export interface DrawerHeaderProps {
   onToggleFullscreen?: () => void;
 }
 
+/**
+ * Header row for {@link DrawerWrapper}. The expand toggle stays a plain button
+ * rather than `DrawerPanel.ExpandButton` because callers own the expanded
+ * state through `fullscreen`/`onToggleFullscreen`, not the panel's context.
+ */
 export function DrawerHeader(
   { icon, title, onClose, isFullscreen, onToggleFullscreen }: DrawerHeaderProps
 ) {
   return (
-    <Box
-      display="flex"
-      flexDirection="row"
-      justifyContent="space-between"
-      alignItems="center"
-      mb={1}
-      pt={2}
-    >
-      <Box display="flex" flexDirection="row" alignItems="center" gap={1}>
-        {icon}
-        <Typography variant="h6">{title}</Typography>
-      </Box>
-      <Box display="flex" flexDirection="row" alignItems="center" gap={0.5}>
+    <DrawerPanel.Header>
+      <DrawerPanel.Title icon={icon}>{title}</DrawerPanel.Title>
+      <DrawerPanel.Actions>
         {onToggleFullscreen && (
-          <IconButton size="small" onClick={onToggleFullscreen} aria-label={isFullscreen ? "Exit fullscreen" : "Fullscreen"}>
+          <IconButton
+            size="small"
+            onClick={onToggleFullscreen}
+            aria-label={isFullscreen ? "Exit fullscreen" : "Fullscreen"}
+          >
             {isFullscreen ? <Minimize2 size={16} /> : <Maximize2 size={16} />}
           </IconButton>
         )}
-        <IconButton size="small" onClick={onClose}>
-          <Close size={16} />
-        </IconButton>
-      </Box>
-    </Box>
+        <DrawerPanel.CloseButton onClick={onClose} />
+      </DrawerPanel.Actions>
+    </DrawerPanel.Header>
   );
 }
-
