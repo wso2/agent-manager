@@ -59,7 +59,6 @@ export function AgentOverview() {
 
     return (
         <PageLayout
-            variant="card"
             title={agent?.displayName ?? "Agent"}
             isLoading={isAgentLoading}
             titleTail={

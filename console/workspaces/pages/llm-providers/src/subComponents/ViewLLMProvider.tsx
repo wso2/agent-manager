@@ -151,7 +151,6 @@ export const ViewLLMProvider: React.FC = () => {
 
   return (
     <PageLayout
-      variant="card"
       title={providerName}
       description={description}
       backHref={generatePath(

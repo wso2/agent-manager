@@ -266,7 +266,6 @@ export const AgentsList: React.FC = () => {
 
   return (
     <PageLayout
-      variant="card"
       title={project?.displayName ?? "Agents"}
       meta={
         project ? (
