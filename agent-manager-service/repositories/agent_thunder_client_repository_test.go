@@ -297,3 +297,129 @@ func TestAgentThunderClientRepo_DeleteByIDs_IgnoresConcurrentRecreate(t *testing
 	require.Len(t, rows, 1, "the recreated agent's fresh row must survive a delete scoped to the old snapshot")
 	assert.Equal(t, recreated.ID, rows[0].ID)
 }
+
+func TestAgentThunderClientRepo_SyncMarkerIsClaimedAndClearedOnlyIfNotMoved(t *testing.T) {
+	repo := NewAgentThunderClientRepo(db.GetDB())
+	const org, project, agent = "test-org", "test-proj", "atc-sync-agent"
+	ctx := context.Background()
+	cleanupAgentThunderClients(t, repo, org, project, agent)
+
+	home := newTestAgentThunderClient(org, project, agent, "dev")
+	home.Status = models.AgentThunderStatusCompleted
+	promoted := newTestAgentThunderClient(org, project, agent, "stage")
+	promoted.Status = models.AgentThunderStatusCompleted
+	promoted.PromotionSource = "dev"
+	pending := newTestAgentThunderClient(org, project, agent, "prod")
+	pending.PromotionSource = "stage"
+	for _, c := range []*models.AgentThunderClient{home, promoted, pending} {
+		require.NoError(t, repo.Upsert(ctx, c))
+	}
+
+	past := time.Now().Add(-time.Minute).Truncate(time.Microsecond)
+	require.NoError(t, repo.MarkSyncAfter(ctx, []uuid.UUID{home.ID, promoted.ID, pending.ID}, past))
+	gotHome, err := repo.Get(ctx, org, project, agent, "dev")
+	require.NoError(t, err)
+	assert.Nil(t, gotHome.SyncAfter, "a binding created directly is never marked")
+	gotPending, err := repo.Get(ctx, org, project, agent, "prod")
+	require.NoError(t, err)
+	assert.Nil(t, gotPending.SyncAfter, "a pending binding reads the current set when it is attempted")
+
+	due, err := repo.FindSyncDue(ctx, time.Now(), 50)
+	require.NoError(t, err)
+	var ids []uuid.UUID
+	var observed time.Time
+	for _, row := range due {
+		if row.AgentName == agent {
+			ids = append(ids, row.ID)
+			observed = *row.SyncAfter
+		}
+	}
+	require.Equal(t, []uuid.UUID{promoted.ID}, ids)
+
+	lease := time.Now().Add(2 * time.Minute).Truncate(time.Microsecond)
+	claimed, err := repo.ClaimSync(ctx, promoted.ID, observed, lease)
+	require.NoError(t, err)
+	assert.True(t, claimed)
+	again, err := repo.ClaimSync(ctx, promoted.ID, observed, lease)
+	require.NoError(t, err)
+	assert.False(t, again, "a second replica cannot take the same value")
+
+	// A newer request moves the marker while the sync runs: finishing it must not clear it.
+	newer := time.Now().Add(10 * time.Second).Truncate(time.Microsecond)
+	require.NoError(t, repo.MarkSyncAfter(ctx, []uuid.UUID{promoted.ID}, newer))
+	done, err := repo.FinishSync(ctx, promoted.ID, lease, nil)
+	require.NoError(t, err)
+	assert.False(t, done, "the claim was superseded")
+	got, err := repo.Get(ctx, org, project, agent, "stage")
+	require.NoError(t, err)
+	require.NotNil(t, got.SyncAfter)
+	assert.True(t, got.SyncAfter.Equal(newer))
+
+	done, err = repo.FinishSync(ctx, promoted.ID, newer, nil)
+	require.NoError(t, err)
+	assert.True(t, done)
+	got, err = repo.Get(ctx, org, project, agent, "stage")
+	require.NoError(t, err)
+	assert.Nil(t, got.SyncAfter)
+}
+
+func TestAgentThunderClientRepo_DeferAndNoteDoNotConsumeAttempts(t *testing.T) {
+	repo := NewAgentThunderClientRepo(db.GetDB())
+	const org, project, agent = "test-org", "test-proj", "atc-defer-agent"
+	ctx := context.Background()
+	cleanupAgentThunderClients(t, repo, org, project, agent)
+	c := newTestAgentThunderClient(org, project, agent, "stage")
+	c.PromotionSource = "dev"
+	require.NoError(t, repo.Upsert(ctx, c))
+	claimed, err := repo.ClaimForAttempt(ctx, c.ID)
+	require.NoError(t, err)
+	require.True(t, claimed)
+
+	next := time.Now().Add(5 * time.Minute).Truncate(time.Microsecond)
+	require.ErrorIs(t, repo.Defer(ctx, c.ID, next, "Waiting."), ErrAgentThunderClientNotFound,
+		"a deferral never touches a binding another attempt has claimed")
+	require.NoError(t, repo.ReleaseClaim(ctx, c.ID, next, "Waiting."))
+	require.ErrorIs(t, repo.ReleaseClaim(ctx, c.ID, next, "Waiting."), ErrAgentThunderClientNotFound, "only a claimed binding is released")
+	got, err := repo.Get(ctx, org, project, agent, "stage")
+	require.NoError(t, err)
+	assert.Equal(t, models.AgentThunderStatusPending, got.Status, "a claimed attempt is released")
+	assert.Zero(t, got.AttemptCount)
+	assert.Equal(t, "Waiting.", got.LastError)
+	require.NotNil(t, got.NextRetryAt)
+	assert.True(t, got.NextRetryAt.Equal(next))
+
+	require.NoError(t, repo.SetLastError(ctx, c.ID, ""))
+	got, err = repo.Get(ctx, org, project, agent, "stage")
+	require.NoError(t, err)
+	assert.Empty(t, got.LastError)
+	assert.Equal(t, "dev", got.PromotionSource)
+}
+
+func TestAgentThunderClientRepo_ListHomeAgentsPagesDistinctAgentsWithACompletedDirectBinding(t *testing.T) {
+	repo := NewAgentThunderClientRepo(db.GetDB())
+	const org, project = "test-org-home", "test-proj"
+	ctx := context.Background()
+	for _, name := range []string{"atc-home-a", "atc-home-b", "atc-home-c"} {
+		cleanupAgentThunderClients(t, repo, org, project, name)
+		direct := newTestAgentThunderClient(org, project, name, "dev")
+		direct.Status = models.AgentThunderStatusCompleted
+		promoted := newTestAgentThunderClient(org, project, name, "stage")
+		promoted.Status = models.AgentThunderStatusCompleted
+		promoted.PromotionSource = "dev"
+		require.NoError(t, repo.Upsert(ctx, direct))
+		require.NoError(t, repo.Upsert(ctx, promoted))
+	}
+	pendingOnly := newTestAgentThunderClient(org, project, "atc-home-pending", "dev")
+	cleanupAgentThunderClients(t, repo, org, project, "atc-home-pending")
+	require.NoError(t, repo.Upsert(ctx, pendingOnly))
+
+	// Start just before this test's organization so rows other tests left do not interfere.
+	first, err := repo.ListHomeAgents(ctx, &AgentRef{OUID: org}, 2)
+	require.NoError(t, err)
+	require.Len(t, first, 2)
+	assert.Equal(t, "atc-home-a", first[0].AgentName)
+	second, err := repo.ListHomeAgents(ctx, &first[1], 2)
+	require.NoError(t, err)
+	require.NotEmpty(t, second)
+	assert.Equal(t, "atc-home-c", second[0].AgentName, "one entry per agent, in order, and no pending-only agent")
+}
