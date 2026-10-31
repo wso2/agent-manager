@@ -27,8 +27,8 @@ import {
 } from "@agent-management-platform/views";
 import { Clock, FileText, Logs } from "@wso2/oxygen-ui-icons-react";
 import { formatRelativeTime } from "../utils/format";
-import { Alert, Box, Skeleton, Stack, Typography } from "@wso2/oxygen-ui";
-import { BuildSteps } from "./BuildSteps";
+import { Alert, Box, Stack, Typography } from "@wso2/oxygen-ui";
+import { BuildSteps, BuildStepsSkeleton } from "./BuildSteps";
 
 import { getErrorMessage } from "../utils/errorHelpers";
 import { useMemo, useState } from "react";
@@ -41,14 +41,6 @@ export interface BuildLogsProps {
   agentName: string;
   buildName: string;
 }
-
-const InfoLoadingSkeleton = () => (
-  <Box display="flex" flexDirection="column" gap={1}>
-    <Skeleton variant="rounded" height={24} width={200} />
-    <Skeleton variant="rounded" height={32} width="100%" />
-    <Skeleton variant="rounded" height={50} width="100%" />
-  </Box>
-);
 
 export function BuildLogs({
   buildName,
@@ -136,36 +128,47 @@ export function BuildLogs({
         icon={<Logs size={24} />}
         title="Build Details"
         onClose={onClose}
+        meta={
+          build?.startedAt ? (
+            <Stack
+              direction="row"
+              gap={0.75}
+              alignItems="center"
+              sx={{ flexShrink: 0, color: "text.secondary" }}
+            >
+              <Clock size={14} />
+              <Typography variant="caption" noWrap>
+                Triggered {formatRelativeTime(build.startedAt)}
+              </Typography>
+            </Stack>
+          ) : undefined
+        }
         isFullscreen={isFullscreen}
         onToggleFullscreen={handleToggleFullscreen}
       />
       <DrawerContent>
-        <Stack direction="column" gap={2} height="calc(100vh - 72px)">
-          {build?.startedAt && (
-            <Stack direction="row" gap={1} alignItems="center">
-              <Clock size={16} />
-              <Typography variant="body2" color="text.secondary">
-                Triggered {formatRelativeTime(build.startedAt)}
-              </Typography>
-            </Stack>
-          )}
+        {/* The drawer body owns the available height, so the panel flexes
+            into it rather than guessing at viewport maths. */}
+        <Stack direction="column" gap={2} sx={{ flex: 1, minHeight: 0 }}>
           {(!!buildError) && (
             <Alert severity="error">
               {getErrorMessage(buildError)}
             </Alert>
           )}
-          {isBuildLoading && <InfoLoadingSkeleton />}
+          {isBuildLoading && <BuildStepsSkeleton />}
           {build && <BuildSteps build={build} />}
-          <LogsPanel
-            logs={reversedBuildLogs}
-            isLoading={isLoading}
-            error={error}
-            showSearch={false}
-            showTimestamp={false}
-            showLogLevel={false}
-            maxHeight="calc(100vh - 172px)"
-            emptyState={logsEmptyState}
-          />
+          <Box sx={{ flex: 1, minHeight: 0, display: "flex", flexDirection: "column" }}>
+            <LogsPanel
+              logs={reversedBuildLogs}
+              isLoading={isLoading}
+              error={error}
+              showSearch={false}
+              showTimestamp={false}
+              showLogLevel={false}
+              maxHeight="100%"
+              emptyState={logsEmptyState}
+            />
+          </Box>
         </Stack>
       </DrawerContent>
     </Stack>

@@ -24,6 +24,8 @@ export interface DrawerHeaderProps {
   icon: ReactNode;
   title: string;
   onClose: () => void;
+  /** Secondary detail shown right of the title, e.g. a timestamp. */
+  meta?: ReactNode;
   isFullscreen?: boolean;
   onToggleFullscreen?: () => void;
 }
@@ -34,11 +36,12 @@ export interface DrawerHeaderProps {
  * state through `fullscreen`/`onToggleFullscreen`, not the panel's context.
  */
 export function DrawerHeader(
-  { icon, title, onClose, isFullscreen, onToggleFullscreen }: DrawerHeaderProps
+  { icon, title, onClose, meta, isFullscreen, onToggleFullscreen }: DrawerHeaderProps
 ) {
   return (
     <DrawerPanel.Header>
       <DrawerPanel.Title icon={icon}>{title}</DrawerPanel.Title>
+      {meta}
       <DrawerPanel.Actions>
         {onToggleFullscreen && (
           <IconButton
