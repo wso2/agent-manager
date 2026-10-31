@@ -31,6 +31,7 @@ import {
   useListAgentIdentityAgents,
   useOrgAgentDisplayNames,
 } from "@agent-management-platform/api-client";
+import { isListEmpty } from "@agent-management-platform/shared-component";
 import { absoluteRouteMap, type AgentIdentityAgentResponse } from "@agent-management-platform/types";
 import { withSearchParams } from "../../utils/withSearchParams";
 
@@ -61,9 +62,11 @@ export const AgentsTab: React.FC = () => {
 
   const agents = useMemo(() => data?.agents ?? [], [data]);
 
-  // Distinct from a search that matched nothing: with no agents at all there is
-  // nothing to search, so the toolbar goes away with the table.
-  const isEmpty = !isLoading && agents.length === 0 && !search;
+  const isEmpty = isListEmpty({
+    isLoading,
+    count: agents.length,
+    isFiltered: Boolean(search),
+  });
 
   // Resolve each row's display name/project display name once here — every
   // downstream consumer (search filtering, the rendered cells) reads the

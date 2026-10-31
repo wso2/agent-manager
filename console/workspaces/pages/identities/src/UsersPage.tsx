@@ -33,7 +33,7 @@ import {
   useDeleteUser,
   useListUsers,
 } from "@agent-management-platform/api-client";
-import { useConfirmationDialog } from "@agent-management-platform/shared-component";
+import { isListEmpty, useConfirmationDialog } from "@agent-management-platform/shared-component";
 import {
   absoluteRouteMap,
   globalConfig,
@@ -62,9 +62,11 @@ export const UsersPage: React.FC = () => {
   const users = useMemo(() => data?.users ?? [], [data]);
   const total = data?.total ?? 0;
 
-  // Distinct from a search that matched nothing: with no users at all there is
-  // nothing to search, so the toolbar goes away with the table.
-  const isEmpty = !isLoading && users.length === 0 && !search;
+  const isEmpty = isListEmpty({
+    isLoading,
+    count: users.length,
+    isFiltered: Boolean(search),
+  });
 
   useEffect(() => {
     if (users.length === 0 && total > 0) {

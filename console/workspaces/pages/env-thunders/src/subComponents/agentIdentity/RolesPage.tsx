@@ -30,7 +30,7 @@ import {
   useDeleteAgentIdentityRole,
   useListAgentIdentityRoles,
 } from "@agent-management-platform/api-client";
-import { ListingSkeletonRows, useConfirmationDialog } from "@agent-management-platform/shared-component";
+import { isListEmpty, ListingSkeletonRows, useConfirmationDialog } from "@agent-management-platform/shared-component";
 import { absoluteRouteMap, type ThunderRole } from "@agent-management-platform/types";
 import { withSearchParams } from "../../utils/withSearchParams";
 import { AgentIdentityEnvironmentTabs } from "./AgentIdentityEnvironmentTabs";
@@ -62,9 +62,11 @@ export const RolesPage: React.FC<RolesPageProps> = ({ createAction }) => {
   const roles = useMemo(() => data?.roles ?? [], [data]);
   const total = data?.total ?? 0;
 
-  // Distinct from a search that matched nothing: with no roles at all there is
-  // nothing to search, so the toolbar goes away with the table.
-  const isEmpty = !isLoading && roles.length === 0 && !search;
+  const isEmpty = isListEmpty({
+    isLoading,
+    count: roles.length,
+    isFiltered: Boolean(search),
+  });
 
   useEffect(() => {
     if (roles.length === 0 && total > 0) {

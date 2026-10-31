@@ -16,7 +16,7 @@
  * under the License.
  */
 
-import { NoDataFound, PageLayout } from "@agent-management-platform/views";
+import { PageLayout } from "@agent-management-platform/views";
 import {
   useDeleteProject,
   useListDeploymentPipelines,
@@ -45,12 +45,13 @@ import {
 import {
   GitBranch,
   Package,
+  Search,
   Plus,
   Clock as TimerOutlined,
   Trash2 as TrashOutline,
 } from "@wso2/oxygen-ui-icons-react";
 import { type MouseEvent, useCallback, useMemo, useState } from "react";
-import { useConfirmationDialog } from "@agent-management-platform/shared-component";
+import { isListEmpty, useConfirmationDialog } from "@agent-management-platform/shared-component";
 
 const CARD_HEIGHT = 116;
 
@@ -280,62 +281,61 @@ export function ProjectList() {
     </Button>
   );
 
-  // No projects at all is a different state from a search that matched none:
-  // the first has nothing to search, so the field goes away with the grid.
-  const isEmpty = !isLoadingProjects && !projects?.projects?.length;
+  const isEmpty = isListEmpty({
+    isLoading: isLoadingProjects,
+    count: projects?.projects?.length ?? 0,
+    isFiltered: Boolean(search),
+  });
 
   return (
     <PageLayout title="All Projects" disableIcon actions={createButton}>
-      <Box sx={{ display: "flex", flexDirection: "column", gap: 4 }}>
-        {!isEmpty && (
+      {isEmpty ? (
+        <ListingTable.Container>
+          <ListingTable.EmptyState
+            illustration={<Package size={64} />}
+            title="No projects yet"
+            description="Create a project to group your agents and their configuration."
+            action={createButton}
+          />
+        </ListingTable.Container>
+      ) : (
+        <Box sx={{ display: "flex", flexDirection: "column", gap: 4 }}>
           <SearchBar
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             placeholder="Search Projects"
-            disabled={!projects?.projects?.length}
             size="small"
             fullWidth
           />
-        )}
 
-        {isEmpty && (
-          <ListingTable.Container>
-            <ListingTable.EmptyState
-              illustration={<Package size={64} />}
-              title="No projects yet"
-              description="Create a project to group your agents and their configuration."
-              action={createButton}
-            />
-          </ListingTable.Container>
-        )}
-
-        {!isEmpty && filteredProjects.length === 0 && !isLoadingProjects && (
-          <NoDataFound
-            message="No Projects Found"
-            subtitle="Looks like there are no projects matching your search."
-            iconElement={Package}
-          />
-        )}
-
-        {!isEmpty && (
-          <Box sx={{ display: "grid", gridTemplateColumns: projectGridTemplate, gap: 2, width: "100%" }}>
-            {isLoadingProjects || isDeletingProject
-              ? Array.from({ length: 4 }).map((_, i) => <SkeletonCard key={i} />)
-              : filteredProjects.map((project) => (
-                <ProjectCard
-                  key={project.name}
-                  project={project}
-                  pipeline={
-                    project.deploymentPipeline
-                      ? pipelineMap.get(project.deploymentPipeline)
-                      : undefined
-                  }
-                  handleDeleteProject={handleDeleteProject}
-                />
-              ))}
-          </Box>
-        )}
-      </Box>
+          {filteredProjects.length === 0 && !isLoadingProjects ? (
+            <ListingTable.Container>
+              <ListingTable.EmptyState
+                illustration={<Search size={64} />}
+                title="No projects match your search"
+                description="Try a different keyword or clear the search filter."
+              />
+            </ListingTable.Container>
+          ) : (
+            <Box sx={{ display: "grid", gridTemplateColumns: projectGridTemplate, gap: 2, width: "100%" }}>
+              {isLoadingProjects || isDeletingProject
+                ? Array.from({ length: 4 }).map((_, i) => <SkeletonCard key={i} />)
+                : filteredProjects.map((project) => (
+                  <ProjectCard
+                    key={project.name}
+                    project={project}
+                    pipeline={
+                      project.deploymentPipeline
+                        ? pipelineMap.get(project.deploymentPipeline)
+                        : undefined
+                    }
+                    handleDeleteProject={handleDeleteProject}
+                  />
+                ))}
+            </Box>
+          )}
+        </Box>
+      )}
     </PageLayout>
   );
 }

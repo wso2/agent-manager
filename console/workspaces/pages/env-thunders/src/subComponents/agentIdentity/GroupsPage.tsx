@@ -30,7 +30,7 @@ import {
   useDeleteAgentIdentityGroup,
   useListAgentIdentityGroups,
 } from "@agent-management-platform/api-client";
-import { ListingSkeletonRows, useConfirmationDialog } from "@agent-management-platform/shared-component";
+import { isListEmpty, ListingSkeletonRows, useConfirmationDialog } from "@agent-management-platform/shared-component";
 import { absoluteRouteMap, type ThunderGroup } from "@agent-management-platform/types";
 import { withSearchParams } from "../../utils/withSearchParams";
 import { AgentIdentityEnvironmentTabs } from "./AgentIdentityEnvironmentTabs";
@@ -62,9 +62,11 @@ export const GroupsPage: React.FC<GroupsPageProps> = ({ createAction }) => {
   const groups = useMemo(() => data?.groups ?? [], [data]);
   const total = data?.total ?? 0;
 
-  // Distinct from a search that matched nothing: with no groups at all there is
-  // nothing to search, so the toolbar goes away with the table.
-  const isEmpty = !isLoading && groups.length === 0 && !search;
+  const isEmpty = isListEmpty({
+    isLoading,
+    count: groups.length,
+    isFiltered: Boolean(search),
+  });
 
   useEffect(() => {
     if (groups.length === 0 && total > 0) {

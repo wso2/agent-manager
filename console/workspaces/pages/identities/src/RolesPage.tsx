@@ -31,7 +31,7 @@ import {
   useDeleteRole,
   useListRoles,
 } from "@agent-management-platform/api-client";
-import { useConfirmationDialog } from "@agent-management-platform/shared-component";
+import { isListEmpty, useConfirmationDialog } from "@agent-management-platform/shared-component";
 import {
   absoluteRouteMap,
   globalConfig,
@@ -60,9 +60,11 @@ export const RolesPage: React.FC = () => {
   const roles = useMemo(() => data?.roles ?? [], [data]);
   const total = data?.total ?? 0;
 
-  // Distinct from a search that matched nothing: with no roles at all there is
-  // nothing to search, so the toolbar goes away with the table.
-  const isEmpty = !isLoading && roles.length === 0 && !search;
+  const isEmpty = isListEmpty({
+    isLoading,
+    count: roles.length,
+    isFiltered: Boolean(search),
+  });
 
   useEffect(() => {
     if (roles.length === 0 && total > 0) {

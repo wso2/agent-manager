@@ -25,6 +25,7 @@ import React, {
 } from "react";
 import {
   getErrorMessage,
+  isListEmpty,
   useConfirmationDialog,
 } from "@agent-management-platform/shared-component";
 import { PageLayout } from "@agent-management-platform/views";
@@ -126,10 +127,10 @@ export const EvalEvaluatorsOrganization: React.FC = () => {
 
   // The query is server-filtered, so an empty result only means "nothing here
   // yet" when neither the search nor the source filter is narrowing it.
-  const hasFilters =
-    Boolean(search.trim()) || (selectedSources.length > 0 && selectedSources.length < 2);
+  const hasFilters = Boolean(search.trim()) || selectedSources.length === 1;
   const isEmpty =
-    !isLoading && !evaluatorsError && evaluators.length === 0 && !hasFilters;
+    !evaluatorsError &&
+    isListEmpty({ isLoading, count: evaluators.length, isFiltered: hasFilters });
 
   const {
     mutate: deleteEvaluator,
