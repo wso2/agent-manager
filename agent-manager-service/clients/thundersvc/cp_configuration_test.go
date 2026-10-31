@@ -20,6 +20,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -36,7 +37,7 @@ func cpTestTarget(serverURL string) EnvironmentIdentityTarget {
 	return EnvironmentIdentityTarget{
 		Mode: IdentityManagementCPManaged, OUID: "org-1", OrgNamespace: "namespace-1",
 		Environment: "dev", DeploymentID: "org-1", GatewayID: "gateway-dev", ManagementURL: serverURL,
-		DefaultEnvironment: true,
+		DefaultEnvironment: true, AgentOwnerID: "owner-everywhere",
 	}
 }
 
@@ -63,8 +64,8 @@ func TestCPConfigurationClientActivateCapturesAppliesAndVerifies(t *testing.T) {
 			_, _ = w.Write([]byte(`{"version":"version-1"}`))
 		case "/gateways/gateway-dev/apply":
 			var body map[string]any
-			if err := json.NewDecoder(r.Body).Decode(&body); err != nil || body["version"] != "version-1" {
-				t.Errorf("apply must name the captured version: %v, %v", body, err)
+			if err := json.NewDecoder(r.Body).Decode(&body); err != nil || body["version"] != "latest" {
+				t.Errorf("apply must select the latest version: %v, %v", body, err)
 			}
 			if _, hasSelection := body["selection"]; hasSelection {
 				t.Errorf("apply must keep the gateway's standing selection, got %v", body)
@@ -75,6 +76,8 @@ func TestCPConfigurationClientActivateCapturesAppliesAndVerifies(t *testing.T) {
 			_, _ = w.Write([]byte(`{"missing":null}`))
 		case "/gateways/gateway-dev/applied-version":
 			_, _ = w.Write([]byte(`{"gatewayId":"gateway-dev","appliedVersion":"version-1"}`))
+		case "/configuration-versions/latest":
+			_, _ = w.Write([]byte(`{"version":"version-1"}`))
 		default:
 			t.Errorf("unexpected CP path %s", r.URL.Path)
 		}
@@ -88,9 +91,43 @@ func TestCPConfigurationClientActivateCapturesAppliesAndVerifies(t *testing.T) {
 	if err := client.Activate(context.Background(), cpTestTarget(server.URL), "AgentID update"); err != nil {
 		t.Fatal(err)
 	}
-	want := []string{"POST /configuration-versions", "POST /gateways/gateway-dev/apply", "GET /gateways/gateway-dev/applied-version"}
+	want := []string{"POST /configuration-versions", "POST /gateways/gateway-dev/apply", "GET /gateways/gateway-dev/applied-version", "GET /configuration-versions/latest"}
 	if strings.Join(calls, ",") != strings.Join(want, ",") {
 		t.Fatalf("CP calls = %v, want %v", calls, want)
+	}
+}
+
+func TestCPConfigurationClientRetriesWhenAnotherReplicaCapturesANewerVersion(t *testing.T) {
+	applies := 0
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case "/configuration-versions":
+			_, _ = w.Write([]byte(`{"version":"version-1"}`))
+		case "/gateways/gateway-dev/apply":
+			var body map[string]any
+			if err := json.NewDecoder(r.Body).Decode(&body); err != nil || body["version"] != "latest" {
+				t.Errorf("expected latest apply, got %v, %v", body, err)
+			}
+			applies++
+			_, _ = w.Write([]byte(`{"missing":null}`))
+		case "/gateways/gateway-dev/applied-version":
+			_, _ = fmt.Fprintf(w, `{"gatewayId":"gateway-dev","appliedVersion":"version-%d"}`, applies)
+		case "/configuration-versions/latest":
+			_, _ = w.Write([]byte(`{"version":"version-2"}`))
+		default:
+			t.Errorf("unexpected CP path %s", r.URL.Path)
+		}
+	}))
+	defer server.Close()
+	client, err := NewCPConfigurationClient(bearerAuthorizer("management-token"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := client.Activate(context.Background(), cpTestTarget(server.URL), "AgentID update"); err != nil {
+		t.Fatal(err)
+	}
+	if applies != 2 {
+		t.Fatalf("apply attempts = %d, want 2", applies)
 	}
 }
 
@@ -158,6 +195,8 @@ func TestCPConfigurationClientRejectsIncompleteActivation(t *testing.T) {
 					_, _ = w.Write([]byte(test.applyBody))
 				case "/gateways/gateway-dev/applied-version":
 					_, _ = w.Write([]byte(`{"gatewayId":"gateway-dev","appliedVersion":"` + test.appliedVersion + `"}`))
+				case "/configuration-versions/latest":
+					_, _ = w.Write([]byte(`{"version":"version-1"}`))
 				default:
 					t.Errorf("unexpected path %s", r.URL.Path)
 				}

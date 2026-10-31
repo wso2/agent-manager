@@ -105,7 +105,7 @@ func cpTarget() EnvironmentIdentityTarget {
 		DeploymentID: "ou-1", GatewayID: "gateway-stage",
 		ManagementURL: "https://cp.example.test", IssuerURL: "https://stage.example.test",
 		TokenURL: "https://stage.example.test/oauth2/token", JWKSURL: "https://stage.example.test/oauth2/jwks",
-		DefaultEnvironment: true,
+		DefaultEnvironment: true, AgentOwnerID: "owner-everywhere",
 	}
 }
 
@@ -257,6 +257,7 @@ func TestRoutingEnvThunderResolverRejectsAmbiguousTargets(t *testing.T) {
 		"environment":    func(target *EnvironmentIdentityTarget) { target.Environment = "development" },
 		"deployment":     func(target *EnvironmentIdentityTarget) { target.DeploymentID = "" },
 		"gateway":        func(target *EnvironmentIdentityTarget) { target.GatewayID = "" },
+		"agent-owner":    func(target *EnvironmentIdentityTarget) { target.AgentOwnerID = "" },
 		"runtime":        func(target *EnvironmentIdentityTarget) { target.TokenURL = "" },
 		"url-userinfo":   func(target *EnvironmentIdentityTarget) { target.ManagementURL = "https://name:secret@cp.example.test" },
 		"url-plain-http": func(target *EnvironmentIdentityTarget) { target.ManagementURL = "http://cp.example.test" },

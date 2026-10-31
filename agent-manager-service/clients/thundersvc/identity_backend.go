@@ -63,8 +63,8 @@ type EnvironmentIdentityTarget struct {
 	// An agent is imported into every other environment's data plane by
 	// promotion, and a data plane refuses an agent whose owner it does not
 	// know, so this must be an identity that exists in every data plane of the
-	// deployment. Empty leaves the owner to the management credential's own
-	// identity, which usually exists only where that credential was issued.
+	// deployment. CP-managed targets require this identity so promotion does
+	// not inherit the management credential's environment-local owner.
 	AgentOwnerID string
 }
 
@@ -72,8 +72,8 @@ type EnvironmentIdentityTarget struct {
 // request needs, so no call is made against a guessed deployment or gateway.
 func (t EnvironmentIdentityTarget) validateManagement() error {
 	if t.Mode != IdentityManagementCPManaged || t.OUID == "" || t.OrgNamespace == "" || t.Environment == "" ||
-		t.DeploymentID == "" || t.GatewayID == "" {
-		return errors.New("complete CP organization, environment, deployment, and gateway target is required")
+		t.DeploymentID == "" || t.GatewayID == "" || t.AgentOwnerID == "" {
+		return errors.New("complete CP organization, environment, deployment, gateway, and agent owner target is required")
 	}
 	if err := validateCPManagementURL(t.ManagementURL); err != nil {
 		return fmt.Errorf("invalid CP management URL: %w", err)

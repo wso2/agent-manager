@@ -35,6 +35,8 @@ func TestCPClientActivatesRoleAndGroupChangesThroughCaptureApplyAndVerify(t *tes
 			_, _ = w.Write([]byte(`{}`))
 		case "/gateways/gateway-dev/applied-version":
 			_, _ = w.Write([]byte(`{"gatewayId":"gateway-dev","appliedVersion":"v1"}`))
+		case "/configuration-versions/latest":
+			_, _ = w.Write([]byte(`{"version":"v1"}`))
 		}
 	}))
 	defer server.Close()
@@ -53,36 +55,9 @@ func TestCPClientActivatesRoleAndGroupChangesThroughCaptureApplyAndVerify(t *tes
 	if err := activator.ActivateIdentityChange(context.Background()); err != nil {
 		t.Fatal(err)
 	}
-	want := "POST /configuration-versions,POST /gateways/gateway-dev/apply,GET /gateways/gateway-dev/applied-version"
+	want := "POST /configuration-versions,POST /gateways/gateway-dev/apply,GET /gateways/gateway-dev/applied-version,GET /configuration-versions/latest"
 	if got := strings.Join(calls, ","); got != want {
 		t.Fatalf("CP calls = %s, want %s", got, want)
-	}
-}
-
-func TestProxyResourceServerExistsReadsWithoutWriting(t *testing.T) {
-	var methods []string
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		methods = append(methods, r.Method+" "+r.URL.Path)
-		_, _ = w.Write([]byte(`{"totalResults":1,"resourceServers":[{"id":"rs-1","name":"Booking","identifier":"https://gw.example.test/booking/mcp"}]}`))
-	}))
-	defer server.Close()
-	client := &thunderClient{baseURL: server.URL, httpClient: server.Client(), cpManaged: true}
-
-	exists, err := client.ProxyResourceServerExists(context.Background(), "booking", "https://gw.example.test/booking/mcp")
-	if err != nil || !exists {
-		t.Fatalf("exists = %v, %v", exists, err)
-	}
-	exists, err = client.ProxyResourceServerExists(context.Background(), "weather", "https://gw.example.test/weather/mcp")
-	if err != nil || exists {
-		t.Fatalf("a missing resource server must be reported as absent, got %v, %v", exists, err)
-	}
-	for _, call := range methods {
-		if !strings.HasPrefix(call, "GET ") {
-			t.Fatalf("the existence check must only read, got %s", call)
-		}
-	}
-	if _, err := client.ProxyResourceServerExists(context.Background(), "booking", "not a uri"); err == nil {
-		t.Fatal("an identifier that is not a URI must be rejected")
 	}
 }
 

@@ -56,6 +56,8 @@ func TestCPIdentityBackendCreatesAgentThroughControlPlaneAndActivates(t *testing
 			_, _ = w.Write([]byte(`{}`))
 		case "/gateways/gateway-dev/applied-version":
 			_, _ = w.Write([]byte(`{"gatewayId":"gateway-dev","appliedVersion":"v1"}`))
+		case "/configuration-versions/latest":
+			_, _ = w.Write([]byte(`{"version":"v1"}`))
 		default:
 			t.Errorf("unexpected CP path %s", r.URL.Path)
 		}
@@ -78,7 +80,7 @@ func TestCPIdentityBackendCreatesAgentThroughControlPlaneAndActivates(t *testing
 	if err := activator.ActivateAgentIdentity(context.Background(), agentID); err != nil {
 		t.Fatal(err)
 	}
-	want := "POST /agents,POST /configuration-versions,POST /gateways/gateway-dev/apply,GET /gateways/gateway-dev/applied-version"
+	want := "POST /agents,POST /configuration-versions,POST /gateways/gateway-dev/apply,GET /gateways/gateway-dev/applied-version,GET /configuration-versions/latest"
 	if got := strings.Join(calls, ","); got != want {
 		t.Fatalf("CP calls = %s, want %s", got, want)
 	}
@@ -189,17 +191,15 @@ func TestCPIdentityBackendGivesNewAgentsTheDeploymentsOwner(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	// Another target without a configured owner must not inherit it from a cached client.
+	// A target without a configured owner must fail before sending a CP request.
 	plain := cpTestTarget(server.URL)
-	other, err := backend.Resolve(context.Background(), plain)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if _, _, _, _, err := other.CreateAgentIdentity(context.Background(), "ou-1", "agent", ""); err != nil {
-		t.Fatal(err)
+	plain.AgentOwnerID = ""
+	_, err = backend.Resolve(context.Background(), plain)
+	if err == nil {
+		t.Fatal("a CP target without an agent owner must be rejected")
 	}
 
-	if len(owners) != 3 || owners[0] != "owner-everywhere" || owners[1] != "explicit-owner" || owners[2] != nil {
-		t.Fatalf("owners sent to the CP = %v, want the configured one, the explicit one, and none", owners)
+	if len(owners) != 2 || owners[0] != "owner-everywhere" || owners[1] != "explicit-owner" {
+		t.Fatalf("owners sent to the CP = %v, want the configured one and the explicit one", owners)
 	}
 }

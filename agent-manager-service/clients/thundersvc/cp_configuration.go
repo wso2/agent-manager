@@ -73,21 +73,28 @@ func newCPHTTPClient(transport http.RoundTripper) *http.Client {
 // resources is refused by the CP and surfaces here as an error. Activation is
 // idempotent and safe to retry.
 func (c *CPConfigurationClient) Activate(ctx context.Context, target EnvironmentIdentityTarget, note string) error {
-	version, err := c.capture(ctx, target, note)
-	if err != nil {
+	if _, err := c.capture(ctx, target, note); err != nil {
 		return fmt.Errorf("capture CP configuration: %w", err)
 	}
-	if err := c.apply(ctx, target, version); err != nil {
-		return fmt.Errorf("apply CP configuration to gateway: %w", err)
+	// Named versions can roll a gateway back when another replica captures and
+	// applies a newer version. Apply the latest and verify it is still current.
+	for attempt := 0; attempt < 3; attempt++ {
+		if err := c.apply(ctx, target, "latest"); err != nil {
+			return fmt.Errorf("apply CP configuration to gateway: %w", err)
+		}
+		applied, err := c.appliedVersion(ctx, target)
+		if err != nil {
+			return fmt.Errorf("verify CP gateway apply: %w", err)
+		}
+		latest, err := c.latestVersion(ctx, target)
+		if err != nil {
+			return fmt.Errorf("verify latest CP configuration: %w", err)
+		}
+		if applied == latest {
+			return nil
+		}
 	}
-	applied, err := c.appliedVersion(ctx, target)
-	if err != nil {
-		return fmt.Errorf("verify CP gateway apply: %w", err)
-	}
-	if applied != version {
-		return errors.New("CP gateway did not report the activated configuration version")
-	}
-	return nil
+	return errors.New("CP gateway did not report the latest configuration version")
 }
 
 // capture records the configuration as the current version, as the CP's own
@@ -118,6 +125,19 @@ func (c *CPConfigurationClient) apply(ctx context.Context, target EnvironmentIde
 		return errors.New("CP gateway apply reported missing environment values")
 	}
 	return nil
+}
+
+func (c *CPConfigurationClient) latestVersion(ctx context.Context, target EnvironmentIdentityTarget) (string, error) {
+	var response struct {
+		Version string `json:"version"`
+	}
+	if err := c.request(ctx, target, http.MethodGet, "/configuration-versions/latest", nil, &response); err != nil {
+		return "", err
+	}
+	if response.Version == "" {
+		return "", errors.New("CP returned no latest configuration version")
+	}
+	return response.Version, nil
 }
 
 func (c *CPConfigurationClient) appliedVersion(ctx context.Context, target EnvironmentIdentityTarget) (string, error) {
