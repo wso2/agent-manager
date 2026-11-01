@@ -1217,14 +1217,24 @@ func GenerateCandidateName(displayName string) string {
 	re = regexp.MustCompile(`\s+`)
 	candidate = re.ReplaceAllString(candidate, "-")
 
+	// Resource names must start with a letter, so drop any leading digits or hyphens
+	re = regexp.MustCompile(`^[^a-z]+`)
+	candidate = re.ReplaceAllString(candidate, "")
+
 	// Limit to max resource name length
 	if len(candidate) > MaxResourceNameLength {
 		candidate = candidate[:MaxResourceNameLength]
 	}
 
-	// Remove leading and trailing hyphens
-	re = regexp.MustCompile(`^-+|-+$`)
-	candidate = re.ReplaceAllString(candidate, "")
+	// Remove trailing hyphens
+	candidate = strings.TrimRight(candidate, "-")
+
+	// Display names with no usable ASCII letters (e.g. non-Latin scripts or
+	// punctuation only) fall back to a random letter-only name, so the result
+	// always passes ValidateResourceName.
+	if candidate == "" {
+		candidate = generateRandomSuffix(FallbackCandidateNameLength)
+	}
 
 	return candidate
 }
@@ -1258,11 +1268,15 @@ func GenerateUniqueNameWithSuffix(baseName string, checker NameChecker) (string,
 	} else {
 		baseForUnique = baseName[:ValidCandidateLength]
 	}
+	baseForUnique = strings.TrimRight(baseForUnique, "-")
 
 	for attempts := 0; attempts < MaxNameGenerationAttempts; attempts++ {
 		// Generate random suffix
 		suffix := generateRandomSuffix(RandomSuffixLength)
-		uniqueName := fmt.Sprintf("%s-%s", baseForUnique, suffix)
+		uniqueName := suffix
+		if baseForUnique != "" {
+			uniqueName = fmt.Sprintf("%s-%s", baseForUnique, suffix)
+		}
 
 		// Check if this name is available
 		available, err := checker(uniqueName)
