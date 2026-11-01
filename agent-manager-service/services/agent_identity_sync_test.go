@@ -499,9 +499,9 @@ func (c *lockedRecorder) all() []audit.Event {
 	return append([]audit.Event(nil), c.events...)
 }
 
-// syncFixture wires a provisioning service for a deployment whose staging and
+// identitySyncFixture wires a provisioning service for a deployment whose staging and
 // production environments receive their identity by promotion from development.
-type syncFixture struct {
+type identitySyncFixture struct {
 	svc        *agentThunderProvisioningService
 	repo       *memRepo
 	world      *identityWorld
@@ -514,9 +514,9 @@ type syncFixture struct {
 	events     []string
 }
 
-func newSyncFixture(t *testing.T) *syncFixture {
+func newIdentitySyncFixture(t *testing.T) *identitySyncFixture {
 	t.Helper()
-	f := &syncFixture{repo: newMemRepo(), world: newIdentityWorld(), recorder: &lockedRecorder{Recorder: audit.NewNoopRecorder()}, logs: &bytes.Buffer{}}
+	f := &identitySyncFixture{repo: newMemRepo(), world: newIdentityWorld(), recorder: &lockedRecorder{Recorder: audit.NewNoopRecorder()}, logs: &bytes.Buffer{}}
 	resolver := placementResolver{
 		EnvThunderResolverMock: &clientmocks.EnvThunderResolverMock{
 			ResolveIdentityFunc: func(_ context.Context, _, _, env string) (thundersvc.EnvIdentityClient, error) {
@@ -554,20 +554,20 @@ func newSyncFixture(t *testing.T) *syncFixture {
 	return f
 }
 
-func (f *syncFixture) record(event string) {
+func (f *identitySyncFixture) record(event string) {
 	f.mu.Lock()
 	f.events = append(f.events, event)
 	f.mu.Unlock()
 }
 
-func (f *syncFixture) ctx(t *testing.T) context.Context {
+func (f *identitySyncFixture) ctx(t *testing.T) context.Context {
 	t.Helper()
 	return audit.WithRecorder(context.Background(), f.recorder)
 }
 
 // agent adds an agent with a completed identity in development and, for each of
 // the given environments, a binding promoted from the one before it.
-func (f *syncFixture) agent(name string, promoted map[string]models.AgentThunderStatus) {
+func (f *identitySyncFixture) agent(name string, promoted map[string]models.AgentThunderStatus) {
 	id := "id-" + name
 	f.repo.add(models.AgentThunderClient{
 		AgentName: name, EnvironmentName: "dev", ThunderAgentID: id, ThunderClientID: "client-dev-" + name,
@@ -599,7 +599,7 @@ func allPending() map[string]models.AgentThunderStatus {
 }
 
 // promotedTo returns the promotions that went to env, by agent id.
-func (f *syncFixture) promotedTo(env string) map[string]AgentIdentityPromotion {
+func (f *identitySyncFixture) promotedTo(env string) map[string]AgentIdentityPromotion {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	out := map[string]AgentIdentityPromotion{}
@@ -611,7 +611,7 @@ func (f *syncFixture) promotedTo(env string) map[string]AgentIdentityPromotion {
 	return out
 }
 
-func (f *syncFixture) syncAfter(agent, env string) *time.Time {
+func (f *identitySyncFixture) syncAfter(agent, env string) *time.Time {
 	return f.repo.find(agent, env).SyncAfter
 }
 
@@ -626,7 +626,7 @@ func roleNames(roles []PromotedIdentityResource) []string {
 // --- triggers: a changed role is promoted again to every environment of every holder ---
 
 func TestRolePermissionChangeRePromotesTheChangedRoleToEveryPipelineEnvironmentOfEveryHolder(t *testing.T) {
-	f := newSyncFixture(t)
+	f := newIdentitySyncFixture(t)
 	f.agent("direct", allCompleted())
 	f.agent("grouped", allCompleted())
 	f.agent("bystander", allCompleted())
@@ -675,7 +675,7 @@ func TestRolePermissionChangeRePromotesTheChangedRoleToEveryPipelineEnvironmentO
 // last environment is promoted from a stale version, clears its marker, and never
 // receives the change.
 func TestALaterEnvironmentIsNotSyncedBeforeItsPredecessorHasFinished(t *testing.T) {
-	f := newSyncFixture(t)
+	f := newIdentitySyncFixture(t)
 	f.agent("direct", allCompleted())
 	f.world.role("role-1", "booker", []string{"booking:read"}, []string{"id-direct"}, nil)
 	ctx := f.ctx(t)
@@ -717,7 +717,7 @@ func TestALaterEnvironmentIsNotSyncedBeforeItsPredecessorHasFinished(t *testing.
 
 // settleSyncs sweeps until every due sync has run. An environment waits for the one it
 // is promoted from, so a pipeline of N environments needs a sweep per level.
-func (f *syncFixture) settleSyncs(ctx context.Context) {
+func (f *identitySyncFixture) settleSyncs(ctx context.Context) {
 	for sweep := 0; sweep < 6; sweep++ {
 		f.repo.skew += predecessorRecheckDelay + time.Second
 		f.svc.SyncDuePromotions(ctx)
@@ -734,7 +734,7 @@ func proxyHandles(servers []MCPResourceServerPromotion) []string {
 }
 
 func TestASyncNeverMarksAnythingItself(t *testing.T) {
-	f := newSyncFixture(t)
+	f := newIdentitySyncFixture(t)
 	f.agent("direct", allCompleted())
 	f.agent("other", allCompleted())
 	f.world.role("role-1", "booker", []string{"booking:read"}, []string{"id-direct", "id-other"}, nil)
@@ -750,7 +750,7 @@ func TestASyncNeverMarksAnythingItself(t *testing.T) {
 }
 
 func TestABurstOfChangesIsOnePromotionPerAgentAndEnvironment(t *testing.T) {
-	f := newSyncFixture(t)
+	f := newIdentitySyncFixture(t)
 	f.agent("direct", allCompleted())
 	f.world.role("role-1", "booker", []string{"booking:read"}, []string{"id-direct"}, nil)
 	ctx := f.ctx(t)
@@ -765,7 +765,7 @@ func TestABurstOfChangesIsOnePromotionPerAgentAndEnvironment(t *testing.T) {
 }
 
 func TestANewerRequestDuringASyncIsNeverLost(t *testing.T) {
-	f := newSyncFixture(t)
+	f := newIdentitySyncFixture(t)
 	f.agent("direct", allCompleted())
 	f.world.role("role-1", "booker", []string{"booking:read"}, []string{"id-direct"}, nil)
 	ctx := f.ctx(t)
@@ -794,7 +794,7 @@ func TestANewerRequestDuringASyncIsNeverLost(t *testing.T) {
 }
 
 func TestAnAssignmentTriggersThePromotionOfTheRoleAndItsResourceServer(t *testing.T) {
-	f := newSyncFixture(t)
+	f := newIdentitySyncFixture(t)
 	f.agent("assigned", allCompleted())
 	f.agent("bystander", allCompleted())
 	ctx := f.ctx(t)
@@ -817,7 +817,7 @@ func TestAnAssignmentTriggersThePromotionOfTheRoleAndItsResourceServer(t *testin
 }
 
 func TestAnAssignmentThroughAGroupMarksTheGroupsAgentMembers(t *testing.T) {
-	f := newSyncFixture(t)
+	f := newIdentitySyncFixture(t)
 	f.agent("member", allCompleted())
 	f.agent("outsider", allCompleted())
 	f.world.groups["travel"] = []string{"id-member"}
@@ -833,7 +833,7 @@ func TestAnAssignmentThroughAGroupMarksTheGroupsAgentMembers(t *testing.T) {
 // later environment. The removal still marks the agent so the next promotion
 // reads the carried set as it is now.
 func TestUnassigningStillTriggersASyncButNothingIsRemovedInLaterEnvironments(t *testing.T) {
-	f := newSyncFixture(t)
+	f := newIdentitySyncFixture(t)
 	f.agent("direct", allCompleted())
 	ctx := f.ctx(t)
 	f.world.role("role-1", "booker", []string{"booking:read"}, nil, nil) // the agent was just removed
@@ -847,7 +847,7 @@ func TestUnassigningStillTriggersASyncButNothingIsRemovedInLaterEnvironments(t *
 }
 
 func TestGroupChangesMarkTheAgentsOfTheGroup(t *testing.T) {
-	f := newSyncFixture(t)
+	f := newIdentitySyncFixture(t)
 	f.agent("member", allCompleted())
 	f.agent("added", allCompleted())
 	f.agent("outsider", allCompleted())
@@ -863,7 +863,7 @@ func TestGroupChangesMarkTheAgentsOfTheGroup(t *testing.T) {
 }
 
 func TestDeletingARoleOrGroupMarksTheAgentsReadBeforeTheDelete(t *testing.T) {
-	f := newSyncFixture(t)
+	f := newIdentitySyncFixture(t)
 	f.agent("direct", allCompleted())
 	f.agent("member", allCompleted())
 	f.world.groups["travel"] = []string{"id-member"}
@@ -883,7 +883,7 @@ func TestDeletingARoleOrGroupMarksTheAgentsReadBeforeTheDelete(t *testing.T) {
 }
 
 func TestAnMCPScopeChangeFansOutToTheHoldersOfTheRolesThatReferenceTheServer(t *testing.T) {
-	f := newSyncFixture(t)
+	f := newIdentitySyncFixture(t)
 	f.agent("booker", allCompleted())
 	f.agent("grouped", allCompleted())
 	f.agent("weather", allCompleted())
@@ -901,7 +901,7 @@ func TestAnMCPScopeChangeFansOutToTheHoldersOfTheRolesThatReferenceTheServer(t *
 }
 
 func TestTriggersNeverFailOrWaitWhenTheIdentityProviderCannotBeRead(t *testing.T) {
-	f := newSyncFixture(t)
+	f := newIdentitySyncFixture(t)
 	f.agent("direct", allCompleted())
 	f.world.role("role-1", "booker", nil, []string{"id-direct"}, nil)
 	f.world.failReads = errors.New("identity provider down")
@@ -917,7 +917,7 @@ func TestTriggersNeverFailOrWaitWhenTheIdentityProviderCannotBeRead(t *testing.T
 }
 
 func TestTriggersDoNothingWhereIdentityIsNotPromoted(t *testing.T) {
-	f := newSyncFixture(t)
+	f := newIdentitySyncFixture(t)
 	f.svc.SetIdentityPromotionManager(nil)
 	f.agent("direct", allCompleted())
 	f.world.role("role-1", "booker", nil, []string{"id-direct"}, nil)
@@ -933,7 +933,7 @@ func TestTriggersDoNothingWhereIdentityIsNotPromoted(t *testing.T) {
 }
 
 func TestTheFanOutOfOneChangeIsBounded(t *testing.T) {
-	f := newSyncFixture(t)
+	f := newIdentitySyncFixture(t)
 	var ids []string
 	for i := 0; i < maxSyncAgentsPerTrigger+25; i++ {
 		name := fmt.Sprintf("agent-%d", i)
@@ -957,7 +957,7 @@ func TestTheFanOutOfOneChangeIsBounded(t *testing.T) {
 // --- promotion of a new binding ---
 
 func TestAPromotionWaitsForTheEnvironmentItIsPromotedFromWithoutUsingAnAttempt(t *testing.T) {
-	f := newSyncFixture(t)
+	f := newIdentitySyncFixture(t)
 	f.agent("scout", allPending())
 	// Production is promoted from staging, which is still pending.
 	prod := f.repo.find("scout", "prod")
@@ -976,7 +976,7 @@ func TestAPromotionWaitsForTheEnvironmentItIsPromotedFromWithoutUsingAnAttempt(t
 }
 
 func TestPromotionsRunInPipelineOrderFromEachBindingsOwnSource(t *testing.T) {
-	f := newSyncFixture(t)
+	f := newIdentitySyncFixture(t)
 	f.agent("scout", allPending())
 	ctx := f.ctx(t)
 
@@ -994,7 +994,7 @@ func TestPromotionsRunInPipelineOrderFromEachBindingsOwnSource(t *testing.T) {
 }
 
 func TestTheFirstPromotionCreatesTheTargetCredentialsAndARepeatKeepsThem(t *testing.T) {
-	f := newSyncFixture(t)
+	f := newIdentitySyncFixture(t)
 	f.agent("scout", map[string]models.AgentThunderStatus{"stage": models.AgentThunderStatusPending})
 	ctx := f.ctx(t)
 
@@ -1022,7 +1022,7 @@ func TestTheFirstPromotionCreatesTheTargetCredentialsAndARepeatKeepsThem(t *test
 }
 
 func TestAnExternalAgentsPromotedSecretIsNeverStored(t *testing.T) {
-	f := newSyncFixture(t)
+	f := newIdentitySyncFixture(t)
 	f.agent("scout", map[string]models.AgentThunderStatus{"stage": models.AgentThunderStatusPending})
 	row := f.repo.find("scout", "stage")
 	f.repo.byID(row.ID).ProvisioningType = models.AgentProvisioningTypeExternal
@@ -1041,7 +1041,7 @@ func TestAnExternalAgentsPromotedSecretIsNeverStored(t *testing.T) {
 }
 
 func TestABackgroundPromotionIsAuditedBeforeTheCredentialIsIssued(t *testing.T) {
-	f := newSyncFixture(t)
+	f := newIdentitySyncFixture(t)
 	f.agent("scout", map[string]models.AgentThunderStatus{"stage": models.AgentThunderStatusPending})
 	var auditedBeforeManager bool
 	f.managerErr = func(AgentIdentityPromotion) error {
@@ -1080,7 +1080,7 @@ func TestABackgroundPromotionIsAuditedBeforeTheCredentialIsIssued(t *testing.T) 
 }
 
 func TestAPromotionIsRefusedAndNothingIsIssuedWhenTheAuditTrailIsUnavailable(t *testing.T) {
-	f := newSyncFixture(t)
+	f := newIdentitySyncFixture(t)
 	f.agent("scout", map[string]models.AgentThunderStatus{"stage": models.AgentThunderStatusPending})
 
 	f.svc.AttemptProvision(context.Background(), *f.repo.find("scout", "stage")) // no recorder installed
@@ -1095,7 +1095,7 @@ func TestAPromotionIsRefusedAndNothingIsIssuedWhenTheAuditTrailIsUnavailable(t *
 func TestUnavailableAndForbiddenFollowTheNormalRetryBudgetThenFail(t *testing.T) {
 	for _, kind := range []IdentityPromotionErrorKind{IdentityPromotionUnavailable, IdentityPromotionForbidden} {
 		t.Run(string(kind), func(t *testing.T) {
-			f := newSyncFixture(t)
+			f := newIdentitySyncFixture(t)
 			f.agent("scout", map[string]models.AgentThunderStatus{"stage": models.AgentThunderStatusPending})
 			f.managerErr = func(AgentIdentityPromotion) error {
 				return &IdentityPromotionError{Kind: kind, Message: "the control plane is not reachable"}
@@ -1120,7 +1120,7 @@ func TestUnavailableAndForbiddenFollowTheNormalRetryBudgetThenFail(t *testing.T)
 func TestUserFixableRefusalsKeepRetryingOnALongerBackoffAndNeverExhaust(t *testing.T) {
 	for _, kind := range []IdentityPromotionErrorKind{IdentityPromotionBlocked, IdentityPromotionConflict, IdentityPromotionMissingValues} {
 		t.Run(string(kind), func(t *testing.T) {
-			f := newSyncFixture(t)
+			f := newIdentitySyncFixture(t)
 			f.agent("scout", map[string]models.AgentThunderStatus{"stage": models.AgentThunderStatusPending})
 			f.managerErr = func(AgentIdentityPromotion) error {
 				return &IdentityPromotionError{
@@ -1164,7 +1164,7 @@ func TestUserFixableRetryDelayDoublesFromTheFloorToTheCap(t *testing.T) {
 }
 
 func TestNoSecretOrInternalIdentifierReachesLogsOrTheBindingsNote(t *testing.T) {
-	f := newSyncFixture(t)
+	f := newIdentitySyncFixture(t)
 	f.agent("scout", map[string]models.AgentThunderStatus{"stage": models.AgentThunderStatusPending})
 	var secret, clientID string
 	f.managerErr = func(p AgentIdentityPromotion) error {
@@ -1190,7 +1190,7 @@ func TestNoSecretOrInternalIdentifierReachesLogsOrTheBindingsNote(t *testing.T) 
 // --- the cross pipeline rule ---
 
 func TestARoleWaitsWhileAnotherAgentThatHoldsItHasNoIdentityInTheEnvironment(t *testing.T) {
-	f := newSyncFixture(t)
+	f := newIdentitySyncFixture(t)
 	f.agent("first", map[string]models.AgentThunderStatus{"stage": models.AgentThunderStatusPending})
 	f.agent("second", map[string]models.AgentThunderStatus{"stage": models.AgentThunderStatusPending})
 	f.world.role("role-1", "booker", []string{"booking:read"}, []string{"id-first", "id-second"}, nil)
@@ -1207,7 +1207,7 @@ func TestARoleWaitsWhileAnotherAgentThatHoldsItHasNoIdentityInTheEnvironment(t *
 }
 
 func TestACompletedIdentityMarksTheAgentsThatShareARoleSoHeldRolesConverge(t *testing.T) {
-	f := newSyncFixture(t)
+	f := newIdentitySyncFixture(t)
 	f.agent("first", map[string]models.AgentThunderStatus{"stage": models.AgentThunderStatusPending})
 	f.agent("second", map[string]models.AgentThunderStatus{"stage": models.AgentThunderStatusPending})
 	f.world.role("role-1", "booker", []string{"booking:read"}, []string{"id-first", "id-second"}, nil)
@@ -1233,7 +1233,7 @@ func TestACompletedIdentityMarksTheAgentsThatShareARoleSoHeldRolesConverge(t *te
 }
 
 func TestARoleHeldBackThroughAGroupMemberWaitsForTheMember(t *testing.T) {
-	f := newSyncFixture(t)
+	f := newIdentitySyncFixture(t)
 	f.agent("first", allCompleted())
 	f.agent("grouped", map[string]models.AgentThunderStatus{"stage": models.AgentThunderStatusPending})
 	f.world.groups["travel"] = []string{"id-grouped"}
@@ -1287,7 +1287,7 @@ func TestTheOrderedPipelineFlattensADAGBreadthFirstAndRecordsTheSource(t *testin
 }
 
 func TestAnAgentGetsABindingForEveryEnvironmentOfItsPipelineInOrder(t *testing.T) {
-	f := newSyncFixture(t)
+	f := newIdentitySyncFixture(t)
 	f.repo.add(models.AgentThunderClient{AgentName: "other", EnvironmentName: "elsewhere"}) // unrelated
 	ref := AgentIdentityRef{OUID: "org-id", ProjectName: "default", AgentName: "scout", Ownership: models.AgentProvisioningTypeExternal}
 	// The background attempts that follow lose every claim and stop; the promoted
@@ -1313,7 +1313,7 @@ func TestAnAgentGetsABindingForEveryEnvironmentOfItsPipelineInOrder(t *testing.T
 }
 
 func TestAnAgentOutsideAPromotingPipelineIsProvisionedTheLegacyWay(t *testing.T) {
-	f := newSyncFixture(t)
+	f := newIdentitySyncFixture(t)
 	ref := AgentIdentityRef{OUID: "org-id", ProjectName: "default", AgentName: "scout", Ownership: models.AgentProvisioningTypeInternal}
 
 	require.False(t, f.svc.ProvisionForAgentInPipeline(f.ctx(t), ref, pipelineOf("dev", "qa"), "user-1", ""),
@@ -1327,7 +1327,7 @@ func TestAnAgentOutsideAPromotingPipelineIsProvisionedTheLegacyWay(t *testing.T)
 }
 
 func TestProvisioningFallsBackToTheLegacyWayWhenAPlacementCannotBeRead(t *testing.T) {
-	f := newSyncFixture(t)
+	f := newIdentitySyncFixture(t)
 	f.svc.envResolver = placementResolver{EnvThunderResolverMock: &clientmocks.EnvThunderResolverMock{}, err: errors.New("target resolver down")}
 	ref := AgentIdentityRef{OUID: "org-id", ProjectName: "default", AgentName: "scout"}
 
@@ -1346,7 +1346,7 @@ func (p fakePipelines) ProjectIdentityPipeline(_ context.Context, _, project str
 }
 
 func TestTheBackfillCreatesTheMissingPipelineBindingsAndIsIdempotent(t *testing.T) {
-	f := newSyncFixture(t)
+	f := newIdentitySyncFixture(t)
 	// An agent created before identity followed the pipeline has its first binding only.
 	f.agent("legacy", nil)
 	// One whose pipeline gained a third environment has the first two.
@@ -1375,7 +1375,7 @@ func TestTheBackfillCreatesTheMissingPipelineBindingsAndIsIdempotent(t *testing.
 }
 
 func TestTheBackfillDoesNothingWithoutAPipelineReaderOrPromotion(t *testing.T) {
-	f := newSyncFixture(t)
+	f := newIdentitySyncFixture(t)
 	f.agent("legacy", nil)
 	reconciler := NewAgentThunderReconcilerService(f.svc, nil, f.repo, f.svc.logger).(*agentThunderReconcilerService)
 	before := len(f.repo.rows)
@@ -1391,7 +1391,7 @@ func TestTheBackfillDoesNothingWithoutAPipelineReaderOrPromotion(t *testing.T) {
 }
 
 func TestTheSyncRunnerDoesNothingWithoutPromotion(t *testing.T) {
-	f := newSyncFixture(t)
+	f := newIdentitySyncFixture(t)
 	f.agent("direct", allCompleted())
 	f.svc.SetIdentityPromotionManager(nil)
 	f.repo.skew = time.Hour
@@ -1399,7 +1399,7 @@ func TestTheSyncRunnerDoesNothingWithoutPromotion(t *testing.T) {
 }
 
 func TestAPromotionSaysSoWhenTheEnvironmentItIsPromotedFromFailed(t *testing.T) {
-	f := newSyncFixture(t)
+	f := newIdentitySyncFixture(t)
 	f.agent("scout", map[string]models.AgentThunderStatus{"stage": models.AgentThunderStatusFailed, "prod": models.AgentThunderStatusPending})
 
 	f.svc.AttemptProvision(f.ctx(t), *f.repo.find("scout", "prod"))
@@ -1410,7 +1410,7 @@ func TestAPromotionSaysSoWhenTheEnvironmentItIsPromotedFromFailed(t *testing.T) 
 }
 
 func TestAPromotionIntoAnEnvironmentThatIsNoLongerPromotedWaitsOnTheLongBackoffWithItsOwnNote(t *testing.T) {
-	f := newSyncFixture(t)
+	f := newIdentitySyncFixture(t)
 	f.agent("scout", map[string]models.AgentThunderStatus{"stage": models.AgentThunderStatusPending})
 	f.svc.envResolver = placementResolver{
 		EnvThunderResolverMock: &clientmocks.EnvThunderResolverMock{}, byPromotion: map[string]bool{},
@@ -1425,7 +1425,7 @@ func TestAPromotionIntoAnEnvironmentThatIsNoLongerPromotedWaitsOnTheLongBackoffW
 }
 
 func TestARoleWhoseGroupHoldersWereNotAllReadIsHeldBack(t *testing.T) {
-	f := newSyncFixture(t)
+	f := newIdentitySyncFixture(t)
 	f.agent("first", allCompleted())
 	var members []string
 	for i := 0; i < maxSyncAgentsPerTrigger+10; i++ {
