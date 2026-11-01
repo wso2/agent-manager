@@ -91,6 +91,37 @@ func ensureAgentEnvAPIArtifact(
 	return artifact, nil
 }
 
+// ensureExposedAgentEnvAPIArtifact is ensureAgentEnvAPIArtifact for an agent being exposed on the gateway with
+// shape, except that a REST agent's legacy Agent row is switched to RestApi in place: its UUID, handle and API keys
+// stay. Its only caller is the transaction that writes the agent's rest exposure.
+func ensureExposedAgentEnvAPIArtifact(
+	db *gorm.DB,
+	artifactRepo repositories.ArtifactRepository,
+	ouID, projectName, agentName, environmentID string,
+	shape agentGatewayShape,
+) (*models.Artifact, error) {
+	if shape == restAgentShape {
+		legacy, err := agentEnvAPIArtifact(artifactRepo.WithTx(db), ouID, projectName, agentName, environmentID, models.KindAgent)
+		switch {
+		case err == nil:
+			return switchArtifactKind(db, artifactRepo, legacy, shape.ArtifactKind)
+		case !errors.Is(err, utils.ErrArtifactNotFound):
+			return nil, err
+		}
+	}
+	return ensureAgentEnvAPIArtifact(db, artifactRepo, ouID, projectName, agentName, environmentID, shape.ArtifactKind)
+}
+
+func switchArtifactKind(
+	db *gorm.DB, artifactRepo repositories.ArtifactRepository, artifact *models.Artifact, kind string,
+) (*models.Artifact, error) {
+	if err := artifactRepo.Update(db, &models.Artifact{UUID: artifact.UUID, OUID: artifact.OUID, Kind: kind}); err != nil {
+		return nil, fmt.Errorf("failed to switch agent API artifact %q to kind %q: %w", artifact.Handle, kind, err)
+	}
+	artifact.Kind = kind
+	return artifact, nil
+}
+
 func requireArtifactKind(artifact *models.Artifact, kind string) (*models.Artifact, error) {
 	if artifact.Kind != kind {
 		return nil, fmt.Errorf("agent API artifact handle %q exists with kind %q, not %q", artifact.Handle, artifact.Kind, kind)

@@ -121,6 +121,11 @@ func (m *publisherMocks) publisher() *A2APublisher {
 	return withA2ACore(NewA2APublisher(m.tx(), m.exposures, m.proxies, m.envCards, m.artifacts, m.deployments, testLogger(), exposure, nil), m.hub)
 }
 
+// testA2AArtifact is the agent's artifact in the environment, ensured in the save's transaction.
+func testA2AArtifact(*gorm.DB) (*models.Artifact, error) {
+	return &models.Artifact{UUID: uuid.New(), Kind: models.KindAgent}, nil
+}
+
 func testA2AKey() agentExposureKey {
 	return agentExposureKey{
 		OUID: "org-1", ProjectName: "checkout", AgentName: "weather", EnvironmentName: "dev",
@@ -208,7 +213,7 @@ func TestA2APublisherSaveAndRepublishSkipsTheLockForAnInternalAgent(t *testing.T
 	m.txExposures.UpsertFunc = func(context.Context, *models.PlatformAgentExposure) error { return nil }
 	var savedIn *gorm.DB
 
-	err := m.publisher().SaveAndRepublish(context.Background(), internal, testA2AKey(), models.ArtifactRef{ArtifactUUID: uuid.New()}, func(tx *gorm.DB) error {
+	err := m.publisher().SaveAndRepublish(context.Background(), internal, testA2AKey(), testA2AArtifact, func(tx *gorm.DB) error {
 		savedIn = tx
 		return nil
 	})
@@ -230,7 +235,7 @@ func TestA2APublisherSaveAndRepublishFailsWhenTheExposureCannotBeWritten(t *test
 	}
 	m.txExposures.UpsertFunc = func(context.Context, *models.PlatformAgentExposure) error { return assert.AnError }
 
-	err := m.publisher().SaveAndRepublish(context.Background(), internal, testA2AKey(), models.ArtifactRef{ArtifactUUID: uuid.New()}, func(*gorm.DB) error {
+	err := m.publisher().SaveAndRepublish(context.Background(), internal, testA2AKey(), testA2AArtifact, func(*gorm.DB) error {
 		return nil
 	})
 
@@ -243,7 +248,7 @@ func TestA2APublisherSaveAndRepublishDoesNotSaveWhenTheLockFails(t *testing.T) {
 	m.proxies.LockAgentEnvFunc = func(context.Context, string, string, string, uuid.UUID) error { return assert.AnError }
 	saved := false
 
-	err := m.publisher().SaveAndRepublish(context.Background(), externalAgent(), testA2AKey(), models.ArtifactRef{ArtifactUUID: uuid.New()}, func(*gorm.DB) error {
+	err := m.publisher().SaveAndRepublish(context.Background(), externalAgent(), testA2AKey(), testA2AArtifact, func(*gorm.DB) error {
 		saved = true
 		return nil
 	})
@@ -262,7 +267,7 @@ func TestA2APublisherSaveAndRepublishExposesNoExternalAgent(t *testing.T) {
 	}
 	saved := false
 
-	err := m.publisher().SaveAndRepublish(context.Background(), externalAgent(), testA2AKey(), models.ArtifactRef{ArtifactUUID: uuid.New()}, func(*gorm.DB) error {
+	err := m.publisher().SaveAndRepublish(context.Background(), externalAgent(), testA2AKey(), testA2AArtifact, func(*gorm.DB) error {
 		saved = true
 		return nil
 	})

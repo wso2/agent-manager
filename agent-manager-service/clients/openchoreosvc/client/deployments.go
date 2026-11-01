@@ -1165,13 +1165,14 @@ func (c *openChoreoClient) GetDeployments(ctx context.Context, ouID, pipelineNam
 			}
 			deploymentDetails = append(deploymentDetails, deploymentDetail)
 		} else {
-			var displayName string
+			var displayName, envUUID string
 			if env, envExists := environmentMap[envName]; envExists {
-				displayName = env.DisplayName
+				displayName, envUUID = env.DisplayName, env.UUID
 			}
 
 			deploymentDetails = append(deploymentDetails, &models.DeploymentResponse{
 				Environment:                envName,
+				EnvironmentUUID:            envUUID,
 				EnvironmentDisplayName:     displayName,
 				PromotionTargetEnvironment: promotionTargetEnv,
 				Status:                     DeploymentStatusNotDeployed,
@@ -1611,9 +1612,9 @@ func toDeploymentDetailsResponse(binding *gen.ReleaseBinding, componentRelease *
 	}
 
 	environment := binding.Spec.Environment
-	var environmentDisplayName string
+	var environmentDisplayName, environmentUUID string
 	if env, exists := environmentMap[environment]; exists {
-		environmentDisplayName = env.DisplayName
+		environmentDisplayName, environmentUUID = env.DisplayName, env.UUID
 	}
 
 	t := getLastDeployedTime(binding)
@@ -1626,6 +1627,7 @@ func toDeploymentDetailsResponse(binding *gen.ReleaseBinding, componentRelease *
 		ImageId:                    deployedImage,
 		Status:                     status,
 		Environment:                environment,
+		EnvironmentUUID:            environmentUUID,
 		EnvironmentDisplayName:     environmentDisplayName,
 		PromotionTargetEnvironment: promotionTargetEnv,
 		LastDeployedAt:             lastDeployedAt,

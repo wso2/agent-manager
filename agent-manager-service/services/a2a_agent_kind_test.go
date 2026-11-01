@@ -448,33 +448,6 @@ func TestAnExternalAgentWithNoSubtypeIsPlacedThroughItsProxy(t *testing.T) {
 	assert.Contains(t, string(pulled.Content), "url: https://agent.example/team", "fronts the card's origin")
 }
 
-// A platform agent built without the A2A subtype is deployed with no exposure, so nothing places it on a gateway.
-func TestAPlatformAgentWithoutTheA2ASubtypeGetsNoExposure(t *testing.T) {
-	f := newA2AFixture(t)
-	artifact, key := f.platformAgent(t)
-	svc := &agentManagerService{
-		db: db.GetDB(), agentConfigRepo: repositories.NewAgentConfigRepo(db.GetDB()),
-		artifactRepo: repositories.NewArtifactRepo(db.GetDB()), a2aPublisher: f.publisher, logger: testLogger(),
-	}
-	chat := &models.AgentResponse{
-		UUID: uuid.NewString(), Name: key.AgentName, Provisioning: models.Provisioning{Type: "internal"},
-		Type: models.AgentType{Type: "agent-api", SubType: "chat-api"},
-	}
-	cfg := &models.AgentConfig{OUID: key.OUID, ProjectName: key.ProjectName, AgentName: key.AgentName, EnvironmentName: "dev"}
-
-	require.NoError(t, svc.recordAgentEnvDeploy(context.Background(), chat, cfg, f.env.String(), func(*gorm.DB) (*models.Artifact, error) {
-		return &models.Artifact{UUID: artifact.ArtifactUUID, OUID: key.OUID, Handle: artifact.Handle, Kind: models.KindAgent}, nil
-	}))
-	svc.enqueueCreatedA2AAgent(context.Background(), "chat-api", key.OUID, key.ProjectName, key.AgentName, "dev",
-		f.env.String(), &models.Artifact{UUID: artifact.ArtifactUUID})
-	require.NoError(t, f.worker.PlaceEnv(context.Background(), f.sync.ouID, f.env))
-
-	_, err := repositories.NewPlatformAgentExposureRepository(db.GetDB()).GetByArtifact(context.Background(), key.OUID,
-		artifact.ArtifactUUID)
-	assert.ErrorIs(t, err, repositories.ErrPlatformAgentExposureNotFound)
-	assert.Nil(t, f.row(t, artifact))
-}
-
 // GET a2a-proxy reports the environment's deployment: DEPLOYING while the deploy is owed and until the gateway acks
 // it, DEPLOYED after.
 func TestGetA2AProxyFollowsTheDeployment(t *testing.T) {

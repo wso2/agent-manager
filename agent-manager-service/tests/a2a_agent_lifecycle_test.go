@@ -37,6 +37,7 @@ import (
 	"gopkg.in/yaml.v3"
 	"gorm.io/gorm"
 
+	"github.com/wso2/agent-manager/agent-manager-service/clients/openchoreosvc/client"
 	"github.com/wso2/agent-manager/agent-manager-service/db"
 	"github.com/wso2/agent-manager/agent-manager-service/eventhub"
 	"github.com/wso2/agent-manager/agent-manager-service/middleware/jwtassertion"
@@ -169,6 +170,9 @@ func TestA2AAgentLifecycle(t *testing.T) {
 	}
 	openChoreoClient.GetReleaseBindingServiceURLFunc = func(ctx context.Context, ouID, componentName, environment string) (string, error) {
 		return currentServiceURL(), nil
+	}
+	openChoreoClient.GetReleaseBindingRolloutFunc = func(ctx context.Context, ouID, componentName, environment string) (client.ReleaseBindingRollout, error) {
+		return client.ReleaseBindingRollout{Deployed: true}, nil
 	}
 
 	app := apitestutils.MakeAppClientWithDeps(t, wiring.TestClients{

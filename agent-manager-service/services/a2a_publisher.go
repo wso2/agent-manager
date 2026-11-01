@@ -88,15 +88,18 @@ func (p *A2APublisher) ShouldPublish(
 }
 
 // SaveAndRepublish runs save in one transaction with the redeploy the agent's environment is owed afterwards, if
-// any. A platform agent's exposure is written and its render queued in that transaction. An external agent is
+// any; artifact, run in that transaction only when one is owed, returns the agent's artifact in the environment. A
+// platform agent's exposure is written and its render queued in that transaction. An external agent is
 // decided under its environment's transition lock, so a concurrent switch to direct cannot be missed; while proxied,
 // its placed rows are marked stale once the save commits. The save stands if that fails: the next save or proxy
 // refresh re-renders them.
 func (p *A2APublisher) SaveAndRepublish(
-	ctx context.Context, agent *models.AgentResponse, key agentExposureKey, artifact models.ArtifactRef, save func(tx *gorm.DB) error,
+	ctx context.Context, agent *models.AgentResponse, key agentExposureKey,
+	artifact func(tx *gorm.DB) (*models.Artifact, error), save func(tx *gorm.DB) error,
 ) error {
 	external := isExternalProvisioned(agent)
 	var publish bool
+	var republished models.ArtifactRef
 	err := p.tx(ctx, func(tx *gorm.DB) error {
 		if external {
 			if err := lockA2AProxyEnv(ctx, p.proxies(tx), key); err != nil {
@@ -110,10 +113,18 @@ func (p *A2APublisher) SaveAndRepublish(
 		if err := save(tx); err != nil {
 			return err
 		}
-		if !publish || external {
+		if !publish {
 			return nil
 		}
-		return p.publish(ctx, tx, key, artifact)
+		a, err := artifact(tx)
+		if err != nil {
+			return err
+		}
+		republished = agentArtifactRef(a)
+		if external {
+			return nil
+		}
+		return p.publish(ctx, tx, key, republished)
 	})
 	if err != nil || !publish {
 		return err
@@ -122,9 +133,9 @@ func (p *A2APublisher) SaveAndRepublish(
 		p.exposure.Nudge()
 		return nil
 	}
-	if err := p.exposure.MarkStale(ctx, artifact, "the agent's deploy settings changed"); err != nil {
+	if err := p.exposure.MarkStale(ctx, republished, "the agent's deploy settings changed"); err != nil {
 		p.logger.Warn("Saved the agent's deploy settings but couldn't re-render its gateway deployments",
-			"artifactUUID", artifact.ArtifactUUID, "error", err)
+			"artifactUUID", republished.ArtifactUUID, "error", err)
 	}
 	return nil
 }

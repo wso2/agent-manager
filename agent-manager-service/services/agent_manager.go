@@ -39,6 +39,7 @@ import (
 	"github.com/wso2/agent-manager/agent-manager-service/middleware/jwtassertion"
 	"github.com/wso2/agent-manager/agent-manager-service/models"
 	"github.com/wso2/agent-manager/agent-manager-service/rbac"
+	"github.com/wso2/agent-manager/agent-manager-service/reconcile"
 	"github.com/wso2/agent-manager/agent-manager-service/repositories"
 	"github.com/wso2/agent-manager/agent-manager-service/spec"
 	"github.com/wso2/agent-manager/agent-manager-service/utils"
@@ -100,6 +101,8 @@ type agentManagerService struct {
 	a2aCardRepo               repositories.A2AAgentCardRepository
 	deploymentRepo            repositories.DeploymentRepository
 	gatewayEventsService      *GatewayEventsService
+	exposure                  *AgentExposurePublisher
+	restAgentKind             *RestAgentKind
 	logger                    *slog.Logger
 }
 
@@ -124,6 +127,8 @@ func NewAgentManagerService(
 	a2aCardRepo repositories.A2AAgentCardRepository,
 	deploymentRepo repositories.DeploymentRepository,
 	gatewayEventsService *GatewayEventsService,
+	exposure *AgentExposurePublisher,
+	restAgentKind *RestAgentKind,
 	logger *slog.Logger,
 ) AgentManagerService {
 	return &agentManagerService{
@@ -144,6 +149,8 @@ func NewAgentManagerService(
 		a2aCardRepo:               a2aCardRepo,
 		deploymentRepo:            deploymentRepo,
 		gatewayEventsService:      gatewayEventsService,
+		exposure:                  exposure,
+		restAgentKind:             restAgentKind,
 		artifactRepo:              artifactRepo,
 		aiApplicationService:      aiApplicationService,
 		gatewayRepo:               gatewayRepo,
@@ -422,17 +429,13 @@ func resolveResilienceTimeoutSeconds(existingConfig *models.AgentConfig, request
 
 // buildCreateTraitRequests collects all traits needed during agent creation into a single
 // list so they can be attached in one GET-UPDATE cycle, avoiding resource version conflicts.
-// artifactID is the UUID of the agent's artifact record (used for api-configuration trait).
-func (s *agentManagerService) buildCreateTraitRequests(ctx context.Context, ouID, projectName, artifactID, envName string, req *spec.CreateAgentRequest) ([]client.TraitRequest, error) {
+// An API agent gets no route trait: it is served only through its environment's ingress gateway.
+func (s *agentManagerService) buildCreateTraitRequests(ctx context.Context, ouID, projectName, envName string, req *spec.CreateAgentRequest) ([]client.TraitRequest, error) {
 	var traits []client.TraitRequest
 
 	// Determine instrumentation settings
 	autoInstrumentation := req.Configurations == nil || req.Configurations.EnableAutoInstrumentation == nil || *req.Configurations.EnableAutoInstrumentation
 	isAPIAgent := req.AgentType != nil && req.AgentType.Type == string(utils.AgentTypeAPI)
-	// An A2A agent is an API agent that gets no REST API: it is published to the
-	// gateway as a kind: Agent resource instead, so the api-configuration trait
-	// (which provisions the RestApi CRD) must not be attached.
-	isA2AAgent := req.AgentType != nil && utils.IsA2AAgentSubType(utils.StrPointerAsStr(req.AgentType.SubType, ""))
 
 	isPythonBuildpack := req.Build != nil && req.Build.BuildpackBuild != nil && req.Build.BuildpackBuild.Buildpack.Language == string(utils.LanguagePython)
 	isBallerinaBuildpack := req.Build != nil && req.Build.BuildpackBuild != nil && req.Build.BuildpackBuild.Buildpack.Language == string(utils.LanguageBallerina)
@@ -530,119 +533,7 @@ func (s *agentManagerService) buildCreateTraitRequests(ctx context.Context, ouID
 		})
 	}
 
-	// Attach api-configuration trait at create time so the RestApi CRD is provisioned immediately.
-	// API key security and CORS are enabled by default; deploy time upserts with the actual policy setting.
-	if isAPIAgent && !isA2AAgent {
-		port := config.GetConfig().DefaultChatAPI.DefaultHTTPPort
-		basePath := config.GetConfig().DefaultChatAPI.DefaultBasePath
-		if req.InputInterface != nil && req.InputInterface.Port != nil && *req.InputInterface.Port > 0 {
-			port = *req.InputInterface.Port
-		}
-		if req.InputInterface != nil && req.InputInterface.BasePath != nil && *req.InputInterface.BasePath != "" {
-			basePath = *req.InputInterface.BasePath
-		}
-		corsConfig := config.GetAgentWorkloadConfig().CORS
-		createPolicies := []map[string]interface{}{
-			client.CORSPolicy(
-				strings.Split(corsConfig.AllowOrigin, ","),
-				strings.Split(corsConfig.AllowMethods, ","),
-				strings.Split(corsConfig.AllowHeaders, ","),
-				false, // allowCredentials defaults to false at agent creation
-			),
-			client.APIKeyAuthPolicy(),
-		}
-		apiTraitOpts := []client.TraitOption{
-			client.WithArtifactID(artifactID),
-			client.WithUpstreamPort(port),
-			client.WithUpstreamBasePath(basePath),
-			client.WithPolicies(createPolicies),
-		}
-		// backendHost, backendPort, gatewayTarget were previously injected per-environment
-		// here; the api-management trait now derives them from the apiGatewayName convention
-		// ("api-platform-<org>-<env>") and platform-wide gateway runtime constants.
-		traits = append(traits, client.TraitRequest{
-			TraitKind: client.TraitKindTrait,
-			TraitType: client.TraitAPIManagement,
-			Opts:      apiTraitOpts,
-		})
-	}
-
-	// Attached at create, not just deploy: the build workflow cuts the first
-	// release itself, so a trait that waited for DeployAgent would leave the
-	// first deployment reachable directly on the pod.
-	if isA2AAgent {
-		port := config.GetConfig().DefaultChatAPI.DefaultHTTPPort
-		if req.InputInterface != nil && req.InputInterface.Port != nil && *req.InputInterface.Port > 0 {
-			port = *req.InputInterface.Port
-		}
-		traits = append(traits, a2aGatewayRouteTrait(port))
-	}
-
 	return traits, nil
-}
-
-// effectiveUpstreamInterface returns the port and base path the API gateway must
-// dial to reach this agent's container, for the api-configuration trait.
-//
-// A source-built agent carries them on its component's workflow parameters, so
-// they read straight off the component. A kind-sourced agent has no workflow —
-// its endpoint lives only on the Workload — so convertComponentFromTyped leaves
-// InputInterface nil, and falling through to the chat-API defaults would point the
-// gateway at a port nothing listens on (a 503 on every request to a custom-api
-// agent). Resolve those from the build its kind version was published from.
-//
-// deployedImageID is the image this call is deploying. A deploy can select a kind
-// version other than the one the agent was created from, and the component's
-// kind-version label does not move when it does — so the image, not the label,
-// says which version's interface the gateway must be pointed at. Empty (or an
-// image matching no published version) falls back to the label.
-//
-// The chat-API defaults remain the last resort: a chat agent genuinely serves on
-// them, and they are the only sane guess when nothing else resolves
-func (s *agentManagerService) effectiveUpstreamInterface(ctx context.Context, ouID string, agent *models.AgentResponse, deployedImageID string) (int32, string) {
-	port := config.GetConfig().DefaultChatAPI.DefaultHTTPPort
-	basePath := config.GetConfig().DefaultChatAPI.DefaultBasePath
-
-	iface := agent.InputInterface
-	if agent.KindName != "" {
-		versionTag := agent.KindVersion
-		if deployed := s.kindVersionForImage(ctx, ouID, agent.KindName, deployedImageID); deployed != "" {
-			versionTag = deployed
-		}
-		if resolved := s.kindVersionInputInterface(ctx, ouID, agent.KindName, versionTag); resolved != nil {
-			iface = resolved
-		}
-	}
-	if iface != nil {
-		if iface.Port > 0 {
-			port = iface.Port
-		}
-		if iface.BasePath != "" {
-			basePath = iface.BasePath
-		}
-	}
-	return port, basePath
-}
-
-// kindVersionForImage returns the kind version published as the given image, or ""
-// when the image is empty, matches no published version, or the kind can't be read.
-// Published images are unique per version, so the mapping is unambiguous.
-func (s *agentManagerService) kindVersionForImage(ctx context.Context, ouID, kindName, imageID string) string {
-	if imageID == "" {
-		return ""
-	}
-	kind, err := s.agentKindService.GetKind(ctx, ouID, kindName)
-	if err != nil {
-		s.logger.Warn("Failed to read agent kind while resolving the deployed version",
-			"kindName", kindName, "error", err)
-		return ""
-	}
-	for _, v := range kind.Versions {
-		if v.ImageId == imageID {
-			return v.Version
-		}
-	}
-	return ""
 }
 
 // requireImageOwnedByAgent rejects a deploy whose image this agent has no claim
@@ -668,9 +559,9 @@ func (s *agentManagerService) requireImageOwnedByAgent(ctx context.Context, ouID
 		return utils.NewInvalidInputError("imageId is required", "imageId is empty")
 	}
 
-	// Read the kind directly rather than through kindVersionForImage, which maps a
-	// lookup failure to "no match" — that would reject a valid kind image as the
-	// caller's fault. A kind that no longer exists has no versions to match.
+	// Read the kind directly, so a lookup failure is not mistaken for "no match" —
+	// that would reject a valid kind image as the caller's fault. A kind that no
+	// longer exists has no versions to match.
 	//
 	// Any one source is enough to prove ownership, so a failed lookup is held
 	// rather than returned: the remaining sources may still prove it. Only when
@@ -747,33 +638,6 @@ func (s *agentManagerService) requireImageOwnedByAgent(ctx context.Context, ouID
 	return utils.NewInvalidInputError(
 		"The image does not belong to this agent. "+hint,
 		fmt.Sprintf("imageId %q is not a build, kind version or current deployment of agent %q", imageID, agentName))
-}
-
-// kindVersionInputInterface reads the input interface a kind version was published
-// with, off the build (workflow run) that produced its image.
-//
-// The build is read rather than the kind's source agent because a source agent goes
-// on living: change its port or base path after publishing, and reading the
-// component would describe an interface the published image never served. A
-// WorkflowRun is a finished record of one build, so its parameters still describe
-// the image this agent actually runs — the same reason the agent catalogue reads a
-// version's API spec from there.
-//
-// Returns nil on any failure so callers fall back to their defaults rather than
-// failing a deploy over it.
-func (s *agentManagerService) kindVersionInputInterface(ctx context.Context, ouID, kindName, versionTag string) *models.InputInterface {
-	if versionTag == "" {
-		s.logger.Warn("Agent has no recorded kind version; cannot resolve its published upstream interface",
-			"kindName", kindName)
-		return nil
-	}
-	kindVersion, err := s.agentKindService.GetKindVersion(ctx, ouID, kindName, versionTag)
-	if err != nil {
-		s.logger.Warn("Failed to read kind version while resolving upstream interface",
-			"kindName", kindName, "kindVersion", versionTag, "error", err)
-		return nil
-	}
-	return s.kindBuildInputInterface(ctx, ouID, kindVersion)
 }
 
 // kindBuildInputInterface reads the input interface off the build that produced a
@@ -1818,8 +1682,8 @@ func (s *agentManagerService) createComponentAgent(ctx context.Context, ouID, pr
 	}
 
 	var agentAPIArtifact *models.Artifact
-	if req.AgentType.Type == string(utils.AgentTypeAPI) {
-		agentAPIArtifact, err = ensureAgentEnvAPIArtifact(s.db, s.artifactRepo, ouID, projectName, req.Name, firstEnvUUID, models.KindAgent)
+	if shape, ok := agentGatewayShapeFor(utils.StrPointerAsStr(req.AgentType.SubType, "")); req.AgentType.Type == string(utils.AgentTypeAPI) && ok {
+		agentAPIArtifact, err = ensureAgentEnvAPIArtifact(s.db, s.artifactRepo, ouID, projectName, req.Name, firstEnvUUID, shape.ArtifactKind)
 		if err != nil {
 			s.logger.Error("Failed to create agent API artifact record", "agentName", req.Name, "environment", firstEnv, "environmentUUID", firstEnvUUID, "error", err)
 			if hasSecrets {
@@ -1883,17 +1747,13 @@ func (s *agentManagerService) createComponentAgent(ctx context.Context, ouID, pr
 		s.logger.Debug("Component created successfully", "agentName", req.Name)
 
 		// Build all traits to attach in a single GET-UPDATE cycle to avoid resource version conflicts
-		artifactID := ""
-		if agentAPIArtifact != nil {
-			artifactID = agentAPIArtifact.UUID.String()
-		}
 		// Resolve the lowest environment for API key generation
 		createPipeline, pipeErr := s.ocClient.GetProjectDeploymentPipeline(ctx, ouID, projectName)
 		var lowestEnvName string
 		if pipeErr == nil {
 			lowestEnvName = findLowestEnvironment(createPipeline.PromotionPaths)
 		}
-		traitRequests, err := s.buildCreateTraitRequests(ctx, ouID, projectName, artifactID, lowestEnvName, req)
+		traitRequests, err := s.buildCreateTraitRequests(ctx, ouID, projectName, lowestEnvName, req)
 		if err != nil {
 			s.logger.Error("Failed to build trait requests", "agentName", req.Name, "error", err)
 			rollbackAgentCreate("trait build failure")
@@ -1990,7 +1850,7 @@ func (s *agentManagerService) createComponentAgent(ctx context.Context, ouID, pr
 		}
 		s.persistInstrumentationConfig(ctx, ouID, projectName, req.Name, enableAutoInstrumentation, instrumentationVersion)
 		// Queued after the config row exists; the reconciler waits out the first bind.
-		s.enqueueCreatedA2AAgent(ctx, utils.StrPointerAsStr(req.AgentType.SubType, ""), ouID, projectName, req.Name, firstEnv, firstEnvUUID, agentAPIArtifact)
+		s.enqueueCreatedAPIAgent(ctx, utils.StrPointerAsStr(req.AgentType.SubType, ""), ouID, projectName, req.Name, firstEnv, firstEnvUUID, agentAPIArtifact)
 	}
 
 	// External agents have no ReleaseBinding to wait for, so their AgentID is
@@ -3656,7 +3516,6 @@ func (s *agentManagerService) DeployAgent(ctx context.Context, ouID string, proj
 		return "", err
 	}
 	enableAutoInstrumentation := tracingCfg.EnableAutoInstrumentation
-	enableApiKeySecurity := apiCfg.EnableApiKeySecurity
 	if apiCfg.CORSAllowCredentials {
 		for _, origin := range apiCfg.CORSAllowOrigins {
 			if origin == "*" {
@@ -3700,10 +3559,6 @@ func (s *agentManagerService) DeployAgent(ctx context.Context, ouID string, proj
 	isAPIAgent := agent.Type.Type == string(utils.AgentTypeAPI)
 
 	// Build trait environment configs for the release binding.
-	// Deploy sets the artifactId on the Component CR trait parameters (via AttachTraits),
-	// so no per-env override is needed here. The api-management trait now derives
-	// gatewayTarget/backendHost/backendPort itself from the apiGatewayName convention,
-	// so no per-env gateway lookup is needed for trait configs.
 	policies := buildPolicies(apiCfg)
 	isPythonBuildpack := agent.Build != nil && agent.Build.Buildpack != nil && agent.Build.Buildpack.Language == string(utils.LanguagePython)
 	isBallerinaBuildpack := agent.Build != nil && agent.Build.Buildpack != nil && agent.Build.Buildpack.Language == string(utils.LanguageBallerina)
@@ -3718,47 +3573,16 @@ func (s *agentManagerService) DeployAgent(ctx context.Context, ouID string, proj
 	if err != nil {
 		return "", err
 	}
-	deployTraitEnvConfigs := buildTraitEnvConfigs(agentName, policies, "", resilienceTimeoutSeconds, isPythonBuildpack, isBallerinaBuildpack, enableAutoInstrumentation, deployInstrumentationImage, !isA2AAgent)
+	deployTraitEnvConfigs := buildTraitEnvConfigs(agentName, policies, "", resilienceTimeoutSeconds, isPythonBuildpack, isBallerinaBuildpack, enableAutoInstrumentation, deployInstrumentationImage, false)
 
 	// Env vars and file mounts are NOT written to the Component's build workflow parameters here.
 	// Those are seeded once at agent creation and then left alone; this deploy's config goes to the
 	// environment's ReleaseBinding instead — see applyEnvScopedWorkloadConfig.
 
-	if isAPIAgent && !isA2AAgent {
-		apiArtifact, artifactErr := ensureAgentEnvAPIArtifact(s.db, s.artifactRepo, ouID, projectName, agentName, targetEnv.UUID, models.KindAgent)
-		if artifactErr != nil {
-			return "", fmt.Errorf("cannot deploy API agent without environment API artifact record: %w", artifactErr)
-		}
-		artifactID := apiArtifact.UUID.String()
-
-		upstreamPort, upstreamBasePath := s.effectiveUpstreamInterface(ctx, ouID, agent, req.ImageId)
-		traitOpts := []client.TraitOption{
-			client.WithArtifactID(artifactID),
-			client.WithUpstreamPort(upstreamPort),
-			client.WithUpstreamBasePath(upstreamBasePath),
-		}
-		if resilienceTimeoutSeconds > 0 {
-			traitOpts = append(traitOpts, client.WithResilienceTimeout(resilienceTimeoutSeconds))
-		}
-		traitOpts = append(traitOpts, client.WithPolicies(policies))
-
-		componentDeployConfig.TraitsToAttach = append(componentDeployConfig.TraitsToAttach, client.TraitRequest{
-			TraitKind: client.TraitKindTrait,
-			TraitType: client.TraitAPIManagement,
-			Opts:      traitOpts,
-		})
-		requiresComponentConfig = true
-
-		// OTEL trait is already attached from create. Per-environment instrumentationEnabled is
-		// controlled via deployTraitEnvConfigs (written to the ReleaseBinding) so patches are
-		// gated by the 'where' clause without touching the Component CR trait attachment.
-
-		s.logger.Info("Updated api-configuration trait", "agentName", agentName, "artifactID", artifactID, "enableApiKeySecurity", enableApiKeySecurity)
-	}
-
-	if isA2AAgent {
-		upstreamPort, _ := s.effectiveUpstreamInterface(ctx, ouID, agent, req.ImageId)
-		componentDeployConfig.TraitsToAttach = append(componentDeployConfig.TraitsToAttach, a2aGatewayRouteTrait(upstreamPort))
+	// An API agent is served only through its environment's ingress gateway, so this deploy's release drops the
+	// route traits a legacy agent still lists.
+	if isAPIAgent {
+		componentDeployConfig.TraitsToDetach = []client.TraitType{client.TraitAPIManagement, client.TraitA2AGatewayRoute}
 		requiresComponentConfig = true
 	}
 
@@ -3846,20 +3670,8 @@ func (s *agentManagerService) DeployAgent(ctx context.Context, ouID string, proj
 	agentConfig.InstrumentationVersion = existingInstrumentationVersion
 	agentConfig.ResilienceTimeoutSeconds = deployResilienceTimeoutSeconds
 	agentConfig.SetCardCORSOverride(cardCORSOverride)
-	var a2aArtifact func(tx *gorm.DB) (*models.Artifact, error)
-	if isA2AAgent {
-		// The artifact row is created for every API agent kind, A2A included: it
-		// is what the agent's API keys are already bound to and what the gateway
-		// is told about, so the entire API-key path is inherited with no new code.
-		a2aArtifact = func(tx *gorm.DB) (*models.Artifact, error) {
-			artifact, err := ensureAgentEnvAPIArtifact(tx, s.artifactRepo, ouID, projectName, agentName, targetEnv.UUID, models.KindAgent)
-			if err != nil {
-				return nil, fmt.Errorf("cannot deploy A2A agent without environment API artifact record: %w", err)
-			}
-			return artifact, nil
-		}
-	}
-	if configErr := s.recordAgentEnvDeploy(ctx, agent, agentConfig, targetEnv.UUID, a2aArtifact); configErr != nil {
+	artifact := s.agentEnvArtifactFunc(agent, ouID, projectName, agentName, targetEnv.UUID)
+	if configErr := s.recordAgentEnvDeploy(ctx, agent, agentConfig, targetEnv.UUID, artifact); configErr != nil {
 		s.logger.Error("Failed to persist agent config after deploy", "agentName", agentName, "environment", lowestEnv, "error", configErr)
 		return "", fmt.Errorf("agent deployed to %q but failed to persist its config (retry to reconcile): %w", lowestEnv, configErr)
 	}
@@ -4967,9 +4779,8 @@ func (s *agentManagerService) PromoteAgent(ctx context.Context, ouID string, pro
 	// Build trait environment configs for per-environment trait overrides
 	var traitEnvConfigs map[string]interface{}
 	var promoteCTConfigs map[string]interface{}
-	// The target's config and artifact, saved once the promote succeeds.
+	// The target's config, saved once the promote succeeds.
 	var targetConfig *models.AgentConfig
-	var promoted *models.Artifact
 	if isAPIAgent {
 		// Resolve config values: request > source env DB > defaults
 		var existingConfig *models.AgentConfig
@@ -5011,18 +4822,10 @@ func (s *agentManagerService) PromoteAgent(ctx context.Context, ouID string, pro
 		}
 		policies := buildPolicies(apiCfg)
 
-		// Each environment must have its own unique artifact UUID so the gateway controller
-		// does not confuse two environments' RestApi resources (same UUID = one overwrites the other).
 		if err := s.validateOAuthIssuersInEnvironment(targetEnv.UUID, apiCfg); err != nil {
 			return err
 		}
 
-		artifact, artifactErr := ensureAgentEnvAPIArtifact(s.db, s.artifactRepo, ouID, projectName, agentName, targetEnv.UUID, models.KindAgent)
-		if artifactErr != nil {
-			return fmt.Errorf("failed to ensure target env API artifact: %w", artifactErr)
-		}
-		promoted = artifact
-		targetArtifactID := artifact.UUID.String()
 		promotePythonBuildpack := agent.Build != nil && agent.Build.Buildpack != nil && agent.Build.Buildpack.Language == string(utils.LanguagePython)
 		promoteBallerinaBuildpack := agent.Build != nil && agent.Build.Buildpack != nil && agent.Build.Buildpack.Language == string(utils.LanguageBallerina)
 		// Resolve the instrumentation version for the target env: request override
@@ -5042,7 +4845,7 @@ func (s *agentManagerService) PromoteAgent(ctx context.Context, ouID string, pro
 		if resolveErr != nil {
 			return resolveErr
 		}
-		traitEnvConfigs = buildTraitEnvConfigs(agentName, policies, targetArtifactID, resilienceTimeoutSeconds, promotePythonBuildpack, promoteBallerinaBuildpack, tracingCfg.EnableAutoInstrumentation, promoteInstrumentationImage, !isA2AAgent)
+		traitEnvConfigs = buildTraitEnvConfigs(agentName, policies, "", resilienceTimeoutSeconds, promotePythonBuildpack, promoteBallerinaBuildpack, tracingCfg.EnableAutoInstrumentation, promoteInstrumentationImage, false)
 		promoteCTConfigs = buildComponentTypeEnvConfigs(targetEnv)
 
 		apiKey, apiKeyErr := s.generateAgentAPIKey(ctx, ouID, projectName, agentName, req.TargetEnvironment)
@@ -5104,8 +4907,8 @@ func (s *agentManagerService) PromoteAgent(ctx context.Context, ouID string, pro
 	promoteAttempt.Complete(ctx, nil)
 
 	if targetConfig != nil {
-		promotedArtifact := func(*gorm.DB) (*models.Artifact, error) { return promoted, nil }
-		if err := s.recordAgentEnvDeploy(ctx, agent, targetConfig, targetEnv.UUID, promotedArtifact); err != nil {
+		artifact := s.agentEnvArtifactFunc(agent, ouID, projectName, agentName, targetEnv.UUID)
+		if err := s.recordAgentEnvDeploy(ctx, agent, targetConfig, targetEnv.UUID, artifact); err != nil {
 			s.logger.Error("Failed to persist agent config for target environment", "agentName", agentName, "environment", req.TargetEnvironment, "error", err)
 			return fmt.Errorf("agent promoted to %q but failed to persist its config (retry to reconcile): %w", req.TargetEnvironment, err)
 		}
@@ -5532,7 +5335,7 @@ func (s *agentManagerService) UpdateAgentDeploySettings(ctx context.Context, ouI
 	if err != nil {
 		return err
 	}
-	pubKey, publishes, err := s.a2aRepublicationKey(ctx, agent, ouID, projectName, agentName, req.EnvironmentName, targetEnv.UUID)
+	pubKey, publishes, err := s.agentExposureKeyFor(ctx, agent, ouID, projectName, agentName, req.EnvironmentName, targetEnv.UUID)
 	if err != nil {
 		return err
 	}
@@ -5541,6 +5344,14 @@ func (s *agentManagerService) UpdateAgentDeploySettings(ctx context.Context, ouI
 	if external && !publishes {
 		return fmt.Errorf("%w: deploy settings apply only to environments that route this agent through the gateway",
 			utils.ErrInvalidInput)
+	}
+	if publishes && !external {
+		rollout, err := s.ocClient.GetReleaseBindingRollout(ctx, ouID, agentName, req.EnvironmentName)
+		if err != nil {
+			return fmt.Errorf("failed to read the environment's release binding: %w", err)
+		}
+		// An undeployed environment only keeps the settings: re-activating it exposes the agent with them.
+		publishes = rollout.Deployed
 	}
 
 	// Resolve final settings: precedence is request → existing DB
@@ -5578,13 +5389,6 @@ func (s *agentManagerService) UpdateAgentDeploySettings(ctx context.Context, ouI
 	}
 	policies := buildPolicies(apiCfg)
 
-	// Each environment must keep its own existing API artifact UUID so we don't churn the
-	// gateway's RestApi binding. ensureAgentEnvAPIArtifact is idempotent: returns the existing
-	// row if one is already allocated for (agent, env).
-	artifact, artifactErr := ensureAgentEnvAPIArtifact(s.db, s.artifactRepo, ouID, projectName, agentName, targetEnv.UUID, models.KindAgent)
-	if artifactErr != nil {
-		return fmt.Errorf("failed to ensure agent env API artifact: %w", artifactErr)
-	}
 	var existingInstrumentationVersion *string
 	if existingConfig != nil {
 		existingInstrumentationVersion = existingConfig.InstrumentationVersion
@@ -5593,7 +5397,7 @@ func (s *agentManagerService) UpdateAgentDeploySettings(ctx context.Context, ouI
 	// An external agent has no release binding: its settings reach the gateway through the republish below.
 	if !external {
 		resolvedInstrumentationVersion, err = s.applyReleaseBindingSettings(ctx, ouID, agentName, req, agent, targetEnv,
-			policies, artifact.UUID.String(), resilienceTimeoutSeconds, tracingCfg.EnableAutoInstrumentation, existingInstrumentationVersion)
+			policies, resilienceTimeoutSeconds, tracingCfg.EnableAutoInstrumentation, existingInstrumentationVersion)
 		if err != nil {
 			return err
 		}
@@ -5609,7 +5413,14 @@ func (s *agentManagerService) UpdateAgentDeploySettings(ctx context.Context, ouI
 	agentConfig.InstrumentationVersion = resolvedInstrumentationVersion
 	agentConfig.ResilienceTimeoutSeconds = settingsResilienceTimeoutSeconds
 	agentConfig.SetCardCORSOverride(cardCORSOverride)
-	if err := s.saveDeploySettings(ctx, agent, pubKey, agentArtifactRef(artifact), agentConfig); err != nil {
+	if !publishes {
+		if err := s.agentConfigRepo.Upsert(ctx, agentConfig); err != nil {
+			return fmt.Errorf("failed to persist agent deploy settings: %w", err)
+		}
+		return nil
+	}
+	artifact := s.agentEnvArtifactFunc(agent, ouID, projectName, agentName, targetEnv.UUID)
+	if err := s.saveDeploySettings(ctx, agent, pubKey, artifact, agentConfig); err != nil {
 		s.logger.Error("Failed to persist agent deploy settings", "agentName", agentName, "environment", req.EnvironmentName, "error", err)
 		return fmt.Errorf("failed to persist agent deploy settings: %w", err)
 	}
@@ -5627,7 +5438,7 @@ func deploySettingsApplyTo(agent *models.AgentResponse) bool {
 func (s *agentManagerService) applyReleaseBindingSettings(
 	ctx context.Context, ouID, agentName string, req *spec.UpdateAgentDeploySettingsRequest,
 	agent *models.AgentResponse, targetEnv *models.EnvironmentResponse, policies []map[string]interface{},
-	artifactUUID string, resilienceTimeoutSeconds int32, enableAutoInstrumentation bool, existingInstrumentationVersion *string,
+	resilienceTimeoutSeconds int32, enableAutoInstrumentation bool, existingInstrumentationVersion *string,
 ) (*string, error) {
 	isPythonBuildpack := agent.Build != nil && agent.Build.Buildpack != nil && agent.Build.Buildpack.Language == string(utils.LanguagePython)
 	isBallerinaBuildpack := agent.Build != nil && agent.Build.Buildpack != nil && agent.Build.Buildpack.Language == string(utils.LanguageBallerina)
@@ -5643,9 +5454,8 @@ func (s *agentManagerService) applyReleaseBindingSettings(
 	if err != nil {
 		return nil, err
 	}
-	isA2AAgent := utils.IsA2AAgentSubType(agent.Type.SubType)
-	traitEnvConfigs := buildTraitEnvConfigs(agentName, policies, artifactUUID, resilienceTimeoutSeconds,
-		isPythonBuildpack, isBallerinaBuildpack, enableAutoInstrumentation, instrumentationImage, !isA2AAgent)
+	traitEnvConfigs := buildTraitEnvConfigs(agentName, policies, "", resilienceTimeoutSeconds,
+		isPythonBuildpack, isBallerinaBuildpack, enableAutoInstrumentation, instrumentationImage, false)
 
 	// Apply to the release binding (atomic: trait configs + component-type configs + restartedAt in a single update).
 	settingsCTConfigs := buildComponentTypeEnvConfigs(targetEnv)
@@ -6376,16 +6186,60 @@ func (s *agentManagerService) GetAgentDeployments(ctx context.Context, ouID stri
 	// external agents have no pod to reconcile, so skip the work — and its per-environment API
 	// calls — entirely for them. Best-effort and idempotent: it never fails the read, is a no-op
 	// for all-runc setups, and converges in a single write per binding.
-	if agent, err := s.ocClient.GetComponent(ctx, ouID, projectName, agentName); err != nil {
+	agent, err := s.ocClient.GetComponent(ctx, ouID, projectName, agentName)
+	if err != nil {
 		s.logger.Warn("isolation reconcile: failed to fetch agent for type gate", "agentName", agentName, "error", err)
-	} else {
-		if agent.Type.Type == string(utils.AgentTypeAPI) {
-			s.reconcileIsolationRuntimeClass(ctx, ouID, agentName, deployments)
-		}
-		s.resolveDeployedKindVersions(ctx, ouID, agent.KindName, deployments)
+		return deployments, nil
 	}
-
+	if agent.Type.Type == string(utils.AgentTypeAPI) {
+		s.reconcileIsolationRuntimeClass(ctx, ouID, agentName, deployments)
+	}
+	s.resolveDeployedKindVersions(ctx, ouID, agent.KindName, deployments)
+	if s.exposesAgent(agent) {
+		s.resolveGatewayDeployments(ctx, agent, ouID, projectName, agentName, deployments)
+	}
 	return deployments, nil
+}
+
+// resolveGatewayDeployments shows each bound environment's deployment as the gateway serves it: every endpoint at
+// the agent's gateway URL, and the gateway deployment's status. Best-effort: an environment whose gateway deployment
+// can't be read keeps its OpenChoreo URLs and shows no gateway status.
+func (s *agentManagerService) resolveGatewayDeployments(
+	ctx context.Context, agent *models.AgentResponse, ouID, projectName, agentName string, deployments []*models.DeploymentResponse,
+) {
+	for _, deployment := range deployments {
+		if deployment == nil || deployment.EnvironmentUUID == "" || deployment.Status == client.DeploymentStatusNotDeployed {
+			continue
+		}
+		url, err := s.resolveAgentURL(ctx, agent, ouID, projectName, agentName, deployment.Environment, deployment.EnvironmentUUID)
+		if err != nil {
+			s.logger.Warn("Failed to resolve the agent's gateway deployment; showing its OpenChoreo URL",
+				"agentName", agentName, "environment", deployment.Environment, "error", err)
+			continue
+		}
+		for i := range deployment.Endpoints {
+			deployment.Endpoints[i].URL = url.For(deployment.Endpoints[i].URL)
+		}
+		if url.Status != nil {
+			deployment.GatewayStatus = string(url.Status.Status)
+			deployment.GatewayStatusReason = url.Status.Reason
+		}
+	}
+}
+
+// resolveAgentURL says where the agent is reached in the environment and what its gateway deployment shows.
+func (s *agentManagerService) resolveAgentURL(
+	ctx context.Context, agent *models.AgentResponse, ouID, projectName, agentName, environmentName, environmentUUID string,
+) (AgentURL, error) {
+	key, err := agentExposureKeyOf(agent, ouID, projectName, agentName, environmentName, environmentUUID)
+	if err != nil {
+		return AgentURL{}, err
+	}
+	url, err := s.exposure.ResolveURL(ctx, key)
+	if err != nil {
+		return AgentURL{}, fmt.Errorf("failed to resolve agent %s's gateway URL in %s: %w", agentName, environmentName, err)
+	}
+	return url, nil
 }
 
 // resolveDeployedKindVersions stamps each deployment with the Agent Kind version
@@ -6486,7 +6340,8 @@ func (s *agentManagerService) UpdateAgentDeploymentState(ctx context.Context, ou
 	// environment and translates the same not-found error. The route's
 	// agent:suspend is the capability; this is the environment axis, and holding
 	// one does not imply the other.
-	if _, err := s.requireEnvTier(ctx, ouID, environment); err != nil {
+	env, err := s.requireEnvTier(ctx, ouID, environment)
+	if err != nil {
 		return err
 	}
 
@@ -6509,6 +6364,13 @@ func (s *agentManagerService) UpdateAgentDeploymentState(ctx context.Context, ou
 	}
 	if bindingState == gen.ReleaseBindingSpecStateUndeploy {
 		s.dropPlatformCard(ctx, ouID, projectName, agentName, environment)
+		err = s.teardownAgentEnv(ctx, agent, ouID, projectName, agentName, env)
+	} else {
+		err = s.reexposeAgentEnv(ctx, agent, ouID, projectName, agentName, env)
+	}
+	if err != nil {
+		s.logger.Error("Updated deployment state but not the agent's gateway exposure", "agentName", agentName, "environment", environment, "state", state, "error", err)
+		return fmt.Errorf("agent %s is %s in %s but its gateway exposure was not updated (retry to reconcile): %w", agentName, state, environment, err)
 	}
 
 	s.logger.Info("Updated deployment state successfully", "agentName", agentName, "ouID", ouID, "projectName", projectName, "environment", environment, "state", state)
@@ -6548,7 +6410,7 @@ func (s *agentManagerService) GetAgentEndpoints(ctx context.Context, ouID string
 		return nil, fmt.Errorf("endpoints are not supported for agent type: '%s'", agent.Provisioning.Type)
 	}
 	// Check if environment exists
-	_, err = s.ocClient.GetEnvironment(ctx, ouID, environmentName)
+	env, err := s.ocClient.GetEnvironment(ctx, ouID, environmentName)
 	if err != nil {
 		s.logger.Error("Failed to validate environment", "environment", environmentName, "ouID", ouID, "error", err)
 		return nil, translateEnvironmentError(err)
@@ -6558,6 +6420,16 @@ func (s *agentManagerService) GetAgentEndpoints(ctx context.Context, ouID string
 	if err != nil {
 		s.logger.Error("Failed to fetch endpoints", "agentName", agentName, "environment", environmentName, "ouID", ouID, "projectName", projectName, "error", err)
 		return nil, fmt.Errorf("failed to get endpoints for agent %s: %w", agentName, err)
+	}
+	if s.exposesAgent(agent) {
+		url, err := s.resolveAgentURL(ctx, agent, ouID, projectName, agentName, environmentName, env.UUID)
+		if err != nil {
+			return nil, err
+		}
+		for name, endpoint := range endpoints {
+			endpoint.URL = url.For(endpoint.URL)
+			endpoints[name] = endpoint
+		}
 	}
 
 	s.logger.Info("Fetched endpoints successfully", "agentName", agentName, "ouID", ouID, "projectName", projectName, "environment", environmentName, "endpointCount", len(endpoints))
@@ -6695,50 +6567,41 @@ func buildNameOf(build *models.BuildResponse) string {
 	return build.Name
 }
 
-// a2aGatewayRouteTrait sends an A2A agent's HTTPRoutes through the API gateway,
-// the only place its policies and Agent Card URL rewriting apply.
-func a2aGatewayRouteTrait(upstreamPort int32) client.TraitRequest {
-	return client.TraitRequest{
-		TraitKind: client.TraitKindTrait,
-		TraitType: client.TraitA2AGatewayRoute,
-		Opts:      []client.TraitOption{client.WithUpstreamPort(upstreamPort)},
-	}
-}
-
-// enqueueCreatedA2AAgent exposes a new A2A agent in its first environment,
-// since neither the kind bind nor the source build workflow notifies AMS.
-func (s *agentManagerService) enqueueCreatedA2AAgent(
+// enqueueCreatedAPIAgent exposes a new API agent in its first environment, since neither the kind bind nor the
+// source build workflow notifies AMS. Best effort: its first deploy exposes it otherwise. The render waits for the
+// agent's endpoint until the build binds the environment.
+func (s *agentManagerService) enqueueCreatedAPIAgent(
 	ctx context.Context,
 	subType, ouID, projectName, agentName, environmentName, environmentUUID string,
 	artifact *models.Artifact,
 ) {
-	if s.a2aPublisher == nil {
-		return
-	}
-	if !utils.IsA2AAgentSubType(subType) || artifact == nil {
+	shape, ok := agentGatewayShapeFor(subType)
+	if !ok || artifact == nil || s.exposure == nil {
 		return
 	}
 	envUUID, err := uuid.Parse(environmentUUID)
 	if err != nil {
-		s.logger.Error("Cannot queue A2A agent gateway publication: environment UUID is unparseable",
+		s.logger.Error("Cannot expose the new agent on the gateway: environment UUID is unparseable",
 			"agentName", agentName, "environment", environmentName, "environmentUUID", environmentUUID, "error", err)
 		return
 	}
 	var agentUUID *uuid.UUID
 	if agent, err := s.ocClient.GetComponent(ctx, ouID, projectName, agentName); err != nil {
-		s.logger.Warn("Could not read the new A2A agent's UUID; its publication falls back to name checks",
+		s.logger.Warn("Could not read the new agent's UUID; its exposure falls back to name checks",
 			"agentName", agentName, "error", err)
 	} else {
 		agentUUID = parseAgentUUID(agent.UUID)
 	}
 	key := agentExposureKey{OUID: ouID, ProjectName: projectName, AgentName: agentName, EnvironmentName: environmentName, EnvironmentUUID: envUUID, AgentUUID: agentUUID}
-	err = s.a2aPublisher.tx(ctx, func(tx *gorm.DB) error { return s.a2aPublisher.publish(ctx, tx, key, agentArtifactRef(artifact)) })
+	err = s.exposure.tx(ctx, func(tx *gorm.DB) error {
+		return s.exposure.Publish(ctx, tx, s.gatewayKind(shape), key, agentArtifactRef(artifact), shape.Protocol)
+	})
 	if err != nil {
-		s.logger.Error("Failed to record the new A2A agent's gateway exposure; its first deploy records it",
+		s.logger.Error("Failed to record the new agent's gateway exposure; its first deploy records it",
 			"agentName", agentName, "environment", environmentName, "error", err)
 		return
 	}
-	s.a2aPublisher.exposure.Nudge()
+	s.exposure.Nudge()
 }
 
 // parseAgentUUID returns nil for a missing or malformed UUID; the reconciler then checks by name.
@@ -6750,79 +6613,182 @@ func parseAgentUUID(raw string) *uuid.UUID {
 	return &id
 }
 
-// saveDeploySettings persists the environment's config; an A2A agent's republish, which the gateway reads the new
-// settings from, is queued in the same transaction so neither can land without the other.
-func (s *agentManagerService) saveDeploySettings(
-	ctx context.Context, agent *models.AgentResponse, key agentExposureKey, artifact models.ArtifactRef, cfg *models.AgentConfig,
-) error {
-	if s.a2aPublisher == nil {
-		return s.agentConfigRepo.Upsert(ctx, cfg)
+// gatewayKind is the reconcile kind that renders an artifact of shape.
+func (s *agentManagerService) gatewayKind(shape agentGatewayShape) reconcile.EnvironmentKind {
+	if shape == restAgentShape {
+		return s.restAgentKind
 	}
-	return s.a2aPublisher.SaveAndRepublish(ctx, agent, key, artifact, func(tx *gorm.DB) error {
-		return s.agentConfigRepo.WithTx(tx).Upsert(ctx, cfg)
-	})
+	return s.a2aPublisher.kind
 }
 
-// recordAgentEnvDeploy saves what an agent deploy or promote to the environment changed in AMS, once the
-// OpenChoreo call has succeeded: the environment's config and, for a platform A2A agent, its gateway exposure against
-// its API artifact, in one transaction. artifact, nil for an agent without one, returns that artifact and runs in
-// the transaction. The worker is nudged after commit. An error fails the request: the agent runs, and a retry
-// reconciles. Other agent kinds' policies ride on the release binding's trait, and an external agent's record is
-// its proxy row.
-func (s *agentManagerService) recordAgentEnvDeploy(
-	ctx context.Context, agent *models.AgentResponse, cfg *models.AgentConfig, environmentUUID string,
-	artifact func(tx *gorm.DB) (*models.Artifact, error),
-) error {
-	var key agentExposureKey
-	expose := false
-	if artifact != nil && !isExternalProvisioned(agent) {
-		var err error
-		key, expose, err = s.a2aRepublicationKey(ctx, agent, cfg.OUID, cfg.ProjectName, cfg.AgentName, cfg.EnvironmentName, environmentUUID)
+// exposesAgent is true for an agent its environment's ingress gateway serves, on a service wired to expose it.
+func (s *agentManagerService) exposesAgent(agent *models.AgentResponse) bool {
+	_, ok := agentGatewayShapeOf(agent)
+	return ok && s.exposure != nil && s.a2aPublisher != nil
+}
+
+// agentEnvArtifactFunc ensures, in the exposure transaction, the agent's artifact in the environment with the kind
+// its gateway shape names, switching a legacy REST agent's Agent row in place; nil for an agent the gateway does
+// not serve.
+func (s *agentManagerService) agentEnvArtifactFunc(
+	agent *models.AgentResponse, ouID, projectName, agentName, envUUID string,
+) func(tx *gorm.DB) (*models.Artifact, error) {
+	shape, ok := agentGatewayShapeOf(agent)
+	if !ok {
+		return nil
+	}
+	return func(tx *gorm.DB) (*models.Artifact, error) {
+		artifact, err := ensureExposedAgentEnvAPIArtifact(tx, s.artifactRepo, ouID, projectName, agentName, envUUID, shape)
 		if err != nil {
-			return err
+			return nil, fmt.Errorf("failed to ensure the agent's API artifact for environment %s: %w", envUUID, err)
 		}
+		return artifact, nil
 	}
-	if !expose {
-		if artifact != nil {
-			if _, err := artifact(s.db); err != nil {
-				return err
-			}
-		}
-		return s.agentConfigRepo.Upsert(ctx, cfg)
+}
+
+// exposeAgentEnv ensures the agent's artifact, runs save (nil when there is nothing to save) and exposes the agent
+// in the environment with its render queued on the ingress gateway, all in one transaction; the worker is nudged
+// after commit. It returns the artifact it exposed.
+func (s *agentManagerService) exposeAgentEnv(
+	ctx context.Context, agent *models.AgentResponse, key agentExposureKey,
+	artifact func(tx *gorm.DB) (*models.Artifact, error), save func(tx *gorm.DB) error,
+) (models.ArtifactRef, error) {
+	shape, ok := agentGatewayShapeOf(agent)
+	if !ok {
+		return models.ArtifactRef{}, fmt.Errorf("agent %s is not served through the gateway", agent.Name)
 	}
-	err := s.a2aPublisher.tx(ctx, func(tx *gorm.DB) error {
+	var exposed models.ArtifactRef
+	err := s.exposure.tx(ctx, func(tx *gorm.DB) error {
 		a, err := artifact(tx)
 		if err != nil {
 			return err
 		}
-		if err := s.agentConfigRepo.WithTx(tx).Upsert(ctx, cfg); err != nil {
-			return err
+		if save != nil {
+			if err := save(tx); err != nil {
+				return err
+			}
 		}
-		return s.a2aPublisher.publish(ctx, tx, key, agentArtifactRef(a))
+		exposed = agentArtifactRef(a)
+		return s.exposure.Publish(ctx, tx, s.gatewayKind(shape), key, exposed, shape.Protocol)
 	})
+	if err != nil {
+		return models.ArtifactRef{}, err
+	}
+	s.exposure.Nudge()
+	return exposed, nil
+}
+
+// saveDeploySettings saves the environment's config in one transaction with the agent's gateway exposure, so
+// neither lands without the other. A REST agent's re-render from the new settings is queued in that transaction
+// (exposeAgentEnv). An A2A or external agent republishes as SaveAndRepublish describes.
+func (s *agentManagerService) saveDeploySettings(
+	ctx context.Context, agent *models.AgentResponse, key agentExposureKey,
+	artifact func(tx *gorm.DB) (*models.Artifact, error), cfg *models.AgentConfig,
+) error {
+	save := func(tx *gorm.DB) error { return s.agentConfigRepo.WithTx(tx).Upsert(ctx, cfg) }
+	if shape, _ := agentGatewayShapeOf(agent); shape != restAgentShape {
+		return s.a2aPublisher.SaveAndRepublish(ctx, agent, key, artifact, save)
+	}
+	_, err := s.exposeAgentEnv(ctx, agent, key, artifact, save)
+	return err
+}
+
+// recordAgentEnvDeploy saves what an agent deploy, promote or re-activation to the environment changed in AMS, once
+// the OpenChoreo call has succeeded: the environment's config and, for an agent the gateway serves, its artifact and
+// exposure, in one transaction (exposeAgentEnv). An error fails the request: the agent runs, and a retry
+// reconciles. An external agent's record is its proxy row.
+func (s *agentManagerService) recordAgentEnvDeploy(
+	ctx context.Context, agent *models.AgentResponse, cfg *models.AgentConfig, environmentUUID string,
+	artifact func(tx *gorm.DB) (*models.Artifact, error),
+) error {
+	if isExternalProvisioned(agent) || !s.exposesAgent(agent) {
+		return s.agentConfigRepo.Upsert(ctx, cfg)
+	}
+	key, err := agentExposureKeyOf(agent, cfg.OUID, cfg.ProjectName, cfg.AgentName, cfg.EnvironmentName, environmentUUID)
 	if err != nil {
 		return err
 	}
-	s.a2aPublisher.exposure.Nudge()
-	return nil
+	_, err = s.exposeAgentEnv(ctx, agent, key, artifact, func(tx *gorm.DB) error {
+		return s.agentConfigRepo.WithTx(tx).Upsert(ctx, cfg)
+	})
+	return err
 }
 
-// a2aRepublicationKey returns the publication to re-queue after a config change; ok is false when the agent does not publish here.
-func (s *agentManagerService) a2aRepublicationKey(
+// reexposeAgentEnv exposes a re-activated agent in the environment again, against its existing artifact.
+func (s *agentManagerService) reexposeAgentEnv(
+	ctx context.Context, agent *models.AgentResponse, ouID, projectName, agentName string, env *models.EnvironmentResponse,
+) error {
+	if !s.exposesAgent(agent) {
+		return nil
+	}
+	key, err := agentExposureKeyOf(agent, ouID, projectName, agentName, env.Name, env.UUID)
+	if err != nil {
+		return err
+	}
+	_, err = s.exposeAgentEnv(ctx, agent, key, s.agentEnvArtifactFunc(agent, ouID, projectName, agentName, env.UUID), nil)
+	return err
+}
+
+// teardownAgentEnv undeploys an undeployed agent from its environment's gateways and drops its exposure; its
+// artifact and API keys stay for a redeploy.
+func (s *agentManagerService) teardownAgentEnv(
+	ctx context.Context, agent *models.AgentResponse, ouID, projectName, agentName string, env *models.EnvironmentResponse,
+) error {
+	if !s.exposesAgent(agent) {
+		return nil
+	}
+	key, err := agentExposureKeyOf(agent, ouID, projectName, agentName, env.Name, env.UUID)
+	if err != nil {
+		return err
+	}
+	return s.exposure.tx(ctx, func(tx *gorm.DB) error {
+		var placed models.ArtifactRef
+		artifact, err := agentEnvAPIArtifact(s.artifactRepo.WithTx(tx), ouID, projectName, agentName, env.UUID, models.AgentArtifactKinds...)
+		switch {
+		case err == nil:
+			placed = agentArtifactRef(artifact)
+		case !errors.Is(err, utils.ErrArtifactNotFound):
+			return fmt.Errorf("failed to read the agent's API artifact: %w", err)
+		}
+		return s.exposure.TeardownEnv(ctx, tx, key, placed)
+	})
+}
+
+// agentExposureKeyOf names the agent's exposure in the environment.
+func agentExposureKeyOf(
+	agent *models.AgentResponse, ouID, projectName, agentName, environmentName, environmentUUID string,
+) (agentExposureKey, error) {
+	envUUID, err := uuid.Parse(environmentUUID)
+	if err != nil {
+		return agentExposureKey{}, fmt.Errorf("environment %q has an unparseable UUID %q: %w", environmentName, environmentUUID, err)
+	}
+	return agentExposureKey{
+		OUID: ouID, ProjectName: projectName, AgentName: agentName, EnvironmentName: environmentName,
+		EnvironmentUUID: envUUID, AgentUUID: parseAgentUUID(agent.UUID),
+	}, nil
+}
+
+// agentExposureKeyFor is the agent's exposure in the environment and whether a settings save there re-renders it on
+// the gateway: always for a platform agent the gateway serves, and for an external agent only while the
+// environment is proxied.
+func (s *agentManagerService) agentExposureKeyFor(
 	ctx context.Context,
 	agent *models.AgentResponse,
 	ouID, projectName, agentName, environmentName, environmentUUID string,
 ) (agentExposureKey, bool, error) {
-	if s.a2aPublisher == nil || !a2aCapable(agent) {
+	if !s.exposesAgent(agent) {
 		return agentExposureKey{}, false, nil
 	}
-	envUUID, err := uuid.Parse(environmentUUID)
+	key, err := agentExposureKeyOf(agent, ouID, projectName, agentName, environmentName, environmentUUID)
 	if err != nil {
-		return agentExposureKey{}, false, fmt.Errorf("environment %q has an unparseable UUID %q: %w", environmentName, environmentUUID, err)
-	}
-	publish, err := s.a2aPublisher.ShouldPublish(ctx, nil, agent, ouID, projectName, envUUID)
-	if err != nil || !publish {
 		return agentExposureKey{}, false, err
 	}
-	return agentExposureKey{OUID: ouID, ProjectName: projectName, AgentName: agentName, EnvironmentName: environmentName, EnvironmentUUID: envUUID, AgentUUID: parseAgentUUID(agent.UUID)}, true, nil
+	if !isExternalProvisioned(agent) {
+		return key, true, nil
+	}
+	proxied, err := s.a2aPublisher.ShouldPublish(ctx, nil, agent, ouID, projectName, key.EnvironmentUUID)
+	if err != nil || !proxied {
+		return agentExposureKey{}, false, err
+	}
+	return key, true, nil
 }

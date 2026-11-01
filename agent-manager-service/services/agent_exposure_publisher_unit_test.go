@@ -145,12 +145,14 @@ func TestAgentExposurePublisherResolveURL(t *testing.T) {
 			m.deployments.StatusRecordsFunc = func(context.Context, string, uuid.UUID) ([]models.DeploymentStatusRecord, error) {
 				return c.rows, nil
 			}
+			m.exposures.GetFunc = exposedAgent
 
 			url, err := m.exposurePublisher().ResolveURL(context.Background(), testA2AKey())
 
 			require.NoError(t, err)
 			assert.Equal(t, c.wantGateway, url.Gateway != "")
 			assert.Equal(t, c.wantDirect, url.Direct)
+			require.NotNil(t, url.Status)
 			assert.Equal(t, c.wantStatus, url.Status.Status)
 		})
 	}
@@ -162,10 +164,40 @@ func TestAgentExposurePublisherResolveURLWithoutAnArtifactIsOwedItsDeploy(t *tes
 		return []*models.Gateway{{UUID: uuid.New()}}, nil
 	}
 	m.artifacts.GetByHandleFunc = func(string, string) (*models.Artifact, error) { return nil, utils.ErrArtifactNotFound }
+	m.exposures.GetFunc = exposedAgent
 
 	url, err := m.exposurePublisher().ResolveURL(context.Background(), testA2AKey())
 
 	require.NoError(t, err)
 	assert.True(t, url.Direct)
+	require.NotNil(t, url.Status)
 	assert.Equal(t, notPlacedReason, url.Status.Reason)
+}
+
+// An agent with no exposure in the environment, such as a REST agent still on its trait, is reached directly and
+// has no gateway status: the gateway is not involved.
+func TestAgentExposurePublisherResolveURLWithoutAnExposureHasNoStatus(t *testing.T) {
+	m := newPublisherMocks(t)
+	m.gateways.ListWithFiltersFunc = func(repositories.GatewayFilterOptions) ([]*models.Gateway, error) {
+		return []*models.Gateway{{UUID: uuid.New()}}, nil
+	}
+	m.artifacts.GetByHandleFunc = func(string, string) (*models.Artifact, error) {
+		return &models.Artifact{UUID: uuid.New(), Kind: models.KindAgent}, nil
+	}
+	m.deployments.StatusRecordsFunc = func(context.Context, string, uuid.UUID) ([]models.DeploymentStatusRecord, error) {
+		return nil, nil
+	}
+	m.exposures.GetFunc = func(context.Context, string, string, string, uuid.UUID) (*models.PlatformAgentExposure, error) {
+		return nil, repositories.ErrPlatformAgentExposureNotFound
+	}
+
+	url, err := m.exposurePublisher().ResolveURL(context.Background(), testA2AKey())
+
+	require.NoError(t, err)
+	assert.True(t, url.Direct)
+	assert.Nil(t, url.Status)
+}
+
+func exposedAgent(context.Context, string, string, string, uuid.UUID) (*models.PlatformAgentExposure, error) {
+	return &models.PlatformAgentExposure{}, nil
 }

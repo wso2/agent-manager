@@ -174,7 +174,9 @@ type AgentURL struct {
 	Gateway string
 	// Direct is set while the environment has a gateway but nothing is placed on it, so the agent is reached directly.
 	Direct bool
-	Status models.UserStatus
+	// Status is what the user is shown for the agent's gateway deployment; nil while the agent has no exposure in
+	// the environment, since the gateway is not involved.
+	Status *models.UserStatus
 }
 
 // For is the URL to show: the gateway's, else openChoreoURL while direct, else "".
@@ -189,7 +191,8 @@ func (u AgentURL) For(openChoreoURL string) string {
 	}
 }
 
-// ResolveURL reads the environment's ingress gateway and the agent's rows once and says where the agent is reached.
+// ResolveURL reads the environment's ingress gateway, the agent's exposure and its rows once and says where the
+// agent is reached.
 func (p *AgentExposurePublisher) ResolveURL(ctx context.Context, key agentExposureKey) (AgentURL, error) {
 	gateway, err := findIngressGateway(p.gatewayRepo, key.OUID, key.EnvironmentUUID)
 	if err != nil {
@@ -199,7 +202,15 @@ func (p *AgentExposurePublisher) ResolveURL(ctx context.Context, key agentExposu
 	if err != nil {
 		return AgentURL{}, err
 	}
-	url := AgentURL{Status: shownStatus(rows, gateway != nil)}
+	exposed, err := p.isExposed(ctx, key)
+	if err != nil {
+		return AgentURL{}, err
+	}
+	var url AgentURL
+	if exposed {
+		status := shownStatus(rows, gateway != nil)
+		url.Status = &status
+	}
 	if gateway == nil {
 		return url, nil
 	}
@@ -209,6 +220,18 @@ func (p *AgentExposurePublisher) ResolveURL(ctx context.Context, key agentExposu
 		url.Direct = true
 	}
 	return url, nil
+}
+
+func (p *AgentExposurePublisher) isExposed(ctx context.Context, key agentExposureKey) (bool, error) {
+	_, err := p.exposureRepo.Get(ctx, key.OUID, key.ProjectName, key.AgentName, key.EnvironmentUUID)
+	switch {
+	case err == nil:
+		return true, nil
+	case errors.Is(err, repositories.ErrPlatformAgentExposureNotFound):
+		return false, nil
+	default:
+		return false, fmt.Errorf("failed to read the agent's exposure: %w", err)
+	}
 }
 
 func (p *AgentExposurePublisher) statusRecords(ctx context.Context, key agentExposureKey) ([]models.DeploymentStatusRecord, error) {

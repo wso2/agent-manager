@@ -41,10 +41,8 @@ import (
 
 var testAgentNameA2A = fmt.Sprintf("a2a-agent-%s", uuid.New().String()[:5])
 
-// An a2a-agent has no REST API, so the api-configuration trait must not be
-// attached at create. The positive assertion this mirrors is in
-// create_agent_test.go, where a docker chat agent gets exactly two traits with
-// TraitAPIManagement second.
+// An a2a-agent is served only through its environment's ingress gateway, so
+// neither route trait is attached at create.
 func TestCreateA2AAgentOmitsAPIConfigurationTrait(t *testing.T) {
 	seedIngressGatewayForDefaultEnvironment(t, "mock-org-id")
 	authMiddleware := jwtassertion.NewMockMiddleware(t)
@@ -109,6 +107,8 @@ func TestCreateA2AAgentOmitsAPIConfigurationTrait(t *testing.T) {
 	for _, tr := range attachTraitsCalls[0].TraitRequests {
 		require.NotEqual(t, client.TraitAPIManagement, tr.TraitType,
 			"an a2a-agent must not be given the api-configuration trait")
+		require.NotEqual(t, client.TraitA2AGatewayRoute, tr.TraitType,
+			"an a2a-agent must not be given the a2a-gateway-route trait")
 	}
 	require.NotEmpty(t, attachTraitsCalls[0].TraitRequests,
 		"the instrumentation traits are still attached")

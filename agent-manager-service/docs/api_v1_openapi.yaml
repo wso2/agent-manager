@@ -13613,6 +13613,20 @@ components:
           required:
             - name
             - displayName
+        gatewayStatus:
+          type: string
+          enum: [DEPLOYING, DEPLOYED, UNDEPLOYING, UNDEPLOYED, FAILED]
+          description: >-
+            The agent's deployment status on the environment's ingress gateway, the only place an API agent is
+            served. DEPLOYING until the gateway acknowledges the deployment, including while it waits for an input
+            (see gatewayStatusReason). An environment with no ingress gateway is UNDEPLOYED with gatewayStatusReason
+            "no gateway in this environment". Absent for an agent the gateway does not serve, and when the gateway
+            status could not be read.
+        gatewayStatusReason:
+          type: string
+          description: >-
+            Why gatewayStatus is what it is: the gateway's error code, DEPLOYMENT_TIMEOUT, what a deploy is waiting
+            for, or "no gateway in this environment". Empty when there is nothing to say.
       required:
         - imageId
         - status

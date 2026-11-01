@@ -94,6 +94,9 @@ func (r *ArtifactRepo) Update(tx *gorm.DB, artifact *models.Artifact) error {
 	if artifact.Version != "" {
 		updates["version"] = artifact.Version
 	}
+	if artifact.Kind != "" {
+		updates["kind"] = artifact.Kind
+	}
 
 	result := tx.Model(&models.Artifact{}).
 		Where("uuid = ? AND ou_id = ?", artifact.UUID, artifact.OUID).
