@@ -114,13 +114,13 @@ type AgentThunderClientRepository interface {
 	// (not just the oldest limit of them) via keyset pagination.
 	FindRecentlyCompletedInternal(ctx context.Context, createdAfter time.Time, after *ReconcileCursor, limit int) ([]models.AgentThunderClient, error)
 
-	// MarkSyncAfter sets sync_after to at on the given bindings that carry an
+	// MarkSyncAfter moves sync_after beyond its current value on bindings that carry an
 	// identity by promotion (promotion_source is set) and are completed or in
 	// progress. An in progress attempt may have read the carried set before the
 	// change, so it is marked too. A pending or failed binding is left alone: its
-	// next attempt reads the set as it is then. It overwrites an earlier value: a
-	// later request moves the time later, so a burst of changes becomes one
-	// promotion.
+	// next attempt reads the set as it is then. If a sync holds a lease in
+	// sync_after, the new marker stays beyond that lease so no second replica
+	// starts an overlapping promotion.
 	MarkSyncAfter(ctx context.Context, ids []uuid.UUID, at time.Time) error
 
 	// FindSyncDue returns up to limit completed bindings whose sync_after has
@@ -397,7 +397,10 @@ func (r *AgentThunderClientRepo) MarkSyncAfter(ctx context.Context, ids []uuid.U
 			models.AgentThunderStatusCompleted, models.AgentThunderStatusInProgress,
 		}).
 		Updates(map[string]interface{}{
-			"sync_after": at,
+			"sync_after": clause.Expr{
+				SQL:  "CASE WHEN sync_after IS NULL THEN ? ELSE GREATEST(sync_after + INTERVAL '1 microsecond', ?) END",
+				Vars: []interface{}{at, at},
+			},
 			"updated_at": clause.Expr{SQL: "NOW()"},
 		}).Error; err != nil {
 		return fmt.Errorf("mark agent thunder clients for sync: %w", err)
