@@ -114,6 +114,7 @@ type GatewayRepository interface {
 	// insert the gateway row and its mappings into.
 	Transaction(fn func(tx *gorm.DB) error) error
 	AcquireEnvironmentLock(tx *gorm.DB, environmentID string) error
+	AcquireGatewayLock(tx *gorm.DB, gatewayID string) error
 	CreateTx(tx *gorm.DB, gateway *models.Gateway) error
 	CreateEnvironmentMappingTx(tx *gorm.DB, mapping *models.GatewayEnvironmentMapping) error
 	CountIngressCapableInEnvironment(tx *gorm.DB, environmentID string) (int64, error)
@@ -631,6 +632,7 @@ const (
 	a2aProxyLockNamespace      = 4712
 	agentVariableLockNamespace = 4713
 	DriftScanLockNamespace     = 4714
+	gatewayLockNamespace       = 4715
 )
 
 // advisoryXactLock takes a transaction-scoped advisory lock on key within namespace, released on
@@ -648,6 +650,12 @@ func (r *GatewayRepo) Transaction(fn func(tx *gorm.DB) error) error {
 // environment UUID, serialising concurrent ingress-cap checks for that environment.
 func (r *GatewayRepo) AcquireEnvironmentLock(tx *gorm.DB, environmentID string) error {
 	return advisoryXactLock(tx, gatewayEnvLockNamespace, environmentID)
+}
+
+// AcquireGatewayLock takes a transaction-scoped advisory lock keyed on the gateway UUID,
+// serialising concurrent environment assignments of one gateway.
+func (r *GatewayRepo) AcquireGatewayLock(tx *gorm.DB, gatewayID string) error {
+	return advisoryXactLock(tx, gatewayLockNamespace, gatewayID)
 }
 
 // CreateTx inserts a gateway inside an existing transaction. Mirrors Create,

@@ -160,6 +160,8 @@ func handleGatewayErrors(w http.ResponseWriter, err error, fallbackMsg string) {
 		utils.WriteErrorResponse(w, http.StatusConflict, err.Error())
 	case errors.Is(err, utils.ErrGatewayIngressCapExceeded):
 		utils.WriteErrorResponse(w, http.StatusConflict, err.Error())
+	case errors.Is(err, utils.ErrGatewayEnvironmentFixed):
+		utils.WriteErrorResponseWithReason(w, http.StatusConflict, err.Error(), "", utils.ErrCodeGatewayEnvironmentFixed)
 	case errors.Is(err, utils.ErrBadRequest):
 		utils.WriteErrorResponse(w, http.StatusBadRequest, err.Error())
 	case errors.Is(err, utils.ErrEnvironmentNotFound):

@@ -2423,6 +2423,8 @@ paths:
         - Gateway credentials are encrypted before storage
         - Credentials are never returned in API responses
         - Use a strong encryption key configured in GATEWAY_ENCRYPTION_KEY
+
+        A gateway serves exactly one environment: `environmentIds` takes at most one environment.
       operationId: registerGateway
       requestBody:
         required: true
@@ -2450,7 +2452,9 @@ paths:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
         "409":
-          description: Conflict - resource already exists
+          description: >-
+            Conflict - the gateway already exists, or `environmentIds` names more than one environment
+            (code `GATEWAY_ENVIRONMENT_FIXED`)
           content:
             application/json:
               schema:
@@ -2717,8 +2721,8 @@ paths:
         Create a mapping between a gateway and an environment.
 
         This makes the gateway available for use in the specified environment.
-        A gateway can be mapped to multiple environments, and an environment can have
-        multiple gateways.
+        A gateway serves exactly one environment: once mapped, it can be assigned again only to
+        that same environment, which succeeds without change.
       operationId: assignGatewayToEnvironment
       responses:
         "201":
@@ -2746,7 +2750,9 @@ paths:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
         "409":
-          description: Mapping already exists
+          description: >-
+            Conflict - the gateway is already mapped to another environment (code
+            `GATEWAY_ENVIRONMENT_FIXED`), or the environment already has an ingress gateway
           content:
             application/json:
               schema:
@@ -16214,12 +16220,14 @@ components:
           example: true
         environmentIds:
           type: array
-          description: List of environment UUIDs to assign the gateway to during creation
+          description: >-
+            The environment UUID to assign the gateway to during creation. A gateway serves exactly one
+            environment, so at most one is allowed.
+          maxItems: 1
           items:
             type: string
           example:
             - 550e8400-e29b-41d4-a716-446655440000
-            - 550e8400-e29b-41d4-a716-446655440001
         orgId:
           type: string
           description: >-

@@ -67,11 +67,13 @@ func TestAssignGatewayToEnvironment_SecondIngressRejected(t *testing.T) {
 	envID := uuid.New().String()
 	gw := &models.Gateway{UUID: uuid.New(), GatewayFunctionalityType: models.GatewayRoleBoth}
 	repo := &repomocks.GatewayRepositoryMock{
-		GetByUUIDFunc:                        func(string) (*models.Gateway, error) { return gw, nil },
-		TransactionFunc:                      func(fn func(tx *gorm.DB) error) error { return fn(nil) },
-		AcquireEnvironmentLockFunc:           func(*gorm.DB, string) error { return nil },
-		EnvironmentMappingExistsFunc:         func(string, string) (bool, error) { return false, nil },
-		CountIngressCapableInEnvironmentFunc: func(*gorm.DB, string) (int64, error) { return 1, nil },
+		GetByUUIDFunc:                         func(string) (*models.Gateway, error) { return gw, nil },
+		TransactionFunc:                       func(fn func(tx *gorm.DB) error) error { return fn(nil) },
+		AcquireGatewayLockFunc:                func(*gorm.DB, string) error { return nil },
+		GetEnvironmentMappingsByGatewayIDFunc: func(string) ([]models.GatewayEnvironmentMapping, error) { return nil, nil },
+		AcquireEnvironmentLockFunc:            func(*gorm.DB, string) error { return nil },
+		EnvironmentMappingExistsFunc:          func(string, string) (bool, error) { return false, nil },
+		CountIngressCapableInEnvironmentFunc:  func(*gorm.DB, string) (int64, error) { return 1, nil },
 	}
 	svc := NewPlatformGatewayService(repo, nil)
 
@@ -88,10 +90,12 @@ func TestAssignGatewayToEnvironment_SecondEgressAllowed(t *testing.T) {
 	gw := &models.Gateway{UUID: uuid.New(), GatewayFunctionalityType: models.GatewayRoleEgress}
 	created := false
 	repo := &repomocks.GatewayRepositoryMock{
-		GetByUUIDFunc:                func(string) (*models.Gateway, error) { return gw, nil },
-		TransactionFunc:              func(fn func(tx *gorm.DB) error) error { return fn(nil) },
-		AcquireEnvironmentLockFunc:   func(*gorm.DB, string) error { return nil },
-		EnvironmentMappingExistsFunc: func(string, string) (bool, error) { return false, nil },
+		GetByUUIDFunc:                         func(string) (*models.Gateway, error) { return gw, nil },
+		TransactionFunc:                       func(fn func(tx *gorm.DB) error) error { return fn(nil) },
+		AcquireGatewayLockFunc:                func(*gorm.DB, string) error { return nil },
+		GetEnvironmentMappingsByGatewayIDFunc: func(string) ([]models.GatewayEnvironmentMapping, error) { return nil, nil },
+		AcquireEnvironmentLockFunc:            func(*gorm.DB, string) error { return nil },
+		EnvironmentMappingExistsFunc:          func(string, string) (bool, error) { return false, nil },
 		CountIngressCapableInEnvironmentFunc: func(*gorm.DB, string) (int64, error) {
 			t.Fatal("egress gateways must not be counted against the ingress cap")
 			return 0, nil
@@ -118,6 +122,7 @@ func TestAssignGatewayToEnvironment_IdempotentWhenAlreadyMapped(t *testing.T) {
 		TransactionFunc: func(fn func(tx *gorm.DB) error) error {
 			return fn(nil)
 		},
+		AcquireGatewayLockFunc: func(*gorm.DB, string) error { return nil },
 		AcquireEnvironmentLockFunc: func(*gorm.DB, string) error {
 			lockAcquired = true
 			return nil
@@ -162,9 +167,11 @@ func TestRegisterGateway_CapRejectionRollsBackGatewayRow(t *testing.T) {
 		GetByUUIDFunc: func(string) (*models.Gateway, error) {
 			return &models.Gateway{UUID: uuid.New(), GatewayFunctionalityType: models.GatewayRoleBoth}, nil
 		},
-		AcquireEnvironmentLockFunc:           func(*gorm.DB, string) error { return nil },
-		EnvironmentMappingExistsFunc:         func(string, string) (bool, error) { return false, nil },
-		CountIngressCapableInEnvironmentFunc: func(*gorm.DB, string) (int64, error) { return 1, nil },
+		AcquireGatewayLockFunc:                func(*gorm.DB, string) error { return nil },
+		GetEnvironmentMappingsByGatewayIDFunc: func(string) ([]models.GatewayEnvironmentMapping, error) { return nil, nil },
+		AcquireEnvironmentLockFunc:            func(*gorm.DB, string) error { return nil },
+		EnvironmentMappingExistsFunc:          func(string, string) (bool, error) { return false, nil },
+		CountIngressCapableInEnvironmentFunc:  func(*gorm.DB, string) (int64, error) { return 1, nil },
 	}
 	svc := NewPlatformGatewayService(repo, nil)
 

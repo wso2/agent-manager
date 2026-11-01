@@ -21,6 +21,9 @@ import (
 //			AcquireEnvironmentLockFunc: func(tx *gorm.DB, environmentID string) error {
 //				panic("mock out the AcquireEnvironmentLock method")
 //			},
+//			AcquireGatewayLockFunc: func(tx *gorm.DB, gatewayID string) error {
+//				panic("mock out the AcquireGatewayLock method")
+//			},
 //			CountActiveTokensFunc: func(gatewayId string) (int, error) {
 //				panic("mock out the CountActiveTokens method")
 //			},
@@ -142,6 +145,9 @@ type GatewayRepositoryMock struct {
 	// AcquireEnvironmentLockFunc mocks the AcquireEnvironmentLock method.
 	AcquireEnvironmentLockFunc func(tx *gorm.DB, environmentID string) error
 
+	// AcquireGatewayLockFunc mocks the AcquireGatewayLock method.
+	AcquireGatewayLockFunc func(tx *gorm.DB, gatewayID string) error
+
 	// CountActiveTokensFunc mocks the CountActiveTokens method.
 	CountActiveTokensFunc func(gatewayId string) (int, error)
 
@@ -261,6 +267,13 @@ type GatewayRepositoryMock struct {
 			Tx *gorm.DB
 			// EnvironmentID is the environmentID argument value.
 			EnvironmentID string
+		}
+		// AcquireGatewayLock holds details about calls to the AcquireGatewayLock method.
+		AcquireGatewayLock []struct {
+			// Tx is the tx argument value.
+			Tx *gorm.DB
+			// GatewayID is the gatewayID argument value.
+			GatewayID string
 		}
 		// CountActiveTokens holds details about calls to the CountActiveTokens method.
 		CountActiveTokens []struct {
@@ -479,6 +492,7 @@ type GatewayRepositoryMock struct {
 		}
 	}
 	lockAcquireEnvironmentLock                   sync.RWMutex
+	lockAcquireGatewayLock                       sync.RWMutex
 	lockCountActiveTokens                        sync.RWMutex
 	lockCountFailureSummaryAllOrgs               sync.RWMutex
 	lockCountIngressCapableInEnvironment         sync.RWMutex
@@ -551,6 +565,42 @@ func (mock *GatewayRepositoryMock) AcquireEnvironmentLockCalls() []struct {
 	mock.lockAcquireEnvironmentLock.RLock()
 	calls = mock.calls.AcquireEnvironmentLock
 	mock.lockAcquireEnvironmentLock.RUnlock()
+	return calls
+}
+
+// AcquireGatewayLock calls AcquireGatewayLockFunc.
+func (mock *GatewayRepositoryMock) AcquireGatewayLock(tx *gorm.DB, gatewayID string) error {
+	if mock.AcquireGatewayLockFunc == nil {
+		panic("GatewayRepositoryMock.AcquireGatewayLockFunc: method is nil but GatewayRepository.AcquireGatewayLock was just called")
+	}
+	callInfo := struct {
+		Tx        *gorm.DB
+		GatewayID string
+	}{
+		Tx:        tx,
+		GatewayID: gatewayID,
+	}
+	mock.lockAcquireGatewayLock.Lock()
+	mock.calls.AcquireGatewayLock = append(mock.calls.AcquireGatewayLock, callInfo)
+	mock.lockAcquireGatewayLock.Unlock()
+	return mock.AcquireGatewayLockFunc(tx, gatewayID)
+}
+
+// AcquireGatewayLockCalls gets all the calls that were made to AcquireGatewayLock.
+// Check the length with:
+//
+//	len(mockedGatewayRepository.AcquireGatewayLockCalls())
+func (mock *GatewayRepositoryMock) AcquireGatewayLockCalls() []struct {
+	Tx        *gorm.DB
+	GatewayID string
+} {
+	var calls []struct {
+		Tx        *gorm.DB
+		GatewayID string
+	}
+	mock.lockAcquireGatewayLock.RLock()
+	calls = mock.calls.AcquireGatewayLock
+	mock.lockAcquireGatewayLock.RUnlock()
 	return calls
 }
 

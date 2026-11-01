@@ -40,8 +40,8 @@ AssignGatewayToEnvironment Assign gateway to environment
 Create a mapping between a gateway and an environment.
 
 This makes the gateway available for use in the specified environment.
-A gateway can be mapped to multiple environments, and an environment can have
-multiple gateways.
+A gateway serves exactly one environment: once mapped, it can be assigned again only to
+that same environment, which succeeds without change.
 
 	@param ctx context.Context - for authentication, logging, cancellation, deadlines, tracing, etc. Passed from http.Request or context.Background().
 	@param orgName Organization name/handle
