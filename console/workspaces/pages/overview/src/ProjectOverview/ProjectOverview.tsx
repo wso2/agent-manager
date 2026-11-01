@@ -18,12 +18,9 @@
 
 import React, { useEffect } from "react";
 import { Box, Button, Stack } from "@wso2/oxygen-ui";
-import { Edit, Users } from "@wso2/oxygen-ui-icons-react";
-import {
-  PageLayout,
-  DescriptionCard,
-  CreatedMetadata,
-} from "@agent-management-platform/views";
+import { Edit } from "@wso2/oxygen-ui-icons-react";
+import { PageLayout } from "@agent-management-platform/views";
+import { AgentList } from "@agent-management-platform/level-resource-listing";
 import { generatePath, useNavigate, useParams } from "react-router-dom";
 import { absoluteRouteMap } from "@agent-management-platform/types";
 import {
@@ -62,20 +59,10 @@ export const ProjectOverview: React.FC = () => {
   return (
     <PageLayout
       title={project?.displayName ?? "Project Overview"}
-      meta={project ? <CreatedMetadata createdAt={project.createdAt} /> : undefined}
+      description={project?.description}
       isLoading={isLoading}
       actions={
         <Stack direction="row" gap={1}>
-          <Button
-            variant="outlined"
-            size="small"
-            startIcon={<Users size={16} />}
-            onClick={() =>
-              navigate(generatePath(projectRoutes.children.agentListing.path, { orgId, projectId }))
-            }
-          >
-            View Agents
-          </Button>
           <Button
             variant="outlined"
             size="small"
@@ -90,13 +77,15 @@ export const ProjectOverview: React.FC = () => {
         </Stack>
       }
     >
-      {project?.description && (
-        <DescriptionCard content={project.description} sx={{ mb: 4 }} />
-      )}
-      <Box display="flex" flexDirection="column" gap={2} maxWidth={450}>
-        <AgentTypeSummery />
-        <DeploymentPipelineCard />
-      </Box>
+      <Stack direction={{ xs: "column", lg: "row" }} gap={3} alignItems="flex-start">
+        <Box sx={{ flex: 1, minWidth: 0, width: "100%" }}>
+          <AgentList showCreateAction />
+        </Box>
+        <Stack gap={2} sx={{ width: { xs: "100%", lg: 380 }, flexShrink: 0 }}>
+          <AgentTypeSummery />
+          <DeploymentPipelineCard />
+        </Stack>
+      </Stack>
     </PageLayout>
   );
 };

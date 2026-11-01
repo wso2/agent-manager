@@ -20,6 +20,7 @@ import type { PageMetadata } from '@agent-management-platform/types';
 import { Box } from '@wso2/oxygen-ui-icons-react';
 import { ProjectListing } from './ProjectListing/ProjectListing';
 import { AgentListing } from './AgentListing/AgentListing';
+import { AgentList } from './AgentListing/AgentList';
 
 export const metaData: PageMetadata = {
   title: 'Resource Listing',
@@ -33,6 +34,6 @@ export const metaData: PageMetadata = {
   },
 };
 
-export { ProjectListing, AgentListing };
+export { ProjectListing, AgentListing, AgentList };
 
 export default ProjectListing;

@@ -3621,6 +3621,9 @@ importers:
       '@agent-management-platform/build':
         specifier: workspace:*
         version: link:../build
+      '@agent-management-platform/level-resource-listing':
+        specifier: workspace:*
+        version: link:../level-resource-listing
       '@agent-management-platform/shared-component':
         specifier: workspace:*
         version: link:../../libs/shared-component
