@@ -499,7 +499,9 @@ paths:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
         "409":
-          description: Agent already exists
+          description: >-
+            The agent already exists, or it is an API agent and its first environment has no ingress gateway
+            to serve it (code `ENVIRONMENT_HAS_NO_GATEWAY`)
           content:
             application/json:
               schema:
@@ -1037,6 +1039,14 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
+        "409":
+          description: >-
+            The agent is an API agent and the environment the build releases into has no ingress gateway to
+            serve it (code `ENVIRONMENT_HAS_NO_GATEWAY`)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
         "500":
           description: Internal server error
           content:
@@ -1261,6 +1271,14 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
+        "409":
+          description: >-
+            The agent is an API agent and the target environment has no ingress gateway to serve it (code
+            `ENVIRONMENT_HAS_NO_GATEWAY`)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
         "500":
           description: Internal server error
           content:
@@ -1421,7 +1439,9 @@ paths:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
         "409":
-          description: Deployment already in progress in target environment
+          description: >-
+            A deployment is already in progress in the target environment, or the target environment has no
+            ingress gateway to serve this API agent (code `ENVIRONMENT_HAS_NO_GATEWAY`)
           content:
             application/json:
               schema:

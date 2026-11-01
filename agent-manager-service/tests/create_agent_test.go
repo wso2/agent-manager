@@ -51,6 +51,7 @@ var (
 )
 
 func TestCreateAgent(t *testing.T) {
+	seedIngressGatewayForDefaultEnvironment(t, "mock-org-id")
 	authMiddleware := jwtassertion.NewMockMiddleware(t)
 
 	t.Run("Creating an agent with default interface should return 202", func(t *testing.T) {

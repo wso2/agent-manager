@@ -860,6 +860,7 @@ func promoteAgentTestFixture(t *testing.T, tgtIdentityEnvVars []client.EnvVar, t
 		agentConfigurationService: agentConfigSvc,
 		agentIdentityInjection:    identityInjector,
 		agentThunderProvisioning:  provisioningStubWithProvision,
+		gatewayRepo:               gatewayRepoMapping(ingressGateway),
 		logger:                    discardLogger(),
 	}
 	return s, &promoteCalled
@@ -2092,7 +2093,7 @@ func deployAPIAgentMocks(existingConfig *models.AgentConfig) (*agentManagerServi
 			return nil, nil
 		},
 		GetEnvironmentFunc: func(_ context.Context, _, name string) (*models.EnvironmentResponse, error) {
-			return &models.EnvironmentResponse{Name: name, UUID: "env-uuid"}, nil
+			return &models.EnvironmentResponse{Name: name, UUID: uuid.NewString()}, nil
 		},
 		IsDeploymentInProgressFunc: func(context.Context, string, string, string) (bool, error) {
 			return false, nil
@@ -2144,6 +2145,7 @@ func deployAPIAgentMocks(existingConfig *models.AgentConfig) (*agentManagerServi
 		agentIdentityInjection: injector,
 		artifactRepo:           artifactRepo,
 		agentConfigRepo:        agentConfigRepo,
+		gatewayRepo:            gatewayRepoMapping(ingressGateway),
 		logger:                 discardLogger(),
 	}
 	return s, &capturedDeployConfig

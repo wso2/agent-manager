@@ -100,8 +100,13 @@ func testLifecycleLogger() *slog.Logger {
 }
 
 // seedIngressGateway inserts a gateway and maps it to the environment, because
-// an A2A agent is published to its environment's INGRESS gateway and the test
+// an API agent is created, deployed and published through its environment's INGRESS gateway and the test
 // database carries none by default.
+func seedIngressGatewayForDefaultEnvironment(t *testing.T, ouID string) uuid.UUID {
+	t.Helper()
+	return seedIngressGateway(t, ouID, uuid.MustParse(apitestutils.DefaultEnvironmentUUID))
+}
+
 func seedIngressGateway(t *testing.T, ouID string, environmentUUID uuid.UUID) uuid.UUID {
 	t.Helper()
 	gdb := db.GetDB()

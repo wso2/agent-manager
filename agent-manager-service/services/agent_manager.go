@@ -195,6 +195,39 @@ func translateEnvironmentError(err error) error {
 	return err
 }
 
+// requireIngressGateway refuses an environment that has no INGRESS or BOTH gateway to expose an API agent through.
+func (s *agentManagerService) requireIngressGateway(ouID string, env *models.EnvironmentResponse) error {
+	envUUID, err := uuid.Parse(env.UUID)
+	if err != nil {
+		return fmt.Errorf("environment %s has an invalid UUID %q: %w", env.Name, env.UUID, err)
+	}
+	gateway, err := findIngressGateway(s.gatewayRepo, ouID, envUUID)
+	if err != nil {
+		return err
+	}
+	if gateway == nil {
+		return fmt.Errorf("%w: environment %s has no ingress gateway", utils.ErrEnvironmentHasNoGateway, env.Name)
+	}
+	return nil
+}
+
+// requireIngressGatewayInLowestEnvironment is requireIngressGateway for the environment a build releases into.
+func (s *agentManagerService) requireIngressGatewayInLowestEnvironment(ctx context.Context, ouID, projectName string) error {
+	pipeline, err := s.ocClient.GetProjectDeploymentPipeline(ctx, ouID, projectName)
+	if err != nil {
+		return translatePipelineError(err)
+	}
+	lowestEnv := findLowestEnvironment(pipeline.PromotionPaths)
+	if lowestEnv == "" {
+		return fmt.Errorf("no environment found in deployment pipeline")
+	}
+	env, err := s.ocClient.GetEnvironment(ctx, ouID, lowestEnv)
+	if err != nil {
+		return translateEnvironmentError(err)
+	}
+	return s.requireIngressGateway(ouID, env)
+}
+
 // translatePipelineError translates a generic ErrNotFound to ErrDeploymentPipelineNotFound
 func translatePipelineError(err error) error {
 	if err != nil && errors.Is(err, utils.ErrNotFound) {
@@ -1673,6 +1706,19 @@ func (s *agentManagerService) createComponentAgent(ctx context.Context, ouID, pr
 	// its own is refused.
 	pipelineEnvs := client.PipelineEnvironments(pipeline.PromotionPaths)
 
+	var firstEnvUUID string
+	if req.AgentType.Type == string(utils.AgentTypeAPI) {
+		firstEnvDetails, envErr := s.ocClient.GetEnvironment(ctx, ouID, firstEnv)
+		if envErr != nil {
+			s.logger.Error("Failed to get environment details", "environment", firstEnv, "error", envErr)
+			return translateEnvironmentError(envErr)
+		}
+		if err := s.requireIngressGateway(ouID, firstEnvDetails); err != nil {
+			return err
+		}
+		firstEnvUUID = firstEnvDetails.UUID
+	}
+
 	// Preflight: validate referenced LLM providers before creating any secrets or
 	// the component, so a bad provider fails fast with no resources to roll back.
 	if len(req.ModelConfig) > 0 {
@@ -1772,23 +1818,10 @@ func (s *agentManagerService) createComponentAgent(ctx context.Context, ouID, pr
 	}
 
 	var agentAPIArtifact *models.Artifact
-	var firstEnvUUID string
 	if req.AgentType.Type == string(utils.AgentTypeAPI) {
-		firstEnvDetails, envErr := s.ocClient.GetEnvironment(ctx, ouID, firstEnv)
-		if envErr != nil {
-			s.logger.Error("Failed to get environment details", "environment", firstEnv, "error", envErr)
-			if hasSecrets {
-				s.cleanupSecretsOnRollback(ctx, secretLocation)
-			}
-			if errDeletion := s.ocClient.DeleteComponent(ctx, ouID, projectName, req.Name); errDeletion != nil {
-				s.logger.Error("Failed to rollback agent component after environment lookup failure", "agentName", req.Name, "error", errDeletion)
-			}
-			return translateEnvironmentError(envErr)
-		}
-		firstEnvUUID = firstEnvDetails.UUID
-		agentAPIArtifact, err = ensureAgentEnvAPIArtifact(s.db, s.artifactRepo, ouID, projectName, req.Name, firstEnvDetails.UUID, models.KindAgent)
+		agentAPIArtifact, err = ensureAgentEnvAPIArtifact(s.db, s.artifactRepo, ouID, projectName, req.Name, firstEnvUUID, models.KindAgent)
 		if err != nil {
-			s.logger.Error("Failed to create agent API artifact record", "agentName", req.Name, "environment", firstEnv, "environmentUUID", firstEnvDetails.UUID, "error", err)
+			s.logger.Error("Failed to create agent API artifact record", "agentName", req.Name, "environment", firstEnv, "environmentUUID", firstEnvUUID, "error", err)
 			if hasSecrets {
 				s.cleanupSecretsOnRollback(ctx, secretLocation)
 			}
@@ -3344,6 +3377,11 @@ func (s *agentManagerService) BuildAgent(ctx context.Context, ouID string, proje
 	if agent.Provisioning.Type != string(utils.InternalAgent) {
 		return nil, fmt.Errorf("build operation is not supported for agent type: '%s'", agent.Provisioning.Type)
 	}
+	if agent.Type.Type == string(utils.AgentTypeAPI) {
+		if err := s.requireIngressGatewayInLowestEnvironment(ctx, ouID, projectName); err != nil {
+			return nil, err
+		}
+	}
 	workflowRunName, err := s.prepareBuild(ctx, ouID, projectName, agentName)
 	if err != nil {
 		return nil, translateBuildError(err)
@@ -3419,6 +3457,11 @@ func (s *agentManagerService) DeployAgent(ctx context.Context, ouID string, proj
 	targetEnv, err := s.requireEnvTier(ctx, ouID, lowestEnv)
 	if err != nil {
 		return "", err
+	}
+	if agent.Type.Type == string(utils.AgentTypeAPI) {
+		if err := s.requireIngressGateway(ouID, targetEnv); err != nil {
+			return "", err
+		}
 	}
 
 	// Refuse a deploy the Component controller cannot act on. Every write below succeeds at the
@@ -4637,6 +4680,11 @@ func (s *agentManagerService) PromoteAgent(ctx context.Context, ouID string, pro
 	targetEnv, err := s.requireEnvTier(ctx, ouID, req.TargetEnvironment)
 	if err != nil {
 		return err
+	}
+	if isAPIAgent {
+		if err := s.requireIngressGateway(ouID, targetEnv); err != nil {
+			return err
+		}
 	}
 
 	// Refuse a promote the Component controller cannot act on, for the same reason DeployAgent

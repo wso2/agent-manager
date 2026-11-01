@@ -46,6 +46,7 @@ var testAgentNameA2A = fmt.Sprintf("a2a-agent-%s", uuid.New().String()[:5])
 // create_agent_test.go, where a docker chat agent gets exactly two traits with
 // TraitAPIManagement second.
 func TestCreateA2AAgentOmitsAPIConfigurationTrait(t *testing.T) {
+	seedIngressGatewayForDefaultEnvironment(t, "mock-org-id")
 	authMiddleware := jwtassertion.NewMockMiddleware(t)
 
 	openChoreoClient := apitestutils.CreateMockOpenChoreoClient()

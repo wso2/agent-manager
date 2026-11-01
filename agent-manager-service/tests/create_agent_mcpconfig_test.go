@@ -38,6 +38,7 @@ import (
 // mcpConfig referencing a nonexistent MCP proxy must fail with 404 BEFORE any component
 // is provisioned (no orphaned resources).
 func TestCreateAgent_BadMCPProxyFailsBeforeProvisioning(t *testing.T) {
+	seedIngressGatewayForDefaultEnvironment(t, "mock-org-id")
 	authMiddleware := jwtassertion.NewMockMiddleware(t)
 	openChoreoClient := apitestutils.CreateMockOpenChoreoClient()
 	// CreateMockOpenChoreoClient's GetProjectDeploymentPipelineFunc already returns a
