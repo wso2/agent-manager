@@ -253,7 +253,7 @@
                   "type": "string"
                 }
               },
-              "required": [],
+              "required": ["repository", "tag"],
               "title": "controller",
               "type": "object"
             },
@@ -276,7 +276,7 @@
                   "type": "string"
                 }
               },
-              "required": [],
+              "required": ["repository", "tag"],
               "title": "runtime",
               "type": "object"
             }

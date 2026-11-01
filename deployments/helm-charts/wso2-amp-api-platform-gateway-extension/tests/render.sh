@@ -72,6 +72,20 @@ render() {
     fi
 }
 
+# Succeeds, silently, only when helm refuses the render with a message matching $2.
+render_refused() {
+    local out="$1" expected="$2"
+    shift 2
+    if helm template test "$CHART_DIR" "$@" >"$out" 2>"$out.err"; then
+        echo "render unexpectedly succeeded: $*" >&2
+        return 1
+    fi
+    if ! grep -q -- "$expected" "$out.err"; then
+        cat "$out.err" >&2
+        return 1
+    fi
+}
+
 if render "$workdir/defaults.yaml" && images="$(gateway_images "$workdir/defaults.yaml")" \
     && [ "$images" = "$CONTROLLER_REPOSITORY $CONTROLLER_TAG $RUNTIME_REPOSITORY $RUNTIME_TAG" ]; then
     pass gateway_image_defaults
@@ -91,10 +105,22 @@ fi
 # silently undoing the pin, so the chart must refuse to render. The same key set
 # non-empty must render, or the refusal proves nothing about the tag.
 if render "$workdir/set-tag.yaml" --set apiGateway.image.runtime.tag=v1 \
-    && ! render "$workdir/empty-tag.yaml" --set apiGateway.image.runtime.tag=; then
+    && render_refused "$workdir/empty-tag.yaml" "/apiGateway/image/runtime/tag': minLength" \
+        --set apiGateway.image.runtime.tag=; then
     pass gateway_image_empty_tag_refused
 else
     fail gateway_image_empty_tag_refused
+fi
+
+# helm upgrade --reuse-values over a release that predates apiGateway.image
+# merges only the keys the operator sets, so a lone repository override leaves
+# the tag unset. That would render a null tag into the configRef ConfigMap and
+# null out the gateway chart's default, so the chart must refuse it.
+if render_refused "$workdir/partial.yaml" "missing property 'tag'" \
+    --set apiGateway.image.controller.tag=null; then
+    pass gateway_image_partial_refused
+else
+    fail gateway_image_partial_refused
 fi
 
 # helm upgrade --reuse-values renders this chart with an older release's values,
