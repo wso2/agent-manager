@@ -18,6 +18,7 @@ package repositories
 
 import (
 	"context"
+	"fmt"
 	"time"
 
 	"github.com/google/uuid"
@@ -39,6 +40,10 @@ type APIKeyRepository interface {
 	// whose handle encodes one of the supplied environment UUIDs (handle format: "project/agent/<envUUID>").
 	// Used by the gateway bulk-sync path to scope agent keys to the gateway's own environments.
 	ListByArtifactKindAndEnvs(ouID string, kinds []string, envUUIDs []string) ([]models.StoredAPIKey, error)
+	// ListSentToGateway returns the keys of the org's artifacts of the given kind that the gateway was sent: its
+	// deployment_status row names a deployment, whether the artifact is deployed or undeployed. A row that is only
+	// placed (no deployment yet) is excluded, since the gateway holds no such artifact. Ordered by creation time.
+	ListSentToGateway(ctx context.Context, ouID, gatewayUUID, kind string) ([]models.StoredAPIKey, error)
 	// ListPermanentByArtifactKinds returns only user-managed (permanent) keys.
 	// Used by the Credentials list so console-managed test keys stay hidden.
 	ListPermanentByArtifactKinds(ouID string, kinds []string) ([]models.StoredAPIKey, error)
@@ -113,6 +118,21 @@ func (r *APIKeyRepo) ListByArtifactKindAndEnvs(ouID string, kinds []string, envU
 	var keys []models.StoredAPIKey
 	err := query.Where(orCond).Find(&keys).Error
 	return keys, err
+}
+
+func (r *APIKeyRepo) ListSentToGateway(ctx context.Context, ouID, gatewayUUID, kind string) ([]models.StoredAPIKey, error) {
+	var keys []models.StoredAPIKey
+	err := r.db.WithContext(ctx).
+		Joins("JOIN artifacts a ON api_keys.artifact_uuid = a.uuid").
+		Joins("JOIN deployment_status s ON s.artifact_uuid = a.uuid").
+		Where("a.ou_id = ? AND a.kind = ?", ouID, kind).
+		Where("s.gateway_uuid = ? AND s.ou_id = ? AND s.deployment_id IS NOT NULL", gatewayUUID, ouID).
+		Order("api_keys.created_at, api_keys.uuid").
+		Find(&keys).Error
+	if err != nil {
+		return nil, fmt.Errorf("failed to list the API keys sent to gateway %s: %w", gatewayUUID, err)
+	}
+	return keys, nil
 }
 
 // ListPermanentByArtifactKinds returns only user-managed permanent keys.

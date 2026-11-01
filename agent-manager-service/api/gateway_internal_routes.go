@@ -33,6 +33,7 @@ func RegisterGatewayInternalRoutes(rr *middleware.RouteRegistrar, ctrl controlle
 	rr.HandleFuncWithValidation("GET /llm-providers/api-keys", ctrl.GetLLMProviderAPIKeys)
 	rr.HandleFuncWithValidation("GET /llm-proxies/api-keys", ctrl.GetLLMProxyAPIKeys)
 	rr.HandleFuncWithValidation("GET /apis/api-keys", ctrl.GetAPIKeys)
+	rr.HandleFuncWithValidation("GET /agents/api-keys", ctrl.GetAgentAPIKeys)
 
 	// REST agent endpoint. The gateway fetches this after an api.deployed event and expects a ZIP containing the
 	// RestApi YAML.

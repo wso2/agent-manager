@@ -43,6 +43,7 @@ type GatewayInternalController interface {
 	GetLLMProviderAPIKeys(w http.ResponseWriter, r *http.Request)
 	GetLLMProxyAPIKeys(w http.ResponseWriter, r *http.Request)
 	GetAPIKeys(w http.ResponseWriter, r *http.Request)
+	GetAgentAPIKeys(w http.ResponseWriter, r *http.Request)
 	GetSubscriptionPlans(w http.ResponseWriter, r *http.Request)
 	GetDeployments(w http.ResponseWriter, r *http.Request)
 	FetchDeploymentBatch(w http.ResponseWriter, r *http.Request)
@@ -347,6 +348,30 @@ func (c *gatewayInternalController) GetAPIKeys(w http.ResponseWriter, r *http.Re
 		return
 	}
 	c.getAgentAPIKeys(w, r, identity)
+}
+
+// GetAgentAPIKeys handles GET /api/internal/v1/agents/api-keys.
+//
+// The gateway deletes every local Agent key missing from a 200 here, so any failure must be an error status and the
+// list must hold exactly the keys of A2A agents sent to this gateway. REST agents are RestApi artifacts whose keys
+// are served by GetAPIKeys.
+func (c *gatewayInternalController) GetAgentAPIKeys(w http.ResponseWriter, r *http.Request) {
+	identity, ok := c.authenticateGateway(w, r, "internal-read")
+	if !ok {
+		return
+	}
+	c.listSentA2AAgentAPIKeys(w, r, identity)
+}
+
+func (c *gatewayInternalController) listSentA2AAgentAPIKeys(w http.ResponseWriter, r *http.Request, identity gatewayIdentity) {
+	keys, err := c.apiKeyRepo.ListSentToGateway(r.Context(), identity.OUID, identity.ID, models.KindAgent)
+	if err != nil {
+		logger.GetLogger(r.Context()).Error("Failed to list the A2A agent API keys sent to the gateway",
+			"gatewayID", identity.ID, "error", err)
+		http.Error(w, "Failed to list API keys", http.StatusInternalServerError)
+		return
+	}
+	writeAPIKeys(w, keys)
 }
 
 // getAgentAPIKeys serves the keys of both agent artifact kinds. Agent API keys are environment-scoped: only keys

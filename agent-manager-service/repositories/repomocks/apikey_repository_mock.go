@@ -43,6 +43,9 @@ import (
 //			ListPermanentByArtifactKindsFunc: func(ouID string, kinds []string) ([]models.StoredAPIKey, error) {
 //				panic("mock out the ListPermanentByArtifactKinds method")
 //			},
+//			ListSentToGatewayFunc: func(ctx context.Context, ouID string, gatewayUUID string, kind string) ([]models.StoredAPIKey, error) {
+//				panic("mock out the ListSentToGateway method")
+//			},
 //			UpsertFunc: func(key *models.StoredAPIKey) error {
 //				panic("mock out the Upsert method")
 //			},
@@ -76,6 +79,9 @@ type APIKeyRepositoryMock struct {
 
 	// ListPermanentByArtifactKindsFunc mocks the ListPermanentByArtifactKinds method.
 	ListPermanentByArtifactKindsFunc func(ouID string, kinds []string) ([]models.StoredAPIKey, error)
+
+	// ListSentToGatewayFunc mocks the ListSentToGateway method.
+	ListSentToGatewayFunc func(ctx context.Context, ouID string, gatewayUUID string, kind string) ([]models.StoredAPIKey, error)
 
 	// UpsertFunc mocks the Upsert method.
 	UpsertFunc func(key *models.StoredAPIKey) error
@@ -142,6 +148,17 @@ type APIKeyRepositoryMock struct {
 			// Kinds is the kinds argument value.
 			Kinds []string
 		}
+		// ListSentToGateway holds details about calls to the ListSentToGateway method.
+		ListSentToGateway []struct {
+			// Ctx is the ctx argument value.
+			Ctx context.Context
+			// OuID is the ouID argument value.
+			OuID string
+			// GatewayUUID is the gatewayUUID argument value.
+			GatewayUUID string
+			// Kind is the kind argument value.
+			Kind string
+		}
 		// Upsert holds details about calls to the Upsert method.
 		Upsert []struct {
 			// Key is the key argument value.
@@ -156,6 +173,7 @@ type APIKeyRepositoryMock struct {
 	lockListByArtifactKind           sync.RWMutex
 	lockListByArtifactKindAndEnvs    sync.RWMutex
 	lockListPermanentByArtifactKinds sync.RWMutex
+	lockListSentToGateway            sync.RWMutex
 	lockUpsert                       sync.RWMutex
 }
 
@@ -452,6 +470,50 @@ func (mock *APIKeyRepositoryMock) ListPermanentByArtifactKindsCalls() []struct {
 	mock.lockListPermanentByArtifactKinds.RLock()
 	calls = mock.calls.ListPermanentByArtifactKinds
 	mock.lockListPermanentByArtifactKinds.RUnlock()
+	return calls
+}
+
+// ListSentToGateway calls ListSentToGatewayFunc.
+func (mock *APIKeyRepositoryMock) ListSentToGateway(ctx context.Context, ouID string, gatewayUUID string, kind string) ([]models.StoredAPIKey, error) {
+	if mock.ListSentToGatewayFunc == nil {
+		panic("APIKeyRepositoryMock.ListSentToGatewayFunc: method is nil but APIKeyRepository.ListSentToGateway was just called")
+	}
+	callInfo := struct {
+		Ctx         context.Context
+		OuID        string
+		GatewayUUID string
+		Kind        string
+	}{
+		Ctx:         ctx,
+		OuID:        ouID,
+		GatewayUUID: gatewayUUID,
+		Kind:        kind,
+	}
+	mock.lockListSentToGateway.Lock()
+	mock.calls.ListSentToGateway = append(mock.calls.ListSentToGateway, callInfo)
+	mock.lockListSentToGateway.Unlock()
+	return mock.ListSentToGatewayFunc(ctx, ouID, gatewayUUID, kind)
+}
+
+// ListSentToGatewayCalls gets all the calls that were made to ListSentToGateway.
+// Check the length with:
+//
+//	len(mockedAPIKeyRepository.ListSentToGatewayCalls())
+func (mock *APIKeyRepositoryMock) ListSentToGatewayCalls() []struct {
+	Ctx         context.Context
+	OuID        string
+	GatewayUUID string
+	Kind        string
+} {
+	var calls []struct {
+		Ctx         context.Context
+		OuID        string
+		GatewayUUID string
+		Kind        string
+	}
+	mock.lockListSentToGateway.RLock()
+	calls = mock.calls.ListSentToGateway
+	mock.lockListSentToGateway.RUnlock()
 	return calls
 }
 
