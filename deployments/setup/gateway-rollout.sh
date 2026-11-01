@@ -63,12 +63,24 @@ _gateway_rollout_yaml_value() {
     '
 }
 
-# Prints one "<deployment> <role> <image>" line per container in <namespace>
-# whose image comes from the controller or runtime repository. Matching is by
-# repository, not by Deployment name: the operator owns the names.
+# Prints the label selector for the Deployments the gateway-operator creates for
+# <gateway>. The operator installs each gateway as Helm release "<gateway>-gw",
+# or "gw-<first 8 hex of sha256(gateway)>" when that name is too long, and the
+# gateway chart labels both Deployments app.kubernetes.io/instance=<release>.
+# Both forms are accepted rather than re-deriving the operator's length budget.
+_gateway_rollout_selector() {
+    local gateway="$1" hash
+    hash="$(printf '%s' "$gateway" | { sha256sum 2>/dev/null || shasum -a 256; } | cut -c1-8)"
+    printf 'app.kubernetes.io/instance in (%s-gw,gw-%s)' "$gateway" "$hash"
+}
+
+# Prints one "<deployment> <role> <image>" line per container of <gateway>'s
+# Deployments whose image comes from the controller or runtime repository.
+# Scoping by the operator's label keeps another gateway in the same namespace
+# out; matching by repository picks the roles without relying on names.
 _gateway_rollout_containers() {
-    local namespace="$1" controller_repo="$2" runtime_repo="$3"
-    kubectl get deployments -n "$namespace" -o json | jq -r \
+    local gateway="$1" namespace="$2" controller_repo="$3" runtime_repo="$4"
+    kubectl get deployments -n "$namespace" -l "$(_gateway_rollout_selector "$gateway")" -o json | jq -r \
         --arg controller "$controller_repo" --arg runtime "$runtime_repo" '
         def from($repo): . == $repo or startswith($repo + ":") or startswith($repo + "@");
         .items[] | .metadata.name as $deployment
@@ -92,12 +104,15 @@ _gateway_rollout_images_current() {
 
 # wait_gateway_rollout <release> <namespace> [timeout_seconds]
 #
+# timeout_seconds defaults to GATEWAY_ROLLOUT_TIMEOUT, else 600: a fresh
+# install must pull both images inside it.
+#
 # Returns 0 once every Deployment of the release's gateway runs the controller
 # and runtime images its configRef ConfigMap names and `kubectl rollout status`
 # succeeds for each. Otherwise returns 1, printing the expected and actual
 # images. <namespace> is the Helm release's namespace.
 wait_gateway_rollout() {
-    local release="$1" namespace="$2" timeout="${3:-300}"
+    local release="$1" namespace="$2" timeout="${3:-${GATEWAY_ROLLOUT_TIMEOUT:-600}}"
     local poll="${GATEWAY_ROLLOUT_POLL_SECONDS:-5}"
     local deadline=$((SECONDS + timeout))
     local gateway="" gateway_ns="" configmap values
@@ -132,7 +147,7 @@ wait_gateway_rollout() {
     echo "⏳ Waiting for gateway ${gateway_ns}/${gateway} to run ${expected_controller} and ${expected_runtime}..."
     local containers
     while :; do
-        containers="$(_gateway_rollout_containers "$gateway_ns" "$controller_repo" "$runtime_repo")" || containers=""
+        containers="$(_gateway_rollout_containers "$gateway" "$gateway_ns" "$controller_repo" "$runtime_repo")" || containers=""
         if _gateway_rollout_images_current "$containers" "$expected_controller" "$expected_runtime"; then
             break
         fi
@@ -145,7 +160,7 @@ wait_gateway_rollout() {
                     echo "   actual:"
                     awk '{ printf "     deployment/%s (%s): %s\n", $1, $2, $3 }' <<< "$containers"
                 else
-                    echo "   actual: no Deployment in ${gateway_ns} runs either image"
+                    echo "   actual: no Deployment of ${gateway} in ${gateway_ns} runs either image"
                 fi
             } >&2
             return 1

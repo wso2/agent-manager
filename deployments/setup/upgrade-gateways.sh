@@ -18,8 +18,12 @@ CHART_REF="${1:-${SCRIPT_DIR}/../helm-charts/${CHART_NAME}}"
 # shellcheck source=./gateway-rollout.sh
 source "${SCRIPT_DIR}/gateway-rollout.sh"
 
-if ! RELEASES="$(helm list -A -o json | jq -r --arg prefix "${CHART_NAME}-" \
-        '.[] | select(.chart | startswith($prefix)) | "\(.name) \(.namespace)"')"; then
+# A release stuck in pending-* cannot be upgraded until someone rolls it back,
+# so it is listed in order to be reported as a failure rather than skipped
+# silently. The status flags are explicit because Helm 3 and Helm 4 disagree
+# on what `helm list` shows by default.
+if ! RELEASES="$(helm list -A --deployed --failed --pending -o json | jq -r --arg prefix "${CHART_NAME}-" \
+        '.[] | select(.chart | startswith($prefix)) | "\(.name) \(.namespace) \(.status)"')"; then
     echo "❌ Could not list Helm releases" >&2
     exit 1
 fi
@@ -31,13 +35,17 @@ fi
 
 SUMMARY=()
 FAILED=0
-while read -r release namespace <&3; do
+while read -r release namespace status <&3; do
     echo ""
     echo "=== Upgrading gateway release ${namespace}/${release} ==="
-    if ! helm upgrade "${release}" "${CHART_REF}" -n "${namespace}" --reset-then-reuse-values; then
+    if [[ "${status}" == pending-* ]]; then
+        echo "❌ Release is ${status}; resolve it (helm rollback or uninstall) and re-run" >&2
+        SUMMARY+=("❌ ${namespace}/${release}: not upgraded, release is ${status}")
+        FAILED=1
+    elif ! helm upgrade "${release}" "${CHART_REF}" -n "${namespace}" --reset-then-reuse-values; then
         SUMMARY+=("❌ ${namespace}/${release}: helm upgrade failed")
         FAILED=1
-    elif ! wait_gateway_rollout "${release}" "${namespace}"; then
+    elif ! wait_gateway_rollout "${release}" "${namespace}" "${GATEWAY_ROLLOUT_TIMEOUT:-600}"; then
         SUMMARY+=("❌ ${namespace}/${release}: gateway did not roll out")
         FAILED=1
     else

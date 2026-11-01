@@ -145,7 +145,7 @@ fi
 
 helm "${HELM_ARGS[@]}"
 
-wait_gateway_rollout "api-platform-${ORG_NAME}-${ENV_NAME}" "${GATEWAY_NAMESPACE}" 180 || exit 1
+wait_gateway_rollout "api-platform-${ORG_NAME}-${ENV_NAME}" "${GATEWAY_NAMESPACE}" "${GATEWAY_ROLLOUT_TIMEOUT:-600}" || exit 1
 
 # The OTEL ingest RestApi is provisioned by the gateway extension chart
 # (templates/gateway-otel-restapi.yaml) with the restapi-target label that
