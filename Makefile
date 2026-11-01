@@ -1,4 +1,4 @@
-.PHONY: help tools setup setup-colima setup-k3d setup-openchoreo setup-default-env-thunder setup-sandbox setup-gvisor setup-kata setup-platform setup-gateway setup-console-local setup-console-local-force setup-amp teardown-amp reset-amp dev-up dev-down dev-restart dev-rebuild dev-logs dev-migrate openchoreo-up openchoreo-down openchoreo-status thunder-up thunder-down thunder-restart thunder-reset teardown db-connect db-logs service-logs service-shell console-logs console stop-console port-forward stop-port-forward gen-eval-artifacts gen-instrumentation-contract check-contract-drift check-matrix-manifest e2e-test security-test security-test-static security-test-live
+.PHONY: help tools setup setup-colima setup-k3d setup-openchoreo setup-default-env-thunder setup-sandbox setup-gvisor setup-kata setup-platform setup-gateway upgrade-gateways setup-console-local setup-console-local-force setup-amp teardown-amp reset-amp dev-up dev-down dev-restart dev-rebuild dev-logs dev-migrate openchoreo-up openchoreo-down openchoreo-status thunder-up thunder-down thunder-restart thunder-reset teardown db-connect db-logs service-logs service-shell console-logs console stop-console port-forward stop-port-forward gen-eval-artifacts gen-instrumentation-contract check-contract-drift check-matrix-manifest e2e-test security-test security-test-static security-test-live
 
 # Default target
 help:
@@ -15,6 +15,7 @@ help:
 	@echo "  make setup-kata              - Join a real (non-Docker) node to the cluster and install Kata there (needs nested virt; run after make setup)"
 	@echo "  make setup-platform          - Build images and start core platform services"
 	@echo "  make setup-gateway           - Install API Platform Gateway (run via make setup)"
+	@echo "  make upgrade-gateways        - Upgrade every gateway release to the local chart and wait for rollout"
 	@echo "  make setup-console-local     - Install console deps (only if changed)"
 	@echo "  make setup-console-local-force - Force reinstall console deps"
 	@echo ""
@@ -84,6 +85,7 @@ setup: tools setup-colima setup-k3d setup-openchoreo setup-platform setup-sandbo
 	@$(MAKE) wait-ams-healthy
 	@$(MAKE) setup-default-env-thunder
 	@$(MAKE) setup-gateway
+	@$(MAKE) upgrade-gateways
 	@cd deployments/setup && ./port-forward.sh --background
 	@$(MAKE) console BACKGROUND=true
 	@echo ""
@@ -117,6 +119,7 @@ setup-amp:
 	@$(MAKE) wait-ams-healthy
 	@$(MAKE) setup-default-env-thunder
 	@$(MAKE) setup-gateway
+	@$(MAKE) upgrade-gateways
 	@cd deployments/setup && ./port-forward.sh --background
 	@$(MAKE) console BACKGROUND=true
 	@echo ""
@@ -181,6 +184,11 @@ setup-platform: gen-keys
 
 setup-gateway:
 	@cd deployments/setup && ./setup-gateway.sh
+
+# Re-render every gateway extension release against the local chart and wait
+# until each gateway runs the images it names.
+upgrade-gateways:
+	@cd deployments/setup && ./upgrade-gateways.sh
 
 # Console local setup. The install is gated on console/pnpm-lock.yaml.
 .make:
