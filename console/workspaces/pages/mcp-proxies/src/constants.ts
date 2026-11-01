@@ -27,4 +27,13 @@ export const MANAGED_MCP_POLICY_NAMES: readonly string[] = [
   REWRITE_POLICY_NAME,
 ];
 
+// Bundled by the gateway but not configurable from AM: the typesafe-jev-*
+// policies need the typesafe_jev_v0 system config AM does not provision, and
+// oauth2-token-exchange is auth infrastructure.
+export const UNSUPPORTED_MCP_POLICY_NAMES: readonly string[] = [
+  "typesafe-jev-mcp-tool-intent-verification",
+  "typesafe-jev-mcp-tool-result-screening",
+  "oauth2-token-exchange",
+];
+
 export const MCP_SPEC_VERSION = "2025-06-18";

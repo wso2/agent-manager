@@ -29,10 +29,17 @@ import {
   PolicyListSection,
   type PolicySelection,
 } from "@agent-management-platform/shared-component";
-import { MANAGED_MCP_POLICY_NAMES } from "../constants";
+import {
+  MANAGED_MCP_POLICY_NAMES,
+  UNSUPPORTED_MCP_POLICY_NAMES,
+} from "../constants";
 
 function isManagedMCPPolicy(name: string): boolean {
   return MANAGED_MCP_POLICY_NAMES.includes(name);
+}
+
+function isUnsupportedMCPPolicy(name: string): boolean {
+  return UNSUPPORTED_MCP_POLICY_NAMES.includes(name);
 }
 
 function mcpPoliciesToSelections(
@@ -153,7 +160,11 @@ export function MCPProxyPoliciesTab({
       isLoadingCatalog={isLoadingCatalog}
       catalogError={catalogError}
       filterPolicies={(items) =>
-        items.filter((policy) => !isManagedMCPPolicy(policy.name))
+        items.filter(
+          (policy) =>
+            !isManagedMCPPolicy(policy.name) &&
+            !isUnsupportedMCPPolicy(policy.name),
+        )
       }
       getPolicyDefinitionVersion={(policy) =>
         (policy as MCPPolicyDefinition).policyHubVersion ?? policy.version

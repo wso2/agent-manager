@@ -78,6 +78,17 @@ const NON_GUARDRAIL_POLICY_EXCLUDELIST = new Set([
   "request-rewrite",
   "set-headers",
   "subscription-validation",
+  // Bundled since gateway 20261031-r1. mtls-auth and oauth2-token-exchange are
+  // auth. The typesafe-jev-* policies need the typesafe_jev_v0 system config,
+  // which AM does not provision; exposing them means adding that config plus a
+  // CAPABILITY_POLICY_MAP flag.
+  "mtls-auth",
+  "oauth2-token-exchange",
+  "typesafe-jev-content-safety",
+  "typesafe-jev-mcp-tool-intent-verification",
+  "typesafe-jev-mcp-tool-result-screening",
+  "typesafe-jev-model-routing",
+  "typesafe-jev-tool-filtering",
 ]);
 
 // Tier 2: Hidden by default — require external system config.
