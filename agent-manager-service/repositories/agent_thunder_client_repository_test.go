@@ -347,15 +347,20 @@ func TestAgentThunderClientRepo_SyncMarkerIsClaimedAndClearedOnlyIfNotMoved(t *t
 	// A newer request moves the marker while the sync runs: finishing it must not clear it.
 	newer := time.Now().Add(10 * time.Second).Truncate(time.Microsecond)
 	require.NoError(t, repo.MarkSyncAfter(ctx, []uuid.UUID{promoted.ID}, newer))
+	due, err = repo.FindSyncDue(ctx, newer, 50)
+	require.NoError(t, err)
+	for _, row := range due {
+		assert.NotEqual(t, promoted.ID, row.ID, "a change during a lease must not start another promotion")
+	}
 	done, err := repo.FinishSync(ctx, promoted.ID, lease, nil)
 	require.NoError(t, err)
 	assert.False(t, done, "the claim was superseded")
 	got, err := repo.Get(ctx, org, project, agent, "stage")
 	require.NoError(t, err)
 	require.NotNil(t, got.SyncAfter)
-	assert.True(t, got.SyncAfter.Equal(newer))
+	assert.True(t, got.SyncAfter.After(lease), "the next sync must wait until the first lease expires")
 
-	done, err = repo.FinishSync(ctx, promoted.ID, newer, nil)
+	done, err = repo.FinishSync(ctx, promoted.ID, *got.SyncAfter, nil)
 	require.NoError(t, err)
 	assert.True(t, done)
 	got, err = repo.Get(ctx, org, project, agent, "stage")
