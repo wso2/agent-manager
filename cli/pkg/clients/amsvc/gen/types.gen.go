@@ -468,6 +468,33 @@ func (e CreateMonitorRequestType) Valid() bool {
 	}
 }
 
+// Defines values for DeploymentDetailsResponseGatewayStatus.
+const (
+	DeploymentDetailsResponseGatewayStatusDEPLOYED    DeploymentDetailsResponseGatewayStatus = "DEPLOYED"
+	DeploymentDetailsResponseGatewayStatusDEPLOYING   DeploymentDetailsResponseGatewayStatus = "DEPLOYING"
+	DeploymentDetailsResponseGatewayStatusFAILED      DeploymentDetailsResponseGatewayStatus = "FAILED"
+	DeploymentDetailsResponseGatewayStatusUNDEPLOYED  DeploymentDetailsResponseGatewayStatus = "UNDEPLOYED"
+	DeploymentDetailsResponseGatewayStatusUNDEPLOYING DeploymentDetailsResponseGatewayStatus = "UNDEPLOYING"
+)
+
+// Valid indicates whether the value is a known member of the DeploymentDetailsResponseGatewayStatus enum.
+func (e DeploymentDetailsResponseGatewayStatus) Valid() bool {
+	switch e {
+	case DeploymentDetailsResponseGatewayStatusDEPLOYED:
+		return true
+	case DeploymentDetailsResponseGatewayStatusDEPLOYING:
+		return true
+	case DeploymentDetailsResponseGatewayStatusFAILED:
+		return true
+	case DeploymentDetailsResponseGatewayStatusUNDEPLOYED:
+		return true
+	case DeploymentDetailsResponseGatewayStatusUNDEPLOYING:
+		return true
+	default:
+		return false
+	}
+}
+
 // Defines values for DeploymentEndpointVisibility.
 const (
 	DeploymentEndpointVisibilityInternal DeploymentEndpointVisibility = "Internal"
@@ -1325,28 +1352,28 @@ func (e GetAgentTraceScoresParamsSortOrder) Valid() bool {
 
 // Defines values for GetLLMProxyDeploymentsParamsStatus.
 const (
-	GetLLMProxyDeploymentsParamsStatusARCHIVED    GetLLMProxyDeploymentsParamsStatus = "ARCHIVED"
-	GetLLMProxyDeploymentsParamsStatusDEPLOYED    GetLLMProxyDeploymentsParamsStatus = "DEPLOYED"
-	GetLLMProxyDeploymentsParamsStatusDEPLOYING   GetLLMProxyDeploymentsParamsStatus = "DEPLOYING"
-	GetLLMProxyDeploymentsParamsStatusFAILED      GetLLMProxyDeploymentsParamsStatus = "FAILED"
-	GetLLMProxyDeploymentsParamsStatusUNDEPLOYED  GetLLMProxyDeploymentsParamsStatus = "UNDEPLOYED"
-	GetLLMProxyDeploymentsParamsStatusUNDEPLOYING GetLLMProxyDeploymentsParamsStatus = "UNDEPLOYING"
+	ARCHIVED    GetLLMProxyDeploymentsParamsStatus = "ARCHIVED"
+	DEPLOYED    GetLLMProxyDeploymentsParamsStatus = "DEPLOYED"
+	DEPLOYING   GetLLMProxyDeploymentsParamsStatus = "DEPLOYING"
+	FAILED      GetLLMProxyDeploymentsParamsStatus = "FAILED"
+	UNDEPLOYED  GetLLMProxyDeploymentsParamsStatus = "UNDEPLOYED"
+	UNDEPLOYING GetLLMProxyDeploymentsParamsStatus = "UNDEPLOYING"
 )
 
 // Valid indicates whether the value is a known member of the GetLLMProxyDeploymentsParamsStatus enum.
 func (e GetLLMProxyDeploymentsParamsStatus) Valid() bool {
 	switch e {
-	case GetLLMProxyDeploymentsParamsStatusARCHIVED:
+	case ARCHIVED:
 		return true
-	case GetLLMProxyDeploymentsParamsStatusDEPLOYED:
+	case DEPLOYED:
 		return true
-	case GetLLMProxyDeploymentsParamsStatusDEPLOYING:
+	case DEPLOYING:
 		return true
-	case GetLLMProxyDeploymentsParamsStatusFAILED:
+	case FAILED:
 		return true
-	case GetLLMProxyDeploymentsParamsStatusUNDEPLOYED:
+	case UNDEPLOYED:
 		return true
-	case GetLLMProxyDeploymentsParamsStatusUNDEPLOYING:
+	case UNDEPLOYING:
 		return true
 	default:
 		return false
@@ -2580,7 +2607,7 @@ type CreateGatewayRequest struct {
 	// DisplayName Human-readable display name
 	DisplayName string `json:"displayName"`
 
-	// EnvironmentIds List of environment UUIDs to assign the gateway to during creation
+	// EnvironmentIds The environment UUID to assign the gateway to during creation. A gateway serves exactly one environment, so at most one is allowed.
 	EnvironmentIds *[]string `json:"environmentIds,omitempty"`
 
 	// GatewayType Gateway placement role accepted on input. `REGULAR` and `AI` are deprecated
@@ -2869,6 +2896,12 @@ type DeploymentDetailsResponse struct {
 	// EnvironmentDisplayName Environment display name
 	EnvironmentDisplayName *string `json:"environmentDisplayName,omitempty"`
 
+	// GatewayStatus The agent's deployment status on the environment's ingress gateway, the only place an API agent is served. DEPLOYING until the gateway acknowledges the deployment, including while it waits for an input (see gatewayStatusReason). An environment with no ingress gateway is UNDEPLOYED with gatewayStatusReason "no gateway in this environment". Absent for an agent the gateway does not serve, and when the gateway status could not be read.
+	GatewayStatus *DeploymentDetailsResponseGatewayStatus `json:"gatewayStatus,omitempty"`
+
+	// GatewayStatusReason Why gatewayStatus is what it is: the gateway's error code, DEPLOYMENT_TIMEOUT, what a deploy is waiting for, or "no gateway in this environment". Empty when there is nothing to say.
+	GatewayStatusReason *string `json:"gatewayStatusReason,omitempty"`
+
 	// ImageId Container image ID
 	ImageId string `json:"imageId"`
 
@@ -2890,6 +2923,9 @@ type DeploymentDetailsResponse struct {
 	// Status Deployment status
 	Status string `json:"status"`
 }
+
+// DeploymentDetailsResponseGatewayStatus The agent's deployment status on the environment's ingress gateway, the only place an API agent is served. DEPLOYING until the gateway acknowledges the deployment, including while it waits for an input (see gatewayStatusReason). An environment with no ingress gateway is UNDEPLOYED with gatewayStatusReason "no gateway in this environment". Absent for an agent the gateway does not serve, and when the gateway status could not be read.
+type DeploymentDetailsResponseGatewayStatus string
 
 // DeploymentEndpoint defines model for DeploymentEndpoint.
 type DeploymentEndpoint struct {
