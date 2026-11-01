@@ -88,7 +88,10 @@ if helm status "${THUNDER_RELEASE}" --namespace "${THUNDER_RELEASE}" > /dev/null
     if [ -z "${THUNDER_URL_HANDLE}" ]; then
         echo "❌ Env-Thunder instance found (Helm release: ${THUNDER_RELEASE}), but its registered URL"
         echo "   handle could not be learned, and guessing an address would wire the gateway to a"
-        echo "   hostname Thunder never issues tokens for. Re-run once agent-manager-service is reachable."
+        echo "   hostname Thunder never issues tokens for. Make sure agent-manager-service is reachable;"
+        echo "   if the env-Thunder instance was never registered with it (make setup-default-env-thunder"
+        echo "   continues past a failed registration), re-run deployments/scripts/add-environment-thunder.sh"
+        echo "   for org '${ORG_NAME}' and environment '${ENV_NAME}', then re-run this script."
         exit 1
     fi
     echo "✅ Env-Thunder instance found (Helm release: ${THUNDER_RELEASE}) — wiring gateway to it"
