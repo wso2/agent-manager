@@ -102,6 +102,12 @@ export interface PipelineEnvironmentsState {
     isLoading: boolean;
     /** True if the environments, project, or deployment pipelines query failed. */
     isError: boolean;
+    /**
+     * True when the project's deployment pipeline has promotion paths, so the
+     * order of `environments` is the pipeline's. False means `environments` is
+     * the unordered org-wide fallback.
+     */
+    hasPipelineOrder: boolean;
 }
 
 /**
@@ -142,10 +148,15 @@ export function usePipelineEnvironmentsState(
         [environments, pipelinesData, project, isError],
     );
 
+    const hasPipelineOrder = !isError && !!pipelinesData?.deploymentPipelines
+        ?.find((p) => p.name === project?.deploymentPipeline)
+        ?.promotionPaths?.length;
+
     return {
         environments: ordered,
         isLoading: isLoadingEnvironments || isLoadingProject || isLoadingPipelines,
         isError,
+        hasPipelineOrder,
     };
 }
 

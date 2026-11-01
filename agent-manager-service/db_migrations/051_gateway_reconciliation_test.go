@@ -519,11 +519,10 @@ func TestMigration051_DropsDeadSchema(t *testing.T) {
 func TestMigration051_RunsOnce(t *testing.T) {
 	g, _ := migratedFrom050(t)
 
-	require.NoError(t, migrateTo(g, latestVersion), "a second run is a no-op")
+	require.NoError(t, migrateTo(g, 51), "a second run is a no-op")
 	var ids []string
 	require.NoError(t, g.Raw(`SELECT id FROM migration_history WHERE id >= '0050' ORDER BY id`).Scan(&ids).Error)
 	assert.Equal(t, []string{"0050", "0051"}, ids)
-	assert.EqualValues(t, 51, latestVersion)
 }
 
 func TestMigration051_RefusesToDropAKeyOnOrganizationName(t *testing.T) {

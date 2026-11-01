@@ -24,6 +24,7 @@ import (
 
 	"github.com/wso2/agent-manager/agent-manager-service/db"
 	"github.com/wso2/agent-manager/agent-manager-service/models"
+	"github.com/wso2/agent-manager/agent-manager-service/orgctx"
 	"github.com/wso2/agent-manager/agent-manager-service/repositories"
 )
 
@@ -35,6 +36,14 @@ const (
 	reconcilerLockID           = int64(739281457)
 	reconcilerBatchSize        = 50
 	reconcilerConcurrencyLimit = 10
+	// identitySyncTickInterval is how often the reconciler looks for agents whose
+	// carried identity changed. It is much shorter than the retry sweep so the
+	// debounce of a change (identitySyncDebounce) is about what it says. The query
+	// reads a small partial index.
+	identitySyncTickInterval = 5 * time.Second
+	// pipelineBackfillInterval is how often every agent's missing pipeline
+	// bindings are ensured. The pass also runs once at startup.
+	pipelineBackfillInterval = 5 * time.Minute
 )
 
 // AgentThunderReconcilerService sweeps PENDING agent Thunder bindings whose
@@ -58,6 +67,26 @@ type agentThunderReconcilerService struct {
 	logger   *slog.Logger
 	stopCh   chan struct{}
 	stopOnce sync.Once
+	// pipelines reads a project's pipeline for the backfill pass. nil disables the
+	// pass. It is set once at startup, before Start.
+	pipelinesMu sync.RWMutex
+	pipelines   AgentIdentityPipelineReader
+}
+
+var _ AgentIdentityPipelineReaderSetter = (*agentThunderReconcilerService)(nil)
+
+// SetAgentIdentityPipelineReader backfills the pipeline reader once the
+// OpenChoreo client exists; the reconciler is built before it.
+func (s *agentThunderReconcilerService) SetAgentIdentityPipelineReader(reader AgentIdentityPipelineReader) {
+	s.pipelinesMu.Lock()
+	s.pipelines = reader
+	s.pipelinesMu.Unlock()
+}
+
+func (s *agentThunderReconcilerService) pipelineReader() AgentIdentityPipelineReader {
+	s.pipelinesMu.RLock()
+	defer s.pipelinesMu.RUnlock()
+	return s.pipelines
 }
 
 // NewAgentThunderReconcilerService creates a new AgentThunderReconcilerService.
@@ -83,6 +112,14 @@ func (s *agentThunderReconcilerService) Start(ctx context.Context) error {
 	// retry cycle below.
 	go s.runInitialIdentityInjectionBackfill(ctx)
 	go s.runLoop(ctx)
+	// Promotion of agent identities runs only where the deployment promotes them
+	// (the control plane identity modes). Direct identity management starts neither.
+	if s.promotionEnabled() {
+		go s.runIdentitySyncLoop(ctx)
+		go s.runPipelineBackfillLoop(ctx)
+	} else {
+		s.logger.Info("Agent identity promotion is not configured; the identity sync and pipeline backfill do not run")
+	}
 	s.logger.Info("Agent thunder provisioning reconciler started")
 	return nil
 }
@@ -246,5 +283,109 @@ func (s *agentThunderReconcilerService) pageIdentityInjectionReconcile(ctx conte
 		}
 		last := recent[len(recent)-1]
 		cursor = &repositories.ReconcileCursor{CreatedAt: last.CreatedAt, ID: last.ID}
+	}
+}
+
+func (s *agentThunderReconcilerService) promotionEnabled() bool {
+	provisioner, ok := s.provisioning.(AgentIdentityPipelineProvisioner)
+	return ok && provisioner.IdentityPromotionEnabled()
+}
+
+// runIdentitySyncLoop re-promotes, on a short tick, the agents whose roles,
+// groups or MCP resource servers changed. Each binding is claimed before it runs,
+// so replicas never take the same one and no lock covers the loop.
+func (s *agentThunderReconcilerService) runIdentitySyncLoop(ctx context.Context) {
+	runner, ok := s.provisioning.(IdentitySyncRunner)
+	if !ok {
+		return
+	}
+	ticker := time.NewTicker(identitySyncTickInterval)
+	defer ticker.Stop()
+	for {
+		select {
+		case <-ticker.C:
+			if n := runner.SyncDuePromotions(ctx); n > 0 {
+				s.logger.Info("Took agent identities for a re-promotion after changes", "count", n)
+			}
+		case <-s.stopCh:
+			return
+		case <-ctx.Done():
+			return
+		}
+	}
+}
+
+// runPipelineBackfillLoop makes sure, at startup and then on a long interval,
+// that every agent has the bindings its project's pipeline needs.
+func (s *agentThunderReconcilerService) runPipelineBackfillLoop(ctx context.Context) {
+	s.ensurePipelineBindings(ctx)
+	ticker := time.NewTicker(pipelineBackfillInterval)
+	defer ticker.Stop()
+	for {
+		select {
+		case <-ticker.C:
+			s.ensurePipelineBindings(ctx)
+		case <-s.stopCh:
+			return
+		case <-ctx.Done():
+			return
+		}
+	}
+}
+
+// ensurePipelineBindings gives each agent that has a completed identity the
+// pending bindings its pipeline is missing. It covers agents created before
+// identity followed the pipeline and a pipeline that later gained an environment.
+// The pipeline of a project is read once per pass. The pass is idempotent: an
+// agent that is complete costs one read, and a binding is written only when it
+// does not exist.
+func (s *agentThunderReconcilerService) ensurePipelineBindings(ctx context.Context) {
+	provisioner, ok := s.provisioning.(AgentIdentityPipelineProvisioner)
+	reader := s.pipelineReader()
+	if !ok || reader == nil {
+		return
+	}
+	type projectKey struct{ ouID, project string }
+	pipelines := map[projectKey][]PipelineIdentityEnvironment{}
+	created, agents := 0, 0
+	var cursor *repositories.AgentRef
+	for ctx.Err() == nil {
+		page, err := s.repo.ListHomeAgents(ctx, cursor, reconcilerBatchSize)
+		if err != nil {
+			s.logger.Error("Failed to list agents for the identity pipeline backfill", "error", err)
+			return
+		}
+		for _, agent := range page {
+			agents++
+			key := projectKey{agent.OUID, agent.ProjectName}
+			pipeline, seen := pipelines[key]
+			if !seen {
+				// The OpenChoreo call may need the organization, as the injection
+				// reconcile's calls do. A project that cannot be read is skipped for
+				// the rest of the pass.
+				readCtx := orgctx.WithResolvedOrg(ctx, orgctx.ResolvedOrg{OUID: agent.OUID})
+				if pipeline, err = reader.ProjectIdentityPipeline(readCtx, agent.OUID, agent.ProjectName); err != nil {
+					s.logger.Warn("Cannot read the pipeline of a project for the identity backfill; its agents get no pipeline bindings until it can",
+						"ouID", agent.OUID, "projectName", agent.ProjectName, "error", err)
+					pipeline = nil
+				}
+				pipelines[key] = pipeline
+			}
+			if len(pipeline) < 2 {
+				continue
+			}
+			n, _ := provisioner.EnsurePipelineBindings(orgctx.WithResolvedOrg(ctx, orgctx.ResolvedOrg{OUID: agent.OUID}),
+				AgentIdentityRef{OUID: agent.OUID, ProjectName: agent.ProjectName, AgentName: agent.AgentName, Ownership: agent.ProvisioningType},
+				pipeline)
+			created += n
+		}
+		if len(page) < reconcilerBatchSize {
+			break
+		}
+		last := page[len(page)-1]
+		cursor = &last
+	}
+	if created > 0 {
+		s.logger.Info("Created the agent identity bindings missing from project pipelines", "bindings", created, "agents", agents)
 	}
 }

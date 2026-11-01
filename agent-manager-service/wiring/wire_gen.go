@@ -34,9 +34,9 @@ import (
 
 // Injectors from wire.go:
 
-// InitializeAppParamsWithEnvThunderEndpoints wires dependencies with an
-// optional deployment-specific environment-Thunder endpoint resolver.
-func InitializeAppParamsWithEnvThunderEndpoints(cfg *config.Config, db *gorm.DB, authProvider client.AuthProvider, secretProvider secretmanagersvc.Provider, gatewayApplier services.GatewayConfigApplier, agentThunderProvisioning services.AgentThunderProvisioningService, buildSecretProvisioner services.BuildSecretProvisioner, endpointResolver thundersvc.EnvThunderEndpointResolver) (*AppParams, error) {
+// InitializeAppParamsWithIdentityBackend wires a deployment-specific identity
+// resolver while preserving direct Thunder behavior when decorator is nil.
+func InitializeAppParamsWithIdentityBackend(cfg *config.Config, db *gorm.DB, authProvider client.AuthProvider, secretProvider secretmanagersvc.Provider, gatewayApplier services.GatewayConfigApplier, agentThunderProvisioning services.AgentThunderProvisioningService, buildSecretProvisioner services.BuildSecretProvisioner, endpointResolver thundersvc.EnvThunderEndpointResolver, decorator thundersvc.EnvThunderResolverDecorator) (*AppParams, error) {
 	configConfig := ProvideConfigFromPtr(cfg)
 	middleware := ProvideAuthMiddleware(configConfig)
 	logger := ProvideLogger()
@@ -92,7 +92,10 @@ func InitializeAppParamsWithEnvThunderEndpoints(cfg *config.Config, db *gorm.DB,
 	agentIdentityInjectionService := ProvideAgentIdentityInjectionServiceWithEndpointResolver(agentThunderClientRepository, agentConfigurationRepository, mcpProxyScopeRepository, openChoreoClient, readThunderURLFunc, endpointResolver, configConfig, logger)
 	envThunderSystemClientRepository := ProvideEnvThunderSystemClientRepository(db)
 	readSystemClientFunc := ProvideEnvThunderSecretReader(envThunderSystemClientRepository, v)
-	envThunderResolver := ProvideEnvThunderResolverWithEndpoints(readSystemClientFunc, readThunderURLFunc, endpointResolver)
+	envThunderResolver, err := ProvideEnvThunderResolverWithIdentityBackend(readSystemClientFunc, readThunderURLFunc, endpointResolver, decorator)
+	if err != nil {
+		return nil, err
+	}
 	llmProviderKind := services.NewLLMProviderKind()
 	llmProxyKind := services.NewLLMProxyKind(gatewayRepository, deploymentRepository)
 	mcpProxyKind := services.NewMCPProxyKind(gatewayRepository, deploymentRepository)
@@ -240,6 +243,7 @@ func InitializeAppParamsWithEnvThunderEndpoints(cfg *config.Config, db *gorm.DB,
 		RepositoryService:                repositoryService,
 		AgentTokenManagerService:         agentTokenManagerService,
 		AgentIdentityInjectionService:    agentIdentityInjectionService,
+		MCPProxyService:                  mcpProxyService,
 		EnvironmentService:               environmentService,
 		OpenChoreoClient:                 openChoreoClient,
 		ObserverSvcClient:                observerSvcClient,
@@ -448,6 +452,7 @@ func InitializeTestAppParamsWithClientMocks(cfg *config.Config, db *gorm.DB, aut
 		RepositoryService:                repositoryService,
 		AgentTokenManagerService:         agentTokenManagerService,
 		AgentIdentityInjectionService:    agentIdentityInjectionService,
+		MCPProxyService:                  mcpProxyService,
 		EnvironmentService:               environmentService,
 		OpenChoreoClient:                 openChoreoClient,
 		ObserverSvcClient:                observerSvcClient,
@@ -474,7 +479,7 @@ var clientProviderSet = wire.NewSet(
 	ProvideIdentityClient,
 	ProvideOrgResolver, thundersvc.NewProber, ProvideEnvThunderSecretReader,
 	ProvideEnvThunderURLReader,
-	ProvideEnvThunderResolverWithEndpoints,
+	ProvideEnvThunderResolverWithIdentityBackend,
 )
 
 var serviceProviderSet = wire.NewSet(services.NewAgentManagerService, services.NewAgentKindService, services.NewInfraResourceManager, services.NewAgentTokenManagerService, ProvideGitCredentialsService, services.NewRepositoryService, services.NewMonitorExecutor, services.NewMonitorManagerService, ProvideThunderConfig, services.NewMonitorSchedulerService, ProvideAgentIdentityInjectionServiceWithEndpointResolver, services.NewAgentThunderReconcilerService, services.NewA2ACardFetcher, services.NewA2ACardReconcilerService, services.NewConfiguredDeploymentTimeoutSweeper, services.NewA2AAgentCardService, ProvideTxRunner, services.NewA2APublisher, services.NewA2AProxyService, ProvideA2AProxyHooks, services.NewEvaluatorManagerService, services.NewEnvironmentService, ProvidePlatformGatewayService, services.NewLLMProviderTemplateService, services.NewLLMProviderService, services.NewLLMProxyService, services.NewLLMProviderDeploymentService, services.NewLLMProviderAPIKeyService, services.NewLLMProxyAPIKeyService, services.NewAgentAPIKeyService, services.NewLLMProxyDeploymentService, services.NewMCPProxyService, services.NewMCPProxyScopeService, wire.Bind(new(services.MCPProxyRedeployer), new(*services.MCPProxyService)), wire.Bind(new(controllers.MCPResourceServerIdentifierResolver), new(*services.MCPProxyService)), services.NewGatewayInternalAPIService, services.NewMonitorScoresService, services.NewCatalogService, services.NewLLMProxyProvisioner, services.NewAgentConfigurationService, services.NewLLMTemplateStore, services.NewGitSecretService, services.NewAIApplicationService)
@@ -954,6 +959,23 @@ func ProvideEnvThunderResolverWithEndpoints(readSystemClient thundersvc.ReadSyst
 	return thundersvc.NewEnvThunderResolverWithEndpoints(readSystemClient, readThunderURL, endpointResolver)
 }
 
+func ProvideEnvThunderResolverWithIdentityBackend(readSystemClient thundersvc.ReadSystemClientFunc, readThunderURL thundersvc.ReadThunderURLFunc,
+	endpointResolver thundersvc.EnvThunderEndpointResolver, decorator thundersvc.EnvThunderResolverDecorator,
+) (thundersvc.EnvThunderResolver, error) {
+	legacy := ProvideEnvThunderResolverWithEndpoints(readSystemClient, readThunderURL, endpointResolver)
+	if decorator == nil {
+		return legacy, nil
+	}
+	resolver, err := decorator(legacy)
+	if err != nil {
+		return nil, fmt.Errorf("initialize environment identity backend: %w", err)
+	}
+	if resolver == nil {
+		return nil, fmt.Errorf("environment identity backend returned nil resolver")
+	}
+	return resolver, nil
+}
+
 // ProvideNilEnvThunderEndpointResolver supplies the nil endpoint resolver that
 // on-premises deployments run with (app.Options leaves it unset), so wiring paths
 // that do not inject one (e.g. tests) exercise the same identity-injection path
@@ -1019,4 +1041,10 @@ func ProvideOrgResolver(client2 thundersvc.IdentityClient) middleware.OrgResolve
 // InitializeAppParams preserves the standard on-premises dependency graph.
 func InitializeAppParams(cfg *config.Config, db *gorm.DB, authProvider client.AuthProvider, secretProvider secretmanagersvc.Provider, gatewayApplier services.GatewayConfigApplier, agentThunderProvisioning services.AgentThunderProvisioningService, buildSecretProvisioner services.BuildSecretProvisioner) (*AppParams, error) {
 	return InitializeAppParamsWithEnvThunderEndpoints(cfg, db, authProvider, secretProvider, gatewayApplier, agentThunderProvisioning, buildSecretProvisioner, nil)
+}
+
+// InitializeAppParamsWithEnvThunderEndpoints wires dependencies with an
+// optional deployment-specific environment-Thunder endpoint resolver.
+func InitializeAppParamsWithEnvThunderEndpoints(cfg *config.Config, db *gorm.DB, authProvider client.AuthProvider, secretProvider secretmanagersvc.Provider, gatewayApplier services.GatewayConfigApplier, agentThunderProvisioning services.AgentThunderProvisioningService, buildSecretProvisioner services.BuildSecretProvisioner, endpointResolver thundersvc.EnvThunderEndpointResolver) (*AppParams, error) {
+	return InitializeAppParamsWithIdentityBackend(cfg, db, authProvider, secretProvider, gatewayApplier, agentThunderProvisioning, buildSecretProvisioner, endpointResolver, nil)
 }

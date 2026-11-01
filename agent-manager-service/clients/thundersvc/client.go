@@ -558,6 +558,20 @@ func generateRandomSecret() (string, error) {
 	return base64.URLEncoding.WithPadding(base64.NoPadding).EncodeToString(b), nil
 }
 
+// GenerateClientSecret returns a new random client secret for a promoted identity.
+func GenerateClientSecret() (string, error) {
+	return generateRandomSecret()
+}
+
+// GenerateClientID returns a random OAuth client ID in Thunder's base64url form.
+func GenerateClientID() (string, error) {
+	b := make([]byte, 16)
+	if _, err := rand.Read(b); err != nil {
+		return "", err
+	}
+	return base64.RawURLEncoding.EncodeToString(b), nil
+}
+
 // thunderNamedResource represents the fields needed from one page of a
 // Thunder /applications or /agents list response.
 type thunderNamedResource struct {

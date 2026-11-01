@@ -17,13 +17,39 @@
 package wiring
 
 import (
+	"errors"
 	"net/http"
 	"net/http/httptest"
 	"strings"
 	"testing"
 
+	"github.com/wso2/agent-manager/agent-manager-service/clients/thundersvc"
 	"github.com/wso2/agent-manager/agent-manager-service/config"
 )
+
+func TestProvideEnvThunderResolverWithIdentityBackend(t *testing.T) {
+	legacy, err := ProvideEnvThunderResolverWithIdentityBackend(nil, nil, nil, nil)
+	if err != nil || legacy == nil {
+		t.Fatalf("legacy resolver: %v", err)
+	}
+	called := false
+	resolver, err := ProvideEnvThunderResolverWithIdentityBackend(nil, nil, nil, func(got thundersvc.EnvThunderResolver) (thundersvc.EnvThunderResolver, error) {
+		called = true
+		if got == nil {
+			t.Fatal("decorator received nil legacy resolver")
+		}
+		return got, nil
+	})
+	if err != nil || !called || resolver == nil {
+		t.Fatalf("decorated resolver: called=%t err=%v", called, err)
+	}
+	_, err = ProvideEnvThunderResolverWithIdentityBackend(nil, nil, nil, func(thundersvc.EnvThunderResolver) (thundersvc.EnvThunderResolver, error) {
+		return nil, errors.New("backend unavailable")
+	})
+	if err == nil {
+		t.Fatal("expected backend error")
+	}
+}
 
 func TestProvideAuthMiddlewareAdvertisesResourceSpecificMetadata(t *testing.T) {
 	middleware := ProvideAuthMiddleware(config.Config{

@@ -179,6 +179,12 @@ export type FeatureFlags = {
    * section on the agent overview.
    */
   enableAgentIdentity?: boolean;
+  /**
+   * Shows the identity promotion UI. Roles and groups are managed in the first
+   * environment of the agent's deployment pipeline and promoted with the agent.
+   * When false or missing, the legacy per-environment UI is unchanged.
+   */
+  enableIdentityPromotionUi?: boolean;
 };
 
 export type GuardrailCapabilities = {
@@ -211,6 +217,14 @@ export const globalConfig: AppConfig = window.__RUNTIME_CONFIG__;
  */
 export const isAgentIdentityEnabled = (): boolean =>
   globalConfig.featureFlags?.enableAgentIdentity === true;
+
+/**
+ * Whether the identity promotion UI replaces the environment wise roles and
+ * groups surfaces. Same rule as isAgentIdentityEnabled: only a literal `true`
+ * counts, so a missing value or an unsubstituted template placeholder is false.
+ */
+export const isIdentityPromotionUiEnabled = (): boolean =>
+  globalConfig.featureFlags?.enableIdentityPromotionUi === true;
 
 /**
  * Normalised base path: no trailing slash, leading slash when non-empty.

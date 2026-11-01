@@ -18,7 +18,8 @@
 
 import React from "react";
 import { Navigate, Route, Routes, generatePath, useParams, useSearchParams } from "react-router-dom";
-import { absoluteRouteMap } from "@agent-management-platform/types";
+import { absoluteRouteMap, isIdentityPromotionUiEnabled } from "@agent-management-platform/types";
+import { PromotedWithAgentNote } from "@agent-management-platform/shared-component";
 import { PageLayout } from "@agent-management-platform/views";
 import { GroupsPage } from "./subComponents/agentIdentity/GroupsPage";
 import { GroupCreatePage } from "./subComponents/agentIdentity/GroupCreatePage";
@@ -31,13 +32,20 @@ const TITLE = "Groups";
 
 function GroupsListPage() {
   return (
-    <AgentIdentityEnvironmentGate title={TITLE}>
+    <AgentIdentityEnvironmentGate title={TITLE} environmentAgnostic>
       {() => (
         <PageLayout
           title={TITLE}
-          description="Groups available in the selected environment's identity provider."
+          description={
+            isIdentityPromotionUiEnabled()
+              ? "Groups that agents in this organization can be given."
+              : "Groups available in the selected environment's identity provider."
+          }
           disableIcon
         >
+          {isIdentityPromotionUiEnabled() && (
+            <PromotedWithAgentNote variant="alert" />
+          )}
           <GroupsPage />
         </PageLayout>
       )}
@@ -50,9 +58,12 @@ function GroupCreateWrapper() {
   const [searchParams] = useSearchParams();
   const backHref = withSearchParams(generatePath(groupsNode.path, { orgId: orgId ?? "" }), searchParams);
   return (
-    <AgentIdentityEnvironmentGate title="Create Group">
+    <AgentIdentityEnvironmentGate title="Create Group" environmentAgnostic>
       {() => (
         <PageLayout title="Create Group" backHref={backHref} backLabel="Back to Groups" disableIcon>
+          {isIdentityPromotionUiEnabled() && (
+            <PromotedWithAgentNote variant="alert" />
+          )}
           <GroupCreatePage />
         </PageLayout>
       )}
@@ -62,7 +73,7 @@ function GroupCreateWrapper() {
 
 function GroupEditWrapper() {
   return (
-    <AgentIdentityEnvironmentGate title="Group">
+    <AgentIdentityEnvironmentGate title="Group" environmentAgnostic>
       {() => <GroupEditPage />}
     </AgentIdentityEnvironmentGate>
   );
