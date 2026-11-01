@@ -100,6 +100,17 @@ apiGateway:
       # where the gateway can trust the control plane's certificate chain.
       insecureSkipVerify: true
 
+  # Gateway images, rendered into the configRef ConfigMap. The gateway-operator
+  # redeploys an existing gateway only when that ConfigMap's values change, so
+  # changing these is what rolls existing gateways onto a new image.
+  image:
+    controller:
+      repository: "ghcr.io/wso2/api-platform/gateway-controller"
+      tag: "main-40eddf7@sha256:65692a5935c8bb2072944a6c0aab304d8aaa2288dd474926cbdd7ab7597e93d0"
+    runtime:
+      repository: "ghcr.io/wso2/api-platform/gateway-runtime"
+      tag: "main-40eddf7@sha256:56da03028624194632e7c2ca480fc57bbd9ff3b6dee8f16a06ef586d13fcb947"
+
   # ConfigMap containing full Helm values for the gateway Helm chart.
   # The gateway-operator reads this and passes it when deploying the gateway stack.
   config:

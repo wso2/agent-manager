@@ -230,6 +230,61 @@
           "title": "controlPlane",
           "type": "object"
         },
+        "image": {
+          "additionalProperties": false,
+          "description": "Gateway images, rendered into the configRef ConfigMap. The gateway-operator redeploys an existing gateway only when that ConfigMap's values change, so changing these is what rolls existing gateways onto a new image.",
+          "properties": {
+            "controller": {
+              "additionalProperties": false,
+              "description": "The gateway controller image.",
+              "properties": {
+                "repository": {
+                  "default": "ghcr.io/wso2/api-platform/gateway-controller",
+                  "description": "Image repository for the gateway controller.",
+                  "minLength": 1,
+                  "title": "repository",
+                  "type": "string"
+                },
+                "tag": {
+                  "default": "main-40eddf7@sha256:65692a5935c8bb2072944a6c0aab304d8aaa2288dd474926cbdd7ab7597e93d0",
+                  "description": "Image tag for the gateway controller; may carry an @sha256 digest.",
+                  "minLength": 1,
+                  "title": "tag",
+                  "type": "string"
+                }
+              },
+              "required": [],
+              "title": "controller",
+              "type": "object"
+            },
+            "runtime": {
+              "additionalProperties": false,
+              "description": "The gateway runtime image.",
+              "properties": {
+                "repository": {
+                  "default": "ghcr.io/wso2/api-platform/gateway-runtime",
+                  "description": "Image repository for the gateway runtime.",
+                  "minLength": 1,
+                  "title": "repository",
+                  "type": "string"
+                },
+                "tag": {
+                  "default": "main-40eddf7@sha256:56da03028624194632e7c2ca480fc57bbd9ff3b6dee8f16a06ef586d13fcb947",
+                  "description": "Image tag for the gateway runtime; may carry an @sha256 digest.",
+                  "minLength": 1,
+                  "title": "tag",
+                  "type": "string"
+                }
+              },
+              "required": [],
+              "title": "runtime",
+              "type": "object"
+            }
+          },
+          "required": [],
+          "title": "image",
+          "type": "object"
+        },
         "config": {
           "additionalProperties": false,
           "description": "ConfigMap containing full Helm values for the gateway Helm chart. The gateway-operator reads this and passes it when deploying the gateway stack.",

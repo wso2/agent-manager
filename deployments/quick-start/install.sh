@@ -38,15 +38,7 @@ fi
 
 # WSO2 API Platform / Gateway Operator versions
 GATEWAY_OPERATOR_VERSION="0.11.3"
-# gateway-controller/gateway-runtime 1.1.x reject every RestApi/LlmProvider
-# deployment with a bare 404 despite correctly-configured basic auth (confirmed
-# via a live tcpdump of the operator's request — same 404 across 1.1.0 and
-# 1.1.5). 1.2.0-alpha2 does not have this bug (verified end-to-end: RestApi
-# reaches Programmed=True). Chart *version* and container *image tag* are
-# pinned separately below — setting chartVersion alone still runs an older
-# default image, so GATEWAY_IMAGE_VERSION must also be threaded through.
 GATEWAY_CHART_VERSION="2026.09.24"
-GATEWAY_IMAGE_VERSION="2026.09.24"
 
 # The gateway chart (1.2.0-beta+) requires an encryption key to be mounted from a Kubernetes Secret
 GATEWAY_ENCRYPTION_SECRET_NAME="gateway-encryption-keys"
@@ -1496,13 +1488,7 @@ fi
 
 log_step "Step 11/13: Installing Gateway Operator"
 log_info "Installing Gateway Operator..."
-# Pinning gateway.helm.chartVersion alone is NOT enough: the chart's own
-# default values.yaml can still reference an older gateway-controller/
-# gateway-runtime image tag independent of the chart version, so the image
-# tag/repo must be set explicitly here too (confirmed by inspecting the
-# actual running pod images — chartVersion=1.2.0-alpha alone still ran an
-# older image until these were added).
-# Admin API on this image is served under /api/admin/v1 on the "admin" named
+# The gateway-controller's admin API is served under /api/admin/v1 on the "admin" named
 # port — GET /health on the "rest" port goes through Gin + basic auth and
 # returns 401 for kube-probe (see gateway-controller admin OpenAPI spec).
 helm_install_idempotent \
@@ -1514,10 +1500,6 @@ helm_install_idempotent \
     --set "logging.level=debug" \
     --set gatewayApi.installStandardCRDs=false \
     --set "gateway.helm.chartVersion=${GATEWAY_CHART_VERSION}" \
-    --set "gateway.values.gateway.controller.image.tag=${GATEWAY_IMAGE_VERSION}" \
-    --set gateway.values.gateway.controller.image.repository=ghcr.io/wso2/api-platform/gateway-controller \
-    --set "gateway.values.gateway.gatewayRuntime.image.tag=${GATEWAY_IMAGE_VERSION}" \
-    --set gateway.values.gateway.gatewayRuntime.image.repository=ghcr.io/wso2/api-platform/gateway-runtime \
     --set gateway.values.gateway.controller.encryptionKeys.enabled=true \
     --set "gateway.values.gateway.controller.encryptionKeys.secretName=${GATEWAY_ENCRYPTION_SECRET_NAME}" \
     --set gateway.values.gateway.controller.deployment.livenessProbe.httpGet.path=/api/admin/v1/health \
