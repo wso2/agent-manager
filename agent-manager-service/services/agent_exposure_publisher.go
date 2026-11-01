@@ -172,7 +172,8 @@ func (p *AgentExposurePublisher) ShownStatus(ctx context.Context, key agentExpos
 type AgentURL struct {
 	// Gateway is the agent's URL on the ingress gateway, set once a placed row is on that gateway.
 	Gateway string
-	// Direct is set while the environment has a gateway but nothing is placed on it, so the agent is reached directly.
+	// Direct is set while the environment has a gateway but the agent has no exposure in it, such as a legacy release
+	// that still renders its own route, so the agent is reached directly.
 	Direct bool
 	// Status is what the user is shown for the agent's gateway deployment; nil while the agent has no exposure in
 	// the environment, since the gateway is not involved.
@@ -214,9 +215,10 @@ func (p *AgentExposurePublisher) ResolveURL(ctx context.Context, key agentExposu
 	if gateway == nil {
 		return url, nil
 	}
-	if isPlacedOn(rows, gateway.UUID) {
+	switch {
+	case isPlacedOn(rows, gateway.UUID):
 		url.Gateway = agentGatewayURL(gateway, key.AgentName)
-	} else {
+	case !exposed:
 		url.Direct = true
 	}
 	return url, nil

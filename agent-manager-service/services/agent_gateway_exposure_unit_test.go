@@ -532,7 +532,7 @@ func TestAgentEndpointsUseGatewayURL(t *testing.T) {
 		assert.Equal(t, "openapi", endpoints["public"].Schema.Content, "schema kept")
 		assert.Equal(t, "Project", endpoints["internal"].Visibility, "visibility kept")
 	})
-	t.Run("not placed: the OpenChoreo URL", func(t *testing.T) {
+	t.Run("exposed, not placed yet: no URL", func(t *testing.T) {
 		s, h := endpointsHarness(t)
 		h.existingArtifact(models.KindRestAPI)
 		h.placedRows()
@@ -540,7 +540,9 @@ func TestAgentEndpointsUseGatewayURL(t *testing.T) {
 		endpoints, err := s.GetAgentEndpoints(context.Background(), "acme", "proj1", "my-agent", "dev")
 
 		require.NoError(t, err)
-		assert.Equal(t, openChoreoURL, endpoints["public"].URL)
+		for name, endpoint := range endpoints {
+			assert.Empty(t, endpoint.URL, name)
+		}
 	})
 	t.Run("gateway deleted: no URL", func(t *testing.T) {
 		s, h := endpointsHarness(t)

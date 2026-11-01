@@ -121,7 +121,7 @@ func TestAgentExposurePublisherResolveURL(t *testing.T) {
 		wantStatus  models.DeploymentStatus
 	}{
 		{"no ingress gateway", nil, nil, false, false, models.DeploymentStatusUndeployed},
-		{"gateway, nothing placed", []*models.Gateway{gateway}, nil, false, true, models.DeploymentStatusDeploying},
+		{"gateway, nothing placed", []*models.Gateway{gateway}, nil, false, false, models.DeploymentStatusDeploying},
 		{"deployed row on the gateway", []*models.Gateway{gateway}, []models.DeploymentStatusRecord{
 			{GatewayUUID: gateway.UUID, Status: models.DeploymentStatusDeployed, StatusDesired: models.DeploymentStatusDeployed},
 		}, true, false, models.DeploymentStatusDeployed},
@@ -130,10 +130,10 @@ func TestAgentExposurePublisherResolveURL(t *testing.T) {
 		}, true, false, models.DeploymentStatusDeploying},
 		{"undeployed row, nothing owed", []*models.Gateway{gateway}, []models.DeploymentStatusRecord{
 			{GatewayUUID: gateway.UUID, Status: models.DeploymentStatusUndeployed, StatusDesired: models.DeploymentStatusUndeployed},
-		}, false, true, models.DeploymentStatusUndeployed},
+		}, false, false, models.DeploymentStatusUndeployed},
 		{"deployed row on another gateway", []*models.Gateway{gateway}, []models.DeploymentStatusRecord{
 			{GatewayUUID: uuid.New(), Status: models.DeploymentStatusDeployed, StatusDesired: models.DeploymentStatusDeployed},
-		}, false, true, models.DeploymentStatusDeployed},
+		}, false, false, models.DeploymentStatusDeployed},
 	}
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
@@ -169,7 +169,7 @@ func TestAgentExposurePublisherResolveURLWithoutAnArtifactIsOwedItsDeploy(t *tes
 	url, err := m.exposurePublisher().ResolveURL(context.Background(), testA2AKey())
 
 	require.NoError(t, err)
-	assert.True(t, url.Direct)
+	assert.False(t, url.Direct)
 	require.NotNil(t, url.Status)
 	assert.Equal(t, notPlacedReason, url.Status.Reason)
 }
