@@ -95,9 +95,14 @@ data:
           {{- $policyConfigs | toYaml | nindent 10 }}
 
       controller:
+        {{- /* Nil-safe so helm upgrade --reuse-values, which renders with an older
+               release's values that carry no apiGateway.image, leaves the gateway
+               on its chart default instead of failing the render. */}}
+        {{- with (dig "image" "controller" dict .Values.apiGateway) }}
         image:
-          repository: {{ .Values.apiGateway.image.controller.repository | quote }}
-          tag: {{ .Values.apiGateway.image.controller.tag | quote }}
+          repository: {{ .repository | quote }}
+          tag: {{ .tag | quote }}
+        {{- end }}
         controlPlane:
           host: {{ .Values.apiGateway.controlPlane.host | quote }}
           {{- if .Values.apiGateway.controlPlane.tls.enabled }}
@@ -158,9 +163,11 @@ data:
           {{- end }}
 
       gatewayRuntime:
+        {{- with (dig "image" "runtime" dict .Values.apiGateway) }}
         image:
-          repository: {{ .Values.apiGateway.image.runtime.repository | quote }}
-          tag: {{ .Values.apiGateway.image.runtime.tag | quote }}
+          repository: {{ .repository | quote }}
+          tag: {{ .tag | quote }}
+        {{- end }}
         deployment:
           podLabels:
             openchoreo.dev/system-component: gateway-runtime

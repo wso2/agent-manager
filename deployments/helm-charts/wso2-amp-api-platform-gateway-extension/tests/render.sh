@@ -38,10 +38,38 @@ print(controller["repository"], controller["tag"], runtime["repository"], runtim
 PY
 }
 
+# Succeeds when the configRef ConfigMap's values.yaml pins neither gateway
+# image, leaving the gateway chart's own defaults in force.
+gateway_images_unpinned() {
+    python3 - "$1" <<'PY'
+import sys
+import yaml
+
+with open(sys.argv[1], encoding="utf-8") as stream:
+    documents = list(yaml.safe_load_all(stream))
+
+config = next(
+    doc for doc in documents
+    if isinstance(doc, dict)
+    and doc.get("kind") == "ConfigMap"
+    and doc.get("metadata", {}).get("labels", {}).get("app.kubernetes.io/component") == "gateway-config"
+)
+gateway = yaml.safe_load(config["data"]["values.yaml"])["gateway"]
+pinned = [
+    component for component in ("controller", "gatewayRuntime")
+    if "image" in (gateway.get(component) or {})
+]
+sys.exit(1 if pinned else 0)
+PY
+}
+
 render() {
     local out="$1"
     shift
-    helm template test "$CHART_DIR" "$@" >"$out" 2>"$out.err"
+    if ! helm template test "$CHART_DIR" "$@" >"$out" 2>"$out.err"; then
+        cat "$out.err" >&2
+        return 1
+    fi
 }
 
 if render "$workdir/defaults.yaml" && images="$(gateway_images "$workdir/defaults.yaml")" \
@@ -67,6 +95,16 @@ if render "$workdir/set-tag.yaml" --set apiGateway.image.runtime.tag=v1 \
     pass gateway_image_empty_tag_refused
 else
     fail gateway_image_empty_tag_refused
+fi
+
+# helm upgrade --reuse-values renders this chart with an older release's values,
+# which carry no apiGateway.image. That must render and leave the gateway on its
+# chart default rather than fail the upgrade.
+if render "$workdir/image-absent.yaml" --set apiGateway.image=null \
+    && gateway_images_unpinned "$workdir/image-absent.yaml"; then
+    pass gateway_image_absent_keeps_chart_default
+else
+    fail gateway_image_absent_keeps_chart_default
 fi
 
 if [ "$failures" -gt 0 ]; then
