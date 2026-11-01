@@ -58,14 +58,16 @@ func (p recordingPlacer) placed(t *testing.T, n int) []placedEnv {
 
 func mappingRepo(gw *models.Gateway, ingressInEnv int64) *repomocks.GatewayRepositoryMock {
 	return &repomocks.GatewayRepositoryMock{
-		GetByNameAndOrgIDFunc:                func(string, string) (*models.Gateway, error) { return nil, utils.ErrGatewayNotFound },
-		GetByUUIDFunc:                        func(string) (*models.Gateway, error) { return gw, nil },
-		TransactionFunc:                      func(fn func(tx *gorm.DB) error) error { return fn(nil) },
-		CreateTxFunc:                         func(*gorm.DB, *models.Gateway) error { return nil },
-		AcquireEnvironmentLockFunc:           func(*gorm.DB, string) error { return nil },
-		EnvironmentMappingExistsFunc:         func(string, string) (bool, error) { return false, nil },
-		CountIngressCapableInEnvironmentFunc: func(*gorm.DB, string) (int64, error) { return ingressInEnv, nil },
-		CreateEnvironmentMappingTxFunc:       func(*gorm.DB, *models.GatewayEnvironmentMapping) error { return nil },
+		GetByNameAndOrgIDFunc:                 func(string, string) (*models.Gateway, error) { return nil, utils.ErrGatewayNotFound },
+		GetByUUIDFunc:                         func(string) (*models.Gateway, error) { return gw, nil },
+		TransactionFunc:                       func(fn func(tx *gorm.DB) error) error { return fn(nil) },
+		CreateTxFunc:                          func(*gorm.DB, *models.Gateway) error { return nil },
+		AcquireGatewayLockFunc:                func(*gorm.DB, string) error { return nil },
+		AcquireEnvironmentLockFunc:            func(*gorm.DB, string) error { return nil },
+		EnvironmentMappingExistsFunc:          func(string, string) (bool, error) { return false, nil },
+		GetEnvironmentMappingsByGatewayIDFunc: func(string) ([]models.GatewayEnvironmentMapping, error) { return nil, nil },
+		CountIngressCapableInEnvironmentFunc:  func(*gorm.DB, string) (int64, error) { return ingressInEnv, nil },
+		CreateEnvironmentMappingTxFunc:        func(*gorm.DB, *models.GatewayEnvironmentMapping) error { return nil },
 	}
 }
 
@@ -94,15 +96,15 @@ func TestAssignGatewayToEnvironmentPlacesNothingWhenTheMappingFails(t *testing.T
 	}
 }
 
-func TestRegisterGatewayPlacesEachEnvironment(t *testing.T) {
+func TestRegisterGatewayPlacesItsEnvironment(t *testing.T) {
 	gw := &models.Gateway{UUID: uuid.New(), GatewayFunctionalityType: models.GatewayRoleEgress}
-	first, second := uuid.New(), uuid.New()
-	placer := make(recordingPlacer, 2)
+	env := uuid.New()
+	placer := make(recordingPlacer, 1)
 	svc := NewPlatformGatewayService(mappingRepo(gw, 0), nil).WithEnvironmentPlacer(placer)
 
 	_, err := svc.RegisterGateway("ou-1", "gw1", "GW", "", "https://ext.example.com", "", false, "EGRESS", nil,
-		[]string{first.String(), second.String(), first.String()})
+		[]string{env.String(), env.String()})
 	require.NoError(t, err)
 
-	assert.ElementsMatch(t, []placedEnv{{ouID: "ou-1", env: first}, {ouID: "ou-1", env: second}}, placer.placed(t, 2))
+	assert.Equal(t, []placedEnv{{ouID: "ou-1", env: env}}, placer.placed(t, 1))
 }

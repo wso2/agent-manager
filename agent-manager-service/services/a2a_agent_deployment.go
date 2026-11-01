@@ -123,8 +123,7 @@ type A2ATransport struct {
 // Keeping resolution out of the builder is what lets the emitted contract be
 // tested as a pure function against a golden file.
 type A2AAgentDeploymentInput struct {
-	// ArtifactName is the sanitized per-environment resource name; see
-	// a2aAgentEnvArtifactName.
+	// ArtifactName is the per-environment gateway resource name; see agentGatewayName.
 	ArtifactName string
 	DisplayName  string
 	// AgentName is the component name, which becomes the URL context.
@@ -141,24 +140,6 @@ type A2AAgentDeploymentInput struct {
 	Transports []A2ATransport
 	// UpstreamAuth is a proxied origin's credential, as a secretRef the internal API decrypts.
 	UpstreamAuth *models.UpstreamAuth
-}
-
-// a2aAgentEnvArtifactName builds the per-environment Kubernetes resource name
-// for an agent's Agent resource.
-//
-// It cannot reuse agentEnvAPIArtifactHandle: that builds "project/agent/envID"
-// with slashes, which is fine as a database handle and illegal as a Kubernetes
-// name. The shape here follows mcpProxyEnvArtifactHandle — dashes, with the
-// environment UUID's hyphens stripped — so the two publication paths name
-// resources the same way.
-func a2aAgentEnvArtifactName(projectName, agentName, envID string) string {
-	suffix := strings.ReplaceAll(strings.TrimSpace(envID), "-", "")
-	return fmt.Sprintf("%s-%s-%s", strings.TrimSpace(projectName), strings.TrimSpace(agentName), suffix)
-}
-
-// a2aAgentContext is the agent's gateway context, shaped like a REST agent's (buildAPIConfigurationTraitParameters).
-func a2aAgentContext(agentName string) string {
-	return "/" + strings.TrimPrefix(strings.TrimSpace(agentName), "/")
 }
 
 // generateA2AAgentDeploymentYAML renders the Agent resource as YAML.
@@ -219,7 +200,7 @@ func buildA2AAgentDeploymentYAML(in A2AAgentDeploymentInput) (*A2AAgentDeploymen
 		Spec: A2AAgentDeploymentSpec{
 			DisplayName: in.DisplayName,
 			Version:     a2aAgentVersion,
-			Context:     a2aAgentContext(in.AgentName),
+			Context:     agentGatewayContext(in.AgentName),
 			Upstream:    A2AUpstream{URL: upstreamURL, Auth: in.UpstreamAuth},
 			A2A:         a2a,
 		},

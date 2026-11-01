@@ -24,7 +24,6 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
-	"strings"
 	"sync"
 	"time"
 
@@ -51,9 +50,6 @@ const (
 	// a2aCardUnstorableError replaces a card the store refuses to take as text.
 	a2aCardUnstorableError = "the agent card contains characters that cannot be stored"
 )
-
-// errA2ACardEndpointNotReady means the agent's environment has no public endpoint URL yet.
-var errA2ACardEndpointNotReady = newA2APublicError("agent has no public endpoint in this environment yet", nil)
 
 // errA2ACardRolloutInProgress means the agent's latest release is not serving in this environment yet.
 var errA2ACardRolloutInProgress = newA2APublicError("agent is still rolling out in this environment", nil)
@@ -278,7 +274,7 @@ func (s *a2aCardReconcilerService) fetchCardThroughGateway(ctx context.Context, 
 	if err != nil {
 		return a2aCardFetch{}, err
 	}
-	url := a2aGatewayURL(gateway, row.AgentName) + a2aAgentCardPath
+	url := agentGatewayURL(gateway, row.AgentName) + a2aAgentCardPath
 	body, err := s.fetcher.Fetch(ctx, url)
 	if err != nil {
 		return a2aCardFetch{url: url}, prefixA2APublicError(url, err)
@@ -298,18 +294,9 @@ func (s *a2aCardReconcilerService) fetchPlatformCard(ctx context.Context, row mo
 	if !rollout.Serving {
 		return a2aCardFetch{}, errA2ACardRolloutInProgress
 	}
-	attempt := a2aCardFetch{releaseName: rollout.ReleaseName}
-	if rollout.ExternalURL == "" {
-		return attempt, errA2ACardEndpointNotReady
-	}
-	attempt.url = strings.TrimRight(rollout.ExternalURL, "/") + a2aAgentCardPath
-	body, err := s.fetcher.Fetch(ctx, attempt.url)
-	if err != nil {
-		// The derived URL is otherwise invisible to the user.
-		return attempt, prefixA2APublicError(attempt.url, err)
-	}
-	attempt.body = body
-	return attempt, nil
+	attempt, err := s.fetchCardThroughGateway(ctx, row)
+	attempt.releaseName = rollout.ReleaseName
+	return attempt, err
 }
 
 func (s *a2aCardReconcilerService) recordAttemptFailure(ctx context.Context, row models.A2AAgentCard, releaseName string, cause error) {

@@ -270,6 +270,11 @@ func (s *PlatformGatewayService) RegisterGateway(
 		uniqueEnvIDs = append(uniqueEnvIDs, envID)
 	}
 
+	if len(uniqueEnvIDs) > 1 {
+		return nil, fmt.Errorf("%w: a gateway serves exactly one environment, got %d",
+			utils.ErrGatewayEnvironmentFixed, len(uniqueEnvIDs))
+	}
+
 	if err := s.gatewayRepo.Transaction(func(tx *gorm.DB) error {
 		if err := s.gatewayRepo.CreateTx(tx, gateway); err != nil {
 			return fmt.Errorf("error while registering gateway: %w", err)
@@ -1068,12 +1073,13 @@ func (s *PlatformGatewayService) AssignGatewayToEnvironment(gatewayID, environme
 // assignGatewayToEnvironmentTx performs the capped, locked mapping insert inside an
 // existing transaction.
 //
-// The advisory lock is taken before the existence check so the check-then-insert window
-// is serialised per environment. The existence check sits inside the lock so an
+// The advisory locks are taken before the existence check so the check-then-insert window
+// is serialised per environment (ingress cap) and per gateway (one environment each). The existence check sits inside the lock so an
 // idempotent re-assign of an already-mapped gateway returns before the count runs and
 // can never count itself.
 //
-// Egress-capable gateways are never counted or rejected: egress is uncapped.
+// Egress-capable gateways are never counted against the ingress cap: egress is uncapped.
+// Every role is still refused a second environment.
 func (s *PlatformGatewayService) assignGatewayToEnvironmentTx(
 	tx *gorm.DB, gateway *models.Gateway, environmentID string,
 ) error {
@@ -1083,6 +1089,9 @@ func (s *PlatformGatewayService) assignGatewayToEnvironmentTx(
 	}
 	envIDStr := envUUID.String()
 
+	if err := s.gatewayRepo.AcquireGatewayLock(tx, gateway.UUID.String()); err != nil {
+		return fmt.Errorf("failed to lock gateway %s: %w", gateway.UUID, err)
+	}
 	if err := s.gatewayRepo.AcquireEnvironmentLock(tx, envIDStr); err != nil {
 		return fmt.Errorf("failed to lock environment %s: %w", envIDStr, err)
 	}
@@ -1096,6 +1105,15 @@ func (s *PlatformGatewayService) assignGatewayToEnvironmentTx(
 	}
 	if exists {
 		return nil // already assigned
+	}
+
+	mappings, err := s.gatewayRepo.GetEnvironmentMappingsByGatewayID(gateway.UUID.String())
+	if err != nil {
+		return fmt.Errorf("failed to read gateway mappings: %w", err)
+	}
+	if len(mappings) > 0 {
+		return fmt.Errorf("%w: gateway %s is already mapped to environment %s",
+			utils.ErrGatewayEnvironmentFixed, gateway.UUID, mappings[0].EnvironmentUUID)
 	}
 
 	if gateway.IsIngressCapable() {

@@ -35,8 +35,8 @@ import (
 	"github.com/wso2/agent-manager/agent-manager-service/repositories/repomocks"
 )
 
-// The fixture below is copied verbatim into the a20829291 writer that produced testdata/golden/a2a_agent_*.yaml
-// from main's publication reconciler inputs (attemptPublish).
+// testdata/golden/a2a_agent_*.yaml were first produced by the a20829291 writer from this fixture (main's
+// publication reconciler inputs, attemptPublish); they are hand-edited since: metadata.name is now agentGatewayName.
 
 // goldenA2AConfig is an A2A agent's environment config with every part of the Agent render: API-key security,
 // agent CORS and its own card CORS.
@@ -113,7 +113,7 @@ func goldenA2AKind(t *testing.T, proxy *models.A2AProxy, fetcher A2ACardFetcher)
 			return goldenA2APlatformURL, nil
 		},
 	}
-	return NewA2AAgentKind(sentinelTx, exposures, proxies, cards, nil, nil, configs, oc, fetcher,
+	return NewA2AAgentKind(sentinelTx, NewPlatformAgentExposures(exposures, nil, oc), proxies, cards, nil, configs, oc, fetcher, nil, nil,
 		bytes.Repeat([]byte{7}, 32), testLogger())
 }
 
@@ -165,7 +165,7 @@ func TestA2AAgentKindTargetsReadThroughTheSavesTransaction(t *testing.T) {
 		assert.Same(t, txSentinel, tx)
 		return txGateways
 	}}
-	kind := NewA2AAgentKind(nil, nil, nil, nil, pool, nil, nil, nil, nil, nil, testLogger())
+	kind := NewA2AAgentKind(nil, NewPlatformAgentExposures(nil, pool, nil), nil, nil, nil, nil, nil, nil, nil, nil, nil, testLogger())
 
 	gateway, ok, err := kind.Targets(db.CtxWithTx(context.Background(), txSentinel), reconcile.Record{
 		ArtifactRef:     models.ArtifactRef{OUID: "ou-1", ArtifactUUID: uuid.New(), Kind: models.KindAgent},

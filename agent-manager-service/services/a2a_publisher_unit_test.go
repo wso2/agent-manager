@@ -22,7 +22,6 @@ import (
 	"io"
 	"log/slog"
 	"testing"
-	"time"
 
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
@@ -118,11 +117,17 @@ func newPublisherMocks(t *testing.T) *publisherMocks {
 }
 
 func (m *publisherMocks) publisher() *A2APublisher {
-	return withA2ACore(NewA2APublisher(m.tx(), m.exposures, m.proxies, m.envCards, m.artifacts, m.deployments, m.gateways, testLogger(), nil, nil), m.hub)
+	exposure := NewAgentExposurePublisher(m.tx(), m.exposures, m.artifacts, m.deployments, m.gateways, nil, testLogger())
+	return withA2ACore(NewA2APublisher(m.tx(), m.exposures, m.proxies, m.envCards, m.artifacts, m.deployments, testLogger(), exposure, nil), m.hub)
 }
 
-func testA2AKey() a2aPublicationKey {
-	return a2aPublicationKey{
+// testA2AArtifact is the agent's artifact in the environment, ensured in the save's transaction.
+func testA2AArtifact(*gorm.DB) (*models.Artifact, error) {
+	return &models.Artifact{UUID: uuid.New(), Kind: models.KindAgent}, nil
+}
+
+func testA2AKey() agentExposureKey {
+	return agentExposureKey{
 		OUID: "org-1", ProjectName: "checkout", AgentName: "weather", EnvironmentName: "dev",
 		EnvironmentUUID: uuid.MustParse("55555555-5555-5555-5555-555555555555"),
 	}
@@ -208,7 +213,7 @@ func TestA2APublisherSaveAndRepublishSkipsTheLockForAnInternalAgent(t *testing.T
 	m.txExposures.UpsertFunc = func(context.Context, *models.PlatformAgentExposure) error { return nil }
 	var savedIn *gorm.DB
 
-	err := m.publisher().SaveAndRepublish(context.Background(), internal, testA2AKey(), models.ArtifactRef{ArtifactUUID: uuid.New()}, func(tx *gorm.DB) error {
+	err := m.publisher().SaveAndRepublish(context.Background(), internal, testA2AKey(), testA2AArtifact, func(tx *gorm.DB) error {
 		savedIn = tx
 		return nil
 	})
@@ -230,7 +235,7 @@ func TestA2APublisherSaveAndRepublishFailsWhenTheExposureCannotBeWritten(t *test
 	}
 	m.txExposures.UpsertFunc = func(context.Context, *models.PlatformAgentExposure) error { return assert.AnError }
 
-	err := m.publisher().SaveAndRepublish(context.Background(), internal, testA2AKey(), models.ArtifactRef{ArtifactUUID: uuid.New()}, func(*gorm.DB) error {
+	err := m.publisher().SaveAndRepublish(context.Background(), internal, testA2AKey(), testA2AArtifact, func(*gorm.DB) error {
 		return nil
 	})
 
@@ -243,28 +248,13 @@ func TestA2APublisherSaveAndRepublishDoesNotSaveWhenTheLockFails(t *testing.T) {
 	m.proxies.LockAgentEnvFunc = func(context.Context, string, string, string, uuid.UUID) error { return assert.AnError }
 	saved := false
 
-	err := m.publisher().SaveAndRepublish(context.Background(), externalAgent(), testA2AKey(), models.ArtifactRef{ArtifactUUID: uuid.New()}, func(*gorm.DB) error {
+	err := m.publisher().SaveAndRepublish(context.Background(), externalAgent(), testA2AKey(), testA2AArtifact, func(*gorm.DB) error {
 		saved = true
 		return nil
 	})
 
 	assert.ErrorIs(t, err, assert.AnError)
 	assert.False(t, saved)
-}
-
-func TestA2APublisherExposeJoinsTheCallersTransaction(t *testing.T) {
-	m := newPublisherMocks(t)
-	m.txExposures.UpsertFunc = func(context.Context, *models.PlatformAgentExposure) error { return nil }
-	artifactUUID := uuid.New()
-
-	require.NoError(t, m.publisher().Expose(context.Background(), txSentinel, testA2AKey(), artifactUUID))
-
-	exposed := m.txExposures.UpsertCalls()
-	require.Len(t, exposed, 1)
-	assert.Equal(t, models.AgentExposureProtocolA2A, exposed[0].Exposure.Protocol)
-	assert.Equal(t, artifactUUID, exposed[0].Exposure.ArtifactUUID)
-	assert.Equal(t, testA2AKey().EnvironmentUUID, exposed[0].Exposure.EnvironmentUUID)
-	assert.Equal(t, "dev", exposed[0].Exposure.EnvironmentName)
 }
 
 // A proxied external agent's record is its proxy row; its save writes no exposure.
@@ -277,7 +267,7 @@ func TestA2APublisherSaveAndRepublishExposesNoExternalAgent(t *testing.T) {
 	}
 	saved := false
 
-	err := m.publisher().SaveAndRepublish(context.Background(), externalAgent(), testA2AKey(), models.ArtifactRef{ArtifactUUID: uuid.New()}, func(*gorm.DB) error {
+	err := m.publisher().SaveAndRepublish(context.Background(), externalAgent(), testA2AKey(), testA2AArtifact, func(*gorm.DB) error {
 		saved = true
 		return nil
 	})
@@ -313,42 +303,17 @@ func TestA2APublisherEnvironmentUUIDsListsProxiesWhenPublicationsFail(t *testing
 	assert.Contains(t, ids, id)
 }
 
-// withA2ACore gives p a reconcile core over its deployment repository, hub and gateways.
+// withA2ACore gives p a reconcile core over its deployment repository, hub and gateways, and rebuilds its shared
+// exposure publisher on that core.
 func withA2ACore(p *A2APublisher, hub eventhub.EventHub) *A2APublisher {
+	shared := p.exposure
 	p.kind = &A2AAgentKind{
-		exposureRepo: p.exposureRepo, proxyRepo: p.proxyRepo, cardRepo: p.cardRepo, gatewayRepo: p.gatewayRepo,
-		deploymentRepo: p.deploymentRepo, logger: testLogger(),
+		exposures: NewPlatformAgentExposures(p.exposureRepo, shared.gatewayRepo, nil),
+		proxyRepo: p.proxyRepo, cardRepo: p.cardRepo, deploymentRepo: p.deploymentRepo, logger: testLogger(),
 	}
-	p.core = reconcile.NewCore(nil, p.deploymentRepo, hub, reconcile.Kinds{p.kind}, reconcile.Config{}, testLogger())
+	core := reconcile.NewCore(nil, p.deploymentRepo, hub, reconcile.Kinds{p.kind}, reconcile.Config{}, testLogger())
+	p.exposure = NewAgentExposurePublisher(p.tx, p.exposureRepo, p.artifactRepo, p.deploymentRepo, shared.gatewayRepo, core, testLogger())
 	return p
-}
-
-// A switch to direct undeploys the artifact from each gateway it is placed on, in the caller's transaction, and
-// keeps the artifact and its keys.
-func TestA2APublisherTeardownEnvUndeploysThePlacedRows(t *testing.T) {
-	m := newPublisherMocks(t)
-	gateway := uuid.New()
-	m.txDeployments.PlacedGatewaysFunc = func(context.Context, string, uuid.UUID) ([]string, error) {
-		return []string{gateway.String()}, nil
-	}
-	m.txDeployments.WithTxFunc = func(*gorm.DB) repositories.DeploymentRepository { return m.txDeployments }
-	m.txDeployments.GetStatusRecordFunc = func(context.Context, models.Placement) (*models.DeploymentStatusRecord, error) {
-		return &models.DeploymentStatusRecord{PerformedAt: models.NewPerformedAt(time.Now())}, nil
-	}
-	m.deployments.BeginUndeployFunc = func(_ context.Context, tx *gorm.DB, p models.Placement) (bool, error) {
-		assert.Same(t, txSentinel, tx)
-		assert.Equal(t, gateway, p.GatewayUUID)
-		return true, nil
-	}
-	m.txExposures.DeleteForAgentEnvFunc = func(context.Context, string, string, string, uuid.UUID) error { return nil }
-	artifact := models.ArtifactRef{OUID: "org-1", ArtifactUUID: uuid.New(), Kind: models.KindAgent}
-
-	require.NoError(t, m.publisher().TeardownEnv(context.Background(), txSentinel, testA2AKey(), artifact))
-
-	require.Len(t, m.hub.published, 1)
-	assert.Equal(t, "agent.undeployed", string(m.hub.published[0].EventType))
-	assert.Same(t, txSentinel, m.hub.txs[0])
-	assert.Empty(t, m.artifacts.DeleteCalls())
 }
 
 // A deleted environment's exposed agents lose their artifacts, each with its delete events in the same transaction.
@@ -356,7 +321,7 @@ func TestA2APublisherTeardownEnvironmentDropsEachArtifactWithItsDeleteEvents(t *
 	m := newPublisherMocks(t)
 	envUUID, artifactUUID, gateway := uuid.New(), uuid.New(), uuid.New()
 	m.exposures.ListForEnvironmentFunc = func(context.Context, string, uuid.UUID) ([]models.PlatformAgentExposure, error) {
-		return []models.PlatformAgentExposure{{AgentName: "trip-planner", ArtifactUUID: artifactUUID}}, nil
+		return []models.PlatformAgentExposure{{AgentName: "trip-planner", ArtifactUUID: artifactUUID, Protocol: models.AgentExposureProtocolA2A}}, nil
 	}
 	m.exposures.DeleteForEnvironmentFunc = func(context.Context, string, uuid.UUID) error { return nil }
 	m.proxies.DeleteForEnvironmentFunc = func(context.Context, string, uuid.UUID) error { return nil }

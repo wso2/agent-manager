@@ -46,7 +46,7 @@ type unmapCase struct {
 func a2aUnmapCase(t *testing.T) unmapCase {
 	f := newA2AFixture(t)
 	artifact, key := f.platformAgent(t)
-	require.NoError(t, f.publisher.Expose(context.Background(), nil, key, artifact.ArtifactUUID))
+	require.NoError(t, f.publisher.exposure.Expose(context.Background(), nil, key, artifact.ArtifactUUID, models.AgentExposureProtocolA2A))
 	return unmapCase{sync: f.sync, core: f.core, env: f.env, gateway: f.gateway, artifact: artifact}
 }
 

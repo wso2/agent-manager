@@ -81,6 +81,7 @@ func (s *stubConnChecker) GetConnections(string) []*websocket.Connection {
 // apiKeyServiceFixture bundles the mocked collaborators for AgentAPIKeyService.
 type apiKeyServiceFixture struct {
 	svc          *AgentAPIKeyService
+	artifactRepo *repomocks.ArtifactRepositoryMock
 	apiKeyRepo   *repomocks.APIKeyRepositoryMock
 	upsertedKeys *[]*models.StoredAPIKey
 	lookedUpName *string
@@ -133,6 +134,7 @@ func newAPIKeyServiceFixture(t *testing.T, existing *models.StoredAPIKey) *apiKe
 	svc := NewAgentAPIKeyService(artifactRepo, oc, gatewayRepo, NewGatewayEventsService(&stubEventHub{}), apiKeyRepo, connChecker)
 	return &apiKeyServiceFixture{
 		svc:          svc,
+		artifactRepo: artifactRepo,
 		apiKeyRepo:   apiKeyRepo,
 		upsertedKeys: upserted,
 		lookedUpName: lookedUp,
@@ -244,6 +246,37 @@ func TestAgentAPIKeyService_IssueTestAPIKey_PerUser(t *testing.T) {
 
 		assert.ErrorIs(t, err, utils.ErrBadRequest)
 	})
+}
+
+func TestAgentAPIKeyCreateOnRestApiArtifact(t *testing.T) {
+	fx := newAPIKeyServiceFixture(t, nil)
+	fx.artifactRepo.GetByHandleFunc = func(string, string) (*models.Artifact, error) {
+		return &models.Artifact{UUID: uuid.New(), Kind: models.KindRestAPI}, nil
+	}
+
+	resp, err := fx.svc.CreateAPIKey(auditableCtx(t), "default", "default", "restagent", "dev", &models.CreateAPIKeyRequest{Name: "ci-key"})
+
+	require.NoError(t, err)
+	assert.NotEmpty(t, resp.APIKey)
+	assert.Len(t, *fx.upsertedKeys, 1)
+}
+
+func TestAgentAPIKeyListOnRestApiArtifact(t *testing.T) {
+	fx := newAPIKeyServiceFixture(t, nil)
+	artifactUUID := uuid.New()
+	fx.artifactRepo.GetByHandleFunc = func(string, string) (*models.Artifact, error) {
+		return &models.Artifact{UUID: artifactUUID, Kind: models.KindRestAPI}, nil
+	}
+	mine := models.StoredAPIKey{UUID: uuid.New(), ArtifactUUID: artifactUUID, Name: "mine"}
+	fx.apiKeyRepo.ListPermanentByArtifactKindsFunc = func(_ string, kinds []string) ([]models.StoredAPIKey, error) {
+		assert.Equal(t, models.AgentArtifactKinds, kinds)
+		return []models.StoredAPIKey{mine, {UUID: uuid.New(), ArtifactUUID: uuid.New(), Name: "other agent's"}}, nil
+	}
+
+	keys, err := fx.svc.ListAPIKeys(context.Background(), "default", "default", "restagent", "dev")
+
+	require.NoError(t, err)
+	assert.Equal(t, []models.StoredAPIKey{mine}, keys)
 }
 
 func TestResolveEnvGateways_IngressOnly(t *testing.T) {

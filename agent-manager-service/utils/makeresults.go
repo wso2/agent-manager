@@ -416,18 +416,15 @@ func ConvertToDeploymentDetailsResponse(deploymentDetails []*models.DeploymentRe
 			envDisplayName = &deployment.EnvironmentDisplayName
 		}
 
-		var kindVersion *string
-		if deployment.KindVersion != "" {
-			kindVersion = &deployment.KindVersion
-		}
-
 		deploymentResponse := spec.DeploymentDetailsResponse{
 			ImageId:                deployment.ImageId,
 			Status:                 deployment.Status,
 			LastDeployed:           deployment.LastDeployedAt,
 			Endpoints:              endpoints,
 			EnvironmentDisplayName: envDisplayName,
-			KindVersion:            kindVersion,
+			KindVersion:            stringToPtr(deployment.KindVersion),
+			GatewayStatus:          stringToPtr(deployment.GatewayStatus),
+			GatewayStatusReason:    stringToPtr(deployment.GatewayStatusReason),
 		}
 
 		// Add to result map with environment name as key

@@ -61,9 +61,9 @@ type cardReconcilerHarness struct {
 	gateways *repomocks.GatewayRepositoryMock
 }
 
-// newCardReconcilerHarness wires a reconciler whose fetch succeeds with validTestCard
-// and whose agent exposes one endpoint at endpointURL.
-func newCardReconcilerHarness(endpointURL string) *cardReconcilerHarness {
+// newCardReconcilerHarness wires a reconciler whose fetch succeeds with validTestCard and whose environment's
+// ingress gateway serves at vhost (empty: no gateway is mapped).
+func newCardReconcilerHarness(vhost string) *cardReconcilerHarness {
 	repo := &repomocks.A2AAgentCardRepositoryMock{
 		MarkFetchedFunc: func(context.Context, models.A2AAgentCard, json.RawMessage, string, string, string) error { return nil },
 		MarkAttemptFailedFunc: func(context.Context, models.A2AAgentCard, string, string, time.Time) error {
@@ -78,7 +78,7 @@ func newCardReconcilerHarness(endpointURL string) *cardReconcilerHarness {
 	}
 	oc := &clientmocks.OpenChoreoClientMock{
 		GetReleaseBindingRolloutFunc: func(context.Context, string, string, string) (client.ReleaseBindingRollout, error) {
-			return client.ReleaseBindingRollout{ReleaseName: "trip-planner-r1", ExternalURL: endpointURL, Serving: true, Deployed: true}, nil
+			return client.ReleaseBindingRollout{ReleaseName: "trip-planner-r1", Serving: true, Deployed: true}, nil
 		},
 	}
 	proxies := &repomocks.A2AProxyRepositoryMock{
@@ -88,7 +88,10 @@ func newCardReconcilerHarness(endpointURL string) *cardReconcilerHarness {
 	}
 	gateways := &repomocks.GatewayRepositoryMock{
 		ListWithFiltersFunc: func(repositories.GatewayFilterOptions) ([]*models.Gateway, error) {
-			return []*models.Gateway{{UUID: uuid.New(), Vhost: "https://gw.example/"}}, nil
+			if vhost == "" {
+				return nil, nil
+			}
+			return []*models.Gateway{{UUID: uuid.New(), Vhost: vhost}}, nil
 		},
 	}
 	return &cardReconcilerHarness{
@@ -97,8 +100,8 @@ func newCardReconcilerHarness(endpointURL string) *cardReconcilerHarness {
 	}
 }
 
-func TestCardReconcilerFetchesAPlatformCardThroughTheEndpoint(t *testing.T) {
-	h := newCardReconcilerHarness("http://dev-org.gw.example/trip-planner/")
+func TestPlatformCardFetchedThroughGateway(t *testing.T) {
+	h := newCardReconcilerHarness("http://dev-org.gw.example/")
 	row := pendingCard(models.A2AAgentCardSourcePlatform)
 
 	h.svc.fetchOne(context.Background(), row)
@@ -234,7 +237,7 @@ func TestCardReconcilerPlatformFailuresNameTheURL(t *testing.T) {
 
 	retries := h.repo.MarkAttemptFailedCalls()
 	require.Len(t, retries, 1)
-	assert.Contains(t, retries[0].LastErr, "http://gw.example/a/.well-known/agent-card.json")
+	assert.Contains(t, retries[0].LastErr, "http://gw.example/a/trip-planner/.well-known/agent-card.json")
 }
 
 func TestCardReconcilerTreatsSupersededAsBenign(t *testing.T) {

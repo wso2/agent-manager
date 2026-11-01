@@ -1165,13 +1165,14 @@ func (c *openChoreoClient) GetDeployments(ctx context.Context, ouID, pipelineNam
 			}
 			deploymentDetails = append(deploymentDetails, deploymentDetail)
 		} else {
-			var displayName string
+			var displayName, envUUID string
 			if env, envExists := environmentMap[envName]; envExists {
-				displayName = env.DisplayName
+				displayName, envUUID = env.DisplayName, env.UUID
 			}
 
 			deploymentDetails = append(deploymentDetails, &models.DeploymentResponse{
 				Environment:                envName,
+				EnvironmentUUID:            envUUID,
 				EnvironmentDisplayName:     displayName,
 				PromotionTargetEnvironment: promotionTargetEnv,
 				Status:                     DeploymentStatusNotDeployed,
@@ -1611,9 +1612,9 @@ func toDeploymentDetailsResponse(binding *gen.ReleaseBinding, componentRelease *
 	}
 
 	environment := binding.Spec.Environment
-	var environmentDisplayName string
+	var environmentDisplayName, environmentUUID string
 	if env, exists := environmentMap[environment]; exists {
-		environmentDisplayName = env.DisplayName
+		environmentDisplayName, environmentUUID = env.DisplayName, env.UUID
 	}
 
 	t := getLastDeployedTime(binding)
@@ -1626,6 +1627,7 @@ func toDeploymentDetailsResponse(binding *gen.ReleaseBinding, componentRelease *
 		ImageId:                    deployedImage,
 		Status:                     status,
 		Environment:                environment,
+		EnvironmentUUID:            environmentUUID,
 		EnvironmentDisplayName:     environmentDisplayName,
 		PromotionTargetEnvironment: promotionTargetEnv,
 		LastDeployedAt:             lastDeployedAt,
@@ -1878,6 +1880,46 @@ func (c *openChoreoClient) GetReleaseBindingRollout(ctx context.Context, ouID, c
 		rollout.ReleaseName = *binding.Spec.ReleaseName
 	}
 	return rollout, nil
+}
+
+func (c *openChoreoClient) GetReleaseBindingTraits(ctx context.Context, ouID, componentName, environment string) ([]TraitType, bool, error) {
+	namespace := c.NamespaceFor(ouID)
+	binding, err := c.findReleaseBindingForEnv(ctx, namespace, componentName, environment)
+	if err != nil {
+		return nil, false, fmt.Errorf("failed to find release binding for %s: %w", componentName, err)
+	}
+	if binding == nil || binding.Spec == nil || binding.Spec.ReleaseName == nil || *binding.Spec.ReleaseName == "" {
+		return nil, false, nil
+	}
+	releaseName := *binding.Spec.ReleaseName
+	resp, err := c.ocClient.GetComponentReleaseWithResponse(ctx, namespace, releaseName)
+	if err != nil {
+		return nil, false, fmt.Errorf("failed to get component release %s: %w", releaseName, err)
+	}
+	if resp.StatusCode() != http.StatusOK {
+		return nil, false, handleErrorResponse(resp.StatusCode(), ErrorResponses{
+			JSON401: resp.JSON401,
+			JSON403: resp.JSON403,
+			JSON404: resp.JSON404,
+			JSON500: resp.JSON500,
+		})
+	}
+	if resp.JSON200 == nil {
+		return nil, false, fmt.Errorf("invalid OpenChoreo response: missing component release %q payload", releaseName)
+	}
+	return componentReleaseTraits(resp.JSON200), true, nil
+}
+
+// componentReleaseTraits reads the typed trait instances, not spec.traits, which holds untyped frozen trait specs.
+func componentReleaseTraits(release *gen.ComponentRelease) []TraitType {
+	if release.Spec == nil || release.Spec.ComponentProfile == nil || release.Spec.ComponentProfile.Traits == nil {
+		return nil
+	}
+	traits := make([]TraitType, 0, len(*release.Spec.ComponentProfile.Traits))
+	for _, trait := range *release.Spec.ComponentProfile.Traits {
+		traits = append(traits, TraitType(trait.Name))
+	}
+	return traits
 }
 
 // bindingExternalURL picks by endpoint name, matching GetComponentEndpoints' TLS rule.

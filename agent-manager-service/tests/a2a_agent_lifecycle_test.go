@@ -37,6 +37,7 @@ import (
 	"gopkg.in/yaml.v3"
 	"gorm.io/gorm"
 
+	"github.com/wso2/agent-manager/agent-manager-service/clients/openchoreosvc/client"
 	"github.com/wso2/agent-manager/agent-manager-service/db"
 	"github.com/wso2/agent-manager/agent-manager-service/eventhub"
 	"github.com/wso2/agent-manager/agent-manager-service/middleware/jwtassertion"
@@ -100,8 +101,13 @@ func testLifecycleLogger() *slog.Logger {
 }
 
 // seedIngressGateway inserts a gateway and maps it to the environment, because
-// an A2A agent is published to its environment's INGRESS gateway and the test
+// an API agent is created, deployed and published through its environment's INGRESS gateway and the test
 // database carries none by default.
+func seedIngressGatewayForDefaultEnvironment(t *testing.T, ouID string) uuid.UUID {
+	t.Helper()
+	return seedIngressGateway(t, ouID, uuid.MustParse(apitestutils.DefaultEnvironmentUUID))
+}
+
 func seedIngressGateway(t *testing.T, ouID string, environmentUUID uuid.UUID) uuid.UUID {
 	t.Helper()
 	gdb := db.GetDB()
@@ -165,6 +171,9 @@ func TestA2AAgentLifecycle(t *testing.T) {
 	openChoreoClient.GetReleaseBindingServiceURLFunc = func(ctx context.Context, ouID, componentName, environment string) (string, error) {
 		return currentServiceURL(), nil
 	}
+	openChoreoClient.GetReleaseBindingRolloutFunc = func(ctx context.Context, ouID, componentName, environment string) (client.ReleaseBindingRollout, error) {
+		return client.ReleaseBindingRollout{Deployed: true}, nil
+	}
 
 	app := apitestutils.MakeAppClientWithDeps(t, wiring.TestClients{
 		OpenChoreoClient: openChoreoClient,
@@ -182,9 +191,10 @@ func TestA2AAgentLifecycle(t *testing.T) {
 
 	hub := &lifecycleEventHub{}
 	tx := services.NewTxRunner(gdb)
-	kind := services.NewA2AAgentKind(tx, exposureRepo, repositories.NewA2AProxyRepository(gdb), cardRepo,
-		repositories.NewGatewayRepo(gdb), deploymentRepo, repositories.NewAgentConfigRepo(gdb), openChoreoClient,
-		services.NewA2ACardFetcher(), bytes.Repeat([]byte{7}, 32), testLifecycleLogger())
+	kind := services.NewA2AAgentKind(tx,
+		services.NewPlatformAgentExposures(exposureRepo, repositories.NewGatewayRepo(gdb), openChoreoClient),
+		repositories.NewA2AProxyRepository(gdb), cardRepo, deploymentRepo, repositories.NewAgentConfigRepo(gdb), openChoreoClient,
+		services.NewA2ACardFetcher(), repositories.NewAPIKeyRepo(gdb), services.NewGatewayEventsService(hub), bytes.Repeat([]byte{7}, 32), testLifecycleLogger())
 	core := reconcile.NewCore(gdb, deploymentRepo, hub, reconcile.Kinds{kind},
 		reconcile.Config{Lease: time.Minute, AttemptBudget: 3}, testLifecycleLogger())
 	worker := reconcile.NewWorker(core, testLifecycleLogger())

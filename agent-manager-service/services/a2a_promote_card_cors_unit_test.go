@@ -142,7 +142,9 @@ func TestPromoteAgent_A2AInheritsSourceCardCORSAndRepublishes(t *testing.T) {
 		return pubRepo
 	}
 	s.a2aPublisher = withA2ACore(NewA2APublisher(sentinelTx, pubRepo, &repomocks.A2AProxyRepositoryMock{}, nil, nil,
-		a2aRenderQueue(), a2aIngressGateways(), testLogger(), nil, nil), nil)
+		a2aRenderQueue(), testLogger(),
+		NewAgentExposurePublisher(sentinelTx, pubRepo, nil, a2aRenderQueue(), a2aIngressGateways(), nil, testLogger()), nil), nil)
+	s.exposure = s.a2aPublisher.exposure
 
 	err := s.PromoteAgent(tierGrantedCtx(t), "acme", "proj1", "my-agent", &spec.PromoteAgentRequest{
 		SourceEnvironment: "dev",
@@ -200,7 +202,9 @@ func TestPromoteAgent_A2AFailsWhenTheExposureCannotBeWritten(t *testing.T) {
 	}
 	pubRepo.WithTxFunc = func(*gorm.DB) repositories.PlatformAgentExposureRepository { return pubRepo }
 	s.a2aPublisher = withA2ACore(NewA2APublisher(sentinelTx, pubRepo, &repomocks.A2AProxyRepositoryMock{}, nil, nil,
-		a2aRenderQueue(), a2aIngressGateways(), testLogger(), nil, nil), nil)
+		a2aRenderQueue(), testLogger(),
+		NewAgentExposurePublisher(sentinelTx, pubRepo, nil, a2aRenderQueue(), a2aIngressGateways(), nil, testLogger()), nil), nil)
+	s.exposure = s.a2aPublisher.exposure
 
 	err := s.PromoteAgent(tierGrantedCtx(t), "acme", "proj1", "my-agent", &spec.PromoteAgentRequest{
 		SourceEnvironment: "dev",

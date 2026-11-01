@@ -98,8 +98,8 @@ func newAgentArtifactDeletionFixture(t *testing.T, artifacts map[string]uuid.UUI
 		stored = append(stored, &models.Artifact{UUID: id, Handle: handle, Kind: models.KindAgent})
 	}
 	artifactRepo := &repomocks.ArtifactRepositoryMock{
-		ListByHandlePrefixFunc: func(_ context.Context, kind, prefix, _ string) ([]*models.Artifact, error) {
-			require.Equal(t, models.KindAgent, kind)
+		ListByHandlePrefixFunc: func(_ context.Context, kinds []string, prefix, _ string) ([]*models.Artifact, error) {
+			require.Equal(t, models.AgentArtifactKinds, kinds)
 			var found []*models.Artifact
 			for _, a := range stored {
 				if strings.HasPrefix(a.Handle, prefix) {
@@ -184,10 +184,10 @@ func newAgentArtifactDeletionFixture(t *testing.T, artifacts map[string]uuid.UUI
 		return proxyRepo
 	}
 	events := NewGatewayEventsService(f.hub)
-	publisher := withA2ACore(NewA2APublisher(sentinelTx, pubRepo, proxyRepo, cardRepo, artifactRepo, deploymentRepo, gatewayRepo,
-		testLogger(), nil, nil), f.hub)
+	publisher := withA2ACore(NewA2APublisher(sentinelTx, pubRepo, proxyRepo, cardRepo, artifactRepo, deploymentRepo,
+		testLogger(), NewAgentExposurePublisher(sentinelTx, pubRepo, artifactRepo, deploymentRepo, gatewayRepo, nil, testLogger()), nil), f.hub)
 	f.svc = NewAgentManagerService(nil, oc, nil, nil, nil, nil, nil, nil, artifactRepo, nil, gatewayRepo, nil, nil, nil, nil, nil,
-		publisher, cardRepo, deploymentRepo, events, testLogger()).(*agentManagerService)
+		publisher, cardRepo, deploymentRepo, events, publisher.exposure, nil, testLogger()).(*agentManagerService)
 	return f
 }
 
@@ -249,7 +249,7 @@ func TestDeleteAgentAPIArtifactReportsAListFailure(t *testing.T) {
 	repo, ok := f.svc.artifactRepo.(*repomocks.ArtifactRepositoryMock)
 	require.True(t, ok)
 	boom := errors.New("db unavailable")
-	repo.ListByHandlePrefixFunc = func(context.Context, string, string, string) ([]*models.Artifact, error) {
+	repo.ListByHandlePrefixFunc = func(context.Context, []string, string, string) ([]*models.Artifact, error) {
 		return nil, boom
 	}
 

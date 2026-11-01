@@ -54,6 +54,12 @@ var activeDeploymentLookups = []struct {
 		notFound:    utils.ErrMCPProxyNotFound,
 		notNotFound: utils.ErrAgentArtifactNotFound,
 	},
+	{
+		name:        "rest api",
+		lookup:      (*GatewayInternalAPIService).GetActiveRestAPIDeploymentByGateway,
+		notFound:    utils.ErrAPINotFound,
+		notNotFound: utils.ErrAgentArtifactNotFound,
+	},
 }
 
 const testArtifactID = "0192f4c1-9a7d-7c3e-b4f2-1a2b3c4d5e6f"
@@ -64,7 +70,7 @@ func newGatewayInternalServiceWithDeployments(repo *repomocks.DeploymentReposito
 
 // gatewayKinds names artifacts as the registered kinds do; naming needs none of their dependencies.
 func gatewayKinds() *reconcile.Core {
-	return reconcile.NewCore(nil, nil, nil, reconcile.Kinds{NewLLMProviderKind(), &LLMProxyKind{}, &MCPProxyKind{}, &A2AAgentKind{}},
+	return reconcile.NewCore(nil, nil, nil, reconcile.Kinds{NewLLMProviderKind(), &LLMProxyKind{}, &MCPProxyKind{}, &A2AAgentKind{}, &RestAgentKind{}},
 		reconcile.Config{}, discardLogger())
 }
 

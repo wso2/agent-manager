@@ -25,6 +25,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/wso2/agent-manager/agent-manager-service/db"
 	"github.com/wso2/agent-manager/agent-manager-service/models"
+	"github.com/wso2/agent-manager/agent-manager-service/reconcile"
 	"github.com/wso2/agent-manager/agent-manager-service/repositories"
 	"gorm.io/gorm"
 )
@@ -166,6 +167,33 @@ func placedOn(ctx context.Context, tx *gorm.DB, records string, args []any) (boo
 	var placed bool
 	err := tx.WithContext(ctx).Raw(`SELECT EXISTS (`+records+`)`, args...).Scan(&placed).Error
 	return placed, err
+}
+
+// pageUnplacedRecords runs a kind's UnplacedRecords query: arms are UNION ALL arms selecting ou_id, artifact_uuid,
+// handle, kind and environment_uuid, returned in artifact UUID order after afterKey.
+func pageUnplacedRecords(
+	ctx context.Context, tx *gorm.DB, arms string, args []any, afterKey string, limit int,
+) ([]reconcile.Record, error) {
+	var rows []struct {
+		OUID            string    `gorm:"column:ou_id"`
+		ArtifactUUID    uuid.UUID `gorm:"column:artifact_uuid"`
+		Handle          string    `gorm:"column:handle"`
+		Kind            string    `gorm:"column:kind"`
+		EnvironmentUUID uuid.UUID `gorm:"column:environment_uuid"`
+	}
+	query := `SELECT * FROM (` + arms + `) r WHERE r.artifact_uuid::text > ? ORDER BY r.artifact_uuid::text LIMIT ?`
+	if err := tx.WithContext(ctx).Raw(query, append(args, afterKey, limit)...).Scan(&rows).Error; err != nil {
+		return nil, err
+	}
+	records := make([]reconcile.Record, 0, len(rows))
+	for _, r := range rows {
+		records = append(records, reconcile.Record{
+			ArtifactRef:     models.ArtifactRef{OUID: r.OUID, ArtifactUUID: r.ArtifactUUID, Kind: r.Kind, Handle: r.Handle},
+			EnvironmentUUID: r.EnvironmentUUID,
+			Key:             r.ArtifactUUID.String(),
+		})
+	}
+	return records, nil
 }
 
 // placementReposIn are the repositories bound to the transaction ctx carries, if any, so a placement made inside a

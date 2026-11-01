@@ -200,6 +200,14 @@ var (
 	// an environment that already has one. Maps to 409.
 	ErrGatewayIngressCapExceeded = errors.New("environment already has an ingress gateway")
 
+	// ErrGatewayEnvironmentFixed is returned when registering or assigning a gateway would map it
+	// to a second environment. Maps to 409.
+	ErrGatewayEnvironmentFixed = errors.New("gateway already serves another environment")
+
+	// ErrEnvironmentHasNoGateway is returned when an API agent would be created, built, deployed or
+	// promoted into an environment with no ingress gateway. Maps to 409.
+	ErrEnvironmentHasNoGateway = errors.New("environment has no ingress gateway")
+
 	// ErrGatewayServesEnvironment is returned when unmapping a gateway from an environment whose
 	// agents, MCP proxies or LLM proxies are still placed on it. Maps to 409.
 	ErrGatewayServesEnvironment = errors.New("gateway still serves the environment's artifacts")

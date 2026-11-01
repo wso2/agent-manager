@@ -21,6 +21,7 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"time"
 
 	"github.com/google/uuid"
 	"gopkg.in/yaml.v3"
@@ -36,9 +37,6 @@ import (
 	"github.com/wso2/agent-manager/agent-manager-service/utils"
 )
 
-// waitingForEndpoint is what a platform agent's row waits on until its release binding publishes a service URL.
-const waitingForEndpoint = "waiting for the agent's endpoint"
-
 // a2aAgentEnv is the agent and environment a per-environment Agent artifact exposes.
 type a2aAgentEnv struct {
 	ouID, projectName, agentName, environmentName string
@@ -50,14 +48,15 @@ type a2aAgentEnv struct {
 // calls OpenChoreo, or fetches the external origin's card, so only the worker renders it.
 type A2AAgentKind struct {
 	tx              TxRunner
-	exposureRepo    repositories.PlatformAgentExposureRepository
+	exposures       *PlatformAgentExposures
 	proxyRepo       repositories.A2AProxyRepository
 	cardRepo        repositories.A2AAgentCardRepository
-	gatewayRepo     repositories.GatewayRepository
 	deploymentRepo  repositories.DeploymentRepository
 	agentConfigRepo repositories.AgentConfigRepository
 	ocClient        client.OpenChoreoClient
 	fetcher         A2ACardFetcher
+	apiKeyRepo      repositories.APIKeyRepository
+	events          *GatewayEventsService
 	encryptionKey   []byte
 	logger          *slog.Logger
 }
@@ -65,21 +64,22 @@ type A2AAgentKind struct {
 // NewA2AAgentKind builds the A2A agent kind.
 func NewA2AAgentKind(
 	tx TxRunner,
-	exposureRepo repositories.PlatformAgentExposureRepository,
+	exposures *PlatformAgentExposures,
 	proxyRepo repositories.A2AProxyRepository,
 	cardRepo repositories.A2AAgentCardRepository,
-	gatewayRepo repositories.GatewayRepository,
 	deploymentRepo repositories.DeploymentRepository,
 	agentConfigRepo repositories.AgentConfigRepository,
 	ocClient client.OpenChoreoClient,
 	fetcher A2ACardFetcher,
+	apiKeyRepo repositories.APIKeyRepository,
+	events *GatewayEventsService,
 	encryptionKey []byte,
 	logger *slog.Logger,
 ) *A2AAgentKind {
 	return &A2AAgentKind{
-		tx: tx, exposureRepo: exposureRepo, proxyRepo: proxyRepo, cardRepo: cardRepo, gatewayRepo: gatewayRepo,
+		tx: tx, exposures: exposures, proxyRepo: proxyRepo, cardRepo: cardRepo,
 		deploymentRepo: deploymentRepo, agentConfigRepo: agentConfigRepo, ocClient: ocClient, fetcher: fetcher,
-		encryptionKey: encryptionKey, logger: logger,
+		apiKeyRepo: apiKeyRepo, events: events, encryptionKey: encryptionKey, logger: logger,
 	}
 }
 
@@ -112,12 +112,12 @@ type resolvedUpstream struct {
 // Render finds the artifact's exposure, else its proxy; neither means the record is gone.
 func (k *A2AAgentKind) Render(ctx context.Context, artifact models.ArtifactRef) (reconcile.Rendered, error) {
 	ctx = orgctx.WithResolvedOrg(ctx, orgctx.ResolvedOrg{OUID: artifact.OUID})
-	exposure, err := k.exposureRepo.GetByArtifact(ctx, artifact.OUID, artifact.ArtifactUUID)
+	exposure, err := k.exposures.exposure(ctx, nil, artifact)
 	switch {
 	case err == nil:
 		return k.renderPlatform(ctx, artifact, exposure)
 	case !errors.Is(err, repositories.ErrPlatformAgentExposureNotFound):
-		return reconcile.Rendered{}, fmt.Errorf("failed to read the agent's exposure: %w", err)
+		return reconcile.Rendered{}, err
 	}
 	proxy, err := k.proxyRepo.GetByArtifact(ctx, artifact.OUID, artifact.ArtifactUUID)
 	switch {
@@ -132,12 +132,9 @@ func (k *A2AAgentKind) Render(ctx context.Context, artifact models.ArtifactRef) 
 func (k *A2AAgentKind) renderPlatform(
 	ctx context.Context, artifact models.ArtifactRef, exposure *models.PlatformAgentExposure,
 ) (reconcile.Rendered, error) {
-	url, err := k.ocClient.GetReleaseBindingServiceURL(ctx, exposure.OUID, exposure.AgentName, exposure.EnvironmentName)
+	url, err := k.exposures.serviceURL(ctx, exposure)
 	if err != nil {
-		return reconcile.Rendered{}, fmt.Errorf("failed to read release binding service URL: %w", err)
-	}
-	if url == "" {
-		return reconcile.Rendered{}, reconcile.InputNotReady(waitingForEndpoint)
+		return reconcile.Rendered{}, err
 	}
 	return k.render(ctx, artifact, exposureEnv(exposure), resolvedUpstream{url: url}, false)
 }
@@ -174,7 +171,7 @@ func (k *A2AAgentKind) render(
 		apiCfg.OAuthForwardToken = false
 	}
 	content, err := generateA2AAgentDeploymentYAML(A2AAgentDeploymentInput{
-		ArtifactName: a2aAgentEnvArtifactName(env.projectName, env.agentName, env.environmentUUID.String()),
+		ArtifactName: agentGatewayName(env.projectName, env.agentName, env.environmentUUID.String()),
 		DisplayName:  env.agentName,
 		AgentName:    env.agentName,
 		UpstreamURL:  upstream.url,
@@ -202,7 +199,7 @@ type a2aOrigin struct {
 // externalOrigin reads the proxy and its registered card URL under the environment's proxy lock, so a concurrent
 // set or switch to direct is either seen whole or not at all.
 func (k *A2AAgentKind) externalOrigin(ctx context.Context, env a2aAgentEnv) (*a2aOrigin, error) {
-	key := a2aPublicationKey{
+	key := agentExposureKey{
 		OUID: env.ouID, ProjectName: env.projectName, AgentName: env.agentName,
 		EnvironmentName: env.environmentName, EnvironmentUUID: env.environmentUUID,
 	}
@@ -285,52 +282,29 @@ func (k *A2AAgentKind) DeleteEvent(artifact models.ArtifactRef) eventhub.Event {
 func (k *A2AAgentKind) UnplacedRecords(
 	ctx context.Context, ouID string, env *uuid.UUID, afterKey string, limit int,
 ) ([]reconcile.Record, error) {
-	exposed, exposedArgs := reconcile.UnplacedCondition(reconcile.RecordColumns{
-		OUID: "a.ou_id", ArtifactUUID: "a.uuid", EnvironmentUUID: "e.environment_uuid",
-	}, models.IngressGatewayRoles, ouID, env)
+	exposed, exposedArgs := unplacedExposureArm(models.AgentExposureProtocolA2A, ouID, env)
 	proxied, proxiedArgs := reconcile.UnplacedCondition(reconcile.RecordColumns{
 		OUID: "a.ou_id", ArtifactUUID: "a.uuid", EnvironmentUUID: "p.environment_uuid",
 	}, models.IngressGatewayRoles, ouID, env)
-	query := `SELECT * FROM (
-			SELECT a.ou_id, a.uuid AS artifact_uuid, a.handle, e.environment_uuid
-			FROM platform_agent_exposures e JOIN artifacts a ON a.uuid = e.artifact_uuid
-			WHERE e.protocol = '` + string(models.AgentExposureProtocolA2A) + `' AND ` + exposed + `
+	arms := exposed + `
 			UNION ALL
-			SELECT a.ou_id, a.uuid, a.handle, p.environment_uuid
+			SELECT a.ou_id, a.uuid, a.handle, a.kind, p.environment_uuid
 			FROM a2a_proxies p ` + repositories.A2AProxyArtifactJoin + `
-			WHERE ` + proxied + `
-		) r WHERE r.artifact_uuid::text > ? ORDER BY r.artifact_uuid::text LIMIT ?`
-	var rows []struct {
-		OUID            string    `gorm:"column:ou_id"`
-		ArtifactUUID    uuid.UUID `gorm:"column:artifact_uuid"`
-		Handle          string    `gorm:"column:handle"`
-		EnvironmentUUID uuid.UUID `gorm:"column:environment_uuid"`
-	}
-	args := append(append(exposedArgs, proxiedArgs...), afterKey, limit)
-	if err := db.DB(ctx).Raw(query, args...).Scan(&rows).Error; err != nil {
+			WHERE ` + proxied
+	records, err := pageUnplacedRecords(ctx, db.DB(ctx), arms, append(exposedArgs, proxiedArgs...), afterKey, limit)
+	if err != nil {
 		return nil, fmt.Errorf("failed to list unplaced A2A agents: %w", err)
-	}
-	records := make([]reconcile.Record, 0, len(rows))
-	for _, r := range rows {
-		records = append(records, reconcile.Record{
-			ArtifactRef:     models.ArtifactRef{OUID: r.OUID, ArtifactUUID: r.ArtifactUUID, Kind: models.KindAgent, Handle: r.Handle},
-			EnvironmentUUID: r.EnvironmentUUID,
-			Key:             r.ArtifactUUID.String(),
-		})
 	}
 	return records, nil
 }
 
 // PlacedOn: an exposure or external agent proxy in env whose artifact is placed on gateway.
 func (k *A2AAgentKind) PlacedOn(ctx context.Context, tx *gorm.DB, env, gateway uuid.UUID) (bool, error) {
-	exposed, exposedArgs := reconcile.PlacedCondition(reconcile.RecordColumns{
-		OUID: "a.ou_id", ArtifactUUID: "a.uuid", EnvironmentUUID: "e.environment_uuid",
-	}, env, gateway)
+	exposed, exposedArgs := placedExposureArm(models.AgentExposureProtocolA2A, env, gateway)
 	proxied, proxiedArgs := reconcile.PlacedCondition(reconcile.RecordColumns{
 		OUID: "a.ou_id", ArtifactUUID: "a.uuid", EnvironmentUUID: "p.environment_uuid",
 	}, env, gateway)
-	return placedOn(ctx, tx, `SELECT 1 FROM platform_agent_exposures e JOIN artifacts a ON a.uuid = e.artifact_uuid
-			WHERE e.protocol = '`+string(models.AgentExposureProtocolA2A)+`' AND `+exposed+`
+	return placedOn(ctx, tx, exposed+`
 		UNION ALL
 		SELECT 1 FROM a2a_proxies p `+repositories.A2AProxyArtifactJoin+`
 			WHERE `+proxied, append(exposedArgs, proxiedArgs...))
@@ -338,18 +312,21 @@ func (k *A2AAgentKind) PlacedOn(ctx context.Context, tx *gorm.DB, env, gateway u
 
 // Targets is the environment's ingress gateway.
 func (k *A2AAgentKind) Targets(ctx context.Context, record reconcile.Record) (uuid.UUID, bool, error) {
-	gateway, err := findIngressGateway(gatewaysIn(ctx, k.gatewayRepo), record.OUID, record.EnvironmentUUID)
-	if err != nil || gateway == nil {
-		return uuid.Nil, false, err
-	}
-	return gateway.UUID, true, nil
+	return k.exposures.target(ctx, record)
 }
 
-// AfterLive queues the agent's card fetch once the gateway serves it. A platform card carries the component UUID
-// from the exposure, so the card reconciler can tell a replaced agent's card apart; an external card was queued
-// when its URL was registered and is only requeued.
+// AfterLive queues the agent's card fetch once the gateway serves it, then replays its API keys to that gateway.
 func (k *A2AAgentKind) AfterLive(ctx context.Context, tx *gorm.DB, p models.Placement, _ uuid.UUID) error {
-	exposure, err := k.exposureRepo.WithTx(tx).GetByArtifact(ctx, p.OUID, p.ArtifactUUID)
+	if err := k.queueCardFetch(ctx, tx, p); err != nil {
+		return err
+	}
+	return replayAgentKeys(ctx, tx, k.apiKeyRepo, k.events, p, time.Now())
+}
+
+// queueCardFetch: a platform card carries the component UUID from the exposure, so the card reconciler can tell a
+// replaced agent's card apart; an external card was queued when its URL was registered and is only requeued.
+func (k *A2AAgentKind) queueCardFetch(ctx context.Context, tx *gorm.DB, p models.Placement) error {
+	exposure, err := k.exposures.exposure(ctx, tx, p.ArtifactRef)
 	switch {
 	case err == nil:
 		return k.cardRepo.WithTx(tx).Enqueue(ctx, &models.A2AAgentCard{
@@ -377,7 +354,7 @@ func (k *A2AAgentKind) AfterLive(ctx context.Context, tx *gorm.DB, p models.Plac
 // Drifted reports a platform agent whose release binding now serves a URL other than the one its current
 // deployment was rendered with. A new release on the same URL needs no re-render, only its card re-fetched.
 func (k *A2AAgentKind) Drifted(ctx context.Context, p models.Placement) (string, bool, error) {
-	exposure, err := k.exposureRepo.GetByArtifact(ctx, p.OUID, p.ArtifactUUID)
+	exposure, err := k.exposures.exposure(ctx, nil, p.ArtifactRef)
 	if errors.Is(err, repositories.ErrPlatformAgentExposureNotFound) {
 		return "", false, nil
 	}
@@ -389,28 +366,36 @@ func (k *A2AAgentKind) Drifted(ctx context.Context, p models.Placement) (string,
 	if err != nil {
 		return "", false, err
 	}
-	deployed, err := k.deployedUpstream(ctx, p)
+	deployed, err := deployedUpstream(ctx, k.deploymentRepo, p, func(y A2AAgentDeploymentYAML) string {
+		return y.Spec.Upstream.URL
+	})
 	if err != nil {
 		return "", false, err
 	}
 	if rollout.ServiceURL != "" && rollout.ServiceURL != deployed {
-		return "the agent's endpoint changed", true, nil
+		return endpointChangedReason, true, nil
 	}
 	k.refetchCardOfNewRelease(ctx, exposure, rollout)
 	return "", false, nil
 }
 
-// deployedUpstream is the upstream URL the placement's current deployment was rendered with.
-func (k *A2AAgentKind) deployedUpstream(ctx context.Context, p models.Placement) (string, error) {
-	deployment, err := k.deploymentRepo.GetPullable(ctx, p.OUID, p.ArtifactUUID, p.GatewayUUID.String())
+// endpointChangedReason is why a placement is re-rendered when its release binding serves another URL.
+const endpointChangedReason = "the agent's endpoint changed"
+
+// deployedUpstream is the upstream URL the placement's current deployment was rendered with, read from its YAML
+// as T; empty when nothing is deployed.
+func deployedUpstream[T any](
+	ctx context.Context, repo repositories.DeploymentRepository, p models.Placement, upstream func(T) string,
+) (string, error) {
+	deployment, err := repo.GetPullable(ctx, p.OUID, p.ArtifactUUID, p.GatewayUUID.String())
 	if err != nil || deployment == nil {
 		return "", err
 	}
-	var content A2AAgentDeploymentYAML
+	var content T
 	if err := yaml.Unmarshal(deployment.Content, &content); err != nil {
 		return "", fmt.Errorf("failed to read the deployed agent's upstream: %w", err)
 	}
-	return content.Spec.Upstream.URL, nil
+	return upstream(content), nil
 }
 
 func (k *A2AAgentKind) refetchCardOfNewRelease(

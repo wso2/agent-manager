@@ -499,7 +499,9 @@ paths:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
         "409":
-          description: Agent already exists
+          description: >-
+            The agent already exists, or it is an API agent and its first environment has no ingress gateway
+            to serve it (code `ENVIRONMENT_HAS_NO_GATEWAY`)
           content:
             application/json:
               schema:
@@ -1037,6 +1039,14 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
+        "409":
+          description: >-
+            The agent is an API agent and the environment the build releases into has no ingress gateway to
+            serve it (code `ENVIRONMENT_HAS_NO_GATEWAY`)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
         "500":
           description: Internal server error
           content:
@@ -1261,6 +1271,14 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
+        "409":
+          description: >-
+            The agent is an API agent and the target environment has no ingress gateway to serve it (code
+            `ENVIRONMENT_HAS_NO_GATEWAY`)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
         "500":
           description: Internal server error
           content:
@@ -1421,7 +1439,9 @@ paths:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
         "409":
-          description: Deployment already in progress in target environment
+          description: >-
+            A deployment is already in progress in the target environment, or the target environment has no
+            ingress gateway to serve this API agent (code `ENVIRONMENT_HAS_NO_GATEWAY`)
           content:
             application/json:
               schema:
@@ -2423,6 +2443,8 @@ paths:
         - Gateway credentials are encrypted before storage
         - Credentials are never returned in API responses
         - Use a strong encryption key configured in GATEWAY_ENCRYPTION_KEY
+
+        A gateway serves exactly one environment: `environmentIds` takes at most one environment.
       operationId: registerGateway
       requestBody:
         required: true
@@ -2450,7 +2472,9 @@ paths:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
         "409":
-          description: Conflict - resource already exists
+          description: >-
+            Conflict - the gateway already exists, or `environmentIds` names more than one environment
+            (code `GATEWAY_ENVIRONMENT_FIXED`)
           content:
             application/json:
               schema:
@@ -2717,8 +2741,8 @@ paths:
         Create a mapping between a gateway and an environment.
 
         This makes the gateway available for use in the specified environment.
-        A gateway can be mapped to multiple environments, and an environment can have
-        multiple gateways.
+        A gateway serves exactly one environment: once mapped, it can be assigned again only to
+        that same environment, which succeeds without change.
       operationId: assignGatewayToEnvironment
       responses:
         "201":
@@ -2746,7 +2770,9 @@ paths:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
         "409":
-          description: Mapping already exists
+          description: >-
+            Conflict - the gateway is already mapped to another environment (code
+            `GATEWAY_ENVIRONMENT_FIXED`), or the environment already has an ingress gateway
           content:
             application/json:
               schema:
@@ -13587,6 +13613,20 @@ components:
           required:
             - name
             - displayName
+        gatewayStatus:
+          type: string
+          enum: [DEPLOYING, DEPLOYED, UNDEPLOYING, UNDEPLOYED, FAILED]
+          description: >-
+            The agent's deployment status on the environment's ingress gateway, the only place an API agent is
+            served. DEPLOYING until the gateway acknowledges the deployment, including while it waits for an input
+            (see gatewayStatusReason). An environment with no ingress gateway is UNDEPLOYED with gatewayStatusReason
+            "no gateway in this environment". Absent for an agent the gateway does not serve, and when the gateway
+            status could not be read.
+        gatewayStatusReason:
+          type: string
+          description: >-
+            Why gatewayStatus is what it is: the gateway's error code, DEPLOYMENT_TIMEOUT, what a deploy is waiting
+            for, or "no gateway in this environment". Empty when there is nothing to say.
       required:
         - imageId
         - status
@@ -16214,12 +16254,14 @@ components:
           example: true
         environmentIds:
           type: array
-          description: List of environment UUIDs to assign the gateway to during creation
+          description: >-
+            The environment UUID to assign the gateway to during creation. A gateway serves exactly one
+            environment, so at most one is allowed.
+          maxItems: 1
           items:
             type: string
           example:
             - 550e8400-e29b-41d4-a716-446655440000
-            - 550e8400-e29b-41d4-a716-446655440001
         orgId:
           type: string
           description: >-

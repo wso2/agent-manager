@@ -20,6 +20,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"slices"
 	"time"
 
 	"github.com/google/uuid"
@@ -251,7 +252,7 @@ func (r *DeploymentRepo) ListDeployedForDrift(ctx context.Context, kind string, 
 	query := r.db.WithContext(ctx).Table("deployment_status s").
 		Select("s.artifact_uuid, s.ou_id, s.gateway_uuid, a.kind, a.handle").
 		Joins("INNER JOIN artifacts a ON a.uuid = s.artifact_uuid AND a.ou_id = s.ou_id")
-	if kind == models.KindAgent {
+	if slices.Contains(models.AgentArtifactKinds, kind) {
 		query = query.Joins("INNER JOIN platform_agent_exposures e ON e.artifact_uuid = s.artifact_uuid")
 	}
 	var rows []struct {

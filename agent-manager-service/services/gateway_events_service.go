@@ -22,6 +22,7 @@ import (
 	"log/slog"
 
 	"github.com/google/uuid"
+	"gorm.io/gorm"
 
 	"github.com/wso2/agent-manager/agent-manager-service/eventhub"
 	"github.com/wso2/agent-manager/agent-manager-service/models"
@@ -64,6 +65,13 @@ func (s *GatewayEventsService) publish(gatewayID string, eventType string, actio
 // because the gateway bulk-syncs API keys on reconnect via the catalog endpoint.
 func (s *GatewayEventsService) BroadcastAPIKeyCreatedEvent(gatewayID string, event *models.APIKeyCreatedEvent) error {
 	return s.broadcastEvent(gatewayID, "apikey.created", "PROVISION", event.UUID, event)
+}
+
+// PublishAPIKeyCreatedTx writes the event in the caller's transaction, so it is delivered only if that commits.
+func (s *GatewayEventsService) PublishAPIKeyCreatedTx(ctx context.Context, tx *gorm.DB, gatewayID string, e *models.APIKeyCreatedEvent) error {
+	return s.publish(gatewayID, "apikey.created", "PROVISION", e.UUID, e, func(evt eventhub.Event) error {
+		return s.hub.PublishEventTx(ctx, tx, gatewayID, evt)
+	})
 }
 
 func (s *GatewayEventsService) BroadcastAPIKeyRevokedEvent(gatewayID string, event *models.APIKeyRevokedEvent) error {

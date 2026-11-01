@@ -49,9 +49,11 @@ type a2aFixture struct {
 	gateway   uuid.UUID
 	url       atomic.Value
 	hub       *recordingEventHub
+	events    *GatewayEventsService
 	core      *reconcile.Core
 	worker    *reconcile.Worker
 	publisher *A2APublisher
+	restKind  *RestAgentKind
 	// proxies serves external agents; external is the agent OpenChoreo reports, with no subtype (#2184).
 	proxies  A2AProxyService
 	external *models.AgentResponse
@@ -92,24 +94,28 @@ func newA2AFixture(t *testing.T) *a2aFixture {
 			return &models.AgentConfig{}, nil
 		},
 	}
+	f.events = NewGatewayEventsService(f.hub)
+	apiKeys := repositories.NewAPIKeyRepo(gormDB)
 	tx := NewTxRunner(gormDB)
 	exposures := repositories.NewPlatformAgentExposureRepository(gormDB)
 	proxies := repositories.NewA2AProxyRepository(gormDB)
 	cards := repositories.NewA2AAgentCardRepository(gormDB)
 	gateways := repositories.NewGatewayRepo(gormDB)
-	kind := NewA2AAgentKind(tx, exposures, proxies, cards, gateways, f.sync.repo, configs, oc, fetcher, nil, testLogger())
-	f.core = reconcile.NewCore(gormDB, f.sync.repo, f.hub, reconcile.Kinds{kind},
+	kind := NewA2AAgentKind(tx, NewPlatformAgentExposures(exposures, gateways, oc), proxies, cards, f.sync.repo, configs, oc, fetcher, apiKeys, f.events, nil, testLogger())
+	f.restKind = NewRestAgentKind(NewPlatformAgentExposures(exposures, gateways, oc), configs, f.sync.repo, apiKeys, f.events, testLogger())
+	f.core = reconcile.NewCore(gormDB, f.sync.repo, f.hub, reconcile.Kinds{kind, f.restKind},
 		reconcile.Config{Lease: time.Minute, AttemptBudget: 3}, slog.New(slog.DiscardHandler))
 	f.worker = reconcile.NewWorker(f.core, slog.New(slog.DiscardHandler))
-	f.publisher = NewA2APublisher(tx, exposures, proxies, cards, repositories.NewArtifactRepo(gormDB), f.sync.repo,
-		gateways, testLogger(), f.core, kind)
+	artifacts := repositories.NewArtifactRepo(gormDB)
+	f.publisher = NewA2APublisher(tx, exposures, proxies, cards, artifacts, f.sync.repo, testLogger(),
+		NewAgentExposurePublisher(tx, exposures, artifacts, f.sync.repo, gateways, f.core, testLogger()), kind)
 	f.proxies = NewA2AProxyService(tx, proxies, cards, repositories.NewAgentConfigRepo(gormDB),
 		repositories.NewArtifactRepo(gormDB), f.publisher, oc, make([]byte, 32), testLogger())
 	t.Cleanup(func() {
 		for _, table := range []string{"a2a_proxies", "a2a_agent_cards", "agent_configs"} {
 			gormDB.Exec(`DELETE FROM `+table+` WHERE ou_id = ?`, f.sync.ouID)
 		}
-		gormDB.Exec(`DELETE FROM artifacts WHERE ou_id = ? AND kind = ?`, f.sync.ouID, models.KindAgent)
+		gormDB.Exec(`DELETE FROM artifacts WHERE ou_id = ? AND kind IN ?`, f.sync.ouID, models.AgentArtifactKinds)
 	})
 	return f
 }
@@ -136,7 +142,7 @@ func (f *a2aFixture) proxy(t *testing.T) models.ArtifactRef {
 func (f *a2aFixture) externalArtifact(t *testing.T) models.ArtifactRef {
 	t.Helper()
 	artifact, err := agentEnvAPIArtifact(repositories.NewArtifactRepo(db.GetDB()), f.sync.ouID, "proj", f.external.Name,
-		f.env.String())
+		f.env.String(), models.KindAgent)
 	require.NoError(t, err)
 	return agentArtifactRef(artifact)
 }
@@ -161,16 +167,41 @@ func (f *a2aFixture) ack(t *testing.T, artifact models.ArtifactRef, action strin
 	require.True(t, applied)
 }
 
+// seedAPIKey stores a key of the artifact; a nil expiry never expires.
+func (f *a2aFixture) seedAPIKey(t *testing.T, artifact models.ArtifactRef, name, status string, expiresAt *time.Time) models.StoredAPIKey {
+	t.Helper()
+	stored := models.StoredAPIKey{
+		UUID: uuid.New(), Name: name, DisplayName: name, ArtifactUUID: artifact.ArtifactUUID, OUID: f.sync.ouID,
+		APIKeyHash: "hash-" + name, MaskedAPIKey: "****" + name, Status: status,
+		CreatedAt: time.Now(), UpdatedAt: time.Now(), ExpiresAt: expiresAt,
+	}
+	require.NoError(t, repositories.NewAPIKeyRepo(db.GetDB()).Upsert(&stored))
+	t.Cleanup(func() { db.GetDB().Exec(`DELETE FROM api_keys WHERE uuid = ?`, stored.UUID) })
+	return stored
+}
+
+// replayedKeyNames are the keys the hub was told to create, by name.
+func (f *a2aFixture) replayedKeyNames(t *testing.T) []string {
+	t.Helper()
+	var names []string
+	for _, evt := range f.hub.published {
+		if string(evt.EventType) == "apikey.created" {
+			names = append(names, createdPayload(t, evt).Name)
+		}
+	}
+	return names
+}
+
 // platformAgent is a platform agent's per-environment artifact and its publication key.
-func (f *a2aFixture) platformAgent(t *testing.T) (models.ArtifactRef, a2aPublicationKey) {
+func (f *a2aFixture) platformAgent(t *testing.T) (models.ArtifactRef, agentExposureKey) {
 	t.Helper()
 	name := "agent-" + uuid.NewString()[:8]
 	artifact, err := ensureAgentEnvAPIArtifact(db.GetDB(), repositories.NewArtifactRepo(db.GetDB()), f.sync.ouID, "proj",
-		name, f.env.String())
+		name, f.env.String(), models.KindAgent)
 	require.NoError(t, err)
 	t.Cleanup(func() { db.GetDB().Exec(`DELETE FROM artifacts WHERE uuid = ?`, artifact.UUID) })
 	agentUUID := uuid.New()
-	return agentArtifactRef(artifact), a2aPublicationKey{
+	return agentArtifactRef(artifact), agentExposureKey{
 		OUID: f.sync.ouID, ProjectName: "proj", AgentName: name, EnvironmentName: "dev", EnvironmentUUID: f.env,
 		AgentUUID: &agentUUID,
 	}
@@ -190,7 +221,7 @@ func TestPlatformA2AAgentWaitsForItsEndpointThenGoesLive(t *testing.T) {
 	artifact, key := f.platformAgent(t)
 	publish := func() {
 		require.NoError(t, f.publisher.tx(context.Background(), func(tx *gorm.DB) error {
-			return f.publisher.Publish(context.Background(), tx, key, artifact)
+			return f.publisher.publish(context.Background(), tx, key, artifact)
 		}))
 		require.NoError(t, f.worker.RunOnceFor(context.Background(), artifact.OUID, artifact.ArtifactUUID))
 	}
@@ -231,7 +262,7 @@ func TestPlatformA2AAgentWaitsForItsEndpointThenGoesLive(t *testing.T) {
 func TestPlacementPassPlacesAPlatformAgentFromItsExposure(t *testing.T) {
 	f := newA2AFixture(t)
 	artifact, key := f.platformAgent(t)
-	require.NoError(t, f.publisher.Expose(context.Background(), nil, key, artifact.ArtifactUUID))
+	require.NoError(t, f.publisher.exposure.Expose(context.Background(), nil, key, artifact.ArtifactUUID, models.AgentExposureProtocolA2A))
 	f.url.Store("http://agent.dev.svc:8080")
 
 	require.NoError(t, f.worker.PlaceEnv(context.Background(), f.sync.ouID, f.env))
@@ -248,7 +279,7 @@ func TestAgentDeleteIsAtomicPerEnvironment(t *testing.T) {
 	artifact, key := f.platformAgent(t)
 	f.url.Store("http://agent.dev.svc:8080")
 	require.NoError(t, f.publisher.tx(context.Background(), func(tx *gorm.DB) error {
-		return f.publisher.Publish(context.Background(), tx, key, artifact)
+		return f.publisher.publish(context.Background(), tx, key, artifact)
 	}))
 	require.NoError(t, f.worker.RunOnceFor(context.Background(), artifact.OUID, artifact.ArtifactUUID))
 	require.Equal(t, models.DeploymentStatusDeploying, f.row(t, artifact).Status)
@@ -388,7 +419,7 @@ func TestPlacementPassPlacesAnExternalAgentFromItsProxyAlone(t *testing.T) {
 		OUID: f.sync.ouID, ProjectName: "proj", AgentName: f.external.Name, EnvironmentName: "dev", EnvironmentUUID: f.env,
 	}))
 	_, err := ensureAgentEnvAPIArtifact(db.GetDB(), repositories.NewArtifactRepo(db.GetDB()), f.sync.ouID, "proj",
-		f.external.Name, f.env.String())
+		f.external.Name, f.env.String(), models.KindAgent)
 	require.NoError(t, err)
 	artifact := f.externalArtifact(t)
 	require.Nil(t, f.row(t, artifact))
@@ -417,33 +448,6 @@ func TestAnExternalAgentWithNoSubtypeIsPlacedThroughItsProxy(t *testing.T) {
 	assert.Contains(t, string(pulled.Content), "url: https://agent.example/team", "fronts the card's origin")
 }
 
-// A platform agent built without the A2A subtype is deployed with no exposure, so nothing places it on a gateway.
-func TestAPlatformAgentWithoutTheA2ASubtypeGetsNoExposure(t *testing.T) {
-	f := newA2AFixture(t)
-	artifact, key := f.platformAgent(t)
-	svc := &agentManagerService{
-		db: db.GetDB(), agentConfigRepo: repositories.NewAgentConfigRepo(db.GetDB()),
-		artifactRepo: repositories.NewArtifactRepo(db.GetDB()), a2aPublisher: f.publisher, logger: testLogger(),
-	}
-	chat := &models.AgentResponse{
-		UUID: uuid.NewString(), Name: key.AgentName, Provisioning: models.Provisioning{Type: "internal"},
-		Type: models.AgentType{Type: "agent-api", SubType: "chat-api"},
-	}
-	cfg := &models.AgentConfig{OUID: key.OUID, ProjectName: key.ProjectName, AgentName: key.AgentName, EnvironmentName: "dev"}
-
-	require.NoError(t, svc.recordAgentEnvDeploy(context.Background(), chat, cfg, f.env.String(), func(*gorm.DB) (*models.Artifact, error) {
-		return &models.Artifact{UUID: artifact.ArtifactUUID, OUID: key.OUID, Handle: artifact.Handle, Kind: models.KindAgent}, nil
-	}))
-	svc.enqueueCreatedA2AAgent(context.Background(), "chat-api", key.OUID, key.ProjectName, key.AgentName, "dev",
-		f.env.String(), &models.Artifact{UUID: artifact.ArtifactUUID})
-	require.NoError(t, f.worker.PlaceEnv(context.Background(), f.sync.ouID, f.env))
-
-	_, err := repositories.NewPlatformAgentExposureRepository(db.GetDB()).GetByArtifact(context.Background(), key.OUID,
-		artifact.ArtifactUUID)
-	assert.ErrorIs(t, err, repositories.ErrPlatformAgentExposureNotFound)
-	assert.Nil(t, f.row(t, artifact))
-}
-
 // GET a2a-proxy reports the environment's deployment: DEPLOYING while the deploy is owed and until the gateway acks
 // it, DEPLOYED after.
 func TestGetA2AProxyFollowsTheDeployment(t *testing.T) {
@@ -467,4 +471,26 @@ func TestGetA2AProxyFollowsTheDeployment(t *testing.T) {
 	assert.Equal(t, models.DeploymentStatusDeployed, got.Status)
 	assert.Empty(t, got.StatusReason)
 	assert.NotEmpty(t, got.GatewayURL)
+}
+
+// Only keys a gateway would still accept are replayed: not revoked, not expired.
+func TestA2AAgentKeyReplay(t *testing.T) {
+	f := newA2AFixture(t)
+	artifact, key := f.platformAgent(t)
+	f.url.Store("http://agent.dev.svc:8080")
+	require.NoError(t, f.publisher.tx(context.Background(), func(tx *gorm.DB) error {
+		return f.publisher.publish(context.Background(), tx, key, artifact)
+	}))
+	require.NoError(t, f.worker.RunOnceFor(context.Background(), artifact.OUID, artifact.ArtifactUUID))
+	yesterday, tomorrow := time.Now().Add(-24*time.Hour), time.Now().Add(24*time.Hour)
+	f.seedAPIKey(t, artifact, "live", "active", nil)
+	f.seedAPIKey(t, artifact, "later", "active", &tomorrow)
+	f.seedAPIKey(t, artifact, "expired", "active", &yesterday)
+	f.seedAPIKey(t, artifact, "inactive", "revoked", nil)
+	deleted := f.seedAPIKey(t, artifact, "deleted", "active", nil)
+	require.NoError(t, repositories.NewAPIKeyRepo(db.GetDB()).Delete(artifact.ArtifactUUID.String(), deleted.Name))
+
+	f.ack(t, artifact, "deploy")
+
+	assert.ElementsMatch(t, []string{"live", "later"}, f.replayedKeyNames(t))
 }
