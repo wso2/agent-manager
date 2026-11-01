@@ -74,8 +74,19 @@ type AgentThunderClient struct {
 	LastError       string     `gorm:"column:last_error;not null;default:''"`
 	LastAttemptedAt *time.Time `gorm:"column:last_attempted_at"`
 	NextRetryAt     *time.Time `gorm:"column:next_retry_at"`
-	CreatedAt       time.Time  `gorm:"column:created_at;not null;default:NOW()"`
-	UpdatedAt       time.Time  `gorm:"column:updated_at;not null;default:NOW()"`
+	// PromotionSource names the environment this binding's identity is promoted
+	// from, for an environment whose identity is created by promotion into it.
+	// Empty means the identity is created directly in this environment. The
+	// reconciler promotes from here only once that environment's own binding is
+	// completed, which orders a pipeline's promotions.
+	PromotionSource string `gorm:"column:promotion_source;not null;default:''"`
+	// SyncAfter is when the carried set of a promoted binding is re-promoted: the
+	// agent's roles, groups or MCP resource servers changed after the binding was
+	// completed. A later change moves it later, so a burst of changes is one
+	// promotion. Nil means nothing is waiting.
+	SyncAfter *time.Time `gorm:"column:sync_after"`
+	CreatedAt time.Time  `gorm:"column:created_at;not null;default:NOW()"`
+	UpdatedAt time.Time  `gorm:"column:updated_at;not null;default:NOW()"`
 }
 
 func (AgentThunderClient) TableName() string { return "agent_thunder_clients" }

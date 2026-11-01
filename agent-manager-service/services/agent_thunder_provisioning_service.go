@@ -183,6 +183,12 @@ type EnvThunderEndpointResolverSetter interface {
 	SetEnvThunderEndpointResolver(thundersvc.EnvThunderEndpointResolver)
 }
 
+// EnvThunderResolverDecoratorSetter applies the same identity backend routing
+// to background AgentID provisioning as to request-driven identity operations.
+type EnvThunderResolverDecoratorSetter interface {
+	SetEnvThunderResolverDecorator(thundersvc.EnvThunderResolverDecorator) error
+}
+
 type agentThunderEndpointResolver struct {
 	mu       sync.RWMutex
 	resolver thundersvc.EnvThunderEndpointResolver
@@ -234,8 +240,17 @@ type agentThunderProvisioningService struct {
 	logger             *slog.Logger
 	endpointResolver   *agentThunderEndpointResolver
 	bindingLocks       keyedMutex
+	// promotionManager carries an AgentID into environments whose identity is
+	// created by promotion. Optional: nil means no such environment is supported.
+	promotionMu      sync.RWMutex
+	promotionManager IdentityPromotionManager
+	mcpResolver      AgentMCPResourceServerResolver
+	resourceResolver AgentIdentityResourceResolver
 	// awaitTimeout is awaitEnvProvisionTimeout; a field so tests can shorten it.
 	awaitTimeout time.Duration
+	// triggerRunner runs the background work of an identity sync trigger. nil runs
+	// it on its own goroutine; tests run it inline.
+	triggerRunner func(func())
 }
 
 func (s *agentThunderProvisioningService) SetEnvThunderEndpointResolver(resolver thundersvc.EnvThunderEndpointResolver) {
@@ -244,7 +259,25 @@ func (s *agentThunderProvisioningService) SetEnvThunderEndpointResolver(resolver
 	}
 }
 
-var _ EnvThunderEndpointResolverSetter = (*agentThunderProvisioningService)(nil)
+func (s *agentThunderProvisioningService) SetEnvThunderResolverDecorator(decorator thundersvc.EnvThunderResolverDecorator) error {
+	if decorator == nil {
+		return nil
+	}
+	resolver, err := decorator(s.envResolver)
+	if err != nil {
+		return err
+	}
+	if resolver == nil {
+		return errors.New("identity resolver decorator returned nil")
+	}
+	s.envResolver = resolver
+	return nil
+}
+
+var (
+	_ EnvThunderEndpointResolverSetter  = (*agentThunderProvisioningService)(nil)
+	_ EnvThunderResolverDecoratorSetter = (*agentThunderProvisioningService)(nil)
+)
 
 // agentIdentitySecretLocation returns the secretmanagersvc.SecretLocation for
 // one binding's stored credential. Deterministic from (org, project, env,
@@ -536,6 +569,15 @@ func (s *agentThunderProvisioningService) ProvisionForAgent(
 ) {
 	bindings := make([]models.AgentThunderClient, 0, len(envNames))
 	for _, env := range envNames {
+		// A placement lookup failure still writes the binding: the row is what the
+		// reconciler heals from, and the attempt reports the same failure.
+		byPromotion, placementErr := s.IdentityCreatedByPromotion(ctx, ouID, env)
+		if placementErr != nil {
+			s.logger.Warn("Failed to resolve agent identity placement; provisioning as usual", "agentName", agentName, "env", env, "error", placementErr)
+		} else if byPromotion {
+			s.logger.Info("Agent identity for this environment is created by promotion", "agentName", agentName, "env", env)
+			continue
+		}
 		b := models.AgentThunderClient{
 			OUID:             ouID,
 			ProjectName:      projectName,
@@ -617,6 +659,12 @@ func (s *agentThunderProvisioningService) ProvisionForEnvironmentIfMissing(
 	if !errors.Is(err, repositories.ErrAgentThunderClientNotFound) {
 		return false, fmt.Errorf("check existing agent thunder binding: %w", err)
 	}
+	// Such an environment gets no binding from here: say so, instead of letting
+	// the caller wait for a row that will never be written.
+	if byPromotion, placementErr := s.IdentityCreatedByPromotion(ctx, ouID, envName); placementErr == nil && byPromotion {
+		return false, fmt.Errorf("%w: the identity for %s is created by promoting the agent identity into it",
+			thundersvc.ErrIdentityEnvironmentUnsupported, envName)
+	}
 
 	s.ProvisionForAgent(ctx, ouID, projectName, agentName, ownership, []string{envName}, requestedBy, "")
 	return false, nil
@@ -666,6 +714,13 @@ func (s *agentThunderProvisioningService) RetryProvisioning(ctx context.Context,
 }
 
 func (s *agentThunderProvisioningService) AttemptProvision(ctx context.Context, binding models.AgentThunderClient) {
+	// A binding that carries its identity by promotion has nothing to create in
+	// its environment: it is promoted from the one before it. That path takes the
+	// binding lock itself, only while it carries the identity.
+	if binding.PromotionSource != "" {
+		s.attemptPromotion(ctx, binding)
+		return
+	}
 	// Held for the entire attempt so this can't interleave its Thunder
 	// RegenerateAgentSecret/OpenBao Store calls with a concurrent
 	// RegenerateSecret/RevokeSecret on the same binding. ctx here is normally
@@ -781,6 +836,13 @@ func (s *agentThunderProvisioningService) AttemptProvision(ctx context.Context, 
 			return
 		}
 	}
+	if activator, ok := thunderClient.(thundersvc.EnvironmentIdentityActivator); ok {
+		if err := activator.ActivateAgentIdentity(ctx, thunderAgentID); err != nil {
+			s.recordFailureWithSecret(ctx, binding, thunderAgentID, clientID, secretRefPath,
+				fmt.Errorf("activate agent identity on environment gateway: %w", err))
+			return
+		}
+	}
 
 	if err := s.repo.UpdateAfterAttempt(ctx, binding.ID, repositories.AgentThunderAttemptUpdate{
 		Status:          models.AgentThunderStatusCompleted,
@@ -831,6 +893,12 @@ func (s *agentThunderProvisioningService) AttemptProvision(ctx context.Context, 
 // corresponding field nil (unchanged) rather than clobbering an
 // already-stored value with a blank one.
 func (s *agentThunderProvisioningService) recordFailure(ctx context.Context, binding models.AgentThunderClient, resolvedAgentID, resolvedClientID string, cause error) {
+	s.recordFailureWithSecret(ctx, binding, resolvedAgentID, resolvedClientID, "", cause)
+}
+
+func (s *agentThunderProvisioningService) recordFailureWithSecret(ctx context.Context, binding models.AgentThunderClient,
+	resolvedAgentID, resolvedClientID, secretRefPath string, cause error,
+) {
 	attemptsSoFar := binding.AttemptCount + 1
 	exhausted := attemptsSoFar >= maxProvisionAttempts
 
@@ -850,6 +918,9 @@ func (s *agentThunderProvisioningService) recordFailure(ctx context.Context, bin
 	}
 	if resolvedClientID != "" {
 		update.ThunderClientID = &resolvedClientID
+	}
+	if secretRefPath != "" {
+		update.SecretRefPath = &secretRefPath
 	}
 	if exhausted {
 		update.Status = models.AgentThunderStatusFailed
@@ -885,6 +956,10 @@ func (s *agentThunderProvisioningService) recordFailure(ctx context.Context, bin
 // the UI. The two Thunder sentinels get distinct messages since they call for
 // different remediation; everything else collapses to one generic message.
 func userFacingProvisioningError(cause error) string {
+	// A typed promotion refusal carries a message written for the user.
+	if note, _ := promotionNoteOf(cause); note != "" {
+		return note
+	}
 	switch {
 	case errors.Is(cause, thundersvc.ErrThunderNotProvisioned):
 		return "Identity provider is not set up for this environment yet."
@@ -913,12 +988,20 @@ func (s *agentThunderProvisioningService) RegenerateSecret(ctx context.Context, 
 		return "", "", "", fmt.Errorf("%w: %s in %s", utils.ErrAgentIdentityNotProvisioned, agentName, envName)
 	}
 
-	thunderClient, err := ResolveEnvThunderClient(ctx, s.envResolver, ouID, envName)
+	byPromotion, err := s.IdentityCreatedByPromotion(ctx, ouID, envName)
 	if err != nil {
-		return "", "", "", err
+		return "", "", "", fmt.Errorf("resolve identity placement for %s: %w", envName, err)
 	}
-
-	newSecret, err := thunderClient.RegenerateAgentSecret(ctx, binding.ThunderAgentID)
+	var thunderClient thundersvc.ThunderClient
+	var newSecret string
+	if byPromotion {
+		newSecret, err = s.rotatePromotedSecret(ctx, projectName, binding)
+	} else {
+		if thunderClient, err = ResolveEnvThunderClient(ctx, s.envResolver, ouID, envName); err != nil {
+			return "", "", "", err
+		}
+		newSecret, err = thunderClient.RegenerateAgentSecret(ctx, binding.ThunderAgentID)
+	}
 	if err != nil {
 		return "", "", "", err
 	}
@@ -926,12 +1009,23 @@ func (s *agentThunderProvisioningService) RegenerateSecret(ctx context.Context, 
 	// External agent secrets are only returned to the caller and never persisted.
 	// Internal agent secrets must be stored to be injected into the workload.
 	if binding.ProvisioningType != models.AgentProvisioningTypeExternal {
-		secretPath, err := s.storeCredential(ctx, ouID, projectName, agentName, envName, binding.ThunderClientID, newSecret)
+		secretPath, err := s.upsertCredential(ctx, ouID, projectName, agentName, envName, binding.ThunderClientID, newSecret)
 		if err != nil {
 			return "", "", "", fmt.Errorf("store regenerated secret: %w", err)
 		}
-		if err := s.repo.UpdateSecretRef(ctx, binding.ID, secretPath); err != nil {
-			return "", "", "", fmt.Errorf("record regenerated secret location: %w", err)
+		if secretPath == "" {
+			// Never overwrite a known reference with an empty one.
+			secretPath = binding.SecretRefPath
+		}
+		if secretPath != "" {
+			if err := s.repo.UpdateSecretRef(ctx, binding.ID, secretPath); err != nil {
+				return "", "", "", fmt.Errorf("record regenerated secret location: %w", err)
+			}
+		}
+	}
+	if activator, ok := thunderClient.(thundersvc.EnvironmentIdentityActivator); ok {
+		if err := activator.ActivateAgentIdentity(ctx, binding.ThunderAgentID); err != nil {
+			return "", "", "", fmt.Errorf("activate regenerated agent secret: %w", err)
 		}
 	}
 
@@ -950,6 +1044,22 @@ func (s *agentThunderProvisioningService) GetAgentRoles(ctx context.Context, ouI
 	}
 	if binding.ThunderAgentID == "" {
 		return nil, fmt.Errorf("%w: %s in %s", utils.ErrAgentIdentityNotProvisioned, agentName, envName)
+	}
+
+	byPromotion, err := s.IdentityCreatedByPromotion(ctx, ouID, envName)
+	if err != nil {
+		return nil, fmt.Errorf("resolve identity placement for %s: %w", envName, err)
+	}
+	if byPromotion {
+		listing, err := s.listPromotedEnvironment(ctx, ouID, projectName, envName, binding.ThunderAgentID)
+		if err != nil {
+			return nil, err
+		}
+		roles := make([]thundersvc.ThunderRole, 0, len(listing.Roles))
+		for _, role := range listing.Roles {
+			roles = append(roles, thundersvc.ThunderRole{ID: role.ID, Name: role.Name})
+		}
+		return roles, nil
 	}
 
 	client, err := ResolveEnvThunderIdentity(ctx, s.envResolver, ouID, envName)
@@ -976,6 +1086,22 @@ func (s *agentThunderProvisioningService) GetAgentGroups(ctx context.Context, ou
 	}
 	if binding.ThunderAgentID == "" {
 		return nil, fmt.Errorf("%w: %s in %s", utils.ErrAgentIdentityNotProvisioned, agentName, envName)
+	}
+
+	byPromotion, err := s.IdentityCreatedByPromotion(ctx, ouID, envName)
+	if err != nil {
+		return nil, fmt.Errorf("resolve identity placement for %s: %w", envName, err)
+	}
+	if byPromotion {
+		listing, err := s.listPromotedEnvironment(ctx, ouID, projectName, envName, binding.ThunderAgentID)
+		if err != nil {
+			return nil, err
+		}
+		groups := make([]thundersvc.ThunderGroup, 0, len(listing.Groups))
+		for _, group := range listing.Groups {
+			groups = append(groups, thundersvc.ThunderGroup{ID: group.ID, Name: group.Name})
+		}
+		return groups, nil
 	}
 
 	client, err := ResolveEnvThunderIdentity(ctx, s.envResolver, ouID, envName)
@@ -1013,15 +1139,30 @@ func (s *agentThunderProvisioningService) RevokeSecret(ctx context.Context, ouID
 		return "", fmt.Errorf("%w: %s in %s", utils.ErrAgentIdentityNotProvisioned, agentName, envName)
 	}
 
-	thunderClient, err := ResolveEnvThunderClient(ctx, s.envResolver, ouID, envName)
+	byPromotion, err := s.IdentityCreatedByPromotion(ctx, ouID, envName)
 	if err != nil {
-		return "", err
+		return "", fmt.Errorf("resolve identity placement for %s: %w", envName, err)
 	}
 
 	// Rotating without storing the result is deliberate: revoke is a kill
 	// switch, not "give me a fresh usable one" — that is what regenerate is for.
-	if _, err := thunderClient.RegenerateAgentSecret(ctx, binding.ThunderAgentID); err != nil {
-		return "", fmt.Errorf("revoke (rotate) secret: %w", err)
+	if byPromotion {
+		if _, err := s.rotatePromotedSecret(ctx, projectName, binding); err != nil {
+			return "", fmt.Errorf("revoke (rotate) secret: %w", err)
+		}
+	} else {
+		thunderClient, err := ResolveEnvThunderClient(ctx, s.envResolver, ouID, envName)
+		if err != nil {
+			return "", err
+		}
+		if _, err := thunderClient.RegenerateAgentSecret(ctx, binding.ThunderAgentID); err != nil {
+			return "", fmt.Errorf("revoke (rotate) secret: %w", err)
+		}
+		if activator, ok := thunderClient.(thundersvc.EnvironmentIdentityActivator); ok {
+			if err := activator.ActivateAgentIdentity(ctx, binding.ThunderAgentID); err != nil {
+				return "", fmt.Errorf("activate revoked agent secret: %w", err)
+			}
+		}
 	}
 
 	if binding.SecretRefPath != "" {
@@ -1213,8 +1354,16 @@ func (s *agentThunderProvisioningService) DeleteAllBindings(ctx context.Context,
 				s.logger.Warn("Env-thunder resolver error during agent binding cleanup", "ouID", ouID, "bindingID", b.ID, "agentName", agentName, "env", b.EnvironmentName, "error", err)
 				return
 			}
-			if _, err := thunderClient.DeleteAgentIdentity(ctx, b.ThunderAgentID); err != nil {
+			deleted, err := thunderClient.DeleteAgentIdentity(ctx, b.ThunderAgentID)
+			if err != nil {
 				s.logger.Warn("Failed to delete Thunder agent identity", "ouID", ouID, "bindingID", b.ID, "agentName", agentName, "env", b.EnvironmentName, "error", err)
+			} else if deleted {
+				if activator, ok := thunderClient.(thundersvc.EnvironmentIdentityActivator); ok {
+					if err := activator.ActivateAgentIdentity(ctx, b.ThunderAgentID); err != nil {
+						s.logger.Warn("Failed to activate agent identity deletion", "ouID", ouID, "bindingID", b.ID,
+							"agentName", agentName, "env", b.EnvironmentName, "error", err)
+					}
+				}
 			}
 		}()
 	}

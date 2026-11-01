@@ -347,8 +347,59 @@ func (s *mcpProxyScopeService) cleanupDeletedScope(ctx context.Context, ouID str
 			if rsID == "" {
 				continue // RS never projected into this env — nothing to sweep
 			}
-			sweepRolePermission(ctx, s.logger, client, name, scopeStr)
+			if activator, ok := client.(thundersvc.EnvironmentIdentityActivator); ok {
+				if err := activator.ActivateMCPResourceServer(ctx, rsID); err != nil {
+					s.logger.Warn("scope cleanup: action deletion not active on gateway", "env", name,
+						"scope", scopeStr, "error", err)
+					continue
+				}
+			}
+			stripped := sweepRolePermission(ctx, s.logger, client, name, scopeStr)
+			finishRoleSweep(ctx, s.logger, client, s.identitySyncTrigger(), ouID, name, stripped)
 		}
+	}
+}
+
+// identitySyncProvider is implemented by a service that holds the trigger telling
+// the identity platform's promotion about changed roles.
+type identitySyncProvider interface {
+	identitySyncTrigger() AgentIdentitySyncTrigger
+}
+
+// identitySyncTrigger returns the trigger of the proxy service the scope service
+// works through, or nil when there is none.
+func (s *mcpProxyScopeService) identitySyncTrigger() AgentIdentitySyncTrigger {
+	if provider, ok := s.proxySvc.(identitySyncProvider); ok {
+		return provider.identitySyncTrigger()
+	}
+	return nil
+}
+
+// finishRoleSweep activates the role writes a sweep made, so the environment
+// gateway runs them, and then tells the trigger which roles changed, so the agents
+// that hold them are promoted again. Nothing is done when no role was stripped.
+func finishRoleSweep(ctx context.Context, logger *slog.Logger, client thundersvc.EnvIdentityClient,
+	trigger AgentIdentitySyncTrigger, ouID, envName string, strippedRoleIDs []string,
+) {
+	if len(strippedRoleIDs) == 0 {
+		return
+	}
+	if activator, ok := client.(thundersvc.EnvironmentIdentityChangeActivator); ok {
+		if err := activator.ActivateIdentityChange(ctx); err != nil {
+			logger.Warn("scope cleanup: role changes not active on gateway", "env", envName, "error", err)
+			return
+		}
+	}
+	if trigger == nil {
+		return
+	}
+	if len(strippedRoleIDs) > maxSyncRolesPerTrigger {
+		logger.Warn("scope cleanup: more roles changed than one change syncs; the rest wait for their next change",
+			"env", envName, "roles", len(strippedRoleIDs), "limit", maxSyncRolesPerTrigger)
+		strippedRoleIDs = strippedRoleIDs[:maxSyncRolesPerTrigger]
+	}
+	for _, roleID := range strippedRoleIDs {
+		trigger.RoleChanged(ctx, ouID, envName, roleID)
 	}
 }
 
@@ -359,14 +410,16 @@ func (s *mcpProxyScopeService) cleanupDeletedScope(ctx context.Context, ouID str
 // so both MCPProxyService.Delete and mcpProxyScopeService.cleanupDeletedScope can
 // share it without duplicating the env-Thunder-OU-trap-prone ListRoles walk.
 // ListRoles("") pages all roles WITH permissions populated, so filtering is
-// in-memory (same pattern as GetGroupRoles, identity_client.go).
-func sweepRolePermission(ctx context.Context, logger *slog.Logger, client thundersvc.EnvIdentityClient, envName, scopeStr string) {
+// in-memory (same pattern as GetGroupRoles, identity_client.go). It returns the ids
+// of the roles it stripped the scope from.
+func sweepRolePermission(ctx context.Context, logger *slog.Logger, client thundersvc.EnvIdentityClient, envName, scopeStr string) []string {
 	const pageSize = 50
+	var stripped []string
 	for offset := 0; ; {
 		roles, total, err := client.ListRoles(ctx, "", offset, pageSize)
 		if err != nil {
 			logger.Warn("scope cleanup: role sweep aborted", "env", envName, "scope", scopeStr, "error", err)
-			return
+			return stripped
 		}
 		for _, role := range roles {
 			for _, grp := range role.Permissions {
@@ -377,12 +430,16 @@ func sweepRolePermission(ctx context.Context, logger *slog.Logger, client thunde
 					ResourceServerID: grp.ResourceServerID, Permissions: []string{scopeStr},
 				}); err != nil {
 					logger.Warn("scope cleanup: permission strip failed", "env", envName, "role", role.ID, "scope", scopeStr, "error", err)
+					continue
+				}
+				if !slices.Contains(stripped, role.ID) {
+					stripped = append(stripped, role.ID)
 				}
 			}
 		}
 		offset += len(roles)
 		if offset >= total || len(roles) == 0 {
-			return
+			return stripped
 		}
 	}
 }

@@ -91,6 +91,7 @@ type AppParams struct {
 	RepositoryService             services.RepositoryService
 	AgentTokenManagerService      services.AgentTokenManagerService
 	AgentIdentityInjectionService services.AgentIdentityInjectionService
+	MCPProxyService               *services.MCPProxyService
 	EnvironmentService            services.EnvironmentService
 
 	// Clients
