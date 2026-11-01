@@ -82,7 +82,7 @@ func (h *DeploymentAckHandler) handleDeploymentAck(gatewayID string, payload jso
 	}
 
 	// Only process acks for deployable gateway artifacts with current deployment state.
-	// The gateway sends "agentproxy" for Agent acks up to v2026.09.24 and "Agent" after.
+	// Gateways before 20261031-r1 send "agentproxy" for Agent acks; 20261031-r1 and later send "Agent".
 	switch ack.ResourceType {
 	case "llmprovider", "llmproxy", "mcpproxy", "agentproxy", "Agent", "api":
 		applied, err := h.deploymentRepo.ApplyAck(context.Background(), gatewayID, ack, h.afterLive)
