@@ -25,6 +25,7 @@ import (
 	"time"
 
 	"github.com/wso2/agent-manager/agent-manager-service/audit"
+	"github.com/wso2/agent-manager/agent-manager-service/clients/thundersvc"
 	"github.com/wso2/agent-manager/agent-manager-service/config"
 	"github.com/wso2/agent-manager/agent-manager-service/middleware"
 	"github.com/wso2/agent-manager/agent-manager-service/middleware/growthanalytics"
@@ -98,6 +99,17 @@ func handleCommonErrors(w http.ResponseWriter, err error, fallbackMsg string) {
 	case utils.IsValidationError(err) != nil:
 		utils.WriteValidationErrorResponse(w, err)
 
+	// A typed identity promotion refusal. It must precede every sentinel case:
+	// its cause can wrap one, and the answer is decided by the kind alone.
+	case asIdentityPromotionError(err) != nil:
+		writeIdentityPromotionError(w, asIdentityPromotionError(err))
+
+	// The agent's identity in the target environment is not completed yet. Both
+	// texts are written for the user.
+	case asAgentIdentityNotReadyError(err) != nil:
+		notReady := asAgentIdentityNotReadyError(err)
+		utils.WriteErrorResponseWithReason(w, http.StatusConflict, notReady.Message, notReady.Reason, utils.ErrCodeConflict)
+
 	// Not found errors
 	case errors.Is(err, utils.ErrOrganizationNotFound):
 		utils.WriteErrorResponseWithReason(w, http.StatusNotFound,
@@ -134,6 +146,17 @@ func handleCommonErrors(w http.ResponseWriter, err error, fallbackMsg string) {
 			"Source agent not found", err.Error(), utils.ErrCodeNotFound)
 
 	// Conflict errors
+	case errors.Is(err, utils.ErrIdentityHomeMismatch):
+		// A fixed reason: nothing the user can retry, and the chain names environments.
+		utils.WriteErrorResponseWithReason(w, http.StatusConflict,
+			"Identity is not managed in this project's first environment",
+			"This project's first environment is not where identity is managed", utils.ErrCodeConflict)
+	case errors.Is(err, thundersvc.ErrIdentityCapabilityUnavailable):
+		// A fixed reason: the wrapped chain can name internal components.
+		utils.WriteErrorResponseWithReason(w, http.StatusConflict,
+			"Identity management is not available for this environment",
+			"The agent identity for this environment is created by promoting the agent identity into it",
+			utils.ErrCodeConflict)
 	case errors.Is(err, utils.ErrAgentAlreadyExists):
 		utils.WriteErrorResponseWithReason(w, http.StatusConflict,
 			"Agent already exists", err.Error(), utils.ErrCodeAgentAlreadyExists)
@@ -230,6 +253,22 @@ func handleCommonErrors(w http.ResponseWriter, err error, fallbackMsg string) {
 		utils.WriteErrorResponseWithReason(w, http.StatusInternalServerError,
 			fallbackMsg, "Internal server error", utils.ErrCodeInternalError)
 	}
+}
+
+func asAgentIdentityNotReadyError(err error) *utils.AgentIdentityNotReadyError {
+	var typed *utils.AgentIdentityNotReadyError
+	if errors.As(err, &typed) {
+		return typed
+	}
+	return nil
+}
+
+func asIdentityPromotionError(err error) *services.IdentityPromotionError {
+	var typed *services.IdentityPromotionError
+	if errors.As(err, &typed) {
+		return typed
+	}
+	return nil
 }
 
 func (c *agentController) GetAgent(w http.ResponseWriter, r *http.Request) {
