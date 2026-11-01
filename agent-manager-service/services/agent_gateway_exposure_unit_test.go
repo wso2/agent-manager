@@ -195,16 +195,21 @@ func TestCreateAttachesNoRouteTraits(t *testing.T) {
 	}
 }
 
-func TestPromoteRestAgentExposes(t *testing.T) {
-	s, promoted := promoteAgentTestFixture(t, []client.EnvVar{{Key: client.EnvVarAgentIDClientID, Value: "staging-client-id"}}, nil)
-	h := newGatewayExposureHarness(t)
+// promoteRestAgentHarness is PromoteAgent of a chat-api agent from dev to staging, whose dev release carries
+// sourceTraits and whose staging artifact is a row of kind; promoted holds the trait env configs PromoteComponent got.
+func promoteRestAgentHarness(t *testing.T, kind string, sourceTraits ...client.TraitType) (
+	s *agentManagerService, h *gatewayExposureHarness, artifact *models.Artifact, promoted *map[string]interface{},
+) {
+	t.Helper()
+	s, called := promoteAgentTestFixture(t, []client.EnvVar{{Key: client.EnvVarAgentIDClientID, Value: "staging-client-id"}}, nil)
+	h = newGatewayExposureHarness(t)
 	s.agentConfigRepo = &repomocks.AgentConfigRepositoryMock{
 		GetFunc: func(context.Context, string, string, string, string) (*models.AgentConfig, error) {
 			return &models.AgentConfig{}, nil
 		},
 	}
 	h.wire(t, s)
-	artifact := h.existingArtifact(models.KindRestAPI)
+	artifact = h.existingArtifact(kind)
 	stagingUUID := uuid.New()
 	oc := s.ocClient.(*clientmocks.OpenChoreoClientMock)
 	oc.GetComponentFunc = func(context.Context, string, string, string) (*models.AgentResponse, error) {
@@ -213,34 +218,104 @@ func TestPromoteRestAgentExposes(t *testing.T) {
 	oc.GetEnvironmentFunc = func(_ context.Context, _, envName string) (*models.EnvironmentResponse, error) {
 		return &models.EnvironmentResponse{Name: envName, UUID: stagingUUID.String()}, nil
 	}
-	var traitEnvConfigs map[string]interface{}
+	oc.GetReleaseBindingTraitsFunc = func(_ context.Context, _, _, environment string) ([]client.TraitType, bool, error) {
+		assert.Equal(t, "dev", environment, "a promote follows the source environment's release")
+		return sourceTraits, true, nil
+	}
+	promoted = new(map[string]interface{})
 	oc.PromoteComponentFunc = func(_ context.Context, _, _, _, _, _ string, _ []client.EnvVar, _ []client.FileVar,
 		traits, _ map[string]interface{},
 	) error {
-		*promoted = true
-		traitEnvConfigs = traits
+		*called = true
+		*promoted = traits
 		return nil
 	}
+	return s, h, artifact, promoted
+}
 
-	err := s.PromoteAgent(tierGrantedCtx(t), "acme", "proj1", "my-agent", &spec.PromoteAgentRequest{
+func promoteToStaging(t *testing.T, s *agentManagerService) error {
+	t.Helper()
+	return s.PromoteAgent(tierGrantedCtx(t), "acme", "proj1", "my-agent", &spec.PromoteAgentRequest{
 		SourceEnvironment: "dev", TargetEnvironment: "staging",
 	})
+}
 
-	require.NoError(t, err)
-	assert.NotContains(t, traitEnvConfigs, "my-agent-"+string(client.TraitAPIManagement))
+// apiConfigurationEnvConfig is the api-configuration trait's env config in traitEnvConfigs, or nil.
+func apiConfigurationEnvConfig(traitEnvConfigs map[string]interface{}) map[string]interface{} {
+	cfg, _ := traitEnvConfigs["my-agent-"+string(client.TraitAPIManagement)].(map[string]interface{})
+	return cfg
+}
+
+func TestPromoteGatewayPushedExposes(t *testing.T) {
+	s, h, artifact, promoted := promoteRestAgentHarness(t, models.KindRestAPI, client.TraitOTELInstrumentation)
+
+	require.NoError(t, promoteToStaging(t, s))
+
+	assert.Nil(t, apiConfigurationEnvConfig(*promoted))
 	exposure := h.exposed(t)
 	assert.Equal(t, models.AgentExposureProtocolREST, exposure.Protocol)
-	assert.Equal(t, stagingUUID, exposure.EnvironmentUUID)
 	assert.Equal(t, artifact.UUID, exposure.ArtifactUUID)
 	require.Len(t, h.pending, 1)
 	assert.Equal(t, models.KindRestAPI, h.pending[0].Kind)
 	assert.Len(t, h.txConfigs.UpsertCalls(), 1)
 }
 
-// deploySettingsHarness is UpdateAgentDeploySettings for a chat-api agent whose RestApi is placed on the gateway.
+// noPlacements makes the target hold no gateway-pushed release: the legacy promote's teardown finds nothing.
+func (h *gatewayExposureHarness) noPlacements() {
+	h.txDeployments.PlacedGatewaysFunc = func(context.Context, string, uuid.UUID) ([]string, error) { return nil, nil }
+	h.txExposures.DeleteForAgentEnvFunc = func(context.Context, string, string, string, uuid.UUID) error { return nil }
+}
+
+func TestPromoteLegacyRESTStaysLegacy(t *testing.T) {
+	s, h, artifact, promoted := promoteRestAgentHarness(t, models.KindAgent, client.TraitAPIManagement, client.TraitOTELInstrumentation)
+	h.noPlacements()
+
+	require.NoError(t, promoteToStaging(t, s))
+
+	apiConfig := apiConfigurationEnvConfig(*promoted)
+	require.NotNil(t, apiConfig, "PromoteComponent gets the api-configuration env config")
+	assert.Equal(t, artifact.UUID.String(), apiConfig["artifactId"])
+	assert.Empty(t, h.txExposures.UpsertCalls(), "no exposure is written")
+	assert.Empty(t, h.pending)
+	assert.Len(t, h.txConfigs.UpsertCalls(), 1)
+}
+
+func TestPromoteLegacyOverGatewayPushedTearsDown(t *testing.T) {
+	s, h, artifact, promoted := promoteRestAgentHarness(t, models.KindRestAPI, client.TraitAPIManagement)
+	h.txDeployments.PlacedGatewaysFunc = func(context.Context, string, uuid.UUID) ([]string, error) {
+		return []string{h.gateway.UUID.String()}, nil
+	}
+	h.txDeployments.WithTxFunc = func(*gorm.DB) repositories.DeploymentRepository { return h.txDeployments }
+	h.txDeployments.GetStatusRecordFunc = func(context.Context, models.Placement) (*models.DeploymentStatusRecord, error) {
+		return &models.DeploymentStatusRecord{PerformedAt: models.NewPerformedAt(time.Now())}, nil
+	}
+	h.deployments.BeginUndeployFunc = func(_ context.Context, tx *gorm.DB, p models.Placement) (bool, error) {
+		assert.Same(t, txSentinel, tx)
+		assert.Equal(t, artifact.UUID, p.ArtifactUUID)
+		return true, nil
+	}
+	h.txExposures.DeleteForAgentEnvFunc = func(context.Context, string, string, string, uuid.UUID) error { return nil }
+
+	require.NoError(t, promoteToStaging(t, s))
+
+	assert.Equal(t, artifact.UUID.String(), apiConfigurationEnvConfig(*promoted)["artifactId"])
+	require.Len(t, h.hub.published, 1)
+	assert.Equal(t, "api.undeployed", string(h.hub.published[0].EventType))
+	assert.Same(t, txSentinel, h.hub.txs[0])
+	assert.Len(t, h.txExposures.DeleteForAgentEnvCalls(), 1, "the exposure is deleted")
+	assert.Empty(t, h.txExposures.UpsertCalls())
+	assert.Len(t, h.txConfigs.UpsertCalls(), 1)
+	assert.Equal(t, 1, h.transactions, "the config save, undeploy and exposure delete share one transaction")
+}
+
+// deploySettingsHarness is UpdateAgentDeploySettings for a chat-api agent whose RestApi is placed on the gateway,
+// with a gateway-pushed release bound in dev.
 func deploySettingsHarness(t *testing.T) (*agentManagerService, *gatewayExposureHarness, *models.Artifact) {
 	t.Helper()
 	oc := &clientmocks.OpenChoreoClientMock{
+		GetReleaseBindingTraitsFunc: func(context.Context, string, string, string) ([]client.TraitType, bool, error) {
+			return []client.TraitType{client.TraitOTELInstrumentation}, true, nil
+		},
 		GetOrganizationFunc: func(_ context.Context, name string) (*models.OrganizationResponse, error) {
 			return &models.OrganizationResponse{Name: name}, nil
 		},
@@ -345,6 +420,55 @@ func TestDeploySettingsUndeployedOnlySaves(t *testing.T) {
 			assert.Empty(t, h.hub.published)
 		})
 	}
+}
+
+func TestDeploySettingsUnboundUsesGatewayPushed(t *testing.T) {
+	s, h, artifact := deploySettingsHarness(t)
+	s.ocClient.(*clientmocks.OpenChoreoClientMock).GetReleaseBindingTraitsFunc = func(
+		context.Context, string, string, string,
+	) ([]client.TraitType, bool, error) {
+		return nil, false, nil
+	}
+
+	require.NoError(t, s.UpdateAgentDeploySettings(tierGrantedCtx(t), "acme", "proj1", "my-agent",
+		&spec.UpdateAgentDeploySettingsRequest{EnvironmentName: "dev"}))
+
+	assert.Equal(t, models.AgentExposureProtocolREST, h.exposed(t).Protocol)
+	require.Len(t, h.pending, 1)
+	assert.Equal(t, artifact.UUID, h.pending[0].ArtifactUUID)
+}
+
+func TestDeploySettingsLegacyWritesTraitConfig(t *testing.T) {
+	s, h, _ := deploySettingsHarness(t)
+	artifact := h.existingArtifact(models.KindAgent)
+	oc := s.ocClient.(*clientmocks.OpenChoreoClientMock)
+	oc.GetReleaseBindingTraitsFunc = func(_ context.Context, _, _, environment string) ([]client.TraitType, bool, error) {
+		assert.Equal(t, "dev", environment)
+		return []client.TraitType{client.TraitAPIManagement}, true, nil
+	}
+	var traitEnvConfigs map[string]interface{}
+	oc.UpdateReleaseBindingTraitConfigsFunc = func(
+		_ context.Context, _, _, _ string, traits map[string]interface{}, _ map[string]interface{},
+	) error {
+		traitEnvConfigs = traits
+		return nil
+	}
+	plain := s.agentConfigRepo.(*repomocks.AgentConfigRepositoryMock)
+	plain.UpsertFunc = func(context.Context, *models.AgentConfig) error { return nil }
+	timeout := int32(90)
+
+	require.NoError(t, s.UpdateAgentDeploySettings(tierGrantedCtx(t), "acme", "proj1", "my-agent",
+		&spec.UpdateAgentDeploySettingsRequest{EnvironmentName: "dev", ResilienceTimeoutSeconds: &timeout}))
+
+	apiConfig := apiConfigurationEnvConfig(traitEnvConfigs)
+	require.NotNil(t, apiConfig, "the settings reach the release's api-configuration trait")
+	assert.Equal(t, artifact.UUID.String(), apiConfig["artifactId"])
+	assert.Equal(t, client.FormatResilienceTimeout(timeout), apiConfig["resilienceTimeout"])
+	require.Len(t, plain.UpsertCalls(), 1)
+	assert.Equal(t, timeout, *plain.UpsertCalls()[0].Config.ResilienceTimeoutSeconds)
+	assert.Empty(t, h.txExposures.UpsertCalls(), "no exposure is written")
+	assert.Empty(t, h.deployments.QueueRenderCalls())
+	assert.Empty(t, h.artifacts.UpdateCalls(), "a legacy release never switches the artifact")
 }
 
 // endpointsHarness serves GetAgentEndpoints for a chat-api agent whose OpenChoreo endpoint is openChoreoURL.

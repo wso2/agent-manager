@@ -21,6 +21,7 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"slices"
 	"sort"
 	"strings"
 	"time"
@@ -4781,6 +4782,8 @@ func (s *agentManagerService) PromoteAgent(ctx context.Context, ouID string, pro
 	var promoteCTConfigs map[string]interface{}
 	// The target's config, saved once the promote succeeds.
 	var targetConfig *models.AgentConfig
+	// The target's artifact, when the promoted release is legacy: its api-configuration trait serves the agent.
+	var legacyArtifact *models.Artifact
 	if isAPIAgent {
 		// Resolve config values: request > source env DB > defaults
 		var existingConfig *models.AgentConfig
@@ -4826,6 +4829,24 @@ func (s *agentManagerService) PromoteAgent(ctx context.Context, ouID string, pro
 			return err
 		}
 
+		// PromoteComponent binds the source environment's release, so its traits decide the target's shape.
+		if shape, _ := agentGatewayShapeOf(agent); shape == restAgentShape {
+			sourceTraits, _, err := s.ocClient.GetReleaseBindingTraits(ctx, ouID, agentName, req.SourceEnvironment)
+			if err != nil {
+				return fmt.Errorf("failed to read the source environment's release traits: %w", err)
+			}
+			if slices.Contains(sourceTraits, client.TraitAPIManagement) {
+				legacyArtifact, err = legacyAgentEnvAPIArtifact(s.db, s.artifactRepo, ouID, projectName, agentName, targetEnv.UUID)
+				if err != nil {
+					return fmt.Errorf("failed to ensure target env API artifact: %w", err)
+				}
+			}
+		}
+		legacyArtifactID := ""
+		if legacyArtifact != nil {
+			legacyArtifactID = legacyArtifact.UUID.String()
+		}
+
 		promotePythonBuildpack := agent.Build != nil && agent.Build.Buildpack != nil && agent.Build.Buildpack.Language == string(utils.LanguagePython)
 		promoteBallerinaBuildpack := agent.Build != nil && agent.Build.Buildpack != nil && agent.Build.Buildpack.Language == string(utils.LanguageBallerina)
 		// Resolve the instrumentation version for the target env: request override
@@ -4845,7 +4866,7 @@ func (s *agentManagerService) PromoteAgent(ctx context.Context, ouID string, pro
 		if resolveErr != nil {
 			return resolveErr
 		}
-		traitEnvConfigs = buildTraitEnvConfigs(agentName, policies, "", resilienceTimeoutSeconds, promotePythonBuildpack, promoteBallerinaBuildpack, tracingCfg.EnableAutoInstrumentation, promoteInstrumentationImage, false)
+		traitEnvConfigs = buildTraitEnvConfigs(agentName, policies, legacyArtifactID, resilienceTimeoutSeconds, promotePythonBuildpack, promoteBallerinaBuildpack, tracingCfg.EnableAutoInstrumentation, promoteInstrumentationImage, legacyArtifact != nil)
 		promoteCTConfigs = buildComponentTypeEnvConfigs(targetEnv)
 
 		apiKey, apiKeyErr := s.generateAgentAPIKey(ctx, ouID, projectName, agentName, req.TargetEnvironment)
@@ -4907,8 +4928,14 @@ func (s *agentManagerService) PromoteAgent(ctx context.Context, ouID string, pro
 	promoteAttempt.Complete(ctx, nil)
 
 	if targetConfig != nil {
-		artifact := s.agentEnvArtifactFunc(agent, ouID, projectName, agentName, targetEnv.UUID)
-		if err := s.recordAgentEnvDeploy(ctx, agent, targetConfig, targetEnv.UUID, artifact); err != nil {
+		var recordErr error
+		if legacyArtifact != nil {
+			recordErr = s.recordLegacyAgentEnvPromote(ctx, agent, targetConfig, targetEnv.UUID, legacyArtifact)
+		} else {
+			artifact := s.agentEnvArtifactFunc(agent, ouID, projectName, agentName, targetEnv.UUID)
+			recordErr = s.recordAgentEnvDeploy(ctx, agent, targetConfig, targetEnv.UUID, artifact)
+		}
+		if err := recordErr; err != nil {
 			s.logger.Error("Failed to persist agent config for target environment", "agentName", agentName, "environment", req.TargetEnvironment, "error", err)
 			return fmt.Errorf("agent promoted to %q but failed to persist its config (retry to reconcile): %w", req.TargetEnvironment, err)
 		}
@@ -5393,11 +5420,25 @@ func (s *agentManagerService) UpdateAgentDeploySettings(ctx context.Context, ouI
 	if existingConfig != nil {
 		existingInstrumentationVersion = existingConfig.InstrumentationVersion
 	}
+	// The environment's artifact, when its bound release is legacy: its api-configuration trait takes the settings.
+	var legacyArtifact *models.Artifact
+	if shape, _ := agentGatewayShapeOf(agent); shape == restAgentShape {
+		traits, _, err := s.ocClient.GetReleaseBindingTraits(ctx, ouID, agentName, req.EnvironmentName)
+		if err != nil {
+			return fmt.Errorf("failed to read the environment's release traits: %w", err)
+		}
+		if slices.Contains(traits, client.TraitAPIManagement) {
+			legacyArtifact, err = legacyAgentEnvAPIArtifact(s.db, s.artifactRepo, ouID, projectName, agentName, targetEnv.UUID)
+			if err != nil {
+				return fmt.Errorf("failed to ensure agent env API artifact: %w", err)
+			}
+		}
+	}
 	resolvedInstrumentationVersion := existingInstrumentationVersion
 	// An external agent has no release binding: its settings reach the gateway through the republish below.
 	if !external {
 		resolvedInstrumentationVersion, err = s.applyReleaseBindingSettings(ctx, ouID, agentName, req, agent, targetEnv,
-			policies, resilienceTimeoutSeconds, tracingCfg.EnableAutoInstrumentation, existingInstrumentationVersion)
+			policies, legacyArtifact, resilienceTimeoutSeconds, tracingCfg.EnableAutoInstrumentation, existingInstrumentationVersion)
 		if err != nil {
 			return err
 		}
@@ -5413,7 +5454,7 @@ func (s *agentManagerService) UpdateAgentDeploySettings(ctx context.Context, ouI
 	agentConfig.InstrumentationVersion = resolvedInstrumentationVersion
 	agentConfig.ResilienceTimeoutSeconds = settingsResilienceTimeoutSeconds
 	agentConfig.SetCardCORSOverride(cardCORSOverride)
-	if !publishes {
+	if !publishes || legacyArtifact != nil {
 		if err := s.agentConfigRepo.Upsert(ctx, agentConfig); err != nil {
 			return fmt.Errorf("failed to persist agent deploy settings: %w", err)
 		}
@@ -5435,10 +5476,11 @@ func deploySettingsApplyTo(agent *models.AgentResponse) bool {
 }
 
 // applyReleaseBindingSettings writes the settings to the release binding in one pod-rolling update and returns the instrumentation version to persist.
+// legacyArtifact, nil for a gateway-pushed release, is the artifact a legacy release's api-configuration trait serves.
 func (s *agentManagerService) applyReleaseBindingSettings(
 	ctx context.Context, ouID, agentName string, req *spec.UpdateAgentDeploySettingsRequest,
 	agent *models.AgentResponse, targetEnv *models.EnvironmentResponse, policies []map[string]interface{},
-	resilienceTimeoutSeconds int32, enableAutoInstrumentation bool, existingInstrumentationVersion *string,
+	legacyArtifact *models.Artifact, resilienceTimeoutSeconds int32, enableAutoInstrumentation bool, existingInstrumentationVersion *string,
 ) (*string, error) {
 	isPythonBuildpack := agent.Build != nil && agent.Build.Buildpack != nil && agent.Build.Buildpack.Language == string(utils.LanguagePython)
 	isBallerinaBuildpack := agent.Build != nil && agent.Build.Buildpack != nil && agent.Build.Buildpack.Language == string(utils.LanguageBallerina)
@@ -5454,8 +5496,12 @@ func (s *agentManagerService) applyReleaseBindingSettings(
 	if err != nil {
 		return nil, err
 	}
-	traitEnvConfigs := buildTraitEnvConfigs(agentName, policies, "", resilienceTimeoutSeconds,
-		isPythonBuildpack, isBallerinaBuildpack, enableAutoInstrumentation, instrumentationImage, false)
+	legacyArtifactID := ""
+	if legacyArtifact != nil {
+		legacyArtifactID = legacyArtifact.UUID.String()
+	}
+	traitEnvConfigs := buildTraitEnvConfigs(agentName, policies, legacyArtifactID, resilienceTimeoutSeconds,
+		isPythonBuildpack, isBallerinaBuildpack, enableAutoInstrumentation, instrumentationImage, legacyArtifact != nil)
 
 	// Apply to the release binding (atomic: trait configs + component-type configs + restartedAt in a single update).
 	settingsCTConfigs := buildComponentTypeEnvConfigs(targetEnv)
@@ -6714,12 +6760,43 @@ func (s *agentManagerService) recordAgentEnvDeploy(
 	return err
 }
 
-// reexposeAgentEnv exposes a re-activated agent in the environment again, against its existing artifact.
+// recordLegacyAgentEnvPromote saves the target's config for a promote that bound a legacy release, which its trait
+// serves. Whatever a gateway-pushed release left exposed in the environment is torn down in the same transaction,
+// so the environment has one writer.
+func (s *agentManagerService) recordLegacyAgentEnvPromote(
+	ctx context.Context, agent *models.AgentResponse, cfg *models.AgentConfig, environmentUUID string, artifact *models.Artifact,
+) error {
+	if !s.exposesAgent(agent) {
+		return s.agentConfigRepo.Upsert(ctx, cfg)
+	}
+	key, err := agentExposureKeyOf(agent, cfg.OUID, cfg.ProjectName, cfg.AgentName, cfg.EnvironmentName, environmentUUID)
+	if err != nil {
+		return err
+	}
+	return s.exposure.tx(ctx, func(tx *gorm.DB) error {
+		if err := s.agentConfigRepo.WithTx(tx).Upsert(ctx, cfg); err != nil {
+			return err
+		}
+		return s.exposure.TeardownEnv(ctx, tx, key, agentArtifactRef(artifact))
+	})
+}
+
+// reexposeAgentEnv exposes a re-activated agent in the environment again, against its existing artifact. A REST agent
+// whose bound release is legacy stays on its trait.
 func (s *agentManagerService) reexposeAgentEnv(
 	ctx context.Context, agent *models.AgentResponse, ouID, projectName, agentName string, env *models.EnvironmentResponse,
 ) error {
 	if !s.exposesAgent(agent) {
 		return nil
+	}
+	if shape, _ := agentGatewayShapeOf(agent); shape == restAgentShape {
+		traits, _, err := s.ocClient.GetReleaseBindingTraits(ctx, ouID, agentName, env.Name)
+		if err != nil {
+			return fmt.Errorf("failed to read the environment's release traits: %w", err)
+		}
+		if slices.Contains(traits, client.TraitAPIManagement) {
+			return nil
+		}
 	}
 	key, err := agentExposureKeyOf(agent, ouID, projectName, agentName, env.Name, env.UUID)
 	if err != nil {

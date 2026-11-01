@@ -117,6 +117,9 @@ type OpenChoreoClient interface {
 	GetReleaseBindingServiceURL(ctx context.Context, ouID, componentName, environment string) (string, error)
 	// GetReleaseBindingRollout reports the binding's release and whether its rollout has finished.
 	GetReleaseBindingRollout(ctx context.Context, ouID, componentName, environment string) (ReleaseBindingRollout, error)
+	// GetReleaseBindingTraits names the traits on the release bound in the environment; bound is false when the
+	// environment has no binding.
+	GetReleaseBindingTraits(ctx context.Context, ouID, componentName, environment string) (traits []TraitType, bound bool, err error)
 	GetComponentConfigurations(ctx context.Context, ouID, projectName, componentName, environment string) ([]models.EnvVars, error)
 	GetComponentFileMounts(ctx context.Context, ouID, projectName, componentName, environment string) ([]models.FileMountEntry, error)
 

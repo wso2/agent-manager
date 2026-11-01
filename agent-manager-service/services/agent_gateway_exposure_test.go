@@ -32,6 +32,7 @@ import (
 	"github.com/wso2/agent-manager/agent-manager-service/db"
 	"github.com/wso2/agent-manager/agent-manager-service/models"
 	"github.com/wso2/agent-manager/agent-manager-service/repositories"
+	"github.com/wso2/agent-manager/agent-manager-service/repositories/repomocks"
 	"github.com/wso2/agent-manager/agent-manager-service/spec"
 	"github.com/wso2/agent-manager/agent-manager-service/utils"
 )
@@ -55,6 +56,9 @@ func (f *a2aFixture) agentService(key agentExposureKey, subType string) *agentMa
 		},
 		UpdateDeploymentStateFunc: func(context.Context, string, string, string, string, gen.ReleaseBindingSpecState) error {
 			return nil
+		},
+		GetReleaseBindingTraitsFunc: func(context.Context, string, string, string) ([]client.TraitType, bool, error) {
+			return nil, true, nil
 		},
 	}
 	return &agentManagerService{
@@ -302,4 +306,102 @@ func TestDeploySettingsAfterUndeployWaitsForReactivate(t *testing.T) {
 			assert.Equal(t, deployed[name], string(f.hub.published[0].EventType))
 		})
 	}
+}
+
+// releaseTraits makes the release bound in every environment carry traits.
+func releaseTraits(svc *agentManagerService, traits ...client.TraitType) {
+	svc.ocClient.(*clientmocks.OpenChoreoClientMock).GetReleaseBindingTraitsFunc = func(
+		context.Context, string, string, string,
+	) ([]client.TraitType, bool, error) {
+		return traits, true, nil
+	}
+}
+
+// promoteService is agentService for a chat-api agent, stubbed by promoteAgentTestFixture for PromoteAgent from dev
+// to staging, the fixture's environment.
+func (f *a2aFixture) promoteService(t *testing.T, key agentExposureKey) *agentManagerService {
+	t.Helper()
+	svc := f.agentService(key, string(utils.AgentSubTypeChatAPI))
+	s, _ := promoteAgentTestFixture(t, []client.EnvVar{{Key: client.EnvVarAgentIDClientID, Value: "staging-client-id"}}, nil)
+	oc := s.ocClient.(*clientmocks.OpenChoreoClientMock)
+	agentOC := svc.ocClient.(*clientmocks.OpenChoreoClientMock)
+	oc.GetComponentFunc = agentOC.GetComponentFunc
+	oc.GetEnvironmentFunc = agentOC.GetEnvironmentFunc
+	oc.GetReleaseBindingTraitsFunc = agentOC.GetReleaseBindingTraitsFunc
+	s.db, s.artifactRepo, s.agentConfigRepo = svc.db, svc.artifactRepo, svc.agentConfigRepo
+	s.a2aPublisher, s.exposure, s.restAgentKind = svc.a2aPublisher, svc.exposure, svc.restAgentKind
+	return s
+}
+
+func promoteDevToStaging(t *testing.T, s *agentManagerService, key agentExposureKey) error {
+	t.Helper()
+	return s.PromoteAgent(tierGrantedCtx(t), key.OUID, key.ProjectName, key.AgentName, &spec.PromoteAgentRequest{
+		SourceEnvironment: "dev", TargetEnvironment: "staging",
+	})
+}
+
+// failingConfigSave fails the config save, which runs in the exposure transaction after the artifact is ensured.
+func failingConfigSave() *repomocks.AgentConfigRepositoryMock {
+	failing := &repomocks.AgentConfigRepositoryMock{
+		UpsertFunc: func(context.Context, *models.AgentConfig) error { return assert.AnError },
+	}
+	return &repomocks.AgentConfigRepositoryMock{
+		GetFunc: func(context.Context, string, string, string, string) (*models.AgentConfig, error) {
+			return nil, repositories.ErrAgentConfigNotFound
+		},
+		WithTxFunc: func(*gorm.DB) repositories.AgentConfigRepository { return failing },
+	}
+}
+
+func TestPromoteGatewayPushedSwitchesLegacyArtifactInTx(t *testing.T) {
+	f := newA2AFixture(t)
+	legacy, key := f.legacyRestAgent(t)
+	s := f.promoteService(t, key)
+	configs := s.agentConfigRepo
+	s.agentConfigRepo = failingConfigSave()
+
+	require.ErrorIs(t, promoteDevToStaging(t, s, key), assert.AnError)
+	assert.Equal(t, models.KindAgent, f.storedArtifact(t, legacy).Kind, "a failed exposure transaction keeps the Agent row")
+	assert.Nil(t, f.exposureOf(t, legacy))
+
+	s.agentConfigRepo = configs
+	require.NoError(t, promoteDevToStaging(t, s, key))
+
+	stored := f.storedArtifact(t, legacy)
+	assert.Equal(t, models.KindRestAPI, stored.Kind)
+	assert.Equal(t, legacy.Handle, stored.Handle)
+	exposure := f.exposureOf(t, legacy)
+	require.NotNil(t, exposure)
+	assert.Equal(t, models.AgentExposureProtocolREST, exposure.Protocol)
+	keys, err := repositories.NewAPIKeyRepo(db.GetDB()).ListPermanentByArtifactKinds(key.OUID, models.AgentArtifactKinds)
+	require.NoError(t, err)
+	require.Len(t, keys, 1)
+	assert.Equal(t, legacy.ArtifactUUID, keys[0].ArtifactUUID)
+}
+
+func TestPromoteLegacyDoesNotSwitch(t *testing.T) {
+	f := newA2AFixture(t)
+	legacy, key := f.legacyRestAgent(t)
+	s := f.promoteService(t, key)
+	releaseTraits(s, client.TraitAPIManagement)
+
+	require.NoError(t, promoteDevToStaging(t, s, key))
+
+	assert.Equal(t, models.KindAgent, f.storedArtifact(t, legacy).Kind)
+	assert.Nil(t, f.exposureOf(t, legacy))
+	assert.Nil(t, f.row(t, legacy))
+}
+
+func TestReactivateLegacyRESTDoesNotSwitch(t *testing.T) {
+	f := newA2AFixture(t)
+	legacy, key := f.legacyRestAgent(t)
+	svc := f.agentService(key, string(utils.AgentSubTypeChatAPI))
+	releaseTraits(svc, client.TraitAPIManagement)
+
+	require.NoError(t, svc.UpdateAgentDeploymentState(tierGrantedCtx(t), key.OUID, key.ProjectName, key.AgentName,
+		"dev", utils.DeploymentStateActive))
+
+	assert.Equal(t, models.KindAgent, f.storedArtifact(t, legacy).Kind)
+	assert.Nil(t, f.exposureOf(t, legacy))
+	assert.Nil(t, f.row(t, legacy))
 }
