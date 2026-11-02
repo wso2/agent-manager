@@ -116,6 +116,7 @@ type EventSubscriptionService interface {
 	Delete(ctx context.Context, target repositories.EventTarget, id uuid.UUID) error
 	// Deliveries returns a page of the level's delivery log: the whole org's,
 	// a project's events, or an agent's.
+	Deliveries(ctx context.Context, target repositories.EventTarget, q DeliveryQuery) (*DeliveryLog, error)
 
 	EventsCleaner
 }
@@ -356,6 +357,68 @@ func (s *eventSubscriptionService) Delete(ctx context.Context, t repositories.Ev
 	return err
 }
 
+func (s *eventSubscriptionService) Deliveries(
+	ctx context.Context, t repositories.EventTarget, q DeliveryQuery,
+) (*DeliveryLog, error) {
+	if q.Limit <= 0 {
+		q.Limit = defaultEventDeliveryLimit
+	}
+	if q.Offset < 0 {
+		return nil, fmt.Errorf("%w: offset must not be negative", utils.ErrInvalidInput)
+	}
+	switch q.Status {
+	case "", models.EventDeliveryPending, models.EventDeliveryDelivered, models.EventDeliveryFailed, models.EventDeliverySkipped:
+	default:
+		return nil, fmt.Errorf("%w: status must be pending, delivered, failed or skipped", utils.ErrInvalidInput)
+	}
+	page, total, err := s.repo.ListDeliveries(ctx, repositories.DeliveryFilter{
+		OUID:           t.OUID,
+		Location:       levelLocation(t),
+		DestinationID:  q.DestinationID,
+		SubscriptionID: q.SubscriptionID,
+		Status:         q.Status,
+		Limit:          min(q.Limit, maxEventDeliveryLimit),
+		Offset:         q.Offset,
+	})
+	if err != nil {
+		return nil, fmt.Errorf("failed to list event deliveries: %w", err)
+	}
+	out := &DeliveryLog{Deliveries: page, Total: total}
+
+	destinationIDs := map[uuid.UUID]bool{}
+	subscriptionIDs := map[uuid.UUID]bool{}
+	for i := range page {
+		destinationIDs[page[i].DestinationID] = true
+		for _, raw := range page[i].SubscriptionIDs {
+			if id, err := uuid.Parse(raw); err == nil {
+				subscriptionIDs[id] = true
+			}
+		}
+	}
+	if out.Destinations, err = s.destinations(ctx, t.OUID, destinationIDs); err != nil {
+		return nil, err
+	}
+	if out.DestinationStats, err = s.repo.DestinationStats(ctx, t.OUID); err != nil {
+		return nil, fmt.Errorf("failed to read event destination stats: %w", err)
+	}
+	ids := make([]uuid.UUID, 0, len(subscriptionIDs))
+	for id := range subscriptionIDs {
+		ids = append(ids, id)
+	}
+	subs, err := s.repo.SubscriptionsByID(ctx, t.OUID, ids)
+	if err != nil {
+		return nil, fmt.Errorf("failed to load event subscriptions: %w", err)
+	}
+	out.Subscriptions = make(map[uuid.UUID]*models.EventSubscription, len(subs))
+	for i := range subs {
+		out.Subscriptions[subs[i].ID] = &subs[i]
+	}
+	return out, nil
+}
+
+// RemoveForProject deletes every subscription of a project (its own and its
+// agents') and takes the project out of the destinations made available to
+// it. Errors are logged: the project is already gone.
 func (s *eventSubscriptionService) RemoveForProject(ctx context.Context, ouID, projectName string) {
 	if err := s.repo.DeleteSubscriptionsUnder(ctx, ouID, projectName, ""); err != nil {
 		s.logger.Error("Failed to remove the event subscriptions of a deleted project", "project", projectName, "error", err)

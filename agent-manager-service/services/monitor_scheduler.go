@@ -278,6 +278,12 @@ func (s *monitorSchedulerService) backOff(ctx context.Context, monitor *models.M
 
 // syncRunStatus queries OpenChoreo API for pending/running workflows and updates DB
 func (s *monitorSchedulerService) syncRunStatus(ctx context.Context) error {
+	// Replay even when no workflows remain pending/running.
+	if reconciler, ok := s.runObserver.(interface{ Reconcile(context.Context) error }); ok {
+		if err := reconciler.Reconcile(ctx); err != nil {
+			s.logger.Error("Failed to replay monitor events", "error", err)
+		}
+	}
 	runs, err := s.monitorRepo.ListPendingOrRunningRuns(100)
 	if err != nil {
 		return fmt.Errorf("failed to query pending/running runs: %w", err)

@@ -11637,6 +11637,70 @@ paths:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
 
+  /orgs/{orgName}/events/deliveries:
+    parameters:
+      - name: orgName
+        in: path
+        required: true
+        description: Organization name
+        schema:
+          type: string
+    get:
+      tags:
+        - Events
+      summary: List the organization's event deliveries
+      description: |
+        Every delivery in the organization.
+      operationId: listOrgEventDeliveries
+      parameters:
+        - name: destinationId
+          in: query
+          required: false
+          description: Only deliveries to this destination.
+          schema:
+            type: string
+        - name: subscriptionId
+          in: query
+          required: false
+          description: Only deliveries this subscription queued.
+          schema:
+            type: string
+        - name: status
+          in: query
+          required: false
+          description: Only deliveries with this status.
+          schema:
+            type: string
+            enum: [pending, delivered, failed, skipped]
+        - name: limit
+          in: query
+          required: false
+          description: Maximum number of deliveries (default 50, at most 100).
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+        - name: offset
+          in: query
+          required: false
+          description: Number of deliveries to skip.
+          schema:
+            type: integer
+            minimum: 0
+      responses:
+        "200":
+          description: Event deliveries, newest first
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/EventDeliveryListResponse"
+        "400":
+          description: Invalid query
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
   /orgs/{orgName}/projects/{projName}/events/destinations:
     parameters:
       - name: orgName
@@ -11811,6 +11875,76 @@ paths:
           description: Event subscription deleted
         "404":
           description: Event subscription not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /orgs/{orgName}/projects/{projName}/events/deliveries:
+    parameters:
+      - name: orgName
+        in: path
+        required: true
+        description: Organization name
+        schema:
+          type: string
+      - name: projName
+        in: path
+        required: true
+        description: Project name
+        schema:
+          type: string
+    get:
+      tags:
+        - Events
+      summary: List the project's event deliveries
+      description: |
+        Deliveries of the project's events and its agents' events.
+      operationId: listProjectEventDeliveries
+      parameters:
+        - name: destinationId
+          in: query
+          required: false
+          description: Only deliveries to this destination.
+          schema:
+            type: string
+        - name: subscriptionId
+          in: query
+          required: false
+          description: Only deliveries this subscription queued.
+          schema:
+            type: string
+        - name: status
+          in: query
+          required: false
+          description: Only deliveries with this status.
+          schema:
+            type: string
+            enum: [pending, delivered, failed, skipped]
+        - name: limit
+          in: query
+          required: false
+          description: Maximum number of deliveries (default 50, at most 100).
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+        - name: offset
+          in: query
+          required: false
+          description: Number of deliveries to skip.
+          schema:
+            type: integer
+            minimum: 0
+      responses:
+        "200":
+          description: Event deliveries, newest first
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/EventDeliveryListResponse"
+        "400":
+          description: Invalid query
           content:
             application/json:
               schema:
@@ -12008,6 +12142,82 @@ paths:
           description: Event subscription deleted
         "404":
           description: Event subscription not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /orgs/{orgName}/projects/{projName}/agents/{agentName}/events/deliveries:
+    parameters:
+      - name: orgName
+        in: path
+        required: true
+        description: Organization name
+        schema:
+          type: string
+      - name: projName
+        in: path
+        required: true
+        description: Project name
+        schema:
+          type: string
+      - name: agentName
+        in: path
+        required: true
+        description: Agent name
+        schema:
+          type: string
+    get:
+      tags:
+        - Events
+      summary: List the agent's event deliveries
+      description: |
+        Deliveries of the agent's events.
+      operationId: listAgentEventDeliveries
+      parameters:
+        - name: destinationId
+          in: query
+          required: false
+          description: Only deliveries to this destination.
+          schema:
+            type: string
+        - name: subscriptionId
+          in: query
+          required: false
+          description: Only deliveries this subscription queued.
+          schema:
+            type: string
+        - name: status
+          in: query
+          required: false
+          description: Only deliveries with this status.
+          schema:
+            type: string
+            enum: [pending, delivered, failed, skipped]
+        - name: limit
+          in: query
+          required: false
+          description: Maximum number of deliveries (default 50, at most 100).
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+        - name: offset
+          in: query
+          required: false
+          description: Number of deliveries to skip.
+          schema:
+            type: integer
+            minimum: 0
+      responses:
+        "200":
+          description: Event deliveries, newest first
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/EventDeliveryListResponse"
+        "400":
+          description: Invalid query
           content:
             application/json:
               schema:
@@ -20163,3 +20373,61 @@ components:
             happen at this level, and their counts to this level's events.
           items:
             $ref: "#/components/schemas/EventSubscriptionResponse"
+
+    EventDeliveryResponse:
+      type: object
+      required: [id, eventId, eventType, eventScope, status, attempts, subscriptions, createdAt, updatedAt]
+      properties:
+        id:
+          type: string
+        eventId:
+          type: string
+        eventType:
+          type: string
+        eventScope:
+          type: string
+        projectName:
+          type: string
+        agentName:
+          type: string
+        environment:
+          type: string
+        destination:
+          $ref: "#/components/schemas/EventDestinationSummary"
+        subscriptions:
+          type: array
+          description: The subscriptions that sent the event to the destination.
+          items:
+            $ref: "#/components/schemas/EventSubscriptionRef"
+        status:
+          type: string
+          enum: [pending, delivered, failed, skipped]
+        attempts:
+          type: integer
+          format: int32
+        responseCode:
+          type: integer
+          format: int32
+        lastError:
+          type: string
+        deliveredAt:
+          type: string
+          format: date-time
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+
+    EventDeliveryListResponse:
+      type: object
+      required: [deliveries, total]
+      properties:
+        deliveries:
+          type: array
+          items:
+            $ref: "#/components/schemas/EventDeliveryResponse"
+        total:
+          type: integer
+          description: Deliveries matching the query, ignoring limit and offset.

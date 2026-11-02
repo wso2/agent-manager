@@ -225,9 +225,9 @@ func Run(authProvider occlient.AuthProvider, secretProvider secretmanagersvc.Pro
 
 	// Start publishing events. The bus is set up in the background, so a NATS
 	// server that is still starting does not hold up the API; events raised
-	// meanwhile wait in the publisher's queue.
+	// meanwhile wait in the durable outbox.
 	eventsCtx, eventsCancel := context.WithCancel(backgroundCtx)
-	startEvents(eventsCtx, dependencies)
+	eventsStarted := startEvents(eventsCtx, dependencies)
 
 	// Load built-in LLM provider templates into memory
 	if err := loadBuiltInLLMTemplates(dependencies); err != nil {
@@ -334,6 +334,7 @@ func Run(authProvider occlient.AuthProvider, secretProvider secretmanagersvc.Pro
 		// Stop events after the servers, so events of the last requests are
 		// published before the connection closes.
 		eventsCancel()
+		<-eventsStarted
 		stopEvents(dependencies)
 
 		// Flush the audit buffer last. Both servers have stopped, so no further
@@ -440,38 +441,68 @@ func loadBuiltInLLMTemplates(dependencies *wiring.AppParams) error {
 }
 
 // startEvents sets up the event bus, retrying until it answers, then starts
-// the publisher. A no-op with events off.
-func startEvents(ctx context.Context, deps *wiring.AppParams) {
+// the publisher, the event dispatcher and the monitor alerting. A no-op
+// with events off.
+func startEvents(ctx context.Context, deps *wiring.AppParams) <-chan struct{} {
+	done := make(chan struct{})
 	if deps.EventBus == nil {
-		return
+		close(done)
+		return done
 	}
-	publisher, _ := deps.EventPublisher.(*events.AsyncPublisher)
 	go func() {
-		for {
-			setupCtx, cancel := context.WithTimeout(ctx, 10*time.Second)
-			err := deps.EventBus.Setup(setupCtx)
-			cancel()
-			if err == nil {
-				break
-			}
-			slog.Warn("Event bus not ready; retrying", "error", err)
-			select {
-			case <-ctx.Done():
-				return
-			case <-time.After(5 * time.Second):
+		defer close(done)
+		// Setup provisions durable consumers as well as streams. Each step retries
+		// independently, so a transient consumer-creation failure cannot disable
+		// alerting until the next process restart.
+		steps := []struct {
+			name  string
+			start func(context.Context) error
+		}{
+			{"event bus", deps.EventBus.Setup},
+			{"event dispatcher", deps.EventDispatcher.Start},
+		}
+		for _, step := range steps {
+			for {
+				if ctx.Err() != nil {
+					return
+				}
+				// The setup timeout must not become a worker's lifetime context.
+				var err error
+				if step.name == "event bus" {
+					setupCtx, cancel := context.WithTimeout(ctx, 10*time.Second)
+					err = step.start(setupCtx)
+					cancel()
+				} else {
+					err = step.start(ctx)
+				}
+				if err == nil {
+					break
+				}
+				slog.Warn("Event component not ready; retrying", "component", step.name, "error", err)
+				select {
+				case <-ctx.Done():
+					return
+				case <-time.After(5 * time.Second):
+				}
 			}
 		}
-		// Publish only once the streams exist; until then events queue.
-		if publisher != nil {
-			publisher.Start()
+		if ctx.Err() == nil {
+			if publisher, ok := deps.EventPublisher.(*events.AsyncPublisher); ok {
+				publisher.Start()
+			}
 		}
 	}()
+	return done
 }
 
-// stopEvents flushes queued events and closes the bus.
+// stopEvents stops the event dispatcher and the monitor alerting, flushes
+// queued events and closes the bus.
 func stopEvents(deps *wiring.AppParams) {
 	if deps.EventBus == nil {
 		return
+	}
+	if err := deps.EventDispatcher.Stop(); err != nil {
+		slog.Error("Failed to stop the event dispatcher", "error", err)
 	}
 	if publisher, ok := deps.EventPublisher.(*events.AsyncPublisher); ok {
 		publisher.Stop()

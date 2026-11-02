@@ -33,7 +33,10 @@ import (
 
 type capturePublisher struct{ got []events.Event }
 
-func (c *capturePublisher) Publish(_ context.Context, e events.Event) { c.got = append(c.got, e) }
+func (c *capturePublisher) Publish(_ context.Context, e events.Event) error {
+	c.got = append(c.got, e)
+	return nil
+}
 
 func serveEvent(t *testing.T, pattern string, pathValues map[string]string, handler http.HandlerFunc) *capturePublisher {
 	t.Helper()

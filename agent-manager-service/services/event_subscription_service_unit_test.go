@@ -270,6 +270,33 @@ func TestEventSubscriptionService_ListInherited(t *testing.T) {
 	assert.Empty(t, orgList.Inherited, "nothing is above the org")
 }
 
+func TestEventSubscriptionService_DeliveriesAreScopedToTheLevel(t *testing.T) {
+	svc, _, repo := newTestSubscriptionService()
+	var filters []repositories.DeliveryFilter
+	repo.ListDeliveriesFunc = func(_ context.Context, f repositories.DeliveryFilter) ([]models.EventDelivery, int64, error) {
+		filters = append(filters, f)
+		return []models.EventDelivery{}, 0, nil
+	}
+	for _, target := range []repositories.EventTarget{orgTarget, projectTarget, agentTarget} {
+		_, err := svc.Deliveries(context.Background(), target, DeliveryQuery{Limit: 500})
+		require.NoError(t, err)
+	}
+	require.Len(t, filters, 3)
+	assert.Equal(t, repositories.DeliveryLocation{}, filters[0].Location)
+	assert.Equal(t, repositories.DeliveryLocation{
+		ProjectName: "payments", EventScopes: []string{models.EventScopeProject, models.EventScopeAgent},
+	}, filters[1].Location, "an org event naming the project is not the project's")
+	assert.Equal(t, repositories.DeliveryLocation{
+		ProjectName: "payments", AgentName: "refund-agent", EventScopes: []string{models.EventScopeAgent},
+	}, filters[2].Location)
+	assert.Equal(t, maxEventDeliveryLimit, filters[0].Limit, "the page size is capped")
+
+	_, err := svc.Deliveries(context.Background(), orgTarget, DeliveryQuery{Status: "lost"})
+	assert.ErrorIs(t, err, utils.ErrInvalidInput)
+	_, err = svc.Deliveries(context.Background(), orgTarget, DeliveryQuery{Offset: -1})
+	assert.ErrorIs(t, err, utils.ErrInvalidInput)
+}
+
 func TestEventSubscriptionService_RemoveForProjectAndAgent(t *testing.T) {
 	svc, store, _ := newTestSubscriptionService()
 	payments := putDestination(store, "Payments", models.DestinationAvailableProjects, "payments", "claims")

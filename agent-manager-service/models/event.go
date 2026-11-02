@@ -132,12 +132,12 @@ func (EventSubscription) TableName() string { return "event_subscriptions" }
 // subscriptions may match the same event and send it to the same
 // destination; it is delivered once, and SubscriptionIDs lists them all.
 type EventDelivery struct {
-	ID              uuid.UUID `gorm:"column:id;primaryKey;type:uuid;default:gen_random_uuid()" json:"id"`
-	OUID            string    `gorm:"column:ou_id;not null" json:"ouId"`
-	DestinationID   uuid.UUID `gorm:"column:destination_id;type:uuid;not null" json:"destinationId"`
-	SubscriptionIDs []string  `gorm:"column:subscription_ids;type:jsonb;serializer:json;not null" json:"subscriptionIds"`
-	EventID         string    `gorm:"column:event_id;not null" json:"eventId"`
-	EventType       string    `gorm:"column:event_type;not null" json:"eventType"`
+	ID              uuid.UUID       `gorm:"column:id;primaryKey;type:uuid;default:gen_random_uuid()" json:"id"`
+	OUID            string          `gorm:"column:ou_id;not null" json:"ouId"`
+	DestinationID   uuid.UUID       `gorm:"column:destination_id;type:uuid;not null" json:"destinationId"`
+	SubscriptionIDs []string        `gorm:"column:subscription_ids;type:jsonb;serializer:json;not null" json:"subscriptionIds"`
+	EventID         string          `gorm:"column:event_id;not null" json:"eventId"`
+	EventType       string          `gorm:"column:event_type;not null" json:"eventType"`
 	// EventScope, ProjectName, AgentName and Environment say where the event
 	// happened, so each level's delivery log shows only its own events.
 	EventScope   string     `gorm:"column:event_scope;not null" json:"eventScope"`
@@ -149,6 +149,8 @@ type EventDelivery struct {
 	ResponseCode *int       `gorm:"column:response_code" json:"responseCode,omitempty"`
 	LastError    string     `gorm:"column:last_error;not null" json:"lastError,omitempty"`
 	DeliveredAt  *time.Time `gorm:"column:delivered_at" json:"deliveredAt,omitempty"`
+	// ClaimedUntil is when the worker sending this delivery loses its claim.
+	ClaimedUntil *time.Time `gorm:"column:claimed_until" json:"-"`
 	CreatedAt    time.Time  `gorm:"column:created_at;not null;default:NOW()" json:"createdAt"`
 	UpdatedAt    time.Time  `gorm:"column:updated_at;not null;default:NOW()" json:"updatedAt"`
 }

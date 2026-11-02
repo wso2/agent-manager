@@ -46,27 +46,59 @@ func (NoopMonitorRunObserver) OnMonitorTriggerFailed(context.Context, *models.Mo
 
 // monitorRunEvents publishes monitor_run.succeeded and monitor_run.failed.
 type monitorRunEvents struct {
-	publisher events.Publisher
-	scoreRepo repositories.ScoreRepository
-	logger    *slog.Logger
-	now       func() time.Time
+	publisher   events.Publisher
+	scoreRepo   repositories.ScoreRepository
+	monitorRepo repositories.MonitorRepository
+	logger      *slog.Logger
+	now         func() time.Time
 }
 
 // NewMonitorRunEvents creates the observer that publishes monitor run events.
-func NewMonitorRunEvents(publisher events.Publisher, scoreRepo repositories.ScoreRepository, logger *slog.Logger) MonitorRunObserver {
-	return &monitorRunEvents{publisher: publisher, scoreRepo: scoreRepo, logger: logger, now: time.Now}
+func NewMonitorRunEvents(publisher events.Publisher, scoreRepo repositories.ScoreRepository, monitorRepo repositories.MonitorRepository, logger *slog.Logger) MonitorRunObserver {
+	return &monitorRunEvents{publisher: publisher, scoreRepo: scoreRepo, monitorRepo: monitorRepo, logger: logger, now: time.Now}
 }
 
 func (m *monitorRunEvents) OnMonitorRunFinished(
 	ctx context.Context, monitor *models.Monitor, run *models.MonitorRun, status, errorMessage string,
 ) {
+	if err := m.queueRun(ctx, monitor, run, status, errorMessage); err != nil {
+		m.logger.Error("Monitor event retained for replay", "runId", run.ID, "error", err)
+	}
+}
+
+// Reconcile replays terminal runs not yet accepted by the durable outbox.
+// A terminal run is its own durable source; a crash between its status update
+// and event persistence cannot lose the notification.
+func (m *monitorRunEvents) Reconcile(ctx context.Context) error {
+	runs, err := m.monitorRepo.ListUnqueuedTerminalRuns(ctx, 100)
+	if err != nil {
+		return fmt.Errorf("failed to list unpublished monitor runs: %w", err)
+	}
+	for i := range runs {
+		run := &runs[i]
+		monitor, err := m.monitorRepo.GetMonitorByID(run.MonitorID)
+		if err != nil {
+			return fmt.Errorf("failed to load monitor for replay: %w", err)
+		}
+		reason := ""
+		if run.ErrorMessage != nil {
+			reason = *run.ErrorMessage
+		}
+		m.OnMonitorRunFinished(ctx, monitor, run, run.Status, reason)
+	}
+	return nil
+}
+
+func (m *monitorRunEvents) queueRun(
+	ctx context.Context, monitor *models.Monitor, run *models.MonitorRun, status, errorMessage string,
+) error {
 	eventType := events.TypeMonitorRunSucceeded
 	switch status {
 	case models.RunStatusSuccess:
 	case models.RunStatusFailed:
 		eventType = events.TypeMonitorRunFailed
 	default:
-		return
+		return nil
 	}
 
 	runData := map[string]any{
@@ -90,7 +122,7 @@ func (m *monitorRunEvents) OnMonitorRunFinished(
 	if status == models.RunStatusSuccess {
 		evaluators, err := m.scoreRepo.GetEvaluatorsByMonitorAndRunID(monitor.ID, run.ID)
 		if err != nil {
-			m.logger.Error("Failed to load run scores for event", "monitor", monitor.Name, "runID", run.ID, "error", err)
+			return fmt.Errorf("failed to load run scores for event: %w", err)
 		} else {
 			scores := make([]map[string]any, 0, len(evaluators))
 			for _, e := range evaluators {
@@ -109,7 +141,14 @@ func (m *monitorRunEvents) OnMonitorRunFinished(
 
 	// The ID is derived from the run, so a run synced twice publishes one
 	// event: JetStream drops the duplicate.
-	m.publish(ctx, monitor, "evt_monrun_"+run.ID.String(), eventType, data)
+	at := m.now()
+	if run.CompletedAt != nil {
+		at = *run.CompletedAt
+	}
+	if err := m.publish(ctx, monitor, "evt_monrun_"+run.ID.String(), eventType, data, at); err != nil {
+		return err
+	}
+	return m.monitorRepo.MarkRunEventQueued(ctx, run.ID)
 }
 
 func (m *monitorRunEvents) OnMonitorTriggerFailed(ctx context.Context, monitor *models.Monitor, cause error) {
@@ -122,16 +161,18 @@ func (m *monitorRunEvents) OnMonitorTriggerFailed(ctx context.Context, monitor *
 		"monitor": monitorEventData(monitor),
 		"run":     map[string]any{"status": models.RunStatusFailed, "error": reason},
 	}
-	m.publish(ctx, monitor, fmt.Sprintf("evt_monstart_%s_%d", monitor.ID, now.Unix()/60), events.TypeMonitorRunFailed, data)
+	if err := m.publish(ctx, monitor, fmt.Sprintf("evt_monstart_%s_%d", monitor.ID, now.Unix()/60), events.TypeMonitorRunFailed, data, now); err != nil {
+		m.logger.Error("Failed to persist monitor trigger failure event", "monitorId", monitor.ID, "error", err)
+	}
 }
 
-func (m *monitorRunEvents) publish(ctx context.Context, monitor *models.Monitor, id, eventType string, data map[string]any) {
-	e := events.New(id, eventType, events.ScopeAgent, monitor.OUID, monitor.ProjectName, monitor.AgentName, m.now())
+func (m *monitorRunEvents) publish(ctx context.Context, monitor *models.Monitor, id, eventType string, data map[string]any, at time.Time) error {
+	e := events.New(id, eventType, events.ScopeAgent, monitor.OUID, monitor.ProjectName, monitor.AgentName, at)
 	e.Environment = monitor.EnvironmentName
 	e.Subject = monitor.Name
 	e.ActorType = "system"
 	e.Data = data
-	m.publisher.Publish(ctx, e)
+	return m.publisher.Publish(ctx, e)
 }
 
 func monitorEventData(monitor *models.Monitor) map[string]any {

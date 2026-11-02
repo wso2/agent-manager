@@ -90,6 +90,7 @@ type AppParams struct {
 	AgentTokenManagerService      services.AgentTokenManagerService
 	AgentIdentityInjectionService services.AgentIdentityInjectionService
 	EnvironmentService            services.EnvironmentService
+	EventDispatcher               services.EventDispatcherService
 
 	// Events
 	EventBus       events.Bus
