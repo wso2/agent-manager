@@ -43,6 +43,7 @@ import (
 	"github.com/wso2/agent-manager/agent-manager-service/services"
 	"github.com/wso2/agent-manager/agent-manager-service/services/eventdestinations"
 	"github.com/wso2/agent-manager/agent-manager-service/services/eventdestinations/webhook"
+"github.com/wso2/agent-manager/agent-manager-service/services/eventdestinations/notify"
 	"github.com/wso2/agent-manager/agent-manager-service/utils"
 	"github.com/wso2/agent-manager/agent-manager-service/websocket"
 )
@@ -608,6 +609,7 @@ func ProvideAgentIdentityInjectionService(
 func ProvideDestinationDrivers(cfg config.Config) *eventdestinations.Registry {
 	return eventdestinations.NewRegistry(
 		webhook.New(cfg.Events.AllowPrivateDestinations),
+notify.New(cfg.Events.AllowPrivateDestinations),
 	)
 }
 
