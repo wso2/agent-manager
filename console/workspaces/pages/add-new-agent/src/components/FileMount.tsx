@@ -16,7 +16,7 @@
  * under the License.
  */
 
-import { Box, Button, Form } from "@wso2/oxygen-ui";
+import { Box, Button, Stack, Typography } from "@wso2/oxygen-ui";
 import { Plus as Add } from "@wso2/oxygen-ui-icons-react";
 import { FileMountEditor } from "@agent-management-platform/views";
 import { CreateAgentFormValues } from "../form/schema";
@@ -57,8 +57,8 @@ export const FileMount = ({
   };
 
   return (
-    <Form.Section>
-      <Form.Subheader>File Mounts (Optional)</Form.Subheader>
+    <Stack spacing={2}>
+      <Typography variant="subtitle1">File Mounts (Optional)</Typography>
       <Box display="flex" flexDirection="column" gap={2}>
         {fileMounts.map((item, index) => {
           const siblingKeys = new Set(
@@ -96,6 +96,6 @@ export const FileMount = ({
       >
         Add File
       </Button>
-    </Form.Section>
+    </Stack>
   );
 };

@@ -24,10 +24,10 @@ import {
   CardContent,
   Collapse,
   Form,
+  Grid,
   IconButton,
   InputAdornment,
   Skeleton,
-  TextField,
   Tooltip,
   Typography,
 } from "@wso2/oxygen-ui";
@@ -46,6 +46,7 @@ import {
   ResilienceTimeoutFields,
   type PolicySelection as GuardrailSelection,
 } from "@agent-management-platform/shared-component";
+import { TextInput } from "@agent-management-platform/views";
 import { useListGateways } from "@agent-management-platform/api-client";
 import { INPUT_LIMITS } from "@agent-management-platform/types";
 
@@ -385,64 +386,53 @@ export const AddLLMProviderForm: React.FC<AddLLMProviderFormProps> = ({
           {missingParamsMessage}
         </Typography>
       )}
-      {/* Template selector */}
-      <Form.Section>
-        <Form.Subheader>Basic Details</Form.Subheader>
-        <Form.Stack spacing={2}>
-          <Form.Stack
-            direction={{ xs: "column", md: "row" }}
-            spacing={2}
-            useFlexGap
-          >
-            <Box sx={{ flex: 2 }}>
-              <Form.ElementWrapper label="Name" name="displayName">
-                <TextField
-                  slotProps={{ htmlInput: { maxLength: LLM_PROVIDER_NAME_MAX_LENGTH } }}
-                  id="displayName"
-                  fullWidth
-                  value={formData.displayName}
-                  onChange={(e) =>
-                    handleFieldChange("displayName", e.target.value)
-                  }
-                  placeholder="Production OpenAI Provider"
-                  error={Boolean(errors.displayName)}
-                  helperText={errors.displayName}
-                />
-              </Form.ElementWrapper>
-            </Box>
-
-            {showAdvancedBasicDetails && (
-              <Box sx={{ flex: 1 }}>
-                <Form.ElementWrapper label="Version" name="version">
-                  <TextField
-                    slotProps={{ htmlInput: { maxLength: INPUT_LIMITS.SHORT_TEXT } }}
-                    id="version"
-                    fullWidth
-                    value={formData.version}
-                    onChange={(e) =>
-                      handleFieldChange("version", e.target.value)
-                    }
-                    placeholder="v1.0"
-                    error={Boolean(errors.version)}
-                    helperText={errors.version}
-                  />
-                </Form.ElementWrapper>
-              </Box>
-            )}
-          </Form.Stack>
-
+      <Form.Stack spacing={2}>
+        <Typography variant="subtitle1">Basic Details</Typography>
+        <Grid container spacing={2}>
+          <Grid size={{ xs: 12, md: 6, xl: 4 }}>
+            <TextInput
+              label="Name"
+              id="displayName"
+              maxLength={LLM_PROVIDER_NAME_MAX_LENGTH}
+              hideCharacterCount={
+                formData.displayName.length < LLM_PROVIDER_NAME_MAX_LENGTH
+              }
+              value={formData.displayName}
+              onChange={(e) => handleFieldChange("displayName", e.target.value)}
+              placeholder="Production OpenAI Provider"
+              error={Boolean(errors.displayName)}
+              helperText={errors.displayName}
+            />
+          </Grid>
           {showAdvancedBasicDetails && (
             <>
-              <Form.ElementWrapper
-                label="Description (optional)"
-                name="description"
-              >
-                <TextField
-                  slotProps={{ htmlInput: { maxLength: LLM_PROVIDER_DESCRIPTION_MAX_LENGTH } }}
+              <Grid size={{ xs: 12, md: 6, xl: 4 }}>
+                <TextInput
+                  label="Version"
+                  id="version"
+                  maxLength={INPUT_LIMITS.SHORT_TEXT}
+                  hideCharacterCount={
+                    formData.version.length < INPUT_LIMITS.SHORT_TEXT
+                  }
+                  value={formData.version}
+                  onChange={(e) => handleFieldChange("version", e.target.value)}
+                  placeholder="v1.0"
+                  error={Boolean(errors.version)}
+                  helperText={errors.version}
+                />
+              </Grid>
+              <Grid size={{ xl: 4 }} sx={{ display: { xs: "none", xl: "block" } }} />
+              <Grid size={{ xs: 12, md: 12, xl: 8 }}>
+                <TextInput
+                  label="Description (optional)"
                   id="description"
-                  fullWidth
                   multiline
                   rows={2}
+                  maxLength={LLM_PROVIDER_DESCRIPTION_MAX_LENGTH}
+                  hideCharacterCount={
+                    (formData.description?.length ?? 0) <
+                    LLM_PROVIDER_DESCRIPTION_MAX_LENGTH
+                  }
                   value={formData.description ?? ""}
                   onChange={(e) =>
                     handleFieldChange("description", e.target.value)
@@ -451,16 +441,15 @@ export const AddLLMProviderForm: React.FC<AddLLMProviderFormProps> = ({
                   error={Boolean(errors.description)}
                   helperText={errors.description}
                 />
-              </Form.ElementWrapper>
-
-              <Form.ElementWrapper
-                label="Context path (optional)"
-                name="context"
-              >
-                <TextField
-                  slotProps={{ htmlInput: { maxLength: INPUT_LIMITS.PATH } }}
+              </Grid>
+              <Grid size={{ xs: 12, md: 12, xl: 8 }}>
+                <TextInput
+                  label="Context path (optional)"
                   id="context"
-                  fullWidth
+                  maxLength={INPUT_LIMITS.PATH}
+                  hideCharacterCount={
+                    (formData.context?.length ?? 0) < INPUT_LIMITS.PATH
+                  }
                   value={formData.context ?? ""}
                   onChange={(e) => handleContextChange(e.target.value)}
                   placeholder="/my-provider"
@@ -470,11 +459,11 @@ export const AddLLMProviderForm: React.FC<AddLLMProviderFormProps> = ({
                     "API context path (must start with /, no trailing slash)"
                   }
                 />
-              </Form.ElementWrapper>
+              </Grid>
             </>
           )}
-        </Form.Stack>
-      </Form.Section>
+        </Grid>
+      </Form.Stack>
 
       {isLoadingTemplates && (
         <Box>
@@ -493,11 +482,10 @@ export const AddLLMProviderForm: React.FC<AddLLMProviderFormProps> = ({
         </Box>
       )}
 
-      <Form.Section>
-        <Form.Subheader>Provider Template</Form.Subheader>
+      <Form.Stack spacing={2}>
+        <Typography variant="subtitle1">Provider Template</Typography>
         <Box
           sx={{
-            mt: 1.5,
             display: "grid",
             gap: 1.5,
             gridTemplateColumns: TEMPLATE_GRID_COLUMNS,
@@ -560,15 +548,15 @@ export const AddLLMProviderForm: React.FC<AddLLMProviderFormProps> = ({
               </Typography>
             )}
         </Box>
-      </Form.Section>
+      </Form.Stack>
       <Collapse in={!!formData.templateId}>
-        <Form.Section>
-          <Form.Subheader>Runtime Configuration</Form.Subheader>
-          <Form.Stack spacing={2}>
-            <Form.ElementWrapper label="Endpoint URL" name="upstreamUrl">
-              <TextField
+        <Form.Stack spacing={2}>
+          <Typography variant="subtitle1">Runtime Configuration</Typography>
+          <Grid container spacing={2}>
+            <Grid size={{ xs: 12, md: 12, xl: 8 }}>
+              <TextInput
+                label="Endpoint URL"
                 id="upstreamUrl"
-                fullWidth
                 value={formData.upstreamUrl ?? ""}
                 onChange={(e) => handleFieldChange("upstreamUrl", e.target.value)}
                 placeholder="https://api.openai.com/v1"
@@ -604,23 +592,23 @@ export const AddLLMProviderForm: React.FC<AddLLMProviderFormProps> = ({
                   },
                 }}
               />
-            </Form.ElementWrapper>
-
-            <Form.ElementWrapper
-              label="API key / Credential"
-              name="apiKey"
-            >
-              <TextField
+            </Grid>
+            <Grid size={{ xl: 4 }} sx={{ display: { xs: "none", xl: "block" } }} />
+            <Grid size={{ xs: 12, md: 6, xl: 4 }}>
+              <TextInput
+                label="API key / Credential"
                 id="apiKey"
-                fullWidth
                 type={showApiKey ? "text" : "password"}
+                maxLength={INPUT_LIMITS.SECRET}
+                hideCharacterCount={
+                  (formData.apiKey?.length ?? 0) < INPUT_LIMITS.SECRET
+                }
                 value={formData.apiKey}
                 onChange={(e) => handleFieldChange("apiKey", e.target.value)}
                 placeholder="Enter your API key"
                 error={Boolean(errors.apiKey)}
                 helperText={errors.apiKey}
                 slotProps={{
-                  htmlInput: { maxLength: INPUT_LIMITS.SECRET },
                   input: {
                     endAdornment: (
                       <InputAdornment position="end">
@@ -645,21 +633,19 @@ export const AddLLMProviderForm: React.FC<AddLLMProviderFormProps> = ({
                   },
                 }}
               />
-            </Form.ElementWrapper>
-          </Form.Stack>
-          <Form.Stack>
-            <ResilienceTimeoutFields
-              requestTimeout={formData.resilienceTimeout ?? ""}
-              onRequestTimeoutChange={(value) => handleFieldChange("resilienceTimeout", value)}
-              requestTimeoutError={errors.resilienceTimeout}
-              idleTimeout={formData.resilienceIdleTimeout ?? ""}
-              onIdleTimeoutChange={(value) => handleFieldChange("resilienceIdleTimeout", value)}
-              idleTimeoutError={errors.resilienceIdleTimeout}
-            />
-          </Form.Stack>
-        </Form.Section>
-
-        
+            </Grid>
+            <Grid size={{ xs: 12 }}>
+              <ResilienceTimeoutFields
+                requestTimeout={formData.resilienceTimeout ?? ""}
+                onRequestTimeoutChange={(value) => handleFieldChange("resilienceTimeout", value)}
+                requestTimeoutError={errors.resilienceTimeout}
+                idleTimeout={formData.resilienceIdleTimeout ?? ""}
+                onIdleTimeoutChange={(value) => handleFieldChange("resilienceIdleTimeout", value)}
+                idleTimeoutError={errors.resilienceIdleTimeout}
+              />
+            </Grid>
+          </Grid>
+        </Form.Stack>
       </Collapse>
       {/* Guardrails */}
       {showGuardrails && (
@@ -696,9 +682,8 @@ export const AddLLMProviderForm: React.FC<AddLLMProviderFormProps> = ({
             onSingleChoiceChange={setIsSingleGatewayChoice}
           />
         ) : (
-          <Form.Section>
-            <Form.Subheader>Deployment Configuration</Form.Subheader>
-            <Form.Stack spacing={2}>
+          <Form.Stack spacing={2}>
+            <Typography variant="subtitle1">Deployment Configuration</Typography>
               {!isLoadingGateways && Boolean(gatewaysFetchError) && (
                 <Alert severity="error">
                   {getErrorMessage(gatewaysFetchError)}
@@ -720,8 +705,7 @@ export const AddLLMProviderForm: React.FC<AddLLMProviderFormProps> = ({
                 onValidityChange={setIsGatewaySelectionValid}
                 onSingleChoiceChange={setIsSingleGatewayChoice}
               />
-            </Form.Stack>
-          </Form.Section>
+          </Form.Stack>
         )}
       </Collapse>
       {errorMessage && (

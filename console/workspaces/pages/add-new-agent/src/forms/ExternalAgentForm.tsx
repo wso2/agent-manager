@@ -16,7 +16,7 @@
  * under the License.
  */
 
-import { CircularProgress, Form, Stack, TextField, Typography } from "@wso2/oxygen-ui";
+import { CircularProgress, Form, Grid, Stack, Typography } from "@wso2/oxygen-ui";
 import { useCallback, useEffect, useMemo } from "react";
 import { useParams } from "react-router-dom";
 import { debounce } from "lodash";
@@ -24,6 +24,7 @@ import { useGenerateResourceName } from "@agent-management-platform/api-client";
 import { LabelsEditor, MarkdownEditor } from "@agent-management-platform/shared-component";
 import { ConnectAgentFormValues } from "../form/schema";
 import { INPUT_LIMITS } from "@agent-management-platform/types";
+import { TextInput } from "@agent-management-platform/views";
 
 interface ExternalAgentFormProps {
   formData: ConnectAgentFormValues;
@@ -109,20 +110,22 @@ export const ExternalAgentForm = ({
 
   return (
     <Form.Stack spacing={3}>
-      <Form.Section>
-        <Form.Subheader>Agent Details</Form.Subheader>
-        <Form.Stack spacing={2}>
-          <Form.ElementWrapper label="Name" name="displayName">
-            <TextField
-              slotProps={{ htmlInput: { maxLength: INPUT_LIMITS.NAME } }}
+      <Stack spacing={2}>
+        <Typography variant="subtitle1">Agent Details</Typography>
+        <Grid container spacing={2}>
+          <Grid size={{ xs: 12, md: 6, xl: 4 }}>
+            <TextInput
+              label="Name"
               id="displayName"
+              maxLength={INPUT_LIMITS.NAME}
+              hideCharacterCount={formData.displayName.length < INPUT_LIMITS.NAME}
               placeholder="e.g., Customer Support"
               value={formData.displayName}
               onChange={(e) => handleFieldChange('displayName', e.target.value)}
               error={!!errors.displayName}
               helperText={
                 isGeneratingName ? (
-                  <Stack direction="row" alignItems="center" gap={1}>
+                  <Stack component="span" direction="row" alignItems="center" gap={1}>
                     <CircularProgress size={12} />
                     <Typography variant="caption">Validating name...</Typography>
                   </Stack>
@@ -130,29 +133,33 @@ export const ExternalAgentForm = ({
                   errors.displayName
                 )
               }
-              fullWidth
             />
-          </Form.ElementWrapper>
-          <Form.ElementWrapper label="Description (optional)" name="description">
-            <MarkdownEditor
-              id="description"
-              placeholder="Short description of what this agent does. Markdown is supported."
-              value={formData.description || ''}
-              onChange={(value) => handleFieldChange('description', value)}
-              error={!!errors.description}
-              helperText={errors.description}
-            />
-          </Form.ElementWrapper>
-          <Form.ElementWrapper label="Labels (optional)" name="labels">
-            <LabelsEditor
-              hideTitle
-              description="Attach key/value labels to organize and filter agents."
-              value={formData.labels ?? {}}
-              onChange={(labels) => handleFieldChange("labels", labels)}
-            />
-          </Form.ElementWrapper>
-        </Form.Stack>
-      </Form.Section>
+          </Grid>
+          <Grid size={{ xl: 8 }} sx={{ display: { xs: 'none', xl: 'block' } }} />
+          <Grid size={{ xs: 12, md: 12, xl: 8 }}>
+            <Form.ElementWrapper label="Description (optional)" name="description">
+              <MarkdownEditor
+                id="description"
+                placeholder="Short description of what this agent does. Markdown is supported."
+                value={formData.description || ''}
+                onChange={(value) => handleFieldChange('description', value)}
+                error={!!errors.description}
+                helperText={errors.description}
+              />
+            </Form.ElementWrapper>
+          </Grid>
+          <Grid size={{ xs: 12, md: 12, xl: 8 }}>
+            <Form.ElementWrapper label="Labels (optional)" name="labels">
+              <LabelsEditor
+                hideTitle
+                description="Attach key/value labels to organize and filter agents."
+                value={formData.labels ?? {}}
+                onChange={(labels) => handleFieldChange("labels", labels)}
+              />
+            </Form.ElementWrapper>
+          </Grid>
+        </Grid>
+      </Stack>
     </Form.Stack>
   );
 };

@@ -24,11 +24,13 @@ import {
   Divider,
   Typography,
   Form,
-  TextField,
+  Grid,
+  Stack,
 } from "@wso2/oxygen-ui";
 import { useCallback } from "react";
 import type { CreateAgentFormValues } from "../form/schema";
 import { type InputInterfaceType, INPUT_LIMITS } from "@agent-management-platform/types";
+import { TextInput } from "@agent-management-platform/views";
 
 interface InputInterfaceProps {
   formData: CreateAgentFormValues;
@@ -165,8 +167,8 @@ export const InputInterface = ({
   );
 
   return (
-    <Form.Section>
-      <Form.Subheader>Agent Type</Form.Subheader>
+    <Stack spacing={2}>
+      <Typography variant="subtitle1">Agent Type</Typography>
       <Typography variant="body2" color="text.secondary">
         How your agent receives requests
       </Typography>
@@ -223,50 +225,46 @@ export const InputInterface = ({
           </Alert>
         </Collapse>
         <Collapse in={formData.interfaceType === "CUSTOM"}>
-          <Form.Stack spacing={2}>
-            <Form.Stack direction="row" spacing={2}>
-              <Box display="flex" flexDirection="column" flexGrow={1}>
-                <Form.ElementWrapper label="OpenAPI Spec Path" name="openApiPath">
-                  <TextField
-                    slotProps={{ htmlInput: { maxLength: INPUT_LIMITS.PATH } }}
-                    id="openApiPath"
-                    placeholder="/openapi.yaml"
-                    required
-                    value={formData.openApiPath || ''}
-                    onChange={(e) => handleFieldChange('openApiPath', e.target.value)}
-                    error={!!errors.openApiPath}
-                    helperText={
-                      errors.openApiPath ||
-                      "Path to OpenAPI schema file in your repository"
-                    }
-                    fullWidth
-                  />
-                </Form.ElementWrapper>
-              </Box>
-              <Box>
-                <Form.ElementWrapper label="Port" name="port">
-                  <TextField
-                    id="port"
-                    placeholder="8080"
-                    required
-                    value={formData.port ?? ''}
-                    onChange={handlePortChange}
-                    type="number"
-                    error={!!errors.port}
-                    helperText={
-                      errors.port ||
-                      (formData.port ? undefined : "Port is required")
-                    }
-                  />
-                </Form.ElementWrapper>
-              </Box>
-            </Form.Stack>
-            <Form.ElementWrapper label="Base Path" name="basePath">
-              <TextField
-                slotProps={{ htmlInput: { maxLength: INPUT_LIMITS.PATH } }}
+          <Grid container spacing={2}>
+            <Grid size={{ xs: 12, md: 6, xl: 4 }}>
+              <TextInput
+                label="OpenAPI Spec Path"
+                id="openApiPath"
+                maxLength={INPUT_LIMITS.PATH}
+                hideCharacterCount={(formData.openApiPath?.length ?? 0) < INPUT_LIMITS.PATH}
+                placeholder="/openapi.yaml"
+                value={formData.openApiPath || ''}
+                onChange={(e) => handleFieldChange('openApiPath', e.target.value)}
+                error={!!errors.openApiPath}
+                helperText={
+                  errors.openApiPath ||
+                  "Path to OpenAPI schema file in your repository"
+                }
+              />
+            </Grid>
+            <Grid size={{ xs: 12, md: 6, xl: 4 }}>
+              <TextInput
+                label="Port"
+                id="port"
+                placeholder="8080"
+                value={formData.port ?? ''}
+                onChange={handlePortChange}
+                type="number"
+                error={!!errors.port}
+                helperText={
+                  errors.port ||
+                  (formData.port ? undefined : "Port is required")
+                }
+              />
+            </Grid>
+            <Grid size={{ xl: 4 }} sx={{ display: { xs: 'none', xl: 'block' } }} />
+            <Grid size={{ xs: 12, md: 6, xl: 4 }}>
+              <TextInput
+                label="Base Path"
                 id="basePath"
+                maxLength={INPUT_LIMITS.PATH}
+                hideCharacterCount={(formData.basePath?.length ?? 0) < INPUT_LIMITS.PATH}
                 placeholder="/"
-                required
                 value={formData.basePath || ''}
                 onChange={(e) => handleFieldChange('basePath', e.target.value)}
                 error={!!errors.basePath}
@@ -274,10 +272,9 @@ export const InputInterface = ({
                   errors.basePath ||
                   "API base path (e.g., / or /api/v1)"
                 }
-                fullWidth
               />
-            </Form.ElementWrapper>
-          </Form.Stack>
+            </Grid>
+          </Grid>
         </Collapse>
         <Collapse in={formData.interfaceType === "A2A"}>
           <Form.Stack spacing={2}>
@@ -286,12 +283,12 @@ export const InputInterface = ({
               <strong>/rpc</strong> and HTTP+JSON at <strong>/rest</strong> — and
               serves the agent&apos;s own card at the well-known path.
             </Alert>
-            <Box>
-              <Form.ElementWrapper label="Port" name="port">
-                <TextField
+            <Grid container spacing={2}>
+              <Grid size={{ xs: 12, md: 6, xl: 4 }}>
+                <TextInput
+                  label="Port"
                   id="port"
                   placeholder="9099"
-                  required
                   value={formData.port ?? ''}
                   onChange={handlePortChange}
                   type="number"
@@ -301,11 +298,11 @@ export const InputInterface = ({
                     (formData.port ? undefined : "Port is required")
                   }
                 />
-              </Form.ElementWrapper>
-            </Box>
+              </Grid>
+            </Grid>
           </Form.Stack>
         </Collapse>
       </Form.Stack>
-    </Form.Section>
+    </Stack>
   );
 };

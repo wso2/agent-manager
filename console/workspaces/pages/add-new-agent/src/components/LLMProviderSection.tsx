@@ -714,8 +714,8 @@ export const LLMProviderSection: React.FC<LLMProviderSectionProps> = ({
   }, []);
 
   return (
-    <Form.Section>
-      <Form.Subheader>LLM Providers (Optional)</Form.Subheader>
+    <Stack spacing={2}>
+      <Typography variant="subtitle1">LLM Providers (Optional)</Typography>
 
       <Stack spacing={1}>
         {llmProviders.map((entry, index) => {
@@ -904,6 +904,6 @@ export const LLMProviderSection: React.FC<LLMProviderSectionProps> = ({
           </Stack>
         </DrawerContent>
       </DrawerWrapper>
-    </Form.Section>
+    </Stack>
   );
 };

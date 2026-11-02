@@ -21,14 +21,16 @@ import {
   Box,
   Button,
   Form,
-  FormControl,
-  FormLabel,
+  Grid,
   Skeleton,
   Stack,
-  TextField,
   Typography,
 } from "@wso2/oxygen-ui";
-import { PageLayout, useFormValidation } from "@agent-management-platform/views";
+import {
+  PageLayout,
+  TextInput,
+  useFormValidation,
+} from "@agent-management-platform/views";
 import {
   useGetMCPProxy,
   useListEnvironments,
@@ -185,67 +187,72 @@ function EditMCPProxyForm({
           </Alert>
         )}
 
-        <Form.Section>
-          <Form.Header>MCP Server Details</Form.Header>
-          <Form.Stack spacing={2}>
-            <FormControl fullWidth>
-              <FormLabel>Handle</FormLabel>
-              <TextField fullWidth size="small" value={proxy.id} disabled />
-              <Typography variant="caption" color="text.secondary">
-                Unique, immutable identifier for the MCP Server.
-                Cannot be changed after the server is registered.
-              </Typography>
-            </FormControl>
-            <FormControl fullWidth error={Boolean(errors.name)}>
-              <FormLabel required>Name</FormLabel>
-              <TextField
-                slotProps={{ htmlInput: { maxLength: INPUT_LIMITS.NAME } }}
-                fullWidth
-                size="small"
+        <Form.Stack spacing={3}>
+          <Grid container spacing={2}>
+            <Grid size={{ xs: 12, md: 6, xl: 4 }}>
+              <TextInput
+                label="Name"
+                maxLength={INPUT_LIMITS.NAME}
+                hideCharacterCount={formData.name.length < INPUT_LIMITS.NAME}
                 value={formData.name}
                 onChange={(e) => handleFieldChange("name", e.target.value)}
                 error={Boolean(errors.name)}
                 helperText={errors.name}
                 disabled={isPending}
               />
-            </FormControl>
-            <FormControl fullWidth error={Boolean(errors.version)}>
-              <FormLabel required>Version</FormLabel>
-              <TextField
-                slotProps={{ htmlInput: { maxLength: INPUT_LIMITS.SHORT_TEXT } }}
-                fullWidth
-                size="small"
-                value={formData.version}
-                onChange={(e) =>
-                  handleFieldChange("version", e.target.value)
+            </Grid>
+            <Grid size={{ xs: 12, md: 6, xl: 4 }}>
+              <TextInput
+                label="Handle"
+                value={proxy.id}
+                disabled
+                helperText="Unique, immutable identifier for the MCP Server. Cannot be changed after the server is registered."
+              />
+            </Grid>
+            <Grid
+              size={{ xs: 12, xl: 4 }}
+              sx={{ display: { xs: "none", xl: "block" } }}
+            />
+            <Grid size={{ xs: 12, md: 6, xl: 4 }}>
+              <TextInput
+                label="Version"
+                maxLength={INPUT_LIMITS.SHORT_TEXT}
+                hideCharacterCount={
+                  formData.version.length < INPUT_LIMITS.SHORT_TEXT
                 }
+                value={formData.version}
+                onChange={(e) => handleFieldChange("version", e.target.value)}
                 error={Boolean(errors.version)}
                 helperText={errors.version}
                 disabled={isPending}
               />
-            </FormControl>
-            <FormControl fullWidth error={Boolean(errors.context)}>
-              <FormLabel>Context</FormLabel>
-              <TextField
-                slotProps={{ htmlInput: { maxLength: INPUT_LIMITS.PATH } }}
-                fullWidth
-                size="small"
+            </Grid>
+            <Grid size={{ xs: 12, md: 6, xl: 4 }}>
+              <TextInput
+                label="Context (optional)"
+                maxLength={INPUT_LIMITS.PATH}
+                hideCharacterCount={
+                  (formData.context?.length ?? 0) < INPUT_LIMITS.PATH
+                }
                 placeholder="/default/my-mcp-proxy"
                 value={formData.context}
-                onChange={(e) =>
-                  handleFieldChange("context", e.target.value)
-                }
+                onChange={(e) => handleFieldChange("context", e.target.value)}
                 error={Boolean(errors.context)}
                 helperText={errors.context}
                 disabled={isPending}
               />
-            </FormControl>
-            <FormControl fullWidth error={Boolean(errors.description)}>
-              <FormLabel>Description</FormLabel>
-              <TextField
-                slotProps={{ htmlInput: { maxLength: INPUT_LIMITS.DESCRIPTION } }}
-                fullWidth
-                size="small"
+            </Grid>
+            <Grid
+              size={{ xs: 12, xl: 4 }}
+              sx={{ display: { xs: "none", xl: "block" } }}
+            />
+            <Grid size={{ xs: 12, md: 12, xl: 8 }}>
+              <TextInput
+                label="Description (optional)"
+                maxLength={INPUT_LIMITS.DESCRIPTION}
+                hideCharacterCount={
+                  (formData.description?.length ?? 0) < INPUT_LIMITS.DESCRIPTION
+                }
                 multiline
                 minRows={3}
                 value={formData.description}
@@ -256,13 +263,11 @@ function EditMCPProxyForm({
                 helperText={errors.description}
                 disabled={isPending}
               />
-            </FormControl>
-          </Form.Stack>
-        </Form.Section>
+            </Grid>
+          </Grid>
 
-        <Form.Section>
-          <Form.Header>Endpoints</Form.Header>
-          <Form.Stack spacing={2}>
+          <Stack spacing={2}>
+            <Typography variant="subtitle1">Endpoints</Typography>
             <Typography variant="body2" color="text.secondary">
               {environments.length > 1
                 ? "Endpoints map backend MCP servers to environments. Editing an endpoint updates the upstream URL, authentication, and capabilities for the environments it serves. Environments left without an endpoint become unconfigured."
@@ -281,8 +286,8 @@ function EditMCPProxyForm({
               emptyStateText="No endpoints configured yet."
               onEndpointFormDirtyChange={setIsEndpointFormDirty}
             />
-          </Form.Stack>
-        </Form.Section>
+          </Stack>
+        </Form.Stack>
 
         {addOpen || editingId !== null ? null : (
           <Box display="flex" justifyContent="flex-end" gap={1} mt={2}>

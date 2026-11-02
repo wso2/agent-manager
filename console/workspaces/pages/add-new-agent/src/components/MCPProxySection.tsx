@@ -564,8 +564,8 @@ export const MCPProxySection: React.FC<MCPProxySectionProps> = ({
   }, []);
 
   return (
-    <Form.Section>
-      <Form.Subheader>MCP Servers (Optional)</Form.Subheader>
+    <Stack spacing={2}>
+      <Typography variant="subtitle1">MCP Servers (Optional)</Typography>
 
       <Stack spacing={1}>
         {mcpProxies.map((entry, index) => {
@@ -735,6 +735,6 @@ export const MCPProxySection: React.FC<MCPProxySectionProps> = ({
           </Stack>
         </DrawerContent>
       </DrawerWrapper>
-    </Form.Section>
+    </Stack>
   );
 };

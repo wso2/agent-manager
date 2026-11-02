@@ -16,7 +16,7 @@
  * under the License.
  */
 
-import { Box, Button, Form, Typography } from "@wso2/oxygen-ui";
+import { Box, Button, Stack, Typography } from "@wso2/oxygen-ui";
 import { Plus as Add } from "@wso2/oxygen-ui-icons-react";
 import { EnvFileUploadButton, EnvVariableEditor } from "@agent-management-platform/views";
 import { CreateAgentFormValues } from "../form/schema";
@@ -107,10 +107,10 @@ export const EnvironmentVariable = ({
   };
 
   return (
-    <Form.Section>
-      <Form.Subheader>
+    <Stack spacing={2}>
+      <Typography variant="subtitle1">
         {hideAdd ? "Environment Variables" : "Environment Variables (Optional)"}
-      </Form.Subheader>
+      </Typography>
       <Box display="flex" flexDirection="column" gap={2}>
         {envVariables.map((item, index) => {
           const siblingKeys = new Set(
@@ -170,6 +170,6 @@ export const EnvironmentVariable = ({
           </Typography>
         </Box>
       )}
-    </Form.Section>
+    </Stack>
   );
 };

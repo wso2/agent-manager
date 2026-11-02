@@ -16,7 +16,7 @@
  * under the License.
  */
 
-import { Alert, Box, Checkbox, Collapse, Form, FormControl, FormControlLabel, FormHelperText, IconButton, MenuItem, Select, Stack, TextField, Tooltip, Typography, CircularProgress } from "@wso2/oxygen-ui";
+import { Alert, Box, Checkbox, Collapse, Form, FormControl, FormControlLabel, FormHelperText, Grid, IconButton, MenuItem, Select, Stack, Tooltip, Typography, CircularProgress } from "@wso2/oxygen-ui";
 import { Copy as ContentCopy } from "@wso2/oxygen-ui-icons-react";
 import { useEffect, useMemo, useCallback, useState, type ComponentType } from "react";
 import { useParams } from "react-router-dom";
@@ -36,6 +36,7 @@ import { LabelsEditor, MarkdownEditor } from "@agent-management-platform/shared-
 import type { CreateAgentFormValues, LLMProviderFormEntry, MCPProxyFormEntry } from "../form/schema";
 import {
   BuildpackIcon,
+  TextInput,
   useExternalComponentModulesByMountPoint,
   type PrivateRepoSourceProps,
 } from "@agent-management-platform/views";
@@ -285,20 +286,22 @@ export const InternalAgentForm = ({
 
   return (
     <Form.Stack spacing={3}>
-      <Form.Section>
-        <Form.Subheader>Agent Details</Form.Subheader>
-        <Form.Stack spacing={2}>
-          <Form.ElementWrapper label="Name" name="displayName">
-            <TextField
-              slotProps={{ htmlInput: { maxLength: INPUT_LIMITS.NAME } }}
+      <Stack spacing={2}>
+        <Typography variant="subtitle1">Agent Details</Typography>
+        <Grid container spacing={2}>
+          <Grid size={{ xs: 12, md: 6, xl: 4 }}>
+            <TextInput
+              label="Name"
               id="displayName"
+              maxLength={INPUT_LIMITS.NAME}
+              hideCharacterCount={formData.displayName.length < INPUT_LIMITS.NAME}
               placeholder="e.g., Customer Support Agent"
               value={formData.displayName}
               onChange={(e) => handleFieldChange('displayName', e.target.value)}
               error={!!errors.displayName}
               helperText={
                 isGeneratingName ? (
-                  <Stack direction="row" alignItems="center" gap={1}>
+                  <Stack component="span" direction="row" alignItems="center" gap={1}>
                     <CircularProgress size={12} />
                     <Typography variant="caption">Validating name...</Typography>
                   </Stack>
@@ -306,109 +309,122 @@ export const InternalAgentForm = ({
                   errors.displayName || "A name for your agent"
                 )
               }
-              fullWidth
             />
-          </Form.ElementWrapper>
-          <Form.ElementWrapper label="Description (optional)" name="description">
-            <MarkdownEditor
-              id="description"
-              placeholder="Short description of what this agent does. Markdown is supported."
-              value={formData.description || ''}
-              onChange={(value) => handleFieldChange('description', value)}
-              error={!!errors.description}
-              helperText={errors.description}
-            />
-          </Form.ElementWrapper>
-          <Form.ElementWrapper label="Labels (optional)" name="labels">
-            <LabelsEditor
-              hideTitle
-              description="Attach key/value labels to organize and filter agents."
-              value={formData.labels ?? {}}
-              onChange={(labels) => handleFieldChange("labels", labels)}
-            />
-          </Form.ElementWrapper>
-        </Form.Stack>
-      </Form.Section>
+          </Grid>
+          <Grid size={{ xl: 8 }} sx={{ display: { xs: 'none', xl: 'block' } }} />
+          <Grid size={{ xs: 12, md: 12, xl: 8 }}>
+            <Form.ElementWrapper label="Description (optional)" name="description">
+              <MarkdownEditor
+                id="description"
+                placeholder="Short description of what this agent does. Markdown is supported."
+                value={formData.description || ''}
+                onChange={(value) => handleFieldChange('description', value)}
+                error={!!errors.description}
+                helperText={errors.description}
+              />
+            </Form.ElementWrapper>
+          </Grid>
+          <Grid size={{ xs: 12, md: 12, xl: 8 }}>
+            <Form.ElementWrapper label="Labels (optional)" name="labels">
+              <LabelsEditor
+                hideTitle
+                description="Attach key/value labels to organize and filter agents."
+                value={formData.labels ?? {}}
+                onChange={(labels) => handleFieldChange("labels", labels)}
+              />
+            </Form.ElementWrapper>
+          </Grid>
+        </Grid>
+      </Stack>
 
-      <Form.Section>
-        <Form.Subheader>Repository Details</Form.Subheader>
-        <Form.Stack spacing={2}>
+      <Stack spacing={2}>
+        <Typography variant="subtitle1">Repository Details</Typography>
+        <Grid container spacing={2}>
           {RepoSourceOverride ? (
-            <RepoSourceOverride
-              values={{
-                repositoryUrl: formData.repositoryUrl,
-                branch: formData.branch,
-                appPath: formData.appPath,
-                gitSecretRef: formData.gitSecretRef,
-              }}
-              errors={{
-                repositoryUrl: errors.repositoryUrl,
-                branch: errors.branch,
-                appPath: errors.appPath,
-                gitSecretRef: errors.gitSecretRef,
-              }}
-              onFieldChange={(field, value) => handleFieldChange(field, value)}
-              sourceBinding={formData.githubApp}
-              sourceBindingError={errors.githubApp}
-              onSourceBindingChange={(binding) => handleFieldChange('githubApp', binding)}
-              orgId={orgId ?? ""}
-              projectName={projectId}
-              componentName={formData.name}
-            />
+            <Grid size={12}>
+              <RepoSourceOverride
+                values={{
+                  repositoryUrl: formData.repositoryUrl,
+                  branch: formData.branch,
+                  appPath: formData.appPath,
+                  gitSecretRef: formData.gitSecretRef,
+                }}
+                errors={{
+                  repositoryUrl: errors.repositoryUrl,
+                  branch: errors.branch,
+                  appPath: errors.appPath,
+                  gitSecretRef: errors.gitSecretRef,
+                }}
+                onFieldChange={(field, value) => handleFieldChange(field, value)}
+                sourceBinding={formData.githubApp}
+                sourceBindingError={errors.githubApp}
+                onSourceBindingChange={(binding) => handleFieldChange('githubApp', binding)}
+                orgId={orgId ?? ""}
+                projectName={projectId}
+                componentName={formData.name}
+              />
+            </Grid>
           ) : (
             <>
-              <Form.ElementWrapper label="GitHub Repository" name="repositoryUrl">
-                <TextField
-                  slotProps={{ htmlInput: { maxLength: INPUT_LIMITS.URL } }}
+              <Grid size={{ xs: 12, md: 12, xl: 8 }}>
+                <TextInput
+                  label="GitHub Repository"
                   id="repositoryUrl"
+                  maxLength={INPUT_LIMITS.URL}
+                  hideCharacterCount={formData.repositoryUrl.length < INPUT_LIMITS.URL}
                   placeholder="https://github.com/username/repo"
                   value={formData.repositoryUrl}
                   onChange={(e) => handleFieldChange('repositoryUrl', e.target.value)}
                   error={!!errors.repositoryUrl}
                   helperText={errors.repositoryUrl}
-                  fullWidth
                 />
-              </Form.ElementWrapper>
+              </Grid>
+              <Grid size={{ xl: 4 }} sx={{ display: { xs: 'none', xl: 'block' } }} />
               {isPrivateRepoEnabled && (
-                <GitSecretSelector
-                  formData={formData}
-                  handleFieldChange={handleFieldChange}
-                  errors={errors}
-                />
+                <Grid size={{ xs: 12, md: 12, xl: 8 }}>
+                  <GitSecretSelector
+                    formData={formData}
+                    handleFieldChange={handleFieldChange}
+                    errors={errors}
+                  />
+                </Grid>
               )}
-              <Form.Stack direction="row" spacing={2}>
-                <Form.ElementWrapper label="Branch" name="branch">
-                  <TextField
-                    slotProps={{ htmlInput: { maxLength: INPUT_LIMITS.SHORT_TEXT } }}
-                    id="branch"
-                    placeholder="main"
-                    value={formData.branch}
-                    onChange={(e) => handleFieldChange('branch', e.target.value)}
-                    error={!!errors.branch}
-                    helperText={errors.branch}
-                    fullWidth
-                  />
-                </Form.ElementWrapper>
-                <Form.ElementWrapper label="Project Path" name="appPath">
-                  <TextField
-                    slotProps={{ htmlInput: { maxLength: INPUT_LIMITS.PATH } }}
-                    id="appPath"
-                    placeholder="my-agent"
-                    value={formData.appPath}
-                    onChange={(e) => handleFieldChange('appPath', e.target.value)}
-                    error={!!errors.appPath}
-                    helperText={errors.appPath}
-                    fullWidth
-                  />
-                </Form.ElementWrapper>
-              </Form.Stack>
+              {isPrivateRepoEnabled && (
+                <Grid size={{ xl: 4 }} sx={{ display: { xs: 'none', xl: 'block' } }} />
+              )}
+              <Grid size={{ xs: 12, md: 6, xl: 4 }}>
+                <TextInput
+                  label="Branch"
+                  id="branch"
+                  maxLength={INPUT_LIMITS.SHORT_TEXT}
+                  hideCharacterCount={formData.branch.length < INPUT_LIMITS.SHORT_TEXT}
+                  placeholder="main"
+                  value={formData.branch}
+                  onChange={(e) => handleFieldChange('branch', e.target.value)}
+                  error={!!errors.branch}
+                  helperText={errors.branch}
+                />
+              </Grid>
+              <Grid size={{ xs: 12, md: 6, xl: 4 }}>
+                <TextInput
+                  label="Project Path"
+                  id="appPath"
+                  maxLength={INPUT_LIMITS.PATH}
+                  hideCharacterCount={formData.appPath.length < INPUT_LIMITS.PATH}
+                  placeholder="my-agent"
+                  value={formData.appPath}
+                  onChange={(e) => handleFieldChange('appPath', e.target.value)}
+                  error={!!errors.appPath}
+                  helperText={errors.appPath}
+                />
+              </Grid>
             </>
           )}
-        </Form.Stack>
-      </Form.Section>
+        </Grid>
+      </Stack>
 
-      <Form.Section>
-        <Form.Subheader>Build Details</Form.Subheader>
+      <Stack spacing={2}>
+        <Typography variant="subtitle1">Build Details</Typography>
         <Form.Stack spacing={2}>
           <Form.Stack direction="row" spacing={2}>
             {
@@ -433,11 +449,13 @@ export const InternalAgentForm = ({
 
 
           <Collapse in={formData.language === "python"}>
-            <Form.Stack direction="row" spacing={2}>
-              <Form.ElementWrapper label="Start Command" name="runCommand">
-                <TextField
-                  slotProps={{ htmlInput: { maxLength: INPUT_LIMITS.VALUE } }}
+            <Grid container spacing={2}>
+              <Grid size={{ xs: 12, md: 6, xl: 4 }}>
+                <TextInput
+                  label="Start Command"
                   id="runCommand"
+                  maxLength={INPUT_LIMITS.VALUE}
+                  hideCharacterCount={(formData.runCommand?.length ?? 0) < INPUT_LIMITS.VALUE}
                   placeholder="python main.py"
                   value={formData.runCommand}
                   onChange={(e) => handleFieldChange('runCommand', e.target.value)}
@@ -446,32 +464,33 @@ export const InternalAgentForm = ({
                     errors.runCommand ||
                     "Dependencies auto-install from package.json, requirements.txt, or pyproject.toml"
                   }
-                  fullWidth
                 />
-              </Form.ElementWrapper>
-              <Form.ElementWrapper label="Language Version" name="languageVersion">
-                <FormControl fullWidth error={!!errors.languageVersion}>
-                  <Select
-                    id="languageVersion"
-                    value={formData.languageVersion || ''}
-                    onChange={(e) => handleFieldChange('languageVersion', e.target.value)}
-                    disabled={!buildOptions}
-                  >
-                    {(buildOptions?.python.supportedVersions ?? []).map((v) => (
-                      <MenuItem key={v} value={v}>
-                        {v}
-                      </MenuItem>
-                    ))}
-                  </Select>
-                  <FormHelperText>
-                    {errors.languageVersion ||
-                      (buildOptionsQuery.isError
-                        ? 'Could not load supported Python versions; retry by refreshing.'
-                        : 'Python runtime version')}
-                  </FormHelperText>
-                </FormControl>
-              </Form.ElementWrapper>
-            </Form.Stack>
+              </Grid>
+              <Grid size={{ xs: 12, md: 6, xl: 4 }}>
+                <Form.ElementWrapper label="Language Version" name="languageVersion">
+                  <FormControl fullWidth error={!!errors.languageVersion}>
+                    <Select
+                      id="languageVersion"
+                      value={formData.languageVersion || ''}
+                      onChange={(e) => handleFieldChange('languageVersion', e.target.value)}
+                      disabled={!buildOptions}
+                    >
+                      {(buildOptions?.python.supportedVersions ?? []).map((v) => (
+                        <MenuItem key={v} value={v}>
+                          {v}
+                        </MenuItem>
+                      ))}
+                    </Select>
+                    <FormHelperText>
+                      {errors.languageVersion ||
+                        (buildOptionsQuery.isError
+                          ? 'Could not load supported Python versions; retry by refreshing.'
+                          : 'Python runtime version')}
+                    </FormHelperText>
+                  </FormControl>
+                </Form.ElementWrapper>
+              </Grid>
+            </Grid>
             <FormControlLabel
               control={
                 <Checkbox
@@ -635,11 +654,15 @@ export const InternalAgentForm = ({
 
           <Collapse in={formData.language === "docker"}>
             <Stack spacing={2}>
-              <Form.Stack direction="row" spacing={2}>
-                <Form.ElementWrapper label="Dockerfile Path" name="dockerfilePath">
-                  <TextField
-                    slotProps={{ htmlInput: { maxLength: INPUT_LIMITS.PATH } }}
+              <Grid container spacing={2}>
+                <Grid size={{ xs: 12, md: 6, xl: 4 }}>
+                  <TextInput
+                    label="Dockerfile Path"
                     id="dockerfilePath"
+                    maxLength={INPUT_LIMITS.PATH}
+                    hideCharacterCount={
+                      (formData.dockerfilePath?.length ?? 0) < INPUT_LIMITS.PATH
+                    }
                     placeholder="e.g., ./Dockerfile"
                     value={formData.dockerfilePath || ''}
                     onChange={(e) => handleFieldChange('dockerfilePath', e.target.value)}
@@ -648,10 +671,9 @@ export const InternalAgentForm = ({
                       errors.dockerfilePath ||
                       "Path to Dockerfile in your repository"
                     }
-                    fullWidth
                   />
-                </Form.ElementWrapper>
-              </Form.Stack>
+                </Grid>
+              </Grid>
               <Alert severity="info">
                 <Typography variant="subtitle2" gutterBottom>
                   Tracing Support for Docker-Based Agents
@@ -719,7 +741,7 @@ export const InternalAgentForm = ({
           </Collapse>
 
         </Form.Stack>
-      </Form.Section>
+      </Stack>
 
       <InputInterface
         formData={formData}

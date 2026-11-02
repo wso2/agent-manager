@@ -30,13 +30,14 @@ import {
   Button,
   CircularProgress,
   Form,
-  FormControl,
-  FormLabel,
+  Grid,
+  IconButton,
+  InputAdornment,
   Stack,
-  TextField,
   Typography,
 } from "@wso2/oxygen-ui";
-import { useFormValidation } from "@agent-management-platform/views";
+import { Edit } from "@wso2/oxygen-ui-icons-react";
+import { TextInput, useFormValidation } from "@agent-management-platform/views";
 import { useUnsavedChangesGuard } from "@agent-management-platform/shared-component";
 import { z } from "zod";
 import { type EndpointDraft } from "./EndpointFormFields";
@@ -81,6 +82,7 @@ export function AddMCPProxyForm({ onCancel }: AddMCPProxyFormProps) {
   const [proxyContext, setProxyContext] = useState("");
   const [handle, setHandle] = useState("");
   const [handleEdited, setHandleEdited] = useState(false);
+  const [isHandleEditable, setIsHandleEditable] = useState(false);
   const [endpoints, setEndpoints] = useState<EndpointDraft[]>([]);
   const [addOpen, setAddOpen] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -211,84 +213,94 @@ export function AddMCPProxyForm({ onCancel }: AddMCPProxyFormProps) {
 
   return (
     <Stack spacing={3}>
-      <Form.Section>
-        <Form.Stack spacing={2}>
-          <Form.Stack
-            direction={{ xs: "column", md: "row" }}
-            spacing={2}
-            useFlexGap
-          >
-            <FormControl sx={{ flex: 1 }}>
-              <FormLabel required>Name</FormLabel>
-              <TextField
-                slotProps={{ htmlInput: { maxLength: INPUT_LIMITS.NAME } }}
-                fullWidth
-                value={proxyName}
-                onChange={(event) => handleNameChange(event.target.value)}
-              />
-            </FormControl>
-            <FormControl
-              sx={{ width: { xs: "100%", md: 300 } }}
-              error={Boolean(errors.version)}
-            >
-              <FormLabel required>Version</FormLabel>
-              <TextField
-                slotProps={{ htmlInput: { maxLength: INPUT_LIMITS.SHORT_TEXT } }}
-                fullWidth
-                value={proxyVersion}
-                onChange={(event) => handleVersionChange(event.target.value)}
-                error={Boolean(errors.version)}
-                helperText={errors.version}
-              />
-            </FormControl>
-          </Form.Stack>
-
-          <FormControl fullWidth error={Boolean(handleLengthError)}>
-            <FormLabel required>Handle</FormLabel>
-            <TextField
-              slotProps={{ htmlInput: { maxLength: MAX_HANDLE_LENGTH } }}
-              fullWidth
+      <Form.Stack spacing={3}>
+        <Grid container spacing={2}>
+          <Grid size={{ xs: 12, md: 6, xl: 4 }}>
+            <TextInput
+              label="Name"
+              maxLength={INPUT_LIMITS.NAME}
+              hideCharacterCount={proxyName.length < INPUT_LIMITS.NAME}
+              value={proxyName}
+              onChange={(event) => handleNameChange(event.target.value)}
+            />
+          </Grid>
+          <Grid size={{ xs: 12, md: 6, xl: 4 }}>
+            <TextInput
+              label="Handle"
+              maxLength={MAX_HANDLE_LENGTH}
+              hideCharacterCount={!isHandleEditable || handle.length < MAX_HANDLE_LENGTH}
               value={handle}
               onChange={(event) => handleHandleChange(event.target.value)}
               error={Boolean(handleLengthError)}
+              helperText={
+                handleLengthError ??
+                "Generated from the name. Unique and immutable once registered."
+              }
+              disabled={!isHandleEditable && !handle}
+              slotProps={{
+                htmlInput: { readOnly: !isHandleEditable },
+                input: {
+                  endAdornment: !isHandleEditable && (
+                    <InputAdornment position="end">
+                      <IconButton
+                        size="small"
+                        aria-label="Edit handle"
+                        onClick={() => setIsHandleEditable(true)}
+                      >
+                        <Edit size={16} />
+                      </IconButton>
+                    </InputAdornment>
+                  ),
+                },
+              }}
             />
-            <Typography
-              variant="caption"
-              color={handleLengthError ? "error" : "text.secondary"}
-            >
-              {handleLengthError ??
-                "Unique, immutable identifier for the MCP Server."}
-            </Typography>
-          </FormControl>
-
-          <FormControl fullWidth>
-            <FormLabel>Description</FormLabel>
-            <TextField
-              slotProps={{ htmlInput: { maxLength: INPUT_LIMITS.DESCRIPTION } }}
-              fullWidth
+          </Grid>
+          <Grid
+            size={{ xs: 12, xl: 4 }}
+            sx={{ display: { xs: "none", xl: "block" } }}
+          />
+          <Grid size={{ xs: 12, md: 6, xl: 4 }}>
+            <TextInput
+              label="Version"
+              maxLength={INPUT_LIMITS.SHORT_TEXT}
+              hideCharacterCount={proxyVersion.length < INPUT_LIMITS.SHORT_TEXT}
+              value={proxyVersion}
+              onChange={(event) => handleVersionChange(event.target.value)}
+              error={Boolean(errors.version)}
+              helperText={errors.version}
+            />
+          </Grid>
+          <Grid size={{ xs: 12, md: 6, xl: 4 }}>
+            <TextInput
+              label="Context (optional)"
+              maxLength={INPUT_LIMITS.PATH}
+              hideCharacterCount={proxyContext.length < INPUT_LIMITS.PATH}
+              value={proxyContext}
+              onChange={(event) => setProxyContext(event.target.value)}
+            />
+          </Grid>
+          <Grid
+            size={{ xs: 12, xl: 4 }}
+            sx={{ display: { xs: "none", xl: "block" } }}
+          />
+          <Grid size={{ xs: 12, md: 12, xl: 8 }}>
+            <TextInput
+              label="Description (optional)"
+              maxLength={INPUT_LIMITS.DESCRIPTION}
+              hideCharacterCount={
+                proxyDescription.length < INPUT_LIMITS.DESCRIPTION
+              }
               multiline
               minRows={3}
               value={proxyDescription}
               onChange={(event) => setProxyDescription(event.target.value)}
               placeholder="Primary MCP Server"
             />
-          </FormControl>
+          </Grid>
+        </Grid>
 
-          <FormControl fullWidth>
-            <FormLabel>Context</FormLabel>
-            <TextField
-              slotProps={{ htmlInput: { maxLength: INPUT_LIMITS.PATH } }}
-              fullWidth
-              value={proxyContext}
-              onChange={(event) => setProxyContext(event.target.value)}
-            />
-          </FormControl>
-        </Form.Stack>
-      </Form.Section>
-
-      <Form.Section>
-        <Form.Header>Endpoints</Form.Header>
-        <Form.Stack spacing={2}>
+        <Stack spacing={2}>
+          <Typography variant="subtitle1">Endpoints</Typography>
           <Typography variant="body2" color="text.secondary">
             {environments.length > 1
               ? "Add a backend endpoint and assign it to one or more environments. Environments without an endpoint are simply left unconfigured."
@@ -307,8 +319,8 @@ export function AddMCPProxyForm({ onCancel }: AddMCPProxyFormProps) {
             emptyStateText="No endpoints added yet."
             onEndpointAdded={handleEndpointAdded}
           />
-        </Form.Stack>
-      </Form.Section>
+        </Stack>
+      </Form.Stack>
 
       {addOpen || editingId !== null ? null : (
         <Stack direction="row" spacing={1}>

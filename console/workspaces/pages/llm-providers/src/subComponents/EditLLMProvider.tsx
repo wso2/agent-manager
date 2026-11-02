@@ -22,18 +22,16 @@ import {
   Button,
   Collapse,
   Form,
-  FormControl,
-  FormLabel,
+  Grid,
   Skeleton,
   Stack,
-  TextField,
   Typography,
 } from "@wso2/oxygen-ui";
 import {
   getErrorMessage,
   useUnsavedChangesGuard,
 } from "@agent-management-platform/shared-component";
-import { PageLayout, useFormValidation } from "@agent-management-platform/views";
+import { PageLayout, TextInput, useFormValidation } from "@agent-management-platform/views";
 import {
   useGetLLMProvider,
   useUpdateLLMProvider,
@@ -159,15 +157,15 @@ function EditLLMProviderForm({
           </Alert>
         </Collapse>
 
-        <Form.Section>
-          <Form.Header>Provider Details</Form.Header>
-          <Form.Stack spacing={2}>
-            <FormControl fullWidth error={Boolean(errors.name)}>
-              <FormLabel required>Name</FormLabel>
-              <TextField
-                slotProps={{ htmlInput: { maxLength: LLM_PROVIDER_NAME_MAX_LENGTH } }}
-                fullWidth
-                size="small"
+        <Form.Stack spacing={3}>
+          <Grid container spacing={2}>
+            <Grid size={{ xs: 12, md: 6, xl: 4 }}>
+              <TextInput
+                label="Name"
+                maxLength={LLM_PROVIDER_NAME_MAX_LENGTH}
+                hideCharacterCount={
+                  formData.name.length < LLM_PROVIDER_NAME_MAX_LENGTH
+                }
                 value={formData.name}
                 onChange={(e) => handleFieldChange("name", e.target.value)}
                 placeholder="e.g., Production OpenAI"
@@ -175,15 +173,18 @@ function EditLLMProviderForm({
                 helperText={errors.name}
                 disabled={isUpdating}
               />
-            </FormControl>
-            <FormControl fullWidth error={Boolean(errors.description)}>
-              <FormLabel>Description</FormLabel>
-              <TextField
-                slotProps={{ htmlInput: { maxLength: LLM_PROVIDER_DESCRIPTION_MAX_LENGTH } }}
-                fullWidth
+            </Grid>
+            <Grid size={{ xl: 8 }} sx={{ display: { xs: "none", xl: "block" } }} />
+            <Grid size={{ xs: 12, md: 12, xl: 8 }}>
+              <TextInput
+                label="Description (optional)"
                 multiline
                 minRows={2}
-                size="small"
+                maxLength={LLM_PROVIDER_DESCRIPTION_MAX_LENGTH}
+                hideCharacterCount={
+                  (formData.description?.length ?? 0) <
+                  LLM_PROVIDER_DESCRIPTION_MAX_LENGTH
+                }
                 value={formData.description}
                 onChange={(e) =>
                   handleFieldChange("description", e.target.value)
@@ -193,9 +194,9 @@ function EditLLMProviderForm({
                 helperText={errors.description}
                 disabled={isUpdating}
               />
-            </FormControl>
-          </Form.Stack>
-        </Form.Section>
+            </Grid>
+          </Grid>
+        </Form.Stack>
 
         <Box display="flex" justifyContent="flex-end" gap={1} mt={2}>
           <Button
