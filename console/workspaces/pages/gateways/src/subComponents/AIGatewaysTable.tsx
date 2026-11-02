@@ -35,6 +35,7 @@ import {
 import { generatePath, useNavigate, useParams } from "react-router-dom";
 import {
   useDeleteGateway,
+  useDeleteSelfHostedGateway,
   useListEnvironments,
   useListGateways,
 } from "@agent-management-platform/api-client";
@@ -47,11 +48,13 @@ import {
 } from "@agent-management-platform/shared-component";
 import {
   absoluteRouteMap,
+  globalConfig,
   type GatewayResponse,
 } from "@agent-management-platform/types";
 
 interface AIGatewaysTableProps {
   onEditGateway?: (gateway: GatewayResponse) => void;
+  onAddGateway?: () => void;
 }
 
 interface EnvironmentSection {
@@ -77,7 +80,11 @@ const matchesQuery = (gateway: GatewayResponse, query: string) => {
   return haystack.toLowerCase().includes(query);
 };
 
-export function AIGatewaysTable({ onEditGateway }: AIGatewaysTableProps) {
+export function AIGatewaysTable({
+  onEditGateway,
+  onAddGateway,
+}: AIGatewaysTableProps) {
+  const selfHostedEnabled = globalConfig.selfHostedGatewaysEnabled === true;
   const navigate = useNavigate();
   const { orgId } = useParams<{ orgId: string }>();
   const [searchQuery, setSearchQuery] = useState("");
@@ -99,7 +106,15 @@ export function AIGatewaysTable({ onEditGateway }: AIGatewaysTableProps) {
   const isLoading = gatewaysLoading || environmentsLoading;
   const error = gatewaysError || environmentsError;
 
-  const { mutateAsync: deleteGateway } = useDeleteGateway();
+  const { mutateAsync: deleteManagedGateway } = useDeleteGateway();
+  const { mutateAsync: deleteSelfHostedGateway } = useDeleteSelfHostedGateway();
+  const deleteGateway = (gateway: GatewayResponse) => {
+    const params = { orgName: orgId ?? "", gatewayId: gateway.uuid };
+    return gateway.hosting === "SELF_HOSTED"
+      ? deleteSelfHostedGateway(params)
+      : deleteManagedGateway(params);
+  };
+  const columnCount = selfHostedEnabled ? 6 : 5;
 
   const gateways = useMemo(() => gatewaysData?.gateways ?? [], [gatewaysData]);
 
@@ -182,6 +197,9 @@ export function AIGatewaysTable({ onEditGateway }: AIGatewaysTableProps) {
     const displayName = gateway.displayName || gateway.name;
     const isActive = gateway.status === "ACTIVE";
     const lastUpdated = formatRelativeTime(gateway.updatedAt);
+    // With self-hosted on, managed gateways are provisioned by the platform
+    // and are not editable or deletable here.
+    const canManage = !selfHostedEnabled || gateway.hosting === "SELF_HOSTED";
 
     return (
       <ListingTable.Row
@@ -214,6 +232,18 @@ export function AIGatewaysTable({ onEditGateway }: AIGatewaysTableProps) {
           <GatewayTypeChip type={gateway.gatewayType} />
         </ListingTable.Cell>
 
+        {selfHostedEnabled && (
+          <ListingTable.Cell align="left">
+            <Chip
+              label={
+                gateway.hosting === "SELF_HOSTED" ? "Self-hosted" : "Managed"
+              }
+              size="small"
+              variant="outlined"
+            />
+          </ListingTable.Cell>
+        )}
+
         <ListingTable.Cell align="center">
           <Chip
             label={isActive ? "Active" : "Inactive"}
@@ -230,45 +260,44 @@ export function AIGatewaysTable({ onEditGateway }: AIGatewaysTableProps) {
         </ListingTable.Cell>
 
         <ListingTable.Cell align="center">
-          <ListingTable.RowActions visibility="hover">
-            <Tooltip title="Edit">
-              <IconButton
-                size="small"
-                onClick={(e) => {
-                  e.stopPropagation();
-                  onEditGateway?.(gateway);
-                }}
-              >
-                <Edit size={16} />
-              </IconButton>
-            </Tooltip>
-            <Tooltip title="Delete">
-              <IconButton
-                color="error"
-                size="small"
-                onClick={(e) => {
-                  e.stopPropagation();
-                  addConfirmation({
-                    analytics: { entity: "gateway", action: "delete" },
-                    title: "Delete Gateway",
-                    description: `Are you sure you want to delete ${displayName}?`,
-                    confirmButtonText: "Delete",
-                    confirmButtonColor: "error",
-                    confirmButtonIcon: <Trash size={16} />,
-                    onConfirm: async () => {
-                      await deleteGateway({
-                        orgName: orgId ?? "",
-                        gatewayId: gateway.uuid,
-                      });
-                      refetch();
-                    },
-                  });
-                }}
-              >
-                <Trash size={16} />
-              </IconButton>
-            </Tooltip>
-          </ListingTable.RowActions>
+          {canManage && (
+            <ListingTable.RowActions visibility="hover">
+              <Tooltip title="Edit">
+                <IconButton
+                  size="small"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    onEditGateway?.(gateway);
+                  }}
+                >
+                  <Edit size={16} />
+                </IconButton>
+              </Tooltip>
+              <Tooltip title="Delete">
+                <IconButton
+                  color="error"
+                  size="small"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    addConfirmation({
+                      analytics: { entity: "gateway", action: "delete" },
+                      title: "Delete Gateway",
+                      description: `Are you sure you want to delete ${displayName}?`,
+                      confirmButtonText: "Delete",
+                      confirmButtonColor: "error",
+                      confirmButtonIcon: <Trash size={16} />,
+                      onConfirm: async () => {
+                        await deleteGateway(gateway);
+                        refetch();
+                      },
+                    });
+                  }}
+                >
+                  <Trash size={16} />
+                </IconButton>
+              </Tooltip>
+            </ListingTable.RowActions>
+          )}
         </ListingTable.Cell>
       </ListingTable.Row>
     );
@@ -288,6 +317,11 @@ export function AIGatewaysTable({ onEditGateway }: AIGatewaysTableProps) {
                 error instanceof Error ? error.message : "Please try again."
               }`,
             )
+          : undefined
+      }
+      addButton={
+        selfHostedEnabled && onAddGateway
+          ? { label: "Add Gateway", onClick: onAddGateway }
           : undefined
       }
       isLoading={isLoading}
@@ -312,6 +346,11 @@ export function AIGatewaysTable({ onEditGateway }: AIGatewaysTableProps) {
             <ListingTable.Cell align="left" width="120px">
               Type
             </ListingTable.Cell>
+            {selfHostedEnabled && (
+              <ListingTable.Cell align="left" width="120px">
+                Hosting
+              </ListingTable.Cell>
+            )}
             <ListingTable.Cell align="center" width="120px">
               Status
             </ListingTable.Cell>
@@ -328,7 +367,7 @@ export function AIGatewaysTable({ onEditGateway }: AIGatewaysTableProps) {
                 {/* "&&" outranks the table's descendant padding rule on
                         .MuiTableCell-root, which beats a plain sx padding. */}
                 <ListingTable.Cell
-                  colSpan={5}
+                  colSpan={columnCount}
                   sx={{ "&&": { border: 0, p: 0 } }}
                 >
                   <Typography variant="overline" color="text.secondary">

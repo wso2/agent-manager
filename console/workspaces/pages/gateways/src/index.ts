@@ -35,6 +35,9 @@ export const gatewaysMetadata = {
   icon: metaData.icon,
 };
 
+export { AddSelfHostedGatewayDrawer } from "./subComponents/AddSelfHostedGatewayDrawer";
+export { SelfHostedSetupSteps } from "./subComponents/SelfHostedSetupSteps";
+
 export { GatewaysOrganization };
 
 export default GatewaysOrganization;
