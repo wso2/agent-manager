@@ -6,6 +6,6 @@ pandas==3.1.0
 openai==3.42.1
 fastapi==0.162.0
 uvicorn==0.54.0
-sqlalchemy==2.0.55
+sqlalchemy==2.1.6
 psycopg2-binary==2.9.13
 pytz==2026.6
