@@ -64,9 +64,10 @@ type createInternalAgentPythonInput struct {
 	DisplayName string  `json:"display_name"`
 	Description *string `json:"description"`
 
-	RepositoryURL string `json:"repository_url"`
-	Branch        string `json:"branch"`
-	AppPath       string `json:"app_path"`
+	RepositoryURL        string `json:"repository_url"`
+	Branch               string `json:"branch"`
+	AppPath              string `json:"app_path"`
+	GithubInstallationID *int64 `json:"github_installation_id"`
 
 	LanguageVersion string `json:"language_version"`
 	RunCommand      string `json:"run_command"`
@@ -188,9 +189,10 @@ func (t *Toolsets) registerAgentTools(server *gomcp.Server, reg *toolRegistry) {
 			"display_name": stringProperty("Required. Human-readable display name for the agent."),
 			"description":  stringProperty("Optional Short description about what the agent does."),
 
-			"repository_url": stringProperty("Required. GitHub root repository URL. Do not enter .git and the end of repo name(eg: https://github.com/user/repo)"),
-			"branch":         stringProperty("Required. Github repository branch name."),
-			"app_path":       stringProperty("Required. Path of the project where agent code lives within the repository (use / for root. specify path if not). It must start with /"),
+			"repository_url":         stringProperty("Required. GitHub root repository URL. Do not enter .git and the end of repo name(eg: https://github.com/user/repo)"),
+			"branch":                 stringProperty("Required. Github repository branch name."),
+			"app_path":               stringProperty("Required. Path of the project where agent code lives within the repository (use / for root. specify path if not). It must start with /"),
+			"github_installation_id": intProperty("Optional. For a private GitHub repository: the WSO2 Cloud GitHub App installation id that can read it, from the console's repository field. Omit it for a public repository."),
 
 			"language_version": stringProperty("Optional. Python version (default: 3.11)."),
 			"run_command":      stringProperty("Optional. Start command to run the agent (default: python main.py)."),
@@ -463,12 +465,22 @@ func createInternalAgentPython(handler AgentToolsetHandler) func(context.Context
 		if err != nil {
 			return nil, nil, err
 		}
+		if input.GithubInstallationID != nil {
+			githubApp, err := buildGitHubAppSource(*input.GithubInstallationID, req.Provisioning.Repository)
+			if err != nil {
+				return nil, nil, err
+			}
+			req.GithubApp = githubApp
+		}
 
 		if err := utils.ValidateAgentCreatePayload(*req); err != nil {
 			return nil, nil, err
 		}
 
 		if err := handler.CreateAgent(ctx, ouID, input.ProjectName, req); err != nil {
+			if strings.Contains(err.Error(), "github-auth-required") {
+				return nil, nil, gitHubReconnectError{cause: err}
+			}
 			return nil, nil, wrapToolError("create_internal_agent_python", err)
 		}
 
@@ -619,6 +631,34 @@ func buildInternalAgentRequest(name, displayName string, description *string, in
 		InputInterface: inputInterface,
 	}, nil
 }
+
+func buildGitHubAppSource(installationID int64, repository *spec.RepositoryConfig) (*spec.GitHubAppSource, error) {
+	if installationID <= 0 {
+		return nil, fmt.Errorf("github_installation_id must be a positive integer")
+	}
+	owner, repo := utils.ParseGitHubURL(repository.Url)
+	if owner == "" || repo == "" {
+		return nil, fmt.Errorf("github_installation_id needs a github.com repository_url (eg: https://github.com/user/repo)")
+	}
+	branch, appPath, repositoryURL := repository.Branch, repository.AppPath, repository.Url
+	return &spec.GitHubAppSource{
+		InstallationId: installationID,
+		Owner:          owner,
+		Repo:           repo,
+		Branch:         &branch,
+		AppPath:        &appPath,
+		RepositoryUrl:  &repositoryURL,
+	}, nil
+}
+
+// The console agent matches this exact text, so it carries no tool-name prefix.
+type gitHubReconnectError struct{ cause error }
+
+func (gitHubReconnectError) Error() string {
+	return "GitHub authorization expired; reconnect GitHub and retry."
+}
+
+func (e gitHubReconnectError) Unwrap() error { return e.cause }
 
 func buildCreateAgentBuild(input internalAgentInput) (*spec.Build, error) {
 	switch strings.ToLower(strings.TrimSpace(input.Language)) {
