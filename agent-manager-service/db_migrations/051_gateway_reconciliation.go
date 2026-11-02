@@ -132,7 +132,8 @@ func platformAgentExposures() []string {
 }
 
 // dropOrganizationName drops the column from the tables whose keys 030 moved to ou_id. Postgres would silently
-// drop any index or constraint still on the column with it, so the guard refuses rather than lose a key.
+// drop any index or constraint still on the column with it, so the guard refuses rather than lose a key. NOT NULL
+// constraints, which Postgres 18 lists in pg_constraint, aren't keys and go with the column.
 func dropOrganizationName() []string {
 	return []string{
 		`DO $$
@@ -143,7 +144,7 @@ func dropOrganizationName() []string {
 				SELECT c.conrelid::regclass || '.' || c.conname AS name
 				FROM pg_constraint c
 				JOIN pg_attribute a ON a.attrelid = c.conrelid AND a.attnum = ANY (c.conkey)
-				WHERE a.attname = 'organization_name'
+				WHERE a.attname = 'organization_name' AND c.contype <> 'n'
 					AND c.conrelid IN ('artifacts'::regclass, 'deployments'::regclass, 'deployment_status'::regclass)
 				UNION
 				SELECT i.indrelid::regclass || '.' || i.indexrelid::regclass
