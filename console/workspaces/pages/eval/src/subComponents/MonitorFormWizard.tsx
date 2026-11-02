@@ -30,6 +30,23 @@ import { CreateMonitorForm, type EnvironmentOption } from "./CreateMonitorForm";
 import { SelectPresetMonitors } from "./SelectPresetMonitors";
 import { slugifyMonitorName } from "../utils/monitorFormUtils";
 import { useValidatedForm } from "../hooks/useValidatedForm";
+import { useEventsEnabled } from "@agent-management-platform/api-client";
+import { MonitorAlertFormSection } from "./MonitorAlertFormSection";
+import {
+  defaultAlertSettings,
+  hasAlertSettingsErrors,
+  validateAlertSettings,
+  type AlertSettingsValue,
+} from "./MonitorAlertSettings";
+
+/**
+ * The monitor's alert as the form saves it: the settings to alert with, or
+ * null to not alert. Undefined when the deployment has no notifications.
+ */
+export type MonitorAlertChoice = AlertSettingsValue | null | undefined;
+
+/** A new monitor starts alerted, for failures. */
+const NEW_MONITOR_ALERT = defaultAlertSettings();
 
 interface MonitorFormWizardProps {
   title: string;
@@ -39,6 +56,7 @@ interface MonitorFormWizardProps {
   onSubmit: (
     values: CreateMonitorFormValues,
     allowNavigation: (action: () => void) => void,
+    alert: MonitorAlertChoice,
   ) => void;
   initialValues: CreateMonitorFormValues;
   isSubmitting: boolean;
@@ -47,6 +65,12 @@ interface MonitorFormWizardProps {
   backLabel?: string;
   isTypeEditable?: boolean;
   environments?: EnvironmentOption[];
+  /**
+   * The caller's current alert on the monitor, or null when they do not
+   * alert it. A new monitor starts alerted with the default settings. Pass a
+   * stable (memoized) value: a new one resets what the user has entered.
+   */
+  initialAlert?: AlertSettingsValue | null;
 }
 
 export function MonitorFormWizard({
@@ -62,17 +86,30 @@ export function MonitorFormWizard({
   backLabel = "Back to Monitors",
   isTypeEditable = true,
   environments = [],
+  initialAlert = null,
 }: MonitorFormWizardProps) {
   const [page, setPage] = useState<1 | 2>(1);
   const [formData, setFormData] =
     useState<CreateMonitorFormValues>(initialValues);
   const [hasLLMJudge, setHasLLMJudge] = useState(false);
   const [llmProviderError, setLLMProviderError] = useState("");
+  const alertsEnabled = useEventsEnabled();
+  const [enabled, setEnabled] = useState(initialAlert !== null);
+  const [alertSettings, setAlertSettings] = useState<AlertSettingsValue>(
+    initialAlert ?? NEW_MONITOR_ALERT,
+  );
+  const [alertSubmitted, setAlertSubmitted] = useState(false);
 
   useEffect(() => {
     setFormData(initialValues);
     setPage(1);
   }, [initialValues]);
+
+  // The alert loads on its own; take it once it arrives.
+  useEffect(() => {
+    setEnabled(initialAlert !== null);
+    setAlertSettings(initialAlert ?? NEW_MONITOR_ALERT);
+  }, [initialAlert]);
 
   const isDirty = useMemo(
     () => JSON.stringify(formData) !== JSON.stringify(initialValues),
@@ -220,7 +257,17 @@ export function MonitorFormWizard({
       return;
     }
 
-    onSubmit(formData, allowNavigation);
+    let alert: MonitorAlertChoice;
+    if (alertsEnabled) {
+      alert = enabled ? alertSettings : null;
+      if (alert && hasAlertSettingsErrors(validateAlertSettings(alert, formData.evaluators))) {
+        setAlertSubmitted(true);
+        setPage(2);
+        return;
+      }
+    }
+
+    onSubmit(formData, allowNavigation, alert);
   }, [
     formData,
     hasLLMJudge,
@@ -228,6 +275,9 @@ export function MonitorFormWizard({
     onSubmit,
     guardSubmit,
     allowNavigation,
+    alertsEnabled,
+    enabled,
+    alertSettings,
   ]);
 
   // In edit mode (isTypeEditable=false) traceStart/traceEnd errors don't block
@@ -310,6 +360,16 @@ export function MonitorFormWizard({
             onHasLLMJudgeChange={handleHasLLMJudgeChange}
             error={errors.evaluators}
             llmProviderError={llmProviderError}
+          />
+        )}
+        {page === 2 && alertsEnabled && (
+          <MonitorAlertFormSection
+            enabled={enabled}
+            onEnabledChange={setEnabled}
+            settings={alertSettings}
+            onSettingsChange={setAlertSettings}
+            evaluators={formData.evaluators}
+            showErrors={alertSubmitted}
           />
         )}
         <Stack direction="row" gap={2}>
