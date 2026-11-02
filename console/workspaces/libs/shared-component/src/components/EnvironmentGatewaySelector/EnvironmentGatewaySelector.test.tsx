@@ -681,6 +681,42 @@ describe("EnvironmentGatewaySelectorView hosting", () => {
     expect(onChangeSpy).toHaveBeenLastCalledWith(["own"]);
   });
 
+  it("never commits a lone self-hosted gateway on the user's behalf", () => {
+    const onChangeSpy = vi.fn();
+    const onSingleChoiceChange = vi.fn();
+    renderWithTheme(
+      <ControlledSelector
+        environments={[makeEnvironment("env-a", "Alpha")]}
+        gateways={[makeGateway("own", "env-a", "EGRESS", "SELF_HOSTED")]}
+        onChangeSpy={onChangeSpy}
+        onSingleChoiceChange={onSingleChoiceChange}
+      />,
+    );
+    expect(onChangeSpy).not.toHaveBeenCalled();
+    expect(onSingleChoiceChange).not.toHaveBeenCalledWith(true);
+    expect(getCheckbox("Alpha")).not.toBeChecked();
+
+    fireEvent.click(getCheckbox("Alpha"));
+    expect(onChangeSpy).toHaveBeenLastCalledWith(["own"]);
+  });
+
+  it("does not default a lone self-hosted gateway in one of several environments", () => {
+    const onChangeSpy = vi.fn();
+    renderWithTheme(
+      <ControlledSelector
+        environments={environments}
+        gateways={[
+          makeGateway("own", "env-a", "EGRESS", "SELF_HOSTED"),
+          makeGateway("managed", "env-b", "BOTH", "MANAGED"),
+        ]}
+        onChangeSpy={onChangeSpy}
+      />,
+    );
+    expect(onChangeSpy).not.toHaveBeenCalled();
+    fireEvent.click(getCheckbox("Alpha"));
+    expect(onChangeSpy).toHaveBeenLastCalledWith(["own"]);
+  });
+
   it("two managed gateways still require a choice", () => {
     const onValidityChange = vi.fn();
     renderWithTheme(

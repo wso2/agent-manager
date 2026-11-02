@@ -16,10 +16,13 @@
  */
 
 import { describe, expect, it, vi } from "vitest";
+import type { GatewayResponse } from "@agent-management-platform/types";
 import {
   cpHostFromUrl,
   dockerCommands,
   helmCommands,
+  isPublicUrl,
+  managedGateways,
   reconfigureToken,
 } from "./selfHostedSetup";
 
@@ -119,5 +122,31 @@ describe("reconfigureToken", () => {
       ),
     ).rejects.toThrow("boom");
     expect(create).not.toHaveBeenCalled();
+  });
+});
+
+describe("isPublicUrl", () => {
+  it.each(["https://gateway.example.com", " http://gw.example.com:8443/base ", "https://10.0.0.5"])(
+    "accepts %s",
+    (value) => {
+      expect(isPublicUrl(value)).toBe(true);
+    },
+  );
+
+  it.each(["http://:80", "ftp://gw.example.com", "gw.example.com", "https://", "https://user:pw@gw.example.com", "https://user@gw.example.com", ""])(
+    "rejects %s",
+    (value) => {
+      expect(isPublicUrl(value)).toBe(false);
+    },
+  );
+});
+
+describe("managedGateways", () => {
+  it("drops self-hosted gateways and keeps managed and pre-hosting ones", () => {
+    const managed = { uuid: "m", hosting: "MANAGED" } as GatewayResponse;
+    const legacy = { uuid: "l" } as GatewayResponse;
+    const selfHosted = { uuid: "s", hosting: "SELF_HOSTED" } as GatewayResponse;
+
+    expect(managedGateways([managed, selfHosted, legacy])).toEqual([managed, legacy]);
   });
 });

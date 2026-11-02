@@ -88,15 +88,19 @@ const isManaged = (gateway: GatewayResponse): boolean =>
 const hostingLabel = (gateway: GatewayResponse): string =>
   isManaged(gateway) ? "Managed" : "Self-hosted";
 
-// The gateway used without asking: the only candidate, or the only managed one
-// when self-hosted gateways sit beside it. Self-hosted stays an explicit pick.
+// The gateway used without asking: the only managed candidate. A self-hosted
+// gateway is never a default, even a lone one: it stays an explicit pick.
 const defaultGatewayOf = (
   candidates: GatewayResponse[],
 ): GatewayResponse | undefined => {
-  if (candidates.length === 1) return candidates[0];
   const managed = candidates.filter(isManaged);
   return managed.length === 1 ? managed[0] : undefined;
 };
+
+const soleCandidateOf = (
+  candidates: GatewayResponse[],
+): GatewayResponse | undefined =>
+  candidates.length === 1 ? candidates[0] : undefined;
 
 const AMBIGUOUS_CAPTION = "Select an egress gateway for this environment.";
 const UNAVAILABLE_CAPTION =
@@ -215,6 +219,7 @@ export const EnvironmentGatewaySelectorView: React.FC<
         const statusGateway =
           lockedGateway ??
           resolvedGateway ??
+          soleCandidateOf(candidates) ??
           defaultGateway;
         const status = statusGateway && gatewayStatuses?.get(statusGateway.uuid);
         const chip = status && statusChipFor(status);
@@ -258,7 +263,8 @@ export const EnvironmentGatewaySelectorView: React.FC<
   }, [isValid, onValidityChange]);
 
   // The one case where there's truly nothing to *decide*: a single
-  // environment with exactly one unlocked candidate gateway, and no orphaned
+  // environment with exactly one unlocked candidate gateway, a managed one
+  // (a lone self-hosted gateway is still the user's pick), and no orphaned
   // selection left over to clean up. Any other shape (2+ environments, one
   // with an ambiguous gateway, or a stale reference to surface) is a real
   // choice and still needs to render. A locked (already deployed) single row
@@ -269,7 +275,8 @@ export const EnvironmentGatewaySelectorView: React.FC<
     !isLoading &&
       singleRow &&
       unmappedSelectedUuids.length === 0 &&
-      (singleRow.lockedGateway || singleRow.candidates.length === 1),
+      (singleRow.lockedGateway ||
+        (singleRow.candidates.length === 1 && singleRow.defaultGateway)),
   );
   // A deploy status is a fact worth showing too, and hiding the row would
   // also re-select a gateway the user just unchecked.
@@ -312,8 +319,8 @@ export const EnvironmentGatewaySelectorView: React.FC<
   // unchecked state is the user intentionally undeploying, not an unmade
   // choice, and must not be force-recommitted.
   useEffect(() => {
-    if (!hidesSingleChoice || !singleRow || singleRow.checked) return;
-    emitAdd(singleRow.lockedGateway ?? singleRow.candidates[0]);
+    if (!hidesSingleChoice || !singleRow?.defaultGateway || singleRow.checked) return;
+    emitAdd(singleRow.defaultGateway);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [hidesSingleChoice, singleRow]);
 
@@ -331,7 +338,9 @@ export const EnvironmentGatewaySelectorView: React.FC<
       if (row.resolvedGateway) emitRemove(row.resolvedGateway.uuid);
       return;
     }
-    if (row.defaultGateway) emitAdd(row.defaultGateway);
+    // Checking a row whose only gateway is shown inline picks that gateway.
+    const picked = row.defaultGateway ?? soleCandidateOf(row.candidates);
+    if (picked) emitAdd(picked);
     else setPending(row.envId, true);
   };
 

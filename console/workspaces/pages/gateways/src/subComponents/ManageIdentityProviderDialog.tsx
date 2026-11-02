@@ -61,6 +61,7 @@ import {
   type ManageIdentityProviderMode,
   type ScriptInputs,
 } from "./manageIdentityProviderScript";
+import { managedGateways } from "./selfHostedSetup";
 
 export type { ManageIdentityProviderMode };
 
@@ -158,13 +159,13 @@ export function ManageIdentityProviderDialog({
   ]);
 
   const { data: environments } = useListEnvironments({ orgName: orgId });
-  // Gateways belonging to the selected environment populate the gateway picker
-  // (only used when no gateway is locked in).
+  // The selected environment's managed gateways populate the gateway picker (only used
+  // when no gateway is locked in): a self-hosted gateway has no identity providers here.
   const { data: gatewaysResp } = useListGateways(
     { orgName: orgId },
     envName ? { environment: envName } : undefined,
   );
-  const gateways = useMemo(() => gatewaysResp?.gateways ?? [], [gatewaysResp]);
+  const gateways = useMemo(() => managedGateways(gatewaysResp?.gateways ?? []), [gatewaysResp]);
 
   // Environment choices: scoped to the locked gateway when present, otherwise
   // every environment in the org.

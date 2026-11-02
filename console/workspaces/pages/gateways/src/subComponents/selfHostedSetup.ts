@@ -15,6 +15,8 @@
  * under the License.
  */
 
+import type { GatewayResponse } from "@agent-management-platform/types";
+
 const RELEASE_BASE_URL = "https://github.com/wso2/api-platform/releases/download/ai-gateway";
 const HELM_CHART_REF = "oci://ghcr.io/wso2/api-platform/helm-charts/gateway";
 const ENV_FILE = "api-platform.env";
@@ -77,6 +79,28 @@ export async function reconfigureToken(
   return create();
 }
 
-const PUBLIC_URL_PATTERN = /^https?:\/\/[^\s/?#]+(?:[/?#]\S*)?$/;
+/**
+ * An http(s) URL with a host name and no user information: what the backend accepts as a
+ * gateway endpoint.
+ */
+export const isPublicUrl = (value: string): boolean => {
+  let url: URL;
+  try {
+    url = new URL(value.trim());
+  } catch {
+    return false;
+  }
+  return (
+    (url.protocol === "http:" || url.protocol === "https:") &&
+    url.hostname !== "" &&
+    url.username === "" &&
+    url.password === ""
+  );
+};
 
-export const isPublicUrl = (value: string): boolean => PUBLIC_URL_PATTERN.test(value.trim());
+/**
+ * The gateways the platform runs. A gateway without a hosting value predates self-hosted
+ * gateways.
+ */
+export const managedGateways = (gateways: GatewayResponse[]): GatewayResponse[] =>
+  gateways.filter((gateway) => gateway.hosting !== "SELF_HOSTED");
