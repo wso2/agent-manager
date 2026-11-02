@@ -24,11 +24,8 @@ import {
   Typography,
   Collapse,
   Alert,
-  Divider,
-  useTheme,
-  Form,
 } from "@wso2/oxygen-ui";
-import { Settings, CheckCircle, Circle } from "@wso2/oxygen-ui-icons-react";
+import { Settings } from "@wso2/oxygen-ui-icons-react";
 import {
   DrawerWrapper,
   DrawerHeader,
@@ -36,6 +33,9 @@ import {
   TextInput,
   useFormValidation,
   BuildpackIcon,
+  AgentTypeIcon,
+  SELECTION_GRID_SX,
+  SelectionCard,
 } from "@agent-management-platform/views";
 import { z } from "zod";
 import { useUpdateAgentBuildParameters } from "@agent-management-platform/api-client";
@@ -200,26 +200,29 @@ const configureBuildSchema = z.object({
 );
 
 const languageOptions = [
-  { label: "Python", value: "python" },
-  { label: "Ballerina", value: "ballerina" },
-  { label: "Docker", value: "docker" },
+  { label: "Python", value: "python", description: "Run a Python app" },
+  { label: "Ballerina", value: "ballerina", description: "Run a Ballerina program" },
+  { label: "Docker", value: "docker", description: "Build from your Dockerfile" },
 ];
 
 const inputInterfaces = [
   {
-    label: "Chat Agent",
-    description: "Standard chat interface with /chat endpoint on port 8000",
+    label: "Chat agent",
+    description: "/chat endpoint, port 8000",
+    fullDescription: "Standard chat interface with /chat endpoint on port 8000",
     value: "DEFAULT" as const,
   },
   {
-    label: "Custom API Agent",
-    description:
+    label: "Custom API agent",
+    description: "Your OpenAPI spec and port",
+    fullDescription:
       "Custom HTTP API with user-specified OpenAPI specification and port configuration",
     value: "CUSTOM" as const,
   },
   {
-    label: "A2A Agent",
-    description:
+    label: "A2A agent",
+    description: "Serves its own agent card",
+    fullDescription:
       "Speaks the A2A protocol. The agent serves its own agent card; the gateway exposes both A2A transports.",
     value: "A2A" as const,
   },
@@ -232,7 +235,6 @@ export function ConfigureBuildDrawer({
   orgId,
   projectId,
 }: ConfigureBuildDrawerProps) {
-  const theme = useTheme();
   const isPrivateRepoEnabled = globalConfig.featureFlags?.enablePrivateRepoSupport === true;
   // An agent created before subtypes were recorded carries no subType, so fall
   // back to the shape of its input interface — a port or a schema means it was
@@ -545,24 +547,22 @@ export function ConfigureBuildDrawer({
               >
                 <Typography variant="h5">Build Details</Typography>
                 <Box display="flex" flexDirection="column" gap={1}>
-                  <Box display="flex" flexDirection="row" gap={1}>
-                    {
-                      languageOptions.map((type) => {
-                        const isSelected = formData.language === type.value;
-                        return (
-                          <Form.CardButton
-                            key={type.value}
-                            onClick={() => handleFieldChange('language', type.value)}
-                            selected={isSelected}
-                          >
-                            <Form.CardHeader title={<Form.Stack direction="row" spacing={2} justifyContent="center" alignItems="center">
-                              <BuildpackIcon  language={type.value} />
-                              <Form.Body>{type.label}</Form.Body>
-                            </Form.Stack>} />
-                          </Form.CardButton>
-                        );
-                      })
-                    }
+                  <Box
+                    role="radiogroup"
+                    aria-label="Language"
+                    sx={{ ...SELECTION_GRID_SX, gridTemplateColumns: "1fr" }}
+                  >
+                    {languageOptions.map((type) => (
+                      <SelectionCard
+                        key={type.value}
+                        icon={<BuildpackIcon language={type.value} width={18} height={18} />}
+                        title={type.label}
+                        description={type.description}
+                        selected={formData.language === type.value}
+                        onSelect={() => handleFieldChange('language', type.value)}
+                        disabled={isPending}
+                      />
+                    ))}
                   </Box>
                   <Collapse in={formData.language === "python"}>
                     <Box display="flex" flexDirection="column" gap={1}>
@@ -626,67 +626,24 @@ export function ConfigureBuildDrawer({
                     How your agent receives requests
                   </Typography>
                   <Box display="flex" flexDirection="column" gap={1}>
-                    <Box display="flex" flexDirection="row" gap={1}>
+                    <Box
+                      role="radiogroup"
+                      aria-label="Agent interface"
+                      sx={{ ...SELECTION_GRID_SX, gridTemplateColumns: "1fr" }}
+                    >
                       {selectableInterfaces.map((interfaceOption) => (
-                        <Card
+                        <SelectionCard
                           key={interfaceOption.value}
-                          variant="outlined"
-                          onClick={() =>
-                            handleSelectInterface(interfaceOption.value)
-                          }
-                          sx={{
-                            maxWidth: 500,
-                            cursor: "pointer",
-                            flexGrow: 1,
-                            transition: theme.transitions.create([
-                              "background-color",
-                              "border-color",
-                            ]),
-                            "&.MuiCard-root": {
-                              backgroundColor:
-                              formData.interfaceType === interfaceOption.value
-                                ? "background.default"
-                                : "action.paper",
-                            borderColor:
-                              formData.interfaceType === interfaceOption.value
-                                ? "primary.main"
-                                : "divider",
-                            "&:hover": {
-                              backgroundColor: "background.default",
-                              borderColor: "primary.main",
-                            },
-                          },
-                        }}
-                      >
-                        <CardContent sx={{ height: "100%" }}>
-                          <Box
-                            display="flex"
-                            flexDirection="row"
-                            alignItems="center"
-                            height="100%"
-                            gap={1}
-                          >
-                            <Box>
-                              {formData.interfaceType === interfaceOption.value ? (
-                                <CheckCircle size={16} />
-                              ) : (
-                                <Circle size={16} />
-                              )}
-                            </Box>
-                            <Divider orientation="vertical" flexItem />
-                            <Box>
-                              <Typography variant="h6">
-                                {interfaceOption.label}
-                              </Typography>
-                              <Typography variant="caption">
-                                {interfaceOption.description}
-                              </Typography>
-                            </Box>
-                          </Box>
-                        </CardContent>
-                      </Card>
-                    ))}
-                  </Box>
+                          icon={<AgentTypeIcon type={interfaceOption.value} size={18} />}
+                          title={interfaceOption.label}
+                          description={interfaceOption.description}
+                          fullDescription={interfaceOption.fullDescription}
+                          selected={formData.interfaceType === interfaceOption.value}
+                          onSelect={() => handleSelectInterface(interfaceOption.value)}
+                          disabled={isPending}
+                        />
+                      ))}
+                    </Box>
                   <Collapse in={formData.interfaceType === "DEFAULT"}>
                     <Alert severity="info">
                       Uses the standard chat interface:{" "}

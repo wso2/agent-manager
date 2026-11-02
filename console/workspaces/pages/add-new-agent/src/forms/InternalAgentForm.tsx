@@ -39,6 +39,8 @@ import { AgentHandleField } from "../components/AgentHandleField";
 import type { CreateAgentFormValues, LLMProviderFormEntry, MCPProxyFormEntry } from "../form/schema";
 import {
   BuildpackIcon,
+  SELECTION_GRID_SX,
+  SelectionCard,
   TextInput,
   useExternalComponentModulesByMountPoint,
   type PrivateRepoSourceProps,
@@ -75,9 +77,9 @@ interface InternalAgentFormProps {
   firstEnvOnlyNotice?: string | undefined;
 }
 const languageOptions = [
-  { label: "Python", value: "python" },
-  { label: "Ballerina", value: "ballerina" },
-  { label: "Docker", value: "docker" },
+  { label: "Python", value: "python", description: "Run a Python app" },
+  { label: "Ballerina", value: "ballerina", description: "Run a Ballerina program" },
+  { label: "Docker", value: "docker", description: "Build from your Dockerfile" },
 ];
 
 const MANUAL_INSTRUMENTATION_DOCS_URL =
@@ -443,29 +445,21 @@ export const InternalAgentForm = ({
       <Stack spacing={2}>
         <Typography variant="subtitle1">Build Details</Typography>
         <Form.Stack spacing={2}>
-          <Form.Stack direction="row" spacing={2}>
-            {
-              languageOptions.map((type) => {
-                const isSelected = formData.language === type.value;
-                return (
-                  <Form.CardButton
-                    key={type.value}
-                    onClick={() => handleFieldChange('language', type.value)}
-                    selected={isSelected}
-                  >
-                    <Form.CardHeader title={<Form.Stack direction="row" spacing={2} justifyContent="center" alignItems="center">
-                      <BuildpackIcon language={type.value} />
-                      <Form.Body>{type.label}</Form.Body>
-                    </Form.Stack>} />
-                  </Form.CardButton>
-                );
-
-              })
-            }
-          </Form.Stack>
+          <Box role="radiogroup" aria-label="Language" sx={SELECTION_GRID_SX}>
+            {languageOptions.map((type) => (
+              <SelectionCard
+                key={type.value}
+                icon={<BuildpackIcon language={type.value} width={18} height={18} />}
+                title={type.label}
+                description={type.description}
+                selected={formData.language === type.value}
+                onSelect={() => handleFieldChange('language', type.value)}
+              />
+            ))}
+          </Box>
 
 
-          <SelectionDetails open={formData.language === "python"} title="Python settings">
+          <SelectionDetails open={formData.language === "python"} title="Python configuration">
             <Grid container spacing={2}>
               <Grid size={{ xs: 12, md: 6, xl: 4 }}>
                 <TextInput
@@ -626,7 +620,7 @@ export const InternalAgentForm = ({
 
 
 
-          <SelectionDetails open={formData.language === "ballerina"} title="Ballerina settings">
+          <SelectionDetails open={formData.language === "ballerina"} title="Ballerina configuration">
             <Stack spacing={2}>
               <FormControlLabel
                 sx={{ alignItems: 'flex-start', ml: 0 }}
@@ -683,7 +677,7 @@ export const InternalAgentForm = ({
             </Stack>
           </SelectionDetails>
 
-          <SelectionDetails open={formData.language === "docker"} title="Docker settings">
+          <SelectionDetails open={formData.language === "docker"} title="Docker configuration">
             <Stack spacing={2}>
               <Grid container spacing={2}>
                 <Grid size={{ xs: 12, md: 6, xl: 4 }}>

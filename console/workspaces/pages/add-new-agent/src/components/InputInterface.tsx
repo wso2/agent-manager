@@ -16,12 +16,9 @@
  * under the License.
  */
 
-import { CheckCircle, Circle } from "@wso2/oxygen-ui-icons-react";
 import {
   Alert,
   Box,
-  Collapse,
-  Divider,
   Typography,
   Form,
   Grid,
@@ -31,7 +28,7 @@ import { useCallback } from "react";
 import { SelectionDetails } from "./SelectionDetails";
 import type { CreateAgentFormValues } from "../form/schema";
 import { type InputInterfaceType, INPUT_LIMITS } from "@agent-management-platform/types";
-import { TextInput } from "@agent-management-platform/views";
+import { AgentTypeIcon, SELECTION_GRID_SX, SelectionCard, TextInput } from "@agent-management-platform/views";
 
 interface InputInterfaceProps {
   formData: CreateAgentFormValues;
@@ -50,28 +47,30 @@ interface InputInterfaceProps {
 
 const inputInterfaces: Array<{
   label: string;
+  /** One line shown on the card. */
   description: string;
-  default: boolean;
+  /** The full explanation, shown as the description's tooltip. */
+  fullDescription: string;
   value: InputInterfaceType;
 }> = [
   {
-    label: "Chat Agent",
-    description: "Standard chat interface with /chat endpoint on port 8000",
-    default: true,
+    label: "Chat agent",
+    description: "/chat endpoint, port 8000",
+    fullDescription: "Standard chat interface with /chat endpoint on port 8000",
     value: "DEFAULT",
   },
   {
-    label: "Custom API Agent",
-    description:
+    label: "Custom API agent",
+    description: "Your OpenAPI spec and port",
+    fullDescription:
       "Custom HTTP API with user-specified OpenAPI specification and port configuration",
-    default: false,
     value: "CUSTOM",
   },
   {
-    label: "A2A Agent",
-    description:
+    label: "A2A agent",
+    description: "Serves its own agent card",
+    fullDescription:
       "Speaks the A2A protocol. The agent serves its own agent card; the gateway exposes both A2A transports.",
-    default: false,
     value: "A2A",
   },
 ];
@@ -174,47 +173,20 @@ export const InputInterface = ({
         How your agent receives requests
       </Typography>
       <Form.Stack spacing={2}>
-        <Box display="flex" flexDirection="row" gap={1}>
-          {inputInterfaces.map((inputInterface) => (
-            <Form.CardButton
-              key={inputInterface.value}
-              onClick={() => handleSelect(inputInterface.value)}
-              selected={formData.interfaceType === inputInterface.value}
-              sx={{
-                maxWidth: 500,
-                flexGrow: 1,
-              }}
-            >
-              <Form.CardContent sx={{ height: "100%" }}>
-                <Box
-                  display="flex"
-                  flexDirection="row"
-                  alignItems="center"
-                  height="100%"
-                  gap={1}
-                >
-                  <Box>
-                    {formData.interfaceType === inputInterface.value ? (
-                      <CheckCircle size={16} />
-                    ) : (
-                      <Circle size={16} />
-                    )}
-                  </Box>
-                  <Divider orientation="vertical" flexItem />
-                  <Box>
-                    <Typography variant="h6">
-                      {inputInterface.label}
-                    </Typography>
-                    <Typography variant="caption">
-                      {inputInterface.description}
-                    </Typography>
-                  </Box>
-                </Box>
-              </Form.CardContent>
-            </Form.CardButton>
+        <Box role="radiogroup" aria-label="Agent type" sx={SELECTION_GRID_SX}>
+          {inputInterfaces.map(({ label, description, fullDescription, value }) => (
+            <SelectionCard
+              key={value}
+              icon={<AgentTypeIcon type={value} size={18} />}
+              title={label}
+              description={description}
+              fullDescription={fullDescription}
+              selected={formData.interfaceType === value}
+              onSelect={() => handleSelect(value)}
+            />
           ))}
         </Box>
-        <Collapse in={formData.interfaceType === "DEFAULT"}>
+        {formData.interfaceType === "DEFAULT" && (
           <Alert severity="info">
             Uses the standard chat interface: <strong>POST /chat</strong> on
             port <strong>8000</strong>
@@ -224,8 +196,8 @@ export const InputInterface = ({
             <br />
             Response: <code>{`{response: string}`}</code>
           </Alert>
-        </Collapse>
-        <SelectionDetails open={formData.interfaceType === "CUSTOM"} title="Custom API settings">
+        )}
+        <SelectionDetails open={formData.interfaceType === "CUSTOM"} title="Custom API configuration">
           <Grid container spacing={2}>
             <Grid size={{ xs: 12, md: 6, xl: 4 }}>
               <TextInput
@@ -277,7 +249,7 @@ export const InputInterface = ({
             </Grid>
           </Grid>
         </SelectionDetails>
-        <SelectionDetails open={formData.interfaceType === "A2A"} title="A2A settings">
+        <SelectionDetails open={formData.interfaceType === "A2A"} title="A2A configuration">
           <Form.Stack spacing={2}>
             <Alert severity="info">
               The gateway exposes both A2A transports — JSON-RPC at{" "}

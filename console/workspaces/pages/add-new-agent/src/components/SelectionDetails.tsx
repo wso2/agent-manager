@@ -17,12 +17,12 @@
  */
 
 import type { ReactNode } from "react";
-import { Card, Collapse, Stack, Typography } from "@wso2/oxygen-ui";
+import { Card, Fade, Stack, Typography } from "@wso2/oxygen-ui";
 
 interface SelectionDetailsProps {
   /** Shown while the option above it is the selected one. */
   open: boolean;
-  /** Names the option these settings belong to ("Python settings"). */
+  /** Names the option these settings belong to ("Python configuration"). */
   title: string;
   children: ReactNode;
 }
@@ -32,8 +32,11 @@ interface SelectionDetailsProps {
  * outlined card so it is clear they belong to that choice and not to the form around it.
  */
 export function SelectionDetails({ open, title, children }: SelectionDetailsProps) {
+  // Not rendered at all when closed: a hidden sibling would still take a gap from the
+  // parent stack, so the spacing under the cards would change with the selection.
+  if (!open) return null;
   return (
-    <Collapse in={open}>
+    <Fade in>
       <Card variant="outlined" sx={{ p: 2.5 }}>
         <Stack spacing={2}>
           <Typography variant="subtitle2" color="text.secondary">
@@ -42,6 +45,6 @@ export function SelectionDetails({ open, title, children }: SelectionDetailsProp
           {children}
         </Stack>
       </Card>
-    </Collapse>
+    </Fade>
   );
 }
