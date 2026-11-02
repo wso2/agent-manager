@@ -376,6 +376,17 @@ func (m *memEventStore) mock() *repomocks.EventRepositoryMock {
 		) (repositories.SubscriptionCounts, error) {
 			return repositories.SubscriptionCounts{}, nil
 		},
+		ListDeliveriesFunc: func(_ context.Context, f repositories.DeliveryFilter) ([]models.EventDelivery, int64, error) {
+			m.mu.Lock()
+			defer m.mu.Unlock()
+			var out []models.EventDelivery
+			for _, d := range m.deliveries {
+				if d.OUID == f.OUID {
+					out = append(out, d)
+				}
+			}
+			return out, int64(len(out)), nil
+		},
 	}
 }
 

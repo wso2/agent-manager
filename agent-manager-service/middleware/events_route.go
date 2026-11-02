@@ -19,6 +19,7 @@ package middleware
 import (
 	"bytes"
 	"encoding/json"
+	"log/slog"
 	"net/http"
 	"strings"
 	"time"
@@ -120,7 +121,9 @@ func WithEvents(publisher events.Publisher, meta audit.RouteMeta) func(http.Hand
 				}
 			}
 
-			publisher.Publish(r.Context(), e)
+			if err := publisher.Publish(r.Context(), e); err != nil {
+				slog.ErrorContext(r.Context(), "Failed to persist route event", "eventId", e.ID, "orgId", e.OrgID, "error", err)
+			}
 		}
 	}
 }

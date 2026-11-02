@@ -22,6 +22,9 @@ import (
 //			CandidateSubscriptionsFunc: func(ctx context.Context, ouID string, projectName string, agentName string) ([]models.EventSubscription, error) {
 //				panic("mock out the CandidateSubscriptions method")
 //			},
+//			ClaimDeliveryFunc: func(ctx context.Context, id uuid.UUID, lease time.Duration) (bool, error) {
+//				panic("mock out the ClaimDelivery method")
+//			},
 //			CreateDestinationFunc: func(ctx context.Context, d *models.EventDestination) error {
 //				panic("mock out the CreateDestination method")
 //			},
@@ -43,17 +46,32 @@ import (
 //			DestinationsByIDFunc: func(ctx context.Context, ouID string, ids []uuid.UUID) ([]models.EventDestination, error) {
 //				panic("mock out the DestinationsByID method")
 //			},
+//			GetDeliveryFunc: func(ctx context.Context, destinationID uuid.UUID, eventID string) (*models.EventDelivery, error) {
+//				panic("mock out the GetDelivery method")
+//			},
 //			GetDestinationFunc: func(ctx context.Context, ouID string, id uuid.UUID) (*models.EventDestination, error) {
 //				panic("mock out the GetDestination method")
 //			},
 //			GetSubscriptionFunc: func(ctx context.Context, target repositories.EventTarget, id uuid.UUID) (*models.EventSubscription, error) {
 //				panic("mock out the GetSubscription method")
 //			},
+//			ListDeliveriesFunc: func(ctx context.Context, f repositories.DeliveryFilter) ([]models.EventDelivery, int64, error) {
+//				panic("mock out the ListDeliveries method")
+//			},
 //			ListDestinationsFunc: func(ctx context.Context, ouID string) ([]models.EventDestination, error) {
 //				panic("mock out the ListDestinations method")
 //			},
 //			ListSubscriptionsFunc: func(ctx context.Context, target repositories.EventTarget) ([]models.EventSubscription, error) {
 //				panic("mock out the ListSubscriptions method")
+//			},
+//			PruneDeliveriesFunc: func(ctx context.Context, cutoff time.Time) (int64, error) {
+//				panic("mock out the PruneDeliveries method")
+//			},
+//			RecordDeliveryFunc: func(ctx context.Context, d *models.EventDelivery) error {
+//				panic("mock out the RecordDelivery method")
+//			},
+//			RecordQueuedDeliveryFunc: func(ctx context.Context, d *models.EventDelivery) error {
+//				panic("mock out the RecordQueuedDelivery method")
 //			},
 //			RemoveProjectFromDestinationsFunc: func(ctx context.Context, ouID string, projectName string) error {
 //				panic("mock out the RemoveProjectFromDestinations method")
@@ -83,6 +101,9 @@ type EventRepositoryMock struct {
 	// CandidateSubscriptionsFunc mocks the CandidateSubscriptions method.
 	CandidateSubscriptionsFunc func(ctx context.Context, ouID string, projectName string, agentName string) ([]models.EventSubscription, error)
 
+	// ClaimDeliveryFunc mocks the ClaimDelivery method.
+	ClaimDeliveryFunc func(ctx context.Context, id uuid.UUID, lease time.Duration) (bool, error)
+
 	// CreateDestinationFunc mocks the CreateDestination method.
 	CreateDestinationFunc func(ctx context.Context, d *models.EventDestination) error
 
@@ -104,17 +125,32 @@ type EventRepositoryMock struct {
 	// DestinationsByIDFunc mocks the DestinationsByID method.
 	DestinationsByIDFunc func(ctx context.Context, ouID string, ids []uuid.UUID) ([]models.EventDestination, error)
 
+	// GetDeliveryFunc mocks the GetDelivery method.
+	GetDeliveryFunc func(ctx context.Context, destinationID uuid.UUID, eventID string) (*models.EventDelivery, error)
+
 	// GetDestinationFunc mocks the GetDestination method.
 	GetDestinationFunc func(ctx context.Context, ouID string, id uuid.UUID) (*models.EventDestination, error)
 
 	// GetSubscriptionFunc mocks the GetSubscription method.
 	GetSubscriptionFunc func(ctx context.Context, target repositories.EventTarget, id uuid.UUID) (*models.EventSubscription, error)
 
+	// ListDeliveriesFunc mocks the ListDeliveries method.
+	ListDeliveriesFunc func(ctx context.Context, f repositories.DeliveryFilter) ([]models.EventDelivery, int64, error)
+
 	// ListDestinationsFunc mocks the ListDestinations method.
 	ListDestinationsFunc func(ctx context.Context, ouID string) ([]models.EventDestination, error)
 
 	// ListSubscriptionsFunc mocks the ListSubscriptions method.
 	ListSubscriptionsFunc func(ctx context.Context, target repositories.EventTarget) ([]models.EventSubscription, error)
+
+	// PruneDeliveriesFunc mocks the PruneDeliveries method.
+	PruneDeliveriesFunc func(ctx context.Context, cutoff time.Time) (int64, error)
+
+	// RecordDeliveryFunc mocks the RecordDelivery method.
+	RecordDeliveryFunc func(ctx context.Context, d *models.EventDelivery) error
+
+	// RecordQueuedDeliveryFunc mocks the RecordQueuedDelivery method.
+	RecordQueuedDeliveryFunc func(ctx context.Context, d *models.EventDelivery) error
 
 	// RemoveProjectFromDestinationsFunc mocks the RemoveProjectFromDestinations method.
 	RemoveProjectFromDestinationsFunc func(ctx context.Context, ouID string, projectName string) error
@@ -146,6 +182,15 @@ type EventRepositoryMock struct {
 			ProjectName string
 			// AgentName is the agentName argument value.
 			AgentName string
+		}
+		// ClaimDelivery holds details about calls to the ClaimDelivery method.
+		ClaimDelivery []struct {
+			// Ctx is the ctx argument value.
+			Ctx context.Context
+			// ID is the id argument value.
+			ID uuid.UUID
+			// Lease is the lease argument value.
+			Lease time.Duration
 		}
 		// CreateDestination holds details about calls to the CreateDestination method.
 		CreateDestination []struct {
@@ -208,6 +253,15 @@ type EventRepositoryMock struct {
 			// Ids is the ids argument value.
 			Ids []uuid.UUID
 		}
+		// GetDelivery holds details about calls to the GetDelivery method.
+		GetDelivery []struct {
+			// Ctx is the ctx argument value.
+			Ctx context.Context
+			// DestinationID is the destinationID argument value.
+			DestinationID uuid.UUID
+			// EventID is the eventID argument value.
+			EventID string
+		}
 		// GetDestination holds details about calls to the GetDestination method.
 		GetDestination []struct {
 			// Ctx is the ctx argument value.
@@ -226,6 +280,13 @@ type EventRepositoryMock struct {
 			// ID is the id argument value.
 			ID uuid.UUID
 		}
+		// ListDeliveries holds details about calls to the ListDeliveries method.
+		ListDeliveries []struct {
+			// Ctx is the ctx argument value.
+			Ctx context.Context
+			// F is the f argument value.
+			F repositories.DeliveryFilter
+		}
 		// ListDestinations holds details about calls to the ListDestinations method.
 		ListDestinations []struct {
 			// Ctx is the ctx argument value.
@@ -239,6 +300,27 @@ type EventRepositoryMock struct {
 			Ctx context.Context
 			// Target is the target argument value.
 			Target repositories.EventTarget
+		}
+		// PruneDeliveries holds details about calls to the PruneDeliveries method.
+		PruneDeliveries []struct {
+			// Ctx is the ctx argument value.
+			Ctx context.Context
+			// Cutoff is the cutoff argument value.
+			Cutoff time.Time
+		}
+		// RecordDelivery holds details about calls to the RecordDelivery method.
+		RecordDelivery []struct {
+			// Ctx is the ctx argument value.
+			Ctx context.Context
+			// D is the d argument value.
+			D *models.EventDelivery
+		}
+		// RecordQueuedDelivery holds details about calls to the RecordQueuedDelivery method.
+		RecordQueuedDelivery []struct {
+			// Ctx is the ctx argument value.
+			Ctx context.Context
+			// D is the d argument value.
+			D *models.EventDelivery
 		}
 		// RemoveProjectFromDestinations holds details about calls to the RemoveProjectFromDestinations method.
 		RemoveProjectFromDestinations []struct {
@@ -300,6 +382,7 @@ type EventRepositoryMock struct {
 		}
 	}
 	lockCandidateSubscriptions        sync.RWMutex
+	lockClaimDelivery                 sync.RWMutex
 	lockCreateDestination             sync.RWMutex
 	lockCreateSubscription            sync.RWMutex
 	lockDeleteDestination             sync.RWMutex
@@ -307,10 +390,15 @@ type EventRepositoryMock struct {
 	lockDeleteSubscriptionsUnder      sync.RWMutex
 	lockDestinationStats              sync.RWMutex
 	lockDestinationsByID              sync.RWMutex
+	lockGetDelivery                   sync.RWMutex
 	lockGetDestination                sync.RWMutex
 	lockGetSubscription               sync.RWMutex
+	lockListDeliveries                sync.RWMutex
 	lockListDestinations              sync.RWMutex
 	lockListSubscriptions             sync.RWMutex
+	lockPruneDeliveries               sync.RWMutex
+	lockRecordDelivery                sync.RWMutex
+	lockRecordQueuedDelivery          sync.RWMutex
 	lockRemoveProjectFromDestinations sync.RWMutex
 	lockSubscriptionCounts            sync.RWMutex
 	lockSubscriptionsByID             sync.RWMutex
@@ -360,6 +448,46 @@ func (mock *EventRepositoryMock) CandidateSubscriptionsCalls() []struct {
 	mock.lockCandidateSubscriptions.RLock()
 	calls = mock.calls.CandidateSubscriptions
 	mock.lockCandidateSubscriptions.RUnlock()
+	return calls
+}
+
+// ClaimDelivery calls ClaimDeliveryFunc.
+func (mock *EventRepositoryMock) ClaimDelivery(ctx context.Context, id uuid.UUID, lease time.Duration) (bool, error) {
+	if mock.ClaimDeliveryFunc == nil {
+		panic("EventRepositoryMock.ClaimDeliveryFunc: method is nil but EventRepository.ClaimDelivery was just called")
+	}
+	callInfo := struct {
+		Ctx   context.Context
+		ID    uuid.UUID
+		Lease time.Duration
+	}{
+		Ctx:   ctx,
+		ID:    id,
+		Lease: lease,
+	}
+	mock.lockClaimDelivery.Lock()
+	mock.calls.ClaimDelivery = append(mock.calls.ClaimDelivery, callInfo)
+	mock.lockClaimDelivery.Unlock()
+	return mock.ClaimDeliveryFunc(ctx, id, lease)
+}
+
+// ClaimDeliveryCalls gets all the calls that were made to ClaimDelivery.
+// Check the length with:
+//
+//	len(mockedEventRepository.ClaimDeliveryCalls())
+func (mock *EventRepositoryMock) ClaimDeliveryCalls() []struct {
+	Ctx   context.Context
+	ID    uuid.UUID
+	Lease time.Duration
+} {
+	var calls []struct {
+		Ctx   context.Context
+		ID    uuid.UUID
+		Lease time.Duration
+	}
+	mock.lockClaimDelivery.RLock()
+	calls = mock.calls.ClaimDelivery
+	mock.lockClaimDelivery.RUnlock()
 	return calls
 }
 
@@ -639,6 +767,46 @@ func (mock *EventRepositoryMock) DestinationsByIDCalls() []struct {
 	return calls
 }
 
+// GetDelivery calls GetDeliveryFunc.
+func (mock *EventRepositoryMock) GetDelivery(ctx context.Context, destinationID uuid.UUID, eventID string) (*models.EventDelivery, error) {
+	if mock.GetDeliveryFunc == nil {
+		panic("EventRepositoryMock.GetDeliveryFunc: method is nil but EventRepository.GetDelivery was just called")
+	}
+	callInfo := struct {
+		Ctx           context.Context
+		DestinationID uuid.UUID
+		EventID       string
+	}{
+		Ctx:           ctx,
+		DestinationID: destinationID,
+		EventID:       eventID,
+	}
+	mock.lockGetDelivery.Lock()
+	mock.calls.GetDelivery = append(mock.calls.GetDelivery, callInfo)
+	mock.lockGetDelivery.Unlock()
+	return mock.GetDeliveryFunc(ctx, destinationID, eventID)
+}
+
+// GetDeliveryCalls gets all the calls that were made to GetDelivery.
+// Check the length with:
+//
+//	len(mockedEventRepository.GetDeliveryCalls())
+func (mock *EventRepositoryMock) GetDeliveryCalls() []struct {
+	Ctx           context.Context
+	DestinationID uuid.UUID
+	EventID       string
+} {
+	var calls []struct {
+		Ctx           context.Context
+		DestinationID uuid.UUID
+		EventID       string
+	}
+	mock.lockGetDelivery.RLock()
+	calls = mock.calls.GetDelivery
+	mock.lockGetDelivery.RUnlock()
+	return calls
+}
+
 // GetDestination calls GetDestinationFunc.
 func (mock *EventRepositoryMock) GetDestination(ctx context.Context, ouID string, id uuid.UUID) (*models.EventDestination, error) {
 	if mock.GetDestinationFunc == nil {
@@ -719,6 +887,42 @@ func (mock *EventRepositoryMock) GetSubscriptionCalls() []struct {
 	return calls
 }
 
+// ListDeliveries calls ListDeliveriesFunc.
+func (mock *EventRepositoryMock) ListDeliveries(ctx context.Context, f repositories.DeliveryFilter) ([]models.EventDelivery, int64, error) {
+	if mock.ListDeliveriesFunc == nil {
+		panic("EventRepositoryMock.ListDeliveriesFunc: method is nil but EventRepository.ListDeliveries was just called")
+	}
+	callInfo := struct {
+		Ctx context.Context
+		F   repositories.DeliveryFilter
+	}{
+		Ctx: ctx,
+		F:   f,
+	}
+	mock.lockListDeliveries.Lock()
+	mock.calls.ListDeliveries = append(mock.calls.ListDeliveries, callInfo)
+	mock.lockListDeliveries.Unlock()
+	return mock.ListDeliveriesFunc(ctx, f)
+}
+
+// ListDeliveriesCalls gets all the calls that were made to ListDeliveries.
+// Check the length with:
+//
+//	len(mockedEventRepository.ListDeliveriesCalls())
+func (mock *EventRepositoryMock) ListDeliveriesCalls() []struct {
+	Ctx context.Context
+	F   repositories.DeliveryFilter
+} {
+	var calls []struct {
+		Ctx context.Context
+		F   repositories.DeliveryFilter
+	}
+	mock.lockListDeliveries.RLock()
+	calls = mock.calls.ListDeliveries
+	mock.lockListDeliveries.RUnlock()
+	return calls
+}
+
 // ListDestinations calls ListDestinationsFunc.
 func (mock *EventRepositoryMock) ListDestinations(ctx context.Context, ouID string) ([]models.EventDestination, error) {
 	if mock.ListDestinationsFunc == nil {
@@ -788,6 +992,114 @@ func (mock *EventRepositoryMock) ListSubscriptionsCalls() []struct {
 	mock.lockListSubscriptions.RLock()
 	calls = mock.calls.ListSubscriptions
 	mock.lockListSubscriptions.RUnlock()
+	return calls
+}
+
+// PruneDeliveries calls PruneDeliveriesFunc.
+func (mock *EventRepositoryMock) PruneDeliveries(ctx context.Context, cutoff time.Time) (int64, error) {
+	if mock.PruneDeliveriesFunc == nil {
+		panic("EventRepositoryMock.PruneDeliveriesFunc: method is nil but EventRepository.PruneDeliveries was just called")
+	}
+	callInfo := struct {
+		Ctx    context.Context
+		Cutoff time.Time
+	}{
+		Ctx:    ctx,
+		Cutoff: cutoff,
+	}
+	mock.lockPruneDeliveries.Lock()
+	mock.calls.PruneDeliveries = append(mock.calls.PruneDeliveries, callInfo)
+	mock.lockPruneDeliveries.Unlock()
+	return mock.PruneDeliveriesFunc(ctx, cutoff)
+}
+
+// PruneDeliveriesCalls gets all the calls that were made to PruneDeliveries.
+// Check the length with:
+//
+//	len(mockedEventRepository.PruneDeliveriesCalls())
+func (mock *EventRepositoryMock) PruneDeliveriesCalls() []struct {
+	Ctx    context.Context
+	Cutoff time.Time
+} {
+	var calls []struct {
+		Ctx    context.Context
+		Cutoff time.Time
+	}
+	mock.lockPruneDeliveries.RLock()
+	calls = mock.calls.PruneDeliveries
+	mock.lockPruneDeliveries.RUnlock()
+	return calls
+}
+
+// RecordDelivery calls RecordDeliveryFunc.
+func (mock *EventRepositoryMock) RecordDelivery(ctx context.Context, d *models.EventDelivery) error {
+	if mock.RecordDeliveryFunc == nil {
+		panic("EventRepositoryMock.RecordDeliveryFunc: method is nil but EventRepository.RecordDelivery was just called")
+	}
+	callInfo := struct {
+		Ctx context.Context
+		D   *models.EventDelivery
+	}{
+		Ctx: ctx,
+		D:   d,
+	}
+	mock.lockRecordDelivery.Lock()
+	mock.calls.RecordDelivery = append(mock.calls.RecordDelivery, callInfo)
+	mock.lockRecordDelivery.Unlock()
+	return mock.RecordDeliveryFunc(ctx, d)
+}
+
+// RecordDeliveryCalls gets all the calls that were made to RecordDelivery.
+// Check the length with:
+//
+//	len(mockedEventRepository.RecordDeliveryCalls())
+func (mock *EventRepositoryMock) RecordDeliveryCalls() []struct {
+	Ctx context.Context
+	D   *models.EventDelivery
+} {
+	var calls []struct {
+		Ctx context.Context
+		D   *models.EventDelivery
+	}
+	mock.lockRecordDelivery.RLock()
+	calls = mock.calls.RecordDelivery
+	mock.lockRecordDelivery.RUnlock()
+	return calls
+}
+
+// RecordQueuedDelivery calls RecordQueuedDeliveryFunc.
+func (mock *EventRepositoryMock) RecordQueuedDelivery(ctx context.Context, d *models.EventDelivery) error {
+	if mock.RecordQueuedDeliveryFunc == nil {
+		panic("EventRepositoryMock.RecordQueuedDeliveryFunc: method is nil but EventRepository.RecordQueuedDelivery was just called")
+	}
+	callInfo := struct {
+		Ctx context.Context
+		D   *models.EventDelivery
+	}{
+		Ctx: ctx,
+		D:   d,
+	}
+	mock.lockRecordQueuedDelivery.Lock()
+	mock.calls.RecordQueuedDelivery = append(mock.calls.RecordQueuedDelivery, callInfo)
+	mock.lockRecordQueuedDelivery.Unlock()
+	return mock.RecordQueuedDeliveryFunc(ctx, d)
+}
+
+// RecordQueuedDeliveryCalls gets all the calls that were made to RecordQueuedDelivery.
+// Check the length with:
+//
+//	len(mockedEventRepository.RecordQueuedDeliveryCalls())
+func (mock *EventRepositoryMock) RecordQueuedDeliveryCalls() []struct {
+	Ctx context.Context
+	D   *models.EventDelivery
+} {
+	var calls []struct {
+		Ctx context.Context
+		D   *models.EventDelivery
+	}
+	mock.lockRecordQueuedDelivery.RLock()
+	calls = mock.calls.RecordQueuedDelivery
+	mock.lockRecordQueuedDelivery.RUnlock()
 	return calls
 }
 

@@ -1503,6 +1503,178 @@ func (a *EventsAPIService) GetProjectEventSubscriptionExecute(r ApiGetProjectEve
 	return localVarReturnValue, localVarHTTPResponse, nil
 }
 
+type ApiListAgentEventDeliveriesRequest struct {
+	ctx            context.Context
+	ApiService     *EventsAPIService
+	orgName        string
+	projName       string
+	agentName      string
+	destinationId  *string
+	subscriptionId *string
+	status         *string
+	limit          *int32
+	offset         *int32
+}
+
+// Only deliveries to this destination.
+func (r ApiListAgentEventDeliveriesRequest) DestinationId(destinationId string) ApiListAgentEventDeliveriesRequest {
+	r.destinationId = &destinationId
+	return r
+}
+
+// Only deliveries this subscription queued.
+func (r ApiListAgentEventDeliveriesRequest) SubscriptionId(subscriptionId string) ApiListAgentEventDeliveriesRequest {
+	r.subscriptionId = &subscriptionId
+	return r
+}
+
+// Only deliveries with this status.
+func (r ApiListAgentEventDeliveriesRequest) Status(status string) ApiListAgentEventDeliveriesRequest {
+	r.status = &status
+	return r
+}
+
+// Maximum number of deliveries (default 50, at most 100).
+func (r ApiListAgentEventDeliveriesRequest) Limit(limit int32) ApiListAgentEventDeliveriesRequest {
+	r.limit = &limit
+	return r
+}
+
+// Number of deliveries to skip.
+func (r ApiListAgentEventDeliveriesRequest) Offset(offset int32) ApiListAgentEventDeliveriesRequest {
+	r.offset = &offset
+	return r
+}
+
+func (r ApiListAgentEventDeliveriesRequest) Execute() (*EventDeliveryListResponse, *http.Response, error) {
+	return r.ApiService.ListAgentEventDeliveriesExecute(r)
+}
+
+/*
+ListAgentEventDeliveries List the agent's event deliveries
+
+Deliveries of the agent's events.
+
+	@param ctx context.Context - for authentication, logging, cancellation, deadlines, tracing, etc. Passed from http.Request or context.Background().
+	@param orgName Organization name
+	@param projName Project name
+	@param agentName Agent name
+	@return ApiListAgentEventDeliveriesRequest
+*/
+func (a *EventsAPIService) ListAgentEventDeliveries(ctx context.Context, orgName string, projName string, agentName string) ApiListAgentEventDeliveriesRequest {
+	return ApiListAgentEventDeliveriesRequest{
+		ApiService: a,
+		ctx:        ctx,
+		orgName:    orgName,
+		projName:   projName,
+		agentName:  agentName,
+	}
+}
+
+// Execute executes the request
+//
+//	@return EventDeliveryListResponse
+func (a *EventsAPIService) ListAgentEventDeliveriesExecute(r ApiListAgentEventDeliveriesRequest) (*EventDeliveryListResponse, *http.Response, error) {
+	var (
+		localVarHTTPMethod  = http.MethodGet
+		localVarPostBody    interface{}
+		formFiles           []formFile
+		localVarReturnValue *EventDeliveryListResponse
+	)
+
+	localBasePath, err := a.client.cfg.ServerURLWithContext(r.ctx, "EventsAPIService.ListAgentEventDeliveries")
+	if err != nil {
+		return localVarReturnValue, nil, &GenericOpenAPIError{error: err.Error()}
+	}
+
+	localVarPath := localBasePath + "/orgs/{orgName}/projects/{projName}/agents/{agentName}/events/deliveries"
+	localVarPath = strings.Replace(localVarPath, "{"+"orgName"+"}", url.PathEscape(parameterValueToString(r.orgName, "orgName")), -1)
+	localVarPath = strings.Replace(localVarPath, "{"+"projName"+"}", url.PathEscape(parameterValueToString(r.projName, "projName")), -1)
+	localVarPath = strings.Replace(localVarPath, "{"+"agentName"+"}", url.PathEscape(parameterValueToString(r.agentName, "agentName")), -1)
+
+	localVarHeaderParams := make(map[string]string)
+	localVarQueryParams := url.Values{}
+	localVarFormParams := url.Values{}
+
+	if r.destinationId != nil {
+		parameterAddToHeaderOrQuery(localVarQueryParams, "destinationId", r.destinationId, "")
+	}
+	if r.subscriptionId != nil {
+		parameterAddToHeaderOrQuery(localVarQueryParams, "subscriptionId", r.subscriptionId, "")
+	}
+	if r.status != nil {
+		parameterAddToHeaderOrQuery(localVarQueryParams, "status", r.status, "")
+	}
+	if r.limit != nil {
+		parameterAddToHeaderOrQuery(localVarQueryParams, "limit", r.limit, "")
+	}
+	if r.offset != nil {
+		parameterAddToHeaderOrQuery(localVarQueryParams, "offset", r.offset, "")
+	}
+	// to determine the Content-Type header
+	localVarHTTPContentTypes := []string{}
+
+	// set Content-Type header
+	localVarHTTPContentType := selectHeaderContentType(localVarHTTPContentTypes)
+	if localVarHTTPContentType != "" {
+		localVarHeaderParams["Content-Type"] = localVarHTTPContentType
+	}
+
+	// to determine the Accept header
+	localVarHTTPHeaderAccepts := []string{"application/json"}
+
+	// set Accept header
+	localVarHTTPHeaderAccept := selectHeaderAccept(localVarHTTPHeaderAccepts)
+	if localVarHTTPHeaderAccept != "" {
+		localVarHeaderParams["Accept"] = localVarHTTPHeaderAccept
+	}
+	req, err := a.client.prepareRequest(r.ctx, localVarPath, localVarHTTPMethod, localVarPostBody, localVarHeaderParams, localVarQueryParams, localVarFormParams, formFiles)
+	if err != nil {
+		return localVarReturnValue, nil, err
+	}
+
+	localVarHTTPResponse, err := a.client.callAPI(req)
+	if err != nil || localVarHTTPResponse == nil {
+		return localVarReturnValue, localVarHTTPResponse, err
+	}
+
+	localVarBody, err := io.ReadAll(localVarHTTPResponse.Body)
+	localVarHTTPResponse.Body.Close()
+	localVarHTTPResponse.Body = io.NopCloser(bytes.NewBuffer(localVarBody))
+	if err != nil {
+		return localVarReturnValue, localVarHTTPResponse, err
+	}
+
+	if localVarHTTPResponse.StatusCode >= 300 {
+		newErr := &GenericOpenAPIError{
+			body:  localVarBody,
+			error: localVarHTTPResponse.Status,
+		}
+		if localVarHTTPResponse.StatusCode == 400 {
+			var v ErrorResponse
+			err = a.client.decode(&v, localVarBody, localVarHTTPResponse.Header.Get("Content-Type"))
+			if err != nil {
+				newErr.error = err.Error()
+				return localVarReturnValue, localVarHTTPResponse, newErr
+			}
+			newErr.error = formatErrorMessage(localVarHTTPResponse.Status, &v)
+			newErr.model = v
+		}
+		return localVarReturnValue, localVarHTTPResponse, newErr
+	}
+
+	err = a.client.decode(&localVarReturnValue, localVarBody, localVarHTTPResponse.Header.Get("Content-Type"))
+	if err != nil {
+		newErr := &GenericOpenAPIError{
+			body:  localVarBody,
+			error: err.Error(),
+		}
+		return localVarReturnValue, localVarHTTPResponse, newErr
+	}
+
+	return localVarReturnValue, localVarHTTPResponse, nil
+}
+
 type ApiListAgentEventDestinationsRequest struct {
 	ctx        context.Context
 	ApiService *EventsAPIService
@@ -2082,6 +2254,170 @@ func (a *EventsAPIService) ListEventTypesExecute(r ApiListEventTypesRequest) (*E
 	return localVarReturnValue, localVarHTTPResponse, nil
 }
 
+type ApiListOrgEventDeliveriesRequest struct {
+	ctx            context.Context
+	ApiService     *EventsAPIService
+	orgName        string
+	destinationId  *string
+	subscriptionId *string
+	status         *string
+	limit          *int32
+	offset         *int32
+}
+
+// Only deliveries to this destination.
+func (r ApiListOrgEventDeliveriesRequest) DestinationId(destinationId string) ApiListOrgEventDeliveriesRequest {
+	r.destinationId = &destinationId
+	return r
+}
+
+// Only deliveries this subscription queued.
+func (r ApiListOrgEventDeliveriesRequest) SubscriptionId(subscriptionId string) ApiListOrgEventDeliveriesRequest {
+	r.subscriptionId = &subscriptionId
+	return r
+}
+
+// Only deliveries with this status.
+func (r ApiListOrgEventDeliveriesRequest) Status(status string) ApiListOrgEventDeliveriesRequest {
+	r.status = &status
+	return r
+}
+
+// Maximum number of deliveries (default 50, at most 100).
+func (r ApiListOrgEventDeliveriesRequest) Limit(limit int32) ApiListOrgEventDeliveriesRequest {
+	r.limit = &limit
+	return r
+}
+
+// Number of deliveries to skip.
+func (r ApiListOrgEventDeliveriesRequest) Offset(offset int32) ApiListOrgEventDeliveriesRequest {
+	r.offset = &offset
+	return r
+}
+
+func (r ApiListOrgEventDeliveriesRequest) Execute() (*EventDeliveryListResponse, *http.Response, error) {
+	return r.ApiService.ListOrgEventDeliveriesExecute(r)
+}
+
+/*
+ListOrgEventDeliveries List the organization's event deliveries
+
+Every delivery in the organization.
+
+	@param ctx context.Context - for authentication, logging, cancellation, deadlines, tracing, etc. Passed from http.Request or context.Background().
+	@param orgName Organization name
+	@return ApiListOrgEventDeliveriesRequest
+*/
+func (a *EventsAPIService) ListOrgEventDeliveries(ctx context.Context, orgName string) ApiListOrgEventDeliveriesRequest {
+	return ApiListOrgEventDeliveriesRequest{
+		ApiService: a,
+		ctx:        ctx,
+		orgName:    orgName,
+	}
+}
+
+// Execute executes the request
+//
+//	@return EventDeliveryListResponse
+func (a *EventsAPIService) ListOrgEventDeliveriesExecute(r ApiListOrgEventDeliveriesRequest) (*EventDeliveryListResponse, *http.Response, error) {
+	var (
+		localVarHTTPMethod  = http.MethodGet
+		localVarPostBody    interface{}
+		formFiles           []formFile
+		localVarReturnValue *EventDeliveryListResponse
+	)
+
+	localBasePath, err := a.client.cfg.ServerURLWithContext(r.ctx, "EventsAPIService.ListOrgEventDeliveries")
+	if err != nil {
+		return localVarReturnValue, nil, &GenericOpenAPIError{error: err.Error()}
+	}
+
+	localVarPath := localBasePath + "/orgs/{orgName}/events/deliveries"
+	localVarPath = strings.Replace(localVarPath, "{"+"orgName"+"}", url.PathEscape(parameterValueToString(r.orgName, "orgName")), -1)
+
+	localVarHeaderParams := make(map[string]string)
+	localVarQueryParams := url.Values{}
+	localVarFormParams := url.Values{}
+
+	if r.destinationId != nil {
+		parameterAddToHeaderOrQuery(localVarQueryParams, "destinationId", r.destinationId, "")
+	}
+	if r.subscriptionId != nil {
+		parameterAddToHeaderOrQuery(localVarQueryParams, "subscriptionId", r.subscriptionId, "")
+	}
+	if r.status != nil {
+		parameterAddToHeaderOrQuery(localVarQueryParams, "status", r.status, "")
+	}
+	if r.limit != nil {
+		parameterAddToHeaderOrQuery(localVarQueryParams, "limit", r.limit, "")
+	}
+	if r.offset != nil {
+		parameterAddToHeaderOrQuery(localVarQueryParams, "offset", r.offset, "")
+	}
+	// to determine the Content-Type header
+	localVarHTTPContentTypes := []string{}
+
+	// set Content-Type header
+	localVarHTTPContentType := selectHeaderContentType(localVarHTTPContentTypes)
+	if localVarHTTPContentType != "" {
+		localVarHeaderParams["Content-Type"] = localVarHTTPContentType
+	}
+
+	// to determine the Accept header
+	localVarHTTPHeaderAccepts := []string{"application/json"}
+
+	// set Accept header
+	localVarHTTPHeaderAccept := selectHeaderAccept(localVarHTTPHeaderAccepts)
+	if localVarHTTPHeaderAccept != "" {
+		localVarHeaderParams["Accept"] = localVarHTTPHeaderAccept
+	}
+	req, err := a.client.prepareRequest(r.ctx, localVarPath, localVarHTTPMethod, localVarPostBody, localVarHeaderParams, localVarQueryParams, localVarFormParams, formFiles)
+	if err != nil {
+		return localVarReturnValue, nil, err
+	}
+
+	localVarHTTPResponse, err := a.client.callAPI(req)
+	if err != nil || localVarHTTPResponse == nil {
+		return localVarReturnValue, localVarHTTPResponse, err
+	}
+
+	localVarBody, err := io.ReadAll(localVarHTTPResponse.Body)
+	localVarHTTPResponse.Body.Close()
+	localVarHTTPResponse.Body = io.NopCloser(bytes.NewBuffer(localVarBody))
+	if err != nil {
+		return localVarReturnValue, localVarHTTPResponse, err
+	}
+
+	if localVarHTTPResponse.StatusCode >= 300 {
+		newErr := &GenericOpenAPIError{
+			body:  localVarBody,
+			error: localVarHTTPResponse.Status,
+		}
+		if localVarHTTPResponse.StatusCode == 400 {
+			var v ErrorResponse
+			err = a.client.decode(&v, localVarBody, localVarHTTPResponse.Header.Get("Content-Type"))
+			if err != nil {
+				newErr.error = err.Error()
+				return localVarReturnValue, localVarHTTPResponse, newErr
+			}
+			newErr.error = formatErrorMessage(localVarHTTPResponse.Status, &v)
+			newErr.model = v
+		}
+		return localVarReturnValue, localVarHTTPResponse, newErr
+	}
+
+	err = a.client.decode(&localVarReturnValue, localVarBody, localVarHTTPResponse.Header.Get("Content-Type"))
+	if err != nil {
+		newErr := &GenericOpenAPIError{
+			body:  localVarBody,
+			error: err.Error(),
+		}
+		return localVarReturnValue, localVarHTTPResponse, newErr
+	}
+
+	return localVarReturnValue, localVarHTTPResponse, nil
+}
+
 type ApiListOrgEventSubscriptionsRequest struct {
 	ctx        context.Context
 	ApiService *EventsAPIService
@@ -2172,6 +2508,174 @@ func (a *EventsAPIService) ListOrgEventSubscriptionsExecute(r ApiListOrgEventSub
 			error: localVarHTTPResponse.Status,
 		}
 		if localVarHTTPResponse.StatusCode == 500 {
+			var v ErrorResponse
+			err = a.client.decode(&v, localVarBody, localVarHTTPResponse.Header.Get("Content-Type"))
+			if err != nil {
+				newErr.error = err.Error()
+				return localVarReturnValue, localVarHTTPResponse, newErr
+			}
+			newErr.error = formatErrorMessage(localVarHTTPResponse.Status, &v)
+			newErr.model = v
+		}
+		return localVarReturnValue, localVarHTTPResponse, newErr
+	}
+
+	err = a.client.decode(&localVarReturnValue, localVarBody, localVarHTTPResponse.Header.Get("Content-Type"))
+	if err != nil {
+		newErr := &GenericOpenAPIError{
+			body:  localVarBody,
+			error: err.Error(),
+		}
+		return localVarReturnValue, localVarHTTPResponse, newErr
+	}
+
+	return localVarReturnValue, localVarHTTPResponse, nil
+}
+
+type ApiListProjectEventDeliveriesRequest struct {
+	ctx            context.Context
+	ApiService     *EventsAPIService
+	orgName        string
+	projName       string
+	destinationId  *string
+	subscriptionId *string
+	status         *string
+	limit          *int32
+	offset         *int32
+}
+
+// Only deliveries to this destination.
+func (r ApiListProjectEventDeliveriesRequest) DestinationId(destinationId string) ApiListProjectEventDeliveriesRequest {
+	r.destinationId = &destinationId
+	return r
+}
+
+// Only deliveries this subscription queued.
+func (r ApiListProjectEventDeliveriesRequest) SubscriptionId(subscriptionId string) ApiListProjectEventDeliveriesRequest {
+	r.subscriptionId = &subscriptionId
+	return r
+}
+
+// Only deliveries with this status.
+func (r ApiListProjectEventDeliveriesRequest) Status(status string) ApiListProjectEventDeliveriesRequest {
+	r.status = &status
+	return r
+}
+
+// Maximum number of deliveries (default 50, at most 100).
+func (r ApiListProjectEventDeliveriesRequest) Limit(limit int32) ApiListProjectEventDeliveriesRequest {
+	r.limit = &limit
+	return r
+}
+
+// Number of deliveries to skip.
+func (r ApiListProjectEventDeliveriesRequest) Offset(offset int32) ApiListProjectEventDeliveriesRequest {
+	r.offset = &offset
+	return r
+}
+
+func (r ApiListProjectEventDeliveriesRequest) Execute() (*EventDeliveryListResponse, *http.Response, error) {
+	return r.ApiService.ListProjectEventDeliveriesExecute(r)
+}
+
+/*
+ListProjectEventDeliveries List the project's event deliveries
+
+Deliveries of the project's events and its agents' events.
+
+	@param ctx context.Context - for authentication, logging, cancellation, deadlines, tracing, etc. Passed from http.Request or context.Background().
+	@param orgName Organization name
+	@param projName Project name
+	@return ApiListProjectEventDeliveriesRequest
+*/
+func (a *EventsAPIService) ListProjectEventDeliveries(ctx context.Context, orgName string, projName string) ApiListProjectEventDeliveriesRequest {
+	return ApiListProjectEventDeliveriesRequest{
+		ApiService: a,
+		ctx:        ctx,
+		orgName:    orgName,
+		projName:   projName,
+	}
+}
+
+// Execute executes the request
+//
+//	@return EventDeliveryListResponse
+func (a *EventsAPIService) ListProjectEventDeliveriesExecute(r ApiListProjectEventDeliveriesRequest) (*EventDeliveryListResponse, *http.Response, error) {
+	var (
+		localVarHTTPMethod  = http.MethodGet
+		localVarPostBody    interface{}
+		formFiles           []formFile
+		localVarReturnValue *EventDeliveryListResponse
+	)
+
+	localBasePath, err := a.client.cfg.ServerURLWithContext(r.ctx, "EventsAPIService.ListProjectEventDeliveries")
+	if err != nil {
+		return localVarReturnValue, nil, &GenericOpenAPIError{error: err.Error()}
+	}
+
+	localVarPath := localBasePath + "/orgs/{orgName}/projects/{projName}/events/deliveries"
+	localVarPath = strings.Replace(localVarPath, "{"+"orgName"+"}", url.PathEscape(parameterValueToString(r.orgName, "orgName")), -1)
+	localVarPath = strings.Replace(localVarPath, "{"+"projName"+"}", url.PathEscape(parameterValueToString(r.projName, "projName")), -1)
+
+	localVarHeaderParams := make(map[string]string)
+	localVarQueryParams := url.Values{}
+	localVarFormParams := url.Values{}
+
+	if r.destinationId != nil {
+		parameterAddToHeaderOrQuery(localVarQueryParams, "destinationId", r.destinationId, "")
+	}
+	if r.subscriptionId != nil {
+		parameterAddToHeaderOrQuery(localVarQueryParams, "subscriptionId", r.subscriptionId, "")
+	}
+	if r.status != nil {
+		parameterAddToHeaderOrQuery(localVarQueryParams, "status", r.status, "")
+	}
+	if r.limit != nil {
+		parameterAddToHeaderOrQuery(localVarQueryParams, "limit", r.limit, "")
+	}
+	if r.offset != nil {
+		parameterAddToHeaderOrQuery(localVarQueryParams, "offset", r.offset, "")
+	}
+	// to determine the Content-Type header
+	localVarHTTPContentTypes := []string{}
+
+	// set Content-Type header
+	localVarHTTPContentType := selectHeaderContentType(localVarHTTPContentTypes)
+	if localVarHTTPContentType != "" {
+		localVarHeaderParams["Content-Type"] = localVarHTTPContentType
+	}
+
+	// to determine the Accept header
+	localVarHTTPHeaderAccepts := []string{"application/json"}
+
+	// set Accept header
+	localVarHTTPHeaderAccept := selectHeaderAccept(localVarHTTPHeaderAccepts)
+	if localVarHTTPHeaderAccept != "" {
+		localVarHeaderParams["Accept"] = localVarHTTPHeaderAccept
+	}
+	req, err := a.client.prepareRequest(r.ctx, localVarPath, localVarHTTPMethod, localVarPostBody, localVarHeaderParams, localVarQueryParams, localVarFormParams, formFiles)
+	if err != nil {
+		return localVarReturnValue, nil, err
+	}
+
+	localVarHTTPResponse, err := a.client.callAPI(req)
+	if err != nil || localVarHTTPResponse == nil {
+		return localVarReturnValue, localVarHTTPResponse, err
+	}
+
+	localVarBody, err := io.ReadAll(localVarHTTPResponse.Body)
+	localVarHTTPResponse.Body.Close()
+	localVarHTTPResponse.Body = io.NopCloser(bytes.NewBuffer(localVarBody))
+	if err != nil {
+		return localVarReturnValue, localVarHTTPResponse, err
+	}
+
+	if localVarHTTPResponse.StatusCode >= 300 {
+		newErr := &GenericOpenAPIError{
+			body:  localVarBody,
+			error: localVarHTTPResponse.Status,
+		}
+		if localVarHTTPResponse.StatusCode == 400 {
 			var v ErrorResponse
 			err = a.client.decode(&v, localVarBody, localVarHTTPResponse.Header.Get("Content-Type"))
 			if err != nil {

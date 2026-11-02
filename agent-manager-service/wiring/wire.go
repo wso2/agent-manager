@@ -123,12 +123,14 @@ var serviceProviderSet = wire.NewSet(
 	services.NewAIApplicationService,
 	ProvideEventBus,
 	ProvideEventPublisher,
+	repositories.NewEventOutboxRepository,
 	services.NewMonitorRunEvents,
 	ProvideDestinationDrivers,
 	services.NewEventDestinationService,
 	services.NewEventSubscriptionService,
 	wire.Bind(new(services.EventsCleaner), new(services.EventSubscriptionService)),
 	wire.Bind(new(services.DestinationResolver), new(services.EventDestinationService)),
+	services.NewEventDispatcherService,
 )
 
 var instrumentationProviderSet = wire.NewSet(
@@ -739,11 +741,11 @@ func ProvideEventBus(cfg config.Config, logger *slog.Logger) (events.Bus, error)
 
 // ProvideEventPublisher returns the publisher routes and the monitor
 // scheduler use. Without a bus, events are discarded.
-func ProvideEventPublisher(bus events.Bus, logger *slog.Logger) events.Publisher {
+func ProvideEventPublisher(bus events.Bus, outbox events.Outbox, logger *slog.Logger) events.Publisher {
 	if bus == nil {
 		return events.NoopPublisher{}
 	}
-	return events.NewAsyncPublisher(bus, logger)
+	return events.NewAsyncPublisher(bus, outbox, logger)
 }
 
 func ProvideThunderConfig(cfg config.Config) config.ThunderConfig {
