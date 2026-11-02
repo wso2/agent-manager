@@ -18,9 +18,10 @@
 
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Box, ListingTable, SearchBar, Skeleton, Stack, TablePagination } from "@wso2/oxygen-ui";
-import { BookOpenText, Search as SearchIcon } from "@wso2/oxygen-ui-icons-react";
+import { Search as SearchIcon } from "@wso2/oxygen-ui-icons-react";
 import type { AgentKindResponse } from "@agent-management-platform/types";
 import { CatalogKindCard, CARD_HEIGHT } from "./CatalogKindCard";
+import { CatalogEmptyIntro } from "./CatalogEmptyIntro";
 
 const DEFAULT_ROWS_PER_PAGE = 6;
 const ROWS_PER_PAGE_OPTIONS = [6, 12, 24];
@@ -123,13 +124,7 @@ export const CatalogKindListing: React.FC<CatalogKindListingProps> = ({
           ))}
         </Box>
       ) : items.length === 0 ? (
-        <ListingTable.Container sx={{ my: 3 }}>
-          <ListingTable.EmptyState
-            illustration={<BookOpenText size={64} />}
-            title="No agent kinds available"
-            description="No agent kinds have been added to the catalog yet."
-          />
-        </ListingTable.Container>
+        <CatalogEmptyIntro />
       ) : filteredItems.length === 0 ? (
         <ListingTable.Container sx={{ my: 3 }}>
           <ListingTable.EmptyState
