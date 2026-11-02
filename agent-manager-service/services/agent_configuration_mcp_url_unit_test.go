@@ -255,6 +255,55 @@ func selfHostedMCPConfigService(t *testing.T) (*agentConfigurationService, *mcpU
 	return svc, f
 }
 
+// A refusal for one self-hosted environment must leave the whole request unapplied: the per-environment steps
+// commit one by one, so nothing may have run for the managed environment either.
+func TestMCPConfig_SelfHostedRefusalAppliesNothing(t *testing.T) {
+	svc, f := selfHostedMCPConfigService(t)
+	managedEnv, managedArtifact, managedGateway := uuid.New(), uuid.New(), uuid.New()
+	proxy := f.mapping.MCPProxy
+	proxy.Endpoints[0].Environments = append(proxy.Endpoints[0].Environments,
+		models.MCPProxyEndpointEnvironment{EnvironmentUUID: managedEnv, ArtifactUUID: managedArtifact})
+	selfHostedGateway := f.gatewayUUID
+	f.deploymentRepo.PlacedGatewaysFunc = func(_ context.Context, _ string, artifact uuid.UUID) ([]string, error) {
+		if artifact == managedArtifact {
+			return []string{managedGateway.String()}, nil
+		}
+		return []string{selfHostedGateway.String()}, nil
+	}
+	f.gatewayRepo.EnvironmentMappingExistsFunc = func(string, string) (bool, error) { return true, nil }
+	f.gatewayRepo.GetByUUIDFunc = func(id string) (*models.Gateway, error) {
+		if id == managedGateway.String() {
+			return &models.Gateway{UUID: managedGateway}, nil
+		}
+		return &models.Gateway{UUID: selfHostedGateway, Hosting: models.GatewayHostingSelfHosted}, nil
+	}
+	svc.infraResourceManager = stubInfraManager{
+		listOrgEnvs: func(context.Context, string) ([]*models.EnvironmentResponse, error) {
+			return []*models.EnvironmentResponse{
+				{UUID: managedEnv.String(), Name: "managed"}, {UUID: f.envUUID.String(), Name: "selfhosted"},
+			}, nil
+		},
+	}
+	scopeRecorded := false
+	repo := svc.agentConfigRepo.(*repomocks.AgentConfigurationRepositoryMock)
+	repo.SetMCPEnvScopeFunc = func(context.Context, *gorm.DB, uuid.UUID, []uuid.UUID, []uuid.UUID) error {
+		scopeRecorded = true
+		return nil
+	}
+	// Any mapping write or OpenChoreo env-var update panics: those mocks have no funcs set.
+	existing := &models.AgentConfiguration{
+		UUID: uuid.New(), OUID: f.ouID, Name: "cfg1",
+		EnvMCPMappings: []models.EnvAgentMCPMapping{{EnvironmentUUID: managedEnv, MCPProxyUUID: proxy.UUID, MCPProxy: proxy}},
+	}
+
+	_, err := svc.updateMCPConfig(context.Background(), existing, f.ouID, "proj1", "agent1", models.UpdateAgentModelConfigRequest{
+		EnvMappings: map[string]models.EnvModelConfigRequest{"managed": {ProviderName: "proxy1"}, "selfhosted": {ProviderName: "proxy1"}},
+	})
+	require.ErrorIs(t, err, utils.ErrInvalidInput)
+	require.ErrorContains(t, err, "self-hosted gateway in environment selfhosted")
+	assert.False(t, scopeRecorded, "the connection scope must not be recorded for a refused update")
+}
+
 func TestMCPConfig_RefusesSelfHostedProxy(t *testing.T) {
 	mappings := map[string]models.EnvModelConfigRequest{"dev": {ProviderName: "proxy1"}}
 

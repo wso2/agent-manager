@@ -1489,6 +1489,11 @@ func (s *agentConfigurationService) createMCPConfig(ctx context.Context, ouID, p
 		}
 	}
 
+	gateways, err := s.resolveMCPEnvGateways(ctx, ouID, proxiesByEnv, envMap)
+	if err != nil {
+		return nil, err
+	}
+
 	config := &models.AgentConfiguration{
 		Name:        req.Name,
 		Description: req.Description,
@@ -1558,7 +1563,7 @@ func (s *agentConfigurationService) createMCPConfig(ctx context.Context, ouID, p
 		// The proxy is selected for the agent regardless of environment, but it is only
 		// deployable in some of them. Elsewhere, create no mapping/deployment and inject empty
 		// env vars.
-		gateway, gwErr := s.resolveDeployableMCPGateway(ctx, sourceProxy, ouID, envUUID)
+		gateway, gwErr := gateways[envName].gateway, gateways[envName].err
 		if gwErr != nil {
 			// A connection now spans the whole pipeline at creation, so a misconfigured or
 			// flaky higher environment (no egress-designated gateway, an ambiguous one, a
@@ -1588,11 +1593,6 @@ func (s *agentConfigurationService) createMCPConfig(ctx context.Context, ouID, p
 				return nil, err
 			}
 			continue
-		}
-
-		if !gateway.IsManaged() {
-			s.cleanupMCPConfig(ctx, config.UUID, ouID)
-			return nil, errMCPProxyOnSelfHostedGateway(sourceProxy, envName)
 		}
 
 		handle := mcpMappingProxyName(projectName, agentID, config.Name, envName)
@@ -2531,6 +2531,14 @@ func (s *agentConfigurationService) updateMCPConfig(ctx context.Context, existin
 		touchedEnvNames[envName] = struct{}{}
 	}
 
+	// Every environment's gateway is resolved once, before anything is recorded or applied: the
+	// steps below commit one by one, so a self-hosted refusal must come first, and the loop
+	// reuses these resolutions rather than racing a second lookup.
+	gateways, err := s.resolveMCPEnvGateways(ctx, ouID, proxiesByEnv, envMap)
+	if err != nil {
+		return nil, err
+	}
+
 	// Record the scope the request expresses before any environment is applied or torn
 	// down — see recordMCPRequestScope. The per-environment steps below commit one by one,
 	// so recording intent last let a mid-update failure (a teardown that errored after an
@@ -2555,12 +2563,9 @@ func (s *agentConfigurationService) updateMCPConfig(ctx context.Context, existin
 		sourceVersion := mcpProxyArtifactVersion(sourceProxy)
 		// A non-deployable environment gets its mapping torn down / never created and its env
 		// vars injected empty.
-		gateway, gwErr := s.resolveDeployableMCPGateway(ctx, sourceProxy, ouID, envUUID)
+		gwErr := gateways[envName].err
 		if gwErr != nil && !errors.Is(gwErr, errMCPEnvNotDeployable) {
 			return nil, fmt.Errorf("failed to resolve gateway for MCP environment %s: %w", envName, gwErr)
-		}
-		if gwErr == nil && !gateway.IsManaged() {
-			return nil, errMCPProxyOnSelfHostedGateway(sourceProxy, envName)
 		}
 		deployable := gwErr == nil
 
@@ -4689,6 +4694,33 @@ func (s *agentConfigurationService) resolveDeployableMCPGateway(
 		return nil, err
 	}
 	return gateway, nil
+}
+
+// mcpEnvGateway is one environment's resolution of the gateway an MCP proxy binding would use.
+type mcpEnvGateway struct {
+	gateway *models.Gateway
+	err     error
+}
+
+// resolveMCPEnvGateways resolves every requested environment's gateway exactly once and refuses, before
+// the caller changes anything, if any resolves to a self-hosted gateway. A resolution that fails is kept
+// in the result for the caller's per-environment handling (deferred, strict or not deployable).
+func (s *agentConfigurationService) resolveMCPEnvGateways(
+	ctx context.Context, ouID string, proxiesByEnv map[string]*models.MCPProxy, envMap map[string]*models.EnvironmentResponse,
+) (map[string]mcpEnvGateway, error) {
+	resolved := make(map[string]mcpEnvGateway, len(proxiesByEnv))
+	for envName, proxy := range proxiesByEnv {
+		envUUID, err := uuid.Parse(envMap[envName].UUID)
+		if err != nil {
+			return nil, fmt.Errorf("invalid environment id %q: %w", envName, err)
+		}
+		gateway, err := s.resolveDeployableMCPGateway(ctx, proxy, ouID, envUUID)
+		if err == nil && !gateway.IsManaged() {
+			return nil, errMCPProxyOnSelfHostedGateway(proxy, envName)
+		}
+		resolved[envName] = mcpEnvGateway{gateway: gateway, err: err}
+	}
+	return resolved, nil
 }
 
 // errMCPProxyOnSelfHostedGateway refuses an agent binding to an MCP proxy whose gateway in the
