@@ -62,7 +62,6 @@ export const ProjectOverview: React.FC = () => {
       description={project?.description}
       isLoading={isLoading}
       actions={
-        <Stack direction="row" gap={1}>
           <Button
             variant="outlined"
             size="small"
@@ -74,7 +73,6 @@ export const ProjectOverview: React.FC = () => {
           >
             Edit Project
           </Button>
-        </Stack>
       }
     >
       <Stack direction={{ xs: "column", lg: "row" }} gap={3} alignItems="flex-start">

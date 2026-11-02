@@ -26,10 +26,8 @@ import { AgentHandleField } from "../components/AgentHandleField";
 import { ConnectAgentFormValues } from "../form/schema";
 import { INPUT_LIMITS } from "@agent-management-platform/types";
 import {
-  AgentTypeIcon,
-  SELECTION_GRID_SX,
-  SelectionCard,
   TextInput,
+  FormGridSpacer,
 } from "@agent-management-platform/views";
 
 interface ExternalAgentFormProps {
@@ -155,7 +153,7 @@ export const ExternalAgentForm = ({
               error={errors.name}
             />
           </Grid>
-          <Grid size={{ xl: 4 }} sx={{ display: { xs: 'none', xl: 'block' } }} />
+          <FormGridSpacer />
           <Grid size={{ xs: 12, md: 12, xl: 8 }}>
             <Form.ElementWrapper label="Description (optional)" name="description">
               <MarkdownEditor

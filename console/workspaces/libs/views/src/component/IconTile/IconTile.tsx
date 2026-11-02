@@ -17,45 +17,34 @@
  */
 
 import type { ReactNode } from "react";
-import { alpha, Box, type SxProps, type Theme } from "@wso2/oxygen-ui";
-
-const SIZES = {
-  sm: { box: 32, radius: 1 },
-  md: { box: 40, radius: 1.5 },
-} as const;
+import { alpha, Box } from "@wso2/oxygen-ui";
 
 export interface IconTileProps {
-  /** The icon to show; size it to roughly half the tile (18 in "sm", 20 in "md"). */
+  /** The icon to show, about 18px. */
   children: ReactNode;
   /** Tints the tile with the primary colour, e.g. when the card it sits in is selected. */
   selected?: boolean;
-  size?: keyof typeof SIZES;
-  sx?: SxProps<Theme>;
 }
 
 /**
  * An icon in a small rounded tile: neutral by default, primary-tinted when selected.
- * Leads selection cards and list rows so their icons read as one family.
+ * Leads the selection cards so their icons read as one family.
  */
-export function IconTile({ children, selected = false, size = "sm", sx }: IconTileProps) {
-  const { box, radius } = SIZES[size];
+export function IconTile({ children, selected = false }: IconTileProps) {
   return (
     <Box
       aria-hidden="true"
-      sx={[
-        (theme) => ({
-          width: box,
-          height: box,
-          flexShrink: 0,
-          borderRadius: radius,
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "center",
-          color: selected ? "primary.main" : "text.secondary",
-          bgcolor: selected ? alpha(theme.palette.primary.main, 0.12) : "action.hover",
-        }),
-        ...(Array.isArray(sx) ? sx : [sx]),
-      ]}
+      sx={(theme) => ({
+        width: 32,
+        height: 32,
+        flexShrink: 0,
+        borderRadius: 1,
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "center",
+        color: selected ? "primary.main" : "text.secondary",
+        bgcolor: selected ? alpha(theme.palette.primary.main, 0.12) : "action.hover",
+      })}
     >
       {children}
     </Box>

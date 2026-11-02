@@ -25,7 +25,7 @@ import { LabelsEditor, MarkdownEditor } from "@agent-management-platform/shared-
 import { AgentHandleField } from "../components/AgentHandleField";
 import type { CreateAgentFormValues } from "../form/schema";
 import { INPUT_LIMITS } from "@agent-management-platform/types";
-import { TextInput } from "@agent-management-platform/views";
+import { TextInput, FormGridSpacer } from "@agent-management-platform/views";
 
 interface CatalogAgentFormProps {
   formData: CreateAgentFormValues;
@@ -149,7 +149,7 @@ export const CatalogAgentForm = ({
             error={errors.name}
           />
         </Grid>
-        <Grid size={{ xl: 4 }} sx={{ display: { xs: 'none', xl: 'block' } }} />
+        <FormGridSpacer />
         <Grid size={{ xs: 12, md: 12, xl: 8 }}>
           <Form.ElementWrapper label="Description (optional)" name="description">
             <MarkdownEditor

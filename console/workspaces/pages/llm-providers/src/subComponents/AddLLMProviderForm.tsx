@@ -46,7 +46,7 @@ import {
   ResilienceTimeoutFields,
   type PolicySelection as GuardrailSelection,
 } from "@agent-management-platform/shared-component";
-import { TextInput } from "@agent-management-platform/views";
+import { TextInput, FormGridSpacer } from "@agent-management-platform/views";
 import { useListGateways } from "@agent-management-platform/api-client";
 import { INPUT_LIMITS } from "@agent-management-platform/types";
 
@@ -421,7 +421,7 @@ export const AddLLMProviderForm: React.FC<AddLLMProviderFormProps> = ({
                   helperText={errors.version}
                 />
               </Grid>
-              <Grid size={{ xl: 4 }} sx={{ display: { xs: "none", xl: "block" } }} />
+              <FormGridSpacer />
               <Grid size={{ xs: 12, md: 12, xl: 8 }}>
                 <TextInput
                   label="Description (optional)"
@@ -593,7 +593,7 @@ export const AddLLMProviderForm: React.FC<AddLLMProviderFormProps> = ({
                 }}
               />
             </Grid>
-            <Grid size={{ xl: 4 }} sx={{ display: { xs: "none", xl: "block" } }} />
+            <FormGridSpacer />
             <Grid size={{ xs: 12, md: 6, xl: 4 }}>
               <TextInput
                 label="API key / Credential"

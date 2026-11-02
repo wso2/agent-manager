@@ -28,7 +28,7 @@ import { useCallback } from "react";
 import { SelectionDetails } from "./SelectionDetails";
 import type { CreateAgentFormValues } from "../form/schema";
 import { type InputInterfaceType, INPUT_LIMITS } from "@agent-management-platform/types";
-import { AgentTypeIcon, SELECTION_GRID_SX, SelectionCard, TextInput } from "@agent-management-platform/views";
+import { AgentTypeIcon, selectionGridSx, SelectionCard, TextInput, FormGridSpacer } from "@agent-management-platform/views";
 
 interface InputInterfaceProps {
   formData: CreateAgentFormValues;
@@ -173,7 +173,7 @@ export const InputInterface = ({
         How your agent receives requests
       </Typography>
       <Form.Stack spacing={2}>
-        <Box role="radiogroup" aria-label="Agent type" sx={SELECTION_GRID_SX}>
+        <Box role="radiogroup" aria-label="Agent type" sx={selectionGridSx()}>
           {inputInterfaces.map(({ label, description, fullDescription, value }) => (
             <SelectionCard
               key={value}
@@ -230,7 +230,7 @@ export const InputInterface = ({
                 }
               />
             </Grid>
-            <Grid size={{ xl: 4 }} sx={{ display: { xs: 'none', xl: 'block' } }} />
+            <FormGridSpacer />
             <Grid size={{ xs: 12, md: 6, xl: 4 }}>
               <TextInput
                 label="Base Path"

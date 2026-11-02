@@ -1,2 +1,2 @@
-export { SelectionCard, SELECTION_GRID_SX } from "./SelectionCard";
+export { SelectionCard, selectionGridSx } from "./SelectionCard";
 export type { SelectionCardProps } from "./SelectionCard";

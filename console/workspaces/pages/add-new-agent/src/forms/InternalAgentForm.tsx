@@ -39,11 +39,12 @@ import { AgentHandleField } from "../components/AgentHandleField";
 import type { CreateAgentFormValues, LLMProviderFormEntry, MCPProxyFormEntry } from "../form/schema";
 import {
   BuildpackIcon,
-  SELECTION_GRID_SX,
+  selectionGridSx,
   SelectionCard,
   TextInput,
   useExternalComponentModulesByMountPoint,
   type PrivateRepoSourceProps,
+  FormGridSpacer,
 } from "@agent-management-platform/views";
 
 // Mount point where a deployment can inject its own repository-source component
@@ -330,7 +331,7 @@ export const InternalAgentForm = ({
               error={errors.name}
             />
           </Grid>
-          <Grid size={{ xl: 4 }} sx={{ display: { xs: 'none', xl: 'block' } }} />
+          <FormGridSpacer />
           <Grid size={{ xs: 12, md: 12, xl: 8 }}>
             <Form.ElementWrapper label="Description (optional)" name="description">
               <MarkdownEditor
@@ -398,7 +399,7 @@ export const InternalAgentForm = ({
                   helperText={errors.repositoryUrl}
                 />
               </Grid>
-              <Grid size={{ xl: 4 }} sx={{ display: { xs: 'none', xl: 'block' } }} />
+              <FormGridSpacer />
               {isPrivateRepoEnabled && (
                 <Grid size={{ xs: 12, md: 12, xl: 8 }}>
                   <GitSecretSelector
@@ -409,7 +410,7 @@ export const InternalAgentForm = ({
                 </Grid>
               )}
               {isPrivateRepoEnabled && (
-                <Grid size={{ xl: 4 }} sx={{ display: { xs: 'none', xl: 'block' } }} />
+                <FormGridSpacer />
               )}
               <Grid size={{ xs: 12, md: 6, xl: 4 }}>
                 <TextInput
@@ -445,7 +446,7 @@ export const InternalAgentForm = ({
       <Stack spacing={2}>
         <Typography variant="subtitle1">Build Details</Typography>
         <Form.Stack spacing={2}>
-          <Box role="radiogroup" aria-label="Language" sx={SELECTION_GRID_SX}>
+          <Box role="radiogroup" aria-label="Language" sx={selectionGridSx()}>
             {languageOptions.map((type) => (
               <SelectionCard
                 key={type.value}

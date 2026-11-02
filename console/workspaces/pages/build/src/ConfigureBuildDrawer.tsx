@@ -34,7 +34,7 @@ import {
   useFormValidation,
   BuildpackIcon,
   AgentTypeIcon,
-  SELECTION_GRID_SX,
+  selectionGridSx,
   SelectionCard,
 } from "@agent-management-platform/views";
 import { z } from "zod";
@@ -550,7 +550,7 @@ export function ConfigureBuildDrawer({
                   <Box
                     role="radiogroup"
                     aria-label="Language"
-                    sx={{ ...SELECTION_GRID_SX, gridTemplateColumns: "1fr" }}
+                    sx={selectionGridSx(1)}
                   >
                     {languageOptions.map((type) => (
                       <SelectionCard
@@ -629,7 +629,7 @@ export function ConfigureBuildDrawer({
                     <Box
                       role="radiogroup"
                       aria-label="Agent interface"
-                      sx={{ ...SELECTION_GRID_SX, gridTemplateColumns: "1fr" }}
+                      sx={selectionGridSx(1)}
                     >
                       {selectableInterfaces.map((interfaceOption) => (
                         <SelectionCard

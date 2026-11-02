@@ -22,6 +22,7 @@ import {
   useFormValidation,
   useDirtyState,
   TextInput,
+  FormGridSpacer,
 } from "@agent-management-platform/views";
 import { useNavigate, useParams, generatePath } from "react-router-dom";
 import { useCreateUser } from "@agent-management-platform/api-client";
@@ -165,7 +166,7 @@ export const UserAddPage: React.FC = () => {
                 helperText={errors.password}
               />
             </Grid>
-            <Grid size={{ xl: 4 }} sx={{ display: { xs: "none", xl: "block" } }} />
+            <FormGridSpacer />
             <Grid size={{ xs: 12, md: 6, xl: 4 }}>
               <TextInput
                 label="First Name (optional)"
@@ -192,7 +193,7 @@ export const UserAddPage: React.FC = () => {
                 helperText={errors.lastName}
               />
             </Grid>
-            <Grid size={{ xl: 4 }} sx={{ display: { xs: "none", xl: "block" } }} />
+            <FormGridSpacer />
             <Grid size={{ xs: 12, md: 6, xl: 4 }}>
               <TextInput
                 label="Email Address (optional)"

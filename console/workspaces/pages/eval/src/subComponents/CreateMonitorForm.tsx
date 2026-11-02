@@ -27,7 +27,7 @@ import {
   Stack,
   Typography,
 } from "@wso2/oxygen-ui";
-import { TextInput } from "@agent-management-platform/views";
+import { TextInput, FormGridSpacer } from "@agent-management-platform/views";
 import { History, Timer } from "@wso2/oxygen-ui-icons-react";
 import { type MonitorType } from "@agent-management-platform/types";
 import {
@@ -130,7 +130,7 @@ export function CreateMonitorForm({
             </Grid>
           )}
           {hasEnvironmentChoice && (
-            <Grid size={{ xl: 4 }} sx={{ display: { xs: "none", xl: "block" } }} />
+            <FormGridSpacer />
           )}
           <Grid size={{ xs: 12, md: 12, xl: 8 }}>
             <TextInput

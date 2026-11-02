@@ -80,9 +80,10 @@ export function SelectionCard({
   );
 }
 
-/** Responsive grid for a group of SelectionCards: one column, three from md. */
-export const SELECTION_GRID_SX = {
-  display: "grid",
-  gap: 1.5,
-  gridTemplateColumns: { xs: "1fr", md: "repeat(3, minmax(0, 1fr))" },
-} as const;
+/** Responsive grid for a group of SelectionCards: one column, `columns` from md. */
+export const selectionGridSx = (columns = 3) =>
+  ({
+    display: "grid",
+    gap: 1.5,
+    gridTemplateColumns: { xs: "1fr", md: `repeat(${columns}, minmax(0, 1fr))` },
+  }) as const;

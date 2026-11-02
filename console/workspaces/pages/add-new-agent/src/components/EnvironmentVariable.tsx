@@ -16,11 +16,11 @@
  * under the License.
  */
 
-import { createPortal } from "react-dom";
 import { Box, Button, Stack, Typography } from "@wso2/oxygen-ui";
 import { Plus } from "@wso2/oxygen-ui-icons-react";
 import { EnvFileUploadButton, EnvVariableEditor } from "@agent-management-platform/views";
 import { CreateAgentFormValues } from "../form/schema";
+import { SlotPortal } from "./OptionalSection";
 
 interface EnvironmentVariableProps {
   formData: CreateAgentFormValues;
@@ -175,10 +175,7 @@ export const EnvironmentVariable = ({
           );
         })}
       </Box>
-      {!hideAdd &&
-        (actionSlot !== undefined
-          ? actionSlot && createPortal(addControls, actionSlot)
-          : addControls)}
+      {!hideAdd && <SlotPortal slot={actionSlot}>{addControls}</SlotPortal>}
     </Stack>
   );
 };

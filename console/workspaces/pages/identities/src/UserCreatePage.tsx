@@ -26,7 +26,7 @@ import {
 } from "@wso2/oxygen-ui";
 import { generatePath, useNavigate, useParams } from "react-router-dom";
 import { useCreateUser } from "@agent-management-platform/api-client";
-import { TextInput } from "@agent-management-platform/views";
+import { TextInput, FormGridSpacer } from "@agent-management-platform/views";
 import { useUnsavedChangesGuard } from "@agent-management-platform/shared-component";
 import { absoluteRouteMap, INPUT_LIMITS } from "@agent-management-platform/types";
 import { BackButton } from "./components/BackButton";
@@ -147,7 +147,7 @@ export const UserCreatePage: React.FC = () => {
                 helperText={errors.password}
               />
             </Grid>
-            <Grid size={{ xl: 4 }} sx={{ display: { xs: "none", xl: "block" } }} />
+            <FormGridSpacer />
           </Grid>
 
           {/* Profile */}

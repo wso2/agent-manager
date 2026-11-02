@@ -17,7 +17,6 @@
  */
 
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { createPortal } from "react-dom";
 import {
   DrawerContent,
   DrawerHeader,
@@ -66,6 +65,7 @@ import {
   useMCPProxySecurity,
 } from "@agent-management-platform/shared-component";
 import { AGENT_ENV_KEY_MAX_LENGTH, type MCPProxyFormEntry } from "../form/schema";
+import { SlotPortal } from "./OptionalSection";
 import { absoluteRouteMap, withBasePath } from "@agent-management-platform/types";
 import {
   defaultMCPApiKeyVarName,
@@ -616,11 +616,9 @@ export const MCPProxySection: React.FC<MCPProxySectionProps> = ({
           );
         })}
 
-        {actionSlot !== undefined ? (
-          actionSlot && createPortal(addButton, actionSlot)
-        ) : (
-          <Box sx={{ pt: mcpProxies.length > 0 ? 1 : 0 }}>{addButton}</Box>
-        )}
+        <Box sx={{ pt: mcpProxies.length > 0 ? 1 : 0 }}>
+          <SlotPortal slot={actionSlot}>{addButton}</SlotPortal>
+        </Box>
       </Stack>
 
       <DrawerWrapper

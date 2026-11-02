@@ -16,11 +16,11 @@
  * under the License.
  */
 
-import { createPortal } from "react-dom";
 import { Box, Button, Stack, Typography } from "@wso2/oxygen-ui";
 import { Plus } from "@wso2/oxygen-ui-icons-react";
 import { FileMountEditor } from "@agent-management-platform/views";
 import { CreateAgentFormValues } from "../form/schema";
+import { SlotPortal } from "./OptionalSection";
 
 interface FileMountProps {
   /** The parent already titles this section (e.g. an accordion). */
@@ -106,7 +106,7 @@ export const FileMount = ({
           );
         })}
       </Box>
-      {actionSlot !== undefined ? actionSlot && createPortal(addButton, actionSlot) : addButton}
+      <SlotPortal slot={actionSlot}>{addButton}</SlotPortal>
     </Stack>
   );
 };

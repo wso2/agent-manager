@@ -17,6 +17,7 @@
  */
 
 import { useState, type ReactNode } from "react";
+import { createPortal } from "react-dom";
 import {
   Accordion,
   AccordionDetails,
@@ -25,6 +26,21 @@ import {
   Stack,
   Typography,
 } from "@wso2/oxygen-ui";
+
+/**
+ * Renders `children` in a section's header action slot. With no slot passed (undefined) the
+ * section is used outside an OptionalSection, so they render inline instead.
+ */
+export function SlotPortal({
+  slot,
+  children,
+}: {
+  slot: HTMLElement | null | undefined;
+  children: ReactNode;
+}) {
+  if (slot === undefined) return <>{children}</>;
+  return slot ? createPortal(children, slot) : null;
+}
 
 interface OptionalSectionProps {
   title: string;

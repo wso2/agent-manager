@@ -17,7 +17,6 @@
  */
 
 import React, { useCallback, useMemo, useRef, useState } from "react";
-import { createPortal } from "react-dom";
 import {
   DrawerContent,
   DrawerHeader,
@@ -72,6 +71,7 @@ import {
   type PolicySelection as GuardrailSelection,
 } from "@agent-management-platform/shared-component";
 import { AGENT_ENV_KEY_MAX_LENGTH, type LLMProviderFormEntry } from "../form/schema";
+import { SlotPortal } from "./OptionalSection";
 import {
   absoluteRouteMap,
   withBasePath,
@@ -769,11 +769,9 @@ export const LLMProviderSection: React.FC<LLMProviderSectionProps> = ({
           );
         })}
 
-        {actionSlot !== undefined ? (
-          actionSlot && createPortal(addButton, actionSlot)
-        ) : (
-          <Box sx={{ pt: llmProviders.length > 0 ? 1 : 0 }}>{addButton}</Box>
-        )}
+        <Box sx={{ pt: llmProviders.length > 0 ? 1 : 0 }}>
+          <SlotPortal slot={actionSlot}>{addButton}</SlotPortal>
+        </Box>
       </Stack>
 
       <DrawerWrapper

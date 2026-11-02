@@ -32,6 +32,7 @@ export * from './Drawer';
 export * from './SelectionIndicator';
 export * from './IconTile';
 export * from './RadioMark';
+export * from './FormGridSpacer';
 export * from './SelectionCard';
 export * from './AgentTypeIcon';
 export * from './JSONView';
