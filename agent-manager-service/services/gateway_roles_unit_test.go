@@ -111,6 +111,35 @@ func TestResolveEgressGatewayForEnvironment(t *testing.T) {
 	egress := newGateway(t, models.GatewayRoleEgress, true)
 	ingress := newGateway(t, models.GatewayRoleIngress, true)
 	inactiveEgress := newGateway(t, models.GatewayRoleEgress, false)
+	selfHosted := newGateway(t, models.GatewayRoleEgress, true)
+	selfHosted.Hosting = models.GatewayHostingSelfHosted
+
+	t.Run("managed both plus self-hosted, none named, picks managed", func(t *testing.T) {
+		repo := gatewayFixtureRepo(t, env.String(), []*models.Gateway{both, selfHosted})
+		got, err := resolveEgressGatewayForEnvironment(repo, "org", env, nil)
+		require.NoError(t, err)
+		require.Equal(t, both.UUID, got.UUID)
+	})
+
+	t.Run("only self-hosted, none named, has no egress target", func(t *testing.T) {
+		repo := gatewayFixtureRepo(t, env.String(), []*models.Gateway{selfHosted})
+		_, err := resolveEgressGatewayForEnvironment(repo, "org", env, nil)
+		require.ErrorIs(t, err, errNoEgressGatewayForEnvironment)
+	})
+
+	t.Run("naming a self-hosted gateway selects it", func(t *testing.T) {
+		repo := gatewayFixtureRepo(t, env.String(), []*models.Gateway{both, selfHosted})
+		id := selfHosted.UUID.String()
+		got, err := resolveEgressGatewayForEnvironment(repo, "org", env, &id)
+		require.NoError(t, err)
+		require.Equal(t, selfHosted.UUID, got.UUID)
+	})
+
+	t.Run("two managed plus self-hosted stays ambiguous", func(t *testing.T) {
+		repo := gatewayFixtureRepo(t, env.String(), []*models.Gateway{both, egress, selfHosted})
+		_, err := resolveEgressGatewayForEnvironment(repo, "org", env, nil)
+		require.ErrorIs(t, err, errAmbiguousEgressGateway)
+	})
 
 	t.Run("exactly one egress-capable is inferred", func(t *testing.T) {
 		repo := gatewayFixtureRepo(t, env.String(), []*models.Gateway{ingress, egress})

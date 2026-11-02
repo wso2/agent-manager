@@ -71,6 +71,8 @@ var (
 // anchoring would then pin the artifact there permanently. Delivery does not depend on
 // it: the event hub inserts durably and gateways bulk-sync on reconnect. A Limit would
 // make ambiguity undetectable.
+//
+// Self-hosted gateways are never inferred: only a request that names one selects it.
 func resolveEgressGatewayForEnvironment(
 	repo repositories.GatewayRepository, ouID string, envUUID uuid.UUID, requested *string,
 ) (*models.Gateway, error) {
@@ -106,11 +108,20 @@ func resolveEgressGatewayForEnvironment(
 			errInvalidEgressGateway, *requested, describeGateways(candidates))
 	}
 
-	if len(candidates) > 1 {
-		return nil, fmt.Errorf("%w (environment %s, candidates: %s)",
-			errAmbiguousEgressGateway, envIDStr, describeGateways(candidates))
+	managed := make([]*models.Gateway, 0, len(candidates))
+	for _, gw := range candidates {
+		if gw.IsManaged() {
+			managed = append(managed, gw)
+		}
 	}
-	return candidates[0], nil
+	if len(managed) == 0 {
+		return nil, fmt.Errorf("%w (environment %s)", errNoEgressGatewayForEnvironment, envIDStr)
+	}
+	if len(managed) > 1 {
+		return nil, fmt.Errorf("%w (environment %s, candidates: %s)",
+			errAmbiguousEgressGateway, envIDStr, describeGateways(managed))
+	}
+	return managed[0], nil
 }
 
 // resolveEgressGatewayForArtifact anchors selection to the gateway the artifact is
