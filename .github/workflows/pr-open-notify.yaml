@@ -1,9 +1,9 @@
 name: PR Open Notification
 
 # Announces new pull requests in Google Chat so reviewers see them without
-# watching the repository. Fires on `opened` and `reopened` for ready PRs, and
-# on `ready_for_review` so a PR raised as a draft is announced when it actually
-# becomes reviewable rather than being missed.
+# watching the repository. Draft PRs send a fixed test message on `opened`,
+# `reopened`, and `converted_to_draft`. Ready PRs send their usual details on
+# `opened`, `reopened`, and `ready_for_review`.
 #
 # `pull_request_target` (not `pull_request`) is deliberate: PRs from forks --
 # how most contributions arrive -- cannot read repository secrets under
@@ -30,7 +30,7 @@ name: PR Open Notification
 
 on:
   pull_request_target:
-    types: [opened, reopened, ready_for_review]
+    types: [opened, reopened, ready_for_review, converted_to_draft]
 
 # Reads nothing from the API; the webhook URL is the only credential needed.
 permissions: {}
@@ -39,12 +39,11 @@ jobs:
   notify:
     name: Post new PR to Google Chat
     runs-on: ubuntu-latest
-    # Draft PRs stay quiet until they are marked ready for review.
-    if: github.event.pull_request.draft == false
     steps:
       - name: Notify Google Chat
         env:
           GCHAT_PR_WEBHOOK_URL: ${{ secrets.GCHAT_PR_WEBHOOK_URL }}
+          PR_DRAFT: ${{ github.event.pull_request.draft }}
           PR_NUMBER: ${{ github.event.pull_request.number }}
           PR_TITLE: ${{ github.event.pull_request.title }}
           PR_URL: ${{ github.event.pull_request.html_url }}
@@ -58,22 +57,26 @@ jobs:
             exit 0
           fi
 
-          case "${EVENT_ACTION}" in
-            reopened)         HEADING='Pull request reopened' ;;
-            ready_for_review) HEADING='Pull request ready for review' ;;
-            *)                HEADING='New pull request' ;;
-          esac
+          if [ "${PR_DRAFT}" = 'true' ]; then
+            PAYLOAD=$(jq -n --arg text "hello there's a PR in the branch 101" '{text: $text}')
+          else
+            case "${EVENT_ACTION}" in
+              reopened)         HEADING='Pull request reopened' ;;
+              ready_for_review) HEADING='Pull request ready for review' ;;
+              *)                HEADING='New pull request' ;;
+            esac
 
-          # jq escapes the title and author, which are attacker-controlled text.
-          PAYLOAD=$(jq -n \
-            --arg heading "$HEADING" \
-            --arg number "$PR_NUMBER" \
-            --arg title "$PR_TITLE" \
-            --arg author "$PR_AUTHOR" \
-            --arg base "$BASE_REF" \
-            --arg url "$PR_URL" \
-            '{text: ("*\($heading)* — <\($url)|#\($number)> " + $title
-                     + "\nby \($author) → `\($base)`")}')
+            # jq escapes the title and author, which are attacker-controlled text.
+            PAYLOAD=$(jq -n \
+              --arg heading "$HEADING" \
+              --arg number "$PR_NUMBER" \
+              --arg title "$PR_TITLE" \
+              --arg author "$PR_AUTHOR" \
+              --arg base "$BASE_REF" \
+              --arg url "$PR_URL" \
+              '{text: ("*\($heading)* — <\($url)|#\($number)> " + $title
+                       + "\nby \($author) → `\($base)`")}')
+          fi
 
           HTTP_CODE=$(curl -sS -o /tmp/gchat-resp.txt -w '%{http_code}' \
             -X POST -H 'Content-Type: application/json; charset=UTF-8' \
