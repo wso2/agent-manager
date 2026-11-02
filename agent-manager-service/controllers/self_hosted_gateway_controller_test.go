@@ -17,6 +17,9 @@
 package controllers
 
 import (
+	"bytes"
+	"context"
+	"log/slog"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -25,12 +28,16 @@ import (
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"gorm.io/gorm"
 
 	"github.com/wso2/agent-manager/agent-manager-service/audit"
+	"github.com/wso2/agent-manager/agent-manager-service/clients/clientmocks"
 	"github.com/wso2/agent-manager/agent-manager-service/middleware"
+	"github.com/wso2/agent-manager/agent-manager-service/middleware/logger"
 	"github.com/wso2/agent-manager/agent-manager-service/models"
 	"github.com/wso2/agent-manager/agent-manager-service/repositories/repomocks"
 	"github.com/wso2/agent-manager/agent-manager-service/services"
+	"github.com/wso2/agent-manager/agent-manager-service/utils"
 )
 
 func selfHostedRequest(method, body, gatewayID string) *http.Request {
@@ -102,9 +109,61 @@ func TestSelfHostedGatewayRoutes_ManagedGatewayIsNotFound(t *testing.T) {
 	}
 	ctrl := NewGatewayController(services.NewPlatformGatewayService(repo, nil), nil, nil)
 	w := httptest.NewRecorder()
+	var logs bytes.Buffer
+	req := selfHostedRequest(http.MethodGet, "", managed.UUID.String())
+	req = req.WithContext(logger.WithLogger(req.Context(), slog.New(slog.NewTextHandler(&logs, nil))))
 
-	ctrl.GetSelfHostedGateway(w, selfHostedRequest(http.MethodGet, "", managed.UUID.String()))
+	ctrl.GetSelfHostedGateway(w, req)
 
 	assert.Equal(t, http.StatusNotFound, w.Code)
 	assert.NotContains(t, w.Body.String(), managed.Name)
+	assert.Contains(t, logs.String(), "level=WARN", "an expected 404 is not an error")
+	assert.NotContains(t, logs.String(), "level=ERROR")
+}
+
+// capturingRecorder keeps every audit event recorded through it.
+type capturingRecorder struct{ events []audit.Event }
+
+func (r *capturingRecorder) Record(_ context.Context, e audit.Event) { r.events = append(r.events, e) }
+
+func (r *capturingRecorder) RecordSync(_ context.Context, e audit.Event) error {
+	r.events = append(r.events, e)
+	return nil
+}
+
+func (r *capturingRecorder) Close(context.Context) error { return nil }
+
+// The create event records what was registered: the normalised kind and the stored (trimmed) vhost, not the
+// request's spelling of them.
+func TestRegisterSelfHostedGateway_AuditsTheNormalisedKindAndVhost(t *testing.T) {
+	repo := &repomocks.GatewayRepositoryMock{
+		GetByNameAndOrgIDFunc:                 func(string, string) (*models.Gateway, error) { return nil, utils.ErrGatewayNotFound },
+		TransactionFunc:                       func(fn func(tx *gorm.DB) error) error { return fn(nil) },
+		CreateTxFunc:                          func(*gorm.DB, *models.Gateway) error { return nil },
+		AcquireGatewayLockFunc:                func(*gorm.DB, string) error { return nil },
+		EnvironmentMappingExistsFunc:          func(string, string) (bool, error) { return false, nil },
+		AcquireEnvironmentLockFunc:            func(*gorm.DB, string) error { return nil },
+		CountIngressCapableInEnvironmentFunc:  func(*gorm.DB, string) (int64, error) { return 0, nil },
+		CreateEnvironmentMappingTxFunc:        func(*gorm.DB, *models.GatewayEnvironmentMapping) error { return nil },
+		GetEnvironmentMappingsByGatewayIDFunc: func(string) ([]models.GatewayEnvironmentMapping, error) { return nil, nil },
+	}
+	envs := &clientmocks.OpenChoreoClientMock{
+		ListEnvironmentsFunc: func(context.Context, string) ([]*models.EnvironmentResponse, error) {
+			return []*models.EnvironmentResponse{{UUID: uuid.NewString(), Name: "dev"}}, nil
+		},
+	}
+	ctrl := NewGatewayController(services.NewPlatformGatewayService(repo, nil), envs, nil)
+	body := `{"displayName":"Edge","environment":"dev","functionalityType":"AI","endpoints":["  https://edge.example.com "]}`
+	req := httptest.NewRequest(http.MethodPost, "/orgs/acme/self-hosted-gateways", strings.NewReader(body))
+	req = req.WithContext(middleware.WithResolvedOrg(req.Context(), middleware.ResolvedOrg{OUID: "ou-1"}))
+	recorder := &capturingRecorder{}
+	req = req.WithContext(audit.WithRecorder(req.Context(), recorder))
+	w := httptest.NewRecorder()
+
+	ctrl.RegisterSelfHostedGateway(w, req)
+
+	require.Equal(t, http.StatusCreated, w.Code, w.Body.String())
+	require.Len(t, recorder.events, 1)
+	assert.Equal(t, "ai", recorder.events[0].Details["gatewayType"])
+	assert.Equal(t, "https://edge.example.com", recorder.events[0].Details["vhost"])
 }

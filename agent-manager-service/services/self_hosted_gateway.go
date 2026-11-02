@@ -124,15 +124,17 @@ func gatewaySlug(text string) string {
 	return strings.Trim(slug, "-")
 }
 
-// selfHostedVhost returns the first endpoint when it is an http(s) URL with a host.
+// selfHostedVhost returns the first endpoint, trimmed, when it is an http(s) URL with a host name
+// and no user information.
 func selfHostedVhost(endpoints []string) (string, error) {
 	invalid := utils.NewInvalidInputError("The gateway needs an http or https endpoint URL", "invalid self-hosted gateway endpoint")
 	if len(endpoints) == 0 {
 		return "", invalid
 	}
-	parsed, err := url.Parse(strings.TrimSpace(endpoints[0]))
-	if err != nil || (parsed.Scheme != "http" && parsed.Scheme != "https") || parsed.Host == "" {
+	endpoint := strings.TrimSpace(endpoints[0])
+	parsed, err := url.Parse(endpoint)
+	if err != nil || (parsed.Scheme != "http" && parsed.Scheme != "https") || parsed.Hostname() == "" || parsed.User != nil {
 		return "", invalid
 	}
-	return endpoints[0], nil
+	return endpoint, nil
 }

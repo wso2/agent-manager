@@ -18,6 +18,7 @@ package controllers
 
 import (
 	"encoding/json"
+	"errors"
 	"net/http"
 	"strings"
 
@@ -38,13 +39,34 @@ func (c *gatewayController) requireSelfHostedThen(next http.HandlerFunc) http.Ha
 		gatewayID := strings.TrimSpace(r.PathValue("gatewayID"))
 		gateway, err := c.gatewayService.RequireSelfHosted(gatewayID, middleware.OUIDFromRequest(r))
 		if err != nil {
-			logger.GetLogger(r.Context()).Error("self-hosted gateway route: gateway not usable", "error", err)
+			logSelfHostedLookupFailure(r, "self-hosted gateway route: gateway not usable", err)
 			handleGatewayErrors(w, err, "Failed to get gateway")
 			return
 		}
 		r.SetPathValue("gatewayID", gateway.UUID.String())
 		next(w, r)
 	}
+}
+
+// selfHostedAuditKind is the requested functionality type as registration reads it: case and
+// surrounding space ignored, and empty meaning "ai", the one kind a self-hosted gateway has.
+func selfHostedAuditKind(requested string) string {
+	kind := strings.ToLower(strings.TrimSpace(requested))
+	if kind == "" {
+		return "ai"
+	}
+	return kind
+}
+
+// logSelfHostedLookupFailure logs a failed self-hosted gateway lookup: a 404 is an expected outcome
+// of the route (a managed or unknown gateway), anything else is a fault.
+func logSelfHostedLookupFailure(r *http.Request, msg string, err error) {
+	log := logger.GetLogger(r.Context())
+	if errors.Is(err, utils.ErrGatewayNotFound) {
+		log.Warn(msg, "error", err)
+		return
+	}
+	log.Error(msg, "error", err)
 }
 
 func (c *gatewayController) GetSelfHostedGateway(w http.ResponseWriter, r *http.Request) {
@@ -116,13 +138,18 @@ func (c *gatewayController) RegisterSelfHostedGateway(w http.ResponseWriter, r *
 		Properties:        req.Properties,
 	}
 	gateway, err := c.gatewayService.RegisterSelfHostedGateway(ouID, env.Name, input)
+	vhost := ""
+	if gateway != nil {
+		vhost = gateway.Vhost
+	}
 	audit.Record(
 		ctx, audit.ActionGatewayCreate,
 		audit.Org(ouID),
 		audit.ResourceNamed(audit.ResourceGateway, gatewayResponseID(gateway), req.DisplayName),
 		audit.Environment(env.UUID),
 		audit.Detail("gatewayName", req.DisplayName),
-		audit.Detail("gatewayType", input.FunctionalityType),
+		audit.Detail("gatewayType", selfHostedAuditKind(input.FunctionalityType)),
+		audit.Detail("vhost", vhost),
 		audit.Result(err),
 	)
 	if err != nil {
@@ -152,7 +179,7 @@ func (c *gatewayController) UpdateSelfHostedGateway(w http.ResponseWriter, r *ht
 
 	existing, err := c.gatewayService.RequireSelfHosted(gatewayID, ouID)
 	if err != nil {
-		log.Error("UpdateSelfHostedGateway: gateway not usable", "error", err)
+		logSelfHostedLookupFailure(r, "UpdateSelfHostedGateway: gateway not usable", err)
 		handleGatewayErrors(w, err, "Failed to update gateway")
 		return
 	}
