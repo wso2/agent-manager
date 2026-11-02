@@ -165,7 +165,7 @@ func (c *gatewayController) UpdateSelfHostedGateway(w http.ResponseWriter, r *ht
 	audit.Record(
 		ctx, audit.ActionGatewayUpdate,
 		audit.Org(ouID),
-		audit.Resource(audit.ResourceGateway, gatewayID),
+		audit.Resource(audit.ResourceGateway, existing.UUID.String()),
 		audit.Result(err),
 	)
 	if err != nil {

@@ -45,8 +45,8 @@ import (
 const selfHostedTestOU = "ou-1"
 
 type auditCapture struct {
-	mu      sync.Mutex
-	actions []audit.Action
+	mu     sync.Mutex
+	events []audit.Event
 }
 
 func (c *auditCapture) Record(_ context.Context, e audit.Event) { c.add(e) }
@@ -59,18 +59,26 @@ func (c *auditCapture) Close(context.Context) error { return nil }
 func (c *auditCapture) add(e audit.Event) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
-	c.actions = append(c.actions, e.Action)
+	c.events = append(c.events, e)
 }
 
-func (c *auditCapture) recorded(action audit.Action) bool {
+func (c *auditCapture) reset() {
 	c.mu.Lock()
 	defer c.mu.Unlock()
-	for _, a := range c.actions {
-		if a == action {
-			return true
+	c.events = nil
+}
+
+// semanticEvent returns the event a handler emitted for action, ignoring the route
+// envelope the audit middleware writes for any request.
+func (c *auditCapture) semanticEvent(action audit.Action) (audit.Event, bool) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	for _, e := range c.events {
+		if _, isEnvelope := e.Details["envelope"]; e.Action == action && !isEnvelope {
+			return e, true
 		}
 	}
-	return false
+	return audit.Event{}, false
 }
 
 // selfHostedFixture serves the self-hosted routes through the real RouteRegistrar and
@@ -188,11 +196,21 @@ func TestSelfHostedGatewayRoutes_SelfHostedGatewaySucceeds(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			f.audits.reset()
+
 			rec := f.call(tt.method, tt.path, tt.body, tt.perm)
 
 			require.Equal(t, tt.want, rec.Code, "body: %s", rec.Body.String())
-			if tt.audit != "" {
-				assert.True(t, f.audits.recorded(tt.audit), "want an audit record for %s", tt.audit)
+			if tt.audit == "" {
+				return
+			}
+			event, ok := f.audits.semanticEvent(tt.audit)
+			require.True(t, ok, "want a handler-emitted %s record, not just the route envelope", tt.audit)
+			assert.Equal(t, selfHostedTestOU, event.OUID)
+			if tt.method != http.MethodPost || tt.path != "" {
+				assert.Equal(t, id, event.ResourceID)
+			} else {
+				assert.NotEmpty(t, event.ResourceID)
 			}
 		})
 	}
