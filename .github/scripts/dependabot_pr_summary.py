@@ -49,10 +49,18 @@ def collect(repo):
     result = []
     for p in pull_requests(repo):
         sha = p['head']['sha']
-        checks = pages(f'repos/{repo}/commits/{sha}/check-runs?filter=latest', 'check_runs')
-        statuses = pages(f'repos/{repo}/commits/{sha}/statuses')
+        checks, statuses = [], []
+        merge_sha = p.get('merge_commit_sha')
+        for check_sha in dict.fromkeys([sha, merge_sha]):
+            if not check_sha:
+                continue
+            checks.extend(pages(f'repos/{repo}/commits/{check_sha}/check-runs?filter=latest', 'check_runs'))
+            # Retain the latest status per context independently on each SHA:
+            # a passing merge status must not hide a failing head status.
+            statuses.extend(dict(status, context=f"{check_sha}:{status['context']}")
+                            for status in pages(f'repos/{repo}/commits/{check_sha}/statuses'))
         result.append({'number': p['number'], 'title': p['title'], 'url': p['html_url'],
-                       'sha': sha, 'result': check_result(checks, statuses)})
+                       'sha': sha, 'merge_sha': merge_sha, 'result': check_result(checks, statuses)})
     return sorted(result, key=lambda p: p['number'])
 
 
@@ -96,8 +104,9 @@ def main():
     for p in prs:
         latest = current[p['number']]
         p['title'] = latest['title']
-        if p['sha'] != latest['head']['sha']:
-            p['result'] = 'pending / head changed during collection'
+        if (p['sha'] != latest['head']['sha'] or
+                p.get('merge_sha') != latest.get('merge_commit_sha')):
+            p['result'] = 'pending / head or merge commit changed during collection'
     for number, p in current.items():
         if number not in observed:
             prs.append({'number': number, 'title': p['title'], 'url': p['html_url'],

@@ -58,13 +58,16 @@ check may raise PRs for dependencies that are already outdated.
 at 09:00 Sri Lanka time (`Asia/Colombo`, UTC+05:30), the day after Sunday's
 Dependabot version-update schedule. Its UTC cron is `30 3 * * 1`.
 It uses the existing `GCHAT_PR_WEBHOOK_URL`; no separate bot webhook is needed.
-Individual Dependabot PR notifications are suppressed. Other authors keep their
-immediate notifications.
+Individual Dependabot PR notifications are suppressed in `wso2/agent-manager`.
+Forks keep individual notifications because the digest runs only upstream.
+Other authors keep their immediate notifications.
 
 The digest lists all open, non-draft Dependabot PRs with linked numbers, titles,
-and the latest observed commit's check results, including failed, cancelled,
-skipped, and pending checks. It does not wait for CI to finish. If there are no
-eligible PRs, it sends a short "no open PRs" summary. Open PRs appear again in
+and aggregate check results from both the head and available PR merge commit.
+A mixture of successful and skipped/neutral checks is shown as `passed`;
+`skipped / neutral` means all reported checks were skipped or neutral with no
+commit statuses. Failed, cancelled, and pending checks affect the aggregate.
+It does not wait for CI to finish. If there are no eligible PRs, it sends a short "no open PRs" summary. Open PRs appear again in
 subsequent weekly digests until closed or merged. New PRs and results after the
 snapshot appear in the next digest; security updates can arrive outside Sunday's
 schedule and their GitHub alerts remain available immediately.
