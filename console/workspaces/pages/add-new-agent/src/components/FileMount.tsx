@@ -16,12 +16,17 @@
  * under the License.
  */
 
+import { createPortal } from "react-dom";
 import { Box, Button, Stack, Typography } from "@wso2/oxygen-ui";
-import { Plus as Add } from "@wso2/oxygen-ui-icons-react";
+import { Plus } from "@wso2/oxygen-ui-icons-react";
 import { FileMountEditor } from "@agent-management-platform/views";
 import { CreateAgentFormValues } from "../form/schema";
 
 interface FileMountProps {
+  /** The parent already titles this section (e.g. an accordion). */
+  hideHeading?: boolean;
+  /** Render the add button(s) here (e.g. a parent accordion header) instead of below the rows. */
+  actionSlot?: HTMLElement | null;
   formData: CreateAgentFormValues;
   setFormData: React.Dispatch<React.SetStateAction<CreateAgentFormValues>>;
 }
@@ -29,6 +34,8 @@ interface FileMountProps {
 export const FileMount = ({
   formData,
   setFormData,
+  hideHeading = false,
+  actionSlot,
 }: FileMountProps) => {
   const fileMounts = formData.files || [];
   const isOneEmpty = fileMounts.some((f) => !f?.key || !f?.mountPath);
@@ -56,9 +63,23 @@ export const FileMount = ({
     }));
   };
 
+  const addButton = (
+    <Button
+      startIcon={<Plus size={16} />}
+      disabled={isOneEmpty}
+      variant="outlined"
+      color="primary"
+      size="small"
+      onClick={handleAdd}
+      sx={{ alignSelf: "flex-start" }}
+    >
+      Add file
+    </Button>
+  );
+
   return (
     <Stack spacing={2}>
-      <Typography variant="subtitle1">File Mounts (Optional)</Typography>
+      {!hideHeading && <Typography variant="subtitle1">File Mounts (Optional)</Typography>}
       <Box display="flex" flexDirection="column" gap={2}>
         {fileMounts.map((item, index) => {
           const siblingKeys = new Set(
@@ -85,17 +106,7 @@ export const FileMount = ({
           );
         })}
       </Box>
-      <Button
-        startIcon={<Add fontSize="small" />}
-        disabled={isOneEmpty}
-        variant="outlined"
-        color="primary"
-        size="small"
-        onClick={handleAdd}
-        sx={{ alignSelf: "flex-start" }}
-      >
-        Add File
-      </Button>
+      {actionSlot !== undefined ? actionSlot && createPortal(addButton, actionSlot) : addButton}
     </Stack>
   );
 };

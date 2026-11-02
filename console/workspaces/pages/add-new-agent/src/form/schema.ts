@@ -82,7 +82,11 @@ const baseAgentFields = {
   name: z
     .string()
     .trim()
-    .max(50, 'Name must be at most 50 characters'),
+    .max(50, 'Name must be at most 50 characters')
+    .refine(
+      (v) => v === '' || /^[a-z][a-z0-9-]*[a-z0-9]$|^[a-z]$/.test(v),
+      'Name must be lowercase alphanumeric or "-", start with a letter and end with a letter or digit',
+    ),
   description: z
     .string()
     .trim()

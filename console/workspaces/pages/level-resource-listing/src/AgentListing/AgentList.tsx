@@ -211,7 +211,6 @@ export const AgentList: React.FC<AgentListProps> = ({ showCreateAction = false }
             <ListingTable.Head>
               <ListingTable.Row>
                 <ListingTable.Cell>Name</ListingTable.Cell>
-                <ListingTable.Cell>Description</ListingTable.Cell>
                 <ListingTable.Cell>Type</ListingTable.Cell>
                 <ListingTable.Cell align="right">Last Updated</ListingTable.Cell>
               </ListingTable.Row>
@@ -247,11 +246,6 @@ export const AgentList: React.FC<AgentListProps> = ({ showCreateAction = false }
                         {agent.displayName}
                       </Typography>
                     </Stack>
-                  </ListingTable.Cell>
-                  <ListingTable.Cell sx={{ maxWidth: 280 }}>
-                    <Typography variant="body2" color="text.secondary" noWrap>
-                      {agent.description || "—"}
-                    </Typography>
                   </ListingTable.Cell>
                   <ListingTable.Cell>
                     <Typography variant="body2" noWrap>

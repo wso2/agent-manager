@@ -16,7 +16,7 @@
  * under the License.
  */
 
-import { Alert, Box, Checkbox, Collapse, Form, FormControl, FormControlLabel, FormHelperText, Grid, IconButton, MenuItem, Select, Stack, Tooltip, Typography, CircularProgress } from "@wso2/oxygen-ui";
+import { Alert, Box, Collapse, Form, FormControl, FormControlLabel, FormHelperText, Grid, IconButton, MenuItem, Select, Stack, Switch, Tooltip, Typography, CircularProgress } from "@wso2/oxygen-ui";
 import { Copy as ContentCopy } from "@wso2/oxygen-ui-icons-react";
 import { useEffect, useMemo, useCallback, useState, type ComponentType } from "react";
 import { useParams } from "react-router-dom";
@@ -32,7 +32,10 @@ import { FileMount } from "../components/FileMount";
 import { GitSecretSelector } from "../components/GitSecretSelector";
 import { LLMProviderSection } from "../components/LLMProviderSection";
 import { MCPProxySection } from "../components/MCPProxySection";
+import { OptionalSection } from "../components/OptionalSection";
+import { SelectionDetails } from "../components/SelectionDetails";
 import { LabelsEditor, MarkdownEditor } from "@agent-management-platform/shared-component";
+import { AgentHandleField } from "../components/AgentHandleField";
 import type { CreateAgentFormValues, LLMProviderFormEntry, MCPProxyFormEntry } from "../form/schema";
 import {
   BuildpackIcon,
@@ -118,6 +121,7 @@ export const InternalAgentForm = ({
     PRIVATE_REPO_SOURCE_MOUNT_POINT,
   )[0]?.component as unknown as ComponentType<PrivateRepoSourceProps> | undefined;
 
+  const [isHandleEditable, setIsHandleEditable] = useState(false);
   const { mutate: generateName, isPending: isGeneratingName } = useGenerateResourceName({
     orgName: orgId,
   });
@@ -276,13 +280,17 @@ export const InternalAgentForm = ({
 
   // Auto-generate name from display name using API with debounce
   useEffect(() => {
+    if (isHandleEditable) {
+      debouncedGenerateName.cancel();
+      return;
+    }
     if (formData.displayName && formData.displayName.length >= 3) {
       debouncedGenerateName(formData.displayName);
     } else {
       debouncedGenerateName.cancel();
       handleFieldChange("name", "");
     }
-  }, [formData.displayName, handleFieldChange, debouncedGenerateName]);
+  }, [formData.displayName, handleFieldChange, debouncedGenerateName, isHandleEditable]);
 
   return (
     <Form.Stack spacing={3}>
@@ -311,7 +319,16 @@ export const InternalAgentForm = ({
               }
             />
           </Grid>
-          <Grid size={{ xl: 8 }} sx={{ display: { xs: 'none', xl: 'block' } }} />
+          <Grid size={{ xs: 12, md: 6, xl: 4 }}>
+            <AgentHandleField
+              value={formData.name}
+              editable={isHandleEditable}
+              onEdit={() => setIsHandleEditable(true)}
+              onChange={(value) => handleFieldChange("name", value)}
+              error={errors.name}
+            />
+          </Grid>
+          <Grid size={{ xl: 4 }} sx={{ display: { xs: 'none', xl: 'block' } }} />
           <Grid size={{ xs: 12, md: 12, xl: 8 }}>
             <Form.ElementWrapper label="Description (optional)" name="description">
               <MarkdownEditor
@@ -448,7 +465,7 @@ export const InternalAgentForm = ({
           </Form.Stack>
 
 
-          <Collapse in={formData.language === "python"}>
+          <SelectionDetails open={formData.language === "python"} title="Python settings">
             <Grid container spacing={2}>
               <Grid size={{ xs: 12, md: 6, xl: 4 }}>
                 <TextInput
@@ -492,19 +509,24 @@ export const InternalAgentForm = ({
               </Grid>
             </Grid>
             <FormControlLabel
+              sx={{ alignItems: 'flex-start', mt: 2, ml: 0 }}
               control={
-                <Checkbox
+                <Switch
                   checked={formData.enableAutoInstrumentation ?? true}
                   onChange={(e) => handleFieldChange('enableAutoInstrumentation', e.target.checked)}
                 />
               }
-              label="Enable auto instrumentation"
+              label={
+                <Stack sx={{ pt: 0.75 }}>
+                  <Typography variant="body1">Auto instrumentation</Typography>
+                  <Typography variant="body2" color="text.secondary">
+                    Adds OTEL tracing to your agent automatically for observability.
+                  </Typography>
+                </Stack>
+              }
             />
             <Collapse in={formData.enableAutoInstrumentation !== false}>
-              <Stack spacing={1}>
-                <Typography variant="body2" color="text.secondary">
-                  Automatically adds OTEL tracing instrumentation to your agent for observability.
-                </Typography>
+              <Stack spacing={1} sx={{ mt: 1 }}>
                 {compatibleInstrumentation.length === 0 && buildOptions ? (
                   <Alert severity="info" sx={{ mt: 1 }}>
                     No AMP-provided instrumentation is available for Python{' '}
@@ -517,8 +539,9 @@ export const InternalAgentForm = ({
                     name="instrumentationVersion"
                   >
                     <FormControl
-                      sx={{ minWidth: 200 }}
+                      fullWidth
                       error={!!errors.instrumentationVersion}
+                      sx={{ maxWidth: { md: 'calc(50% - 8px)', xl: 'calc(33.333% - 11px)' } }}
                     >
                       <Select
                         id="instrumentationVersion"
@@ -599,20 +622,28 @@ export const InternalAgentForm = ({
                 </Typography>
               </Alert>
             </Collapse>
-          </Collapse>
+          </SelectionDetails>
 
 
 
-          <Collapse in={formData.language === "ballerina"}>
+          <SelectionDetails open={formData.language === "ballerina"} title="Ballerina settings">
             <Stack spacing={2}>
               <FormControlLabel
+                sx={{ alignItems: 'flex-start', ml: 0 }}
                 control={
-                  <Checkbox
+                  <Switch
                     checked={formData.enableAutoInstrumentation ?? true}
                     onChange={(e) => handleFieldChange('enableAutoInstrumentation', e.target.checked)}
                   />
                 }
-                label="Enable auto instrumentation"
+                label={
+                  <Stack sx={{ pt: 0.75 }}>
+                    <Typography variant="body1">Auto instrumentation</Typography>
+                    <Typography variant="body2" color="text.secondary">
+                      Adds OTEL tracing to your agent automatically for observability.
+                    </Typography>
+                  </Stack>
+                }
               />
               <Collapse in={formData.enableAutoInstrumentation !== false}>
                 <Alert severity="info" sx={{ mt: 1 }}>
@@ -650,9 +681,9 @@ export const InternalAgentForm = ({
                 </Alert>
               </Collapse>
             </Stack>
-          </Collapse>
+          </SelectionDetails>
 
-          <Collapse in={formData.language === "docker"}>
+          <SelectionDetails open={formData.language === "docker"} title="Docker settings">
             <Stack spacing={2}>
               <Grid container spacing={2}>
                 <Grid size={{ xs: 12, md: 6, xl: 4 }}>
@@ -738,7 +769,7 @@ export const InternalAgentForm = ({
                 </Typography>
               </Alert>
             </Stack>
-          </Collapse>
+          </SelectionDetails>
 
         </Form.Stack>
       </Stack>
@@ -757,62 +788,109 @@ export const InternalAgentForm = ({
           values for other environments when promoting.
         </Alert>
       )}
-      <LLMProviderSection
-        llmProviders={llmProviders}
-        setLLMProviders={setLLMProviders}
-        agentDisplayName={formData.displayName}
-        initialEnvironmentName={initialEnvironmentName}
-        isInitialEnvironmentLoading={isInitialEnvironmentLoading}
-        externalEnvKeys={(() => {
-          const agentNameUpper = formData.displayName
-            ? formData.displayName.toUpperCase().replace(/[^A-Z0-9]/g, "_")
-            : "AGENT";
-          return new Set([
-            ...(formData.env ?? []).map((e) => e.key).filter((k): k is string => !!k),
-            ...mcpProxies.flatMap((e, i) => mcpEntryVarNames(e, i, agentNameUpper)),
-          ]);
-        })()}
-      />
-      <MCPProxySection
-        mcpProxies={mcpProxies}
-        setMCPProxies={setMCPProxies}
-        agentDisplayName={formData.displayName}
-        initialEnvironmentName={initialEnvironmentName}
-        isInitialEnvironmentLoading={isInitialEnvironmentLoading}
-        externalEnvKeys={(() => {
-          const agentNameUpper = formData.displayName
-            ? formData.displayName.toUpperCase().replace(/[^A-Z0-9]/g, "_")
-            : "AGENT";
-          return new Set([
-            ...(formData.env ?? []).map((e) => e.key).filter((k): k is string => !!k),
-            ...llmProviders.flatMap((e, i) => [
-              e.urlVarName ?? `${agentNameUpper}_${i + 1}_URL`,
-              e.apikeyVarName ?? `${agentNameUpper}_${i + 1}_API_KEY`,
-            ]),
-          ]);
-        })()}
-      />
-      <EnvironmentVariable
-        formData={formData}
-        setFormData={setFormData}
-        llmReservedNames={(() => {
-          const agentNameUpper = formData.displayName
-            ? formData.displayName.toUpperCase().replace(/[^A-Z0-9]/g, "_")
-            : "AGENT";
-          return new Set([
-            ...llmProviders.flatMap((e, i) => [
-              e.urlVarName ?? `${agentNameUpper}_${i + 1}_URL`,
-              e.apikeyVarName ?? `${agentNameUpper}_${i + 1}_API_KEY`,
-            ]),
-            ...mcpProxies.flatMap((e, i) => mcpEntryVarNames(e, i, agentNameUpper)),
-          ]);
-        })()}
-        showMissingValueError={!!errors.env}
-      />
-      <FileMount
-        formData={formData}
-        setFormData={setFormData}
-      />
+      {/* Gap, not margin: the accordions zero their own margins. */}
+      <Stack spacing={1.5} useFlexGap>
+        <OptionalSection
+          title="LLM Providers"
+          description="Give the agent model access through a platform LLM provider."
+          count={llmProviders.length}
+          itemLabel="provider"
+        >
+          {(actionSlot) => (
+          <LLMProviderSection
+            hideHeading
+            actionSlot={actionSlot}
+            llmProviders={llmProviders}
+            setLLMProviders={setLLMProviders}
+            agentDisplayName={formData.displayName}
+            initialEnvironmentName={initialEnvironmentName}
+            isInitialEnvironmentLoading={isInitialEnvironmentLoading}
+            externalEnvKeys={(() => {
+              const agentNameUpper = formData.displayName
+                ? formData.displayName.toUpperCase().replace(/[^A-Z0-9]/g, "_")
+                : "AGENT";
+              return new Set([
+                ...(formData.env ?? []).map((e) => e.key).filter((k): k is string => !!k),
+                ...mcpProxies.flatMap((e, i) => mcpEntryVarNames(e, i, agentNameUpper)),
+              ]);
+            })()}
+          />
+          )}
+        </OptionalSection>
+        <OptionalSection
+          title="MCP Servers"
+          description="Let the agent call tools from registered MCP servers."
+          count={mcpProxies.length}
+          itemLabel="server"
+        >
+          {(actionSlot) => (
+          <MCPProxySection
+            hideHeading
+            actionSlot={actionSlot}
+            mcpProxies={mcpProxies}
+            setMCPProxies={setMCPProxies}
+            agentDisplayName={formData.displayName}
+            initialEnvironmentName={initialEnvironmentName}
+            isInitialEnvironmentLoading={isInitialEnvironmentLoading}
+            externalEnvKeys={(() => {
+              const agentNameUpper = formData.displayName
+                ? formData.displayName.toUpperCase().replace(/[^A-Z0-9]/g, "_")
+                : "AGENT";
+              return new Set([
+                ...(formData.env ?? []).map((e) => e.key).filter((k): k is string => !!k),
+                ...llmProviders.flatMap((e, i) => [
+                  e.urlVarName ?? `${agentNameUpper}_${i + 1}_URL`,
+                  e.apikeyVarName ?? `${agentNameUpper}_${i + 1}_API_KEY`,
+                ]),
+              ]);
+            })()}
+          />
+          )}
+        </OptionalSection>
+        <OptionalSection
+          title="Environment Variables"
+          description="Pass configuration and secrets to the agent at runtime."
+          count={(formData.env ?? []).length}
+          itemLabel="variable"
+        >
+          {(actionSlot) => (
+          <EnvironmentVariable
+            hideHeading
+            actionSlot={actionSlot}
+            formData={formData}
+            setFormData={setFormData}
+            llmReservedNames={(() => {
+              const agentNameUpper = formData.displayName
+                ? formData.displayName.toUpperCase().replace(/[^A-Z0-9]/g, "_")
+                : "AGENT";
+              return new Set([
+                ...llmProviders.flatMap((e, i) => [
+                  e.urlVarName ?? `${agentNameUpper}_${i + 1}_URL`,
+                  e.apikeyVarName ?? `${agentNameUpper}_${i + 1}_API_KEY`,
+                ]),
+                ...mcpProxies.flatMap((e, i) => mcpEntryVarNames(e, i, agentNameUpper)),
+              ]);
+            })()}
+            showMissingValueError={!!errors.env}
+          />
+          )}
+        </OptionalSection>
+        <OptionalSection
+          title="File Mounts"
+          description="Mount configuration files into the agent's container."
+          count={(formData.files ?? []).length}
+          itemLabel="file"
+        >
+          {(actionSlot) => (
+          <FileMount
+            hideHeading
+            actionSlot={actionSlot}
+            formData={formData}
+            setFormData={setFormData}
+          />
+          )}
+        </OptionalSection>
+      </Stack>
     </Form.Stack>
   );
 };

@@ -28,6 +28,7 @@ import {
   Stack,
 } from "@wso2/oxygen-ui";
 import { useCallback } from "react";
+import { SelectionDetails } from "./SelectionDetails";
 import type { CreateAgentFormValues } from "../form/schema";
 import { type InputInterfaceType, INPUT_LIMITS } from "@agent-management-platform/types";
 import { TextInput } from "@agent-management-platform/views";
@@ -224,7 +225,7 @@ export const InputInterface = ({
             Response: <code>{`{response: string}`}</code>
           </Alert>
         </Collapse>
-        <Collapse in={formData.interfaceType === "CUSTOM"}>
+        <SelectionDetails open={formData.interfaceType === "CUSTOM"} title="Custom API settings">
           <Grid container spacing={2}>
             <Grid size={{ xs: 12, md: 6, xl: 4 }}>
               <TextInput
@@ -275,8 +276,8 @@ export const InputInterface = ({
               />
             </Grid>
           </Grid>
-        </Collapse>
-        <Collapse in={formData.interfaceType === "A2A"}>
+        </SelectionDetails>
+        <SelectionDetails open={formData.interfaceType === "A2A"} title="A2A settings">
           <Form.Stack spacing={2}>
             <Alert severity="info">
               The gateway exposes both A2A transports — JSON-RPC at{" "}
@@ -301,7 +302,7 @@ export const InputInterface = ({
               </Grid>
             </Grid>
           </Form.Stack>
-        </Collapse>
+        </SelectionDetails>
       </Form.Stack>
     </Stack>
   );

@@ -16,8 +16,9 @@
  * under the License.
  */
 
+import { createPortal } from "react-dom";
 import { Box, Button, Stack, Typography } from "@wso2/oxygen-ui";
-import { Plus as Add } from "@wso2/oxygen-ui-icons-react";
+import { Plus } from "@wso2/oxygen-ui-icons-react";
 import { EnvFileUploadButton, EnvVariableEditor } from "@agent-management-platform/views";
 import { CreateAgentFormValues } from "../form/schema";
 
@@ -50,6 +51,10 @@ interface EnvironmentVariableProps {
    * still mid-edit.
    */
   showMissingValueError?: boolean;
+  /** The parent already titles this section (e.g. an accordion). */
+  hideHeading?: boolean;
+  /** Render the add button(s) here (e.g. a parent accordion header) instead of below the rows. */
+  actionSlot?: HTMLElement | null;
 }
 
 export const EnvironmentVariable = ({
@@ -61,6 +66,8 @@ export const EnvironmentVariable = ({
   resetKey = "",
   hideAdd = false,
   showMissingValueError = false,
+  hideHeading = false,
+  actionSlot,
 }: EnvironmentVariableProps) => {
   const envVariables = formData.env || [];
   const isOneEmpty = envVariables.some((e) => !e?.key || !e?.value);
@@ -106,11 +113,29 @@ export const EnvironmentVariable = ({
     });
   };
 
+  const addControls = (
+    <Box display="flex" flexDirection="row" alignItems="center" gap={1.5} flexWrap="wrap">
+      <Button
+        startIcon={<Plus size={16} />}
+        disabled={isOneEmpty}
+        variant="outlined"
+        color="primary"
+        size="small"
+        onClick={handleAdd}
+      >
+        Add variable
+      </Button>
+      <EnvFileUploadButton onParsed={handleEnvFileParsed} />
+    </Box>
+  );
+
   return (
     <Stack spacing={2}>
-      <Typography variant="subtitle1">
-        {hideAdd ? "Environment Variables" : "Environment Variables (Optional)"}
-      </Typography>
+      {!hideHeading && (
+        <Typography variant="subtitle1">
+          {hideAdd ? "Environment Variables" : "Environment Variables (Optional)"}
+        </Typography>
+      )}
       <Box display="flex" flexDirection="column" gap={2}>
         {envVariables.map((item, index) => {
           const siblingKeys = new Set(
@@ -150,26 +175,10 @@ export const EnvironmentVariable = ({
           );
         })}
       </Box>
-      {!hideAdd && (
-        <Box display="flex" flexDirection="row" alignItems="center" gap={1.5} flexWrap="wrap">
-          <Button
-            startIcon={<Add fontSize="small" />}
-            disabled={isOneEmpty}
-            variant="outlined"
-            color="primary"
-            size="small"
-            onClick={handleAdd}
-          >
-            Add
-          </Button>
-          <Box display="flex" flexDirection="column" alignItems="flex-start">
-            <EnvFileUploadButton onParsed={handleEnvFileParsed} />
-          </Box>
-          <Typography variant="caption" color="text.secondary">
-            or paste .env text into a Key field above
-          </Typography>
-        </Box>
-      )}
+      {!hideAdd &&
+        (actionSlot !== undefined
+          ? actionSlot && createPortal(addControls, actionSlot)
+          : addControls)}
     </Stack>
   );
 };

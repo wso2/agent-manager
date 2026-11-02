@@ -17,11 +17,12 @@
  */
 
 import { CircularProgress, Form, Grid, Stack, Typography } from "@wso2/oxygen-ui";
-import { useCallback, useEffect, useMemo } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { useParams } from "react-router-dom";
 import { debounce } from "lodash";
 import { useGenerateResourceName } from "@agent-management-platform/api-client";
 import { LabelsEditor, MarkdownEditor } from "@agent-management-platform/shared-component";
+import { AgentHandleField } from "../components/AgentHandleField";
 import { ConnectAgentFormValues } from "../form/schema";
 import { INPUT_LIMITS } from "@agent-management-platform/types";
 import { TextInput } from "@agent-management-platform/views";
@@ -49,6 +50,7 @@ export const ExternalAgentForm = ({
   validateField,
 }: ExternalAgentFormProps) => {
   const { orgId, projectId } = useParams<{ orgId: string; projectId: string }>();
+  const [isHandleEditable, setIsHandleEditable] = useState(false);
   const { mutate: generateName, isPending: isGeneratingName } = useGenerateResourceName({
     orgName: orgId,
   });
@@ -100,13 +102,17 @@ export const ExternalAgentForm = ({
 
   // Auto-generate name from display name using API with debounce
   useEffect(() => {
+    if (isHandleEditable) {
+      debouncedGenerateName.cancel();
+      return;
+    }
     if (formData.displayName && formData.displayName.length >= 3) {
       debouncedGenerateName(formData.displayName);
     } else {
       debouncedGenerateName.cancel();
       handleFieldChange("name", "");
     }
-  }, [formData.displayName, debouncedGenerateName, handleFieldChange]);
+  }, [formData.displayName, debouncedGenerateName, handleFieldChange, isHandleEditable]);
 
   return (
     <Form.Stack spacing={3}>
@@ -135,7 +141,16 @@ export const ExternalAgentForm = ({
               }
             />
           </Grid>
-          <Grid size={{ xl: 8 }} sx={{ display: { xs: 'none', xl: 'block' } }} />
+          <Grid size={{ xs: 12, md: 6, xl: 4 }}>
+            <AgentHandleField
+              value={formData.name}
+              editable={isHandleEditable}
+              onEdit={() => setIsHandleEditable(true)}
+              onChange={(value) => handleFieldChange("name", value)}
+              error={errors.name}
+            />
+          </Grid>
+          <Grid size={{ xl: 4 }} sx={{ display: { xs: 'none', xl: 'block' } }} />
           <Grid size={{ xs: 12, md: 12, xl: 8 }}>
             <Form.ElementWrapper label="Description (optional)" name="description">
               <MarkdownEditor

@@ -17,6 +17,7 @@
  */
 
 import React, { useCallback, useMemo, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import {
   DrawerContent,
   DrawerHeader,
@@ -524,6 +525,10 @@ interface LLMProviderSectionProps {
   initialEnvironmentName: string | undefined;
   isInitialEnvironmentLoading?: boolean;
   externalEnvKeys?: Set<string>;
+  /** The parent already titles this section (e.g. an accordion). */
+  hideHeading?: boolean;
+  /** Render the add button here (e.g. a parent accordion header) instead of below the entries. */
+  actionSlot?: HTMLElement | null;
 }
 
 export const LLMProviderSection: React.FC<LLMProviderSectionProps> = ({
@@ -533,6 +538,8 @@ export const LLMProviderSection: React.FC<LLMProviderSectionProps> = ({
   initialEnvironmentName,
   isInitialEnvironmentLoading = false,
   externalEnvKeys = new Set(),
+  hideHeading = false,
+  actionSlot,
 }) => {
   const { orgId } = useParams<{ orgId: string }>();
 
@@ -713,9 +720,26 @@ export const LLMProviderSection: React.FC<LLMProviderSectionProps> = ({
     searchTimerRef.current = setTimeout(() => setDebouncedSearch(val), 250);
   }, []);
 
+  const addButton = (
+        <Button
+          variant="outlined"
+          size="small"
+          startIcon={<Plus size={16} />}
+          onClick={handleAddNew}
+          disabled={
+            envsLoading ||
+            isInitialEnvironmentLoading ||
+            catalogLoading ||
+            targetEnvironments.length === 0
+          }
+        >
+          Add LLM provider
+        </Button>
+  );
+
   return (
     <Stack spacing={2}>
-      <Typography variant="subtitle1">LLM Providers (Optional)</Typography>
+      {!hideHeading && <Typography variant="subtitle1">LLM Providers (Optional)</Typography>}
 
       <Stack spacing={1}>
         {llmProviders.map((entry, index) => {
@@ -745,22 +769,11 @@ export const LLMProviderSection: React.FC<LLMProviderSectionProps> = ({
           );
         })}
 
-        <Box sx={{ pt: llmProviders.length > 0 ? 1 : 0 }}>
-            <Button
-              variant="outlined"
-              size="small"
-              startIcon={<Plus size={16} />}
-              onClick={handleAddNew}
-              disabled={
-                envsLoading ||
-                isInitialEnvironmentLoading ||
-                catalogLoading ||
-                targetEnvironments.length === 0
-              }
-            >
-              Add
-            </Button>
-        </Box>
+        {actionSlot !== undefined ? (
+          actionSlot && createPortal(addButton, actionSlot)
+        ) : (
+          <Box sx={{ pt: llmProviders.length > 0 ? 1 : 0 }}>{addButton}</Box>
+        )}
       </Stack>
 
       <DrawerWrapper
