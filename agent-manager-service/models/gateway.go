@@ -37,6 +37,7 @@ type Gateway struct {
 	IsCritical               bool                   `gorm:"column:is_critical" json:"isCritical"`
 	GatewayFunctionalityType string                 `gorm:"column:gateway_functionality_type" json:"functionalityType"`
 	IsActive                 bool                   `gorm:"column:is_active" json:"isActive"`
+	Hosting                  string                 `gorm:"column:hosting;default:managed" json:"hosting"`
 	CreatedAt                time.Time              `gorm:"column:created_at" json:"createdAt"`
 	UpdatedAt                time.Time              `gorm:"column:updated_at" json:"updatedAt"`
 	DeletedAt                gorm.DeletedAt         `gorm:"column:deleted_at;index" json:"-"`
@@ -45,6 +46,20 @@ type Gateway struct {
 // TableName returns the table name for the Gateway model
 func (Gateway) TableName() string {
 	return "gateways"
+}
+
+// Gateway hosting. Stored in gateways.hosting: who runs the gateway runtime.
+const (
+	// GatewayHostingManaged is a gateway the platform provisions and runs.
+	GatewayHostingManaged = "managed"
+	// GatewayHostingSelfHosted is a gateway the customer runs and connects to the platform.
+	GatewayHostingSelfHosted = "self_hosted"
+)
+
+// IsManaged reports whether the platform runs this gateway. An unset hosting is managed,
+// the column default.
+func (g *Gateway) IsManaged() bool {
+	return g.Hosting == "" || g.Hosting == GatewayHostingManaged
 }
 
 // Gateway placement roles. Stored lowercase in gateways.gateway_functionality_type;

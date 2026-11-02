@@ -15952,6 +15952,16 @@ components:
         - ERROR: Gateway has encountered an error
       example: ACTIVE
 
+    GatewayHosting:
+      type: string
+      enum:
+        - MANAGED
+        - SELF_HOSTED
+      description: |
+        Who runs the gateway runtime.
+        - MANAGED: the platform provisions and runs it.
+        - SELF_HOSTED: the customer runs it and connects it to the platform.
+
     GatewayResponse:
       type: object
       required:
@@ -15959,6 +15969,7 @@ components:
         - name
         - displayName
         - gatewayType
+        - hosting
         - vhost
         - isCritical
         - status
@@ -15982,6 +15993,8 @@ components:
           example: Production AI Gateway
         gatewayType:
           $ref: "#/components/schemas/GatewayType"
+        hosting:
+          $ref: "#/components/schemas/GatewayHosting"
         vhost:
           type: string
           description: Virtual host for the gateway

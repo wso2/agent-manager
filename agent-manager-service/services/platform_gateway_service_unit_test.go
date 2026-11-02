@@ -46,6 +46,35 @@ func gatewayFixture(name string) *models.Gateway {
 	}
 }
 
+func TestGatewayIsManaged(t *testing.T) {
+	assert.True(t, (&models.Gateway{Hosting: ""}).IsManaged())
+	assert.True(t, (&models.Gateway{Hosting: models.GatewayHostingManaged}).IsManaged())
+	assert.False(t, (&models.Gateway{Hosting: models.GatewayHostingSelfHosted}).IsManaged())
+}
+
+func TestGetGateway_EmitsHosting(t *testing.T) {
+	cases := map[string]string{
+		models.GatewayHostingSelfHosted: "SELF_HOSTED",
+		models.GatewayHostingManaged:    "MANAGED",
+		"":                              "MANAGED",
+	}
+	for stored, wire := range cases {
+		t.Run("stored="+stored, func(t *testing.T) {
+			gateway := gatewayFixture("edge")
+			gateway.Hosting = stored
+			repo := &repomocks.GatewayRepositoryMock{
+				GetByUUIDFunc: func(string) (*models.Gateway, error) { return gateway, nil },
+			}
+			svc := NewPlatformGatewayService(repo, nil)
+
+			resp, err := svc.GetGateway(gateway.UUID.String(), gatewayTestOUID)
+
+			require.NoError(t, err)
+			assert.Equal(t, wire, resp.Hosting)
+		})
+	}
+}
+
 // The spec advertises the path param as "Gateway UUID or name", and a name used to
 // be rejected with a bare error that matched no case in handleGatewayErrors and
 // surfaced as HTTP 500.

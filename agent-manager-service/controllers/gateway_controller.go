@@ -898,6 +898,7 @@ func convertGatewayToSpecResponse(gw *services.GatewayResponse, ouID string, env
 		Name:        gw.Name,
 		DisplayName: gw.DisplayName,
 		GatewayType: canonicalGatewayType(gw.FunctionalityType),
+		Hosting:     spec.GatewayHosting(gw.Hosting),
 		Vhost:       gw.Vhost,
 		RuntimeUrl:  runtimeURLPtr(gw.RuntimeURL),
 		IsCritical:  gw.IsCritical,

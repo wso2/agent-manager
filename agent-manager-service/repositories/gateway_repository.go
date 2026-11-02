@@ -48,6 +48,7 @@ type GatewayFilterOptions struct {
 	// Applied as IN (?) alongside, not instead of, FunctionalityType.
 	FunctionalityTypeIn []string
 	Status              *bool   // Filter by is_active
+	Hosting             *string // Filter by hosting (managed, self_hosted)
 	EnvironmentID       *string // Filter by environment (via gateway_environment_mappings)
 	Limit               int     // Pagination limit (0 = no limit)
 	Offset              int     // Pagination offset
@@ -268,6 +269,10 @@ func (r *GatewayRepo) buildFilterQuery(filters GatewayFilterOptions) *gorm.DB {
 	// Filter by a set of functionality types
 	if len(filters.FunctionalityTypeIn) > 0 {
 		query = query.Where("gateway_functionality_type IN ?", filters.FunctionalityTypeIn)
+	}
+
+	if filters.Hosting != nil && *filters.Hosting != "" {
+		query = query.Where("hosting = ?", *filters.Hosting)
 	}
 
 	// Filter by status (is_active)

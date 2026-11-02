@@ -129,8 +129,34 @@ type GatewayResponse struct {
 	IsCritical        bool                   `json:"isCritical"`
 	FunctionalityType string                 `json:"functionalityType"`
 	IsActive          bool                   `json:"isActive"`
+	Hosting           string                 `json:"hosting"`
 	CreatedAt         time.Time              `json:"createdAt"`
 	UpdatedAt         time.Time              `json:"updatedAt"`
+}
+
+// toGatewayResponse maps a stored gateway to its DTO. Hosting is emitted uppercase,
+// like roles; the one-time token is never part of it.
+func toGatewayResponse(gw *models.Gateway) *GatewayResponse {
+	hosting := "MANAGED"
+	if !gw.IsManaged() {
+		hosting = "SELF_HOSTED"
+	}
+	return &GatewayResponse{
+		ID:                gw.UUID.String(),
+		OrganizationID:    gw.OUID,
+		Name:              gw.Name,
+		DisplayName:       gw.DisplayName,
+		Description:       gw.Description,
+		Properties:        gw.Properties,
+		Vhost:             gw.Vhost,
+		RuntimeURL:        gw.RuntimeURL,
+		IsCritical:        gw.IsCritical,
+		FunctionalityType: gw.GatewayFunctionalityType,
+		IsActive:          gw.IsActive,
+		Hosting:           hosting,
+		CreatedAt:         gw.CreatedAt,
+		UpdatedAt:         gw.UpdatedAt,
+	}
 }
 
 // GatewayListResponse represents a list of gateways
@@ -290,21 +316,7 @@ func (s *PlatformGatewayService) RegisterGateway(
 	}
 	s.placeEnvironments(gateway.OUID, uniqueEnvIDs)
 
-	response := &GatewayResponse{
-		ID:                gateway.UUID.String(),
-		OrganizationID:    gateway.OUID,
-		Name:              gateway.Name,
-		DisplayName:       gateway.DisplayName,
-		Description:       gateway.Description,
-		Properties:        gateway.Properties,
-		Vhost:             gateway.Vhost,
-		RuntimeURL:        gateway.RuntimeURL,
-		IsCritical:        gateway.IsCritical,
-		FunctionalityType: gateway.GatewayFunctionalityType,
-		IsActive:          gateway.IsActive,
-		CreatedAt:         gateway.CreatedAt,
-		UpdatedAt:         gateway.UpdatedAt,
-	}
+	response := toGatewayResponse(gateway)
 
 	return response, nil
 }
@@ -314,6 +326,7 @@ type GatewayListFilters struct {
 	FunctionalityType *string // Filter by gateway role (ingress, egress, both)
 	Status            *bool   // Filter by is_active status
 	EnvironmentID     *string // Filter by environment UUID
+	Hosting           *string // Filter by hosting (managed, self_hosted)
 }
 
 // ListGateways retrieves gateways with constitution-compliant envelope structure and DB-level pagination
@@ -341,6 +354,7 @@ func (s *PlatformGatewayService) ListGateways(ouID *string, filters *GatewayList
 		}
 		filterOpts.Status = filters.Status
 		filterOpts.EnvironmentID = filters.EnvironmentID
+		filterOpts.Hosting = filters.Hosting
 	}
 
 	// Get total count (without pagination)
@@ -358,21 +372,7 @@ func (s *PlatformGatewayService) ListGateways(ouID *string, filters *GatewayList
 	// Convert to DTOs
 	responses := make([]GatewayResponse, 0, len(gateways))
 	for _, gw := range gateways {
-		responses = append(responses, GatewayResponse{
-			ID:                gw.UUID.String(),
-			OrganizationID:    gw.OUID,
-			Name:              gw.Name,
-			DisplayName:       gw.DisplayName,
-			Description:       gw.Description,
-			Properties:        gw.Properties,
-			Vhost:             gw.Vhost,
-			RuntimeURL:        gw.RuntimeURL,
-			IsCritical:        gw.IsCritical,
-			FunctionalityType: gw.GatewayFunctionalityType,
-			IsActive:          gw.IsActive,
-			CreatedAt:         gw.CreatedAt,
-			UpdatedAt:         gw.UpdatedAt,
-		})
+		responses = append(responses, *toGatewayResponse(gw))
 	}
 
 	// Build constitution-compliant list response with pagination metadata
@@ -430,21 +430,7 @@ func (s *PlatformGatewayService) GetGateway(gatewayID, ouID string) (*GatewayRes
 		return nil, utils.ErrGatewayNotFound
 	}
 
-	response := &GatewayResponse{
-		ID:                gateway.UUID.String(),
-		OrganizationID:    gateway.OUID,
-		Name:              gateway.Name,
-		DisplayName:       gateway.DisplayName,
-		Description:       gateway.Description,
-		Properties:        gateway.Properties,
-		Vhost:             gateway.Vhost,
-		RuntimeURL:        gateway.RuntimeURL,
-		IsCritical:        gateway.IsCritical,
-		FunctionalityType: gateway.GatewayFunctionalityType,
-		IsActive:          gateway.IsActive,
-		CreatedAt:         gateway.CreatedAt,
-		UpdatedAt:         gateway.UpdatedAt,
-	}
+	response := toGatewayResponse(gateway)
 
 	return response, nil
 }
@@ -514,22 +500,7 @@ func (s *PlatformGatewayService) UpdateGateway(
 		return nil, err
 	}
 
-	updatedGateway := &GatewayResponse{
-		ID:                gateway.UUID.String(),
-		OrganizationID:    gateway.OUID,
-		Name:              gateway.Name,
-		DisplayName:       gateway.DisplayName,
-		Description:       gateway.Description,
-		Properties:        gateway.Properties,
-		Vhost:             gateway.Vhost,
-		RuntimeURL:        gateway.RuntimeURL,
-		IsCritical:        gateway.IsCritical,
-		FunctionalityType: gateway.GatewayFunctionalityType,
-		IsActive:          gateway.IsActive,
-		CreatedAt:         gateway.CreatedAt,
-		UpdatedAt:         gateway.UpdatedAt,
-	}
-	return updatedGateway, nil
+	return toGatewayResponse(gateway), nil
 }
 
 // DeleteGateway deletes a gateway after verifying no active deployments exist
