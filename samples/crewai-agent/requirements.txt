@@ -1,6 +1,6 @@
 crewai==1.15.2
 crewai-tools==1.15.2
-openai==2.54.0
-fastapi==0.141.1
+openai==3.41.0
+fastapi==0.162.0
 uvicorn==0.54.0
 python-dotenv==1.2.4
