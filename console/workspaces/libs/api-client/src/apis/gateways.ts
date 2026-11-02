@@ -39,6 +39,15 @@ import type {
   GatewayTokenResponse,
   UpdateGatewayPathParams,
   UpdateGatewayRequest,
+  CreateSelfHostedGatewayPathParams,
+  DeleteSelfHostedGatewayPathParams,
+  ListSelfHostedGatewaysPathParams,
+  ListSelfHostedGatewaysQuery,
+  RevokeSelfHostedGatewayTokenPathParams,
+  SelfHostedGatewayRequest,
+  SelfHostedGatewayTokensPathParams,
+  SelfHostedGatewayUpdateRequest,
+  UpdateSelfHostedGatewayPathParams,
 } from "@agent-management-platform/types";
 import {
   encodeRequired,
@@ -330,6 +339,130 @@ export async function deleteIdentityProvider(
 
   const res = await httpDELETE(
     `${SERVICE_BASE}/orgs/${org}/gateways/${id}/identity-providers/${name}`,
+    { token },
+  );
+  if (!res.ok && res.status !== 204) throw await res.json();
+}
+
+export async function listSelfHostedGateways(
+  params: ListSelfHostedGatewaysPathParams,
+  query?: ListSelfHostedGatewaysQuery,
+  getToken?: () => Promise<string>,
+): Promise<GatewayListResponse> {
+  const org = encodeRequired(params.orgName, "orgName");
+  const token = getToken ? await getToken() : undefined;
+
+  const searchParams: Record<string, string> = {};
+  if (query?.limit !== undefined) {
+    searchParams.limit = String(query.limit);
+  }
+  if (query?.offset !== undefined) {
+    searchParams.offset = String(query.offset);
+  }
+
+  const res = await httpGET(`${SERVICE_BASE}/orgs/${org}/self-hosted-gateways`, {
+    token,
+    searchParams: Object.keys(searchParams).length ? searchParams : undefined,
+  });
+  if (!res.ok) throw await res.json();
+  return res.json();
+}
+
+export async function createSelfHostedGateway(
+  params: CreateSelfHostedGatewayPathParams,
+  body: SelfHostedGatewayRequest,
+  getToken?: () => Promise<string>,
+): Promise<GatewayResponse> {
+  const org = encodeRequired(params.orgName, "orgName");
+  const token = getToken ? await getToken() : undefined;
+
+  const res = await httpPOST(
+    `${SERVICE_BASE}/orgs/${org}/self-hosted-gateways`,
+    body,
+    { token },
+  );
+  if (!res.ok) throw await res.json();
+  return res.json();
+}
+
+export async function updateSelfHostedGateway(
+  params: UpdateSelfHostedGatewayPathParams,
+  body: SelfHostedGatewayUpdateRequest,
+  getToken?: () => Promise<string>,
+): Promise<GatewayResponse> {
+  const org = encodeRequired(params.orgName, "orgName");
+  const id = encodeRequired(params.gatewayId, "gatewayId");
+  const token = getToken ? await getToken() : undefined;
+
+  const res = await httpPUT(
+    `${SERVICE_BASE}/orgs/${org}/self-hosted-gateways/${id}`,
+    body,
+    { token },
+  );
+  if (!res.ok) throw await res.json();
+  return res.json();
+}
+
+export async function deleteSelfHostedGateway(
+  params: DeleteSelfHostedGatewayPathParams,
+  getToken?: () => Promise<string>,
+): Promise<void> {
+  const org = encodeRequired(params.orgName, "orgName");
+  const id = encodeRequired(params.gatewayId, "gatewayId");
+  const token = getToken ? await getToken() : undefined;
+
+  const res = await httpDELETE(
+    `${SERVICE_BASE}/orgs/${org}/self-hosted-gateways/${id}`,
+    { token },
+  );
+  if (!res.ok && res.status !== 204) throw await res.json();
+}
+
+export async function listSelfHostedGatewayTokens(
+  params: SelfHostedGatewayTokensPathParams,
+  getToken?: () => Promise<string>,
+): Promise<GatewayTokenListResponse> {
+  const org = encodeRequired(params.orgName, "orgName");
+  const id = encodeRequired(params.gatewayId, "gatewayId");
+  const token = getToken ? await getToken() : undefined;
+
+  const res = await httpGET(
+    `${SERVICE_BASE}/orgs/${org}/self-hosted-gateways/${id}/tokens`,
+    { token },
+  );
+  if (!res.ok) throw await res.json();
+  return res.json();
+}
+
+/** The token value is returned only in this response. */
+export async function createSelfHostedGatewayToken(
+  params: SelfHostedGatewayTokensPathParams,
+  getToken?: () => Promise<string>,
+): Promise<GatewayTokenResponse> {
+  const org = encodeRequired(params.orgName, "orgName");
+  const id = encodeRequired(params.gatewayId, "gatewayId");
+  const token = getToken ? await getToken() : undefined;
+
+  const res = await httpPOST(
+    `${SERVICE_BASE}/orgs/${org}/self-hosted-gateways/${id}/tokens`,
+    {},
+    { token },
+  );
+  if (!res.ok) throw await res.json();
+  return res.json();
+}
+
+export async function revokeSelfHostedGatewayToken(
+  params: RevokeSelfHostedGatewayTokenPathParams,
+  getToken?: () => Promise<string>,
+): Promise<void> {
+  const org = encodeRequired(params.orgName, "orgName");
+  const id = encodeRequired(params.gatewayId, "gatewayId");
+  const tokenId = encodeRequired(params.tokenId, "tokenId");
+  const token = getToken ? await getToken() : undefined;
+
+  const res = await httpDELETE(
+    `${SERVICE_BASE}/orgs/${org}/self-hosted-gateways/${id}/tokens/${tokenId}`,
     { token },
   );
   if (!res.ok && res.status !== 204) throw await res.json();

@@ -84,6 +84,13 @@ export interface AppConfig {
    */
   useConfiguredInstrumentationUrl?: boolean;
   /**
+   * When true, the console offers self-hosted gateways: registering a gateway
+   * the customer runs and issuing its registration tokens. Defaults to false;
+   * set it in deployments that run managed gateways. Read it as
+   * `globalConfig.selfHostedGatewaysEnabled === true`.
+   */
+  selfHostedGatewaysEnabled?: boolean;
+  /**
    * Base URL the API Platform Gateway uses to reach Agent Manager from inside
    * the cluster. The add-environment.sh script appends /api/v1 and
    * /auth/external/jwks.json to this as needed.

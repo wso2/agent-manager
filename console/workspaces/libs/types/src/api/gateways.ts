@@ -20,6 +20,8 @@ import type { ListQuery, OrgPathParams, PaginationMeta } from "./common";
 
 export type GatewayType = "INGRESS" | "EGRESS" | "BOTH";
 
+export type GatewayHosting = "MANAGED" | "SELF_HOSTED";
+
 export type GatewayStatus =
   | "ACTIVE"
   | "INACTIVE"
@@ -75,6 +77,7 @@ export interface GatewayResponse {
   region?: string;
   isCritical: boolean;
   status: GatewayStatus;
+  hosting: GatewayHosting;
   createdAt: string;
   updatedAt: string;
   environments?: GatewayEnvironmentResponse[];
@@ -92,6 +95,47 @@ export interface CreateGatewayRequest {
   region?: string;
   isCritical?: boolean;
   environmentIds?: string[];
+}
+
+/**
+ * Request body for registering a gateway the customer runs.
+ * `environment` is an environment name.
+ */
+export interface SelfHostedGatewayRequest {
+  displayName: string;
+  /**
+   * DNS-1123 label; the gateway handle becomes `<environment>-<handle>`.
+   * Derived from displayName when omitted.
+   */
+  handle?: string;
+  description?: string;
+  environment: string;
+  /** At least one http(s) endpoint URL; the first is the gateway's address. */
+  endpoints: string[];
+  functionalityType?: "ai";
+  /** Gateway version, `major.minor` or CalVer `YYYY.MM.DD`. */
+  version?: string;
+  isCritical?: boolean;
+  properties?: Record<string, unknown>;
+}
+
+/** Handle, environment and kind are fixed at registration. */
+export interface SelfHostedGatewayUpdateRequest {
+  displayName?: string;
+  description?: string;
+  isCritical?: boolean;
+  properties?: Record<string, unknown>;
+}
+
+export type ListSelfHostedGatewaysPathParams = OrgPathParams;
+export type CreateSelfHostedGatewayPathParams = OrgPathParams;
+export type ListSelfHostedGatewaysQuery = ListQuery;
+export type UpdateSelfHostedGatewayPathParams = GatewayPathParams;
+export type DeleteSelfHostedGatewayPathParams = GatewayPathParams;
+export type SelfHostedGatewayTokensPathParams = GatewayPathParams;
+
+export interface RevokeSelfHostedGatewayTokenPathParams extends GatewayPathParams {
+  tokenId: string | undefined;
 }
 
 export interface UpdateGatewayRequest {
