@@ -1,4 +1,4 @@
-FROM python:3.11-slim
+FROM python:3.14-slim
 ENV PYTHONDONTWRITEBYTECODE=1 PYTHONUNBUFFERED=1 PORT=8001
 WORKDIR /app/mcp-server
 COPY mcp-server/requirements.txt ./requirements.txt
