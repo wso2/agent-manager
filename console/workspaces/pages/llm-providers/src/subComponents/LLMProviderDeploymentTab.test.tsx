@@ -17,14 +17,15 @@
  */
 
 import { render, screen, fireEvent, waitFor } from "@testing-library/react";
-import { describe, it, expect, vi, beforeEach } from "vitest";
+import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { MemoryRouter } from "react-router-dom";
 import { ThemeProvider, createTheme } from "@wso2/oxygen-ui";
-import type {
-  Environment,
-  GatewayResponse,
-  LLMDeploymentResponse,
-  LLMProviderResponse,
+import {
+  globalConfig,
+  type Environment,
+  type GatewayResponse,
+  type LLMDeploymentResponse,
+  type LLMProviderResponse,
 } from "@agent-management-platform/types";
 
 // The tab renders the connected EnvironmentGatewaySelector, whose api-client
@@ -36,6 +37,13 @@ vi.mock("@agent-management-platform/api-client", () => ({
   useListLLMDeployments: vi.fn(),
   ConsoleAction: {},
   useTrack: () => ({ track: vi.fn() }),
+}));
+
+// The gateways package pulls in auth and its own api-client at import time;
+// the tab only needs the button that opens its drawer. Whether the button
+// shows at all is decided by the tab, which is what these tests cover.
+vi.mock("@agent-management-platform/gateways", () => ({
+  AddSelfHostedGatewayAction: () => <button>Add self-hosted gateway</button>,
 }));
 
 import {
@@ -68,6 +76,7 @@ const makeGateway = (uuid: string, envIds: string[]): GatewayResponse => ({
   name: uuid,
   displayName: `Gateway ${uuid}`,
   gatewayType: "EGRESS",
+  hosting: "MANAGED",
   vhost: "example.com",
   isCritical: false,
   status: "ACTIVE",
@@ -169,6 +178,22 @@ describe("LLMProviderDeploymentTab", () => {
     vi.clearAllMocks();
     seedSelectorData();
     seedDeployments([]);
+  });
+
+  afterEach(() => {
+    delete globalConfig.selfHostedGatewaysEnabled;
+  });
+
+  it("no add-self-hosted action when selfHostedGatewaysEnabled is false", () => {
+    globalConfig.selfHostedGatewaysEnabled = false;
+    renderTab({ providerData: makeProvider([]) });
+    expect(screen.queryByRole("button", { name: /add self-hosted gateway/i })).toBeNull();
+  });
+
+  it("offers an add-self-hosted action when selfHostedGatewaysEnabled is true", () => {
+    globalConfig.selfHostedGatewaysEnabled = true;
+    renderTab({ providerData: makeProvider([]) });
+    expect(screen.getByRole("button", { name: /add self-hosted gateway/i })).toBeEnabled();
   });
 
   it("seeds from providerData.gateways and keeps Save disabled while clean", () => {

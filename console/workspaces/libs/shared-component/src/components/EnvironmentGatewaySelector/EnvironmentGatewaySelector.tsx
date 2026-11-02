@@ -29,11 +29,12 @@ import {
   Tooltip,
   Typography,
 } from "@wso2/oxygen-ui";
-import type {
-  Environment,
-  GatewayDeploymentStatus,
-  GatewayResponse,
-  LLMDeploymentStatus,
+import {
+  globalConfig,
+  type Environment,
+  type GatewayDeploymentStatus,
+  type GatewayResponse,
+  type LLMDeploymentStatus,
 } from "@agent-management-platform/types";
 import {
   useListEnvironments,
@@ -80,6 +81,23 @@ const environmentIdOf = (gateway: GatewayResponse): string | undefined =>
 const gatewayLabel = (gateway: GatewayResponse): string =>
   gateway.displayName || gateway.name;
 
+// A gateway without a hosting value predates self-hosted gateways: managed.
+const isManaged = (gateway: GatewayResponse): boolean =>
+  gateway.hosting !== "SELF_HOSTED";
+
+const hostingLabel = (gateway: GatewayResponse): string =>
+  isManaged(gateway) ? "Managed" : "Self-hosted";
+
+// The gateway used without asking: the only candidate, or the only managed one
+// when self-hosted gateways sit beside it. Self-hosted stays an explicit pick.
+const defaultGatewayOf = (
+  candidates: GatewayResponse[],
+): GatewayResponse | undefined => {
+  if (candidates.length === 1) return candidates[0];
+  const managed = candidates.filter(isManaged);
+  return managed.length === 1 ? managed[0] : undefined;
+};
+
 const AMBIGUOUS_CAPTION = "Select an egress gateway for this environment.";
 const UNAVAILABLE_CAPTION =
   "No egress-capable gateway is attached to this environment.";
@@ -116,6 +134,7 @@ interface EnvironmentRow {
   envId: string;
   label: string;
   candidates: GatewayResponse[];
+  defaultGateway?: GatewayResponse;
   lockedGateway?: GatewayResponse;
   resolvedGateway?: GatewayResponse;
   checked: boolean;
@@ -137,6 +156,7 @@ export const EnvironmentGatewaySelectorView: React.FC<
   onSingleChoiceChange,
   disabled,
 }) => {
+  const showHosting = globalConfig.selfHostedGatewaysEnabled === true;
   const [pendingEnvIds, setPendingEnvIds] = useState<Set<string>>(new Set());
 
   const valueSet = useMemo(() => new Set(value), [value]);
@@ -180,6 +200,7 @@ export const EnvironmentGatewaySelectorView: React.FC<
       environments.flatMap((env) => {
         if (!env.id) return [];
         const candidates = gatewaysByEnv[env.id] ?? [];
+        const defaultGateway = defaultGatewayOf(candidates);
         const lockedGateway = candidates.find((candidate) =>
           lockedSet.has(candidate.uuid),
         );
@@ -194,7 +215,7 @@ export const EnvironmentGatewaySelectorView: React.FC<
         const statusGateway =
           lockedGateway ??
           resolvedGateway ??
-          (candidates.length === 1 ? candidates[0] : undefined);
+          defaultGateway;
         const status = statusGateway && gatewayStatuses?.get(statusGateway.uuid);
         const chip = status && statusChipFor(status);
         return [
@@ -202,6 +223,7 @@ export const EnvironmentGatewaySelectorView: React.FC<
             envId: env.id,
             label: env.displayName || env.name,
             candidates,
+            defaultGateway,
             lockedGateway,
             resolvedGateway,
             checked,
@@ -309,7 +331,7 @@ export const EnvironmentGatewaySelectorView: React.FC<
       if (row.resolvedGateway) emitRemove(row.resolvedGateway.uuid);
       return;
     }
-    if (row.candidates.length === 1) emitAdd(row.candidates[0]);
+    if (row.defaultGateway) emitAdd(row.defaultGateway);
     else setPending(row.envId, true);
   };
 
@@ -346,6 +368,16 @@ export const EnvironmentGatewaySelectorView: React.FC<
     if (row.candidates.length === 1) return gatewayLabel(row.candidates[0]);
     return undefined;
   };
+
+  const renderHostingChip = (gateway: GatewayResponse) =>
+    showHosting && (
+      <Chip
+        label={hostingLabel(gateway)}
+        size="small"
+        variant="outlined"
+        color={isManaged(gateway) ? "default" : "info"}
+      />
+    );
 
   const renderRowContent = (row: EnvironmentRow) => {
     if (row.candidates.length === 0) {
@@ -394,7 +426,10 @@ export const EnvironmentGatewaySelectorView: React.FC<
           >
             {row.candidates.map((candidate) => (
               <MenuItem key={candidate.uuid} value={candidate.uuid}>
-                {gatewayLabel(candidate)}
+                <Stack direction="row" spacing={1} alignItems="center">
+                  <span>{gatewayLabel(candidate)}</span>
+                  {renderHostingChip(candidate)}
+                </Stack>
               </MenuItem>
             ))}
           </Select>
@@ -441,6 +476,8 @@ export const EnvironmentGatewaySelectorView: React.FC<
                   {inlineGatewayLabel(row)}
                 </Typography>
               )}
+              {row.candidates.length === 1 &&
+                renderHostingChip(row.candidates[0])}
               {row.lockedGateway && (
                 <Chip
                   label="Deployed"

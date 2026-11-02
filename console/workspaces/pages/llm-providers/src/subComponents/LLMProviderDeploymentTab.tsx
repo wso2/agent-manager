@@ -17,17 +17,19 @@
  */
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import type {
-  LLMProviderResponse,
-  UpdateLLMProviderRequest,
+import {
+  globalConfig,
+  type LLMProviderResponse,
+  type UpdateLLMProviderRequest,
 } from "@agent-management-platform/types";
 import { useListLLMDeployments } from "@agent-management-platform/api-client";
+import { AddSelfHostedGatewayAction } from "@agent-management-platform/gateways";
 import {
   EnvironmentGatewaySelector,
   useConfirmationDialog,
   useUnsavedChangesGuard,
 } from "@agent-management-platform/shared-component";
-import { Alert, Button, Collapse, Skeleton, Stack } from "@wso2/oxygen-ui";
+import { Alert, Box, Button, Collapse, Skeleton, Stack } from "@wso2/oxygen-ui";
 import { requestedGatewayStatuses } from "./gatewayDeploymentStatus";
 
 export type LLMProviderDeploymentTabProps = {
@@ -195,6 +197,14 @@ export function LLMProviderDeploymentTab({
         onValidityChange={setIsSelectionValid}
         disabled={isUpdating}
       />
+      {globalConfig.selfHostedGatewaysEnabled === true && (
+        <Box>
+          <AddSelfHostedGatewayAction
+            orgId={orgName ?? ""}
+            disabled={isUpdating}
+          />
+        </Box>
+      )}
       <Stack spacing={1.5} width="100%">
         <Collapse in={!!status} timeout={300}>
           {status && (

@@ -47,7 +47,8 @@ import {
   type PolicySelection as GuardrailSelection,
 } from "@agent-management-platform/shared-component";
 import { useListGateways } from "@agent-management-platform/api-client";
-import { INPUT_LIMITS } from "@agent-management-platform/types";
+import { AddSelfHostedGatewayAction } from "@agent-management-platform/gateways";
+import { globalConfig, INPUT_LIMITS } from "@agent-management-platform/types";
 
 export type TemplateCard = {
   id: string;
@@ -688,13 +689,18 @@ export const AddLLMProviderForm: React.FC<AddLLMProviderFormProps> = ({
       )}
       <Collapse in={!!formData.templateId}>
         {isSingleGatewayChoice ? (
-          <EnvironmentGatewaySelector
-            orgId={orgId}
-            value={formData.gatewayIds ?? []}
-            onChange={(ids) => handleFieldChange("gatewayIds", ids)}
-            onValidityChange={setIsGatewaySelectionValid}
-            onSingleChoiceChange={setIsSingleGatewayChoice}
-          />
+          <>
+            <EnvironmentGatewaySelector
+              orgId={orgId}
+              value={formData.gatewayIds ?? []}
+              onChange={(ids) => handleFieldChange("gatewayIds", ids)}
+              onValidityChange={setIsGatewaySelectionValid}
+              onSingleChoiceChange={setIsSingleGatewayChoice}
+            />
+            {globalConfig.selfHostedGatewaysEnabled === true && (
+              <AddSelfHostedGatewayAction orgId={orgId} />
+            )}
+          </>
         ) : (
           <Form.Section>
             <Form.Subheader>Deployment Configuration</Form.Subheader>
@@ -720,6 +726,11 @@ export const AddLLMProviderForm: React.FC<AddLLMProviderFormProps> = ({
                 onValidityChange={setIsGatewaySelectionValid}
                 onSingleChoiceChange={setIsSingleGatewayChoice}
               />
+              {globalConfig.selfHostedGatewaysEnabled === true && (
+                <Box>
+                  <AddSelfHostedGatewayAction orgId={orgId} />
+                </Box>
+              )}
             </Form.Stack>
           </Form.Section>
         )}
