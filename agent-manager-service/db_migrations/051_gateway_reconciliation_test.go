@@ -412,7 +412,7 @@ func TestMigration051_PlatformAgentExposures(t *testing.T) {
 	t.Run("constraints carry the exposure names", func(t *testing.T) {
 		var names []string
 		require.NoError(t, g.Raw(`SELECT conname FROM pg_constraint
-			WHERE conrelid = 'platform_agent_exposures'::regclass`).Scan(&names).Error)
+			WHERE conrelid = 'platform_agent_exposures'::regclass AND contype <> 'n'`).Scan(&names).Error)
 		assert.ElementsMatch(t, []string{
 			"platform_agent_exposures_pkey",
 			"uq_platform_agent_exposures_artifact",
