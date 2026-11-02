@@ -257,44 +257,42 @@ export function AIGatewaysTable({
         </ListingTable.Cell>
 
         <ListingTable.Cell align="center">
-          {
-            <ListingTable.RowActions visibility="hover">
-              <Tooltip title="Edit">
-                <IconButton
-                  size="small"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    onEditGateway?.(gateway);
-                  }}
-                >
-                  <Edit size={16} />
-                </IconButton>
-              </Tooltip>
-              <Tooltip title="Delete">
-                <IconButton
-                  color="error"
-                  size="small"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    addConfirmation({
-                      analytics: { entity: "gateway", action: "delete" },
-                      title: "Delete Gateway",
-                      description: `Are you sure you want to delete ${displayName}?`,
-                      confirmButtonText: "Delete",
-                      confirmButtonColor: "error",
-                      confirmButtonIcon: <Trash size={16} />,
-                      onConfirm: async () => {
-                        await deleteGateway(gateway);
-                        refetch();
-                      },
-                    });
-                  }}
-                >
-                  <Trash size={16} />
-                </IconButton>
-              </Tooltip>
-            </ListingTable.RowActions>
-          }
+          <ListingTable.RowActions visibility="hover">
+            <Tooltip title="Edit">
+              <IconButton
+                size="small"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onEditGateway?.(gateway);
+                }}
+              >
+                <Edit size={16} />
+              </IconButton>
+            </Tooltip>
+            <Tooltip title="Delete">
+              <IconButton
+                color="error"
+                size="small"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  addConfirmation({
+                    analytics: { entity: "gateway", action: "delete" },
+                    title: "Delete Gateway",
+                    description: `Are you sure you want to delete ${displayName}?`,
+                    confirmButtonText: "Delete",
+                    confirmButtonColor: "error",
+                    confirmButtonIcon: <Trash size={16} />,
+                    onConfirm: async () => {
+                      await deleteGateway(gateway);
+                      refetch();
+                    },
+                  });
+                }}
+              >
+                <Trash size={16} />
+              </IconButton>
+            </Tooltip>
+          </ListingTable.RowActions>
         </ListingTable.Cell>
       </ListingTable.Row>
     );
