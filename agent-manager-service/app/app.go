@@ -38,6 +38,7 @@ import (
 	"github.com/wso2/agent-manager/agent-manager-service/config"
 	"github.com/wso2/agent-manager/agent-manager-service/db"
 	dbmigrations "github.com/wso2/agent-manager/agent-manager-service/db_migrations"
+	"github.com/wso2/agent-manager/agent-manager-service/events"
 	"github.com/wso2/agent-manager/agent-manager-service/resources"
 	"github.com/wso2/agent-manager/agent-manager-service/server"
 	"github.com/wso2/agent-manager/agent-manager-service/services"
@@ -222,6 +223,12 @@ func Run(authProvider occlient.AuthProvider, secretProvider secretmanagersvc.Pro
 		os.Exit(1)
 	}
 
+	// Start publishing events. The bus is set up in the background, so a NATS
+	// server that is still starting does not hold up the API; events raised
+	// meanwhile wait in the publisher's queue.
+	eventsCtx, eventsCancel := context.WithCancel(backgroundCtx)
+	startEvents(eventsCtx, dependencies)
+
 	// Load built-in LLM provider templates into memory
 	if err := loadBuiltInLLMTemplates(dependencies); err != nil {
 		slog.Error("Failed to load built-in LLM provider templates", "error", err)
@@ -324,6 +331,11 @@ func Run(authProvider occlient.AuthProvider, secretProvider secretmanagersvc.Pro
 			slog.Error("Internal server forced shutdown after timeout", "error", err)
 		}
 
+		// Stop events after the servers, so events of the last requests are
+		// published before the connection closes.
+		eventsCancel()
+		stopEvents(dependencies)
+
 		// Flush the audit buffer last. Both servers have stopped, so no further
 		// events can be produced and every in-flight request has finished
 		// recording. Draining any earlier would discard the audit records of the
@@ -425,4 +437,44 @@ func loadBuiltInLLMTemplates(dependencies *wiring.AppParams) error {
 
 	slog.Info("Loaded built-in LLM provider templates into memory", "count", len(templates))
 	return nil
+}
+
+// startEvents sets up the event bus, retrying until it answers, then starts
+// the publisher. A no-op with events off.
+func startEvents(ctx context.Context, deps *wiring.AppParams) {
+	if deps.EventBus == nil {
+		return
+	}
+	publisher, _ := deps.EventPublisher.(*events.AsyncPublisher)
+	go func() {
+		for {
+			setupCtx, cancel := context.WithTimeout(ctx, 10*time.Second)
+			err := deps.EventBus.Setup(setupCtx)
+			cancel()
+			if err == nil {
+				break
+			}
+			slog.Warn("Event bus not ready; retrying", "error", err)
+			select {
+			case <-ctx.Done():
+				return
+			case <-time.After(5 * time.Second):
+			}
+		}
+		// Publish only once the streams exist; until then events queue.
+		if publisher != nil {
+			publisher.Start()
+		}
+	}()
+}
+
+// stopEvents flushes queued events and closes the bus.
+func stopEvents(deps *wiring.AppParams) {
+	if deps.EventBus == nil {
+		return
+	}
+	if publisher, ok := deps.EventPublisher.(*events.AsyncPublisher); ok {
+		publisher.Stop()
+	}
+	deps.EventBus.Close()
 }

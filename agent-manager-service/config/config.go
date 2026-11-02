@@ -145,6 +145,9 @@ type Config struct {
 	// Audit configures the audit trail.
 	Audit AuditConfig
 
+	// Events configures the platform event bus.
+	Events EventsConfig
+
 	// GatewayManifestCache configures where the gateway-reported policy manifest
 	// cache lives. The default in-memory backend is process-local and therefore
 	// inconsistent across replicas — set Backend to "redis" in HA deployments.
@@ -169,6 +172,28 @@ type GatewayManifestCacheRedisConfig struct {
 	Password   string `json:"-"`
 	DB         int
 	TLSEnabled bool
+}
+
+// Event bus modes.
+const (
+	// EventsModeNATS connects to a NATS server (EVENTS_NATS_URL), with
+	// JetStream streams on disk.
+	EventsModeNATS = "nats"
+	// EventsModeEmbedded runs NATS inside the process with JetStream in
+	// memory: no server to run, but queued events are lost on restart and it
+	// supports one replica only. For quick-start installs.
+	EventsModeEmbedded = "embedded"
+	// EventsModeOff runs no event bus and publishes no events.
+	EventsModeOff = "off"
+)
+
+// EventsConfig configures the platform event bus.
+type EventsConfig struct {
+	// Mode is nats, embedded or off. When unset it is nats if NATSURL is set,
+	// off otherwise.
+	Mode string
+	// NATSURL is the NATS server for nats mode, e.g. nats://nats:4222.
+	NATSURL string
 }
 
 // AuditConfig controls the audit trail.

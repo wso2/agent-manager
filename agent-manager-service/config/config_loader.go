@@ -302,6 +302,19 @@ func loadEnvs() {
 	}
 	r.errors = append(r.errors, validateAuditConfig(config.Audit)...)
 
+	// Events default to off, so an install without a bus behaves as before.
+	config.Events = EventsConfig{
+		Mode:    r.readOptionalString("EVENTS_MODE", ""),
+		NATSURL: r.readOptionalString("EVENTS_NATS_URL", ""),
+	}
+	if config.Events.Mode == "" {
+		config.Events.Mode = EventsModeOff
+		if config.Events.NATSURL != "" {
+			config.Events.Mode = EventsModeNATS
+		}
+	}
+	r.errors = append(r.errors, validateEventsConfig(config.Events)...)
+
 	// Resource limits for agent resource configurations (operator-controlled ceilings)
 	config.PerAgentResourceLimits = ResourceLimitsConfig{
 		MaxReplicas: int(r.readOptionalInt64("RESOURCE_MAX_REPLICAS", 10)),
@@ -716,4 +729,19 @@ func validateAuditConfig(cfg AuditConfig) []error {
 		))
 	}
 	return errs
+}
+
+// validateEventsConfig checks the event bus settings.
+func validateEventsConfig(cfg EventsConfig) []error {
+	switch cfg.Mode {
+	case EventsModeOff, EventsModeEmbedded:
+		return nil
+	case EventsModeNATS:
+		if cfg.NATSURL == "" {
+			return []error{fmt.Errorf("EVENTS_NATS_URL is required when EVENTS_MODE is nats")}
+		}
+		return nil
+	default:
+		return []error{fmt.Errorf("EVENTS_MODE must be nats, embedded or off, got %q", cfg.Mode)}
+	}
 }

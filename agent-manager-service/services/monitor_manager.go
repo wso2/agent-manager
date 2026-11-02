@@ -32,6 +32,7 @@ import (
 	"github.com/wso2/agent-manager/agent-manager-service/clients/observersvc"
 	"github.com/wso2/agent-manager/agent-manager-service/clients/openchoreosvc/client"
 	"github.com/wso2/agent-manager/agent-manager-service/clients/secretmanagersvc"
+	"github.com/wso2/agent-manager/agent-manager-service/events"
 	"github.com/wso2/agent-manager/agent-manager-service/middleware/jwtassertion"
 	"github.com/wso2/agent-manager/agent-manager-service/models"
 	"github.com/wso2/agent-manager/agent-manager-service/repositories"
@@ -754,6 +755,7 @@ func (s *monitorManagerService) DeleteMonitor(ctx context.Context, ouID, project
 		}
 		return fmt.Errorf("failed to get monitor: %w", err)
 	}
+	events.SetEnvironment(ctx, monitor.EnvironmentName)
 
 	// Clean up LLM proxies before deleting the monitor
 	if err := s.cleanupLLMProxies(ctx, ouID, monitor.ID); err != nil {
@@ -1039,6 +1041,7 @@ func (s *monitorManagerService) RerunMonitor(ctx context.Context, ouID, projectN
 		}
 		return nil, fmt.Errorf("failed to get monitor: %w", err)
 	}
+	events.SetEnvironment(ctx, monitor.EnvironmentName)
 
 	// Get the original run to extract time parameters
 	originalRun, err := s.monitorRepo.GetMonitorRunByID(runUUID, monitor.ID)

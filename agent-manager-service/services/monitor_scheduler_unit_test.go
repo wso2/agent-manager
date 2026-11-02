@@ -115,7 +115,7 @@ func newScheduler(
 	exec MonitorExecutor,
 	repo *repomocks.MonitorRepositoryMock,
 ) *monitorSchedulerService {
-	return NewMonitorSchedulerService(oc, prov, discardLogger(), exec, repo).(*monitorSchedulerService)
+	return NewMonitorSchedulerService(oc, prov, discardLogger(), exec, repo, NoopMonitorRunObserver{}).(*monitorSchedulerService)
 }
 
 func intPtrU(i int) *int { return &i }

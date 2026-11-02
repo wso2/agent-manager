@@ -114,6 +114,7 @@ func MakeHTTPHandler(params *wiring.AppParams, extraAPIRoutes func(*http.ServeMu
 	// Create a sub-mux for API v1 routes (JWT-authenticated)
 	apiMux := http.NewServeMux()
 	rr := middleware.NewRouteRegistrar(apiMux, params.OrgResolver, params.AuditRecorder)
+	rr.SetEventPublisher(params.EventPublisher)
 	registerAPIRoutes(rr, params)
 	if extraAPIRoutes != nil {
 		extraAPIRoutes(apiMux, params)
