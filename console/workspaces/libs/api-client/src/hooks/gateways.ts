@@ -274,6 +274,12 @@ export function useRemoveGatewayFromEnvironment() {
 function invalidateGatewayQueries(queryClient: ReturnType<typeof useQueryClient>) {
   queryClient.invalidateQueries({ queryKey: ["gateways"] });
   queryClient.invalidateQueries({ queryKey: ["self-hosted-gateways"] });
+  queryClient.invalidateQueries({ queryKey: ["gateway"] });
+}
+
+function invalidateGatewayTokenQueries(queryClient: ReturnType<typeof useQueryClient>) {
+  invalidateGatewayQueries(queryClient);
+  queryClient.invalidateQueries({ queryKey: ["gateway-tokens"] });
 }
 
 export function useListSelfHostedGateways(
@@ -341,7 +347,7 @@ export function useCreateSelfHostedGatewayToken() {
   return useApiMutation<GatewayTokenResponse, unknown, SelfHostedGatewayTokensPathParams>({
     action: { verb: 'create', target: 'registration token' },
     mutationFn: (params) => createSelfHostedGatewayToken(params, getToken),
-    onSuccess: () => invalidateGatewayQueries(queryClient),
+    onSuccess: () => invalidateGatewayTokenQueries(queryClient),
   });
 }
 
@@ -351,6 +357,6 @@ export function useRevokeSelfHostedGatewayToken() {
   return useApiMutation<void, unknown, RevokeSelfHostedGatewayTokenPathParams>({
     action: { verb: 'revoke', target: 'registration token' },
     mutationFn: (params) => revokeSelfHostedGatewayToken(params, getToken),
-    onSuccess: () => invalidateGatewayQueries(queryClient),
+    onSuccess: () => invalidateGatewayTokenQueries(queryClient),
   });
 }
