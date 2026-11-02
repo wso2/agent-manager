@@ -18,6 +18,7 @@ package tools
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"strings"
 	"time"
@@ -27,6 +28,7 @@ import (
 	"github.com/wso2/agent-manager/agent-manager-service/audit"
 	"github.com/wso2/agent-manager/agent-manager-service/config"
 	"github.com/wso2/agent-manager/agent-manager-service/rbac"
+	"github.com/wso2/agent-manager/agent-manager-service/services"
 	"github.com/wso2/agent-manager/agent-manager-service/spec"
 	"github.com/wso2/agent-manager/agent-manager-service/utils"
 )
@@ -192,7 +194,7 @@ func (t *Toolsets) registerAgentTools(server *gomcp.Server, reg *toolRegistry) {
 			"repository_url":         stringProperty("Required. GitHub root repository URL. Do not enter .git and the end of repo name(eg: https://github.com/user/repo)"),
 			"branch":                 stringProperty("Required. Github repository branch name."),
 			"app_path":               stringProperty("Required. Path of the project where agent code lives within the repository (use / for root. specify path if not). It must start with /"),
-			"github_installation_id": intProperty("Optional. For a private GitHub repository: the WSO2 Cloud GitHub App installation id that can read it, from the console's repository field. Omit it for a public repository."),
+			"github_installation_id": intProperty("Optional for a public repository; required for a private GitHub repository. The id of the WSO2 Cloud GitHub App installation on the repository owner. The client gets this id when the user connects GitHub."),
 
 			"language_version": stringProperty("Optional. Python version (default: 3.11)."),
 			"run_command":      stringProperty("Optional. Start command to run the agent (default: python main.py)."),
@@ -478,7 +480,7 @@ func createInternalAgentPython(handler AgentToolsetHandler) func(context.Context
 		}
 
 		if err := handler.CreateAgent(ctx, ouID, input.ProjectName, req); err != nil {
-			if strings.Contains(err.Error(), "github-auth-required") {
+			if errors.Is(err, services.ErrGitHubAuthRequired) {
 				return nil, nil, gitHubReconnectError{cause: err}
 			}
 			return nil, nil, wrapToolError("create_internal_agent_python", err)

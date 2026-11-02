@@ -18,12 +18,13 @@ package tools
 
 import (
 	"context"
-	"errors"
+	"fmt"
 	"strings"
 	"testing"
 
 	gomcp "github.com/modelcontextprotocol/go-sdk/mcp"
 
+	"github.com/wso2/agent-manager/agent-manager-service/services"
 	"github.com/wso2/agent-manager/agent-manager-service/spec"
 )
 
@@ -140,7 +141,7 @@ func TestCreateInternalAgentPythonRejectsInvalidInstallationBeforeCreation(t *te
 
 func TestCreateInternalAgentPythonAsksToReconnectGitHub(t *testing.T) {
 	session, mock := setupTestServer(t)
-	mock.createAgentErr = errors.New("failed to persist GitHub App source binding: failed to persist component source: status 409: github-auth-required")
+	mock.createAgentErr = fmt.Errorf("failed to persist GitHub App source binding: %w", services.ErrGitHubAuthRequired)
 	result := callCreateInternalAgentPython(t, session, map[string]any{"github_installation_id": 4242})
 	if !result.IsError {
 		t.Fatal("expected error result")
