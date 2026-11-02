@@ -625,7 +625,7 @@ export const InternalAgentForm = ({
                   <Typography variant="body2" sx={{ mt: 1 }}>
                     Compatible with Ballerina version{' '}
                     <Typography component="code" sx={{ bgcolor: 'action.hover', px: 0.5, borderRadius: 0.5 }}>
-                      2201.13.x +
+                      2201.13.x
                     </Typography>
                   </Typography>
                 </Alert>
