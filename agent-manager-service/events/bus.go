@@ -21,9 +21,9 @@ import (
 	"time"
 )
 
-// QueueAlertDeliveries is the work queue holding one item per (event, alert
-// channel) pair, created by the alerting dispatcher's fan-out.
-const QueueAlertDeliveries = "alert-deliveries"
+// QueueEventDeliveries is the work queue holding one item per (event,
+// destination) pair, created by the event dispatcher's fan-out.
+const QueueEventDeliveries = "event-deliveries"
 
 // Bus is the event transport. The rest of the service depends on this
 // interface only; NATSBus implements it for a NATS server and for the

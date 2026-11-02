@@ -216,6 +216,14 @@ const (
 	MonitorScorePublish Permission = "monitor:score-publish"
 )
 
+// Events permissions — event destinations, org subscriptions and the org's
+// delivery log, granted to Admin only. Project and agent subscriptions are
+// part of the project or agent and use their read and update permissions.
+const (
+	EventsRead   Permission = "events:read"
+	EventsManage Permission = "events:manage"
+)
+
 // Observability permissions — data-read scopes enforced by agent-manager-observer
 const (
 	ObservabilityTraceRead    Permission = "observability:trace-read"

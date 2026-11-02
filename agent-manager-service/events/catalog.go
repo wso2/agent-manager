@@ -16,9 +16,12 @@
 
 package events
 
-import "sort"
+import (
+	"slices"
+	"sort"
+)
 
-// Type describes one event type endpoints can subscribe to.
+// Type describes one event type subscriptions can name.
 type Type struct {
 	Name        string `json:"type"`
 	Scope       Scope  `json:"scope"`
@@ -30,7 +33,16 @@ type Type struct {
 const (
 	TypeMonitorRunSucceeded = "monitor_run.succeeded"
 	TypeMonitorRunFailed    = "monitor_run.failed"
+	// TypeDestinationTest is sent by the "test" action of a destination. It
+	// is not in the catalog: subscriptions cannot name it, and AllEvents does
+	// not match it.
+	TypeDestinationTest = "destination.test"
 )
+
+// AllEvents, as a subscription's only event type, subscribes to every
+// catalog type the subscription's scope can receive, including types added
+// later.
+const AllEvents = "*"
 
 // routeEvent maps one API route to the event it emits on success.
 type routeEvent struct {
@@ -43,9 +55,9 @@ type routeEvent struct {
 
 // routeEvents is keyed by the registrar pattern. A route not listed here
 // emits nothing. An agent event acting on an environment carries it (from
-// the path, query, response or a handler annotation) and reaches the agent
-// alert channels that selected that environment; one with no environment,
-// such as a build, reaches all of the agent's alert channels.
+// the path, query, response or a handler annotation) and reaches the
+// subscriptions whose environment filter selects it; one with no
+// environment, such as a build, reaches them whatever their filter.
 var routeEvents = map[string]routeEvent{
 	// --- Org ------------------------------------------------------------
 	"POST /orgs/{orgName}/projects":                                        {Type: "project.created"},
@@ -112,7 +124,7 @@ var routeEvents = map[string]routeEvent{
 	"POST /orgs/{orgName}/projects/{projName}/agents/{agentName}/monitors/{monitorName}/runs/{runId}/rerun": {Type: "monitor.rerun_requested"},
 }
 
-// types is the catalog of every event endpoints can subscribe to.
+// types is the catalog of every event subscriptions can name.
 var types = []Type{
 	// Org
 	{"project.created", ScopeOrg, "Projects", "A project was created."},
@@ -212,6 +224,89 @@ func Types(scope Scope) []Type {
 func Lookup(name string) (Type, bool) {
 	t, ok := typesByName[name]
 	return t, ok
+}
+
+// rank orders scopes from the widest to the narrowest: an org holds
+// projects, a project holds agents. An unknown scope ranks -1.
+func (s Scope) rank() int {
+	switch s {
+	case ScopeOrg:
+		return 0
+	case ScopeProject:
+		return 1
+	case ScopeAgent:
+		return 2
+	default:
+		return -1
+	}
+}
+
+// Subscribable lists the catalog types a subscription at scope can name:
+// those of its own scope and of every narrower one. An org subscription can
+// name any type, a project subscription project and agent types, an agent
+// subscription agent types only. Ordered like Types.
+func Subscribable(scope Scope) []Type {
+	if !scope.Valid() {
+		return []Type{}
+	}
+	out := make([]Type, 0, len(types))
+	for _, t := range Types("") {
+		if t.Scope.rank() >= scope.rank() {
+			out = append(out, t)
+		}
+	}
+	return out
+}
+
+// CanSubscribe reports whether a subscription at scope can name the event
+// type name. Types outside the catalog, such as TypeDestinationTest, never
+// qualify.
+func CanSubscribe(scope Scope, name string) bool {
+	t, ok := typesByName[name]
+	return ok && scope.Valid() && t.Scope.rank() >= scope.rank()
+}
+
+// Target is where a subscription sits: an org, a project of it, or an agent
+// of a project.
+type Target struct {
+	Scope   Scope
+	Project string
+	Agent   string
+}
+
+// Reaches reports whether e can reach a subscription at t, by scope and
+// location alone; the subscription's event types and environment filter are
+// checked separately. An event reaches subscriptions at its own scope and the
+// wider ones that hold it: an agent event reaches its agent's, project's and
+// org's subscriptions. Never a narrower one, even when the event names a
+// project or agent: project.deleted is an org event that names the project,
+// so it does not reach the project's subscriptions.
+func Reaches(t Target, e Event) bool {
+	if !t.Scope.Valid() || !e.Scope.Valid() || e.Scope.rank() < t.Scope.rank() {
+		return false
+	}
+	switch t.Scope {
+	case ScopeProject:
+		return e.Project != "" && e.Project == t.Project
+	case ScopeAgent:
+		return e.Project != "" && e.Agent != "" && e.Project == t.Project && e.Agent == t.Agent
+	default:
+		return true
+	}
+}
+
+// Wants reports whether a subscription at scope naming eventTypes wants the
+// event type name: it names it, or names only AllEvents, and its scope can
+// receive it. A type named before it left the catalog, or before it moved to
+// a wider scope, is ignored rather than delivered.
+func Wants(scope Scope, eventTypes []string, name string) bool {
+	if !CanSubscribe(scope, name) {
+		return false
+	}
+	if len(eventTypes) == 1 && eventTypes[0] == AllEvents {
+		return true
+	}
+	return slices.Contains(eventTypes, name)
 }
 
 // RouteEventType returns the event a route emits, if any.

@@ -228,6 +228,15 @@ var sensitiveReadPaths = map[string]bool{
 // Keys are matched against the path with the method prefix stripped, so the
 // same path under different methods maps through methodActionOverrides first.
 var actionOverrides = map[string]Action{
+	// Event destinations and subscriptions are gated by the permission of
+	// the scope they belong to (events, project or agent), which says nothing
+	// about the operation.
+	"POST /orgs/{orgName}/events/destinations":                               "event-destination:create",
+	"PUT /orgs/{orgName}/events/destinations/{destinationId}":                "event-destination:update",
+	"DELETE /orgs/{orgName}/events/destinations/{destinationId}":             "event-destination:delete",
+	"POST /orgs/{orgName}/events/destinations/{destinationId}/rotate-secret": "event-destination:rotate-secret",
+	"POST /orgs/{orgName}/events/destinations/{destinationId}/test":          "event-destination:test",
+
 	// Gating permission names a different resource than the effect.
 	"POST /orgs/{orgName}/projects/{projName}/agents/{agentName}/publish-kind": "agent-kind:publish",
 

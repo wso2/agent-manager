@@ -48,3 +48,46 @@ func TestValidateEventsConfig(t *testing.T) {
 		})
 	}
 }
+
+func TestLoadEnvs_EventsConfig(t *testing.T) {
+	required := map[string]string{
+		"OPEN_CHOREO_BASE_URL": "http://localhost/api/v1",
+		"DB_HOST":              "localhost",
+		"DB_USER":              "unit",
+		"DB_PASSWORD":          "unit",
+		"DB_NAME":              "unit",
+	}
+	for k, v := range required {
+		t.Setenv(k, v)
+	}
+	for _, key := range []string{
+		"EVENTS_MODE", "EVENTS_NATS_URL", "EVENTS_ALLOW_PRIVATE_DESTINATIONS",
+		"EVENTS_DELIVERY_MAX_ATTEMPTS", "EVENTS_DELIVERY_RETENTION_DAYS",
+	} {
+		t.Setenv(key, "")
+	}
+
+	t.Run("defaults", func(t *testing.T) {
+		t.Setenv("EVENTS_MODE", "")
+		t.Setenv("EVENTS_NATS_URL", "")
+		loadEnvs()
+		got := config.Events
+		if got.Mode != EventsModeOff || got.AllowPrivateDestinations ||
+			got.DeliveryMaxAttempts != 6 || got.DeliveryRetentionDays != 14 {
+			t.Errorf("unexpected defaults: %+v", got)
+		}
+	})
+
+	t.Run("overrides", func(t *testing.T) {
+		t.Setenv("EVENTS_NATS_URL", "nats://nats:4222")
+		t.Setenv("EVENTS_ALLOW_PRIVATE_DESTINATIONS", "true")
+		t.Setenv("EVENTS_DELIVERY_MAX_ATTEMPTS", "3")
+		t.Setenv("EVENTS_DELIVERY_RETENTION_DAYS", "7")
+		loadEnvs()
+		got := config.Events
+		if got.Mode != EventsModeNATS || !got.AllowPrivateDestinations ||
+			got.DeliveryMaxAttempts != 3 || got.DeliveryRetentionDays != 7 {
+			t.Errorf("unexpected config: %+v", got)
+		}
+	})
+}
