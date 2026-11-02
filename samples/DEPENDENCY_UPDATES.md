@@ -43,6 +43,11 @@ check may raise PRs for dependencies that are already outdated.
 
 ## Coverage limits and upkeep
 
+- Declare Python dependencies with an explicit version constraint. Dependabot
+  leaves unversioned requirements unchanged for routine version updates. The
+  A2A, CrewAI, Customer Support, and Manual Instrumentation samples pin their
+  direct requirements so updates are proposed for review rather than silently
+  adopted by the next install.
 - `leave-assistant-agent` uses Ballerina, which Dependabot does not support.
   Maintain its distribution and dependencies manually; regenerate
   `Dependencies.toml` with Ballerina rather than editing it by hand.
