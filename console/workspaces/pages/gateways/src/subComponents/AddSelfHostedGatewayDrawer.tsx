@@ -63,6 +63,7 @@ interface CreatedGateway {
   gateway: GatewayResponse;
   /** Null when minting failed; the setup steps then offer Reconfigure. */
   token: string | null;
+  tokenError?: string;
 }
 
 export function AddSelfHostedGatewayDrawer({
@@ -88,7 +89,10 @@ export function AddSelfHostedGatewayDrawer({
   const isPending = creating || minting;
 
   useEffect(() => {
-    if (!open) return;
+    if (!open) {
+      setCreated(null);
+      return;
+    }
     setDisplayName(presetDisplayName);
     setEnvironment(presetEnvironment);
     setDescription(presetDescription);
@@ -133,12 +137,13 @@ export function AddSelfHostedGatewayDrawer({
     }
 
     let token: string | null = null;
+    let tokenError: string | undefined;
     try {
       token = (await createToken({ orgName: orgId, gatewayId: gateway.uuid })).token;
-    } catch {
-      // The gateway exists; the setup steps offer Reconfigure to mint a token.
+    } catch (err) {
+      tokenError = getErrorMessage(err) || undefined;
     }
-    setCreated({ gateway, token });
+    setCreated({ gateway, token, tokenError });
     onCreated?.(gateway);
   };
 
@@ -152,9 +157,16 @@ export function AddSelfHostedGatewayDrawer({
       <DrawerContent>
         {created ? (
           <Stack spacing={2}>
-            <Alert severity="success">
-              Gateway created. Run the steps below on your own infrastructure to connect it.
-            </Alert>
+            {created.token ? (
+              <Alert severity="success">
+                Gateway created. Run the steps below on your own infrastructure to connect it.
+              </Alert>
+            ) : (
+              <Alert severity="warning">
+                Gateway created, but its token could not be generated.
+                {created.tokenError ? ` ${created.tokenError}.` : ""} Use Reconfigure to generate one.
+              </Alert>
+            )}
             <SelfHostedSetupSteps
               orgName={orgId}
               gatewayId={created.gateway.uuid}

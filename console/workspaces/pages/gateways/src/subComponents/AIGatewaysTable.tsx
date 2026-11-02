@@ -197,9 +197,6 @@ export function AIGatewaysTable({
     const displayName = gateway.displayName || gateway.name;
     const isActive = gateway.status === "ACTIVE";
     const lastUpdated = formatRelativeTime(gateway.updatedAt);
-    // With self-hosted on, managed gateways are provisioned by the platform
-    // and are not editable or deletable here.
-    const canManage = !selfHostedEnabled || gateway.hosting === "SELF_HOSTED";
 
     return (
       <ListingTable.Row
@@ -260,7 +257,7 @@ export function AIGatewaysTable({
         </ListingTable.Cell>
 
         <ListingTable.Cell align="center">
-          {canManage && (
+          {
             <ListingTable.RowActions visibility="hover">
               <Tooltip title="Edit">
                 <IconButton
@@ -297,7 +294,7 @@ export function AIGatewaysTable({
                 </IconButton>
               </Tooltip>
             </ListingTable.RowActions>
-          )}
+          }
         </ListingTable.Cell>
       </ListingTable.Row>
     );

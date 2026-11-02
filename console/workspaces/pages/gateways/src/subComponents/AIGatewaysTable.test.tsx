@@ -15,8 +15,8 @@
  * under the License.
  */
 
-import { afterEach, describe, expect, it, vi } from "vitest";
-import { render, screen } from "@testing-library/react";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
 import { globalConfig } from "@agent-management-platform/types";
 import { AIGatewaysTable } from "./AIGatewaysTable";
@@ -32,8 +32,13 @@ const gateway = (uuid: string, hosting: "MANAGED" | "SELF_HOSTED") => ({
   environments: [],
 });
 
+const hoisted = vi.hoisted(() => ({
+  deleteManaged: vi.fn(),
+  deleteSelfHosted: vi.fn(),
+  addConfirmation: vi.fn(),
+}));
+
 vi.mock("@agent-management-platform/api-client", () => {
-  const mutation = { mutateAsync: vi.fn(), isPending: false };
   return {
     useListGateways: () => ({
       data: { gateways: [gateway("managed-1", "MANAGED"), gateway("self-1", "SELF_HOSTED")] },
@@ -42,8 +47,8 @@ vi.mock("@agent-management-platform/api-client", () => {
       refetch: vi.fn(),
     }),
     useListEnvironments: () => ({ data: [], isLoading: false, error: null }),
-    useDeleteGateway: () => mutation,
-    useDeleteSelfHostedGateway: () => mutation,
+    useDeleteGateway: () => ({ mutateAsync: hoisted.deleteManaged }),
+    useDeleteSelfHostedGateway: () => ({ mutateAsync: hoisted.deleteSelfHosted }),
     useTrack: () => ({ track: vi.fn() }),
     ConsoleAction: {},
   };
@@ -68,9 +73,11 @@ vi.mock("@agent-management-platform/shared-component", async () => {
       ),
     formatRelativeTime: () => "now",
     getAvatarInitials: () => "G",
-    useConfirmationDialog: () => ({ addConfirmation: vi.fn() }),
+    useConfirmationDialog: () => ({ addConfirmation: hoisted.addConfirmation }),
   };
 });
+
+const onEditGateway = vi.fn();
 
 const renderTable = () =>
   render(
@@ -78,9 +85,13 @@ const renderTable = () =>
       initialEntries={["/org/acme"]}
       future={{ v7_startTransition: true, v7_relativeSplatPath: true }}
     >
-      <AIGatewaysTable onEditGateway={vi.fn()} onAddGateway={vi.fn()} />
+      <AIGatewaysTable onEditGateway={onEditGateway} onAddGateway={vi.fn()} />
     </MemoryRouter>,
   );
+
+beforeEach(() => {
+  vi.clearAllMocks();
+});
 
 afterEach(() => {
   delete globalConfig.selfHostedGatewaysEnabled;
@@ -103,5 +114,44 @@ describe("AIGatewaysTable self-hosted gating", () => {
     expect(screen.getByText("Add Gateway")).toBeInTheDocument();
     expect(screen.getByText("Self-hosted")).toBeInTheDocument();
     expect(screen.getByText("Managed")).toBeInTheDocument();
+  });
+
+  describe.each([true, false])("row actions with selfHostedGatewaysEnabled=%s", (enabled) => {
+    it("lets managed rows edit and delete through the managed hooks", async () => {
+      globalConfig.selfHostedGatewaysEnabled = enabled;
+      renderTable();
+
+      const [managedEdit] = screen.getAllByLabelText("Edit");
+      fireEvent.click(managedEdit);
+      expect(onEditGateway).toHaveBeenCalledWith(expect.objectContaining({ uuid: "managed-1" }));
+
+      fireEvent.click(screen.getAllByLabelText("Delete")[0]);
+      await hoisted.addConfirmation.mock.calls[0][0].onConfirm();
+      expect(hoisted.deleteManaged).toHaveBeenCalledWith({ orgName: "", gatewayId: "managed-1" });
+      expect(hoisted.deleteSelfHosted).not.toHaveBeenCalled();
+    });
+  });
+
+  it("lets self-hosted rows edit and delete through the self-hosted hooks", async () => {
+    globalConfig.selfHostedGatewaysEnabled = true;
+    renderTable();
+
+    expect(screen.getAllByLabelText("Edit")).toHaveLength(2);
+    fireEvent.click(screen.getAllByLabelText("Edit")[1]);
+    expect(onEditGateway).toHaveBeenCalledWith(expect.objectContaining({ uuid: "self-1" }));
+
+    fireEvent.click(screen.getAllByLabelText("Delete")[1]);
+    await hoisted.addConfirmation.mock.calls[0][0].onConfirm();
+    await waitFor(() =>
+      expect(hoisted.deleteSelfHosted).toHaveBeenCalledWith({ orgName: "", gatewayId: "self-1" }),
+    );
+    expect(hoisted.deleteManaged).not.toHaveBeenCalled();
+  });
+
+  it("shows Edit and Delete on every row when disabled", () => {
+    globalConfig.selfHostedGatewaysEnabled = false;
+    renderTable();
+    expect(screen.getAllByLabelText("Edit")).toHaveLength(2);
+    expect(screen.getAllByLabelText("Delete")).toHaveLength(2);
   });
 });
