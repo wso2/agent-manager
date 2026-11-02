@@ -3,29 +3,115 @@ version: 2
 # Security-update PRs require dependency graph, Dependabot alerts, and
 # Dependabot security updates to be enabled in repository settings.
 # Keep target-branch unset so these rules also apply to security updates.
+# Group all version levels within each sample and ecosystem so related libraries
+# can update together. Grouping does not replace compatibility checks in CI.
 updates:
   - package-ecosystem: "pip"
-    directories:
-      - "/samples/a2a-agent"
-      - "/samples/crewai-agent"
-      - "/samples/customer-support-agent"
-      - "/samples/hotel-booking-agent/agent"
-      - "/samples/hotel-booking-agent/services/hotel_api"
-      - "/samples/insurance-support-agent/agent"
-      - "/samples/insurance-support-agent/mcp-server"
-      - "/samples/it-helpdesk-agent"
-      - "/samples/manual-instrumentation-agent"
+    directory: "/samples/a2a-agent"
     schedule:
       interval: "weekly"
-      day: "monday"
+      day: "sunday"
       time: "09:00"
-      timezone: "Asia/Kolkata"
+      timezone: "Asia/Colombo"
     groups:
-      sample-python-routine:
+      a2a-python-updates:
         applies-to: "version-updates"
         patterns: ["*"]
-        update-types: ["minor", "patch"]
-      sample-python-security:
+      a2a-python-security:
+        applies-to: "security-updates"
+        patterns: ["*"]
+
+  - package-ecosystem: "pip"
+    directory: "/samples/crewai-agent"
+    schedule:
+      interval: "weekly"
+      day: "sunday"
+      time: "09:00"
+      timezone: "Asia/Colombo"
+    groups:
+      crewai-python-updates:
+        applies-to: "version-updates"
+        patterns: ["*"]
+      crewai-python-security:
+        applies-to: "security-updates"
+        patterns: ["*"]
+
+  - package-ecosystem: "pip"
+    directory: "/samples/customer-support-agent"
+    schedule:
+      interval: "weekly"
+      day: "sunday"
+      time: "09:00"
+      timezone: "Asia/Colombo"
+    groups:
+      customer-support-python-updates:
+        applies-to: "version-updates"
+        patterns: ["*"]
+      customer-support-python-security:
+        applies-to: "security-updates"
+        patterns: ["*"]
+
+  - package-ecosystem: "pip"
+    directories:
+      - "/samples/hotel-booking-agent/agent"
+      - "/samples/hotel-booking-agent/services/hotel_api"
+    schedule:
+      interval: "weekly"
+      day: "sunday"
+      time: "09:00"
+      timezone: "Asia/Colombo"
+    groups:
+      hotel-booking-python-updates:
+        applies-to: "version-updates"
+        patterns: ["*"]
+      hotel-booking-python-security:
+        applies-to: "security-updates"
+        patterns: ["*"]
+
+  - package-ecosystem: "pip"
+    directories:
+      - "/samples/insurance-support-agent/agent"
+      - "/samples/insurance-support-agent/mcp-server"
+    schedule:
+      interval: "weekly"
+      day: "sunday"
+      time: "09:00"
+      timezone: "Asia/Colombo"
+    groups:
+      insurance-support-python-updates:
+        applies-to: "version-updates"
+        patterns: ["*"]
+      insurance-support-python-security:
+        applies-to: "security-updates"
+        patterns: ["*"]
+
+  - package-ecosystem: "pip"
+    directory: "/samples/it-helpdesk-agent"
+    schedule:
+      interval: "weekly"
+      day: "sunday"
+      time: "09:00"
+      timezone: "Asia/Colombo"
+    groups:
+      it-helpdesk-python-updates:
+        applies-to: "version-updates"
+        patterns: ["*"]
+      it-helpdesk-python-security:
+        applies-to: "security-updates"
+        patterns: ["*"]
+
+  - package-ecosystem: "pip"
+    directory: "/samples/manual-instrumentation-agent"
+    schedule:
+      interval: "weekly"
+      day: "sunday"
+      time: "09:00"
+      timezone: "Asia/Colombo"
+    groups:
+      manual-instrumentation-python-updates:
+        applies-to: "version-updates"
+        patterns: ["*"]
+      manual-instrumentation-python-security:
         applies-to: "security-updates"
         patterns: ["*"]
 
@@ -33,15 +119,14 @@ updates:
     directory: "/samples/insurance-support-agent/web"
     schedule:
       interval: "weekly"
-      day: "monday"
+      day: "sunday"
       time: "09:00"
-      timezone: "Asia/Kolkata"
+      timezone: "Asia/Colombo"
     groups:
-      sample-web-routine:
+      insurance-support-web-updates:
         applies-to: "version-updates"
         patterns: ["*"]
-        update-types: ["minor", "patch"]
-      sample-web-security:
+      insurance-support-web-security:
         applies-to: "security-updates"
         patterns: ["*"]
 
@@ -49,30 +134,39 @@ updates:
     directory: "/samples/dotnet-agent"
     schedule:
       interval: "weekly"
-      day: "monday"
+      day: "sunday"
       time: "09:00"
-      timezone: "Asia/Kolkata"
+      timezone: "Asia/Colombo"
     groups:
-      sample-dotnet-routine:
+      dotnet-packages-updates:
         applies-to: "version-updates"
         patterns: ["*"]
-        update-types: ["minor", "patch"]
-      sample-dotnet-security:
+      dotnet-packages-security:
         applies-to: "security-updates"
         patterns: ["*"]
 
   - package-ecosystem: "docker"
+    directory: "/samples/dotnet-agent"
+    schedule:
+      interval: "weekly"
+      day: "sunday"
+      time: "09:00"
+      timezone: "Asia/Colombo"
+    groups:
+      dotnet-images-updates:
+        applies-to: "version-updates"
+        patterns: ["*"]
+
+  - package-ecosystem: "docker"
     directories:
-      - "/samples/dotnet-agent"
       - "/samples/insurance-support-agent/agent"
       - "/samples/insurance-support-agent/mcp-server"
     schedule:
       interval: "weekly"
-      day: "monday"
+      day: "sunday"
       time: "09:00"
-      timezone: "Asia/Kolkata"
+      timezone: "Asia/Colombo"
     groups:
-      sample-images-routine:
+      insurance-support-images-updates:
         applies-to: "version-updates"
         patterns: ["*"]
-        update-types: ["minor", "patch"]
