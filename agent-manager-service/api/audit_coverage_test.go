@@ -166,6 +166,7 @@ func TestInternalKeySyncReadsAreAuditedAndCoalesced(t *testing.T) {
 		"/llm-providers/api-keys": false,
 		"/llm-proxies/api-keys":   false,
 		"/apis/api-keys":          false,
+		"/agents/api-keys":        false,
 	}
 
 	for _, meta := range registerInternalRoutesForAudit(t).Routes() {
