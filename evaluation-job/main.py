@@ -42,10 +42,12 @@ import signal
 import sys
 import time
 from datetime import datetime
-from typing import Dict, List, Any
+from typing import Any, Dict, List
 
 import requests
 from amp_evaluation import Monitor, builtin
+from amp_evaluation.aggregators import Aggregation, AggregationType
+from amp_evaluation.aggregators.base import normalize_aggregations
 from amp_evaluation.models import EvaluatorSummary
 from amp_evaluation.trace import TraceFetcher
 
@@ -673,6 +675,15 @@ def main() -> None:
                 instance = builtin(identifier, **config)
             instance.name = display_name
             _apply_monitor_parameter_policy(instance, eval_type)
+            # Watches consume these stable keys. Preserve evaluator-specific
+            # aggregations and add the SDK's standard mean and pass rate
+            # (fraction of non-skipped scores >= 0.7).
+            aggregations = normalize_aggregations(instance.aggregations)
+            names = {aggregation.name for aggregation in aggregations}
+            for required in (AggregationType.MEAN, AggregationType.PASS_RATE):
+                if required.value not in names:
+                    aggregations.append(Aggregation(required))
+            instance.aggregations = aggregations
             evaluator_instances.append(instance)
             display_name_to_identifier[display_name] = identifier
         except Exception as e:

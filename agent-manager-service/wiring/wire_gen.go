@@ -9,9 +9,6 @@ package wiring
 import (
 	"context"
 	"fmt"
-	"log/slog"
-	"time"
-
 	"github.com/google/wire"
 	"github.com/wso2/agent-manager/agent-manager-service/audit"
 	"github.com/wso2/agent-manager/agent-manager-service/clients/observersvc"
@@ -34,6 +31,8 @@ import (
 	"github.com/wso2/agent-manager/agent-manager-service/utils"
 	"github.com/wso2/agent-manager/agent-manager-service/websocket"
 	"gorm.io/gorm"
+	"log/slog"
+	"time"
 )
 
 // Injectors from wire.go:
@@ -203,6 +202,9 @@ func InitializeAppParamsWithEnvThunderEndpoints(cfg *config.Config, db *gorm.DB,
 	registry := ProvideDestinationDrivers(configConfig)
 	eventDestinationService := services.NewEventDestinationService(eventRepository, registry, v, logger)
 	eventsController := controllers.NewEventsController(eventDestinationService, eventSubscriptionService)
+	monitorAlertRepository := repositories.NewMonitorAlertRepository(db)
+	monitorAlertService := services.NewMonitorAlertService(monitorAlertRepository, monitorRepository, eventRepository)
+	monitorAlertController := controllers.NewMonitorAlertController(monitorAlertService)
 	bus, err := ProvideEventBus(configConfig, logger)
 	if err != nil {
 		return nil, err
@@ -215,6 +217,7 @@ func InitializeAppParamsWithEnvThunderEndpoints(cfg *config.Config, db *gorm.DB,
 	a2ACardReconcilerService := services.NewA2ACardReconcilerService(a2AAgentCardRepository, a2AProxyRepository, gatewayRepository, a2ACardFetcher, openChoreoClient, logger)
 	deploymentTimeoutSweeper := services.NewConfiguredDeploymentTimeoutSweeper(deploymentRepository, logger, cfg)
 	eventDispatcherService := services.NewEventDispatcherService(bus, eventRepository, eventDestinationService, configConfig, logger)
+	monitorAlertProcessor := services.NewMonitorAlertProcessor(bus, monitorAlertRepository, logger)
 	appParams := &AppParams{
 		AuthMiddleware:                   middleware,
 		Logger:                           logger,
@@ -250,6 +253,7 @@ func InitializeAppParamsWithEnvThunderEndpoints(cfg *config.Config, db *gorm.DB,
 		MCPProxyScopeController:          mcpProxyScopeController,
 		AgentIdentityController:          agentIdentityController,
 		EventsController:                 eventsController,
+		MonitorAlertController:           monitorAlertController,
 		MonitorScheduler:                 monitorSchedulerService,
 		AgentThunderReconciler:           agentThunderReconcilerService,
 		A2ACardReconciler:                a2ACardReconcilerService,
@@ -263,6 +267,7 @@ func InitializeAppParamsWithEnvThunderEndpoints(cfg *config.Config, db *gorm.DB,
 		AgentIdentityInjectionService:    agentIdentityInjectionService,
 		EnvironmentService:               environmentService,
 		EventDispatcher:                  eventDispatcherService,
+		MonitorAlerts:                    monitorAlertProcessor,
 		EventBus:                         bus,
 		EventPublisher:                   publisher,
 		OpenChoreoClient:                 openChoreoClient,
@@ -431,6 +436,9 @@ func InitializeTestAppParamsWithClientMocks(cfg *config.Config, db *gorm.DB, aut
 	registry := ProvideDestinationDrivers(configConfig)
 	eventDestinationService := services.NewEventDestinationService(eventRepository, registry, v, logger)
 	eventsController := controllers.NewEventsController(eventDestinationService, eventSubscriptionService)
+	monitorAlertRepository := repositories.NewMonitorAlertRepository(db)
+	monitorAlertService := services.NewMonitorAlertService(monitorAlertRepository, monitorRepository, eventRepository)
+	monitorAlertController := controllers.NewMonitorAlertController(monitorAlertService)
 	bus, err := ProvideEventBus(configConfig, logger)
 	if err != nil {
 		return nil, err
@@ -443,6 +451,7 @@ func InitializeTestAppParamsWithClientMocks(cfg *config.Config, db *gorm.DB, aut
 	a2ACardReconcilerService := services.NewA2ACardReconcilerService(a2AAgentCardRepository, a2AProxyRepository, gatewayRepository, a2ACardFetcher, openChoreoClient, logger)
 	deploymentTimeoutSweeper := services.NewConfiguredDeploymentTimeoutSweeper(deploymentRepository, logger, cfg)
 	eventDispatcherService := services.NewEventDispatcherService(bus, eventRepository, eventDestinationService, configConfig, logger)
+	monitorAlertProcessor := services.NewMonitorAlertProcessor(bus, monitorAlertRepository, logger)
 	appParams := &AppParams{
 		AuthMiddleware:                   authMiddleware,
 		Logger:                           logger,
@@ -478,6 +487,7 @@ func InitializeTestAppParamsWithClientMocks(cfg *config.Config, db *gorm.DB, aut
 		MCPProxyScopeController:          mcpProxyScopeController,
 		AgentIdentityController:          agentIdentityController,
 		EventsController:                 eventsController,
+		MonitorAlertController:           monitorAlertController,
 		MonitorScheduler:                 monitorSchedulerService,
 		AgentThunderReconciler:           agentThunderReconcilerService,
 		A2ACardReconciler:                a2ACardReconcilerService,
@@ -491,6 +501,7 @@ func InitializeTestAppParamsWithClientMocks(cfg *config.Config, db *gorm.DB, aut
 		AgentIdentityInjectionService:    agentIdentityInjectionService,
 		EnvironmentService:               environmentService,
 		EventDispatcher:                  eventDispatcherService,
+		MonitorAlerts:                    monitorAlertProcessor,
 		EventBus:                         bus,
 		EventPublisher:                   publisher,
 		OpenChoreoClient:                 openChoreoClient,
@@ -522,7 +533,7 @@ var clientProviderSet = wire.NewSet(
 )
 
 var serviceProviderSet = wire.NewSet(services.NewAgentManagerService, services.NewAgentKindService, services.NewInfraResourceManager, services.NewAgentTokenManagerService, ProvideGitCredentialsService, services.NewRepositoryService, services.NewMonitorExecutor, services.NewMonitorManagerService, ProvideThunderConfig, services.NewMonitorSchedulerService, ProvideAgentIdentityInjectionServiceWithEndpointResolver, services.NewAgentThunderReconcilerService, services.NewA2ACardFetcher, services.NewA2ACardReconcilerService, services.NewConfiguredDeploymentTimeoutSweeper, services.NewA2AAgentCardService, ProvideTxRunner, services.NewAgentExposurePublisher, services.NewA2APublisher, services.NewA2AProxyService, ProvideA2AProxyHooks, services.NewEvaluatorManagerService, services.NewEnvironmentService, ProvidePlatformGatewayService, services.NewLLMProviderTemplateService, services.NewLLMProviderService, services.NewLLMProxyService, services.NewLLMProviderDeploymentService, services.NewLLMProviderAPIKeyService, services.NewLLMProxyAPIKeyService, services.NewAgentAPIKeyService, services.NewLLMProxyDeploymentService, services.NewMCPProxyService, services.NewMCPProxyScopeService, wire.Bind(new(services.MCPProxyRedeployer), new(*services.MCPProxyService)), wire.Bind(new(controllers.MCPResourceServerIdentifierResolver), new(*services.MCPProxyService)), services.NewGatewayInternalAPIService, services.NewMonitorScoresService, services.NewCatalogService, services.NewLLMProxyProvisioner, services.NewAgentConfigurationService, services.NewLLMTemplateStore, services.NewGitSecretService, services.NewAIApplicationService, ProvideEventBus,
-	ProvideEventPublisher, repositories.NewEventOutboxRepository, services.NewMonitorRunEvents, ProvideDestinationDrivers, services.NewEventDestinationService, services.NewEventSubscriptionService, wire.Bind(new(services.EventsCleaner), new(services.EventSubscriptionService)), wire.Bind(new(services.DestinationResolver), new(services.EventDestinationService)), services.NewEventDispatcherService,
+	ProvideEventPublisher, repositories.NewEventOutboxRepository, services.NewMonitorRunEvents, ProvideDestinationDrivers, services.NewEventDestinationService, services.NewEventSubscriptionService, wire.Bind(new(services.EventsCleaner), new(services.EventSubscriptionService)), wire.Bind(new(services.DestinationResolver), new(services.EventDestinationService)), services.NewEventDispatcherService, services.NewMonitorAlertService, services.NewMonitorAlertProcessor,
 )
 
 var instrumentationProviderSet = wire.NewSet(
@@ -531,7 +542,7 @@ var instrumentationProviderSet = wire.NewSet(
 	ProvideDefaultPythonVersion,
 )
 
-var controllerProviderSet = wire.NewSet(controllers.NewAgentController, controllers.NewAgentKindController, controllers.NewInfraResourceController, controllers.NewAgentTokenController, controllers.NewRepositoryController, controllers.NewEnvironmentController, controllers.NewGatewayController, controllers.NewLLMController, controllers.NewLLMDeploymentController, controllers.NewLLMProviderAPIKeyController, controllers.NewLLMProxyAPIKeyController, controllers.NewAgentAPIKeyController, controllers.NewA2AAgentCardController, controllers.NewA2AProxyController, controllers.NewLLMProxyDeploymentController, controllers.NewMCPProxyController, ProvideWebSocketController, controllers.NewGatewayInternalController, controllers.NewMonitorController, controllers.NewMonitorScoresController, controllers.NewMonitorScoresPublisherController, controllers.NewEvaluatorController, controllers.NewCatalogController, ProvideAgentBuildOptionsController, controllers.NewAgentConfigurationController, controllers.NewGitSecretController, controllers.NewIdentityController, controllers.NewMCPProxyScopeController, controllers.NewAgentIdentityController, controllers.NewEventsController)
+var controllerProviderSet = wire.NewSet(controllers.NewAgentController, controllers.NewAgentKindController, controllers.NewInfraResourceController, controllers.NewAgentTokenController, controllers.NewRepositoryController, controllers.NewEnvironmentController, controllers.NewGatewayController, controllers.NewLLMController, controllers.NewLLMDeploymentController, controllers.NewLLMProviderAPIKeyController, controllers.NewLLMProxyAPIKeyController, controllers.NewAgentAPIKeyController, controllers.NewA2AAgentCardController, controllers.NewA2AProxyController, controllers.NewLLMProxyDeploymentController, controllers.NewMCPProxyController, ProvideWebSocketController, controllers.NewGatewayInternalController, controllers.NewMonitorController, controllers.NewMonitorScoresController, controllers.NewMonitorScoresPublisherController, controllers.NewEvaluatorController, controllers.NewCatalogController, ProvideAgentBuildOptionsController, controllers.NewAgentConfigurationController, controllers.NewGitSecretController, controllers.NewIdentityController, controllers.NewMCPProxyScopeController, controllers.NewAgentIdentityController, controllers.NewEventsController, controllers.NewMonitorAlertController)
 
 var testClientProviderSet = wire.NewSet(
 	ProvideTestOpenChoreoClient,
@@ -766,7 +777,7 @@ var repositoryProviderSet = wire.NewSet(
 	ProvideAIApplicationRepository,
 	ProvideAgentThunderClientRepository,
 	ProvideEnvThunderSystemClientRepository,
-	ProvideEnvThunderURLRepository, repositories.NewMCPProxyScopeRepository, repositories.NewEventRepository,
+	ProvideEnvThunderURLRepository, repositories.NewMCPProxyScopeRepository, repositories.NewEventRepository, repositories.NewMonitorAlertRepository,
 )
 
 var reconcileProviderSet = wire.NewSet(services.NewLLMProviderKind, services.NewLLMProxyKind, services.NewMCPProxyKind, services.NewPlatformAgentExposures, services.NewA2AAgentKind, services.NewRestAgentKind, ProvideReconcileKinds,

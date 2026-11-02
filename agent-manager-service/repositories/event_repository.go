@@ -83,6 +83,7 @@ type SubscriptionCounts map[uuid.UUID]map[string]int
 //
 //go:generate moq -rm -fmt goimports -skip-ensure -pkg repomocks -out repomocks/event_repository_mock.go . EventRepository:EventRepositoryMock
 type EventRepository interface {
+	MonitorAlertWants(ctx context.Context, ouID string, alertID, destinationID uuid.UUID, project, agent string) (bool, error)
 	ListDestinations(ctx context.Context, ouID string) ([]models.EventDestination, error)
 	// GetDestination returns the org's destination with id, or
 	// gorm.ErrRecordNotFound.
@@ -607,4 +608,11 @@ func (r *eventRepository) ListDeliveries(ctx context.Context, f DeliveryFilter) 
 func (r *eventRepository) PruneDeliveries(ctx context.Context, cutoff time.Time) (int64, error) {
 	res := r.db.WithContext(ctx).Where("created_at < ?", cutoff).Delete(&models.EventDelivery{})
 	return res.RowsAffected, res.Error
+}
+
+// MonitorAlertWants rechecks current shared settings and monitor ownership before delivery.
+func (r *eventRepository) MonitorAlertWants(ctx context.Context, ouID string, alertID, destinationID uuid.UUID, project, agent string) (bool, error) {
+	var count int64
+	err := r.db.WithContext(ctx).Table("monitor_alerts AS a").Joins("JOIN monitors m ON m.id = a.monitor_id").Where("a.id = ? AND a.ou_id = ? AND m.ou_id = ? AND m.project_name = ? AND m.agent_name = ? AND a.destination_ids @> ?::jsonb", alertID, ouID, ouID, project, agent, `[`+`"`+destinationID.String()+`"`+`]`).Count(&count).Error
+	return count > 0, err
 }

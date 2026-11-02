@@ -524,6 +524,7 @@ func startEvents(ctx context.Context, deps *wiring.AppParams) <-chan struct{} {
 		}{
 			{"event bus", deps.EventBus.Setup},
 			{"event dispatcher", deps.EventDispatcher.Start},
+			{"monitor alerting", deps.MonitorAlerts.Start},
 		}
 		for _, step := range steps {
 			for {
@@ -567,6 +568,9 @@ func stopEvents(deps *wiring.AppParams) {
 	}
 	if err := deps.EventDispatcher.Stop(); err != nil {
 		slog.Error("Failed to stop the event dispatcher", "error", err)
+	}
+	if err := deps.MonitorAlerts.Stop(); err != nil {
+		slog.Error("Failed to stop the monitor alerting", "error", err)
 	}
 	if publisher, ok := deps.EventPublisher.(*events.AsyncPublisher); ok {
 		publisher.Stop()

@@ -48,7 +48,26 @@ func Render(msg Message) Text {
 
 	var lines []string
 	data, _ := evt.Data.(map[string]any)
-	if s, ok := data["message"].(string); ok && s != "" {
+	if strings.HasPrefix(name, "monitor.alert.") {
+		if s, ok := data["title"].(string); ok && s != "" {
+			title = s
+		}
+		if s, ok := data["body"].(string); ok && s != "" {
+			lines = append(lines, s)
+		}
+		if monitor, ok := data["monitor"].(map[string]any); ok {
+			monitorName, _ := monitor["monitorDisplayName"].(string)
+			if monitorName == "" {
+				monitorName, _ = monitor["monitorName"].(string)
+			}
+			if monitorName != "" {
+				lines = append(lines, "Monitor: "+monitorName)
+			}
+			if runID, ok := monitor["runId"].(string); ok && runID != "" {
+				lines = append(lines, "Run: "+runID)
+			}
+		}
+	} else if s, ok := data["message"].(string); ok && s != "" {
 		lines = append(lines, s)
 	} else if def, ok := events.Lookup(name); ok && def.Description != "" {
 		lines = append(lines, def.Description)
