@@ -25,6 +25,7 @@ import (
 	"io"
 	"log/slog"
 	"net/http"
+	"net/url"
 	"regexp"
 	"sort"
 	"strings"
@@ -202,7 +203,7 @@ func (s *MCPProxyService) Create(ctx context.Context, orgUUID, createdBy string,
 		return nil, fmt.Errorf("%w: proxy id must be kebab-case (lowercase letters, digits, single hyphens) and at most 100 characters", utils.ErrInvalidInput)
 	}
 
-	if err := validateMCPEndpoints(ctx, req.Endpoints); err != nil {
+	if err := validateMCPEndpoints(req.Endpoints); err != nil {
 		return nil, err
 	}
 	if err := validateMCPProxyDeploymentHandleLengths(handle, req.Endpoints); err != nil {
@@ -453,7 +454,7 @@ func (s *MCPProxyService) Update(ctx context.Context, orgUUID, proxyID string, r
 	// Validate the endpoints (structure + SSRF) outside the transaction so network checks
 	// don't hold the row lock. Auth is encrypted inside the transaction because it may need
 	// to preserve the previously stored secret when the client omits it.
-	if err := validateMCPEndpoints(ctx, req.Endpoints); err != nil {
+	if err := validateMCPEndpoints(req.Endpoints); err != nil {
 		return nil, err
 	}
 	if err := validateMCPProxyDeploymentHandleLengths(handle, req.Endpoints); err != nil {
@@ -1174,10 +1175,10 @@ func convertModelMCPProxyToListItem(proxy *models.MCPProxy) models.MCPProxyListI
 }
 
 // validateMCPEndpoints enforces the endpoint request structure: at least one endpoint,
-// each with a non-empty handle (unique within the proxy), a valid SSRF-safe upstream URL,
-// and at least one valid target environment UUID. It also enforces the hard rule that an
-// environment maps to at most one endpoint within the proxy. It performs the network
-// checks, so call it outside a DB transaction.
+// each with a non-empty handle (unique within the proxy), a well-formed upstream URL, and
+// at least one valid target environment UUID. It also enforces the hard rule that an
+// environment maps to at most one endpoint within the proxy. The private-address check on
+// the upstream depends on where the proxy is placed, so it lives in validateMCPEndpointPlacement.
 // validateMCPProxyDeploymentHandleLengths rejects a proxy whose deployed gateway artifact
 // name/displayName would exceed the gateway's length limit. The console derives short endpoint
 // handles, but a blank-name endpoint whose handle falls back to a long upstream hostname, or a
@@ -1201,7 +1202,41 @@ func validateMCPProxyDeploymentHandleLengths(proxyHandle string, endpoints []mod
 	return nil
 }
 
-func validateMCPEndpoints(ctx context.Context, endpoints []models.MCPProxyEndpointDTO) error {
+// validateMCPUpstreamShape rejects an upstream that is not an http(s) URL with a host and no
+// userinfo. It does no network I/O and applies whatever the proxy's placement.
+func validateMCPUpstreamShape(rawURL string) error {
+	parsed, err := url.ParseRequestURI(rawURL)
+	if err != nil {
+		return err
+	}
+	if parsed.Scheme != "http" && parsed.Scheme != "https" {
+		return errors.New("url must use http or https")
+	}
+	if parsed.User != nil {
+		return errors.New("url must not include user information")
+	}
+	if parsed.Hostname() == "" {
+		return errors.New("url host is required")
+	}
+	return nil
+}
+
+// mcpUpstreamNeedsSSRFGuard reports whether AMS must refuse a private upstream. Only a proxy
+// whose every environment resolves to a self-hosted gateway may reach a private address; a
+// managed target, or any environment whose target could not be resolved, keeps the guard on.
+func mcpUpstreamNeedsSSRFGuard(resolved []*models.Gateway, anyUnresolved bool) bool {
+	if anyUnresolved {
+		return true
+	}
+	for _, gateway := range resolved {
+		if gateway.IsManaged() {
+			return true
+		}
+	}
+	return false
+}
+
+func validateMCPEndpoints(endpoints []models.MCPProxyEndpointDTO) error {
 	if len(endpoints) == 0 {
 		return fmt.Errorf("%w: at least one endpoint is required", utils.ErrInvalidInput)
 	}
@@ -1232,7 +1267,7 @@ func validateMCPEndpoints(ctx context.Context, endpoints []models.MCPProxyEndpoi
 		if endpoint.Upstream.Main == nil || strings.TrimSpace(endpoint.Upstream.Main.URL) == "" {
 			return fmt.Errorf("%w: endpoint %q is missing an upstream url", utils.ErrInvalidInput, handle)
 		}
-		if err := ssrf.ValidateURL(ctx, strings.TrimSpace(endpoint.Upstream.Main.URL)); err != nil {
+		if err := validateMCPUpstreamShape(strings.TrimSpace(endpoint.Upstream.Main.URL)); err != nil {
 			return fmt.Errorf("%w: endpoint %q upstream url: %w", utils.ErrInvalidURL, handle, err)
 		}
 		if err := endpoint.Resilience.Validate(); err != nil {
@@ -1342,7 +1377,8 @@ func (s *MCPProxyService) validateMCPEndpointSecurity(
 // check for LLM providers. It performs DB reads, so call it outside a transaction.
 //
 // Only the fatal placement errors are enforced here; every other outcome (no gateway mapped
-// yet, transient lookup failures) is left to the deploy step.
+// yet, transient lookup failures) is left to the deploy step. Those outcomes still count as
+// an unresolved target for the upstream's private-address check, which fails closed.
 //
 // existingArtifactByEnv is the proxy's current (environment -> artifact) mapping, nil on
 // create. An environment with a deployed artifact anchors on that artifact's gateway, so
@@ -1352,24 +1388,44 @@ func (s *MCPProxyService) validateMCPEndpointPlacement(
 ) error {
 	for _, endpoint := range endpoints {
 		handle := strings.TrimSpace(endpoint.ID)
+		resolved := make([]*models.Gateway, 0, len(endpoint.Environments))
+		anyUnresolved := false
 		for _, env := range endpoint.Environments {
 			envIDStr := strings.TrimSpace(env.EnvironmentUUID)
 			envUUID, err := uuid.Parse(envIDStr)
 			if err != nil {
-				continue // already rejected by validateMCPEndpoints
+				anyUnresolved = true // already rejected by validateMCPEndpoints
+				continue
 			}
 
 			deployed, ok := s.anchorGatewaysForEnvironment(ctx, orgUUID, existingArtifactByEnv[envIDStr])
 			if !ok {
 				// Anchor unknown: skip rather than resolve without it, since environment-only
 				// selection could reject a binding the anchor would have resolved cleanly.
+				anyUnresolved = true
 				continue
 			}
 
-			_, err = resolveEgressGatewayForArtifact(s.gatewayRepo, orgUUID, envUUID, deployed, requestedGatewayUUID(env))
+			gateway, err := resolveEgressGatewayForArtifact(s.gatewayRepo, orgUUID, envUUID, deployed, requestedGatewayUUID(env))
 			if mcpDeployErrorIsFatal(err) {
 				return fmt.Errorf("%w: endpoint %q environment %q: %w", utils.ErrInvalidInput, handle, envIDStr, err)
 			}
+			if err != nil || gateway == nil {
+				anyUnresolved = true
+				continue
+			}
+			resolved = append(resolved, gateway)
+		}
+
+		if !mcpUpstreamNeedsSSRFGuard(resolved, anyUnresolved) {
+			continue
+		}
+		upstreamURL := ""
+		if endpoint.Upstream.Main != nil {
+			upstreamURL = strings.TrimSpace(endpoint.Upstream.Main.URL)
+		}
+		if err := ssrf.ValidateURL(ctx, upstreamURL); err != nil {
+			return fmt.Errorf("%w: endpoint %q upstream url: %w", utils.ErrInvalidURL, handle, err)
 		}
 	}
 	return nil

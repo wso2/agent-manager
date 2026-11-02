@@ -18,15 +18,18 @@ package services
 
 import (
 	"context"
+	"errors"
 	"testing"
 
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"
 	"gorm.io/gorm"
 
+	"github.com/wso2/agent-manager/agent-manager-service/clients/clientmocks"
 	"github.com/wso2/agent-manager/agent-manager-service/models"
 	"github.com/wso2/agent-manager/agent-manager-service/repositories"
 	"github.com/wso2/agent-manager/agent-manager-service/repositories/repomocks"
+	"github.com/wso2/agent-manager/agent-manager-service/utils"
 )
 
 // mcpURLTestFixture bundles the UUIDs and mocks shared by the three regression tests below:
@@ -205,4 +208,67 @@ func TestPhase1bReinjection_MCPURLUsesSharedArtifact(t *testing.T) {
 	require.NoError(t, err)
 	require.NotNil(t, gateway)
 	require.Equal(t, f.gatewayUUID, gateway.UUID)
+}
+
+// selfHostedMCPConfigService wires the services the MCP create/update binding checks read, with the
+// fixture's proxy placed on a self-hosted gateway.
+func selfHostedMCPConfigService(t *testing.T) (*agentConfigurationService, *mcpURLTestFixture) {
+	t.Helper()
+	f := newMCPURLTestFixture()
+	proxy := f.mapping.MCPProxy
+	f.gatewayRepo.GetByUUIDFunc = func(string) (*models.Gateway, error) {
+		return &models.Gateway{UUID: f.gatewayUUID, Hosting: models.GatewayHostingSelfHosted}, nil
+	}
+	svc := f.newService()
+	svc.mcpProxyRepo = &repomocks.MCPProxyRepositoryMock{
+		GetByHandleFunc: func(context.Context, string, string) (*models.MCPProxy, error) { return proxy, nil },
+	}
+	svc.envMCPMappingRepo = &repomocks.EnvAgentMCPMappingRepositoryMock{}
+	svc.envVariableRepo = &repomocks.AgentEnvConfigVariableRepositoryMock{
+		ListByConfigFunc: func(context.Context, uuid.UUID) ([]models.AgentEnvConfigVariable, error) { return nil, nil },
+	}
+	svc.infraResourceManager = stubInfraManager{
+		listOrgEnvs: func(context.Context, string) ([]*models.EnvironmentResponse, error) {
+			return []*models.EnvironmentResponse{{UUID: f.envUUID.String(), Name: "dev"}}, nil
+		},
+	}
+	svc.ocClient = &clientmocks.OpenChoreoClientMock{
+		GetComponentFunc: func(context.Context, string, string, string) (*models.AgentResponse, error) {
+			return &models.AgentResponse{Provisioning: models.Provisioning{Type: "external"}}, nil
+		},
+	}
+	return svc, f
+}
+
+func TestMCPConfig_RefusesSelfHostedProxy(t *testing.T) {
+	mappings := map[string]models.EnvModelConfigRequest{"dev": {ProviderName: "proxy1"}}
+
+	t.Run("create", func(t *testing.T) {
+		svc, f := selfHostedMCPConfigService(t)
+		_, err := svc.createMCPConfig(context.Background(), f.ouID, "proj1", "agent1",
+			models.CreateAgentModelConfigRequest{Name: "cfg1", Type: "mcp", EnvMappings: mappings}, "user", false)
+		require.ErrorIs(t, err, utils.ErrInvalidInput)
+		require.ErrorContains(t, err, "self-hosted gateway in environment dev")
+	})
+
+	t.Run("update", func(t *testing.T) {
+		svc, f := selfHostedMCPConfigService(t)
+		existing := &models.AgentConfiguration{UUID: uuid.New(), OUID: f.ouID, Name: "cfg1"}
+		_, err := svc.updateMCPConfig(context.Background(), existing, f.ouID, "proj1", "agent1",
+			models.UpdateAgentModelConfigRequest{EnvMappings: mappings})
+		require.ErrorIs(t, err, utils.ErrInvalidInput)
+		require.ErrorContains(t, err, "self-hosted gateway in environment dev")
+	})
+
+	t.Run("an unresolvable gateway is left to the per-environment loop", func(t *testing.T) {
+		svc, f := selfHostedMCPConfigService(t)
+		svc.mcpProxyService.deploymentRepo = &repomocks.DeploymentRepositoryMock{
+			PlacedGatewaysFunc: func(context.Context, string, uuid.UUID) ([]string, error) { return nil, errors.New("down") },
+		}
+		proxy := f.mapping.MCPProxy
+		err := svc.requireManagedMCPPlacement(context.Background(), f.ouID,
+			map[string]*models.MCPProxy{"dev": proxy},
+			map[string]*models.EnvironmentResponse{"dev": {UUID: f.envUUID.String(), Name: "dev"}})
+		require.NoError(t, err)
+	})
 }

@@ -105,7 +105,7 @@ func TestValidateMCPEndpoints_RejectsBothVariantsEnabled(t *testing.T) {
 			Identity: &models.IdentitySecurity{Enabled: boolPtr(true)},
 		}),
 	}
-	err := validateMCPEndpoints(context.Background(), endpoints)
+	err := validateMCPEndpoints(endpoints)
 	assert.ErrorIs(t, err, utils.ErrInvalidInput)
 }
 
@@ -114,7 +114,7 @@ func TestValidateMCPEndpoints_RejectsDuplicateEnvironmentAcrossEndpoints(t *test
 	first.ID = "primary"
 	second := endpointWith("https://93.184.216.35", nil)
 	second.ID = "secondary"
-	err := validateMCPEndpoints(context.Background(), []models.MCPProxyEndpointDTO{first, second})
+	err := validateMCPEndpoints([]models.MCPProxyEndpointDTO{first, second})
 	assert.ErrorIs(t, err, utils.ErrMCPEnvAlreadyBound)
 }
 
@@ -669,4 +669,128 @@ func TestBuildMCPEndpointDTOsForResponse_StripsUpstreamCredentials(t *testing.T)
 	assert.Len(t, dtos, 1)
 	assert.Nil(t, dtos[0].Upstream.Main.Auth.Value)
 	assert.Nil(t, dtos[0].Upstream.Main.Auth.SecretRef)
+}
+
+const privateMCPUpstream = "http://10.0.0.5/mcp"
+
+func selfHostedGateway(t *testing.T) *models.Gateway {
+	t.Helper()
+	gw := newGateway(t, models.GatewayRoleBoth, true)
+	gw.Hosting = models.GatewayHostingSelfHosted
+	return gw
+}
+
+func privateUpstreamEndpoint(gatewayID string) models.MCPProxyEndpointDTO {
+	endpoint := endpointBoundToGateway(gatewayID)
+	endpoint.Upstream.Main.URL = privateMCPUpstream
+	return endpoint
+}
+
+func TestMCPPrivateUpstream_SelfHostedOnlyAccepted(t *testing.T) {
+	selfHosted := selfHostedGateway(t)
+	endpoints := []models.MCPProxyEndpointDTO{privateUpstreamEndpoint(selfHosted.UUID.String())}
+	svc := placementService(gatewayFixtureRepo(t, testMCPEnvUUID, []*models.Gateway{selfHosted}), nil)
+
+	assert.NoError(t, validateMCPEndpoints(endpoints))
+	assert.NoError(t, svc.validateMCPEndpointPlacement(context.Background(), "org1", endpoints, nil))
+}
+
+func TestMCPUpstream_ShapeCheckedOnSelfHosted(t *testing.T) {
+	for _, upstream := range []string{"ftp://10.0.0.5/mcp", "http://user:pw@10.0.0.5/mcp", "http:///mcp", "not a url"} {
+		endpoint := privateUpstreamEndpoint("")
+		endpoint.Upstream.Main.URL = upstream
+		err := validateMCPEndpoints([]models.MCPProxyEndpointDTO{endpoint})
+		assert.ErrorIs(t, err, utils.ErrInvalidURL, "upstream %q", upstream)
+	}
+}
+
+func TestMCPPrivateUpstream_ManagedTargetRefused(t *testing.T) {
+	selfHosted := selfHostedGateway(t)
+	managed := newGateway(t, models.GatewayRoleBoth, true)
+	svc := placementService(gatewayFixtureRepo(t, testMCPEnvUUID, []*models.Gateway{selfHosted, managed}), nil)
+
+	err := svc.validateMCPEndpointPlacement(context.Background(), "org1",
+		[]models.MCPProxyEndpointDTO{privateUpstreamEndpoint("")}, nil)
+	assert.ErrorIs(t, err, utils.ErrInvalidURL)
+}
+
+func TestMCPPrivateUpstream_UpdateAddingManagedRefused(t *testing.T) {
+	selfHosted := selfHostedGateway(t)
+	managed := newGateway(t, models.GatewayRoleBoth, true)
+	otherEnv := "7b1f2f0e-0d0c-4e9a-9a53-6a0c5f1d2b11"
+	repo := &repomocks.GatewayRepositoryMock{
+		ListWithFiltersFunc: func(f repositories.GatewayFilterOptions) ([]*models.Gateway, error) {
+			if *f.EnvironmentID == testMCPEnvUUID {
+				return []*models.Gateway{selfHosted}, nil
+			}
+			return []*models.Gateway{managed}, nil
+		},
+	}
+	selfHostedID := selfHosted.UUID.String()
+	endpoint := privateUpstreamEndpoint(selfHostedID)
+	endpoint.Environments = append(endpoint.Environments, models.MCPEndpointEnvironmentDTO{EnvironmentUUID: otherEnv})
+	svc := placementService(repo, nil)
+
+	err := svc.validateMCPEndpointPlacement(context.Background(), "org1", []models.MCPProxyEndpointDTO{endpoint},
+		map[string]uuid.UUID{})
+	assert.ErrorIs(t, err, utils.ErrInvalidURL)
+}
+
+func TestMCPPrivateUpstream_UnresolvedTargetsFailClosed(t *testing.T) {
+	selfHosted := selfHostedGateway(t)
+	egress := newGateway(t, models.GatewayRoleEgress, true)
+	both := newGateway(t, models.GatewayRoleBoth, true)
+	ctx := context.Background()
+
+	t.Run("no gateway mapped yet", func(t *testing.T) {
+		svc := placementService(gatewayFixtureRepo(t, testMCPEnvUUID, nil), nil)
+		err := svc.validateMCPEndpointPlacement(ctx, "org1", []models.MCPProxyEndpointDTO{privateUpstreamEndpoint("")}, nil)
+		assert.ErrorIs(t, err, utils.ErrInvalidURL)
+	})
+
+	t.Run("anchor lookup fails", func(t *testing.T) {
+		depRepo := &repomocks.DeploymentRepositoryMock{
+			PlacedGatewaysFunc: func(context.Context, string, uuid.UUID) ([]string, error) {
+				return nil, errors.New("connection refused")
+			},
+		}
+		svc := placementService(gatewayFixtureRepo(t, testMCPEnvUUID, []*models.Gateway{selfHosted}), depRepo)
+		err := svc.validateMCPEndpointPlacement(ctx, "org1", []models.MCPProxyEndpointDTO{privateUpstreamEndpoint(selfHosted.UUID.String())},
+			map[string]uuid.UUID{testMCPEnvUUID: uuid.New()})
+		assert.ErrorIs(t, err, utils.ErrInvalidURL)
+	})
+
+	t.Run("malformed environment id", func(t *testing.T) {
+		svc := placementService(gatewayFixtureRepo(t, testMCPEnvUUID, []*models.Gateway{selfHosted}), nil)
+		endpoint := privateUpstreamEndpoint("")
+		endpoint.Environments[0].EnvironmentUUID = "not-a-uuid"
+		err := svc.validateMCPEndpointPlacement(ctx, "org1", []models.MCPProxyEndpointDTO{endpoint}, nil)
+		assert.ErrorIs(t, err, utils.ErrInvalidURL)
+	})
+
+	t.Run("none named and inference is ambiguous", func(t *testing.T) {
+		svc := placementService(gatewayFixtureRepo(t, testMCPEnvUUID, []*models.Gateway{both, egress}), nil)
+		err := svc.validateMCPEndpointPlacement(ctx, "org1", []models.MCPProxyEndpointDTO{privateUpstreamEndpoint("")}, nil)
+		assert.Error(t, err)
+	})
+
+	t.Run("gateway listing fails", func(t *testing.T) {
+		repo := &repomocks.GatewayRepositoryMock{
+			ListWithFiltersFunc: func(repositories.GatewayFilterOptions) ([]*models.Gateway, error) {
+				return nil, errors.New("db down")
+			},
+		}
+		svc := placementService(repo, nil)
+		err := svc.validateMCPEndpointPlacement(ctx, "org1", []models.MCPProxyEndpointDTO{privateUpstreamEndpoint(selfHosted.UUID.String())}, nil)
+		assert.ErrorIs(t, err, utils.ErrInvalidURL)
+	})
+}
+
+func TestMCPUpstreamNeedsSSRFGuard(t *testing.T) {
+	selfHosted := &models.Gateway{Hosting: models.GatewayHostingSelfHosted}
+	managed := &models.Gateway{}
+	assert.False(t, mcpUpstreamNeedsSSRFGuard([]*models.Gateway{selfHosted, selfHosted}, false))
+	assert.True(t, mcpUpstreamNeedsSSRFGuard([]*models.Gateway{selfHosted, managed}, false))
+	assert.True(t, mcpUpstreamNeedsSSRFGuard([]*models.Gateway{selfHosted}, true))
+	assert.True(t, mcpUpstreamNeedsSSRFGuard(nil, true))
 }

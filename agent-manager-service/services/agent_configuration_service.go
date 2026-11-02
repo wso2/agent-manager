@@ -1489,6 +1489,10 @@ func (s *agentConfigurationService) createMCPConfig(ctx context.Context, ouID, p
 		}
 	}
 
+	if err := s.requireManagedMCPPlacement(ctx, ouID, proxiesByEnv, envMap); err != nil {
+		return nil, err
+	}
+
 	config := &models.AgentConfiguration{
 		Name:        req.Name,
 		Description: req.Description,
@@ -2499,6 +2503,9 @@ func (s *agentConfigurationService) updateMCPConfig(ctx context.Context, existin
 		proxiesByEnv[envName] = proxy
 	}
 	if err := requireSingleMCPProxy(proxiesByEnv); err != nil {
+		return nil, err
+	}
+	if err := s.requireManagedMCPPlacement(ctx, ouID, proxiesByEnv, envMap); err != nil {
 		return nil, err
 	}
 
@@ -4681,6 +4688,30 @@ func (s *agentConfigurationService) resolveDeployableMCPGateway(
 		return nil, err
 	}
 	return gateway, nil
+}
+
+// requireManagedMCPPlacement refuses a binding whose MCP proxy sits on a self-hosted gateway in any
+// requested environment: an agent's traffic must stay on managed gateways. It resolves the gateway the
+// way the agent's MCP URL does, so the check and the URL cannot disagree. An environment whose gateway
+// cannot be resolved binds nothing and is not refused.
+func (s *agentConfigurationService) requireManagedMCPPlacement(
+	ctx context.Context, ouID string, proxiesByEnv map[string]*models.MCPProxy, envMap map[string]*models.EnvironmentResponse,
+) error {
+	for envName, proxy := range proxiesByEnv {
+		envUUID, err := uuid.Parse(envMap[envName].UUID)
+		if err != nil {
+			return fmt.Errorf("invalid environment id %q: %w", envName, err)
+		}
+		gateway, err := s.resolveDeployableMCPGateway(ctx, proxy, ouID, envUUID)
+		if err != nil {
+			continue // binds nothing here: the per-environment loop owns how a resolve failure is handled
+		}
+		if !gateway.IsManaged() {
+			return fmt.Errorf("%w: MCP proxy %s is on a self-hosted gateway in environment %s; agents can only use MCP proxies on managed gateways",
+				utils.ErrInvalidInput, mcpProxyHandle(proxy), envName)
+		}
+	}
+	return nil
 }
 
 // resolveGatewayForMCPArtifact returns the gateway the MCP proxy's shared per-environment
