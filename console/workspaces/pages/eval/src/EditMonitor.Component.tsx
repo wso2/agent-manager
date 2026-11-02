@@ -26,10 +26,21 @@ import {
   type UpdateMonitorRequest,
 } from "@agent-management-platform/types";
 import {
+  useApplyMonitorAlert,
   useGetMonitor,
+  useMonitorAlert,
+  useEventsEnabled,
   useUpdateMonitor,
 } from "@agent-management-platform/api-client";
-import { MonitorFormWizard } from "./subComponents/MonitorFormWizard";
+import {
+  MonitorFormWizard,
+  type MonitorAlertChoice,
+} from "./subComponents/MonitorFormWizard";
+import {
+  toAlertRequest,
+  alertSettingsFromResponse,
+  type AlertSettingsValue,
+} from "./subComponents/MonitorAlertSettings";
 import type { CreateMonitorFormValues } from "./form/schema";
 
 export const EditMonitorComponent: React.FC = () => {
@@ -63,6 +74,21 @@ export const EditMonitorComponent: React.FC = () => {
     projName: projectId ?? "",
     agentName: agentId ?? "",
   });
+
+  const alertsEnabled = useEventsEnabled();
+  const { data: currentAlert, isLoading: isLoadingAlert } = useMonitorAlert(
+    { orgName: orgId, projName: projectId, agentName: agentId, monitorName: monitorId },
+    alertsEnabled,
+  );
+  const { mutate: applyAlert } = useApplyMonitorAlert({
+    orgName: orgId,
+    projName: projectId,
+    agentName: agentId,
+  });
+  const initialAlert = useMemo<AlertSettingsValue | null>(
+    () => (currentAlert?.enabled ? alertSettingsFromResponse(currentAlert) : null),
+    [currentAlert],
+  );
 
   const missingParamsMessage = useMemo(() => {
     if (!orgId) return "Organization is required to edit a monitor.";
@@ -115,6 +141,7 @@ export const EditMonitorComponent: React.FC = () => {
     (
       values: CreateMonitorFormValues,
       allowNavigation: (action: () => void) => void,
+      alert: MonitorAlertChoice,
     ) => {
       if (!orgId || !projectId || !agentId || !monitorId) {
         return;
@@ -142,13 +169,27 @@ export const EditMonitorComponent: React.FC = () => {
             : undefined,
       };
 
+      // Only a changed alert is saved: an untouched form leaves it as it is.
+      const alertRequest = alert ? toAlertRequest(alert) : null;
+      const initialRequest = initialAlert ? toAlertRequest(initialAlert) : null;
+      const alertChanged =
+        alert !== undefined && JSON.stringify(alertRequest) !== JSON.stringify(initialRequest);
+
       updateMonitor(payload, {
         onSuccess: () => {
-          allowNavigation(() => navigate(backHref));
+          const goBack = () => allowNavigation(() => navigate(backHref));
+          if (alertChanged) {
+            applyAlert({ monitorName: monitorId, alert: alertRequest }, { onSettled: goBack });
+            return;
+          }
+          goBack();
         },
       });
     },
-    [agentId, backHref, initialValues, monitorId, navigate, orgId, projectId, updateMonitor],
+    [
+      agentId, applyAlert, backHref, initialValues, initialAlert, monitorId, navigate, orgId,
+      projectId, updateMonitor,
+    ],
   );
 
   if (missingParamsMessage) {
@@ -165,7 +206,7 @@ export const EditMonitorComponent: React.FC = () => {
     );
   }
 
-  if (isLoading) {
+  if (isLoading || (alertsEnabled && isLoadingAlert)) {
     return (
       <PageLayout
         title="Edit Monitor"
@@ -223,6 +264,7 @@ export const EditMonitorComponent: React.FC = () => {
       isSubmitting={isUpdating}
       serverError={updateError}
       isTypeEditable={false}
+      initialAlert={initialAlert}
     />
   );
 };

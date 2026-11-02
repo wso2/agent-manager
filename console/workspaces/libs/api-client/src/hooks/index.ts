@@ -51,3 +51,4 @@ export * from './token-scopes';
 export { extractServerErrorMessage, MAX_SNACKBAR_REASON_LENGTH } from './react-query-notifications';
 export * from './telemetry';
 export * from './events';
+export * from './monitor-alerts';

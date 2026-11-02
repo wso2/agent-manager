@@ -47,3 +47,4 @@ export * from './mcp-proxy-scopes';
 export * from './agent-identity';
 export * from './telemetry';
 export * from './events';
+export * from './monitor-alerts';
