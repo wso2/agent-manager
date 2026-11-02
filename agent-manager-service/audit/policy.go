@@ -224,6 +224,9 @@ var actionOverrides = map[string]Action{
 	"POST /orgs/{orgName}/projects/{projName}/agents/{agentName}/events/subscriptions":                    "event-subscription:create",
 	"PUT /orgs/{orgName}/projects/{projName}/agents/{agentName}/events/subscriptions/{subscriptionId}":    "event-subscription:update",
 	"DELETE /orgs/{orgName}/projects/{projName}/agents/{agentName}/events/subscriptions/{subscriptionId}": "event-subscription:delete",
+	// Monitor alert settings are shared and require monitor update permission.
+	"PUT /orgs/{orgName}/projects/{projName}/agents/{agentName}/monitors/{monitorName}/alerting":    "monitor-alert:update",
+	"DELETE /orgs/{orgName}/projects/{projName}/agents/{agentName}/monitors/{monitorName}/alerting": "monitor-alert:delete",
 
 	// Gating permission names a different resource than the effect.
 	"POST /orgs/{orgName}/projects/{projName}/agents/{agentName}/publish-kind": "agent-kind:publish",

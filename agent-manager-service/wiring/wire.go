@@ -42,8 +42,8 @@ import (
 	"github.com/wso2/agent-manager/agent-manager-service/repositories"
 	"github.com/wso2/agent-manager/agent-manager-service/services"
 	"github.com/wso2/agent-manager/agent-manager-service/services/eventdestinations"
+	"github.com/wso2/agent-manager/agent-manager-service/services/eventdestinations/notify"
 	"github.com/wso2/agent-manager/agent-manager-service/services/eventdestinations/webhook"
-"github.com/wso2/agent-manager/agent-manager-service/services/eventdestinations/notify"
 	"github.com/wso2/agent-manager/agent-manager-service/utils"
 	"github.com/wso2/agent-manager/agent-manager-service/websocket"
 )
@@ -125,6 +125,8 @@ var serviceProviderSet = wire.NewSet(
 	wire.Bind(new(services.EventsCleaner), new(services.EventSubscriptionService)),
 	wire.Bind(new(services.DestinationResolver), new(services.EventDestinationService)),
 	services.NewEventDispatcherService,
+	services.NewMonitorAlertService,
+	services.NewMonitorAlertProcessor,
 )
 
 var instrumentationProviderSet = wire.NewSet(
@@ -163,6 +165,7 @@ var controllerProviderSet = wire.NewSet(
 	controllers.NewMCPProxyScopeController,
 	controllers.NewAgentIdentityController,
 	controllers.NewEventsController,
+	controllers.NewMonitorAlertController,
 )
 
 var testClientProviderSet = wire.NewSet(
@@ -407,6 +410,7 @@ var repositoryProviderSet = wire.NewSet(
 	ProvideEnvThunderURLRepository,
 	repositories.NewMCPProxyScopeRepository,
 	repositories.NewEventRepository,
+	repositories.NewMonitorAlertRepository,
 )
 
 var websocketProviderSet = wire.NewSet(
@@ -609,7 +613,7 @@ func ProvideAgentIdentityInjectionService(
 func ProvideDestinationDrivers(cfg config.Config) *eventdestinations.Registry {
 	return eventdestinations.NewRegistry(
 		webhook.New(cfg.Events.AllowPrivateDestinations),
-notify.New(cfg.Events.AllowPrivateDestinations),
+		notify.New(cfg.Events.AllowPrivateDestinations),
 	)
 }
 

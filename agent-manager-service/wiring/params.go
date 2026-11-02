@@ -78,6 +78,7 @@ type AppParams struct {
 	MCPProxyScopeController          controllers.MCPProxyScopeController
 	AgentIdentityController          controllers.AgentIdentityController
 	EventsController                 controllers.EventsController
+	MonitorAlertController           controllers.MonitorAlertController
 	MonitorScheduler                 services.MonitorSchedulerService
 	AgentThunderReconciler           services.AgentThunderReconcilerService
 	A2APublicationReconciler         services.A2APublicationReconcilerService
@@ -91,6 +92,7 @@ type AppParams struct {
 	AgentIdentityInjectionService services.AgentIdentityInjectionService
 	EnvironmentService            services.EnvironmentService
 	EventDispatcher               services.EventDispatcherService
+	MonitorAlerts                 services.MonitorAlertProcessor
 
 	// Events
 	EventBus       events.Bus

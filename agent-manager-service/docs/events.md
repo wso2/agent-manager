@@ -109,3 +109,15 @@ Matching, queuing, retries, the delivery log and the API stay as they are.
 Migration 054 adds the outbox and `monitor_runs.event_queued_at`. It preserves existing rows and marks pre-upgrade terminal runs as already handled; pending/running and newly created runs remain replayable. New workers coexist through expiring leases. Old application replicas still use their original publication behavior, so complete the rollout before relying on durable acceptance.
 
 Rollback leaves the additive table and column in place, preserving pending work for a subsequent upgrade. Start the older binary without running its migration command (its migration validator rejects newer schema versions). Do not drop pending outbox rows. Embedded mode still loses events already published into its in-memory bus on restart; use NATS mode for durable downstream delivery.
+
+## Monitor alerting
+
+Evaluation jobs publish `mean` and `pass_rate` for every evaluator with scores, alongside any evaluator-specific aggregations. Pass rate is the fraction of non-skipped scores greater than or equal to 0.7, using the evaluation SDK's standard pass threshold. An alert rule compares that fraction (0 to 1) with its configured threshold. Runs with no usable scores leave the monitor's previous breach state unchanged. Deploy the updated evaluation-job image before relying on pass-rate alerts; older jobs publish mean scores only by default.
+
+Subscription event-type and environment edits are rechecked before every pending delivery attempt. Database failures before a send do not consume the destination's send-attempt budget or advance its backoff.
+
+Monitor alert settings are shared by everyone managing a monitor. Configure them in the monitor's Alerting panel, selecting one or more organization destinations available to that agent. Editing requires `amp:monitor:update`; reading requires `amp:monitor:read`. The API is `GET`, `PUT`, and `DELETE .../monitors/{monitorName}/alerting`. There is no personal watch or console inbox API.
+
+Each failure, completion, threshold breach, or recovery is sent to the selected destinations. Threshold state and delivery jobs commit together; bus retries reload those jobs after a crash. Before sending, the dispatcher rechecks that the alert still exists, still selects that destination, and the destination is still available to the agent. Delivery history remains under organization Events.
+
+Migration 056 adds shared monitor alerts and durable alert payloads. Existing personal watches and inbox history are retained only as inert historical data for rollback; they are not evaluated or exposed. They cannot be converted automatically because no external destination was selected. Configure destinations explicitly after upgrading.

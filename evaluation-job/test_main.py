@@ -856,6 +856,71 @@ class TestMainIntegration:
     def _make_argv(self, evaluators):
         return self.BASE_ARGV + ["--evaluators", json.dumps(evaluators)]
 
+    @pytest.mark.parametrize("custom_aggregations", [False, True])
+    def test_watch_aggregations_are_published_from_real_scores(self, custom_aggregations):
+        from amp_evaluation import Monitor, builtin
+        from amp_evaluation.models import EvaluatorScore
+
+        from main import main
+
+        instance = builtin("latency_performance")
+        if custom_aggregations:
+            from amp_evaluation.aggregators import Aggregation
+
+            instance.aggregations = [Aggregation("max"), Aggregation("pass_rate", threshold=0.9)]
+        configured = {}
+
+        def make_monitor(**kwargs):
+            real_monitor = Monitor(evaluators=kwargs["evaluators"], trace_fetcher=MagicMock())
+            summary = real_monitor._get_aggregated_scores(
+                {
+                    instance.name: [
+                        EvaluatorScore(trace_id="one", score=0.4),
+                        EvaluatorScore(trace_id="two", score=0.7),
+                        EvaluatorScore(trace_id="three", score=1.0),
+                        EvaluatorScore(trace_id="skipped", skip_reason="no score"),
+                    ],
+                }
+            )
+            configured.update(summary[instance.name].aggregated_scores)
+            monitor = MagicMock()
+            monitor.run.return_value = MagicMock(success=True, errors=[], scores=summary)
+            return monitor
+
+        argv = self._make_argv(
+            [
+                {
+                    "identifier": "latency_performance",
+                    "displayName": "Latency",
+                    "config": {},
+                }
+            ]
+        )
+        with (
+            patch.object(sys, "argv", argv),
+            patch.dict(
+                "os.environ",
+                {
+                    "IDP_TOKEN_URL": "http://idp.test/token",
+                    "IDP_CLIENT_ID": "test",
+                    "IDP_CLIENT_SECRET": "test",
+                },
+            ),
+            patch("main.builtin", return_value=instance),
+            patch("main.TraceFetcher"),
+            patch("main.Monitor", side_effect=make_monitor),
+            patch("main.publish_scores", return_value=True) as publish,
+            pytest.raises(SystemExit) as exit_info,
+        ):
+            main()
+        assert exit_info.value.code == 0
+        assert configured["mean"] == pytest.approx(0.7)
+        assert configured["pass_rate"] == pytest.approx(2 / 3)
+        if custom_aggregations:
+            assert configured["max"] == 1.0
+            assert configured["pass_rate_threshold_0.9"] == pytest.approx(1 / 3)
+        assert publish.call_args.kwargs["scores"]["Latency"].aggregated_scores == configured
+
     @patch("main.publish_scores", return_value=True)
     @patch("main.builtin")
     def test_full_flow_with_realistic_evaluators(self, mock_builtin, mock_publish):

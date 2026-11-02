@@ -668,3 +668,63 @@ func TestEventDispatcher_StoreRetriesDoNotConsumeSendBudget(t *testing.T) {
 	assert.Equal(t, 1, f.driver.sends())
 	assert.Equal(t, "retry", msg.outcome, "first actual send should retain retries")
 }
+
+func TestEventDispatcher_MonitorAlertDeliveryEligibility(t *testing.T) {
+	for _, tc := range []struct {
+		name         string
+		availability string
+		projects     []string
+		wanted       bool
+		lookupErr    error
+		outcome      string
+		checked      bool
+		sends        int
+	}{
+		{name: "active alert", availability: models.DestinationAvailableAll, wanted: true, outcome: "ack", checked: true, sends: 1},
+		{name: "allowed project", availability: models.DestinationAvailableProjects, projects: []string{"payments"}, wanted: true, outcome: "ack", checked: true, sends: 1},
+		{name: "org only destination", availability: models.DestinationAvailableOrg, wanted: true, outcome: "drop"},
+		{name: "project access removed", availability: models.DestinationAvailableProjects, projects: []string{"another-project"}, wanted: true, outcome: "drop"},
+		{name: "disabled or deleted alert", availability: models.DestinationAvailableAll, outcome: "drop", checked: true},
+		{name: "settings lookup fails", availability: models.DestinationAvailableAll, lookupErr: errors.New("database unavailable"), outcome: "retry", checked: true},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			f := newDispatcherFixture(t)
+			dest := f.destination(tc.availability, tc.projects...)
+			alertID := uuid.New()
+			evt := matcherEvent("monitor.alert.score_threshold_breached", events.ScopeAgent, "payments", "refund-agent", "production")
+			payload, err := json.Marshal(evt)
+			require.NoError(t, err)
+			body, err := json.Marshal(eventDeliveryJob{DestinationID: dest.ID.String(), Event: payload})
+			require.NoError(t, err)
+			delivery := models.EventDelivery{ID: uuid.New(), OUID: dest.OUID, DestinationID: dest.ID, MonitorAlertID: &alertID, EventID: evt.ID, ProjectName: evt.Project, AgentName: evt.Agent, Status: models.EventDeliveryPending}
+			f.deliveries[deliveryKey(dest.ID, evt.ID)] = delivery
+			f.repo.MonitorAlertWantsFunc = func(_ context.Context, ouID string, gotAlert, gotDestination uuid.UUID, project, agent string) (bool, error) {
+				assert.Equal(t, dest.OUID, ouID)
+				assert.Equal(t, alertID, gotAlert)
+				assert.Equal(t, dest.ID, gotDestination)
+				assert.Equal(t, "payments", project)
+				assert.Equal(t, "refund-agent", agent)
+				return tc.wanted, tc.lookupErr
+			}
+			// Monitor alerts are shared configuration; personal subscriptions must never be loaded.
+			f.repo.SubscriptionsByIDFunc = nil
+			msg := &answeredMessage{data: body, attempt: 1}
+			f.dispatcher.handleDelivery(context.Background(), msg)
+			assert.Equal(t, tc.outcome, msg.outcome)
+			assert.Equal(t, tc.sends, f.driver.sends())
+			assert.Equal(t, tc.checked, len(f.repo.MonitorAlertWantsCalls()) == 1)
+			if tc.outcome == "retry" {
+				assert.Equal(t, eventFanoutRetryDelay, msg.delay)
+				assert.Empty(t, f.recorded, "store errors must not mark the alert skipped or consume an attempt")
+			} else {
+				require.Len(t, f.recorded, 1)
+				if tc.sends == 0 {
+					assert.Equal(t, models.EventDeliverySkipped, f.recorded[0].Status)
+					assert.Zero(t, f.recorded[0].Attempts)
+				} else {
+					assert.Equal(t, models.EventDeliveryDelivered, f.recorded[0].Status)
+				}
+			}
+		})
+	}
+}

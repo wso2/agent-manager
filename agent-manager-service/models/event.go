@@ -132,6 +132,9 @@ func (EventSubscription) TableName() string { return "event_subscriptions" }
 // subscriptions may match the same event and send it to the same
 // destination; it is delivered once, and SubscriptionIDs lists them all.
 type EventDelivery struct {
+	MonitorAlertID  *uuid.UUID      `gorm:"column:monitor_alert_id;type:uuid" json:"-"`
+	SourceEventID   string          `gorm:"column:source_event_id" json:"-"`
+	Payload         json.RawMessage `gorm:"column:payload;type:jsonb" json:"-"`
 	ID              uuid.UUID       `gorm:"column:id;primaryKey;type:uuid;default:gen_random_uuid()" json:"id"`
 	OUID            string          `gorm:"column:ou_id;not null" json:"ouId"`
 	DestinationID   uuid.UUID       `gorm:"column:destination_id;type:uuid;not null" json:"destinationId"`
