@@ -22,6 +22,7 @@ import { Plus as Add } from "@wso2/oxygen-ui-icons-react";
 import { PageLayout } from "@agent-management-platform/views";
 import { generatePath, useNavigate, useParams } from "react-router-dom";
 import { absoluteRouteMap } from "@agent-management-platform/types";
+import { useListAgents } from "@agent-management-platform/api-client";
 import { AgentList } from "./AgentList";
 
 export const AgentListing: React.FC = () => {
@@ -30,12 +31,16 @@ export const AgentListing: React.FC = () => {
     projectId: string;
   }>();
   const navigate = useNavigate();
+  // The empty state carries its own create button, so the header one waits for data.
+  const { data } = useListAgents({ orgName: orgId, projName: projectId });
+  const hasAgents = (data?.agents?.length ?? 0) > 0;
 
   return (
     <PageLayout
       title="Agents"
       avatar={null}
       actions={
+        hasAgents && (
         <Button
           variant="contained"
           color="primary"
@@ -52,6 +57,7 @@ export const AgentListing: React.FC = () => {
         >
           Create Agent
         </Button>
+        )
       }
     >
       <AgentList />

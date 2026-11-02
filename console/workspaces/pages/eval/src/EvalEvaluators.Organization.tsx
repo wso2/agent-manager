@@ -132,6 +132,9 @@ export const EvalEvaluatorsOrganization: React.FC = () => {
     !evaluatorsError &&
     isListEmpty({ isLoading, count: evaluators.length, isFiltered: hasFilters });
 
+  // Header CTA shows once loaded and the list is non-empty (or filtered to nothing).
+  const showHeaderCreate = !isLoading && !isEmpty && (totalItems > 0 || hasFilters);
+
   const {
     mutate: deleteEvaluator,
     error: deleteError,
@@ -195,7 +198,11 @@ export const EvalEvaluatorsOrganization: React.FC = () => {
 
   return (
     <>
-      <PageLayout title="Evaluators" disableIcon actions={createButton}>
+      <PageLayout
+        title="Evaluators"
+        disableIcon
+         actions={showHeaderCreate ? createButton : undefined}
+      >
         <Stack spacing={2}>
           {!isEmpty && (
             <Stack

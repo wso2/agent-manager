@@ -158,8 +158,13 @@ export function ProjectListing() {
     isFiltered: Boolean(search),
   });
 
+  // The empty state carries its own create button, so the header one waits for data.
   return (
-    <PageLayout title="All Projects" disableIcon actions={createButton}>
+    <PageLayout
+      title="All Projects"
+      disableIcon
+      actions={projects?.projects?.length ? createButton : undefined}
+    >
       {isEmpty ? (
         <ListingTable.Container>
           <ListingTable.EmptyState

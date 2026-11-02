@@ -19,6 +19,7 @@ import { useState, type ComponentType } from "react";
 import { generatePath, Navigate, Route, Routes, useParams } from "react-router-dom";
 import { Button } from "@wso2/oxygen-ui";
 import { Plus } from "@wso2/oxygen-ui-icons-react";
+import { useListEnvironments } from "@agent-management-platform/api-client";
 import {
   PageLayout,
   useExternalComponentModulesByMountPoint,
@@ -55,6 +56,12 @@ export function EnvironmentsOrganization() {
   const [envToDelete, setEnvToDelete] = useState<Environment | null>(null);
   const [createOpen, setCreateOpen] = useState(false);
 
+  // Same query as the table, so React Query dedupes the request.
+  const { data: environments, isLoading } = useListEnvironments({
+    orgName: orgId,
+  });
+  const hasItems = !isLoading && (environments?.length ?? 0) > 0;
+
   // A deployment can override the create/delete drawers; otherwise fall back to
   // the built-in script-based drawers.
   const externalCreate = useExternalComponentModulesByMountPoint(
@@ -85,6 +92,7 @@ export function EnvironmentsOrganization() {
               title="Environments"
               disableIcon
               actions={
+                hasItems ? (
                 <Button
                   variant="contained"
                   color="primary"
@@ -93,6 +101,7 @@ export function EnvironmentsOrganization() {
                 >
                   Create Environment
                 </Button>
+                ) : undefined
               }
             >
               <EnvironmentTable

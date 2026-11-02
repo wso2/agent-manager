@@ -20,6 +20,7 @@ import React from "react";
 import { Button } from "@wso2/oxygen-ui";
 import { Plus } from "@wso2/oxygen-ui-icons-react";
 import { PageLayout } from "@agent-management-platform/views";
+import { useListLLMProviders } from "@agent-management-platform/api-client";
 import { LLMProviderTable } from "./subComponents/LLMProviderTable";
 import {
   generatePath,
@@ -35,6 +36,10 @@ import { EditLLMProvider } from "./subComponents/EditLLMProvider";
 
 export const LLMProvidersOrganization: React.FC = () => {
   const { orgId } = useParams<{ orgId: string }>();
+
+  // Same query as the table (deduped); the header CTA only shows once the list has items.
+  const { data: providersList } = useListLLMProviders({ orgName: orgId });
+  const hasItems = (providersList?.providers?.length ?? 0) > 0;
 
   // One definition, used both as the page action and as the empty state's CTA.
   const createButton = (
@@ -60,7 +65,7 @@ export const LLMProvidersOrganization: React.FC = () => {
           <PageLayout
             title="LLM Service Providers"
             disableIcon
-            actions={createButton}
+            actions={hasItems ? createButton : undefined}
           >
             <LLMProviderTable createAction={createButton} />
           </PageLayout>

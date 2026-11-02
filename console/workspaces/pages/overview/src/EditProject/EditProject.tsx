@@ -209,7 +209,7 @@ function EditProjectForm({ project, orgId, projectHref }: EditProjectFormProps) 
       <Box display="flex" flexDirection="column" gap={2} flexGrow={1}>
         <Form.Stack spacing={3}>
           <Grid container spacing={2}>
-            <Grid size={{ xs: 12, md: 12, xl: 8 }}>
+            <Grid size={{ xs: 12, md: 6, xl: 4 }}>
               <TextInput
                 label="Name"
                 id="displayName"
@@ -222,19 +222,6 @@ function EditProjectForm({ project, orgId, projectHref }: EditProjectFormProps) 
                 error={!!errors.displayName}
                 helperText={errors.displayName}
               />
-            </Grid>
-            <Grid size={{ xs: 12, md: 12, xl: 8 }}>
-              <Form.ElementWrapper label="Description (optional)" name="description">
-                <MarkdownEditor
-                  id="description"
-                  placeholder="Short description of this project. Markdown is supported."
-                  disabled={isPending}
-                  value={formData.description || ''}
-                  onChange={(value) => handleFieldChange('description', value)}
-                  error={!!errors.description}
-                  helperText={errors.description}
-                />
-              </Form.ElementWrapper>
             </Grid>
             <Grid size={{ xs: 12, md: 6, xl: 4 }}>
               <Form.ElementWrapper label="Deployment Pipeline" name="deploymentPipeline">
@@ -281,6 +268,19 @@ function EditProjectForm({ project, orgId, projectHref }: EditProjectFormProps) 
                     </MenuItem>
                   ))}
                 </Select>
+              </Form.ElementWrapper>
+            </Grid>
+            <Grid size={{ xs: 12, md: 12, xl: 8 }}>
+              <Form.ElementWrapper label="Description (optional)" name="description">
+                <MarkdownEditor
+                  id="description"
+                  placeholder="Short description of this project. Markdown is supported."
+                  disabled={isPending}
+                  value={formData.description || ''}
+                  onChange={(value) => handleFieldChange('description', value)}
+                  error={!!errors.description}
+                  helperText={errors.description}
+                />
               </Form.ElementWrapper>
             </Grid>
           </Grid>

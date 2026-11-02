@@ -59,6 +59,7 @@ export const GroupsPage: React.FC = () => {
 
   const groups = useMemo(() => data?.groups ?? [], [data]);
   const total = data?.total ?? 0;
+  const hasItems = !isLoading && total > 0;
 
   const isEmpty = isListEmpty({
     isLoading,
@@ -138,7 +139,7 @@ export const GroupsPage: React.FC = () => {
             <ListingTable.Toolbar
               showSearch
               searchPlaceholder="Search groups..."
-              actions={createButton}
+              actions={hasItems ? createButton : undefined}
             />
           )}
           {!isLoading && filteredGroups.length === 0 ? (

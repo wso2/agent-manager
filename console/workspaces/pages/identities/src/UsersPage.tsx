@@ -61,6 +61,7 @@ export const UsersPage: React.FC = () => {
 
   const users = useMemo(() => data?.users ?? [], [data]);
   const total = data?.total ?? 0;
+  const hasItems = !isLoading && total > 0;
 
   const isEmpty = isListEmpty({
     isLoading,
@@ -155,7 +156,7 @@ export const UsersPage: React.FC = () => {
             <ListingTable.Toolbar
               showSearch
               searchPlaceholder="Search users..."
-              actions={createButtons}
+              actions={hasItems ? createButtons : undefined}
             />
           )}
           {!isLoading && filteredUsers.length === 0 ? (

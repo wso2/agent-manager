@@ -21,6 +21,7 @@ import { Link, Navigate, Route, Routes, generatePath, useParams, useSearchParams
 import { Button } from "@wso2/oxygen-ui";
 import { Plus } from "@wso2/oxygen-ui-icons-react";
 import { absoluteRouteMap } from "@agent-management-platform/types";
+import { useListAgentIdentityRoles } from "@agent-management-platform/api-client";
 import { PageLayout } from "@agent-management-platform/views";
 import { RolesPage } from "./subComponents/agentIdentity/RolesPage";
 import { RoleCreatePage } from "./subComponents/agentIdentity/RoleCreatePage";
@@ -37,6 +38,14 @@ function RolesListPage() {
   const createPath = orgId
     ? withSearchParams(generatePath(rolesNode.children.create.path, { orgId }), searchParams)
     : "#";
+
+  // Same params as the table's first page, so React Query dedupes the request.
+  const envName = searchParams.get("envName") ?? "";
+  const { data, isLoading } = useListAgentIdentityRoles(
+    { orgName: orgId, envName },
+    { offset: 0, limit: 10 },
+  );
+  const hasItems = !isLoading && (data?.total ?? 0) > 0;
 
   // One definition, used both as the page action and as the empty state's CTA.
   const createButton = (
@@ -58,7 +67,7 @@ function RolesListPage() {
           title={TITLE}
           description="Roles available in the selected environment's identity provider."
           disableIcon
-          actions={createButton}
+          actions={hasItems ? createButton : undefined}
         >
           <RolesPage createAction={createButton} />
         </PageLayout>

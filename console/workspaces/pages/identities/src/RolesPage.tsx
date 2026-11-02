@@ -59,6 +59,7 @@ export const RolesPage: React.FC = () => {
 
   const roles = useMemo(() => data?.roles ?? [], [data]);
   const total = data?.total ?? 0;
+  const hasItems = !isLoading && total > 0;
 
   const isEmpty = isListEmpty({
     isLoading,
@@ -134,7 +135,7 @@ export const RolesPage: React.FC = () => {
             <ListingTable.Toolbar
               showSearch
               searchPlaceholder="Search roles..."
-              actions={createButton}
+              actions={hasItems ? createButton : undefined}
             />
           )}
           {!isLoading && filteredRoles.length === 0 ? (
