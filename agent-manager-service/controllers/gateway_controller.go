@@ -587,6 +587,10 @@ func (c *gatewayController) RemoveGatewayFromEnvironment(w http.ResponseWriter, 
 				"The gateway still serves this environment's agents or proxies; undeploy them from this gateway, or remove the LLM configuration from the agents and monitors in this environment, first")
 			return
 		}
+		if errors.Is(err, utils.ErrGatewayEnvironmentFixed) {
+			handleGatewayErrors(w, err, "Failed to remove gateway from environment")
+			return
+		}
 		if errors.Is(err, gorm.ErrRecordNotFound) || strings.Contains(err.Error(), "mapping not found") {
 			utils.WriteErrorResponse(w, http.StatusNotFound, "Gateway-environment mapping not found")
 			return
