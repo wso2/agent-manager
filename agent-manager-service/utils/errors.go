@@ -160,7 +160,11 @@ var (
 	ErrServiceUnavailable  = errors.New("service unavailable")
 
 	// Gateway-related errors
-	ErrGatewayNotFound          = errors.New("gateway not found")
+	ErrGatewayNotFound = errors.New("gateway not found")
+	// ErrGatewayTokenLimitReached is returned when rotating would exceed two active tokens. Maps to 409.
+	ErrGatewayTokenLimitReached = errors.New("maximum 2 active tokens allowed. Revoke old tokens before rotating")
+	// ErrGatewayTokenNotFound covers an unknown token and a token of another gateway. Maps to 404.
+	ErrGatewayTokenNotFound     = errors.New("gateway token not found")
 	ErrGatewayAlreadyExists     = errors.New("gateway already exists")
 	ErrInvalidAdapterType       = errors.New("invalid adapter type")
 	ErrGatewayUnreachable       = errors.New("gateway unreachable")

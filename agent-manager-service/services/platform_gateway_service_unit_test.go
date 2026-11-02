@@ -19,6 +19,7 @@ package services
 import (
 	"context"
 	"errors"
+	"strings"
 	"sync"
 	"sync/atomic"
 	"testing"
@@ -294,4 +295,56 @@ func TestVerifyToken_PropagatesContextToRepository(t *testing.T) {
 	require.Error(t, err)
 	require.NotNil(t, receivedCtx, "GetActiveTokenByPrefix must be reached with the caller's context, not a detached one")
 	assert.ErrorIs(t, receivedCtx.Err(), context.Canceled, "the repository must receive the caller's (cancelled) context, not context.Background()")
+}
+
+func TestRotateToken_ThirdTokenIsLimitError(t *testing.T) {
+	gateway := gatewayFixture("edge")
+	repo := &repomocks.GatewayRepositoryMock{
+		GetByUUIDFunc:         func(string) (*models.Gateway, error) { return gateway, nil },
+		CountActiveTokensFunc: func(string) (int, error) { return 2, nil },
+	}
+	svc := NewPlatformGatewayService(repo, nil)
+
+	_, err := svc.RotateToken(gateway.UUID.String(), gatewayTestOUID)
+
+	assert.ErrorIs(t, err, utils.ErrGatewayTokenLimitReached)
+}
+
+func TestRevokeToken_UnknownIsNotFound(t *testing.T) {
+	gateway := gatewayFixture("edge")
+	repo := &repomocks.GatewayRepositoryMock{
+		GetByUUIDFunc:      func(string) (*models.Gateway, error) { return gateway, nil },
+		GetTokenByUUIDFunc: func(string) (*models.GatewayToken, error) { return nil, gorm.ErrRecordNotFound },
+	}
+	svc := NewPlatformGatewayService(repo, nil)
+
+	err := svc.RevokeTokenByID(uuid.New().String(), gateway.UUID.String(), gatewayTestOUID)
+
+	assert.ErrorIs(t, err, utils.ErrGatewayTokenNotFound)
+}
+
+func TestRevokeToken_OtherGatewaysTokenIsNotFound(t *testing.T) {
+	gateway := gatewayFixture("edge")
+	repo := &repomocks.GatewayRepositoryMock{
+		GetByUUIDFunc: func(string) (*models.Gateway, error) { return gateway, nil },
+		GetTokenByUUIDFunc: func(string) (*models.GatewayToken, error) {
+			return &models.GatewayToken{UUID: uuid.New(), GatewayUUID: uuid.New()}, nil
+		},
+	}
+	svc := NewPlatformGatewayService(repo, nil)
+
+	err := svc.RevokeTokenByID(uuid.New().String(), gateway.UUID.String(), gatewayTestOUID)
+
+	assert.ErrorIs(t, err, utils.ErrGatewayTokenNotFound)
+}
+
+func TestValidateGatewayInput_IsInvalidInput(t *testing.T) {
+	svc := NewPlatformGatewayService(&repomocks.GatewayRepositoryMock{}, nil)
+
+	err := svc.validateGatewayInput(gatewayTestOUID, strings.Repeat("a", 65), "Edge", "edge.example.com")
+
+	require.ErrorIs(t, err, utils.ErrInvalidInput)
+	ve := utils.IsValidationError(err)
+	require.NotNil(t, ve)
+	assert.Equal(t, "Gateway name must be 3 to 64 characters", ve.Message)
 }

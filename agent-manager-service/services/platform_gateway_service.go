@@ -697,7 +697,7 @@ func (s *PlatformGatewayService) RotateToken(gatewayID, ouID string) (*TokenRota
 
 	// 3. Check max 2 active tokens limit
 	if activeCount >= 2 {
-		return nil, errors.New("maximum 2 active tokens allowed. Revoke old tokens before rotating")
+		return nil, utils.ErrGatewayTokenLimitReached
 	}
 
 	// 4. Generate new plain-text token with unique prefix and salt
@@ -799,20 +799,20 @@ func (s *PlatformGatewayService) RevokeTokenByID(tokenID, gatewayID, ouID string
 	token, err := s.gatewayRepo.GetTokenByUUID(tokenID)
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
-			return errors.New("token not found")
+			return utils.ErrGatewayTokenNotFound
 		}
 		return fmt.Errorf("failed to get token: %w", err)
 	}
 
 	// Verify token belongs to the specified gateway
 	if token.GatewayUUID.String() != gatewayID {
-		return errors.New("token does not belong to this gateway")
+		return utils.ErrGatewayTokenNotFound
 	}
 
 	// 3. Revoke the token in database
 	if err := s.gatewayRepo.RevokeToken(tokenID); err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
-			return errors.New("token not found")
+			return utils.ErrGatewayTokenNotFound
 		}
 		return fmt.Errorf("failed to revoke token: %w", err)
 	}
@@ -1210,45 +1210,45 @@ func (s *PlatformGatewayService) DeleteGatewayEnvironmentMappings(gatewayID stri
 func (s *PlatformGatewayService) validateGatewayInput(ouID, name, displayName, vhost string) error {
 	// Organization ID validation
 	if strings.TrimSpace(ouID) == "" {
-		return errors.New("organization name is required")
+		return utils.NewInvalidInputError("Organization is required", "organization name is required")
 	}
 
 	// Gateway name validation
 	name = strings.TrimSpace(name)
 	if name == "" {
-		return errors.New("gateway name is required")
+		return utils.NewInvalidInputError("Gateway name is required", "gateway name is required")
 	}
 	if len(name) < 3 {
-		return errors.New("gateway name must be at least 3 characters")
+		return utils.NewInvalidInputError("Gateway name must be 3 to 64 characters", "gateway name must be at least 3 characters")
 	}
 	if len(name) > 64 {
-		return errors.New("gateway name must not exceed 64 characters")
+		return utils.NewInvalidInputError("Gateway name must be 3 to 64 characters", "gateway name must not exceed 64 characters")
 	}
 
 	// Check pattern: ^[a-z0-9-]+$
 	namePattern := regexp.MustCompile(`^[a-z0-9-]+$`)
 	if !namePattern.MatchString(name) {
-		return errors.New("gateway name must contain only lowercase letters, numbers, and hyphens")
+		return utils.NewInvalidInputError("Gateway name may contain only lowercase letters, numbers and hyphens", "gateway name must contain only lowercase letters, numbers, and hyphens")
 	}
 
 	// No leading/trailing hyphens
 	if strings.HasPrefix(name, "-") || strings.HasSuffix(name, "-") {
-		return errors.New("gateway name cannot start or end with a hyphen")
+		return utils.NewInvalidInputError("Gateway name cannot start or end with a hyphen", "gateway name cannot start or end with a hyphen")
 	}
 
 	// Display name validation
 	displayName = strings.TrimSpace(displayName)
 	if displayName == "" {
-		return errors.New("display name is required")
+		return utils.NewInvalidInputError("Display name is required", "display name is required")
 	}
 	if len(displayName) > 128 {
-		return errors.New("display name must not exceed 128 characters")
+		return utils.NewInvalidInputError("Display name must not exceed 128 characters", "display name must not exceed 128 characters")
 	}
 
 	// VHost validation
 	vhost = strings.TrimSpace(vhost)
 	if vhost == "" {
-		return errors.New("vhost is required")
+		return utils.NewInvalidInputError("Host is required", "vhost is required")
 	}
 
 	return nil

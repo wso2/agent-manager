@@ -162,10 +162,16 @@ func handleGatewayErrors(w http.ResponseWriter, err error, fallbackMsg string) {
 		utils.WriteErrorResponse(w, http.StatusConflict, err.Error())
 	case errors.Is(err, utils.ErrGatewayEnvironmentFixed):
 		utils.WriteErrorResponseWithReason(w, http.StatusConflict, err.Error(), "", utils.ErrCodeGatewayEnvironmentFixed)
+	case errors.Is(err, utils.ErrGatewayTokenLimitReached):
+		utils.WriteErrorResponse(w, http.StatusConflict, err.Error())
+	case errors.Is(err, utils.ErrGatewayTokenNotFound):
+		utils.WriteErrorResponse(w, http.StatusNotFound, "Token not found")
 	case errors.Is(err, utils.ErrBadRequest):
 		utils.WriteErrorResponse(w, http.StatusBadRequest, err.Error())
 	case errors.Is(err, utils.ErrEnvironmentNotFound):
 		utils.WriteErrorResponse(w, http.StatusNotFound, "Environment not found")
+	case utils.IsValidationError(err) != nil:
+		utils.WriteValidationErrorResponse(w, err)
 	case errors.Is(err, utils.ErrInvalidInput):
 		utils.WriteErrorResponse(w, http.StatusBadRequest, "Invalid input")
 	case errors.Is(err, gorm.ErrRecordNotFound):
@@ -755,17 +761,7 @@ func (c *gatewayController) RevokeGatewayToken(w http.ResponseWriter, r *http.Re
 	if err := c.gatewayService.RevokeTokenByID(tokenID, gatewayID, ouID); err != nil {
 		attempt.Complete(ctx, err)
 		log.Error("RevokeGatewayToken: failed to revoke token", "error", err)
-		switch {
-		case errors.Is(err, utils.ErrGatewayNotFound):
-			utils.WriteErrorResponse(w, http.StatusNotFound, "Gateway not found")
-		default:
-			errMsg := err.Error()
-			if strings.Contains(errMsg, "token not found") || strings.Contains(errMsg, "does not belong") {
-				utils.WriteErrorResponse(w, http.StatusNotFound, "Token not found")
-				return
-			}
-			utils.WriteErrorResponse(w, http.StatusInternalServerError, "Failed to revoke token")
-		}
+		handleGatewayErrors(w, err, "Failed to revoke token")
 		return
 	}
 	attempt.Complete(ctx, nil)
