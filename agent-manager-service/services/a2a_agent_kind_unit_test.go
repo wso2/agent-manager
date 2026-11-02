@@ -71,7 +71,8 @@ const (
 func goldenA2AProxy() *models.A2AProxy {
 	return &models.A2AProxy{
 		OUID: "ou-golden", ProjectName: "checkout", AgentName: "trip-planner", EnvironmentName: "dev",
-		EnvironmentUUID: goldenA2AEnvUUID, UpstreamAuthHeader: "X-Origin-Key", UpstreamAuthSecret: "VcsBaZXo9TyzcVjkEME432aIVqbceeyGcIdue/YLzutNtkkJoVTThPU=",
+		EnvironmentUUID: goldenA2AEnvUUID, UpstreamAuthHeader: "X-Origin-Key",
+		UpstreamAuthSecret: "VcsBaZXo9TyzcVjkEME432aIVqbceeyGcIdue/YLzutNtkkJoVTThPU=", // gitleaks:allow
 	}
 }
 
