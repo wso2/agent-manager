@@ -478,6 +478,9 @@ export const EnvironmentGatewaySelectorView: React.FC<
               )}
               {row.candidates.length === 1 &&
                 renderHostingChip(row.candidates[0])}
+              {row.lockedGateway &&
+                row.candidates.length > 1 &&
+                renderHostingChip(row.lockedGateway)}
               {row.lockedGateway && (
                 <Chip
                   label="Deployed"

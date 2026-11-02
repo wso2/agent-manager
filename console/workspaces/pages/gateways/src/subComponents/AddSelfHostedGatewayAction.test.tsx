@@ -17,6 +17,7 @@
 
 import { describe, expect, it, vi } from "vitest";
 import { fireEvent, render, screen } from "@testing-library/react";
+import { globalConfig } from "@agent-management-platform/types";
 import { AddSelfHostedGatewayAction } from "./AddSelfHostedGatewayAction";
 
 const drawerProps = vi.hoisted(() => ({ last: null as Record<string, unknown> | null }));
@@ -33,6 +34,22 @@ vi.mock("./AddSelfHostedGatewayDrawer", () => ({
 }));
 
 describe("AddSelfHostedGatewayAction", () => {
+  beforeEach(() => {
+    drawerProps.last = null;
+    globalConfig.selfHostedGatewaysEnabled = true;
+  });
+
+  afterEach(() => {
+    delete globalConfig.selfHostedGatewaysEnabled;
+  });
+
+  it("no add-self-hosted action when selfHostedGatewaysEnabled is false", () => {
+    globalConfig.selfHostedGatewaysEnabled = false;
+    render(<AddSelfHostedGatewayAction orgId="acme" />);
+    expect(screen.queryByText("Add self-hosted gateway")).toBeNull();
+    expect(drawerProps.last).toBeNull();
+  });
+
   it("opens the drawer preset with the first environment and APIP's default name", () => {
     render(<AddSelfHostedGatewayAction orgId="acme" />);
     fireEvent.click(screen.getByText("Add self-hosted gateway"));

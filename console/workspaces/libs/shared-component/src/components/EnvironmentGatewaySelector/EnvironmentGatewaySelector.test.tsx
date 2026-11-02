@@ -719,6 +719,23 @@ describe("EnvironmentGatewaySelectorView hosting", () => {
     expect(options[1]).toHaveTextContent("Gateway ownSelf-hosted");
   });
 
+  it("shows the hosting chip on a deployed row with several candidates", () => {
+    globalConfig.selfHostedGatewaysEnabled = true;
+    renderWithTheme(
+      <ControlledSelector
+        environments={environments}
+        gateways={[
+          makeGateway("managed", "env-a", "BOTH", "MANAGED"),
+          makeGateway("own", "env-a", "EGRESS", "SELF_HOSTED"),
+        ]}
+        initialValue={["own"]}
+        lockedGatewayIds={["own"]}
+      />,
+    );
+    expect(screen.getByText("Deployed")).toBeTruthy();
+    expect(screen.getByText("Self-hosted")).toBeTruthy();
+  });
+
   it("shows no hosting chip when self-hosted gateways are disabled", () => {
     renderWithTheme(
       <ControlledSelector

@@ -26,7 +26,6 @@ import {
   type GatewayResponse,
   type MCPServerInfoFetchResponse,
   INPUT_LIMITS,
-  globalConfig,
 } from "@agent-management-platform/types";
 import {
   Accordion,
@@ -604,12 +603,10 @@ export function EndpointFormFields({
             onValidityChange={setIsGatewaySelectionValid}
             onSingleChoiceChange={setIsSingleGatewayChoice}
           />
-          {globalConfig.selfHostedGatewaysEnabled === true && (
-            <AddSelfHostedGatewayAction
-              orgId={orgId}
-              presetEnvironment={availableEnvironments[0]?.name}
-            />
-          )}
+          <AddSelfHostedGatewayAction
+            orgId={orgId}
+            presetEnvironment={availableEnvironments[0]?.name}
+          />
         </>
       ) : (
         <FormControl fullWidth>
@@ -631,14 +628,12 @@ export function EndpointFormFields({
                   onSingleChoiceChange={setIsSingleGatewayChoice}
                 />
               </Box>
-              {globalConfig.selfHostedGatewaysEnabled === true && (
-                <Box sx={{ mt: 0.5 }}>
-                  <AddSelfHostedGatewayAction
-                    orgId={orgId}
-                    presetEnvironment={availableEnvironments[0]?.name}
-                  />
-                </Box>
-              )}
+              <Box sx={{ mt: 0.5 }}>
+                <AddSelfHostedGatewayAction
+                  orgId={orgId}
+                  presetEnvironment={availableEnvironments[0]?.name}
+                />
+              </Box>
               <Typography
                 variant="caption"
                 color="text.secondary"

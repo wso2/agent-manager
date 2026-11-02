@@ -48,7 +48,7 @@ import {
 } from "@agent-management-platform/shared-component";
 import { useListGateways } from "@agent-management-platform/api-client";
 import { AddSelfHostedGatewayAction } from "@agent-management-platform/gateways";
-import { globalConfig, INPUT_LIMITS } from "@agent-management-platform/types";
+import { INPUT_LIMITS } from "@agent-management-platform/types";
 
 export type TemplateCard = {
   id: string;
@@ -697,9 +697,7 @@ export const AddLLMProviderForm: React.FC<AddLLMProviderFormProps> = ({
               onValidityChange={setIsGatewaySelectionValid}
               onSingleChoiceChange={setIsSingleGatewayChoice}
             />
-            {globalConfig.selfHostedGatewaysEnabled === true && (
-              <AddSelfHostedGatewayAction orgId={orgId} />
-            )}
+            <AddSelfHostedGatewayAction orgId={orgId} />
           </>
         ) : (
           <Form.Section>
@@ -726,11 +724,9 @@ export const AddLLMProviderForm: React.FC<AddLLMProviderFormProps> = ({
                 onValidityChange={setIsGatewaySelectionValid}
                 onSingleChoiceChange={setIsSingleGatewayChoice}
               />
-              {globalConfig.selfHostedGatewaysEnabled === true && (
-                <Box>
-                  <AddSelfHostedGatewayAction orgId={orgId} />
-                </Box>
-              )}
+              <Box>
+                <AddSelfHostedGatewayAction orgId={orgId} />
+              </Box>
             </Form.Stack>
           </Form.Section>
         )}

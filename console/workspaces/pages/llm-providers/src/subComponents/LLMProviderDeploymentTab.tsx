@@ -17,10 +17,9 @@
  */
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import {
-  globalConfig,
-  type LLMProviderResponse,
-  type UpdateLLMProviderRequest,
+import type {
+  LLMProviderResponse,
+  UpdateLLMProviderRequest,
 } from "@agent-management-platform/types";
 import { useListLLMDeployments } from "@agent-management-platform/api-client";
 import { AddSelfHostedGatewayAction } from "@agent-management-platform/gateways";
@@ -197,14 +196,12 @@ export function LLMProviderDeploymentTab({
         onValidityChange={setIsSelectionValid}
         disabled={isUpdating}
       />
-      {globalConfig.selfHostedGatewaysEnabled === true && (
-        <Box>
-          <AddSelfHostedGatewayAction
-            orgId={orgName ?? ""}
-            disabled={isUpdating}
-          />
-        </Box>
-      )}
+      <Box>
+        <AddSelfHostedGatewayAction
+          orgId={orgName ?? ""}
+          disabled={isUpdating}
+        />
+      </Box>
       <Stack spacing={1.5} width="100%">
         <Collapse in={!!status} timeout={300}>
           {status && (

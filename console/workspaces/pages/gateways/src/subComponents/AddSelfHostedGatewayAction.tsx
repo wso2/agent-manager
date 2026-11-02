@@ -19,7 +19,10 @@ import React, { useState } from "react";
 import { Button } from "@wso2/oxygen-ui";
 import { Plus } from "@wso2/oxygen-ui-icons-react";
 import { useListEnvironments } from "@agent-management-platform/api-client";
-import type { GatewayResponse } from "@agent-management-platform/types";
+import {
+  globalConfig,
+  type GatewayResponse,
+} from "@agent-management-platform/types";
 import { AddSelfHostedGatewayDrawer } from "./AddSelfHostedGatewayDrawer";
 
 const DEFAULT_DISPLAY_NAME = "AI Self-Hosted";
@@ -33,15 +36,14 @@ interface AddSelfHostedGatewayActionProps {
   disabled?: boolean;
 }
 
-/**
- * "Add self-hosted gateway" button plus its drawer, for deploy flows. Callers
- * render it only when `globalConfig.selfHostedGatewaysEnabled === true`.
- */
+/** "Add self-hosted gateway" button plus its drawer, for deploy flows. */
 export const AddSelfHostedGatewayAction: React.FC<
   AddSelfHostedGatewayActionProps
 > = ({ orgId, presetEnvironment, onCreated, disabled }) => {
   const [open, setOpen] = useState(false);
   const { data: environments } = useListEnvironments({ orgName: orgId });
+
+  if (globalConfig.selfHostedGatewaysEnabled !== true) return null;
 
   return (
     <>

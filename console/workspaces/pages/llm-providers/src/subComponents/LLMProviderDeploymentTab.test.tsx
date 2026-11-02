@@ -40,10 +40,14 @@ vi.mock("@agent-management-platform/api-client", () => ({
 }));
 
 // The gateways package pulls in auth and its own api-client at import time;
-// the tab only needs the button that opens its drawer. Whether the button
-// shows at all is decided by the tab, which is what these tests cover.
+// the tab only needs the button that opens its drawer. The stub mirrors the
+// real action's flag check (covered in the gateways package) to confirm the
+// tab renders it as a child.
 vi.mock("@agent-management-platform/gateways", () => ({
-  AddSelfHostedGatewayAction: () => <button>Add self-hosted gateway</button>,
+  AddSelfHostedGatewayAction: () =>
+    globalConfig.selfHostedGatewaysEnabled === true ? (
+      <button>Add self-hosted gateway</button>
+    ) : null,
 }));
 
 import {
