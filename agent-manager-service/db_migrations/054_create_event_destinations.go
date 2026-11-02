@@ -21,7 +21,7 @@ import (
 )
 
 // migration054 creates the destination schema and its subscription/delivery
-// references. The corresponding APIs and workers are added in later PRs.
+// references. Delivery workers are added in the next PR.
 var migration054 = migration{
 	ID: 54,
 	Migrate: func(db *gorm.DB) error {
@@ -96,6 +96,6 @@ var migration054 = migration{
 		CREATE INDEX IF NOT EXISTS idx_event_deliveries_created
 			ON event_deliveries (created_at);
 
-  `).Error
+		`).Error
 	},
 }

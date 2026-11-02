@@ -140,9 +140,11 @@ func InitializeAppParamsWithEnvThunderEndpoints(cfg *config.Config, db *gorm.DB,
 	agentExposurePublisher := services.NewAgentExposurePublisher(txRunner, platformAgentExposureRepository, artifactRepository, deploymentRepository, gatewayRepository, core, logger)
 	a2APublisher := services.NewA2APublisher(txRunner, platformAgentExposureRepository, a2AProxyRepository, a2AAgentCardRepository, artifactRepository, deploymentRepository, logger, agentExposurePublisher, a2AAgentKind)
 	agentManagerService := services.NewAgentManagerService(db, openChoreoClient, secretManagementClient, repositoryService, agentTokenManagerService, agentConfigRepository, agentConfigurationService, agentKindService, artifactRepository, aiApplicationService, gatewayRepository, agentThunderProvisioning, monitorManagerService, agentIdentityInjectionService, identityClient, buildSecretProvisioner, a2APublisher, a2AAgentCardRepository, deploymentRepository, gatewayEventsService, agentExposurePublisher, restAgentKind, logger)
-	agentController := controllers.NewAgentController(agentManagerService, agentKindService)
+	eventRepository := repositories.NewEventRepository(db)
+	eventSubscriptionService := services.NewEventSubscriptionService(eventRepository, logger)
+	agentController := controllers.NewAgentController(agentManagerService, agentKindService, eventSubscriptionService)
 	agentKindController := controllers.NewAgentKindController(agentKindService)
-	infraResourceController := controllers.NewInfraResourceController(infraResourceManager)
+	infraResourceController := controllers.NewInfraResourceController(infraResourceManager, eventSubscriptionService)
 	agentTokenController := controllers.NewAgentTokenController(agentTokenManagerService)
 	repositoryController := controllers.NewRepositoryController(repositoryService)
 	prober := thundersvc.NewProber()
@@ -197,10 +199,9 @@ func InitializeAppParamsWithEnvThunderEndpoints(cfg *config.Config, db *gorm.DB,
 	mcpProxyScopeService := services.NewMCPProxyScopeService(mcpProxyScopeRepository, mcpProxyRepository, infraResourceManager, envThunderResolver, mcpProxyService, logger)
 	mcpProxyScopeController := controllers.NewMCPProxyScopeController(mcpProxyScopeService)
 	agentIdentityController := controllers.NewAgentIdentityController(envThunderResolver, agentThunderClientRepository, mcpProxyRepository, mcpProxyScopeRepository, mcpProxyService)
-	eventRepository := repositories.NewEventRepository(db)
 	registry := ProvideDestinationDrivers(configConfig)
 	eventDestinationService := services.NewEventDestinationService(eventRepository, registry, v, logger)
-	eventsController := controllers.NewEventsController(eventDestinationService)
+	eventsController := controllers.NewEventsController(eventDestinationService, eventSubscriptionService)
 	bus, err := ProvideEventBus(configConfig, logger)
 	if err != nil {
 		return nil, err
@@ -364,9 +365,11 @@ func InitializeTestAppParamsWithClientMocks(cfg *config.Config, db *gorm.DB, aut
 	agentExposurePublisher := services.NewAgentExposurePublisher(txRunner, platformAgentExposureRepository, artifactRepository, deploymentRepository, gatewayRepository, core, logger)
 	a2APublisher := services.NewA2APublisher(txRunner, platformAgentExposureRepository, a2AProxyRepository, a2AAgentCardRepository, artifactRepository, deploymentRepository, logger, agentExposurePublisher, a2AAgentKind)
 	agentManagerService := services.NewAgentManagerService(db, openChoreoClient, secretManagementClient, repositoryService, agentTokenManagerService, agentConfigRepository, agentConfigurationService, agentKindService, artifactRepository, aiApplicationService, gatewayRepository, agentThunderProvisioningService, monitorManagerService, agentIdentityInjectionService, identityClient, buildSecretProvisioner, a2APublisher, a2AAgentCardRepository, deploymentRepository, gatewayEventsService, agentExposurePublisher, restAgentKind, logger)
-	agentController := controllers.NewAgentController(agentManagerService, agentKindService)
+	eventRepository := repositories.NewEventRepository(db)
+	eventSubscriptionService := services.NewEventSubscriptionService(eventRepository, logger)
+	agentController := controllers.NewAgentController(agentManagerService, agentKindService, eventSubscriptionService)
 	agentKindController := controllers.NewAgentKindController(agentKindService)
-	infraResourceController := controllers.NewInfraResourceController(infraResourceManager)
+	infraResourceController := controllers.NewInfraResourceController(infraResourceManager, eventSubscriptionService)
 	agentTokenController := controllers.NewAgentTokenController(agentTokenManagerService)
 	repositoryController := controllers.NewRepositoryController(repositoryService)
 	prober := thundersvc.NewProber()
@@ -421,10 +424,9 @@ func InitializeTestAppParamsWithClientMocks(cfg *config.Config, db *gorm.DB, aut
 	mcpProxyScopeService := services.NewMCPProxyScopeService(mcpProxyScopeRepository, mcpProxyRepository, infraResourceManager, envThunderResolver, mcpProxyService, logger)
 	mcpProxyScopeController := controllers.NewMCPProxyScopeController(mcpProxyScopeService)
 	agentIdentityController := controllers.NewAgentIdentityController(envThunderResolver, agentThunderClientRepository, mcpProxyRepository, mcpProxyScopeRepository, mcpProxyService)
-	eventRepository := repositories.NewEventRepository(db)
 	registry := ProvideDestinationDrivers(configConfig)
 	eventDestinationService := services.NewEventDestinationService(eventRepository, registry, v, logger)
-	eventsController := controllers.NewEventsController(eventDestinationService)
+	eventsController := controllers.NewEventsController(eventDestinationService, eventSubscriptionService)
 	bus, err := ProvideEventBus(configConfig, logger)
 	if err != nil {
 		return nil, err
@@ -513,7 +515,7 @@ var clientProviderSet = wire.NewSet(
 )
 
 var serviceProviderSet = wire.NewSet(services.NewAgentManagerService, services.NewAgentKindService, services.NewInfraResourceManager, services.NewAgentTokenManagerService, ProvideGitCredentialsService, services.NewRepositoryService, services.NewMonitorExecutor, services.NewMonitorManagerService, ProvideThunderConfig, services.NewMonitorSchedulerService, ProvideAgentIdentityInjectionServiceWithEndpointResolver, services.NewAgentThunderReconcilerService, services.NewA2ACardFetcher, services.NewA2ACardReconcilerService, services.NewConfiguredDeploymentTimeoutSweeper, services.NewA2AAgentCardService, ProvideTxRunner, services.NewAgentExposurePublisher, services.NewA2APublisher, services.NewA2AProxyService, ProvideA2AProxyHooks, services.NewEvaluatorManagerService, services.NewEnvironmentService, ProvidePlatformGatewayService, services.NewLLMProviderTemplateService, services.NewLLMProviderService, services.NewLLMProxyService, services.NewLLMProviderDeploymentService, services.NewLLMProviderAPIKeyService, services.NewLLMProxyAPIKeyService, services.NewAgentAPIKeyService, services.NewLLMProxyDeploymentService, services.NewMCPProxyService, services.NewMCPProxyScopeService, wire.Bind(new(services.MCPProxyRedeployer), new(*services.MCPProxyService)), wire.Bind(new(controllers.MCPResourceServerIdentifierResolver), new(*services.MCPProxyService)), services.NewGatewayInternalAPIService, services.NewMonitorScoresService, services.NewCatalogService, services.NewLLMProxyProvisioner, services.NewAgentConfigurationService, services.NewLLMTemplateStore, services.NewGitSecretService, services.NewAIApplicationService, ProvideEventBus,
-	ProvideEventPublisher, services.NewMonitorRunEvents, ProvideDestinationDrivers, services.NewEventDestinationService, wire.Bind(new(services.DestinationResolver), new(services.EventDestinationService)),
+	ProvideEventPublisher, services.NewMonitorRunEvents, ProvideDestinationDrivers, services.NewEventDestinationService, services.NewEventSubscriptionService, wire.Bind(new(services.EventsCleaner), new(services.EventSubscriptionService)), wire.Bind(new(services.DestinationResolver), new(services.EventDestinationService)),
 )
 
 var instrumentationProviderSet = wire.NewSet(

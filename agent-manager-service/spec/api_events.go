@@ -22,6 +22,148 @@ import (
 // EventsAPIService EventsAPI service
 type EventsAPIService service
 
+type ApiCreateAgentEventSubscriptionRequest struct {
+	ctx                      context.Context
+	ApiService               *EventsAPIService
+	orgName                  string
+	projName                 string
+	agentName                string
+	eventSubscriptionRequest *EventSubscriptionRequest
+}
+
+func (r ApiCreateAgentEventSubscriptionRequest) EventSubscriptionRequest(eventSubscriptionRequest EventSubscriptionRequest) ApiCreateAgentEventSubscriptionRequest {
+	r.eventSubscriptionRequest = &eventSubscriptionRequest
+	return r
+}
+
+func (r ApiCreateAgentEventSubscriptionRequest) Execute() (*EventSubscriptionResponse, *http.Response, error) {
+	return r.ApiService.CreateAgentEventSubscriptionExecute(r)
+}
+
+/*
+CreateAgentEventSubscription Create an agent event subscription
+
+	@param ctx context.Context - for authentication, logging, cancellation, deadlines, tracing, etc. Passed from http.Request or context.Background().
+	@param orgName Organization name
+	@param projName Project name
+	@param agentName Agent name
+	@return ApiCreateAgentEventSubscriptionRequest
+*/
+func (a *EventsAPIService) CreateAgentEventSubscription(ctx context.Context, orgName string, projName string, agentName string) ApiCreateAgentEventSubscriptionRequest {
+	return ApiCreateAgentEventSubscriptionRequest{
+		ApiService: a,
+		ctx:        ctx,
+		orgName:    orgName,
+		projName:   projName,
+		agentName:  agentName,
+	}
+}
+
+// Execute executes the request
+//
+//	@return EventSubscriptionResponse
+func (a *EventsAPIService) CreateAgentEventSubscriptionExecute(r ApiCreateAgentEventSubscriptionRequest) (*EventSubscriptionResponse, *http.Response, error) {
+	var (
+		localVarHTTPMethod  = http.MethodPost
+		localVarPostBody    interface{}
+		formFiles           []formFile
+		localVarReturnValue *EventSubscriptionResponse
+	)
+
+	localBasePath, err := a.client.cfg.ServerURLWithContext(r.ctx, "EventsAPIService.CreateAgentEventSubscription")
+	if err != nil {
+		return localVarReturnValue, nil, &GenericOpenAPIError{error: err.Error()}
+	}
+
+	localVarPath := localBasePath + "/orgs/{orgName}/projects/{projName}/agents/{agentName}/events/subscriptions"
+	localVarPath = strings.Replace(localVarPath, "{"+"orgName"+"}", url.PathEscape(parameterValueToString(r.orgName, "orgName")), -1)
+	localVarPath = strings.Replace(localVarPath, "{"+"projName"+"}", url.PathEscape(parameterValueToString(r.projName, "projName")), -1)
+	localVarPath = strings.Replace(localVarPath, "{"+"agentName"+"}", url.PathEscape(parameterValueToString(r.agentName, "agentName")), -1)
+
+	localVarHeaderParams := make(map[string]string)
+	localVarQueryParams := url.Values{}
+	localVarFormParams := url.Values{}
+	if r.eventSubscriptionRequest == nil {
+		return localVarReturnValue, nil, reportError("eventSubscriptionRequest is required and must be specified")
+	}
+
+	// to determine the Content-Type header
+	localVarHTTPContentTypes := []string{"application/json"}
+
+	// set Content-Type header
+	localVarHTTPContentType := selectHeaderContentType(localVarHTTPContentTypes)
+	if localVarHTTPContentType != "" {
+		localVarHeaderParams["Content-Type"] = localVarHTTPContentType
+	}
+
+	// to determine the Accept header
+	localVarHTTPHeaderAccepts := []string{"application/json"}
+
+	// set Accept header
+	localVarHTTPHeaderAccept := selectHeaderAccept(localVarHTTPHeaderAccepts)
+	if localVarHTTPHeaderAccept != "" {
+		localVarHeaderParams["Accept"] = localVarHTTPHeaderAccept
+	}
+	// body params
+	localVarPostBody = r.eventSubscriptionRequest
+	req, err := a.client.prepareRequest(r.ctx, localVarPath, localVarHTTPMethod, localVarPostBody, localVarHeaderParams, localVarQueryParams, localVarFormParams, formFiles)
+	if err != nil {
+		return localVarReturnValue, nil, err
+	}
+
+	localVarHTTPResponse, err := a.client.callAPI(req)
+	if err != nil || localVarHTTPResponse == nil {
+		return localVarReturnValue, localVarHTTPResponse, err
+	}
+
+	localVarBody, err := io.ReadAll(localVarHTTPResponse.Body)
+	localVarHTTPResponse.Body.Close()
+	localVarHTTPResponse.Body = io.NopCloser(bytes.NewBuffer(localVarBody))
+	if err != nil {
+		return localVarReturnValue, localVarHTTPResponse, err
+	}
+
+	if localVarHTTPResponse.StatusCode >= 300 {
+		newErr := &GenericOpenAPIError{
+			body:  localVarBody,
+			error: localVarHTTPResponse.Status,
+		}
+		if localVarHTTPResponse.StatusCode == 400 {
+			var v ErrorResponse
+			err = a.client.decode(&v, localVarBody, localVarHTTPResponse.Header.Get("Content-Type"))
+			if err != nil {
+				newErr.error = err.Error()
+				return localVarReturnValue, localVarHTTPResponse, newErr
+			}
+			newErr.error = formatErrorMessage(localVarHTTPResponse.Status, &v)
+			newErr.model = v
+			return localVarReturnValue, localVarHTTPResponse, newErr
+		}
+		if localVarHTTPResponse.StatusCode == 500 {
+			var v ErrorResponse
+			err = a.client.decode(&v, localVarBody, localVarHTTPResponse.Header.Get("Content-Type"))
+			if err != nil {
+				newErr.error = err.Error()
+				return localVarReturnValue, localVarHTTPResponse, newErr
+			}
+			newErr.error = formatErrorMessage(localVarHTTPResponse.Status, &v)
+			newErr.model = v
+		}
+		return localVarReturnValue, localVarHTTPResponse, newErr
+	}
+
+	err = a.client.decode(&localVarReturnValue, localVarBody, localVarHTTPResponse.Header.Get("Content-Type"))
+	if err != nil {
+		newErr := &GenericOpenAPIError{
+			body:  localVarBody,
+			error: err.Error(),
+		}
+		return localVarReturnValue, localVarHTTPResponse, newErr
+	}
+
+	return localVarReturnValue, localVarHTTPResponse, nil
+}
+
 type ApiCreateEventDestinationRequest struct {
 	ctx                     context.Context
 	ApiService              *EventsAPIService
@@ -172,6 +314,390 @@ func (a *EventsAPIService) CreateEventDestinationExecute(r ApiCreateEventDestina
 	return localVarReturnValue, localVarHTTPResponse, nil
 }
 
+type ApiCreateOrgEventSubscriptionRequest struct {
+	ctx                      context.Context
+	ApiService               *EventsAPIService
+	orgName                  string
+	eventSubscriptionRequest *EventSubscriptionRequest
+}
+
+func (r ApiCreateOrgEventSubscriptionRequest) EventSubscriptionRequest(eventSubscriptionRequest EventSubscriptionRequest) ApiCreateOrgEventSubscriptionRequest {
+	r.eventSubscriptionRequest = &eventSubscriptionRequest
+	return r
+}
+
+func (r ApiCreateOrgEventSubscriptionRequest) Execute() (*EventSubscriptionResponse, *http.Response, error) {
+	return r.ApiService.CreateOrgEventSubscriptionExecute(r)
+}
+
+/*
+CreateOrgEventSubscription Create an organization event subscription
+
+	@param ctx context.Context - for authentication, logging, cancellation, deadlines, tracing, etc. Passed from http.Request or context.Background().
+	@param orgName Organization name
+	@return ApiCreateOrgEventSubscriptionRequest
+*/
+func (a *EventsAPIService) CreateOrgEventSubscription(ctx context.Context, orgName string) ApiCreateOrgEventSubscriptionRequest {
+	return ApiCreateOrgEventSubscriptionRequest{
+		ApiService: a,
+		ctx:        ctx,
+		orgName:    orgName,
+	}
+}
+
+// Execute executes the request
+//
+//	@return EventSubscriptionResponse
+func (a *EventsAPIService) CreateOrgEventSubscriptionExecute(r ApiCreateOrgEventSubscriptionRequest) (*EventSubscriptionResponse, *http.Response, error) {
+	var (
+		localVarHTTPMethod  = http.MethodPost
+		localVarPostBody    interface{}
+		formFiles           []formFile
+		localVarReturnValue *EventSubscriptionResponse
+	)
+
+	localBasePath, err := a.client.cfg.ServerURLWithContext(r.ctx, "EventsAPIService.CreateOrgEventSubscription")
+	if err != nil {
+		return localVarReturnValue, nil, &GenericOpenAPIError{error: err.Error()}
+	}
+
+	localVarPath := localBasePath + "/orgs/{orgName}/events/subscriptions"
+	localVarPath = strings.Replace(localVarPath, "{"+"orgName"+"}", url.PathEscape(parameterValueToString(r.orgName, "orgName")), -1)
+
+	localVarHeaderParams := make(map[string]string)
+	localVarQueryParams := url.Values{}
+	localVarFormParams := url.Values{}
+	if r.eventSubscriptionRequest == nil {
+		return localVarReturnValue, nil, reportError("eventSubscriptionRequest is required and must be specified")
+	}
+
+	// to determine the Content-Type header
+	localVarHTTPContentTypes := []string{"application/json"}
+
+	// set Content-Type header
+	localVarHTTPContentType := selectHeaderContentType(localVarHTTPContentTypes)
+	if localVarHTTPContentType != "" {
+		localVarHeaderParams["Content-Type"] = localVarHTTPContentType
+	}
+
+	// to determine the Accept header
+	localVarHTTPHeaderAccepts := []string{"application/json"}
+
+	// set Accept header
+	localVarHTTPHeaderAccept := selectHeaderAccept(localVarHTTPHeaderAccepts)
+	if localVarHTTPHeaderAccept != "" {
+		localVarHeaderParams["Accept"] = localVarHTTPHeaderAccept
+	}
+	// body params
+	localVarPostBody = r.eventSubscriptionRequest
+	req, err := a.client.prepareRequest(r.ctx, localVarPath, localVarHTTPMethod, localVarPostBody, localVarHeaderParams, localVarQueryParams, localVarFormParams, formFiles)
+	if err != nil {
+		return localVarReturnValue, nil, err
+	}
+
+	localVarHTTPResponse, err := a.client.callAPI(req)
+	if err != nil || localVarHTTPResponse == nil {
+		return localVarReturnValue, localVarHTTPResponse, err
+	}
+
+	localVarBody, err := io.ReadAll(localVarHTTPResponse.Body)
+	localVarHTTPResponse.Body.Close()
+	localVarHTTPResponse.Body = io.NopCloser(bytes.NewBuffer(localVarBody))
+	if err != nil {
+		return localVarReturnValue, localVarHTTPResponse, err
+	}
+
+	if localVarHTTPResponse.StatusCode >= 300 {
+		newErr := &GenericOpenAPIError{
+			body:  localVarBody,
+			error: localVarHTTPResponse.Status,
+		}
+		if localVarHTTPResponse.StatusCode == 400 {
+			var v ErrorResponse
+			err = a.client.decode(&v, localVarBody, localVarHTTPResponse.Header.Get("Content-Type"))
+			if err != nil {
+				newErr.error = err.Error()
+				return localVarReturnValue, localVarHTTPResponse, newErr
+			}
+			newErr.error = formatErrorMessage(localVarHTTPResponse.Status, &v)
+			newErr.model = v
+			return localVarReturnValue, localVarHTTPResponse, newErr
+		}
+		if localVarHTTPResponse.StatusCode == 500 {
+			var v ErrorResponse
+			err = a.client.decode(&v, localVarBody, localVarHTTPResponse.Header.Get("Content-Type"))
+			if err != nil {
+				newErr.error = err.Error()
+				return localVarReturnValue, localVarHTTPResponse, newErr
+			}
+			newErr.error = formatErrorMessage(localVarHTTPResponse.Status, &v)
+			newErr.model = v
+		}
+		return localVarReturnValue, localVarHTTPResponse, newErr
+	}
+
+	err = a.client.decode(&localVarReturnValue, localVarBody, localVarHTTPResponse.Header.Get("Content-Type"))
+	if err != nil {
+		newErr := &GenericOpenAPIError{
+			body:  localVarBody,
+			error: err.Error(),
+		}
+		return localVarReturnValue, localVarHTTPResponse, newErr
+	}
+
+	return localVarReturnValue, localVarHTTPResponse, nil
+}
+
+type ApiCreateProjectEventSubscriptionRequest struct {
+	ctx                      context.Context
+	ApiService               *EventsAPIService
+	orgName                  string
+	projName                 string
+	eventSubscriptionRequest *EventSubscriptionRequest
+}
+
+func (r ApiCreateProjectEventSubscriptionRequest) EventSubscriptionRequest(eventSubscriptionRequest EventSubscriptionRequest) ApiCreateProjectEventSubscriptionRequest {
+	r.eventSubscriptionRequest = &eventSubscriptionRequest
+	return r
+}
+
+func (r ApiCreateProjectEventSubscriptionRequest) Execute() (*EventSubscriptionResponse, *http.Response, error) {
+	return r.ApiService.CreateProjectEventSubscriptionExecute(r)
+}
+
+/*
+CreateProjectEventSubscription Create a project event subscription
+
+	@param ctx context.Context - for authentication, logging, cancellation, deadlines, tracing, etc. Passed from http.Request or context.Background().
+	@param orgName Organization name
+	@param projName Project name
+	@return ApiCreateProjectEventSubscriptionRequest
+*/
+func (a *EventsAPIService) CreateProjectEventSubscription(ctx context.Context, orgName string, projName string) ApiCreateProjectEventSubscriptionRequest {
+	return ApiCreateProjectEventSubscriptionRequest{
+		ApiService: a,
+		ctx:        ctx,
+		orgName:    orgName,
+		projName:   projName,
+	}
+}
+
+// Execute executes the request
+//
+//	@return EventSubscriptionResponse
+func (a *EventsAPIService) CreateProjectEventSubscriptionExecute(r ApiCreateProjectEventSubscriptionRequest) (*EventSubscriptionResponse, *http.Response, error) {
+	var (
+		localVarHTTPMethod  = http.MethodPost
+		localVarPostBody    interface{}
+		formFiles           []formFile
+		localVarReturnValue *EventSubscriptionResponse
+	)
+
+	localBasePath, err := a.client.cfg.ServerURLWithContext(r.ctx, "EventsAPIService.CreateProjectEventSubscription")
+	if err != nil {
+		return localVarReturnValue, nil, &GenericOpenAPIError{error: err.Error()}
+	}
+
+	localVarPath := localBasePath + "/orgs/{orgName}/projects/{projName}/events/subscriptions"
+	localVarPath = strings.Replace(localVarPath, "{"+"orgName"+"}", url.PathEscape(parameterValueToString(r.orgName, "orgName")), -1)
+	localVarPath = strings.Replace(localVarPath, "{"+"projName"+"}", url.PathEscape(parameterValueToString(r.projName, "projName")), -1)
+
+	localVarHeaderParams := make(map[string]string)
+	localVarQueryParams := url.Values{}
+	localVarFormParams := url.Values{}
+	if r.eventSubscriptionRequest == nil {
+		return localVarReturnValue, nil, reportError("eventSubscriptionRequest is required and must be specified")
+	}
+
+	// to determine the Content-Type header
+	localVarHTTPContentTypes := []string{"application/json"}
+
+	// set Content-Type header
+	localVarHTTPContentType := selectHeaderContentType(localVarHTTPContentTypes)
+	if localVarHTTPContentType != "" {
+		localVarHeaderParams["Content-Type"] = localVarHTTPContentType
+	}
+
+	// to determine the Accept header
+	localVarHTTPHeaderAccepts := []string{"application/json"}
+
+	// set Accept header
+	localVarHTTPHeaderAccept := selectHeaderAccept(localVarHTTPHeaderAccepts)
+	if localVarHTTPHeaderAccept != "" {
+		localVarHeaderParams["Accept"] = localVarHTTPHeaderAccept
+	}
+	// body params
+	localVarPostBody = r.eventSubscriptionRequest
+	req, err := a.client.prepareRequest(r.ctx, localVarPath, localVarHTTPMethod, localVarPostBody, localVarHeaderParams, localVarQueryParams, localVarFormParams, formFiles)
+	if err != nil {
+		return localVarReturnValue, nil, err
+	}
+
+	localVarHTTPResponse, err := a.client.callAPI(req)
+	if err != nil || localVarHTTPResponse == nil {
+		return localVarReturnValue, localVarHTTPResponse, err
+	}
+
+	localVarBody, err := io.ReadAll(localVarHTTPResponse.Body)
+	localVarHTTPResponse.Body.Close()
+	localVarHTTPResponse.Body = io.NopCloser(bytes.NewBuffer(localVarBody))
+	if err != nil {
+		return localVarReturnValue, localVarHTTPResponse, err
+	}
+
+	if localVarHTTPResponse.StatusCode >= 300 {
+		newErr := &GenericOpenAPIError{
+			body:  localVarBody,
+			error: localVarHTTPResponse.Status,
+		}
+		if localVarHTTPResponse.StatusCode == 400 {
+			var v ErrorResponse
+			err = a.client.decode(&v, localVarBody, localVarHTTPResponse.Header.Get("Content-Type"))
+			if err != nil {
+				newErr.error = err.Error()
+				return localVarReturnValue, localVarHTTPResponse, newErr
+			}
+			newErr.error = formatErrorMessage(localVarHTTPResponse.Status, &v)
+			newErr.model = v
+			return localVarReturnValue, localVarHTTPResponse, newErr
+		}
+		if localVarHTTPResponse.StatusCode == 500 {
+			var v ErrorResponse
+			err = a.client.decode(&v, localVarBody, localVarHTTPResponse.Header.Get("Content-Type"))
+			if err != nil {
+				newErr.error = err.Error()
+				return localVarReturnValue, localVarHTTPResponse, newErr
+			}
+			newErr.error = formatErrorMessage(localVarHTTPResponse.Status, &v)
+			newErr.model = v
+		}
+		return localVarReturnValue, localVarHTTPResponse, newErr
+	}
+
+	err = a.client.decode(&localVarReturnValue, localVarBody, localVarHTTPResponse.Header.Get("Content-Type"))
+	if err != nil {
+		newErr := &GenericOpenAPIError{
+			body:  localVarBody,
+			error: err.Error(),
+		}
+		return localVarReturnValue, localVarHTTPResponse, newErr
+	}
+
+	return localVarReturnValue, localVarHTTPResponse, nil
+}
+
+type ApiDeleteAgentEventSubscriptionRequest struct {
+	ctx            context.Context
+	ApiService     *EventsAPIService
+	orgName        string
+	projName       string
+	agentName      string
+	subscriptionId string
+}
+
+func (r ApiDeleteAgentEventSubscriptionRequest) Execute() (*http.Response, error) {
+	return r.ApiService.DeleteAgentEventSubscriptionExecute(r)
+}
+
+/*
+DeleteAgentEventSubscription Delete an event subscription
+
+	@param ctx context.Context - for authentication, logging, cancellation, deadlines, tracing, etc. Passed from http.Request or context.Background().
+	@param orgName Organization name
+	@param projName Project name
+	@param agentName Agent name
+	@param subscriptionId Event subscription ID
+	@return ApiDeleteAgentEventSubscriptionRequest
+*/
+func (a *EventsAPIService) DeleteAgentEventSubscription(ctx context.Context, orgName string, projName string, agentName string, subscriptionId string) ApiDeleteAgentEventSubscriptionRequest {
+	return ApiDeleteAgentEventSubscriptionRequest{
+		ApiService:     a,
+		ctx:            ctx,
+		orgName:        orgName,
+		projName:       projName,
+		agentName:      agentName,
+		subscriptionId: subscriptionId,
+	}
+}
+
+// Execute executes the request
+func (a *EventsAPIService) DeleteAgentEventSubscriptionExecute(r ApiDeleteAgentEventSubscriptionRequest) (*http.Response, error) {
+	var (
+		localVarHTTPMethod = http.MethodDelete
+		localVarPostBody   interface{}
+		formFiles          []formFile
+	)
+
+	localBasePath, err := a.client.cfg.ServerURLWithContext(r.ctx, "EventsAPIService.DeleteAgentEventSubscription")
+	if err != nil {
+		return nil, &GenericOpenAPIError{error: err.Error()}
+	}
+
+	localVarPath := localBasePath + "/orgs/{orgName}/projects/{projName}/agents/{agentName}/events/subscriptions/{subscriptionId}"
+	localVarPath = strings.Replace(localVarPath, "{"+"orgName"+"}", url.PathEscape(parameterValueToString(r.orgName, "orgName")), -1)
+	localVarPath = strings.Replace(localVarPath, "{"+"projName"+"}", url.PathEscape(parameterValueToString(r.projName, "projName")), -1)
+	localVarPath = strings.Replace(localVarPath, "{"+"agentName"+"}", url.PathEscape(parameterValueToString(r.agentName, "agentName")), -1)
+	localVarPath = strings.Replace(localVarPath, "{"+"subscriptionId"+"}", url.PathEscape(parameterValueToString(r.subscriptionId, "subscriptionId")), -1)
+
+	localVarHeaderParams := make(map[string]string)
+	localVarQueryParams := url.Values{}
+	localVarFormParams := url.Values{}
+
+	// to determine the Content-Type header
+	localVarHTTPContentTypes := []string{}
+
+	// set Content-Type header
+	localVarHTTPContentType := selectHeaderContentType(localVarHTTPContentTypes)
+	if localVarHTTPContentType != "" {
+		localVarHeaderParams["Content-Type"] = localVarHTTPContentType
+	}
+
+	// to determine the Accept header
+	localVarHTTPHeaderAccepts := []string{"application/json"}
+
+	// set Accept header
+	localVarHTTPHeaderAccept := selectHeaderAccept(localVarHTTPHeaderAccepts)
+	if localVarHTTPHeaderAccept != "" {
+		localVarHeaderParams["Accept"] = localVarHTTPHeaderAccept
+	}
+	req, err := a.client.prepareRequest(r.ctx, localVarPath, localVarHTTPMethod, localVarPostBody, localVarHeaderParams, localVarQueryParams, localVarFormParams, formFiles)
+	if err != nil {
+		return nil, err
+	}
+
+	localVarHTTPResponse, err := a.client.callAPI(req)
+	if err != nil || localVarHTTPResponse == nil {
+		return localVarHTTPResponse, err
+	}
+
+	localVarBody, err := io.ReadAll(localVarHTTPResponse.Body)
+	localVarHTTPResponse.Body.Close()
+	localVarHTTPResponse.Body = io.NopCloser(bytes.NewBuffer(localVarBody))
+	if err != nil {
+		return localVarHTTPResponse, err
+	}
+
+	if localVarHTTPResponse.StatusCode >= 300 {
+		newErr := &GenericOpenAPIError{
+			body:  localVarBody,
+			error: localVarHTTPResponse.Status,
+		}
+		if localVarHTTPResponse.StatusCode == 404 {
+			var v ErrorResponse
+			err = a.client.decode(&v, localVarBody, localVarHTTPResponse.Header.Get("Content-Type"))
+			if err != nil {
+				newErr.error = err.Error()
+				return localVarHTTPResponse, newErr
+			}
+			newErr.error = formatErrorMessage(localVarHTTPResponse.Status, &v)
+			newErr.model = v
+		}
+		return localVarHTTPResponse, newErr
+	}
+
+	return localVarHTTPResponse, nil
+}
+
 type ApiDeleteEventDestinationRequest struct {
 	ctx           context.Context
 	ApiService    *EventsAPIService
@@ -289,6 +815,342 @@ func (a *EventsAPIService) DeleteEventDestinationExecute(r ApiDeleteEventDestina
 	return localVarHTTPResponse, nil
 }
 
+type ApiDeleteOrgEventSubscriptionRequest struct {
+	ctx            context.Context
+	ApiService     *EventsAPIService
+	orgName        string
+	subscriptionId string
+}
+
+func (r ApiDeleteOrgEventSubscriptionRequest) Execute() (*http.Response, error) {
+	return r.ApiService.DeleteOrgEventSubscriptionExecute(r)
+}
+
+/*
+DeleteOrgEventSubscription Delete an event subscription
+
+	@param ctx context.Context - for authentication, logging, cancellation, deadlines, tracing, etc. Passed from http.Request or context.Background().
+	@param orgName Organization name
+	@param subscriptionId Event subscription ID
+	@return ApiDeleteOrgEventSubscriptionRequest
+*/
+func (a *EventsAPIService) DeleteOrgEventSubscription(ctx context.Context, orgName string, subscriptionId string) ApiDeleteOrgEventSubscriptionRequest {
+	return ApiDeleteOrgEventSubscriptionRequest{
+		ApiService:     a,
+		ctx:            ctx,
+		orgName:        orgName,
+		subscriptionId: subscriptionId,
+	}
+}
+
+// Execute executes the request
+func (a *EventsAPIService) DeleteOrgEventSubscriptionExecute(r ApiDeleteOrgEventSubscriptionRequest) (*http.Response, error) {
+	var (
+		localVarHTTPMethod = http.MethodDelete
+		localVarPostBody   interface{}
+		formFiles          []formFile
+	)
+
+	localBasePath, err := a.client.cfg.ServerURLWithContext(r.ctx, "EventsAPIService.DeleteOrgEventSubscription")
+	if err != nil {
+		return nil, &GenericOpenAPIError{error: err.Error()}
+	}
+
+	localVarPath := localBasePath + "/orgs/{orgName}/events/subscriptions/{subscriptionId}"
+	localVarPath = strings.Replace(localVarPath, "{"+"orgName"+"}", url.PathEscape(parameterValueToString(r.orgName, "orgName")), -1)
+	localVarPath = strings.Replace(localVarPath, "{"+"subscriptionId"+"}", url.PathEscape(parameterValueToString(r.subscriptionId, "subscriptionId")), -1)
+
+	localVarHeaderParams := make(map[string]string)
+	localVarQueryParams := url.Values{}
+	localVarFormParams := url.Values{}
+
+	// to determine the Content-Type header
+	localVarHTTPContentTypes := []string{}
+
+	// set Content-Type header
+	localVarHTTPContentType := selectHeaderContentType(localVarHTTPContentTypes)
+	if localVarHTTPContentType != "" {
+		localVarHeaderParams["Content-Type"] = localVarHTTPContentType
+	}
+
+	// to determine the Accept header
+	localVarHTTPHeaderAccepts := []string{"application/json"}
+
+	// set Accept header
+	localVarHTTPHeaderAccept := selectHeaderAccept(localVarHTTPHeaderAccepts)
+	if localVarHTTPHeaderAccept != "" {
+		localVarHeaderParams["Accept"] = localVarHTTPHeaderAccept
+	}
+	req, err := a.client.prepareRequest(r.ctx, localVarPath, localVarHTTPMethod, localVarPostBody, localVarHeaderParams, localVarQueryParams, localVarFormParams, formFiles)
+	if err != nil {
+		return nil, err
+	}
+
+	localVarHTTPResponse, err := a.client.callAPI(req)
+	if err != nil || localVarHTTPResponse == nil {
+		return localVarHTTPResponse, err
+	}
+
+	localVarBody, err := io.ReadAll(localVarHTTPResponse.Body)
+	localVarHTTPResponse.Body.Close()
+	localVarHTTPResponse.Body = io.NopCloser(bytes.NewBuffer(localVarBody))
+	if err != nil {
+		return localVarHTTPResponse, err
+	}
+
+	if localVarHTTPResponse.StatusCode >= 300 {
+		newErr := &GenericOpenAPIError{
+			body:  localVarBody,
+			error: localVarHTTPResponse.Status,
+		}
+		if localVarHTTPResponse.StatusCode == 404 {
+			var v ErrorResponse
+			err = a.client.decode(&v, localVarBody, localVarHTTPResponse.Header.Get("Content-Type"))
+			if err != nil {
+				newErr.error = err.Error()
+				return localVarHTTPResponse, newErr
+			}
+			newErr.error = formatErrorMessage(localVarHTTPResponse.Status, &v)
+			newErr.model = v
+		}
+		return localVarHTTPResponse, newErr
+	}
+
+	return localVarHTTPResponse, nil
+}
+
+type ApiDeleteProjectEventSubscriptionRequest struct {
+	ctx            context.Context
+	ApiService     *EventsAPIService
+	orgName        string
+	projName       string
+	subscriptionId string
+}
+
+func (r ApiDeleteProjectEventSubscriptionRequest) Execute() (*http.Response, error) {
+	return r.ApiService.DeleteProjectEventSubscriptionExecute(r)
+}
+
+/*
+DeleteProjectEventSubscription Delete an event subscription
+
+	@param ctx context.Context - for authentication, logging, cancellation, deadlines, tracing, etc. Passed from http.Request or context.Background().
+	@param orgName Organization name
+	@param projName Project name
+	@param subscriptionId Event subscription ID
+	@return ApiDeleteProjectEventSubscriptionRequest
+*/
+func (a *EventsAPIService) DeleteProjectEventSubscription(ctx context.Context, orgName string, projName string, subscriptionId string) ApiDeleteProjectEventSubscriptionRequest {
+	return ApiDeleteProjectEventSubscriptionRequest{
+		ApiService:     a,
+		ctx:            ctx,
+		orgName:        orgName,
+		projName:       projName,
+		subscriptionId: subscriptionId,
+	}
+}
+
+// Execute executes the request
+func (a *EventsAPIService) DeleteProjectEventSubscriptionExecute(r ApiDeleteProjectEventSubscriptionRequest) (*http.Response, error) {
+	var (
+		localVarHTTPMethod = http.MethodDelete
+		localVarPostBody   interface{}
+		formFiles          []formFile
+	)
+
+	localBasePath, err := a.client.cfg.ServerURLWithContext(r.ctx, "EventsAPIService.DeleteProjectEventSubscription")
+	if err != nil {
+		return nil, &GenericOpenAPIError{error: err.Error()}
+	}
+
+	localVarPath := localBasePath + "/orgs/{orgName}/projects/{projName}/events/subscriptions/{subscriptionId}"
+	localVarPath = strings.Replace(localVarPath, "{"+"orgName"+"}", url.PathEscape(parameterValueToString(r.orgName, "orgName")), -1)
+	localVarPath = strings.Replace(localVarPath, "{"+"projName"+"}", url.PathEscape(parameterValueToString(r.projName, "projName")), -1)
+	localVarPath = strings.Replace(localVarPath, "{"+"subscriptionId"+"}", url.PathEscape(parameterValueToString(r.subscriptionId, "subscriptionId")), -1)
+
+	localVarHeaderParams := make(map[string]string)
+	localVarQueryParams := url.Values{}
+	localVarFormParams := url.Values{}
+
+	// to determine the Content-Type header
+	localVarHTTPContentTypes := []string{}
+
+	// set Content-Type header
+	localVarHTTPContentType := selectHeaderContentType(localVarHTTPContentTypes)
+	if localVarHTTPContentType != "" {
+		localVarHeaderParams["Content-Type"] = localVarHTTPContentType
+	}
+
+	// to determine the Accept header
+	localVarHTTPHeaderAccepts := []string{"application/json"}
+
+	// set Accept header
+	localVarHTTPHeaderAccept := selectHeaderAccept(localVarHTTPHeaderAccepts)
+	if localVarHTTPHeaderAccept != "" {
+		localVarHeaderParams["Accept"] = localVarHTTPHeaderAccept
+	}
+	req, err := a.client.prepareRequest(r.ctx, localVarPath, localVarHTTPMethod, localVarPostBody, localVarHeaderParams, localVarQueryParams, localVarFormParams, formFiles)
+	if err != nil {
+		return nil, err
+	}
+
+	localVarHTTPResponse, err := a.client.callAPI(req)
+	if err != nil || localVarHTTPResponse == nil {
+		return localVarHTTPResponse, err
+	}
+
+	localVarBody, err := io.ReadAll(localVarHTTPResponse.Body)
+	localVarHTTPResponse.Body.Close()
+	localVarHTTPResponse.Body = io.NopCloser(bytes.NewBuffer(localVarBody))
+	if err != nil {
+		return localVarHTTPResponse, err
+	}
+
+	if localVarHTTPResponse.StatusCode >= 300 {
+		newErr := &GenericOpenAPIError{
+			body:  localVarBody,
+			error: localVarHTTPResponse.Status,
+		}
+		if localVarHTTPResponse.StatusCode == 404 {
+			var v ErrorResponse
+			err = a.client.decode(&v, localVarBody, localVarHTTPResponse.Header.Get("Content-Type"))
+			if err != nil {
+				newErr.error = err.Error()
+				return localVarHTTPResponse, newErr
+			}
+			newErr.error = formatErrorMessage(localVarHTTPResponse.Status, &v)
+			newErr.model = v
+		}
+		return localVarHTTPResponse, newErr
+	}
+
+	return localVarHTTPResponse, nil
+}
+
+type ApiGetAgentEventSubscriptionRequest struct {
+	ctx            context.Context
+	ApiService     *EventsAPIService
+	orgName        string
+	projName       string
+	agentName      string
+	subscriptionId string
+}
+
+func (r ApiGetAgentEventSubscriptionRequest) Execute() (*EventSubscriptionResponse, *http.Response, error) {
+	return r.ApiService.GetAgentEventSubscriptionExecute(r)
+}
+
+/*
+GetAgentEventSubscription Get an event subscription
+
+	@param ctx context.Context - for authentication, logging, cancellation, deadlines, tracing, etc. Passed from http.Request or context.Background().
+	@param orgName Organization name
+	@param projName Project name
+	@param agentName Agent name
+	@param subscriptionId Event subscription ID
+	@return ApiGetAgentEventSubscriptionRequest
+*/
+func (a *EventsAPIService) GetAgentEventSubscription(ctx context.Context, orgName string, projName string, agentName string, subscriptionId string) ApiGetAgentEventSubscriptionRequest {
+	return ApiGetAgentEventSubscriptionRequest{
+		ApiService:     a,
+		ctx:            ctx,
+		orgName:        orgName,
+		projName:       projName,
+		agentName:      agentName,
+		subscriptionId: subscriptionId,
+	}
+}
+
+// Execute executes the request
+//
+//	@return EventSubscriptionResponse
+func (a *EventsAPIService) GetAgentEventSubscriptionExecute(r ApiGetAgentEventSubscriptionRequest) (*EventSubscriptionResponse, *http.Response, error) {
+	var (
+		localVarHTTPMethod  = http.MethodGet
+		localVarPostBody    interface{}
+		formFiles           []formFile
+		localVarReturnValue *EventSubscriptionResponse
+	)
+
+	localBasePath, err := a.client.cfg.ServerURLWithContext(r.ctx, "EventsAPIService.GetAgentEventSubscription")
+	if err != nil {
+		return localVarReturnValue, nil, &GenericOpenAPIError{error: err.Error()}
+	}
+
+	localVarPath := localBasePath + "/orgs/{orgName}/projects/{projName}/agents/{agentName}/events/subscriptions/{subscriptionId}"
+	localVarPath = strings.Replace(localVarPath, "{"+"orgName"+"}", url.PathEscape(parameterValueToString(r.orgName, "orgName")), -1)
+	localVarPath = strings.Replace(localVarPath, "{"+"projName"+"}", url.PathEscape(parameterValueToString(r.projName, "projName")), -1)
+	localVarPath = strings.Replace(localVarPath, "{"+"agentName"+"}", url.PathEscape(parameterValueToString(r.agentName, "agentName")), -1)
+	localVarPath = strings.Replace(localVarPath, "{"+"subscriptionId"+"}", url.PathEscape(parameterValueToString(r.subscriptionId, "subscriptionId")), -1)
+
+	localVarHeaderParams := make(map[string]string)
+	localVarQueryParams := url.Values{}
+	localVarFormParams := url.Values{}
+
+	// to determine the Content-Type header
+	localVarHTTPContentTypes := []string{}
+
+	// set Content-Type header
+	localVarHTTPContentType := selectHeaderContentType(localVarHTTPContentTypes)
+	if localVarHTTPContentType != "" {
+		localVarHeaderParams["Content-Type"] = localVarHTTPContentType
+	}
+
+	// to determine the Accept header
+	localVarHTTPHeaderAccepts := []string{"application/json"}
+
+	// set Accept header
+	localVarHTTPHeaderAccept := selectHeaderAccept(localVarHTTPHeaderAccepts)
+	if localVarHTTPHeaderAccept != "" {
+		localVarHeaderParams["Accept"] = localVarHTTPHeaderAccept
+	}
+	req, err := a.client.prepareRequest(r.ctx, localVarPath, localVarHTTPMethod, localVarPostBody, localVarHeaderParams, localVarQueryParams, localVarFormParams, formFiles)
+	if err != nil {
+		return localVarReturnValue, nil, err
+	}
+
+	localVarHTTPResponse, err := a.client.callAPI(req)
+	if err != nil || localVarHTTPResponse == nil {
+		return localVarReturnValue, localVarHTTPResponse, err
+	}
+
+	localVarBody, err := io.ReadAll(localVarHTTPResponse.Body)
+	localVarHTTPResponse.Body.Close()
+	localVarHTTPResponse.Body = io.NopCloser(bytes.NewBuffer(localVarBody))
+	if err != nil {
+		return localVarReturnValue, localVarHTTPResponse, err
+	}
+
+	if localVarHTTPResponse.StatusCode >= 300 {
+		newErr := &GenericOpenAPIError{
+			body:  localVarBody,
+			error: localVarHTTPResponse.Status,
+		}
+		if localVarHTTPResponse.StatusCode == 404 {
+			var v ErrorResponse
+			err = a.client.decode(&v, localVarBody, localVarHTTPResponse.Header.Get("Content-Type"))
+			if err != nil {
+				newErr.error = err.Error()
+				return localVarReturnValue, localVarHTTPResponse, newErr
+			}
+			newErr.error = formatErrorMessage(localVarHTTPResponse.Status, &v)
+			newErr.model = v
+		}
+		return localVarReturnValue, localVarHTTPResponse, newErr
+	}
+
+	err = a.client.decode(&localVarReturnValue, localVarBody, localVarHTTPResponse.Header.Get("Content-Type"))
+	if err != nil {
+		newErr := &GenericOpenAPIError{
+			body:  localVarBody,
+			error: err.Error(),
+		}
+		return localVarReturnValue, localVarHTTPResponse, newErr
+	}
+
+	return localVarReturnValue, localVarHTTPResponse, nil
+}
+
 type ApiGetEventDestinationRequest struct {
 	ctx           context.Context
 	ApiService    *EventsAPIService
@@ -381,6 +1243,478 @@ func (a *EventsAPIService) GetEventDestinationExecute(r ApiGetEventDestinationRe
 			error: localVarHTTPResponse.Status,
 		}
 		if localVarHTTPResponse.StatusCode == 404 {
+			var v ErrorResponse
+			err = a.client.decode(&v, localVarBody, localVarHTTPResponse.Header.Get("Content-Type"))
+			if err != nil {
+				newErr.error = err.Error()
+				return localVarReturnValue, localVarHTTPResponse, newErr
+			}
+			newErr.error = formatErrorMessage(localVarHTTPResponse.Status, &v)
+			newErr.model = v
+		}
+		return localVarReturnValue, localVarHTTPResponse, newErr
+	}
+
+	err = a.client.decode(&localVarReturnValue, localVarBody, localVarHTTPResponse.Header.Get("Content-Type"))
+	if err != nil {
+		newErr := &GenericOpenAPIError{
+			body:  localVarBody,
+			error: err.Error(),
+		}
+		return localVarReturnValue, localVarHTTPResponse, newErr
+	}
+
+	return localVarReturnValue, localVarHTTPResponse, nil
+}
+
+type ApiGetOrgEventSubscriptionRequest struct {
+	ctx            context.Context
+	ApiService     *EventsAPIService
+	orgName        string
+	subscriptionId string
+}
+
+func (r ApiGetOrgEventSubscriptionRequest) Execute() (*EventSubscriptionResponse, *http.Response, error) {
+	return r.ApiService.GetOrgEventSubscriptionExecute(r)
+}
+
+/*
+GetOrgEventSubscription Get an event subscription
+
+	@param ctx context.Context - for authentication, logging, cancellation, deadlines, tracing, etc. Passed from http.Request or context.Background().
+	@param orgName Organization name
+	@param subscriptionId Event subscription ID
+	@return ApiGetOrgEventSubscriptionRequest
+*/
+func (a *EventsAPIService) GetOrgEventSubscription(ctx context.Context, orgName string, subscriptionId string) ApiGetOrgEventSubscriptionRequest {
+	return ApiGetOrgEventSubscriptionRequest{
+		ApiService:     a,
+		ctx:            ctx,
+		orgName:        orgName,
+		subscriptionId: subscriptionId,
+	}
+}
+
+// Execute executes the request
+//
+//	@return EventSubscriptionResponse
+func (a *EventsAPIService) GetOrgEventSubscriptionExecute(r ApiGetOrgEventSubscriptionRequest) (*EventSubscriptionResponse, *http.Response, error) {
+	var (
+		localVarHTTPMethod  = http.MethodGet
+		localVarPostBody    interface{}
+		formFiles           []formFile
+		localVarReturnValue *EventSubscriptionResponse
+	)
+
+	localBasePath, err := a.client.cfg.ServerURLWithContext(r.ctx, "EventsAPIService.GetOrgEventSubscription")
+	if err != nil {
+		return localVarReturnValue, nil, &GenericOpenAPIError{error: err.Error()}
+	}
+
+	localVarPath := localBasePath + "/orgs/{orgName}/events/subscriptions/{subscriptionId}"
+	localVarPath = strings.Replace(localVarPath, "{"+"orgName"+"}", url.PathEscape(parameterValueToString(r.orgName, "orgName")), -1)
+	localVarPath = strings.Replace(localVarPath, "{"+"subscriptionId"+"}", url.PathEscape(parameterValueToString(r.subscriptionId, "subscriptionId")), -1)
+
+	localVarHeaderParams := make(map[string]string)
+	localVarQueryParams := url.Values{}
+	localVarFormParams := url.Values{}
+
+	// to determine the Content-Type header
+	localVarHTTPContentTypes := []string{}
+
+	// set Content-Type header
+	localVarHTTPContentType := selectHeaderContentType(localVarHTTPContentTypes)
+	if localVarHTTPContentType != "" {
+		localVarHeaderParams["Content-Type"] = localVarHTTPContentType
+	}
+
+	// to determine the Accept header
+	localVarHTTPHeaderAccepts := []string{"application/json"}
+
+	// set Accept header
+	localVarHTTPHeaderAccept := selectHeaderAccept(localVarHTTPHeaderAccepts)
+	if localVarHTTPHeaderAccept != "" {
+		localVarHeaderParams["Accept"] = localVarHTTPHeaderAccept
+	}
+	req, err := a.client.prepareRequest(r.ctx, localVarPath, localVarHTTPMethod, localVarPostBody, localVarHeaderParams, localVarQueryParams, localVarFormParams, formFiles)
+	if err != nil {
+		return localVarReturnValue, nil, err
+	}
+
+	localVarHTTPResponse, err := a.client.callAPI(req)
+	if err != nil || localVarHTTPResponse == nil {
+		return localVarReturnValue, localVarHTTPResponse, err
+	}
+
+	localVarBody, err := io.ReadAll(localVarHTTPResponse.Body)
+	localVarHTTPResponse.Body.Close()
+	localVarHTTPResponse.Body = io.NopCloser(bytes.NewBuffer(localVarBody))
+	if err != nil {
+		return localVarReturnValue, localVarHTTPResponse, err
+	}
+
+	if localVarHTTPResponse.StatusCode >= 300 {
+		newErr := &GenericOpenAPIError{
+			body:  localVarBody,
+			error: localVarHTTPResponse.Status,
+		}
+		if localVarHTTPResponse.StatusCode == 404 {
+			var v ErrorResponse
+			err = a.client.decode(&v, localVarBody, localVarHTTPResponse.Header.Get("Content-Type"))
+			if err != nil {
+				newErr.error = err.Error()
+				return localVarReturnValue, localVarHTTPResponse, newErr
+			}
+			newErr.error = formatErrorMessage(localVarHTTPResponse.Status, &v)
+			newErr.model = v
+		}
+		return localVarReturnValue, localVarHTTPResponse, newErr
+	}
+
+	err = a.client.decode(&localVarReturnValue, localVarBody, localVarHTTPResponse.Header.Get("Content-Type"))
+	if err != nil {
+		newErr := &GenericOpenAPIError{
+			body:  localVarBody,
+			error: err.Error(),
+		}
+		return localVarReturnValue, localVarHTTPResponse, newErr
+	}
+
+	return localVarReturnValue, localVarHTTPResponse, nil
+}
+
+type ApiGetProjectEventSubscriptionRequest struct {
+	ctx            context.Context
+	ApiService     *EventsAPIService
+	orgName        string
+	projName       string
+	subscriptionId string
+}
+
+func (r ApiGetProjectEventSubscriptionRequest) Execute() (*EventSubscriptionResponse, *http.Response, error) {
+	return r.ApiService.GetProjectEventSubscriptionExecute(r)
+}
+
+/*
+GetProjectEventSubscription Get an event subscription
+
+	@param ctx context.Context - for authentication, logging, cancellation, deadlines, tracing, etc. Passed from http.Request or context.Background().
+	@param orgName Organization name
+	@param projName Project name
+	@param subscriptionId Event subscription ID
+	@return ApiGetProjectEventSubscriptionRequest
+*/
+func (a *EventsAPIService) GetProjectEventSubscription(ctx context.Context, orgName string, projName string, subscriptionId string) ApiGetProjectEventSubscriptionRequest {
+	return ApiGetProjectEventSubscriptionRequest{
+		ApiService:     a,
+		ctx:            ctx,
+		orgName:        orgName,
+		projName:       projName,
+		subscriptionId: subscriptionId,
+	}
+}
+
+// Execute executes the request
+//
+//	@return EventSubscriptionResponse
+func (a *EventsAPIService) GetProjectEventSubscriptionExecute(r ApiGetProjectEventSubscriptionRequest) (*EventSubscriptionResponse, *http.Response, error) {
+	var (
+		localVarHTTPMethod  = http.MethodGet
+		localVarPostBody    interface{}
+		formFiles           []formFile
+		localVarReturnValue *EventSubscriptionResponse
+	)
+
+	localBasePath, err := a.client.cfg.ServerURLWithContext(r.ctx, "EventsAPIService.GetProjectEventSubscription")
+	if err != nil {
+		return localVarReturnValue, nil, &GenericOpenAPIError{error: err.Error()}
+	}
+
+	localVarPath := localBasePath + "/orgs/{orgName}/projects/{projName}/events/subscriptions/{subscriptionId}"
+	localVarPath = strings.Replace(localVarPath, "{"+"orgName"+"}", url.PathEscape(parameterValueToString(r.orgName, "orgName")), -1)
+	localVarPath = strings.Replace(localVarPath, "{"+"projName"+"}", url.PathEscape(parameterValueToString(r.projName, "projName")), -1)
+	localVarPath = strings.Replace(localVarPath, "{"+"subscriptionId"+"}", url.PathEscape(parameterValueToString(r.subscriptionId, "subscriptionId")), -1)
+
+	localVarHeaderParams := make(map[string]string)
+	localVarQueryParams := url.Values{}
+	localVarFormParams := url.Values{}
+
+	// to determine the Content-Type header
+	localVarHTTPContentTypes := []string{}
+
+	// set Content-Type header
+	localVarHTTPContentType := selectHeaderContentType(localVarHTTPContentTypes)
+	if localVarHTTPContentType != "" {
+		localVarHeaderParams["Content-Type"] = localVarHTTPContentType
+	}
+
+	// to determine the Accept header
+	localVarHTTPHeaderAccepts := []string{"application/json"}
+
+	// set Accept header
+	localVarHTTPHeaderAccept := selectHeaderAccept(localVarHTTPHeaderAccepts)
+	if localVarHTTPHeaderAccept != "" {
+		localVarHeaderParams["Accept"] = localVarHTTPHeaderAccept
+	}
+	req, err := a.client.prepareRequest(r.ctx, localVarPath, localVarHTTPMethod, localVarPostBody, localVarHeaderParams, localVarQueryParams, localVarFormParams, formFiles)
+	if err != nil {
+		return localVarReturnValue, nil, err
+	}
+
+	localVarHTTPResponse, err := a.client.callAPI(req)
+	if err != nil || localVarHTTPResponse == nil {
+		return localVarReturnValue, localVarHTTPResponse, err
+	}
+
+	localVarBody, err := io.ReadAll(localVarHTTPResponse.Body)
+	localVarHTTPResponse.Body.Close()
+	localVarHTTPResponse.Body = io.NopCloser(bytes.NewBuffer(localVarBody))
+	if err != nil {
+		return localVarReturnValue, localVarHTTPResponse, err
+	}
+
+	if localVarHTTPResponse.StatusCode >= 300 {
+		newErr := &GenericOpenAPIError{
+			body:  localVarBody,
+			error: localVarHTTPResponse.Status,
+		}
+		if localVarHTTPResponse.StatusCode == 404 {
+			var v ErrorResponse
+			err = a.client.decode(&v, localVarBody, localVarHTTPResponse.Header.Get("Content-Type"))
+			if err != nil {
+				newErr.error = err.Error()
+				return localVarReturnValue, localVarHTTPResponse, newErr
+			}
+			newErr.error = formatErrorMessage(localVarHTTPResponse.Status, &v)
+			newErr.model = v
+		}
+		return localVarReturnValue, localVarHTTPResponse, newErr
+	}
+
+	err = a.client.decode(&localVarReturnValue, localVarBody, localVarHTTPResponse.Header.Get("Content-Type"))
+	if err != nil {
+		newErr := &GenericOpenAPIError{
+			body:  localVarBody,
+			error: err.Error(),
+		}
+		return localVarReturnValue, localVarHTTPResponse, newErr
+	}
+
+	return localVarReturnValue, localVarHTTPResponse, nil
+}
+
+type ApiListAgentEventDestinationsRequest struct {
+	ctx        context.Context
+	ApiService *EventsAPIService
+	orgName    string
+	projName   string
+	agentName  string
+}
+
+func (r ApiListAgentEventDestinationsRequest) Execute() (*EventDestinationSummaryListResponse, *http.Response, error) {
+	return r.ApiService.ListAgentEventDestinationsExecute(r)
+}
+
+/*
+ListAgentEventDestinations List the event destinations the agent's subscriptions can use
+
+Only destinations available to the project, without their settings.
+
+	@param ctx context.Context - for authentication, logging, cancellation, deadlines, tracing, etc. Passed from http.Request or context.Background().
+	@param orgName Organization name
+	@param projName Project name
+	@param agentName Agent name
+	@return ApiListAgentEventDestinationsRequest
+*/
+func (a *EventsAPIService) ListAgentEventDestinations(ctx context.Context, orgName string, projName string, agentName string) ApiListAgentEventDestinationsRequest {
+	return ApiListAgentEventDestinationsRequest{
+		ApiService: a,
+		ctx:        ctx,
+		orgName:    orgName,
+		projName:   projName,
+		agentName:  agentName,
+	}
+}
+
+// Execute executes the request
+//
+//	@return EventDestinationSummaryListResponse
+func (a *EventsAPIService) ListAgentEventDestinationsExecute(r ApiListAgentEventDestinationsRequest) (*EventDestinationSummaryListResponse, *http.Response, error) {
+	var (
+		localVarHTTPMethod  = http.MethodGet
+		localVarPostBody    interface{}
+		formFiles           []formFile
+		localVarReturnValue *EventDestinationSummaryListResponse
+	)
+
+	localBasePath, err := a.client.cfg.ServerURLWithContext(r.ctx, "EventsAPIService.ListAgentEventDestinations")
+	if err != nil {
+		return localVarReturnValue, nil, &GenericOpenAPIError{error: err.Error()}
+	}
+
+	localVarPath := localBasePath + "/orgs/{orgName}/projects/{projName}/agents/{agentName}/events/destinations"
+	localVarPath = strings.Replace(localVarPath, "{"+"orgName"+"}", url.PathEscape(parameterValueToString(r.orgName, "orgName")), -1)
+	localVarPath = strings.Replace(localVarPath, "{"+"projName"+"}", url.PathEscape(parameterValueToString(r.projName, "projName")), -1)
+	localVarPath = strings.Replace(localVarPath, "{"+"agentName"+"}", url.PathEscape(parameterValueToString(r.agentName, "agentName")), -1)
+
+	localVarHeaderParams := make(map[string]string)
+	localVarQueryParams := url.Values{}
+	localVarFormParams := url.Values{}
+
+	// to determine the Content-Type header
+	localVarHTTPContentTypes := []string{}
+
+	// set Content-Type header
+	localVarHTTPContentType := selectHeaderContentType(localVarHTTPContentTypes)
+	if localVarHTTPContentType != "" {
+		localVarHeaderParams["Content-Type"] = localVarHTTPContentType
+	}
+
+	// to determine the Accept header
+	localVarHTTPHeaderAccepts := []string{"application/json"}
+
+	// set Accept header
+	localVarHTTPHeaderAccept := selectHeaderAccept(localVarHTTPHeaderAccepts)
+	if localVarHTTPHeaderAccept != "" {
+		localVarHeaderParams["Accept"] = localVarHTTPHeaderAccept
+	}
+	req, err := a.client.prepareRequest(r.ctx, localVarPath, localVarHTTPMethod, localVarPostBody, localVarHeaderParams, localVarQueryParams, localVarFormParams, formFiles)
+	if err != nil {
+		return localVarReturnValue, nil, err
+	}
+
+	localVarHTTPResponse, err := a.client.callAPI(req)
+	if err != nil || localVarHTTPResponse == nil {
+		return localVarReturnValue, localVarHTTPResponse, err
+	}
+
+	localVarBody, err := io.ReadAll(localVarHTTPResponse.Body)
+	localVarHTTPResponse.Body.Close()
+	localVarHTTPResponse.Body = io.NopCloser(bytes.NewBuffer(localVarBody))
+	if err != nil {
+		return localVarReturnValue, localVarHTTPResponse, err
+	}
+
+	if localVarHTTPResponse.StatusCode >= 300 {
+		newErr := &GenericOpenAPIError{
+			body:  localVarBody,
+			error: localVarHTTPResponse.Status,
+		}
+		return localVarReturnValue, localVarHTTPResponse, newErr
+	}
+
+	err = a.client.decode(&localVarReturnValue, localVarBody, localVarHTTPResponse.Header.Get("Content-Type"))
+	if err != nil {
+		newErr := &GenericOpenAPIError{
+			body:  localVarBody,
+			error: err.Error(),
+		}
+		return localVarReturnValue, localVarHTTPResponse, newErr
+	}
+
+	return localVarReturnValue, localVarHTTPResponse, nil
+}
+
+type ApiListAgentEventSubscriptionsRequest struct {
+	ctx        context.Context
+	ApiService *EventsAPIService
+	orgName    string
+	projName   string
+	agentName  string
+}
+
+func (r ApiListAgentEventSubscriptionsRequest) Execute() (*EventSubscriptionListResponse, *http.Response, error) {
+	return r.ApiService.ListAgentEventSubscriptionsExecute(r)
+}
+
+/*
+ListAgentEventSubscriptions List the agent's event subscriptions
+
+Agent subscriptions receive the agent's events.
+inherited lists the wider levels' subscriptions that also send this
+level's events; they are managed where they belong.
+
+	@param ctx context.Context - for authentication, logging, cancellation, deadlines, tracing, etc. Passed from http.Request or context.Background().
+	@param orgName Organization name
+	@param projName Project name
+	@param agentName Agent name
+	@return ApiListAgentEventSubscriptionsRequest
+*/
+func (a *EventsAPIService) ListAgentEventSubscriptions(ctx context.Context, orgName string, projName string, agentName string) ApiListAgentEventSubscriptionsRequest {
+	return ApiListAgentEventSubscriptionsRequest{
+		ApiService: a,
+		ctx:        ctx,
+		orgName:    orgName,
+		projName:   projName,
+		agentName:  agentName,
+	}
+}
+
+// Execute executes the request
+//
+//	@return EventSubscriptionListResponse
+func (a *EventsAPIService) ListAgentEventSubscriptionsExecute(r ApiListAgentEventSubscriptionsRequest) (*EventSubscriptionListResponse, *http.Response, error) {
+	var (
+		localVarHTTPMethod  = http.MethodGet
+		localVarPostBody    interface{}
+		formFiles           []formFile
+		localVarReturnValue *EventSubscriptionListResponse
+	)
+
+	localBasePath, err := a.client.cfg.ServerURLWithContext(r.ctx, "EventsAPIService.ListAgentEventSubscriptions")
+	if err != nil {
+		return localVarReturnValue, nil, &GenericOpenAPIError{error: err.Error()}
+	}
+
+	localVarPath := localBasePath + "/orgs/{orgName}/projects/{projName}/agents/{agentName}/events/subscriptions"
+	localVarPath = strings.Replace(localVarPath, "{"+"orgName"+"}", url.PathEscape(parameterValueToString(r.orgName, "orgName")), -1)
+	localVarPath = strings.Replace(localVarPath, "{"+"projName"+"}", url.PathEscape(parameterValueToString(r.projName, "projName")), -1)
+	localVarPath = strings.Replace(localVarPath, "{"+"agentName"+"}", url.PathEscape(parameterValueToString(r.agentName, "agentName")), -1)
+
+	localVarHeaderParams := make(map[string]string)
+	localVarQueryParams := url.Values{}
+	localVarFormParams := url.Values{}
+
+	// to determine the Content-Type header
+	localVarHTTPContentTypes := []string{}
+
+	// set Content-Type header
+	localVarHTTPContentType := selectHeaderContentType(localVarHTTPContentTypes)
+	if localVarHTTPContentType != "" {
+		localVarHeaderParams["Content-Type"] = localVarHTTPContentType
+	}
+
+	// to determine the Accept header
+	localVarHTTPHeaderAccepts := []string{"application/json"}
+
+	// set Accept header
+	localVarHTTPHeaderAccept := selectHeaderAccept(localVarHTTPHeaderAccepts)
+	if localVarHTTPHeaderAccept != "" {
+		localVarHeaderParams["Accept"] = localVarHTTPHeaderAccept
+	}
+	req, err := a.client.prepareRequest(r.ctx, localVarPath, localVarHTTPMethod, localVarPostBody, localVarHeaderParams, localVarQueryParams, localVarFormParams, formFiles)
+	if err != nil {
+		return localVarReturnValue, nil, err
+	}
+
+	localVarHTTPResponse, err := a.client.callAPI(req)
+	if err != nil || localVarHTTPResponse == nil {
+		return localVarReturnValue, localVarHTTPResponse, err
+	}
+
+	localVarBody, err := io.ReadAll(localVarHTTPResponse.Body)
+	localVarHTTPResponse.Body.Close()
+	localVarHTTPResponse.Body = io.NopCloser(bytes.NewBuffer(localVarBody))
+	if err != nil {
+		return localVarReturnValue, localVarHTTPResponse, err
+	}
+
+	if localVarHTTPResponse.StatusCode >= 300 {
+		newErr := &GenericOpenAPIError{
+			body:  localVarBody,
+			error: localVarHTTPResponse.Status,
+		}
+		if localVarHTTPResponse.StatusCode == 500 {
 			var v ErrorResponse
 			err = a.client.decode(&v, localVarBody, localVarHTTPResponse.Header.Get("Content-Type"))
 			if err != nil {
@@ -557,6 +1891,470 @@ func (a *EventsAPIService) ListEventDestinationsExecute(r ApiListEventDestinatio
 
 	localVarPath := localBasePath + "/orgs/{orgName}/events/destinations"
 	localVarPath = strings.Replace(localVarPath, "{"+"orgName"+"}", url.PathEscape(parameterValueToString(r.orgName, "orgName")), -1)
+
+	localVarHeaderParams := make(map[string]string)
+	localVarQueryParams := url.Values{}
+	localVarFormParams := url.Values{}
+
+	// to determine the Content-Type header
+	localVarHTTPContentTypes := []string{}
+
+	// set Content-Type header
+	localVarHTTPContentType := selectHeaderContentType(localVarHTTPContentTypes)
+	if localVarHTTPContentType != "" {
+		localVarHeaderParams["Content-Type"] = localVarHTTPContentType
+	}
+
+	// to determine the Accept header
+	localVarHTTPHeaderAccepts := []string{"application/json"}
+
+	// set Accept header
+	localVarHTTPHeaderAccept := selectHeaderAccept(localVarHTTPHeaderAccepts)
+	if localVarHTTPHeaderAccept != "" {
+		localVarHeaderParams["Accept"] = localVarHTTPHeaderAccept
+	}
+	req, err := a.client.prepareRequest(r.ctx, localVarPath, localVarHTTPMethod, localVarPostBody, localVarHeaderParams, localVarQueryParams, localVarFormParams, formFiles)
+	if err != nil {
+		return localVarReturnValue, nil, err
+	}
+
+	localVarHTTPResponse, err := a.client.callAPI(req)
+	if err != nil || localVarHTTPResponse == nil {
+		return localVarReturnValue, localVarHTTPResponse, err
+	}
+
+	localVarBody, err := io.ReadAll(localVarHTTPResponse.Body)
+	localVarHTTPResponse.Body.Close()
+	localVarHTTPResponse.Body = io.NopCloser(bytes.NewBuffer(localVarBody))
+	if err != nil {
+		return localVarReturnValue, localVarHTTPResponse, err
+	}
+
+	if localVarHTTPResponse.StatusCode >= 300 {
+		newErr := &GenericOpenAPIError{
+			body:  localVarBody,
+			error: localVarHTTPResponse.Status,
+		}
+		if localVarHTTPResponse.StatusCode == 500 {
+			var v ErrorResponse
+			err = a.client.decode(&v, localVarBody, localVarHTTPResponse.Header.Get("Content-Type"))
+			if err != nil {
+				newErr.error = err.Error()
+				return localVarReturnValue, localVarHTTPResponse, newErr
+			}
+			newErr.error = formatErrorMessage(localVarHTTPResponse.Status, &v)
+			newErr.model = v
+		}
+		return localVarReturnValue, localVarHTTPResponse, newErr
+	}
+
+	err = a.client.decode(&localVarReturnValue, localVarBody, localVarHTTPResponse.Header.Get("Content-Type"))
+	if err != nil {
+		newErr := &GenericOpenAPIError{
+			body:  localVarBody,
+			error: err.Error(),
+		}
+		return localVarReturnValue, localVarHTTPResponse, newErr
+	}
+
+	return localVarReturnValue, localVarHTTPResponse, nil
+}
+
+type ApiListEventTypesRequest struct {
+	ctx        context.Context
+	ApiService *EventsAPIService
+	orgName    string
+	scope      *string
+}
+
+// The event types a subscription at this scope can name: an org subscription any type, a project subscription project and agent types, an agent subscription agent types. Every type when absent.
+func (r ApiListEventTypesRequest) Scope(scope string) ApiListEventTypesRequest {
+	r.scope = &scope
+	return r
+}
+
+func (r ApiListEventTypesRequest) Execute() (*EventTypeListResponse, *http.Response, error) {
+	return r.ApiService.ListEventTypesExecute(r)
+}
+
+/*
+ListEventTypes List the event types subscriptions can name
+
+	@param ctx context.Context - for authentication, logging, cancellation, deadlines, tracing, etc. Passed from http.Request or context.Background().
+	@param orgName Organization name
+	@return ApiListEventTypesRequest
+*/
+func (a *EventsAPIService) ListEventTypes(ctx context.Context, orgName string) ApiListEventTypesRequest {
+	return ApiListEventTypesRequest{
+		ApiService: a,
+		ctx:        ctx,
+		orgName:    orgName,
+	}
+}
+
+// Execute executes the request
+//
+//	@return EventTypeListResponse
+func (a *EventsAPIService) ListEventTypesExecute(r ApiListEventTypesRequest) (*EventTypeListResponse, *http.Response, error) {
+	var (
+		localVarHTTPMethod  = http.MethodGet
+		localVarPostBody    interface{}
+		formFiles           []formFile
+		localVarReturnValue *EventTypeListResponse
+	)
+
+	localBasePath, err := a.client.cfg.ServerURLWithContext(r.ctx, "EventsAPIService.ListEventTypes")
+	if err != nil {
+		return localVarReturnValue, nil, &GenericOpenAPIError{error: err.Error()}
+	}
+
+	localVarPath := localBasePath + "/orgs/{orgName}/events/event-types"
+	localVarPath = strings.Replace(localVarPath, "{"+"orgName"+"}", url.PathEscape(parameterValueToString(r.orgName, "orgName")), -1)
+
+	localVarHeaderParams := make(map[string]string)
+	localVarQueryParams := url.Values{}
+	localVarFormParams := url.Values{}
+
+	if r.scope != nil {
+		parameterAddToHeaderOrQuery(localVarQueryParams, "scope", r.scope, "")
+	}
+	// to determine the Content-Type header
+	localVarHTTPContentTypes := []string{}
+
+	// set Content-Type header
+	localVarHTTPContentType := selectHeaderContentType(localVarHTTPContentTypes)
+	if localVarHTTPContentType != "" {
+		localVarHeaderParams["Content-Type"] = localVarHTTPContentType
+	}
+
+	// to determine the Accept header
+	localVarHTTPHeaderAccepts := []string{"application/json"}
+
+	// set Accept header
+	localVarHTTPHeaderAccept := selectHeaderAccept(localVarHTTPHeaderAccepts)
+	if localVarHTTPHeaderAccept != "" {
+		localVarHeaderParams["Accept"] = localVarHTTPHeaderAccept
+	}
+	req, err := a.client.prepareRequest(r.ctx, localVarPath, localVarHTTPMethod, localVarPostBody, localVarHeaderParams, localVarQueryParams, localVarFormParams, formFiles)
+	if err != nil {
+		return localVarReturnValue, nil, err
+	}
+
+	localVarHTTPResponse, err := a.client.callAPI(req)
+	if err != nil || localVarHTTPResponse == nil {
+		return localVarReturnValue, localVarHTTPResponse, err
+	}
+
+	localVarBody, err := io.ReadAll(localVarHTTPResponse.Body)
+	localVarHTTPResponse.Body.Close()
+	localVarHTTPResponse.Body = io.NopCloser(bytes.NewBuffer(localVarBody))
+	if err != nil {
+		return localVarReturnValue, localVarHTTPResponse, err
+	}
+
+	if localVarHTTPResponse.StatusCode >= 300 {
+		newErr := &GenericOpenAPIError{
+			body:  localVarBody,
+			error: localVarHTTPResponse.Status,
+		}
+		if localVarHTTPResponse.StatusCode == 400 {
+			var v ErrorResponse
+			err = a.client.decode(&v, localVarBody, localVarHTTPResponse.Header.Get("Content-Type"))
+			if err != nil {
+				newErr.error = err.Error()
+				return localVarReturnValue, localVarHTTPResponse, newErr
+			}
+			newErr.error = formatErrorMessage(localVarHTTPResponse.Status, &v)
+			newErr.model = v
+		}
+		return localVarReturnValue, localVarHTTPResponse, newErr
+	}
+
+	err = a.client.decode(&localVarReturnValue, localVarBody, localVarHTTPResponse.Header.Get("Content-Type"))
+	if err != nil {
+		newErr := &GenericOpenAPIError{
+			body:  localVarBody,
+			error: err.Error(),
+		}
+		return localVarReturnValue, localVarHTTPResponse, newErr
+	}
+
+	return localVarReturnValue, localVarHTTPResponse, nil
+}
+
+type ApiListOrgEventSubscriptionsRequest struct {
+	ctx        context.Context
+	ApiService *EventsAPIService
+	orgName    string
+}
+
+func (r ApiListOrgEventSubscriptionsRequest) Execute() (*EventSubscriptionListResponse, *http.Response, error) {
+	return r.ApiService.ListOrgEventSubscriptionsExecute(r)
+}
+
+/*
+ListOrgEventSubscriptions List the organization's event subscriptions
+
+Organization subscriptions receive the events of every project and agent.
+
+	@param ctx context.Context - for authentication, logging, cancellation, deadlines, tracing, etc. Passed from http.Request or context.Background().
+	@param orgName Organization name
+	@return ApiListOrgEventSubscriptionsRequest
+*/
+func (a *EventsAPIService) ListOrgEventSubscriptions(ctx context.Context, orgName string) ApiListOrgEventSubscriptionsRequest {
+	return ApiListOrgEventSubscriptionsRequest{
+		ApiService: a,
+		ctx:        ctx,
+		orgName:    orgName,
+	}
+}
+
+// Execute executes the request
+//
+//	@return EventSubscriptionListResponse
+func (a *EventsAPIService) ListOrgEventSubscriptionsExecute(r ApiListOrgEventSubscriptionsRequest) (*EventSubscriptionListResponse, *http.Response, error) {
+	var (
+		localVarHTTPMethod  = http.MethodGet
+		localVarPostBody    interface{}
+		formFiles           []formFile
+		localVarReturnValue *EventSubscriptionListResponse
+	)
+
+	localBasePath, err := a.client.cfg.ServerURLWithContext(r.ctx, "EventsAPIService.ListOrgEventSubscriptions")
+	if err != nil {
+		return localVarReturnValue, nil, &GenericOpenAPIError{error: err.Error()}
+	}
+
+	localVarPath := localBasePath + "/orgs/{orgName}/events/subscriptions"
+	localVarPath = strings.Replace(localVarPath, "{"+"orgName"+"}", url.PathEscape(parameterValueToString(r.orgName, "orgName")), -1)
+
+	localVarHeaderParams := make(map[string]string)
+	localVarQueryParams := url.Values{}
+	localVarFormParams := url.Values{}
+
+	// to determine the Content-Type header
+	localVarHTTPContentTypes := []string{}
+
+	// set Content-Type header
+	localVarHTTPContentType := selectHeaderContentType(localVarHTTPContentTypes)
+	if localVarHTTPContentType != "" {
+		localVarHeaderParams["Content-Type"] = localVarHTTPContentType
+	}
+
+	// to determine the Accept header
+	localVarHTTPHeaderAccepts := []string{"application/json"}
+
+	// set Accept header
+	localVarHTTPHeaderAccept := selectHeaderAccept(localVarHTTPHeaderAccepts)
+	if localVarHTTPHeaderAccept != "" {
+		localVarHeaderParams["Accept"] = localVarHTTPHeaderAccept
+	}
+	req, err := a.client.prepareRequest(r.ctx, localVarPath, localVarHTTPMethod, localVarPostBody, localVarHeaderParams, localVarQueryParams, localVarFormParams, formFiles)
+	if err != nil {
+		return localVarReturnValue, nil, err
+	}
+
+	localVarHTTPResponse, err := a.client.callAPI(req)
+	if err != nil || localVarHTTPResponse == nil {
+		return localVarReturnValue, localVarHTTPResponse, err
+	}
+
+	localVarBody, err := io.ReadAll(localVarHTTPResponse.Body)
+	localVarHTTPResponse.Body.Close()
+	localVarHTTPResponse.Body = io.NopCloser(bytes.NewBuffer(localVarBody))
+	if err != nil {
+		return localVarReturnValue, localVarHTTPResponse, err
+	}
+
+	if localVarHTTPResponse.StatusCode >= 300 {
+		newErr := &GenericOpenAPIError{
+			body:  localVarBody,
+			error: localVarHTTPResponse.Status,
+		}
+		if localVarHTTPResponse.StatusCode == 500 {
+			var v ErrorResponse
+			err = a.client.decode(&v, localVarBody, localVarHTTPResponse.Header.Get("Content-Type"))
+			if err != nil {
+				newErr.error = err.Error()
+				return localVarReturnValue, localVarHTTPResponse, newErr
+			}
+			newErr.error = formatErrorMessage(localVarHTTPResponse.Status, &v)
+			newErr.model = v
+		}
+		return localVarReturnValue, localVarHTTPResponse, newErr
+	}
+
+	err = a.client.decode(&localVarReturnValue, localVarBody, localVarHTTPResponse.Header.Get("Content-Type"))
+	if err != nil {
+		newErr := &GenericOpenAPIError{
+			body:  localVarBody,
+			error: err.Error(),
+		}
+		return localVarReturnValue, localVarHTTPResponse, newErr
+	}
+
+	return localVarReturnValue, localVarHTTPResponse, nil
+}
+
+type ApiListProjectEventDestinationsRequest struct {
+	ctx        context.Context
+	ApiService *EventsAPIService
+	orgName    string
+	projName   string
+}
+
+func (r ApiListProjectEventDestinationsRequest) Execute() (*EventDestinationSummaryListResponse, *http.Response, error) {
+	return r.ApiService.ListProjectEventDestinationsExecute(r)
+}
+
+/*
+ListProjectEventDestinations List the event destinations the project's subscriptions can use
+
+Only destinations available to the project, without their settings.
+
+	@param ctx context.Context - for authentication, logging, cancellation, deadlines, tracing, etc. Passed from http.Request or context.Background().
+	@param orgName Organization name
+	@param projName Project name
+	@return ApiListProjectEventDestinationsRequest
+*/
+func (a *EventsAPIService) ListProjectEventDestinations(ctx context.Context, orgName string, projName string) ApiListProjectEventDestinationsRequest {
+	return ApiListProjectEventDestinationsRequest{
+		ApiService: a,
+		ctx:        ctx,
+		orgName:    orgName,
+		projName:   projName,
+	}
+}
+
+// Execute executes the request
+//
+//	@return EventDestinationSummaryListResponse
+func (a *EventsAPIService) ListProjectEventDestinationsExecute(r ApiListProjectEventDestinationsRequest) (*EventDestinationSummaryListResponse, *http.Response, error) {
+	var (
+		localVarHTTPMethod  = http.MethodGet
+		localVarPostBody    interface{}
+		formFiles           []formFile
+		localVarReturnValue *EventDestinationSummaryListResponse
+	)
+
+	localBasePath, err := a.client.cfg.ServerURLWithContext(r.ctx, "EventsAPIService.ListProjectEventDestinations")
+	if err != nil {
+		return localVarReturnValue, nil, &GenericOpenAPIError{error: err.Error()}
+	}
+
+	localVarPath := localBasePath + "/orgs/{orgName}/projects/{projName}/events/destinations"
+	localVarPath = strings.Replace(localVarPath, "{"+"orgName"+"}", url.PathEscape(parameterValueToString(r.orgName, "orgName")), -1)
+	localVarPath = strings.Replace(localVarPath, "{"+"projName"+"}", url.PathEscape(parameterValueToString(r.projName, "projName")), -1)
+
+	localVarHeaderParams := make(map[string]string)
+	localVarQueryParams := url.Values{}
+	localVarFormParams := url.Values{}
+
+	// to determine the Content-Type header
+	localVarHTTPContentTypes := []string{}
+
+	// set Content-Type header
+	localVarHTTPContentType := selectHeaderContentType(localVarHTTPContentTypes)
+	if localVarHTTPContentType != "" {
+		localVarHeaderParams["Content-Type"] = localVarHTTPContentType
+	}
+
+	// to determine the Accept header
+	localVarHTTPHeaderAccepts := []string{"application/json"}
+
+	// set Accept header
+	localVarHTTPHeaderAccept := selectHeaderAccept(localVarHTTPHeaderAccepts)
+	if localVarHTTPHeaderAccept != "" {
+		localVarHeaderParams["Accept"] = localVarHTTPHeaderAccept
+	}
+	req, err := a.client.prepareRequest(r.ctx, localVarPath, localVarHTTPMethod, localVarPostBody, localVarHeaderParams, localVarQueryParams, localVarFormParams, formFiles)
+	if err != nil {
+		return localVarReturnValue, nil, err
+	}
+
+	localVarHTTPResponse, err := a.client.callAPI(req)
+	if err != nil || localVarHTTPResponse == nil {
+		return localVarReturnValue, localVarHTTPResponse, err
+	}
+
+	localVarBody, err := io.ReadAll(localVarHTTPResponse.Body)
+	localVarHTTPResponse.Body.Close()
+	localVarHTTPResponse.Body = io.NopCloser(bytes.NewBuffer(localVarBody))
+	if err != nil {
+		return localVarReturnValue, localVarHTTPResponse, err
+	}
+
+	if localVarHTTPResponse.StatusCode >= 300 {
+		newErr := &GenericOpenAPIError{
+			body:  localVarBody,
+			error: localVarHTTPResponse.Status,
+		}
+		return localVarReturnValue, localVarHTTPResponse, newErr
+	}
+
+	err = a.client.decode(&localVarReturnValue, localVarBody, localVarHTTPResponse.Header.Get("Content-Type"))
+	if err != nil {
+		newErr := &GenericOpenAPIError{
+			body:  localVarBody,
+			error: err.Error(),
+		}
+		return localVarReturnValue, localVarHTTPResponse, newErr
+	}
+
+	return localVarReturnValue, localVarHTTPResponse, nil
+}
+
+type ApiListProjectEventSubscriptionsRequest struct {
+	ctx        context.Context
+	ApiService *EventsAPIService
+	orgName    string
+	projName   string
+}
+
+func (r ApiListProjectEventSubscriptionsRequest) Execute() (*EventSubscriptionListResponse, *http.Response, error) {
+	return r.ApiService.ListProjectEventSubscriptionsExecute(r)
+}
+
+/*
+ListProjectEventSubscriptions List the project's event subscriptions
+
+Project subscriptions receive the events of the project and its agents.
+inherited lists the wider levels' subscriptions that also send this
+level's events; they are managed where they belong.
+
+	@param ctx context.Context - for authentication, logging, cancellation, deadlines, tracing, etc. Passed from http.Request or context.Background().
+	@param orgName Organization name
+	@param projName Project name
+	@return ApiListProjectEventSubscriptionsRequest
+*/
+func (a *EventsAPIService) ListProjectEventSubscriptions(ctx context.Context, orgName string, projName string) ApiListProjectEventSubscriptionsRequest {
+	return ApiListProjectEventSubscriptionsRequest{
+		ApiService: a,
+		ctx:        ctx,
+		orgName:    orgName,
+		projName:   projName,
+	}
+}
+
+// Execute executes the request
+//
+//	@return EventSubscriptionListResponse
+func (a *EventsAPIService) ListProjectEventSubscriptionsExecute(r ApiListProjectEventSubscriptionsRequest) (*EventSubscriptionListResponse, *http.Response, error) {
+	var (
+		localVarHTTPMethod  = http.MethodGet
+		localVarPostBody    interface{}
+		formFiles           []formFile
+		localVarReturnValue *EventSubscriptionListResponse
+	)
+
+	localBasePath, err := a.client.cfg.ServerURLWithContext(r.ctx, "EventsAPIService.ListProjectEventSubscriptions")
+	if err != nil {
+		return localVarReturnValue, nil, &GenericOpenAPIError{error: err.Error()}
+	}
+
+	localVarPath := localBasePath + "/orgs/{orgName}/projects/{projName}/events/subscriptions"
+	localVarPath = strings.Replace(localVarPath, "{"+"orgName"+"}", url.PathEscape(parameterValueToString(r.orgName, "orgName")), -1)
+	localVarPath = strings.Replace(localVarPath, "{"+"projName"+"}", url.PathEscape(parameterValueToString(r.projName, "projName")), -1)
 
 	localVarHeaderParams := make(map[string]string)
 	localVarQueryParams := url.Values{}
@@ -882,6 +2680,152 @@ func (a *EventsAPIService) TestEventDestinationExecute(r ApiTestEventDestination
 	return localVarReturnValue, localVarHTTPResponse, nil
 }
 
+type ApiUpdateAgentEventSubscriptionRequest struct {
+	ctx                      context.Context
+	ApiService               *EventsAPIService
+	orgName                  string
+	projName                 string
+	agentName                string
+	subscriptionId           string
+	eventSubscriptionRequest *EventSubscriptionRequest
+}
+
+func (r ApiUpdateAgentEventSubscriptionRequest) EventSubscriptionRequest(eventSubscriptionRequest EventSubscriptionRequest) ApiUpdateAgentEventSubscriptionRequest {
+	r.eventSubscriptionRequest = &eventSubscriptionRequest
+	return r
+}
+
+func (r ApiUpdateAgentEventSubscriptionRequest) Execute() (*EventSubscriptionResponse, *http.Response, error) {
+	return r.ApiService.UpdateAgentEventSubscriptionExecute(r)
+}
+
+/*
+UpdateAgentEventSubscription Update an event subscription
+
+	@param ctx context.Context - for authentication, logging, cancellation, deadlines, tracing, etc. Passed from http.Request or context.Background().
+	@param orgName Organization name
+	@param projName Project name
+	@param agentName Agent name
+	@param subscriptionId Event subscription ID
+	@return ApiUpdateAgentEventSubscriptionRequest
+*/
+func (a *EventsAPIService) UpdateAgentEventSubscription(ctx context.Context, orgName string, projName string, agentName string, subscriptionId string) ApiUpdateAgentEventSubscriptionRequest {
+	return ApiUpdateAgentEventSubscriptionRequest{
+		ApiService:     a,
+		ctx:            ctx,
+		orgName:        orgName,
+		projName:       projName,
+		agentName:      agentName,
+		subscriptionId: subscriptionId,
+	}
+}
+
+// Execute executes the request
+//
+//	@return EventSubscriptionResponse
+func (a *EventsAPIService) UpdateAgentEventSubscriptionExecute(r ApiUpdateAgentEventSubscriptionRequest) (*EventSubscriptionResponse, *http.Response, error) {
+	var (
+		localVarHTTPMethod  = http.MethodPut
+		localVarPostBody    interface{}
+		formFiles           []formFile
+		localVarReturnValue *EventSubscriptionResponse
+	)
+
+	localBasePath, err := a.client.cfg.ServerURLWithContext(r.ctx, "EventsAPIService.UpdateAgentEventSubscription")
+	if err != nil {
+		return localVarReturnValue, nil, &GenericOpenAPIError{error: err.Error()}
+	}
+
+	localVarPath := localBasePath + "/orgs/{orgName}/projects/{projName}/agents/{agentName}/events/subscriptions/{subscriptionId}"
+	localVarPath = strings.Replace(localVarPath, "{"+"orgName"+"}", url.PathEscape(parameterValueToString(r.orgName, "orgName")), -1)
+	localVarPath = strings.Replace(localVarPath, "{"+"projName"+"}", url.PathEscape(parameterValueToString(r.projName, "projName")), -1)
+	localVarPath = strings.Replace(localVarPath, "{"+"agentName"+"}", url.PathEscape(parameterValueToString(r.agentName, "agentName")), -1)
+	localVarPath = strings.Replace(localVarPath, "{"+"subscriptionId"+"}", url.PathEscape(parameterValueToString(r.subscriptionId, "subscriptionId")), -1)
+
+	localVarHeaderParams := make(map[string]string)
+	localVarQueryParams := url.Values{}
+	localVarFormParams := url.Values{}
+	if r.eventSubscriptionRequest == nil {
+		return localVarReturnValue, nil, reportError("eventSubscriptionRequest is required and must be specified")
+	}
+
+	// to determine the Content-Type header
+	localVarHTTPContentTypes := []string{"application/json"}
+
+	// set Content-Type header
+	localVarHTTPContentType := selectHeaderContentType(localVarHTTPContentTypes)
+	if localVarHTTPContentType != "" {
+		localVarHeaderParams["Content-Type"] = localVarHTTPContentType
+	}
+
+	// to determine the Accept header
+	localVarHTTPHeaderAccepts := []string{"application/json"}
+
+	// set Accept header
+	localVarHTTPHeaderAccept := selectHeaderAccept(localVarHTTPHeaderAccepts)
+	if localVarHTTPHeaderAccept != "" {
+		localVarHeaderParams["Accept"] = localVarHTTPHeaderAccept
+	}
+	// body params
+	localVarPostBody = r.eventSubscriptionRequest
+	req, err := a.client.prepareRequest(r.ctx, localVarPath, localVarHTTPMethod, localVarPostBody, localVarHeaderParams, localVarQueryParams, localVarFormParams, formFiles)
+	if err != nil {
+		return localVarReturnValue, nil, err
+	}
+
+	localVarHTTPResponse, err := a.client.callAPI(req)
+	if err != nil || localVarHTTPResponse == nil {
+		return localVarReturnValue, localVarHTTPResponse, err
+	}
+
+	localVarBody, err := io.ReadAll(localVarHTTPResponse.Body)
+	localVarHTTPResponse.Body.Close()
+	localVarHTTPResponse.Body = io.NopCloser(bytes.NewBuffer(localVarBody))
+	if err != nil {
+		return localVarReturnValue, localVarHTTPResponse, err
+	}
+
+	if localVarHTTPResponse.StatusCode >= 300 {
+		newErr := &GenericOpenAPIError{
+			body:  localVarBody,
+			error: localVarHTTPResponse.Status,
+		}
+		if localVarHTTPResponse.StatusCode == 400 {
+			var v ErrorResponse
+			err = a.client.decode(&v, localVarBody, localVarHTTPResponse.Header.Get("Content-Type"))
+			if err != nil {
+				newErr.error = err.Error()
+				return localVarReturnValue, localVarHTTPResponse, newErr
+			}
+			newErr.error = formatErrorMessage(localVarHTTPResponse.Status, &v)
+			newErr.model = v
+			return localVarReturnValue, localVarHTTPResponse, newErr
+		}
+		if localVarHTTPResponse.StatusCode == 404 {
+			var v ErrorResponse
+			err = a.client.decode(&v, localVarBody, localVarHTTPResponse.Header.Get("Content-Type"))
+			if err != nil {
+				newErr.error = err.Error()
+				return localVarReturnValue, localVarHTTPResponse, newErr
+			}
+			newErr.error = formatErrorMessage(localVarHTTPResponse.Status, &v)
+			newErr.model = v
+		}
+		return localVarReturnValue, localVarHTTPResponse, newErr
+	}
+
+	err = a.client.decode(&localVarReturnValue, localVarBody, localVarHTTPResponse.Header.Get("Content-Type"))
+	if err != nil {
+		newErr := &GenericOpenAPIError{
+			body:  localVarBody,
+			error: err.Error(),
+		}
+		return localVarReturnValue, localVarHTTPResponse, newErr
+	}
+
+	return localVarReturnValue, localVarHTTPResponse, nil
+}
+
 type ApiUpdateEventDestinationRequest struct {
 	ctx                     context.Context
 	ApiService              *EventsAPIService
@@ -1010,6 +2954,286 @@ func (a *EventsAPIService) UpdateEventDestinationExecute(r ApiUpdateEventDestina
 			return localVarReturnValue, localVarHTTPResponse, newErr
 		}
 		if localVarHTTPResponse.StatusCode == 409 {
+			var v ErrorResponse
+			err = a.client.decode(&v, localVarBody, localVarHTTPResponse.Header.Get("Content-Type"))
+			if err != nil {
+				newErr.error = err.Error()
+				return localVarReturnValue, localVarHTTPResponse, newErr
+			}
+			newErr.error = formatErrorMessage(localVarHTTPResponse.Status, &v)
+			newErr.model = v
+		}
+		return localVarReturnValue, localVarHTTPResponse, newErr
+	}
+
+	err = a.client.decode(&localVarReturnValue, localVarBody, localVarHTTPResponse.Header.Get("Content-Type"))
+	if err != nil {
+		newErr := &GenericOpenAPIError{
+			body:  localVarBody,
+			error: err.Error(),
+		}
+		return localVarReturnValue, localVarHTTPResponse, newErr
+	}
+
+	return localVarReturnValue, localVarHTTPResponse, nil
+}
+
+type ApiUpdateOrgEventSubscriptionRequest struct {
+	ctx                      context.Context
+	ApiService               *EventsAPIService
+	orgName                  string
+	subscriptionId           string
+	eventSubscriptionRequest *EventSubscriptionRequest
+}
+
+func (r ApiUpdateOrgEventSubscriptionRequest) EventSubscriptionRequest(eventSubscriptionRequest EventSubscriptionRequest) ApiUpdateOrgEventSubscriptionRequest {
+	r.eventSubscriptionRequest = &eventSubscriptionRequest
+	return r
+}
+
+func (r ApiUpdateOrgEventSubscriptionRequest) Execute() (*EventSubscriptionResponse, *http.Response, error) {
+	return r.ApiService.UpdateOrgEventSubscriptionExecute(r)
+}
+
+/*
+UpdateOrgEventSubscription Update an event subscription
+
+	@param ctx context.Context - for authentication, logging, cancellation, deadlines, tracing, etc. Passed from http.Request or context.Background().
+	@param orgName Organization name
+	@param subscriptionId Event subscription ID
+	@return ApiUpdateOrgEventSubscriptionRequest
+*/
+func (a *EventsAPIService) UpdateOrgEventSubscription(ctx context.Context, orgName string, subscriptionId string) ApiUpdateOrgEventSubscriptionRequest {
+	return ApiUpdateOrgEventSubscriptionRequest{
+		ApiService:     a,
+		ctx:            ctx,
+		orgName:        orgName,
+		subscriptionId: subscriptionId,
+	}
+}
+
+// Execute executes the request
+//
+//	@return EventSubscriptionResponse
+func (a *EventsAPIService) UpdateOrgEventSubscriptionExecute(r ApiUpdateOrgEventSubscriptionRequest) (*EventSubscriptionResponse, *http.Response, error) {
+	var (
+		localVarHTTPMethod  = http.MethodPut
+		localVarPostBody    interface{}
+		formFiles           []formFile
+		localVarReturnValue *EventSubscriptionResponse
+	)
+
+	localBasePath, err := a.client.cfg.ServerURLWithContext(r.ctx, "EventsAPIService.UpdateOrgEventSubscription")
+	if err != nil {
+		return localVarReturnValue, nil, &GenericOpenAPIError{error: err.Error()}
+	}
+
+	localVarPath := localBasePath + "/orgs/{orgName}/events/subscriptions/{subscriptionId}"
+	localVarPath = strings.Replace(localVarPath, "{"+"orgName"+"}", url.PathEscape(parameterValueToString(r.orgName, "orgName")), -1)
+	localVarPath = strings.Replace(localVarPath, "{"+"subscriptionId"+"}", url.PathEscape(parameterValueToString(r.subscriptionId, "subscriptionId")), -1)
+
+	localVarHeaderParams := make(map[string]string)
+	localVarQueryParams := url.Values{}
+	localVarFormParams := url.Values{}
+	if r.eventSubscriptionRequest == nil {
+		return localVarReturnValue, nil, reportError("eventSubscriptionRequest is required and must be specified")
+	}
+
+	// to determine the Content-Type header
+	localVarHTTPContentTypes := []string{"application/json"}
+
+	// set Content-Type header
+	localVarHTTPContentType := selectHeaderContentType(localVarHTTPContentTypes)
+	if localVarHTTPContentType != "" {
+		localVarHeaderParams["Content-Type"] = localVarHTTPContentType
+	}
+
+	// to determine the Accept header
+	localVarHTTPHeaderAccepts := []string{"application/json"}
+
+	// set Accept header
+	localVarHTTPHeaderAccept := selectHeaderAccept(localVarHTTPHeaderAccepts)
+	if localVarHTTPHeaderAccept != "" {
+		localVarHeaderParams["Accept"] = localVarHTTPHeaderAccept
+	}
+	// body params
+	localVarPostBody = r.eventSubscriptionRequest
+	req, err := a.client.prepareRequest(r.ctx, localVarPath, localVarHTTPMethod, localVarPostBody, localVarHeaderParams, localVarQueryParams, localVarFormParams, formFiles)
+	if err != nil {
+		return localVarReturnValue, nil, err
+	}
+
+	localVarHTTPResponse, err := a.client.callAPI(req)
+	if err != nil || localVarHTTPResponse == nil {
+		return localVarReturnValue, localVarHTTPResponse, err
+	}
+
+	localVarBody, err := io.ReadAll(localVarHTTPResponse.Body)
+	localVarHTTPResponse.Body.Close()
+	localVarHTTPResponse.Body = io.NopCloser(bytes.NewBuffer(localVarBody))
+	if err != nil {
+		return localVarReturnValue, localVarHTTPResponse, err
+	}
+
+	if localVarHTTPResponse.StatusCode >= 300 {
+		newErr := &GenericOpenAPIError{
+			body:  localVarBody,
+			error: localVarHTTPResponse.Status,
+		}
+		if localVarHTTPResponse.StatusCode == 400 {
+			var v ErrorResponse
+			err = a.client.decode(&v, localVarBody, localVarHTTPResponse.Header.Get("Content-Type"))
+			if err != nil {
+				newErr.error = err.Error()
+				return localVarReturnValue, localVarHTTPResponse, newErr
+			}
+			newErr.error = formatErrorMessage(localVarHTTPResponse.Status, &v)
+			newErr.model = v
+			return localVarReturnValue, localVarHTTPResponse, newErr
+		}
+		if localVarHTTPResponse.StatusCode == 404 {
+			var v ErrorResponse
+			err = a.client.decode(&v, localVarBody, localVarHTTPResponse.Header.Get("Content-Type"))
+			if err != nil {
+				newErr.error = err.Error()
+				return localVarReturnValue, localVarHTTPResponse, newErr
+			}
+			newErr.error = formatErrorMessage(localVarHTTPResponse.Status, &v)
+			newErr.model = v
+		}
+		return localVarReturnValue, localVarHTTPResponse, newErr
+	}
+
+	err = a.client.decode(&localVarReturnValue, localVarBody, localVarHTTPResponse.Header.Get("Content-Type"))
+	if err != nil {
+		newErr := &GenericOpenAPIError{
+			body:  localVarBody,
+			error: err.Error(),
+		}
+		return localVarReturnValue, localVarHTTPResponse, newErr
+	}
+
+	return localVarReturnValue, localVarHTTPResponse, nil
+}
+
+type ApiUpdateProjectEventSubscriptionRequest struct {
+	ctx                      context.Context
+	ApiService               *EventsAPIService
+	orgName                  string
+	projName                 string
+	subscriptionId           string
+	eventSubscriptionRequest *EventSubscriptionRequest
+}
+
+func (r ApiUpdateProjectEventSubscriptionRequest) EventSubscriptionRequest(eventSubscriptionRequest EventSubscriptionRequest) ApiUpdateProjectEventSubscriptionRequest {
+	r.eventSubscriptionRequest = &eventSubscriptionRequest
+	return r
+}
+
+func (r ApiUpdateProjectEventSubscriptionRequest) Execute() (*EventSubscriptionResponse, *http.Response, error) {
+	return r.ApiService.UpdateProjectEventSubscriptionExecute(r)
+}
+
+/*
+UpdateProjectEventSubscription Update an event subscription
+
+	@param ctx context.Context - for authentication, logging, cancellation, deadlines, tracing, etc. Passed from http.Request or context.Background().
+	@param orgName Organization name
+	@param projName Project name
+	@param subscriptionId Event subscription ID
+	@return ApiUpdateProjectEventSubscriptionRequest
+*/
+func (a *EventsAPIService) UpdateProjectEventSubscription(ctx context.Context, orgName string, projName string, subscriptionId string) ApiUpdateProjectEventSubscriptionRequest {
+	return ApiUpdateProjectEventSubscriptionRequest{
+		ApiService:     a,
+		ctx:            ctx,
+		orgName:        orgName,
+		projName:       projName,
+		subscriptionId: subscriptionId,
+	}
+}
+
+// Execute executes the request
+//
+//	@return EventSubscriptionResponse
+func (a *EventsAPIService) UpdateProjectEventSubscriptionExecute(r ApiUpdateProjectEventSubscriptionRequest) (*EventSubscriptionResponse, *http.Response, error) {
+	var (
+		localVarHTTPMethod  = http.MethodPut
+		localVarPostBody    interface{}
+		formFiles           []formFile
+		localVarReturnValue *EventSubscriptionResponse
+	)
+
+	localBasePath, err := a.client.cfg.ServerURLWithContext(r.ctx, "EventsAPIService.UpdateProjectEventSubscription")
+	if err != nil {
+		return localVarReturnValue, nil, &GenericOpenAPIError{error: err.Error()}
+	}
+
+	localVarPath := localBasePath + "/orgs/{orgName}/projects/{projName}/events/subscriptions/{subscriptionId}"
+	localVarPath = strings.Replace(localVarPath, "{"+"orgName"+"}", url.PathEscape(parameterValueToString(r.orgName, "orgName")), -1)
+	localVarPath = strings.Replace(localVarPath, "{"+"projName"+"}", url.PathEscape(parameterValueToString(r.projName, "projName")), -1)
+	localVarPath = strings.Replace(localVarPath, "{"+"subscriptionId"+"}", url.PathEscape(parameterValueToString(r.subscriptionId, "subscriptionId")), -1)
+
+	localVarHeaderParams := make(map[string]string)
+	localVarQueryParams := url.Values{}
+	localVarFormParams := url.Values{}
+	if r.eventSubscriptionRequest == nil {
+		return localVarReturnValue, nil, reportError("eventSubscriptionRequest is required and must be specified")
+	}
+
+	// to determine the Content-Type header
+	localVarHTTPContentTypes := []string{"application/json"}
+
+	// set Content-Type header
+	localVarHTTPContentType := selectHeaderContentType(localVarHTTPContentTypes)
+	if localVarHTTPContentType != "" {
+		localVarHeaderParams["Content-Type"] = localVarHTTPContentType
+	}
+
+	// to determine the Accept header
+	localVarHTTPHeaderAccepts := []string{"application/json"}
+
+	// set Accept header
+	localVarHTTPHeaderAccept := selectHeaderAccept(localVarHTTPHeaderAccepts)
+	if localVarHTTPHeaderAccept != "" {
+		localVarHeaderParams["Accept"] = localVarHTTPHeaderAccept
+	}
+	// body params
+	localVarPostBody = r.eventSubscriptionRequest
+	req, err := a.client.prepareRequest(r.ctx, localVarPath, localVarHTTPMethod, localVarPostBody, localVarHeaderParams, localVarQueryParams, localVarFormParams, formFiles)
+	if err != nil {
+		return localVarReturnValue, nil, err
+	}
+
+	localVarHTTPResponse, err := a.client.callAPI(req)
+	if err != nil || localVarHTTPResponse == nil {
+		return localVarReturnValue, localVarHTTPResponse, err
+	}
+
+	localVarBody, err := io.ReadAll(localVarHTTPResponse.Body)
+	localVarHTTPResponse.Body.Close()
+	localVarHTTPResponse.Body = io.NopCloser(bytes.NewBuffer(localVarBody))
+	if err != nil {
+		return localVarReturnValue, localVarHTTPResponse, err
+	}
+
+	if localVarHTTPResponse.StatusCode >= 300 {
+		newErr := &GenericOpenAPIError{
+			body:  localVarBody,
+			error: localVarHTTPResponse.Status,
+		}
+		if localVarHTTPResponse.StatusCode == 400 {
+			var v ErrorResponse
+			err = a.client.decode(&v, localVarBody, localVarHTTPResponse.Header.Get("Content-Type"))
+			if err != nil {
+				newErr.error = err.Error()
+				return localVarReturnValue, localVarHTTPResponse, newErr
+			}
+			newErr.error = formatErrorMessage(localVarHTTPResponse.Status, &v)
+			newErr.model = v
+			return localVarReturnValue, localVarHTTPResponse, newErr
+		}
+		if localVarHTTPResponse.StatusCode == 404 {
 			var v ErrorResponse
 			err = a.client.decode(&v, localVarBody, localVarHTTPResponse.Header.Get("Content-Type"))
 			if err != nil {
