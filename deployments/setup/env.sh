@@ -7,6 +7,11 @@ CLUSTER_CONTEXT="k3d-${CLUSTER_NAME}"
 # WSO2 API Platform / Gateway Operator versions
 GATEWAY_OPERATOR_VERSION="0.11.3"
 GATEWAY_CHART_VERSION="2026.09.24"
+# Image for gateways whose configRef names none: rollbacks and extension charts
+# published before the image pin. Without it the gateway-operator chart's own
+# default (1.2.0) applies, which AM's gateways cannot run. Never bump it: the
+# extension chart's apiGateway.image is what upgrades gateways.
+GATEWAY_IMAGE_VERSION="2026.09.24"
 
 
 GATEWAY_ENCRYPTION_SECRET_NAME="gateway-encryption-keys"

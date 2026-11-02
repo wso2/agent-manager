@@ -39,6 +39,11 @@ fi
 # WSO2 API Platform / Gateway Operator versions
 GATEWAY_OPERATOR_VERSION="0.11.3"
 GATEWAY_CHART_VERSION="2026.09.24"
+# Image for gateways whose configRef names none: rollbacks and extension charts
+# published before the image pin. Without it the gateway-operator chart's own
+# default (1.2.0) applies, which AM's gateways cannot run. Never bump it: the
+# extension chart's apiGateway.image is what upgrades gateways.
+GATEWAY_IMAGE_VERSION="2026.09.24"
 
 # The gateway chart (1.2.0-beta+) requires an encryption key to be mounted from a Kubernetes Secret
 GATEWAY_ENCRYPTION_SECRET_NAME="gateway-encryption-keys"
@@ -1500,6 +1505,10 @@ helm_install_idempotent \
     --set "logging.level=debug" \
     --set gatewayApi.installStandardCRDs=false \
     --set "gateway.helm.chartVersion=${GATEWAY_CHART_VERSION}" \
+    --set "gateway.values.gateway.controller.image.tag=${GATEWAY_IMAGE_VERSION}" \
+    --set gateway.values.gateway.controller.image.repository=ghcr.io/wso2/api-platform/gateway-controller \
+    --set "gateway.values.gateway.gatewayRuntime.image.tag=${GATEWAY_IMAGE_VERSION}" \
+    --set gateway.values.gateway.gatewayRuntime.image.repository=ghcr.io/wso2/api-platform/gateway-runtime \
     --set gateway.values.gateway.controller.encryptionKeys.enabled=true \
     --set "gateway.values.gateway.controller.encryptionKeys.secretName=${GATEWAY_ENCRYPTION_SECRET_NAME}" \
     --set gateway.values.gateway.controller.deployment.livenessProbe.httpGet.path=/api/admin/v1/health \
