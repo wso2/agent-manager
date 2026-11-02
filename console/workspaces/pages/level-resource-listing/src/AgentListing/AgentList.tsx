@@ -21,13 +21,11 @@ import {
   Alert,
   Box,
   Button,
-  IconButton,
   ListingTable,
   SearchBar,
   Skeleton,
   Stack,
   TablePagination,
-  Tooltip,
   Typography,
 } from "@wso2/oxygen-ui";
 import {
@@ -57,14 +55,14 @@ import {
 const projectRoutes = absoluteRouteMap.children.org.children.projects;
 const ROWS_PER_PAGE_OPTIONS = [5, 10, 25];
 
-/** Timestamp swaps for a delete button on hover/focus; touch shows both. */
+/** Timestamp swaps for the Delete button on hover/focus; touch shows both. */
 const ROW_HOVER_SX = {
-  "& .agent-delete": { display: "none" },
+  "& .agent-actions": { display: "none" },
   "&:hover .agent-updated, &:focus-within .agent-updated": { display: "none" },
-  "&:hover .agent-delete, &:focus-within .agent-delete": { display: "inline-flex" },
+  "&:hover .agent-actions, &:focus-within .agent-actions": { display: "flex" },
   "@media (hover: none)": {
     "& .agent-updated": { display: "block", mr: 1 },
-    "& .agent-delete": { display: "inline-flex" },
+    "& .agent-actions": { display: "flex" },
   },
 } as const;
 
@@ -285,20 +283,20 @@ export const AgentList: React.FC<AgentListProps> = ({ showCreateAction = false }
                       >
                         {formatRelativeTime(agent.createdAt, { fallback: "—" })}
                       </Typography>
-                      <Tooltip title="Delete Agent">
-                        <IconButton
-                          className="agent-delete"
+                      <Box className="agent-actions">
+                        <Button
+                          variant="outlined"
                           color="error"
                           size="small"
-                          aria-label={`Delete ${agent.displayName}`}
+                          startIcon={<DeleteOutlineOutlined size={14} />}
                           onClick={(e) => {
                             e.stopPropagation();
                             confirmDelete(agent.name, agent.displayName);
                           }}
                         >
-                          <DeleteOutlineOutlined size={14} />
-                        </IconButton>
-                      </Tooltip>
+                          Delete
+                        </Button>
+                      </Box>
                     </Stack>
                   </ListingTable.Cell>
                 </ListingTable.Row>

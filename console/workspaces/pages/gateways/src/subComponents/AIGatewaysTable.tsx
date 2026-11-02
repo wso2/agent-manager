@@ -18,16 +18,15 @@
 import { Fragment, useMemo, useState } from "react";
 import {
   Avatar,
+  Box,
+  Button,
   Chip,
-  IconButton,
   ListingTable,
   Skeleton,
   Stack,
-  Tooltip,
   Typography,
 } from "@wso2/oxygen-ui";
 import {
-  Edit,
   Search,
   DoorClosedLocked,
   Trash,
@@ -56,9 +55,19 @@ import {
 } from "@agent-management-platform/types";
 
 interface AIGatewaysTableProps {
-  onEditGateway?: (gateway: GatewayResponse) => void;
   onAddGateway?: () => void;
 }
+
+/** The timestamp gives way to the row actions on hover/focus; touch shows both. */
+const ROW_HOVER_SX = {
+  "& .row-actions": { display: "none" },
+  "&:hover .row-updated, &:focus-within .row-updated": { display: "none" },
+  "&:hover .row-actions, &:focus-within .row-actions": { display: "block" },
+  "@media (hover: none)": {
+    "& .row-updated": { display: "block", mr: 1 },
+    "& .row-actions": { display: "block" },
+  },
+} as const;
 
 interface EnvironmentSection {
   key: string;
@@ -83,10 +92,7 @@ const matchesQuery = (gateway: GatewayResponse, query: string) => {
   return haystack.toLowerCase().includes(query);
 };
 
-export function AIGatewaysTable({
-  onEditGateway,
-  onAddGateway,
-}: AIGatewaysTableProps) {
+export function AIGatewaysTable({ onAddGateway }: AIGatewaysTableProps) {
   const selfHostedEnabled = globalConfig.featureFlags?.enableSelfHostedGateways === true;
   const navigate = useNavigate();
   const { orgId } = useParams<{ orgId: string }>();
@@ -208,6 +214,7 @@ export function AIGatewaysTable({
         variant="card"
         hover
         clickable
+        sx={ROW_HOVER_SX}
         onClick={() =>
           navigate(
             generatePath(
@@ -249,28 +256,20 @@ export function AIGatewaysTable({
         </ListingTable.Cell>
 
         <ListingTable.Cell align="right">
-          <Typography variant="caption" color="text.secondary">
-            {lastUpdated}
-          </Typography>
-        </ListingTable.Cell>
-
-        <ListingTable.Cell align="center">
-          <ListingTable.RowActions visibility="hover">
-            <Tooltip title="Edit">
-              <IconButton
-                size="small"
-                onClick={(e) => {
-                  e.stopPropagation();
-                  onEditGateway?.(gateway);
-                }}
-              >
-                <Edit size={16} />
-              </IconButton>
-            </Tooltip>
-            <Tooltip title="Delete">
-              <IconButton
+          <Stack direction="row" justifyContent="flex-end" alignItems="center">
+            <Typography
+              className="row-updated"
+              variant="caption"
+              color="text.secondary"
+            >
+              {lastUpdated}
+            </Typography>
+            <Box className="row-actions">
+            <Button
+                variant="outlined"
                 color="error"
                 size="small"
+                startIcon={<Trash size={14} />}
                 onClick={(e) => {
                   e.stopPropagation();
                   addConfirmation({
@@ -287,10 +286,10 @@ export function AIGatewaysTable({
                   });
                 }}
               >
-                <Trash size={16} />
-              </IconButton>
-            </Tooltip>
-          </ListingTable.RowActions>
+                Delete
+              </Button>
+            </Box>
+          </Stack>
         </ListingTable.Cell>
       </ListingTable.Row>
     );
@@ -350,7 +349,6 @@ export function AIGatewaysTable({
             <ListingTable.Cell align="right" width="140px">
               Last Updated
             </ListingTable.Cell>
-            <ListingTable.Cell align="center" width="96px" />
           </ListingTable.Row>
         </ListingTable.Head>
         <ListingTable.Body>

@@ -20,7 +20,6 @@ import {
   Avatar,
   Button,
   Chip,
-  IconButton,
   ListingTable,
   Skeleton,
   Stack,
@@ -31,7 +30,6 @@ import {
 import {
   AlertTriangle,
   ArrowRight,
-  Edit,
   GitBranch,
   Plus,
   Search,
@@ -345,20 +343,11 @@ export function DeploymentPipelineTable({
                   {hoveredId === pipeline.name ? (
                     <FadeIn>
                       <Stack direction="row" spacing={0.5}>
-                        <Tooltip title="Edit pipeline">
-                          <IconButton
-                            size="small"
-                            onClick={() =>
-                              navigate(pipelineHref(pipeline.name))
-                            }
-                          >
-                            <Edit size={16} />
-                          </IconButton>
-                        </Tooltip>
-                        <Tooltip title="Delete pipeline">
-                          <IconButton
+                          <Button
+                            variant="outlined"
                             size="small"
                             color="error"
+                            startIcon={<Trash size={14} />}
                             onClick={() =>
                               addConfirmation({
                                 analytics: {
@@ -378,9 +367,8 @@ export function DeploymentPipelineTable({
                               })
                             }
                           >
-                            <Trash size={16} />
-                          </IconButton>
-                        </Tooltip>
+                            Delete
+                          </Button>
                       </Stack>
                     </FadeIn>
                   ) : (

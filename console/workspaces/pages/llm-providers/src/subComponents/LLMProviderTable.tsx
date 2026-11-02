@@ -20,12 +20,11 @@ import { useEffect, useMemo, useState, type ReactNode } from "react";
 import {
   Avatar,
   Box,
+  Button,
   Chip,
-  IconButton,
   ListingTable,
   Stack,
   TablePagination,
-  Tooltip,
   Typography,
 } from "@wso2/oxygen-ui";
 import { ServerCog, Trash } from "@wso2/oxygen-ui-icons-react";
@@ -248,10 +247,11 @@ export function LLMProviderTable({ createAction }: LLMProviderTableProps) {
                     >
                       {hoveredId === provider.uuid ? (
                         <FadeIn>
-                          <Tooltip title="Delete provider">
-                            <IconButton
+                          <Button
+                              variant="outlined"
                               color="error"
                               size="small"
+                              startIcon={<Trash size={14} />}
                               onClick={() =>
                                 addConfirmation({
                                   analytics: { entity: "llm-provider", action: "delete" },
@@ -269,9 +269,8 @@ export function LLMProviderTable({ createAction }: LLMProviderTableProps) {
                                 })
                               }
                             >
-                              <Trash size={16} />
-                            </IconButton>
-                          </Tooltip>
+                              Delete
+                            </Button>
                         </FadeIn>
                       ) : provider.createdAt ? (
                         <Typography variant="caption" color="text.secondary">

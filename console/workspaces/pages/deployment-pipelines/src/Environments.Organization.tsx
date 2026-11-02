@@ -16,7 +16,7 @@
  */
 
 import { useState, type ComponentType } from "react";
-import { generatePath, Navigate, Route, Routes, useNavigate, useParams } from "react-router-dom";
+import { generatePath, Navigate, Route, Routes, useParams } from "react-router-dom";
 import { Button } from "@wso2/oxygen-ui";
 import { Plus } from "@wso2/oxygen-ui-icons-react";
 import {
@@ -52,7 +52,6 @@ type DeleteDrawerProps = {
 
 export function EnvironmentsOrganization() {
   const { orgId } = useParams<{ orgId: string }>();
-  const navigate = useNavigate();
   const [envToDelete, setEnvToDelete] = useState<Environment | null>(null);
   const [createOpen, setCreateOpen] = useState(false);
 
@@ -97,15 +96,6 @@ export function EnvironmentsOrganization() {
               }
             >
               <EnvironmentTable
-                onEditEnvironment={(env) =>
-                  navigate(
-                    generatePath(
-                      absoluteRouteMap.children.org.children.environments.children.view
-                        .children.edit.path,
-                      { orgId: orgId ?? "", envName: env.name },
-                    ),
-                  )
-                }
                 onCreateEnvironment={() => setCreateOpen(true)}
                 onDeleteEnvironment={setEnvToDelete}
               />

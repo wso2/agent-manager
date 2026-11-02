@@ -18,6 +18,7 @@
 import {
   Alert,
   Avatar,
+  Button,
   Chip,
   Grid,
   IconButton,
@@ -27,7 +28,7 @@ import {
   Tooltip,
   Typography,
 } from "@wso2/oxygen-ui";
-import { AlertTriangle, Copy, DoorClosedLocked, KeyRound } from "@wso2/oxygen-ui-icons-react";
+import { AlertTriangle, Copy, DoorClosedLocked, Edit, KeyRound } from "@wso2/oxygen-ui-icons-react";
 import { generatePath, useNavigate, useParams } from "react-router-dom";
 import {
   copyToClipboard,
@@ -129,6 +130,25 @@ export function EnvironmentViewPage() {
       }
       isLoading={isLoadingEnv}
       disableIcon
+      actions={
+        <Button
+          variant="outlined"
+          size="small"
+          startIcon={<Edit size={16} />}
+          disabled={!env}
+          onClick={() =>
+            navigate(
+              generatePath(
+                absoluteRouteMap.children.org.children.environments.children.view
+                  .children.edit.path,
+                { orgId: orgId ?? "", envName: envName ?? "" },
+              ),
+            )
+          }
+        >
+          Edit Environment
+        </Button>
+      }
       titleTail={
         env ? (
           <Stack direction="row" alignItems="center" spacing={1}>
