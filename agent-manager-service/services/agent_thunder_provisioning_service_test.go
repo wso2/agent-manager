@@ -64,6 +64,81 @@ func TestAgentThunderEndpointResolverCanBeConfiguredAfterFactoryConstruction(t *
 	require.Equal(t, "http://internal.example.com", endpoints.ManagementURL)
 }
 
+type projectAgentIdentityProviderStub struct {
+	source    func(context.Context, string, string, string) (string, error)
+	provision func(context.Context, ProjectAgentIdentityRequest) (ProjectAgentIdentityResult, error)
+	activate  func(context.Context, ProjectAgentIdentityRequest, string) error
+}
+
+func (s projectAgentIdentityProviderStub) SourceEnvironment(ctx context.Context, organizationID, projectID, projectName string) (string, error) {
+	return s.source(ctx, organizationID, projectID, projectName)
+}
+
+func (s projectAgentIdentityProviderStub) Provision(ctx context.Context, request ProjectAgentIdentityRequest) (ProjectAgentIdentityResult, error) {
+	return s.provision(ctx, request)
+}
+
+func (s projectAgentIdentityProviderStub) Activate(ctx context.Context, request ProjectAgentIdentityRequest, agentID string) error {
+	return s.activate(ctx, request, agentID)
+}
+
+func TestProjectAgentIdentityProviderConfiguration(t *testing.T) {
+	svc := &agentThunderProvisioningService{}
+	require.NoError(t, svc.SetProjectAgentIdentityProvider(thundersvc.IdentityManagementLegacyDirect, nil))
+	require.Error(t, svc.SetProjectAgentIdentityProvider(thundersvc.IdentityManagementCPManaged, nil))
+	require.Error(t, svc.SetProjectAgentIdentityProvider(thundersvc.IdentityManagementMixed, projectAgentIdentityProviderStub{}))
+}
+
+func TestAttemptProvision_CPManagedUsesProjectProvider(t *testing.T) {
+	binding := models.AgentThunderClient{
+		ID: uuid.New(), OUID: "org-1", ProjectName: "project-1", AgentName: "agent-1",
+		EnvironmentName: "development", ProvisioningType: models.AgentProvisioningTypeInternal,
+	}
+	var update repositories.AgentThunderAttemptUpdate
+	var events []string
+	repo := &repomocks.AgentThunderClientRepositoryMock{
+		ClaimForAttemptFunc: func(context.Context, uuid.UUID) (bool, error) { return true, nil },
+		UpdateAfterAttemptFunc: func(_ context.Context, _ uuid.UUID, value repositories.AgentThunderAttemptUpdate) error {
+			update = value
+			return nil
+		},
+	}
+	store := &clientmocks.SecretManagementClientMock{
+		CreateSecretFunc: func(context.Context, secretmanagersvc.SecretLocation, map[string]string) (string, error) {
+			events = append(events, "store")
+			return "agent-id-secret", nil
+		},
+	}
+	activated := false
+	provider := projectAgentIdentityProviderStub{
+		source: func(context.Context, string, string, string) (string, error) { return "development", nil },
+		provision: func(_ context.Context, request ProjectAgentIdentityRequest) (ProjectAgentIdentityResult, error) {
+			assert.Equal(t, "project-1", request.ProjectID)
+			assert.Equal(t, "project-1", request.ProjectName)
+			assert.Equal(t, "development", request.Environment)
+			assert.True(t, request.NeedsSecret)
+			return ProjectAgentIdentityResult{AgentID: "agent-id", ClientID: "client-id", ClientSecret: "client-secret"}, nil
+		},
+		activate: func(_ context.Context, request ProjectAgentIdentityRequest, agentID string) error {
+			events = append(events, "activate")
+			activated = true
+			assert.Equal(t, "agent-id", agentID)
+			assert.Equal(t, "project-1", request.ProjectID)
+			return nil
+		},
+	}
+	svc := newTestProvisioningService(repo, &clientmocks.EnvThunderResolverMock{}, store)
+	require.NoError(t, svc.(ProjectAgentIdentityProviderSetter).SetProjectAgentIdentityProvider(thundersvc.IdentityManagementCPManaged, provider))
+
+	svc.AttemptProvision(context.Background(), binding)
+
+	assert.True(t, activated)
+	assert.Equal(t, []string{"store", "activate"}, events)
+	assert.Equal(t, models.AgentThunderStatusCompleted, update.Status)
+	require.NotNil(t, update.ThunderAgentID)
+	assert.Equal(t, "agent-id", *update.ThunderAgentID)
+}
+
 func newTestProvisioningService(
 	repo *repomocks.AgentThunderClientRepositoryMock,
 	resolver *clientmocks.EnvThunderResolverMock,
@@ -636,6 +711,37 @@ func TestProvisionForAgent_WritesAheadPendingForEveryEnvironment(t *testing.T) {
 		assert.Equal(t, "platform-thunder-subject-abc123", u.RequestedBy,
 			"the caller's identity must be captured on every environment's write-ahead row, for audit — never sent to Thunder itself")
 	}
+}
+
+func TestProvisionForAgent_CPManagedCreatesOnlyPipelineSource(t *testing.T) {
+	var upserted []models.AgentThunderClient
+	repo := &repomocks.AgentThunderClientRepositoryMock{
+		ClaimForAttemptFunc: func(_ context.Context, _ uuid.UUID) (bool, error) { return false, nil },
+		UpsertFunc: func(_ context.Context, client *models.AgentThunderClient) error {
+			upserted = append(upserted, *client)
+			return nil
+		},
+	}
+	svc := newTestProvisioningService(repo, &clientmocks.EnvThunderResolverMock{}, &clientmocks.SecretManagementClientMock{})
+	setter := svc.(ProjectAgentIdentityProviderSetter)
+	require.NoError(t, setter.SetProjectAgentIdentityProvider(thundersvc.IdentityManagementCPManaged, projectAgentIdentityProviderStub{
+		source: func(_ context.Context, orgID, projectID, projectName string) (string, error) {
+			assert.Equal(t, "org-1", orgID)
+			assert.Equal(t, "project-1", projectID)
+			assert.Equal(t, "project-1", projectName)
+			return "staging", nil
+		},
+		provision: func(context.Context, ProjectAgentIdentityRequest) (ProjectAgentIdentityResult, error) {
+			return ProjectAgentIdentityResult{}, errors.New("not reached")
+		},
+		activate: func(context.Context, ProjectAgentIdentityRequest, string) error { return nil },
+	}))
+
+	svc.ProvisionForAgent(context.Background(), "org-1", "project-1", "agent-1", models.AgentProvisioningTypeInternal,
+		[]string{"development", "staging", "production"}, "user-1", "")
+
+	require.Len(t, upserted, 1)
+	assert.Equal(t, "staging", upserted[0].EnvironmentName)
 }
 
 // TestProvisionForAgent_AwaitEnvAttemptsInline guards the first-deploy single

@@ -235,7 +235,9 @@ type agentThunderProvisioningService struct {
 	endpointResolver   *agentThunderEndpointResolver
 	bindingLocks       keyedMutex
 	// awaitTimeout is awaitEnvProvisionTimeout; a field so tests can shorten it.
-	awaitTimeout time.Duration
+	awaitTimeout            time.Duration
+	identityManagementMode  thundersvc.IdentityManagementMode
+	projectIdentityProvider ProjectAgentIdentityProvider
 }
 
 func (s *agentThunderProvisioningService) SetEnvThunderEndpointResolver(resolver thundersvc.EnvThunderEndpointResolver) {
@@ -442,12 +444,13 @@ func NewAgentThunderProvisioningService(
 	logger *slog.Logger,
 ) AgentThunderProvisioningService {
 	return &agentThunderProvisioningService{
-		repo:             repo,
-		envResolver:      envResolver,
-		secretMgmtClient: secretMgmtClient,
-		workloadInjector: workloadInjector,
-		logger:           logger,
-		awaitTimeout:     awaitEnvProvisionTimeout,
+		repo:                   repo,
+		envResolver:            envResolver,
+		secretMgmtClient:       secretMgmtClient,
+		workloadInjector:       workloadInjector,
+		logger:                 logger,
+		awaitTimeout:           awaitEnvProvisionTimeout,
+		identityManagementMode: thundersvc.IdentityManagementLegacyDirect,
 	}
 }
 
@@ -534,6 +537,27 @@ func bindingLockKey(ouID, projectName, agentName, envName string) string {
 func (s *agentThunderProvisioningService) ProvisionForAgent(
 	ctx context.Context, ouID, projectName, agentName string, ownership models.AgentProvisioningType, envNames []string, requestedBy, awaitEnv string,
 ) {
+	if s.identityManagementMode == thundersvc.IdentityManagementCPManaged {
+		source, err := s.projectIdentityProvider.SourceEnvironment(ctx, ouID, projectName, projectName)
+		if err != nil {
+			s.logger.Error("Failed to resolve project identity source environment",
+				"ouID", ouID, "projectName", projectName, "agentName", agentName, "error", err)
+			return
+		}
+		found := false
+		for _, env := range envNames {
+			if env == source {
+				envNames = []string{source}
+				found = true
+				break
+			}
+		}
+		if !found {
+			s.logger.Error("Project identity source environment is not available to Agent Manager",
+				"ouID", ouID, "projectName", projectName, "agentName", agentName, "sourceEnvironment", source)
+			return
+		}
+	}
 	bindings := make([]models.AgentThunderClient, 0, len(envNames))
 	for _, env := range envNames {
 		b := models.AgentThunderClient{
@@ -616,6 +640,15 @@ func (s *agentThunderProvisioningService) ProvisionForEnvironmentIfMissing(
 	}
 	if !errors.Is(err, repositories.ErrAgentThunderClientNotFound) {
 		return false, fmt.Errorf("check existing agent thunder binding: %w", err)
+	}
+	if s.identityManagementMode == thundersvc.IdentityManagementCPManaged {
+		source, resolveErr := s.projectIdentityProvider.SourceEnvironment(ctx, ouID, projectName, projectName)
+		if resolveErr != nil {
+			return false, fmt.Errorf("resolve project identity source environment: %w", resolveErr)
+		}
+		if envName != source {
+			return false, fmt.Errorf("%w: %s", ErrProjectAgentIdentityRequiresPromotion, envName)
+		}
 	}
 
 	s.ProvisionForAgent(ctx, ouID, projectName, agentName, ownership, []string{envName}, requestedBy, "")
@@ -711,12 +744,6 @@ func (s *agentThunderProvisioningService) AttemptProvision(ctx context.Context, 
 		return
 	}
 
-	thunderClient, err := ResolveEnvThunderClient(ctx, s.envResolver, binding.OUID, binding.EnvironmentName)
-	if err != nil {
-		s.recordFailure(ctx, binding, "", "", err)
-		return
-	}
-
 	// External agents only need a client ID at provisioning time.
 	// Secrets are minted on demand via RegenerateSecret and never persisted.
 	isExternal := binding.ProvisioningType == models.AgentProvisioningTypeExternal
@@ -725,45 +752,76 @@ func (s *agentThunderProvisioningService) AttemptProvision(ctx context.Context, 
 	clientID := binding.ThunderClientID
 	var clientSecret string
 
-	if thunderAgentID == "" {
-		ouID, err := thunderClient.GetDefaultOUID(ctx)
-		if err != nil {
-			s.recordFailure(ctx, binding, "", "", fmt.Errorf("get default OU: %w", err))
+	if s.identityManagementMode == thundersvc.IdentityManagementCPManaged {
+		request := ProjectAgentIdentityRequest{
+			OrganizationID: binding.OUID, ProjectID: binding.ProjectName, ProjectName: binding.ProjectName,
+			Environment: binding.EnvironmentName, AgentName: binding.AgentName,
+			ProvisioningType: binding.ProvisioningType, ExistingAgentID: thunderAgentID,
+			ExistingClientID: clientID, NeedsSecret: !isExternal && binding.SecretRefPath == "",
+		}
+		result, provisionErr := s.projectIdentityProvider.Provision(ctx, request)
+		if provisionErr != nil {
+			s.recordFailure(ctx, binding, thunderAgentID, clientID, fmt.Errorf("provision project agent identity: %w", provisionErr))
 			return
 		}
-
-		appName := thundersvc.AgentThunderAppName(binding.OUID, binding.EnvironmentName, binding.ProjectName, binding.AgentName)
-		var created bool
-		thunderAgentID, clientID, clientSecret, created, err = thunderClient.CreateAgentIdentity(ctx, ouID, appName, "")
-		if err != nil {
-			s.recordFailure(ctx, binding, "", "", fmt.Errorf("create agent identity: %w", err))
+		thunderAgentID, clientID, clientSecret = result.AgentID, result.ClientID, result.ClientSecret
+		if thunderAgentID == "" || clientID == "" {
+			s.recordFailure(ctx, binding, thunderAgentID, clientID, errors.New("project AgentID provider returned an incomplete identity"))
 			return
 		}
-
 		if isExternal {
 			clientSecret = ""
-		} else if !created && clientSecret == "" {
-			// Partial-failure recovery (Section 6.8): if Thunder already had this
-			// agent (created=false, found via the 409 fallback), it never returns a
-			// secret. That only happens if a prior attempt got as far as creating
-			// the identity in Thunder but failed before we could store a secret —
-			// there is no way to retrieve the original one, so generate a fresh,
-			// storable secret now instead of leaving the binding stuck forever.
+		} else if request.NeedsSecret && clientSecret == "" {
+			s.recordFailure(ctx, binding, thunderAgentID, clientID, errors.New("project AgentID provider did not return the required client secret"))
+			return
+		}
+	} else {
+		thunderClient, resolveErr := ResolveEnvThunderClient(ctx, s.envResolver, binding.OUID, binding.EnvironmentName)
+		if resolveErr != nil {
+			s.recordFailure(ctx, binding, "", "", resolveErr)
+			return
+		}
+
+		if thunderAgentID == "" {
+			ouID, err := thunderClient.GetDefaultOUID(ctx)
+			if err != nil {
+				s.recordFailure(ctx, binding, "", "", fmt.Errorf("get default OU: %w", err))
+				return
+			}
+
+			appName := thundersvc.AgentThunderAppName(binding.OUID, binding.EnvironmentName, binding.ProjectName, binding.AgentName)
+			var created bool
+			thunderAgentID, clientID, clientSecret, created, err = thunderClient.CreateAgentIdentity(ctx, ouID, appName, "")
+			if err != nil {
+				s.recordFailure(ctx, binding, "", "", fmt.Errorf("create agent identity: %w", err))
+				return
+			}
+
+			if isExternal {
+				clientSecret = ""
+			} else if !created && clientSecret == "" {
+				// Partial-failure recovery (Section 6.8): if Thunder already had this
+				// agent (created=false, found via the 409 fallback), it never returns a
+				// secret. That only happens if a prior attempt got as far as creating
+				// the identity in Thunder but failed before we could store a secret —
+				// there is no way to retrieve the original one, so generate a fresh,
+				// storable secret now instead of leaving the binding stuck forever.
+				clientSecret, err = thunderClient.RegenerateAgentSecret(ctx, thunderAgentID)
+				if err != nil {
+					// thunderAgentID/clientID are already resolved at this point —
+					// pass them through so a failure here doesn't lose them (see
+					// the identical reasoning on the storeCredential failure below).
+					s.recordFailure(ctx, binding, thunderAgentID, clientID, fmt.Errorf("recover secret for existing agent identity: %w", err))
+					return
+				}
+			}
+		} else if !isExternal && binding.SecretRefPath == "" {
+			// Retry of an attempt that created the identity but failed before storing a secret.
 			clientSecret, err = thunderClient.RegenerateAgentSecret(ctx, thunderAgentID)
 			if err != nil {
-				// thunderAgentID/clientID are already resolved at this point —
-				// pass them through so a failure here doesn't lose them (see
-				// the identical reasoning on the storeCredential failure below).
 				s.recordFailure(ctx, binding, thunderAgentID, clientID, fmt.Errorf("recover secret for existing agent identity: %w", err))
 				return
 			}
-		}
-	} else if !isExternal && binding.SecretRefPath == "" {
-		// Retry of an attempt that created the identity but failed before storing a secret.
-		clientSecret, err = thunderClient.RegenerateAgentSecret(ctx, thunderAgentID)
-		if err != nil {
-			s.recordFailure(ctx, binding, thunderAgentID, clientID, fmt.Errorf("recover secret for existing agent identity: %w", err))
-			return
 		}
 	}
 
@@ -778,6 +836,19 @@ func (s *agentThunderProvisioningService) AttemptProvision(ctx context.Context, 
 			// name that already exists, hitting the 409 fallback and forcing
 			// an unnecessary secret rotation.
 			s.recordFailure(ctx, binding, thunderAgentID, clientID, fmt.Errorf("store agent secret: %w", err))
+			return
+		}
+	}
+
+	if s.identityManagementMode == thundersvc.IdentityManagementCPManaged {
+		request := ProjectAgentIdentityRequest{
+			OrganizationID: binding.OUID, ProjectID: binding.ProjectName, ProjectName: binding.ProjectName,
+			Environment: binding.EnvironmentName, AgentName: binding.AgentName,
+			ProvisioningType: binding.ProvisioningType, ExistingAgentID: thunderAgentID,
+			ExistingClientID: clientID, NeedsSecret: !isExternal,
+		}
+		if err := s.projectIdentityProvider.Activate(ctx, request, thunderAgentID); err != nil {
+			s.recordFailure(ctx, binding, thunderAgentID, clientID, fmt.Errorf("activate project agent identity: %w", err))
 			return
 		}
 	}
