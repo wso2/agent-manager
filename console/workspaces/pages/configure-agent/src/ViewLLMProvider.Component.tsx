@@ -1370,7 +1370,7 @@ export const ViewLLMProviderComponent: React.FC = () => {
             <Alert severity="warning">{BUILD_IN_PROGRESS_REASON}</Alert>
           )}
           {isDirty && (
-            <Stack direction="row" spacing={1} justifyContent="flex-end">
+            <Stack direction="row" spacing={1}>
               <Button
                 variant="outlined"
                 size="small"

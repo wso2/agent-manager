@@ -135,7 +135,7 @@ export const GroupCreatePage: React.FC = () => {
 
         <Form.Stack spacing={3}>
           <Grid container spacing={2}>
-            <Grid size={{ xs: 12, md: 6, xl: 4 }}>
+            <Grid size={{ xs: 12, md: 12, xl: 8 }}>
               <TextInput
                 label="Name"
                 maxLength={IDENTITY_NAME_MAX_LENGTH}
@@ -149,7 +149,6 @@ export const GroupCreatePage: React.FC = () => {
                 helperText={errors.name}
               />
             </Grid>
-            <Grid size={{ xl: 8 }} sx={{ display: { xs: "none", xl: "block" } }} />
             <Grid size={{ xs: 12, md: 12, xl: 8 }}>
               <TextInput
                 label="Description (optional)"

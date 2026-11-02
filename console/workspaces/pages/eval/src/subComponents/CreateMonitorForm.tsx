@@ -70,12 +70,21 @@ export function CreateMonitorForm({
     });
   };
 
+  const hasEnvironmentChoice = environments.length > 1;
+
   return (
     <Form.Stack spacing={3}>
       <Stack spacing={2}>
         <Typography variant="subtitle1">Basic Details</Typography>
         <Grid container spacing={2}>
-          <Grid size={{ xs: 12, md: 6, xl: 4 }}>
+          {/* Alone on its row it matches the Description width instead of sitting at half. */}
+          <Grid
+            size={
+              hasEnvironmentChoice
+                ? { xs: 12, md: 6, xl: 4 }
+                : { xs: 12, md: 12, xl: 8 }
+            }
+          >
             <TextInput
               label="Monitor Title"
               id="displayName"
@@ -120,10 +129,9 @@ export function CreateMonitorForm({
               </Form.ElementWrapper>
             </Grid>
           )}
-          <Grid
-            size={{ xl: environments.length > 1 ? 4 : 8 }}
-            sx={{ display: { xs: "none", xl: "block" } }}
-          />
+          {hasEnvironmentChoice && (
+            <Grid size={{ xl: 4 }} sx={{ display: { xs: "none", xl: "block" } }} />
+          )}
           <Grid size={{ xs: 12, md: 12, xl: 8 }}>
             <TextInput
               label="Description (optional)"
@@ -254,7 +262,7 @@ export function CreateMonitorForm({
           )}
           {formData.type === "future" && (
             <>
-              <Grid size={{ xs: 12, md: 6, xl: 4 }}>
+              <Grid size={{ xs: 12, md: 12, xl: 8 }}>
                 <TextInput
                   label="Run Every (minutes)"
                   id="intervalMinutes"
@@ -280,10 +288,6 @@ export function CreateMonitorForm({
                   }
                 />
               </Grid>
-              <Grid
-                size={{ xl: 8 }}
-                sx={{ display: { xs: "none", xl: "block" } }}
-              />
             </>
           )}
           <Grid size={{ xs: 12, md: 6, xl: 4 }}>

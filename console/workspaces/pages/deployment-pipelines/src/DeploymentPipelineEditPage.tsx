@@ -256,7 +256,7 @@ export function DeploymentPipelineEditPage() {
           <Form.Stack spacing={3}>
             <Typography variant="subtitle1">Pipeline Details</Typography>
             <Grid container spacing={2}>
-              <Grid size={{ xs: 12, md: 6, xl: 4 }}>
+              <Grid size={{ xs: 12, md: 12, xl: 8 }}>
                 <TextInput
                   label="Display Name"
                   maxLength={PIPELINE_DISPLAY_NAME_MAX_LENGTH}
@@ -273,10 +273,6 @@ export function DeploymentPipelineEditPage() {
                   disabled={isUpdating}
                 />
               </Grid>
-              <Grid
-                size={{ xl: 8 }}
-                sx={{ display: { xs: "none", xl: "block" } }}
-              />
               <Grid size={{ xs: 12, md: 12, xl: 8 }}>
                 <TextInput
                   label="Description (optional)"
@@ -306,7 +302,7 @@ export function DeploymentPipelineEditPage() {
             disabled={isUpdating}
           />
 
-          <Box display="flex" justifyContent="flex-end" gap={1} mt={2}>
+          <Box display="flex" gap={1} mt={2}>
             <Button
               variant="outlined"
               color="inherit"

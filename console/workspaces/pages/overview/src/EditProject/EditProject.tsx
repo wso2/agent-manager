@@ -209,7 +209,7 @@ function EditProjectForm({ project, orgId, projectHref }: EditProjectFormProps) 
       <Box display="flex" flexDirection="column" gap={2} flexGrow={1}>
         <Form.Stack spacing={3}>
           <Grid container spacing={2}>
-            <Grid size={{ xs: 12, md: 6, xl: 4 }}>
+            <Grid size={{ xs: 12, md: 12, xl: 8 }}>
               <TextInput
                 label="Name"
                 id="displayName"
@@ -223,10 +223,6 @@ function EditProjectForm({ project, orgId, projectHref }: EditProjectFormProps) 
                 helperText={errors.displayName}
               />
             </Grid>
-            <Grid
-              size={{ xl: 8 }}
-              sx={{ display: { xs: 'none', xl: 'block' } }}
-            />
             <Grid size={{ xs: 12, md: 12, xl: 8 }}>
               <Form.ElementWrapper label="Description (optional)" name="description">
                 <MarkdownEditor
@@ -289,7 +285,7 @@ function EditProjectForm({ project, orgId, projectHref }: EditProjectFormProps) 
             </Grid>
           </Grid>
         </Form.Stack>
-        <Box display="flex" justifyContent="flex-end" gap={1} mt={2}>
+        <Box display="flex" gap={1} mt={2}>
           <Button
             variant="outlined"
             color="inherit"

@@ -45,7 +45,7 @@ export function ConfigNameSection({
         {description}
       </Typography>
       <Grid container spacing={2}>
-        <Grid size={{ xs: 12, md: 6, xl: 4 }}>
+        <Grid size={{ xs: 12, md: 12, xl: 8 }}>
           <TextInput
             maxLength={INPUT_LIMITS.NAME}
             hideCharacterCount={value.length < INPUT_LIMITS.NAME}
@@ -55,7 +55,6 @@ export function ConfigNameSection({
             placeholder={placeholder}
           />
         </Grid>
-        <Grid size={{ xl: 8 }} sx={{ display: { xs: "none", xl: "block" } }} />
       </Grid>
     </Stack>
   );

@@ -159,7 +159,7 @@ function EditLLMProviderForm({
 
         <Form.Stack spacing={3}>
           <Grid container spacing={2}>
-            <Grid size={{ xs: 12, md: 6, xl: 4 }}>
+            <Grid size={{ xs: 12, md: 12, xl: 8 }}>
               <TextInput
                 label="Name"
                 maxLength={LLM_PROVIDER_NAME_MAX_LENGTH}
@@ -174,7 +174,6 @@ function EditLLMProviderForm({
                 disabled={isUpdating}
               />
             </Grid>
-            <Grid size={{ xl: 8 }} sx={{ display: { xs: "none", xl: "block" } }} />
             <Grid size={{ xs: 12, md: 12, xl: 8 }}>
               <TextInput
                 label="Description (optional)"
@@ -198,7 +197,7 @@ function EditLLMProviderForm({
           </Grid>
         </Form.Stack>
 
-        <Box display="flex" justifyContent="flex-end" gap={1} mt={2}>
+        <Box display="flex" gap={1} mt={2}>
           <Button
             variant="outlined"
             color="inherit"

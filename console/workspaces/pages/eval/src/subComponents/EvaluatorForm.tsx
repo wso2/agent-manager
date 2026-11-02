@@ -1098,7 +1098,7 @@ export function EvaluatorForm({
           <Stack spacing={2}>
             <Typography variant="subtitle1">Basic Details</Typography>
             <Grid container spacing={2}>
-              <Grid size={{ xs: 12, md: 6, xl: 4 }}>
+              <Grid size={{ xs: 12, md: 12, xl: 8 }}>
                 <TextInput
                   label="Name"
                   id="displayName"
@@ -1116,10 +1116,6 @@ export function EvaluatorForm({
                   }
                 />
               </Grid>
-              <Grid
-                size={{ xl: 8 }}
-                sx={{ display: { xs: "none", xl: "block" } }}
-              />
               <Grid size={{ xs: 12, md: 12, xl: 8 }}>
                 <TextInput
                   label="Description (optional)"

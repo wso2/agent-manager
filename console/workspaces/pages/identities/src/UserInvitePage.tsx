@@ -216,7 +216,6 @@ export const UserInvitePage: React.FC = () => {
               flexDirection="row"
               gap={1}
               alignItems="center"
-              justifyContent="flex-end"
             >
               <Button variant="outlined" color="primary" onClick={handleInviteAnother}>
                 Invite Another

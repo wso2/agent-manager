@@ -177,7 +177,7 @@ export const UserCreatePage: React.FC = () => {
         </Form.Stack>
 
         {/* Actions */}
-        <Stack direction="row" spacing={1} justifyContent="flex-end">
+        <Stack direction="row" spacing={1}>
           <Button
             variant="outlined"
             onClick={() => allowNavigation(() => navigate(usersPath))}
