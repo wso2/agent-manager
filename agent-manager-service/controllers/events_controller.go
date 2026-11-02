@@ -45,6 +45,7 @@ const (
 // and the event subscriptions and delivery log of the org, a project or an
 // agent. The scope of the latter is fixed per route through ForScope.
 type EventsController interface {
+	ListEventTypes(w http.ResponseWriter, r *http.Request)
 	ListDestinationKinds(w http.ResponseWriter, r *http.Request)
 	ListDestinations(w http.ResponseWriter, r *http.Request)
 	CreateDestination(w http.ResponseWriter, r *http.Request)
@@ -53,17 +54,46 @@ type EventsController interface {
 	DeleteDestination(w http.ResponseWriter, r *http.Request)
 	RotateDestinationSecret(w http.ResponseWriter, r *http.Request)
 	TestDestination(w http.ResponseWriter, r *http.Request)
+	ForScope(scope string) EventScopeHandlers
 }
 
 // EventScopeHandlers are the handlers of one scope.
+type EventScopeHandlers struct {
+	// AvailableDestinations lists, without their settings, the destinations
+	// the scope's subscriptions can use. Below the org only.
+	AvailableDestinations http.HandlerFunc
+	ListSubscriptions     http.HandlerFunc
+	CreateSubscription    http.HandlerFunc
+	GetSubscription       http.HandlerFunc
+	UpdateSubscription    http.HandlerFunc
+	DeleteSubscription    http.HandlerFunc
+}
 
 type eventsController struct {
-	destinations services.EventDestinationService
+	destinations  services.EventDestinationService
+	subscriptions services.EventSubscriptionService
 }
 
 // NewEventsController creates an EventsController.
-func NewEventsController(destinations services.EventDestinationService) EventsController {
-	return &eventsController{destinations: destinations}
+func NewEventsController(
+	destinations services.EventDestinationService, subscriptions services.EventSubscriptionService,
+) EventsController {
+	return &eventsController{destinations: destinations, subscriptions: subscriptions}
+}
+
+func (c *eventsController) ListEventTypes(w http.ResponseWriter, r *http.Request) {
+	types, err := c.subscriptions.EventTypes(r.URL.Query().Get("scope"))
+	if err != nil {
+		writeEventsError(w, r, err, "Failed to list event types")
+		return
+	}
+	resp := spec.EventTypeListResponse{EventTypes: make([]spec.EventType, 0, len(types))}
+	for _, t := range types {
+		resp.EventTypes = append(resp.EventTypes, spec.EventType{
+			Type: t.Name, Scope: string(t.Scope), Category: t.Category, Description: t.Description,
+		})
+	}
+	utils.WriteSuccessResponse(w, http.StatusOK, resp)
 }
 
 func (c *eventsController) ListDestinationKinds(w http.ResponseWriter, _ *http.Request) {
@@ -233,6 +263,122 @@ func (c *eventsController) TestDestination(w http.ResponseWriter, r *http.Reques
 	utils.WriteSuccessResponse(w, http.StatusOK, resp)
 }
 
+func (c *eventsController) ForScope(scope string) EventScopeHandlers {
+	target := func(r *http.Request) repositories.EventTarget {
+		t := repositories.EventTarget{OUID: middleware.OUIDFromRequest(r), Scope: scope}
+		if scope != models.EventScopeOrg {
+			t.ProjectName = r.PathValue(utils.PathParamProjName)
+		}
+		if scope == models.EventScopeAgent {
+			t.AgentName = r.PathValue(utils.PathParamAgentName)
+		}
+		return t
+	}
+	withID := func(fn func(w http.ResponseWriter, r *http.Request, t repositories.EventTarget, id uuid.UUID)) http.HandlerFunc {
+		return func(w http.ResponseWriter, r *http.Request) {
+			id, err := uuid.Parse(r.PathValue(PathParamEventSubscriptionID))
+			if err != nil {
+				utils.WriteErrorResponse(w, http.StatusNotFound, "Event subscription not found")
+				return
+			}
+			fn(w, r, target(r), id)
+		}
+	}
+	// respond writes one subscription with its destination and counts.
+	respond := func(w http.ResponseWriter, r *http.Request, t repositories.EventTarget, status int, sub *models.EventSubscription) {
+		list, err := c.subscriptions.List(r.Context(), t)
+		if err != nil {
+			writeEventsError(w, r, err, "Failed to load event subscription")
+			return
+		}
+		d, _ := c.destinations.Get(r.Context(), t.OUID, sub.DestinationID)
+		utils.WriteSuccessResponse(w, status, c.toSubscriptionResponse(sub, d, list.DestinationStats, list.Counts[sub.ID]))
+	}
+
+	h := EventScopeHandlers{
+		ListSubscriptions: func(w http.ResponseWriter, r *http.Request) {
+			list, err := c.subscriptions.List(r.Context(), target(r))
+			if err != nil {
+				writeEventsError(w, r, err, "Failed to list event subscriptions")
+				return
+			}
+			resp := spec.EventSubscriptionListResponse{
+				Subscriptions: make([]spec.EventSubscriptionResponse, 0, len(list.Own)),
+				Inherited:     make([]spec.EventSubscriptionResponse, 0, len(list.Inherited)),
+			}
+			for i := range list.Own {
+				s := &list.Own[i]
+				resp.Subscriptions = append(resp.Subscriptions, c.toSubscriptionResponse(
+					s, list.Destinations[s.DestinationID], list.DestinationStats, list.Counts[s.ID]))
+			}
+			for i := range list.Inherited {
+				s := &list.Inherited[i]
+				resp.Inherited = append(resp.Inherited, c.toSubscriptionResponse(
+					s, list.Destinations[s.DestinationID], list.DestinationStats, list.Counts[s.ID]))
+			}
+			utils.WriteSuccessResponse(w, http.StatusOK, resp)
+		},
+		CreateSubscription: func(w http.ResponseWriter, r *http.Request) {
+			in, ok := decodeSubscriptionRequest(w, r)
+			if !ok {
+				return
+			}
+			t := target(r)
+			sub, err := c.subscriptions.Create(r.Context(), t, in)
+			if err != nil {
+				writeEventsError(w, r, err, "Failed to create event subscription")
+				return
+			}
+			respond(w, r, t, http.StatusCreated, sub)
+		},
+		GetSubscription: withID(func(w http.ResponseWriter, r *http.Request, t repositories.EventTarget, id uuid.UUID) {
+			sub, err := c.subscriptions.Get(r.Context(), t, id)
+			if err != nil {
+				writeEventsError(w, r, err, "Failed to get event subscription")
+				return
+			}
+			respond(w, r, t, http.StatusOK, sub)
+		}),
+		UpdateSubscription: withID(func(w http.ResponseWriter, r *http.Request, t repositories.EventTarget, id uuid.UUID) {
+			in, ok := decodeSubscriptionRequest(w, r)
+			if !ok {
+				return
+			}
+			sub, err := c.subscriptions.Update(r.Context(), t, id, in)
+			if err != nil {
+				writeEventsError(w, r, err, "Failed to update event subscription")
+				return
+			}
+			respond(w, r, t, http.StatusOK, sub)
+		}),
+		DeleteSubscription: withID(func(w http.ResponseWriter, r *http.Request, t repositories.EventTarget, id uuid.UUID) {
+			if err := c.subscriptions.Delete(r.Context(), t, id); err != nil {
+				writeEventsError(w, r, err, "Failed to delete event subscription")
+				return
+			}
+			w.WriteHeader(http.StatusNoContent)
+		}),
+	}
+	if scope != models.EventScopeOrg {
+		h.AvailableDestinations = func(w http.ResponseWriter, r *http.Request) {
+			t := target(r)
+			list, stats, err := c.destinations.Available(r.Context(), t.OUID, t.ProjectName)
+			if err != nil {
+				writeEventsError(w, r, err, "Failed to list event destinations")
+				return
+			}
+			resp := spec.EventDestinationSummaryListResponse{
+				Destinations: make([]spec.EventDestinationSummary, 0, len(list)),
+			}
+			for i := range list {
+				resp.Destinations = append(resp.Destinations, c.toDestinationSummary(&list[i], stats[list[i].ID]))
+			}
+			utils.WriteSuccessResponse(w, http.StatusOK, resp)
+		}
+	}
+	return h
+}
+
 func decodeDestinationRequest(w http.ResponseWriter, r *http.Request) (services.EventDestinationInput, bool) {
 	var req spec.EventDestinationRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
@@ -260,6 +406,37 @@ func decodeDestinationRequest(w http.ResponseWriter, r *http.Request) (services.
 	return in, true
 }
 
+func decodeSubscriptionRequest(w http.ResponseWriter, r *http.Request) (services.EventSubscriptionInput, bool) {
+	var req spec.EventSubscriptionRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		utils.WriteErrorResponse(w, http.StatusBadRequest, "Invalid request body")
+		return services.EventSubscriptionInput{}, false
+	}
+	destination, err := uuid.Parse(req.DestinationId)
+	if err != nil {
+		utils.WriteErrorResponse(w, http.StatusBadRequest, "destinationId must be the ID of an event destination")
+		return services.EventSubscriptionInput{}, false
+	}
+	in := services.EventSubscriptionInput{
+		Name:          req.Name,
+		DestinationID: destination,
+		EventTypes:    req.EventTypes,
+		Environments:  req.Environments,
+		Enabled:       req.Enabled == nil || *req.Enabled,
+	}
+	if req.Description != nil {
+		in.Description = *req.Description
+	}
+	if in.EventTypes == nil {
+		in.EventTypes = []string{}
+	}
+	if in.Environments == nil {
+		in.Environments = []string{}
+	}
+	return in, true
+}
+
+// parseDeliveryQuery reads a delivery log's filters and paging.
 func writeEventsError(w http.ResponseWriter, r *http.Request, err error, fallback string) {
 	switch {
 	case errors.Is(err, utils.ErrEventDestinationNotFound):
@@ -351,4 +528,39 @@ func toDeliveryCounts(byStatus map[string]int) spec.EventDeliveryCounts {
 		Pending:   int32(byStatus[models.EventDeliveryPending]),
 		Skipped:   int32(byStatus[models.EventDeliverySkipped]),
 	}
+}
+
+func (c *eventsController) toSubscriptionResponse(
+	s *models.EventSubscription, d *models.EventDestination,
+	stats map[uuid.UUID]repositories.DestinationStats, counts map[string]int,
+) spec.EventSubscriptionResponse {
+	resp := spec.EventSubscriptionResponse{
+		Id:           s.ID.String(),
+		Scope:        s.Scope,
+		ProjectName:  s.ProjectName,
+		AgentName:    s.AgentName,
+		Name:         s.Name,
+		Description:  s.Description,
+		EventTypes:   s.EventTypes,
+		Environments: s.Environments,
+		Enabled:      s.Enabled,
+		CreatedBy:    s.CreatedBy,
+		CreatedAt:    s.CreatedAt,
+		UpdatedAt:    s.UpdatedAt,
+		Last24h:      toDeliveryCounts(counts),
+	}
+	if d != nil {
+		resp.Destination = c.toDestinationSummary(d, stats[d.ID])
+	} else {
+		resp.Destination = spec.EventDestinationSummary{
+			Id: s.DestinationID.String(), Name: "Unknown destination", Health: services.DestinationIdle,
+		}
+	}
+	if resp.EventTypes == nil {
+		resp.EventTypes = []string{}
+	}
+	if resp.Environments == nil {
+		resp.Environments = []string{}
+	}
+	return resp
 }

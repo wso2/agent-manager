@@ -6,6 +6,7 @@ package repomocks
 import (
 	"context"
 	"sync"
+	"time"
 
 	"github.com/google/uuid"
 	"github.com/wso2/agent-manager/agent-manager-service/models"
@@ -18,11 +19,23 @@ import (
 //
 //		// make and configure a mocked repositories.EventRepository
 //		mockedEventRepository := &EventRepositoryMock{
+//			CandidateSubscriptionsFunc: func(ctx context.Context, ouID string, projectName string, agentName string) ([]models.EventSubscription, error) {
+//				panic("mock out the CandidateSubscriptions method")
+//			},
 //			CreateDestinationFunc: func(ctx context.Context, d *models.EventDestination) error {
 //				panic("mock out the CreateDestination method")
 //			},
+//			CreateSubscriptionFunc: func(ctx context.Context, s *models.EventSubscription, check func(*models.EventDestination) error) error {
+//				panic("mock out the CreateSubscription method")
+//			},
 //			DeleteDestinationFunc: func(ctx context.Context, ouID string, id uuid.UUID) (bool, error) {
 //				panic("mock out the DeleteDestination method")
+//			},
+//			DeleteSubscriptionFunc: func(ctx context.Context, target repositories.EventTarget, id uuid.UUID) (bool, error) {
+//				panic("mock out the DeleteSubscription method")
+//			},
+//			DeleteSubscriptionsUnderFunc: func(ctx context.Context, ouID string, projectName string, agentName string) error {
+//				panic("mock out the DeleteSubscriptionsUnder method")
 //			},
 //			DestinationStatsFunc: func(ctx context.Context, ouID string) (map[uuid.UUID]repositories.DestinationStats, error) {
 //				panic("mock out the DestinationStats method")
@@ -33,17 +46,32 @@ import (
 //			GetDestinationFunc: func(ctx context.Context, ouID string, id uuid.UUID) (*models.EventDestination, error) {
 //				panic("mock out the GetDestination method")
 //			},
+//			GetSubscriptionFunc: func(ctx context.Context, target repositories.EventTarget, id uuid.UUID) (*models.EventSubscription, error) {
+//				panic("mock out the GetSubscription method")
+//			},
 //			ListDestinationsFunc: func(ctx context.Context, ouID string) ([]models.EventDestination, error) {
 //				panic("mock out the ListDestinations method")
 //			},
+//			ListSubscriptionsFunc: func(ctx context.Context, target repositories.EventTarget) ([]models.EventSubscription, error) {
+//				panic("mock out the ListSubscriptions method")
+//			},
 //			RemoveProjectFromDestinationsFunc: func(ctx context.Context, ouID string, projectName string) error {
 //				panic("mock out the RemoveProjectFromDestinations method")
+//			},
+//			SubscriptionCountsFunc: func(ctx context.Context, ouID string, ids []uuid.UUID, since time.Time, loc repositories.DeliveryLocation) (repositories.SubscriptionCounts, error) {
+//				panic("mock out the SubscriptionCounts method")
+//			},
+//			SubscriptionsByIDFunc: func(ctx context.Context, ouID string, ids []uuid.UUID) ([]models.EventSubscription, error) {
+//				panic("mock out the SubscriptionsByID method")
 //			},
 //			SubscriptionsUsingFunc: func(ctx context.Context, ouID string, destinationID uuid.UUID) ([]models.EventSubscription, error) {
 //				panic("mock out the SubscriptionsUsing method")
 //			},
 //			UpdateDestinationFunc: func(ctx context.Context, d *models.EventDestination, check func(using []models.EventSubscription) error) error {
 //				panic("mock out the UpdateDestination method")
+//			},
+//			UpdateSubscriptionFunc: func(ctx context.Context, s *models.EventSubscription, check func(*models.EventDestination) error) error {
+//				panic("mock out the UpdateSubscription method")
 //			},
 //		}
 //
@@ -52,11 +80,23 @@ import (
 //
 //	}
 type EventRepositoryMock struct {
+	// CandidateSubscriptionsFunc mocks the CandidateSubscriptions method.
+	CandidateSubscriptionsFunc func(ctx context.Context, ouID string, projectName string, agentName string) ([]models.EventSubscription, error)
+
 	// CreateDestinationFunc mocks the CreateDestination method.
 	CreateDestinationFunc func(ctx context.Context, d *models.EventDestination) error
 
+	// CreateSubscriptionFunc mocks the CreateSubscription method.
+	CreateSubscriptionFunc func(ctx context.Context, s *models.EventSubscription, check func(*models.EventDestination) error) error
+
 	// DeleteDestinationFunc mocks the DeleteDestination method.
 	DeleteDestinationFunc func(ctx context.Context, ouID string, id uuid.UUID) (bool, error)
+
+	// DeleteSubscriptionFunc mocks the DeleteSubscription method.
+	DeleteSubscriptionFunc func(ctx context.Context, target repositories.EventTarget, id uuid.UUID) (bool, error)
+
+	// DeleteSubscriptionsUnderFunc mocks the DeleteSubscriptionsUnder method.
+	DeleteSubscriptionsUnderFunc func(ctx context.Context, ouID string, projectName string, agentName string) error
 
 	// DestinationStatsFunc mocks the DestinationStats method.
 	DestinationStatsFunc func(ctx context.Context, ouID string) (map[uuid.UUID]repositories.DestinationStats, error)
@@ -67,11 +107,23 @@ type EventRepositoryMock struct {
 	// GetDestinationFunc mocks the GetDestination method.
 	GetDestinationFunc func(ctx context.Context, ouID string, id uuid.UUID) (*models.EventDestination, error)
 
+	// GetSubscriptionFunc mocks the GetSubscription method.
+	GetSubscriptionFunc func(ctx context.Context, target repositories.EventTarget, id uuid.UUID) (*models.EventSubscription, error)
+
 	// ListDestinationsFunc mocks the ListDestinations method.
 	ListDestinationsFunc func(ctx context.Context, ouID string) ([]models.EventDestination, error)
 
+	// ListSubscriptionsFunc mocks the ListSubscriptions method.
+	ListSubscriptionsFunc func(ctx context.Context, target repositories.EventTarget) ([]models.EventSubscription, error)
+
 	// RemoveProjectFromDestinationsFunc mocks the RemoveProjectFromDestinations method.
 	RemoveProjectFromDestinationsFunc func(ctx context.Context, ouID string, projectName string) error
+
+	// SubscriptionCountsFunc mocks the SubscriptionCounts method.
+	SubscriptionCountsFunc func(ctx context.Context, ouID string, ids []uuid.UUID, since time.Time, loc repositories.DeliveryLocation) (repositories.SubscriptionCounts, error)
+
+	// SubscriptionsByIDFunc mocks the SubscriptionsByID method.
+	SubscriptionsByIDFunc func(ctx context.Context, ouID string, ids []uuid.UUID) ([]models.EventSubscription, error)
 
 	// SubscriptionsUsingFunc mocks the SubscriptionsUsing method.
 	SubscriptionsUsingFunc func(ctx context.Context, ouID string, destinationID uuid.UUID) ([]models.EventSubscription, error)
@@ -79,14 +131,37 @@ type EventRepositoryMock struct {
 	// UpdateDestinationFunc mocks the UpdateDestination method.
 	UpdateDestinationFunc func(ctx context.Context, d *models.EventDestination, check func(using []models.EventSubscription) error) error
 
+	// UpdateSubscriptionFunc mocks the UpdateSubscription method.
+	UpdateSubscriptionFunc func(ctx context.Context, s *models.EventSubscription, check func(*models.EventDestination) error) error
+
 	// calls tracks calls to the methods.
 	calls struct {
+		// CandidateSubscriptions holds details about calls to the CandidateSubscriptions method.
+		CandidateSubscriptions []struct {
+			// Ctx is the ctx argument value.
+			Ctx context.Context
+			// OuID is the ouID argument value.
+			OuID string
+			// ProjectName is the projectName argument value.
+			ProjectName string
+			// AgentName is the agentName argument value.
+			AgentName string
+		}
 		// CreateDestination holds details about calls to the CreateDestination method.
 		CreateDestination []struct {
 			// Ctx is the ctx argument value.
 			Ctx context.Context
 			// D is the d argument value.
 			D *models.EventDestination
+		}
+		// CreateSubscription holds details about calls to the CreateSubscription method.
+		CreateSubscription []struct {
+			// Ctx is the ctx argument value.
+			Ctx context.Context
+			// S is the s argument value.
+			S *models.EventSubscription
+			// Check is the check argument value.
+			Check func(*models.EventDestination) error
 		}
 		// DeleteDestination holds details about calls to the DeleteDestination method.
 		DeleteDestination []struct {
@@ -96,6 +171,26 @@ type EventRepositoryMock struct {
 			OuID string
 			// ID is the id argument value.
 			ID uuid.UUID
+		}
+		// DeleteSubscription holds details about calls to the DeleteSubscription method.
+		DeleteSubscription []struct {
+			// Ctx is the ctx argument value.
+			Ctx context.Context
+			// Target is the target argument value.
+			Target repositories.EventTarget
+			// ID is the id argument value.
+			ID uuid.UUID
+		}
+		// DeleteSubscriptionsUnder holds details about calls to the DeleteSubscriptionsUnder method.
+		DeleteSubscriptionsUnder []struct {
+			// Ctx is the ctx argument value.
+			Ctx context.Context
+			// OuID is the ouID argument value.
+			OuID string
+			// ProjectName is the projectName argument value.
+			ProjectName string
+			// AgentName is the agentName argument value.
+			AgentName string
 		}
 		// DestinationStats holds details about calls to the DestinationStats method.
 		DestinationStats []struct {
@@ -122,12 +217,28 @@ type EventRepositoryMock struct {
 			// ID is the id argument value.
 			ID uuid.UUID
 		}
+		// GetSubscription holds details about calls to the GetSubscription method.
+		GetSubscription []struct {
+			// Ctx is the ctx argument value.
+			Ctx context.Context
+			// Target is the target argument value.
+			Target repositories.EventTarget
+			// ID is the id argument value.
+			ID uuid.UUID
+		}
 		// ListDestinations holds details about calls to the ListDestinations method.
 		ListDestinations []struct {
 			// Ctx is the ctx argument value.
 			Ctx context.Context
 			// OuID is the ouID argument value.
 			OuID string
+		}
+		// ListSubscriptions holds details about calls to the ListSubscriptions method.
+		ListSubscriptions []struct {
+			// Ctx is the ctx argument value.
+			Ctx context.Context
+			// Target is the target argument value.
+			Target repositories.EventTarget
 		}
 		// RemoveProjectFromDestinations holds details about calls to the RemoveProjectFromDestinations method.
 		RemoveProjectFromDestinations []struct {
@@ -137,6 +248,28 @@ type EventRepositoryMock struct {
 			OuID string
 			// ProjectName is the projectName argument value.
 			ProjectName string
+		}
+		// SubscriptionCounts holds details about calls to the SubscriptionCounts method.
+		SubscriptionCounts []struct {
+			// Ctx is the ctx argument value.
+			Ctx context.Context
+			// OuID is the ouID argument value.
+			OuID string
+			// Ids is the ids argument value.
+			Ids []uuid.UUID
+			// Since is the since argument value.
+			Since time.Time
+			// Loc is the loc argument value.
+			Loc repositories.DeliveryLocation
+		}
+		// SubscriptionsByID holds details about calls to the SubscriptionsByID method.
+		SubscriptionsByID []struct {
+			// Ctx is the ctx argument value.
+			Ctx context.Context
+			// OuID is the ouID argument value.
+			OuID string
+			// Ids is the ids argument value.
+			Ids []uuid.UUID
 		}
 		// SubscriptionsUsing holds details about calls to the SubscriptionsUsing method.
 		SubscriptionsUsing []struct {
@@ -156,16 +289,78 @@ type EventRepositoryMock struct {
 			// Check is the check argument value.
 			Check func(using []models.EventSubscription) error
 		}
+		// UpdateSubscription holds details about calls to the UpdateSubscription method.
+		UpdateSubscription []struct {
+			// Ctx is the ctx argument value.
+			Ctx context.Context
+			// S is the s argument value.
+			S *models.EventSubscription
+			// Check is the check argument value.
+			Check func(*models.EventDestination) error
+		}
 	}
+	lockCandidateSubscriptions        sync.RWMutex
 	lockCreateDestination             sync.RWMutex
+	lockCreateSubscription            sync.RWMutex
 	lockDeleteDestination             sync.RWMutex
+	lockDeleteSubscription            sync.RWMutex
+	lockDeleteSubscriptionsUnder      sync.RWMutex
 	lockDestinationStats              sync.RWMutex
 	lockDestinationsByID              sync.RWMutex
 	lockGetDestination                sync.RWMutex
+	lockGetSubscription               sync.RWMutex
 	lockListDestinations              sync.RWMutex
+	lockListSubscriptions             sync.RWMutex
 	lockRemoveProjectFromDestinations sync.RWMutex
+	lockSubscriptionCounts            sync.RWMutex
+	lockSubscriptionsByID             sync.RWMutex
 	lockSubscriptionsUsing            sync.RWMutex
 	lockUpdateDestination             sync.RWMutex
+	lockUpdateSubscription            sync.RWMutex
+}
+
+// CandidateSubscriptions calls CandidateSubscriptionsFunc.
+func (mock *EventRepositoryMock) CandidateSubscriptions(ctx context.Context, ouID string, projectName string, agentName string) ([]models.EventSubscription, error) {
+	if mock.CandidateSubscriptionsFunc == nil {
+		panic("EventRepositoryMock.CandidateSubscriptionsFunc: method is nil but EventRepository.CandidateSubscriptions was just called")
+	}
+	callInfo := struct {
+		Ctx         context.Context
+		OuID        string
+		ProjectName string
+		AgentName   string
+	}{
+		Ctx:         ctx,
+		OuID:        ouID,
+		ProjectName: projectName,
+		AgentName:   agentName,
+	}
+	mock.lockCandidateSubscriptions.Lock()
+	mock.calls.CandidateSubscriptions = append(mock.calls.CandidateSubscriptions, callInfo)
+	mock.lockCandidateSubscriptions.Unlock()
+	return mock.CandidateSubscriptionsFunc(ctx, ouID, projectName, agentName)
+}
+
+// CandidateSubscriptionsCalls gets all the calls that were made to CandidateSubscriptions.
+// Check the length with:
+//
+//	len(mockedEventRepository.CandidateSubscriptionsCalls())
+func (mock *EventRepositoryMock) CandidateSubscriptionsCalls() []struct {
+	Ctx         context.Context
+	OuID        string
+	ProjectName string
+	AgentName   string
+} {
+	var calls []struct {
+		Ctx         context.Context
+		OuID        string
+		ProjectName string
+		AgentName   string
+	}
+	mock.lockCandidateSubscriptions.RLock()
+	calls = mock.calls.CandidateSubscriptions
+	mock.lockCandidateSubscriptions.RUnlock()
+	return calls
 }
 
 // CreateDestination calls CreateDestinationFunc.
@@ -201,6 +396,46 @@ func (mock *EventRepositoryMock) CreateDestinationCalls() []struct {
 	mock.lockCreateDestination.RLock()
 	calls = mock.calls.CreateDestination
 	mock.lockCreateDestination.RUnlock()
+	return calls
+}
+
+// CreateSubscription calls CreateSubscriptionFunc.
+func (mock *EventRepositoryMock) CreateSubscription(ctx context.Context, s *models.EventSubscription, check func(*models.EventDestination) error) error {
+	if mock.CreateSubscriptionFunc == nil {
+		panic("EventRepositoryMock.CreateSubscriptionFunc: method is nil but EventRepository.CreateSubscription was just called")
+	}
+	callInfo := struct {
+		Ctx   context.Context
+		S     *models.EventSubscription
+		Check func(*models.EventDestination) error
+	}{
+		Ctx:   ctx,
+		S:     s,
+		Check: check,
+	}
+	mock.lockCreateSubscription.Lock()
+	mock.calls.CreateSubscription = append(mock.calls.CreateSubscription, callInfo)
+	mock.lockCreateSubscription.Unlock()
+	return mock.CreateSubscriptionFunc(ctx, s, check)
+}
+
+// CreateSubscriptionCalls gets all the calls that were made to CreateSubscription.
+// Check the length with:
+//
+//	len(mockedEventRepository.CreateSubscriptionCalls())
+func (mock *EventRepositoryMock) CreateSubscriptionCalls() []struct {
+	Ctx   context.Context
+	S     *models.EventSubscription
+	Check func(*models.EventDestination) error
+} {
+	var calls []struct {
+		Ctx   context.Context
+		S     *models.EventSubscription
+		Check func(*models.EventDestination) error
+	}
+	mock.lockCreateSubscription.RLock()
+	calls = mock.calls.CreateSubscription
+	mock.lockCreateSubscription.RUnlock()
 	return calls
 }
 
@@ -241,6 +476,90 @@ func (mock *EventRepositoryMock) DeleteDestinationCalls() []struct {
 	mock.lockDeleteDestination.RLock()
 	calls = mock.calls.DeleteDestination
 	mock.lockDeleteDestination.RUnlock()
+	return calls
+}
+
+// DeleteSubscription calls DeleteSubscriptionFunc.
+func (mock *EventRepositoryMock) DeleteSubscription(ctx context.Context, target repositories.EventTarget, id uuid.UUID) (bool, error) {
+	if mock.DeleteSubscriptionFunc == nil {
+		panic("EventRepositoryMock.DeleteSubscriptionFunc: method is nil but EventRepository.DeleteSubscription was just called")
+	}
+	callInfo := struct {
+		Ctx    context.Context
+		Target repositories.EventTarget
+		ID     uuid.UUID
+	}{
+		Ctx:    ctx,
+		Target: target,
+		ID:     id,
+	}
+	mock.lockDeleteSubscription.Lock()
+	mock.calls.DeleteSubscription = append(mock.calls.DeleteSubscription, callInfo)
+	mock.lockDeleteSubscription.Unlock()
+	return mock.DeleteSubscriptionFunc(ctx, target, id)
+}
+
+// DeleteSubscriptionCalls gets all the calls that were made to DeleteSubscription.
+// Check the length with:
+//
+//	len(mockedEventRepository.DeleteSubscriptionCalls())
+func (mock *EventRepositoryMock) DeleteSubscriptionCalls() []struct {
+	Ctx    context.Context
+	Target repositories.EventTarget
+	ID     uuid.UUID
+} {
+	var calls []struct {
+		Ctx    context.Context
+		Target repositories.EventTarget
+		ID     uuid.UUID
+	}
+	mock.lockDeleteSubscription.RLock()
+	calls = mock.calls.DeleteSubscription
+	mock.lockDeleteSubscription.RUnlock()
+	return calls
+}
+
+// DeleteSubscriptionsUnder calls DeleteSubscriptionsUnderFunc.
+func (mock *EventRepositoryMock) DeleteSubscriptionsUnder(ctx context.Context, ouID string, projectName string, agentName string) error {
+	if mock.DeleteSubscriptionsUnderFunc == nil {
+		panic("EventRepositoryMock.DeleteSubscriptionsUnderFunc: method is nil but EventRepository.DeleteSubscriptionsUnder was just called")
+	}
+	callInfo := struct {
+		Ctx         context.Context
+		OuID        string
+		ProjectName string
+		AgentName   string
+	}{
+		Ctx:         ctx,
+		OuID:        ouID,
+		ProjectName: projectName,
+		AgentName:   agentName,
+	}
+	mock.lockDeleteSubscriptionsUnder.Lock()
+	mock.calls.DeleteSubscriptionsUnder = append(mock.calls.DeleteSubscriptionsUnder, callInfo)
+	mock.lockDeleteSubscriptionsUnder.Unlock()
+	return mock.DeleteSubscriptionsUnderFunc(ctx, ouID, projectName, agentName)
+}
+
+// DeleteSubscriptionsUnderCalls gets all the calls that were made to DeleteSubscriptionsUnder.
+// Check the length with:
+//
+//	len(mockedEventRepository.DeleteSubscriptionsUnderCalls())
+func (mock *EventRepositoryMock) DeleteSubscriptionsUnderCalls() []struct {
+	Ctx         context.Context
+	OuID        string
+	ProjectName string
+	AgentName   string
+} {
+	var calls []struct {
+		Ctx         context.Context
+		OuID        string
+		ProjectName string
+		AgentName   string
+	}
+	mock.lockDeleteSubscriptionsUnder.RLock()
+	calls = mock.calls.DeleteSubscriptionsUnder
+	mock.lockDeleteSubscriptionsUnder.RUnlock()
 	return calls
 }
 
@@ -360,6 +679,46 @@ func (mock *EventRepositoryMock) GetDestinationCalls() []struct {
 	return calls
 }
 
+// GetSubscription calls GetSubscriptionFunc.
+func (mock *EventRepositoryMock) GetSubscription(ctx context.Context, target repositories.EventTarget, id uuid.UUID) (*models.EventSubscription, error) {
+	if mock.GetSubscriptionFunc == nil {
+		panic("EventRepositoryMock.GetSubscriptionFunc: method is nil but EventRepository.GetSubscription was just called")
+	}
+	callInfo := struct {
+		Ctx    context.Context
+		Target repositories.EventTarget
+		ID     uuid.UUID
+	}{
+		Ctx:    ctx,
+		Target: target,
+		ID:     id,
+	}
+	mock.lockGetSubscription.Lock()
+	mock.calls.GetSubscription = append(mock.calls.GetSubscription, callInfo)
+	mock.lockGetSubscription.Unlock()
+	return mock.GetSubscriptionFunc(ctx, target, id)
+}
+
+// GetSubscriptionCalls gets all the calls that were made to GetSubscription.
+// Check the length with:
+//
+//	len(mockedEventRepository.GetSubscriptionCalls())
+func (mock *EventRepositoryMock) GetSubscriptionCalls() []struct {
+	Ctx    context.Context
+	Target repositories.EventTarget
+	ID     uuid.UUID
+} {
+	var calls []struct {
+		Ctx    context.Context
+		Target repositories.EventTarget
+		ID     uuid.UUID
+	}
+	mock.lockGetSubscription.RLock()
+	calls = mock.calls.GetSubscription
+	mock.lockGetSubscription.RUnlock()
+	return calls
+}
+
 // ListDestinations calls ListDestinationsFunc.
 func (mock *EventRepositoryMock) ListDestinations(ctx context.Context, ouID string) ([]models.EventDestination, error) {
 	if mock.ListDestinationsFunc == nil {
@@ -393,6 +752,42 @@ func (mock *EventRepositoryMock) ListDestinationsCalls() []struct {
 	mock.lockListDestinations.RLock()
 	calls = mock.calls.ListDestinations
 	mock.lockListDestinations.RUnlock()
+	return calls
+}
+
+// ListSubscriptions calls ListSubscriptionsFunc.
+func (mock *EventRepositoryMock) ListSubscriptions(ctx context.Context, target repositories.EventTarget) ([]models.EventSubscription, error) {
+	if mock.ListSubscriptionsFunc == nil {
+		panic("EventRepositoryMock.ListSubscriptionsFunc: method is nil but EventRepository.ListSubscriptions was just called")
+	}
+	callInfo := struct {
+		Ctx    context.Context
+		Target repositories.EventTarget
+	}{
+		Ctx:    ctx,
+		Target: target,
+	}
+	mock.lockListSubscriptions.Lock()
+	mock.calls.ListSubscriptions = append(mock.calls.ListSubscriptions, callInfo)
+	mock.lockListSubscriptions.Unlock()
+	return mock.ListSubscriptionsFunc(ctx, target)
+}
+
+// ListSubscriptionsCalls gets all the calls that were made to ListSubscriptions.
+// Check the length with:
+//
+//	len(mockedEventRepository.ListSubscriptionsCalls())
+func (mock *EventRepositoryMock) ListSubscriptionsCalls() []struct {
+	Ctx    context.Context
+	Target repositories.EventTarget
+} {
+	var calls []struct {
+		Ctx    context.Context
+		Target repositories.EventTarget
+	}
+	mock.lockListSubscriptions.RLock()
+	calls = mock.calls.ListSubscriptions
+	mock.lockListSubscriptions.RUnlock()
 	return calls
 }
 
@@ -433,6 +828,94 @@ func (mock *EventRepositoryMock) RemoveProjectFromDestinationsCalls() []struct {
 	mock.lockRemoveProjectFromDestinations.RLock()
 	calls = mock.calls.RemoveProjectFromDestinations
 	mock.lockRemoveProjectFromDestinations.RUnlock()
+	return calls
+}
+
+// SubscriptionCounts calls SubscriptionCountsFunc.
+func (mock *EventRepositoryMock) SubscriptionCounts(ctx context.Context, ouID string, ids []uuid.UUID, since time.Time, loc repositories.DeliveryLocation) (repositories.SubscriptionCounts, error) {
+	if mock.SubscriptionCountsFunc == nil {
+		panic("EventRepositoryMock.SubscriptionCountsFunc: method is nil but EventRepository.SubscriptionCounts was just called")
+	}
+	callInfo := struct {
+		Ctx   context.Context
+		OuID  string
+		Ids   []uuid.UUID
+		Since time.Time
+		Loc   repositories.DeliveryLocation
+	}{
+		Ctx:   ctx,
+		OuID:  ouID,
+		Ids:   ids,
+		Since: since,
+		Loc:   loc,
+	}
+	mock.lockSubscriptionCounts.Lock()
+	mock.calls.SubscriptionCounts = append(mock.calls.SubscriptionCounts, callInfo)
+	mock.lockSubscriptionCounts.Unlock()
+	return mock.SubscriptionCountsFunc(ctx, ouID, ids, since, loc)
+}
+
+// SubscriptionCountsCalls gets all the calls that were made to SubscriptionCounts.
+// Check the length with:
+//
+//	len(mockedEventRepository.SubscriptionCountsCalls())
+func (mock *EventRepositoryMock) SubscriptionCountsCalls() []struct {
+	Ctx   context.Context
+	OuID  string
+	Ids   []uuid.UUID
+	Since time.Time
+	Loc   repositories.DeliveryLocation
+} {
+	var calls []struct {
+		Ctx   context.Context
+		OuID  string
+		Ids   []uuid.UUID
+		Since time.Time
+		Loc   repositories.DeliveryLocation
+	}
+	mock.lockSubscriptionCounts.RLock()
+	calls = mock.calls.SubscriptionCounts
+	mock.lockSubscriptionCounts.RUnlock()
+	return calls
+}
+
+// SubscriptionsByID calls SubscriptionsByIDFunc.
+func (mock *EventRepositoryMock) SubscriptionsByID(ctx context.Context, ouID string, ids []uuid.UUID) ([]models.EventSubscription, error) {
+	if mock.SubscriptionsByIDFunc == nil {
+		panic("EventRepositoryMock.SubscriptionsByIDFunc: method is nil but EventRepository.SubscriptionsByID was just called")
+	}
+	callInfo := struct {
+		Ctx  context.Context
+		OuID string
+		Ids  []uuid.UUID
+	}{
+		Ctx:  ctx,
+		OuID: ouID,
+		Ids:  ids,
+	}
+	mock.lockSubscriptionsByID.Lock()
+	mock.calls.SubscriptionsByID = append(mock.calls.SubscriptionsByID, callInfo)
+	mock.lockSubscriptionsByID.Unlock()
+	return mock.SubscriptionsByIDFunc(ctx, ouID, ids)
+}
+
+// SubscriptionsByIDCalls gets all the calls that were made to SubscriptionsByID.
+// Check the length with:
+//
+//	len(mockedEventRepository.SubscriptionsByIDCalls())
+func (mock *EventRepositoryMock) SubscriptionsByIDCalls() []struct {
+	Ctx  context.Context
+	OuID string
+	Ids  []uuid.UUID
+} {
+	var calls []struct {
+		Ctx  context.Context
+		OuID string
+		Ids  []uuid.UUID
+	}
+	mock.lockSubscriptionsByID.RLock()
+	calls = mock.calls.SubscriptionsByID
+	mock.lockSubscriptionsByID.RUnlock()
 	return calls
 }
 
@@ -513,5 +996,45 @@ func (mock *EventRepositoryMock) UpdateDestinationCalls() []struct {
 	mock.lockUpdateDestination.RLock()
 	calls = mock.calls.UpdateDestination
 	mock.lockUpdateDestination.RUnlock()
+	return calls
+}
+
+// UpdateSubscription calls UpdateSubscriptionFunc.
+func (mock *EventRepositoryMock) UpdateSubscription(ctx context.Context, s *models.EventSubscription, check func(*models.EventDestination) error) error {
+	if mock.UpdateSubscriptionFunc == nil {
+		panic("EventRepositoryMock.UpdateSubscriptionFunc: method is nil but EventRepository.UpdateSubscription was just called")
+	}
+	callInfo := struct {
+		Ctx   context.Context
+		S     *models.EventSubscription
+		Check func(*models.EventDestination) error
+	}{
+		Ctx:   ctx,
+		S:     s,
+		Check: check,
+	}
+	mock.lockUpdateSubscription.Lock()
+	mock.calls.UpdateSubscription = append(mock.calls.UpdateSubscription, callInfo)
+	mock.lockUpdateSubscription.Unlock()
+	return mock.UpdateSubscriptionFunc(ctx, s, check)
+}
+
+// UpdateSubscriptionCalls gets all the calls that were made to UpdateSubscription.
+// Check the length with:
+//
+//	len(mockedEventRepository.UpdateSubscriptionCalls())
+func (mock *EventRepositoryMock) UpdateSubscriptionCalls() []struct {
+	Ctx   context.Context
+	S     *models.EventSubscription
+	Check func(*models.EventDestination) error
+} {
+	var calls []struct {
+		Ctx   context.Context
+		S     *models.EventSubscription
+		Check func(*models.EventDestination) error
+	}
+	mock.lockUpdateSubscription.RLock()
+	calls = mock.calls.UpdateSubscription
+	mock.lockUpdateSubscription.RUnlock()
 	return calls
 }

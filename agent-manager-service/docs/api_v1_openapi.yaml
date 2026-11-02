@@ -11193,6 +11193,44 @@ paths:
         "404":
           description: Environment not found
 
+  /orgs/{orgName}/events/event-types:
+    parameters:
+      - name: orgName
+        in: path
+        required: true
+        description: Organization name
+        schema:
+          type: string
+    get:
+      tags:
+        - Events
+      summary: List the event types subscriptions can name
+      operationId: listEventTypes
+      parameters:
+        - name: scope
+          in: query
+          required: false
+          description: |
+            The event types a subscription at this scope can name: an org
+            subscription any type, a project subscription project and agent
+            types, an agent subscription agent types. Every type when absent.
+          schema:
+            type: string
+            enum: [org, project, agent]
+      responses:
+        "200":
+          description: Event types
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/EventTypeListResponse"
+        "400":
+          description: Invalid scope
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
   /orgs/{orgName}/events/destination-kinds:
     parameters:
       - name: orgName
@@ -11458,6 +11496,518 @@ paths:
                 $ref: "#/components/schemas/EventDestinationTestResponse"
         "404":
           description: Event destination not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /orgs/{orgName}/events/subscriptions:
+    parameters:
+      - name: orgName
+        in: path
+        required: true
+        description: Organization name
+        schema:
+          type: string
+    get:
+      tags:
+        - Events
+      summary: List the organization's event subscriptions
+      description: |
+        Organization subscriptions receive the events of every project and agent.
+      operationId: listOrgEventSubscriptions
+      responses:
+        "200":
+          description: Event subscriptions
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/EventSubscriptionListResponse"
+        "500":
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+    post:
+      tags:
+        - Events
+      summary: Create an organization event subscription
+      operationId: createOrgEventSubscription
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/EventSubscriptionRequest"
+      responses:
+        "201":
+          description: Event subscription created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/EventSubscriptionResponse"
+        "400":
+          description: Invalid request
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "500":
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /orgs/{orgName}/events/subscriptions/{subscriptionId}:
+    parameters:
+      - name: orgName
+        in: path
+        required: true
+        description: Organization name
+        schema:
+          type: string
+      - name: subscriptionId
+        in: path
+        required: true
+        description: Event subscription ID
+        schema:
+          type: string
+    get:
+      tags:
+        - Events
+      summary: Get an event subscription
+      operationId: getOrgEventSubscription
+      responses:
+        "200":
+          description: Event subscription
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/EventSubscriptionResponse"
+        "404":
+          description: Event subscription not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+    put:
+      tags:
+        - Events
+      summary: Update an event subscription
+      operationId: updateOrgEventSubscription
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/EventSubscriptionRequest"
+      responses:
+        "200":
+          description: Event subscription updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/EventSubscriptionResponse"
+        "400":
+          description: Invalid request
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: Event subscription not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+    delete:
+      tags:
+        - Events
+      summary: Delete an event subscription
+      operationId: deleteOrgEventSubscription
+      responses:
+        "204":
+          description: Event subscription deleted
+        "404":
+          description: Event subscription not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /orgs/{orgName}/projects/{projName}/events/destinations:
+    parameters:
+      - name: orgName
+        in: path
+        required: true
+        description: Organization name
+        schema:
+          type: string
+      - name: projName
+        in: path
+        required: true
+        description: Project name
+        schema:
+          type: string
+    get:
+      tags:
+        - Events
+      summary: List the event destinations the project's subscriptions can use
+      description: |
+        Only destinations available to the project, without their settings.
+      operationId: listProjectEventDestinations
+      responses:
+        "200":
+          description: Available event destinations
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/EventDestinationSummaryListResponse"
+
+  /orgs/{orgName}/projects/{projName}/events/subscriptions:
+    parameters:
+      - name: orgName
+        in: path
+        required: true
+        description: Organization name
+        schema:
+          type: string
+      - name: projName
+        in: path
+        required: true
+        description: Project name
+        schema:
+          type: string
+    get:
+      tags:
+        - Events
+      summary: List the project's event subscriptions
+      description: |
+        Project subscriptions receive the events of the project and its agents.
+        inherited lists the wider levels' subscriptions that also send this
+        level's events; they are managed where they belong.
+      operationId: listProjectEventSubscriptions
+      responses:
+        "200":
+          description: Event subscriptions
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/EventSubscriptionListResponse"
+        "500":
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+    post:
+      tags:
+        - Events
+      summary: Create a project event subscription
+      operationId: createProjectEventSubscription
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/EventSubscriptionRequest"
+      responses:
+        "201":
+          description: Event subscription created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/EventSubscriptionResponse"
+        "400":
+          description: Invalid request
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "500":
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /orgs/{orgName}/projects/{projName}/events/subscriptions/{subscriptionId}:
+    parameters:
+      - name: orgName
+        in: path
+        required: true
+        description: Organization name
+        schema:
+          type: string
+      - name: projName
+        in: path
+        required: true
+        description: Project name
+        schema:
+          type: string
+      - name: subscriptionId
+        in: path
+        required: true
+        description: Event subscription ID
+        schema:
+          type: string
+    get:
+      tags:
+        - Events
+      summary: Get an event subscription
+      operationId: getProjectEventSubscription
+      responses:
+        "200":
+          description: Event subscription
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/EventSubscriptionResponse"
+        "404":
+          description: Event subscription not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+    put:
+      tags:
+        - Events
+      summary: Update an event subscription
+      operationId: updateProjectEventSubscription
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/EventSubscriptionRequest"
+      responses:
+        "200":
+          description: Event subscription updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/EventSubscriptionResponse"
+        "400":
+          description: Invalid request
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: Event subscription not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+    delete:
+      tags:
+        - Events
+      summary: Delete an event subscription
+      operationId: deleteProjectEventSubscription
+      responses:
+        "204":
+          description: Event subscription deleted
+        "404":
+          description: Event subscription not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /orgs/{orgName}/projects/{projName}/agents/{agentName}/events/destinations:
+    parameters:
+      - name: orgName
+        in: path
+        required: true
+        description: Organization name
+        schema:
+          type: string
+      - name: projName
+        in: path
+        required: true
+        description: Project name
+        schema:
+          type: string
+      - name: agentName
+        in: path
+        required: true
+        description: Agent name
+        schema:
+          type: string
+    get:
+      tags:
+        - Events
+      summary: List the event destinations the agent's subscriptions can use
+      description: |
+        Only destinations available to the project, without their settings.
+      operationId: listAgentEventDestinations
+      responses:
+        "200":
+          description: Available event destinations
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/EventDestinationSummaryListResponse"
+
+  /orgs/{orgName}/projects/{projName}/agents/{agentName}/events/subscriptions:
+    parameters:
+      - name: orgName
+        in: path
+        required: true
+        description: Organization name
+        schema:
+          type: string
+      - name: projName
+        in: path
+        required: true
+        description: Project name
+        schema:
+          type: string
+      - name: agentName
+        in: path
+        required: true
+        description: Agent name
+        schema:
+          type: string
+    get:
+      tags:
+        - Events
+      summary: List the agent's event subscriptions
+      description: |
+        Agent subscriptions receive the agent's events.
+        inherited lists the wider levels' subscriptions that also send this
+        level's events; they are managed where they belong.
+      operationId: listAgentEventSubscriptions
+      responses:
+        "200":
+          description: Event subscriptions
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/EventSubscriptionListResponse"
+        "500":
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+    post:
+      tags:
+        - Events
+      summary: Create an agent event subscription
+      operationId: createAgentEventSubscription
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/EventSubscriptionRequest"
+      responses:
+        "201":
+          description: Event subscription created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/EventSubscriptionResponse"
+        "400":
+          description: Invalid request
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "500":
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /orgs/{orgName}/projects/{projName}/agents/{agentName}/events/subscriptions/{subscriptionId}:
+    parameters:
+      - name: orgName
+        in: path
+        required: true
+        description: Organization name
+        schema:
+          type: string
+      - name: projName
+        in: path
+        required: true
+        description: Project name
+        schema:
+          type: string
+      - name: agentName
+        in: path
+        required: true
+        description: Agent name
+        schema:
+          type: string
+      - name: subscriptionId
+        in: path
+        required: true
+        description: Event subscription ID
+        schema:
+          type: string
+    get:
+      tags:
+        - Events
+      summary: Get an event subscription
+      operationId: getAgentEventSubscription
+      responses:
+        "200":
+          description: Event subscription
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/EventSubscriptionResponse"
+        "404":
+          description: Event subscription not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+    put:
+      tags:
+        - Events
+      summary: Update an event subscription
+      operationId: updateAgentEventSubscription
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/EventSubscriptionRequest"
+      responses:
+        "200":
+          description: Event subscription updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/EventSubscriptionResponse"
+        "400":
+          description: Invalid request
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: Event subscription not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+    delete:
+      tags:
+        - Events
+      summary: Delete an event subscription
+      operationId: deleteAgentEventSubscription
+      responses:
+        "204":
+          description: Event subscription deleted
+        "404":
+          description: Event subscription not found
           content:
             application/json:
               schema:
@@ -19275,6 +19825,31 @@ components:
             The workload may keep referencing the revoked credential until this is confirmed
             or the workload is redeployed.
           example: Could not confirm whether this is the deployment pipeline's lowest environment, so its shared workload-level credentials were left untouched as a precaution.
+    EventType:
+      type: object
+      required: [type, scope, category, description]
+      properties:
+        type:
+          type: string
+          description: The catalog name, e.g. agent.deployed.
+        scope:
+          type: string
+          enum: [org, project, agent]
+          description: The level the event happens at.
+        category:
+          type: string
+        description:
+          type: string
+
+    EventTypeListResponse:
+      type: object
+      required: [eventTypes]
+      properties:
+        eventTypes:
+          type: array
+          items:
+            $ref: "#/components/schemas/EventType"
+
     EventDestinationKindService:
       type: object
       required: [id, label, category, urlFormat, docsUrl]
@@ -19484,6 +20059,39 @@ components:
         agentName:
           type: string
 
+    EventSubscriptionRequest:
+      type: object
+      required: [name, destinationId, eventTypes]
+      properties:
+        name:
+          type: string
+          maxLength: 100
+        description:
+          type: string
+          maxLength: 500
+        destinationId:
+          type: string
+          description: A destination available to the subscription's project.
+        eventTypes:
+          type: array
+          minItems: 1
+          items:
+            type: string
+          description: |
+            Event types the subscription's scope can receive, or just "*" for
+            every one, including types added later.
+        environments:
+          type: array
+          items:
+            type: string
+          description: |
+            Only events in these environments; empty or absent for every
+            environment. Events tied to no environment, such as a build, are
+            sent whatever it holds.
+        enabled:
+          type: boolean
+          description: Defaults to true.
+
     EventDeliveryCounts:
       type: object
       required: [delivered, failed, pending, skipped]
@@ -19496,3 +20104,62 @@ components:
           type: integer
         skipped:
           type: integer
+
+    EventSubscriptionResponse:
+      type: object
+      required: [id, scope, projectName, agentName, name, description, destination, eventTypes, environments, enabled, createdBy, createdAt, updatedAt, last24h]
+      properties:
+        id:
+          type: string
+        scope:
+          type: string
+          enum: [org, project, agent]
+        projectName:
+          type: string
+        agentName:
+          type: string
+        name:
+          type: string
+        description:
+          type: string
+        destination:
+          $ref: "#/components/schemas/EventDestinationSummary"
+        eventTypes:
+          type: array
+          items:
+            type: string
+        environments:
+          type: array
+          items:
+            type: string
+        enabled:
+          type: boolean
+        createdBy:
+          type: string
+          description: The ID of the user who created it.
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+        last24h:
+          $ref: "#/components/schemas/EventDeliveryCounts"
+
+    EventSubscriptionListResponse:
+      type: object
+      required: [subscriptions, inherited]
+      properties:
+        subscriptions:
+          type: array
+          description: The subscriptions this level owns.
+          items:
+            $ref: "#/components/schemas/EventSubscriptionResponse"
+        inherited:
+          type: array
+          description: |
+            Wider levels' subscriptions that also send this level's events,
+            read-only here. Their event types are narrowed to those that can
+            happen at this level, and their counts to this level's events.
+          items:
+            $ref: "#/components/schemas/EventSubscriptionResponse"

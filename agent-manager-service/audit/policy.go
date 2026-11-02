@@ -210,11 +210,20 @@ var actionOverrides = map[string]Action{
 	// Event destinations and subscriptions are gated by the permission of
 	// the scope they belong to (events, project or agent), which says nothing
 	// about the operation.
-	"POST /orgs/{orgName}/events/destinations":                               "event-destination:create",
-	"PUT /orgs/{orgName}/events/destinations/{destinationId}":                "event-destination:update",
-	"DELETE /orgs/{orgName}/events/destinations/{destinationId}":             "event-destination:delete",
-	"POST /orgs/{orgName}/events/destinations/{destinationId}/rotate-secret": "event-destination:rotate-secret",
-	"POST /orgs/{orgName}/events/destinations/{destinationId}/test":          "event-destination:test",
+	"POST /orgs/{orgName}/events/destinations":                                                            "event-destination:create",
+	"PUT /orgs/{orgName}/events/destinations/{destinationId}":                                             "event-destination:update",
+	"DELETE /orgs/{orgName}/events/destinations/{destinationId}":                                          "event-destination:delete",
+	"POST /orgs/{orgName}/events/destinations/{destinationId}/rotate-secret":                              "event-destination:rotate-secret",
+	"POST /orgs/{orgName}/events/destinations/{destinationId}/test":                                       "event-destination:test",
+	"POST /orgs/{orgName}/events/subscriptions":                                                           "event-subscription:create",
+	"PUT /orgs/{orgName}/events/subscriptions/{subscriptionId}":                                           "event-subscription:update",
+	"DELETE /orgs/{orgName}/events/subscriptions/{subscriptionId}":                                        "event-subscription:delete",
+	"POST /orgs/{orgName}/projects/{projName}/events/subscriptions":                                       "event-subscription:create",
+	"PUT /orgs/{orgName}/projects/{projName}/events/subscriptions/{subscriptionId}":                       "event-subscription:update",
+	"DELETE /orgs/{orgName}/projects/{projName}/events/subscriptions/{subscriptionId}":                    "event-subscription:delete",
+	"POST /orgs/{orgName}/projects/{projName}/agents/{agentName}/events/subscriptions":                    "event-subscription:create",
+	"PUT /orgs/{orgName}/projects/{projName}/agents/{agentName}/events/subscriptions/{subscriptionId}":    "event-subscription:update",
+	"DELETE /orgs/{orgName}/projects/{projName}/agents/{agentName}/events/subscriptions/{subscriptionId}": "event-subscription:delete",
 
 	// Gating permission names a different resource than the effect.
 	"POST /orgs/{orgName}/projects/{projName}/agents/{agentName}/publish-kind": "agent-kind:publish",

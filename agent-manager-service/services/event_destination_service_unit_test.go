@@ -25,6 +25,7 @@ import (
 	"strings"
 	"sync"
 	"testing"
+	"time"
 
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
@@ -307,6 +308,73 @@ func (m *memEventStore) mock() *repomocks.EventRepositoryMock {
 				}
 			}
 			return nil
+		},
+		ListSubscriptionsFunc: func(_ context.Context, t repositories.EventTarget) ([]models.EventSubscription, error) {
+			m.mu.Lock()
+			defer m.mu.Unlock()
+			out := []models.EventSubscription{}
+			for _, s := range m.subscriptions {
+				if ownedBy(&s, t) {
+					out = append(out, s)
+				}
+			}
+			slices.SortFunc(out, func(a, b models.EventSubscription) int { return strings.Compare(a.Name, b.Name) })
+			return out, nil
+		},
+		GetSubscriptionFunc: func(_ context.Context, t repositories.EventTarget, id uuid.UUID) (*models.EventSubscription, error) {
+			m.mu.Lock()
+			defer m.mu.Unlock()
+			s, ok := m.subscriptions[id]
+			if !ok || !ownedBy(&s, t) {
+				return nil, gorm.ErrRecordNotFound
+			}
+			return &s, nil
+		},
+		SubscriptionsByIDFunc: func(_ context.Context, ouID string, ids []uuid.UUID) ([]models.EventSubscription, error) {
+			m.mu.Lock()
+			defer m.mu.Unlock()
+			out := []models.EventSubscription{}
+			for _, id := range ids {
+				if s, ok := m.subscriptions[id]; ok && s.OUID == ouID {
+					out = append(out, s)
+				}
+			}
+			return out, nil
+		},
+		CreateSubscriptionFunc: func(
+			_ context.Context, s *models.EventSubscription, check func(*models.EventDestination) error,
+		) error {
+			return m.saveSubscription(s, check)
+		},
+		UpdateSubscriptionFunc: func(
+			_ context.Context, s *models.EventSubscription, check func(*models.EventDestination) error,
+		) error {
+			return m.saveSubscription(s, check)
+		},
+		DeleteSubscriptionFunc: func(_ context.Context, t repositories.EventTarget, id uuid.UUID) (bool, error) {
+			m.mu.Lock()
+			defer m.mu.Unlock()
+			s, ok := m.subscriptions[id]
+			if !ok || !ownedBy(&s, t) {
+				return false, nil
+			}
+			delete(m.subscriptions, id)
+			return true, nil
+		},
+		DeleteSubscriptionsUnderFunc: func(_ context.Context, ouID, project, agent string) error {
+			m.mu.Lock()
+			defer m.mu.Unlock()
+			for id, s := range m.subscriptions {
+				if s.OUID == ouID && s.ProjectName == project && (agent == "" || s.AgentName == agent) {
+					delete(m.subscriptions, id)
+				}
+			}
+			return nil
+		},
+		SubscriptionCountsFunc: func(
+			context.Context, string, []uuid.UUID, time.Time, repositories.DeliveryLocation,
+		) (repositories.SubscriptionCounts, error) {
+			return repositories.SubscriptionCounts{}, nil
 		},
 	}
 }

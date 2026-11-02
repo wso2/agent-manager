@@ -33,6 +33,7 @@ import (
 	occlient "github.com/wso2/agent-manager/agent-manager-service/clients/openchoreosvc/client"
 	"github.com/wso2/agent-manager/agent-manager-service/clients/thundersvc"
 	"github.com/wso2/agent-manager/agent-manager-service/config"
+	"github.com/wso2/agent-manager/agent-manager-service/events"
 	"github.com/wso2/agent-manager/agent-manager-service/models"
 	"github.com/wso2/agent-manager/agent-manager-service/repositories"
 	"github.com/wso2/agent-manager/agent-manager-service/utils"
@@ -274,6 +275,9 @@ func (s *environmentService) UpdateEnvironment(ctx context.Context, ouID string,
 		}
 		return nil, fmt.Errorf("failed to update environment: %w", err)
 	}
+	// The route may name the environment by UUID; event subscriptions filter
+	// by name.
+	events.SetEnvironment(ctx, env.Name)
 
 	description := ""
 	if req.Description != nil {
@@ -314,6 +318,8 @@ func (s *environmentService) DeleteEnvironment(ctx context.Context, ouID string,
 		}
 		return fmt.Errorf("failed to look up environment: %w", err)
 	}
+
+	events.SetEnvironment(ctx, env.Name)
 
 	envUUID, parseErr := uuid.Parse(env.UUID)
 	if parseErr != nil {

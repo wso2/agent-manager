@@ -106,6 +106,34 @@ type EventRepository interface {
 	// RemoveProjectFromDestinations takes a deleted project out of the
 	// destinations made available to it.
 	RemoveProjectFromDestinations(ctx context.Context, ouID, projectName string) error
+
+	// ListSubscriptions returns the subscriptions target owns, oldest first.
+	ListSubscriptions(ctx context.Context, target EventTarget) ([]models.EventSubscription, error)
+	// GetSubscription returns target's subscription with id, or
+	// gorm.ErrRecordNotFound.
+	GetSubscription(ctx context.Context, target EventTarget, id uuid.UUID) (*models.EventSubscription, error)
+	// SubscriptionsByID returns those of ids that are the org's
+	// subscriptions.
+	SubscriptionsByID(ctx context.Context, ouID string, ids []uuid.UUID) ([]models.EventSubscription, error)
+	// CreateSubscription saves a new subscription. check gets its
+	// destination, read with the row share-locked so its availability cannot
+	// change meanwhile, and can veto the save: its error is returned as is.
+	// A destination that is not the org's fails with gorm.ErrRecordNotFound.
+	CreateSubscription(ctx context.Context, s *models.EventSubscription, check func(*models.EventDestination) error) error
+	// UpdateSubscription saves s, checking its destination as
+	// CreateSubscription does.
+	UpdateSubscription(ctx context.Context, s *models.EventSubscription, check func(*models.EventDestination) error) error
+	DeleteSubscription(ctx context.Context, target EventTarget, id uuid.UUID) (bool, error)
+	// DeleteSubscriptionsUnder removes the subscriptions of a deleted project
+	// (agentName empty: its own and its agents') or agent.
+	DeleteSubscriptionsUnder(ctx context.Context, ouID, projectName, agentName string) error
+	// CandidateSubscriptions returns the enabled subscriptions an event of
+	// the project and agent could reach: the org's, the project's and the
+	// agent's. The caller applies the matching rules.
+	CandidateSubscriptions(ctx context.Context, ouID, projectName, agentName string) ([]models.EventSubscription, error)
+	// SubscriptionCounts counts, by status, each subscription's deliveries
+	// queued since since, keeping only the deliveries in loc.
+	SubscriptionCounts(ctx context.Context, ouID string, ids []uuid.UUID, since time.Time, loc DeliveryLocation) (SubscriptionCounts, error)
 }
 
 type eventRepository struct {
@@ -304,4 +332,169 @@ func (r *eventRepository) RemoveProjectFromDestinations(ctx context.Context, ouI
 		WHERE ou_id = ? AND availability = ? AND projects @> ?::jsonb`,
 		projectName, ouID, models.DestinationAvailableProjects, string(selected),
 	).Error
+}
+
+func (r *eventRepository) owned(ctx context.Context, t EventTarget) *gorm.DB {
+	q := r.db.WithContext(ctx).Where("ou_id = ? AND scope = ?", t.OUID, t.Scope)
+	switch t.Scope {
+	case models.EventScopeProject:
+		q = q.Where("project_name = ?", t.ProjectName)
+	case models.EventScopeAgent:
+		q = q.Where("project_name = ? AND agent_name = ?", t.ProjectName, t.AgentName)
+	}
+	return q
+}
+
+func (r *eventRepository) ListSubscriptions(ctx context.Context, t EventTarget) ([]models.EventSubscription, error) {
+	var out []models.EventSubscription
+	if err := r.owned(ctx, t).Order("created_at ASC").Find(&out).Error; err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (r *eventRepository) GetSubscription(ctx context.Context, t EventTarget, id uuid.UUID) (*models.EventSubscription, error) {
+	var s models.EventSubscription
+	if err := r.owned(ctx, t).Where("id = ?", id).First(&s).Error; err != nil {
+		return nil, err
+	}
+	return &s, nil
+}
+
+func (r *eventRepository) SubscriptionsByID(ctx context.Context, ouID string, ids []uuid.UUID) ([]models.EventSubscription, error) {
+	out := []models.EventSubscription{}
+	if len(ids) == 0 {
+		return out, nil
+	}
+	if err := r.db.WithContext(ctx).Where("ou_id = ? AND id IN ?", ouID, ids).Find(&out).Error; err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+// withDestination runs save inside a transaction that first reads s's
+// destination with its row share-locked and passes it to check.
+func (r *eventRepository) withDestination(
+	ctx context.Context, s *models.EventSubscription, check func(*models.EventDestination) error, save func(tx *gorm.DB) error,
+) error {
+	return r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		var d models.EventDestination
+		err := tx.Clauses(clause.Locking{Strength: "SHARE"}).
+			Where("ou_id = ? AND id = ?", s.OUID, s.DestinationID).First(&d).Error
+		if err != nil {
+			return err
+		}
+		if check != nil {
+			if err := check(&d); err != nil {
+				return err
+			}
+		}
+		return save(tx)
+	})
+}
+
+func (r *eventRepository) CreateSubscription(
+	ctx context.Context, s *models.EventSubscription, check func(*models.EventDestination) error,
+) error {
+	return r.withDestination(ctx, s, check, func(tx *gorm.DB) error {
+		now := time.Now()
+		s.CreatedAt, s.UpdatedAt = now, now
+		return tx.Create(s).Error
+	})
+}
+
+func (r *eventRepository) UpdateSubscription(
+	ctx context.Context, s *models.EventSubscription, check func(*models.EventDestination) error,
+) error {
+	return r.withDestination(ctx, s, check, func(tx *gorm.DB) error {
+		s.UpdatedAt = time.Now()
+		return tx.Model(&models.EventSubscription{}).Where("id = ?", s.ID).
+			Select("name", "description", "destination_id", "event_types", "environments", "enabled", "updated_at").
+			Updates(s).Error
+	})
+}
+
+func (r *eventRepository) DeleteSubscription(ctx context.Context, t EventTarget, id uuid.UUID) (bool, error) {
+	res := r.owned(ctx, t).Where("id = ?", id).Delete(&models.EventSubscription{})
+	if res.Error != nil {
+		return false, res.Error
+	}
+	return res.RowsAffected > 0, nil
+}
+
+func (r *eventRepository) DeleteSubscriptionsUnder(ctx context.Context, ouID, projectName, agentName string) error {
+	q := r.db.WithContext(ctx).Where("ou_id = ? AND project_name = ?", ouID, projectName)
+	if agentName != "" {
+		q = q.Where("agent_name = ?", agentName)
+	}
+	return q.Delete(&models.EventSubscription{}).Error
+}
+
+func (r *eventRepository) CandidateSubscriptions(
+	ctx context.Context, ouID, projectName, agentName string,
+) ([]models.EventSubscription, error) {
+	var out []models.EventSubscription
+	err := r.db.WithContext(ctx).
+		Where("ou_id = ? AND enabled = TRUE", ouID).
+		Where(r.db.Where("scope = ?", models.EventScopeOrg).
+			Or("scope = ? AND project_name = ?", models.EventScopeProject, projectName).
+			Or("scope = ? AND project_name = ? AND agent_name = ?", models.EventScopeAgent, projectName, agentName)).
+		Find(&out).Error
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+// located narrows q, on event_deliveries aliased x, to loc.
+func located(q *gorm.DB, loc DeliveryLocation) *gorm.DB {
+	if loc.ProjectName != "" {
+		q = q.Where("x.project_name = ?", loc.ProjectName)
+		if loc.AgentName != "" {
+			q = q.Where("x.agent_name = ?", loc.AgentName)
+		}
+	}
+	if len(loc.EventScopes) > 0 {
+		q = q.Where("x.event_scope IN ?", loc.EventScopes)
+	}
+	return q
+}
+
+// subscriptionCountRow is one row of the subscription counts query.
+type subscriptionCountRow struct {
+	SubscriptionID string
+	Status         string
+	Count          int
+}
+
+func (r *eventRepository) SubscriptionCounts(
+	ctx context.Context, ouID string, ids []uuid.UUID, since time.Time, loc DeliveryLocation,
+) (SubscriptionCounts, error) {
+	out := SubscriptionCounts{}
+	if len(ids) == 0 {
+		return out, nil
+	}
+	wanted := make([]string, len(ids))
+	for i, id := range ids {
+		wanted[i] = id.String()
+	}
+	q := r.db.WithContext(ctx).
+		Table("event_deliveries AS x CROSS JOIN LATERAL jsonb_array_elements_text(x.subscription_ids) AS s(sid)").
+		Select("s.sid AS subscription_id, x.status AS status, count(*) AS count").
+		Where("x.ou_id = ? AND x.created_at >= ? AND s.sid IN ?", ouID, since, wanted)
+	var rows []subscriptionCountRow
+	if err := located(q, loc).Group("s.sid, x.status").Scan(&rows).Error; err != nil {
+		return nil, err
+	}
+	for _, row := range rows {
+		id, err := uuid.Parse(row.SubscriptionID)
+		if err != nil {
+			continue
+		}
+		if out[id] == nil {
+			out[id] = map[string]int{}
+		}
+		out[id][row.Status] += row.Count
+	}
+	return out, nil
 }

@@ -119,6 +119,8 @@ var serviceProviderSet = wire.NewSet(
 	services.NewMonitorRunEvents,
 	ProvideDestinationDrivers,
 	services.NewEventDestinationService,
+	services.NewEventSubscriptionService,
+	wire.Bind(new(services.EventsCleaner), new(services.EventSubscriptionService)),
 	wire.Bind(new(services.DestinationResolver), new(services.EventDestinationService)),
 )
 
