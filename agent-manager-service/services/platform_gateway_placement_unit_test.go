@@ -103,7 +103,7 @@ func TestRegisterGatewayPlacesItsEnvironment(t *testing.T) {
 	svc := NewPlatformGatewayService(mappingRepo(gw, 0), nil).WithEnvironmentPlacer(placer)
 
 	_, err := svc.RegisterGateway("ou-1", "gw1", "GW", "", "https://ext.example.com", "", false, "EGRESS", nil,
-		[]string{env.String(), env.String()})
+		[]string{env.String(), env.String()}, models.GatewayHostingManaged)
 	require.NoError(t, err)
 
 	assert.Equal(t, []placedEnv{{ouID: "ou-1", env: env}}, placer.placed(t, 1))

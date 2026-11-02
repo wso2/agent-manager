@@ -232,6 +232,7 @@ func (s *PlatformGatewayService) RegisterGateway(
 	isCritical bool, functionalityType string,
 	properties map[string]interface{},
 	environmentIDs []string,
+	hosting string,
 ) (*GatewayResponse, error) {
 	// 1. Validate inputs
 	if err := s.validateGatewayInput(ouID, name, displayName, vhost); err != nil {
@@ -280,6 +281,7 @@ func (s *PlatformGatewayService) RegisterGateway(
 		RuntimeURL:               strings.TrimSpace(runtimeURL),
 		IsCritical:               isCritical,
 		GatewayFunctionalityType: role,
+		Hosting:                  hosting,
 		CreatedAt:                time.Now(),
 		UpdatedAt:                time.Now(),
 	}
@@ -895,17 +897,38 @@ func (s *PlatformGatewayService) UpdateGatewayActiveStatus(gatewayID string, isA
 // resolveGatewayUUID resolves a gateway identifier (UUID or name) to its UUID,
 // scoped to the organization.
 func (s *PlatformGatewayService) resolveGatewayUUID(gatewayID, ouID string) (string, error) {
-	if gw, err := s.gatewayRepo.GetByNameAndOrgID(gatewayID, ouID); err == nil {
-		return gw.UUID.String(), nil
-	}
-	gw, err := s.gatewayRepo.GetByUUID(gatewayID)
+	gw, err := s.lookupGatewayInOrg(gatewayID, ouID)
 	if err != nil {
-		return "", utils.ErrGatewayNotFound
+		return "", err
 	}
-	if gw.OUID != ouID {
+	return gw.UUID.String(), nil
+}
+
+// resolveManagedGatewayUUID is resolveGatewayUUID for operations a self-hosted gateway does
+// not support: a self-hosted gateway is reported as not found.
+func (s *PlatformGatewayService) resolveManagedGatewayUUID(gatewayID, ouID string) (string, error) {
+	gw, err := s.lookupGatewayInOrg(gatewayID, ouID)
+	if err != nil {
+		return "", err
+	}
+	if !gw.IsManaged() {
 		return "", utils.ErrGatewayNotFound
 	}
 	return gw.UUID.String(), nil
+}
+
+func (s *PlatformGatewayService) lookupGatewayInOrg(gatewayID, ouID string) (*models.Gateway, error) {
+	if gw, err := s.gatewayRepo.GetByNameAndOrgID(gatewayID, ouID); err == nil {
+		return gw, nil
+	}
+	gw, err := s.gatewayRepo.GetByUUID(gatewayID)
+	if err != nil {
+		return nil, utils.ErrGatewayNotFound
+	}
+	if gw.OUID != ouID {
+		return nil, utils.ErrGatewayNotFound
+	}
+	return gw, nil
 }
 
 // UpsertIdentityProvider creates or updates an identity provider mirror row for a
@@ -920,7 +943,7 @@ func (s *PlatformGatewayService) UpsertIdentityProvider(ctx context.Context, gat
 	if name == models.ReservedIdentityProviderName {
 		return nil, utils.ErrInvalidInput
 	}
-	gwUUIDStr, err := s.resolveGatewayUUID(gatewayID, ouID)
+	gwUUIDStr, err := s.resolveManagedGatewayUUID(gatewayID, ouID)
 	if err != nil {
 		return nil, err
 	}
@@ -974,7 +997,7 @@ func (s *PlatformGatewayService) UpsertIdentityProvider(ctx context.Context, gat
 // sync; if the apply fails the mirror is left untouched. System providers are skipped
 // (the repository rejects their deletion), so only custom providers are applied here.
 func (s *PlatformGatewayService) DeleteIdentityProvider(ctx context.Context, gatewayID, ouID, name string) error {
-	gwUUIDStr, err := s.resolveGatewayUUID(gatewayID, ouID)
+	gwUUIDStr, err := s.resolveManagedGatewayUUID(gatewayID, ouID)
 	if err != nil {
 		return err
 	}
@@ -1120,6 +1143,9 @@ func (s *PlatformGatewayService) RemoveGatewayFromEnvironment(ctx context.Contex
 	if err != nil {
 		return fmt.Errorf("invalid environment UUID: %w", err)
 	}
+	if err := s.refuseSelfHostedEnvironmentChange(gatewayID); err != nil {
+		return err
+	}
 
 	return s.gatewayRepo.Transaction(func(tx *gorm.DB) error {
 		// The delete comes before the check: it waits for a placement holding the mapping FOR SHARE to commit, so
@@ -1132,6 +1158,18 @@ func (s *PlatformGatewayService) RemoveGatewayFromEnvironment(ctx context.Contex
 		}
 		return s.refuseWhileServing(ctx, tx, env, gateway)
 	})
+}
+
+// refuseSelfHostedEnvironmentChange keeps a self-hosted gateway in the one environment it was registered for.
+func (s *PlatformGatewayService) refuseSelfHostedEnvironmentChange(gatewayID string) error {
+	gw, err := s.gatewayRepo.GetByUUID(gatewayID)
+	if err != nil && !errors.Is(err, gorm.ErrRecordNotFound) && !errors.Is(err, utils.ErrGatewayNotFound) {
+		return fmt.Errorf("failed to get gateway: %w", err)
+	}
+	if gw != nil && !gw.IsManaged() {
+		return fmt.Errorf("%w: a self-hosted gateway stays in the environment it was registered for", utils.ErrGatewayEnvironmentFixed)
+	}
+	return nil
 }
 
 func (s *PlatformGatewayService) refuseWhileServing(ctx context.Context, tx *gorm.DB, env, gateway uuid.UUID) error {

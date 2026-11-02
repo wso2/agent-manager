@@ -253,6 +253,7 @@ func (c *gatewayController) RegisterGateway(w http.ResponseWriter, r *http.Reque
 		functionalityType,
 		properties,
 		req.EnvironmentIds,
+		models.GatewayHostingManaged,
 	)
 	audit.Record(
 		ctx, audit.ActionGatewayCreate,
