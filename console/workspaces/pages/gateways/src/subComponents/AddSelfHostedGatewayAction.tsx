@@ -16,7 +16,7 @@
  */
 
 import React, { useState } from "react";
-import { Button } from "@wso2/oxygen-ui";
+import { Box, Button, type SxProps, type Theme } from "@wso2/oxygen-ui";
 import { Plus } from "@wso2/oxygen-ui-icons-react";
 import { useListEnvironments } from "@agent-management-platform/api-client";
 import {
@@ -34,19 +34,17 @@ interface AddSelfHostedGatewayActionProps {
   presetEnvironment?: string;
   onCreated?: (gateway: GatewayResponse) => void;
   disabled?: boolean;
+  sx?: SxProps<Theme>;
 }
 
-/** "Add self-hosted gateway" button plus its drawer, for deploy flows. */
-export const AddSelfHostedGatewayAction: React.FC<
+const EnabledAddSelfHostedGatewayAction: React.FC<
   AddSelfHostedGatewayActionProps
-> = ({ orgId, presetEnvironment, onCreated, disabled }) => {
+> = ({ orgId, presetEnvironment, onCreated, disabled, sx }) => {
   const [open, setOpen] = useState(false);
   const { data: environments } = useListEnvironments({ orgName: orgId });
 
-  if (globalConfig.selfHostedGatewaysEnabled !== true) return null;
-
   return (
-    <>
+    <Box sx={sx}>
       <Button
         size="small"
         variant="text"
@@ -65,6 +63,17 @@ export const AddSelfHostedGatewayAction: React.FC<
         presetDescription={DEFAULT_DESCRIPTION}
         onCreated={onCreated}
       />
-    </>
+    </Box>
   );
 };
+
+/**
+ * "Add self-hosted gateway" button plus its drawer, for deploy flows. Renders
+ * nothing, and runs no queries, unless self-hosted gateways are enabled.
+ */
+export const AddSelfHostedGatewayAction: React.FC<
+  AddSelfHostedGatewayActionProps
+> = (props) =>
+  globalConfig.selfHostedGatewaysEnabled === true ? (
+    <EnabledAddSelfHostedGatewayAction {...props} />
+  ) : null;

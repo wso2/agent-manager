@@ -28,7 +28,7 @@ import {
   useConfirmationDialog,
   useUnsavedChangesGuard,
 } from "@agent-management-platform/shared-component";
-import { Alert, Box, Button, Collapse, Skeleton, Stack } from "@wso2/oxygen-ui";
+import { Alert, Button, Collapse, Skeleton, Stack } from "@wso2/oxygen-ui";
 import { requestedGatewayStatuses } from "./gatewayDeploymentStatus";
 
 export type LLMProviderDeploymentTabProps = {
@@ -196,12 +196,10 @@ export function LLMProviderDeploymentTab({
         onValidityChange={setIsSelectionValid}
         disabled={isUpdating}
       />
-      <Box>
-        <AddSelfHostedGatewayAction
-          orgId={orgName ?? ""}
-          disabled={isUpdating}
-        />
-      </Box>
+      <AddSelfHostedGatewayAction
+        orgId={orgName ?? ""}
+        disabled={isUpdating}
+      />
       <Stack spacing={1.5} width="100%">
         <Collapse in={!!status} timeout={300}>
           {status && (

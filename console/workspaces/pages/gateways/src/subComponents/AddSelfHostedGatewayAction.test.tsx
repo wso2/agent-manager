@@ -15,15 +15,17 @@
  * under the License.
  */
 
-import { describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { fireEvent, render, screen } from "@testing-library/react";
 import { globalConfig } from "@agent-management-platform/types";
 import { AddSelfHostedGatewayAction } from "./AddSelfHostedGatewayAction";
 
 const drawerProps = vi.hoisted(() => ({ last: null as Record<string, unknown> | null }));
 
+const listEnvironments = vi.hoisted(() => vi.fn());
+
 vi.mock("@agent-management-platform/api-client", () => ({
-  useListEnvironments: () => ({ data: [{ id: "e1", name: "dev" }] }),
+  useListEnvironments: listEnvironments,
 }));
 
 vi.mock("./AddSelfHostedGatewayDrawer", () => ({
@@ -36,6 +38,8 @@ vi.mock("./AddSelfHostedGatewayDrawer", () => ({
 describe("AddSelfHostedGatewayAction", () => {
   beforeEach(() => {
     drawerProps.last = null;
+    listEnvironments.mockReset();
+    listEnvironments.mockReturnValue({ data: [{ id: "e1", name: "dev" }] });
     globalConfig.selfHostedGatewaysEnabled = true;
   });
 
@@ -48,6 +52,7 @@ describe("AddSelfHostedGatewayAction", () => {
     render(<AddSelfHostedGatewayAction orgId="acme" />);
     expect(screen.queryByText("Add self-hosted gateway")).toBeNull();
     expect(drawerProps.last).toBeNull();
+    expect(listEnvironments).not.toHaveBeenCalled();
   });
 
   it("opens the drawer preset with the first environment and APIP's default name", () => {

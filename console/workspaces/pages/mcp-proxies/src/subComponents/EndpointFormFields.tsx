@@ -628,12 +628,11 @@ export function EndpointFormFields({
                   onSingleChoiceChange={setIsSingleGatewayChoice}
                 />
               </Box>
-              <Box sx={{ mt: 0.5 }}>
-                <AddSelfHostedGatewayAction
-                  orgId={orgId}
-                  presetEnvironment={availableEnvironments[0]?.name}
-                />
-              </Box>
+              <AddSelfHostedGatewayAction
+                orgId={orgId}
+                presetEnvironment={availableEnvironments[0]?.name}
+                sx={{ mt: 0.5 }}
+              />
               <Typography
                 variant="caption"
                 color="text.secondary"

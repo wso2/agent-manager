@@ -736,6 +736,23 @@ describe("EnvironmentGatewaySelectorView hosting", () => {
     expect(screen.getByText("Self-hosted")).toBeTruthy();
   });
 
+  it("shows no hosting chip on a deployed row when self-hosted gateways are disabled", () => {
+    renderWithTheme(
+      <ControlledSelector
+        environments={environments}
+        gateways={[
+          makeGateway("managed", "env-a", "BOTH", "MANAGED"),
+          makeGateway("own", "env-a", "EGRESS", "SELF_HOSTED"),
+        ]}
+        initialValue={["own"]}
+        lockedGatewayIds={["own"]}
+      />,
+    );
+    expect(screen.getByText("Deployed")).toBeTruthy();
+    expect(screen.queryByText("Self-hosted")).toBeNull();
+    expect(screen.queryByText("Managed")).toBeNull();
+  });
+
   it("shows no hosting chip when self-hosted gateways are disabled", () => {
     renderWithTheme(
       <ControlledSelector

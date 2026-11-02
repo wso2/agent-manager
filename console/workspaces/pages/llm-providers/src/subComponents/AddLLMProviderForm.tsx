@@ -724,9 +724,7 @@ export const AddLLMProviderForm: React.FC<AddLLMProviderFormProps> = ({
                 onValidityChange={setIsGatewaySelectionValid}
                 onSingleChoiceChange={setIsSingleGatewayChoice}
               />
-              <Box>
-                <AddSelfHostedGatewayAction orgId={orgId} />
-              </Box>
+              <AddSelfHostedGatewayAction orgId={orgId} />
             </Form.Stack>
           </Form.Section>
         )}
