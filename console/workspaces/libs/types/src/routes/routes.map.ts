@@ -204,6 +204,11 @@ export const rootRouteMap: AppRoute = {
                         },
                     },
                 },
+                events: {
+                    path: 'events',
+                    index: true,
+                    children: {},
+                },
                 deploymentPipelines: {
                     path: 'deployment-pipelines',
                     index: true,
@@ -246,6 +251,11 @@ export const rootRouteMap: AppRoute = {
                     path: 'project/:projectId',
                     index: true,
                     children: {
+                        events: {
+                            path: 'events',
+                            index: true,
+                            children: {},
+                        },
                         newAgent: {
                             path: 'newAgent',
                             index: true,
@@ -333,6 +343,11 @@ export const rootRouteMap: AppRoute = {
                                 },
                                 build: {
                                     path: 'build',
+                                    index: true,
+                                    children: {},
+                                },
+                                events: {
+                                    path: 'events',
                                     index: true,
                                     children: {},
                                 },
