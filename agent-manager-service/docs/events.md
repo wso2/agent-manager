@@ -83,6 +83,16 @@ Lower levels see the wider levels' subscriptions that reach them, read-only and 
 
 Project and agent callers see only the destinations available to them, as name, kind and health — never their settings. Callers without `amp:events:manage` see destination settings masked. Only `amp:events:manage` can test a destination, so a project cannot page the org's on-call. Every change is written to the audit trail (`event-destination:*`, `event-subscription:*`), and subscriptions are removed with their project or agent; a deleted project is also taken off the destinations made available to it.
 
+## Notification services
+
+`GET /orgs/{org}/events/destination-kinds` lists the kinds and, for `notify`, the offered services with their URL format and a link to Shoutrrr's documentation. The console builds its form from it.
+
+Offered: Slack, Microsoft Teams, Google Chat, Discord, Telegram, Mattermost, Rocket.Chat, Zulip, Email (SMTP), PagerDuty, Opsgenie, ntfy, Gotify, Pushover and Twilio SMS.
+
+- **Adding a service** Shoutrrr supports is one entry in `offered` (`notify.go`) and a sample URL in its test. Offer only services that send through the client the driver supplies (`types.HTTPClientSetter`); the test fails otherwise.
+- **SSRF.** HTTP services send through the same SSRF-hardened client as webhooks. Hosts named in a self-hosted service's URL (Mattermost, Gotify, an SMTP relay, …) must resolve to public addresses when the destination is saved; SMTP does not go over HTTP, so its connection resolves and validates every address, then dials a validated IP directly while retaining the original hostname for TLS and authentication. `EVENTS_ALLOW_PRIVATE_DESTINATIONS` lifts both checks for local development.
+- **Upgrading Shoutrrr.** Releases from v0.19.0 need Go 1.27; the service pins v0.18.0 until it moves to Go 1.27. Update `libraryVersion` in `notify.go` with it, which versions the docs links.
+
 ## Adding a destination kind
 
 1. Implement `eventdestinations.Driver` in `services/eventdestinations/<kind>/`: validate and normalise the settings, mask them for read-only callers, generate a secret if the kind has one, deliver, and say which failures are retryable.

@@ -359,3 +359,31 @@ Usage: include "agent-management-platform.image" (dict "image" .Values.console.i
 {{- end -}}
 {{- printf "%s:%s" $repository ($image.tag | default $ctx.Chart.AppVersion) -}}
 {{- end -}}
+
+{{/*
+Event bus mode: nats, embedded or off. events.mode is the only setting; the
+bundled NATS and the service's EVENTS_* settings follow from it.
+*/}}
+{{- define "agent-management-platform.eventsMode" -}}
+{{- .Values.agentManagerService.config.events.mode | default "nats" -}}
+{{- end }}
+
+{{/*
+Non-empty when the chart deploys its own NATS: events.mode is nats and no
+external events.natsUrl is given.
+*/}}
+{{- define "agent-management-platform.bundledNats" -}}
+{{- if and (eq (include "agent-management-platform.eventsMode" .) "nats") (not .Values.agentManagerService.config.events.natsUrl) -}}
+true
+{{- end -}}
+{{- end }}
+
+{{/*
+NATS URL the service connects to in nats mode: the external one, else the
+bundled NATS. Empty in other modes.
+*/}}
+{{- define "agent-management-platform.natsUrl" -}}
+{{- if eq (include "agent-management-platform.eventsMode" .) "nats" -}}
+{{- .Values.agentManagerService.config.events.natsUrl | default (printf "nats://amp-nats.%s.svc.cluster.local:4222" .Release.Namespace) -}}
+{{- end -}}
+{{- end }}
