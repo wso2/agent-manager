@@ -70,6 +70,8 @@ type APIClient struct {
 
 	EvaluatorsAPI *EvaluatorsAPIService
 
+	EventsAPI *EventsAPIService
+
 	GatewayEnvironmentMappingsAPI *GatewayEnvironmentMappingsAPIService
 
 	GatewayIdentityProvidersAPI *GatewayIdentityProvidersAPIService
@@ -134,6 +136,7 @@ func NewAPIClient(cfg *Configuration) *APIClient {
 	c.DefaultAPI = (*DefaultAPIService)(&c.common)
 	c.EnvironmentsAPI = (*EnvironmentsAPIService)(&c.common)
 	c.EvaluatorsAPI = (*EvaluatorsAPIService)(&c.common)
+	c.EventsAPI = (*EventsAPIService)(&c.common)
 	c.GatewayEnvironmentMappingsAPI = (*GatewayEnvironmentMappingsAPIService)(&c.common)
 	c.GatewayIdentityProvidersAPI = (*GatewayIdentityProvidersAPIService)(&c.common)
 	c.GatewayTokensAPI = (*GatewayTokensAPIService)(&c.common)

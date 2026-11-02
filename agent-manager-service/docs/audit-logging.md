@@ -368,6 +368,14 @@ The registry is the source of truth (`audit/actions.go`, `audit/actions_domain.g
 | `authz:deny` | authz | 3 warning | `grantedScopes`, `missingScope`, `reason` |
 | `authz:root-ou-bypass` | authz | 4 critical | `rootOUBypass` |
 | `environment:read` | read | 1 info | — |
+| `event-destination:create` | credential | 4 critical | `availability`, `destination`, `kind`, `projects` |
+| `event-destination:delete` | credential | 4 critical | `availability`, `destination`, `kind`, `projects` |
+| `event-destination:rotate-secret` | credential | 4 critical | `availability`, `destination`, `kind`, `projects` |
+| `event-destination:test` | config | 2 notice | — |
+| `event-destination:update` | credential | 4 critical | `availability`, `destination`, `kind`, `projects` |
+| `event-subscription:create` | config | 2 notice | `allEvents`, `destinationId`, `enabled`, `environments`, `eventCount`, `scope` |
+| `event-subscription:delete` | config | 2 notice | `allEvents`, `destinationId`, `enabled`, `environments`, `eventCount`, `scope` |
+| `event-subscription:update` | config | 2 notice | `allEvents`, `destinationId`, `enabled`, `environments`, `eventCount`, `scope` |
 | `gateway-token:revoke` | credential | 4 critical | `gatewayName`, `tokenId` |
 | `gateway-token:rotate` | credential | 4 critical | `expiresAt`, `gatewayName`, `tokenId` |
 | `gateway:assign-environment` | config | 2 notice | `environment`, `gatewayName`, `gatewayType`, `vhost` |

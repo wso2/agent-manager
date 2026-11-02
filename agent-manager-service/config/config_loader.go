@@ -304,8 +304,12 @@ func loadEnvs() {
 
 	// Events default to off, so an install without a bus behaves as before.
 	config.Events = EventsConfig{
-		Mode:    r.readOptionalString("EVENTS_MODE", ""),
-		NATSURL: r.readOptionalString("EVENTS_NATS_URL", ""),
+		Mode:                     r.readOptionalString("EVENTS_MODE", ""),
+		NATSURL:                  r.readOptionalString("EVENTS_NATS_URL", ""),
+		NATSToken:                r.readOptionalString("EVENTS_NATS_TOKEN", ""),
+		AllowPrivateDestinations: r.readOptionalBool("EVENTS_ALLOW_PRIVATE_DESTINATIONS", false),
+		DeliveryMaxAttempts:      int(r.readOptionalInt64("EVENTS_DELIVERY_MAX_ATTEMPTS", 6)),
+		DeliveryRetentionDays:    int(r.readOptionalInt64("EVENTS_DELIVERY_RETENTION_DAYS", 14)),
 	}
 	if config.Events.Mode == "" {
 		config.Events.Mode = EventsModeOff

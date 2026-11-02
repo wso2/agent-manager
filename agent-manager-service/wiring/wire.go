@@ -41,6 +41,8 @@ import (
 	"github.com/wso2/agent-manager/agent-manager-service/middleware/jwtassertion"
 	"github.com/wso2/agent-manager/agent-manager-service/repositories"
 	"github.com/wso2/agent-manager/agent-manager-service/services"
+	"github.com/wso2/agent-manager/agent-manager-service/services/eventdestinations"
+	"github.com/wso2/agent-manager/agent-manager-service/services/eventdestinations/webhook"
 	"github.com/wso2/agent-manager/agent-manager-service/utils"
 	"github.com/wso2/agent-manager/agent-manager-service/websocket"
 )
@@ -115,6 +117,9 @@ var serviceProviderSet = wire.NewSet(
 	ProvideEventBus,
 	ProvideEventPublisher,
 	services.NewMonitorRunEvents,
+	ProvideDestinationDrivers,
+	services.NewEventDestinationService,
+	wire.Bind(new(services.DestinationResolver), new(services.EventDestinationService)),
 )
 
 var instrumentationProviderSet = wire.NewSet(
@@ -152,6 +157,7 @@ var controllerProviderSet = wire.NewSet(
 	controllers.NewIdentityController,
 	controllers.NewMCPProxyScopeController,
 	controllers.NewAgentIdentityController,
+	controllers.NewEventsController,
 )
 
 var testClientProviderSet = wire.NewSet(
@@ -395,6 +401,7 @@ var repositoryProviderSet = wire.NewSet(
 	ProvideEnvThunderSystemClientRepository,
 	ProvideEnvThunderURLRepository,
 	repositories.NewMCPProxyScopeRepository,
+	repositories.NewEventRepository,
 )
 
 var websocketProviderSet = wire.NewSet(
@@ -592,6 +599,14 @@ func ProvideAgentIdentityInjectionService(
 	return services.NewAgentIdentityInjectionService(repo, agentConfigRepo, mcpProxyScopeRepo, ocClient, cfg.SecretManager.AgentIdentityRefreshInterval, logger)
 }
 
+// ProvideDestinationDrivers registers the driver of each supported event
+// destination kind. Add a kind here once its driver exists.
+func ProvideDestinationDrivers(cfg config.Config) *eventdestinations.Registry {
+	return eventdestinations.NewRegistry(
+		webhook.New(cfg.Events.AllowPrivateDestinations),
+	)
+}
+
 // ProvideEventBus connects to NATS, or starts the embedded in-memory server,
 // as EVENTS_MODE says. With events off it returns nil: nothing is published.
 func ProvideEventBus(cfg config.Config, logger *slog.Logger) (events.Bus, error) {
@@ -603,7 +618,7 @@ func ProvideEventBus(cfg config.Config, logger *slog.Logger) (events.Bus, error)
 		}
 		return bus, nil
 	case config.EventsModeNATS:
-		bus, err := events.Connect(cfg.Events.NATSURL, "agent-manager-service", logger)
+		bus, err := events.Connect(cfg.Events.NATSURL, cfg.Events.NATSToken, "agent-manager-service", logger)
 		if err != nil {
 			return nil, err
 		}
