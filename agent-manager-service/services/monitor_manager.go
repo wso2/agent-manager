@@ -149,6 +149,16 @@ func (s *monitorManagerService) CreateMonitor(ctx context.Context, ouID string, 
 		return nil, fmt.Errorf("failed to resolve environment: %w", err)
 	}
 
+	if req.LLMProvider != nil {
+		envUUID, err := uuid.Parse(env.UUID)
+		if err != nil {
+			return nil, fmt.Errorf("invalid environment UUID: %w", err)
+		}
+		if err := s.requireManagedMonitorProvider(ctx, ouID, req.LLMProvider.ProviderName, envUUID); err != nil {
+			return nil, err
+		}
+	}
+
 	// Set defaults
 	samplingRate := models.DefaultSamplingRate
 	if req.SamplingRate != nil {
@@ -522,6 +532,22 @@ func (s *monitorManagerService) UpdateMonitor(ctx context.Context, ouID, project
 		}
 	}
 
+	if req.LLMProvider != nil && !req.ClearLLMProvider {
+		oldMappings, err := s.monitorLLMMappingRepo.ListByMonitorID(ctx, monitor.ID)
+		if err != nil {
+			return nil, fmt.Errorf("failed to list existing LLM mappings: %w", err)
+		}
+		if !s.monitorProviderUnchanged(ouID, monitor, oldMappings, req.LLMProvider.ProviderName) {
+			envUUID, err := uuid.Parse(monitor.EnvironmentID)
+			if err != nil {
+				return nil, fmt.Errorf("invalid environment UUID: %w", err)
+			}
+			if err := s.requireManagedMonitorProvider(ctx, ouID, req.LLMProvider.ProviderName, envUUID); err != nil {
+				return nil, err
+			}
+		}
+	}
+
 	// Apply partial updates
 	if req.DisplayName != nil {
 		monitor.DisplayName = *req.DisplayName
@@ -544,21 +570,7 @@ func (s *monitorManagerService) UpdateMonitor(ctx context.Context, ouID, project
 		// Skip re-provisioning when the requested provider is already configured.
 		// The frontend always echoes the current llmProvider in PATCH requests, so
 		// receiving req.LLMProvider != nil does not mean the provider is changing.
-		providerUnchanged := false
-		if len(oldMappings) > 0 {
-			if oldMappings[0].LLMProxy == nil {
-				s.logger.Error("Existing monitor LLM mapping points at a missing proxy — orphaned gateway resources may exist",
-					"monitorID", monitor.ID, "proxyUUID", oldMappings[0].LLMProxyUUID)
-			} else {
-				existingProvider, err := s.llmProvisioner.ProviderRepo().GetByUUID(
-					oldMappings[0].LLMProxy.ProviderUUID.String(), ouID,
-				)
-				if err == nil && existingProvider != nil &&
-					existingProvider.Configuration.Handle == req.LLMProvider.ProviderName {
-					providerUnchanged = true
-				}
-			}
-		}
+		providerUnchanged := s.monitorProviderUnchanged(ouID, monitor, oldMappings, req.LLMProvider.ProviderName)
 
 		if !providerUnchanged {
 			envUUID, err := uuid.Parse(monitor.EnvironmentID)
@@ -1527,6 +1539,38 @@ func monitorProxyName(monitorID uuid.UUID, monitorName, providerName string) str
 	return fmt.Sprintf("%s-%s-%s-proxy", name, providerFingerprint, monitorSuffix)
 }
 
+// monitorProviderUnchanged reports whether the monitor's current proxy already points at the named provider.
+func (s *monitorManagerService) monitorProviderUnchanged(
+	ouID string, monitor *models.Monitor, oldMappings []models.MonitorLLMMapping, providerName string,
+) bool {
+	if len(oldMappings) == 0 {
+		return false
+	}
+	if oldMappings[0].LLMProxy == nil {
+		s.logger.Error("Existing monitor LLM mapping points at a missing proxy — orphaned gateway resources may exist",
+			"monitorID", monitor.ID, "proxyUUID", oldMappings[0].LLMProxyUUID)
+		return false
+	}
+	existingProvider, err := s.llmProvisioner.ProviderRepo().GetByUUID(oldMappings[0].LLMProxy.ProviderUUID.String(), ouID)
+	return err == nil && existingProvider != nil && existingProvider.Configuration.Handle == providerName
+}
+
+// requireManagedMonitorProvider refuses, before anything is created or changed, a monitor whose evaluation
+// jobs would run in OpenChoreo through a provider with no deployment on a managed gateway in the environment.
+func (s *monitorManagerService) requireManagedMonitorProvider(
+	ctx context.Context, ouID, providerName string, envUUID uuid.UUID,
+) error {
+	provider, err := s.llmProvisioner.ProviderRepo().GetByHandle(providerName, ouID)
+	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			err = fmt.Errorf("%w: %s", utils.ErrLLMProviderNotFound, providerName)
+		}
+		return fmt.Errorf("failed to resolve LLM provider %q: %w", providerName, err)
+	}
+	return requireManagedPlacement(ctx, s.llmProvisioner.ProxyDeploymentService(), s.llmProvisioner.gatewayRepo,
+		ouID, provider.UUID, envUUID)
+}
+
 // resolveMonitorGateway anchors on the LLM provider's existing deployment, exactly as
 // resolveGatewayForProvider does, so a second egress gateway in the environment never
 // makes monitor create/update impossible. CreateMonitorRequest and UpdateMonitorRequest
@@ -1540,7 +1584,10 @@ func (s *monitorManagerService) resolveMonitorGateway(
 		if depErr != nil {
 			return nil, fmt.Errorf("failed to list deployed gateways for provider %s: %w", providerUUIDStr, depErr)
 		}
-		deployed = ids
+		deployed, depErr = managedAnchorsFirst(s.llmProvisioner.gatewayRepo, ids)
+		if depErr != nil {
+			return nil, depErr
+		}
 	}
 	return resolveEgressGatewayForArtifact(s.llmProvisioner.gatewayRepo, ouID, envUUID, deployed, nil)
 }

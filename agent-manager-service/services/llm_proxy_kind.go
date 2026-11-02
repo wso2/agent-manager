@@ -221,7 +221,7 @@ func (k *LLMProxyKind) Targets(ctx context.Context, record reconcile.Record) (uu
 		if err != nil {
 			return uuid.Nil, false, err
 		}
-		providerGateways, err = managedAnchorsFirst(gateways, providerGateways)
+		providerGateways, err = managedAnchorsOnly(gateways, providerGateways)
 		if err != nil {
 			return uuid.Nil, false, err
 		}

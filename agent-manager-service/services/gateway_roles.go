@@ -193,6 +193,24 @@ func managedAnchorsFirst(repo repositories.GatewayRepository, gatewayIDs []strin
 	return append(managed, rest...), nil
 }
 
+// managedAnchorsOnly is gatewayIDs without the self-hosted gateways, original order kept. Unknown or deleted
+// ids stay: they are stale rows the placement lookup skips. Used where the artifact runs in OpenChoreo and
+// so may never be placed next to a self-hosted anchor.
+func managedAnchorsOnly(repo repositories.GatewayRepository, gatewayIDs []string) ([]string, error) {
+	kept := make([]string, 0, len(gatewayIDs))
+	for _, id := range gatewayIDs {
+		gw, err := repo.GetByUUID(id)
+		if err != nil && !errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil, fmt.Errorf("failed to load anchor gateway %s: %w", id, err)
+		}
+		if err == nil && gw != nil && !gw.IsManaged() {
+			continue
+		}
+		kept = append(kept, id)
+	}
+	return kept, nil
+}
+
 // placedOn runs a kind's PlacedOn query, records whose artifacts PlacedCondition finds placed, through tx.
 func placedOn(ctx context.Context, tx *gorm.DB, records string, args []any) (bool, error) {
 	var placed bool

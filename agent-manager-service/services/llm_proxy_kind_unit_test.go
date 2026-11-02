@@ -150,3 +150,49 @@ func TestLLMProxyTargets_PrefersManagedProviderAnchor(t *testing.T) {
 	require.True(t, ok)
 	assert.Equal(t, managed.UUID, got)
 }
+
+// A provider placed only on a self-hosted gateway never anchors an agent's proxy, which runs in OpenChoreo:
+// the proxy goes to the environment's managed gateway, or is not targeted when there is none.
+func TestLLMProxyTargets_IgnoresSelfHostedOnlyProviderAnchor(t *testing.T) {
+	env := uuid.New()
+	selfHosted := &models.Gateway{
+		UUID: uuid.MustParse("00000000-0000-0000-0000-000000000001"), GatewayFunctionalityType: models.GatewayRoleBoth,
+		Hosting: models.GatewayHostingSelfHosted, IsActive: true,
+	}
+	managed := &models.Gateway{UUID: uuid.MustParse("ffffffff-0000-0000-0000-000000000002"), GatewayFunctionalityType: models.GatewayRoleBoth, IsActive: true}
+	proxy := goldenProxy()
+	placedOnSelfHostedOnly := &repomocks.DeploymentRepositoryMock{
+		PlacedGatewaysFunc: func(_ context.Context, _ string, artifact uuid.UUID) ([]string, error) {
+			if artifact == proxy.UUID {
+				return nil, nil
+			}
+			return []string{selfHosted.UUID.String()}, nil
+		},
+	}
+	record := reconcile.Record{
+		ArtifactRef: models.ArtifactRef{OUID: "ou-1", ArtifactUUID: proxy.UUID, Handle: proxy.Handle}, EnvironmentUUID: env,
+	}
+
+	t.Run("environment has a managed gateway", func(t *testing.T) {
+		kind := goldenProxyKind(proxy)
+		kind.gatewayRepo = gatewayFixtureRepo(t, env.String(), []*models.Gateway{selfHosted, managed})
+		kind.deploymentRepo = placedOnSelfHostedOnly
+
+		got, ok, err := kind.Targets(context.Background(), record)
+
+		require.NoError(t, err)
+		require.True(t, ok)
+		assert.Equal(t, managed.UUID, got)
+	})
+
+	t.Run("environment has only the self-hosted gateway", func(t *testing.T) {
+		kind := goldenProxyKind(proxy)
+		kind.gatewayRepo = gatewayFixtureRepo(t, env.String(), []*models.Gateway{selfHosted})
+		kind.deploymentRepo = placedOnSelfHostedOnly
+
+		_, ok, err := kind.Targets(context.Background(), record)
+
+		require.NoError(t, err)
+		assert.False(t, ok)
+	})
+}

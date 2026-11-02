@@ -367,3 +367,18 @@ func TestManagedAnchorsFirst(t *testing.T) {
 		assert.Equal(t, []string{id(managedB), deleted, id(selfHosted)}, got)
 	})
 }
+
+func TestManagedAnchorsOnly(t *testing.T) {
+	env := uuid.New()
+	selfHosted := newGateway(t, models.GatewayRoleBoth, true)
+	selfHosted.Hosting = models.GatewayHostingSelfHosted
+	managedA := newGateway(t, models.GatewayRoleBoth, true)
+	managedB := newGateway(t, models.GatewayRoleBoth, true)
+	repo := gatewayFixtureRepo(t, env.String(), []*models.Gateway{selfHosted, managedA, managedB})
+	deleted := uuid.NewString()
+
+	got, err := managedAnchorsOnly(repo, []string{selfHosted.UUID.String(), managedA.UUID.String(), deleted, managedB.UUID.String()})
+
+	require.NoError(t, err)
+	assert.Equal(t, []string{managedA.UUID.String(), deleted, managedB.UUID.String()}, got)
+}

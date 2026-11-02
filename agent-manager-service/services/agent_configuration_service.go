@@ -4669,19 +4669,27 @@ func (s *agentConfigurationService) resolveGatewayForProvider(
 func (s *agentConfigurationService) requireManagedProviderPlacement(
 	ctx context.Context, ouID string, providerUUID, envUUID uuid.UUID,
 ) error {
-	placed, err := s.llmProxyDeploymentService.PlacedGateways(ctx, ouID, providerUUID)
+	return requireManagedPlacement(ctx, s.llmProxyDeploymentService, s.gatewayRepo, ouID, providerUUID, envUUID)
+}
+
+// requireManagedPlacement is nil when the provider is placed on a managed gateway mapped to the environment.
+func requireManagedPlacement(
+	ctx context.Context, deployments *LLMProxyDeploymentService, gateways repositories.GatewayRepository,
+	ouID string, providerUUID, envUUID uuid.UUID,
+) error {
+	placed, err := deployments.PlacedGateways(ctx, ouID, providerUUID)
 	if err != nil {
 		return fmt.Errorf("failed to list deployed gateways for provider %s: %w", providerUUID, err)
 	}
 	for _, gatewayID := range placed {
-		mapped, err := s.gatewayRepo.EnvironmentMappingExists(gatewayID, envUUID.String())
+		mapped, err := gateways.EnvironmentMappingExists(gatewayID, envUUID.String())
 		if err != nil {
 			return fmt.Errorf("failed to check gateway %s mapping to environment %s: %w", gatewayID, envUUID, err)
 		}
 		if !mapped {
 			continue
 		}
-		gateway, err := s.gatewayRepo.GetByUUID(gatewayID)
+		gateway, err := gateways.GetByUUID(gatewayID)
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			continue
 		}
@@ -4726,7 +4734,7 @@ func (s *agentConfigurationService) requireManagedProviderPlacements(
 			continue
 		}
 		if err := s.requireManagedProviderPlacement(ctx, ouID, provider.UUID, envUUID); err != nil {
-			return err
+			return fmt.Errorf("environment %s: %w", envName, err)
 		}
 	}
 	return nil

@@ -180,10 +180,11 @@ func TestLLMConfig_RefusalAppliesNothing(t *testing.T) {
 		}
 
 		_, err := f.svc.Update(context.Background(), uuid.New(), llmPlacementOU, "proj", "agent",
-			models.UpdateAgentModelConfigRequest{EnvMappings: map[string]models.EnvModelConfigRequest{
+			models.UpdateAgentModelConfigRequest{Name: "renamed", EnvMappings: map[string]models.EnvModelConfigRequest{
 				"ok": {ProviderName: "managed-p"}, "bad": {ProviderName: "self-p"},
 			}})
 		require.ErrorIs(t, err, utils.ErrInvalidInput)
+		assert.ErrorContains(t, err, "environment bad: ")
 		assert.ErrorContains(t, err, f.envs["bad"].UUID)
 	})
 
@@ -208,7 +209,7 @@ func TestLLMConfig_RefusalAppliesNothing(t *testing.T) {
 		}
 
 		_, err := f.svc.Update(context.Background(), uuid.New(), llmPlacementOU, "proj", "agent",
-			models.UpdateAgentModelConfigRequest{EnvMappings: map[string]models.EnvModelConfigRequest{
+			models.UpdateAgentModelConfigRequest{Name: "renamed", EnvMappings: map[string]models.EnvModelConfigRequest{
 				"bad": {ProviderName: "self-p"},
 			}})
 		require.ErrorIs(t, err, utils.ErrInvalidInput)
