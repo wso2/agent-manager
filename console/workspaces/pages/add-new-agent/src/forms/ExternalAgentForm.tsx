@@ -25,7 +25,12 @@ import { LabelsEditor, MarkdownEditor } from "@agent-management-platform/shared-
 import { AgentHandleField } from "../components/AgentHandleField";
 import { ConnectAgentFormValues } from "../form/schema";
 import { INPUT_LIMITS } from "@agent-management-platform/types";
-import { TextInput } from "@agent-management-platform/views";
+import {
+  AgentTypeIcon,
+  SELECTION_GRID_SX,
+  SelectionCard,
+  TextInput,
+} from "@agent-management-platform/views";
 
 interface ExternalAgentFormProps {
   formData: ConnectAgentFormValues;

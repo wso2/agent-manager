@@ -23,16 +23,14 @@ import {
   Checkbox,
   Collapse,
   Form,
-  FormControl,
   FormControlLabel,
-  FormLabel,
+  Grid,
   Skeleton,
   Stack,
-  TextField,
   Typography,
 } from "@wso2/oxygen-ui";
 import { generatePath, useNavigate, useParams } from "react-router-dom";
-import { PageLayout, useFormValidation } from "@agent-management-platform/views";
+import { PageLayout, TextInput, useFormValidation } from "@agent-management-platform/views";
 import { useGetEnvironment, useUpdateEnvironment } from "@agent-management-platform/api-client";
 import { useUnsavedChangesGuard } from "@agent-management-platform/shared-component";
 import {
@@ -156,15 +154,15 @@ function EditEnvironmentForm({ environment, orgId, listHref }: EditEnvironmentFo
           </Alert>
         </Collapse>
 
-        <Form.Section>
-          <Form.Header>Environment Details</Form.Header>
-          <Form.Stack spacing={2}>
-            <FormControl fullWidth error={Boolean(errors.displayName)}>
-              <FormLabel required>Display Name</FormLabel>
-              <TextField
-                slotProps={{ htmlInput: { maxLength: ENVIRONMENT_DISPLAY_NAME_MAX_LENGTH } }}
-                fullWidth
-                size="small"
+        <Form.Stack spacing={3}>
+          <Grid container spacing={2}>
+            <Grid size={{ xs: 12, md: 6, xl: 4 }}>
+              <TextInput
+                label="Display Name"
+                maxLength={ENVIRONMENT_DISPLAY_NAME_MAX_LENGTH}
+                hideCharacterCount={
+                  formData.displayName.length < ENVIRONMENT_DISPLAY_NAME_MAX_LENGTH
+                }
                 value={formData.displayName}
                 onChange={(e) => handleFieldChange("displayName", e.target.value)}
                 placeholder="e.g., Production Environment"
@@ -172,13 +170,18 @@ function EditEnvironmentForm({ environment, orgId, listHref }: EditEnvironmentFo
                 helperText={errors.displayName}
                 disabled={isUpdating}
               />
-            </FormControl>
-            <FormControl fullWidth>
-              <FormLabel>Description</FormLabel>
-              <TextField
-                slotProps={{ htmlInput: { maxLength: INPUT_LIMITS.DESCRIPTION } }}
-                fullWidth
-                size="small"
+            </Grid>
+            <Grid
+              size={{ xl: 8 }}
+              sx={{ display: { xs: "none", xl: "block" } }}
+            />
+            <Grid size={{ xs: 12, md: 12, xl: 8 }}>
+              <TextInput
+                label="Description (optional)"
+                maxLength={INPUT_LIMITS.DESCRIPTION}
+                hideCharacterCount={
+                  (formData.description?.length ?? 0) < INPUT_LIMITS.DESCRIPTION
+                }
                 multiline
                 rows={2}
                 value={formData.description ?? ""}
@@ -186,19 +189,21 @@ function EditEnvironmentForm({ environment, orgId, listHref }: EditEnvironmentFo
                 placeholder="Optional description"
                 disabled={isUpdating}
               />
-            </FormControl>
-            <FormControlLabel
-              control={
-                <Checkbox
-                  checked={formData.isProduction ?? false}
-                  onChange={(e) => handleFieldChange("isProduction", e.target.checked)}
-                  disabled={isUpdating}
-                />
-              }
-              label="Production environment"
-            />
-          </Form.Stack>
-        </Form.Section>
+            </Grid>
+            <Grid size={{ xs: 12, md: 12, xl: 8 }}>
+              <FormControlLabel
+                control={
+                  <Checkbox
+                    checked={formData.isProduction ?? false}
+                    onChange={(e) => handleFieldChange("isProduction", e.target.checked)}
+                    disabled={isUpdating}
+                  />
+                }
+                label="Production environment"
+              />
+            </Grid>
+          </Grid>
+        </Form.Stack>
 
         <Box display="flex" justifyContent="flex-end" gap={1} mt={2}>
           <Button variant="outlined" color="inherit" onClick={handleCancel} disabled={isUpdating}>

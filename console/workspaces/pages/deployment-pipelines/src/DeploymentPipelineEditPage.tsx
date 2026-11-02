@@ -21,18 +21,17 @@ import {
   Box,
   Button,
   Form,
-  FormControl,
-  FormLabel,
+  Grid,
   ListingTable,
   Skeleton,
   Stack,
-  TextField,
   Typography,
 } from "@wso2/oxygen-ui";
 import { AlertTriangle, GitBranch } from "@wso2/oxygen-ui-icons-react";
 import { generatePath, useNavigate, useParams } from "react-router-dom";
 import {
   PageLayout,
+  TextInput,
   useFormValidation,
 } from "@agent-management-platform/views";
 import {
@@ -254,17 +253,16 @@ export function DeploymentPipelineEditPage() {
             </Alert>
           )}
 
-          <Form.Section>
-            <Form.Header>Pipeline Details</Form.Header>
-            <Form.Stack spacing={2}>
-              <FormControl fullWidth error={Boolean(errors.displayName)}>
-                <FormLabel required>Display Name</FormLabel>
-                <TextField
-                  slotProps={{
-                    htmlInput: { maxLength: PIPELINE_DISPLAY_NAME_MAX_LENGTH },
-                  }}
-                  fullWidth
-                  size="small"
+          <Form.Stack spacing={3}>
+            <Typography variant="subtitle1">Pipeline Details</Typography>
+            <Grid container spacing={2}>
+              <Grid size={{ xs: 12, md: 6, xl: 4 }}>
+                <TextInput
+                  label="Display Name"
+                  maxLength={PIPELINE_DISPLAY_NAME_MAX_LENGTH}
+                  hideCharacterCount={
+                    formData.displayName.length < PIPELINE_DISPLAY_NAME_MAX_LENGTH
+                  }
                   value={formData.displayName}
                   onChange={(e) =>
                     handleFieldChange("displayName", e.target.value)
@@ -274,15 +272,18 @@ export function DeploymentPipelineEditPage() {
                   helperText={errors.displayName}
                   disabled={isUpdating}
                 />
-              </FormControl>
-              <FormControl fullWidth>
-                <FormLabel>Description</FormLabel>
-                <TextField
-                  slotProps={{
-                    htmlInput: { maxLength: INPUT_LIMITS.DESCRIPTION },
-                  }}
-                  fullWidth
-                  size="small"
+              </Grid>
+              <Grid
+                size={{ xl: 8 }}
+                sx={{ display: { xs: "none", xl: "block" } }}
+              />
+              <Grid size={{ xs: 12, md: 12, xl: 8 }}>
+                <TextInput
+                  label="Description (optional)"
+                  maxLength={INPUT_LIMITS.DESCRIPTION}
+                  hideCharacterCount={
+                    (formData.description?.length ?? 0) < INPUT_LIMITS.DESCRIPTION
+                  }
                   multiline
                   rows={2}
                   value={formData.description ?? ""}
@@ -292,9 +293,9 @@ export function DeploymentPipelineEditPage() {
                   placeholder="Optional description"
                   disabled={isUpdating}
                 />
-              </FormControl>
-            </Form.Stack>
-          </Form.Section>
+              </Grid>
+            </Grid>
+          </Form.Stack>
 
           <PipelineChainEditor
             chain={formData.chain}

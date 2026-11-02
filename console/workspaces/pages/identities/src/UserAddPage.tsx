@@ -16,7 +16,7 @@
  */
 
 import React, { useCallback, useState } from "react";
-import { Alert, Box, Button, Collapse, Form, TextField } from "@wso2/oxygen-ui";
+import { Alert, Box, Button, Collapse, Form, Grid } from "@wso2/oxygen-ui";
 import { Plus } from "@wso2/oxygen-ui-icons-react";
 import {
   useFormValidation,
@@ -133,96 +133,82 @@ export const UserAddPage: React.FC = () => {
         )}
 
         <Form.Stack spacing={3}>
-          <Form.Section>
-            <Form.Subheader>User Details</Form.Subheader>
-            <Form.Stack spacing={2}>
-              <Form.ElementWrapper label="Username" name="username">
-                <TextField
-                  slotProps={{ htmlInput: { maxLength: INPUT_LIMITS.NAME } }}
-                  id="username"
-                  value={formData.username}
-                  onChange={(e) =>
-                    handleFieldChange("username", e.target.value)
-                  }
-                  placeholder="jane.doe"
-                  autoComplete="off"
-                  disabled={loading}
-                  error={!!errors.username}
-                  helperText={errors.username}
-                  fullWidth
-                />
-              </Form.ElementWrapper>
-
-              <Form.ElementWrapper label="Password" name="password">
-                <TextInput
-                  maxLength={INPUT_LIMITS.PASSWORD}
-                  id="password"
-                  type="password"
-                  showPasswordToggle
-                  value={formData.password}
-                  onChange={(e) =>
-                    handleFieldChange("password", e.target.value)
-                  }
-                  autoComplete="new-password"
-                  disabled={loading}
-                  error={!!errors.password}
-                  helperText={errors.password}
-                  fullWidth
-                />
-              </Form.ElementWrapper>
-
-              <Form.ElementWrapper
+          <Grid container spacing={2}>
+            <Grid size={{ xs: 12, md: 6, xl: 4 }}>
+              <TextInput
+                label="Username"
+                maxLength={INPUT_LIMITS.NAME}
+                hideCharacterCount={formData.username.length < INPUT_LIMITS.NAME}
+                id="username"
+                value={formData.username}
+                onChange={(e) => handleFieldChange("username", e.target.value)}
+                placeholder="jane.doe"
+                autoComplete="off"
+                disabled={loading}
+                error={!!errors.username}
+                helperText={errors.username}
+              />
+            </Grid>
+            <Grid size={{ xs: 12, md: 6, xl: 4 }}>
+              <TextInput
+                label="Password"
+                maxLength={INPUT_LIMITS.PASSWORD}
+                hideCharacterCount={formData.password.length < INPUT_LIMITS.PASSWORD}
+                id="password"
+                type="password"
+                showPasswordToggle
+                value={formData.password}
+                onChange={(e) => handleFieldChange("password", e.target.value)}
+                autoComplete="new-password"
+                disabled={loading}
+                error={!!errors.password}
+                helperText={errors.password}
+              />
+            </Grid>
+            <Grid size={{ xl: 4 }} sx={{ display: { xs: "none", xl: "block" } }} />
+            <Grid size={{ xs: 12, md: 6, xl: 4 }}>
+              <TextInput
                 label="First Name (optional)"
-                name="firstName"
-              >
-                <TextField
-                  slotProps={{ htmlInput: { maxLength: INPUT_LIMITS.NAME } }}
-                  id="firstName"
-                  value={formData.firstName}
-                  onChange={(e) =>
-                    handleFieldChange("firstName", e.target.value)
-                  }
-                  disabled={loading}
-                  error={!!errors.firstName}
-                  helperText={errors.firstName}
-                  fullWidth
-                />
-              </Form.ElementWrapper>
-
-              <Form.ElementWrapper label="Last Name (optional)" name="lastName">
-                <TextField
-                  slotProps={{ htmlInput: { maxLength: INPUT_LIMITS.NAME } }}
-                  id="lastName"
-                  value={formData.lastName}
-                  onChange={(e) =>
-                    handleFieldChange("lastName", e.target.value)
-                  }
-                  disabled={loading}
-                  error={!!errors.lastName}
-                  helperText={errors.lastName}
-                  fullWidth
-                />
-              </Form.ElementWrapper>
-
-              <Form.ElementWrapper
+                maxLength={INPUT_LIMITS.NAME}
+                hideCharacterCount={(formData.firstName?.length ?? 0) < INPUT_LIMITS.NAME}
+                id="firstName"
+                value={formData.firstName}
+                onChange={(e) => handleFieldChange("firstName", e.target.value)}
+                disabled={loading}
+                error={!!errors.firstName}
+                helperText={errors.firstName}
+              />
+            </Grid>
+            <Grid size={{ xs: 12, md: 6, xl: 4 }}>
+              <TextInput
+                label="Last Name (optional)"
+                maxLength={INPUT_LIMITS.NAME}
+                hideCharacterCount={(formData.lastName?.length ?? 0) < INPUT_LIMITS.NAME}
+                id="lastName"
+                value={formData.lastName}
+                onChange={(e) => handleFieldChange("lastName", e.target.value)}
+                disabled={loading}
+                error={!!errors.lastName}
+                helperText={errors.lastName}
+              />
+            </Grid>
+            <Grid size={{ xl: 4 }} sx={{ display: { xs: "none", xl: "block" } }} />
+            <Grid size={{ xs: 12, md: 6, xl: 4 }}>
+              <TextInput
                 label="Email Address (optional)"
-                name="email"
-              >
-                <TextField
-                  slotProps={{ htmlInput: { maxLength: INPUT_LIMITS.SHORT_TEXT } }}
-                  id="email"
-                  type="email"
-                  value={formData.email}
-                  onChange={(e) => handleFieldChange("email", e.target.value)}
-                  placeholder="user@example.com"
-                  disabled={loading}
-                  error={!!errors.email}
-                  helperText={errors.email}
-                  fullWidth
-                />
-              </Form.ElementWrapper>
-            </Form.Stack>
-          </Form.Section>
+                maxLength={INPUT_LIMITS.SHORT_TEXT}
+                hideCharacterCount={(formData.email?.length ?? 0) < INPUT_LIMITS.SHORT_TEXT}
+                id="email"
+                type="email"
+                value={formData.email}
+                onChange={(e) => handleFieldChange("email", e.target.value)}
+                placeholder="user@example.com"
+                disabled={loading}
+                error={!!errors.email}
+                helperText={errors.email}
+              />
+            </Grid>
+          </Grid>
         </Form.Stack>
 
         <Box display="flex" flexDirection="column" gap={3}>

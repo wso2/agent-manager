@@ -32,6 +32,7 @@ import {
   Divider,
   Form,
   FormControlLabel,
+  Grid,
   IconButton,
   InputAdornment,
   MenuItem,
@@ -51,6 +52,7 @@ import {
   Sparkles as SparklesIcon,
   X as CloseIcon,
 } from "@wso2/oxygen-ui-icons-react";
+import { TextInput } from "@agent-management-platform/views";
 import Editor, { type Monaco } from "@monaco-editor/react";
 import {
   type EvaluatorConfigParam,
@@ -1093,62 +1095,77 @@ export function EvaluatorForm({
       {/* ================================================================ */}
       {page === 1 && (
         <>
-          <Form.Section>
-            <Form.Header>Basic Details</Form.Header>
-            <Form.ElementWrapper name="displayName" label="Name">
-              <TextField
-                slotProps={{ htmlInput: { maxLength: INPUT_LIMITS.NAME } }}
-                id="displayName"
-                placeholder="Enter evaluator name"
-                value={values.displayName}
-                onChange={(e) => updateField("displayName", e.target.value)}
-                error={!!errors.displayName}
-                helperText={
-                  errors.displayName ??
-                  "A human-readable name for the evaluator"
-                }
-                fullWidth
-                required
+          <Stack spacing={2}>
+            <Typography variant="subtitle1">Basic Details</Typography>
+            <Grid container spacing={2}>
+              <Grid size={{ xs: 12, md: 6, xl: 4 }}>
+                <TextInput
+                  label="Name"
+                  id="displayName"
+                  placeholder="Enter evaluator name"
+                  maxLength={INPUT_LIMITS.NAME}
+                  hideCharacterCount={
+                    values.displayName.length < INPUT_LIMITS.NAME
+                  }
+                  value={values.displayName}
+                  onChange={(e) => updateField("displayName", e.target.value)}
+                  error={!!errors.displayName}
+                  helperText={
+                    errors.displayName ??
+                    "A human-readable name for the evaluator"
+                  }
+                />
+              </Grid>
+              <Grid
+                size={{ xl: 8 }}
+                sx={{ display: { xs: "none", xl: "block" } }}
               />
-            </Form.ElementWrapper>
-            <Form.ElementWrapper name="description" label="Description">
-              <TextField
-                slotProps={{ htmlInput: { maxLength: INPUT_LIMITS.DESCRIPTION } }}
-                id="description"
-                placeholder="Describe what this evaluator checks"
-                value={values.description}
-                onChange={(e) => updateField("description", e.target.value)}
-                multiline
-                minRows={2}
-                fullWidth
-              />
-            </Form.ElementWrapper>
-          </Form.Section>
+              <Grid size={{ xs: 12, md: 12, xl: 8 }}>
+                <TextInput
+                  label="Description (optional)"
+                  id="description"
+                  placeholder="Describe what this evaluator checks"
+                  maxLength={INPUT_LIMITS.DESCRIPTION}
+                  hideCharacterCount={
+                    values.description.length < INPUT_LIMITS.DESCRIPTION
+                  }
+                  value={values.description}
+                  onChange={(e) => updateField("description", e.target.value)}
+                  multiline
+                  minRows={2}
+                />
+              </Grid>
+            </Grid>
+          </Stack>
 
-          <Form.Section>
-            <Form.Header>Evaluator Type</Form.Header>
-            <Box display="flex" flexDirection="row" gap={1} flexWrap="wrap">
-              <OptionCard
-                label="Code"
-                description="Write a Python function to evaluate traces programmatically."
-                selected={values.type === "code"}
-                disabled={!isTypeEditable}
-                onClick={() => handleTypeChange("code")}
-              />
-              <OptionCard
-                label="LLM Judge"
-                description="Use an LLM to assess traces with a natural language prompt."
-                selected={values.type === "llm_judge"}
-                disabled={!isTypeEditable}
-                onClick={() => handleTypeChange("llm_judge")}
-              />
-            </Box>
-            {!isTypeEditable && (
-              <Typography variant="caption" color="text.secondary">
-                Evaluator type cannot be changed after creation.
-              </Typography>
-            )}
-          </Form.Section>
+          <Stack spacing={2}>
+            <Typography variant="subtitle1">Evaluator Type</Typography>
+            <Grid container spacing={2}>
+              <Grid size={{ xs: 12, md: 12, xl: 8 }}>
+                <Box display="flex" flexDirection="row" gap={1} flexWrap="wrap">
+                  <OptionCard
+                    label="Code"
+                    description="Write a Python function to evaluate traces programmatically."
+                    selected={values.type === "code"}
+                    disabled={!isTypeEditable}
+                    onClick={() => handleTypeChange("code")}
+                  />
+                  <OptionCard
+                    label="LLM Judge"
+                    description="Use an LLM to assess traces with a natural language prompt."
+                    selected={values.type === "llm_judge"}
+                    disabled={!isTypeEditable}
+                    onClick={() => handleTypeChange("llm_judge")}
+                  />
+                </Box>
+                {!isTypeEditable && (
+                  <Typography variant="caption" color="text.secondary">
+                    Evaluator type cannot be changed after creation.
+                  </Typography>
+                )}
+              </Grid>
+            </Grid>
+          </Stack>
 
           <Stack direction="row" spacing={2} justifyContent="space-between">
             <Button disabled variant="outlined" startIcon={<ArrowLeft />}>
@@ -1171,663 +1188,678 @@ export function EvaluatorForm({
       {/* ================================================================ */}
       {page === 2 && (
         <>
-          <Form.Section>
-            <Form.Header>
+          <Stack spacing={2}>
+            <Typography variant="subtitle1">
               {values.type === "code"
                 ? "Evaluator Function"
                 : "Evaluation Prompt"}
-            </Form.Header>
-
-            {/* Level selector */}
-            <Form.ElementWrapper name="level" label="Evaluation Level">
-              <Box display="flex" flexDirection="row" gap={1} flexWrap="wrap">
-                {levelOptions.map(({ value, label, description }) => (
-                  <OptionCard
-                    key={value}
-                    label={label}
-                    description={description}
-                    selected={values.level === value}
-                    disabled={!isLevelEditable}
-                    onClick={() => handleLevelChange(value)}
-                  />
-                ))}
-              </Box>
-            </Form.ElementWrapper>
-            {!isLevelEditable && (
-              <Typography variant="caption" color="text.secondary">
-                Evaluation level cannot be changed after creation.
-              </Typography>
-            )}
-
-            <Divider />
-            <Stack
-              direction="row"
-              alignItems="flex-start"
-              justifyContent="space-between"
-              spacing={1}
-            >
-              <Typography variant="body2" color="text.secondary">
-                {values.type === "code" && (
-                  <>
-                    Write a Python function that receives a{" "}
-                    {values.level === "trace" && (
-                      <>
-                        <Typography
-                          component="span"
-                          variant="body2"
-                          color="primary"
-                          sx={{
-                            cursor: "pointer",
-                            fontFamily: "monospace",
-                            textDecoration: "underline",
-                            textUnderlineOffset: 2,
-                          }}
-                          onClick={() => setReferenceTypeKey("trace")}
-                        >
-                          Trace
-                        </Typography>{" "}
-                        object and returns an{" "}
-                      </>
-                    )}
-                    {values.level === "agent" && (
-                      <>
-                        <Typography
-                          component="span"
-                          variant="body2"
-                          color="primary"
-                          sx={{
-                            cursor: "pointer",
-                            fontFamily: "monospace",
-                            textDecoration: "underline",
-                            textUnderlineOffset: 2,
-                          }}
-                          onClick={() => setReferenceTypeKey("agent")}
-                        >
-                          AgentTrace
-                        </Typography>{" "}
-                        object and returns an{" "}
-                      </>
-                    )}
-                    {values.level === "llm" && (
-                      <>
-                        <Typography
-                          component="span"
-                          variant="body2"
-                          color="primary"
-                          sx={{
-                            cursor: "pointer",
-                            fontFamily: "monospace",
-                            textDecoration: "underline",
-                            textUnderlineOffset: 2,
-                          }}
-                          onClick={() => setReferenceTypeKey("llm")}
-                        >
-                          LLMSpan
-                        </Typography>{" "}
-                        object and returns an{" "}
-                      </>
-                    )}
-                    <Typography
-                      component="span"
-                      variant="body2"
-                      color="primary"
-                      sx={{
-                        cursor: "pointer",
-                        fontFamily: "monospace",
-                        textDecoration: "underline",
-                        textUnderlineOffset: 2,
-                      }}
-                      onClick={() => setReferenceTypeKey("eval_result")}
-                    >
-                      EvalResult
+            </Typography>
+            <Grid container spacing={2}>
+              <Grid size={{ xs: 12, md: 12, xl: 8 }}>
+                <Stack spacing={2}>
+                  {/* Level selector */}
+                  <Form.ElementWrapper name="level" label="Evaluation Level">
+                    <Box display="flex" flexDirection="row" gap={1} flexWrap="wrap">
+                      {levelOptions.map(({ value, label, description }) => (
+                        <OptionCard
+                          key={value}
+                          label={label}
+                          description={description}
+                          selected={values.level === value}
+                          disabled={!isLevelEditable}
+                          onClick={() => handleLevelChange(value)}
+                        />
+                      ))}
+                    </Box>
+                  </Form.ElementWrapper>
+                  {!isLevelEditable && (
+                    <Typography variant="caption" color="text.secondary">
+                      Evaluation level cannot be changed after creation.
                     </Typography>
-                    . Add configurable parameters in the Config Params section
-                    below.
-                  </>
-                )}
-                {values.type === "llm_judge" &&
-                  (() => {
-                    const info = LLM_JUDGE_VARIABLES[values.level];
-                    return (
-                      <>
-                        Write a prompt template using Python f-string syntax.
-                        Use{" "}
-                        <Typography
-                          component="span"
-                          variant="body2"
-                          color="primary"
-                          sx={{
-                            cursor: "pointer",
-                            fontFamily: "monospace",
-                            textDecoration: "underline",
-                            textUnderlineOffset: 2,
-                          }}
-                          onClick={() => setReferenceTypeKey(values.level)}
-                        >
-                          {`{${info.varName}.*}`}
-                        </Typography>{" "}
-                        expressions to access{" "}
-                        <Typography
-                          component="span"
-                          variant="body2"
-                          color="primary"
-                          sx={{
-                            cursor: "pointer",
-                            fontFamily: "monospace",
-                            textDecoration: "underline",
-                            textUnderlineOffset: 2,
-                          }}
-                          onClick={() => setReferenceTypeKey(values.level)}
-                        >
-                          {info.className}
-                        </Typography>{" "}
-                        fields. Python expressions like loops and joins are
-                        supported inside{" "}
-                        <Typography
-                          component="span"
-                          variant="body2"
-                          sx={{ fontFamily: "monospace" }}
-                        >
-                          {"{ }"}
-                        </Typography>
-                        .
-                      </>
-                    );
-                  })()}
-              </Typography>
+                  )}
 
-              <Button
-                variant="text"
-                size="small"
-                startIcon={<SparklesIcon size={14} />}
-                onClick={() => {
-                  setShowAiPrompt(!showAiPrompt);
-                  setAiPromptCopied(false);
-                }}
-                sx={{
-                  textTransform: "none",
-                  fontSize: "0.8rem",
-                  whiteSpace: "nowrap",
-                  flexShrink: 0,
-                  mt: -0.25,
-                }}
-              >
-                Use AI to write
-              </Button>
-            </Stack>
-            <Collapse in={showAiPrompt}>
-              <Box
-                sx={{
-                  border: 1,
-                  borderColor: "divider",
-                  borderRadius: 1,
-                  p: 2,
-                  mb: 1,
-                  bgcolor: "action.hover",
-                }}
-              >
-                <Stack spacing={1.5}>
+                  <Divider />
                   <Stack
                     direction="row"
+                    alignItems="flex-start"
                     justifyContent="space-between"
-                    alignItems="center"
+                    spacing={1}
                   >
-                    <Typography variant="subtitle2">
-                      AI Copilot Prompt
+                    <Typography variant="body2" color="text.secondary">
+                      {values.type === "code" && (
+                        <>
+                          Write a Python function that receives a{" "}
+                          {values.level === "trace" && (
+                            <>
+                              <Typography
+                                component="span"
+                                variant="body2"
+                                color="primary"
+                                sx={{
+                                  cursor: "pointer",
+                                  fontFamily: "monospace",
+                                  textDecoration: "underline",
+                                  textUnderlineOffset: 2,
+                                }}
+                                onClick={() => setReferenceTypeKey("trace")}
+                              >
+                                Trace
+                              </Typography>{" "}
+                              object and returns an{" "}
+                            </>
+                          )}
+                          {values.level === "agent" && (
+                            <>
+                              <Typography
+                                component="span"
+                                variant="body2"
+                                color="primary"
+                                sx={{
+                                  cursor: "pointer",
+                                  fontFamily: "monospace",
+                                  textDecoration: "underline",
+                                  textUnderlineOffset: 2,
+                                }}
+                                onClick={() => setReferenceTypeKey("agent")}
+                              >
+                                AgentTrace
+                              </Typography>{" "}
+                              object and returns an{" "}
+                            </>
+                          )}
+                          {values.level === "llm" && (
+                            <>
+                              <Typography
+                                component="span"
+                                variant="body2"
+                                color="primary"
+                                sx={{
+                                  cursor: "pointer",
+                                  fontFamily: "monospace",
+                                  textDecoration: "underline",
+                                  textUnderlineOffset: 2,
+                                }}
+                                onClick={() => setReferenceTypeKey("llm")}
+                              >
+                                LLMSpan
+                              </Typography>{" "}
+                              object and returns an{" "}
+                            </>
+                          )}
+                          <Typography
+                            component="span"
+                            variant="body2"
+                            color="primary"
+                            sx={{
+                              cursor: "pointer",
+                              fontFamily: "monospace",
+                              textDecoration: "underline",
+                              textUnderlineOffset: 2,
+                            }}
+                            onClick={() => setReferenceTypeKey("eval_result")}
+                          >
+                            EvalResult
+                          </Typography>
+                          . Add configurable parameters in the Config Params section
+                          below.
+                        </>
+                      )}
+                      {values.type === "llm_judge" &&
+                        (() => {
+                          const info = LLM_JUDGE_VARIABLES[values.level];
+                          return (
+                            <>
+                              Write a prompt template using Python f-string syntax.
+                              Use{" "}
+                              <Typography
+                                component="span"
+                                variant="body2"
+                                color="primary"
+                                sx={{
+                                  cursor: "pointer",
+                                  fontFamily: "monospace",
+                                  textDecoration: "underline",
+                                  textUnderlineOffset: 2,
+                                }}
+                                onClick={() => setReferenceTypeKey(values.level)}
+                              >
+                                {`{${info.varName}.*}`}
+                              </Typography>{" "}
+                              expressions to access{" "}
+                              <Typography
+                                component="span"
+                                variant="body2"
+                                color="primary"
+                                sx={{
+                                  cursor: "pointer",
+                                  fontFamily: "monospace",
+                                  textDecoration: "underline",
+                                  textUnderlineOffset: 2,
+                                }}
+                                onClick={() => setReferenceTypeKey(values.level)}
+                              >
+                                {info.className}
+                              </Typography>{" "}
+                              fields. Python expressions like loops and joins are
+                              supported inside{" "}
+                              <Typography
+                                component="span"
+                                variant="body2"
+                                sx={{ fontFamily: "monospace" }}
+                              >
+                                {"{ }"}
+                              </Typography>
+                              .
+                            </>
+                          );
+                        })()}
                     </Typography>
-                    <IconButton
+
+                    <Button
+                      variant="text"
                       size="small"
+                      startIcon={<SparklesIcon size={14} />}
                       onClick={() => {
-                        setShowAiPrompt(false);
+                        setShowAiPrompt(!showAiPrompt);
                         setAiPromptCopied(false);
                       }}
+                      sx={{
+                        textTransform: "none",
+                        fontSize: "0.8rem",
+                        whiteSpace: "nowrap",
+                        flexShrink: 0,
+                        mt: -0.25,
+                      }}
                     >
-                      <CloseIcon size={16} />
-                    </IconButton>
+                      Use AI to write
+                    </Button>
                   </Stack>
-                  <Typography variant="body2" color="text.secondary">
-                    Copy this prompt and paste it into your AI assistant.
-                    Describe what you want to evaluate, and the AI will generate
-                    the {values.type === "code" ? "code" : "prompt"} for you.
-                  </Typography>
-                  <TextField
-                    multiline
-                    rows={8}
-                    fullWidth
-                    value={resolveAiPrompt(
-                      values.type,
-                      values.level,
-                      values.displayName,
-                      values.description,
-                    )}
-                    InputProps={{
-                      readOnly: true,
-                      sx: { fontFamily: "monospace", fontSize: "0.8rem" },
-                      endAdornment: (
-                        <InputAdornment
-                          position="end"
-                          sx={{ alignSelf: "flex-start", mt: 1, mr: -0.5 }}
-                        >
-                          <Tooltip
-                            title={
-                              aiPromptCopied ? "Copied!" : "Copy to clipboard"
-                            }
-                            placement="top"
-                          >
-                            <IconButton
-                              size="small"
-                              onClick={() => {
-                                navigator.clipboard
-                                  .writeText(
-                                    resolveAiPrompt(
-                                      values.type,
-                                      values.level,
-                                      values.displayName,
-                                      values.description,
-                                    ),
-                                  )
-                                  .then(() => {
-                                    setAiPromptCopied(true);
-                                    setTimeout(
-                                      () => setAiPromptCopied(false),
-                                      2000,
-                                    );
-                                  })
-                                  .catch(() => {
-                                    /* clipboard unavailable */
-                                  });
-                              }}
-                            >
-                              {aiPromptCopied ? (
-                                <Check size={14} />
-                              ) : (
-                                <Copy size={14} />
-                              )}
-                            </IconButton>
-                          </Tooltip>
-                        </InputAdornment>
-                      ),
-                    }}
-                  />
-                </Stack>
-              </Box>
-            </Collapse>
-
-            <SectionErrorBoundary fallbackMessage="The code editor failed to load. Click Retry to try again.">
-              <Box>
-                <Box
-                  sx={{
-                    border: 1,
-                    borderColor: errors.source ? "error.main" : "divider",
-                    borderRadius: 1,
-                    overflow: "visible",
-                    position: "relative",
-                    minHeight: 300,
-                    height: "calc(100vh - 500px)",
-                    "& .monaco-hover, & .monaco-hover *": {
-                      fontSize: "11px !important",
-                      lineHeight: "1.3 !important",
-                    },
-                  }}
-                >
-                  <Editor
-                    height="100%"
-                    language={
-                      values.type === "llm_judge" ? LLM_JUDGE_LANG : "python"
-                    }
-                    theme={
-                      colorSchemeMode === "dark"
-                        ? EVAL_DARK_THEME
-                        : EVAL_LIGHT_THEME
-                    }
-                    value={values.source}
-                    onChange={(value) => updateField("source", value ?? "")}
-                    beforeMount={handleEditorBeforeMount}
-                    onMount={handleEditorDidMount}
-                    options={{
-                      minimap: { enabled: false },
-                      scrollBeyondLastLine: false,
-                      fontSize: 14,
-                      lineNumbers: "on",
-                      tabSize: 4,
-                      automaticLayout: true,
-                      hover: { above: false },
-                      suggest: { showSnippets: true },
-                    }}
-                  />
-                </Box>
-                {errors.source && (
-                  <Typography variant="caption" color="error" sx={{ mt: 0.5 }}>
-                    {errors.source}
-                  </Typography>
-                )}
-              </Box>
-            </SectionErrorBoundary>
-
-            <Collapse in={values.type === "code"}>
-              <Alert severity="info">
-                <strong>Available packages:</strong>{" "}
-                {SUPPORTED_PACKAGES.join(", ")}
-              </Alert>
-            </Collapse>
-          </Form.Section>
-
-          <SectionErrorBoundary fallbackMessage="Config params section failed to render. Click Retry to try again.">
-            <Form.Section>
-              <Stack
-                direction="row"
-                justifyContent="space-between"
-                alignItems="center"
-              >
-                <Box>
-                  <Form.Header>Config Params</Form.Header>
-                  <Typography variant="caption" color="text.secondary">
-                    {values.type === "code"
-                      ? "Params are passed as keyword arguments to your function (e.g. threshold: float = 0.5)."
-                      : "Params are available as {key} placeholders in your prompt template."}
-                  </Typography>
-                </Box>
-                <Button
-                  size="small"
-                  variant="outlined"
-                  onClick={() =>
-                    updateField("configSchema", [
-                      ...values.configSchema,
-                      emptyParam(),
-                    ])
-                  }
-                >
-                  Add Param
-                </Button>
-              </Stack>
-
-              {errors.configSchema && (
-                <Typography variant="caption" color="error" sx={{ mt: 0.5 }}>
-                  {errors.configSchema}
-                </Typography>
-              )}
-
-              <Stack spacing={1} sx={{ mt: 1 }}>
-                {values.type === "llm_judge" &&
-                  LLM_JUDGE_BASE_CONFIG_SCHEMA.map((param) => (
+                  <Collapse in={showAiPrompt}>
                     <Box
-                      key={param.key}
                       sx={{
                         border: 1,
                         borderColor: "divider",
                         borderRadius: 1,
-                        p: 1,
+                        p: 2,
+                        mb: 1,
+                        bgcolor: "action.hover",
                       }}
                     >
-                      <Stack
-                        direction="row"
-                        spacing={1}
-                        alignItems="center"
-                        flexWrap="wrap"
-                        useFlexGap
-                      >
-                        <TextField
-                          slotProps={{ htmlInput: { maxLength: INPUT_LIMITS.KEY } }}
-                          placeholder="Key"
-                          size="small"
-                          value={param.key}
-                          disabled
-                          sx={{ flex: 2, minWidth: 120 }}
-                          InputProps={{ sx: { fontFamily: "monospace" } }}
-                        />
-                        <TextField
-                          slotProps={{ htmlInput: { maxLength: INPUT_LIMITS.SHORT_TEXT } }}
-                          placeholder="Type"
-                          size="small"
-                          value={param.type}
-                          disabled
-                          sx={{ flex: 1, minWidth: 80 }}
-                        />
-                        <TextField
-                          slotProps={{ htmlInput: { maxLength: INPUT_LIMITS.VALUE } }}
-                          placeholder="Default"
-                          size="small"
-                          value={
-                            param.default !== undefined
-                              ? String(param.default)
-                              : ""
-                          }
-                          disabled
-                          sx={{ flex: 1.5, minWidth: 100 }}
-                        />
-                        <TextField
-                          slotProps={{ htmlInput: { maxLength: INPUT_LIMITS.DESCRIPTION } }}
-                          placeholder="Description"
-                          size="small"
-                          value={param.description}
-                          disabled
-                          sx={{ flex: 3, minWidth: 150 }}
-                        />
-                      </Stack>
-                    </Box>
-                  ))}
-
-                {values.configSchema.map((param, idx) => {
-                  const updateParam = (
-                    patch: Partial<EvaluatorConfigParam>,
-                  ) => {
-                    const next = [...values.configSchema];
-                    next[idx] = { ...next[idx], ...patch };
-                    updateField("configSchema", next);
-                  };
-                  const removeParam = () => {
-                    updateField(
-                      "configSchema",
-                      values.configSchema.filter((_, i) => i !== idx),
-                    );
-                  };
-                  return (
-                    <Box
-                      key={idx}
-                      sx={{
-                        border: 1,
-                        borderColor: "divider",
-                        borderRadius: 1,
-                        p: 1,
-                      }}
-                    >
-                      <Stack spacing={1}>
+                      <Stack spacing={1.5}>
                         <Stack
                           direction="row"
-                          spacing={1}
+                          justifyContent="space-between"
                           alignItems="center"
-                          flexWrap="wrap"
-                          useFlexGap
                         >
-                          <TextField
-                            slotProps={{ htmlInput: { maxLength: INPUT_LIMITS.KEY } }}
-                            placeholder="Key"
+                          <Typography variant="subtitle2">
+                            AI Copilot Prompt
+                          </Typography>
+                          <IconButton
                             size="small"
-                            value={param.key}
-                            onChange={(e) =>
-                              updateParam({ key: e.target.value })
-                            }
-                            sx={{ flex: 2, minWidth: 120 }}
-                            InputProps={{ sx: { fontFamily: "monospace" } }}
-                          />
-                          <TextField
-                            slotProps={{ htmlInput: { maxLength: INPUT_LIMITS.SHORT_TEXT } }}
-                            select
-                            placeholder="Type"
-                            size="small"
-                            value={param.type}
-                            onChange={(e) => {
-                              const nextType = e.target.value;
-                              const isNumeric =
-                                nextType === "integer" || nextType === "float";
-                              updateParam({
-                                type: nextType,
-                                enumValues: undefined,
-                                ...(isNumeric
-                                  ? {}
-                                  : { min: undefined, max: undefined }),
-                              });
+                            onClick={() => {
+                              setShowAiPrompt(false);
+                              setAiPromptCopied(false);
                             }}
-                            sx={{ flex: 1, minWidth: 80 }}
                           >
-                            {PARAM_TYPES.map((t) => (
-                              <MenuItem key={t} value={t}>
-                                {t}
-                              </MenuItem>
-                            ))}
-                          </TextField>
-                          <TextField
-                            slotProps={{ htmlInput: { maxLength: INPUT_LIMITS.VALUE } }}
-                            placeholder="Default"
-                            size="small"
-                            value={
-                              param.default !== undefined
-                                ? String(param.default)
-                                : ""
-                            }
-                            onChange={(e) =>
-                              updateParam({
-                                default:
-                                  e.target.value === ""
-                                    ? undefined
-                                    : e.target.value,
-                              })
-                            }
-                            sx={{ flex: 1.5, minWidth: 100 }}
-                          />
-                          <TextField
-                            slotProps={{ htmlInput: { maxLength: INPUT_LIMITS.DESCRIPTION } }}
-                            placeholder="Description"
-                            size="small"
-                            value={param.description}
-                            onChange={(e) =>
-                              updateParam({ description: e.target.value })
-                            }
-                            sx={{ flex: 3, minWidth: 150 }}
-                          />
-                          <FormControlLabel
-                            control={
-                              <Checkbox
-                                size="small"
-                                checked={!!param.required}
-                                onChange={(e) =>
-                                  updateParam({ required: e.target.checked })
-                                }
-                              />
-                            }
-                            label="Required"
-                            sx={{ flexShrink: 0, mr: 0 }}
-                          />
-                          <IconButton size="small" onClick={removeParam}>
                             <CloseIcon size={16} />
                           </IconButton>
                         </Stack>
-
-                        {(param.type === "integer" ||
-                          param.type === "float") && (
-                          <Stack direction="row" spacing={1}>
-                            <TextField
-                              placeholder="Min"
-                              size="small"
-                              type="number"
-                              value={param.min !== undefined ? param.min : ""}
-                              onChange={(e) =>
-                                updateParam({
-                                  min:
-                                    e.target.value === ""
-                                      ? undefined
-                                      : Number(e.target.value),
-                                })
-                              }
-                              slotProps={{
-                                input: {
-                                  inputProps: {
-                                    onWheel: (event) => event.currentTarget.blur(),
-                                  },
-                                },
-                              }}
-                              sx={{ flex: 1 }}
-                            />
-                            <TextField
-                              placeholder="Max"
-                              size="small"
-                              type="number"
-                              value={param.max !== undefined ? param.max : ""}
-                              onChange={(e) =>
-                                updateParam({
-                                  max:
-                                    e.target.value === ""
-                                      ? undefined
-                                      : Number(e.target.value),
-                                })
-                              }
-                              slotProps={{
-                                input: {
-                                  inputProps: {
-                                    onWheel: (event) => event.currentTarget.blur(),
-                                  },
-                                },
-                              }}
-                              sx={{ flex: 1 }}
-                            />
-                          </Stack>
-                        )}
-
-                        {param.type === "enum" && (
-                          <TextField
-                            slotProps={{ htmlInput: { maxLength: INPUT_LIMITS.VALUE } }}
-                            placeholder="value1, value2, value3"
-                            size="small"
-                            value={(param.enumValues ?? []).join(", ")}
-                            onChange={(e) =>
-                              updateParam({
-                                enumValues: e.target.value
-                                  .split(",")
-                                  .map((s) => s.trim())
-                                  .filter(Boolean),
-                              })
-                            }
-                            fullWidth
-                            helperText="Comma-separated list of allowed values"
-                          />
-                        )}
+                        <Typography variant="body2" color="text.secondary">
+                          Copy this prompt and paste it into your AI assistant.
+                          Describe what you want to evaluate, and the AI will generate
+                          the {values.type === "code" ? "code" : "prompt"} for you.
+                        </Typography>
+                        <TextField
+                          multiline
+                          rows={8}
+                          fullWidth
+                          value={resolveAiPrompt(
+                            values.type,
+                            values.level,
+                            values.displayName,
+                            values.description,
+                          )}
+                          InputProps={{
+                            readOnly: true,
+                            sx: { fontFamily: "monospace", fontSize: "0.8rem" },
+                            endAdornment: (
+                              <InputAdornment
+                                position="end"
+                                sx={{ alignSelf: "flex-start", mt: 1, mr: -0.5 }}
+                              >
+                                <Tooltip
+                                  title={
+                                    aiPromptCopied ? "Copied!" : "Copy to clipboard"
+                                  }
+                                  placement="top"
+                                >
+                                  <IconButton
+                                    size="small"
+                                    onClick={() => {
+                                      navigator.clipboard
+                                        .writeText(
+                                          resolveAiPrompt(
+                                            values.type,
+                                            values.level,
+                                            values.displayName,
+                                            values.description,
+                                          ),
+                                        )
+                                        .then(() => {
+                                          setAiPromptCopied(true);
+                                          setTimeout(
+                                            () => setAiPromptCopied(false),
+                                            2000,
+                                          );
+                                        })
+                                        .catch(() => {
+                                          /* clipboard unavailable */
+                                        });
+                                    }}
+                                  >
+                                    {aiPromptCopied ? (
+                                      <Check size={14} />
+                                    ) : (
+                                      <Copy size={14} />
+                                    )}
+                                  </IconButton>
+                                </Tooltip>
+                              </InputAdornment>
+                            ),
+                          }}
+                        />
                       </Stack>
                     </Box>
-                  );
-                })}
-              </Stack>
-            </Form.Section>
+                  </Collapse>
+
+                  <SectionErrorBoundary fallbackMessage="The code editor failed to load. Click Retry to try again.">
+                    <Box>
+                      <Box
+                        sx={{
+                          border: 1,
+                          borderColor: errors.source ? "error.main" : "divider",
+                          borderRadius: 1,
+                          overflow: "visible",
+                          position: "relative",
+                          minHeight: 300,
+                          height: "calc(100vh - 500px)",
+                          "& .monaco-hover, & .monaco-hover *": {
+                            fontSize: "11px !important",
+                            lineHeight: "1.3 !important",
+                          },
+                        }}
+                      >
+                        <Editor
+                          height="100%"
+                          language={
+                            values.type === "llm_judge" ? LLM_JUDGE_LANG : "python"
+                          }
+                          theme={
+                            colorSchemeMode === "dark"
+                              ? EVAL_DARK_THEME
+                              : EVAL_LIGHT_THEME
+                          }
+                          value={values.source}
+                          onChange={(value) => updateField("source", value ?? "")}
+                          beforeMount={handleEditorBeforeMount}
+                          onMount={handleEditorDidMount}
+                          options={{
+                            minimap: { enabled: false },
+                            scrollBeyondLastLine: false,
+                            fontSize: 14,
+                            lineNumbers: "on",
+                            tabSize: 4,
+                            automaticLayout: true,
+                            hover: { above: false },
+                            suggest: { showSnippets: true },
+                          }}
+                        />
+                      </Box>
+                      {errors.source && (
+                        <Typography variant="caption" color="error" sx={{ mt: 0.5 }}>
+                          {errors.source}
+                        </Typography>
+                      )}
+                    </Box>
+                  </SectionErrorBoundary>
+
+                  <Collapse in={values.type === "code"}>
+                    <Alert severity="info">
+                      <strong>Available packages:</strong>{" "}
+                      {SUPPORTED_PACKAGES.join(", ")}
+                    </Alert>
+                  </Collapse>
+                </Stack>
+              </Grid>
+            </Grid>
+          </Stack>
+
+          <SectionErrorBoundary fallbackMessage="Config params section failed to render. Click Retry to try again.">
+            <Stack spacing={2}>
+              <Grid container spacing={2}>
+                <Grid size={{ xs: 12, md: 12, xl: 8 }}>
+                  <Stack spacing={2}>
+                    <Stack
+                      direction="row"
+                      justifyContent="space-between"
+                      alignItems="center"
+                    >
+                      <Box>
+                        <Typography variant="subtitle1">Config Params</Typography>
+                        <Typography variant="caption" color="text.secondary">
+                          {values.type === "code"
+                            ? "Params are passed as keyword arguments to your function (e.g. threshold: float = 0.5)."
+                            : "Params are available as {key} placeholders in your prompt template."}
+                        </Typography>
+                      </Box>
+                      <Button
+                        size="small"
+                        variant="outlined"
+                        onClick={() =>
+                          updateField("configSchema", [
+                            ...values.configSchema,
+                            emptyParam(),
+                          ])
+                        }
+                      >
+                        Add Param
+                      </Button>
+                    </Stack>
+
+                    {errors.configSchema && (
+                      <Typography variant="caption" color="error" sx={{ mt: 0.5 }}>
+                        {errors.configSchema}
+                      </Typography>
+                    )}
+
+                    <Stack spacing={1} sx={{ mt: 1 }}>
+                      {values.type === "llm_judge" &&
+                        LLM_JUDGE_BASE_CONFIG_SCHEMA.map((param) => (
+                          <Box
+                            key={param.key}
+                            sx={{
+                              border: 1,
+                              borderColor: "divider",
+                              borderRadius: 1,
+                              p: 1,
+                            }}
+                          >
+                            <Stack
+                              direction="row"
+                              spacing={1}
+                              alignItems="center"
+                              flexWrap="wrap"
+                              useFlexGap
+                            >
+                              <TextField
+                                slotProps={{ htmlInput: { maxLength: INPUT_LIMITS.KEY } }}
+                                placeholder="Key"
+                                size="small"
+                                value={param.key}
+                                disabled
+                                sx={{ flex: 2, minWidth: 120 }}
+                                InputProps={{ sx: { fontFamily: "monospace" } }}
+                              />
+                              <TextField
+                                slotProps={{ htmlInput: { maxLength: INPUT_LIMITS.SHORT_TEXT } }}
+                                placeholder="Type"
+                                size="small"
+                                value={param.type}
+                                disabled
+                                sx={{ flex: 1, minWidth: 80 }}
+                              />
+                              <TextField
+                                slotProps={{ htmlInput: { maxLength: INPUT_LIMITS.VALUE } }}
+                                placeholder="Default"
+                                size="small"
+                                value={
+                                  param.default !== undefined
+                                    ? String(param.default)
+                                    : ""
+                                }
+                                disabled
+                                sx={{ flex: 1.5, minWidth: 100 }}
+                              />
+                              <TextField
+                                slotProps={{ htmlInput: { maxLength: INPUT_LIMITS.DESCRIPTION } }}
+                                placeholder="Description"
+                                size="small"
+                                value={param.description}
+                                disabled
+                                sx={{ flex: 3, minWidth: 150 }}
+                              />
+                            </Stack>
+                          </Box>
+                        ))}
+
+                      {values.configSchema.map((param, idx) => {
+                        const updateParam = (
+                          patch: Partial<EvaluatorConfigParam>,
+                        ) => {
+                          const next = [...values.configSchema];
+                          next[idx] = { ...next[idx], ...patch };
+                          updateField("configSchema", next);
+                        };
+                        const removeParam = () => {
+                          updateField(
+                            "configSchema",
+                            values.configSchema.filter((_, i) => i !== idx),
+                          );
+                        };
+                        return (
+                          <Box
+                            key={idx}
+                            sx={{
+                              border: 1,
+                              borderColor: "divider",
+                              borderRadius: 1,
+                              p: 1,
+                            }}
+                          >
+                            <Stack spacing={1}>
+                              <Stack
+                                direction="row"
+                                spacing={1}
+                                alignItems="center"
+                                flexWrap="wrap"
+                                useFlexGap
+                              >
+                                <TextField
+                                  slotProps={{ htmlInput: { maxLength: INPUT_LIMITS.KEY } }}
+                                  placeholder="Key"
+                                  size="small"
+                                  value={param.key}
+                                  onChange={(e) =>
+                                    updateParam({ key: e.target.value })
+                                  }
+                                  sx={{ flex: 2, minWidth: 120 }}
+                                  InputProps={{ sx: { fontFamily: "monospace" } }}
+                                />
+                                <TextField
+                                  slotProps={{ htmlInput: { maxLength: INPUT_LIMITS.SHORT_TEXT } }}
+                                  select
+                                  placeholder="Type"
+                                  size="small"
+                                  value={param.type}
+                                  onChange={(e) => {
+                                    const nextType = e.target.value;
+                                    const isNumeric =
+                                      nextType === "integer" || nextType === "float";
+                                    updateParam({
+                                      type: nextType,
+                                      enumValues: undefined,
+                                      ...(isNumeric
+                                        ? {}
+                                        : { min: undefined, max: undefined }),
+                                    });
+                                  }}
+                                  sx={{ flex: 1, minWidth: 80 }}
+                                >
+                                  {PARAM_TYPES.map((t) => (
+                                    <MenuItem key={t} value={t}>
+                                      {t}
+                                    </MenuItem>
+                                  ))}
+                                </TextField>
+                                <TextField
+                                  slotProps={{ htmlInput: { maxLength: INPUT_LIMITS.VALUE } }}
+                                  placeholder="Default"
+                                  size="small"
+                                  value={
+                                    param.default !== undefined
+                                      ? String(param.default)
+                                      : ""
+                                  }
+                                  onChange={(e) =>
+                                    updateParam({
+                                      default:
+                                        e.target.value === ""
+                                          ? undefined
+                                          : e.target.value,
+                                    })
+                                  }
+                                  sx={{ flex: 1.5, minWidth: 100 }}
+                                />
+                                <TextField
+                                  slotProps={{ htmlInput: { maxLength: INPUT_LIMITS.DESCRIPTION } }}
+                                  placeholder="Description"
+                                  size="small"
+                                  value={param.description}
+                                  onChange={(e) =>
+                                    updateParam({ description: e.target.value })
+                                  }
+                                  sx={{ flex: 3, minWidth: 150 }}
+                                />
+                                <FormControlLabel
+                                  control={
+                                    <Checkbox
+                                      size="small"
+                                      checked={!!param.required}
+                                      onChange={(e) =>
+                                        updateParam({ required: e.target.checked })
+                                      }
+                                    />
+                                  }
+                                  label="Required"
+                                  sx={{ flexShrink: 0, mr: 0 }}
+                                />
+                                <IconButton size="small" onClick={removeParam}>
+                                  <CloseIcon size={16} />
+                                </IconButton>
+                              </Stack>
+
+                              {(param.type === "integer" ||
+                                param.type === "float") && (
+                                <Stack direction="row" spacing={1}>
+                                  <TextField
+                                    placeholder="Min"
+                                    size="small"
+                                    type="number"
+                                    value={param.min !== undefined ? param.min : ""}
+                                    onChange={(e) =>
+                                      updateParam({
+                                        min:
+                                          e.target.value === ""
+                                            ? undefined
+                                            : Number(e.target.value),
+                                      })
+                                    }
+                                    slotProps={{
+                                      input: {
+                                        inputProps: {
+                                          onWheel: (event) => event.currentTarget.blur(),
+                                        },
+                                      },
+                                    }}
+                                    sx={{ flex: 1 }}
+                                  />
+                                  <TextField
+                                    placeholder="Max"
+                                    size="small"
+                                    type="number"
+                                    value={param.max !== undefined ? param.max : ""}
+                                    onChange={(e) =>
+                                      updateParam({
+                                        max:
+                                          e.target.value === ""
+                                            ? undefined
+                                            : Number(e.target.value),
+                                      })
+                                    }
+                                    slotProps={{
+                                      input: {
+                                        inputProps: {
+                                          onWheel: (event) => event.currentTarget.blur(),
+                                        },
+                                      },
+                                    }}
+                                    sx={{ flex: 1 }}
+                                  />
+                                </Stack>
+                              )}
+
+                              {param.type === "enum" && (
+                                <TextField
+                                  slotProps={{ htmlInput: { maxLength: INPUT_LIMITS.VALUE } }}
+                                  placeholder="value1, value2, value3"
+                                  size="small"
+                                  value={(param.enumValues ?? []).join(", ")}
+                                  onChange={(e) =>
+                                    updateParam({
+                                      enumValues: e.target.value
+                                        .split(",")
+                                        .map((s) => s.trim())
+                                        .filter(Boolean),
+                                    })
+                                  }
+                                  fullWidth
+                                  helperText="Comma-separated list of allowed values"
+                                />
+                              )}
+                            </Stack>
+                          </Box>
+                        );
+                      })}
+                    </Stack>
+                  </Stack>
+                </Grid>
+              </Grid>
+            </Stack>
           </SectionErrorBoundary>
 
-          <Form.Section>
-            <Form.Header>Tags</Form.Header>
-            <Autocomplete
-              multiple
-              freeSolo
-              options={[]}
-              value={values.tags}
-              onChange={(_event, newValue) =>
-                updateField("tags", newValue as string[])
-              }
-              renderTags={(tagValues, getTagProps) =>
-                tagValues.map((option, index) => (
-                  <Chip
-                    label={option as string}
-                    size="small"
-                    {...getTagProps({ index })}
-                    key={option as string}
-                  />
-                ))
-              }
-              renderInput={(params) => (
-                <TextField {...params} placeholder="Add tags and press Enter"
-                  slotProps={{
-                    htmlInput: { ...params.inputProps, maxLength: INPUT_LIMITS.SHORT_TEXT },
-                  }}
+          <Stack spacing={2}>
+            <Typography variant="subtitle1">Tags</Typography>
+            <Grid container spacing={2}>
+              <Grid size={{ xs: 12, md: 12, xl: 8 }}>
+                <Autocomplete
+                  multiple
+                  freeSolo
+                  options={[]}
+                  value={values.tags}
+                  onChange={(_event, newValue) =>
+                    updateField("tags", newValue as string[])
+                  }
+                  renderTags={(tagValues, getTagProps) =>
+                    tagValues.map((option, index) => (
+                      <Chip
+                        label={option as string}
+                        size="small"
+                        {...getTagProps({ index })}
+                        key={option as string}
+                      />
+                    ))
+                  }
+                  renderInput={(params) => (
+                    <TextField {...params} placeholder="Add tags and press Enter"
+                      slotProps={{
+                        htmlInput: { ...params.inputProps, maxLength: INPUT_LIMITS.SHORT_TEXT },
+                      }}
+                    />
+                  )}
                 />
-              )}
-            />
-          </Form.Section>
+              </Grid>
+            </Grid>
+          </Stack>
 
           <Stack direction="row" spacing={2} justifyContent="space-between">
             <Button

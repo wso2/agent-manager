@@ -846,8 +846,8 @@ export const AddLLMProviderComponent: React.FC = () => {
                 : "Failed to create model config. Please try again.")}
           </Alert>
         ) : null}
-        <Form.Section>
-          <Form.Subheader>LLM Service Provider</Form.Subheader>
+        <Box>
+          <Typography variant="subtitle1" sx={{ mb: 1 }}>LLM Service Provider</Typography>
           {environments.length > 1 && (
             <>
               <Typography variant="body2" color="text.secondary" sx={{ mb: 1 }}>
@@ -1045,7 +1045,7 @@ export const AddLLMProviderComponent: React.FC = () => {
               onRemove={handleRemoveGuardrail}
             />
           )}
-        </Form.Section>
+        </Box>
 
         {hasAnyProvider && (
           <ConfigNameSection
@@ -1060,8 +1060,8 @@ export const AddLLMProviderComponent: React.FC = () => {
         )}
 
         {hasAnyProvider && !isExternal && (
-          <Form.Section>
-            <Form.Subheader>Environment Variable Names</Form.Subheader>
+          <Box>
+            <Typography variant="subtitle1" sx={{ mb: 1 }}>Environment Variable Names</Typography>
             <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
               These names are shared across all environments. The platform
               injects the actual URL and API key values at runtime per
@@ -1113,7 +1113,7 @@ export const AddLLMProviderComponent: React.FC = () => {
                 </ListingTable.Body>
               </ListingTable>
             </ListingTable.Container>
-          </Form.Section>
+          </Box>
         )}
 
         {hasAnyProvider && !allEnvsHaveProvider && (

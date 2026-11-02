@@ -23,6 +23,7 @@ import {
   Button,
   CircularProgress,
   Form,
+  Grid,
   IconButton,
   ListingTable,
   Stack,
@@ -231,7 +232,7 @@ export const GroupEditPage: React.FC = () => {
           <Alert severity="success">Group updated successfully.</Alert>
         )}
 
-        <Form.Section>
+        <Form.Stack spacing={3}>
           <Tabs
             value={activeTab}
             onChange={(_e, v) => setActiveTab(v as ActiveTab)}
@@ -244,12 +245,13 @@ export const GroupEditPage: React.FC = () => {
           {/* ── Users tab ── */}
           {activeTab === "users" && (
             <>
-              <Form.Header>Users</Form.Header>
+              <Typography variant="subtitle1">Users</Typography>
               <Typography variant="body2" color="text.secondary">
                 Search and add users to this group.
               </Typography>
 
-              <Box sx={{ mt: 1 }}>
+              <Grid container spacing={2}>
+                <Grid size={{ xs: 12, md: 12, xl: 8 }}>
                 <Form.ElementWrapper label="Add User" name="addUser">
                   <Autocomplete
                     id="addUser"
@@ -265,7 +267,8 @@ export const GroupEditPage: React.FC = () => {
                     noOptionsText="No users available"
                   />
                 </Form.ElementWrapper>
-              </Box>
+                </Grid>
+              </Grid>
 
               {pendingAdds.length > 0 && (
                 <Box mb={2}>
@@ -367,7 +370,7 @@ export const GroupEditPage: React.FC = () => {
           {/* ── Roles tab ── */}
           {activeTab === "roles" && (
             <>
-              <Form.Header>Assigned Roles</Form.Header>
+              <Typography variant="subtitle1">Assigned Roles</Typography>
               <Typography variant="body2" color="text.secondary">
                 Roles currently assigned to this group. Manage role assignments
                 from the Roles page.
@@ -412,7 +415,7 @@ export const GroupEditPage: React.FC = () => {
               </Box>
             </>
           )}
-        </Form.Section>
+        </Form.Stack>
 
         {/* Action row shows below the card only when there are unsaved changes. */}
         {isDirty && (

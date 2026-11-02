@@ -16,9 +16,10 @@
  * under the License.
  */
 
-import { Box, Button, Card, CardContent, CircularProgress, Form, MenuItem, Select, Skeleton, Stack, TextField, Typography } from "@wso2/oxygen-ui";
+import { Box, Button, CircularProgress, Form, Grid, MenuItem, Select, Skeleton, Stack, Typography } from "@wso2/oxygen-ui";
 import {
   PageLayout,
+  TextInput,
   useDirtyState,
   useFormValidation,
 } from "@agent-management-platform/views";
@@ -206,26 +207,27 @@ function EditProjectForm({ project, orgId, projectHref }: EditProjectFormProps) 
   return (
     <form onSubmit={handleSubmit}>
       <Box display="flex" flexDirection="column" gap={2} flexGrow={1}>
-        <Card variant="outlined">
-          <CardContent sx={{ gap: 1, display: "flex", flexDirection: "column" }}>
-            <Box display="flex" flexDirection="column" gap={1}>
-              <Typography variant="h5">Project Details</Typography>
-            </Box>
-            <Box display="flex" flexDirection="column" gap={1}>
-              <Form.ElementWrapper label="Name" name="displayName">
-                <TextField
-                  slotProps={{ htmlInput: { maxLength: INPUT_LIMITS.NAME } }}
-                  id="displayName"
-                  placeholder="e.g., Customer Support Platform"
-                  size="small"
-                  fullWidth
-                  disabled={isPending}
-                  value={formData.displayName}
-                  onChange={(e) => handleFieldChange('displayName', e.target.value)}
-                  error={!!errors.displayName}
-                  helperText={errors.displayName}
-                />
-              </Form.ElementWrapper>
+        <Form.Stack spacing={3}>
+          <Grid container spacing={2}>
+            <Grid size={{ xs: 12, md: 6, xl: 4 }}>
+              <TextInput
+                label="Name"
+                id="displayName"
+                maxLength={INPUT_LIMITS.NAME}
+                hideCharacterCount={formData.displayName.length < INPUT_LIMITS.NAME}
+                placeholder="e.g., Customer Support Platform"
+                disabled={isPending}
+                value={formData.displayName}
+                onChange={(e) => handleFieldChange('displayName', e.target.value)}
+                error={!!errors.displayName}
+                helperText={errors.displayName}
+              />
+            </Grid>
+            <Grid
+              size={{ xl: 8 }}
+              sx={{ display: { xs: 'none', xl: 'block' } }}
+            />
+            <Grid size={{ xs: 12, md: 12, xl: 8 }}>
               <Form.ElementWrapper label="Description (optional)" name="description">
                 <MarkdownEditor
                   id="description"
@@ -237,6 +239,8 @@ function EditProjectForm({ project, orgId, projectHref }: EditProjectFormProps) 
                   helperText={errors.description}
                 />
               </Form.ElementWrapper>
+            </Grid>
+            <Grid size={{ xs: 12, md: 6, xl: 4 }}>
               <Form.ElementWrapper label="Deployment Pipeline" name="deploymentPipeline">
                 <Select
                   id="deploymentPipeline"
@@ -282,9 +286,9 @@ function EditProjectForm({ project, orgId, projectHref }: EditProjectFormProps) 
                   ))}
                 </Select>
               </Form.ElementWrapper>
-            </Box>
-          </CardContent>
-        </Card>
+            </Grid>
+          </Grid>
+        </Form.Stack>
         <Box display="flex" justifyContent="flex-end" gap={1} mt={2}>
           <Button
             variant="outlined"

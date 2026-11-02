@@ -23,6 +23,7 @@ import {
   Button,
   CircularProgress,
   Form,
+  Grid,
   IconButton,
   ListingTable,
   Stack,
@@ -290,7 +291,7 @@ export const GroupEditPage: React.FC = () => {
           <Alert severity="success">Group updated successfully.</Alert>
         )}
 
-        <Form.Section>
+        <Form.Stack spacing={3}>
           <Tabs
             value={activeTab}
             onChange={(_e, v) => setActiveTab(v as ActiveTab)}
@@ -303,7 +304,7 @@ export const GroupEditPage: React.FC = () => {
           {/* ── Agents tab ── */}
           {activeTab === "agents" && (
             <>
-              <Form.Header>Agents</Form.Header>
+              <Typography variant="subtitle1">Agents</Typography>
               <Typography variant="body2" color="text.secondary">
                 Search and add agents to this group.
               </Typography>
@@ -314,7 +315,8 @@ export const GroupEditPage: React.FC = () => {
                 </Alert>
               )}
 
-              <Box sx={{ mt: 1 }}>
+              <Grid container spacing={2}>
+                <Grid size={{ xs: 12, md: 12, xl: 8 }}>
                 <Form.ElementWrapper label="Add Agent" name="addAgent">
                   <Autocomplete
                     id="addAgent"
@@ -344,7 +346,8 @@ export const GroupEditPage: React.FC = () => {
                     noOptionsText="No agents available"
                   />
                 </Form.ElementWrapper>
-              </Box>
+                </Grid>
+              </Grid>
 
               {displayedMemberIds.length === 0 ? (
                 <ListingTable.Container>
@@ -396,7 +399,7 @@ export const GroupEditPage: React.FC = () => {
           {/* ── Roles tab ── */}
           {activeTab === "roles" && (
             <>
-              <Form.Header>Assigned Roles</Form.Header>
+              <Typography variant="subtitle1">Assigned Roles</Typography>
               {isLoadingRoles || isLoadingAllRoles ? (
                 <CircularProgress size={20} />
               ) : isRolesError ? (
@@ -415,7 +418,8 @@ export const GroupEditPage: React.FC = () => {
                     </Alert>
                   )}
 
-                  <Box sx={{ mt: 1, mb: 2 }}>
+                  <Grid container spacing={2}>
+                    <Grid size={{ xs: 12, md: 12, xl: 8 }}>
                     <Form.ElementWrapper label="Add Role" name="addRole">
                       <Autocomplete
                         id="addRole"
@@ -429,7 +433,8 @@ export const GroupEditPage: React.FC = () => {
                         noOptionsText="No roles available"
                       />
                     </Form.ElementWrapper>
-                  </Box>
+                    </Grid>
+                  </Grid>
 
                   {displayedRoles.length === 0 ? (
                     <ListingTable.Container>
@@ -476,7 +481,7 @@ export const GroupEditPage: React.FC = () => {
               )}
             </>
           )}
-        </Form.Section>
+        </Form.Stack>
 
         {isDirty && (
           <Stack direction="row" spacing={1}>

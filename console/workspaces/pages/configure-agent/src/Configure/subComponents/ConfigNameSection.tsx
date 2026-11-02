@@ -15,7 +15,7 @@
  * under the License.
  */
 
-import { Form, Typography } from "@wso2/oxygen-ui";
+import { Grid, Stack, Typography } from "@wso2/oxygen-ui";
 import { TextInput } from "@agent-management-platform/views";
 import { INPUT_LIMITS } from "@agent-management-platform/types";
 
@@ -39,19 +39,24 @@ export function ConfigNameSection({
   placeholder,
 }: ConfigNameSectionProps) {
   return (
-    <Form.Section>
-      <Form.Subheader>Configuration Name</Form.Subheader>
-      <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+    <Stack spacing={2}>
+      <Typography variant="subtitle1">Configuration Name</Typography>
+      <Typography variant="body2" color="text.secondary">
         {description}
       </Typography>
-      <TextInput
-        maxLength={INPUT_LIMITS.NAME}
-        label="Name"
-        value={value}
-        onChange={(e) => onChange(e.target.value)}
-        placeholder={placeholder}
-        fullWidth
-      />
-    </Form.Section>
+      <Grid container spacing={2}>
+        <Grid size={{ xs: 12, md: 6, xl: 4 }}>
+          <TextInput
+            maxLength={INPUT_LIMITS.NAME}
+            hideCharacterCount={value.length < INPUT_LIMITS.NAME}
+            label="Name"
+            value={value}
+            onChange={(e) => onChange(e.target.value)}
+            placeholder={placeholder}
+          />
+        </Grid>
+        <Grid size={{ xl: 8 }} sx={{ display: { xs: "none", xl: "block" } }} />
+      </Grid>
+    </Stack>
   );
 }

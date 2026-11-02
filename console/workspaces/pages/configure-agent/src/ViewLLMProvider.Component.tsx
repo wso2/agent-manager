@@ -39,7 +39,6 @@ import {
   CardContent,
   Chip,
   Divider,
-  Form,
   FormLabel,
   IconButton,
   Skeleton,
@@ -1188,219 +1187,216 @@ export const ViewLLMProviderComponent: React.FC = () => {
           </Alert>
         )}
 
-        <Form.Section>
-          <Form.Subheader>Service Provider</Form.Subheader>
-          <Stack spacing={3}>
+        <Stack spacing={3}>
 
-            {environments.length > 1 && (
-              <>
-                <Typography variant="body2" color="text.secondary">
-                  Each environment uses a separate catalog provider. 
-                  The same variable names are injected in all environments with 
-                  environment-specific values.
-                </Typography>
-                <Tabs
-                  value={selectedEnvIndex}
-                  onChange={(_, v: number) => setSelectedEnvIndex(v)}
-                  sx={{ borderBottom: 1, borderColor: "divider", mb: 2 }}
-                >
-                  {environments.map((enTab, idx) => (
-                    <Tab
-                      key={enTab.name}
-                      label={enTab.displayName ?? enTab.name}
-                      value={idx}
-                    />
-                  ))}
-                </Tabs>
-              </>
-            )}
-
-
-            <ProviderSelectDrawer
-              open={providerDrawerOpen}
-              onClose={() => setProviderDrawerOpen(false)}
-              providers={providers}
-              templateMap={templateMap}
-              selectedUuid={
-                pendingProviderByEnv[selectedEnvName] ??
-                (catalogProvider ? catalogData?.entries?.find(
-                  (e) => e.handle === providerConfig?.providerName,
-                )?.uuid : undefined)
-              }
-              subtitle="Choose the catalog provider for this agent."
-              onSelect={(uuid) => {
-                if (!selectedEnvName) return;
-                setPendingProviderByEnv((prev) => ({
-                  ...prev,
-                  [selectedEnvName]: uuid,
-                }));
-                // A different provider's gateways may not support the guardrails
-                // already selected for this env — clear them so only guardrails
-                // valid for the newly-picked provider can be re-added and saved.
-                setGuardrailsByEnv((prev) => ({
-                  ...prev,
-                  [selectedEnvName]: [],
-                }));
-              }}
-            />
-
-            {(() => {
-              const pendingUuid = pendingProviderByEnv[selectedEnvName];
-
-              // No provider configured for this environment and none picked yet
-              // — offer to add one instead of hiding the section entirely.
-              if (!providerConfig && !pendingUuid) {
-                return (
-                  <EmptyConfigCard
-                    message="No provider is configured for this environment yet."
-                    actionLabel="Select Provider"
-                    actionIcon={<Plus size={16} />}
-                    onAction={() => setProviderDrawerOpen(true)}
+          {environments.length > 1 && (
+            <>
+              <Typography variant="body2" color="text.secondary">
+                Each environment uses a separate catalog provider. 
+                The same variable names are injected in all environments with 
+                environment-specific values.
+              </Typography>
+              <Tabs
+                value={selectedEnvIndex}
+                onChange={(_, v: number) => setSelectedEnvIndex(v)}
+                sx={{ borderBottom: 1, borderColor: "divider", mb: 2 }}
+              >
+                {environments.map((enTab, idx) => (
+                  <Tab
+                    key={enTab.name}
+                    label={enTab.displayName ?? enTab.name}
+                    value={idx}
                   />
-                );
-              }
+                ))}
+              </Tabs>
+            </>
+          )}
 
-              const displayProvider = pendingUuid
-                ? providers.find((p) => p.uuid === pendingUuid)
-                : null;
-              const displayCatalog = displayProvider
-                ? catalogData?.entries?.find((e) => e.uuid === pendingUuid)
-                : catalogProvider;
-              const displayTemplate = displayCatalog?.template
-                ? templateMap.get(displayCatalog.template)
-                : (catalogProvider?.template
-                  ? {
-                    displayName: templateDisplayName ?? catalogProvider.template,
-                    logoUrl: templateLogo,
-                  }
-                  : null);
 
+          <ProviderSelectDrawer
+            open={providerDrawerOpen}
+            onClose={() => setProviderDrawerOpen(false)}
+            providers={providers}
+            templateMap={templateMap}
+            selectedUuid={
+              pendingProviderByEnv[selectedEnvName] ??
+              (catalogProvider ? catalogData?.entries?.find(
+                (e) => e.handle === providerConfig?.providerName,
+              )?.uuid : undefined)
+            }
+            subtitle="Choose the catalog provider for this agent."
+            onSelect={(uuid) => {
+              if (!selectedEnvName) return;
+              setPendingProviderByEnv((prev) => ({
+                ...prev,
+                [selectedEnvName]: uuid,
+              }));
+              // A different provider's gateways may not support the guardrails
+              // already selected for this env — clear them so only guardrails
+              // valid for the newly-picked provider can be re-added and saved.
+              setGuardrailsByEnv((prev) => ({
+                ...prev,
+                [selectedEnvName]: [],
+              }));
+            }}
+          />
+
+          {(() => {
+            const pendingUuid = pendingProviderByEnv[selectedEnvName];
+
+            // No provider configured for this environment and none picked yet
+            // — offer to add one instead of hiding the section entirely.
+            if (!providerConfig && !pendingUuid) {
               return (
-                <Card variant="outlined">
-                  <CardContent sx={{ position: "relative" }}>
-                    <Tooltip title="Change provider" placement="top" arrow>
-                      <IconButton
-                        size="small"
-                        color="primary"
-                        sx={{ position: "absolute", top: 8, right: 8 }}
-                        onClick={() => setProviderDrawerOpen(true)}
-                        aria-label="Change provider"
-                      >
-                        <Edit size={16} />
-                      </IconButton>
-                    </Tooltip>
-                    <ProviderDisplay
-                      provider={
-                        displayCatalog
-                          ? {
-                            name: displayCatalog.name ?? providerConfig?.providerName ?? "",
-                            template: displayCatalog.template,
-                            version: displayCatalog.version,
-                            deployments: displayCatalog.deployments,
-                            security: displayCatalog.security,
-                            rateLimiting: displayCatalog.rateLimiting,
-                            policies: displayCatalog.policies?.map(
-                              (name) => guardrailDisplayNames.get(name) ?? name,
-                            ),
-                          }
-                          : { name: providerConfig?.providerName ?? "" }
-                      }
-                      isSelected={false}
-                      hideCheckbox
-                      templateInfo={displayTemplate ?? null}
-                    />
-                  </CardContent>
-                </Card>
+                <EmptyConfigCard
+                  message="No provider is configured for this environment yet."
+                  actionLabel="Select Provider"
+                  actionIcon={<Plus size={16} />}
+                  onAction={() => setProviderDrawerOpen(true)}
+                />
               );
-            })()}
+            }
 
-            <PolicyListSection
-              providerId={selectedProviderUuid}
-              title="Guardrails"
-              description="Add safety policies to enforce consistent protections."
-              addButtonLabel="Add Guardrail"
-              drawerAddTitle="Add Guardrail"
-              drawerEditTitle="Edit Guardrail"
-              drawerAddSubtitle="Choose a guardrail to configure advanced options."
-              drawerEditSubtitle="Update the guardrail configuration."
-              policyNoun="guardrail"
-              loadingLabel="Loading guardrails..."
-              searchPlaceholder="Search guardrails..."
-              catalogErrorLabel="Failed to load guardrails."
-              emptySearchTitle="No guardrails match your search"
-              emptyCatalogTitle="No guardrails available"
-              emptyCatalogDescription="No guardrail policies are available in the catalog."
-              policies={guardrails}
-              onAdd={handleAddGuardrail}
-              onEdit={handleEditGuardrail}
-              onRemove={handleRemoveGuardrail}
-            />
+            const displayProvider = pendingUuid
+              ? providers.find((p) => p.uuid === pendingUuid)
+              : null;
+            const displayCatalog = displayProvider
+              ? catalogData?.entries?.find((e) => e.uuid === pendingUuid)
+              : catalogProvider;
+            const displayTemplate = displayCatalog?.template
+              ? templateMap.get(displayCatalog.template)
+              : (catalogProvider?.template
+                ? {
+                  displayName: templateDisplayName ?? catalogProvider.template,
+                  logoUrl: templateLogo,
+                }
+                : null);
 
-            <Box>
-              <Typography variant="subtitle2" sx={{ mb: 0.5 }}>
-                Provider Guardrails
-              </Typography>
-              <Typography variant="body2" color="text.secondary" sx={{ mb: 1.5 }}>
-                Configured on the LLM provider itself, applied in addition to the guardrails above.
-              </Typography>
-              {orgGuardrails.length > 0 ? (
-                <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
-                  {orgGuardrails.map((g) => (
-                    <Chip key={g.key} label={g.label} variant="outlined" />
-                  ))}
-                </Stack>
-              ) : (
-                <Typography variant="body2" color="text.secondary">
-                  No org-level guardrails configured.
-                </Typography>
-              )}
-            </Box>
+            return (
+              <Card variant="outlined">
+                <CardContent sx={{ position: "relative" }}>
+                  <Tooltip title="Change provider" placement="top" arrow>
+                    <IconButton
+                      size="small"
+                      color="primary"
+                      sx={{ position: "absolute", top: 8, right: 8 }}
+                      onClick={() => setProviderDrawerOpen(true)}
+                      aria-label="Change provider"
+                    >
+                      <Edit size={16} />
+                    </IconButton>
+                  </Tooltip>
+                  <ProviderDisplay
+                    provider={
+                      displayCatalog
+                        ? {
+                          name: displayCatalog.name ?? providerConfig?.providerName ?? "",
+                          template: displayCatalog.template,
+                          version: displayCatalog.version,
+                          deployments: displayCatalog.deployments,
+                          security: displayCatalog.security,
+                          rateLimiting: displayCatalog.rateLimiting,
+                          policies: displayCatalog.policies?.map(
+                            (name) => guardrailDisplayNames.get(name) ?? name,
+                          ),
+                        }
+                        : { name: providerConfig?.providerName ?? "" }
+                    }
+                    isSelected={false}
+                    hideCheckbox
+                    templateInfo={displayTemplate ?? null}
+                  />
+                </CardContent>
+              </Card>
+            );
+          })()}
 
-            <Stack spacing={1}>
-              <ResilienceTimeoutFields
-                requestTimeout={resilienceByEnv[selectedEnvName]?.timeout ?? ""}
-                onRequestTimeoutChange={handleResilienceTimeoutChange}
-                onRequestTimeoutBlur={handleResilienceTimeoutBlur}
-                requestTimeoutError={resilienceErrorsByEnv[selectedEnvName]?.timeout}
-                idleTimeout={resilienceByEnv[selectedEnvName]?.idleTimeout ?? ""}
-                onIdleTimeoutChange={handleResilienceIdleTimeoutChange}
-                onIdleTimeoutBlur={handleResilienceIdleTimeoutBlur}
-                idleTimeoutError={resilienceErrorsByEnv[selectedEnvName]?.idleTimeout}
-              />
-            </Stack>
+          <PolicyListSection
+            providerId={selectedProviderUuid}
+            title="Guardrails"
+            description="Add safety policies to enforce consistent protections."
+            addButtonLabel="Add Guardrail"
+            drawerAddTitle="Add Guardrail"
+            drawerEditTitle="Edit Guardrail"
+            drawerAddSubtitle="Choose a guardrail to configure advanced options."
+            drawerEditSubtitle="Update the guardrail configuration."
+            policyNoun="guardrail"
+            loadingLabel="Loading guardrails..."
+            searchPlaceholder="Search guardrails..."
+            catalogErrorLabel="Failed to load guardrails."
+            emptySearchTitle="No guardrails match your search"
+            emptyCatalogTitle="No guardrails available"
+            emptyCatalogDescription="No guardrail policies are available in the catalog."
+            policies={guardrails}
+            onAdd={handleAddGuardrail}
+            onEdit={handleEditGuardrail}
+            onRemove={handleRemoveGuardrail}
+          />
 
-            {isDirty && hasBuildInProgress && (
-              <Alert severity="warning">{BUILD_IN_PROGRESS_REASON}</Alert>
-            )}
-            {isDirty && (
-              <Stack direction="row" spacing={1} justifyContent="flex-end">
-                <Button
-                  variant="outlined"
-                  size="small"
-                  onClick={() => {
-                    setPendingProviderByEnv({});
-                    allowNavigation(() => navigate(backHref));
-                  }}
-                >
-                  Cancel
-                </Button>
-                <Button
-                  variant="contained"
-                  size="small"
-                  onClick={handleSave}
-                  disabled={
-                    updateConfig.isPending ||
-                    hasEmptyEnvVarName ||
-                    hasBuildInProgress
-                  }
-                >
-                  {updateConfig.isPending ? "Saving…" : "Save"}
-                </Button>
+          <Box>
+            <Typography variant="subtitle2" sx={{ mb: 0.5 }}>
+              Provider Guardrails
+            </Typography>
+            <Typography variant="body2" color="text.secondary" sx={{ mb: 1.5 }}>
+              Configured on the LLM provider itself, applied in addition to the guardrails above.
+            </Typography>
+            {orgGuardrails.length > 0 ? (
+              <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
+                {orgGuardrails.map((g) => (
+                  <Chip key={g.key} label={g.label} variant="outlined" />
+                ))}
               </Stack>
+            ) : (
+              <Typography variant="body2" color="text.secondary">
+                No org-level guardrails configured.
+              </Typography>
             )}
+          </Box>
 
+          <Stack spacing={1}>
+            <ResilienceTimeoutFields
+              requestTimeout={resilienceByEnv[selectedEnvName]?.timeout ?? ""}
+              onRequestTimeoutChange={handleResilienceTimeoutChange}
+              onRequestTimeoutBlur={handleResilienceTimeoutBlur}
+              requestTimeoutError={resilienceErrorsByEnv[selectedEnvName]?.timeout}
+              idleTimeout={resilienceByEnv[selectedEnvName]?.idleTimeout ?? ""}
+              onIdleTimeoutChange={handleResilienceIdleTimeoutChange}
+              onIdleTimeoutBlur={handleResilienceIdleTimeoutBlur}
+              idleTimeoutError={resilienceErrorsByEnv[selectedEnvName]?.idleTimeout}
+            />
           </Stack>
-        </Form.Section>
+
+          {isDirty && hasBuildInProgress && (
+            <Alert severity="warning">{BUILD_IN_PROGRESS_REASON}</Alert>
+          )}
+          {isDirty && (
+            <Stack direction="row" spacing={1} justifyContent="flex-end">
+              <Button
+                variant="outlined"
+                size="small"
+                onClick={() => {
+                  setPendingProviderByEnv({});
+                  allowNavigation(() => navigate(backHref));
+                }}
+              >
+                Cancel
+              </Button>
+              <Button
+                variant="contained"
+                size="small"
+                onClick={handleSave}
+                disabled={
+                  updateConfig.isPending ||
+                  hasEmptyEnvVarName ||
+                  hasBuildInProgress
+                }
+              >
+                {updateConfig.isPending ? "Saving…" : "Save"}
+              </Button>
+            </Stack>
+          )}
+
+        </Stack>
 
         {isExternal && providerConfig && (
           <LLMProxyAPIKeysSection

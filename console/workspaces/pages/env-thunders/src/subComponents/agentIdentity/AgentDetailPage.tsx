@@ -19,10 +19,10 @@ import React, { useMemo, useState } from "react";
 import {
   Alert,
   Autocomplete,
-  Box,
   Button,
   CircularProgress,
   Form,
+  Grid,
   IconButton,
   ListingTable,
   Stack,
@@ -104,7 +104,7 @@ function AssignmentTab<T extends AssignableItem>({
 }) {
   return (
     <>
-      <Form.Header>{header}</Form.Header>
+      <Typography variant="subtitle1">{header}</Typography>
       <Typography variant="body2" color="text.secondary">
         {description}
       </Typography>
@@ -117,24 +117,26 @@ function AssignmentTab<T extends AssignableItem>({
       )}
 
       {canEdit && (
-        <Box sx={{ mt: 1, mb: 2 }}>
-          {isLoadingCatalog ? (
-            <CircularProgress size={20} />
-          ) : (
-            <Form.ElementWrapper label={addLabel} name={addLabel}>
-              <Autocomplete
-                options={availableItems}
-                getOptionLabel={(option) => option.name}
-                onChange={onAdd}
-                value={null}
-                renderInput={(autocompleteParams) => (
-                  <TextField {...autocompleteParams} placeholder={addPlaceholder} />
-                )}
-                noOptionsText={noOptionsText}
-              />
-            </Form.ElementWrapper>
-          )}
-        </Box>
+        <Grid container spacing={2}>
+          <Grid size={{ xs: 12, md: 12, xl: 8 }}>
+            {isLoadingCatalog ? (
+              <CircularProgress size={20} />
+            ) : (
+              <Form.ElementWrapper label={addLabel} name={addLabel}>
+                <Autocomplete
+                  options={availableItems}
+                  getOptionLabel={(option) => option.name}
+                  onChange={onAdd}
+                  value={null}
+                  renderInput={(autocompleteParams) => (
+                    <TextField {...autocompleteParams} placeholder={addPlaceholder} />
+                  )}
+                  noOptionsText={noOptionsText}
+                />
+              </Form.ElementWrapper>
+            )}
+          </Grid>
+        </Grid>
       )}
 
       {displayedItems.length === 0 ? (
@@ -378,7 +380,7 @@ export const AgentDetailPage: React.FC = () => {
         {saveError != null && <Alert severity="error">{saveError}</Alert>}
         {saveSuccess && <Alert severity="success">Agent updated successfully.</Alert>}
 
-        <Form.Section>
+        <Form.Stack spacing={3}>
           <Tabs
             value={activeTab}
             onChange={(_e, newValue) => setActiveTab(newValue as TabId)}
@@ -431,7 +433,7 @@ export const AgentDetailPage: React.FC = () => {
               onRemove={groupDelta.handleRemove}
             />
           )}
-        </Form.Section>
+        </Form.Stack>
 
         {isDirty && (
           <Stack direction="row" spacing={1}>

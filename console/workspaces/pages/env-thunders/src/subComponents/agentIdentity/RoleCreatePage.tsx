@@ -24,6 +24,7 @@ import {
   Chip,
   Collapse,
   Form,
+  Grid,
   TextField,
 } from "@wso2/oxygen-ui";
 import { Plus } from "@wso2/oxygen-ui-icons-react";
@@ -32,7 +33,7 @@ import {
   useCreateAgentIdentityRole,
   useListAgentIdentityScopes,
 } from "@agent-management-platform/api-client";
-import { useFormValidation, useDirtyState } from "@agent-management-platform/views";
+import { useFormValidation, useDirtyState, TextInput } from "@agent-management-platform/views";
 import { useUnsavedChangesGuard } from "@agent-management-platform/shared-component";
 import { absoluteRouteMap, INPUT_LIMITS } from "@agent-management-platform/types";
 import { withSearchParams } from "../../utils/withSearchParams";
@@ -148,44 +149,39 @@ export const RoleCreatePage: React.FC = () => {
         )}
 
         <Form.Stack spacing={3}>
-          <Form.Section>
-            <Form.Subheader>Role Details</Form.Subheader>
-            <Form.Stack spacing={2}>
-              <Form.ElementWrapper label="Name" name="name">
-                <TextField
-                  slotProps={{ htmlInput: { maxLength: IDENTITY_NAME_MAX_LENGTH } }}
-                  id="name"
-                  value={formData.name}
-                  onChange={(e) => handleFieldChange("name", e.target.value)}
-                  placeholder="agent-admin"
-                  autoComplete="off"
-                  error={!!errors.name}
-                  helperText={errors.name}
-                  fullWidth
-                />
-              </Form.ElementWrapper>
-
-              <Form.ElementWrapper
+          <Grid container spacing={2}>
+            <Grid size={{ xs: 12, md: 6, xl: 4 }}>
+              <TextInput
+                label="Name"
+                maxLength={IDENTITY_NAME_MAX_LENGTH}
+                hideCharacterCount={formData.name.length < IDENTITY_NAME_MAX_LENGTH}
+                id="name"
+                value={formData.name}
+                onChange={(e) => handleFieldChange("name", e.target.value)}
+                placeholder="agent-admin"
+                autoComplete="off"
+                error={!!errors.name}
+                helperText={errors.name}
+              />
+            </Grid>
+            <Grid size={{ xl: 8 }} sx={{ display: { xs: "none", xl: "block" } }} />
+            <Grid size={{ xs: 12, md: 12, xl: 8 }}>
+              <TextInput
                 label="Description (optional)"
-                name="description"
-              >
-                <TextField
-                  slotProps={{ htmlInput: { maxLength: INPUT_LIMITS.DESCRIPTION } }}
-                  id="description"
-                  value={formData.description}
-                  onChange={(e) =>
-                    handleFieldChange("description", e.target.value)
-                  }
-                  placeholder="Describe the role's purpose and permissions"
-                  multiline
-                  minRows={2}
-                  maxRows={6}
-                  error={!!errors.description}
-                  helperText={errors.description}
-                  fullWidth
-                />
-              </Form.ElementWrapper>
-
+                maxLength={INPUT_LIMITS.DESCRIPTION}
+                hideCharacterCount={(formData.description?.length ?? 0) < INPUT_LIMITS.DESCRIPTION}
+                id="description"
+                value={formData.description}
+                onChange={(e) => handleFieldChange("description", e.target.value)}
+                placeholder="Describe the role's purpose and permissions"
+                multiline
+                minRows={2}
+                maxRows={6}
+                error={!!errors.description}
+                helperText={errors.description}
+              />
+            </Grid>
+            <Grid size={{ xs: 12, md: 12, xl: 8 }}>
               <Form.ElementWrapper label="Scopes (optional)" name="scopes">
                 <Autocomplete
                   id="scopes"
@@ -214,8 +210,8 @@ export const RoleCreatePage: React.FC = () => {
                   noOptionsText="No scopes in the catalog"
                 />
               </Form.ElementWrapper>
-            </Form.Stack>
-          </Form.Section>
+            </Grid>
+          </Grid>
         </Form.Stack>
 
         <Box display="flex" flexDirection="column" gap={3}>

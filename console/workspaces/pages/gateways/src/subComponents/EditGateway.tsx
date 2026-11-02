@@ -22,15 +22,14 @@ import {
   Button,
   Collapse,
   Form,
-  FormControl,
-  FormLabel,
+  Grid,
   Skeleton,
   Stack,
-  TextField,
   Typography,
 } from "@wso2/oxygen-ui";
 import {
   PageLayout,
+  TextInput,
   useFormValidation,
 } from "@agent-management-platform/views";
 import {
@@ -170,15 +169,15 @@ function EditGatewayForm({ gateway, orgId, listHref }: EditGatewayFormProps) {
           </Alert>
         </Collapse>
 
-        <Form.Section>
-          <Form.Header>Gateway Details</Form.Header>
-          <Form.Stack spacing={2}>
-            <FormControl fullWidth error={Boolean(errors.displayName)}>
-              <FormLabel required>Display Name</FormLabel>
-              <TextField
-                slotProps={{ htmlInput: { maxLength: GATEWAY_DISPLAY_NAME_MAX_LENGTH } }}
-                fullWidth
-                size="small"
+        <Form.Stack spacing={3}>
+          <Grid container spacing={2}>
+            <Grid size={{ xs: 12, md: 6, xl: 4 }}>
+              <TextInput
+                label="Display Name"
+                maxLength={GATEWAY_DISPLAY_NAME_MAX_LENGTH}
+                hideCharacterCount={
+                  formData.displayName.length < GATEWAY_DISPLAY_NAME_MAX_LENGTH
+                }
                 value={formData.displayName}
                 onChange={(e) =>
                   handleFieldChange("displayName", e.target.value)
@@ -188,9 +187,9 @@ function EditGatewayForm({ gateway, orgId, listHref }: EditGatewayFormProps) {
                 helperText={errors.displayName}
                 disabled={isPending}
               />
-            </FormControl>
-          </Form.Stack>
-        </Form.Section>
+            </Grid>
+          </Grid>
+        </Form.Stack>
 
         <Box display="flex" justifyContent="flex-end" gap={1} mt={2}>
           <Button

@@ -39,6 +39,7 @@ import {
 } from "@agent-management-platform/shared-component";
 import {
   Alert,
+  Box,
   Button,
   Card,
   CardContent,
@@ -1000,8 +1001,8 @@ export const ViewMCPServerComponent = () => {
       }
     >
       <Stack spacing={3}>
-        <Form.Section>
-          <Form.Subheader>MCP Server</Form.Subheader>
+        <Box>
+          <Typography variant="subtitle1" sx={{ mb: 1 }}>MCP Server</Typography>
           {configProxy ? (
             <Card variant="outlined">
               <CardContent sx={{ position: "relative" }}>
@@ -1030,7 +1031,7 @@ export const ViewMCPServerComponent = () => {
               {configProxyName ?? "No MCP server referenced."}
             </Typography>
           )}
-        </Form.Section>
+        </Box>
 
         {envNames.length > 1 && (
           <Stack direction="row" spacing={2} alignItems="center" justifyContent="flex-end">
@@ -1060,8 +1061,8 @@ export const ViewMCPServerComponent = () => {
           </Stack>
         )}
 
-        <Form.Section>
-          <Form.Subheader>Tools</Form.Subheader>
+        <Box>
+          <Typography variant="subtitle1" sx={{ mb: 1 }}>Tools</Typography>
           {isLoadingTools ? (
             <Skeleton variant="rounded" height={160} />
           ) : isToolsError ? (
@@ -1127,7 +1128,7 @@ export const ViewMCPServerComponent = () => {
               </ListingTable>
             </ListingTable.Container>
           )}
-        </Form.Section>
+        </Box>
 
         {isExternal && providerConfig && usesAPIKeySecurity && (
           <MCPProxyAPIKeysSection

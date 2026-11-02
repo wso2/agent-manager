@@ -23,6 +23,7 @@ import {
   Button,
   Chip,
   Form,
+  Grid,
   Stack,
   Tab,
   Tabs,
@@ -186,7 +187,7 @@ export const UserEditPage: React.FC = () => {
           <Alert severity="success">User updated successfully.</Alert>
         )}
 
-        <Form.Section>
+        <Form.Stack spacing={3}>
           <Tabs
             value={activeTab}
             onChange={(_e, newValue) => setActiveTab(newValue as TabId)}
@@ -198,12 +199,13 @@ export const UserEditPage: React.FC = () => {
 
           {activeTab === "groups" && (
             <>
-              <Form.Header>Group Memberships</Form.Header>
+              <Typography variant="subtitle1">Group Memberships</Typography>
               <Typography variant="body2" color="text.secondary">
                 Search and select groups to assign this user to.
               </Typography>
 
-              <Form.Stack spacing={2} sx={{ mt: 1 }}>
+              <Grid container spacing={2}>
+                <Grid size={{ xs: 12, md: 12, xl: 8 }}>
                 <Form.ElementWrapper label="Groups" name="groups">
                   <Autocomplete
                     id="groups"
@@ -225,8 +227,10 @@ export const UserEditPage: React.FC = () => {
                     noOptionsText="No groups found"
                   />
                 </Form.ElementWrapper>
+                </Grid>
 
                 {selectedGroups.length > 0 && (
+                  <Grid size={{ xs: 12, md: 12, xl: 8 }}>
                   <Stack direction="row" flexWrap="wrap" gap={1}>
                     {selectedGroups.map((group) => (
                       <Chip
@@ -242,14 +246,15 @@ export const UserEditPage: React.FC = () => {
                       />
                     ))}
                   </Stack>
+                  </Grid>
                 )}
-              </Form.Stack>
+              </Grid>
             </>
           )}
 
           {activeTab === "roles" && (
             <>
-              <Form.Header>Assigned Roles</Form.Header>
+              <Typography variant="subtitle1">Assigned Roles</Typography>
               <Typography variant="body2" color="text.secondary">
                 Roles directly assigned to this user. To modify role
                 assignments, use the Roles page.
@@ -270,7 +275,7 @@ export const UserEditPage: React.FC = () => {
               </Box>
             </>
           )}
-        </Form.Section>
+        </Form.Stack>
 
         {/* Action row shows only on the editable Groups tab once there are changes. */}
         {activeTab === "groups" && isGroupsDirty && (

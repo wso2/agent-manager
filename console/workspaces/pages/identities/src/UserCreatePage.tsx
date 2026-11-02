@@ -18,13 +18,11 @@
 import React, { useState } from "react";
 import {
   Alert,
-  Box,
   Button,
   Form,
-  FormControl,
-  FormLabel,
+  Grid,
   Stack,
-  TextField,
+  Typography,
 } from "@wso2/oxygen-ui";
 import { generatePath, useNavigate, useParams } from "react-router-dom";
 import { useCreateUser } from "@agent-management-platform/api-client";
@@ -110,15 +108,15 @@ export const UserCreatePage: React.FC = () => {
           </Alert>
         )}
 
-        {/* Account credentials */}
-        <Form.Section>
-          <Form.Header>Account Credentials</Form.Header>
-          <Form.Stack spacing={2}>
-            <FormControl fullWidth error={Boolean(errors.username)}>
-              <FormLabel required>Username</FormLabel>
-              <TextField
-                slotProps={{ htmlInput: { maxLength: INPUT_LIMITS.NAME } }}
-                fullWidth
+        <Form.Stack spacing={3}>
+          {/* Account credentials */}
+          <Typography variant="subtitle1">Account Credentials</Typography>
+          <Grid container spacing={2}>
+            <Grid size={{ xs: 12, md: 6, xl: 4 }}>
+              <TextInput
+                label="Username"
+                maxLength={INPUT_LIMITS.NAME}
+                hideCharacterCount={username.length < INPUT_LIMITS.NAME}
                 value={username}
                 onChange={(e) => {
                   setUsername(e.target.value);
@@ -130,62 +128,53 @@ export const UserCreatePage: React.FC = () => {
                 error={Boolean(errors.username)}
                 helperText={errors.username}
               />
-            </FormControl>
+            </Grid>
+            <Grid size={{ xs: 12, md: 6, xl: 4 }}>
+              <TextInput
+                maxLength={INPUT_LIMITS.PASSWORD}
+                hideCharacterCount={password.length < INPUT_LIMITS.PASSWORD}
+                label="Password"
+                type="password"
+                showPasswordToggle
+                value={password}
+                onChange={(e) => {
+                  setPassword(e.target.value);
+                  if (errors.password)
+                    setErrors((p) => ({ ...p, password: undefined }));
+                }}
+                autoComplete="new-password"
+                error={Boolean(errors.password)}
+                helperText={errors.password}
+              />
+            </Grid>
+            <Grid size={{ xl: 4 }} sx={{ display: { xs: "none", xl: "block" } }} />
+          </Grid>
 
-            <TextInput
-              maxLength={INPUT_LIMITS.PASSWORD}
-              label="Password"
-              required
-              type="password"
-              showPasswordToggle
-              value={password}
-              onChange={(e) => {
-                setPassword(e.target.value);
-                if (errors.password)
-                  setErrors((p) => ({ ...p, password: undefined }));
-              }}
-              autoComplete="new-password"
-              error={Boolean(errors.password)}
-              helperText={errors.password}
-            />
-          </Form.Stack>
-        </Form.Section>
-
-        {/* Profile */}
-        <Form.Section>
-          <Form.Header>Profile</Form.Header>
-          <Form.Stack spacing={2}>
-            <Box
-              sx={{
-                display: "grid",
-                gap: 2,
-                gridTemplateColumns: { xs: "1fr", sm: "1fr 1fr" },
-              }}
-            >
-              <FormControl fullWidth>
-                <FormLabel>First Name</FormLabel>
-                <TextField
-                  slotProps={{ htmlInput: { maxLength: INPUT_LIMITS.NAME } }}
-                  fullWidth
-                  value={givenName}
-                  onChange={(e) => setGivenName(e.target.value)}
-                  placeholder="John"
-                />
-              </FormControl>
-
-              <FormControl fullWidth>
-                <FormLabel>Last Name</FormLabel>
-                <TextField
-                  slotProps={{ htmlInput: { maxLength: INPUT_LIMITS.NAME } }}
-                  fullWidth
-                  value={familyName}
-                  onChange={(e) => setFamilyName(e.target.value)}
-                  placeholder="Doe"
-                />
-              </FormControl>
-            </Box>
-          </Form.Stack>
-        </Form.Section>
+          {/* Profile */}
+          <Typography variant="subtitle1">Profile</Typography>
+          <Grid container spacing={2}>
+            <Grid size={{ xs: 12, md: 6, xl: 4 }}>
+              <TextInput
+                label="First Name (optional)"
+                maxLength={INPUT_LIMITS.NAME}
+                hideCharacterCount={givenName.length < INPUT_LIMITS.NAME}
+                value={givenName}
+                onChange={(e) => setGivenName(e.target.value)}
+                placeholder="John"
+              />
+            </Grid>
+            <Grid size={{ xs: 12, md: 6, xl: 4 }}>
+              <TextInput
+                label="Last Name (optional)"
+                maxLength={INPUT_LIMITS.NAME}
+                hideCharacterCount={familyName.length < INPUT_LIMITS.NAME}
+                value={familyName}
+                onChange={(e) => setFamilyName(e.target.value)}
+                placeholder="Doe"
+              />
+            </Grid>
+          </Grid>
+        </Form.Stack>
 
         {/* Actions */}
         <Stack direction="row" spacing={1} justifyContent="flex-end">

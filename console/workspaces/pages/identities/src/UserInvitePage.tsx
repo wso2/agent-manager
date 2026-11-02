@@ -22,6 +22,7 @@ import {
   Button,
   Collapse,
   Form,
+  Grid,
   IconButton,
   TextField,
   Tooltip,
@@ -33,6 +34,7 @@ import { useInviteUser } from "@agent-management-platform/api-client";
 import {
   useFormValidation,
   useDirtyState,
+  TextInput,
 } from "@agent-management-platform/views";
 import { useUnsavedChangesGuard } from "@agent-management-platform/shared-component";
 import { absoluteRouteMap, INPUT_LIMITS } from "@agent-management-platform/types";
@@ -124,27 +126,23 @@ export const UserInvitePage: React.FC = () => {
         {inviteLink == null ? (
           <>
             <Form.Stack spacing={3}>
-              <Form.Section>
-                <Form.Subheader>Invite Details</Form.Subheader>
-                <Form.Stack spacing={2}>
-                  <Form.ElementWrapper label="Email Address" name="email">
-                    <TextField
-                      slotProps={{ htmlInput: { maxLength: INPUT_LIMITS.SHORT_TEXT } }}
-                      id="email"
-                      type="email"
-                      value={formData.email}
-                      onChange={(e) =>
-                        handleFieldChange("email", e.target.value)
-                      }
-                      placeholder="user@example.com"
-                      autoComplete="off"
-                      error={!!errors.email}
-                      helperText={errors.email}
-                      fullWidth
-                    />
-                  </Form.ElementWrapper>
-                </Form.Stack>
-              </Form.Section>
+              <Grid container spacing={2}>
+                <Grid size={{ xs: 12, md: 6, xl: 4 }}>
+                  <TextInput
+                    label="Email Address"
+                    maxLength={INPUT_LIMITS.SHORT_TEXT}
+                    hideCharacterCount={formData.email.length < INPUT_LIMITS.SHORT_TEXT}
+                    id="email"
+                    type="email"
+                    value={formData.email}
+                    onChange={(e) => handleFieldChange("email", e.target.value)}
+                    placeholder="user@example.com"
+                    autoComplete="off"
+                    error={!!errors.email}
+                    helperText={errors.email}
+                  />
+                </Grid>
+              </Grid>
             </Form.Stack>
 
             <Box display="flex" flexDirection="column" gap={3}>
@@ -187,62 +185,50 @@ export const UserInvitePage: React.FC = () => {
           </>
         ) : (
           <Form.Stack spacing={3}>
-            <Form.Section>
-              <Form.Subheader>Invitation Created</Form.Subheader>
-              <Form.Stack spacing={2}>
-                <Alert severity="success">
-                  An invitation has been created for{" "}
-                  <strong>{formData.email}</strong>. Share the link below with
-                  the user to complete registration.
-                </Alert>
+            <Alert severity="success">
+              An invitation has been created for{" "}
+              <strong>{formData.email}</strong>. Share the link below with
+              the user to complete registration.
+            </Alert>
 
-                <Box>
-                  <Typography variant="body2" color="text.secondary" mb={1}>
-                    Invite Link
-                  </Typography>
-                  <Box
-                    display="flex"
-                    flexDirection="row"
-                    gap={1}
-                    alignItems="center"
-                  >
-                    <TextField
-                      fullWidth
-                      value={inviteLink}
-                      InputProps={{ readOnly: true }}
-                    />
-                    <Tooltip title={copied ? "Copied!" : "Copy link"}>
-                      <IconButton onClick={handleCopy} size="small">
-                        {copied ? <Check size={16} /> : <Copy size={16} />}
-                      </IconButton>
-                    </Tooltip>
-                  </Box>
+            <Grid container spacing={2}>
+              <Grid size={{ xs: 12, md: 12, xl: 8 }}>
+                <Typography variant="body2" color="text.secondary" mb={1}>
+                  Invite Link
+                </Typography>
+                <Box display="flex" flexDirection="row" gap={1} alignItems="center">
+                  <TextField
+                    fullWidth
+                    value={inviteLink}
+                    InputProps={{ readOnly: true }}
+                  />
+                  <Tooltip title={copied ? "Copied!" : "Copy link"}>
+                    <IconButton onClick={handleCopy} size="small">
+                      {copied ? <Check size={16} /> : <Copy size={16} />}
+                    </IconButton>
+                  </Tooltip>
                 </Box>
+              </Grid>
+            </Grid>
 
-                <Box
-                  display="flex"
-                  flexDirection="row"
-                  gap={1}
-                  alignItems="center"
-                  justifyContent="flex-end"
-                >
-                  <Button
-                    variant="outlined"
-                    color="primary"
-                    onClick={handleInviteAnother}
-                  >
-                    Invite Another
-                  </Button>
-                  <Button
-                    variant="contained"
-                    color="primary"
-                    onClick={() => navigate(usersPath)}
-                  >
-                    Done
-                  </Button>
-                </Box>
-              </Form.Stack>
-            </Form.Section>
+            <Box
+              display="flex"
+              flexDirection="row"
+              gap={1}
+              alignItems="center"
+              justifyContent="flex-end"
+            >
+              <Button variant="outlined" color="primary" onClick={handleInviteAnother}>
+                Invite Another
+              </Button>
+              <Button
+                variant="contained"
+                color="primary"
+                onClick={() => navigate(usersPath)}
+              >
+                Done
+              </Button>
+            </Box>
           </Form.Stack>
         )}
       </Box>

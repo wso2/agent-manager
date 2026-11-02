@@ -24,6 +24,7 @@ import {
   Chip,
   CircularProgress,
   Form,
+  Grid,
   IconButton,
   ListingTable,
   Stack,
@@ -314,7 +315,7 @@ export const RoleEditPage: React.FC = () => {
         {saveError != null && <Alert severity="error">{saveError}</Alert>}
         {saveSuccess && <Alert severity="success">Role updated successfully.</Alert>}
 
-        <Form.Section>
+        <Form.Stack spacing={3}>
           <Tabs
             value={activeTab}
             onChange={(_e, v) => setActiveTab(v as ActiveTab)}
@@ -328,7 +329,7 @@ export const RoleEditPage: React.FC = () => {
           {/* ── Permissions tab ── */}
           {activeTab === "permissions" && (
             <>
-              <Form.Header>Permissions</Form.Header>
+              <Typography variant="subtitle1">Permissions</Typography>
               <Typography variant="body2" color="text.secondary">
                 {isPermissionsReadOnly
                   ? "Permissions for predefined roles cannot be modified."
@@ -350,7 +351,7 @@ export const RoleEditPage: React.FC = () => {
           {/* ── Agents tab ── */}
           {activeTab === "agents" && (
             <>
-              <Form.Header>Assigned Agents</Form.Header>
+              <Typography variant="subtitle1">Assigned Agents</Typography>
               {isLoadingAgents ? (
                 <CircularProgress size={20} />
               ) : (
@@ -359,7 +360,8 @@ export const RoleEditPage: React.FC = () => {
                     Search and add agents to this role.
                   </Typography>
 
-                  <Box sx={{ mt: 1, mb: 2 }}>
+                  <Grid container spacing={2}>
+                    <Grid size={{ xs: 12, md: 12, xl: 8 }}>
                     <Form.ElementWrapper label="Add Agent" name="addAgent">
                       <Autocomplete
                         id="addAgent"
@@ -389,7 +391,8 @@ export const RoleEditPage: React.FC = () => {
                         noOptionsText="No agents available"
                       />
                     </Form.ElementWrapper>
-                  </Box>
+                    </Grid>
+                  </Grid>
 
                   {displayedAgentIds.length === 0 ? (
                     <ListingTable.Container>
@@ -443,7 +446,7 @@ export const RoleEditPage: React.FC = () => {
           {/* ── Groups tab ── */}
           {activeTab === "groups" && (
             <>
-              <Form.Header>Assigned Groups</Form.Header>
+              <Typography variant="subtitle1">Assigned Groups</Typography>
               {isLoadingGroups ? (
                 <CircularProgress size={20} />
               ) : (
@@ -458,7 +461,8 @@ export const RoleEditPage: React.FC = () => {
                     </Alert>
                   )}
 
-                  <Box sx={{ mt: 1, mb: 2 }}>
+                  <Grid container spacing={2}>
+                    <Grid size={{ xs: 12, md: 12, xl: 8 }}>
                     <Form.ElementWrapper label="Add Group" name="addGroup">
                       <Autocomplete
                         id="addGroup"
@@ -472,7 +476,8 @@ export const RoleEditPage: React.FC = () => {
                         noOptionsText="No groups available"
                       />
                     </Form.ElementWrapper>
-                  </Box>
+                    </Grid>
+                  </Grid>
 
                   {displayedGroups.length === 0 ? (
                     <ListingTable.Container>
@@ -519,7 +524,7 @@ export const RoleEditPage: React.FC = () => {
               )}
             </>
           )}
-        </Form.Section>
+        </Form.Stack>
 
         {isDirty && (
           <Stack direction="row" spacing={1}>

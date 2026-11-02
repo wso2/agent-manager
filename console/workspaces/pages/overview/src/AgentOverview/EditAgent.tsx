@@ -16,7 +16,7 @@
  * under the License.
  */
 
-import { Box, Button, Card, CardContent, Skeleton, Typography } from "@wso2/oxygen-ui";
+import { Box, Button, Form, Grid, Skeleton } from "@wso2/oxygen-ui";
 import {
   PageLayout,
   TextInput,
@@ -133,22 +133,26 @@ function EditAgentForm({ agent, orgId, projectId, agentHref }: EditAgentFormProp
   return (
     <form onSubmit={handleSubmit}>
       <Box display="flex" flexDirection="column" gap={2} flexGrow={1}>
-        <Card variant="outlined">
-          <CardContent sx={{ gap: 1, display: "flex", flexDirection: "column" }}>
-            <Typography variant="h5">Agent Details</Typography>
-            <Box display="flex" flexDirection="column" gap={1}>
+        <Form.Stack spacing={3}>
+          <Grid container spacing={2}>
+            <Grid size={{ xs: 12, md: 6, xl: 4 }}>
               <TextInput
                 maxLength={INPUT_LIMITS.NAME}
+                hideCharacterCount={formData.displayName.length < INPUT_LIMITS.NAME}
                 placeholder="e.g., Customer Support Agent"
                 label="Name"
-                fullWidth
-                size="small"
                 value={formData.displayName}
                 onChange={(e) => handleFieldChange('displayName', e.target.value)}
                 error={!!errors.displayName}
                 helperText={errors.displayName}
                 disabled={isPending}
               />
+            </Grid>
+            <Grid
+              size={{ xl: 8 }}
+              sx={{ display: { xs: 'none', xl: 'block' } }}
+            />
+            <Grid size={{ xs: 12, md: 12, xl: 8 }}>
               <MarkdownEditor
                 id="description"
                 label="Description (optional)"
@@ -159,20 +163,16 @@ function EditAgentForm({ agent, orgId, projectId, agentHref }: EditAgentFormProp
                 helperText={errors.description}
                 disabled={isPending}
               />
-            </Box>
-          </CardContent>
-        </Card>
-
-        <Card variant="outlined">
-          <CardContent sx={{ gap: 1, display: "flex", flexDirection: "column" }}>
-            <LabelsEditor
-              value={labels}
-              onChange={setLabels}
-              disabled={isPending}
-            />
-          </CardContent>
-        </Card>
-
+            </Grid>
+            <Grid size={{ xs: 12, md: 12, xl: 8 }}>
+              <LabelsEditor
+                value={labels}
+                onChange={setLabels}
+                disabled={isPending}
+              />
+            </Grid>
+          </Grid>
+        </Form.Stack>
         <Box display="flex" justifyContent="flex-end" gap={1} mt={2}>
           <Button
             variant="outlined"

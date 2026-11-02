@@ -16,7 +16,7 @@
  */
 
 import React, { type ReactNode } from "react";
-import { Avatar, Box, Form, Stack, Typography } from "@wso2/oxygen-ui";
+import { Avatar, Box, Stack, Typography } from "@wso2/oxygen-ui";
 
 interface EntityHeaderProps {
   /** Fallback letter shown in the avatar when `name` is empty. */
@@ -42,29 +42,27 @@ export const EntityHeader: React.FC<EntityHeaderProps> = ({
   id,
   badge,
 }) => (
-  <Form.Section>
-    <Stack direction="row" alignItems="center" spacing={2}>
-      <Avatar sx={AVATAR_SX}>
-        {name.charAt(0).toUpperCase() || fallback}
-      </Avatar>
-      <Box sx={BOX_SX}>
-        {badge ? (
-          <Stack direction="row" alignItems="center" spacing={1}>
-            <Typography variant="h6" noWrap>{name}</Typography>
-            {badge}
-          </Stack>
-        ) : (
+  <Stack direction="row" alignItems="center" spacing={2}>
+    <Avatar sx={AVATAR_SX}>
+      {name.charAt(0).toUpperCase() || fallback}
+    </Avatar>
+    <Box sx={BOX_SX}>
+      {badge ? (
+        <Stack direction="row" alignItems="center" spacing={1}>
           <Typography variant="h6" noWrap>{name}</Typography>
-        )}
-        {subtitle && (
-          <Typography variant="body2" color="text.secondary" noWrap>
-            {subtitle}
-          </Typography>
-        )}
-        <Typography variant="caption" color="text.disabled" sx={CAPTION_SX}>
-          {id}
+          {badge}
+        </Stack>
+      ) : (
+        <Typography variant="h6" noWrap>{name}</Typography>
+      )}
+      {subtitle && (
+        <Typography variant="body2" color="text.secondary" noWrap>
+          {subtitle}
         </Typography>
-      </Box>
-    </Stack>
-  </Form.Section>
+      )}
+      <Typography variant="caption" color="text.disabled" sx={CAPTION_SX}>
+        {id}
+      </Typography>
+    </Box>
+  </Stack>
 );
