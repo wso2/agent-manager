@@ -55,8 +55,65 @@ set -euo pipefail
 #     for THIS env-Thunder's own /console. Printed at the end of this script's output;
 #     not saved to disk. Stored server-side as a K8s Secret (<release>-admin-credentials,
 #     key "password") so re-running the script reuses it instead of rotating it.
-#   - PERSISTENCE_SIZE (default: 1Gi), STORAGE_CLASS (default: cluster default)
+#   - PERSISTENCE_SIZE (default: 1Gi), STORAGE_CLASS (default: cluster default). Both
+#     apply to the SQLite database volume only; the small certs/secrets volumes the
+#     chart always creates use the cluster's default storage class.
 #   - WAIT_TIMEOUT (default: 180s)
+#   Storage (all optional). The defaults give a single-instance setup: SQLite on a
+#   PVC, an in-memory cache and 1 replica. That is not highly available; ThunderID's
+#   own production guide recommends PostgreSQL, and Redis once there is more than one
+#   replica. Set these on the same command as this script (on `bash`, the last stage of
+#   a curl | bash pipeline, not on curl):
+#   - THUNDER_DB_TYPE (default: sqlite): sqlite | postgres. postgres needs an EXISTING
+#     server with the four databases (see THUNDER_DB_NAME_PREFIX) already created AND
+#     their schema loaded (each database's dbscripts/<db>/postgres.sql, taken from the
+#     same Thunder image version as CHART_VERSION). Nothing in the chart creates
+#     PostgreSQL tables, and against an empty database the setup hook fails with no
+#     readable logs. Schema upgrades between ThunderID versions are also yours to apply.
+#       THUNDER_DB_HOST, THUNDER_DB_USER, THUNDER_DB_PASSWORD, THUNDER_DB_NAME_PREFIX
+#         are required for postgres. The databases used are <prefix>configdb,
+#         <prefix>runtime_transient, <prefix>entitydb and <prefix>runtime_persistent.
+#         There is no default prefix on purpose: two environments sharing one server
+#         must not silently share databases. Use lowercase letters, digits and '_',
+#         starting with a letter, at most 41 characters.
+#       THUNDER_DB_PORT (default: 5432), THUNDER_DB_SSLMODE (default: require).
+#   - THUNDER_CACHE_TYPE (default: inmemory): inmemory | redis. redis needs
+#     THUNDER_REDIS_ADDRESS (host:port); optional THUNDER_REDIS_USERNAME,
+#     THUNDER_REDIS_PASSWORD and THUNDER_REDIS_KEY_PREFIX (default: "<release>:", so
+#     environments can share one Redis).
+#   - THUNDER_REPLICAS (default: 1): more than 1 requires THUNDER_DB_TYPE=postgres AND
+#     THUNDER_CACHE_TYPE=redis (SQLite is single-pod; per-pod in-memory caches
+#     diverge). The chart's certs/secrets volumes are ReadWriteOnce by default; if the
+#     replicas can land on different nodes, also set THUNDER_STATE_ACCESS_MODE=
+#     ReadWriteMany (needs a storage class that supports it). The volumes are created
+#     once, so this has no effect on an environment that already exists.
+#   - THUNDER_FORCE_STORAGE_CHANGE (default: false): the script refuses to repoint an
+#     already-installed environment at a different database, because Thunder seeds its
+#     database only at first install. Set true only after migrating the data yourself.
+#     The same refusal applies when an installed release's settings cannot be read, in
+#     which case true skips that check. It never overrides a release that is mid-install,
+#     mid-removal, or a failed first install whose setup job did not complete.
+#   Re-running applies exactly the settings given on that run: a setting left out reverts
+#   to its default (a re-run without THUNDER_REPLICAS scales back to 1), so pass the same
+#   values every time; when a re-run would change the cache type or replica count of an
+#   installed environment, the script says so (it does not refuse: that is a legitimate
+#   change and loses no data). A first install that fails before its setup job completed
+#   must be cleaned up with remove-environment-thunder.sh before retrying: the chart's
+#   setup hook only runs on first install, and the script refuses the retry unless the
+#   setup job is known to have completed. That is the case when the job is still there
+#   with a success count (it can finish after helm's 5 minute hook timeout when an image
+#   pull is slow) or when the chart's Deployment exists (the install failed after the
+#   hook, so the database is seeded and a plain re-run is accepted).
+#   PostgreSQL: the role needs to own the four databases, or hold SELECT, INSERT, UPDATE
+#   and DELETE on every table in them. The chart has no option for TLS to Redis, nor for
+#   a private CA with THUNDER_DB_SSLMODE=verify-ca/verify-full. With non-default storage a
+#   Thunder that is not ready after WAIT_TIMEOUT fails the run (with the defaults it only
+#   warns), because the usual cause is an unreachable or unseeded database.
+#   Passwords are stored in a Secret (<release>-storage-credentials) that the chart
+#   reads by reference, so they never appear in the Helm release values. Changing a
+#   password later updates the Secret but does not restart the pods; restart them
+#   (kubectl rollout restart) to pick it up. Removing the environment
+#   (remove-environment-thunder.sh) does NOT drop its PostgreSQL databases.
 #   Delivering the system-client secret to agent-manager-service (AMS): the secret
 #   is handed to AMS over HTTP, which encrypts it and stores it in its own database
 #   (AMS decrypts it in-process when needed — it is never read back from a key
@@ -122,6 +179,277 @@ _sha256() {
   fi
 }
 
+# storage_helm_args RELEASE CREDS_SECRET PERSISTENCE_SIZE -> prints, one per line, the
+# helm args for the database, cache and replica settings (validated first by
+# validate_storage_config). CREDS_SECRET is the Secret holding db-password /
+# redis-password; passwords reach the chart by reference, never inline. The base args
+# in main() already pin deployment.replicaCount=1 (the SQLite requirement), so it is
+# only restated here when more replicas were asked for; helm applies a later --set
+# over an earlier one.
+storage_helm_args() {
+  local release="$1" creds_secret="$2" persistence_size="$3"
+  local db_type="${THUNDER_DB_TYPE:-sqlite}"
+  local cache_type="${THUNDER_CACHE_TYPE:-inmemory}"
+  local replicas="${THUNDER_REPLICAS:-1}"
+  local db_host="${THUNDER_DB_HOST:-}" db_user="${THUNDER_DB_USER:-}"
+  local db_prefix="${THUNDER_DB_NAME_PREFIX:-}" redis_address="${THUNDER_REDIS_ADDRESS:-}"
+  local pair store base
+
+  if [ "$replicas" != "1" ]; then
+    printf '%s\n' --set "deployment.replicaCount=${replicas}"
+  fi
+
+  if [ "$db_type" = "postgres" ]; then
+    # store:upstream-default-database-name; the name gets THUNDER_DB_NAME_PREFIX.
+    for pair in config:configdb runtime_transient:runtime_transient entity:entitydb runtime_persistent:runtime_persistent; do
+      store="${pair%%:*}"
+      base="configuration.database.${store}"
+      printf '%s\n' \
+        --set "${base}.type=postgres" \
+        --set-string "${base}.postgres.hostname=${db_host}" \
+        --set-string "${base}.postgres.port=${THUNDER_DB_PORT:-5432}" \
+        --set-string "${base}.postgres.name=${db_prefix}${pair#*:}" \
+        --set-string "${base}.postgres.username=${db_user}" \
+        --set-string "${base}.postgres.sslmode=${THUNDER_DB_SSLMODE:-require}" \
+        --set-string "${base}.postgres.passwordRef.name=${creds_secret}" \
+        --set-string "${base}.postgres.passwordRef.key=db-password"
+    done
+  else
+    for store in config runtime_transient entity runtime_persistent; do
+      printf '%s\n' --set "configuration.database.${store}.type=sqlite"
+    done
+    printf '%s\n' \
+      --set "configuration.consent.database.type=sqlite" \
+      --set "persistence.enabled=true" \
+      --set "persistence.size=${persistence_size}"
+  fi
+
+  if [ "$cache_type" = "redis" ]; then
+    printf '%s\n' \
+      --set "configuration.cache.disabled=false" \
+      --set "configuration.cache.type=redis" \
+      --set-string "configuration.cache.redis.address=${redis_address}" \
+      --set-string "configuration.cache.redis.keyPrefix=${THUNDER_REDIS_KEY_PREFIX:-${release}:}"
+    if [ -n "${THUNDER_REDIS_USERNAME:-}" ]; then
+      printf '%s\n' --set-string "configuration.cache.redis.username=${THUNDER_REDIS_USERNAME}"
+    fi
+    if [ -n "${THUNDER_REDIS_PASSWORD:-}" ]; then
+      printf '%s\n' \
+        --set-string "configuration.cache.redis.passwordRef.name=${creds_secret}" \
+        --set-string "configuration.cache.redis.passwordRef.key=redis-password"
+    fi
+  else
+    printf '%s\n' --set "configuration.cache.disabled=false"
+  fi
+
+  # Only matters when a replica could land on another node; the chart's PVCs are
+  # created once (pre-install hook), so changing this on a re-run has no effect.
+  if [ -n "${THUNDER_STATE_ACCESS_MODE:-}" ]; then
+    printf '%s\n' \
+      --set-string "certs.persistence.accessMode=${THUNDER_STATE_ACCESS_MODE}" \
+      --set-string "secrets.persistence.accessMode=${THUNDER_STATE_ACCESS_MODE}"
+  fi
+}
+
+# storage_is_default -> 0 when no storage setting differs from the single-instance
+# default (SQLite, in-memory cache, 1 replica).
+storage_is_default() {
+  [ "${THUNDER_DB_TYPE:-sqlite}" = "sqlite" ] &&
+    [ "${THUNDER_CACHE_TYPE:-inmemory}" = "inmemory" ] &&
+    [ "${THUNDER_REPLICAS:-1}" = "1" ]
+}
+
+# existing_release_storage RELEASE NAMESPACE -> prints "<db-type> <config-database-name>"
+# for an installed release (the name is only reported for postgres: the chart's own
+# default postgres block is present in the values of a SQLite release too).
+# Returns 2 when the release is not installed ("release: not found"), and 1 for anything
+# else: any other helm error, or values this parser does not recognise. Treating those
+# as "not installed" would let the guard below fail open exactly when it cannot see.
+# Parses `helm get values --all` (plain YAML, sorted keys) with awk so no jq is needed.
+existing_release_storage() {
+  local release="$1" ns="$2" values rc=0
+  values="$(helm get values "$release" --namespace "$ns" --all 2>&1)" || rc=$?
+  if [ "$rc" -ne 0 ]; then
+    case "$values" in
+      *"release: not found"*) return 2 ;;
+    esac
+    printf '%s\n' "$values" >&2
+    return 1
+  fi
+  [ -n "$values" ] || return 1
+  printf '%s\n' "$values" | awk '
+    { match($0, /^ */); indent = RLENGTH }
+    /^  database:$/ { in_db = 1; in_cfg = 0; in_pg = 0; next }
+    in_db && NF && indent <= 2 { in_db = 0; in_cfg = 0; in_pg = 0 }
+    in_db && indent == 4 { in_cfg = ($0 == "    config:"); in_pg = 0 }
+    in_cfg && indent == 6 {
+      in_pg = ($0 == "      postgres:")
+      if ($1 == "type:") type = $2
+    }
+    in_cfg && in_pg && indent == 8 && $1 == "name:" { name = $2 }
+    END {
+      gsub(/"/, "", type); gsub(/"/, "", name)
+      if (type == "") exit 1
+      if (type != "postgres") name = ""
+      print type, name
+    }'
+}
+
+# release_state RELEASE NAMESPACE -> prints "<status> <revision>" from `helm status`
+# (for example "deployed 3"); returns 1 if it cannot be read.
+release_state() {
+  helm status "$1" --namespace "$2" 2>/dev/null |
+    awk '/^STATUS:/ { s = $2 } /^REVISION:/ { r = $2 } END { if (s == "") exit 1; print s, r }'
+}
+
+# setup_completed RELEASE NAMESPACE -> 0 if there is positive evidence that the chart's
+# setup Job (which seeds the database) ran to completion, so a retry has nothing to redo.
+# Two kinds of evidence, because the chart deletes the Job as soon as helm sees it succeed
+# (hook-delete-policy hook-succeeded):
+#   - the Job is still there with a success count: it finished after helm gave up waiting
+#     (a slow image pull outlasting helm's 5 minute hook timeout), so helm never deleted it;
+#   - the chart's Deployment exists: helm creates it only after every pre-install hook,
+#     the setup Job included, has completed, so a first install that failed after that
+#     point (resource creation rejected) has no Job left but a seeded database. Helm's own
+#     failure text cannot stand in for this: an interrupted install (Ctrl-C) is recorded
+#     as "context canceled", with the setup Job possibly never having run.
+# Anything kubectl cannot answer counts as no evidence, so the guard stays closed.
+setup_completed() {
+  local release="$1" ns="$2"
+  [ "$(kubectl get job "${release}-setup" --namespace "$ns" -o jsonpath='{.status.succeeded}' 2>/dev/null)" = "1" ] && return 0
+  [ -n "$(kubectl get deployment --namespace "$ns" -l "app.kubernetes.io/instance=${release}" -o name 2>/dev/null)" ]
+}
+
+# existing_release_scale RELEASE NAMESPACE -> prints "<cache-type> <replicas>" for an
+# installed release (from `helm get values --all`, like existing_release_storage);
+# returns 1 when they cannot be read. Only used to tell the operator what a re-run
+# changes, so a failure here never blocks anything.
+existing_release_scale() {
+  local values
+  values="$(helm get values "$1" --namespace "$2" --all 2>/dev/null)" || return 1
+  printf '%s\n' "$values" | awk '
+    NF { match($0, /^ */); indent = RLENGTH }
+    NF && indent == 0 { in_cfg = ($0 == "configuration:"); in_dep = ($0 == "deployment:"); in_cache = 0; next }
+    in_cfg && indent == 2 { in_cache = ($0 == "  cache:") }
+    in_cfg && in_cache && indent == 4 && $1 == "type:" { cache = $2 }
+    in_dep && indent == 2 && $1 == "replicaCount:" { reps = $2 }
+    END {
+      gsub(/"/, "", cache); gsub(/"/, "", reps)
+      if (cache == "" || reps == "") exit 1
+      print cache, reps
+    }'
+}
+
+# note_scale_change RELEASE NAMESPACE -> says so when this run would change the cache type
+# or the replica count of an installed release. Always returns 0. Not a refusal: scaling,
+# or switching the cache, is a legitimate change and loses no data (unlike pointing at
+# another database, which the guard blocks). It exists because a run that only repeats the
+# database settings would otherwise drop, say, PostgreSQL + Redis + 3 replicas to the
+# defaults (in-memory cache, 1 replica) without a word.
+note_scale_change() {
+  local release="$1" ns="$2" scale cur_cache cur_reps
+  local want_cache="${THUNDER_CACHE_TYPE:-inmemory}" want_reps="${THUNDER_REPLICAS:-1}"
+  scale="$(existing_release_scale "$release" "$ns")" || return 0
+  read -r cur_cache cur_reps <<<"$scale"
+  if [ "$cur_cache" != "$want_cache" ] || [ "$cur_reps" != "$want_reps" ]; then
+    echo "⚠️  '${release}' runs with cache=${cur_cache}, replicas=${cur_reps}; this run sets cache=${want_cache}, replicas=${want_reps}."
+    echo "   A setting left out of a re-run reverts to its default. If that was not intended, re-run"
+    echo "   with the same THUNDER_CACHE_TYPE / THUNDER_REPLICAS as the first run to put it back."
+  fi
+  return 0
+}
+
+# guard_storage_unchanged RELEASE NAMESPACE -> 0 if provisioning may proceed, 1 if it
+# would repoint an installed environment at a different database, or cannot tell.
+# Thunder seeds its database once, from a pre-install hook that `helm upgrade` never
+# repeats, so a re-run against another database (SQLite to PostgreSQL, or another
+# PostgreSQL database) leaves an empty one: no OAuth clients, no logins, and nothing
+# says why. Moving the host of the same database is fine and is not blocked.
+# THUNDER_FORCE_STORAGE_CHANGE=true overrides a mismatch or an unreadable release, for an
+# operator who migrated the data; it never overrides a release that is mid-operation or
+# a failed first install whose setup job did not complete.
+guard_storage_unchanged() {
+  local release="$1" ns="$2"
+  local want_type="${THUNDER_DB_TYPE:-sqlite}" want_name="" current cur_type cur_name rc=0
+  if [ "$want_type" = "postgres" ]; then
+    want_name="${THUNDER_DB_NAME_PREFIX}configdb"
+  fi
+
+  current="$(existing_release_storage "$release" "$ns")" || rc=$?
+  if [ "$rc" -eq 2 ]; then
+    return 0 # not installed: nothing to protect
+  fi
+
+  # Checked before the force flag is consulted: it can waive a storage mismatch, never a
+  # release that is mid-operation or a failed first install. An unreadable status is not
+  # grounds to stop by itself (when the values were readable, so is the release).
+  local state status="" revision=""
+  state="$(release_state "$release" "$ns")" || state=""
+  read -r status revision <<<"$state"
+  case "$status" in
+    pending-install|pending-upgrade|pending-rollback|uninstalling|unknown)
+      {
+        echo "❌ '${release}' is in state '${status}': an install, upgrade or removal is still running or was"
+        echo "   interrupted, and helm would refuse this run partway through."
+        echo "   Wait for it to finish, or run remove-environment-thunder.sh and then this script again."
+      } >&2
+      return 1
+      ;;
+    failed)
+      # A failed first install is retried through helm's upgrade path, which skips the
+      # chart's pre-install hooks (the setup Job and the volumes), so the database would
+      # never be seeded, unless the setup Job is known to have completed (see
+      # setup_completed): then the install failed later, the database is seeded, and a
+      # retry is safe.
+      if [ "$revision" = "1" ] && ! setup_completed "$release" "$ns"; then
+        {
+          echo "❌ '${release}' is a failed first install and its setup job has not completed. Re-running"
+          echo "   would skip the chart's setup hook (it only runs on first install), so the database would"
+          echo "   never be seeded."
+          echo "   If the job is still running (kubectl get job ${release}-setup -n ${ns}), wait for it and re-run."
+          echo "   Otherwise run remove-environment-thunder.sh, fix the cause, then run this script again."
+        } >&2
+        return 1
+      fi
+      ;;
+  esac
+
+  if [ "$rc" -ne 0 ]; then
+    if [ "${THUNDER_FORCE_STORAGE_CHANGE:-false}" = "true" ]; then
+      echo "⚠️  Could not read the storage settings of '${release}'; continuing (THUNDER_FORCE_STORAGE_CHANGE=true)."
+      return 0
+    fi
+    {
+      echo "❌ '${release}' is installed but its storage settings could not be read (see above), so this"
+      echo "   run cannot tell whether it would repoint the environment at a different database."
+      echo "   Fix the cause and re-run, or set THUNDER_FORCE_STORAGE_CHANGE=true to skip this check."
+    } >&2
+    return 1
+  fi
+
+  read -r cur_type cur_name <<<"$current"
+  if [ "$cur_type" = "$want_type" ] && { [ "$want_type" != "postgres" ] || [ "$cur_name" = "$want_name" ]; }; then
+    note_scale_change "$release" "$ns"
+    return 0
+  fi
+
+  if [ "${THUNDER_FORCE_STORAGE_CHANGE:-false}" = "true" ]; then
+    echo "⚠️  Storage of '${release}' changes from ${cur_type}${cur_name:+ (${cur_name})} to ${want_type}${want_name:+ (${want_name})} (THUNDER_FORCE_STORAGE_CHANGE=true)."
+    note_scale_change "$release" "$ns"
+    return 0
+  fi
+
+  {
+    echo "❌ '${release}' is already installed with ${cur_type}${cur_name:+ (database ${cur_name})}; this run asks for ${want_type}${want_name:+ (database ${want_name})}."
+    echo "   Thunder seeds its database once, at first install, and 'helm upgrade' never repeats it,"
+    echo "   so pointing an existing environment at a different database leaves that database empty:"
+    echo "   no OAuth clients and no logins."
+    echo "   Remove this environment's Thunder first (remove-environment-thunder.sh), or set"
+    echo "   THUNDER_FORCE_STORAGE_CHANGE=true if you have already migrated the data."
+  } >&2
+  return 1
+}
+
 # Load the shared Thunder naming helpers (_sha6/thunder_release_name/
 # thunder_namespace/thunder_host/thunder_issuer) — the single source of truth
 # for this derivation, see deployments/scripts/thunder-naming.sh. Prefers a
@@ -143,6 +471,27 @@ else
   source "${_naming_lib_tmp}"
   rm -f "${_naming_lib_tmp}"
   unset _naming_lib_url _naming_lib_tmp
+fi
+
+# Load the shared storage-settings validation (_storage_match/validate_storage_config),
+# see deployments/scripts/thunder-storage.sh. add-environment.sh runs the same checks
+# before it creates the environment; they are repeated here so this script is also safe
+# to run on its own. Same prefer-sibling, fall-back-to-fetch pattern as above.
+if [ -n "${BASH_SOURCE[0]:-}" ] && [ -f "$(dirname "${BASH_SOURCE[0]}")/thunder-storage.sh" ]; then
+  # shellcheck source=thunder-storage.sh
+  source "$(dirname "${BASH_SOURCE[0]}")/thunder-storage.sh"
+else
+  _storage_lib_url="${THUNDER_STORAGE_LIB_URL:-${SCRIPT_BASE_URL:-https://raw.githubusercontent.com/wso2/agent-manager/main/deployments/scripts}/thunder-storage.sh}"
+  _storage_lib_tmp="$(mktemp)"
+  if ! curl -fsSL "${_storage_lib_url}" -o "${_storage_lib_tmp}"; then
+    echo "❌ Failed to fetch the Thunder storage validation helpers from ${_storage_lib_url}" >&2
+    rm -f "${_storage_lib_tmp}"
+    exit 1
+  fi
+  # shellcheck source=/dev/null
+  source "${_storage_lib_tmp}"
+  rm -f "${_storage_lib_tmp}"
+  unset _storage_lib_url _storage_lib_tmp
 fi
 
 # platform_thunder_issuer -> OIDC issuer of the shared platform Thunder instance.
@@ -709,6 +1058,17 @@ main() {
     exit 1
   fi
 
+  # Reject an incoherent storage combination (e.g. 2 replicas on SQLite), and one
+  # that would repoint an installed environment at a different database, before
+  # anything is registered or deployed.
+  if ! validate_storage_config; then
+    echo "   See the Storage section in this script's header for the allowed combinations." >&2
+    exit 1
+  fi
+  if ! guard_storage_unchanged "$(thunder_release_name "$org" "$ENV_NAME")" "$(thunder_namespace "$org" "$ENV_NAME")"; then
+    exit 1
+  fi
+
   # THUNDER_HANDLE, when set, is the caller's chosen unguessable label for this
   # environment's externally-reachable host/issuer — see thunder_host's doc
   # comment and agent-manager-service/models/env_thunder_url.go. When unset,
@@ -811,6 +1171,12 @@ main() {
   echo "  Namespace: ${ns}"
   echo "  Issuer:    ${issuer}"
   echo "  Chart:     ${chart}"
+  echo "  Storage:   db=${THUNDER_DB_TYPE:-sqlite} cache=${THUNDER_CACHE_TYPE:-inmemory} replicas=${THUNDER_REPLICAS:-1}"
+  if [ "${THUNDER_DB_TYPE:-sqlite}" = "postgres" ]; then
+    echo "             Expects these databases to exist on ${THUNDER_DB_HOST} with their schema loaded:"
+    echo "             ${THUNDER_DB_NAME_PREFIX}configdb, ${THUNDER_DB_NAME_PREFIX}runtime_transient,"
+    echo "             ${THUNDER_DB_NAME_PREFIX}entitydb, ${THUNDER_DB_NAME_PREFIX}runtime_persistent"
+  fi
   echo ""
 
   # Resolve chart version for OCI charts (local chart paths skip this). Pinned to the
@@ -825,6 +1191,26 @@ main() {
 
   # Ensure the namespace exists (idempotent) so the secrets can live in it.
   kubectl create namespace "$ns" --dry-run=client -o yaml | kubectl apply -f - >/dev/null
+
+  # Postgres/Redis passwords live in a Secret the chart reads via passwordRef (see
+  # storage_helm_args), so they never land in the Helm release values. Re-applied on
+  # every run, so a changed THUNDER_DB_PASSWORD / THUNDER_REDIS_PASSWORD takes effect.
+  local storage_secret="${release}-storage-credentials"
+  local storage_secret_args=()
+  if [ "${THUNDER_DB_TYPE:-sqlite}" = "postgres" ]; then
+    storage_secret_args+=(--from-literal="db-password=${THUNDER_DB_PASSWORD}")
+    # Not a secret: kept here so remove-environment-thunder.sh can name the databases it leaves behind.
+    storage_secret_args+=(--from-literal="db-name-prefix=${THUNDER_DB_NAME_PREFIX}")
+  fi
+  if [ "${THUNDER_CACHE_TYPE:-inmemory}" = "redis" ] && [ -n "${THUNDER_REDIS_PASSWORD:-}" ]; then
+    storage_secret_args+=(--from-literal="redis-password=${THUNDER_REDIS_PASSWORD}")
+  fi
+  if [ "${#storage_secret_args[@]}" -gt 0 ]; then
+    kubectl create secret generic "$storage_secret" -n "$ns" \
+      "${storage_secret_args[@]}" \
+      --dry-run=client -o yaml | kubectl apply -f - >/dev/null
+    echo "🔐 Stored storage credentials (${storage_secret})"
+  fi
 
   # Resolve the system-client secret: reuse an existing one (NO rotation), else
   # mint a unique one and store it as a K8s Secret in the env-Thunder namespace.
@@ -882,6 +1268,8 @@ main() {
     --set-string "fullnameOverride=${release}"
     --set-string "deployment.image.tag=${CHART_VERSION:-1.0.0}"
     # Single replica + writable root FS: required for SQLite (single-pod, local file DB).
+    # THUNDER_REPLICAS and the database/cache settings are layered on below by
+    # storage_helm_args; the root FS stays writable in every storage mode.
     --set "deployment.replicaCount=1"
     --set "deployment.securityContext.readOnlyRootFilesystem=false"
     --set "hpa.enabled=false"
@@ -892,18 +1280,10 @@ main() {
     --set-string "configuration.gateClient.hostname=${host}"
     --set "configuration.gateClient.port=${gate_client_port}"
     --set-string "configuration.gateClient.scheme=${gate_client_scheme}"
-    --set "configuration.database.config.type=sqlite"
-    --set "configuration.database.runtime_transient.type=sqlite"
-    --set "configuration.database.entity.type=sqlite"
-    --set "configuration.database.runtime_persistent.type=sqlite"
-    --set "configuration.consent.database.type=sqlite"
-    --set "configuration.cache.disabled=false"
     # CORS: allow the platform Thunder origin so its console can reach env-Thunder APIs
     # (plus quick-setup's local console addresses, only outside TLS_ENABLED — see
     # cors_origins above).
     --set "configuration.cors.allowedOrigins=${cors_origins}"
-    --set "persistence.enabled=true"
-    --set "persistence.size=${persistence_size}"
     # Native ThunderID superadmin (distinct from the AMP product's own admin user on
     # platform Thunder) — used to log into this env-Thunder's own /console. Password
     # is a per-env random secret (see admin_password resolution above), not "admin".
@@ -912,6 +1292,14 @@ main() {
     --set-string "bootstrap.configMap.name=${bootstrap_cm_name}"
     --set-json 'bootstrap.configMap.files=["10-amp-system-client.yaml","11-default-resource-server-config.yaml","12-amp-system-client-thunder-admin-role.yaml","13-fix-thunder-system-rs-identifier.yaml"]'
   )
+  # Database + cache + replicas (SQLite, in-memory cache and 1 replica unless
+  # configured). Captured before use, not read from a process substitution: a failure
+  # inside `< <(...)` is invisible to `set -e` and would install with a partial set.
+  local storage_args _storage_arg
+  storage_args="$(storage_helm_args "$release" "$storage_secret" "$persistence_size")"
+  while IFS= read -r _storage_arg; do
+    set_args+=("$_storage_arg")
+  done <<<"$storage_args"
   if [ -n "$storage_class" ]; then
     set_args+=(--set-string "persistence.storageClass=${storage_class}")
   fi
@@ -1091,8 +1479,16 @@ ${ca_pem}"
   if kubectl wait --for=condition=available --timeout="$wait_timeout" \
       deployment -l "app.kubernetes.io/instance=${release}" -n "$ns" 2>/dev/null; then
     echo "✅ Thunder is ready"
-  else
+  elif storage_is_default; then
     echo "⚠️  Thunder did not become ready in time — check: kubectl get pods -n ${ns}"
+  else
+    # With an external database or cache, "not ready" usually means it is unreachable or
+    # its schema is missing. Do not go on to print a console URL and password that lead
+    # nowhere, and do not let add-environment.sh report success.
+    echo "❌ Thunder did not become ready in time — check: kubectl get pods -n ${ns}"
+    echo "   With non-default storage the usual causes are an unreachable PostgreSQL/Redis, wrong"
+    echo "   credentials, or a database whose schema was not loaded."
+    exit 1
   fi
 
   echo ""
@@ -1105,6 +1501,7 @@ ${ca_pem}"
   echo "  Issuer:          ${issuer}"
   echo "  JWKS:            ${issuer}/oauth2/jwks"
   echo "  Trusted issuer:  ${pt_issuer}"
+  echo "  Storage:         db=${THUNDER_DB_TYPE:-sqlite} cache=${THUNDER_CACHE_TYPE:-inmemory} replicas=${THUNDER_REPLICAS:-1}"
   echo ""
   echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
   echo "  Thunder ID Console — ${ENV_NAME}"
