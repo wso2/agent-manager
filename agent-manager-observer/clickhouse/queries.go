@@ -1,0 +1,99 @@
+package clickhouse
+
+import (
+	"time"
+)
+
+const traceIDTimeTable = "otel_traces_trace_id_ts"
+
+type traceWindow struct{ Start, End time.Time }
+
+func buildTraceListQuery(table string, cols tenantColumns, scope ScopeUIDs, window traceWindow, isDesc bool, limit int) (string, []any) {
+	where, args := scopeWhere(cols, scope)
+
+	if where != "" {
+		where += " AND "
+	}
+
+	where += "Timestamp >= fromUnixTimestamp64Nano(?, 'UTC') " +
+		"AND Timestamp <= fromUnixTimestamp64Nano(?, 'UTC') " +
+		"AND addNanoseconds(Timestamp, Duration) <= fromUnixTimestamp64Nano(?, 'UTC')"
+
+	args = append(args, window.Start.UnixNano(), window.End.UnixNano(), window.End.UnixNano())
+
+	order := "ASC"
+	if isDesc {
+		order = "DESC"
+	}
+
+	query := `SELECT TraceId,
+	min(Timestamp) AS start_time,
+	max(addNanoseconds(Timestamp, Duration)) AS end_time,
+	uniqExact(SpanId) AS span_count,
+	argMinIf(SpanId,   Timestamp, ParentSpanId = '') AS root_span_id,
+	argMinIf(SpanName, Timestamp, ParentSpanId = '') AS root_span_name,
+	argMinIf(SpanKind, Timestamp, ParentSpanId = '') AS root_span_kind,
+	countIf(ParentSpanId = '') AS roots,
+	count() OVER () AS total
+	FROM ` + table + ` WHERE ` + where + `
+	GROUP BY TraceId HAVING roots > 0
+	ORDER BY start_time ` + order + `, TraceId ASC
+	LIMIT ?`
+
+	args = append(args, limit)
+
+	return query, args
+}
+
+func buildTraceSpansQuery(table string, cols tenantColumns, traceID string, scope ScopeUIDs, w traceWindow, includeAttrs, desc bool, limit int) (string, []any) {
+
+	conds := "TraceId = ?"
+	args := []any{traceID}
+
+	if scopeSQL, scopeArgs := scopeWhere(cols, scope); scopeSQL != "" {
+		conds += " AND " + scopeSQL
+		args = append(args, scopeArgs...)
+	}
+
+	conds += " AND Timestamp >= fromUnixTimestamp64Nano(?, 'UTC') " +
+		"AND Timestamp <= fromUnixTimestamp64Nano(?, 'UTC') " +
+		"AND addNanoseconds(Timestamp, Duration) <= fromUnixTimestamp64Nano(?, 'UTC')"
+
+	args = append(args, w.Start.UnixNano(), w.End.UnixNano(), w.End.UnixNano())
+
+	columns := "SpanId, ParentSpanId, SpanName, SpanKind, Timestamp, Duration, StatusCode, StatusMessage"
+
+	if includeAttrs {
+		columns += ", SpanAttributes, ResourceAttributes"
+	}
+
+	columns += ", uniqExact(SpanId) OVER () AS total_spans"
+
+	order := "ASC"
+	if desc {
+		order = "DESC"
+	}
+
+	query := "SELECT " + columns + " FROM " + table +
+		" WHERE " + conds +
+		" ORDER BY Timestamp " + order + ", SpanId ASC LIMIT 1 BY SpanId LIMIT ?"
+	args = append(args, limit)
+	return query, args
+}
+
+func buildSpanDetailQuery(table string, cols tenantColumns, namespace, traceID, spanID string) (string, []any) {
+	columns := "SpanId, ParentSpanId, SpanName, SpanKind, Timestamp, Duration, StatusCode, StatusMessage, SpanAttributes, ResourceAttributes"
+
+	where := `TraceId = ? AND SpanId = ? AND ` + cols.ns + ` = ? 
+  	AND Timestamp >= (SELECT min(Start) - 1 FROM ` + traceIDTimeTable + ` WHERE TraceId = ?)
+ 	AND Timestamp <= (SELECT max(End)   + 1 FROM ` + traceIDTimeTable + ` WHERE TraceId = ?)`
+
+	args := []any{traceID, spanID, namespace, traceID, traceID}
+
+	query := `SELECT ` + columns + `
+	FROM ` + table + `
+	WHERE ` + where + `
+	LIMIT 1`
+
+	return query, args
+}

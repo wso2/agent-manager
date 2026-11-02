@@ -21,6 +21,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"io"
 	"log/slog"
 	"net/http"
 	"os"
@@ -29,6 +30,7 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/wso2/agent-manager/agent-manager-observer/clickhouse"
 	"github.com/wso2/agent-manager/agent-manager-observer/config"
 	"github.com/wso2/agent-manager/agent-manager-observer/controllers"
 	"github.com/wso2/agent-manager/agent-manager-observer/handlers"
@@ -48,10 +50,18 @@ func Run(cfg *config.Config, tokenProvider observer.TokenProvider, _ Options) er
 
 	slog.Info("Starting agent-manager-observer", "port", cfg.Server.Port)
 
+	handler, cleanup, err := newHandler(cfg, tokenProvider)
+
+	if err != nil {
+		return err
+	}
+
+	defer cleanup()
+
 	// Create server
 	server := &http.Server{
 		Addr:         fmt.Sprintf(":%d", cfg.Server.Port),
-		Handler:      newHandler(cfg, tokenProvider),
+		Handler:      handler,
 		ReadTimeout:  30 * time.Second,
 		WriteTimeout: 30 * time.Second,
 	}
@@ -89,7 +99,41 @@ func Run(cfg *config.Config, tokenProvider observer.TokenProvider, _ Options) er
 	return nil
 }
 
-func newHandler(cfg *config.Config, tokenProvider observer.TokenProvider) http.Handler {
+func newTraceReader(cfg *config.Config, openChoreo observer.Client) (observer.TraceReader, error) {
+	switch cfg.Traces.Backend {
+	case "", config.TraceBackendOpenChoreo:
+		slog.Info("trace backend selected", "backend", config.TraceBackendOpenChoreo)
+		return openChoreo, nil
+	case config.TraceBackendClickHouse:
+		db, err := clickhouse.Open(cfg.Traces)
+		if err != nil {
+			return nil, fmt.Errorf("failed to open clickhouse: %w", err)
+		}
+
+		resolver, err := clickhouse.NewStaticResolverFromJSON(cfg.Traces.ScopeUIDs)
+
+		if err != nil {
+			_ = db.Close()
+			return nil, err
+		}
+
+		reader, err := clickhouse.NewTraceReader(db, clickhouse.Options{
+			Table: cfg.Traces.Table, Layout: cfg.Traces.Layout,
+			DefaultNamespace: cfg.Observer.DefaultNamespace, Resolver: resolver,
+		})
+
+		if err != nil {
+			_ = db.Close()
+			return nil, fmt.Errorf("failed to create clickhouse trace reader: %w", err)
+		}
+		slog.Info("trace backend selected", "backend", config.TraceBackendClickHouse)
+		return reader, nil
+	default:
+		return nil, fmt.Errorf("unknown TRACE_BACKEND %q", cfg.Traces.Backend)
+	}
+}
+
+func newHandler(cfg *config.Config, tokenProvider observer.TokenProvider) (http.Handler, func(), error) {
 	// Setup routes
 	mux := http.NewServeMux()
 
@@ -109,7 +153,22 @@ func newHandler(cfg *config.Config, tokenProvider observer.TokenProvider) http.H
 
 	// v1 routes — observer-backed
 	observerClient := observer.NewClient(cfg.Observer.BaseURL, tokenProvider, cfg.Observer.DefaultNamespace)
-	controller := controllers.NewTracingController(observerClient)
+	traceReader, err := newTraceReader(cfg, observerClient)
+
+	if err != nil {
+		return nil, nil, fmt.Errorf("select trace backend: %w", err)
+	}
+	cleanup := func() {}
+	if closer, ok := traceReader.(io.Closer); ok {
+		cleanup = func() {
+			if err := closer.Close(); err != nil {
+				slog.Error("failed to close trace reader", "error", err)
+			}
+		}
+	}
+
+	controller := controllers.NewTracingController(traceReader)
+
 	obsController := controllers.NewObservabilityController(observerClient)
 	handler := handlers.NewHandler(controller, obsController)
 
@@ -158,7 +217,7 @@ func newHandler(cfg *config.Config, tokenProvider observer.TokenProvider) http.H
 	corsHandler := middleware.CORS(corsConfig)(mux)
 	loggerHandler := logger.RequestLogger()(corsHandler)
 
-	return loggerHandler
+	return loggerHandler, cleanup, nil
 }
 
 func setupLogger(cfg *config.Config) {

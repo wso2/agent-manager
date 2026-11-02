@@ -20,6 +20,8 @@ import (
 	"os"
 	"reflect"
 	"testing"
+
+	"time"
 )
 
 func TestLoad_CustomPort(t *testing.T) {
@@ -195,6 +197,40 @@ func TestObserverConfig_ValidateClientCredentials(t *testing.T) {
 			mutate(&c)
 			if err := c.ValidateClientCredentials(); err == nil {
 				t.Error("expected error, got nil")
+			}
+		})
+	}
+}
+
+func TestTraceReaderConfigValidate(t *testing.T) {
+	good := TraceReaderConfig{
+		Backend: TraceBackendClickHouse, Addr: "localhost:9000", User: "default", Password: "x",
+		MaxOpenConns: 10, MaxIdleConns: 5, ConnMaxLifetime: time.Hour, DialTimeout: 5 * time.Second,
+		Table: "otel_traces", Layout: TraceLayoutExporter, ScopeUIDs: "{}",
+	}
+
+	tests := []struct {
+		name    string
+		change  func(*TraceReaderConfig)
+		local   bool
+		wantErr bool
+	}{
+		{"good", func(c *TraceReaderConfig) {}, false, false},
+		{"openchoreo needs nothing", func(c *TraceReaderConfig) { *c = TraceReaderConfig{Backend: TraceBackendOpenChoreo} }, false, false},
+		{"missing address", func(c *TraceReaderConfig) { c.Addr = "" }, false, true},
+		{"no password outside local dev", func(c *TraceReaderConfig) { c.Password = "" }, false, true},
+		{"no password in local dev", func(c *TraceReaderConfig) { c.Password = "" }, true, false},
+		{"bad layout", func(c *TraceReaderConfig) { c.Layout = "x" }, false, true},
+		{"bad scope json", func(c *TraceReaderConfig) { c.ScopeUIDs = "{oops" }, false, true},
+		{"unknown backend", func(c *TraceReaderConfig) { c.Backend = "clickhose" }, false, true},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			c := good
+			tc.change(&c)
+			if err := c.validate(tc.local); (err != nil) != tc.wantErr {
+				t.Errorf("error = %v, wantErr %v", err, tc.wantErr)
 			}
 		})
 	}
