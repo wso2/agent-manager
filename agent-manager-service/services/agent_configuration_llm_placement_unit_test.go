@@ -27,6 +27,7 @@ import (
 
 	"github.com/wso2/agent-manager/agent-manager-service/clients/clientmocks"
 	"github.com/wso2/agent-manager/agent-manager-service/models"
+	"github.com/wso2/agent-manager/agent-manager-service/repositories"
 	"github.com/wso2/agent-manager/agent-manager-service/repositories/repomocks"
 	"github.com/wso2/agent-manager/agent-manager-service/utils"
 )
@@ -248,6 +249,41 @@ func TestResolveGatewayForProvider_PrefersManagedAnchor(t *testing.T) {
 	}
 
 	got, err := f.svc.resolveGatewayForProvider(context.Background(), providerUUID.String(), llmPlacementOU, f.env("dev"))
+
+	require.NoError(t, err)
+	assert.Equal(t, managed.UUID, got.UUID)
+}
+
+// selfHostedOnlyProviderAnchor places the provider on a self-hosted gateway only, in an environment that also
+// has a managed egress gateway, and returns that managed gateway.
+func selfHostedOnlyProviderAnchor(f *llmPlacementFixture) (*LLMProxyDeploymentService, *models.Gateway) {
+	selfHosted := &models.Gateway{
+		UUID: uuid.New(), GatewayFunctionalityType: models.GatewayRoleBoth, Hosting: models.GatewayHostingSelfHosted,
+	}
+	managed := &models.Gateway{UUID: uuid.New(), GatewayFunctionalityType: models.GatewayRoleBoth}
+	f.gatewayRepo.GetByUUIDFunc = func(id string) (*models.Gateway, error) {
+		if id == managed.UUID.String() {
+			return managed, nil
+		}
+		return selfHosted, nil
+	}
+	f.gatewayRepo.ListWithFiltersFunc = func(repositories.GatewayFilterOptions) ([]*models.Gateway, error) {
+		return []*models.Gateway{selfHosted, managed}, nil
+	}
+	return &LLMProxyDeploymentService{deploymentRepo: &repomocks.DeploymentRepositoryMock{
+		PlacedGatewaysFunc: func(context.Context, string, uuid.UUID) ([]string, error) {
+			return []string{selfHosted.UUID.String()}, nil
+		},
+	}}, managed
+}
+
+// Inference is managed-only, so an agent's gateway never anchors on a self-hosted placement of its provider.
+func TestResolveGatewayForProvider_IgnoresSelfHostedOnlyAnchor(t *testing.T) {
+	f := newLLMPlacementFixture(t, "dev")
+	deployments, managed := selfHostedOnlyProviderAnchor(f)
+	f.svc.llmProxyDeploymentService = deployments
+
+	got, err := f.svc.resolveGatewayForProvider(context.Background(), uuid.NewString(), llmPlacementOU, f.env("dev"))
 
 	require.NoError(t, err)
 	assert.Equal(t, managed.UUID, got.UUID)

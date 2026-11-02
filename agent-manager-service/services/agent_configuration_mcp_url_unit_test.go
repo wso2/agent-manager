@@ -27,6 +27,7 @@ import (
 	"gorm.io/gorm"
 
 	"github.com/wso2/agent-manager/agent-manager-service/clients/clientmocks"
+	"github.com/wso2/agent-manager/agent-manager-service/clients/openchoreosvc/client"
 	"github.com/wso2/agent-manager/agent-manager-service/models"
 	"github.com/wso2/agent-manager/agent-manager-service/repositories"
 	"github.com/wso2/agent-manager/agent-manager-service/repositories/repomocks"
@@ -350,5 +351,66 @@ func TestDeployableMCPEnvs_SkipsSelfHostedGateway(t *testing.T) {
 			return &models.Gateway{UUID: f.gatewayUUID}, nil
 		}
 		assert.Equal(t, []uuid.UUID{f.envUUID}, f.newService().deployableMCPEnvs(context.Background(), proxy, f.ouID, []uuid.UUID{f.envUUID}))
+	})
+}
+
+// An agent bound to a proxy whose artifact ended up on a self-hosted gateway anyway (the proxy-side
+// checks refuse the ways there) gets no URL for it: an OpenChoreo agent must never be pointed at the
+// customer's gateway, neither as its MCP URL nor as its AgentID token audience.
+func TestAgentMCPURLs_EmptyOnSelfHostedGateway(t *testing.T) {
+	f := newMCPURLTestFixture()
+	f.gatewayRepo.GetByUUIDFunc = func(string) (*models.Gateway, error) {
+		return &models.Gateway{UUID: f.gatewayUUID, Vhost: "https://customer.example.com", Hosting: models.GatewayHostingSelfHosted}, nil
+	}
+	ctx := context.Background()
+	config := &models.AgentConfiguration{
+		UUID: uuid.New(), OUID: f.ouID, ProjectName: "proj1", AgentID: "agent1", Name: "cfg1",
+		EnvMCPMappings: []models.EnvAgentMCPMapping{f.mapping},
+	}
+
+	t.Run("config response", func(t *testing.T) {
+		svc := f.newService()
+		svc.infraResourceManager = stubInfraManager{
+			listOrgEnvs: func(context.Context, string) ([]*models.EnvironmentResponse, error) {
+				return []*models.EnvironmentResponse{{UUID: f.envUUID.String(), Name: "dev"}}, nil
+			},
+		}
+		resp, err := svc.buildConfigResponse(ctx, config, true)
+		require.NoError(t, err)
+		require.NotNil(t, resp.EnvModelConfig["dev"].LLMProxy)
+		assert.Nil(t, resp.EnvModelConfig["dev"].LLMProxy.URL)
+	})
+
+	t.Run("AgentID audience", func(t *testing.T) {
+		svc := f.newService()
+		svc.envMCPMappingRepo = &repomocks.EnvAgentMCPMappingRepositoryMock{
+			ListByConfigFunc: func(context.Context, uuid.UUID) ([]models.EnvAgentMCPMapping, error) {
+				return []models.EnvAgentMCPMapping{f.mapping}, nil
+			},
+		}
+		url, err := svc.systemManagedMCPURL(ctx, config, f.ouID, "dev", f.envUUID)
+		require.NoError(t, err)
+		assert.Empty(t, url)
+	})
+
+	t.Run("renamed URL variable", func(t *testing.T) {
+		url, err := f.newService().renamedMCPProxyURL(ctx, config, &f.mapping, "dev", f.ouID)
+		require.NoError(t, err)
+		assert.Empty(t, url)
+	})
+
+	t.Run("injected variables", func(t *testing.T) {
+		svc := f.newService()
+		var injected []client.EnvVar
+		svc.ocClient = &clientmocks.OpenChoreoClientMock{
+			UpdateReleaseBindingEnvVarsFunc: func(_ context.Context, _, _, _, _ string, envVars []client.EnvVar) error {
+				injected = envVars
+				return nil
+			},
+		}
+		templates := []EnvConfigTemplate{{Key: "url", Name: "MCP_URL"}, {Key: "apikey", Name: "MCP_API_KEY"}}
+		err := svc.injectMCPMappingEnvVars(ctx, config, &f.mapping, f.mapping.MCPProxy, "dev", f.ouID, templates, "")
+		require.NoError(t, err)
+		assert.Equal(t, []client.EnvVar{{Key: "MCP_URL"}, {Key: "MCP_API_KEY"}}, injected)
 	})
 }

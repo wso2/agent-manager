@@ -27,6 +27,7 @@ import (
 	"net/http"
 	"net/url"
 	"regexp"
+	"slices"
 	"sort"
 	"strconv"
 	"strings"
@@ -213,7 +214,7 @@ func (s *MCPProxyService) Create(ctx context.Context, orgUUID, createdBy string,
 	if err := s.validateMCPEndpointSecurity(ctx, orgUUID, req.Endpoints, nil); err != nil {
 		return nil, err
 	}
-	if err := s.validateMCPEndpointPlacement(ctx, orgUUID, req.Endpoints, nil); err != nil {
+	if err := s.validateMCPEndpointPlacement(ctx, orgUUID, uuid.Nil, req.Endpoints, nil); err != nil {
 		return nil, err
 	}
 	endpoints, err := s.buildMCPEndpointsForStorage(req.Endpoints, nil)
@@ -452,9 +453,9 @@ func (s *MCPProxyService) Update(ctx context.Context, orgUUID, proxyID string, r
 		return nil, utils.ErrInvalidInput
 	}
 
-	// Validate the endpoints (structure + SSRF) outside the transaction so network checks
-	// don't hold the row lock. Auth is encrypted inside the transaction because it may need
-	// to preserve the previously stored secret when the client omits it.
+	// Validate the endpoints outside the transaction so the placement check's DB reads and
+	// network lookups don't hold the row lock. Auth is encrypted inside the transaction because
+	// it may need to preserve the previously stored secret when the client omits it.
 	if err := validateMCPEndpoints(req.Endpoints); err != nil {
 		return nil, err
 	}
@@ -464,17 +465,24 @@ func (s *MCPProxyService) Update(ctx context.Context, orgUUID, proxyID string, r
 	// Load the proxy's current (environment -> artifact) mapping so the identity-security
 	// probe can anchor each environment on its existing deployment instead of re-selecting
 	// from the environment — mirrors indexExistingMCPEndpoints below, done here (outside
-	// the transaction) because the probe itself performs DB reads. A lookup failure is
-	// tolerated; GetByHandleForUpdate inside the transaction is the authoritative
-	// existence check.
+	// the transaction) because the probe itself performs DB reads. A missing proxy is left
+	// to GetByHandleForUpdate inside the transaction, the authoritative existence check.
+	// Any other failure is returned: the placement check needs the proxy to find the agents
+	// that use it.
 	var existingArtifactByEnv map[string]uuid.UUID
-	if existingProxy, err := s.repo.GetByHandle(ctx, handle, orgUUID); err == nil && existingProxy != nil {
+	proxyUUID := uuid.Nil
+	existingProxy, err := s.repo.GetByHandle(ctx, handle, orgUUID)
+	if err != nil && !errors.Is(err, gorm.ErrRecordNotFound) {
+		return nil, fmt.Errorf("failed to get MCP proxy before update: %w", err)
+	}
+	if err == nil && existingProxy != nil {
 		existingArtifactByEnv = indexExistingMCPEndpoints(existingProxy.Endpoints).artifactByEnv
+		proxyUUID = existingProxy.UUID
 	}
 	if err := s.validateMCPEndpointSecurity(ctx, orgUUID, req.Endpoints, existingArtifactByEnv); err != nil {
 		return nil, err
 	}
-	if err := s.validateMCPEndpointPlacement(ctx, orgUUID, req.Endpoints, existingArtifactByEnv); err != nil {
+	if err := s.validateMCPEndpointPlacement(ctx, orgUUID, proxyUUID, req.Endpoints, existingArtifactByEnv); err != nil {
 		return nil, err
 	}
 
@@ -1389,9 +1397,13 @@ func (s *MCPProxyService) validateMCPEndpointSecurity(
 // existingArtifactByEnv is the proxy's current (environment -> artifact) mapping, nil on
 // create. An environment with a deployed artifact anchors on that artifact's gateway, so
 // errPlacementFixed also surfaces before the write rather than after it.
+//
+// proxyUUID is the proxy being updated, uuid.Nil on create. A proxy agents use may not move
+// into a self-hosted gateway (requireNoAgentsForSelfHostedPlacement).
 func (s *MCPProxyService) validateMCPEndpointPlacement(
-	ctx context.Context, orgUUID string, endpoints []models.MCPProxyEndpointDTO, existingArtifactByEnv map[string]uuid.UUID,
+	ctx context.Context, orgUUID string, proxyUUID uuid.UUID, endpoints []models.MCPProxyEndpointDTO, existingArtifactByEnv map[string]uuid.UUID,
 ) error {
+	agentUse := &mcpProxyAgentUse{}
 	for _, endpoint := range endpoints {
 		handle := strings.TrimSpace(endpoint.ID)
 		resolved := make([]*models.Gateway, 0, len(endpoint.Environments))
@@ -1420,6 +1432,11 @@ func (s *MCPProxyService) validateMCPEndpointPlacement(
 				anyUnresolved = true
 				continue
 			}
+			if !gateway.IsManaged() && !slices.Contains(deployed, gateway.UUID.String()) {
+				if err := s.requireNoAgentsForSelfHostedPlacement(ctx, orgUUID, proxyUUID, envUUID, gateway, agentUse); err != nil {
+					return err
+				}
+			}
 			resolved = append(resolved, gateway)
 		}
 
@@ -1434,6 +1451,58 @@ func (s *MCPProxyService) validateMCPEndpointPlacement(
 			return fmt.Errorf("%w: endpoint %q upstream url: %w", utils.ErrInvalidURL, handle, err)
 		}
 	}
+	return nil
+}
+
+// mcpProxyAgentUse caches, for one validation, which agents use the proxy.
+type mcpProxyAgentUse struct {
+	loaded     bool
+	referenced bool
+	boundInEnv map[uuid.UUID]bool
+}
+
+// requireNoAgentsForSelfHostedPlacement refuses placing the proxy's binding for envUUID on a
+// self-hosted gateway while agents use the proxy: bound in that environment (a mapping row,
+// which survives the environment being removed from the proxy and re-added), or recording the
+// proxy at all (the binding reconcile or a promotion could bind it there later). Agents run in
+// OpenChoreo and must never reach a self-hosted gateway.
+func (s *MCPProxyService) requireNoAgentsForSelfHostedPlacement(
+	ctx context.Context, orgUUID string, proxyUUID, envUUID uuid.UUID, gateway *models.Gateway, use *mcpProxyAgentUse,
+) error {
+	if proxyUUID == uuid.Nil {
+		return nil
+	}
+	if !use.loaded {
+		if err := s.loadMCPProxyAgentUse(ctx, orgUUID, proxyUUID, use); err != nil {
+			return err
+		}
+	}
+	if !use.referenced && !use.boundInEnv[envUUID] {
+		return nil
+	}
+	return fmt.Errorf("%w: environment %q: agents use this MCP proxy, so it cannot be placed on self-hosted gateway %q; agents can only use MCP proxies on managed gateways",
+		utils.ErrInvalidInput, envUUID, gateway.Name)
+}
+
+func (s *MCPProxyService) loadMCPProxyAgentUse(ctx context.Context, orgUUID string, proxyUUID uuid.UUID, use *mcpProxyAgentUse) error {
+	use.boundInEnv = map[uuid.UUID]bool{}
+	if s.envMCPMappingRepo != nil {
+		mappings, err := s.envMCPMappingRepo.ListByMCPProxy(ctx, proxyUUID)
+		if err != nil {
+			return fmt.Errorf("failed to list agent MCP mappings of proxy %s: %w", proxyUUID, err)
+		}
+		for _, m := range mappings {
+			use.boundInEnv[m.EnvironmentUUID] = true
+		}
+	}
+	if s.agentConfigRepo != nil {
+		configs, err := s.agentConfigRepo.ListMCPConfigsByProxy(ctx, orgUUID, proxyUUID)
+		if err != nil {
+			return fmt.Errorf("failed to list agent configurations of proxy %s: %w", proxyUUID, err)
+		}
+		use.referenced = len(configs) > 0
+	}
+	use.loaded = true
 	return nil
 }
 

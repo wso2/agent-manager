@@ -154,7 +154,7 @@ func (s *monitorManagerService) CreateMonitor(ctx context.Context, ouID string, 
 		if err != nil {
 			return nil, fmt.Errorf("invalid environment UUID: %w", err)
 		}
-		if err := s.requireManagedMonitorProvider(ctx, ouID, req.LLMProvider.ProviderName, envUUID); err != nil {
+		if err := s.requireManagedMonitorProvider(ctx, ouID, req.LLMProvider.ProviderName, env.Name, envUUID); err != nil {
 			return nil, err
 		}
 	}
@@ -542,7 +542,7 @@ func (s *monitorManagerService) UpdateMonitor(ctx context.Context, ouID, project
 			if err != nil {
 				return nil, fmt.Errorf("invalid environment UUID: %w", err)
 			}
-			if err := s.requireManagedMonitorProvider(ctx, ouID, req.LLMProvider.ProviderName, envUUID); err != nil {
+			if err := s.requireManagedMonitorProvider(ctx, ouID, req.LLMProvider.ProviderName, monitor.EnvironmentName, envUUID); err != nil {
 				return nil, err
 			}
 		}
@@ -1558,7 +1558,7 @@ func (s *monitorManagerService) monitorProviderUnchanged(
 // requireManagedMonitorProvider refuses, before anything is created or changed, a monitor whose evaluation
 // jobs would run in OpenChoreo through a provider with no deployment on a managed gateway in the environment.
 func (s *monitorManagerService) requireManagedMonitorProvider(
-	ctx context.Context, ouID, providerName string, envUUID uuid.UUID,
+	ctx context.Context, ouID, providerName, envName string, envUUID uuid.UUID,
 ) error {
 	provider, err := s.llmProvisioner.ProviderRepo().GetByHandle(providerName, ouID)
 	if err != nil {
@@ -1567,11 +1567,14 @@ func (s *monitorManagerService) requireManagedMonitorProvider(
 		}
 		return fmt.Errorf("failed to resolve LLM provider %q: %w", providerName, err)
 	}
-	return requireManagedPlacement(ctx, s.llmProvisioner.ProxyDeploymentService(), s.llmProvisioner.gatewayRepo,
-		ouID, provider.UUID, envUUID)
+	if err := requireManagedPlacement(ctx, s.llmProvisioner.ProxyDeploymentService(), s.llmProvisioner.gatewayRepo,
+		ouID, provider.UUID, envUUID); err != nil {
+		return fmt.Errorf("LLM provider %q in environment %s: %w", providerName, envName, err)
+	}
+	return nil
 }
 
-// resolveMonitorGateway anchors on the LLM provider's existing deployment, exactly as
+// resolveMonitorGateway anchors on the LLM provider's existing managed deployment, exactly as
 // resolveGatewayForProvider does, so a second egress gateway in the environment never
 // makes monitor create/update impossible. CreateMonitorRequest and UpdateMonitorRequest
 // carry no gateway field, so inference is the only path available here.
@@ -1584,7 +1587,7 @@ func (s *monitorManagerService) resolveMonitorGateway(
 		if depErr != nil {
 			return nil, fmt.Errorf("failed to list deployed gateways for provider %s: %w", providerUUIDStr, depErr)
 		}
-		deployed, depErr = managedAnchorsFirst(s.llmProvisioner.gatewayRepo, ids)
+		deployed, depErr = managedAnchorsOnly(s.llmProvisioner.gatewayRepo, ids)
 		if depErr != nil {
 			return nil, depErr
 		}

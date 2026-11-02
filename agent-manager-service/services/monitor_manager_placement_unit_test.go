@@ -63,12 +63,13 @@ func TestMonitorRefusesSelfHostedOnlyProvider(t *testing.T) {
 		})
 		require.ErrorIs(t, err, utils.ErrInvalidInput)
 		assert.ErrorContains(t, err, "managed gateway")
+		assert.ErrorContains(t, err, `LLM provider "self-p" in environment dev`)
 	})
 
 	t.Run("update changing the provider", func(t *testing.T) {
 		svc.monitorRepo = &repomocks.MonitorRepositoryMock{
 			GetMonitorByNameFunc: func(string, string, string, string) (*models.Monitor, error) {
-				return &models.Monitor{ID: uuid.New(), EnvironmentID: f.envs["dev"].UUID, ProjectName: "proj"}, nil
+				return &models.Monitor{ID: uuid.New(), EnvironmentID: f.envs["dev"].UUID, EnvironmentName: "dev", ProjectName: "proj"}, nil
 			},
 		}
 		svc.monitorLLMMappingRepo = &repomocks.MonitorLLMMappingRepositoryMock{
@@ -80,6 +81,7 @@ func TestMonitorRefusesSelfHostedOnlyProvider(t *testing.T) {
 		})
 		require.ErrorIs(t, err, utils.ErrInvalidInput)
 		assert.ErrorContains(t, err, "managed gateway")
+		assert.ErrorContains(t, err, `LLM provider "self-p" in environment dev`)
 	})
 }
 
@@ -99,6 +101,18 @@ func TestResolveMonitorGateway_PrefersManagedProviderAnchor(t *testing.T) {
 		}
 		return selfHosted, nil
 	}
+
+	got, err := svc.resolveMonitorGateway(context.Background(), llmPlacementOU, f.env("dev"), uuid.NewString())
+
+	require.NoError(t, err)
+	assert.Equal(t, managed.UUID, got.UUID)
+}
+
+func TestResolveMonitorGateway_IgnoresSelfHostedOnlyProviderAnchor(t *testing.T) {
+	f := newLLMPlacementFixture(t, "dev")
+	svc := monitorPlacementService(f)
+	deployments, managed := selfHostedOnlyProviderAnchor(f)
+	svc.llmProvisioner.llmProxyDeploymentService = deployments
 
 	got, err := svc.resolveMonitorGateway(context.Background(), llmPlacementOU, f.env("dev"), uuid.NewString())
 

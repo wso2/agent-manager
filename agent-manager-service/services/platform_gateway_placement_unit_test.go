@@ -192,7 +192,11 @@ func TestSelfHostedGatewayDoesNotChangeManagedPlacement(t *testing.T) {
 	})
 
 	t.Run("an unplaced MCP proxy targets the managed gateway", func(t *testing.T) {
-		kind := &MCPProxyKind{gatewayRepo: repo, deploymentRepo: unplaced}
+		kind := &MCPProxyKind{gatewayRepo: repo, deploymentRepo: unplaced, load: func(context.Context, models.ArtifactRef) (*mcpArtifact, error) {
+			return &mcpArtifact{deployable: &models.MCPProxy{Configuration: models.MCPProxyConfig{
+				Upstream: models.UpstreamConfig{Main: &models.UpstreamEndpoint{URL: "https://93.184.216.34/mcp"}},
+			}}}, nil
+		}}
 
 		got, ok, err := kind.Targets(context.Background(), record)
 

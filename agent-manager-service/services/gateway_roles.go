@@ -62,7 +62,8 @@ var (
 )
 
 // resolveEgressGatewayForEnvironment selects the environment's egress gateway, either
-// validating the caller's choice or inferring it when the environment has exactly one.
+// validating the caller's choice or inferring it when the environment has exactly one
+// managed one.
 //
 // Deliberately unfiltered by is_active and unlimited by Limit. is_active is WebSocket
 // liveness (false at registration, true on connect, false on disconnect) and flaps;
@@ -171,26 +172,6 @@ func resolveEgressGatewayForArtifact(
 		return gw, nil
 	}
 	return resolveEgressGatewayForEnvironment(repo, ouID, envUUID, requested)
-}
-
-// managedAnchorsFirst is gatewayIDs with the managed gateways first, original order kept within each group.
-// A gateway that is unknown or deleted keeps its place at the end. Placing next to an anchor must never
-// choose a self-hosted gateway over a managed one for traffic that has to stay on managed gateways.
-func managedAnchorsFirst(repo repositories.GatewayRepository, gatewayIDs []string) ([]string, error) {
-	managed := make([]string, 0, len(gatewayIDs))
-	rest := make([]string, 0, len(gatewayIDs))
-	for _, id := range gatewayIDs {
-		gw, err := repo.GetByUUID(id)
-		if err != nil && !errors.Is(err, gorm.ErrRecordNotFound) {
-			return nil, fmt.Errorf("failed to load anchor gateway %s: %w", id, err)
-		}
-		if err == nil && gw != nil && gw.IsManaged() {
-			managed = append(managed, id)
-		} else {
-			rest = append(rest, id)
-		}
-	}
-	return append(managed, rest...), nil
 }
 
 // managedAnchorsOnly is gatewayIDs without the self-hosted gateways, original order kept. Unknown or deleted
