@@ -18,7 +18,7 @@ package dbmigrations
 
 import "gorm.io/gorm"
 
-// migration052 lets an agent's identity follow its project pipeline by promotion.
+// migration053 lets an agent's identity follow its project pipeline by promotion.
 //
 // promotion_source records, for a binding whose environment receives its
 // identity by promotion, the environment it is promoted from. Without it the
@@ -29,15 +29,15 @@ import "gorm.io/gorm"
 // sync_after marks a completed promoted binding whose carried set (roles,
 // groups, resource servers) changed. The reconciler re-promotes it once the time
 // has passed, and clears it only if it was not moved since. A request moves it
-// later, so a burst of changes becomes one promotion.
+// beyond any active lease, so a burst of changes becomes one promotion.
 //
 // Both columns are additive and backward compatible: promotion_source has an
 // empty default and sync_after is nullable, so existing rows and the previous
 // version of the service, which never reads them, are unaffected. The partial
 // index covers only the rows that are waiting, so the reconciler's poll stays
 // cheap however many bindings exist.
-var migration052 = migration{
-	ID: 52,
+var migration053 = migration{
+	ID: 53,
 	Migrate: func(db *gorm.DB) error {
 		return db.Transaction(func(tx *gorm.DB) error {
 			return runSQL(
