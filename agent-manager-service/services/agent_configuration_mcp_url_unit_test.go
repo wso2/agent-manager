@@ -18,11 +18,12 @@ package services
 
 import (
 	"context"
-	"errors"
 	"testing"
 
 	"github.com/google/uuid"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"gorm.io/driver/postgres"
 	"gorm.io/gorm"
 
 	"github.com/wso2/agent-manager/agent-manager-service/clients/clientmocks"
@@ -223,7 +224,18 @@ func selfHostedMCPConfigService(t *testing.T) (*agentConfigurationService, *mcpU
 	svc.mcpProxyRepo = &repomocks.MCPProxyRepositoryMock{
 		GetByHandleFunc: func(context.Context, string, string) (*models.MCPProxy, error) { return proxy, nil },
 	}
-	svc.envMCPMappingRepo = &repomocks.EnvAgentMCPMappingRepositoryMock{}
+	svc.envMCPMappingRepo = &repomocks.EnvAgentMCPMappingRepositoryMock{
+		ListByConfigFunc: func(context.Context, uuid.UUID) ([]models.EnvAgentMCPMapping, error) { return nil, nil },
+	}
+	svc.agentConfigRepo = &repomocks.AgentConfigurationRepositoryMock{
+		CreateFunc:         func(context.Context, *gorm.DB, *models.AgentConfiguration) error { return nil },
+		SetMCPProxyRefFunc: func(context.Context, *gorm.DB, uuid.UUID, uuid.UUID) error { return nil },
+		SetMCPEnvScopeFunc: func(context.Context, *gorm.DB, uuid.UUID, []uuid.UUID, []uuid.UUID) error { return nil },
+		DeleteFunc:         func(context.Context, *gorm.DB, uuid.UUID, string) error { return nil },
+	}
+	database, err := gorm.Open(postgres.New(postgres.Config{Conn: &noopTxPool{}}), &gorm.Config{DisableAutomaticPing: true})
+	require.NoError(t, err)
+	svc.db = database
 	svc.envVariableRepo = &repomocks.AgentEnvConfigVariableRepositoryMock{
 		ListByConfigFunc: func(context.Context, uuid.UUID) ([]models.AgentEnvConfigVariable, error) { return nil, nil },
 	}
@@ -233,6 +245,9 @@ func selfHostedMCPConfigService(t *testing.T) (*agentConfigurationService, *mcpU
 		},
 	}
 	svc.ocClient = &clientmocks.OpenChoreoClientMock{
+		GetProjectDeploymentPipelineFunc: func(context.Context, string, string) (*models.DeploymentPipelineResponse, error) {
+			return nil, utils.ErrDeploymentPipelineNotFound
+		},
 		GetComponentFunc: func(context.Context, string, string, string) (*models.AgentResponse, error) {
 			return &models.AgentResponse{Provisioning: models.Provisioning{Type: "external"}}, nil
 		},
@@ -246,9 +261,16 @@ func TestMCPConfig_RefusesSelfHostedProxy(t *testing.T) {
 	t.Run("create", func(t *testing.T) {
 		svc, f := selfHostedMCPConfigService(t)
 		_, err := svc.createMCPConfig(context.Background(), f.ouID, "proj1", "agent1",
-			models.CreateAgentModelConfigRequest{Name: "cfg1", Type: "mcp", EnvMappings: mappings}, "user", false)
+			models.CreateAgentModelConfigRequest{Name: "cfg1", Type: "mcp", EnvMappings: mappings}, "user", true)
 		require.ErrorIs(t, err, utils.ErrInvalidInput)
 		require.ErrorContains(t, err, "self-hosted gateway in environment dev")
+	})
+
+	t.Run("create with unbindable environments deferred still refuses", func(t *testing.T) {
+		svc, f := selfHostedMCPConfigService(t)
+		_, err := svc.createMCPConfig(context.Background(), f.ouID, "proj1", "agent1",
+			models.CreateAgentModelConfigRequest{Name: "cfg1", Type: "mcp", EnvMappings: mappings, DeferUnbindableMCPEnvs: true}, "user", true)
+		require.ErrorIs(t, err, utils.ErrInvalidInput)
 	})
 
 	t.Run("update", func(t *testing.T) {
@@ -259,16 +281,25 @@ func TestMCPConfig_RefusesSelfHostedProxy(t *testing.T) {
 		require.ErrorIs(t, err, utils.ErrInvalidInput)
 		require.ErrorContains(t, err, "self-hosted gateway in environment dev")
 	})
+}
 
-	t.Run("an unresolvable gateway is left to the per-environment loop", func(t *testing.T) {
-		svc, f := selfHostedMCPConfigService(t)
-		svc.mcpProxyService.deploymentRepo = &repomocks.DeploymentRepositoryMock{
-			PlacedGatewaysFunc: func(context.Context, string, uuid.UUID) ([]string, error) { return nil, errors.New("down") },
+// A deferred binding becomes deployable later, when the proxy is updated onto a self-hosted gateway in the
+// environment. The reconcile must not bind the agent there.
+func TestDeployableMCPEnvs_SkipsSelfHostedGateway(t *testing.T) {
+	f := newMCPURLTestFixture()
+	proxy := f.mapping.MCPProxy
+
+	t.Run("self-hosted gateway is not bindable", func(t *testing.T) {
+		f.gatewayRepo.GetByUUIDFunc = func(string) (*models.Gateway, error) {
+			return &models.Gateway{UUID: f.gatewayUUID, Hosting: models.GatewayHostingSelfHosted}, nil
 		}
-		proxy := f.mapping.MCPProxy
-		err := svc.requireManagedMCPPlacement(context.Background(), f.ouID,
-			map[string]*models.MCPProxy{"dev": proxy},
-			map[string]*models.EnvironmentResponse{"dev": {UUID: f.envUUID.String(), Name: "dev"}})
-		require.NoError(t, err)
+		assert.Empty(t, f.newService().deployableMCPEnvs(context.Background(), proxy, f.ouID, []uuid.UUID{f.envUUID}))
+	})
+
+	t.Run("managed gateway is bindable", func(t *testing.T) {
+		f.gatewayRepo.GetByUUIDFunc = func(string) (*models.Gateway, error) {
+			return &models.Gateway{UUID: f.gatewayUUID}, nil
+		}
+		assert.Equal(t, []uuid.UUID{f.envUUID}, f.newService().deployableMCPEnvs(context.Background(), proxy, f.ouID, []uuid.UUID{f.envUUID}))
 	})
 }

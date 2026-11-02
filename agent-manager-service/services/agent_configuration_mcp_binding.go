@@ -851,7 +851,8 @@ func (s *agentConfigurationService) deployableMCPEnvs(
 ) []uuid.UUID {
 	bindable := make([]uuid.UUID, 0, len(candidates))
 	for _, envUUID := range candidates {
-		if _, err := s.resolveDeployableMCPGateway(ctx, proxy, ouID, envUUID); err != nil {
+		gateway, err := s.resolveDeployableMCPGateway(ctx, proxy, ouID, envUUID)
+		if err != nil {
 			if errors.Is(err, errMCPEnvNotDeployable) {
 				s.logger.Info("Skipping MCP binding backfill; environment is not deployable yet",
 					"ouID", ouID, "environmentUUID", envUUID, "mcpProxyUUID", proxy.UUID)
@@ -859,6 +860,11 @@ func (s *agentConfigurationService) deployableMCPEnvs(
 				s.logger.Warn("Skipping MCP binding backfill; gateway lookup failed",
 					"ouID", ouID, "environmentUUID", envUUID, "mcpProxyUUID", proxy.UUID, "error", err)
 			}
+			continue
+		}
+		if !gateway.IsManaged() {
+			s.logger.Warn("Skipping MCP binding backfill; the proxy is on a self-hosted gateway in this environment",
+				"ouID", ouID, "environmentUUID", envUUID, "mcpProxyUUID", proxy.UUID, "gatewayUUID", gateway.UUID)
 			continue
 		}
 		bindable = append(bindable, envUUID)

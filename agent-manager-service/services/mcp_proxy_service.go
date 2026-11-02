@@ -28,6 +28,7 @@ import (
 	"net/url"
 	"regexp"
 	"sort"
+	"strconv"
 	"strings"
 	"time"
 
@@ -1218,6 +1219,11 @@ func validateMCPUpstreamShape(rawURL string) error {
 	if parsed.Hostname() == "" {
 		return errors.New("url host is required")
 	}
+	if port := parsed.Port(); port != "" {
+		if n, err := strconv.Atoi(port); err != nil || n < 1 || n > 65535 {
+			return errors.New("url port is invalid")
+		}
+	}
 	return nil
 }
 
@@ -1225,7 +1231,7 @@ func validateMCPUpstreamShape(rawURL string) error {
 // whose every environment resolves to a self-hosted gateway may reach a private address; a
 // managed target, or any environment whose target could not be resolved, keeps the guard on.
 func mcpUpstreamNeedsSSRFGuard(resolved []*models.Gateway, anyUnresolved bool) bool {
-	if anyUnresolved {
+	if anyUnresolved || len(resolved) == 0 {
 		return true
 	}
 	for _, gateway := range resolved {

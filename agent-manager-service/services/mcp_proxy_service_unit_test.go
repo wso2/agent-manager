@@ -696,7 +696,7 @@ func TestMCPPrivateUpstream_SelfHostedOnlyAccepted(t *testing.T) {
 }
 
 func TestMCPUpstream_ShapeCheckedOnSelfHosted(t *testing.T) {
-	for _, upstream := range []string{"ftp://10.0.0.5/mcp", "http://user:pw@10.0.0.5/mcp", "http:///mcp", "not a url"} {
+	for _, upstream := range []string{"ftp://10.0.0.5/mcp", "http://user:pw@10.0.0.5/mcp", "http:///mcp", "not a url", "http://10.0.0.5:0/mcp", "http://10.0.0.5:70000/mcp"} {
 		endpoint := privateUpstreamEndpoint("")
 		endpoint.Upstream.Main.URL = upstream
 		err := validateMCPEndpoints([]models.MCPProxyEndpointDTO{endpoint})
@@ -793,4 +793,5 @@ func TestMCPUpstreamNeedsSSRFGuard(t *testing.T) {
 	assert.True(t, mcpUpstreamNeedsSSRFGuard([]*models.Gateway{selfHosted, managed}, false))
 	assert.True(t, mcpUpstreamNeedsSSRFGuard([]*models.Gateway{selfHosted}, true))
 	assert.True(t, mcpUpstreamNeedsSSRFGuard(nil, true))
+	assert.True(t, mcpUpstreamNeedsSSRFGuard(nil, false), "no targets must not skip the guard")
 }

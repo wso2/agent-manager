@@ -1489,10 +1489,6 @@ func (s *agentConfigurationService) createMCPConfig(ctx context.Context, ouID, p
 		}
 	}
 
-	if err := s.requireManagedMCPPlacement(ctx, ouID, proxiesByEnv, envMap); err != nil {
-		return nil, err
-	}
-
 	config := &models.AgentConfiguration{
 		Name:        req.Name,
 		Description: req.Description,
@@ -1592,6 +1588,11 @@ func (s *agentConfigurationService) createMCPConfig(ctx context.Context, ouID, p
 				return nil, err
 			}
 			continue
+		}
+
+		if !gateway.IsManaged() {
+			s.cleanupMCPConfig(ctx, config.UUID, ouID)
+			return nil, errMCPProxyOnSelfHostedGateway(sourceProxy, envName)
 		}
 
 		handle := mcpMappingProxyName(projectName, agentID, config.Name, envName)
@@ -2505,9 +2506,6 @@ func (s *agentConfigurationService) updateMCPConfig(ctx context.Context, existin
 	if err := requireSingleMCPProxy(proxiesByEnv); err != nil {
 		return nil, err
 	}
-	if err := s.requireManagedMCPPlacement(ctx, ouID, proxiesByEnv, envMap); err != nil {
-		return nil, err
-	}
 
 	existingEnvMap := make(map[string]*models.EnvAgentMCPMapping, len(existingConfig.EnvMCPMappings))
 	for i := range existingConfig.EnvMCPMappings {
@@ -2557,9 +2555,12 @@ func (s *agentConfigurationService) updateMCPConfig(ctx context.Context, existin
 		sourceVersion := mcpProxyArtifactVersion(sourceProxy)
 		// A non-deployable environment gets its mapping torn down / never created and its env
 		// vars injected empty.
-		_, gwErr := s.resolveDeployableMCPGateway(ctx, sourceProxy, ouID, envUUID)
+		gateway, gwErr := s.resolveDeployableMCPGateway(ctx, sourceProxy, ouID, envUUID)
 		if gwErr != nil && !errors.Is(gwErr, errMCPEnvNotDeployable) {
 			return nil, fmt.Errorf("failed to resolve gateway for MCP environment %s: %w", envName, gwErr)
+		}
+		if gwErr == nil && !gateway.IsManaged() {
+			return nil, errMCPProxyOnSelfHostedGateway(sourceProxy, envName)
 		}
 		deployable := gwErr == nil
 
@@ -4690,28 +4691,11 @@ func (s *agentConfigurationService) resolveDeployableMCPGateway(
 	return gateway, nil
 }
 
-// requireManagedMCPPlacement refuses a binding whose MCP proxy sits on a self-hosted gateway in any
-// requested environment: an agent's traffic must stay on managed gateways. It resolves the gateway the
-// way the agent's MCP URL does, so the check and the URL cannot disagree. An environment whose gateway
-// cannot be resolved binds nothing and is not refused.
-func (s *agentConfigurationService) requireManagedMCPPlacement(
-	ctx context.Context, ouID string, proxiesByEnv map[string]*models.MCPProxy, envMap map[string]*models.EnvironmentResponse,
-) error {
-	for envName, proxy := range proxiesByEnv {
-		envUUID, err := uuid.Parse(envMap[envName].UUID)
-		if err != nil {
-			return fmt.Errorf("invalid environment id %q: %w", envName, err)
-		}
-		gateway, err := s.resolveDeployableMCPGateway(ctx, proxy, ouID, envUUID)
-		if err != nil {
-			continue // binds nothing here: the per-environment loop owns how a resolve failure is handled
-		}
-		if !gateway.IsManaged() {
-			return fmt.Errorf("%w: MCP proxy %s is on a self-hosted gateway in environment %s; agents can only use MCP proxies on managed gateways",
-				utils.ErrInvalidInput, mcpProxyHandle(proxy), envName)
-		}
-	}
-	return nil
+// errMCPProxyOnSelfHostedGateway refuses an agent binding to an MCP proxy whose gateway in the
+// environment is self-hosted: an agent's traffic must stay on managed gateways.
+func errMCPProxyOnSelfHostedGateway(proxy *models.MCPProxy, envName string) error {
+	return fmt.Errorf("%w: MCP proxy %s is on a self-hosted gateway in environment %s; agents can only use MCP proxies on managed gateways",
+		utils.ErrInvalidInput, mcpProxyHandle(proxy), envName)
 }
 
 // resolveGatewayForMCPArtifact returns the gateway the MCP proxy's shared per-environment
