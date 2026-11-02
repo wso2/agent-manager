@@ -23,6 +23,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"gorm.io/gorm"
 
@@ -337,5 +338,32 @@ func TestValidateEgressPlacement(t *testing.T) {
 		})
 		err := validateEgressPlacement(repo, target, []string{existing.UUID.String()})
 		require.NoError(t, err)
+	})
+}
+
+func TestManagedAnchorsFirst(t *testing.T) {
+	env := uuid.New()
+	selfHosted := newGateway(t, models.GatewayRoleBoth, true)
+	selfHosted.Hosting = models.GatewayHostingSelfHosted
+	managedA := newGateway(t, models.GatewayRoleBoth, true)
+	managedB := newGateway(t, models.GatewayRoleBoth, true)
+	repo := gatewayFixtureRepo(t, env.String(), []*models.Gateway{selfHosted, managedA, managedB})
+	id := func(gw *models.Gateway) string { return gw.UUID.String() }
+	deleted := uuid.NewString()
+
+	t.Run("self-hosted moves behind managed", func(t *testing.T) {
+		got, err := managedAnchorsFirst(repo, []string{id(selfHosted), id(managedA)})
+		require.NoError(t, err)
+		assert.Equal(t, []string{id(managedA), id(selfHosted)}, got)
+	})
+	t.Run("managed keep their order", func(t *testing.T) {
+		got, err := managedAnchorsFirst(repo, []string{id(managedA), id(managedB)})
+		require.NoError(t, err)
+		assert.Equal(t, []string{id(managedA), id(managedB)}, got)
+	})
+	t.Run("unknown ids keep their place at the end", func(t *testing.T) {
+		got, err := managedAnchorsFirst(repo, []string{deleted, id(selfHosted), id(managedB)})
+		require.NoError(t, err)
+		assert.Equal(t, []string{id(managedB), deleted, id(selfHosted)}, got)
 	})
 }

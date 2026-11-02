@@ -221,6 +221,10 @@ func (k *LLMProxyKind) Targets(ctx context.Context, record reconcile.Record) (uu
 		if err != nil {
 			return uuid.Nil, false, err
 		}
+		providerGateways, err = managedAnchorsFirst(gateways, providerGateways)
+		if err != nil {
+			return uuid.Nil, false, err
+		}
 		anchors = append(anchors, providerGateways...)
 	}
 	gateway, err := resolveEgressGatewayForArtifact(gateways, record.OUID, record.EnvironmentUUID, anchors, nil)

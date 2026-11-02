@@ -25,6 +25,7 @@ import (
 	"fmt"
 	"log/slog"
 	"regexp"
+	"sort"
 	"strings"
 	"time"
 
@@ -1160,6 +1161,10 @@ func (s *agentConfigurationService) createLLMConfig(ctx context.Context, ouID, p
 		if _, exists := envMap[envName]; !exists {
 			return nil, fmt.Errorf("%w: %s", utils.ErrEnvironmentNotFound, envName)
 		}
+	}
+
+	if err := s.requireManagedProviderPlacements(ctx, ouID, req.EnvMappings, envMap, nil); err != nil {
+		return nil, err
 	}
 
 	// Build config struct (UUID assigned on Create)
@@ -3611,6 +3616,10 @@ func (s *agentConfigurationService) Update(ctx context.Context, configUUID uuid.
 		}
 	}
 
+	if err := s.requireManagedProviderPlacements(ctx, ouID, req.EnvMappings, envMap, existingEnvMap); err != nil {
+		return nil, err
+	}
+
 	// Phase 1 — Short TX: update name/description only.
 	if req.Name != "" {
 		existingConfig.Name = req.Name
@@ -4647,9 +4656,80 @@ func (s *agentConfigurationService) resolveGatewayForProvider(
 		if gwErr != nil {
 			return nil, fmt.Errorf("failed to list deployed gateways for provider %s: %w", providerUUIDStr, gwErr)
 		}
-		deployed = ids
+		deployed, err = managedAnchorsFirst(s.gatewayRepo, ids)
+		if err != nil {
+			return nil, err
+		}
 	}
 	return resolveEgressGatewayForArtifact(s.gatewayRepo, ouID, envUUID, deployed, nil)
+}
+
+// requireManagedProviderPlacement refuses an agent LLM binding unless the provider is placed on a managed
+// gateway mapped to the environment: an agent's traffic must stay on managed gateways.
+func (s *agentConfigurationService) requireManagedProviderPlacement(
+	ctx context.Context, ouID string, providerUUID, envUUID uuid.UUID,
+) error {
+	placed, err := s.llmProxyDeploymentService.PlacedGateways(ctx, ouID, providerUUID)
+	if err != nil {
+		return fmt.Errorf("failed to list deployed gateways for provider %s: %w", providerUUID, err)
+	}
+	for _, gatewayID := range placed {
+		mapped, err := s.gatewayRepo.EnvironmentMappingExists(gatewayID, envUUID.String())
+		if err != nil {
+			return fmt.Errorf("failed to check gateway %s mapping to environment %s: %w", gatewayID, envUUID, err)
+		}
+		if !mapped {
+			continue
+		}
+		gateway, err := s.gatewayRepo.GetByUUID(gatewayID)
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			continue
+		}
+		if err != nil {
+			return fmt.Errorf("failed to load gateway %s: %w", gatewayID, err)
+		}
+		if gateway != nil && gateway.IsManaged() {
+			return nil
+		}
+	}
+	return fmt.Errorf("%w: LLM provider %s has no deployment on a managed gateway in environment %s; agents can only use LLM providers deployed to managed gateways",
+		utils.ErrInvalidInput, providerUUID, envUUID)
+}
+
+// requireManagedProviderPlacements checks, before anything is created or changed, every requested
+// environment that would get a new or re-pointed LLM proxy. existing is the config's current mappings
+// by environment name (nil on create); an environment keeping its provider is not re-checked.
+func (s *agentConfigurationService) requireManagedProviderPlacements(
+	ctx context.Context, ouID string, requested map[string]models.EnvModelConfigRequest,
+	envMap map[string]*models.EnvironmentResponse, existing map[string]*models.EnvAgentModelMapping,
+) error {
+	envNames := make([]string, 0, len(requested))
+	for envName := range requested {
+		envNames = append(envNames, envName)
+	}
+	sort.Strings(envNames)
+	for _, envName := range envNames {
+		env, ok := envMap[envName]
+		if !ok {
+			continue
+		}
+		envUUID, err := uuid.Parse(env.UUID)
+		if err != nil {
+			return fmt.Errorf("invalid environment id %q: %w", envName, err)
+		}
+		provider, err := s.llmProviderRepo.GetByHandle(requested[envName].ProviderName, ouID)
+		if err != nil {
+			return fmt.Errorf("failed to get provider: %w", err)
+		}
+		if current := existing[envName]; current != nil && current.LLMProxy != nil &&
+			current.LLMProxy.Configuration.Provider == provider.UUID.String() {
+			continue
+		}
+		if err := s.requireManagedProviderPlacement(ctx, ouID, provider.UUID, envUUID); err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 // resolveGatewayForProxy returns the gateway the LLM proxy is placed on, whatever the placement's status.
