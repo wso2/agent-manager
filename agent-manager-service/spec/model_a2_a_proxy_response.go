@@ -19,13 +19,13 @@ var _ MappedNullable = &A2AProxyResponse{}
 
 // A2AProxyResponse How an external agent is published through the environment's ingress gateway.
 type A2AProxyResponse struct {
-	// The gateway publication's state.
+	// The agent's deployment status on the environment's ingress gateway. DEPLOYING until the gateway acknowledges the deployment, including while it waits for an input (see statusReason). An environment with no ingress gateway is UNDEPLOYED with statusReason \"no gateway in this environment\".
 	Status string `json:"status"`
-	// Why the last publish attempt failed; empty after a success.
-	LastError string `json:"lastError"`
+	// Why the status is what it is: the gateway's error code, DEPLOYMENT_TIMEOUT, what a deploy is waiting for, or \"no gateway in this environment\". Empty when there is nothing to say.
+	StatusReason string `json:"statusReason"`
 	// The header the gateway adds upstream; empty when none. A non-empty header means a secret is stored. The secret itself is never returned.
 	UpstreamAuthHeader string `json:"upstreamAuthHeader"`
-	// The agent's base URL on the environment's ingress gateway, where its card is served at /.well-known/agent-card.json once published. Empty while no ingress gateway is mapped to the environment.
+	// The agent's base URL on the environment's ingress gateway, where its card is served at /.well-known/agent-card.json once DEPLOYED. Empty while no ingress gateway is mapped to the environment.
 	GatewayUrl string `json:"gatewayUrl"`
 }
 
@@ -33,10 +33,10 @@ type A2AProxyResponse struct {
 // This constructor will assign default values to properties that have it defined,
 // and makes sure properties required by API are set, but the set of arguments
 // will change when the set of required properties is changed
-func NewA2AProxyResponse(status string, lastError string, upstreamAuthHeader string, gatewayUrl string) *A2AProxyResponse {
+func NewA2AProxyResponse(status string, statusReason string, upstreamAuthHeader string, gatewayUrl string) *A2AProxyResponse {
 	this := A2AProxyResponse{}
 	this.Status = status
-	this.LastError = lastError
+	this.StatusReason = statusReason
 	this.UpstreamAuthHeader = upstreamAuthHeader
 	this.GatewayUrl = gatewayUrl
 	return &this
@@ -74,28 +74,28 @@ func (o *A2AProxyResponse) SetStatus(v string) {
 	o.Status = v
 }
 
-// GetLastError returns the LastError field value
-func (o *A2AProxyResponse) GetLastError() string {
+// GetStatusReason returns the StatusReason field value
+func (o *A2AProxyResponse) GetStatusReason() string {
 	if o == nil {
 		var ret string
 		return ret
 	}
 
-	return o.LastError
+	return o.StatusReason
 }
 
-// GetLastErrorOk returns a tuple with the LastError field value
+// GetStatusReasonOk returns a tuple with the StatusReason field value
 // and a boolean to check if the value has been set.
-func (o *A2AProxyResponse) GetLastErrorOk() (*string, bool) {
+func (o *A2AProxyResponse) GetStatusReasonOk() (*string, bool) {
 	if o == nil {
 		return nil, false
 	}
-	return &o.LastError, true
+	return &o.StatusReason, true
 }
 
-// SetLastError sets field value
-func (o *A2AProxyResponse) SetLastError(v string) {
-	o.LastError = v
+// SetStatusReason sets field value
+func (o *A2AProxyResponse) SetStatusReason(v string) {
+	o.StatusReason = v
 }
 
 // GetUpstreamAuthHeader returns the UpstreamAuthHeader field value
@@ -157,7 +157,7 @@ func (o A2AProxyResponse) MarshalJSON() ([]byte, error) {
 func (o A2AProxyResponse) ToMap() (map[string]interface{}, error) {
 	toSerialize := map[string]interface{}{}
 	toSerialize["status"] = o.Status
-	toSerialize["lastError"] = o.LastError
+	toSerialize["statusReason"] = o.StatusReason
 	toSerialize["upstreamAuthHeader"] = o.UpstreamAuthHeader
 	toSerialize["gatewayUrl"] = o.GatewayUrl
 	return toSerialize, nil

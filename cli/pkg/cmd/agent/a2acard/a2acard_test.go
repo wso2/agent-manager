@@ -116,7 +116,7 @@ func TestApplySource_alreadyProxiedSendsNoPut(t *testing.T) {
 	c := newClient(t, map[string]route{
 		sourceKey: {status: http.StatusAccepted},
 		proxyGet: {status: http.StatusOK, body: amsvc.A2AProxyResponse{
-			Status: "published", UpstreamAuthHeader: "Authorization",
+			Status: amsvc.A2AProxyResponseStatusDEPLOYED, UpstreamAuthHeader: "Authorization",
 		}},
 	})
 	got, err := ApplySource(context.Background(), c, target, cardURL, true)

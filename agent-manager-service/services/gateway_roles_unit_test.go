@@ -66,7 +66,7 @@ func gatewayFixtureRepo(t *testing.T, envUUID string, gateways []*models.Gateway
 	for _, gw := range gateways {
 		byUUID[gw.UUID.String()] = gw
 	}
-	return &repomocks.GatewayRepositoryMock{
+	repo := &repomocks.GatewayRepositoryMock{
 		ListWithFiltersFunc: func(f repositories.GatewayFilterOptions) ([]*models.Gateway, error) {
 			out := []*models.Gateway{}
 			for _, gw := range gateways {
@@ -101,6 +101,8 @@ func gatewayFixtureRepo(t *testing.T, envUUID string, gateways []*models.Gateway
 			return ok && environmentID == envUUID, nil
 		},
 	}
+	repo.WithTxFunc = func(*gorm.DB) repositories.GatewayRepository { return repo }
+	return repo
 }
 
 func TestResolveEgressGatewayForEnvironment(t *testing.T) {

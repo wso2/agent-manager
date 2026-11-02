@@ -47,6 +47,9 @@ type A2AProxyRepository interface {
 	Get(ctx context.Context, ouID, projectName, agentName, environmentName string) (*models.A2AProxy, error)
 	// GetByEnvUUID looks the row up by environment UUID.
 	GetByEnvUUID(ctx context.Context, ouID, projectName, agentName string, environmentUUID uuid.UUID) (*models.A2AProxy, error)
+	// GetByArtifact returns the proxy of the agent's per-environment artifact, joined on its handle
+	// project/agent/<environment UUID>.
+	GetByArtifact(ctx context.Context, ouID string, artifactUUID uuid.UUID) (*models.A2AProxy, error)
 
 	// Upsert writes the row, replacing a same-named row from a deleted environment.
 	Upsert(ctx context.Context, proxy *models.A2AProxy) error
@@ -59,6 +62,8 @@ type A2AProxyRepository interface {
 	DeleteForEnvironment(ctx context.Context, ouID string, environmentUUID uuid.UUID) error
 	// ListEnvironmentUUIDs returns the distinct environment UUIDs with rows recorded under environmentName.
 	ListEnvironmentUUIDs(ctx context.Context, ouID, environmentName string) ([]uuid.UUID, error)
+	// ListForEnvironment returns every agent's proxy in the environment, ordered by project and agent name.
+	ListForEnvironment(ctx context.Context, ouID string, environmentUUID uuid.UUID) ([]models.A2AProxy, error)
 }
 
 type a2aProxyRepository struct {
@@ -90,6 +95,23 @@ func (r *a2aProxyRepository) Get(ctx context.Context, ouID, projectName, agentNa
 func (r *a2aProxyRepository) GetByEnvUUID(ctx context.Context, ouID, projectName, agentName string, environmentUUID uuid.UUID) (*models.A2AProxy, error) {
 	return r.first(ctx, "ou_id = ? AND project_name = ? AND agent_name = ? AND environment_uuid = ?",
 		ouID, projectName, agentName, environmentUUID)
+}
+
+// A2AProxyArtifactJoin joins a2a_proxies p to the agent's per-environment artifact a on its handle.
+const A2AProxyArtifactJoin = `JOIN artifacts a ON a.ou_id = p.ou_id AND a.kind = 'Agent'
+	AND a.handle = p.project_name || '/' || p.agent_name || '/' || p.environment_uuid::text`
+
+func (r *a2aProxyRepository) GetByArtifact(ctx context.Context, ouID string, artifactUUID uuid.UUID) (*models.A2AProxy, error) {
+	var row models.A2AProxy
+	err := r.db.WithContext(ctx).Table("a2a_proxies p").Select("p.*").Joins(A2AProxyArtifactJoin).
+		Where("p.ou_id = ? AND a.uuid = ?", ouID, artifactUUID).Take(&row).Error
+	if errors.Is(err, gorm.ErrRecordNotFound) {
+		return nil, ErrA2AProxyNotFound
+	}
+	if err != nil {
+		return nil, err
+	}
+	return &row, nil
 }
 
 func (r *a2aProxyRepository) first(ctx context.Context, query string, args ...interface{}) (*models.A2AProxy, error) {
@@ -151,6 +173,10 @@ func (r *a2aProxyRepository) DeleteForAgent(ctx context.Context, ouID, projectNa
 
 func (r *a2aProxyRepository) DeleteForEnvironment(ctx context.Context, ouID string, environmentUUID uuid.UUID) error {
 	return deleteForEnvironment[models.A2AProxy](ctx, r.db, ouID, environmentUUID)
+}
+
+func (r *a2aProxyRepository) ListForEnvironment(ctx context.Context, ouID string, environmentUUID uuid.UUID) ([]models.A2AProxy, error) {
+	return listForEnvironment[models.A2AProxy](ctx, r.db, ouID, environmentUUID, "project_name ASC, agent_name ASC")
 }
 
 func (r *a2aProxyRepository) ListEnvironmentUUIDs(ctx context.Context, ouID, environmentName string) ([]uuid.UUID, error) {

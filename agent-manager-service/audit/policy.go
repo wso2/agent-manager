@@ -339,6 +339,11 @@ var actionOverrides = map[string]Action{
 	"GET /llm-providers/api-keys":         "api-key:sync",
 	"GET /llm-proxies/api-keys":           "api-key:sync",
 	"GET /apis/api-keys":                  "api-key:sync",
+	// The gateway's startup sync. Reads expressed as POST because the ids go in
+	// the body; the batch carries the same resolved secrets as the per-artifact
+	// pulls.
+	"POST /deployments/fetch-batch": "deployment:sync",
+	"POST /artifacts/exists":        "artifact:check-exists",
 
 	// Reads expressed as POST because they carry a request body.
 	// The score-publish route carries no rbac.Permission at all — it is gated

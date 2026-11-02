@@ -201,14 +201,14 @@ describe("A2AAgentCardPanel", () => {
     expect(setProxy).not.toHaveBeenCalled();
   });
 
-  it("stops polling a parked card once the gateway publish failed, and says why", () => {
+  it("stops polling a parked card once the gateway deploy failed, and says why", () => {
     mockCard({ data: { source: "external", status: "pending", sourceUrl: "https://agent.example/.well-known/agent-card.json", lastError: "" } });
     mockProxy({
       isSuccess: true,
-      data: { status: "failed", lastError: "the agent cannot be proxied through the gateway", gatewayUrl: "", upstreamAuthHeader: "" },
+      data: { status: "FAILED", statusReason: "the agent cannot be proxied through the gateway", gatewayUrl: "", upstreamAuthHeader: "" },
     });
     renderPanel(true);
-    expect(screen.getByText("Gateway publish failed")).toBeInTheDocument();
+    expect(screen.getByText("Gateway deploy failed")).toBeInTheDocument();
     expect(screen.queryByText("Pending")).not.toBeInTheDocument();
     expect(vi.mocked(useGetAgentCard))
       .toHaveBeenLastCalledWith(params, { poll: false });
@@ -242,7 +242,7 @@ describe("A2AAgentCardPanel", () => {
   it("keeps the routing section mounted when a background refetch fails", () => {
     mockCard({ data: registeredCard });
     mockProxy({
-      data: { status: "published", lastError: "", gatewayUrl: "https://gw.example/agent", upstreamAuthHeader: "" },
+      data: { status: "DEPLOYED", statusReason: "", gatewayUrl: "https://gw.example/agent", upstreamAuthHeader: "" },
       isSuccess: false,
       isError: true,
       error: { status: 500 },
@@ -367,7 +367,7 @@ describe("A2AAgentCardPanel", () => {
 
   const editStoredSecretUrl = () => {
     mockCard({ data: registeredCard });
-    mockProxy({ isSuccess: true, data: { status: "published", lastError: "", gatewayUrl: "", upstreamAuthHeader: "X-Key" } });
+    mockProxy({ isSuccess: true, data: { status: "DEPLOYED", statusReason: "", gatewayUrl: "", upstreamAuthHeader: "X-Key" } });
     renderPanel(true);
     fireEvent.click(screen.getByRole("button", { name: "Edit URL" }));
     return screen.getByRole("textbox", { name: "Agent card URL" });
@@ -384,7 +384,7 @@ describe("A2AAgentCardPanel", () => {
 
   it("lets a card with no stored header value move to another origin", () => {
     mockCard({ data: registeredCard });
-    mockProxy({ isSuccess: true, data: { status: "published", lastError: "", gatewayUrl: "", upstreamAuthHeader: "" } });
+    mockProxy({ isSuccess: true, data: { status: "DEPLOYED", statusReason: "", gatewayUrl: "", upstreamAuthHeader: "" } });
     renderPanel(true);
     fireEvent.click(screen.getByRole("button", { name: "Edit URL" }));
     expect(screen.queryByText(/clear the stored value first/)).not.toBeInTheDocument();

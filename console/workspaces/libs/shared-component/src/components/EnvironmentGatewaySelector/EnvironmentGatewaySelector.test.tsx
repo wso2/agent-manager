@@ -22,6 +22,7 @@ import { describe, it, expect, vi } from "vitest";
 import { ThemeProvider, createTheme } from "@wso2/oxygen-ui";
 import type {
   Environment,
+  GatewayDeploymentStatus,
   GatewayResponse,
   GatewayType,
 } from "@agent-management-platform/types";
@@ -85,6 +86,7 @@ const ControlledSelector: React.FC<{
   gateways: GatewayResponse[];
   initialValue?: string[];
   lockedGatewayIds?: string[];
+  gatewayStatuses?: Map<string, GatewayDeploymentStatus>;
   disabled?: boolean;
   onChangeSpy?: (ids: string[]) => void;
   onValidityChange?: (isValid: boolean) => void;
@@ -94,6 +96,7 @@ const ControlledSelector: React.FC<{
   gateways,
   initialValue = [],
   lockedGatewayIds,
+  gatewayStatuses,
   disabled,
   onChangeSpy,
   onValidityChange,
@@ -110,6 +113,7 @@ const ControlledSelector: React.FC<{
         onChangeSpy?.(ids);
       }}
       lockedGatewayIds={lockedGatewayIds}
+      gatewayStatuses={gatewayStatuses}
       onValidityChange={onValidityChange}
       onSingleChoiceChange={onSingleChoiceChange}
       disabled={disabled}
@@ -322,6 +326,81 @@ describe("EnvironmentGatewaySelectorView", () => {
     expect(onChangeSpy).toHaveBeenLastCalledWith([]);
     fireEvent.click(getCheckbox("Alpha"));
     expect(onChangeSpy).toHaveBeenLastCalledWith(["gw-1"]);
+  });
+
+  it("shows a locked gateway whose deploy failed as Failed, with its reason on hover, and lets it be unchecked", async () => {
+    const onChangeSpy = vi.fn();
+    renderWithTheme(
+      <ControlledSelector
+        environments={[makeEnvironment("env-a", "Alpha")]}
+        gateways={[makeGateway("gw-1", "env-a")]}
+        initialValue={["gw-1"]}
+        lockedGatewayIds={["gw-1"]}
+        gatewayStatuses={
+          new Map([
+            ["gw-1", { status: "FAILED", statusReason: "gateway unreachable" }],
+          ])
+        }
+        onChangeSpy={onChangeSpy}
+      />,
+    );
+    expect(screen.queryByText("Deployed")).not.toBeInTheDocument();
+    fireEvent.mouseOver(screen.getByText("Failed"));
+    expect(await screen.findByText("gateway unreachable")).toBeInTheDocument();
+
+    expect(getCheckbox("Alpha")).toBeChecked();
+    expect(getCheckbox("Alpha")).toBeEnabled();
+    fireEvent.click(getCheckbox("Alpha"));
+    expect(onChangeSpy).toHaveBeenLastCalledWith([]);
+    expect(getCheckbox("Alpha")).not.toBeChecked();
+  });
+
+  it("shows a locked gateway whose undeploy failed as Undeploy failed", () => {
+    renderWithTheme(
+      <ControlledSelector
+        environments={[makeEnvironment("env-a", "Alpha")]}
+        gateways={[makeGateway("gw-1", "env-a")]}
+        initialValue={["gw-1"]}
+        lockedGatewayIds={["gw-1"]}
+        gatewayStatuses={
+          new Map([["gw-1", { status: "FAILED", statusDesired: "UNDEPLOYED" }]])
+        }
+      />,
+    );
+    expect(screen.getByText("Undeploy failed")).toBeInTheDocument();
+    expect(screen.queryByText("Failed")).not.toBeInTheDocument();
+  });
+
+  it("shows Deploying for a selected gateway whose deploy is in progress", () => {
+    renderWithTheme(
+      <ControlledSelector
+        environments={[makeEnvironment("env-a", "Alpha")]}
+        gateways={[makeGateway("gw-1", "env-a")]}
+        initialValue={["gw-1"]}
+        gatewayStatuses={new Map([["gw-1", { status: "DEPLOYING" }]])}
+      />,
+    );
+    expect(screen.getByText("Deploying")).toBeInTheDocument();
+    expect(getCheckbox("Alpha")).toBeChecked();
+  });
+
+  it("keeps a DEPLOYED locked gateway locked with a Deployed chip", () => {
+    const onChangeSpy = vi.fn();
+    renderWithTheme(
+      <ControlledSelector
+        environments={[makeEnvironment("env-a", "Alpha")]}
+        gateways={[makeGateway("gw-1", "env-a")]}
+        initialValue={["gw-1"]}
+        lockedGatewayIds={["gw-1"]}
+        gatewayStatuses={new Map([["gw-1", { status: "DEPLOYED" }]])}
+        onChangeSpy={onChangeSpy}
+      />,
+    );
+    expect(screen.getByText("Deployed")).toBeInTheDocument();
+    expect(getCheckbox("Alpha")).toBeChecked();
+    expect(getCheckbox("Alpha")).toBeDisabled();
+    fireEvent.click(getCheckbox("Alpha"));
+    expect(onChangeSpy).not.toHaveBeenCalled();
   });
 
   it("evicts the previously selected gateway when a different candidate is chosen in the same environment", () => {

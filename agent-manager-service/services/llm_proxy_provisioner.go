@@ -80,10 +80,12 @@ type ProvisionProxyParams struct {
 	ProxyName      string // e.g. "my-monitor-openai-proxy"
 	ProjectUUID    uuid.UUID
 	Gateway        *models.Gateway
-	Policies       models.LLMPolicies // nil/empty for monitors
-	Description    string
-	CreatedBy      string // defaults to models.UserRoleSystem when empty
-	SecretCtx      ProxySecretContext
+	// EnvironmentUUID is the environment of the record the proxy is deployed for (the monitor's).
+	EnvironmentUUID uuid.UUID
+	Policies        models.LLMPolicies // nil/empty for monitors
+	Description     string
+	CreatedBy       string // defaults to models.UserRoleSystem when empty
+	SecretCtx       ProxySecretContext
 	// SkipKVSecret skips storing the proxy API key in the secret store.
 	// Set by callers (e.g. monitors) that manage their own composite secret.
 	SkipKVSecret bool
@@ -243,11 +245,8 @@ func (p *LLMProxyProvisioner) ProvisionProxy(ctx context.Context, params Provisi
 	rb.ProxyHandle = proxy.Handle
 
 	baseName := strings.TrimSuffix(params.ProxyName, "-proxy")
-	deployment, err := p.llmProxyDeploymentService.DeployLLMProxy(proxy.Handle, &models.DeployAPIRequest{
-		Name:      k8sNameWithSuffix(baseName, "-deployment"),
-		Base:      "current",
-		GatewayID: params.Gateway.UUID.String(),
-	}, params.OrgName)
+	deployment, err := p.llmProxyDeploymentService.DeployForEnvironment(ctx, proxy, params.OrgName,
+		params.EnvironmentUUID, params.Gateway.UUID)
 	if err != nil {
 		p.RollbackProxy(ctx, rb, params.OrgName)
 		return nil, fmt.Errorf("failed to deploy proxy: %w", err)
@@ -379,22 +378,13 @@ func (p *LLMProxyProvisioner) CleanupProxy(ctx context.Context, proxy *models.LL
 		}
 	}
 
-	// Undeploy all proxy deployments.
-	deployments, err := p.llmProxyDeploymentService.GetLLMProxyDeployments(proxyHandle, ouID, nil, nil)
-	if err != nil {
+	// Undeploy the proxy wherever it is placed.
+	if err := p.llmProxyDeploymentService.UndeployEverywhere(ctx, proxyHandle, ouID); err != nil {
 		if !errors.Is(err, utils.ErrLLMProxyNotFound) {
-			return fmt.Errorf("failed to get deployments for proxy %q: %w", proxyHandle, err)
-		}
-		p.logger.Info("Proxy already deleted, skipping deployment cleanup", "proxyHandle", proxyHandle)
-	} else {
-		for _, dep := range deployments {
-			if _, err := p.llmProxyDeploymentService.UndeployLLMProxyDeployment(
-				ctx, proxyHandle, dep.DeploymentID.String(), dep.GatewayUUID.String(), ouID,
-			); err != nil {
-				p.logger.Error("Failed to undeploy proxy during cleanup",
-					"proxyHandle", proxyHandle, "deploymentID", dep.DeploymentID, "error", err)
-				cleanupErrs = append(cleanupErrs, fmt.Errorf("undeploy deployment %s: %w", dep.DeploymentID, err))
-			}
+			p.logger.Error("Failed to undeploy proxy during cleanup", "proxyHandle", proxyHandle, "error", err)
+			cleanupErrs = append(cleanupErrs, fmt.Errorf("undeploy proxy: %w", err))
+		} else {
+			p.logger.Info("Proxy already deleted, skipping deployment cleanup", "proxyHandle", proxyHandle)
 		}
 	}
 

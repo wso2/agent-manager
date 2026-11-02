@@ -36,6 +36,7 @@ import (
 
 	"github.com/wso2/agent-manager/agent-manager-service/clients/thundersvc"
 	"github.com/wso2/agent-manager/agent-manager-service/models"
+	"github.com/wso2/agent-manager/agent-manager-service/reconcile"
 	"github.com/wso2/agent-manager/agent-manager-service/repositories"
 	"github.com/wso2/agent-manager/agent-manager-service/utils"
 	"github.com/wso2/agent-manager/agent-manager-service/utils/ssrf"
@@ -72,6 +73,7 @@ const (
 // MCPProxyService handles MCP proxy operations.
 type MCPProxyService struct {
 	db                     *gorm.DB
+	tx                     TxRunner
 	repo                   repositories.MCPProxyRepository
 	endpointRepo           repositories.MCPProxyEndpointRepository
 	deploymentRepo         repositories.DeploymentRepository
@@ -88,6 +90,8 @@ type MCPProxyService struct {
 	logger                 *slog.Logger
 	encryptionKey          []byte
 	resolver               thundersvc.EnvThunderResolver
+	core                   *reconcile.Core
+	kind                   *MCPProxyKind
 }
 
 // NewMCPProxyService creates a new MCP proxy service.
@@ -107,9 +111,14 @@ func NewMCPProxyService(
 	encryptionKey []byte,
 	mcpProxyScopeRepo repositories.MCPProxyScopeRepository,
 	resolver thundersvc.EnvThunderResolver,
+	core *reconcile.Core,
+	kind *MCPProxyKind,
 ) *MCPProxyService {
 	return &MCPProxyService{
+		core:                 core,
+		kind:                 kind,
 		db:                   db,
+		tx:                   NewTxRunner(db),
 		repo:                 repo,
 		endpointRepo:         endpointRepo,
 		deploymentRepo:       deploymentRepo,
@@ -133,12 +142,9 @@ func NewMCPProxyService(
 	}
 }
 
-// mcpDeployErrorIsFatal reports whether a deployMCPProxyEndpoints failure must fail the
-// request. Fatal means one of the four placement errors — caller misconfiguration that
-// must surface, or an invalid gatewayId returns 201 with nothing deployed. Everything
-// else is non-fatal by design: errNoGatewayForEnvironment is a timing condition and
-// unexpected infra errors are best-effort — both are logged and retried on the next
-// update. Fatal errors take precedence in a join.
+// mcpDeployErrorIsFatal reports whether a gateway-resolution error is one of the four
+// placement errors: caller misconfiguration that must surface as a 4xx. errNoGatewayForEnvironment
+// is not one: it is a timing condition, and mapping a gateway places the binding.
 func mcpDeployErrorIsFatal(err error) bool {
 	if err == nil {
 		return false
@@ -147,6 +153,31 @@ func mcpDeployErrorIsFatal(err error) bool {
 		errors.Is(err, errAmbiguousEgressGateway) ||
 		errors.Is(err, errInvalidEgressGateway) ||
 		errors.Is(err, errPlacementFixed)
+}
+
+// mcpDeployRejection is the 4xx a save's deploy error maps to: an artifact that can't render, or one of the four
+// placement errors; nil for any other error.
+func mcpDeployRejection(err error) error {
+	switch {
+	case mcpDeployErrorIsFatal(err):
+		return fmt.Errorf("%w: %w", utils.ErrInvalidInput, err)
+	case errors.Is(err, utils.ErrInvalidInput):
+		return err
+	}
+	return nil
+}
+
+// deploySavedMCPProxy re-reads the proxy saved in tx, with the request's explicit gateways, and deploys its
+// per-environment artifacts in tx.
+func (s *MCPProxyService) deploySavedMCPProxy(
+	ctx context.Context, tx *gorm.DB, handle, orgUUID string, endpoints []models.MCPProxyEndpointDTO,
+) error {
+	saved, err := s.repo.GetByHandleForUpdate(ctx, tx, handle, orgUUID)
+	if err != nil {
+		return fmt.Errorf("failed to read the saved MCP proxy: %w", err)
+	}
+	applyRequestedGatewayUUIDs(saved, endpoints)
+	return s.deployMCPProxyEndpoints(ctx, tx, saved, orgUUID)
 }
 
 // Create creates a new MCP proxy and its endpoints.
@@ -180,7 +211,7 @@ func (s *MCPProxyService) Create(ctx context.Context, orgUUID, createdBy string,
 	if err := s.validateMCPEndpointSecurity(ctx, orgUUID, req.Endpoints, nil); err != nil {
 		return nil, err
 	}
-	if err := s.validateMCPEndpointPlacement(orgUUID, req.Endpoints, nil); err != nil {
+	if err := s.validateMCPEndpointPlacement(ctx, orgUUID, req.Endpoints, nil); err != nil {
 		return nil, err
 	}
 	endpoints, err := s.buildMCPEndpointsForStorage(req.Endpoints, nil)
@@ -209,12 +240,22 @@ func (s *MCPProxyService) Create(ctx context.Context, orgUUID, createdBy string,
 		},
 	}
 
+	// Each endpoint deploys one gateway artifact per target environment, in the creating transaction. These are the
+	// only artifacts the proxy contributes to any gateway; agent configurations that reference it deploy nothing and
+	// instead reuse the endpoint's per-environment artifacts. An environment with no gateway yet is placed when one
+	// is mapped.
 	if err := s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		if err := s.repo.Create(ctx, tx, proxy, handle, name, version, orgUUID); err != nil {
 			return err
 		}
-		return s.persistMCPEndpoints(ctx, tx, proxy.UUID, handle, version, endpoints, orgUUID)
+		if err := s.persistMCPEndpoints(ctx, tx, proxy.UUID, handle, version, endpoints, orgUUID); err != nil {
+			return err
+		}
+		return s.deploySavedMCPProxy(ctx, tx, handle, orgUUID, req.Endpoints)
 	}); err != nil {
+		if rejected := mcpDeployRejection(err); rejected != nil {
+			return nil, rejected
+		}
 		if mapped := s.mapMCPProxyWriteError(err, handle, orgUUID); mapped != nil {
 			return nil, mapped
 		}
@@ -229,18 +270,6 @@ func (s *MCPProxyService) Create(ctx context.Context, orgUUID, createdBy string,
 		return nil, fmt.Errorf("failed to retrieve MCP proxy: %w", err)
 	}
 
-	// Each endpoint deploys one gateway artifact per target environment, immediately on
-	// creation. These are the only artifacts the proxy contributes to any gateway; agent
-	// configurations that reference it deploy nothing and instead reuse the endpoint's
-	// per-environment artifacts. Best-effort: an environment whose gateway is not yet
-	// active is skipped and deploys on the next update.
-	applyRequestedGatewayUUIDs(created, req.Endpoints)
-	if err := s.deployMCPProxyEndpoints(ctx, created, orgUUID); err != nil {
-		if mcpDeployErrorIsFatal(err) {
-			return nil, fmt.Errorf("%w: %w", utils.ErrInvalidInput, err)
-		}
-		s.logger.Warn("Failed to deploy one or more MCP proxy endpoint artifacts", "proxyID", created.UUID, "error", err)
-	}
 	go s.ensureResourceServersForCurrentScopes(context.WithoutCancel(ctx), orgUUID, created)
 	return convertModelMCPProxyToSpec(created), nil
 }
@@ -352,8 +381,8 @@ func (s *MCPProxyService) Get(ctx context.Context, orgUUID, proxyID string) (*mo
 	dto := convertModelMCPProxyToSpec(proxy)
 	if dto != nil && s.deploymentRepo != nil {
 		// Deployments are keyed by each (endpoint, environment) artifact UUID (the proxy's
-		// and endpoint's own UUIDs are never deployed), so aggregate deployed gateways across
-		// those artifacts and report a per-(endpoint,environment) Deployed/Undeployed status.
+		// and endpoint's own UUIDs are never deployed), so aggregate placed gateways across
+		// those artifacts and report each (endpoint, environment) binding's status in MCP's words.
 		gatewaySet := map[string]struct{}{}
 		// Map (endpoint index, env UUID) -> artifact UUID for status lookup.
 		artifactByEndpointEnv := map[uuid.UUID]map[string]uuid.UUID{}
@@ -372,18 +401,19 @@ func (s *MCPProxyService) Get(ctx context.Context, orgUUID, proxyID string) (*mo
 				status := models.MCPDeploymentStatusUndeployed
 				artifactUUID := byEnv[envBinding.EnvironmentUUID]
 				if artifactUUID != uuid.Nil {
-					gatewayIDs, err := s.deploymentRepo.GetDeployedGatewaysByProvider(artifactUUID, orgUUID)
+					rows, err := s.deploymentRepo.StatusRecords(ctx, orgUUID, artifactUUID)
 					if err != nil {
-						s.logger.Warn("Failed to list deployed gateways for MCP proxy endpoint environment",
+						s.logger.Warn("Failed to read the deployment status of an MCP proxy endpoint environment",
 							"proxyID", proxy.UUID, "endpoint", endpointDTO.ID, "environment", envBinding.EnvironmentUUID, "ouID", orgUUID, "error", err)
-					} else if len(gatewayIDs) > 0 {
-						status = models.MCPDeploymentStatusDeployed
-						for _, gatewayID := range gatewayIDs {
+					} else if row := models.ShownStatusRecord(rows); row != nil {
+						status = models.MCPDeploymentStatusOf(models.UserStatusOf(*row))
+						// One gateway per (artifact, environment) is the invariant, so the placed
+						// row names the binding's gateway.
+						if row.StatusDesired == models.DeploymentStatusDeployed {
+							gatewayID := row.GatewayUUID.String()
 							gatewaySet[gatewayID] = struct{}{}
+							envBinding.GatewayID = &gatewayID
 						}
-						// Exactly one gateway per (artifact, environment) is the invariant, so
-						// ids[0] is deterministic.
-						envBinding.GatewayID = &gatewayIDs[0]
 					}
 				}
 				envBinding.DeploymentStatus = status
@@ -442,7 +472,7 @@ func (s *MCPProxyService) Update(ctx context.Context, orgUUID, proxyID string, r
 	if err := s.validateMCPEndpointSecurity(ctx, orgUUID, req.Endpoints, existingArtifactByEnv); err != nil {
 		return nil, err
 	}
-	if err := s.validateMCPEndpointPlacement(orgUUID, req.Endpoints, existingArtifactByEnv); err != nil {
+	if err := s.validateMCPEndpointPlacement(ctx, orgUUID, req.Endpoints, existingArtifactByEnv); err != nil {
 		return nil, err
 	}
 
@@ -501,9 +531,16 @@ func (s *MCPProxyService) Update(ctx context.Context, orgUUID, proxyID string, r
 		if proxy.Artifact != nil && proxy.Artifact.Handle != "" {
 			proxyHandle = proxy.Artifact.Handle
 		}
-		return s.persistMCPEndpoints(ctx, tx, proxy.UUID, proxyHandle, version, endpoints, orgUUID)
+		if err := s.persistMCPEndpoints(ctx, tx, proxy.UUID, proxyHandle, version, endpoints, orgUUID); err != nil {
+			return err
+		}
+		// Redeploy the (endpoint,env) artifacts so they pick up the new upstream / auth / policies / context.
+		return s.deploySavedMCPProxy(ctx, tx, handle, orgUUID, req.Endpoints)
 	}); err != nil {
-		if errors.Is(err, utils.ErrMCPProxyNotFound) || errors.Is(err, utils.ErrInvalidInput) {
+		if rejected := mcpDeployRejection(err); rejected != nil {
+			return nil, rejected
+		}
+		if errors.Is(err, utils.ErrMCPProxyNotFound) {
 			return nil, err
 		}
 		if mapped := s.mapMCPProxyWriteError(err, handle, orgUUID); mapped != nil {
@@ -520,13 +557,7 @@ func (s *MCPProxyService) Update(ctx context.Context, orgUUID, proxyID string, r
 		return nil, fmt.Errorf("failed to retrieve MCP proxy: %w", err)
 	}
 
-	// Redeploy the (endpoint,env) artifacts so they pick up the new upstream / auth /
-	// policies / context, and tear down artifacts for environments no longer bound.
-	applyRequestedGatewayUUIDs(updated, req.Endpoints)
-	deployErr := s.deployMCPProxyEndpoints(ctx, updated, orgUUID)
-
-	// Run teardown and refresh unconditionally: the DB transaction that unbound environments
-	// already committed, and this is the only chance to clean up the orphaned artifacts.
+	// Tear down the artifacts of environments no longer bound.
 	stillBound := map[string]struct{}{}
 	for _, endpoint := range updated.Endpoints {
 		for _, ee := range endpoint.Environments {
@@ -562,14 +593,6 @@ func (s *MCPProxyService) Update(ctx context.Context, orgUUID, proxyID string, r
 
 	// Re-ensure resource servers now that bindings are live.
 	go s.ensureResourceServersForCurrentScopes(context.WithoutCancel(ctx), orgUUID, updated)
-
-	// Now evaluate the deployment error after cleanup has run.
-	if deployErr != nil {
-		if mcpDeployErrorIsFatal(deployErr) {
-			return nil, fmt.Errorf("%w: %w", utils.ErrInvalidInput, deployErr)
-		}
-		s.logger.Warn("Failed to redeploy one or more MCP proxy endpoint artifacts", "proxyID", updated.UUID, "error", deployErr)
-	}
 
 	return convertModelMCPProxyToSpec(updated), nil
 }
@@ -1272,7 +1295,7 @@ func (s *MCPProxyService) validateMCPEndpointSecurity(
 			if artifactUUID, ok := existingArtifactByEnv[envIDStr]; ok && artifactUUID != uuid.Nil {
 				var deployed []string
 				if s.deploymentRepo != nil {
-					ids, depErr := s.deploymentRepo.GetDeployedGatewaysByProvider(artifactUUID, orgName)
+					ids, depErr := s.deploymentRepo.PlacedGateways(ctx, orgName, artifactUUID)
 					if depErr != nil {
 						return fmt.Errorf("endpoint %q environment %q: list deployed gateways: %w", handle, env.EnvironmentUUID, depErr)
 					}
@@ -1313,22 +1336,19 @@ func (s *MCPProxyService) validateMCPEndpointSecurity(
 }
 
 // validateMCPEndpointPlacement resolves the egress gateway for every (endpoint, environment)
-// binding before anything is written, so a caller-supplied gatewayId that cannot host the
-// binding fails the request with nothing persisted. Without this the proxy commits first and
-// deployMCPProxyEndpoints raises the same 400 afterward, leaving a row that turns the client's
-// corrected retry into a 409 on create. Mirrors CreateAndDeploy's pre-Create placement check
-// for LLM providers. It performs DB reads, so call it outside a transaction.
+// binding before the save's transaction opens, so a caller-supplied gatewayId that cannot host
+// the binding fails the request before any row is locked. The deploy step in the transaction
+// raises the same 400 and rolls the save back. Mirrors CreateAndDeploy's pre-Create placement
+// check for LLM providers. It performs DB reads, so call it outside a transaction.
 //
 // Only the fatal placement errors are enforced here; every other outcome (no gateway mapped
-// yet, transient lookup failures) is left to the deploy step, which is best-effort by design
-// and retries on the next update. Deliberately conservative: a pre-check that hard-failed on
-// infra blips would turn today's tolerated conditions into rejected requests.
+// yet, transient lookup failures) is left to the deploy step.
 //
 // existingArtifactByEnv is the proxy's current (environment -> artifact) mapping, nil on
 // create. An environment with a deployed artifact anchors on that artifact's gateway, so
 // errPlacementFixed also surfaces before the write rather than after it.
 func (s *MCPProxyService) validateMCPEndpointPlacement(
-	orgUUID string, endpoints []models.MCPProxyEndpointDTO, existingArtifactByEnv map[string]uuid.UUID,
+	ctx context.Context, orgUUID string, endpoints []models.MCPProxyEndpointDTO, existingArtifactByEnv map[string]uuid.UUID,
 ) error {
 	for _, endpoint := range endpoints {
 		handle := strings.TrimSpace(endpoint.ID)
@@ -1339,7 +1359,7 @@ func (s *MCPProxyService) validateMCPEndpointPlacement(
 				continue // already rejected by validateMCPEndpoints
 			}
 
-			deployed, ok := s.anchorGatewaysForEnvironment(orgUUID, existingArtifactByEnv[envIDStr])
+			deployed, ok := s.anchorGatewaysForEnvironment(ctx, orgUUID, existingArtifactByEnv[envIDStr])
 			if !ok {
 				// Anchor unknown: skip rather than resolve without it, since environment-only
 				// selection could reject a binding the anchor would have resolved cleanly.
@@ -1355,14 +1375,14 @@ func (s *MCPProxyService) validateMCPEndpointPlacement(
 	return nil
 }
 
-// anchorGatewaysForEnvironment returns the gateways artifactUUID is deployed to, and whether
+// anchorGatewaysForEnvironment returns the gateways artifactUUID is placed on, and whether
 // that set could be determined at all. A nil artifact is a new binding: no anchor to look up,
 // which is a known-empty set rather than an unknown one.
-func (s *MCPProxyService) anchorGatewaysForEnvironment(orgUUID string, artifactUUID uuid.UUID) ([]string, bool) {
+func (s *MCPProxyService) anchorGatewaysForEnvironment(ctx context.Context, orgUUID string, artifactUUID uuid.UUID) ([]string, bool) {
 	if artifactUUID == uuid.Nil || s.deploymentRepo == nil {
 		return nil, true
 	}
-	deployed, err := s.deploymentRepo.GetDeployedGatewaysByProvider(artifactUUID, orgUUID)
+	deployed, err := s.deploymentRepo.PlacedGateways(ctx, orgUUID, artifactUUID)
 	if err != nil {
 		s.logger.Warn("Skipping MCP placement pre-check; could not list existing deployments",
 			"artifactUUID", artifactUUID, "error", err)

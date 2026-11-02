@@ -334,23 +334,30 @@ func (s *LLMProxyService) deleteProxy(ctx context.Context, proxyID, ouID, projec
 	if projectUUID != "" && proxy.ProjectUUID.String() != projectUUID {
 		return utils.ErrLLMProxyNotFound
 	}
-	var gatewayIDs []string
-	if deploymentService != nil {
-		gatewayIDs, err = deploymentService.GatewayIDsForProxyDeletion(ctx, proxy.UUID, ouID)
+	if deploymentService == nil {
+		return proxyDeleteError(s.proxyRepo.DeleteInProject(ctx, proxyID, ouID, proxy.ProjectUUID.String()))
+	}
+	// The delete events are built before the proxy's status rows cascade away and written in the deleting
+	// transaction.
+	ref := proxyPlacement(proxy, proxyID, ouID, uuid.Nil).ArtifactRef
+	return proxyDeleteError(deploymentService.tx(ctx, func(tx *gorm.DB) error {
+		events, err := deploymentService.core.PrepareDelete(ctx, tx, ref)
 		if err != nil {
-			return fmt.Errorf("resolve proxy deletion gateways: %w", err)
+			return err
 		}
+		if err := s.proxyRepo.DeleteInProjectTx(ctx, tx, proxyID, ouID, proxy.ProjectUUID.String()); err != nil {
+			return err
+		}
+		return events.Publish(ctx, tx)
+	}))
+}
+
+func proxyDeleteError(err error) error {
+	if errors.Is(err, gorm.ErrRecordNotFound) {
+		return utils.ErrLLMProxyNotFound
 	}
-	if err := s.proxyRepo.DeleteInProject(ctx, proxyID, ouID, proxy.ProjectUUID.String()); err != nil {
-		if errors.Is(err, gorm.ErrRecordNotFound) {
-			return utils.ErrLLMProxyNotFound
-		}
+	if err != nil {
 		return fmt.Errorf("delete proxy: %w", err)
-	}
-	if deploymentService != nil {
-		cleanupCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), gatewayDeletionTimeout)
-		defer cancel()
-		deploymentService.BroadcastLLMProxyDeletion(cleanupCtx, proxyID, ouID, gatewayIDs)
 	}
 	return nil
 }

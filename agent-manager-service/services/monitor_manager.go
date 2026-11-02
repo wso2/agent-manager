@@ -1534,16 +1534,24 @@ func monitorProxyName(monitorID uuid.UUID, monitorName, providerName string) str
 func (s *monitorManagerService) resolveMonitorGateway(
 	ctx context.Context, ouID string, envUUID uuid.UUID, providerUUIDStr string,
 ) (*models.Gateway, error) {
-	_ = ctx
 	var deployed []string
 	if providerUUID, err := uuid.Parse(providerUUIDStr); err == nil {
-		ids, depErr := s.llmProvisioner.ProxyDeploymentService().GetDeployedGatewaysByProvider(providerUUID, ouID)
+		ids, depErr := s.llmProvisioner.ProxyDeploymentService().PlacedGateways(ctx, ouID, providerUUID)
 		if depErr != nil {
 			return nil, fmt.Errorf("failed to list deployed gateways for provider %s: %w", providerUUIDStr, depErr)
 		}
 		deployed = ids
 	}
 	return resolveEgressGatewayForArtifact(s.llmProvisioner.gatewayRepo, ouID, envUUID, deployed, nil)
+}
+
+// monitorEnvironmentOf is the monitor's environment id, an OpenChoreo UUID stored as text; nil when it isn't one.
+func monitorEnvironmentOf(monitor *models.Monitor) uuid.UUID {
+	envUUID, err := uuid.Parse(monitor.EnvironmentID)
+	if err != nil {
+		return uuid.Nil
+	}
+	return envUUID
 }
 
 func (s *monitorManagerService) provisionLLMProxy(
@@ -1557,13 +1565,14 @@ func (s *monitorManagerService) provisionLLMProxy(
 	proxyName := monitorProxyName(monitor.ID, monitor.Name, provRef.ProviderName)
 
 	provisioned, err := s.llmProvisioner.ProvisionProxy(ctx, ProvisionProxyParams{
-		OrgName:        ouID,
-		ProviderHandle: provRef.ProviderName,
-		ProxyName:      proxyName,
-		ProjectUUID:    projectUUID,
-		Gateway:        gateway,
-		Description:    fmt.Sprintf("LLM proxy for monitor %s", monitor.Name),
-		SkipKVSecret:   true, // monitors store the key in their own composite secret
+		OrgName:         ouID,
+		ProviderHandle:  provRef.ProviderName,
+		ProxyName:       proxyName,
+		ProjectUUID:     projectUUID,
+		Gateway:         gateway,
+		EnvironmentUUID: monitorEnvironmentOf(monitor),
+		Description:     fmt.Sprintf("LLM proxy for monitor %s", monitor.Name),
+		SkipKVSecret:    true, // monitors store the key in their own composite secret
 	})
 	if err != nil {
 		return nil, ProxyRollbackState{}, "", fmt.Errorf("failed to provision LLM proxy: %w", err)

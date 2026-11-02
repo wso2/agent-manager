@@ -147,9 +147,28 @@ type MCPEndpointConfig struct {
 
 // MCP proxy per-environment deployment status values reported on read.
 const (
-	MCPDeploymentStatusDeployed   = "Deployed"
-	MCPDeploymentStatusUndeployed = "Undeployed"
+	MCPDeploymentStatusDeploying   = "Deploying"
+	MCPDeploymentStatusDeployed    = "Deployed"
+	MCPDeploymentStatusUndeploying = "Undeploying"
+	MCPDeploymentStatusUndeployed  = "Undeployed"
+	MCPDeploymentStatusFailed      = "Failed"
 )
+
+// MCPDeploymentStatusOf is the MCP API's word for the status a user is shown. MCP keeps its own vocabulary.
+func MCPDeploymentStatusOf(status UserStatus) string {
+	switch status.Status {
+	case DeploymentStatusPending, DeploymentStatusDeploying:
+		return MCPDeploymentStatusDeploying
+	case DeploymentStatusDeployed:
+		return MCPDeploymentStatusDeployed
+	case DeploymentStatusUndeploying:
+		return MCPDeploymentStatusUndeploying
+	case DeploymentStatusFailed:
+		return MCPDeploymentStatusFailed
+	default:
+		return MCPDeploymentStatusUndeployed
+	}
+}
 
 // MCPPolicy represents a policy attached to an MCP proxy.
 type MCPPolicy struct {

@@ -29,8 +29,7 @@ import (
 	"gorm.io/gorm"
 
 	"github.com/wso2/agent-manager/agent-manager-service/models"
-	"github.com/wso2/agent-manager/agent-manager-service/repositories"
-	"github.com/wso2/agent-manager/agent-manager-service/utils"
+	"github.com/wso2/agent-manager/agent-manager-service/reconcile"
 )
 
 const (
@@ -88,46 +87,20 @@ type MCPProxyUpstream struct {
 	Ref string `yaml:"ref,omitempty" json:"ref,omitempty"`
 }
 
-// deployMCPProxyToGateway deploys a single MCP artifact to one gateway. It is used by
-// deployMCPProxyEnvironments for the proxy-owned per-environment artifacts and by the
-// agent-configuration flow for agent-scoped mapping artifacts; callers pass the already
-// flattened single-environment artifact to deploy.
-func (s *MCPProxyService) deployMCPProxyToGateway(ctx context.Context, proxy *models.MCPProxy, ouID string, gateway *models.Gateway, proxyHandle string, scopes []models.MCPProxyScope) error {
-	_ = ctx
-	deploymentYAML, err := s.generateMCPProxyDeploymentYAML(proxy, proxyHandle, scopes)
-	if err != nil {
-		return fmt.Errorf("failed to generate deployment YAML: %w", err)
+// deployMCPArtifact deploys one (endpoint, environment) artifact, saved in its binding in tx, on gateway, or, with
+// no gateway, only validates it by rendering.
+func (s *MCPProxyService) deployMCPArtifact(
+	ctx context.Context, tx *gorm.DB, artifact *models.MCPProxy, ouID string, env uuid.UUID, gateway *uuid.UUID,
+) error {
+	record := reconcile.Record{
+		ArtifactRef: models.ArtifactRef{
+			OUID: ouID, ArtifactUUID: artifact.UUID, Kind: models.KindMCPMapping, Handle: artifact.Handle,
+		},
+		EnvironmentUUID:  env,
+		RequestedGateway: gateway,
 	}
-
-	deploymentID := uuid.New()
-	deployed := models.DeploymentStatusDeployed
-	deployment := &models.Deployment{
-		DeploymentID: deploymentID,
-		Name:         deploymentName(proxy),
-		ArtifactUUID: proxy.UUID,
-		OUID:         ouID,
-		GatewayUUID:  gateway.UUID,
-		Content:      []byte(deploymentYAML),
-		Status:       &deployed,
-	}
-
-	hardLimit := maxDeploymentsPerAPI + deploymentLimitBuffer
-	if err := s.deploymentRepo.CreateWithLimitEnforcement(deployment, hardLimit); err != nil {
-		return fmt.Errorf("failed to create deployment: %w", err)
-	}
-
-	performedAt := time.Now().Truncate(time.Millisecond)
-	event := &models.MCPProxyDeploymentEvent{
-		ProxyID:      proxy.UUID.String(),
-		DeploymentID: deployment.DeploymentID.String(),
-		PerformedAt:  performedAt,
-	}
-	if err := s.gatewayEventsService.BroadcastMCPProxyDeploymentEvent(gateway.UUID.String(), event); err != nil {
-		s.logger.Warn("Failed to broadcast MCP proxy deployment event",
-			"proxyID", proxy.UUID, "deploymentID", deployment.DeploymentID, "gatewayID", gateway.UUID, "error", err)
-		return fmt.Errorf("failed to broadcast MCP proxy deployment event for deployment %s: %w", deployment.DeploymentID, err)
-	}
-	return nil
+	_, err := s.core.DeployRecord(ctx, tx, s.kind, record)
+	return err
 }
 
 // mcpProxyEnvArtifactHandle builds the stable, org-unique handle/name for the single
@@ -190,140 +163,183 @@ func buildMCPProxyEnvArtifact(source *models.MCPProxy, endpoint *models.MCPProxy
 	}
 }
 
-// ensureMCPProxyEnvArtifactRow creates the artifacts row backing a per-environment
-// gateway artifact when it does not already exist. The deployments and deployment_status
-// foreign keys require the row to be present before a deployment can be recorded. It is a
-// no-op when the row already exists (the ArtifactUUID is stable across proxy updates).
-func (s *MCPProxyService) ensureMCPProxyEnvArtifactRow(deployProxy *models.MCPProxy, ouID string) error {
+// ensureMCPProxyEnvArtifactRow creates, in tx, the artifacts row backing a per-environment gateway artifact when it
+// does not already exist. The deployments and deployment_status foreign keys require the row to be present before a
+// deployment can be recorded. The row is keyed by its stable UUID (deployProxy.UUID == the binding's ArtifactUUID),
+// not its handle: a preserved artifact whose environment remapped to a different endpoint carries a new handle but
+// the same UUID.
+func (s *MCPProxyService) ensureMCPProxyEnvArtifactRow(tx *gorm.DB, deployProxy *models.MCPProxy, ouID string) error {
 	if s.artifactRepo == nil {
 		return nil
 	}
-	// The artifacts row is keyed by its stable UUID (deployProxy.UUID == the join row's
-	// ArtifactUUID). Check existence by UUID, not handle: a preserved artifact whose
-	// environment remapped to a different endpoint carries a new handle but the same UUID,
-	// so a handle lookup would miss and re-create would hit a primary-key collision.
-	if _, err := s.artifactRepo.GetByUUID(deployProxy.UUID.String(), ouID); err == nil {
-		return nil
-	} else if !errors.Is(err, utils.ErrArtifactNotFound) && !errors.Is(err, gorm.ErrRecordNotFound) {
+	var existing int64
+	if err := tx.Model(&models.Artifact{}).Where("uuid = ? AND ou_id = ?", deployProxy.UUID, ouID).
+		Count(&existing).Error; err != nil {
 		return fmt.Errorf("failed to check MCP proxy environment artifact: %w", err)
 	}
+	if existing > 0 {
+		return nil
+	}
 	now := time.Now()
-	return s.db.Transaction(func(tx *gorm.DB) error {
-		return s.artifactRepo.Create(tx, &models.Artifact{
-			UUID:      deployProxy.UUID,
-			Handle:    deployProxy.Handle,
-			Name:      deployProxy.Name,
-			Version:   deployProxy.Version,
-			Kind:      models.KindMCPMapping,
-			OUID:      ouID,
-			CreatedAt: now,
-			UpdatedAt: now,
-		})
+	return s.artifactRepo.Create(tx, &models.Artifact{
+		UUID:      deployProxy.UUID,
+		Handle:    deployProxy.Handle,
+		Name:      deployProxy.Name,
+		Version:   deployProxy.Version,
+		Kind:      models.KindMCPMapping,
+		OUID:      ouID,
+		CreatedAt: now,
+		UpdatedAt: now,
 	})
 }
 
-// deployMCPProxyEndpoints deploys (or refreshes) the single gateway artifact for every
-// (endpoint, environment) binding of the proxy. An environment with no active gateway is
-// skipped (it deploys on the next update once a gateway exists), mirroring the agent-config
-// flow. Best-effort: per-(endpoint,environment) failures are aggregated and returned.
-func (s *MCPProxyService) deployMCPProxyEndpoints(ctx context.Context, proxy *models.MCPProxy, ouID string) error {
-	// Scopes are per-proxy: every (endpoint, environment) artifact of this proxy
-	// emits the same scope->tool policy set, prefixed with the SOURCE proxy handle
-	// (never the composite per-env artifact handle).
-	scopes, err := s.mcpProxyScopeRepo.ListByProxy(ctx, proxy.UUID)
-	if err != nil {
-		return fmt.Errorf("failed to load proxy scopes for emission: %w", err)
-	}
-	proxyHandle := proxy.Handle
-	if proxy.Artifact != nil && proxy.Artifact.Handle != "" {
-		proxyHandle = proxy.Artifact.Handle
-	}
+// mcpEnvDeploy is one (endpoint, environment) artifact of a save and the gateway it deploys on; nil when the
+// environment has none.
+type mcpEnvDeploy struct {
+	artifact *models.MCPProxy
+	env      uuid.UUID
+	gateway  *uuid.UUID
+	label    string
+}
 
-	var errs []error
+// deployMCPProxyEndpoints deploys (or refreshes) the single gateway artifact of every (endpoint, environment)
+// binding of the proxy saved in tx, in tx. Any error is returned for the caller to abort the save: a render or
+// placement error is the client's (4xx). With no gateway in an environment the artifact is only validated; mapping a
+// gateway places it. Gateways are deployed in gateway order, the order their event locks are taken in.
+func (s *MCPProxyService) deployMCPProxyEndpoints(ctx context.Context, tx *gorm.DB, proxy *models.MCPProxy, ouID string) error {
+	var deploys []mcpEnvDeploy
 	for i := range proxy.Endpoints {
 		endpoint := &proxy.Endpoints[i]
 		for j := range endpoint.Environments {
 			ee := &endpoint.Environments[j]
-			envID := ee.EnvironmentUUID.String()
+			label := fmt.Sprintf("endpoint %q environment %q", endpoint.Handle, ee.EnvironmentUUID)
 			if ee.ArtifactUUID == uuid.Nil {
-				errs = append(errs, fmt.Errorf("endpoint %q environment %q: missing artifact id", endpoint.Handle, envID))
-				continue
+				return fmt.Errorf("%s: missing artifact id", label)
 			}
-			// Anchor on the gateway this (endpoint, environment) pair is already deployed
-			// to, so a second egress gateway in the environment never re-homes an existing
-			// binding. Only a genuinely new binding reaches inference.
-			var deployed []string
-			if s.deploymentRepo != nil {
-				ids, depErr := s.deploymentRepo.GetDeployedGatewaysByProvider(ee.ArtifactUUID, ouID)
-				if depErr != nil {
-					errs = append(errs, fmt.Errorf("endpoint %q environment %q: failed to list existing deployments: %w", endpoint.Handle, envID, depErr))
-					continue
-				}
-				deployed = ids
-			}
-			gateway, err := resolveEgressGatewayForArtifact(s.gatewayRepo, ouID, ee.EnvironmentUUID, deployed, ee.RequestedGatewayUUID)
-			if errors.Is(err, errNoGatewayForEnvironment) {
-				s.logger.Info("Skipping MCP proxy endpoint deploy; no gateway mapped to environment",
-					"proxyUUID", proxy.UUID, "endpoint", endpoint.Handle, "environment", envID)
-				continue
-			}
+			gateway, err := s.mcpEnvGateway(ctx, tx, proxy, ee, ouID)
 			if err != nil {
-				errs = append(errs, fmt.Errorf("endpoint %q environment %q: resolve gateway: %w", endpoint.Handle, envID, err))
-				continue
+				return fmt.Errorf("%s: %w", label, err)
 			}
-			if !gateway.IsActive {
-				s.logger.Warn("Deploying MCP proxy endpoint to a currently offline gateway; "+
-					"delivery is durable through the event hub",
-					"proxyUUID", proxy.UUID, "endpoint", endpoint.Handle, "gateway", gateway.Name)
-			}
-			deployProxy := buildMCPProxyEnvArtifact(proxy, endpoint, ee)
-			if err := s.ensureMCPProxyEnvArtifactRow(deployProxy, ouID); err != nil {
-				errs = append(errs, fmt.Errorf("endpoint %q environment %q: %w", endpoint.Handle, envID, err))
-				continue
-			}
-			if err := s.deployMCPProxyToGateway(ctx, deployProxy, ouID, gateway, proxyHandle, scopes); err != nil {
-				errs = append(errs, fmt.Errorf("endpoint %q environment %q: deploy: %w", endpoint.Handle, envID, err))
-				continue
-			}
+			deploys = append(deploys, mcpEnvDeploy{
+				artifact: buildMCPProxyEnvArtifact(proxy, endpoint, ee), env: ee.EnvironmentUUID, gateway: gateway, label: label,
+			})
 		}
+	}
+	for _, d := range deploys {
+		if err := s.ensureMCPProxyEnvArtifactRow(tx, d.artifact, ouID); err != nil {
+			return fmt.Errorf("%s: %w", d.label, err)
+		}
+	}
+	if err := s.lockMCPStatusRows(ctx, tx, deploys, ouID); err != nil {
+		return err
+	}
+	sort.SliceStable(deploys, func(i, j int) bool { return gatewayOrderKey(deploys[i].gateway) < gatewayOrderKey(deploys[j].gateway) })
+	for _, d := range deploys {
+		if err := s.deployMCPArtifact(ctx, tx, d.artifact, ouID, d.env, d.gateway); err != nil {
+			return fmt.Errorf("%s: deploy: %w", d.label, err)
+		}
+	}
+	return nil
+}
+
+// lockMCPStatusRows takes the save's status-row locks before its first event takes a gateway's, the order a render of
+// one binding takes: deploying binding a publishes on the gateway before binding b's row is written.
+func (s *MCPProxyService) lockMCPStatusRows(ctx context.Context, tx *gorm.DB, deploys []mcpEnvDeploy, ouID string) error {
+	if s.deploymentRepo == nil {
+		return nil
+	}
+	artifactUUIDs := make([]uuid.UUID, 0, len(deploys))
+	for _, d := range deploys {
+		artifactUUIDs = append(artifactUUIDs, d.artifact.UUID)
+	}
+	return s.deploymentRepo.LockStatusRows(ctx, tx, ouID, artifactUUIDs)
+}
+
+// mcpEnvGateway is the gateway the binding deploys on: anchored on the gateway it is already placed on, whatever the
+// placement's status, so a second egress gateway in the environment never re-homes it, or the request's explicit
+// gateway, validated here. Nil when the environment has no gateway. It reads through the save's transaction tx.
+func (s *MCPProxyService) mcpEnvGateway(
+	ctx context.Context, tx *gorm.DB, proxy *models.MCPProxy, ee *models.MCPProxyEndpointEnvironment, ouID string,
+) (*uuid.UUID, error) {
+	var placed []string
+	if s.deploymentRepo != nil {
+		ids, err := s.deploymentRepo.WithTx(tx).PlacedGateways(ctx, ouID, ee.ArtifactUUID)
+		if err != nil {
+			return nil, fmt.Errorf("failed to list existing deployments: %w", err)
+		}
+		placed = ids
+	}
+	gateway, err := resolveEgressGatewayForArtifact(s.gatewayRepo.WithTx(tx), ouID, ee.EnvironmentUUID, placed, ee.RequestedGatewayUUID)
+	if errors.Is(err, errNoGatewayForEnvironment) {
+		s.logger.Info("No gateway mapped to the environment; validating the MCP proxy endpoint only",
+			"proxyUUID", proxy.UUID, "environment", ee.EnvironmentUUID)
+		return nil, nil //nolint:nilnil // No gateway: validate only.
+	}
+	if err != nil {
+		return nil, fmt.Errorf("resolve gateway: %w", err)
+	}
+	return &gateway.UUID, nil
+}
+
+// gatewayOrderKey sorts no gateway first.
+func gatewayOrderKey(gateway *uuid.UUID) string {
+	if gateway == nil {
+		return ""
+	}
+	return gateway.String()
+}
+
+// RedeployMCPProxy re-renders the proxy's artifacts wherever they are placed, because an input outside the proxy
+// changed (its scopes). Inline: the gateways get the new policies before the request returns. Every artifact is
+// rendered first, so a configuration that doesn't render is returned before any redeploy is queued.
+func (s *MCPProxyService) RedeployMCPProxy(ctx context.Context, proxy *models.MCPProxy, ouID string) error {
+	artifacts := mcpProxyArtifacts(proxy, ouID)
+	for _, artifact := range artifacts {
+		if _, err := s.kind.Render(ctx, artifact); err != nil && !errors.Is(err, reconcile.ErrRecordGone) {
+			return err
+		}
+	}
+	var errs []error
+	for _, artifact := range artifacts {
+		errs = append(errs, s.core.MarkStale(ctx, artifact.Kind, ouID, artifact.ArtifactUUID, nil,
+			"the proxy's scopes changed"))
 	}
 	return errors.Join(errs...)
 }
 
-// RedeployMCPProxy re-emits the proxy's gateway artifacts for every bound
-// (endpoint, environment). Scope mutations call this to pick up updated
-// mcp-authz policies without duplicating the deploy path.
-func (s *MCPProxyService) RedeployMCPProxy(ctx context.Context, proxy *models.MCPProxy, ouID string) error {
-	return s.deployMCPProxyEndpoints(ctx, proxy, ouID)
+// mcpProxyArtifacts are the proxy's per-(endpoint, environment) gateway artifacts.
+func mcpProxyArtifacts(proxy *models.MCPProxy, ouID string) []models.ArtifactRef {
+	var artifacts []models.ArtifactRef
+	for _, endpoint := range proxy.Endpoints {
+		for _, ee := range endpoint.Environments {
+			if ee.ArtifactUUID == uuid.Nil {
+				continue
+			}
+			artifacts = append(artifacts, models.ArtifactRef{OUID: ouID, ArtifactUUID: ee.ArtifactUUID, Kind: models.KindMCPMapping})
+		}
+	}
+	return artifacts
 }
 
-// deleteMCPProxyEnvironmentArtifacts broadcast-deletes the given per-environment gateway
-// artifacts and removes their artifacts rows (cascading to deployments / deployment_status
-// via the FK). Used when environments are removed from a proxy and when the proxy itself
-// is deleted. Best-effort: per-artifact failures are aggregated.
+// deleteMCPProxyEnvironmentArtifacts deletes the given per-environment gateway artifacts and their deployments, each
+// in one transaction with its delete events. Used when environments are removed from a proxy and when the proxy
+// itself is deleted. Best-effort: per-artifact failures are aggregated.
 func (s *MCPProxyService) deleteMCPProxyEnvironmentArtifacts(ctx context.Context, artifactUUIDs []uuid.UUID, ouID string) error {
 	var errs []error
 	for _, artifactUUID := range artifactUUIDs {
 		if artifactUUID == uuid.Nil {
 			continue
 		}
-		s.BroadcastMCPArtifactDeletion(ctx, artifactUUID, ouID)
-		if s.artifactRepo == nil {
-			continue
-		}
-		if err := s.db.Transaction(func(tx *gorm.DB) error {
-			if err := tx.Where("artifact_uuid = ? AND ou_id = ?", artifactUUID, ouID).
-				Delete(&models.DeploymentStatusRecord{}).Error; err != nil {
+		ref := models.ArtifactRef{OUID: ouID, ArtifactUUID: artifactUUID, Kind: models.KindMCPMapping}
+		if err := s.tx(ctx, func(tx *gorm.DB) error {
+			events, err := s.core.PrepareDelete(ctx, tx, ref)
+			if err != nil {
 				return err
 			}
-			if err := tx.Where("artifact_uuid = ? AND ou_id = ?", artifactUUID, ouID).
-				Delete(&models.Deployment{}).Error; err != nil {
+			if err := deleteMCPArtifactRows(tx, artifactUUID, ouID); err != nil {
 				return err
 			}
-			if err := s.artifactRepo.Delete(tx, artifactUUID.String()); err != nil && !errors.Is(err, gorm.ErrRecordNotFound) {
-				return err
-			}
-			return nil
+			return events.Publish(ctx, tx)
 		}); err != nil {
 			errs = append(errs, fmt.Errorf("artifact %s: %w", artifactUUID, err))
 		}
@@ -331,74 +347,43 @@ func (s *MCPProxyService) deleteMCPProxyEnvironmentArtifacts(ctx context.Context
 	return errors.Join(errs...)
 }
 
-func (s *MCPProxyService) BroadcastMCPArtifactDeletion(ctx context.Context, artifactUUID uuid.UUID, ouID string) {
-	proxy := &models.MCPProxy{UUID: artifactUUID}
-	s.broadcastMCPProxyDeletion(ctx, proxy, s.gatewayIDsForDeletion(ctx, proxy, ouID))
+// deleteMCPArtifactRows deletes a per-environment gateway artifact with its deployments and status rows, in tx.
+func deleteMCPArtifactRows(tx *gorm.DB, artifactUUID uuid.UUID, ouID string) error {
+	if err := tx.Where("artifact_uuid = ? AND ou_id = ?", artifactUUID, ouID).
+		Delete(&models.DeploymentStatusRecord{}).Error; err != nil {
+		return err
+	}
+	if err := tx.Where("artifact_uuid = ? AND ou_id = ?", artifactUUID, ouID).
+		Delete(&models.Deployment{}).Error; err != nil {
+		return err
+	}
+	return tx.Where("uuid = ? AND ou_id = ?", artifactUUID, ouID).Delete(&models.Artifact{}).Error
 }
 
-func (s *MCPProxyService) gatewayIDsForDeletion(ctx context.Context, proxy *models.MCPProxy, ouID string) []string {
-	_ = ctx
-	if proxy == nil {
-		return nil
-	}
-	gatewayIDs := map[string]struct{}{}
-	if s.deploymentRepo != nil {
-		deployedGatewayIDs, err := s.deploymentRepo.GetDeployedGatewaysByProvider(proxy.UUID, ouID)
+// prepareMCPArtifactDeletes builds the artifacts' delete events in tx, before their rows are deleted.
+func (s *MCPProxyService) prepareMCPArtifactDeletes(
+	ctx context.Context, tx *gorm.DB, ouID string, artifactUUIDs []uuid.UUID,
+) ([]reconcile.DeleteEvents, error) {
+	events := make([]reconcile.DeleteEvents, 0, len(artifactUUIDs))
+	for _, artifactUUID := range artifactUUIDs {
+		ref := models.ArtifactRef{OUID: ouID, ArtifactUUID: artifactUUID, Kind: models.KindMCPMapping}
+		artifactEvents, err := s.core.PrepareDelete(ctx, tx, ref)
 		if err != nil {
-			s.logger.Warn("Failed to get deployed gateways for MCP proxy deletion", "proxyID", proxy.UUID, "ouID", ouID, "error", err)
+			return nil, err
 		}
-		for _, gatewayID := range deployedGatewayIDs {
-			if strings.TrimSpace(gatewayID) != "" {
-				gatewayIDs[gatewayID] = struct{}{}
-			}
-		}
+		events = append(events, artifactEvents)
 	}
-
-	if s.gatewayRepo != nil {
-		active := true
-		gateways, err := s.gatewayRepo.ListWithFilters(repositories.GatewayFilterOptions{
-			OrganizationID: ouID,
-			Status:         &active,
-		})
-		if err != nil {
-			s.logger.Warn("Failed to get active gateways for MCP proxy deletion", "proxyID", proxy.UUID, "ouID", ouID, "error", err)
-		}
-		for _, gateway := range gateways {
-			if gateway != nil {
-				gatewayIDs[gateway.UUID.String()] = struct{}{}
-			}
-		}
-	}
-
-	out := make([]string, 0, len(gatewayIDs))
-	for gatewayID := range gatewayIDs {
-		out = append(out, gatewayID)
-	}
-	return out
-}
-
-func (s *MCPProxyService) broadcastMCPProxyDeletion(ctx context.Context, proxy *models.MCPProxy, gatewayIDs []string) {
-	_ = ctx
-	if proxy == nil || s.gatewayEventsService == nil || len(gatewayIDs) == 0 {
-		return
-	}
-	event := &models.MCPProxyDeletionEvent{
-		ProxyID: proxy.UUID.String(),
-	}
-	for _, gatewayID := range gatewayIDs {
-		if strings.TrimSpace(gatewayID) == "" {
-			continue
-		}
-		if err := s.gatewayEventsService.BroadcastMCPProxyDeletionEvent(gatewayID, event); err != nil {
-			s.logger.Warn("Failed to broadcast MCP proxy deletion event", "proxyID", proxy.UUID, "gatewayID", gatewayID, "error", err)
-		} else {
-			s.logger.Info("MCP proxy deletion event sent", "proxyID", proxy.UUID, "gatewayID", gatewayID)
-		}
-	}
+	return events, nil
 }
 
 func (s *MCPProxyService) generateMCPProxyDeploymentYAML(proxy *models.MCPProxy, proxyHandle string, scopes []models.MCPProxyScope) (string, error) {
-	deployment, err := s.buildMCPProxyDeploymentYAML(proxy, proxyHandle, scopes)
+	return renderMCPProxy(proxy, proxyHandle, scopes)
+}
+
+// renderMCPProxy is one (endpoint, environment) artifact's gateway configuration; proxyHandle is the source proxy's
+// handle the scope policies are prefixed with.
+func renderMCPProxy(proxy *models.MCPProxy, proxyHandle string, scopes []models.MCPProxyScope) (string, error) {
+	deployment, err := buildMCPProxyDeploymentYAML(proxy, proxyHandle, scopes)
 	if err != nil {
 		return "", err
 	}
@@ -409,7 +394,7 @@ func (s *MCPProxyService) generateMCPProxyDeploymentYAML(proxy *models.MCPProxy,
 	return string(yamlBytes), nil
 }
 
-func (s *MCPProxyService) buildMCPProxyDeploymentYAML(proxy *models.MCPProxy, proxyHandle string, scopes []models.MCPProxyScope) (*MCPProxyDeploymentYAML, error) {
+func buildMCPProxyDeploymentYAML(proxy *models.MCPProxy, proxyHandle string, scopes []models.MCPProxyScope) (*MCPProxyDeploymentYAML, error) {
 	contextValue := "/"
 	if proxy.Configuration.Context != nil && strings.TrimSpace(*proxy.Configuration.Context) != "" {
 		contextValue = *proxy.Configuration.Context

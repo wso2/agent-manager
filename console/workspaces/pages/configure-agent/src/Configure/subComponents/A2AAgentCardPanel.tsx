@@ -66,7 +66,7 @@ export function A2AAgentCardPanel({
   const proxySaving = useIsSavingA2AProxy(params);
   // A failed background refetch keeps the last known routing on screen.
   const proxyKnown = proxyData !== undefined;
-  const proxyFailed = proxy?.status === "failed";
+  const proxyFailed = proxy?.status === "FAILED";
   const { data, isLoading, isError } = useGetAgentCard(params, { poll: !proxyFailed });
   const { mutate: refresh, isPending: isRefreshing } = useRefreshAgentCard();
   const { mutate: removeSource, isPending: isRemoving } = useDeleteAgentCardSource();
@@ -76,7 +76,7 @@ export function A2AAgentCardPanel({
 
   const noSource = data === null;
   const card = data ?? undefined;
-  // A failed publish parks the card, so "Pending" would never clear; the proxy alert explains.
+  // A failed gateway deploy parks the card, so "Pending" would never clear; the alert says why.
   const parkedBehindFailedPublish = proxyFailed && card?.status === "pending";
   // Card content is third-party: read it as untyped JSON.
   const cardJson: Json = isObject(card?.card) ? card.card : {};

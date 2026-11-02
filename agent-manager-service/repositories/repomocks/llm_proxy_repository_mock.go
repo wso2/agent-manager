@@ -8,6 +8,7 @@ import (
 	"sync"
 
 	"github.com/wso2/agent-manager/agent-manager-service/models"
+	"gorm.io/gorm"
 )
 
 // LLMProxyRepositoryMock is a mock implementation of repositories.LLMProxyRepository.
@@ -33,6 +34,9 @@ import (
 //			},
 //			DeleteInProjectFunc: func(ctx context.Context, proxyID string, ouID string, projectUUID string) error {
 //				panic("mock out the DeleteInProject method")
+//			},
+//			DeleteInProjectTxFunc: func(ctx context.Context, tx *gorm.DB, proxyID string, ouID string, projectUUID string) error {
+//				panic("mock out the DeleteInProjectTx method")
 //			},
 //			ExistsFunc: func(proxyID string, ouID string) (bool, error) {
 //				panic("mock out the Exists method")
@@ -82,6 +86,9 @@ type LLMProxyRepositoryMock struct {
 
 	// DeleteInProjectFunc mocks the DeleteInProject method.
 	DeleteInProjectFunc func(ctx context.Context, proxyID string, ouID string, projectUUID string) error
+
+	// DeleteInProjectTxFunc mocks the DeleteInProjectTx method.
+	DeleteInProjectTxFunc func(ctx context.Context, tx *gorm.DB, proxyID string, ouID string, projectUUID string) error
 
 	// ExistsFunc mocks the Exists method.
 	ExistsFunc func(proxyID string, ouID string) (bool, error)
@@ -154,6 +161,19 @@ type LLMProxyRepositoryMock struct {
 		DeleteInProject []struct {
 			// Ctx is the ctx argument value.
 			Ctx context.Context
+			// ProxyID is the proxyID argument value.
+			ProxyID string
+			// OuID is the ouID argument value.
+			OuID string
+			// ProjectUUID is the projectUUID argument value.
+			ProjectUUID string
+		}
+		// DeleteInProjectTx holds details about calls to the DeleteInProjectTx method.
+		DeleteInProjectTx []struct {
+			// Ctx is the ctx argument value.
+			Ctx context.Context
+			// Tx is the tx argument value.
+			Tx *gorm.DB
 			// ProxyID is the proxyID argument value.
 			ProxyID string
 			// OuID is the ouID argument value.
@@ -240,6 +260,7 @@ type LLMProxyRepositoryMock struct {
 	lockCreate            sync.RWMutex
 	lockDelete            sync.RWMutex
 	lockDeleteInProject   sync.RWMutex
+	lockDeleteInProjectTx sync.RWMutex
 	lockExists            sync.RWMutex
 	lockGetByID           sync.RWMutex
 	lockGetByIDAndProject sync.RWMutex
@@ -483,6 +504,54 @@ func (mock *LLMProxyRepositoryMock) DeleteInProjectCalls() []struct {
 	mock.lockDeleteInProject.RLock()
 	calls = mock.calls.DeleteInProject
 	mock.lockDeleteInProject.RUnlock()
+	return calls
+}
+
+// DeleteInProjectTx calls DeleteInProjectTxFunc.
+func (mock *LLMProxyRepositoryMock) DeleteInProjectTx(ctx context.Context, tx *gorm.DB, proxyID string, ouID string, projectUUID string) error {
+	if mock.DeleteInProjectTxFunc == nil {
+		panic("LLMProxyRepositoryMock.DeleteInProjectTxFunc: method is nil but LLMProxyRepository.DeleteInProjectTx was just called")
+	}
+	callInfo := struct {
+		Ctx         context.Context
+		Tx          *gorm.DB
+		ProxyID     string
+		OuID        string
+		ProjectUUID string
+	}{
+		Ctx:         ctx,
+		Tx:          tx,
+		ProxyID:     proxyID,
+		OuID:        ouID,
+		ProjectUUID: projectUUID,
+	}
+	mock.lockDeleteInProjectTx.Lock()
+	mock.calls.DeleteInProjectTx = append(mock.calls.DeleteInProjectTx, callInfo)
+	mock.lockDeleteInProjectTx.Unlock()
+	return mock.DeleteInProjectTxFunc(ctx, tx, proxyID, ouID, projectUUID)
+}
+
+// DeleteInProjectTxCalls gets all the calls that were made to DeleteInProjectTx.
+// Check the length with:
+//
+//	len(mockedLLMProxyRepository.DeleteInProjectTxCalls())
+func (mock *LLMProxyRepositoryMock) DeleteInProjectTxCalls() []struct {
+	Ctx         context.Context
+	Tx          *gorm.DB
+	ProxyID     string
+	OuID        string
+	ProjectUUID string
+} {
+	var calls []struct {
+		Ctx         context.Context
+		Tx          *gorm.DB
+		ProxyID     string
+		OuID        string
+		ProjectUUID string
+	}
+	mock.lockDeleteInProjectTx.RLock()
+	calls = mock.calls.DeleteInProjectTx
+	mock.lockDeleteInProjectTx.RUnlock()
 	return calls
 }
 

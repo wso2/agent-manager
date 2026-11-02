@@ -34,8 +34,8 @@ func TestBuildTraitEnvConfigsOmitsAPIManagementForA2A(t *testing.T) {
 	apiKey := "my-agent-" + string(client.TraitAPIManagement)
 
 	withTrait := buildTraitEnvConfigs("my-agent", nil, "", 0, false, false, true, "", true)
-	require.Contains(t, withTrait, apiKey, "a REST agent still gets its api-configuration key")
+	require.Contains(t, withTrait, apiKey, "a binding whose release still carries the trait gets its key")
 
 	withoutTrait := buildTraitEnvConfigs("my-agent", nil, "", 0, false, false, true, "", false)
-	assert.NotContains(t, withoutTrait, apiKey, "an a2a agent must not carry a key for a detached trait")
+	assert.NotContains(t, withoutTrait, apiKey, "an agent served through the gateway must not carry a key for a detached trait")
 }

@@ -19,6 +19,7 @@
 import { useQueryClient } from "@tanstack/react-query";
 import { useAuthHooks } from "@agent-management-platform/auth";
 import { useApiMutation, useApiQuery } from "./react-query-notifications";
+import { POLL_INTERVAL, transitionRefetchInterval } from "../utils";
 import type {
   CreateLLMAPIKeyRequest,
   CreateLLMAPIKeyResponse,
@@ -371,6 +372,10 @@ export function useListLLMDeployments(
     queryKey: ["llm-deployments", params, query],
     queryFn: () => listLLMDeployments(params, query, getToken),
     enabled: !!params.orgName && !!params.providerId,
+    refetchInterval: (q) =>
+      q.state.data?.some((d) => transitionRefetchInterval(d) !== false)
+        ? POLL_INTERVAL
+        : false,
   });
 }
 

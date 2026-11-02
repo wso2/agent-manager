@@ -7,6 +7,8 @@ import ballerinax/amp as _;
 
 // Provide the OpenAI API key via Config.toml (configurable).
 configurable string openAiApiKey = ?;
+// Optional OpenAI-compatible endpoint for gateways and local testing.
+configurable string openAiServiceUrl = "https://api.openai.com/v1";
 
 // Platform posts session_id/message (open record: tolerates the extra
 // context field). ai:ChatReqMessage uses sessionId/message and ai:Listener
@@ -298,5 +300,5 @@ final ai:Agent leaveAssistantAgent = check new ({
     },
     tools: [getLeaveBalance, requestLeave, listMyLeaveRequests, cancelLeaveRequest,
             approveLeaveRequest, rejectLeaveRequest, getCurrentDate],
-    model: check new openai:ModelProvider(openAiApiKey, openai:GPT_4O)
+    model: check new openai:ModelProvider(openAiApiKey, openai:GPT_4O, serviceUrl = openAiServiceUrl)
 });

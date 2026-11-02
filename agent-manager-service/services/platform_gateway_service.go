@@ -47,6 +47,11 @@ type PlatformGatewayService struct {
 	gatewayRepo    repositories.GatewayRepository
 	tokenCache     *TokenCache
 	gatewayApplier GatewayConfigApplier
+	// placer places environment-addressed gateway artifacts once a gateway is mapped to their environment. Nil
+	// places nothing; the reconcile worker's slow placement pass still covers the mapping.
+	placer EnvironmentPlacer
+	// guard refuses to unmap a gateway from an environment it still serves. Nil refuses nothing.
+	guard EnvironmentGuard
 	// verifyTokenSfg serializes the DB lookup in VerifyToken per tokenPrefix, so a
 	// burst of concurrent requests for the same (often forged) prefix triggers one
 	// repository call instead of one per request. Different prefixes still run
@@ -69,6 +74,44 @@ func NewPlatformGatewayService(
 		gatewayRepo:    gatewayRepo,
 		tokenCache:     tokenCache,
 		gatewayApplier: gatewayApplier,
+	}
+}
+
+// EnvironmentPlacer queues placing an environment's unplaced gateway artifacts on its gateways, and rendering them,
+// without waiting for it (reconcile.Worker).
+type EnvironmentPlacer interface {
+	RequestPlaceEnv(ouID string, env uuid.UUID)
+}
+
+// WithEnvironmentPlacer makes every new gateway-environment mapping place the environment's artifacts after it
+// commits. It is set after construction because the placer's kinds are built from services.
+func (s *PlatformGatewayService) WithEnvironmentPlacer(placer EnvironmentPlacer) *PlatformGatewayService {
+	s.placer = placer
+	return s
+}
+
+// EnvironmentGuard reports whether a gateway holds placed rows for an environment's environment-addressed records,
+// read through tx (reconcile.Core).
+type EnvironmentGuard interface {
+	ServesEnvironment(ctx context.Context, tx *gorm.DB, env, gateway uuid.UUID) (bool, error)
+}
+
+// WithEnvironmentGuard refuses to unmap a gateway from an environment while guard says it serves it.
+func (s *PlatformGatewayService) WithEnvironmentGuard(guard EnvironmentGuard) *PlatformGatewayService {
+	s.guard = guard
+	return s
+}
+
+// placeEnvironments asks the worker to place the environments just mapped to a gateway of ouID. The request doesn't
+// wait: rendering can call out of AMS, and a failure is retried by the worker's slow pass.
+func (s *PlatformGatewayService) placeEnvironments(ouID string, environmentIDs []string) {
+	if s.placer == nil {
+		return
+	}
+	for _, environmentID := range environmentIDs {
+		if env, err := uuid.Parse(environmentID); err == nil {
+			s.placer.RequestPlaceEnv(ouID, env)
+		}
 	}
 }
 
@@ -227,6 +270,11 @@ func (s *PlatformGatewayService) RegisterGateway(
 		uniqueEnvIDs = append(uniqueEnvIDs, envID)
 	}
 
+	if len(uniqueEnvIDs) > 1 {
+		return nil, fmt.Errorf("%w: a gateway serves exactly one environment, got %d",
+			utils.ErrGatewayEnvironmentFixed, len(uniqueEnvIDs))
+	}
+
 	if err := s.gatewayRepo.Transaction(func(tx *gorm.DB) error {
 		if err := s.gatewayRepo.CreateTx(tx, gateway); err != nil {
 			return fmt.Errorf("error while registering gateway: %w", err)
@@ -240,6 +288,7 @@ func (s *PlatformGatewayService) RegisterGateway(
 	}); err != nil {
 		return nil, err
 	}
+	s.placeEnvironments(gateway.OUID, uniqueEnvIDs)
 
 	response := &GatewayResponse{
 		ID:                gateway.UUID.String(),
@@ -1012,20 +1061,25 @@ func (s *PlatformGatewayService) AssignGatewayToEnvironment(gatewayID, environme
 	if gateway == nil {
 		return utils.ErrGatewayNotFound
 	}
-	return s.gatewayRepo.Transaction(func(tx *gorm.DB) error {
+	if err := s.gatewayRepo.Transaction(func(tx *gorm.DB) error {
 		return s.assignGatewayToEnvironmentTx(tx, gateway, environmentID)
-	})
+	}); err != nil {
+		return err
+	}
+	s.placeEnvironments(gateway.OUID, []string{environmentID})
+	return nil
 }
 
 // assignGatewayToEnvironmentTx performs the capped, locked mapping insert inside an
 // existing transaction.
 //
-// The advisory lock is taken before the existence check so the check-then-insert window
-// is serialised per environment. The existence check sits inside the lock so an
+// The advisory locks are taken before the existence check so the check-then-insert window
+// is serialised per environment (ingress cap) and per gateway (one environment each). The existence check sits inside the lock so an
 // idempotent re-assign of an already-mapped gateway returns before the count runs and
 // can never count itself.
 //
-// Egress-capable gateways are never counted or rejected: egress is uncapped.
+// Egress-capable gateways are never counted against the ingress cap: egress is uncapped.
+// Every role is still refused a second environment.
 func (s *PlatformGatewayService) assignGatewayToEnvironmentTx(
 	tx *gorm.DB, gateway *models.Gateway, environmentID string,
 ) error {
@@ -1035,6 +1089,9 @@ func (s *PlatformGatewayService) assignGatewayToEnvironmentTx(
 	}
 	envIDStr := envUUID.String()
 
+	if err := s.gatewayRepo.AcquireGatewayLock(tx, gateway.UUID.String()); err != nil {
+		return fmt.Errorf("failed to lock gateway %s: %w", gateway.UUID, err)
+	}
 	if err := s.gatewayRepo.AcquireEnvironmentLock(tx, envIDStr); err != nil {
 		return fmt.Errorf("failed to lock environment %s: %w", envIDStr, err)
 	}
@@ -1048,6 +1105,15 @@ func (s *PlatformGatewayService) assignGatewayToEnvironmentTx(
 	}
 	if exists {
 		return nil // already assigned
+	}
+
+	mappings, err := s.gatewayRepo.GetEnvironmentMappingsByGatewayID(gateway.UUID.String())
+	if err != nil {
+		return fmt.Errorf("failed to read gateway mappings: %w", err)
+	}
+	if len(mappings) > 0 {
+		return fmt.Errorf("%w: gateway %s is already mapped to environment %s",
+			utils.ErrGatewayEnvironmentFixed, gateway.UUID, mappings[0].EnvironmentUUID)
 	}
 
 	if gateway.IsIngressCapable() {
@@ -1071,25 +1137,43 @@ func (s *PlatformGatewayService) assignGatewayToEnvironmentTx(
 	return nil
 }
 
-// RemoveGatewayFromEnvironment deletes a mapping between a gateway and an environment
-func (s *PlatformGatewayService) RemoveGatewayFromEnvironment(gatewayID, environmentID string) error {
-	// Validate UUIDs
-	if _, err := uuid.Parse(gatewayID); err != nil {
+// RemoveGatewayFromEnvironment deletes a mapping between a gateway and an environment. It is refused with
+// utils.ErrGatewayServesEnvironment while any of the environment's agents, MCP proxies or LLM proxies is placed on
+// the gateway: nothing would move them to another gateway.
+func (s *PlatformGatewayService) RemoveGatewayFromEnvironment(ctx context.Context, gatewayID, environmentID string) error {
+	gateway, err := uuid.Parse(gatewayID)
+	if err != nil {
 		return fmt.Errorf("invalid gateway UUID: %w", err)
 	}
-
-	if _, err := uuid.Parse(environmentID); err != nil {
+	env, err := uuid.Parse(environmentID)
+	if err != nil {
 		return fmt.Errorf("invalid environment UUID: %w", err)
 	}
 
-	// Delete mapping
-	if err := s.gatewayRepo.DeleteEnvironmentMapping(gatewayID, environmentID); err != nil {
-		if errors.Is(err, gorm.ErrRecordNotFound) {
-			return errors.New("gateway-environment mapping not found")
+	return s.gatewayRepo.Transaction(func(tx *gorm.DB) error {
+		// The delete comes before the check: it waits for a placement holding the mapping FOR SHARE to commit, so
+		// the check sees that placement's row.
+		if err := s.gatewayRepo.WithTx(tx).DeleteEnvironmentMapping(gatewayID, environmentID); err != nil {
+			if errors.Is(err, gorm.ErrRecordNotFound) {
+				return errors.New("gateway-environment mapping not found")
+			}
+			return fmt.Errorf("failed to remove gateway from environment: %w", err)
 		}
-		return fmt.Errorf("failed to remove gateway from environment: %w", err)
-	}
+		return s.refuseWhileServing(ctx, tx, env, gateway)
+	})
+}
 
+func (s *PlatformGatewayService) refuseWhileServing(ctx context.Context, tx *gorm.DB, env, gateway uuid.UUID) error {
+	if s.guard == nil {
+		return nil
+	}
+	serves, err := s.guard.ServesEnvironment(ctx, tx, env, gateway)
+	if err != nil {
+		return fmt.Errorf("failed to check the gateway's deployments in the environment: %w", err)
+	}
+	if serves {
+		return utils.ErrGatewayServesEnvironment
+	}
 	return nil
 }
 

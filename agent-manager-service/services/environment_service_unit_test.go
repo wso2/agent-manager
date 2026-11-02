@@ -2087,14 +2087,14 @@ func TestEnvironmentService_DeleteEnvironmentTearsDownA2APublications(t *testing
 	const org, envID = "acme", "dev"
 	const envUUID = "44444444-4444-4444-4444-444444444444"
 	m := newPublisherMocks(t)
-	m.pubs.ListEnvironmentUUIDsFunc = func(context.Context, string, string) ([]uuid.UUID, error) { return []uuid.UUID{}, nil }
-	m.proxies.ListEnvironmentUUIDsFunc = m.pubs.ListEnvironmentUUIDsFunc
+	m.exposures.ListEnvironmentUUIDsFunc = func(context.Context, string, string) ([]uuid.UUID, error) { return []uuid.UUID{}, nil }
+	m.proxies.ListEnvironmentUUIDsFunc = m.exposures.ListEnvironmentUUIDsFunc
 	var torndown []uuid.UUID
-	m.pubs.ListForEnvironmentFunc = func(_ context.Context, _ string, env uuid.UUID) ([]models.A2APublication, error) {
+	m.exposures.ListForEnvironmentFunc = func(_ context.Context, _ string, env uuid.UUID) ([]models.PlatformAgentExposure, error) {
 		torndown = append(torndown, env)
-		return []models.A2APublication{}, nil
+		return []models.PlatformAgentExposure{}, nil
 	}
-	m.pubs.DeleteForEnvironmentFunc = func(context.Context, string, uuid.UUID) error { return nil }
+	m.exposures.DeleteForEnvironmentFunc = func(context.Context, string, uuid.UUID) error { return nil }
 	m.proxies.DeleteForEnvironmentFunc = func(context.Context, string, uuid.UUID) error { return nil }
 	svc := NewEnvironmentService(discardLogger(), cleanedGatewayRepo(), deletingEnvOC(envUUID, nil),
 		&clientmocks.ThunderProberMock{}, nil, nil, nil, nil, nil, m.publisher(), nil)
@@ -2113,8 +2113,8 @@ func TestEnvironmentService_DeleteEnvironmentKeepsA2APublicationsWhenOCRefuses(t
 
 	require.Error(t, svc.DeleteEnvironment(context.Background(), "acme", "dev"))
 
-	assert.Empty(t, m.pubs.ListForEnvironmentCalls())
-	assert.Empty(t, m.pubs.DeleteForEnvironmentCalls())
+	assert.Empty(t, m.exposures.ListForEnvironmentCalls())
+	assert.Empty(t, m.exposures.DeleteForEnvironmentCalls())
 	assert.Empty(t, m.proxies.DeleteForEnvironmentCalls())
 }
 
@@ -2122,18 +2122,18 @@ func TestEnvironmentService_DeleteEnvironmentKeepsA2APublicationsWhenOCRefuses(t
 func TestEnvironmentService_DeleteEnvironmentCleansUpAfterOpenChoreoAlreadyDeletedIt(t *testing.T) {
 	stale := uuid.MustParse("55555555-5555-5555-5555-555555555555")
 	m := newPublisherMocks(t)
-	m.pubs.ListEnvironmentUUIDsFunc = func(context.Context, string, string) ([]uuid.UUID, error) {
+	m.exposures.ListEnvironmentUUIDsFunc = func(context.Context, string, string) ([]uuid.UUID, error) {
 		return []uuid.UUID{stale}, nil
 	}
 	m.proxies.ListEnvironmentUUIDsFunc = func(context.Context, string, string) ([]uuid.UUID, error) {
 		return []uuid.UUID{}, nil
 	}
 	var torndown []uuid.UUID
-	m.pubs.ListForEnvironmentFunc = func(_ context.Context, _ string, env uuid.UUID) ([]models.A2APublication, error) {
+	m.exposures.ListForEnvironmentFunc = func(_ context.Context, _ string, env uuid.UUID) ([]models.PlatformAgentExposure, error) {
 		torndown = append(torndown, env)
-		return []models.A2APublication{}, nil
+		return []models.PlatformAgentExposure{}, nil
 	}
-	m.pubs.DeleteForEnvironmentFunc = func(context.Context, string, uuid.UUID) error { return nil }
+	m.exposures.DeleteForEnvironmentFunc = func(context.Context, string, uuid.UUID) error { return nil }
 	m.proxies.DeleteForEnvironmentFunc = func(context.Context, string, uuid.UUID) error { return nil }
 	oc := &clientmocks.OpenChoreoClientMock{
 		GetEnvironmentFunc: func(context.Context, string, string) (*models.EnvironmentResponse, error) {
@@ -2154,18 +2154,18 @@ func TestEnvironmentService_DeleteEnvironmentAlsoTearsDownASameNamedLeftover(t *
 	const live = "44444444-4444-4444-4444-444444444444"
 	stale := uuid.MustParse("55555555-5555-5555-5555-555555555555")
 	m := newPublisherMocks(t)
-	m.pubs.ListEnvironmentUUIDsFunc = func(context.Context, string, string) ([]uuid.UUID, error) {
+	m.exposures.ListEnvironmentUUIDsFunc = func(context.Context, string, string) ([]uuid.UUID, error) {
 		return []uuid.UUID{stale, uuid.MustParse(live)}, nil
 	}
 	m.proxies.ListEnvironmentUUIDsFunc = func(context.Context, string, string) ([]uuid.UUID, error) {
 		return []uuid.UUID{stale}, nil
 	}
 	var torndown []uuid.UUID
-	m.pubs.ListForEnvironmentFunc = func(_ context.Context, _ string, env uuid.UUID) ([]models.A2APublication, error) {
+	m.exposures.ListForEnvironmentFunc = func(_ context.Context, _ string, env uuid.UUID) ([]models.PlatformAgentExposure, error) {
 		torndown = append(torndown, env)
-		return []models.A2APublication{}, nil
+		return []models.PlatformAgentExposure{}, nil
 	}
-	m.pubs.DeleteForEnvironmentFunc = func(context.Context, string, uuid.UUID) error { return nil }
+	m.exposures.DeleteForEnvironmentFunc = func(context.Context, string, uuid.UUID) error { return nil }
 	m.proxies.DeleteForEnvironmentFunc = func(context.Context, string, uuid.UUID) error { return nil }
 	svc := NewEnvironmentService(discardLogger(), cleanedGatewayRepo(), deletingEnvOC(live, nil),
 		&clientmocks.ThunderProberMock{}, nil, nil, nil, nil, nil, m.publisher(), nil)
@@ -2178,19 +2178,19 @@ func TestEnvironmentService_DeleteEnvironmentAlsoTearsDownASameNamedLeftover(t *
 func TestEnvironmentService_DeleteEnvironmentRetriesAFailedA2ATeardown(t *testing.T) {
 	const live = "44444444-4444-4444-4444-444444444444"
 	m := newPublisherMocks(t)
-	m.pubs.ListEnvironmentUUIDsFunc = func(context.Context, string, string) ([]uuid.UUID, error) {
+	m.exposures.ListEnvironmentUUIDsFunc = func(context.Context, string, string) ([]uuid.UUID, error) {
 		return []uuid.UUID{}, nil
 	}
-	m.proxies.ListEnvironmentUUIDsFunc = m.pubs.ListEnvironmentUUIDsFunc
+	m.proxies.ListEnvironmentUUIDsFunc = m.exposures.ListEnvironmentUUIDsFunc
 	calls := 0
-	m.pubs.ListForEnvironmentFunc = func(context.Context, string, uuid.UUID) ([]models.A2APublication, error) {
+	m.exposures.ListForEnvironmentFunc = func(context.Context, string, uuid.UUID) ([]models.PlatformAgentExposure, error) {
 		calls++
 		if calls == 1 {
 			return nil, errors.New("db blip")
 		}
-		return []models.A2APublication{}, nil
+		return []models.PlatformAgentExposure{}, nil
 	}
-	m.pubs.DeleteForEnvironmentFunc = func(context.Context, string, uuid.UUID) error { return nil }
+	m.exposures.DeleteForEnvironmentFunc = func(context.Context, string, uuid.UUID) error { return nil }
 	m.proxies.DeleteForEnvironmentFunc = func(context.Context, string, uuid.UUID) error { return nil }
 	svc := NewEnvironmentService(discardLogger(), cleanedGatewayRepo(), deletingEnvOC(live, nil),
 		&clientmocks.ThunderProberMock{}, nil, nil, nil, nil, nil, m.publisher(), nil).(*environmentService)
@@ -2293,16 +2293,16 @@ func TestEnvironmentService_DeleteEnvironmentSweepsPublicationsWhenCardListingFa
 		DeleteForEnvironmentFunc: func(context.Context, string, uuid.UUID) error { return nil },
 	}
 	m := newPublisherMocks(t)
-	m.pubs.ListEnvironmentUUIDsFunc = func(context.Context, string, string) ([]uuid.UUID, error) {
+	m.exposures.ListEnvironmentUUIDsFunc = func(context.Context, string, string) ([]uuid.UUID, error) {
 		return []uuid.UUID{leftover}, nil
 	}
 	m.proxies.ListEnvironmentUUIDsFunc = func(context.Context, string, string) ([]uuid.UUID, error) {
 		return []uuid.UUID{}, nil
 	}
-	m.pubs.ListForEnvironmentFunc = func(context.Context, string, uuid.UUID) ([]models.A2APublication, error) {
-		return []models.A2APublication{}, nil
+	m.exposures.ListForEnvironmentFunc = func(context.Context, string, uuid.UUID) ([]models.PlatformAgentExposure, error) {
+		return []models.PlatformAgentExposure{}, nil
 	}
-	m.pubs.DeleteForEnvironmentFunc = func(context.Context, string, uuid.UUID) error { return nil }
+	m.exposures.DeleteForEnvironmentFunc = func(context.Context, string, uuid.UUID) error { return nil }
 	m.proxies.DeleteForEnvironmentFunc = func(context.Context, string, uuid.UUID) error { return nil }
 	oc := &clientmocks.OpenChoreoClientMock{
 		GetEnvironmentFunc: func(context.Context, string, string) (*models.EnvironmentResponse, error) {
@@ -2315,8 +2315,8 @@ func TestEnvironmentService_DeleteEnvironmentSweepsPublicationsWhenCardListingFa
 	err := svc.DeleteEnvironment(context.Background(), "acme", "dev")
 
 	require.ErrorIs(t, err, utils.ErrEnvironmentNotFound)
-	require.Len(t, m.pubs.ListForEnvironmentCalls(), 1)
-	assert.Equal(t, leftover, m.pubs.ListForEnvironmentCalls()[0].EnvironmentUUID)
+	require.Len(t, m.exposures.ListForEnvironmentCalls(), 1)
+	assert.Equal(t, leftover, m.exposures.ListForEnvironmentCalls()[0].EnvironmentUUID)
 }
 
 // The DELETE has committed in OpenChoreo, so a disconnected client must not stop the cleanup.

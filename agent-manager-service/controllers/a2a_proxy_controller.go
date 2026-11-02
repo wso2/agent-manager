@@ -53,7 +53,7 @@ func (c *a2aProxyController) GetA2AProxy(w http.ResponseWriter, r *http.Request)
 		return
 	}
 	utils.WriteSuccessResponse(w, http.StatusOK,
-		spec.NewA2AProxyResponse(string(status.Status), status.LastError, status.UpstreamAuthHeader, status.GatewayURL))
+		spec.NewA2AProxyResponse(string(status.Status), status.StatusReason, status.UpstreamAuthHeader, status.GatewayURL))
 }
 
 func (c *a2aProxyController) SetA2AProxy(w http.ResponseWriter, r *http.Request) {

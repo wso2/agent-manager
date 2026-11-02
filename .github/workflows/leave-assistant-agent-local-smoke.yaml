@@ -1,0 +1,45 @@
+name: Leave Assistant Local Smoke Checks
+on:
+  pull_request:
+    paths:
+      - 'samples/leave-assistant-agent/**'
+      - 'test/sample-smoke/local/**'
+      - '.github/workflows/leave-assistant-agent-local-smoke.yaml'
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: leave-assistant-agent-local-smoke-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  smoke:
+    name: Leave Assistant local smoke
+    runs-on: ubuntu-24.04
+    timeout-minutes: 35
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          repository: ${{ github.event.pull_request.head.repo.full_name || github.repository }}
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          persist-credentials: false
+      - uses: actions/setup-python@v6
+        with:
+          python-version: '3.11'
+      - name: Install Ballerina
+        run: |
+          curl --fail --location --retry 3 -o "$RUNNER_TEMP/ballerina.deb" \
+            https://github.com/ballerina-platform/ballerina-distribution/releases/download/v2201.13.4/ballerina-2201.13.4-swan-lake-linux-x64.deb
+          echo "6f3939d5a008e0ea6b77b48b4eea5644513039e1516e3b1f135fa91685b8f4b0  $RUNNER_TEMP/ballerina.deb" | sha256sum -c -
+          sudo dpkg -i "$RUNNER_TEMP/ballerina.deb"
+          bal version
+      - name: Test model failure guards
+        run: python -m unittest discover -s test/sample-smoke/local -p 'test_*.py' -v
+      - name: Install or build, start, and test the sample
+        env:
+          SAMPLE: leave-assistant-agent
+        run: python test/sample-smoke/local/run.py "$SAMPLE" --reports "$RUNNER_TEMP/smoke-reports"
+      - uses: actions/upload-artifact@v7
+        if: always()
+        with:
+          name: local-smoke-leave-assistant-agent
+          path: ${{ runner.temp }}/smoke-reports/

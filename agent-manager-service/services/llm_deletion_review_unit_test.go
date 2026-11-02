@@ -19,8 +19,8 @@ package services
 import (
 	"context"
 	"errors"
+	"log/slog"
 	"testing"
-	"time"
 
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
@@ -29,6 +29,7 @@ import (
 
 	"github.com/wso2/agent-manager/agent-manager-service/eventhub"
 	"github.com/wso2/agent-manager/agent-manager-service/models"
+	"github.com/wso2/agent-manager/agent-manager-service/reconcile"
 	"github.com/wso2/agent-manager/agent-manager-service/repositories"
 	"github.com/wso2/agent-manager/agent-manager-service/repositories/repomocks"
 	"github.com/wso2/agent-manager/agent-manager-service/utils"
@@ -60,85 +61,40 @@ func TestProxyDelete_PropagatesLookupErrors(t *testing.T) {
 	}
 }
 
-func TestDeletionDiscoveryFailurePreventsDelete(t *testing.T) {
-	for _, failure := range []string{"tracked", "active"} {
-		t.Run(failure, func(t *testing.T) {
-			cause := errors.New("lookup failed")
-			deployments := &repomocks.DeploymentRepositoryMock{
-				GetTrackedGatewaysByProviderCtxFunc: func(context.Context, uuid.UUID, string) ([]string, error) {
-					if failure == "tracked" {
-						return nil, cause
-					}
-					return []string{}, nil
-				},
-			}
-			gateways := &repomocks.GatewayRepositoryMock{ListWithFiltersCtxFunc: func(context.Context, repositories.GatewayFilterOptions) ([]*models.Gateway, error) { return nil, cause }}
-			proxy := &models.LLMProxy{UUID: uuid.New(), ProjectUUID: uuid.New()}
-			proxies := &repomocks.LLMProxyRepositoryMock{GetByIDCtxFunc: func(context.Context, string, string) (*models.LLMProxy, error) { return proxy, nil }}
-			svc := NewLLMProxyService(proxies, nil, nil)
-			err := svc.Delete(context.Background(), "proxy", "org", &LLMProxyDeploymentService{deploymentRepo: deployments, gatewayRepo: gateways})
-			require.ErrorIs(t, err, cause)
-			assert.Empty(t, proxies.DeleteInProjectCalls())
-			provider, deployment := serviceForRollback(createdProvider(), nil)
-			deployment.deploymentRepo = deployments
-			deployment.gatewayRepo = gateways
-			err = provider.Delete(context.Background(), createdProvider().UUID.String(), "org", deployment)
-			require.ErrorIs(t, err, cause)
-			providerRepo := provider.providerRepo.(*repomocks.LLMProviderRepositoryMock)
-			assert.Empty(t, providerRepo.DeleteCtxCalls())
-			require.Len(t, providerRepo.ClearDeletingCalls(), 1)
-			assert.Empty(t, deployments.GetDeployedGatewaysByProviderCalls(), "no undeploy before discovery succeeds")
-		})
-	}
-}
-
-type deletionContextHub struct {
-	eventhub.EventHub
-	publish func(context.Context, string, eventhub.Event) error
-}
-
-func (h *deletionContextHub) PublishEvent(ctx context.Context, id string, event eventhub.Event) error {
-	return h.publish(ctx, id, event)
-}
-
-func TestProxyDelete_UsesScopedDeleteAndBoundedPostCommitContext(t *testing.T) {
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
+// A proxy's delete events are built before its status rows cascade away and written in the deleting transaction,
+// which deletes only within the proxy's project.
+func TestProxyDeleteSendsItsDeleteEventsInTheDeletingTransaction(t *testing.T) {
 	proxy := &models.LLMProxy{UUID: uuid.New(), ProjectUUID: uuid.New()}
 	gateway := uuid.NewString()
 	repo := &repomocks.LLMProxyRepositoryMock{
-		GetByIDCtxFunc: func(got context.Context, _, _ string) (*models.LLMProxy, error) {
-			assert.Equal(t, ctx, got)
-			return proxy, nil
-		},
-		DeleteInProjectFunc: func(got context.Context, id, org, project string) error {
-			assert.Equal(t, ctx, got)
+		GetByIDCtxFunc: func(context.Context, string, string) (*models.LLMProxy, error) { return proxy, nil },
+		DeleteInProjectTxFunc: func(_ context.Context, tx *gorm.DB, id, org, project string) error {
+			assert.Same(t, txSentinel, tx)
 			assert.Equal(t, "proxy", id)
 			assert.Equal(t, "org", org)
 			assert.Equal(t, proxy.ProjectUUID.String(), project)
-			cancel() // database committed, then the HTTP caller disconnected
 			return nil
 		},
 	}
-	calls := 0
-	hub := &deletionContextHub{publish: func(got context.Context, id string, event eventhub.Event) error {
-		calls++
-		require.NoError(t, got.Err())
-		deadline, ok := got.Deadline()
-		require.True(t, ok)
-		assert.LessOrEqual(t, time.Until(deadline), gatewayDeletionTimeout)
-		assert.Equal(t, gateway, id)
-		assert.Equal(t, "proxy", event.EntityID)
-		assert.Equal(t, eventhub.EventType("llmproxy.deleted"), event.EventType)
-		return nil
-	}}
-	deployments := &repomocks.DeploymentRepositoryMock{GetTrackedGatewaysByProviderCtxFunc: func(got context.Context, id uuid.UUID, org string) ([]string, error) {
-		assert.Equal(t, ctx, got)
-		assert.Equal(t, proxy.UUID, id)
-		return []string{gateway}, nil
-	}}
-	svc := NewLLMProxyService(repo, nil, nil)
-	err := svc.DeleteInProject(ctx, "proxy", "org", proxy.ProjectUUID.String(), &LLMProxyDeploymentService{deploymentRepo: deployments, gatewayEventsService: NewGatewayEventsService(hub)})
+	deployments := &repomocks.DeploymentRepositoryMock{
+		DeleteEventGatewaysFunc: func(_ context.Context, org string, id uuid.UUID) ([]string, error) {
+			assert.Equal(t, proxy.UUID, id)
+			return []string{gateway}, nil
+		},
+	}
+	deployments.WithTxFunc = func(*gorm.DB) repositories.DeploymentRepository { return deployments }
+	hub := &recordingEventHub{}
+	core := reconcile.NewCore(nil, deployments, hub, reconcile.Kinds{proxyKindOf(proxy)}, reconcile.Config{},
+		slog.New(slog.DiscardHandler))
+
+	err := NewLLMProxyService(repo, nil, nil).DeleteInProject(context.Background(), "proxy", "org",
+		proxy.ProjectUUID.String(), &LLMProxyDeploymentService{tx: sentinelTx, core: core})
+
 	require.NoError(t, err)
-	assert.Equal(t, 1, calls)
+	require.Len(t, repo.DeleteInProjectTxCalls(), 1)
+	require.Len(t, hub.published, 1)
+	assert.Same(t, txSentinel, hub.txs[0])
+	assert.Equal(t, gateway, hub.published[0].GatewayID)
+	assert.Equal(t, "proxy", hub.published[0].EntityID, "gateways store proxies under their handle")
+	assert.Equal(t, eventhub.EventType("llmproxy.deleted"), hub.published[0].EventType)
 }

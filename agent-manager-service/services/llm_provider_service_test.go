@@ -115,7 +115,7 @@ func TestLLMProviderService_ListAvailableLLMPolicies_ScopesToProviderDeployment(
 		},
 	}
 	deploymentRepo := &repomocks.DeploymentRepositoryMock{
-		GetDeployedGatewaysByProviderFunc: func(artifactUUID uuid.UUID, orgUUID string) ([]string, error) {
+		PlacedGatewaysFunc: func(_ context.Context, orgUUID string, artifactUUID uuid.UUID) ([]string, error) {
 			assert.Equal(t, providerUUID, artifactUUID)
 			return []string{"gw-1"}, nil
 		},
@@ -280,7 +280,7 @@ func TestLLMProviderService_UpdateAndSync_RejectsPlacementInvalidGatewayWithoutU
 		},
 	}
 	deploymentRepo := &repomocks.DeploymentRepositoryMock{
-		GetDeployedGatewaysByProviderFunc: func(_ uuid.UUID, _ string) ([]string, error) {
+		PlacedGatewaysFunc: func(_ context.Context, _ string, _ uuid.UUID) ([]string, error) {
 			return []string{gatewayA.String()}, nil
 		},
 	}

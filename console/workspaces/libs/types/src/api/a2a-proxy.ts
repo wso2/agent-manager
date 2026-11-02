@@ -18,12 +18,14 @@
 
 import { type AgentCardPathParams } from './agent-card';
 
-export type A2AProxyStatus = 'pending' | 'published' | 'failed';
+/** The agent's deployment status on the environment's ingress gateway. */
+export type A2AProxyStatus = 'DEPLOYING' | 'DEPLOYED' | 'UNDEPLOYING' | 'UNDEPLOYED' | 'FAILED';
 
 export interface A2AProxyResponse {
   status: A2AProxyStatus;
-  lastError: string;
-  /** Base URL on the ingress gateway, serving the card once published. Empty with no gateway. */
+  /** Why the status is what it is: a gateway error, what a deploy waits for, or no gateway. */
+  statusReason: string;
+  /** Base URL on the ingress gateway, serving the card once DEPLOYED. Empty with no gateway. */
   gatewayUrl: string;
   /** The header the gateway adds upstream; empty when none. Non-empty means a secret is stored. */
   upstreamAuthHeader: string;

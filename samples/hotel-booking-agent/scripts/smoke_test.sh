@@ -6,10 +6,18 @@ cd "$(dirname "$0")/.."
 PYTHON="${PYTHON:-python3}"
 HOTEL_PORT="${HOTEL_PORT:-9091}"
 AGENT_PORT="${AGENT_PORT:-8000}"
+MODEL_PORT="${MODEL_PORT:-8099}"
 WORK="$(mktemp -d)"
+REPORTS="${REPORTS:-$WORK}"
+mkdir -p "$REPORTS"
 PIDS=()
 cleanup() {
+  status=$?
+  if [ "$status" -ne 0 ]; then
+    for log in "$WORK"/*.log; do [ ! -f "$log" ] || { echo "==> $log"; tail -100 "$log"; }; done
+  fi
   for pid in "${PIDS[@]}"; do kill "$pid" 2>/dev/null || true; wait "$pid" 2>/dev/null || true; done
+  if [ "$REPORTS" != "$WORK" ]; then cp "$WORK"/*.log "$REPORTS/" 2>/dev/null || true; fi
   rm -rf "$WORK"
 }
 trap cleanup EXIT
@@ -24,9 +32,12 @@ wait_for() {
   return 1
 }
 
+"$PYTHON" -m unittest discover -s scripts -p 'test_*.py' -v
+
 echo "==> Installing hotel API"
 "$PYTHON" -m venv "$WORK/hotel"
 "$WORK/hotel/bin/pip" install -q -r services/hotel_api/requirements.txt
+"$WORK/hotel/bin/pip" check
 
 echo "==> Testing hotel API logging"
 PYTHONPATH=services/hotel_api "$WORK/hotel/bin/python" -m unittest discover -s services/hotel_api/tests -v
@@ -44,9 +55,15 @@ status=$(curl -s -o /dev/null -w '%{http_code}' "http://127.0.0.1:$HOTEL_PORT/ho
 echo "==> Installing agent"
 "$PYTHON" -m venv "$WORK/agent"
 "$WORK/agent/bin/pip" install -q -r agent/requirements.txt
+"$WORK/agent/bin/pip" check
+
+echo "==> Starting local model stub"
+"$PYTHON" scripts/model_smoke.py --serve "$MODEL_PORT" > "$WORK/model.log" 2>&1 &
+PIDS+=($!)
+wait_for http://127.0.0.1:$MODEL_PORT/health "$WORK/model.log"
 
 echo "==> Starting agent"
-OPENAI_API_KEY=smoke-test HOTEL_API_BASE_URL=http://127.0.0.1:$HOTEL_PORT \
+OPENAI_API_KEY=smoke-test OPENAI_BASE_URL=http://127.0.0.1:$MODEL_PORT/v1 HOTEL_API_BASE_URL=http://127.0.0.1:$HOTEL_PORT \
   "$WORK/agent/bin/python" -m uvicorn app:app --app-dir agent --port "$AGENT_PORT" \
   > "$WORK/agent.log" 2>&1 &
 PIDS+=($!)
@@ -64,4 +81,6 @@ print(f"search returned {len(hotels['hotels'])} hotels; policy tool handled unav
 EOF
 )
 
+echo "==> Model-driven HTTP chat round trip"
+"$PYTHON" scripts/model_smoke.py --agent "http://127.0.0.1:$AGENT_PORT" --model "http://127.0.0.1:$MODEL_PORT"
 echo "==> Smoke test passed"

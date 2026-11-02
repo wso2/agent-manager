@@ -1099,3 +1099,74 @@ func TestValidateOpenChoreoBuildWorkflowKind(t *testing.T) {
 		})
 	}
 }
+
+func TestValidateDeploymentTimeoutConfig(t *testing.T) {
+	tests := []struct {
+		name        string
+		cfg         DeploymentTimeoutConfig
+		wantErrors  int
+		errContains string
+	}{
+		{name: "defaults accepted", cfg: DeploymentTimeoutConfig{SweepIntervalSeconds: 60, TimeoutSeconds: 300}},
+		{
+			name:        "zero sweep interval rejected",
+			cfg:         DeploymentTimeoutConfig{SweepIntervalSeconds: 0, TimeoutSeconds: 300},
+			wantErrors:  1,
+			errContains: "DEPLOYMENT_TIMEOUT_SWEEP_INTERVAL_SECONDS",
+		},
+		{
+			name:        "negative timeout rejected",
+			cfg:         DeploymentTimeoutConfig{SweepIntervalSeconds: 60, TimeoutSeconds: -1},
+			wantErrors:  1,
+			errContains: "DEPLOYMENT_TIMEOUT_SECONDS",
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			r := &configReader{}
+			validateDeploymentTimeoutConfig(&Config{DeploymentTimeout: tc.cfg}, r)
+			if len(r.errors) != tc.wantErrors {
+				t.Fatalf("got %d errors (%v), want %d", len(r.errors), r.errors, tc.wantErrors)
+			}
+			if tc.errContains != "" && !strings.Contains(r.errors[0].Error(), tc.errContains) {
+				t.Errorf("error %q does not mention %q", r.errors[0], tc.errContains)
+			}
+		})
+	}
+}
+
+func TestValidateReconcileConfig(t *testing.T) {
+	valid := ReconcileConfig{
+		RenderIntervalSeconds: 5, PlaceIntervalSeconds: 600, DriftIntervalSeconds: 300,
+		RenderLeaseSeconds: 120, RenderAttemptBudget: 30,
+	}
+	r := &configReader{}
+	validateReconcileConfig(&Config{Reconcile: valid}, r)
+	if len(r.errors) != 0 {
+		t.Fatalf("defaults rejected: %v", r.errors)
+	}
+
+	zeroBudget := valid
+	zeroBudget.RenderAttemptBudget = 0
+	r = &configReader{}
+	validateReconcileConfig(&Config{Reconcile: zeroBudget}, r)
+	if len(r.errors) != 1 || !strings.Contains(r.errors[0].Error(), "RECONCILE_RENDER_ATTEMPT_BUDGET") {
+		t.Fatalf("got %v, want one RECONCILE_RENDER_ATTEMPT_BUDGET error", r.errors)
+	}
+}
+
+func TestRequirePositiveReportsEachNonPositiveField(t *testing.T) {
+	r := &configReader{}
+	requirePositive(r, positiveField{"A", 1}, positiveField{"B", 0}, positiveField{"C", -2})
+
+	want := []string{"B must be greater than 0, got 0", "C must be greater than 0, got -2"}
+	if len(r.errors) != len(want) {
+		t.Fatalf("got %v, want %v", r.errors, want)
+	}
+	for i, msg := range want {
+		if r.errors[i].Error() != msg {
+			t.Errorf("error %d = %q, want %q", i, r.errors[i], msg)
+		}
+	}
+}

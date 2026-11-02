@@ -1,0 +1,30 @@
+apiVersion: gateway.api-platform.wso2.com/v1
+kind: Mcp
+metadata:
+    name: weather-primary-ad506e964b124a5e9e724c9fadbecfd0
+spec:
+    displayName: weather-primary-ad506e964b124a5e9e724c9fadbecfd0
+    version: v1.0
+    context: /weather
+    vhost: mcp.example.com
+    upstream:
+        url: https://weather.example.com/mcp
+    specVersion: "2025-06-18"
+    policies:
+        - name: mcp-rate-limit
+          version: v1
+          params:
+            limit: 10
+        - name: api-key-auth
+          version: v1
+          params:
+            in: header
+            key: X-API-Key
+        - name: set-headers
+          version: v1
+          displayName: Backend Authentication Header
+          params:
+            request:
+                headers:
+                    - name: X-Backend-Key
+                      secretRef: mcp-backend-key

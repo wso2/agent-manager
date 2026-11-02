@@ -73,7 +73,7 @@ func newMCPURLTestFixture() *mcpURLTestFixture {
 	}
 
 	deploymentRepo := &repomocks.DeploymentRepositoryMock{
-		GetDeployedGatewaysByProviderFunc: func(artifactUUID uuid.UUID, orgUUID string) ([]string, error) {
+		PlacedGatewaysFunc: func(_ context.Context, orgUUID string, artifactUUID uuid.UUID) ([]string, error) {
 			// Only the shared artifact has a deployment row.
 			if artifactUUID == sharedArtifactUUID {
 				return []string{gatewayUUID.String()}, nil

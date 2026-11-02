@@ -100,13 +100,13 @@ func Test_runGet_directJSON(t *testing.T) {
 func Test_runGet_proxied(t *testing.T) {
 	o, got := getOpts(newClient(t, map[string]route{
 		agentKey: okJSON(a2aExternal()),
-		proxyKey: okJSON(amsvc.A2AProxyResponse{Status: "published", GatewayUrl: "https://gw.example/order-bot"}),
+		proxyKey: okJSON(amsvc.A2AProxyResponse{Status: amsvc.A2AProxyResponseStatusDEPLOYED, GatewayUrl: "https://gw.example/order-bot"}),
 		cardKey:  okJSON(amsvc.AgentCardResponse{Status: "fetched"}),
 	}), false)
 	if err := runGet(context.Background(), o); err != nil {
 		t.Fatalf("runGet: %v", err)
 	}
-	for _, want := range []string{"proxied (published)", "https://gw.example/order-bot"} {
+	for _, want := range []string{"proxied (DEPLOYED)", "https://gw.example/order-bot"} {
 		if !strings.Contains(got(), want) {
 			t.Errorf("out missing %q:\n%s", want, got())
 		}
@@ -116,7 +116,7 @@ func Test_runGet_proxied(t *testing.T) {
 func Test_runGet_proxiedWithoutGateway(t *testing.T) {
 	o, got := getOpts(newClient(t, map[string]route{
 		agentKey: okJSON(a2aExternal()),
-		proxyKey: okJSON(amsvc.A2AProxyResponse{Status: "published"}),
+		proxyKey: okJSON(amsvc.A2AProxyResponse{Status: amsvc.A2AProxyResponseStatusDEPLOYED}),
 		cardKey:  okJSON(amsvc.AgentCardResponse{Status: "fetched"}),
 	}), false)
 	if err := runGet(context.Background(), o); err != nil {
@@ -127,16 +127,16 @@ func Test_runGet_proxiedWithoutGateway(t *testing.T) {
 	}
 }
 
-func Test_runGet_proxyFailedShowsLastError(t *testing.T) {
+func Test_runGet_proxyFailedShowsStatusReason(t *testing.T) {
 	o, got := getOpts(newClient(t, map[string]route{
 		agentKey: okJSON(a2aExternal()),
-		proxyKey: okJSON(amsvc.A2AProxyResponse{Status: "failed", LastError: "upstream unreachable"}),
+		proxyKey: okJSON(amsvc.A2AProxyResponse{Status: amsvc.A2AProxyResponseStatusFAILED, StatusReason: "DEPLOYMENT_TIMEOUT"}),
 		cardKey:  okJSON(amsvc.AgentCardResponse{Status: "pending"}),
 	}), false)
 	if err := runGet(context.Background(), o); err != nil {
 		t.Fatalf("runGet: %v", err)
 	}
-	if !strings.Contains(got(), "Publish error: upstream unreachable") {
+	if !strings.Contains(got(), "Routing reason: DEPLOYMENT_TIMEOUT") {
 		t.Errorf("out = %s", got())
 	}
 }
@@ -144,7 +144,7 @@ func Test_runGet_proxyFailedShowsLastError(t *testing.T) {
 func Test_runGet_pendingWithoutCard(t *testing.T) {
 	o, got := getOpts(newClient(t, map[string]route{
 		agentKey: okJSON(a2aExternal()),
-		proxyKey: okJSON(amsvc.A2AProxyResponse{Status: "published"}),
+		proxyKey: okJSON(amsvc.A2AProxyResponse{Status: amsvc.A2AProxyResponseStatusDEPLOYED}),
 		cardKey:  okJSON(amsvc.AgentCardResponse{Status: "pending", SourceUrl: "https://agent.example/card"}),
 	}), false)
 	if err := runGet(context.Background(), o); err != nil {

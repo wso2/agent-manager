@@ -45,6 +45,14 @@ export function pendingRefetchInterval(
     return data?.status === 'pending' ? POLL_INTERVAL : false;
 }
 
+/** Re-poll while a gateway deploy or undeploy is in flight; stop once settled, or with no data. */
+export function transitionRefetchInterval(
+    data: { status?: string } | null | undefined,
+): number | false {
+    const inFlight = data?.status === 'DEPLOYING' || data?.status === 'UNDEPLOYING';
+    return inFlight ? POLL_INTERVAL : false;
+}
+
 export const isNotFoundError = (error: unknown): boolean =>
     (error as { status?: number } | null)?.status === 404;
 

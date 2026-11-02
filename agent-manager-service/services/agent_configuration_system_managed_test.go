@@ -62,7 +62,7 @@ func TestSystemManagedMCPURLReturnsProxyURLForMatchingMapping(t *testing.T) {
 		},
 		mcpProxyService: &MCPProxyService{
 			deploymentRepo: &repomocks.DeploymentRepositoryMock{
-				GetDeployedGatewaysByProviderFunc: func(gotArtifactUUID uuid.UUID, gotOrg string) ([]string, error) {
+				PlacedGatewaysFunc: func(_ context.Context, gotOrg string, gotArtifactUUID uuid.UUID) ([]string, error) {
 					require.Equal(t, sharedArtifactUUID, gotArtifactUUID)
 					require.Equal(t, "org", gotOrg)
 					return []string{gatewayUUID.String()}, nil
@@ -235,10 +235,10 @@ func callSystemManagedLLMURL(t *testing.T, gateway *models.Gateway, contextPath 
 				},
 			},
 			deploymentRepo: &repomocks.DeploymentRepositoryMock{
-				GetDeploymentsWithStateFunc: func(artifactUUID, orgUUID string, _, _ *string, _ int) ([]*models.Deployment, error) {
-					require.Equal(t, proxyUUID.String(), artifactUUID)
+				PlacedGatewaysFunc: func(_ context.Context, orgUUID string, artifactUUID uuid.UUID) ([]string, error) {
+					require.Equal(t, proxyUUID, artifactUUID)
 					require.Equal(t, "org", orgUUID)
-					return []*models.Deployment{{GatewayUUID: gateway.UUID}}, nil
+					return []string{gateway.UUID.String()}, nil
 				},
 			},
 		},

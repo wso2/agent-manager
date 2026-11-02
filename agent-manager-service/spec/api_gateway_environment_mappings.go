@@ -40,8 +40,8 @@ AssignGatewayToEnvironment Assign gateway to environment
 Create a mapping between a gateway and an environment.
 
 This makes the gateway available for use in the specified environment.
-A gateway can be mapped to multiple environments, and an environment can have
-multiple gateways.
+A gateway serves exactly one environment: once mapped, it can be assigned again only to
+that same environment, which succeeds without change.
 
 	@param ctx context.Context - for authentication, logging, cancellation, deadlines, tracing, etc. Passed from http.Request or context.Background().
 	@param orgName Organization name/handle
@@ -376,8 +376,9 @@ Remove the mapping between a gateway and an environment.
 
 This makes the gateway unavailable in the specified environment.
 
-**Warning:** If agents in this environment are using this gateway, they may
-experience routing failures after this operation.
+The mapping is not removed while any of the environment's agents, MCP proxies or
+agent and monitor LLM proxies is deployed, or being deployed, on the gateway.
+Undeploy them from this gateway first.
 
 	@param ctx context.Context - for authentication, logging, cancellation, deadlines, tracing, etc. Passed from http.Request or context.Background().
 	@param orgName Organization name/handle
@@ -485,6 +486,17 @@ func (a *GatewayEnvironmentMappingsAPIService) RemoveGatewayFromEnvironmentExecu
 			return localVarHTTPResponse, newErr
 		}
 		if localVarHTTPResponse.StatusCode == 404 {
+			var v ErrorResponse
+			err = a.client.decode(&v, localVarBody, localVarHTTPResponse.Header.Get("Content-Type"))
+			if err != nil {
+				newErr.error = err.Error()
+				return localVarHTTPResponse, newErr
+			}
+			newErr.error = formatErrorMessage(localVarHTTPResponse.Status, &v)
+			newErr.model = v
+			return localVarHTTPResponse, newErr
+		}
+		if localVarHTTPResponse.StatusCode == 409 {
 			var v ErrorResponse
 			err = a.client.decode(&v, localVarBody, localVarHTTPResponse.Header.Get("Content-Type"))
 			if err != nil {

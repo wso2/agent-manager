@@ -160,6 +160,8 @@ func handleGatewayErrors(w http.ResponseWriter, err error, fallbackMsg string) {
 		utils.WriteErrorResponse(w, http.StatusConflict, err.Error())
 	case errors.Is(err, utils.ErrGatewayIngressCapExceeded):
 		utils.WriteErrorResponse(w, http.StatusConflict, err.Error())
+	case errors.Is(err, utils.ErrGatewayEnvironmentFixed):
+		utils.WriteErrorResponseWithReason(w, http.StatusConflict, err.Error(), "", utils.ErrCodeGatewayEnvironmentFixed)
 	case errors.Is(err, utils.ErrBadRequest):
 		utils.WriteErrorResponse(w, http.StatusBadRequest, err.Error())
 	case errors.Is(err, utils.ErrEnvironmentNotFound):
@@ -562,7 +564,7 @@ func (c *gatewayController) RemoveGatewayFromEnvironment(w http.ResponseWriter, 
 	}
 
 	// Remove via service
-	removeErr := c.gatewayService.RemoveGatewayFromEnvironment(gatewayID, resolvedEnvID)
+	removeErr := c.gatewayService.RemoveGatewayFromEnvironment(ctx, gatewayID, resolvedEnvID)
 	audit.Record(
 		ctx, audit.ActionGatewayUnassignEnvironment,
 		audit.Org(ouID),
@@ -573,6 +575,11 @@ func (c *gatewayController) RemoveGatewayFromEnvironment(w http.ResponseWriter, 
 	)
 	if err := removeErr; err != nil {
 		log.Error("RemoveGatewayFromEnvironment: failed to remove mapping", "error", err)
+		if errors.Is(err, utils.ErrGatewayServesEnvironment) {
+			utils.WriteErrorResponse(w, http.StatusConflict,
+				"The gateway still serves this environment's agents or proxies; undeploy them from this gateway, or remove the LLM configuration from the agents and monitors in this environment, first")
+			return
+		}
 		if errors.Is(err, gorm.ErrRecordNotFound) || strings.Contains(err.Error(), "mapping not found") {
 			utils.WriteErrorResponse(w, http.StatusNotFound, "Gateway-environment mapping not found")
 			return

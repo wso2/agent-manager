@@ -26,6 +26,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/wso2/agent-manager/agent-manager-service/clients/openchoreosvc/gen"
+	"github.com/wso2/agent-manager/agent-manager-service/utils"
 )
 
 // OpenChoreo 1.2.0+ requires Project.spec.type, and rejects a change to it after
@@ -67,4 +68,31 @@ func TestCreateProject_SetsNamespacedProjectType(t *testing.T) {
 // project created through the API would fail with ProjectTypeNotFound.
 func TestDefaultProjectTypeName(t *testing.T) {
 	assert.Equal(t, "default", DefaultProjectTypeName)
+}
+
+// A missing project must reach the controller as a project-specific 404,
+// including when cleanup polls after a successful deletion.
+func TestGetProject_ErrorMapping(t *testing.T) {
+	for _, tc := range []struct {
+		name   string
+		status int
+		want   error
+	}{
+		{"missing project", http.StatusNotFound, utils.ErrProjectNotFound},
+		{"server failure", http.StatusInternalServerError, utils.ErrInternalServerError},
+		{"forbidden", http.StatusForbidden, utils.ErrForbidden},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			c := newTestClient(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				w.Header().Set("Content-Type", "application/json")
+				w.WriteHeader(tc.status)
+				require.NoError(t, json.NewEncoder(w).Encode(map[string]string{"error": tc.name}))
+			}))
+			_, err := c.GetProject(context.Background(), "acme", "deleted-project")
+			require.ErrorIs(t, err, tc.want)
+			if tc.status != http.StatusNotFound {
+				assert.NotErrorIs(t, err, utils.ErrProjectNotFound)
+			}
+		})
+	}
 }

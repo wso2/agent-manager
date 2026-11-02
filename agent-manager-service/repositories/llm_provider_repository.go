@@ -44,6 +44,7 @@ type LLMProviderRepository interface {
 	Update(ctx context.Context, p *models.LLMProvider, providerID string, orgUUID string) error
 	Delete(providerID, orgUUID string) error
 	DeleteCtx(ctx context.Context, providerID, orgUUID string) error
+	DeleteTx(ctx context.Context, tx *gorm.DB, providerID, orgUUID string) error
 	Exists(providerID, orgUUID string) (bool, error)
 	HasAssociatedProxies(ctx context.Context, providerUUID uuid.UUID) (bool, error)
 	MarkDeleting(providerUUID uuid.UUID) (bool, error)
@@ -325,45 +326,58 @@ func (r *LLMProviderRepo) DeleteCtx(ctx context.Context, providerID, orgUUID str
 	}
 
 	return r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
-		// Verify the provider exists and belongs to the organization
-		slog.Info("LLMProviderRepo.Delete: verifying provider exists", "providerID", providerID, "uuid", providerUUID, "orgUUID", orgUUID)
-		var artifact struct{ UUID uuid.UUID }
-		result := tx.Table("artifacts").
-			Select("uuid").
-			Where("uuid = ? AND ou_id = ? AND kind = ?", providerUUID, orgUUID, models.KindLLMProvider).
-			Take(&artifact)
-		if result.Error != nil {
-			if errors.Is(result.Error, gorm.ErrRecordNotFound) {
-				slog.Warn("LLMProviderRepo.Delete: provider not found", "providerID", providerID, "uuid", providerUUID, "orgUUID", orgUUID)
-				return gorm.ErrRecordNotFound
-			}
-			slog.Error("LLMProviderRepo.Delete: failed to verify provider", "providerID", providerID, "uuid", providerUUID, "orgUUID", orgUUID, "error", result.Error)
-			return result.Error
-		}
-
-		slog.Info("LLMProviderRepo.Delete: provider verified", "providerID", providerID, "uuid", providerUUID)
-
-		slog.Info("LLMProviderRepo.Delete: deleting from llm_providers table", "providerID", providerID, "uuid", providerUUID)
-		if err := tx.Where("uuid = ?", providerUUID).Delete(&models.LLMProvider{}).Error; err != nil {
-			var pgErr *pgconn.PgError
-			if errors.As(err, &pgErr) && pgErr.Code == "23503" {
-				slog.Warn("LLMProviderRepo.Delete: provider has associated proxies", "providerID", providerID, "uuid", providerUUID, "constraint", pgErr.ConstraintName)
-				return utils.ErrLLMProviderHasProxies
-			}
-			slog.Error("LLMProviderRepo.Delete: failed to delete provider", "providerID", providerID, "uuid", providerUUID, "error", err)
-			return err
-		}
-
-		// Delete from artifacts
-		slog.Info("LLMProviderRepo.Delete: deleting from artifacts table", "providerID", providerID, "uuid", providerUUID)
-		if err := r.artifactRepo.Delete(tx, providerUUID.String()); err != nil {
-			slog.Error("LLMProviderRepo.Delete: failed to delete artifact", "providerID", providerID, "uuid", providerUUID, "error", err)
-			return err
-		}
-
-		slog.Info("LLMProviderRepo.Delete: completed successfully", "providerID", providerID, "uuid", providerUUID)
-		return nil
+		return r.deleteIn(tx, providerUUID, providerID, orgUUID)
 	})
+}
+
+// DeleteTx deletes the provider in the caller's transaction.
+func (r *LLMProviderRepo) DeleteTx(ctx context.Context, tx *gorm.DB, providerID, orgUUID string) error {
+	providerUUID, err := uuid.Parse(providerID)
+	if err != nil {
+		return fmt.Errorf("invalid provider UUID: %w", err)
+	}
+	return r.deleteIn(tx.WithContext(ctx), providerUUID, providerID, orgUUID)
+}
+
+func (r *LLMProviderRepo) deleteIn(tx *gorm.DB, providerUUID uuid.UUID, providerID, orgUUID string) error {
+	// Verify the provider exists and belongs to the organization
+	slog.Info("LLMProviderRepo.Delete: verifying provider exists", "providerID", providerID, "uuid", providerUUID, "orgUUID", orgUUID)
+	var artifact struct{ UUID uuid.UUID }
+	result := tx.Table("artifacts").
+		Select("uuid").
+		Where("uuid = ? AND ou_id = ? AND kind = ?", providerUUID, orgUUID, models.KindLLMProvider).
+		Take(&artifact)
+	if result.Error != nil {
+		if errors.Is(result.Error, gorm.ErrRecordNotFound) {
+			slog.Warn("LLMProviderRepo.Delete: provider not found", "providerID", providerID, "uuid", providerUUID, "orgUUID", orgUUID)
+			return gorm.ErrRecordNotFound
+		}
+		slog.Error("LLMProviderRepo.Delete: failed to verify provider", "providerID", providerID, "uuid", providerUUID, "orgUUID", orgUUID, "error", result.Error)
+		return result.Error
+	}
+
+	slog.Info("LLMProviderRepo.Delete: provider verified", "providerID", providerID, "uuid", providerUUID)
+
+	slog.Info("LLMProviderRepo.Delete: deleting from llm_providers table", "providerID", providerID, "uuid", providerUUID)
+	if err := tx.Where("uuid = ?", providerUUID).Delete(&models.LLMProvider{}).Error; err != nil {
+		var pgErr *pgconn.PgError
+		if errors.As(err, &pgErr) && pgErr.Code == "23503" {
+			slog.Warn("LLMProviderRepo.Delete: provider has associated proxies", "providerID", providerID, "uuid", providerUUID, "constraint", pgErr.ConstraintName)
+			return utils.ErrLLMProviderHasProxies
+		}
+		slog.Error("LLMProviderRepo.Delete: failed to delete provider", "providerID", providerID, "uuid", providerUUID, "error", err)
+		return err
+	}
+
+	// Delete from artifacts
+	slog.Info("LLMProviderRepo.Delete: deleting from artifacts table", "providerID", providerID, "uuid", providerUUID)
+	if err := r.artifactRepo.Delete(tx, providerUUID.String()); err != nil {
+		slog.Error("LLMProviderRepo.Delete: failed to delete artifact", "providerID", providerID, "uuid", providerUUID, "error", err)
+		return err
+	}
+
+	slog.Info("LLMProviderRepo.Delete: completed successfully", "providerID", providerID, "uuid", providerUUID)
+	return nil
 }
 
 // Exists checks if an LLM provider exists

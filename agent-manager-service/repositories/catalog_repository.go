@@ -141,7 +141,7 @@ func (r *CatalogRepo) ListLLMProviders(filters *models.CatalogListFilters) ([]mo
 		Where("a.ou_id = ? AND a.kind = ? AND a.in_catalog = ?",
 			filters.OrganizationName, models.KindLLMProvider, true)
 
-	// Apply environment filter if provided (join with deployment_status)
+	// Apply environment filter if provided: providers live (acked DEPLOYED) on a gateway of the environment
 	if filters.HasEnvironmentFilter() {
 		baseQuery = baseQuery.
 			Joins("JOIN deployment_status ds ON llm_providers.uuid = ds.artifact_uuid AND ds.ou_id = a.ou_id").
@@ -319,7 +319,8 @@ func (r *CatalogRepo) ListLLMProviders(filters *models.CatalogListFilters) ([]mo
 	return entries, total, nil
 }
 
-// populateDeploymentsInBatch fetches deployment data for all providers in a single query
+// populateDeploymentsInBatch fetches deployment data for all providers in a single query: the live deployments
+// (ds.status = DEPLOYED), with the status a user is shown (UserStatusOf).
 func (r *CatalogRepo) populateDeploymentsInBatch(entries []models.CatalogLLMProviderEntry, orgUUID string) error {
 	// Extract all provider UUIDs
 	providerUUIDs := make([]string, len(entries))
@@ -335,8 +336,12 @@ func (r *CatalogRepo) populateDeploymentsInBatch(entries []models.CatalogLLMProv
 		GatewayDisplayName  string
 		GatewayVHost        string
 		EnvironmentUUID     string
-		DeploymentStatus    string
 		DeploymentUpdatedAt *time.Time
+		Status              models.DeploymentStatus
+		StatusDesired       models.DeploymentStatus
+		StatusReason        string
+		NextAttemptAt       *time.Time
+		RenderReason        string
 	}
 
 	var deploymentRows []DeploymentRow
@@ -351,7 +356,7 @@ func (r *CatalogRepo) populateDeploymentsInBatch(entries []models.CatalogLLMProv
 			g.display_name as gateway_display_name,
 			g.vhost as gateway_vhost,
 			COALESCE(gem.environment_uuid::text, '') as environment_uuid,
-			ds.status as deployment_status,
+			ds.status, ds.status_desired, ds.status_reason, ds.next_attempt_at, ds.render_reason,
 			ds.updated_at as deployment_updated_at
 		`).
 		Joins("JOIN gateways g ON ds.gateway_uuid = g.uuid AND g.deleted_at IS NULL").
@@ -395,28 +400,15 @@ func (r *CatalogRepo) populateDeploymentsInBatch(entries []models.CatalogLLMProv
 				continue
 			}
 
-			var status models.DeploymentStatus
-			switch row.DeploymentStatus {
-			case string(models.DeploymentStatusDeployed):
-				status = models.DeploymentStatusDeployed
-			case string(models.DeploymentStatusUndeployed):
-				status = models.DeploymentStatusUndeployed
-			case string(models.DeploymentStatusArchived):
-				status = models.DeploymentStatusArchived
-			default:
-				// Log unknown deployment status
-				r.db.Logger.Warn(context.Background(),
-					"Unknown deployment status encountered, defaulting to deployed (status=%s, artifactUUID=%s, gatewayUUID=%s)",
-					row.DeploymentStatus, row.ArtifactUUID, row.GatewayUUID)
-				status = models.DeploymentStatusDeployed
-			}
-
 			deployment := models.DeploymentSummary{
 				GatewayID:   gatewayUUID,
 				GatewayName: row.GatewayName,
-				Status:      status,
-				DeployedAt:  row.DeploymentUpdatedAt,
-				VHost:       row.GatewayVHost,
+				Status: models.UserStatusOf(models.DeploymentStatusRecord{
+					Status: row.Status, StatusDesired: row.StatusDesired, StatusReason: row.StatusReason,
+					NextAttemptAt: row.NextAttemptAt, RenderReason: row.RenderReason,
+				}).Status,
+				DeployedAt: row.DeploymentUpdatedAt,
+				VHost:      row.GatewayVHost,
 			}
 			// Store environment UUID temporarily; service layer will resolve to name
 			if row.EnvironmentUUID != "" {

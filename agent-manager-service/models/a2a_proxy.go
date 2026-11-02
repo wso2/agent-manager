@@ -56,10 +56,13 @@ type A2AProxyAuthUpdate struct {
 	Value  *string
 }
 
-// A2AProxyStatus is a proxied environment's gateway publication state; the secret is never part of it.
+// A2AProxyStatus is a proxied environment's deployment to its ingress gateway as the A2A proxy API reports it; the
+// secret is never part of it.
 type A2AProxyStatus struct {
-	Status             A2APublicationStatus
-	LastError          string
+	// Status is the shared deployment status the user is shown (UserStatusOf): never PENDING or ARCHIVED.
+	Status DeploymentStatus
+	// StatusReason says why, when there is something to say.
+	StatusReason       string
 	UpstreamAuthHeader string
 	// GatewayURL is where the environment's ingress gateway serves the agent; empty until one is mapped.
 	GatewayURL string

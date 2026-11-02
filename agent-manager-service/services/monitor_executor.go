@@ -257,7 +257,6 @@ func (e *monitorExecutor) resolveLLMProxyConfig(ctx context.Context, monitor *mo
 // evaluation jobs run in a separate workflow-plane cluster (WSO2 Cloud) set
 // config.EvalJobsUsePublicGatewayURL to hand them the public vhost instead.
 func (e *monitorExecutor) resolveProxyURL(ctx context.Context, ouID, environmentID string, proxy *models.LLMProxy) (string, error) {
-	_ = ctx
 	if proxy == nil {
 		return "", fmt.Errorf("LLM proxy not preloaded for mapping")
 	}
@@ -268,7 +267,7 @@ func (e *monitorExecutor) resolveProxyURL(ctx context.Context, ouID, environment
 
 	var deployed []string
 	if e.deploymentRepo != nil {
-		ids, depErr := e.deploymentRepo.GetDeployedGatewaysByProvider(proxy.UUID, ouID)
+		ids, depErr := e.deploymentRepo.PlacedGateways(ctx, ouID, proxy.UUID)
 		if depErr != nil {
 			return "", fmt.Errorf("failed to list deployed gateways for proxy %s: %w", proxy.UUID, depErr)
 		}

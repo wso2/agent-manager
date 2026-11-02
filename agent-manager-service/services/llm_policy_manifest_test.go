@@ -17,6 +17,7 @@
 package services
 
 import (
+	"context"
 	"errors"
 	"testing"
 
@@ -340,7 +341,7 @@ func TestIntersectActiveGatewayLLMPolicies_RepoErrorIsWrapped(t *testing.T) {
 // -----------------------------------------------------------------------------
 
 func TestIntersectDeployedGatewayLLMPolicies_NilRepoReturnsEmpty(t *testing.T) {
-	available, err := intersectDeployedGatewayLLMPolicies(nil, nil, uuid.New(), "org-uuid")
+	available, err := intersectDeployedGatewayLLMPolicies(context.Background(), nil, nil, uuid.New(), "org-uuid")
 
 	require.NoError(t, err)
 	assert.Empty(t, available)
@@ -354,7 +355,7 @@ func TestIntersectDeployedGatewayLLMPolicies_ScopesToDeployedGatewaysOnly(t *tes
 	)
 
 	deploymentRepo := &repomocks.DeploymentRepositoryMock{
-		GetDeployedGatewaysByProviderFunc: func(artifactUUID uuid.UUID, orgUUID string) ([]string, error) {
+		PlacedGatewaysFunc: func(_ context.Context, orgUUID string, artifactUUID uuid.UUID) ([]string, error) {
 			assert.Equal(t, providerUUID, artifactUUID)
 			assert.Equal(t, "org-uuid", orgUUID)
 			return []string{deployedGatewayID}, nil
@@ -372,7 +373,7 @@ func TestIntersectDeployedGatewayLLMPolicies_ScopesToDeployedGatewaysOnly(t *tes
 	}
 	_ = undeployedGateway // never queried — GetByUUIDFunc only ever asked for the deployed gateway.
 
-	available, err := intersectDeployedGatewayLLMPolicies(gatewayRepo, deploymentRepo, providerUUID, "org-uuid")
+	available, err := intersectDeployedGatewayLLMPolicies(context.Background(), gatewayRepo, deploymentRepo, providerUUID, "org-uuid")
 
 	require.NoError(t, err)
 	require.Len(t, available, 1)
@@ -381,7 +382,7 @@ func TestIntersectDeployedGatewayLLMPolicies_ScopesToDeployedGatewaysOnly(t *tes
 
 func TestIntersectDeployedGatewayLLMPolicies_SkipsGatewayFromAnotherOrg(t *testing.T) {
 	deploymentRepo := &repomocks.DeploymentRepositoryMock{
-		GetDeployedGatewaysByProviderFunc: func(_ uuid.UUID, _ string) ([]string, error) {
+		PlacedGatewaysFunc: func(_ context.Context, _ string, _ uuid.UUID) ([]string, error) {
 			return []string{"gw-1"}, nil
 		},
 	}
@@ -395,7 +396,7 @@ func TestIntersectDeployedGatewayLLMPolicies_SkipsGatewayFromAnotherOrg(t *testi
 		},
 	}
 
-	available, err := intersectDeployedGatewayLLMPolicies(gatewayRepo, deploymentRepo, uuid.New(), "org-uuid")
+	available, err := intersectDeployedGatewayLLMPolicies(context.Background(), gatewayRepo, deploymentRepo, uuid.New(), "org-uuid")
 
 	require.NoError(t, err)
 	assert.Empty(t, available)
@@ -403,7 +404,7 @@ func TestIntersectDeployedGatewayLLMPolicies_SkipsGatewayFromAnotherOrg(t *testi
 
 func TestIntersectDeployedGatewayLLMPolicies_SkipsStaleGatewayReference(t *testing.T) {
 	deploymentRepo := &repomocks.DeploymentRepositoryMock{
-		GetDeployedGatewaysByProviderFunc: func(_ uuid.UUID, _ string) ([]string, error) {
+		PlacedGatewaysFunc: func(_ context.Context, _ string, _ uuid.UUID) ([]string, error) {
 			return []string{"gw-deleted"}, nil
 		},
 	}
@@ -413,7 +414,7 @@ func TestIntersectDeployedGatewayLLMPolicies_SkipsStaleGatewayReference(t *testi
 		},
 	}
 
-	available, err := intersectDeployedGatewayLLMPolicies(gatewayRepo, deploymentRepo, uuid.New(), "org-uuid")
+	available, err := intersectDeployedGatewayLLMPolicies(context.Background(), gatewayRepo, deploymentRepo, uuid.New(), "org-uuid")
 
 	require.NoError(t, err)
 	assert.Empty(t, available)
@@ -422,12 +423,12 @@ func TestIntersectDeployedGatewayLLMPolicies_SkipsStaleGatewayReference(t *testi
 func TestIntersectDeployedGatewayLLMPolicies_DeploymentRepoErrorIsWrapped(t *testing.T) {
 	boom := errors.New("db unreachable")
 	deploymentRepo := &repomocks.DeploymentRepositoryMock{
-		GetDeployedGatewaysByProviderFunc: func(_ uuid.UUID, _ string) ([]string, error) {
+		PlacedGatewaysFunc: func(_ context.Context, _ string, _ uuid.UUID) ([]string, error) {
 			return nil, boom
 		},
 	}
 
-	_, err := intersectDeployedGatewayLLMPolicies(&repomocks.GatewayRepositoryMock{}, deploymentRepo, uuid.New(), "org-uuid")
+	_, err := intersectDeployedGatewayLLMPolicies(context.Background(), &repomocks.GatewayRepositoryMock{}, deploymentRepo, uuid.New(), "org-uuid")
 
 	require.Error(t, err)
 	assert.ErrorIs(t, err, boom)

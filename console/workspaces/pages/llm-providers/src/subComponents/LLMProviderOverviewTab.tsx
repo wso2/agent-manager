@@ -51,6 +51,7 @@ import {
   Skeleton,
   Stack,
   TextField,
+  Tooltip,
   Typography,
 } from "@wso2/oxygen-ui";
 import {
@@ -64,6 +65,10 @@ import {
   INPUT_LIMITS,
 } from "@agent-management-platform/types";
 import { parseOpenApiSpec } from "../utils/openapiResources";
+import {
+  pendingStatusChip,
+  requestedGatewayStatuses,
+} from "./gatewayDeploymentStatus";
 
 export type LLMProviderOverviewTabProps = {
   providerData: LLMProviderResponse | null | undefined;
@@ -147,24 +152,31 @@ export function LLMProviderOverviewTab({
     return spec ? { type: "spec" as const, value: spec } : null;
   }, [openapiValue]);
 
-  const { data: deploymentsData } = useListLLMDeployments(
-    { orgName: orgName ?? "", providerId: providerId ?? "" },
-    { status: "DEPLOYED" },
-  );
+  const { data: deploymentsData, isLoading: isLoadingDeployments } =
+    useListLLMDeployments({
+      orgName: orgName ?? "",
+      providerId: providerId ?? "",
+    });
   const { data: gatewaysData, isLoading: isLoadingGateways } = useListGateways(
     { orgName: orgName ?? "" },
     { limit: 500 },
   );
 
+  // Undefined while the deployments list is unavailable: the chips then show
+  // placement only, with no status.
+  const gatewayStatuses = useMemo(
+    () =>
+      Array.isArray(deploymentsData)
+        ? requestedGatewayStatuses(deploymentsData, providerData?.gateways ?? [])
+        : undefined,
+    [deploymentsData, providerData?.gateways],
+  );
+
   const endpoints = useMemo<InvokeEndpoint[]>(() => {
     if (!providerData?.context || !orgName || !providerId) return [];
-    const deployments = Array.isArray(deploymentsData) ? deploymentsData : [];
     const gateways = gatewaysData?.gateways ?? [];
-    const deployedGatewayIds = new Set(
-      deployments.map((d) => d.gatewayId).filter(Boolean),
-    );
     return gateways
-      .filter((g) => deployedGatewayIds.has(g.uuid))
+      .filter((g) => gatewayStatuses?.get(g.uuid)?.status === "DEPLOYED")
       .map((g) => ({
         gatewayId: g.uuid,
         url: buildInvokeUrl(g.vhost, providerData.context),
@@ -174,7 +186,7 @@ export function LLMProviderOverviewTab({
       }));
   }, [
     providerData?.context,
-    deploymentsData,
+    gatewayStatuses,
     gatewaysData,
     orgName,
     providerId,
@@ -184,7 +196,10 @@ export function LLMProviderOverviewTab({
     const deployedIds = new Set(providerData?.gateways ?? []);
     const allGateways = gatewaysData?.gateways ?? [];
     const knownIds = new Set(allGateways.map((g) => g.uuid));
-    const environmentNames = new Set<string>();
+    const environmentChips = new Map<
+      string,
+      { label: string; color: "success" | "info" | "warning"; reason?: string }
+    >();
     // A deployed UUID absent from the fetched gateway list (deleted gateway,
     // truncated page) still gets a chip rather than vanishing from the card.
     const unmappedGatewayUuids = [...deployedIds].filter(
@@ -197,15 +212,22 @@ export function LLMProviderOverviewTab({
         unmappedGatewayUuids.push(g.uuid);
         return;
       }
-      environments.forEach((env) =>
-        environmentNames.add(env.displayName || env.name),
-      );
+      const status = gatewayStatuses?.get(g.uuid);
+      const pending = status && pendingStatusChip(status);
+      environments.forEach((env) => {
+        const name = env.displayName || env.name;
+        environmentChips.set(name, {
+          label: pending ? `${name} · ${pending.label}` : name,
+          color: pending ? pending.color : "success",
+          reason: status?.statusReason,
+        });
+      });
     });
     return {
-      environmentNames: [...environmentNames],
+      environmentChips: [...environmentChips],
       unmappedGatewayUuids,
     };
-  }, [providerData?.gateways, gatewaysData]);
+  }, [providerData?.gateways, gatewaysData, gatewayStatuses]);
 
   const [generatedApiKey, setGeneratedApiKey] = useState<string | null>(null);
   const [apiKeyError, setApiKeyError] = useState<string | null>(null);
@@ -489,20 +511,25 @@ export function LLMProviderOverviewTab({
                 Deployment
               </Typography>
               {/* Until the gateway list arrives, every deployed UUID would
-                  wrongly render as "Unmapped". */}
-              {(providerData.gateways ?? []).length > 0 && isLoadingGateways && (
-                <Skeleton variant="rounded" width={120} height={24} />
-              )}
-              {(providerData.gateways ?? []).length > 0 && !isLoadingGateways && (
+                  wrongly render as "Unmapped"; until the deployments list
+                  arrives, every gateway would read as deploying. */}
+              {(providerData.gateways ?? []).length > 0 &&
+                (isLoadingGateways || isLoadingDeployments) && (
+                  <Skeleton variant="rounded" width={120} height={24} />
+                )}
+              {(providerData.gateways ?? []).length > 0 &&
+                !isLoadingGateways &&
+                !isLoadingDeployments && (
                 <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
-                  {deployedPlacement.environmentNames.map((name) => (
-                    <Chip
-                      key={name}
-                      label={name}
-                      size="small"
-                      variant="outlined"
-                      color="success"
-                    />
+                  {deployedPlacement.environmentChips.map(([name, chip]) => (
+                    <Tooltip key={name} title={chip.reason ?? ""}>
+                      <Chip
+                        label={chip.label}
+                        size="small"
+                        variant="outlined"
+                        color={chip.color}
+                      />
+                    </Tooltip>
                   ))}
                   {deployedPlacement.unmappedGatewayUuids.map((uuid) => (
                     <Chip

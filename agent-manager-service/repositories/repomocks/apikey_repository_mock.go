@@ -6,8 +6,11 @@ package repomocks
 import (
 	"context"
 	"sync"
+	"time"
 
+	"github.com/google/uuid"
 	"github.com/wso2/agent-manager/agent-manager-service/models"
+	"gorm.io/gorm"
 )
 
 // APIKeyRepositoryMock is a mock implementation of repositories.APIKeyRepository.
@@ -22,6 +25,9 @@ import (
 //			GetByArtifactAndNameFunc: func(artifactUUID string, name string) (*models.StoredAPIKey, error) {
 //				panic("mock out the GetByArtifactAndName method")
 //			},
+//			ListActiveByArtifactTxFunc: func(ctx context.Context, tx *gorm.DB, artifactUUID uuid.UUID, now time.Time) ([]models.StoredAPIKey, error) {
+//				panic("mock out the ListActiveByArtifactTx method")
+//			},
 //			ListByApplicationUUIDFunc: func(applicationUUID string) ([]models.StoredAPIKey, error) {
 //				panic("mock out the ListByApplicationUUID method")
 //			},
@@ -31,11 +37,11 @@ import (
 //			ListByArtifactKindFunc: func(ouID string, kind string) ([]models.StoredAPIKey, error) {
 //				panic("mock out the ListByArtifactKind method")
 //			},
-//			ListByArtifactKindAndEnvsFunc: func(ouID string, kind string, envUUIDs []string) ([]models.StoredAPIKey, error) {
+//			ListByArtifactKindAndEnvsFunc: func(ouID string, kinds []string, envUUIDs []string) ([]models.StoredAPIKey, error) {
 //				panic("mock out the ListByArtifactKindAndEnvs method")
 //			},
-//			ListPermanentByArtifactKindFunc: func(ouID string, kind string) ([]models.StoredAPIKey, error) {
-//				panic("mock out the ListPermanentByArtifactKind method")
+//			ListPermanentByArtifactKindsFunc: func(ouID string, kinds []string) ([]models.StoredAPIKey, error) {
+//				panic("mock out the ListPermanentByArtifactKinds method")
 //			},
 //			UpsertFunc: func(key *models.StoredAPIKey) error {
 //				panic("mock out the Upsert method")
@@ -53,6 +59,9 @@ type APIKeyRepositoryMock struct {
 	// GetByArtifactAndNameFunc mocks the GetByArtifactAndName method.
 	GetByArtifactAndNameFunc func(artifactUUID string, name string) (*models.StoredAPIKey, error)
 
+	// ListActiveByArtifactTxFunc mocks the ListActiveByArtifactTx method.
+	ListActiveByArtifactTxFunc func(ctx context.Context, tx *gorm.DB, artifactUUID uuid.UUID, now time.Time) ([]models.StoredAPIKey, error)
+
 	// ListByApplicationUUIDFunc mocks the ListByApplicationUUID method.
 	ListByApplicationUUIDFunc func(applicationUUID string) ([]models.StoredAPIKey, error)
 
@@ -63,10 +72,10 @@ type APIKeyRepositoryMock struct {
 	ListByArtifactKindFunc func(ouID string, kind string) ([]models.StoredAPIKey, error)
 
 	// ListByArtifactKindAndEnvsFunc mocks the ListByArtifactKindAndEnvs method.
-	ListByArtifactKindAndEnvsFunc func(ouID string, kind string, envUUIDs []string) ([]models.StoredAPIKey, error)
+	ListByArtifactKindAndEnvsFunc func(ouID string, kinds []string, envUUIDs []string) ([]models.StoredAPIKey, error)
 
-	// ListPermanentByArtifactKindFunc mocks the ListPermanentByArtifactKind method.
-	ListPermanentByArtifactKindFunc func(ouID string, kind string) ([]models.StoredAPIKey, error)
+	// ListPermanentByArtifactKindsFunc mocks the ListPermanentByArtifactKinds method.
+	ListPermanentByArtifactKindsFunc func(ouID string, kinds []string) ([]models.StoredAPIKey, error)
 
 	// UpsertFunc mocks the Upsert method.
 	UpsertFunc func(key *models.StoredAPIKey) error
@@ -86,6 +95,17 @@ type APIKeyRepositoryMock struct {
 			ArtifactUUID string
 			// Name is the name argument value.
 			Name string
+		}
+		// ListActiveByArtifactTx holds details about calls to the ListActiveByArtifactTx method.
+		ListActiveByArtifactTx []struct {
+			// Ctx is the ctx argument value.
+			Ctx context.Context
+			// Tx is the tx argument value.
+			Tx *gorm.DB
+			// ArtifactUUID is the artifactUUID argument value.
+			ArtifactUUID uuid.UUID
+			// Now is the now argument value.
+			Now time.Time
 		}
 		// ListByApplicationUUID holds details about calls to the ListByApplicationUUID method.
 		ListByApplicationUUID []struct {
@@ -110,17 +130,17 @@ type APIKeyRepositoryMock struct {
 		ListByArtifactKindAndEnvs []struct {
 			// OuID is the ouID argument value.
 			OuID string
-			// Kind is the kind argument value.
-			Kind string
+			// Kinds is the kinds argument value.
+			Kinds []string
 			// EnvUUIDs is the envUUIDs argument value.
 			EnvUUIDs []string
 		}
-		// ListPermanentByArtifactKind holds details about calls to the ListPermanentByArtifactKind method.
-		ListPermanentByArtifactKind []struct {
+		// ListPermanentByArtifactKinds holds details about calls to the ListPermanentByArtifactKinds method.
+		ListPermanentByArtifactKinds []struct {
 			// OuID is the ouID argument value.
 			OuID string
-			// Kind is the kind argument value.
-			Kind string
+			// Kinds is the kinds argument value.
+			Kinds []string
 		}
 		// Upsert holds details about calls to the Upsert method.
 		Upsert []struct {
@@ -128,14 +148,15 @@ type APIKeyRepositoryMock struct {
 			Key *models.StoredAPIKey
 		}
 	}
-	lockDelete                      sync.RWMutex
-	lockGetByArtifactAndName        sync.RWMutex
-	lockListByApplicationUUID       sync.RWMutex
-	lockListByArtifact              sync.RWMutex
-	lockListByArtifactKind          sync.RWMutex
-	lockListByArtifactKindAndEnvs   sync.RWMutex
-	lockListPermanentByArtifactKind sync.RWMutex
-	lockUpsert                      sync.RWMutex
+	lockDelete                       sync.RWMutex
+	lockGetByArtifactAndName         sync.RWMutex
+	lockListActiveByArtifactTx       sync.RWMutex
+	lockListByApplicationUUID        sync.RWMutex
+	lockListByArtifact               sync.RWMutex
+	lockListByArtifactKind           sync.RWMutex
+	lockListByArtifactKindAndEnvs    sync.RWMutex
+	lockListPermanentByArtifactKinds sync.RWMutex
+	lockUpsert                       sync.RWMutex
 }
 
 // Delete calls DeleteFunc.
@@ -207,6 +228,50 @@ func (mock *APIKeyRepositoryMock) GetByArtifactAndNameCalls() []struct {
 	mock.lockGetByArtifactAndName.RLock()
 	calls = mock.calls.GetByArtifactAndName
 	mock.lockGetByArtifactAndName.RUnlock()
+	return calls
+}
+
+// ListActiveByArtifactTx calls ListActiveByArtifactTxFunc.
+func (mock *APIKeyRepositoryMock) ListActiveByArtifactTx(ctx context.Context, tx *gorm.DB, artifactUUID uuid.UUID, now time.Time) ([]models.StoredAPIKey, error) {
+	if mock.ListActiveByArtifactTxFunc == nil {
+		panic("APIKeyRepositoryMock.ListActiveByArtifactTxFunc: method is nil but APIKeyRepository.ListActiveByArtifactTx was just called")
+	}
+	callInfo := struct {
+		Ctx          context.Context
+		Tx           *gorm.DB
+		ArtifactUUID uuid.UUID
+		Now          time.Time
+	}{
+		Ctx:          ctx,
+		Tx:           tx,
+		ArtifactUUID: artifactUUID,
+		Now:          now,
+	}
+	mock.lockListActiveByArtifactTx.Lock()
+	mock.calls.ListActiveByArtifactTx = append(mock.calls.ListActiveByArtifactTx, callInfo)
+	mock.lockListActiveByArtifactTx.Unlock()
+	return mock.ListActiveByArtifactTxFunc(ctx, tx, artifactUUID, now)
+}
+
+// ListActiveByArtifactTxCalls gets all the calls that were made to ListActiveByArtifactTx.
+// Check the length with:
+//
+//	len(mockedAPIKeyRepository.ListActiveByArtifactTxCalls())
+func (mock *APIKeyRepositoryMock) ListActiveByArtifactTxCalls() []struct {
+	Ctx          context.Context
+	Tx           *gorm.DB
+	ArtifactUUID uuid.UUID
+	Now          time.Time
+} {
+	var calls []struct {
+		Ctx          context.Context
+		Tx           *gorm.DB
+		ArtifactUUID uuid.UUID
+		Now          time.Time
+	}
+	mock.lockListActiveByArtifactTx.RLock()
+	calls = mock.calls.ListActiveByArtifactTx
+	mock.lockListActiveByArtifactTx.RUnlock()
 	return calls
 }
 
@@ -315,23 +380,23 @@ func (mock *APIKeyRepositoryMock) ListByArtifactKindCalls() []struct {
 }
 
 // ListByArtifactKindAndEnvs calls ListByArtifactKindAndEnvsFunc.
-func (mock *APIKeyRepositoryMock) ListByArtifactKindAndEnvs(ouID string, kind string, envUUIDs []string) ([]models.StoredAPIKey, error) {
+func (mock *APIKeyRepositoryMock) ListByArtifactKindAndEnvs(ouID string, kinds []string, envUUIDs []string) ([]models.StoredAPIKey, error) {
 	if mock.ListByArtifactKindAndEnvsFunc == nil {
 		panic("APIKeyRepositoryMock.ListByArtifactKindAndEnvsFunc: method is nil but APIKeyRepository.ListByArtifactKindAndEnvs was just called")
 	}
 	callInfo := struct {
 		OuID     string
-		Kind     string
+		Kinds    []string
 		EnvUUIDs []string
 	}{
 		OuID:     ouID,
-		Kind:     kind,
+		Kinds:    kinds,
 		EnvUUIDs: envUUIDs,
 	}
 	mock.lockListByArtifactKindAndEnvs.Lock()
 	mock.calls.ListByArtifactKindAndEnvs = append(mock.calls.ListByArtifactKindAndEnvs, callInfo)
 	mock.lockListByArtifactKindAndEnvs.Unlock()
-	return mock.ListByArtifactKindAndEnvsFunc(ouID, kind, envUUIDs)
+	return mock.ListByArtifactKindAndEnvsFunc(ouID, kinds, envUUIDs)
 }
 
 // ListByArtifactKindAndEnvsCalls gets all the calls that were made to ListByArtifactKindAndEnvs.
@@ -340,12 +405,12 @@ func (mock *APIKeyRepositoryMock) ListByArtifactKindAndEnvs(ouID string, kind st
 //	len(mockedAPIKeyRepository.ListByArtifactKindAndEnvsCalls())
 func (mock *APIKeyRepositoryMock) ListByArtifactKindAndEnvsCalls() []struct {
 	OuID     string
-	Kind     string
+	Kinds    []string
 	EnvUUIDs []string
 } {
 	var calls []struct {
 		OuID     string
-		Kind     string
+		Kinds    []string
 		EnvUUIDs []string
 	}
 	mock.lockListByArtifactKindAndEnvs.RLock()
@@ -354,39 +419,39 @@ func (mock *APIKeyRepositoryMock) ListByArtifactKindAndEnvsCalls() []struct {
 	return calls
 }
 
-// ListPermanentByArtifactKind calls ListPermanentByArtifactKindFunc.
-func (mock *APIKeyRepositoryMock) ListPermanentByArtifactKind(ouID string, kind string) ([]models.StoredAPIKey, error) {
-	if mock.ListPermanentByArtifactKindFunc == nil {
-		panic("APIKeyRepositoryMock.ListPermanentByArtifactKindFunc: method is nil but APIKeyRepository.ListPermanentByArtifactKind was just called")
+// ListPermanentByArtifactKinds calls ListPermanentByArtifactKindsFunc.
+func (mock *APIKeyRepositoryMock) ListPermanentByArtifactKinds(ouID string, kinds []string) ([]models.StoredAPIKey, error) {
+	if mock.ListPermanentByArtifactKindsFunc == nil {
+		panic("APIKeyRepositoryMock.ListPermanentByArtifactKindsFunc: method is nil but APIKeyRepository.ListPermanentByArtifactKinds was just called")
 	}
 	callInfo := struct {
-		OuID string
-		Kind string
+		OuID  string
+		Kinds []string
 	}{
-		OuID: ouID,
-		Kind: kind,
+		OuID:  ouID,
+		Kinds: kinds,
 	}
-	mock.lockListPermanentByArtifactKind.Lock()
-	mock.calls.ListPermanentByArtifactKind = append(mock.calls.ListPermanentByArtifactKind, callInfo)
-	mock.lockListPermanentByArtifactKind.Unlock()
-	return mock.ListPermanentByArtifactKindFunc(ouID, kind)
+	mock.lockListPermanentByArtifactKinds.Lock()
+	mock.calls.ListPermanentByArtifactKinds = append(mock.calls.ListPermanentByArtifactKinds, callInfo)
+	mock.lockListPermanentByArtifactKinds.Unlock()
+	return mock.ListPermanentByArtifactKindsFunc(ouID, kinds)
 }
 
-// ListPermanentByArtifactKindCalls gets all the calls that were made to ListPermanentByArtifactKind.
+// ListPermanentByArtifactKindsCalls gets all the calls that were made to ListPermanentByArtifactKinds.
 // Check the length with:
 //
-//	len(mockedAPIKeyRepository.ListPermanentByArtifactKindCalls())
-func (mock *APIKeyRepositoryMock) ListPermanentByArtifactKindCalls() []struct {
-	OuID string
-	Kind string
+//	len(mockedAPIKeyRepository.ListPermanentByArtifactKindsCalls())
+func (mock *APIKeyRepositoryMock) ListPermanentByArtifactKindsCalls() []struct {
+	OuID  string
+	Kinds []string
 } {
 	var calls []struct {
-		OuID string
-		Kind string
+		OuID  string
+		Kinds []string
 	}
-	mock.lockListPermanentByArtifactKind.RLock()
-	calls = mock.calls.ListPermanentByArtifactKind
-	mock.lockListPermanentByArtifactKind.RUnlock()
+	mock.lockListPermanentByArtifactKinds.RLock()
+	calls = mock.calls.ListPermanentByArtifactKinds
+	mock.lockListPermanentByArtifactKinds.RUnlock()
 	return calls
 }
 

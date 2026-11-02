@@ -36,6 +36,7 @@ import (
 	"github.com/wso2/agent-manager/agent-manager-service/clients/secretmanagersvc"
 	"github.com/wso2/agent-manager/agent-manager-service/config"
 	"github.com/wso2/agent-manager/agent-manager-service/models"
+	"github.com/wso2/agent-manager/agent-manager-service/reconcile"
 	"github.com/wso2/agent-manager/agent-manager-service/repositories"
 	"github.com/wso2/agent-manager/agent-manager-service/utils"
 )
@@ -194,13 +195,13 @@ type rollbackResource struct {
 	// before this operation, so a later failure must restore its prior
 	// configuration instead of deleting it outright.
 	priorProxyConfig *models.LLMProxy
-	// restoreDeploymentID is the OLD deployment that was still Deployed before
-	// a new one superseded it (Scenario B only). Deploying the new "current"
-	// deployment atomically overwrites the shared deployment_status row, so the
-	// old deployment is left ARCHIVED even though it was never explicitly
-	// undeployed — on rollback it must be explicitly reactivated, not just left
-	// alone, or the proxy ends up with no live deployment on this gateway.
+	// restoreDeploymentID is the deployment the proxy was on before a Scenario-B
+	// redeploy (Scenario B only). The redeploy pointed the deployment_status row
+	// at the new deployment, and the rollback points it back.
 	restoreDeploymentID uuid.UUID
+	// supersededDeploymentID is the deployment a Scenario-B redeploy created; the
+	// rollback deletes it once restoreDeploymentID is current again.
+	supersededDeploymentID uuid.UUID
 }
 
 // pendingAppBinding captures the arguments for a deferred AIApplication
@@ -288,15 +289,7 @@ func agentAppIdentifier(projectName, agentID, envName string) string {
 // Format: "<configPrefix>-<16-hex-chars>" where configPrefix is the first 10 chars
 // of the sanitized config name.
 func scopedProxyIdentifier(projectName, agentName, configName, envName string) string {
-	raw := fmt.Sprintf("%s/%s/%s/%s", projectName, agentName, configName, envName)
-	hash := sha256.Sum256([]byte(raw))
-	hashSuffix := hex.EncodeToString(hash[:8])
-
-	prefix := sanitizeForK8sName(configName)
-	if len(prefix) > proxyNamePrefixMaxLen {
-		prefix = strings.TrimRight(prefix[:proxyNamePrefixMaxLen], "-")
-	}
-	return fmt.Sprintf("%s-%s", prefix, hashSuffix)
+	return hashSuffixedName(configName, fmt.Sprintf("%s/%s/%s/%s", projectName, agentName, configName, envName))
 }
 
 // mcpMappingProxyName builds the artifact handle/name and deployed proxy name for an
@@ -1275,11 +1268,7 @@ func (s *agentConfigurationService) createLLMConfig(ctx context.Context, ouID, p
 		// Update the rollback entry with the proxy handle now that it was created.
 		rollbackResources[rbIdx].proxyHandle = proxy.Handle
 
-		deployment, err := s.llmProxyDeploymentService.DeployLLMProxy(proxy.Handle, &models.DeployAPIRequest{
-			Name:      fmt.Sprintf("%s-deployment", scopedID),
-			Base:      "current",
-			GatewayID: gateway.UUID.String(),
-		}, ouID)
+		deployment, err := s.llmProxyDeploymentService.DeployForEnvironment(ctx, proxy, ouID, envUUID, gateway.UUID)
 		if err != nil {
 			s.processRollBack(ctx, rollbackResources, ouID, config.UUID)
 			return nil, fmt.Errorf("failed to deploy proxy for environment %s: %w", envName, err)
@@ -1953,11 +1942,7 @@ func (s *agentConfigurationService) processEnvProviderChange(
 	}
 	rbRes.proxyHandle = proxy.Handle
 
-	deployment, err := s.llmProxyDeploymentService.DeployLLMProxy(proxy.Handle, &models.DeployAPIRequest{
-		Name:      fmt.Sprintf("%s-deployment", scopedID),
-		Base:      "current",
-		GatewayID: gateway.UUID.String(),
-	}, ouID)
+	deployment, err := s.llmProxyDeploymentService.DeployForEnvironment(ctx, proxy, ouID, envUUID, gateway.UUID)
 	if err != nil {
 		return "", rbRes, pendingAppBinding{}, fmt.Errorf("failed to deploy proxy for environment %s: %w", envName, err)
 	}
@@ -2130,31 +2115,19 @@ func (s *agentConfigurationService) processEnvProxyUpdate(
 	// pre-update snapshot) back to the caller — otherwise rollbackProxies has
 	// no way to restore it and the proxy is left holding the new config with
 	// no matching deployment.
-	gatewayID := gateway.UUID.String()
-	deployments, err := s.llmProxyDeploymentService.GetLLMProxyDeployments(updatedProxy.Handle, ouID, &gatewayID, nil)
+	// The deployment the gateway serves now: a failed save restores it.
+	existingDeployment, err := s.llmProxyDeploymentService.CurrentDeployment(ctx, updatedProxy, ouID, gateway.UUID)
 	if err != nil {
 		return rollbackResource{
 			proxyHandle:      proxyHandle,
 			priorProxyConfig: existingMapping.LLMProxy,
 			providerUUID:     providerUUID,
-		}, fmt.Errorf("failed to get deployments for environment %s: %w", envName, err)
+		}, fmt.Errorf("failed to get the current deployment for environment %s: %w", envName, err)
 	}
 
-	var existingDeployment *models.Deployment
-	for _, dep := range deployments {
-		if dep.Status != nil && *dep.Status == models.DeploymentStatusDeployed {
-			existingDeployment = dep
-			break
-		}
-	}
-
-	deployBase := "current"
-	scopedID := scopedProxyIdentifier(config.ProjectName, config.AgentID, config.Name, env.Name)
-	newDeployment, err := s.llmProxyDeploymentService.DeployLLMProxy(updatedProxy.Handle, &models.DeployAPIRequest{
-		Name:      fmt.Sprintf("%s-deployment", scopedID),
-		Base:      deployBase,
-		GatewayID: gateway.UUID.String(),
-	}, ouID)
+	// A nil deployment means nothing is placed on the gateway to refresh, e.g. after a public-route undeploy.
+	newDeployment, err := s.llmProxyDeploymentService.Redeploy(ctx, updatedProxy, ouID, gateway.UUID,
+		"the agent's model configuration changed")
 	if err != nil {
 		return rollbackResource{
 			proxyHandle:      proxyHandle,
@@ -2163,37 +2136,40 @@ func (s *agentConfigurationService) processEnvProxyUpdate(
 		}, fmt.Errorf("failed to redeploy proxy for environment %s: %w", envName, err)
 	}
 
+	var newDeploymentID uuid.UUID
+	if newDeployment != nil {
+		newDeploymentID = newDeployment.DeploymentID
+	}
 	s.logger.Info("Proxy configuration updated and redeployed",
 		"environment", envName,
 		"proxyHandle", updatedProxy.Handle,
-		"newDeploymentID", newDeployment.DeploymentID)
+		"newDeploymentID", newDeploymentID)
 
 	// Persist updated PolicyConfiguration to DB.
 	existingMapping.PolicyConfiguration = models.LLMPolicies(envMapping.Configuration.Policies)
 	if err := s.db.Transaction(func(tx *gorm.DB) error {
 		return s.envMappingRepo.Update(ctx, tx, existingMapping)
 	}); err != nil {
-		// Carry the new deployment's identity and the pre-update proxy snapshot
-		// back to the caller so rollbackProxies can remove the deployment that
-		// was just created and restore the proxy's prior configuration. Deploying
-		// newDeployment already superseded existingDeployment's Deployed status
-		// (see restoreDeploymentID doc comment), so its ID must travel too or the
-		// proxy is left with no live deployment after rollback.
+		// Carry the new deployment as superseded and the pre-update proxy snapshot
+		// back to the caller. rollbackProxies restores the prior config, restores
+		// the old deployment over the new one (deploying newDeployment already
+		// superseded existingDeployment's Deployed status, see restoreDeploymentID
+		// doc comment), then deletes the new one without undeploying the proxy.
 		var restoreDeploymentID uuid.UUID
 		if existingDeployment != nil {
 			restoreDeploymentID = existingDeployment.DeploymentID
 		}
 		return rollbackResource{
-			proxyHandle:         proxyHandle,
-			deploymentID:        newDeployment.DeploymentID,
-			gatewayID:           gateway.UUID.String(),
-			priorProxyConfig:    existingMapping.LLMProxy,
-			providerUUID:        providerUUID,
-			restoreDeploymentID: restoreDeploymentID,
+			proxyHandle:            proxyHandle,
+			supersededDeploymentID: newDeploymentID,
+			gatewayID:              gateway.UUID.String(),
+			priorProxyConfig:       existingMapping.LLMProxy,
+			providerUUID:           providerUUID,
+			restoreDeploymentID:    restoreDeploymentID,
 		}, fmt.Errorf("failed to update policy configuration for environment %s: %w", envName, err)
 	}
 
-	if existingDeployment != nil && existingDeployment.DeploymentID != newDeployment.DeploymentID {
+	if existingDeployment != nil && newDeployment != nil && existingDeployment.DeploymentID != newDeploymentID {
 		if err := s.llmProxyDeploymentService.DeleteLLMProxyDeployment(updatedProxy.Handle, existingDeployment.DeploymentID.String(), ouID); err != nil {
 			s.logger.Warn("Failed to clean up old deployment after redeployment",
 				"environment", envName,
@@ -2248,11 +2224,7 @@ func (s *agentConfigurationService) processNewEnv(
 	}
 	rbRes.proxyHandle = proxy.Handle
 
-	deployment, err := s.llmProxyDeploymentService.DeployLLMProxy(proxy.Handle, &models.DeployAPIRequest{
-		Name:      fmt.Sprintf("%s-deployment", scopedID),
-		Base:      "current",
-		GatewayID: gateway.UUID.String(),
-	}, ouID)
+	deployment, err := s.llmProxyDeploymentService.DeployForEnvironment(ctx, proxy, ouID, envUUID, gateway.UUID)
 	if err != nil {
 		return rbRes, pendingAppBinding{}, fmt.Errorf("failed to deploy proxy for environment %s: %w", envName, err)
 	}
@@ -3450,9 +3422,6 @@ func (s *agentConfigurationService) removeMCPMappingEnvironment(ctx context.Cont
 		}
 	}
 
-	if s.mcpProxyService != nil {
-		s.mcpProxyService.BroadcastMCPArtifactDeletion(ctx, mapping.ArtifactUUID, ouID)
-	}
 	s.cleanupMCPMappingCredentials(ctx, config, mapping, envName, ouID)
 	return s.db.Transaction(func(tx *gorm.DB) error {
 		if err := s.envVariableRepo.DeleteByConfigAndEnv(ctx, tx, config.UUID, mapping.EnvironmentUUID); err != nil {
@@ -3461,16 +3430,34 @@ func (s *agentConfigurationService) removeMCPMappingEnvironment(ctx context.Cont
 		if err := s.envMCPMappingRepo.Delete(ctx, tx, mapping.ID); err != nil {
 			return err
 		}
-		if err := tx.Where("artifact_uuid = ? AND ou_id = ?", mapping.ArtifactUUID, ouID).
-			Delete(&models.DeploymentStatusRecord{}).Error; err != nil {
-			return err
-		}
-		if err := tx.Where("artifact_uuid = ? AND ou_id = ?", mapping.ArtifactUUID, ouID).
-			Delete(&models.Deployment{}).Error; err != nil {
-			return err
-		}
-		return tx.Where("uuid = ?", mapping.ArtifactUUID).Delete(&models.Artifact{}).Error
+		return s.deleteMCPMappingArtifacts(ctx, tx, ouID, mapping.ArtifactUUID)
 	})
+}
+
+// deleteMCPMappingArtifacts deletes the mappings' gateway artifacts with their deployments and status rows in tx, the
+// deleting transaction, and writes their delete events last in it.
+func (s *agentConfigurationService) deleteMCPMappingArtifacts(ctx context.Context, tx *gorm.DB, ouID string, artifactUUIDs ...uuid.UUID) error {
+	var events []reconcile.DeleteEvents
+	if s.mcpProxyService != nil {
+		var err error
+		if events, err = s.mcpProxyService.prepareMCPArtifactDeletes(ctx, tx, ouID, artifactUUIDs); err != nil {
+			return err
+		}
+	}
+	for _, artifactUUID := range artifactUUIDs {
+		if err := deleteMCPArtifactRows(tx, artifactUUID, ouID); err != nil {
+			return err
+		}
+	}
+	return reconcile.MergeDeleteEvents(events...).Publish(ctx, tx)
+}
+
+func mcpMappingArtifacts(mappings []models.EnvAgentMCPMapping) []uuid.UUID {
+	artifactUUIDs := make([]uuid.UUID, 0, len(mappings))
+	for _, mapping := range mappings {
+		artifactUUIDs = append(artifactUUIDs, mapping.ArtifactUUID)
+	}
+	return artifactUUIDs
 }
 
 // teardownMCPMappingKeepEnvVars removes an MCP mapping's gateway deployment and
@@ -3481,23 +3468,12 @@ func (s *agentConfigurationService) removeMCPMappingEnvironment(ctx context.Cont
 func (s *agentConfigurationService) teardownMCPMappingKeepEnvVars(ctx context.Context, config *models.AgentConfiguration,
 	mapping *models.EnvAgentMCPMapping, envName, ouID string,
 ) error {
-	if s.mcpProxyService != nil {
-		s.mcpProxyService.BroadcastMCPArtifactDeletion(ctx, mapping.ArtifactUUID, ouID)
-	}
 	s.cleanupMCPMappingCredentials(ctx, config, mapping, envName, ouID)
 	return s.db.Transaction(func(tx *gorm.DB) error {
 		if err := s.envMCPMappingRepo.Delete(ctx, tx, mapping.ID); err != nil {
 			return err
 		}
-		if err := tx.Where("artifact_uuid = ? AND ou_id = ?", mapping.ArtifactUUID, ouID).
-			Delete(&models.DeploymentStatusRecord{}).Error; err != nil {
-			return err
-		}
-		if err := tx.Where("artifact_uuid = ? AND ou_id = ?", mapping.ArtifactUUID, ouID).
-			Delete(&models.Deployment{}).Error; err != nil {
-			return err
-		}
-		return tx.Where("uuid = ?", mapping.ArtifactUUID).Delete(&models.Artifact{}).Error
+		return s.deleteMCPMappingArtifacts(ctx, tx, ouID, mapping.ArtifactUUID)
 	})
 }
 
@@ -4004,32 +3980,15 @@ func (s *agentConfigurationService) Update(ctx context.Context, configUUID uuid.
 	for _, proxyHandle := range proxiesToDelete {
 		s.logger.Info("Cleaning up replaced proxy", "proxyHandle", proxyHandle)
 
-		deployments, err := s.llmProxyDeploymentService.GetLLMProxyDeployments(proxyHandle, ouID, nil, nil)
-		if err != nil {
+		// The replaced proxy is still placed; undeploy it first, same as the whole-config
+		// deletion path (deleteLLMConfig) does.
+		if err := s.llmProxyDeploymentService.UndeployEverywhere(ctx, proxyHandle, ouID); err != nil {
 			s.logger.Error(
-				"Failed to get deployments for proxy cleanup",
+				"Failed to undeploy proxy during cleanup",
 				"proxyHandle", proxyHandle,
 				"error", err,
 			)
 			cleanupErrors++
-		} else {
-			for _, dep := range deployments {
-				// The replaced proxy's deployment is still DEPLOYED — DeleteLLMProxyDeployment
-				// rejects that (ErrDeploymentIsDeployed). It must be undeployed first, same as
-				// the whole-config deletion path (deleteLLMConfig) already does.
-				if dep.Status == nil || *dep.Status != models.DeploymentStatusDeployed {
-					continue
-				}
-				if _, err := s.llmProxyDeploymentService.UndeployLLMProxyDeployment(ctx, proxyHandle, dep.DeploymentID.String(), dep.GatewayUUID.String(), ouID); err != nil {
-					s.logger.Error(
-						"Failed to undeploy deployment during cleanup",
-						"proxyHandle", proxyHandle,
-						"deploymentID", dep.DeploymentID,
-						"error", err,
-					)
-					cleanupErrors++
-				}
-			}
 		}
 
 		if err := s.llmProxyService.Delete(ctx, proxyHandle, ouID, s.llmProxyDeploymentService); err != nil {
@@ -4268,8 +4227,7 @@ func (s *agentConfigurationService) deleteLLMConfig(ctx context.Context, existin
 			"proxyHandle", proxyHandle,
 		)
 
-		deployments, err := s.llmProxyDeploymentService.GetLLMProxyDeployments(proxyHandle, ouID, nil, nil)
-		if err != nil {
+		if err := s.llmProxyDeploymentService.UndeployEverywhere(ctx, proxyHandle, ouID); err != nil {
 			if errors.Is(err, utils.ErrLLMProxyNotFound) {
 				// Proxy already gone — skip deployment cleanup for this mapping.
 				s.logger.Info(
@@ -4277,19 +4235,11 @@ func (s *agentConfigurationService) deleteLLMConfig(ctx context.Context, existin
 					"proxyHandle", proxyHandle,
 				)
 			} else {
-				return fmt.Errorf("failed to get deployments for proxy %q: %w", proxyHandle, err)
-			}
-		} else {
-			for _, dep := range deployments {
-				if _, err := s.llmProxyDeploymentService.UndeployLLMProxyDeployment(ctx, proxyHandle, dep.DeploymentID.String(), dep.GatewayUUID.String(), ouID); err != nil {
-					s.logger.Error(
-						"Failed to undeploy deployment during cleanup",
-						"proxyHandle", proxyHandle,
-						"deploymentID", dep.DeploymentID,
-						"gatewayID", dep.GatewayUUID,
-						"error", err,
-					)
-				}
+				s.logger.Error(
+					"Failed to undeploy proxy during cleanup",
+					"proxyHandle", proxyHandle,
+					"error", err,
+				)
 			}
 		}
 
@@ -4475,21 +4425,11 @@ func (s *agentConfigurationService) DeleteForAgentDeletion(ctx context.Context, 
 		}
 
 		// Step 3: Undeploy proxy deployments.
-		deployments, err := s.llmProxyDeploymentService.GetLLMProxyDeployments(proxyHandle, ouID, nil, nil)
-		if err != nil {
-			if !errors.Is(err, utils.ErrLLMProxyNotFound) {
-				s.logger.Warn("Failed to get proxy deployments during agent deletion",
-					"proxyHandle", proxyHandle, "error", err)
-				cleanupErrs = append(cleanupErrs, fmt.Sprintf("get deployments for proxy %s: %v", proxyHandle, err))
-			}
-		} else {
-			for _, dep := range deployments {
-				if _, err := s.llmProxyDeploymentService.UndeployLLMProxyDeployment(ctx, proxyHandle, dep.DeploymentID.String(), dep.GatewayUUID.String(), ouID); err != nil {
-					s.logger.Warn("Failed to undeploy proxy deployment during agent deletion",
-						"proxyHandle", proxyHandle, "deploymentID", dep.DeploymentID, "error", err)
-					cleanupErrs = append(cleanupErrs, fmt.Sprintf("undeploy %s deployment %s: %v", proxyHandle, dep.DeploymentID, err))
-				}
-			}
+		if err := s.llmProxyDeploymentService.UndeployEverywhere(ctx, proxyHandle, ouID); err != nil &&
+			!errors.Is(err, utils.ErrLLMProxyNotFound) {
+			s.logger.Warn("Failed to undeploy proxy during agent deletion",
+				"proxyHandle", proxyHandle, "error", err)
+			cleanupErrs = append(cleanupErrs, fmt.Sprintf("undeploy proxy %s: %v", proxyHandle, err))
 		}
 
 		// Step 4: Delete proxy record.
@@ -4612,9 +4552,6 @@ func (s *agentConfigurationService) deleteMCPConfig(ctx context.Context, existin
 	}
 
 	for _, mapping := range mappings {
-		if s.mcpProxyService != nil {
-			s.mcpProxyService.BroadcastMCPArtifactDeletion(ctx, mapping.ArtifactUUID, ouID)
-		}
 		envName := envIDNameMap[mapping.EnvironmentUUID.String()]
 		s.cleanupMCPMappingCredentials(ctx, existingConfig, &mapping, envName, ouID)
 	}
@@ -4623,20 +4560,7 @@ func (s *agentConfigurationService) deleteMCPConfig(ctx context.Context, existin
 		if err := s.agentConfigRepo.Delete(ctx, tx, existingConfig.UUID, ouID); err != nil {
 			return err
 		}
-		for _, mapping := range mappings {
-			if err := tx.Where("artifact_uuid = ? AND ou_id = ?", mapping.ArtifactUUID, ouID).
-				Delete(&models.DeploymentStatusRecord{}).Error; err != nil {
-				return err
-			}
-			if err := tx.Where("artifact_uuid = ? AND ou_id = ?", mapping.ArtifactUUID, ouID).
-				Delete(&models.Deployment{}).Error; err != nil {
-				return err
-			}
-			if err := tx.Where("uuid = ?", mapping.ArtifactUUID).Delete(&models.Artifact{}).Error; err != nil {
-				return err
-			}
-		}
-		return nil
+		return s.deleteMCPMappingArtifacts(ctx, tx, ouID, mcpMappingArtifacts(mappings)...)
 	}); err != nil {
 		return fmt.Errorf("failed to delete MCP configuration: %w", err)
 	}
@@ -4679,9 +4603,6 @@ func (s *agentConfigurationService) deleteMCPConfigForAgentDeletion(ctx context.
 	}
 
 	for _, mapping := range mappings {
-		if s.mcpProxyService != nil {
-			s.mcpProxyService.BroadcastMCPArtifactDeletion(ctx, mapping.ArtifactUUID, ouID)
-		}
 		envName := envIDNameMap[mapping.EnvironmentUUID.String()]
 		s.cleanupMCPMappingCredentials(ctx, existingConfig, &mapping, envName, ouID)
 	}
@@ -4690,20 +4611,7 @@ func (s *agentConfigurationService) deleteMCPConfigForAgentDeletion(ctx context.
 		if err := s.agentConfigRepo.Delete(ctx, tx, existingConfig.UUID, ouID); err != nil {
 			return err
 		}
-		for _, mapping := range mappings {
-			if err := tx.Where("artifact_uuid = ? AND ou_id = ?", mapping.ArtifactUUID, ouID).
-				Delete(&models.DeploymentStatusRecord{}).Error; err != nil {
-				return err
-			}
-			if err := tx.Where("artifact_uuid = ? AND ou_id = ?", mapping.ArtifactUUID, ouID).
-				Delete(&models.Deployment{}).Error; err != nil {
-				return err
-			}
-			if err := tx.Where("uuid = ?", mapping.ArtifactUUID).Delete(&models.Artifact{}).Error; err != nil {
-				return err
-			}
-		}
-		return nil
+		return s.deleteMCPMappingArtifacts(ctx, tx, ouID, mcpMappingArtifacts(mappings)...)
 	}); err != nil {
 		return fmt.Errorf("failed to delete MCP configuration for agent deletion: %w", err)
 	}
@@ -4715,15 +4623,14 @@ func (s *agentConfigurationService) deleteMCPConfigForAgentDeletion(ctx context.
 
 // Helper methods
 
-// resolveGatewayForProvider returns the gateway hosting this LLM provider in the given
-// environment, or the environment's single egress gateway when it has no deployment there.
+// resolveGatewayForProvider returns the gateway this LLM provider is placed on in the given
+// environment, or the environment's single egress gateway when it isn't placed there.
 func (s *agentConfigurationService) resolveGatewayForProvider(
 	ctx context.Context, providerUUIDStr, ouID string, envUUID uuid.UUID,
 ) (*models.Gateway, error) {
-	_ = ctx
 	var deployed []string
 	if providerUUID, err := uuid.Parse(providerUUIDStr); err == nil {
-		ids, gwErr := s.llmProxyDeploymentService.GetDeployedGatewaysByProvider(providerUUID, ouID)
+		ids, gwErr := s.llmProxyDeploymentService.PlacedGateways(ctx, ouID, providerUUID)
 		if gwErr != nil {
 			return nil, fmt.Errorf("failed to list deployed gateways for provider %s: %w", providerUUIDStr, gwErr)
 		}
@@ -4732,21 +4639,15 @@ func (s *agentConfigurationService) resolveGatewayForProvider(
 	return resolveEgressGatewayForArtifact(s.gatewayRepo, ouID, envUUID, deployed, nil)
 }
 
-// resolveGatewayForProxy returns the gateway the LLM proxy is actually deployed to.
+// resolveGatewayForProxy returns the gateway the LLM proxy is placed on, whatever the placement's status.
 func (s *agentConfigurationService) resolveGatewayForProxy(
 	ctx context.Context, proxyHandle, ouID string, envUUID uuid.UUID,
 ) (*models.Gateway, error) {
-	_ = ctx
-	deployedStatus := string(models.DeploymentStatusDeployed)
-	var deployed []string
-	deployments, err := s.llmProxyDeploymentService.GetLLMProxyDeployments(proxyHandle, ouID, nil, &deployedStatus)
+	placed, err := s.llmProxyDeploymentService.PlacedGatewaysOfProxy(ctx, proxyHandle, ouID)
 	if err != nil && !errors.Is(err, utils.ErrLLMProxyNotFound) {
-		return nil, fmt.Errorf("failed to list deployments for proxy %s: %w", proxyHandle, err)
+		return nil, fmt.Errorf("failed to list the gateways proxy %s is placed on: %w", proxyHandle, err)
 	}
-	for _, dep := range deployments {
-		deployed = append(deployed, dep.GatewayUUID.String())
-	}
-	return resolveEgressGatewayForArtifact(s.gatewayRepo, ouID, envUUID, deployed, nil)
+	return resolveEgressGatewayForArtifact(s.gatewayRepo, ouID, envUUID, placed, nil)
 }
 
 // errMCPEnvNotDeployable reports that an MCP proxy cannot back an agent binding in an
@@ -4783,14 +4684,13 @@ func (s *agentConfigurationService) resolveDeployableMCPGateway(
 }
 
 // resolveGatewayForMCPArtifact returns the gateway the MCP proxy's shared per-environment
-// artifact is deployed to.
+// artifact is placed on, whatever the placement's status.
 func (s *agentConfigurationService) resolveGatewayForMCPArtifact(
 	ctx context.Context, artifactUUID uuid.UUID, ouID string, envUUID uuid.UUID,
 ) (*models.Gateway, error) {
-	_ = ctx
 	var deployed []string
 	if s.mcpProxyService != nil && s.mcpProxyService.deploymentRepo != nil {
-		ids, err := s.mcpProxyService.deploymentRepo.GetDeployedGatewaysByProvider(artifactUUID, ouID)
+		ids, err := s.mcpProxyService.deploymentRepo.PlacedGateways(ctx, ouID, artifactUUID)
 		if err != nil {
 			return nil, fmt.Errorf("failed to list deployed gateways for MCP artifact %s: %w", artifactUUID, err)
 		}
@@ -5528,9 +5428,6 @@ func (s *agentConfigurationService) reconcileMCPMappingCredentials(ctx context.C
 // environment that was already promoted, and dropping its variable rows would strip the
 // agent's MCP variable names entirely, leaving it worse off than the failed binding.
 func (s *agentConfigurationService) cleanupNewMCPMapping(ctx context.Context, config *models.AgentConfiguration, mapping *models.EnvAgentMCPMapping, envName, ouID string, deleteEnvVars bool) {
-	if s.mcpProxyService != nil {
-		s.mcpProxyService.BroadcastMCPArtifactDeletion(ctx, mapping.ArtifactUUID, ouID)
-	}
 	s.cleanupMCPMappingCredentials(ctx, config, mapping, envName, ouID)
 	if err := s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		if deleteEnvVars {
@@ -5543,15 +5440,7 @@ func (s *agentConfigurationService) cleanupNewMCPMapping(ctx context.Context, co
 				return err
 			}
 		}
-		if err := tx.Where("artifact_uuid = ? AND ou_id = ?", mapping.ArtifactUUID, ouID).
-			Delete(&models.DeploymentStatusRecord{}).Error; err != nil {
-			return err
-		}
-		if err := tx.Where("artifact_uuid = ? AND ou_id = ?", mapping.ArtifactUUID, ouID).
-			Delete(&models.Deployment{}).Error; err != nil {
-			return err
-		}
-		return tx.Where("uuid = ?", mapping.ArtifactUUID).Delete(&models.Artifact{}).Error
+		return s.deleteMCPMappingArtifacts(ctx, tx, ouID, mapping.ArtifactUUID)
 	}); err != nil {
 		s.logger.Warn("failed to clean up new MCP mapping after partial failure", "environment", envName, "artifactUUID", mapping.ArtifactUUID, "err", err)
 	}
@@ -5638,6 +5527,36 @@ func (s *agentConfigurationService) undeployAndDeleteDeployment(ctx context.Cont
 	}
 }
 
+// restorePriorDeployment points the gateway back at res.restoreDeploymentID and deletes the deployment it
+// replaced. The replaced one is kept when the restore fails, so the proxy is never left with nothing.
+func (s *agentConfigurationService) restorePriorDeployment(res rollbackResource, ouID string) {
+	if res.restoreDeploymentID == uuid.Nil {
+		return
+	}
+	_, err := s.llmProxyDeploymentService.RestoreLLMProxyDeployment(
+		res.proxyHandle, res.restoreDeploymentID.String(), res.gatewayID, ouID)
+	if err != nil && !errors.Is(err, utils.ErrDeploymentAlreadyDeployed) {
+		s.logger.Error("Failed to restore prior deployment during rollback",
+			"proxyHandle", res.proxyHandle, "deploymentID", res.restoreDeploymentID,
+			"supersededDeploymentID", res.supersededDeploymentID, "error", err)
+		return
+	}
+	outcome := "Restored prior deployment during rollback"
+	if err != nil {
+		outcome = "Prior deployment was already deployed during rollback"
+	}
+	s.logger.Info(outcome, "proxyHandle", res.proxyHandle, "deploymentID", res.restoreDeploymentID)
+
+	if res.supersededDeploymentID == uuid.Nil || res.supersededDeploymentID == res.restoreDeploymentID {
+		return
+	}
+	if err := s.llmProxyDeploymentService.DeleteLLMProxyDeployment(
+		res.proxyHandle, res.supersededDeploymentID.String(), ouID); err != nil {
+		s.logger.Error("Failed to delete superseded deployment during rollback",
+			"proxyHandle", res.proxyHandle, "deploymentID", res.supersededDeploymentID, "error", err)
+	}
+}
+
 // rollbackProxies cleans up created proxies, deployments, and API keys on failure
 func (s *agentConfigurationService) rollbackProxies(ctx context.Context, resources []rollbackResource, ouID string) {
 	s.logger.Warn("Rolling back created proxies and API keys", "count", len(resources))
@@ -5714,8 +5633,9 @@ func (s *agentConfigurationService) rollbackProxies(ctx context.Context, resourc
 		}
 
 		// Scenario B (in-place proxy update) rollback: the proxy pre-existed this
-		// operation, so restore its prior configuration instead of deleting it —
-		// the generic full-proxy teardown below assumes the proxy was newly created.
+		// operation, so restore its prior configuration, then point the gateway back at
+		// the old deployment without undeploying — the generic full-proxy teardown below
+		// assumes the proxy was newly created.
 		if res.priorProxyConfig != nil {
 			if _, err := s.llmProxyService.Update(res.proxyHandle, ouID, res.priorProxyConfig); err != nil {
 				s.logger.Error("Failed to restore prior proxy configuration during rollback",
@@ -5724,20 +5644,7 @@ func (s *agentConfigurationService) rollbackProxies(ctx context.Context, resourc
 				s.logger.Info("Restored prior proxy configuration during rollback",
 					"proxyHandle", res.proxyHandle)
 			}
-			// The old deployment was silently superseded (ARCHIVED) the instant
-			// the new deployment was created above — it was never explicitly
-			// undeployed, so it must be explicitly reactivated here.
-			if res.restoreDeploymentID != uuid.Nil {
-				if _, err := s.llmProxyDeploymentService.RestoreLLMProxyDeployment(
-					res.proxyHandle, res.restoreDeploymentID.String(), res.gatewayID, ouID,
-				); err != nil {
-					s.logger.Error("Failed to restore prior deployment during rollback",
-						"proxyHandle", res.proxyHandle, "deploymentID", res.restoreDeploymentID, "error", err)
-				} else {
-					s.logger.Info("Restored prior deployment during rollback",
-						"proxyHandle", res.proxyHandle, "deploymentID", res.restoreDeploymentID)
-				}
-			}
+			s.restorePriorDeployment(res, ouID)
 			continue
 		}
 
@@ -6082,13 +5989,6 @@ func (s *agentConfigurationService) processRollBack(ctx context.Context, rollbac
 }
 
 func (s *agentConfigurationService) cleanupMCPConfig(ctx context.Context, configUUID uuid.UUID, ouID string) {
-	if s.envMCPMappingRepo != nil && s.mcpProxyService != nil {
-		if mappings, err := s.envMCPMappingRepo.ListByConfig(ctx, configUUID); err == nil {
-			for _, mapping := range mappings {
-				s.mcpProxyService.BroadcastMCPArtifactDeletion(ctx, mapping.ArtifactUUID, ouID)
-			}
-		}
-	}
 	if err := s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		var mappings []models.EnvAgentMCPMapping
 		if s.envMCPMappingRepo != nil {
@@ -6101,20 +6001,7 @@ func (s *agentConfigurationService) cleanupMCPConfig(ctx context.Context, config
 		if err := s.agentConfigRepo.Delete(ctx, tx, configUUID, ouID); err != nil {
 			return err
 		}
-		for _, mapping := range mappings {
-			if err := tx.Where("artifact_uuid = ? AND ou_id = ?", mapping.ArtifactUUID, ouID).
-				Delete(&models.DeploymentStatusRecord{}).Error; err != nil {
-				return err
-			}
-			if err := tx.Where("artifact_uuid = ? AND ou_id = ?", mapping.ArtifactUUID, ouID).
-				Delete(&models.Deployment{}).Error; err != nil {
-				return err
-			}
-			if err := tx.Where("uuid = ?", mapping.ArtifactUUID).Delete(&models.Artifact{}).Error; err != nil {
-				return err
-			}
-		}
-		return nil
+		return s.deleteMCPMappingArtifacts(ctx, tx, ouID, mcpMappingArtifacts(mappings)...)
 	}); err != nil {
 		s.logger.Warn("failed to clean up MCP configuration", "configUUID", configUUID, "error", err)
 	}

@@ -19,7 +19,7 @@ OBSERVABILITY_LOGS_OPENSEARCH_VERSION="0.5.5"
 # object ({code,message}), but the tracing adapter 0.5.0/0.5.1 still return it
 # as a string, so span-details 500 and traces are dropped. 0.6.x and 0.8.x
 # return the object and support OpenChoreo 1.2.0 and later.
-OBSERVABILITY_TRACING_OPENSEARCH_VERSION="0.8.0"
+OBSERVABILITY_TRACING_OPENSEARCH_VERSION="0.8.1"
 OBSERVABILITY_METRICS_PROMETHEUS_VERSION="0.8.1"
 
 # Agent Sandbox community module

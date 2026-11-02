@@ -19,8 +19,10 @@ package repositories
 import (
 	"context"
 	"errors"
+	"fmt"
 	"time"
 
+	"github.com/google/uuid"
 	"gorm.io/gorm"
 
 	"github.com/wso2/agent-manager/agent-manager-service/models"
@@ -36,10 +38,13 @@ type ArtifactRepository interface {
 	Update(tx *gorm.DB, artifact *models.Artifact) error
 	UpdateCatalogStatus(tx *gorm.DB, uuid, organizationUUID string, inCatalog bool) error
 	Exists(kind, handle, orgUUID string) (bool, error)
+	ListExisting(ctx context.Context, ouID string, uuids []uuid.UUID, llmProxyHandles []string) ([]models.ArtifactRef, error)
 	GetByHandle(handle, orgUUID string) (*models.Artifact, error)
 	GetByUUID(artifactUUID, orgUUID string) (*models.Artifact, error)
-	ListByHandlePrefix(ctx context.Context, kind, handlePrefix, orgUUID string) ([]*models.Artifact, error)
+	ListByHandlePrefix(ctx context.Context, kinds []string, handlePrefix, orgUUID string) ([]*models.Artifact, error)
 	CountByKindAndOrg(kind, orgUUID string) (int, error)
+	// WithTx returns the repository bound to tx.
+	WithTx(tx *gorm.DB) ArtifactRepository
 }
 
 // ArtifactRepo implements ArtifactRepository using GORM
@@ -50,6 +55,11 @@ type ArtifactRepo struct {
 // NewArtifactRepo creates a new artifact repository
 func NewArtifactRepo(db *gorm.DB) ArtifactRepository {
 	return &ArtifactRepo{db: db}
+}
+
+// WithTx returns the repository bound to tx.
+func (r *ArtifactRepo) WithTx(tx *gorm.DB) ArtifactRepository {
+	return &ArtifactRepo{db: tx}
 }
 
 // Create inserts a new artifact within a transaction
@@ -84,6 +94,9 @@ func (r *ArtifactRepo) Update(tx *gorm.DB, artifact *models.Artifact) error {
 	if artifact.Version != "" {
 		updates["version"] = artifact.Version
 	}
+	if artifact.Kind != "" {
+		updates["kind"] = artifact.Kind
+	}
 
 	result := tx.Model(&models.Artifact{}).
 		Where("uuid = ? AND ou_id = ?", artifact.UUID, artifact.OUID).
@@ -108,6 +121,34 @@ func (r *ArtifactRepo) Exists(kind, handle, orgUUID string) (bool, error) {
 		return false, err
 	}
 	return count > 0, nil
+}
+
+// ListExisting returns the artifacts of ouID among uuids, and the LLM proxies among llmProxyHandles.
+func (r *ArtifactRepo) ListExisting(
+	ctx context.Context, ouID string, uuids []uuid.UUID, llmProxyHandles []string,
+) ([]models.ArtifactRef, error) {
+	if len(uuids) == 0 && len(llmProxyHandles) == 0 {
+		return nil, nil
+	}
+	if uuids == nil {
+		uuids = []uuid.UUID{}
+	}
+	if llmProxyHandles == nil {
+		llmProxyHandles = []string{}
+	}
+	var artifacts []models.Artifact
+	err := r.db.WithContext(ctx).
+		Select("uuid", "ou_id", "kind", "handle").
+		Where("ou_id = ? AND (uuid IN ? OR (kind = ? AND handle IN ?))", ouID, uuids, models.KindLLMProxy, llmProxyHandles).
+		Find(&artifacts).Error
+	if err != nil {
+		return nil, fmt.Errorf("failed to list existing artifacts: %w", err)
+	}
+	refs := make([]models.ArtifactRef, 0, len(artifacts))
+	for _, a := range artifacts {
+		refs = append(refs, models.ArtifactRef{OUID: a.OUID, ArtifactUUID: a.UUID, Kind: a.Kind, Handle: a.Handle})
+	}
+	return refs, nil
 }
 
 // GetByHandle retrieves an artifact by handle and organization
@@ -139,11 +180,11 @@ func (r *ArtifactRepo) GetByUUID(artifactUUID, orgUUID string) (*models.Artifact
 	return &artifact, nil
 }
 
-// ListByHandlePrefix returns the org's artifacts of a kind whose handle starts with handlePrefix.
-func (r *ArtifactRepo) ListByHandlePrefix(ctx context.Context, kind, handlePrefix, orgUUID string) ([]*models.Artifact, error) {
+// ListByHandlePrefix returns the org's artifacts of any of the kinds whose handle starts with handlePrefix.
+func (r *ArtifactRepo) ListByHandlePrefix(ctx context.Context, kinds []string, handlePrefix, orgUUID string) ([]*models.Artifact, error) {
 	var artifacts []*models.Artifact
 	err := r.db.WithContext(ctx).
-		Where(`kind = ? AND ou_id = ? AND handle LIKE ? ESCAPE '\'`, kind, orgUUID, escapeLikeWildcards(handlePrefix)+"%").
+		Where(`kind IN ? AND ou_id = ? AND handle LIKE ? ESCAPE '\'`, kinds, orgUUID, escapeLikeWildcards(handlePrefix)+"%").
 		Find(&artifacts).Error
 	return artifacts, err
 }

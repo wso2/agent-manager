@@ -42,7 +42,7 @@ func (Artifact) TableName() string {
 
 // Artifact Kind constants
 const (
-	KindRestAPI     = "RestAPI"
+	KindRestAPI     = "RestApi"
 	KindWebSubAPI   = "WebSubAPI"
 	KindLLMProvider = "LlmProvider"
 	KindLLMProxy    = "LlmProxy"
@@ -50,3 +50,6 @@ const (
 	KindMCPProxy    = "McpProxy"
 	KindMCPMapping  = "McpProxyMapping"
 )
+
+// AgentArtifactKinds are the artifact kinds a platform-hosted agent's per-environment artifact can have.
+var AgentArtifactKinds = []string{KindAgent, KindRestAPI}

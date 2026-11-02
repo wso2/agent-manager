@@ -1,0 +1,38 @@
+name: Manual Instrumentation Local Smoke Checks
+on:
+  pull_request:
+    paths:
+      - 'samples/manual-instrumentation-agent/**'
+      - 'test/sample-smoke/local/**'
+      - '.github/workflows/manual-instrumentation-agent-local-smoke.yaml'
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: manual-instrumentation-agent-local-smoke-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  smoke:
+    name: Manual Instrumentation local smoke
+    runs-on: ubuntu-24.04
+    timeout-minutes: 35
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          repository: ${{ github.event.pull_request.head.repo.full_name || github.repository }}
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          persist-credentials: false
+      - uses: actions/setup-python@v6
+        with:
+          python-version: '3.11'
+      - name: Test model failure guards
+        run: python -m unittest discover -s test/sample-smoke/local -p 'test_*.py' -v
+      - name: Install or build, start, and test the sample
+        env:
+          SAMPLE: manual-instrumentation-agent
+        run: python test/sample-smoke/local/run.py "$SAMPLE" --reports "$RUNNER_TEMP/smoke-reports"
+      - uses: actions/upload-artifact@v7
+        if: always()
+        with:
+          name: local-smoke-manual-instrumentation-agent
+          path: ${{ runner.temp }}/smoke-reports/

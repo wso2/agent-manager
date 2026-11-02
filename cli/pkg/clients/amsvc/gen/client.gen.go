@@ -909,6 +909,26 @@ type ClientInterface interface {
 
 	RotateLLMProxyAPIKey(ctx context.Context, orgName string, projName string, id string, keyName string, body RotateLLMProxyAPIKeyJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
 
+	// GetLLMProxyDeployments request
+	GetLLMProxyDeployments(ctx context.Context, orgName string, projName string, id string, params *GetLLMProxyDeploymentsParams, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// DeployLLMProxyWithBody request with any body
+	DeployLLMProxyWithBody(ctx context.Context, orgName string, projName string, id string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	DeployLLMProxy(ctx context.Context, orgName string, projName string, id string, body DeployLLMProxyJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// RestoreLLMProxyDeployment request
+	RestoreLLMProxyDeployment(ctx context.Context, orgName string, projName string, id string, params *RestoreLLMProxyDeploymentParams, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// UndeployLLMProxyDeployment request
+	UndeployLLMProxyDeployment(ctx context.Context, orgName string, projName string, id string, params *UndeployLLMProxyDeploymentParams, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// DeleteLLMProxyDeployment request
+	DeleteLLMProxyDeployment(ctx context.Context, orgName string, projName string, id string, deploymentId string, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// GetLLMProxyDeployment request
+	GetLLMProxyDeployment(ctx context.Context, orgName string, projName string, id string, deploymentId string, reqEditors ...RequestEditorFn) (*http.Response, error)
+
 	// ListRepositoryBranchesWithBody request with any body
 	ListRepositoryBranchesWithBody(ctx context.Context, orgName string, params *ListRepositoryBranchesParams, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
 
@@ -4511,6 +4531,90 @@ func (c *Client) RotateLLMProxyAPIKeyWithBody(ctx context.Context, orgName strin
 
 func (c *Client) RotateLLMProxyAPIKey(ctx context.Context, orgName string, projName string, id string, keyName string, body RotateLLMProxyAPIKeyJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
 	req, err := NewRotateLLMProxyAPIKeyRequest(c.Server, orgName, projName, id, keyName, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) GetLLMProxyDeployments(ctx context.Context, orgName string, projName string, id string, params *GetLLMProxyDeploymentsParams, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewGetLLMProxyDeploymentsRequest(c.Server, orgName, projName, id, params)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) DeployLLMProxyWithBody(ctx context.Context, orgName string, projName string, id string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewDeployLLMProxyRequestWithBody(c.Server, orgName, projName, id, contentType, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) DeployLLMProxy(ctx context.Context, orgName string, projName string, id string, body DeployLLMProxyJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewDeployLLMProxyRequest(c.Server, orgName, projName, id, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) RestoreLLMProxyDeployment(ctx context.Context, orgName string, projName string, id string, params *RestoreLLMProxyDeploymentParams, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewRestoreLLMProxyDeploymentRequest(c.Server, orgName, projName, id, params)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) UndeployLLMProxyDeployment(ctx context.Context, orgName string, projName string, id string, params *UndeployLLMProxyDeploymentParams, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewUndeployLLMProxyDeploymentRequest(c.Server, orgName, projName, id, params)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) DeleteLLMProxyDeployment(ctx context.Context, orgName string, projName string, id string, deploymentId string, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewDeleteLLMProxyDeploymentRequest(c.Server, orgName, projName, id, deploymentId)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) GetLLMProxyDeployment(ctx context.Context, orgName string, projName string, id string, deploymentId string, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewGetLLMProxyDeploymentRequest(c.Server, orgName, projName, id, deploymentId)
 	if err != nil {
 		return nil, err
 	}
@@ -17214,6 +17318,419 @@ func NewRotateLLMProxyAPIKeyRequestWithBody(server string, orgName string, projN
 	return req, nil
 }
 
+// NewGetLLMProxyDeploymentsRequest generates requests for GetLLMProxyDeployments
+func NewGetLLMProxyDeploymentsRequest(server string, orgName string, projName string, id string, params *GetLLMProxyDeploymentsParams) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithOptions("simple", false, "orgName", orgName, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: ""})
+	if err != nil {
+		return nil, err
+	}
+
+	var pathParam1 string
+
+	pathParam1, err = runtime.StyleParamWithOptions("simple", false, "projName", projName, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: ""})
+	if err != nil {
+		return nil, err
+	}
+
+	var pathParam2 string
+
+	pathParam2, err = runtime.StyleParamWithOptions("simple", false, "id", id, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: ""})
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/orgs/%s/projects/%s/llm-proxies/%s/deployments", pathParam0, pathParam1, pathParam2)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	if params != nil {
+		queryValues := queryURL.Query()
+
+		if params.GatewayId != nil {
+
+			if queryFrag, err := runtime.StyleParamWithOptions("form", true, "gatewayId", *params.GatewayId, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+				return nil, err
+			} else {
+				for k, v := range parsed {
+					for _, v2 := range v {
+						queryValues.Add(k, v2)
+					}
+				}
+			}
+
+		}
+
+		if params.Status != nil {
+
+			if queryFrag, err := runtime.StyleParamWithOptions("form", true, "status", *params.Status, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+				return nil, err
+			} else {
+				for k, v := range parsed {
+					for _, v2 := range v {
+						queryValues.Add(k, v2)
+					}
+				}
+			}
+
+		}
+
+		queryURL.RawQuery = queryValues.Encode()
+	}
+
+	req, err := http.NewRequest("GET", queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return req, nil
+}
+
+// NewDeployLLMProxyRequest calls the generic DeployLLMProxy builder with application/json body
+func NewDeployLLMProxyRequest(server string, orgName string, projName string, id string, body DeployLLMProxyJSONRequestBody) (*http.Request, error) {
+	var bodyReader io.Reader
+	buf, err := json.Marshal(body)
+	if err != nil {
+		return nil, err
+	}
+	bodyReader = bytes.NewReader(buf)
+	return NewDeployLLMProxyRequestWithBody(server, orgName, projName, id, "application/json", bodyReader)
+}
+
+// NewDeployLLMProxyRequestWithBody generates requests for DeployLLMProxy with any type of body
+func NewDeployLLMProxyRequestWithBody(server string, orgName string, projName string, id string, contentType string, body io.Reader) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithOptions("simple", false, "orgName", orgName, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: ""})
+	if err != nil {
+		return nil, err
+	}
+
+	var pathParam1 string
+
+	pathParam1, err = runtime.StyleParamWithOptions("simple", false, "projName", projName, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: ""})
+	if err != nil {
+		return nil, err
+	}
+
+	var pathParam2 string
+
+	pathParam2, err = runtime.StyleParamWithOptions("simple", false, "id", id, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: ""})
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/orgs/%s/projects/%s/llm-proxies/%s/deployments", pathParam0, pathParam1, pathParam2)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest("POST", queryURL.String(), body)
+	if err != nil {
+		return nil, err
+	}
+
+	req.Header.Add("Content-Type", contentType)
+
+	return req, nil
+}
+
+// NewRestoreLLMProxyDeploymentRequest generates requests for RestoreLLMProxyDeployment
+func NewRestoreLLMProxyDeploymentRequest(server string, orgName string, projName string, id string, params *RestoreLLMProxyDeploymentParams) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithOptions("simple", false, "orgName", orgName, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: ""})
+	if err != nil {
+		return nil, err
+	}
+
+	var pathParam1 string
+
+	pathParam1, err = runtime.StyleParamWithOptions("simple", false, "projName", projName, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: ""})
+	if err != nil {
+		return nil, err
+	}
+
+	var pathParam2 string
+
+	pathParam2, err = runtime.StyleParamWithOptions("simple", false, "id", id, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: ""})
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/orgs/%s/projects/%s/llm-proxies/%s/deployments/restore", pathParam0, pathParam1, pathParam2)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	if params != nil {
+		queryValues := queryURL.Query()
+
+		if queryFrag, err := runtime.StyleParamWithOptions("form", true, "deploymentId", params.DeploymentId, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "string", Format: ""}); err != nil {
+			return nil, err
+		} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+			return nil, err
+		} else {
+			for k, v := range parsed {
+				for _, v2 := range v {
+					queryValues.Add(k, v2)
+				}
+			}
+		}
+
+		if queryFrag, err := runtime.StyleParamWithOptions("form", true, "gatewayId", params.GatewayId, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "string", Format: ""}); err != nil {
+			return nil, err
+		} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+			return nil, err
+		} else {
+			for k, v := range parsed {
+				for _, v2 := range v {
+					queryValues.Add(k, v2)
+				}
+			}
+		}
+
+		queryURL.RawQuery = queryValues.Encode()
+	}
+
+	req, err := http.NewRequest("POST", queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return req, nil
+}
+
+// NewUndeployLLMProxyDeploymentRequest generates requests for UndeployLLMProxyDeployment
+func NewUndeployLLMProxyDeploymentRequest(server string, orgName string, projName string, id string, params *UndeployLLMProxyDeploymentParams) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithOptions("simple", false, "orgName", orgName, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: ""})
+	if err != nil {
+		return nil, err
+	}
+
+	var pathParam1 string
+
+	pathParam1, err = runtime.StyleParamWithOptions("simple", false, "projName", projName, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: ""})
+	if err != nil {
+		return nil, err
+	}
+
+	var pathParam2 string
+
+	pathParam2, err = runtime.StyleParamWithOptions("simple", false, "id", id, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: ""})
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/orgs/%s/projects/%s/llm-proxies/%s/deployments/undeploy", pathParam0, pathParam1, pathParam2)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	if params != nil {
+		queryValues := queryURL.Query()
+
+		if queryFrag, err := runtime.StyleParamWithOptions("form", true, "deploymentId", params.DeploymentId, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "string", Format: ""}); err != nil {
+			return nil, err
+		} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+			return nil, err
+		} else {
+			for k, v := range parsed {
+				for _, v2 := range v {
+					queryValues.Add(k, v2)
+				}
+			}
+		}
+
+		if queryFrag, err := runtime.StyleParamWithOptions("form", true, "gatewayId", params.GatewayId, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "string", Format: ""}); err != nil {
+			return nil, err
+		} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+			return nil, err
+		} else {
+			for k, v := range parsed {
+				for _, v2 := range v {
+					queryValues.Add(k, v2)
+				}
+			}
+		}
+
+		queryURL.RawQuery = queryValues.Encode()
+	}
+
+	req, err := http.NewRequest("POST", queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return req, nil
+}
+
+// NewDeleteLLMProxyDeploymentRequest generates requests for DeleteLLMProxyDeployment
+func NewDeleteLLMProxyDeploymentRequest(server string, orgName string, projName string, id string, deploymentId string) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithOptions("simple", false, "orgName", orgName, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: ""})
+	if err != nil {
+		return nil, err
+	}
+
+	var pathParam1 string
+
+	pathParam1, err = runtime.StyleParamWithOptions("simple", false, "projName", projName, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: ""})
+	if err != nil {
+		return nil, err
+	}
+
+	var pathParam2 string
+
+	pathParam2, err = runtime.StyleParamWithOptions("simple", false, "id", id, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: ""})
+	if err != nil {
+		return nil, err
+	}
+
+	var pathParam3 string
+
+	pathParam3, err = runtime.StyleParamWithOptions("simple", false, "deploymentId", deploymentId, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: ""})
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/orgs/%s/projects/%s/llm-proxies/%s/deployments/%s", pathParam0, pathParam1, pathParam2, pathParam3)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest("DELETE", queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return req, nil
+}
+
+// NewGetLLMProxyDeploymentRequest generates requests for GetLLMProxyDeployment
+func NewGetLLMProxyDeploymentRequest(server string, orgName string, projName string, id string, deploymentId string) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithOptions("simple", false, "orgName", orgName, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: ""})
+	if err != nil {
+		return nil, err
+	}
+
+	var pathParam1 string
+
+	pathParam1, err = runtime.StyleParamWithOptions("simple", false, "projName", projName, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: ""})
+	if err != nil {
+		return nil, err
+	}
+
+	var pathParam2 string
+
+	pathParam2, err = runtime.StyleParamWithOptions("simple", false, "id", id, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: ""})
+	if err != nil {
+		return nil, err
+	}
+
+	var pathParam3 string
+
+	pathParam3, err = runtime.StyleParamWithOptions("simple", false, "deploymentId", deploymentId, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: ""})
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/orgs/%s/projects/%s/llm-proxies/%s/deployments/%s", pathParam0, pathParam1, pathParam2, pathParam3)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest("GET", queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return req, nil
+}
+
 // NewListRepositoryBranchesRequest calls the generic ListRepositoryBranches builder with application/json body
 func NewListRepositoryBranchesRequest(server string, orgName string, params *ListRepositoryBranchesParams, body ListRepositoryBranchesJSONRequestBody) (*http.Request, error) {
 	var bodyReader io.Reader
@@ -18384,6 +18901,26 @@ type ClientWithResponsesInterface interface {
 	RotateLLMProxyAPIKeyWithBodyWithResponse(ctx context.Context, orgName string, projName string, id string, keyName string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*RotateLLMProxyAPIKeyResp, error)
 
 	RotateLLMProxyAPIKeyWithResponse(ctx context.Context, orgName string, projName string, id string, keyName string, body RotateLLMProxyAPIKeyJSONRequestBody, reqEditors ...RequestEditorFn) (*RotateLLMProxyAPIKeyResp, error)
+
+	// GetLLMProxyDeploymentsWithResponse request
+	GetLLMProxyDeploymentsWithResponse(ctx context.Context, orgName string, projName string, id string, params *GetLLMProxyDeploymentsParams, reqEditors ...RequestEditorFn) (*GetLLMProxyDeploymentsResp, error)
+
+	// DeployLLMProxyWithBodyWithResponse request with any body
+	DeployLLMProxyWithBodyWithResponse(ctx context.Context, orgName string, projName string, id string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*DeployLLMProxyResp, error)
+
+	DeployLLMProxyWithResponse(ctx context.Context, orgName string, projName string, id string, body DeployLLMProxyJSONRequestBody, reqEditors ...RequestEditorFn) (*DeployLLMProxyResp, error)
+
+	// RestoreLLMProxyDeploymentWithResponse request
+	RestoreLLMProxyDeploymentWithResponse(ctx context.Context, orgName string, projName string, id string, params *RestoreLLMProxyDeploymentParams, reqEditors ...RequestEditorFn) (*RestoreLLMProxyDeploymentResp, error)
+
+	// UndeployLLMProxyDeploymentWithResponse request
+	UndeployLLMProxyDeploymentWithResponse(ctx context.Context, orgName string, projName string, id string, params *UndeployLLMProxyDeploymentParams, reqEditors ...RequestEditorFn) (*UndeployLLMProxyDeploymentResp, error)
+
+	// DeleteLLMProxyDeploymentWithResponse request
+	DeleteLLMProxyDeploymentWithResponse(ctx context.Context, orgName string, projName string, id string, deploymentId string, reqEditors ...RequestEditorFn) (*DeleteLLMProxyDeploymentResp, error)
+
+	// GetLLMProxyDeploymentWithResponse request
+	GetLLMProxyDeploymentWithResponse(ctx context.Context, orgName string, projName string, id string, deploymentId string, reqEditors ...RequestEditorFn) (*GetLLMProxyDeploymentResp, error)
 
 	// ListRepositoryBranchesWithBodyWithResponse request with any body
 	ListRepositoryBranchesWithBodyWithResponse(ctx context.Context, orgName string, params *ListRepositoryBranchesParams, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*ListRepositoryBranchesResp, error)
@@ -19978,6 +20515,7 @@ type RemoveGatewayFromEnvironmentResp struct {
 	JSON400      *ErrorResponse
 	JSON401      *ErrorResponse
 	JSON404      *ErrorResponse
+	JSON409      *ErrorResponse
 	JSON500      *ErrorResponse
 }
 
@@ -21192,7 +21730,7 @@ func (r ListLLMProviderConsumersResp) StatusCode() int {
 type GetLLMProviderDeploymentsResp struct {
 	Body         []byte
 	HTTPResponse *http.Response
-	JSON200      *[]DeploymentResponse
+	JSON200      *[]LLMDeploymentResponse
 	JSON400      *ErrorResponse
 	JSON401      *ErrorResponse
 	JSON404      *ErrorResponse
@@ -21218,7 +21756,7 @@ func (r GetLLMProviderDeploymentsResp) StatusCode() int {
 type DeployLLMProviderResp struct {
 	Body         []byte
 	HTTPResponse *http.Response
-	JSON201      *DeploymentResponse
+	JSON201      *LLMDeploymentResponse
 	JSON400      *ErrorResponse
 	JSON401      *ErrorResponse
 	JSON404      *ErrorResponse
@@ -21244,7 +21782,7 @@ func (r DeployLLMProviderResp) StatusCode() int {
 type RestoreLLMProviderDeploymentResp struct {
 	Body         []byte
 	HTTPResponse *http.Response
-	JSON200      *DeploymentResponse
+	JSON200      *LLMDeploymentResponse
 	JSON400      *ErrorResponse
 	JSON401      *ErrorResponse
 	JSON404      *ErrorResponse
@@ -21326,7 +21864,7 @@ func (r DeleteLLMProviderDeploymentResp) StatusCode() int {
 type GetLLMProviderDeploymentResp struct {
 	Body         []byte
 	HTTPResponse *http.Response
-	JSON200      *DeploymentResponse
+	JSON200      *LLMDeploymentResponse
 	JSON400      *ErrorResponse
 	JSON401      *ErrorResponse
 	JSON404      *ErrorResponse
@@ -21941,6 +22479,7 @@ type BuildAgentResp struct {
 	JSON202      *BuildResponse
 	JSON400      *ErrorResponse
 	JSON404      *ErrorResponse
+	JSON409      *ErrorResponse
 	JSON500      *ErrorResponse
 }
 
@@ -22086,6 +22625,7 @@ type DeployAgentResp struct {
 	JSON202      *DeploymentResponse
 	JSON400      *ErrorResponse
 	JSON404      *ErrorResponse
+	JSON409      *ErrorResponse
 	JSON500      *ErrorResponse
 }
 
@@ -23920,6 +24460,166 @@ func (r RotateLLMProxyAPIKeyResp) Status() string {
 
 // StatusCode returns HTTPResponse.StatusCode
 func (r RotateLLMProxyAPIKeyResp) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+type GetLLMProxyDeploymentsResp struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON200      *[]LLMDeploymentResponse
+	JSON400      *ErrorResponse
+	JSON401      *ErrorResponse
+	JSON404      *ErrorResponse
+	JSON500      *ErrorResponse
+}
+
+// Status returns HTTPResponse.Status
+func (r GetLLMProxyDeploymentsResp) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r GetLLMProxyDeploymentsResp) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+type DeployLLMProxyResp struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON201      *LLMDeploymentResponse
+	JSON400      *ErrorResponse
+	JSON401      *ErrorResponse
+	JSON404      *ErrorResponse
+	JSON500      *ErrorResponse
+}
+
+// Status returns HTTPResponse.Status
+func (r DeployLLMProxyResp) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r DeployLLMProxyResp) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+type RestoreLLMProxyDeploymentResp struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON200      *LLMDeploymentResponse
+	JSON400      *ErrorResponse
+	JSON401      *ErrorResponse
+	JSON404      *ErrorResponse
+	JSON409      *ErrorResponse
+	JSON500      *ErrorResponse
+}
+
+// Status returns HTTPResponse.Status
+func (r RestoreLLMProxyDeploymentResp) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r RestoreLLMProxyDeploymentResp) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+type UndeployLLMProxyDeploymentResp struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON200      *struct {
+		Message *string `json:"message,omitempty"`
+	}
+	JSON400 *ErrorResponse
+	JSON401 *ErrorResponse
+	JSON404 *ErrorResponse
+	JSON409 *ErrorResponse
+	JSON500 *ErrorResponse
+}
+
+// Status returns HTTPResponse.Status
+func (r UndeployLLMProxyDeploymentResp) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r UndeployLLMProxyDeploymentResp) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+type DeleteLLMProxyDeploymentResp struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON400      *ErrorResponse
+	JSON401      *ErrorResponse
+	JSON404      *ErrorResponse
+	JSON409      *ErrorResponse
+	JSON500      *ErrorResponse
+}
+
+// Status returns HTTPResponse.Status
+func (r DeleteLLMProxyDeploymentResp) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r DeleteLLMProxyDeploymentResp) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+type GetLLMProxyDeploymentResp struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON200      *LLMDeploymentResponse
+	JSON400      *ErrorResponse
+	JSON401      *ErrorResponse
+	JSON404      *ErrorResponse
+	JSON500      *ErrorResponse
+}
+
+// Status returns HTTPResponse.Status
+func (r GetLLMProxyDeploymentResp) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r GetLLMProxyDeploymentResp) StatusCode() int {
 	if r.HTTPResponse != nil {
 		return r.HTTPResponse.StatusCode
 	}
@@ -26665,6 +27365,68 @@ func (c *ClientWithResponses) RotateLLMProxyAPIKeyWithResponse(ctx context.Conte
 		return nil, err
 	}
 	return ParseRotateLLMProxyAPIKeyResp(rsp)
+}
+
+// GetLLMProxyDeploymentsWithResponse request returning *GetLLMProxyDeploymentsResp
+func (c *ClientWithResponses) GetLLMProxyDeploymentsWithResponse(ctx context.Context, orgName string, projName string, id string, params *GetLLMProxyDeploymentsParams, reqEditors ...RequestEditorFn) (*GetLLMProxyDeploymentsResp, error) {
+	rsp, err := c.GetLLMProxyDeployments(ctx, orgName, projName, id, params, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseGetLLMProxyDeploymentsResp(rsp)
+}
+
+// DeployLLMProxyWithBodyWithResponse request with arbitrary body returning *DeployLLMProxyResp
+func (c *ClientWithResponses) DeployLLMProxyWithBodyWithResponse(ctx context.Context, orgName string, projName string, id string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*DeployLLMProxyResp, error) {
+	rsp, err := c.DeployLLMProxyWithBody(ctx, orgName, projName, id, contentType, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseDeployLLMProxyResp(rsp)
+}
+
+func (c *ClientWithResponses) DeployLLMProxyWithResponse(ctx context.Context, orgName string, projName string, id string, body DeployLLMProxyJSONRequestBody, reqEditors ...RequestEditorFn) (*DeployLLMProxyResp, error) {
+	rsp, err := c.DeployLLMProxy(ctx, orgName, projName, id, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseDeployLLMProxyResp(rsp)
+}
+
+// RestoreLLMProxyDeploymentWithResponse request returning *RestoreLLMProxyDeploymentResp
+func (c *ClientWithResponses) RestoreLLMProxyDeploymentWithResponse(ctx context.Context, orgName string, projName string, id string, params *RestoreLLMProxyDeploymentParams, reqEditors ...RequestEditorFn) (*RestoreLLMProxyDeploymentResp, error) {
+	rsp, err := c.RestoreLLMProxyDeployment(ctx, orgName, projName, id, params, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseRestoreLLMProxyDeploymentResp(rsp)
+}
+
+// UndeployLLMProxyDeploymentWithResponse request returning *UndeployLLMProxyDeploymentResp
+func (c *ClientWithResponses) UndeployLLMProxyDeploymentWithResponse(ctx context.Context, orgName string, projName string, id string, params *UndeployLLMProxyDeploymentParams, reqEditors ...RequestEditorFn) (*UndeployLLMProxyDeploymentResp, error) {
+	rsp, err := c.UndeployLLMProxyDeployment(ctx, orgName, projName, id, params, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseUndeployLLMProxyDeploymentResp(rsp)
+}
+
+// DeleteLLMProxyDeploymentWithResponse request returning *DeleteLLMProxyDeploymentResp
+func (c *ClientWithResponses) DeleteLLMProxyDeploymentWithResponse(ctx context.Context, orgName string, projName string, id string, deploymentId string, reqEditors ...RequestEditorFn) (*DeleteLLMProxyDeploymentResp, error) {
+	rsp, err := c.DeleteLLMProxyDeployment(ctx, orgName, projName, id, deploymentId, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseDeleteLLMProxyDeploymentResp(rsp)
+}
+
+// GetLLMProxyDeploymentWithResponse request returning *GetLLMProxyDeploymentResp
+func (c *ClientWithResponses) GetLLMProxyDeploymentWithResponse(ctx context.Context, orgName string, projName string, id string, deploymentId string, reqEditors ...RequestEditorFn) (*GetLLMProxyDeploymentResp, error) {
+	rsp, err := c.GetLLMProxyDeployment(ctx, orgName, projName, id, deploymentId, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseGetLLMProxyDeploymentResp(rsp)
 }
 
 // ListRepositoryBranchesWithBodyWithResponse request with arbitrary body returning *ListRepositoryBranchesResp
@@ -29504,6 +30266,13 @@ func ParseRemoveGatewayFromEnvironmentResp(rsp *http.Response) (*RemoveGatewayFr
 		}
 		response.JSON404 = &dest
 
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 409:
+		var dest ErrorResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON409 = &dest
+
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
 		var dest ErrorResponse
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
@@ -31859,7 +32628,7 @@ func ParseGetLLMProviderDeploymentsResp(rsp *http.Response) (*GetLLMProviderDepl
 
 	switch {
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
-		var dest []DeploymentResponse
+		var dest []LLMDeploymentResponse
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
@@ -31913,7 +32682,7 @@ func ParseDeployLLMProviderResp(rsp *http.Response) (*DeployLLMProviderResp, err
 
 	switch {
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 201:
-		var dest DeploymentResponse
+		var dest LLMDeploymentResponse
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
@@ -31967,7 +32736,7 @@ func ParseRestoreLLMProviderDeploymentResp(rsp *http.Response) (*RestoreLLMProvi
 
 	switch {
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
-		var dest DeploymentResponse
+		var dest LLMDeploymentResponse
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
@@ -32145,7 +32914,7 @@ func ParseGetLLMProviderDeploymentResp(rsp *http.Response) (*GetLLMProviderDeplo
 
 	switch {
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
-		var dest DeploymentResponse
+		var dest LLMDeploymentResponse
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
@@ -33246,6 +34015,13 @@ func ParseBuildAgentResp(rsp *http.Response) (*BuildAgentResp, error) {
 		}
 		response.JSON404 = &dest
 
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 409:
+		var dest ErrorResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON409 = &dest
+
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
 		var dest ErrorResponse
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
@@ -33492,6 +34268,13 @@ func ParseDeployAgentResp(rsp *http.Response) (*DeployAgentResp, error) {
 			return nil, err
 		}
 		response.JSON404 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 409:
+		var dest ErrorResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON409 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
 		var dest ErrorResponse
@@ -37030,6 +37813,346 @@ func ParseRotateLLMProxyAPIKeyResp(rsp *http.Response) (*RotateLLMProxyAPIKeyRes
 			return nil, err
 		}
 		response.JSON503 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseGetLLMProxyDeploymentsResp parses an HTTP response from a GetLLMProxyDeploymentsWithResponse call
+func ParseGetLLMProxyDeploymentsResp(rsp *http.Response) (*GetLLMProxyDeploymentsResp, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &GetLLMProxyDeploymentsResp{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest []LLMDeploymentResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
+		var dest ErrorResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON400 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
+		var dest ErrorResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON401 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
+		var dest ErrorResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON404 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
+		var dest ErrorResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON500 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseDeployLLMProxyResp parses an HTTP response from a DeployLLMProxyWithResponse call
+func ParseDeployLLMProxyResp(rsp *http.Response) (*DeployLLMProxyResp, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &DeployLLMProxyResp{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 201:
+		var dest LLMDeploymentResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON201 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
+		var dest ErrorResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON400 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
+		var dest ErrorResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON401 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
+		var dest ErrorResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON404 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
+		var dest ErrorResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON500 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseRestoreLLMProxyDeploymentResp parses an HTTP response from a RestoreLLMProxyDeploymentWithResponse call
+func ParseRestoreLLMProxyDeploymentResp(rsp *http.Response) (*RestoreLLMProxyDeploymentResp, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &RestoreLLMProxyDeploymentResp{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest LLMDeploymentResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
+		var dest ErrorResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON400 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
+		var dest ErrorResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON401 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
+		var dest ErrorResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON404 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 409:
+		var dest ErrorResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON409 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
+		var dest ErrorResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON500 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseUndeployLLMProxyDeploymentResp parses an HTTP response from a UndeployLLMProxyDeploymentWithResponse call
+func ParseUndeployLLMProxyDeploymentResp(rsp *http.Response) (*UndeployLLMProxyDeploymentResp, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &UndeployLLMProxyDeploymentResp{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest struct {
+			Message *string `json:"message,omitempty"`
+		}
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
+		var dest ErrorResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON400 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
+		var dest ErrorResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON401 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
+		var dest ErrorResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON404 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 409:
+		var dest ErrorResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON409 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
+		var dest ErrorResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON500 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseDeleteLLMProxyDeploymentResp parses an HTTP response from a DeleteLLMProxyDeploymentWithResponse call
+func ParseDeleteLLMProxyDeploymentResp(rsp *http.Response) (*DeleteLLMProxyDeploymentResp, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &DeleteLLMProxyDeploymentResp{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
+		var dest ErrorResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON400 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
+		var dest ErrorResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON401 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
+		var dest ErrorResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON404 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 409:
+		var dest ErrorResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON409 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
+		var dest ErrorResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON500 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseGetLLMProxyDeploymentResp parses an HTTP response from a GetLLMProxyDeploymentWithResponse call
+func ParseGetLLMProxyDeploymentResp(rsp *http.Response) (*GetLLMProxyDeploymentResp, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &GetLLMProxyDeploymentResp{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest LLMDeploymentResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
+		var dest ErrorResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON400 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
+		var dest ErrorResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON401 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
+		var dest ErrorResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON404 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
+		var dest ErrorResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON500 = &dest
 
 	}
 

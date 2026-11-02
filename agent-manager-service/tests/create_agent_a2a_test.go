@@ -41,11 +41,10 @@ import (
 
 var testAgentNameA2A = fmt.Sprintf("a2a-agent-%s", uuid.New().String()[:5])
 
-// An a2a-agent has no REST API, so the api-configuration trait must not be
-// attached at create. The positive assertion this mirrors is in
-// create_agent_test.go, where a docker chat agent gets exactly two traits with
-// TraitAPIManagement second.
+// An a2a-agent is served only through its environment's ingress gateway, so
+// neither route trait is attached at create.
 func TestCreateA2AAgentOmitsAPIConfigurationTrait(t *testing.T) {
+	seedIngressGatewayForDefaultEnvironment(t, "mock-org-id")
 	authMiddleware := jwtassertion.NewMockMiddleware(t)
 
 	openChoreoClient := apitestutils.CreateMockOpenChoreoClient()
@@ -108,6 +107,8 @@ func TestCreateA2AAgentOmitsAPIConfigurationTrait(t *testing.T) {
 	for _, tr := range attachTraitsCalls[0].TraitRequests {
 		require.NotEqual(t, client.TraitAPIManagement, tr.TraitType,
 			"an a2a-agent must not be given the api-configuration trait")
+		require.NotEqual(t, client.TraitA2AGatewayRoute, tr.TraitType,
+			"an a2a-agent must not be given the a2a-gateway-route trait")
 	}
 	require.NotEmpty(t, attachTraitsCalls[0].TraitRequests,
 		"the instrumentation traits are still attached")
@@ -143,7 +144,7 @@ func TestCreateExternalAgentWithA2ASubTypeGetsNoGatewayPublication(t *testing.T)
 	require.Empty(t, openChoreoClient.AttachTraitsCalls(), "no a2a-gateway-route or any other trait")
 
 	var queued int64
-	require.NoError(t, db.GetDB().Model(&models.A2APublication{}).
+	require.NoError(t, db.GetDB().Model(&models.PlatformAgentExposure{}).
 		Where("agent_name = ?", agentName).Count(&queued).Error)
-	require.Zero(t, queued, "no gateway publication is queued")
+	require.Zero(t, queued, "an external agent is never exposed as a platform agent")
 }

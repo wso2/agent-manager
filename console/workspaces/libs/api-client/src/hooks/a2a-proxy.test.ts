@@ -38,6 +38,7 @@ vi.mock("../apis/a2a-proxy", () => ({
 import { getA2AProxy, setA2AProxy } from "../apis/a2a-proxy";
 import { useGetA2AProxy, useIsSavingA2AProxy, useSetA2AProxy } from "./a2a-proxy";
 import { a2aProxyQueryKey, agentCardQueryKey } from "./a2a-query-keys";
+import { POLL_INTERVAL } from "../utils";
 
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 
@@ -69,6 +70,21 @@ describe("useGetA2AProxy", () => {
     await act(async () => { await new Promise((r) => setTimeout(r, 20)); });
     expect(qc.getQueryData(a2aProxyQueryKey(params))).toBeNull();
     expect(qc.getQueryState(a2aProxyQueryKey(params))?.status).toBe("success");
+  });
+
+  it.each([
+    ["DEPLOYING", POLL_INTERVAL],
+    ["UNDEPLOYING", POLL_INTERVAL],
+    ["DEPLOYED", false],
+    ["UNDEPLOYED", false],
+    ["FAILED", false],
+  ] as const)("polls while %s only while a transition is in flight", async (status, interval) => {
+    vi.mocked(getA2AProxy).mockResolvedValueOnce({ status, statusReason: "", gatewayUrl: "", upstreamAuthHeader: "" });
+    const { qc } = await mount(() => useGetA2AProxy(params));
+    await act(async () => { await new Promise((r) => setTimeout(r, 20)); });
+    const query = qc.getQueryCache().find({ queryKey: a2aProxyQueryKey(params) })!;
+    const refetchInterval = query.observers[0].options.refetchInterval;
+    expect(typeof refetchInterval === "function" ? refetchInterval(query) : refetchInterval).toBe(interval);
   });
 });
 

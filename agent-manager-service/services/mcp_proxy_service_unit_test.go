@@ -309,7 +309,7 @@ func TestValidateMCPEndpointSecurity_TwoEgressGateways_AnchorsOnExistingDeployme
 
 	artifactUUID := uuid.New()
 	depRepo := &repomocks.DeploymentRepositoryMock{
-		GetDeployedGatewaysByProviderFunc: func(gotArtifactUUID uuid.UUID, _ string) ([]string, error) {
+		PlacedGatewaysFunc: func(_ context.Context, _ string, gotArtifactUUID uuid.UUID) ([]string, error) {
 			assert.Equal(t, artifactUUID, gotArtifactUUID)
 			return []string{deployed.UUID.String()}, nil
 		},
@@ -372,7 +372,7 @@ func placementService(gwRepo repositories.GatewayRepository, depRepo repositorie
 // deployedTo stubs the artifact's deployed-gateway set.
 func deployedTo(gatewayIDs ...string) *repomocks.DeploymentRepositoryMock {
 	return &repomocks.DeploymentRepositoryMock{
-		GetDeployedGatewaysByProviderFunc: func(uuid.UUID, string) ([]string, error) {
+		PlacedGatewaysFunc: func(context.Context, string, uuid.UUID) ([]string, error) {
 			return gatewayIDs, nil
 		},
 	}
@@ -388,7 +388,7 @@ func TestValidateMCPEndpointPlacement(t *testing.T) {
 
 	t.Run("naming an ingress-only gateway fails before any write", func(t *testing.T) {
 		svc := placementService(gatewayFixtureRepo(t, testMCPEnvUUID, []*models.Gateway{ingress, egress}), nil)
-		err := svc.validateMCPEndpointPlacement("org1",
+		err := svc.validateMCPEndpointPlacement(context.Background(), "org1",
 			[]models.MCPProxyEndpointDTO{endpointBoundToGateway(ingress.UUID.String())}, nil)
 		assert.ErrorIs(t, err, utils.ErrInvalidInput)
 		assert.ErrorIs(t, err, errInvalidEgressGateway)
@@ -396,7 +396,7 @@ func TestValidateMCPEndpointPlacement(t *testing.T) {
 
 	t.Run("two egress candidates and no gatewayId is ambiguous", func(t *testing.T) {
 		svc := placementService(gatewayFixtureRepo(t, testMCPEnvUUID, []*models.Gateway{both, egress}), nil)
-		err := svc.validateMCPEndpointPlacement("org1",
+		err := svc.validateMCPEndpointPlacement(context.Background(), "org1",
 			[]models.MCPProxyEndpointDTO{endpointBoundToGateway("")}, nil)
 		assert.ErrorIs(t, err, utils.ErrInvalidInput)
 		assert.ErrorIs(t, err, errAmbiguousEgressGateway)
@@ -404,7 +404,7 @@ func TestValidateMCPEndpointPlacement(t *testing.T) {
 
 	t.Run("naming a valid candidate passes", func(t *testing.T) {
 		svc := placementService(gatewayFixtureRepo(t, testMCPEnvUUID, []*models.Gateway{both, egress}), nil)
-		err := svc.validateMCPEndpointPlacement("org1",
+		err := svc.validateMCPEndpointPlacement(context.Background(), "org1",
 			[]models.MCPProxyEndpointDTO{endpointBoundToGateway(egress.UUID.String())}, nil)
 		assert.NoError(t, err)
 	})
@@ -417,7 +417,7 @@ func TestValidateMCPEndpointPlacement(t *testing.T) {
 			gatewayFixtureRepo(t, testMCPEnvUUID, []*models.Gateway{both, egress}),
 			deployedTo(both.UUID.String()),
 		)
-		err := svc.validateMCPEndpointPlacement("org1",
+		err := svc.validateMCPEndpointPlacement(context.Background(), "org1",
 			[]models.MCPProxyEndpointDTO{endpointBoundToGateway(egress.UUID.String())},
 			map[string]uuid.UUID{testMCPEnvUUID: artifactUUID})
 		assert.ErrorIs(t, err, utils.ErrInvalidInput)
@@ -430,7 +430,7 @@ func TestValidateMCPEndpointPlacement(t *testing.T) {
 			gatewayFixtureRepo(t, testMCPEnvUUID, []*models.Gateway{both, egress}),
 			deployedTo(both.UUID.String()),
 		)
-		err := svc.validateMCPEndpointPlacement("org1",
+		err := svc.validateMCPEndpointPlacement(context.Background(), "org1",
 			[]models.MCPProxyEndpointDTO{endpointBoundToGateway(both.UUID.String())},
 			map[string]uuid.UUID{testMCPEnvUUID: artifactUUID})
 		assert.NoError(t, err)
@@ -439,7 +439,7 @@ func TestValidateMCPEndpointPlacement(t *testing.T) {
 	t.Run("no gateway mapped to the environment is tolerated", func(t *testing.T) {
 		// Timing condition, not misconfiguration: the deploy step skips and retries later.
 		svc := placementService(gatewayFixtureRepo(t, testMCPEnvUUID, nil), nil)
-		err := svc.validateMCPEndpointPlacement("org1",
+		err := svc.validateMCPEndpointPlacement(context.Background(), "org1",
 			[]models.MCPProxyEndpointDTO{endpointBoundToGateway("")}, nil)
 		assert.NoError(t, err)
 	})
@@ -449,12 +449,12 @@ func TestValidateMCPEndpointPlacement(t *testing.T) {
 		// Resolving without the anchor would report ambiguity for a binding the anchor may
 		// well have resolved cleanly, so this must defer to the deploy step, not 400.
 		depRepo := &repomocks.DeploymentRepositoryMock{
-			GetDeployedGatewaysByProviderFunc: func(uuid.UUID, string) ([]string, error) {
+			PlacedGatewaysFunc: func(context.Context, string, uuid.UUID) ([]string, error) {
 				return nil, errors.New("connection refused")
 			},
 		}
 		svc := placementService(gatewayFixtureRepo(t, testMCPEnvUUID, []*models.Gateway{both, egress}), depRepo)
-		err := svc.validateMCPEndpointPlacement("org1",
+		err := svc.validateMCPEndpointPlacement(context.Background(), "org1",
 			[]models.MCPProxyEndpointDTO{endpointBoundToGateway("")},
 			map[string]uuid.UUID{testMCPEnvUUID: uuid.New()})
 		assert.NoError(t, err)
@@ -464,7 +464,7 @@ func TestValidateMCPEndpointPlacement(t *testing.T) {
 		svc := placementService(gatewayFixtureRepo(t, testMCPEnvUUID, []*models.Gateway{both, egress}), nil)
 		endpoint := endpointBoundToGateway("")
 		endpoint.Environments[0].EnvironmentUUID = "not-a-uuid"
-		err := svc.validateMCPEndpointPlacement("org1", []models.MCPProxyEndpointDTO{endpoint}, nil)
+		err := svc.validateMCPEndpointPlacement(context.Background(), "org1", []models.MCPProxyEndpointDTO{endpoint}, nil)
 		assert.NoError(t, err)
 	})
 }

@@ -26,7 +26,7 @@ import type {
 import { useApiMutation, useApiQuery } from "./react-query-notifications";
 import { deleteA2AProxy, getA2AProxy, refreshA2AProxy, setA2AProxy } from "../apis/a2a-proxy";
 import { a2aProxyQueryKey, invalidateA2AQueries } from "./a2a-query-keys";
-import { nullIfNotFound, pendingRefetchInterval } from "../utils";
+import { nullIfNotFound, transitionRefetchInterval } from "../utils";
 
 /** Resolves to null while the environment is direct (a 404). */
 export function useGetA2AProxy(params: A2AProxyPathParams, options: { enabled?: boolean } = {}) {
@@ -36,7 +36,7 @@ export function useGetA2AProxy(params: A2AProxyPathParams, options: { enabled?: 
     queryFn: () => nullIfNotFound(getA2AProxy(params, getToken)),
     enabled: (options.enabled ?? true) &&
       !!(params.orgName && params.projName && params.agentName && params.envId),
-    refetchInterval: (q) => pendingRefetchInterval(q.state.data),
+    refetchInterval: (q) => transitionRefetchInterval(q.state.data),
     retry: false,
     silent: true,
   });

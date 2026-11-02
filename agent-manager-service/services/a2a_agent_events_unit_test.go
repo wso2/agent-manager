@@ -22,11 +22,14 @@ import (
 	"testing"
 	"time"
 
+	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"gorm.io/gorm"
 
 	"github.com/wso2/agent-manager/agent-manager-service/eventhub"
 	"github.com/wso2/agent-manager/agent-manager-service/models"
+	"github.com/wso2/agent-manager/agent-manager-service/reconcile"
 )
 
 // recordingEventHub captures what would be published, so the event's wire shape
@@ -35,12 +38,25 @@ import (
 type recordingEventHub struct {
 	published []eventhub.Event
 	contexts  []context.Context
+	txs       []*gorm.DB // the caller's transaction per event; nil for PublishEvent
 	onPublish func()
+	// fail, when set, is the error publishing evt returns; nothing is recorded then.
+	fail func(evt eventhub.Event) error
 }
 
 func (h *recordingEventHub) PublishEvent(ctx context.Context, gatewayID string, evt eventhub.Event) error {
+	return h.PublishEventTx(ctx, nil, gatewayID, evt)
+}
+
+func (h *recordingEventHub) PublishEventTx(ctx context.Context, tx *gorm.DB, gatewayID string, evt eventhub.Event) error {
+	if h.fail != nil {
+		if err := h.fail(evt); err != nil {
+			return err
+		}
+	}
 	h.published = append(h.published, evt)
 	h.contexts = append(h.contexts, ctx)
+	h.txs = append(h.txs, tx)
 	if h.onPublish != nil {
 		h.onPublish()
 	}
@@ -64,23 +80,18 @@ func (h *recordingEventHub) Close() error                          { return nil 
 // The gateway parses these names and payloads verbatim
 // (pkg/controlplane/events.go and client.go's dispatch switch); they are fixed
 // by that code, not chosen here.
-func TestBroadcastAgentDeploymentEvent(t *testing.T) {
-	hub := &recordingEventHub{}
-	svc := NewGatewayEventsService(hub)
-
+func TestA2AAgentKindDeployEvent(t *testing.T) {
 	performedAt := time.Date(2026, 9, 9, 12, 0, 0, 0, time.UTC)
-	err := svc.BroadcastAgentDeploymentEvent("gw-1", &models.AgentDeploymentEvent{
-		AgentID:      "0192f4c1-9a7d-7c3e-b4f2-1a2b3c4d5e6f",
+	agentUUID := uuid.MustParse("0192f4c1-9a7d-7c3e-b4f2-1a2b3c4d5e6f")
+	evt := (&A2AAgentKind{}).DeployEvent(reconcile.EventRef{
+		Placement:    models.Placement{ArtifactRef: models.ArtifactRef{ArtifactUUID: agentUUID}},
 		DeploymentID: "dep-1",
 		PerformedAt:  performedAt,
 	})
-	require.NoError(t, err)
-	require.Len(t, hub.published, 1)
 
-	evt := hub.published[0]
 	assert.Equal(t, eventhub.EventType("agent.deployed"), evt.EventType)
 	assert.Equal(t, "CREATE", evt.Action)
-	assert.Equal(t, "0192f4c1-9a7d-7c3e-b4f2-1a2b3c4d5e6f", evt.EntityID)
+	assert.Equal(t, agentUUID.String(), evt.EntityID)
 
 	var envelope struct {
 		Type    string `json:"type"`
@@ -92,25 +103,15 @@ func TestBroadcastAgentDeploymentEvent(t *testing.T) {
 	}
 	require.NoError(t, json.Unmarshal([]byte(evt.EventData), &envelope))
 	assert.Equal(t, "agent.deployed", envelope.Type)
-	assert.Equal(t, "0192f4c1-9a7d-7c3e-b4f2-1a2b3c4d5e6f", envelope.Payload.AgentID)
+	assert.Equal(t, agentUUID.String(), envelope.Payload.AgentID)
 	assert.Equal(t, "dep-1", envelope.Payload.DeploymentID)
 	assert.True(t, performedAt.Equal(envelope.Payload.PerformedAt))
 }
 
-func TestBroadcastAgentDeletionEvent(t *testing.T) {
-	hub := &recordingEventHub{}
-	svc := NewGatewayEventsService(hub)
+func TestA2AAgentKindDeleteEvent(t *testing.T) {
+	agentUUID := uuid.MustParse("0192f4c1-9a7d-7c3e-b4f2-1a2b3c4d5e6f")
+	evt := (&A2AAgentKind{}).DeleteEvent(models.ArtifactRef{ArtifactUUID: agentUUID})
 
-	type ctxKey struct{}
-	ctx := context.WithValue(context.Background(), ctxKey{}, "trace-1")
-	err := svc.BroadcastAgentDeletionEvent(ctx, "gw-1", &models.AgentDeletionEvent{
-		AgentID: "0192f4c1-9a7d-7c3e-b4f2-1a2b3c4d5e6f",
-	})
-	require.NoError(t, err)
-	require.Len(t, hub.published, 1)
-	assert.Equal(t, "trace-1", hub.contexts[0].Value(ctxKey{}), "the caller's context reaches the hub")
-
-	evt := hub.published[0]
 	assert.Equal(t, eventhub.EventType("agent.deleted"), evt.EventType)
 	assert.Equal(t, "DELETE", evt.Action)
 
@@ -122,25 +123,17 @@ func TestBroadcastAgentDeletionEvent(t *testing.T) {
 	}
 	require.NoError(t, json.Unmarshal([]byte(evt.EventData), &envelope))
 	assert.Equal(t, "agent.deleted", envelope.Type)
-	assert.Equal(t, "0192f4c1-9a7d-7c3e-b4f2-1a2b3c4d5e6f", envelope.Payload.AgentID)
+	assert.Equal(t, agentUUID.String(), envelope.Payload.AgentID)
 }
 
-func TestBroadcastAgentUndeploymentEvent(t *testing.T) {
-	hub := &recordingEventHub{}
-	svc := NewGatewayEventsService(hub)
+func TestA2AAgentKindUndeployEvent(t *testing.T) {
 	performedAt := time.Date(2026, 10, 13, 9, 30, 0, 0, time.UTC)
-
-	type ctxKey struct{}
-	ctx := context.WithValue(context.Background(), ctxKey{}, "trace-1")
-	err := svc.BroadcastAgentUndeploymentEvent(ctx, "gw-1", &models.AgentUndeploymentEvent{
-		AgentID:     "0192f4c1-9a7d-7c3e-b4f2-1a2b3c4d5e6f",
+	agentUUID := uuid.MustParse("0192f4c1-9a7d-7c3e-b4f2-1a2b3c4d5e6f")
+	evt := (&A2AAgentKind{}).UndeployEvent(reconcile.EventRef{
+		Placement:   models.Placement{ArtifactRef: models.ArtifactRef{ArtifactUUID: agentUUID}},
 		PerformedAt: performedAt,
 	})
-	require.NoError(t, err)
-	require.Len(t, hub.published, 1)
-	assert.Equal(t, "trace-1", hub.contexts[0].Value(ctxKey{}), "the caller's context reaches the hub")
 
-	evt := hub.published[0]
 	assert.Equal(t, eventhub.EventType("agent.undeployed"), evt.EventType)
 	assert.Equal(t, "DELETE", evt.Action)
 
@@ -154,7 +147,7 @@ func TestBroadcastAgentUndeploymentEvent(t *testing.T) {
 	}
 	require.NoError(t, json.Unmarshal([]byte(evt.EventData), &envelope))
 	assert.Equal(t, "agent.undeployed", envelope.Type)
-	assert.Equal(t, "0192f4c1-9a7d-7c3e-b4f2-1a2b3c4d5e6f", envelope.Payload.AgentID)
+	assert.Equal(t, agentUUID.String(), envelope.Payload.AgentID)
 	require.NotNil(t, envelope.Payload.DeploymentID)
 	assert.Empty(t, *envelope.Payload.DeploymentID, "an empty ID passes the gateway's deployment-ID guard")
 	assert.True(t, performedAt.Equal(envelope.Payload.PerformedAt))

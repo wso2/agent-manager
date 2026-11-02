@@ -22,11 +22,13 @@ import (
 	"errors"
 	"testing"
 
+	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"gopkg.in/yaml.v3"
 
 	"github.com/wso2/agent-manager/agent-manager-service/models"
+	"github.com/wso2/agent-manager/agent-manager-service/reconcile"
 	"github.com/wso2/agent-manager/agent-manager-service/repositories/repomocks"
 	"github.com/wso2/agent-manager/agent-manager-service/utils"
 )
@@ -52,26 +54,40 @@ var activeDeploymentLookups = []struct {
 		notFound:    utils.ErrMCPProxyNotFound,
 		notNotFound: utils.ErrAgentArtifactNotFound,
 	},
+	{
+		name:        "rest api",
+		lookup:      (*GatewayInternalAPIService).GetActiveRestAPIDeploymentByGateway,
+		notFound:    utils.ErrAPINotFound,
+		notNotFound: utils.ErrAgentArtifactNotFound,
+	},
 }
 
+const testArtifactID = "0192f4c1-9a7d-7c3e-b4f2-1a2b3c4d5e6f"
+
 func newGatewayInternalServiceWithDeployments(repo *repomocks.DeploymentRepositoryMock) *GatewayInternalAPIService {
-	return NewGatewayInternalAPIService(nil, nil, repo, nil, nil, nil)
+	return NewGatewayInternalAPIService(nil, nil, repo, nil, nil, nil, nil, gatewayKinds())
+}
+
+// gatewayKinds names artifacts as the registered kinds do; naming needs none of their dependencies.
+func gatewayKinds() *reconcile.Core {
+	return reconcile.NewCore(nil, nil, nil, reconcile.Kinds{NewLLMProviderKind(), &LLMProxyKind{}, &MCPProxyKind{}, &A2AAgentKind{}, &RestAgentKind{}},
+		reconcile.Config{}, discardLogger())
 }
 
 func TestActiveArtifactDeploymentByGatewayReturnsYamlKeyedByID(t *testing.T) {
 	for _, tt := range activeDeploymentLookups {
 		t.Run(tt.name, func(t *testing.T) {
 			repo := &repomocks.DeploymentRepositoryMock{
-				GetCurrentByGatewayFunc: func(artifactUUID, gatewayID, orgUUID string) (*models.Deployment, error) {
-					assert.Equal(t, "artifact-1", artifactUUID)
+				GetPullableFunc: func(_ context.Context, ouID string, artifactUUID uuid.UUID, gatewayID string) (*models.Deployment, error) {
+					assert.Equal(t, testArtifactID, artifactUUID.String())
 					assert.Equal(t, "gw-1", gatewayID)
-					assert.Equal(t, "ou-1", orgUUID)
+					assert.Equal(t, "ou-1", ouID)
 					return &models.Deployment{Content: []byte("kind: Agent\n")}, nil
 				},
 			}
-			got, err := tt.lookup(newGatewayInternalServiceWithDeployments(repo), context.Background(), "artifact-1", "ou-1", "gw-1")
+			got, err := tt.lookup(newGatewayInternalServiceWithDeployments(repo), context.Background(), testArtifactID, "ou-1", "gw-1")
 			require.NoError(t, err)
-			assert.Equal(t, map[string]string{"artifact-1": "kind: Agent\n"}, got)
+			assert.Equal(t, map[string]string{testArtifactID: "kind: Agent\n"}, got)
 		})
 	}
 }
@@ -80,15 +96,26 @@ func TestActiveArtifactDeploymentByGatewayNotDeployed(t *testing.T) {
 	for _, tt := range activeDeploymentLookups {
 		t.Run(tt.name, func(t *testing.T) {
 			repo := &repomocks.DeploymentRepositoryMock{
-				GetCurrentByGatewayFunc: func(string, string, string) (*models.Deployment, error) {
+				GetPullableFunc: func(context.Context, string, uuid.UUID, string) (*models.Deployment, error) {
 					return nil, nil //nolint:nilnil // the repository reports "no current deployment" this way
 				},
 			}
-			_, err := tt.lookup(newGatewayInternalServiceWithDeployments(repo), context.Background(), "artifact-1", "ou-1", "gw-1")
+			_, err := tt.lookup(newGatewayInternalServiceWithDeployments(repo), context.Background(), testArtifactID, "ou-1", "gw-1")
 			assert.ErrorIs(t, err, tt.notFound)
 			assert.NotErrorIs(t, err, tt.notNotFound)
 			// The gateway controllers rely on this: they map only the kind's own sentinel to 404.
 			assert.NotErrorIs(t, err, utils.ErrDeploymentNotActive)
+		})
+	}
+}
+
+// The gateway names these artifacts by UUID; anything else can't be one of ours.
+func TestActiveArtifactDeploymentByGatewayRejectsANonUUIDID(t *testing.T) {
+	for _, tt := range activeDeploymentLookups {
+		t.Run(tt.name, func(t *testing.T) {
+			_, err := tt.lookup(newGatewayInternalServiceWithDeployments(&repomocks.DeploymentRepositoryMock{}),
+				context.Background(), "not-a-uuid", "ou-1", "gw-1")
+			assert.ErrorIs(t, err, tt.notFound)
 		})
 	}
 }
@@ -98,11 +125,11 @@ func TestActiveArtifactDeploymentByGatewayRepoErrorIsNotNotFound(t *testing.T) {
 	for _, tt := range activeDeploymentLookups {
 		t.Run(tt.name, func(t *testing.T) {
 			repo := &repomocks.DeploymentRepositoryMock{
-				GetCurrentByGatewayFunc: func(string, string, string) (*models.Deployment, error) {
+				GetPullableFunc: func(context.Context, string, uuid.UUID, string) (*models.Deployment, error) {
 					return nil, repoErr
 				},
 			}
-			_, err := tt.lookup(newGatewayInternalServiceWithDeployments(repo), context.Background(), "artifact-1", "ou-1", "gw-1")
+			_, err := tt.lookup(newGatewayInternalServiceWithDeployments(repo), context.Background(), testArtifactID, "ou-1", "gw-1")
 			assert.ErrorIs(t, err, repoErr)
 			assert.NotErrorIs(t, err, tt.notFound)
 		})
@@ -120,13 +147,13 @@ func TestActiveAgentDeploymentDecryptsTheUpstreamSecret(t *testing.T) {
 	stored, err := generateA2AAgentDeploymentYAML(in)
 	require.NoError(t, err)
 	repo := &repomocks.DeploymentRepositoryMock{
-		GetCurrentByGatewayFunc: func(string, string, string) (*models.Deployment, error) {
+		GetPullableFunc: func(context.Context, string, uuid.UUID, string) (*models.Deployment, error) {
 			return &models.Deployment{Content: []byte(stored)}, nil
 		},
 	}
-	svc := NewGatewayInternalAPIService(nil, nil, repo, nil, nil, key)
+	svc := NewGatewayInternalAPIService(nil, nil, repo, nil, nil, nil, key, gatewayKinds())
 
-	got, err := svc.GetActiveAgentDeploymentByGateway(context.Background(), "artifact-1", "ou-1", "gw-1")
+	got, err := svc.GetActiveAgentDeploymentByGateway(context.Background(), testArtifactID, "ou-1", "gw-1")
 	require.NoError(t, err)
 
 	var doc struct {
@@ -136,7 +163,7 @@ func TestActiveAgentDeploymentDecryptsTheUpstreamSecret(t *testing.T) {
 			} `yaml:"upstream"`
 		} `yaml:"spec"`
 	}
-	require.NoError(t, yaml.Unmarshal([]byte(got["artifact-1"]), &doc))
+	require.NoError(t, yaml.Unmarshal([]byte(got[testArtifactID]), &doc))
 	assert.Equal(t, "s3cret", doc.Spec.Upstream.Auth["value"])
 	assert.Equal(t, "X-Upstream-Key", doc.Spec.Upstream.Auth["header"])
 	assert.NotContains(t, doc.Spec.Upstream.Auth, "secretRef")
@@ -146,11 +173,11 @@ func TestActiveArtifactDeploymentByGatewayUnparseableYaml(t *testing.T) {
 	for _, tt := range activeDeploymentLookups {
 		t.Run(tt.name, func(t *testing.T) {
 			repo := &repomocks.DeploymentRepositoryMock{
-				GetCurrentByGatewayFunc: func(string, string, string) (*models.Deployment, error) {
+				GetPullableFunc: func(context.Context, string, uuid.UUID, string) (*models.Deployment, error) {
 					return &models.Deployment{Content: []byte("key: [unclosed")}, nil
 				},
 			}
-			_, err := tt.lookup(newGatewayInternalServiceWithDeployments(repo), context.Background(), "artifact-1", "ou-1", "gw-1")
+			_, err := tt.lookup(newGatewayInternalServiceWithDeployments(repo), context.Background(), testArtifactID, "ou-1", "gw-1")
 			require.Error(t, err)
 			assert.Contains(t, err.Error(), "failed to resolve secrets")
 			assert.NotErrorIs(t, err, tt.notFound)

@@ -162,8 +162,3 @@ func resolveIngressGateway(gatewayRepo repositories.GatewayRepository, ouID stri
 	}
 	return gateway, nil
 }
-
-// a2aGatewayURL is where gateway serves the agent: its public vhost plus the agent's context path.
-func a2aGatewayURL(gateway *models.Gateway, agentName string) string {
-	return strings.TrimRight(buildPublicProxyURL(gateway, nil), "/") + a2aAgentContext(agentName)
-}

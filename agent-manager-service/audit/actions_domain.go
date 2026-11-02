@@ -109,6 +109,11 @@ const (
 	ActionGatewayRemoveIdentityProvider Action = "gateway:remove-identity-provider"
 	ActionGatewayPushManifest           Action = "gateway:push-manifest"
 
+	// A gateway's startup sync: fetching its deployments, secrets resolved, and
+	// asking which artifacts still exist.
+	ActionDeploymentSync      Action = "deployment:sync"
+	ActionArtifactCheckExists Action = "artifact:check-exists"
+
 	// Score publishing by the evaluation job.
 	ActionMonitorScorePublish Action = "monitor-score:publish"
 
@@ -462,6 +467,13 @@ func init() {
 	RegisterDetailSchema(ActionGatewayPushManifest, map[string]FieldKind{
 		"policyCount": KindCount,
 	})
+
+	// A read of deployment content that carries upstream secrets, so a notice
+	// like ActionAPIKeySync. Runs once per gateway process start.
+	Register(ActionDeploymentSync, ClassRead, SeverityNotice)
+	RegisterDetailSchema(ActionDeploymentSync, map[string]FieldKind{})
+	Register(ActionArtifactCheckExists, ClassRead, SeverityInfo)
+	RegisterDetailSchema(ActionArtifactCheckExists, map[string]FieldKind{})
 
 	// The evaluation job publishing monitor scores. This route carries no RBAC
 	// permission at all, so its record is the only account of who wrote scores.
