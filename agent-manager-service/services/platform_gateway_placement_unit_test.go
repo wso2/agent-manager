@@ -26,6 +26,7 @@ import (
 	"gorm.io/gorm"
 
 	"github.com/wso2/agent-manager/agent-manager-service/models"
+	"github.com/wso2/agent-manager/agent-manager-service/repositories"
 	"github.com/wso2/agent-manager/agent-manager-service/repositories/repomocks"
 	"github.com/wso2/agent-manager/agent-manager-service/utils"
 )
@@ -107,4 +108,53 @@ func TestRegisterGatewayPlacesItsEnvironment(t *testing.T) {
 	require.NoError(t, err)
 
 	assert.Equal(t, []placedEnv{{ouID: "ou-1", env: env}}, placer.placed(t, 1))
+}
+
+func TestSelfHostedGatewayDoesNotChangeManagedDeploys(t *testing.T) {
+	env := uuid.New()
+	managed := &models.Gateway{
+		UUID: uuid.New(), Name: "managed", GatewayFunctionalityType: models.GatewayRoleBoth,
+		Hosting: models.GatewayHostingManaged,
+	}
+	selfHosted := &models.Gateway{
+		UUID: uuid.New(), Name: "self-hosted", GatewayFunctionalityType: models.GatewayRoleEgress,
+		Hosting: models.GatewayHostingSelfHosted,
+	}
+	repo := &repomocks.GatewayRepositoryMock{
+		ListWithFiltersFunc: func(repositories.GatewayFilterOptions) ([]*models.Gateway, error) {
+			return []*models.Gateway{managed, selfHosted}, nil
+		},
+		EnvironmentMappingExistsFunc: func(string, string) (bool, error) { return true, nil },
+		GetByUUIDFunc: func(id string) (*models.Gateway, error) {
+			if id == selfHosted.UUID.String() {
+				return selfHosted, nil
+			}
+			return managed, nil
+		},
+		GetEnvironmentMappingsByGatewayIDFunc: func(string) ([]models.GatewayEnvironmentMapping, error) {
+			return []models.GatewayEnvironmentMapping{{EnvironmentUUID: env}}, nil
+		},
+	}
+
+	t.Run("no gateway named places on the managed gateway", func(t *testing.T) {
+		got, err := resolveEgressGatewayForEnvironment(repo, "ou-1", env, nil)
+		require.NoError(t, err)
+		require.NoError(t, validateEgressPlacement(repo, got, nil))
+		assert.Equal(t, managed.UUID, got.UUID)
+	})
+
+	t.Run("naming the self-hosted gateway places there", func(t *testing.T) {
+		named := selfHosted.UUID.String()
+		got, err := resolveEgressGatewayForEnvironment(repo, "ou-1", env, &named)
+		require.NoError(t, err)
+		require.NoError(t, validateEgressPlacement(repo, got, nil))
+		assert.Equal(t, selfHosted.UUID, got.UUID)
+	})
+
+	t.Run("an anchored artifact keeps its gateway", func(t *testing.T) {
+		got, err := resolveEgressGatewayForArtifact(repo, "ou-1", env, []string{managed.UUID.String()}, nil)
+		require.NoError(t, err)
+		require.NoError(t, validateEgressPlacement(repo, got, []string{managed.UUID.String()}))
+		assert.Equal(t, managed.UUID, got.UUID)
+	})
 }
