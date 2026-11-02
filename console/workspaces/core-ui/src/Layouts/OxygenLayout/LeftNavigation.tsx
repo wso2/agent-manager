@@ -26,6 +26,8 @@ export interface NavigationItem {
   href?: string;
   isActive?: boolean;
   pinBottom?: boolean;
+  /** A short label shown next to the item, such as "NEW". */
+  badge?: string;
   type: 'item';
   children?: NavigationItem[];
 }
@@ -60,6 +62,7 @@ function renderItem(item: NavigationItem) {
     >
       <Sidebar.ItemIcon>{item.icon}</Sidebar.ItemIcon>
       <Sidebar.ItemLabel>{item.label}</Sidebar.ItemLabel>
+      {item.badge && <Sidebar.ItemBadge color="primary">{item.badge}</Sidebar.ItemBadge>}
       {item.children?.map(renderItem)}
     </Sidebar.Item>
   );

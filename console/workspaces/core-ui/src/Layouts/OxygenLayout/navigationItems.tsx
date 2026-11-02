@@ -42,6 +42,7 @@ import {
   Gauge,
   Layers,
   MonitorCheck,
+  RadioTower,
 } from "@wso2/oxygen-ui-icons-react";
 import {
   generatePath,
@@ -57,6 +58,7 @@ import {
 import {
   useGetAgent,
   useTokenScopes,
+  useEventsEnabled,
 } from "@agent-management-platform/api-client";
 import { usePipelineEnvironmentsState } from "@agent-management-platform/shared-component";
 import { thunderInstancesMetadata } from "@agent-management-platform/env-thunders/metadata";
@@ -136,6 +138,8 @@ export function useNavigationItems(): Array<
 
   const externalNavItems = useExternalNavItems();
   const { enforced, resolved: scopesResolved, scopes } = useTokenScopes();
+  // Events needs the service's event bus; /api/v1/config says whether it runs.
+  const eventsEnabled = useEventsEnabled();
 
   const navVisibility = useMemo(() => {
     const showAll = {
@@ -146,6 +150,7 @@ export function useNavigationItems(): Array<
       identityRoles: true,
       identityGroups: true,
       agentIdentities: true,
+      events: true,
     };
     if (!enforced) return showAll;
     // An unresolved token is handled below by rendering no navigation at all,
@@ -181,6 +186,9 @@ export function useNavigationItems(): Array<
       // the org scopes and gate the Settings tabs; these pages read the
       // agent-identity API and belong to its scope.
       agentIdentities: s.has("amp:agent-identity:read"),
+      // The organization's Events page needs the events scopes; projects and
+      // agents show theirs to anyone who can see them.
+      events: s.has("amp:events:read") || s.has("amp:events:manage"),
     };
   }, [enforced, scopes]);
 
@@ -230,6 +238,28 @@ export function useNavigationItems(): Array<
     >
   ).environments;
   const evaluatorsOrgRoute = absoluteRouteMap.children.org.children.evaluators;
+  const eventsOrgRoute = absoluteRouteMap.children.org.children.events;
+  const eventsProjectRoute = absoluteRouteMap.children.org.children.projects.children.events;
+  const eventsAgentRoute =
+    absoluteRouteMap.children.org.children.projects.children.agents.children.events;
+
+  // Events is pinned to the bottom of each level's navigation, above Settings.
+  const eventsItem = (
+    route: { path: string; wildPath: string },
+    params: Record<string, string | undefined>,
+  ): NavigationItem[] =>
+    eventsEnabled
+      ? [
+          {
+            label: "Events",
+            type: "item",
+            icon: <RadioTower size={20} />,
+            href: generatePath(route.path, params),
+            isActive: !!matchPath(route.wildPath, pathname),
+            pinBottom: true,
+          },
+        ]
+      : [];
 
   // Security section shared by the internal-agent menus below: Agent ID, plus
   // gateway credentials for agent-api agents. Spread as a section only when it
@@ -315,6 +345,7 @@ export function useNavigationItems(): Array<
           { orgId, projectId, agentId },
         ),
       },
+      ...eventsItem(eventsAgentRoute, { orgId, projectId, agentId }),
       ...externalNavItems
         .filter((item) => item.level === "component")
         .map((item) => ({
@@ -584,6 +615,7 @@ export function useNavigationItems(): Array<
           },
         ],
       },
+      ...eventsItem(eventsAgentRoute, { orgId, projectId, agentId }),
       ...externalNavItems
         .filter((item) => item.level === "component")
         .map((item) => ({
@@ -775,6 +807,7 @@ export function useNavigationItems(): Array<
           },
         ],
       },
+      ...eventsItem(eventsAgentRoute, { orgId, projectId, agentId }),
       ...externalNavItems
         .filter((item) => item.level === "component")
         .map((item) => ({
@@ -807,6 +840,7 @@ export function useNavigationItems(): Array<
             pathname,
           ),
       },
+      ...eventsItem(eventsProjectRoute, { orgId, projectId }),
     ];
   }
   if (orgId) {
@@ -831,6 +865,7 @@ export function useNavigationItems(): Array<
           pathname,
         ),
       },
+      ...(navVisibility.events ? eventsItem(eventsOrgRoute, { orgId }) : []),
       // Settings is shown only when profile management is enabled, and then only if RBAC
       // grants access to at least one of its identity surfaces.
       ...(globalConfig.featureFlags?.enableProfileManagement === true &&
