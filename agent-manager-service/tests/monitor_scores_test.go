@@ -19,6 +19,7 @@
 package tests
 
 import (
+	"context"
 	"fmt"
 	"log/slog"
 	"net/http"
@@ -106,6 +107,12 @@ func (s *stubScoreRepo) GetMonitorID(_, _, _, _ string) (uuid.UUID, error) {
 type stubMonitorRepo struct {
 	run *models.MonitorRun // if non-nil, GetMonitorRunByID returns this
 }
+
+func (s *stubMonitorRepo) ListUnqueuedTerminalRuns(context.Context, int) ([]models.MonitorRun, error) {
+	return []models.MonitorRun{}, nil
+}
+
+func (s *stubMonitorRepo) MarkRunEventQueued(context.Context, uuid.UUID) error { return nil }
 
 func (s *stubMonitorRepo) WithTx(_ *gorm.DB) repositories.MonitorRepository { return s }
 func (s *stubMonitorRepo) RunInTransaction(fn func(txRepo repositories.MonitorRepository) error) error {
