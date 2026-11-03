@@ -27,7 +27,8 @@ import (
 
 // MockToolsetHandler implements every toolset interface for use in tool-package tests.
 type MockToolsetHandler struct {
-	calls map[string][]interface{}
+	calls          map[string][]interface{}
+	createAgentErr error
 }
 
 func NewMockToolsetHandler() *MockToolsetHandler {
@@ -84,7 +85,7 @@ func (m *MockToolsetHandler) CreateAgent(
 	ctx context.Context, ouID string, projectName string, req *spec.CreateAgentRequest,
 ) error {
 	m.recordCall("CreateAgent", ouID, projectName, req)
-	return nil
+	return m.createAgentErr
 }
 
 // Build Toolset Handler
