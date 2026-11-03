@@ -28,10 +28,11 @@ import (
 )
 
 // MonitorRunObserver is the narrow surface the monitor scheduler uses to
-// report run outcomes. Implementations must not fail the caller.
+// prepare run outcomes before terminal persistence and publish them afterwards.
 type MonitorRunObserver interface {
-	// OnMonitorRunFinished is called once a run reaches a terminal status.
-	OnMonitorRunFinished(ctx context.Context, monitor *models.Monitor, run *models.MonitorRun, status, errorMessage string)
+	// PrepareMonitorRunFinished loads committed data. On failure the scheduler
+	// keeps the run retryable. Call the returned publisher only after persisting status.
+	PrepareMonitorRunFinished(ctx context.Context, monitor *models.Monitor, run *models.MonitorRun, status, errorMessage string) (func(), error)
 	// OnMonitorTriggerFailed is called when a scheduled run could not be started.
 	OnMonitorTriggerFailed(ctx context.Context, monitor *models.Monitor, cause error)
 }
@@ -39,7 +40,8 @@ type MonitorRunObserver interface {
 // NoopMonitorRunObserver discards run outcomes.
 type NoopMonitorRunObserver struct{}
 
-func (NoopMonitorRunObserver) OnMonitorRunFinished(context.Context, *models.Monitor, *models.MonitorRun, string, string) {
+func (NoopMonitorRunObserver) PrepareMonitorRunFinished(context.Context, *models.Monitor, *models.MonitorRun, string, string) (func(), error) {
+	return func() {}, nil
 }
 
 func (NoopMonitorRunObserver) OnMonitorTriggerFailed(context.Context, *models.Monitor, error) {}
@@ -54,19 +56,22 @@ type monitorRunEvents struct {
 
 // NewMonitorRunEvents creates the observer that publishes monitor run events.
 func NewMonitorRunEvents(publisher events.Publisher, scoreRepo repositories.ScoreRepository, logger *slog.Logger) MonitorRunObserver {
+	if _, disabled := publisher.(events.NoopPublisher); disabled || publisher == nil {
+		return NoopMonitorRunObserver{}
+	}
 	return &monitorRunEvents{publisher: publisher, scoreRepo: scoreRepo, logger: logger, now: time.Now}
 }
 
-func (m *monitorRunEvents) OnMonitorRunFinished(
+func (m *monitorRunEvents) PrepareMonitorRunFinished(
 	ctx context.Context, monitor *models.Monitor, run *models.MonitorRun, status, errorMessage string,
-) {
+) (func(), error) {
 	eventType := events.TypeMonitorRunSucceeded
 	switch status {
 	case models.RunStatusSuccess:
 	case models.RunStatusFailed:
 		eventType = events.TypeMonitorRunFailed
 	default:
-		return
+		return func() {}, nil
 	}
 
 	runData := map[string]any{
@@ -90,7 +95,7 @@ func (m *monitorRunEvents) OnMonitorRunFinished(
 	if status == models.RunStatusSuccess {
 		evaluators, err := m.scoreRepo.GetEvaluatorsByMonitorAndRunID(monitor.ID, run.ID)
 		if err != nil {
-			m.logger.Error("Failed to load run scores for event", "monitor", monitor.Name, "runID", run.ID, "error", err)
+			return nil, fmt.Errorf("load committed scores for monitor run event: %w", err)
 		} else {
 			scores := make([]map[string]any, 0, len(evaluators))
 			for _, e := range evaluators {
@@ -109,7 +114,7 @@ func (m *monitorRunEvents) OnMonitorRunFinished(
 
 	// The ID is derived from the run, so a run synced twice publishes one
 	// event: JetStream drops the duplicate.
-	m.publish(ctx, monitor, "evt_monrun_"+run.ID.String(), eventType, data)
+	return func() { m.publish(ctx, monitor, "evt_monrun_"+run.ID.String(), eventType, data) }, nil
 }
 
 func (m *monitorRunEvents) OnMonitorTriggerFailed(ctx context.Context, monitor *models.Monitor, cause error) {

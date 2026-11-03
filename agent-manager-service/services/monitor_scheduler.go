@@ -380,18 +380,23 @@ func (s *monitorSchedulerService) syncSingleRunStatus(ctx context.Context, run *
 	}
 
 	if len(updates) > 0 {
+		publish := func() {}
+		if status, ok := updates["status"].(string); ok && (status == models.RunStatusSuccess || status == models.RunStatusFailed) {
+			errMsg, _ := updates["error_message"].(string)
+			var err error
+			snapshot := *run
+			completedAt := updates["completed_at"].(time.Time)
+			snapshot.CompletedAt = &completedAt
+			publish, err = s.runObserver.PrepareMonitorRunFinished(ctx, monitor, &snapshot, status, errMsg)
+			if err != nil {
+				return fmt.Errorf("prepare monitor run event: %w", err)
+			}
+		}
 		if err := s.monitorRepo.UpdateMonitorRun(run, updates); err != nil {
 			return fmt.Errorf("failed to update run status: %w", err)
 		}
 		s.logger.Info("Updated run status", "runID", run.ID, "status", updates["status"])
-
-		// Report once the new status is stored: a failed write means the run
-		// is synced again next tick, and event IDs are per run, so a re-sync
-		// cannot publish a duplicate.
-		if status, ok := updates["status"].(string); ok && (status == models.RunStatusSuccess || status == models.RunStatusFailed) {
-			errMsg, _ := updates["error_message"].(string)
-			s.runObserver.OnMonitorRunFinished(ctx, monitor, run, status, errMsg)
-		}
+		publish()
 	}
 
 	return nil
@@ -412,13 +417,20 @@ func (s *monitorSchedulerService) failStaleRun(ctx context.Context, monitor *mod
 		"completed_at":  time.Now(),
 		"error_message": reason,
 	}
+	snapshot := *run
+	completedAt := updates["completed_at"].(time.Time)
+	snapshot.CompletedAt = &completedAt
+	publish, err := s.runObserver.PrepareMonitorRunFinished(ctx, monitor, &snapshot, models.RunStatusFailed, reason)
+	if err != nil {
+		return false, fmt.Errorf("prepare stale monitor run event: %w", err)
+	}
 	if err := s.monitorRepo.UpdateMonitorRun(run, updates); err != nil {
 		return false, fmt.Errorf("failed to mark stale run %s as failed: %w", run.Name, err)
 	}
 
 	s.logger.Warn("Marked stale monitor run as failed",
 		"runID", run.ID, "runName", run.Name, "startedAt", run.StartedAt, "reason", reason)
-	s.runObserver.OnMonitorRunFinished(ctx, monitor, run, models.RunStatusFailed, reason)
+	publish()
 	return true, nil
 }
 

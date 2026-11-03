@@ -97,14 +97,19 @@ func Connect(url, name string, logger *slog.Logger) (*NATSBus, error) {
 
 // Setup creates or updates the event stream and the work queue streams.
 func (b *NATSBus) Setup(ctx context.Context) error {
-	if _, err := b.js.CreateOrUpdateStream(ctx, jetstream.StreamConfig{
+	eventsCfg := jetstream.StreamConfig{
 		Name:       EventsStream,
 		Subjects:   []string{EventsSubject + ".>"},
 		Storage:    b.storage,
 		Retention:  jetstream.LimitsPolicy,
 		MaxAge:     streamMaxAge,
 		Duplicates: 2 * time.Minute,
-	}); err != nil {
+	}
+	if b.storage == jetstream.MemoryStorage {
+		eventsCfg.MaxBytes = embeddedMaxMemory / 2
+		eventsCfg.Discard = jetstream.DiscardOld
+	}
+	if _, err := b.js.CreateOrUpdateStream(ctx, eventsCfg); err != nil {
 		return fmt.Errorf("failed to set up stream %s: %w", EventsStream, err)
 	}
 	for _, q := range natsQueues {

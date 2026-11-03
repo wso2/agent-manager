@@ -185,16 +185,11 @@ func (c *gatewayController) RegisterGateway(w http.ResponseWriter, r *http.Reque
 		return
 	}
 
-	// Use the OU ID from the request body if provided, otherwise fall back to the one from the request context.
+	// Registration is tenant-scoped; the request body cannot select another org.
 	ouID := middleware.OUIDFromRequest(r)
-	if req.OrgId != nil && *req.OrgId != "" {
-		ouID = *req.OrgId
-		// Re-stash the effective org so downstream context consumers (e.g. the
-		// OpenChoreo client's org header) see the org actually operated on
-		// rather than the caller's token org.
-		org, _ := middleware.GetResolvedOrg(ctx)
-		org.OUID = ouID
-		ctx = middleware.WithResolvedOrg(ctx, org)
+	if req.OrgId != nil && *req.OrgId != "" && *req.OrgId != ouID {
+		utils.WriteErrorResponse(w, http.StatusBadRequest, "orgId must match the authenticated organization")
+		return
 	}
 
 	// Validate environments if present

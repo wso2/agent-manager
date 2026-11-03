@@ -175,7 +175,7 @@ var types = []Type{
 	{"monitor.started", ScopeAgent, "Monitors", "A monitor was started."},
 	{"monitor.stopped", ScopeAgent, "Monitors", "A monitor was stopped."},
 	{"monitor.rerun_requested", ScopeAgent, "Monitors", "A monitor run was re-run."},
-	{TypeMonitorRunSucceeded, ScopeAgent, "Monitor runs", "A monitor run finished, with its scores."},
+	{TypeMonitorRunSucceeded, ScopeAgent, "Monitor runs", "A monitor run finished, with the committed scores available at completion."},
 	{TypeMonitorRunFailed, ScopeAgent, "Monitor runs", "A monitor run failed or could not start."},
 }
 
