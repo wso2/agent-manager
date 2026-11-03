@@ -26,7 +26,7 @@ import {
   Divider,
   Stack,
 } from "@wso2/oxygen-ui";
-import { useParams, useSearchParams } from "react-router-dom";
+import { generatePath, Link, useParams, useSearchParams } from "react-router-dom";
 import {
   useGetAgent,
   useGetAllAgentBuilds,
@@ -38,15 +38,16 @@ import {
   Clock as AccessTime,
   Edit,
   GitCommit,
+  Hammer,
   Rocket,
   Tag,
 } from "@wso2/oxygen-ui-icons-react";
-import { NoDataFound } from "@agent-management-platform/views";
+import { StateNotice } from "@agent-management-platform/views";
 import { EditDeployConfigDrawer } from "./EditDeployConfigDrawer";
 import { BuildSelectorDrawer } from "./BuildSelectorDrawer";
 import { KindVersionSelectorDrawer } from "./KindVersionSelectorDrawer";
 import { format } from "date-fns";
-import { Environment } from "@agent-management-platform/types";
+import { absoluteRouteMap, Environment } from "@agent-management-platform/types";
 import {
   RestrictedAction,
   useAgentEnvironmentAccess,
@@ -74,6 +75,10 @@ export function BuildCard(props: BuildCardProps) {
   });
 
   const isKindAgent = !!agent?.kindName;
+  const agentRoutes = absoluteRouteMap.children.org.children.projects.children.agents;
+  const routeParams = { orgId: orgId ?? "", projectId: projectId ?? "", agentId: agentId ?? "" };
+  const buildPath = generatePath(agentRoutes.children.build.path, routeParams);
+  const publishPath = generatePath(agentRoutes.children.publish.path, routeParams);
 
   // ── Build-agent data ────────────────────────────────────────────────────────
   const { data: builds, isLoading: isBuildsLoading } = useGetAllAgentBuilds({
@@ -283,14 +288,22 @@ export function BuildCard(props: BuildCardProps) {
           sx={{ height: "fit-content", width: 350, minWidth: 350 }}
         >
           <CardContent>
-            <Stack gap={2} alignItems="center">
-              <NoDataFound
-                message="No versions available"
-                subtitle="Publish a version for this Agent Kind first."
-                icon={<Tag size={32} />}
-                disableBackground
-              />
-            </Stack>
+            <StateNotice
+              compact
+              icon={Tag}
+              title="Publish a version first"
+              description="Kind agents deploy from a published version, and this kind has none yet."
+              steps={[
+                { label: "Publish", state: "current" },
+                { label: "Deploy", state: "todo" },
+                { label: "Try it", state: "todo" },
+              ]}
+              actions={
+                <Button variant="contained" component={Link} to={publishPath}>
+                  Go to Publish
+                </Button>
+              }
+            />
           </CardContent>
         </Card>
       );
@@ -399,14 +412,22 @@ export function BuildCard(props: BuildCardProps) {
         }}
       >
         <CardContent>
-          <Stack gap={2} alignItems="center">
-            <NoDataFound
-              message="No builds available"
-              subtitle={`build your agent first to deploy it to an environment.`}
-              icon={<Rocket size={32} />}
-              disableBackground
-            />
-          </Stack>
+          <StateNotice
+            compact
+            icon={Hammer}
+            title="Build your agent first"
+            description="There's no successful build to deploy yet. Build it, then deploy it here."
+            steps={[
+              { label: "Build", state: "current" },
+              { label: "Deploy", state: "todo" },
+              { label: "Try it", state: "todo" },
+            ]}
+            actions={
+              <Button variant="contained" component={Link} to={buildPath}>
+                Go to Build
+              </Button>
+            }
+          />
         </CardContent>
       </Card>
     );

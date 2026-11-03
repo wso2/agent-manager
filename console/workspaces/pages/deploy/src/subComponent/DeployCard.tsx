@@ -19,13 +19,14 @@
 import {
   useGetAgent,
   useGetAgentConfigurations,
+  useGetAllAgentBuilds,
   useGetAgentMetrics,
   useGetAgentResourceConfigs,
   useGetDeploymentPipeline,
   useListAgentDeployments,
   useUpdateDeploymentState,
 } from "@agent-management-platform/api-client";
-import { NoDataFound, TextInput } from "@agent-management-platform/views";
+import { NoDataFound, StateNotice, TextInput } from "@agent-management-platform/views";
 import {
   ArrowRightFromLine,
   Clock,
@@ -326,6 +327,20 @@ export function DeployCard(props: DeployCardProps) {
   }, [searchParams, setSearchParams]);
 
 
+  // Same query as the build card, so no extra request.
+  const { data: allBuilds } = useGetAllAgentBuilds({
+    orgName: orgId,
+    projName: projectId,
+    agentName: agentId,
+  });
+  const noSuccessfulBuild = !!allBuilds && !allBuilds.builds.some(
+    (b) => b.status === "Completed" || b.status === "Succeeded",
+  );
+  const buildPath = generatePath(
+    absoluteRouteMap.children.org.children.projects.children.agents.children.build.path,
+    { orgId: orgId ?? "", projectId: projectId ?? "", agentId: agentId ?? "" },
+  );
+
   const { data: deployments, isLoading: isDeploymentsLoading } =
     useListAgentDeployments({
       orgName: orgId,
@@ -530,14 +545,23 @@ export function DeployCard(props: DeployCardProps) {
         }}
       >
         <CardContent>
-          <Stack gap={2} alignItems="center">
-            <NoDataFound
-              message="No Deployment found"
-              subtitle={`Build your agent first to deploy it to ${currentEnvironment.displayName} environment.`}
-              icon={<Rocket size={32} />}
-              disableBackground
-            />
-          </Stack>
+          <StateNotice
+            compact
+            icon={Rocket}
+            title={noSuccessfulBuild ? "Nothing to deploy yet" : "Not deployed here yet"}
+            description={
+              noSuccessfulBuild
+                ? "This agent has no successful build. Build it first, then deploy it to the first environment."
+                : `Deploy a build to ${currentEnvironment.displayName} to see it running here.`
+            }
+            actions={
+              noSuccessfulBuild && (
+                <Button variant="outlined" component={Link} to={buildPath}>
+                  Go to Build
+                </Button>
+              )
+            }
+          />
         </CardContent>
       </Card>
     );

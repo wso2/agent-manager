@@ -30,6 +30,7 @@ export * from './FormElements';
 export * from './Drawer';
 export * from './SelectionIndicator';
 export * from './IconTile';
+export * from './StateNotice';
 export * from './RadioMark';
 export * from './FormGridSpacer';
 export * from './SelectionCard';

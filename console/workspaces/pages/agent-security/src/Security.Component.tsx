@@ -18,8 +18,8 @@
 
 import React from "react";
 import { Link, generatePath, useParams } from "react-router-dom";
-import { Alert, Button, ListingTable, Skeleton } from "@wso2/oxygen-ui";
-import { AlertTriangle, KeyRound, Rocket, ShieldOff } from "@wso2/oxygen-ui-icons-react";
+import { Alert, Button, Skeleton } from "@wso2/oxygen-ui";
+import { KeyRound, Network, Rocket, ServerCrash, ShieldOff } from "@wso2/oxygen-ui-icons-react";
 import {
   useCreateAgentAPIKey,
   useGetA2AProxy,
@@ -38,6 +38,7 @@ import {
   buildConfigureTabHref,
   isExternalAgent,
   PageLayout,
+  StateNotice,
 } from "@agent-management-platform/views";
 import { absoluteRouteMap } from "@agent-management-platform/types";
 
@@ -152,60 +153,84 @@ export const SecurityComponent: React.FC = () => {
     </Button>
   ) : undefined;
 
-  const emptyState = isAgentLookupFailed
+  const deployHref = orgId && projectId && agentId && envId
+    ? generatePath(agentRoutes.children.environment.children.deploy.path, {
+        orgId,
+        projectId,
+        agentId,
+        envId,
+      })
+    : undefined;
+  const deploySettingsAction = deployHref ? (
+    <Button variant="contained" component={Link} to={deployHref}>
+      Go to Deployment Settings
+    </Button>
+  ) : undefined;
+  const reloadAction = (
+    <Button variant="outlined" onClick={() => window.location.reload()}>
+      Reload page
+    </Button>
+  );
+
+  type Notice = Omit<React.ComponentProps<typeof StateNotice>, "contained" | "compact">;
+  const notice: Notice | null = isAgentLookupFailed
     ? {
-        illustration: <AlertTriangle size={48} />,
+        icon: ServerCrash,
+        tone: "error",
         title: "Could not load the agent",
-        description: "Reload the page to try again.",
+        description: "The agent's details failed to load, so its keys can't be shown.",
+        actions: reloadAction,
       }
     : isExternal && isProxyLookupFailed
     ? {
-        illustration: <AlertTriangle size={48} />,
+        icon: ServerCrash,
+        tone: "error",
         title: "Could not load gateway routing",
-        description: "Reload the page to try again.",
+        description: "Whether this agent is routed through the gateway failed to load.",
+        actions: reloadAction,
       }
     : !servedByGateway
     ? isExternal
       ? {
-          illustration: <Rocket size={48} />,
-          title: "Agent is not routed through the gateway",
-          description: "Turn on Route through gateway for this environment under Configure → A2A to manage its API keys.",
-          action: a2aSettingsAction,
+          icon: Network,
+          tone: "warning",
+          title: "This agent is not routed through the gateway",
+          description:
+            "API keys are checked by the gateway. Turn on Route through gateway for this environment under Configure → A2A.",
+          actions: a2aSettingsAction,
         }
       : {
-          illustration: <Rocket size={48} />,
-          title: "Agent is not deployed",
-          description: "Deploy this agent to manage its API keys. Use the Deploy tab to get started.",
+          icon: Rocket,
+          title: "Deploy your agent to manage its keys",
+          description:
+            "API keys are issued for a running agent, and this one isn't deployed in this environment yet.",
+          steps: [
+            { label: "Build", state: "done" },
+            { label: "Deploy", state: "current" },
+            { label: "Create keys", state: "todo" },
+          ],
+          actions: deployHref && (
+            <Button variant="contained" component={Link} to={deployHref}>
+              Go to Deploy
+            </Button>
+          ),
         }
     : !securityEnabled && oauthEnabled
     ? {
-        illustration: <KeyRound size={48} />,
+        icon: KeyRound,
         title: "This agent uses OAuth",
-        description: "Manage OAuth authentication from the configured identity provider.",
+        description:
+          "Callers authenticate with OAuth tokens from the configured identity provider, so there are no API keys to manage here.",
       }
     : !securityEnabled
     ? {
-        illustration: <ShieldOff size={48} />,
-        title: "Agent security is disabled",
+        icon: ShieldOff,
+        tone: "warning",
+        title: "API key security is off",
         description: isExternal
           ? "Enable API Key Security in the gateway security settings under Configure → A2A to manage API keys."
-          : "Enable API Key Security from the deployment settings and redeploy to manage API keys.",
-        action: isExternal
-          ? a2aSettingsAction
-          : orgId && projectId && agentId && envId ? (
-            <Button
-              variant="contained"
-              component={Link}
-              to={generatePath(agentRoutes.children.environment.children.deploy.path, {
-                orgId,
-                projectId,
-                agentId,
-                envId,
-              })}
-            >
-              Go to Deployment Settings
-            </Button>
-          ) : undefined,
+          : "Enable API Key Security in the deployment settings and redeploy to manage API keys.",
+        actions: isExternal ? a2aSettingsAction : deploySettingsAction,
       }
     : null;
 
@@ -213,10 +238,8 @@ export const SecurityComponent: React.FC = () => {
     <PageLayout title="API Keys" disableIcon actions={<EnvironmentSelector />}>
       {isLoading ? (
         <Skeleton variant="rectangular" width="100%" height={200} />
-      ) : emptyState ? (
-        <ListingTable.Container>
-          <ListingTable.EmptyState {...emptyState} />
-        </ListingTable.Container>
+      ) : notice ? (
+        <StateNotice {...notice} />
       ) : (
         <>
         {gatewayOffline && (

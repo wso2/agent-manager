@@ -19,13 +19,11 @@
 import React from "react";
 import { AgentChat } from "./AgentTest/AgentChat";
 import { EnvironmentSelector } from "@agent-management-platform/shared-component";
-import {
-  NoDataFound,
-  PageLayout,
-} from "@agent-management-platform/views";
-import { Alert, Box, Skeleton } from "@wso2/oxygen-ui";
-import { Network, Rocket } from "@wso2/oxygen-ui-icons-react";
-import { useParams } from "react-router-dom";
+import { PageLayout, StateNotice } from "@agent-management-platform/views";
+import { Box, Button, Skeleton } from "@wso2/oxygen-ui";
+import { Network, RefreshCw, Rocket, ShieldAlert } from "@wso2/oxygen-ui-icons-react";
+import { generatePath, Link, useParams } from "react-router-dom";
+import { absoluteRouteMap } from "@agent-management-platform/types";
 import { Swagger } from "./AgentTest/Swagger";
 import {
   useGetAgent,
@@ -93,21 +91,33 @@ export const TestComponent: React.FC = () => {
   const isLoading = isDeploymentLoading || isEnvConfigLoading;
 
   if (!isDeploymentLoading && !isA2AAgent && currentDeployment?.status !== "active") {
+    const deployPath =
+      orgId && projectId && agentId && envId
+        ? generatePath(
+            absoluteRouteMap.children.org.children.projects.children.agents.children
+              .environment.children.deploy.path,
+            { orgId, projectId, agentId, envId },
+          )
+        : undefined;
     return (
       <PageLayout title="Try your agent" disableIcon actions={<EnvironmentSelector />}>
-        <Box
-          height="50vh"
-          display="flex"
-          justifyContent="center"
-          alignItems="center"
-        >
-          <NoDataFound
-            iconElement={Rocket}
-            disableBackground
-            message="Agent is not deployed"
-            subtitle="Deploy your agent to try it out. You can deploy your agent by clicking the deploy button in the deploy tab."
-          />
-        </Box>
+        <StateNotice
+          icon={Rocket}
+          title="Deploy your agent to try it"
+          description="This agent isn't running in this environment yet. Deploy it, then come back to chat with it or call its API."
+          steps={[
+            { label: "Build", state: "done" },
+            { label: "Deploy", state: "current" },
+            { label: "Try it", state: "todo" },
+          ]}
+          actions={
+            deployPath && (
+              <Button variant="contained" component={Link} to={deployPath}>
+                Go to Deploy
+              </Button>
+            )
+          }
+        />
       </PageLayout>
     );
   }
@@ -117,28 +127,31 @@ export const TestComponent: React.FC = () => {
       {isLoading ? (
         <SkeletonTestPageLayout />
       ) : isEnvConfigError ? (
-        <Alert severity="error">
-          Could not load this environment&apos;s security settings, so testing is
-          unavailable. Retry in a moment or reload the page.
-        </Alert>
+        <StateNotice
+          icon={ShieldAlert}
+          tone="error"
+          title="Couldn't load the security settings"
+          description="Testing needs this environment's security settings to know how to sign requests. Retry in a moment or reload the page."
+          actions={
+            <Button
+              variant="outlined"
+              startIcon={<RefreshCw size={16} />}
+              onClick={() => window.location.reload()}
+            >
+              Reload page
+            </Button>
+          }
+        />
       ) : (
         <>
           {isChatAgent ? (
             <AgentChat key={`${agentId}-${envId}`} />
           ) : isA2AAgent ? (
-            <Box
-              height="50vh"
-              display="flex"
-              justifyContent="center"
-              alignItems="center"
-            >
-              <NoDataFound
-                iconElement={Network}
-                disableBackground
-                message="Testing isn't available for A2A agents yet"
-                subtitle="This agent speaks the A2A protocol directly. Use an A2A-compatible client with its agent card to try it out."
-              />
-            </Box>
+            <StateNotice
+              icon={Network}
+              title="Testing isn't available for A2A agents yet"
+              description="This agent speaks the A2A protocol directly. Use an A2A-compatible client with its agent card to try it out."
+            />
           ) : (
             <Swagger key={`${agentId}-${envId}`} />
           )}
