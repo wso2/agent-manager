@@ -693,6 +693,24 @@ func (e GatewayEnvironmentResponseIsolationTier) Valid() bool {
 	}
 }
 
+// Defines values for GatewayHosting.
+const (
+	MANAGED    GatewayHosting = "MANAGED"
+	SELFHOSTED GatewayHosting = "SELF_HOSTED"
+)
+
+// Valid indicates whether the value is a known member of the GatewayHosting enum.
+func (e GatewayHosting) Valid() bool {
+	switch e {
+	case MANAGED:
+		return true
+	case SELFHOSTED:
+		return true
+	default:
+		return false
+	}
+}
+
 // Defines values for GatewayStatus.
 const (
 	GatewayStatusACTIVE       GatewayStatus = "ACTIVE"
@@ -1155,6 +1173,21 @@ func (e RateLimitResetWindowUnit) Valid() bool {
 	case RateLimitResetWindowUnitMinute:
 		return true
 	case RateLimitResetWindowUnitSecond:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for SelfHostedGatewayRequestFunctionalityType.
+const (
+	Ai SelfHostedGatewayRequestFunctionalityType = "ai"
+)
+
+// Valid indicates whether the value is a known member of the SelfHostedGatewayRequestFunctionalityType enum.
+func (e SelfHostedGatewayRequestFunctionalityType) Valid() bool {
+	switch e {
+	case Ai:
 		return true
 	default:
 		return false
@@ -3337,6 +3370,11 @@ type GatewayEnvironmentResponse struct {
 // GatewayEnvironmentResponseIsolationTier Pod runtime isolation tier for agents. Use "gvisor" for runsc kernel isolation or "kata" for Kata Containers VM isolation (rendered as the kata-qemu RuntimeClass); omit for the default runc runtime.
 type GatewayEnvironmentResponseIsolationTier string
 
+// GatewayHosting Who runs the gateway runtime.
+// - MANAGED: the platform provisions and runs it.
+// - SELF_HOSTED: the customer runs it and connects it to the platform.
+type GatewayHosting string
+
 // GatewayListResponse defines model for GatewayListResponse.
 type GatewayListResponse struct {
 	Gateways []GatewayResponse `json:"gateways"`
@@ -3390,6 +3428,11 @@ type GatewayResponse struct {
 	// deprecated aliases (REGULAR -> BOTH, AI -> EGRESS) so gateway charts pinned to
 	// an older version keep registering; responses always emit canonical values.
 	GatewayType GatewayType `json:"gatewayType"`
+
+	// Hosting Who runs the gateway runtime.
+	// - MANAGED: the platform provisions and runs it.
+	// - SELF_HOSTED: the customer runs it and connects it to the platform.
+	Hosting GatewayHosting `json:"hosting"`
 
 	// IsCritical Flag indicating if this is a critical production gateway
 	IsCritical bool `json:"isCritical"`
@@ -5244,6 +5287,40 @@ type SecuritySummary struct {
 	Enabled *bool `json:"enabled,omitempty"`
 }
 
+// SelfHostedGatewayRequest defines model for SelfHostedGatewayRequest.
+type SelfHostedGatewayRequest struct {
+	Description *string `json:"description,omitempty"`
+
+	// DisplayName Human-readable display name
+	DisplayName string `json:"displayName"`
+
+	// Endpoints At least one http(s) endpoint URL. The first is the gateway's address.
+	Endpoints []string `json:"endpoints"`
+
+	// Environment Name of the environment to bind the gateway to. Must exist.
+	Environment       string                                     `json:"environment"`
+	FunctionalityType *SelfHostedGatewayRequestFunctionalityType `json:"functionalityType,omitempty"`
+
+	// Handle Optional DNS-1123 label; the gateway's handle becomes `<environment>-<handle>`. Derived from displayName when omitted.
+	Handle     *string                 `json:"handle,omitempty"`
+	IsCritical *bool                   `json:"isCritical,omitempty"`
+	Properties *map[string]interface{} `json:"properties,omitempty"`
+
+	// Version Gateway version, `major.minor` or CalVer `YYYY.MM.DD`.
+	Version *string `json:"version,omitempty"`
+}
+
+// SelfHostedGatewayRequestFunctionalityType defines model for SelfHostedGatewayRequest.FunctionalityType.
+type SelfHostedGatewayRequestFunctionalityType string
+
+// SelfHostedGatewayUpdateRequest defines model for SelfHostedGatewayUpdateRequest.
+type SelfHostedGatewayUpdateRequest struct {
+	Description *string                 `json:"description,omitempty"`
+	DisplayName *string                 `json:"displayName,omitempty"`
+	IsCritical  *bool                   `json:"isCritical,omitempty"`
+	Properties  *map[string]interface{} `json:"properties,omitempty"`
+}
+
 // SetA2AProxyRequest defines model for SetA2AProxyRequest.
 type SetA2AProxyRequest struct {
 	// UpstreamAuth A static header the gateway adds to every call to the agent, card fetch included.
@@ -6378,6 +6455,15 @@ type ListRepositoryCommitsParams struct {
 	Offset *int `form:"offset,omitempty" json:"offset,omitempty"`
 }
 
+// ListSelfHostedGatewaysParams defines parameters for ListSelfHostedGateways.
+type ListSelfHostedGatewaysParams struct {
+	// Limit Maximum number of results to return
+	Limit *int32 `form:"limit,omitempty" json:"limit,omitempty"`
+
+	// Offset Number of results to skip
+	Offset *int32 `form:"offset,omitempty" json:"offset,omitempty"`
+}
+
 // CheckThunderUrlAvailabilityParams defines parameters for CheckThunderUrlAvailability.
 type CheckThunderUrlAvailabilityParams struct {
 	// Handle The candidate env-Thunder URL handle to check.
@@ -6626,6 +6712,12 @@ type ListRepositoryBranchesJSONRequestBody = ListBranchesRequest
 
 // ListRepositoryCommitsJSONRequestBody defines body for ListRepositoryCommits for application/json ContentType.
 type ListRepositoryCommitsJSONRequestBody = ListCommitsRequest
+
+// RegisterSelfHostedGatewayJSONRequestBody defines body for RegisterSelfHostedGateway for application/json ContentType.
+type RegisterSelfHostedGatewayJSONRequestBody = SelfHostedGatewayRequest
+
+// UpdateSelfHostedGatewayJSONRequestBody defines body for UpdateSelfHostedGateway for application/json ContentType.
+type UpdateSelfHostedGatewayJSONRequestBody = SelfHostedGatewayUpdateRequest
 
 // GetNameByDisplayNameJSONRequestBody defines body for GetNameByDisplayName for application/json ContentType.
 type GetNameByDisplayNameJSONRequestBody = ResourceNameRequest
