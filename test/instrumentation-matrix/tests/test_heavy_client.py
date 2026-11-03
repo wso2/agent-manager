@@ -274,6 +274,29 @@ def test_teardown_is_best_effort():
 
 
 @responses.activate
+def test_deploy_agent_tears_down_after_failure():
+    """A deploy that fails after the project and agent exist removes them: the
+    driver only tears down agents deploy_agent returned, so nothing else will."""
+    _mock_token()
+    name = "x"
+    p = f"/api/v1/orgs/default/projects/{name}"
+    responses.add(responses.POST, f"{BASE}/api/v1/orgs/default/projects", json={}, status=202)
+    responses.add(responses.POST, f"{BASE}{p}/agents", json={}, status=202)
+    responses.add(responses.GET, f"{BASE}{p}/agents/{name}/builds", json={"builds": [{"buildName": "b1"}]}, status=200)
+    responses.add(responses.GET, f"{BASE}{p}/agents/{name}/builds/b1", json={"buildName": "b1", "status": "Failed"}, status=200)
+    responses.add(responses.DELETE, f"{BASE}{p}/agents/{name}", status=204)
+    responses.add(responses.DELETE, f"{BASE}{p}", status=204)
+    with pytest.raises(AmpError, match="failed"):
+        _client().deploy_agent(
+            cell_id=name, instrumentation_version="0.2.1",
+            framework_name="langchain",
+            framework_package="langchain", framework_version="0.3.27", python_version="3.11",
+        )
+    deleted = [c.request.url for c in responses.calls if c.request.method == "DELETE"]
+    assert deleted == [f"{BASE}{p}/agents/{name}", f"{BASE}{p}"]
+
+
+@responses.activate
 def test_poll_traces_assembles_validator_spans():
     _mock_token()
     from heavy.amp_client import DeployedAgent

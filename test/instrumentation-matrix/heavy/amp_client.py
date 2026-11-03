@@ -257,57 +257,66 @@ class AmpClient:
         for k, v in sample.env:
             env.append({"key": k, "value": v, "isSensitive": False})
 
-        # (2) project
-        self._request(
-            "POST", f"/api/v1/orgs/{org}/projects",
-            json={
-                "name": name,
-                "displayName": name,
-                "deploymentPipeline": self.deployment_pipeline,
-            },
-            expect=(202,),
-        )
+        # Everything from here creates AMP resources, and the driver only tears
+        # down an agent deploy_agent returned, so remove them on any failure.
+        try:
+            # (2) project
+            self._request(
+                "POST", f"/api/v1/orgs/{org}/projects",
+                json={
+                    "name": name,
+                    "displayName": name,
+                    "deploymentPipeline": self.deployment_pipeline,
+                },
+                expect=(202,),
+            )
 
-        # (3) agent — pin instrumentation_version + auto-instrumentation on.
-        self._request(
-            "POST", f"/api/v1/orgs/{org}/projects/{name}/agents",
-            json={
-                "name": name,
-                "displayName": name,
-                "provisioning": {
-                    "type": "internal",
-                    "repository": {
-                        "url": repo_url,
-                        "branch": repo_branch,
-                        "appPath": sample.app_path,
+            # (3) agent — pin instrumentation_version + auto-instrumentation on.
+            self._request(
+                "POST", f"/api/v1/orgs/{org}/projects/{name}/agents",
+                json={
+                    "name": name,
+                    "displayName": name,
+                    "provisioning": {
+                        "type": "internal",
+                        "repository": {
+                            "url": repo_url,
+                            "branch": repo_branch,
+                            "appPath": sample.app_path,
+                        },
                     },
-                },
-                "agentType": {"type": "agent-api", "subType": "chat-api"},
-                "build": {
-                    "type": "buildpack",
-                    "buildpack": {
-                        "language": "python",
-                        "languageVersion": python_version,
-                        "runCommand": sample.run_command,
+                    "agentType": {"type": "agent-api", "subType": "chat-api"},
+                    "build": {
+                        "type": "buildpack",
+                        "buildpack": {
+                            "language": "python",
+                            "languageVersion": python_version,
+                            "runCommand": sample.run_command,
+                        },
                     },
+                    "configurations": {
+                        "enableAutoInstrumentation": True,
+                        "instrumentationVersion": instrumentation_version,
+                        "env": env,
+                    },
+                    "inputInterface": {"type": "HTTP"},
                 },
-                "configurations": {
-                    "enableAutoInstrumentation": True,
-                    "instrumentationVersion": instrumentation_version,
-                    "env": env,
-                },
-                "inputInterface": {"type": "HTTP"},
-            },
-            expect=(202,),
-        )
+                expect=(202,),
+            )
 
-        image_id = self._wait_for_build(org, name)
-        # No explicit deploy: creating an internal agent auto-triggers build and
-        # deploy (mirroring test/e2e's shared-agent setup, which only waits).
-        # A redundant POST /deployments re-renders the workload without the
-        # sensitive env, dropping the SecretReference and failing the binding.
-        endpoint = self._wait_for_active_endpoint(org, name)
-        api_key = self._mint_api_key(org, name)
+            image_id = self._wait_for_build(org, name)
+            # No explicit deploy: creating an internal agent auto-triggers build and
+            # deploy (mirroring test/e2e's shared-agent setup, which only waits).
+            # A redundant POST /deployments re-renders the workload without the
+            # sensitive env, dropping the SecretReference and failing the binding.
+            endpoint = self._wait_for_active_endpoint(org, name)
+            api_key = self._mint_api_key(org, name)
+        except BaseException:
+            self.teardown_agent(DeployedAgent(
+                org=org, project_name=name, agent_name=name,
+                environment=self.environment, endpoint_url="", api_key="",
+            ))
+            raise
 
         return DeployedAgent(
             org=org,
