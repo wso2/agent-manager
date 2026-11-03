@@ -45,6 +45,7 @@ interface LeftNavigationProps {
   groupedItems: NavigationSection[];
 }
 
+/** Adds an accessible tooltip directly to a sidebar navigation link. */
 function NavigationLink({ tooltip, ...props }: LinkProps & { tooltip: string }) {
   // Oxygen wraps links in a Fragment, so its built-in tooltip cannot attach
   // hover/focus handlers. Attach the tooltip directly to the router link.
@@ -73,11 +74,10 @@ function NavigationLink({ tooltip, ...props }: LinkProps & { tooltip: string }) 
   );
 }
 
-// Render each item as a real anchor (`<a>`) so clicking opens the link —
-// enabling middle-click / open-in-new-tab and proper link semantics, rather
-// than navigating from the Sidebar's onSelect callback. Items with `children`
-// render without a link — the Sidebar.Item then acts purely as an
-// expand/collapse toggle for the nested items.
+/**
+ * Renders linked leaf items with tooltips when collapsed, and parent items as
+ * submenu toggles. Real anchors preserve middle-click and open-in-new-tab behavior.
+ */
 function renderItem(item: NavigationItem, collapsed = false) {
   const isLeaf = !item.children?.length;
   return (
@@ -129,6 +129,7 @@ export const combineNavItems = (
   ...groupedItems.flatMap((group) => (group.collapsible ? [sectionToItem(group)] : group.items)),
 ];
 
+/** Renders sidebar groups and routes selections from collapsed submenus. */
 export function LeftNavigation({
   collapsed,
   activeItem,
