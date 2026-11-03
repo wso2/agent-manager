@@ -15,7 +15,10 @@
  * under the License.
  */
 
-import type { GatewayResponse } from "@agent-management-platform/types";
+import {
+  isSelfHostedGateway,
+  type GatewayResponse,
+} from "@agent-management-platform/types";
 
 const RELEASE_BASE_URL = "https://github.com/wso2/api-platform/releases/download/ai-gateway";
 const HELM_CHART_REF = "oci://ghcr.io/wso2/api-platform/helm-charts/gateway";
@@ -98,9 +101,6 @@ export const isPublicUrl = (value: string): boolean => {
   );
 };
 
-/**
- * The gateways the platform runs. A gateway without a hosting value predates self-hosted
- * gateways.
- */
+/** The gateways the platform runs. */
 export const managedGateways = (gateways: GatewayResponse[]): GatewayResponse[] =>
-  gateways.filter((gateway) => gateway.hosting !== "SELF_HOSTED");
+  gateways.filter((gateway) => !isSelfHostedGateway(gateway));

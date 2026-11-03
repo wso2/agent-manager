@@ -677,7 +677,7 @@ describe("EnvironmentGatewaySelectorView hosting", () => {
       />,
     );
     fireEvent.click(getCheckbox("Alpha"));
-    chooseOption("Egress gateway for Alpha", "Gateway own");
+    chooseOption("Egress gateway for Alpha", "Gateway own Self-hosted");
     expect(onChangeSpy).toHaveBeenLastCalledWith(["own"]);
   });
 
@@ -772,7 +772,29 @@ describe("EnvironmentGatewaySelectorView hosting", () => {
     expect(screen.getByText("Self-hosted")).toBeTruthy();
   });
 
-  it("shows no hosting chip on a deployed row when self-hosted gateways are disabled", () => {
+  it("shows an existing self-hosted gateway's chip when self-hosted gateways are disabled", () => {
+    globalConfig.selfHostedGatewaysEnabled = false;
+    renderWithTheme(
+      <ControlledSelector
+        environments={environments}
+        gateways={[
+          makeGateway("managed", "env-a", "BOTH", "MANAGED"),
+          makeGateway("own", "env-a", "EGRESS", "SELF_HOSTED"),
+        ]}
+      />,
+    );
+    fireEvent.click(getCheckbox("Alpha"));
+    fireEvent.mouseDown(
+      screen.getByRole("combobox", { name: "Egress gateway for Alpha", hidden: true }),
+    );
+    const listboxes = screen.getAllByRole("listbox", { hidden: true });
+    const listbox = listboxes[listboxes.length - 1];
+    const options = within(listbox).getAllByRole("option", { hidden: true });
+    expect(options[1]).toHaveTextContent("Gateway ownSelf-hosted");
+  });
+
+  it("shows the hosting chip on a deployed self-hosted row when self-hosted gateways are disabled", () => {
+    globalConfig.selfHostedGatewaysEnabled = false;
     renderWithTheme(
       <ControlledSelector
         environments={environments}
@@ -785,21 +807,23 @@ describe("EnvironmentGatewaySelectorView hosting", () => {
       />,
     );
     expect(screen.getByText("Deployed")).toBeTruthy();
-    expect(screen.queryByText("Self-hosted")).toBeNull();
-    expect(screen.queryByText("Managed")).toBeNull();
+    expect(screen.getByText("Self-hosted")).toBeTruthy();
   });
 
-  it("shows no hosting chip when self-hosted gateways are disabled", () => {
+  it("shows no hosting chip with only managed gateways when self-hosted gateways are disabled", () => {
+    globalConfig.selfHostedGatewaysEnabled = false;
     renderWithTheme(
       <ControlledSelector
         environments={environments}
         gateways={[
-          makeGateway("managed", "env-a", "BOTH", "MANAGED"),
-          makeGateway("own", "env-a", "EGRESS", "SELF_HOSTED"),
+          makeGateway("m1", "env-a", "BOTH", "MANAGED"),
+          makeGateway("m2", "env-a", "EGRESS", "MANAGED"),
         ]}
+        initialValue={["m1"]}
+        lockedGatewayIds={["m1"]}
       />,
     );
-    fireEvent.click(getCheckbox("Alpha"));
+    expect(screen.getByText("Deployed")).toBeTruthy();
     expect(screen.queryByText("Managed")).toBeNull();
     expect(screen.queryByText("Self-hosted")).toBeNull();
   });

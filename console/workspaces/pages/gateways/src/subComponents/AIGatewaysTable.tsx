@@ -49,6 +49,8 @@ import {
 import {
   absoluteRouteMap,
   globalConfig,
+  isSelfHostedGateway,
+  showGatewayHosting,
   type GatewayResponse,
 } from "@agent-management-platform/types";
 
@@ -110,13 +112,14 @@ export function AIGatewaysTable({
   const { mutateAsync: deleteSelfHostedGateway } = useDeleteSelfHostedGateway();
   const deleteGateway = (gateway: GatewayResponse) => {
     const params = { orgName: orgId ?? "", gatewayId: gateway.uuid };
-    return gateway.hosting === "SELF_HOSTED"
+    return isSelfHostedGateway(gateway)
       ? deleteSelfHostedGateway(params)
       : deleteManagedGateway(params);
   };
-  const columnCount = selfHostedEnabled ? 6 : 5;
 
   const gateways = useMemo(() => gatewaysData?.gateways ?? [], [gatewaysData]);
+  const showHosting = showGatewayHosting(selfHostedEnabled, gateways);
+  const columnCount = showHosting ? 6 : 5;
 
   const filteredGateways = useMemo(() => {
     const query = searchQuery.trim().toLowerCase();
@@ -229,12 +232,10 @@ export function AIGatewaysTable({
           <GatewayTypeChip type={gateway.gatewayType} />
         </ListingTable.Cell>
 
-        {selfHostedEnabled && (
+        {showHosting && (
           <ListingTable.Cell align="left">
             <Chip
-              label={
-                gateway.hosting === "SELF_HOSTED" ? "Self-hosted" : "Managed"
-              }
+              label={isSelfHostedGateway(gateway) ? "Self-hosted" : "Managed"}
               size="small"
               variant="outlined"
             />
@@ -341,7 +342,7 @@ export function AIGatewaysTable({
             <ListingTable.Cell align="left" width="120px">
               Type
             </ListingTable.Cell>
-            {selfHostedEnabled && (
+            {showHosting && (
               <ListingTable.Cell align="left" width="120px">
                 Hosting
               </ListingTable.Cell>

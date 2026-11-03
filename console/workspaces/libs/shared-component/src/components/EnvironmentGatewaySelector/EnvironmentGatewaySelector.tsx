@@ -31,6 +31,8 @@ import {
 } from "@wso2/oxygen-ui";
 import {
   globalConfig,
+  isSelfHostedGateway,
+  showGatewayHosting,
   type Environment,
   type GatewayDeploymentStatus,
   type GatewayResponse,
@@ -81,9 +83,8 @@ const environmentIdOf = (gateway: GatewayResponse): string | undefined =>
 const gatewayLabel = (gateway: GatewayResponse): string =>
   gateway.displayName || gateway.name;
 
-// A gateway without a hosting value predates self-hosted gateways: managed.
 const isManaged = (gateway: GatewayResponse): boolean =>
-  gateway.hosting !== "SELF_HOSTED";
+  !isSelfHostedGateway(gateway);
 
 const hostingLabel = (gateway: GatewayResponse): string =>
   isManaged(gateway) ? "Managed" : "Self-hosted";
@@ -160,7 +161,10 @@ export const EnvironmentGatewaySelectorView: React.FC<
   onSingleChoiceChange,
   disabled,
 }) => {
-  const showHosting = globalConfig.selfHostedGatewaysEnabled === true;
+  const showHosting = showGatewayHosting(
+    globalConfig.selfHostedGatewaysEnabled === true,
+    gateways,
+  );
   const [pendingEnvIds, setPendingEnvIds] = useState<Set<string>>(new Set());
 
   const valueSet = useMemo(() => new Set(value), [value]);

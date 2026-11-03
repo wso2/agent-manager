@@ -45,7 +45,7 @@ import {
 } from "@agent-management-platform/shared-component";
 import {
   type GatewayResponse,
-  globalConfig,
+  isSelfHostedGateway,
   type UpdateGatewayRequest,
 } from "@agent-management-platform/types";
 import { editGatewaySchema, type EditGatewayFormValues, GATEWAY_DISPLAY_NAME_MAX_LENGTH } from "../form/schema";
@@ -77,9 +77,7 @@ export function EditGatewayDrawer({
   const [lastSubmittedValidationErrors, setLastSubmittedValidationErrors] =
     useState<Partial<Record<keyof EditGatewayFormValues, string>>>({});
 
-  const isSelfHosted =
-    globalConfig.selfHostedGatewaysEnabled === true &&
-    gateway.hosting === "SELF_HOSTED";
+  const isSelfHosted = isSelfHostedGateway(gateway);
 
   const managedUpdate = useUpdateGateway();
   const selfHostedUpdate = useUpdateSelfHostedGateway();

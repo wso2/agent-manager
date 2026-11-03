@@ -36,12 +36,13 @@ const hoisted = vi.hoisted(() => ({
   deleteManaged: vi.fn(),
   deleteSelfHosted: vi.fn(),
   addConfirmation: vi.fn(),
+  gateways: [] as ReturnType<typeof gateway>[],
 }));
 
 vi.mock("@agent-management-platform/api-client", () => {
   return {
     useListGateways: () => ({
-      data: { gateways: [gateway("managed-1", "MANAGED"), gateway("self-1", "SELF_HOSTED")] },
+      data: { gateways: hoisted.gateways },
       isLoading: false,
       error: null,
       refetch: vi.fn(),
@@ -91,6 +92,7 @@ const renderTable = () =>
 
 beforeEach(() => {
   vi.clearAllMocks();
+  hoisted.gateways = [gateway("managed-1", "MANAGED"), gateway("self-1", "SELF_HOSTED")];
 });
 
 afterEach(() => {
@@ -98,11 +100,23 @@ afterEach(() => {
 });
 
 describe("AIGatewaysTable self-hosted gating", () => {
-  it("hides self-hosted actions when selfHostedGatewaysEnabled is false", () => {
+  it("shows an existing self-hosted gateway's hosting but hides Add Gateway when disabled", () => {
     globalConfig.selfHostedGatewaysEnabled = false;
     renderTable();
 
     expect(screen.queryByText("Add Gateway")).not.toBeInTheDocument();
+    expect(screen.getByText("Hosting")).toBeInTheDocument();
+    expect(screen.getByText("Self-hosted")).toBeInTheDocument();
+    expect(screen.getByText("Managed")).toBeInTheDocument();
+  });
+
+  it("shows no hosting with only managed gateways when disabled", () => {
+    globalConfig.selfHostedGatewaysEnabled = false;
+    hoisted.gateways = [gateway("managed-1", "MANAGED"), gateway("managed-2", "MANAGED")];
+    renderTable();
+
+    expect(screen.queryByText("Add Gateway")).not.toBeInTheDocument();
+    expect(screen.queryByText("Hosting")).not.toBeInTheDocument();
     expect(screen.queryByText("Self-hosted")).not.toBeInTheDocument();
     expect(screen.queryByText("Managed")).not.toBeInTheDocument();
   });

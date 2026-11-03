@@ -33,7 +33,10 @@ import { AlertTriangle } from "@wso2/oxygen-ui-icons-react";
 import { formatDistanceToNow } from "date-fns";
 import { generatePath, useParams } from "react-router-dom";
 import { useGetGateway } from "@agent-management-platform/api-client";
-import { absoluteRouteMap, globalConfig } from "@agent-management-platform/types";
+import {
+  absoluteRouteMap,
+  isSelfHostedGateway,
+} from "@agent-management-platform/types";
 import { PageLayout } from "@agent-management-platform/views";
 import { GatewayIdentityProvidersCard } from "./GatewayIdentityProvidersCard";
 import { SelfHostedGatewayTokensCard } from "./SelfHostedGatewayTokensCard";
@@ -53,9 +56,7 @@ export const ViewGateway: React.FC = () => {
     gatewayId,
   });
 
-  const isSelfHosted =
-    globalConfig.selfHostedGatewaysEnabled === true &&
-    gateway?.hosting === "SELF_HOSTED";
+  const isSelfHosted = gateway !== undefined && isSelfHostedGateway(gateway);
 
   const displayName = gateway?.displayName ?? gateway?.name ?? gatewayId ?? "";
   const isActive =

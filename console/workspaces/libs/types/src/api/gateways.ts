@@ -22,6 +22,21 @@ export type GatewayType = "INGRESS" | "EGRESS" | "BOTH";
 
 export type GatewayHosting = "MANAGED" | "SELF_HOSTED";
 
+/** A gateway without a hosting value predates self-hosted gateways: managed. */
+export const isSelfHostedGateway = (gateway: {
+  hosting?: GatewayHosting;
+}): boolean => gateway.hosting === "SELF_HOSTED";
+
+/**
+ * Whether to show which gateways are managed and which self-hosted. The flag
+ * only gates adding self-hosted gateways: one that already exists is always
+ * shown for what it is.
+ */
+export const showGatewayHosting = (
+  flagEnabled: boolean,
+  gateways: ReadonlyArray<{ hosting?: GatewayHosting }>,
+): boolean => flagEnabled || gateways.some(isSelfHostedGateway);
+
 export type GatewayStatus =
   | "ACTIVE"
   | "INACTIVE"

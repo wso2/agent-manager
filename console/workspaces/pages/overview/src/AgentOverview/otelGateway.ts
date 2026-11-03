@@ -16,9 +16,12 @@
  * under the License.
  */
 
-import type { GatewayResponse } from "@agent-management-platform/types";
+import {
+  isSelfHostedGateway,
+  type GatewayResponse,
+} from "@agent-management-platform/types";
 
-const isManaged = (gateway: GatewayResponse): boolean => gateway.hosting !== "SELF_HOSTED";
+const isManaged = (gateway: GatewayResponse): boolean => !isSelfHostedGateway(gateway);
 
 const isIngressCapable = (gateway: GatewayResponse): boolean =>
   gateway.gatewayType === "INGRESS" || gateway.gatewayType === "BOTH";
