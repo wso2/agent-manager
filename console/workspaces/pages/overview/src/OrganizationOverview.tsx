@@ -39,6 +39,7 @@ import {
   Plus,
   Server,
   Shield,
+  Users,
 } from "@wso2/oxygen-ui-icons-react";
 import { useAuthHooks } from "@agent-management-platform/auth";
 import {
@@ -61,7 +62,6 @@ const PROJECTS_SHOWN = 3;
 const CARD_STAGGER_MS = 70;
 const CARD_SLOTS = 3;
 const SWAP_INTERVAL_MS = 5500;
-const SWAP_STAGGER_MS = 1800;
 const SWAP_OUT_MS = 260;
 const COUNT_UP_MS = 700;
 const REDUCED = "@media (prefers-reduced-motion: reduce)";
@@ -122,45 +122,65 @@ interface ResourceCardData {
   to: string;
   /** For resources with no single org-wide total (agent identity is per environment). */
   countless?: boolean;
+  /** Stays on the overview with no items, so there is always a way to add one. */
+  alwaysShow?: boolean;
 }
 
 interface ResourceCardProps {
-  /** What this card shows over time; with more than one it swaps between them in place. */
-  cards: ResourceCardData[];
-  /** Position in the grid, which sets when the card's entrance and its swaps start. */
+  card: ResourceCardData;
+  /** Position in the grid, which sets when the entrance starts. */
   index: number;
+  /** The content is lifting away to make room for the next card. */
+  leaving: boolean;
+  onPause: (paused: boolean) => void;
 }
 
 /**
- * A platform resource at a glance: what it is, how many exist, and where to add more. When
- * given several resources it keeps its frame and swaps the content inside it: the current
- * content lifts away and the next one rises in.
+ * Which resource each slot shows. With more resources than slots, one slot at a time (in
+ * order) swaps its card for the one that has been hidden longest.
  */
-function ResourceCard({ cards, index }: ResourceCardProps) {
-  const [active, setActive] = useState(0);
-  const [leaving, setLeaving] = useState(false);
+function useRotatingSlots(total: number) {
+  const slotCount = Math.min(CARD_SLOTS, total);
+  const [order, setOrder] = useState<number[]>(() => Array.from({ length: total }, (_, i) => i));
+  const [turn, setTurn] = useState(0);
+  const [leavingSlot, setLeavingSlot] = useState<number | null>(null);
   const [paused, setPaused] = useState(false);
-  const current = cards[active % cards.length];
 
   useEffect(() => {
-    if (cards.length < 2 || paused || prefersReducedMotion()) return undefined;
-    // Each card starts its cycle a beat after the one before it, so they never swap together.
-    const wait = SWAP_INTERVAL_MS + (active === 0 ? index * SWAP_STAGGER_MS : 0);
+    setOrder(Array.from({ length: total }, (_, i) => i));
+    setTurn(0);
+  }, [total]);
+
+  useEffect(() => {
+    if (total <= slotCount || paused || prefersReducedMotion()) return undefined;
+    const slot = turn % slotCount;
     let swap: ReturnType<typeof setTimeout>;
     const lift = setTimeout(() => {
-      setLeaving(true);
+      setLeavingSlot(slot);
       swap = setTimeout(() => {
-        setActive((value) => (value + 1) % cards.length);
-        setLeaving(false);
+        setOrder((current) => {
+          const next = [...current];
+          [next[slot], next[slotCount]] = [next[slotCount], next[slot]];
+          // The card that just left goes to the back of the hidden queue.
+          return [...next.slice(0, slotCount), ...next.slice(slotCount + 1), next[slotCount]];
+        });
+        setLeavingSlot(null);
+        setTurn((value) => value + 1);
       }, SWAP_OUT_MS);
-    }, wait);
+    }, SWAP_INTERVAL_MS / 2);
     return () => {
       clearTimeout(lift);
       clearTimeout(swap);
-      // A pause mid-swap must not leave the content lifted away.
-      setLeaving(false);
+      setLeavingSlot(null);
     };
-  }, [cards.length, paused, active, index]);
+  }, [total, slotCount, paused, turn]);
+
+  return { order: order.slice(0, slotCount), leavingSlot, setPaused };
+}
+
+/** A platform resource at a glance: what it is, how many exist, and where to add more. */
+function ResourceCard({ card: current, index, leaving, onPause }: ResourceCardProps) {
+  const setPaused = onPause;
 
   const swapSx = {
     animation: leaving
@@ -186,7 +206,7 @@ function ResourceCard({ cards, index }: ResourceCardProps) {
       sx={{
         display: "flex",
         flexDirection: "column",
-        minHeight: 170,
+        minHeight: { xs: 0, md: 170 },
         // The cards arrive in a short cascade; nothing else on the page moves.
         animation: `overviewCardIn 480ms cubic-bezier(0.2, 0.7, 0.2, 1) ${index * CARD_STAGGER_MS}ms both`,
         "@keyframes overviewCardIn": {
@@ -196,7 +216,7 @@ function ResourceCard({ cards, index }: ResourceCardProps) {
         [REDUCED]: { animation: "none" },
       }}
     >
-      <Stack direction="row" spacing={2} sx={{ p: 2.5, flex: 1, ...swapSx }}>
+      <Stack direction="row" spacing={2} sx={{ p: { xs: 2, md: 2.5 }, flex: 1, ...swapSx }}>
         <IconTile selected size={52}>
           {current.icon}
         </IconTile>
@@ -205,7 +225,7 @@ function ResourceCard({ cards, index }: ResourceCardProps) {
             <Typography variant="h6" component="h2" sx={{ fontWeight: 600 }}>
               {current.title}
             </Typography>
-            {!current.countless && (
+            {!current.countless && !!current.count && (
               <>
                 <Divider orientation="vertical" flexItem />
                 <ResourceCount key={current.title} count={current.count} />
@@ -225,7 +245,7 @@ function ResourceCard({ cards, index }: ResourceCardProps) {
         justifyContent="space-between"
         alignItems="center"
         sx={{
-          px: 2.5,
+          px: { xs: 2, md: 2.5 },
           py: 1.5,
           color: "primary.main",
           textDecoration: "none",
@@ -251,7 +271,7 @@ function ProjectRow({ project, orgId }: { project: ProjectResponse; orgId: strin
       alignItems="center"
       spacing={2}
       sx={{
-        px: 2.5,
+        px: { xs: 2, md: 2.5 },
         py: 1.5,
         color: "text.primary",
         textDecoration: "none",
@@ -271,7 +291,12 @@ function ProjectRow({ project, orgId }: { project: ProjectResponse; orgId: strin
           </Typography>
         )}
       </Box>
-      <Stack direction="row" spacing={0.75} alignItems="center" sx={{ color: "text.secondary" }}>
+      <Stack
+        direction="row"
+        spacing={0.75}
+        alignItems="center"
+        sx={{ color: "text.secondary", display: { xs: "none", sm: "flex" } }}
+      >
         <Clock size={14} />
         <Typography variant="body2" noWrap>
           {formatRelativeTime(project.createdAt)}
@@ -308,6 +333,7 @@ export const OrganizationOverview: React.FC = () => {
       icon: <Brain size={26} />,
       title: "LLM Service Providers",
       count: llmProviders?.total,
+      alwaysShow: true,
       description: "Model providers your agents call, with guardrails and rate limits.",
       actionLabel: "Add an LLM provider",
       to: generatePath(orgRoutes.children.llmProviders.children.add.path, { orgId }),
@@ -315,7 +341,8 @@ export const OrganizationOverview: React.FC = () => {
     {
       icon: <Server size={26} />,
       title: "MCP Servers",
-      count: mcpProxies?.count,
+      count: mcpProxies?.pagination?.count ?? mcpProxies?.count,
+      alwaysShow: true,
       description: "Tool servers your agents can use, registered once and shared.",
       actionLabel: "Register an MCP server",
       to: generatePath(orgRoutes.children.mcpProxies.children.add.path, { orgId }),
@@ -331,12 +358,20 @@ export const OrganizationOverview: React.FC = () => {
     ...(isAgentIdentityEnabled()
       ? [
           {
-            icon: <Shield size={26} />,
-            title: "Agent Identity",
+            icon: <Users size={26} />,
+            title: "Agent Identity Groups",
             countless: true,
-            description: "Groups and roles that decide what each agent identity can access.",
-            actionLabel: "Manage groups and roles",
+            description: "Groups that collect agent identities so access is granted together.",
+            actionLabel: "Manage groups",
             to: generatePath(identityRoutes.groups.path, { orgId }),
+          },
+          {
+            icon: <Shield size={26} />,
+            title: "Agent Identity Roles",
+            countless: true,
+            description: "Roles that decide what each agent identity is allowed to do.",
+            actionLabel: "Manage roles",
+            to: generatePath(identityRoutes.roles.path, { orgId }),
           },
         ]
       : []),
@@ -346,11 +381,11 @@ export const OrganizationOverview: React.FC = () => {
   // has more than one swaps between them in place. An organization with none of them yet
   // shows every resource, as the way to get started.
   const isLoadingCounts = resourceCards.some((card) => !card.countless && card.count === undefined);
-  const nonEmpty = resourceCards.filter((card) => card.countless || (card.count ?? 0) > 0);
-  const shownCards = nonEmpty.some((card) => !card.countless) ? nonEmpty : resourceCards;
-  const slots = Array.from({ length: Math.min(CARD_SLOTS, shownCards.length) }, (_, slot) =>
-    shownCards.filter((_card, position) => position % CARD_SLOTS === slot),
+  const nonEmpty = resourceCards.filter(
+    (card) => card.countless || card.alwaysShow || (card.count ?? 0) > 0,
   );
+  const shownCards = nonEmpty.some((card) => !card.countless) ? nonEmpty : resourceCards;
+  const { order, leavingSlot, setPaused } = useRotatingSlots(shownCards.length);
 
   const createProjectPath = generatePath(orgRoutes.children.newProject.path, { orgId });
   const createProjectButton = (
@@ -367,7 +402,7 @@ export const OrganizationOverview: React.FC = () => {
 
   return (
     <PageContent fullWidth>
-      <Stack spacing={4}>
+      <Stack spacing={{ xs: 3, md: 4 }}>
         <Stack spacing={1}>
           <Typography
             variant="h4"
@@ -393,10 +428,16 @@ export const OrganizationOverview: React.FC = () => {
         <Box sx={CARD_GRID_SX}>
           {isLoadingCounts
             ? Array.from({ length: CARD_SLOTS }).map((_, index) => (
-                <Skeleton key={index} variant="rounded" height={170} />
+                <Skeleton key={index} variant="rounded" height={120} />
               ))
-            : slots.map((cards, index) => (
-                <ResourceCard key={cards[0].title} cards={cards} index={index} />
+            : order.map((cardIndex, index) => (
+                <ResourceCard
+                  key={index}
+                  card={shownCards[cardIndex]}
+                  index={index}
+                  leaving={leavingSlot === index}
+                  onPause={setPaused}
+                />
               ))}
         </Box>
 
@@ -405,7 +446,7 @@ export const OrganizationOverview: React.FC = () => {
             direction="row"
             alignItems="center"
             justifyContent="space-between"
-            sx={{ px: 2.5, py: 2 }}
+            sx={{ px: { xs: 2, md: 2.5 }, py: 2, gap: 1 }}
           >
             <Stack direction="row" spacing={1.5} alignItems="center">
               <Typography variant="h5" component="h2" sx={{ fontWeight: 600 }}>
@@ -420,7 +461,7 @@ export const OrganizationOverview: React.FC = () => {
           </Stack>
           <Divider />
           {isLoadingProjects ? (
-            <Stack spacing={1} sx={{ p: 2.5 }}>
+            <Stack spacing={1} sx={{ p: { xs: 2, md: 2.5 } }}>
               {Array.from({ length: PROJECTS_SHOWN }).map((_, index) => (
                 <Skeleton key={index} variant="rounded" height={48} />
               ))}
