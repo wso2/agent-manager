@@ -345,8 +345,8 @@ func (r *GatewayRepo) Delete(gatewayID, ouID string) error {
 }
 
 // UpdateGateway updates gateway details. The manifest column is deliberately not
-// written here: gateway-reported manifests are large and pushed on every heartbeat,
-// so they live in the in-process manifest cache instead. The column is left in place
+// written here: gateway-reported manifests are large and re-pushed on every gateway
+// (re)connect, so they live in the manifest cache instead. The column is left in place
 // (and still read as a fallback) for rows written before that move.
 func (r *GatewayRepo) UpdateGateway(gateway *models.Gateway) error {
 	gateway.UpdatedAt = time.Now()

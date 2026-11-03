@@ -26,17 +26,18 @@ import (
 // GatewayManifestCacheBackend holds the latest policy manifest each gateway pushed,
 // keyed by gateway UUID.
 //
-// Manifests are large and every gateway re-pushes its whole manifest on a fixed
-// heartbeat, so persisting them wrote a multi-KB jsonb blob per push for data that is
-// only ever read to answer "which policies does this gateway advertise?". The cache
-// keeps one entry per gateway, with no history and no TTL. Entries are per gateway, not
-// shared, because gateways can run different policy bundles: a self-hosted gateway runs
-// whatever its operator installed, and its push must describe only itself, never the
-// gateways of other organizations.
+// A gateway pushes its whole manifest each time its control-plane WebSocket
+// (re)connects. Manifests are large and only ever read to answer "which policies does
+// this gateway advertise?", so they are not persisted. The cache keeps one entry per
+// gateway, with no history and no TTL: an entry lasts until the gateway's next connect
+// replaces it, the gateway is deleted, or (Redis) the key is lost. Entries are per
+// gateway, not shared, because gateways can run different policy bundles: a self-hosted
+// gateway runs whatever its operator installed, and its push must describe only itself,
+// never the gateways of other organizations.
 //
 // Two implementations exist:
 //   - InMemoryGatewayManifestCache: process-local, the default. A restarted (or newly
-//     scaled-up) replica starts empty and refills as each gateway pushes again.
+//     scaled-up) replica starts empty and refills as each gateway reconnects to it.
 //   - RedisGatewayManifestCache: shared across replicas. Required in HA deployments —
 //     an in-process cache is inconsistent there, since each replica only ever sees the
 //     pushes routed to it.

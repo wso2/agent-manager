@@ -30,7 +30,7 @@ import (
 
 // gatewayManifestCacheRedisKeyPrefix prefixes one key per gateway UUID. Every replica
 // reads and writes the same keys, so a reader sees a gateway's latest manifest whichever
-// replica its heartbeat landed on. v1 was a single key shared by all gateways; it is no
+// replica its push landed on. v1 was a single key shared by all gateways; it is no
 // longer read.
 const gatewayManifestCacheRedisKeyPrefix = "amp:gateway-manifest-cache:v2:"
 

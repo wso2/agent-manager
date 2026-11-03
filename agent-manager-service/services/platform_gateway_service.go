@@ -437,11 +437,11 @@ func (s *PlatformGatewayService) GetGateway(gatewayID, ouID string) (*GatewayRes
 	return response, nil
 }
 
-// SaveGatewayPolicyManifest stores the latest gateway-reported policy manifest in the
-// in-process cache. Gateways re-push their full manifest on every heartbeat, so writing
-// it to the jsonb column cost a large row update per push for data that is regenerated
-// on the next push anyway. The cache keeps the newest copy per gateway: a push describes
-// only the gateway that sent it.
+// SaveGatewayPolicyManifest stores the policy manifest a gateway pushed in the manifest
+// cache. A gateway pushes its full manifest each time its control-plane WebSocket
+// (re)connects; the manifest is large and replaced by the next connect, so it is not
+// written to the jsonb column. The cache keeps the newest copy per gateway: a push
+// describes only the gateway that sent it.
 func (s *PlatformGatewayService) SaveGatewayPolicyManifest(ctx context.Context, gatewayID string, manifest map[string]interface{}) error {
 	gateway, err := s.gatewayRepo.GetByUUID(gatewayID)
 	if err != nil {
@@ -452,7 +452,7 @@ func (s *PlatformGatewayService) SaveGatewayPolicyManifest(ctx context.Context, 
 	}
 	slog.Info("Saving gateway policy manifest for gateway", "gatewayID", gatewayID)
 
-	return gatewayManifestCache.Set(ctx, gatewayID, manifest)
+	return gatewayManifestCache.Set(ctx, gateway.UUID.String(), manifest)
 }
 
 // UpdateGateway updates gateway details
