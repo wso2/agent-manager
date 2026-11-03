@@ -36,7 +36,7 @@ import { PageLayout, DescriptionCard, PageMetaItem } from "@agent-management-pla
 import { absoluteRouteMap, withBasePath } from "@agent-management-platform/types";
 import { formatRelativeTime, LabelChips, parseOpenApiSpecContent, SwaggerSpecViewer } from "@agent-management-platform/shared-component";
 import { useGetAgentKind, useGetBuild, useListKindAgents, useListProjects, useGetAgentKindVersion } from "@agent-management-platform/api-client";
-import { SectionCard } from "./SectionCard";
+import { SectionCard } from "./subComponents/SectionCard";
 import { Clock, ExternalLink, BookOpenText, Plus, Tag } from "@wso2/oxygen-ui-icons-react";
 
 const KIND_AVATAR = { children: <BookOpenText size={32} />, color: "primary.main" };

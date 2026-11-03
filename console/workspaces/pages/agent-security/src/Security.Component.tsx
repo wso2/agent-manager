@@ -153,13 +153,8 @@ export const SecurityComponent: React.FC = () => {
     </Button>
   ) : undefined;
 
-  const deployHref = orgId && projectId && agentId && envId
-    ? generatePath(agentRoutes.children.environment.children.deploy.path, {
-        orgId,
-        projectId,
-        agentId,
-        envId,
-      })
+  const deployHref = orgId && projectId && agentId
+    ? generatePath(agentRoutes.children.deployment.path, { orgId, projectId, agentId })
     : undefined;
   const deploySettingsAction = deployHref ? (
     <Button variant="contained" component={Link} to={deployHref}>

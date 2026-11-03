@@ -47,10 +47,10 @@ import {
   useConfirmIfUnsaved,
   useUnsavedChangesGuard,
 } from "@agent-management-platform/shared-component";
-import { RuntimeConfigEditor, createRuntimeConfigRow, type RuntimeConfigRow } from "./RuntimeConfigEditor";
-import { KindDescriptionField } from "./KindDescriptionField";
-import { DangerZoneCard } from "./DangerZoneCard";
-import { useDeleteVersionAction } from "./useDeleteVersionAction";
+import { RuntimeConfigEditor, createRuntimeConfigRow, type RuntimeConfigRow } from "./subComponents/RuntimeConfigEditor";
+import { KindDescriptionField } from "./subComponents/KindDescriptionField";
+import { DangerZoneCard } from "./subComponents/DangerZoneCard";
+import { useDeleteVersionAction } from "./hooks/useDeleteVersionAction";
 import { useDeleteAgentKind, useGetAgent, useGetAllAgentBuilds, useGetAgentKind, useListAgentKindVersions, usePublishAgentKind, useUpdateAgentKind } from "@agent-management-platform/api-client";
 
 /** Order-independent equality for label maps — key insertion order shouldn't count as a change. */

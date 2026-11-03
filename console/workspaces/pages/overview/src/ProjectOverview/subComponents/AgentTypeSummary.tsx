@@ -49,7 +49,7 @@ const TypeLine = (props: {
     </Box>
   );
 };
-export function AgentTypeSummery() {
+export function AgentTypeSummary() {
   const { orgId, projectId } = useParams<{
     orgId: string;
     projectId: string;

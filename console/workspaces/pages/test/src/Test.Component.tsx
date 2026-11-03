@@ -92,11 +92,11 @@ export const TestComponent: React.FC = () => {
 
   if (!isDeploymentLoading && !isA2AAgent && currentDeployment?.status !== "active") {
     const deployPath =
-      orgId && projectId && agentId && envId
+      orgId && projectId && agentId
         ? generatePath(
             absoluteRouteMap.children.org.children.projects.children.agents.children
-              .environment.children.deploy.path,
-            { orgId, projectId, agentId, envId },
+              .deployment.path,
+            { orgId, projectId, agentId },
           )
         : undefined;
     return (

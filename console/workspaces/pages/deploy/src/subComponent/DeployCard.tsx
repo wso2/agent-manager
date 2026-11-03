@@ -336,10 +336,6 @@ export function DeployCard(props: DeployCardProps) {
   const noSuccessfulBuild = !!allBuilds && !allBuilds.builds.some(
     (b) => b.status === "Completed" || b.status === "Succeeded",
   );
-  const buildPath = generatePath(
-    absoluteRouteMap.children.org.children.projects.children.agents.children.build.path,
-    { orgId: orgId ?? "", projectId: projectId ?? "", agentId: agentId ?? "" },
-  );
 
   const { data: deployments, isLoading: isDeploymentsLoading } =
     useListAgentDeployments({
@@ -540,6 +536,7 @@ export function DeployCard(props: DeployCardProps) {
         variant="outlined"
         sx={{
           height: "fit-content",
+          minHeight: noSuccessfulBuild ? 280 : undefined,
           width: 350,
           minWidth: 350,
         }}
@@ -551,15 +548,8 @@ export function DeployCard(props: DeployCardProps) {
             title={noSuccessfulBuild ? "Nothing to deploy yet" : "Not deployed here yet"}
             description={
               noSuccessfulBuild
-                ? "This agent has no successful build. Build it first, then deploy it to the first environment."
+                ? "Once the agent is built, you can deploy it to this environment."
                 : `Deploy a build to ${currentEnvironment.displayName} to see it running here.`
-            }
-            actions={
-              noSuccessfulBuild && (
-                <Button variant="outlined" component={Link} to={buildPath}>
-                  Go to Build
-                </Button>
-              )
             }
           />
         </CardContent>

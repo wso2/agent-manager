@@ -404,11 +404,6 @@ export function BuildCard(props: BuildCardProps) {
               icon={Tag}
               title="Publish a version first"
               description="Kind agents deploy from a published version, and this kind has none yet."
-              steps={[
-                { label: "Publish", state: "current" },
-                { label: "Deploy", state: "todo" },
-                { label: "Try it", state: "todo" },
-              ]}
               actions={
                 <Button variant="contained" component={Link} to={publishPath}>
                   Go to Publish
@@ -492,6 +487,7 @@ export function BuildCard(props: BuildCardProps) {
         variant="outlined"
         sx={{
           height: "fit-content",
+          minHeight: 280,
           width: 350,
           minWidth: 350,
         }}
@@ -502,11 +498,6 @@ export function BuildCard(props: BuildCardProps) {
             icon={Hammer}
             title="Build your agent first"
             description="There's no successful build to deploy yet. Build it, then deploy it here."
-            steps={[
-              { label: "Build", state: "current" },
-              { label: "Deploy", state: "todo" },
-              { label: "Try it", state: "todo" },
-            ]}
             actions={
               <Button variant="contained" component={Link} to={buildPath}>
                 Go to Build

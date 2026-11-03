@@ -27,7 +27,7 @@ import {
   useListAgents,
   useGetProject,
 } from "@agent-management-platform/api-client";
-import { AgentTypeSummery } from "./subComponents/AgentTypeSummery";
+import { AgentTypeSummary } from "./subComponents/AgentTypeSummary";
 import { DeploymentPipelineCard } from "./subComponents/DeploymentPipelineCard";
 
 const projectRoutes = absoluteRouteMap.children.org.children.projects;
@@ -80,7 +80,7 @@ export const ProjectOverview: React.FC = () => {
           <AgentList showCreateAction />
         </Box>
         <Stack gap={2} sx={{ width: { xs: "100%", lg: 380 }, flexShrink: 0 }}>
-          <AgentTypeSummery />
+          <AgentTypeSummary />
           <DeploymentPipelineCard />
         </Stack>
       </Stack>

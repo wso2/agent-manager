@@ -16,10 +16,9 @@
  * under the License.
  */
 
-import React, { useEffect, useState } from "react";
+import React from "react";
 import { Link as RouterLink, generatePath, useParams } from "react-router-dom";
 import {
-  alpha,
   Box,
   Button,
   Card,
@@ -33,9 +32,7 @@ import {
   ArrowRight,
   BookOpenText,
   Brain,
-  Clock,
   Code,
-  Package,
   Plus,
   Server,
   Shield,
@@ -52,259 +49,14 @@ import {
 import {
   absoluteRouteMap,
   isAgentIdentityEnabled,
-  type ProjectResponse,
 } from "@agent-management-platform/types";
-import { formatRelativeTime } from "@agent-management-platform/shared-component";
-import { IconTile } from "@agent-management-platform/views";
+import { useRotatingSlots, CARD_SLOTS } from "./hooks/useRotatingSlots";
+import { CARD_GRID_SX } from "./cardGrid";
+import { ResourceCard, ResourceCount, type ResourceCardData } from "./subComponents/ResourceCard";
+import { ProjectRow } from "./subComponents/ProjectRow";
 
 const orgRoutes = absoluteRouteMap.children.org;
 const PROJECTS_SHOWN = 3;
-const CARD_STAGGER_MS = 70;
-const CARD_SLOTS = 3;
-const SWAP_INTERVAL_MS = 5500;
-const SWAP_OUT_MS = 260;
-const COUNT_UP_MS = 700;
-const REDUCED = "@media (prefers-reduced-motion: reduce)";
-
-const prefersReducedMotion = () =>
-  typeof window !== "undefined" &&
-  window.matchMedia?.("(prefers-reduced-motion: reduce)").matches;
-
-/** Eases a number up from 0 once it is known, so counts settle in rather than pop in. */
-function useCountUp(target?: number): number | undefined {
-  const [value, setValue] = useState<number | undefined>(undefined);
-
-  useEffect(() => {
-    if (target === undefined) {
-      setValue(undefined);
-      return undefined;
-    }
-    if (prefersReducedMotion() || target === 0) {
-      setValue(target);
-      return undefined;
-    }
-    let frame = 0;
-    const start = performance.now();
-    const tick = (now: number) => {
-      const progress = Math.min((now - start) / COUNT_UP_MS, 1);
-      setValue(Math.round(target * (1 - (1 - progress) ** 3)));
-      if (progress < 1) frame = requestAnimationFrame(tick);
-    };
-    frame = requestAnimationFrame(tick);
-    return () => cancelAnimationFrame(frame);
-  }, [target]);
-
-  return value;
-}
-const CARD_GRID_SX = {
-  display: "grid",
-  gap: 2,
-  gridTemplateColumns: { xs: "1fr", md: "repeat(3, minmax(0, 1fr))" },
-} as const;
-
-/** The number beside a section title, set off by a divider so it reads as a count. */
-function ResourceCount({ count }: { count?: number }) {
-  const shown = useCountUp(count);
-  if (shown === undefined) return <Skeleton variant="text" width={20} />;
-  return (
-    <Typography variant="body1" color="text.secondary" sx={{ minWidth: "1ch" }}>
-      {shown}
-    </Typography>
-  );
-}
-
-interface ResourceCardData {
-  icon: React.ReactNode;
-  title: string;
-  count?: number;
-  description: string;
-  actionLabel: string;
-  to: string;
-  /** For resources with no single org-wide total (agent identity is per environment). */
-  countless?: boolean;
-  /** Stays on the overview with no items, so there is always a way to add one. */
-  alwaysShow?: boolean;
-}
-
-interface ResourceCardProps {
-  card: ResourceCardData;
-  /** Position in the grid, which sets when the entrance starts. */
-  index: number;
-  /** The content is lifting away to make room for the next card. */
-  leaving: boolean;
-  onPause: (paused: boolean) => void;
-}
-
-/**
- * Which resource each slot shows. With more resources than slots, one slot at a time (in
- * order) swaps its card for the one that has been hidden longest.
- */
-function useRotatingSlots(total: number) {
-  const slotCount = Math.min(CARD_SLOTS, total);
-  const [order, setOrder] = useState<number[]>(() => Array.from({ length: total }, (_, i) => i));
-  const [turn, setTurn] = useState(0);
-  const [leavingSlot, setLeavingSlot] = useState<number | null>(null);
-  const [paused, setPaused] = useState(false);
-
-  useEffect(() => {
-    setOrder(Array.from({ length: total }, (_, i) => i));
-    setTurn(0);
-  }, [total]);
-
-  useEffect(() => {
-    if (total <= slotCount || paused || prefersReducedMotion()) return undefined;
-    const slot = turn % slotCount;
-    let swap: ReturnType<typeof setTimeout>;
-    const lift = setTimeout(() => {
-      setLeavingSlot(slot);
-      swap = setTimeout(() => {
-        setOrder((current) => {
-          const next = [...current];
-          [next[slot], next[slotCount]] = [next[slotCount], next[slot]];
-          // The card that just left goes to the back of the hidden queue.
-          return [...next.slice(0, slotCount), ...next.slice(slotCount + 1), next[slotCount]];
-        });
-        setLeavingSlot(null);
-        setTurn((value) => value + 1);
-      }, SWAP_OUT_MS);
-    }, SWAP_INTERVAL_MS / 2);
-    return () => {
-      clearTimeout(lift);
-      clearTimeout(swap);
-      setLeavingSlot(null);
-    };
-  }, [total, slotCount, paused, turn]);
-
-  return { order: order.slice(0, slotCount), leavingSlot, setPaused };
-}
-
-/** A platform resource at a glance: what it is, how many exist, and where to add more. */
-function ResourceCard({ card: current, index, leaving, onPause }: ResourceCardProps) {
-  const setPaused = onPause;
-
-  const swapSx = {
-    animation: leaving
-      ? `overviewSwapOut ${SWAP_OUT_MS}ms ease-in both`
-      : `overviewSwapIn 420ms cubic-bezier(0.2, 0.7, 0.2, 1) both`,
-    "@keyframes overviewSwapOut": {
-      to: { opacity: 0, transform: "translateY(-10px)" },
-    },
-    "@keyframes overviewSwapIn": {
-      from: { opacity: 0, transform: "translateY(12px)" },
-      to: { opacity: 1, transform: "none" },
-    },
-    [REDUCED]: { animation: "none" },
-  } as const;
-
-  return (
-    <Card
-      variant="outlined"
-      onMouseEnter={() => setPaused(true)}
-      onMouseLeave={() => setPaused(false)}
-      onFocus={() => setPaused(true)}
-      onBlur={() => setPaused(false)}
-      sx={{
-        display: "flex",
-        flexDirection: "column",
-        minHeight: { xs: 0, md: 170 },
-        // The cards arrive in a short cascade; nothing else on the page moves.
-        animation: `overviewCardIn 480ms cubic-bezier(0.2, 0.7, 0.2, 1) ${index * CARD_STAGGER_MS}ms both`,
-        "@keyframes overviewCardIn": {
-          from: { opacity: 0, transform: "translateY(14px)" },
-          to: { opacity: 1, transform: "none" },
-        },
-        [REDUCED]: { animation: "none" },
-      }}
-    >
-      <Stack direction="row" spacing={2} sx={{ p: { xs: 2, md: 2.5 }, flex: 1, ...swapSx }}>
-        <IconTile selected size={52}>
-          {current.icon}
-        </IconTile>
-        <Box sx={{ minWidth: 0 }}>
-          <Stack direction="row" spacing={1.5} alignItems="center" sx={{ mb: 0.5 }}>
-            <Typography variant="h6" component="h2" sx={{ fontWeight: 600 }}>
-              {current.title}
-            </Typography>
-            {!current.countless && !!current.count && (
-              <>
-                <Divider orientation="vertical" flexItem />
-                <ResourceCount key={current.title} count={current.count} />
-              </>
-            )}
-          </Stack>
-          <Typography variant="body2" color="text.secondary">
-            {current.description}
-          </Typography>
-        </Box>
-      </Stack>
-      <Divider />
-      <Stack
-        component={RouterLink}
-        to={current.to}
-        direction="row"
-        justifyContent="space-between"
-        alignItems="center"
-        sx={{
-          px: { xs: 2, md: 2.5 },
-          py: 1.5,
-          color: "primary.main",
-          textDecoration: "none",
-          "&:hover": { bgcolor: (theme) => alpha(theme.palette.primary.main, 0.06) },
-          ...swapSx,
-        }}
-      >
-        <Typography variant="subtitle2" color="inherit">
-          {current.actionLabel}
-        </Typography>
-        <ArrowRight size={16} />
-      </Stack>
-    </Card>
-  );
-}
-
-function ProjectRow({ project, orgId }: { project: ProjectResponse; orgId: string }) {
-  return (
-    <Stack
-      component={RouterLink}
-      to={generatePath(orgRoutes.children.projects.path, { orgId, projectId: project.name })}
-      direction="row"
-      alignItems="center"
-      spacing={2}
-      sx={{
-        px: { xs: 2, md: 2.5 },
-        py: 1.5,
-        color: "text.primary",
-        textDecoration: "none",
-        "&:hover": { bgcolor: "action.hover" },
-      }}
-    >
-      <IconTile selected size={40}>
-        <Package size={20} />
-      </IconTile>
-      <Box sx={{ flex: 1, minWidth: 0 }}>
-        <Typography variant="subtitle2" noWrap>
-          {project.displayName}
-        </Typography>
-        {project.description && (
-          <Typography variant="caption" color="text.secondary" noWrap sx={{ display: "block" }}>
-            {project.description}
-          </Typography>
-        )}
-      </Box>
-      <Stack
-        direction="row"
-        spacing={0.75}
-        alignItems="center"
-        sx={{ color: "text.secondary", display: { xs: "none", sm: "flex" } }}
-      >
-        <Clock size={14} />
-        <Typography variant="body2" noWrap>
-          {formatRelativeTime(project.createdAt)}
-        </Typography>
-      </Stack>
-    </Stack>
-  );
-}
 
 export const OrganizationOverview: React.FC = () => {
   const { orgId = "" } = useParams<{ orgId: string }>();
@@ -405,9 +157,9 @@ export const OrganizationOverview: React.FC = () => {
       <Stack spacing={{ xs: 3, md: 4 }}>
         <Stack spacing={1}>
           <Typography
-            variant="h4"
+            variant="h1"
             component="h1"
-            sx={{ fontWeight: 600, fontSize: { xs: "1.75rem", md: "2.25rem" } }}
+            sx={{ fontWeight: 600 }}
           >
             Hello
             {userInfo?.givenName && (

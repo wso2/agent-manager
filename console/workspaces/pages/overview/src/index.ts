@@ -17,7 +17,7 @@
 
 import { OverviewComponent } from './Overview.Component';
 import { ProjectOverview } from './ProjectOverview/ProjectOverview';
-import { OrganizationOverview } from './OrganizationOverview';
+import { OrganizationOverview } from './OrganizationOverview/OrganizationOverview';
 import { EditProject } from './EditProject/EditProject';
 import { EditAgent } from './AgentOverview/EditAgent';
 import type { PageMetadata } from '@agent-management-platform/types';
