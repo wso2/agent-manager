@@ -146,10 +146,13 @@ export function MCPProxyConnectionTab({
     return err;
   }, []);
 
+  // An empty field only differs from what's saved when a credential is stored.
+  const typedCredential = credentialValue.trim();
   const credentialChanged =
     authEnabled &&
     !isCredentialMasked &&
-    credentialValue.trim() !== MASKED_CREDENTIAL_VALUE;
+    typedCredential !== MASKED_CREDENTIAL_VALUE &&
+    (typedCredential !== "" || hasStoredCredential);
   const effectiveAuthHeader = authEnabled ? authHeader.trim() : "";
 
   const isDirty = useMemo(() => {
@@ -209,7 +212,7 @@ export function MCPProxyConnectionTab({
           type: "api-key" as const,
           ...existingAuth,
           header: effectiveAuthHeader,
-          ...(credentialChanged ? { value: credentialValue.trim() } : {}),
+          ...(credentialChanged ? { value: typedCredential } : {}),
         }
       : undefined;
 
@@ -252,7 +255,7 @@ export function MCPProxyConnectionTab({
     resilienceTimeout,
     resilienceIdleTimeout,
     credentialChanged,
-    credentialValue,
+    typedCredential,
     onUpdate,
     validateEndpoint,
     validateResilienceTimeout,
