@@ -16,7 +16,7 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from urllib.parse import parse_qs
 from unittest.mock import patch
 
-import httpx
+import httpx2 as httpx
 import uvicorn
 from agent import build_agent
 from config import Config
@@ -94,6 +94,7 @@ class MCPIntegrationTests(unittest.TestCase):
                 }
                 headers["X-Insurance-Upstream-Key"] = "test-upstream"
                 response = httpx.post(cls.upstream_url, headers=headers, content=body)
+                cls.response_content_types.append(response.headers.get("content-type", ""))
                 self.send_response(response.status_code)
                 self.send_header(
                     "Content-Type",
@@ -119,6 +120,7 @@ class MCPIntegrationTests(unittest.TestCase):
         type(self).tokens = []
         type(self).forwarded = 0
         type(self).denied = False
+        type(self).response_content_types = []
         self.env = {
             "OPENAI_API_KEY": "test-openai",
             "USE_MCP": "true",
@@ -377,6 +379,25 @@ class MCPIntegrationTests(unittest.TestCase):
         with patch.dict(os.environ, {}, clear=True):
             with self.assertRaises(RuntimeError):
                 server_module.create_app()
+
+
+class MCPStreamingIntegrationTests(MCPIntegrationTests):
+    @classmethod
+    def setUpClass(cls):
+        create_http_app = server_module.MCPServer.streamable_http_app
+
+        def streaming_app(server, **kwargs):
+            return create_http_app(server, **(kwargs | {"json_response": False}))
+
+        with patch.object(server_module.MCPServer, "streamable_http_app", streaming_app):
+            super().setUpClass()
+
+    def test_real_mcp_discovery_lookup_and_proxy_denial(self):
+        super().test_real_mcp_discovery_lookup_and_proxy_denial()
+        self.assertTrue(
+            any(t.startswith("text/event-stream") for t in self.response_content_types),
+            "the MCP round trip must exercise an SSE response",
+        )
 
 
 if __name__ == "__main__":

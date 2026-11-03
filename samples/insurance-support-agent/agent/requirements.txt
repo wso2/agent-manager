@@ -10,4 +10,4 @@ wrapt==1.17.3
 
 # Pin the Streamable HTTP API used by the supplied MCP client/server.
 mcp==2.3.0
-httpx==0.28.1
+httpx2==2.16.0
