@@ -197,8 +197,8 @@ func TestLLMProxyTargets_IgnoresSelfHostedOnlyProviderAnchor(t *testing.T) {
 	})
 }
 
-// An agent's or monitor's proxy found on a self-hosted gateway is a state no retry repairs: Targets refuses it
-// permanently instead of re-placing it elsewhere.
+// An agent's or monitor's proxy anchored on a self-hosted gateway is refused rather than placed there or moved
+// elsewhere.
 func TestLLMProxyKindTargets_RefusesSelfHostedAnchor(t *testing.T) {
 	env := uuid.New()
 	selfHosted := &models.Gateway{
@@ -223,6 +223,5 @@ func TestLLMProxyKindTargets_RefusesSelfHostedAnchor(t *testing.T) {
 	})
 
 	require.ErrorIs(t, err, errSelfHostedAnchor)
-	assert.True(t, reconcile.IsPermanent(err))
 	assert.False(t, ok)
 }

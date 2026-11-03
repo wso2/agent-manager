@@ -236,9 +236,11 @@ func (k *LLMProxyKind) Targets(ctx context.Context, record reconcile.Record) (uu
 	}
 	// The public deploy paths (DeployLLMProxy, DeployForEnvironment) always name their gateway, so Core.target never
 	// asks Targets for them; only placement-pass records from UnplacedRecords (the agent and monitor mappings) reach
-	// here, and this refuses exactly the AMS-owned proxies.
+	// here, and this refuses exactly the AMS-owned proxies. The placement pass logs the refusal and retries the record
+	// on every pass; nothing currently places these proxies next to a self-hosted anchor, so that only shows up in the
+	// logs.
 	if !gateway.IsManaged() {
-		return uuid.Nil, false, reconcile.Permanent(errSelfHostedAnchor)
+		return uuid.Nil, false, errSelfHostedAnchor
 	}
 	return gateway.UUID, true, nil
 }
