@@ -66,4 +66,3 @@ export async function deleteMonitorAlert(
   const token = await tokenOf(getToken);
   await httpDELETE(monitorAlertPath(params), { token });
 }
-

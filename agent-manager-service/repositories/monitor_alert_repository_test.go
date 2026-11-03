@@ -44,28 +44,28 @@ func monitorAlertFixture(t *testing.T) (MonitorAlertRepository, *models.MonitorA
 	}
 	require.NoError(t, conn.Create(monitor).Error)
 	repo := NewMonitorAlertRepository(conn)
-	watch := &models.MonitorAlert{
+	alert := &models.MonitorAlert{
 		OUID: monitor.OUID, MonitorID: monitor.ID, DestinationIDs: []string{},
 		Thresholds: []models.ScoreThreshold{{Evaluator: "quality", Aggregation: "mean", Operator: "below", Value: 0.7}},
 		Breached:   []string{},
 	}
 	t.Cleanup(func() {
-		assert.NoError(t, conn.Where("ou_id = ?", watch.OUID).Delete(&models.EventDelivery{}).Error)
+		assert.NoError(t, conn.Where("ou_id = ?", alert.OUID).Delete(&models.EventDelivery{}).Error)
 		assert.NoError(t, conn.Delete(monitor).Error)
 	})
-	require.NoError(t, repo.SaveAlert(context.Background(), watch))
-	return repo, watch
+	require.NoError(t, repo.SaveAlert(context.Background(), alert))
+	return repo, alert
 }
 
 func TestMonitorAlertWithAlertRollsBackAllWrites(t *testing.T) {
-	repo, watch := monitorAlertFixture(t)
+	repo, alert := monitorAlertFixture(t)
 	ctx := context.Background()
 	failure := errors.New("evaluation aborted")
-	destination := monitorAlertDestinationFixture(t, watch.OUID)
-	watch.DestinationIDs = []string{destination.ID.String()}
-	require.NoError(t, repo.SaveAlert(ctx, watch))
-	event := events.New("evt-"+uuid.NewString(), events.TypeMonitorRunSucceeded, events.ScopeAgent, watch.OUID, "project", "agent", time.Now())
-	err := repo.WithAlert(ctx, watch.ID, func(w *models.MonitorAlert, tx MonitorAlertRepository) error {
+	destination := monitorAlertDestinationFixture(t, alert.OUID)
+	alert.DestinationIDs = []string{destination.ID.String()}
+	require.NoError(t, repo.SaveAlert(ctx, alert))
+	event := events.New("evt-"+uuid.NewString(), events.TypeMonitorRunSucceeded, events.ScopeAgent, alert.OUID, "project", "agent", time.Now())
+	err := repo.WithAlert(ctx, alert.ID, func(w *models.MonitorAlert, tx MonitorAlertRepository) error {
 		if err := tx.QueueAlerts(ctx, w, []models.Notification{{
 			OUID: w.OUID, Kind: models.NotificationScoreBreached, Title: "breached",
 		}}, event); err != nil {
@@ -77,7 +77,7 @@ func TestMonitorAlertWithAlertRollsBackAllWrites(t *testing.T) {
 		return failure
 	})
 	require.ErrorIs(t, err, failure)
-	current, err := repo.GetAlert(ctx, watch.MonitorID)
+	current, err := repo.GetAlert(ctx, alert.MonitorID)
 	require.NoError(t, err)
 	assert.Empty(t, current.Breached)
 	assert.Nil(t, current.LastEvaluatedAt)
@@ -87,14 +87,14 @@ func TestMonitorAlertWithAlertRollsBackAllWrites(t *testing.T) {
 }
 
 func TestMonitorAlertWithAlertSerializesEvaluations(t *testing.T) {
-	repo, watch := monitorAlertFixture(t)
+	repo, alert := monitorAlertFixture(t)
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 	locked := make(chan struct{})
 	release := make(chan struct{})
 	firstDone := make(chan error, 1)
 	go func() {
-		firstDone <- repo.WithAlert(ctx, watch.ID, func(w *models.MonitorAlert, tx MonitorAlertRepository) error {
+		firstDone <- repo.WithAlert(ctx, alert.ID, func(w *models.MonitorAlert, tx MonitorAlertRepository) error {
 			close(locked)
 			select {
 			case <-release:
@@ -112,7 +112,7 @@ func TestMonitorAlertWithAlertSerializesEvaluations(t *testing.T) {
 	secondEntered := make(chan []string, 1)
 	secondDone := make(chan error, 1)
 	go func() {
-		secondDone <- repo.WithAlert(ctx, watch.ID, func(w *models.MonitorAlert, _ MonitorAlertRepository) error {
+		secondDone <- repo.WithAlert(ctx, alert.ID, func(w *models.MonitorAlert, _ MonitorAlertRepository) error {
 			secondEntered <- w.Breached
 			return nil
 		})
@@ -127,37 +127,37 @@ func TestMonitorAlertWithAlertSerializesEvaluations(t *testing.T) {
 	require.NoError(t, <-secondDone)
 	select {
 	case breached := <-secondEntered:
-		assert.Equal(t, []string{watch.Thresholds[0].Key()}, breached)
+		assert.Equal(t, []string{alert.Thresholds[0].Key()}, breached)
 	case <-ctx.Done():
 		t.Fatal(ctx.Err())
 	}
 }
 
 func TestMonitorAlertSaveAlertUsesCurrentBreaches(t *testing.T) {
-	repo, watch := monitorAlertFixture(t)
+	repo, alert := monitorAlertFixture(t)
 	ctx := context.Background()
 	at := time.Now().UTC().Truncate(time.Microsecond)
-	require.NoError(t, repo.UpdateAlertBreached(ctx, watch.ID, []string{watch.Thresholds[0].Key(), "removed-threshold"}, at))
+	require.NoError(t, repo.UpdateAlertBreached(ctx, alert.ID, []string{alert.Thresholds[0].Key(), "removed-threshold"}, at))
 	// The caller read before the evaluation and sends an empty state. Only
 	// settings are accepted; evaluation state comes from the locked row.
-	watch.NotifyOnSuccess = true
-	watch.Breached = []string{}
-	originalID, createdAt := watch.ID, watch.CreatedAt
-	require.NoError(t, repo.SaveAlert(ctx, watch))
-	assert.Equal(t, originalID, watch.ID)
-	assert.True(t, createdAt.Equal(watch.CreatedAt))
-	assert.Equal(t, []string{watch.Thresholds[0].Key()}, watch.Breached)
-	require.NotNil(t, watch.LastEvaluatedAt)
-	assert.True(t, at.Equal(*watch.LastEvaluatedAt))
-	stored, err := repo.GetAlert(ctx, watch.MonitorID)
+	alert.NotifyOnSuccess = true
+	alert.Breached = []string{}
+	originalID, createdAt := alert.ID, alert.CreatedAt
+	require.NoError(t, repo.SaveAlert(ctx, alert))
+	assert.Equal(t, originalID, alert.ID)
+	assert.True(t, createdAt.Equal(alert.CreatedAt))
+	assert.Equal(t, []string{alert.Thresholds[0].Key()}, alert.Breached)
+	require.NotNil(t, alert.LastEvaluatedAt)
+	assert.True(t, at.Equal(*alert.LastEvaluatedAt))
+	stored, err := repo.GetAlert(ctx, alert.MonitorID)
 	require.NoError(t, err)
-	assert.Equal(t, watch.ID, stored.ID)
-	assert.Equal(t, watch.Breached, stored.Breached)
-	assert.Equal(t, watch.Thresholds, stored.Thresholds)
+	assert.Equal(t, alert.ID, stored.ID)
+	assert.Equal(t, alert.Breached, stored.Breached)
+	assert.Equal(t, alert.Thresholds, stored.Thresholds)
 	assert.True(t, stored.NotifyOnSuccess)
-	assert.True(t, watch.UpdatedAt.Equal(stored.UpdatedAt))
-	assert.True(t, watch.CreatedAt.Equal(stored.CreatedAt))
-	assert.True(t, watch.LastEvaluatedAt.Equal(*stored.LastEvaluatedAt))
+	assert.True(t, alert.UpdatedAt.Equal(stored.UpdatedAt))
+	assert.True(t, alert.CreatedAt.Equal(stored.CreatedAt))
+	assert.True(t, alert.LastEvaluatedAt.Equal(*stored.LastEvaluatedAt))
 }
 
 func monitorAlertDestinationFixture(t *testing.T, org string) *models.EventDestination {
@@ -170,33 +170,33 @@ func monitorAlertDestinationFixture(t *testing.T, org string) *models.EventDesti
 }
 
 func TestMonitorAlertQueueAlertsPersistsAndDeduplicates(t *testing.T) {
-	repo, watch := monitorAlertFixture(t)
+	repo, alert := monitorAlertFixture(t)
 	ctx := context.Background()
-	destination := monitorAlertDestinationFixture(t, watch.OUID)
-	watch.DestinationIDs = []string{destination.ID.String()}
-	require.NoError(t, repo.SaveAlert(ctx, watch))
-	event := events.New("evt-"+uuid.NewString(), events.TypeMonitorRunFailed, events.ScopeAgent, watch.OUID, "project", "agent", time.Now())
-	alerts := []models.Notification{{OUID: watch.OUID, Kind: models.NotificationMonitorRunFailed, Title: "Run failed"}}
+	destination := monitorAlertDestinationFixture(t, alert.OUID)
+	alert.DestinationIDs = []string{destination.ID.String()}
+	require.NoError(t, repo.SaveAlert(ctx, alert))
+	event := events.New("evt-"+uuid.NewString(), events.TypeMonitorRunFailed, events.ScopeAgent, alert.OUID, "project", "agent", time.Now())
+	alerts := []models.Notification{{OUID: alert.OUID, Kind: models.NotificationMonitorRunFailed, Title: "Run failed"}}
 	for range 2 {
-		require.NoError(t, repo.QueueAlerts(ctx, watch, alerts, event))
+		require.NoError(t, repo.QueueAlerts(ctx, alert, alerts, event))
 	}
 	deliveries, err := repo.AlertDeliveries(ctx, event.ID)
 	require.NoError(t, err)
 	require.Len(t, deliveries, 1)
 	assert.Equal(t, destination.ID, deliveries[0].DestinationID)
-	assert.Equal(t, watch.ID, *deliveries[0].MonitorAlertID)
+	assert.Equal(t, alert.ID, *deliveries[0].MonitorAlertID)
 	assert.Equal(t, event.ID, deliveries[0].SourceEventID)
 	var payload events.Event
 	require.NoError(t, json.Unmarshal(deliveries[0].Payload, &payload))
-	assert.Equal(t, watch.OUID, payload.OrgID)
+	assert.Equal(t, alert.OUID, payload.OrgID)
 	assert.Equal(t, "monitor.alert."+models.NotificationMonitorRunFailed, payload.Name())
 	assert.Equal(t, models.EventDeliveryPending, deliveries[0].Status)
 }
 
 func TestMonitorAlertQueueAlertsRejectsOtherOrganization(t *testing.T) {
-	repo, watch := monitorAlertFixture(t)
+	repo, alert := monitorAlertFixture(t)
 	event := events.New("evt-"+uuid.NewString(), events.TypeMonitorRunFailed, events.ScopeAgent, "other", "project", "agent", time.Now())
-	err := repo.QueueAlerts(context.Background(), watch, []models.Notification{{Kind: models.NotificationMonitorRunFailed}}, event)
+	err := repo.QueueAlerts(context.Background(), alert, []models.Notification{{Kind: models.NotificationMonitorRunFailed}}, event)
 	require.Error(t, err)
 	deliveries, err := repo.AlertDeliveries(context.Background(), event.ID)
 	require.NoError(t, err)

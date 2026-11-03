@@ -74,7 +74,7 @@ export const CreateMonitorComponent: React.FC = () => {
   });
 
   const environments = usePipelineEnvironments(orgId, projectId);
-  const { mutate: applyAlert } = useApplyMonitorAlert({
+  const { mutate: applyAlert, isPending: isSavingAlert } = useApplyMonitorAlert({
     orgName: orgId,
     projName: projectId,
     agentName: agentId,
@@ -246,7 +246,7 @@ export const CreateMonitorComponent: React.FC = () => {
       submitLabel="Create Monitor"
       initialValues={initialValues}
       onSubmit={handleCreateMonitor}
-      isSubmitting={isPending}
+      isSubmitting={isPending || isSavingAlert}
       serverError={error}
       missingParamsMessage={missingParamsMessage}
       environments={environments}

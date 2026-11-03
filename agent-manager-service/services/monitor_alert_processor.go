@@ -21,7 +21,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"log/slog"
-
 	"time"
 
 	"github.com/wso2/agent-manager/agent-manager-service/events"
@@ -114,14 +113,14 @@ func (n *monitorAlertProcessor) handleEvent(ctx context.Context, msg events.Mess
 	}
 	log := n.logger.With("eventId", e.ID, "monitorId", run.MonitorID)
 
-	watches, err := n.repo.ListAlerts(ctx, run.MonitorID)
+	alerts, err := n.repo.ListAlerts(ctx, run.MonitorID)
 	if err != nil {
-		log.Error("Failed to load monitor watches; will retry", "error", err)
+		log.Error("Failed to load monitor alerts; will retry", "error", err)
 		_ = msg.Retry(monitorAlertFanoutRetryDelay)
 		return
 	}
-	for i := range watches {
-		w := &watches[i]
+	for i := range alerts {
+		w := &alerts[i]
 		if w.OUID != run.OrgID {
 			continue
 		}
@@ -139,7 +138,7 @@ func (n *monitorAlertProcessor) handleEvent(ctx context.Context, msg events.Mess
 			return nil
 		})
 		if err != nil {
-			log.Error("Failed to evaluate monitor watch; will retry", "watchId", w.ID, "error", err)
+			log.Error("Failed to evaluate monitor alert; will retry", "alertId", w.ID, "error", err)
 			_ = msg.Retry(monitorAlertFanoutRetryDelay)
 			return
 		}

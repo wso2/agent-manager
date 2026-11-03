@@ -1269,6 +1269,42 @@ func (e MonitorRunResponseStatus) Valid() bool {
 	}
 }
 
+// Defines values for MonitorScoreThresholdAggregation.
+const (
+	Mean     MonitorScoreThresholdAggregation = "mean"
+	PassRate MonitorScoreThresholdAggregation = "pass_rate"
+)
+
+// Valid indicates whether the value is a known member of the MonitorScoreThresholdAggregation enum.
+func (e MonitorScoreThresholdAggregation) Valid() bool {
+	switch e {
+	case Mean:
+		return true
+	case PassRate:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for MonitorScoreThresholdOperator.
+const (
+	Above MonitorScoreThresholdOperator = "above"
+	Below MonitorScoreThresholdOperator = "below"
+)
+
+// Valid indicates whether the value is a known member of the MonitorScoreThresholdOperator enum.
+func (e MonitorScoreThresholdOperator) Valid() bool {
+	switch e {
+	case Above:
+		return true
+	case Below:
+		return true
+	default:
+		return false
+	}
+}
+
 // Defines values for ProvisioningType.
 const (
 	ProvisioningTypeExternal ProvisioningType = "external"
@@ -5057,6 +5093,35 @@ type ModelConfigRequest struct {
 	ProviderName string `json:"providerName"`
 }
 
+// MonitorAlertRequest defines model for MonitorAlertRequest.
+type MonitorAlertRequest struct {
+	// DestinationIds Organization destinations available to this monitor's project.
+	DestinationIds []openapi_types.UUID `json:"destinationIds"`
+
+	// NotifyOnFailure Notify when a run fails or cannot start.
+	NotifyOnFailure bool `json:"notifyOnFailure"`
+
+	// NotifyOnSuccess Notify when a run completes.
+	NotifyOnSuccess bool                    `json:"notifyOnSuccess"`
+	Thresholds      []MonitorScoreThreshold `json:"thresholds"`
+}
+
+// MonitorAlertResponse defines model for MonitorAlertResponse.
+type MonitorAlertResponse struct {
+	// Breached The thresholds the latest evaluated run breached.
+	Breached *[]MonitorScoreThreshold `json:"breached,omitempty"`
+
+	// DestinationIds Organization destinations available to this monitor's project.
+	DestinationIds []openapi_types.UUID `json:"destinationIds"`
+
+	// Enabled Whether shared monitor alerting is enabled.
+	Enabled         bool                    `json:"enabled"`
+	NotifyOnFailure bool                    `json:"notifyOnFailure"`
+	NotifyOnSuccess bool                    `json:"notifyOnSuccess"`
+	Thresholds      []MonitorScoreThreshold `json:"thresholds"`
+	UpdatedAt       *time.Time              `json:"updatedAt,omitempty"`
+}
+
 // MonitorEvaluator defines model for MonitorEvaluator.
 type MonitorEvaluator struct {
 	// Config Evaluator-specific configuration parameters (includes 'level' for evaluation granularity)
@@ -5210,6 +5275,26 @@ type MonitorRunScoresResponse struct {
 	// RunId Monitor run UUID
 	RunId openapi_types.UUID `json:"runId"`
 }
+
+// MonitorScoreThreshold Sends an alert when a score of the monitor's runs crosses a
+// value, and again when it crosses back.
+type MonitorScoreThreshold struct {
+	// Aggregation Which of the run's aggregated scores to compare.
+	Aggregation MonitorScoreThresholdAggregation `json:"aggregation"`
+
+	// Evaluator Display name of one of the monitor's evaluators.
+	Evaluator string `json:"evaluator"`
+
+	// Operator The score is breached when it is below (or above) value.
+	Operator MonitorScoreThresholdOperator `json:"operator"`
+	Value    float64                       `json:"value"`
+}
+
+// MonitorScoreThresholdAggregation Which of the run's aggregated scores to compare.
+type MonitorScoreThresholdAggregation string
+
+// MonitorScoreThresholdOperator The score is breached when it is below (or above) value.
+type MonitorScoreThresholdOperator string
 
 // MonitorScoresResponse defines model for MonitorScoresResponse.
 type MonitorScoresResponse struct {
@@ -7226,6 +7311,9 @@ type CreateMonitorJSONRequestBody = CreateMonitorRequest
 
 // UpdateMonitorJSONRequestBody defines body for UpdateMonitor for application/json ContentType.
 type UpdateMonitorJSONRequestBody = UpdateMonitorRequest
+
+// PutMonitorAlertJSONRequestBody defines body for PutMonitorAlert for application/json ContentType.
+type PutMonitorAlertJSONRequestBody = MonitorAlertRequest
 
 // PromoteAgentJSONRequestBody defines body for PromoteAgent for application/json ContentType.
 type PromoteAgentJSONRequestBody = PromoteAgentRequest

@@ -63,13 +63,13 @@ func scoresData(evaluator string, mean float64) map[string]any {
 func newTestMonitorAlerts(repo *repomocks.MonitorAlertRepositoryMock) *monitorAlertProcessor {
 	if repo.WithAlertFunc == nil {
 		repo.WithAlertFunc = func(ctx context.Context, id uuid.UUID, evaluate func(*models.MonitorAlert, repositories.MonitorAlertRepository) error) error {
-			watches, err := repo.ListAlerts(ctx, uuid.Nil)
+			alerts, err := repo.ListAlerts(ctx, uuid.Nil)
 			if err != nil {
 				return err
 			}
-			for i := range watches {
-				if watches[i].ID == id {
-					return evaluate(&watches[i], repo)
+			for i := range alerts {
+				if alerts[i].ID == id {
+					return evaluate(&alerts[i], repo)
 				}
 			}
 			return nil
@@ -99,7 +99,7 @@ func TestMonitorAlerts_QueuesAlertsAndRecordsBreaches(t *testing.T) {
 	threshold := models.ScoreThreshold{
 		Evaluator: "Helpfulness", Aggregation: "mean", Operator: models.ThresholdBelow, Value: 0.7,
 	}
-	watcher := models.MonitorAlert{
+	alert := models.MonitorAlert{
 		ID: uuid.New(), OUID: "ou-1", MonitorID: monitorID,
 		Thresholds: []models.ScoreThreshold{threshold},
 	}
@@ -114,14 +114,14 @@ func TestMonitorAlerts_QueuesAlertsAndRecordsBreaches(t *testing.T) {
 	repo := &repomocks.MonitorAlertRepositoryMock{
 		ListAlertsFunc: func(_ context.Context, id uuid.UUID) ([]models.MonitorAlert, error) {
 			assert.True(t, id == monitorID || id == uuid.Nil)
-			return []models.MonitorAlert{watcher, stranger}, nil
+			return []models.MonitorAlert{alert, stranger}, nil
 		},
 		QueueAlertsFunc: func(_ context.Context, _ *models.MonitorAlert, n []models.Notification, _ events.Event) error {
 			created = append(created, n...)
 			return nil
 		},
 		UpdateAlertBreachedFunc: func(_ context.Context, id uuid.UUID, keys []string, at time.Time) error {
-			assert.Equal(t, watcher.ID, id)
+			assert.Equal(t, alert.ID, id)
 			breached, evaluatedAt = keys, at
 			return nil
 		},
@@ -143,7 +143,7 @@ func TestMonitorAlerts_QueuesAlertsAndRecordsBreaches(t *testing.T) {
 
 func TestMonitorAlerts_RetriesOnStoreErrors(t *testing.T) {
 	monitorID := uuid.New()
-	watch := models.MonitorAlert{ID: uuid.New(), OUID: "ou-1", MonitorID: monitorID, NotifyOnFailure: true}
+	alert := models.MonitorAlert{ID: uuid.New(), OUID: "ou-1", MonitorID: monitorID, NotifyOnFailure: true}
 	failed := monitorRunEventBytes(t, events.TypeMonitorRunFailed, monitorID,
 		map[string]any{"run": map[string]any{"id": "run-1", "status": "failed", "error": "boom"}})
 
@@ -161,7 +161,7 @@ func TestMonitorAlerts_RetriesOnStoreErrors(t *testing.T) {
 	t.Run("queueing alerts", func(t *testing.T) {
 		repo := &repomocks.MonitorAlertRepositoryMock{
 			ListAlertsFunc: func(context.Context, uuid.UUID) ([]models.MonitorAlert, error) {
-				return []models.MonitorAlert{watch}, nil
+				return []models.MonitorAlert{alert}, nil
 			},
 			QueueAlertsFunc: func(context.Context, *models.MonitorAlert, []models.Notification, events.Event) error {
 				return errors.New("db down")
@@ -199,12 +199,12 @@ func (b *alertRetryBus) Enqueue(ctx context.Context, queue, key string, body []b
 func TestMonitorAlerts_RedeliveryRequeuesDurableAlert(t *testing.T) {
 	monitorID, destinationID := uuid.New(), uuid.New()
 	threshold := models.ScoreThreshold{Evaluator: "Helpfulness", Aggregation: "mean", Operator: models.ThresholdBelow, Value: 0.7}
-	watch := models.MonitorAlert{ID: uuid.New(), OUID: "ou-1", MonitorID: monitorID, DestinationIDs: []string{destinationID.String()}, Thresholds: []models.ScoreThreshold{threshold}}
+	alert := models.MonitorAlert{ID: uuid.New(), OUID: "ou-1", MonitorID: monitorID, DestinationIDs: []string{destinationID.String()}, Thresholds: []models.ScoreThreshold{threshold}}
 	var durable []models.EventDelivery
 	outcomes := 0
 	repo := &repomocks.MonitorAlertRepositoryMock{
 		ListAlertsFunc: func(context.Context, uuid.UUID) ([]models.MonitorAlert, error) {
-			return []models.MonitorAlert{watch}, nil
+			return []models.MonitorAlert{alert}, nil
 		},
 		QueueAlertsFunc: func(_ context.Context, _ *models.MonitorAlert, alerts []models.Notification, e events.Event) error {
 			outcomes += len(alerts)
@@ -218,8 +218,8 @@ func TestMonitorAlerts_RedeliveryRequeuesDurableAlert(t *testing.T) {
 			return nil
 		},
 		UpdateAlertBreachedFunc: func(_ context.Context, _ uuid.UUID, keys []string, at time.Time) error {
-			watch.Breached = keys
-			watch.LastEvaluatedAt = &at
+			alert.Breached = keys
+			alert.LastEvaluatedAt = &at
 			return nil
 		},
 		AlertDeliveriesFunc: func(_ context.Context, source string) ([]models.EventDelivery, error) {
@@ -228,7 +228,7 @@ func TestMonitorAlerts_RedeliveryRequeuesDurableAlert(t *testing.T) {
 		},
 	}
 	repo.WithAlertFunc = func(_ context.Context, _ uuid.UUID, evaluate func(*models.MonitorAlert, repositories.MonitorAlertRepository) error) error {
-		return evaluate(&watch, repo)
+		return evaluate(&alert, repo)
 	}
 	bus := &alertRetryBus{queueBus: queueBus{enqueued: make(map[string][]byte)}, fail: true}
 	center := NewMonitorAlertProcessor(bus, repo, discardSlog()).(*monitorAlertProcessor)
@@ -236,7 +236,7 @@ func TestMonitorAlerts_RedeliveryRequeuesDurableAlert(t *testing.T) {
 	first := &answeredMessage{data: raw}
 	center.handleEvent(context.Background(), first)
 	assert.Equal(t, "retry", first.outcome)
-	require.Len(t, watch.Breached, 1)
+	require.Len(t, alert.Breached, 1)
 	second := &answeredMessage{data: raw}
 	center.handleEvent(context.Background(), second)
 	assert.Equal(t, "ack", second.outcome)

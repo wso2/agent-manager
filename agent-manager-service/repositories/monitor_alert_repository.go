@@ -35,22 +35,22 @@ import (
 //
 //go:generate moq -rm -fmt goimports -skip-ensure -pkg repomocks -out repomocks/monitor_alert_repository_mock.go . MonitorAlertRepository:MonitorAlertRepositoryMock
 type MonitorAlertRepository interface {
-	// WithAlert evaluates a current watch under a row lock. All writes through
-	// txRepo commit atomically with the evaluation. A deleted watch is skipped.
+	// WithAlert evaluates a current alert under a row lock. All writes through
+	// txRepo commit atomically with the evaluation. A deleted alert is skipped.
 	WithAlert(ctx context.Context, id uuid.UUID, evaluate func(w *models.MonitorAlert, txRepo MonitorAlertRepository) error) error
 	// GetAlert returns shared alert settings on a monitor, or gorm.ErrRecordNotFound.
 	GetAlert(ctx context.Context, monitorID uuid.UUID) (*models.MonitorAlert, error)
 	// SaveAlert creates or replaces shared alert settings on a monitor.
-	SaveAlert(ctx context.Context, watch *models.MonitorAlert) error
+	SaveAlert(ctx context.Context, alert *models.MonitorAlert) error
 	DeleteAlert(ctx context.Context, monitorID uuid.UUID) error
 	// ListAlerts returns the shared alert configuration for a monitor.
 	ListAlerts(ctx context.Context, monitorID uuid.UUID) ([]models.MonitorAlert, error)
 	// UpdateAlertBreached records the thresholds a run breached, unless a
 	// newer run was already evaluated.
-	UpdateAlertBreached(ctx context.Context, watchID uuid.UUID, breached []string, evaluatedAt time.Time) error
+	UpdateAlertBreached(ctx context.Context, alertID uuid.UUID, breached []string, evaluatedAt time.Time) error
 
 	// QueueAlerts records delivery jobs in the same transaction as threshold state.
-	QueueAlerts(ctx context.Context, watch *models.MonitorAlert, notifications []models.Notification, event events.Event) error
+	QueueAlerts(ctx context.Context, alert *models.MonitorAlert, notifications []models.Notification, event events.Event) error
 	// AlertDeliveries returns durable jobs for a source run event, including after redelivery.
 	AlertDeliveries(ctx context.Context, sourceEventID string) ([]models.EventDelivery, error)
 }
@@ -149,22 +149,22 @@ func (r *monitorAlertRepository) ListAlerts(ctx context.Context, monitorID uuid.
 }
 
 func (r *monitorAlertRepository) UpdateAlertBreached(
-	ctx context.Context, watchID uuid.UUID, breached []string, evaluatedAt time.Time,
+	ctx context.Context, alertID uuid.UUID, breached []string, evaluatedAt time.Time,
 ) error {
 	// Update from the struct so breached goes through its JSON serializer.
 	return r.db.WithContext(ctx).Model(&models.MonitorAlert{}).
-		Where("id = ? AND (last_evaluated_at IS NULL OR last_evaluated_at < ?)", watchID, evaluatedAt).
+		Where("id = ? AND (last_evaluated_at IS NULL OR last_evaluated_at < ?)", alertID, evaluatedAt).
 		Select("breached", "last_evaluated_at").
 		Updates(&models.MonitorAlert{Breached: breached, LastEvaluatedAt: &evaluatedAt}).Error
 }
 
-func (r *monitorAlertRepository) QueueAlerts(ctx context.Context, watch *models.MonitorAlert, notifications []models.Notification, original events.Event) error {
-	if watch.OUID != original.OrgID {
+func (r *monitorAlertRepository) QueueAlerts(ctx context.Context, alert *models.MonitorAlert, notifications []models.Notification, original events.Event) error {
+	if alert.OUID != original.OrgID {
 		return fmt.Errorf("alert organization does not match source event")
 	}
 	deliveries := &eventRepository{db: r.db}
 	for _, notification := range notifications {
-		event := events.New(original.ID+":"+watch.ID.String()+":"+notification.Kind, "monitor.alert."+notification.Kind, events.ScopeAgent, original.OrgID, original.Project, original.Agent, original.Time)
+		event := events.New(original.ID+":"+alert.ID.String()+":"+notification.Kind, "monitor.alert."+notification.Kind, events.ScopeAgent, original.OrgID, original.Project, original.Agent, original.Time)
 		event.Environment = original.Environment
 		event.OrgHandle = original.OrgHandle
 		event.Data = map[string]any{"title": notification.Title, "body": notification.Body, "monitor": notification.Target}
@@ -172,14 +172,14 @@ func (r *monitorAlertRepository) QueueAlerts(ctx context.Context, watch *models.
 		if err != nil {
 			return fmt.Errorf("encode monitor alert: %w", err)
 		}
-		for _, rawID := range watch.DestinationIDs {
+		for _, rawID := range alert.DestinationIDs {
 			destinationID, err := uuid.Parse(rawID)
 			if err != nil {
 				return fmt.Errorf("parse monitor alert destination: %w", err)
 			}
 			delivery := &models.EventDelivery{
-				OUID: watch.OUID, DestinationID: destinationID, SubscriptionIDs: []string{},
-				MonitorAlertID: &watch.ID, SourceEventID: original.ID, Payload: payload,
+				OUID: alert.OUID, DestinationID: destinationID, SubscriptionIDs: []string{},
+				MonitorAlertID: &alert.ID, SourceEventID: original.ID, Payload: payload,
 				EventID: event.ID, EventType: event.Name(), EventScope: string(event.Scope),
 				ProjectName: event.Project, AgentName: event.Agent, Environment: event.Environment,
 				Status: models.EventDeliveryPending,

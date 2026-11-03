@@ -120,4 +120,4 @@ Monitor alert settings are shared by everyone managing a monitor. Configure them
 
 Each failure, completion, threshold breach, or recovery is sent to the selected destinations. Threshold state and delivery jobs commit together; bus retries reload those jobs after a crash. Before sending, the dispatcher rechecks that the alert still exists, still selects that destination, and the destination is still available to the agent. Delivery history remains under organization Events.
 
-Migration 056 adds shared monitor alerts and durable alert payloads. Existing personal watches and inbox history are retained only as inert historical data for rollback; they are not evaluated or exposed. They cannot be converted automatically because no external destination was selected. Configure destinations explicitly after upgrading.
+Migration 057 adds shared monitor alerts and durable alert payloads. No personal watch or console inbox tables are created. Select organization destinations explicitly when enabling monitor alerting.

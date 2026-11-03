@@ -76,11 +76,11 @@ export const EditMonitorComponent: React.FC = () => {
   });
 
   const alertsEnabled = useEventsEnabled();
-  const { data: currentAlert, isLoading: isLoadingAlert } = useMonitorAlert(
+  const { data: currentAlert, isLoading: isLoadingAlert, error: alertError } = useMonitorAlert(
     { orgName: orgId, projName: projectId, agentName: agentId, monitorName: monitorId },
     alertsEnabled,
   );
-  const { mutate: applyAlert } = useApplyMonitorAlert({
+  const { mutate: applyAlert, isPending: isSavingAlert } = useApplyMonitorAlert({
     orgName: orgId,
     projName: projectId,
     agentName: agentId,
@@ -223,7 +223,7 @@ export const EditMonitorComponent: React.FC = () => {
     );
   }
 
-  if (fetchError) {
+  if (fetchError || (alertsEnabled && alertError)) {
     return (
       <PageLayout
         title="Edit Monitor"
@@ -235,7 +235,7 @@ export const EditMonitorComponent: React.FC = () => {
         <Alert severity="error">
           {fetchError
             ? getErrorMessage(fetchError)
-            : "Failed to load monitor details."}
+            : "Failed to load alert settings. Please try again."}
         </Alert>
       </PageLayout>
     );
@@ -261,7 +261,7 @@ export const EditMonitorComponent: React.FC = () => {
       submitLabel="Save Changes"
       initialValues={initialValues}
       onSubmit={handleUpdateMonitor}
-      isSubmitting={isUpdating}
+      isSubmitting={isUpdating || isSavingAlert}
       serverError={updateError}
       isTypeEditable={false}
       initialAlert={initialAlert}

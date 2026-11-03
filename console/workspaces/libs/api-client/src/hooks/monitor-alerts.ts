@@ -35,7 +35,7 @@ function alertReady(p: MonitorAlertPathParams): boolean {
   return !!(p.orgName && p.projName && p.agentName && p.monitorName);
 }
 
-/** Hook to get the monitor's alert on a monitor. */
+/** Load shared monitor alert settings. */
 export function useMonitorAlert(params: MonitorAlertPathParams, enabled = true) {
   const { getToken } = useAuthHooks();
   return useApiQuery<MonitorAlertResponse>({
@@ -45,7 +45,7 @@ export function useMonitorAlert(params: MonitorAlertPathParams, enabled = true) 
   });
 }
 
-/** Hook to alert a monitor, or change the monitor's alert settings. */
+/** Save shared monitor alert settings. */
 export function useSaveMonitorAlert(params: MonitorAlertPathParams) {
   const { getToken } = useAuthHooks();
   const queryClient = useQueryClient();
@@ -56,7 +56,7 @@ export function useSaveMonitorAlert(params: MonitorAlertPathParams) {
   });
 }
 
-/** Hook to stop enabled a monitor. */
+/** Disable monitor alerting. */
 export function useDeleteMonitorAlert(params: MonitorAlertPathParams) {
   const { getToken } = useAuthHooks();
   const queryClient = useQueryClient();
@@ -68,8 +68,8 @@ export function useDeleteMonitorAlert(params: MonitorAlertPathParams) {
 }
 
 /**
- * Hook to set the monitor's alert on a monitor named at call time: alert it
- * with the given settings, or stop enabled when they are null. For forms
+ * Save alert settings for a monitor named at call time, or disable alerting
+ * when the settings are null. For forms
  * that save a monitor and its alert together.
  */
 export function useApplyMonitorAlert(base: Omit<MonitorAlertPathParams, "monitorName">) {

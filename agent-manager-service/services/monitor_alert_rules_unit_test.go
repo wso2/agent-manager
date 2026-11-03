@@ -39,7 +39,7 @@ func score(evaluator, level string, aggregations map[string]any) monitorRunScore
 	return monitorRunScore{Evaluator: evaluator, Level: level, Aggregations: aggregations}
 }
 
-func TestEvaluateWatch_RunOutcomes(t *testing.T) {
+func TestEvaluateAlert_RunOutcomes(t *testing.T) {
 	failed := runWithScores()
 	failed.Failed = true
 	failed.Run.Error = "workflow crashed"
@@ -50,46 +50,46 @@ func TestEvaluateWatch_RunOutcomes(t *testing.T) {
 
 	tests := []struct {
 		name      string
-		watch     models.MonitorAlert
+		alert     models.MonitorAlert
 		run       monitorRunEvent
 		wantKinds []string
 		wantTitle string
 	}{
 		{
-			name:      "failed run notifies a failure watcher",
-			watch:     models.MonitorAlert{NotifyOnFailure: true},
+			name:      "failed run notifies a failure alert",
+			alert:     models.MonitorAlert{NotifyOnFailure: true},
 			run:       failed,
 			wantKinds: []string{models.NotificationMonitorRunFailed},
 			wantTitle: "Monitor run failed: Quality",
 		},
 		{
 			name:      "a run that could not start says so",
-			watch:     models.MonitorAlert{NotifyOnFailure: true},
+			alert:     models.MonitorAlert{NotifyOnFailure: true},
 			run:       notStarted,
 			wantKinds: []string{models.NotificationMonitorRunFailed},
 			wantTitle: "Monitor run could not start: Quality",
 		},
 		{
 			name:  "failed run is silent when failures are off",
-			watch: models.MonitorAlert{NotifyOnSuccess: true},
+			alert: models.MonitorAlert{NotifyOnSuccess: true},
 			run:   failed,
 		},
 		{
-			name:      "completed run notifies a success watcher",
-			watch:     models.MonitorAlert{NotifyOnSuccess: true},
+			name:      "completed run notifies a success alert",
+			alert:     models.MonitorAlert{NotifyOnSuccess: true},
 			run:       runWithScores(score("Helpfulness", "trace", map[string]any{"mean": 0.9})),
 			wantKinds: []string{models.NotificationMonitorRunSucceeded},
 			wantTitle: "Monitor run completed: Quality",
 		},
 		{
 			name:  "completed run is silent by default",
-			watch: models.MonitorAlert{NotifyOnFailure: true},
+			alert: models.MonitorAlert{NotifyOnFailure: true},
 			run:   runWithScores(score("Helpfulness", "trace", map[string]any{"mean": 0.9})),
 		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			out := evaluateAlert(&tt.watch, tt.run)
+			out := evaluateAlert(&tt.alert, tt.run)
 			kinds := []string{}
 			for _, n := range out.Notifications {
 				kinds = append(kinds, n.Kind)
@@ -104,12 +104,12 @@ func TestEvaluateWatch_RunOutcomes(t *testing.T) {
 	}
 }
 
-func TestEvaluateWatch_ThresholdsNotifyOnChange(t *testing.T) {
+func TestEvaluateAlert_ThresholdsNotifyOnChange(t *testing.T) {
 	below := models.ScoreThreshold{Evaluator: "Helpfulness", Aggregation: "mean", Operator: models.ThresholdBelow, Value: 0.7}
-	watch := models.MonitorAlert{Thresholds: []models.ScoreThreshold{below}, Breached: []string{}}
+	alert := models.MonitorAlert{Thresholds: []models.ScoreThreshold{below}, Breached: []string{}}
 
 	low := runWithScores(score("Helpfulness", "trace", map[string]any{"mean": 0.6}))
-	out := evaluateAlert(&watch, low)
+	out := evaluateAlert(&alert, low)
 	require.True(t, out.Evaluated)
 	require.Len(t, out.Notifications, 1)
 	assert.Equal(t, models.NotificationScoreBreached, out.Notifications[0].Kind)
@@ -118,36 +118,36 @@ func TestEvaluateWatch_ThresholdsNotifyOnChange(t *testing.T) {
 	assert.Equal(t, []string{below.Key()}, out.Breached)
 
 	// Still below on the next run: no new notification.
-	watch.Breached = out.Breached
+	alert.Breached = out.Breached
 	stillLow := low
 	stillLow.Time = testRunTime.Add(time.Hour)
-	out = evaluateAlert(&watch, stillLow)
+	out = evaluateAlert(&alert, stillLow)
 	assert.Empty(t, out.Notifications)
 	assert.Equal(t, []string{below.Key()}, out.Breached)
 
 	// Back above: one recovery.
 	recovered := runWithScores(score("Helpfulness", "trace", map[string]any{"mean": 0.8}))
 	recovered.Time = testRunTime.Add(2 * time.Hour)
-	out = evaluateAlert(&watch, recovered)
+	out = evaluateAlert(&alert, recovered)
 	require.Len(t, out.Notifications, 1)
 	assert.Equal(t, models.NotificationScoreRecovered, out.Notifications[0].Kind)
 	assert.Empty(t, out.Breached)
 }
 
-func TestEvaluateWatch_ThresholdEdgeCases(t *testing.T) {
+func TestEvaluateAlert_ThresholdEdgeCases(t *testing.T) {
 	below := models.ScoreThreshold{Evaluator: "Helpfulness", Aggregation: "mean", Operator: models.ThresholdBelow, Value: 0.7}
 	above := models.ScoreThreshold{Evaluator: "Toxicity", Aggregation: "pass_rate", Operator: models.ThresholdAbove, Value: 0.2}
 
 	t.Run("a missing score keeps the previous state", func(t *testing.T) {
-		watch := models.MonitorAlert{Thresholds: []models.ScoreThreshold{below}, Breached: []string{below.Key()}}
-		out := evaluateAlert(&watch, runWithScores(score("Other", "trace", map[string]any{"mean": 0.1})))
+		alert := models.MonitorAlert{Thresholds: []models.ScoreThreshold{below}, Breached: []string{below.Key()}}
+		out := evaluateAlert(&alert, runWithScores(score("Other", "trace", map[string]any{"mean": 0.1})))
 		assert.Empty(t, out.Notifications)
 		assert.Equal(t, []string{below.Key()}, out.Breached)
 	})
 
 	t.Run("several levels use the value most in breach", func(t *testing.T) {
-		watch := models.MonitorAlert{Thresholds: []models.ScoreThreshold{below, above}}
-		out := evaluateAlert(&watch, runWithScores(
+		alert := models.MonitorAlert{Thresholds: []models.ScoreThreshold{below, above}}
+		out := evaluateAlert(&alert, runWithScores(
 			score("Helpfulness", "trace", map[string]any{"mean": 0.9}),
 			score("Helpfulness", "llm", map[string]any{"mean": 0.5}),
 			score("Toxicity", "trace", map[string]any{"pass_rate": 0.1}),
@@ -160,8 +160,8 @@ func TestEvaluateWatch_ThresholdEdgeCases(t *testing.T) {
 
 	t.Run("an older run arriving late is not evaluated", func(t *testing.T) {
 		later := testRunTime.Add(time.Hour)
-		watch := models.MonitorAlert{Thresholds: []models.ScoreThreshold{below}, LastEvaluatedAt: &later}
-		out := evaluateAlert(&watch, runWithScores(score("Helpfulness", "trace", map[string]any{"mean": 0.1})))
+		alert := models.MonitorAlert{Thresholds: []models.ScoreThreshold{below}, LastEvaluatedAt: &later}
+		out := evaluateAlert(&alert, runWithScores(score("Helpfulness", "trace", map[string]any{"mean": 0.1})))
 		assert.False(t, out.Evaluated)
 		assert.Empty(t, out.Notifications)
 	})
@@ -169,8 +169,8 @@ func TestEvaluateWatch_ThresholdEdgeCases(t *testing.T) {
 	t.Run("an edited threshold starts over", func(t *testing.T) {
 		edited := below
 		edited.Value = 0.5
-		watch := models.MonitorAlert{Thresholds: []models.ScoreThreshold{edited}, Breached: []string{below.Key()}}
-		out := evaluateAlert(&watch, runWithScores(score("Helpfulness", "trace", map[string]any{"mean": 0.6})))
+		alert := models.MonitorAlert{Thresholds: []models.ScoreThreshold{edited}, Breached: []string{below.Key()}}
+		out := evaluateAlert(&alert, runWithScores(score("Helpfulness", "trace", map[string]any{"mean": 0.6})))
 		assert.Empty(t, out.Notifications, "the old threshold's breach does not become a recovery")
 		assert.Empty(t, out.Breached)
 	})

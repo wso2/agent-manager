@@ -31,7 +31,7 @@ import (
 // notificationBodyLimit caps the text taken from a run's error message.
 const notificationBodyLimit = 300
 
-// monitorRunEvent is what the notification center reads from a
+// monitorRunEvent is what the monitor alert processor reads from a
 // monitor_run.succeeded or monitor_run.failed event.
 type monitorRunEvent struct {
 	EventID     string
@@ -109,7 +109,7 @@ func parseMonitorRunEvent(e events.Event, raw []byte) (monitorRunEvent, bool) {
 	return run, true
 }
 
-// alertOutcome is what one run means for one watch.
+// alertOutcome is what one run means for one alert.
 type alertOutcome struct {
 	Notifications []models.Notification
 	// Evaluated is true when the run's scores were checked against the
@@ -118,7 +118,7 @@ type alertOutcome struct {
 	Breached  []string
 }
 
-// evaluateAlert decides which notifications a run sends to a watcher, and
+// evaluateAlert decides which notifications a run sends to a alert, and
 // which of their thresholds it breaches.
 //
 // Thresholds notify on change only: when a score first breaks a threshold,

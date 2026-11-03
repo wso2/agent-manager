@@ -57,4 +57,3 @@ export interface MonitorAlertPathParams {
   agentName: string | undefined;
   monitorName: string | undefined;
 }
-

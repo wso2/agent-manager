@@ -55,7 +55,7 @@ func monitorRef(r *http.Request) services.MonitorRef {
 }
 
 func (c *monitorAlertController) GetMonitorAlert(w http.ResponseWriter, r *http.Request) {
-	watch, found, err := c.svc.GetAlert(r.Context(), monitorRef(r))
+	alert, found, err := c.svc.GetAlert(r.Context(), monitorRef(r))
 	if err != nil {
 		writeNotificationError(w, r, err, "Failed to get monitor alert settings")
 		return
@@ -70,7 +70,7 @@ func (c *monitorAlertController) GetMonitorAlert(w http.ResponseWriter, r *http.
 		})
 		return
 	}
-	utils.WriteSuccessResponse(w, http.StatusOK, toMonitorAlertResponse(watch))
+	utils.WriteSuccessResponse(w, http.StatusOK, toMonitorAlertResponse(alert))
 }
 
 func (c *monitorAlertController) PutMonitorAlert(w http.ResponseWriter, r *http.Request) {
@@ -90,12 +90,12 @@ func (c *monitorAlertController) PutMonitorAlert(w http.ResponseWriter, r *http.
 			Evaluator: t.Evaluator, Aggregation: t.Aggregation, Operator: t.Operator, Value: t.Value,
 		})
 	}
-	watch, err := c.svc.SaveAlert(r.Context(), monitorRef(r), settings)
+	alert, err := c.svc.SaveAlert(r.Context(), monitorRef(r), settings)
 	if err != nil {
 		writeNotificationError(w, r, err, "Failed to save monitor alert settings")
 		return
 	}
-	utils.WriteSuccessResponse(w, http.StatusOK, toMonitorAlertResponse(watch))
+	utils.WriteSuccessResponse(w, http.StatusOK, toMonitorAlertResponse(alert))
 }
 
 func (c *monitorAlertController) DeleteMonitorAlert(w http.ResponseWriter, r *http.Request) {
@@ -128,15 +128,15 @@ func toSpecThresholds(in []models.ScoreThreshold) []spec.MonitorScoreThreshold {
 	return out
 }
 
-func toMonitorAlertResponse(watch *models.MonitorAlert) spec.MonitorAlertResponse {
-	updated := watch.UpdatedAt
+func toMonitorAlertResponse(alert *models.MonitorAlert) spec.MonitorAlertResponse {
+	updated := alert.UpdatedAt
 	return spec.MonitorAlertResponse{
 		Enabled:         true,
-		NotifyOnFailure: watch.NotifyOnFailure,
-		DestinationIds:  append([]string{}, watch.DestinationIDs...),
-		NotifyOnSuccess: watch.NotifyOnSuccess,
-		Thresholds:      toSpecThresholds(watch.Thresholds),
-		Breached:        toSpecThresholds(watch.BreachedThresholds()),
+		NotifyOnFailure: alert.NotifyOnFailure,
+		DestinationIds:  append([]string{}, alert.DestinationIDs...),
+		NotifyOnSuccess: alert.NotifyOnSuccess,
+		Thresholds:      toSpecThresholds(alert.Thresholds),
+		Breached:        toSpecThresholds(alert.BreachedThresholds()),
 		UpdatedAt:       &updated,
 	}
 }

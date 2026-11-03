@@ -63,7 +63,7 @@ func TestMonitorAlertService_MonitorLookupErrors(t *testing.T) {
 	})
 }
 
-func TestMonitorAlertService_GetAlertWhenNotWatching(t *testing.T) {
+func TestMonitorAlertService_GetAlertWhenDisabled(t *testing.T) {
 	repo := &repomocks.MonitorAlertRepositoryMock{
 		GetAlertFunc: func(context.Context, uuid.UUID) (*models.MonitorAlert, error) {
 			return nil, gorm.ErrRecordNotFound
@@ -90,7 +90,7 @@ func TestMonitorAlertService_SaveAlertValidatesThresholds(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			// SaveAlertFunc is nil: an invalid watch must not be stored.
+			// SaveAlertFunc is nil: an invalid alert must not be stored.
 			svc := NewMonitorAlertService(&repomocks.MonitorAlertRepositoryMock{}, monitorRepoWith(testMonitor(), nil), &repomocks.EventRepositoryMock{})
 			_, err := svc.SaveAlert(context.Background(), testMonitorRef, MonitorAlertSettings{
 				Thresholds: []models.ScoreThreshold{valid, tt.threshold},

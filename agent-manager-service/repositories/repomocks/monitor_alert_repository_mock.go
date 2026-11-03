@@ -32,13 +32,13 @@ import (
 //			ListAlertsFunc: func(ctx context.Context, monitorID uuid.UUID) ([]models.MonitorAlert, error) {
 //				panic("mock out the ListAlerts method")
 //			},
-//			QueueAlertsFunc: func(ctx context.Context, watch *models.MonitorAlert, notifications []models.Notification, event events.Event) error {
+//			QueueAlertsFunc: func(ctx context.Context, alert *models.MonitorAlert, notifications []models.Notification, event events.Event) error {
 //				panic("mock out the QueueAlerts method")
 //			},
-//			SaveAlertFunc: func(ctx context.Context, watch *models.MonitorAlert) error {
+//			SaveAlertFunc: func(ctx context.Context, alert *models.MonitorAlert) error {
 //				panic("mock out the SaveAlert method")
 //			},
-//			UpdateAlertBreachedFunc: func(ctx context.Context, watchID uuid.UUID, breached []string, evaluatedAt time.Time) error {
+//			UpdateAlertBreachedFunc: func(ctx context.Context, alertID uuid.UUID, breached []string, evaluatedAt time.Time) error {
 //				panic("mock out the UpdateAlertBreached method")
 //			},
 //			WithAlertFunc: func(ctx context.Context, id uuid.UUID, evaluate func(w *models.MonitorAlert, txRepo repositories.MonitorAlertRepository) error) error {
@@ -64,13 +64,13 @@ type MonitorAlertRepositoryMock struct {
 	ListAlertsFunc func(ctx context.Context, monitorID uuid.UUID) ([]models.MonitorAlert, error)
 
 	// QueueAlertsFunc mocks the QueueAlerts method.
-	QueueAlertsFunc func(ctx context.Context, watch *models.MonitorAlert, notifications []models.Notification, event events.Event) error
+	QueueAlertsFunc func(ctx context.Context, alert *models.MonitorAlert, notifications []models.Notification, event events.Event) error
 
 	// SaveAlertFunc mocks the SaveAlert method.
-	SaveAlertFunc func(ctx context.Context, watch *models.MonitorAlert) error
+	SaveAlertFunc func(ctx context.Context, alert *models.MonitorAlert) error
 
 	// UpdateAlertBreachedFunc mocks the UpdateAlertBreached method.
-	UpdateAlertBreachedFunc func(ctx context.Context, watchID uuid.UUID, breached []string, evaluatedAt time.Time) error
+	UpdateAlertBreachedFunc func(ctx context.Context, alertID uuid.UUID, breached []string, evaluatedAt time.Time) error
 
 	// WithAlertFunc mocks the WithAlert method.
 	WithAlertFunc func(ctx context.Context, id uuid.UUID, evaluate func(w *models.MonitorAlert, txRepo repositories.MonitorAlertRepository) error) error
@@ -109,8 +109,8 @@ type MonitorAlertRepositoryMock struct {
 		QueueAlerts []struct {
 			// Ctx is the ctx argument value.
 			Ctx context.Context
-			// Watch is the watch argument value.
-			Watch *models.MonitorAlert
+			// Alert is the alert argument value.
+			Alert *models.MonitorAlert
 			// Notifications is the notifications argument value.
 			Notifications []models.Notification
 			// Event is the event argument value.
@@ -120,15 +120,15 @@ type MonitorAlertRepositoryMock struct {
 		SaveAlert []struct {
 			// Ctx is the ctx argument value.
 			Ctx context.Context
-			// Watch is the watch argument value.
-			Watch *models.MonitorAlert
+			// Alert is the alert argument value.
+			Alert *models.MonitorAlert
 		}
 		// UpdateAlertBreached holds details about calls to the UpdateAlertBreached method.
 		UpdateAlertBreached []struct {
 			// Ctx is the ctx argument value.
 			Ctx context.Context
-			// WatchID is the watchID argument value.
-			WatchID uuid.UUID
+			// AlertID is the alertID argument value.
+			AlertID uuid.UUID
 			// Breached is the breached argument value.
 			Breached []string
 			// EvaluatedAt is the evaluatedAt argument value.
@@ -299,25 +299,25 @@ func (mock *MonitorAlertRepositoryMock) ListAlertsCalls() []struct {
 }
 
 // QueueAlerts calls QueueAlertsFunc.
-func (mock *MonitorAlertRepositoryMock) QueueAlerts(ctx context.Context, watch *models.MonitorAlert, notifications []models.Notification, event events.Event) error {
+func (mock *MonitorAlertRepositoryMock) QueueAlerts(ctx context.Context, alert *models.MonitorAlert, notifications []models.Notification, event events.Event) error {
 	if mock.QueueAlertsFunc == nil {
 		panic("MonitorAlertRepositoryMock.QueueAlertsFunc: method is nil but MonitorAlertRepository.QueueAlerts was just called")
 	}
 	callInfo := struct {
 		Ctx           context.Context
-		Watch         *models.MonitorAlert
+		Alert         *models.MonitorAlert
 		Notifications []models.Notification
 		Event         events.Event
 	}{
 		Ctx:           ctx,
-		Watch:         watch,
+		Alert:         alert,
 		Notifications: notifications,
 		Event:         event,
 	}
 	mock.lockQueueAlerts.Lock()
 	mock.calls.QueueAlerts = append(mock.calls.QueueAlerts, callInfo)
 	mock.lockQueueAlerts.Unlock()
-	return mock.QueueAlertsFunc(ctx, watch, notifications, event)
+	return mock.QueueAlertsFunc(ctx, alert, notifications, event)
 }
 
 // QueueAlertsCalls gets all the calls that were made to QueueAlerts.
@@ -326,13 +326,13 @@ func (mock *MonitorAlertRepositoryMock) QueueAlerts(ctx context.Context, watch *
 //	len(mockedMonitorAlertRepository.QueueAlertsCalls())
 func (mock *MonitorAlertRepositoryMock) QueueAlertsCalls() []struct {
 	Ctx           context.Context
-	Watch         *models.MonitorAlert
+	Alert         *models.MonitorAlert
 	Notifications []models.Notification
 	Event         events.Event
 } {
 	var calls []struct {
 		Ctx           context.Context
-		Watch         *models.MonitorAlert
+		Alert         *models.MonitorAlert
 		Notifications []models.Notification
 		Event         events.Event
 	}
@@ -343,21 +343,21 @@ func (mock *MonitorAlertRepositoryMock) QueueAlertsCalls() []struct {
 }
 
 // SaveAlert calls SaveAlertFunc.
-func (mock *MonitorAlertRepositoryMock) SaveAlert(ctx context.Context, watch *models.MonitorAlert) error {
+func (mock *MonitorAlertRepositoryMock) SaveAlert(ctx context.Context, alert *models.MonitorAlert) error {
 	if mock.SaveAlertFunc == nil {
 		panic("MonitorAlertRepositoryMock.SaveAlertFunc: method is nil but MonitorAlertRepository.SaveAlert was just called")
 	}
 	callInfo := struct {
 		Ctx   context.Context
-		Watch *models.MonitorAlert
+		Alert *models.MonitorAlert
 	}{
 		Ctx:   ctx,
-		Watch: watch,
+		Alert: alert,
 	}
 	mock.lockSaveAlert.Lock()
 	mock.calls.SaveAlert = append(mock.calls.SaveAlert, callInfo)
 	mock.lockSaveAlert.Unlock()
-	return mock.SaveAlertFunc(ctx, watch)
+	return mock.SaveAlertFunc(ctx, alert)
 }
 
 // SaveAlertCalls gets all the calls that were made to SaveAlert.
@@ -366,11 +366,11 @@ func (mock *MonitorAlertRepositoryMock) SaveAlert(ctx context.Context, watch *mo
 //	len(mockedMonitorAlertRepository.SaveAlertCalls())
 func (mock *MonitorAlertRepositoryMock) SaveAlertCalls() []struct {
 	Ctx   context.Context
-	Watch *models.MonitorAlert
+	Alert *models.MonitorAlert
 } {
 	var calls []struct {
 		Ctx   context.Context
-		Watch *models.MonitorAlert
+		Alert *models.MonitorAlert
 	}
 	mock.lockSaveAlert.RLock()
 	calls = mock.calls.SaveAlert
@@ -379,25 +379,25 @@ func (mock *MonitorAlertRepositoryMock) SaveAlertCalls() []struct {
 }
 
 // UpdateAlertBreached calls UpdateAlertBreachedFunc.
-func (mock *MonitorAlertRepositoryMock) UpdateAlertBreached(ctx context.Context, watchID uuid.UUID, breached []string, evaluatedAt time.Time) error {
+func (mock *MonitorAlertRepositoryMock) UpdateAlertBreached(ctx context.Context, alertID uuid.UUID, breached []string, evaluatedAt time.Time) error {
 	if mock.UpdateAlertBreachedFunc == nil {
 		panic("MonitorAlertRepositoryMock.UpdateAlertBreachedFunc: method is nil but MonitorAlertRepository.UpdateAlertBreached was just called")
 	}
 	callInfo := struct {
 		Ctx         context.Context
-		WatchID     uuid.UUID
+		AlertID     uuid.UUID
 		Breached    []string
 		EvaluatedAt time.Time
 	}{
 		Ctx:         ctx,
-		WatchID:     watchID,
+		AlertID:     alertID,
 		Breached:    breached,
 		EvaluatedAt: evaluatedAt,
 	}
 	mock.lockUpdateAlertBreached.Lock()
 	mock.calls.UpdateAlertBreached = append(mock.calls.UpdateAlertBreached, callInfo)
 	mock.lockUpdateAlertBreached.Unlock()
-	return mock.UpdateAlertBreachedFunc(ctx, watchID, breached, evaluatedAt)
+	return mock.UpdateAlertBreachedFunc(ctx, alertID, breached, evaluatedAt)
 }
 
 // UpdateAlertBreachedCalls gets all the calls that were made to UpdateAlertBreached.
@@ -406,13 +406,13 @@ func (mock *MonitorAlertRepositoryMock) UpdateAlertBreached(ctx context.Context,
 //	len(mockedMonitorAlertRepository.UpdateAlertBreachedCalls())
 func (mock *MonitorAlertRepositoryMock) UpdateAlertBreachedCalls() []struct {
 	Ctx         context.Context
-	WatchID     uuid.UUID
+	AlertID     uuid.UUID
 	Breached    []string
 	EvaluatedAt time.Time
 } {
 	var calls []struct {
 		Ctx         context.Context
-		WatchID     uuid.UUID
+		AlertID     uuid.UUID
 		Breached    []string
 		EvaluatedAt time.Time
 	}
