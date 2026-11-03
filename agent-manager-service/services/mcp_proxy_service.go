@@ -304,7 +304,9 @@ func (s *MCPProxyService) List(ctx context.Context, orgUUID string, limit, offse
 	return resp, nil
 }
 
-// ListAvailableMCPPolicies returns policy versions reported by active gateways in the organization.
+// ListAvailableMCPPolicies returns the policy versions every active gateway in the
+// organization reports. Gateways that have not reported a manifest yet are left out
+// (see gatewayManifest).
 func (s *MCPProxyService) ListAvailableMCPPolicies(ctx context.Context, orgUUID string) (*models.MCPPolicyAvailabilityResponse, error) {
 	_ = ctx
 	if s.gatewayRepo == nil {
@@ -323,11 +325,12 @@ func (s *MCPProxyService) ListAvailableMCPPolicies(ctx context.Context, orgUUID 
 	var available map[string]models.MCPPolicyAvailableItem
 	seenGateway := false
 	for _, gateway := range gateways {
-		if gateway == nil {
+		manifest, known := gatewayManifest(gateway)
+		if !known {
 			continue
 		}
 		gatewayPolicies := map[string]models.MCPPolicyAvailableItem{}
-		for _, policy := range extractGatewayPolicyManifestItems(gatewayManifest(gateway)) {
+		for _, policy := range extractGatewayPolicyManifestItems(manifest) {
 			if policy.Name == "" || policy.Version == "" {
 				continue
 			}
@@ -1375,7 +1378,11 @@ func (s *MCPProxyService) validateMCPEndpointSecurity(
 			}
 
 			for _, gateway := range candidates {
-				if !gatewayHasMCPIdentityPolicies(gateway) {
+				supported, reported := gatewayHasMCPIdentityPolicies(gateway)
+				if !reported {
+					continue // not reported yet: like no gateway, checked once it reports
+				}
+				if !supported {
 					return fmt.Errorf("%w: endpoint %q environment %q: gateway %q does not support mcp-auth/mcp-authz v1 policies required for Agent Identity security", utils.ErrInvalidInput, handle, env.EnvironmentUUID, gateway.Name)
 				}
 			}
@@ -1564,16 +1571,21 @@ func egressCandidatesForEnvironment(repo repositories.GatewayRepository, ouID st
 }
 
 // gatewayHasMCPIdentityPolicies reports whether the gateway's policy manifest
-// advertises both mcp-auth v1 and mcp-authz v1 (the policies identity mode emits).
-func gatewayHasMCPIdentityPolicies(gateway *models.Gateway) bool {
+// advertises both mcp-auth v1 and mcp-authz v1 (the policies identity mode emits), and
+// whether the gateway has reported a manifest at all (see gatewayManifest).
+func gatewayHasMCPIdentityPolicies(gateway *models.Gateway) (supported, reported bool) {
+	manifest, reported := gatewayManifest(gateway)
+	if !reported {
+		return false, false
+	}
 	need := map[string]bool{"mcp-auth\x00v1": false, "mcp-authz\x00v1": false}
-	for _, item := range extractGatewayPolicyManifestItems(gatewayManifest(gateway)) {
+	for _, item := range extractGatewayPolicyManifestItems(manifest) {
 		key := item.Name + "\x00" + normalizePolicyVersionToMajor(item.Version)
 		if _, ok := need[key]; ok {
 			need[key] = true
 		}
 	}
-	return need["mcp-auth\x00v1"] && need["mcp-authz\x00v1"]
+	return need["mcp-auth\x00v1"] && need["mcp-authz\x00v1"], true
 }
 
 // storableMCPEndpoint is the persistence-ready form of one endpoint: the endpoint config

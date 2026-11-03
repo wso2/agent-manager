@@ -146,6 +146,63 @@ func TestValidateMCPEndpointSecurity_IdentityAcceptedWithGatewayPolicies(t *test
 	assert.NoError(t, svc.validateMCPEndpointSecurity(context.Background(), "org1", endpoints, nil))
 }
 
+// A candidate gateway that has not reported its manifest yet (e.g. a self-hosted gateway
+// registered but never connected) is treated like no gateway: it doesn't block Agent
+// Identity; its policies are checked once it reports.
+func TestValidateMCPEndpointSecurity_IdentitySkipsGatewayThatHasNotReported(t *testing.T) {
+	clearGatewayManifestCache(t)
+	silent := newGateway(t, models.GatewayRoleEgress, true)
+	gwRepo := &repomocks.GatewayRepositoryMock{
+		ListWithFiltersFunc: func(_ repositories.GatewayFilterOptions) ([]*models.Gateway, error) {
+			return []*models.Gateway{gatewayWithPolicyManifest("mcp-auth", "v1", "mcp-authz", "v1"), silent}, nil
+		},
+	}
+	svc := &MCPProxyService{gatewayRepo: gwRepo}
+	endpoints := []models.MCPProxyEndpointDTO{
+		endpointWith("https://93.184.216.34", identityEnabledSecurity()),
+	}
+	assert.NoError(t, svc.validateMCPEndpointSecurity(context.Background(), "org1", endpoints, nil))
+}
+
+// A gateway that has reported but lacks mcp-authz still refuses Agent Identity, even
+// alongside one that has not reported.
+func TestValidateMCPEndpointSecurity_IdentityRefusedByReportedGatewayDespiteSilentOne(t *testing.T) {
+	clearGatewayManifestCache(t)
+	silent := newGateway(t, models.GatewayRoleEgress, true)
+	gwRepo := &repomocks.GatewayRepositoryMock{
+		ListWithFiltersFunc: func(_ repositories.GatewayFilterOptions) ([]*models.Gateway, error) {
+			return []*models.Gateway{silent, gatewayWithPolicyManifest("mcp-auth", "v1")}, nil
+		},
+	}
+	svc := &MCPProxyService{gatewayRepo: gwRepo}
+	endpoints := []models.MCPProxyEndpointDTO{
+		endpointWith("https://93.184.216.34", identityEnabledSecurity()),
+	}
+	err := svc.validateMCPEndpointSecurity(context.Background(), "org1", endpoints, nil)
+	assert.ErrorIs(t, err, utils.ErrInvalidInput)
+}
+
+// A gateway that has not reported its manifest must not empty the org's MCP policy list.
+func TestListAvailableMCPPolicies_SkipsGatewayThatHasNotReported(t *testing.T) {
+	clearGatewayManifestCache(t)
+	reported := newGateway(t, models.GatewayRoleEgress, true)
+	assert.NoError(t, gatewayManifestCache.Set(context.Background(), reported.UUID.String(),
+		policyManifest("mcp-auth", "v1")))
+	silent := newGateway(t, models.GatewayRoleEgress, true)
+	gwRepo := &repomocks.GatewayRepositoryMock{
+		ListWithFiltersFunc: func(_ repositories.GatewayFilterOptions) ([]*models.Gateway, error) {
+			return []*models.Gateway{silent, reported}, nil
+		},
+	}
+
+	resp, err := (&MCPProxyService{gatewayRepo: gwRepo}).ListAvailableMCPPolicies(context.Background(), "org1")
+
+	assert.NoError(t, err)
+	if assert.Len(t, resp.List, 1) {
+		assert.Equal(t, "mcp-auth", resp.List[0].Name)
+	}
+}
+
 func TestValidateMCPEndpointSecurity_IdentityAllowedWhenNoGatewayYet(t *testing.T) {
 	// No active gateway for the environment yet: identity mode is allowed; policies
 	// are re-checked once a gateway exists.

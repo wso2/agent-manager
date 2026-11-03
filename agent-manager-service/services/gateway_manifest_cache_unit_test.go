@@ -62,7 +62,7 @@ func TestSaveGatewayPolicyManifestCachesWithoutWritingRow(t *testing.T) {
 	require.NoError(t, err)
 	require.True(t, ok)
 	require.Equal(t, manifest, cached)
-	require.Equal(t, manifest, gatewayManifest(gateway))
+	requireKnownManifest(t, manifest, gateway)
 }
 
 // TestGatewayManifestIsPerGateway: a push describes only the gateway that sent it. Any
@@ -77,8 +77,35 @@ func TestGatewayManifestIsPerGateway(t *testing.T) {
 
 	require.NoError(t, gatewayManifestCache.Set(ctx, pusher.UUID.String(), policyManifest("pushed-policy", "v1")))
 
-	require.Equal(t, policyManifest("pushed-policy", "v1"), gatewayManifest(pusher))
-	require.Equal(t, other.Manifest, gatewayManifest(other))
+	requireKnownManifest(t, policyManifest("pushed-policy", "v1"), pusher)
+	requireKnownManifest(t, other.Manifest, other)
+}
+
+// TestGatewayManifestUnknownUntilReported: a gateway with no cached push and an empty
+// row has not reported its policies yet; that is "unknown", not "supports nothing". A
+// push, even an empty one, or a non-empty row makes it known.
+func TestGatewayManifestUnknownUntilReported(t *testing.T) {
+	clearGatewayManifestCache(t)
+	ctx := context.Background()
+
+	silent := newGateway(t, models.GatewayRoleEgress, true)
+	_, known := gatewayManifest(silent)
+	require.False(t, known)
+
+	silent.Manifest = nil
+	_, known = gatewayManifest(silent)
+	require.False(t, known)
+
+	emptyPush := map[string]interface{}{}
+	require.NoError(t, gatewayManifestCache.Set(ctx, silent.UUID.String(), emptyPush))
+	requireKnownManifest(t, emptyPush, silent)
+
+	legacyRow := newGateway(t, models.GatewayRoleEgress, true)
+	legacyRow.Manifest = policyManifest("row-policy", "v1")
+	requireKnownManifest(t, legacyRow.Manifest, legacyRow)
+
+	_, known = gatewayManifest(nil)
+	require.False(t, known)
 }
 
 // TestGatewayManifestPushDoesNotLeakAcrossOrgs is the multi-tenant guarantee: a gateway
@@ -115,8 +142,12 @@ func TestGatewayManifestPushDoesNotLeakAcrossOrgs(t *testing.T) {
 	require.Len(t, mcp.List, 1)
 	require.Equal(t, "word-count-guardrail", mcp.List[0].Name)
 
-	require.False(t, gatewayHasMCPIdentityPolicies(ours))
-	require.True(t, gatewayHasMCPIdentityPolicies(foreign))
+	supported, reported := gatewayHasMCPIdentityPolicies(ours)
+	require.True(t, reported)
+	require.False(t, supported)
+	supported, reported = gatewayHasMCPIdentityPolicies(foreign)
+	require.True(t, reported)
+	require.True(t, supported)
 }
 
 // TestSaveGatewayPolicyManifestUnknownGateway keeps the endpoint's 404 behaviour: an
@@ -177,8 +208,9 @@ func TestGatewayManifestFallsBackToRow(t *testing.T) {
 	gateway := newGateway(t, models.GatewayRoleBoth, true)
 	gateway.Manifest = map[string]interface{}{"policies": []interface{}{}}
 
-	require.Equal(t, gateway.Manifest, gatewayManifest(gateway))
-	require.Nil(t, gatewayManifest(nil))
+	requireKnownManifest(t, gateway.Manifest, gateway)
+	manifest, _ := gatewayManifest(nil)
+	require.Nil(t, manifest)
 }
 
 // TestInMemoryGatewayManifestCacheKeepsLatestPerGateway: a second push from the same
@@ -220,7 +252,7 @@ func TestGatewayManifest_CacheReadErrorFallsBackToRow(t *testing.T) {
 	gateway := newGateway(t, models.GatewayRoleBoth, true)
 	gateway.Manifest = map[string]interface{}{"policies": []interface{}{}}
 
-	require.Equal(t, gateway.Manifest, gatewayManifest(gateway))
+	requireKnownManifest(t, gateway.Manifest, gateway)
 }
 
 // TestDeleteGatewaySucceedsWhenManifestCacheFails: the cache is advisory, so failing to
@@ -237,6 +269,14 @@ func TestDeleteGatewaySucceedsWhenManifestCacheFails(t *testing.T) {
 	}
 
 	require.NoError(t, NewPlatformGatewayService(repo, nil).DeleteGateway(gateway.UUID.String(), gateway.OUID))
+}
+
+// requireKnownManifest asserts gatewayManifest reports want as the gateway's known manifest.
+func requireKnownManifest(t *testing.T, want map[string]interface{}, gateway *models.Gateway) {
+	t.Helper()
+	manifest, known := gatewayManifest(gateway)
+	require.True(t, known)
+	require.Equal(t, want, manifest)
 }
 
 // policyManifest builds a manifest in the shape gateways push, from name/version pairs.

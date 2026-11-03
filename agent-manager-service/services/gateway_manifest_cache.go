@@ -110,19 +110,23 @@ func SetGatewayManifestCacheBackend(backend GatewayManifestCacheBackend) {
 	gatewayManifestCache = backend
 }
 
-// gatewayManifest returns the manifest to evaluate for a gateway: its own cached push,
-// otherwise the manifest still on its row. The fallback covers the cold window before
-// the gateway pushes again after a restart (and rows written before manifests moved out
-// of the database). A cache read failure (e.g. Redis unreachable) degrades to the same
-// row fallback rather than erroring the whole policy listing — manifests are advisory,
-// so a stale read beats a hard failure.
-func gatewayManifest(gateway *models.Gateway) map[string]interface{} {
+// gatewayManifest returns the manifest to evaluate for a gateway, and whether the
+// gateway's policies are known at all: its own cached push, otherwise the manifest still
+// on its row (rows written before manifests moved out of the database). A cache read
+// failure (e.g. Redis unreachable) degrades to the same row fallback rather than erroring
+// the whole policy listing — manifests are advisory, so a stale read beats a hard failure.
+//
+// known is false when there is neither a cached push nor a non-empty row: the gateway
+// has not reported since it registered (or since the cache lost its entry). Callers treat
+// that as "not reported yet", not as "supports no policies", and leave the gateway out of
+// policy checks until it reports.
+func gatewayManifest(gateway *models.Gateway) (manifest map[string]interface{}, known bool) {
 	if gateway == nil {
-		return nil
+		return nil, false
 	}
-	manifest, ok, err := gatewayManifestCache.Get(context.Background(), gateway.UUID.String())
+	cached, ok, err := gatewayManifestCache.Get(context.Background(), gateway.UUID.String())
 	if err == nil && ok {
-		return manifest
+		return cached, true
 	}
-	return gateway.Manifest
+	return gateway.Manifest, len(gateway.Manifest) > 0
 }
