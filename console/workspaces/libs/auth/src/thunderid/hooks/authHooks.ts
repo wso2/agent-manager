@@ -41,6 +41,10 @@ const decodeJWT = (token: string) => {
   };
 };
 
+// One function for every render: callers list getToken in effect dependencies, so a new
+// function per render re-runs those effects (and their fetches) on every render.
+const noBackendToken = (): Promise<string> => Promise.resolve("");
+
 export type AuthHooks = {
   isAuthenticated: boolean;
   userInfo: UserInfo;
@@ -176,7 +180,7 @@ export const useAuthHooks = (): AuthHooks => {
   // the token, so callers get an empty one and the HTTP helpers, which only set
   // Authorization for a token, send none.
   const safeGetToken: () => Promise<string> = isBackendAuth
-    ? () => Promise.resolve("")
+    ? noBackendToken
     : (getAccessToken ??
       (() => Promise.reject(new Error("getAccessToken is not available"))));
 
