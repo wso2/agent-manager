@@ -496,6 +496,41 @@ assert_secret_ref "existingSecretKey selects the key" "$API_TMPL" \
 assert_secret_ref "an inline Application ID is read from the chart Secret" "$API_TMPL" \
   MOESIF_APPLICATION_ID key moesif-application-id --set $GA.enabled=true --set $GA.applicationId=app-id-123
 
+# The API waits for the migration hook in an init container, so a fresh install
+# does not crash on tables the hook has not created yet. It must follow both
+# switches independently, and render no empty initContainers key with neither.
+init_containers() {
+  local rendered
+  if ! rendered="$(helm template test-release "$CHART_DIR" --show-only "$API_TMPL" "$@" 2>&1)"; then
+    printf 'helm template failed: %s\n' "$rendered" >&2
+    return 1
+  fi
+  awk '/^      initContainers:/ { found = 1; f = 1; next }
+       /^      containers:/ { f = 0 }
+       f && /^        - name:/ { printf "%s%s", sep, $3; sep = " " }
+       END { if (!found) printf "<no key>" }' <<<"$rendered"
+}
+
+assert_init() {
+  local label="$1" expected="$2" actual
+  shift 2
+  actual="$(init_containers "$@")"
+  if [[ "$expected" == "$actual" ]]; then
+    printf 'ok   - %s\n' "$label"
+  else
+    printf 'FAIL - %s\n      expected: %q\n      actual:   %q\n' "$label" "$expected" "$actual"
+    FAILURES=$((FAILURES + 1))
+  fi
+}
+
+assert_init "the API waits for the database, then the migrations" "wait-for-db wait-for-migrations"
+assert_init "an external database still waits for the migrations" "wait-for-migrations" "${EXTERNAL[@]}"
+assert_init "no migration hook means no migration wait" "wait-for-db" --set dbMigration.enabled=false
+assert_init "with neither, no initContainers key is rendered" "<no key>" \
+  "${EXTERNAL[@]}" --set dbMigration.enabled=false
+assert_env "the migration wait reads the same database as the API" "$API_TMPL" DB_HOST "db.example.com" \
+  "${EXTERNAL[@]}"
+
 # The console's generated environment and identity provider commands switch to
 # the private registry only when the console knows it. ghcr.io/wso2 is the public
 # registry, so naming it must keep them on their public defaults.
