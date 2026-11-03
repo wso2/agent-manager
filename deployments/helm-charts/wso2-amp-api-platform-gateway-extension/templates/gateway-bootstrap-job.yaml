@@ -128,6 +128,10 @@ spec:
               value: {{ .Values.gateway.type | quote }}
             - name: ENVIRONMENT_NAME
               value: {{ .Values.gateway.environment | quote }}
+            # The same Job runs for install, upgrade and rollback; only an install
+            # maps a reused gateway to its environment (ensure_environment_mapping).
+            - name: RELEASE_IS_INSTALL
+              value: {{ .Release.IsInstall | quote }}
             - name: TOKEN_SECRET_NAME
               value: {{ include "wso2-amp-gateway-extension.tokenSecretName" . | quote }}
             - name: TOKEN_SECRET_KEY
@@ -267,41 +271,51 @@ spec:
                 return 0
               }
 
-              # ensure_environment_mapping — maps an already-registered gateway to
-              # ENVIRONMENT_NAME when it serves no environment. Deleting an environment
-              # drops only its gateway mappings, so re-adding an environment with the same
-              # name finds the old gateway in Step 3, and without this the new environment
-              # has no gateway. Sets ENV_MAPPED=true once the gateway serves ENVIRONMENT_NAME.
-              # Non-fatal like sync_runtime_url, so a failure cannot abort a pre-upgrade hook.
+              # ensure_environment_mapping — on install, maps an already-registered gateway
+              # to ENVIRONMENT_NAME. Deleting an environment drops only its gateway mappings,
+              # so re-adding an environment with the same name finds the old gateway in
+              # Step 3, and without this the new environment has no gateway.
+              # Conflict model: it fills an empty mapping on install and never overrides a
+              # console change. Upgrades and rollbacks skip it, so a gateway unassigned in
+              # the console stays unassigned, and the API refuses to move a gateway that
+              # serves another environment. A rollback to the first revision replays that
+              # revision's install-time hook, so it maps like an install.
+              # Sets ENV_MAPPED=true once the gateway serves ENVIRONMENT_NAME, or skipped.
+              # Non-fatal like sync_runtime_url, so a failure cannot abort the install.
               ensure_environment_mapping() {
                 # _em_ prefix: POSIX sh has no portable `local`, so these leak as globals.
-                if ! _em_body=$(http_get \
-                    "${AMP_API_URL}/orgs/${ORG_NAME}/gateways/${GATEWAY_ID}" \
-                    "${ACCESS_TOKEN}"); then
-                  log_error "Could not read the environments of gateway '${GATEWAY_NAME}' (continuing)."
+                if [ "${RELEASE_IS_INSTALL}" != "true" ]; then
+                  ENV_MAPPED=skipped
                   return 0
                 fi
-                if echo "${_em_body}" | grep -q '"environments":\[{'; then
-                  # A gateway serves one environment, so a mapping to any other leaves
-                  # ENVIRONMENT_NAME without this gateway. The gateway's own name never
-                  # equals an environment name, so this match is the mapped environment.
-                  if echo "${_em_body}" | grep -qF '"name":"'"${ENVIRONMENT_NAME}"'"'; then
+                log_info "Mapping gateway '${GATEWAY_NAME}' to environment '${ENVIRONMENT_NAME}'..."
+                # The API checks the existing mapping under its gateway and environment
+                # locks: the same environment again is a no-op 2xx, and another
+                # environment or a full ingress slot is a 409, told apart by the code.
+                # http_post logs a non-2xx as an error and drops the body, so call curl
+                # directly to read the code.
+                _em_tmp=$(mktemp)
+                _em_status=$(curl -s --max-time 30 --retry 3 --retry-delay 5 -X POST \
+                  -H "Authorization: Bearer ${ACCESS_TOKEN}" \
+                  -o "${_em_tmp}" -w "%{http_code}" \
+                  "${AMP_API_URL}/orgs/${ORG_NAME}/gateways/${GATEWAY_ID}/environments/${ENVIRONMENT_NAME}") || true
+                _em_body=$(cat "${_em_tmp}"); rm -f "${_em_tmp}"
+                case "${_em_status}" in
+                  2*)
                     ENV_MAPPED=true
-                  else
-                    log_error "Gateway '${GATEWAY_NAME}' is mapped to another environment, not '${ENVIRONMENT_NAME}' (continuing). Unassign it under Gateways in the console, then upgrade this release."
-                  fi
-                  return 0
-                fi
-                log_info "Gateway '${GATEWAY_NAME}' serves no environment; mapping it to '${ENVIRONMENT_NAME}'..."
-                if http_post \
-                    "${AMP_API_URL}/orgs/${ORG_NAME}/gateways/${GATEWAY_ID}/environments/${ENVIRONMENT_NAME}" \
-                    "application/json" "" \
-                    "Bearer ${ACCESS_TOKEN}" >/dev/null; then
-                  ENV_MAPPED=true
-                  log_info "Gateway mapped to environment '${ENVIRONMENT_NAME}'."
-                else
-                  log_error "Failed to map gateway '${GATEWAY_NAME}' to environment '${ENVIRONMENT_NAME}' (continuing). Assign it under Gateways in the console."
-                fi
+                    log_info "Gateway serves environment '${ENVIRONMENT_NAME}'."
+                    ;;
+                  409)
+                    if echo "${_em_body}" | grep -q '"code":"GATEWAY_ENVIRONMENT_FIXED"'; then
+                      log_error "Gateway '${GATEWAY_NAME}' serves another environment, so it was not mapped to '${ENVIRONMENT_NAME}' (continuing). Move it under Gateways in the console."
+                    else
+                      log_error "Environment '${ENVIRONMENT_NAME}' did not accept gateway '${GATEWAY_NAME}' (continuing): ${_em_body}"
+                    fi
+                    ;;
+                  *)
+                    log_error "Failed to map gateway '${GATEWAY_NAME}' to environment '${ENVIRONMENT_NAME}' (HTTP ${_em_status}, continuing): ${_em_body}. Assign it under Gateways in the console."
+                    ;;
+                esac
                 return 0
               }
 
@@ -517,6 +531,8 @@ spec:
 
               if [ "${ENV_MAPPED}" = true ]; then
                 log_info "Bootstrap complete. Gateway '${GATEWAY_NAME}' registered with ID: ${GATEWAY_ID} in environment '${ENVIRONMENT_NAME}'"
+              elif [ "${ENV_MAPPED}" = skipped ]; then
+                log_info "Bootstrap complete. Gateway '${GATEWAY_NAME}' registered with ID: ${GATEWAY_ID}; its environment mapping is left as is outside an install"
               else
                 log_info "Bootstrap complete. Gateway '${GATEWAY_NAME}' registered with ID: ${GATEWAY_ID}, but its mapping to environment '${ENVIRONMENT_NAME}' is not confirmed"
               fi
