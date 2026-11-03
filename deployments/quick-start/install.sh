@@ -629,11 +629,11 @@ if k3d cluster list 2>/dev/null | grep -q "${CLUSTER_NAME}"; then
     log_success "Using existing cluster"
     # k3d writes the node's registries.yaml at creation time only, so a re-run
     # against an existing cluster cannot add it. That file is the only mechanism
-    # covering images pulled into namespaces OpenChoreo creates later, so say so
-    # rather than letting agent deploys fail with no explanation.
+    # covering images pulled into namespaces OpenChoreo creates later. Existing
+    # credentials may already work; we do not verify them here.
     if declare -F amp_registry_is_private >/dev/null 2>&1 && amp_registry_is_private; then
-        log_warning "Reusing an existing cluster: its node has no registry credentials."
-        log_warning "Agent image pulls will fail. Delete the cluster and re-run to add them."
+        log_warning "Reusing an existing cluster: its node registry credentials have not been verified or updated."
+        log_warning "If agent image pulls fail, check the node's /etc/rancher/k3s/registries.yaml for the registry credentials."
     fi
 else
     log_info "Creating k3d cluster..."
