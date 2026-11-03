@@ -79,17 +79,13 @@ func TestUpdateSelfHostedGateway_ChangesOnlyEditableFields(t *testing.T) {
 	assert.Equal(t, models.GatewayHostingSelfHosted, saved.Hosting)
 }
 
-func TestSelfHostedGatewayRoutes_ANameResolvesToItsUUIDBeforeTheHandlerRuns(t *testing.T) {
+func TestSelfHostedGatewayRoutes_ANameIsNotFound(t *testing.T) {
 	gateway := &models.Gateway{UUID: uuid.New(), OUID: "ou-1", Name: "dev-edge", Hosting: models.GatewayHostingSelfHosted}
-	var deleted string
 	repo := &repomocks.GatewayRepositoryMock{
 		GetByNameAndOrgIDFunc:     func(string, string) (*models.Gateway, error) { return gateway, nil },
 		GetByUUIDFunc:             func(string) (*models.Gateway, error) { return gateway, nil },
 		HasGatewayDeploymentsFunc: func(string, string) (bool, error) { return false, nil },
-		DeleteFunc: func(id, _ string) error {
-			deleted = id
-			return nil
-		},
+		DeleteFunc:                func(string, string) error { return nil },
 	}
 	ctrl := NewGatewayController(services.NewPlatformGatewayService(repo, nil), nil, nil)
 	req := selfHostedRequest(http.MethodDelete, "", "dev-edge")
@@ -98,8 +94,9 @@ func TestSelfHostedGatewayRoutes_ANameResolvesToItsUUIDBeforeTheHandlerRuns(t *t
 
 	ctrl.DeleteSelfHostedGateway(w, req)
 
-	assert.Equal(t, http.StatusNoContent, w.Code, w.Body.String())
-	assert.Equal(t, gateway.UUID.String(), deleted)
+	assert.Equal(t, http.StatusNotFound, w.Code, w.Body.String())
+	assert.Empty(t, repo.GetByNameAndOrgIDCalls())
+	assert.Empty(t, repo.DeleteCalls())
 }
 
 func TestSelfHostedGatewayRoutes_ManagedGatewayIsNotFound(t *testing.T) {

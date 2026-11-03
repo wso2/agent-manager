@@ -21,6 +21,8 @@ import (
 	"regexp"
 	"strings"
 
+	"github.com/google/uuid"
+
 	"github.com/wso2/agent-manager/agent-manager-service/models"
 	"github.com/wso2/agent-manager/agent-manager-service/utils"
 )
@@ -76,10 +78,14 @@ func (s *PlatformGatewayService) ListSelfHostedGateways(ouID string, limit, offs
 }
 
 // RequireSelfHosted returns the gateway when it belongs to the organization and is
-// self-hosted. A missing, other-organization or managed gateway is reported as not found,
+// self-hosted. The self-hosted routes address a gateway by UUID only, so a name is not found
+// without a lookup. A missing, other-organization or managed gateway is reported as not found,
 // so a self-hosted route never reveals or touches a managed gateway.
 func (s *PlatformGatewayService) RequireSelfHosted(gatewayID, ouID string) (*models.Gateway, error) {
-	gateway, err := s.resolveGateway(gatewayID, ouID)
+	if _, err := uuid.Parse(gatewayID); err != nil {
+		return nil, utils.ErrGatewayNotFound
+	}
+	gateway, err := normalizeGatewayLookup(s.gatewayRepo.GetByUUID(gatewayID))
 	if err != nil {
 		return nil, err
 	}

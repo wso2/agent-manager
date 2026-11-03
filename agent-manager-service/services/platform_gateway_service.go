@@ -490,6 +490,10 @@ func (s *PlatformGatewayService) UpdateGateway(
 	// The address is mutable — unlike the role it is a fact about placement, so a stale
 	// one is simply wrong. Validated on every write for the same reason as at registration.
 	if runtimeURL != nil {
+		if !gateway.IsManaged() && strings.TrimSpace(*runtimeURL) != "" {
+			return nil, utils.NewInvalidInputError("A self-hosted gateway has no runtime URL",
+				"runtimeURL set on self-hosted gateway "+gateway.UUID.String())
+		}
 		if err := validateGatewayRuntimeURL(*runtimeURL); err != nil {
 			return nil, err
 		}
@@ -1057,12 +1061,34 @@ func (s *PlatformGatewayService) AssignGatewayToEnvironment(gatewayID, environme
 	if gateway == nil {
 		return utils.ErrGatewayNotFound
 	}
+	if !gateway.IsManaged() {
+		if err := s.refuseSelfHostedNewEnvironment(gateway, environmentID); err != nil {
+			return err
+		}
+	}
 	if err := s.gatewayRepo.Transaction(func(tx *gorm.DB) error {
 		return s.assignGatewayToEnvironmentTx(tx, gateway, environmentID)
 	}); err != nil {
 		return err
 	}
 	s.placeEnvironments(gateway.OUID, []string{environmentID})
+	return nil
+}
+
+// refuseSelfHostedNewEnvironment refuses to map a self-hosted gateway to an environment it is not already mapped
+// to. Registration maps it through assignGatewayToEnvironmentTx, so the check lives only on the public route.
+func (s *PlatformGatewayService) refuseSelfHostedNewEnvironment(gateway *models.Gateway, environmentID string) error {
+	envUUID, err := uuid.Parse(environmentID)
+	if err != nil {
+		return fmt.Errorf("%w: invalid environment UUID %q", utils.ErrBadRequest, environmentID)
+	}
+	exists, err := s.gatewayRepo.EnvironmentMappingExists(gateway.UUID.String(), envUUID.String())
+	if err != nil {
+		return fmt.Errorf("failed to check existing mapping: %w", err)
+	}
+	if !exists {
+		return errSelfHostedEnvironmentFixed
+	}
 	return nil
 }
 
@@ -1162,6 +1188,9 @@ func (s *PlatformGatewayService) RemoveGatewayFromEnvironment(ctx context.Contex
 	})
 }
 
+var errSelfHostedEnvironmentFixed = fmt.Errorf("%w: a self-hosted gateway stays in the environment it was registered for",
+	utils.ErrGatewayEnvironmentFixed)
+
 // refuseSelfHostedEnvironmentChange keeps a self-hosted gateway in the one environment it was registered for.
 func (s *PlatformGatewayService) refuseSelfHostedEnvironmentChange(gatewayID string) error {
 	gw, err := s.gatewayRepo.GetByUUID(gatewayID)
@@ -1169,7 +1198,7 @@ func (s *PlatformGatewayService) refuseSelfHostedEnvironmentChange(gatewayID str
 		return fmt.Errorf("failed to get gateway: %w", err)
 	}
 	if gw != nil && !gw.IsManaged() {
-		return fmt.Errorf("%w: a self-hosted gateway stays in the environment it was registered for", utils.ErrGatewayEnvironmentFixed)
+		return errSelfHostedEnvironmentFixed
 	}
 	return nil
 }

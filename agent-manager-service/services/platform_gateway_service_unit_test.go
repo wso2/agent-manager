@@ -348,3 +348,78 @@ func TestValidateGatewayInput_IsInvalidInput(t *testing.T) {
 	require.NotNil(t, ve)
 	assert.Equal(t, "Gateway name must be 3 to 64 characters", ve.Message)
 }
+
+func updateRepo(gw *models.Gateway) *repomocks.GatewayRepositoryMock {
+	return &repomocks.GatewayRepositoryMock{
+		GetByUUIDFunc:     func(string) (*models.Gateway, error) { return gw, nil },
+		UpdateGatewayFunc: func(*models.Gateway) error { return nil },
+	}
+}
+
+func TestUpdateGateway_RejectsRuntimeURLOnSelfHostedGateway(t *testing.T) {
+	gw := gatewayFixture("dev-edge")
+	gw.Hosting = models.GatewayHostingSelfHosted
+	repo := updateRepo(gw)
+	svc := NewPlatformGatewayService(repo, nil)
+	runtimeURL := "http://gw.ns.svc:8080"
+
+	_, err := svc.UpdateGateway(gw.UUID.String(), gatewayTestOUID, nil, nil, nil, nil, &runtimeURL)
+
+	require.ErrorIs(t, err, utils.ErrInvalidInput)
+	assert.Empty(t, repo.UpdateGatewayCalls())
+}
+
+func TestUpdateGateway_AllowsEmptyRuntimeURLOnSelfHostedGateway(t *testing.T) {
+	gw := gatewayFixture("dev-edge")
+	gw.Hosting = models.GatewayHostingSelfHosted
+	repo := updateRepo(gw)
+	svc := NewPlatformGatewayService(repo, nil)
+	runtimeURL := ""
+
+	_, err := svc.UpdateGateway(gw.UUID.String(), gatewayTestOUID, nil, nil, nil, nil, &runtimeURL)
+
+	require.NoError(t, err)
+	require.Len(t, repo.UpdateGatewayCalls(), 1)
+	assert.Empty(t, repo.UpdateGatewayCalls()[0].Gateway.RuntimeURL)
+}
+
+func TestUpdateGateway_ManagedRuntimeURLUnchanged(t *testing.T) {
+	gw := gatewayFixture("dev-managed")
+	gw.Hosting = models.GatewayHostingManaged
+	repo := updateRepo(gw)
+	svc := NewPlatformGatewayService(repo, nil)
+	runtimeURL := " http://gw.ns.svc:8080 "
+
+	_, err := svc.UpdateGateway(gw.UUID.String(), gatewayTestOUID, nil, nil, nil, nil, &runtimeURL)
+
+	require.NoError(t, err)
+	require.Len(t, repo.UpdateGatewayCalls(), 1)
+	assert.Equal(t, "http://gw.ns.svc:8080", repo.UpdateGatewayCalls()[0].Gateway.RuntimeURL)
+}
+
+func TestAssignGatewayToEnvironment_RefusesSelfHostedToAnotherEnvironment(t *testing.T) {
+	gw := gatewayFixture("dev-edge")
+	gw.Hosting = models.GatewayHostingSelfHosted
+	repo := mappingRepo(gw, 0)
+	svc := NewPlatformGatewayService(repo, nil)
+
+	err := svc.AssignGatewayToEnvironment(gw.UUID.String(), uuid.NewString())
+
+	require.ErrorIs(t, err, utils.ErrGatewayEnvironmentFixed)
+	assert.Empty(t, repo.CreateEnvironmentMappingTxCalls())
+}
+
+func TestAssignGatewayToEnvironment_SelfHostedSameEnvironmentIsNoop(t *testing.T) {
+	gw := gatewayFixture("dev-edge")
+	gw.Hosting = models.GatewayHostingSelfHosted
+	env := uuid.New()
+	repo := mappingRepo(gw, 0)
+	repo.EnvironmentMappingExistsFunc = func(_, envID string) (bool, error) { return envID == env.String(), nil }
+	repo.GetEnvironmentMappingsByGatewayIDFunc = func(string) ([]models.GatewayEnvironmentMapping, error) {
+		return []models.GatewayEnvironmentMapping{{GatewayUUID: gw.UUID, EnvironmentUUID: env}}, nil
+	}
+	svc := NewPlatformGatewayService(repo, nil)
+
+	require.NoError(t, svc.AssignGatewayToEnvironment(gw.UUID.String(), env.String()))
+	assert.Empty(t, repo.CreateEnvironmentMappingTxCalls())
+}
