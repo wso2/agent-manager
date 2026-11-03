@@ -27,6 +27,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/wso2/agent-manager/agent-manager-service/audit"
+	"github.com/wso2/agent-manager/agent-manager-service/services"
 	"github.com/wso2/agent-manager/agent-manager-service/spec"
 	"github.com/wso2/agent-manager/agent-manager-service/utils"
 )
@@ -51,6 +52,18 @@ func TestHandleCommonErrors_ValidationErrorWithSentinel_KeepsItsOwnMessage(t *te
 	require.NotNil(t, body.Reason)
 	assert.Equal(t, "retry once provisioning completes", *body.Reason)
 	assert.Equal(t, utils.ErrCodeValidation, body.Code)
+}
+
+func TestHandleCommonErrors_AgentIdentityRequiresPromotion_Is409(t *testing.T) {
+	rr := httptest.NewRecorder()
+
+	handleCommonErrors(rr, fmt.Errorf("%w: staging", services.ErrProjectAgentIdentityRequiresPromotion),
+		"Failed to provision agent identity")
+
+	assert.Equal(t, http.StatusConflict, rr.Code)
+	var body spec.ErrorResponse
+	require.NoError(t, json.Unmarshal(rr.Body.Bytes(), &body))
+	assert.Equal(t, utils.ErrCodeConflict, body.Code)
 }
 
 // A fail-closed service that refuses to act unrecorded answers 503 on every route, not only the proxy's.

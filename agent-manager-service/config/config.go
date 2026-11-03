@@ -127,6 +127,9 @@ type Config struct {
 
 	// Thunder admin API configuration for provisioning OAuth apps
 	Thunder ThunderConfig
+	// IdentityManagementMode controls project AgentID creation. Existing
+	// installations remain on direct environment-Thunder management.
+	IdentityManagementMode string
 
 	// RootOUHandle identifies the root/admin Organization Unit in Thunder.
 	// Client-credentials tokens issued to this OU are allowed to access any

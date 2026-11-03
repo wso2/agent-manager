@@ -69,6 +69,9 @@ type Options struct {
 	// management and OAuth endpoints. nil preserves on-premises behavior. Run
 	// automatically applies it to endpoint-aware provisioning implementations.
 	EnvThunderEndpointResolver thundersvc.EnvThunderEndpointResolver
+	// ProjectAgentIdentityProvider enables project-scoped AgentID creation in
+	// CP_MANAGED mode. nil is the safe default for LEGACY_DIRECT deployments.
+	ProjectAgentIdentityProvider services.ProjectAgentIdentityProvider
 	// BackgroundContextDecorator optionally marks contexts created for trusted
 	// background workers. Request contexts never pass through this hook.
 	BackgroundContextDecorator func(context.Context) context.Context
@@ -141,6 +144,10 @@ func Run(authProvider occlient.AuthProvider, secretProvider secretmanagersvc.Pro
 	if !opts.Server {
 		return
 	}
+	if cfg.IdentityManagementMode == string(thundersvc.IdentityManagementCPManaged) && opts.AgentThunderProvisioning == nil {
+		slog.Error("CP_MANAGED identity mode requires an AgentID provisioning implementation")
+		os.Exit(1)
+	}
 
 	// Get the raw DB instance without context - repositories will add context per-operation
 	database := db.GetDB()
@@ -181,6 +188,17 @@ func Run(authProvider occlient.AuthProvider, secretProvider secretmanagersvc.Pro
 			os.Exit(1)
 		}
 		agentThunderProvisioning = opts.AgentThunderProvisioning(database, secretMgmtClientForProvisioning, ocClientForProvisioning, encryptionKey)
+		if setter, ok := agentThunderProvisioning.(services.ProjectAgentIdentityProviderSetter); ok {
+			if err := setter.SetProjectAgentIdentityProvider(
+				thundersvc.IdentityManagementMode(cfg.IdentityManagementMode), opts.ProjectAgentIdentityProvider,
+			); err != nil {
+				slog.Error("failed to configure project AgentID provisioning", "error", err)
+				os.Exit(1)
+			}
+		} else if cfg.IdentityManagementMode == string(thundersvc.IdentityManagementCPManaged) {
+			slog.Error("AgentID provisioning implementation does not support CP_MANAGED mode")
+			os.Exit(1)
+		}
 		if setter, ok := agentThunderProvisioning.(services.EnvThunderEndpointResolverSetter); ok {
 			setter.SetEnvThunderEndpointResolver(opts.EnvThunderEndpointResolver)
 		}
