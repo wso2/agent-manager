@@ -20,6 +20,7 @@ import (
 	"bufio"
 	"context"
 	"crypto/tls"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
@@ -35,6 +36,7 @@ import (
 	"github.com/nicholas-fedor/shoutrrr/pkg/types"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"github.com/wso2/agent-manager/agent-manager-service/services/eventdestinations"
 )
 
 func TestSMTPDialPinsPublicIPAndPreservesTLSHostname(t *testing.T) {
@@ -179,10 +181,9 @@ func TestDeliverSMTPRecipientsAndSubject(t *testing.T) {
 	case err := <-failures:
 		require.NoError(t, err)
 	case got := <-messages:
-		require.Len(t, got, 2)
+		require.Len(t, got, 1)
 		assert.Contains(t, got[0], "Subject: Quality alert\r\n")
-		assert.Contains(t, got[0], "To: a@example.com\r\n")
-		assert.Contains(t, got[1], "To: b@example.com\r\n")
+		assert.Contains(t, got[0], "To: a@example.com, b@example.com\r\n")
 		assert.Contains(t, got[0], "Score below threshold")
 	case <-time.After(3 * time.Second):
 		t.Fatal("SMTP server did not finish")
@@ -232,4 +233,89 @@ func TestSMTPMessageHTMLAndHeaderInjection(t *testing.T) {
 	cfg.Subject = "Alert\r\nBcc: victim@example.com"
 	_, err = smtpMessage(cfg, "a@example.com", "body")
 	require.ErrorContains(t, err, "newlines")
+}
+
+func TestSMTPDeliveryAcceptanceAndPermanentFailures(t *testing.T) {
+	for _, scenario := range []string{"recipient rejected", "authentication rejected", "QUIT rejected"} {
+		t.Run(scenario, func(t *testing.T) {
+			listener, err := net.Listen("tcp", "127.0.0.1:0")
+			require.NoError(t, err)
+			defer func() { _ = listener.Close() }()
+			delivered := make(chan int, 1)
+			go func() {
+				count := 0
+				defer func() { delivered <- count }()
+				conn, err := listener.Accept()
+				if err != nil {
+					return
+				}
+				defer func() { _ = conn.Close() }()
+				_ = conn.SetDeadline(time.Now().Add(3 * time.Second))
+				_, _ = fmt.Fprint(conn, "220 mock SMTP\r\n")
+				reader := bufio.NewReader(conn)
+				recipients := 0
+				for {
+					line, err := reader.ReadString('\n')
+					if err != nil {
+						return
+					}
+					switch {
+					case strings.HasPrefix(line, "EHLO"), strings.HasPrefix(line, "HELO"):
+						_, _ = fmt.Fprint(conn, "250-mock\r\n250 AUTH PLAIN\r\n")
+					case strings.HasPrefix(line, "AUTH"):
+						_, _ = fmt.Fprint(conn, "535 bad credentials\r\n")
+					case strings.HasPrefix(line, "MAIL FROM"):
+						_, _ = fmt.Fprint(conn, "250 OK\r\n")
+					case strings.HasPrefix(line, "RCPT TO"):
+						recipients++
+						if scenario == "recipient rejected" && recipients == 2 {
+							_, _ = fmt.Fprint(conn, "550 no such recipient\r\n")
+						} else {
+							_, _ = fmt.Fprint(conn, "250 OK\r\n")
+						}
+					case strings.HasPrefix(line, "DATA"):
+						_, _ = fmt.Fprint(conn, "354 send data\r\n")
+						for {
+							line, err = reader.ReadString('\n')
+							if err != nil {
+								return
+							}
+							if line == ".\r\n" {
+								break
+							}
+						}
+						count++
+						_, _ = fmt.Fprint(conn, "250 accepted\r\n")
+					case strings.HasPrefix(line, "QUIT"):
+						_, _ = fmt.Fprint(conn, "500 quit failed\r\n")
+						return
+					default:
+						return
+					}
+				}
+			}()
+			auth := "none"
+			if scenario == "authentication rejected" {
+				auth = "plain"
+			}
+			raw := "smtp://user:pass@" + listener.Addr().String() + "/?fromaddress=from@example.com&toaddresses=a@example.com,b@example.com&usestarttls=no&auth=" + auth
+			result := New(true).Deliver(context.Background(), eventdestinations.Destination{Config: json.RawMessage(`{"service":"smtp"}`), Secret: raw}, message(t))
+			if scenario == "QUIT rejected" {
+				require.NoError(t, result.Err)
+			} else {
+				require.Error(t, result.Err)
+				assert.False(t, result.Retryable)
+			}
+			select {
+			case count := <-delivered:
+				if scenario == "QUIT rejected" {
+					assert.Equal(t, 1, count)
+				} else {
+					assert.Zero(t, count, "no recipient receives a partial send")
+				}
+			case <-time.After(4 * time.Second):
+				t.Fatal("SMTP server did not finish")
+			}
+		})
+	}
 }

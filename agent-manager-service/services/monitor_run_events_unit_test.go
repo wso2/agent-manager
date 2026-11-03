@@ -52,10 +52,14 @@ func TestMonitorRunEventScoreFailureDoesNotBlockTerminalPersistence(t *testing.T
 		},
 	}
 	repo := &repomocks.MonitorRepositoryMock{
-		GetMonitorByIDFunc:     func(uuid.UUID) (*models.Monitor, error) { return monitor, nil },
-		MarkRunEventQueuedFunc: func(context.Context, uuid.UUID) error { return nil },
+		ListUnqueuedTerminalRunsFunc: func(context.Context, int) ([]models.MonitorRun, error) { return []models.MonitorRun{*run}, nil },
+		GetMonitorByIDFunc:           func(uuid.UUID) (*models.Monitor, error) { return monitor, nil },
+		MarkRunEventQueuedFunc:       func(context.Context, uuid.UUID) error { return nil },
 		UpdateMonitorRunFunc: func(_ *models.MonitorRun, updates map[string]interface{}) error {
 			persisted = true
+			run.Status = models.RunStatusSuccess
+			at := updates["completed_at"].(time.Time)
+			run.CompletedAt = &at
 			require.Equal(t, models.RunStatusSuccess, updates["status"])
 			return nil
 		},
@@ -76,9 +80,9 @@ func TestMonitorRunEventScoreFailureDoesNotBlockTerminalPersistence(t *testing.T
 	require.NoError(t, scheduler.syncSingleRunStatus(context.Background(), run))
 	require.True(t, persisted)
 	require.False(t, published)
-	require.Equal(t, models.RunStatusRunning, run.Status)
+	require.Equal(t, models.RunStatusSuccess, run.Status)
 	scoreError = nil
-	require.NoError(t, scheduler.syncSingleRunStatus(context.Background(), run))
+	require.NoError(t, scheduler.runObserver.(*monitorRunEvents).Reconcile(context.Background()))
 	require.True(t, published)
 }
 

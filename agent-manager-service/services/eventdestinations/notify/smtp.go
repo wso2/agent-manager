@@ -157,30 +157,33 @@ func deliverSMTP(ctx context.Context, config *shoutrrrsmtp.Config, body string, 
 	if err := smtpAuthenticate(client, &cfg); err != nil {
 		return err
 	}
+	message, err := smtpMessage(&cfg, strings.Join(cfg.ToAddresses, ", "), body)
+	if err != nil {
+		return err
+	}
+	if err := client.Mail(cfg.FromAddress); err != nil {
+		return errors.New("SMTP sender rejected")
+	}
+	// Submit DATA only after every recipient is accepted. A rejected recipient
+	// must not leave earlier recipients with an already-delivered copy.
 	for _, recipient := range cfg.ToAddresses {
-		message, err := smtpMessage(&cfg, recipient, body)
-		if err != nil {
-			return err
-		}
-		if err := client.Mail(cfg.FromAddress); err != nil {
-			return errors.New("SMTP sender rejected")
-		}
 		if err := client.Rcpt(recipient); err != nil {
-			return errors.New("SMTP recipient rejected")
-		}
-		w, err := client.Data()
-		if err != nil {
-			return errors.New("SMTP DATA rejected")
-		}
-		_, writeErr := w.Write(message)
-		closeErr := w.Close()
-		if writeErr != nil || closeErr != nil {
-			return errors.New("SMTP message delivery failed")
+			return permanentSMTPError{"SMTP recipient rejected"}
 		}
 	}
-	if err := client.Quit(); err != nil && !strings.Contains(err.Error(), "short response") {
-		return errors.New("SMTP session close failed")
+	w, err := client.Data()
+	if err != nil {
+		return errors.New("SMTP DATA rejected")
 	}
+	_, writeErr := w.Write(message)
+	closeErr := w.Close()
+	if writeErr != nil || closeErr != nil {
+		return errors.New("SMTP message delivery failed")
+	}
+	// The successful DATA response is the acceptance boundary. QUIT is cleanup;
+	// retrying an accepted message because cleanup failed would duplicate it.
+	_ = client.Quit()
+
 	return nil
 }
 
@@ -198,11 +201,11 @@ func smtpAuthenticate(client *smtp.Client, cfg *shoutrrrsmtp.Config) error {
 	case shoutrrrsmtp.AuthLogin:
 		auth = shoutrrrsmtp.LoginAuth(cfg.Username, cfg.Password, cfg.Host)
 	default:
-		return errors.New("unsupported SMTP authentication type")
+		return permanentSMTPError{"unsupported SMTP authentication type"}
 	}
 	// SMTP replies can echo credentials; never propagate server text.
 	if err := client.Auth(auth); err != nil {
-		return errors.New("SMTP authentication failed")
+		return permanentSMTPError{"SMTP authentication failed"}
 	}
 	return nil
 }
@@ -252,3 +255,8 @@ func writeSMTPBody(w io.Writer, body string) error {
 	}
 	return nil
 }
+
+// permanentSMTPError reports a rejection without exposing server replies.
+type permanentSMTPError struct{ message string }
+
+func (e permanentSMTPError) Error() string { return e.message }

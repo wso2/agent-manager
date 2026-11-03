@@ -393,6 +393,9 @@ func (s *monitorSchedulerService) syncSingleRunStatus(ctx context.Context, run *
 			snapshot := *run
 			completedAt := updates["completed_at"].(time.Time)
 			snapshot.CompletedAt = &completedAt
+			if _, disabled := s.runObserver.(NoopMonitorRunObserver); disabled {
+				updates["event_queued_at"] = completedAt
+			}
 			publish, err = s.runObserver.PrepareMonitorRunFinished(ctx, monitor, &snapshot, status, errMsg)
 			if err != nil {
 				s.logger.Error("Failed to prepare monitor run event", "runID", run.ID, "error", err)
@@ -427,6 +430,9 @@ func (s *monitorSchedulerService) failStaleRun(ctx context.Context, monitor *mod
 	snapshot := *run
 	completedAt := updates["completed_at"].(time.Time)
 	snapshot.CompletedAt = &completedAt
+	if _, disabled := s.runObserver.(NoopMonitorRunObserver); disabled {
+		updates["event_queued_at"] = completedAt
+	}
 	publish, err := s.runObserver.PrepareMonitorRunFinished(ctx, monitor, &snapshot, models.RunStatusFailed, reason)
 	if err != nil {
 		s.logger.Error("Failed to prepare stale monitor run event", "runID", run.ID, "error", err)

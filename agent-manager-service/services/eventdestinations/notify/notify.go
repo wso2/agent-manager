@@ -253,7 +253,8 @@ func (d *Driver) Deliver(ctx context.Context, dest eventdestinations.Destination
 	if err != nil {
 		// Shoutrrr reports no status code; a send that failed may succeed
 		// later (the service was down, or rate limited the request).
-		return eventdestinations.Result{Err: fmt.Errorf("%s notification failed: %s", s.ID, scrub(err, dest.Secret)), Retryable: true}
+		var permanent permanentSMTPError
+		return eventdestinations.Result{Err: fmt.Errorf("%s notification failed: %s", s.ID, scrub(err, dest.Secret)), Retryable: !errors.As(err, &permanent)}
 	}
 	return eventdestinations.Result{}
 }
