@@ -34,6 +34,24 @@ func TestWaitFor_TimesOutBeforeAnyMigration(t *testing.T) {
 
 	err := waitFor(ctx, g, 1, 50*time.Millisecond)
 	require.ErrorIs(t, err, context.DeadlineExceeded)
+	assert.Contains(t, err.Error(), "latest applied: none")
+}
+
+func TestWaitFor_ReturnsADatabaseErrorInsteadOfWaiting(t *testing.T) {
+	g := scratchDatabase(t)
+	sqlDB, err := g.DB()
+	require.NoError(t, err)
+	require.NoError(t, sqlDB.Close())
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+
+	start := time.Now()
+	err = waitFor(ctx, g, 1, 50*time.Millisecond)
+
+	require.Error(t, err)
+	assert.NotErrorIs(t, err, context.DeadlineExceeded, "a database error must not be waited out")
+	assert.Contains(t, err.Error(), "checking for migration history")
+	assert.Less(t, time.Since(start), 5*time.Second)
 }
 
 func TestWaitFor_TimesOutWhileBehindTarget(t *testing.T) {
@@ -44,6 +62,7 @@ func TestWaitFor_TimesOutWhileBehindTarget(t *testing.T) {
 
 	err := waitFor(ctx, g, 2, 50*time.Millisecond)
 	require.ErrorIs(t, err, context.DeadlineExceeded)
+	assert.Contains(t, err.Error(), "latest applied: 0001")
 }
 
 func TestWaitFor_ReturnsOnceTargetIsApplied(t *testing.T) {

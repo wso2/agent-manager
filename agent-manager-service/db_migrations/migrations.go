@@ -96,7 +96,8 @@ func waitFor(ctx context.Context, dbConn *gorm.DB, version int32, interval time.
 		slog.Info("dbmigrations:waiting for migrations", "latest", targetID)
 		select {
 		case <-ctx.Done():
-			return fmt.Errorf("waiting for migration %s: %w", targetID, ctx.Err())
+			return fmt.Errorf("waiting for migration %s (latest applied: %s): %w",
+				targetID, latestApplied(dbConn), ctx.Err())
 		case <-time.After(interval):
 		}
 	}
@@ -106,7 +107,11 @@ func waitFor(ctx context.Context, dbConn *gorm.DB, version int32, interval time.
 // migration run does not log a query error on every poll.
 func isApplied(ctx context.Context, dbConn *gorm.DB, id string) (bool, error) {
 	conn := dbConn.WithContext(ctx)
-	if !conn.Migrator().HasTable(migrateOptions.TableName) {
+	exists, err := historyTableExists(conn)
+	if err != nil {
+		return false, err
+	}
+	if !exists {
 		return false, nil
 	}
 	var count int64
@@ -114,6 +119,41 @@ func isApplied(ctx context.Context, dbConn *gorm.DB, id string) (bool, error) {
 		return false, fmt.Errorf("reading migration history: %w", err)
 	}
 	return count > 0, nil
+}
+
+// historyTableExists reports query errors, unlike Migrator().HasTable, which
+// returns false for them and would make a database error look like a schema
+// that has not been migrated yet.
+func historyTableExists(conn *gorm.DB) (bool, error) {
+	var exists bool
+	if err := conn.Raw("SELECT to_regclass(?) IS NOT NULL", migrateOptions.TableName).Scan(&exists).Error; err != nil {
+		return false, fmt.Errorf("checking for migration history: %w", err)
+	}
+	return exists, nil
+}
+
+// latestApplied describes the newest recorded migration for a timeout message,
+// which tells a migration job running an older image apart from one that never
+// ran. It uses its own short context because the caller's has already expired.
+func latestApplied(dbConn *gorm.DB) string {
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	conn := dbConn.WithContext(ctx)
+	exists, err := historyTableExists(conn)
+	if err != nil {
+		return "unknown"
+	}
+	if !exists {
+		return "none"
+	}
+	var latest *string
+	if err := conn.Table(migrateOptions.TableName).Select("MAX(" + migrateOptions.IDColumnName + ")").Scan(&latest).Error; err != nil {
+		return "unknown"
+	}
+	if latest == nil {
+		return "none"
+	}
+	return *latest
 }
 
 func generateIdStr(id int32) string {

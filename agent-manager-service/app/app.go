@@ -156,7 +156,8 @@ func Run(authProvider occlient.AuthProvider, secretProvider secretmanagersvc.Pro
 		err := dbmigrations.WaitForLatest(ctx, migrationWaitInterval)
 		cancel()
 		if err != nil {
-			slog.Error("database migrations did not complete", "error", err)
+			slog.Error("database migrations did not complete; check that the migration job runs the same image version as this server",
+				"error", err)
 			os.Exit(1)
 		}
 	}
