@@ -198,7 +198,17 @@ if ! kubectl config get-contexts "${CLUSTER_CONTEXT}" &>/dev/null; then
     log_info "If the cluster is gone, there is nothing to uninstall"
     exit 1
 fi
-kubectl config use-context "${CLUSTER_CONTEXT}" &>/dev/null
+if ! kubectl config use-context "${CLUSTER_CONTEXT}" &>/dev/null; then
+    log_error "Could not switch to context '${CLUSTER_CONTEXT}'; nothing was changed"
+    exit 1
+fi
+# Every check below reads a failed call as "already removed", so an unreachable
+# cluster would otherwise end in a success message with nothing removed.
+if ! kubectl get --raw /readyz --request-timeout=15s &>/dev/null; then
+    log_error "Cluster '${CLUSTER_NAME}' is not reachable; nothing was changed"
+    log_info "Start it with: k3d cluster start ${CLUSTER_NAME} (and its Docker or Colima VM first)"
+    exit 1
+fi
 
 # Releases install.sh creates, in reverse install order, as "<release> <namespace>".
 # Each environment also gets a Thunder release and a gateway; those are found
