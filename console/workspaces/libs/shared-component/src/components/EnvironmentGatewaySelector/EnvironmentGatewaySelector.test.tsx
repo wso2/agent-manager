@@ -211,6 +211,17 @@ describe("EnvironmentGatewaySelectorView", () => {
     expect(onValidityChange).toHaveBeenLastCalledWith(true);
   });
 
+  it("labels the row as an environment and counts its gateways before it is checked", () => {
+    renderWithTheme(
+      <ControlledSelector
+        environments={[makeEnvironment("env-a", "default")]}
+        gateways={[makeGateway("gw-1", "env-a"), makeGateway("gw-2", "env-a", "EGRESS", "SELF_HOSTED")]}
+      />,
+    );
+    expect(screen.getByText("Environment:", { exact: false })).toBeInTheDocument();
+    expect(screen.getByText("2 gateways available")).toBeInTheDocument();
+  });
+
   it("does not block validity while a 2-candidate row is unchecked and unresolved", () => {
     const onValidityChange = vi.fn();
     renderWithTheme(

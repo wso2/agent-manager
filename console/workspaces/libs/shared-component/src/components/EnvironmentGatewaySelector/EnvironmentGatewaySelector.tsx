@@ -373,12 +373,14 @@ export const EnvironmentGatewaySelectorView: React.FC<
     row.candidates.some((candidate) => valueSet.has(candidate.uuid)),
   ).length;
 
-  // The gateway name shown inline next to the environment label — only when
-  // there's exactly one possible answer (a lock, or a single candidate), so
-  // it reads as a fact rather than a choice still to be made.
-  const inlineGatewayLabel = (row: EnvironmentRow): string | undefined => {
+  // Shown next to the environment label: the gateway's name when there's
+  // exactly one possible answer (a lock, or a single candidate), so it reads
+  // as a fact; otherwise how many gateways there are to pick from, so the
+  // choice is visible before the row is checked.
+  const rowCaption = (row: EnvironmentRow): string | undefined => {
     if (row.lockedGateway) return gatewayLabel(row.lockedGateway);
     if (row.candidates.length === 1) return gatewayLabel(row.candidates[0]);
+    if (row.candidates.length > 1) return `${row.candidates.length} gateways available`;
     return undefined;
   };
 
@@ -464,6 +466,7 @@ export const EnvironmentGatewaySelectorView: React.FC<
     <Stack spacing={1.5}>
       {rows.map((row) => {
         const belowContent = renderRowContent(row);
+        const caption = rowCaption(row);
         return (
           <Stack
             key={row.envId}
@@ -483,10 +486,15 @@ export const EnvironmentGatewaySelectorView: React.FC<
                 inputProps={{ "aria-label": row.label }}
                 sx={{ p: 0.5 }}
               />
-              <Typography variant="body2">{row.label}</Typography>
-              {inlineGatewayLabel(row) && (
+              <Typography variant="body2">
+                <Box component="span" color="text.secondary">
+                  Environment:{" "}
+                </Box>
+                {row.label}
+              </Typography>
+              {caption && (
                 <Typography variant="caption" color="text.disabled">
-                  {inlineGatewayLabel(row)}
+                  {caption}
                 </Typography>
               )}
               {row.candidates.length === 1 &&
