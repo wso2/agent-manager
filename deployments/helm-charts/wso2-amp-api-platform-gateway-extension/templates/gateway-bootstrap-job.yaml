@@ -271,29 +271,19 @@ spec:
                 return 0
               }
 
-              # ensure_environment_mapping — on install, maps an already-registered gateway
-              # to ENVIRONMENT_NAME. Deleting an environment drops only its gateway mappings,
-              # so re-adding an environment with the same name finds the old gateway in
-              # Step 3, and without this the new environment has no gateway.
-              # Conflict model: it fills an empty mapping on install and never overrides a
-              # console change. Upgrades and rollbacks skip it, so a gateway unassigned in
-              # the console stays unassigned, and the API refuses to move a gateway that
-              # serves another environment. A rollback to the first revision replays that
-              # revision's install-time hook, so it maps like an install.
-              # Sets ENV_MAPPED=true once the gateway serves ENVIRONMENT_NAME, or skipped.
-              # Non-fatal like sync_runtime_url, so a failure cannot abort the install.
+              # ensure_environment_mapping — maps a reused gateway to ENVIRONMENT_NAME.
+              # Conflict model: fills an empty mapping on install, never overrides a console
+              # change (upgrades and rollbacks skip it; a rollback to the first revision
+              # replays its install-time hook). Non-fatal like sync_runtime_url.
               ensure_environment_mapping() {
                 # _em_ prefix: POSIX sh has no portable `local`, so these leak as globals.
                 if [ "${RELEASE_IS_INSTALL}" != "true" ]; then
-                  ENV_MAPPED=skipped
                   return 0
                 fi
                 log_info "Mapping gateway '${GATEWAY_NAME}' to environment '${ENVIRONMENT_NAME}'..."
-                # The API checks the existing mapping under its gateway and environment
-                # locks: the same environment again is a no-op 2xx, and another
-                # environment or a full ingress slot is a 409, told apart by the code.
-                # http_post logs a non-2xx as an error and drops the body, so call curl
-                # directly to read the code.
+                # The API checks the mapping under its locks; both "another environment"
+                # and the ingress cap are 409s, told apart by the code. Plain curl because
+                # http_post drops the body on a non-2xx.
                 _em_tmp=$(mktemp)
                 _em_status=$(curl -s --max-time 30 --retry 3 --retry-delay 5 -X POST \
                   -H "Authorization: Bearer ${ACCESS_TOKEN}" \
@@ -302,7 +292,6 @@ spec:
                 _em_body=$(cat "${_em_tmp}"); rm -f "${_em_tmp}"
                 case "${_em_status}" in
                   2*)
-                    ENV_MAPPED=true
                     log_info "Gateway serves environment '${ENVIRONMENT_NAME}'."
                     ;;
                   409)
@@ -403,7 +392,6 @@ spec:
                   grep -o '"vhost":"[^"]*"' | cut -d'"' -f4 | head -1)
                 warn_vhost_drift "${GATEWAY_VHOST}" "${REGISTERED_VHOST}"
 
-                ENV_MAPPED=false
                 ensure_environment_mapping
               else
                 # ----------------------------------------------------------------
@@ -444,7 +432,6 @@ spec:
                   exit 1
                 fi
                 log_info "Gateway registered with ID: ${GATEWAY_ID}"
-                ENV_MAPPED=true
               fi
 
               # ----------------------------------------------------------------
@@ -529,11 +516,6 @@ spec:
                 amp.wso2.com/environment="${ENVIRONMENT_NAME}" \
                 --overwrite
 
-              if [ "${ENV_MAPPED}" = true ]; then
-                log_info "Bootstrap complete. Gateway '${GATEWAY_NAME}' registered with ID: ${GATEWAY_ID} in environment '${ENVIRONMENT_NAME}'"
-              elif [ "${ENV_MAPPED}" = skipped ]; then
-                log_info "Bootstrap complete. Gateway '${GATEWAY_NAME}' registered with ID: ${GATEWAY_ID}; its environment mapping is left as is outside an install"
-              else
-                log_info "Bootstrap complete. Gateway '${GATEWAY_NAME}' registered with ID: ${GATEWAY_ID}, but its mapping to environment '${ENVIRONMENT_NAME}' is not confirmed"
-              fi
+              # The mapping outcome is logged where it happens, so this line does not repeat it.
+              log_info "Bootstrap complete. Gateway '${GATEWAY_NAME}' registered with ID: ${GATEWAY_ID}"
 {{- end }}

@@ -91,7 +91,8 @@ var _ = Describe("Environment management:", Label("environment"), Ordered, func(
 	It("removes the re-added environment", func() {
 		err := envops.RemoveEnvironment(scriptParams)
 		Expect(err).NotTo(HaveOccurred(), "remove-environment.sh failed for env %q", envName)
-		removed = true
 		gateway.ExpectGatewayNotRegistered(Default, Client, Cfg.DefaultOrg, gatewayName)
+		// Only now: a gateway left registered must still reach the cleanup's retry.
+		removed = true
 	})
 })
