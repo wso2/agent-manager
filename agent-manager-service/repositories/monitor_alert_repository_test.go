@@ -32,6 +32,7 @@ import (
 	"github.com/wso2/agent-manager/agent-manager-service/db"
 	"github.com/wso2/agent-manager/agent-manager-service/events"
 	"github.com/wso2/agent-manager/agent-manager-service/models"
+	"github.com/wso2/agent-manager/agent-manager-service/utils"
 )
 
 func monitorAlertFixture(t *testing.T) (MonitorAlertRepository, *models.MonitorAlert) {
@@ -162,10 +163,15 @@ func TestMonitorAlertSaveAlertUsesCurrentBreaches(t *testing.T) {
 
 func monitorAlertDestinationFixture(t *testing.T, org string) *models.EventDestination {
 	t.Helper()
-	d := &models.EventDestination{ID: uuid.New(), OUID: org, Name: "alerts", Kind: models.DestinationKindWebhook, Config: json.RawMessage(`{"url":"https://example.com"}`), Availability: models.DestinationAvailableAll, Projects: []string{}}
+	d := &models.EventDestination{ID: uuid.New(), OUID: org, Name: "alerts-" + uuid.NewString(), Kind: models.DestinationKindWebhook, Config: json.RawMessage(`{"url":"https://example.com"}`), Availability: models.DestinationAvailableAll, Projects: []string{}}
 	repo := NewEventRepository(db.GetDB())
 	require.NoError(t, repo.CreateDestination(context.Background(), d))
-	t.Cleanup(func() { _, err := repo.DeleteDestination(context.Background(), org, d.ID); assert.NoError(t, err) })
+	t.Cleanup(func() {
+		assert.NoError(t, db.GetDB().Where("ou_id = ?", org).Delete(&models.MonitorAlert{}).Error)
+		assert.NoError(t, db.GetDB().Where("ou_id = ?", org).Delete(&models.EventDelivery{}).Error)
+		_, err := repo.DeleteDestination(context.Background(), org, d.ID)
+		assert.NoError(t, err)
+	})
 	return d
 }
 
@@ -201,4 +207,54 @@ func TestMonitorAlertQueueAlertsRejectsOtherOrganization(t *testing.T) {
 	deliveries, err := repo.AlertDeliveries(context.Background(), event.ID)
 	require.NoError(t, err)
 	assert.Empty(t, deliveries)
+}
+
+func TestMonitorAlertProtectsDestinationDeletionAndAvailability(t *testing.T) {
+	alerts, alert := monitorAlertFixture(t)
+	ctx := context.Background()
+	destination := monitorAlertDestinationFixture(t, alert.OUID)
+	alert.DestinationIDs = []string{destination.ID.String()}
+	require.NoError(t, alerts.SaveAlert(ctx, alert))
+	repo := NewEventRepository(db.GetDB())
+	deleted, err := repo.DeleteDestination(ctx, alert.OUID, destination.ID)
+	require.ErrorIs(t, err, utils.ErrEventDestinationInUse)
+	assert.False(t, deleted)
+	destination.Availability = models.DestinationAvailableOrg
+	require.ErrorIs(t, repo.UpdateDestination(ctx, destination, nil), utils.ErrEventDestinationInUse)
+	destination.Availability = models.DestinationAvailableProjects
+	destination.Projects = []string{"other"}
+	require.ErrorIs(t, repo.UpdateDestination(ctx, destination, nil), utils.ErrEventDestinationInUse)
+	destination.Projects = []string{"project"}
+	require.NoError(t, repo.UpdateDestination(ctx, destination, nil))
+	require.NoError(t, alerts.DeleteAlert(ctx, alert.MonitorID))
+	deleted, err = repo.DeleteDestination(ctx, alert.OUID, destination.ID)
+	require.NoError(t, err)
+	assert.True(t, deleted)
+	// A save validated before the delete must not recreate a dangling reference.
+	require.ErrorIs(t, alerts.SaveAlert(ctx, alert), utils.ErrInvalidInput)
+}
+
+func TestMonitorAlertMissingDestinationDoesNotBlockOtherDeliveries(t *testing.T) {
+	repo, alert := monitorAlertFixture(t)
+	ctx := context.Background()
+	missing := monitorAlertDestinationFixture(t, alert.OUID)
+	active := monitorAlertDestinationFixture(t, alert.OUID)
+	alert.DestinationIDs = []string{missing.ID.String(), active.ID.String()}
+	require.NoError(t, repo.SaveAlert(ctx, alert))
+	// Simulate data created before the destination-use guard was introduced.
+	require.NoError(t, db.GetDB().Delete(missing).Error)
+	event := events.New("evt-"+uuid.NewString(), events.TypeMonitorRunSucceeded, events.ScopeAgent, alert.OUID, "project", "agent", time.Now())
+	require.NoError(t, repo.WithAlert(ctx, alert.ID, func(current *models.MonitorAlert, tx MonitorAlertRepository) error {
+		if err := tx.QueueAlerts(ctx, current, []models.Notification{{Kind: models.NotificationScoreBreached, Title: "breached"}}, event); err != nil {
+			return err
+		}
+		return tx.UpdateAlertBreached(ctx, current.ID, []string{current.Thresholds[0].Key()}, event.Time)
+	}))
+	deliveries, err := repo.AlertDeliveries(ctx, event.ID)
+	require.NoError(t, err)
+	require.Len(t, deliveries, 1)
+	assert.Equal(t, active.ID, deliveries[0].DestinationID)
+	stored, err := repo.GetAlert(ctx, alert.MonitorID)
+	require.NoError(t, err)
+	require.NotNil(t, stored.LastEvaluatedAt, "missing destination must not roll back evaluation")
 }

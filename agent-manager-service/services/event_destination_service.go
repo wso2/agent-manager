@@ -357,7 +357,8 @@ func (s *eventDestinationService) Delete(ctx context.Context, ouID string, id uu
 	if err != nil {
 		return err
 	}
-	// The foreign key catches a subscription added since the check above.
+	// The repository checks monitor alerts under the destination lock; the
+	// foreign key also catches subscriptions added since the check above.
 	deleted, err := s.repo.DeleteDestination(ctx, ouID, id)
 	switch {
 	case errors.Is(err, utils.ErrEventDestinationInUse):

@@ -29,6 +29,7 @@ import (
 
 	"github.com/wso2/agent-manager/agent-manager-service/events"
 	"github.com/wso2/agent-manager/agent-manager-service/models"
+	"github.com/wso2/agent-manager/agent-manager-service/utils"
 )
 
 // MonitorAlertRepository persists shared monitor alert settings and durable delivery jobs.
@@ -90,6 +91,26 @@ func (r *monitorAlertRepository) GetAlert(ctx context.Context, monitorID uuid.UU
 func (r *monitorAlertRepository) SaveAlert(ctx context.Context, w *models.MonitorAlert) error {
 	var saved models.MonitorAlert
 	err := r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		// Lock destinations before saving so a concurrent delete or availability
+		// change cannot invalidate the service's earlier validation.
+		var monitor models.Monitor
+		if err := tx.Where("id = ? AND ou_id = ?", w.MonitorID, w.OUID).First(&monitor).Error; err != nil {
+			return err
+		}
+		var destinations []models.EventDestination
+		if len(w.DestinationIDs) > 0 {
+			if err := tx.Clauses(clause.Locking{Strength: "SHARE"}).Where("ou_id = ? AND id IN ?", w.OUID, w.DestinationIDs).Order("id").Find(&destinations).Error; err != nil {
+				return err
+			}
+		}
+		if len(destinations) != len(w.DestinationIDs) {
+			return fmt.Errorf("%w: alert destination no longer exists", utils.ErrInvalidInput)
+		}
+		for _, destination := range destinations {
+			if !destination.UsableBy(models.EventScopeAgent, monitor.ProjectName) {
+				return fmt.Errorf("%w: alert destination is unavailable", utils.ErrInvalidInput)
+			}
+		}
 		// Insert only when absent, then lock the persisted row. ON CONFLICT
 		// also serializes two first-time saves for the same monitor.
 		initial := *w
@@ -159,8 +180,26 @@ func (r *monitorAlertRepository) UpdateAlertBreached(
 }
 
 func (r *monitorAlertRepository) QueueAlerts(ctx context.Context, alert *models.MonitorAlert, notifications []models.Notification, original events.Event) error {
+	return r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		return (&monitorAlertRepository{db: tx}).queueAlerts(ctx, alert, notifications, original)
+	})
+}
+
+func (r *monitorAlertRepository) queueAlerts(ctx context.Context, alert *models.MonitorAlert, notifications []models.Notification, original events.Event) error {
 	if alert.OUID != original.OrgID {
 		return fmt.Errorf("alert organization does not match source event")
+	}
+	// A stale configuration must not poison the event consumer. Lock existing
+	// destinations until insertion commits, and skip missing or foreign ones.
+	var destinations []models.EventDestination
+	if len(alert.DestinationIDs) > 0 {
+		if err := r.db.WithContext(ctx).Clauses(clause.Locking{Strength: "KEY SHARE"}).Where("ou_id = ? AND id IN ?", alert.OUID, alert.DestinationIDs).Order("id").Find(&destinations).Error; err != nil {
+			return err
+		}
+	}
+	existing := make(map[uuid.UUID]bool, len(destinations))
+	for _, destination := range destinations {
+		existing[destination.ID] = true
 	}
 	deliveries := &eventRepository{db: r.db}
 	for _, notification := range notifications {
@@ -176,6 +215,9 @@ func (r *monitorAlertRepository) QueueAlerts(ctx context.Context, alert *models.
 			destinationID, err := uuid.Parse(rawID)
 			if err != nil {
 				return fmt.Errorf("parse monitor alert destination: %w", err)
+			}
+			if !existing[destinationID] {
+				continue
 			}
 			delivery := &models.EventDelivery{
 				OUID: alert.OUID, DestinationID: destinationID, SubscriptionIDs: []string{},
