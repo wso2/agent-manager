@@ -3,7 +3,8 @@ set -euo pipefail
 
 # Removes an environment: deletes it via the Agent Manager API, then
 # deprovisions its Thunder ID instance, then uninstalls the API Platform
-# Gateway helm release. Thunder teardown runs only after a confirmed
+# Gateway helm release and deregisters the gateway from Agent Manager.
+# Thunder teardown runs only after a confirmed
 # 204/404 from AMS — tearing it down earlier would leave the environment
 # live in AMS while its identity layer is permanently gone.
 #
@@ -182,6 +183,69 @@ if kubectl wait --for=delete "apigateway/${GATEWAY_NAME}" -n "${GATEWAY_NAMESPAC
 else
     echo "⚠️  Timed out or failed waiting for apigateway/${GATEWAY_NAME} to delete; continuing..."
 fi
+
+# --- Step 3b: Deregister the gateway(s) from Agent Manager ---
+# The gateway chart registers each gateway with Agent Manager from an install hook,
+# and nothing removes that record on uninstall: the environment DELETE in Step 1 only
+# drops the gateway-environment mapping. Left behind, the record lists as an
+# Unassigned gateway, and re-adding an environment with the same name reuses it
+# without mapping it to the new environment, so that environment has no gateway.
+# Failures are non-fatal: the environment itself is already gone.
+deregister_gateway() {
+    local name="$1" code gw_id
+    code=$(curl -s -o "$RESP_FILE" -w "%{http_code}" \
+        "${AGENT_MANAGER_API_URL}/orgs/${ORG_NAME}/gateways/${name}" \
+        -H "Authorization: Bearer ${AGENT_MANAGER_TOKEN}")
+    case "$code" in
+        200) ;;
+        404)
+            # The egress lookup runs for every topology, so stay quiet when it has none.
+            [ "${2:-}" = "quiet" ] || echo "ℹ️  Gateway '${name}' is not registered, skipping..."
+            return 0
+            ;;
+        *)
+            echo "⚠️  Could not look up gateway '${name}' (HTTP ${code}); it may still be registered."
+            cat "$RESP_FILE" 2>/dev/null; echo
+            return 0
+            ;;
+    esac
+
+    # A gateway still mapped to another environment is shared, not this environment's.
+    if grep -q '"environments":\[{' "$RESP_FILE"; then
+        echo "ℹ️  Gateway '${name}' is still mapped to another environment, leaving it registered."
+        return 0
+    fi
+
+    # uuid is the first field of the response; environments, when present, is the last.
+    gw_id=$(grep -o '"uuid":"[^"]*"' "$RESP_FILE" | head -1 | cut -d'"' -f4 || true)
+    if [ -z "$gw_id" ]; then
+        echo "⚠️  Could not read the ID of gateway '${name}'; it may still be registered."
+        return 0
+    fi
+
+    code=$(curl -s -o "$RESP_FILE" -w "%{http_code}" -X DELETE \
+        "${AGENT_MANAGER_API_URL}/orgs/${ORG_NAME}/gateways/${gw_id}" \
+        -H "Authorization: Bearer ${AGENT_MANAGER_TOKEN}")
+    case "$code" in
+        204) echo "✅ Gateway '${name}' deregistered" ;;
+        404) echo "ℹ️  Gateway '${name}' already deregistered" ;;
+        409)
+            echo "⚠️  Gateway '${name}' was not deregistered: it still has API deployments."
+            echo "    Undeploy them, then delete the gateway under Gateways in the console."
+            cat "$RESP_FILE" 2>/dev/null; echo
+            ;;
+        *)
+            echo "⚠️  Failed to deregister gateway '${name}' (HTTP ${code})"
+            cat "$RESP_FILE" 2>/dev/null; echo
+            ;;
+    esac
+}
+
+echo ""
+echo "🗑️  Deregistering the gateway from Agent Manager..."
+deregister_gateway "${GATEWAY_NAME}"
+# Name MUST match the egress gateway add-environment.sh registers in split topology.
+deregister_gateway "api-platform-${ORG_NAME}-${ENV_NAME}-egress" quiet
 
 # --- Step 4: Delete the per-env gateway namespace ---
 # Only when it follows the "<org>-<env>" isolation convention — never delete a
