@@ -307,25 +307,29 @@ remove_coredns_entries() {
 
 # clear_stuck_finalizers: a CRD stays in Terminating while an object of its
 # kind still carries a finalizer, and once Step 3 has removed the controllers
-# nothing will clear it. Clears those finalizers, says which, and waits for the
-# CRDs to go.
+# nothing will clear it. For the platform CRDs that are terminating, clears the
+# finalizers of their objects that are being deleted, says which, and waits for
+# the CRDs to go. Live CRDs and live objects are never touched.
 clear_stuck_finalizers() {
-    local stuck crd kind obj ns name
-    stuck="$(kubectl get crd -o name 2>/dev/null | grep -E "\.(${CRD_GROUPS})\$" || true)"
+    local stuck crd kind obj ns name finalizers
+    stuck="$(kubectl get crd \
+        -o jsonpath='{range .items[?(@.metadata.deletionTimestamp)]}{.metadata.name}{"\n"}{end}' 2>/dev/null \
+        | grep -E "\.(${CRD_GROUPS})\$" || true)"
     [ -n "${stuck}" ] || return 0
-    for crd in ${stuck}; do
-        kind="${crd#*/}"
-        for obj in $(kubectl get "${kind}" -A \
-                -o jsonpath='{range .items[?(@.metadata.finalizers)]}{.metadata.namespace}/{.metadata.name}{"\n"}{end}' 2>/dev/null); do
+    for kind in ${stuck}; do
+        while IFS=' ' read -r obj finalizers; do
+            [ -n "${obj}" ] && [ -n "${finalizers}" ] || continue
             ns="${obj%%/*}"
             name="${obj#*/}"
             log_warning "Clearing the finalizers of ${kind} ${obj#/}, whose controller is already uninstalled"
             kubectl patch "${kind}" "${name}" ${ns:+-n "${ns}"} --type=merge \
                 -p '{"metadata":{"finalizers":null}}' &>/dev/null || true
-        done
+        done <<< "$(kubectl get "${kind}" -A \
+            -o jsonpath='{range .items[?(@.metadata.deletionTimestamp)]}{.metadata.namespace}/{.metadata.name} {.metadata.finalizers}{"\n"}{end}' 2>/dev/null)"
     done
-    # shellcheck disable=SC2086 # one CRD per word
-    kubectl wait --for=delete ${stuck} --timeout=60s &>/dev/null || true
+    for crd in ${stuck}; do
+        kubectl wait --for=delete "crd/${crd}" --timeout=60s &>/dev/null || true
+    done
 }
 
 # object_left <description> <kubectl get args...>: adds the object to
