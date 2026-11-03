@@ -195,7 +195,7 @@ deregister_gateway() {
     local name="$1" code gw_id
     code=$(curl -s -o "$RESP_FILE" -w "%{http_code}" \
         "${AGENT_MANAGER_API_URL}/orgs/${ORG_NAME}/gateways/${name}" \
-        -H "Authorization: Bearer ${AGENT_MANAGER_TOKEN}")
+        -H "Authorization: Bearer ${AGENT_MANAGER_TOKEN}" || true)
     case "$code" in
         200) ;;
         404)
@@ -216,7 +216,9 @@ deregister_gateway() {
         return 0
     fi
 
-    # uuid is the first field of the response; environments, when present, is the last.
+    # The response keys are serialized in alphabetical order, so uuid comes after
+    # environments. A response that lists environments has already returned above,
+    # so the only "uuid" key left is the gateway's own.
     gw_id=$(grep -o '"uuid":"[^"]*"' "$RESP_FILE" | head -1 | cut -d'"' -f4 || true)
     if [ -z "$gw_id" ]; then
         echo "⚠️  Could not read the ID of gateway '${name}'; it may still be registered."
@@ -225,7 +227,7 @@ deregister_gateway() {
 
     code=$(curl -s -o "$RESP_FILE" -w "%{http_code}" -X DELETE \
         "${AGENT_MANAGER_API_URL}/orgs/${ORG_NAME}/gateways/${gw_id}" \
-        -H "Authorization: Bearer ${AGENT_MANAGER_TOKEN}")
+        -H "Authorization: Bearer ${AGENT_MANAGER_TOKEN}" || true)
     case "$code" in
         204) echo "✅ Gateway '${name}' deregistered" ;;
         404) echo "ℹ️  Gateway '${name}' already deregistered" ;;
