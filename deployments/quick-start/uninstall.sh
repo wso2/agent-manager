@@ -5,10 +5,13 @@ set -euo pipefail
 # Agent Management Platform - Complete Uninstallation
 # ============================================================================
 # This script completely removes:
-# 1. All Agent Management Platform helm releases
-# 2. All OpenChoreo helm releases (unless --amp-only is used)
-# 3. All custom resources (ClusterDataPlane, ClusterWorkflowPlane, etc.)
+# 1. All Agent Management Platform helm releases, including each environment's
+#    Thunder and gateway
+# 2. All OpenChoreo and prerequisite helm releases (unless --amp-only is used)
+# 3. All custom resources, the namespaces install.sh created, and (unless
+#    --amp-only is used) the CRDs it installed
 # 4. Optionally deletes the k3d cluster
+# It exits non-zero and lists what is left if anything could not be removed.
 #
 # Usage:
 #   ./uninstall.sh                    # Uninstall platform but keep cluster
@@ -188,320 +191,236 @@ if ! command_exists helm; then
     exit 1
 fi
 
-# Check if cluster context exists
-if ! kubectl config get-contexts "${CLUSTER_CONTEXT}" &>/dev/null 2>&1; then
-    log_warning "Cluster context '${CLUSTER_CONTEXT}' not found"
-    log_info "Attempting to use current context..."
-    CURRENT_CONTEXT=$(kubectl config current-context 2>/dev/null || echo "")
-    if [ -z "${CURRENT_CONTEXT}" ]; then
-        log_error "No kubectl context available"
-        exit 1
-    fi
-    log_info "Using context: ${CURRENT_CONTEXT}"
-else
-    kubectl config use-context "${CLUSTER_CONTEXT}" &>/dev/null || true
+# Only ever act on the cluster install.sh created. Falling back to the current
+# context could uninstall cert-manager and friends from an unrelated cluster.
+if ! kubectl config get-contexts "${CLUSTER_CONTEXT}" &>/dev/null; then
+    log_error "Cluster context '${CLUSTER_CONTEXT}' not found; nothing was changed"
+    log_info "If the cluster is gone, there is nothing to uninstall"
+    exit 1
 fi
+kubectl config use-context "${CLUSTER_CONTEXT}" &>/dev/null
+
+# Releases install.sh creates, in reverse install order, as "<release> <namespace>".
+# Each environment also gets a Thunder release and a gateway; those are found
+# through their namespaces (environment_namespaces) rather than listed here.
+AMP_RELEASES="
+amp-evaluation-extension ${EVALUATION_NS}
+amp-observability-traces ${OBSERVABILITY_NS}
+amp-platform-resources ${DEFAULT_NS}
+build-workflow-extensions ${BUILD_CI_NS}
+agent-sandbox openchoreo-data-plane
+amp ${AMP_NS}
+amp-thunder-extension amp-thunder
+"
+OPENCHOREO_RELEASES="
+gateway-operator openchoreo-data-plane
+observability-traces-opensearch ${OBSERVABILITY_NS}
+observability-metrics-prometheus ${OBSERVABILITY_NS}
+observability-logs-opensearch ${OBSERVABILITY_NS}
+openchoreo-observability-plane ${OBSERVABILITY_NS}
+openchoreo-workflow-plane openchoreo-workflow-plane
+registry openchoreo-workflow-plane
+openchoreo-data-plane openchoreo-data-plane
+openchoreo-control-plane openchoreo-control-plane
+kgateway openchoreo-control-plane
+kgateway-crds openchoreo-control-plane
+openbao openbao
+external-secrets external-secrets
+cert-manager cert-manager
+"
+AMP_NAMESPACES="${AMP_NS} amp-thunder agent-sandbox-system"
+OPENCHOREO_NAMESPACES="openchoreo-control-plane openchoreo-data-plane openchoreo-workflow-plane ${OBSERVABILITY_NS} cert-manager external-secrets openbao"
+# API groups of the CRDs install.sh brings in (charts and the Gateway API bundle).
+CRD_GROUPS='openchoreo\.dev|external-secrets\.io|cert-manager\.io|argoproj\.io|monitoring\.coreos\.com|agents\.x-k8s\.io|gateway\.api-platform\.wso2\.com|gateway\.kgateway\.dev|gateway\.networking\.k8s\.io|gateway\.networking\.x-k8s\.io'
+
+# uninstall_release <release> <namespace>: quiet when the release is absent, so
+# an install without an optional component does not print a line for it.
+uninstall_release() {
+    helm status "$1" -n "$2" &>/dev/null || return 0
+    log_info "Uninstalling $1 (namespace $2)..."
+    if helm uninstall "$1" -n "$2" --wait --timeout 5m &>/dev/null; then
+        log_success "$1 uninstalled"
+    else
+        log_warning "Failed to uninstall $1 (non-fatal)"
+    fi
+}
+
+uninstall_releases() {
+    local release ns
+    while read -r release ns; do
+        [ -n "${release}" ] || continue
+        uninstall_release "${release}" "${ns}"
+    done <<< "$1"
+}
+
+# environment_namespaces: what install.sh and add-environment create per
+# organization or environment, whose names carry the org and environment.
+environment_namespaces() {
+    {
+        kubectl get namespaces -o name 2>/dev/null | sed 's#^namespace/##' \
+            | grep -E '^(dp-|workflows-|openchoreo-kv-|amp-thunder-)' || true
+        kubectl get namespaces -l amp.wso2.com/api-platform-gateway=true -o name 2>/dev/null \
+            | sed 's#^namespace/##'
+    } | sort -u
+}
+
+# existing_namespaces <name>...: the given namespaces that still exist,
+# including any stuck in Terminating.
+existing_namespaces() {
+    local ns
+    for ns in "$@"; do
+        kubectl get namespace "${ns}" &>/dev/null && printf '%s\n' "${ns}"
+    done
+    return 0
+}
+
+delete_namespaces() {
+    [ $# -gt 0 ] || return 0
+    log_info "Deleting namespaces: $*"
+    kubectl delete namespace "$@" --ignore-not-found --timeout=180s &>/dev/null \
+        || log_warning "Some namespaces did not finish deleting within 3 minutes"
+}
 
 # ============================================================================
-# Step 1: Uninstall Agent Management Platform Helm Releases
+# Step 1: Delete custom resources and per-environment namespaces
 # ============================================================================
+# Done while the controllers are still running, so the finalizers on these
+# resources are processed instead of leaving them stuck in deletion.
 
-log_step "Step 1/4: Uninstalling Agent Management Platform"
+log_step "Step 1/4: Deleting Custom Resources and Environments"
 
-# Uninstall Platform Resources Extension
-if helm status "amp-platform-resources" -n "${DEFAULT_NS}" &>/dev/null 2>&1; then
-    log_info "Uninstalling Platform Resources Extension..."
-    if helm uninstall "amp-platform-resources" -n "${DEFAULT_NS}" &>/dev/null; then
-        log_success "Platform Resources Extension uninstalled"
-    else
-        log_warning "Failed to uninstall Platform Resources Extension (non-fatal)"
-    fi
-else
-    log_info "Platform Resources Extension not found, skipping..."
-fi
-
-# Uninstall Build Extension
-if helm status "build-workflow-extensions" -n "${BUILD_CI_NS}" &>/dev/null 2>&1; then
-    log_info "Uninstalling Build Extension..."
-    if helm uninstall "build-workflow-extensions" -n "${BUILD_CI_NS}" &>/dev/null; then
-        log_success "Build Extension uninstalled"
-    else
-        log_warning "Failed to uninstall Build Extension (non-fatal)"
-    fi
-else
-    log_info "Build Extension not found, skipping..."
-fi
-
-# Uninstall Evaluation Extension
-if helm status "amp-evaluation-extension" -n "${EVALUATION_NS}" &>/dev/null 2>&1; then
-    log_info "Uninstalling Evaluation Extension..."
-    if helm uninstall "amp-evaluation-extension" -n "${EVALUATION_NS}" &>/dev/null; then
-        log_success "Evaluation Extension uninstalled"
-    else
-        log_warning "Failed to uninstall Evaluation Extension (non-fatal)"
-    fi
-else
-    log_info "Evaluation Extension not found, skipping..."
-fi
-
-# Uninstall Observability Extension
-if helm status "amp-observability-traces" -n "${OBSERVABILITY_NS}" &>/dev/null 2>&1; then
-    log_info "Uninstalling Observability Extension..."
-    if helm uninstall "amp-observability-traces" -n "${OBSERVABILITY_NS}" &>/dev/null; then
-        log_success "Observability Extension uninstalled"
-    else
-        log_warning "Failed to uninstall Observability Extension (non-fatal)"
-    fi
-else
-    log_info "Observability Extension not found, skipping..."
-fi
-
-# Uninstall Thunder Extension
-if helm status "amp-thunder-extension" -n "amp-thunder" &>/dev/null 2>&1; then
-    log_info "Uninstalling AMP Thunder Extension..."
-    if helm uninstall "amp-thunder-extension" -n "amp-thunder" &>/dev/null; then
-        log_success "AMP Thunder Extension uninstalled"
-    else
-        log_warning "Failed to uninstall AMP Thunder Extension (non-fatal)"
-    fi
-else
-    log_info "AMP Thunder Extension not found, skipping..."
-fi
-
-# Uninstall main Agent Management Platform
-if helm status "amp" -n "${AMP_NS}" &>/dev/null 2>&1; then
-    log_info "Uninstalling Agent Management Platform..."
-    if helm uninstall "amp" -n "${AMP_NS}" &>/dev/null; then
-        log_success "Agent Management Platform uninstalled"
-    else
-        log_warning "Failed to uninstall Agent Management Platform (non-fatal)"
-    fi
-else
-    log_info "Agent Management Platform not found, skipping..."
-fi
-
-# Wait for resources to be cleaned up
-log_info "Waiting for resources to be cleaned up..."
-sleep 5
-
-# ============================================================================
-# Step 2: Delete AMP Custom Resources
-# ============================================================================
-
-log_step "Step 2/4: Deleting AMP Custom Resources"
-
-# Delete any remaining AMP-related custom resources
 log_info "Cleaning up AMP custom resources..."
 for resource_type in organization project environment deploymentpipeline component workflowtemplate; do
-    if kubectl get "${resource_type}" -A &>/dev/null 2>&1; then
+    if kubectl get "${resource_type}" -A &>/dev/null; then
         kubectl delete "${resource_type}" --all --all-namespaces --timeout=30s &>/dev/null || true
     fi
 done
 
-# Only delete ClusterDataPlane/ClusterWorkflowPlane if we're doing full uninstall
+ENV_NAMESPACES="$(environment_namespaces)"
+for ns in ${ENV_NAMESPACES}; do
+    # Base releases before their "-gw" gateway, which the base release's
+    # Gateway resource owns.
+    for release in $(helm list -n "${ns}" -q 2>/dev/null | sort); do
+        uninstall_release "${release}" "${ns}"
+    done
+done
+# shellcheck disable=SC2086 # one namespace per word
+delete_namespaces ${ENV_NAMESPACES}
+
 if [ "${AMP_ONLY}" = false ]; then
-    # Delete ClusterDataPlane resources
-    log_info "Deleting ClusterDataPlane resources..."
-    if kubectl get clusterdataplane -A &>/dev/null 2>&1; then
-        kubectl delete clusterdataplane --all --all-namespaces --timeout=30s &>/dev/null || true
-        log_success "ClusterDataPlane resources deleted"
-    else
-        log_info "No ClusterDataPlane resources found"
+    # install.sh applies some of these with kubectl, so no release owns them,
+    # and their cleanup finalizer needs the operator that Step 3 removes.
+    if kubectl get externalsecrets.external-secrets.io -A &>/dev/null; then
+        log_info "Deleting ExternalSecrets..."
+        kubectl delete externalsecrets.external-secrets.io,pushsecrets.external-secrets.io \
+            --all --all-namespaces --timeout=60s &>/dev/null || true
     fi
-
-    # Delete ClusterWorkflowPlane resources
-    log_info "Deleting ClusterWorkflowPlane resources..."
-    if kubectl get clusterworkflowplane -A &>/dev/null 2>&1; then
-        kubectl delete clusterworkflowplane --all --all-namespaces --timeout=30s &>/dev/null || true
-        log_success "ClusterWorkflowPlane resources deleted"
-    else
-        log_info "No ClusterWorkflowPlane resources found"
-    fi
-
-    # Delete ClusterObservabilityPlane resources
-    log_info "Deleting ClusterObservabilityPlane resources..."
-    if kubectl get clusterobservabilityplane -A &>/dev/null 2>&1; then
-        kubectl delete clusterobservabilityplane --all --all-namespaces --timeout=30s &>/dev/null || true
-        log_success "ClusterObservabilityPlane resources deleted"
-    else
-        log_info "No ClusterObservabilityPlane resources found"
-    fi
+    for resource_type in clusterdataplane clusterworkflowplane clusterobservabilityplane; do
+        if kubectl get "${resource_type}" &>/dev/null; then
+            log_info "Deleting ${resource_type} resources..."
+            kubectl delete "${resource_type}" --all --timeout=30s &>/dev/null || true
+        fi
+    done
 fi
 
 # ============================================================================
-# Step 3: Uninstall OpenChoreo Helm Releases (Skip if --amp-only)
+# Step 2: Uninstall Agent Management Platform Helm Releases
+# ============================================================================
+
+log_step "Step 2/4: Uninstalling Agent Management Platform"
+uninstall_releases "${AMP_RELEASES}"
+# Created outside the releases' tracked resources (the sandbox controller's
+# kubectl-applied manifest and a Helm hook), so uninstalling leaves them behind.
+kubectl delete clusterrolebinding,clusterrole \
+    agent-sandbox-controller agent-sandbox-controller-extensions \
+    --ignore-not-found &>/dev/null || true
+kubectl delete clusterrolebinding label-default-namespace-rolebinding --ignore-not-found &>/dev/null || true
+kubectl delete clusterrole label-default-namespace-role --ignore-not-found &>/dev/null || true
+
+# ============================================================================
+# Step 3: Uninstall OpenChoreo and Prerequisites (Skip if --amp-only)
 # ============================================================================
 
 if [ "${AMP_ONLY}" = false ]; then
-    log_step "Step 3/4: Uninstalling OpenChoreo"
-
-    # Uninstall Observability Plane
-    if helm status "openchoreo-observability-plane" -n "openchoreo-observability-plane" &>/dev/null 2>&1; then
-        log_info "Uninstalling OpenChoreo Observability Plane..."
-        if helm uninstall "openchoreo-observability-plane" -n "openchoreo-observability-plane" &>/dev/null; then
-            log_success "OpenChoreo Observability Plane uninstalled"
-        else
-            log_warning "Failed to uninstall OpenChoreo Observability Plane (non-fatal)"
-        fi
-    else
-        log_info "OpenChoreo Observability Plane not found, skipping..."
-    fi
-
-    # Uninstall Workflow Plane
-    if helm status "openchoreo-workflow-plane" -n "openchoreo-workflow-plane" &>/dev/null 2>&1; then
-        log_info "Uninstalling OpenChoreo Workflow Plane..."
-        if helm uninstall "openchoreo-workflow-plane" -n "openchoreo-workflow-plane" &>/dev/null; then
-            log_success "OpenChoreo Workflow Plane uninstalled"
-        else
-            log_warning "Failed to uninstall OpenChoreo Workflow Plane (non-fatal)"
-        fi
-    else
-        log_info "OpenChoreo Workflow Plane not found, skipping..."
-    fi
-
-    # Uninstall Registry (in workflow-plane namespace)
-    if helm status "registry" -n "openchoreo-workflow-plane" &>/dev/null 2>&1; then
-        log_info "Uninstalling Registry..."
-        if helm uninstall "registry" -n "openchoreo-workflow-plane" &>/dev/null; then
-            log_success "Registry uninstalled"
-        else
-            log_warning "Failed to uninstall Registry (non-fatal)"
-        fi
-    else
-        log_info "Registry not found, skipping..."
-    fi
-
-    # Uninstall Data Plane
-    if helm status "openchoreo-data-plane" -n "openchoreo-data-plane" &>/dev/null 2>&1; then
-        log_info "Uninstalling OpenChoreo Data Plane..."
-        if helm uninstall "openchoreo-data-plane" -n "openchoreo-data-plane" &>/dev/null; then
-            log_success "OpenChoreo Data Plane uninstalled"
-        else
-            log_warning "Failed to uninstall OpenChoreo Data Plane (non-fatal)"
-        fi
-    else
-        log_info "OpenChoreo Data Plane not found, skipping..."
-    fi
-
-    # Uninstall Control Plane (should be last as other planes may depend on it)
-    if helm status "openchoreo-control-plane" -n "openchoreo-control-plane" &>/dev/null 2>&1; then
-        log_info "Uninstalling OpenChoreo Control Plane..."
-        if helm uninstall "openchoreo-control-plane" -n "openchoreo-control-plane" &>/dev/null; then
-            log_success "OpenChoreo Control Plane uninstalled"
-        else
-            log_warning "Failed to uninstall OpenChoreo Control Plane (non-fatal)"
-        fi
-    else
-        log_info "OpenChoreo Control Plane not found, skipping..."
-    fi
-
-    # Uninstall Cert Manager
-    if helm status "cert-manager" -n "cert-manager" &>/dev/null 2>&1; then
-        log_info "Uninstalling Cert Manager..."
-        if helm uninstall "cert-manager" -n "cert-manager" &>/dev/null; then
-            log_success "Cert Manager uninstalled"
-        else
-            log_warning "Failed to uninstall Cert Manager (non-fatal)"
-        fi
-    else
-        log_info "Cert Manager not found, skipping..."
-    fi
+    log_step "Step 3/4: Uninstalling OpenChoreo and Prerequisites"
+    uninstall_releases "${OPENCHOREO_RELEASES}"
+    # Applied with kubectl by install.sh, not owned by any release.
+    kubectl delete clusterrolebinding,clusterrole wso2-api-platform-gateway-module \
+        --ignore-not-found &>/dev/null || true
 else
     log_step "Step 3/4: Skipping OpenChoreo Uninstallation (--amp-only mode)"
     log_info "OpenChoreo resources are preserved"
 fi
 
 # ============================================================================
-# Step 4: Clean Up Namespaces
+# Step 4: Clean Up Namespaces and CRDs
 # ============================================================================
 
-log_step "Step 4/4: Cleaning Up Namespaces"
+log_step "Step 4/4: Cleaning Up Namespaces and CRDs"
 
-# Delete AMP namespace
-if kubectl get namespace "${AMP_NS}" &>/dev/null 2>&1; then
-    log_info "Deleting namespace ${AMP_NS}..."
-    if kubectl delete namespace "${AMP_NS}" --timeout=60s &>/dev/null; then
-        log_success "Namespace ${AMP_NS} deleted"
-    else
-        log_warning "Failed to delete namespace ${AMP_NS} (may contain finalizers)"
-        log_info "Attempting force delete..."
-        kubectl delete namespace "${AMP_NS}" --force --grace-period=0 &>/dev/null || true
-    fi
+if [ "${AMP_ONLY}" = true ]; then
+    PLATFORM_NAMESPACES="${AMP_NAMESPACES}"
 else
-    log_info "Namespace ${AMP_NS} not found, skipping..."
+    PLATFORM_NAMESPACES="${AMP_NAMESPACES} ${OPENCHOREO_NAMESPACES}"
 fi
+# shellcheck disable=SC2046,SC2086 # one namespace per word
+delete_namespaces $(existing_namespaces ${PLATFORM_NAMESPACES})
 
-# Delete AMP Thunder namespace
-if kubectl get namespace "amp-thunder" &>/dev/null 2>&1; then
-    log_info "Deleting namespace amp-thunder..."
-    if kubectl delete namespace "amp-thunder" --timeout=60s &>/dev/null; then
-        log_success "Namespace amp-thunder deleted"
-    else
-        log_warning "Failed to delete namespace amp-thunder (may contain finalizers)"
-        log_info "Attempting force delete..."
-        kubectl delete namespace "amp-thunder" --force --grace-period=0 &>/dev/null || true
-    fi
-else
-    log_info "Namespace amp-thunder not found, skipping..."
-fi
-
-# Delete OpenChoreo namespaces only if not in --amp-only mode
 if [ "${AMP_ONLY}" = false ]; then
-    for ns in "openchoreo-control-plane" "openchoreo-data-plane" "openchoreo-workflow-plane" "openchoreo-observability-plane" "cert-manager"; do
-        if kubectl get namespace "${ns}" &>/dev/null 2>&1; then
-            # Check if namespace has no pods (simplified check)
-            POD_COUNT=$(kubectl get pods -n "${ns}" --no-headers 2>/dev/null | wc -l || echo "0")
-            if [ "${POD_COUNT}" -eq 0 ]; then
-                log_info "Deleting namespace ${ns}..."
-                kubectl delete namespace "${ns}" --timeout=60s &>/dev/null || {
-                    log_warning "Failed to delete namespace ${ns}, attempting force delete..."
-                    kubectl delete namespace "${ns}" --force --grace-period=0 &>/dev/null || true
-                }
-            else
-                log_info "Namespace ${ns} still contains resources, skipping deletion"
-            fi
-        fi
-    done
-else
-    log_info "Preserving OpenChoreo namespaces (--amp-only mode)"
+    PLATFORM_CRDS="$(kubectl get crd -o name 2>/dev/null | grep -E "\.(${CRD_GROUPS})\$" || true)"
+    if [ -n "${PLATFORM_CRDS}" ]; then
+        log_info "Deleting $(printf '%s\n' "${PLATFORM_CRDS}" | wc -l | tr -d ' ') CRDs..."
+        # shellcheck disable=SC2086 # one CRD per word
+        kubectl delete ${PLATFORM_CRDS} --ignore-not-found --timeout=120s &>/dev/null \
+            || log_warning "Some CRDs did not finish deleting within 2 minutes"
+    fi
 fi
 
 # ============================================================================
 # VERIFICATION
 # ============================================================================
+# Report what is actually left rather than assuming the steps above worked.
 
 log_step "Verification"
 
-log_info "Remaining Helm Releases:"
-helm list -A 2>/dev/null || log_info "No helm releases found"
-echo ""
-
-log_info "Remaining Namespaces:"
-kubectl get namespaces 2>/dev/null | grep -E "(openchoreo|wso2-amp)" || log_info "No AMP/OpenChoreo namespaces found"
-echo ""
-
-# ============================================================================
-# SUCCESS
-# ============================================================================
-
-log_step "Uninstallation Complete!"
-
-if [ "${AMP_ONLY}" = true ]; then
-    log_success "AMP resources have been removed!"
-    log_info "OpenChoreo resources have been preserved."
-    log_info "Cluster '${CLUSTER_NAME}' has been preserved."
-else
-    log_success "All platform resources have been removed!"
-    log_info "Cluster '${CLUSTER_NAME}' has been preserved."
+LEFT_RELEASES=""
+while read -r release ns; do
+    [ -n "${release}" ] || continue
+    helm status "${release}" -n "${ns}" &>/dev/null && LEFT_RELEASES="${LEFT_RELEASES} ${ns}/${release}"
+done <<< "${AMP_RELEASES}$([ "${AMP_ONLY}" = false ] && printf '%s' "${OPENCHOREO_RELEASES}")"
+# shellcheck disable=SC2086 # one namespace per word
+LEFT_NAMESPACES="$( { existing_namespaces ${PLATFORM_NAMESPACES}; environment_namespaces; } | sort -u | tr '\n' ' ')"
+LEFT_CRDS=""
+if [ "${AMP_ONLY}" = false ]; then
+    LEFT_CRDS="$(kubectl get crd -o name 2>/dev/null | grep -cE "\.(${CRD_GROUPS})\$" || true)"
+    [ "${LEFT_CRDS}" != "0" ] || LEFT_CRDS=""
 fi
 
-echo ""
-if [ "${AMP_ONLY}" = true ]; then
-    log_info "To reinstall AMP, run: ./install.sh"
-else
+if [ -z "${LEFT_RELEASES}" ] && [ -z "${LEFT_NAMESPACES// /}" ] && [ -z "${LEFT_CRDS}" ]; then
+    log_step "Uninstallation Complete!"
+    if [ "${AMP_ONLY}" = true ]; then
+        log_success "AMP resources have been removed!"
+        log_info "OpenChoreo resources have been preserved."
+    else
+        log_success "All platform resources have been removed!"
+    fi
+    log_info "Cluster '${CLUSTER_NAME}' has been preserved."
+    echo ""
     log_info "To reinstall, run: ./install.sh"
-    log_info "To also delete the cluster: ./uninstall.sh --delete-cluster"
-    log_info "To delete everything including Colima profile: ./uninstall.sh --delete-cluster --delete-colima"
+    if [ "${AMP_ONLY}" = false ]; then
+        log_info "To also delete the cluster: ./uninstall.sh --delete-cluster"
+        log_info "To delete everything including Colima profile: ./uninstall.sh --delete-cluster --delete-colima"
+    fi
+    echo ""
+    exit 0
 fi
-echo ""
 
+log_step "Uninstallation Incomplete"
+[ -z "${LEFT_RELEASES}" ] || log_warning "Helm releases still installed:${LEFT_RELEASES}"
+[ -z "${LEFT_NAMESPACES// /}" ] || log_warning "Namespaces still present: ${LEFT_NAMESPACES}"
+[ -z "${LEFT_CRDS}" ] || log_warning "CRDs still present: ${LEFT_CRDS}"
+echo ""
+log_info "Installing again on top of these leftovers is not supported."
+log_info "For a clean slate, run: ./uninstall.sh --delete-cluster"
+echo ""
+exit 1
