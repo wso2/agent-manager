@@ -188,8 +188,9 @@ fi
 # The gateway chart registers each gateway with Agent Manager from an install hook,
 # and nothing removes that record on uninstall: the environment DELETE in Step 1 only
 # drops the gateway-environment mapping. Left behind, the record lists as an
-# Unassigned gateway, and re-adding an environment with the same name reuses it
-# without mapping it to the new environment, so that environment has no gateway.
+# Unassigned gateway. Gateway charts that predate the bootstrap's environment mapping
+# then reuse it for a re-added environment of the same name without mapping it, so
+# that environment has no gateway.
 # Failures are non-fatal: the environment itself is already gone.
 deregister_gateway() {
     local name="$1" code gw_id

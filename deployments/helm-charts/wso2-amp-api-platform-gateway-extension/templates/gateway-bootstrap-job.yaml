@@ -63,7 +63,7 @@ roleRef:
 # Bootstrap Job:
 #   1. Waits for Agent Manager API to be healthy
 #   2. Gets a JWT from Thunder IDP using amp-api-client credentials
-#   3. Registers the Gateway in Agent Manager (idempotent)
+#   3. Registers the Gateway in Agent Manager and maps it to its environment (idempotent)
 #   4. Generates a registration token (skipped on upgrades if Secret already exists)
 #   5. Writes the token to a Secret in apiGateway.namespace so the gateway-operator
 #      can reference it via the APIGateway CR spec.controlPlane.tokenSecretRef
@@ -267,6 +267,37 @@ spec:
                 return 0
               }
 
+              # ensure_environment_mapping — maps an already-registered gateway to
+              # ENVIRONMENT_NAME when it serves no environment. Deleting an environment
+              # drops only its gateway mappings, so re-adding an environment with the same
+              # name finds the old gateway in Step 3, and without this the new environment
+              # has no gateway. Sets ENV_MAPPED=true once the gateway serves an environment.
+              # Non-fatal like sync_runtime_url, so a failure cannot abort a pre-upgrade hook.
+              ensure_environment_mapping() {
+                # _em_ prefix: POSIX sh has no portable `local`, so these leak as globals.
+                if ! _em_body=$(http_get \
+                    "${AMP_API_URL}/orgs/${ORG_NAME}/gateways/${GATEWAY_ID}" \
+                    "${ACCESS_TOKEN}"); then
+                  log_error "Could not read the environments of gateway '${GATEWAY_NAME}' (continuing)."
+                  return 0
+                fi
+                if echo "${_em_body}" | grep -q '"environments":\[{'; then
+                  ENV_MAPPED=true
+                  return 0
+                fi
+                log_info "Gateway '${GATEWAY_NAME}' serves no environment; mapping it to '${ENVIRONMENT_NAME}'..."
+                if http_post \
+                    "${AMP_API_URL}/orgs/${ORG_NAME}/gateways/${GATEWAY_ID}/environments/${ENVIRONMENT_NAME}" \
+                    "application/json" "" \
+                    "Bearer ${ACCESS_TOKEN}" >/dev/null; then
+                  ENV_MAPPED=true
+                  log_info "Gateway mapped to environment '${ENVIRONMENT_NAME}'."
+                else
+                  log_error "Failed to map gateway '${GATEWAY_NAME}' to environment '${ENVIRONMENT_NAME}' (continuing). Assign it under Gateways in the console."
+                fi
+                return 0
+              }
+
               # ----------------------------------------------------------------
               # Step 1: Wait for Agent Manager API to be healthy
               # ----------------------------------------------------------------
@@ -350,6 +381,9 @@ spec:
                   grep -o '"name":"'"${GATEWAY_NAME}"'"[^}]*"vhost":"[^"]*"' | \
                   grep -o '"vhost":"[^"]*"' | cut -d'"' -f4 | head -1)
                 warn_vhost_drift "${GATEWAY_VHOST}" "${REGISTERED_VHOST}"
+
+                ENV_MAPPED=false
+                ensure_environment_mapping
               else
                 # ----------------------------------------------------------------
                 # Step 4: Find the environment by name
@@ -389,6 +423,7 @@ spec:
                   exit 1
                 fi
                 log_info "Gateway registered with ID: ${GATEWAY_ID}"
+                ENV_MAPPED=true
               fi
 
               # ----------------------------------------------------------------
@@ -473,5 +508,9 @@ spec:
                 amp.wso2.com/environment="${ENVIRONMENT_NAME}" \
                 --overwrite
 
-              log_info "Bootstrap complete. Gateway '${GATEWAY_NAME}' registered with ID: ${GATEWAY_ID} in environment '${ENVIRONMENT_NAME}'"
+              if [ "${ENV_MAPPED}" = true ]; then
+                log_info "Bootstrap complete. Gateway '${GATEWAY_NAME}' registered with ID: ${GATEWAY_ID} in environment '${ENVIRONMENT_NAME}'"
+              else
+                log_info "Bootstrap complete. Gateway '${GATEWAY_NAME}' registered with ID: ${GATEWAY_ID}, but its mapping to environment '${ENVIRONMENT_NAME}' is not confirmed"
+              fi
 {{- end }}
