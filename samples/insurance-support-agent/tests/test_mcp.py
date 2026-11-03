@@ -95,7 +95,14 @@ class MCPIntegrationTests(unittest.TestCase):
                 }
                 headers["X-Insurance-Upstream-Key"] = "test-upstream"
                 response = httpx.post(cls.upstream_url, headers=headers, content=body)
-                cls.response_content_types.append(response.headers.get("content-type", ""))
+                request = json.loads(body)
+                cls.response_content_types.append(
+                    (
+                        request.get("method"),
+                        request.get("params", {}).get("name"),
+                        response.headers.get("content-type", ""),
+                    )
+                )
                 self.send_response(response.status_code)
                 self.send_header(
                     "Content-Type",
@@ -397,8 +404,13 @@ class MCPStreamingIntegrationTests(MCPIntegrationTests):
         """Require real discovery and tool calls to traverse an SSE response."""
         super().test_real_mcp_discovery_lookup_and_proxy_denial()
         self.assertTrue(
-            any(t.startswith("text/event-stream") for t in self.response_content_types),
-            "the MCP round trip must exercise an SSE response",
+            any(
+                method == "tools/call"
+                and tool_name in {"list_policies", "lookup_policy"}
+                and content_type.startswith("text/event-stream")
+                for method, tool_name, content_type in self.response_content_types
+            ),
+            "a policy tool call must return an SSE response",
         )
 
 
