@@ -40,6 +40,8 @@ type MCPProxyResponse struct {
 	InCatalog *bool `json:"inCatalog,omitempty"`
 	// Gateway UUIDs associated with the MCP proxy
 	Gateways []string `json:"gateways,omitempty"`
+	// Set for a project-owned proxy; absent for an org-level one
+	ProjectName *string `json:"projectName,omitempty"`
 	// User who created the MCP proxy
 	CreatedBy *string `json:"createdBy,omitempty"`
 	// Timestamp when the resource was created
@@ -364,6 +366,38 @@ func (o *MCPProxyResponse) SetGateways(v []string) {
 	o.Gateways = v
 }
 
+// GetProjectName returns the ProjectName field value if set, zero value otherwise.
+func (o *MCPProxyResponse) GetProjectName() string {
+	if o == nil || IsNil(o.ProjectName) {
+		var ret string
+		return ret
+	}
+	return *o.ProjectName
+}
+
+// GetProjectNameOk returns a tuple with the ProjectName field value if set, nil otherwise
+// and a boolean to check if the value has been set.
+func (o *MCPProxyResponse) GetProjectNameOk() (*string, bool) {
+	if o == nil || IsNil(o.ProjectName) {
+		return nil, false
+	}
+	return o.ProjectName, true
+}
+
+// HasProjectName returns a boolean if a field has been set.
+func (o *MCPProxyResponse) HasProjectName() bool {
+	if o != nil && !IsNil(o.ProjectName) {
+		return true
+	}
+
+	return false
+}
+
+// SetProjectName gets a reference to the given string and assigns it to the ProjectName field.
+func (o *MCPProxyResponse) SetProjectName(v string) {
+	o.ProjectName = &v
+}
+
 // GetCreatedBy returns the CreatedBy field value if set, zero value otherwise.
 func (o *MCPProxyResponse) GetCreatedBy() string {
 	if o == nil || IsNil(o.CreatedBy) {
@@ -493,6 +527,9 @@ func (o MCPProxyResponse) ToMap() (map[string]interface{}, error) {
 	}
 	if !IsNil(o.Gateways) {
 		toSerialize["gateways"] = o.Gateways
+	}
+	if !IsNil(o.ProjectName) {
+		toSerialize["projectName"] = o.ProjectName
 	}
 	if !IsNil(o.CreatedBy) {
 		toSerialize["createdBy"] = o.CreatedBy

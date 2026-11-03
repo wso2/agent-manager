@@ -32,6 +32,8 @@ type MCPProxyListItem struct {
 	Context *string `json:"context,omitempty"`
 	// MCP specification version implemented by the upstream server
 	McpSpecVersion *string `json:"mcpSpecVersion,omitempty"`
+	// Set for a project-owned proxy; absent for an org-level one
+	ProjectName *string `json:"projectName,omitempty"`
 	// MCP proxy status
 	Status *string `json:"status,omitempty"`
 	// User who created the MCP proxy
@@ -251,6 +253,38 @@ func (o *MCPProxyListItem) SetMcpSpecVersion(v string) {
 	o.McpSpecVersion = &v
 }
 
+// GetProjectName returns the ProjectName field value if set, zero value otherwise.
+func (o *MCPProxyListItem) GetProjectName() string {
+	if o == nil || IsNil(o.ProjectName) {
+		var ret string
+		return ret
+	}
+	return *o.ProjectName
+}
+
+// GetProjectNameOk returns a tuple with the ProjectName field value if set, nil otherwise
+// and a boolean to check if the value has been set.
+func (o *MCPProxyListItem) GetProjectNameOk() (*string, bool) {
+	if o == nil || IsNil(o.ProjectName) {
+		return nil, false
+	}
+	return o.ProjectName, true
+}
+
+// HasProjectName returns a boolean if a field has been set.
+func (o *MCPProxyListItem) HasProjectName() bool {
+	if o != nil && !IsNil(o.ProjectName) {
+		return true
+	}
+
+	return false
+}
+
+// SetProjectName gets a reference to the given string and assigns it to the ProjectName field.
+func (o *MCPProxyListItem) SetProjectName(v string) {
+	o.ProjectName = &v
+}
+
 // GetStatus returns the Status field value if set, zero value otherwise.
 func (o *MCPProxyListItem) GetStatus() string {
 	if o == nil || IsNil(o.Status) {
@@ -406,6 +440,9 @@ func (o MCPProxyListItem) ToMap() (map[string]interface{}, error) {
 	}
 	if !IsNil(o.McpSpecVersion) {
 		toSerialize["mcpSpecVersion"] = o.McpSpecVersion
+	}
+	if !IsNil(o.ProjectName) {
+		toSerialize["projectName"] = o.ProjectName
 	}
 	if !IsNil(o.Status) {
 		toSerialize["status"] = o.Status
