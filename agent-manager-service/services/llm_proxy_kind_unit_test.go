@@ -196,3 +196,33 @@ func TestLLMProxyTargets_IgnoresSelfHostedOnlyProviderAnchor(t *testing.T) {
 		assert.False(t, ok)
 	})
 }
+
+// An agent's or monitor's proxy found on a self-hosted gateway is a state no retry repairs: Targets refuses it
+// permanently instead of re-placing it elsewhere.
+func TestLLMProxyKindTargets_RefusesSelfHostedAnchor(t *testing.T) {
+	env := uuid.New()
+	selfHosted := &models.Gateway{
+		UUID: uuid.New(), GatewayFunctionalityType: models.GatewayRoleEgress,
+		Hosting: models.GatewayHostingSelfHosted, IsActive: true,
+	}
+	managed := &models.Gateway{UUID: uuid.New(), GatewayFunctionalityType: models.GatewayRoleEgress, IsActive: true}
+	proxy := goldenProxy()
+	kind := goldenProxyKind(proxy)
+	kind.gatewayRepo = gatewayFixtureRepo(t, env.String(), []*models.Gateway{selfHosted, managed})
+	kind.deploymentRepo = &repomocks.DeploymentRepositoryMock{
+		PlacedGatewaysFunc: func(_ context.Context, _ string, artifact uuid.UUID) ([]string, error) {
+			if artifact == proxy.UUID {
+				return []string{selfHosted.UUID.String()}, nil
+			}
+			return nil, nil
+		},
+	}
+
+	_, ok, err := kind.Targets(context.Background(), reconcile.Record{
+		ArtifactRef: models.ArtifactRef{OUID: "ou-1", ArtifactUUID: proxy.UUID, Handle: proxy.Handle}, EnvironmentUUID: env,
+	})
+
+	require.ErrorIs(t, err, errSelfHostedAnchor)
+	assert.True(t, reconcile.IsPermanent(err))
+	assert.False(t, ok)
+}

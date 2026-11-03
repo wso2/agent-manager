@@ -147,9 +147,11 @@ func (s *AgentAPIKeyService) resolveAgentAPIArtifact(ctx context.Context, ouID, 
 // tracks WebSocket connectivity, which flaps — filtering on it would intermittently
 // starve a live gateway of keys. The role filter is the only change.
 func (s *AgentAPIKeyService) resolveEnvGateways(envUUID string) ([]*models.Gateway, error) {
+	hosting := models.GatewayHostingManaged
 	gateways, err := s.gatewayRepo.ListWithFilters(repositories.GatewayFilterOptions{
 		EnvironmentID:       &envUUID,
 		FunctionalityTypeIn: models.IngressGatewayRoles,
+		Hosting:             &hosting,
 	})
 	if err != nil {
 		return nil, fmt.Errorf("failed to list ingress gateways for environment %s: %w", envUUID, err)

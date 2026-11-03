@@ -25,7 +25,13 @@ import (
 	"testing"
 	"time"
 
+	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+
+	"github.com/wso2/agent-manager/agent-manager-service/models"
+	"github.com/wso2/agent-manager/agent-manager-service/repositories"
+	"github.com/wso2/agent-manager/agent-manager-service/repositories/repomocks"
 )
 
 func TestUserFacingA2AErrorShowsOnlyPublicMessages(t *testing.T) {
@@ -85,4 +91,25 @@ func TestDrainWithinLeaseStartsNoRowOnceTheLeaseIsSpent(t *testing.T) {
 		func(context.Context, int) { ran.Add(1) })
 
 	assert.Zero(t, ran.Load())
+}
+
+// Inbound A2A traffic is routed through the platform's gateway, never a customer's self-hosted one.
+func TestFindIngressGateway_ManagedOnly(t *testing.T) {
+	env := uuid.New()
+	managed := newGateway(t, models.GatewayRoleIngress, true)
+	var got repositories.GatewayFilterOptions
+	repo := &repomocks.GatewayRepositoryMock{
+		ListWithFiltersFunc: func(f repositories.GatewayFilterOptions) ([]*models.Gateway, error) {
+			got = f
+			return []*models.Gateway{managed}, nil
+		},
+	}
+
+	gateway, err := findIngressGateway(repo, "org", env)
+
+	require.NoError(t, err)
+	assert.Equal(t, managed, gateway)
+	require.NotNil(t, got.Hosting)
+	assert.Equal(t, models.GatewayHostingManaged, *got.Hosting)
+	assert.Equal(t, models.IngressGatewayRoles, got.FunctionalityTypeIn)
 }

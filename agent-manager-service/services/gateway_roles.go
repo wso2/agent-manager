@@ -59,6 +59,10 @@ var (
 	// already deployed in this environment. There is no undeploy path, so a move is
 	// refused rather than silently ignored.
 	errPlacementFixed = errors.New("placement is fixed for this environment; delete and recreate the binding to change it")
+
+	// errSelfHostedAnchor means an agent's or monitor's LLM proxy, which AMS owns and serves to workloads in
+	// OpenChoreo, is placed on a self-hosted gateway. No path places one there, so this is a backstop only.
+	errSelfHostedAnchor = errors.New("the agent's or monitor's LLM proxy is placed on a self-hosted gateway")
 )
 
 // resolveEgressGatewayForEnvironment selects the environment's egress gateway, either
@@ -190,6 +194,22 @@ func managedAnchorsOnly(repo repositories.GatewayRepository, gatewayIDs []string
 		kept = append(kept, id)
 	}
 	return kept, nil
+}
+
+// resolveManagedPlacement is resolveEgressGatewayForArtifact for an AMS-owned proxy, refusing a self-hosted
+// result rather than resolving again: another gateway would be one the proxy isn't on.
+func resolveManagedPlacement(
+	repo repositories.GatewayRepository, ouID string, envUUID uuid.UUID, placed []string,
+) (*models.Gateway, error) {
+	gateway, err := resolveEgressGatewayForArtifact(repo, ouID, envUUID, placed, nil)
+	if err != nil {
+		return nil, err
+	}
+	if !gateway.IsManaged() {
+		return nil, fmt.Errorf("%w: gateway %s (%s) in environment %s",
+			errSelfHostedAnchor, gateway.Name, gateway.UUID, envUUID)
+	}
+	return gateway, nil
 }
 
 // placedOn runs a kind's PlacedOn query, records whose artifacts PlacedCondition finds placed, through tx.

@@ -29,25 +29,35 @@ import (
 func TestMigration054(t *testing.T) {
 	g := scratchDatabase(t)
 	require.NoError(t, migrateTo(g, 53))
-	require.NoError(t, migrateTo(g, 54))
 
-	insertGateway := func(hosting string) error {
+	insertGateway := func(hosting, role string) error {
 		id := uuid.New()
 		if hosting == "" {
-			return g.Exec(`INSERT INTO gateways (uuid, ou_id, name, display_name, vhost, gateway_functionality_type) VALUES (?, ?, ?, ?, 'v.example.com', 'both')`,
-				id, seedOU, id.String(), id.String()).Error
+			return g.Exec(`INSERT INTO gateways (uuid, ou_id, name, display_name, vhost, gateway_functionality_type) VALUES (?, ?, ?, ?, 'v.example.com', ?)`,
+				id, seedOU, id.String(), id.String(), role).Error
 		}
-		return g.Exec(`INSERT INTO gateways (uuid, ou_id, name, display_name, vhost, gateway_functionality_type, hosting) VALUES (?, ?, ?, ?, 'v.example.com', 'both', ?)`,
-			id, seedOU, id.String(), id.String(), hosting).Error
+		return g.Exec(`INSERT INTO gateways (uuid, ou_id, name, display_name, vhost, gateway_functionality_type, hosting) VALUES (?, ?, ?, ?, 'v.example.com', ?, ?)`,
+			id, seedOU, id.String(), id.String(), role, hosting).Error
 	}
 
-	require.NoError(t, insertGateway(""))
-	var hosting string
-	require.NoError(t, g.Raw(`SELECT hosting FROM gateways LIMIT 1`).Scan(&hosting).Error)
-	assert.Equal(t, "managed", hosting)
+	// Existing gateways of every role become managed, which the egress-only rule allows.
+	for _, role := range []string{"egress", "ingress", "both"} {
+		require.NoError(t, insertGateway("", role))
+	}
+	require.NoError(t, migrateTo(g, 54))
 
-	assert.NoError(t, insertGateway("self_hosted"))
-	err := insertGateway("x")
+	var hostings []string
+	require.NoError(t, g.Raw(`SELECT DISTINCT hosting FROM gateways`).Scan(&hostings).Error)
+	assert.Equal(t, []string{"managed"}, hostings)
+
+	require.NoError(t, insertGateway("", "both"))
+	assert.NoError(t, insertGateway("self_hosted", "egress"))
+
+	err := insertGateway("self_hosted", "both")
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "chk_gateways_self_hosted_egress")
+
+	err = insertGateway("x", "egress")
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "chk_gateways_hosting")
 }

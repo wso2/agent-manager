@@ -22,7 +22,7 @@ import "gorm.io/gorm"
 //
 // Every existing row is managed, which is the column default, so the migration
 // needs no backfill and the previous version of the service, which never reads
-// the column, is unaffected.
+// the column, is unaffected. A self-hosted gateway may only be designated for egress.
 var migration054 = migration{
 	ID: 54,
 	Migrate: func(db *gorm.DB) error {
@@ -31,7 +31,8 @@ var migration054 = migration{
 				tx,
 				`ALTER TABLE gateways
 					ADD COLUMN hosting VARCHAR(16) NOT NULL DEFAULT 'managed',
-					ADD CONSTRAINT chk_gateways_hosting CHECK (hosting IN ('managed','self_hosted'))`,
+					ADD CONSTRAINT chk_gateways_hosting CHECK (hosting IN ('managed','self_hosted')),
+					ADD CONSTRAINT chk_gateways_self_hosted_egress CHECK (hosting <> 'self_hosted' OR gateway_functionality_type = 'egress')`,
 			)
 		})
 	},

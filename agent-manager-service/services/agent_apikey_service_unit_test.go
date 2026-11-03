@@ -317,6 +317,27 @@ func TestResolveEnvGateways_IngressOnly(t *testing.T) {
 	})
 }
 
+// Agent keys go only to the platform's ingress gateways, never to a customer's self-hosted one.
+func TestResolveEnvGateways_IngressManagedOnly(t *testing.T) {
+	env := uuid.New().String()
+	managed := newGateway(t, models.GatewayRoleIngress, true)
+	var got repositories.GatewayFilterOptions
+	svc := &AgentAPIKeyService{gatewayRepo: &repomocks.GatewayRepositoryMock{
+		ListWithFiltersFunc: func(f repositories.GatewayFilterOptions) ([]*models.Gateway, error) {
+			got = f
+			return []*models.Gateway{managed}, nil
+		},
+	}}
+
+	gateways, err := svc.resolveEnvGateways(env)
+
+	require.NoError(t, err)
+	assert.Equal(t, []*models.Gateway{managed}, gateways)
+	require.NotNil(t, got.Hosting)
+	assert.Equal(t, models.GatewayHostingManaged, *got.Hosting)
+	assert.Equal(t, models.IngressGatewayRoles, got.FunctionalityTypeIn)
+}
+
 func TestAgentAPIKeyService_CreateAPIKey_ReservedTestKeyPrefix(t *testing.T) {
 	const org, proj, agent, env = "default", "default", "customeragent", "dev"
 

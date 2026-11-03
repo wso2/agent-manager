@@ -234,5 +234,10 @@ func (k *LLMProxyKind) Targets(ctx context.Context, record reconcile.Record) (uu
 	if err != nil {
 		return uuid.Nil, false, err
 	}
+	// Every record reaching Targets comes from UnplacedRecords, the agent and monitor mappings, and the public
+	// route always names its gateway, so this refuses exactly the AMS-owned proxies.
+	if !gateway.IsManaged() {
+		return uuid.Nil, false, reconcile.Permanent(errSelfHostedAnchor)
+	}
 	return gateway.UUID, true, nil
 }

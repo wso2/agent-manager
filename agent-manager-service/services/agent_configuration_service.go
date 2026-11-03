@@ -4754,7 +4754,7 @@ func (s *agentConfigurationService) resolveGatewayForProxy(
 	if err != nil && !errors.Is(err, utils.ErrLLMProxyNotFound) {
 		return nil, fmt.Errorf("failed to list the gateways proxy %s is placed on: %w", proxyHandle, err)
 	}
-	return resolveEgressGatewayForArtifact(s.gatewayRepo, ouID, envUUID, placed, nil)
+	return resolveManagedPlacement(s.gatewayRepo, ouID, envUUID, placed)
 }
 
 // errMCPEnvNotDeployable reports that an MCP proxy cannot back an agent binding in an
