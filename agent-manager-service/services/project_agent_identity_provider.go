@@ -107,6 +107,37 @@ type ProjectAgentIdentityPromotionProvider interface {
 	Promote(ctx context.Context, request ProjectAgentIdentityPromotionRequest) (ProjectAgentIdentityResult, error)
 }
 
+// ProjectAgentIdentitySecretRequest names one AgentID credential in one environment.
+type ProjectAgentIdentitySecretRequest struct {
+	OrganizationID string
+	ProjectID      string
+	ProjectName    string
+	Environment    string
+	AgentName      string
+	AgentID        string
+	ClientID       string
+	// ClientSecret is chosen by AMS. It is a secret: implementations must never
+	// log it or include it in an error.
+	ClientSecret string
+}
+
+// ProjectAgentIdentitySecretProvider is an optional capability of a
+// ProjectAgentIdentityProvider: it replaces the client secret of an existing
+// AgentID in one environment. AMS owns the secret value (like Promote), so
+// the identity platform never generates it.
+type ProjectAgentIdentitySecretProvider interface {
+	// SetSecret makes ClientSecret the only valid secret of the AgentID in request.Environment.
+	// MUST set the value unconditionally (overwrite, idempotent) and return only after the
+	// environment's identity service accepts it; a retry with the same request must succeed.
+	SetSecret(ctx context.Context, request ProjectAgentIdentitySecretRequest) error
+}
+
+// errProjectAgentIdentitySecretUnavailable is returned by secret rotation and
+// revocation in CP_MANAGED mode when the configured provider cannot set a
+// secret. It fails closed: the legacy per-environment Thunder client is never
+// used for a CP-managed environment.
+var errProjectAgentIdentitySecretUnavailable = errors.New("project AgentID secret provider is not configured")
+
 // ErrProjectAgentIdentityRequiresPromotion tells callers not to create another
 // identity directly in a non-source environment.
 var ErrProjectAgentIdentityRequiresPromotion = fmt.Errorf(
@@ -126,6 +157,7 @@ func (s *agentThunderProvisioningService) SetProjectAgentIdentityProvider(
 	case "", thundersvc.IdentityManagementLegacyDirect:
 		s.identityManagementMode = thundersvc.IdentityManagementLegacyDirect
 		s.projectIdentityProvider = nil
+		s.projectIdentitySecretProvider = nil
 		return nil
 	case thundersvc.IdentityManagementCPManaged:
 		if provider == nil {
@@ -133,6 +165,9 @@ func (s *agentThunderProvisioningService) SetProjectAgentIdentityProvider(
 		}
 		s.identityManagementMode = mode
 		s.projectIdentityProvider = provider
+		// Optional capability: rotation and revocation fail closed without it.
+		secretProvider, _ := provider.(ProjectAgentIdentitySecretProvider)
+		s.projectIdentitySecretProvider = secretProvider
 		return nil
 	default:
 		return errors.New("project AgentID provisioning supports only LEGACY_DIRECT or CP_MANAGED mode")

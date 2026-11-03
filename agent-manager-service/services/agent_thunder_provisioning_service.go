@@ -238,6 +238,10 @@ type agentThunderProvisioningService struct {
 	awaitTimeout            time.Duration
 	identityManagementMode  thundersvc.IdentityManagementMode
 	projectIdentityProvider ProjectAgentIdentityProvider
+	// projectIdentitySecretProvider is projectIdentityProvider when it also
+	// implements ProjectAgentIdentitySecretProvider, else nil. Secret rotation
+	// and revocation in CP_MANAGED mode require it.
+	projectIdentitySecretProvider ProjectAgentIdentitySecretProvider
 	// pipelineReader supplies the project's environment order in CP_MANAGED
 	// mode (see ProjectPipelineReader). Set once at startup.
 	pipelineReader ProjectPipelineReader
@@ -1124,6 +1128,39 @@ func userFacingProvisioningError(cause error) string {
 	}
 }
 
+// setProjectAgentIdentitySecret generates a fresh secret in AMS and makes it the
+// only valid secret of the binding's AgentID in the binding's environment
+// through the project AgentID provider (CP_MANAGED mode). It returns the secret
+// only after the provider accepted it. It fails closed when the provider cannot
+// set secrets: the legacy per-environment Thunder client is never used here.
+// errPrefix, when set, prefixes the returned error. Neither the secret nor any
+// error returned contains the secret value.
+func (s *agentThunderProvisioningService) setProjectAgentIdentitySecret(
+	ctx context.Context, ouID, projectName, agentName, envName string, binding *models.AgentThunderClient, errPrefix string,
+) (string, error) {
+	wrap := func(err error) error {
+		if errPrefix != "" {
+			return fmt.Errorf("%s: %w", errPrefix, err)
+		}
+		return err
+	}
+	if s.projectIdentitySecretProvider == nil {
+		return "", wrap(errProjectAgentIdentitySecretUnavailable)
+	}
+	newSecret, err := thundersvc.GenerateClientSecret()
+	if err != nil {
+		return "", wrap(fmt.Errorf("generate client secret: %w", err))
+	}
+	if err := s.projectIdentitySecretProvider.SetSecret(ctx, ProjectAgentIdentitySecretRequest{
+		OrganizationID: ouID, ProjectID: projectName, ProjectName: projectName,
+		Environment: envName, AgentName: agentName,
+		AgentID: binding.ThunderAgentID, ClientID: binding.ThunderClientID, ClientSecret: newSecret,
+	}); err != nil {
+		return "", wrap(fmt.Errorf("set project agent identity secret: %w", err))
+	}
+	return newSecret, nil
+}
+
 func (s *agentThunderProvisioningService) RegenerateSecret(ctx context.Context, ouID, projectName, agentName, envName string) (models.AgentProvisioningType, string, string, error) {
 	release, err := s.bindingLocks.Lock(ctx, bindingLockKey(ouID, projectName, agentName, envName))
 	if err != nil {
@@ -1142,14 +1179,27 @@ func (s *agentThunderProvisioningService) RegenerateSecret(ctx context.Context, 
 		return "", "", "", fmt.Errorf("%w: %s in %s", utils.ErrAgentIdentityNotProvisioned, agentName, envName)
 	}
 
-	thunderClient, err := ResolveEnvThunderClient(ctx, s.envResolver, ouID, envName)
-	if err != nil {
-		return "", "", "", err
-	}
+	var newSecret string
+	if s.identityManagementMode == thundersvc.IdentityManagementCPManaged {
+		// CP_MANAGED: AMS owns the secret value and the identity platform is
+		// authoritative, so it must accept the secret BEFORE anything is stored
+		// or returned. If it succeeded but the store below fails, the call errors
+		// and a retry simply regenerates and sets a new secret; a secret the
+		// identity platform did not accept is never stored or returned.
+		newSecret, err = s.setProjectAgentIdentitySecret(ctx, ouID, projectName, agentName, envName, binding, "")
+		if err != nil {
+			return "", "", "", err
+		}
+	} else {
+		thunderClient, err := ResolveEnvThunderClient(ctx, s.envResolver, ouID, envName)
+		if err != nil {
+			return "", "", "", err
+		}
 
-	newSecret, err := thunderClient.RegenerateAgentSecret(ctx, binding.ThunderAgentID)
-	if err != nil {
-		return "", "", "", err
+		newSecret, err = thunderClient.RegenerateAgentSecret(ctx, binding.ThunderAgentID)
+		if err != nil {
+			return "", "", "", err
+		}
 	}
 
 	// External agent secrets are only returned to the caller and never persisted.
@@ -1242,15 +1292,23 @@ func (s *agentThunderProvisioningService) RevokeSecret(ctx context.Context, ouID
 		return "", fmt.Errorf("%w: %s in %s", utils.ErrAgentIdentityNotProvisioned, agentName, envName)
 	}
 
-	thunderClient, err := ResolveEnvThunderClient(ctx, s.envResolver, ouID, envName)
-	if err != nil {
-		return "", err
-	}
-
 	// Rotating without storing the result is deliberate: revoke is a kill
 	// switch, not "give me a fresh usable one" — that is what regenerate is for.
-	if _, err := thunderClient.RegenerateAgentSecret(ctx, binding.ThunderAgentID); err != nil {
-		return "", fmt.Errorf("revoke (rotate) secret: %w", err)
+	if s.identityManagementMode == thundersvc.IdentityManagementCPManaged {
+		// CP_MANAGED: the identity platform is told a freshly generated secret
+		// that is discarded here (never logged, stored or returned), so the old
+		// secret stops working there. The stored copy is removed below.
+		if _, err := s.setProjectAgentIdentitySecret(ctx, ouID, projectName, agentName, envName, binding, "revoke (rotate) secret"); err != nil {
+			return "", err
+		}
+	} else {
+		thunderClient, err := ResolveEnvThunderClient(ctx, s.envResolver, ouID, envName)
+		if err != nil {
+			return "", err
+		}
+		if _, err := thunderClient.RegenerateAgentSecret(ctx, binding.ThunderAgentID); err != nil {
+			return "", fmt.Errorf("revoke (rotate) secret: %w", err)
+		}
 	}
 
 	if binding.SecretRefPath != "" {
