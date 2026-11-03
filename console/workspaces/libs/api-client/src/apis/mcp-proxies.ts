@@ -54,6 +54,9 @@ export async function listMCPProxies(
   if (query?.offset !== undefined) {
     searchParams.offset = String(query.offset);
   }
+  if (query?.project) {
+    searchParams.project = query.project;
+  }
 
   const res = await httpGET(`${SERVICE_BASE}/orgs/${org}/mcp-proxies`, {
     token,

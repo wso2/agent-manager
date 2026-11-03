@@ -155,5 +155,11 @@ export type GetMCPProxyPathParams = OrgPathParams & { proxyId: string };
 export type UpdateMCPProxyPathParams = OrgPathParams & { proxyId: string };
 export type ListMCPProxiesPathParams = OrgPathParams;
 export type ListAvailableMCPPoliciesPathParams = OrgPathParams;
-export type ListMCPProxiesQuery = ListQuery;
+export type ListMCPProxiesQuery = ListQuery & {
+  /**
+   * OpenChoreo project name. When set, the list also includes that project's
+   * project-scoped MCP proxies alongside the org-level ones.
+   */
+  project?: string;
+};
 export type FetchMCPProxyServerInfoPathParams = OrgPathParams;
