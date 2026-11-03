@@ -19,9 +19,11 @@ package services
 import (
 	"context"
 	"errors"
+	"fmt"
 
 	"github.com/wso2/agent-manager/agent-manager-service/clients/thundersvc"
 	"github.com/wso2/agent-manager/agent-manager-service/models"
+	"github.com/wso2/agent-manager/agent-manager-service/utils"
 )
 
 // ProjectAgentIdentityRequest identifies one project-scoped AgentID operation.
@@ -58,7 +60,9 @@ type ProjectAgentIdentityProvider interface {
 
 // ErrProjectAgentIdentityRequiresPromotion tells callers not to create another
 // identity directly in a non-source environment.
-var ErrProjectAgentIdentityRequiresPromotion = errors.New("project AgentID must be promoted to this environment")
+var ErrProjectAgentIdentityRequiresPromotion = fmt.Errorf(
+	"%w: project AgentID must be promoted to this environment", utils.ErrConflict,
+)
 
 // ProjectAgentIdentityProviderSetter is an optional deployment hook. The
 // open-source runtime defaults to LEGACY_DIRECT and needs no provider.

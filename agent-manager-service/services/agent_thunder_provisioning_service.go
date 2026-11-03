@@ -540,22 +540,15 @@ func (s *agentThunderProvisioningService) ProvisionForAgent(
 	if s.identityManagementMode == thundersvc.IdentityManagementCPManaged {
 		source, err := s.projectIdentityProvider.SourceEnvironment(ctx, ouID, projectName, projectName)
 		if err != nil {
-			s.logger.Error("Failed to resolve project identity source environment",
+			// Preserve write-ahead candidates for every known environment. Each
+			// attempt resolves the authoritative source again before writing to CP,
+			// so a transient project-mapping outage cannot strand the agent.
+			s.logger.Warn("Failed to resolve project identity source environment; provisioning will retry",
 				"ouID", ouID, "projectName", projectName, "agentName", agentName, "error", err)
-			return
-		}
-		found := false
-		for _, env := range envNames {
-			if env == source {
-				envNames = []string{source}
-				found = true
-				break
-			}
-		}
-		if !found {
-			s.logger.Error("Project identity source environment is not available to Agent Manager",
-				"ouID", ouID, "projectName", projectName, "agentName", agentName, "sourceEnvironment", source)
-			return
+		} else {
+			// The provider owns project mapping. Trust its source even if the
+			// caller's environment list is briefly stale.
+			envNames = []string{source}
 		}
 	}
 	bindings := make([]models.AgentThunderClient, 0, len(envNames))
@@ -721,7 +714,7 @@ func (s *agentThunderProvisioningService) AttemptProvision(ctx context.Context, 
 		if r := recover(); r != nil {
 			s.logger.Error("Recovered from panic during agent thunder provisioning attempt",
 				"bindingID", binding.ID, "agentName", binding.AgentName, "envName", binding.EnvironmentName, "panic", r)
-			s.recordFailure(ctx, binding, "", "", fmt.Errorf("panic during provisioning attempt: %v", r))
+			s.recordFailure(ctx, binding, "", "", binding.SecretRefPath, fmt.Errorf("panic during provisioning attempt: %v", r))
 		}
 	}()
 
@@ -753,6 +746,30 @@ func (s *agentThunderProvisioningService) AttemptProvision(ctx context.Context, 
 	var clientSecret string
 
 	if s.identityManagementMode == thundersvc.IdentityManagementCPManaged {
+		source, sourceErr := s.projectIdentityProvider.SourceEnvironment(
+			ctx, binding.OUID, binding.ProjectName, binding.ProjectName,
+		)
+		if sourceErr != nil {
+			s.recordFailure(ctx, binding, thunderAgentID, clientID, binding.SecretRefPath,
+				fmt.Errorf("resolve project identity source environment: %w", sourceErr))
+			return
+		}
+		if binding.EnvironmentName != source {
+			// Candidates are written only while source resolution is unavailable.
+			// Remove an empty non-source candidate once mapping recovers; promotion
+			// owns creation of the real target binding.
+			if binding.ThunderAgentID == "" && binding.ThunderClientID == "" && binding.SecretRefPath == "" {
+				if deleteErr := s.repo.DeleteByIDs(ctx, []uuid.UUID{binding.ID}); deleteErr != nil {
+					s.recordFailure(ctx, binding, "", "", "",
+						fmt.Errorf("remove non-source project identity candidate: %w", deleteErr))
+				}
+				return
+			}
+			s.recordFailure(ctx, binding, thunderAgentID, clientID, binding.SecretRefPath,
+				fmt.Errorf("%w: %s", ErrProjectAgentIdentityRequiresPromotion, binding.EnvironmentName))
+			return
+		}
+
 		request := ProjectAgentIdentityRequest{
 			OrganizationID: binding.OUID, ProjectID: binding.ProjectName, ProjectName: binding.ProjectName,
 			Environment: binding.EnvironmentName, AgentName: binding.AgentName,
@@ -761,31 +778,31 @@ func (s *agentThunderProvisioningService) AttemptProvision(ctx context.Context, 
 		}
 		result, provisionErr := s.projectIdentityProvider.Provision(ctx, request)
 		if provisionErr != nil {
-			s.recordFailure(ctx, binding, thunderAgentID, clientID, fmt.Errorf("provision project agent identity: %w", provisionErr))
+			s.recordFailure(ctx, binding, thunderAgentID, clientID, binding.SecretRefPath, fmt.Errorf("provision project agent identity: %w", provisionErr))
 			return
 		}
 		thunderAgentID, clientID, clientSecret = result.AgentID, result.ClientID, result.ClientSecret
 		if thunderAgentID == "" || clientID == "" {
-			s.recordFailure(ctx, binding, thunderAgentID, clientID, errors.New("project AgentID provider returned an incomplete identity"))
+			s.recordFailure(ctx, binding, thunderAgentID, clientID, binding.SecretRefPath, errors.New("project AgentID provider returned an incomplete identity"))
 			return
 		}
 		if isExternal {
 			clientSecret = ""
 		} else if request.NeedsSecret && clientSecret == "" {
-			s.recordFailure(ctx, binding, thunderAgentID, clientID, errors.New("project AgentID provider did not return the required client secret"))
+			s.recordFailure(ctx, binding, thunderAgentID, clientID, binding.SecretRefPath, errors.New("project AgentID provider did not return the required client secret"))
 			return
 		}
 	} else {
 		thunderClient, resolveErr := ResolveEnvThunderClient(ctx, s.envResolver, binding.OUID, binding.EnvironmentName)
 		if resolveErr != nil {
-			s.recordFailure(ctx, binding, "", "", resolveErr)
+			s.recordFailure(ctx, binding, "", "", binding.SecretRefPath, resolveErr)
 			return
 		}
 
 		if thunderAgentID == "" {
 			ouID, err := thunderClient.GetDefaultOUID(ctx)
 			if err != nil {
-				s.recordFailure(ctx, binding, "", "", fmt.Errorf("get default OU: %w", err))
+				s.recordFailure(ctx, binding, "", "", binding.SecretRefPath, fmt.Errorf("get default OU: %w", err))
 				return
 			}
 
@@ -793,7 +810,7 @@ func (s *agentThunderProvisioningService) AttemptProvision(ctx context.Context, 
 			var created bool
 			thunderAgentID, clientID, clientSecret, created, err = thunderClient.CreateAgentIdentity(ctx, ouID, appName, "")
 			if err != nil {
-				s.recordFailure(ctx, binding, "", "", fmt.Errorf("create agent identity: %w", err))
+				s.recordFailure(ctx, binding, "", "", binding.SecretRefPath, fmt.Errorf("create agent identity: %w", err))
 				return
 			}
 
@@ -811,7 +828,7 @@ func (s *agentThunderProvisioningService) AttemptProvision(ctx context.Context, 
 					// thunderAgentID/clientID are already resolved at this point —
 					// pass them through so a failure here doesn't lose them (see
 					// the identical reasoning on the storeCredential failure below).
-					s.recordFailure(ctx, binding, thunderAgentID, clientID, fmt.Errorf("recover secret for existing agent identity: %w", err))
+					s.recordFailure(ctx, binding, thunderAgentID, clientID, binding.SecretRefPath, fmt.Errorf("recover secret for existing agent identity: %w", err))
 					return
 				}
 			}
@@ -819,7 +836,7 @@ func (s *agentThunderProvisioningService) AttemptProvision(ctx context.Context, 
 			// Retry of an attempt that created the identity but failed before storing a secret.
 			clientSecret, err = thunderClient.RegenerateAgentSecret(ctx, thunderAgentID)
 			if err != nil {
-				s.recordFailure(ctx, binding, thunderAgentID, clientID, fmt.Errorf("recover secret for existing agent identity: %w", err))
+				s.recordFailure(ctx, binding, thunderAgentID, clientID, binding.SecretRefPath, fmt.Errorf("recover secret for existing agent identity: %w", err))
 				return
 			}
 		}
@@ -835,7 +852,7 @@ func (s *agentThunderProvisioningService) AttemptProvision(ctx context.Context, 
 			// see ThunderAgentID=="" and call CreateAgentIdentity again for a
 			// name that already exists, hitting the 409 fallback and forcing
 			// an unnecessary secret rotation.
-			s.recordFailure(ctx, binding, thunderAgentID, clientID, fmt.Errorf("store agent secret: %w", err))
+			s.recordFailure(ctx, binding, thunderAgentID, clientID, binding.SecretRefPath, fmt.Errorf("store agent secret: %w", err))
 			return
 		}
 	}
@@ -848,7 +865,7 @@ func (s *agentThunderProvisioningService) AttemptProvision(ctx context.Context, 
 			ExistingClientID: clientID, NeedsSecret: !isExternal,
 		}
 		if err := s.projectIdentityProvider.Activate(ctx, request, thunderAgentID); err != nil {
-			s.recordFailure(ctx, binding, thunderAgentID, clientID, fmt.Errorf("activate project agent identity: %w", err))
+			s.recordFailure(ctx, binding, thunderAgentID, clientID, secretRefPath, fmt.Errorf("activate project agent identity: %w", err))
 			return
 		}
 	}
@@ -895,13 +912,17 @@ func (s *agentThunderProvisioningService) AttemptProvision(ctx context.Context, 
 // the binding FAILED. ErrThunderNotProvisioned is treated the same as any
 // other failure, not as an immediate permanent one — the environment may just
 // be mid-bootstrap (add-environment-thunder.sh still running), a window the
-// existing retry budget already covers. resolvedAgentID/resolvedClientID
-// carry through a Thunder identity that was already created before a LATER
-// step in this same attempt failed (e.g. secret storage) — passing "" for
-// either means nothing was resolved yet, so the update leaves the
-// corresponding field nil (unchanged) rather than clobbering an
-// already-stored value with a blank one.
-func (s *agentThunderProvisioningService) recordFailure(ctx context.Context, binding models.AgentThunderClient, resolvedAgentID, resolvedClientID string, cause error) {
+// existing retry budget already covers. The resolved fields carry identity
+// state created before a later step failed; an empty value leaves the stored
+// field unchanged. In particular, an activation failure retains the
+// SecretReference written earlier in the attempt so retrying does not rotate
+// an already-stored credential.
+func (s *agentThunderProvisioningService) recordFailure(
+	ctx context.Context,
+	binding models.AgentThunderClient,
+	resolvedAgentID, resolvedClientID, resolvedSecretRefPath string,
+	cause error,
+) {
 	attemptsSoFar := binding.AttemptCount + 1
 	exhausted := attemptsSoFar >= maxProvisionAttempts
 
@@ -921,6 +942,9 @@ func (s *agentThunderProvisioningService) recordFailure(ctx context.Context, bin
 	}
 	if resolvedClientID != "" {
 		update.ThunderClientID = &resolvedClientID
+	}
+	if resolvedSecretRefPath != "" {
+		update.SecretRefPath = &resolvedSecretRefPath
 	}
 	if exhausted {
 		update.Status = models.AgentThunderStatusFailed
