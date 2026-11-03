@@ -34,7 +34,8 @@ import (
 
 // createMCPProxyForTest inserts a proxy through the repository and removes it afterwards.
 func createMCPProxyForTest(t *testing.T, repo MCPProxyRepository, ou, handle string,
-	projectUUID, projectName *string, src *models.MCPProxySource) *models.MCPProxy {
+	projectUUID, projectName *string, src *models.MCPProxySource,
+) *models.MCPProxy {
 	t.Helper()
 	ctx := context.Background()
 	proxy := &models.MCPProxy{Configuration: models.MCPProxyConfig{Name: handle, Version: "v1", Source: src}}

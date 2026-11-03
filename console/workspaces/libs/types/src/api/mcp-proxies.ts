@@ -120,6 +120,8 @@ export interface MCPProxyListItem {
   context?: string;
   status?: "pending" | "deployed" | "failed";
   mcpSpecVersion?: string;
+  /** Set for a project-scoped proxy: the project that owns it. Absent for an org proxy. */
+  projectName?: string;
   createdAt?: string;
   updatedAt?: string;
 }

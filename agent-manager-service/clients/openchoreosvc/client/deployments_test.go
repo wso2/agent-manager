@@ -955,7 +955,8 @@ func TestEndpointServiceURL(t *testing.T) {
 
 	t.Run("SameNamedComponentInAnotherProjectIsIgnored", func(t *testing.T) {
 		other := binding("other-proj", "orders", "dev", &[]gen.EndpointURLStatus{
-			{Name: "mcp", ServiceURL: &gen.EndpointURL{Host: "other.svc", Port: &port}}})
+			{Name: "mcp", ServiceURL: &gen.EndpointURL{Host: "other.svc", Port: &port}},
+		})
 		mine := binding("proj", "orders", "dev", twoEndpoints)
 		got, err := serve(t, other, mine).GetReleaseBindingEndpointServiceURL(context.Background(), "acme", "proj", "orders", "mcp", "dev")
 		require.NoError(t, err)

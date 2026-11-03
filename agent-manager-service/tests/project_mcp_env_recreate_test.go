@@ -201,8 +201,10 @@ func TestProjectMCPBinding_EnvironmentRecreatedWithSameName(t *testing.T) {
 		require.NoError(t, gdb.Raw(`SELECT uuid FROM artifacts WHERE handle = ? AND ou_id = ?`, orgHandle, ouID).Row().Scan(&proxyUUID))
 		endpoint := &models.MCPProxyEndpoint{UUID: uuid.New(), MCPProxyUUID: proxyUUID, Handle: "main", Name: "main", Status: models.StatusCreated}
 		require.NoError(t, gdb.Create(endpoint).Error)
-		artifact := &models.Artifact{UUID: uuid.New(), Handle: orgHandle + "-main-" + suffix, Name: orgHandle + "-main-" + suffix,
-			Version: "v1", Kind: models.KindMCPMapping, OUID: ouID}
+		artifact := &models.Artifact{
+			UUID: uuid.New(), Handle: orgHandle + "-main-" + suffix, Name: orgHandle + "-main-" + suffix,
+			Version: "v1", Kind: models.KindMCPMapping, OUID: ouID,
+		}
 		require.NoError(t, gdb.Create(artifact).Error)
 		require.NoError(t, gdb.Create(&models.MCPProxyEndpointEnvironment{
 			MCPProxyUUID: proxyUUID, EndpointUUID: endpoint.UUID, EnvironmentUUID: envUUID(orgEnv),

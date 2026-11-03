@@ -286,5 +286,4 @@ func TestIPFlow_EndToEnd(t *testing.T) {
 	require.Equal(t, http.StatusNotFound, rr.Code)
 	require.NoError(t, gdb.Raw(`SELECT count(*) FROM artifacts WHERE ou_id = ? AND handle LIKE ?`, tenant, "%"+suffix+"%").Scan(&n).Error)
 	assert.Zero(t, n, "the proxy and its binding's gateway artifact are gone")
-
 }

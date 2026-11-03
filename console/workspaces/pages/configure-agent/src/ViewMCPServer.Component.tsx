@@ -432,8 +432,10 @@ export const ViewMCPServerComponent = () => {
     () => servers.find((s) => s.id === configProxyName),
     [servers, configProxyName],
   );
+  // A project proxy is owned by its project and is not shown on the organization's MCP proxy
+  // page, so only an org proxy links there.
   const configProxyHref =
-    orgId && configProxyName
+    orgId && configProxyName && configProxy && !configProxy.projectName
       ? generatePath(
           absoluteRouteMap.children.org.children.mcpProxies.children.view.path,
           { orgId, proxyId: configProxyName },

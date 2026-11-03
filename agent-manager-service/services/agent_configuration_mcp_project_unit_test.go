@@ -102,7 +102,9 @@ func TestAgentMCPURL_ProjectProxyIncludesProjectPrefix(t *testing.T) {
 
 func TestAgentMCPURL_OrgProxyUnchanged(t *testing.T) {
 	ctxPath := "/weather"
-	proxy := &models.MCPProxy{Artifact: &models.Artifact{InCatalog: true},
-		Configuration: models.MCPProxyConfig{Name: "weather", Context: &ctxPath}}
+	proxy := &models.MCPProxy{
+		Artifact:      &models.Artifact{InCatalog: true},
+		Configuration: models.MCPProxyConfig{Name: "weather", Context: &ctxPath},
+	}
 	require.Equal(t, "https://gw.example.com/weather/mcp", agentMCPURL(proxy))
 }

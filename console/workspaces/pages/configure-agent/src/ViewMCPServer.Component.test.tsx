@@ -35,6 +35,10 @@ const proxiesResult = {
   data: { list: [{ id: "proj-proxy", name: "Project Proxy Display", projectName: "p1" }] },
   isLoading: false,
 };
+const orgProxiesResult = {
+  data: { list: [{ id: "proj-proxy", name: "Org Proxy Display" }] },
+  isLoading: false,
+};
 const pipelineResult = { environments: [], isLoading: false };
 const mutationResult = { mutate: vi.fn(), isPending: false };
 
@@ -68,22 +72,43 @@ vi.mock("./utils/buildInProgress", () => ({
 import { useListMCPProxies } from "@agent-management-platform/api-client";
 import { ViewMCPServerComponent } from "./ViewMCPServer.Component";
 
+const renderPage = () =>
+  render(
+    <MemoryRouter initialEntries={["/org/o/project/p1/agent/a1/mcp/cfg"]}>
+      <Routes>
+        <Route
+          path="/org/:orgId/project/:projectId/agent/:agentId/mcp/:proxyId"
+          element={<ViewMCPServerComponent />}
+        />
+      </Routes>
+    </MemoryRouter>,
+  );
+
 describe("ViewMCPServerComponent", () => {
   it("lists project proxies for the agent's project and resolves their display name", () => {
-    render(
-      <MemoryRouter initialEntries={["/org/o/project/p1/agent/a1/mcp/cfg"]}>
-        <Routes>
-          <Route
-            path="/org/:orgId/project/:projectId/agent/:agentId/mcp/:proxyId"
-            element={<ViewMCPServerComponent />}
-          />
-        </Routes>
-      </MemoryRouter>,
-    );
+    renderPage();
     expect(useListMCPProxies).toHaveBeenCalledWith(
       { orgName: "o" },
       expect.objectContaining({ project: "p1" }),
     );
     expect(screen.getAllByText(/Project Proxy Display/).length).toBeGreaterThan(0);
+  });
+
+  it("does not link a project proxy to the organization's MCP proxy page", () => {
+    renderPage();
+    expect(screen.getAllByText(/Project Proxy Display/).length).toBeGreaterThan(0);
+    expect(
+      screen.queryByRole("button", { name: /in the organization/ }),
+    ).toBeNull();
+  });
+
+  it("links an org proxy to the organization's MCP proxy page", () => {
+    vi.mocked(useListMCPProxies).mockReturnValue(
+      orgProxiesResult as unknown as ReturnType<typeof useListMCPProxies>,
+    );
+    renderPage();
+    expect(
+      screen.getByRole("button", { name: /Org Proxy Display in the organization/ }),
+    ).toBeTruthy();
   });
 });

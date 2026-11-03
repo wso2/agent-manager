@@ -137,8 +137,10 @@ func TestOrgGetProjectProxyIsReadOnlyNoUpstream(t *testing.T) {
 
 func TestOrgGetOrgProxyKeepsUpstreamAndHasNoProjectName(t *testing.T) {
 	p := orgPickerOrgProxy()
-	p.Endpoints = []models.MCPProxyEndpoint{{UUID: uuid.New(), Handle: "primary",
-		Configuration: models.MCPEndpointConfig{Upstream: &models.UpstreamEndpoint{URL: orgPickerUpstream}}}}
+	p.Endpoints = []models.MCPProxyEndpoint{{
+		UUID: uuid.New(), Handle: "primary",
+		Configuration: models.MCPEndpointConfig{Upstream: &models.UpstreamEndpoint{URL: orgPickerUpstream}},
+	}}
 	svc := orgPickerSvc(nil, p)
 
 	resp, err := svc.Get(context.Background(), "org", "org-mcp")
