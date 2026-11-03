@@ -67,6 +67,8 @@ export const useAuthHooks = (): AuthHooks => {
     signIn,
     signInOptions,
     getAccessToken,
+    getDecodedIdToken,
+    getGrantedPermissions,
     signInSilently,
     signOut,
     isSignedIn = false,
@@ -86,8 +88,17 @@ export const useAuthHooks = (): AuthHooks => {
     Record<string, unknown> | null | undefined
   >(undefined);
 
+  // Sign-in on the backend (BFF): the gateway's oauth2-session holds the tokens
+  // and the browser only an HttpOnly session cookie, so there is no access token
+  // here to read claims from or to attach to API calls.
+  const isBackendAuth = Boolean(globalConfig.authConfig.endpoints?.backend);
+
   const getAccessTokenRef = useRef(getAccessToken);
   getAccessTokenRef.current = getAccessToken;
+  const getDecodedIdTokenRef = useRef(getDecodedIdToken);
+  getDecodedIdTokenRef.current = getDecodedIdToken;
+  const getGrantedPermissionsRef = useRef(getGrantedPermissions);
+  getGrantedPermissionsRef.current = getGrantedPermissions;
 
   useEffect(() => {
     if (!isSignedIn || !isInitialized) {
@@ -95,20 +106,26 @@ export const useAuthHooks = (): AuthHooks => {
       return;
     }
     let cancelled = false;
-    const tokenPromise = getAccessTokenRef.current?.();
-    if (!tokenPromise) {
+    // On the backend the same claims come from the session: the id_token's,
+    // with the granted permissions standing in for the access token's scope.
+    const payloadPromise = isBackendAuth
+      ? Promise.all([
+          getDecodedIdTokenRef.current?.(),
+          getGrantedPermissionsRef.current?.(),
+        ]).then(([idToken, permissions]) => ({
+          ...((idToken as Record<string, unknown> | undefined) ?? {}),
+          scope: (permissions ?? []).join(" "),
+        }))
+      : getAccessTokenRef.current?.()?.then((token) =>
+          token ? (decodeJWT(token)?.payload ?? null) : null,
+        );
+    if (!payloadPromise) {
       setAccessTokenPayload(null);
       return;
     }
-    tokenPromise
-      .then((token) => {
-        if (cancelled) return;
-        if (!token) {
-          setAccessTokenPayload(null);
-          return;
-        }
-        const decoded = decodeJWT(token);
-        if (!cancelled) setAccessTokenPayload(decoded?.payload ?? null);
+    payloadPromise
+      .then((payload) => {
+        if (!cancelled) setAccessTokenPayload(payload);
       })
       .catch(() => {
         if (!cancelled) setAccessTokenPayload(null);
@@ -116,7 +133,7 @@ export const useAuthHooks = (): AuthHooks => {
     return () => {
       cancelled = true;
     };
-  }, [isSignedIn, isInitialized]);
+  }, [isSignedIn, isInitialized, isBackendAuth]);
 
   const userInfo = useMemo(() => {
     return {
@@ -155,9 +172,13 @@ export const useAuthHooks = (): AuthHooks => {
     }
   }, [signOut]);
 
-  const safeGetToken: () => Promise<string> =
-    getAccessToken ??
-    (() => Promise.reject(new Error("getAccessToken is not available")));
+  // On the backend an API call carries the session cookie and the gateway adds
+  // the token, so callers get an empty one and the HTTP helpers, which only set
+  // Authorization for a token, send none.
+  const safeGetToken: () => Promise<string> = isBackendAuth
+    ? () => Promise.resolve("")
+    : (getAccessToken ??
+      (() => Promise.reject(new Error("getAccessToken is not available"))));
 
   const safeSignInSilently: () => Promise<unknown> =
     signInSilently ??
