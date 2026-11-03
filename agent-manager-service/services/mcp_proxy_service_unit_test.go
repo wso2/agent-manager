@@ -381,6 +381,24 @@ func TestValidateMCPEndpointSecurity_TwoEgressGateways_AnchorsOnExistingDeployme
 	assert.NoError(t, svc.validateMCPEndpointSecurity(context.Background(), "org1", endpoints, existingArtifactByEnv))
 }
 
+// The request spells the environment UUID in upper case; the stored anchor is keyed canonically.
+func TestValidateMCPEndpointSecurity_AnchorsWhateverTheEnvironmentUUIDSpelling(t *testing.T) {
+	deployed := gatewayWithPolicyManifestAndRole(models.GatewayRoleBoth, "mcp-auth", "v1", "mcp-authz", "v1")
+	other := gatewayWithPolicyManifestAndRole(models.GatewayRoleEgress, "mcp-auth", "v1")
+	artifactUUID := uuid.New()
+	svc := &MCPProxyService{
+		gatewayRepo:    gatewayFixtureRepo(t, testMCPEnvUUID, []*models.Gateway{deployed, other}),
+		deploymentRepo: deployedTo(deployed.UUID.String()),
+	}
+	endpoint := endpointWith("https://93.184.216.34", identityEnabledSecurity())
+	endpoint.Environments[0].EnvironmentUUID = strings.ToUpper(testMCPEnvUUID)
+
+	err := svc.validateMCPEndpointSecurity(context.Background(), "org1", []models.MCPProxyEndpointDTO{endpoint},
+		map[string]uuid.UUID{testMCPEnvUUID: artifactUUID})
+
+	assert.NoError(t, err, "the probe anchors on the deployed gateway, not every candidate")
+}
+
 func TestValidateMCPEndpointSecurity_TwoEgressGateways_NoDeployment_AllCandidatesCompliant(t *testing.T) {
 	// No existing deployment to anchor on (create, or a genuinely new binding): this is a
 	// read-only policy probe, so two egress-capable candidates must not be ambiguous —

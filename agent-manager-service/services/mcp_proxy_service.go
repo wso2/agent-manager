@@ -1349,7 +1349,7 @@ func (s *MCPProxyService) validateMCPEndpointSecurity(
 			}
 
 			var candidates []*models.Gateway
-			if artifactUUID, ok := existingArtifactByEnv[envIDStr]; ok && artifactUUID != uuid.Nil {
+			if artifactUUID, ok := existingArtifactByEnv[envUUID.String()]; ok && artifactUUID != uuid.Nil {
 				var deployed []string
 				if s.deploymentRepo != nil {
 					ids, depErr := s.deploymentRepo.PlacedGateways(ctx, orgName, artifactUUID)
