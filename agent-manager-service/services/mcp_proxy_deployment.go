@@ -118,6 +118,10 @@ func mcpProxyEnvArtifactHandle(proxyHandle, endpointHandle, envID string) string
 // (buildAgentMCPConfigProxy) this is the proxy's OWN artifact: the context/version/vhost
 // inherit from the parent proxy's shared metadata — shared by every agent that references
 // it — and the artifact identity is the stable (endpoint, environment) ArtifactUUID.
+//
+// A project proxy is served at its project-prefixed context (mcpGatewayContext) under the
+// display name "<project> <name>"; an org proxy's context and display name (its handle) are
+// unchanged.
 func buildMCPProxyEnvArtifact(source *models.MCPProxy, endpoint *models.MCPProxyEndpoint, ee *models.MCPProxyEndpointEnvironment) *models.MCPProxy {
 	proxyHandle := source.Handle
 	if source.Artifact != nil && source.Artifact.Handle != "" {
@@ -140,14 +144,28 @@ func buildMCPProxyEnvArtifact(source *models.MCPProxy, endpoint *models.MCPProxy
 		upstream.Main = &endpointCopy
 	}
 
+	contextPath := source.Configuration.Context
+	// The gateway display name only; the artifacts row keeps the handle as its name, which keeps
+	// uq_artifact_name_version_ou_id apart from the proxy's own row and its other environments.
+	var displayArtifact *models.Artifact
+	if source.ProjectUUID != nil {
+		gatewayContext := mcpGatewayContext(source, "")
+		contextPath = &gatewayContext
+		displayArtifact = &models.Artifact{
+			UUID: ee.ArtifactUUID, Handle: handle, Version: version, Kind: models.KindMCPMapping,
+			Name: models.MCPProxyArtifactName(source.ProjectName, source.Configuration.Name),
+		}
+	}
+
 	return &models.MCPProxy{
 		UUID:        ee.ArtifactUUID,
 		Description: source.Description,
 		Status:      source.Status,
+		Artifact:    displayArtifact,
 		Configuration: models.MCPProxyConfig{
 			Name:         handle,
 			Version:      version,
-			Context:      source.Configuration.Context,
+			Context:      contextPath,
 			Vhost:        source.Configuration.Vhost,
 			SpecVersion:  source.Configuration.SpecVersion,
 			Upstream:     upstream,

@@ -20,6 +20,7 @@ import (
 	"encoding/json"
 	"errors"
 	"net/http"
+	"strings"
 
 	"github.com/wso2/agent-manager/agent-manager-service/clients/openchoreosvc/client"
 	"github.com/wso2/agent-manager/agent-manager-service/middleware"
@@ -37,7 +38,13 @@ type ProjectMCPProxyController interface {
 	ListProjectMCPProxies(w http.ResponseWriter, r *http.Request)
 	GetProjectMCPProxy(w http.ResponseWriter, r *http.Request)
 	DeleteProjectMCPProxy(w http.ResponseWriter, r *http.Request)
+	PutProjectMCPProxyEnvironment(w http.ResponseWriter, r *http.Request)
+	GetProjectMCPProxyEnvironment(w http.ResponseWriter, r *http.Request)
+	DeleteProjectMCPProxyEnvironment(w http.ResponseWriter, r *http.Request)
 }
+
+// pathParamEnvName is the environment segment of the project MCP proxy binding routes.
+const pathParamEnvName = "envName"
 
 type projectMCPProxyController struct {
 	service  *services.ProjectMCPProxyService
@@ -201,4 +208,110 @@ func (c *projectMCPProxyController) DeleteProjectMCPProxy(w http.ResponseWriter,
 		return
 	}
 	utils.WriteSuccessResponse(w, http.StatusNoContent, struct{}{})
+}
+
+// PutProjectMCPProxyEnvironment handles PUT .../mcp-proxies/{proxyId}/environments/{envName}.
+func (c *projectMCPProxyController) PutProjectMCPProxyEnvironment(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	log := logger.GetLogger(ctx)
+	ouID := middleware.OUIDFromRequest(r)
+	handle := r.PathValue(utils.PathParamProxyId)
+	envName := r.PathValue(pathParamEnvName)
+
+	var req models.MCPProxyEnvironmentRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		log.Error("PutProjectMCPProxyEnvironment: failed to decode request", "error", err)
+		utils.WriteErrorResponse(w, http.StatusBadRequest, "Invalid request body")
+		return
+	}
+	project, ok := c.resolveProject(w, r, ouID)
+	if !ok {
+		return
+	}
+	resp, created, err := c.service.PutEnvironment(ctx, ouID, project.Name, project.UUID, handle, envName, req)
+	if err != nil {
+		if !writeProjectMCPBindingError(w, err) {
+			log.Error("PutProjectMCPProxyEnvironment: failed", "ouID", ouID, "handle", handle, "environment", envName, "error", err)
+			utils.WriteErrorResponse(w, http.StatusInternalServerError, "Failed to save the MCP proxy binding")
+		}
+		return
+	}
+	status := http.StatusOK
+	if created {
+		status = http.StatusCreated
+	}
+	utils.WriteSuccessResponse(w, status, resp)
+}
+
+// GetProjectMCPProxyEnvironment handles GET .../mcp-proxies/{proxyId}/environments/{envName}.
+func (c *projectMCPProxyController) GetProjectMCPProxyEnvironment(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	log := logger.GetLogger(ctx)
+	ouID := middleware.OUIDFromRequest(r)
+	handle := r.PathValue(utils.PathParamProxyId)
+	envName := r.PathValue(pathParamEnvName)
+
+	project, ok := c.resolveProject(w, r, ouID)
+	if !ok {
+		return
+	}
+	resp, err := c.service.GetEnvironment(ctx, ouID, project.Name, project.UUID, handle, envName)
+	if err != nil {
+		if !writeProjectMCPBindingError(w, err) {
+			log.Error("GetProjectMCPProxyEnvironment: failed", "ouID", ouID, "handle", handle, "environment", envName, "error", err)
+			utils.WriteErrorResponse(w, http.StatusInternalServerError, "Failed to get the MCP proxy binding")
+		}
+		return
+	}
+	utils.WriteSuccessResponse(w, http.StatusOK, resp)
+}
+
+// DeleteProjectMCPProxyEnvironment handles DELETE .../mcp-proxies/{proxyId}/environments/{envName}.
+func (c *projectMCPProxyController) DeleteProjectMCPProxyEnvironment(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	log := logger.GetLogger(ctx)
+	ouID := middleware.OUIDFromRequest(r)
+	handle := r.PathValue(utils.PathParamProxyId)
+	envName := r.PathValue(pathParamEnvName)
+
+	project, ok := c.resolveProject(w, r, ouID)
+	if !ok {
+		return
+	}
+	if err := c.service.DeleteEnvironment(ctx, ouID, project.Name, project.UUID, handle, envName); err != nil {
+		if !writeProjectMCPBindingError(w, err) {
+			log.Error("DeleteProjectMCPProxyEnvironment: failed", "ouID", ouID, "handle", handle, "environment", envName, "error", err)
+			utils.WriteErrorResponse(w, http.StatusInternalServerError, "Failed to delete the MCP proxy binding")
+		}
+		return
+	}
+	utils.WriteSuccessResponse(w, http.StatusNoContent, struct{}{})
+}
+
+// writeProjectMCPBindingError writes the response for a binding route's known errors; false for an unexpected one.
+func writeProjectMCPBindingError(w http.ResponseWriter, err error) bool {
+	switch {
+	case errors.Is(err, utils.ErrMCPProxyNotFound):
+		utils.WriteErrorResponseWithReason(w, http.StatusNotFound, "MCP proxy not found", "", utils.ErrCodeNotFound)
+	case errors.Is(err, utils.ErrMCPProxyEnvironmentNotBound):
+		utils.WriteErrorResponseWithReason(w, http.StatusNotFound,
+			utils.ErrMCPProxyEnvironmentNotBound.Error(), "", utils.ErrCodeNotFound)
+	case errors.Is(err, utils.ErrEnvironmentNotFound):
+		utils.WriteErrorResponseWithReason(w, http.StatusNotFound, "Environment not found", err.Error(), utils.ErrCodeEnvironmentNotFound)
+	case errors.Is(err, utils.ErrMCPUpstreamNotReady):
+		utils.WriteErrorResponseWithReason(w, http.StatusConflict,
+			utils.ErrMCPUpstreamNotReady.Error(), err.Error(), utils.ErrCodeUpstreamNotReady)
+	case errors.Is(err, utils.ErrMCPContextInUse):
+		utils.WriteErrorResponseWithReason(w, http.StatusConflict,
+			utils.ErrMCPContextInUse.Error(), err.Error(), utils.ErrCodeContextInUse)
+	case errors.Is(err, utils.ErrImmutableFieldChange):
+		utils.WriteErrorResponseWithReason(w, http.StatusBadRequest,
+			"The binding's gateway cannot change once placed", err.Error(), utils.ErrCodeImmutableField)
+	case errors.Is(err, utils.ErrInvalidInput):
+		message := strings.TrimPrefix(err.Error(), utils.ErrInvalidInput.Error()+": ")
+		utils.WriteErrorResponseWithReason(w, http.StatusBadRequest, message, err.Error(), utils.ErrCodeBadRequest)
+	default:
+		return false
+	}
+	return true
 }

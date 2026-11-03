@@ -107,7 +107,10 @@ func (s *ProjectMCPProxyService) UpsertWithCreateCheck(
 	switch {
 	case err == nil:
 		resp, err := s.update(ctx, ouID, existing, desired)
-		return resp, false, err
+		if err != nil {
+			return nil, false, err
+		}
+		return resp, false, s.fillEnvironments(ctx, ouID, existing, resp)
 	case !errors.Is(err, utils.ErrMCPProxyNotFound):
 		return nil, false, fmt.Errorf("failed to get MCP proxy: %w", err)
 	}
@@ -136,9 +139,28 @@ func (s *ProjectMCPProxyService) UpsertWithCreateCheck(
 			return nil, false, err
 		}
 		resp, updErr := s.update(ctx, ouID, existing, desired)
-		return resp, false, updErr
+		if updErr != nil {
+			return nil, false, updErr
+		}
+		return resp, false, s.fillEnvironments(ctx, ouID, existing, resp)
 	}
 	return projectMCPProxyResponse(created), true, nil
+}
+
+// fillEnvironments sets resp's environments to proxy's bindings, read with the context resp reports (an update
+// may just have changed it).
+func (s *ProjectMCPProxyService) fillEnvironments(
+	ctx context.Context, ouID string, proxy *models.MCPProxy, resp *models.ProjectMCPProxyResponse,
+) error {
+	current := *proxy
+	contextPath := resp.Context
+	current.Configuration.Context = &contextPath
+	environments, err := s.environments(ctx, ouID, &current)
+	if err != nil {
+		return err
+	}
+	resp.Environments = environments
+	return nil
 }
 
 // Get returns the project's proxy. A handle in another project, or an org proxy, is not found.
@@ -149,7 +171,11 @@ func (s *ProjectMCPProxyService) Get(
 	if err != nil {
 		return nil, err
 	}
-	return projectMCPProxyResponse(proxy), nil
+	resp := projectMCPProxyResponse(proxy)
+	if err := s.fillEnvironments(ctx, ouID, proxy, resp); err != nil {
+		return nil, err
+	}
+	return resp, nil
 }
 
 // List returns the project's own proxies, optionally narrowed by source component and endpoint.
@@ -172,7 +198,20 @@ func (s *ProjectMCPProxyService) List(
 		Pagination: models.PaginationInfo{Count: int(total), Limit: limit, Offset: offset},
 	}
 	for _, proxy := range proxies {
-		resp.List = append(resp.List, projectMCPProxyListItem(proxy))
+		item := projectMCPProxyListItem(proxy)
+		environments, err := s.environments(ctx, ouID, proxy)
+		if err != nil {
+			return nil, err
+		}
+		for _, env := range environments {
+			item.Environments = append(item.Environments, models.ProjectMCPProxyEnvironmentSummary{
+				EnvironmentName:        env.EnvironmentName,
+				DeploymentStatus:       env.DeploymentStatus,
+				DeploymentStatusReason: env.DeploymentStatusReason,
+				PublicURL:              env.PublicURL,
+			})
+		}
+		resp.List = append(resp.List, item)
 	}
 	return resp, nil
 }
@@ -332,6 +371,8 @@ func (s *ProjectMCPProxyService) update(
 		}
 		return nil, fmt.Errorf("failed to update MCP proxy: %w", err)
 	}
+	// The proxy's name, version and context are part of every bound environment's gateway artifact.
+	s.rerenderBindings(ctx, ouID, &updated)
 	// The artifact timestamp moved with the update.
 	if updated.Artifact != nil {
 		art := *updated.Artifact

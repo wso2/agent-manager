@@ -34,6 +34,10 @@ const (
 	ErrCodeProjectOwned = "PROJECT_OWNED"
 	// ErrCodeMCPProxyInUse: AM agents still use the MCP proxy, so it cannot be deleted.
 	ErrCodeMCPProxyInUse = "MCP_PROXY_IN_USE"
+	// ErrCodeUpstreamNotReady: the project MCP proxy's source component isn't deployed in the environment yet.
+	ErrCodeUpstreamNotReady = "UPSTREAM_NOT_READY"
+	// ErrCodeContextInUse: the project MCP proxy's gateway context overlaps another artifact's on that gateway.
+	ErrCodeContextInUse = "CONTEXT_IN_USE"
 
 	// Server error codes (5xx)
 	ErrCodeInternalError      = "INTERNAL_ERROR"

@@ -316,4 +316,14 @@ var (
 	// ErrMCPProxyProjectOwned means an org-level mutation targeted a project-scoped proxy
 	// (409 PROJECT_OWNED on the org routes). Project proxies change only via the project routes.
 	ErrMCPProxyProjectOwned = errors.New("MCP proxy belongs to a project and can only be changed through the project routes")
+	// ErrMCPUpstreamNotReady means the proxy's source component has no reachable endpoint in the
+	// environment yet (409 UPSTREAM_NOT_READY); nothing was stored.
+	ErrMCPUpstreamNotReady = errors.New("the source component is not deployed in this environment yet")
+	// ErrMCPContextInUse means the proxy's gateway context equals, contains or sits under another
+	// artifact's context on the gateway (409 CONTEXT_IN_USE).
+	ErrMCPContextInUse = errors.New("the context is already in use on the gateway")
+	// ErrMCPProxyEnvironmentNotBound means the proxy has no binding in the environment (404).
+	ErrMCPProxyEnvironmentNotBound = errors.New("MCP proxy is not bound to this environment")
+	// ErrMCPJWTSecurityNotAvailable is the phase-1 refusal of jwt security (400).
+	ErrMCPJWTSecurityNotAvailable = errors.New("jwt security is not available yet")
 )

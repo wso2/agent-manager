@@ -35,4 +35,10 @@ func RegisterProjectMCPProxyRoutes(rr *middleware.RouteRegistrar, ctrl controlle
 	rr.HandleFuncWithValidationAndAuthz("GET "+base, rbac.MCPServerRead, ctrl.ListProjectMCPProxies)
 	rr.HandleFuncWithValidationAndAuthz("GET "+base+"/{proxyId}", rbac.MCPServerRead, ctrl.GetProjectMCPProxy)
 	rr.HandleFuncWithValidationAndAuthz("DELETE "+base+"/{proxyId}", rbac.MCPServerDelete, ctrl.DeleteProjectMCPProxy)
+
+	// Environment bindings: binding and unbinding change the proxy, so both are gated on update.
+	const binding = base + "/{proxyId}/environments/{envName}"
+	rr.HandleFuncWithValidationAndAuthz("PUT "+binding, rbac.MCPServerUpdate, ctrl.PutProjectMCPProxyEnvironment)
+	rr.HandleFuncWithValidationAndAuthz("GET "+binding, rbac.MCPServerRead, ctrl.GetProjectMCPProxyEnvironment)
+	rr.HandleFuncWithValidationAndAuthz("DELETE "+binding, rbac.MCPServerUpdate, ctrl.DeleteProjectMCPProxyEnvironment)
 }

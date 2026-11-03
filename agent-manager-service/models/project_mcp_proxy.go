@@ -39,11 +39,67 @@ type ProjectMCPProxyRequest struct {
 	Source         MCPProxySource `json:"source"`
 }
 
+// MCPProxyEnvironmentRequest is the body of PUT .../mcp-proxies/{proxyId}/environments/{envName}.
+// It replaces the binding's configuration: an omitted field resets to its default.
+type MCPProxyEnvironmentRequest struct {
+	GatewayID    *string                          `json:"gatewayId,omitempty"`
+	Security     *MCPProxyEnvironmentSecurity     `json:"security,omitempty"`
+	Policies     []MCPPolicy                      `json:"policies,omitempty"`
+	UpstreamAuth *MCPProxyEnvironmentUpstreamAuth `json:"upstreamAuth,omitempty"`
+}
+
+// MCPProxyEnvironmentSecurity is a binding's SecurityConfig: SecurityConfig with a jwt variant.
+// Phase 1 accepts only apiKey.
+type MCPProxyEnvironmentSecurity struct {
+	Enabled  *bool                `json:"enabled,omitempty"`
+	APIKey   *APIKeySecurity      `json:"apiKey,omitempty"`
+	JWT      *MCPProxyJWTSecurity `json:"jwt,omitempty"`
+	Identity *IdentitySecurity    `json:"identity,omitempty"`
+}
+
+// MCPProxyJWTSecurity is the jwt security variant (not available yet).
+type MCPProxyJWTSecurity struct {
+	Enabled   *bool    `json:"enabled,omitempty"`
+	Issuers   []string `json:"issuers,omitempty"`
+	Audiences []string `json:"audiences,omitempty"`
+}
+
+// MCPProxyEnvironmentUpstreamAuth is the credential the gateway adds when it calls the
+// upstream. Type is "api-key" (Header and Value required) or "none".
+type MCPProxyEnvironmentUpstreamAuth struct {
+	Type   string `json:"type"`
+	Header string `json:"header,omitempty"`
+	Value  string `json:"value,omitempty"`
+}
+
+// MCPProxyEnvironmentUpstreamAuthRedacted is the upstream auth as returned: never the value.
+type MCPProxyEnvironmentUpstreamAuthRedacted struct {
+	Type   string `json:"type"`
+	Header string `json:"header,omitempty"`
+}
+
 // MCPProxyEnvironmentResponse is one environment binding of a project proxy.
-// Populated by the binding routes; empty until a binding exists.
 type MCPProxyEnvironmentResponse struct {
 	EnvironmentName string `json:"environmentName"`
+	EnvironmentUUID string `json:"environmentUuid"`
+	// DeploymentStatus is absent while the binding has no deployment_status row (no gateway).
+	DeploymentStatus string `json:"deploymentStatus,omitempty"`
+	// DeploymentStatusReason is the ack's error code or the render reason, or NO_GATEWAY when
+	// DeploymentStatus is absent.
+	DeploymentStatusReason string `json:"deploymentStatusReason,omitempty"`
+	GatewayID              string `json:"gatewayId,omitempty"`
+	// Context reads back as the proxy was given it, without the project prefix.
+	Context string `json:"context"`
+	// PublicURL is the gateway URL, with the /<project><context> path the gateway serves.
+	PublicURL    string                                   `json:"publicUrl,omitempty"`
+	Security     *MCPProxyEnvironmentSecurity             `json:"security,omitempty"`
+	Policies     []MCPPolicy                              `json:"policies,omitempty"`
+	UpstreamAuth *MCPProxyEnvironmentUpstreamAuthRedacted `json:"upstreamAuth,omitempty"`
+	UpdatedAt    *time.Time                               `json:"updatedAt,omitempty"`
 }
+
+// MCPDeploymentStatusReasonNoGateway is the reason a binding shows while its environment has no gateway.
+const MCPDeploymentStatusReasonNoGateway = "NO_GATEWAY"
 
 // ProjectMCPProxyResponse is the project proxy as returned by upsert and get.
 type ProjectMCPProxyResponse struct {
