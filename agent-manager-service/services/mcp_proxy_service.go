@@ -1490,8 +1490,8 @@ type mcpProxyAgentUse struct {
 // requireNoAgentsForSelfHostedPlacement refuses placing the proxy's binding for envUUID on a
 // self-hosted gateway while agents use the proxy: bound in that environment (a mapping row,
 // which survives the environment being removed from the proxy and re-added), or recording the
-// proxy at all (the binding reconcile or a promotion could bind it there later). Agents run in
-// OpenChoreo and must never reach a self-hosted gateway.
+// proxy at all (the binding reconcile or a promotion could bind it there later). Agents only use
+// managed gateways. This covers external agents too, for now, although they don't run in OpenChoreo.
 func (s *MCPProxyService) requireNoAgentsForSelfHostedPlacement(
 	ctx context.Context, orgUUID string, proxyUUID, envUUID uuid.UUID, gateway *models.Gateway, use *mcpProxyAgentUse,
 ) error {

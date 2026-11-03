@@ -56,8 +56,10 @@ const (
 	GatewayHostingSelfHosted = "self_hosted"
 )
 
-// IsManaged reports whether the platform runs this gateway. An unset hosting is managed,
-// the column default.
+// IsManaged reports whether the platform runs this gateway. A stored gateway is always managed or
+// self_hosted (migration 054: NOT NULL DEFAULT 'managed' with a CHECK). An empty Hosting only occurs
+// in structs built in memory without it, such as test fixtures, and counts as managed, the column
+// default. That is also the safe reading for the MCP upstream checks, which run only for managed gateways.
 func (g *Gateway) IsManaged() bool {
 	return g.Hosting == "" || g.Hosting == GatewayHostingManaged
 }

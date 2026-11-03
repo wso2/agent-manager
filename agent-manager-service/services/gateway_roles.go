@@ -179,8 +179,8 @@ func resolveEgressGatewayForArtifact(
 }
 
 // managedAnchorsOnly is gatewayIDs without the self-hosted gateways, original order kept. Unknown or deleted
-// ids stay: they are stale rows the placement lookup skips. Used where the artifact runs in OpenChoreo and
-// so may never be placed next to a self-hosted anchor.
+// ids stay: they are stale rows the placement lookup skips. Used for agent and monitor LLM proxies, which
+// must never be placed next to a self-hosted anchor.
 func managedAnchorsOnly(repo repositories.GatewayRepository, gatewayIDs []string) ([]string, error) {
 	kept := make([]string, 0, len(gatewayIDs))
 	for _, id := range gatewayIDs {

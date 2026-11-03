@@ -249,6 +249,7 @@ func selfHostedMCPConfigService(t *testing.T) (*agentConfigurationService, *mcpU
 		GetProjectDeploymentPipelineFunc: func(context.Context, string, string) (*models.DeploymentPipelineResponse, error) {
 			return nil, utils.ErrDeploymentPipelineNotFound
 		},
+		// An external agent: the self-hosted refusal applies to every agent, not only those in OpenChoreo.
 		GetComponentFunc: func(context.Context, string, string, string) (*models.AgentResponse, error) {
 			return &models.AgentResponse{Provisioning: models.Provisioning{Type: "external"}}, nil
 		},

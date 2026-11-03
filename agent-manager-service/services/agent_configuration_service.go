@@ -4671,7 +4671,7 @@ func (s *agentConfigurationService) resolveGatewayForProvider(
 }
 
 // requireManagedProviderPlacement refuses an agent LLM binding unless the provider is placed on a managed
-// gateway mapped to the environment: an agent's traffic must stay on managed gateways.
+// gateway mapped to the environment. Agents, external ones included, only use managed gateways.
 func (s *agentConfigurationService) requireManagedProviderPlacement(
 	ctx context.Context, ouID string, providerUUID, envUUID uuid.UUID,
 ) error {
@@ -4818,7 +4818,7 @@ func (s *agentConfigurationService) resolveMCPEnvGateways(
 }
 
 // errMCPProxyOnSelfHostedGateway refuses an agent binding to an MCP proxy whose gateway in the
-// environment is self-hosted: an agent's traffic must stay on managed gateways.
+// environment is self-hosted. Agents, external ones included, only use managed gateways.
 func errMCPProxyOnSelfHostedGateway(proxy *models.MCPProxy, envName string) error {
 	return fmt.Errorf("%w: MCP proxy %s is on a self-hosted gateway in environment %s; agents can only use MCP proxies on managed gateways",
 		utils.ErrInvalidInput, mcpProxyHandle(proxy), envName)
@@ -4826,7 +4826,7 @@ func errMCPProxyOnSelfHostedGateway(proxy *models.MCPProxy, envName string) erro
 
 // errMCPGatewayNotManaged reports that an agent's MCP proxy resolves to a self-hosted gateway in
 // an environment. The proxy-side checks keep this from happening; if it does anyway, the agent
-// gets no URL there rather than one that points its OpenChoreo traffic at the customer's gateway.
+// gets no URL there rather than one that points its traffic at the customer's gateway.
 var errMCPGatewayNotManaged = errors.New("MCP proxy is on a self-hosted gateway in this environment")
 
 // resolveGatewayForMCPArtifact is the gateway an agent reaches the MCP proxy's shared
