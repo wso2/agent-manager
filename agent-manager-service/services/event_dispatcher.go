@@ -289,9 +289,9 @@ func (d *eventDispatcher) handleDelivery(ctx context.Context, msg events.Message
 		_ = msg.Retry(eventFanoutRetryDelay)
 		return
 	}
-	// A delivery already recorded as delivered is not sent again: the job
-	// came back because its acknowledgement was lost, not because it failed.
-	if delivery.Status == models.EventDeliveryDelivered || delivery.Status == models.EventDeliverySkipped {
+	// A terminal delivery is not processed again if its acknowledgement or
+	// termination was lost. Failed rows cannot be claimed for another send.
+	if delivery.Status == models.EventDeliveryDelivered || delivery.Status == models.EventDeliverySkipped || delivery.Status == models.EventDeliveryFailed {
 		_ = msg.Ack()
 		return
 	}

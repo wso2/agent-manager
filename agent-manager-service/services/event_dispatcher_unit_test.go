@@ -321,12 +321,21 @@ func TestEventDispatcher_DeliveryDecisions(t *testing.T) {
 	assert.Equal(t, models.EventDeliveryFailed, last().Status)
 	assert.Equal(t, 3, last().Attempts)
 
+	// Each remaining scenario starts with a pending delivery.
+	resetPending := func() {
+		key := deliveryKey(dest.ID, evt.ID)
+		row := f.deliveries[key]
+		row.Status, row.Attempts = models.EventDeliveryPending, 0
+		f.deliveries[key] = row
+	}
+	resetPending()
 	// A failure the driver calls final is not retried.
 	f.driver.result = eventdestinations.Result{StatusCode: http.StatusNotFound, Err: errors.New("gone")}
 	m = &answeredMessage{data: body, attempt: 1}
 	f.dispatcher.handleDelivery(ctx, m)
 	assert.Equal(t, "drop", m.outcome)
 
+	resetPending()
 	// Success is recorded as delivered.
 	f.driver.result = eventdestinations.Result{StatusCode: http.StatusOK}
 	m = &answeredMessage{data: body, attempt: 2}
@@ -667,4 +676,27 @@ func TestEventDispatcher_StoreRetriesDoNotConsumeSendBudget(t *testing.T) {
 	f.dispatcher.handleDelivery(context.Background(), msg)
 	assert.Equal(t, 1, f.driver.sends())
 	assert.Equal(t, "retry", msg.outcome, "first actual send should retain retries")
+}
+
+func TestEventDispatcherTerminalRedeliveryIsAcknowledged(t *testing.T) {
+	for _, status := range []string{models.EventDeliveryDelivered, models.EventDeliverySkipped, models.EventDeliveryFailed} {
+		t.Run(status, func(t *testing.T) {
+			f := newDispatcherFixture(t)
+			dest := f.destination(models.DestinationAvailableAll)
+			f.subscription("agent", "payments", "refund-agent", dest.ID, "agent.deployed")
+			evt := matcherEvent("agent.deployed", events.ScopeAgent, "payments", "refund-agent", "")
+			f.dispatcher.handleEvent(context.Background(), publish(t, evt))
+			key := deliveryKey(dest.ID, evt.ID)
+			row := f.deliveries[key]
+			row.Status = status
+			f.deliveries[key] = row
+			// No destination lookup or claim is needed for a completed delivery.
+			f.repo.GetDestinationFunc = nil
+			f.repo.ClaimDeliveryFunc = nil
+			msg := &answeredMessage{data: f.bus.enqueued[evt.ID+":"+dest.ID.String()], attempt: 2}
+			f.dispatcher.handleDelivery(context.Background(), msg)
+			assert.Equal(t, "ack", msg.outcome)
+			assert.Zero(t, f.driver.sends())
+		})
+	}
 }
