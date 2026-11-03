@@ -243,8 +243,9 @@ OPENCHOREO_NAMESPACES="openchoreo-control-plane openchoreo-data-plane openchoreo
 # API groups of the CRDs install.sh brings in (charts and the Gateway API bundle).
 KUBELET_SERVICE="openchoreo-observability-kubelet"
 
-# Entries install.sh adds to the coredns-custom ConfigMap
-# (deployments/k8s/coredns-amp-custom.yaml), as "<key> <hostname it rewrites>".
+# Entries install.sh adds to the coredns-custom ConfigMap, as "<key> <hostname
+# it rewrites>": deployments/k8s/coredns-amp-custom.yaml on k3d, and
+# render_coredns_vm_config in deployments/vm/lib-vm.sh on a VM.
 # The cluster owner can keep entries of their own in the same ConfigMap.
 COREDNS_ENTRIES="
 openchoreo.override openchoreo\\.localhost
@@ -253,6 +254,7 @@ agentmanager.override agentmanager\\.localhost
 amgateway.override am-gateway\\.localhost
 gateway.override gateway\\.localhost
 hostdocker.override host\\.docker\\.internal
+hostalias.override host\\.k3d\\.internal|host\\.docker\\.internal
 "
 COREDNS_RESTART_FAILED=false
 
@@ -280,7 +282,13 @@ remove_coredns_entries() {
     ours="$(coredns_entries_ours)" || { log_warning "Could not read the coredns-custom ConfigMap"; return 0; }
     [ -n "${ours}" ] || return 0
     log_info "Removing the CoreDNS rewrites..."
-    total="$(kubectl get configmap coredns-custom -n kube-system -o go-template='{{len .data}}' 2>/dev/null || echo 0)"
+    # A failed read must not look like an empty ConfigMap, or the whole
+    # ConfigMap, the owner's entries included, would be deleted.
+    if ! total="$(kubectl get configmap coredns-custom -n kube-system -o go-template='{{len .data}}' 2>/dev/null)" \
+            || ! [[ "${total}" =~ ^[0-9]+$ ]]; then
+        log_warning "Could not read the coredns-custom ConfigMap"
+        return 0
+    fi
     if [ "${total}" -le "$(printf '%s\n' "${ours}" | wc -l)" ]; then
         kubectl delete configmap coredns-custom -n kube-system --ignore-not-found &>/dev/null || true
     else
@@ -485,6 +493,9 @@ object_left "serviceaccount/${DEFAULT_NS}/label-default-namespace-sa" \
     serviceaccount label-default-namespace-sa -n "${DEFAULT_NS}"
 if [ "${AMP_ONLY}" = false ]; then
     object_left "service/kube-system/${KUBELET_SERVICE}" service "${KUBELET_SERVICE}" -n kube-system
+    object_left "endpoints/kube-system/${KUBELET_SERVICE}" endpoints "${KUBELET_SERVICE}" -n kube-system
+    object_left "endpointslices of ${KUBELET_SERVICE}" endpointslices -n kube-system \
+        -l "kubernetes.io/service-name=${KUBELET_SERVICE}"
     if LEFT_COREDNS="$(coredns_entries_ours)"; then
         [ -z "${LEFT_COREDNS}" ] \
             || LEFT_OBJECTS="${LEFT_OBJECTS} coredns-custom entries ($(printf '%s' "${LEFT_COREDNS}" | tr '\n' ' ' | sed 's/ $//'))"
