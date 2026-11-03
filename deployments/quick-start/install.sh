@@ -632,10 +632,16 @@ if k3d cluster list 2>/dev/null | grep -q "${CLUSTER_NAME}"; then
     # covering images pulled into namespaces OpenChoreo creates later, so say so
     # rather than letting agent deploys fail with no explanation. A cluster an
     # earlier private install created already has it, so check the node first.
-    if declare -F amp_registry_is_private >/dev/null 2>&1 && amp_registry_is_private \
-        && ! amp_k3d_node_has_registry_credentials "k3d-${CLUSTER_NAME}-server-0"; then
-        log_warning "Reusing an existing cluster: its node has no registry credentials."
-        log_warning "Agent image pulls will fail. Delete the cluster and re-run to add them."
+    if declare -F amp_registry_is_private >/dev/null 2>&1 && amp_registry_is_private; then
+        node_creds=0
+        amp_k3d_node_has_registry_credentials "k3d-${CLUSTER_NAME}-server-0" || node_creds=$?
+        if [ "${node_creds}" -eq 1 ]; then
+            log_warning "Reusing an existing cluster: its node has no registry credentials."
+            log_warning "Agent image pulls will fail. Delete the cluster and re-run to add them."
+        elif [ "${node_creds}" -ne 0 ]; then
+            log_warning "Reusing an existing cluster: could not check its node for registry credentials."
+            log_warning "If agent image pulls fail, delete the cluster and re-run to add them."
+        fi
     fi
 else
     log_info "Creating k3d cluster..."
