@@ -853,7 +853,10 @@ func (s *MCPProxyService) cleanupProxyResourceServers(ctx context.Context, ouID 
 // RemoveEnvironmentFromEndpoints removes an environment's endpoint bindings from a proxy
 // when that environment is deleted. For every endpoint of the proxy bound to the given
 // environment it tears down the (endpoint,env) gateway artifact and deletes the join row.
-// The endpoint rows themselves remain (they may still be bound to other environments).
+// An org proxy's endpoint rows remain (they may still be bound to other environments). A
+// project proxy's binding endpoint is bound to exactly that one environment and is named
+// after it, so it is deleted with the environment: left behind, it would hold the handle a
+// re-created environment of the same name needs (uq_mcp_endpoint_handle).
 // Best-effort: per-binding failures are aggregated and returned but never abort the sweep.
 func (s *MCPProxyService) RemoveEnvironmentFromEndpoints(ctx context.Context, proxy *models.MCPProxy, envUUID uuid.UUID, orgUUID string) error {
 	if proxy == nil {
@@ -869,15 +872,28 @@ func (s *MCPProxyService) RemoveEnvironmentFromEndpoints(ctx context.Context, pr
 			}
 			// Tear down the single gateway artifact this (endpoint,env) deployed before
 			// removing the binding row.
+			artifactGone := true
 			if ee.ArtifactUUID != uuid.Nil {
 				if err := s.deleteMCPProxyEnvironmentArtifacts(ctx, []uuid.UUID{ee.ArtifactUUID}, orgUUID); err != nil {
+					artifactGone = false
 					errs = append(errs, fmt.Errorf("delete env %s artifact for proxy %s endpoint %s: %w",
 						envUUID, proxy.UUID, endpoint.Handle, err))
 				}
 			}
+			// Keep the endpoint while its artifact is still there, so a retry can find and remove both.
+			dropEndpoint := proxy.ProjectUUID != nil && len(endpoint.Environments) == 1 && artifactGone
 			if err := s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
-				return s.endpointRepo.RemoveEndpointEnvironment(ctx, tx, endpoint.UUID, envUUID)
-			}); err != nil && !errors.Is(err, gorm.ErrRecordNotFound) {
+				if err := s.endpointRepo.RemoveEndpointEnvironment(ctx, tx, endpoint.UUID, envUUID); err != nil &&
+					!errors.Is(err, gorm.ErrRecordNotFound) {
+					return err
+				}
+				if dropEndpoint {
+					if err := s.endpointRepo.DeleteEndpoint(ctx, tx, endpoint.UUID); err != nil && !errors.Is(err, gorm.ErrRecordNotFound) {
+						return err
+					}
+				}
+				return nil
+			}); err != nil {
 				errs = append(errs, fmt.Errorf("remove env %s binding from proxy %s endpoint %s: %w",
 					envUUID, proxy.UUID, endpoint.Handle, err))
 			}

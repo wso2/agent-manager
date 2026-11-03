@@ -698,3 +698,24 @@ func TestDeleteEnv_AgentMappedInEnvironment_409McpProxyInUse(t *testing.T) {
 	assert.NotErrorIs(t, err, utils.ErrMCPProxyHasMappings)
 	assert.NotErrorIs(t, err, utils.ErrMCPProxyNotFound)
 }
+
+// An environment deleted before endpoint rows were dropped with it left the binding's endpoint behind with no
+// environment. Re-binding an environment of the same name reuses that row instead of colliding with its handle.
+func TestPutEnv_ReusesOrphanedEndpointWithTheHandle(t *testing.T) {
+	f := newBindingFixture(t)
+	orphan := models.MCPProxyEndpoint{UUID: uuid.New(), MCPProxyUUID: f.proxy.UUID, Handle: bindingEnv, Name: bindingEnv, Status: models.StatusCreated}
+	f.proxy.Endpoints = append(f.proxy.Endpoints, orphan)
+	endpointRepo := f.svc.base.endpointRepo.(*repomocks.MCPProxyEndpointRepositoryMock)
+
+	_, created, err := f.put(t, models.MCPProxyEnvironmentRequest{})
+	require.NoError(t, err)
+	assert.True(t, created)
+	assert.Empty(t, endpointRepo.CreateEndpointCalls(), "the orphaned row is reused, not re-inserted")
+	require.Len(t, f.proxy.Endpoints, 1)
+	endpoint, ee := f.binding()
+	require.NotNil(t, ee)
+	assert.Equal(t, orphan.UUID, endpoint.UUID)
+	require.NotNil(t, endpoint.Configuration.Upstream, "the reused row carries the new binding's config")
+	assert.Equal(t, bindingServiceURL+"/mcp", endpoint.Configuration.Upstream.URL)
+	require.Len(t, f.deployed, 1)
+}

@@ -235,12 +235,23 @@ func (s *ProjectMCPProxyService) createBinding(
 			utils.ErrInvalidInput, len(artifactHandle), maxMCPProxyDeploymentHandleLength)
 	}
 	now := time.Now()
-	endpoint := &models.MCPProxyEndpoint{
-		UUID: uuid.New(), MCPProxyUUID: proxy.UUID, Handle: endpointHandle, Name: envName,
-		Status: models.StatusCreated, Configuration: config, CreatedAt: now, UpdatedAt: now,
-	}
-	if err := s.base.endpointRepo.CreateEndpoint(ctx, tx, endpoint); err != nil {
-		return err
+	endpoint := orphanedBindingEndpoint(proxy, endpointHandle)
+	if endpoint != nil {
+		// An environment removed before its binding's endpoint was dropped with it left this row behind; it holds
+		// the handle (uq_mcp_endpoint_handle), so the new binding takes it over.
+		if err := s.base.endpointRepo.UpdateEndpoint(ctx, tx, &models.MCPProxyEndpoint{
+			UUID: endpoint.UUID, Handle: endpoint.Handle, Name: envName, Status: endpoint.Status, Configuration: config,
+		}); err != nil {
+			return fmt.Errorf("failed to reuse the MCP proxy binding's endpoint: %w", err)
+		}
+	} else {
+		endpoint = &models.MCPProxyEndpoint{
+			UUID: uuid.New(), MCPProxyUUID: proxy.UUID, Handle: endpointHandle, Name: envName,
+			Status: models.StatusCreated, Configuration: config, CreatedAt: now, UpdatedAt: now,
+		}
+		if err := s.base.endpointRepo.CreateEndpoint(ctx, tx, endpoint); err != nil {
+			return err
+		}
 	}
 	version := proxy.Configuration.Version
 	if proxy.Artifact != nil && proxy.Artifact.Version != "" {
@@ -256,6 +267,16 @@ func (s *ProjectMCPProxyService) createBinding(
 		MCPProxyUUID: proxy.UUID, EndpointUUID: endpoint.UUID, EnvironmentUUID: envUUID,
 		ArtifactUUID: artifactUUID, Status: models.StatusCreated,
 	})
+}
+
+// orphanedBindingEndpoint is the proxy's endpoint with handle that is bound to no environment, or nil.
+func orphanedBindingEndpoint(proxy *models.MCPProxy, handle string) *models.MCPProxyEndpoint {
+	for i := range proxy.Endpoints {
+		if proxy.Endpoints[i].Handle == handle && len(proxy.Endpoints[i].Environments) == 0 {
+			return &proxy.Endpoints[i]
+		}
+	}
+	return nil
 }
 
 // GetEnvironment returns the project proxy's binding in envName, with its deployment status.
