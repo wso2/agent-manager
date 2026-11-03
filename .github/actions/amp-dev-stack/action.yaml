@@ -13,6 +13,11 @@ runs:
   using: composite
   steps:
     - uses: ./.github/actions/setup-go
+    # setup-platform.sh gates on a minimum Node patch release, which the
+    # runner image's preinstalled Node doesn't always meet.
+    - uses: actions/setup-node@v6
+      with:
+        node-version: "26.12.1"
     - name: Install cluster CLIs (deployments/setup/cluster-tools.env)
       uses: ./.github/actions/setup-cluster-clis
     - name: Install yq
