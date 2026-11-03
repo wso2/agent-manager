@@ -165,6 +165,10 @@ func (s *stubMonitorRepo) ListPendingOrRunningRuns(_ int) ([]models.MonitorRun, 
 	return nil, nil
 }
 
+func (s *stubMonitorRepo) HasPendingOrRunningRun(_ uuid.UUID) (bool, error) {
+	return false, nil
+}
+
 func (s *stubMonitorRepo) FindActiveMonitorsByEvaluatorIdentifier(_ string, _ string) ([]models.Monitor, error) {
 	return nil, nil
 }

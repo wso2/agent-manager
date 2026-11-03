@@ -191,6 +191,19 @@ func (s *monitorSchedulerService) triggerMonitor(ctx context.Context, monitor *m
 		return fmt.Errorf("next_run_time is nil for monitor %s", monitor.Name)
 	}
 
+	// One run at a time per monitor. A run whose pod cannot start holds its resource
+	// requests until it times out, and a new run every interval stacks more of them on
+	// the node. next_run_time is left alone, so the run that follows covers the whole
+	// window from the same start and no traces are skipped.
+	active, err := s.monitorRepo.HasPendingOrRunningRun(monitor.ID)
+	if err != nil {
+		return fmt.Errorf("failed to check active runs for monitor %s: %w", monitor.Name, err)
+	}
+	if active {
+		s.logger.Debug("Previous run still active, deferring monitor", "monitor", monitor.Name)
+		return nil
+	}
+
 	safetyDelta := time.Duration(float64(*monitor.IntervalMinutes)*models.SafetyDeltaPercent) * time.Minute
 	interval := time.Duration(*monitor.IntervalMinutes) * time.Minute
 	startTime := monitor.NextRunTime.Add(-interval)

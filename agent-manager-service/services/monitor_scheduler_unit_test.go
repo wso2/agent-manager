@@ -120,6 +120,14 @@ func newScheduler(
 
 func intPtrU(i int) *int { return &i }
 
+// noActiveRunRepo is a repository in which no monitor has an unfinished run, so
+// triggerMonitor goes on to start a new one.
+func noActiveRunRepo() *repomocks.MonitorRepositoryMock {
+	return &repomocks.MonitorRepositoryMock{
+		HasPendingOrRunningRunFunc: func(_ uuid.UUID) (bool, error) { return false, nil },
+	}
+}
+
 func futureMonitor(ouID string, interval int, nextRun time.Time) models.Monitor {
 	return models.Monitor{
 		ID:              uuid.New(),
@@ -214,7 +222,7 @@ func TestMonitorScheduler_triggerMonitor(t *testing.T) {
 		m := futureMonitor(org, 10, time.Now())
 		m.IntervalMinutes = nil
 		// Provisioner / executor left unconfigured: must not be reached.
-		s := newScheduler(&clientmocks.OpenChoreoClientMock{}, &fakeProvisioner{}, &fakeMonitorExecutor{}, &repomocks.MonitorRepositoryMock{})
+		s := newScheduler(&clientmocks.OpenChoreoClientMock{}, &fakeProvisioner{}, &fakeMonitorExecutor{}, noActiveRunRepo())
 
 		err := s.triggerMonitor(context.Background(), &m)
 
@@ -225,7 +233,7 @@ func TestMonitorScheduler_triggerMonitor(t *testing.T) {
 	t.Run("rejects when next_run_time is nil", func(t *testing.T) {
 		m := futureMonitor(org, 10, time.Now())
 		m.NextRunTime = nil
-		s := newScheduler(&clientmocks.OpenChoreoClientMock{}, &fakeProvisioner{}, &fakeMonitorExecutor{}, &repomocks.MonitorRepositoryMock{})
+		s := newScheduler(&clientmocks.OpenChoreoClientMock{}, &fakeProvisioner{}, &fakeMonitorExecutor{}, noActiveRunRepo())
 
 		err := s.triggerMonitor(context.Background(), &m)
 
@@ -249,7 +257,7 @@ func TestMonitorScheduler_triggerMonitor(t *testing.T) {
 				return nil
 			},
 		}
-		s := newScheduler(&clientmocks.OpenChoreoClientMock{}, prov, exec, &repomocks.MonitorRepositoryMock{})
+		s := newScheduler(&clientmocks.OpenChoreoClientMock{}, prov, exec, noActiveRunRepo())
 
 		before := time.Now()
 		err := s.triggerMonitor(context.Background(), &m)
@@ -258,6 +266,34 @@ func TestMonitorScheduler_triggerMonitor(t *testing.T) {
 		// Left in the past, the monitor would be retried on every tick.
 		assert.False(t, retryAt.Before(before.Add(interval*time.Minute)),
 			"expected the retry to be deferred by the monitor's interval, got %s", retryAt)
+	})
+
+	t.Run("defers while the previous run is still active", func(t *testing.T) {
+		m := futureMonitor(org, 10, time.Now())
+		repo := &repomocks.MonitorRepositoryMock{
+			HasPendingOrRunningRunFunc: func(id uuid.UUID) (bool, error) {
+				assert.Equal(t, m.ID, id)
+				return true, nil
+			},
+		}
+		// Provisioner and executor left unconfigured: neither a new run nor a move
+		// of next_run_time may happen, so the next run still covers this window.
+		s := newScheduler(&clientmocks.OpenChoreoClientMock{}, &fakeProvisioner{}, &fakeMonitorExecutor{}, repo)
+
+		require.NoError(t, s.triggerMonitor(context.Background(), &m))
+	})
+
+	t.Run("does not start a run when the active-run check fails", func(t *testing.T) {
+		boom := errors.New("db down")
+		m := futureMonitor(org, 10, time.Now())
+		repo := &repomocks.MonitorRepositoryMock{
+			HasPendingOrRunningRunFunc: func(_ uuid.UUID) (bool, error) { return false, boom },
+		}
+		s := newScheduler(&clientmocks.OpenChoreoClientMock{}, &fakeProvisioner{}, &fakeMonitorExecutor{}, repo)
+
+		err := s.triggerMonitor(context.Background(), &m)
+
+		assert.ErrorIs(t, err, boom)
 	})
 
 	t.Run("propagates the executor error and backs the monitor off", func(t *testing.T) {
@@ -275,7 +311,7 @@ func TestMonitorScheduler_triggerMonitor(t *testing.T) {
 				return nil
 			},
 		}
-		s := newScheduler(&clientmocks.OpenChoreoClientMock{}, prov, exec, &repomocks.MonitorRepositoryMock{})
+		s := newScheduler(&clientmocks.OpenChoreoClientMock{}, prov, exec, noActiveRunRepo())
 
 		before := time.Now()
 		err := s.triggerMonitor(context.Background(), &m)
@@ -298,7 +334,7 @@ func TestMonitorScheduler_triggerMonitor(t *testing.T) {
 			},
 			UpdateNextRunTimeFunc: func(context.Context, uuid.UUID, time.Time) error { return nil },
 		}
-		s := newScheduler(&clientmocks.OpenChoreoClientMock{}, prov, exec, &repomocks.MonitorRepositoryMock{})
+		s := newScheduler(&clientmocks.OpenChoreoClientMock{}, prov, exec, noActiveRunRepo())
 
 		require.NoError(t, s.triggerMonitor(context.Background(), &m))
 
@@ -322,7 +358,7 @@ func TestMonitorScheduler_triggerMonitor(t *testing.T) {
 				return nil
 			},
 		}
-		s := newScheduler(&clientmocks.OpenChoreoClientMock{}, prov, exec, &repomocks.MonitorRepositoryMock{})
+		s := newScheduler(&clientmocks.OpenChoreoClientMock{}, prov, exec, noActiveRunRepo())
 
 		before := time.Now()
 		_ = s.triggerMonitor(context.Background(), &m)
@@ -359,7 +395,7 @@ func TestMonitorScheduler_triggerMonitor(t *testing.T) {
 			return nil
 		}
 
-		s := newScheduler(systemOC, prov, exec, &repomocks.MonitorRepositoryMock{})
+		s := newScheduler(systemOC, prov, exec, noActiveRunRepo())
 
 		before := time.Now()
 		err := s.triggerMonitor(context.Background(), &m)
@@ -398,7 +434,7 @@ func TestMonitorScheduler_triggerMonitor(t *testing.T) {
 				return boom
 			},
 		}
-		s := newScheduler(&clientmocks.OpenChoreoClientMock{}, prov, exec, &repomocks.MonitorRepositoryMock{})
+		s := newScheduler(&clientmocks.OpenChoreoClientMock{}, prov, exec, noActiveRunRepo())
 
 		err := s.triggerMonitor(context.Background(), &m)
 
@@ -446,10 +482,9 @@ func TestMonitorScheduler_triggerPendingMonitors(t *testing.T) {
 		m2 := futureMonitor("org-b", 10, time.Now())
 		m2.IntervalMinutes = nil // forces m2's triggerMonitor to fail at the validation gate
 
-		repo := &repomocks.MonitorRepositoryMock{
-			ListDueMonitorsFunc: func(_ string, _ time.Time) ([]models.Monitor, error) {
-				return []models.Monitor{m1, m2}, nil
-			},
+		repo := noActiveRunRepo()
+		repo.ListDueMonitorsFunc = func(_ string, _ time.Time) ([]models.Monitor, error) {
+			return []models.Monitor{m1, m2}, nil
 		}
 		prov := &fakeProvisioner{IsThunderModeFunc: func() bool { return false }}
 
