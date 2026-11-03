@@ -210,6 +210,7 @@ type MCPProxyDTO struct {
 	InCatalog      bool                  `json:"inCatalog"`
 	McpSpecVersion *string               `json:"mcpSpecVersion,omitempty"`
 	Name           string                `json:"name"`
+	ProjectName    *string               `json:"projectName,omitempty"`
 	Endpoints      []MCPProxyEndpointDTO `json:"endpoints,omitempty"`
 	UpdatedAt      *time.Time            `json:"updatedAt,omitempty"`
 	Version        string                `json:"version"`
@@ -263,6 +264,7 @@ type MCPProxyListItem struct {
 	ID             *string    `json:"id,omitempty"`
 	McpSpecVersion *string    `json:"mcpSpecVersion,omitempty"`
 	Name           *string    `json:"name,omitempty"`
+	ProjectName    *string    `json:"projectName,omitempty"`
 	Status         *string    `json:"status,omitempty"`
 	UpdatedAt      *time.Time `json:"updatedAt,omitempty"`
 	Version        *string    `json:"version,omitempty"`

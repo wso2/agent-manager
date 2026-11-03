@@ -301,17 +301,20 @@ func (s *MCPProxyService) Create(ctx context.Context, orgUUID, createdBy string,
 	return convertModelMCPProxyToSpec(created), nil
 }
 
-// List retrieves MCP proxies for an organization.
-func (s *MCPProxyService) List(ctx context.Context, orgUUID string, limit, offset int) (*models.MCPProxyListResponse, error) {
-	proxies, _, err := s.repo.List(ctx, orgUUID, repositories.MCPProxyListFilter{Limit: limit, Offset: offset})
+// List retrieves MCP proxies for an organization. With a nil projectUUID it returns
+// org-level proxies only; with one, it also includes that project's proxies (the agent
+// Tools picker). Callers resolve the project to its UUID first.
+func (s *MCPProxyService) List(ctx context.Context, orgUUID string, projectUUID *string, limit, offset int) (*models.MCPProxyListResponse, error) {
+	proxies, total64, err := s.repo.List(ctx, orgUUID, repositories.MCPProxyListFilter{
+		ProjectUUID:     projectUUID,
+		IncludeOrgOwned: projectUUID != nil,
+		Limit:           limit,
+		Offset:          offset,
+	})
 	if err != nil {
 		return nil, fmt.Errorf("failed to list MCP proxies: %w", err)
 	}
-
-	total, err := s.repo.Count(ctx, orgUUID)
-	if err != nil {
-		return nil, fmt.Errorf("failed to count MCP proxies: %w", err)
-	}
+	total := int(total64)
 
 	resp := &models.MCPProxyListResponse{
 		Count: len(proxies),
@@ -405,6 +408,13 @@ func (s *MCPProxyService) Get(ctx context.Context, orgUUID, proxyID string) (*mo
 	}
 
 	dto := convertModelMCPProxyToSpec(proxy)
+	if dto != nil && proxy.ProjectUUID != nil {
+		// A project proxy is read-only here: report its owner and never its upstream.
+		dto.ProjectName = proxy.ProjectName
+		for i := range dto.Endpoints {
+			dto.Endpoints[i].Upstream = models.UpstreamConfig{}
+		}
+	}
 	if dto != nil && s.deploymentRepo != nil {
 		// Deployments are keyed by each (endpoint, environment) artifact UUID (the proxy's
 		// and endpoint's own UUIDs are never deployed), so aggregate placed gateways across
@@ -476,6 +486,12 @@ func (s *MCPProxyService) Update(ctx context.Context, orgUUID, proxyID string, r
 		return nil, utils.ErrInvalidInput
 	}
 
+	// Refuse a project proxy before any validation or network work; it is re-checked on
+	// the locked row below.
+	if existing, err := s.repo.GetByHandle(ctx, handle, orgUUID); err == nil && existing != nil && existing.ProjectUUID != nil {
+		return nil, utils.ErrMCPProxyProjectOwned
+	}
+
 	// Validate the endpoints outside the transaction so the placement check's DB reads and
 	// network lookups don't hold the row lock. Auth is encrypted inside the transaction because
 	// it may need to preserve the previously stored secret when the client omits it.
@@ -523,6 +539,9 @@ func (s *MCPProxyService) Update(ctx context.Context, orgUUID, proxyID string, r
 				return utils.ErrMCPProxyNotFound
 			}
 			return fmt.Errorf("failed to get MCP proxy before update: %w", err)
+		}
+		if proxy.ProjectUUID != nil {
+			return utils.ErrMCPProxyProjectOwned
 		}
 
 		// Index the existing graph so buildMCPEndpointsForStorage can preserve per-env
@@ -694,6 +713,9 @@ func (s *MCPProxyService) Delete(ctx context.Context, orgUUID, orgName, proxyID 
 			return utils.ErrMCPProxyNotFound
 		}
 		return fmt.Errorf("failed to get MCP proxy before delete: %w", err)
+	}
+	if proxy.ProjectUUID != nil {
+		return utils.ErrMCPProxyProjectOwned
 	}
 
 	if err := s.ensureMCPProxyNotInUse(ctx, orgUUID, proxy); err != nil {
@@ -1217,6 +1239,7 @@ func convertModelMCPProxyToListItem(proxy *models.MCPProxy) models.MCPProxyListI
 		ID:             stringPtrIfNotEmpty(id),
 		McpSpecVersion: stringPtrIfNotEmpty(proxy.Configuration.SpecVersion),
 		Name:           stringPtrIfNotEmpty(name),
+		ProjectName:    proxy.ProjectName,
 		Status:         stringPtrIfNotEmpty(status),
 		UpdatedAt:      timePtrIfNotZero(updatedAt),
 		Version:        stringPtrIfNotEmpty(version),

@@ -313,4 +313,7 @@ var (
 	// ErrMCPProxyCreateNotPermitted means the caller may update project proxies but not
 	// create one, and the upsert would have created it (403 on the project routes).
 	ErrMCPProxyCreateNotPermitted = errors.New("not permitted to create MCP proxies")
+	// ErrMCPProxyProjectOwned means an org-level mutation targeted a project-scoped proxy
+	// (409 PROJECT_OWNED on the org routes). Project proxies change only via the project routes.
+	ErrMCPProxyProjectOwned = errors.New("MCP proxy belongs to a project and can only be changed through the project routes")
 )
