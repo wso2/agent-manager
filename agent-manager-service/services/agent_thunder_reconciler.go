@@ -36,6 +36,9 @@ const (
 	reconcilerBatchSize        = 50
 	reconcilerConcurrencyLimit = 10
 	promotionTopologyInterval  = 5 * time.Minute
+	// promotionReconcilerLockID serializes the project promotion topology pass
+	// across replicas; distinct from reconcilerLockID and schedulerLockID.
+	promotionReconcilerLockID = int64(739281458)
 )
 
 // AgentThunderReconcilerService sweeps PENDING agent Thunder bindings whose
@@ -93,19 +96,47 @@ func (s *agentThunderReconcilerService) Start(ctx context.Context) error {
 
 func (s *agentThunderReconcilerService) runPromotionTopologyLoop(ctx context.Context) {
 	reconciler := s.provisioning.(ProjectAgentIdentityPromotionReconciler)
-	reconciler.ReconcileProjectAgentIdentityPromotions(ctx)
+	s.runPromotionTopologyCycle(ctx, reconciler)
 	ticker := time.NewTicker(promotionTopologyInterval)
 	defer ticker.Stop()
 	for {
 		select {
 		case <-ticker.C:
-			reconciler.ReconcileProjectAgentIdentityPromotions(ctx)
+			s.runPromotionTopologyCycle(ctx, reconciler)
 		case <-s.stopCh:
 			return
 		case <-ctx.Done():
 			return
 		}
 	}
+}
+
+// runPromotionTopologyCycle runs one topology pass under a PostgreSQL advisory
+// lock so only one replica backfills promotion bindings at a time, the same
+// mechanism runCycle uses. The pass is idempotent, so the lock only avoids
+// redundant pipeline reads: a replica that does not get it just skips the pass.
+func (s *agentThunderReconcilerService) runPromotionTopologyCycle(
+	ctx context.Context, reconciler ProjectAgentIdentityPromotionReconciler,
+) {
+	tx := db.GetDB().WithContext(ctx).Begin()
+	if tx.Error != nil {
+		s.logger.Error("Failed to begin transaction for promotion topology advisory lock", "error", tx.Error)
+		return
+	}
+	// The transaction-scoped lock is released by the rollback; the pass itself
+	// uses its own connections and writes nothing through tx.
+	defer tx.Rollback()
+
+	var locked bool
+	if err := tx.Raw("SELECT pg_try_advisory_xact_lock(?)", promotionReconcilerLockID).Scan(&locked).Error; err != nil {
+		s.logger.Error("Failed to try promotion topology advisory lock", "error", err)
+		return
+	}
+	if !locked {
+		s.logger.Debug("Another instance is reconciling project AgentID promotions, skipping pass")
+		return
+	}
+	reconciler.ReconcileProjectAgentIdentityPromotions(ctx)
 }
 
 func (s *agentThunderReconcilerService) Stop() error {

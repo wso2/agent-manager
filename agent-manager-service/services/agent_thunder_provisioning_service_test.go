@@ -64,14 +64,28 @@ func TestAgentThunderEndpointResolverCanBeConfiguredAfterFactoryConstruction(t *
 	require.Equal(t, "http://internal.example.com", endpoints.ManagementURL)
 }
 
-type projectAgentIdentityProviderStub struct {
-	source    func(context.Context, string, string, string) (string, error)
-	provision func(context.Context, ProjectAgentIdentityRequest) (ProjectAgentIdentityResult, error)
-	activate  func(context.Context, ProjectAgentIdentityRequest, string) error
+// projectPipelineReaderFunc adapts a function to ProjectPipelineReader.
+type projectPipelineReaderFunc func(ctx context.Context, organizationID, projectName string) (string, []ProjectIdentityEnvironment, error)
+
+func (f projectPipelineReaderFunc) ProjectPipeline(
+	ctx context.Context, organizationID, projectName string,
+) (string, []ProjectIdentityEnvironment, error) {
+	return f(ctx, organizationID, projectName)
 }
 
-func (s projectAgentIdentityProviderStub) SourceEnvironment(ctx context.Context, organizationID, projectID, projectName string) (string, error) {
-	return s.source(ctx, organizationID, projectID, projectName)
+// sourceOnlyReader reports a fixed source environment and no other topology.
+func sourceOnlyReader(source string, err error) ProjectPipelineReader {
+	return projectPipelineReaderFunc(func(context.Context, string, string) (string, []ProjectIdentityEnvironment, error) {
+		if err != nil {
+			return "", nil, err
+		}
+		return source, []ProjectIdentityEnvironment{{Name: source}}, nil
+	})
+}
+
+type projectAgentIdentityProviderStub struct {
+	provision func(context.Context, ProjectAgentIdentityRequest) (ProjectAgentIdentityResult, error)
+	activate  func(context.Context, ProjectAgentIdentityRequest, string) error
 }
 
 func (s projectAgentIdentityProviderStub) Provision(ctx context.Context, request ProjectAgentIdentityRequest) (ProjectAgentIdentityResult, error) {
@@ -111,7 +125,6 @@ func TestAttemptProvision_CPManagedUsesProjectProvider(t *testing.T) {
 	}
 	activated := false
 	provider := projectAgentIdentityProviderStub{
-		source: func(context.Context, string, string, string) (string, error) { return "development", nil },
 		provision: func(_ context.Context, request ProjectAgentIdentityRequest) (ProjectAgentIdentityResult, error) {
 			assert.Equal(t, "project-1", request.ProjectID)
 			assert.Equal(t, "project-1", request.ProjectName)
@@ -129,6 +142,7 @@ func TestAttemptProvision_CPManagedUsesProjectProvider(t *testing.T) {
 	}
 	svc := newTestProvisioningService(repo, &clientmocks.EnvThunderResolverMock{}, store)
 	require.NoError(t, svc.(ProjectAgentIdentityProviderSetter).SetProjectAgentIdentityProvider(thundersvc.IdentityManagementCPManaged, provider))
+	svc.(ProjectPipelineReaderSetter).SetProjectPipelineReader(sourceOnlyReader("development", nil))
 
 	svc.AttemptProvision(context.Background(), binding)
 
@@ -142,7 +156,7 @@ func TestAttemptProvision_CPManagedUsesProjectProvider(t *testing.T) {
 func TestAttemptProvision_CPManagedFailureState(t *testing.T) {
 	tests := []struct {
 		name          string
-		source        func(context.Context, string, string, string) (string, error)
+		reader        ProjectPipelineReader
 		provision     func(context.Context, ProjectAgentIdentityRequest) (ProjectAgentIdentityResult, error)
 		activate      func(context.Context, ProjectAgentIdentityRequest, string) error
 		wantSecretRef string
@@ -150,10 +164,8 @@ func TestAttemptProvision_CPManagedFailureState(t *testing.T) {
 		wantClientID  string
 	}{
 		{
-			name: "source resolution failure remains retryable",
-			source: func(context.Context, string, string, string) (string, error) {
-				return "", errors.New("mapping unavailable")
-			},
+			name:   "source resolution failure remains retryable",
+			reader: sourceOnlyReader("", errors.New("pipeline unavailable")),
 			provision: func(context.Context, ProjectAgentIdentityRequest) (ProjectAgentIdentityResult, error) {
 				t.Fatal("provision must not run without an authoritative source")
 				return ProjectAgentIdentityResult{}, nil
@@ -162,7 +174,7 @@ func TestAttemptProvision_CPManagedFailureState(t *testing.T) {
 		},
 		{
 			name:   "incomplete identity remains retryable",
-			source: func(context.Context, string, string, string) (string, error) { return "development", nil },
+			reader: sourceOnlyReader("development", nil),
 			provision: func(context.Context, ProjectAgentIdentityRequest) (ProjectAgentIdentityResult, error) {
 				return ProjectAgentIdentityResult{ClientID: "client-id"}, nil
 			},
@@ -171,7 +183,7 @@ func TestAttemptProvision_CPManagedFailureState(t *testing.T) {
 		},
 		{
 			name:   "missing required secret remains retryable",
-			source: func(context.Context, string, string, string) (string, error) { return "development", nil },
+			reader: sourceOnlyReader("development", nil),
 			provision: func(context.Context, ProjectAgentIdentityRequest) (ProjectAgentIdentityResult, error) {
 				return ProjectAgentIdentityResult{AgentID: "agent-id", ClientID: "client-id"}, nil
 			},
@@ -181,7 +193,7 @@ func TestAttemptProvision_CPManagedFailureState(t *testing.T) {
 		},
 		{
 			name:   "activation failure preserves stored secret",
-			source: func(context.Context, string, string, string) (string, error) { return "development", nil },
+			reader: sourceOnlyReader("development", nil),
 			provision: func(context.Context, ProjectAgentIdentityRequest) (ProjectAgentIdentityResult, error) {
 				return ProjectAgentIdentityResult{AgentID: "agent-id", ClientID: "client-id", ClientSecret: "client-secret"}, nil
 			},
@@ -213,11 +225,12 @@ func TestAttemptProvision_CPManagedFailureState(t *testing.T) {
 					return "agent-id-secret", nil
 				},
 			}
-			provider := projectAgentIdentityProviderStub{source: tt.source, provision: tt.provision, activate: tt.activate}
+			provider := projectAgentIdentityProviderStub{provision: tt.provision, activate: tt.activate}
 			svc := newTestProvisioningService(repo, &clientmocks.EnvThunderResolverMock{}, store)
 			require.NoError(t, svc.(ProjectAgentIdentityProviderSetter).SetProjectAgentIdentityProvider(
 				thundersvc.IdentityManagementCPManaged, provider,
 			))
+			svc.(ProjectPipelineReaderSetter).SetProjectPipelineReader(tt.reader)
 
 			svc.AttemptProvision(context.Background(), binding)
 
@@ -264,7 +277,6 @@ func TestAttemptProvision_CPManagedRecoversSourceMissingFromCreationEnvironmentL
 		},
 	}
 	provider := projectAgentIdentityProviderStub{
-		source: func(context.Context, string, string, string) (string, error) { return "production", nil },
 		provision: func(context.Context, ProjectAgentIdentityRequest) (ProjectAgentIdentityResult, error) {
 			t.Fatal("a non-source candidate must not provision directly")
 			return ProjectAgentIdentityResult{}, nil
@@ -275,6 +287,7 @@ func TestAttemptProvision_CPManagedRecoversSourceMissingFromCreationEnvironmentL
 	require.NoError(t, svc.(ProjectAgentIdentityProviderSetter).SetProjectAgentIdentityProvider(
 		thundersvc.IdentityManagementCPManaged, provider,
 	))
+	svc.(ProjectPipelineReaderSetter).SetProjectPipelineReader(sourceOnlyReader("production", nil))
 
 	svc.AttemptProvision(context.Background(), candidate)
 
@@ -874,17 +887,17 @@ func TestProvisionForAgent_CPManagedCreatesOnlyPipelineSource(t *testing.T) {
 	svc := newTestProvisioningService(repo, &clientmocks.EnvThunderResolverMock{}, &clientmocks.SecretManagementClientMock{})
 	setter := svc.(ProjectAgentIdentityProviderSetter)
 	require.NoError(t, setter.SetProjectAgentIdentityProvider(thundersvc.IdentityManagementCPManaged, projectAgentIdentityProviderStub{
-		source: func(_ context.Context, orgID, projectID, projectName string) (string, error) {
-			assert.Equal(t, "org-1", orgID)
-			assert.Equal(t, "project-1", projectID)
-			assert.Equal(t, "project-1", projectName)
-			return "staging", nil
-		},
 		provision: func(context.Context, ProjectAgentIdentityRequest) (ProjectAgentIdentityResult, error) {
 			return ProjectAgentIdentityResult{}, errors.New("not reached")
 		},
 		activate: func(context.Context, ProjectAgentIdentityRequest, string) error { return nil },
 	}))
+	svc.(ProjectPipelineReaderSetter).SetProjectPipelineReader(projectPipelineReaderFunc(
+		func(_ context.Context, orgID, projectName string) (string, []ProjectIdentityEnvironment, error) {
+			assert.Equal(t, "org-1", orgID)
+			assert.Equal(t, "project-1", projectName)
+			return "staging", []ProjectIdentityEnvironment{{Name: "staging"}}, nil
+		}))
 
 	svc.ProvisionForAgent(context.Background(), "org-1", "project-1", "agent-1", models.AgentProvisioningTypeInternal,
 		[]string{"development", "staging", "production"}, "user-1", "")
@@ -906,15 +919,13 @@ func TestProvisionForAgent_CPManagedSourceResolutionFailureWritesRetryableCandid
 	require.NoError(t, svc.(ProjectAgentIdentityProviderSetter).SetProjectAgentIdentityProvider(
 		thundersvc.IdentityManagementCPManaged,
 		projectAgentIdentityProviderStub{
-			source: func(context.Context, string, string, string) (string, error) {
-				return "", errors.New("mapping unavailable")
-			},
 			provision: func(context.Context, ProjectAgentIdentityRequest) (ProjectAgentIdentityResult, error) {
 				return ProjectAgentIdentityResult{}, errors.New("not reached")
 			},
 			activate: func(context.Context, ProjectAgentIdentityRequest, string) error { return nil },
 		},
 	))
+	svc.(ProjectPipelineReaderSetter).SetProjectPipelineReader(sourceOnlyReader("", errors.New("pipeline unavailable")))
 
 	svc.ProvisionForAgent(context.Background(), "org-1", "project-1", "agent-1", models.AgentProvisioningTypeInternal,
 		[]string{"development", "staging"}, "user-1", "")
@@ -938,13 +949,13 @@ func TestProvisionForAgent_CPManagedTrustsAuthoritativeSourceOutsideStaleEnviron
 	require.NoError(t, svc.(ProjectAgentIdentityProviderSetter).SetProjectAgentIdentityProvider(
 		thundersvc.IdentityManagementCPManaged,
 		projectAgentIdentityProviderStub{
-			source: func(context.Context, string, string, string) (string, error) { return "production", nil },
 			provision: func(context.Context, ProjectAgentIdentityRequest) (ProjectAgentIdentityResult, error) {
 				return ProjectAgentIdentityResult{}, errors.New("not reached")
 			},
 			activate: func(context.Context, ProjectAgentIdentityRequest, string) error { return nil },
 		},
 	))
+	svc.(ProjectPipelineReaderSetter).SetProjectPipelineReader(sourceOnlyReader("production", nil))
 
 	svc.ProvisionForAgent(context.Background(), "org-1", "project-1", "agent-1", models.AgentProvisioningTypeInternal,
 		[]string{"development", "staging"}, "user-1", "")
@@ -963,13 +974,13 @@ func TestProvisionForEnvironmentIfMissing_CPManagedRequiresPromotion(t *testing.
 	require.NoError(t, svc.(ProjectAgentIdentityProviderSetter).SetProjectAgentIdentityProvider(
 		thundersvc.IdentityManagementCPManaged,
 		projectAgentIdentityProviderStub{
-			source: func(context.Context, string, string, string) (string, error) { return "development", nil },
 			provision: func(context.Context, ProjectAgentIdentityRequest) (ProjectAgentIdentityResult, error) {
 				return ProjectAgentIdentityResult{}, errors.New("not reached")
 			},
 			activate: func(context.Context, ProjectAgentIdentityRequest, string) error { return nil },
 		},
 	))
+	svc.(ProjectPipelineReaderSetter).SetProjectPipelineReader(sourceOnlyReader("development", nil))
 
 	alreadyExisted, err := svc.ProvisionForEnvironmentIfMissing(
 		context.Background(), "org-1", "project-1", "agent-1", "staging",

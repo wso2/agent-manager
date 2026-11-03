@@ -85,38 +85,47 @@ func promotionSteps(source string, environments []ProjectIdentityEnvironment) ([
 	return steps, nil
 }
 
+// projectPromotionSteps reads the project's pipeline once and returns the
+// ordered promotion steps, the source environment first.
 func (s *agentThunderProvisioningService) projectPromotionSteps(
-	ctx context.Context, organizationID, projectID, projectName string,
+	ctx context.Context, organizationID, projectName string,
 ) ([]promotionStep, error) {
-	source, err := s.projectIdentityProvider.SourceEnvironment(ctx, organizationID, projectID, projectName)
-	if err != nil {
-		return nil, fmt.Errorf("resolve project identity source environment: %w", err)
+	if s.pipelineReader == nil {
+		return nil, errProjectPipelineReaderUnavailable
 	}
-	promoter, ok := s.projectIdentityProvider.(ProjectAgentIdentityPromotionProvider)
-	if !ok {
-		return nil, errProjectAgentIdentityPromotionUnavailable
-	}
-	environments, err := promoter.Environments(ctx, organizationID, projectID, projectName)
+	source, environments, err := s.pipelineReader.ProjectPipeline(ctx, organizationID, projectName)
 	if err != nil {
-		return nil, fmt.Errorf("resolve project identity environments: %w", err)
+		return nil, fmt.Errorf("resolve project promotion topology: %w", err)
 	}
 	return promotionSteps(source, environments)
 }
 
+// ensureProjectPromotionBindings writes the binding rows of one agent for every
+// step of its project's topology. Safe to repeat: existing rows are never
+// touched, and a concurrent writer winning an insert is treated as success.
 func (s *agentThunderProvisioningService) ensureProjectPromotionBindings(
 	ctx context.Context, ref repositories.AgentRef, requestedBy string,
 ) ([]models.AgentThunderClient, error) {
-	source, err := s.projectIdentityProvider.SourceEnvironment(ctx, ref.OUID, ref.ProjectName, ref.ProjectName)
+	steps, err := s.projectPromotionSteps(ctx, ref.OUID, ref.ProjectName)
 	if err != nil {
-		return nil, fmt.Errorf("resolve project identity source environment: %w", err)
+		return nil, err
 	}
-	steps := []promotionStep{{Environment: source}}
-	bindings := make([]models.AgentThunderClient, 0, len(steps))
-	write := func(step promotionStep) error {
-		if _, getErr := s.repo.Get(ctx, ref.OUID, ref.ProjectName, ref.AgentName, step.Environment); getErr == nil {
-			return nil
-		} else if !errors.Is(getErr, repositories.ErrAgentThunderClientNotFound) {
-			return fmt.Errorf("read project AgentID binding for %s: %w", step.Environment, getErr)
+	return s.writePromotionBindings(ctx, ref, steps, requestedBy)
+}
+
+// writePromotionBindings creates the missing rows for steps in order, source
+// first, and returns only the rows this call inserted.
+func (s *agentThunderProvisioningService) writePromotionBindings(
+	ctx context.Context, ref repositories.AgentRef, steps []promotionStep, requestedBy string,
+) ([]models.AgentThunderClient, error) {
+	created := make([]models.AgentThunderClient, 0, len(steps))
+	for _, step := range steps {
+		_, err := s.repo.Get(ctx, ref.OUID, ref.ProjectName, ref.AgentName, step.Environment)
+		if err == nil {
+			continue
+		}
+		if !errors.Is(err, repositories.ErrAgentThunderClientNotFound) {
+			return created, fmt.Errorf("read project AgentID binding for %s: %w", step.Environment, err)
 		}
 		binding := models.AgentThunderClient{
 			OUID: ref.OUID, ProjectName: ref.ProjectName, AgentName: ref.AgentName,
@@ -124,40 +133,30 @@ func (s *agentThunderProvisioningService) ensureProjectPromotionBindings(
 			ProvisioningType: ref.ProvisioningType, Status: models.AgentThunderStatusPending,
 			RequestedBy: requestedBy,
 		}
-		if upsertErr := s.repo.Upsert(ctx, &binding); upsertErr != nil {
-			return fmt.Errorf("write project AgentID binding for %s: %w", step.Environment, upsertErr)
+		if err := s.repo.Upsert(ctx, &binding); err != nil {
+			return created, fmt.Errorf("write project AgentID binding for %s: %w", step.Environment, err)
 		}
+		// On an insert conflict the repository leaves the ID unset: another
+		// writer owns that row and will attempt it.
 		if binding.ID != uuid.Nil {
-			bindings = append(bindings, binding)
+			created = append(created, binding)
 		}
-		return nil
 	}
-	if err := write(steps[0]); err != nil {
-		return bindings, err
-	}
+	return created, nil
+}
 
-	promoter, ok := s.projectIdentityProvider.(ProjectAgentIdentityPromotionProvider)
-	if !ok {
-		return bindings, errProjectAgentIdentityPromotionUnavailable
-	}
-	environments, err := promoter.Environments(ctx, ref.OUID, ref.ProjectName, ref.ProjectName)
-	if err != nil {
-		return bindings, fmt.Errorf("resolve project identity environments: %w", err)
-	}
-	steps, err = promotionSteps(source, environments)
-	if err != nil {
-		return bindings, err
-	}
-	for _, step := range steps {
-		if err := write(step); err != nil {
-			return bindings, err
-		}
-	}
-	return bindings, nil
+type projectKey struct{ organizationID, projectName string }
+
+type projectStepsResult struct {
+	steps []promotionStep
+	err   error
 }
 
 // ReconcileProjectAgentIdentityPromotions backfills target bindings when a
-// project gains an environment after its AgentIDs were created.
+// project gains an environment after its AgentIDs were created. The pipeline
+// of each project is read once per pass and shared by all of its agents. It is
+// cheap and idempotent, so concurrent replicas converge; the caller may
+// additionally serialize passes across replicas.
 func (s *agentThunderProvisioningService) ReconcileProjectAgentIdentityPromotions(ctx context.Context) {
 	if s.identityManagementMode != thundersvc.IdentityManagementCPManaged || s.projectIdentityProvider == nil {
 		return
@@ -165,6 +164,7 @@ func (s *agentThunderProvisioningService) ReconcileProjectAgentIdentityPromotion
 	if _, ok := s.projectIdentityProvider.(ProjectAgentIdentityPromotionProvider); !ok {
 		return
 	}
+	cache := make(map[projectKey]projectStepsResult)
 	var after *repositories.AgentRef
 	for {
 		refs, err := s.repo.ListHomeAgents(ctx, after, promotionTopologyPageSize)
@@ -173,7 +173,23 @@ func (s *agentThunderProvisioningService) ReconcileProjectAgentIdentityPromotion
 			return
 		}
 		for _, ref := range refs {
-			if _, err := s.ensureProjectPromotionBindings(ctx, ref, ""); err != nil {
+			if ctx.Err() != nil {
+				return
+			}
+			key := projectKey{ref.OUID, ref.ProjectName}
+			resolved, ok := cache[key]
+			if !ok {
+				resolved.steps, resolved.err = s.projectPromotionSteps(ctx, ref.OUID, ref.ProjectName)
+				cache[key] = resolved
+				if resolved.err != nil {
+					s.logger.Warn("Failed to resolve project AgentID promotion topology",
+						"ouID", ref.OUID, "projectName", ref.ProjectName, "error", resolved.err)
+				}
+			}
+			if resolved.err != nil {
+				continue
+			}
+			if _, err := s.writePromotionBindings(ctx, ref, resolved.steps, ""); err != nil {
 				s.logger.Warn("Failed to reconcile project AgentID promotion bindings",
 					"ouID", ref.OUID, "projectName", ref.ProjectName, "agentName", ref.AgentName, "error", err)
 			}

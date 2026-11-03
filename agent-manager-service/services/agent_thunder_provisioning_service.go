@@ -238,6 +238,9 @@ type agentThunderProvisioningService struct {
 	awaitTimeout            time.Duration
 	identityManagementMode  thundersvc.IdentityManagementMode
 	projectIdentityProvider ProjectAgentIdentityProvider
+	// pipelineReader supplies the project's environment order in CP_MANAGED
+	// mode (see ProjectPipelineReader). Set once at startup.
+	pipelineReader ProjectPipelineReader
 }
 
 func (s *agentThunderProvisioningService) SetEnvThunderEndpointResolver(resolver thundersvc.EnvThunderEndpointResolver) {
@@ -412,9 +415,9 @@ func agentThunderBindingOrgContext(ctx context.Context, binding models.AgentThun
 // git/build-pipeline agent, or a kind-sourced one) would never get its AgentID
 // env vars — neither path calls InjectForEnvironment itself.
 func DBBackedAgentThunderProvisioning() func(db *gorm.DB, secretMgmtClient secretmanagersvc.SecretManagementClient, ocClient client.OpenChoreoClient, encryptionKey []byte) AgentThunderProvisioningService {
-	// The OpenChoreo client parameter is part of app.Options.AgentThunderProvisioning's
-	// factory signature, which deployments implement; this implementation does not use it.
-	return func(db *gorm.DB, secretMgmtClient secretmanagersvc.SecretManagementClient, _ client.OpenChoreoClient, encryptionKey []byte) AgentThunderProvisioningService {
+	// The OpenChoreo client is used only to read a project's deployment pipeline
+	// (its environment order) in CP_MANAGED mode; LEGACY_DIRECT never touches it.
+	return func(db *gorm.DB, secretMgmtClient secretmanagersvc.SecretManagementClient, ocClient client.OpenChoreoClient, encryptionKey []byte) AgentThunderProvisioningService {
 		envThunderRepo := repositories.NewEnvThunderSystemClientRepo(db)
 		envThunderURLRepo := repositories.NewEnvThunderURLRepo(db)
 		endpointResolver := &agentThunderEndpointResolver{}
@@ -429,7 +432,11 @@ func DBBackedAgentThunderProvisioning() func(db *gorm.DB, secretMgmtClient secre
 			nil, // workload injector — see doc comment above
 			slog.Default(),
 		)
-		service.(*agentThunderProvisioningService).endpointResolver = endpointResolver
+		provisioning := service.(*agentThunderProvisioningService)
+		provisioning.endpointResolver = endpointResolver
+		if ocClient != nil {
+			provisioning.pipelineReader = NewOpenChoreoProjectPipelineReader(ocClient)
+		}
 		return service
 	}
 }
@@ -539,7 +546,7 @@ func (s *agentThunderProvisioningService) ProvisionForAgent(
 ) {
 	if s.identityManagementMode == thundersvc.IdentityManagementCPManaged {
 		if _, ok := s.projectIdentityProvider.(ProjectAgentIdentityPromotionProvider); !ok {
-			source, err := s.projectIdentityProvider.SourceEnvironment(ctx, ouID, projectName, projectName)
+			source, err := s.projectSourceEnvironment(ctx, ouID, projectName)
 			if err != nil {
 				s.logger.Warn("Project AgentID source environment is unavailable; persisted candidates will retry",
 					"ouID", ouID, "projectName", projectName, "agentName", agentName, "error", err)
@@ -553,6 +560,9 @@ func (s *agentThunderProvisioningService) ProvisionForAgent(
 			OUID: ouID, ProjectName: projectName, AgentName: agentName, ProvisioningType: ownership,
 		}, requestedBy)
 		if err != nil {
+			// Keep the agent: persist a candidate row for every known environment.
+			// Each attempt resolves the authoritative source again, so a transient
+			// pipeline outage cannot strand it and the reconciler heals it later.
 			s.logger.Warn("Project AgentID promotion topology is not fully available; persisted bindings will retry",
 				"ouID", ouID, "projectName", projectName, "agentName", agentName, "error", err)
 			if len(bindings) == 0 {
@@ -657,9 +667,9 @@ func (s *agentThunderProvisioningService) ProvisionForEnvironmentIfMissing(
 		return false, fmt.Errorf("check existing agent thunder binding: %w", err)
 	}
 	if s.identityManagementMode == thundersvc.IdentityManagementCPManaged {
-		source, resolveErr := s.projectIdentityProvider.SourceEnvironment(ctx, ouID, projectName, projectName)
+		source, resolveErr := s.projectSourceEnvironment(ctx, ouID, projectName)
 		if resolveErr != nil {
-			return false, fmt.Errorf("resolve project identity source environment: %w", resolveErr)
+			return false, resolveErr
 		}
 		if envName != source {
 			return false, fmt.Errorf("%w: %s", ErrProjectAgentIdentityRequiresPromotion, envName)
@@ -793,6 +803,10 @@ func (s *agentThunderProvisioningService) AttemptProvision(ctx context.Context, 
 					return
 				}
 			}
+			// A fresh secret per attempt. Promote must set it on the target
+			// unconditionally (see its contract), and what Promote returns is
+			// what gets stored below, so a retry after any partial failure still
+			// ends with the target and the stored credential holding one value.
 			targetClientSecret, secretErr := thundersvc.GenerateClientSecret()
 			if secretErr != nil {
 				s.recordFailure(ctx, binding, thunderAgentID, clientID, binding.SecretRefPath,
@@ -805,7 +819,10 @@ func (s *agentThunderProvisioningService) AttemptProvision(ctx context.Context, 
 				TargetEnvironment: binding.EnvironmentName, ProvisioningType: binding.ProvisioningType,
 				ExistingAgentID: source.ThunderAgentID, ExistingClientID: source.ThunderClientID,
 				TargetClientID: targetClientID, TargetClientSecret: targetClientSecret,
-				NeedsSecret: !isExternal && binding.SecretRefPath == "",
+				// Always true for an internal agent, even when a secret reference
+				// already exists: the target secret is overwritten on every
+				// Promote, so the stored one must be overwritten with it.
+				NeedsSecret: !isExternal,
 			}
 			result, promotionErr := promoter.Promote(ctx, request)
 			if promotionErr != nil {
@@ -820,20 +837,25 @@ func (s *agentThunderProvisioningService) AttemptProvision(ctx context.Context, 
 				return
 			}
 			if isExternal {
+				// Never stored: an external agent obtains a secret only by regenerating it.
 				clientSecret = ""
-			} else if request.NeedsSecret && clientSecret == "" {
+			} else if clientSecret == "" {
 				s.recordFailure(ctx, binding, thunderAgentID, clientID, binding.SecretRefPath,
 					errors.New("project AgentID promotion did not return the required client secret"))
 				return
 			}
+			if clientID != targetClientID || (!isExternal && clientSecret != targetClientSecret) {
+				// The provider did not set the credential it was handed, so the
+				// target and what would be stored could differ.
+				s.recordFailure(ctx, binding, thunderAgentID, binding.ThunderClientID, binding.SecretRefPath,
+					errors.New("project AgentID promotion did not apply the requested target credential"))
+				return
+			}
 			promoted = true
 		} else {
-			source, sourceErr := s.projectIdentityProvider.SourceEnvironment(
-				ctx, binding.OUID, binding.ProjectName, binding.ProjectName,
-			)
+			source, sourceErr := s.projectSourceEnvironment(ctx, binding.OUID, binding.ProjectName)
 			if sourceErr != nil {
-				s.recordFailure(ctx, binding, thunderAgentID, clientID, binding.SecretRefPath,
-					fmt.Errorf("resolve project identity source environment: %w", sourceErr))
+				s.recordFailure(ctx, binding, thunderAgentID, clientID, binding.SecretRefPath, sourceErr)
 				return
 			}
 			if binding.EnvironmentName != source {

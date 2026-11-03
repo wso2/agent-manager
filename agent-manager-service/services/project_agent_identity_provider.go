@@ -48,8 +48,8 @@ type ProjectAgentIdentityResult struct {
 	ClientSecret string
 }
 
-// ProjectIdentityEnvironment is one environment returned by the identity
-// platform. PromotesTo contains only valid outgoing promotion edges.
+// ProjectIdentityEnvironment is one environment of a project's promotion
+// topology. PromotesTo contains only valid outgoing promotion edges.
 type ProjectIdentityEnvironment struct {
 	Name       string
 	PromotesTo []string
@@ -57,6 +57,7 @@ type ProjectIdentityEnvironment struct {
 
 // ProjectAgentIdentityPromotionRequest identifies one AgentID promotion. The
 // provider owns previewing the change and selecting only ExistingAgentID.
+// TargetClientID and TargetClientSecret are chosen by AMS (see Promote).
 type ProjectAgentIdentityPromotionRequest struct {
 	OrganizationID     string
 	ProjectID          string
@@ -73,21 +74,36 @@ type ProjectAgentIdentityPromotionRequest struct {
 }
 
 // ProjectAgentIdentityProvider is implemented by deployments that can create
-// project-scoped AgentIDs through an identity control plane. SourceEnvironment
-// must use the deployment's authoritative project mapping. Provision must be
-// idempotent for ExistingAgentID, must reject non-source environments, and must
-// not persist the returned secret. Activate must be idempotent.
+// project-scoped AgentIDs through an identity control plane. The provider only
+// executes operations for the environment named in the request; the project's
+// environment order comes from ProjectPipelineReader, never from the provider.
+//
+// Provision creates the identity in request.Environment, which AMS always sets
+// to the pipeline source environment. It must be idempotent for
+// ExistingAgentID, must reject non-source environments, and must not persist
+// the returned secret. Activate makes the identity effective in that same
+// source environment and must be idempotent.
 type ProjectAgentIdentityProvider interface {
-	SourceEnvironment(ctx context.Context, organizationID, projectID, projectName string) (string, error)
 	Provision(ctx context.Context, request ProjectAgentIdentityRequest) (ProjectAgentIdentityResult, error)
 	Activate(ctx context.Context, request ProjectAgentIdentityRequest, agentID string) error
 }
 
 // ProjectAgentIdentityPromotionProvider extends source provisioning with
-// project-topology discovery and AgentID-only promotion.
+// AgentID-only promotion between environments.
 type ProjectAgentIdentityPromotionProvider interface {
 	ProjectAgentIdentityProvider
-	Environments(ctx context.Context, organizationID, projectID, projectName string) ([]ProjectIdentityEnvironment, error)
+
+	// Promote carries ONLY the AgentID (request.ExistingAgentID) from
+	// request.SourceEnvironment to request.TargetEnvironment. It must be
+	// idempotent. Contract for the target credential: the provider MUST set
+	// request.TargetClientID and request.TargetClientSecret on the target
+	// environment unconditionally (overwrite, idempotent), whether or not the
+	// environment reports them missing. AMS generates a fresh secret on every
+	// attempt and stores exactly the secret Promote returns, so a value the
+	// provider keeps because it already existed would diverge from the stored
+	// one after any retry. The result must echo the client ID and secret that
+	// were set. For external agents the secret is set the same way but AMS never
+	// stores it; it can only be obtained by regenerating it.
 	Promote(ctx context.Context, request ProjectAgentIdentityPromotionRequest) (ProjectAgentIdentityResult, error)
 }
 
