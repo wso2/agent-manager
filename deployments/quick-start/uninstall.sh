@@ -9,7 +9,7 @@ set -euo pipefail
 #    Thunder and gateway
 # 2. All OpenChoreo and prerequisite helm releases (unless --amp-only is used)
 # 3. All custom resources, the namespaces install.sh created, and (unless
-#    --amp-only is used) the CRDs it installed and the CoreDNS rewrites it applied
+#    --amp-only is used) the CRDs it installed and the CoreDNS rewrites it added
 # 4. Optionally deletes the k3d cluster
 # It exits non-zero and lists what is left if anything could not be removed.
 #
@@ -243,11 +243,70 @@ OPENCHOREO_NAMESPACES="openchoreo-control-plane openchoreo-data-plane openchoreo
 # API groups of the CRDs install.sh brings in (charts and the Gateway API bundle).
 KUBELET_SERVICE="openchoreo-observability-kubelet"
 
-# coredns_custom_is_ours: the coredns-custom ConfigMap carries the rewrites
-# install.sh applies.
-coredns_custom_is_ours() {
-    kubectl get configmap coredns-custom -n kube-system -o jsonpath='{.data.amp\.override}' 2>/dev/null \
-        | grep -q 'amp'
+# Entries install.sh adds to the coredns-custom ConfigMap
+# (deployments/k8s/coredns-amp-custom.yaml), as "<key> <hostname it rewrites>".
+# The cluster owner can keep entries of their own in the same ConfigMap.
+COREDNS_ENTRIES="
+openchoreo.override openchoreo\\.localhost
+amp.override amp\\.localhost
+agentmanager.override agentmanager\\.localhost
+amgateway.override am-gateway\\.localhost
+gateway.override gateway\\.localhost
+hostdocker.override host\\.docker\\.internal
+"
+COREDNS_RESTART_FAILED=false
+
+# coredns_entries_ours: prints the installer's entries still in coredns-custom,
+# one key per line: those whose key and rewrite both match. Returns 2 when the
+# ConfigMap cannot be read, so a failed lookup is never taken for a clean one.
+coredns_entries_ours() {
+    local found key pattern value
+    found="$(kubectl get configmap coredns-custom -n kube-system --ignore-not-found -o name 2>/dev/null)" || return 2
+    [ -n "${found}" ] || return 0
+    while read -r key pattern; do
+        [ -n "${key}" ] || continue
+        value="$(kubectl get configmap coredns-custom -n kube-system -o jsonpath="{.data.${key//./\\.}}" 2>/dev/null)" || return 2
+        if printf '%s' "${value}" | grep -qF 'name regex' && printf '%s' "${value}" | grep -qF "${pattern}"; then
+            printf '%s\n' "${key}"
+        fi
+    done <<< "${COREDNS_ENTRIES}"
+}
+
+# remove_coredns_entries: removes the installer's entries from coredns-custom,
+# and the ConfigMap itself only when nothing else is left in it, then restarts
+# CoreDNS so the rewrites stop taking effect.
+remove_coredns_entries() {
+    local ours total ops key
+    ours="$(coredns_entries_ours)" || { log_warning "Could not read the coredns-custom ConfigMap"; return 0; }
+    [ -n "${ours}" ] || return 0
+    log_info "Removing the CoreDNS rewrites..."
+    total="$(kubectl get configmap coredns-custom -n kube-system -o go-template='{{len .data}}' 2>/dev/null || echo 0)"
+    if [ "${total}" -le "$(printf '%s\n' "${ours}" | wc -l)" ]; then
+        kubectl delete configmap coredns-custom -n kube-system --ignore-not-found &>/dev/null || true
+    else
+        ops=""
+        for key in ${ours}; do
+            ops="${ops}${ops:+,}{\"op\":\"remove\",\"path\":\"/data/${key}\"}"
+        done
+        kubectl patch configmap coredns-custom -n kube-system --type=json -p "[${ops}]" &>/dev/null || true
+    fi
+    if ! { kubectl rollout restart deployment/coredns -n kube-system &>/dev/null \
+            && kubectl rollout status deployment/coredns -n kube-system --timeout=90s &>/dev/null; }; then
+        COREDNS_RESTART_FAILED=true
+        log_warning "CoreDNS did not restart; it keeps the old rewrites until it does"
+    fi
+}
+
+# object_left <description> <kubectl get args...>: adds the object to
+# LEFT_OBJECTS when it still exists, or when it cannot be checked.
+object_left() {
+    local what="$1" found
+    shift
+    if found="$(kubectl get "$@" --ignore-not-found -o name 2>/dev/null)"; then
+        [ -z "${found}" ] || LEFT_OBJECTS="${LEFT_OBJECTS} ${what}"
+    else
+        LEFT_OBJECTS="${LEFT_OBJECTS} ${what} (could not be checked)"
+    fi
 }
 
 CRD_GROUPS='openchoreo\.dev|external-secrets\.io|cert-manager\.io|argoproj\.io|monitoring\.coreos\.com|agents\.x-k8s\.io|gateway\.api-platform\.wso2\.com|gateway\.kgateway\.dev|gateway\.networking\.k8s\.io|gateway\.networking\.x-k8s\.io'
@@ -371,15 +430,7 @@ if [ "${AMP_ONLY}" = false ]; then
     kubectl delete service,endpoints "${KUBELET_SERVICE}" -n kube-system --ignore-not-found &>/dev/null || true
     kubectl delete endpointslices -n kube-system -l "kubernetes.io/service-name=${KUBELET_SERVICE}" \
         --ignore-not-found &>/dev/null || true
-    # The CoreDNS rewrites install.sh applies (deployments/k8s/coredns-amp-custom.yaml).
-    # Removed only while it still carries them, so a ConfigMap of the cluster
-    # owner's own is left alone.
-    if coredns_custom_is_ours; then
-        log_info "Removing the CoreDNS rewrites..."
-        kubectl delete configmap coredns-custom -n kube-system --ignore-not-found &>/dev/null || true
-        kubectl rollout restart deployment/coredns -n kube-system &>/dev/null \
-            || log_warning "Could not restart CoreDNS; it keeps the old rewrites until it restarts"
-    fi
+    remove_coredns_entries
 else
     log_step "Step 3/4: Skipping OpenChoreo Uninstallation (--amp-only mode)"
     log_info "OpenChoreo resources are preserved"
@@ -430,12 +481,18 @@ if [ "${AMP_ONLY}" = false ]; then
 fi
 # Objects outside the platform namespaces that no release owns.
 LEFT_OBJECTS=""
-kubectl get serviceaccount label-default-namespace-sa -n "${DEFAULT_NS}" &>/dev/null \
-    && LEFT_OBJECTS="${LEFT_OBJECTS} serviceaccount/${DEFAULT_NS}/label-default-namespace-sa"
+object_left "serviceaccount/${DEFAULT_NS}/label-default-namespace-sa" \
+    serviceaccount label-default-namespace-sa -n "${DEFAULT_NS}"
 if [ "${AMP_ONLY}" = false ]; then
-    kubectl get service "${KUBELET_SERVICE}" -n kube-system &>/dev/null \
-        && LEFT_OBJECTS="${LEFT_OBJECTS} service/kube-system/${KUBELET_SERVICE}"
-    coredns_custom_is_ours && LEFT_OBJECTS="${LEFT_OBJECTS} configmap/kube-system/coredns-custom"
+    object_left "service/kube-system/${KUBELET_SERVICE}" service "${KUBELET_SERVICE}" -n kube-system
+    if LEFT_COREDNS="$(coredns_entries_ours)"; then
+        [ -z "${LEFT_COREDNS}" ] \
+            || LEFT_OBJECTS="${LEFT_OBJECTS} coredns-custom entries ($(printf '%s' "${LEFT_COREDNS}" | tr '\n' ' ' | sed 's/ $//'))"
+    else
+        LEFT_OBJECTS="${LEFT_OBJECTS} configmap/kube-system/coredns-custom (could not be checked)"
+    fi
+    [ "${COREDNS_RESTART_FAILED}" = false ] \
+        || LEFT_OBJECTS="${LEFT_OBJECTS} CoreDNS restart (retry: kubectl rollout restart deployment/coredns -n kube-system)"
 fi
 
 if [ -z "${LEFT_RELEASES}" ] && [ -z "${LEFT_NAMESPACES// /}" ] && [ -z "${LEFT_CRDS}" ] && [ -z "${LEFT_OBJECTS}" ]; then
