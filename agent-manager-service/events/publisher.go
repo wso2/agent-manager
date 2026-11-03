@@ -25,9 +25,10 @@ import (
 )
 
 const (
-	publishTimeout = 5 * time.Second
-	publishBuffer  = 4096
-	publishRetries = 3
+	publishTimeout  = 5 * time.Second
+	publishBuffer   = 4096
+	publishRetries  = 3
+	shutdownTimeout = 10 * time.Second
 )
 
 // Publisher publishes events. Publish never blocks or fails the caller: an
@@ -44,20 +45,31 @@ func (NoopPublisher) Publish(context.Context, Event) {}
 // AsyncPublisher queues events in memory and publishes them to a Bus from a
 // single goroutine, so a request never waits on the transport.
 type AsyncPublisher struct {
-	bus    Bus
-	logger *slog.Logger
-	queue  chan Event
-	wg     sync.WaitGroup
-	once   sync.Once
+	bus     Bus
+	logger  *slog.Logger
+	queue   chan Event
+	wg      sync.WaitGroup
+	mu      sync.Mutex
+	started bool
+	stopped bool
+	ctx     context.Context
+	cancel  context.CancelFunc
 }
 
 // NewAsyncPublisher creates a publisher; call Start before use.
 func NewAsyncPublisher(bus Bus, logger *slog.Logger) *AsyncPublisher {
-	return &AsyncPublisher{bus: bus, logger: logger, queue: make(chan Event, publishBuffer)}
+	ctx, cancel := context.WithCancel(context.Background())
+	return &AsyncPublisher{bus: bus, logger: logger, queue: make(chan Event, publishBuffer), ctx: ctx, cancel: cancel}
 }
 
 // Start runs the publishing loop until Stop.
 func (p *AsyncPublisher) Start() {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	if p.started || p.stopped {
+		return
+	}
+	p.started = true
 	p.wg.Add(1)
 	go func() {
 		defer p.wg.Done()
@@ -67,20 +79,28 @@ func (p *AsyncPublisher) Start() {
 	}()
 }
 
-// Stop publishes what is queued and returns.
+// Stop drains queued events for up to shutdownTimeout, then cancels publishing.
 func (p *AsyncPublisher) Stop() {
-	p.once.Do(func() { close(p.queue) })
+	p.mu.Lock()
+	if !p.stopped {
+		p.stopped = true
+		close(p.queue)
+	}
+	p.mu.Unlock()
+	timer := time.AfterFunc(shutdownTimeout, p.cancel)
 	p.wg.Wait()
+	timer.Stop()
+	p.cancel()
 }
 
 // Publish queues an event. When the queue is full the event is dropped.
 func (p *AsyncPublisher) Publish(_ context.Context, e Event) {
-	defer func() {
-		// Publishing after Stop sends on a closed channel; drop instead.
-		if recover() != nil {
-			p.logger.Warn("Event dropped: publisher stopped", "type", e.Type, "id", e.ID)
-		}
-	}()
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	if p.stopped {
+		p.logger.Warn("Event dropped: publisher stopped", "type", e.Type, "id", e.ID)
+		return
+	}
 	select {
 	case p.queue <- e:
 	default:
@@ -89,6 +109,10 @@ func (p *AsyncPublisher) Publish(_ context.Context, e Event) {
 }
 
 func (p *AsyncPublisher) publish(e Event) {
+	if p.ctx.Err() != nil {
+		p.logger.Warn("Event dropped: publisher shutdown timed out", "type", e.Type, "id", e.ID)
+		return
+	}
 	body, err := json.Marshal(e)
 	if err != nil {
 		p.logger.Error("Failed to encode event", "type", e.Type, "error", err)
@@ -96,14 +120,18 @@ func (p *AsyncPublisher) publish(e Event) {
 	}
 	var lastErr error
 	for attempt := range publishRetries {
-		ctx, cancel := context.WithTimeout(context.Background(), publishTimeout)
+		ctx, cancel := context.WithTimeout(p.ctx, publishTimeout)
 		lastErr = p.bus.PublishEvent(ctx, e, body)
 		cancel()
 		if lastErr == nil {
 			return
 		}
 		if attempt < publishRetries-1 {
-			time.Sleep(time.Duration(attempt+1) * time.Second)
+			select {
+			case <-p.ctx.Done():
+				return
+			case <-time.After(time.Duration(attempt+1) * time.Second):
+			}
 		}
 	}
 	p.logger.Error("Failed to publish event", "type", e.Type, "id", e.ID, "error", lastErr)
