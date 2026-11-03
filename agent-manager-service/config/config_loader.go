@@ -891,15 +891,23 @@ func validateAuditConfig(cfg AuditConfig) []error {
 
 // validateEventsConfig checks the event bus settings.
 func validateEventsConfig(cfg EventsConfig) []error {
+	var errs []error
 	switch cfg.Mode {
-	case EventsModeOff, EventsModeEmbedded:
+	case EventsModeOff:
 		return nil
+	case EventsModeEmbedded:
 	case EventsModeNATS:
 		if cfg.NATSURL == "" {
-			return []error{fmt.Errorf("EVENTS_NATS_URL is required when EVENTS_MODE is nats")}
+			errs = append(errs, fmt.Errorf("EVENTS_NATS_URL is required when EVENTS_MODE is nats"))
 		}
-		return nil
 	default:
 		return []error{fmt.Errorf("EVENTS_MODE must be nats, embedded or off, got %q", cfg.Mode)}
 	}
+	if cfg.DeliveryMaxAttempts <= 0 {
+		errs = append(errs, fmt.Errorf("EVENTS_DELIVERY_MAX_ATTEMPTS must be positive, got %d", cfg.DeliveryMaxAttempts))
+	}
+	if cfg.DeliveryRetentionDays <= 0 {
+		errs = append(errs, fmt.Errorf("EVENTS_DELIVERY_RETENTION_DAYS must be positive, got %d", cfg.DeliveryRetentionDays))
+	}
+	return errs
 }

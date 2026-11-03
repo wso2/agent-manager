@@ -294,7 +294,7 @@ type EventsConfig struct {
 	// NATSToken authenticates to the NATS server, when it requires a token.
 	// The bus carries every org's events, so a shared server must not be
 	// open to whoever can reach it.
-	NATSToken string
+	NATSToken string `json:"-"`
 	// AllowPrivateDestinations lets destination URLs resolve to private,
 	// loopback or link-local addresses, and allows plain http. Off by default
 	// so an admin cannot point the service at internal infrastructure; enable
