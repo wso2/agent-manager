@@ -272,7 +272,7 @@ func (s *MCPProxyService) Create(ctx context.Context, orgUUID, createdBy string,
 	// instead reuse the endpoint's per-environment artifacts. An environment with no gateway yet is placed when one
 	// is mapped.
 	if err := s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
-		if err := s.repo.Create(ctx, tx, proxy, handle, name, version, orgUUID); err != nil {
+		if err := s.repo.Create(ctx, tx, proxy, handle, name, version, orgUUID, nil, nil); err != nil {
 			return err
 		}
 		if err := s.persistMCPEndpoints(ctx, tx, proxy.UUID, handle, version, endpoints, orgUUID); err != nil {
@@ -303,7 +303,7 @@ func (s *MCPProxyService) Create(ctx context.Context, orgUUID, createdBy string,
 
 // List retrieves MCP proxies for an organization.
 func (s *MCPProxyService) List(ctx context.Context, orgUUID string, limit, offset int) (*models.MCPProxyListResponse, error) {
-	proxies, err := s.repo.List(ctx, orgUUID, limit, offset)
+	proxies, _, err := s.repo.List(ctx, orgUUID, repositories.MCPProxyListFilter{Limit: limit, Offset: offset})
 	if err != nil {
 		return nil, fmt.Errorf("failed to list MCP proxies: %w", err)
 	}

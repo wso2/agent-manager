@@ -29,6 +29,10 @@ type MCPProxy struct {
 	CreatedBy     string         `gorm:"column:created_by" json:"createdBy,omitempty"`
 	Status        string         `gorm:"column:status" json:"status"`
 	Configuration MCPProxyConfig `gorm:"column:configuration;type:jsonb;serializer:json" json:"configuration"`
+	// ProjectUUID and ProjectName are set together for a project-scoped proxy and
+	// are both nil for an organization-level proxy.
+	ProjectUUID *string `gorm:"column:project_uuid" json:"projectUuid,omitempty"`
+	ProjectName *string `gorm:"column:project_name" json:"projectName,omitempty"`
 
 	Artifact  *Artifact          `gorm:"foreignKey:UUID;references:UUID" json:"artifact,omitempty"`
 	Endpoints []MCPProxyEndpoint `gorm:"foreignKey:MCPProxyUUID;references:UUID;constraint:OnDelete:CASCADE" json:"endpoints,omitempty"`
@@ -84,6 +88,15 @@ type MCPProxyConfig struct {
 	Policies     []MCPPolicy           `json:"policies,omitempty"`
 	Capabilities *MCPProxyCapabilities `json:"capabilities,omitempty"`
 	Security     *SecurityConfig       `json:"security,omitempty"`
+	// Source records the Integration Platform component endpoint a project-scoped
+	// proxy was published from. Nil for organization-level proxies.
+	Source *MCPProxySource `json:"source,omitempty"`
+}
+
+// MCPProxySource identifies the component endpoint an MCP proxy was published from.
+type MCPProxySource struct {
+	ComponentName string `json:"componentName"`
+	EndpointName  string `json:"endpointName"`
 }
 
 // MCPProxyEndpoint is the deployable proxy definition. One endpoint can be deployed

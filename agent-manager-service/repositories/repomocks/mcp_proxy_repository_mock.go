@@ -8,6 +8,7 @@ import (
 	"sync"
 
 	"github.com/wso2/agent-manager/agent-manager-service/models"
+	"github.com/wso2/agent-manager/agent-manager-service/repositories"
 	"gorm.io/gorm"
 )
 
@@ -20,7 +21,7 @@ import (
 //			CountFunc: func(ctx context.Context, orgUUID string) (int, error) {
 //				panic("mock out the Count method")
 //			},
-//			CreateFunc: func(ctx context.Context, tx *gorm.DB, p *models.MCPProxy, handle string, name string, version string, orgUUID string) error {
+//			CreateFunc: func(ctx context.Context, tx *gorm.DB, p *models.MCPProxy, handle string, name string, version string, orgUUID string, projectUUID *string, projectName *string) error {
 //				panic("mock out the Create method")
 //			},
 //			DeleteFunc: func(ctx context.Context, handle string, orgUUID string) error {
@@ -38,7 +39,10 @@ import (
 //			GetByUUIDFunc: func(ctx context.Context, proxyUUID string, orgUUID string) (*models.MCPProxy, error) {
 //				panic("mock out the GetByUUID method")
 //			},
-//			ListFunc: func(ctx context.Context, orgUUID string, limit int, offset int) ([]*models.MCPProxy, error) {
+//			GetInProjectFunc: func(ctx context.Context, handle string, orgUUID string, projectUUID string) (*models.MCPProxy, error) {
+//				panic("mock out the GetInProject method")
+//			},
+//			ListFunc: func(ctx context.Context, orgUUID string, f repositories.MCPProxyListFilter) ([]*models.MCPProxy, int64, error) {
 //				panic("mock out the List method")
 //			},
 //			UpdateFunc: func(ctx context.Context, tx *gorm.DB, p *models.MCPProxy, orgUUID string) error {
@@ -55,7 +59,7 @@ type MCPProxyRepositoryMock struct {
 	CountFunc func(ctx context.Context, orgUUID string) (int, error)
 
 	// CreateFunc mocks the Create method.
-	CreateFunc func(ctx context.Context, tx *gorm.DB, p *models.MCPProxy, handle string, name string, version string, orgUUID string) error
+	CreateFunc func(ctx context.Context, tx *gorm.DB, p *models.MCPProxy, handle string, name string, version string, orgUUID string, projectUUID *string, projectName *string) error
 
 	// DeleteFunc mocks the Delete method.
 	DeleteFunc func(ctx context.Context, handle string, orgUUID string) error
@@ -72,8 +76,11 @@ type MCPProxyRepositoryMock struct {
 	// GetByUUIDFunc mocks the GetByUUID method.
 	GetByUUIDFunc func(ctx context.Context, proxyUUID string, orgUUID string) (*models.MCPProxy, error)
 
+	// GetInProjectFunc mocks the GetInProject method.
+	GetInProjectFunc func(ctx context.Context, handle string, orgUUID string, projectUUID string) (*models.MCPProxy, error)
+
 	// ListFunc mocks the List method.
-	ListFunc func(ctx context.Context, orgUUID string, limit int, offset int) ([]*models.MCPProxy, error)
+	ListFunc func(ctx context.Context, orgUUID string, f repositories.MCPProxyListFilter) ([]*models.MCPProxy, int64, error)
 
 	// UpdateFunc mocks the Update method.
 	UpdateFunc func(ctx context.Context, tx *gorm.DB, p *models.MCPProxy, orgUUID string) error
@@ -103,6 +110,10 @@ type MCPProxyRepositoryMock struct {
 			Version string
 			// OrgUUID is the orgUUID argument value.
 			OrgUUID string
+			// ProjectUUID is the projectUUID argument value.
+			ProjectUUID *string
+			// ProjectName is the projectName argument value.
+			ProjectName *string
 		}
 		// Delete holds details about calls to the Delete method.
 		Delete []struct {
@@ -151,16 +162,25 @@ type MCPProxyRepositoryMock struct {
 			// OrgUUID is the orgUUID argument value.
 			OrgUUID string
 		}
+		// GetInProject holds details about calls to the GetInProject method.
+		GetInProject []struct {
+			// Ctx is the ctx argument value.
+			Ctx context.Context
+			// Handle is the handle argument value.
+			Handle string
+			// OrgUUID is the orgUUID argument value.
+			OrgUUID string
+			// ProjectUUID is the projectUUID argument value.
+			ProjectUUID string
+		}
 		// List holds details about calls to the List method.
 		List []struct {
 			// Ctx is the ctx argument value.
 			Ctx context.Context
 			// OrgUUID is the orgUUID argument value.
 			OrgUUID string
-			// Limit is the limit argument value.
-			Limit int
-			// Offset is the offset argument value.
-			Offset int
+			// F is the f argument value.
+			F repositories.MCPProxyListFilter
 		}
 		// Update holds details about calls to the Update method.
 		Update []struct {
@@ -181,6 +201,7 @@ type MCPProxyRepositoryMock struct {
 	lockGetByHandle          sync.RWMutex
 	lockGetByHandleForUpdate sync.RWMutex
 	lockGetByUUID            sync.RWMutex
+	lockGetInProject         sync.RWMutex
 	lockList                 sync.RWMutex
 	lockUpdate               sync.RWMutex
 }
@@ -222,31 +243,35 @@ func (mock *MCPProxyRepositoryMock) CountCalls() []struct {
 }
 
 // Create calls CreateFunc.
-func (mock *MCPProxyRepositoryMock) Create(ctx context.Context, tx *gorm.DB, p *models.MCPProxy, handle string, name string, version string, orgUUID string) error {
+func (mock *MCPProxyRepositoryMock) Create(ctx context.Context, tx *gorm.DB, p *models.MCPProxy, handle string, name string, version string, orgUUID string, projectUUID *string, projectName *string) error {
 	if mock.CreateFunc == nil {
 		panic("MCPProxyRepositoryMock.CreateFunc: method is nil but MCPProxyRepository.Create was just called")
 	}
 	callInfo := struct {
-		Ctx     context.Context
-		Tx      *gorm.DB
-		P       *models.MCPProxy
-		Handle  string
-		Name    string
-		Version string
-		OrgUUID string
+		Ctx         context.Context
+		Tx          *gorm.DB
+		P           *models.MCPProxy
+		Handle      string
+		Name        string
+		Version     string
+		OrgUUID     string
+		ProjectUUID *string
+		ProjectName *string
 	}{
-		Ctx:     ctx,
-		Tx:      tx,
-		P:       p,
-		Handle:  handle,
-		Name:    name,
-		Version: version,
-		OrgUUID: orgUUID,
+		Ctx:         ctx,
+		Tx:          tx,
+		P:           p,
+		Handle:      handle,
+		Name:        name,
+		Version:     version,
+		OrgUUID:     orgUUID,
+		ProjectUUID: projectUUID,
+		ProjectName: projectName,
 	}
 	mock.lockCreate.Lock()
 	mock.calls.Create = append(mock.calls.Create, callInfo)
 	mock.lockCreate.Unlock()
-	return mock.CreateFunc(ctx, tx, p, handle, name, version, orgUUID)
+	return mock.CreateFunc(ctx, tx, p, handle, name, version, orgUUID, projectUUID, projectName)
 }
 
 // CreateCalls gets all the calls that were made to Create.
@@ -254,22 +279,26 @@ func (mock *MCPProxyRepositoryMock) Create(ctx context.Context, tx *gorm.DB, p *
 //
 //	len(mockedMCPProxyRepository.CreateCalls())
 func (mock *MCPProxyRepositoryMock) CreateCalls() []struct {
-	Ctx     context.Context
-	Tx      *gorm.DB
-	P       *models.MCPProxy
-	Handle  string
-	Name    string
-	Version string
-	OrgUUID string
+	Ctx         context.Context
+	Tx          *gorm.DB
+	P           *models.MCPProxy
+	Handle      string
+	Name        string
+	Version     string
+	OrgUUID     string
+	ProjectUUID *string
+	ProjectName *string
 } {
 	var calls []struct {
-		Ctx     context.Context
-		Tx      *gorm.DB
-		P       *models.MCPProxy
-		Handle  string
-		Name    string
-		Version string
-		OrgUUID string
+		Ctx         context.Context
+		Tx          *gorm.DB
+		P           *models.MCPProxy
+		Handle      string
+		Name        string
+		Version     string
+		OrgUUID     string
+		ProjectUUID *string
+		ProjectName *string
 	}
 	mock.lockCreate.RLock()
 	calls = mock.calls.Create
@@ -481,26 +510,68 @@ func (mock *MCPProxyRepositoryMock) GetByUUIDCalls() []struct {
 	return calls
 }
 
+// GetInProject calls GetInProjectFunc.
+func (mock *MCPProxyRepositoryMock) GetInProject(ctx context.Context, handle string, orgUUID string, projectUUID string) (*models.MCPProxy, error) {
+	if mock.GetInProjectFunc == nil {
+		panic("MCPProxyRepositoryMock.GetInProjectFunc: method is nil but MCPProxyRepository.GetInProject was just called")
+	}
+	callInfo := struct {
+		Ctx         context.Context
+		Handle      string
+		OrgUUID     string
+		ProjectUUID string
+	}{
+		Ctx:         ctx,
+		Handle:      handle,
+		OrgUUID:     orgUUID,
+		ProjectUUID: projectUUID,
+	}
+	mock.lockGetInProject.Lock()
+	mock.calls.GetInProject = append(mock.calls.GetInProject, callInfo)
+	mock.lockGetInProject.Unlock()
+	return mock.GetInProjectFunc(ctx, handle, orgUUID, projectUUID)
+}
+
+// GetInProjectCalls gets all the calls that were made to GetInProject.
+// Check the length with:
+//
+//	len(mockedMCPProxyRepository.GetInProjectCalls())
+func (mock *MCPProxyRepositoryMock) GetInProjectCalls() []struct {
+	Ctx         context.Context
+	Handle      string
+	OrgUUID     string
+	ProjectUUID string
+} {
+	var calls []struct {
+		Ctx         context.Context
+		Handle      string
+		OrgUUID     string
+		ProjectUUID string
+	}
+	mock.lockGetInProject.RLock()
+	calls = mock.calls.GetInProject
+	mock.lockGetInProject.RUnlock()
+	return calls
+}
+
 // List calls ListFunc.
-func (mock *MCPProxyRepositoryMock) List(ctx context.Context, orgUUID string, limit int, offset int) ([]*models.MCPProxy, error) {
+func (mock *MCPProxyRepositoryMock) List(ctx context.Context, orgUUID string, f repositories.MCPProxyListFilter) ([]*models.MCPProxy, int64, error) {
 	if mock.ListFunc == nil {
 		panic("MCPProxyRepositoryMock.ListFunc: method is nil but MCPProxyRepository.List was just called")
 	}
 	callInfo := struct {
 		Ctx     context.Context
 		OrgUUID string
-		Limit   int
-		Offset  int
+		F       repositories.MCPProxyListFilter
 	}{
 		Ctx:     ctx,
 		OrgUUID: orgUUID,
-		Limit:   limit,
-		Offset:  offset,
+		F:       f,
 	}
 	mock.lockList.Lock()
 	mock.calls.List = append(mock.calls.List, callInfo)
 	mock.lockList.Unlock()
-	return mock.ListFunc(ctx, orgUUID, limit, offset)
+	return mock.ListFunc(ctx, orgUUID, f)
 }
 
 // ListCalls gets all the calls that were made to List.
@@ -510,14 +581,12 @@ func (mock *MCPProxyRepositoryMock) List(ctx context.Context, orgUUID string, li
 func (mock *MCPProxyRepositoryMock) ListCalls() []struct {
 	Ctx     context.Context
 	OrgUUID string
-	Limit   int
-	Offset  int
+	F       repositories.MCPProxyListFilter
 } {
 	var calls []struct {
 		Ctx     context.Context
 		OrgUUID string
-		Limit   int
-		Offset  int
+		F       repositories.MCPProxyListFilter
 	}
 	mock.lockList.RLock()
 	calls = mock.calls.List

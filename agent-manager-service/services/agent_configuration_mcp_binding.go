@@ -28,6 +28,7 @@ import (
 
 	"github.com/wso2/agent-manager/agent-manager-service/clients/openchoreosvc/client"
 	"github.com/wso2/agent-manager/agent-manager-service/models"
+	"github.com/wso2/agent-manager/agent-manager-service/repositories"
 	"github.com/wso2/agent-manager/agent-manager-service/utils"
 )
 
@@ -611,7 +612,7 @@ func (s *agentConfigurationService) mcpProxiesBoundToEnvironment(
 ) ([]*models.MCPProxy, error) {
 	var bound []*models.MCPProxy
 	for offset := 0; ; offset += mcpProxyScanPageSize {
-		page, err := s.mcpProxyRepo.List(ctx, ouID, mcpProxyScanPageSize, offset)
+		page, _, err := s.mcpProxyRepo.List(ctx, ouID, repositories.MCPProxyListFilter{Limit: mcpProxyScanPageSize, Offset: offset})
 		if err != nil {
 			return nil, fmt.Errorf("failed to list MCP proxies for environment %s reconcile: %w", envUUID, err)
 		}

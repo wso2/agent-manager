@@ -414,7 +414,7 @@ func (s *mcpProxyScopeService) ListEnvironmentScopes(ctx context.Context, ouID, 
 	proxyByUUID := map[uuid.UUID]*models.MCPProxy{}
 	var ordered []uuid.UUID
 	for offset := 0; ; offset += pageSize {
-		proxies, err := s.proxyRepo.List(ctx, ouID, pageSize, offset)
+		proxies, _, err := s.proxyRepo.List(ctx, ouID, repositories.MCPProxyListFilter{Limit: pageSize, Offset: offset})
 		if err != nil {
 			return nil, fmt.Errorf("failed to list mcp proxies: %w", err)
 		}

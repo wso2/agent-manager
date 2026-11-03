@@ -81,7 +81,7 @@ func newMCPFixture(t *testing.T) *mcpFixture {
 			return err
 		}
 		return repositories.NewMCPProxyRepo(gormDB).Create(context.Background(), tx, proxy, proxy.Handle, proxy.Handle,
-			"v1.0", f.sync.ouID)
+			"v1.0", f.sync.ouID, nil, nil)
 	}))
 	t.Cleanup(func() {
 		gormDB.Exec(`DELETE FROM artifacts WHERE uuid IN (?, ?)`, proxy.UUID, f.artifact)
