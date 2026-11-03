@@ -43,6 +43,8 @@ const (
 	// ack timer starts at fetch, so a large buffer behind a few slow channel
 	// deliveries would time out and be redelivered, sending them twice.
 	natsPullBuffer = 16
+	// Bound poison-event retries so one bad event cannot occupy the consumer forever.
+	natsEventMaxDeliver = 20
 )
 
 // natsQueues maps work queue names to their JetStream streams and subjects.
@@ -135,6 +137,7 @@ func (b *NATSBus) PublishEvent(ctx context.Context, e Event, body []byte) error 
 func (b *NATSBus) SubscribeEvents(ctx context.Context, consumer string, handle func(Message)) (Subscription, error) {
 	return b.consume(ctx, EventsStream, jetstream.ConsumerConfig{
 		Durable:       consumer,
+		MaxDeliver:    natsEventMaxDeliver,
 		AckPolicy:     jetstream.AckExplicitPolicy,
 		AckWait:       natsAckWait,
 		DeliverPolicy: jetstream.DeliverNewPolicy,
