@@ -262,6 +262,7 @@ export const ViewLLMProvider: React.FC = () => {
               <LLMProviderDeploymentTab
                 providerData={providerData}
                 orgName={orgId}
+                providerId={providerId}
                 isLoading={isLoading}
                 onUpdate={updateProvider}
                 isUpdating={isUpdating}

@@ -17,7 +17,9 @@
  */
 
 import { describe, expect, it } from "vitest";
-import { isNotFoundError, nullIfNotFound, pendingRefetchInterval, POLL_INTERVAL } from "./utils";
+import {
+  isNotFoundError, nullIfNotFound, pendingRefetchInterval, POLL_INTERVAL, transitionRefetchInterval,
+} from "./utils";
 
 describe("pendingRefetchInterval", () => {
   it("polls while pending", () => {
@@ -26,10 +28,24 @@ describe("pendingRefetchInterval", () => {
 
   it("stops on any other status, or with no data", () => {
     expect(pendingRefetchInterval({ status: "fetched" })).toBe(false);
-    expect(pendingRefetchInterval({ status: "published" })).toBe(false);
     expect(pendingRefetchInterval({ status: "failed" })).toBe(false);
     expect(pendingRefetchInterval(undefined)).toBe(false);
     expect(pendingRefetchInterval(null)).toBe(false);
+  });
+});
+
+describe("transitionRefetchInterval", () => {
+  it("polls while a deploy or undeploy is in flight", () => {
+    expect(transitionRefetchInterval({ status: "DEPLOYING" })).toBe(POLL_INTERVAL);
+    expect(transitionRefetchInterval({ status: "UNDEPLOYING" })).toBe(POLL_INTERVAL);
+  });
+
+  it("stops once the gateway settled it, or with no data", () => {
+    expect(transitionRefetchInterval({ status: "DEPLOYED" })).toBe(false);
+    expect(transitionRefetchInterval({ status: "UNDEPLOYED" })).toBe(false);
+    expect(transitionRefetchInterval({ status: "FAILED" })).toBe(false);
+    expect(transitionRefetchInterval(undefined)).toBe(false);
+    expect(transitionRefetchInterval(null)).toBe(false);
   });
 });
 

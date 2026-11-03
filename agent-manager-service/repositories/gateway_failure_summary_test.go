@@ -20,16 +20,36 @@ package repositories
 
 import (
 	"context"
+	"database/sql"
 	"testing"
 	"time"
 
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"gorm.io/gorm"
 
 	"github.com/wso2/agent-manager/agent-manager-service/db"
 	"github.com/wso2/agent-manager/agent-manager-service/models"
 )
+
+// snapshotTx opens a REPEATABLE READ transaction that is rolled back when the
+// test ends.
+//
+// The queries under test deliberately carry no ou_id predicate, and other
+// packages' integration tests write gateways to the same database
+// concurrently. Every read inside this transaction sees one snapshot, taken at
+// its first statement, plus the transaction's own writes — so before/after
+// deltas move only with this test's fixtures, while the fleet-wide queries run
+// unmodified. Rolling back also removes the fixtures, soft-deleted ones
+// included.
+func snapshotTx(t *testing.T) *gorm.DB {
+	t.Helper()
+	tx := db.GetDB().Begin(&sql.TxOptions{Isolation: sql.LevelRepeatableRead})
+	require.NoError(t, tx.Error, "begin snapshot transaction")
+	t.Cleanup(func() { _ = tx.Rollback().Error })
+	return tx
+}
 
 // insertFailureFixture creates one gateway and then forces its liveness columns
 // with raw SQL.
@@ -40,10 +60,9 @@ import (
 // ago" is to set the columns after the insert. Soft-deletion is applied the same
 // way, since deleted_at is what the query under test is meant to skip.
 func insertFailureFixture(
-	t *testing.T, ouID, name string, isActive bool, updatedAt time.Time, softDeleted bool,
+	t *testing.T, gormDB *gorm.DB, ouID, name string, isActive bool, updatedAt time.Time, softDeleted bool,
 ) uuid.UUID {
 	t.Helper()
-	gormDB := db.GetDB()
 
 	id := uuid.New()
 	gw := &models.Gateway{
@@ -57,12 +76,6 @@ func insertFailureFixture(
 		Properties: map[string]interface{}{},
 	}
 	require.NoError(t, gormDB.Create(gw).Error, "insert fixture %s", name)
-
-	t.Cleanup(func() {
-		// Unscoped so the soft-deleted fixture is really removed rather than
-		// left behind to skew the next run's baseline.
-		_ = gormDB.Unscoped().Where("uuid = ?", id).Delete(&models.Gateway{}).Error
-	})
 
 	require.NoError(t, gormDB.Exec(
 		"UPDATE gateways SET is_active = ?, updated_at = ? WHERE uuid = ?",
@@ -82,11 +95,12 @@ func insertFailureFixture(
 //
 // Assertions are deltas around a baseline taken first, not absolute counts:
 // these two queries deliberately carry no ou_id predicate, so they see every
-// row the rest of the integration suite has left in the database. An absolute
-// count here would pass or fail depending on test ordering, which is exactly
-// the kind of green that hides a real regression.
+// row the rest of the integration suite has left in the database. The baseline
+// and the re-count share one snapshot (see snapshotTx), so rows other packages
+// write in between cannot move the delta.
 func TestGatewayRepo_FailureSummaryAllOrgs(t *testing.T) {
-	repo := NewGatewayRepo(db.GetDB())
+	tx := snapshotTx(t)
+	repo := NewGatewayRepo(tx)
 	ctx := context.Background()
 
 	// Well clear of every fixture's updated_at, so "stale", "fresh" and
@@ -104,27 +118,27 @@ func TestGatewayRepo_FailureSummaryAllOrgs(t *testing.T) {
 	hourAgo := time.Now().Add(-time.Hour)
 
 	// Counted: disconnected, and disconnected since before the cutoff.
-	inactiveStale := insertFailureFixture(t, orgA, "gw-inactive-stale", false, hourAgo, false)
+	inactiveStale := insertFailureFixture(t, tx, orgA, "gw-inactive-stale", false, hourAgo, false)
 	// Counted, and the reason this endpoint exists: a second organization's
 	// failure has to show up in the same sweep.
-	otherOrgStale := insertFailureFixture(t, orgB, "gw-other-org-stale", false, time.Now().Add(-2*time.Hour), false)
+	otherOrgStale := insertFailureFixture(t, tx, orgB, "gw-other-org-stale", false, time.Now().Add(-2*time.Hour), false)
 	// Not counted: disconnected, but not for long enough yet.
-	insertFailureFixture(t, orgA, "gw-inactive-fresh", false, time.Now().Add(-10*time.Second), false)
+	insertFailureFixture(t, tx, orgA, "gw-inactive-fresh", false, time.Now().Add(-10*time.Second), false)
 	// Not counted: an old updated_at on a connected gateway is a long-lived
 	// healthy connection, not a failure.
-	insertFailureFixture(t, orgA, "gw-active-stale", true, hourAgo, false)
+	insertFailureFixture(t, tx, orgA, "gw-active-stale", true, hourAgo, false)
 	// Counted in neither total nor failed: raw SQL bypasses GORM's soft-delete
 	// scope, so deleted_at IS NULL has to be spelled out in the query — this
 	// fixture is what proves it was.
-	insertFailureFixture(t, orgA, "gw-soft-deleted-stale", false, hourAgo, true)
+	insertFailureFixture(t, tx, orgA, "gw-soft-deleted-stale", false, hourAgo, true)
 	// ABANDONED, not failed: down for eight days, past the window's far edge.
 	// In total, out of the denominator.
-	insertFailureFixture(t, orgA, "gw-abandoned", false, time.Now().Add(-8*24*time.Hour), false)
+	insertFailureFixture(t, tx, orgA, "gw-abandoned", false, time.Now().Add(-8*24*time.Hour), false)
 	// NOT abandoned despite an equally ancient updated_at, because it is still
 	// connected. This is the fixture that catches an age-only abandoned
 	// predicate: nothing writes updated_at while a connection holds, so a
 	// gateway up for eight days straight looks exactly as old as a dead one.
-	insertFailureFixture(t, orgB, "gw-long-lived-healthy", true, time.Now().Add(-8*24*time.Hour), false)
+	insertFailureFixture(t, tx, orgB, "gw-long-lived-healthy", true, time.Now().Add(-8*24*time.Hour), false)
 
 	got, err := repo.CountFailureSummaryAllOrgs(ctx, window)
 	require.NoError(t, err)
@@ -164,7 +178,10 @@ func TestGatewayRepo_FailureSummaryAllOrgs(t *testing.T) {
 // it depends on. Oldest failure first is what makes a truncated list useful: it
 // keeps the longest-running failures rather than an arbitrary page.
 func TestGatewayRepo_ListFailedGatewaysAllOrgs_Limit(t *testing.T) {
-	repo := NewGatewayRepo(db.GetDB())
+	// One snapshot for both list calls, or a failure another package records
+	// between them could become the head of one list but not the other.
+	tx := snapshotTx(t)
+	repo := NewGatewayRepo(tx)
 	ctx := context.Background()
 	now := time.Now()
 	window := GatewayFailureWindow{
@@ -173,8 +190,8 @@ func TestGatewayRepo_ListFailedGatewaysAllOrgs_Limit(t *testing.T) {
 	}
 
 	const org = "ou-failure-summary-limit"
-	oldest := insertFailureFixture(t, org, "gw-limit-oldest", false, time.Now().Add(-6*24*time.Hour), false)
-	insertFailureFixture(t, org, "gw-limit-newer", false, time.Now().Add(-30*time.Minute), false)
+	oldest := insertFailureFixture(t, tx, org, "gw-limit-oldest", false, time.Now().Add(-6*24*time.Hour), false)
+	insertFailureFixture(t, tx, org, "gw-limit-newer", false, time.Now().Add(-30*time.Minute), false)
 
 	// A limit of 1 over the whole table must return the single oldest failure
 	// anywhere, which is this fixture unless another test left something older

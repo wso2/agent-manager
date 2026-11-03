@@ -41,8 +41,11 @@ type migration struct {
 }
 
 func Migrate() error {
-	dbConn := db.DB(context.Background())
+	return migrateTo(db.DB(context.Background()), latestVersion)
+}
 
+// migrateTo applies every migration up to and including version.
+func migrateTo(dbConn *gorm.DB, version int32) error {
 	successCount := 0
 	var list []*gormigrate.Migration
 	for _, m := range migrations {
@@ -60,13 +63,13 @@ func Migrate() error {
 			},
 		})
 	}
-	latestId := generateIdStr(latestVersion)
-	slog.Info("dbmigrations:starting migration", "latest", latestId)
+	targetID := generateIdStr(version)
+	slog.Info("dbmigrations:starting migration", "latest", targetID)
 	m := gormigrate.New(dbConn, migrateOptions, list)
-	if err := m.MigrateTo(latestId); err != nil {
+	if err := m.MigrateTo(targetID); err != nil {
 		return err
 	}
-	slog.Info("dbmigrations:migration completed", "latest", latestId, "successCount", successCount)
+	slog.Info("dbmigrations:migration completed", "latest", targetID, "successCount", successCount)
 	return nil
 }
 

@@ -105,6 +105,9 @@ import (
 //			GetComponentFunc: func(ctx context.Context, ouID string, projectName string, componentName string) (*models.AgentResponse, error) {
 //				panic("mock out the GetComponent method")
 //			},
+//			GetComponentBaseEnvVarsFunc: func(ctx context.Context, ouID string, componentName string) ([]client.EnvVar, error) {
+//				panic("mock out the GetComponentBaseEnvVars method")
+//			},
 //			GetComponentConfigurationsFunc: func(ctx context.Context, ouID string, projectName string, componentName string, environment string) ([]models.EnvVars, error) {
 //				panic("mock out the GetComponentConfigurations method")
 //			},
@@ -140,6 +143,9 @@ import (
 //			},
 //			GetReleaseBindingServiceURLFunc: func(ctx context.Context, ouID string, componentName string, environment string) (string, error) {
 //				panic("mock out the GetReleaseBindingServiceURL method")
+//			},
+//			GetReleaseBindingTraitsFunc: func(ctx context.Context, ouID string, componentName string, environment string) ([]client.TraitType, bool, error) {
+//				panic("mock out the GetReleaseBindingTraits method")
 //			},
 //			GetSecretFunc: func(ctx context.Context, ouID string, secretName string) (*client.SecretInfo, error) {
 //				panic("mock out the GetSecret method")
@@ -355,6 +361,9 @@ type OpenChoreoClientMock struct {
 	// GetComponentFunc mocks the GetComponent method.
 	GetComponentFunc func(ctx context.Context, ouID string, projectName string, componentName string) (*models.AgentResponse, error)
 
+	// GetComponentBaseEnvVarsFunc mocks the GetComponentBaseEnvVars method.
+	GetComponentBaseEnvVarsFunc func(ctx context.Context, ouID string, componentName string) ([]client.EnvVar, error)
+
 	// GetComponentConfigurationsFunc mocks the GetComponentConfigurations method.
 	GetComponentConfigurationsFunc func(ctx context.Context, ouID string, projectName string, componentName string, environment string) ([]models.EnvVars, error)
 
@@ -390,6 +399,9 @@ type OpenChoreoClientMock struct {
 
 	// GetReleaseBindingServiceURLFunc mocks the GetReleaseBindingServiceURL method.
 	GetReleaseBindingServiceURLFunc func(ctx context.Context, ouID string, componentName string, environment string) (string, error)
+
+	// GetReleaseBindingTraitsFunc mocks the GetReleaseBindingTraits method.
+	GetReleaseBindingTraitsFunc func(ctx context.Context, ouID string, componentName string, environment string) ([]client.TraitType, bool, error)
 
 	// GetSecretFunc mocks the GetSecret method.
 	GetSecretFunc func(ctx context.Context, ouID string, secretName string) (*client.SecretInfo, error)
@@ -826,6 +838,15 @@ type OpenChoreoClientMock struct {
 			// ComponentName is the componentName argument value.
 			ComponentName string
 		}
+		// GetComponentBaseEnvVars holds details about calls to the GetComponentBaseEnvVars method.
+		GetComponentBaseEnvVars []struct {
+			// Ctx is the ctx argument value.
+			Ctx context.Context
+			// OuID is the ouID argument value.
+			OuID string
+			// ComponentName is the componentName argument value.
+			ComponentName string
+		}
 		// GetComponentConfigurations holds details about calls to the GetComponentConfigurations method.
 		GetComponentConfigurations []struct {
 			// Ctx is the ctx argument value.
@@ -947,6 +968,17 @@ type OpenChoreoClientMock struct {
 		}
 		// GetReleaseBindingServiceURL holds details about calls to the GetReleaseBindingServiceURL method.
 		GetReleaseBindingServiceURL []struct {
+			// Ctx is the ctx argument value.
+			Ctx context.Context
+			// OuID is the ouID argument value.
+			OuID string
+			// ComponentName is the componentName argument value.
+			ComponentName string
+			// Environment is the environment argument value.
+			Environment string
+		}
+		// GetReleaseBindingTraits holds details about calls to the GetReleaseBindingTraits method.
+		GetReleaseBindingTraits []struct {
 			// Ctx is the ctx argument value.
 			Ctx context.Context
 			// OuID is the ouID argument value.
@@ -1450,6 +1482,7 @@ type OpenChoreoClientMock struct {
 	lockGetBuild                               sync.RWMutex
 	lockGetBuildByName                         sync.RWMutex
 	lockGetComponent                           sync.RWMutex
+	lockGetComponentBaseEnvVars                sync.RWMutex
 	lockGetComponentConfigurations             sync.RWMutex
 	lockGetComponentEndpoints                  sync.RWMutex
 	lockGetComponentFileMounts                 sync.RWMutex
@@ -1462,6 +1495,7 @@ type OpenChoreoClientMock struct {
 	lockGetProjectDeploymentPipeline           sync.RWMutex
 	lockGetReleaseBindingRollout               sync.RWMutex
 	lockGetReleaseBindingServiceURL            sync.RWMutex
+	lockGetReleaseBindingTraits                sync.RWMutex
 	lockGetSecret                              sync.RWMutex
 	lockGetSecretReference                     sync.RWMutex
 	lockGetSourceEnvWorkloadOverrides          sync.RWMutex
@@ -2768,6 +2802,46 @@ func (mock *OpenChoreoClientMock) GetComponentCalls() []struct {
 	return calls
 }
 
+// GetComponentBaseEnvVars calls GetComponentBaseEnvVarsFunc.
+func (mock *OpenChoreoClientMock) GetComponentBaseEnvVars(ctx context.Context, ouID string, componentName string) ([]client.EnvVar, error) {
+	if mock.GetComponentBaseEnvVarsFunc == nil {
+		panic("OpenChoreoClientMock.GetComponentBaseEnvVarsFunc: method is nil but OpenChoreoClient.GetComponentBaseEnvVars was just called")
+	}
+	callInfo := struct {
+		Ctx           context.Context
+		OuID          string
+		ComponentName string
+	}{
+		Ctx:           ctx,
+		OuID:          ouID,
+		ComponentName: componentName,
+	}
+	mock.lockGetComponentBaseEnvVars.Lock()
+	mock.calls.GetComponentBaseEnvVars = append(mock.calls.GetComponentBaseEnvVars, callInfo)
+	mock.lockGetComponentBaseEnvVars.Unlock()
+	return mock.GetComponentBaseEnvVarsFunc(ctx, ouID, componentName)
+}
+
+// GetComponentBaseEnvVarsCalls gets all the calls that were made to GetComponentBaseEnvVars.
+// Check the length with:
+//
+//	len(mockedOpenChoreoClient.GetComponentBaseEnvVarsCalls())
+func (mock *OpenChoreoClientMock) GetComponentBaseEnvVarsCalls() []struct {
+	Ctx           context.Context
+	OuID          string
+	ComponentName string
+} {
+	var calls []struct {
+		Ctx           context.Context
+		OuID          string
+		ComponentName string
+	}
+	mock.lockGetComponentBaseEnvVars.RLock()
+	calls = mock.calls.GetComponentBaseEnvVars
+	mock.lockGetComponentBaseEnvVars.RUnlock()
+	return calls
+}
+
 // GetComponentConfigurations calls GetComponentConfigurationsFunc.
 func (mock *OpenChoreoClientMock) GetComponentConfigurations(ctx context.Context, ouID string, projectName string, componentName string, environment string) ([]models.EnvVars, error) {
 	if mock.GetComponentConfigurationsFunc == nil {
@@ -3289,6 +3363,50 @@ func (mock *OpenChoreoClientMock) GetReleaseBindingServiceURLCalls() []struct {
 	mock.lockGetReleaseBindingServiceURL.RLock()
 	calls = mock.calls.GetReleaseBindingServiceURL
 	mock.lockGetReleaseBindingServiceURL.RUnlock()
+	return calls
+}
+
+// GetReleaseBindingTraits calls GetReleaseBindingTraitsFunc.
+func (mock *OpenChoreoClientMock) GetReleaseBindingTraits(ctx context.Context, ouID string, componentName string, environment string) ([]client.TraitType, bool, error) {
+	if mock.GetReleaseBindingTraitsFunc == nil {
+		panic("OpenChoreoClientMock.GetReleaseBindingTraitsFunc: method is nil but OpenChoreoClient.GetReleaseBindingTraits was just called")
+	}
+	callInfo := struct {
+		Ctx           context.Context
+		OuID          string
+		ComponentName string
+		Environment   string
+	}{
+		Ctx:           ctx,
+		OuID:          ouID,
+		ComponentName: componentName,
+		Environment:   environment,
+	}
+	mock.lockGetReleaseBindingTraits.Lock()
+	mock.calls.GetReleaseBindingTraits = append(mock.calls.GetReleaseBindingTraits, callInfo)
+	mock.lockGetReleaseBindingTraits.Unlock()
+	return mock.GetReleaseBindingTraitsFunc(ctx, ouID, componentName, environment)
+}
+
+// GetReleaseBindingTraitsCalls gets all the calls that were made to GetReleaseBindingTraits.
+// Check the length with:
+//
+//	len(mockedOpenChoreoClient.GetReleaseBindingTraitsCalls())
+func (mock *OpenChoreoClientMock) GetReleaseBindingTraitsCalls() []struct {
+	Ctx           context.Context
+	OuID          string
+	ComponentName string
+	Environment   string
+} {
+	var calls []struct {
+		Ctx           context.Context
+		OuID          string
+		ComponentName string
+		Environment   string
+	}
+	mock.lockGetReleaseBindingTraits.RLock()
+	calls = mock.calls.GetReleaseBindingTraits
+	mock.lockGetReleaseBindingTraits.RUnlock()
 	return calls
 }
 

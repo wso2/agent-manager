@@ -1,6 +1,6 @@
 module github.com/wso2/agent-manager/agent-manager-service
 
-go 1.26.0
+go 1.26.10
 
 require (
 	github.com/go-gormigrate/gormigrate/v2 v2.1.5

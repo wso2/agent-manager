@@ -54,6 +54,8 @@ type A2AAgentCard struct {
 	EnvironmentName string             `gorm:"column:environment_name;not null"`
 	EnvironmentUUID uuid.UUID          `gorm:"column:environment_uuid;type:uuid;not null"`
 	Source          A2AAgentCardSource `gorm:"column:source;not null"`
+	// AgentUUID is the OpenChoreo component the card belongs to; nil skips the agent-replaced check.
+	AgentUUID *uuid.UUID `gorm:"column:agent_uuid;type:uuid"`
 	// SourceURL is the registered URL for external cards, and the last URL fetched for platform cards.
 	SourceURL string          `gorm:"column:source_url;not null;default:''"`
 	Card      json.RawMessage `gorm:"column:card;type:jsonb"`

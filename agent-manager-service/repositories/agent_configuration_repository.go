@@ -130,6 +130,8 @@ func (r *agentConfigurationRepository) Create(ctx context.Context, tx *gorm.DB, 
 	return nil
 }
 
+// GetByUUID loads one configuration with its LLM and MCP mappings. MCP mappings carry their
+// proxy's endpoint → environment bindings, which per-environment gateway resolution reads.
 func (r *agentConfigurationRepository) GetByUUID(ctx context.Context, configUUID uuid.UUID, ouID string) (*models.AgentConfiguration, error) {
 	var config models.AgentConfiguration
 	err := r.db.WithContext(ctx).
@@ -142,6 +144,8 @@ func (r *agentConfigurationRepository) GetByUUID(ctx context.Context, configUUID
 		Preload("EnvMCPMappings.Artifact").
 		Preload("EnvMCPMappings.MCPProxy").
 		Preload("EnvMCPMappings.MCPProxy.Artifact").
+		Preload("EnvMCPMappings.MCPProxy.Endpoints").
+		Preload("EnvMCPMappings.MCPProxy.Endpoints.Environments").
 		Preload("EnvVariables").
 		Where("uuid = ? AND ou_id = ?", configUUID, ouID).
 		First(&config).Error
@@ -151,6 +155,7 @@ func (r *agentConfigurationRepository) GetByUUID(ctx context.Context, configUUID
 	return &config, err
 }
 
+// GetByAgentID loads an agent's configuration with the same relations as GetByUUID.
 func (r *agentConfigurationRepository) GetByAgentID(ctx context.Context, agentID, ouID string) (*models.AgentConfiguration, error) {
 	var config models.AgentConfiguration
 	err := r.db.WithContext(ctx).
@@ -163,6 +168,8 @@ func (r *agentConfigurationRepository) GetByAgentID(ctx context.Context, agentID
 		Preload("EnvMCPMappings.Artifact").
 		Preload("EnvMCPMappings.MCPProxy").
 		Preload("EnvMCPMappings.MCPProxy.Artifact").
+		Preload("EnvMCPMappings.MCPProxy.Endpoints").
+		Preload("EnvMCPMappings.MCPProxy.Endpoints.Environments").
 		Preload("EnvVariables").
 		Where("agent_id = ? AND ou_id = ?", agentID, ouID).
 		First(&config).Error
@@ -172,6 +179,8 @@ func (r *agentConfigurationRepository) GetByAgentID(ctx context.Context, agentID
 	return &config, err
 }
 
+// ListMCPConfigsByAgent lists an agent's MCP configurations with their mappings, proxies and
+// the proxies' endpoint → environment bindings.
 func (r *agentConfigurationRepository) ListMCPConfigsByAgent(ctx context.Context, ouID, projectName, agentID string) ([]models.AgentConfiguration, error) {
 	var configs []models.AgentConfiguration
 	err := r.db.WithContext(ctx).
@@ -182,11 +191,15 @@ func (r *agentConfigurationRepository) ListMCPConfigsByAgent(ctx context.Context
 		Preload("EnvMCPMappings.Artifact").
 		Preload("EnvMCPMappings.MCPProxy").
 		Preload("EnvMCPMappings.MCPProxy.Artifact").
+		Preload("EnvMCPMappings.MCPProxy.Endpoints").
+		Preload("EnvMCPMappings.MCPProxy.Endpoints.Environments").
 		Where("ou_id = ? AND project_name = ? AND agent_id = ? AND type_id = ?", ouID, projectName, agentID, models.AgentConfigTypeIDMCP).
 		Find(&configs).Error
 	return configs, err
 }
 
+// ListMCPConfigsByProxy lists the MCP configurations bound to the given proxy, with the same
+// relations as ListMCPConfigsByAgent plus their env var rows.
 func (r *agentConfigurationRepository) ListMCPConfigsByProxy(ctx context.Context, ouID string, proxyUUID uuid.UUID) ([]models.AgentConfiguration, error) {
 	var configs []models.AgentConfiguration
 	err := r.db.WithContext(ctx).
@@ -197,6 +210,8 @@ func (r *agentConfigurationRepository) ListMCPConfigsByProxy(ctx context.Context
 		Preload("EnvMCPMappings.Artifact").
 		Preload("EnvMCPMappings.MCPProxy").
 		Preload("EnvMCPMappings.MCPProxy.Artifact").
+		Preload("EnvMCPMappings.MCPProxy.Endpoints").
+		Preload("EnvMCPMappings.MCPProxy.Endpoints.Environments").
 		Preload("EnvVariables").
 		Joins("JOIN agent_mcp_config_proxy p ON p.config_uuid = agent_configurations.uuid").
 		Where("agent_configurations.ou_id = ? AND agent_configurations.type_id = ? AND p.mcp_proxy_uuid = ?",

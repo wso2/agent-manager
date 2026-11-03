@@ -26,7 +26,7 @@ type DeploymentSummary struct {
 	GatewayName string `json:"gatewayName"`
 	// Environment name (from gateway name or properties)
 	EnvironmentName *string `json:"environmentName,omitempty"`
-	// Deployment status
+	// The status a user is shown for the provider on the gateway. In the catalog, which lists live deployments only, DEPLOYING means the provider is live and a redeploy is queued.
 	Status string `json:"status"`
 	// Timestamp when the resource was deployed
 	DeployedAt *time.Time `json:"deployedAt,omitempty"`

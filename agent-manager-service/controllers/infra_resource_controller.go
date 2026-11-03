@@ -24,6 +24,7 @@ import (
 	"strconv"
 
 	"github.com/wso2/agent-manager/agent-manager-service/middleware"
+	"github.com/wso2/agent-manager/agent-manager-service/middleware/jwtassertion"
 	"github.com/wso2/agent-manager/agent-manager-service/middleware/logger"
 	"github.com/wso2/agent-manager/agent-manager-service/models"
 	"github.com/wso2/agent-manager/agent-manager-service/services"
@@ -94,6 +95,15 @@ func (c *infraResourceController) ListOrganizations(w http.ResponseWriter, r *ht
 		return
 	}
 
+	// OpenChoreo has no notion of the org handle; the only one known here is the
+	// caller's, from the token. It can be attributed only when the list holds a
+	// single org — in cloud the list is always scoped to the caller's own org.
+	if total == 1 && len(orgs) == 1 && orgs[0] != nil {
+		if claims := jwtassertion.GetTokenClaims(ctx); claims != nil {
+			orgs[0].Handle = claims.OuHandle
+		}
+	}
+
 	orgList := utils.ConvertToOrganizationListResponse(orgs)
 	orgResponse := &spec.OrganizationListResponse{
 		Organizations: orgList,
@@ -116,6 +126,10 @@ func (c *infraResourceController) GetOrganization(w http.ResponseWriter, r *http
 		log.Error("GetOrganization: failed to get organization", "error", err)
 		handleCommonErrors(w, err, "Failed to get organization")
 		return
+	}
+	// The org is resolved from the token's OU, so the token's handle is its handle.
+	if org != nil {
+		org.Handle = middleware.OrgHandleFromRequest(r)
 	}
 
 	orgResponse := utils.ConvertToOrganizationResponse(org)

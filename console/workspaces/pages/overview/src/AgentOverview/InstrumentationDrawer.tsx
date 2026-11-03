@@ -28,6 +28,7 @@ import {
 } from "@agent-management-platform/views";
 
 type Language = "python" | "ballerina" | "other";
+type BallerinaVersion = "2201.13" | "2201.14";
 
 interface InstrumentationDrawerProps {
   open: boolean;
@@ -58,13 +59,18 @@ export const InstrumentationDrawer = ({
 }: InstrumentationDrawerProps) => {
   const [generatedApiKey, setGeneratedApiKey] = useState<string | null>(null);
   const [selectedLanguage, setSelectedLanguage] = useState<Language>("python");
-  
+  const [ballerinaVersion, setBallerinaVersion] = useState<BallerinaVersion>("2201.13");
+
   // Use generated key if available, otherwise the passed apiKey. Fall back to a masked placeholder
   // so the env-var examples never render the literal string "undefined" before a key is generated.
   const effectiveApiKey = generatedApiKey || apiKey || "ey***";
 
   const handleLanguageChange = (event: SelectChangeEvent<Language>) => {
     setSelectedLanguage(event.target.value as Language);
+  };
+
+  const handleBallerinaVersionChange = (event: SelectChangeEvent<BallerinaVersion>) => {
+    setBallerinaVersion(event.target.value as BallerinaVersion);
   };
 
   return (
@@ -91,6 +97,19 @@ export const InstrumentationDrawer = ({
             <MenuItem value="ballerina">Ballerina</MenuItem>
             <MenuItem value="other">Other</MenuItem>
           </Select>
+          {selectedLanguage === "ballerina" && (
+            <>
+              <Typography id="ballerina-version-label" variant="body2">Version:</Typography>
+              <Select
+                labelId="ballerina-version-label"
+                value={ballerinaVersion}
+                onChange={handleBallerinaVersionChange}
+              >
+                <MenuItem value="2201.13">2201.13.x</MenuItem>
+                <MenuItem value="2201.14">2201.14.x+</MenuItem>
+              </Select>
+            </>
+          )}
           </Stack>
         </Stack>
         <Box
@@ -137,6 +156,49 @@ export AMP_AGENT_API_KEY="${effectiveApiKey}"`}
                 language="bash"
                 fieldId="run"
                 description="Replace <run_command> with your agent's start command. For example: amp-instrument python app.py"
+              />
+            </>
+          ) : selectedLanguage === "ballerina" && ballerinaVersion === "2201.14" ? (
+            <>
+              <SetupStep
+                stepNumber={1}
+                title="Add the following configuration to Ballerina.toml"
+                code={`[build-options]
+observabilityIncluded = true`}
+                language="toml"
+                fieldId="ballerina-toml"
+                description="Ensure the following configuration is present when building the program. No module import is needed."
+              />
+              <SetupStep
+                stepNumber={2}
+                title="Update Config.toml"
+                code={`[ballerina.observe]
+tracingEnabled = true
+tracingProvider = "otel"
+
+[ballerina.otel]
+tracesProtocol = "http/protobuf"`}
+                language="toml"
+                fieldId="config-toml"
+                description="Enable tracing with Ballerina's built-in OpenTelemetry exporter over OTLP/HTTP."
+              />
+              <TokenGenerationStep
+                stepNumber={3}
+                orgName={orgName}
+                projName={projName}
+                agentName={agentName}
+                environment={environment}
+                onTokenGenerated={setGeneratedApiKey}
+                autoGenerate={autoGenerate}
+              />
+              <SetupStep
+                stepNumber={4}
+                title="Set Environment Variables"
+                code={`export BAL_CONFIG_VAR_BALLERINA_OTEL_TRACESENDPOINT="${instrumentationUrl}/v1/traces"
+export BAL_CONFIG_VAR_BALLERINA_OTEL_TRACESEXPORTERHEADERS="x-amp-api-key=${effectiveApiKey}"`}
+                language="bash"
+                fieldId="env-vars"
+                description="Configure the exporter using environment variables."
               />
             </>
           ) : selectedLanguage === "ballerina" ? (

@@ -35,6 +35,13 @@ type DeploymentResponse struct {
 	// which does not move when an agent is redeployed on a newer version. Empty
 	// for source-built agents and when the image matches no published version.
 	KindVersion string `json:"kindVersion,omitempty"`
+	// EnvironmentUUID is the environment's id, read with the deployments; empty on an entry synthesized for a
+	// kind-sourced agent.
+	EnvironmentUUID string `json:"-"`
+	// GatewayStatus and GatewayStatusReason are the agent's deployment on its environment's ingress gateway; empty
+	// for an agent the gateway does not serve.
+	GatewayStatus       string `json:"gatewayStatus,omitempty"`
+	GatewayStatusReason string `json:"gatewayStatusReason,omitempty"`
 }
 
 // PromotionTargetEnvironment represents environment promotion targets

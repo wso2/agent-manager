@@ -502,7 +502,9 @@ paths:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
         "409":
-          description: Agent already exists
+          description: >-
+            The agent already exists, or it is an API agent and its first environment has no ingress gateway
+            to serve it (code `ENVIRONMENT_HAS_NO_GATEWAY`)
           content:
             application/json:
               schema:
@@ -1043,6 +1045,14 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
+        "409":
+          description: >-
+            The agent is an API agent and the environment the build releases into has no ingress gateway to
+            serve it (code `ENVIRONMENT_HAS_NO_GATEWAY`)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
         "500":
           description: Internal server error
           content:
@@ -1267,6 +1277,14 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
+        "409":
+          description: >-
+            The agent is an API agent and the target environment has no ingress gateway to serve it (code
+            `ENVIRONMENT_HAS_NO_GATEWAY`)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
         "500":
           description: Internal server error
           content:
@@ -1427,7 +1445,9 @@ paths:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
         "409":
-          description: Deployment already in progress in target environment
+          description: >-
+            A deployment is already in progress in the target environment, or the target environment has no
+            ingress gateway to serve this API agent (code `ENVIRONMENT_HAS_NO_GATEWAY`)
           content:
             application/json:
               schema:
@@ -2429,6 +2449,8 @@ paths:
         - Gateway credentials are encrypted before storage
         - Credentials are never returned in API responses
         - Use a strong encryption key configured in GATEWAY_ENCRYPTION_KEY
+
+        A gateway serves exactly one environment: `environmentIds` takes at most one environment.
       operationId: registerGateway
       requestBody:
         required: true
@@ -2456,7 +2478,9 @@ paths:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
         "409":
-          description: Conflict - resource already exists
+          description: >-
+            Conflict - the gateway already exists, or `environmentIds` names more than one environment
+            (code `GATEWAY_ENVIRONMENT_FIXED`)
           content:
             application/json:
               schema:
@@ -2723,8 +2747,8 @@ paths:
         Create a mapping between a gateway and an environment.
 
         This makes the gateway available for use in the specified environment.
-        A gateway can be mapped to multiple environments, and an environment can have
-        multiple gateways.
+        A gateway serves exactly one environment: once mapped, it can be assigned again only to
+        that same environment, which succeeds without change.
       operationId: assignGatewayToEnvironment
       responses:
         "201":
@@ -2752,7 +2776,9 @@ paths:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
         "409":
-          description: Mapping already exists
+          description: >-
+            Conflict - the gateway is already mapped to another environment (code
+            `GATEWAY_ENVIRONMENT_FIXED`), or the environment already has an ingress gateway
           content:
             application/json:
               schema:
@@ -2773,8 +2799,9 @@ paths:
 
         This makes the gateway unavailable in the specified environment.
 
-        **Warning:** If agents in this environment are using this gateway, they may
-        experience routing failures after this operation.
+        The mapping is not removed while any of the environment's agents, MCP proxies or
+        agent and monitor LLM proxies is deployed, or being deployed, on the gateway.
+        Undeploy them from this gateway first.
       operationId: removeGatewayFromEnvironment
       responses:
         "204":
@@ -2793,6 +2820,12 @@ paths:
                 $ref: "#/components/schemas/ErrorResponse"
         "404":
           description: Gateway, environment, or mapping not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "409":
+          description: The gateway still serves this environment's agents or proxies; undeploy them from this gateway, or remove the LLM configuration from the agents and monitors in this environment, first
           content:
             application/json:
               schema:
@@ -5882,6 +5915,12 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
+        "409":
+          description: Another provider already uses this name and version in the organization
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
         "500":
           description: Internal server error
           content:
@@ -6870,21 +6909,24 @@ paths:
       tags:
         - LLM Deployments
       summary: Deploy an LLM provider
-      description: Deploy an LLM provider to a gateway
+      description: >-
+        Deploy the LLM provider's current configuration to a gateway. The deployment starts DEPLOYING and becomes
+        DEPLOYED when the gateway acknowledges it; the request does not wait for the gateway. To redeploy an earlier
+        deployment, restore it.
       operationId: deployLLMProvider
       requestBody:
         required: true
         content:
           application/json:
             schema:
-              $ref: "#/components/schemas/DeployAgentRequest"
+              $ref: "#/components/schemas/LLMDeployRequest"
       responses:
         "201":
-          description: Provider deployed successfully
+          description: Deployment started
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/DeploymentResponse"
+                $ref: "#/components/schemas/LLMDeploymentResponse"
         "400":
           description: Invalid request
           content:
@@ -6924,13 +6966,18 @@ paths:
             type: string
         - name: status
           in: query
-          description: Filter by deployment status
+          description: >-
+            Filter by the gateway's stored deployment status. A deployment whose redeploy is owed is shown DEPLOYING
+            but filtered by the status the gateway holds.
           schema:
             type: string
             enum:
+              - DEPLOYING
               - DEPLOYED
+              - UNDEPLOYING
               - UNDEPLOYED
               - FAILED
+              - ARCHIVED
       responses:
         "200":
           description: Successfully retrieved deployments
@@ -6939,7 +6986,7 @@ paths:
               schema:
                 type: array
                 items:
-                  $ref: "#/components/schemas/DeploymentResponse"
+                  $ref: "#/components/schemas/LLMDeploymentResponse"
         "400":
           description: Invalid request parameters
           content:
@@ -6984,7 +7031,10 @@ paths:
       tags:
         - LLM Deployments
       summary: Undeploy an LLM provider deployment
-      description: Undeploy a specific deployment of an LLM provider
+      description: >-
+        Undeploy the provider's current deployment on a gateway, whether it is DEPLOYING, DEPLOYED or failed to
+        deploy. The deployment goes UNDEPLOYING until the gateway acknowledges it. A failed undeploy can be
+        retried by undeploying again.
       operationId: undeployLLMProviderDeployment
       parameters:
         - name: deploymentId
@@ -7029,7 +7079,9 @@ paths:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
         "409":
-          description: No active deployment found
+          description: >-
+            The deployment isn't the gateway's current deployment, or it is already undeployed or being
+            undeployed.
           content:
             application/json:
               schema:
@@ -7060,7 +7112,9 @@ paths:
       tags:
         - LLM Deployments
       summary: Restore an LLM provider deployment
-      description: Restore a previously undeployed deployment
+      description: >-
+        Point the gateway back at an earlier deployment, whatever the current deployment's status. It cancels a
+        redeploy that is still owed.
       operationId: restoreLLMProviderDeployment
       parameters:
         - name: deploymentId
@@ -7077,11 +7131,11 @@ paths:
             type: string
       responses:
         "200":
-          description: Deployment restored successfully
+          description: Restore started
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/DeploymentResponse"
+                $ref: "#/components/schemas/LLMDeploymentResponse"
         "400":
           description: Invalid request
           content:
@@ -7101,7 +7155,7 @@ paths:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
         "409":
-          description: Deployment already active
+          description: The deployment is already the gateway's current deployment, DEPLOYED or DEPLOYING
           content:
             application/json:
               schema:
@@ -7146,7 +7200,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/DeploymentResponse"
+                $ref: "#/components/schemas/LLMDeploymentResponse"
         "400":
           description: Invalid deployment ID
           content:
@@ -7176,7 +7230,9 @@ paths:
       tags:
         - LLM Deployments
       summary: Delete LLM provider deployment
-      description: Delete a deployment (must be undeployed first)
+      description: >-
+        Delete a deployment the gateway doesn't hold. The gateway's current deployment must be undeployed first, and
+        the undeploy must have completed (UNDEPLOYED).
       operationId: deleteLLMProviderDeployment
       responses:
         "204":
@@ -7200,7 +7256,7 @@ paths:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
         "409":
-          description: Cannot delete an active deployment
+          description: The deployment is the gateway's current deployment and isn't UNDEPLOYED; undeploy it first
           content:
             application/json:
               schema:
@@ -7407,6 +7463,408 @@ paths:
                 $ref: "#/components/schemas/ErrorResponse"
         "503":
           description: No gateway connections available
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "500":
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /orgs/{orgName}/projects/{projName}/llm-proxies/{id}/deployments:
+    parameters:
+      - name: orgName
+        in: path
+        required: true
+        description: Organization name/handle
+        schema:
+          type: string
+      - name: projName
+        in: path
+        required: true
+        description: Project name
+        schema:
+          type: string
+      - name: id
+        in: path
+        required: true
+        description: Proxy handle
+        schema:
+          type: string
+
+    post:
+      tags:
+        - LLM Deployments
+      summary: Deploy an LLM proxy
+      description: >-
+        Deploy the LLM proxy's current configuration to a gateway. The deployment starts DEPLOYING and becomes
+        DEPLOYED when the gateway acknowledges it; the request does not wait for the gateway. To redeploy an earlier
+        deployment, restore it.
+      operationId: deployLLMProxy
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/LLMDeployRequest"
+      responses:
+        "201":
+          description: Deployment started
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/LLMDeploymentResponse"
+        "400":
+          description: Invalid request
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: Proxy or gateway not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "500":
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+    get:
+      tags:
+        - LLM Deployments
+      summary: Get LLM proxy deployments
+      description: Retrieve all deployments for an LLM proxy
+      operationId: getLLMProxyDeployments
+      parameters:
+        - name: gatewayId
+          in: query
+          description: Filter by gateway ID
+          schema:
+            type: string
+        - name: status
+          in: query
+          description: >-
+            Filter by the gateway's stored deployment status. A deployment whose redeploy is owed is shown DEPLOYING
+            but filtered by the status the gateway holds.
+          schema:
+            type: string
+            enum:
+              - DEPLOYING
+              - DEPLOYED
+              - UNDEPLOYING
+              - UNDEPLOYED
+              - FAILED
+              - ARCHIVED
+      responses:
+        "200":
+          description: Successfully retrieved deployments
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/LLMDeploymentResponse"
+        "400":
+          description: Invalid request parameters
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: Proxy not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "500":
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /orgs/{orgName}/projects/{projName}/llm-proxies/{id}/deployments/undeploy:
+    parameters:
+      - name: orgName
+        in: path
+        required: true
+        description: Organization name/handle
+        schema:
+          type: string
+      - name: projName
+        in: path
+        required: true
+        description: Project name
+        schema:
+          type: string
+      - name: id
+        in: path
+        required: true
+        description: Proxy handle
+        schema:
+          type: string
+
+    post:
+      tags:
+        - LLM Deployments
+      summary: Undeploy an LLM proxy deployment
+      description: >-
+        Undeploy the proxy's current deployment on a gateway, whether it is DEPLOYING, DEPLOYED or failed to
+        deploy. The deployment goes UNDEPLOYING until the gateway acknowledges it. A failed undeploy can be
+        retried by undeploying again.
+      operationId: undeployLLMProxyDeployment
+      parameters:
+        - name: deploymentId
+          in: query
+          required: true
+          description: Deployment UUID to undeploy
+          schema:
+            type: string
+        - name: gatewayId
+          in: query
+          required: true
+          description: Gateway UUID
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Proxy undeployed successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                    example: LLM proxy undeployed successfully
+        "400":
+          description: Invalid request
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: Proxy, deployment, or gateway not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "409":
+          description: >-
+            The deployment isn't the gateway's current deployment, or it is already undeployed or being
+            undeployed.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "500":
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /orgs/{orgName}/projects/{projName}/llm-proxies/{id}/deployments/restore:
+    parameters:
+      - name: orgName
+        in: path
+        required: true
+        description: Organization name/handle
+        schema:
+          type: string
+      - name: projName
+        in: path
+        required: true
+        description: Project name
+        schema:
+          type: string
+      - name: id
+        in: path
+        required: true
+        description: Proxy handle
+        schema:
+          type: string
+
+    post:
+      tags:
+        - LLM Deployments
+      summary: Restore an LLM proxy deployment
+      description: >-
+        Point the gateway back at an earlier deployment, whatever the current deployment's status. It cancels a
+        redeploy that is still owed.
+      operationId: restoreLLMProxyDeployment
+      parameters:
+        - name: deploymentId
+          in: query
+          required: true
+          description: Deployment UUID to restore
+          schema:
+            type: string
+        - name: gatewayId
+          in: query
+          required: true
+          description: Gateway UUID
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Restore started
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/LLMDeploymentResponse"
+        "400":
+          description: Invalid request
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: Proxy, deployment, or gateway not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "409":
+          description: The deployment is already the gateway's current deployment, DEPLOYED or DEPLOYING
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "500":
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /orgs/{orgName}/projects/{projName}/llm-proxies/{id}/deployments/{deploymentId}:
+    parameters:
+      - name: orgName
+        in: path
+        required: true
+        description: Organization name/handle
+        schema:
+          type: string
+      - name: projName
+        in: path
+        required: true
+        description: Project name
+        schema:
+          type: string
+      - name: id
+        in: path
+        required: true
+        description: Proxy handle
+        schema:
+          type: string
+      - name: deploymentId
+        in: path
+        required: true
+        description: Deployment UUID
+        schema:
+          type: string
+
+    get:
+      tags:
+        - LLM Deployments
+      summary: Get LLM proxy deployment details
+      description: Retrieve detailed information about a specific deployment
+      operationId: getLLMProxyDeployment
+      responses:
+        "200":
+          description: Successfully retrieved deployment
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/LLMDeploymentResponse"
+        "400":
+          description: Invalid deployment ID
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: Deployment not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "500":
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+    delete:
+      tags:
+        - LLM Deployments
+      summary: Delete LLM proxy deployment
+      description: >-
+        Delete a deployment the gateway doesn't hold. The gateway's current deployment must be undeployed first, and
+        the undeploy must have completed (UNDEPLOYED).
+      operationId: deleteLLMProxyDeployment
+      responses:
+        "204":
+          description: Deployment deleted successfully
+        "400":
+          description: Invalid deployment ID
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: Deployment not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "409":
+          description: The deployment is the gateway's current deployment and isn't UNDEPLOYED; undeploy it first
           content:
             application/json:
               schema:
@@ -8024,8 +8482,8 @@ paths:
     put:
       tags:
         - Agent Card
-      summary: Register an external A2A agent's card URL for an environment
-      description: Sets the URL the platform fetches the card from and queues a fetch. External A2A agents only.
+      summary: Register an external agent's card URL for an environment
+      description: Sets the URL the platform fetches the card from and queues a fetch. External agents only.
       operationId: setAgentCardSource
       requestBody:
         required: true
@@ -8038,7 +8496,7 @@ paths:
           description: Source saved and fetch queued
         "400":
           description: >-
-            Invalid URL, the agent is not an external A2A agent, or the environment routes the agent
+            Invalid URL, the agent is not an external agent, or the environment routes the agent
             through its gateway and the gateway cannot fetch the card from this URL (it must end in
             /.well-known/agent-card.json with no query)
           content:
@@ -8074,14 +8532,14 @@ paths:
     delete:
       tags:
         - Agent Card
-      summary: Remove an external A2A agent's card source for an environment
-      description: Deletes the stored card and its source. Idempotent. External A2A agents only.
+      summary: Remove an external agent's card source for an environment
+      description: Deletes the stored card and its source. Idempotent. External agents only.
       operationId: deleteAgentCardSource
       responses:
         "204":
           description: Source removed
         "400":
-          description: The agent is not an external A2A agent
+          description: The agent is not an external agent
           content:
             application/json:
               schema:
@@ -8116,7 +8574,7 @@ paths:
     get:
       tags:
         - A2A Proxy
-      summary: Get how an external A2A agent is routed through the environment's gateway
+      summary: Get how an external agent is routed through the environment's gateway
       description: >-
         Reports the gateway publication of a proxied environment. The upstream secret is never
         returned; a non-empty upstreamAuthHeader means one is stored.
@@ -8149,11 +8607,11 @@ paths:
     put:
       tags:
         - A2A Proxy
-      summary: Route an external A2A agent through the environment's gateway, or change its upstream auth
+      summary: Route an external agent through the environment's gateway, or change its upstream auth
       description: >-
         Publishes the agent through the environment's ingress gateway, with routes derived from its
         registered card URL. Omitting upstreamAuth clears the stored credential; upstreamAuth without
-        a value keeps the stored secret; a value replaces it. External A2A agents only.
+        a value keeps the stored secret; a value replaces it. External agents only.
       operationId: setA2AProxy
       requestBody:
         required: true
@@ -8166,7 +8624,7 @@ paths:
           description: Saved; the gateway publication is queued
         "400":
           description: >-
-            Invalid upstream auth, the agent is not an external A2A agent, or the gateway cannot fetch
+            Invalid upstream auth, the agent is not an external agent, or the gateway cannot fetch
             the card from the registered URL (it must end in /.well-known/agent-card.json with no query)
           content:
             application/json:
@@ -8205,7 +8663,7 @@ paths:
     delete:
       tags:
         - A2A Proxy
-      summary: Stop routing an external A2A agent through the environment's gateway
+      summary: Stop routing an external agent through the environment's gateway
       description: >-
         Removes the agent from the gateway, discards the stored upstream secret and fetches the
         agent's own card again. The environment's API keys are kept.
@@ -8214,7 +8672,7 @@ paths:
         "204":
           description: The environment is direct again
         "400":
-          description: The agent is not an external A2A agent
+          description: The agent is not an external agent
           content:
             application/json:
               schema:
@@ -8255,7 +8713,7 @@ paths:
         "202":
           description: Republish queued; the card is fetched again once it lands
         "400":
-          description: The agent is not an external A2A agent
+          description: The agent is not an external agent
           content:
             application/json:
               schema:
@@ -12290,20 +12748,25 @@ components:
           description: Public http(s) URL of the agent card, normally ending in /.well-known/agent-card.json.
     A2AProxyResponse:
       type: object
-      description: How an external A2A agent is published through the environment's ingress gateway.
+      description: How an external agent is published through the environment's ingress gateway.
       required:
         - status
-        - lastError
+        - statusReason
         - upstreamAuthHeader
         - gatewayUrl
       properties:
         status:
           type: string
-          enum: [pending, published, failed]
-          description: The gateway publication's state.
-        lastError:
+          enum: [DEPLOYING, DEPLOYED, UNDEPLOYING, UNDEPLOYED, FAILED]
+          description: >-
+            The agent's deployment status on the environment's ingress gateway. DEPLOYING until the gateway
+            acknowledges the deployment, including while it waits for an input (see statusReason). An environment
+            with no ingress gateway is UNDEPLOYED with statusReason "no gateway in this environment".
+        statusReason:
           type: string
-          description: Why the last publish attempt failed; empty after a success.
+          description: >-
+            Why the status is what it is: the gateway's error code, DEPLOYMENT_TIMEOUT, what a deploy is waiting
+            for, or "no gateway in this environment". Empty when there is nothing to say.
         upstreamAuthHeader:
           type: string
           description: >-
@@ -12313,7 +12776,7 @@ components:
           type: string
           description: >-
             The agent's base URL on the environment's ingress gateway, where its card is served at
-            /.well-known/agent-card.json once published. Empty while no ingress gateway is mapped to
+            /.well-known/agent-card.json once DEPLOYED. Empty while no ingress gateway is mapped to
             the environment.
     SetA2AProxyRequest:
       type: object
@@ -13165,6 +13628,20 @@ components:
           required:
             - name
             - displayName
+        gatewayStatus:
+          type: string
+          enum: [DEPLOYING, DEPLOYED, UNDEPLOYING, UNDEPLOYED, FAILED]
+          description: >-
+            The agent's deployment status on the environment's ingress gateway, the only place an API agent is
+            served. DEPLOYING until the gateway acknowledges the deployment, including while it waits for an input
+            (see gatewayStatusReason). An environment with no ingress gateway is UNDEPLOYED with gatewayStatusReason
+            "no gateway in this environment". Absent for an agent the gateway does not serve, and when the gateway
+            status could not be read.
+        gatewayStatusReason:
+          type: string
+          description: >-
+            Why gatewayStatus is what it is: the gateway's error code, DEPLOYMENT_TIMEOUT, what a deploy is waiting
+            for, or "no gateway in this environment". Empty when there is nothing to say.
       required:
         - imageId
         - status
@@ -13494,6 +13971,9 @@ components:
         namespace:
           type: string
           description: Namespace of the organization
+        handle:
+          type: string
+          description: Human-readable handle of the organization (the caller's OU handle), used in console URLs. Omitted when it cannot be determined.
         createdAt:
           type: string
           format: date-time
@@ -13513,6 +13993,9 @@ components:
         displayName:
           type: string
           description: Display name of the organization
+        handle:
+          type: string
+          description: Human-readable handle of the organization (the caller's OU handle), used in console URLs. Omitted when it cannot be determined.
         createdAt:
           type: string
           format: date-time
@@ -15786,12 +16269,14 @@ components:
           example: true
         environmentIds:
           type: array
-          description: List of environment UUIDs to assign the gateway to during creation
+          description: >-
+            The environment UUID to assign the gateway to during creation. A gateway serves exactly one
+            environment, so at most one is allowed.
+          maxItems: 1
           items:
             type: string
           example:
             - 550e8400-e29b-41d4-a716-446655440000
-            - 550e8400-e29b-41d4-a716-446655440001
         orgId:
           type: string
           description: >-
@@ -16692,11 +17177,16 @@ components:
           description: Target environment UUID.
         deploymentStatus:
           type: string
-          description: Per-environment deployment status.
+          description: >-
+            Per-environment deployment status. Deploying until the environment's gateway acknowledges the
+            deployment, and while a redeploy is owed; Failed when the gateway rejected it or it couldn't be rendered.
           readOnly: true
           enum:
+            - Deploying
             - Deployed
+            - Undeploying
             - Undeployed
+            - Failed
         gatewayId:
           type: string
           format: uuid
@@ -18376,7 +18866,9 @@ components:
           $ref: "#/components/schemas/RateLimitingSummary"
         deployments:
           type: array
-          description: List of deployments for this provider
+          description: >-
+            The provider's live deployments, one per gateway currently serving it. Gateways it is only owed a
+            deploy to are not listed.
           items:
             $ref: "#/components/schemas/DeploymentSummary"
         createdAt:
@@ -18454,6 +18946,91 @@ components:
         cost:
           $ref: "#/components/schemas/RateLimitEntry"
 
+    LLMDeployRequest:
+      type: object
+      description: >-
+        Deploys the artifact's current configuration to a gateway. The deployment is named by the server; a client's
+        name or metadata is ignored.
+      required:
+        - gatewayId
+      properties:
+        gatewayId:
+          type: string
+          format: uuid
+          description: Gateway UUID to deploy to
+        base:
+          type: string
+          description: >-
+            Omit, or "current", to deploy the current configuration. Any other value is rejected with 400: to
+            redeploy an earlier deployment, restore it.
+          enum:
+            - current
+
+    LLMDeploymentResponse:
+      type: object
+      description: >-
+        One deployment of an LLM provider or proxy to a gateway, with the status a user is shown for it on that
+        gateway.
+      required:
+        - deploymentId
+        - name
+        - artifactId
+        - gatewayId
+        - createdAt
+        - status
+      properties:
+        deploymentId:
+          type: string
+          format: uuid
+        name:
+          type: string
+        artifactId:
+          type: string
+          format: uuid
+          description: The provider's or proxy's UUID
+        organizationId:
+          type: string
+        gatewayId:
+          type: string
+          format: uuid
+        baseDeploymentId:
+          type: string
+          format: uuid
+        metadata:
+          type: object
+          additionalProperties: true
+        createdAt:
+          type: string
+          format: date-time
+        status:
+          type: string
+          description: >-
+            What the user is shown: ARCHIVED when the gateway's current deployment is another one. DEPLOYING also
+            covers a redeploy that is owed; FAILED also covers a deploy that was given up.
+          enum:
+            - DEPLOYING
+            - DEPLOYED
+            - UNDEPLOYING
+            - UNDEPLOYED
+            - FAILED
+            - ARCHIVED
+        statusDesired:
+          type: string
+          description: >-
+            Where the deployment's current transition is heading. Tells a failed deploy (DEPLOYED) from a failed
+            undeploy (UNDEPLOYED). Absent for an ARCHIVED deployment.
+          enum:
+            - DEPLOYED
+            - UNDEPLOYED
+        statusReason:
+          type: string
+          description: >-
+            Why the status is what it is: the gateway's error code, DEPLOYMENT_TIMEOUT, or why a redeploy is waiting
+            or was given up. Absent when there is nothing to say.
+        updatedAt:
+          type: string
+          format: date-time
+
     DeploymentSummary:
       type: object
       required:
@@ -18476,11 +19053,15 @@ components:
           example: "production"
         status:
           type: string
-          description: Deployment status
+          description: >-
+            The status a user is shown for the provider on the gateway. In the catalog, which lists live deployments
+            only, DEPLOYING means the provider is live and a redeploy is queued.
           enum:
+            - DEPLOYING
             - DEPLOYED
+            - UNDEPLOYING
             - UNDEPLOYED
-            - ARCHIVED
+            - FAILED
           example: "DEPLOYED"
         deployedAt:
           type: string

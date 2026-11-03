@@ -35,7 +35,7 @@ export interface ProxySecurityDrawerProps {
   environment: string;
 }
 
-/** Gateway auth and CORS for a proxied external A2A agent; saves deploy settings, no release. */
+/** Gateway auth and CORS for a proxied external agent; saves deploy settings, no release. */
 export function ProxySecurityDrawer({
   open,
   onClose,

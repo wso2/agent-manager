@@ -7,7 +7,7 @@ run-name: Nightly Dev Build #${{ github.run_number }}${{ inputs.dry_run && ' (dr
 
 on:
   schedule:
-    - cron: '0 0 * * *' # midnight UTC
+    - cron: '30 21 * * *' # 21:30 UTC
   workflow_dispatch:
     inputs:
       dry_run:

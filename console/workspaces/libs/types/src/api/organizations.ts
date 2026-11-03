@@ -30,11 +30,12 @@ export interface OrganizationResponse {
   description: string;
   namespace: string;
   createdAt: string; // ISO date-time
+  handle?: string; // org handle for console URLs; omitted when the backend can't tell
 }
 
 export type OrganizationListItem = Pick<
   OrganizationResponse,
-  'name' | 'displayName' | 'createdAt'
+  'name' | 'displayName' | 'createdAt' | 'handle'
 >;
 
 export interface OrganizationListResponse extends PaginationMeta {

@@ -91,6 +91,10 @@ func (c *openChoreoClient) GetProject(ctx context.Context, ouID, projectName str
 		return nil, fmt.Errorf("failed to get project: %w", err)
 	}
 
+	if resp.StatusCode() == http.StatusNotFound {
+		return nil, fmt.Errorf("project %s: %w", projectName, utils.ErrProjectNotFound)
+	}
+
 	if resp.StatusCode() != http.StatusOK {
 		return nil, handleErrorResponse(resp.StatusCode(), ErrorResponses{
 			JSON401: resp.JSON401,

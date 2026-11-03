@@ -36,9 +36,9 @@ func (r ApiDeleteAgentCardSourceRequest) Execute() (*http.Response, error) {
 }
 
 /*
-DeleteAgentCardSource Remove an external A2A agent's card source for an environment
+DeleteAgentCardSource Remove an external agent's card source for an environment
 
-Deletes the stored card and its source. Idempotent. External A2A agents only.
+Deletes the stored card and its source. Idempotent. External agents only.
 
 	@param ctx context.Context - for authentication, logging, cancellation, deadlines, tracing, etc. Passed from http.Request or context.Background().
 	@param orgName Organization name/handle
@@ -495,9 +495,9 @@ func (r ApiSetAgentCardSourceRequest) Execute() (*http.Response, error) {
 }
 
 /*
-SetAgentCardSource Register an external A2A agent's card URL for an environment
+SetAgentCardSource Register an external agent's card URL for an environment
 
-Sets the URL the platform fetches the card from and queues a fetch. External A2A agents only.
+Sets the URL the platform fetches the card from and queues a fetch. External agents only.
 
 	@param ctx context.Context - for authentication, logging, cancellation, deadlines, tracing, etc. Passed from http.Request or context.Background().
 	@param orgName Organization name/handle

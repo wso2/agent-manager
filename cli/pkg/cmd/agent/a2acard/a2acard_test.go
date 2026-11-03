@@ -37,7 +37,7 @@ var (
 	proxyPut  = "PUT " + envPath("dev", "a2a-proxy")
 )
 
-func TestCheckProxyableURL(t *testing.T) {
+func TestCheckCardURLProxied(t *testing.T) {
 	const m1 = "--url must be an http(s) URL"
 	const m2 = "--url must not have a query or fragment to use --proxy"
 	const m3 = "--url must end in /.well-known/agent-card.json to use --proxy"
@@ -57,7 +57,7 @@ func TestCheckProxyableURL(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			err := CheckProxyableURL("--url", tt.url)
+			err := CheckCardURL("--url", tt.url, true)
 			if tt.want == "" {
 				if err != nil {
 					t.Fatalf("unexpected error: %v", err)
@@ -116,7 +116,7 @@ func TestApplySource_alreadyProxiedSendsNoPut(t *testing.T) {
 	c := newClient(t, map[string]route{
 		sourceKey: {status: http.StatusAccepted},
 		proxyGet: {status: http.StatusOK, body: amsvc.A2AProxyResponse{
-			Status: "published", UpstreamAuthHeader: "Authorization",
+			Status: amsvc.A2AProxyResponseStatusDEPLOYED, UpstreamAuthHeader: "Authorization",
 		}},
 	})
 	got, err := ApplySource(context.Background(), c, target, cardURL, true)

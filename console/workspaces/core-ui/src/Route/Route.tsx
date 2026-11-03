@@ -82,6 +82,8 @@ import {
   type ExternalPageModule,
 } from "@agent-management-platform/views";
 import {
+  legacyOrgRedirectPath,
+  orgRouteId,
   useListOrganizations,
   useGetProject,
   useGetAgent,
@@ -148,8 +150,14 @@ function GuardedOutlet({
 
 function OrgGuard() {
   const { orgId } = useParams();
+  const { pathname, search, hash } = useLocation();
   const { data, isLoading, error } = useListOrganizations();
-  const orgExists = data?.organizations?.some((o) => o.name === orgId);
+  const orgExists = data?.organizations?.some((o) => orgRouteId(o) === orgId);
+  // Old links name the org by its namespace; move them onto the handle URL.
+  const legacyPath = legacyOrgRedirectPath(pathname, orgId, data?.organizations);
+  if (legacyPath) {
+    return <Navigate to={{ pathname: legacyPath, search, hash }} replace />;
+  }
   // A failed list query is a load failure (network/server/auth), not a missing
   // org — only treat the org as "not found" when the list loaded successfully
   // but does not contain it.

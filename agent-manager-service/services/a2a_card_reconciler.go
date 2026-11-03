@@ -24,7 +24,6 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
-	"strings"
 	"sync"
 	"time"
 
@@ -32,6 +31,7 @@ import (
 	"github.com/wso2/agent-manager/agent-manager-service/clients/openchoreosvc/client"
 	"github.com/wso2/agent-manager/agent-manager-service/models"
 	"github.com/wso2/agent-manager/agent-manager-service/repositories"
+	"github.com/wso2/agent-manager/agent-manager-service/utils"
 )
 
 const (
@@ -50,9 +50,6 @@ const (
 	// a2aCardUnstorableError replaces a card the store refuses to take as text.
 	a2aCardUnstorableError = "the agent card contains characters that cannot be stored"
 )
-
-// errA2ACardEndpointNotReady means the agent's environment has no public endpoint URL yet.
-var errA2ACardEndpointNotReady = newA2APublicError("agent has no public endpoint in this environment yet", nil)
 
 // errA2ACardRolloutInProgress means the agent's latest release is not serving in this environment yet.
 var errA2ACardRolloutInProgress = newA2APublicError("agent is still rolling out in this environment", nil)
@@ -151,7 +148,11 @@ func (s *a2aCardReconcilerService) fetchOne(ctx context.Context, row models.A2AA
 	defer cancel()
 	fetched, err := s.attemptFetch(attemptCtx, row)
 	if errors.Is(err, errA2ACardNotDeployed) {
-		s.dropUndeployedCard(ctx, row)
+		if s.agentReplaced(attemptCtx, row) {
+			s.dropReplacedCard(ctx, row)
+		} else {
+			s.dropUndeployedCard(ctx, row)
+		}
 		return
 	}
 	if err != nil {
@@ -161,6 +162,10 @@ func (s *a2aCardReconcilerService) fetchOne(ctx context.Context, row models.A2AA
 	hash, err := a2aCardHash(fetched.body)
 	if err != nil {
 		s.recordAttemptFailure(ctx, row, fetched.releaseName, err)
+		return
+	}
+	if s.agentReplaced(attemptCtx, row) {
+		s.dropReplacedCard(ctx, row)
 		return
 	}
 	err = s.cardRepo.MarkFetched(ctx, row, fetched.body, hash, fetched.url, fetched.releaseName)
@@ -178,6 +183,39 @@ func (s *a2aCardReconcilerService) fetchOne(ctx context.Context, row models.A2AA
 func isUnstorableTextError(err error) bool {
 	var pgErr *pgconn.PgError
 	return errors.As(err, &pgErr) && (pgErr.Code == "22P05" || pgErr.Code == "22021")
+}
+
+// agentReplaced reports a card whose agent was deleted, or replaced by a same-named one, since the card was queued:
+// the component's UUID no longer matches the one recorded on the card. A card with no recorded UUID, or a failed
+// lookup, is treated as not replaced. It costs one lookup, so fetchOne asks only once the fetch has decided to
+// store or drop the card.
+func (s *a2aCardReconcilerService) agentReplaced(ctx context.Context, row models.A2AAgentCard) bool {
+	if row.AgentUUID == nil {
+		return false
+	}
+	current, err := s.ocClient.GetComponent(ctx, row.OUID, row.ProjectName, row.AgentName)
+	switch {
+	case errors.Is(err, utils.ErrNotFound):
+		return true
+	case err != nil:
+		return false
+	}
+	return current.UUID != "" && current.UUID != row.AgentUUID.String()
+}
+
+// dropReplacedCard removes the card of a replaced agent; a row re-queued meanwhile is kept.
+func (s *a2aCardReconcilerService) dropReplacedCard(ctx context.Context, row models.A2AAgentCard) {
+	err := s.cardRepo.DeleteIfUnchanged(ctx, row)
+	switch {
+	case errors.Is(err, repositories.ErrA2AAgentCardSuperseded):
+		s.logSuperseded(row)
+	case err != nil:
+		s.logger.Warn("Failed to drop the card row of a replaced A2A agent",
+			"agentName", row.AgentName, "environment", row.EnvironmentName, "error", err)
+	default:
+		s.logger.Info("A2A agent was deleted or replaced; dropped its card row",
+			"agentName", row.AgentName, "environment", row.EnvironmentName)
+	}
 }
 
 // dropUndeployedCard removes the row as undeploy would; a row re-queued meanwhile is kept.
@@ -236,7 +274,7 @@ func (s *a2aCardReconcilerService) fetchCardThroughGateway(ctx context.Context, 
 	if err != nil {
 		return a2aCardFetch{}, err
 	}
-	url := a2aGatewayURL(gateway, row.AgentName) + a2aAgentCardPath
+	url := agentGatewayURL(gateway, row.AgentName) + a2aAgentCardPath
 	body, err := s.fetcher.Fetch(ctx, url)
 	if err != nil {
 		return a2aCardFetch{url: url}, prefixA2APublicError(url, err)
@@ -256,18 +294,9 @@ func (s *a2aCardReconcilerService) fetchPlatformCard(ctx context.Context, row mo
 	if !rollout.Serving {
 		return a2aCardFetch{}, errA2ACardRolloutInProgress
 	}
-	attempt := a2aCardFetch{releaseName: rollout.ReleaseName}
-	if rollout.ExternalURL == "" {
-		return attempt, errA2ACardEndpointNotReady
-	}
-	attempt.url = strings.TrimRight(rollout.ExternalURL, "/") + a2aAgentCardPath
-	body, err := s.fetcher.Fetch(ctx, attempt.url)
-	if err != nil {
-		// The derived URL is otherwise invisible to the user.
-		return attempt, prefixA2APublicError(attempt.url, err)
-	}
-	attempt.body = body
-	return attempt, nil
+	attempt, err := s.fetchCardThroughGateway(ctx, row)
+	attempt.releaseName = rollout.ReleaseName
+	return attempt, err
 }
 
 func (s *a2aCardReconcilerService) recordAttemptFailure(ctx context.Context, row models.A2AAgentCard, releaseName string, cause error) {
@@ -308,11 +337,7 @@ func (s *a2aCardReconcilerService) logSuperseded(row models.A2AAgentCard) {
 
 // a2aCardRetryIn is min(5s · 2^attempt, 60s).
 func a2aCardRetryIn(attempt int) time.Duration {
-	delay := a2aCardBaseBackoff
-	for i := 0; i < attempt && delay < a2aCardMaxBackoff; i++ {
-		delay *= 2
-	}
-	return min(delay, a2aCardMaxBackoff)
+	return utils.ExponentialBackoff(attempt, a2aCardBaseBackoff, a2aCardMaxBackoff)
 }
 
 // a2aCardHash is SHA-256 over the card re-encoded with sorted keys, so reformatting is not a change.

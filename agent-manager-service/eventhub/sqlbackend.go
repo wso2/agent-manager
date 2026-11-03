@@ -27,6 +27,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"gorm.io/gorm"
 )
 
 const (
@@ -53,21 +54,20 @@ func DefaultSQLBackendConfig() SQLBackendConfig {
 
 // SQLBackend implements EventHub using SQL polling over PostgreSQL.
 type SQLBackend struct {
+	gormDB *gorm.DB
 	db     *sql.DB
 	logger *slog.Logger
 	config SQLBackendConfig
+	clock  func() time.Time
 
 	registry *gatewayRegistry
 
 	stmtMu                   sync.RWMutex
-	insertEventStmt          *sql.Stmt
-	updateGatewayVersionStmt *sql.Stmt
 	upsertGatewayStmt        *sql.Stmt
 	getGatewayStateStmt      *sql.Stmt
 	getGatewayStatesPageStmt *sql.Stmt
 	getEventsStmt            *sql.Stmt // cold start: all events for a gateway
-	getEventsAfterCursorStmt *sql.Stmt // resume: (processed_timestamp, event_id) > (?, ?)
-	getEventByIDStmt         *sql.Stmt
+	getEventsAfterCursorStmt *sql.Stmt // resume: seq > ?
 	cleanupEventsStmt        *sql.Stmt
 
 	ctx    context.Context
@@ -77,17 +77,24 @@ type SQLBackend struct {
 
 var _ EventHub = (*SQLBackend)(nil)
 
-// NewSQLBackend creates a new SQL-backed EventHub for PostgreSQL.
-func NewSQLBackend(db *sql.DB, logger *slog.Logger, config SQLBackendConfig) *SQLBackend {
+// NewSQLBackend creates a new SQL-backed EventHub for PostgreSQL. Publishes run on db, so a caller's GORM
+// transaction can carry them.
+func NewSQLBackend(db *gorm.DB, logger *slog.Logger, config SQLBackendConfig) (*SQLBackend, error) {
+	sqlDB, err := db.DB()
+	if err != nil {
+		return nil, fmt.Errorf("failed to get the event hub's sql.DB: %w", err)
+	}
 	ctx, cancel := context.WithCancel(context.Background())
 	return &SQLBackend{
-		db:       db,
+		gormDB:   db,
+		db:       sqlDB,
 		logger:   logger,
 		config:   config,
+		clock:    time.Now,
 		registry: newGatewayRegistry(),
 		ctx:      ctx,
 		cancel:   cancel,
-	}
+	}, nil
 }
 
 // rebind replaces ? placeholders with $1, $2, ... for PostgreSQL.
@@ -107,14 +114,11 @@ func rebind(query string) string {
 
 func (b *SQLBackend) closeStatements() {
 	for _, stmt := range []*sql.Stmt{
-		b.insertEventStmt,
-		b.updateGatewayVersionStmt,
 		b.upsertGatewayStmt,
 		b.getGatewayStateStmt,
 		b.getGatewayStatesPageStmt,
 		b.getEventsStmt,
 		b.getEventsAfterCursorStmt,
-		b.getEventByIDStmt,
 		b.cleanupEventsStmt,
 	} {
 		if stmt != nil {
@@ -129,19 +133,6 @@ func (b *SQLBackend) prepareStatements() (err error) {
 			b.closeStatements()
 		}
 	}()
-
-	b.insertEventStmt, err = b.db.Prepare(rebind(`
-		INSERT INTO eventhub_events (gateway_id, processed_timestamp, originated_timestamp, entity_type, action, entity_id, event_id, event_data)
-		VALUES (?, ?, ?, ?, ?, ?, ?, ?)`))
-	if err != nil {
-		return fmt.Errorf("prepare insert event: %w", err)
-	}
-
-	b.updateGatewayVersionStmt, err = b.db.Prepare(rebind(`
-		UPDATE eventhub_gateway_states SET version_id = ?, updated_at = CURRENT_TIMESTAMP WHERE gateway_id = ?`))
-	if err != nil {
-		return fmt.Errorf("prepare update gateway version: %w", err)
-	}
 
 	// upsertGatewayStmt ensures the gateway row exists before inserting an event.
 	// ON CONFLICT DO NOTHING is safe: if the row already exists we leave version_id
@@ -170,27 +161,21 @@ func (b *SQLBackend) prepareStatements() (err error) {
 	}
 
 	b.getEventsStmt, err = b.db.Prepare(rebind(`
-		SELECT gateway_id, processed_timestamp, originated_timestamp, entity_type, action, entity_id, event_id, event_data
+		SELECT gateway_id, processed_timestamp, originated_timestamp, entity_type, action, entity_id, event_id, event_data, seq
 		FROM eventhub_events
 		WHERE gateway_id = ?
-		ORDER BY processed_timestamp ASC, event_id ASC`))
+		ORDER BY seq`))
 	if err != nil {
 		return fmt.Errorf("prepare get events: %w", err)
 	}
 
 	b.getEventsAfterCursorStmt, err = b.db.Prepare(rebind(`
-		SELECT gateway_id, processed_timestamp, originated_timestamp, entity_type, action, entity_id, event_id, event_data
+		SELECT gateway_id, processed_timestamp, originated_timestamp, entity_type, action, entity_id, event_id, event_data, seq
 		FROM eventhub_events
-		WHERE gateway_id = ? AND (processed_timestamp, event_id) > (?, ?)
-		ORDER BY processed_timestamp ASC, event_id ASC`))
+		WHERE gateway_id = ? AND seq > ?
+		ORDER BY seq`))
 	if err != nil {
 		return fmt.Errorf("prepare get events after cursor: %w", err)
-	}
-
-	b.getEventByIDStmt, err = b.db.Prepare(rebind(`
-		SELECT event_id FROM eventhub_events WHERE event_id = ?`))
-	if err != nil {
-		return fmt.Errorf("prepare get event by ID: %w", err)
 	}
 
 	b.cleanupEventsStmt, err = b.db.Prepare(rebind(`
@@ -258,86 +243,69 @@ func (b *SQLBackend) RegisterGateway(gatewayID string) error {
 	return nil
 }
 
-// PublishEvent publishes an event atomically (insert event + bump gateway version).
+// PublishEvent is PublishEventTx in a transaction of its own.
 func (b *SQLBackend) PublishEvent(ctx context.Context, gatewayID string, event Event) error {
-	ctx, cancel := context.WithCancel(ctx)
-	defer cancel()
-	stop := context.AfterFunc(b.ctx, cancel)
-	defer stop()
+	return b.gormDB.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		return b.PublishEventTx(ctx, tx, gatewayID, event)
+	})
+}
+
+// PublishEventTx writes the event in the caller's transaction, so it is delivered only if that transaction commits.
+// It isn't tied to the hub's lifetime: it runs in the caller's transaction, governed by the caller's ctx.
+//
+// The gateway-state row lock is held until the caller commits, and every other publish to the gateway waits on it:
+// publish last in the transaction, and lock several gateways in gateway_id order.
+func (b *SQLBackend) PublishEventTx(ctx context.Context, tx *gorm.DB, gatewayID string, event Event) error {
+	if err := event.Err(); err != nil {
+		return err
+	}
 	var err error
 	if gatewayID, err = normalizeGatewayID(gatewayID); err != nil {
 		return err
 	}
-	newVersion := uuid.New().String()
 	eventData := strings.TrimSpace(event.EventData)
 	if eventData == "" {
 		eventData = EmptyEventData
 	}
 	eventID := strings.TrimSpace(event.EventID)
 	if eventID == "" {
-		event.EventID = uuid.New().String()
-		eventID = event.EventID
+		eventID = uuid.New().String()
 	}
+	tx = tx.WithContext(ctx)
 
-	tx, err := b.db.BeginTx(ctx, nil)
-	if err != nil {
-		return fmt.Errorf("failed to begin transaction: %w", err)
-	}
-	defer func() {
-		if err != nil {
-			_ = tx.Rollback()
-		}
-	}()
-
-	// Ensure the gateway row exists. This handles gateways that existed before
-	// the EventHub was introduced and gateways that publish events before their
-	// first WebSocket connection (e.g. API key provisioning at agent creation).
-	if _, err = tx.StmtContext(ctx, b.upsertGatewayStmt).ExecContext(ctx, gatewayID); err != nil {
+	// Gateways that predate the event hub, or that get events before their first connection (API keys provisioned
+	// at agent creation), have no state row yet.
+	if err := tx.Exec(`INSERT INTO eventhub_gateway_states (gateway_id, version_id) VALUES (?, '')
+		ON CONFLICT (gateway_id) DO NOTHING`, gatewayID).Error; err != nil {
 		return fmt.Errorf("failed to ensure gateway registered: %w", err)
 	}
 
-	_, err = tx.StmtContext(ctx, b.insertEventStmt).ExecContext(
-		ctx,
-		gatewayID,
-		time.Now(),
-		event.OriginatedTimestamp,
-		string(event.EventType),
-		event.Action,
-		event.EntityID,
-		eventID,
-		eventData,
-	)
-	if err != nil {
-		insertErr := err
-		if rollbackErr := tx.Rollback(); rollbackErr != nil && !errors.Is(rollbackErr, sql.ErrTxDone) {
-			return fmt.Errorf("failed to rollback after insert failure: %w", rollbackErr)
-		}
-		err = nil
-
-		exists, checkErr := b.eventExists(ctx, eventID)
-		if checkErr != nil {
-			return fmt.Errorf("failed to check event existence after insert failure: %w", checkErr)
-		}
-		if exists {
-			b.logger.Info("Duplicate event, skipping publish",
-				slog.String("gateway_id", gatewayID),
-				slog.String("event_id", eventID))
-			return nil
-		}
-		return fmt.Errorf("failed to insert event: %w", insertErr)
+	// The sequence number is taken under the row lock that orders this gateway's commits, so the poller's seq
+	// cursor follows commit order whatever the clocks say.
+	var seq int64
+	bump := tx.Raw(`UPDATE eventhub_gateway_states SET seq = seq + 1, version_id = ?, updated_at = CURRENT_TIMESTAMP
+		WHERE gateway_id = ? RETURNING seq`, uuid.New().String(), gatewayID).Scan(&seq)
+	if bump.Error != nil {
+		return fmt.Errorf("failed to update gateway version: %w", bump.Error)
+	}
+	if bump.RowsAffected == 0 {
+		return fmt.Errorf("gateway %q is not registered", gatewayID)
 	}
 
-	result, err := tx.StmtContext(ctx, b.updateGatewayVersionStmt).ExecContext(ctx, newVersion, gatewayID)
-	if err != nil {
-		return fmt.Errorf("failed to update gateway version: %w", err)
+	insert := tx.Exec(`INSERT INTO eventhub_events
+		(gateway_id, processed_timestamp, originated_timestamp, entity_type, action, entity_id, event_id, event_data, seq)
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+		ON CONFLICT (event_id) DO NOTHING`,
+		gatewayID, b.clock(), event.OriginatedTimestamp, string(event.EventType), event.Action, event.EntityID,
+		eventID, eventData, seq)
+	if insert.Error != nil {
+		return fmt.Errorf("failed to insert event: %w", insert.Error)
 	}
-	if rows, _ := result.RowsAffected(); rows == 0 {
-		err = fmt.Errorf("gateway %q is not registered", gatewayID)
-		return err
-	}
-
-	if err = tx.Commit(); err != nil {
-		return fmt.Errorf("failed to commit event publish: %w", err)
+	if insert.RowsAffected == 0 {
+		b.logger.Info("Duplicate event, skipping publish",
+			slog.String("gateway_id", gatewayID),
+			slog.String("event_id", eventID))
+		return nil
 	}
 
 	b.logger.Info("Event published to EventHub",
@@ -345,20 +313,7 @@ func (b *SQLBackend) PublishEvent(ctx context.Context, gatewayID string, event E
 		slog.String("event_type", string(event.EventType)),
 		slog.String("action", event.Action),
 		slog.String("event_id", eventID))
-
 	return nil
-}
-
-func (b *SQLBackend) eventExists(ctx context.Context, eventID string) (bool, error) {
-	var id string
-	err := b.getEventByIDStmt.QueryRowContext(ctx, eventID).Scan(&id)
-	if err == nil {
-		return true, nil
-	}
-	if err == sql.ErrNoRows {
-		return false, nil
-	}
-	return false, err
 }
 
 // Subscribe subscribes to events for a gateway.
@@ -513,8 +468,7 @@ func subscriberChannelsAvailable(subscribers []chan Event) bool {
 func (b *SQLBackend) pollGatewayWithState(gw *gateway, state GatewayState) error {
 	b.registry.mu.RLock()
 	knownVersion := gw.knownVersion
-	lastPolledTime := gw.lastPolledTime
-	lastPolledEventID := gw.lastPolledEventID
+	lastSeq := gw.lastSeq
 	b.registry.mu.RUnlock()
 
 	if state.VersionID == knownVersion || state.VersionID == "" {
@@ -522,14 +476,15 @@ func (b *SQLBackend) pollGatewayWithState(gw *gateway, state GatewayState) error
 	}
 
 	// Choose query based on whether a delivery cursor exists.
-	// Cold start (lastPolledTime.IsZero()): fetch all events for the gateway.
-	// Resume: use composite (processed_timestamp, event_id) > (?, ?) so events
-	// sharing a timestamp do not replay — event_id is the stable tie-breaker.
+	// Cold start (lastSeq == 0): fetch all events for the gateway.
+	// Resume: seq > lastSeq. Sequence numbers are taken under the gateway-state
+	// row lock, so they follow commit order and a later commit never sorts before
+	// the cursor.
 	var rows *sql.Rows
 	var err error
-	resuming := !lastPolledTime.IsZero()
+	resuming := lastSeq > 0
 	if resuming {
-		rows, err = b.getEventsAfterCursorStmt.Query(gw.id, lastPolledTime, lastPolledEventID)
+		rows, err = b.getEventsAfterCursorStmt.Query(gw.id, lastSeq)
 	} else {
 		rows, err = b.getEventsStmt.Query(gw.id)
 	}
@@ -551,6 +506,7 @@ func (b *SQLBackend) pollGatewayWithState(gw *gateway, state GatewayState) error
 			&evt.EntityID,
 			&evt.EventID,
 			&evt.EventData,
+			&evt.Seq,
 		); err != nil {
 			return fmt.Errorf("failed to scan event row: %w", err)
 		}
@@ -579,7 +535,7 @@ func (b *SQLBackend) pollGatewayWithState(gw *gateway, state GatewayState) error
 	//
 	// Also track the last raw event before dedup so we can advance the cursor even
 	// when all events were skipped (e.g. only API key events). Without this,
-	// lastPolledTime stays zero and every future poll also takes the cold-start path,
+	// lastSeq stays zero and every future poll also takes the cold-start path,
 	// silencing all subsequent API key events.
 	var coldStartCursorEvent *Event
 	if !resuming && subscriberCountAtCheck == 0 {
@@ -634,21 +590,18 @@ func (b *SQLBackend) pollGatewayWithState(gw *gateway, state GatewayState) error
 	b.registry.mu.Lock()
 	if deliveryBlocked {
 		if lastDelivered != nil {
-			gw.lastPolledTime = lastDelivered.ProcessedTimestamp
-			gw.lastPolledEventID = lastDelivered.EventID
+			gw.lastSeq = lastDelivered.Seq
 		}
 		// else: nothing delivered this cycle; cursor unchanged.
 	} else {
 		gw.knownVersion = state.VersionID
 		if lastDelivered != nil {
-			gw.lastPolledTime = lastDelivered.ProcessedTimestamp
-			gw.lastPolledEventID = lastDelivered.EventID
+			gw.lastSeq = lastDelivered.Seq
 		} else if coldStartCursorEvent != nil {
 			// Cold start where all events were skipped by dedup (e.g. only API
 			// key events): advance the cursor past those events so future polls
 			// use the resuming path and deliver new API key events individually.
-			gw.lastPolledTime = coldStartCursorEvent.ProcessedTimestamp
-			gw.lastPolledEventID = coldStartCursorEvent.EventID
+			gw.lastSeq = coldStartCursorEvent.Seq
 		}
 	}
 	b.registry.mu.Unlock()
@@ -677,7 +630,7 @@ var apiKeySyncEventTypes = map[string]bool{
 // deduplicateLatestPerEntity filters a catch-up event list to current desired
 // state: skips API key events (covered by bulk-sync) and keeps only the most
 // recent event per entity_id for all other event types. Input must be ordered
-// by processed_timestamp ASC; the last entry per entity_id wins.
+// by seq; the last entry per entity_id wins.
 func deduplicateLatestPerEntity(events []Event) []Event {
 	latest := make(map[string]int, len(events))
 	for i, evt := range events {

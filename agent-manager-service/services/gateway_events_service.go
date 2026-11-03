@@ -18,20 +18,14 @@ package services
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"log/slog"
-	"time"
 
 	"github.com/google/uuid"
+	"gorm.io/gorm"
 
 	"github.com/wso2/agent-manager/agent-manager-service/eventhub"
 	"github.com/wso2/agent-manager/agent-manager-service/models"
-)
-
-const (
-	// MaxEventPayloadSize is the maximum allowed event payload size (1MB)
-	MaxEventPayloadSize = 1024 * 1024
 )
 
 // GatewayEventsService handles broadcasting events to connected gateways.
@@ -41,153 +35,43 @@ type GatewayEventsService struct {
 	hub eventhub.EventHub
 }
 
-// GatewayEventDTO represents a gateway event
-type GatewayEventDTO struct {
-	Type          string      `json:"type"`
-	Payload       interface{} `json:"payload"`
-	Timestamp     string      `json:"timestamp"`
-	CorrelationID string      `json:"correlationId"`
-	UserId        string      `json:"userId,omitempty"`
-}
-
 // NewGatewayEventsService creates a new gateway events service
 func NewGatewayEventsService(hub eventhub.EventHub) *GatewayEventsService {
 	return &GatewayEventsService{hub: hub}
 }
 
-// DeploymentEvent represents an API deployment event (TODO: move to models package)
-type DeploymentEvent struct {
-	APIID        string `json:"apiId"`
-	DeploymentID string `json:"deploymentId"`
-	GatewayID    string `json:"gatewayId"`
-}
-
-// APIUndeploymentEvent represents an API undeployment event (TODO: move to models package)
-type APIUndeploymentEvent struct {
-	APIID        string `json:"apiId"`
-	DeploymentID string `json:"deploymentId"`
-	GatewayID    string `json:"gatewayId"`
-}
-
 func (s *GatewayEventsService) broadcastEvent(gatewayID string, eventType string, action string, entityID string, payload interface{}) error {
-	return s.broadcastEventContext(context.Background(), gatewayID, eventType, action, entityID, payload)
+	return s.publish(gatewayID, eventType, action, entityID, payload, func(evt eventhub.Event) error {
+		return s.hub.PublishEvent(context.Background(), gatewayID, evt)
+	})
 }
 
-func (s *GatewayEventsService) broadcastEventContext(ctx context.Context, gatewayID string, eventType string, action string, entityID string, payload interface{}) error {
-	correlationID := uuid.New().String()
-
-	payloadJSON, err := json.Marshal(payload)
-	if err != nil {
-		slog.Error("Failed to serialize event", "gatewayID", gatewayID, "type", eventType, "error", err)
-		return fmt.Errorf("failed to serialize %s event: %w", eventType, err)
+// publish builds the event the one way gateway events are built (eventhub.NewGatewayEvent) and writes it.
+func (s *GatewayEventsService) publish(gatewayID string, eventType string, action string, entityID string, payload interface{}, write func(eventhub.Event) error) error {
+	evt := eventhub.NewGatewayEvent(eventType, action, entityID, payload)
+	evt.GatewayID = gatewayID
+	if err := evt.Err(); err != nil {
+		return err
 	}
-
-	if len(payloadJSON) > MaxEventPayloadSize {
-		return fmt.Errorf("event payload exceeds maximum size: %d bytes (limit: %d)", len(payloadJSON), MaxEventPayloadSize)
-	}
-
-	eventDTO := GatewayEventDTO{
-		Type:          eventType,
-		Payload:       payload,
-		Timestamp:     time.Now().Format(time.RFC3339),
-		CorrelationID: correlationID,
-	}
-
-	eventJSON, err := json.Marshal(eventDTO)
-	if err != nil {
-		return fmt.Errorf("failed to marshal event: %w", err)
-	}
-
-	evt := eventhub.Event{
-		GatewayID:           gatewayID,
-		OriginatedTimestamp: time.Now(),
-		EventType:           eventhub.EventType(eventType),
-		Action:              action,
-		EntityID:            entityID,
-		EventData:           string(eventJSON),
-	}
-
-	if err := s.hub.PublishEvent(ctx, gatewayID, evt); err != nil {
-		slog.Error("Failed to publish event to EventHub",
-			"gatewayID", gatewayID, "type", eventType, "correlationID", correlationID, "error", err)
+	if err := write(evt); err != nil {
+		slog.Error("Failed to publish event to EventHub", "gatewayID", gatewayID, "type", eventType, "error", err)
 		return fmt.Errorf("failed to publish %s event: %w", eventType, err)
 	}
-
-	slog.Debug("Event published to EventHub",
-		"gatewayID", gatewayID, "type", eventType, "correlationID", correlationID)
+	slog.Debug("Event published to EventHub", "gatewayID", gatewayID, "type", eventType)
 	return nil
-}
-
-// Public methods become thin one-liners:
-func (s *GatewayEventsService) BroadcastDeploymentEvent(gatewayID string, event *DeploymentEvent) error {
-	return s.broadcastEvent(gatewayID, "api.deployed", "CREATE", event.APIID, event)
-}
-
-func (s *GatewayEventsService) BroadcastUndeploymentEvent(gatewayID string, event *APIUndeploymentEvent) error {
-	return s.broadcastEvent(gatewayID, "api.undeployed", "DELETE", event.APIID, event)
-}
-
-func (s *GatewayEventsService) BroadcastLLMProviderDeploymentEvent(gatewayID string, event *models.LLMProviderDeploymentEvent) error {
-	return s.broadcastEvent(gatewayID, "llmprovider.deployed", "CREATE", event.ProviderID, event)
-}
-
-func (s *GatewayEventsService) BroadcastLLMProviderUndeploymentEvent(gatewayID string, event *models.LLMProviderUndeploymentEvent) error {
-	return s.broadcastEvent(gatewayID, "llmprovider.undeployed", "DELETE", event.ProviderID, event)
-}
-
-func (s *GatewayEventsService) BroadcastLLMProxyDeploymentEvent(gatewayID string, event *models.LLMProxyDeploymentEvent) error {
-	return s.broadcastEvent(gatewayID, "llmproxy.deployed", "CREATE", event.ProxyID, event)
-}
-
-func (s *GatewayEventsService) BroadcastMCPProxyDeploymentEvent(gatewayID string, event *models.MCPProxyDeploymentEvent) error {
-	return s.broadcastEvent(gatewayID, "mcpproxy.deployed", "CREATE", event.ProxyID, event)
-}
-
-func (s *GatewayEventsService) BroadcastMCPProxyDeletionEvent(gatewayID string, event *models.MCPProxyDeletionEvent) error {
-	return s.broadcastEvent(gatewayID, "mcpproxy.deleted", "DELETE", event.ProxyID, event)
-}
-
-// BroadcastLLMProviderDeletionEvent tells a gateway to drop a deleted provider's
-// config outright. The paired "llmprovider.undeployed" event is only a soft state
-// flip on the gateway and leaves the config in place, so this must be sent as well
-// whenever the provider itself is deleted.
-func (s *GatewayEventsService) BroadcastLLMProviderDeletionEvent(ctx context.Context, gatewayID string, event *models.LLMProviderDeletionEvent) error {
-	return s.broadcastEventContext(ctx, gatewayID, "llmprovider.deleted", "DELETE", event.ProviderID, event)
-}
-
-// BroadcastLLMProxyDeletionEvent tells a gateway to drop a deleted proxy's config
-// outright. See BroadcastLLMProviderDeletionEvent for why the undeploy event alone
-// is not enough.
-func (s *GatewayEventsService) BroadcastLLMProxyDeletionEvent(ctx context.Context, gatewayID string, event *models.LLMProxyDeletionEvent) error {
-	return s.broadcastEventContext(ctx, gatewayID, "llmproxy.deleted", "DELETE", event.ProxyID, event)
-}
-
-// BroadcastAgentDeploymentEvent tells a gateway that an A2A Agent has been
-// deployed. The gateway responds by fetching /agents/{agentId} back from this
-// service, so agentId must be the artifact UUID that route is keyed on.
-func (s *GatewayEventsService) BroadcastAgentDeploymentEvent(gatewayID string, event *models.AgentDeploymentEvent) error {
-	return s.broadcastEvent(gatewayID, "agent.deployed", "CREATE", event.AgentID, event)
-}
-
-// BroadcastAgentUndeploymentEvent tells a gateway to stop serving an A2A Agent but keep it, and
-// its API keys, for a redeploy. An empty deployment ID passes the gateway's deployment-ID guard.
-func (s *GatewayEventsService) BroadcastAgentUndeploymentEvent(ctx context.Context, gatewayID string, event *models.AgentUndeploymentEvent) error {
-	return s.broadcastEventContext(ctx, gatewayID, "agent.undeployed", "DELETE", event.AgentID, event)
-}
-
-// BroadcastAgentDeletionEvent tells a gateway to drop an A2A Agent together with its API keys.
-func (s *GatewayEventsService) BroadcastAgentDeletionEvent(ctx context.Context, gatewayID string, event *models.AgentDeletionEvent) error {
-	return s.broadcastEventContext(ctx, gatewayID, "agent.deleted", "DELETE", event.AgentID, event)
-}
-
-func (s *GatewayEventsService) BroadcastLLMProxyUndeploymentEvent(gatewayID string, event *models.LLMProxyUndeploymentEvent) error {
-	return s.broadcastEvent(gatewayID, "llmproxy.undeployed", "DELETE", event.ProxyID, event)
 }
 
 // API key events use a unique ID per event — they are not deduplicated on replay
 // because the gateway bulk-syncs API keys on reconnect via the catalog endpoint.
 func (s *GatewayEventsService) BroadcastAPIKeyCreatedEvent(gatewayID string, event *models.APIKeyCreatedEvent) error {
 	return s.broadcastEvent(gatewayID, "apikey.created", "PROVISION", event.UUID, event)
+}
+
+// PublishAPIKeyCreatedTx writes the event in the caller's transaction, so it is delivered only if that commits.
+func (s *GatewayEventsService) PublishAPIKeyCreatedTx(ctx context.Context, tx *gorm.DB, gatewayID string, e *models.APIKeyCreatedEvent) error {
+	return s.publish(gatewayID, "apikey.created", "PROVISION", e.UUID, e, func(evt eventhub.Event) error {
+		return s.hub.PublishEventTx(ctx, tx, gatewayID, evt)
+	})
 }
 
 func (s *GatewayEventsService) BroadcastAPIKeyRevokedEvent(gatewayID string, event *models.APIKeyRevokedEvent) error {

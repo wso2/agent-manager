@@ -49,7 +49,7 @@ type CatalogLLMProviderEntry struct {
 	ModelProviders []LLMModelProvider   `json:"modelProviders,omitempty"`
 	Security       *SecuritySummary     `json:"security,omitempty"`
 	RateLimiting   *RateLimitingSummary `json:"rateLimiting,omitempty"`
-	// List of deployments for this provider
+	// The provider's live deployments, one per gateway currently serving it. Gateways it is only owed a deploy to are not listed.
 	Deployments []DeploymentSummary `json:"deployments,omitempty"`
 	// Timestamp when the provider was created
 	CreatedAt time.Time `json:"createdAt"`

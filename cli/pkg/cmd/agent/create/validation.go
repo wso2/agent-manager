@@ -106,14 +106,15 @@ func prepare(opts *CreateOptions) (amsvc.CreateAgentRequest, error) {
 // validateCardFlags reports --card-url/--proxy misuse in flag mode.
 func validateCardFlags(opts *CreateOptions) []string {
 	var v []string
-	if opts.CardURL != "" && (opts.Provisioning != provisioningExternal || opts.SubType != subTypeA2A) {
-		v = append(v, "--card-url requires --provisioning external and --subtype a2a-agent")
+	if opts.CardURL != "" && opts.Provisioning != provisioningExternal {
+		v = append(v, "--card-url requires --provisioning external")
 	}
 	if opts.CardProxy && opts.CardURL == "" {
 		v = append(v, "--proxy requires --card-url")
 	}
-	if opts.CardProxy && opts.CardURL != "" {
-		if err := a2acard.CheckProxyableURL("--card-url", opts.CardURL); err != nil {
+	// The agent is created before its card URL is saved, so a URL the server would refuse is caught here.
+	if opts.CardURL != "" {
+		if err := a2acard.CheckCardURL("--card-url", opts.CardURL, opts.CardProxy); err != nil {
 			v = append(v, err.Error())
 		}
 	}
@@ -336,6 +337,7 @@ func externalRequestViolations(req amsvc.CreateAgentRequest) []string {
 			v = append(v, path+" is not allowed for external provisioning")
 		}
 	}
+	disallow("spec.agentType.subType", req.AgentType != nil && req.AgentType.SubType != nil && *req.AgentType.SubType != "")
 	disallow("spec.provisioning.repository", req.Provisioning.Repository != nil)
 	disallow("spec.provisioning.agentKind", req.Provisioning.AgentKind != nil)
 	disallow("spec.build", req.Build != nil)

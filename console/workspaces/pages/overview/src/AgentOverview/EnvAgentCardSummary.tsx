@@ -18,10 +18,11 @@
 
 import { Box, Chip, CircularProgress, IconButton, Stack, Typography } from "@wso2/oxygen-ui";
 import { ExternalLink, Plus } from "@wso2/oxygen-ui-icons-react";
+import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { useGetAgent, useGetAgentCard } from "@agent-management-platform/api-client";
 import { OverviewSectionCard, validateEndpointUrl } from "@agent-management-platform/shared-component";
-import { buildConfigureTabHref, TextInput } from "@agent-management-platform/views";
+import { buildConfigureTabHref, servesA2A, TextInput } from "@agent-management-platform/views";
 
 interface EnvAgentCardSummaryProps {
   orgId: string;
@@ -115,28 +116,68 @@ function CardSummary({ card }: { card: Json }) {
   );
 }
 
+function readShownBefore(key: string) {
+  try {
+    return localStorage.getItem(key) !== null;
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * Whether this browser has already shown the prompt under `key`. Read once per key, so the
+ * prompt stays up for the visit that shows it; storage failures read as never shown.
+ */
+function useShownBefore(key: string, showingNow: boolean) {
+  const [read, setRead] = useState(() => ({ key, shownBefore: readShownBefore(key) }));
+  if (read.key !== key) {
+    // React re-renders with the new key's read before committing this one.
+    setRead({ key, shownBefore: readShownBefore(key) });
+  }
+  const { shownBefore } = read;
+  useEffect(() => {
+    if (!showingNow || shownBefore) {
+      return;
+    }
+    try {
+      localStorage.setItem(key, "1");
+    } catch {
+      // The prompt just shows again next time.
+    }
+  }, [key, showingNow, shownBefore]);
+  return shownBefore;
+}
+
 /** Provider, interfaces and skill names from an A2A card; details live on Configure → A2A. */
 export function EnvAgentCardSummary({
   orgId, projectId, agentId, envId, external,
 }: EnvAgentCardSummaryProps) {
   const { data: agent } = useGetAgent({ orgName: orgId, projName: projectId, agentName: agentId });
-  const isA2A = agent?.agentType?.subType === "a2a-agent";
+  const isA2A = servesA2A(agent);
   const { data, isLoading, isError } = useGetAgentCard(
     { orgName: orgId, projName: projectId, agentName: agentId, envId },
     { enabled: isA2A },
   );
 
-  if (!isA2A) {
+  const noSource = data === null;
+  // An external agent may never speak A2A, so the register prompt shows on the first visit only.
+  const promptsForCardURL = isA2A && noSource && !!external;
+  const promptShownBefore = useShownBefore(
+    // Per agent, not per environment: every environment card shows it on the first visit.
+    `amp.console.agent-card-prompt-shown.${orgId}/${projectId}/${agentId}`,
+    promptsForCardURL,
+  );
+
+  if (!isA2A || (promptsForCardURL && promptShownBefore)) {
     return null;
   }
   const configureHref = buildConfigureTabHref(orgId, projectId, agentId, "a2a", envId);
-  const noSource = data === null;
   const card = isObject(data?.card) ? data.card : undefined;
 
   let body;
   if (isLoading) {
     body = <CircularProgress size={16} />;
-  } else if (noSource && external) {
+  } else if (promptsForCardURL) {
     body = (
       <Chip
         component={Link}

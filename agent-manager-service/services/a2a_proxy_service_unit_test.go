@@ -21,6 +21,7 @@ import (
 	"context"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
@@ -104,7 +105,7 @@ func newProxyHarness(t *testing.T) *proxyHarness {
 	}
 	h.oc = &clientmocks.OpenChoreoClientMock{
 		GetComponentFunc: func(context.Context, string, string, string) (*models.AgentResponse, error) {
-			return externalA2AAgent(), nil
+			return externalAgent(), nil
 		},
 		GetEnvironmentFunc: func(_ context.Context, _, name string) (*models.EnvironmentResponse, error) {
 			return &models.EnvironmentResponse{UUID: proxyTestEnvUUID, Name: name}, nil
@@ -139,9 +140,9 @@ func (h *proxyHarness) assertNothingWritten(t *testing.T) {
 	assert.Empty(t, h.txCards.EnqueueCalls())
 	assert.Empty(t, h.txCards.ClearCardCalls())
 	assert.Empty(t, h.txCards.DeleteForAgentEnvCalls())
-	assert.Empty(t, h.txPubs.EnqueueCalls())
-	assert.Empty(t, h.txPubs.DeleteForAgentEnvCalls())
-	assert.Empty(t, h.txDeployments.DeleteForArtifactCalls())
+	assert.Empty(t, h.txExposures.UpsertCalls())
+	assert.Empty(t, h.txExposures.DeleteForAgentEnvCalls())
+	assert.Empty(t, h.deployments.BeginUndeployCalls())
 }
 
 // acceptsWrites lets every write a transition may make succeed, inside the transaction only.
@@ -153,11 +154,29 @@ func (h *proxyHarness) acceptsWrites() {
 	h.txCards.RequeueFunc = func(context.Context, string, string, string, string) error { return nil }
 	h.txCards.DeleteForAgentEnvFunc = func(context.Context, string, string, string, string) error { return nil }
 	h.txConfigs.CreateIfAbsentFunc = func(context.Context, *models.AgentConfig) error { return nil }
-	h.txPubs.EnqueueFunc = func(context.Context, *models.A2APublication) error { return nil }
-	h.txPubs.DeleteForAgentEnvFunc = func(context.Context, string, string, string, uuid.UUID) error { return nil }
-	h.txDeployments.DeleteForArtifactFunc = func(context.Context, uuid.UUID, string) error { return nil }
+	// txExposures.UpsertFunc is nil: an external agent's record is its proxy row, never an exposure.
+	h.txExposures.DeleteForAgentEnvFunc = func(context.Context, string, string, string, uuid.UUID) error { return nil }
 	h.artifacts.CreateFunc = func(*gorm.DB, *models.Artifact) error { return nil }
+	h.artifacts.DeleteFunc = func(*gorm.DB, string) error { return nil }
+	h.txDeployments.PlacedGatewaysFunc = func(context.Context, string, uuid.UUID) ([]string, error) {
+		return []string{proxyTestGateway.String()}, nil
+	}
+	h.txDeployments.DeleteEventGatewaysFunc = func(context.Context, string, uuid.UUID) ([]string, error) {
+		return []string{proxyTestGateway.String()}, nil
+	}
+	h.txDeployments.GetStatusRecordFunc = func(context.Context, models.Placement) (*models.DeploymentStatusRecord, error) {
+		return &models.DeploymentStatusRecord{PerformedAt: models.NewPerformedAt(time.Now())}, nil
+	}
+	h.deployments.BeginUndeployFunc = func(context.Context, *gorm.DB, models.Placement) (bool, error) { return true, nil }
+	h.deployments.QueueRenderFunc = func(context.Context, *gorm.DB, string, uuid.UUID, []uuid.UUID, string,
+		repositories.QueueScope,
+	) (int64, error) {
+		return 0, nil
+	}
 }
+
+// proxyTestGateway is the gateway the proxied environment's agent is placed on.
+var proxyTestGateway = uuid.New()
 
 func decryptForTest(t *testing.T, secretRef string) string {
 	t.Helper()
@@ -199,10 +218,7 @@ func TestSetA2AProxySwitchesADirectEnvironmentToProxied(t *testing.T) {
 	require.Len(t, h.txCards.ClearCardCalls(), 1, "the card is parked")
 	assert.Empty(t, h.txCards.RequeueCalls(), "and not made due before the gateway has the Agent")
 
-	queued := h.txPubs.EnqueueCalls()
-	require.Len(t, queued, 1)
-	assert.Equal(t, models.A2APublicationSourceExternal, queued[0].Pub.Source)
-	assert.Equal(t, h.artifactUUID, queued[0].Pub.ArtifactUUID)
+	assert.Empty(t, h.txExposures.UpsertCalls(), "an external agent's record is its proxy row")
 }
 
 func TestSetA2AProxyNeedsARegisteredCardURL(t *testing.T) {
@@ -282,7 +298,7 @@ func TestSetA2AProxyUpdatesAProxiedEnvironmentInPlace(t *testing.T) {
 	require.Len(t, upserted, 1)
 	assert.Equal(t, "X-New", upserted[0].Proxy.UpstreamAuthHeader)
 	assert.Equal(t, "b2xk", upserted[0].Proxy.UpstreamAuthSecret, "a header alone keeps the stored secret")
-	assert.Len(t, h.txPubs.EnqueueCalls(), 1)
+	assert.Empty(t, h.txExposures.UpsertCalls())
 }
 
 func TestSetA2AProxySecretSemantics(t *testing.T) {
@@ -425,7 +441,7 @@ func TestA2AProxyTransitionsLockBeforeReadingTheProxy(t *testing.T) {
 		},
 		"card source stored": func(h *proxyHarness) error {
 			h.proxied("", "")
-			return h.svc.StoreCardSource(context.Background(), externalA2AAgent(), "org-1", "checkout", devEnv(),
+			return h.svc.StoreCardSource(context.Background(), externalAgent(), "org-1", "checkout", devEnv(),
 				"https://agent.example/v2/.well-known/agent-card.json")
 		},
 	}
@@ -449,7 +465,7 @@ func TestStoreCardSourceQueuesADirectEnvironmentsURL(t *testing.T) {
 	h.acceptsWrites()
 	const url = "https://agent.example/card.json" // fine to fetch directly, though the gateway could not front it
 
-	require.NoError(t, h.svc.StoreCardSource(context.Background(), externalA2AAgent(), "org-1", "checkout", devEnv(), url))
+	require.NoError(t, h.svc.StoreCardSource(context.Background(), externalAgent(), "org-1", "checkout", devEnv(), url))
 
 	written := h.txCards.EnqueueCalls()
 	require.Len(t, written, 1)
@@ -458,57 +474,111 @@ func TestStoreCardSourceQueuesADirectEnvironmentsURL(t *testing.T) {
 	assert.Equal(t, "dev", written[0].Card.EnvironmentName)
 	assert.Equal(t, uuid.MustParse(proxyTestEnvUUID), written[0].Card.EnvironmentUUID)
 	assert.Empty(t, h.txCards.ClearCardCalls(), "the card is fetched from the origin, not parked")
-	assert.Empty(t, h.txPubs.EnqueueCalls())
+	assert.Empty(t, h.txExposures.UpsertCalls())
 }
 
-// The row is read by the environment's UUID after resolving the agent and environment, as every other
-// operation does, so a partly failed cleanup cannot show a re-created name a stale status.
-func TestGetA2AProxyReportsThePublicationState(t *testing.T) {
-	h := newProxyHarness(t)
-	h.proxied("X-Key", "c2VjcmV0")
-	h.pubs.GetFunc = func(_ context.Context, _, _, _ string, envUUID uuid.UUID) (*models.A2APublication, error) {
-		assert.Equal(t, uuid.MustParse(proxyTestEnvUUID), envUUID)
-		return &models.A2APublication{Status: models.A2APublicationStatusFailed, LastError: "HTTP 503"}, nil
-	}
-	h.gateways.ListWithFiltersFunc = func(f repositories.GatewayFilterOptions) ([]*models.Gateway, error) {
-		require.NotNil(t, f.EnvironmentID)
-		assert.Equal(t, proxyTestEnvUUID, *f.EnvironmentID)
-		return []*models.Gateway{{Vhost: "agents.example.com", GatewayFunctionalityType: models.GatewayRoleIngress}}, nil
-	}
+// A proxied environment reports what the user is shown for its artifact's row on the ingress gateway.
+func TestGetA2AProxyReportsItsDeploymentStatus(t *testing.T) {
+	due := time.Now()
+	for name, tc := range map[string]struct {
+		row  models.DeploymentStatusRecord
+		want models.UserStatus
+	}{
+		"waiting for its first render": {
+			models.DeploymentStatusRecord{
+				Status: models.DeploymentStatusPending, StatusDesired: models.DeploymentStatusDeployed,
+				NextAttemptAt: &due, RenderReason: "the origin's card can't be fetched",
+			},
+			models.UserStatus{Status: models.DeploymentStatusDeploying, Reason: "the origin's card can't be fetched"},
+		},
+		"deploying": {
+			models.DeploymentStatusRecord{Status: models.DeploymentStatusDeploying, StatusDesired: models.DeploymentStatusDeployed},
+			models.UserStatus{Status: models.DeploymentStatusDeploying},
+		},
+		"deployed": {
+			models.DeploymentStatusRecord{Status: models.DeploymentStatusDeployed, StatusDesired: models.DeploymentStatusDeployed},
+			models.UserStatus{Status: models.DeploymentStatusDeployed},
+		},
+		"failed": {
+			models.DeploymentStatusRecord{
+				Status: models.DeploymentStatusFailed, StatusDesired: models.DeploymentStatusDeployed,
+				StatusReason: "DEPLOYMENT_TIMEOUT",
+			},
+			models.UserStatus{Status: models.DeploymentStatusFailed, Reason: "DEPLOYMENT_TIMEOUT"},
+		},
+		"undeploying": {
+			models.DeploymentStatusRecord{Status: models.DeploymentStatusUndeploying, StatusDesired: models.DeploymentStatusUndeployed},
+			models.UserStatus{Status: models.DeploymentStatusUndeploying},
+		},
+	} {
+		t.Run(name, func(t *testing.T) {
+			h := newProxyHarness(t)
+			h.proxied("X-Key", "c2VjcmV0")
+			h.gateways.ListWithFiltersFunc = func(f repositories.GatewayFilterOptions) ([]*models.Gateway, error) {
+				require.NotNil(t, f.EnvironmentID)
+				assert.Equal(t, proxyTestEnvUUID, *f.EnvironmentID)
+				return []*models.Gateway{{Vhost: "agents.example.com", GatewayFunctionalityType: models.GatewayRoleIngress}}, nil
+			}
+			h.deployments.StatusRecordsFunc = func(_ context.Context, ouID string, artifactUUID uuid.UUID) ([]models.DeploymentStatusRecord, error) {
+				assert.Equal(t, "org-1", ouID)
+				assert.Equal(t, h.artifactUUID, artifactUUID)
+				row := tc.row
+				row.GatewayUUID = proxyTestGateway
+				return []models.DeploymentStatusRecord{row}, nil
+			}
 
-	got, err := h.svc.GetA2AProxy(tierOnlyCtx(), "org-1", "checkout", "weather", "dev")
+			got, err := h.svc.GetA2AProxy(tierOnlyCtx(), "org-1", "checkout", "weather", "dev")
 
-	require.NoError(t, err)
-	assert.Equal(t, &models.A2AProxyStatus{
-		Status: models.A2APublicationStatusFailed, LastError: "HTTP 503", UpstreamAuthHeader: "X-Key",
-		GatewayURL: "https://agents.example.com/weather",
-	}, got)
-	require.Len(t, h.proxies.GetByEnvUUIDCalls(), 1)
-	assert.Equal(t, uuid.MustParse(proxyTestEnvUUID), h.proxies.GetByEnvUUIDCalls()[0].EnvironmentUUID)
-	assert.Empty(t, h.proxies.GetCalls(), "the name-keyed lookup is not used")
+			require.NoError(t, err)
+			assert.Equal(t, &models.A2AProxyStatus{
+				Status: tc.want.Status, StatusReason: tc.want.Reason, UpstreamAuthHeader: "X-Key",
+				GatewayURL: "https://agents.example.com/weather",
+			}, got)
+			require.Len(t, h.proxies.GetByEnvUUIDCalls(), 1)
+			assert.Equal(t, uuid.MustParse(proxyTestEnvUUID), h.proxies.GetByEnvUUIDCalls()[0].EnvironmentUUID)
+			assert.Empty(t, h.proxies.GetCalls(), "the name-keyed lookup is not used")
+		})
+	}
 }
 
-// The bootstrap job maps the ingress gateway after the environment exists, so until then there is no URL to show.
-func TestGetA2AProxyWithoutAnIngressGatewayHasNoURL(t *testing.T) {
+// The bootstrap job maps the ingress gateway after the environment exists. Until then nothing is placed and there
+// is no URL to show: the environment reports that it has no gateway.
+func TestGetA2AProxyWithoutAnIngressGatewayReportsNoGateway(t *testing.T) {
 	h := newProxyHarness(t)
 	h.proxied("", "")
-	h.pubs.GetFunc = func(context.Context, string, string, string, uuid.UUID) (*models.A2APublication, error) {
-		return &models.A2APublication{Status: models.A2APublicationStatusPending}, nil
+	h.deployments.StatusRecordsFunc = func(context.Context, string, uuid.UUID) ([]models.DeploymentStatusRecord, error) {
+		return nil, nil
 	}
 
 	got, err := h.svc.GetA2AProxy(tierOnlyCtx(), "org-1", "checkout", "weather", "dev")
 
 	require.NoError(t, err)
 	assert.Empty(t, got.GatewayURL)
-	assert.Equal(t, models.A2APublicationStatusPending, got.Status)
+	assert.Equal(t, models.DeploymentStatusUndeployed, got.Status)
+	assert.Equal(t, "no gateway in this environment", got.StatusReason)
+}
+
+// With a gateway mapped but no row yet, the placement pass still owes the environment its deploy.
+func TestGetA2AProxyNotYetPlacedIsDeploying(t *testing.T) {
+	h := newProxyHarness(t)
+	h.proxied("", "")
+	h.gateways.ListWithFiltersFunc = func(repositories.GatewayFilterOptions) ([]*models.Gateway, error) {
+		return []*models.Gateway{{Vhost: "agents.example.com", GatewayFunctionalityType: models.GatewayRoleIngress}}, nil
+	}
+	h.deployments.StatusRecordsFunc = func(context.Context, string, uuid.UUID) ([]models.DeploymentStatusRecord, error) {
+		return nil, nil
+	}
+
+	got, err := h.svc.GetA2AProxy(tierOnlyCtx(), "org-1", "checkout", "weather", "dev")
+
+	require.NoError(t, err)
+	assert.Equal(t, models.DeploymentStatusDeploying, got.Status)
+	assert.NotEmpty(t, got.StatusReason)
 }
 
 func TestGetA2AProxyReportsAGatewayLookupFailure(t *testing.T) {
 	h := newProxyHarness(t)
 	h.proxied("", "")
-	h.pubs.GetFunc = func(context.Context, string, string, string, uuid.UUID) (*models.A2APublication, error) {
-		return &models.A2APublication{Status: models.A2APublicationStatusPending}, nil
-	}
 	h.gateways.ListWithFiltersFunc = func(repositories.GatewayFilterOptions) ([]*models.Gateway, error) {
 		return nil, assert.AnError
 	}
@@ -516,21 +586,6 @@ func TestGetA2AProxyReportsAGatewayLookupFailure(t *testing.T) {
 	_, err := h.svc.GetA2AProxy(tierOnlyCtx(), "org-1", "checkout", "weather", "dev")
 
 	assert.ErrorIs(t, err, assert.AnError)
-}
-
-// Both rows are written together, so a missing publication would otherwise read as pending forever.
-func TestGetA2AProxyWithoutAPublicationReportsFailed(t *testing.T) {
-	h := newProxyHarness(t)
-	h.proxied("", "")
-	h.pubs.GetFunc = func(context.Context, string, string, string, uuid.UUID) (*models.A2APublication, error) {
-		return nil, repositories.ErrA2APublicationNotFound
-	}
-
-	got, err := h.svc.GetA2AProxy(tierOnlyCtx(), "org-1", "checkout", "weather", "dev")
-
-	require.NoError(t, err)
-	assert.Equal(t, models.A2APublicationStatusFailed, got.Status)
-	assert.NotEmpty(t, got.LastError)
 }
 
 // The artifact, and the API keys bound to it, survive a switch to direct: the gateway is told to
@@ -543,49 +598,46 @@ func TestDeleteA2AProxySwitchesOnlyThatEnvironmentToDirect(t *testing.T) {
 
 	require.NoError(t, h.svc.DeleteA2AProxy(tierGrantedCtx(t), "org-1", "checkout", "weather", "dev"))
 
-	deployments := h.txDeployments.DeleteForArtifactCalls()
-	require.Len(t, deployments, 1)
-	assert.Equal(t, h.artifactUUID, deployments[0].ArtifactUUID)
-	publications := h.txPubs.DeleteForAgentEnvCalls()
-	require.Len(t, publications, 1)
-	assert.Equal(t, uuid.MustParse(proxyTestEnvUUID), publications[0].EnvironmentUUID)
+	undeploys := h.deployments.BeginUndeployCalls()
+	require.Len(t, undeploys, 1, "the agent is undeployed from its gateway, before the proxy row goes")
+	assert.Equal(t, h.artifactUUID, undeploys[0].Placement.ArtifactUUID)
+	assert.Equal(t, proxyTestGateway, undeploys[0].Placement.GatewayUUID)
+	assert.Same(t, txSentinel, undeploys[0].Tx)
+	exposures := h.txExposures.DeleteForAgentEnvCalls()
+	require.Len(t, exposures, 1)
+	assert.Equal(t, uuid.MustParse(proxyTestEnvUUID), exposures[0].EnvironmentUUID)
 	require.Len(t, h.txProxies.DeleteCalls(), 1)
 	require.Len(t, h.txCards.ClearCardCalls(), 1, "the gateway's card goes")
 	require.Len(t, h.txCards.RequeueCalls(), 1, "and the origin's is fetched directly")
-	require.Len(t, h.hub.published, 1, "the gateway is told once the transaction committed")
+	require.Len(t, h.hub.published, 1, "the undeploy event is written in the transaction")
+	assert.Same(t, txSentinel, h.hub.txs[0])
 	assert.Equal(t, h.artifactUUID.String(), undeployedAgentID(t, h.hub.published[0]))
 }
 
-func TestRefreshA2AProxyQueuesAPublicationNeverARequeue(t *testing.T) {
+func TestRefreshA2AProxyNeverRequeuesTheCard(t *testing.T) {
 	h := newProxyHarness(t)
 	h.proxied("", "")
-	h.txPubs.EnqueueFunc = func(context.Context, *models.A2APublication) error { return nil }
 	// No card write is wired: a Requeue would un-park the card before the gateway has the Agent.
 
 	require.NoError(t, h.svc.RefreshA2AProxy(tierGrantedCtx(t), "org-1", "checkout", "weather", "dev"))
 
-	assert.Len(t, h.txPubs.EnqueueCalls(), 1)
+	assert.Empty(t, h.txExposures.UpsertCalls())
 }
 
-func TestSetA2AProxyRejectsAnInternalOrNonA2AAgent(t *testing.T) {
-	cases := map[string]struct {
-		agent *models.AgentResponse
-		want  error
-	}{
+func TestSetA2AProxyRejectsAnInternalAgent(t *testing.T) {
+	cases := map[string]*models.AgentResponse{
 		"an internal A2A agent": {
-			&models.AgentResponse{Name: "weather", Provisioning: models.Provisioning{Type: "internal"}, Type: models.AgentType{SubType: "a2a-agent"}},
-			utils.ErrA2AProxyAgentNotExternal,
+			Name: "weather", ProjectName: "checkout", Provisioning: models.Provisioning{Type: "internal"}, Type: models.AgentType{SubType: "a2a-agent"},
 		},
-		"an external non-A2A agent": {
-			&models.AgentResponse{Name: "weather", Provisioning: models.Provisioning{Type: "external"}, Type: models.AgentType{SubType: "custom"}},
-			utils.ErrAgentNotA2A,
+		"an internal non-A2A agent": {
+			Name: "weather", ProjectName: "checkout", Provisioning: models.Provisioning{Type: "internal"}, Type: models.AgentType{SubType: "chat-api"},
 		},
 	}
-	for name, tc := range cases {
+	for name, agent := range cases {
 		t.Run(name, func(t *testing.T) {
 			h := newProxyHarness(t)
-			h.oc.GetComponentFunc = func(context.Context, string, string, string) (*models.AgentResponse, error) { return tc.agent, nil }
-			assert.ErrorIs(t, h.svc.SetA2AProxy(tierGrantedCtx(t), "org-1", "checkout", "weather", "dev", nil), tc.want)
+			h.oc.GetComponentFunc = func(context.Context, string, string, string) (*models.AgentResponse, error) { return agent, nil }
+			assert.ErrorIs(t, h.svc.SetA2AProxy(tierGrantedCtx(t), "org-1", "checkout", "weather", "dev", nil), utils.ErrA2AProxyAgentNotExternal)
 		})
 	}
 }
@@ -609,7 +661,7 @@ func TestSetA2AProxyDropsItsWritesWhenTheAgentIsDeletedMeanwhile(t *testing.T) {
 	h.oc.GetComponentFunc = func(context.Context, string, string, string) (*models.AgentResponse, error) {
 		lookups++
 		if lookups == 1 {
-			return externalA2AAgent(), nil
+			return externalAgent(), nil
 		}
 		return nil, utils.ErrNotFound
 	}
@@ -619,8 +671,10 @@ func TestSetA2AProxyDropsItsWritesWhenTheAgentIsDeletedMeanwhile(t *testing.T) {
 	assert.ErrorIs(t, err, utils.ErrAgentNotFound)
 	assert.Len(t, h.artifacts.DeleteCalls(), 1)
 	assert.Len(t, h.txProxies.DeleteCalls(), 1)
-	assert.Len(t, h.txPubs.DeleteForAgentEnvCalls(), 1)
 	assert.Len(t, h.txCards.DeleteForAgentEnvCalls(), 1, "the card row the proxy service may have written goes too")
+	require.NotEmpty(t, h.hub.published)
+	last := h.hub.published[len(h.hub.published)-1]
+	assert.Equal(t, "agent.deleted", string(last.EventType), "the artifact's delete event is written with the delete")
 }
 
 // captureRecorder keeps every audit event so a test can read the outcome a completion recorded.
@@ -649,7 +703,7 @@ func TestSetA2AProxyAuditsTheRollbackWhenTheAgentIsDeletedMeanwhile(t *testing.T
 	h.oc.GetComponentFunc = func(context.Context, string, string, string) (*models.AgentResponse, error) {
 		lookups++
 		if lookups == 1 {
-			return externalA2AAgent(), nil
+			return externalAgent(), nil
 		}
 		return nil, utils.ErrNotFound
 	}
@@ -671,7 +725,7 @@ func TestSetA2AProxyKeepsACommittedWriteWhenTheAgentCheckFails(t *testing.T) {
 	h.oc.GetComponentFunc = func(context.Context, string, string, string) (*models.AgentResponse, error) {
 		lookups++
 		if lookups == 1 {
-			return externalA2AAgent(), nil
+			return externalAgent(), nil
 		}
 		return nil, assert.AnError
 	}
@@ -695,7 +749,7 @@ func TestStoreCardSourceStoresTheURLParksTheCardAndRepublishes(t *testing.T) {
 	h.proxied("", "")
 	newURL := "https://other.example/.well-known/agent-card.json"
 
-	require.NoError(t, h.svc.StoreCardSource(context.Background(), externalA2AAgent(), "org-1", "checkout", devEnv(), newURL))
+	require.NoError(t, h.svc.StoreCardSource(context.Background(), externalAgent(), "org-1", "checkout", devEnv(), newURL))
 
 	written := h.txCards.EnqueueCalls()
 	require.Len(t, written, 1, "the URL is written inside the transaction, never on the plain repo")
@@ -703,7 +757,7 @@ func TestStoreCardSourceStoresTheURLParksTheCardAndRepublishes(t *testing.T) {
 	assert.Equal(t, models.A2AAgentCardSourceExternal, written[0].Card.Source)
 	assert.Equal(t, uuid.MustParse(proxyTestEnvUUID), written[0].Card.EnvironmentUUID)
 	assert.Len(t, h.txCards.ClearCardCalls(), 1)
-	assert.Len(t, h.txPubs.EnqueueCalls(), 1)
+	assert.Empty(t, h.txExposures.UpsertCalls())
 	assert.Empty(t, h.txCards.RequeueCalls())
 	assert.Equal(t, 1, h.transactions)
 }
@@ -717,7 +771,7 @@ func TestStoreCardSourceRefusesACardURLTheGatewayCannotFront(t *testing.T) {
 			h := newProxyHarness(t)
 			h.proxied("", "")
 
-			err := h.svc.StoreCardSource(context.Background(), externalA2AAgent(), "org-1", "checkout", devEnv(), newURL)
+			err := h.svc.StoreCardSource(context.Background(), externalAgent(), "org-1", "checkout", devEnv(), newURL)
 
 			require.ErrorIs(t, err, utils.ErrA2ACardURLNotProxyable)
 			h.assertNothingWritten(t)
@@ -736,14 +790,14 @@ func TestStoreCardSourceRefusesToMoveAStoredSecretToAnotherOrigin(t *testing.T) 
 			h := newProxyHarness(t)
 			h.proxied("X-Key", "c2VjcmV0")
 
-			err := h.svc.StoreCardSource(context.Background(), externalA2AAgent(), "org-1", "checkout", devEnv(), newURL)
+			err := h.svc.StoreCardSource(context.Background(), externalAgent(), "org-1", "checkout", devEnv(), newURL)
 
 			require.ErrorIs(t, err, utils.ErrA2AProxyOriginChangeNeedsAuthReset)
 			assert.Len(t, h.txProxies.GetByEnvUUIDCalls(), 1, "the proxy is read inside the transaction")
 			assert.Len(t, h.txCards.GetCalls(), 1, "the registered URL is read inside the transaction")
 			assert.Empty(t, h.txCards.EnqueueCalls())
 			assert.Empty(t, h.txCards.ClearCardCalls())
-			assert.Empty(t, h.txPubs.EnqueueCalls())
+			assert.Empty(t, h.txExposures.UpsertCalls())
 			assert.Empty(t, h.artifacts.CreateCalls())
 		})
 	}
@@ -756,7 +810,7 @@ func TestStoreCardSourceRefusesWhenNoRegisteredURLVouchesForTheSecret(t *testing
 		return nil, repositories.ErrA2AAgentCardNotFound
 	}
 
-	err := h.svc.StoreCardSource(context.Background(), externalA2AAgent(), "org-1", "checkout", devEnv(),
+	err := h.svc.StoreCardSource(context.Background(), externalAgent(), "org-1", "checkout", devEnv(),
 		"https://agent.example/.well-known/agent-card.json")
 
 	require.ErrorIs(t, err, utils.ErrA2AProxyOriginChangeNeedsAuthReset)
@@ -769,12 +823,12 @@ func TestStoreCardSourceKeepsTheSecretOnTheSameOrigin(t *testing.T) {
 	h.proxied("X-Key", "c2VjcmV0")
 	newURL := "https://AGENT.example:443/v2/.well-known/agent-card.json"
 
-	require.NoError(t, h.svc.StoreCardSource(context.Background(), externalA2AAgent(), "org-1", "checkout", devEnv(), newURL))
+	require.NoError(t, h.svc.StoreCardSource(context.Background(), externalAgent(), "org-1", "checkout", devEnv(), newURL))
 
 	written := h.txCards.EnqueueCalls()
 	require.Len(t, written, 1)
 	assert.Equal(t, newURL, written[0].Card.SourceURL)
-	assert.Len(t, h.txPubs.EnqueueCalls(), 1)
+	assert.Empty(t, h.txExposures.UpsertCalls())
 }
 
 func TestRemoveCardSourceTearsDownAndDeletesTheCard(t *testing.T) {
@@ -782,12 +836,12 @@ func TestRemoveCardSourceTearsDownAndDeletesTheCard(t *testing.T) {
 	h.acceptsWrites()
 	h.proxied("X-Key", "c2VjcmV0")
 
-	require.NoError(t, h.svc.RemoveCardSource(auditableCtx(t), externalA2AAgent(), "org-1", "checkout", devEnv()))
+	require.NoError(t, h.svc.RemoveCardSource(auditableCtx(t), externalAgent(), "org-1", "checkout", devEnv()))
 
 	assert.Len(t, h.txCards.DeleteForAgentEnvCalls(), 1)
 	assert.Empty(t, h.txCards.RequeueCalls())
 	assert.Len(t, h.txProxies.DeleteCalls(), 1)
-	assert.ErrorIs(t, h.svc.RemoveCardSource(context.Background(), externalA2AAgent(), "org-1", "checkout", devEnv()),
+	assert.ErrorIs(t, h.svc.RemoveCardSource(context.Background(), externalAgent(), "org-1", "checkout", devEnv()),
 		audit.ErrRecorderUnavailable, "it discards the stored secret, so it is refused unrecorded")
 }
 
@@ -796,7 +850,7 @@ func TestRemoveCardSourceOnADirectEnvironmentDeletesTheCard(t *testing.T) {
 	h := newProxyHarness(t)
 	h.acceptsWrites()
 
-	require.NoError(t, h.svc.RemoveCardSource(context.Background(), externalA2AAgent(), "org-1", "checkout", devEnv()))
+	require.NoError(t, h.svc.RemoveCardSource(context.Background(), externalAgent(), "org-1", "checkout", devEnv()))
 
 	deleted := h.txCards.DeleteForAgentEnvCalls()
 	require.Len(t, deleted, 1)
@@ -809,12 +863,12 @@ func TestRefreshCardSource(t *testing.T) {
 		h := newProxyHarness(t)
 		h.acceptsWrites()
 
-		require.NoError(t, h.svc.RefreshCardSource(context.Background(), externalA2AAgent(), "org-1", "checkout", devEnv()))
+		require.NoError(t, h.svc.RefreshCardSource(context.Background(), externalAgent(), "org-1", "checkout", devEnv()))
 
 		requeued := h.txCards.RequeueCalls()
 		require.Len(t, requeued, 1, "update-only, so a removed row is not recreated")
 		assert.Equal(t, "dev", requeued[0].EnvironmentName)
-		assert.Empty(t, h.txPubs.EnqueueCalls())
+		assert.Empty(t, h.txExposures.UpsertCalls())
 	})
 	t.Run("a direct environment needs a registered source", func(t *testing.T) {
 		h := newProxyHarness(t)
@@ -822,7 +876,7 @@ func TestRefreshCardSource(t *testing.T) {
 			return repositories.ErrA2AAgentCardNotFound
 		}
 
-		err := h.svc.RefreshCardSource(context.Background(), externalA2AAgent(), "org-1", "checkout", devEnv())
+		err := h.svc.RefreshCardSource(context.Background(), externalAgent(), "org-1", "checkout", devEnv())
 
 		assert.ErrorIs(t, err, utils.ErrAgentCardNotFound)
 	})
@@ -831,9 +885,9 @@ func TestRefreshCardSource(t *testing.T) {
 		h.acceptsWrites()
 		h.proxied("", "")
 
-		require.NoError(t, h.svc.RefreshCardSource(context.Background(), externalA2AAgent(), "org-1", "checkout", devEnv()))
+		require.NoError(t, h.svc.RefreshCardSource(context.Background(), externalAgent(), "org-1", "checkout", devEnv()))
 
-		assert.Len(t, h.txPubs.EnqueueCalls(), 1)
+		assert.Empty(t, h.txExposures.UpsertCalls())
 		assert.Empty(t, h.txCards.RequeueCalls(), "a requeue would un-park the card before the gateway has the Agent")
 	})
 }
@@ -859,7 +913,7 @@ func TestA2AProxyWritesRefuseWhenTheAuditSinkFails(t *testing.T) {
 		},
 		"card source removed": func(h *proxyHarness) error {
 			h.proxied("X-Key", "c2VjcmV0")
-			return h.svc.RemoveCardSource(sinkOutageCtx(), externalA2AAgent(), "org-1", "checkout", devEnv())
+			return h.svc.RemoveCardSource(sinkOutageCtx(), externalAgent(), "org-1", "checkout", devEnv())
 		},
 	}
 	for name, call := range calls {
@@ -873,4 +927,16 @@ func TestA2AProxyWritesRefuseWhenTheAuditSinkFails(t *testing.T) {
 			h.assertNothingWritten(t)
 		})
 	}
+}
+
+func TestSetA2AProxyRejectsAnAgentFromAnotherProject(t *testing.T) {
+	h := newProxyHarness(t)
+	h.oc.GetComponentFunc = func(context.Context, string, string, string) (*models.AgentResponse, error) {
+		agent := externalAgent()
+		agent.ProjectName = "other"
+		return agent, nil
+	}
+	err := h.svc.SetA2AProxy(tierGrantedCtx(t), "org-1", "checkout", "weather", "dev", nil)
+	assert.ErrorIs(t, err, utils.ErrAgentNotFound)
+	assert.Zero(t, h.transactions)
 }

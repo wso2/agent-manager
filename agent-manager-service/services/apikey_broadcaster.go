@@ -333,7 +333,12 @@ func hashAPIKeySHA256(plainKey string) string {
 // hashAPIKeyToJSON computes a SHA-256 hash of the plain API key and returns
 // a JSON string in the format expected by the gateway: {"sha256": "<hex_hash>"}
 func hashAPIKeyToJSON(plainKey string) string {
-	return fmt.Sprintf(`{"sha256":"%s"}`, hashAPIKeySHA256(plainKey))
+	return apiKeyHashesJSON(hashAPIKeySHA256(plainKey))
+}
+
+// apiKeyHashesJSON wraps an already hex-encoded SHA-256 in the gateway's ApiKeyHashes format.
+func apiKeyHashesJSON(hexHash string) string {
+	return fmt.Sprintf(`{"sha256":"%s"}`, hexHash)
 }
 
 // maskAPIKey returns a masked version of the API key showing only the last 4 characters.

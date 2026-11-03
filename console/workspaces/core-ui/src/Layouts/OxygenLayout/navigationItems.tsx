@@ -348,10 +348,13 @@ export function useNavigationItems(): Array<
         ],
       },
       // External agents' Security section holds Agent ID (when that feature is
-      // enabled) and, for A2A agents, Credentials. Spread only when it has items,
-      // so disabling Agent ID leaves no empty section header behind.
-      ...(() => {
-        const items: NavigationItem[] = [
+      // enabled) and Credentials for the A2A proxy.
+      {
+        title: "Security",
+        type: "section",
+        icon: <Lock />,
+        collapsible: true,
+        items: [
           ...(agentIdEnabled
             ? [
                 {
@@ -371,29 +374,14 @@ export function useNavigationItems(): Array<
                 },
               ]
             : []),
-          ...(agent?.agentType?.subType === "a2a-agent"
-            ? [
-                credentialsNavItem(pathname, {
-                  orgId,
-                  projectId,
-                  agentId,
-                  envId: defaultEnv,
-                }),
-              ]
-            : []),
-        ];
-        return items.length
-          ? [
-              {
-                title: "Security",
-                type: "section" as const,
-                icon: <Lock />,
-                collapsible: true,
-                items,
-              },
-            ]
-          : [];
-      })(),
+          credentialsNavItem(pathname, {
+            orgId,
+            projectId,
+            agentId,
+            envId: defaultEnv,
+          }),
+        ],
+      },
       {
         title: "Observability",
         type: "section",

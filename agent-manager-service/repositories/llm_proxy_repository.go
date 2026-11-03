@@ -49,6 +49,7 @@ type LLMProxyRepository interface {
 	Update(p *models.LLMProxy, handle string, ouID string) error
 	Delete(proxyID, ouID string) error
 	DeleteInProject(ctx context.Context, proxyID, ouID, projectUUID string) error
+	DeleteInProjectTx(ctx context.Context, tx *gorm.DB, proxyID, ouID, projectUUID string) error
 	Exists(proxyID, ouID string) (bool, error)
 }
 
@@ -353,7 +354,12 @@ func (r *LLMProxyRepo) Exists(proxyID, ouID string) (bool, error) {
 
 // DeleteInProject removes a proxy only within the resolved organization and project.
 func (r *LLMProxyRepo) DeleteInProject(ctx context.Context, proxyID, ouID, projectUUID string) error {
-	return r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+	return r.DeleteInProjectTx(ctx, r.db, proxyID, ouID, projectUUID)
+}
+
+// DeleteInProjectTx is DeleteInProject in the caller's transaction.
+func (r *LLMProxyRepo) DeleteInProjectTx(ctx context.Context, tx *gorm.DB, proxyID, ouID, projectUUID string) error {
+	return tx.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		var proxy models.LLMProxy
 		err := tx.Table("llm_proxies").Select("llm_proxies.*").
 			Joins("JOIN artifacts a ON llm_proxies.uuid = a.uuid").

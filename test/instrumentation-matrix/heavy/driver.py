@@ -326,7 +326,8 @@ def _invoke_agent(deployed: DeployedAgent) -> None:
     """POST a fixed prompt to the deployed agent's `/chat` endpoint to drive
     trace emission. Auth is the `X-API-Key` header. Retries through the
     post-deploy warm-up window where the endpoint can briefly 502/503/401
-    (API-key propagation to the gateway lags the mint call) — mirrors
+    (API-key propagation to the gateway lags the mint call) or 404 (the
+    gateway route lags its deployment ack) — mirrors
     test/e2e/operations/agent/invoke_agent.go.
 
     Body + path match the deployed sample (samples/customer-support-agent):
@@ -351,7 +352,7 @@ def _invoke_agent(deployed: DeployedAgent) -> None:
             last = str(e)
             time.sleep(5)
             continue
-        if resp.status_code in (401, 502, 503):  # warming up / key not propagated
+        if resp.status_code in (401, 404, 502, 503):  # warming up / key or route not propagated
             last = f"{resp.status_code}"
             time.sleep(5)
             continue

@@ -36,7 +36,6 @@ import (
 const (
 	a2aSubType         = "a2a-agent"
 	envNotFoundCode    = "ENVIRONMENT_NOT_FOUND"
-	proxyStatusFailed  = "failed"
 	notFetchedYetLabel = "(not fetched yet)"
 )
 
@@ -119,10 +118,11 @@ func runGet(ctx context.Context, o *GetOptions) error {
 			cmdutil.FirstNonNil(agentResp.JSON404, agentResp.JSON500)))
 	}
 	agent := agentResp.JSON200
-	if agent.AgentType.SubType == nil || *agent.AgentType.SubType != a2aSubType {
+	// An external agent is A2A wherever it registers a card URL; an internal one only when built as a2a-agent.
+	external := agent.Provisioning.Type == amsvc.ProvisioningTypeExternal
+	if !external && (agent.AgentType.SubType == nil || *agent.AgentType.SubType != a2aSubType) {
 		return render.Error(o.IO, o.Scope, clierr.Newf(clierr.Validation, "agent %q is not an A2A agent", o.AgentName))
 	}
-	external := agent.Provisioning.Type == amsvc.ProvisioningTypeExternal
 
 	var status CardStatus
 	if external {
@@ -232,8 +232,8 @@ func printRouting(w io.Writer, proxy *amsvc.A2AProxyResponse, unknown bool) {
 	} else {
 		fmt.Fprintf(w, "Gateway URL: %s\n", proxy.GatewayUrl)
 	}
-	if string(proxy.Status) == proxyStatusFailed {
-		fmt.Fprintf(w, "Publish error: %s\n", proxy.LastError)
+	if proxy.StatusReason != "" {
+		fmt.Fprintf(w, "Routing reason: %s\n", proxy.StatusReason)
 	}
 }
 

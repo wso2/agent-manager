@@ -53,17 +53,18 @@ import {
   INPUT_LIMITS,
 } from "@agent-management-platform/types";
 import {
-  getAgentManagerUrl,
-  getAmpVersionHelm,
-  getRawScriptUrl,
   useConfirmIfUnsaved,
   useUnsavedChangesGuard,
 } from "@agent-management-platform/shared-component";
+import {
+  buildScript,
+  type ManageIdentityProviderMode,
+  type ScriptInputs,
+} from "./manageIdentityProviderScript";
 
-const SCRIPT_NAME = "manage-identity-provider.sh";
+export type { ManageIdentityProviderMode };
+
 const TOKEN_MASK = "•••••••••••••••";
-
-export type ManageIdentityProviderMode = "upsert" | "delete";
 
 interface ManageIdentityProviderDialogProps {
   open: boolean;
@@ -82,50 +83,6 @@ interface ManageIdentityProviderDialogProps {
     name: string;
     environments: GatewayEnvironmentResponse[];
   } | null;
-}
-
-export interface ScriptInputs {
-  orgId: string;
-  envName: string;
-  gatewayId: string;
-  name: string;
-  issuer: string;
-  jwksUri: string;
-  skipTlsVerify: boolean;
-  mode: ManageIdentityProviderMode;
-  token: string;
-}
-
-/** Quote a value as one POSIX shell word without evaluating metacharacters. */
-export function quoteShellWord(value: string): string {
-  return `'${value.replace(/'/g, `'"'"'`)}'`;
-}
-
-export function buildScript(i: ScriptInputs): string {
-  // The dev-container quickstart and a real cluster both install the gateway
-  // extension from the same OCI chart, so one command works for both: curl the
-  // release-pinned script and upgrade the OCI chart at the deployed version.
-  const actionEnvLines =
-    i.mode === "delete"
-      ? ["    ACTION=delete \\"]
-      : [
-          `    IDP_ISSUER=${quoteShellWord(i.issuer || "<issuer>")} \\`,
-          `    IDP_JWKS_URI=${quoteShellWord(i.jwksUri || "<jwks-uri>")} \\`,
-          ...(i.skipTlsVerify ? ["    IDP_SKIP_TLS_VERIFY=true \\"] : []),
-        ];
-  const lines = [
-    `curl -fsSL ${quoteShellWord(getRawScriptUrl(SCRIPT_NAME))} \\`,
-    `  | ORG_NAME=${quoteShellWord(i.orgId || "<org>")} \\`,
-    `    ENV_NAME=${quoteShellWord(i.envName || "<env-name>")} \\`,
-    `    GATEWAY_ID=${quoteShellWord(i.gatewayId || "<gateway-id>")} \\`,
-    `    AGENT_MANAGER_TOKEN=${quoteShellWord(i.token)} \\`,
-    `    AGENT_MANAGER_URL=${quoteShellWord(getAgentManagerUrl())} \\`,
-    `    CHART_VERSION=${quoteShellWord(getAmpVersionHelm())} \\`,
-    `    IDP_NAME=${quoteShellWord(i.name || "<identity-provider-name>")} \\`,
-    ...actionEnvLines,
-    "    bash",
-  ];
-  return lines.join("\n");
 }
 
 export function ManageIdentityProviderDialog({

@@ -33,6 +33,10 @@ type DeploymentDetailsResponse struct {
 	// Environment display name
 	EnvironmentDisplayName     *string                                              `json:"environmentDisplayName,omitempty"`
 	PromotionTargetEnvironment *DeploymentDetailsResponsePromotionTargetEnvironment `json:"promotionTargetEnvironment,omitempty"`
+	// The agent's deployment status on the environment's ingress gateway, the only place an API agent is served. DEPLOYING until the gateway acknowledges the deployment, including while it waits for an input (see gatewayStatusReason). An environment with no ingress gateway is UNDEPLOYED with gatewayStatusReason \"no gateway in this environment\". Absent for an agent the gateway does not serve, and when the gateway status could not be read.
+	GatewayStatus *string `json:"gatewayStatus,omitempty"`
+	// Why gatewayStatus is what it is: the gateway's error code, DEPLOYMENT_TIMEOUT, what a deploy is waiting for, or \"no gateway in this environment\". Empty when there is nothing to say.
+	GatewayStatusReason *string `json:"gatewayStatusReason,omitempty"`
 }
 
 // NewDeploymentDetailsResponse instantiates a new DeploymentDetailsResponse object
@@ -255,6 +259,70 @@ func (o *DeploymentDetailsResponse) SetPromotionTargetEnvironment(v DeploymentDe
 	o.PromotionTargetEnvironment = &v
 }
 
+// GetGatewayStatus returns the GatewayStatus field value if set, zero value otherwise.
+func (o *DeploymentDetailsResponse) GetGatewayStatus() string {
+	if o == nil || IsNil(o.GatewayStatus) {
+		var ret string
+		return ret
+	}
+	return *o.GatewayStatus
+}
+
+// GetGatewayStatusOk returns a tuple with the GatewayStatus field value if set, nil otherwise
+// and a boolean to check if the value has been set.
+func (o *DeploymentDetailsResponse) GetGatewayStatusOk() (*string, bool) {
+	if o == nil || IsNil(o.GatewayStatus) {
+		return nil, false
+	}
+	return o.GatewayStatus, true
+}
+
+// HasGatewayStatus returns a boolean if a field has been set.
+func (o *DeploymentDetailsResponse) HasGatewayStatus() bool {
+	if o != nil && !IsNil(o.GatewayStatus) {
+		return true
+	}
+
+	return false
+}
+
+// SetGatewayStatus gets a reference to the given string and assigns it to the GatewayStatus field.
+func (o *DeploymentDetailsResponse) SetGatewayStatus(v string) {
+	o.GatewayStatus = &v
+}
+
+// GetGatewayStatusReason returns the GatewayStatusReason field value if set, zero value otherwise.
+func (o *DeploymentDetailsResponse) GetGatewayStatusReason() string {
+	if o == nil || IsNil(o.GatewayStatusReason) {
+		var ret string
+		return ret
+	}
+	return *o.GatewayStatusReason
+}
+
+// GetGatewayStatusReasonOk returns a tuple with the GatewayStatusReason field value if set, nil otherwise
+// and a boolean to check if the value has been set.
+func (o *DeploymentDetailsResponse) GetGatewayStatusReasonOk() (*string, bool) {
+	if o == nil || IsNil(o.GatewayStatusReason) {
+		return nil, false
+	}
+	return o.GatewayStatusReason, true
+}
+
+// HasGatewayStatusReason returns a boolean if a field has been set.
+func (o *DeploymentDetailsResponse) HasGatewayStatusReason() bool {
+	if o != nil && !IsNil(o.GatewayStatusReason) {
+		return true
+	}
+
+	return false
+}
+
+// SetGatewayStatusReason gets a reference to the given string and assigns it to the GatewayStatusReason field.
+func (o *DeploymentDetailsResponse) SetGatewayStatusReason(v string) {
+	o.GatewayStatusReason = &v
+}
+
 func (o DeploymentDetailsResponse) MarshalJSON() ([]byte, error) {
 	toSerialize, err := o.ToMap()
 	if err != nil {
@@ -279,6 +347,12 @@ func (o DeploymentDetailsResponse) ToMap() (map[string]interface{}, error) {
 	}
 	if !IsNil(o.PromotionTargetEnvironment) {
 		toSerialize["promotionTargetEnvironment"] = o.PromotionTargetEnvironment
+	}
+	if !IsNil(o.GatewayStatus) {
+		toSerialize["gatewayStatus"] = o.GatewayStatus
+	}
+	if !IsNil(o.GatewayStatusReason) {
+		toSerialize["gatewayStatusReason"] = o.GatewayStatusReason
 	}
 	return toSerialize, nil
 }

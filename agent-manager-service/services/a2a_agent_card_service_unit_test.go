@@ -69,9 +69,9 @@ func cardServiceWithHooks(
 	provisioning, subType string, hooks A2AProxyHooks,
 ) (*a2aAgentCardService, *repomocks.A2AAgentCardRepositoryMock, *clientmocks.OpenChoreoClientMock) {
 	oc := &clientmocks.OpenChoreoClientMock{
-		GetComponentFunc: func(_ context.Context, _, _, name string) (*models.AgentResponse, error) {
+		GetComponentFunc: func(_ context.Context, _, project, name string) (*models.AgentResponse, error) {
 			return &models.AgentResponse{
-				UUID: "agent-uuid", Name: name,
+				UUID: "agent-uuid", Name: name, ProjectName: project,
 				Provisioning: models.Provisioning{Type: provisioning},
 				Type:         models.AgentType{SubType: subType},
 			}, nil
@@ -244,12 +244,24 @@ func TestSetA2ACardSourceHandsTheTrimmedURLToTheProxyService(t *testing.T) {
 	assert.Equal(t, []string{url}, hooks.stored)
 }
 
+// Any external agent can register a card URL; registering one is what makes it an A2A agent there.
+func TestSetA2ACardSourceAcceptsAnyExternalAgent(t *testing.T) {
+	const url = "https://93.184.215.14/.well-known/agent-card.json"
+	for _, subType := range []string{"", "custom-api", "a2a-agent"} {
+		t.Run("subtype "+subType, func(t *testing.T) {
+			hooks := &proxyHooksStub{}
+			svc, _, _ := cardServiceWithHooks("external", subType, hooks)
+			require.NoError(t, svc.SetA2ACardSource(tierGrantedCtx(t), "org", "proj", "agent", "dev", url))
+			assert.Equal(t, []string{url}, hooks.stored)
+		})
+	}
+}
+
 func TestSetA2ACardSourceRejects(t *testing.T) {
 	cases := []struct {
 		name, provisioning, subType, url string
 		want                             error
 	}{
-		{"non-A2A agent", "external", "custom-api", "https://93.184.215.14/c", utils.ErrAgentNotA2A},
 		{"platform agent", "internal", "a2a-agent", "https://93.184.215.14/c", utils.ErrAgentCardSourceNotExternal},
 		{"loopback URL", "external", "a2a-agent", "http://127.0.0.1/c", utils.ErrInvalidURL},
 		{"non-http scheme", "external", "a2a-agent", "ftp://93.184.215.14/c", utils.ErrInvalidURL},
@@ -348,4 +360,40 @@ func TestSetA2ACardSourceCountsURLLengthInCharacters(t *testing.T) {
 
 	require.NoError(t, svc.SetA2ACardSource(tierGrantedCtx(t), "org", "proj", "agent", "dev", url))
 	assert.Len(t, hooks.stored, 1)
+}
+
+// a2aCapable is the one gate the card, proxy, publish, deploy-settings and delete paths share.
+func TestA2ACapable(t *testing.T) {
+	cases := []struct {
+		provisioning, subType string
+		want                  bool
+	}{
+		{"external", "", true},
+		{"external", "custom-api", true},
+		{"external", "a2a-agent", true},
+		{"internal", "a2a-agent", true},
+		{"internal", "chat-api", false},
+		{"internal", "custom-api", false},
+	}
+	for _, tc := range cases {
+		t.Run(tc.provisioning+"/"+tc.subType, func(t *testing.T) {
+			agent := &models.AgentResponse{
+				Provisioning: models.Provisioning{Type: tc.provisioning},
+				Type:         models.AgentType{SubType: tc.subType},
+			}
+			assert.Equal(t, tc.want, a2aCapable(agent))
+		})
+	}
+}
+
+// OpenChoreo resolves an agent by name across the organization, so one owned by another project is not found.
+func TestSetA2ACardSourceRejectsAnAgentFromAnotherProject(t *testing.T) {
+	hooks := &proxyHooksStub{}
+	svc, _, oc := cardServiceWithHooks("external", "", hooks)
+	oc.GetComponentFunc = func(_ context.Context, _, _, name string) (*models.AgentResponse, error) {
+		return &models.AgentResponse{Name: name, ProjectName: "other", Provisioning: models.Provisioning{Type: "external"}}, nil
+	}
+	err := svc.SetA2ACardSource(tierGrantedCtx(t), "org", "proj", "agent", "dev", "https://93.184.215.14/.well-known/agent-card.json")
+	assert.ErrorIs(t, err, utils.ErrAgentNotFound)
+	assert.Empty(t, hooks.stored)
 }

@@ -448,3 +448,9 @@ func TestValidateRequest_Aggregates(t *testing.T) {
 		t.Errorf("expected >=5 aggregated violations, got %d: %v", len(v), v)
 	}
 }
+
+func TestValidateRequest_ExternalRejectsSubType(t *testing.T) {
+	req := validExternalReq()
+	req.AgentType.SubType = strPtr("a2a-agent")
+	assertViolation(t, validateRequest(req), "spec.agentType.subType is not allowed for external provisioning")
+}

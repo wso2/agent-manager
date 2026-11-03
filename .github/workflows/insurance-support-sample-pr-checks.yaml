@@ -1,0 +1,128 @@
+name: Insurance Support Sample PR Checks
+on:
+  pull_request:
+    paths:
+      - 'samples/insurance-support-agent/**'
+      - '.github/workflows/insurance-support-sample-pr-checks.yaml'
+      - 'test/sample-smoke/insurance_support/**'
+      - 'test/instrumentation-matrix/heavy/amp_client.py'
+      - 'test/instrumentation-matrix/harness/classify.py'
+      - '.github/actions/amp-dev-stack/**'
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: insurance-smoke-${{ github.ref }}
+  cancel-in-progress: true
+env:
+  SAMPLE_REPO: https://github.com/${{ github.event.pull_request.head.repo.full_name || github.repository }}
+  SAMPLE_BRANCH: ${{ github.head_ref || github.ref_name }}
+  SAMPLE_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+jobs:
+  smoke:
+    name: Insurance Support local smoke and web build
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          repository: ${{ github.event.pull_request.head.repo.full_name || github.repository }}
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          persist-credentials: false
+      - uses: actions/setup-python@v6
+        with:
+          python-version: '3.11'
+      - uses: actions/setup-node@v6
+        with:
+          node-version: '24'
+      - name: Validate platform smoke guards
+        run: |
+          python -m pip install requests
+          python -m unittest discover -s test/sample-smoke/insurance_support -p 'test_*.py' -v
+      - name: Install dependencies and run offline integration and HTTP smoke tests
+        env:
+          PYTHON: python
+          SMOKE_REPORTS: ${{ runner.temp }}/insurance-smoke
+        run: bash samples/insurance-support-agent/scripts/smoke_test.sh
+      - name: Install locked web dependencies and build
+        working-directory: samples/insurance-support-agent/web
+        run: |
+          npm ci
+          npm run build
+      - uses: actions/upload-artifact@v7
+        if: always()
+        with:
+          name: insurance-support-smoke
+          path: ${{ runner.temp }}/insurance-smoke/
+
+  platform-smoke:
+    name: Insurance Support deploy and trace smoke
+    needs: smoke
+    runs-on: ubuntu-24.04
+    timeout-minutes: 100
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          repository: ${{ github.event.pull_request.head.repo.full_name || github.repository }}
+          ref: ${{ env.SAMPLE_SHA }}
+          persist-credentials: false
+      - uses: ./.github/actions/amp-dev-stack
+      - uses: actions/setup-python@v6
+        with:
+          python-version: '3.11'
+      - run: python -m pip install requests
+      - name: Build PR source, deploy, invoke, and find its trace
+        env:
+          # Bootstrap fixture credential for this job's ephemeral dev stack, not a repository secret.
+          IDP_CLIENT_SECRET: amp-api-client-secret
+        run: |
+          python test/sample-smoke/insurance_support/platform_smoke.py \
+            --repo "$SAMPLE_REPO" --branch "$SAMPLE_BRANCH" --sha "$SAMPLE_SHA" \
+            --reports "$RUNNER_TEMP/insurance-support-platform"
+      - name: Capture Docker, k3s, and cluster diagnostics on failure
+        if: failure()
+        shell: bash
+        run: |
+          # Every command is bounded and best-effort: keep collecting evidence
+          # even when Docker or the Kubernetes API is unavailable.
+          reports="$RUNNER_TEMP/insurance-support-platform"
+          mkdir -p "$reports"
+          timeout 15s docker info --format \
+            'Name={{.Name}} Version={{.ServerVersion}} Driver={{.Driver}} CPUs={{.NCPU}} Memory={{.MemTotal}}' \
+            > "$reports/docker-info.txt" 2>&1 || true
+          timeout 15s docker ps -a --format \
+            'table {{.Names}}\t{{.Image}}\t{{.Status}}\t{{.Ports}}' \
+            > "$reports/docker-containers.txt" 2>&1 || true
+          ip address > "$reports/runner-addresses.txt" 2>&1 || true
+          ip route > "$reports/runner-routes.txt" 2>&1 || true
+
+          # Inspect only state/network fields; full inspect output includes env
+          # values. The server container's logs contain the k3s startup logs.
+          timeout 15s docker ps -a --filter name=k3d-openchoreo-local-setup \
+            --format '{{.Names}}' > "$reports/k3d-containers.txt" \
+            2> "$reports/k3d-discovery-errors.txt" || true
+          while IFS= read -r container; do
+            [ -n "$container" ] || continue
+            timeout 15s docker inspect --format \
+              'State={{json .State}} Ports={{json .NetworkSettings.Ports}} Networks={{json .NetworkSettings.Networks}}' \
+              "$container" > "$reports/$container-state.txt" 2>&1 || true
+            timeout 20s docker logs --timestamps --tail=300 "$container" \
+              > "$reports/$container.log" 2>&1 || true
+          done < "$reports/k3d-containers.txt"
+
+          timeout 15s kubectl config view --minify \
+            -o jsonpath='{.clusters[0].cluster.server}' \
+            > "$reports/kubernetes-api-server.txt" 2>&1 || true
+          timeout 15s kubectl --request-timeout=10s get --raw=/readyz \
+            > "$reports/kubernetes-readyz.txt" 2>&1 || true
+          timeout 20s kubectl --request-timeout=10s get nodes -o wide \
+            > "$reports/cluster-nodes.txt" 2>&1 || true
+          timeout 20s kubectl --request-timeout=10s get pods -A -o wide \
+            > "$reports/cluster-pods.txt" 2>&1 || true
+          timeout 20s kubectl --request-timeout=10s get events -A --field-selector type=Warning \
+            > "$reports/cluster-events.txt" 2>&1 || true
+      - uses: actions/upload-artifact@v7
+        if: always()
+        with:
+          name: insurance-support-platform-smoke
+          path: ${{ runner.temp }}/insurance-support-platform/

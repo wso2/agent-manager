@@ -89,7 +89,7 @@ export interface InputInterface {
 
 export interface AgentType {
   type: string;
-  subType: string;
+  subType?: string;
 }
 
 export type ProvisioningType = 'internal' | 'external';

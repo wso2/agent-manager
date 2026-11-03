@@ -28,6 +28,8 @@ type OrganizationResponse struct {
 	Description string `json:"description"`
 	// Namespace of the organization
 	Namespace string `json:"namespace"`
+	// Human-readable handle of the organization (the caller's OU handle), used in console URLs. Omitted when it cannot be determined.
+	Handle *string `json:"handle,omitempty"`
 	// Timestamp when the organization was created
 	CreatedAt time.Time `json:"createdAt"`
 }
@@ -150,6 +152,38 @@ func (o *OrganizationResponse) SetNamespace(v string) {
 	o.Namespace = v
 }
 
+// GetHandle returns the Handle field value if set, zero value otherwise.
+func (o *OrganizationResponse) GetHandle() string {
+	if o == nil || IsNil(o.Handle) {
+		var ret string
+		return ret
+	}
+	return *o.Handle
+}
+
+// GetHandleOk returns a tuple with the Handle field value if set, nil otherwise
+// and a boolean to check if the value has been set.
+func (o *OrganizationResponse) GetHandleOk() (*string, bool) {
+	if o == nil || IsNil(o.Handle) {
+		return nil, false
+	}
+	return o.Handle, true
+}
+
+// HasHandle returns a boolean if a field has been set.
+func (o *OrganizationResponse) HasHandle() bool {
+	if o != nil && !IsNil(o.Handle) {
+		return true
+	}
+
+	return false
+}
+
+// SetHandle gets a reference to the given string and assigns it to the Handle field.
+func (o *OrganizationResponse) SetHandle(v string) {
+	o.Handle = &v
+}
+
 // GetCreatedAt returns the CreatedAt field value
 func (o *OrganizationResponse) GetCreatedAt() time.Time {
 	if o == nil {
@@ -188,6 +222,9 @@ func (o OrganizationResponse) ToMap() (map[string]interface{}, error) {
 	toSerialize["displayName"] = o.DisplayName
 	toSerialize["description"] = o.Description
 	toSerialize["namespace"] = o.Namespace
+	if !IsNil(o.Handle) {
+		toSerialize["handle"] = o.Handle
+	}
 	toSerialize["createdAt"] = o.CreatedAt
 	return toSerialize, nil
 }

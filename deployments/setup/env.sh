@@ -14,13 +14,13 @@ GATEWAY_ENCRYPTION_SECRET_NAME="gateway-encryption-keys"
 GATEWAY_ENCRYPTION_SECRET_KEY="default-aesgcm256-v1.bin"
 
 # OpenChoreo community module versions compatible with OpenChoreo 1.2.8
-OBSERVABILITY_LOGS_OPENSEARCH_VERSION="0.5.3"
-# Tracing MUST be 0.6.0: the 1.2.0 observer returns span status as an object
-# ({code,message}), but the tracing adapter 0.5.0/0.5.1 still return it as a
-# string, so span-details 500 and traces are dropped. 0.6.0 returns the object.
-# (Upstream's install script still pins 0.5.0 — do not follow it here.)
-OBSERVABILITY_TRACING_OPENSEARCH_VERSION="0.6.0"
-OBSERVABILITY_METRICS_PROMETHEUS_VERSION="0.6.1"
+OBSERVABILITY_LOGS_OPENSEARCH_VERSION="0.5.5"
+# Tracing MUST be 0.6.0 or later: the 1.2.x observer returns span status as an
+# object ({code,message}), but the tracing adapter 0.5.0/0.5.1 still return it
+# as a string, so span-details 500 and traces are dropped. 0.6.x and 0.8.x
+# return the object and support OpenChoreo 1.2.0 and later.
+OBSERVABILITY_TRACING_OPENSEARCH_VERSION="0.8.1"
+OBSERVABILITY_METRICS_PROMETHEUS_VERSION="0.8.1"
 
 # Agent Sandbox community module
 AGENT_SANDBOX_MODULE_VERSION="0.1.1"    # helm chart version — update when new releases land

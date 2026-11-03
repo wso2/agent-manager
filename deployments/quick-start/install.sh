@@ -53,9 +53,9 @@ GATEWAY_ENCRYPTION_SECRET_NAME="gateway-encryption-keys"
 GATEWAY_ENCRYPTION_SECRET_KEY="default-aesgcm256-v1.bin"
 
 # OpenChoreo community module versions compatible with OpenChoreo ${OPENCHOREO_VERSION}
-OBSERVABILITY_LOGS_OPENSEARCH_VERSION="0.5.3"
-OBSERVABILITY_TRACING_OPENSEARCH_VERSION="0.6.0"
-OBSERVABILITY_METRICS_PROMETHEUS_VERSION="0.6.1"
+OBSERVABILITY_LOGS_OPENSEARCH_VERSION="0.5.5"
+OBSERVABILITY_TRACING_OPENSEARCH_VERSION="0.8.1"
+OBSERVABILITY_METRICS_PROMETHEUS_VERSION="0.8.1"
 
 # Source AMP installation helpers
 source "${SCRIPT_DIR}/install-helpers.sh"
@@ -1355,6 +1355,14 @@ fi
 
 # Install observability-metrics-prometheus
 log_info "Installing observability-metrics-prometheus..."
+# Helm never upgrades CRDs, so on a re-run over an older release apply the
+# Prometheus Operator CRDs that the target chart bundles first.
+if helm status observability-metrics-prometheus -n openchoreo-observability-plane &>/dev/null; then
+    helm show crds oci://ghcr.io/openchoreo/helm-charts/observability-metrics-prometheus \
+        --version "${OBSERVABILITY_METRICS_PROMETHEUS_VERSION}" \
+        | kubectl apply --server-side --force-conflicts -f - >/dev/null \
+        || log_warning "Failed to sync Prometheus Operator CRDs (non-fatal)"
+fi
 if helm upgrade --install observability-metrics-prometheus \
     oci://ghcr.io/openchoreo/helm-charts/observability-metrics-prometheus \
     --create-namespace \

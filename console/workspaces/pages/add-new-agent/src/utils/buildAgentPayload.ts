@@ -320,10 +320,7 @@ export const buildAgentCreationPayload = (
       provisioning: {
         type: "external",
       },
-      agentType: {
-        type: "external-agent-api",
-        subType: ("externalSubType" in data && data.externalSubType) || "custom-api",
-      },
+      agentType: { type: "external-agent-api" },
       ...(modelConfig ? { modelConfig } : {}),
     },
   };

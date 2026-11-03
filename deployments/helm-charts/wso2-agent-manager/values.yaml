@@ -556,6 +556,18 @@ console:
     # -- Base URL the evaluator AI Copilot prompt links the writing guide from.
     # Empty derives the public raw.githubusercontent.com URL from ampVersion.
     promptsBaseUrl: ""
+    # -- Registry the platform's images and charts were installed from, as a
+    # host and path prefix (e.g. registry.example.com/my-project). Empty uses
+    # global.ampImageRegistry. When it names a private registry, the console's
+    # generated environment and identity provider commands pull the gateway
+    # extension chart from it, and the environment command runs from the
+    # release bundle so it can create the image pull secrets.
+    registry: ""
+    # -- Helm chart registry for those commands. Empty derives <registry>/helm-charts.
+    chartRegistry: ""
+    # -- Release bundle the private-registry environment command extracts the
+    # deployment scripts from. Empty derives the GitHub release asset from ampVersion.
+    bundleUrl: ""
     # Documentation version the console's in-product doc links point at, used as
     # the path segment after /docs/. "latest" tracks the newest released docs.
     # The release pipeline (.github/scripts/update-helm-charts.sh) pins this to

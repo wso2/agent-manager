@@ -15,11 +15,10 @@
  * under the License.
  */
 
-import React, { useCallback, useState } from "react";
+import React from "react";
 import {
   getErrorMessage,
   GatewayTypeChip,
-  useConfirmationDialog,
 } from "@agent-management-platform/shared-component";
 import {
   Alert,
@@ -27,40 +26,22 @@ import {
   Chip,
   Grid,
   Skeleton,
-  Snackbar,
   Stack,
   Typography,
 } from "@wso2/oxygen-ui";
 import { AlertTriangle } from "@wso2/oxygen-ui-icons-react";
 import { formatDistanceToNow } from "date-fns";
 import { generatePath, useParams } from "react-router-dom";
-import {
-  useGetGateway,
-  useListGatewayTokens,
-  useRevokeGatewayToken,
-  useRotateGatewayToken,
-} from "@agent-management-platform/api-client";
-import {
-  absoluteRouteMap,
-  type GatewayTokenInfo,
-} from "@agent-management-platform/types";
+import { useGetGateway } from "@agent-management-platform/api-client";
+import { absoluteRouteMap } from "@agent-management-platform/types";
 import { PageLayout } from "@agent-management-platform/views";
 import { GatewayIdentityProvidersCard } from "./GatewayIdentityProvidersCard";
-import { ViewGatewayGetStarted } from "./ViewGatewayGetStarted";
 
 export const ViewGateway: React.FC = () => {
   const { gatewayId, orgId } = useParams<{
     gatewayId: string;
     orgId: string;
   }>();
-  const { addConfirmation } = useConfirmationDialog();
-  const [registrationToken, setRegistrationToken] = useState<string | null>(
-    null,
-  );
-  const [hasJustRegeneratedToken, setHasJustRegeneratedToken] = useState(false);
-  const [copySnackbarOpen, setCopySnackbarOpen] = useState(false);
-  const [copySnackbarMessage, setCopySnackbarMessage] = useState("");
-
   const {
     data: gateway,
     isLoading,
@@ -69,59 +50,6 @@ export const ViewGateway: React.FC = () => {
     orgName: orgId,
     gatewayId,
   });
-
-  const tokenParams = {
-    orgName: orgId ?? "",
-    gatewayId: gatewayId ?? "",
-  };
-  const { data: tokensData } = useListGatewayTokens(tokenParams);
-  const { mutateAsync: rotateToken, isPending: isRotating } =
-    useRotateGatewayToken();
-  const { mutateAsync: revokeToken } = useRevokeGatewayToken();
-
-  const handleCopy = useCallback((_text: string, label: string) => {
-    setCopySnackbarMessage(`${label} copied to clipboard`);
-    setCopySnackbarOpen(true);
-  }, []);
-
-  const isConfigured = (tokensData?.count ?? 0) > 0;
-
-  const handleConfirmRegenerateToken = useCallback(async () => {
-    if (!orgId || !gatewayId) return;
-    try {
-      const list: GatewayTokenInfo[] = tokensData?.list ?? [];
-      await Promise.all(
-        list
-          .filter((t: GatewayTokenInfo) => t.status === "active")
-          .map((t: GatewayTokenInfo) =>
-            revokeToken({ orgName: orgId, gatewayId, tokenId: t.id }).catch(
-              () => {},
-            ),
-          ),
-      );
-      const result = await rotateToken({ orgName: orgId, gatewayId });
-      setRegistrationToken(result.token);
-      setHasJustRegeneratedToken(true);
-    } catch {
-      // Error surfaced via mutation state if needed
-    }
-  }, [orgId, gatewayId, tokensData?.list, revokeToken, rotateToken]);
-
-  const handleRegenerateToken = useCallback(() => {
-    if (isConfigured) {
-      addConfirmation({
-        analytics: { entity: "gateway", action: "reconfigure" },
-        title: "Reconfigure gateway",
-        description:
-          "Regenerating the registration token will revoke the existing token for this gateway and disconnect the gateway from the control plane. Do you want to continue?",
-        onConfirm: handleConfirmRegenerateToken,
-        confirmButtonColor: "error",
-        confirmButtonText: "Reconfigure",
-      });
-    } else {
-      handleConfirmRegenerateToken();
-    }
-  }, [addConfirmation, isConfigured, handleConfirmRegenerateToken]);
 
   const displayName = gateway?.displayName ?? gateway?.name ?? gatewayId ?? "";
   const isActive =
@@ -229,17 +157,6 @@ export const ViewGateway: React.FC = () => {
 
         {gateway && !error && (
           <Stack spacing={3}>
-            {!isActive && (
-              <ViewGatewayGetStarted
-                isConfigured={isConfigured}
-                registrationToken={registrationToken}
-                hasJustRegeneratedToken={hasJustRegeneratedToken}
-                onRegenerateToken={handleRegenerateToken}
-                isRegeneratingToken={isRotating}
-                onCopy={handleCopy}
-              />
-            )}
-
             <Grid container spacing={2}>
               <Grid size={{ xs: 12, sm: 6 }}>
                 <Card variant="outlined" sx={{ p: 2, height: "100%" }}>
@@ -305,13 +222,6 @@ export const ViewGateway: React.FC = () => {
           </Stack>
         )}
       </PageLayout>
-
-      <Snackbar
-        open={copySnackbarOpen}
-        autoHideDuration={3000}
-        onClose={() => setCopySnackbarOpen(false)}
-        message={copySnackbarMessage}
-      />
     </>
   );
 };

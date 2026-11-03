@@ -18,7 +18,6 @@ package services
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"log/slog"
@@ -28,14 +27,15 @@ import (
 
 	"github.com/google/uuid"
 	"gopkg.in/yaml.v3"
+	"gorm.io/gorm"
 
 	"github.com/wso2/agent-manager/agent-manager-service/models"
+	"github.com/wso2/agent-manager/agent-manager-service/reconcile"
 	"github.com/wso2/agent-manager/agent-manager-service/repositories"
 	"github.com/wso2/agent-manager/agent-manager-service/utils"
 )
 
 const (
-	deploymentLimitBuffer = 5
 	maxDeploymentsPerAPI  = 20
 	apiVersionLLMProvider = "gateway.api-platform.wso2.com/v1"
 	kindLLMProvider       = "LlmProvider"
@@ -52,22 +52,28 @@ const (
 
 // LLMProviderDeploymentService handles LLM deployment business logic
 type LLMProviderDeploymentService struct {
+	tx                   TxRunner
 	deploymentRepo       repositories.DeploymentRepository
 	providerRepo         repositories.LLMProviderRepository
 	templateRepo         repositories.LLMProviderTemplateRepository
 	gatewayRepo          repositories.GatewayRepository
 	gatewayEventsService *GatewayEventsService
+	core                 *reconcile.Core
 }
 
 // NewLLMProviderDeploymentService creates a new LLM deployment service
 func NewLLMProviderDeploymentService(
+	tx TxRunner,
 	deploymentRepo repositories.DeploymentRepository,
 	providerRepo repositories.LLMProviderRepository,
 	templateRepo repositories.LLMProviderTemplateRepository,
 	gatewayRepo repositories.GatewayRepository,
 	gatewayEventsService *GatewayEventsService,
+	core *reconcile.Core,
 ) *LLMProviderDeploymentService {
 	return &LLMProviderDeploymentService{
+		core:                 core,
+		tx:                   tx,
 		deploymentRepo:       deploymentRepo,
 		providerRepo:         providerRepo,
 		templateRepo:         templateRepo,
@@ -114,22 +120,18 @@ func (s *LLMProviderDeploymentService) resolveProvider(identifier, ouID string) 
 	return s.providerRepo.GetByHandle(identifier, ouID)
 }
 
-// DeployLLMProvider deploys an LLM provider to a gateway
+// DeployLLMProvider deploys the provider's current configuration to a gateway. The deployment is named by the
+// kind; a client's name and metadata are ignored.
 func (s *LLMProviderDeploymentService) DeployLLMProvider(providerID string, req *models.DeployAPIRequest, ouID string) (*models.Deployment, error) {
 	slog.Info("LLMProviderDeploymentService.DeployLLMProvider: starting", "providerID", providerID, "ouID", ouID,
-		"deploymentName", req.Name, "base", req.Base, "gatewayID", req.GatewayID)
+		"base", req.Base, "gatewayID", req.GatewayID)
 
-	if req.Base == "" {
-		slog.Error("LLMProviderDeploymentService.DeployLLMProvider: base is required", "providerID", providerID)
-		return nil, utils.ErrDeploymentBaseRequired
+	if err := validateDeployBase(req.Base); err != nil {
+		return nil, err
 	}
 	if req.GatewayID == "" {
 		slog.Error("LLMProviderDeploymentService.DeployLLMProvider: gateway ID is required", "providerID", providerID)
 		return nil, utils.ErrDeploymentGatewayIDRequired
-	}
-	if req.Name == "" {
-		slog.Error("LLMProviderDeploymentService.DeployLLMProvider: deployment name is required", "providerID", providerID)
-		return nil, utils.ErrDeploymentNameRequired
 	}
 
 	gatewayUUID, err := uuid.Parse(req.GatewayID)
@@ -138,8 +140,6 @@ func (s *LLMProviderDeploymentService) DeployLLMProvider(providerID string, req 
 		return nil, fmt.Errorf("invalid gateway UUID: %w", err)
 	}
 
-	// Validate gateway exists
-	slog.Info("LLMProviderDeploymentService.DeployLLMProvider: validating gateway", "providerID", providerID, "gatewayID", req.GatewayID)
 	gateway, err := s.gatewayRepo.GetByUUID(req.GatewayID)
 	if err != nil {
 		slog.Error("LLMProviderDeploymentService.DeployLLMProvider: failed to get gateway", "providerID", providerID, "gatewayID", req.GatewayID, "error", err)
@@ -150,8 +150,6 @@ func (s *LLMProviderDeploymentService) DeployLLMProvider(providerID string, req 
 		return nil, utils.ErrGatewayNotFound
 	}
 
-	// Get LLM provider
-	slog.Info("LLMProviderDeploymentService.DeployLLMProvider: getting provider", "providerID", providerID, "ouID", ouID)
 	provider, err := s.resolveProvider(providerID, ouID)
 	if err != nil {
 		slog.Error("LLMProviderDeploymentService.DeployLLMProvider: failed to get provider", "providerID", providerID, "ouID", ouID, "error", err)
@@ -162,106 +160,59 @@ func (s *LLMProviderDeploymentService) DeployLLMProvider(providerID string, req 
 		return nil, utils.ErrLLMProviderNotFound
 	}
 
-	slog.Info("LLMProviderDeploymentService.DeployLLMProvider: provider retrieved", "providerID", providerID, "providerUUID", provider.UUID)
-
-	existing, err := s.deploymentRepo.GetDeployedGatewaysByProvider(provider.UUID, ouID)
+	ctx := context.Background()
+	existing, err := s.deploymentRepo.PlacedGateways(ctx, ouID, provider.UUID)
 	if err != nil {
-		return nil, fmt.Errorf("failed to list existing provider deployments: %w", err)
+		return nil, fmt.Errorf("failed to list the gateways the provider is placed on: %w", err)
 	}
 	if err := validateEgressPlacement(s.gatewayRepo, gateway, existing); err != nil {
 		return nil, fmt.Errorf("%w: %w", utils.ErrInvalidInput, err)
 	}
 
-	var baseDeploymentID *uuid.UUID
-	var contentBytes []byte
-
-	// Determine source: "current" or existing deployment
-	if req.Base == "current" {
-		slog.Info("LLMProviderDeploymentService.DeployLLMProvider: using current provider configuration", "providerID", providerID)
-
-		// Parse model providers from ModelList
-		if provider.ModelList != "" {
-			slog.Info("LLMProviderDeploymentService.DeployLLMProvider: parsing model providers", "providerID", providerID)
-			if err := json.Unmarshal([]byte(provider.ModelList), &provider.ModelProviders); err != nil {
-				slog.Error("LLMProviderDeploymentService.DeployLLMProvider: failed to parse model providers", "providerID", providerID, "error", err)
-				return nil, fmt.Errorf("failed to parse model providers: %w", err)
-			}
-		}
-
-		// Generate deployment YAML
-		slog.Info("LLMProviderDeploymentService.DeployLLMProvider: generating deployment YAML", "providerID", providerID)
-		deploymentYAML, err := s.generateLLMProviderDeploymentYAML(provider, ouID)
-		if err != nil {
-			slog.Error("LLMProviderDeploymentService.DeployLLMProvider: failed to generate deployment YAML", "providerID", providerID, "error", err)
-			return nil, fmt.Errorf("failed to generate deployment YAML: %w", err)
-		}
-		contentBytes = []byte(deploymentYAML)
-	} else {
-		slog.Info("LLMProviderDeploymentService.DeployLLMProvider: using existing deployment as base", "providerID", providerID, "baseDeploymentID", req.Base)
-
-		// Use existing deployment as base
-		baseUUID, err := uuid.Parse(req.Base)
-		if err != nil {
-			slog.Error("LLMProviderDeploymentService.DeployLLMProvider: invalid base deployment ID", "providerID", providerID, "baseDeploymentID", req.Base, "error", err)
-			return nil, fmt.Errorf("invalid base deployment ID: %w", err)
-		}
-
-		baseDeployment, err := s.deploymentRepo.GetWithContent(req.Base, provider.UUID.String(), ouID)
-		if err != nil {
-			slog.Warn("LLMProviderDeploymentService.DeployLLMProvider: base deployment not found", "providerID", providerID, "baseDeploymentID", req.Base, "error", err)
-			return nil, utils.ErrBaseDeploymentNotFound
-		}
-		contentBytes = baseDeployment.Content
-		baseDeploymentID = &baseUUID
-		slog.Info("LLMProviderDeploymentService.DeployLLMProvider: base deployment retrieved", "providerID", providerID, "baseDeploymentID", req.Base)
-	}
-
-	// Create deployment
-	deploymentID := uuid.New()
-	deployed := models.DeploymentStatusDeployed
-
-	slog.Info("LLMProviderDeploymentService.DeployLLMProvider: creating deployment", "providerID", providerID,
-		"deploymentID", deploymentID, "deploymentName", req.Name, "gatewayID", req.GatewayID)
-
-	deployment := &models.Deployment{
-		DeploymentID:     deploymentID,
-		Name:             req.Name,
-		ArtifactUUID:     provider.UUID,
-		OUID:             ouID,
-		GatewayUUID:      gatewayUUID,
-		BaseDeploymentID: baseDeploymentID,
-		Content:          contentBytes,
-		Metadata:         req.Metadata,
-		Status:           &deployed,
-	}
-
-	hardLimit := maxDeploymentsPerAPI + deploymentLimitBuffer
-	if err := s.deploymentRepo.CreateWithLimitEnforcement(deployment, hardLimit); err != nil {
-		slog.Error("LLMProviderDeploymentService.DeployLLMProvider: failed to create deployment", "providerID", providerID, "deploymentID", deploymentID, "error", err)
+	var applied *reconcile.Applied
+	err = s.tx(ctx, func(tx *gorm.DB) error {
+		applied, err = s.core.Deploy(ctx, tx, providerPlacement(provider, ouID, gatewayUUID))
+		return err
+	})
+	if err != nil {
+		slog.Error("LLMProviderDeploymentService.DeployLLMProvider: failed to deploy", "providerID", providerID, "error", err)
 		return nil, fmt.Errorf("failed to create deployment: %w", err)
 	}
 
-	slog.Info("LLMProviderDeploymentService.DeployLLMProvider: deployment created successfully", "providerID", providerID, "deploymentID", deploymentID)
+	slog.Info("LLMProviderDeploymentService.DeployLLMProvider: deployment started", "providerID", providerID, "deploymentID", applied.DeploymentID)
+	return applied.Deployment, nil
+}
 
-	// Broadcast deployment event to gateway
-	deploymentEvent := &models.LLMProviderDeploymentEvent{
-		ProviderID:     providerID,
-		DeploymentID:   deploymentID.String(),
-		PerformedAt:    time.Now(),
-		GatewayID:      req.GatewayID,
-		OrganizationID: ouID,
+// validateDeployBase accepts only a deploy of the current configuration. Redeploying an earlier deployment is a
+// restore.
+func validateDeployBase(base string) error {
+	if base == "" || base == "current" {
+		return nil
+	}
+	return utils.ErrDeploymentBaseNotCurrent
+}
+
+// providerPlacement is the provider's artifact on the gateway.
+func providerPlacement(provider *models.LLMProvider, ouID string, gatewayUUID uuid.UUID) models.Placement {
+	return models.Placement{
+		ArtifactRef: models.ArtifactRef{
+			OUID: ouID, ArtifactUUID: provider.UUID, Kind: models.KindLLMProvider, Handle: provider.Configuration.Handle,
+		},
+		GatewayUUID: gatewayUUID,
+	}
+}
+
+// providerDeploymentEvent tells the gateway to pull the provider's deployment. Events carry the provider's UUID,
+// which is what the gateway stores it under.
+func providerDeploymentEvent(p models.Placement, deploymentID string, performedAt time.Time) *models.LLMProviderDeploymentEvent {
+	return &models.LLMProviderDeploymentEvent{
+		ProviderID:     p.ArtifactUUID.String(),
+		DeploymentID:   deploymentID,
+		PerformedAt:    performedAt,
+		GatewayID:      p.GatewayUUID.String(),
+		OrganizationID: p.OUID,
 		Status:         string(models.DeploymentStatusDeployed),
 	}
-	if err := s.gatewayEventsService.BroadcastLLMProviderDeploymentEvent(req.GatewayID, deploymentEvent); err != nil {
-		slog.Error("LLMProviderDeploymentService.DeployLLMProvider: failed to broadcast deployment event",
-			"providerID", providerID, "deploymentID", deploymentID, "gatewayID", req.GatewayID, "error", err)
-		// Don't fail the deployment if broadcast fails - deployment is already persisted
-	} else {
-		slog.Info("LLMProviderDeploymentService.DeployLLMProvider: deployment event broadcast successfully",
-			"providerID", providerID, "deploymentID", deploymentID, "gatewayID", req.GatewayID)
-	}
-
-	return deployment, nil
 }
 
 // UndeployLLMProviderDeployment undeploys a deployment
@@ -269,8 +220,6 @@ func (s *LLMProviderDeploymentService) UndeployLLMProviderDeployment(providerID,
 	slog.Info("LLMProviderDeploymentService.UndeployLLMProviderDeployment: starting", "providerID", providerID,
 		"deploymentID", deploymentID, "gatewayID", gatewayID, "ouID", ouID)
 
-	// Get provider
-	slog.Info("LLMProviderDeploymentService.UndeployLLMProviderDeployment: getting provider", "providerID", providerID, "ouID", ouID)
 	provider, err := s.resolveProvider(providerID, ouID)
 	if err != nil {
 		slog.Error("LLMProviderDeploymentService.UndeployLLMProviderDeployment: failed to get provider", "providerID", providerID, "error", err)
@@ -281,8 +230,6 @@ func (s *LLMProviderDeploymentService) UndeployLLMProviderDeployment(providerID,
 		return nil, utils.ErrLLMProviderNotFound
 	}
 
-	// Get deployment
-	slog.Info("LLMProviderDeploymentService.UndeployLLMProviderDeployment: getting deployment", "providerID", providerID, "deploymentID", deploymentID)
 	deployment, err := s.deploymentRepo.GetWithState(deploymentID, provider.UUID.String(), ouID)
 	if err != nil {
 		slog.Error("LLMProviderDeploymentService.UndeployLLMProviderDeployment: failed to get deployment", "providerID", providerID, "deploymentID", deploymentID, "error", err)
@@ -297,49 +244,77 @@ func (s *LLMProviderDeploymentService) UndeployLLMProviderDeployment(providerID,
 			"deploymentID", deploymentID, "expectedGatewayID", gatewayID, "actualGatewayID", deployment.GatewayUUID.String())
 		return nil, utils.ErrGatewayIDMismatch
 	}
-	if deployment.Status == nil || *deployment.Status != models.DeploymentStatusDeployed {
-		slog.Warn("LLMProviderDeploymentService.UndeployLLMProviderDeployment: deployment not active", "providerID", providerID,
+	if deployment.Status == nil || *deployment.Status == models.DeploymentStatusArchived {
+		slog.Warn("LLMProviderDeploymentService.UndeployLLMProviderDeployment: deployment not current", "providerID", providerID,
 			"deploymentID", deploymentID, "status", deployment.Status)
 		return nil, utils.ErrDeploymentNotActive
 	}
 
-	// Update status to undeployed
-	slog.Info("LLMProviderDeploymentService.UndeployLLMProviderDeployment: setting status to undeployed", "providerID", providerID, "deploymentID", deploymentID)
-	updatedAt, err := s.deploymentRepo.SetCurrent(provider.UUID.String(), ouID, gatewayID, deploymentID, models.DeploymentStatusUndeployed)
+	ctx := context.Background()
+	placement := providerPlacement(provider, ouID, deployment.GatewayUUID)
+	row, err := undeployAndRead(ctx, s.tx, s.core, s.deploymentRepo, placement)
+	if errors.Is(err, utils.ErrDeploymentNotActive) {
+		slog.Warn("LLMProviderDeploymentService.UndeployLLMProviderDeployment: deployment not active", "providerID", providerID,
+			"deploymentID", deploymentID, "status", deployment.Status)
+		return nil, err
+	}
 	if err != nil {
 		slog.Error("LLMProviderDeploymentService.UndeployLLMProviderDeployment: failed to undeploy", "providerID", providerID, "deploymentID", deploymentID, "error", err)
 		return nil, fmt.Errorf("failed to undeploy: %w", err)
 	}
 
-	undeployed := models.DeploymentStatusUndeployed
-	deployment.Status = &undeployed
-	deployment.UpdatedAt = &updatedAt
-
-	slog.Info("LLMProviderDeploymentService.UndeployLLMProviderDeployment: undeployed successfully", "providerID", providerID, "deploymentID", deploymentID)
-
-	// Broadcast undeployment event to gateway
-	undeploymentEvent := &models.LLMProviderUndeploymentEvent{
-		ProviderID:     providerID,
-		DeploymentID:   deploymentID,
-		PerformedAt:    time.Now(),
-		GatewayID:      gatewayID,
-		OrganizationID: ouID,
-	}
-	if err := s.gatewayEventsService.BroadcastLLMProviderUndeploymentEvent(gatewayID, undeploymentEvent); err != nil {
-		slog.Error("LLMProviderDeploymentService.UndeployLLMProviderDeployment: failed to broadcast undeployment event",
-			"providerID", providerID, "deploymentID", deploymentID, "gatewayID", gatewayID, "error", err)
-		// Don't fail the undeployment if broadcast fails - status is already updated
-	} else {
-		slog.Info("LLMProviderDeploymentService.UndeployLLMProviderDeployment: undeployment event broadcast successfully",
-			"providerID", providerID, "deploymentID", deploymentID, "gatewayID", gatewayID)
-	}
-
+	deployment.SetStatusRow(row)
+	deployment.UpdatedAt = &row.PerformedAt
+	slog.Info("LLMProviderDeploymentService.UndeployLLMProviderDeployment: undeploy started", "providerID", providerID, "deploymentID", deploymentID)
 	return deployment, nil
+}
+
+// UndeployFromGateway undeploys the provider from a gateway it is placed on, whatever the placement's status.
+func (s *LLMProviderDeploymentService) UndeployFromGateway(ctx context.Context, provider *models.LLMProvider, ouID, gatewayID string) error {
+	gatewayUUID, err := uuid.Parse(gatewayID)
+	if err != nil {
+		return fmt.Errorf("invalid gateway UUID %q: %w", gatewayID, err)
+	}
+	return s.tx(ctx, func(tx *gorm.DB) error {
+		return s.core.Undeploy(ctx, tx, providerPlacement(provider, ouID, gatewayUUID))
+	})
+}
+
+// undeployAndRead undeploys the placement and reads back its row in the same transaction.
+func undeployAndRead(
+	ctx context.Context, runTx TxRunner, core *reconcile.Core, repo repositories.DeploymentRepository, p models.Placement,
+) (*models.DeploymentStatusRecord, error) {
+	var row *models.DeploymentStatusRecord
+	err := runTx(ctx, func(tx *gorm.DB) error {
+		if err := core.Undeploy(ctx, tx, p); err != nil {
+			return err
+		}
+		var err error
+		row, err = repo.WithTx(tx).GetStatusRecord(ctx, p)
+		return err
+	})
+	return row, err
+}
+
+// restoreAndRead restores the deployment on the placement and reads back its row in the same transaction.
+func restoreAndRead(
+	ctx context.Context, runTx TxRunner, core *reconcile.Core, repo repositories.DeploymentRepository, p models.Placement,
+	deploymentID uuid.UUID,
+) (*models.DeploymentStatusRecord, error) {
+	var row *models.DeploymentStatusRecord
+	err := runTx(ctx, func(tx *gorm.DB) error {
+		if err := core.Restore(ctx, tx, p, deploymentID); err != nil {
+			return err
+		}
+		var err error
+		row, err = repo.WithTx(tx).GetStatusRecord(ctx, p)
+		return err
+	})
+	return row, err
 }
 
 // RestoreLLMProviderDeployment restores a previous deployment
 func (s *LLMProviderDeploymentService) RestoreLLMProviderDeployment(providerID, deploymentID, gatewayID, ouID string) (*models.Deployment, error) {
-	// Get provider
 	provider, err := s.resolveProvider(providerID, ouID)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get provider: %w", err)
@@ -348,55 +323,60 @@ func (s *LLMProviderDeploymentService) RestoreLLMProviderDeployment(providerID, 
 		return nil, utils.ErrLLMProviderNotFound
 	}
 
-	// Get target deployment
-	deployment, err := s.deploymentRepo.GetWithContent(deploymentID, provider.UUID.String(), ouID)
+	deployment, err := s.restorableDeployment(deploymentID, provider.UUID.String(), ouID)
 	if err != nil {
-		return nil, fmt.Errorf("failed to get deployment: %w", err)
-	}
-	if deployment == nil {
-		return nil, utils.ErrDeploymentNotFound
+		return nil, err
 	}
 	if deployment.GatewayUUID.String() != gatewayID {
 		return nil, utils.ErrGatewayIDMismatch
 	}
 
-	// Check if already deployed
-	currentDeploymentID, status, _, err := s.deploymentRepo.GetStatus(provider.UUID.String(), ouID, gatewayID)
+	ctx := context.Background()
+	placement := providerPlacement(provider, ouID, deployment.GatewayUUID)
+	current, err := s.deploymentRepo.GetStatusRecord(ctx, placement)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get deployment status: %w", err)
 	}
-	if currentDeploymentID == deploymentID && status == models.DeploymentStatusDeployed {
+	if restoresItself(current, deployment.DeploymentID) {
 		return nil, utils.ErrDeploymentAlreadyDeployed
 	}
 
-	// Update status to deployed
-	updatedAt, err := s.deploymentRepo.SetCurrent(provider.UUID.String(), ouID, gatewayID, deploymentID, models.DeploymentStatusDeployed)
+	row, err := restoreAndRead(ctx, s.tx, s.core, s.deploymentRepo, placement, deployment.DeploymentID)
 	if err != nil {
 		return nil, fmt.Errorf("failed to restore deployment: %w", err)
 	}
 
-	deployed := models.DeploymentStatusDeployed
-	deployment.Status = &deployed
-	deployment.UpdatedAt = &updatedAt
+	deployment.SetStatusRow(row)
+	deployment.UpdatedAt = &row.PerformedAt
+	return deployment, nil
+}
 
-	// Broadcast deployment event to gateway (restore is treated as a deployment)
-	deploymentEvent := &models.LLMProviderDeploymentEvent{
-		ProviderID:     providerID,
-		DeploymentID:   deploymentID,
-		PerformedAt:    time.Now(),
-		GatewayID:      gatewayID,
-		OrganizationID: ouID,
-		Status:         string(models.DeploymentStatusDeployed),
+// restoresItself reports whether restoring deploymentID would redo what the gateway is already deploying or serving:
+// the row points at it, DEPLOYING or DEPLOYED, with no redeploy owed (as api-platform refuses). A restore over any
+// other status, or one that cancels an owed redeploy, goes ahead.
+func restoresItself(current *models.DeploymentStatusRecord, deploymentID uuid.UUID) bool {
+	if current == nil || current.DeploymentID == nil || *current.DeploymentID != deploymentID || current.NextAttemptAt != nil {
+		return false
 	}
-	if err := s.gatewayEventsService.BroadcastLLMProviderDeploymentEvent(gatewayID, deploymentEvent); err != nil {
-		slog.Error("LLMProviderDeploymentService.RestoreLLMProviderDeployment: failed to broadcast deployment event",
-			"providerID", providerID, "deploymentID", deploymentID, "gatewayID", gatewayID, "error", err)
-		// Don't fail the restore if broadcast fails - status is already updated
-	} else {
-		slog.Info("LLMProviderDeploymentService.RestoreLLMProviderDeployment: deployment event broadcast successfully",
-			"providerID", providerID, "deploymentID", deploymentID, "gatewayID", gatewayID)
-	}
+	return current.Status == models.DeploymentStatusDeployed || current.Status == models.DeploymentStatusDeploying
+}
 
+// restorableDeployment is the artifact's deployment deploymentID; ErrDeploymentNotFound when the id isn't one.
+func (s *LLMProviderDeploymentService) restorableDeployment(deploymentID, artifactUUID, ouID string) (*models.Deployment, error) {
+	return getRestorableDeployment(s.deploymentRepo, deploymentID, artifactUUID, ouID)
+}
+
+func getRestorableDeployment(repo repositories.DeploymentRepository, deploymentID, artifactUUID, ouID string) (*models.Deployment, error) {
+	if _, err := uuid.Parse(deploymentID); err != nil {
+		return nil, utils.ErrDeploymentNotFound
+	}
+	deployment, err := repo.GetWithContent(deploymentID, artifactUUID, ouID)
+	if errors.Is(err, utils.ErrDeploymentNotFound) || (err == nil && deployment == nil) {
+		return nil, utils.ErrDeploymentNotFound
+	}
+	if err != nil {
+		return nil, fmt.Errorf("failed to get deployment: %w", err)
+	}
 	return deployment, nil
 }
 
@@ -411,16 +391,8 @@ func (s *LLMProviderDeploymentService) GetLLMProviderDeployments(providerID, ouI
 		return nil, utils.ErrLLMProviderNotFound
 	}
 
-	// Validate status if provided
-	if status != nil {
-		validStatuses := map[string]bool{
-			string(models.DeploymentStatusDeployed):   true,
-			string(models.DeploymentStatusUndeployed): true,
-			string(models.DeploymentStatusArchived):   true,
-		}
-		if !validStatuses[*status] {
-			return nil, utils.ErrInvalidDeploymentStatus
-		}
+	if status != nil && !models.IsDeploymentStatusFilter(*status) {
+		return nil, utils.ErrInvalidDeploymentStatus
 	}
 
 	// Get deployments
@@ -474,7 +446,9 @@ func (s *LLMProviderDeploymentService) DeleteLLMProviderDeployment(providerID, d
 	if deployment == nil {
 		return utils.ErrDeploymentNotFound
 	}
-	if deployment.Status != nil && *deployment.Status == models.DeploymentStatusDeployed {
+	// The gateway is to serve the current deployment, or may still hold it; deleting it would drop its status row
+	// and orphan it there.
+	if deployment.Current() {
 		return utils.ErrDeploymentIsDeployed
 	}
 
@@ -487,9 +461,12 @@ func (s *LLMProviderDeploymentService) DeleteLLMProviderDeployment(providerID, d
 }
 
 // generateLLMProviderDeploymentYAML generates deployment YAML for an LLM provider
-func (s *LLMProviderDeploymentService) generateLLMProviderDeploymentYAML(provider *models.LLMProvider, ouID string) (string, error) {
-	// ouID parameter is reserved for future use in multi-tenant scenarios
-	_ = ouID
+func (s *LLMProviderDeploymentService) generateLLMProviderDeploymentYAML(provider *models.LLMProvider, _ string) (string, error) {
+	return renderLLMProvider(provider)
+}
+
+// renderLLMProvider is the provider's gateway configuration.
+func renderLLMProvider(provider *models.LLMProvider) (string, error) {
 	if provider == nil {
 		return "", errors.New("provider is required")
 	}
@@ -1133,81 +1110,4 @@ func pathsAreEqual(a, b models.LLMPolicyPath) bool {
 // isBoolTrue checks if a boolean pointer is non-nil and true
 func isBoolTrue(v *bool) bool {
 	return v != nil && *v
-}
-
-// GatewayIDsForProviderDeletion returns every gateway that could still hold the
-// provider config: all gateways with a deployment-status record, regardless of
-// current state, unioned with all active gateways in the organization.
-func (s *LLMProviderDeploymentService) GatewayIDsForProviderDeletion(ctx context.Context, artifactUUID uuid.UUID, ouID string) ([]string, error) {
-	gatewayIDs := map[string]struct{}{}
-	if s.deploymentRepo != nil {
-		tracked, err := s.deploymentRepo.GetTrackedGatewaysByProviderCtx(ctx, artifactUUID, ouID)
-		if err != nil {
-			return nil, fmt.Errorf("get tracked deletion gateways: %w", err)
-		}
-		for _, id := range tracked {
-			if strings.TrimSpace(id) != "" {
-				gatewayIDs[id] = struct{}{}
-			}
-		}
-	}
-	if s.gatewayRepo != nil {
-		active := true
-		gateways, err := s.gatewayRepo.ListWithFiltersCtx(ctx, repositories.GatewayFilterOptions{OrganizationID: ouID, Status: &active})
-		if err != nil {
-			return nil, fmt.Errorf("get active deletion gateways: %w", err)
-		}
-		for _, gateway := range gateways {
-			if gateway != nil {
-				gatewayIDs[gateway.UUID.String()] = struct{}{}
-			}
-		}
-	}
-	out := make([]string, 0, len(gatewayIDs))
-	for id := range gatewayIDs {
-		out = append(out, id)
-	}
-	return out, nil
-}
-
-// BroadcastLLMProviderDeletion tells the given gateways to drop this provider's
-// config outright. The paired llmprovider.undeployed event only flips the gateway's
-// desired state and deliberately preserves the config, its keys and its policies,
-// so this is the only event that actually reclaims it from the xDS snapshot.
-//
-// Best-effort by design: a deletion already committed in the database must not be
-// rolled back because one gateway is unreachable.
-func (s *LLMProviderDeploymentService) BroadcastLLMProviderDeletion(ctx context.Context, providerID, ouID string, gatewayIDs []string) {
-	if s.gatewayEventsService == nil || len(gatewayIDs) == 0 {
-		return
-	}
-
-	// providerID must be the canonical control-plane UUID, not a handle. The gateway
-	// resolves it with findAPIConfig, which looks up the stored config id and then
-	// falls back to the control-plane artifact id — and an LlmProvider config is
-	// stored under its UUID, with no artifact-id annotation to fall back to. Passing
-	// a handle therefore misses both lookups and the gateway silently logs
-	// "configuration not found" instead of dropping the config.
-	//
-	// This deliberately does NOT mirror the sibling llmprovider.undeployed event,
-	// which still passes whatever identifier the caller used and so has this same
-	// latent bug when handed a handle.
-	//
-	// Note the asymmetry with BroadcastLLMProxyDeletion: LlmProxy configs are stored
-	// under their handle, so that path passes the handle instead. Do not "unify"
-	// these two without re-checking what the gateway actually keys each kind by.
-	event := &models.LLMProviderDeletionEvent{ProviderID: providerID}
-
-	for _, gatewayID := range gatewayIDs {
-		if strings.TrimSpace(gatewayID) == "" {
-			continue
-		}
-		if err := s.gatewayEventsService.BroadcastLLMProviderDeletionEvent(ctx, gatewayID, event); err != nil {
-			slog.Warn("LLMProviderDeploymentService.BroadcastLLMProviderDeletion: failed to broadcast deletion event",
-				"providerID", providerID, "ouID", ouID, "gatewayID", gatewayID, "error", err)
-		} else {
-			slog.Info("LLMProviderDeploymentService.BroadcastLLMProviderDeletion: deletion event sent",
-				"providerID", providerID, "ouID", ouID, "gatewayID", gatewayID)
-		}
-	}
 }

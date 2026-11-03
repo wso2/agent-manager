@@ -26,11 +26,14 @@ import {
   Select,
   Skeleton,
   Stack,
+  Tooltip,
   Typography,
 } from "@wso2/oxygen-ui";
 import type {
   Environment,
+  GatewayDeploymentStatus,
   GatewayResponse,
+  LLMDeploymentStatus,
 } from "@agent-management-platform/types";
 import {
   useListEnvironments,
@@ -44,6 +47,12 @@ export interface EnvironmentGatewaySelectorProps {
   onChange: (gatewayIds: string[]) => void;
   /** Gateway UUIDs already deployed — rendered locked. Omit in create form. */
   lockedGatewayIds?: string[];
+  /**
+   * Each gateway's current deploy status, by UUID. A locked gateway whose
+   * status isn't DEPLOYED is not locked, and a row whose gateway is deploying,
+   * undeploying or failed shows that status instead of "Deployed".
+   */
+  gatewayStatuses?: Map<string, GatewayDeploymentStatus>;
   /** false while any checked 2+-candidate environment lacks a resolved gateway. */
   onValidityChange?: (isValid: boolean) => void;
   /**
@@ -84,6 +93,25 @@ const DEPLOYED_CAPTION_SWITCHABLE =
   "this environment and save to undeploy, then select the new gateway and " +
   "save again.";
 
+interface StatusChip {
+  label: string;
+  color: "info" | "warning";
+}
+
+// A DEPLOYED gateway is shown by its lock's "Deployed" chip instead.
+const STATUS_CHIPS: Partial<Record<LLMDeploymentStatus, StatusChip>> = {
+  DEPLOYING: { label: "Deploying", color: "info" },
+  UNDEPLOYING: { label: "Undeploying", color: "info" },
+  FAILED: { label: "Failed", color: "warning" },
+};
+
+function statusChipFor(status: GatewayDeploymentStatus): StatusChip | undefined {
+  if (status.status === "FAILED" && status.statusDesired === "UNDEPLOYED") {
+    return { label: "Undeploy failed", color: "warning" };
+  }
+  return STATUS_CHIPS[status.status];
+}
+
 interface EnvironmentRow {
   envId: string;
   label: string;
@@ -91,6 +119,8 @@ interface EnvironmentRow {
   lockedGateway?: GatewayResponse;
   resolvedGateway?: GatewayResponse;
   checked: boolean;
+  /** The row's gateway's deploy status, when it has a chip of its own. */
+  statusChip?: StatusChip & { reason?: string };
 }
 
 export const EnvironmentGatewaySelectorView: React.FC<
@@ -102,6 +132,7 @@ export const EnvironmentGatewaySelectorView: React.FC<
   value,
   onChange,
   lockedGatewayIds = [],
+  gatewayStatuses,
   onValidityChange,
   onSingleChoiceChange,
   disabled,
@@ -109,7 +140,18 @@ export const EnvironmentGatewaySelectorView: React.FC<
   const [pendingEnvIds, setPendingEnvIds] = useState<Set<string>>(new Set());
 
   const valueSet = useMemo(() => new Set(value), [value]);
-  const lockedSet = useMemo(() => new Set(lockedGatewayIds), [lockedGatewayIds]);
+  // A gateway whose deploy is still running or failed has no placement to
+  // protect yet, so it stays editable even when the caller locks it.
+  const lockedSet = useMemo(
+    () =>
+      new Set(
+        lockedGatewayIds.filter((uuid) => {
+          const status = gatewayStatuses?.get(uuid)?.status;
+          return status === undefined || status === "DEPLOYED";
+        }),
+      ),
+    [lockedGatewayIds, gatewayStatuses],
+  );
   const gatewayByUuid = useMemo(
     () => new Map(gateways.map((gateway) => [gateway.uuid, gateway])),
     [gateways],
@@ -147,6 +189,14 @@ export const EnvironmentGatewaySelectorView: React.FC<
         const checked = lockedGateway
           ? valueSet.has(lockedGateway.uuid)
           : resolvedGateway != null || pendingEnvIds.has(env.id);
+        // A sole candidate is named inline even while unchecked, so its
+        // status still reads as belonging to it.
+        const statusGateway =
+          lockedGateway ??
+          resolvedGateway ??
+          (candidates.length === 1 ? candidates[0] : undefined);
+        const status = statusGateway && gatewayStatuses?.get(statusGateway.uuid);
+        const chip = status && statusChipFor(status);
         return [
           {
             envId: env.id,
@@ -155,10 +205,18 @@ export const EnvironmentGatewaySelectorView: React.FC<
             lockedGateway,
             resolvedGateway,
             checked,
+            statusChip: chip && { ...chip, reason: status?.statusReason },
           },
         ];
       }),
-    [environments, gatewaysByEnv, lockedSet, valueSet, pendingEnvIds],
+    [
+      environments,
+      gatewaysByEnv,
+      lockedSet,
+      valueSet,
+      pendingEnvIds,
+      gatewayStatuses,
+    ],
   );
 
   const unmappedSelectedUuids = useMemo(() => {
@@ -191,7 +249,10 @@ export const EnvironmentGatewaySelectorView: React.FC<
       unmappedSelectedUuids.length === 0 &&
       (singleRow.lockedGateway || singleRow.candidates.length === 1),
   );
-  const hidesSingleChoice = isSingleChoice && !singleRow?.lockedGateway;
+  // A deploy status is a fact worth showing too, and hiding the row would
+  // also re-select a gateway the user just unchecked.
+  const hidesSingleChoice =
+    isSingleChoice && !singleRow?.lockedGateway && !singleRow?.statusChip;
 
   useEffect(() => {
     onSingleChoiceChange?.(isSingleChoice);
@@ -387,6 +448,16 @@ export const EnvironmentGatewaySelectorView: React.FC<
                   variant="outlined"
                   color="success"
                 />
+              )}
+              {row.statusChip && (
+                <Tooltip title={row.statusChip.reason ?? ""}>
+                  <Chip
+                    label={row.statusChip.label}
+                    size="small"
+                    variant="outlined"
+                    color={row.statusChip.color}
+                  />
+                </Tooltip>
               )}
             </Stack>
             {belowContent && (

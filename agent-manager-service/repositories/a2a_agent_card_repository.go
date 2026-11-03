@@ -72,6 +72,8 @@ type A2AAgentCardRepository interface {
 	ListForAgent(ctx context.Context, ouID, projectName, agentName string) ([]models.A2AAgentCard, error)
 	DeleteForAgent(ctx context.Context, ouID, projectName, agentName string) error
 	DeleteForAgentEnv(ctx context.Context, ouID, projectName, agentName, environmentName string) error
+	// DeleteForAgentEnvUUID is DeleteForAgentEnv for a caller that knows the environment by its UUID.
+	DeleteForAgentEnvUUID(ctx context.Context, ouID, projectName, agentName string, environmentUUID uuid.UUID) error
 	// DeletePlatformForAgentEnv drops a platform row and keeps an external one, whose URL is user config.
 	DeletePlatformForAgentEnv(ctx context.Context, ouID, projectName, agentName, environmentName string) error
 	// DeleteIfUnchanged removes the row as read; ErrA2AAgentCardSuperseded when it changed since.
@@ -348,6 +350,15 @@ func (r *a2aAgentCardRepository) DeleteForAgentEnv(ctx context.Context, ouID, pr
 	return r.db.WithContext(ctx).
 		Where("ou_id = ? AND project_name = ? AND agent_name = ? AND environment_name = ?",
 			ouID, projectName, agentName, environmentName).
+		Delete(&models.A2AAgentCard{}).Error
+}
+
+func (r *a2aAgentCardRepository) DeleteForAgentEnvUUID(
+	ctx context.Context, ouID, projectName, agentName string, environmentUUID uuid.UUID,
+) error {
+	return r.db.WithContext(ctx).
+		Where("ou_id = ? AND project_name = ? AND agent_name = ? AND environment_uuid = ?",
+			ouID, projectName, agentName, environmentUUID).
 		Delete(&models.A2AAgentCard{}).Error
 }
 

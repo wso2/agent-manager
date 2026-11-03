@@ -47,11 +47,15 @@ type SourceResult struct {
 	Routing     string `json:"routing"` // RoutingDirect, RoutingProxied, or "" when unknown
 }
 
-// CheckProxyableURL refuses, before anything is saved, a URL the server's proxy step would refuse.
-func CheckProxyableURL(flag, raw string) error {
+// CheckCardURL refuses, before anything is saved, a card URL the server would refuse:
+// one that is not http(s) with a host or, when proxied, one its proxy step would refuse.
+func CheckCardURL(flag, raw string, proxied bool) error {
 	u, err := url.Parse(raw)
 	if err != nil || (u.Scheme != "http" && u.Scheme != "https") || u.Host == "" {
 		return cmdutil.FlagErrorf("%s must be an http(s) URL", flag)
+	}
+	if !proxied {
+		return nil
 	}
 	if u.RawQuery != "" || u.Fragment != "" || strings.Contains(raw, "?") || strings.Contains(raw, "#") {
 		return cmdutil.FlagErrorf("%s must not have a query or fragment to use --proxy", flag)

@@ -34,14 +34,14 @@ import (
 	"github.com/wso2/agent-manager/agent-manager-service/utils"
 )
 
-// deploySettingsService wires UpdateAgentDeploySettings for the external A2A agent in externalA2AAgent.
+// deploySettingsService wires UpdateAgentDeploySettings for the external agent in externalAgent.
 func deploySettingsService(configs *repomocks.AgentConfigRepositoryMock, publisher *A2APublisher) *agentManagerService {
 	oc := &clientmocks.OpenChoreoClientMock{
 		GetOrganizationFunc: func(_ context.Context, name string) (*models.OrganizationResponse, error) {
 			return &models.OrganizationResponse{Name: name}, nil
 		},
 		GetComponentFunc: func(context.Context, string, string, string) (*models.AgentResponse, error) {
-			return externalA2AAgent(), nil
+			return externalAgent(), nil
 		},
 		GetEnvironmentFunc: func(_ context.Context, _, name string) (*models.EnvironmentResponse, error) {
 			return &models.EnvironmentResponse{Name: name, UUID: proxyTestEnvUUID}, nil
@@ -53,8 +53,9 @@ func deploySettingsService(configs *repomocks.AgentConfigRepositoryMock, publish
 			return &models.Artifact{UUID: uuid.New(), Handle: handle, Kind: models.KindAgent, OUID: ouID}, nil
 		},
 	}
+	artifacts.WithTxFunc = func(*gorm.DB) repositories.ArtifactRepository { return artifacts }
 	return NewAgentManagerService(nil, oc, nil, nil, nil, configs, nil, nil, artifacts, nil, nil, nil, nil, nil, nil, nil,
-		publisher, nil, nil, nil, testLogger()).(*agentManagerService)
+		publisher, nil, nil, nil, publisher.exposure, nil, testLogger()).(*agentManagerService)
 }
 
 // savedConfigs accepts the upsert inside the save transaction only; a plain Upsert reaches a nil func and panics.
@@ -82,17 +83,19 @@ func deploySettingsMocks(t *testing.T) *publisherMocks {
 		return m.proxies
 	}
 	m.proxies.LockAgentEnvFunc = func(context.Context, string, string, string, uuid.UUID) error { return nil }
+	m.deployments.QueueRenderFunc = func(context.Context, *gorm.DB, string, uuid.UUID, []uuid.UUID, string,
+		repositories.QueueScope,
+	) (int64, error) {
+		return 0, nil
+	}
 	return m
 }
 
-// The save and the republish are one transaction, decided under the environment's transition lock.
-func TestUpdateAgentDeploySettingsRepublishesAProxiedExternalAgent(t *testing.T) {
+// The save is decided under the environment's transition lock. A proxied external agent's record is its proxy row,
+// so the save writes no exposure.
+func TestUpdateAgentDeploySettingsDecidesAProxiedExternalAgentUnderTheLock(t *testing.T) {
 	var steps []string
-	m := deploySettingsMocks(t)
-	m.txPubs.EnqueueFunc = func(_ context.Context, pub *models.A2APublication) error {
-		steps = append(steps, "enqueue:"+string(pub.Source))
-		return nil
-	}
+	m := deploySettingsMocks(t) // txExposures.UpsertFunc is nil: an exposure would panic
 	m.proxies.LockAgentEnvFunc = func(_ context.Context, _, _, _ string, envUUID uuid.UUID) error {
 		assert.Equal(t, uuid.MustParse(proxyTestEnvUUID), envUUID)
 		steps = append(steps, "lock")
@@ -112,8 +115,55 @@ func TestUpdateAgentDeploySettingsRepublishesAProxiedExternalAgent(t *testing.T)
 	require.NoError(t, err)
 	require.Len(t, txConfigs.UpsertCalls(), 1)
 	assert.False(t, txConfigs.UpsertCalls()[0].Config.EnableApiKeySecurity)
-	assert.Equal(t, []string{"read-proxy", "lock", "read-proxy", "enqueue:external"}, steps,
-		"the pre-check reads unlocked; the save re-decides under the lock and queues the republish in its transaction")
+	assert.Equal(t, []string{"read-proxy", "lock", "read-proxy"}, steps,
+		"the pre-check reads unlocked; the save re-decides under the lock")
+	require.Len(t, m.deployments.QueueRenderCalls(), 1, "the proxied agent's placed rows re-render after the save")
+	assert.Equal(t, repositories.QueueScopePlaced, m.deployments.QueueRenderCalls()[0].Scope)
+}
+
+// The save has committed when a proxied agent's re-render is marked: a failure there is logged, not reported.
+func TestUpdateAgentDeploySettingsSavesWhenTheReRenderCannotBeMarked(t *testing.T) {
+	m := deploySettingsMocks(t)
+	m.proxies.GetByEnvUUIDFunc = func(context.Context, string, string, string, uuid.UUID) (*models.A2AProxy, error) {
+		return &models.A2AProxy{}, nil
+	}
+	m.deployments.QueueRenderFunc = func(context.Context, *gorm.DB, string, uuid.UUID, []uuid.UUID, string,
+		repositories.QueueScope,
+	) (int64, error) {
+		return 0, errors.New("database is down")
+	}
+	configs, txConfigs := savedConfigs(t)
+	svc := deploySettingsService(configs, m.publisher())
+
+	err := svc.UpdateAgentDeploySettings(tierGrantedCtx(t), "org-1", "checkout", "weather",
+		&spec.UpdateAgentDeploySettingsRequest{EnvironmentName: "dev"})
+
+	require.NoError(t, err)
+	assert.Len(t, txConfigs.UpsertCalls(), 1)
+	assert.Len(t, m.deployments.QueueRenderCalls(), 1)
+}
+
+// A proxied external agent takes A2A CORS whatever subtype it was created with.
+func TestUpdateAgentDeploySettingsAppliesA2ACORSToAProxiedExternalAgent(t *testing.T) {
+	m := deploySettingsMocks(t)
+	m.proxies.GetByEnvUUIDFunc = func(context.Context, string, string, string, uuid.UUID) (*models.A2AProxy, error) {
+		return &models.A2AProxy{}, nil
+	}
+	configs, txConfigs := savedConfigs(t)
+	svc := deploySettingsService(configs, m.publisher())
+	enabled, inherit := true, false
+
+	err := svc.UpdateAgentDeploySettings(tierGrantedCtx(t), "org-1", "checkout", "weather",
+		&spec.UpdateAgentDeploySettingsRequest{
+			EnvironmentName:     "dev",
+			AgentCardCorsConfig: &spec.AgentCardCORSConfig{Inherit: &inherit, Enabled: &enabled, AllowOrigin: []string{"https://app.example.com"}},
+		})
+
+	require.NoError(t, err)
+	require.Len(t, txConfigs.UpsertCalls(), 1)
+	saved := txConfigs.UpsertCalls()[0].Config
+	assert.Contains(t, saved.CORSAllowHeaders, a2aVersionHeader)
+	assert.Equal(t, []string{"https://app.example.com"}, saved.CardCORSAllowOrigins)
 }
 
 // A switch to direct that lands after the pre-check is seen under the lock: the settings are saved, nothing is queued.
@@ -135,26 +185,7 @@ func TestUpdateAgentDeploySettingsSeesASwitchToDirectUnderTheLock(t *testing.T) 
 
 	require.NoError(t, err)
 	assert.Len(t, txConfigs.UpsertCalls(), 1)
-	assert.Empty(t, m.txPubs.EnqueueCalls(), "no external row is left behind for the reconciler to fail")
-}
-
-// Nothing is half-applied: a republish that cannot be queued rolls the settings back with it.
-func TestUpdateAgentDeploySettingsFailsWhenTheRepublishCannotBeQueued(t *testing.T) {
-	boom := errors.New("boom")
-	m := deploySettingsMocks(t)
-	m.txPubs.EnqueueFunc = func(context.Context, *models.A2APublication) error { return boom }
-	m.proxies.GetByEnvUUIDFunc = func(context.Context, string, string, string, uuid.UUID) (*models.A2AProxy, error) {
-		return &models.A2AProxy{}, nil
-	}
-	configs, txConfigs := savedConfigs(t)
-	svc := deploySettingsService(configs, m.publisher())
-	apiKeys := false
-
-	err := svc.UpdateAgentDeploySettings(tierGrantedCtx(t), "org-1", "checkout", "weather",
-		&spec.UpdateAgentDeploySettingsRequest{EnvironmentName: "dev", EnableApiKeySecurity: &apiKeys})
-
-	require.ErrorIs(t, err, boom)
-	assert.Len(t, txConfigs.UpsertCalls(), 1, "the save ran inside the transaction the failed enqueue rolls back")
+	assert.Empty(t, m.txExposures.UpsertCalls())
 }
 
 func TestUpdateAgentDeploySettingsRejectsADirectExternalEnvironment(t *testing.T) {

@@ -42,7 +42,8 @@ vi.mock("@agent-management-platform/shared-component", () => ({
     isError: false,
   }),
 }));
-vi.mock("@agent-management-platform/views", () => ({
+vi.mock("@agent-management-platform/views", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@agent-management-platform/views")>()),
   PageLayout: ({ children }: { children: ReactNode }) => <>{children}</>,
 }));
 vi.mock("./Configure/subComponents/AgentConfigTableSection", () => ({
@@ -62,7 +63,10 @@ import { ConfigureComponent } from "./Configure.Component";
 
 const mockAgent = (subType: string, provisioning = "internal") =>
   vi.mocked(useGetAgent).mockReturnValue({
-    data: { agentType: { type: "agent-api", subType }, provisioning: { type: provisioning } },
+    data: {
+      agentType: { type: provisioning === "external" ? "external-agent-api" : "agent-api", subType },
+      provisioning: { type: provisioning },
+    },
   } as unknown as ReturnType<typeof useGetAgent>);
 
 function SearchProbe() {
@@ -92,6 +96,14 @@ describe("Configure page A2A tab", () => {
     expect(screen.queryByRole("tab", { name: "A2A" })).not.toBeInTheDocument();
     expect(screen.getByRole("tab", { name: "LLM Configurations" })).toHaveAttribute("aria-selected", "true");
     expect(screen.queryByText(/card panel/)).not.toBeInTheDocument();
+  });
+
+  it("is shown for every external agent, which registers its card URL there", () => {
+    vi.mocked(useGetAgent).mockReturnValue({
+      data: { agentType: { type: "external-agent-api", subType: "custom-api" }, provisioning: { type: "external" } },
+    } as unknown as ReturnType<typeof useGetAgent>);
+    renderPage("?tab=a2a");
+    expect(screen.getByRole("tab", { name: "A2A" })).toHaveAttribute("aria-selected", "true");
   });
 
   it("opens on the environment named in the URL", () => {

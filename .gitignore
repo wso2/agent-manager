@@ -65,6 +65,16 @@ agent-manager-service/agent-manager-service
 charts/
 
 .env
+.env.local
+.env.*.local
+*.pem
+*.key
+*.p12
+*.pfx
+config/secrets.yml
+config/database.yml
+secrets/
+credentials/
 
 # Local development configurations
 deployments/values/api-platform-operator-local-config.yaml

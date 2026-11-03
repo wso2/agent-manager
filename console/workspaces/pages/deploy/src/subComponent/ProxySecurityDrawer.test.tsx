@@ -21,7 +21,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 vi.mock("@agent-management-platform/api-client", () => ({
   useGetAgent: vi.fn(() => ({
-    data: { provisioning: { type: "external" }, agentType: { type: "external-agent-api", subType: "a2a-agent" } },
+    data: { provisioning: { type: "external" }, agentType: { type: "external-agent-api" } },
   })),
   useGetAgentConfigurations: vi.fn(),
   useListEnvironmentIdentityProviders: vi.fn(() => ({ data: undefined })),

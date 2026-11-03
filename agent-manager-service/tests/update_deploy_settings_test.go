@@ -136,3 +136,23 @@ func TestUpdateAgentDeploySettings(t *testing.T) {
 		require.Contains(t, rr.Body.String(), "Agent not found")
 	})
 }
+
+func TestDeploySettingsNotRefusedWithoutGateway(t *testing.T) {
+	authMiddleware := jwtassertion.NewMockMiddleware(t)
+	agentName := fmt.Sprintf("agent-%s", uuid.New().String()[:8])
+	ocClient := apitestutils.CreateMockOpenChoreoClient()
+	ocClient.GetComponentFunc = apiAgentComponentFunc()
+	app := apitestutils.MakeAppClientWithDeps(t, wiring.TestClients{OpenChoreoClient: ocClient}, authMiddleware)
+	body, _ := json.Marshal(spec.UpdateAgentDeploySettingsRequest{
+		EnvironmentName:      "development",
+		EnableApiKeySecurity: boolPtr(false),
+	})
+	url := fmt.Sprintf("/api/v1/orgs/%s/projects/my-project/agents/%s/deploy-settings", testDeploySettingsOrgName, agentName)
+	req := httptest.NewRequest(http.MethodPut, url, bytes.NewBuffer(body))
+	req.Header.Set("Content-Type", "application/json")
+	rr := httptest.NewRecorder()
+
+	app.ServeHTTP(rr, req)
+
+	require.Equal(t, http.StatusNoContent, rr.Code)
+}

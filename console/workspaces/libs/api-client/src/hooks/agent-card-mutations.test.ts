@@ -165,7 +165,7 @@ describe("agent card mutations", () => {
   ])("invalidate the gateway routing before %s resolves", async (_n, hook, run) => {
     vi.mocked(getAgentCard).mockResolvedValue(card("https://a.example/c"));
     const { result, qc } = await mountWithClient(hook as () => never);
-    qc.setQueryData(a2aProxyQueryKey(params), { status: "published" });
+    qc.setQueryData(a2aProxyQueryKey(params), { status: "DEPLOYED" });
 
     await act(async () => { await run(result.current as never); });
 
@@ -175,7 +175,7 @@ describe("agent card mutations", () => {
   it("read the card and gateway routing as gone once the source is removed", async () => {
     vi.mocked(getAgentCard).mockResolvedValue(card("https://a.example/c"));
     const { result, qc } = await mountWithClient(useDeleteAgentCardSource);
-    qc.setQueryData(a2aProxyQueryKey(params), { status: "published" });
+    qc.setQueryData(a2aProxyQueryKey(params), { status: "DEPLOYED" });
     expect(qc.getQueryData(agentCardQueryKey(params))).toBeDefined();
     // The mounted card query re-reads after removal; the server now answers 404.
     vi.mocked(getAgentCard).mockRejectedValue(Object.assign(new Error("not found"), { status: 404 }));

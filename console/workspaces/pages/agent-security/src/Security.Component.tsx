@@ -36,7 +36,7 @@ import {
 } from "@agent-management-platform/shared-component";
 import {
   buildConfigureTabHref,
-  isExternalA2AAgent,
+  isExternalAgent,
   PageLayout,
 } from "@agent-management-platform/views";
 import { absoluteRouteMap } from "@agent-management-platform/types";
@@ -67,7 +67,7 @@ export const SecurityComponent: React.FC = () => {
     projName: projectId,
     agentName: agentId,
   });
-  const isExternalA2A = isExternalA2AAgent(agent);
+  const isExternal = isExternalAgent(agent);
   // Null while the environment is direct.
   const {
     data: proxy,
@@ -75,11 +75,11 @@ export const SecurityComponent: React.FC = () => {
     isError: isProxyLookupFailed,
   } = useGetA2AProxy(
     { orgName: orgId, projName: projectId, agentName: agentId, envId },
-    { enabled: isExternalA2A },
+    { enabled: isExternal },
   );
   const { data: deployments, isLoading: isLoadingDeployments } =
     useListAgentDeployments({
-      orgName: agent && !isExternalA2A ? orgId : undefined,
+      orgName: agent && !isExternal ? orgId : undefined,
       projName: projectId,
       agentName: agentId,
     });
@@ -88,7 +88,7 @@ export const SecurityComponent: React.FC = () => {
   const oauthEnabled = envConfig?.enableOAuthSecurity ?? false;
   const currentDeployment = envId ? deployments?.[envId] : undefined;
   // A proxied external agent is served by the gateway, so its keys work without a deployment.
-  const servedByGateway = isExternalA2A
+  const servedByGateway = isExternal
     ? !!proxy
     : currentDeployment?.status === "active";
   const shouldLoadKeys =
@@ -158,14 +158,14 @@ export const SecurityComponent: React.FC = () => {
         title: "Could not load the agent",
         description: "Reload the page to try again.",
       }
-    : isExternalA2A && isProxyLookupFailed
+    : isExternal && isProxyLookupFailed
     ? {
         illustration: <AlertTriangle size={48} />,
         title: "Could not load gateway routing",
         description: "Reload the page to try again.",
       }
     : !servedByGateway
-    ? isExternalA2A
+    ? isExternal
       ? {
           illustration: <Rocket size={48} />,
           title: "Agent is not routed through the gateway",
@@ -187,10 +187,10 @@ export const SecurityComponent: React.FC = () => {
     ? {
         illustration: <ShieldOff size={48} />,
         title: "Agent security is disabled",
-        description: isExternalA2A
+        description: isExternal
           ? "Enable API Key Security in the gateway security settings under Configure → A2A to manage API keys."
           : "Enable API Key Security from the deployment settings and redeploy to manage API keys.",
-        action: isExternalA2A
+        action: isExternal
           ? a2aSettingsAction
           : orgId && projectId && agentId && envId ? (
             <Button

@@ -69,10 +69,11 @@ type GatewayDeploymentResponse struct {
 	Created      bool   `json:"created"`
 }
 
-// DeployAPIRequest represents the request to deploy an API
+// DeployAPIRequest represents the request to deploy an API. Name and Metadata are accepted and ignored: the
+// deployment is named by its kind.
 type DeployAPIRequest struct {
-	Name       string                 `json:"name" binding:"required"`
-	Base       string                 `json:"base" binding:"required"` // "current" or deployment ID
+	Name       string                 `json:"name,omitempty"`
+	Base       string                 `json:"base,omitempty"` // omitted or "current"
 	GatewayID  string                 `json:"gatewayId" binding:"required"`
 	Metadata   map[string]interface{} `json:"metadata,omitempty"`
 	Properties map[string]interface{} `json:"properties,omitempty"`
@@ -91,8 +92,17 @@ type GatewayMessage struct {
 	Payload json.RawMessage `json:"payload"`
 }
 
-// DeploymentAckPayload represents the payload of a deployment acknowledgment from the gateway
-type DeploymentAckPayload struct {
+// Deployment ack actions and outcomes, as the gateway sends them.
+const (
+	DeploymentAckActionDeploy   = "deploy"
+	DeploymentAckActionUndeploy = "undeploy"
+	DeploymentAckStatusSuccess  = "success"
+	DeploymentAckStatusFailed   = "failed"
+)
+
+// DeploymentAck is the payload of a deployment acknowledgment from the gateway. The gateway echoes the event's
+// deploymentId, so an undeploy ack carries an empty one.
+type DeploymentAck struct {
 	DeploymentID string    `json:"deploymentId"`
 	ArtifactID   string    `json:"artifactId"`
 	ResourceType string    `json:"resourceType"` // "api", "llmprovider", "llmproxy", "mcpproxy", "agentproxy", "Agent"
@@ -100,4 +110,20 @@ type DeploymentAckPayload struct {
 	Status       string    `json:"status"`       // "success" or "failed"
 	PerformedAt  time.Time `json:"performedAt"`
 	ErrorCode    string    `json:"errorCode,omitempty"`
+}
+
+// ControlPlaneDeployment is one GET /api/internal/v1/deployments entry, in the gateway's shape.
+type ControlPlaneDeployment struct {
+	ArtifactID   string    `json:"artifactId"`
+	DeploymentID string    `json:"deploymentId"`
+	Kind         string    `json:"kind"`
+	State        string    `json:"state"`
+	DeployedAt   time.Time `json:"deployedAt"`
+	Etag         string    `json:"etag"`
+}
+
+// ArtifactExistence answers POST /api/internal/v1/artifacts/exists for one artifact id.
+type ArtifactExistence struct {
+	ArtifactID string `json:"artifactId"`
+	Exists     bool   `json:"exists"`
 }

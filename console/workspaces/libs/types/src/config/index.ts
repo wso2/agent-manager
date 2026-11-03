@@ -53,6 +53,20 @@ export interface AppConfig {
    */
   scriptBaseUrl?: string;
   /**
+   * Private registry the platform was installed from, as a host and path prefix
+   * (e.g. "registry.example.com/my-project"). Empty for the public registry.
+   * When set, the generated environment and identity provider commands pull
+   * the gateway extension chart from it, and the environment command runs from
+   * the release bundle so it can create the image pull secrets.
+   */
+  ampRegistry?: string;
+  /** Helm chart registry of a private install. Empty derives `<ampRegistry>/helm-charts`. */
+  ampChartRegistry?: string;
+  /** Release bundle the private-registry environment command extracts the scripts from. */
+  bundleUrl?: string;
+  /** Version of the installed Agent Manager chart, e.g. "2.0.0-u1". */
+  chartVersion?: string;
+  /**
    * Base URL the evaluator AI Copilot prompt links the writing guide from.
    * Empty (the default) derives the public raw.githubusercontent.com URL for the
    * release ref. Set it where external AI assistants cannot reach GitHub, to any

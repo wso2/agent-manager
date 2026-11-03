@@ -96,10 +96,8 @@ func runSet(ctx context.Context, o *SetOptions) error {
 	if err := validateTarget(o.AgentName, o.Env); err != nil {
 		return render.Error(o.IO, o.Scope, err)
 	}
-	if o.Proxy {
-		if err := a2acard.CheckProxyableURL("--url", o.URL); err != nil {
-			return render.Error(o.IO, o.Scope, err)
-		}
+	if err := a2acard.CheckCardURL("--url", o.URL, o.Proxy); err != nil {
+		return render.Error(o.IO, o.Scope, err)
 	}
 	client, err := o.Client(ctx)
 	if err != nil {

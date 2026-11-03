@@ -21,7 +21,7 @@ cm_value() {
   local key="$1" rendered
   shift
   if ! rendered="$(helm template test-release "$CHART_DIR" \
-    --show-only templates/agent-manager-service/configmap.yaml "$@" 2>&1)"; then
+    --show-only "${CM_TEMPLATE:-templates/agent-manager-service/configmap.yaml}" "$@" 2>&1)"; then
     printf 'helm template failed: %s\n' "$rendered" >&2
     return 1
   fi
@@ -495,6 +495,23 @@ assert_secret_ref "existingSecretKey selects the key" "$API_TMPL" \
   --set $GA.existingSecretKey=custom-key
 assert_secret_ref "an inline Application ID is read from the chart Secret" "$API_TMPL" \
   MOESIF_APPLICATION_ID key moesif-application-id --set $GA.enabled=true --set $GA.applicationId=app-id-123
+
+# The console's generated environment and identity provider commands switch to
+# the private registry only when the console knows it. ghcr.io/wso2 is the public
+# registry, so naming it must keep them on their public defaults.
+CONSOLE_CM=templates/console/configmap.yaml
+CM_TEMPLATE=$CONSOLE_CM assert_cm "a public install has no console registry" AMP_REGISTRY ""
+CM_TEMPLATE=$CONSOLE_CM assert_cm "the public registry counts as public" AMP_REGISTRY "" \
+  --set global.ampImageRegistry=ghcr.io/wso2
+CM_TEMPLATE=$CONSOLE_CM assert_cm "the console registry follows global.ampImageRegistry" AMP_REGISTRY \
+  "registry.example.com/proj/sts" --set global.ampImageRegistry=registry.example.com/proj/sts
+CM_TEMPLATE=$CONSOLE_CM assert_cm "the chart registry is derived beside the images" AMP_CHART_REGISTRY \
+  "registry.example.com/proj/sts/helm-charts" --set global.ampImageRegistry=registry.example.com/proj/sts
+CM_TEMPLATE=$CONSOLE_CM assert_cm "console.config.registry wins over global.ampImageRegistry" AMP_REGISTRY \
+  "registry.example.com/other" --set global.ampImageRegistry=registry.example.com/proj \
+  --set console.config.registry=registry.example.com/other
+CM_TEMPLATE=$CONSOLE_CM assert_cm "the console gets the installed chart version" CHART_VERSION \
+  "$(awk '/^version:/ {print $2; exit}' "$CHART_DIR/Chart.yaml")"
 
 if ((FAILURES > 0)); then
   printf '\n%d assertion(s) failed\n' "$FAILURES"

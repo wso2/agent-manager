@@ -150,7 +150,7 @@ func NewCreateCmd(f *cmdutil.Factory) *cobra.Command {
 	cmd.Flags().StringVar(&opts.DisplayName, "display-name", "", "Human-readable name (required)")
 	cmd.Flags().StringVar(&opts.Type, "type", "", "Agent type (auto-derived from --provisioning)")
 	cmd.Flags().StringVar(&opts.Description, "description", "", "Agent description")
-	cmd.Flags().StringVar(&opts.SubType, "subtype", "", "Agent sub-type: chat-api, custom-api or a2a-agent (external: a2a-agent only)")
+	cmd.Flags().StringVar(&opts.SubType, "subtype", "", "Agent sub-type (internal only): chat-api, custom-api or a2a-agent")
 
 	_ = cmd.Flags().MarkHidden("type")
 
@@ -174,7 +174,7 @@ func NewCreateCmd(f *cmdutil.Factory) *cobra.Command {
 	cmd.Flags().StringVar(&opts.LLMProvider, "llm-provider", "", "Handle of a configured LLM provider to attach (internal only)")
 	cmd.Flags().StringVar(&opts.LLMURLEnv, "llm-url-env", "", "Env var name for the provider URL (default: auto-generated)")
 	cmd.Flags().StringVar(&opts.LLMAPIKeyEnv, "llm-api-key-env", "", "Env var name for the provider API key (default: auto-generated)")
-	cmd.Flags().StringVar(&opts.CardURL, "card-url", "", "Agent card URL to register for the entry environment (external a2a-agent only)")
+	cmd.Flags().StringVar(&opts.CardURL, "card-url", "", "Agent card URL to register for the entry environment (external only)")
 	cmd.Flags().BoolVar(&opts.CardProxy, "proxy", false, "Route the entry environment through its gateway (requires --card-url)")
 
 	_ = cmd.RegisterFlagCompletionFunc("provisioning", func(*cobra.Command, []string, string) ([]string, cobra.ShellCompDirective) {

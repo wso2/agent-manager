@@ -184,8 +184,8 @@ func (m *Manager) forwardEvents(conn *Connection, ch <-chan eventhub.Event) {
 			if conn.IsClosed() {
 				return
 			}
-			// EventData already contains the full GatewayEventDTO JSON serialized by
-			// GatewayEventsService.broadcastEvent — send it directly.
+			// EventData already holds the full gateway envelope built by
+			// eventhub.NewGatewayEvent — send it directly.
 			payload := []byte(evt.EventData)
 			if len(payload) == 0 {
 				payload, _ = json.Marshal(evt)

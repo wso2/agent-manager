@@ -1866,6 +1866,24 @@
               "title": "promptsBaseUrl",
               "type": "string"
             },
+            "registry": {
+              "default": "",
+              "description": "Registry the platform's images and charts were installed from, as a host and path prefix (for example registry.example.com/my-project). Empty uses global.ampImageRegistry. When it names a private registry, the console's generated environment and identity provider commands pull the gateway extension chart from it, and the environment command runs from the release bundle so it can create the image pull secrets.",
+              "title": "registry",
+              "type": "string"
+            },
+            "chartRegistry": {
+              "default": "",
+              "description": "Helm chart registry for the console's generated environment and identity provider commands. Empty derives <registry>/helm-charts.",
+              "title": "chartRegistry",
+              "type": "string"
+            },
+            "bundleUrl": {
+              "default": "",
+              "description": "Release bundle the console's private-registry environment command extracts the deployment scripts from. Empty derives the GitHub release asset from ampVersion.",
+              "title": "bundleUrl",
+              "type": "string"
+            },
             "scriptBaseUrl": {
               "default": "",
               "description": "Base URL the console's generated commands fetch deployment scripts from, without a trailing slash. Empty derives the public raw.githubusercontent.com URL from ampVersion. Set it where that host is unreachable from the operator's machine, or where this build's scripts are served from somewhere else.",

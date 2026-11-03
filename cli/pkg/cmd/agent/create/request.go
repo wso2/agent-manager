@@ -316,7 +316,9 @@ func droppedExternalFlags(opts *CreateOptions) []string {
 		}
 	}
 
-	disallow("--subtype", opts.SubType != "" && opts.SubType != subTypeA2A)
+	if opts.SubType != "" {
+		v = append(v, "--subtype is not allowed for external provisioning; use --card-url to register an A2A agent card")
+	}
 	disallow("--repo-url", opts.RepoURL != "")
 	disallow("--repo-branch", opts.RepoBranch != "")
 	disallow("--repo-path", opts.RepoPath != "")

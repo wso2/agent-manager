@@ -32,7 +32,7 @@ type CreateGatewayRequest struct {
 	Region *string `json:"region,omitempty"`
 	// Flag indicating if this is a critical production gateway
 	IsCritical *bool `json:"isCritical,omitempty"`
-	// List of environment UUIDs to assign the gateway to during creation
+	// The environment UUID to assign the gateway to during creation. A gateway serves exactly one environment, so at most one is allowed.
 	EnvironmentIds []string `json:"environmentIds,omitempty"`
 	// OU ID of the organization the gateway belongs to.
 	OrgId *string `json:"orgId,omitempty"`

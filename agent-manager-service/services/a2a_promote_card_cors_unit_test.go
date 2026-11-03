@@ -23,10 +23,12 @@ import (
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"gorm.io/gorm"
 
 	"github.com/wso2/agent-manager/agent-manager-service/clients/clientmocks"
 	"github.com/wso2/agent-manager/agent-manager-service/clients/openchoreosvc/client"
 	"github.com/wso2/agent-manager/agent-manager-service/models"
+	"github.com/wso2/agent-manager/agent-manager-service/repositories"
 	"github.com/wso2/agent-manager/agent-manager-service/repositories/repomocks"
 	"github.com/wso2/agent-manager/agent-manager-service/spec"
 	"github.com/wso2/agent-manager/agent-manager-service/utils"
@@ -104,29 +106,45 @@ func TestPromoteAgent_A2AInheritsSourceCardCORSAndRepublishes(t *testing.T) {
 	}
 	var upserted *models.AgentConfig
 	var events []string
-	s.agentConfigRepo = &repomocks.AgentConfigRepositoryMock{
-		GetFunc: func(_ context.Context, _, _, _, envName string) (*models.AgentConfig, error) {
-			require.Equal(t, "dev", envName, "promote resolves settings from the source environment")
-			return sourceOverride, nil
-		},
+	txConfigs := &repomocks.AgentConfigRepositoryMock{
 		UpsertFunc: func(_ context.Context, cfg *models.AgentConfig) error {
+			assert.True(t, *promoted, "the config is saved once the promote has succeeded")
 			upserted = cfg
 			events = append(events, "upsert")
 			return nil
 		},
 	}
-	s.artifactRepo = &repomocks.ArtifactRepositoryMock{
+	s.agentConfigRepo = &repomocks.AgentConfigRepositoryMock{
+		GetFunc: func(_ context.Context, _, _, _, envName string) (*models.AgentConfig, error) {
+			require.Equal(t, "dev", envName, "promote resolves settings from the source environment")
+			return sourceOverride, nil
+		},
+		WithTxFunc: func(tx *gorm.DB) repositories.AgentConfigRepository {
+			assert.Same(t, txSentinel, tx, "the config is saved in the exposure's transaction")
+			return txConfigs
+		},
+	}
+	artifacts := &repomocks.ArtifactRepositoryMock{
 		GetByHandleFunc: func(_, _ string) (*models.Artifact, error) {
 			return &models.Artifact{UUID: artifactUUID, Kind: models.KindAgent}, nil
 		},
 	}
-	pubRepo := &repomocks.A2APublicationRepositoryMock{
-		EnqueueFunc: func(_ context.Context, _ *models.A2APublication) error {
-			events = append(events, "enqueue")
+	artifacts.WithTxFunc = func(*gorm.DB) repositories.ArtifactRepository { return artifacts }
+	s.artifactRepo = artifacts
+	pubRepo := &repomocks.PlatformAgentExposureRepositoryMock{
+		UpsertFunc: func(_ context.Context, _ *models.PlatformAgentExposure) error {
+			events = append(events, "expose")
 			return nil
 		},
 	}
-	s.a2aPublisher = NewA2APublisher(nil, pubRepo, &repomocks.A2AProxyRepositoryMock{}, nil, nil, nil, nil, nil, testLogger())
+	pubRepo.WithTxFunc = func(tx *gorm.DB) repositories.PlatformAgentExposureRepository {
+		assert.Same(t, txSentinel, tx)
+		return pubRepo
+	}
+	s.a2aPublisher = withA2ACore(NewA2APublisher(sentinelTx, pubRepo, &repomocks.A2AProxyRepositoryMock{}, nil, nil,
+		a2aRenderQueue(), testLogger(),
+		NewAgentExposurePublisher(sentinelTx, pubRepo, nil, a2aRenderQueue(), a2aIngressGateways(), nil, testLogger()), nil), nil)
+	s.exposure = s.a2aPublisher.exposure
 
 	err := s.PromoteAgent(tierGrantedCtx(t), "acme", "proj1", "my-agent", &spec.PromoteAgentRequest{
 		SourceEnvironment: "dev",
@@ -142,10 +160,56 @@ func TestPromoteAgent_A2AInheritsSourceCardCORSAndRepublishes(t *testing.T) {
 	assert.Equal(t, []string{"Content-Type"}, upserted.CardCORSAllowHeaders)
 	assert.Equal(t, sourceOverride.CardCORSAllowCredentials, upserted.CardCORSAllowCredentials)
 
-	enqueued := pubRepo.EnqueueCalls()
-	require.Len(t, enqueued, 1, "the target is queued for gateway publication")
-	assert.Equal(t, "staging", enqueued[0].Pub.EnvironmentName)
-	assert.Equal(t, stagingUUID, enqueued[0].Pub.EnvironmentUUID)
-	assert.Equal(t, artifactUUID, enqueued[0].Pub.ArtifactUUID)
-	assert.Equal(t, []string{"upsert", "enqueue"}, events, "queued only after the config it is built from is saved")
+	enqueued := pubRepo.UpsertCalls()
+	require.Len(t, enqueued, 1, "the agent is exposed in the target")
+	assert.Equal(t, "staging", enqueued[0].Exposure.EnvironmentName)
+	assert.Equal(t, stagingUUID, enqueued[0].Exposure.EnvironmentUUID)
+	assert.Equal(t, artifactUUID, enqueued[0].Exposure.ArtifactUUID)
+	assert.Equal(t, []string{"upsert", "expose"}, events, "exposed only after the config it is built from is saved")
+}
+
+// The target's exposure is part of the promote: when it can't be written, the promote reports it and a retry
+// reconciles.
+func TestPromoteAgent_A2AFailsWhenTheExposureCannotBeWritten(t *testing.T) {
+	s, _ := promoteAgentTestFixture(t, []client.EnvVar{{Key: client.EnvVarAgentIDClientID, Value: "staging-client-id"}}, nil)
+	ocMock, ok := s.ocClient.(*clientmocks.OpenChoreoClientMock)
+	require.True(t, ok)
+	ocMock.GetComponentFunc = func(_ context.Context, _, _, name string) (*models.AgentResponse, error) {
+		return &models.AgentResponse{
+			UUID: "agent-uuid", Name: name, Provisioning: models.Provisioning{Type: string(utils.InternalAgent)},
+			Type: models.AgentType{Type: string(utils.AgentTypeAPI), SubType: string(utils.AgentSubTypeA2A)},
+		}, nil
+	}
+	ocMock.GetEnvironmentFunc = func(_ context.Context, _, envName string) (*models.EnvironmentResponse, error) {
+		return &models.EnvironmentResponse{Name: envName, UUID: uuid.NewString()}, nil
+	}
+	txConfigs := &repomocks.AgentConfigRepositoryMock{UpsertFunc: func(context.Context, *models.AgentConfig) error { return nil }}
+	s.agentConfigRepo = &repomocks.AgentConfigRepositoryMock{
+		GetFunc: func(context.Context, string, string, string, string) (*models.AgentConfig, error) {
+			return &models.AgentConfig{}, nil
+		},
+		WithTxFunc: func(*gorm.DB) repositories.AgentConfigRepository { return txConfigs },
+	}
+	artifacts := &repomocks.ArtifactRepositoryMock{
+		GetByHandleFunc: func(_, _ string) (*models.Artifact, error) {
+			return &models.Artifact{UUID: uuid.New(), Kind: models.KindAgent}, nil
+		},
+	}
+	artifacts.WithTxFunc = func(*gorm.DB) repositories.ArtifactRepository { return artifacts }
+	s.artifactRepo = artifacts
+	pubRepo := &repomocks.PlatformAgentExposureRepositoryMock{
+		UpsertFunc: func(context.Context, *models.PlatformAgentExposure) error { return assert.AnError },
+	}
+	pubRepo.WithTxFunc = func(*gorm.DB) repositories.PlatformAgentExposureRepository { return pubRepo }
+	s.a2aPublisher = withA2ACore(NewA2APublisher(sentinelTx, pubRepo, &repomocks.A2AProxyRepositoryMock{}, nil, nil,
+		a2aRenderQueue(), testLogger(),
+		NewAgentExposurePublisher(sentinelTx, pubRepo, nil, a2aRenderQueue(), a2aIngressGateways(), nil, testLogger()), nil), nil)
+	s.exposure = s.a2aPublisher.exposure
+
+	err := s.PromoteAgent(tierGrantedCtx(t), "acme", "proj1", "my-agent", &spec.PromoteAgentRequest{
+		SourceEnvironment: "dev",
+		TargetEnvironment: "staging",
+	})
+
+	assert.ErrorIs(t, err, assert.AnError)
 }

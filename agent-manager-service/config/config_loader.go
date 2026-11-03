@@ -280,6 +280,8 @@ func loadEnvs() {
 		UseDefaultResourceServer: r.readOptionalBool("AMP_USE_THUNDER_DEFAULT_RESOURCE_SERVER", false),
 		SystemResourceIdentifier: r.readOptionalString("AMP_THUNDER_SYSTEM_RESOURCE_IDENTIFIER", ""),
 	}
+	config.IdentityManagementMode = r.readOptionalString("IDENTITY_MANAGEMENT_MODE", "LEGACY_DIRECT")
+	validateIdentityManagementMode(config, r)
 	if config.Thunder.BaseURL != "" && (config.Thunder.ClientID == "" || config.Thunder.ClientSecret == "") {
 		r.errors = append(r.errors, fmt.Errorf("THUNDER_BASE_URL is set but THUNDER_CLIENT_ID and/or THUNDER_CLIENT_SECRET are missing"))
 	}
@@ -310,6 +312,19 @@ func loadEnvs() {
 	if config.PlatformAdminOUID == "" {
 		slog.Warn("PLATFORM_ADMIN_OU_ID is not set; cross-organization platform routes will deny every request")
 	}
+	config.DeploymentTimeout = DeploymentTimeoutConfig{
+		SweepIntervalSeconds: int(r.readOptionalInt64("DEPLOYMENT_TIMEOUT_SWEEP_INTERVAL_SECONDS", 60)),
+		TimeoutSeconds:       int(r.readOptionalInt64("DEPLOYMENT_TIMEOUT_SECONDS", 300)),
+	}
+	validateDeploymentTimeoutConfig(config, r)
+	config.Reconcile = ReconcileConfig{
+		RenderIntervalSeconds: int(r.readOptionalInt64("RECONCILE_RENDER_INTERVAL_SECONDS", 5)),
+		PlaceIntervalSeconds:  int(r.readOptionalInt64("RECONCILE_PLACE_INTERVAL_SECONDS", 600)),
+		DriftIntervalSeconds:  int(r.readOptionalInt64("RECONCILE_DRIFT_INTERVAL_SECONDS", 300)),
+		RenderLeaseSeconds:    int(r.readOptionalInt64("RECONCILE_RENDER_LEASE_SECONDS", 120)),
+		RenderAttemptBudget:   int(r.readOptionalInt64("RECONCILE_RENDER_ATTEMPT_BUDGET", 30)),
+	}
+	validateReconcileConfig(config, r)
 	config.GatewayFailureThresholdSeconds = int(r.readOptionalInt64("GATEWAY_FAILURE_THRESHOLD_SECONDS", 300))
 	if config.GatewayFailureThresholdSeconds <= 0 {
 		r.errors = append(r.errors, fmt.Errorf(
@@ -399,6 +414,14 @@ func loadEnvs() {
 	slog.Info("configReader: configs loaded")
 }
 
+func validateIdentityManagementMode(cfg *Config, r *configReader) {
+	switch cfg.IdentityManagementMode {
+	case "LEGACY_DIRECT", "CP_MANAGED":
+	default:
+		r.errors = append(r.errors, fmt.Errorf("IDENTITY_MANAGEMENT_MODE must be LEGACY_DIRECT or CP_MANAGED"))
+	}
+}
+
 // validPostgresSSLModes is the set of libpq sslmode values pgx accepts. Kept as
 // an explicit allowlist so a typo fails config load with a clear message instead
 // of surfacing as an opaque driver parse error at first connect.
@@ -427,6 +450,36 @@ func validateSecretManagerConfig(cfg *Config, r *configReader) {
 			"AGENT_IDENTITY_REFRESH_INTERVAL must be a positive duration, got %q", cfg.SecretManager.AgentIdentityRefreshInterval,
 		))
 	}
+}
+
+type positiveField struct {
+	name  string
+	value int
+}
+
+func requirePositive(r *configReader, fields ...positiveField) {
+	for _, field := range fields {
+		if field.value <= 0 {
+			r.errors = append(r.errors, fmt.Errorf("%s must be greater than 0, got %d", field.name, field.value))
+		}
+	}
+}
+
+func validateDeploymentTimeoutConfig(cfg *Config, r *configReader) {
+	requirePositive(r,
+		positiveField{"DEPLOYMENT_TIMEOUT_SWEEP_INTERVAL_SECONDS", cfg.DeploymentTimeout.SweepIntervalSeconds},
+		positiveField{"DEPLOYMENT_TIMEOUT_SECONDS", cfg.DeploymentTimeout.TimeoutSeconds},
+	)
+}
+
+func validateReconcileConfig(cfg *Config, r *configReader) {
+	requirePositive(r,
+		positiveField{"RECONCILE_RENDER_INTERVAL_SECONDS", cfg.Reconcile.RenderIntervalSeconds},
+		positiveField{"RECONCILE_PLACE_INTERVAL_SECONDS", cfg.Reconcile.PlaceIntervalSeconds},
+		positiveField{"RECONCILE_DRIFT_INTERVAL_SECONDS", cfg.Reconcile.DriftIntervalSeconds},
+		positiveField{"RECONCILE_RENDER_LEASE_SECONDS", cfg.Reconcile.RenderLeaseSeconds},
+		positiveField{"RECONCILE_RENDER_ATTEMPT_BUDGET", cfg.Reconcile.RenderAttemptBudget},
+	)
 }
 
 // validGatewayManifestCacheBackends is the set of backends services.ProvideGatewayManifestCacheBackend

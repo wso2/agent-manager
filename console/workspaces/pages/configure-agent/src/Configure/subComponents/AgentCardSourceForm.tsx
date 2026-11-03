@@ -44,7 +44,7 @@ const INVALID_HINT = "Enter a public http(s) URL";
 // useApiMutation already shows the failure in a snackbar.
 const alreadyReported = () => undefined;
 
-/** Card URL for an external A2A agent in one environment. */
+/** Card URL for an external agent in one environment. */
 export function AgentCardSourceForm({
   params, currentUrl, inline, onDone, offerRouting = false, keepOrigin = false,
 }: AgentCardSourceFormProps) {

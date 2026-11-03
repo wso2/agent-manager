@@ -1,0 +1,35 @@
+apiVersion: gateway.api-platform.wso2.com/v1
+kind: LlmProxy
+metadata:
+    name: acme-agent-proxy
+spec:
+    displayName: Acme Agent Proxy
+    version: v1.0
+    context: /agent-proxy
+    vhost: proxy.example.com
+    provider:
+        id: acme-openai
+        auth:
+            type: api-key
+            header: X-Upstream-Key
+            secretRef: proxy-upstream-key
+    resilience:
+        timeout: 10s
+    policies:
+        - name: api-key-auth
+          version: v1
+          paths:
+            - path: /*
+              methods:
+                - '*'
+              params:
+                in: header
+                key: X-Agent-Key
+        - name: content-length-guardrail
+          version: v0
+          paths:
+            - path: /*
+              methods:
+                - '*'
+              params:
+                maxRequestBytes: 4096

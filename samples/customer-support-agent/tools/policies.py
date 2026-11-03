@@ -1,5 +1,6 @@
 # %%
 import re
+import os
 
 import numpy as np
 import openai
@@ -10,7 +11,8 @@ from langchain_core.tools import tool
 load_dotenv(".env")
 
 response = requests.get(
-    "https://storage.googleapis.com/benchmarks-artifacts/travel-db/swiss_faq.md"
+    os.getenv("POLICY_FAQ_URL", "https://storage.googleapis.com/benchmarks-artifacts/travel-db/swiss_faq.md"),
+    timeout=30,
 )
 response.raise_for_status()
 faq_text = response.text

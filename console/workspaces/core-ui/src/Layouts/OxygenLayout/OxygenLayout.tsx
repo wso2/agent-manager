@@ -33,7 +33,7 @@ import { globalConfig, absoluteRouteMap } from "@agent-management-platform/types
 import { LeftNavigation, combineNavItems, flattenWithChildren } from "./LeftNavigation";
 import { useNavigationItems } from "./navigationItems";
 import { TopNavigation } from "./TopNavigation";
-import { useGetUserProfile, useListOrganizations } from "@agent-management-platform/api-client";
+import { orgRouteId, useGetUserProfile, useListOrganizations } from "@agent-management-platform/api-client";
 import { MountPoints } from "../../types";
 
 // Oxygen UI's UserMenu treats a non-URL `avatar` string as literal initials
@@ -68,7 +68,7 @@ export function OxygenLayout() {
   const { data: organizations } = useListOrganizations();
   const homePath = useMemo(() => {
     return generatePath(absoluteRouteMap.children.org.path, {
-      orgId: organizations?.organizations?.[0]?.name ?? "",
+      orgId: orgRouteId(organizations?.organizations?.[0]) ?? "",
     });
   }, [organizations]);
 

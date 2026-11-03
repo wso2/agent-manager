@@ -140,15 +140,6 @@ func TestBuildA2AAgentDeploymentYAMLRefusesEmptyUpstream(t *testing.T) {
 	assert.Contains(t, err.Error(), "upstream")
 }
 
-// The DB handle uses slashes, which are illegal in a Kubernetes name. The
-// gateway resource name is derived with dashes and a compacted environment
-// UUID, exactly as mcpProxyEnvArtifactHandle does.
-func TestA2AAgentEnvArtifactName(t *testing.T) {
-	name := a2aAgentEnvArtifactName("checkout", "trip-planner", "0192f4c1-9a7d-7c3e-b4f2-1a2b3c4d5e6f")
-	assert.Equal(t, "checkout-trip-planner-0192f4c19a7d7c3eb4f21a2b3c4d5e6f", name)
-	assert.NotContains(t, name, "/")
-}
-
 // The gateway parses these values verbatim; unmarshalling the emitted document
 // back is what proves the yaml tags are what the contract needs.
 func TestGenerateA2AAgentDeploymentYAMLRoundTrips(t *testing.T) {

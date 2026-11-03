@@ -32,6 +32,15 @@ func TestIsA2AAgentSubType(t *testing.T) {
 	assert.False(t, IsA2AAgentSubType(""))
 }
 
+// An internal agent's subtype picks its interface, so a near-miss is still refused.
+func TestValidateAgentSubTypeRejectsAMiscasedA2ASubType(t *testing.T) {
+	for _, subType := range []string{"A2A-agent", "A2A-Agent", "a2a-AGENT"} {
+		err := validateAgentSubType(spec.AgentType{Type: string(AgentTypeAPI), SubType: &subType})
+		require.Error(t, err, subType)
+		assert.NotNil(t, IsValidationError(err), subType)
+	}
+}
+
 func TestValidateAgentTypeAcceptsA2A(t *testing.T) {
 	subType := string(AgentSubTypeA2A)
 	err := validateAgentType(spec.AgentType{Type: string(AgentTypeAPI), SubType: &subType})
@@ -139,17 +148,9 @@ func externalAgentRequest(subType string) spec.CreateAgentRequest {
 	}
 }
 
-// A near-miss would quietly create a non-A2A agent with no card support.
-func TestValidateAgentCreatePayloadRejectsAMiscasedA2ASubType(t *testing.T) {
-	for _, subType := range []string{"A2A-agent", "A2A-Agent", "a2a-AGENT"} {
-		err := ValidateAgentCreatePayload(externalAgentRequest(subType))
-		require.Error(t, err, subType)
-		assert.NotNil(t, IsValidationError(err), subType)
-	}
-}
-
+// The service ignores an external subtype, so none is worth rejecting.
 func TestValidateAgentCreatePayloadKeepsExternalSubTypesFreeForm(t *testing.T) {
-	for _, subType := range []string{"a2a-agent", "custom-api", "My Custom Agent!"} {
+	for _, subType := range []string{"a2a-agent", "A2A-Agent", "custom-api", "My Custom Agent!"} {
 		assert.NoError(t, ValidateAgentCreatePayload(externalAgentRequest(subType)), subType)
 	}
 }

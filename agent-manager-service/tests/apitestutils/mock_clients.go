@@ -41,6 +41,10 @@ var DeployableTestImages = []string{
 	"registry.example.com/a2a:v1.0.0",
 }
 
+// DefaultEnvironmentUUID is the id the default mock reports for every environment; a test that creates, builds,
+// deploys or promotes an API agent seeds an ingress gateway under it.
+const DefaultEnvironmentUUID = "6f1c2f64-3f7e-4a52-9c1d-0b7a8e2d4c11"
+
 // CreateMockOpenChoreoClient creates a mock OpenChoreo client with default behavior for testing
 func CreateMockOpenChoreoClient() *clientmocks.OpenChoreoClientMock {
 	return &clientmocks.OpenChoreoClientMock{
@@ -149,7 +153,7 @@ func CreateMockOpenChoreoClient() *clientmocks.OpenChoreoClientMock {
 		},
 		GetEnvironmentFunc: func(ctx context.Context, namespaceName, environmentName string) (*models.EnvironmentResponse, error) {
 			return &models.EnvironmentResponse{
-				UUID: "environment-uid-123",
+				UUID: DefaultEnvironmentUUID,
 				Name: environmentName,
 			}, nil
 		},

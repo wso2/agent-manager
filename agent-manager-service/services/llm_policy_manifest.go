@@ -17,6 +17,7 @@
 package services
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"maps"
@@ -70,12 +71,12 @@ func intersectActiveGatewayLLMPolicies(gatewayRepo repositories.GatewayRepositor
 // to scope the guardrail catalog to what that provider's actual gateways support, instead
 // of every active gateway in the org. See intersectLLMPolicies for the availability
 // semantics.
-func intersectDeployedGatewayLLMPolicies(gatewayRepo repositories.GatewayRepository, deploymentRepo repositories.DeploymentRepository, providerUUID uuid.UUID, orgUUID string) (map[string]llmPolicyManifestItem, error) {
+func intersectDeployedGatewayLLMPolicies(ctx context.Context, gatewayRepo repositories.GatewayRepository, deploymentRepo repositories.DeploymentRepository, providerUUID uuid.UUID, orgUUID string) (map[string]llmPolicyManifestItem, error) {
 	if gatewayRepo == nil || deploymentRepo == nil {
 		return map[string]llmPolicyManifestItem{}, nil
 	}
 
-	gatewayUUIDs, err := deploymentRepo.GetDeployedGatewaysByProvider(providerUUID, orgUUID)
+	gatewayUUIDs, err := deploymentRepo.PlacedGateways(ctx, orgUUID, providerUUID)
 	if err != nil {
 		return nil, fmt.Errorf("failed to list deployed gateways for provider: %w", err)
 	}

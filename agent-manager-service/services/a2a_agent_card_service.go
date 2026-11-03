@@ -117,7 +117,7 @@ func (s *a2aAgentCardService) requireDeployed(ctx context.Context, ouID, agentNa
 func (s *a2aAgentCardService) SetA2ACardSource(
 	ctx context.Context, ouID, projectName, agentName, envName, sourceURL string,
 ) error {
-	agent, err := getExternalA2AAgent(ctx, s.ocClient, ouID, projectName, agentName, utils.ErrAgentCardSourceNotExternal)
+	agent, err := getExternalAgent(ctx, s.ocClient, ouID, projectName, agentName, utils.ErrAgentCardSourceNotExternal)
 	if err != nil {
 		return err
 	}
@@ -138,7 +138,7 @@ func (s *a2aAgentCardService) SetA2ACardSource(
 func (s *a2aAgentCardService) DeleteA2ACardSource(
 	ctx context.Context, ouID, projectName, agentName, envName string,
 ) error {
-	agent, err := getExternalA2AAgent(ctx, s.ocClient, ouID, projectName, agentName, utils.ErrAgentCardSourceNotExternal)
+	agent, err := getExternalAgent(ctx, s.ocClient, ouID, projectName, agentName, utils.ErrAgentCardSourceNotExternal)
 	if err != nil {
 		return err
 	}
@@ -204,31 +204,35 @@ func (s *a2aAgentCardService) dropIfAgentGone(
 }
 
 // getAgent reads the agent from OpenChoreo, reporting a miss as utils.ErrAgentNotFound.
+// The lookup is by name across the organization, so an agent in another project is a miss too.
 func getAgent(ctx context.Context, oc client.OpenChoreoClient, ouID, projectName, agentName string) (*models.AgentResponse, error) {
 	agent, err := oc.GetComponent(ctx, ouID, projectName, agentName)
 	if err != nil {
 		return nil, translateAgentError(err)
 	}
+	if agent.ProjectName != projectName {
+		return nil, utils.ErrAgentNotFound
+	}
 	return agent, nil
 }
 
-// getA2AAgent is getAgent refusing a non-A2A agent with utils.ErrAgentNotA2A.
+// getA2AAgent is getAgent refusing an agent that cannot serve A2A with utils.ErrAgentNotA2A.
 func getA2AAgent(ctx context.Context, oc client.OpenChoreoClient, ouID, projectName, agentName string) (*models.AgentResponse, error) {
 	agent, err := getAgent(ctx, oc, ouID, projectName, agentName)
 	if err != nil {
 		return nil, err
 	}
-	if !utils.IsA2AAgentSubType(agent.Type.SubType) {
+	if !a2aCapable(agent) {
 		return nil, utils.ErrAgentNotA2A
 	}
 	return agent, nil
 }
 
-// getExternalA2AAgent is getA2AAgent refusing a platform-provisioned agent with notExternalErr.
-func getExternalA2AAgent(
+// getExternalAgent fetches an agent, refusing a platform-provisioned one with notExternalErr.
+func getExternalAgent(
 	ctx context.Context, oc client.OpenChoreoClient, ouID, projectName, agentName string, notExternalErr error,
 ) (*models.AgentResponse, error) {
-	agent, err := getA2AAgent(ctx, oc, ouID, projectName, agentName)
+	agent, err := getAgent(ctx, oc, ouID, projectName, agentName)
 	if err != nil {
 		return nil, err
 	}
@@ -252,6 +256,12 @@ func agentGoneOrReplaced(ctx context.Context, oc client.OpenChoreoClient, ouID, 
 
 func isExternalProvisioned(agent *models.AgentResponse) bool {
 	return agent.Provisioning.Type == string(utils.ExternalAgent)
+}
+
+// a2aCapable is true for every external agent, which serves A2A wherever it registers a card URL, and for an
+// internal agent built as an A2A agent.
+func a2aCapable(agent *models.AgentResponse) bool {
+	return isExternalProvisioned(agent) || utils.IsA2AAgentSubType(agent.Type.SubType)
 }
 
 // validateCardSourceURL wraps every rejection in utils.ErrInvalidURL.

@@ -31,6 +31,18 @@ data:
   # Base URL the evaluator AI Copilot prompt links the writing guide from.
   # Empty derives the public raw.githubusercontent.com URL from AMP_VERSION.
   PROMPTS_BASE_URL: {{ .Values.console.config.promptsBaseUrl | default "" | quote }}
+  {{- $ampRegistry := .Values.console.config.registry | default .Values.global.ampImageRegistry | default "" }}
+  {{- if eq $ampRegistry "ghcr.io/wso2" }}{{- $ampRegistry = "" }}{{- end }}
+  # Private registry the platform was installed from, and its chart registry.
+  # Empty for the public registry, which keeps the generated environment and
+  # identity provider commands on their public defaults.
+  AMP_REGISTRY: {{ $ampRegistry | quote }}
+  AMP_CHART_REGISTRY: {{ .Values.console.config.chartRegistry | default (ternary (printf "%s/helm-charts" $ampRegistry) "" (ne $ampRegistry "")) | quote }}
+  # Release bundle the private-registry environment command runs from.
+  BUNDLE_URL: {{ .Values.console.config.bundleUrl | default "" | quote }}
+  # Version of this chart. An added environment pins its gateway extension
+  # chart to it, which an update can move past AMP_VERSION.
+  CHART_VERSION: {{ .Chart.Version | quote }}
   # Documentation base URL for the console's in-product doc links. Built from
   # the docs version so only the version segment varies per release.
   DOCS_URL: {{ printf "https://wso2.com/agent-platform/docs/%s" (.Values.console.config.docsVersion | default "latest") | quote }}

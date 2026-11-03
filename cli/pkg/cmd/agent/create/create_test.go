@@ -852,7 +852,7 @@ func externalA2AAgentRoutes() map[string]routeResponse {
 			Body: amsvc.AgentResponse{
 				Name:         "testing",
 				DisplayName:  "Testing",
-				AgentType:    amsvc.AgentType{Type: "external-agent-api", SubType: ptr("a2a-agent")},
+				AgentType:    amsvc.AgentType{Type: "external-agent-api"},
 				Provisioning: amsvc.Provisioning{Type: amsvc.ProvisioningTypeExternal},
 				ProjectName:  "triage",
 				Uuid:         "u",
@@ -861,11 +861,10 @@ func externalA2AAgentRoutes() map[string]routeResponse {
 	}
 }
 
-func ptr[T any](v T) *T { return &v }
-
 const testCardURL = "https://a.example/.well-known/agent-card.json"
 
-func TestCreate_External_A2ASubtype(t *testing.T) {
+// An external agent is created without a subtype; --card-url alone makes it an A2A agent.
+func TestCreate_External_SendsNoSubtype(t *testing.T) {
 	ios, _, _ := newTestIO(false)
 	clientFn, captured, cleanup := newTestRouter(t, externalA2AAgentRoutes())
 	defer cleanup()
@@ -873,21 +872,19 @@ func TestCreate_External_A2ASubtype(t *testing.T) {
 	cmd := testCreateCmd(t, ios, clientFn, "https://otel.example")
 	cmd.SetArgs([]string{
 		"agent", "create", "testing", "--project", "triage", "--display-name", "Testing",
-		"--provisioning", "external", "--subtype", "a2a-agent",
+		"--provisioning", "external",
 	})
 	if err := cmd.Execute(); err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
 	var body struct {
-		AgentType struct {
-			SubType string `json:"subType"`
-		} `json:"agentType"`
+		AgentType map[string]any `json:"agentType"`
 	}
 	if err := json.Unmarshal(captured["/orgs/acme/projects/triage/agents"].body, &body); err != nil {
 		t.Fatal(err)
 	}
-	if body.AgentType.SubType != "a2a-agent" {
-		t.Errorf("subType = %q, want a2a-agent", body.AgentType.SubType)
+	if _, has := body.AgentType["subType"]; has {
+		t.Errorf("agentType = %v, want no subType", body.AgentType)
 	}
 }
 
@@ -909,7 +906,7 @@ func TestCreate_External_CardURL_JSON(t *testing.T) {
 	cmd := testCreateCmd(t, ios, clientFn, "https://otel.example")
 	cmd.SetArgs([]string{
 		"agent", "create", "testing", "--project", "triage", "--display-name", "Testing",
-		"--provisioning", "external", "--subtype", "a2a-agent", "--card-url", testCardURL, "--json",
+		"--provisioning", "external", "--card-url", testCardURL, "--json",
 	})
 	if err := cmd.Execute(); err != nil {
 		t.Fatalf("unexpected error: %v", err)
@@ -949,7 +946,7 @@ func TestCreate_External_CardURLFailure_JSON(t *testing.T) {
 	cmd := testCreateCmd(t, ios, clientFn, "https://otel.example")
 	cmd.SetArgs([]string{
 		"agent", "create", "testing", "--project", "triage", "--display-name", "Testing",
-		"--provisioning", "external", "--subtype", "a2a-agent", "--card-url", testCardURL, "--json",
+		"--provisioning", "external", "--card-url", testCardURL, "--json",
 	})
 	if err := cmd.Execute(); err != nil {
 		t.Fatalf("expected nil error, got %v", err)
@@ -972,7 +969,7 @@ func TestCreate_External_CardURLFailure_Text(t *testing.T) {
 	cmd := testCreateCmd(t, ios, clientFn, "https://otel.example")
 	cmd.SetArgs([]string{
 		"agent", "create", "testing", "--project", "triage", "--display-name", "Testing",
-		"--provisioning", "external", "--subtype", "a2a-agent", "--card-url", testCardURL,
+		"--provisioning", "external", "--card-url", testCardURL,
 	})
 	if err := cmd.Execute(); err != nil {
 		t.Fatalf("expected nil error, got %v", err)
@@ -1003,7 +1000,7 @@ func TestCreate_External_EnvResolutionFailure_CardURL_JSON(t *testing.T) {
 	cmd := testCreateCmd(t, ios, clientFn, "https://otel.example")
 	cmd.SetArgs([]string{
 		"agent", "create", "testing", "--project", "triage", "--display-name", "Testing",
-		"--provisioning", "external", "--subtype", "a2a-agent", "--card-url", testCardURL, "--json",
+		"--provisioning", "external", "--card-url", testCardURL, "--json",
 	})
 	if err := cmd.Execute(); err != nil {
 		t.Fatalf("expected nil error, got %v", err)
@@ -1039,7 +1036,7 @@ func TestCreate_External_CardURL_TokenFailure_JSON(t *testing.T) {
 	cmd := testCreateCmd(t, ios, clientFn, "https://otel.example")
 	cmd.SetArgs([]string{
 		"agent", "create", "testing", "--project", "triage", "--display-name", "Testing",
-		"--provisioning", "external", "--subtype", "a2a-agent", "--card-url", testCardURL, "--json",
+		"--provisioning", "external", "--card-url", testCardURL, "--json",
 	})
 	if err := cmd.Execute(); err != nil {
 		t.Fatalf("expected nil error, got %v", err)

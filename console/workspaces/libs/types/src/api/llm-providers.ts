@@ -459,14 +459,39 @@ export type DeleteLLMProxyPathParams = LLMProxyPathParams;
 // LLM deployments
 // -----------------------------------------------------------------------------
 
+/**
+ * What a user is shown for one deployment on its gateway. ARCHIVED means the
+ * gateway's current deployment is another one.
+ */
+export type LLMDeploymentStatus =
+  | "DEPLOYING"
+  | "DEPLOYED"
+  | "UNDEPLOYING"
+  | "UNDEPLOYED"
+  | "FAILED"
+  | "ARCHIVED";
+
 export interface LLMDeploymentResponse {
+  deploymentId: string;
   agentName: string;
   projectName: string;
   imageId: string;
   environment: string;
   /** Gateway UUID where the provider is deployed (returned by API) */
   gatewayId?: string;
+  createdAt: string;
+  status: LLMDeploymentStatus;
+  statusReason?: string;
+  /** Where the current transition is heading; absent when ARCHIVED. */
+  statusDesired?: "DEPLOYED" | "UNDEPLOYED";
 }
+
+/** The status of the deployment a gateway currently serves (never ARCHIVED). */
+export type GatewayDeploymentStatus = {
+  status: LLMDeploymentStatus;
+  statusReason?: string;
+  statusDesired?: "DEPLOYED" | "UNDEPLOYED";
+};
 
 export type LLMDeploymentListResponse = LLMDeploymentResponse[];
 
