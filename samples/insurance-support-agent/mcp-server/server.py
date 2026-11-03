@@ -14,6 +14,7 @@ from policy_reads import list_policies, lookup_policy
 
 
 def create_app():
+    """Build the stateless MCP app with a separately authenticated upstream boundary."""
     key = os.environ.get("INSURANCE_MCP_UPSTREAM_KEY", "")
     if not key.strip():
         raise RuntimeError("INSURANCE_MCP_UPSTREAM_KEY is required")
@@ -25,6 +26,7 @@ def create_app():
     )
 
     async def app(scope, receive, send):
+        """Expose health unauthenticated and require the upstream key for MCP requests."""
         if scope["type"] == "http":
             if scope["path"] == "/health" and scope["method"] == "GET":
                 await JSONResponse({"status": "ok"})(scope, receive, send)

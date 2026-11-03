@@ -56,6 +56,7 @@ class MCPIntegrationTests(unittest.TestCase):
                 pass
 
             def do_POST(self):
+                """Issue fixture tokens or forward authorized calls to the real MCP server."""
                 body = self.rfile.read(int(self.headers.get("Content-Length", "0")))
                 if self.path == "/token":
                     cls.tokens.append(
@@ -393,6 +394,7 @@ class MCPStreamingIntegrationTests(MCPIntegrationTests):
             super().setUpClass()
 
     def test_real_mcp_discovery_lookup_and_proxy_denial(self):
+        """Require real discovery and tool calls to traverse an SSE response."""
         super().test_real_mcp_discovery_lookup_and_proxy_denial()
         self.assertTrue(
             any(t.startswith("text/event-stream") for t in self.response_content_types),
