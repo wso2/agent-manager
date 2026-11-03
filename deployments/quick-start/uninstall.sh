@@ -278,7 +278,7 @@ coredns_entries_ours() {
 # and the ConfigMap itself only when nothing else is left in it, then restarts
 # CoreDNS so the rewrites stop taking effect.
 remove_coredns_entries() {
-    local ours total ops key
+    local ours total binary ops key
     ours="$(coredns_entries_ours)" || { log_warning "Could not read the coredns-custom ConfigMap"; return 0; }
     [ -n "${ours}" ] || return 0
     log_info "Removing the CoreDNS rewrites..."
@@ -289,7 +289,14 @@ remove_coredns_entries() {
         log_warning "Could not read the coredns-custom ConfigMap"
         return 0
     fi
-    if [ "${total}" -le "$(printf '%s\n' "${ours}" | wc -l)" ]; then
+    if ! binary="$(kubectl get configmap coredns-custom -n kube-system \
+            -o go-template='{{with .binaryData}}{{len .}}{{else}}0{{end}}' 2>/dev/null)" \
+            || ! [[ "${binary}" =~ ^[0-9]+$ ]]; then
+        log_warning "Could not read the coredns-custom ConfigMap"
+        return 0
+    fi
+    # Deleted whole only when everything in it is ours; binaryData never is.
+    if [ "${total}" -le "$(printf '%s\n' "${ours}" | wc -l)" ] && [ "${binary}" -eq 0 ]; then
         kubectl delete configmap coredns-custom -n kube-system --ignore-not-found &>/dev/null || true
     else
         ops=""
@@ -437,13 +444,25 @@ if [ "${AMP_ONLY}" = false ]; then
     # Every other namespaced OpenChoreo kind, such as the WorkflowRuns of agent
     # builds and evaluation monitors. They live in the organization's namespace,
     # which is kept, and their cleanup finalizers need the controllers Step 3
-    # removes.
-    for resource_type in $(kubectl api-resources --api-group=openchoreo.dev --namespaced=true -o name 2>/dev/null); do
-        if [ -n "$(kubectl get "${resource_type}" -A -o name 2>/dev/null)" ]; then
+    # removes. A kind that cannot be listed stops the uninstall here, before
+    # those controllers go, so its cleanup can still run on a second attempt.
+    UNCHECKED=""
+    if ! OPENCHOREO_KINDS="$(kubectl api-resources --api-group=openchoreo.dev --namespaced=true -o name 2>/dev/null)"; then
+        UNCHECKED=" the OpenChoreo resource kinds (discovery failed)"
+    fi
+    for resource_type in ${OPENCHOREO_KINDS}; do
+        if ! found="$(kubectl get "${resource_type}" -A -o name 2>/dev/null)"; then
+            UNCHECKED="${UNCHECKED} ${resource_type}"
+        elif [ -n "${found}" ]; then
             log_info "Deleting ${resource_type}..."
             kubectl delete "${resource_type}" --all --all-namespaces --timeout=60s &>/dev/null || true
         fi
     done
+    if [ -n "${UNCHECKED}" ]; then
+        log_error "Could not check${UNCHECKED}"
+        log_info "Stopped before removing the controllers that clean these up. Fix the cluster access and run uninstall.sh again."
+        exit 1
+    fi
 fi
 
 # ============================================================================
