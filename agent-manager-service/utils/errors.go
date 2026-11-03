@@ -241,6 +241,7 @@ var (
 	ErrLLMProviderBeingDeleted     = errors.New("cannot create LLM proxy: the LLM provider is being deleted")
 	ErrLLMProxyNotFound            = errors.New("LLM proxy not found")
 	ErrLLMProxyExists              = errors.New("LLM proxy already exists")
+	ErrLLMProxyManagedByAMS        = errors.New("this LLM proxy is managed by an agent or monitor; change the agent's or monitor's LLM configuration instead")
 	ErrMCPProxyNotFound            = errors.New("MCP proxy not found")
 	// ErrAgentArtifactNotFound means no active Agent deployment exists for this
 	// artifact on this gateway.
