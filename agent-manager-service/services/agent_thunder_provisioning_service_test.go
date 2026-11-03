@@ -244,6 +244,50 @@ func TestAttemptProvision_CPManagedFailureState(t *testing.T) {
 	}
 }
 
+func TestAttemptProvision_CPManagedRecoversSourceMissingFromCreationEnvironmentList(t *testing.T) {
+	candidate := models.AgentThunderClient{
+		ID: uuid.New(), OUID: "org-1", ProjectName: "project-1", AgentName: "agent-1",
+		EnvironmentName: "staging", ProvisioningType: models.AgentProvisioningTypeInternal,
+		Status: models.AgentThunderStatusPending, RequestedBy: "user-1",
+	}
+	var sourceBinding models.AgentThunderClient
+	var deletedIDs []uuid.UUID
+	repo := &repomocks.AgentThunderClientRepositoryMock{
+		ClaimForAttemptFunc: func(context.Context, uuid.UUID) (bool, error) { return true, nil },
+		UpsertFunc: func(_ context.Context, binding *models.AgentThunderClient) error {
+			sourceBinding = *binding
+			return nil
+		},
+		DeleteByIDsFunc: func(_ context.Context, ids []uuid.UUID) error {
+			deletedIDs = append(deletedIDs, ids...)
+			return nil
+		},
+	}
+	provider := projectAgentIdentityProviderStub{
+		source: func(context.Context, string, string, string) (string, error) { return "production", nil },
+		provision: func(context.Context, ProjectAgentIdentityRequest) (ProjectAgentIdentityResult, error) {
+			t.Fatal("a non-source candidate must not provision directly")
+			return ProjectAgentIdentityResult{}, nil
+		},
+		activate: func(context.Context, ProjectAgentIdentityRequest, string) error { return nil },
+	}
+	svc := newTestProvisioningService(repo, &clientmocks.EnvThunderResolverMock{}, &clientmocks.SecretManagementClientMock{})
+	require.NoError(t, svc.(ProjectAgentIdentityProviderSetter).SetProjectAgentIdentityProvider(
+		thundersvc.IdentityManagementCPManaged, provider,
+	))
+
+	svc.AttemptProvision(context.Background(), candidate)
+
+	assert.Equal(t, "production", sourceBinding.EnvironmentName)
+	assert.Equal(t, candidate.OUID, sourceBinding.OUID)
+	assert.Equal(t, candidate.ProjectName, sourceBinding.ProjectName)
+	assert.Equal(t, candidate.AgentName, sourceBinding.AgentName)
+	assert.Equal(t, candidate.ProvisioningType, sourceBinding.ProvisioningType)
+	assert.Equal(t, candidate.RequestedBy, sourceBinding.RequestedBy)
+	assert.Equal(t, models.AgentThunderStatusPending, sourceBinding.Status)
+	assert.Equal(t, []uuid.UUID{candidate.ID}, deletedIDs)
+}
+
 func newTestProvisioningService(
 	repo *repomocks.AgentThunderClientRepositoryMock,
 	resolver *clientmocks.EnvThunderResolverMock,

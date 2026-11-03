@@ -756,9 +756,25 @@ func (s *agentThunderProvisioningService) AttemptProvision(ctx context.Context, 
 		}
 		if binding.EnvironmentName != source {
 			// Candidates are written only while source resolution is unavailable.
-			// Remove an empty non-source candidate once mapping recovers; promotion
-			// owns creation of the real target binding.
+			// Once mapping recovers, first establish the authoritative source row;
+			// it may not have been present in the creation-time environment list.
+			// Only then remove this empty non-source candidate. Promotion owns
+			// creation of the real target binding.
 			if binding.ThunderAgentID == "" && binding.ThunderClientID == "" && binding.SecretRefPath == "" {
+				sourceBinding := models.AgentThunderClient{
+					OUID:             binding.OUID,
+					ProjectName:      binding.ProjectName,
+					AgentName:        binding.AgentName,
+					EnvironmentName:  source,
+					ProvisioningType: binding.ProvisioningType,
+					Status:           models.AgentThunderStatusPending,
+					RequestedBy:      binding.RequestedBy,
+				}
+				if upsertErr := s.repo.Upsert(ctx, &sourceBinding); upsertErr != nil {
+					s.recordFailure(ctx, binding, "", "", "",
+						fmt.Errorf("write authoritative project identity source binding: %w", upsertErr))
+					return
+				}
 				if deleteErr := s.repo.DeleteByIDs(ctx, []uuid.UUID{binding.ID}); deleteErr != nil {
 					s.recordFailure(ctx, binding, "", "", "",
 						fmt.Errorf("remove non-source project identity candidate: %w", deleteErr))
