@@ -336,9 +336,7 @@ func TestMCPSave_PinnedExemptGatewayGoneAndEnvironmentEmptySavesUnplaced(t *test
 
 	require.NoError(t, f.save())
 
-	for _, event := range f.hub.published {
-		assert.Empty(t, event.GatewayID)
-	}
+	assert.Empty(t, f.hub.published)
 }
 
 // orderedEventHub records each publish in a log shared with the test's other fakes.
