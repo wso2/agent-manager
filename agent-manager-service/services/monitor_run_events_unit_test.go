@@ -34,7 +34,7 @@ type runEventPublisher func(context.Context, events.Event)
 
 func (p runEventPublisher) Publish(ctx context.Context, e events.Event) { p(ctx, e) }
 
-func TestMonitorRunEventRetriesScoreReadBeforeTerminalPersistence(t *testing.T) {
+func TestMonitorRunEventScoreFailureDoesNotBlockTerminalPersistence(t *testing.T) {
 	scoreError := errors.New("scores temporarily unavailable")
 	persisted := false
 	published := false
@@ -68,8 +68,8 @@ func TestMonitorRunEventRetriesScoreReadBeforeTerminalPersistence(t *testing.T) 
 		require.NotNil(t, e.Data.(map[string]any)["run"].(map[string]any)["completedAt"])
 		published = true
 	}), scoreRepo, discardLogger())
-	require.ErrorIs(t, scheduler.syncSingleRunStatus(context.Background(), run), scoreError)
-	require.False(t, persisted)
+	require.NoError(t, scheduler.syncSingleRunStatus(context.Background(), run))
+	require.True(t, persisted)
 	require.False(t, published)
 	require.Equal(t, models.RunStatusRunning, run.Status)
 	scoreError = nil
