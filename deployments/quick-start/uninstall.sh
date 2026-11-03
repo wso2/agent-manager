@@ -9,7 +9,7 @@ set -euo pipefail
 #    Thunder and gateway
 # 2. All OpenChoreo and prerequisite helm releases (unless --amp-only is used)
 # 3. All custom resources, the namespaces install.sh created, and (unless
-#    --amp-only is used) the CRDs it installed
+#    --amp-only is used) the CRDs it installed and the CoreDNS rewrites it applied
 # 4. Optionally deletes the k3d cluster
 # It exits non-zero and lists what is left if anything could not be removed.
 #
@@ -241,6 +241,15 @@ cert-manager cert-manager
 AMP_NAMESPACES="${AMP_NS} amp-thunder agent-sandbox-system"
 OPENCHOREO_NAMESPACES="openchoreo-control-plane openchoreo-data-plane openchoreo-workflow-plane ${OBSERVABILITY_NS} cert-manager external-secrets openbao"
 # API groups of the CRDs install.sh brings in (charts and the Gateway API bundle).
+KUBELET_SERVICE="openchoreo-observability-kubelet"
+
+# coredns_custom_is_ours: the coredns-custom ConfigMap carries the rewrites
+# install.sh applies.
+coredns_custom_is_ours() {
+    kubectl get configmap coredns-custom -n kube-system -o jsonpath='{.data.amp\.override}' 2>/dev/null \
+        | grep -q 'amp'
+}
+
 CRD_GROUPS='openchoreo\.dev|external-secrets\.io|cert-manager\.io|argoproj\.io|monitoring\.coreos\.com|agents\.x-k8s\.io|gateway\.api-platform\.wso2\.com|gateway\.kgateway\.dev|gateway\.networking\.k8s\.io|gateway\.networking\.x-k8s\.io'
 
 # uninstall_release <release> <namespace>: quiet when the release is absent, so
@@ -346,6 +355,7 @@ kubectl delete clusterrolebinding,clusterrole \
     --ignore-not-found &>/dev/null || true
 kubectl delete clusterrolebinding label-default-namespace-rolebinding --ignore-not-found &>/dev/null || true
 kubectl delete clusterrole label-default-namespace-role --ignore-not-found &>/dev/null || true
+kubectl delete serviceaccount label-default-namespace-sa -n "${DEFAULT_NS}" --ignore-not-found &>/dev/null || true
 
 # ============================================================================
 # Step 3: Uninstall OpenChoreo and Prerequisites (Skip if --amp-only)
@@ -357,6 +367,19 @@ if [ "${AMP_ONLY}" = false ]; then
     # Applied with kubectl by install.sh, not owned by any release.
     kubectl delete clusterrolebinding,clusterrole wso2-api-platform-gateway-module \
         --ignore-not-found &>/dev/null || true
+    # Created by the Prometheus operator for kubelet scraping, so no release owns it.
+    kubectl delete service,endpoints "${KUBELET_SERVICE}" -n kube-system --ignore-not-found &>/dev/null || true
+    kubectl delete endpointslices -n kube-system -l "kubernetes.io/service-name=${KUBELET_SERVICE}" \
+        --ignore-not-found &>/dev/null || true
+    # The CoreDNS rewrites install.sh applies (deployments/k8s/coredns-amp-custom.yaml).
+    # Removed only while it still carries them, so a ConfigMap of the cluster
+    # owner's own is left alone.
+    if coredns_custom_is_ours; then
+        log_info "Removing the CoreDNS rewrites..."
+        kubectl delete configmap coredns-custom -n kube-system --ignore-not-found &>/dev/null || true
+        kubectl rollout restart deployment/coredns -n kube-system &>/dev/null \
+            || log_warning "Could not restart CoreDNS; it keeps the old rewrites until it restarts"
+    fi
 else
     log_step "Step 3/4: Skipping OpenChoreo Uninstallation (--amp-only mode)"
     log_info "OpenChoreo resources are preserved"
@@ -405,8 +428,17 @@ if [ "${AMP_ONLY}" = false ]; then
     LEFT_CRDS="$(kubectl get crd -o name 2>/dev/null | grep -cE "\.(${CRD_GROUPS})\$" || true)"
     [ "${LEFT_CRDS}" != "0" ] || LEFT_CRDS=""
 fi
+# Objects outside the platform namespaces that no release owns.
+LEFT_OBJECTS=""
+kubectl get serviceaccount label-default-namespace-sa -n "${DEFAULT_NS}" &>/dev/null \
+    && LEFT_OBJECTS="${LEFT_OBJECTS} serviceaccount/${DEFAULT_NS}/label-default-namespace-sa"
+if [ "${AMP_ONLY}" = false ]; then
+    kubectl get service "${KUBELET_SERVICE}" -n kube-system &>/dev/null \
+        && LEFT_OBJECTS="${LEFT_OBJECTS} service/kube-system/${KUBELET_SERVICE}"
+    coredns_custom_is_ours && LEFT_OBJECTS="${LEFT_OBJECTS} configmap/kube-system/coredns-custom"
+fi
 
-if [ -z "${LEFT_RELEASES}" ] && [ -z "${LEFT_NAMESPACES// /}" ] && [ -z "${LEFT_CRDS}" ]; then
+if [ -z "${LEFT_RELEASES}" ] && [ -z "${LEFT_NAMESPACES// /}" ] && [ -z "${LEFT_CRDS}" ] && [ -z "${LEFT_OBJECTS}" ]; then
     log_step "Uninstallation Complete!"
     if [ "${AMP_ONLY}" = true ]; then
         log_success "AMP resources have been removed!"
@@ -429,6 +461,7 @@ log_step "Uninstallation Incomplete"
 [ -z "${LEFT_RELEASES}" ] || log_warning "Helm releases still installed:${LEFT_RELEASES}"
 [ -z "${LEFT_NAMESPACES// /}" ] || log_warning "Namespaces still present: ${LEFT_NAMESPACES}"
 [ -z "${LEFT_CRDS}" ] || log_warning "CRDs still present: ${LEFT_CRDS}"
+[ -z "${LEFT_OBJECTS}" ] || log_warning "Other objects still present:${LEFT_OBJECTS}"
 echo ""
 log_info "Installing again on top of these leftovers is not supported."
 log_info "For a clean slate, run: ./uninstall.sh --delete-cluster"
