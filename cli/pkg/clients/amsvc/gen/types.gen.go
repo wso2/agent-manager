@@ -651,6 +651,30 @@ func (e EvaluatorScoreSummaryLevel) Valid() bool {
 	}
 }
 
+// Defines values for EventDeliveryResponseStatus.
+const (
+	EventDeliveryResponseStatusDelivered EventDeliveryResponseStatus = "delivered"
+	EventDeliveryResponseStatusFailed    EventDeliveryResponseStatus = "failed"
+	EventDeliveryResponseStatusPending   EventDeliveryResponseStatus = "pending"
+	EventDeliveryResponseStatusSkipped   EventDeliveryResponseStatus = "skipped"
+)
+
+// Valid indicates whether the value is a known member of the EventDeliveryResponseStatus enum.
+func (e EventDeliveryResponseStatus) Valid() bool {
+	switch e {
+	case EventDeliveryResponseStatusDelivered:
+		return true
+	case EventDeliveryResponseStatusFailed:
+		return true
+	case EventDeliveryResponseStatusPending:
+		return true
+	case EventDeliveryResponseStatusSkipped:
+		return true
+	default:
+		return false
+	}
+}
+
 // Defines values for EventDestinationRequestAvailability.
 const (
 	EventDestinationRequestAvailabilityAll      EventDestinationRequestAvailability = "all"
@@ -1223,22 +1247,22 @@ func (e MonitorResponseType) Valid() bool {
 
 // Defines values for MonitorRunResponseStatus.
 const (
-	Failed  MonitorRunResponseStatus = "failed"
-	Pending MonitorRunResponseStatus = "pending"
-	Running MonitorRunResponseStatus = "running"
-	Success MonitorRunResponseStatus = "success"
+	MonitorRunResponseStatusFailed  MonitorRunResponseStatus = "failed"
+	MonitorRunResponseStatusPending MonitorRunResponseStatus = "pending"
+	MonitorRunResponseStatusRunning MonitorRunResponseStatus = "running"
+	MonitorRunResponseStatusSuccess MonitorRunResponseStatus = "success"
 )
 
 // Valid indicates whether the value is a known member of the MonitorRunResponseStatus enum.
 func (e MonitorRunResponseStatus) Valid() bool {
 	switch e {
-	case Failed:
+	case MonitorRunResponseStatusFailed:
 		return true
-	case Pending:
+	case MonitorRunResponseStatusPending:
 		return true
-	case Running:
+	case MonitorRunResponseStatusRunning:
 		return true
-	case Success:
+	case MonitorRunResponseStatusSuccess:
 		return true
 	default:
 		return false
@@ -1386,6 +1410,30 @@ func (e ListCatalogResourcesParamsKind) Valid() bool {
 	}
 }
 
+// Defines values for ListOrgEventDeliveriesParamsStatus.
+const (
+	ListOrgEventDeliveriesParamsStatusDelivered ListOrgEventDeliveriesParamsStatus = "delivered"
+	ListOrgEventDeliveriesParamsStatusFailed    ListOrgEventDeliveriesParamsStatus = "failed"
+	ListOrgEventDeliveriesParamsStatusPending   ListOrgEventDeliveriesParamsStatus = "pending"
+	ListOrgEventDeliveriesParamsStatusSkipped   ListOrgEventDeliveriesParamsStatus = "skipped"
+)
+
+// Valid indicates whether the value is a known member of the ListOrgEventDeliveriesParamsStatus enum.
+func (e ListOrgEventDeliveriesParamsStatus) Valid() bool {
+	switch e {
+	case ListOrgEventDeliveriesParamsStatusDelivered:
+		return true
+	case ListOrgEventDeliveriesParamsStatusFailed:
+		return true
+	case ListOrgEventDeliveriesParamsStatusPending:
+		return true
+	case ListOrgEventDeliveriesParamsStatusSkipped:
+		return true
+	default:
+		return false
+	}
+}
+
 // Defines values for ListEventTypesParamsScope.
 const (
 	ListEventTypesParamsScopeAgent   ListEventTypesParamsScope = "agent"
@@ -1461,6 +1509,30 @@ func (e GetLLMProviderDeploymentsParamsStatus) Valid() bool {
 	}
 }
 
+// Defines values for ListAgentEventDeliveriesParamsStatus.
+const (
+	ListAgentEventDeliveriesParamsStatusDelivered ListAgentEventDeliveriesParamsStatus = "delivered"
+	ListAgentEventDeliveriesParamsStatusFailed    ListAgentEventDeliveriesParamsStatus = "failed"
+	ListAgentEventDeliveriesParamsStatusPending   ListAgentEventDeliveriesParamsStatus = "pending"
+	ListAgentEventDeliveriesParamsStatusSkipped   ListAgentEventDeliveriesParamsStatus = "skipped"
+)
+
+// Valid indicates whether the value is a known member of the ListAgentEventDeliveriesParamsStatus enum.
+func (e ListAgentEventDeliveriesParamsStatus) Valid() bool {
+	switch e {
+	case ListAgentEventDeliveriesParamsStatusDelivered:
+		return true
+	case ListAgentEventDeliveriesParamsStatusFailed:
+		return true
+	case ListAgentEventDeliveriesParamsStatusPending:
+		return true
+	case ListAgentEventDeliveriesParamsStatusSkipped:
+		return true
+	default:
+		return false
+	}
+}
+
 // Defines values for GetMonitorScoresParamsLevel.
 const (
 	GetMonitorScoresParamsLevelAgent GetMonitorScoresParamsLevel = "agent"
@@ -1512,6 +1584,30 @@ func (e GetAgentTraceScoresParamsSortOrder) Valid() bool {
 	case Asc:
 		return true
 	case Desc:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for ListProjectEventDeliveriesParamsStatus.
+const (
+	Delivered ListProjectEventDeliveriesParamsStatus = "delivered"
+	Failed    ListProjectEventDeliveriesParamsStatus = "failed"
+	Pending   ListProjectEventDeliveriesParamsStatus = "pending"
+	Skipped   ListProjectEventDeliveriesParamsStatus = "skipped"
+)
+
+// Valid indicates whether the value is a known member of the ListProjectEventDeliveriesParamsStatus enum.
+func (e ListProjectEventDeliveriesParamsStatus) Valid() bool {
+	switch e {
+	case Delivered:
+		return true
+	case Failed:
+		return true
+	case Pending:
+		return true
+	case Skipped:
 		return true
 	default:
 		return false
@@ -3437,6 +3533,41 @@ type EventDeliveryCounts struct {
 	Pending   int `json:"pending"`
 	Skipped   int `json:"skipped"`
 }
+
+// EventDeliveryListResponse defines model for EventDeliveryListResponse.
+type EventDeliveryListResponse struct {
+	Deliveries []EventDeliveryResponse `json:"deliveries"`
+
+	// Total Deliveries matching the query, ignoring limit and offset.
+	Total int `json:"total"`
+}
+
+// EventDeliveryResponse defines model for EventDeliveryResponse.
+type EventDeliveryResponse struct {
+	AgentName   *string    `json:"agentName,omitempty"`
+	Attempts    int32      `json:"attempts"`
+	CreatedAt   time.Time  `json:"createdAt"`
+	DeliveredAt *time.Time `json:"deliveredAt,omitempty"`
+
+	// Destination A destination as subscriptions below the organization see it, without its settings.
+	Destination  *EventDestinationSummary    `json:"destination,omitempty"`
+	Environment  *string                     `json:"environment,omitempty"`
+	EventId      string                      `json:"eventId"`
+	EventScope   string                      `json:"eventScope"`
+	EventType    string                      `json:"eventType"`
+	Id           string                      `json:"id"`
+	LastError    *string                     `json:"lastError,omitempty"`
+	ProjectName  *string                     `json:"projectName,omitempty"`
+	ResponseCode *int32                      `json:"responseCode,omitempty"`
+	Status       EventDeliveryResponseStatus `json:"status"`
+
+	// Subscriptions The subscriptions that sent the event to the destination.
+	Subscriptions []EventSubscriptionRef `json:"subscriptions"`
+	UpdatedAt     time.Time              `json:"updatedAt"`
+}
+
+// EventDeliveryResponseStatus defines model for EventDeliveryResponse.Status.
+type EventDeliveryResponseStatus string
 
 // EventDestinationKind defines model for EventDestinationKind.
 type EventDestinationKind struct {
@@ -6401,6 +6532,27 @@ type ListAgentIdentityRolesParams struct {
 	Limit *AgentIdentityLimit `form:"limit,omitempty" json:"limit,omitempty"`
 }
 
+// ListOrgEventDeliveriesParams defines parameters for ListOrgEventDeliveries.
+type ListOrgEventDeliveriesParams struct {
+	// DestinationId Only deliveries to this destination.
+	DestinationId *string `form:"destinationId,omitempty" json:"destinationId,omitempty"`
+
+	// SubscriptionId Only deliveries this subscription queued.
+	SubscriptionId *string `form:"subscriptionId,omitempty" json:"subscriptionId,omitempty"`
+
+	// Status Only deliveries with this status.
+	Status *ListOrgEventDeliveriesParamsStatus `form:"status,omitempty" json:"status,omitempty"`
+
+	// Limit Maximum number of deliveries (default 50, at most 100).
+	Limit *int `form:"limit,omitempty" json:"limit,omitempty"`
+
+	// Offset Number of deliveries to skip.
+	Offset *int `form:"offset,omitempty" json:"offset,omitempty"`
+}
+
+// ListOrgEventDeliveriesParamsStatus defines parameters for ListOrgEventDeliveries.
+type ListOrgEventDeliveriesParamsStatus string
+
 // ListEventTypesParams defines parameters for ListEventTypes.
 type ListEventTypesParams struct {
 	// Scope The event types a subscription at this scope can name: an org
@@ -6595,6 +6747,27 @@ type GetAgentEndpointsParams struct {
 	Environment string `form:"environment" json:"environment"`
 }
 
+// ListAgentEventDeliveriesParams defines parameters for ListAgentEventDeliveries.
+type ListAgentEventDeliveriesParams struct {
+	// DestinationId Only deliveries to this destination.
+	DestinationId *string `form:"destinationId,omitempty" json:"destinationId,omitempty"`
+
+	// SubscriptionId Only deliveries this subscription queued.
+	SubscriptionId *string `form:"subscriptionId,omitempty" json:"subscriptionId,omitempty"`
+
+	// Status Only deliveries with this status.
+	Status *ListAgentEventDeliveriesParamsStatus `form:"status,omitempty" json:"status,omitempty"`
+
+	// Limit Maximum number of deliveries (default 50, at most 100).
+	Limit *int `form:"limit,omitempty" json:"limit,omitempty"`
+
+	// Offset Number of deliveries to skip.
+	Offset *int `form:"offset,omitempty" json:"offset,omitempty"`
+}
+
+// ListAgentEventDeliveriesParamsStatus defines parameters for ListAgentEventDeliveries.
+type ListAgentEventDeliveriesParamsStatus string
+
 // GetAgentGroupsParams defines parameters for GetAgentGroups.
 type GetAgentGroupsParams struct {
 	// Environment Environment name to read the agent's groups for
@@ -6744,6 +6917,27 @@ type GenerateAgentTokenParams struct {
 	// Environment Environment name (defaults to configured default if not provided)
 	Environment *string `form:"environment,omitempty" json:"environment,omitempty"`
 }
+
+// ListProjectEventDeliveriesParams defines parameters for ListProjectEventDeliveries.
+type ListProjectEventDeliveriesParams struct {
+	// DestinationId Only deliveries to this destination.
+	DestinationId *string `form:"destinationId,omitempty" json:"destinationId,omitempty"`
+
+	// SubscriptionId Only deliveries this subscription queued.
+	SubscriptionId *string `form:"subscriptionId,omitempty" json:"subscriptionId,omitempty"`
+
+	// Status Only deliveries with this status.
+	Status *ListProjectEventDeliveriesParamsStatus `form:"status,omitempty" json:"status,omitempty"`
+
+	// Limit Maximum number of deliveries (default 50, at most 100).
+	Limit *int `form:"limit,omitempty" json:"limit,omitempty"`
+
+	// Offset Number of deliveries to skip.
+	Offset *int `form:"offset,omitempty" json:"offset,omitempty"`
+}
+
+// ListProjectEventDeliveriesParamsStatus defines parameters for ListProjectEventDeliveries.
+type ListProjectEventDeliveriesParamsStatus string
 
 // ListLLMProxiesParams defines parameters for ListLLMProxies.
 type ListLLMProxiesParams struct {
