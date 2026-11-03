@@ -1462,7 +1462,7 @@ func (s *agentConfigurationService) createMCPConfig(ctx context.Context, ouID, p
 			}
 			return nil, fmt.Errorf("failed to validate MCP proxy for environment %s: %w", envName, err)
 		}
-		if err := s.requireMCPProxyBindable(ctx, proxy, ouID, projectName); err != nil {
+		if err := s.requireProjectProxyInProject(ctx, proxy, ouID, projectName); err != nil {
 			return nil, err
 		}
 		proxiesByEnv[envName] = proxy
@@ -2498,7 +2498,7 @@ func (s *agentConfigurationService) updateMCPConfig(ctx context.Context, existin
 			}
 			return nil, fmt.Errorf("failed to validate MCP proxy for environment %s: %w", envName, err)
 		}
-		if err := s.requireMCPProxyBindable(ctx, proxy, ouID, projectName); err != nil {
+		if err := s.requireProjectProxyInProject(ctx, proxy, ouID, projectName); err != nil {
 			return nil, err
 		}
 		proxiesByEnv[envName] = proxy
@@ -6377,6 +6377,18 @@ func mcpProxyBindableFromProject(proxy *models.MCPProxy, agentProjectUUID string
 		return fmt.Errorf("%w: MCP proxy %s must be in catalog", utils.ErrInvalidInput, proxyHandleOf(proxy))
 	}
 	return nil
+}
+
+// requireProjectProxyInProject enforces only the project-proxy rule for createMCPConfig/updateMCPConfig: a
+// project proxy must belong to the agent's project (else not found). An org proxy is not checked here, as
+// before; the catalog requirement for org proxies lives in ValidateMCPProxiesInCatalog.
+func (s *agentConfigurationService) requireProjectProxyInProject(
+	ctx context.Context, proxy *models.MCPProxy, ouID, projectName string,
+) error {
+	if proxy.ProjectUUID == nil {
+		return nil
+	}
+	return s.requireMCPProxyBindable(ctx, proxy, ouID, projectName)
 }
 
 // requireMCPProxyBindable applies mcpProxyBindableFromProject for an agent in projectName. The

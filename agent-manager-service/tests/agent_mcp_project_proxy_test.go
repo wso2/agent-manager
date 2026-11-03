@@ -170,13 +170,24 @@ func TestAgentBindsSameProjectProxy_OK(t *testing.T) {
 	rr := f.createMCPConfig(f.project, "agent-one", f.weather)
 	require.Equal(t, http.StatusCreated, rr.Code, rr.Body.String())
 
+	var created models.AgentModelConfigResponse
+	require.NoError(t, json.Unmarshal(rr.Body.Bytes(), &created))
+	wantURL := "https://dev-gw.example.com/" + f.project + "/weather/mcp"
+
+	// Reading the config back loads the proxy through the mapping preload; its URL carries the project too.
+	getURL := fmt.Sprintf("/api/v1/orgs/%s/projects/%s/agents/agent-one/mcp-configs/%s", testOrgName, f.project, created.UUID)
+	getRR := httptest.NewRecorder()
+	f.app.ServeHTTP(getRR, httptest.NewRequest(http.MethodGet, getURL, nil))
+	require.Equal(t, http.StatusOK, getRR.Code, getRR.Body.String())
+	require.Contains(t, getRR.Body.String(), wantURL)
+
 	var injected []string
 	for _, call := range f.oc.UpdateReleaseBindingEnvVarsCalls() {
 		for _, ev := range call.EnvVars {
 			injected = append(injected, ev.Value)
 		}
 	}
-	require.Contains(t, injected, "https://dev-gw.example.com/"+f.project+"/weather/mcp",
+	require.Contains(t, injected, wantURL,
 		"the URL injected into the agent carries the project prefix")
 }
 
@@ -198,11 +209,28 @@ func TestAgentBindsOrgProxy_Unchanged(t *testing.T) {
 	rr := f.createMCPConfig(f.project, "agent-three", f.orgProxy)
 	require.Equal(t, http.StatusCreated, rr.Code, "an org proxy in the catalog binds: "+rr.Body.String())
 
+	// Out of the catalog, create and update still work as before: only the agent-create preflight checks it.
 	require.NoError(t, gdb.Exec(`UPDATE artifacts SET in_catalog = FALSE WHERE ou_id = ? AND handle = ?`,
 		jwtassertion.MockOUID, f.orgProxy).Error)
 	rr = f.createMCPConfig(f.project, "agent-four", f.orgProxy)
+	require.Equal(t, http.StatusCreated, rr.Code, rr.Body.String())
+	var created models.AgentModelConfigResponse
+	require.NoError(t, json.Unmarshal(rr.Body.Bytes(), &created))
+	body, _ := json.Marshal(map[string]any{
+		"name": "tools", "type": "mcp",
+		"envMappings": map[string]any{f.devEnv: map[string]any{"providerName": f.orgProxy}},
+	})
+	url := fmt.Sprintf("/api/v1/orgs/%s/projects/%s/agents/%s/mcp-configs/%s", testOrgName, f.project, "agent-four", created.UUID)
+	req := httptest.NewRequest(http.MethodPut, url, bytes.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	put := httptest.NewRecorder()
+	f.app.ServeHTTP(put, req)
+	require.Equal(t, http.StatusOK, put.Code, put.Body.String())
+
+	rr = f.createAgentWithMCP(f.project, f.orgProxy)
 	require.Equal(t, http.StatusBadRequest, rr.Code, rr.Body.String())
 	require.Contains(t, rr.Body.String(), "must be in catalog")
+	require.Empty(t, f.oc.CreateComponentCalls())
 }
 
 func (f *agentProjectProxyFixture) createAgentWithMCP(project, proxy string) *httptest.ResponseRecorder {
