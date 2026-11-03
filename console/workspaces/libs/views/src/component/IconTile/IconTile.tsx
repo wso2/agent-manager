@@ -24,21 +24,23 @@ export interface IconTileProps {
   children: ReactNode;
   /** Tints the tile with the primary colour, e.g. when the card it sits in is selected. */
   selected?: boolean;
+  /** Tile edge in px; the icon inside is the caller's to size. */
+  size?: number;
 }
 
 /**
  * An icon in a small rounded tile: neutral by default, primary-tinted when selected.
  * Leads the selection cards so their icons read as one family.
  */
-export function IconTile({ children, selected = false }: IconTileProps) {
+export function IconTile({ children, selected = false, size = 32 }: IconTileProps) {
   return (
     <Box
       aria-hidden="true"
       sx={(theme) => ({
-        width: 32,
-        height: 32,
+        width: size,
+        height: size,
         flexShrink: 0,
-        borderRadius: 1,
+        borderRadius: size >= 44 ? 1.5 : 1,
         display: "flex",
         alignItems: "center",
         justifyContent: "center",

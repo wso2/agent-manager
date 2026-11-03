@@ -58,7 +58,8 @@
     "@agent-management-platform/shared-component": "workspace:*",
     "@agent-management-platform/build": "workspace:*",
     "zod": "4.6.7",
-    "@agent-management-platform/level-resource-listing": "workspace:*"
+    "@agent-management-platform/level-resource-listing": "workspace:*",
+    "@agent-management-platform/auth": "workspace:*"
   },
   "devDependencies": {
     "@storybook/addon-essentials": "8.6.13",

@@ -80,7 +80,7 @@ function AgentListSkeleton() {
 
 /** The project's agents: search, refresh, and a table with a delete action. */
 export interface AgentListProps {
-  /** Shows "Create Agent" beside the search, for pages without a header action. */
+  /** Shows "New Agent" beside the search, for pages without a header action. */
   showCreateAction?: boolean;
 }
 
@@ -181,7 +181,7 @@ export const AgentList: React.FC<AgentListProps> = ({ showCreateAction = false }
                 startIcon={<Add size={16} />}
                 onClick={handleAddAgent}
               >
-                Create Agent
+                New Agent
               </Button>
             )}
           </Stack>
@@ -196,7 +196,7 @@ export const AgentList: React.FC<AgentListProps> = ({ showCreateAction = false }
           description: "Create a new agent to get started",
           action: (
             <Button variant="contained" startIcon={<Add />} onClick={handleAddAgent}>
-              Create Agent
+              New Agent
             </Button>
           ),
         }}

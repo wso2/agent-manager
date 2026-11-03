@@ -22,7 +22,6 @@ export * from './FullPageLoader';
 export * from './NoDataFound';
 export * from './PageLayout';
 export * from './FadeIn';
-export * from "./Loader";
 export * from './EnvVariableEditor';
 export * from './EnvFileUpload';
 export * from './FileMountEditor';

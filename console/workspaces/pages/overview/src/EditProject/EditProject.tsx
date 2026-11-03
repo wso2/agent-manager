@@ -22,12 +22,13 @@ import {
   TextInput,
   useDirtyState,
   useFormValidation,
+  FormGridSpacer,
 } from "@agent-management-platform/views";
 import { z } from "zod";
 import { generatePath, useNavigate, useParams } from "react-router-dom";
 import { useGetProject, useListDeploymentPipelines, useListEnvironments, useUpdateProject } from "@agent-management-platform/api-client";
 import { absoluteRouteMap, type DeploymentPipelineResponse, ProjectResponse, UpdateProjectRequest, INPUT_LIMITS } from "@agent-management-platform/types";
-import { MarkdownEditor, useUnsavedChangesGuard } from "@agent-management-platform/shared-component";
+import { useUnsavedChangesGuard } from "@agent-management-platform/shared-component";
 import { useEffect, useState, useCallback, useMemo } from "react";
 
 function pipelineChainLabel(
@@ -209,7 +210,7 @@ function EditProjectForm({ project, orgId, projectHref }: EditProjectFormProps) 
       <Box display="flex" flexDirection="column" gap={2} flexGrow={1}>
         <Form.Stack spacing={3}>
           <Grid container spacing={2}>
-            <Grid size={{ xs: 12, md: 6, xl: 4 }}>
+            <Grid size={{ xs: 12, md: 12, xl: 8 }}>
               <TextInput
                 label="Name"
                 id="displayName"
@@ -223,6 +224,21 @@ function EditProjectForm({ project, orgId, projectHref }: EditProjectFormProps) 
                 helperText={errors.displayName}
               />
             </Grid>
+            <Grid size={{ xs: 12, md: 12, xl: 8 }}>
+              <TextInput
+                label="Description (optional)"
+                id="description"
+                maxLength={INPUT_LIMITS.DESCRIPTION}
+                hideCharacterCount={(formData.description?.length ?? 0) < INPUT_LIMITS.DESCRIPTION}
+                placeholder="What is this project for?"
+                disabled={isPending}
+                value={formData.description || ''}
+                onChange={(e) => handleFieldChange('description', e.target.value)}
+                error={!!errors.description}
+                helperText={errors.description}
+              />
+            </Grid>
+            <FormGridSpacer />
             <Grid size={{ xs: 12, md: 6, xl: 4 }}>
               <Form.ElementWrapper label="Deployment Pipeline" name="deploymentPipeline">
                 <Select
@@ -268,19 +284,6 @@ function EditProjectForm({ project, orgId, projectHref }: EditProjectFormProps) 
                     </MenuItem>
                   ))}
                 </Select>
-              </Form.ElementWrapper>
-            </Grid>
-            <Grid size={{ xs: 12, md: 12, xl: 8 }}>
-              <Form.ElementWrapper label="Description (optional)" name="description">
-                <MarkdownEditor
-                  id="description"
-                  placeholder="Short description of this project. Markdown is supported."
-                  disabled={isPending}
-                  value={formData.description || ''}
-                  onChange={(value) => handleFieldChange('description', value)}
-                  error={!!errors.description}
-                  helperText={errors.description}
-                />
               </Form.ElementWrapper>
             </Grid>
           </Grid>
