@@ -35,6 +35,7 @@ const (
 	reconcilerLockID           = int64(739281457)
 	reconcilerBatchSize        = 50
 	reconcilerConcurrencyLimit = 10
+	promotionTopologyInterval  = 5 * time.Minute
 )
 
 // AgentThunderReconcilerService sweeps PENDING agent Thunder bindings whose
@@ -83,8 +84,28 @@ func (s *agentThunderReconcilerService) Start(ctx context.Context) error {
 	// retry cycle below.
 	go s.runInitialIdentityInjectionBackfill(ctx)
 	go s.runLoop(ctx)
+	if _, ok := s.provisioning.(ProjectAgentIdentityPromotionReconciler); ok {
+		go s.runPromotionTopologyLoop(ctx)
+	}
 	s.logger.Info("Agent thunder provisioning reconciler started")
 	return nil
+}
+
+func (s *agentThunderReconcilerService) runPromotionTopologyLoop(ctx context.Context) {
+	reconciler := s.provisioning.(ProjectAgentIdentityPromotionReconciler)
+	reconciler.ReconcileProjectAgentIdentityPromotions(ctx)
+	ticker := time.NewTicker(promotionTopologyInterval)
+	defer ticker.Stop()
+	for {
+		select {
+		case <-ticker.C:
+			reconciler.ReconcileProjectAgentIdentityPromotions(ctx)
+		case <-s.stopCh:
+			return
+		case <-ctx.Done():
+			return
+		}
+	}
 }
 
 func (s *agentThunderReconcilerService) Stop() error {

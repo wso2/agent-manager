@@ -538,19 +538,39 @@ func (s *agentThunderProvisioningService) ProvisionForAgent(
 	ctx context.Context, ouID, projectName, agentName string, ownership models.AgentProvisioningType, envNames []string, requestedBy, awaitEnv string,
 ) {
 	if s.identityManagementMode == thundersvc.IdentityManagementCPManaged {
-		source, err := s.projectIdentityProvider.SourceEnvironment(ctx, ouID, projectName, projectName)
-		if err != nil {
-			// Preserve write-ahead candidates for every known environment. Each
-			// attempt resolves the authoritative source again before writing to CP,
-			// so a transient project-mapping outage cannot strand the agent.
-			s.logger.Warn("Failed to resolve project identity source environment; provisioning will retry",
-				"ouID", ouID, "projectName", projectName, "agentName", agentName, "error", err)
-		} else {
-			// The provider owns project mapping. Trust its source even if the
-			// caller's environment list is briefly stale.
-			envNames = []string{source}
+		if _, ok := s.projectIdentityProvider.(ProjectAgentIdentityPromotionProvider); !ok {
+			source, err := s.projectIdentityProvider.SourceEnvironment(ctx, ouID, projectName, projectName)
+			if err != nil {
+				s.logger.Warn("Project AgentID source environment is unavailable; persisted candidates will retry",
+					"ouID", ouID, "projectName", projectName, "agentName", agentName, "error", err)
+				s.startProvisioningAttempts(ctx, s.writeAheadBindings(ctx, ouID, projectName, agentName, ownership, envNames, requestedBy), awaitEnv)
+				return
+			}
+			s.startProvisioningAttempts(ctx, s.writeAheadBindings(ctx, ouID, projectName, agentName, ownership, []string{source}, requestedBy), awaitEnv)
+			return
 		}
+		bindings, err := s.ensureProjectPromotionBindings(ctx, repositories.AgentRef{
+			OUID: ouID, ProjectName: projectName, AgentName: agentName, ProvisioningType: ownership,
+		}, requestedBy)
+		if err != nil {
+			s.logger.Warn("Project AgentID promotion topology is not fully available; persisted bindings will retry",
+				"ouID", ouID, "projectName", projectName, "agentName", agentName, "error", err)
+			if len(bindings) == 0 {
+				bindings = s.writeAheadBindings(ctx, ouID, projectName, agentName, ownership, envNames, requestedBy)
+			}
+		}
+		s.startProvisioningAttempts(ctx, bindings, awaitEnv)
+		return
 	}
+	bindings := s.writeAheadBindings(ctx, ouID, projectName, agentName, ownership, envNames, requestedBy)
+
+	s.startProvisioningAttempts(ctx, bindings, awaitEnv)
+}
+
+func (s *agentThunderProvisioningService) writeAheadBindings(
+	ctx context.Context, ouID, projectName, agentName string, ownership models.AgentProvisioningType,
+	envNames []string, requestedBy string,
+) []models.AgentThunderClient {
 	bindings := make([]models.AgentThunderClient, 0, len(envNames))
 	for _, env := range envNames {
 		b := models.AgentThunderClient{
@@ -578,10 +598,12 @@ func (s *agentThunderProvisioningService) ProvisionForAgent(
 		}
 		bindings = append(bindings, b)
 	}
+	return bindings
+}
 
-	// Detach from the request context so the background attempt survives the
-	// HTTP handler returning, mirroring the existing deleteAgentLLMConfigurations
-	// pattern in agent_manager.go.
+func (s *agentThunderProvisioningService) startProvisioningAttempts(
+	ctx context.Context, bindings []models.AgentThunderClient, awaitEnv string,
+) {
 	detached := context.WithoutCancel(ctx)
 	if awaitEnv != "" {
 		background := make([]models.AgentThunderClient, 0, len(bindings))
@@ -744,69 +766,128 @@ func (s *agentThunderProvisioningService) AttemptProvision(ctx context.Context, 
 	thunderAgentID := binding.ThunderAgentID
 	clientID := binding.ThunderClientID
 	var clientSecret string
+	promoted := false
 
 	if s.identityManagementMode == thundersvc.IdentityManagementCPManaged {
-		source, sourceErr := s.projectIdentityProvider.SourceEnvironment(
-			ctx, binding.OUID, binding.ProjectName, binding.ProjectName,
-		)
-		if sourceErr != nil {
-			s.recordFailure(ctx, binding, thunderAgentID, clientID, binding.SecretRefPath,
-				fmt.Errorf("resolve project identity source environment: %w", sourceErr))
-			return
-		}
-		if binding.EnvironmentName != source {
-			// Candidates are written only while source resolution is unavailable.
-			// Once mapping recovers, first establish the authoritative source row;
-			// it may not have been present in the creation-time environment list.
-			// Only then remove this empty non-source candidate. Promotion owns
-			// creation of the real target binding.
-			if binding.ThunderAgentID == "" && binding.ThunderClientID == "" && binding.SecretRefPath == "" {
-				sourceBinding := models.AgentThunderClient{
-					OUID:             binding.OUID,
-					ProjectName:      binding.ProjectName,
-					AgentName:        binding.AgentName,
-					EnvironmentName:  source,
-					ProvisioningType: binding.ProvisioningType,
-					Status:           models.AgentThunderStatusPending,
-					RequestedBy:      binding.RequestedBy,
-				}
-				if upsertErr := s.repo.Upsert(ctx, &sourceBinding); upsertErr != nil {
-					s.recordFailure(ctx, binding, "", "", "",
-						fmt.Errorf("write authoritative project identity source binding: %w", upsertErr))
-					return
-				}
-				if deleteErr := s.repo.DeleteByIDs(ctx, []uuid.UUID{binding.ID}); deleteErr != nil {
-					s.recordFailure(ctx, binding, "", "", "",
-						fmt.Errorf("remove non-source project identity candidate: %w", deleteErr))
+		if binding.PromotionSource != "" {
+			promoter, ok := s.projectIdentityProvider.(ProjectAgentIdentityPromotionProvider)
+			if !ok {
+				s.recordFailure(ctx, binding, thunderAgentID, clientID, binding.SecretRefPath,
+					errProjectAgentIdentityPromotionUnavailable)
+				return
+			}
+			source, sourceErr := s.repo.Get(ctx, binding.OUID, binding.ProjectName, binding.AgentName, binding.PromotionSource)
+			if sourceErr != nil || source.Status != models.AgentThunderStatusCompleted {
+				next := time.Now().Add(reconcilerTickInterval)
+				if releaseErr := s.repo.ReleaseClaim(ctx, binding.ID, next, "Waiting for the source environment identity."); releaseErr != nil {
+					s.logger.Error("Failed to defer project AgentID promotion", "bindingID", binding.ID, "error", releaseErr)
 				}
 				return
 			}
-			s.recordFailure(ctx, binding, thunderAgentID, clientID, binding.SecretRefPath,
-				fmt.Errorf("%w: %s", ErrProjectAgentIdentityRequiresPromotion, binding.EnvironmentName))
-			return
-		}
+			targetClientID := binding.ThunderClientID
+			if targetClientID == "" {
+				targetClientID, err = thundersvc.GenerateClientID()
+				if err != nil {
+					s.recordFailure(ctx, binding, thunderAgentID, clientID, binding.SecretRefPath,
+						fmt.Errorf("generate target client ID: %w", err))
+					return
+				}
+			}
+			targetClientSecret, secretErr := thundersvc.GenerateClientSecret()
+			if secretErr != nil {
+				s.recordFailure(ctx, binding, thunderAgentID, clientID, binding.SecretRefPath,
+					fmt.Errorf("generate target client secret: %w", secretErr))
+				return
+			}
+			request := ProjectAgentIdentityPromotionRequest{
+				OrganizationID: binding.OUID, ProjectID: binding.ProjectName, ProjectName: binding.ProjectName,
+				AgentName: binding.AgentName, SourceEnvironment: binding.PromotionSource,
+				TargetEnvironment: binding.EnvironmentName, ProvisioningType: binding.ProvisioningType,
+				ExistingAgentID: source.ThunderAgentID, ExistingClientID: source.ThunderClientID,
+				TargetClientID: targetClientID, TargetClientSecret: targetClientSecret,
+				NeedsSecret: !isExternal && binding.SecretRefPath == "",
+			}
+			result, promotionErr := promoter.Promote(ctx, request)
+			if promotionErr != nil {
+				s.recordFailure(ctx, binding, thunderAgentID, clientID, binding.SecretRefPath,
+					fmt.Errorf("promote project AgentID: %w", promotionErr))
+				return
+			}
+			thunderAgentID, clientID, clientSecret = result.AgentID, result.ClientID, result.ClientSecret
+			if thunderAgentID == "" || clientID == "" {
+				s.recordFailure(ctx, binding, thunderAgentID, clientID, binding.SecretRefPath,
+					errors.New("project AgentID promotion returned an incomplete identity"))
+				return
+			}
+			if isExternal {
+				clientSecret = ""
+			} else if request.NeedsSecret && clientSecret == "" {
+				s.recordFailure(ctx, binding, thunderAgentID, clientID, binding.SecretRefPath,
+					errors.New("project AgentID promotion did not return the required client secret"))
+				return
+			}
+			promoted = true
+		} else {
+			source, sourceErr := s.projectIdentityProvider.SourceEnvironment(
+				ctx, binding.OUID, binding.ProjectName, binding.ProjectName,
+			)
+			if sourceErr != nil {
+				s.recordFailure(ctx, binding, thunderAgentID, clientID, binding.SecretRefPath,
+					fmt.Errorf("resolve project identity source environment: %w", sourceErr))
+				return
+			}
+			if binding.EnvironmentName != source {
+				// Candidates are written only while source resolution is unavailable.
+				// Once mapping recovers, first establish the authoritative source row;
+				// it may not have been present in the creation-time environment list.
+				// Only then remove this empty non-source candidate. Promotion owns
+				// creation of the real target binding.
+				if binding.ThunderAgentID == "" && binding.ThunderClientID == "" && binding.SecretRefPath == "" {
+					sourceBinding := models.AgentThunderClient{
+						OUID:             binding.OUID,
+						ProjectName:      binding.ProjectName,
+						AgentName:        binding.AgentName,
+						EnvironmentName:  source,
+						ProvisioningType: binding.ProvisioningType,
+						Status:           models.AgentThunderStatusPending,
+						RequestedBy:      binding.RequestedBy,
+					}
+					if upsertErr := s.repo.Upsert(ctx, &sourceBinding); upsertErr != nil {
+						s.recordFailure(ctx, binding, "", "", "",
+							fmt.Errorf("write authoritative project identity source binding: %w", upsertErr))
+						return
+					}
+					if deleteErr := s.repo.DeleteByIDs(ctx, []uuid.UUID{binding.ID}); deleteErr != nil {
+						s.recordFailure(ctx, binding, "", "", "",
+							fmt.Errorf("remove non-source project identity candidate: %w", deleteErr))
+					}
+					return
+				}
+				s.recordFailure(ctx, binding, thunderAgentID, clientID, binding.SecretRefPath,
+					fmt.Errorf("%w: %s", ErrProjectAgentIdentityRequiresPromotion, binding.EnvironmentName))
+				return
+			}
 
-		request := ProjectAgentIdentityRequest{
-			OrganizationID: binding.OUID, ProjectID: binding.ProjectName, ProjectName: binding.ProjectName,
-			Environment: binding.EnvironmentName, AgentName: binding.AgentName,
-			ProvisioningType: binding.ProvisioningType, ExistingAgentID: thunderAgentID,
-			ExistingClientID: clientID, NeedsSecret: !isExternal && binding.SecretRefPath == "",
-		}
-		result, provisionErr := s.projectIdentityProvider.Provision(ctx, request)
-		if provisionErr != nil {
-			s.recordFailure(ctx, binding, thunderAgentID, clientID, binding.SecretRefPath, fmt.Errorf("provision project agent identity: %w", provisionErr))
-			return
-		}
-		thunderAgentID, clientID, clientSecret = result.AgentID, result.ClientID, result.ClientSecret
-		if thunderAgentID == "" || clientID == "" {
-			s.recordFailure(ctx, binding, thunderAgentID, clientID, binding.SecretRefPath, errors.New("project AgentID provider returned an incomplete identity"))
-			return
-		}
-		if isExternal {
-			clientSecret = ""
-		} else if request.NeedsSecret && clientSecret == "" {
-			s.recordFailure(ctx, binding, thunderAgentID, clientID, binding.SecretRefPath, errors.New("project AgentID provider did not return the required client secret"))
-			return
+			request := ProjectAgentIdentityRequest{
+				OrganizationID: binding.OUID, ProjectID: binding.ProjectName, ProjectName: binding.ProjectName,
+				Environment: binding.EnvironmentName, AgentName: binding.AgentName,
+				ProvisioningType: binding.ProvisioningType, ExistingAgentID: thunderAgentID,
+				ExistingClientID: clientID, NeedsSecret: isExternal || binding.SecretRefPath == "",
+			}
+			result, provisionErr := s.projectIdentityProvider.Provision(ctx, request)
+			if provisionErr != nil {
+				s.recordFailure(ctx, binding, thunderAgentID, clientID, binding.SecretRefPath, fmt.Errorf("provision project agent identity: %w", provisionErr))
+				return
+			}
+			thunderAgentID, clientID, clientSecret = result.AgentID, result.ClientID, result.ClientSecret
+			if thunderAgentID == "" || clientID == "" {
+				s.recordFailure(ctx, binding, thunderAgentID, clientID, binding.SecretRefPath, errors.New("project AgentID provider returned an incomplete identity"))
+				return
+			}
+			if request.NeedsSecret && clientSecret == "" {
+				s.recordFailure(ctx, binding, thunderAgentID, clientID, binding.SecretRefPath, errors.New("project AgentID provider did not return the required client secret"))
+				return
+			}
 		}
 	} else {
 		thunderClient, resolveErr := ResolveEnvThunderClient(ctx, s.envResolver, binding.OUID, binding.EnvironmentName)
@@ -873,12 +954,12 @@ func (s *agentThunderProvisioningService) AttemptProvision(ctx context.Context, 
 		}
 	}
 
-	if s.identityManagementMode == thundersvc.IdentityManagementCPManaged {
+	if s.identityManagementMode == thundersvc.IdentityManagementCPManaged && !promoted {
 		request := ProjectAgentIdentityRequest{
 			OrganizationID: binding.OUID, ProjectID: binding.ProjectName, ProjectName: binding.ProjectName,
 			Environment: binding.EnvironmentName, AgentName: binding.AgentName,
 			ProvisioningType: binding.ProvisioningType, ExistingAgentID: thunderAgentID,
-			ExistingClientID: clientID, NeedsSecret: !isExternal,
+			ExistingClientID: clientID, ClientSecret: clientSecret, NeedsSecret: !isExternal,
 		}
 		if err := s.projectIdentityProvider.Activate(ctx, request, thunderAgentID); err != nil {
 			s.recordFailure(ctx, binding, thunderAgentID, clientID, secretRefPath, fmt.Errorf("activate project agent identity: %w", err))
@@ -894,6 +975,21 @@ func (s *agentThunderProvisioningService) AttemptProvision(ctx context.Context, 
 	}); err != nil {
 		s.logger.Error("Failed to record successful agent thunder provisioning", "bindingID", binding.ID, "error", err)
 		return
+	}
+
+	if s.identityManagementMode == thundersvc.IdentityManagementCPManaged && binding.PromotionSource == "" {
+		if _, ok := s.projectIdentityProvider.(ProjectAgentIdentityPromotionProvider); ok {
+			ref := repositories.AgentRef{
+				OUID: binding.OUID, ProjectName: binding.ProjectName, AgentName: binding.AgentName,
+				ProvisioningType: binding.ProvisioningType,
+			}
+			if targets, topologyErr := s.ensureProjectPromotionBindings(ctx, ref, binding.RequestedBy); topologyErr != nil {
+				s.logger.Warn("Failed to create downstream project AgentID promotion bindings",
+					"ouID", binding.OUID, "projectName", binding.ProjectName, "agentName", binding.AgentName, "error", topologyErr)
+			} else if len(targets) > 0 {
+				go s.attemptAll(context.WithoutCancel(ctx), targets)
+			}
+		}
 	}
 
 	// A credential issued with no request behind it: the actor is this service,

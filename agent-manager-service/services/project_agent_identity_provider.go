@@ -38,6 +38,7 @@ type ProjectAgentIdentityRequest struct {
 	ProvisioningType models.AgentProvisioningType
 	ExistingAgentID  string
 	ExistingClientID string
+	ClientSecret     string
 	NeedsSecret      bool
 }
 
@@ -45,6 +46,30 @@ type ProjectAgentIdentityResult struct {
 	AgentID      string
 	ClientID     string
 	ClientSecret string
+}
+
+// ProjectIdentityEnvironment is one environment returned by the identity
+// platform. PromotesTo contains only valid outgoing promotion edges.
+type ProjectIdentityEnvironment struct {
+	Name       string
+	PromotesTo []string
+}
+
+// ProjectAgentIdentityPromotionRequest identifies one AgentID promotion. The
+// provider owns previewing the change and selecting only ExistingAgentID.
+type ProjectAgentIdentityPromotionRequest struct {
+	OrganizationID     string
+	ProjectID          string
+	ProjectName        string
+	AgentName          string
+	SourceEnvironment  string
+	TargetEnvironment  string
+	ProvisioningType   models.AgentProvisioningType
+	ExistingAgentID    string
+	ExistingClientID   string
+	TargetClientID     string
+	TargetClientSecret string
+	NeedsSecret        bool
 }
 
 // ProjectAgentIdentityProvider is implemented by deployments that can create
@@ -56,6 +81,14 @@ type ProjectAgentIdentityProvider interface {
 	SourceEnvironment(ctx context.Context, organizationID, projectID, projectName string) (string, error)
 	Provision(ctx context.Context, request ProjectAgentIdentityRequest) (ProjectAgentIdentityResult, error)
 	Activate(ctx context.Context, request ProjectAgentIdentityRequest, agentID string) error
+}
+
+// ProjectAgentIdentityPromotionProvider extends source provisioning with
+// project-topology discovery and AgentID-only promotion.
+type ProjectAgentIdentityPromotionProvider interface {
+	ProjectAgentIdentityProvider
+	Environments(ctx context.Context, organizationID, projectID, projectName string) ([]ProjectIdentityEnvironment, error)
+	Promote(ctx context.Context, request ProjectAgentIdentityPromotionRequest) (ProjectAgentIdentityResult, error)
 }
 
 // ErrProjectAgentIdentityRequiresPromotion tells callers not to create another
