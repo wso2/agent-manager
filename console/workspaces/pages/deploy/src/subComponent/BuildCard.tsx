@@ -81,15 +81,27 @@ function PickerRow({
   onOpen,
   children,
 }: PickerRowProps) {
-  const [copied, setCopied] = useState(false);
+  const [copyStatus, setCopyStatus] = useState<"idle" | "copied" | "failed">("idle");
   const date = startedAt ? new Date(startedAt) : undefined;
+
+  // Reset the tooltip after a moment; the cleanup clears the timer on unmount.
+  useEffect(() => {
+    if (copyStatus === "idle") return undefined;
+    const timer = setTimeout(() => setCopyStatus("idle"), 1500);
+    return () => clearTimeout(timer);
+  }, [copyStatus]);
 
   const handleCopy = (e: React.MouseEvent) => {
     e.stopPropagation();
-    navigator.clipboard?.writeText(title).then(() => {
-      setCopied(true);
-      setTimeout(() => setCopied(false), 1500);
-    });
+    // Clipboard is missing on insecure origins and rejects when permission is denied.
+    if (!navigator.clipboard) {
+      setCopyStatus("failed");
+      return;
+    }
+    navigator.clipboard
+      .writeText(title)
+      .then(() => setCopyStatus("copied"))
+      .catch(() => setCopyStatus("failed"));
   };
 
   return (
@@ -130,7 +142,11 @@ function PickerRow({
             {title}
           </Typography>
           {copyLabel && (
-            <Tooltip title={copied ? "Copied" : copyLabel}>
+            <Tooltip
+              title={
+                copyStatus === "copied" ? "Copied" : copyStatus === "failed" ? "Couldn't copy" : copyLabel
+              }
+            >
               <IconButton size="small" aria-label={copyLabel} onClick={handleCopy}>
                 <Copy size={16} />
               </IconButton>

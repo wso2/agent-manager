@@ -17,7 +17,7 @@
  */
 
 import React from "react";
-import { Link as RouterLink, generatePath, useParams } from "react-router-dom";
+import { Link as RouterLink, generatePath, useLocation, useParams } from "react-router-dom";
 import {
   Box,
   Button,
@@ -50,6 +50,7 @@ import {
   absoluteRouteMap,
   isAgentIdentityEnabled,
 } from "@agent-management-platform/types";
+import { returnToState } from "@agent-management-platform/views";
 import { useRotatingSlots, CARD_SLOTS } from "./hooks/useRotatingSlots";
 import { CARD_GRID_SX } from "./cardGrid";
 import { ResourceCard, ResourceCount, type ResourceCardData } from "./subComponents/ResourceCard";
@@ -61,12 +62,13 @@ const PROJECTS_SHOWN = 3;
 export const OrganizationOverview: React.FC = () => {
   const { orgId = "" } = useParams<{ orgId: string }>();
   const { userInfo } = useAuthHooks();
+  const location = useLocation();
   const params = { orgName: orgId };
 
-  const { data: kinds } = useListAgentKinds(params);
-  const { data: llmProviders } = useListLLMProviders(params);
-  const { data: mcpProxies } = useListMCPProxies(params);
-  const { data: evaluators } = useListEvaluators(params);
+  const { data: kinds, isLoading: isLoadingKinds } = useListAgentKinds(params);
+  const { data: llmProviders, isLoading: isLoadingLLM } = useListLLMProviders(params);
+  const { data: mcpProxies, isLoading: isLoadingMCP } = useListMCPProxies(params);
+  const { data: evaluators, isLoading: isLoadingEvaluators } = useListEvaluators(params);
   const { data: projects, isLoading: isLoadingProjects } = useListProjects(params);
 
   const projectList = projects?.projects ?? [];
@@ -93,6 +95,7 @@ export const OrganizationOverview: React.FC = () => {
     {
       icon: <Server size={26} />,
       title: "MCP Servers",
+      // Backend sets pagination.count to the org-wide total (the spec text says page size).
       count: mcpProxies?.pagination?.count ?? mcpProxies?.count,
       alwaysShow: true,
       description: "Tool servers your agents can use, registered once and shared.",
@@ -132,11 +135,12 @@ export const OrganizationOverview: React.FC = () => {
   // Resources with nothing in them are left out. The rest fill three cards, and a card that
   // has more than one swaps between them in place. An organization with none of them yet
   // shows every resource, as the way to get started.
-  const isLoadingCounts = resourceCards.some((card) => !card.countless && card.count === undefined);
+  // A failed query counts as empty rather than leaving the skeletons up.
+  const isLoadingCounts = isLoadingKinds || isLoadingLLM || isLoadingMCP || isLoadingEvaluators;
   const nonEmpty = resourceCards.filter(
     (card) => card.countless || card.alwaysShow || (card.count ?? 0) > 0,
   );
-  const shownCards = nonEmpty.some((card) => !card.countless) ? nonEmpty : resourceCards;
+  const shownCards = resourceCards.some((card) => (card.count ?? 0) > 0) ? nonEmpty : resourceCards;
   const { order, leavingSlot, setPaused } = useRotatingSlots(shownCards.length);
 
   const createProjectPath = generatePath(orgRoutes.children.newProject.path, { orgId });
@@ -147,6 +151,7 @@ export const OrganizationOverview: React.FC = () => {
       startIcon={<Plus size={16} />}
       component={RouterLink}
       to={createProjectPath}
+      state={returnToState(location)}
     >
       Create Project
     </Button>

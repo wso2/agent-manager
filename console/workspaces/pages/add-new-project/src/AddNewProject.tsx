@@ -18,7 +18,12 @@
 
 import React, { useCallback, useMemo, useState } from 'react';
 import { Alert, Box } from '@wso2/oxygen-ui';
-import { PageLayout, useFormValidation, useDirtyState } from '@agent-management-platform/views';
+import {
+  PageLayout,
+  useFormValidation,
+  useDirtyState,
+  useReturnTo,
+} from '@agent-management-platform/views';
 import { useUnsavedChangesGuard } from '@agent-management-platform/shared-component';
 import { generatePath, useNavigate, useParams } from 'react-router-dom';
 import { absoluteRouteMap } from '@agent-management-platform/types';
@@ -62,12 +67,14 @@ export const AddNewProject: React.FC = () => {
     return (pipelines.find((p) => p.name === 'default') ?? pipelines[0])?.name;
   }, [pipelinesData]);
 
+  const returnTo = useReturnTo(generatePath(
+    absoluteRouteMap.children.org.children.projectListing.path,
+    { orgId: orgId ?? '' }
+  ));
+
   const handleCancel = useCallback(() => {
-    allowNavigation(() => navigate(generatePath(
-      absoluteRouteMap.children.org.children.projectListing.path,
-      { orgId: orgId ?? '' }
-    )));
-  }, [allowNavigation, navigate, orgId]);
+    allowNavigation(() => navigate(returnTo));
+  }, [allowNavigation, navigate, returnTo]);
 
   const [lastSubmittedValidationErrors, setLastSubmittedValidationErrors] = useState<
     Record<string, string>
@@ -116,12 +123,9 @@ export const AddNewProject: React.FC = () => {
   return (
     <PageLayout
       title="Create a Project"
-      backHref={generatePath(
-        absoluteRouteMap.children.org.children.projectListing.path,
-        { orgId: orgId ?? '' }
-      )}
+      backHref={returnTo}
       avatar={null}
-      backLabel="Back to projects"
+      backLabel="Back"
     >
       <Box display="flex" flexDirection="column" gap={2}>
         <ProjectForm

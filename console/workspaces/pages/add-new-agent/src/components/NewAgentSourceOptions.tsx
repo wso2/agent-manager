@@ -20,6 +20,7 @@ import { Box, Form, Typography } from "@wso2/oxygen-ui";
 import { FileCode, BookOpenText, ArrowRight } from "@wso2/oxygen-ui-icons-react";
 import { generatePath, useParams } from "react-router-dom";
 import { PageLayout } from "@agent-management-platform/views";
+import { useAgentWizardReturn } from "../utils/useAgentWizardReturn";
 import { absoluteRouteMap } from "@agent-management-platform/types";
 
 interface NewAgentSourceOptionsProps {
@@ -28,6 +29,7 @@ interface NewAgentSourceOptionsProps {
 
 export const NewAgentSourceOptions = ({ onSelect }: NewAgentSourceOptionsProps) => {
     const { orgId, projectId } = useParams<{ orgId: string; projectId: string }>();
+    const { wizardState } = useAgentWizardReturn();
 
     const handleSelect = (type: string) => {
         onSelect(type as "source" | "catalog");
@@ -61,6 +63,7 @@ export const NewAgentSourceOptions = ({ onSelect }: NewAgentSourceOptionsProps) 
             description="Pick a source type for the agent"
             disableIcon
             backHref={backHref}
+            backState={wizardState}
             backLabel="Back to add new agent"
         >
             <Box display="flex" flexDirection="row" gap={3} flexWrap="wrap">

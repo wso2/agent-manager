@@ -30,12 +30,15 @@ const SEARCH_DEBOUNCE_MS = 300;
 export interface CatalogKindListingProps {
   items: AgentKindResponse[];
   getViewPath: (item: AgentKindResponse) => string;
+  /** Router state for each card link (e.g. a wizard's return-to origin). */
+  viewState?: unknown;
   isLoading?: boolean;
 }
 
 export const CatalogKindListing: React.FC<CatalogKindListingProps> = ({
   items,
   getViewPath,
+  viewState,
   isLoading,
 }) => {
   const [page, setPage] = useState(0);
@@ -146,7 +149,12 @@ export const CatalogKindListing: React.FC<CatalogKindListingProps> = ({
             }}
           >
             {paginatedItems.map((item) => (
-              <CatalogKindCard key={item.name} item={item} viewPath={getViewPath(item)} />
+              <CatalogKindCard
+                key={item.name}
+                item={item}
+                viewPath={getViewPath(item)}
+                viewState={viewState}
+              />
             ))}
           </Box>
           {filteredItems.length > DEFAULT_ROWS_PER_PAGE && (

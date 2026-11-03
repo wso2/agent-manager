@@ -23,9 +23,11 @@ import { PageLayout } from "@agent-management-platform/views";
 import { absoluteRouteMap, type AgentKindResponse } from "@agent-management-platform/types";
 import { CatalogKindListing } from "@agent-management-platform/agent-kind";
 import { useListAgentKinds } from "@agent-management-platform/api-client";
+import { useAgentWizardReturn } from "../utils/useAgentWizardReturn";
 
 export const CatalogKindSelect: React.FC = () => {
   const { orgId, projectId } = useParams<{ orgId: string; projectId: string }>();
+  const { wizardState } = useAgentWizardReturn();
 
   const { data, isLoading } = useListAgentKinds({ orgName: orgId ?? "" });
 
@@ -47,12 +49,14 @@ export const CatalogKindSelect: React.FC = () => {
       description="Browse the catalog and pick a Agent Kind to create your agent from."
       disableIcon
       backHref={backHref}
+      backState={wizardState}
       backLabel="Back to source type selection"
     >
       <CatalogKindListing
         items={data?.kinds ?? []}
         isLoading={isLoading}
         getViewPath={getViewPath}
+        viewState={wizardState}
       />
     </PageLayout>
   );

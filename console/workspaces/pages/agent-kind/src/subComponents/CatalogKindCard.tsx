@@ -11,9 +11,11 @@ export const CARD_HEIGHT = 160;
 interface CatalogKindCardProps {
     item: AgentKindResponse;
     viewPath: string;
+    /** Router state for the card link. */
+    viewState?: unknown;
 }
 
-export const CatalogKindCard: React.FC<CatalogKindCardProps> = ({ item, viewPath }) => {
+export const CatalogKindCard: React.FC<CatalogKindCardProps> = ({ item, viewPath, viewState }) => {
 
     // The latest version's image, so people can tell which build the kind ships.
     const latest =
@@ -41,7 +43,7 @@ export const CatalogKindCard: React.FC<CatalogKindCardProps> = ({ item, viewPath
     return (
         // ListingCard's own `href` renders a plain anchor, which would reload the
         // app; the router Link keeps navigation client-side.
-        <Link to={viewPath} style={{ textDecoration: "none" }}>
+        <Link to={viewPath} state={viewState} style={{ textDecoration: "none" }}>
             <ListingCard
                 title={item.displayName}
                 description={decorators}

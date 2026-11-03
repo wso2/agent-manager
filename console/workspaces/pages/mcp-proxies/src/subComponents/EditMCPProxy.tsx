@@ -30,6 +30,7 @@ import {
   PageLayout,
   TextInput,
   useFormValidation,
+  LoadErrorNotice,
 } from "@agent-management-platform/views";
 import {
   useGetMCPProxy,
@@ -316,7 +317,7 @@ function EditMCPProxyForm({
 
 export function EditMCPProxy() {
   const { orgId = "", proxyId = "" } = useParams<{ orgId: string; proxyId: string }>();
-  const { data: proxy, isLoading } = useGetMCPProxy({ orgName: orgId, proxyId });
+  const { data: proxy, isLoading, error, refetch } = useGetMCPProxy({ orgName: orgId, proxyId });
   const { data: environments = [], isLoading: isEnvironmentsLoading } =
     useListEnvironments({ orgName: orgId });
   const viewHref = generatePath(
@@ -331,8 +332,16 @@ export function EditMCPProxy() {
       backHref={viewHref}
       backLabel="Back to MCP server"
     >
-      {isLoading || isEnvironmentsLoading || !proxy ? (
+      {isLoading || isEnvironmentsLoading ? (
         <Skeleton variant="rounded" width="100%" height={400} />
+      ) : !proxy ? (
+        <LoadErrorNotice
+          entityLabel="MCP server"
+          error={error}
+          onRetry={() => refetch()}
+          backHref={generatePath(absoluteRouteMap.children.org.children.mcpProxies.path, { orgId })}
+          backLabel="Back to MCP servers"
+        />
       ) : (
         <EditMCPProxyForm
           proxy={proxy}

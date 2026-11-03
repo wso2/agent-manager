@@ -18,7 +18,14 @@
 
 
 import React, { useMemo, useState } from "react";
-import { Link, generatePath, useNavigate, useParams, useSearchParams } from "react-router-dom";
+import {
+  Link,
+  generatePath,
+  useLocation,
+  useNavigate,
+  useParams,
+  useSearchParams,
+} from "react-router-dom";
 import {
   Alert,
   Box,
@@ -32,7 +39,12 @@ import {
   Stack,
   Typography,
 } from "@wso2/oxygen-ui";
-import { PageLayout, DescriptionCard, PageMetaItem } from "@agent-management-platform/views";
+import {
+  PageLayout,
+  DescriptionCard,
+  PageMetaItem,
+  returnToState,
+} from "@agent-management-platform/views";
 import { absoluteRouteMap, withBasePath } from "@agent-management-platform/types";
 import { formatRelativeTime, LabelChips, parseOpenApiSpecContent, SwaggerSpecViewer } from "@agent-management-platform/shared-component";
 import { useGetAgentKind, useGetBuild, useListKindAgents, useListProjects, useGetAgentKindVersion } from "@agent-management-platform/api-client";
@@ -43,6 +55,7 @@ const KIND_AVATAR = { children: <BookOpenText size={32} />, color: "primary.main
 
 export const CatalogKindDetails: React.FC = () => {
   const navigate = useNavigate();
+  const location = useLocation();
   const { kindId, orgId } = useParams<{ kindId: string; orgId: string }>();
 
   const { data: kind, isLoading } = useGetAgentKind({ orgName: orgId, kindName: kindId ?? "" });
@@ -123,7 +136,7 @@ export const CatalogKindDetails: React.FC = () => {
     const target = selectedVersionTag ?
       `${targetPath}?version=${encodeURIComponent(selectedVersionTag)}` : targetPath;
     handleCloseAddInstanceMenu();
-    navigate(target);
+    navigate(target, { state: returnToState(location) });
   };
 
   const versionSelector = sortedVersions.length > 1 && (

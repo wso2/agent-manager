@@ -23,6 +23,7 @@ import {
   useDirtyState,
   useFormValidation,
   FormGridSpacer,
+  LoadErrorNotice,
 } from "@agent-management-platform/views";
 import { z } from "zod";
 import { generatePath, useNavigate, useParams } from "react-router-dom";
@@ -313,7 +314,10 @@ function EditProjectForm({ project, orgId, projectHref }: EditProjectFormProps) 
 
 export function EditProject() {
   const { orgId = "", projectId = "" } = useParams<{ orgId: string; projectId: string }>();
-  const { data: project, isLoading } = useGetProject({ orgName: orgId, projName: projectId });
+  const { data: project, isLoading, error, refetch } = useGetProject({
+    orgName: orgId,
+    projName: projectId,
+  });
   const projectHref = generatePath(absoluteRouteMap.children.org.children.projects.path, {
     orgId,
     projectId,
@@ -326,8 +330,19 @@ export function EditProject() {
       backHref={projectHref}
       backLabel="Back to project"
     >
-      {isLoading || !project ? (
+      {isLoading ? (
         <Skeleton variant="rounded" width="100%" height={400} />
+      ) : !project ? (
+        <LoadErrorNotice
+          entityLabel="project"
+          error={error}
+          onRetry={() => refetch()}
+          backHref={generatePath(
+            absoluteRouteMap.children.org.children.projectListing.path,
+            { orgId },
+          )}
+          backLabel="Back to projects"
+        />
       ) : (
         <EditProjectForm project={project} orgId={orgId} projectHref={projectHref} />
       )}

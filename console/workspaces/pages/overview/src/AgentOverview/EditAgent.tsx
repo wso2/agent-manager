@@ -21,6 +21,7 @@ import {
   PageLayout,
   TextInput,
   useFormValidation,
+  LoadErrorNotice,
 } from "@agent-management-platform/views";
 import { z } from "zod";
 import { generatePath, useNavigate, useParams } from "react-router-dom";
@@ -198,7 +199,7 @@ export function EditAgent() {
     projectId: string;
     agentId: string;
   }>();
-  const { data: agent, isLoading } = useGetAgent({
+  const { data: agent, isLoading, error, refetch } = useGetAgent({
     orgName: orgId,
     projName: projectId,
     agentName: agentId,
@@ -215,8 +216,19 @@ export function EditAgent() {
       backHref={agentHref}
       backLabel="Back to agent"
     >
-      {isLoading || !agent ? (
+      {isLoading ? (
         <Skeleton variant="rounded" width="100%" height={400} />
+      ) : !agent ? (
+        <LoadErrorNotice
+          entityLabel="agent"
+          error={error}
+          onRetry={() => refetch()}
+          backHref={generatePath(
+            absoluteRouteMap.children.org.children.projects.children.agentListing.path,
+            { orgId, projectId },
+          )}
+          backLabel="Back to agents"
+        />
       ) : (
         <EditAgentForm
           agent={agent}

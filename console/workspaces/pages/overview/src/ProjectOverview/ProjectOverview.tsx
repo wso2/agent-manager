@@ -52,7 +52,10 @@ export const ProjectOverview: React.FC = () => {
   // A project with no agents has nothing to overview; send the user to create one.
   useEffect(() => {
     if (orgId && projectId && hasNoAgents && !isAgentsFetching) {
-      navigate(generatePath(projectRoutes.children.newAgent.path, { orgId, projectId }));
+      // Replace so browser Back doesn't land here and redirect again.
+      navigate(generatePath(projectRoutes.children.newAgent.path, { orgId, projectId }), {
+        replace: true,
+      });
     }
   }, [orgId, projectId, hasNoAgents, isAgentsFetching, navigate]);
 

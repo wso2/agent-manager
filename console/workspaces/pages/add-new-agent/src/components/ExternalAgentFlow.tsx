@@ -21,6 +21,7 @@ import { Alert, Form } from "@wso2/oxygen-ui";
 import { PageLayout, useFormValidation } from "@agent-management-platform/views";
 import { useUnsavedChangesGuard } from "@agent-management-platform/shared-component";
 import { generatePath, useNavigate, useParams } from "react-router-dom";
+import { useAgentWizardReturn } from "../utils/useAgentWizardReturn";
 import { absoluteRouteMap, OrgProjPathParams } from "@agent-management-platform/types";
 import { useCreateAgent } from "@agent-management-platform/api-client";
 import { connectAgentSchema, type ConnectAgentFormValues } from "../form/schema";
@@ -43,6 +44,7 @@ export const ExternalAgentFlow: React.FC = () => {
   });
   const isDirty = Boolean(formData.displayName || formData.description);
   const { allowNavigation } = useUnsavedChangesGuard(isDirty);
+  const { returnTo, wizardState } = useAgentWizardReturn();
 
   const { errors, validateForm, setFieldError, validateField } =
     useFormValidation<ConnectAgentFormValues>(connectAgentSchema);
@@ -57,15 +59,8 @@ export const ExternalAgentFlow: React.FC = () => {
   );
 
   const handleCancel = useCallback(() => {
-    allowNavigation(() =>
-      navigate(
-        generatePath(absoluteRouteMap.children.org.children.projects.path, {
-          orgId: orgId ?? "",
-          projectId: projectId ?? "default",
-        })
-      )
-    );
-  }, [allowNavigation, navigate, orgId, projectId]);
+    allowNavigation(() => navigate(returnTo));
+  }, [allowNavigation, navigate, returnTo]);
 
   const onSubmit = useCallback(
     (values: ConnectAgentFormValues) => {
@@ -123,6 +118,7 @@ export const ExternalAgentFlow: React.FC = () => {
       description="Provide basic information to register your externally-hosted agent on the platform."
       disableIcon
       backHref={backHref}
+      backState={wizardState}
       backLabel="Back to add new agent"
     >
       <Form.Stack spacing={3}>

@@ -30,7 +30,7 @@ import {
   Typography,
 } from "@wso2/oxygen-ui";
 import { generatePath, useNavigate, useParams } from "react-router-dom";
-import { PageLayout, TextInput, useFormValidation } from "@agent-management-platform/views";
+import { PageLayout, TextInput, useFormValidation, LoadErrorNotice } from "@agent-management-platform/views";
 import { useGetEnvironment, useUpdateEnvironment } from "@agent-management-platform/api-client";
 import { useUnsavedChangesGuard } from "@agent-management-platform/shared-component";
 import {
@@ -216,7 +216,10 @@ function EditEnvironmentForm({ environment, orgId, listHref }: EditEnvironmentFo
 
 export function EnvironmentEditPage() {
   const { orgId = "", envName = "" } = useParams<{ orgId: string; envName: string }>();
-  const { data: environment, isLoading } = useGetEnvironment({ orgName: orgId, envName });
+  const { data: environment, isLoading, error, refetch } = useGetEnvironment({
+    orgName: orgId,
+    envName,
+  });
   const listHref = generatePath(absoluteRouteMap.children.org.children.environments.path, {
     orgId,
   });
@@ -228,8 +231,16 @@ export function EnvironmentEditPage() {
       backHref={listHref}
       backLabel="Back to environments"
     >
-      {isLoading || !environment ? (
+      {isLoading ? (
         <Skeleton variant="rounded" width="100%" height={400} />
+      ) : !environment ? (
+        <LoadErrorNotice
+          entityLabel="environment"
+          error={error}
+          onRetry={() => refetch()}
+          backHref={listHref}
+          backLabel="Back to environments"
+        />
       ) : (
         <EditEnvironmentForm environment={environment} orgId={orgId} listHref={listHref} />
       )}

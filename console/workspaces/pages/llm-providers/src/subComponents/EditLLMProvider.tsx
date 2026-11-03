@@ -31,7 +31,7 @@ import {
   getErrorMessage,
   useUnsavedChangesGuard,
 } from "@agent-management-platform/shared-component";
-import { PageLayout, TextInput, useFormValidation } from "@agent-management-platform/views";
+import { PageLayout, TextInput, useFormValidation, LoadErrorNotice } from "@agent-management-platform/views";
 import {
   useGetLLMProvider,
   useUpdateLLMProvider,
@@ -225,7 +225,7 @@ export function EditLLMProvider() {
     orgId: string;
     providerId: string;
   }>();
-  const { data: provider, isLoading } = useGetLLMProvider({
+  const { data: provider, isLoading, error, refetch } = useGetLLMProvider({
     orgName: orgId,
     providerId,
   });
@@ -241,8 +241,19 @@ export function EditLLMProvider() {
       backHref={viewHref}
       backLabel="Back to LLM provider"
     >
-      {isLoading || !provider ? (
+      {isLoading ? (
         <Skeleton variant="rounded" width="100%" height={300} />
+      ) : !provider ? (
+        <LoadErrorNotice
+          entityLabel="LLM provider"
+          error={error}
+          onRetry={() => refetch()}
+          backHref={generatePath(
+            absoluteRouteMap.children.org.children.llmProviders.path,
+            { orgId },
+          )}
+          backLabel="Back to LLM providers"
+        />
       ) : (
         <EditLLMProviderForm
           provider={provider}

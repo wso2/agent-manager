@@ -33,6 +33,7 @@ import {
 import { PageLayout, useFormValidation } from "@agent-management-platform/views";
 import { useUnsavedChangesGuard } from "@agent-management-platform/shared-component";
 import { generatePath, useNavigate, useParams, useSearchParams } from "react-router-dom";
+import { useAgentWizardReturn } from "../utils/useAgentWizardReturn";
 import { absoluteRouteMap, type AgentKindVersionResponse, OrgProjPathParams } from "@agent-management-platform/types";
 import {
   useCreateAgent,
@@ -184,6 +185,7 @@ export const CatalogAgentFlow: React.FC = () => {
     [selectedVersion, llmProviders, mcpProxies, formData, initialFormData, catalogEnvSeed.env],
   );
   const { allowNavigation } = useUnsavedChangesGuard(isDirty);
+  const { returnTo, wizardState } = useAgentWizardReturn();
 
   const params = useMemo<OrgProjPathParams>(
     () => ({
@@ -228,15 +230,8 @@ export const CatalogAgentFlow: React.FC = () => {
   );
 
   const handleCancel = useCallback(() => {
-    allowNavigation(() =>
-      navigate(
-        generatePath(absoluteRouteMap.children.org.children.projects.path, {
-          orgId: orgId ?? "",
-          projectId: projectId ?? "default",
-        })
-      )
-    );
-  }, [allowNavigation, navigate, orgId, projectId]);
+    allowNavigation(() => navigate(returnTo));
+  }, [allowNavigation, navigate, returnTo]);
 
   const [lastSubmittedValidationErrors, setLastSubmittedValidationErrors] = useState<
     Record<string, string | undefined>
@@ -306,6 +301,7 @@ export const CatalogAgentFlow: React.FC = () => {
       description="Add agent details and configure deployment settings."
       disableIcon
       backHref={backHref}
+      backState={wizardState}
       backLabel="Back to kind selection"
     >
       {isKindLoading && (

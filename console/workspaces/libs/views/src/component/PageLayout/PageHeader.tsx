@@ -46,6 +46,8 @@ export interface PageHeaderProps {
   title?: string;
   /** Renders a back button above the title. */
   backHref?: string;
+  /** Router state for the back link, e.g. to carry a wizard's return-to origin between steps. */
+  backState?: unknown;
   backLabel?: string;
   /** Lead line under the title. */
   description?: ReactNode;
@@ -70,6 +72,7 @@ export interface PageHeaderProps {
 export function PageHeader({
   title,
   backHref,
+  backState,
   backLabel,
   description,
   titleTail,
@@ -107,7 +110,7 @@ export function PageHeader({
   return (
     <PageTitle>
       {backHref && (
-        <PageTitle.BackButton component={<Link to={backHref} />}>
+        <PageTitle.BackButton component={<Link to={backHref} state={backState} />}>
           {backLabel || 'Back'}
         </PageTitle.BackButton>
       )}

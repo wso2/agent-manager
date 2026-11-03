@@ -16,7 +16,7 @@
  * under the License.
  */
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { prefersReducedMotion, SWAP_INTERVAL_MS, SWAP_OUT_MS } from "../motion";
 
 export const CARD_SLOTS = 3;
@@ -30,7 +30,8 @@ export function useRotatingSlots(total: number) {
   const [order, setOrder] = useState<number[]>(() => Array.from({ length: total }, (_, i) => i));
   const [turn, setTurn] = useState(0);
   const [leavingSlot, setLeavingSlot] = useState<number | null>(null);
-  const [paused, setPaused] = useState(false);
+  const [pauseCount, setPauseCount] = useState(0);
+  const paused = pauseCount > 0;
 
   useEffect(() => {
     setOrder(Array.from({ length: total }, (_, i) => i));
@@ -61,5 +62,13 @@ export function useRotatingSlots(total: number) {
     };
   }, [total, slotCount, paused, turn]);
 
-  return { order: order.slice(0, slotCount), leavingSlot, setPaused };
+  // Hover and focus each add a pause, so one ending does not resume while the other holds.
+  const setPaused = useCallback(
+    (pause: boolean) => setPauseCount((count) => Math.max(0, count + (pause ? 1 : -1))),
+    [],
+  );
+  // The effect below resets the order when the total changes; until then, use a valid one.
+  const validOrder = order.length === total ? order : Array.from({ length: total }, (_, i) => i);
+
+  return { order: validOrder.slice(0, slotCount), leavingSlot, setPaused };
 }

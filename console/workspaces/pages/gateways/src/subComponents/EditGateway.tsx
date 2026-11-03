@@ -31,6 +31,7 @@ import {
   PageLayout,
   TextInput,
   useFormValidation,
+  LoadErrorNotice,
 } from "@agent-management-platform/views";
 import {
   useGetGateway,
@@ -50,10 +51,10 @@ import { editGatewaySchema, type EditGatewayFormValues, GATEWAY_DISPLAY_NAME_MAX
 interface EditGatewayFormProps {
   gateway: GatewayResponse;
   orgId: string;
-  listHref: string;
+  viewHref: string;
 }
 
-function EditGatewayForm({ gateway, orgId, listHref }: EditGatewayFormProps) {
+function EditGatewayForm({ gateway, orgId, viewHref }: EditGatewayFormProps) {
   const navigate = useNavigate();
   const [formData, setFormData] = useState<EditGatewayFormValues>({
     displayName: gateway.displayName,
@@ -86,8 +87,8 @@ function EditGatewayForm({ gateway, orgId, listHref }: EditGatewayFormProps) {
   const { allowNavigation } = useUnsavedChangesGuard(isDirty);
 
   const handleCancel = useCallback(() => {
-    allowNavigation(() => navigate(listHref));
-  }, [allowNavigation, navigate, listHref]);
+    allowNavigation(() => navigate(viewHref));
+  }, [allowNavigation, navigate, viewHref]);
 
   const handleFieldChange = useCallback(
     (
@@ -131,14 +132,14 @@ function EditGatewayForm({ gateway, orgId, listHref }: EditGatewayFormProps) {
           params: { orgName: orgId, gatewayId: gateway.uuid },
           body: payload,
         });
-        allowNavigation(() => navigate(listHref));
+        allowNavigation(() => navigate(viewHref));
       } catch {
         // Error is handled by updateError from useUpdateGateway
       }
     },
     [
       formData, validateForm, updateGateway, orgId, gateway.uuid,
-      allowNavigation, navigate, listHref,
+      allowNavigation, navigate, viewHref,
     ],
   );
 
@@ -216,22 +217,32 @@ function EditGatewayForm({ gateway, orgId, listHref }: EditGatewayFormProps) {
 
 export function EditGateway() {
   const { orgId = "", gatewayId = "" } = useParams<{ orgId: string; gatewayId: string }>();
-  const { data: gateway, isLoading } = useGetGateway({ orgName: orgId, gatewayId });
-  const listHref = generatePath(absoluteRouteMap.children.org.children.gateways.path, {
-    orgId,
-  });
+  const { data: gateway, isLoading, error, refetch } = useGetGateway({ orgName: orgId, gatewayId });
+  // Edit is opened from the gateway's view page, so Back/Cancel/Save return there.
+  const viewHref = generatePath(
+    absoluteRouteMap.children.org.children.gateways.children.view.path,
+    { orgId, gatewayId },
+  );
 
   return (
     <PageLayout
       title="Edit Gateway"
       disableIcon
-      backHref={listHref}
-      backLabel="Back to gateways"
+      backHref={viewHref}
+      backLabel="Back to gateway"
     >
-      {isLoading || !gateway ? (
+      {isLoading ? (
         <Skeleton variant="rounded" width="100%" height={240} />
+      ) : !gateway ? (
+        <LoadErrorNotice
+          entityLabel="gateway"
+          error={error}
+          onRetry={() => refetch()}
+          backHref={generatePath(absoluteRouteMap.children.org.children.gateways.path, { orgId })}
+          backLabel="Back to gateways"
+        />
       ) : (
-        <EditGatewayForm gateway={gateway} orgId={orgId} listHref={listHref} />
+        <EditGatewayForm gateway={gateway} orgId={orgId} viewHref={viewHref} />
       )}
     </PageLayout>
   );

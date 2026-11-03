@@ -37,8 +37,9 @@ import {
   EntityAvatar,
   displayAgentSubType,
   displayProvisionTypes,
+  returnToState,
 } from "@agent-management-platform/views";
-import { generatePath, useNavigate, useParams } from "react-router-dom";
+import { generatePath, useLocation, useNavigate, useParams } from "react-router-dom";
 import { absoluteRouteMap } from "@agent-management-platform/types";
 import {
   useDeleteAgent,
@@ -94,6 +95,7 @@ export const AgentList: React.FC<AgentListProps> = ({ showCreateAction = false }
     projectId: string;
   }>();
   const navigate = useNavigate();
+  const location = useLocation();
   const { data, isLoading, error, isRefetching } = useListAgents({
     orgName: orgId,
     projName: projectId,
@@ -108,8 +110,10 @@ export const AgentList: React.FC<AgentListProps> = ({ showCreateAction = false }
   );
 
   const handleAddAgent = useCallback(() => {
-    navigate(generatePath(projectRoutes.children.newAgent.path, { orgId, projectId }));
-  }, [navigate, orgId, projectId]);
+    navigate(generatePath(projectRoutes.children.newAgent.path, { orgId, projectId }), {
+      state: returnToState(location),
+    });
+  }, [navigate, orgId, projectId, location]);
 
   const filteredAgents = useMemo(() => {
     const term = search.toLowerCase();
@@ -127,6 +131,12 @@ export const AgentList: React.FC<AgentListProps> = ({ showCreateAction = false }
   useEffect(() => {
     setPage(0);
   }, [search]);
+
+  // Deleting rows can leave the current page past the end; step back to the last page.
+  useEffect(() => {
+    const lastPage = Math.max(0, Math.ceil(filteredAgents.length / rowsPerPage) - 1);
+    if (page > lastPage) setPage(lastPage);
+  }, [filteredAgents.length, rowsPerPage, page]);
 
   const paginatedAgents = useMemo(
     () => filteredAgents.slice(page * rowsPerPage, (page + 1) * rowsPerPage),

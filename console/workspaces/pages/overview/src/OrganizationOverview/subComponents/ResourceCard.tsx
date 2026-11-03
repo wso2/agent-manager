@@ -16,7 +16,7 @@
  * under the License.
  */
 
-import React from "react";
+import React, { useCallback, useEffect, useRef } from "react";
 import { Link as RouterLink } from "react-router-dom";
 import { alpha, Box, Card, Divider, Skeleton, Stack, Typography } from "@wso2/oxygen-ui";
 import { ArrowRight } from "@wso2/oxygen-ui-icons-react";
@@ -25,8 +25,9 @@ import { useCountUp } from "../hooks/useCountUp";
 import { CARD_STAGGER_MS, REDUCED, SWAP_OUT_MS } from "../motion";
 
 /** The number beside a section title, set off by a divider so it reads as a count. */
-export function ResourceCount({ count }: { count?: number }) {
-  const shown = useCountUp(count);
+export function ResourceCount({ count, animate = true }: { count?: number; animate?: boolean }) {
+  const animated = useCountUp(animate ? count : undefined);
+  const shown = animate ? animated : count;
   if (shown === undefined) return <Skeleton variant="text" width={20} />;
   return (
     <Typography variant="body1" color="text.secondary" sx={{ minWidth: "1ch" }}>
@@ -57,8 +58,27 @@ interface ResourceCardProps {
   onPause: (paused: boolean) => void;
 }
 /** A platform resource at a glance: what it is, how many exist, and where to add more. */
-export function ResourceCard({ card: current, index, leaving, onPause }: ResourceCardProps) {
-  const setPaused = onPause;
+export function ResourceCard({ card, index, leaving, onPause }: ResourceCardProps) {
+  // Each hold is sent once, and released on unmount (no mouseleave/blur fires then),
+  // so a card removed while hovered or focused can't leave rotation paused for good.
+  const holds = useRef({ hover: false, focus: false });
+  const hold = useCallback(
+    (kind: "hover" | "focus", on: boolean) => {
+      if (holds.current[kind] === on) return;
+      holds.current[kind] = on;
+      onPause(on);
+    },
+    [onPause],
+  );
+  useEffect(() => {
+    const current = holds.current;
+    return () => {
+      if (current.hover) onPause(false);
+      if (current.focus) onPause(false);
+      current.hover = false;
+      current.focus = false;
+    };
+  }, [onPause]);
 
   const swapSx = {
     animation: leaving
@@ -77,10 +97,10 @@ export function ResourceCard({ card: current, index, leaving, onPause }: Resourc
   return (
     <Card
       variant="outlined"
-      onMouseEnter={() => setPaused(true)}
-      onMouseLeave={() => setPaused(false)}
-      onFocus={() => setPaused(true)}
-      onBlur={() => setPaused(false)}
+      onMouseEnter={() => hold("hover", true)}
+      onMouseLeave={() => hold("hover", false)}
+      onFocus={() => hold("focus", true)}
+      onBlur={() => hold("focus", false)}
       sx={{
         display: "flex",
         flexDirection: "column",
@@ -96,29 +116,29 @@ export function ResourceCard({ card: current, index, leaving, onPause }: Resourc
     >
       <Stack direction="row" spacing={2} sx={{ p: { xs: 2, md: 2.5 }, flex: 1, ...swapSx }}>
         <IconTile selected size={52}>
-          {current.icon}
+          {card.icon}
         </IconTile>
         <Box sx={{ minWidth: 0 }}>
           <Stack direction="row" spacing={1.5} alignItems="center" sx={{ mb: 0.5 }}>
             <Typography variant="h6" component="h2" sx={{ fontWeight: 600 }}>
-              {current.title}
+              {card.title}
             </Typography>
-            {!current.countless && !!current.count && (
+            {!card.countless && !!card.count && (
               <>
                 <Divider orientation="vertical" flexItem />
-                <ResourceCount key={current.title} count={current.count} />
+                <ResourceCount count={card.count} animate={false} />
               </>
             )}
           </Stack>
           <Typography variant="body2" color="text.secondary">
-            {current.description}
+            {card.description}
           </Typography>
         </Box>
       </Stack>
       <Divider />
       <Stack
         component={RouterLink}
-        to={current.to}
+        to={card.to}
         direction="row"
         justifyContent="space-between"
         alignItems="center"
@@ -132,7 +152,7 @@ export function ResourceCard({ card: current, index, leaving, onPause }: Resourc
         }}
       >
         <Typography variant="subtitle2" color="inherit">
-          {current.actionLabel}
+          {card.actionLabel}
         </Typography>
         <ArrowRight size={16} />
       </Stack>

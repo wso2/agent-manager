@@ -21,6 +21,7 @@ import { Alert, Form, Link } from "@wso2/oxygen-ui";
 import { PageLayout, useFormValidation } from "@agent-management-platform/views";
 import { useUnsavedChangesGuard } from "@agent-management-platform/shared-component";
 import { generatePath, useNavigate, useParams } from "react-router-dom";
+import { useAgentWizardReturn } from "../utils/useAgentWizardReturn";
 import {
   absoluteRouteMap,
   OrgProjPathParams,
@@ -142,6 +143,7 @@ export const InternalAgentFlow: React.FC = () => {
     );
   }, [formData, baselineFormData, llmProviders, mcpProxies]);
   const { allowNavigation } = useUnsavedChangesGuard(isDirty);
+  const { returnTo, wizardState } = useAgentWizardReturn();
 
   const params = useMemo<OrgProjPathParams>(
     () => ({
@@ -166,15 +168,8 @@ export const InternalAgentFlow: React.FC = () => {
   const firstEnvOnlyNotice = multipleEnvironments ? initialEnvironmentName : undefined;
 
   const handleCancel = useCallback(() => {
-    allowNavigation(() =>
-      navigate(
-        generatePath(absoluteRouteMap.children.org.children.projects.path, {
-          orgId: orgId ?? "",
-          projectId: projectId ?? "default",
-        })
-      )
-    );
-  }, [allowNavigation, navigate, orgId, projectId]);
+    allowNavigation(() => navigate(returnTo));
+  }, [allowNavigation, navigate, returnTo]);
 
   const [lastSubmittedValidationErrors, setLastSubmittedValidationErrors] = useState<
     Record<string, string | undefined>
@@ -250,6 +245,7 @@ export const InternalAgentFlow: React.FC = () => {
       description="Specify the source repository, select the agent type, and deploy it on the platform."
       disableIcon
       backHref={backHref}
+      backState={wizardState}
       backLabel={selectedSample ? "Back to add new agent" : "Back to source type selection"}
     >
       <Form.Stack spacing={3}>
