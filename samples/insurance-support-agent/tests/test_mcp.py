@@ -255,18 +255,19 @@ class MCPIntegrationTests(unittest.TestCase):
             self.assertIsNone(application.MCP_TOOLS)
 
     def test_proxy_denial_never_reaches_upstream(self):
-        before = 0
-        # HTTP denial closes the SDK transport; shutdown propagates the failure.
-        with self.assertRaisesRegex(
-            RuntimeError, "Connection to the MCP server was closed"
-        ):
-            with create_mcp_client(self.cfg) as client:
-                client.list_tools_sync()
-                before = self.forwarded
-                type(self).denied = True
-                result = client.call_tool_sync("denied", "list_policies", {})
-                self.assertEqual(result["status"], "error")
-        self.assertEqual(self.forwarded, before)
+        # MCP 2.x reports denial per request and keeps the transport usable.
+        with create_mcp_client(self.cfg) as client:
+            client.list_tools_sync()
+            before = self.forwarded
+            type(self).denied = True
+            result = client.call_tool_sync("denied", "list_policies", {})
+            self.assertEqual(result["status"], "error")
+            self.assertEqual(self.forwarded, before)
+            type(self).denied = False
+            result = client.call_tool_sync("allowed", "list_policies", {})
+            self.assertEqual(result["status"], "success")
+            self.assertIn("OZ-AUTO-4417", json.dumps(result))
+            self.assertEqual(self.forwarded, before + 1)
 
     def test_upstream_requires_separate_key(self):
         response = httpx.post(

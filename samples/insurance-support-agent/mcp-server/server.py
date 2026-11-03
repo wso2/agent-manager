@@ -5,7 +5,7 @@ import os
 import sys
 from pathlib import Path
 
-from mcp.server.fastmcp import FastMCP
+from mcp.server.mcpserver import MCPServer
 from starlette.responses import JSONResponse
 
 # Local checkout and container both use the agent's shared policy read functions.
@@ -17,15 +17,12 @@ def create_app():
     key = os.environ.get("INSURANCE_MCP_UPSTREAM_KEY", "")
     if not key.strip():
         raise RuntimeError("INSURANCE_MCP_UPSTREAM_KEY is required")
-    mcp = FastMCP(
-        "Insurance policy tools",
-        host="0.0.0.0",
-        stateless_http=True,
-        json_response=True,
-    )
+    mcp = MCPServer("Insurance policy tools")
     mcp.tool()(list_policies)
     mcp.tool()(lookup_policy)
-    inner = mcp.streamable_http_app()
+    inner = mcp.streamable_http_app(
+        host="0.0.0.0", stateless_http=True, json_response=True
+    )
 
     async def app(scope, receive, send):
         if scope["type"] == "http":
