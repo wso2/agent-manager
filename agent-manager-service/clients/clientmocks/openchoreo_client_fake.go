@@ -138,6 +138,9 @@ import (
 //			GetProjectDeploymentPipelineFunc: func(ctx context.Context, ouID string, projectName string) (*models.DeploymentPipelineResponse, error) {
 //				panic("mock out the GetProjectDeploymentPipeline method")
 //			},
+//			GetReleaseBindingEndpointServiceURLFunc: func(ctx context.Context, ouID string, projectName string, componentName string, endpointName string, environment string) (string, error) {
+//				panic("mock out the GetReleaseBindingEndpointServiceURL method")
+//			},
 //			GetReleaseBindingRolloutFunc: func(ctx context.Context, ouID string, componentName string, environment string) (client.ReleaseBindingRollout, error) {
 //				panic("mock out the GetReleaseBindingRollout method")
 //			},
@@ -393,6 +396,9 @@ type OpenChoreoClientMock struct {
 
 	// GetProjectDeploymentPipelineFunc mocks the GetProjectDeploymentPipeline method.
 	GetProjectDeploymentPipelineFunc func(ctx context.Context, ouID string, projectName string) (*models.DeploymentPipelineResponse, error)
+
+	// GetReleaseBindingEndpointServiceURLFunc mocks the GetReleaseBindingEndpointServiceURL method.
+	GetReleaseBindingEndpointServiceURLFunc func(ctx context.Context, ouID string, projectName string, componentName string, endpointName string, environment string) (string, error)
 
 	// GetReleaseBindingRolloutFunc mocks the GetReleaseBindingRollout method.
 	GetReleaseBindingRolloutFunc func(ctx context.Context, ouID string, componentName string, environment string) (client.ReleaseBindingRollout, error)
@@ -955,6 +961,21 @@ type OpenChoreoClientMock struct {
 			// ProjectName is the projectName argument value.
 			ProjectName string
 		}
+		// GetReleaseBindingEndpointServiceURL holds details about calls to the GetReleaseBindingEndpointServiceURL method.
+		GetReleaseBindingEndpointServiceURL []struct {
+			// Ctx is the ctx argument value.
+			Ctx context.Context
+			// OuID is the ouID argument value.
+			OuID string
+			// ProjectName is the projectName argument value.
+			ProjectName string
+			// ComponentName is the componentName argument value.
+			ComponentName string
+			// EndpointName is the endpointName argument value.
+			EndpointName string
+			// Environment is the environment argument value.
+			Environment string
+		}
 		// GetReleaseBindingRollout holds details about calls to the GetReleaseBindingRollout method.
 		GetReleaseBindingRollout []struct {
 			// Ctx is the ctx argument value.
@@ -1493,6 +1514,7 @@ type OpenChoreoClientMock struct {
 	lockGetOrganization                        sync.RWMutex
 	lockGetProject                             sync.RWMutex
 	lockGetProjectDeploymentPipeline           sync.RWMutex
+	lockGetReleaseBindingEndpointServiceURL    sync.RWMutex
 	lockGetReleaseBindingRollout               sync.RWMutex
 	lockGetReleaseBindingServiceURL            sync.RWMutex
 	lockGetReleaseBindingTraits                sync.RWMutex
@@ -3275,6 +3297,58 @@ func (mock *OpenChoreoClientMock) GetProjectDeploymentPipelineCalls() []struct {
 	mock.lockGetProjectDeploymentPipeline.RLock()
 	calls = mock.calls.GetProjectDeploymentPipeline
 	mock.lockGetProjectDeploymentPipeline.RUnlock()
+	return calls
+}
+
+// GetReleaseBindingEndpointServiceURL calls GetReleaseBindingEndpointServiceURLFunc.
+func (mock *OpenChoreoClientMock) GetReleaseBindingEndpointServiceURL(ctx context.Context, ouID string, projectName string, componentName string, endpointName string, environment string) (string, error) {
+	if mock.GetReleaseBindingEndpointServiceURLFunc == nil {
+		panic("OpenChoreoClientMock.GetReleaseBindingEndpointServiceURLFunc: method is nil but OpenChoreoClient.GetReleaseBindingEndpointServiceURL was just called")
+	}
+	callInfo := struct {
+		Ctx           context.Context
+		OuID          string
+		ProjectName   string
+		ComponentName string
+		EndpointName  string
+		Environment   string
+	}{
+		Ctx:           ctx,
+		OuID:          ouID,
+		ProjectName:   projectName,
+		ComponentName: componentName,
+		EndpointName:  endpointName,
+		Environment:   environment,
+	}
+	mock.lockGetReleaseBindingEndpointServiceURL.Lock()
+	mock.calls.GetReleaseBindingEndpointServiceURL = append(mock.calls.GetReleaseBindingEndpointServiceURL, callInfo)
+	mock.lockGetReleaseBindingEndpointServiceURL.Unlock()
+	return mock.GetReleaseBindingEndpointServiceURLFunc(ctx, ouID, projectName, componentName, endpointName, environment)
+}
+
+// GetReleaseBindingEndpointServiceURLCalls gets all the calls that were made to GetReleaseBindingEndpointServiceURL.
+// Check the length with:
+//
+//	len(mockedOpenChoreoClient.GetReleaseBindingEndpointServiceURLCalls())
+func (mock *OpenChoreoClientMock) GetReleaseBindingEndpointServiceURLCalls() []struct {
+	Ctx           context.Context
+	OuID          string
+	ProjectName   string
+	ComponentName string
+	EndpointName  string
+	Environment   string
+} {
+	var calls []struct {
+		Ctx           context.Context
+		OuID          string
+		ProjectName   string
+		ComponentName string
+		EndpointName  string
+		Environment   string
+	}
+	mock.lockGetReleaseBindingEndpointServiceURL.RLock()
+	calls = mock.calls.GetReleaseBindingEndpointServiceURL
+	mock.lockGetReleaseBindingEndpointServiceURL.RUnlock()
 	return calls
 }
 

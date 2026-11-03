@@ -115,6 +115,10 @@ type OpenChoreoClient interface {
 	// reports it. Empty string with a nil error means the binding has not
 	// published one yet.
 	GetReleaseBindingServiceURL(ctx context.Context, ouID, componentName, environment string) (string, error)
+	// GetReleaseBindingEndpointServiceURL returns the in-cluster service URL of one named endpoint
+	// of a component's release binding, scoped to the project. "" with a nil error means the
+	// binding has not reconciled yet; ErrReleaseBindingNotFound / ErrEndpointNotFound otherwise.
+	GetReleaseBindingEndpointServiceURL(ctx context.Context, ouID, projectName, componentName, endpointName, environment string) (string, error)
 	// GetReleaseBindingRollout reports the binding's release and whether its rollout has finished.
 	GetReleaseBindingRollout(ctx context.Context, ouID, componentName, environment string) (ReleaseBindingRollout, error)
 	// GetReleaseBindingTraits names the traits on the release bound in the environment; bound is false when the

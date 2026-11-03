@@ -20,6 +20,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"log/slog"
 	"net/http"
@@ -282,6 +283,13 @@ func (c *openChoreoClient) retryReleaseBindingUpdate(
 // "no binding" is signalled by a nil return value, not utils.ErrNotFound, because most callers
 // want to distinguish "binding does not exist yet" from "the list call failed."
 func (c *openChoreoClient) findReleaseBindingForEnv(ctx context.Context, namespaceName, componentName, env string) (*gen.ReleaseBinding, error) {
+	return c.findReleaseBinding(ctx, namespaceName, "", componentName, env)
+}
+
+// findReleaseBinding lists the component's bindings and picks the one for env. The list is
+// keyed by component name alone, so when projectName is non-empty a binding owned by another
+// project's same-named component is skipped (spec.owner.projectName).
+func (c *openChoreoClient) findReleaseBinding(ctx context.Context, namespaceName, projectName, componentName, env string) (*gen.ReleaseBinding, error) {
 	listResp, err := c.ocClient.ListReleaseBindingsWithResponse(ctx, namespaceName, &gen.ListReleaseBindingsParams{
 		Component: &componentName,
 		Limit:     &defaultListLimit,
@@ -301,9 +309,13 @@ func (c *openChoreoClient) findReleaseBindingForEnv(ctx context.Context, namespa
 		return nil, fmt.Errorf("invalid OpenChoreo response: missing release binding list payload for component %q", componentName)
 	}
 	for i, b := range listResp.JSON200.Items {
-		if b.Spec != nil && b.Spec.Environment == env {
-			return &listResp.JSON200.Items[i], nil
+		if b.Spec == nil || b.Spec.Environment != env {
+			continue
 		}
+		if projectName != "" && b.Spec.Owner.ProjectName != projectName {
+			continue
+		}
+		return &listResp.JSON200.Items[i], nil
 	}
 	return nil, nil //nolint:nilnil // documented sentinel: callers distinguish "no binding" from "list failed"
 }
@@ -1912,6 +1924,47 @@ func (c *openChoreoClient) GetReleaseBindingServiceURL(ctx context.Context, ouID
 		return "", fmt.Errorf("failed to find release binding for %s: %w", componentName, err)
 	}
 	return bindingServiceURL(binding), nil
+}
+
+// ErrReleaseBindingNotFound means the component has no release binding in the environment.
+// It also matches utils.ErrNotFound.
+var ErrReleaseBindingNotFound = fmt.Errorf("release binding: %w", utils.ErrNotFound)
+
+// ErrEndpointNotFound means the binding has no endpoint with the requested name.
+var ErrEndpointNotFound = errors.New("endpoint not found on release binding")
+
+// GetReleaseBindingEndpointServiceURL returns the in-cluster service URL of the named endpoint
+// of a component's release binding in an environment, scoped to the project so a same-named
+// component in another project is never picked. It returns "" with a nil error while the
+// binding exists but has not reconciled the endpoint's URL yet, ErrReleaseBindingNotFound when
+// there is no binding, and ErrEndpointNotFound when the binding has reconciled endpoints and
+// none is named endpointName.
+func (c *openChoreoClient) GetReleaseBindingEndpointServiceURL(ctx context.Context, ouID, projectName, componentName, endpointName, environment string) (string, error) {
+	binding, err := c.findReleaseBinding(ctx, c.NamespaceFor(ouID), projectName, componentName, environment)
+	if err != nil {
+		return "", fmt.Errorf("failed to find release binding for %s: %w", componentName, err)
+	}
+	if binding == nil {
+		return "", fmt.Errorf("no release binding for component %q in environment %q: %w", componentName, environment, ErrReleaseBindingNotFound)
+	}
+	if binding.Status == nil || binding.Status.Endpoints == nil || len(*binding.Status.Endpoints) == 0 {
+		return "", nil
+	}
+	for _, ep := range *binding.Status.Endpoints {
+		if ep.Name != endpointName {
+			continue
+		}
+		if ep.ServiceURL == nil || strings.TrimSpace(ep.ServiceURL.Host) == "" {
+			return "", nil
+		}
+		svc := *ep.ServiceURL
+		if svc.Scheme == nil || strings.TrimSpace(*svc.Scheme) == "" {
+			scheme := "http"
+			svc.Scheme = &scheme
+		}
+		return buildEndpointURLString(&svc), nil
+	}
+	return "", fmt.Errorf("endpoint %q on component %q: %w", endpointName, componentName, ErrEndpointNotFound)
 }
 
 // ReleaseBindingRollout is the release an environment's binding points at, and whether it serves it yet.
