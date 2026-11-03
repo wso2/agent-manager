@@ -45,7 +45,7 @@ func (r ApiDeleteProjectMCPProxyEnvironmentRequest) Execute() (*http.Response, e
 /*
 DeleteProjectMCPProxyEnvironment Undeploy the proxy from an environment and drop the binding
 
-Deletes the binding and its gateway artifact. Returns once the transaction commits; the gateway removal is not awaited.
+Deletes the binding and its gateway artifact. Returns once the transaction commits; the gateway removal is not awaited. Refuses with 409 MCP_PROXY_IN_USE while an AM agent is mapped to the proxy in this environment, as the proxy delete does; nothing is deleted.
 
 	@param ctx context.Context - for authentication, logging, cancellation, deadlines, tracing, etc. Passed from http.Request or context.Background().
 	@param orgName Organization name/handle. Routing only; the org comes from the token or from X-Impersonate-Org.
@@ -156,6 +156,17 @@ func (a *ProjectMCPProxyEnvironmentsAPIService) DeleteProjectMCPProxyEnvironment
 			return localVarHTTPResponse, newErr
 		}
 		if localVarHTTPResponse.StatusCode == 404 {
+			var v ErrorResponse
+			err = a.client.decode(&v, localVarBody, localVarHTTPResponse.Header.Get("Content-Type"))
+			if err != nil {
+				newErr.error = err.Error()
+				return localVarHTTPResponse, newErr
+			}
+			newErr.error = formatErrorMessage(localVarHTTPResponse.Status, &v)
+			newErr.model = v
+			return localVarHTTPResponse, newErr
+		}
+		if localVarHTTPResponse.StatusCode == 409 {
 			var v ErrorResponse
 			err = a.client.decode(&v, localVarBody, localVarHTTPResponse.Header.Get("Content-Type"))
 			if err != nil {

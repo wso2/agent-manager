@@ -259,9 +259,27 @@ func TestIPFlow_EndToEnd(t *testing.T) {
 	rr = ipDo(http.MethodGet, "/"+handle, nil)
 	require.Equal(t, http.StatusOK, rr.Code, "nothing was deleted")
 
-	// 7. The agent lets go of it, and the delete goes through.
+	// Nor unbind it from the environment the agent is mapped in: the agent's keys were sent against this
+	// binding's artifact, and a re-bind would mint a new one they are never re-sent to.
+	t.Run("unbinding an environment an agent is mapped in is 409 MCP_PROXY_IN_USE", func(t *testing.T) {
+		rr := ipDo(http.MethodDelete, envPath, nil)
+		require.Equal(t, http.StatusConflict, rr.Code, rr.Body.String())
+		require.Equal(t, "MCP_PROXY_IN_USE", errorCode(t, rr))
+		rr = ipDo(http.MethodGet, envPath, nil)
+		require.Equal(t, http.StatusOK, rr.Code, rr.Body.String())
+		assert.Equal(t, "Deployed", decodeBinding(t, rr).DeploymentStatus, "the binding is untouched")
+		assert.Equal(t, int64(1), deployments(artifact))
+	})
+
+	// 7. The agent lets go of it; the binding can then be dropped, and the proxy deleted.
 	rr = do(user, http.MethodDelete, mcpConfigs+"/"+cfg.UUID, nil, "")
 	require.Equal(t, http.StatusNoContent, rr.Code, rr.Body.String())
+	t.Run("once the agent is unmapped the environment unbinds", func(t *testing.T) {
+		rr := ipDo(http.MethodDelete, envPath, nil)
+		require.Equal(t, http.StatusNoContent, rr.Code, rr.Body.String())
+		rr = ipDo(http.MethodGet, envPath, nil)
+		require.Equal(t, http.StatusNotFound, rr.Code, rr.Body.String())
+	})
 	rr = ipDo(http.MethodDelete, "/"+handle, nil)
 	require.Equal(t, http.StatusNoContent, rr.Code, rr.Body.String())
 	rr = ipDo(http.MethodGet, "/"+handle, nil)

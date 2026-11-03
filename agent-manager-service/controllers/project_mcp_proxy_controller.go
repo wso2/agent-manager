@@ -304,6 +304,9 @@ func writeProjectMCPBindingError(w http.ResponseWriter, err error) bool {
 	case errors.Is(err, utils.ErrMCPContextInUse):
 		utils.WriteErrorResponseWithReason(w, http.StatusConflict,
 			utils.ErrMCPContextInUse.Error(), err.Error(), utils.ErrCodeContextInUse)
+	case errors.Is(err, utils.ErrMCPProxyHasMappings):
+		utils.WriteErrorResponseWithReason(w, http.StatusConflict,
+			utils.ErrMCPProxyHasMappings.Error(), "", utils.ErrCodeMCPProxyInUse)
 	case errors.Is(err, utils.ErrImmutableFieldChange):
 		utils.WriteErrorResponseWithReason(w, http.StatusBadRequest,
 			"The binding's gateway cannot change once placed", err.Error(), utils.ErrCodeImmutableField)

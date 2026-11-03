@@ -648,3 +648,53 @@ func TestPlacement_LateGatewayClash_MarksFailed(t *testing.T) {
 	_, err = f.svc.base.kind.Render(context.Background(), ref)
 	require.NoError(t, err)
 }
+
+// An agent mapped to the binding in its environment holds keys broadcast against the binding's artifact; deleting
+// the binding would strand them, so the delete is refused as the proxy delete is. A mapping in another
+// environment does not hold it, and the delete then locks the proxy row as PUT does.
+func TestDeleteEnv_AgentMappedInEnvironment_409McpProxyInUse(t *testing.T) {
+	f := newBindingFixture(t)
+	_, _, err := f.put(t, models.MCPProxyEnvironmentRequest{})
+	require.NoError(t, err)
+	_, ee := f.binding()
+	require.NotNil(t, ee)
+
+	var mappings []models.EnvAgentMCPMapping
+	f.svc.base.envMCPMappingRepo = &repomocks.EnvAgentMCPMappingRepositoryMock{
+		ListByMCPProxyFunc: func(_ context.Context, proxyUUID uuid.UUID) ([]models.EnvAgentMCPMapping, error) {
+			assert.Equal(t, f.proxy.UUID, proxyUUID)
+			return mappings, nil
+		},
+	}
+	repo := f.svc.base.repo.(*repomocks.MCPProxyRepositoryMock)
+	locks := len(repo.GetByHandleForUpdateCalls())
+
+	mappings = []models.EnvAgentMCPMapping{{ConfigUUID: uuid.New(), EnvironmentUUID: f.envUUID, MCPProxyUUID: f.proxy.UUID, ArtifactUUID: uuid.New()}}
+	err = f.svc.DeleteEnvironment(context.Background(), testOrg, bindingProject, bindingProjectUUID, bindingHandle, bindingEnv)
+	require.ErrorIs(t, err, utils.ErrMCPProxyHasMappings)
+	assert.Len(t, repo.GetByHandleForUpdateCalls(), locks, "a refused delete takes no lock and changes nothing")
+	_, still := f.binding()
+	assert.NotNil(t, still, "the binding is kept")
+
+	// A mapping in another environment does not hold this binding; the delete goes on and locks the proxy row
+	// (the fixture's lock reports the proxy gone, which ends the delete there).
+	mappings = []models.EnvAgentMCPMapping{{ConfigUUID: uuid.New(), EnvironmentUUID: uuid.New(), MCPProxyUUID: f.proxy.UUID, ArtifactUUID: uuid.New()}}
+	repo.GetByHandleForUpdateFunc = func(context.Context, *gorm.DB, string, string) (*models.MCPProxy, error) {
+		return nil, gorm.ErrRecordNotFound
+	}
+	err = f.svc.DeleteEnvironment(context.Background(), testOrg, bindingProject, bindingProjectUUID, bindingHandle, bindingEnv)
+	require.ErrorIs(t, err, utils.ErrMCPProxyNotFound)
+	assert.NotErrorIs(t, err, utils.ErrMCPProxyHasMappings)
+	assert.Len(t, repo.GetByHandleForUpdateCalls(), locks+1, "DELETE locks the proxy row like PUT")
+
+	// A failing mapping lookup is a 500, not masked as in-use or not-found.
+	f.svc.base.envMCPMappingRepo = &repomocks.EnvAgentMCPMappingRepositoryMock{
+		ListByMCPProxyFunc: func(context.Context, uuid.UUID) ([]models.EnvAgentMCPMapping, error) {
+			return nil, errors.New("db down")
+		},
+	}
+	err = f.svc.DeleteEnvironment(context.Background(), testOrg, bindingProject, bindingProjectUUID, bindingHandle, bindingEnv)
+	require.Error(t, err)
+	assert.NotErrorIs(t, err, utils.ErrMCPProxyHasMappings)
+	assert.NotErrorIs(t, err, utils.ErrMCPProxyNotFound)
+}

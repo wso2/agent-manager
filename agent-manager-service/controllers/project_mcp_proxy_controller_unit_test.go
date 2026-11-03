@@ -89,6 +89,7 @@ func TestBindingErrorMapping(t *testing.T) {
 		{utils.ErrMCPProxyEnvironmentNotBound, http.StatusNotFound, utils.ErrCodeNotFound},
 		{fmt.Errorf("%w: x", utils.ErrEnvironmentNotFound), http.StatusNotFound, utils.ErrCodeEnvironmentNotFound},
 		{fmt.Errorf("%w: %w", utils.ErrInvalidInput, utils.ErrMCPJWTSecurityNotAvailable), http.StatusBadRequest, utils.ErrCodeBadRequest},
+		{utils.ErrMCPProxyHasMappings, http.StatusConflict, utils.ErrCodeMCPProxyInUse},
 	}
 	for _, tc := range cases {
 		rec := httptest.NewRecorder()

@@ -275,17 +275,38 @@ func (s *ProjectMCPProxyService) GetEnvironment(
 
 // DeleteEnvironment drops the project proxy's binding in envName with its gateway artifact. MCP has no undeploy:
 // the artifact is deleted, and its delete events go to every gateway it was sent, in the same transaction.
+//
+// It refuses while an AM agent is mapped to the proxy in that environment (ErrMCPProxyHasMappings, as the proxy
+// delete does): the agent's keys were sent against this binding's artifact, and a later re-bind mints a new one
+// they are never re-sent to. The proxy row is locked as PUT locks it, so a PUT and a DELETE on the same binding
+// don't interleave.
 func (s *ProjectMCPProxyService) DeleteEnvironment(ctx context.Context, ouID, projectName, projectUUID, handle, envName string) error {
 	proxy, err := s.getInProject(ctx, ouID, projectUUID, handle)
 	if err != nil {
 		return err
 	}
-	endpoint, ee := bindingByEnvironmentName(proxy, strings.TrimSpace(envName))
+	envName = strings.TrimSpace(envName)
+	_, ee := bindingByEnvironmentName(proxy, envName)
 	if ee == nil {
 		return utils.ErrMCPProxyEnvironmentNotBound
 	}
-	ref := models.ArtifactRef{OUID: ouID, ArtifactUUID: ee.ArtifactUUID, Kind: models.KindMCPMapping}
+	if err := s.ensureBindingNotInUse(ctx, proxy.UUID, ee.EnvironmentUUID); err != nil {
+		return err
+	}
 	return s.base.tx(ctx, func(tx *gorm.DB) error {
+		locked, err := s.base.repo.GetByHandleForUpdate(ctx, tx, proxyHandleOf(proxy), ouID)
+		if err != nil {
+			if errors.Is(err, gorm.ErrRecordNotFound) {
+				return utils.ErrMCPProxyNotFound
+			}
+			return fmt.Errorf("failed to lock the MCP proxy: %w", err)
+		}
+		// Re-read under the lock: a concurrent DELETE may have dropped it, or a PUT re-created it.
+		endpoint, ee := bindingByEnvironmentName(locked, envName)
+		if ee == nil {
+			return utils.ErrMCPProxyEnvironmentNotBound
+		}
+		ref := models.ArtifactRef{OUID: ouID, ArtifactUUID: ee.ArtifactUUID, Kind: models.KindMCPMapping}
 		events, err := s.base.core.PrepareDelete(ctx, tx, ref)
 		if err != nil {
 			return err
@@ -299,6 +320,26 @@ func (s *ProjectMCPProxyService) DeleteEnvironment(ctx context.Context, ouID, pr
 		}
 		return events.Publish(ctx, tx)
 	})
+}
+
+// ensureBindingNotInUse refuses with ErrMCPProxyHasMappings when an agent is mapped to the proxy in envUUID: the
+// proxy delete's mapping check (ensureMCPProxyNotInUse), scoped to the one environment. The proxy delete's second
+// check, agent_mcp_config_proxy, is environment-independent: a connection that holds only that row has no keys on
+// this binding, and the binding reconcile completes it once the proxy is bound again, so it does not hold a binding.
+func (s *ProjectMCPProxyService) ensureBindingNotInUse(ctx context.Context, proxyUUID, envUUID uuid.UUID) error {
+	if s.base.envMCPMappingRepo == nil {
+		return nil
+	}
+	mappings, err := s.base.envMCPMappingRepo.ListByMCPProxy(ctx, proxyUUID)
+	if err != nil {
+		return fmt.Errorf("failed to list MCP mappings before deleting the binding: %w", err)
+	}
+	for i := range mappings {
+		if mappings[i].EnvironmentUUID == envUUID {
+			return utils.ErrMCPProxyHasMappings
+		}
+	}
+	return nil
 }
 
 // bindingByEnvironmentName is the proxy's binding in the environment named envName: the endpoint named after it

@@ -7633,7 +7633,8 @@ paths:
       summary: Undeploy the proxy from an environment and drop the binding
       description: >-
         Deletes the binding and its gateway artifact. Returns once the transaction commits; the
-        gateway removal is not awaited.
+        gateway removal is not awaited. Refuses with 409 MCP_PROXY_IN_USE while an AM agent is mapped
+        to the proxy in this environment, as the proxy delete does; nothing is deleted.
       operationId: deleteProjectMCPProxyEnvironment
       responses:
         "204":
@@ -7652,6 +7653,12 @@ paths:
                 $ref: "#/components/schemas/ErrorResponse"
         "404":
           description: NOT_FOUND. No such proxy, or it is not bound to this environment
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "409":
+          description: MCP_PROXY_IN_USE. An AM agent uses the proxy in this environment; nothing is deleted
           content:
             application/json:
               schema:
