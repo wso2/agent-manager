@@ -28,7 +28,7 @@ import (
 func TestMigration054DestinationConstraints(t *testing.T) {
 	g := scratchDatabase(t)
 	require.NoError(t, migrateTo(g, 53))
-	require.NoError(t, migrateTo(g, 54))
+	require.NoError(t, migrateTo(g, latestVersion))
 	destination := uuid.New()
 	require.NoError(t, g.Exec("INSERT INTO event_destinations (id, ou_id, name, kind) VALUES (?, 'org-a', 'Webhook', 'webhook')", destination).Error)
 	require.Error(t, g.Exec("INSERT INTO event_destinations (ou_id, name, kind) VALUES ('org-a', 'webhook', 'webhook')").Error)
