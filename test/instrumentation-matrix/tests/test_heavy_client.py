@@ -194,6 +194,58 @@ def test_deploy_agent_raises_on_build_failure():
         )
 
 
+def _mock_deploy_until_deployments(name):
+    a = f"/api/v1/orgs/default/projects/{name}/agents/{name}"
+    responses.add(responses.POST, f"{BASE}/api/v1/orgs/default/projects", json={}, status=202)
+    responses.add(responses.POST, f"{BASE}/api/v1/orgs/default/projects/{name}/agents", json={}, status=202)
+    responses.add(responses.GET, f"{BASE}{a}/builds", json={"builds": [{"buildName": "b1"}]}, status=200)
+    responses.add(responses.GET, f"{BASE}{a}/builds/b1", json={"buildName": "b1", "status": "Completed", "imageId": "img-9"}, status=200)
+    responses.add(responses.POST, f"{BASE}{a}/environments/default/api-keys", json={"apiKey": "key-xyz"}, status=201)
+    return f"{BASE}{a}/deployments"
+
+
+@responses.activate
+def test_deploy_agent_waits_for_gateway_deployed(monkeypatch):
+    """An active deployment isn't reachable until the ingress gateway has
+    acknowledged it (it 404s meanwhile), so the client keeps polling."""
+    monkeypatch.setattr("heavy.amp_client._DEPLOY_POLL_S", 0)
+    _mock_token()
+    deployments = _mock_deploy_until_deployments("x")
+    for gw in ("DEPLOYING", "DEPLOYED"):
+        responses.add(
+            responses.GET, deployments,
+            json={"default": {"status": "active", "gatewayStatus": gw,
+                              "endpoints": [{"url": "http://agent.test"}]}},
+            status=200,
+        )
+    d = _client().deploy_agent(
+        cell_id="x", instrumentation_version="0.2.1",
+        framework_name="langchain",
+        framework_package="langchain", framework_version="0.3.27", python_version="3.11",
+    )
+    assert d.endpoint_url == "http://agent.test"
+    assert sum(c.request.url == deployments for c in responses.calls) == 2
+
+
+@responses.activate
+def test_deploy_agent_raises_on_gateway_failure():
+    _mock_token()
+    deployments = _mock_deploy_until_deployments("x")
+    responses.add(
+        responses.GET, deployments,
+        json={"default": {"status": "active", "gatewayStatus": "UNDEPLOYED",
+                          "gatewayStatusReason": "no gateway in this environment",
+                          "endpoints": [{"url": "http://agent.test"}]}},
+        status=200,
+    )
+    with pytest.raises(AmpError, match="no gateway in this environment"):
+        _client().deploy_agent(
+            cell_id="x", instrumentation_version="0.2.1",
+            framework_name="langchain",
+            framework_package="langchain", framework_version="0.3.27", python_version="3.11",
+        )
+
+
 @responses.activate
 def test_deploy_agent_surfaces_unexpected_status():
     _mock_token()

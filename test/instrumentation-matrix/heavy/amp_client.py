@@ -366,9 +366,21 @@ class AmpClient:
                 last_seen = f"status={status!r}"
                 if status == "active":
                     endpoints = dep.get("endpoints") or []
-                    if endpoints:
+                    if not endpoints:
+                        raise AmpError(f"{name} active but exposes no endpoint")
+                    # API agents are served only through the environment's
+                    # ingress gateway; until it acknowledges the deployment the
+                    # endpoint answers 404. Absent for agents the gateway
+                    # doesn't serve, which are reachable once active.
+                    gw = dep.get("gatewayStatus")
+                    if gw is None or gw == "DEPLOYED":
                         return endpoints[0]["url"]
-                    raise AmpError(f"{name} active but exposes no endpoint")
+                    if gw in ("FAILED", "UNDEPLOYED"):
+                        raise AmpError(
+                            f"{name} gateway deployment {gw} in {self.environment}: "
+                            f"{dep.get('gatewayStatusReason') or 'no reason given'}"
+                        )
+                    last_seen = f"status='active' gatewayStatus={gw!r}"
                 # Tolerate a transient failed during reconciliation (the e2e
                 # suite polls through non-active states); bail only once it
                 # persists, so a genuinely stuck deploy fails fast.
