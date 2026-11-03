@@ -26,6 +26,8 @@ export interface NavigationItem {
   href?: string;
   isActive?: boolean;
   pinBottom?: boolean;
+  /** Show after the regular navigation groups, separated by a divider. */
+  dividerBefore?: boolean;
   /** A short label shown next to the item, such as "NEW". */
   badge?: string;
   type: 'item';
@@ -139,7 +141,8 @@ export function LeftNavigation({
   mainItems,
   groupedItems,
 }: LeftNavigationProps) {
-  const topItems = mainItems.filter((item) => !item.pinBottom);
+  const topItems = mainItems.filter((item) => !item.pinBottom && !item.dividerBefore);
+  const separatedItems = mainItems.filter((item) => !item.pinBottom && item.dividerBefore);
   const bottomItems = mainItems.filter((item) => item.pinBottom);
   const [expandedMenus, setExpandedMenus] = useState<Record<string, boolean>>({});
   const navigate = useNavigate();
@@ -231,6 +234,11 @@ export function LeftNavigation({
             </Sidebar.Category>
           ),
         )}
+        {separatedItems.map((item) => (
+          <Sidebar.Category key={item.label}>
+            {renderItem(item, collapsed)}
+          </Sidebar.Category>
+        ))}
       </Sidebar.Nav>
       {bottomItems.length > 0 && (
         <Sidebar.Footer>

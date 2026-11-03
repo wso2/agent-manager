@@ -243,7 +243,7 @@ export function useNavigationItems(): Array<
   const eventsAgentRoute =
     absoluteRouteMap.children.org.children.projects.children.agents.children.events;
 
-  // Events is pinned to the bottom of each level's navigation, above Settings.
+  // Events follows the regular navigation at every level, separated by a divider.
   const eventsItem = (
     route: { path: string; wildPath: string },
     params: Record<string, string | undefined>,
@@ -256,7 +256,7 @@ export function useNavigationItems(): Array<
             icon: <RadioTower size={20} />,
             href: generatePath(route.path, params),
             isActive: !!matchPath(route.wildPath, pathname),
-            pinBottom: true,
+            dividerBefore: true,
           },
         ]
       : [];
