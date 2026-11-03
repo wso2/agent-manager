@@ -60,6 +60,7 @@ var clientProviderSet = wire.NewSet(
 	ProvidePublisherProvisioner,
 	ProvideIdentityClient,
 	ProvideOrgResolver,
+	ProvideOUHandleLookup,
 	thundersvc.NewProber,
 	// EnvThunderResolver is wired for AgentIdentityController's passthrough
 	// endpoints. AgentID provisioning itself is injected via
@@ -171,6 +172,7 @@ var testClientProviderSet = wire.NewSet(
 	ProvidePublisherProvisioner,
 	ProvideIdentityClient,
 	ProvideOrgResolver,
+	ProvideTestOUHandleLookup,
 	thundersvc.NewProber,
 	ProvideEnvThunderSecretReader,
 	ProvideEnvThunderURLReader,
@@ -744,6 +746,29 @@ func ProvideIdentityClient(cfg config.ThunderConfig) thundersvc.IdentityClient {
 		cfg.ResolveToHost,
 		cfg.ResolvedSystemResourceIdentifier(),
 	)
+}
+
+// ProvideOUHandleLookup maps an OU ID to its handle through the platform
+// Thunder, for the org override on the project MCP routes. It is deliberately
+// uncached: a handle can be renamed, and the lookup runs only on impersonated
+// requests. A missing OU is reported as middleware.ErrOverrideOrgNotFound.
+func ProvideOUHandleLookup(client thundersvc.IdentityClient) middleware.OUHandleLookup {
+	return func(ctx context.Context, ouID string) (string, error) {
+		handle, err := client.GetOUHandleByID(ctx, ouID)
+		if thundersvc.IsNotFound(err) {
+			return "", fmt.Errorf("%w: %w", middleware.ErrOverrideOrgNotFound, err)
+		}
+		return handle, err
+	}
+}
+
+// ProvideTestOUHandleLookup uses the test's lookup when it supplies one, and
+// the Thunder-backed lookup otherwise.
+func ProvideTestOUHandleLookup(testClients TestClients, client thundersvc.IdentityClient) middleware.OUHandleLookup {
+	if testClients.OUHandleLookup != nil {
+		return testClients.OUHandleLookup
+	}
+	return ProvideOUHandleLookup(client)
 }
 
 // ProvideOrgResolver creates the org resolver backed by Thunder, with a per-org OU ID cache.

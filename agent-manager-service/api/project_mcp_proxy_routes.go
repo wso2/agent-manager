@@ -17,6 +17,8 @@
 package api
 
 import (
+	"net/http"
+
 	"github.com/wso2/agent-manager/agent-manager-service/controllers"
 	"github.com/wso2/agent-manager/agent-manager-service/middleware"
 	"github.com/wso2/agent-manager/agent-manager-service/rbac"
@@ -25,20 +27,27 @@ import (
 // RegisterProjectMCPProxyRoutes registers the project-scoped MCP proxy routes.
 //
 // Every route is registered through RouteRegistrar, which builds the one middleware chain
-// (path-param validation, permission, org match, audit; see RouteRegistrar.register).
-func RegisterProjectMCPProxyRoutes(rr *middleware.RouteRegistrar, ctrl controllers.ProjectMCPProxyController) {
+// (see RouteRegistrar.register). These routes additionally compose orgOverride
+// (middleware.ApplyOrgOverride) between org resolution and the permission check, because
+// the Integration Platform drives them for a tenant with a service token from the platform's
+// root OU plus X-Impersonate-Org. No other route takes the override.
+func RegisterProjectMCPProxyRoutes(
+	rr *middleware.RouteRegistrar,
+	ctrl controllers.ProjectMCPProxyController,
+	orgOverride func(http.HandlerFunc) http.HandlerFunc,
+) {
 	const base = "/orgs/{orgName}/projects/{projName}/mcp-proxies"
 
 	// PUT is gated on update; the controller additionally requires MCPServerCreate when the
 	// upsert would insert.
-	rr.HandleFuncWithValidationAndAuthz("PUT "+base+"/{proxyId}", rbac.MCPServerUpdate, ctrl.UpsertProjectMCPProxy)
-	rr.HandleFuncWithValidationAndAuthz("GET "+base, rbac.MCPServerRead, ctrl.ListProjectMCPProxies)
-	rr.HandleFuncWithValidationAndAuthz("GET "+base+"/{proxyId}", rbac.MCPServerRead, ctrl.GetProjectMCPProxy)
-	rr.HandleFuncWithValidationAndAuthz("DELETE "+base+"/{proxyId}", rbac.MCPServerDelete, ctrl.DeleteProjectMCPProxy)
+	rr.HandleFuncWithValidationAndAuthzAndOrgOverride("PUT "+base+"/{proxyId}", rbac.MCPServerUpdate, orgOverride, ctrl.UpsertProjectMCPProxy)
+	rr.HandleFuncWithValidationAndAuthzAndOrgOverride("GET "+base, rbac.MCPServerRead, orgOverride, ctrl.ListProjectMCPProxies)
+	rr.HandleFuncWithValidationAndAuthzAndOrgOverride("GET "+base+"/{proxyId}", rbac.MCPServerRead, orgOverride, ctrl.GetProjectMCPProxy)
+	rr.HandleFuncWithValidationAndAuthzAndOrgOverride("DELETE "+base+"/{proxyId}", rbac.MCPServerDelete, orgOverride, ctrl.DeleteProjectMCPProxy)
 
 	// Environment bindings: binding and unbinding change the proxy, so both are gated on update.
 	const binding = base + "/{proxyId}/environments/{envName}"
-	rr.HandleFuncWithValidationAndAuthz("PUT "+binding, rbac.MCPServerUpdate, ctrl.PutProjectMCPProxyEnvironment)
-	rr.HandleFuncWithValidationAndAuthz("GET "+binding, rbac.MCPServerRead, ctrl.GetProjectMCPProxyEnvironment)
-	rr.HandleFuncWithValidationAndAuthz("DELETE "+binding, rbac.MCPServerUpdate, ctrl.DeleteProjectMCPProxyEnvironment)
+	rr.HandleFuncWithValidationAndAuthzAndOrgOverride("PUT "+binding, rbac.MCPServerUpdate, orgOverride, ctrl.PutProjectMCPProxyEnvironment)
+	rr.HandleFuncWithValidationAndAuthzAndOrgOverride("GET "+binding, rbac.MCPServerRead, orgOverride, ctrl.GetProjectMCPProxyEnvironment)
+	rr.HandleFuncWithValidationAndAuthzAndOrgOverride("DELETE "+binding, rbac.MCPServerUpdate, orgOverride, ctrl.DeleteProjectMCPProxyEnvironment)
 }

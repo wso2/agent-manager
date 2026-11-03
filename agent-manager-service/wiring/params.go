@@ -48,6 +48,8 @@ type AppParams struct {
 	Logger         *slog.Logger
 	OrgResolver    middleware.OrgResolver
 	AuditRecorder  audit.Recorder
+	// OUHandleLookup maps an OU ID to its handle for middleware.ApplyOrgOverride.
+	OUHandleLookup middleware.OUHandleLookup
 
 	// Controllers
 	AgentController                  controllers.AgentController
@@ -118,6 +120,8 @@ type TestClients struct {
 	OpenChoreoClient  occlient.OpenChoreoClient
 	SecretMgmtClient  secretmanagersvc.SecretManagementClient
 	ObserverSvcClient observersvc.ObserverSvcClient
+	// OUHandleLookup replaces the Thunder-backed OU ID → handle lookup when set.
+	OUHandleLookup middleware.OUHandleLookup
 }
 
 func ProvideConfigFromPtr(config *config.Config) config.Config {
