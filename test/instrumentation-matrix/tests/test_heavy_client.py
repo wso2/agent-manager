@@ -88,7 +88,8 @@ def _mock_happy_deploy(org="default", name="traceloop-0-60-0-langchain-0-3-27-py
     responses.add(
         responses.GET, f"{BASE}{a}/deployments",
         # endpoint is the agent's base URL; the driver appends /chat at invoke.
-        json={"default": {"status": "active", "endpoints": [{"url": "http://agent.test"}]}},
+        json={"default": {"status": "active", "gatewayStatus": "DEPLOYED",
+                          "endpoints": [{"url": "http://agent.test"}]}},
         status=200,
     )
     responses.add(responses.POST, f"{BASE}{a}/environments/default/api-keys", json={"apiKey": "key-xyz"}, status=201)
@@ -207,24 +208,23 @@ def _mock_deploy_until_deployments(name):
 @responses.activate
 def test_deploy_agent_waits_for_gateway_deployed(monkeypatch):
     """An active deployment isn't reachable until the ingress gateway has
-    acknowledged it (it 404s meanwhile), so the client keeps polling."""
+    acknowledged it (its URL is blank or 404s meanwhile), so the client keeps
+    polling, including while the gateway status can't be read."""
     monkeypatch.setattr("heavy.amp_client._DEPLOY_POLL_S", 0)
     _mock_token()
     deployments = _mock_deploy_until_deployments("x")
-    for gw in ("DEPLOYING", "DEPLOYED"):
-        responses.add(
-            responses.GET, deployments,
-            json={"default": {"status": "active", "gatewayStatus": gw,
-                              "endpoints": [{"url": "http://agent.test"}]}},
-            status=200,
-        )
+    for gw, url in ((None, ""), ("DEPLOYING", ""), ("DEPLOYED", "http://agent.test")):
+        dep = {"status": "active", "endpoints": [{"url": url}]}
+        if gw:
+            dep["gatewayStatus"] = gw
+        responses.add(responses.GET, deployments, json={"default": dep}, status=200)
     d = _client().deploy_agent(
         cell_id="x", instrumentation_version="0.2.1",
         framework_name="langchain",
         framework_package="langchain", framework_version="0.3.27", python_version="3.11",
     )
     assert d.endpoint_url == "http://agent.test"
-    assert sum(c.request.url == deployments for c in responses.calls) == 2
+    assert sum(c.request.url == deployments for c in responses.calls) == 3
 
 
 @responses.activate
