@@ -17,6 +17,7 @@
 package repositories
 
 import (
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -76,4 +77,11 @@ func TestMCPProxyListFilterSourceComponentAndEndpoint(t *testing.T) {
 	assert.Contains(t, sql, "mcp_proxies.configuration->'source'->>'componentName' = $3")
 	assert.Contains(t, sql, "mcp_proxies.configuration->'source'->>'endpointName' = $4")
 	assert.Equal(t, []interface{}{"org-1", "McpProxy", "comp", "ep"}, vars)
+}
+
+func TestMCPProxyListFilterAllProjectsHasNoProjectPredicate(t *testing.T) {
+	p := "p-1"
+	sql, vars := listSQL(t, MCPProxyListFilter{AllProjects: true, ProjectUUID: &p, IncludeOrgOwned: true})
+	assert.NotContains(t, sql[strings.Index(sql, "WHERE"):], "project_uuid")
+	assert.Equal(t, []interface{}{"org-1", "McpProxy"}, vars)
 }

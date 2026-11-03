@@ -612,7 +612,7 @@ func (s *agentConfigurationService) mcpProxiesBoundToEnvironment(
 ) ([]*models.MCPProxy, error) {
 	var bound []*models.MCPProxy
 	for offset := 0; ; offset += mcpProxyScanPageSize {
-		page, _, err := s.mcpProxyRepo.List(ctx, ouID, repositories.MCPProxyListFilter{Limit: mcpProxyScanPageSize, Offset: offset})
+		page, _, err := s.mcpProxyRepo.List(ctx, ouID, repositories.MCPProxyListFilter{AllProjects: true, Limit: mcpProxyScanPageSize, Offset: offset})
 		if err != nil {
 			return nil, fmt.Errorf("failed to list MCP proxies for environment %s reconcile: %w", envUUID, err)
 		}

@@ -108,6 +108,12 @@ func TestListFilters(t *testing.T) {
 		assert.ElementsMatch(t, []string{"org-a", "p1-a", "p1-b"}, handles(got))
 		assert.EqualValues(t, 3, total)
 	})
+	t.Run("AllProjects lists organization and every project", func(t *testing.T) {
+		got, total, err := repo.List(ctx, ou, MCPProxyListFilter{AllProjects: true})
+		require.NoError(t, err)
+		assert.ElementsMatch(t, []string{"org-a", "p1-a", "p1-b", "p2-a"}, handles(got))
+		assert.EqualValues(t, 4, total)
+	})
 	t.Run("component and endpoint filter on configuration.source", func(t *testing.T) {
 		got, _, err := repo.List(ctx, ou, MCPProxyListFilter{ProjectUUID: &p1, Component: "comp-a", Endpoint: "ep-2"})
 		require.NoError(t, err)

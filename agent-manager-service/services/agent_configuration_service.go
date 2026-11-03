@@ -5303,7 +5303,7 @@ func (s *agentConfigurationService) CleanupEnvironmentMCPArtifacts(ctx context.C
 	if s.mcpProxyRepo != nil && s.mcpProxyService != nil {
 		const pageSize = 100
 		for offset := 0; ; offset += pageSize {
-			proxies, _, listErr := s.mcpProxyRepo.List(ctx, ouID, repositories.MCPProxyListFilter{Limit: pageSize, Offset: offset})
+			proxies, _, listErr := s.mcpProxyRepo.List(ctx, ouID, repositories.MCPProxyListFilter{AllProjects: true, Limit: pageSize, Offset: offset})
 			if listErr != nil {
 				errs = append(errs, fmt.Errorf("list MCP proxies (offset %d): %w", offset, listErr))
 				break

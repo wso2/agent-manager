@@ -57,6 +57,10 @@ type MCPProxyRepository interface {
 // MCPProxyListFilter narrows List. The zero value lists organization-level proxies
 // only, which is what the org-scoped API has always returned.
 type MCPProxyListFilter struct {
+	// AllProjects lists every proxy in the organization, org-owned and every project's,
+	// with no project predicate. ProjectUUID and IncludeOrgOwned are ignored. For
+	// internal sweeps (environment cleanup, reconcile, scope listing), never user lists.
+	AllProjects bool
 	// ProjectUUID, when set, lists that project's proxies.
 	ProjectUUID *string
 	// IncludeOrgOwned additionally lists organization-level proxies. It has no effect
@@ -73,6 +77,7 @@ type MCPProxyListFilter struct {
 func (f MCPProxyListFilter) apply(q *gorm.DB, orgUUID string) *gorm.DB {
 	q = q.Where("a.ou_id = ? AND a.kind = ?", orgUUID, models.KindMCPProxy)
 	switch {
+	case f.AllProjects:
 	case f.ProjectUUID == nil:
 		q = q.Where("mcp_proxies.project_uuid IS NULL")
 	case f.IncludeOrgOwned:
