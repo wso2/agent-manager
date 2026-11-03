@@ -36,6 +36,7 @@ var _ = Describe("Environment management:", Label("environment"), Ordered, func(
 		envName      string
 		gatewayName  string
 		scriptParams *envops.ScriptParams
+		removed      bool
 	)
 
 	BeforeAll(func() {
@@ -46,6 +47,18 @@ var _ = Describe("Environment management:", Label("environment"), Ordered, func(
 		scriptParams = envops.FromClient(Client)
 		scriptParams.EnvName = envName
 		scriptParams.DisplayName = "E2E Env " + suffix
+
+		// A failed spec skips the rest of this Ordered container, including the final
+		// removal, so tear down here unless that removal completed. Best effort: the
+		// stale sweep reaps anything this misses.
+		DeferCleanup(func() {
+			if removed {
+				return
+			}
+			if err := envops.RemoveEnvironment(scriptParams); err != nil {
+				GinkgoWriter.Printf("Cleanup of environment %s failed: %v\n", envName, err)
+			}
+		})
 	})
 
 	It("creates an environment via the add-environment script", func() {
@@ -78,6 +91,7 @@ var _ = Describe("Environment management:", Label("environment"), Ordered, func(
 	It("removes the re-added environment", func() {
 		err := envops.RemoveEnvironment(scriptParams)
 		Expect(err).NotTo(HaveOccurred(), "remove-environment.sh failed for env %q", envName)
+		removed = true
 		gateway.ExpectGatewayNotRegistered(Default, Client, Cfg.DefaultOrg, gatewayName)
 	})
 })
