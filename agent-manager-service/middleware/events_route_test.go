@@ -172,3 +172,17 @@ func TestWithEvents_CreateEventsNameTheCreatedResource(t *testing.T) {
 	assert.Empty(t, e.Agent)
 	assert.Equal(t, "/agent-manager/orgs/ou-1/projects/p2", e.Source)
 }
+
+func TestWithEventsIgnoresUndeclaredEnvironmentQuery(t *testing.T) {
+	for _, route := range []string{
+		"PUT /orgs/{orgName}/projects/{projName}/agents/{agentName}",
+		"POST /orgs/{orgName}/projects/{projName}/agents/{agentName}/builds",
+		"POST /orgs/{orgName}/projects/{projName}/agents/{agentName}/deployments",
+	} {
+		t.Run(route, func(t *testing.T) {
+			pub := serveEvent(t, route+"?environment=spoofed", map[string]string{"orgName": "acme", "projName": "p1", "agentName": "a1"}, func(w http.ResponseWriter, _ *http.Request) { w.WriteHeader(http.StatusOK) })
+			require.Len(t, pub.got, 1)
+			assert.Empty(t, pub.got[0].Environment)
+		})
+	}
+}

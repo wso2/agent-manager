@@ -31,7 +31,7 @@ import (
 // prepare run outcomes before terminal persistence and publish them afterwards.
 type MonitorRunObserver interface {
 	// PrepareMonitorRunFinished loads committed data. On failure the scheduler
-	// keeps the run retryable. Call the returned publisher only after persisting status.
+	// still persists the terminal status. Call the returned publisher only after persisting status.
 	PrepareMonitorRunFinished(ctx context.Context, monitor *models.Monitor, run *models.MonitorRun, status, errorMessage string) (func(), error)
 	// OnMonitorTriggerFailed is called when a scheduled run could not be started.
 	OnMonitorTriggerFailed(ctx context.Context, monitor *models.Monitor, cause error)

@@ -393,9 +393,13 @@ func (s *monitorSchedulerService) syncSingleRunStatus(ctx context.Context, run *
 			snapshot := *run
 			completedAt := updates["completed_at"].(time.Time)
 			snapshot.CompletedAt = &completedAt
+			if _, disabled := s.runObserver.(NoopMonitorRunObserver); disabled {
+				updates["event_queued_at"] = completedAt
+			}
 			publish, err = s.runObserver.PrepareMonitorRunFinished(ctx, monitor, &snapshot, status, errMsg)
 			if err != nil {
-				return fmt.Errorf("prepare monitor run event: %w", err)
+				s.logger.Error("Failed to prepare monitor run event", "runID", run.ID, "error", err)
+				publish = func() {}
 			}
 		}
 		if err := s.monitorRepo.UpdateMonitorRun(run, updates); err != nil {
@@ -426,9 +430,13 @@ func (s *monitorSchedulerService) failStaleRun(ctx context.Context, monitor *mod
 	snapshot := *run
 	completedAt := updates["completed_at"].(time.Time)
 	snapshot.CompletedAt = &completedAt
+	if _, disabled := s.runObserver.(NoopMonitorRunObserver); disabled {
+		updates["event_queued_at"] = completedAt
+	}
 	publish, err := s.runObserver.PrepareMonitorRunFinished(ctx, monitor, &snapshot, models.RunStatusFailed, reason)
 	if err != nil {
-		return false, fmt.Errorf("prepare stale monitor run event: %w", err)
+		s.logger.Error("Failed to prepare stale monitor run event", "runID", run.ID, "error", err)
+		publish = func() {}
 	}
 	if err := s.monitorRepo.UpdateMonitorRun(run, updates); err != nil {
 		return false, fmt.Errorf("failed to mark stale run %s as failed: %w", run.Name, err)

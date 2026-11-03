@@ -53,6 +53,8 @@ const (
 	// delay runs out, so the server's default of 1000 would let one failing
 	// destination's backlog of retries stop every delivery for hours.
 	natsQueueMaxAckPending = 50_000
+	// Bound poison-event retries so one bad event cannot occupy the consumer forever.
+	natsEventMaxDeliver = 20
 )
 
 // natsQueues maps work queue names to their JetStream streams and subjects.
@@ -160,6 +162,7 @@ func (b *NATSBus) SubscribeEvents(ctx context.Context, consumer string, handle f
 func eventConsumerConfig(consumer string) jetstream.ConsumerConfig {
 	return jetstream.ConsumerConfig{
 		Durable:       consumer,
+		MaxDeliver:    natsEventMaxDeliver,
 		AckPolicy:     jetstream.AckExplicitPolicy,
 		AckWait:       natsAckWait,
 		DeliverPolicy: jetstream.DeliverNewPolicy,
