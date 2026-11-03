@@ -719,3 +719,25 @@ func TestPutEnv_ReusesOrphanedEndpointWithTheHandle(t *testing.T) {
 	assert.Equal(t, bindingServiceURL+"/mcp", endpoint.Configuration.Upstream.URL)
 	require.Len(t, f.deployed, 1)
 }
+
+// Two egress gateways in the environment and no gatewayId is the contract's 400 AMBIGUOUS_GATEWAY, and stores
+// nothing. Naming one of them resolves it.
+func TestPutEnv_AmbiguousGateway_400AmbiguousGateway(t *testing.T) {
+	f := newBindingFixture(t)
+	second := newGateway(t, models.GatewayRoleBoth, true)
+	gatewayRepo := f.svc.base.gatewayRepo.(*repomocks.GatewayRepositoryMock)
+	gatewayRepo.ListWithFiltersFunc = func(repositories.GatewayFilterOptions) ([]*models.Gateway, error) {
+		return []*models.Gateway{f.gateway, second}, nil
+	}
+
+	_, _, err := f.put(t, models.MCPProxyEnvironmentRequest{})
+	require.ErrorIs(t, err, utils.ErrMCPAmbiguousGateway)
+	assert.ErrorIs(t, err, utils.ErrInvalidInput, "still a 400 to any caller mapping invalid input")
+	assert.Zero(t, f.endpointWrites, "nothing is stored")
+	assert.Empty(t, f.deployed)
+
+	id := f.gateway.UUID.String()
+	_, created, err := f.put(t, models.MCPProxyEnvironmentRequest{GatewayID: &id})
+	require.NoError(t, err)
+	assert.True(t, created)
+}

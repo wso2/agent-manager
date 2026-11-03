@@ -399,8 +399,8 @@ Synchronous. Each call:
     from that component's release binding in this environment, with the MCP path /mcp appended.
     If the component is not deployed there yet, returns 409 UPSTREAM_NOT_READY and stores nothing.
  2. Picks the gateway: gatewayId if given, otherwise the environment's egress gateway. More than
-    one candidate without gatewayId returns 400. The gateway cannot change once placed (400
-    IMMUTABLE_FIELD). No gateway in the environment is not an error: the binding is saved and
+    one candidate without gatewayId returns 400 AMBIGUOUS_GATEWAY. The gateway cannot change once
+    placed (400 IMMUTABLE_FIELD). No gateway in the environment is not an error: the binding is saved and
     validated by a render, deploymentStatus is absent and deploymentStatusReason is NO_GATEWAY.
     The binding is deployed once a gateway is mapped to the environment.
  3. Validates security. Phase 1 accepts apiKey (the default when security is omitted) and no

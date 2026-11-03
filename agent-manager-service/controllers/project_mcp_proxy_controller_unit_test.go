@@ -90,6 +90,7 @@ func TestBindingErrorMapping(t *testing.T) {
 		{fmt.Errorf("%w: x", utils.ErrEnvironmentNotFound), http.StatusNotFound, utils.ErrCodeEnvironmentNotFound},
 		{fmt.Errorf("%w: %w", utils.ErrInvalidInput, utils.ErrMCPJWTSecurityNotAvailable), http.StatusBadRequest, utils.ErrCodeBadRequest},
 		{utils.ErrMCPProxyHasMappings, http.StatusConflict, utils.ErrCodeMCPProxyInUse},
+		{fmt.Errorf("%w: %w: two gateways", utils.ErrInvalidInput, utils.ErrMCPAmbiguousGateway), http.StatusBadRequest, utils.ErrCodeAmbiguousGateway},
 	}
 	for _, tc := range cases {
 		rec := httptest.NewRecorder()

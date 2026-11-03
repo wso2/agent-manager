@@ -326,4 +326,7 @@ var (
 	ErrMCPProxyEnvironmentNotBound = errors.New("MCP proxy is not bound to this environment")
 	// ErrMCPJWTSecurityNotAvailable is the phase-1 refusal of jwt security (400).
 	ErrMCPJWTSecurityNotAvailable = errors.New("jwt security is not available yet")
+	// ErrMCPAmbiguousGateway means the binding's environment has more than one egress gateway and the
+	// request named none (400 AMBIGUOUS_GATEWAY on the project binding routes).
+	ErrMCPAmbiguousGateway = errors.New("the environment has more than one egress gateway; specify gatewayId")
 )

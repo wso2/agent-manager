@@ -163,6 +163,8 @@ func (s *ProjectMCPProxyService) PutEnvironment(
 			return nil, false, err
 		case errors.Is(err, errPlacementFixed):
 			return nil, false, fmt.Errorf("%w: gatewayId: %w", utils.ErrImmutableFieldChange, err)
+		case errors.Is(err, errAmbiguousEgressGateway):
+			return nil, false, fmt.Errorf("%w: %w: %w", utils.ErrInvalidInput, utils.ErrMCPAmbiguousGateway, err)
 		}
 		if rejected := mcpDeployRejection(err); rejected != nil {
 			return nil, false, rejected
@@ -435,6 +437,8 @@ func (s *ProjectMCPProxyService) bindingGateway(
 		return nil, nil //nolint:nilnil // no gateway: stored, placed later
 	case errors.Is(err, errPlacementFixed):
 		return nil, fmt.Errorf("%w: gatewayId: %w", utils.ErrImmutableFieldChange, err)
+	case errors.Is(err, errAmbiguousEgressGateway):
+		return nil, fmt.Errorf("%w: %w: %w", utils.ErrInvalidInput, utils.ErrMCPAmbiguousGateway, err)
 	case mcpDeployErrorIsFatal(err):
 		return nil, fmt.Errorf("%w: %w", utils.ErrInvalidInput, err)
 	case err != nil:
