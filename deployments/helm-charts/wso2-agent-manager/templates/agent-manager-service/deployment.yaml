@@ -37,8 +37,10 @@ spec:
       securityContext:
         fsGroup: 1000
       {{- end }}
-      {{- if .Values.postgresql.enabled }}
+      {{- if or .Values.postgresql.enabled .Values.dbMigration.enabled }}
       initContainers:
+      {{- end }}
+      {{- if .Values.postgresql.enabled }}
         - name: wait-for-db
           image: postgres:16-alpine
           command:
@@ -56,6 +58,59 @@ spec:
                 secretKeyRef:
                   name: {{ include "agent-management-platform.postgresql.secretName" . }}
                   key: {{ include "agent-management-platform.postgresql.secretPasswordKey" . }}
+      {{- end }}
+      {{- if .Values.dbMigration.enabled }}
+        # The migration job is a post-install/post-upgrade hook, so it can start
+        # after this pod. Wait for this image's own latest migration instead of
+        # crashing on tables that do not exist yet.
+        - name: wait-for-migrations
+          {{- if .Values.agentManagerService.securityContext }}
+          securityContext:
+            {{- toYaml .Values.agentManagerService.securityContext | nindent 12 }}
+          {{- else }}
+          securityContext:
+            runAsNonRoot: true
+            runAsUser: 1000
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop:
+                - ALL
+          {{- end }}
+          image: "{{ include "agent-management-platform.image" (dict "image" .Values.agentManagerService.image "ctx" .) }}"
+          imagePullPolicy: {{ .Values.agentManagerService.image.pullPolicy }}
+          command:
+            - /go/bin/agent-manager-service
+            - -wait-for-migrations
+            - -server=false
+          env:
+            - name: DB_HOST
+              value: {{ include "agent-management-platform.postgresql.host" . | quote }}
+            - name: DB_PORT
+              value: {{ include "agent-management-platform.postgresql.port" . | quote }}
+            - name: DB_NAME
+              value: {{ include "agent-management-platform.postgresql.database" . | quote }}
+            - name: DB_USER
+              value: {{ include "agent-management-platform.postgresql.username" . | quote }}
+            - name: DB_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "agent-management-platform.postgresql.secretName" . }}
+                  key: {{ include "agent-management-platform.postgresql.secretPasswordKey" . }}
+            {{- with (include "agent-management-platform.postgresql.tlsEnv" . | trim) }}
+            {{- . | nindent 12 }}
+            {{- end }}
+            - name: LOG_LEVEL
+              value: "INFO"
+            - name: OPEN_CHOREO_BASE_URL
+              value: "http://openchoreo-api.openchoreo-control-plane:8080/api/v1"
+          {{- with .Values.dbMigration.resources }}
+          resources:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          {{- with .Values.volumeMounts }}
+          volumeMounts:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
       {{- end }}
       containers:
         - name: agent-manager-service

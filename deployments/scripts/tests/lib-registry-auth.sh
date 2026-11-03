@@ -213,6 +213,73 @@ assert_eq "charts on another host are left alone" "" "$(cat "$TMP/helm.args" 2>/
 helm_login HELM_CHART_REGISTRY=ghcr.io/wso2
 assert_eq "a public install never calls helm" "" "$(cat "$TMP/helm.args" 2>/dev/null)"
 
+# --- amp_k3d_node_has_registry_credentials ------------------------------------
+# docker is stubbed to print a canned registries.yaml, so the cases below cover
+# the key layouts the node's re-serialized copy can have.
+STUB4="$TMP/stub4"; mkdir -p "$STUB4"
+cat > "$STUB4/docker" <<EOF
+#!/bin/sh
+cat "$TMP/registries.yaml" 2>/dev/null || exit 1
+EOF
+chmod +x "$STUB4/docker"
+# Prints yes (0), no (1), or unknown (anything else) for the helper's exit status,
+# so a file that could not be read is never mistaken for one with no entry.
+node_has_creds() {
+    local rc=0
+    ( export PATH="$STUB4:$PATH" AMP_IMAGE_REGISTRY="$1"
+      . "$LIB"; amp_k3d_node_has_registry_credentials k3d-amp-local-server-0 ) || rc=$?
+    case "$rc" in 0) echo yes ;; 1) echo no ;; *) echo unknown ;; esac
+}
+cat > "$TMP/registries.yaml" <<'EOF'
+mirrors:
+  host.k3d.internal:10082:
+    endpoint:
+    - http://host.k3d.internal:10082
+configs:
+  registry.example.com:
+    auth:
+      username: robot
+      password: s3cret
+EOF
+assert_eq "an unquoted configs entry for the host counts" "yes" "$(node_has_creds registry.example.com/proj)"
+assert_eq "an entry for another host does not" "no" "$(node_has_creds other.example.com/proj)"
+assert_eq "a mirrors key matching the host does not" "no" "$(node_has_creds host.k3d.internal:10082/proj)"
+cat > "$TMP/registries.yaml" <<'EOF'
+mirrors: {}
+configs:
+  "localhost:5000":
+    auth:
+      username: robot
+EOF
+assert_eq "a quoted key with a port counts" "yes" "$(node_has_creds localhost:5000/proj)"
+cat > "$TMP/registries.yaml" <<'EOF'
+configs:
+  'registry.example.com':
+    auth:
+      username: robot
+EOF
+assert_eq "a single-quoted key counts" "yes" "$(node_has_creds registry.example.com/proj)"
+cat > "$TMP/registries.yaml" <<'EOF'
+mirrors:
+  host.k3d.internal:10082:
+    endpoint:
+    - http://host.k3d.internal:10082
+EOF
+assert_eq "a file with no configs block does not" "no" "$(node_has_creds registry.example.com/proj)"
+cat > "$TMP/registries.yaml" <<'EOF'
+mirrors:
+  host.k3d.internal:10082:
+    endpoint:
+    - http://host.k3d.internal:10082
+    rewrite: {}
+configs: {}
+auths: {}
+EOF
+assert_eq "an empty configs map, as a public install leaves on the node, does not" "no" "$(node_has_creds registry.example.com/proj)"
+rm -f "$TMP/registries.yaml"
+assert_eq "an unreadable node is reported as unknown, not as missing" "unknown" \
+    "$(node_has_creds registry.example.com/proj)"
+
 if ((FAILURES > 0)); then
     printf '\n%d assertion(s) failed\n' "$FAILURES"
     exit 1
