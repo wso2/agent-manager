@@ -130,6 +130,13 @@ func TestProjectMCPBindingLifecycle(t *testing.T) {
 	}
 	envPath := func(handle, env string) string { return "/" + handle + "/environments/" + env }
 
+	endpointRows := func(t *testing.T, handle string) int64 {
+		t.Helper()
+		var n int64
+		require.NoError(t, gdb.Raw(`SELECT count(*) FROM mcp_proxy_endpoints e
+			JOIN artifacts a ON a.uuid = e.mcp_proxy_uuid WHERE a.handle = ? AND a.ou_id = ?`, handle, ouID).Scan(&n).Error)
+		return n
+	}
 	bindingRows := func(t *testing.T, handle string) int64 {
 		t.Helper()
 		var n int64
@@ -180,6 +187,7 @@ func TestProjectMCPBindingLifecycle(t *testing.T) {
 		require.Equal(t, http.StatusConflict, rr.Code, rr.Body.String())
 		assert.Equal(t, utils.ErrCodeUpstreamNotReady, errorCode(t, rr))
 		assert.Zero(t, bindingRows(t, weather))
+		assert.Zero(t, endpointRows(t, weather), "an unbound project proxy has no endpoint")
 	})
 
 	setUpstream("http://weather.dp-ns.svc.cluster.local:8080", nil)
@@ -207,6 +215,7 @@ func TestProjectMCPBindingLifecycle(t *testing.T) {
 		assert.Equal(t, models.MCPDeploymentStatusReasonNoGateway, b.DeploymentStatusReason)
 		assert.Equal(t, "/weather", b.Context)
 		assert.EqualValues(t, 1, bindingRows(t, weather))
+		assert.EqualValues(t, 1, endpointRows(t, weather), "one endpoint per binding")
 
 		rr = h.do(http.MethodPut, project, envPath(weather, devEnv), map[string]any{})
 		require.Equal(t, http.StatusOK, rr.Code, rr.Body.String())
@@ -321,6 +330,43 @@ func TestProjectMCPBindingLifecycle(t *testing.T) {
 		assert.Equal(t, "https://dev-gw.example.com/"+project+"/forecast/mcp", b.PublicURL)
 	})
 
+	t.Run("a binding with security disabled is accepted and renders no api-key policy", func(t *testing.T) {
+		open := "open-" + suffix
+		rr := h.do(http.MethodPut, project, "/"+open, map[string]any{
+			"name": "Proxy " + open, "context": "/open",
+			"source": map[string]string{"componentName": open, "endpointName": "mcp"},
+		})
+		require.Equal(t, http.StatusCreated, rr.Code, rr.Body.String())
+		for i, env := range []string{devEnv, stgEnv} {
+			ctxPath := map[string]any{"enabled": false}
+			rr = h.do(http.MethodPut, project, envPath(open, env), map[string]any{"security": ctxPath})
+			if i == 1 {
+				// The same gateway serves both environments, so a second binding of the same context clashes.
+				require.Equal(t, http.StatusConflict, rr.Code, rr.Body.String())
+				break
+			}
+			require.Equal(t, http.StatusCreated, rr.Code, rr.Body.String())
+		}
+		b := decodeBinding(t, h.do(http.MethodGet, project, envPath(open, devEnv), nil))
+		require.NotNil(t, b.Security)
+		require.NotNil(t, b.Security.Enabled)
+		assert.False(t, *b.Security.Enabled)
+		assert.Nil(t, b.Security.APIKey)
+		assert.EqualValues(t, 1, endpointRows(t, open), "one endpoint per binding")
+
+		current, err := deploymentRepo.GetPullable(context.Background(), ouID, artifactOf(t, open, envs[devEnv]), gatewayID.String())
+		require.NoError(t, err)
+		require.NotNil(t, current)
+		var deployed services.MCPProxyDeploymentYAML
+		require.NoError(t, yaml.Unmarshal(current.Content, &deployed))
+		for _, policy := range deployed.Spec.Policies {
+			assert.NotEqual(t, "api-key-auth", policy.Name)
+		}
+		rr = h.do(http.MethodDelete, project, "/"+open, nil)
+		require.Equal(t, http.StatusNoContent, rr.Code, rr.Body.String())
+		assert.Zero(t, endpointRows(t, open))
+	})
+
 	t.Run("other projects can't reach the binding", func(t *testing.T) {
 		projectUUIDOther := uuid.NewString()
 		baseGet := oc.GetProjectFunc
@@ -344,6 +390,7 @@ func TestProjectMCPBindingLifecycle(t *testing.T) {
 		rr = h.do(http.MethodGet, project, envPath(weather, devEnv), nil)
 		assert.Equal(t, http.StatusNotFound, rr.Code)
 		assert.Zero(t, bindingRows(t, weather))
+		assert.Zero(t, endpointRows(t, weather))
 
 		var n int64
 		require.NoError(t, gdb.Raw(`SELECT count(*) FROM deployments WHERE artifact_uuid = ?`, weatherDev).Scan(&n).Error)

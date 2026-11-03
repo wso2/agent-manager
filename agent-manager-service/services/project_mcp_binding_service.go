@@ -42,11 +42,11 @@ func mcpUpstreamURL(serviceURL string) string {
 }
 
 // A project proxy's environment binding is its own mcp_proxy_endpoints row (handle and name are the
-// environment name) carrying exactly that environment's mcp_proxy_endpoint_environments row. The endpoint
-// configuration is what differs per environment (the resolved in-cluster upstream, security, policies and upstream
-// auth), and every reader that resolves a proxy's config for an environment (resolveMCPEndpointForEnv) already
-// goes through the endpoint bound to it, so agents and the gateway read the binding's own config. The endpoint row
-// Upsert creates (handle = proxy handle) carries no environment.
+// environment name) carrying exactly that environment's mcp_proxy_endpoint_environments row; a proxy has one
+// endpoint per binding and none before its first. The endpoint configuration is what differs per environment (the
+// resolved in-cluster upstream, security, policies and upstream auth), and every reader that resolves a proxy's
+// config for an environment (resolveMCPEndpointForEnv) already goes through the endpoint bound to it, so agents
+// and the gateway read the binding's own config.
 
 // PutEnvironment binds the project proxy to envName, or re-binds it, and deploys it. created reports a new
 // binding. In order (spec §3): (1) resolve the upstream from the source component's release binding,
@@ -316,7 +316,8 @@ func bindingByEnvironmentName(proxy *models.MCPProxy, envName string) (*models.M
 	return nil, nil
 }
 
-// bindingEndpointHandle is the endpoint handle of the binding in envName, kept apart from the proxy's own endpoint.
+// bindingEndpointHandle is the endpoint handle of the binding in envName. It stays clear of the proxy handle, which
+// endpoint rows created before bindings had their own endpoints used.
 func bindingEndpointHandle(proxyHandle, envName string) string {
 	if envName == proxyHandle {
 		return envName + "-env"
@@ -380,8 +381,9 @@ func (s *ProjectMCPProxyService) bindingGateway(
 	return &gateway.UUID, nil
 }
 
-// normalizeBindingSecurity is the binding's security with its defaults applied. Phase 1 accepts only apiKey:
-// jwt and identity are refused, and so is turning security off.
+// normalizeBindingSecurity is the binding's security with its defaults applied. Omitted, it is apiKey in an
+// X-API-Key header. Present, it is apiKey when that variant is given and not disabled, and no security when
+// security.enabled is false or no variant is enabled (the contract's "none"). Phase 1 refuses jwt and identity.
 func normalizeBindingSecurity(in *models.MCPProxyEnvironmentSecurity) (*models.SecurityConfig, error) {
 	if in == nil {
 		return defaultMCPProxySecurity(nil), nil
@@ -392,6 +394,10 @@ func normalizeBindingSecurity(in *models.MCPProxyEnvironmentSecurity) (*models.S
 	if in.Identity != nil && !isExplicitlyFalse(in.Identity.Enabled) {
 		return nil, fmt.Errorf("%w: identity security is not available on project MCP proxies", utils.ErrInvalidInput)
 	}
+	if isExplicitlyFalse(in.Enabled) || in.APIKey == nil || isExplicitlyFalse(in.APIKey.Enabled) {
+		disabled := false
+		return &models.SecurityConfig{Enabled: &disabled}, nil
+	}
 	var apiKey *models.APIKeySecurity
 	if in.APIKey != nil {
 		copied := *in.APIKey
@@ -400,9 +406,6 @@ func normalizeBindingSecurity(in *models.MCPProxyEnvironmentSecurity) (*models.S
 		apiKey = &copied
 	}
 	security := defaultMCPProxySecurity(&models.SecurityConfig{Enabled: in.Enabled, APIKey: apiKey})
-	if !isBoolTrue(security.Enabled) || security.APIKey == nil || !isBoolTrue(security.APIKey.Enabled) {
-		return nil, fmt.Errorf("%w: only apiKey security is available on project MCP proxies", utils.ErrInvalidInput)
-	}
 	if security.APIKey.In != "header" && security.APIKey.In != "query" {
 		return nil, fmt.Errorf("%w: security.apiKey.in must be header or query", utils.ErrInvalidInput)
 	}

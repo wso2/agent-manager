@@ -99,11 +99,8 @@ func newBindingFixture(t *testing.T) *bindingFixture {
 				Name: "Weather", Version: "v1", Context: &ctxPath,
 				Source: &models.MCPProxySource{ComponentName: "weather", EndpointName: "mcp"},
 			},
+			// A project proxy has no endpoint until its first binding.
 			Artifact: &models.Artifact{UUID: proxyUUID, Handle: bindingHandle, Name: "p1 Weather", Version: "v1"},
-			Endpoints: []models.MCPProxyEndpoint{{
-				UUID: uuid.New(), MCPProxyUUID: proxyUUID, Handle: bindingHandle, Name: "Weather",
-				Configuration: models.MCPEndpointConfig{Security: defaultMCPProxySecurity(nil)},
-			}},
 		},
 	}
 	f.gateway = newGateway(t, models.GatewayRoleBoth, true)
@@ -354,8 +351,11 @@ func TestPutEnv_NoGateway_StoredWithReasonNoGateway(t *testing.T) {
 	assert.Equal(t, f.envUUID.String(), resp.EnvironmentUUID)
 	assert.Empty(t, f.deployed, "nothing is sent")
 
+	require.Len(t, f.proxy.Endpoints, 1, "the binding is its own endpoint")
 	endpoint, ee := f.binding()
 	require.NotNil(t, ee, "the binding is stored")
+	assert.Equal(t, bindingEnv, endpoint.Handle)
+	assert.Equal(t, bindingEnv, endpoint.Name)
 	require.NotNil(t, endpoint.Configuration.Upstream)
 	assert.Equal(t, bindingServiceURL+"/mcp", endpoint.Configuration.Upstream.URL, "the stored upstream is the resolved URL plus /mcp")
 	require.NotNil(t, endpoint.Configuration.Security)
@@ -484,12 +484,53 @@ func TestPutEnv_JWT_400(t *testing.T) {
 	assert.Zero(t, f.endpointWrites)
 }
 
-func TestPutEnv_NoSecurity_400(t *testing.T) {
-	disabled := false
-	f := newBindingFixture(t)
-	_, _, err := f.put(t, models.MCPProxyEnvironmentRequest{Security: &models.MCPProxyEnvironmentSecurity{Enabled: &disabled}})
-	require.ErrorIs(t, err, utils.ErrInvalidInput)
-	assert.Zero(t, f.endpointWrites)
+func TestPutEnv_NoSecurity_Accepted(t *testing.T) {
+	enabled, disabled := true, false
+	for name, security := range map[string]*models.MCPProxyEnvironmentSecurity{
+		"enabled false": {Enabled: &disabled},
+		"no variant":    {Enabled: &enabled},
+		"apiKey off":    {Enabled: &enabled, APIKey: &models.APIKeySecurity{Enabled: &disabled}},
+	} {
+		t.Run(name, func(t *testing.T) {
+			f := newBindingFixture(t)
+			resp, created, err := f.put(t, models.MCPProxyEnvironmentRequest{Security: security})
+			require.NoError(t, err)
+			assert.True(t, created)
+			require.NotNil(t, resp.Security)
+			require.NotNil(t, resp.Security.Enabled)
+			assert.False(t, *resp.Security.Enabled)
+			assert.Nil(t, resp.Security.APIKey)
+
+			endpoint, ee := f.binding()
+			require.NotNil(t, endpoint.Configuration.Security)
+			assert.False(t, isBoolTrue(endpoint.Configuration.Security.Enabled), "stored as no security")
+			assert.False(t, mcpProxyAPIKeySecurityEnabled(f.proxy, ee.EnvironmentUUID.String()),
+				"agents binding it get only the URL, no API key")
+
+			require.Len(t, f.deployed, 1)
+			for _, policy := range deployedYAML(t, f.deployed[0]).Spec.Policies {
+				assert.NotEqual(t, apiKeyAuthPolicyName, policy.Name, "a no-security binding renders no api-key policy")
+			}
+
+			// Identical again is a no-op.
+			f.status[ee.ArtifactUUID].Status = models.DeploymentStatusDeployed
+			_, _, err = f.put(t, models.MCPProxyEnvironmentRequest{Security: security})
+			require.NoError(t, err)
+			assert.Len(t, f.deployed, 1)
+		})
+	}
+
+	t.Run("the default renders the api-key policy", func(t *testing.T) {
+		f := newBindingFixture(t)
+		_, _, err := f.put(t, models.MCPProxyEnvironmentRequest{})
+		require.NoError(t, err)
+		require.Len(t, f.deployed, 1)
+		var names []string
+		for _, policy := range deployedYAML(t, f.deployed[0]).Spec.Policies {
+			names = append(names, policy.Name)
+		}
+		assert.Contains(t, names, apiKeyAuthPolicyName)
+	})
 }
 
 func TestPutEnv_APIKeySecurityAndUpstreamAuthStored(t *testing.T) {

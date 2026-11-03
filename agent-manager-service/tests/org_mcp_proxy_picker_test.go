@@ -85,11 +85,12 @@ func TestOrgMCPProxyRoutesAndProjectProxies(t *testing.T) {
 	require.NoError(t, repositories.NewMCPProxyRepo(gdb).Create(context.Background(), gdb,
 		&models.MCPProxy{Configuration: models.MCPProxyConfig{Name: "Org " + suffix, Version: "v1"}},
 		orgHandle, "Org "+suffix, "v1", ouID, nil, nil))
-	// Give the project proxy an upstream so the read-only view has something to strip.
+	// Give the project proxy a binding's endpoint with an upstream, so the read-only view has something to strip.
 	const secretUpstream = "https://internal-upstream.example.com/mcp"
-	require.NoError(t, gdb.Exec(`UPDATE mcp_proxy_endpoints SET configuration = jsonb_build_object('upstream', jsonb_build_object('url', ?::text))
-		WHERE mcp_proxy_uuid = (SELECT uuid FROM artifacts WHERE handle = ? AND ou_id = ?)`,
-		secretUpstream, projHandle, ouID).Error)
+	require.NoError(t, gdb.Exec(`INSERT INTO mcp_proxy_endpoints (uuid, mcp_proxy_uuid, handle, name, configuration)
+		SELECT ?, uuid, 'development', 'development', jsonb_build_object('upstream', jsonb_build_object('url', ?::text))
+		FROM artifacts WHERE handle = ? AND ou_id = ?`,
+		uuid.New(), secretUpstream, projHandle, ouID).Error)
 
 	listIDs := func(rr *httptest.ResponseRecorder) map[string]string {
 		t.Helper()
@@ -135,6 +136,7 @@ func TestOrgMCPProxyRoutesAndProjectProxies(t *testing.T) {
 		require.NoError(t, json.Unmarshal(rr.Body.Bytes(), &dto))
 		require.NotNil(t, dto.ProjectName)
 		assert.Equal(t, projName, *dto.ProjectName)
+		require.NotEmpty(t, dto.Endpoints, "the binding's endpoint is listed")
 		for _, ep := range dto.Endpoints {
 			assert.Nil(t, ep.Upstream.Main)
 		}

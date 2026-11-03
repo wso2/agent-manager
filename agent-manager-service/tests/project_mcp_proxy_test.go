@@ -116,7 +116,7 @@ func TestProjectMCPProxyCRUD(t *testing.T) {
 	})
 
 	var firstBody []byte
-	t.Run("create returns 201 and one endpoint row", func(t *testing.T) {
+	t.Run("create returns 201 and no endpoint row until a binding", func(t *testing.T) {
 		rr := h.do(http.MethodPut, projA, "/"+handle, req)
 		require.Equal(t, http.StatusCreated, rr.Code, rr.Body.String())
 		firstBody = rr.Body.Bytes()
@@ -130,8 +130,8 @@ func TestProjectMCPProxyCRUD(t *testing.T) {
 
 		var n int64
 		require.NoError(t, gdb.Raw(`SELECT count(*) FROM mcp_proxy_endpoints e JOIN artifacts a ON a.uuid = e.mcp_proxy_uuid
-			WHERE a.handle = ? AND a.ou_id = ? AND e.handle = ?`, handle, ouID, handle).Scan(&n).Error)
-		assert.EqualValues(t, 1, n)
+			WHERE a.handle = ? AND a.ou_id = ?`, handle, ouID).Scan(&n).Error)
+		assert.Zero(t, n, "a project proxy has one endpoint per binding, none before")
 	})
 
 	t.Run("identical body is 200 with nothing changed", func(t *testing.T) {
@@ -143,7 +143,7 @@ func TestProjectMCPProxyCRUD(t *testing.T) {
 		var n int64
 		require.NoError(t, gdb.Raw(`SELECT count(*) FROM mcp_proxy_endpoints e JOIN artifacts a ON a.uuid = e.mcp_proxy_uuid
 			WHERE a.handle = ? AND a.ou_id = ?`, handle, ouID).Scan(&n).Error)
-		assert.EqualValues(t, 1, n, "still exactly one endpoint row")
+		assert.Zero(t, n, "still no endpoint row")
 	})
 
 	t.Run("changed fields update, source is immutable", func(t *testing.T) {

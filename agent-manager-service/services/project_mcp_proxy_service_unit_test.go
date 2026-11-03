@@ -171,9 +171,8 @@ func TestUpsertCreatesThen200OnIdenticalBody(t *testing.T) {
 	assert.Empty(t, first.Environments)
 	assert.NotNil(t, first.Environments, "environments serializes as [] not null")
 
-	// One endpoint named like the proxy, carrying no environments yet.
-	require.Len(t, f.endpoints, 1)
-	assert.Equal(t, "orders-mcp-mcp-3f2a9c1e", f.endpoints[0].Handle)
+	// No endpoint until the proxy is bound to an environment.
+	assert.Empty(t, f.endpoints)
 
 	second, created, err := f.svc.Upsert(ctx, testOrg, testProjName, testProjA, "orders-mcp-mcp-3f2a9c1e", orderReq())
 	require.NoError(t, err)
@@ -181,7 +180,7 @@ func TestUpsertCreatesThen200OnIdenticalBody(t *testing.T) {
 	assert.Equal(t, first, second, "identical body: nothing changes")
 	assert.Zero(t, f.updateCalls, "identical body must not write")
 	assert.Equal(t, 1, f.createCalls)
-	assert.Len(t, f.endpoints, 1, "no second endpoint row")
+	assert.Empty(t, f.endpoints, "still no endpoint row")
 }
 
 func TestUpsertDefaultsContextAndVersion(t *testing.T) {

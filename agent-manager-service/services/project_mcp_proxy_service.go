@@ -23,7 +23,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/google/uuid"
 	"gorm.io/gorm"
 
 	occlient "github.com/wso2/agent-manager/agent-manager-service/clients/openchoreosvc/client"
@@ -301,20 +300,12 @@ func (s *ProjectMCPProxyService) create(
 			Source:      &source,
 		},
 	}
-	// Exactly one endpoint, named like the proxy, carries every environment binding.
-	endpoints := []storableMCPEndpoint{{
-		handle:       handle,
-		name:         d.name,
-		config:       models.MCPEndpointConfig{Security: defaultMCPProxySecurity(nil)},
-		envArtifacts: map[string]uuid.UUID{},
-	}}
+	// A project proxy has no endpoint until it is bound: each environment binding is its own endpoint row
+	// (PutEnvironment), since the upstream and security differ per environment.
 	artifactName := models.MCPProxyArtifactName(&projectName, d.name)
 
 	if err := s.base.tx(ctx, func(tx *gorm.DB) error {
-		if err := s.base.repo.Create(ctx, tx, proxy, handle, artifactName, d.version, ouID, &projectUUID, &projectName); err != nil {
-			return err
-		}
-		return s.base.persistMCPEndpoints(ctx, tx, proxy.UUID, handle, d.version, endpoints, ouID)
+		return s.base.repo.Create(ctx, tx, proxy, handle, artifactName, d.version, ouID, &projectUUID, &projectName)
 	}); err != nil {
 		if mapped := s.base.mapMCPProxyWriteError(err, handle, ouID); mapped != nil {
 			return nil, mapped
