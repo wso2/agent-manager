@@ -395,7 +395,7 @@ export const ViewMCPServerComponent = () => {
   );
   const { data: proxiesData } = useListMCPProxies(
     { orgName: orgId },
-    { limit: 50, offset: 0 },
+    { limit: 50, offset: 0, project: projectId },
   );
   const servers = useMemo(() => proxiesData?.list ?? [], [proxiesData]);
   const updateConfig = useUpdateAgentMCPConfig();
