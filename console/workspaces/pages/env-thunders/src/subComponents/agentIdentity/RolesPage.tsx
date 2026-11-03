@@ -121,7 +121,7 @@ export const RolesPage: React.FC<RolesPageProps> = ({ createAction }) => {
 
       <ListingTable.Provider searchValue={search} onSearchChange={setSearch}>
         <ListingTable.Container>
-          <AgentIdentityEnvironmentTabs />
+          <AgentIdentityEnvironmentTabs action={isEmpty ? undefined : createAction} />
           {!isEmpty && (
             <ListingTable.Toolbar showSearch searchPlaceholder="Search roles..." />
           )}

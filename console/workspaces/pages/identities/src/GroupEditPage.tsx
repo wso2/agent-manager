@@ -232,7 +232,7 @@ export const GroupEditPage: React.FC = () => {
           <Alert severity="success">Group updated successfully.</Alert>
         )}
 
-        <Form.Stack spacing={3}>
+        <Form.Section>
           <Tabs
             value={activeTab}
             onChange={(_e, v) => setActiveTab(v as ActiveTab)}
@@ -245,7 +245,7 @@ export const GroupEditPage: React.FC = () => {
           {/* ── Users tab ── */}
           {activeTab === "users" && (
             <>
-              <Typography variant="subtitle1">Users</Typography>
+              <Form.Header>Users</Form.Header>
               <Typography variant="body2" color="text.secondary">
                 Search and add users to this group.
               </Typography>
@@ -370,7 +370,7 @@ export const GroupEditPage: React.FC = () => {
           {/* ── Roles tab ── */}
           {activeTab === "roles" && (
             <>
-              <Typography variant="subtitle1">Assigned Roles</Typography>
+              <Form.Header>Assigned Roles</Form.Header>
               <Typography variant="body2" color="text.secondary">
                 Roles currently assigned to this group. Manage role assignments
                 from the Roles page.
@@ -415,7 +415,7 @@ export const GroupEditPage: React.FC = () => {
               </Box>
             </>
           )}
-        </Form.Stack>
+        </Form.Section>
 
         {/* Action row shows below the card only when there are unsaved changes. */}
         {isDirty && (

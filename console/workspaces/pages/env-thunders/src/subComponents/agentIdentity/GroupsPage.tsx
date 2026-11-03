@@ -121,7 +121,7 @@ export const GroupsPage: React.FC<GroupsPageProps> = ({ createAction }) => {
 
       <ListingTable.Provider searchValue={search} onSearchChange={setSearch}>
         <ListingTable.Container>
-          <AgentIdentityEnvironmentTabs />
+          <AgentIdentityEnvironmentTabs action={isEmpty ? undefined : createAction} />
           {!isEmpty && (
             <ListingTable.Toolbar showSearch searchPlaceholder="Search groups..." />
           )}

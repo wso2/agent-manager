@@ -187,7 +187,7 @@ export const UserEditPage: React.FC = () => {
           <Alert severity="success">User updated successfully.</Alert>
         )}
 
-        <Form.Stack spacing={3}>
+        <Form.Section>
           <Tabs
             value={activeTab}
             onChange={(_e, newValue) => setActiveTab(newValue as TabId)}
@@ -199,7 +199,7 @@ export const UserEditPage: React.FC = () => {
 
           {activeTab === "groups" && (
             <>
-              <Typography variant="subtitle1">Group Memberships</Typography>
+              <Form.Header>Group Memberships</Form.Header>
               <Typography variant="body2" color="text.secondary">
                 Search and select groups to assign this user to.
               </Typography>
@@ -254,7 +254,7 @@ export const UserEditPage: React.FC = () => {
 
           {activeTab === "roles" && (
             <>
-              <Typography variant="subtitle1">Assigned Roles</Typography>
+              <Form.Header>Assigned Roles</Form.Header>
               <Typography variant="body2" color="text.secondary">
                 Roles directly assigned to this user. To modify role
                 assignments, use the Roles page.
@@ -275,7 +275,7 @@ export const UserEditPage: React.FC = () => {
               </Box>
             </>
           )}
-        </Form.Stack>
+        </Form.Section>
 
         {/* Action row shows only on the editable Groups tab once there are changes. */}
         {activeTab === "groups" && isGroupsDirty && (

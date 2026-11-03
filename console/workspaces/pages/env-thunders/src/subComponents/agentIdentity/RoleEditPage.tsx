@@ -315,7 +315,7 @@ export const RoleEditPage: React.FC = () => {
         {saveError != null && <Alert severity="error">{saveError}</Alert>}
         {saveSuccess && <Alert severity="success">Role updated successfully.</Alert>}
 
-        <Form.Stack spacing={3}>
+        <Form.Section>
           <Tabs
             value={activeTab}
             onChange={(_e, v) => setActiveTab(v as ActiveTab)}
@@ -329,7 +329,7 @@ export const RoleEditPage: React.FC = () => {
           {/* ── Permissions tab ── */}
           {activeTab === "permissions" && (
             <>
-              <Typography variant="subtitle1">Permissions</Typography>
+              <Form.Header>Permissions</Form.Header>
               <Typography variant="body2" color="text.secondary">
                 {isPermissionsReadOnly
                   ? "Permissions for predefined roles cannot be modified."
@@ -351,7 +351,7 @@ export const RoleEditPage: React.FC = () => {
           {/* ── Agents tab ── */}
           {activeTab === "agents" && (
             <>
-              <Typography variant="subtitle1">Assigned Agents</Typography>
+              <Form.Header>Assigned Agents</Form.Header>
               {isLoadingAgents ? (
                 <CircularProgress size={20} />
               ) : (
@@ -446,7 +446,7 @@ export const RoleEditPage: React.FC = () => {
           {/* ── Groups tab ── */}
           {activeTab === "groups" && (
             <>
-              <Typography variant="subtitle1">Assigned Groups</Typography>
+              <Form.Header>Assigned Groups</Form.Header>
               {isLoadingGroups ? (
                 <CircularProgress size={20} />
               ) : (
@@ -524,7 +524,7 @@ export const RoleEditPage: React.FC = () => {
               )}
             </>
           )}
-        </Form.Stack>
+        </Form.Section>
 
         {isDirty && (
           <Stack direction="row" spacing={1}>

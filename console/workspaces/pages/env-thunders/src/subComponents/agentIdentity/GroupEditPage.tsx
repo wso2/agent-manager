@@ -291,7 +291,7 @@ export const GroupEditPage: React.FC = () => {
           <Alert severity="success">Group updated successfully.</Alert>
         )}
 
-        <Form.Stack spacing={3}>
+        <Form.Section>
           <Tabs
             value={activeTab}
             onChange={(_e, v) => setActiveTab(v as ActiveTab)}
@@ -304,7 +304,7 @@ export const GroupEditPage: React.FC = () => {
           {/* ── Agents tab ── */}
           {activeTab === "agents" && (
             <>
-              <Typography variant="subtitle1">Agents</Typography>
+              <Form.Header>Agents</Form.Header>
               <Typography variant="body2" color="text.secondary">
                 Search and add agents to this group.
               </Typography>
@@ -399,7 +399,7 @@ export const GroupEditPage: React.FC = () => {
           {/* ── Roles tab ── */}
           {activeTab === "roles" && (
             <>
-              <Typography variant="subtitle1">Assigned Roles</Typography>
+              <Form.Header>Assigned Roles</Form.Header>
               {isLoadingRoles || isLoadingAllRoles ? (
                 <CircularProgress size={20} />
               ) : isRolesError ? (
@@ -481,7 +481,7 @@ export const GroupEditPage: React.FC = () => {
               )}
             </>
           )}
-        </Form.Stack>
+        </Form.Section>
 
         {isDirty && (
           <Stack direction="row" spacing={1}>

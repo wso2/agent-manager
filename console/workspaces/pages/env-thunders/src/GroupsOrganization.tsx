@@ -21,7 +21,6 @@ import { Link, Navigate, Route, Routes, generatePath, useParams, useSearchParams
 import { Button } from "@wso2/oxygen-ui";
 import { Plus } from "@wso2/oxygen-ui-icons-react";
 import { absoluteRouteMap } from "@agent-management-platform/types";
-import { useListAgentIdentityGroups } from "@agent-management-platform/api-client";
 import { PageLayout } from "@agent-management-platform/views";
 import { GroupsPage } from "./subComponents/agentIdentity/GroupsPage";
 import { GroupCreatePage } from "./subComponents/agentIdentity/GroupCreatePage";
@@ -39,15 +38,8 @@ function GroupsListPage() {
     ? withSearchParams(generatePath(groupsNode.children.create.path, { orgId }), searchParams)
     : "#";
 
-  // Same params as the table's first page, so React Query dedupes the request.
-  const envName = searchParams.get("envName") ?? "";
-  const { data, isLoading } = useListAgentIdentityGroups(
-    { orgName: orgId, envName },
-    { offset: 0, limit: 10 },
-  );
-  const hasItems = !isLoading && (data?.total ?? 0) > 0;
 
-  // One definition, used both as the page action and as the empty state's CTA.
+  // One definition, used in the tab bar and as the empty state's CTA.
   const createButton = (
     <Button
       variant="contained"
@@ -67,7 +59,6 @@ function GroupsListPage() {
           title={TITLE}
           description="Groups available in the selected environment's identity provider."
           disableIcon
-          actions={hasItems ? createButton : undefined}
         >
           <GroupsPage createAction={createButton} />
         </PageLayout>

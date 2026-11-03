@@ -104,7 +104,7 @@ function AssignmentTab<T extends AssignableItem>({
 }) {
   return (
     <>
-      <Typography variant="subtitle1">{header}</Typography>
+      <Form.Header>{header}</Form.Header>
       <Typography variant="body2" color="text.secondary">
         {description}
       </Typography>
@@ -380,7 +380,7 @@ export const AgentDetailPage: React.FC = () => {
         {saveError != null && <Alert severity="error">{saveError}</Alert>}
         {saveSuccess && <Alert severity="success">Agent updated successfully.</Alert>}
 
-        <Form.Stack spacing={3}>
+        <Form.Section>
           <Tabs
             value={activeTab}
             onChange={(_e, newValue) => setActiveTab(newValue as TabId)}
@@ -433,7 +433,7 @@ export const AgentDetailPage: React.FC = () => {
               onRemove={groupDelta.handleRemove}
             />
           )}
-        </Form.Stack>
+        </Form.Section>
 
         {isDirty && (
           <Stack direction="row" spacing={1}>
