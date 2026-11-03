@@ -66,6 +66,7 @@ type AppParams struct {
 	A2AProxyController               controllers.A2AProxyController
 	LLMProxyDeploymentController     controllers.LLMProxyDeploymentController
 	MCPProxyController               controllers.MCPProxyController
+	ProjectMCPProxyController        controllers.ProjectMCPProxyController
 	WebSocketController              controllers.WebSocketController
 	GatewayInternalController        controllers.GatewayInternalController
 	MonitorController                controllers.MonitorController

@@ -304,3 +304,13 @@ var (
 	ErrKindImageAlreadyPublished = errors.New("this build image is already published as a kind version")
 	ErrSourceAgentNotFound       = errors.New("source agent not found; cannot publish a kind from a deleted agent")
 )
+
+// Project-scoped MCP proxy errors.
+var (
+	// ErrMCPProxyHandleInUse means the handle belongs to an org-level proxy, another
+	// project's proxy, or another artifact (409 HANDLE_IN_USE on the project routes).
+	ErrMCPProxyHandleInUse = errors.New("MCP proxy handle already in use")
+	// ErrMCPProxyCreateNotPermitted means the caller may update project proxies but not
+	// create one, and the upsert would have created it (403 on the project routes).
+	ErrMCPProxyCreateNotPermitted = errors.New("not permitted to create MCP proxies")
+)

@@ -696,7 +696,17 @@ func (s *MCPProxyService) Delete(ctx context.Context, orgUUID, orgName, proxyID 
 		return fmt.Errorf("failed to get MCP proxy before delete: %w", err)
 	}
 
+	if err := s.ensureMCPProxyNotInUse(ctx, orgUUID, proxy); err != nil {
+		return err
+	}
+	return s.deleteLoadedMCPProxy(ctx, orgUUID, handle, proxy)
+}
+
+// ensureMCPProxyNotInUse refuses (utils.ErrMCPProxyHasMappings) while an agent still
+// references the proxy. Shared by the org and project delete paths.
+func (s *MCPProxyService) ensureMCPProxyNotInUse(ctx context.Context, orgUUID string, proxy *models.MCPProxy) error {
 	var mappings []models.EnvAgentMCPMapping
+	var err error
 	if s.envMCPMappingRepo != nil {
 		mappings, err = s.envMCPMappingRepo.ListByMCPProxy(ctx, proxy.UUID)
 		if err != nil {
@@ -731,7 +741,12 @@ func (s *MCPProxyService) Delete(ctx context.Context, orgUUID, orgName, proxyID 
 			return utils.ErrMCPProxyHasMappings
 		}
 	}
+	return nil
+}
 
+// deleteLoadedMCPProxy tears down the proxy's per-(endpoint,environment) gateway artifacts and
+// deletes the proxy. The caller has already loaded the proxy and checked it is not in use.
+func (s *MCPProxyService) deleteLoadedMCPProxy(ctx context.Context, orgUUID, handle string, proxy *models.MCPProxy) error {
 	// Capture the proxy's scope rows before the row delete cascades them away
 	// (mcp_proxy_scopes FK is ON DELETE CASCADE) — the Thunder cleanup below needs
 	// every scope string to strip from role permissions.
@@ -1899,9 +1914,9 @@ func (s *MCPProxyService) mapMCPProxyWriteError(err error, handle, orgUUID strin
 	case "uq_artifact_handle_ou_id":
 		if conflicting, getErr := s.artifactRepo.GetByHandle(handle, orgUUID); getErr == nil &&
 			conflicting != nil && conflicting.Kind != models.KindMCPProxy {
-			return fmt.Errorf("%w: handle already in use by another artifact", utils.ErrArtifactExists)
+			return fmt.Errorf("%w: handle already in use by another artifact: %w", utils.ErrArtifactExists, utils.ErrMCPProxyHandleInUse)
 		}
-		return fmt.Errorf("%w: handle already in use", utils.ErrMCPProxyExists)
+		return fmt.Errorf("%w: handle already in use: %w", utils.ErrMCPProxyExists, utils.ErrMCPProxyHandleInUse)
 	case "uq_artifact_name_version_ou_id":
 		return fmt.Errorf("%w: another artifact already uses this name and version", utils.ErrInvalidInput)
 	default:

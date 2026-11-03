@@ -28,6 +28,10 @@ const (
 	ErrCodeForbidden      = "FORBIDDEN"
 	ErrCodeImmutableField = "IMMUTABLE_FIELD"
 	ErrCodeInvalidInput   = "INVALID_INPUT"
+	// ErrCodeHandleInUse: the MCP proxy handle belongs to an org-level or another project's proxy.
+	ErrCodeHandleInUse = "HANDLE_IN_USE"
+	// ErrCodeMCPProxyInUse: AM agents still use the MCP proxy, so it cannot be deleted.
+	ErrCodeMCPProxyInUse = "MCP_PROXY_IN_USE"
 
 	// Server error codes (5xx)
 	ErrCodeInternalError      = "INTERNAL_ERROR"

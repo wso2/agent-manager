@@ -158,9 +158,11 @@ func (r *MCPProxyRepo) Update(ctx context.Context, tx *gorm.DB, p *models.MCPPro
 		return gorm.ErrRecordNotFound
 	}
 
+	// A project proxy's artifact name carries the project (see models.MCPProxyArtifactName)
+	// so two projects can use the same display name.
 	return r.artifactRepo.Update(tx.WithContext(ctx), &models.Artifact{
 		UUID:    p.UUID,
-		Name:    p.Configuration.Name,
+		Name:    models.MCPProxyArtifactName(p.ProjectName, p.Configuration.Name),
 		Version: p.Configuration.Version,
 		OUID:    orgUUID,
 	})
