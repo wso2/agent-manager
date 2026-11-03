@@ -305,6 +305,29 @@ remove_coredns_entries() {
     fi
 }
 
+# clear_stuck_finalizers: a CRD stays in Terminating while an object of its
+# kind still carries a finalizer, and once Step 3 has removed the controllers
+# nothing will clear it. Clears those finalizers, says which, and waits for the
+# CRDs to go.
+clear_stuck_finalizers() {
+    local stuck crd kind obj ns name
+    stuck="$(kubectl get crd -o name 2>/dev/null | grep -E "\.(${CRD_GROUPS})\$" || true)"
+    [ -n "${stuck}" ] || return 0
+    for crd in ${stuck}; do
+        kind="${crd#*/}"
+        for obj in $(kubectl get "${kind}" -A \
+                -o jsonpath='{range .items[?(@.metadata.finalizers)]}{.metadata.namespace}/{.metadata.name}{"\n"}{end}' 2>/dev/null); do
+            ns="${obj%%/*}"
+            name="${obj#*/}"
+            log_warning "Clearing the finalizers of ${kind} ${obj#/}, whose controller is already uninstalled"
+            kubectl patch "${kind}" "${name}" ${ns:+-n "${ns}"} --type=merge \
+                -p '{"metadata":{"finalizers":null}}' &>/dev/null || true
+        done
+    done
+    # shellcheck disable=SC2086 # one CRD per word
+    kubectl wait --for=delete ${stuck} --timeout=60s &>/dev/null || true
+}
+
 # object_left <description> <kubectl get args...>: adds the object to
 # LEFT_OBJECTS when it still exists, or when it cannot be checked.
 object_left() {
@@ -407,6 +430,16 @@ if [ "${AMP_ONLY}" = false ]; then
             kubectl delete "${resource_type}" --all --timeout=30s &>/dev/null || true
         fi
     done
+    # Every other namespaced OpenChoreo kind, such as the WorkflowRuns of agent
+    # builds and evaluation monitors. They live in the organization's namespace,
+    # which is kept, and their cleanup finalizers need the controllers Step 3
+    # removes.
+    for resource_type in $(kubectl api-resources --api-group=openchoreo.dev --namespaced=true -o name 2>/dev/null); do
+        if [ -n "$(kubectl get "${resource_type}" -A -o name 2>/dev/null)" ]; then
+            log_info "Deleting ${resource_type}..."
+            kubectl delete "${resource_type}" --all --all-namespaces --timeout=60s &>/dev/null || true
+        fi
+    done
 fi
 
 # ============================================================================
@@ -466,6 +499,7 @@ if [ "${AMP_ONLY}" = false ]; then
         kubectl delete ${PLATFORM_CRDS} --ignore-not-found --timeout=120s &>/dev/null \
             || log_warning "Some CRDs did not finish deleting within 2 minutes"
     fi
+    clear_stuck_finalizers
 fi
 
 # ============================================================================
