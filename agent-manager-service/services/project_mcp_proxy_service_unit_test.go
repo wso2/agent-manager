@@ -18,6 +18,8 @@ package services
 
 import (
 	"context"
+	"errors"
+	"fmt"
 	"testing"
 
 	"github.com/google/uuid"
@@ -25,6 +27,7 @@ import (
 	"github.com/stretchr/testify/require"
 	"gorm.io/gorm"
 
+	"github.com/wso2/agent-manager/agent-manager-service/clients/clientmocks"
 	"github.com/wso2/agent-manager/agent-manager-service/models"
 	"github.com/wso2/agent-manager/agent-manager-service/repositories"
 	"github.com/wso2/agent-manager/agent-manager-service/repositories/repomocks"
@@ -49,6 +52,9 @@ type projectProxyFixture struct {
 	mappings     []models.EnvAgentMCPMapping
 	endpointEnvs []models.MCPProxyEndpointEnvironment
 	deletedProxy []string
+
+	componentTypes  map[string]string // component name -> OpenChoreo component type (default agent-api)
+	getComponentErr error
 }
 
 func newProjectProxyFixture(t *testing.T) *projectProxyFixture {
@@ -124,7 +130,21 @@ func newProjectProxyFixture(t *testing.T) *projectProxyFixture {
 		logger: discardLogger(),
 		tx:     func(ctx context.Context, fn func(tx *gorm.DB) error) error { return fn(nil) },
 	}
-	f.svc = NewProjectMCPProxyService(base)
+	f.componentTypes = map[string]string{}
+	f.getComponentErr = nil
+	oc := &clientmocks.OpenChoreoClientMock{
+		GetComponentFunc: func(_ context.Context, _, _, name string) (*models.AgentResponse, error) {
+			if f.getComponentErr != nil {
+				return nil, f.getComponentErr
+			}
+			typ := f.componentTypes[name]
+			if typ == "" {
+				typ = "agent-api"
+			}
+			return &models.AgentResponse{Name: name, Type: models.AgentType{Type: typ}}, nil
+		},
+	}
+	f.svc = NewProjectMCPProxyService(base, oc)
 	return f
 }
 
@@ -330,4 +350,49 @@ func TestDeleteUndeploysAllEnvironments(t *testing.T) {
 	require.NoError(t, f.svc.Delete(ctx, testOrg, testProjA, "orders"))
 	assert.Equal(t, 2, f.txCalls, "one teardown per environment artifact")
 	assert.Equal(t, []string{"orders"}, f.deletedProxy)
+}
+
+func TestUpsert_MIMCPServer_400(t *testing.T) {
+	for _, existing := range []bool{false, true} {
+		name := "create"
+		if existing {
+			name = "update"
+		}
+		t.Run(name, func(t *testing.T) {
+			f := newProjectProxyFixture(t)
+			ctx := context.Background()
+			if existing {
+				_, _, err := f.svc.Upsert(ctx, testOrg, testProjName, testProjA, "orders", orderReq())
+				require.NoError(t, err)
+			}
+			creates, updates := f.createCalls, f.updateCalls
+			f.componentTypes["orders-mcp"] = "mi-mcp-server"
+
+			req := orderReq()
+			req.Description = "changed"
+			_, _, err := f.svc.Upsert(ctx, testOrg, testProjName, testProjA, "orders", req)
+			require.ErrorIs(t, err, utils.ErrInvalidInput)
+			assert.Contains(t, err.Error(), "legacy HTTP+SSE MCP servers are not supported")
+			assert.Equal(t, creates, f.createCalls, "nothing written")
+			assert.Equal(t, updates, f.updateCalls, "nothing written")
+		})
+	}
+}
+
+func TestUpsert_SourceComponentLookup(t *testing.T) {
+	t.Run("missing component is a 400", func(t *testing.T) {
+		f := newProjectProxyFixture(t)
+		f.getComponentErr = fmt.Errorf("get: %w", utils.ErrNotFound)
+		_, _, err := f.svc.Upsert(context.Background(), testOrg, testProjName, testProjA, "orders", orderReq())
+		require.ErrorIs(t, err, utils.ErrInvalidInput)
+		assert.Zero(t, f.createCalls)
+	})
+	t.Run("other lookup failures are not a 400", func(t *testing.T) {
+		f := newProjectProxyFixture(t)
+		f.getComponentErr = errors.New("openchoreo down")
+		_, _, err := f.svc.Upsert(context.Background(), testOrg, testProjName, testProjA, "orders", orderReq())
+		require.Error(t, err)
+		assert.NotErrorIs(t, err, utils.ErrInvalidInput)
+		assert.Zero(t, f.createCalls)
+	})
 }

@@ -26,6 +26,7 @@ import (
 	"github.com/google/uuid"
 	"gorm.io/gorm"
 
+	occlient "github.com/wso2/agent-manager/agent-manager-service/clients/openchoreosvc/client"
 	"github.com/wso2/agent-manager/agent-manager-service/models"
 	"github.com/wso2/agent-manager/agent-manager-service/repositories"
 	"github.com/wso2/agent-manager/agent-manager-service/utils"
@@ -42,12 +43,40 @@ const (
 // MCPProxyService for endpoint persistence and teardown, so the proxy rows and their
 // cleanup are the ones the org path produces.
 type ProjectMCPProxyService struct {
-	base *MCPProxyService
+	base     *MCPProxyService
+	ocClient occlient.OpenChoreoClient
 }
 
 // NewProjectMCPProxyService creates the project MCP proxy service.
-func NewProjectMCPProxyService(base *MCPProxyService) *ProjectMCPProxyService {
-	return &ProjectMCPProxyService{base: base}
+func NewProjectMCPProxyService(base *MCPProxyService, ocClient occlient.OpenChoreoClient) *ProjectMCPProxyService {
+	return &ProjectMCPProxyService{base: base, ocClient: ocClient}
+}
+
+// legacySSEMCPServerType is the component type of MCP servers that speak legacy HTTP+SSE
+// (/sse + /messages), which the gateway does not proxy.
+const legacySSEMCPServerType = "mi-mcp-server"
+
+// ensureSourceSupported rejects a source component that is missing or is a legacy HTTP+SSE
+// server, before anything is written. A lookup failure other than not-found is returned as is.
+func (s *ProjectMCPProxyService) ensureSourceSupported(
+	ctx context.Context, ouID, projectName string, source models.MCPProxySource,
+) error {
+	component, err := s.ocClient.GetComponent(ctx, ouID, projectName, source.ComponentName)
+	if err != nil {
+		if errors.Is(err, utils.ErrNotFound) {
+			return fmt.Errorf("%w: source component %q not found", utils.ErrInvalidInput, source.ComponentName)
+		}
+		return fmt.Errorf("failed to get source component: %w", err)
+	}
+	// The client reports the type without its "deployment/" prefix; tolerate either form.
+	typ := component.Type.Type
+	if i := strings.LastIndex(typ, "/"); i >= 0 {
+		typ = typ[i+1:]
+	}
+	if typ == legacySSEMCPServerType {
+		return fmt.Errorf("%w: legacy HTTP+SSE MCP servers are not supported", utils.ErrInvalidInput)
+	}
+	return nil
 }
 
 // Upsert creates the project proxy, or updates it when it already exists in this project.
@@ -67,6 +96,10 @@ func (s *ProjectMCPProxyService) UpsertWithCreateCheck(
 	handle = strings.TrimSpace(handle)
 	desired, err := normalizeProjectMCPProxyRequest(handle, req)
 	if err != nil {
+		return nil, false, err
+	}
+
+	if err := s.ensureSourceSupported(ctx, ouID, projectName, desired.source); err != nil {
 		return nil, false, err
 	}
 
