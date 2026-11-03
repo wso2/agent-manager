@@ -28,12 +28,15 @@ import (
 	"github.com/wso2/agent-manager/agent-manager-service/config"
 )
 
-// gatewayManifestCacheRedisKey is the single key every replica reads and writes.
-// Every gateway runs the same policy bundle (see GatewayManifestCacheBackend), so one
-// key shared by all replicas is the whole point of moving to Redis in HA: every
-// replica's reader sees the same manifest, regardless of which replica a given
-// gateway's heartbeat happened to land on.
-const gatewayManifestCacheRedisKey = "amp:gateway-manifest-cache:v1"
+// gatewayManifestCacheRedisKeyPrefix prefixes one key per gateway UUID. Every replica
+// reads and writes the same keys, so a reader sees a gateway's latest manifest whichever
+// replica its heartbeat landed on. v1 was a single key shared by all gateways; it is no
+// longer read.
+const gatewayManifestCacheRedisKeyPrefix = "amp:gateway-manifest-cache:v2:"
+
+func gatewayManifestCacheRedisKey(gatewayID string) string {
+	return gatewayManifestCacheRedisKeyPrefix + gatewayID
+}
 
 // RedisGatewayManifestCache is the Redis-backed GatewayManifestCacheBackend, for HA
 // deployments where a process-local cache would leave replicas disagreeing about which
@@ -59,22 +62,22 @@ func NewRedisGatewayManifestCache(cfg config.GatewayManifestCacheRedisConfig) *R
 }
 
 // Set implements GatewayManifestCacheBackend.
-func (c *RedisGatewayManifestCache) Set(ctx context.Context, manifest map[string]interface{}) error {
+func (c *RedisGatewayManifestCache) Set(ctx context.Context, gatewayID string, manifest map[string]interface{}) error {
 	data, err := json.Marshal(manifest)
 	if err != nil {
 		return fmt.Errorf("failed to marshal gateway manifest for cache: %w", err)
 	}
-	// No TTL: matches the in-memory backend's no-expiry contract — the cache holds
-	// whatever was last pushed until the next push replaces it, indefinitely.
-	if err := c.client.Set(ctx, gatewayManifestCacheRedisKey, data, 0).Err(); err != nil {
+	// No TTL: matches the in-memory backend's no-expiry contract — the entry holds
+	// whatever the gateway last pushed until its next push replaces it, or it is deleted.
+	if err := c.client.Set(ctx, gatewayManifestCacheRedisKey(gatewayID), data, 0).Err(); err != nil {
 		return fmt.Errorf("failed to write gateway manifest cache: %w", err)
 	}
 	return nil
 }
 
 // Get implements GatewayManifestCacheBackend.
-func (c *RedisGatewayManifestCache) Get(ctx context.Context) (map[string]interface{}, bool, error) {
-	data, err := c.client.Get(ctx, gatewayManifestCacheRedisKey).Bytes()
+func (c *RedisGatewayManifestCache) Get(ctx context.Context, gatewayID string) (map[string]interface{}, bool, error) {
+	data, err := c.client.Get(ctx, gatewayManifestCacheRedisKey(gatewayID)).Bytes()
 	if errors.Is(err, redis.Nil) {
 		return nil, false, nil
 	}
@@ -89,10 +92,10 @@ func (c *RedisGatewayManifestCache) Get(ctx context.Context) (map[string]interfa
 	return manifest, true, nil
 }
 
-// Clear implements GatewayManifestCacheBackend.
-func (c *RedisGatewayManifestCache) Clear(ctx context.Context) error {
-	if err := c.client.Del(ctx, gatewayManifestCacheRedisKey).Err(); err != nil {
-		return fmt.Errorf("failed to clear gateway manifest cache: %w", err)
+// Delete implements GatewayManifestCacheBackend.
+func (c *RedisGatewayManifestCache) Delete(ctx context.Context, gatewayID string) error {
+	if err := c.client.Del(ctx, gatewayManifestCacheRedisKey(gatewayID)).Err(); err != nil {
+		return fmt.Errorf("failed to delete gateway manifest cache entry: %w", err)
 	}
 	return nil
 }

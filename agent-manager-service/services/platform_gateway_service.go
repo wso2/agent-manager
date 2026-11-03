@@ -440,8 +440,8 @@ func (s *PlatformGatewayService) GetGateway(gatewayID, ouID string) (*GatewayRes
 // SaveGatewayPolicyManifest stores the latest gateway-reported policy manifest in the
 // in-process cache. Gateways re-push their full manifest on every heartbeat, so writing
 // it to the jsonb column cost a large row update per push for data that is regenerated
-// on the next push anyway. Every gateway runs the same policy bundle, so the cache keeps
-// a single newest copy shared by all of them.
+// on the next push anyway. The cache keeps the newest copy per gateway: a push describes
+// only the gateway that sent it.
 func (s *PlatformGatewayService) SaveGatewayPolicyManifest(ctx context.Context, gatewayID string, manifest map[string]interface{}) error {
 	gateway, err := s.gatewayRepo.GetByUUID(gatewayID)
 	if err != nil {
@@ -452,7 +452,7 @@ func (s *PlatformGatewayService) SaveGatewayPolicyManifest(ctx context.Context, 
 	}
 	slog.Info("Saving gateway policy manifest for gateway", "gatewayID", gatewayID)
 
-	return gatewayManifestCache.Set(ctx, manifest)
+	return gatewayManifestCache.Set(ctx, gatewayID, manifest)
 }
 
 // UpdateGateway updates gateway details
@@ -538,10 +538,12 @@ func (s *PlatformGatewayService) DeleteGateway(gatewayID, ouID string) error {
 		return err
 	}
 
-	// Invalidate all cached tokens for this gateway. The cached policy manifest is not
-	// touched: it is one shared copy describing every gateway's policy bundle, so the
-	// gateways that remain still need it.
+	// Invalidate all cached tokens for this gateway and drop its cached policy manifest.
+	// The manifest is advisory, so failing to drop it doesn't fail a committed delete.
 	s.tokenCache.InvalidateGateway(gateway.UUID)
+	if err := gatewayManifestCache.Delete(context.Background(), gateway.UUID.String()); err != nil {
+		slog.Warn("failed to drop deleted gateway's cached policy manifest", "gatewayID", gatewayID, "error", err)
+	}
 	slog.Info("gateway deleted and cache invalidated", "gatewayID", gatewayID)
 
 	return nil
