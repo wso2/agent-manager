@@ -445,7 +445,7 @@ func TestValidateMCPEndpointPlacement(t *testing.T) {
 
 	t.Run("naming an ingress-only gateway fails before any write", func(t *testing.T) {
 		svc := placementService(gatewayFixtureRepo(t, testMCPEnvUUID, []*models.Gateway{ingress, egress}), nil)
-		err := svc.validateMCPEndpointPlacement(context.Background(), "org1", uuid.Nil,
+		_, err := svc.validateMCPEndpointPlacement(context.Background(), "org1", uuid.Nil,
 			[]models.MCPProxyEndpointDTO{endpointBoundToGateway(ingress.UUID.String())}, nil)
 		assert.ErrorIs(t, err, utils.ErrInvalidInput)
 		assert.ErrorIs(t, err, errInvalidEgressGateway)
@@ -453,7 +453,7 @@ func TestValidateMCPEndpointPlacement(t *testing.T) {
 
 	t.Run("two egress candidates and no gatewayId is ambiguous", func(t *testing.T) {
 		svc := placementService(gatewayFixtureRepo(t, testMCPEnvUUID, []*models.Gateway{both, egress}), nil)
-		err := svc.validateMCPEndpointPlacement(context.Background(), "org1", uuid.Nil,
+		_, err := svc.validateMCPEndpointPlacement(context.Background(), "org1", uuid.Nil,
 			[]models.MCPProxyEndpointDTO{endpointBoundToGateway("")}, nil)
 		assert.ErrorIs(t, err, utils.ErrInvalidInput)
 		assert.ErrorIs(t, err, errAmbiguousEgressGateway)
@@ -461,7 +461,7 @@ func TestValidateMCPEndpointPlacement(t *testing.T) {
 
 	t.Run("naming a valid candidate passes", func(t *testing.T) {
 		svc := placementService(gatewayFixtureRepo(t, testMCPEnvUUID, []*models.Gateway{both, egress}), nil)
-		err := svc.validateMCPEndpointPlacement(context.Background(), "org1", uuid.Nil,
+		_, err := svc.validateMCPEndpointPlacement(context.Background(), "org1", uuid.Nil,
 			[]models.MCPProxyEndpointDTO{endpointBoundToGateway(egress.UUID.String())}, nil)
 		assert.NoError(t, err)
 	})
@@ -474,7 +474,7 @@ func TestValidateMCPEndpointPlacement(t *testing.T) {
 			gatewayFixtureRepo(t, testMCPEnvUUID, []*models.Gateway{both, egress}),
 			deployedTo(both.UUID.String()),
 		)
-		err := svc.validateMCPEndpointPlacement(context.Background(), "org1", uuid.Nil,
+		_, err := svc.validateMCPEndpointPlacement(context.Background(), "org1", uuid.Nil,
 			[]models.MCPProxyEndpointDTO{endpointBoundToGateway(egress.UUID.String())},
 			map[string]uuid.UUID{testMCPEnvUUID: artifactUUID})
 		assert.ErrorIs(t, err, utils.ErrInvalidInput)
@@ -487,7 +487,7 @@ func TestValidateMCPEndpointPlacement(t *testing.T) {
 			gatewayFixtureRepo(t, testMCPEnvUUID, []*models.Gateway{both, egress}),
 			deployedTo(both.UUID.String()),
 		)
-		err := svc.validateMCPEndpointPlacement(context.Background(), "org1", uuid.Nil,
+		_, err := svc.validateMCPEndpointPlacement(context.Background(), "org1", uuid.Nil,
 			[]models.MCPProxyEndpointDTO{endpointBoundToGateway(both.UUID.String())},
 			map[string]uuid.UUID{testMCPEnvUUID: artifactUUID})
 		assert.NoError(t, err)
@@ -496,7 +496,7 @@ func TestValidateMCPEndpointPlacement(t *testing.T) {
 	t.Run("no gateway mapped to the environment is tolerated", func(t *testing.T) {
 		// Timing condition, not misconfiguration: the deploy step skips and retries later.
 		svc := placementService(gatewayFixtureRepo(t, testMCPEnvUUID, nil), nil)
-		err := svc.validateMCPEndpointPlacement(context.Background(), "org1", uuid.Nil,
+		_, err := svc.validateMCPEndpointPlacement(context.Background(), "org1", uuid.Nil,
 			[]models.MCPProxyEndpointDTO{endpointBoundToGateway("")}, nil)
 		assert.NoError(t, err)
 	})
@@ -511,7 +511,7 @@ func TestValidateMCPEndpointPlacement(t *testing.T) {
 			},
 		}
 		svc := placementService(gatewayFixtureRepo(t, testMCPEnvUUID, []*models.Gateway{both, egress}), depRepo)
-		err := svc.validateMCPEndpointPlacement(context.Background(), "org1", uuid.Nil,
+		_, err := svc.validateMCPEndpointPlacement(context.Background(), "org1", uuid.Nil,
 			[]models.MCPProxyEndpointDTO{endpointBoundToGateway("")},
 			map[string]uuid.UUID{testMCPEnvUUID: uuid.New()})
 		assert.NoError(t, err)
@@ -521,7 +521,7 @@ func TestValidateMCPEndpointPlacement(t *testing.T) {
 		svc := placementService(gatewayFixtureRepo(t, testMCPEnvUUID, []*models.Gateway{both, egress}), nil)
 		endpoint := endpointBoundToGateway("")
 		endpoint.Environments[0].EnvironmentUUID = "not-a-uuid"
-		err := svc.validateMCPEndpointPlacement(context.Background(), "org1", uuid.Nil, []models.MCPProxyEndpointDTO{endpoint}, nil)
+		_, err := svc.validateMCPEndpointPlacement(context.Background(), "org1", uuid.Nil, []models.MCPProxyEndpointDTO{endpoint}, nil)
 		assert.NoError(t, err)
 	})
 }
@@ -749,7 +749,8 @@ func TestMCPPrivateUpstream_SelfHostedOnlyAccepted(t *testing.T) {
 	svc := placementService(gatewayFixtureRepo(t, testMCPEnvUUID, []*models.Gateway{selfHosted}), nil)
 
 	assert.NoError(t, validateMCPEndpoints(endpoints))
-	assert.NoError(t, svc.validateMCPEndpointPlacement(context.Background(), "org1", uuid.Nil, endpoints, nil))
+	_, err := svc.validateMCPEndpointPlacement(context.Background(), "org1", uuid.Nil, endpoints, nil)
+	assert.NoError(t, err)
 }
 
 func TestMCPUpstream_ShapeCheckedOnSelfHosted(t *testing.T) {
@@ -766,7 +767,7 @@ func TestMCPPrivateUpstream_ManagedTargetRefused(t *testing.T) {
 	managed := newGateway(t, models.GatewayRoleBoth, true)
 	svc := placementService(gatewayFixtureRepo(t, testMCPEnvUUID, []*models.Gateway{selfHosted, managed}), nil)
 
-	err := svc.validateMCPEndpointPlacement(context.Background(), "org1", uuid.Nil,
+	_, err := svc.validateMCPEndpointPlacement(context.Background(), "org1", uuid.Nil,
 		[]models.MCPProxyEndpointDTO{privateUpstreamEndpoint("")}, nil)
 	assert.ErrorIs(t, err, utils.ErrInvalidURL)
 }
@@ -788,7 +789,7 @@ func TestMCPPrivateUpstream_UpdateAddingManagedRefused(t *testing.T) {
 	endpoint.Environments = append(endpoint.Environments, models.MCPEndpointEnvironmentDTO{EnvironmentUUID: otherEnv})
 	svc := placementService(repo, nil)
 
-	err := svc.validateMCPEndpointPlacement(context.Background(), "org1", uuid.Nil, []models.MCPProxyEndpointDTO{endpoint},
+	_, err := svc.validateMCPEndpointPlacement(context.Background(), "org1", uuid.Nil, []models.MCPProxyEndpointDTO{endpoint},
 		map[string]uuid.UUID{})
 	assert.ErrorIs(t, err, utils.ErrInvalidURL)
 }
@@ -801,7 +802,7 @@ func TestMCPPrivateUpstream_UnresolvedTargetsFailClosed(t *testing.T) {
 
 	t.Run("no gateway mapped yet", func(t *testing.T) {
 		svc := placementService(gatewayFixtureRepo(t, testMCPEnvUUID, nil), nil)
-		err := svc.validateMCPEndpointPlacement(ctx, "org1", uuid.Nil, []models.MCPProxyEndpointDTO{privateUpstreamEndpoint("")}, nil)
+		_, err := svc.validateMCPEndpointPlacement(ctx, "org1", uuid.Nil, []models.MCPProxyEndpointDTO{privateUpstreamEndpoint("")}, nil)
 		assert.ErrorIs(t, err, utils.ErrInvalidURL)
 	})
 
@@ -812,7 +813,7 @@ func TestMCPPrivateUpstream_UnresolvedTargetsFailClosed(t *testing.T) {
 			},
 		}
 		svc := placementService(gatewayFixtureRepo(t, testMCPEnvUUID, []*models.Gateway{selfHosted}), depRepo)
-		err := svc.validateMCPEndpointPlacement(ctx, "org1", uuid.Nil, []models.MCPProxyEndpointDTO{privateUpstreamEndpoint(selfHosted.UUID.String())},
+		_, err := svc.validateMCPEndpointPlacement(ctx, "org1", uuid.Nil, []models.MCPProxyEndpointDTO{privateUpstreamEndpoint(selfHosted.UUID.String())},
 			map[string]uuid.UUID{testMCPEnvUUID: uuid.New()})
 		assert.ErrorIs(t, err, utils.ErrInvalidURL)
 	})
@@ -821,13 +822,13 @@ func TestMCPPrivateUpstream_UnresolvedTargetsFailClosed(t *testing.T) {
 		svc := placementService(gatewayFixtureRepo(t, testMCPEnvUUID, []*models.Gateway{selfHosted}), nil)
 		endpoint := privateUpstreamEndpoint("")
 		endpoint.Environments[0].EnvironmentUUID = "not-a-uuid"
-		err := svc.validateMCPEndpointPlacement(ctx, "org1", uuid.Nil, []models.MCPProxyEndpointDTO{endpoint}, nil)
+		_, err := svc.validateMCPEndpointPlacement(ctx, "org1", uuid.Nil, []models.MCPProxyEndpointDTO{endpoint}, nil)
 		assert.ErrorIs(t, err, utils.ErrInvalidURL)
 	})
 
 	t.Run("none named and inference is ambiguous", func(t *testing.T) {
 		svc := placementService(gatewayFixtureRepo(t, testMCPEnvUUID, []*models.Gateway{both, egress}), nil)
-		err := svc.validateMCPEndpointPlacement(ctx, "org1", uuid.Nil, []models.MCPProxyEndpointDTO{privateUpstreamEndpoint("")}, nil)
+		_, err := svc.validateMCPEndpointPlacement(ctx, "org1", uuid.Nil, []models.MCPProxyEndpointDTO{privateUpstreamEndpoint("")}, nil)
 		assert.Error(t, err)
 	})
 
@@ -838,7 +839,7 @@ func TestMCPPrivateUpstream_UnresolvedTargetsFailClosed(t *testing.T) {
 			},
 		}
 		svc := placementService(repo, nil)
-		err := svc.validateMCPEndpointPlacement(ctx, "org1", uuid.Nil, []models.MCPProxyEndpointDTO{privateUpstreamEndpoint(selfHosted.UUID.String())}, nil)
+		_, err := svc.validateMCPEndpointPlacement(ctx, "org1", uuid.Nil, []models.MCPProxyEndpointDTO{privateUpstreamEndpoint(selfHosted.UUID.String())}, nil)
 		assert.ErrorIs(t, err, utils.ErrInvalidURL)
 	})
 }
@@ -851,4 +852,86 @@ func TestMCPUpstreamNeedsSSRFGuard(t *testing.T) {
 	assert.True(t, mcpUpstreamNeedsSSRFGuard([]*models.Gateway{selfHosted}, true))
 	assert.True(t, mcpUpstreamNeedsSSRFGuard(nil, true))
 	assert.True(t, mcpUpstreamNeedsSSRFGuard(nil, false), "no targets must not skip the guard")
+}
+
+func TestValidateMCPEndpointPlacement_ReturnsExemptGateways(t *testing.T) {
+	selfHosted := selfHostedGateway(t)
+	managed := newGateway(t, models.GatewayRoleBoth, true)
+	ctx := context.Background()
+
+	t.Run("an endpoint only on a self-hosted gateway is exempt there", func(t *testing.T) {
+		svc := placementService(gatewayFixtureRepo(t, testMCPEnvUUID, []*models.Gateway{selfHosted}), nil)
+		exempt, err := svc.validateMCPEndpointPlacement(ctx, "org1", uuid.Nil,
+			[]models.MCPProxyEndpointDTO{privateUpstreamEndpoint(selfHosted.UUID.String())}, nil)
+		assert.NoError(t, err)
+		assert.Equal(t, map[string]uuid.UUID{testMCPEnvUUID: selfHosted.UUID}, exempt)
+	})
+
+	t.Run("an endpoint on a managed gateway is not exempt", func(t *testing.T) {
+		svc := placementService(gatewayFixtureRepo(t, testMCPEnvUUID, []*models.Gateway{managed}), nil)
+		exempt, err := svc.validateMCPEndpointPlacement(ctx, "org1", uuid.Nil,
+			[]models.MCPProxyEndpointDTO{endpointBoundToGateway(managed.UUID.String())}, nil)
+		assert.NoError(t, err)
+		assert.Empty(t, exempt)
+
+		_, err = svc.validateMCPEndpointPlacement(ctx, "org1", uuid.Nil,
+			[]models.MCPProxyEndpointDTO{privateUpstreamEndpoint(managed.UUID.String())}, nil)
+		assert.ErrorIs(t, err, utils.ErrInvalidURL)
+	})
+
+	t.Run("an endpoint with an unresolved environment is not exempt", func(t *testing.T) {
+		svc := placementService(gatewayFixtureRepo(t, testMCPEnvUUID, nil), nil)
+		exempt, err := svc.validateMCPEndpointPlacement(ctx, "org1", uuid.Nil,
+			[]models.MCPProxyEndpointDTO{endpointBoundToGateway("")}, nil)
+		assert.NoError(t, err)
+		assert.Empty(t, exempt)
+
+		_, err = svc.validateMCPEndpointPlacement(ctx, "org1", uuid.Nil,
+			[]models.MCPProxyEndpointDTO{privateUpstreamEndpoint("")}, nil)
+		assert.ErrorIs(t, err, utils.ErrInvalidURL)
+	})
+}
+
+func TestPinExemptGateways_FillsOnlyBlankGatewayIDs(t *testing.T) {
+	const (
+		blankEnv    = "11111111-1111-4111-8111-111111111111"
+		explicitEnv = "22222222-2222-4222-8222-222222222222"
+		otherEnv    = "33333333-3333-4333-8333-333333333333"
+	)
+	selfHosted := uuid.New()
+	explicit := uuid.New().String()
+	whitespace := "  "
+	endpoints := []models.MCPProxyEndpointDTO{{
+		ID: "primary",
+		Environments: []models.MCPEndpointEnvironmentDTO{
+			{EnvironmentUUID: blankEnv, GatewayID: &whitespace},
+			{EnvironmentUUID: explicitEnv, GatewayID: &explicit},
+			{EnvironmentUUID: otherEnv},
+		},
+	}}
+
+	pinned := pinExemptGateways(endpoints, map[string]uuid.UUID{blankEnv: selfHosted, explicitEnv: selfHosted})
+
+	envs := pinned[0].Environments
+	assert.Equal(t, selfHosted.String(), *envs[0].GatewayID, "a blank gatewayId is pinned")
+	assert.Equal(t, explicit, *envs[1].GatewayID, "an explicit gatewayId is kept")
+	assert.Nil(t, envs[2].GatewayID, "a non-exempt environment is untouched")
+
+	original := endpoints[0].Environments
+	assert.Equal(t, "  ", *original[0].GatewayID, "the input is not mutated")
+	assert.Same(t, &whitespace, original[0].GatewayID)
+	assert.Nil(t, original[2].GatewayID)
+}
+
+// Validation refuses before the transaction opens, so the service needs no database.
+func TestMCPCreate_PrivateUpstreamOnManagedGatewayStillRejected(t *testing.T) {
+	managed := newGateway(t, models.GatewayRoleBoth, true)
+	svc := placementService(gatewayFixtureRepo(t, testMCPEnvUUID, []*models.Gateway{managed}), nil)
+
+	_, err := svc.Create(context.Background(), "org1", "user", &models.MCPProxyDTO{
+		ID: "weather", Name: "Weather", Version: "v1.0",
+		Endpoints: []models.MCPProxyEndpointDTO{privateUpstreamEndpoint("")},
+	})
+
+	assert.ErrorIs(t, err, utils.ErrInvalidURL)
 }

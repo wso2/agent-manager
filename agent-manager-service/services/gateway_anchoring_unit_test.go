@@ -32,6 +32,7 @@ import (
 	"github.com/wso2/agent-manager/agent-manager-service/reconcile"
 	"github.com/wso2/agent-manager/agent-manager-service/repositories"
 	"github.com/wso2/agent-manager/agent-manager-service/repositories/repomocks"
+	"github.com/wso2/agent-manager/agent-manager-service/utils"
 )
 
 // This file covers the six newly-anchored gateway resolution sites end to end, each
@@ -222,6 +223,101 @@ func TestAnchoring_MCPProxyUpdate(t *testing.T) {
 		err := svc.deployMCPProxyEndpoints(context.Background(), txSentinel, p, "org")
 		require.ErrorIs(t, err, errPlacementFixed)
 	})
+}
+
+// pinnedSaveFixture is a proxy saved with one fresh binding on env, the gateways the save's transaction sees there,
+// and the request endpoints pinned to the self-hosted gateway validation approved the private upstream for.
+type pinnedSaveFixture struct {
+	selfHosted *models.Gateway
+	managed    *models.Gateway
+	hub        *stubEventHub
+	svc        *MCPProxyService
+	pinned     []models.MCPProxyEndpointDTO
+}
+
+func newPinnedSaveFixture(t *testing.T, gatewaysInTx func(selfHosted, managed *models.Gateway) []*models.Gateway) *pinnedSaveFixture {
+	t.Helper()
+	env := uuid.MustParse(testMCPEnvUUID)
+	f := &pinnedSaveFixture{selfHosted: selfHostedGateway(t), managed: newGateway(t, models.GatewayRoleBoth, true), hub: &stubEventHub{}}
+	saved := &models.MCPProxy{
+		UUID:   uuid.New(),
+		Handle: "proxy-handle",
+		Endpoints: []models.MCPProxyEndpoint{{
+			UUID:   uuid.New(),
+			Handle: "primary",
+			Configuration: models.MCPEndpointConfig{
+				Upstream: &models.UpstreamEndpoint{URL: privateMCPUpstream},
+			},
+			Environments: []models.MCPProxyEndpointEnvironment{{EnvironmentUUID: env, ArtifactUUID: uuid.New()}},
+		}},
+	}
+	f.svc = &MCPProxyService{
+		repo: &repomocks.MCPProxyRepositoryMock{
+			GetByHandleForUpdateFunc: func(context.Context, *gorm.DB, string, string) (*models.MCPProxy, error) {
+				return saved, nil
+			},
+		},
+		gatewayRepo: gatewayFixtureRepo(t, testMCPEnvUUID, gatewaysInTx(f.selfHosted, f.managed)),
+		mcpProxyScopeRepo: &repomocks.MCPProxyScopeRepositoryMock{
+			ListByProxyFunc: func(context.Context, uuid.UUID) ([]models.MCPProxyScope, error) {
+				return []models.MCPProxyScope{}, nil
+			},
+		},
+		deploymentRepo: &repomocks.DeploymentRepositoryMock{
+			PlacedGatewaysFunc:         func(context.Context, string, uuid.UUID) ([]string, error) { return nil, nil },
+			LockEnvironmentMappingFunc: mappedEverywhere,
+			StartDeployFunc:            startDeployStub,
+		},
+		tx:                   sentinelTx,
+		gatewayEventsService: &GatewayEventsService{hub: f.hub},
+		logger:               discardLogger(),
+	}
+	withMCPCore(f.svc)
+	f.svc.kind.gatewayRepo, f.svc.kind.deploymentRepo = f.svc.gatewayRepo, f.svc.deploymentRepo
+	f.pinned = pinExemptGateways([]models.MCPProxyEndpointDTO{privateUpstreamEndpoint("")},
+		map[string]uuid.UUID{testMCPEnvUUID: f.selfHosted.UUID})
+	return f
+}
+
+func (f *pinnedSaveFixture) save() error {
+	return f.svc.deploySavedMCPProxy(context.Background(), txSentinel, "proxy-handle", "org", f.pinned)
+}
+
+// Without the pin, the environment-only resolution would pick the managed gateway and deploy the private upstream
+// there, skipping the SSRF check validation exempted for the self-hosted gateway.
+func TestMCPSave_PinnedExemptEnvironmentDeploysOnTheApprovedGateway(t *testing.T) {
+	f := newPinnedSaveFixture(t, func(selfHosted, managed *models.Gateway) []*models.Gateway {
+		return []*models.Gateway{managed, selfHosted}
+	})
+
+	require.NoError(t, f.save())
+
+	require.Len(t, f.hub.published, 1)
+	assert.Equal(t, f.selfHosted.UUID.String(), f.hub.published[0].GatewayID)
+}
+
+func TestMCPSave_PinnedExemptGatewayGoneIsA400(t *testing.T) {
+	f := newPinnedSaveFixture(t, func(_, managed *models.Gateway) []*models.Gateway {
+		return []*models.Gateway{managed}
+	})
+
+	err := f.save()
+
+	require.Error(t, err)
+	require.ErrorIs(t, mcpDeployRejection(err), utils.ErrInvalidInput)
+	assert.Empty(t, f.hub.published)
+}
+
+// Saved unplaced: a later placement goes through MCPProxyKind.Targets, which refuses a managed gateway for a
+// non-public upstream.
+func TestMCPSave_PinnedExemptGatewayGoneAndEnvironmentEmptySavesUnplaced(t *testing.T) {
+	f := newPinnedSaveFixture(t, func(*models.Gateway, *models.Gateway) []*models.Gateway { return nil })
+
+	require.NoError(t, f.save())
+
+	for _, event := range f.hub.published {
+		assert.Empty(t, event.GatewayID)
+	}
 }
 
 // orderedEventHub records each publish in a log shared with the test's other fakes.

@@ -117,8 +117,9 @@ func TestMCPProxyUpdate_AgentReferenceWithoutMappingsRefusesSelfHosted(t *testin
 func TestValidateMCPEndpointPlacement_AgentReferences(t *testing.T) {
 	ctx := context.Background()
 	place := func(f *agentPlacementFixture, gatewayID string, existing map[string]uuid.UUID) error {
-		return f.svc.validateMCPEndpointPlacement(ctx, "org1", f.proxy.UUID,
+		_, err := f.svc.validateMCPEndpointPlacement(ctx, "org1", f.proxy.UUID,
 			[]models.MCPProxyEndpointDTO{endpointBoundToGateway(gatewayID)}, existing)
+		return err
 	}
 
 	t.Run("an agent bound in another environment refuses through its proxy reference", func(t *testing.T) {
@@ -153,7 +154,8 @@ func TestValidateMCPEndpointPlacement_AgentReferences(t *testing.T) {
 		f := newAgentPlacementFixture(t)
 		f.svc.envMCPMappingRepo = nil
 		f.svc.agentConfigRepo = nil
-		require.NoError(t, f.svc.validateMCPEndpointPlacement(ctx, "org1", uuid.Nil,
-			[]models.MCPProxyEndpointDTO{endpointBoundToGateway(f.selfHosted.UUID.String())}, nil))
+		_, err := f.svc.validateMCPEndpointPlacement(ctx, "org1", uuid.Nil,
+			[]models.MCPProxyEndpointDTO{endpointBoundToGateway(f.selfHosted.UUID.String())}, nil)
+		require.NoError(t, err)
 	})
 }

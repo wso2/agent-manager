@@ -24,6 +24,7 @@ import (
 	"fmt"
 	"io"
 	"log/slog"
+	"maps"
 	"net/http"
 	"net/url"
 	"regexp"
@@ -214,9 +215,11 @@ func (s *MCPProxyService) Create(ctx context.Context, orgUUID, createdBy string,
 	if err := s.validateMCPEndpointSecurity(ctx, orgUUID, req.Endpoints, nil); err != nil {
 		return nil, err
 	}
-	if err := s.validateMCPEndpointPlacement(ctx, orgUUID, uuid.Nil, req.Endpoints, nil); err != nil {
+	exempt, err := s.validateMCPEndpointPlacement(ctx, orgUUID, uuid.Nil, req.Endpoints, nil)
+	if err != nil {
 		return nil, err
 	}
+	deployEndpoints := pinExemptGateways(req.Endpoints, exempt)
 	endpoints, err := s.buildMCPEndpointsForStorage(req.Endpoints, nil)
 	if err != nil {
 		return nil, err
@@ -254,7 +257,7 @@ func (s *MCPProxyService) Create(ctx context.Context, orgUUID, createdBy string,
 		if err := s.persistMCPEndpoints(ctx, tx, proxy.UUID, handle, version, endpoints, orgUUID); err != nil {
 			return err
 		}
-		return s.deploySavedMCPProxy(ctx, tx, handle, orgUUID, req.Endpoints)
+		return s.deploySavedMCPProxy(ctx, tx, handle, orgUUID, deployEndpoints)
 	}); err != nil {
 		if rejected := mcpDeployRejection(err); rejected != nil {
 			return nil, rejected
@@ -485,9 +488,11 @@ func (s *MCPProxyService) Update(ctx context.Context, orgUUID, proxyID string, r
 	if err := s.validateMCPEndpointSecurity(ctx, orgUUID, req.Endpoints, existingArtifactByEnv); err != nil {
 		return nil, err
 	}
-	if err := s.validateMCPEndpointPlacement(ctx, orgUUID, proxyUUID, req.Endpoints, existingArtifactByEnv); err != nil {
+	exempt, err := s.validateMCPEndpointPlacement(ctx, orgUUID, proxyUUID, req.Endpoints, existingArtifactByEnv)
+	if err != nil {
 		return nil, err
 	}
+	deployEndpoints := pinExemptGateways(req.Endpoints, exempt)
 
 	// Captured inside the transaction so removed-(endpoint,env) artifacts can be torn down
 	// from their gateways after the update commits. Keyed by environment UUID because
@@ -548,7 +553,7 @@ func (s *MCPProxyService) Update(ctx context.Context, orgUUID, proxyID string, r
 			return err
 		}
 		// Redeploy the (endpoint,env) artifacts so they pick up the new upstream / auth / policies / context.
-		return s.deploySavedMCPProxy(ctx, tx, handle, orgUUID, req.Endpoints)
+		return s.deploySavedMCPProxy(ctx, tx, handle, orgUUID, deployEndpoints)
 	}); err != nil {
 		if rejected := mcpDeployRejection(err); rejected != nil {
 			return nil, rejected
@@ -1407,13 +1412,25 @@ func (s *MCPProxyService) validateMCPEndpointSecurity(
 //
 // proxyUUID is the proxy being updated, uuid.Nil on create. A proxy agents use may not move
 // into a self-hosted gateway (requireNoAgentsForSelfHostedPlacement).
+//
+// An endpoint whose environments all resolve to self-hosted gateways skips the upstream's
+// private-address check. That exemption holds only for the gateways it was decided for, so
+// the returned map names, per environment of such an endpoint, the self-hosted gateway it
+// resolved to; the caller pins each one with pinExemptGateways before its transaction. With
+// the pin, the deploy step's resolution either returns that gateway or fails with
+// errInvalidEgressGateway or errPlacementFixed (a 400) when the environment's gateways
+// changed in between. An environment left with no gateway at all is saved unplaced; placing
+// it later goes through MCPProxyKind.Targets, which refuses a managed gateway for an
+// upstream that is not public.
 func (s *MCPProxyService) validateMCPEndpointPlacement(
 	ctx context.Context, orgUUID string, proxyUUID uuid.UUID, endpoints []models.MCPProxyEndpointDTO, existingArtifactByEnv map[string]uuid.UUID,
-) error {
+) (map[string]uuid.UUID, error) {
 	agentUse := &mcpProxyAgentUse{}
+	exempt := map[string]uuid.UUID{}
 	for _, endpoint := range endpoints {
 		handle := strings.TrimSpace(endpoint.ID)
 		resolved := make([]*models.Gateway, 0, len(endpoint.Environments))
+		resolvedByEnv := make(map[string]uuid.UUID, len(endpoint.Environments))
 		anyUnresolved := false
 		for _, env := range endpoint.Environments {
 			envIDStr := strings.TrimSpace(env.EnvironmentUUID)
@@ -1433,7 +1450,7 @@ func (s *MCPProxyService) validateMCPEndpointPlacement(
 
 			gateway, err := resolveEgressGatewayForArtifact(s.gatewayRepo, orgUUID, envUUID, deployed, requestedGatewayUUID(env))
 			if mcpDeployErrorIsFatal(err) {
-				return fmt.Errorf("%w: endpoint %q environment %q: %w", utils.ErrInvalidInput, handle, envIDStr, err)
+				return nil, fmt.Errorf("%w: endpoint %q environment %q: %w", utils.ErrInvalidInput, handle, envIDStr, err)
 			}
 			if err != nil || gateway == nil {
 				anyUnresolved = true
@@ -1441,13 +1458,15 @@ func (s *MCPProxyService) validateMCPEndpointPlacement(
 			}
 			if !gateway.IsManaged() && !slices.Contains(deployed, gateway.UUID.String()) {
 				if err := s.requireNoAgentsForSelfHostedPlacement(ctx, orgUUID, proxyUUID, envUUID, gateway, agentUse); err != nil {
-					return err
+					return nil, err
 				}
 			}
 			resolved = append(resolved, gateway)
+			resolvedByEnv[envIDStr] = gateway.UUID
 		}
 
 		if !mcpUpstreamNeedsSSRFGuard(resolved, anyUnresolved) {
+			maps.Copy(exempt, resolvedByEnv)
 			continue
 		}
 		upstreamURL := ""
@@ -1455,10 +1474,10 @@ func (s *MCPProxyService) validateMCPEndpointPlacement(
 			upstreamURL = strings.TrimSpace(endpoint.Upstream.Main.URL)
 		}
 		if err := ssrf.ValidateURL(ctx, upstreamURL); err != nil {
-			return fmt.Errorf("%w: endpoint %q upstream url: %w", utils.ErrInvalidURL, handle, err)
+			return nil, fmt.Errorf("%w: endpoint %q upstream url: %w", utils.ErrInvalidURL, handle, err)
 		}
 	}
-	return nil
+	return exempt, nil
 }
 
 // mcpProxyAgentUse caches, for one validation, which agents use the proxy.
@@ -1681,6 +1700,25 @@ func (s *MCPProxyService) buildMCPEndpointsForStorage(incoming []models.MCPProxy
 		})
 	}
 	return out, nil
+}
+
+// pinExemptGateways returns a copy of endpoints in which every environment in exempt that names no gatewayId names
+// the gateway validateMCPEndpointPlacement approved it for. An explicit gatewayId is already the approved one.
+func pinExemptGateways(endpoints []models.MCPProxyEndpointDTO, exempt map[string]uuid.UUID) []models.MCPProxyEndpointDTO {
+	pinned := slices.Clone(endpoints)
+	for i := range pinned {
+		pinned[i].Environments = slices.Clone(pinned[i].Environments)
+		for j := range pinned[i].Environments {
+			env := &pinned[i].Environments[j]
+			gatewayUUID, ok := exempt[strings.TrimSpace(env.EnvironmentUUID)]
+			if !ok || requestedGatewayUUID(*env) != nil {
+				continue
+			}
+			gatewayID := gatewayUUID.String()
+			env.GatewayID = &gatewayID
+		}
+	}
+	return pinned
 }
 
 // applyRequestedGatewayUUIDs copies each request DTO's caller-specified gatewayId onto the
