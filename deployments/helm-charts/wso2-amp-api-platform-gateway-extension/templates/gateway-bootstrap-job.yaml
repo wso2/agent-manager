@@ -271,7 +271,7 @@ spec:
               # ENVIRONMENT_NAME when it serves no environment. Deleting an environment
               # drops only its gateway mappings, so re-adding an environment with the same
               # name finds the old gateway in Step 3, and without this the new environment
-              # has no gateway. Sets ENV_MAPPED=true once the gateway serves an environment.
+              # has no gateway. Sets ENV_MAPPED=true once the gateway serves ENVIRONMENT_NAME.
               # Non-fatal like sync_runtime_url, so a failure cannot abort a pre-upgrade hook.
               ensure_environment_mapping() {
                 # _em_ prefix: POSIX sh has no portable `local`, so these leak as globals.
@@ -282,7 +282,14 @@ spec:
                   return 0
                 fi
                 if echo "${_em_body}" | grep -q '"environments":\[{'; then
-                  ENV_MAPPED=true
+                  # A gateway serves one environment, so a mapping to any other leaves
+                  # ENVIRONMENT_NAME without this gateway. The gateway's own name never
+                  # equals an environment name, so this match is the mapped environment.
+                  if echo "${_em_body}" | grep -qF '"name":"'"${ENVIRONMENT_NAME}"'"'; then
+                    ENV_MAPPED=true
+                  else
+                    log_error "Gateway '${GATEWAY_NAME}' is mapped to another environment, not '${ENVIRONMENT_NAME}' (continuing). Unassign it under Gateways in the console, then upgrade this release."
+                  fi
                   return 0
                 fi
                 log_info "Gateway '${GATEWAY_NAME}' serves no environment; mapping it to '${ENVIRONMENT_NAME}'..."

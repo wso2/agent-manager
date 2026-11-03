@@ -194,7 +194,8 @@ fi
 # Failures are non-fatal: the environment itself is already gone.
 deregister_gateway() {
     local name="$1" code gw_id
-    code=$(curl -s -o "$RESP_FILE" -w "%{http_code}" \
+    # Bounded so a stalled connection reaches the warning below instead of hanging Step 4.
+    code=$(curl -s --connect-timeout 10 --max-time 30 -o "$RESP_FILE" -w "%{http_code}" \
         "${AGENT_MANAGER_API_URL}/orgs/${ORG_NAME}/gateways/${name}" \
         -H "Authorization: Bearer ${AGENT_MANAGER_TOKEN}" || true)
     case "$code" in
@@ -226,7 +227,7 @@ deregister_gateway() {
         return 0
     fi
 
-    code=$(curl -s -o "$RESP_FILE" -w "%{http_code}" -X DELETE \
+    code=$(curl -s --connect-timeout 10 --max-time 30 -o "$RESP_FILE" -w "%{http_code}" -X DELETE \
         "${AGENT_MANAGER_API_URL}/orgs/${ORG_NAME}/gateways/${gw_id}" \
         -H "Authorization: Bearer ${AGENT_MANAGER_TOKEN}" || true)
     case "$code" in
