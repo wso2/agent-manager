@@ -57,7 +57,7 @@ type AgentConfigurationService interface {
 	Create(ctx context.Context, ouID, projectName, agentID string,
 		req models.CreateAgentModelConfigRequest, createdBy string) (*models.AgentModelConfigResponse, error)
 	ValidateProvidersInCatalog(ctx context.Context, ouID string, providerHandles []string) error
-	ValidateMCPProxiesInCatalog(ctx context.Context, ouID string, proxyHandles []string) error
+	ValidateMCPProxiesInCatalog(ctx context.Context, ouID, projectName string, proxyHandles []string) error
 	Get(ctx context.Context, configUUID uuid.UUID, ouID, projectName, agentName string) (*models.AgentModelConfigResponse, error)
 	GetMCP(ctx context.Context, configUUID uuid.UUID, ouID, projectName, agentName string) (*models.AgentModelConfigResponse, error)
 	GetByAgent(ctx context.Context, agentID, ouID string) (*models.AgentModelConfigResponse, error)
@@ -1022,7 +1022,7 @@ func (s *agentConfigurationService) ValidateProvidersInCatalog(
 // that is published in the catalog. Mirrors ValidateProvidersInCatalog and is used by the
 // MCP auto-wiring preflight so a bad proxy fails fast before the component is created.
 func (s *agentConfigurationService) ValidateMCPProxiesInCatalog(
-	ctx context.Context, ouID string, proxyHandles []string,
+	ctx context.Context, ouID, projectName string, proxyHandles []string,
 ) error {
 	if s.mcpProxyRepo == nil {
 		return fmt.Errorf("MCP configuration service is not fully configured")
@@ -1045,8 +1045,8 @@ func (s *agentConfigurationService) ValidateMCPProxiesInCatalog(
 			}
 			return fmt.Errorf("failed to validate MCP proxy %s: %w", handle, err)
 		}
-		if proxy.Artifact == nil || !proxy.Artifact.InCatalog {
-			return fmt.Errorf("%w: MCP proxy %s must be in catalog", utils.ErrInvalidInput, handle)
+		if err := s.requireMCPProxyBindable(ctx, proxy, ouID, projectName); err != nil {
+			return err
 		}
 	}
 	return nil
@@ -1461,6 +1461,9 @@ func (s *agentConfigurationService) createMCPConfig(ctx context.Context, ouID, p
 				return nil, fmt.Errorf("MCP proxy for environment %s not found: %w", envName, utils.ErrMCPProxyNotFound)
 			}
 			return nil, fmt.Errorf("failed to validate MCP proxy for environment %s: %w", envName, err)
+		}
+		if err := s.requireMCPProxyBindable(ctx, proxy, ouID, projectName); err != nil {
+			return nil, err
 		}
 		proxiesByEnv[envName] = proxy
 	}
@@ -2494,6 +2497,9 @@ func (s *agentConfigurationService) updateMCPConfig(ctx context.Context, existin
 				return nil, fmt.Errorf("MCP proxy for environment %s not found: %w", envName, utils.ErrMCPProxyNotFound)
 			}
 			return nil, fmt.Errorf("failed to validate MCP proxy for environment %s: %w", envName, err)
+		}
+		if err := s.requireMCPProxyBindable(ctx, proxy, ouID, projectName); err != nil {
+			return nil, err
 		}
 		proxiesByEnv[envName] = proxy
 	}
@@ -5119,10 +5125,9 @@ func buildAgentMCPConfigProxy(
 	// gateway artifact the proxy deployed for this environment. That artifact lives at the
 	// proxy's base context, so the injected proxy URL derived from this value is the shared
 	// per-environment URL (identical for every agent that references the proxy).
-	context := ""
-	if source.Configuration.Context != nil {
-		context = *source.Configuration.Context
-	}
+	// A project proxy is served at /<project><context>, so the URL injected into the agent must
+	// carry the project prefix; an org proxy's context is used as is.
+	context := mcpGatewayContext(source, "")
 	name := handle
 	version := source.Version
 	if source.Artifact != nil && source.Artifact.Version != "" {
@@ -6355,4 +6360,37 @@ func (s *agentConfigurationService) systemManagedMCPURL(
 		return buildMCPProxyURL(gateway, deployedProxy.Configuration), nil
 	}
 	return "", nil
+}
+
+// mcpProxyBindableFromProject reports whether an agent in the project with agentProjectUUID may bind
+// the proxy as a tool. An org proxy must be published to the catalog; a project proxy must belong to
+// the agent's own project, and any other project's proxy is reported as not found so its existence
+// isn't leaked.
+func mcpProxyBindableFromProject(proxy *models.MCPProxy, agentProjectUUID string) error {
+	if proxy.ProjectUUID != nil {
+		if *proxy.ProjectUUID != agentProjectUUID {
+			return fmt.Errorf("MCP proxy %s not found: %w", proxyHandleOf(proxy), utils.ErrMCPProxyNotFound)
+		}
+		return nil
+	}
+	if proxy.Artifact == nil || !proxy.Artifact.InCatalog {
+		return fmt.Errorf("%w: MCP proxy %s must be in catalog", utils.ErrInvalidInput, proxyHandleOf(proxy))
+	}
+	return nil
+}
+
+// requireMCPProxyBindable applies mcpProxyBindableFromProject for an agent in projectName. The
+// project's UUID is only looked up for a project proxy; an org proxy doesn't need it.
+func (s *agentConfigurationService) requireMCPProxyBindable(
+	ctx context.Context, proxy *models.MCPProxy, ouID, projectName string,
+) error {
+	agentProjectUUID := ""
+	if proxy.ProjectUUID != nil {
+		project, err := s.ocClient.GetProject(ctx, ouID, projectName)
+		if err != nil {
+			return fmt.Errorf("failed to resolve project %s: %w", projectName, err)
+		}
+		agentProjectUUID = project.UUID
+	}
+	return mcpProxyBindableFromProject(proxy, agentProjectUUID)
 }

@@ -89,7 +89,10 @@ func (s *MCPProxyService) MCPResourceServerIdentifier(ctx context.Context, ouID 
 		return "", err
 	}
 
-	return buildMCPProxyURL(gateway, proxy.Configuration), nil
+	cfg := proxy.Configuration
+	gatewayContext := mcpGatewayContext(proxy, "")
+	cfg.Context = &gatewayContext
+	return buildMCPProxyURL(gateway, cfg), nil
 }
 
 // EnsureResourceServer ensures proxy's resource server and given actions
