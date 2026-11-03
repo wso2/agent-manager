@@ -58,3 +58,20 @@ func TestEmbeddedEventStreamEvictsOldEvents(t *testing.T) {
 	require.Less(t, info.State.Msgs, uint64(4))
 	require.LessOrEqual(t, info.State.Bytes, uint64(1024))
 }
+
+func TestEventConsumerBoundsRetries(t *testing.T) {
+	bus, err := StartEmbedded(slog.New(slog.NewTextHandler(io.Discard, nil)))
+	require.NoError(t, err)
+	defer bus.Close()
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+	require.NoError(t, bus.Setup(ctx))
+	sub, err := bus.SubscribeEvents(ctx, "bounded-retries", func(msg Message) { _ = msg.Drop() })
+	require.NoError(t, err)
+	defer sub.Stop()
+	consumer, err := bus.js.Consumer(ctx, EventsStream, "bounded-retries")
+	require.NoError(t, err)
+	info, err := consumer.Info(ctx)
+	require.NoError(t, err)
+	require.Equal(t, natsEventMaxDeliver, info.Config.MaxDeliver)
+}

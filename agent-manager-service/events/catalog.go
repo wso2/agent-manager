@@ -51,6 +51,8 @@ type routeEvent struct {
 	// (an API key, a token, a client secret) that must never leave the
 	// platform in an event.
 	OmitData bool
+	// EnvironmentQuery declares that the route accepts ?environment=.
+	EnvironmentQuery bool
 }
 
 // routeEvents is keyed by the registrar pattern. A route not listed here
@@ -107,7 +109,7 @@ var routeEvents = map[string]routeEvent{
 	"PUT /orgs/{orgName}/projects/{projName}/agents/{agentName}/build-parameters":                           {Type: "agent.build_parameters_updated"},
 	"PUT /orgs/{orgName}/projects/{projName}/agents/{agentName}/configurations":                             {Type: "agent.configuration_updated"},
 	"PUT /orgs/{orgName}/projects/{projName}/agents/{agentName}/deploy-settings":                            {Type: "agent.configuration_updated"},
-	"PUT /orgs/{orgName}/projects/{projName}/agents/{agentName}/resource-configs":                           {Type: "agent.configuration_updated"},
+	"PUT /orgs/{orgName}/projects/{projName}/agents/{agentName}/resource-configs":                           {Type: "agent.configuration_updated", EnvironmentQuery: true},
 	"POST /orgs/{orgName}/projects/{projName}/agents/{agentName}/builds":                                    {Type: "agent.build_triggered"},
 	"POST /orgs/{orgName}/projects/{projName}/agents/{agentName}/deployments":                               {Type: "agent.deployed"},
 	"POST /orgs/{orgName}/projects/{projName}/agents/{agentName}/promote":                                   {Type: "agent.promoted"},
@@ -323,4 +325,9 @@ func RoutePatterns() []string {
 	}
 	sort.Strings(out)
 	return out
+}
+
+// RouteUsesEnvironmentQuery reports whether the route declares an environment query parameter.
+func RouteUsesEnvironmentQuery(pattern string) bool {
+	return routeEvents[pattern].EnvironmentQuery
 }

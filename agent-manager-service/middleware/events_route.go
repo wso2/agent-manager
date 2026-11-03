@@ -110,7 +110,7 @@ func WithEvents(publisher events.Publisher, meta audit.RouteMeta) func(http.Hand
 					e.Environment = r.PathValue(p)
 				}
 			}
-			if e.Environment == "" {
+			if e.Environment == "" && events.RouteUsesEnvironmentQuery(meta.Pattern) {
 				e.Environment = r.URL.Query().Get("environment")
 			}
 			for _, f := range envResponseFields {
