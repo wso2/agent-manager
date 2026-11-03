@@ -247,6 +247,19 @@ amp_registries_yaml_fragment() {
 EOF
 }
 
+# amp_k3d_node_has_registry_credentials <node-container>
+# True when the node's registries.yaml already has a configs entry for the
+# registry host, as a cluster created by an earlier private install does. k3s
+# rewrites the file on start, so the key may or may not be quoted.
+amp_k3d_node_has_registry_credentials() {
+    docker exec "$1" cat /etc/rancher/k3s/registries.yaml 2>/dev/null \
+        | awk -v key="$(amp_registry_host):" '
+            /^configs:/ { in_configs = 1; next }
+            /^[^ ]/ { in_configs = 0 }
+            in_configs { k = $1; gsub(/"/, "", k); if (k == key) found = 1 }
+            END { exit !found }'
+}
+
 # amp_pull_secret_helm_args
 # Prints the helm flags that point a chart at the private registry, one token per
 # line so a caller can read them into an array. Prints nothing for a public
