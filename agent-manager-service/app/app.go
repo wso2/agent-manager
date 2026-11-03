@@ -51,6 +51,13 @@ import (
 	"gorm.io/gorm"
 )
 
+// The migration job usually finishes within a minute of the pod starting; the
+// timeout only stops a wait that can never succeed from hanging forever.
+const (
+	migrationWaitTimeout  = 10 * time.Minute
+	migrationWaitInterval = 2 * time.Second
+)
+
 // Options holds the configuration options for running the application.
 // These are typically parsed from command-line flags in main.
 type Options struct {
@@ -58,6 +65,9 @@ type Options struct {
 	Server bool
 	// Migrate indicates whether to run database migrations before starting
 	Migrate bool
+	// WaitForMigrations blocks until another process has applied this build's
+	// migrations, for an init container that runs ahead of the server
+	WaitForMigrations bool
 	// ExtraAPIRoutes registers additional routes onto the authenticated /api/v1 sub-mux.
 	// Use this to inject deployment-specific routes without modifying the core handler.
 	ExtraAPIRoutes func(mux *http.ServeMux, params *wiring.AppParams)
@@ -138,6 +148,17 @@ func Run(authProvider occlient.AuthProvider, secretProvider secretmanagersvc.Pro
 	if opts.Migrate {
 		if err := dbmigrations.Migrate(); err != nil {
 			slog.Error("error occurred while migrating", "error", err)
+			os.Exit(1)
+		}
+	}
+
+	if opts.WaitForMigrations {
+		ctx, cancel := context.WithTimeout(context.Background(), migrationWaitTimeout)
+		err := dbmigrations.WaitForLatest(ctx, migrationWaitInterval)
+		cancel()
+		if err != nil {
+			slog.Error("database migrations did not complete; check that the migration job runs the same image version as this server",
+				"error", err)
 			os.Exit(1)
 		}
 	}
