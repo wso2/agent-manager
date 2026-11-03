@@ -1440,7 +1440,7 @@ func (s *MCPProxyService) validateMCPEndpointPlacement(
 				continue
 			}
 
-			deployed, ok := s.anchorGatewaysForEnvironment(ctx, orgUUID, existingArtifactByEnv[envIDStr])
+			deployed, ok := s.anchorGatewaysForEnvironment(ctx, orgUUID, existingArtifactByEnv[envUUID.String()])
 			if !ok {
 				// Anchor unknown: skip rather than resolve without it, since environment-only
 				// selection could reject a binding the anchor would have resolved cleanly.
@@ -1462,7 +1462,7 @@ func (s *MCPProxyService) validateMCPEndpointPlacement(
 				}
 			}
 			resolved = append(resolved, gateway)
-			resolvedByEnv[envIDStr] = gateway.UUID
+			resolvedByEnv[envUUID.String()] = gateway.UUID
 		}
 
 		if !mcpUpstreamNeedsSSRFGuard(resolved, anyUnresolved) {
@@ -1710,7 +1710,8 @@ func pinExemptGateways(endpoints []models.MCPProxyEndpointDTO, exempt map[string
 		pinned[i].Environments = slices.Clone(pinned[i].Environments)
 		for j := range pinned[i].Environments {
 			env := &pinned[i].Environments[j]
-			gatewayUUID, ok := exempt[strings.TrimSpace(env.EnvironmentUUID)]
+			envKey, _ := canonicalEnvironmentUUID(env.EnvironmentUUID)
+			gatewayUUID, ok := exempt[envKey]
 			if !ok || requestedGatewayUUID(*env) != nil {
 				continue
 			}
@@ -1719,6 +1720,16 @@ func pinExemptGateways(endpoints []models.MCPProxyEndpointDTO, exempt map[string
 		}
 	}
 	return pinned
+}
+
+// canonicalEnvironmentUUID spells a request's environment UUID the way stored bindings key it. uuid.Parse accepts
+// upper case, braces and other forms the request body may carry.
+func canonicalEnvironmentUUID(raw string) (string, bool) {
+	envUUID, err := uuid.Parse(strings.TrimSpace(raw))
+	if err != nil {
+		return "", false
+	}
+	return envUUID.String(), true
 }
 
 // applyRequestedGatewayUUIDs copies each request DTO's caller-specified gatewayId onto the
@@ -1732,8 +1743,8 @@ func applyRequestedGatewayUUIDs(proxy *models.MCPProxy, endpoints []models.MCPPr
 	requested := map[string]*string{}
 	for _, endpoint := range endpoints {
 		for _, env := range endpoint.Environments {
-			envUUID := strings.TrimSpace(env.EnvironmentUUID)
-			if envUUID == "" || env.GatewayID == nil {
+			envUUID, valid := canonicalEnvironmentUUID(env.EnvironmentUUID)
+			if !valid || env.GatewayID == nil {
 				continue
 			}
 			gwID := strings.TrimSpace(*env.GatewayID)

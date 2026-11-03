@@ -18,6 +18,7 @@ package services
 
 import (
 	"context"
+	"strings"
 	"testing"
 	"time"
 
@@ -302,6 +303,26 @@ func TestMCPSave_PinnedExemptGatewayGoneIsA400(t *testing.T) {
 	})
 
 	err := f.save()
+
+	require.Error(t, err)
+	require.ErrorIs(t, mcpDeployRejection(err), utils.ErrInvalidInput)
+	assert.Empty(t, f.hub.published)
+}
+
+// The request spells the environment UUID in upper case; the approved gateway must still reach the save's binding.
+func TestMCPSave_PinnedExemptGatewayGoneIsA400WhateverTheEnvironmentUUIDSpelling(t *testing.T) {
+	f := newPinnedSaveFixture(t, func(_, managed *models.Gateway) []*models.Gateway {
+		return []*models.Gateway{managed}
+	})
+	endpoint := privateUpstreamEndpoint(f.selfHosted.UUID.String())
+	endpoint.Environments[0].EnvironmentUUID = strings.ToUpper(testMCPEnvUUID)
+	endpoints := []models.MCPProxyEndpointDTO{endpoint}
+	validation := placementService(gatewayFixtureRepo(t, testMCPEnvUUID, []*models.Gateway{f.selfHosted}), nil)
+	exempt, err := validation.validateMCPEndpointPlacement(context.Background(), "org", uuid.Nil, endpoints, nil)
+	require.NoError(t, err)
+	f.pinned = pinExemptGateways(endpoints, exempt)
+
+	err = f.save()
 
 	require.Error(t, err)
 	require.ErrorIs(t, mcpDeployRejection(err), utils.ErrInvalidInput)

@@ -25,6 +25,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	"gorm.io/gorm"
 
 	"github.com/wso2/agent-manager/agent-manager-service/clients/clientmocks"
@@ -921,6 +922,54 @@ func TestPinExemptGateways_FillsOnlyBlankGatewayIDs(t *testing.T) {
 	assert.Equal(t, "  ", *original[0].GatewayID, "the input is not mutated")
 	assert.Same(t, &whitespace, original[0].GatewayID)
 	assert.Nil(t, original[2].GatewayID)
+}
+
+// uuid.Parse accepts other spellings of an environment UUID, and the request body is not normalised before validation.
+func TestValidateMCPEndpointPlacement_ExemptGatewaysWhateverTheEnvironmentUUIDSpelling(t *testing.T) {
+	selfHosted := selfHostedGateway(t)
+	managed := newGateway(t, models.GatewayRoleBoth, true)
+	ctx := context.Background()
+	upperCaseEnv := func(gatewayID string) models.MCPProxyEndpointDTO {
+		endpoint := privateUpstreamEndpoint(gatewayID)
+		endpoint.Environments[0].EnvironmentUUID = strings.ToUpper(testMCPEnvUUID)
+		return endpoint
+	}
+
+	t.Run("a named self-hosted gateway is exempt under the canonical key", func(t *testing.T) {
+		svc := placementService(gatewayFixtureRepo(t, testMCPEnvUUID, []*models.Gateway{selfHosted}), nil)
+		exempt, err := svc.validateMCPEndpointPlacement(ctx, "org1", uuid.Nil,
+			[]models.MCPProxyEndpointDTO{upperCaseEnv(selfHosted.UUID.String())}, nil)
+		require.NoError(t, err)
+		assert.Equal(t, map[string]uuid.UUID{testMCPEnvUUID: selfHosted.UUID}, exempt)
+	})
+
+	t.Run("an environment anchored on a self-hosted gateway is exempt and pinned", func(t *testing.T) {
+		svc := placementService(
+			gatewayFixtureRepo(t, testMCPEnvUUID, []*models.Gateway{managed, selfHosted}),
+			deployedTo(selfHosted.UUID.String()),
+		)
+		endpoints := []models.MCPProxyEndpointDTO{upperCaseEnv("")}
+
+		exempt, err := svc.validateMCPEndpointPlacement(ctx, "org1", uuid.Nil, endpoints,
+			map[string]uuid.UUID{testMCPEnvUUID: uuid.New()})
+		require.NoError(t, err)
+		assert.Equal(t, map[string]uuid.UUID{testMCPEnvUUID: selfHosted.UUID}, exempt)
+
+		pinned := pinExemptGateways(endpoints, exempt)
+		require.NotNil(t, pinned[0].Environments[0].GatewayID)
+		assert.Equal(t, selfHosted.UUID.String(), *pinned[0].Environments[0].GatewayID)
+	})
+
+	t.Run("the environment's deployed artifact still anchors it", func(t *testing.T) {
+		svc := placementService(
+			gatewayFixtureRepo(t, testMCPEnvUUID, []*models.Gateway{managed, selfHosted}),
+			deployedTo(managed.UUID.String()),
+		)
+		_, err := svc.validateMCPEndpointPlacement(ctx, "org1", uuid.Nil,
+			[]models.MCPProxyEndpointDTO{upperCaseEnv(selfHosted.UUID.String())},
+			map[string]uuid.UUID{testMCPEnvUUID: uuid.New()})
+		assert.ErrorIs(t, err, errPlacementFixed)
+	})
 }
 
 // Validation refuses before the transaction opens, so the service needs no database.
