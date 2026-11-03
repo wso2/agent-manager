@@ -1054,7 +1054,6 @@ export const ViewEvaluatorOrganization: React.FC = () => {
                 !editValues.displayName.trim() ? "Name is required" : undefined
               }
               fullWidth
-              required
             />
           </Box>
         )}

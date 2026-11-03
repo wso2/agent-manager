@@ -157,7 +157,7 @@ export function CreateMonitorForm({
       <Stack spacing={2}>
         <Typography variant="subtitle1">Data Collection</Typography>
         <Grid container spacing={2}>
-          <Grid size={{ xs: 12, md: 12, xl: 8 }}>
+          <Grid size={12}>
             <Form.Stack direction="row">
               <Form.CardButton
                 onClick={

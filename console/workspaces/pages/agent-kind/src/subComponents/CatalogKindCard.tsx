@@ -1,5 +1,5 @@
 import React from "react";
-import { Chip, ListingCard, Stack } from "@wso2/oxygen-ui";
+import { ListingCard, Stack, Tooltip, Typography } from "@wso2/oxygen-ui";
 import { formatRelativeTime } from "@agent-management-platform/shared-component";
 import { Link } from "react-router-dom";
 import { BookOpenText } from "@wso2/oxygen-ui-icons-react";
@@ -14,22 +14,26 @@ interface CatalogKindCardProps {
 }
 
 export const CatalogKindCard: React.FC<CatalogKindCardProps> = ({ item, viewPath }) => {
-    const labels = Object.entries(item.labels ?? {});
 
-    // The card's metadata reads as chips rather than prose: the version is the
-    // thing people scan a catalog for.
+    // The latest version's image, so people can tell which build the kind ships.
+    const latest =
+        item.versions?.find((v) => v.version === item.latestVersion) ?? item.versions?.[0];
     const decorators = (
-        <Stack direction="row" spacing={0.5} useFlexGap flexWrap="wrap" alignItems="center">
-            <Chip
-                size="small"
-                variant="outlined"
-                label={item.latestVersion ? `v${item.latestVersion}` : "No versions"}
-            />
-            {labels.slice(0, 2).map(([key, value]) => (
-                <Chip key={key} size="small" variant="outlined" label={`${key}: ${value}`} />
-            ))}
-            {labels.length > 2 && (
-                <Chip size="small" variant="outlined" label={`+${labels.length - 2}`} />
+        <Stack spacing={0.5}>
+            <Typography variant="body2" fontWeight={600}>
+                {item.latestVersion ? `Latest: ${item.latestVersion}` : "No versions"}
+            </Typography>
+            {latest?.imageId && (
+                <Tooltip title={latest.imageId}>
+                    <Typography
+                        variant="caption"
+                        color="text.secondary"
+                        noWrap
+                        sx={{ fontFamily: "monospace" }}
+                    >
+                        Image: {latest.imageId}
+                    </Typography>
+                </Tooltip>
             )}
         </Stack>
     );

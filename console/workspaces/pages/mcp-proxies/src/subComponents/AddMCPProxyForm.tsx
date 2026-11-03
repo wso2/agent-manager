@@ -218,6 +218,7 @@ export function AddMCPProxyForm({ onCancel }: AddMCPProxyFormProps) {
           <Grid size={{ xs: 12, md: 6, xl: 4 }}>
             <TextInput
               label="Name"
+              placeholder="e.g. GitHub MCP Server"
               maxLength={INPUT_LIMITS.NAME}
               hideCharacterCount={proxyName.length < INPUT_LIMITS.NAME}
               value={proxyName}
@@ -227,6 +228,7 @@ export function AddMCPProxyForm({ onCancel }: AddMCPProxyFormProps) {
           <Grid size={{ xs: 12, md: 6, xl: 4 }}>
             <TextInput
               label="Handle"
+              placeholder="e.g. github-mcp-server"
               maxLength={MAX_HANDLE_LENGTH}
               hideCharacterCount={!isHandleEditable || handle.length < MAX_HANDLE_LENGTH}
               value={handle}
@@ -262,6 +264,7 @@ export function AddMCPProxyForm({ onCancel }: AddMCPProxyFormProps) {
           <Grid size={{ xs: 12, md: 6, xl: 4 }}>
             <TextInput
               label="Version"
+              placeholder="1.0.0"
               maxLength={INPUT_LIMITS.SHORT_TEXT}
               hideCharacterCount={proxyVersion.length < INPUT_LIMITS.SHORT_TEXT}
               value={proxyVersion}
@@ -273,6 +276,7 @@ export function AddMCPProxyForm({ onCancel }: AddMCPProxyFormProps) {
           <Grid size={{ xs: 12, md: 6, xl: 4 }}>
             <TextInput
               label="Context (optional)"
+              placeholder="/github"
               maxLength={INPUT_LIMITS.PATH}
               hideCharacterCount={proxyContext.length < INPUT_LIMITS.PATH}
               value={proxyContext}
@@ -294,7 +298,7 @@ export function AddMCPProxyForm({ onCancel }: AddMCPProxyFormProps) {
               minRows={3}
               value={proxyDescription}
               onChange={(event) => setProxyDescription(event.target.value)}
-              placeholder="Primary MCP Server"
+              placeholder="What tools does this server provide?"
             />
           </Grid>
         </Grid>

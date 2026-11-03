@@ -40,14 +40,12 @@ import {
   MenuItem,
   Paper,
   SearchBar,
-  Select,
   Skeleton,
   Stack,
   Switch,
   Tab,
   TablePagination,
   Tabs,
-  TextField,
   ToggleButton,
   ToggleButtonGroup,
   Tooltip,
@@ -64,6 +62,7 @@ import {
   type ResourceItem,
 } from "../utils/openapiResources";
 import { z } from "zod";
+import { TextInput } from "@agent-management-platform/views";
 import { useUnsavedChangesGuard } from "@agent-management-platform/shared-component";
 
 const RESET_UNITS = [
@@ -333,63 +332,58 @@ function CriterionCard({
             />
           </Stack>
         </AccordionSummary>
-        <AccordionDetails sx={{ px: 2, pb: 2, pt: 0 }}>
+        <AccordionDetails sx={{ px: 2, pb: 2, pt: 1 }}>
           <Grid container spacing={2}>
-            <Grid size={{ xs: 12, sm: 4 }}>
-              <FormControl fullWidth size="small">
-                <FormLabel>{quotaLabel}</FormLabel>
-                <TextField
-                  size="small"
-                  type="number"
-                  placeholder={quotaPlaceholder}
-                  value={value.quota}
-                  onChange={(e) =>
-                    onChange({
-                      quota:
-                        criterionKey === "cost"
-                          ? e.target.value
-                          : e.target.value === ""
-                          ? ""
-                          : String(Math.trunc(Number(e.target.value))),
-                    })
-                  }
-                  disabled={disabled || !value.enabled}
-                  error={!!fieldErrors?.[errorKey]}
-                  helperText={fieldErrors?.[errorKey]}
-                  slotProps={{ input: { inputProps: { min: quotaMin, step: quotaStep } } }}
-                />
-              </FormControl>
+            <Grid size={{ xs: 12, md: 4 }}>
+              <TextInput
+                label={quotaLabel}
+                size="small"
+                type="number"
+                placeholder={quotaPlaceholder}
+                value={value.quota}
+                onChange={(e) =>
+                  onChange({
+                    quota:
+                      criterionKey === "cost"
+                        ? e.target.value
+                        : e.target.value === ""
+                        ? ""
+                        : String(Math.trunc(Number(e.target.value))),
+                  })
+                }
+                disabled={disabled || !value.enabled}
+                error={!!fieldErrors?.[errorKey]}
+                helperText={fieldErrors?.[errorKey]}
+                slotProps={{ input: { inputProps: { min: quotaMin, step: quotaStep } } }}
+              />
             </Grid>
-            <Grid size={{ xs: 12, sm: 4 }}>
-              <FormControl fullWidth size="small">
-                <FormLabel>Duration</FormLabel>
-                <TextField
-                  size="small"
-                  type="number"
-                  placeholder="e.g. 1"
-                  value={value.duration}
-                  onChange={(e) => onChange({ duration: e.target.value })}
-                  disabled={disabled || !value.enabled}
-                  error={!!fieldErrors?.[durationErrorKey]}
-                  helperText={fieldErrors?.[durationErrorKey]}
-                  slotProps={{ input: { inputProps: { min: 1, step: 1 } } }}
-                />
-              </FormControl>
+            <Grid size={{ xs: 12, md: 4 }}>
+              <TextInput
+                label="Duration"
+                size="small"
+                type="number"
+                placeholder="e.g. 1"
+                value={value.duration}
+                onChange={(e) => onChange({ duration: e.target.value })}
+                disabled={disabled || !value.enabled}
+                error={!!fieldErrors?.[durationErrorKey]}
+                helperText={fieldErrors?.[durationErrorKey]}
+                slotProps={{ input: { inputProps: { min: 1, step: 1 } } }}
+              />
             </Grid>
-            <Grid size={{ xs: 12, sm: 4 }}>
-              <FormControl fullWidth size="small">
-                <FormLabel>Unit</FormLabel>
-                <Select
+            <Grid size={{ xs: 12, md: 4 }}>
+              <TextInput
+                select
+                label="Unit"
                   size="small"
                   value={value.unit}
                   onChange={(e) => onChange({ unit: e.target.value })}
                   disabled={disabled || !value.enabled}
-                >
+              >
                   {RESET_UNITS.map((u) => (
                     <MenuItem key={u.value} value={u.value}>{u.label}</MenuItem>
                   ))}
-                </Select>
-              </FormControl>
+              </TextInput>
             </Grid>
           </Grid>
         </AccordionDetails>

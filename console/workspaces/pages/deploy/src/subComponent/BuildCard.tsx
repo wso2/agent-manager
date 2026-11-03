@@ -18,12 +18,15 @@
 
 import {
   Box,
+  ButtonBase,
   Card,
   CardContent,
+  Chip,
+  IconButton,
+  Tooltip,
   Typography,
   Button,
   CircularProgress,
-  Divider,
   Stack,
 } from "@wso2/oxygen-ui";
 import { generatePath, Link, useParams, useSearchParams } from "react-router-dom";
@@ -33,11 +36,13 @@ import {
   useGetAgentKind,
   useListAgentDeployments,
 } from "@agent-management-platform/api-client";
-import { useMemo, useCallback, useEffect } from "react";
+import React, { useMemo, useCallback, useEffect, useState } from "react";
 import {
+  ChevronDown,
   Clock as AccessTime,
-  Edit,
+  Copy,
   GitCommit,
+  History,
   Hammer,
   Rocket,
   Tag,
@@ -46,12 +51,118 @@ import { StateNotice } from "@agent-management-platform/views";
 import { EditDeployConfigDrawer } from "./EditDeployConfigDrawer";
 import { BuildSelectorDrawer } from "./BuildSelectorDrawer";
 import { KindVersionSelectorDrawer } from "./KindVersionSelectorDrawer";
-import { format } from "date-fns";
+import { format, formatDistanceToNow } from "date-fns";
 import { absoluteRouteMap, Environment } from "@agent-management-platform/types";
 import {
   RestrictedAction,
   useAgentEnvironmentAccess,
 } from "@agent-management-platform/shared-component";
+
+interface PickerRowProps {
+  caption: string;
+  title: string;
+  ariaLabel: string;
+  /** When set, shows a copy button that copies the title. */
+  copyLabel?: string;
+  startedAt?: string;
+  latest?: boolean;
+  onOpen: () => void;
+  children?: React.ReactNode;
+}
+
+/** The neutral, bordered row that opens a build or version picker. */
+function PickerRow({
+  caption,
+  title,
+  ariaLabel,
+  copyLabel,
+  startedAt,
+  latest,
+  onOpen,
+  children,
+}: PickerRowProps) {
+  const [copied, setCopied] = useState(false);
+  const date = startedAt ? new Date(startedAt) : undefined;
+
+  const handleCopy = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    navigator.clipboard?.writeText(title).then(() => {
+      setCopied(true);
+      setTimeout(() => setCopied(false), 1500);
+    });
+  };
+
+  return (
+    <Stack
+      sx={{ border: 1, borderColor: "divider", borderRadius: 1, overflow: "hidden" }}
+    >
+      <ButtonBase
+        component="div"
+        role="button"
+        tabIndex={0}
+        aria-haspopup="dialog"
+        aria-label={ariaLabel}
+        onClick={onOpen}
+        sx={{
+          display: "flex",
+          flexDirection: "column",
+          alignItems: "stretch",
+          gap: 0.5,
+          width: "100%",
+          px: 1.5,
+          py: 1.5,
+          textAlign: "left",
+          "&:hover": { bgcolor: "action.hover" },
+          "&:focus-visible": { outline: "2px solid", outlineColor: "primary.main", outlineOffset: -2 },
+        }}
+      >
+        <Stack direction="row" alignItems="center" justifyContent="space-between" minHeight={24}>
+          <Typography variant="overline" color="text.secondary" lineHeight={1.5}>
+            {caption}
+          </Typography>
+          {latest && <Chip size="small" color="success" variant="outlined" label="Latest" />}
+        </Stack>
+        <Stack direction="row" alignItems="center" gap={0.5}>
+          <Typography
+            variant="body1"
+            sx={{ flex: 1, minWidth: 0, overflowWrap: "anywhere", fontFamily: "monospace" }}
+          >
+            {title}
+          </Typography>
+          {copyLabel && (
+            <Tooltip title={copied ? "Copied" : copyLabel}>
+              <IconButton size="small" aria-label={copyLabel} onClick={handleCopy}>
+                <Copy size={16} />
+              </IconButton>
+            </Tooltip>
+          )}
+          <ChevronDown size={16} />
+        </Stack>
+      </ButtonBase>
+      {(date || children) && (
+        <Stack
+          direction="row"
+          alignItems="center"
+          justifyContent="space-between"
+          gap={1}
+          sx={{ px: 1.5, py: 1, borderTop: 1, borderColor: "divider" }}
+        >
+          {date && (
+            <Tooltip title={format(date, "dd MMM yyyy")}>
+              <Stack direction="row" alignItems="center" gap={0.5} color="text.secondary">
+                <AccessTime size={14} />
+                <Typography variant="caption">
+                  {formatDistanceToNow(date, { addSuffix: true })}
+                </Typography>
+              </Stack>
+            </Tooltip>
+          )}
+          {children}
+        </Stack>
+      )}
+    </Stack>
+  );
+}
 
 interface BuildCardProps {
   initialEnvironment?: Environment;
@@ -317,45 +428,19 @@ export function BuildCard(props: BuildCardProps) {
         >
           <CardContent>
             <Stack direction="column" gap={2}>
-              <Typography variant="h5">Setup</Typography>
-              <Divider />
+              <Typography variant="h5">Version</Typography>
 
-              <Typography variant="body2" color="text.secondary">
-                Select Kind Version
-              </Typography>
-
-              <Button
-                variant="outlined"
-                fullWidth
-                onClick={handleOpenVersionSelector}
-                sx={{
-                  borderRadius: 0.5,
-                  justifyContent: "space-between",
-                  textTransform: "none",
-                }}
-              >
-                <Stack gap={0.5} alignItems="flex-start">
-                  <Typography variant="body1">
-                    {currentKindVersion?.version || "Select a version"}
-                  </Typography>
-                  {currentKindVersion && (
-                    <Box display="flex" gap={1} sx={{ opacity: 0.7 }}>
-                      <Box display="flex" alignItems="center" gap={0.5}>
-                        <AccessTime size={12} />
-                        <Typography variant="caption">
-                          {format(
-                            new Date(currentKindVersion.createdAt),
-                            "dd MMM yyyy"
-                          )}
-                        </Typography>
-                      </Box>
-                    </Box>
-                  )}
-                </Stack>
-                <Edit size={16} />
-              </Button>
-
-              <Divider />
+              <PickerRow
+                caption="Version"
+                title={currentKindVersion?.version || "Select a version"}
+                ariaLabel="Select a version"
+                startedAt={currentKindVersion?.createdAt}
+                latest={
+                  !!currentKindVersion &&
+                  currentKindVersion.version === sortedKindVersions[0]?.version
+                }
+                onOpen={handleOpenVersionSelector}
+              />
 
               <RestrictedAction decision={deployAccess} feature="deploy-agent">
                 <Button
@@ -445,49 +530,42 @@ export function BuildCard(props: BuildCardProps) {
       >
         <CardContent>
           <Stack direction="column" gap={2}>
-            <Typography variant="h5">Setup</Typography>
-            <Divider />
-            {/* Build ID Selector */}
+            <Stack direction="row" alignItems="center" justifyContent="space-between">
+              <Typography variant="h5">Setup</Typography>
+              <Button
+                size="small"
+                variant="text"
+                component={Link}
+                to={buildPath}
+                color="inherit"
+                startIcon={<History size={16} />}
+              >
+                All builds
+              </Button>
+            </Stack>
 
-            <Typography variant="body2" color="text.secondary">
-              Select Build
-            </Typography>
-
-            <Button
-              variant="outlined"
-              fullWidth
-              onClick={handleOpenBuildSelector}
-              sx={{
-                borderRadius: 0.5,
-                justifyContent: "space-between",
-                textTransform: "none",
-              }}
+            <PickerRow
+              caption="Build ID"
+              title={currentBuild?.buildName || "Select a build"}
+              ariaLabel="Select a build"
+              copyLabel={currentBuild ? "Copy build ID" : undefined}
+              startedAt={currentBuild?.startedAt}
+              latest={!!currentBuild && currentBuild.buildName === orderedBuilds?.[0]?.buildName}
+              onOpen={handleOpenBuildSelector}
             >
-              <Stack gap={0.5} alignItems="flex-start">
-                <Typography variant="body1">
-                  {currentBuild?.buildName || "Select a build"}
-                </Typography>
-                {currentBuild && (
-                  <Box display="flex" gap={1} sx={{ opacity: 0.7 }}>
-                    <Box display="flex" alignItems="center" gap={0.5}>
-                      <GitCommit size={16} />
-                      <Typography variant="caption">
-                        {currentBuild.buildParameters?.commitId?.substring(0, 8) || "N/A"}
-                      </Typography>
-                    </Box>
-                    <Box display="flex" alignItems="center" gap={0.5}>
-                      <AccessTime size={12} />
-                      <Typography variant="caption">
-                        {format(new Date(currentBuild.startedAt), "dd MMM yyyy")}
-                      </Typography>
-                    </Box>
-                  </Box>
-                )}
-              </Stack>
-              <Edit size={16} />
-            </Button>
+              {currentBuild && (
+                <Tooltip title="Commit">
+                  <Chip
+                    size="small"
+                    variant="outlined"
+                    icon={<GitCommit size={14} />}
+                    label={currentBuild.buildParameters?.commitId?.substring(0, 8) || "N/A"}
+                    sx={{ fontFamily: "monospace" }}
+                  />
+                </Tooltip>
+              )}
+            </PickerRow>
 
-            <Divider />
             {/* Selected Build Details */}
             <RestrictedAction decision={deployAccess} feature="deploy-agent">
               <Button

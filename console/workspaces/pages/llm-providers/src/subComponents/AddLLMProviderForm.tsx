@@ -593,8 +593,7 @@ export const AddLLMProviderForm: React.FC<AddLLMProviderFormProps> = ({
                 }}
               />
             </Grid>
-            <FormGridSpacer />
-            <Grid size={{ xs: 12, md: 6, xl: 4 }}>
+            <Grid size={{ xs: 12, md: 12, xl: 8 }}>
               <TextInput
                 label="API key / Credential"
                 id="apiKey"
