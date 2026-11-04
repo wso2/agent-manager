@@ -28,7 +28,7 @@ import (
 	"github.com/wso2/agent-manager/agent-manager-service/utils"
 )
 
-// A2AProxyController routes an external A2A agent through an environment's gateway.
+// A2AProxyController routes an external agent through an environment's gateway.
 type A2AProxyController interface {
 	GetA2AProxy(w http.ResponseWriter, r *http.Request)
 	SetA2AProxy(w http.ResponseWriter, r *http.Request)
@@ -53,7 +53,7 @@ func (c *a2aProxyController) GetA2AProxy(w http.ResponseWriter, r *http.Request)
 		return
 	}
 	utils.WriteSuccessResponse(w, http.StatusOK,
-		spec.NewA2AProxyResponse(string(status.Status), status.LastError, status.UpstreamAuthHeader, status.GatewayURL))
+		spec.NewA2AProxyResponse(string(status.Status), status.StatusReason, status.UpstreamAuthHeader, status.GatewayURL))
 }
 
 func (c *a2aProxyController) SetA2AProxy(w http.ResponseWriter, r *http.Request) {

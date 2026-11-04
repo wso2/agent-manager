@@ -53,9 +53,9 @@ GATEWAY_ENCRYPTION_SECRET_NAME="gateway-encryption-keys"
 GATEWAY_ENCRYPTION_SECRET_KEY="default-aesgcm256-v1.bin"
 
 # OpenChoreo community module versions compatible with OpenChoreo ${OPENCHOREO_VERSION}
-OBSERVABILITY_LOGS_OPENSEARCH_VERSION="0.5.3"
-OBSERVABILITY_TRACING_OPENSEARCH_VERSION="0.6.0"
-OBSERVABILITY_METRICS_PROMETHEUS_VERSION="0.6.1"
+OBSERVABILITY_LOGS_OPENSEARCH_VERSION="0.5.5"
+OBSERVABILITY_TRACING_OPENSEARCH_VERSION="0.8.1"
+OBSERVABILITY_METRICS_PROMETHEUS_VERSION="0.8.1"
 
 # Source AMP installation helpers
 source "${SCRIPT_DIR}/install-helpers.sh"
@@ -630,10 +630,18 @@ if k3d cluster list 2>/dev/null | grep -q "${CLUSTER_NAME}"; then
     # k3d writes the node's registries.yaml at creation time only, so a re-run
     # against an existing cluster cannot add it. That file is the only mechanism
     # covering images pulled into namespaces OpenChoreo creates later, so say so
-    # rather than letting agent deploys fail with no explanation.
+    # rather than letting agent deploys fail with no explanation. A cluster an
+    # earlier private install created already has it, so check the node first.
     if declare -F amp_registry_is_private >/dev/null 2>&1 && amp_registry_is_private; then
-        log_warning "Reusing an existing cluster: its node has no registry credentials."
-        log_warning "Agent image pulls will fail. Delete the cluster and re-run to add them."
+        node_creds=0
+        amp_k3d_node_has_registry_credentials "k3d-${CLUSTER_NAME}-server-0" || node_creds=$?
+        if [ "${node_creds}" -eq 1 ]; then
+            log_warning "Reusing an existing cluster: its node has no registry credentials."
+            log_warning "Agent image pulls will fail. Delete the cluster and re-run to add them."
+        elif [ "${node_creds}" -ne 0 ]; then
+            log_warning "Reusing an existing cluster: could not check its node for registry credentials."
+            log_warning "If agent image pulls fail, delete the cluster and re-run to add them."
+        fi
     fi
 else
     log_info "Creating k3d cluster..."
@@ -809,7 +817,7 @@ if helm upgrade --install kgateway-crds oci://cr.kgateway.dev/kgateway-dev/chart
     --kube-context ${CLUSTER_CONTEXT} \
     --namespace openchoreo-control-plane \
     --create-namespace \
-    --version v2.2.1 \
+    --version v2.3.11 \
     --timeout 180s &>/dev/null; then
     log_success "kgateway CRDs installed successfully"
 else
@@ -823,7 +831,7 @@ if helm upgrade --install kgateway oci://cr.kgateway.dev/kgateway-dev/charts/kga
     --kube-context ${CLUSTER_CONTEXT} \
     --namespace openchoreo-control-plane \
     --create-namespace \
-    --version v2.2.1 \
+    --version v2.3.11 \
     --set controller.extraEnv.KGW_ENABLE_GATEWAY_API_EXPERIMENTAL_FEATURES=true \
     --timeout 180s &>/dev/null; then
     log_success "kgateway installed successfully"
@@ -1227,14 +1235,22 @@ else
 fi
 
 log_info "Installing OpenChoreo Observability Plane..."
-helm_install_idempotent \
-    "openchoreo-observability-plane" \
-    "oci://ghcr.io/openchoreo/helm-charts/openchoreo-observability-plane" \
-    "${OBSERVABILITY_NS}" \
-    "${TIMEOUT_OBSERVABILITY_PLANE}" \
+# upgrade --install, not helm_install_idempotent: a re-run must apply the
+# current values-op.yaml (the TLS passthrough listener Fluent Bit ships through
+# and the NetworkPolicy exemptions), not skip an existing release.
+if helm upgrade --install openchoreo-observability-plane \
+    oci://ghcr.io/openchoreo/helm-charts/openchoreo-observability-plane \
+    --namespace "${OBSERVABILITY_NS}" \
+    --create-namespace \
+    --timeout "${TIMEOUT_OBSERVABILITY_PLANE}s" \
     --version "${OPENCHOREO_VERSION}" \
     --set observer.extraEnv.AUTH_SERVER_BASE_URL=http://thunder-service.openchoreo-control-plane.svc.cluster.local:8090 \
-    --values "${DEPLOYMENTS_DIR}/single-cluster/values-op.yaml"
+    --values "${DEPLOYMENTS_DIR}/single-cluster/values-op.yaml"; then
+    log_success "openchoreo-observability-plane installed successfully"
+else
+    log_error "Failed to install openchoreo-observability-plane"
+    exit 1
+fi
 
 # Install Observability Modules
 log_info "Installing Observability Modules..."
@@ -1318,19 +1334,28 @@ if helm upgrade --install observability-logs-opensearch \
     --set adapter.openSearchSecretName="opensearch-admin-credentials" \
     --timeout 10m; then
     log_success "observability-logs-opensearch installed successfully"
+    LOGS_MODULE_INSTALLED=true
 else
     log_error "Failed to install observability-logs-opensearch (non-fatal)"
+    LOGS_MODULE_INSTALLED=false
 fi
 
-# Enable log collection with fluent-bit
-log_info "Enabling log collection with fluent-bit..."
-if helm upgrade observability-logs-opensearch \
+# Enable log collection with fluent-bit — only once the logs module is in.
+if [ "${LOGS_MODULE_INSTALLED}" != "true" ]; then
+    log_error "Skipping log collection: the logs module did not install (non-fatal)"
+elif log_info "Enabling log collection with fluent-bit..." \
+    && kubectl apply -f "${DEPLOYMENTS_DIR}/values/opensearch-tls-route.yaml" \
+    && helm upgrade observability-logs-opensearch \
     oci://ghcr.io/openchoreo/helm-charts/observability-logs-opensearch \
     --namespace openchoreo-observability-plane \
     --version "${OBSERVABILITY_LOGS_OPENSEARCH_VERSION}" \
     --reuse-values \
+    --values "${DEPLOYMENTS_DIR}/values/observability-logs-opensearch.yaml" \
     --set fluent-bit.enabled=true \
-    --timeout 10m; then
+    --timeout 10m \
+    && kubectl rollout restart daemonset/fluent-bit -n openchoreo-observability-plane; then
+    # The restart: the chart's checksum/config annotation hashes an empty
+    # string, so a changed Fluent Bit config never rolls the pods on its own.
     log_success "Log collection enabled with fluent-bit"
 else
     log_error "Failed to enable log collection (non-fatal)"
@@ -1338,6 +1363,14 @@ fi
 
 # Install observability-metrics-prometheus
 log_info "Installing observability-metrics-prometheus..."
+# Helm never upgrades CRDs, so on a re-run over an older release apply the
+# Prometheus Operator CRDs that the target chart bundles first.
+if helm status observability-metrics-prometheus -n openchoreo-observability-plane &>/dev/null; then
+    helm show crds oci://ghcr.io/openchoreo/helm-charts/observability-metrics-prometheus \
+        --version "${OBSERVABILITY_METRICS_PROMETHEUS_VERSION}" \
+        | kubectl apply --server-side --force-conflicts -f - >/dev/null \
+        || log_warning "Failed to sync Prometheus Operator CRDs (non-fatal)"
+fi
 if helm upgrade --install observability-metrics-prometheus \
     oci://ghcr.io/openchoreo/helm-charts/observability-metrics-prometheus \
     --create-namespace \

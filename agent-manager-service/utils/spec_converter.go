@@ -860,3 +860,44 @@ func ConvertModelToSpecSecurityConfig(sec models.SecurityConfig) spec.SecurityCo
 
 	return specSec
 }
+
+// ConvertModelToSpecLLMDeploymentResponse is an LLM provider's or proxy's deployment as the API shows it: the status
+// a user is shown for it on its gateway, where the transition is heading and why. An ARCHIVED deployment has no
+// status row, so it has neither.
+func ConvertModelToSpecLLMDeploymentResponse(d *models.Deployment) spec.LLMDeploymentResponse {
+	shown := d.UserStatus()
+	resp := spec.LLMDeploymentResponse{
+		DeploymentId: d.DeploymentID.String(),
+		Name:         d.Name,
+		ArtifactId:   d.ArtifactUUID.String(),
+		GatewayId:    d.GatewayUUID.String(),
+		Metadata:     d.Metadata,
+		CreatedAt:    d.CreatedAt,
+		Status:       string(shown.Status),
+		UpdatedAt:    d.UpdatedAt,
+	}
+	if d.OUID != "" {
+		resp.OrganizationId = &d.OUID
+	}
+	if d.BaseDeploymentID != nil {
+		base := d.BaseDeploymentID.String()
+		resp.BaseDeploymentId = &base
+	}
+	if shown.Status != models.DeploymentStatusArchived {
+		desired := string(*d.StatusDesired)
+		resp.StatusDesired = &desired
+	}
+	if shown.Reason != "" {
+		resp.StatusReason = &shown.Reason
+	}
+	return resp
+}
+
+// ConvertModelToSpecLLMDeploymentResponses converts a deployments list.
+func ConvertModelToSpecLLMDeploymentResponses(deployments []*models.Deployment) []spec.LLMDeploymentResponse {
+	resp := make([]spec.LLMDeploymentResponse, 0, len(deployments))
+	for _, d := range deployments {
+		resp = append(resp, ConvertModelToSpecLLMDeploymentResponse(d))
+	}
+	return resp
+}

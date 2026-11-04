@@ -133,12 +133,9 @@ func (s *AgentAPIKeyService) resolveAgentAPIArtifact(ctx context.Context, ouID, 
 		return nil, "", fmt.Errorf("failed to get environment: %w", translateEnvironmentError(err))
 	}
 
-	artifact, err := s.artifactRepo.GetByHandle(agentEnvAPIArtifactHandle(projectName, agentName, environment.UUID), ouID)
+	artifact, err := agentEnvAPIArtifact(s.artifactRepo, ouID, projectName, agentName, environment.UUID, models.AgentArtifactKinds...)
 	if err != nil {
 		return nil, "", fmt.Errorf("failed to get agent API artifact: %w", err)
-	}
-	if artifact.Kind != models.KindAgent {
-		return nil, "", utils.ErrArtifactNotFound
 	}
 	return artifact, environment.UUID, nil
 }
@@ -296,7 +293,7 @@ func (s *AgentAPIKeyService) ListAPIKeys(
 	if err != nil {
 		return nil, err
 	}
-	all, err := s.apiKeyRepo.ListPermanentByArtifactKind(ouID, models.KindAgent)
+	all, err := s.apiKeyRepo.ListPermanentByArtifactKinds(ouID, models.AgentArtifactKinds)
 	if err != nil {
 		return nil, fmt.Errorf("failed to list API keys: %w", err)
 	}

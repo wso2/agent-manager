@@ -30,7 +30,7 @@ install_thunder_extension() {
 
     # Detect an image mismatch and do a clean uninstall+install so the
     # pre-install setup job re-runs and re-bootstraps the database.
-    local target_image="ghcr.io/thunder-id/thunderid:1.0.1"
+    local target_image="ghcr.io/thunder-id/thunderid:1.0.2"
     local selector="app.kubernetes.io/instance=amp-thunder-extension"
     if helm status amp-thunder-extension -n amp-thunder &>/dev/null; then
         local current_image

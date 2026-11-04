@@ -1,10 +1,10 @@
-FROM public.ecr.aws/docker/library/golang:1.26-alpine
+FROM public.ecr.aws/docker/library/golang:1.26.10-alpine
 
 # Install Air for hot-reloading and bash/openssl for key generation.
 # Air is pinned: the image ships GOTOOLCHAIN=local, so any Air release that
 # needs a newer Go than the base image above fails the build. Bump this pin
 # and the base image together.
-RUN apk add --no-cache bash openssl && \
+RUN apk add --no-cache 'ca-certificates>=20261020' 'ca-certificates-bundle>=20261020' bash openssl && \
     go install github.com/air-verse/air@v1.67.1
 
 WORKDIR /app

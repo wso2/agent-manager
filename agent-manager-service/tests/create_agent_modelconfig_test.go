@@ -37,6 +37,7 @@ import (
 // a modelConfig referencing a nonexistent LLM provider must fail with 404 BEFORE any
 // component is provisioned (no orphaned resources).
 func TestCreateAgent_BadProviderFailsBeforeProvisioning(t *testing.T) {
+	seedIngressGatewayForDefaultEnvironment(t, "mock-org-id")
 	authMiddleware := jwtassertion.NewMockMiddleware(t)
 	openChoreoClient := apitestutils.CreateMockOpenChoreoClient()
 	// CreateMockOpenChoreoClient's GetProjectDeploymentPipelineFunc already returns a

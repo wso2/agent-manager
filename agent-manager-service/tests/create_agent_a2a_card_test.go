@@ -38,6 +38,7 @@ import (
 
 // A same-named agent must not inherit a deleted agent's card row, its URL or its source.
 func TestCreateAgentClearsALeftoverA2ACardRow(t *testing.T) {
+	seedIngressGatewayForDefaultEnvironment(t, "mock-org-id")
 	const ouID = "mock-org-id"
 	agentName := fmt.Sprintf("card-heir-%s", uuid.New().String()[:5])
 	cardRepo := repositories.NewA2AAgentCardRepository(db.GetDB())

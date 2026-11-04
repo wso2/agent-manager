@@ -16,10 +16,10 @@
 
 // Validates LLM provider usage across a two-environment promotion. It provisions
 // its own agent in the two-env infra project (rather than reusing a shared agent)
-// and its own OpenAI-backed provider on both environment gateways, attaches a model
-// config covering both environments, deploys the default env with USE_LLM_PROVIDER=true,
-// invokes through the provider, promotes to the second environment, and verifies
-// traffic there.
+// and its own OpenAI-backed provider on both environment gateways, creates the agent
+// with USE_LLM_PROVIDER=true and a model config for the default env, invokes through
+// the provider, extends the model config to the second environment, promotes, and
+// verifies traffic there.
 
 package llmprovider
 
@@ -42,6 +42,11 @@ import (
 	"github.com/wso2/agent-manager/test/e2e/testsetup"
 )
 
+var llmProviderEnvVars = []framework.EnvironmentVariableConfig{
+	{Key: "url", Name: "LLM_PROVIDER_URL"},
+	{Key: "apikey", Name: "LLM_PROVIDER_KEY"},
+}
+
 var _ = Describe("LLM provider configured across environments:", Label("llm-provider", "two-env"), Ordered, func() {
 	var (
 		suffix      string
@@ -53,12 +58,11 @@ var _ = Describe("LLM provider configured across environments:", Label("llm-prov
 		gatewayUUIDEnv1 string
 		gatewayUUIDEnv2 string
 
-		createReq          framework.CreateAgentRequest
-		invokeReq          json.RawMessage
-		lastDeployedBefore time.Time
+		createReq framework.CreateAgentRequest
+		invokeReq json.RawMessage
 	)
 
-	BeforeAll(func() {
+	BeforeAll(func(ctx SpecContext) {
 		Expect(Cfg.OpenAIAPIKey).NotTo(BeEmpty(), "OPENAI_API_KEY must be set")
 
 		suffix = uuid.New().String()[:8]
@@ -66,7 +70,7 @@ var _ = Describe("LLM provider configured across environments:", Label("llm-prov
 		providerID = framework.E2ELLMProviderPrefix + suffix
 
 		By("Provisioning two-env infrastructure (environment, pipeline, project)")
-		projectName, secondEnv = testsetup.EnsurePromotableInfra(Client, Cfg)
+		projectName, secondEnv = testsetup.EnsurePromotableInfra(ctx, Client, Cfg)
 		GinkgoWriter.Printf("Two-env infra ready: project=%s secondEnv=%s\n", projectName, secondEnv)
 
 		createReq = framework.NewITHelpdeskAgentRequest(
@@ -74,6 +78,13 @@ var _ = Describe("LLM provider configured across environments:", Label("llm-prov
 			"IT helpdesk agent for e2e LLM provider promotion test",
 			map[string]string{"USE_LLM_PROVIDER": "true"},
 		)
+		// Wired at creation so the first deploy has LLM_PROVIDER_URL; the agent exits on startup without it.
+		createReq.ModelConfig = []framework.ModelConfigRequest{
+			{
+				ProviderName:         providerID,
+				EnvironmentVariables: llmProviderEnvVars,
+			},
+		}
 		invokeReq = framework.DefaultInvokeRequest()
 	})
 
@@ -162,36 +173,7 @@ var _ = Describe("LLM provider configured across environments:", Label("llm-prov
 		})
 	})
 
-	It("attaches a model config covering both environments", func() {
-		configuration.CreateAgentModelConfig(Default, Client,
-			Cfg.DefaultOrg, projectName, agentName,
-			framework.CreateAgentModelConfigRequest{
-				Name: "e2e-openai-model-config",
-				Type: "llm",
-				EnvMappings: map[string]framework.EnvModelConfigRequest{
-					Cfg.DefaultEnv: {ProviderName: providerID},
-					secondEnv:      {ProviderName: providerID},
-				},
-				EnvironmentVariables: []framework.EnvironmentVariableConfig{
-					{Key: "url", Name: "LLM_PROVIDER_URL"},
-					{Key: "apikey", Name: "LLM_PROVIDER_KEY"},
-				},
-			})
-		GinkgoWriter.Printf("Model config added for provider: %s\n", providerID)
-	})
-
-	It("becomes active after the default-environment redeploy", func() {
-		deployment.WaitForDeployed(Client, &deployment.WaitForDeploymentParams{
-			OrgName:       Cfg.DefaultOrg,
-			ProjectName:   projectName,
-			AgentName:     agentName,
-			Environment:   Cfg.DefaultEnv,
-			Timeout:       5 * time.Minute,
-			DeployedAfter: lastDeployedBefore,
-		})
-	})
-
-	It("becomes ready after the default-environment redeploy", func() {
+	It("becomes ready in the default environment", func() {
 		deployment.WaitForReadiness(Client, Cfg.DefaultOrg, projectName, agentName, Cfg.DefaultEnv, 10*time.Minute)
 	})
 
@@ -211,6 +193,30 @@ var _ = Describe("LLM provider configured across environments:", Label("llm-prov
 
 		GinkgoWriter.Printf("Invoking via LLM provider in default env: %s\n", endpointURL)
 		agentops.InvokeAgentEndpoint(fmt.Sprintf("%s/chat", endpointURL), invokeReq, apiKeyResp.ApiKey)
+	})
+
+	It("extends the model config to the second environment", func() {
+		configs := configuration.ListAgentModelConfigs(Default, Client,
+			Cfg.DefaultOrg, projectName, agentName)
+		var modelConfigID string
+		for _, c := range configs.Configs {
+			if c.Type == "llm" {
+				modelConfigID = c.UUID
+				break
+			}
+		}
+		Expect(modelConfigID).NotTo(BeEmpty(), "expected the LLM model config created with the agent")
+
+		configuration.UpdateAgentModelConfig(Default, Client,
+			Cfg.DefaultOrg, projectName, agentName, modelConfigID,
+			framework.UpdateAgentModelConfigRequest{
+				EnvMappings: map[string]framework.EnvModelConfigRequest{
+					Cfg.DefaultEnv: {ProviderName: providerID},
+					secondEnv:      {ProviderName: providerID},
+				},
+				EnvironmentVariables: llmProviderEnvVars,
+			})
+		GinkgoWriter.Printf("Model config %s now covers %s and %s\n", modelConfigID, Cfg.DefaultEnv, secondEnv)
 	})
 
 	It("promotes the agent with the LLM provider to the second environment", func() {

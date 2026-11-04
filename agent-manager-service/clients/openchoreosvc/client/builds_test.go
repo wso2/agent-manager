@@ -31,6 +31,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/wso2/agent-manager/agent-manager-service/clients/openchoreosvc/gen"
+	"github.com/wso2/agent-manager/agent-manager-service/utils"
 )
 
 // A component created before routePath existed: spec.parameters carries the
@@ -298,4 +299,80 @@ func TestListBuilds_DoesNotWarnTruncatedOnCleanStop(t *testing.T) {
 	assert.Len(t, builds, 1, "the page that did parse must still be returned")
 	assert.NotContains(t, logs.String(), "truncated",
 		"a clean end of list must not be reported as a truncated build list")
+}
+
+func TestWithRunEnvVars_AddsToRunWithoutTouchingComponent(t *testing.T) {
+	userEnv := map[string]interface{}{"name": "LOG_LEVEL", "value": "debug"}
+	staleID := map[string]interface{}{"name": EnvVarAgentIDClientID, "value": "old"}
+	params := map[string]interface{}{
+		workflowParamEnvironmentVariables: []interface{}{userEnv, staleID},
+		"repository":                      map[string]interface{}{"url": "https://example.com/repo"},
+	}
+
+	got := withRunEnvVars(params, []EnvVar{
+		{Key: EnvVarAgentIDClientID, Value: "new"},
+		{Key: EnvVarAgentIDClientSecret, ValueFrom: &EnvVarValueFrom{SecretKeyRef: &SecretKeyRef{Name: "agent-secret", Key: "client-secret"}}},
+	})
+
+	assert.Equal(t, []interface{}{
+		userEnv,
+		map[string]any{"name": EnvVarAgentIDClientID, "value": "new"},
+		map[string]any{"name": EnvVarAgentIDClientSecret, "valueFrom": map[string]any{
+			"secretKeyRef": map[string]any{"name": "agent-secret", "key": "client-secret"},
+		}},
+	}, got[workflowParamEnvironmentVariables])
+	assert.Equal(t, params["repository"], got["repository"])
+	// The component's own parameters keep only what the user configured.
+	assert.Equal(t, []interface{}{userEnv, staleID}, params[workflowParamEnvironmentVariables])
+}
+
+func TestWithRunEnvVars_NoVarsReturnsParamsUnchanged(t *testing.T) {
+	params := map[string]interface{}{workflowParamEnvironmentVariables: []interface{}{}}
+	assert.Equal(t, params, withRunEnvVars(params, nil))
+}
+
+// GetBuild looks workflow runs up by name across the namespace, so it must
+// reject a run labelled for another agent or project as not found rather than
+// presenting it as a build of the requested agent.
+func TestGetBuild_RejectsBuildOfAnotherAgent(t *testing.T) {
+	cases := map[string]struct {
+		labels  string
+		wantErr bool
+	}{
+		"own build":           {labels: `{"openchoreo.dev/project":"proj","openchoreo.dev/component":"agent"}`},
+		"other agent":         {labels: `{"openchoreo.dev/project":"proj","openchoreo.dev/component":"other"}`, wantErr: true},
+		"other project":       {labels: `{"openchoreo.dev/project":"other","openchoreo.dev/component":"agent"}`, wantErr: true},
+		"no ownership labels": {labels: `{}`, wantErr: true},
+	}
+	for name, tc := range cases {
+		t.Run(name, func(t *testing.T) {
+			client := newTestClient(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				w.WriteHeader(http.StatusOK)
+				_, err := fmt.Fprintf(w, `{"metadata":{"name":"agent-1000","labels":%s}}`, tc.labels)
+				require.NoError(t, err)
+			}))
+
+			_, err := client.GetBuild(context.Background(), "acme", "proj", "agent", "agent-1000")
+			if tc.wantErr {
+				assert.ErrorIs(t, err, utils.ErrNotFound)
+				return
+			}
+			assert.NoError(t, err)
+		})
+	}
+}
+
+// GetBuildByName serves callers that know only the build name, so it reports
+// the owning agent from the run's labels instead of checking them.
+func TestGetBuildByName_ReportsOwnerFromLabels(t *testing.T) {
+	client := newTestClient(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusOK)
+		_, err := fmt.Fprint(w, `{"metadata":{"name":"agent-1000","labels":{"openchoreo.dev/project":"proj","openchoreo.dev/component":"agent"}}}`)
+		require.NoError(t, err)
+	}))
+
+	build, err := client.GetBuildByName(context.Background(), "acme", "agent-1000")
+	require.NoError(t, err)
+	assert.Equal(t, "proj", build.ProjectName)
+	assert.Equal(t, "agent", build.AgentName)
 }

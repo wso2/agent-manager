@@ -368,6 +368,9 @@ func (s *agentKindService) publishVersion(
 
 	build, err := s.ocClient.GetBuild(ctx, ouID, sourceProjectName, sourceAgentName, buildName)
 	if err != nil {
+		if errors.Is(err, utils.ErrNotFound) {
+			return nil, utils.ErrBuildNotFound
+		}
 		return nil, fmt.Errorf("failed to get build: %w", err)
 	}
 	if build.ImageId == "" {

@@ -51,7 +51,7 @@ describe("useUpdateAgentDeploySettings", () => {
       return null;
     };
     const qc = new QueryClient();
-    qc.setQueryData(a2aProxyQueryKey(key), { status: "published" });
+    qc.setQueryData(a2aProxyQueryKey(key), { status: "DEPLOYED" });
     qc.setQueryData(agentCardQueryKey(key), { status: "fetched" });
     const root = createRoot(document.createElement("div"));
     await act(async () =>

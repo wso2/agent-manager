@@ -39,6 +39,7 @@ import (
 	"github.com/wso2/agent-manager/agent-manager-service/instrumentation"
 	"github.com/wso2/agent-manager/agent-manager-service/middleware"
 	"github.com/wso2/agent-manager/agent-manager-service/middleware/jwtassertion"
+	"github.com/wso2/agent-manager/agent-manager-service/reconcile"
 	"github.com/wso2/agent-manager/agent-manager-service/repositories"
 	"github.com/wso2/agent-manager/agent-manager-service/services"
 	"github.com/wso2/agent-manager/agent-manager-service/utils"
@@ -82,17 +83,18 @@ var serviceProviderSet = wire.NewSet(
 	// reconciler that consumes it is wired here.
 	ProvideAgentIdentityInjectionServiceWithEndpointResolver,
 	services.NewAgentThunderReconcilerService,
-	services.NewA2APublicationReconcilerService,
 	services.NewA2ACardFetcher,
 	services.NewA2ACardReconcilerService,
+	services.NewConfiguredDeploymentTimeoutSweeper,
 	services.NewA2AAgentCardService,
 	ProvideTxRunner,
+	services.NewAgentExposurePublisher,
 	services.NewA2APublisher,
 	services.NewA2AProxyService,
 	ProvideA2AProxyHooks,
 	services.NewEvaluatorManagerService,
 	services.NewEnvironmentService,
-	services.NewPlatformGatewayService,
+	ProvidePlatformGatewayService,
 	services.NewLLMProviderTemplateService,
 	services.NewLLMProviderService,
 	services.NewLLMProxyService,
@@ -383,7 +385,7 @@ var repositoryProviderSet = wire.NewSet(
 	ProvideMCPProxyRepository,
 	repositories.NewMCPProxyEndpointRepository,
 	ProvideDeploymentRepository,
-	ProvideA2APublicationRepository,
+	ProvidePlatformAgentExposureRepository,
 	ProvideA2AAgentCardRepository,
 	ProvideA2AProxyRepository,
 	ProvideArtifactRepository,
@@ -405,6 +407,19 @@ var repositoryProviderSet = wire.NewSet(
 	ProvideEnvThunderSystemClientRepository,
 	ProvideEnvThunderURLRepository,
 	repositories.NewMCPProxyScopeRepository,
+)
+
+var reconcileProviderSet = wire.NewSet(
+	services.NewLLMProviderKind,
+	services.NewLLMProxyKind,
+	services.NewMCPProxyKind,
+	services.NewPlatformAgentExposures,
+	services.NewA2AAgentKind,
+	services.NewRestAgentKind,
+	ProvideReconcileKinds,
+	ProvideReconcileCore,
+	wire.Bind(new(services.GatewayArtifacts), new(*reconcile.Core)),
+	reconcile.NewWorker,
 )
 
 var websocketProviderSet = wire.NewSet(
@@ -436,12 +451,10 @@ func ProvideTestSecretManagementClient(testClients TestClients) secretmanagersvc
 
 // ProvideEventHub creates and initializes the EventHub backed by PostgreSQL.
 func ProvideEventHub(db *gorm.DB, logger *slog.Logger) (eventhub.EventHub, error) {
-	sqlDB, err := db.DB()
+	hub, err := eventhub.NewSQLBackend(db, logger, eventhub.DefaultSQLBackendConfig())
 	if err != nil {
 		return nil, err
 	}
-	cfg := eventhub.DefaultSQLBackendConfig()
-	hub := eventhub.NewSQLBackend(sqlDB, logger, cfg)
 	if err := hub.Initialize(); err != nil {
 		return nil, err
 	}
@@ -470,9 +483,42 @@ func ProvideWebSocketController(
 	return controllers.NewWebSocketController(manager, hub, gatewayService, ackHandler, rateLimitCount)
 }
 
-// ProvideDeploymentAckHandler creates a new deployment ack handler
-func ProvideDeploymentAckHandler(deploymentRepo repositories.DeploymentRepository) *services.DeploymentAckHandler {
-	return services.NewDeploymentAckHandler(deploymentRepo)
+// ProvideDeploymentAckHandler creates a new deployment ack handler that runs the reconcile kinds' after-live hooks.
+func ProvideDeploymentAckHandler(deploymentRepo repositories.DeploymentRepository, core *reconcile.Core) *services.DeploymentAckHandler {
+	return services.NewDeploymentAckHandler(deploymentRepo, core.AfterLive())
+}
+
+// ProvideReconcileKinds lists the gateway artifact kinds the reconcile core deploys.
+func ProvideReconcileKinds(
+	llmProvider *services.LLMProviderKind, llmProxy *services.LLMProxyKind, mcp *services.MCPProxyKind,
+	agent *services.A2AAgentKind, restAgent *services.RestAgentKind,
+) reconcile.Kinds {
+	return reconcile.Kinds{llmProvider, llmProxy, mcp, agent, restAgent}
+}
+
+// ProvideReconcileCore builds the reconcile core with the worker's intervals, lease and attempt budget from cfg.
+func ProvideReconcileCore(
+	db *gorm.DB, deploymentRepo repositories.DeploymentRepository, hub eventhub.EventHub, kinds reconcile.Kinds,
+	cfg *config.Config, logger *slog.Logger,
+) *reconcile.Core {
+	seconds := func(n int) time.Duration { return time.Duration(n) * time.Second }
+	return reconcile.NewCore(db, deploymentRepo, hub, kinds, reconcile.Config{
+		RenderInterval: seconds(cfg.Reconcile.RenderIntervalSeconds),
+		PlaceInterval:  seconds(cfg.Reconcile.PlaceIntervalSeconds),
+		DriftInterval:  seconds(cfg.Reconcile.DriftIntervalSeconds),
+		Lease:          seconds(cfg.Reconcile.RenderLeaseSeconds),
+		AttemptBudget:  cfg.Reconcile.RenderAttemptBudget,
+	}, logger)
+}
+
+// ProvidePlatformGatewayService makes each new gateway-environment mapping place the environment's artifacts, and
+// refuses to remove a mapping while the gateway serves the environment's artifacts.
+func ProvidePlatformGatewayService(
+	gatewayRepo repositories.GatewayRepository, gatewayApplier services.GatewayConfigApplier, worker *reconcile.Worker,
+	core *reconcile.Core,
+) *services.PlatformGatewayService {
+	return services.NewPlatformGatewayService(gatewayRepo, gatewayApplier).WithEnvironmentPlacer(worker).
+		WithEnvironmentGuard(core)
 }
 
 func ProvideGatewayRepository(db *gorm.DB) repositories.GatewayRepository {
@@ -514,13 +560,11 @@ func ProvideA2AProxyHooks(svc services.A2AProxyService) services.A2AProxyHooks {
 
 // ProvideTxRunner opens database transactions for the services that hold no *gorm.DB.
 func ProvideTxRunner(db *gorm.DB) services.TxRunner {
-	return func(ctx context.Context, fn func(tx *gorm.DB) error) error {
-		return db.WithContext(ctx).Transaction(fn)
-	}
+	return services.NewTxRunner(db)
 }
 
-func ProvideA2APublicationRepository(db *gorm.DB) repositories.A2APublicationRepository {
-	return repositories.NewA2APublicationRepository(db)
+func ProvidePlatformAgentExposureRepository(db *gorm.DB) repositories.PlatformAgentExposureRepository {
+	return repositories.NewPlatformAgentExposureRepository(db)
 }
 
 func ProvideArtifactRepository(db *gorm.DB) repositories.ArtifactRepository {
@@ -683,6 +727,7 @@ func InitializeAppParamsWithEnvThunderEndpoints(cfg *config.Config, db *gorm.DB,
 		loggerProviderSet,
 		repositoryProviderSet,
 		websocketProviderSet,
+		reconcileProviderSet,
 		serviceProviderSet,
 		instrumentationProviderSet,
 		controllerProviderSet,
@@ -707,6 +752,7 @@ func InitializeTestAppParamsWithClientMocks(
 		loggerProviderSet,
 		repositoryProviderSet,
 		websocketProviderSet,
+		reconcileProviderSet,
 		serviceProviderSet,
 		instrumentationProviderSet,
 		controllerProviderSet,

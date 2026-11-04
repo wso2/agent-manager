@@ -48,6 +48,7 @@ type GatewayFilterOptions struct {
 	// Applied as IN (?) alongside, not instead of, FunctionalityType.
 	FunctionalityTypeIn []string
 	Status              *bool   // Filter by is_active
+	Hosting             string  // Filter by hosting (managed, self_hosted); empty for any
 	EnvironmentID       *string // Filter by environment (via gateway_environment_mappings)
 	Limit               int     // Pagination limit (0 = no limit)
 	Offset              int     // Pagination offset
@@ -114,14 +115,13 @@ type GatewayRepository interface {
 	// insert the gateway row and its mappings into.
 	Transaction(fn func(tx *gorm.DB) error) error
 	AcquireEnvironmentLock(tx *gorm.DB, environmentID string) error
+	AcquireGatewayLock(tx *gorm.DB, gatewayID string) error
 	CreateTx(tx *gorm.DB, gateway *models.Gateway) error
 	CreateEnvironmentMappingTx(tx *gorm.DB, mapping *models.GatewayEnvironmentMapping) error
 	CountIngressCapableInEnvironment(tx *gorm.DB, environmentID string) (int64, error)
 
 	// Gateway association checking operations
 	HasGatewayDeployments(gatewayID, ouID string) (bool, error)
-	HasGatewayAssociations(gatewayID, ouID string) (bool, error)
-	HasGatewayAssociationsOrDeployments(gatewayID, ouID string) (bool, error)
 
 	// Token operations
 	CreateToken(token *models.GatewayToken) error
@@ -148,6 +148,9 @@ type GatewayRepository interface {
 	ListIdentityProvidersByGateway(gatewayID string) ([]models.GatewayIdentityProvider, error)
 	ListIdentityProvidersByEnvironment(environmentID string) ([]models.GatewayIdentityProvider, error)
 	ListIdentityProvidersByOrg(ouID string) ([]IdentityProviderWithContext, error)
+
+	// WithTx returns the repository bound to tx.
+	WithTx(tx *gorm.DB) GatewayRepository
 }
 
 // GatewayRepo implements GatewayRepository using GORM
@@ -158,6 +161,11 @@ type GatewayRepo struct {
 // NewGatewayRepo creates a new gateway repository
 func NewGatewayRepo(db *gorm.DB) GatewayRepository {
 	return &GatewayRepo{db: db}
+}
+
+// WithTx returns the repository bound to tx.
+func (r *GatewayRepo) WithTx(tx *gorm.DB) GatewayRepository {
+	return &GatewayRepo{db: tx}
 }
 
 // Create inserts a new gateway
@@ -263,6 +271,10 @@ func (r *GatewayRepo) buildFilterQuery(filters GatewayFilterOptions) *gorm.DB {
 		query = query.Where("gateway_functionality_type IN ?", filters.FunctionalityTypeIn)
 	}
 
+	if filters.Hosting != "" {
+		query = query.Where("hosting = ?", filters.Hosting)
+	}
+
 	// Filter by status (is_active)
 	if filters.Status != nil {
 		query = query.Where("is_active = ?", *filters.Status)
@@ -280,18 +292,12 @@ func (r *GatewayRepo) buildFilterQuery(filters GatewayFilterOptions) *gorm.DB {
 
 // Delete soft-deletes a gateway with organization isolation (sets deleted_at).
 // Soft delete does not trigger FK ON DELETE CASCADE, so active tokens are
-// revoked and deployment history is removed explicitly here; other child tables
-// (environment mappings, identity providers) are left in place and must be
-// filtered by gateways.deleted_at at the read site. API associations have no FK
-// to gateways and must be cleaned up explicitly regardless of delete mode.
+// revoked and its deployments and status rows are removed explicitly here, except UNDEPLOYED status
+// rows of a finished undeploy (nothing owed): they are kept with no deployment so the user's undeploy
+// outlives the gateway. Other child tables (environment mappings, identity providers) are left in place and
+// must be filtered by gateways.deleted_at at the read site.
 func (r *GatewayRepo) Delete(gatewayID, ouID string) error {
 	return r.db.Transaction(func(tx *gorm.DB) error {
-		if err := tx.Where("resource_uuid = ? AND association_type = ? AND ou_id = ?",
-			gatewayID, "gateway", ouID).
-			Delete(&models.APIAssociation{}).Error; err != nil {
-			return err
-		}
-
 		result := tx.Where("uuid = ? AND ou_id = ?", gatewayID, ouID).
 			Delete(&models.Gateway{})
 		if result.Error != nil {
@@ -310,9 +316,25 @@ func (r *GatewayRepo) Delete(gatewayID, ouID string) error {
 			return err
 		}
 
-		// DeleteGateway refuses a gateway that still has deployment_status rows, so
-		// only archived history is left. Without the cascade it would keep listing
-		// as ARCHIVED deployments on a gateway that no longer exists.
+		// A finished undeploy outlives the gateway, detached from its deployment: with no row at
+		// all the placement pass would deploy the artifact again on another gateway. A row still
+		// owed a deploy goes, so the artifact is placed again.
+		finished, undeployed := finishedUndeploy()
+		if err := tx.Model(&models.DeploymentStatusRecord{}).
+			Where("gateway_uuid = ? AND ou_id = ? AND "+finished, gatewayID, ouID, undeployed).
+			UpdateColumn("deployment_id", nil).Error; err != nil {
+			return err
+		}
+
+		// The other rows go: a PENDING row has no deployment to cascade with, and would keep
+		// rendering for a gateway that no longer exists.
+		if err := tx.Where("gateway_uuid = ? AND ou_id = ? AND NOT ("+finished+")", gatewayID, ouID, undeployed).
+			Delete(&models.DeploymentStatusRecord{}).Error; err != nil {
+			return err
+		}
+
+		// Without the cascade the deployments would keep listing as ARCHIVED on a
+		// gateway that no longer exists.
 		if err := tx.Where("gateway_uuid = ? AND ou_id = ?", gatewayID, ouID).
 			Delete(&models.Deployment{}).Error; err != nil {
 			return err
@@ -323,8 +345,8 @@ func (r *GatewayRepo) Delete(gatewayID, ouID string) error {
 }
 
 // UpdateGateway updates gateway details. The manifest column is deliberately not
-// written here: gateway-reported manifests are large and pushed on every heartbeat,
-// so they live in the in-process manifest cache instead. The column is left in place
+// written here: gateway-reported manifests are large and re-pushed on every gateway
+// (re)connect, so they live in the manifest cache instead. The column is left in place
 // (and still read as a fallback) for rows written before that move.
 func (r *GatewayRepo) UpdateGateway(gateway *models.Gateway) error {
 	gateway.UpdatedAt = time.Now()
@@ -437,46 +459,18 @@ func (r *GatewayRepo) CountActiveTokens(gatewayId string) (int, error) {
 	return int(count), err
 }
 
-// HasGatewayDeployments checks if a gateway has any deployments
+// HasGatewayDeployments reports whether the gateway holds any artifact: a row that names a deployment and isn't
+// UNDEPLOYED. PENDING rows were never sent, and UNDEPLOYED rows are kept for good.
 func (r *GatewayRepo) HasGatewayDeployments(gatewayID, ouID string) (bool, error) {
 	var count int64
 	err := r.db.Model(&models.DeploymentStatusRecord{}).
-		Where("gateway_uuid = ? AND ou_id = ?",
-			gatewayID, ouID).
+		Where("gateway_uuid = ? AND ou_id = ? AND deployment_id IS NOT NULL AND status <> ?",
+			gatewayID, ouID, models.DeploymentStatusUndeployed).
 		Count(&count).Error
 	if err != nil {
 		return false, err
 	}
 	return count > 0, nil
-}
-
-// HasGatewayAssociations checks if a gateway has any associations
-func (r *GatewayRepo) HasGatewayAssociations(gatewayID, ouID string) (bool, error) {
-	var count int64
-	err := r.db.Model(&models.APIAssociation{}).
-		Where("resource_uuid = ? AND association_type = ? AND ou_id = ?",
-			gatewayID, "gateway", ouID).
-		Count(&count).Error
-	if err != nil {
-		return false, err
-	}
-	return count > 0, nil
-}
-
-// HasGatewayAssociationsOrDeployments checks if a gateway has any associations (deployments or associations)
-func (r *GatewayRepo) HasGatewayAssociationsOrDeployments(gatewayID, ouID string) (bool, error) {
-	// Check deployments first
-	hasDeployments, err := r.HasGatewayDeployments(gatewayID, ouID)
-	if err != nil {
-		return false, err
-	}
-
-	if hasDeployments {
-		return true, nil
-	}
-
-	// Check associations
-	return r.HasGatewayAssociations(gatewayID, ouID)
 }
 
 // CreateEnvironmentMapping creates a mapping between a gateway and an environment
@@ -637,10 +631,13 @@ func (r *GatewayRepo) ListIdentityProvidersByOrg(ouID string) ([]IdentityProvide
 	return results, err
 }
 
-// Advisory lock namespaces, one per pg_advisory_xact_lock user, so their keys cannot collide.
+// Advisory lock namespaces, one per advisory lock user, so their keys cannot collide.
 const (
-	gatewayEnvLockNamespace = 4711
-	a2aProxyLockNamespace   = 4712
+	gatewayEnvLockNamespace    = 4711
+	a2aProxyLockNamespace      = 4712
+	agentVariableLockNamespace = 4713
+	DriftScanLockNamespace     = 4714
+	gatewayLockNamespace       = 4715
 )
 
 // advisoryXactLock takes a transaction-scoped advisory lock on key within namespace, released on
@@ -658,6 +655,12 @@ func (r *GatewayRepo) Transaction(fn func(tx *gorm.DB) error) error {
 // environment UUID, serialising concurrent ingress-cap checks for that environment.
 func (r *GatewayRepo) AcquireEnvironmentLock(tx *gorm.DB, environmentID string) error {
 	return advisoryXactLock(tx, gatewayEnvLockNamespace, environmentID)
+}
+
+// AcquireGatewayLock takes a transaction-scoped advisory lock keyed on the gateway UUID,
+// serialising concurrent environment assignments of one gateway.
+func (r *GatewayRepo) AcquireGatewayLock(tx *gorm.DB, gatewayID string) error {
+	return advisoryXactLock(tx, gatewayLockNamespace, gatewayID)
 }
 
 // CreateTx inserts a gateway inside an existing transaction. Mirrors Create,
@@ -703,7 +706,7 @@ func (r *GatewayRepo) CountIngressCapableInEnvironment(tx *gorm.DB, environmentI
 // whose row was edited while disconnected has a fresher updated_at and drops out
 // until the staleness threshold passes again, and a gateway whose holding pod
 // died without cleanup stays is_active=true and is never counted.
-const failedGatewayCondition = "is_active = false AND updated_at < ? AND updated_at >= ?"
+const failedGatewayCondition = managedGatewayCondition + " AND is_active = false AND updated_at < ? AND updated_at >= ?"
 
 // abandonedGatewayCondition matches the rows past the window's far edge:
 // disconnected, and untouched for longer than the caller is willing to call a
@@ -715,9 +718,12 @@ const failedGatewayCondition = "is_active = false AND updated_at < ? AND updated
 // would classify the healthiest gateways in the fleet as abandoned and pull them
 // out of the denominator, inflating the failure percentage instead of sharpening
 // it. Only a gateway that is both old and down is abandoned.
-const abandonedGatewayCondition = "is_active = false AND updated_at < ?"
+const abandonedGatewayCondition = managedGatewayCondition + " AND is_active = false AND updated_at < ?"
 
-// CountFailureSummaryAllOrgs counts every gateway in the deployment, how many
+// managedGatewayCondition limits the failure summary to the gateways the platform runs.
+const managedGatewayCondition = "hosting = '" + models.GatewayHostingManaged + "'"
+
+// CountFailureSummaryAllOrgs counts every managed gateway in the deployment, how many
 // are failed, and how many are abandoned, in one round trip.
 //
 // Conditional aggregation rather than three queries: all three counts must
@@ -738,7 +744,7 @@ func (r *GatewayRepo) CountFailureSummaryAllOrgs(
 			", COUNT(*) FILTER (WHERE "+failedGatewayCondition+") AS failed"+
 			", COUNT(*) FILTER (WHERE "+abandonedGatewayCondition+") AS abandoned",
 			window.StaleBefore, window.NotOlderThan, window.NotOlderThan).
-		Where("deleted_at IS NULL").
+		Where("deleted_at IS NULL AND " + managedGatewayCondition).
 		Scan(&counts).Error
 	if err != nil {
 		return GatewayFailureCounts{}, fmt.Errorf("failed to count gateway failure summary: %w", err)

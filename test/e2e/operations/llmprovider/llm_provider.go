@@ -18,7 +18,7 @@ func CreateLLMProvider(g Gomega, client *framework.AMPClient, orgName string, re
 	if req.Security == nil {
 		req.Security = &framework.SecurityConfig{
 			Enabled: true,
-			APIKey:  &framework.SecurityAPIKey{Enabled: true, Key: "X-API-Key", In: "header"},
+			APIKey:  &framework.SecurityAPIKey{Enabled: true, Key: "API-Key", In: "header"},
 		}
 	}
 	if req.AccessControl == nil {

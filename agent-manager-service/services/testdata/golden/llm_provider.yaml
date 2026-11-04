@@ -1,0 +1,61 @@
+apiVersion: gateway.api-platform.wso2.com/v1
+kind: LlmProvider
+metadata:
+    name: acme-openai
+spec:
+    displayName: Acme OpenAI
+    version: v1.0
+    context: /openai
+    vhost: api.example.com
+    template: openai
+    upstream:
+        url: https://api.openai.com/v1
+        auth:
+            type: api-key
+            header: Authorization
+            secretRef: openai-key
+    resilience:
+        timeout: 30s
+    accessControl:
+        mode: allow_all
+        exceptions: []
+    policies:
+        - name: api-key-auth
+          version: v1
+          paths:
+            - path: /*
+              methods:
+                - '*'
+              params:
+                in: header
+                key: X-API-Key
+        - name: token-based-ratelimit
+          version: v1
+          paths:
+            - path: /*
+              methods:
+                - '*'
+              params:
+                totalTokenLimits:
+                    - count: 1000
+                      duration: 1m
+        - name: advanced-ratelimit
+          version: v1
+          paths:
+            - path: /*
+              methods:
+                - '*'
+              params:
+                quotas:
+                    - limits:
+                        - duration: 1h
+                          limit: 60
+                      name: request-limit
+        - name: pii-masking
+          version: v1
+          paths:
+            - path: /chat/completions
+              methods:
+                - POST
+              params:
+                mask: true

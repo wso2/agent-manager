@@ -320,14 +320,10 @@ func resolveDeployableBuild(ctx context.Context, client *gen.ClientWithResponses
 	org, proj, agent, buildName string,
 ) (deployableBuild, error) {
 	if buildName != "" {
-		resp, err := client.GetBuildWithResponse(ctx, org, proj, agent, buildName)
+		b, err := cmdutil.GetBuild(ctx, client, org, proj, agent, buildName)
 		if err != nil {
-			return deployableBuild{}, clierr.Newf(clierr.Transport, "%v", err)
+			return deployableBuild{}, err
 		}
-		if resp.JSON200 == nil {
-			return deployableBuild{}, cmdutil.ErrorFromServer(resp.HTTPResponse, cmdutil.FirstNonNil(resp.JSON404, resp.JSON500))
-		}
-		b := resp.JSON200
 		status := ""
 		if b.Status != nil {
 			status = string(*b.Status)

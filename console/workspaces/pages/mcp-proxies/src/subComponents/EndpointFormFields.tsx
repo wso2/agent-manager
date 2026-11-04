@@ -26,6 +26,7 @@ import {
   type GatewayResponse,
   type MCPServerInfoFetchResponse,
   INPUT_LIMITS,
+  inferredEgressGateway,
 } from "@agent-management-platform/types";
 import {
   Accordion,
@@ -188,8 +189,7 @@ export function EndpointFormFields({
   );
 
   // Egress-capable gateways (EGRESS or BOTH), grouped by the environment UUIDs
-  // they're attached to. An environment with 0-1 candidates needs no picker: the
-  // server infers the sole candidate, or there's genuinely nothing to deploy to.
+  // they're attached to.
   const egressGatewaysByEnv = useMemo(() => {
     const map: Record<string, GatewayResponse[]> = {};
     gateways.forEach((gateway) => {
@@ -205,16 +205,15 @@ export function EndpointFormFields({
   }, [gateways]);
 
   // initialDraft.gatewayByEnv reflects what was actually persisted. An environment
-  // with exactly one egress candidate may have been saved before that gateway was
-  // recorded explicitly — filling it in here keeps the load-time change comparison
-  // (below) honest about real edits rather than flagging a since-changed convention.
+  // saved without an explicit gateway is on the one the server inferred — filling it
+  // in here keeps the load-time change comparison (below) honest about real edits.
   const normalizedInitialGatewayByEnv = useMemo(() => {
     if (!initialDraft) return {};
     const base: Record<string, string> = { ...(initialDraft.gatewayByEnv ?? {}) };
     initialDraft.environments.forEach((envId) => {
       if (base[envId]) return;
-      const candidates = egressGatewaysByEnv[envId] ?? [];
-      if (candidates.length === 1) base[envId] = candidates[0].uuid;
+      const inferred = inferredEgressGateway(egressGatewaysByEnv[envId] ?? []);
+      if (inferred) base[envId] = inferred.uuid;
     });
     return base;
   }, [initialDraft, egressGatewaysByEnv]);

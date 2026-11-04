@@ -190,6 +190,7 @@ setup-gateway:
 	@echo "📦 Installing console dependencies locally..."
 	@if ! command -v pnpm >/dev/null 2>&1; then \
 		echo "⚠️  pnpm not found. Enabling via corepack..."; \
+		command -v corepack >/dev/null 2>&1 || npm install -g corepack@0.36.0; \
 		corepack enable; \
 	fi
 	@echo "📥 Running pnpm install..."

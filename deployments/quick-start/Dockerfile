@@ -17,7 +17,7 @@ RUN apk add --no-cache \
   htop procps \
   vim \
   sudo \
-  wget ca-certificates ncurses && \
+  wget 'ca-certificates>=20261020' 'ca-certificates-bundle>=20261020' ncurses && \
   mkdir -p /etc/bash_completion.d
 
 # Install kubectl, helm, and k3d with completions

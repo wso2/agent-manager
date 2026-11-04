@@ -39,6 +39,9 @@ import (
 //			ListSecretReferencesByAgentAndEnvFunc: func(ctx context.Context, agentID string, ouID string, envUUID uuid.UUID) ([]string, error) {
 //				panic("mock out the ListSecretReferencesByAgentAndEnv method")
 //			},
+//			LockAndListByAgentFunc: func(ctx context.Context, tx *gorm.DB, ouID string, projectName string, agentID string) ([]models.AgentEnvConfigVariable, error) {
+//				panic("mock out the LockAndListByAgent method")
+//			},
 //			UpdateVariableNamesFunc: func(ctx context.Context, tx *gorm.DB, configUUID uuid.UUID, keyNameMap map[string]string) error {
 //				panic("mock out the UpdateVariableNames method")
 //			},
@@ -69,6 +72,9 @@ type AgentEnvConfigVariableRepositoryMock struct {
 
 	// ListSecretReferencesByAgentAndEnvFunc mocks the ListSecretReferencesByAgentAndEnv method.
 	ListSecretReferencesByAgentAndEnvFunc func(ctx context.Context, agentID string, ouID string, envUUID uuid.UUID) ([]string, error)
+
+	// LockAndListByAgentFunc mocks the LockAndListByAgent method.
+	LockAndListByAgentFunc func(ctx context.Context, tx *gorm.DB, ouID string, projectName string, agentID string) ([]models.AgentEnvConfigVariable, error)
 
 	// UpdateVariableNamesFunc mocks the UpdateVariableNames method.
 	UpdateVariableNamesFunc func(ctx context.Context, tx *gorm.DB, configUUID uuid.UUID, keyNameMap map[string]string) error
@@ -140,6 +146,19 @@ type AgentEnvConfigVariableRepositoryMock struct {
 			// EnvUUID is the envUUID argument value.
 			EnvUUID uuid.UUID
 		}
+		// LockAndListByAgent holds details about calls to the LockAndListByAgent method.
+		LockAndListByAgent []struct {
+			// Ctx is the ctx argument value.
+			Ctx context.Context
+			// Tx is the tx argument value.
+			Tx *gorm.DB
+			// OuID is the ouID argument value.
+			OuID string
+			// ProjectName is the projectName argument value.
+			ProjectName string
+			// AgentID is the agentID argument value.
+			AgentID string
+		}
 		// UpdateVariableNames holds details about calls to the UpdateVariableNames method.
 		UpdateVariableNames []struct {
 			// Ctx is the ctx argument value.
@@ -159,6 +178,7 @@ type AgentEnvConfigVariableRepositoryMock struct {
 	lockListByConfigAndEnv                sync.RWMutex
 	lockListByConfigForUpdate             sync.RWMutex
 	lockListSecretReferencesByAgentAndEnv sync.RWMutex
+	lockLockAndListByAgent                sync.RWMutex
 	lockUpdateVariableNames               sync.RWMutex
 }
 
@@ -443,6 +463,54 @@ func (mock *AgentEnvConfigVariableRepositoryMock) ListSecretReferencesByAgentAnd
 	mock.lockListSecretReferencesByAgentAndEnv.RLock()
 	calls = mock.calls.ListSecretReferencesByAgentAndEnv
 	mock.lockListSecretReferencesByAgentAndEnv.RUnlock()
+	return calls
+}
+
+// LockAndListByAgent calls LockAndListByAgentFunc.
+func (mock *AgentEnvConfigVariableRepositoryMock) LockAndListByAgent(ctx context.Context, tx *gorm.DB, ouID string, projectName string, agentID string) ([]models.AgentEnvConfigVariable, error) {
+	if mock.LockAndListByAgentFunc == nil {
+		panic("AgentEnvConfigVariableRepositoryMock.LockAndListByAgentFunc: method is nil but AgentEnvConfigVariableRepository.LockAndListByAgent was just called")
+	}
+	callInfo := struct {
+		Ctx         context.Context
+		Tx          *gorm.DB
+		OuID        string
+		ProjectName string
+		AgentID     string
+	}{
+		Ctx:         ctx,
+		Tx:          tx,
+		OuID:        ouID,
+		ProjectName: projectName,
+		AgentID:     agentID,
+	}
+	mock.lockLockAndListByAgent.Lock()
+	mock.calls.LockAndListByAgent = append(mock.calls.LockAndListByAgent, callInfo)
+	mock.lockLockAndListByAgent.Unlock()
+	return mock.LockAndListByAgentFunc(ctx, tx, ouID, projectName, agentID)
+}
+
+// LockAndListByAgentCalls gets all the calls that were made to LockAndListByAgent.
+// Check the length with:
+//
+//	len(mockedAgentEnvConfigVariableRepository.LockAndListByAgentCalls())
+func (mock *AgentEnvConfigVariableRepositoryMock) LockAndListByAgentCalls() []struct {
+	Ctx         context.Context
+	Tx          *gorm.DB
+	OuID        string
+	ProjectName string
+	AgentID     string
+} {
+	var calls []struct {
+		Ctx         context.Context
+		Tx          *gorm.DB
+		OuID        string
+		ProjectName string
+		AgentID     string
+	}
+	mock.lockLockAndListByAgent.RLock()
+	calls = mock.calls.LockAndListByAgent
+	mock.lockLockAndListByAgent.RUnlock()
 	return calls
 }
 

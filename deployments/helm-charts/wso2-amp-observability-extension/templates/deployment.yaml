@@ -31,6 +31,7 @@ spec:
       labels:
         app: amp-observer
         app.kubernetes.io/component: observer
+        app.kubernetes.io/name: {{ include "amp-observability-extension.name" . }}
     spec:
       {{- if .Values.global.imagePullSecrets }}
       {{- include "amp-observability-extension.imagePullSecrets" . | trim | nindent 6 }}

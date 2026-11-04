@@ -56,10 +56,10 @@ var _ = Describe("Internal chat agent promotion across environments:", Label("ag
 		buildName   string
 	)
 
-	BeforeAll(func() {
+	BeforeAll(func(ctx SpecContext) {
 		Expect(Cfg.OpenAIAPIKey).NotTo(BeEmpty(), "OPENAI_API_KEY must be set")
 		By("Provisioning two-env infrastructure (environment, pipeline, project)")
-		projectName, secondEnv = testsetup.EnsurePromotableInfra(Client, Cfg)
+		projectName, secondEnv = testsetup.EnsurePromotableInfra(ctx, Client, Cfg)
 		invokeReq = framework.DefaultInvokeRequest()
 		GinkgoWriter.Printf("Two-env infra ready: project=%s secondEnv=%s\n", projectName, secondEnv)
 	})

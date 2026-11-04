@@ -34,12 +34,18 @@ func RegisterGatewayInternalRoutes(rr *middleware.RouteRegistrar, ctrl controlle
 	rr.HandleFuncWithValidation("GET /llm-proxies/api-keys", ctrl.GetLLMProxyAPIKeys)
 	rr.HandleFuncWithValidation("GET /apis/api-keys", ctrl.GetAPIKeys)
 
+	// REST agent endpoint. The gateway fetches this after an api.deployed event and expects a ZIP containing the
+	// RestApi YAML.
+	rr.HandleFuncWithValidation("GET /apis/{apiId}", ctrl.GetAPI)
+
 	// Subscription plans endpoint
 	rr.HandleFuncWithValidation("GET /subscription-plans", ctrl.GetSubscriptionPlans)
 
-	// Deployment sync endpoint (gateway-controller reconciles its local cache
-	// against this on connect and periodically).
+	// Startup sync: the gateway lists what it should hold, fetches what it is
+	// missing, and checks which artifacts it would delete still exist.
 	rr.HandleFuncWithValidation("GET /deployments", ctrl.GetDeployments)
+	rr.HandleFuncWithValidation("POST /deployments/fetch-batch", ctrl.FetchDeploymentBatch)
+	rr.HandleFuncWithValidation("POST /artifacts/exists", ctrl.CheckArtifactsExist)
 
 	// AI applications endpoint (bulk-sync for per-consumer rate limiting)
 	rr.HandleFuncWithValidation("GET /applications", ctrl.GetApplications)

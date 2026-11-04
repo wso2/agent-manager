@@ -26,16 +26,23 @@ import {
   Select,
   Skeleton,
   Stack,
+  Tooltip,
   Typography,
 } from "@wso2/oxygen-ui";
-import type {
-  Environment,
-  GatewayResponse,
+import {
+  globalConfig,
+  inferredEgressGateway,
+  showGatewayHosting,
+  type Environment,
+  type GatewayDeploymentStatus,
+  type GatewayResponse,
+  type LLMDeploymentStatus,
 } from "@agent-management-platform/types";
 import {
   useListEnvironments,
   useListGateways,
 } from "@agent-management-platform/api-client";
+import { GatewayHostingChip } from "../GatewayHostingChip";
 
 export interface EnvironmentGatewaySelectorProps {
   orgId: string;
@@ -44,6 +51,12 @@ export interface EnvironmentGatewaySelectorProps {
   onChange: (gatewayIds: string[]) => void;
   /** Gateway UUIDs already deployed — rendered locked. Omit in create form. */
   lockedGatewayIds?: string[];
+  /**
+   * Each gateway's current deploy status, by UUID. A locked gateway whose
+   * status isn't DEPLOYED is not locked, and a row whose gateway is deploying,
+   * undeploying or failed shows that status instead of "Deployed".
+   */
+  gatewayStatuses?: Map<string, GatewayDeploymentStatus>;
   /** false while any checked 2+-candidate environment lacks a resolved gateway. */
   onValidityChange?: (isValid: boolean) => void;
   /**
@@ -71,6 +84,11 @@ const environmentIdOf = (gateway: GatewayResponse): string | undefined =>
 const gatewayLabel = (gateway: GatewayResponse): string =>
   gateway.displayName || gateway.name;
 
+const soleCandidateOf = (
+  candidates: GatewayResponse[],
+): GatewayResponse | undefined =>
+  candidates.length === 1 ? candidates[0] : undefined;
+
 const AMBIGUOUS_CAPTION = "Select an egress gateway for this environment.";
 const UNAVAILABLE_CAPTION =
   "No egress-capable gateway is attached to this environment.";
@@ -84,13 +102,35 @@ const DEPLOYED_CAPTION_SWITCHABLE =
   "this environment and save to undeploy, then select the new gateway and " +
   "save again.";
 
+interface StatusChip {
+  label: string;
+  color: "info" | "warning";
+}
+
+// A DEPLOYED gateway is shown by its lock's "Deployed" chip instead.
+const STATUS_CHIPS: Partial<Record<LLMDeploymentStatus, StatusChip>> = {
+  DEPLOYING: { label: "Deploying", color: "info" },
+  UNDEPLOYING: { label: "Undeploying", color: "info" },
+  FAILED: { label: "Failed", color: "warning" },
+};
+
+function statusChipFor(status: GatewayDeploymentStatus): StatusChip | undefined {
+  if (status.status === "FAILED" && status.statusDesired === "UNDEPLOYED") {
+    return { label: "Undeploy failed", color: "warning" };
+  }
+  return STATUS_CHIPS[status.status];
+}
+
 interface EnvironmentRow {
   envId: string;
   label: string;
   candidates: GatewayResponse[];
+  defaultGateway?: GatewayResponse;
   lockedGateway?: GatewayResponse;
   resolvedGateway?: GatewayResponse;
   checked: boolean;
+  /** The row's gateway's deploy status, when it has a chip of its own. */
+  statusChip?: StatusChip & { reason?: string };
 }
 
 export const EnvironmentGatewaySelectorView: React.FC<
@@ -102,14 +142,30 @@ export const EnvironmentGatewaySelectorView: React.FC<
   value,
   onChange,
   lockedGatewayIds = [],
+  gatewayStatuses,
   onValidityChange,
   onSingleChoiceChange,
   disabled,
 }) => {
+  const showHosting = showGatewayHosting(
+    globalConfig.featureFlags?.enableSelfHostedGateways === true,
+    gateways,
+  );
   const [pendingEnvIds, setPendingEnvIds] = useState<Set<string>>(new Set());
 
   const valueSet = useMemo(() => new Set(value), [value]);
-  const lockedSet = useMemo(() => new Set(lockedGatewayIds), [lockedGatewayIds]);
+  // A gateway whose deploy is still running or failed has no placement to
+  // protect yet, so it stays editable even when the caller locks it.
+  const lockedSet = useMemo(
+    () =>
+      new Set(
+        lockedGatewayIds.filter((uuid) => {
+          const status = gatewayStatuses?.get(uuid)?.status;
+          return status === undefined || status === "DEPLOYED";
+        }),
+      ),
+    [lockedGatewayIds, gatewayStatuses],
+  );
   const gatewayByUuid = useMemo(
     () => new Map(gateways.map((gateway) => [gateway.uuid, gateway])),
     [gateways],
@@ -138,6 +194,7 @@ export const EnvironmentGatewaySelectorView: React.FC<
       environments.flatMap((env) => {
         if (!env.id) return [];
         const candidates = gatewaysByEnv[env.id] ?? [];
+        const defaultGateway = inferredEgressGateway(candidates);
         const lockedGateway = candidates.find((candidate) =>
           lockedSet.has(candidate.uuid),
         );
@@ -147,18 +204,36 @@ export const EnvironmentGatewaySelectorView: React.FC<
         const checked = lockedGateway
           ? valueSet.has(lockedGateway.uuid)
           : resolvedGateway != null || pendingEnvIds.has(env.id);
+        // A sole candidate is named inline even while unchecked, so its
+        // status still reads as belonging to it.
+        const statusGateway =
+          lockedGateway ??
+          resolvedGateway ??
+          soleCandidateOf(candidates) ??
+          defaultGateway;
+        const status = statusGateway && gatewayStatuses?.get(statusGateway.uuid);
+        const chip = status && statusChipFor(status);
         return [
           {
             envId: env.id,
             label: env.displayName || env.name,
             candidates,
+            defaultGateway,
             lockedGateway,
             resolvedGateway,
             checked,
+            statusChip: chip && { ...chip, reason: status?.statusReason },
           },
         ];
       }),
-    [environments, gatewaysByEnv, lockedSet, valueSet, pendingEnvIds],
+    [
+      environments,
+      gatewaysByEnv,
+      lockedSet,
+      valueSet,
+      pendingEnvIds,
+      gatewayStatuses,
+    ],
   );
 
   const unmappedSelectedUuids = useMemo(() => {
@@ -178,7 +253,8 @@ export const EnvironmentGatewaySelectorView: React.FC<
   }, [isValid, onValidityChange]);
 
   // The one case where there's truly nothing to *decide*: a single
-  // environment with exactly one unlocked candidate gateway, and no orphaned
+  // environment with exactly one unlocked candidate gateway, a managed one
+  // (a lone self-hosted gateway is still the user's pick), and no orphaned
   // selection left over to clean up. Any other shape (2+ environments, one
   // with an ambiguous gateway, or a stale reference to surface) is a real
   // choice and still needs to render. A locked (already deployed) single row
@@ -189,9 +265,13 @@ export const EnvironmentGatewaySelectorView: React.FC<
     !isLoading &&
       singleRow &&
       unmappedSelectedUuids.length === 0 &&
-      (singleRow.lockedGateway || singleRow.candidates.length === 1),
+      (singleRow.lockedGateway ||
+        (singleRow.candidates.length === 1 && singleRow.defaultGateway)),
   );
-  const hidesSingleChoice = isSingleChoice && !singleRow?.lockedGateway;
+  // A deploy status is a fact worth showing too, and hiding the row would
+  // also re-select a gateway the user just unchecked.
+  const hidesSingleChoice =
+    isSingleChoice && !singleRow?.lockedGateway && !singleRow?.statusChip;
 
   useEffect(() => {
     onSingleChoiceChange?.(isSingleChoice);
@@ -229,8 +309,8 @@ export const EnvironmentGatewaySelectorView: React.FC<
   // unchecked state is the user intentionally undeploying, not an unmade
   // choice, and must not be force-recommitted.
   useEffect(() => {
-    if (!hidesSingleChoice || !singleRow || singleRow.checked) return;
-    emitAdd(singleRow.lockedGateway ?? singleRow.candidates[0]);
+    if (!hidesSingleChoice || !singleRow?.defaultGateway || singleRow.checked) return;
+    emitAdd(singleRow.defaultGateway);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [hidesSingleChoice, singleRow]);
 
@@ -248,7 +328,9 @@ export const EnvironmentGatewaySelectorView: React.FC<
       if (row.resolvedGateway) emitRemove(row.resolvedGateway.uuid);
       return;
     }
-    if (row.candidates.length === 1) emitAdd(row.candidates[0]);
+    // Checking a row whose only gateway is shown inline picks that gateway.
+    const picked = row.defaultGateway ?? soleCandidateOf(row.candidates);
+    if (picked) emitAdd(picked);
     else setPending(row.envId, true);
   };
 
@@ -277,14 +359,19 @@ export const EnvironmentGatewaySelectorView: React.FC<
     row.candidates.some((candidate) => valueSet.has(candidate.uuid)),
   ).length;
 
-  // The gateway name shown inline next to the environment label — only when
-  // there's exactly one possible answer (a lock, or a single candidate), so
-  // it reads as a fact rather than a choice still to be made.
-  const inlineGatewayLabel = (row: EnvironmentRow): string | undefined => {
+  // Shown next to the environment label: the gateway's name when there's
+  // exactly one possible answer (a lock, or a single candidate), so it reads
+  // as a fact; otherwise how many gateways there are to pick from, so the
+  // choice is visible before the row is checked.
+  const rowCaption = (row: EnvironmentRow): string | undefined => {
     if (row.lockedGateway) return gatewayLabel(row.lockedGateway);
     if (row.candidates.length === 1) return gatewayLabel(row.candidates[0]);
+    if (row.candidates.length > 1) return `${row.candidates.length} gateways available`;
     return undefined;
   };
+
+  const renderHostingChip = (gateway: GatewayResponse) =>
+    showHosting && <GatewayHostingChip gateway={gateway} />;
 
   const renderRowContent = (row: EnvironmentRow) => {
     if (row.candidates.length === 0) {
@@ -333,7 +420,10 @@ export const EnvironmentGatewaySelectorView: React.FC<
           >
             {row.candidates.map((candidate) => (
               <MenuItem key={candidate.uuid} value={candidate.uuid}>
-                {gatewayLabel(candidate)}
+                <Stack direction="row" spacing={1} alignItems="center">
+                  <span>{gatewayLabel(candidate)}</span>
+                  {renderHostingChip(candidate)}
+                </Stack>
               </MenuItem>
             ))}
           </Select>
@@ -355,6 +445,7 @@ export const EnvironmentGatewaySelectorView: React.FC<
     <Stack spacing={1.5}>
       {rows.map((row) => {
         const belowContent = renderRowContent(row);
+        const caption = rowCaption(row);
         return (
           <Stack
             key={row.envId}
@@ -374,12 +465,22 @@ export const EnvironmentGatewaySelectorView: React.FC<
                 inputProps={{ "aria-label": row.label }}
                 sx={{ p: 0.5 }}
               />
-              <Typography variant="body2">{row.label}</Typography>
-              {inlineGatewayLabel(row) && (
+              <Typography variant="body2">
+                <Box component="span" color="text.secondary">
+                  Environment:{" "}
+                </Box>
+                {row.label}
+              </Typography>
+              {caption && (
                 <Typography variant="caption" color="text.disabled">
-                  {inlineGatewayLabel(row)}
+                  {caption}
                 </Typography>
               )}
+              {row.candidates.length === 1 &&
+                renderHostingChip(row.candidates[0])}
+              {row.lockedGateway &&
+                row.candidates.length > 1 &&
+                renderHostingChip(row.lockedGateway)}
               {row.lockedGateway && (
                 <Chip
                   label="Deployed"
@@ -387,6 +488,16 @@ export const EnvironmentGatewaySelectorView: React.FC<
                   variant="outlined"
                   color="success"
                 />
+              )}
+              {row.statusChip && (
+                <Tooltip title={row.statusChip.reason ?? ""}>
+                  <Chip
+                    label={row.statusChip.label}
+                    size="small"
+                    variant="outlined"
+                    color={row.statusChip.color}
+                  />
+                </Tooltip>
               )}
             </Stack>
             {belowContent && (

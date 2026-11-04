@@ -52,8 +52,14 @@ const renderSummary = (external = false) =>
 
 beforeEach(() => {
   vi.clearAllMocks();
+  localStorage.clear();
   mockAgent("a2a-agent");
 });
+
+const mockExternalAgent = () =>
+  vi.mocked(useGetAgent).mockReturnValue({
+    data: { agentType: { type: "external-agent-api" }, provisioning: { type: "external" } },
+  } as unknown as ReturnType<typeof useGetAgent>);
 
 describe("EnvAgentCardSummary", () => {
   it("renders nothing for a non-A2A agent", () => {
@@ -61,6 +67,45 @@ describe("EnvAgentCardSummary", () => {
     mockCard({});
     const { container } = renderSummary();
     expect(container).toBeEmptyDOMElement();
+  });
+
+  it("offers to register a card URL on an external agent created without a subtype", () => {
+    mockExternalAgent();
+    mockCard(notFound);
+    renderSummary(true);
+    expect(screen.getByRole("link", { name: /Register agent card URL/ })).toHaveAttribute("href", CONFIGURE_HREF);
+  });
+
+  it("offers the card URL prompt on the first visit only", () => {
+    mockExternalAgent();
+    mockCard(notFound);
+    renderSummary(true).unmount();
+    const { container } = renderSummary(true);
+    expect(container).toBeEmptyDOMElement();
+  });
+
+  it("offers the prompt to another agent shown in the same mounted card", () => {
+    mockExternalAgent();
+    mockCard(notFound);
+    const summary = (agentId: string) => (
+      <MemoryRouter>
+        <EnvAgentCardSummary orgId="org" projectId="proj" agentId={agentId} envId="dev" external />
+      </MemoryRouter>
+    );
+    renderSummary(true).unmount();
+    const { container, rerender } = render(summary("agent"));
+    expect(container).toBeEmptyDOMElement();
+    rerender(summary("other"));
+    expect(screen.getByRole("link", { name: /Register agent card URL/ })).toBeInTheDocument();
+  });
+
+  it("keeps showing a registered card after the prompt was dismissed", () => {
+    mockExternalAgent();
+    mockCard(notFound);
+    renderSummary(true).unmount();
+    mockCard({ data: { card: { provider: { organization: "Acme" } } } as never });
+    renderSummary(true);
+    expect(screen.getByText("Agent Card")).toBeInTheDocument();
   });
 
   it("shows only the provider, interfaces and skill names of a fetched card", () => {

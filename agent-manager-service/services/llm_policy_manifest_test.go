@@ -17,6 +17,7 @@
 package services
 
 import (
+	"context"
 	"errors"
 	"testing"
 
@@ -186,6 +187,42 @@ func TestIntersectActiveGatewayLLMPolicies_SingleGateway(t *testing.T) {
 	assert.Contains(t, available, "word-count-guardrail\x00v1")
 }
 
+// A gateway that has not reported a manifest yet (no push, empty row) must not empty the
+// org's guardrail picker: it is left out until it reports.
+func TestIntersectActiveGatewayLLMPolicies_SkipsGatewayThatHasNotReported(t *testing.T) {
+	clearGatewayManifestCache(t)
+	reported := newGateway(t, models.GatewayRoleBoth, true)
+	require.NoError(t, gatewayManifestCache.Set(context.Background(), reported.UUID.String(),
+		policyManifest("word-count-guardrail", "v1")))
+	silent := newGateway(t, models.GatewayRoleBoth, true)
+	repo := &repomocks.GatewayRepositoryMock{
+		ListWithFiltersFunc: func(_ repositories.GatewayFilterOptions) ([]*models.Gateway, error) {
+			return []*models.Gateway{reported, silent}, nil
+		},
+	}
+
+	available, err := intersectActiveGatewayLLMPolicies(repo, "org-uuid")
+
+	require.NoError(t, err)
+	require.Len(t, available, 1)
+	assert.Contains(t, available, "word-count-guardrail\x00v1")
+}
+
+// When no gateway has reported, nothing is available (the cold-start behaviour).
+func TestIntersectActiveGatewayLLMPolicies_NothingReportedIsEmpty(t *testing.T) {
+	clearGatewayManifestCache(t)
+	repo := &repomocks.GatewayRepositoryMock{
+		ListWithFiltersFunc: func(_ repositories.GatewayFilterOptions) ([]*models.Gateway, error) {
+			return []*models.Gateway{newGateway(t, models.GatewayRoleBoth, true)}, nil
+		},
+	}
+
+	available, err := intersectActiveGatewayLLMPolicies(repo, "org-uuid")
+
+	require.NoError(t, err)
+	assert.Empty(t, available)
+}
+
 func TestIntersectActiveGatewayLLMPolicies_OverlappingPoliciesSurvive(t *testing.T) {
 	repo := &repomocks.GatewayRepositoryMock{
 		ListWithFiltersFunc: func(_ repositories.GatewayFilterOptions) ([]*models.Gateway, error) {
@@ -318,6 +355,7 @@ func TestIntersectActiveGatewayLLMPolicies_OnlyActiveGatewaysQueried(t *testing.
 	assert.Equal(t, "org-uuid", capturedFilters.OrganizationID)
 	require.NotNil(t, capturedFilters.Status)
 	assert.True(t, *capturedFilters.Status)
+	assert.Equal(t, models.GatewayHostingManaged, capturedFilters.Hosting)
 }
 
 func TestIntersectActiveGatewayLLMPolicies_RepoErrorIsWrapped(t *testing.T) {
@@ -340,7 +378,7 @@ func TestIntersectActiveGatewayLLMPolicies_RepoErrorIsWrapped(t *testing.T) {
 // -----------------------------------------------------------------------------
 
 func TestIntersectDeployedGatewayLLMPolicies_NilRepoReturnsEmpty(t *testing.T) {
-	available, err := intersectDeployedGatewayLLMPolicies(nil, nil, uuid.New(), "org-uuid")
+	available, err := intersectDeployedGatewayLLMPolicies(context.Background(), nil, nil, uuid.New(), "org-uuid")
 
 	require.NoError(t, err)
 	assert.Empty(t, available)
@@ -354,7 +392,7 @@ func TestIntersectDeployedGatewayLLMPolicies_ScopesToDeployedGatewaysOnly(t *tes
 	)
 
 	deploymentRepo := &repomocks.DeploymentRepositoryMock{
-		GetDeployedGatewaysByProviderFunc: func(artifactUUID uuid.UUID, orgUUID string) ([]string, error) {
+		PlacedGatewaysFunc: func(_ context.Context, orgUUID string, artifactUUID uuid.UUID) ([]string, error) {
 			assert.Equal(t, providerUUID, artifactUUID)
 			assert.Equal(t, "org-uuid", orgUUID)
 			return []string{deployedGatewayID}, nil
@@ -372,7 +410,7 @@ func TestIntersectDeployedGatewayLLMPolicies_ScopesToDeployedGatewaysOnly(t *tes
 	}
 	_ = undeployedGateway // never queried — GetByUUIDFunc only ever asked for the deployed gateway.
 
-	available, err := intersectDeployedGatewayLLMPolicies(gatewayRepo, deploymentRepo, providerUUID, "org-uuid")
+	available, err := intersectDeployedGatewayLLMPolicies(context.Background(), gatewayRepo, deploymentRepo, providerUUID, "org-uuid")
 
 	require.NoError(t, err)
 	require.Len(t, available, 1)
@@ -381,7 +419,7 @@ func TestIntersectDeployedGatewayLLMPolicies_ScopesToDeployedGatewaysOnly(t *tes
 
 func TestIntersectDeployedGatewayLLMPolicies_SkipsGatewayFromAnotherOrg(t *testing.T) {
 	deploymentRepo := &repomocks.DeploymentRepositoryMock{
-		GetDeployedGatewaysByProviderFunc: func(_ uuid.UUID, _ string) ([]string, error) {
+		PlacedGatewaysFunc: func(_ context.Context, _ string, _ uuid.UUID) ([]string, error) {
 			return []string{"gw-1"}, nil
 		},
 	}
@@ -395,7 +433,7 @@ func TestIntersectDeployedGatewayLLMPolicies_SkipsGatewayFromAnotherOrg(t *testi
 		},
 	}
 
-	available, err := intersectDeployedGatewayLLMPolicies(gatewayRepo, deploymentRepo, uuid.New(), "org-uuid")
+	available, err := intersectDeployedGatewayLLMPolicies(context.Background(), gatewayRepo, deploymentRepo, uuid.New(), "org-uuid")
 
 	require.NoError(t, err)
 	assert.Empty(t, available)
@@ -403,7 +441,7 @@ func TestIntersectDeployedGatewayLLMPolicies_SkipsGatewayFromAnotherOrg(t *testi
 
 func TestIntersectDeployedGatewayLLMPolicies_SkipsStaleGatewayReference(t *testing.T) {
 	deploymentRepo := &repomocks.DeploymentRepositoryMock{
-		GetDeployedGatewaysByProviderFunc: func(_ uuid.UUID, _ string) ([]string, error) {
+		PlacedGatewaysFunc: func(_ context.Context, _ string, _ uuid.UUID) ([]string, error) {
 			return []string{"gw-deleted"}, nil
 		},
 	}
@@ -413,7 +451,7 @@ func TestIntersectDeployedGatewayLLMPolicies_SkipsStaleGatewayReference(t *testi
 		},
 	}
 
-	available, err := intersectDeployedGatewayLLMPolicies(gatewayRepo, deploymentRepo, uuid.New(), "org-uuid")
+	available, err := intersectDeployedGatewayLLMPolicies(context.Background(), gatewayRepo, deploymentRepo, uuid.New(), "org-uuid")
 
 	require.NoError(t, err)
 	assert.Empty(t, available)
@@ -422,12 +460,12 @@ func TestIntersectDeployedGatewayLLMPolicies_SkipsStaleGatewayReference(t *testi
 func TestIntersectDeployedGatewayLLMPolicies_DeploymentRepoErrorIsWrapped(t *testing.T) {
 	boom := errors.New("db unreachable")
 	deploymentRepo := &repomocks.DeploymentRepositoryMock{
-		GetDeployedGatewaysByProviderFunc: func(_ uuid.UUID, _ string) ([]string, error) {
+		PlacedGatewaysFunc: func(_ context.Context, _ string, _ uuid.UUID) ([]string, error) {
 			return nil, boom
 		},
 	}
 
-	_, err := intersectDeployedGatewayLLMPolicies(&repomocks.GatewayRepositoryMock{}, deploymentRepo, uuid.New(), "org-uuid")
+	_, err := intersectDeployedGatewayLLMPolicies(context.Background(), &repomocks.GatewayRepositoryMock{}, deploymentRepo, uuid.New(), "org-uuid")
 
 	require.Error(t, err)
 	assert.ErrorIs(t, err, boom)

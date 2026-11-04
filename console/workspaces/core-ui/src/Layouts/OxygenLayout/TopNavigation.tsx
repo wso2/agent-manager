@@ -1,4 +1,5 @@
 import {
+  orgRouteId,
   useListAgents,
   useListOrganizations,
   useListProjects,
@@ -53,7 +54,7 @@ export function TopNavigation() {
   const { data: organizations } = useListOrganizations();
   const selectedOrganization = useMemo(() => {
     return organizations?.organizations?.find(
-      (organization) => organization.name === orgId,
+      (organization) => orgRouteId(organization) === orgId,
     );
   }, [organizations, orgId]);
   const hasOtherOrgs = (organizations?.total ?? 0) > 1;
@@ -96,7 +97,7 @@ export function TopNavigation() {
             selected={{
               to:
                 generatePath(absoluteRouteMap.children.org.path, {
-                  orgId: selectedOrganization.name,
+                  orgId: orgRouteId(selectedOrganization),
                 }) + (commonOrgPages ? `/${commonOrgPages}` : ""),
               goToLabel: `Go to ${orgLabel(selectedOrganization, soloOrgFallbackName)}`,
               content: (
@@ -110,11 +111,11 @@ export function TopNavigation() {
               organizations.organizations.map((organization) => (
                 <MenuItem
                   key={organization.name}
-                  selected={organization.name === orgId}
+                  selected={orgRouteId(organization) === orgId}
                   onClick={() => setOrgAnchorEl(null)}
                   {...asLink(
                     generatePath(absoluteRouteMap.children.org.path, {
-                      orgId: organization.name,
+                      orgId: orgRouteId(organization),
                     }) + (commonOrgPages ? `/${commonOrgPages}` : ""),
                   )}
                 >

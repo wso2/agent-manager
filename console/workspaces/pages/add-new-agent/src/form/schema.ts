@@ -98,7 +98,6 @@ const baseAgentFields = {
 export const connectAgentSchema = z.object({
   ...baseAgentFields,
   deploymentType: z.literal('existing').optional(),
-  externalSubType: z.enum(['custom-api', 'a2a-agent']).optional(),
 });
 
 // Schema for creating a new agent from source (full validation)

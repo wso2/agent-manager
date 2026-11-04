@@ -27,7 +27,7 @@ LABEL org.opencontainers.image.licenses="Apache-2.0"
 WORKDIR /app
 
 # Install system dependencies
-RUN apk add --no-cache git
+RUN apk add --no-cache git 'ca-certificates>=20261020' 'ca-certificates-bundle>=20261020'
 
 # Copy amp-evaluation SDK from local libs and install in editable mode
 COPY libs/amp-evaluation/pyproject.toml libs/amp-evaluation/README.md ./sdk/
@@ -35,7 +35,7 @@ COPY libs/amp-evaluation/src/ ./sdk/src/
 RUN pip install --no-cache-dir -e ./sdk
 
 # Install additional dependencies
-RUN pip install --no-cache-dir requests "any-llm-sdk[openai,anthropic,gemini,groq,mistral,bedrock,azureopenai,azure]==1.16.0" "aiohttp>=3.9"
+RUN pip install --no-cache-dir "certifi>=2026.10.19" requests "any-llm-sdk[openai,anthropic,gemini,groq,mistral,bedrock,azureopenai,azure]==1.16.0" "aiohttp>=3.9"
 
 # Copy the job entrypoint
 COPY evaluation-job/main.py ./

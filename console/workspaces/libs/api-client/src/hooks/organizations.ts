@@ -17,19 +17,56 @@
  */
 
 import { useQueryClient } from "@tanstack/react-query";
+import { generatePath } from "react-router-dom";
 import { createOrganization, generateResourceName, getOrganization, listOrganizations } from "../apis";
-import type {
-  OrganizationListResponse,
-  OrganizationResponse,
-  CreateOrganizationRequest,
-  GetOrganizationPathParams,
-  ListOrganizationsQuery,
-  ResourceNameRequest,
-  ResourceNameResponse,
-  GenerateResourceNamePathParams,
+import {
+  absoluteRouteMap,
+  type OrganizationListItem,
+  type OrganizationListResponse,
+  type OrganizationResponse,
+  type CreateOrganizationRequest,
+  type GetOrganizationPathParams,
+  type ListOrganizationsQuery,
+  type ResourceNameRequest,
+  type ResourceNameResponse,
+  type GenerateResourceNamePathParams,
 } from "@agent-management-platform/types";
 import { useAuthHooks } from "@agent-management-platform/auth";
 import { useApiMutation, useApiQuery } from "./react-query-notifications";
+
+/**
+ * The `:orgId` the console puts in its URLs for an org: the org handle when the
+ * backend reports one, else the name (the OpenChoreo namespace), as before.
+ */
+type OrgRouteSource = Pick<OrganizationListItem, 'name' | 'handle'>;
+
+export function orgRouteId(org: OrgRouteSource): string;
+export function orgRouteId(org: OrgRouteSource | undefined): string | undefined;
+export function orgRouteId(org: OrgRouteSource | undefined): string | undefined {
+  return org?.handle || org?.name;
+}
+
+/**
+ * Where to send a link that names the org the old way — by its name (the
+ * namespace, e.g. `/org/wc-01a0c318-7a4ef447/...`) — so it keeps working now
+ * that URLs carry the handle. Undefined when the link needs no redirect.
+ */
+export function legacyOrgRedirectPath(
+  pathname: string,
+  orgId: string | undefined,
+  orgs: Pick<OrganizationListItem, 'name' | 'handle'>[] | undefined,
+): string | undefined {
+  if (!orgId || orgs?.some((o) => orgRouteId(o) === orgId)) {
+    return undefined;
+  }
+  const routeId = orgRouteId(orgs?.find((o) => o.name === orgId));
+  const oldBase = generatePath(absoluteRouteMap.children.org.path, { orgId });
+  if (!routeId || (pathname !== oldBase && !pathname.startsWith(`${oldBase}/`))) {
+    return undefined;
+  }
+  return generatePath(absoluteRouteMap.children.org.path, { orgId: routeId })
+    + pathname.slice(oldBase.length);
+}
 
 export function useListOrganizations(
   query?: ListOrganizationsQuery,

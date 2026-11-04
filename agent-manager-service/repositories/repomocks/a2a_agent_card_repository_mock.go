@@ -33,6 +33,9 @@ import (
 //			DeleteForAgentEnvFunc: func(ctx context.Context, ouID string, projectName string, agentName string, environmentName string) error {
 //				panic("mock out the DeleteForAgentEnv method")
 //			},
+//			DeleteForAgentEnvUUIDFunc: func(ctx context.Context, ouID string, projectName string, agentName string, environmentUUID uuid.UUID) error {
+//				panic("mock out the DeleteForAgentEnvUUID method")
+//			},
 //			DeleteForEnvironmentFunc: func(ctx context.Context, ouID string, environmentUUID uuid.UUID) error {
 //				panic("mock out the DeleteForEnvironment method")
 //			},
@@ -93,6 +96,9 @@ type A2AAgentCardRepositoryMock struct {
 
 	// DeleteForAgentEnvFunc mocks the DeleteForAgentEnv method.
 	DeleteForAgentEnvFunc func(ctx context.Context, ouID string, projectName string, agentName string, environmentName string) error
+
+	// DeleteForAgentEnvUUIDFunc mocks the DeleteForAgentEnvUUID method.
+	DeleteForAgentEnvUUIDFunc func(ctx context.Context, ouID string, projectName string, agentName string, environmentUUID uuid.UUID) error
 
 	// DeleteForEnvironmentFunc mocks the DeleteForEnvironment method.
 	DeleteForEnvironmentFunc func(ctx context.Context, ouID string, environmentUUID uuid.UUID) error
@@ -183,6 +189,19 @@ type A2AAgentCardRepositoryMock struct {
 			AgentName string
 			// EnvironmentName is the environmentName argument value.
 			EnvironmentName string
+		}
+		// DeleteForAgentEnvUUID holds details about calls to the DeleteForAgentEnvUUID method.
+		DeleteForAgentEnvUUID []struct {
+			// Ctx is the ctx argument value.
+			Ctx context.Context
+			// OuID is the ouID argument value.
+			OuID string
+			// ProjectName is the projectName argument value.
+			ProjectName string
+			// AgentName is the agentName argument value.
+			AgentName string
+			// EnvironmentUUID is the environmentUUID argument value.
+			EnvironmentUUID uuid.UUID
 		}
 		// DeleteForEnvironment holds details about calls to the DeleteForEnvironment method.
 		DeleteForEnvironment []struct {
@@ -339,6 +358,7 @@ type A2AAgentCardRepositoryMock struct {
 	lockClearCard                 sync.RWMutex
 	lockDeleteForAgent            sync.RWMutex
 	lockDeleteForAgentEnv         sync.RWMutex
+	lockDeleteForAgentEnvUUID     sync.RWMutex
 	lockDeleteForEnvironment      sync.RWMutex
 	lockDeleteIfUnchanged         sync.RWMutex
 	lockDeletePlatformForAgentEnv sync.RWMutex
@@ -532,6 +552,54 @@ func (mock *A2AAgentCardRepositoryMock) DeleteForAgentEnvCalls() []struct {
 	mock.lockDeleteForAgentEnv.RLock()
 	calls = mock.calls.DeleteForAgentEnv
 	mock.lockDeleteForAgentEnv.RUnlock()
+	return calls
+}
+
+// DeleteForAgentEnvUUID calls DeleteForAgentEnvUUIDFunc.
+func (mock *A2AAgentCardRepositoryMock) DeleteForAgentEnvUUID(ctx context.Context, ouID string, projectName string, agentName string, environmentUUID uuid.UUID) error {
+	if mock.DeleteForAgentEnvUUIDFunc == nil {
+		panic("A2AAgentCardRepositoryMock.DeleteForAgentEnvUUIDFunc: method is nil but A2AAgentCardRepository.DeleteForAgentEnvUUID was just called")
+	}
+	callInfo := struct {
+		Ctx             context.Context
+		OuID            string
+		ProjectName     string
+		AgentName       string
+		EnvironmentUUID uuid.UUID
+	}{
+		Ctx:             ctx,
+		OuID:            ouID,
+		ProjectName:     projectName,
+		AgentName:       agentName,
+		EnvironmentUUID: environmentUUID,
+	}
+	mock.lockDeleteForAgentEnvUUID.Lock()
+	mock.calls.DeleteForAgentEnvUUID = append(mock.calls.DeleteForAgentEnvUUID, callInfo)
+	mock.lockDeleteForAgentEnvUUID.Unlock()
+	return mock.DeleteForAgentEnvUUIDFunc(ctx, ouID, projectName, agentName, environmentUUID)
+}
+
+// DeleteForAgentEnvUUIDCalls gets all the calls that were made to DeleteForAgentEnvUUID.
+// Check the length with:
+//
+//	len(mockedA2AAgentCardRepository.DeleteForAgentEnvUUIDCalls())
+func (mock *A2AAgentCardRepositoryMock) DeleteForAgentEnvUUIDCalls() []struct {
+	Ctx             context.Context
+	OuID            string
+	ProjectName     string
+	AgentName       string
+	EnvironmentUUID uuid.UUID
+} {
+	var calls []struct {
+		Ctx             context.Context
+		OuID            string
+		ProjectName     string
+		AgentName       string
+		EnvironmentUUID uuid.UUID
+	}
+	mock.lockDeleteForAgentEnvUUID.RLock()
+	calls = mock.calls.DeleteForAgentEnvUUID
+	mock.lockDeleteForAgentEnvUUID.RUnlock()
 	return calls
 }
 

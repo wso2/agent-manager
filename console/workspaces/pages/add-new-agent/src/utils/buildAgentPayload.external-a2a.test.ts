@@ -27,14 +27,9 @@ const externalForm = (over: Record<string, unknown> = {}) =>
   ({ deploymentType: "existing", name: "ext", displayName: "Ext", description: "", ...over } as unknown as AddAgentFormValues);
 
 describe("buildAgentCreationPayload for an external agent", () => {
-  it("keeps custom-api as the default subtype", () => {
+  it("sends no subtype; A2A comes from registering a card URL later", () => {
     const { body } = buildAgentCreationPayload(externalForm(), params);
-    expect(body.agentType).toEqual({ type: "external-agent-api", subType: "custom-api" });
-  });
-
-  it("sends a2a-agent when chosen", () => {
-    const { body } = buildAgentCreationPayload(externalForm({ externalSubType: "a2a-agent" }), params);
-    expect(body.agentType).toEqual({ type: "external-agent-api", subType: "a2a-agent" });
+    expect(body.agentType).toEqual({ type: "external-agent-api" });
     expect(body.provisioning).toEqual({ type: "external" });
   });
 });

@@ -909,6 +909,26 @@ type ClientInterface interface {
 
 	RotateLLMProxyAPIKey(ctx context.Context, orgName string, projName string, id string, keyName string, body RotateLLMProxyAPIKeyJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
 
+	// GetLLMProxyDeployments request
+	GetLLMProxyDeployments(ctx context.Context, orgName string, projName string, id string, params *GetLLMProxyDeploymentsParams, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// DeployLLMProxyWithBody request with any body
+	DeployLLMProxyWithBody(ctx context.Context, orgName string, projName string, id string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	DeployLLMProxy(ctx context.Context, orgName string, projName string, id string, body DeployLLMProxyJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// RestoreLLMProxyDeployment request
+	RestoreLLMProxyDeployment(ctx context.Context, orgName string, projName string, id string, params *RestoreLLMProxyDeploymentParams, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// UndeployLLMProxyDeployment request
+	UndeployLLMProxyDeployment(ctx context.Context, orgName string, projName string, id string, params *UndeployLLMProxyDeploymentParams, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// DeleteLLMProxyDeployment request
+	DeleteLLMProxyDeployment(ctx context.Context, orgName string, projName string, id string, deploymentId string, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// GetLLMProxyDeployment request
+	GetLLMProxyDeployment(ctx context.Context, orgName string, projName string, id string, deploymentId string, reqEditors ...RequestEditorFn) (*http.Response, error)
+
 	// ListRepositoryBranchesWithBody request with any body
 	ListRepositoryBranchesWithBody(ctx context.Context, orgName string, params *ListRepositoryBranchesParams, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
 
@@ -918,6 +938,34 @@ type ClientInterface interface {
 	ListRepositoryCommitsWithBody(ctx context.Context, orgName string, params *ListRepositoryCommitsParams, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
 
 	ListRepositoryCommits(ctx context.Context, orgName string, params *ListRepositoryCommitsParams, body ListRepositoryCommitsJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// ListSelfHostedGateways request
+	ListSelfHostedGateways(ctx context.Context, orgName string, params *ListSelfHostedGatewaysParams, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// RegisterSelfHostedGatewayWithBody request with any body
+	RegisterSelfHostedGatewayWithBody(ctx context.Context, orgName string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	RegisterSelfHostedGateway(ctx context.Context, orgName string, body RegisterSelfHostedGatewayJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// DeleteSelfHostedGateway request
+	DeleteSelfHostedGateway(ctx context.Context, orgName string, gatewayID openapi_types.UUID, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// GetSelfHostedGateway request
+	GetSelfHostedGateway(ctx context.Context, orgName string, gatewayID openapi_types.UUID, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// UpdateSelfHostedGatewayWithBody request with any body
+	UpdateSelfHostedGatewayWithBody(ctx context.Context, orgName string, gatewayID openapi_types.UUID, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	UpdateSelfHostedGateway(ctx context.Context, orgName string, gatewayID openapi_types.UUID, body UpdateSelfHostedGatewayJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// ListSelfHostedGatewayTokens request
+	ListSelfHostedGatewayTokens(ctx context.Context, orgName string, gatewayID openapi_types.UUID, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// CreateSelfHostedGatewayToken request
+	CreateSelfHostedGatewayToken(ctx context.Context, orgName string, gatewayID openapi_types.UUID, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// RevokeSelfHostedGatewayToken request
+	RevokeSelfHostedGatewayToken(ctx context.Context, orgName string, gatewayID openapi_types.UUID, tokenID string, reqEditors ...RequestEditorFn) (*http.Response, error)
 
 	// CheckThunderUrlAvailability request
 	CheckThunderUrlAvailability(ctx context.Context, orgName string, params *CheckThunderUrlAvailabilityParams, reqEditors ...RequestEditorFn) (*http.Response, error)
@@ -4521,6 +4569,90 @@ func (c *Client) RotateLLMProxyAPIKey(ctx context.Context, orgName string, projN
 	return c.Client.Do(req)
 }
 
+func (c *Client) GetLLMProxyDeployments(ctx context.Context, orgName string, projName string, id string, params *GetLLMProxyDeploymentsParams, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewGetLLMProxyDeploymentsRequest(c.Server, orgName, projName, id, params)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) DeployLLMProxyWithBody(ctx context.Context, orgName string, projName string, id string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewDeployLLMProxyRequestWithBody(c.Server, orgName, projName, id, contentType, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) DeployLLMProxy(ctx context.Context, orgName string, projName string, id string, body DeployLLMProxyJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewDeployLLMProxyRequest(c.Server, orgName, projName, id, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) RestoreLLMProxyDeployment(ctx context.Context, orgName string, projName string, id string, params *RestoreLLMProxyDeploymentParams, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewRestoreLLMProxyDeploymentRequest(c.Server, orgName, projName, id, params)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) UndeployLLMProxyDeployment(ctx context.Context, orgName string, projName string, id string, params *UndeployLLMProxyDeploymentParams, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewUndeployLLMProxyDeploymentRequest(c.Server, orgName, projName, id, params)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) DeleteLLMProxyDeployment(ctx context.Context, orgName string, projName string, id string, deploymentId string, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewDeleteLLMProxyDeploymentRequest(c.Server, orgName, projName, id, deploymentId)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) GetLLMProxyDeployment(ctx context.Context, orgName string, projName string, id string, deploymentId string, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewGetLLMProxyDeploymentRequest(c.Server, orgName, projName, id, deploymentId)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
 func (c *Client) ListRepositoryBranchesWithBody(ctx context.Context, orgName string, params *ListRepositoryBranchesParams, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
 	req, err := NewListRepositoryBranchesRequestWithBody(c.Server, orgName, params, contentType, body)
 	if err != nil {
@@ -4559,6 +4691,126 @@ func (c *Client) ListRepositoryCommitsWithBody(ctx context.Context, orgName stri
 
 func (c *Client) ListRepositoryCommits(ctx context.Context, orgName string, params *ListRepositoryCommitsParams, body ListRepositoryCommitsJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
 	req, err := NewListRepositoryCommitsRequest(c.Server, orgName, params, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) ListSelfHostedGateways(ctx context.Context, orgName string, params *ListSelfHostedGatewaysParams, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewListSelfHostedGatewaysRequest(c.Server, orgName, params)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) RegisterSelfHostedGatewayWithBody(ctx context.Context, orgName string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewRegisterSelfHostedGatewayRequestWithBody(c.Server, orgName, contentType, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) RegisterSelfHostedGateway(ctx context.Context, orgName string, body RegisterSelfHostedGatewayJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewRegisterSelfHostedGatewayRequest(c.Server, orgName, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) DeleteSelfHostedGateway(ctx context.Context, orgName string, gatewayID openapi_types.UUID, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewDeleteSelfHostedGatewayRequest(c.Server, orgName, gatewayID)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) GetSelfHostedGateway(ctx context.Context, orgName string, gatewayID openapi_types.UUID, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewGetSelfHostedGatewayRequest(c.Server, orgName, gatewayID)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) UpdateSelfHostedGatewayWithBody(ctx context.Context, orgName string, gatewayID openapi_types.UUID, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewUpdateSelfHostedGatewayRequestWithBody(c.Server, orgName, gatewayID, contentType, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) UpdateSelfHostedGateway(ctx context.Context, orgName string, gatewayID openapi_types.UUID, body UpdateSelfHostedGatewayJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewUpdateSelfHostedGatewayRequest(c.Server, orgName, gatewayID, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) ListSelfHostedGatewayTokens(ctx context.Context, orgName string, gatewayID openapi_types.UUID, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewListSelfHostedGatewayTokensRequest(c.Server, orgName, gatewayID)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) CreateSelfHostedGatewayToken(ctx context.Context, orgName string, gatewayID openapi_types.UUID, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewCreateSelfHostedGatewayTokenRequest(c.Server, orgName, gatewayID)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) RevokeSelfHostedGatewayToken(ctx context.Context, orgName string, gatewayID openapi_types.UUID, tokenID string, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewRevokeSelfHostedGatewayTokenRequest(c.Server, orgName, gatewayID, tokenID)
 	if err != nil {
 		return nil, err
 	}
@@ -17214,6 +17466,419 @@ func NewRotateLLMProxyAPIKeyRequestWithBody(server string, orgName string, projN
 	return req, nil
 }
 
+// NewGetLLMProxyDeploymentsRequest generates requests for GetLLMProxyDeployments
+func NewGetLLMProxyDeploymentsRequest(server string, orgName string, projName string, id string, params *GetLLMProxyDeploymentsParams) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithOptions("simple", false, "orgName", orgName, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: ""})
+	if err != nil {
+		return nil, err
+	}
+
+	var pathParam1 string
+
+	pathParam1, err = runtime.StyleParamWithOptions("simple", false, "projName", projName, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: ""})
+	if err != nil {
+		return nil, err
+	}
+
+	var pathParam2 string
+
+	pathParam2, err = runtime.StyleParamWithOptions("simple", false, "id", id, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: ""})
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/orgs/%s/projects/%s/llm-proxies/%s/deployments", pathParam0, pathParam1, pathParam2)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	if params != nil {
+		queryValues := queryURL.Query()
+
+		if params.GatewayId != nil {
+
+			if queryFrag, err := runtime.StyleParamWithOptions("form", true, "gatewayId", *params.GatewayId, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+				return nil, err
+			} else {
+				for k, v := range parsed {
+					for _, v2 := range v {
+						queryValues.Add(k, v2)
+					}
+				}
+			}
+
+		}
+
+		if params.Status != nil {
+
+			if queryFrag, err := runtime.StyleParamWithOptions("form", true, "status", *params.Status, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+				return nil, err
+			} else {
+				for k, v := range parsed {
+					for _, v2 := range v {
+						queryValues.Add(k, v2)
+					}
+				}
+			}
+
+		}
+
+		queryURL.RawQuery = queryValues.Encode()
+	}
+
+	req, err := http.NewRequest("GET", queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return req, nil
+}
+
+// NewDeployLLMProxyRequest calls the generic DeployLLMProxy builder with application/json body
+func NewDeployLLMProxyRequest(server string, orgName string, projName string, id string, body DeployLLMProxyJSONRequestBody) (*http.Request, error) {
+	var bodyReader io.Reader
+	buf, err := json.Marshal(body)
+	if err != nil {
+		return nil, err
+	}
+	bodyReader = bytes.NewReader(buf)
+	return NewDeployLLMProxyRequestWithBody(server, orgName, projName, id, "application/json", bodyReader)
+}
+
+// NewDeployLLMProxyRequestWithBody generates requests for DeployLLMProxy with any type of body
+func NewDeployLLMProxyRequestWithBody(server string, orgName string, projName string, id string, contentType string, body io.Reader) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithOptions("simple", false, "orgName", orgName, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: ""})
+	if err != nil {
+		return nil, err
+	}
+
+	var pathParam1 string
+
+	pathParam1, err = runtime.StyleParamWithOptions("simple", false, "projName", projName, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: ""})
+	if err != nil {
+		return nil, err
+	}
+
+	var pathParam2 string
+
+	pathParam2, err = runtime.StyleParamWithOptions("simple", false, "id", id, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: ""})
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/orgs/%s/projects/%s/llm-proxies/%s/deployments", pathParam0, pathParam1, pathParam2)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest("POST", queryURL.String(), body)
+	if err != nil {
+		return nil, err
+	}
+
+	req.Header.Add("Content-Type", contentType)
+
+	return req, nil
+}
+
+// NewRestoreLLMProxyDeploymentRequest generates requests for RestoreLLMProxyDeployment
+func NewRestoreLLMProxyDeploymentRequest(server string, orgName string, projName string, id string, params *RestoreLLMProxyDeploymentParams) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithOptions("simple", false, "orgName", orgName, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: ""})
+	if err != nil {
+		return nil, err
+	}
+
+	var pathParam1 string
+
+	pathParam1, err = runtime.StyleParamWithOptions("simple", false, "projName", projName, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: ""})
+	if err != nil {
+		return nil, err
+	}
+
+	var pathParam2 string
+
+	pathParam2, err = runtime.StyleParamWithOptions("simple", false, "id", id, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: ""})
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/orgs/%s/projects/%s/llm-proxies/%s/deployments/restore", pathParam0, pathParam1, pathParam2)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	if params != nil {
+		queryValues := queryURL.Query()
+
+		if queryFrag, err := runtime.StyleParamWithOptions("form", true, "deploymentId", params.DeploymentId, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "string", Format: ""}); err != nil {
+			return nil, err
+		} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+			return nil, err
+		} else {
+			for k, v := range parsed {
+				for _, v2 := range v {
+					queryValues.Add(k, v2)
+				}
+			}
+		}
+
+		if queryFrag, err := runtime.StyleParamWithOptions("form", true, "gatewayId", params.GatewayId, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "string", Format: ""}); err != nil {
+			return nil, err
+		} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+			return nil, err
+		} else {
+			for k, v := range parsed {
+				for _, v2 := range v {
+					queryValues.Add(k, v2)
+				}
+			}
+		}
+
+		queryURL.RawQuery = queryValues.Encode()
+	}
+
+	req, err := http.NewRequest("POST", queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return req, nil
+}
+
+// NewUndeployLLMProxyDeploymentRequest generates requests for UndeployLLMProxyDeployment
+func NewUndeployLLMProxyDeploymentRequest(server string, orgName string, projName string, id string, params *UndeployLLMProxyDeploymentParams) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithOptions("simple", false, "orgName", orgName, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: ""})
+	if err != nil {
+		return nil, err
+	}
+
+	var pathParam1 string
+
+	pathParam1, err = runtime.StyleParamWithOptions("simple", false, "projName", projName, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: ""})
+	if err != nil {
+		return nil, err
+	}
+
+	var pathParam2 string
+
+	pathParam2, err = runtime.StyleParamWithOptions("simple", false, "id", id, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: ""})
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/orgs/%s/projects/%s/llm-proxies/%s/deployments/undeploy", pathParam0, pathParam1, pathParam2)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	if params != nil {
+		queryValues := queryURL.Query()
+
+		if queryFrag, err := runtime.StyleParamWithOptions("form", true, "deploymentId", params.DeploymentId, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "string", Format: ""}); err != nil {
+			return nil, err
+		} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+			return nil, err
+		} else {
+			for k, v := range parsed {
+				for _, v2 := range v {
+					queryValues.Add(k, v2)
+				}
+			}
+		}
+
+		if queryFrag, err := runtime.StyleParamWithOptions("form", true, "gatewayId", params.GatewayId, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "string", Format: ""}); err != nil {
+			return nil, err
+		} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+			return nil, err
+		} else {
+			for k, v := range parsed {
+				for _, v2 := range v {
+					queryValues.Add(k, v2)
+				}
+			}
+		}
+
+		queryURL.RawQuery = queryValues.Encode()
+	}
+
+	req, err := http.NewRequest("POST", queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return req, nil
+}
+
+// NewDeleteLLMProxyDeploymentRequest generates requests for DeleteLLMProxyDeployment
+func NewDeleteLLMProxyDeploymentRequest(server string, orgName string, projName string, id string, deploymentId string) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithOptions("simple", false, "orgName", orgName, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: ""})
+	if err != nil {
+		return nil, err
+	}
+
+	var pathParam1 string
+
+	pathParam1, err = runtime.StyleParamWithOptions("simple", false, "projName", projName, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: ""})
+	if err != nil {
+		return nil, err
+	}
+
+	var pathParam2 string
+
+	pathParam2, err = runtime.StyleParamWithOptions("simple", false, "id", id, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: ""})
+	if err != nil {
+		return nil, err
+	}
+
+	var pathParam3 string
+
+	pathParam3, err = runtime.StyleParamWithOptions("simple", false, "deploymentId", deploymentId, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: ""})
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/orgs/%s/projects/%s/llm-proxies/%s/deployments/%s", pathParam0, pathParam1, pathParam2, pathParam3)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest("DELETE", queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return req, nil
+}
+
+// NewGetLLMProxyDeploymentRequest generates requests for GetLLMProxyDeployment
+func NewGetLLMProxyDeploymentRequest(server string, orgName string, projName string, id string, deploymentId string) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithOptions("simple", false, "orgName", orgName, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: ""})
+	if err != nil {
+		return nil, err
+	}
+
+	var pathParam1 string
+
+	pathParam1, err = runtime.StyleParamWithOptions("simple", false, "projName", projName, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: ""})
+	if err != nil {
+		return nil, err
+	}
+
+	var pathParam2 string
+
+	pathParam2, err = runtime.StyleParamWithOptions("simple", false, "id", id, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: ""})
+	if err != nil {
+		return nil, err
+	}
+
+	var pathParam3 string
+
+	pathParam3, err = runtime.StyleParamWithOptions("simple", false, "deploymentId", deploymentId, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: ""})
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/orgs/%s/projects/%s/llm-proxies/%s/deployments/%s", pathParam0, pathParam1, pathParam2, pathParam3)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest("GET", queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return req, nil
+}
+
 // NewListRepositoryBranchesRequest calls the generic ListRepositoryBranches builder with application/json body
 func NewListRepositoryBranchesRequest(server string, orgName string, params *ListRepositoryBranchesParams, body ListRepositoryBranchesJSONRequestBody) (*http.Request, error) {
 	var bodyReader io.Reader
@@ -17380,6 +18045,391 @@ func NewListRepositoryCommitsRequestWithBody(server string, orgName string, para
 	}
 
 	req.Header.Add("Content-Type", contentType)
+
+	return req, nil
+}
+
+// NewListSelfHostedGatewaysRequest generates requests for ListSelfHostedGateways
+func NewListSelfHostedGatewaysRequest(server string, orgName string, params *ListSelfHostedGatewaysParams) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithOptions("simple", false, "orgName", orgName, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: ""})
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/orgs/%s/self-hosted-gateways", pathParam0)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	if params != nil {
+		queryValues := queryURL.Query()
+
+		if params.Limit != nil {
+
+			if queryFrag, err := runtime.StyleParamWithOptions("form", true, "limit", *params.Limit, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "integer", Format: "int32"}); err != nil {
+				return nil, err
+			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+				return nil, err
+			} else {
+				for k, v := range parsed {
+					for _, v2 := range v {
+						queryValues.Add(k, v2)
+					}
+				}
+			}
+
+		}
+
+		if params.Offset != nil {
+
+			if queryFrag, err := runtime.StyleParamWithOptions("form", true, "offset", *params.Offset, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "integer", Format: "int32"}); err != nil {
+				return nil, err
+			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+				return nil, err
+			} else {
+				for k, v := range parsed {
+					for _, v2 := range v {
+						queryValues.Add(k, v2)
+					}
+				}
+			}
+
+		}
+
+		queryURL.RawQuery = queryValues.Encode()
+	}
+
+	req, err := http.NewRequest("GET", queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return req, nil
+}
+
+// NewRegisterSelfHostedGatewayRequest calls the generic RegisterSelfHostedGateway builder with application/json body
+func NewRegisterSelfHostedGatewayRequest(server string, orgName string, body RegisterSelfHostedGatewayJSONRequestBody) (*http.Request, error) {
+	var bodyReader io.Reader
+	buf, err := json.Marshal(body)
+	if err != nil {
+		return nil, err
+	}
+	bodyReader = bytes.NewReader(buf)
+	return NewRegisterSelfHostedGatewayRequestWithBody(server, orgName, "application/json", bodyReader)
+}
+
+// NewRegisterSelfHostedGatewayRequestWithBody generates requests for RegisterSelfHostedGateway with any type of body
+func NewRegisterSelfHostedGatewayRequestWithBody(server string, orgName string, contentType string, body io.Reader) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithOptions("simple", false, "orgName", orgName, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: ""})
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/orgs/%s/self-hosted-gateways", pathParam0)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest("POST", queryURL.String(), body)
+	if err != nil {
+		return nil, err
+	}
+
+	req.Header.Add("Content-Type", contentType)
+
+	return req, nil
+}
+
+// NewDeleteSelfHostedGatewayRequest generates requests for DeleteSelfHostedGateway
+func NewDeleteSelfHostedGatewayRequest(server string, orgName string, gatewayID openapi_types.UUID) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithOptions("simple", false, "orgName", orgName, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: ""})
+	if err != nil {
+		return nil, err
+	}
+
+	var pathParam1 string
+
+	pathParam1, err = runtime.StyleParamWithOptions("simple", false, "gatewayID", gatewayID, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: "uuid"})
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/orgs/%s/self-hosted-gateways/%s", pathParam0, pathParam1)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest("DELETE", queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return req, nil
+}
+
+// NewGetSelfHostedGatewayRequest generates requests for GetSelfHostedGateway
+func NewGetSelfHostedGatewayRequest(server string, orgName string, gatewayID openapi_types.UUID) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithOptions("simple", false, "orgName", orgName, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: ""})
+	if err != nil {
+		return nil, err
+	}
+
+	var pathParam1 string
+
+	pathParam1, err = runtime.StyleParamWithOptions("simple", false, "gatewayID", gatewayID, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: "uuid"})
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/orgs/%s/self-hosted-gateways/%s", pathParam0, pathParam1)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest("GET", queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return req, nil
+}
+
+// NewUpdateSelfHostedGatewayRequest calls the generic UpdateSelfHostedGateway builder with application/json body
+func NewUpdateSelfHostedGatewayRequest(server string, orgName string, gatewayID openapi_types.UUID, body UpdateSelfHostedGatewayJSONRequestBody) (*http.Request, error) {
+	var bodyReader io.Reader
+	buf, err := json.Marshal(body)
+	if err != nil {
+		return nil, err
+	}
+	bodyReader = bytes.NewReader(buf)
+	return NewUpdateSelfHostedGatewayRequestWithBody(server, orgName, gatewayID, "application/json", bodyReader)
+}
+
+// NewUpdateSelfHostedGatewayRequestWithBody generates requests for UpdateSelfHostedGateway with any type of body
+func NewUpdateSelfHostedGatewayRequestWithBody(server string, orgName string, gatewayID openapi_types.UUID, contentType string, body io.Reader) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithOptions("simple", false, "orgName", orgName, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: ""})
+	if err != nil {
+		return nil, err
+	}
+
+	var pathParam1 string
+
+	pathParam1, err = runtime.StyleParamWithOptions("simple", false, "gatewayID", gatewayID, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: "uuid"})
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/orgs/%s/self-hosted-gateways/%s", pathParam0, pathParam1)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest("PUT", queryURL.String(), body)
+	if err != nil {
+		return nil, err
+	}
+
+	req.Header.Add("Content-Type", contentType)
+
+	return req, nil
+}
+
+// NewListSelfHostedGatewayTokensRequest generates requests for ListSelfHostedGatewayTokens
+func NewListSelfHostedGatewayTokensRequest(server string, orgName string, gatewayID openapi_types.UUID) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithOptions("simple", false, "orgName", orgName, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: ""})
+	if err != nil {
+		return nil, err
+	}
+
+	var pathParam1 string
+
+	pathParam1, err = runtime.StyleParamWithOptions("simple", false, "gatewayID", gatewayID, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: "uuid"})
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/orgs/%s/self-hosted-gateways/%s/tokens", pathParam0, pathParam1)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest("GET", queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return req, nil
+}
+
+// NewCreateSelfHostedGatewayTokenRequest generates requests for CreateSelfHostedGatewayToken
+func NewCreateSelfHostedGatewayTokenRequest(server string, orgName string, gatewayID openapi_types.UUID) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithOptions("simple", false, "orgName", orgName, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: ""})
+	if err != nil {
+		return nil, err
+	}
+
+	var pathParam1 string
+
+	pathParam1, err = runtime.StyleParamWithOptions("simple", false, "gatewayID", gatewayID, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: "uuid"})
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/orgs/%s/self-hosted-gateways/%s/tokens", pathParam0, pathParam1)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest("POST", queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return req, nil
+}
+
+// NewRevokeSelfHostedGatewayTokenRequest generates requests for RevokeSelfHostedGatewayToken
+func NewRevokeSelfHostedGatewayTokenRequest(server string, orgName string, gatewayID openapi_types.UUID, tokenID string) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithOptions("simple", false, "orgName", orgName, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: ""})
+	if err != nil {
+		return nil, err
+	}
+
+	var pathParam1 string
+
+	pathParam1, err = runtime.StyleParamWithOptions("simple", false, "gatewayID", gatewayID, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: "uuid"})
+	if err != nil {
+		return nil, err
+	}
+
+	var pathParam2 string
+
+	pathParam2, err = runtime.StyleParamWithOptions("simple", false, "tokenID", tokenID, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: ""})
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/orgs/%s/self-hosted-gateways/%s/tokens/%s", pathParam0, pathParam1, pathParam2)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest("DELETE", queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
 
 	return req, nil
 }
@@ -18385,6 +19435,26 @@ type ClientWithResponsesInterface interface {
 
 	RotateLLMProxyAPIKeyWithResponse(ctx context.Context, orgName string, projName string, id string, keyName string, body RotateLLMProxyAPIKeyJSONRequestBody, reqEditors ...RequestEditorFn) (*RotateLLMProxyAPIKeyResp, error)
 
+	// GetLLMProxyDeploymentsWithResponse request
+	GetLLMProxyDeploymentsWithResponse(ctx context.Context, orgName string, projName string, id string, params *GetLLMProxyDeploymentsParams, reqEditors ...RequestEditorFn) (*GetLLMProxyDeploymentsResp, error)
+
+	// DeployLLMProxyWithBodyWithResponse request with any body
+	DeployLLMProxyWithBodyWithResponse(ctx context.Context, orgName string, projName string, id string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*DeployLLMProxyResp, error)
+
+	DeployLLMProxyWithResponse(ctx context.Context, orgName string, projName string, id string, body DeployLLMProxyJSONRequestBody, reqEditors ...RequestEditorFn) (*DeployLLMProxyResp, error)
+
+	// RestoreLLMProxyDeploymentWithResponse request
+	RestoreLLMProxyDeploymentWithResponse(ctx context.Context, orgName string, projName string, id string, params *RestoreLLMProxyDeploymentParams, reqEditors ...RequestEditorFn) (*RestoreLLMProxyDeploymentResp, error)
+
+	// UndeployLLMProxyDeploymentWithResponse request
+	UndeployLLMProxyDeploymentWithResponse(ctx context.Context, orgName string, projName string, id string, params *UndeployLLMProxyDeploymentParams, reqEditors ...RequestEditorFn) (*UndeployLLMProxyDeploymentResp, error)
+
+	// DeleteLLMProxyDeploymentWithResponse request
+	DeleteLLMProxyDeploymentWithResponse(ctx context.Context, orgName string, projName string, id string, deploymentId string, reqEditors ...RequestEditorFn) (*DeleteLLMProxyDeploymentResp, error)
+
+	// GetLLMProxyDeploymentWithResponse request
+	GetLLMProxyDeploymentWithResponse(ctx context.Context, orgName string, projName string, id string, deploymentId string, reqEditors ...RequestEditorFn) (*GetLLMProxyDeploymentResp, error)
+
 	// ListRepositoryBranchesWithBodyWithResponse request with any body
 	ListRepositoryBranchesWithBodyWithResponse(ctx context.Context, orgName string, params *ListRepositoryBranchesParams, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*ListRepositoryBranchesResp, error)
 
@@ -18394,6 +19464,34 @@ type ClientWithResponsesInterface interface {
 	ListRepositoryCommitsWithBodyWithResponse(ctx context.Context, orgName string, params *ListRepositoryCommitsParams, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*ListRepositoryCommitsResp, error)
 
 	ListRepositoryCommitsWithResponse(ctx context.Context, orgName string, params *ListRepositoryCommitsParams, body ListRepositoryCommitsJSONRequestBody, reqEditors ...RequestEditorFn) (*ListRepositoryCommitsResp, error)
+
+	// ListSelfHostedGatewaysWithResponse request
+	ListSelfHostedGatewaysWithResponse(ctx context.Context, orgName string, params *ListSelfHostedGatewaysParams, reqEditors ...RequestEditorFn) (*ListSelfHostedGatewaysResp, error)
+
+	// RegisterSelfHostedGatewayWithBodyWithResponse request with any body
+	RegisterSelfHostedGatewayWithBodyWithResponse(ctx context.Context, orgName string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*RegisterSelfHostedGatewayResp, error)
+
+	RegisterSelfHostedGatewayWithResponse(ctx context.Context, orgName string, body RegisterSelfHostedGatewayJSONRequestBody, reqEditors ...RequestEditorFn) (*RegisterSelfHostedGatewayResp, error)
+
+	// DeleteSelfHostedGatewayWithResponse request
+	DeleteSelfHostedGatewayWithResponse(ctx context.Context, orgName string, gatewayID openapi_types.UUID, reqEditors ...RequestEditorFn) (*DeleteSelfHostedGatewayResp, error)
+
+	// GetSelfHostedGatewayWithResponse request
+	GetSelfHostedGatewayWithResponse(ctx context.Context, orgName string, gatewayID openapi_types.UUID, reqEditors ...RequestEditorFn) (*GetSelfHostedGatewayResp, error)
+
+	// UpdateSelfHostedGatewayWithBodyWithResponse request with any body
+	UpdateSelfHostedGatewayWithBodyWithResponse(ctx context.Context, orgName string, gatewayID openapi_types.UUID, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*UpdateSelfHostedGatewayResp, error)
+
+	UpdateSelfHostedGatewayWithResponse(ctx context.Context, orgName string, gatewayID openapi_types.UUID, body UpdateSelfHostedGatewayJSONRequestBody, reqEditors ...RequestEditorFn) (*UpdateSelfHostedGatewayResp, error)
+
+	// ListSelfHostedGatewayTokensWithResponse request
+	ListSelfHostedGatewayTokensWithResponse(ctx context.Context, orgName string, gatewayID openapi_types.UUID, reqEditors ...RequestEditorFn) (*ListSelfHostedGatewayTokensResp, error)
+
+	// CreateSelfHostedGatewayTokenWithResponse request
+	CreateSelfHostedGatewayTokenWithResponse(ctx context.Context, orgName string, gatewayID openapi_types.UUID, reqEditors ...RequestEditorFn) (*CreateSelfHostedGatewayTokenResp, error)
+
+	// RevokeSelfHostedGatewayTokenWithResponse request
+	RevokeSelfHostedGatewayTokenWithResponse(ctx context.Context, orgName string, gatewayID openapi_types.UUID, tokenID string, reqEditors ...RequestEditorFn) (*RevokeSelfHostedGatewayTokenResp, error)
 
 	// CheckThunderUrlAvailabilityWithResponse request
 	CheckThunderUrlAvailabilityWithResponse(ctx context.Context, orgName string, params *CheckThunderUrlAvailabilityParams, reqEditors ...RequestEditorFn) (*CheckThunderUrlAvailabilityResp, error)
@@ -19978,6 +21076,7 @@ type RemoveGatewayFromEnvironmentResp struct {
 	JSON400      *ErrorResponse
 	JSON401      *ErrorResponse
 	JSON404      *ErrorResponse
+	JSON409      *ErrorResponse
 	JSON500      *ErrorResponse
 }
 
@@ -21117,6 +22216,7 @@ type UpdateLLMProviderResp struct {
 	JSON400      *ErrorResponse
 	JSON401      *ErrorResponse
 	JSON404      *ErrorResponse
+	JSON409      *ErrorResponse
 	JSON500      *ErrorResponse
 }
 
@@ -21191,7 +22291,7 @@ func (r ListLLMProviderConsumersResp) StatusCode() int {
 type GetLLMProviderDeploymentsResp struct {
 	Body         []byte
 	HTTPResponse *http.Response
-	JSON200      *[]DeploymentResponse
+	JSON200      *[]LLMDeploymentResponse
 	JSON400      *ErrorResponse
 	JSON401      *ErrorResponse
 	JSON404      *ErrorResponse
@@ -21217,7 +22317,7 @@ func (r GetLLMProviderDeploymentsResp) StatusCode() int {
 type DeployLLMProviderResp struct {
 	Body         []byte
 	HTTPResponse *http.Response
-	JSON201      *DeploymentResponse
+	JSON201      *LLMDeploymentResponse
 	JSON400      *ErrorResponse
 	JSON401      *ErrorResponse
 	JSON404      *ErrorResponse
@@ -21243,7 +22343,7 @@ func (r DeployLLMProviderResp) StatusCode() int {
 type RestoreLLMProviderDeploymentResp struct {
 	Body         []byte
 	HTTPResponse *http.Response
-	JSON200      *DeploymentResponse
+	JSON200      *LLMDeploymentResponse
 	JSON400      *ErrorResponse
 	JSON401      *ErrorResponse
 	JSON404      *ErrorResponse
@@ -21325,7 +22425,7 @@ func (r DeleteLLMProviderDeploymentResp) StatusCode() int {
 type GetLLMProviderDeploymentResp struct {
 	Body         []byte
 	HTTPResponse *http.Response
-	JSON200      *DeploymentResponse
+	JSON200      *LLMDeploymentResponse
 	JSON400      *ErrorResponse
 	JSON401      *ErrorResponse
 	JSON404      *ErrorResponse
@@ -21940,6 +23040,7 @@ type BuildAgentResp struct {
 	JSON202      *BuildResponse
 	JSON400      *ErrorResponse
 	JSON404      *ErrorResponse
+	JSON409      *ErrorResponse
 	JSON500      *ErrorResponse
 }
 
@@ -22085,6 +23186,7 @@ type DeployAgentResp struct {
 	JSON202      *DeploymentResponse
 	JSON400      *ErrorResponse
 	JSON404      *ErrorResponse
+	JSON409      *ErrorResponse
 	JSON500      *ErrorResponse
 }
 
@@ -23925,6 +25027,166 @@ func (r RotateLLMProxyAPIKeyResp) StatusCode() int {
 	return 0
 }
 
+type GetLLMProxyDeploymentsResp struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON200      *[]LLMDeploymentResponse
+	JSON400      *ErrorResponse
+	JSON401      *ErrorResponse
+	JSON404      *ErrorResponse
+	JSON500      *ErrorResponse
+}
+
+// Status returns HTTPResponse.Status
+func (r GetLLMProxyDeploymentsResp) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r GetLLMProxyDeploymentsResp) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+type DeployLLMProxyResp struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON201      *LLMDeploymentResponse
+	JSON400      *ErrorResponse
+	JSON401      *ErrorResponse
+	JSON404      *ErrorResponse
+	JSON500      *ErrorResponse
+}
+
+// Status returns HTTPResponse.Status
+func (r DeployLLMProxyResp) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r DeployLLMProxyResp) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+type RestoreLLMProxyDeploymentResp struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON200      *LLMDeploymentResponse
+	JSON400      *ErrorResponse
+	JSON401      *ErrorResponse
+	JSON404      *ErrorResponse
+	JSON409      *ErrorResponse
+	JSON500      *ErrorResponse
+}
+
+// Status returns HTTPResponse.Status
+func (r RestoreLLMProxyDeploymentResp) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r RestoreLLMProxyDeploymentResp) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+type UndeployLLMProxyDeploymentResp struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON200      *struct {
+		Message *string `json:"message,omitempty"`
+	}
+	JSON400 *ErrorResponse
+	JSON401 *ErrorResponse
+	JSON404 *ErrorResponse
+	JSON409 *ErrorResponse
+	JSON500 *ErrorResponse
+}
+
+// Status returns HTTPResponse.Status
+func (r UndeployLLMProxyDeploymentResp) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r UndeployLLMProxyDeploymentResp) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+type DeleteLLMProxyDeploymentResp struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON400      *ErrorResponse
+	JSON401      *ErrorResponse
+	JSON404      *ErrorResponse
+	JSON409      *ErrorResponse
+	JSON500      *ErrorResponse
+}
+
+// Status returns HTTPResponse.Status
+func (r DeleteLLMProxyDeploymentResp) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r DeleteLLMProxyDeploymentResp) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+type GetLLMProxyDeploymentResp struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON200      *LLMDeploymentResponse
+	JSON400      *ErrorResponse
+	JSON401      *ErrorResponse
+	JSON404      *ErrorResponse
+	JSON500      *ErrorResponse
+}
+
+// Status returns HTTPResponse.Status
+func (r GetLLMProxyDeploymentResp) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r GetLLMProxyDeploymentResp) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
 type ListRepositoryBranchesResp struct {
 	Body         []byte
 	HTTPResponse *http.Response
@@ -23971,6 +25233,208 @@ func (r ListRepositoryCommitsResp) Status() string {
 
 // StatusCode returns HTTPResponse.StatusCode
 func (r ListRepositoryCommitsResp) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+type ListSelfHostedGatewaysResp struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON200      *GatewayListResponse
+	JSON401      *ErrorResponse
+	JSON500      *ErrorResponse
+}
+
+// Status returns HTTPResponse.Status
+func (r ListSelfHostedGatewaysResp) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r ListSelfHostedGatewaysResp) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+type RegisterSelfHostedGatewayResp struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON201      *GatewayResponse
+	JSON400      *ErrorResponse
+	JSON401      *ErrorResponse
+	JSON404      *ErrorResponse
+	JSON409      *ErrorResponse
+	JSON500      *ErrorResponse
+}
+
+// Status returns HTTPResponse.Status
+func (r RegisterSelfHostedGatewayResp) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r RegisterSelfHostedGatewayResp) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+type DeleteSelfHostedGatewayResp struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON401      *ErrorResponse
+	JSON404      *ErrorResponse
+	JSON409      *ErrorResponse
+	JSON500      *ErrorResponse
+}
+
+// Status returns HTTPResponse.Status
+func (r DeleteSelfHostedGatewayResp) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r DeleteSelfHostedGatewayResp) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+type GetSelfHostedGatewayResp struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON200      *GatewayResponse
+	JSON401      *ErrorResponse
+	JSON404      *ErrorResponse
+	JSON500      *ErrorResponse
+}
+
+// Status returns HTTPResponse.Status
+func (r GetSelfHostedGatewayResp) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r GetSelfHostedGatewayResp) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+type UpdateSelfHostedGatewayResp struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON200      *GatewayResponse
+	JSON400      *ErrorResponse
+	JSON401      *ErrorResponse
+	JSON404      *ErrorResponse
+	JSON500      *ErrorResponse
+}
+
+// Status returns HTTPResponse.Status
+func (r UpdateSelfHostedGatewayResp) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r UpdateSelfHostedGatewayResp) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+type ListSelfHostedGatewayTokensResp struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON200      *GatewayTokenListResponse
+	JSON401      *ErrorResponse
+	JSON404      *ErrorResponse
+	JSON500      *ErrorResponse
+}
+
+// Status returns HTTPResponse.Status
+func (r ListSelfHostedGatewayTokensResp) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r ListSelfHostedGatewayTokensResp) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+type CreateSelfHostedGatewayTokenResp struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON201      *GatewayTokenResponse
+	JSON401      *ErrorResponse
+	JSON404      *ErrorResponse
+	JSON409      *ErrorResponse
+	JSON500      *ErrorResponse
+}
+
+// Status returns HTTPResponse.Status
+func (r CreateSelfHostedGatewayTokenResp) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r CreateSelfHostedGatewayTokenResp) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+type RevokeSelfHostedGatewayTokenResp struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON401      *ErrorResponse
+	JSON404      *ErrorResponse
+	JSON500      *ErrorResponse
+}
+
+// Status returns HTTPResponse.Status
+func (r RevokeSelfHostedGatewayTokenResp) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r RevokeSelfHostedGatewayTokenResp) StatusCode() int {
 	if r.HTTPResponse != nil {
 		return r.HTTPResponse.StatusCode
 	}
@@ -26666,6 +28130,68 @@ func (c *ClientWithResponses) RotateLLMProxyAPIKeyWithResponse(ctx context.Conte
 	return ParseRotateLLMProxyAPIKeyResp(rsp)
 }
 
+// GetLLMProxyDeploymentsWithResponse request returning *GetLLMProxyDeploymentsResp
+func (c *ClientWithResponses) GetLLMProxyDeploymentsWithResponse(ctx context.Context, orgName string, projName string, id string, params *GetLLMProxyDeploymentsParams, reqEditors ...RequestEditorFn) (*GetLLMProxyDeploymentsResp, error) {
+	rsp, err := c.GetLLMProxyDeployments(ctx, orgName, projName, id, params, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseGetLLMProxyDeploymentsResp(rsp)
+}
+
+// DeployLLMProxyWithBodyWithResponse request with arbitrary body returning *DeployLLMProxyResp
+func (c *ClientWithResponses) DeployLLMProxyWithBodyWithResponse(ctx context.Context, orgName string, projName string, id string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*DeployLLMProxyResp, error) {
+	rsp, err := c.DeployLLMProxyWithBody(ctx, orgName, projName, id, contentType, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseDeployLLMProxyResp(rsp)
+}
+
+func (c *ClientWithResponses) DeployLLMProxyWithResponse(ctx context.Context, orgName string, projName string, id string, body DeployLLMProxyJSONRequestBody, reqEditors ...RequestEditorFn) (*DeployLLMProxyResp, error) {
+	rsp, err := c.DeployLLMProxy(ctx, orgName, projName, id, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseDeployLLMProxyResp(rsp)
+}
+
+// RestoreLLMProxyDeploymentWithResponse request returning *RestoreLLMProxyDeploymentResp
+func (c *ClientWithResponses) RestoreLLMProxyDeploymentWithResponse(ctx context.Context, orgName string, projName string, id string, params *RestoreLLMProxyDeploymentParams, reqEditors ...RequestEditorFn) (*RestoreLLMProxyDeploymentResp, error) {
+	rsp, err := c.RestoreLLMProxyDeployment(ctx, orgName, projName, id, params, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseRestoreLLMProxyDeploymentResp(rsp)
+}
+
+// UndeployLLMProxyDeploymentWithResponse request returning *UndeployLLMProxyDeploymentResp
+func (c *ClientWithResponses) UndeployLLMProxyDeploymentWithResponse(ctx context.Context, orgName string, projName string, id string, params *UndeployLLMProxyDeploymentParams, reqEditors ...RequestEditorFn) (*UndeployLLMProxyDeploymentResp, error) {
+	rsp, err := c.UndeployLLMProxyDeployment(ctx, orgName, projName, id, params, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseUndeployLLMProxyDeploymentResp(rsp)
+}
+
+// DeleteLLMProxyDeploymentWithResponse request returning *DeleteLLMProxyDeploymentResp
+func (c *ClientWithResponses) DeleteLLMProxyDeploymentWithResponse(ctx context.Context, orgName string, projName string, id string, deploymentId string, reqEditors ...RequestEditorFn) (*DeleteLLMProxyDeploymentResp, error) {
+	rsp, err := c.DeleteLLMProxyDeployment(ctx, orgName, projName, id, deploymentId, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseDeleteLLMProxyDeploymentResp(rsp)
+}
+
+// GetLLMProxyDeploymentWithResponse request returning *GetLLMProxyDeploymentResp
+func (c *ClientWithResponses) GetLLMProxyDeploymentWithResponse(ctx context.Context, orgName string, projName string, id string, deploymentId string, reqEditors ...RequestEditorFn) (*GetLLMProxyDeploymentResp, error) {
+	rsp, err := c.GetLLMProxyDeployment(ctx, orgName, projName, id, deploymentId, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseGetLLMProxyDeploymentResp(rsp)
+}
+
 // ListRepositoryBranchesWithBodyWithResponse request with arbitrary body returning *ListRepositoryBranchesResp
 func (c *ClientWithResponses) ListRepositoryBranchesWithBodyWithResponse(ctx context.Context, orgName string, params *ListRepositoryBranchesParams, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*ListRepositoryBranchesResp, error) {
 	rsp, err := c.ListRepositoryBranchesWithBody(ctx, orgName, params, contentType, body, reqEditors...)
@@ -26698,6 +28224,94 @@ func (c *ClientWithResponses) ListRepositoryCommitsWithResponse(ctx context.Cont
 		return nil, err
 	}
 	return ParseListRepositoryCommitsResp(rsp)
+}
+
+// ListSelfHostedGatewaysWithResponse request returning *ListSelfHostedGatewaysResp
+func (c *ClientWithResponses) ListSelfHostedGatewaysWithResponse(ctx context.Context, orgName string, params *ListSelfHostedGatewaysParams, reqEditors ...RequestEditorFn) (*ListSelfHostedGatewaysResp, error) {
+	rsp, err := c.ListSelfHostedGateways(ctx, orgName, params, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseListSelfHostedGatewaysResp(rsp)
+}
+
+// RegisterSelfHostedGatewayWithBodyWithResponse request with arbitrary body returning *RegisterSelfHostedGatewayResp
+func (c *ClientWithResponses) RegisterSelfHostedGatewayWithBodyWithResponse(ctx context.Context, orgName string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*RegisterSelfHostedGatewayResp, error) {
+	rsp, err := c.RegisterSelfHostedGatewayWithBody(ctx, orgName, contentType, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseRegisterSelfHostedGatewayResp(rsp)
+}
+
+func (c *ClientWithResponses) RegisterSelfHostedGatewayWithResponse(ctx context.Context, orgName string, body RegisterSelfHostedGatewayJSONRequestBody, reqEditors ...RequestEditorFn) (*RegisterSelfHostedGatewayResp, error) {
+	rsp, err := c.RegisterSelfHostedGateway(ctx, orgName, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseRegisterSelfHostedGatewayResp(rsp)
+}
+
+// DeleteSelfHostedGatewayWithResponse request returning *DeleteSelfHostedGatewayResp
+func (c *ClientWithResponses) DeleteSelfHostedGatewayWithResponse(ctx context.Context, orgName string, gatewayID openapi_types.UUID, reqEditors ...RequestEditorFn) (*DeleteSelfHostedGatewayResp, error) {
+	rsp, err := c.DeleteSelfHostedGateway(ctx, orgName, gatewayID, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseDeleteSelfHostedGatewayResp(rsp)
+}
+
+// GetSelfHostedGatewayWithResponse request returning *GetSelfHostedGatewayResp
+func (c *ClientWithResponses) GetSelfHostedGatewayWithResponse(ctx context.Context, orgName string, gatewayID openapi_types.UUID, reqEditors ...RequestEditorFn) (*GetSelfHostedGatewayResp, error) {
+	rsp, err := c.GetSelfHostedGateway(ctx, orgName, gatewayID, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseGetSelfHostedGatewayResp(rsp)
+}
+
+// UpdateSelfHostedGatewayWithBodyWithResponse request with arbitrary body returning *UpdateSelfHostedGatewayResp
+func (c *ClientWithResponses) UpdateSelfHostedGatewayWithBodyWithResponse(ctx context.Context, orgName string, gatewayID openapi_types.UUID, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*UpdateSelfHostedGatewayResp, error) {
+	rsp, err := c.UpdateSelfHostedGatewayWithBody(ctx, orgName, gatewayID, contentType, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseUpdateSelfHostedGatewayResp(rsp)
+}
+
+func (c *ClientWithResponses) UpdateSelfHostedGatewayWithResponse(ctx context.Context, orgName string, gatewayID openapi_types.UUID, body UpdateSelfHostedGatewayJSONRequestBody, reqEditors ...RequestEditorFn) (*UpdateSelfHostedGatewayResp, error) {
+	rsp, err := c.UpdateSelfHostedGateway(ctx, orgName, gatewayID, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseUpdateSelfHostedGatewayResp(rsp)
+}
+
+// ListSelfHostedGatewayTokensWithResponse request returning *ListSelfHostedGatewayTokensResp
+func (c *ClientWithResponses) ListSelfHostedGatewayTokensWithResponse(ctx context.Context, orgName string, gatewayID openapi_types.UUID, reqEditors ...RequestEditorFn) (*ListSelfHostedGatewayTokensResp, error) {
+	rsp, err := c.ListSelfHostedGatewayTokens(ctx, orgName, gatewayID, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseListSelfHostedGatewayTokensResp(rsp)
+}
+
+// CreateSelfHostedGatewayTokenWithResponse request returning *CreateSelfHostedGatewayTokenResp
+func (c *ClientWithResponses) CreateSelfHostedGatewayTokenWithResponse(ctx context.Context, orgName string, gatewayID openapi_types.UUID, reqEditors ...RequestEditorFn) (*CreateSelfHostedGatewayTokenResp, error) {
+	rsp, err := c.CreateSelfHostedGatewayToken(ctx, orgName, gatewayID, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseCreateSelfHostedGatewayTokenResp(rsp)
+}
+
+// RevokeSelfHostedGatewayTokenWithResponse request returning *RevokeSelfHostedGatewayTokenResp
+func (c *ClientWithResponses) RevokeSelfHostedGatewayTokenWithResponse(ctx context.Context, orgName string, gatewayID openapi_types.UUID, tokenID string, reqEditors ...RequestEditorFn) (*RevokeSelfHostedGatewayTokenResp, error) {
+	rsp, err := c.RevokeSelfHostedGatewayToken(ctx, orgName, gatewayID, tokenID, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseRevokeSelfHostedGatewayTokenResp(rsp)
 }
 
 // CheckThunderUrlAvailabilityWithResponse request returning *CheckThunderUrlAvailabilityResp
@@ -29503,6 +31117,13 @@ func ParseRemoveGatewayFromEnvironmentResp(rsp *http.Response) (*RemoveGatewayFr
 		}
 		response.JSON404 = &dest
 
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 409:
+		var dest ErrorResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON409 = &dest
+
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
 		var dest ErrorResponse
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
@@ -31716,6 +33337,13 @@ func ParseUpdateLLMProviderResp(rsp *http.Response) (*UpdateLLMProviderResp, err
 		}
 		response.JSON404 = &dest
 
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 409:
+		var dest ErrorResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON409 = &dest
+
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
 		var dest ErrorResponse
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
@@ -31851,7 +33479,7 @@ func ParseGetLLMProviderDeploymentsResp(rsp *http.Response) (*GetLLMProviderDepl
 
 	switch {
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
-		var dest []DeploymentResponse
+		var dest []LLMDeploymentResponse
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
@@ -31905,7 +33533,7 @@ func ParseDeployLLMProviderResp(rsp *http.Response) (*DeployLLMProviderResp, err
 
 	switch {
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 201:
-		var dest DeploymentResponse
+		var dest LLMDeploymentResponse
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
@@ -31959,7 +33587,7 @@ func ParseRestoreLLMProviderDeploymentResp(rsp *http.Response) (*RestoreLLMProvi
 
 	switch {
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
-		var dest DeploymentResponse
+		var dest LLMDeploymentResponse
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
@@ -32137,7 +33765,7 @@ func ParseGetLLMProviderDeploymentResp(rsp *http.Response) (*GetLLMProviderDeplo
 
 	switch {
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
-		var dest DeploymentResponse
+		var dest LLMDeploymentResponse
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
@@ -33238,6 +34866,13 @@ func ParseBuildAgentResp(rsp *http.Response) (*BuildAgentResp, error) {
 		}
 		response.JSON404 = &dest
 
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 409:
+		var dest ErrorResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON409 = &dest
+
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
 		var dest ErrorResponse
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
@@ -33484,6 +35119,13 @@ func ParseDeployAgentResp(rsp *http.Response) (*DeployAgentResp, error) {
 			return nil, err
 		}
 		response.JSON404 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 409:
+		var dest ErrorResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON409 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
 		var dest ErrorResponse
@@ -37028,6 +38670,346 @@ func ParseRotateLLMProxyAPIKeyResp(rsp *http.Response) (*RotateLLMProxyAPIKeyRes
 	return response, nil
 }
 
+// ParseGetLLMProxyDeploymentsResp parses an HTTP response from a GetLLMProxyDeploymentsWithResponse call
+func ParseGetLLMProxyDeploymentsResp(rsp *http.Response) (*GetLLMProxyDeploymentsResp, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &GetLLMProxyDeploymentsResp{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest []LLMDeploymentResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
+		var dest ErrorResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON400 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
+		var dest ErrorResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON401 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
+		var dest ErrorResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON404 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
+		var dest ErrorResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON500 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseDeployLLMProxyResp parses an HTTP response from a DeployLLMProxyWithResponse call
+func ParseDeployLLMProxyResp(rsp *http.Response) (*DeployLLMProxyResp, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &DeployLLMProxyResp{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 201:
+		var dest LLMDeploymentResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON201 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
+		var dest ErrorResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON400 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
+		var dest ErrorResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON401 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
+		var dest ErrorResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON404 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
+		var dest ErrorResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON500 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseRestoreLLMProxyDeploymentResp parses an HTTP response from a RestoreLLMProxyDeploymentWithResponse call
+func ParseRestoreLLMProxyDeploymentResp(rsp *http.Response) (*RestoreLLMProxyDeploymentResp, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &RestoreLLMProxyDeploymentResp{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest LLMDeploymentResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
+		var dest ErrorResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON400 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
+		var dest ErrorResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON401 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
+		var dest ErrorResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON404 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 409:
+		var dest ErrorResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON409 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
+		var dest ErrorResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON500 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseUndeployLLMProxyDeploymentResp parses an HTTP response from a UndeployLLMProxyDeploymentWithResponse call
+func ParseUndeployLLMProxyDeploymentResp(rsp *http.Response) (*UndeployLLMProxyDeploymentResp, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &UndeployLLMProxyDeploymentResp{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest struct {
+			Message *string `json:"message,omitempty"`
+		}
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
+		var dest ErrorResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON400 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
+		var dest ErrorResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON401 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
+		var dest ErrorResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON404 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 409:
+		var dest ErrorResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON409 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
+		var dest ErrorResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON500 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseDeleteLLMProxyDeploymentResp parses an HTTP response from a DeleteLLMProxyDeploymentWithResponse call
+func ParseDeleteLLMProxyDeploymentResp(rsp *http.Response) (*DeleteLLMProxyDeploymentResp, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &DeleteLLMProxyDeploymentResp{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
+		var dest ErrorResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON400 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
+		var dest ErrorResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON401 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
+		var dest ErrorResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON404 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 409:
+		var dest ErrorResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON409 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
+		var dest ErrorResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON500 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseGetLLMProxyDeploymentResp parses an HTTP response from a GetLLMProxyDeploymentWithResponse call
+func ParseGetLLMProxyDeploymentResp(rsp *http.Response) (*GetLLMProxyDeploymentResp, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &GetLLMProxyDeploymentResp{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest LLMDeploymentResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
+		var dest ErrorResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON400 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
+		var dest ErrorResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON401 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
+		var dest ErrorResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON404 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
+		var dest ErrorResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON500 = &dest
+
+	}
+
+	return response, nil
+}
+
 // ParseListRepositoryBranchesResp parses an HTTP response from a ListRepositoryBranchesWithResponse call
 func ParseListRepositoryBranchesResp(rsp *http.Response) (*ListRepositoryBranchesResp, error) {
 	bodyBytes, err := io.ReadAll(rsp.Body)
@@ -37123,6 +39105,396 @@ func ParseListRepositoryCommitsResp(rsp *http.Response) (*ListRepositoryCommitsR
 			return nil, err
 		}
 		response.JSON429 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
+		var dest ErrorResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON500 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseListSelfHostedGatewaysResp parses an HTTP response from a ListSelfHostedGatewaysWithResponse call
+func ParseListSelfHostedGatewaysResp(rsp *http.Response) (*ListSelfHostedGatewaysResp, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &ListSelfHostedGatewaysResp{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest GatewayListResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
+		var dest ErrorResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON401 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
+		var dest ErrorResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON500 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseRegisterSelfHostedGatewayResp parses an HTTP response from a RegisterSelfHostedGatewayWithResponse call
+func ParseRegisterSelfHostedGatewayResp(rsp *http.Response) (*RegisterSelfHostedGatewayResp, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &RegisterSelfHostedGatewayResp{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 201:
+		var dest GatewayResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON201 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
+		var dest ErrorResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON400 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
+		var dest ErrorResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON401 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
+		var dest ErrorResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON404 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 409:
+		var dest ErrorResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON409 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
+		var dest ErrorResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON500 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseDeleteSelfHostedGatewayResp parses an HTTP response from a DeleteSelfHostedGatewayWithResponse call
+func ParseDeleteSelfHostedGatewayResp(rsp *http.Response) (*DeleteSelfHostedGatewayResp, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &DeleteSelfHostedGatewayResp{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
+		var dest ErrorResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON401 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
+		var dest ErrorResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON404 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 409:
+		var dest ErrorResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON409 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
+		var dest ErrorResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON500 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseGetSelfHostedGatewayResp parses an HTTP response from a GetSelfHostedGatewayWithResponse call
+func ParseGetSelfHostedGatewayResp(rsp *http.Response) (*GetSelfHostedGatewayResp, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &GetSelfHostedGatewayResp{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest GatewayResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
+		var dest ErrorResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON401 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
+		var dest ErrorResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON404 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
+		var dest ErrorResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON500 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseUpdateSelfHostedGatewayResp parses an HTTP response from a UpdateSelfHostedGatewayWithResponse call
+func ParseUpdateSelfHostedGatewayResp(rsp *http.Response) (*UpdateSelfHostedGatewayResp, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &UpdateSelfHostedGatewayResp{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest GatewayResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
+		var dest ErrorResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON400 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
+		var dest ErrorResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON401 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
+		var dest ErrorResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON404 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
+		var dest ErrorResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON500 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseListSelfHostedGatewayTokensResp parses an HTTP response from a ListSelfHostedGatewayTokensWithResponse call
+func ParseListSelfHostedGatewayTokensResp(rsp *http.Response) (*ListSelfHostedGatewayTokensResp, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &ListSelfHostedGatewayTokensResp{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest GatewayTokenListResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
+		var dest ErrorResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON401 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
+		var dest ErrorResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON404 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
+		var dest ErrorResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON500 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseCreateSelfHostedGatewayTokenResp parses an HTTP response from a CreateSelfHostedGatewayTokenWithResponse call
+func ParseCreateSelfHostedGatewayTokenResp(rsp *http.Response) (*CreateSelfHostedGatewayTokenResp, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &CreateSelfHostedGatewayTokenResp{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 201:
+		var dest GatewayTokenResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON201 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
+		var dest ErrorResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON401 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
+		var dest ErrorResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON404 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 409:
+		var dest ErrorResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON409 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
+		var dest ErrorResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON500 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseRevokeSelfHostedGatewayTokenResp parses an HTTP response from a RevokeSelfHostedGatewayTokenWithResponse call
+func ParseRevokeSelfHostedGatewayTokenResp(rsp *http.Response) (*RevokeSelfHostedGatewayTokenResp, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &RevokeSelfHostedGatewayTokenResp{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
+		var dest ErrorResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON401 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
+		var dest ErrorResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON404 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
 		var dest ErrorResponse

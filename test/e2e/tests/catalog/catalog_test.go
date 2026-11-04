@@ -51,13 +51,13 @@ var _ = Describe("Agent catalog:", Label("catalog"), Ordered, func() {
 		invokeReq     json.RawMessage
 	)
 
-	BeforeAll(func() {
+	BeforeAll(func(ctx SpecContext) {
 		Expect(Cfg.OpenAIAPIKey).NotTo(BeEmpty(), "OPENAI_API_KEY must be set")
 
 		fromKindAgent = "e2e-catalog-kind-" + uuid.New().String()[:6]
 
 		By("Ensuring the shared promotable IT helpdesk agent is built and deployed")
-		promotableAgent = testsetup.SetupSharedPromotableITHelpdeskAgent(Client, Cfg)
+		promotableAgent = testsetup.SetupSharedPromotableITHelpdeskAgent(ctx, Client, Cfg)
 		projectName = promotableAgent.ProjectName
 		envName = promotableAgent.SecondEnv
 

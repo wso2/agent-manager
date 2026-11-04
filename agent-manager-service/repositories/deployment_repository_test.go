@@ -20,13 +20,11 @@ package repositories
 
 import (
 	"context"
-	"errors"
 	"testing"
 
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"gorm.io/gorm"
 
 	"github.com/wso2/agent-manager/agent-manager-service/db"
 	"github.com/wso2/agent-manager/agent-manager-service/models"
@@ -47,11 +45,18 @@ func seedAgentDeployment(t *testing.T) (artifactUUID uuid.UUID, ouID string) {
 		UUID: artifactUUID, Handle: "proj/agent/" + artifactUUID.String(), Name: "agent-" + artifactUUID.String()[:8],
 		Version: "v1.0", Kind: models.KindAgent, OUID: ouID,
 	}))
-	deployed := models.DeploymentStatusDeployed
-	require.NoError(t, NewDeploymentRepo(gdb).CreateWithLimitEnforcement(&models.Deployment{
-		Name: "agent-deployment", ArtifactUUID: artifactUUID, OUID: ouID, GatewayUUID: gatewayID,
-		Content: []byte("kind: Agent\n"), Status: &deployed,
-	}, 10))
+	placement := models.Placement{
+		ArtifactRef: models.ArtifactRef{OUID: ouID, ArtifactUUID: artifactUUID, Kind: models.KindAgent},
+		GatewayUUID: gatewayID,
+	}
+	deployment := &models.Deployment{Name: "agent-deployment", Content: []byte("kind: Agent\n")}
+	repo := NewDeploymentRepo(gdb)
+	require.NoError(t, repo.StartDeploy(context.Background(), nil, placement, deployment))
+	_, err := repo.ApplyAck(context.Background(), gatewayID.String(), models.DeploymentAck{
+		DeploymentID: deployment.DeploymentID.String(), Action: models.DeploymentAckActionDeploy,
+		Status: models.DeploymentAckStatusSuccess,
+	}, nil)
+	require.NoError(t, err)
 	t.Cleanup(func() {
 		gdb.Exec(`DELETE FROM artifacts WHERE uuid = ?`, artifactUUID)
 		gdb.Exec(`DELETE FROM gateways WHERE uuid = ?`, gatewayID)
@@ -59,25 +64,13 @@ func seedAgentDeployment(t *testing.T) (artifactUUID uuid.UUID, ouID string) {
 	return artifactUUID, ouID
 }
 
-// A mode switch keeps the artifact (and its API keys) but no deployment of it may be served.
-func TestDeploymentDeleteForArtifactInATransaction(t *testing.T) {
-	repo := NewDeploymentRepo(db.GetDB())
+// CreateWithLimitEnforcement's status row must satisfy migration 051's CHECKs.
+func TestCreateWithLimitEnforcementRecordsDesiredStateAndPerformedAt(t *testing.T) {
 	artifactUUID, ouID := seedAgentDeployment(t)
-	gateways, err := repo.GetDeployedGatewaysByProvider(artifactUUID, ouID)
-	require.NoError(t, err)
-	require.Len(t, gateways, 1)
-
-	rolledBack := db.GetDB().Transaction(func(tx *gorm.DB) error {
-		require.NoError(t, repo.WithTx(tx).DeleteForArtifact(context.Background(), artifactUUID, ouID))
-		return errors.New("roll back")
-	})
-	require.Error(t, rolledBack)
-	gateways, err = repo.GetDeployedGatewaysByProvider(artifactUUID, ouID)
-	require.NoError(t, err)
-	assert.Len(t, gateways, 1, "a rolled-back delete leaves the deployment")
-
-	require.NoError(t, repo.DeleteForArtifact(context.Background(), artifactUUID, ouID))
-	gateways, err = repo.GetDeployedGatewaysByProvider(artifactUUID, ouID)
-	require.NoError(t, err)
-	assert.Empty(t, gateways, "deployment_status went with the deployments")
+	gdb := db.GetDB()
+	var row models.DeploymentStatusRecord
+	require.NoError(t, gdb.Where("artifact_uuid = ? AND ou_id = ?", artifactUUID, ouID).First(&row).Error)
+	assert.Equal(t, models.DeploymentStatusDeployed, row.StatusDesired)
+	assert.Equal(t, models.NewPerformedAt(row.PerformedAt), row.PerformedAt.UTC(), "performed_at is in milliseconds")
+	require.NotNil(t, row.DeploymentID)
 }

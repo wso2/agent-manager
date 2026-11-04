@@ -1,0 +1,4 @@
+self-hosted-runner:
+  # Runner label used by the nightly workflow.
+  labels:
+    - amp-nightly-e2e

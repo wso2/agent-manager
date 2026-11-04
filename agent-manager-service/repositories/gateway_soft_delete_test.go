@@ -70,7 +70,8 @@ func TestGatewayDelete_SoftDeleteCleansUpWhatTheCascadeUsedTo(t *testing.T) {
 		Name: "agent-deployment", ArtifactUUID: artifactUUID, OUID: ouID, GatewayUUID: gatewayID,
 		Content: []byte("kind: Agent\n"), Status: &deployed,
 	}, 10))
-	require.NoError(t, deployments.DeleteStatus(artifactUUID.String(), ouID, gatewayID.String()))
+	require.NoError(t, gdb.Where("artifact_uuid = ? AND ou_id = ? AND gateway_uuid = ?", artifactUUID, ouID, gatewayID).
+		Delete(&models.DeploymentStatusRecord{}).Error)
 
 	require.NoError(t, repo.Delete(gatewayID.String(), ouID))
 

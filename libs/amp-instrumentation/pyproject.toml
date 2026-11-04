@@ -15,6 +15,8 @@ maintainers = [
 # amp-instrumentation version maps to exactly one OpenLLMetry version. Bumping it
 # is a new amp-instrumentation release. See the AMP instrumentation version mapping.
 dependencies = [
+    # Distrust the compromised emSign CA hierarchy in standalone installations.
+    "certifi>=2026.10.19",
     "traceloop-sdk==0.62.4",
      # Pin wrapt below 2.0: wrapt 2.x removed the `module=` kwarg on
     # wrap_function_wrapper that the opentelemetry-instrumentation-* packages

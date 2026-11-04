@@ -145,7 +145,7 @@ func TestPrepare_ExternalRejectsInternalOnlyFlags(t *testing.T) {
 	err := mustPrepareErr(t, opts)
 	details := mustFlagDetails(t, err)
 	for _, msg := range []string{
-		"--subtype is not allowed for external provisioning",
+		externalSubTypeMsg,
 		"--repo-url is not allowed for external provisioning",
 		"--repo-branch is not allowed for external provisioning",
 		"--repo-path is not allowed for external provisioning",
@@ -524,3 +524,47 @@ func assertContains(t *testing.T, details []string, want string) {
 	}
 	t.Errorf("details %v does not contain %q", details, want)
 }
+
+// External agents have no subtype: A2A comes from registering a card URL.
+func TestDroppedExternalFlags_RefusesA2ASubtype(t *testing.T) {
+	opts := validExternalOpts()
+	opts.SubType = "a2a-agent"
+	assertContains(t, droppedExternalFlags(opts), externalSubTypeMsg)
+}
+
+func TestValidateCardFlags(t *testing.T) {
+	const reqMsg = "--card-url requires --provisioning external"
+	tests := []struct {
+		name string
+		mod  func(*CreateOptions)
+		want string
+	}{
+		{"internal", func(o *CreateOptions) { o.Provisioning = "internal"; o.CardURL = "https://a.example/c" }, reqMsg},
+		{"external", func(o *CreateOptions) { o.CardURL = "https://a.example/c" }, ""},
+		{"proxy without card-url", func(o *CreateOptions) { o.CardProxy = true }, "--proxy requires --card-url"},
+		{"non-http scheme", func(o *CreateOptions) { o.CardURL = "javascript:alert(1)" }, "--card-url must be an http(s) URL"},
+		{"no host", func(o *CreateOptions) { o.CardURL = "https:///card.json" }, "--card-url must be an http(s) URL"},
+		{"proxy bad path", func(o *CreateOptions) {
+			o.CardURL = "https://a.example/card.json"
+			o.CardProxy = true
+		}, "--card-url must end in /.well-known/agent-card.json"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			opts := validExternalOpts()
+			tt.mod(opts)
+			got := validateCardFlags(opts)
+			if tt.want == "" {
+				if len(got) != 0 {
+					t.Errorf("want no violations, got %v", got)
+				}
+				return
+			}
+			if len(got) != 1 || !strings.Contains(got[0], tt.want) {
+				t.Errorf("got %v, want to contain %q", got, tt.want)
+			}
+		})
+	}
+}
+
+const externalSubTypeMsg = "--subtype is not allowed for external provisioning; use --card-url to register an A2A agent card"

@@ -8,7 +8,7 @@ obtain a token and attach it as `Authorization: Bearer` on every request.
 
 ## Prerequisites
 
-- Node 20+ (`node -v`)
+- Node 22.x from 22.23.4, 24.x from 24.22.1, or 26.12.1 and later (`node -v`). Node 20, 23 and 25 are not supported.
 - An agent to talk to — running locally on port 8000, or deployed and
   reachable behind the gateway
 

@@ -1,4 +1,4 @@
-FROM --platform=$BUILDPLATFORM public.ecr.aws/docker/library/golang:1.26-alpine AS builder
+FROM --platform=$BUILDPLATFORM public.ecr.aws/docker/library/golang:1.26.10-alpine AS builder
 
 # Add build args for cross-platform support
 ARG TARGETOS
@@ -28,7 +28,7 @@ RUN CGO_ENABLED=0 GOOS=${TARGETOS} GOARCH=${TARGETARCH} go build \
 FROM public.ecr.aws/docker/library/alpine:3.24
 
 # Install runtime dependencies for HTTPS, timezone support, bash and openssl for key generation
-RUN apk add --no-cache ca-certificates tzdata bash openssl
+RUN apk add --no-cache 'ca-certificates>=20261020' 'ca-certificates-bundle>=20261020' tzdata bash openssl
 
 # Create a non-root user/group (UID:GID = 1000:1000)
 RUN addgroup -g 1000 app && adduser -D -u 1000 -G app app

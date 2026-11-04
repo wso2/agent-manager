@@ -45,6 +45,12 @@ func DB(ctx context.Context) *gorm.DB {
 	return instance().WithContext(ctx)
 }
 
+// TxFrom is the transaction ctx carries; nil when it carries none.
+func TxFrom(ctx context.Context) *gorm.DB {
+	tx, _ := ctx.Value(ctxTX{}).(*gorm.DB)
+	return tx
+}
+
 func CtxWithTx(ctx context.Context, tx *gorm.DB) context.Context {
 	return context.WithValue(ctx, ctxTX{}, tx)
 }

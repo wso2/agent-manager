@@ -641,11 +641,12 @@ def _parse_tool_calls(raw_tool_calls: List[Any]) -> List[ToolCall]:
 
     for tc in raw_tool_calls:
         if isinstance(tc, dict):
+            fn = tc["function"] if isinstance(tc.get("function"), dict) else {}
             tool_calls.append(
                 ToolCall(
                     id=tc.get("id", ""),
-                    name=tc.get("name", tc.get("function", {}).get("name", "")),
-                    arguments=tc.get("arguments", tc.get("function", {}).get("arguments", {})),
+                    name=tc.get("name", fn.get("name", "")),
+                    arguments=tc.get("arguments", fn.get("arguments", {})),
                 )
             )
 
@@ -678,8 +679,11 @@ def _parse_llm_response(raw_output: Any) -> str:
     if isinstance(raw_output, str):
         return raw_output
 
+    # A message dict parses the same as a one-message list. Other dicts keep their string form.
     if isinstance(raw_output, dict):
-        return raw_output.get("content", str(raw_output))
+        if raw_output.keys() & {"role", "content", "tool_calls", "toolCalls"}:
+            return _parse_llm_response([raw_output])
+        return str(raw_output)
 
     if isinstance(raw_output, list):
         # Usually a list of message dicts — try text content first, then
@@ -692,11 +696,8 @@ def _parse_llm_response(raw_output: Any) -> str:
             content = item.get("content", "")
             if content:
                 text_parts.append(content if isinstance(content, str) else str(content))
-            for tc in item.get("toolCalls") or item.get("tool_calls") or []:
-                if isinstance(tc, dict):
-                    name = tc.get("name", "unknown")
-                    args = tc.get("arguments", "")
-                    tool_call_parts.append(f"[tool_call: {name}({args})]")
+            for tc in _parse_tool_calls(item.get("toolCalls") or item.get("tool_calls") or []):
+                tool_call_parts.append(f"[tool_call: {tc.name or 'unknown'}({tc.arguments})]")
         if text_parts:
             return "\n".join(text_parts)
         if tool_call_parts:

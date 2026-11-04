@@ -180,6 +180,7 @@ var sensitiveReadPaths = map[string]bool{
 	"/orgs/{orgName}/projects/{projName}/agents/{agentName}/mcp-configs/{configId}/environments/{envName}/api-keys":   true,
 	"/orgs/{orgName}/projects/{projName}/agents/{agentName}/model-configs/{configId}/environments/{envName}/api-keys": true,
 	"/orgs/{orgName}/gateways/{gatewayID}/tokens":                                                                     true,
+	"/orgs/{orgName}/self-hosted-gateways/{gatewayID}/tokens":                                                         true,
 	"/orgs/{orgName}/projects/{projName}/agents/{agentName}/identities":                                               true,
 
 	// Internal surface: the gateway bulk-sync endpoints hand real key material
@@ -280,12 +281,14 @@ var actionOverrides = map[string]Action{
 	"DELETE /orgs/{orgName}/projects/{projName}/agents/{agentName}/mcp-configs/{configId}/environments/{envName}/api-keys/{keyName}":   "api-key:revoke",
 
 	// One permission, several operations — gateway tokens and configuration.
-	"POST /orgs/{orgName}/gateways/{gatewayID}/tokens":                      "gateway-token:rotate",
-	"DELETE /orgs/{orgName}/gateways/{gatewayID}/tokens/{tokenID}":          "gateway-token:revoke",
-	"POST /orgs/{orgName}/gateways/{gatewayID}/environments/{envID}":        "gateway:assign-environment",
-	"DELETE /orgs/{orgName}/gateways/{gatewayID}/environments/{envID}":      "gateway:unassign-environment",
-	"PUT /orgs/{orgName}/gateways/{gatewayID}/identity-providers/{name}":    "gateway:set-identity-provider",
-	"DELETE /orgs/{orgName}/gateways/{gatewayID}/identity-providers/{name}": "gateway:remove-identity-provider",
+	"POST /orgs/{orgName}/gateways/{gatewayID}/tokens":                         "gateway-token:rotate",
+	"DELETE /orgs/{orgName}/gateways/{gatewayID}/tokens/{tokenID}":             "gateway-token:revoke",
+	"POST /orgs/{orgName}/self-hosted-gateways/{gatewayID}/tokens":             "gateway-token:rotate",
+	"DELETE /orgs/{orgName}/self-hosted-gateways/{gatewayID}/tokens/{tokenID}": "gateway-token:revoke",
+	"POST /orgs/{orgName}/gateways/{gatewayID}/environments/{envID}":           "gateway:assign-environment",
+	"DELETE /orgs/{orgName}/gateways/{gatewayID}/environments/{envID}":         "gateway:unassign-environment",
+	"PUT /orgs/{orgName}/gateways/{gatewayID}/identity-providers/{name}":       "gateway:set-identity-provider",
+	"DELETE /orgs/{orgName}/gateways/{gatewayID}/identity-providers/{name}":    "gateway:remove-identity-provider",
 
 	// The privilege-escalation path. All four are gated by role:update, and
 	// telling them apart is the whole point of an audit trail.
@@ -339,6 +342,11 @@ var actionOverrides = map[string]Action{
 	"GET /llm-providers/api-keys":         "api-key:sync",
 	"GET /llm-proxies/api-keys":           "api-key:sync",
 	"GET /apis/api-keys":                  "api-key:sync",
+	// The gateway's startup sync. Reads expressed as POST because the ids go in
+	// the body; the batch carries the same resolved secrets as the per-artifact
+	// pulls.
+	"POST /deployments/fetch-batch": "deployment:sync",
+	"POST /artifacts/exists":        "artifact:check-exists",
 
 	// Reads expressed as POST because they carry a request body.
 	// The score-publish route carries no rbac.Permission at all — it is gated
@@ -357,6 +365,7 @@ var actionOverrides = map[string]Action{
 	"GET /orgs/{orgName}/projects/{projName}/agents/{agentName}/mcp-configs/{configId}/environments/{envName}/api-keys":   "api-key:list",
 	"GET /orgs/{orgName}/projects/{projName}/agents/{agentName}/model-configs/{configId}/environments/{envName}/api-keys": "api-key:list",
 	"GET /orgs/{orgName}/gateways/{gatewayID}/tokens":                                                                     "gateway-token:list",
+	"GET /orgs/{orgName}/self-hosted-gateways/{gatewayID}/tokens":                                                         "gateway-token:list",
 	"GET /orgs/{orgName}/projects/{projName}/agents/{agentName}/identities":                                               "agent-identity:read",
 	"GET /orgs/{orgName}/identities/permissions":                                                                          "permission:list",
 	"GET /orgs/{orgName}/identities/roles/{roleID}/assignments":                                                           "role:list-assignments",

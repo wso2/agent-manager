@@ -13,14 +13,15 @@ React/TypeScript web application for the Agent Manager platform, built as a pnpm
 
 Before you begin, ensure you have the following installed:
 
-- **Node.js**: Version 20.19.0+ or 22.12.0+ (see engines in package.json)
+- **Node.js**: 22.x from 22.23.4, 24.x from 24.22.1, or 26.12.1 and later (see engines in package.json). Node 20, 23 and 25 are not supported.
 - **pnpm**: Package manager, pinned via `packageManager` in package.json and activated through Corepack
 
 ### Installing pnpm
 
-Enable Corepack (ships with Node.js):
+Enable Corepack. It ships with Node.js 22 and 24, but not with Node 25 and later, where you install it first:
 
 ```bash
+npm install -g corepack   # only needed on Node 26+
 corepack enable
 ```
 

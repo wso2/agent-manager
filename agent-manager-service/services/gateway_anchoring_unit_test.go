@@ -18,14 +18,22 @@ package services
 
 import (
 	"context"
+	"strings"
 	"testing"
+	"time"
 
 	"github.com/google/uuid"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"gorm.io/gorm"
 
 	"github.com/wso2/agent-manager/agent-manager-service/config"
+	"github.com/wso2/agent-manager/agent-manager-service/eventhub"
 	"github.com/wso2/agent-manager/agent-manager-service/models"
+	"github.com/wso2/agent-manager/agent-manager-service/reconcile"
+	"github.com/wso2/agent-manager/agent-manager-service/repositories"
 	"github.com/wso2/agent-manager/agent-manager-service/repositories/repomocks"
+	"github.com/wso2/agent-manager/agent-manager-service/utils"
 )
 
 // This file covers the six newly-anchored gateway resolution sites end to end, each
@@ -45,9 +53,49 @@ import (
 //   - site 5 (resolveMonitorGateway, monitor_manager.go): the unexported method on a bare
 //     &monitorManagerService{} literal. The same helper backs both the monitor-create and
 //     monitor-update call sites, so one test covers both.
-//   - sites 4 and 6 (resolveGatewayForMCPArtifact, agent_configuration_service.go): the
+//   - sites 4 and 6 (mcpArtifactGateway, agent_configuration_service.go): the
 //     unexported wrapper method, driven once per call site (update at :2288, create at
 //     :1342) since both are the identical resolver reached from different callers.
+
+// startDeployStub records nothing and marks the deployment DEPLOYING, as StartDeploy does.
+func startDeployStub(_ context.Context, _ *gorm.DB, _ models.Placement, deployment *models.Deployment) error {
+	deploying := models.DeploymentStatusDeploying
+	performedAt := models.NewPerformedAt(time.Now())
+	deployment.Status, deployment.UpdatedAt = &deploying, &performedAt
+	return nil
+}
+
+// mappedEverywhere is LockEnvironmentMapping for gateways mapped to every environment.
+func mappedEverywhere(context.Context, *gorm.DB, uuid.UUID, uuid.UUID) (bool, error) {
+	return true, nil
+}
+
+// withMCPCore gives svc a reconcile core over its deployment repository and event hub, with an MCP kind that
+// renders a minimal artifact for whatever binding it is asked for. A mock repository locks status rows as a no-op.
+func withMCPCore(svc *MCPProxyService) {
+	if deployments, ok := svc.deploymentRepo.(*repomocks.DeploymentRepositoryMock); ok {
+		if deployments.WithTxFunc == nil {
+			deployments.WithTxFunc = func(*gorm.DB) repositories.DeploymentRepository { return deployments }
+		}
+		if deployments.LockStatusRowsFunc == nil {
+			deployments.LockStatusRowsFunc = func(context.Context, *gorm.DB, string, []uuid.UUID) error { return nil }
+		}
+	}
+	svc.kind = &MCPProxyKind{load: func(_ context.Context, ref models.ArtifactRef) (*mcpArtifact, error) {
+		return &mcpArtifact{proxyHandle: "proxy-handle", deployable: &models.MCPProxy{
+			UUID: ref.ArtifactUUID, Handle: ref.Handle,
+			Configuration: models.MCPProxyConfig{Upstream: models.UpstreamConfig{
+				Main: &models.UpstreamEndpoint{URL: "https://upstream.example.com"},
+			}},
+		}}, nil
+	}}
+	var hub eventhub.EventHub
+	if svc.gatewayEventsService != nil {
+		hub = svc.gatewayEventsService.hub
+	}
+	svc.core = reconcile.NewCore(nil, svc.deploymentRepo, hub, reconcile.Kinds{svc.kind}, reconcile.Config{},
+		discardLogger())
+}
 
 func TestAnchoring_MCPProxyUpdate(t *testing.T) {
 	env := uuid.New()
@@ -84,16 +132,19 @@ func TestAnchoring_MCPProxyUpdate(t *testing.T) {
 			gatewayRepo:       gatewayFixtureRepo(t, env.String(), []*models.Gateway{both, egress}),
 			mcpProxyScopeRepo: scopeRepo,
 			deploymentRepo: &repomocks.DeploymentRepositoryMock{
-				GetDeployedGatewaysByProviderFunc: func(uuid.UUID, string) ([]string, error) {
+				PlacedGatewaysFunc: func(context.Context, string, uuid.UUID) ([]string, error) {
 					return []string{both.UUID.String()}, nil
 				},
-				CreateWithLimitEnforcementFunc: func(*models.Deployment, int) error { return nil },
+				LockEnvironmentMappingFunc: mappedEverywhere,
+				StartDeployFunc:            startDeployStub,
 			},
+			tx:                   sentinelTx,
 			gatewayEventsService: &GatewayEventsService{hub: hub},
 			logger:               discardLogger(),
 		}
 
-		err := svc.deployMCPProxyEndpoints(context.Background(), newProxy(), "org")
+		withMCPCore(svc)
+		err := svc.deployMCPProxyEndpoints(context.Background(), txSentinel, newProxy(), "org")
 		require.NoError(t, err)
 		// The deployment event's GatewayID is the anchoring signal: a second egress
 		// gateway must never steal an already-deployed (endpoint, environment) binding.
@@ -102,20 +153,21 @@ func TestAnchoring_MCPProxyUpdate(t *testing.T) {
 	})
 
 	t.Run("ambiguity fires only with no deployment", func(t *testing.T) {
-		// No gatewayEventsService/CreateWithLimitEnforcementFunc stubbed: if resolution
+		// No gatewayEventsService/StartDeployFunc stubbed: if resolution
 		// wrongly proceeded to deploy, the unstubbed moq call would panic.
 		svc := &MCPProxyService{
 			gatewayRepo:       gatewayFixtureRepo(t, env.String(), []*models.Gateway{both, egress}),
 			mcpProxyScopeRepo: scopeRepo,
 			deploymentRepo: &repomocks.DeploymentRepositoryMock{
-				GetDeployedGatewaysByProviderFunc: func(uuid.UUID, string) ([]string, error) {
+				PlacedGatewaysFunc: func(context.Context, string, uuid.UUID) ([]string, error) {
 					return nil, nil
 				},
 			},
 			logger: discardLogger(),
 		}
 
-		err := svc.deployMCPProxyEndpoints(context.Background(), newProxy(), "org")
+		withMCPCore(svc)
+		err := svc.deployMCPProxyEndpoints(context.Background(), txSentinel, newProxy(), "org")
 		require.ErrorIs(t, err, errAmbiguousEgressGateway)
 	})
 
@@ -128,11 +180,13 @@ func TestAnchoring_MCPProxyUpdate(t *testing.T) {
 			gatewayRepo:       gatewayFixtureRepo(t, env.String(), []*models.Gateway{both, egress}),
 			mcpProxyScopeRepo: scopeRepo,
 			deploymentRepo: &repomocks.DeploymentRepositoryMock{
-				GetDeployedGatewaysByProviderFunc: func(uuid.UUID, string) ([]string, error) {
+				PlacedGatewaysFunc: func(context.Context, string, uuid.UUID) ([]string, error) {
 					return nil, nil
 				},
-				CreateWithLimitEnforcementFunc: func(*models.Deployment, int) error { return nil },
+				LockEnvironmentMappingFunc: mappedEverywhere,
+				StartDeployFunc:            startDeployStub,
 			},
+			tx:                   sentinelTx,
 			gatewayEventsService: &GatewayEventsService{hub: hub},
 			logger:               discardLogger(),
 		}
@@ -141,7 +195,8 @@ func TestAnchoring_MCPProxyUpdate(t *testing.T) {
 		p := newProxy()
 		p.Endpoints[0].Environments[0].RequestedGatewayUUID = &requested
 
-		err := svc.deployMCPProxyEndpoints(context.Background(), p, "org")
+		withMCPCore(svc)
+		err := svc.deployMCPProxyEndpoints(context.Background(), txSentinel, p, "org")
 		require.NoError(t, err)
 		require.Len(t, hub.published, 1)
 		require.Equal(t, egress.UUID.String(), hub.published[0].GatewayID)
@@ -154,7 +209,7 @@ func TestAnchoring_MCPProxyUpdate(t *testing.T) {
 			gatewayRepo:       gatewayFixtureRepo(t, env.String(), []*models.Gateway{both, egress}),
 			mcpProxyScopeRepo: scopeRepo,
 			deploymentRepo: &repomocks.DeploymentRepositoryMock{
-				GetDeployedGatewaysByProviderFunc: func(uuid.UUID, string) ([]string, error) {
+				PlacedGatewaysFunc: func(context.Context, string, uuid.UUID) ([]string, error) {
 					return []string{both.UUID.String()}, nil
 				},
 			},
@@ -165,9 +220,184 @@ func TestAnchoring_MCPProxyUpdate(t *testing.T) {
 		p := newProxy()
 		p.Endpoints[0].Environments[0].RequestedGatewayUUID = &requested
 
-		err := svc.deployMCPProxyEndpoints(context.Background(), p, "org")
+		withMCPCore(svc)
+		err := svc.deployMCPProxyEndpoints(context.Background(), txSentinel, p, "org")
 		require.ErrorIs(t, err, errPlacementFixed)
 	})
+}
+
+// pinnedSaveFixture is a proxy saved with one fresh binding on env, the gateways the save's transaction sees there,
+// and the request endpoints pinned to the self-hosted gateway validation approved the private upstream for.
+type pinnedSaveFixture struct {
+	selfHosted *models.Gateway
+	managed    *models.Gateway
+	hub        *stubEventHub
+	svc        *MCPProxyService
+	pinned     []models.MCPProxyEndpointDTO
+}
+
+func newPinnedSaveFixture(t *testing.T, gatewaysInTx func(selfHosted, managed *models.Gateway) []*models.Gateway) *pinnedSaveFixture {
+	t.Helper()
+	env := uuid.MustParse(testMCPEnvUUID)
+	f := &pinnedSaveFixture{selfHosted: selfHostedGateway(t), managed: newGateway(t, models.GatewayRoleBoth, true), hub: &stubEventHub{}}
+	saved := &models.MCPProxy{
+		UUID:   uuid.New(),
+		Handle: "proxy-handle",
+		Endpoints: []models.MCPProxyEndpoint{{
+			UUID:   uuid.New(),
+			Handle: "primary",
+			Configuration: models.MCPEndpointConfig{
+				Upstream: &models.UpstreamEndpoint{URL: privateMCPUpstream},
+			},
+			Environments: []models.MCPProxyEndpointEnvironment{{EnvironmentUUID: env, ArtifactUUID: uuid.New()}},
+		}},
+	}
+	f.svc = &MCPProxyService{
+		repo: &repomocks.MCPProxyRepositoryMock{
+			GetByHandleForUpdateFunc: func(context.Context, *gorm.DB, string, string) (*models.MCPProxy, error) {
+				return saved, nil
+			},
+		},
+		gatewayRepo: gatewayFixtureRepo(t, testMCPEnvUUID, gatewaysInTx(f.selfHosted, f.managed)),
+		mcpProxyScopeRepo: &repomocks.MCPProxyScopeRepositoryMock{
+			ListByProxyFunc: func(context.Context, uuid.UUID) ([]models.MCPProxyScope, error) {
+				return []models.MCPProxyScope{}, nil
+			},
+		},
+		deploymentRepo: &repomocks.DeploymentRepositoryMock{
+			PlacedGatewaysFunc:         func(context.Context, string, uuid.UUID) ([]string, error) { return nil, nil },
+			LockEnvironmentMappingFunc: mappedEverywhere,
+			StartDeployFunc:            startDeployStub,
+		},
+		tx:                   sentinelTx,
+		gatewayEventsService: &GatewayEventsService{hub: f.hub},
+		logger:               discardLogger(),
+	}
+	withMCPCore(f.svc)
+	f.svc.kind.gatewayRepo, f.svc.kind.deploymentRepo = f.svc.gatewayRepo, f.svc.deploymentRepo
+	f.pinned = pinExemptGateways([]models.MCPProxyEndpointDTO{privateUpstreamEndpoint("")},
+		map[string]uuid.UUID{testMCPEnvUUID: f.selfHosted.UUID})
+	return f
+}
+
+func (f *pinnedSaveFixture) save() error {
+	return f.svc.deploySavedMCPProxy(context.Background(), txSentinel, "proxy-handle", "org", f.pinned)
+}
+
+// Without the pin, the environment-only resolution would pick the managed gateway and deploy the private upstream
+// there, skipping the SSRF check validation exempted for the self-hosted gateway.
+func TestMCPSave_PinnedExemptEnvironmentDeploysOnTheApprovedGateway(t *testing.T) {
+	f := newPinnedSaveFixture(t, func(selfHosted, managed *models.Gateway) []*models.Gateway {
+		return []*models.Gateway{managed, selfHosted}
+	})
+
+	require.NoError(t, f.save())
+
+	require.Len(t, f.hub.published, 1)
+	assert.Equal(t, f.selfHosted.UUID.String(), f.hub.published[0].GatewayID)
+}
+
+func TestMCPSave_PinnedExemptGatewayGoneIsA400(t *testing.T) {
+	f := newPinnedSaveFixture(t, func(_, managed *models.Gateway) []*models.Gateway {
+		return []*models.Gateway{managed}
+	})
+
+	err := f.save()
+
+	require.Error(t, err)
+	require.ErrorIs(t, mcpDeployRejection(err), utils.ErrInvalidInput)
+	assert.Empty(t, f.hub.published)
+}
+
+// The request spells the environment UUID in upper case; the approved gateway must still reach the save's binding.
+func TestMCPSave_PinnedExemptGatewayGoneIsA400WhateverTheEnvironmentUUIDSpelling(t *testing.T) {
+	f := newPinnedSaveFixture(t, func(_, managed *models.Gateway) []*models.Gateway {
+		return []*models.Gateway{managed}
+	})
+	endpoint := privateUpstreamEndpoint(f.selfHosted.UUID.String())
+	endpoint.Environments[0].EnvironmentUUID = strings.ToUpper(testMCPEnvUUID)
+	endpoints := []models.MCPProxyEndpointDTO{endpoint}
+	validation := placementService(gatewayFixtureRepo(t, testMCPEnvUUID, []*models.Gateway{f.selfHosted}), nil)
+	exempt, err := validation.validateMCPEndpointPlacement(context.Background(), "org", uuid.Nil, endpoints, nil)
+	require.NoError(t, err)
+	f.pinned = pinExemptGateways(endpoints, exempt)
+
+	err = f.save()
+
+	require.Error(t, err)
+	require.ErrorIs(t, mcpDeployRejection(err), utils.ErrInvalidInput)
+	assert.Empty(t, f.hub.published)
+}
+
+// Saved unplaced: a later placement goes through MCPProxyKind.Targets, which refuses a managed gateway for a
+// non-public upstream.
+func TestMCPSave_PinnedExemptGatewayGoneAndEnvironmentEmptySavesUnplaced(t *testing.T) {
+	f := newPinnedSaveFixture(t, func(*models.Gateway, *models.Gateway) []*models.Gateway { return nil })
+
+	require.NoError(t, f.save())
+
+	assert.Empty(t, f.hub.published)
+}
+
+// orderedEventHub records each publish in a log shared with the test's other fakes.
+type orderedEventHub struct {
+	stubEventHub
+	log *[]string
+}
+
+func (h *orderedEventHub) PublishEventTx(ctx context.Context, tx *gorm.DB, gatewayID string, e eventhub.Event) error {
+	*h.log = append(*h.log, "publish")
+	return h.stubEventHub.PublishEventTx(ctx, tx, gatewayID, e)
+}
+
+// An MCP save locks every binding's status row before its first event locks a gateway, the order a render of one
+// binding takes, so a concurrent render can't deadlock with it.
+func TestMCPSaveLocksItsStatusRowsBeforeTheFirstEvent(t *testing.T) {
+	env := uuid.New()
+	gateway := newGateway(t, models.GatewayRoleEgress, true)
+	binding := func(handle string) models.MCPProxyEndpoint {
+		return models.MCPProxyEndpoint{
+			UUID: uuid.New(), Handle: handle,
+			Configuration: models.MCPEndpointConfig{Upstream: &models.UpstreamEndpoint{URL: "https://upstream.example.com"}},
+			Environments:  []models.MCPProxyEndpointEnvironment{{EnvironmentUUID: env, ArtifactUUID: uuid.New()}},
+		}
+	}
+	proxy := &models.MCPProxy{
+		UUID: uuid.New(), Handle: "proxy-handle",
+		Endpoints: []models.MCPProxyEndpoint{binding("a"), binding("b")},
+	}
+
+	var log []string
+	var lockedArtifacts []uuid.UUID
+	svc := &MCPProxyService{
+		gatewayRepo: gatewayFixtureRepo(t, env.String(), []*models.Gateway{gateway}),
+		deploymentRepo: &repomocks.DeploymentRepositoryMock{
+			PlacedGatewaysFunc: func(context.Context, string, uuid.UUID) ([]string, error) {
+				return []string{gateway.UUID.String()}, nil
+			},
+			LockEnvironmentMappingFunc: mappedEverywhere,
+			LockStatusRowsFunc: func(_ context.Context, _ *gorm.DB, _ string, artifactUUIDs []uuid.UUID) error {
+				log = append(log, "lock")
+				lockedArtifacts = artifactUUIDs
+				return nil
+			},
+			StartDeployFunc: func(ctx context.Context, tx *gorm.DB, p models.Placement, d *models.Deployment) error {
+				log = append(log, "start")
+				return startDeployStub(ctx, tx, p, d)
+			},
+		},
+		tx:                   sentinelTx,
+		gatewayEventsService: &GatewayEventsService{hub: &orderedEventHub{log: &log}},
+		logger:               discardLogger(),
+	}
+	withMCPCore(svc)
+
+	require.NoError(t, svc.deployMCPProxyEndpoints(context.Background(), txSentinel, proxy, "org"))
+
+	assert.Equal(t, []string{"lock", "start", "publish", "start", "publish"}, log)
+	assert.ElementsMatch(t, []uuid.UUID{
+		proxy.Endpoints[0].Environments[0].ArtifactUUID, proxy.Endpoints[1].Environments[0].ArtifactUUID,
+	}, lockedArtifacts)
 }
 
 func TestAnchoring_MonitorRunAgainstDeployedProxy(t *testing.T) {
@@ -180,7 +410,7 @@ func TestAnchoring_MonitorRunAgainstDeployedProxy(t *testing.T) {
 		exec := &monitorExecutor{
 			gatewayRepo: gatewayFixtureRepo(t, env.String(), []*models.Gateway{both, egress}),
 			deploymentRepo: &repomocks.DeploymentRepositoryMock{
-				GetDeployedGatewaysByProviderFunc: func(uuid.UUID, string) ([]string, error) {
+				PlacedGatewaysFunc: func(context.Context, string, uuid.UUID) ([]string, error) {
 					return []string{both.UUID.String()}, nil
 				},
 			},
@@ -199,7 +429,7 @@ func TestAnchoring_MonitorRunAgainstDeployedProxy(t *testing.T) {
 		exec := &monitorExecutor{
 			gatewayRepo: gatewayFixtureRepo(t, env.String(), []*models.Gateway{unregistered}),
 			deploymentRepo: &repomocks.DeploymentRepositoryMock{
-				GetDeployedGatewaysByProviderFunc: func(uuid.UUID, string) ([]string, error) {
+				PlacedGatewaysFunc: func(context.Context, string, uuid.UUID) ([]string, error) {
 					return []string{unregistered.UUID.String()}, nil
 				},
 			},
@@ -217,7 +447,7 @@ func TestAnchoring_MonitorRunAgainstDeployedProxy(t *testing.T) {
 		exec := &monitorExecutor{
 			gatewayRepo: gatewayFixtureRepo(t, env.String(), []*models.Gateway{both, egress}),
 			deploymentRepo: &repomocks.DeploymentRepositoryMock{
-				GetDeployedGatewaysByProviderFunc: func(uuid.UUID, string) ([]string, error) {
+				PlacedGatewaysFunc: func(context.Context, string, uuid.UUID) ([]string, error) {
 					return []string{both.UUID.String()}, nil
 				},
 			},
@@ -234,7 +464,7 @@ func TestAnchoring_MonitorRunAgainstDeployedProxy(t *testing.T) {
 		exec := &monitorExecutor{
 			gatewayRepo: gatewayFixtureRepo(t, env.String(), []*models.Gateway{both, egress}),
 			deploymentRepo: &repomocks.DeploymentRepositoryMock{
-				GetDeployedGatewaysByProviderFunc: func(uuid.UUID, string) ([]string, error) {
+				PlacedGatewaysFunc: func(context.Context, string, uuid.UUID) ([]string, error) {
 					return nil, nil
 				},
 			},
@@ -260,7 +490,7 @@ func TestAnchoring_MonitorCreateAgainstDeployedProvider(t *testing.T) {
 				gatewayRepo: gatewayFixtureRepo(t, env.String(), []*models.Gateway{both, egress}),
 				llmProxyDeploymentService: &LLMProxyDeploymentService{
 					deploymentRepo: &repomocks.DeploymentRepositoryMock{
-						GetDeployedGatewaysByProviderFunc: func(uuid.UUID, string) ([]string, error) {
+						PlacedGatewaysFunc: func(context.Context, string, uuid.UUID) ([]string, error) {
 							return []string{egress.UUID.String()}, nil
 						},
 					},
@@ -278,7 +508,7 @@ func TestAnchoring_MonitorCreateAgainstDeployedProvider(t *testing.T) {
 				gatewayRepo: gatewayFixtureRepo(t, env.String(), []*models.Gateway{both, egress}),
 				llmProxyDeploymentService: &LLMProxyDeploymentService{
 					deploymentRepo: &repomocks.DeploymentRepositoryMock{
-						GetDeployedGatewaysByProviderFunc: func(uuid.UUID, string) ([]string, error) {
+						PlacedGatewaysFunc: func(context.Context, string, uuid.UUID) ([]string, error) {
 							return nil, nil
 						},
 					},
@@ -291,7 +521,7 @@ func TestAnchoring_MonitorCreateAgainstDeployedProvider(t *testing.T) {
 }
 
 func TestAnchoring_AgentMCPConfigCreateWithExistingMapping(t *testing.T) {
-	// Drives resolveGatewayForMCPArtifact as reached from the agent MCP config create
+	// Drives mcpArtifactGateway as reached from the agent MCP config create
 	// path (agent_configuration_service.go:1342), which resolves the environment's gateway
 	// for the MCP proxy's already-deployed shared artifact without placing anything itself.
 	env := uuid.New()
@@ -304,13 +534,13 @@ func TestAnchoring_AgentMCPConfigCreateWithExistingMapping(t *testing.T) {
 			gatewayRepo: gatewayFixtureRepo(t, env.String(), []*models.Gateway{both, egress}),
 			mcpProxyService: &MCPProxyService{
 				deploymentRepo: &repomocks.DeploymentRepositoryMock{
-					GetDeployedGatewaysByProviderFunc: func(uuid.UUID, string) ([]string, error) {
+					PlacedGatewaysFunc: func(context.Context, string, uuid.UUID) ([]string, error) {
 						return []string{both.UUID.String()}, nil
 					},
 				},
 			},
 		}
-		gw, err := svc.resolveGatewayForMCPArtifact(context.Background(), sharedArtifactUUID, "org", env)
+		gw, err := svc.mcpArtifactGateway(context.Background(), platformAgentPolicy, nil, sharedArtifactUUID, "org", env)
 		require.NoError(t, err)
 		require.Equal(t, both.UUID, gw.UUID)
 	})
@@ -320,19 +550,19 @@ func TestAnchoring_AgentMCPConfigCreateWithExistingMapping(t *testing.T) {
 			gatewayRepo: gatewayFixtureRepo(t, env.String(), []*models.Gateway{both, egress}),
 			mcpProxyService: &MCPProxyService{
 				deploymentRepo: &repomocks.DeploymentRepositoryMock{
-					GetDeployedGatewaysByProviderFunc: func(uuid.UUID, string) ([]string, error) {
+					PlacedGatewaysFunc: func(context.Context, string, uuid.UUID) ([]string, error) {
 						return nil, nil
 					},
 				},
 			},
 		}
-		_, err := svc.resolveGatewayForMCPArtifact(context.Background(), sharedArtifactUUID, "org", env)
+		_, err := svc.mcpArtifactGateway(context.Background(), platformAgentPolicy, nil, sharedArtifactUUID, "org", env)
 		require.ErrorIs(t, err, errAmbiguousEgressGateway)
 	})
 }
 
 func TestAnchoring_AgentMCPConfigUpdateWithExistingMapping(t *testing.T) {
-	// Same resolveGatewayForMCPArtifact seam as the create test above, but exercised as
+	// Same mcpArtifactGateway seam as the create test above, but exercised as
 	// reached from updateMCPConfig's deployability probe (agent_configuration_service.go:2288).
 	// It's the identical resolver at a second call site, not a distinct code path — kept as
 	// its own test to mirror the brief's naming for both anchored sites (4 and 6).
@@ -346,13 +576,13 @@ func TestAnchoring_AgentMCPConfigUpdateWithExistingMapping(t *testing.T) {
 			gatewayRepo: gatewayFixtureRepo(t, env.String(), []*models.Gateway{both, egress}),
 			mcpProxyService: &MCPProxyService{
 				deploymentRepo: &repomocks.DeploymentRepositoryMock{
-					GetDeployedGatewaysByProviderFunc: func(uuid.UUID, string) ([]string, error) {
+					PlacedGatewaysFunc: func(context.Context, string, uuid.UUID) ([]string, error) {
 						return []string{egress.UUID.String()}, nil
 					},
 				},
 			},
 		}
-		gw, err := svc.resolveGatewayForMCPArtifact(context.Background(), sharedArtifactUUID, "org", env)
+		gw, err := svc.mcpArtifactGateway(context.Background(), platformAgentPolicy, nil, sharedArtifactUUID, "org", env)
 		require.NoError(t, err)
 		require.Equal(t, egress.UUID, gw.UUID)
 	})
@@ -362,13 +592,44 @@ func TestAnchoring_AgentMCPConfigUpdateWithExistingMapping(t *testing.T) {
 			gatewayRepo: gatewayFixtureRepo(t, env.String(), []*models.Gateway{both, egress}),
 			mcpProxyService: &MCPProxyService{
 				deploymentRepo: &repomocks.DeploymentRepositoryMock{
-					GetDeployedGatewaysByProviderFunc: func(uuid.UUID, string) ([]string, error) {
+					PlacedGatewaysFunc: func(context.Context, string, uuid.UUID) ([]string, error) {
 						return nil, nil
 					},
 				},
 			},
 		}
-		_, err := svc.resolveGatewayForMCPArtifact(context.Background(), sharedArtifactUUID, "org", env)
+		_, err := svc.mcpArtifactGateway(context.Background(), platformAgentPolicy, nil, sharedArtifactUUID, "org", env)
 		require.ErrorIs(t, err, errAmbiguousEgressGateway)
 	})
+}
+
+// A binding's anchor is read through the save's transaction, so the save sees its own rows; nothing is read on
+// the pool (the pool mocks answer no reads).
+func TestMCPEnvGatewayReadsThroughTheSavesTransaction(t *testing.T) {
+	env := uuid.New()
+	both := newGateway(t, models.GatewayRoleBoth, true)
+	egress := newGateway(t, models.GatewayRoleEgress, true)
+	txGateways := gatewayFixtureRepo(t, env.String(), []*models.Gateway{both, egress})
+	txDeployments := &repomocks.DeploymentRepositoryMock{
+		PlacedGatewaysFunc: func(context.Context, string, uuid.UUID) ([]string, error) {
+			return []string{both.UUID.String()}, nil
+		},
+	}
+	svc := &MCPProxyService{
+		gatewayRepo: &repomocks.GatewayRepositoryMock{WithTxFunc: func(tx *gorm.DB) repositories.GatewayRepository {
+			assert.Same(t, txSentinel, tx)
+			return txGateways
+		}},
+		deploymentRepo: &repomocks.DeploymentRepositoryMock{WithTxFunc: func(tx *gorm.DB) repositories.DeploymentRepository {
+			assert.Same(t, txSentinel, tx)
+			return txDeployments
+		}},
+		logger: discardLogger(),
+	}
+
+	gateway, err := svc.mcpEnvGateway(context.Background(), txSentinel, &models.MCPProxy{},
+		&models.MCPProxyEndpointEnvironment{EnvironmentUUID: env, ArtifactUUID: uuid.New()}, "org")
+
+	require.NoError(t, err)
+	assert.Equal(t, both.UUID, *gateway, "anchored on the placed gateway")
 }

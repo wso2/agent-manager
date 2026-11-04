@@ -21,6 +21,9 @@ import (
 //			AcquireEnvironmentLockFunc: func(tx *gorm.DB, environmentID string) error {
 //				panic("mock out the AcquireEnvironmentLock method")
 //			},
+//			AcquireGatewayLockFunc: func(tx *gorm.DB, gatewayID string) error {
+//				panic("mock out the AcquireGatewayLock method")
+//			},
 //			CountActiveTokensFunc: func(gatewayId string) (int, error) {
 //				panic("mock out the CountActiveTokens method")
 //			},
@@ -90,12 +93,6 @@ import (
 //			GetTokenByUUIDFunc: func(tokenId string) (*models.GatewayToken, error) {
 //				panic("mock out the GetTokenByUUID method")
 //			},
-//			HasGatewayAssociationsFunc: func(gatewayID string, ouID string) (bool, error) {
-//				panic("mock out the HasGatewayAssociations method")
-//			},
-//			HasGatewayAssociationsOrDeploymentsFunc: func(gatewayID string, ouID string) (bool, error) {
-//				panic("mock out the HasGatewayAssociationsOrDeployments method")
-//			},
 //			HasGatewayDeploymentsFunc: func(gatewayID string, ouID string) (bool, error) {
 //				panic("mock out the HasGatewayDeployments method")
 //			},
@@ -135,6 +132,9 @@ import (
 //			UpsertIdentityProviderFunc: func(provider *models.GatewayIdentityProvider) error {
 //				panic("mock out the UpsertIdentityProvider method")
 //			},
+//			WithTxFunc: func(tx *gorm.DB) repositories.GatewayRepository {
+//				panic("mock out the WithTx method")
+//			},
 //		}
 //
 //		// use mockedGatewayRepository in code that requires repositories.GatewayRepository
@@ -144,6 +144,9 @@ import (
 type GatewayRepositoryMock struct {
 	// AcquireEnvironmentLockFunc mocks the AcquireEnvironmentLock method.
 	AcquireEnvironmentLockFunc func(tx *gorm.DB, environmentID string) error
+
+	// AcquireGatewayLockFunc mocks the AcquireGatewayLock method.
+	AcquireGatewayLockFunc func(tx *gorm.DB, gatewayID string) error
 
 	// CountActiveTokensFunc mocks the CountActiveTokens method.
 	CountActiveTokensFunc func(gatewayId string) (int, error)
@@ -214,12 +217,6 @@ type GatewayRepositoryMock struct {
 	// GetTokenByUUIDFunc mocks the GetTokenByUUID method.
 	GetTokenByUUIDFunc func(tokenId string) (*models.GatewayToken, error)
 
-	// HasGatewayAssociationsFunc mocks the HasGatewayAssociations method.
-	HasGatewayAssociationsFunc func(gatewayID string, ouID string) (bool, error)
-
-	// HasGatewayAssociationsOrDeploymentsFunc mocks the HasGatewayAssociationsOrDeployments method.
-	HasGatewayAssociationsOrDeploymentsFunc func(gatewayID string, ouID string) (bool, error)
-
 	// HasGatewayDeploymentsFunc mocks the HasGatewayDeployments method.
 	HasGatewayDeploymentsFunc func(gatewayID string, ouID string) (bool, error)
 
@@ -259,6 +256,9 @@ type GatewayRepositoryMock struct {
 	// UpsertIdentityProviderFunc mocks the UpsertIdentityProvider method.
 	UpsertIdentityProviderFunc func(provider *models.GatewayIdentityProvider) error
 
+	// WithTxFunc mocks the WithTx method.
+	WithTxFunc func(tx *gorm.DB) repositories.GatewayRepository
+
 	// calls tracks calls to the methods.
 	calls struct {
 		// AcquireEnvironmentLock holds details about calls to the AcquireEnvironmentLock method.
@@ -267,6 +267,13 @@ type GatewayRepositoryMock struct {
 			Tx *gorm.DB
 			// EnvironmentID is the environmentID argument value.
 			EnvironmentID string
+		}
+		// AcquireGatewayLock holds details about calls to the AcquireGatewayLock method.
+		AcquireGatewayLock []struct {
+			// Tx is the tx argument value.
+			Tx *gorm.DB
+			// GatewayID is the gatewayID argument value.
+			GatewayID string
 		}
 		// CountActiveTokens holds details about calls to the CountActiveTokens method.
 		CountActiveTokens []struct {
@@ -405,20 +412,6 @@ type GatewayRepositoryMock struct {
 			// TokenId is the tokenId argument value.
 			TokenId string
 		}
-		// HasGatewayAssociations holds details about calls to the HasGatewayAssociations method.
-		HasGatewayAssociations []struct {
-			// GatewayID is the gatewayID argument value.
-			GatewayID string
-			// OuID is the ouID argument value.
-			OuID string
-		}
-		// HasGatewayAssociationsOrDeployments holds details about calls to the HasGatewayAssociationsOrDeployments method.
-		HasGatewayAssociationsOrDeployments []struct {
-			// GatewayID is the gatewayID argument value.
-			GatewayID string
-			// OuID is the ouID argument value.
-			OuID string
-		}
 		// HasGatewayDeployments holds details about calls to the HasGatewayDeployments method.
 		HasGatewayDeployments []struct {
 			// GatewayID is the gatewayID argument value.
@@ -492,8 +485,14 @@ type GatewayRepositoryMock struct {
 			// Provider is the provider argument value.
 			Provider *models.GatewayIdentityProvider
 		}
+		// WithTx holds details about calls to the WithTx method.
+		WithTx []struct {
+			// Tx is the tx argument value.
+			Tx *gorm.DB
+		}
 	}
 	lockAcquireEnvironmentLock                   sync.RWMutex
+	lockAcquireGatewayLock                       sync.RWMutex
 	lockCountActiveTokens                        sync.RWMutex
 	lockCountFailureSummaryAllOrgs               sync.RWMutex
 	lockCountIngressCapableInEnvironment         sync.RWMutex
@@ -517,8 +516,6 @@ type GatewayRepositoryMock struct {
 	lockGetEnvironmentMappingsByGatewayID        sync.RWMutex
 	lockGetEnvironmentMappingsByGatewayIDs       sync.RWMutex
 	lockGetTokenByUUID                           sync.RWMutex
-	lockHasGatewayAssociations                   sync.RWMutex
-	lockHasGatewayAssociationsOrDeployments      sync.RWMutex
 	lockHasGatewayDeployments                    sync.RWMutex
 	lockList                                     sync.RWMutex
 	lockListFailedGatewaysAllOrgs                sync.RWMutex
@@ -532,6 +529,7 @@ type GatewayRepositoryMock struct {
 	lockUpdateActiveStatus                       sync.RWMutex
 	lockUpdateGateway                            sync.RWMutex
 	lockUpsertIdentityProvider                   sync.RWMutex
+	lockWithTx                                   sync.RWMutex
 }
 
 // AcquireEnvironmentLock calls AcquireEnvironmentLockFunc.
@@ -567,6 +565,42 @@ func (mock *GatewayRepositoryMock) AcquireEnvironmentLockCalls() []struct {
 	mock.lockAcquireEnvironmentLock.RLock()
 	calls = mock.calls.AcquireEnvironmentLock
 	mock.lockAcquireEnvironmentLock.RUnlock()
+	return calls
+}
+
+// AcquireGatewayLock calls AcquireGatewayLockFunc.
+func (mock *GatewayRepositoryMock) AcquireGatewayLock(tx *gorm.DB, gatewayID string) error {
+	if mock.AcquireGatewayLockFunc == nil {
+		panic("GatewayRepositoryMock.AcquireGatewayLockFunc: method is nil but GatewayRepository.AcquireGatewayLock was just called")
+	}
+	callInfo := struct {
+		Tx        *gorm.DB
+		GatewayID string
+	}{
+		Tx:        tx,
+		GatewayID: gatewayID,
+	}
+	mock.lockAcquireGatewayLock.Lock()
+	mock.calls.AcquireGatewayLock = append(mock.calls.AcquireGatewayLock, callInfo)
+	mock.lockAcquireGatewayLock.Unlock()
+	return mock.AcquireGatewayLockFunc(tx, gatewayID)
+}
+
+// AcquireGatewayLockCalls gets all the calls that were made to AcquireGatewayLock.
+// Check the length with:
+//
+//	len(mockedGatewayRepository.AcquireGatewayLockCalls())
+func (mock *GatewayRepositoryMock) AcquireGatewayLockCalls() []struct {
+	Tx        *gorm.DB
+	GatewayID string
+} {
+	var calls []struct {
+		Tx        *gorm.DB
+		GatewayID string
+	}
+	mock.lockAcquireGatewayLock.RLock()
+	calls = mock.calls.AcquireGatewayLock
+	mock.lockAcquireGatewayLock.RUnlock()
 	return calls
 }
 
@@ -1350,78 +1384,6 @@ func (mock *GatewayRepositoryMock) GetTokenByUUIDCalls() []struct {
 	return calls
 }
 
-// HasGatewayAssociations calls HasGatewayAssociationsFunc.
-func (mock *GatewayRepositoryMock) HasGatewayAssociations(gatewayID string, ouID string) (bool, error) {
-	if mock.HasGatewayAssociationsFunc == nil {
-		panic("GatewayRepositoryMock.HasGatewayAssociationsFunc: method is nil but GatewayRepository.HasGatewayAssociations was just called")
-	}
-	callInfo := struct {
-		GatewayID string
-		OuID      string
-	}{
-		GatewayID: gatewayID,
-		OuID:      ouID,
-	}
-	mock.lockHasGatewayAssociations.Lock()
-	mock.calls.HasGatewayAssociations = append(mock.calls.HasGatewayAssociations, callInfo)
-	mock.lockHasGatewayAssociations.Unlock()
-	return mock.HasGatewayAssociationsFunc(gatewayID, ouID)
-}
-
-// HasGatewayAssociationsCalls gets all the calls that were made to HasGatewayAssociations.
-// Check the length with:
-//
-//	len(mockedGatewayRepository.HasGatewayAssociationsCalls())
-func (mock *GatewayRepositoryMock) HasGatewayAssociationsCalls() []struct {
-	GatewayID string
-	OuID      string
-} {
-	var calls []struct {
-		GatewayID string
-		OuID      string
-	}
-	mock.lockHasGatewayAssociations.RLock()
-	calls = mock.calls.HasGatewayAssociations
-	mock.lockHasGatewayAssociations.RUnlock()
-	return calls
-}
-
-// HasGatewayAssociationsOrDeployments calls HasGatewayAssociationsOrDeploymentsFunc.
-func (mock *GatewayRepositoryMock) HasGatewayAssociationsOrDeployments(gatewayID string, ouID string) (bool, error) {
-	if mock.HasGatewayAssociationsOrDeploymentsFunc == nil {
-		panic("GatewayRepositoryMock.HasGatewayAssociationsOrDeploymentsFunc: method is nil but GatewayRepository.HasGatewayAssociationsOrDeployments was just called")
-	}
-	callInfo := struct {
-		GatewayID string
-		OuID      string
-	}{
-		GatewayID: gatewayID,
-		OuID:      ouID,
-	}
-	mock.lockHasGatewayAssociationsOrDeployments.Lock()
-	mock.calls.HasGatewayAssociationsOrDeployments = append(mock.calls.HasGatewayAssociationsOrDeployments, callInfo)
-	mock.lockHasGatewayAssociationsOrDeployments.Unlock()
-	return mock.HasGatewayAssociationsOrDeploymentsFunc(gatewayID, ouID)
-}
-
-// HasGatewayAssociationsOrDeploymentsCalls gets all the calls that were made to HasGatewayAssociationsOrDeployments.
-// Check the length with:
-//
-//	len(mockedGatewayRepository.HasGatewayAssociationsOrDeploymentsCalls())
-func (mock *GatewayRepositoryMock) HasGatewayAssociationsOrDeploymentsCalls() []struct {
-	GatewayID string
-	OuID      string
-} {
-	var calls []struct {
-		GatewayID string
-		OuID      string
-	}
-	mock.lockHasGatewayAssociationsOrDeployments.RLock()
-	calls = mock.calls.HasGatewayAssociationsOrDeployments
-	mock.lockHasGatewayAssociationsOrDeployments.RUnlock()
-	return calls
-}
-
 // HasGatewayDeployments calls HasGatewayDeploymentsFunc.
 func (mock *GatewayRepositoryMock) HasGatewayDeployments(gatewayID string, ouID string) (bool, error) {
 	if mock.HasGatewayDeploymentsFunc == nil {
@@ -1850,5 +1812,37 @@ func (mock *GatewayRepositoryMock) UpsertIdentityProviderCalls() []struct {
 	mock.lockUpsertIdentityProvider.RLock()
 	calls = mock.calls.UpsertIdentityProvider
 	mock.lockUpsertIdentityProvider.RUnlock()
+	return calls
+}
+
+// WithTx calls WithTxFunc.
+func (mock *GatewayRepositoryMock) WithTx(tx *gorm.DB) repositories.GatewayRepository {
+	if mock.WithTxFunc == nil {
+		panic("GatewayRepositoryMock.WithTxFunc: method is nil but GatewayRepository.WithTx was just called")
+	}
+	callInfo := struct {
+		Tx *gorm.DB
+	}{
+		Tx: tx,
+	}
+	mock.lockWithTx.Lock()
+	mock.calls.WithTx = append(mock.calls.WithTx, callInfo)
+	mock.lockWithTx.Unlock()
+	return mock.WithTxFunc(tx)
+}
+
+// WithTxCalls gets all the calls that were made to WithTx.
+// Check the length with:
+//
+//	len(mockedGatewayRepository.WithTxCalls())
+func (mock *GatewayRepositoryMock) WithTxCalls() []struct {
+	Tx *gorm.DB
+} {
+	var calls []struct {
+		Tx *gorm.DB
+	}
+	mock.lockWithTx.RLock()
+	calls = mock.calls.WithTx
+	mock.lockWithTx.RUnlock()
 	return calls
 }

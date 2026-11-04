@@ -15,7 +15,7 @@ runs:
         package_json_file: console/package.json
     - uses: actions/setup-node@v6
       with:
-        node-version: "20.19.0"
+        node-version: "26.12.1"
         cache: pnpm
         cache-dependency-path: console/pnpm-lock.yaml
         registry-url: ${{ inputs.registry-url }}

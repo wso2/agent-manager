@@ -19,6 +19,8 @@ package eventhub
 import (
 	"context"
 	"time"
+
+	"gorm.io/gorm"
 )
 
 // EventType represents the type of event
@@ -44,6 +46,11 @@ type Event struct {
 	EventID             string    `json:"event_id"`
 	// EventData carries optional event-specific details as a JSON string.
 	EventData string `json:"event_data"`
+	// Seq is the event's place in its gateway's sequence, assigned on publish.
+	Seq int64 `json:"seq"`
+
+	// err is why NewGatewayEvent couldn't build the event.
+	err error
 }
 
 // GatewayState tracks the version state of a gateway.
@@ -58,6 +65,8 @@ type EventHub interface {
 	Initialize() error
 	RegisterGateway(gatewayID string) error
 	PublishEvent(ctx context.Context, gatewayID string, event Event) error
+	// PublishEventTx writes the event in the caller's transaction (an outbox): it is delivered only if tx commits.
+	PublishEventTx(ctx context.Context, tx *gorm.DB, gatewayID string, event Event) error
 	Subscribe(gatewayID string) (<-chan Event, error)
 	Unsubscribe(gatewayID string, subscriber <-chan Event) error
 	UnsubscribeAll(gatewayID string) error

@@ -22,6 +22,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/wso2/agent-manager/agent-manager-observer/middleware/logger"
 	"github.com/wso2/agent-manager/agent-manager-observer/observer"
 )
 
@@ -167,11 +168,50 @@ func (c *ObservabilityController) GetBuildLogs(ctx context.Context, organization
 // GetMetrics fetches a resource metrics time series matching the given params.
 // The window is snapped to multiples of the step so repeated queries over a
 // moving window evaluate at the same timestamps and past points stay put.
+//
+// The last grid point can trail the requested end by up to a step, longer than
+// the rate window behind CPU usage, so an agent younger than one step would show
+// nothing. A live tip point evaluated at the requested end closes that gap.
 func (c *ObservabilityController) GetMetrics(ctx context.Context, params MetricsQueryParams) (*MetricsResponse, error) {
 	step := metricsStep(params.EndTime.Sub(params.StartTime))
-	req := observer.MetricsQueryRequest{
-		StartTime: params.StartTime.Truncate(step),
-		EndTime:   params.EndTime.Truncate(step),
+	gridEnd := params.EndTime.Truncate(step)
+
+	var tipCh chan metricsResult
+	if params.EndTime.After(gridEnd) {
+		tipCh = make(chan metricsResult, 1)
+		go func() {
+			tip, err := c.queryMetrics(ctx, params, params.EndTime, params.EndTime, step)
+			tipCh <- metricsResult{tip, err}
+		}()
+	}
+
+	grid, err := c.queryMetrics(ctx, params, params.StartTime.Truncate(step), gridEnd, step)
+	if err != nil {
+		return nil, err
+	}
+	if tipCh != nil {
+		// The tip only adds freshness, so losing it must not cost the grid.
+		if tip := <-tipCh; tip.err != nil {
+			logger.GetLogger(ctx).Warn("metrics tip query failed; returning the grid alone",
+				"organization", params.Organization, "project", params.Project, "agent", params.Agent, "err", tip.err)
+		} else {
+			grid = appendTip(grid, tip.resp)
+		}
+	}
+	return toMetricsResponse(grid), nil
+}
+
+type metricsResult struct {
+	resp *observer.ResourceMetricsTimeSeries
+	err  error
+}
+
+// queryMetrics never returns a nil series without an error, so callers can
+// read the grid and tip responses unguarded.
+func (c *ObservabilityController) queryMetrics(ctx context.Context, params MetricsQueryParams, start, end time.Time, step time.Duration) (*observer.ResourceMetricsTimeSeries, error) {
+	resp, err := c.observerClient.QueryMetrics(ctx, observer.MetricsQueryRequest{
+		StartTime: start,
+		EndTime:   end,
 		Metric:    "resource",
 		Step:      step.String(),
 		SearchScope: observer.ComponentSearchScope{
@@ -180,13 +220,14 @@ func (c *ObservabilityController) GetMetrics(ctx context.Context, params Metrics
 			Component:   &params.Agent,
 			Environment: &params.Environment,
 		},
+	})
+	if err == nil && resp == nil {
+		resp = &observer.ResourceMetricsTimeSeries{}
 	}
+	return resp, err
+}
 
-	resp, err := c.observerClient.QueryMetrics(ctx, req)
-	if err != nil {
-		return nil, err
-	}
-
+func toMetricsResponse(resp *observer.ResourceMetricsTimeSeries) *MetricsResponse {
 	return &MetricsResponse{
 		CpuUsage:       convertTimeSeries(resp.CpuUsage),
 		CpuRequests:    convertTimeSeries(resp.CpuRequests),
@@ -194,7 +235,41 @@ func (c *ObservabilityController) GetMetrics(ctx context.Context, params Metrics
 		Memory:         convertTimeSeries(resp.MemoryUsage),
 		MemoryRequests: convertTimeSeries(resp.MemoryRequests),
 		MemoryLimits:   convertTimeSeries(resp.MemoryLimits),
-	}, nil
+	}
+}
+
+// appendTip extends each grid series with the tip's points that are newer than
+// the series' last grid point; the upstream may report the tip on a
+// step-aligned timestamp the grid already covers.
+func appendTip(grid, tip *observer.ResourceMetricsTimeSeries) *observer.ResourceMetricsTimeSeries {
+	return &observer.ResourceMetricsTimeSeries{
+		CpuUsage:       appendNewerPoints(grid.CpuUsage, tip.CpuUsage),
+		CpuRequests:    appendNewerPoints(grid.CpuRequests, tip.CpuRequests),
+		CpuLimits:      appendNewerPoints(grid.CpuLimits, tip.CpuLimits),
+		MemoryUsage:    appendNewerPoints(grid.MemoryUsage, tip.MemoryUsage),
+		MemoryRequests: appendNewerPoints(grid.MemoryRequests, tip.MemoryRequests),
+		MemoryLimits:   appendNewerPoints(grid.MemoryLimits, tip.MemoryLimits),
+	}
+}
+
+func appendNewerPoints(series, tip *[]observer.MetricsTimeSeriesItem) *[]observer.MetricsTimeSeriesItem {
+	if tip == nil {
+		return series
+	}
+	var merged []observer.MetricsTimeSeriesItem
+	if series != nil {
+		merged = append(merged, *series...)
+	}
+	var last time.Time
+	if n := len(merged); n > 0 && merged[n-1].Timestamp != nil {
+		last = *merged[n-1].Timestamp
+	}
+	for _, point := range *tip {
+		if point.Timestamp != nil && point.Timestamp.After(last) {
+			merged = append(merged, point)
+		}
+	}
+	return &merged
 }
 
 // metricsStep returns the smallest step that keeps a window within

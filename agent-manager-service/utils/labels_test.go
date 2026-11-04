@@ -17,6 +17,7 @@
 package utils
 
 import (
+	"fmt"
 	"strings"
 	"testing"
 
@@ -109,6 +110,25 @@ func TestParseLabelSelectors(t *testing.T) {
 
 	t.Run("rejects the same key repeated with conflicting values", func(t *testing.T) {
 		_, err := ParseLabelSelectors([]string{"team:ml", "team:web"})
+		assert.Error(t, err)
+	})
+
+	t.Run("accepts up to the maximum number of selectors", func(t *testing.T) {
+		params := make([]string, MaxLabelsPerResource)
+		for i := range params {
+			params[i] = fmt.Sprintf("k%d:v", i)
+		}
+		selectors, err := ParseLabelSelectors(params)
+		require.NoError(t, err)
+		assert.Len(t, selectors, MaxLabelsPerResource)
+	})
+
+	t.Run("rejects more raw selectors than the maximum, even when they deduplicate", func(t *testing.T) {
+		params := make([]string, MaxLabelsPerResource+1)
+		for i := range params {
+			params[i] = "env:prod"
+		}
+		_, err := ParseLabelSelectors(params)
 		assert.Error(t, err)
 	})
 }

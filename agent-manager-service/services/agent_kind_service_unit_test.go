@@ -284,6 +284,26 @@ func TestAgentKindService_AddVersion_Gates(t *testing.T) {
 		assert.ErrorIs(t, err, utils.ErrBuildNotComplete)
 	})
 
+	t.Run("reports build not found when the build belongs to another agent", func(t *testing.T) {
+		repo := baseRepo()
+		repo.GetVersionFunc = func(_ context.Context, _ uuid.UUID, _ string) (*models.AgentKindVersion, error) {
+			return nil, gorm.ErrRecordNotFound
+		}
+		oc := &clientmocks.OpenChoreoClientMock{
+			GetComponentFunc: func(_ context.Context, _, _, _ string) (*models.AgentResponse, error) {
+				return &models.AgentResponse{Name: "src-agent"}, nil
+			},
+			GetBuildFunc: func(_ context.Context, _, _, _, _ string) (*models.BuildDetailsResponse, error) {
+				return nil, utils.ErrNotFound // scoped lookup rejects a foreign build
+			},
+		}
+		svc := newKindService(repo, oc)
+
+		_, err := svc.AddVersion(context.Background(), org, kindName, req)
+
+		assert.ErrorIs(t, err, utils.ErrBuildNotFound)
+	})
+
 	t.Run("rejects when image already published under this kind", func(t *testing.T) {
 		repo := baseRepo()
 		repo.GetVersionFunc = func(_ context.Context, _ uuid.UUID, _ string) (*models.AgentKindVersion, error) {

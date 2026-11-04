@@ -72,7 +72,8 @@ func agentEnvRequest(method, resource, body string) *http.Request {
 func TestGetA2AProxyReturnsTheHeaderButNoSecret(t *testing.T) {
 	stub := &proxyServiceStub{GetFunc: func(context.Context, string, string, string, string) (*models.A2AProxyStatus, error) {
 		return &models.A2AProxyStatus{
-			Status: models.A2APublicationStatusPublished, UpstreamAuthHeader: "X-Key", GatewayURL: "https://agents.example.com/weather",
+			Status: models.DeploymentStatusFailed, StatusReason: "DEPLOYMENT_TIMEOUT", UpstreamAuthHeader: "X-Key",
+			GatewayURL: "https://agents.example.com/weather",
 		}, nil
 	}}
 	rec := httptest.NewRecorder()
@@ -83,7 +84,8 @@ func TestGetA2AProxyReturnsTheHeaderButNoSecret(t *testing.T) {
 	var body map[string]interface{}
 	require.NoError(t, json.Unmarshal(rec.Body.Bytes(), &body))
 	assert.Equal(t, map[string]interface{}{
-		"status": "published", "lastError": "", "upstreamAuthHeader": "X-Key", "gatewayUrl": "https://agents.example.com/weather",
+		"status": "FAILED", "statusReason": "DEPLOYMENT_TIMEOUT", "upstreamAuthHeader": "X-Key",
+		"gatewayUrl": "https://agents.example.com/weather",
 	}, body)
 }
 

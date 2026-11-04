@@ -1,0 +1,34 @@
+# Routes Fluent Bit's OpenSearch traffic through the observability-plane gateway.
+apiVersion: v1
+kind: Service
+metadata:
+  name: opensearch-passthrough
+  namespace: openchoreo-observability-plane
+spec:
+  type: ClusterIP
+  selector:
+    app.kubernetes.io/instance: observability-logs-opensearch
+    app.kubernetes.io/name: opensearch
+  ports:
+    - name: https
+      port: 9200
+      targetPort: 9200
+      protocol: TCP
+---
+apiVersion: gateway.networking.k8s.io/v1alpha2
+kind: TLSRoute
+metadata:
+  name: opensearch
+  namespace: openchoreo-observability-plane
+spec:
+  hostnames:
+    - "opensearch.observability.openchoreo.localhost"
+  parentRefs:
+    - name: gateway-default
+      namespace: openchoreo-observability-plane
+  rules:
+    - backendRefs:
+        - group: ""
+          kind: Service
+          name: opensearch-passthrough
+          port: 9200

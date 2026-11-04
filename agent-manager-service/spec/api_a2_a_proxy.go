@@ -36,7 +36,7 @@ func (r ApiDeleteA2AProxyRequest) Execute() (*http.Response, error) {
 }
 
 /*
-DeleteA2AProxy Stop routing an external A2A agent through the environment's gateway
+DeleteA2AProxy Stop routing an external agent through the environment's gateway
 
 Removes the agent from the gateway, discards the stored upstream secret and fetches the agent's own card again. The environment's API keys are kept.
 
@@ -194,7 +194,7 @@ func (r ApiGetA2AProxyRequest) Execute() (*A2AProxyResponse, *http.Response, err
 }
 
 /*
-GetA2AProxy Get how an external A2A agent is routed through the environment's gateway
+GetA2AProxy Get how an external agent is routed through the environment's gateway
 
 Reports the gateway publication of a proxied environment. The upstream secret is never returned; a non-empty upstreamAuthHeader means one is stored.
 
@@ -493,9 +493,9 @@ func (r ApiSetA2AProxyRequest) Execute() (*http.Response, error) {
 }
 
 /*
-SetA2AProxy Route an external A2A agent through the environment's gateway, or change its upstream auth
+SetA2AProxy Route an external agent through the environment's gateway, or change its upstream auth
 
-Publishes the agent through the environment's ingress gateway, with routes derived from its registered card URL. Omitting upstreamAuth clears the stored credential; upstreamAuth without a value keeps the stored secret; a value replaces it. External A2A agents only.
+Publishes the agent through the environment's ingress gateway, with routes derived from its registered card URL. Omitting upstreamAuth clears the stored credential; upstreamAuth without a value keeps the stored secret; a value replaces it. External agents only.
 
 	@param ctx context.Context - for authentication, logging, cancellation, deadlines, tracing, etc. Passed from http.Request or context.Background().
 	@param orgName Organization name/handle

@@ -60,6 +60,11 @@ env:
   REGISTRY_ORG: wso2
   HELM_REGISTRY: oci://ghcr.io/wso2
 
+# Default token scope is read-only; jobs that publish, push or deploy
+# request the extra scopes they need at job level.
+permissions:
+  contents: read
+
 jobs:
   validate:
     name: Validate Promotion
@@ -278,6 +283,20 @@ jobs:
           bash .github/scripts/update-install-helpers.sh \
             "$TARGET_VERSION" \
             "./deployments/quick-start/k3d-install-subscription.sh"
+        env:
+          TARGET_VERSION: ${{ inputs.target_version }}
+        shell: bash
+
+      # update-install-helpers.sh skips a missing file, and only replaces 0.0.0-dev, so
+      # this is a no-op on a source release cut before these installers carried it.
+      - name: Update the isolation installers
+        run: |
+          bash .github/scripts/update-install-helpers.sh \
+            "$TARGET_VERSION" \
+            "./deployments/setup/install-gvisor.sh"
+          bash .github/scripts/update-install-helpers.sh \
+            "$TARGET_VERSION" \
+            "./deployments/setup/install-kata.sh"
         env:
           TARGET_VERSION: ${{ inputs.target_version }}
         shell: bash

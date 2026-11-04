@@ -120,14 +120,13 @@ func TestPopulateConfigurationResponseReportsInheritedCardCORS(t *testing.T) {
 	assert.Equal(t, []string{"Content-Type"}, resp.AgentCardCorsConfig.AllowHeaders)
 }
 
-// The console shows an external agent's card UI only when it reads the a2a-agent subtype.
-func TestConvertToAgentResponse_ExternalSurfacesSubType(t *testing.T) {
+// An external agent created when A2A was a subtype reads back like any other external agent.
+func TestConvertToAgentResponse_ExternalNeverSurfacesSubType(t *testing.T) {
 	got := ConvertToAgentResponse(&models.AgentResponse{
 		Provisioning: models.Provisioning{Type: string(ExternalAgent)},
 		Type:         models.AgentType{Type: "external-agent-api", SubType: "a2a-agent"},
 	})
-	require.NotNil(t, got.AgentType.SubType)
-	assert.Equal(t, "a2a-agent", *got.AgentType.SubType)
+	assert.Nil(t, got.AgentType.SubType)
 }
 
 func TestConvertToAgentResponse_ExternalOmitsEmptySubType(t *testing.T) {

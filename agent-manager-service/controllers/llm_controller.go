@@ -511,7 +511,7 @@ func (c *llmController) GetLLMProvider(w http.ResponseWriter, r *http.Request) {
 	// Convert model to spec response
 	response := utils.ConvertModelToSpecLLMProviderResponse(provider)
 
-	gatewayMappings, err := c.providerService.GetProviderGatewayMapping(provider.UUID, ouID, c.deploymentService)
+	gatewayMappings, err := c.providerService.GetProviderGatewayMapping(ctx, provider.UUID, ouID, c.deploymentService)
 	if err != nil {
 		log.Error("error while fetching deployed gateways for provider", "providerID", providerID, "error", err)
 		utils.WriteErrorResponse(w, http.StatusInternalServerError, "Error fetching deployed gateways")
@@ -674,6 +674,10 @@ func (c *llmController) UpdateLLMProvider(w http.ResponseWriter, r *http.Request
 		resp, err := c.providerService.UpdateAndSync(ctx, providerID, ouID, provider, req.Gateways, c.deploymentService)
 		if err != nil {
 			switch {
+			case errors.Is(err, utils.ErrLLMProviderExists):
+				log.Warn("UpdateLLMProvider: provider name and version already exist", "ouID", ouID, "providerID", providerID)
+				utils.WriteErrorResponse(w, http.StatusConflict, "Another LLM provider already uses this name and version")
+				return
 			case errors.Is(err, utils.ErrLLMProviderNotFound):
 				log.Warn("UpdateLLMProvider: provider not found", "ouID", ouID, "providerID", providerID)
 				utils.WriteErrorResponse(w, http.StatusNotFound, "LLM provider not found")
@@ -726,6 +730,10 @@ func (c *llmController) UpdateLLMProvider(w http.ResponseWriter, r *http.Request
 		updated, err = c.providerService.Update(ctx, providerID, ouID, provider)
 		if err != nil {
 			switch {
+			case errors.Is(err, utils.ErrLLMProviderExists):
+				log.Warn("UpdateLLMProvider: provider name and version already exist", "ouID", ouID, "providerID", providerID)
+				utils.WriteErrorResponse(w, http.StatusConflict, "Another LLM provider already uses this name and version")
+				return
 			case errors.Is(err, utils.ErrLLMProviderNotFound):
 				log.Warn("UpdateLLMProvider: provider not found", "ouID", ouID, "providerID", providerID)
 				utils.WriteErrorResponse(w, http.StatusNotFound, "LLM provider not found")
@@ -1057,6 +1065,11 @@ func (c *llmController) UpdateLLMProxy(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	if err := c.proxyDeploymentService.RequireUserManaged(ctx, proxyID, ouID); err != nil {
+		writeUserManagedProxyError(w, log, "UpdateLLMProxy", proxyID, err)
+		return
+	}
+
 	var req spec.UpdateLLMProxyRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		log.Error("UpdateLLMProxy: failed to decode request", "error", err)
@@ -1119,6 +1132,11 @@ func (c *llmController) DeleteLLMProxy(w http.ResponseWriter, r *http.Request) {
 		}
 		log.Error("DeleteLLMProxy: failed to resolve project", "ouID", ouID, "projectName", projectName, "error", err)
 		utils.WriteErrorResponse(w, http.StatusInternalServerError, "Internal server error")
+		return
+	}
+
+	if err := c.proxyDeploymentService.RequireUserManaged(ctx, proxyID, ouID); err != nil {
+		writeUserManagedProxyError(w, log, "DeleteLLMProxy", proxyID, err)
 		return
 	}
 

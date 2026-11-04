@@ -20,11 +20,15 @@
 package environment
 
 import (
+	"bytes"
 	"context"
 	"fmt"
+	"io"
+	"net/url"
 	"os"
 	"os/exec"
 	"path/filepath"
+	"regexp"
 	"runtime"
 	"strings"
 	"time"
@@ -49,9 +53,16 @@ type ScriptParams struct {
 	// use the ambient value, defaulting to "single".
 	Topology string
 
+	// ProvisionThunder forces PROVISION_THUNDER=true for this run, overriding the
+	// ambient value. AddEnvironment then fails unless that Thunder is registered.
+	ProvisionThunder bool
+
 	// Timeout bounds the whole script run (helm install + kubectl wait can be slow).
-	// Defaults to 6 minutes when zero.
+	// Defaults to 6 minutes when zero, or 12 minutes with ProvisionThunder.
 	Timeout time.Duration
+
+	// client is set by FromClient; AddEnvironment uses it to verify ProvisionThunder.
+	client *framework.AMPClient
 }
 
 // repoScriptsDir resolves the absolute path of deployments/scripts relative to
@@ -66,6 +77,12 @@ func repoScriptsDir() string {
 	return filepath.Join(repoRoot, "deployments", "scripts")
 }
 
+// fileURL returns a percent-escaped file:// URL for an absolute path, so a
+// checkout path containing spaces still works with curl.
+func fileURL(path string) string {
+	return (&url.URL{Scheme: "file", Path: filepath.ToSlash(path)}).String()
+}
+
 // runScript executes the named script with the script-specific env vars layered
 // on top of the ambient environment. It returns an error rather than asserting,
 // so callers can choose to fail hard (tests) or log-and-continue (cleanup).
@@ -73,6 +90,9 @@ func runScript(scriptName string, params *ScriptParams, extraEnv []string) error
 	timeout := params.Timeout
 	if timeout == 0 {
 		timeout = 6 * time.Minute
+		if params.ProvisionThunder {
+			timeout = 12 * time.Minute
+		}
 	}
 	scriptPath := filepath.Join(repoScriptsDir(), scriptName)
 
@@ -85,17 +105,64 @@ func runScript(scriptName string, params *ScriptParams, extraEnv []string) error
 		"AGENT_MANAGER_TOKEN="+params.Token,
 		"ORG_NAME="+params.OrgName,
 		"AGENT_MANAGER_URL="+params.AMPBaseURL,
+		"SCRIPT_BASE_URL="+envOr("SCRIPT_BASE_URL", fileURL(repoScriptsDir())),
 	)
 
 	cmd := exec.CommandContext(ctx, "bash", scriptPath)
 	// Inherit the ambient environment (PATH, KUBECONFIG, etc.) and layer the
 	// script-specific variables on top.
 	cmd.Env = append(cmd.Environ(), env...)
-	cmd.Stdout = ginkgo.GinkgoWriter
-	cmd.Stderr = ginkgo.GinkgoWriter
+	// One shared writer, so exec never calls Write from two goroutines at once.
+	out := &redactingWriter{w: ginkgo.GinkgoWriter}
+	cmd.Stdout = out
+	cmd.Stderr = out
 
 	ginkgo.GinkgoWriter.Printf("Running %s for env %q...\n", scriptName, params.EnvName)
-	return cmd.Run()
+	err := cmd.Run()
+	out.flush()
+	return err
+}
+
+// passwordLine matches the admin password add-environment-thunder.sh prints
+// for a new env-Thunder ("  Password: <value>").
+var passwordLine = regexp.MustCompile(`(?i)^(\s*password:\s*)\S.*$`)
+
+// redactingWriter forwards script output line by line, replacing password
+// values so they never reach GinkgoWriter (and from there, CI logs).
+type redactingWriter struct {
+	w   io.Writer
+	buf []byte
+}
+
+func (r *redactingWriter) Write(p []byte) (int, error) {
+	r.buf = append(r.buf, p...)
+	for {
+		i := bytes.IndexByte(r.buf, '\n')
+		if i < 0 {
+			return len(p), nil
+		}
+		if _, err := r.w.Write(redactLine(r.buf[:i+1])); err != nil {
+			return len(p), err
+		}
+		r.buf = r.buf[i+1:]
+	}
+}
+
+// flush writes any trailing output that did not end in a newline.
+func (r *redactingWriter) flush() {
+	if len(r.buf) > 0 {
+		_, _ = r.w.Write(redactLine(r.buf))
+		r.buf = nil
+	}
+}
+
+func redactLine(line []byte) []byte {
+	body, hadNewline := bytes.CutSuffix(line, []byte("\n"))
+	out := passwordLine.ReplaceAll(body, []byte("${1}<redacted>"))
+	if hadNewline {
+		out = append(out, '\n')
+	}
+	return out
 }
 
 // envOr returns the ambient value of key when set (non-blank), else fallback.
@@ -110,6 +177,12 @@ func envOr(key, fallback string) string {
 // environment via the Agent Manager API and installs its API Platform Gateway.
 // Asserts the script succeeds.
 func AddEnvironment(params *ScriptParams) {
+	AddEnvironmentWithContext(context.Background(), params)
+}
+
+// AddEnvironmentWithContext is AddEnvironment with a caller-supplied context
+// (e.g. a Ginkgo SpecContext) that cancels the ProvisionThunder readiness poll.
+func AddEnvironmentWithContext(ctx context.Context, params *ScriptParams) {
 	chartVersion := strings.TrimSpace(os.Getenv("CHART_VERSION"))
 	Expect(chartVersion).NotTo(BeEmpty(),
 		"CHART_VERSION must be set for add-environment.sh; set it to the chart version "+
@@ -130,8 +203,28 @@ func AddEnvironment(params *ScriptParams) {
 		"AGENT_MANAGER_INTERNAL_CP=" + envOr("AGENT_MANAGER_INTERNAL_CP",
 			"amp-api-gateway-manager.wso2-amp.svc.cluster.local:9243"),
 	}
+	if params.ProvisionThunder {
+		extra = append(extra, "PROVISION_THUNDER=true")
+	}
 	err := runScript("add-environment.sh", params, extra)
 	Expect(err).NotTo(HaveOccurred(), "add-environment.sh failed for env %q", params.EnvName)
+	if params.ProvisionThunder {
+		expectDedicatedThunder(ctx, params)
+	}
+}
+
+// expectDedicatedThunder fails unless amp-api lists the env's own Thunder.
+func expectDedicatedThunder(ctx context.Context, params *ScriptParams) {
+	Expect(params.client).NotTo(BeNil(), "ProvisionThunder needs ScriptParams built by FromClient")
+	Eventually(func(g Gomega) {
+		list := ListThunderInstances(ctx, g, params.client, params.OrgName)
+		var envs []string
+		for _, ti := range list.ThunderInstances {
+			envs = append(envs, ti.EnvName)
+		}
+		g.Expect(envs).To(ContainElement(params.EnvName))
+	}).WithContext(ctx).WithTimeout(2*time.Minute).WithPolling(5*time.Second).Should(Succeed(),
+		"no dedicated Thunder registered and reachable for env %q; see the add-environment.sh output above", params.EnvName)
 }
 
 // RemoveEnvironment runs deployments/scripts/remove-environment.sh, which
@@ -150,5 +243,6 @@ func FromClient(client *framework.AMPClient) *ScriptParams {
 		OrgName:    cfg.DefaultOrg,
 		AMPBaseURL: cfg.AMPBaseURL,
 		Token:      client.Token(),
+		client:     client,
 	}
 }

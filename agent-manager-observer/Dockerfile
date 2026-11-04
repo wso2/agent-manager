@@ -1,5 +1,5 @@
 # Build stage
-FROM --platform=$BUILDPLATFORM public.ecr.aws/docker/library/golang:1.25-alpine AS builder
+FROM --platform=$BUILDPLATFORM public.ecr.aws/docker/library/golang:1.26.10-alpine AS builder
 
 # Add build args for cross-platform support
 ARG TARGETOS
@@ -27,7 +27,7 @@ RUN CGO_ENABLED=0 GOOS=${TARGETOS} GOARCH=${TARGETARCH} go build \
 FROM public.ecr.aws/docker/library/alpine:3.24
 
 # Install runtime dependencies for HTTPS and timezone support
-RUN apk add --no-cache ca-certificates tzdata
+RUN apk add --no-cache 'ca-certificates>=20261020' 'ca-certificates-bundle>=20261020' tzdata
 
 # Create a non-root user/group (UID:GID = 1000:1000)
 RUN addgroup -g 1000 app && adduser -D -u 1000 -G app app
@@ -45,5 +45,8 @@ ENV GODEBUG=x509negativeserial=1
 
 # Expose application port
 EXPOSE 9098
+
+HEALTHCHECK --interval=30s --timeout=5s --start-period=30s --retries=3 \
+    CMD wget -q -T 4 -O /dev/null "http://127.0.0.1:${AM_OBSERVER_PORT:-9098}/health" || exit 1
 
 ENTRYPOINT ["/go/bin/agent-manager-observer"]

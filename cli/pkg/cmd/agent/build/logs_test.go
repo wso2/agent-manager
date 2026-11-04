@@ -23,6 +23,7 @@ import (
 	"errors"
 	"net/http"
 	"net/http/httptest"
+	"path"
 	"strings"
 	"testing"
 
@@ -32,14 +33,24 @@ import (
 	"github.com/wso2/agent-manager/cli/pkg/render"
 )
 
-// newBuildTestClient serves the GetAgent (buildable check) and GetAgentBuilds
-// (latest-build resolution) preconditions used by build/logs.go, so callers
-// only exercise the Observer client under test.
+// missingBuildName is the build the test agent-manager server reports as not found.
+const missingBuildName = "build-missing"
+
+// newBuildTestClient serves the GetAgent (buildable check), GetAgentBuilds
+// (latest-build resolution) and GetBuild (explicit-build existence check)
+// preconditions used by build/logs.go, so callers only exercise the Observer
+// client under test.
 func newBuildTestClient(t *testing.T, latestBuildName string) func(context.Context) (*amsvc.ClientWithResponses, error) {
 	t.Helper()
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
 		switch {
+		case strings.HasSuffix(r.URL.Path, "/builds/"+missingBuildName):
+			w.WriteHeader(http.StatusNotFound)
+			_ = json.NewEncoder(w).Encode(amsvc.ErrorResponse{Code: "BUILD_NOT_FOUND", Message: "Build not found"})
+		case strings.Contains(r.URL.Path, "/builds/"):
+			w.WriteHeader(http.StatusOK)
+			_ = json.NewEncoder(w).Encode(amsvc.BuildDetailsResponse{AgentName: "my-agent", BuildName: path.Base(r.URL.Path)})
 		case strings.HasSuffix(r.URL.Path, "/builds"):
 			w.WriteHeader(http.StatusOK)
 			_ = json.NewEncoder(w).Encode(amsvc.BuildsListResponse{
@@ -185,6 +196,34 @@ func TestBuildLogs_ObserverErrorMapsToCLIError(t *testing.T) {
 	})
 	if err == nil {
 		t.Fatal("expected error from observer failure")
+	}
+}
+
+func TestBuildLogs_UnknownBuildReportsNotFound(t *testing.T) {
+	ios, out, _ := newBuildTestIO(true)
+	amClient := newBuildTestClient(t, "build-1")
+	observer := func(context.Context) (*observersvc.Client, error) {
+		return nil, errors.New("observer should not be constructed")
+	}
+
+	err := runLogs(context.Background(), &LogsOptions{
+		IO: ios, Client: amClient, Observer: observer, Scope: buildTestScope(),
+		Org: "acme", Proj: "triage", AgentName: "my-agent", BuildName: missingBuildName,
+	})
+	if err == nil {
+		t.Fatal("expected error for unknown build")
+	}
+	var envelope struct {
+		Error struct {
+			Status int    `json:"status"`
+			Code   string `json:"code"`
+		} `json:"error"`
+	}
+	if err := json.Unmarshal(out.Bytes(), &envelope); err != nil {
+		t.Fatalf("decode envelope: %v\nbody=%s", err, out.String())
+	}
+	if envelope.Error.Status != http.StatusNotFound || envelope.Error.Code != "BUILD_NOT_FOUND" {
+		t.Errorf("error = %d %q, want 404 BUILD_NOT_FOUND", envelope.Error.Status, envelope.Error.Code)
 	}
 }
 

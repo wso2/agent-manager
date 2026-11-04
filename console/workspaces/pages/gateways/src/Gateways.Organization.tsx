@@ -31,9 +31,11 @@ import {
 import { AIGatewaysTable } from "./subComponents/AIGatewaysTable";
 import { ViewGateway } from "./subComponents/ViewGateway";
 import { EditGatewayDrawer } from "./subComponents/EditGatewayDrawer";
+import { AddSelfHostedGatewayDrawer } from "./subComponents/AddSelfHostedGatewayDrawer";
 
 export const GatewaysOrganization: React.FC = () => {
   const { orgId } = useParams<{ orgId: string }>();
+  const [addDrawerOpen, setAddDrawerOpen] = useState(false);
   const [editDrawerOpen, setEditDrawerOpen] = useState(false);
   const [gatewayToEdit, setGatewayToEdit] = useState<GatewayResponse | null>(
     null,
@@ -56,7 +58,10 @@ export const GatewaysOrganization: React.FC = () => {
           index
           element={
             <PageLayout title="Gateways" disableIcon>
-              <AIGatewaysTable onEditGateway={handleEditGateway} />
+              <AIGatewaysTable
+                onEditGateway={handleEditGateway}
+                onAddGateway={() => setAddDrawerOpen(true)}
+              />
             </PageLayout>
           }
         />
@@ -73,6 +78,12 @@ export const GatewaysOrganization: React.FC = () => {
           }
         />
       </Routes>
+
+      <AddSelfHostedGatewayDrawer
+        open={addDrawerOpen}
+        onClose={() => setAddDrawerOpen(false)}
+        orgId={orgId ?? ""}
+      />
 
       {gatewayToEdit && (
         <EditGatewayDrawer

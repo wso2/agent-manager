@@ -1,15 +1,35 @@
 name: Nightly Dev Build
 
-run-name: Nightly Dev Build #${{ github.run_number }}
+run-name: Nightly Dev Build #${{ github.run_number }}${{ inputs.dry_run && ' (dry run)' || '' }}
+
+# Builds the images and charts, runs the e2e tests, and publishes the nightly
+# tag only when they pass. Manual runs are dry runs by default.
 
 on:
-  # schedule:
-  #   - cron: '0 0 * * *' # midnight UTC
-  workflow_dispatch: {}
+  schedule:
+    - cron: '30 21 * * *' # 21:30 UTC
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: >-
+          Test only: uses a temporary version that is deleted at the end.
+        required: false
+        default: true
+        type: boolean
+      ginkgo_procs:
+        description: >-
+          How many test suites run at the same time.
+        required: false
+        default: '1'
+        type: string
 
 concurrency:
   group: nightly
   cancel-in-progress: false
+
+# Read-only by default; jobs that need more declare their own permissions.
+permissions:
+  contents: read
 
 env:
   REGISTRY: ${{ vars.AMP_REGISTRY || 'ghcr.io' }}
@@ -17,141 +37,36 @@ env:
   HELM_REGISTRY: ${{ vars.AMP_HELM_REGISTRY || 'oci://ghcr.io/wso2' }}
 
 jobs:
-  # Compute the dated version string once; all jobs consume it via needs.
+  # Dated version used by all jobs. A dry run gets its own version.
   compute-version:
     name: Compute Version
-    runs-on:
-      - codebuild-wso2_agent-manager-${{ github.run_id }}-${{ github.run_attempt }}
+    runs-on: [self-hosted, amp-nightly-e2e]
+    timeout-minutes: 10
     outputs:
       dev-version: ${{ steps.version.outputs.dev-version }}
+      dry-run: ${{ steps.version.outputs.dry-run }}
     steps:
       - name: Compute dev version
         id: version
+        env:
+          # Inputs are empty on a schedule, so scheduled runs are never dry runs.
+          DRY_RUN: ${{ github.event_name == 'workflow_dispatch' && inputs.dry_run }}
         run: |
-          DEV_VERSION="0.0.0-dev-$(date -u +%Y%m%d)"
+          if [ "$DRY_RUN" = "true" ]; then
+            DEV_VERSION="0.0.0-dryrun-$(date -u +%Y%m%d)-${GITHUB_RUN_ID}"
+          else
+            DRY_RUN=false
+            DEV_VERSION="0.0.0-dev-$(date -u +%Y%m%d)"
+          fi
           echo "dev-version=$DEV_VERSION" >> "$GITHUB_OUTPUT"
-          echo "✅ Dev version: $DEV_VERSION"
+          echo "dry-run=$DRY_RUN" >> "$GITHUB_OUTPUT"
+          echo "✅ Dev version: $DEV_VERSION (dry run: $DRY_RUN)"
 
-  # Delete previous nightly Docker/OCI image tags (0.0.0-dev-*) from all packages
-  # before building new ones so stale dated tags don't accumulate.
-  cleanup-images:
-    name: Cleanup Previous Nightly Images
-    # Talks to the GHCR packages API directly, so it only applies when the
-    # registry is GHCR. A build publishing elsewhere has nothing to clean here.
-    if: ${{ vars.AMP_REGISTRY == '' || vars.AMP_REGISTRY == 'ghcr.io' }}
-    needs: compute-version
-    runs-on:
-      - codebuild-wso2_agent-manager-${{ github.run_id }}-${{ github.run_attempt }}
-    permissions:
-      packages: write
-    strategy:
-      fail-fast: false
-      matrix:
-        package:
-          - amp-api
-          - amp-console
-          - amp-observer
-          - amp-quick-start
-          - amp-evaluation-monitor
-          - wso2-agent-manager
-          - wso2-amp-observability-extension
-          - wso2-amp-platform-resources-extension
-          - wso2-amp-thunder-extension
-          - wso2-amp-evaluation-extension
-          - wso2-amp-api-platform-gateway-extension
-    steps:
-      # The package may not exist yet (e.g. right after an image is renamed,
-      # before its first build/push creates the GHCR package), in which case
-      # ghcr-cleanup-action 404s and fails the job. Probe existence first so
-      # we can skip cleanup in that specific case without masking real
-      # failures (auth errors, GHCR outages) from the cleanup step itself.
-      - name: Check if package ${{ matrix.package }} exists
-        id: check-package
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          PACKAGE: ${{ matrix.package }}
-        run: |
-          err=$(mktemp)
-          if gh api "orgs/${REGISTRY_ORG}/packages/container/${PACKAGE}" >/dev/null 2>"$err"; then
-            echo "exists=true" >> "$GITHUB_OUTPUT"
-          elif grep -q "HTTP 404" "$err"; then
-            echo "::warning::Package ${PACKAGE} not found yet — skipping cleanup."
-            echo "exists=false" >> "$GITHUB_OUTPUT"
-          else
-            echo "::error::Failed to check package ${PACKAGE}:"
-            cat "$err" >&2
-            exit 1
-          fi
-
-      # GHCR refuses to delete a package's last remaining tagged version
-      # ("You must delete the package instead"). A package that has only
-      # ever had nightly dev builds (e.g. right after a rename, before its
-      # first real release) has no other tag to fall back on, so deleting
-      # its sole 0.0.0-dev-* tag would hit that error. Detect this case and
-      # skip cleanup for it instead of failing the job.
-      - name: Check tagged versions for ${{ matrix.package }}
-        id: check-tags
-        if: steps.check-package.outputs.exists == 'true'
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          PACKAGE: ${{ matrix.package }}
-        run: |
-          tags=$(gh api "orgs/${REGISTRY_ORG}/packages/container/${PACKAGE}/versions" \
-            --paginate --jq '.[].metadata.container.tags[]?')
-          total=$(printf '%s\n' "$tags" | grep -c . || true)
-          dev_only=$(printf '%s\n' "$tags" | grep -c '^0\.0\.0-dev-' || true)
-          if [ "$total" -gt 0 ] && [ "$total" -eq "$dev_only" ]; then
-            echo "::warning::${PACKAGE} has no tagged version besides its nightly dev tag(s) yet; GHCR won't allow deleting the last tagged version, so skipping cleanup until a real release tag exists."
-            echo "skip=true" >> "$GITHUB_OUTPUT"
-          else
-            echo "skip=false" >> "$GITHUB_OUTPUT"
-          fi
-
-      - name: Delete previous 0.0.0-dev-* tags for ${{ matrix.package }}
-        if: steps.check-package.outputs.exists == 'true' && steps.check-tags.outputs.skip != 'true'
-        uses: dataaxiom/ghcr-cleanup-action@d52806a0dc70b430571a37da1fde39733ffd640f # v1.2.2
-        with:
-          token: ${{ secrets.GITHUB_TOKEN }}
-          owner: ${{ env.REGISTRY_ORG }}
-          package: ${{ matrix.package }}
-          delete-tags: '0.0.0-dev-*'
-          delete-untagged: false
-
-  # Delete the previous nightly git tag before creating the new dated one.
-  cleanup-git-tag:
-    name: Cleanup Previous Nightly Git Tag
-    needs: compute-version
-    runs-on:
-      - codebuild-wso2_agent-manager-${{ github.run_id }}-${{ github.run_attempt }}
-    permissions:
-      contents: write
-    steps:
-      - name: Checkout
-        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
-        with:
-          fetch-depth: 0
-          token: ${{ secrets.GITHUB_TOKEN }}
-
-      - name: Delete previous nightly git tags
-        env:
-          TODAY_TAG: amp/v${{ needs.compute-version.outputs.dev-version }}
-        run: |
-          # Delete all remote amp/v0.0.0-dev-* tags except today's (which doesn't exist yet)
-          git ls-remote --tags origin 'refs/tags/amp/v0.0.0-dev-*' \
-            | awk '{print $2}' \
-            | sed 's|refs/tags/||' \
-            | grep -v "^${TODAY_TAG}$" \
-            | while read -r tag; do
-                echo "Deleting tag: $tag"
-                git push origin --delete "refs/tags/$tag" || echo "⚠️ Could not delete $tag (may not exist)"
-              done
-          echo "✅ Previous nightly git tags cleaned"
-
-  # Load release-config.json and emit job matrices (mirrors release.yml pattern).
+  # Build matrices from release-config.json.
   load-config:
     name: Load Config
-    runs-on:
-      - codebuild-wso2_agent-manager-${{ github.run_id }}-${{ github.run_attempt }}
+    runs-on: [self-hosted, amp-nightly-e2e]
+    timeout-minutes: 10
     outputs:
       images: ${{ steps.set-matrix.outputs.images }}
       charts: ${{ steps.set-matrix.outputs.charts }}
@@ -182,17 +97,9 @@ jobs:
 
   build-images:
     name: Build ${{ matrix.image.name }}
-    needs: [compute-version, cleanup-images, load-config]
-    # cleanup-images is skipped when publishing somewhere other than GHCR, and a
-    # skipped dependency would otherwise skip this job and everything after it,
-    # turning the whole nightly into a silent no-op.
-    if: >-
-      always() &&
-      needs.compute-version.result == 'success' &&
-      needs.load-config.result == 'success' &&
-      (needs.cleanup-images.result == 'success' || needs.cleanup-images.result == 'skipped')
-    runs-on:
-      - codebuild-wso2_agent-manager-${{ github.run_id }}-${{ github.run_attempt }}
+    needs: [compute-version, load-config]
+    runs-on: [self-hosted, amp-nightly-e2e]
+    timeout-minutes: 45
     permissions:
       contents: read
       packages: write
@@ -203,6 +110,20 @@ jobs:
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
 
+      # Fail early if the Dockerfile is missing.
+      - name: Check Dockerfile exists
+        env:
+          DOCKERFILE: ${{ matrix.image.dockerfile }}
+        run: |
+          if [ ! -f "$DOCKERFILE" ]; then
+            echo "::error::Dockerfile not found at ${DOCKERFILE} (from .github/release-config.json). Fix the config or restore the file."
+            exit 1
+          fi
+
+      # Needed to build the arm64 image.
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@v3
+
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
 
@@ -212,9 +133,10 @@ jobs:
           registry: ${{ env.REGISTRY }}
           username: ${{ secrets.REGISTRY_USERNAME || github.actor }}
           password: ${{ secrets.REGISTRY_PASSWORD || secrets.GITHUB_TOKEN }}
+          # Log out at the end of the job.
+          logout: true
 
       - name: Build and push ${{ matrix.image.name }}
-        if: hashFiles(matrix.image.dockerfile) != ''
         uses: ./.github/actions/build-docker-image
         with:
           service-dir: ${{ matrix.image.service-dir }}
@@ -227,8 +149,8 @@ jobs:
   package-charts:
     name: Package ${{ matrix.chart.name }}
     needs: [compute-version, build-images, load-config]
-    runs-on:
-      - codebuild-wso2_agent-manager-${{ github.run_id }}-${{ github.run_attempt }}
+    runs-on: [self-hosted, amp-nightly-e2e]
+    timeout-minutes: 30
     permissions:
       contents: read
       packages: write
@@ -256,8 +178,7 @@ jobs:
         env:
           DEV_VERSION: ${{ needs.compute-version.outputs.dev-version }}
         run: |
-          # Substitute 0.0.0-dev image tags with the dated nightly tag.
-          # Unlike release.yml (which prepends v), nightly images have no v prefix.
+          # Use the nightly version as the image tag.
           find ./deployments/helm-charts -name "values.yaml" -type f | while read -r f; do
             sed -i.bak "s|tag: \"0\.0\.0-dev\"|tag: \"${DEV_VERSION}\"|g" "$f"
             rm -f "${f}.bak"
@@ -277,55 +198,23 @@ jobs:
           DEV_VERSION: ${{ needs.compute-version.outputs.dev-version }}
           HELM_REGISTRY: ${{ env.HELM_REGISTRY }}
           HELM_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          # package-helm-chart.sh prefers these over the positional token, so a
-          # custom HELM_REGISTRY authenticates with its own credentials instead of
-          # a GITHUB_TOKEN that means nothing to it.
+          # Used instead of HELM_TOKEN when set.
           REGISTRY_USERNAME: ${{ secrets.REGISTRY_USERNAME }}
           REGISTRY_PASSWORD: ${{ secrets.REGISTRY_PASSWORD }}
 
-  update-dev-tag:
-    name: Update Nightly Git Tag
-    needs: [compute-version, cleanup-git-tag]
-    runs-on:
-      - codebuild-wso2_agent-manager-${{ github.run_id }}-${{ github.run_attempt }}
-    permissions:
-      contents: write
-    steps:
-      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
-        with:
-          fetch-depth: 0
-          token: ${{ secrets.GITHUB_TOKEN }}
-
-      - name: Configure Git
+      # Log out after pushing the charts.
+      - name: Log out of the Helm registry
+        if: always()
         run: |
-          git config --local user.email "action@github.com"
-          git config --local user.name "GitHub Action"
-
-      - name: Create nightly git tag
-        env:
-          DEV_VERSION: ${{ needs.compute-version.outputs.dev-version }}
-        run: |
-          TAG="amp/v${DEV_VERSION}"
-          COMMIT_SHA=$(git rev-parse HEAD)
-          # Delete existing tag if present locally or remotely (idempotent — safe to re-run same day)
-          if git rev-parse "$TAG" >/dev/null 2>&1; then
-            git tag -d "$TAG"
-          fi
-          if git ls-remote --exit-code --tags origin "refs/tags/$TAG" >/dev/null 2>&1; then
-            git push origin --delete "refs/tags/$TAG"
-          fi
-          git tag -a "$TAG" -m "Nightly dev build ${DEV_VERSION} from main at ${COMMIT_SHA:0:7}"
-          git push origin "$TAG"
-          echo "✅ Created tag $TAG at ${COMMIT_SHA:0:7}"
+          helm registry logout "${HELM_REGISTRY#oci://}" || true
+          # Newer Helm saves the login under the host only.
+          helm registry logout "$(echo "${HELM_REGISTRY#oci://}" | cut -d/ -f1)" || true
 
   e2e:
     name: E2E
-    needs: [compute-version, package-charts, update-dev-tag]
-    runs-on: ubuntu-24.04
-    # Bumped from 60 to accommodate the reduced test parallelism below: with
-    # --procs=1 (was -p, i.e. one proc per vCPU) suites run serially, so
-    # wall-clock grows even though no suite thrashes on CPU any more.
-    timeout-minutes: 150
+    needs: [compute-version, package-charts]
+    runs-on: [self-hosted, amp-nightly-e2e]
+    timeout-minutes: 260
     permissions:
       contents: read
       checks: write
@@ -334,51 +223,60 @@ jobs:
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
 
+      # Start from a clean state.
+      - name: Clean leftover state from a previous run
+        uses: ./.github/actions/teardown-self-hosted
+        with:
+          registry: ${{ env.REGISTRY }}
+
+      - name: Clear saved Helm registry logins
+        run: rm -f ~/.config/helm/registry/config.json
+
       - name: Setup Go
         uses: ./.github/actions/setup-go
 
-      - name: Install cluster CLIs (deployments/setup/cluster-tools.env)
-        uses: ./.github/actions/setup-cluster-clis
-
-      - name: Install yq
-        env:
-          YQ_VERSION: v4.45.4
-          YQ_SHA256: b96de04645707e14a12f52c37e6266832e03c29e95b9b139cddcae7314466e69
-        run: |
-          curl -fsSL -o /tmp/yq "https://github.com/mikefarah/yq/releases/download/${YQ_VERSION}/yq_linux_amd64"
-          echo "${YQ_SHA256}  /tmp/yq" | sha256sum -c -
-          sudo install /tmp/yq /usr/local/bin/yq
+      # Check the runner is ready before the long install.
+      - name: Preflight
+        uses: ./.github/actions/preflight-k3d
+        with:
+          min-cpus: '8'
+          min-memory-gb: '13'
+          min-disk-gb: '60'
+          enforce-capacity: 'true'
 
       - name: Install platform
         id: install-platform
+        timeout-minutes: 60
         env:
           VERSION: ${{ needs.compute-version.outputs.dev-version }}
         run: |
+          # Install from the same registry the charts were pushed to.
+          export HELM_CHART_REGISTRY="${HELM_REGISTRY#oci://}"
           cd deployments/quick-start && bash install.sh
 
       - name: Run e2e tests
+        id: e2e-tests
+        timeout-minutes: 120
         env:
           TAVILY_API_KEY: ${{ secrets.TAVILY_API_KEY }}
           OPENAI_API_KEY: ${{ secrets.INSTRUMENTATION_TEST_OPENAI_API_KEY }}
-          # add-environment.sh requires CHART_VERSION; pin it to the same chart
-          # version the platform was installed with above.
+          # Same chart version as the install above.
           CHART_VERSION: ${{ needs.compute-version.outputs.dev-version }}
+          GINKGO_PROCS: ${{ inputs.ginkgo_procs || '1' }}
+          # Use the shared Thunder instead of one per test environment.
+          PROVISION_THUNDER: "false"
         run: |
           set -o pipefail
-          # --procs=1 (was -p, which auto-picks one proc per vCPU = 4 on the
-          # ubuntu-24.04 runner). The single-node k3d cluster cannot fit
-          # multiple concurrent per-environment stacks (each env = its own
-          # Thunder + isolated API Platform Gateway controller/runtime + agent
-          # runtime pods); the node ran out of CPU, leaving pods Pending
-          # ("Insufficient cpu") and gateway bootstrap Jobs timing out. Running
-          # suites serially keeps the footprint to one environment at a time.
-          # --timeout raised to 90m to match the longer serial wall-clock.
-          cd test/e2e && go run github.com/onsi/ginkgo/v2/ginkgo -v --procs=1 --timeout 90m \
+          # Suites run one at a time by default. --timeout is the total budget.
+          cd test/e2e && go run github.com/onsi/ginkgo/v2/ginkgo -v --procs="${GINKGO_PROCS}" --timeout 90m \
             --poll-progress-after=600s --keep-going --junit-report=report.xml \
             ./tests/... 2>&1 | tee e2e-output.log
 
+      # Runs even if the e2e tests failed.
       - name: Run security conformance tests
+        id: security-tests
         if: ${{ !cancelled() && steps.install-platform.outcome == 'success' }}
+        timeout-minutes: 60
         env:
           SECURITY_PROBE_REPOSITORY_URL: ${{ format('{0}/{1}', github.server_url, github.repository) }}
           SECURITY_PROBE_REPOSITORY_BRANCH: ${{ github.ref_name }}
@@ -386,51 +284,64 @@ jobs:
           set -o pipefail
           make security-test-live 2>&1 | tee test/e2e/security-output.log
 
-      - name: Dump pod logs on failure
-        if: failure()
+      # Print a short cluster summary to help debug failures.
+      - name: Dump cluster state to the job log
+        if: ${{ always() && steps.install-platform.outcome != 'skipped' }}
+        run: |
+          echo "::group::Pods not Running/Completed (all namespaces)"
+          kubectl get pods -A -o wide 2>/dev/null | awk 'NR==1 || ($4 != "Running" && $4 != "Completed")' | head -100 || true
+          echo "::endgroup::"
+          echo "::group::Warning events (last 100, oldest first)"
+          kubectl get events -A --field-selector type=Warning --sort-by=.lastTimestamp 2>/dev/null | tail -100 || true
+          echo "::endgroup::"
+          echo "::group::Node allocated resources"
+          kubectl describe nodes 2>/dev/null | sed -n '/Allocated resources/,/^Events/p' || true
+          echo "::endgroup::"
+          # Agent pods run in the dp-* namespaces.
+          for ns in $(kubectl get ns --no-headers -o custom-columns=":metadata.name" 2>/dev/null | grep '^dp-'); do
+            echo "::group::Agent runtime pods in ${ns}"
+            kubectl get pods -n "$ns" -o wide 2>/dev/null || true
+            kubectl get pods -n "$ns" --no-headers 2>/dev/null \
+              | awk '$3 != "Running" && $3 != "Completed" { print $1 }' \
+              | while read -r p; do
+                  echo "--- describe pod/${p} (conditions and events)"
+                  kubectl describe pod "$p" -n "$ns" 2>/dev/null | sed -n '/^Conditions:/,$p' | head -60 || true
+                done
+            echo "::endgroup::"
+          done
+          echo "::group::Evaluation / monitor workloads"
+          kubectl get jobs,cronjobs,pods -n wso2-amp -o wide 2>/dev/null | head -60 || true
+          echo "::endgroup::"
+
+      - name: Dump pod logs
+        if: ${{ always() && steps.install-platform.outcome != 'skipped' }}
         run: |
           mkdir -p /tmp/pod-logs
           kubectl logs deployment/amp-api -n wso2-amp --tail=500 --all-containers=true > /tmp/pod-logs/amp-api.txt 2>&1 || true
           kubectl logs deployment/openchoreo-api -n openchoreo-control-plane --tail=500 --all-containers=true > /tmp/pod-logs/openchoreo-api.txt 2>&1 || true
           kubectl logs deployment/amp-observer -n openchoreo-observability-plane --tail=500 --all-containers=true > /tmp/pod-logs/amp-observer.txt 2>&1 || true
           kubectl logs deployment/observer -n openchoreo-observability-plane --tail=500 --all-containers=true > /tmp/pod-logs/observer.txt 2>&1 || true
-          # openchoreo reconciler (drives data-plane Release/ReleaseBinding rollout)
           kubectl logs deployment/controller-manager -n openchoreo-control-plane --tail=500 --all-containers=true > /tmp/pod-logs/openchoreo-controller-manager.txt 2>&1 || true
-          # OpenBao + external-secrets: the secret-sync path. When an ExternalSecret
-          # never materializes (install times out "Waiting for secret ..."), the
-          # actual cause — e.g. a ClusterSecretStore not ready, or an OpenBao
-          # Kubernetes-auth failure — appears only in these logs.
           kubectl logs -n openbao openbao-0 --tail=500 > /tmp/pod-logs/openbao.txt 2>&1 || true
           kubectl logs -n external-secrets -l app.kubernetes.io/name=external-secrets --tail=500 --all-containers=true > /tmp/pod-logs/external-secrets.txt 2>&1 || true
           kubectl get clustersecretstores,externalsecrets -A -o wide > /tmp/pod-logs/secret-stores.txt 2>&1 || true
           kubectl describe clustersecretstore default > /tmp/pod-logs/clustersecretstore-default.txt 2>&1 || true
-          # Cluster-wide pod state, plus Warning events only (surfaces stuck data-plane agent rollouts)
           kubectl get pods -A -o wide > /tmp/pod-logs/all-pods.txt 2>&1 || true
           kubectl get events -A --field-selector type=Warning --sort-by=.lastTimestamp > /tmp/pod-logs/warning-events.txt 2>&1 || true
-          # Node allocatable vs. requested — the "Allocated resources" table here is
-          # what makes an "Insufficient cpu" scheduling failure diagnosable (shows
-          # how close total pod CPU requests are to the node's allocatable).
           kubectl describe nodes > /tmp/pod-logs/nodes-describe.txt 2>&1 || true
           kubectl top nodes > /tmp/pod-logs/nodes-top.txt 2>&1 || true
           kubectl top pods -A --sort-by=cpu > /tmp/pod-logs/pods-top-cpu.txt 2>&1 || true
           for pod in $(kubectl get pods -n workflows-default --no-headers -o custom-columns=":metadata.name" 2>/dev/null); do
             kubectl logs "$pod" -n workflows-default --all-containers=true --tail=200 > "/tmp/pod-logs/wf-pod-${pod}.txt" 2>&1 || true
           done
-          # User workload (agent runtime) pods live in per-env data-plane namespaces
-          # (dp-<org>-<project>-<env>-<hash>). These carry the actual agent invocation
-          # errors (e.g. "500 Connection error"), so capture logs for every pod in them.
+          # Agent pods.
           for ns in $(kubectl get ns --no-headers -o custom-columns=":metadata.name" 2>/dev/null | grep '^dp-'); do
             for pod in $(kubectl get pods -n "$ns" --no-headers -o custom-columns=":metadata.name" 2>/dev/null); do
               kubectl logs "$pod" -n "$ns" --all-containers=true --tail=500 > "/tmp/pod-logs/dp-${ns}-${pod}.txt" 2>&1 || true
+              kubectl describe pod "$pod" -n "$ns" > "/tmp/pod-logs/describe-${ns}--${pod}.txt" 2>&1 || true
             done
           done
-          # Per-env API Platform Gateway + Thunder pods. Each environment's gateway
-          # stack lives in its own "<org>-<env>" namespace and its Thunder in
-          # "amp-thunder-<org>-<env>"; the gateway's Helm pre-install bootstrap Job
-          # runs there. Capturing these makes "failed pre-install: timed out
-          # waiting for the condition" debuggable (the bootstrap Job pod log is the
-          # only place the actual healthz/IDP/registration error appears). Also
-          # describe non-Running pods to surface exit reasons and scheduling events.
+          # Gateway and Thunder pods of each environment.
           for ns in $(kubectl get ns --no-headers -o custom-columns=":metadata.name" 2>/dev/null \
               | grep -E '^(default-|amp-thunder-)' || true); do
             for pod in $(kubectl get pods -n "$ns" --no-headers -o custom-columns=":metadata.name" 2>/dev/null); do
@@ -444,13 +355,14 @@ jobs:
           done
 
       - name: Upload pod logs
-        if: failure()
+        if: ${{ always() && steps.install-platform.outcome != 'skipped' }}
         uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7.0.0
         with:
           name: pod-logs
           path: /tmp/pod-logs/
           retention-days: 7
 
+      # Only publishes; the test step decides pass or fail.
       - name: Publish test results
         if: always()
         uses: dorny/test-reporter@6e6a65b7a0bd2c9197df7d0ae36ac5cee784230c # v2.0.0
@@ -458,6 +370,8 @@ jobs:
           name: Nightly E2E Test Results
           path: test/e2e/report.xml
           reporter: java-junit
+          fail-on-error: 'false'
+          fail-on-empty: 'false'
 
       - name: Publish security test results
         if: ${{ always() && hashFiles('test/e2e/security-report.xml') != '' }}
@@ -466,6 +380,8 @@ jobs:
           name: Nightly Security Conformance Results
           path: test/e2e/security-report.xml
           reporter: java-junit
+          fail-on-error: 'false'
+          fail-on-empty: 'false'
 
       - name: Upload test logs
         if: always()
@@ -477,58 +393,203 @@ jobs:
             test/e2e/security-output.log
           retention-days: 7
 
-      # Parse the ginkgo JUnit report into a one-line summary for the Chat alert.
-      # Sums the attributes across all <testsuite> elements so the counts hold
-      # even if ginkgo emits more than one suite.
+      # One-line test summary for the notification.
       - name: Build test summary
         id: test-summary
         if: always()
         run: |
-          REPORT="test/e2e/report.xml"
-          if [ ! -f "$REPORT" ]; then
-            echo "summary=test report not found (suite likely failed before producing report.xml)" >> "$GITHUB_OUTPUT"
-            exit 0
-          fi
-          sum_attr() {
-            grep -o "<testsuite [^>]*" "$REPORT" \
-              | grep -o "$1=\"[0-9]*\"" \
-              | grep -o '[0-9]*' \
-              | awk '{s+=$1} END {print s+0}'
+          summarise() {
+            local report="$1"
+            if [ ! -f "$report" ]; then
+              echo "no report (suite did not run or failed before producing it)"
+              return
+            fi
+            sum_attr() {
+              grep -o "<testsuite [^>]*" "$report" \
+                | grep -o "$1=\"[0-9]*\"" \
+                | grep -o '[0-9]*' \
+                | awk '{s+=$1} END {print s+0}'
+            }
+            local tests failures errors skipped passed
+            tests=$(sum_attr tests); failures=$(sum_attr failures)
+            errors=$(sum_attr errors); skipped=$(sum_attr skipped)
+            passed=$(( tests - failures - errors - skipped ))
+            echo "${passed} passed, ${failures} failed, ${errors} errored, ${skipped} skipped (of ${tests})"
           }
-          TESTS=$(sum_attr tests)
-          FAILURES=$(sum_attr failures)
-          ERRORS=$(sum_attr errors)
-          SKIPPED=$(sum_attr skipped)
-          PASSED=$(( TESTS - FAILURES - ERRORS - SKIPPED ))
-          SUMMARY="${PASSED} passed, ${FAILURES} failed, ${ERRORS} errored, ${SKIPPED} skipped (of ${TESTS})"
+          E2E_SUMMARY=$(summarise test/e2e/report.xml)
+          SEC_SUMMARY=$(summarise test/e2e/security-report.xml)
+          SUMMARY="e2e: ${E2E_SUMMARY} | security: ${SEC_SUMMARY}"
           echo "summary=$SUMMARY" >> "$GITHUB_OUTPUT"
           echo "Test summary: $SUMMARY"
 
+      # Last step, as the steps above still use the cluster.
+      - name: Teardown
+        if: ${{ always() }}
+        uses: ./.github/actions/teardown-self-hosted
+
+  # After e2e passes, move the nightly git tag to this commit. Not on a dry run.
+  publish-dev-tag:
+    name: Publish Nightly Git Tag
+    needs: [compute-version, e2e]
+    if: ${{ needs.e2e.result == 'success' && needs.compute-version.outputs.dry-run != 'true' }}
+    runs-on: [self-hosted, amp-nightly-e2e]
+    timeout-minutes: 15
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          fetch-depth: 0
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Configure Git
+        run: |
+          git config --local user.name "github-actions[bot]"
+          git config --local user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+      - name: Delete previous nightly git tags
+        env:
+          TODAY_TAG: amp/v${{ needs.compute-version.outputs.dev-version }}
+        run: |
+          git ls-remote --tags origin 'refs/tags/amp/v0.0.0-dev-*' \
+            | awk '{print $2}' \
+            | sed 's|refs/tags/||' \
+            | grep -v "^${TODAY_TAG}$" \
+            | while read -r tag; do
+                echo "Deleting tag: $tag"
+                git push origin --delete "refs/tags/$tag" || echo "⚠️ Could not delete $tag (may not exist)"
+              done
+          echo "✅ Previous nightly git tags cleaned"
+
+      - name: Create nightly git tag
+        env:
+          DEV_VERSION: ${{ needs.compute-version.outputs.dev-version }}
+        run: |
+          TAG="amp/v${DEV_VERSION}"
+          COMMIT_SHA=$(git rev-parse HEAD)
+          # Replace the tag if it already exists.
+          if git rev-parse "$TAG" >/dev/null 2>&1; then
+            git tag -d "$TAG"
+          fi
+          if git ls-remote --exit-code --tags origin "refs/tags/$TAG" >/dev/null 2>&1; then
+            git push origin --delete "refs/tags/$TAG"
+          fi
+          git tag -a "$TAG" -m "Nightly dev build ${DEV_VERSION} from main at ${COMMIT_SHA:0:7}"
+          git push origin "$TAG"
+          echo "✅ Created tag $TAG at ${COMMIT_SHA:0:7}"
+
+  # Real run: after e2e passes, delete older nightly images.
+  # Dry run: always delete this run's images.
+  cleanup-images:
+    name: Cleanup Nightly Images
+    needs: [compute-version, e2e]
+    # GHCR only.
+    if: >-
+      ${{ (vars.AMP_REGISTRY == '' || vars.AMP_REGISTRY == 'ghcr.io') && (
+        (always() && needs.compute-version.outputs.dry-run == 'true') ||
+        (needs.e2e.result == 'success' && needs.compute-version.outputs.dry-run != 'true')
+      ) }}
+    runs-on: [self-hosted, amp-nightly-e2e]
+    timeout-minutes: 30
+    continue-on-error: true
+    permissions:
+      packages: write
+    strategy:
+      fail-fast: false
+      matrix:
+        package:
+          - amp-api
+          - amp-console
+          - amp-observer
+          - amp-quick-start
+          - amp-evaluation-monitor
+          - wso2-agent-manager
+          - wso2-amp-observability-extension
+          - wso2-amp-platform-resources-extension
+          - wso2-amp-thunder-extension
+          - wso2-amp-evaluation-extension
+          - wso2-amp-api-platform-gateway-extension
+    steps:
+      # Skip packages that do not exist yet.
+      - name: Check if package ${{ matrix.package }} exists
+        id: check-package
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          PACKAGE: ${{ matrix.package }}
+        run: |
+          err=$(mktemp)
+          if gh api "orgs/${REGISTRY_ORG}/packages/container/${PACKAGE}" >/dev/null 2>"$err"; then
+            echo "exists=true" >> "$GITHUB_OUTPUT"
+          elif grep -q "HTTP 404" "$err"; then
+            echo "::warning::Package ${PACKAGE} not found yet — skipping cleanup."
+            echo "exists=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "::error::Failed to check package ${PACKAGE}:"
+            cat "$err" >&2
+            exit 1
+          fi
+
+      # Today's tag is always kept.
+      - name: Delete nightly tags for ${{ matrix.package }}
+        if: steps.check-package.outputs.exists == 'true'
+        uses: dataaxiom/ghcr-cleanup-action@d52806a0dc70b430571a37da1fde39733ffd640f # v1.2.2
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          owner: ${{ env.REGISTRY_ORG }}
+          package: ${{ matrix.package }}
+          delete-tags: ${{ needs.compute-version.outputs.dry-run == 'true' && needs.compute-version.outputs.dev-version || '0.0.0-dev-*' }}
+          exclude-tags: ${{ needs.compute-version.outputs.dry-run != 'true' && needs.compute-version.outputs.dev-version || '' }}
+          delete-untagged: false
+
+  # Posts the result of every run, except cancelled runs and dry runs.
   notify-google-chat:
     name: Notify Google Chat
-    needs: [compute-version, e2e]
-    runs-on:
-      - codebuild-wso2_agent-manager-${{ github.run_id }}-${{ github.run_attempt }}
-    if: ${{ !cancelled() && needs.e2e.result == 'failure' }}
+    needs: [compute-version, load-config, build-images, package-charts, e2e, publish-dev-tag]
+    if: ${{ !cancelled() && needs.compute-version.outputs.dry-run != 'true' }}
+    runs-on: [self-hosted, amp-nightly-e2e]
+    timeout-minutes: 10
     steps:
-      - name: Post failure alert
+      - name: Post run status
         env:
           GCHAT_WEBHOOK_URL: ${{ secrets.GCHAT_WEBHOOK_URL }}
           DEV_VERSION: ${{ needs.compute-version.outputs.dev-version }}
           RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
           TEST_SUMMARY: ${{ needs.e2e.outputs.summary }}
+          VERSION_RESULT: ${{ needs.compute-version.result }}
+          CONFIG_RESULT: ${{ needs.load-config.result }}
+          BUILD_RESULT: ${{ needs.build-images.result }}
+          PACKAGE_RESULT: ${{ needs.package-charts.result }}
+          E2E_RESULT: ${{ needs.e2e.result }}
+          TAG_RESULT: ${{ needs.publish-dev-tag.result }}
         run: |
+          STAGES="version=${VERSION_RESULT} config=${CONFIG_RESULT} build=${BUILD_RESULT} package=${PACKAGE_RESULT} e2e=${E2E_RESULT} tag=${TAG_RESULT}"
+          echo "Stages: ${STAGES}"
           if [ -z "${GCHAT_WEBHOOK_URL}" ]; then
             echo "::warning::GCHAT_WEBHOOK_URL secret is not set; skipping Chat notification."
             exit 0
           fi
+          if [ "${BUILD_RESULT}" = "success" ] && [ "${PACKAGE_RESULT}" = "success" ] && [ "${E2E_RESULT}" = "success" ] && [ "${TAG_RESULT}" = "success" ]; then
+            HEADLINE="*🟢 Nightly passed* — \`${DEV_VERSION}\`"
+          else
+            # Report the earliest stage that failed.
+            FAILED_STAGE="tag"
+            [ "${E2E_RESULT}" != "success" ] && FAILED_STAGE="e2e"
+            [ "${PACKAGE_RESULT}" != "success" ] && FAILED_STAGE="package"
+            [ "${BUILD_RESULT}" != "success" ] && FAILED_STAGE="build"
+            SETUP_FAILED=""
+            case "${VERSION_RESULT}" in failure|cancelled) SETUP_FAILED="compute-version" ;; esac
+            case "${CONFIG_RESULT}" in failure|cancelled) SETUP_FAILED="${SETUP_FAILED:+${SETUP_FAILED} and }load-config" ;; esac
+            [ -n "${SETUP_FAILED}" ] && FAILED_STAGE="${SETUP_FAILED}"
+            HEADLINE="*🔴 Nightly failed at ${FAILED_STAGE}* — \`${DEV_VERSION:-unknown version}\`"
+          fi
           SUMMARY_LINE="${TEST_SUMMARY:-no test summary available}"
           # Build the JSON with jq so the summary text is safely escaped.
           PAYLOAD=$(jq -n \
-            --arg version "${DEV_VERSION}" \
+            --arg headline "${HEADLINE}" \
+            --arg stages "${STAGES}" \
             --arg summary "${SUMMARY_LINE}" \
             --arg url "${RUN_URL}" \
-            '{text: ("*🔴 Nightly E2E failed* — `\($version)`\n" + $summary + "\n<\($url)|View run>")}')
+            '{text: ($headline + "\n" + $stages + "\n" + $summary + "\n<\($url)|View run>")}')
           curl -s -X POST "${GCHAT_WEBHOOK_URL}" \
             -H 'Content-Type: application/json' \
             -d "${PAYLOAD}"

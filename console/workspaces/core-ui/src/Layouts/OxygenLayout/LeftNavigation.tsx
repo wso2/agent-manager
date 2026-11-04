@@ -16,9 +16,9 @@
  * under the License.
  */
 
-import { Sidebar } from "@wso2/oxygen-ui";
+import { Sidebar, Tooltip } from "@wso2/oxygen-ui";
 import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
-import { Link, useNavigate } from "react-router-dom";
+import { Link, useNavigate, type LinkProps } from "react-router-dom";
 
 export interface NavigationItem {
   label: string;
@@ -45,22 +45,52 @@ interface LeftNavigationProps {
   groupedItems: NavigationSection[];
 }
 
-// Render each item as a real anchor (`<a>`) so clicking opens the link —
-// enabling middle-click / open-in-new-tab and proper link semantics, rather
-// than navigating from the Sidebar's onSelect callback. Items with `children`
-// render without a link — the Sidebar.Item then acts purely as an
-// expand/collapse toggle for the nested items.
-function renderItem(item: NavigationItem) {
+/** Adds an accessible tooltip directly to a sidebar navigation link. */
+function NavigationLink({ tooltip, ...props }: LinkProps & { tooltip: string }) {
+  // Oxygen wraps links in a Fragment, so its built-in tooltip cannot attach
+  // hover/focus handlers. Attach the tooltip directly to the router link.
+  return (
+    <Tooltip
+      title={tooltip}
+      placement="right"
+      slotProps={{
+        tooltip: {
+          sx: {
+            typography: "body2",
+            px: 1.5,
+            py: 1,
+            bgcolor: "background.default",
+            color: "text.primary",
+            border: 1,
+            borderColor: "divider",
+            borderRadius: 1,
+            boxShadow: 1,
+          },
+        },
+      }}
+    >
+      <Link {...props} />
+    </Tooltip>
+  );
+}
+
+/**
+ * Renders linked leaf items with tooltips when collapsed, and parent items as
+ * submenu toggles. Real anchors preserve middle-click and open-in-new-tab behavior.
+ */
+function renderItem(item: NavigationItem, collapsed = false) {
   const isLeaf = !item.children?.length;
   return (
     <Sidebar.Item
       id={item.label}
       key={item.label}
-      link={isLeaf && item.href ? <Link to={item.href} /> : undefined}
+      link={isLeaf && item.href ? (
+        <NavigationLink to={item.href} tooltip={collapsed ? item.label : ""} />
+      ) : undefined}
     >
       <Sidebar.ItemIcon>{item.icon}</Sidebar.ItemIcon>
       <Sidebar.ItemLabel>{item.label}</Sidebar.ItemLabel>
-      {item.children?.map(renderItem)}
+      {item.children?.map((child) => renderItem(child))}
     </Sidebar.Item>
   );
 }
@@ -99,6 +129,7 @@ export const combineNavItems = (
   ...groupedItems.flatMap((group) => (group.collapsible ? [sectionToItem(group)] : group.items)),
 ];
 
+/** Renders sidebar groups and routes selections from collapsed submenus. */
 export function LeftNavigation({
   collapsed,
   activeItem,
@@ -186,21 +217,23 @@ export function LeftNavigation({
           },
         }}
       >
-        <Sidebar.Category>{topItems.map(renderItem)}</Sidebar.Category>
+        <Sidebar.Category>{topItems.map((item) => renderItem(item, collapsed))}</Sidebar.Category>
         {groupedItems.map((group) =>
           group.collapsible ? (
-            renderItem(sectionToItem(group))
+            renderItem(sectionToItem(group), collapsed)
           ) : (
             <Sidebar.Category key={group.title}>
               <Sidebar.CategoryLabel>{group.title}</Sidebar.CategoryLabel>
-              {group.items.map(renderItem)}
+              {group.items.map((item) => renderItem(item, collapsed))}
             </Sidebar.Category>
           ),
         )}
       </Sidebar.Nav>
       {bottomItems.length > 0 && (
         <Sidebar.Footer>
-          <Sidebar.Category>{bottomItems.map(renderItem)}</Sidebar.Category>
+          <Sidebar.Category>
+            {bottomItems.map((item) => renderItem(item, collapsed))}
+          </Sidebar.Category>
         </Sidebar.Footer>
       )}
     </Sidebar>

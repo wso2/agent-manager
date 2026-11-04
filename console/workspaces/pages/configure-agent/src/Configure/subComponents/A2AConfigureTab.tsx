@@ -58,7 +58,7 @@ export function A2AConfigureTab({ orgId, projectId, agentId, external }: A2AConf
     <>
       <Typography variant="body2" color="text.secondary" sx={{ mb: 1 }}>
         {external
-          ? "Each environment fetches its agent card from the URL registered for it."
+          ? "If this agent speaks A2A, register its agent card URL in each environment it serves A2A from."
           : "The platform fetches this agent's card from its gateway in each environment."}
       </Typography>
       <Tabs

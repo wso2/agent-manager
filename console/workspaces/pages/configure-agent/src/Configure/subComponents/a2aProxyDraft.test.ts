@@ -28,7 +28,7 @@ import {
   upstreamAuthError,
 } from "./a2aProxyDraft";
 
-const stored: A2AProxyResponse = { status: "published", lastError: "", gatewayUrl: "https://gw.example/agent", upstreamAuthHeader: "X-Key" };
+const stored: A2AProxyResponse = { status: "DEPLOYED", statusReason: "", gatewayUrl: "https://gw.example/agent", upstreamAuthHeader: "X-Key" };
 const fresh = (header: string, value: string): A2AProxyDraft => ({ enabled: true, header, value, secret: "replace" });
 
 describe("a2aProxyDraft", () => {

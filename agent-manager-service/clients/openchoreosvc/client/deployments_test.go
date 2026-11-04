@@ -503,6 +503,69 @@ func TestGetReleaseBindingRollout(t *testing.T) {
 	})
 }
 
+func TestGetReleaseBindingTraits(t *testing.T) {
+	release := func(traits ...string) gen.ComponentRelease {
+		r := gen.ComponentRelease{Metadata: gen.ObjectMeta{Name: "myagent-r2"}, Spec: &gen.ComponentReleaseSpec{}}
+		componentTraits := make([]gen.ComponentTrait, 0, len(traits))
+		for _, name := range traits {
+			componentTraits = append(componentTraits, gen.ComponentTrait{Name: name, InstanceName: name + "-1"})
+		}
+		r.Spec.ComponentProfile = &struct {
+			Parameters *map[string]interface{} `json:"parameters,omitempty"`
+			Traits     *[]gen.ComponentTrait   `json:"traits,omitempty"`
+		}{Traits: &componentTraits}
+		return r
+	}
+	serve := func(t *testing.T, r gen.ComponentRelease, bindings ...gen.ReleaseBinding) (*openChoreoClient, *[]string) {
+		t.Helper()
+		var releaseReads []string
+		return newTestClient(t, http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
+			if strings.HasSuffix(req.URL.Path, "/releasebindings") {
+				require.NoError(t, json.NewEncoder(w).Encode(gen.ReleaseBindingList{Items: bindings}))
+				return
+			}
+			releaseReads = append(releaseReads, req.URL.Path)
+			require.NoError(t, json.NewEncoder(w).Encode(r))
+		})), &releaseReads
+	}
+	bound := func(releaseName string) gen.ReleaseBinding {
+		b := bindingWithConfigs(nil, nil)
+		b.Spec.ReleaseName = &releaseName
+		return b
+	}
+
+	t.Run("the bound release's trait names", func(t *testing.T) {
+		c, reads := serve(t, release(string(TraitAPIManagement), string(TraitOTELInstrumentation)), bound("myagent-r2"))
+
+		traits, isBound, err := c.GetReleaseBindingTraits(context.Background(), "acme", "myagent", "dev")
+
+		require.NoError(t, err)
+		assert.True(t, isBound)
+		assert.Equal(t, []TraitType{TraitAPIManagement, TraitOTELInstrumentation}, traits)
+		require.Len(t, *reads, 1)
+		assert.True(t, strings.HasSuffix((*reads)[0], "/componentreleases/myagent-r2"), (*reads)[0])
+	})
+	t.Run("a release with no traits", func(t *testing.T) {
+		c, _ := serve(t, release(), bound("myagent-r2"))
+
+		traits, isBound, err := c.GetReleaseBindingTraits(context.Background(), "acme", "myagent", "dev")
+
+		require.NoError(t, err)
+		assert.True(t, isBound)
+		assert.Empty(t, traits)
+	})
+	t.Run("no binding for the environment is unbound", func(t *testing.T) {
+		c, reads := serve(t, release(string(TraitAPIManagement)))
+
+		traits, isBound, err := c.GetReleaseBindingTraits(context.Background(), "acme", "myagent", "dev")
+
+		require.NoError(t, err)
+		assert.False(t, isBound)
+		assert.Empty(t, traits)
+		assert.Empty(t, *reads, "no release is read without a binding")
+	})
+}
+
 func TestGetReleaseBindingServiceURL(t *testing.T) {
 	port := int32(8000)
 	https := "https"

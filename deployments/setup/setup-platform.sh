@@ -43,18 +43,22 @@ check_command go
 
 if ! command -v node &> /dev/null; then
     echo "❌ Node.js is not installed."
-    echo "   Please install Node.js version >=20.19.0 or >=22.12.0."
+    echo "   Please install Node.js 22.x (>=22.23.4), 24.x (>=24.22.1) or >=26.12.1."
     exit 1
 fi
 
-# Check Node.js version: must be >=20.19.0 or >=22.12.0
+# Check Node.js version: 22.x >=22.23.4, 24.x >=24.22.1, or >=26.12.1
 NODE_MAJOR=$(node -v | sed 's/^v//' | cut -d'.' -f1)
 NODE_MINOR=$(node -v | sed 's/^v//' | cut -d'.' -f2)
+NODE_PATCH=$(node -v | sed 's/^v//' | cut -d'.' -f3)
+NODE_VER=$((NODE_MINOR * 1000 + NODE_PATCH))
 
-if ! { [ "$NODE_MAJOR" -eq 20 ] && [ "$NODE_MINOR" -ge 19 ]; } && \
-   ! { [ "$NODE_MAJOR" -eq 22 ] && [ "$NODE_MINOR" -ge 12 ]; } && \
-   ! [ "$NODE_MAJOR" -gt 22 ]; then
-    echo "❌ Node.js version must be >=20.19.0 or >=22.12.0."
+if ! { [ "$NODE_MAJOR" -eq 22 ] && [ "$NODE_VER" -ge 23004 ]; } && \
+   ! { [ "$NODE_MAJOR" -eq 24 ] && [ "$NODE_VER" -ge 22001 ]; } && \
+   ! { [ "$NODE_MAJOR" -eq 26 ] && [ "$NODE_VER" -ge 12001 ]; } && \
+   ! [ "$NODE_MAJOR" -gt 26 ]; then
+    echo "❌ Node.js must be 22.x (>=22.23.4), 24.x (>=24.22.1) or >=26.12.1."
+    echo "   Node 20, 23 and 25, and older patch releases of 22.x, 24.x and 26.x, are not supported."
     echo "   Current version: $(node -v)"
     exit 1
 fi

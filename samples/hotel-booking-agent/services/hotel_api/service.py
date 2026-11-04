@@ -1,17 +1,13 @@
 from __future__ import annotations
 
-import logging
-
 from fastapi import FastAPI
 
 from booking import router as booking_router
+from logging_config import configure_logging
 from policies import init_policy_store, router as policies_router
 from search import router as search_router
 
-logging.basicConfig(
-    level=logging.INFO,
-    format="%(asctime)s %(levelname)s %(name)s: %(message)s",
-)
+configure_logging()
 
 app = FastAPI(title="Hotel Booking API")
 

@@ -26,10 +26,12 @@ import {
 import {
   useGetMCPProxy,
   useListEnvironments,
+  useListGateways,
   useUpdateMCPProxy,
 } from "@agent-management-platform/api-client";
 import {
   absoluteRouteMap,
+  isSelfHostedGateway,
   stripBasePath,
   type Environment,
   type MCPEndpointConfig,
@@ -322,6 +324,16 @@ export function ViewMCPProxy() {
     [selectedEnvironmentBindings],
   );
 
+  const { data: gatewaysData } = useListGateways({ orgName: orgId ?? "" });
+  const isOnSelfHostedGateway = useMemo(() => {
+    const selfHostedIds = new Set(
+      (gatewaysData?.gateways ?? []).filter(isSelfHostedGateway).map((gw) => gw.uuid),
+    );
+    return (selectedEndpoint?.environments ?? []).some(
+      (binding) => !!binding.gatewayId && selfHostedIds.has(binding.gatewayId),
+    );
+  }, [gatewaysData, selectedEndpoint]);
+
   // Merge-and-save callback used by every config tab. It merges a partial into the
   // selected endpoint's flat config and PUTs the whole proxy with that one endpoint
   // replaced.
@@ -575,6 +587,7 @@ export function ViewMCPProxy() {
                       orgName={orgId}
                       proxyId={routeProxyId}
                       environments={selectedEnvironments}
+                      isOnSelfHostedGateway={isOnSelfHostedGateway}
                       isLoading={isTabContentLoading}
                       onUpdate={updateSelectedEndpointConfig}
                       isUpdating={updateMCPProxy.isPending}

@@ -19,7 +19,7 @@ thunder:
     image:
       registry: ghcr.io/thunder-id
       repository: thunderid
-      tag: "1.0.1"
+      tag: "1.0.2"
       pullPolicy: Always
     container:
       port: 8090
@@ -185,7 +185,7 @@ thunder:
     # a fixed value) only when a memorable password matters more than a
     # generated one — e.g. a machine only the operator can reach. Either way,
     # retrieve the real value in effect any time with:
-    #   kubectl get secret amp-admin-credentials -n <thunder-namespace> -o jsonpath='{.data.password}' | base64 -d
+    #   kubectl get secret amp-admin-credentials -n <thunder-namespace> -o jsonpath='{.data.password}' | base64 -d; echo
     admin:
       username: "admin"
       password: ""

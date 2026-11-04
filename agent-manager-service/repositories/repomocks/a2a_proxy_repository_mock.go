@@ -31,11 +31,17 @@ import (
 //			GetFunc: func(ctx context.Context, ouID string, projectName string, agentName string, environmentName string) (*models.A2AProxy, error) {
 //				panic("mock out the Get method")
 //			},
+//			GetByArtifactFunc: func(ctx context.Context, ouID string, artifactUUID uuid.UUID) (*models.A2AProxy, error) {
+//				panic("mock out the GetByArtifact method")
+//			},
 //			GetByEnvUUIDFunc: func(ctx context.Context, ouID string, projectName string, agentName string, environmentUUID uuid.UUID) (*models.A2AProxy, error) {
 //				panic("mock out the GetByEnvUUID method")
 //			},
 //			ListEnvironmentUUIDsFunc: func(ctx context.Context, ouID string, environmentName string) ([]uuid.UUID, error) {
 //				panic("mock out the ListEnvironmentUUIDs method")
+//			},
+//			ListForEnvironmentFunc: func(ctx context.Context, ouID string, environmentUUID uuid.UUID) ([]models.A2AProxy, error) {
+//				panic("mock out the ListForEnvironment method")
 //			},
 //			LockAgentEnvFunc: func(ctx context.Context, ouID string, projectName string, agentName string, environmentUUID uuid.UUID) error {
 //				panic("mock out the LockAgentEnv method")
@@ -65,11 +71,17 @@ type A2AProxyRepositoryMock struct {
 	// GetFunc mocks the Get method.
 	GetFunc func(ctx context.Context, ouID string, projectName string, agentName string, environmentName string) (*models.A2AProxy, error)
 
+	// GetByArtifactFunc mocks the GetByArtifact method.
+	GetByArtifactFunc func(ctx context.Context, ouID string, artifactUUID uuid.UUID) (*models.A2AProxy, error)
+
 	// GetByEnvUUIDFunc mocks the GetByEnvUUID method.
 	GetByEnvUUIDFunc func(ctx context.Context, ouID string, projectName string, agentName string, environmentUUID uuid.UUID) (*models.A2AProxy, error)
 
 	// ListEnvironmentUUIDsFunc mocks the ListEnvironmentUUIDs method.
 	ListEnvironmentUUIDsFunc func(ctx context.Context, ouID string, environmentName string) ([]uuid.UUID, error)
+
+	// ListForEnvironmentFunc mocks the ListForEnvironment method.
+	ListForEnvironmentFunc func(ctx context.Context, ouID string, environmentUUID uuid.UUID) ([]models.A2AProxy, error)
 
 	// LockAgentEnvFunc mocks the LockAgentEnv method.
 	LockAgentEnvFunc func(ctx context.Context, ouID string, projectName string, agentName string, environmentUUID uuid.UUID) error
@@ -128,6 +140,15 @@ type A2AProxyRepositoryMock struct {
 			// EnvironmentName is the environmentName argument value.
 			EnvironmentName string
 		}
+		// GetByArtifact holds details about calls to the GetByArtifact method.
+		GetByArtifact []struct {
+			// Ctx is the ctx argument value.
+			Ctx context.Context
+			// OuID is the ouID argument value.
+			OuID string
+			// ArtifactUUID is the artifactUUID argument value.
+			ArtifactUUID uuid.UUID
+		}
 		// GetByEnvUUID holds details about calls to the GetByEnvUUID method.
 		GetByEnvUUID []struct {
 			// Ctx is the ctx argument value.
@@ -149,6 +170,15 @@ type A2AProxyRepositoryMock struct {
 			OuID string
 			// EnvironmentName is the environmentName argument value.
 			EnvironmentName string
+		}
+		// ListForEnvironment holds details about calls to the ListForEnvironment method.
+		ListForEnvironment []struct {
+			// Ctx is the ctx argument value.
+			Ctx context.Context
+			// OuID is the ouID argument value.
+			OuID string
+			// EnvironmentUUID is the environmentUUID argument value.
+			EnvironmentUUID uuid.UUID
 		}
 		// LockAgentEnv holds details about calls to the LockAgentEnv method.
 		LockAgentEnv []struct {
@@ -180,8 +210,10 @@ type A2AProxyRepositoryMock struct {
 	lockDeleteForAgent       sync.RWMutex
 	lockDeleteForEnvironment sync.RWMutex
 	lockGet                  sync.RWMutex
+	lockGetByArtifact        sync.RWMutex
 	lockGetByEnvUUID         sync.RWMutex
 	lockListEnvironmentUUIDs sync.RWMutex
+	lockListForEnvironment   sync.RWMutex
 	lockLockAgentEnv         sync.RWMutex
 	lockUpsert               sync.RWMutex
 	lockWithTx               sync.RWMutex
@@ -367,6 +399,46 @@ func (mock *A2AProxyRepositoryMock) GetCalls() []struct {
 	return calls
 }
 
+// GetByArtifact calls GetByArtifactFunc.
+func (mock *A2AProxyRepositoryMock) GetByArtifact(ctx context.Context, ouID string, artifactUUID uuid.UUID) (*models.A2AProxy, error) {
+	if mock.GetByArtifactFunc == nil {
+		panic("A2AProxyRepositoryMock.GetByArtifactFunc: method is nil but A2AProxyRepository.GetByArtifact was just called")
+	}
+	callInfo := struct {
+		Ctx          context.Context
+		OuID         string
+		ArtifactUUID uuid.UUID
+	}{
+		Ctx:          ctx,
+		OuID:         ouID,
+		ArtifactUUID: artifactUUID,
+	}
+	mock.lockGetByArtifact.Lock()
+	mock.calls.GetByArtifact = append(mock.calls.GetByArtifact, callInfo)
+	mock.lockGetByArtifact.Unlock()
+	return mock.GetByArtifactFunc(ctx, ouID, artifactUUID)
+}
+
+// GetByArtifactCalls gets all the calls that were made to GetByArtifact.
+// Check the length with:
+//
+//	len(mockedA2AProxyRepository.GetByArtifactCalls())
+func (mock *A2AProxyRepositoryMock) GetByArtifactCalls() []struct {
+	Ctx          context.Context
+	OuID         string
+	ArtifactUUID uuid.UUID
+} {
+	var calls []struct {
+		Ctx          context.Context
+		OuID         string
+		ArtifactUUID uuid.UUID
+	}
+	mock.lockGetByArtifact.RLock()
+	calls = mock.calls.GetByArtifact
+	mock.lockGetByArtifact.RUnlock()
+	return calls
+}
+
 // GetByEnvUUID calls GetByEnvUUIDFunc.
 func (mock *A2AProxyRepositoryMock) GetByEnvUUID(ctx context.Context, ouID string, projectName string, agentName string, environmentUUID uuid.UUID) (*models.A2AProxy, error) {
 	if mock.GetByEnvUUIDFunc == nil {
@@ -452,6 +524,46 @@ func (mock *A2AProxyRepositoryMock) ListEnvironmentUUIDsCalls() []struct {
 	mock.lockListEnvironmentUUIDs.RLock()
 	calls = mock.calls.ListEnvironmentUUIDs
 	mock.lockListEnvironmentUUIDs.RUnlock()
+	return calls
+}
+
+// ListForEnvironment calls ListForEnvironmentFunc.
+func (mock *A2AProxyRepositoryMock) ListForEnvironment(ctx context.Context, ouID string, environmentUUID uuid.UUID) ([]models.A2AProxy, error) {
+	if mock.ListForEnvironmentFunc == nil {
+		panic("A2AProxyRepositoryMock.ListForEnvironmentFunc: method is nil but A2AProxyRepository.ListForEnvironment was just called")
+	}
+	callInfo := struct {
+		Ctx             context.Context
+		OuID            string
+		EnvironmentUUID uuid.UUID
+	}{
+		Ctx:             ctx,
+		OuID:            ouID,
+		EnvironmentUUID: environmentUUID,
+	}
+	mock.lockListForEnvironment.Lock()
+	mock.calls.ListForEnvironment = append(mock.calls.ListForEnvironment, callInfo)
+	mock.lockListForEnvironment.Unlock()
+	return mock.ListForEnvironmentFunc(ctx, ouID, environmentUUID)
+}
+
+// ListForEnvironmentCalls gets all the calls that were made to ListForEnvironment.
+// Check the length with:
+//
+//	len(mockedA2AProxyRepository.ListForEnvironmentCalls())
+func (mock *A2AProxyRepositoryMock) ListForEnvironmentCalls() []struct {
+	Ctx             context.Context
+	OuID            string
+	EnvironmentUUID uuid.UUID
+} {
+	var calls []struct {
+		Ctx             context.Context
+		OuID            string
+		EnvironmentUUID uuid.UUID
+	}
+	mock.lockListForEnvironment.RLock()
+	calls = mock.calls.ListForEnvironment
+	mock.lockListForEnvironment.RUnlock()
 	return calls
 }
 

@@ -51,6 +51,7 @@ var (
 )
 
 func TestCreateAgent(t *testing.T) {
+	seedIngressGatewayForDefaultEnvironment(t, "mock-org-id")
 	authMiddleware := jwtassertion.NewMockMiddleware(t)
 
 	t.Run("Creating an agent with default interface should return 202", func(t *testing.T) {
@@ -332,9 +333,8 @@ func TestCreateAgent(t *testing.T) {
 		attachCall := attachTraitsCalls[0]
 		require.Equal(t, testProjName, attachCall.ProjectName)
 		require.Equal(t, testAgentNameDocker, attachCall.ComponentName)
-		require.Len(t, attachCall.TraitRequests, 2)
+		require.Len(t, attachCall.TraitRequests, 1, "no route trait: the agent is served only through the gateway")
 		require.Equal(t, client.TraitEnvInjection, attachCall.TraitRequests[0].TraitType, "Should attach env injection trait")
-		require.Equal(t, client.TraitAPIManagement, attachCall.TraitRequests[1].TraitType, "Should attach api-configuration trait")
 	})
 
 	t.Run("Creating an agent with custom interface should return 202", func(t *testing.T) {

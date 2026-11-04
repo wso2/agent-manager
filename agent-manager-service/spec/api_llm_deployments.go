@@ -37,7 +37,7 @@ func (r ApiDeleteLLMProviderDeploymentRequest) Execute() (*http.Response, error)
 /*
 DeleteLLMProviderDeployment Delete LLM provider deployment
 
-Delete a deployment (must be undeployed first)
+Delete a deployment the gateway doesn't hold. The gateway's current deployment must be undeployed first, and the undeploy must have completed (UNDEPLOYED).
 
 	@param ctx context.Context - for authentication, logging, cancellation, deadlines, tracing, etc. Passed from http.Request or context.Background().
 	@param orgName Organization name/handle
@@ -176,27 +176,185 @@ func (a *LLMDeploymentsAPIService) DeleteLLMProviderDeploymentExecute(r ApiDelet
 	return localVarHTTPResponse, nil
 }
 
-type ApiDeployLLMProviderRequest struct {
-	ctx                context.Context
-	ApiService         *LLMDeploymentsAPIService
-	orgName            string
-	providerId         string
-	deployAgentRequest *DeployAgentRequest
+type ApiDeleteLLMProxyDeploymentRequest struct {
+	ctx          context.Context
+	ApiService   *LLMDeploymentsAPIService
+	orgName      string
+	projName     string
+	id           string
+	deploymentId string
 }
 
-func (r ApiDeployLLMProviderRequest) DeployAgentRequest(deployAgentRequest DeployAgentRequest) ApiDeployLLMProviderRequest {
-	r.deployAgentRequest = &deployAgentRequest
+func (r ApiDeleteLLMProxyDeploymentRequest) Execute() (*http.Response, error) {
+	return r.ApiService.DeleteLLMProxyDeploymentExecute(r)
+}
+
+/*
+DeleteLLMProxyDeployment Delete LLM proxy deployment
+
+Delete a deployment the gateway doesn't hold. The gateway's current deployment must be undeployed first, and the undeploy must have completed (UNDEPLOYED).
+
+	@param ctx context.Context - for authentication, logging, cancellation, deadlines, tracing, etc. Passed from http.Request or context.Background().
+	@param orgName Organization name/handle
+	@param projName Project name
+	@param id Proxy handle
+	@param deploymentId Deployment UUID
+	@return ApiDeleteLLMProxyDeploymentRequest
+*/
+func (a *LLMDeploymentsAPIService) DeleteLLMProxyDeployment(ctx context.Context, orgName string, projName string, id string, deploymentId string) ApiDeleteLLMProxyDeploymentRequest {
+	return ApiDeleteLLMProxyDeploymentRequest{
+		ApiService:   a,
+		ctx:          ctx,
+		orgName:      orgName,
+		projName:     projName,
+		id:           id,
+		deploymentId: deploymentId,
+	}
+}
+
+// Execute executes the request
+func (a *LLMDeploymentsAPIService) DeleteLLMProxyDeploymentExecute(r ApiDeleteLLMProxyDeploymentRequest) (*http.Response, error) {
+	var (
+		localVarHTTPMethod = http.MethodDelete
+		localVarPostBody   interface{}
+		formFiles          []formFile
+	)
+
+	localBasePath, err := a.client.cfg.ServerURLWithContext(r.ctx, "LLMDeploymentsAPIService.DeleteLLMProxyDeployment")
+	if err != nil {
+		return nil, &GenericOpenAPIError{error: err.Error()}
+	}
+
+	localVarPath := localBasePath + "/orgs/{orgName}/projects/{projName}/llm-proxies/{id}/deployments/{deploymentId}"
+	localVarPath = strings.Replace(localVarPath, "{"+"orgName"+"}", url.PathEscape(parameterValueToString(r.orgName, "orgName")), -1)
+	localVarPath = strings.Replace(localVarPath, "{"+"projName"+"}", url.PathEscape(parameterValueToString(r.projName, "projName")), -1)
+	localVarPath = strings.Replace(localVarPath, "{"+"id"+"}", url.PathEscape(parameterValueToString(r.id, "id")), -1)
+	localVarPath = strings.Replace(localVarPath, "{"+"deploymentId"+"}", url.PathEscape(parameterValueToString(r.deploymentId, "deploymentId")), -1)
+
+	localVarHeaderParams := make(map[string]string)
+	localVarQueryParams := url.Values{}
+	localVarFormParams := url.Values{}
+
+	// to determine the Content-Type header
+	localVarHTTPContentTypes := []string{}
+
+	// set Content-Type header
+	localVarHTTPContentType := selectHeaderContentType(localVarHTTPContentTypes)
+	if localVarHTTPContentType != "" {
+		localVarHeaderParams["Content-Type"] = localVarHTTPContentType
+	}
+
+	// to determine the Accept header
+	localVarHTTPHeaderAccepts := []string{"application/json"}
+
+	// set Accept header
+	localVarHTTPHeaderAccept := selectHeaderAccept(localVarHTTPHeaderAccepts)
+	if localVarHTTPHeaderAccept != "" {
+		localVarHeaderParams["Accept"] = localVarHTTPHeaderAccept
+	}
+	req, err := a.client.prepareRequest(r.ctx, localVarPath, localVarHTTPMethod, localVarPostBody, localVarHeaderParams, localVarQueryParams, localVarFormParams, formFiles)
+	if err != nil {
+		return nil, err
+	}
+
+	localVarHTTPResponse, err := a.client.callAPI(req)
+	if err != nil || localVarHTTPResponse == nil {
+		return localVarHTTPResponse, err
+	}
+
+	localVarBody, err := io.ReadAll(localVarHTTPResponse.Body)
+	localVarHTTPResponse.Body.Close()
+	localVarHTTPResponse.Body = io.NopCloser(bytes.NewBuffer(localVarBody))
+	if err != nil {
+		return localVarHTTPResponse, err
+	}
+
+	if localVarHTTPResponse.StatusCode >= 300 {
+		newErr := &GenericOpenAPIError{
+			body:  localVarBody,
+			error: localVarHTTPResponse.Status,
+		}
+		if localVarHTTPResponse.StatusCode == 400 {
+			var v ErrorResponse
+			err = a.client.decode(&v, localVarBody, localVarHTTPResponse.Header.Get("Content-Type"))
+			if err != nil {
+				newErr.error = err.Error()
+				return localVarHTTPResponse, newErr
+			}
+			newErr.error = formatErrorMessage(localVarHTTPResponse.Status, &v)
+			newErr.model = v
+			return localVarHTTPResponse, newErr
+		}
+		if localVarHTTPResponse.StatusCode == 401 {
+			var v ErrorResponse
+			err = a.client.decode(&v, localVarBody, localVarHTTPResponse.Header.Get("Content-Type"))
+			if err != nil {
+				newErr.error = err.Error()
+				return localVarHTTPResponse, newErr
+			}
+			newErr.error = formatErrorMessage(localVarHTTPResponse.Status, &v)
+			newErr.model = v
+			return localVarHTTPResponse, newErr
+		}
+		if localVarHTTPResponse.StatusCode == 404 {
+			var v ErrorResponse
+			err = a.client.decode(&v, localVarBody, localVarHTTPResponse.Header.Get("Content-Type"))
+			if err != nil {
+				newErr.error = err.Error()
+				return localVarHTTPResponse, newErr
+			}
+			newErr.error = formatErrorMessage(localVarHTTPResponse.Status, &v)
+			newErr.model = v
+			return localVarHTTPResponse, newErr
+		}
+		if localVarHTTPResponse.StatusCode == 409 {
+			var v ErrorResponse
+			err = a.client.decode(&v, localVarBody, localVarHTTPResponse.Header.Get("Content-Type"))
+			if err != nil {
+				newErr.error = err.Error()
+				return localVarHTTPResponse, newErr
+			}
+			newErr.error = formatErrorMessage(localVarHTTPResponse.Status, &v)
+			newErr.model = v
+			return localVarHTTPResponse, newErr
+		}
+		if localVarHTTPResponse.StatusCode == 500 {
+			var v ErrorResponse
+			err = a.client.decode(&v, localVarBody, localVarHTTPResponse.Header.Get("Content-Type"))
+			if err != nil {
+				newErr.error = err.Error()
+				return localVarHTTPResponse, newErr
+			}
+			newErr.error = formatErrorMessage(localVarHTTPResponse.Status, &v)
+			newErr.model = v
+		}
+		return localVarHTTPResponse, newErr
+	}
+
+	return localVarHTTPResponse, nil
+}
+
+type ApiDeployLLMProviderRequest struct {
+	ctx              context.Context
+	ApiService       *LLMDeploymentsAPIService
+	orgName          string
+	providerId       string
+	lLMDeployRequest *LLMDeployRequest
+}
+
+func (r ApiDeployLLMProviderRequest) LLMDeployRequest(lLMDeployRequest LLMDeployRequest) ApiDeployLLMProviderRequest {
+	r.lLMDeployRequest = &lLMDeployRequest
 	return r
 }
 
-func (r ApiDeployLLMProviderRequest) Execute() (*DeploymentResponse, *http.Response, error) {
+func (r ApiDeployLLMProviderRequest) Execute() (*LLMDeploymentResponse, *http.Response, error) {
 	return r.ApiService.DeployLLMProviderExecute(r)
 }
 
 /*
 DeployLLMProvider Deploy an LLM provider
 
-Deploy an LLM provider to a gateway
+Deploy the LLM provider's current configuration to a gateway. The deployment starts DEPLOYING and becomes DEPLOYED when the gateway acknowledges it; the request does not wait for the gateway. To redeploy an earlier deployment, restore it.
 
 	@param ctx context.Context - for authentication, logging, cancellation, deadlines, tracing, etc. Passed from http.Request or context.Background().
 	@param orgName Organization name/handle
@@ -214,13 +372,13 @@ func (a *LLMDeploymentsAPIService) DeployLLMProvider(ctx context.Context, orgNam
 
 // Execute executes the request
 //
-//	@return DeploymentResponse
-func (a *LLMDeploymentsAPIService) DeployLLMProviderExecute(r ApiDeployLLMProviderRequest) (*DeploymentResponse, *http.Response, error) {
+//	@return LLMDeploymentResponse
+func (a *LLMDeploymentsAPIService) DeployLLMProviderExecute(r ApiDeployLLMProviderRequest) (*LLMDeploymentResponse, *http.Response, error) {
 	var (
 		localVarHTTPMethod  = http.MethodPost
 		localVarPostBody    interface{}
 		formFiles           []formFile
-		localVarReturnValue *DeploymentResponse
+		localVarReturnValue *LLMDeploymentResponse
 	)
 
 	localBasePath, err := a.client.cfg.ServerURLWithContext(r.ctx, "LLMDeploymentsAPIService.DeployLLMProvider")
@@ -235,8 +393,8 @@ func (a *LLMDeploymentsAPIService) DeployLLMProviderExecute(r ApiDeployLLMProvid
 	localVarHeaderParams := make(map[string]string)
 	localVarQueryParams := url.Values{}
 	localVarFormParams := url.Values{}
-	if r.deployAgentRequest == nil {
-		return localVarReturnValue, nil, reportError("deployAgentRequest is required and must be specified")
+	if r.lLMDeployRequest == nil {
+		return localVarReturnValue, nil, reportError("lLMDeployRequest is required and must be specified")
 	}
 
 	// to determine the Content-Type header
@@ -257,7 +415,173 @@ func (a *LLMDeploymentsAPIService) DeployLLMProviderExecute(r ApiDeployLLMProvid
 		localVarHeaderParams["Accept"] = localVarHTTPHeaderAccept
 	}
 	// body params
-	localVarPostBody = r.deployAgentRequest
+	localVarPostBody = r.lLMDeployRequest
+	req, err := a.client.prepareRequest(r.ctx, localVarPath, localVarHTTPMethod, localVarPostBody, localVarHeaderParams, localVarQueryParams, localVarFormParams, formFiles)
+	if err != nil {
+		return localVarReturnValue, nil, err
+	}
+
+	localVarHTTPResponse, err := a.client.callAPI(req)
+	if err != nil || localVarHTTPResponse == nil {
+		return localVarReturnValue, localVarHTTPResponse, err
+	}
+
+	localVarBody, err := io.ReadAll(localVarHTTPResponse.Body)
+	localVarHTTPResponse.Body.Close()
+	localVarHTTPResponse.Body = io.NopCloser(bytes.NewBuffer(localVarBody))
+	if err != nil {
+		return localVarReturnValue, localVarHTTPResponse, err
+	}
+
+	if localVarHTTPResponse.StatusCode >= 300 {
+		newErr := &GenericOpenAPIError{
+			body:  localVarBody,
+			error: localVarHTTPResponse.Status,
+		}
+		if localVarHTTPResponse.StatusCode == 400 {
+			var v ErrorResponse
+			err = a.client.decode(&v, localVarBody, localVarHTTPResponse.Header.Get("Content-Type"))
+			if err != nil {
+				newErr.error = err.Error()
+				return localVarReturnValue, localVarHTTPResponse, newErr
+			}
+			newErr.error = formatErrorMessage(localVarHTTPResponse.Status, &v)
+			newErr.model = v
+			return localVarReturnValue, localVarHTTPResponse, newErr
+		}
+		if localVarHTTPResponse.StatusCode == 401 {
+			var v ErrorResponse
+			err = a.client.decode(&v, localVarBody, localVarHTTPResponse.Header.Get("Content-Type"))
+			if err != nil {
+				newErr.error = err.Error()
+				return localVarReturnValue, localVarHTTPResponse, newErr
+			}
+			newErr.error = formatErrorMessage(localVarHTTPResponse.Status, &v)
+			newErr.model = v
+			return localVarReturnValue, localVarHTTPResponse, newErr
+		}
+		if localVarHTTPResponse.StatusCode == 404 {
+			var v ErrorResponse
+			err = a.client.decode(&v, localVarBody, localVarHTTPResponse.Header.Get("Content-Type"))
+			if err != nil {
+				newErr.error = err.Error()
+				return localVarReturnValue, localVarHTTPResponse, newErr
+			}
+			newErr.error = formatErrorMessage(localVarHTTPResponse.Status, &v)
+			newErr.model = v
+			return localVarReturnValue, localVarHTTPResponse, newErr
+		}
+		if localVarHTTPResponse.StatusCode == 500 {
+			var v ErrorResponse
+			err = a.client.decode(&v, localVarBody, localVarHTTPResponse.Header.Get("Content-Type"))
+			if err != nil {
+				newErr.error = err.Error()
+				return localVarReturnValue, localVarHTTPResponse, newErr
+			}
+			newErr.error = formatErrorMessage(localVarHTTPResponse.Status, &v)
+			newErr.model = v
+		}
+		return localVarReturnValue, localVarHTTPResponse, newErr
+	}
+
+	err = a.client.decode(&localVarReturnValue, localVarBody, localVarHTTPResponse.Header.Get("Content-Type"))
+	if err != nil {
+		newErr := &GenericOpenAPIError{
+			body:  localVarBody,
+			error: err.Error(),
+		}
+		return localVarReturnValue, localVarHTTPResponse, newErr
+	}
+
+	return localVarReturnValue, localVarHTTPResponse, nil
+}
+
+type ApiDeployLLMProxyRequest struct {
+	ctx              context.Context
+	ApiService       *LLMDeploymentsAPIService
+	orgName          string
+	projName         string
+	id               string
+	lLMDeployRequest *LLMDeployRequest
+}
+
+func (r ApiDeployLLMProxyRequest) LLMDeployRequest(lLMDeployRequest LLMDeployRequest) ApiDeployLLMProxyRequest {
+	r.lLMDeployRequest = &lLMDeployRequest
+	return r
+}
+
+func (r ApiDeployLLMProxyRequest) Execute() (*LLMDeploymentResponse, *http.Response, error) {
+	return r.ApiService.DeployLLMProxyExecute(r)
+}
+
+/*
+DeployLLMProxy Deploy an LLM proxy
+
+Deploy the LLM proxy's current configuration to a gateway. The deployment starts DEPLOYING and becomes DEPLOYED when the gateway acknowledges it; the request does not wait for the gateway. To redeploy an earlier deployment, restore it.
+
+	@param ctx context.Context - for authentication, logging, cancellation, deadlines, tracing, etc. Passed from http.Request or context.Background().
+	@param orgName Organization name/handle
+	@param projName Project name
+	@param id Proxy handle
+	@return ApiDeployLLMProxyRequest
+*/
+func (a *LLMDeploymentsAPIService) DeployLLMProxy(ctx context.Context, orgName string, projName string, id string) ApiDeployLLMProxyRequest {
+	return ApiDeployLLMProxyRequest{
+		ApiService: a,
+		ctx:        ctx,
+		orgName:    orgName,
+		projName:   projName,
+		id:         id,
+	}
+}
+
+// Execute executes the request
+//
+//	@return LLMDeploymentResponse
+func (a *LLMDeploymentsAPIService) DeployLLMProxyExecute(r ApiDeployLLMProxyRequest) (*LLMDeploymentResponse, *http.Response, error) {
+	var (
+		localVarHTTPMethod  = http.MethodPost
+		localVarPostBody    interface{}
+		formFiles           []formFile
+		localVarReturnValue *LLMDeploymentResponse
+	)
+
+	localBasePath, err := a.client.cfg.ServerURLWithContext(r.ctx, "LLMDeploymentsAPIService.DeployLLMProxy")
+	if err != nil {
+		return localVarReturnValue, nil, &GenericOpenAPIError{error: err.Error()}
+	}
+
+	localVarPath := localBasePath + "/orgs/{orgName}/projects/{projName}/llm-proxies/{id}/deployments"
+	localVarPath = strings.Replace(localVarPath, "{"+"orgName"+"}", url.PathEscape(parameterValueToString(r.orgName, "orgName")), -1)
+	localVarPath = strings.Replace(localVarPath, "{"+"projName"+"}", url.PathEscape(parameterValueToString(r.projName, "projName")), -1)
+	localVarPath = strings.Replace(localVarPath, "{"+"id"+"}", url.PathEscape(parameterValueToString(r.id, "id")), -1)
+
+	localVarHeaderParams := make(map[string]string)
+	localVarQueryParams := url.Values{}
+	localVarFormParams := url.Values{}
+	if r.lLMDeployRequest == nil {
+		return localVarReturnValue, nil, reportError("lLMDeployRequest is required and must be specified")
+	}
+
+	// to determine the Content-Type header
+	localVarHTTPContentTypes := []string{"application/json"}
+
+	// set Content-Type header
+	localVarHTTPContentType := selectHeaderContentType(localVarHTTPContentTypes)
+	if localVarHTTPContentType != "" {
+		localVarHeaderParams["Content-Type"] = localVarHTTPContentType
+	}
+
+	// to determine the Accept header
+	localVarHTTPHeaderAccepts := []string{"application/json"}
+
+	// set Accept header
+	localVarHTTPHeaderAccept := selectHeaderAccept(localVarHTTPHeaderAccepts)
+	if localVarHTTPHeaderAccept != "" {
+		localVarHeaderParams["Accept"] = localVarHTTPHeaderAccept
+	}
+	// body params
+	localVarPostBody = r.lLMDeployRequest
 	req, err := a.client.prepareRequest(r.ctx, localVarPath, localVarHTTPMethod, localVarPostBody, localVarHeaderParams, localVarQueryParams, localVarFormParams, formFiles)
 	if err != nil {
 		return localVarReturnValue, nil, err
@@ -346,7 +670,7 @@ type ApiGetLLMProviderDeploymentRequest struct {
 	deploymentId string
 }
 
-func (r ApiGetLLMProviderDeploymentRequest) Execute() (*DeploymentResponse, *http.Response, error) {
+func (r ApiGetLLMProviderDeploymentRequest) Execute() (*LLMDeploymentResponse, *http.Response, error) {
 	return r.ApiService.GetLLMProviderDeploymentExecute(r)
 }
 
@@ -373,13 +697,13 @@ func (a *LLMDeploymentsAPIService) GetLLMProviderDeployment(ctx context.Context,
 
 // Execute executes the request
 //
-//	@return DeploymentResponse
-func (a *LLMDeploymentsAPIService) GetLLMProviderDeploymentExecute(r ApiGetLLMProviderDeploymentRequest) (*DeploymentResponse, *http.Response, error) {
+//	@return LLMDeploymentResponse
+func (a *LLMDeploymentsAPIService) GetLLMProviderDeploymentExecute(r ApiGetLLMProviderDeploymentRequest) (*LLMDeploymentResponse, *http.Response, error) {
 	var (
 		localVarHTTPMethod  = http.MethodGet
 		localVarPostBody    interface{}
 		formFiles           []formFile
-		localVarReturnValue *DeploymentResponse
+		localVarReturnValue *LLMDeploymentResponse
 	)
 
 	localBasePath, err := a.client.cfg.ServerURLWithContext(r.ctx, "LLMDeploymentsAPIService.GetLLMProviderDeployment")
@@ -508,13 +832,13 @@ func (r ApiGetLLMProviderDeploymentsRequest) GatewayId(gatewayId string) ApiGetL
 	return r
 }
 
-// Filter by deployment status
+// Filter by the gateway&#39;s stored deployment status. A deployment whose redeploy is owed is shown DEPLOYING but filtered by the status the gateway holds.
 func (r ApiGetLLMProviderDeploymentsRequest) Status(status string) ApiGetLLMProviderDeploymentsRequest {
 	r.status = &status
 	return r
 }
 
-func (r ApiGetLLMProviderDeploymentsRequest) Execute() ([]DeploymentResponse, *http.Response, error) {
+func (r ApiGetLLMProviderDeploymentsRequest) Execute() ([]LLMDeploymentResponse, *http.Response, error) {
 	return r.ApiService.GetLLMProviderDeploymentsExecute(r)
 }
 
@@ -539,13 +863,13 @@ func (a *LLMDeploymentsAPIService) GetLLMProviderDeployments(ctx context.Context
 
 // Execute executes the request
 //
-//	@return []DeploymentResponse
-func (a *LLMDeploymentsAPIService) GetLLMProviderDeploymentsExecute(r ApiGetLLMProviderDeploymentsRequest) ([]DeploymentResponse, *http.Response, error) {
+//	@return []LLMDeploymentResponse
+func (a *LLMDeploymentsAPIService) GetLLMProviderDeploymentsExecute(r ApiGetLLMProviderDeploymentsRequest) ([]LLMDeploymentResponse, *http.Response, error) {
 	var (
 		localVarHTTPMethod  = http.MethodGet
 		localVarPostBody    interface{}
 		formFiles           []formFile
-		localVarReturnValue []DeploymentResponse
+		localVarReturnValue []LLMDeploymentResponse
 	)
 
 	localBasePath, err := a.client.cfg.ServerURLWithContext(r.ctx, "LLMDeploymentsAPIService.GetLLMProviderDeployments")
@@ -556,6 +880,340 @@ func (a *LLMDeploymentsAPIService) GetLLMProviderDeploymentsExecute(r ApiGetLLMP
 	localVarPath := localBasePath + "/orgs/{orgName}/llm-providers/{providerId}/deployments"
 	localVarPath = strings.Replace(localVarPath, "{"+"orgName"+"}", url.PathEscape(parameterValueToString(r.orgName, "orgName")), -1)
 	localVarPath = strings.Replace(localVarPath, "{"+"providerId"+"}", url.PathEscape(parameterValueToString(r.providerId, "providerId")), -1)
+
+	localVarHeaderParams := make(map[string]string)
+	localVarQueryParams := url.Values{}
+	localVarFormParams := url.Values{}
+
+	if r.gatewayId != nil {
+		parameterAddToHeaderOrQuery(localVarQueryParams, "gatewayId", r.gatewayId, "")
+	}
+	if r.status != nil {
+		parameterAddToHeaderOrQuery(localVarQueryParams, "status", r.status, "")
+	}
+	// to determine the Content-Type header
+	localVarHTTPContentTypes := []string{}
+
+	// set Content-Type header
+	localVarHTTPContentType := selectHeaderContentType(localVarHTTPContentTypes)
+	if localVarHTTPContentType != "" {
+		localVarHeaderParams["Content-Type"] = localVarHTTPContentType
+	}
+
+	// to determine the Accept header
+	localVarHTTPHeaderAccepts := []string{"application/json"}
+
+	// set Accept header
+	localVarHTTPHeaderAccept := selectHeaderAccept(localVarHTTPHeaderAccepts)
+	if localVarHTTPHeaderAccept != "" {
+		localVarHeaderParams["Accept"] = localVarHTTPHeaderAccept
+	}
+	req, err := a.client.prepareRequest(r.ctx, localVarPath, localVarHTTPMethod, localVarPostBody, localVarHeaderParams, localVarQueryParams, localVarFormParams, formFiles)
+	if err != nil {
+		return localVarReturnValue, nil, err
+	}
+
+	localVarHTTPResponse, err := a.client.callAPI(req)
+	if err != nil || localVarHTTPResponse == nil {
+		return localVarReturnValue, localVarHTTPResponse, err
+	}
+
+	localVarBody, err := io.ReadAll(localVarHTTPResponse.Body)
+	localVarHTTPResponse.Body.Close()
+	localVarHTTPResponse.Body = io.NopCloser(bytes.NewBuffer(localVarBody))
+	if err != nil {
+		return localVarReturnValue, localVarHTTPResponse, err
+	}
+
+	if localVarHTTPResponse.StatusCode >= 300 {
+		newErr := &GenericOpenAPIError{
+			body:  localVarBody,
+			error: localVarHTTPResponse.Status,
+		}
+		if localVarHTTPResponse.StatusCode == 400 {
+			var v ErrorResponse
+			err = a.client.decode(&v, localVarBody, localVarHTTPResponse.Header.Get("Content-Type"))
+			if err != nil {
+				newErr.error = err.Error()
+				return localVarReturnValue, localVarHTTPResponse, newErr
+			}
+			newErr.error = formatErrorMessage(localVarHTTPResponse.Status, &v)
+			newErr.model = v
+			return localVarReturnValue, localVarHTTPResponse, newErr
+		}
+		if localVarHTTPResponse.StatusCode == 401 {
+			var v ErrorResponse
+			err = a.client.decode(&v, localVarBody, localVarHTTPResponse.Header.Get("Content-Type"))
+			if err != nil {
+				newErr.error = err.Error()
+				return localVarReturnValue, localVarHTTPResponse, newErr
+			}
+			newErr.error = formatErrorMessage(localVarHTTPResponse.Status, &v)
+			newErr.model = v
+			return localVarReturnValue, localVarHTTPResponse, newErr
+		}
+		if localVarHTTPResponse.StatusCode == 404 {
+			var v ErrorResponse
+			err = a.client.decode(&v, localVarBody, localVarHTTPResponse.Header.Get("Content-Type"))
+			if err != nil {
+				newErr.error = err.Error()
+				return localVarReturnValue, localVarHTTPResponse, newErr
+			}
+			newErr.error = formatErrorMessage(localVarHTTPResponse.Status, &v)
+			newErr.model = v
+			return localVarReturnValue, localVarHTTPResponse, newErr
+		}
+		if localVarHTTPResponse.StatusCode == 500 {
+			var v ErrorResponse
+			err = a.client.decode(&v, localVarBody, localVarHTTPResponse.Header.Get("Content-Type"))
+			if err != nil {
+				newErr.error = err.Error()
+				return localVarReturnValue, localVarHTTPResponse, newErr
+			}
+			newErr.error = formatErrorMessage(localVarHTTPResponse.Status, &v)
+			newErr.model = v
+		}
+		return localVarReturnValue, localVarHTTPResponse, newErr
+	}
+
+	err = a.client.decode(&localVarReturnValue, localVarBody, localVarHTTPResponse.Header.Get("Content-Type"))
+	if err != nil {
+		newErr := &GenericOpenAPIError{
+			body:  localVarBody,
+			error: err.Error(),
+		}
+		return localVarReturnValue, localVarHTTPResponse, newErr
+	}
+
+	return localVarReturnValue, localVarHTTPResponse, nil
+}
+
+type ApiGetLLMProxyDeploymentRequest struct {
+	ctx          context.Context
+	ApiService   *LLMDeploymentsAPIService
+	orgName      string
+	projName     string
+	id           string
+	deploymentId string
+}
+
+func (r ApiGetLLMProxyDeploymentRequest) Execute() (*LLMDeploymentResponse, *http.Response, error) {
+	return r.ApiService.GetLLMProxyDeploymentExecute(r)
+}
+
+/*
+GetLLMProxyDeployment Get LLM proxy deployment details
+
+Retrieve detailed information about a specific deployment
+
+	@param ctx context.Context - for authentication, logging, cancellation, deadlines, tracing, etc. Passed from http.Request or context.Background().
+	@param orgName Organization name/handle
+	@param projName Project name
+	@param id Proxy handle
+	@param deploymentId Deployment UUID
+	@return ApiGetLLMProxyDeploymentRequest
+*/
+func (a *LLMDeploymentsAPIService) GetLLMProxyDeployment(ctx context.Context, orgName string, projName string, id string, deploymentId string) ApiGetLLMProxyDeploymentRequest {
+	return ApiGetLLMProxyDeploymentRequest{
+		ApiService:   a,
+		ctx:          ctx,
+		orgName:      orgName,
+		projName:     projName,
+		id:           id,
+		deploymentId: deploymentId,
+	}
+}
+
+// Execute executes the request
+//
+//	@return LLMDeploymentResponse
+func (a *LLMDeploymentsAPIService) GetLLMProxyDeploymentExecute(r ApiGetLLMProxyDeploymentRequest) (*LLMDeploymentResponse, *http.Response, error) {
+	var (
+		localVarHTTPMethod  = http.MethodGet
+		localVarPostBody    interface{}
+		formFiles           []formFile
+		localVarReturnValue *LLMDeploymentResponse
+	)
+
+	localBasePath, err := a.client.cfg.ServerURLWithContext(r.ctx, "LLMDeploymentsAPIService.GetLLMProxyDeployment")
+	if err != nil {
+		return localVarReturnValue, nil, &GenericOpenAPIError{error: err.Error()}
+	}
+
+	localVarPath := localBasePath + "/orgs/{orgName}/projects/{projName}/llm-proxies/{id}/deployments/{deploymentId}"
+	localVarPath = strings.Replace(localVarPath, "{"+"orgName"+"}", url.PathEscape(parameterValueToString(r.orgName, "orgName")), -1)
+	localVarPath = strings.Replace(localVarPath, "{"+"projName"+"}", url.PathEscape(parameterValueToString(r.projName, "projName")), -1)
+	localVarPath = strings.Replace(localVarPath, "{"+"id"+"}", url.PathEscape(parameterValueToString(r.id, "id")), -1)
+	localVarPath = strings.Replace(localVarPath, "{"+"deploymentId"+"}", url.PathEscape(parameterValueToString(r.deploymentId, "deploymentId")), -1)
+
+	localVarHeaderParams := make(map[string]string)
+	localVarQueryParams := url.Values{}
+	localVarFormParams := url.Values{}
+
+	// to determine the Content-Type header
+	localVarHTTPContentTypes := []string{}
+
+	// set Content-Type header
+	localVarHTTPContentType := selectHeaderContentType(localVarHTTPContentTypes)
+	if localVarHTTPContentType != "" {
+		localVarHeaderParams["Content-Type"] = localVarHTTPContentType
+	}
+
+	// to determine the Accept header
+	localVarHTTPHeaderAccepts := []string{"application/json"}
+
+	// set Accept header
+	localVarHTTPHeaderAccept := selectHeaderAccept(localVarHTTPHeaderAccepts)
+	if localVarHTTPHeaderAccept != "" {
+		localVarHeaderParams["Accept"] = localVarHTTPHeaderAccept
+	}
+	req, err := a.client.prepareRequest(r.ctx, localVarPath, localVarHTTPMethod, localVarPostBody, localVarHeaderParams, localVarQueryParams, localVarFormParams, formFiles)
+	if err != nil {
+		return localVarReturnValue, nil, err
+	}
+
+	localVarHTTPResponse, err := a.client.callAPI(req)
+	if err != nil || localVarHTTPResponse == nil {
+		return localVarReturnValue, localVarHTTPResponse, err
+	}
+
+	localVarBody, err := io.ReadAll(localVarHTTPResponse.Body)
+	localVarHTTPResponse.Body.Close()
+	localVarHTTPResponse.Body = io.NopCloser(bytes.NewBuffer(localVarBody))
+	if err != nil {
+		return localVarReturnValue, localVarHTTPResponse, err
+	}
+
+	if localVarHTTPResponse.StatusCode >= 300 {
+		newErr := &GenericOpenAPIError{
+			body:  localVarBody,
+			error: localVarHTTPResponse.Status,
+		}
+		if localVarHTTPResponse.StatusCode == 400 {
+			var v ErrorResponse
+			err = a.client.decode(&v, localVarBody, localVarHTTPResponse.Header.Get("Content-Type"))
+			if err != nil {
+				newErr.error = err.Error()
+				return localVarReturnValue, localVarHTTPResponse, newErr
+			}
+			newErr.error = formatErrorMessage(localVarHTTPResponse.Status, &v)
+			newErr.model = v
+			return localVarReturnValue, localVarHTTPResponse, newErr
+		}
+		if localVarHTTPResponse.StatusCode == 401 {
+			var v ErrorResponse
+			err = a.client.decode(&v, localVarBody, localVarHTTPResponse.Header.Get("Content-Type"))
+			if err != nil {
+				newErr.error = err.Error()
+				return localVarReturnValue, localVarHTTPResponse, newErr
+			}
+			newErr.error = formatErrorMessage(localVarHTTPResponse.Status, &v)
+			newErr.model = v
+			return localVarReturnValue, localVarHTTPResponse, newErr
+		}
+		if localVarHTTPResponse.StatusCode == 404 {
+			var v ErrorResponse
+			err = a.client.decode(&v, localVarBody, localVarHTTPResponse.Header.Get("Content-Type"))
+			if err != nil {
+				newErr.error = err.Error()
+				return localVarReturnValue, localVarHTTPResponse, newErr
+			}
+			newErr.error = formatErrorMessage(localVarHTTPResponse.Status, &v)
+			newErr.model = v
+			return localVarReturnValue, localVarHTTPResponse, newErr
+		}
+		if localVarHTTPResponse.StatusCode == 500 {
+			var v ErrorResponse
+			err = a.client.decode(&v, localVarBody, localVarHTTPResponse.Header.Get("Content-Type"))
+			if err != nil {
+				newErr.error = err.Error()
+				return localVarReturnValue, localVarHTTPResponse, newErr
+			}
+			newErr.error = formatErrorMessage(localVarHTTPResponse.Status, &v)
+			newErr.model = v
+		}
+		return localVarReturnValue, localVarHTTPResponse, newErr
+	}
+
+	err = a.client.decode(&localVarReturnValue, localVarBody, localVarHTTPResponse.Header.Get("Content-Type"))
+	if err != nil {
+		newErr := &GenericOpenAPIError{
+			body:  localVarBody,
+			error: err.Error(),
+		}
+		return localVarReturnValue, localVarHTTPResponse, newErr
+	}
+
+	return localVarReturnValue, localVarHTTPResponse, nil
+}
+
+type ApiGetLLMProxyDeploymentsRequest struct {
+	ctx        context.Context
+	ApiService *LLMDeploymentsAPIService
+	orgName    string
+	projName   string
+	id         string
+	gatewayId  *string
+	status     *string
+}
+
+// Filter by gateway ID
+func (r ApiGetLLMProxyDeploymentsRequest) GatewayId(gatewayId string) ApiGetLLMProxyDeploymentsRequest {
+	r.gatewayId = &gatewayId
+	return r
+}
+
+// Filter by the gateway&#39;s stored deployment status. A deployment whose redeploy is owed is shown DEPLOYING but filtered by the status the gateway holds.
+func (r ApiGetLLMProxyDeploymentsRequest) Status(status string) ApiGetLLMProxyDeploymentsRequest {
+	r.status = &status
+	return r
+}
+
+func (r ApiGetLLMProxyDeploymentsRequest) Execute() ([]LLMDeploymentResponse, *http.Response, error) {
+	return r.ApiService.GetLLMProxyDeploymentsExecute(r)
+}
+
+/*
+GetLLMProxyDeployments Get LLM proxy deployments
+
+Retrieve all deployments for an LLM proxy
+
+	@param ctx context.Context - for authentication, logging, cancellation, deadlines, tracing, etc. Passed from http.Request or context.Background().
+	@param orgName Organization name/handle
+	@param projName Project name
+	@param id Proxy handle
+	@return ApiGetLLMProxyDeploymentsRequest
+*/
+func (a *LLMDeploymentsAPIService) GetLLMProxyDeployments(ctx context.Context, orgName string, projName string, id string) ApiGetLLMProxyDeploymentsRequest {
+	return ApiGetLLMProxyDeploymentsRequest{
+		ApiService: a,
+		ctx:        ctx,
+		orgName:    orgName,
+		projName:   projName,
+		id:         id,
+	}
+}
+
+// Execute executes the request
+//
+//	@return []LLMDeploymentResponse
+func (a *LLMDeploymentsAPIService) GetLLMProxyDeploymentsExecute(r ApiGetLLMProxyDeploymentsRequest) ([]LLMDeploymentResponse, *http.Response, error) {
+	var (
+		localVarHTTPMethod  = http.MethodGet
+		localVarPostBody    interface{}
+		formFiles           []formFile
+		localVarReturnValue []LLMDeploymentResponse
+	)
+
+	localBasePath, err := a.client.cfg.ServerURLWithContext(r.ctx, "LLMDeploymentsAPIService.GetLLMProxyDeployments")
+	if err != nil {
+		return localVarReturnValue, nil, &GenericOpenAPIError{error: err.Error()}
+	}
+
+	localVarPath := localBasePath + "/orgs/{orgName}/projects/{projName}/llm-proxies/{id}/deployments"
+	localVarPath = strings.Replace(localVarPath, "{"+"orgName"+"}", url.PathEscape(parameterValueToString(r.orgName, "orgName")), -1)
+	localVarPath = strings.Replace(localVarPath, "{"+"projName"+"}", url.PathEscape(parameterValueToString(r.projName, "projName")), -1)
+	localVarPath = strings.Replace(localVarPath, "{"+"id"+"}", url.PathEscape(parameterValueToString(r.id, "id")), -1)
 
 	localVarHeaderParams := make(map[string]string)
 	localVarQueryParams := url.Values{}
@@ -685,14 +1343,14 @@ func (r ApiRestoreLLMProviderDeploymentRequest) GatewayId(gatewayId string) ApiR
 	return r
 }
 
-func (r ApiRestoreLLMProviderDeploymentRequest) Execute() (*DeploymentResponse, *http.Response, error) {
+func (r ApiRestoreLLMProviderDeploymentRequest) Execute() (*LLMDeploymentResponse, *http.Response, error) {
 	return r.ApiService.RestoreLLMProviderDeploymentExecute(r)
 }
 
 /*
 RestoreLLMProviderDeployment Restore an LLM provider deployment
 
-Restore a previously undeployed deployment
+Point the gateway back at an earlier deployment, whatever the current deployment's status. It cancels a redeploy that is still owed.
 
 	@param ctx context.Context - for authentication, logging, cancellation, deadlines, tracing, etc. Passed from http.Request or context.Background().
 	@param orgName Organization name/handle
@@ -710,13 +1368,13 @@ func (a *LLMDeploymentsAPIService) RestoreLLMProviderDeployment(ctx context.Cont
 
 // Execute executes the request
 //
-//	@return DeploymentResponse
-func (a *LLMDeploymentsAPIService) RestoreLLMProviderDeploymentExecute(r ApiRestoreLLMProviderDeploymentRequest) (*DeploymentResponse, *http.Response, error) {
+//	@return LLMDeploymentResponse
+func (a *LLMDeploymentsAPIService) RestoreLLMProviderDeploymentExecute(r ApiRestoreLLMProviderDeploymentRequest) (*LLMDeploymentResponse, *http.Response, error) {
 	var (
 		localVarHTTPMethod  = http.MethodPost
 		localVarPostBody    interface{}
 		formFiles           []formFile
-		localVarReturnValue *DeploymentResponse
+		localVarReturnValue *LLMDeploymentResponse
 	)
 
 	localBasePath, err := a.client.cfg.ServerURLWithContext(r.ctx, "LLMDeploymentsAPIService.RestoreLLMProviderDeployment")
@@ -727,6 +1385,194 @@ func (a *LLMDeploymentsAPIService) RestoreLLMProviderDeploymentExecute(r ApiRest
 	localVarPath := localBasePath + "/orgs/{orgName}/llm-providers/{providerId}/deployments/restore"
 	localVarPath = strings.Replace(localVarPath, "{"+"orgName"+"}", url.PathEscape(parameterValueToString(r.orgName, "orgName")), -1)
 	localVarPath = strings.Replace(localVarPath, "{"+"providerId"+"}", url.PathEscape(parameterValueToString(r.providerId, "providerId")), -1)
+
+	localVarHeaderParams := make(map[string]string)
+	localVarQueryParams := url.Values{}
+	localVarFormParams := url.Values{}
+	if r.deploymentId == nil {
+		return localVarReturnValue, nil, reportError("deploymentId is required and must be specified")
+	}
+	if r.gatewayId == nil {
+		return localVarReturnValue, nil, reportError("gatewayId is required and must be specified")
+	}
+
+	parameterAddToHeaderOrQuery(localVarQueryParams, "deploymentId", r.deploymentId, "")
+	parameterAddToHeaderOrQuery(localVarQueryParams, "gatewayId", r.gatewayId, "")
+	// to determine the Content-Type header
+	localVarHTTPContentTypes := []string{}
+
+	// set Content-Type header
+	localVarHTTPContentType := selectHeaderContentType(localVarHTTPContentTypes)
+	if localVarHTTPContentType != "" {
+		localVarHeaderParams["Content-Type"] = localVarHTTPContentType
+	}
+
+	// to determine the Accept header
+	localVarHTTPHeaderAccepts := []string{"application/json"}
+
+	// set Accept header
+	localVarHTTPHeaderAccept := selectHeaderAccept(localVarHTTPHeaderAccepts)
+	if localVarHTTPHeaderAccept != "" {
+		localVarHeaderParams["Accept"] = localVarHTTPHeaderAccept
+	}
+	req, err := a.client.prepareRequest(r.ctx, localVarPath, localVarHTTPMethod, localVarPostBody, localVarHeaderParams, localVarQueryParams, localVarFormParams, formFiles)
+	if err != nil {
+		return localVarReturnValue, nil, err
+	}
+
+	localVarHTTPResponse, err := a.client.callAPI(req)
+	if err != nil || localVarHTTPResponse == nil {
+		return localVarReturnValue, localVarHTTPResponse, err
+	}
+
+	localVarBody, err := io.ReadAll(localVarHTTPResponse.Body)
+	localVarHTTPResponse.Body.Close()
+	localVarHTTPResponse.Body = io.NopCloser(bytes.NewBuffer(localVarBody))
+	if err != nil {
+		return localVarReturnValue, localVarHTTPResponse, err
+	}
+
+	if localVarHTTPResponse.StatusCode >= 300 {
+		newErr := &GenericOpenAPIError{
+			body:  localVarBody,
+			error: localVarHTTPResponse.Status,
+		}
+		if localVarHTTPResponse.StatusCode == 400 {
+			var v ErrorResponse
+			err = a.client.decode(&v, localVarBody, localVarHTTPResponse.Header.Get("Content-Type"))
+			if err != nil {
+				newErr.error = err.Error()
+				return localVarReturnValue, localVarHTTPResponse, newErr
+			}
+			newErr.error = formatErrorMessage(localVarHTTPResponse.Status, &v)
+			newErr.model = v
+			return localVarReturnValue, localVarHTTPResponse, newErr
+		}
+		if localVarHTTPResponse.StatusCode == 401 {
+			var v ErrorResponse
+			err = a.client.decode(&v, localVarBody, localVarHTTPResponse.Header.Get("Content-Type"))
+			if err != nil {
+				newErr.error = err.Error()
+				return localVarReturnValue, localVarHTTPResponse, newErr
+			}
+			newErr.error = formatErrorMessage(localVarHTTPResponse.Status, &v)
+			newErr.model = v
+			return localVarReturnValue, localVarHTTPResponse, newErr
+		}
+		if localVarHTTPResponse.StatusCode == 404 {
+			var v ErrorResponse
+			err = a.client.decode(&v, localVarBody, localVarHTTPResponse.Header.Get("Content-Type"))
+			if err != nil {
+				newErr.error = err.Error()
+				return localVarReturnValue, localVarHTTPResponse, newErr
+			}
+			newErr.error = formatErrorMessage(localVarHTTPResponse.Status, &v)
+			newErr.model = v
+			return localVarReturnValue, localVarHTTPResponse, newErr
+		}
+		if localVarHTTPResponse.StatusCode == 409 {
+			var v ErrorResponse
+			err = a.client.decode(&v, localVarBody, localVarHTTPResponse.Header.Get("Content-Type"))
+			if err != nil {
+				newErr.error = err.Error()
+				return localVarReturnValue, localVarHTTPResponse, newErr
+			}
+			newErr.error = formatErrorMessage(localVarHTTPResponse.Status, &v)
+			newErr.model = v
+			return localVarReturnValue, localVarHTTPResponse, newErr
+		}
+		if localVarHTTPResponse.StatusCode == 500 {
+			var v ErrorResponse
+			err = a.client.decode(&v, localVarBody, localVarHTTPResponse.Header.Get("Content-Type"))
+			if err != nil {
+				newErr.error = err.Error()
+				return localVarReturnValue, localVarHTTPResponse, newErr
+			}
+			newErr.error = formatErrorMessage(localVarHTTPResponse.Status, &v)
+			newErr.model = v
+		}
+		return localVarReturnValue, localVarHTTPResponse, newErr
+	}
+
+	err = a.client.decode(&localVarReturnValue, localVarBody, localVarHTTPResponse.Header.Get("Content-Type"))
+	if err != nil {
+		newErr := &GenericOpenAPIError{
+			body:  localVarBody,
+			error: err.Error(),
+		}
+		return localVarReturnValue, localVarHTTPResponse, newErr
+	}
+
+	return localVarReturnValue, localVarHTTPResponse, nil
+}
+
+type ApiRestoreLLMProxyDeploymentRequest struct {
+	ctx          context.Context
+	ApiService   *LLMDeploymentsAPIService
+	orgName      string
+	projName     string
+	id           string
+	deploymentId *string
+	gatewayId    *string
+}
+
+// Deployment UUID to restore
+func (r ApiRestoreLLMProxyDeploymentRequest) DeploymentId(deploymentId string) ApiRestoreLLMProxyDeploymentRequest {
+	r.deploymentId = &deploymentId
+	return r
+}
+
+// Gateway UUID
+func (r ApiRestoreLLMProxyDeploymentRequest) GatewayId(gatewayId string) ApiRestoreLLMProxyDeploymentRequest {
+	r.gatewayId = &gatewayId
+	return r
+}
+
+func (r ApiRestoreLLMProxyDeploymentRequest) Execute() (*LLMDeploymentResponse, *http.Response, error) {
+	return r.ApiService.RestoreLLMProxyDeploymentExecute(r)
+}
+
+/*
+RestoreLLMProxyDeployment Restore an LLM proxy deployment
+
+Point the gateway back at an earlier deployment, whatever the current deployment's status. It cancels a redeploy that is still owed.
+
+	@param ctx context.Context - for authentication, logging, cancellation, deadlines, tracing, etc. Passed from http.Request or context.Background().
+	@param orgName Organization name/handle
+	@param projName Project name
+	@param id Proxy handle
+	@return ApiRestoreLLMProxyDeploymentRequest
+*/
+func (a *LLMDeploymentsAPIService) RestoreLLMProxyDeployment(ctx context.Context, orgName string, projName string, id string) ApiRestoreLLMProxyDeploymentRequest {
+	return ApiRestoreLLMProxyDeploymentRequest{
+		ApiService: a,
+		ctx:        ctx,
+		orgName:    orgName,
+		projName:   projName,
+		id:         id,
+	}
+}
+
+// Execute executes the request
+//
+//	@return LLMDeploymentResponse
+func (a *LLMDeploymentsAPIService) RestoreLLMProxyDeploymentExecute(r ApiRestoreLLMProxyDeploymentRequest) (*LLMDeploymentResponse, *http.Response, error) {
+	var (
+		localVarHTTPMethod  = http.MethodPost
+		localVarPostBody    interface{}
+		formFiles           []formFile
+		localVarReturnValue *LLMDeploymentResponse
+	)
+
+	localBasePath, err := a.client.cfg.ServerURLWithContext(r.ctx, "LLMDeploymentsAPIService.RestoreLLMProxyDeployment")
+	if err != nil {
+		return localVarReturnValue, nil, &GenericOpenAPIError{error: err.Error()}
+	}
+
+	localVarPath := localBasePath + "/orgs/{orgName}/projects/{projName}/llm-proxies/{id}/deployments/restore"
+	localVarPath = strings.Replace(localVarPath, "{"+"orgName"+"}", url.PathEscape(parameterValueToString(r.orgName, "orgName")), -1)
+	localVarPath = strings.Replace(localVarPath, "{"+"projName"+"}", url.PathEscape(parameterValueToString(r.projName, "projName")), -1)
+	localVarPath = strings.Replace(localVarPath, "{"+"id"+"}", url.PathEscape(parameterValueToString(r.id, "id")), -1)
 
 	localVarHeaderParams := make(map[string]string)
 	localVarQueryParams := url.Values{}
@@ -876,7 +1722,7 @@ func (r ApiUndeployLLMProviderDeploymentRequest) Execute() (*UndeployLLMProvider
 /*
 UndeployLLMProviderDeployment Undeploy an LLM provider deployment
 
-Undeploy a specific deployment of an LLM provider
+Undeploy the provider's current deployment on a gateway, whether it is DEPLOYING, DEPLOYED or failed to deploy. The deployment goes UNDEPLOYING until the gateway acknowledges it. A failed undeploy can be retried by undeploying again.
 
 	@param ctx context.Context - for authentication, logging, cancellation, deadlines, tracing, etc. Passed from http.Request or context.Background().
 	@param orgName Organization name/handle
@@ -911,6 +1757,194 @@ func (a *LLMDeploymentsAPIService) UndeployLLMProviderDeploymentExecute(r ApiUnd
 	localVarPath := localBasePath + "/orgs/{orgName}/llm-providers/{providerId}/deployments/undeploy"
 	localVarPath = strings.Replace(localVarPath, "{"+"orgName"+"}", url.PathEscape(parameterValueToString(r.orgName, "orgName")), -1)
 	localVarPath = strings.Replace(localVarPath, "{"+"providerId"+"}", url.PathEscape(parameterValueToString(r.providerId, "providerId")), -1)
+
+	localVarHeaderParams := make(map[string]string)
+	localVarQueryParams := url.Values{}
+	localVarFormParams := url.Values{}
+	if r.deploymentId == nil {
+		return localVarReturnValue, nil, reportError("deploymentId is required and must be specified")
+	}
+	if r.gatewayId == nil {
+		return localVarReturnValue, nil, reportError("gatewayId is required and must be specified")
+	}
+
+	parameterAddToHeaderOrQuery(localVarQueryParams, "deploymentId", r.deploymentId, "")
+	parameterAddToHeaderOrQuery(localVarQueryParams, "gatewayId", r.gatewayId, "")
+	// to determine the Content-Type header
+	localVarHTTPContentTypes := []string{}
+
+	// set Content-Type header
+	localVarHTTPContentType := selectHeaderContentType(localVarHTTPContentTypes)
+	if localVarHTTPContentType != "" {
+		localVarHeaderParams["Content-Type"] = localVarHTTPContentType
+	}
+
+	// to determine the Accept header
+	localVarHTTPHeaderAccepts := []string{"application/json"}
+
+	// set Accept header
+	localVarHTTPHeaderAccept := selectHeaderAccept(localVarHTTPHeaderAccepts)
+	if localVarHTTPHeaderAccept != "" {
+		localVarHeaderParams["Accept"] = localVarHTTPHeaderAccept
+	}
+	req, err := a.client.prepareRequest(r.ctx, localVarPath, localVarHTTPMethod, localVarPostBody, localVarHeaderParams, localVarQueryParams, localVarFormParams, formFiles)
+	if err != nil {
+		return localVarReturnValue, nil, err
+	}
+
+	localVarHTTPResponse, err := a.client.callAPI(req)
+	if err != nil || localVarHTTPResponse == nil {
+		return localVarReturnValue, localVarHTTPResponse, err
+	}
+
+	localVarBody, err := io.ReadAll(localVarHTTPResponse.Body)
+	localVarHTTPResponse.Body.Close()
+	localVarHTTPResponse.Body = io.NopCloser(bytes.NewBuffer(localVarBody))
+	if err != nil {
+		return localVarReturnValue, localVarHTTPResponse, err
+	}
+
+	if localVarHTTPResponse.StatusCode >= 300 {
+		newErr := &GenericOpenAPIError{
+			body:  localVarBody,
+			error: localVarHTTPResponse.Status,
+		}
+		if localVarHTTPResponse.StatusCode == 400 {
+			var v ErrorResponse
+			err = a.client.decode(&v, localVarBody, localVarHTTPResponse.Header.Get("Content-Type"))
+			if err != nil {
+				newErr.error = err.Error()
+				return localVarReturnValue, localVarHTTPResponse, newErr
+			}
+			newErr.error = formatErrorMessage(localVarHTTPResponse.Status, &v)
+			newErr.model = v
+			return localVarReturnValue, localVarHTTPResponse, newErr
+		}
+		if localVarHTTPResponse.StatusCode == 401 {
+			var v ErrorResponse
+			err = a.client.decode(&v, localVarBody, localVarHTTPResponse.Header.Get("Content-Type"))
+			if err != nil {
+				newErr.error = err.Error()
+				return localVarReturnValue, localVarHTTPResponse, newErr
+			}
+			newErr.error = formatErrorMessage(localVarHTTPResponse.Status, &v)
+			newErr.model = v
+			return localVarReturnValue, localVarHTTPResponse, newErr
+		}
+		if localVarHTTPResponse.StatusCode == 404 {
+			var v ErrorResponse
+			err = a.client.decode(&v, localVarBody, localVarHTTPResponse.Header.Get("Content-Type"))
+			if err != nil {
+				newErr.error = err.Error()
+				return localVarReturnValue, localVarHTTPResponse, newErr
+			}
+			newErr.error = formatErrorMessage(localVarHTTPResponse.Status, &v)
+			newErr.model = v
+			return localVarReturnValue, localVarHTTPResponse, newErr
+		}
+		if localVarHTTPResponse.StatusCode == 409 {
+			var v ErrorResponse
+			err = a.client.decode(&v, localVarBody, localVarHTTPResponse.Header.Get("Content-Type"))
+			if err != nil {
+				newErr.error = err.Error()
+				return localVarReturnValue, localVarHTTPResponse, newErr
+			}
+			newErr.error = formatErrorMessage(localVarHTTPResponse.Status, &v)
+			newErr.model = v
+			return localVarReturnValue, localVarHTTPResponse, newErr
+		}
+		if localVarHTTPResponse.StatusCode == 500 {
+			var v ErrorResponse
+			err = a.client.decode(&v, localVarBody, localVarHTTPResponse.Header.Get("Content-Type"))
+			if err != nil {
+				newErr.error = err.Error()
+				return localVarReturnValue, localVarHTTPResponse, newErr
+			}
+			newErr.error = formatErrorMessage(localVarHTTPResponse.Status, &v)
+			newErr.model = v
+		}
+		return localVarReturnValue, localVarHTTPResponse, newErr
+	}
+
+	err = a.client.decode(&localVarReturnValue, localVarBody, localVarHTTPResponse.Header.Get("Content-Type"))
+	if err != nil {
+		newErr := &GenericOpenAPIError{
+			body:  localVarBody,
+			error: err.Error(),
+		}
+		return localVarReturnValue, localVarHTTPResponse, newErr
+	}
+
+	return localVarReturnValue, localVarHTTPResponse, nil
+}
+
+type ApiUndeployLLMProxyDeploymentRequest struct {
+	ctx          context.Context
+	ApiService   *LLMDeploymentsAPIService
+	orgName      string
+	projName     string
+	id           string
+	deploymentId *string
+	gatewayId    *string
+}
+
+// Deployment UUID to undeploy
+func (r ApiUndeployLLMProxyDeploymentRequest) DeploymentId(deploymentId string) ApiUndeployLLMProxyDeploymentRequest {
+	r.deploymentId = &deploymentId
+	return r
+}
+
+// Gateway UUID
+func (r ApiUndeployLLMProxyDeploymentRequest) GatewayId(gatewayId string) ApiUndeployLLMProxyDeploymentRequest {
+	r.gatewayId = &gatewayId
+	return r
+}
+
+func (r ApiUndeployLLMProxyDeploymentRequest) Execute() (*UndeployLLMProxyDeployment200Response, *http.Response, error) {
+	return r.ApiService.UndeployLLMProxyDeploymentExecute(r)
+}
+
+/*
+UndeployLLMProxyDeployment Undeploy an LLM proxy deployment
+
+Undeploy the proxy's current deployment on a gateway, whether it is DEPLOYING, DEPLOYED or failed to deploy. The deployment goes UNDEPLOYING until the gateway acknowledges it. A failed undeploy can be retried by undeploying again.
+
+	@param ctx context.Context - for authentication, logging, cancellation, deadlines, tracing, etc. Passed from http.Request or context.Background().
+	@param orgName Organization name/handle
+	@param projName Project name
+	@param id Proxy handle
+	@return ApiUndeployLLMProxyDeploymentRequest
+*/
+func (a *LLMDeploymentsAPIService) UndeployLLMProxyDeployment(ctx context.Context, orgName string, projName string, id string) ApiUndeployLLMProxyDeploymentRequest {
+	return ApiUndeployLLMProxyDeploymentRequest{
+		ApiService: a,
+		ctx:        ctx,
+		orgName:    orgName,
+		projName:   projName,
+		id:         id,
+	}
+}
+
+// Execute executes the request
+//
+//	@return UndeployLLMProxyDeployment200Response
+func (a *LLMDeploymentsAPIService) UndeployLLMProxyDeploymentExecute(r ApiUndeployLLMProxyDeploymentRequest) (*UndeployLLMProxyDeployment200Response, *http.Response, error) {
+	var (
+		localVarHTTPMethod  = http.MethodPost
+		localVarPostBody    interface{}
+		formFiles           []formFile
+		localVarReturnValue *UndeployLLMProxyDeployment200Response
+	)
+
+	localBasePath, err := a.client.cfg.ServerURLWithContext(r.ctx, "LLMDeploymentsAPIService.UndeployLLMProxyDeployment")
+	if err != nil {
+		return localVarReturnValue, nil, &GenericOpenAPIError{error: err.Error()}
+	}
+
+	localVarPath := localBasePath + "/orgs/{orgName}/projects/{projName}/llm-proxies/{id}/deployments/undeploy"
+	localVarPath = strings.Replace(localVarPath, "{"+"orgName"+"}", url.PathEscape(parameterValueToString(r.orgName, "orgName")), -1)
+	localVarPath = strings.Replace(localVarPath, "{"+"projName"+"}", url.PathEscape(parameterValueToString(r.projName, "projName")), -1)
+	localVarPath = strings.Replace(localVarPath, "{"+"id"+"}", url.PathEscape(parameterValueToString(r.id, "id")), -1)
 
 	localVarHeaderParams := make(map[string]string)
 	localVarQueryParams := url.Values{}

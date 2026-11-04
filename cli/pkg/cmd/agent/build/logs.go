@@ -112,6 +112,9 @@ func runLogs(ctx context.Context, o *LogsOptions) error {
 			return render.Error(o.IO, o.Scope, err)
 		}
 		buildName = resolved
+	} else if _, err := cmdutil.GetBuild(ctx, client, o.Org, o.Proj, o.AgentName, buildName); err != nil {
+		// The observer answers an unknown build with an empty log list.
+		return render.Error(o.IO, o.Scope, err)
 	}
 
 	observer, err := o.Observer(ctx)

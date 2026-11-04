@@ -36,11 +36,45 @@ import (
 	"github.com/wso2/agent-manager/agent-manager-service/utils"
 )
 
+// withRunEnvVars returns params with envVars appended to its environmentVariables, replacing
+// any entry with the same name. The component's map is copied rather than modified, so the
+// extra vars reach only this WorkflowRun.
+func withRunEnvVars(params map[string]interface{}, envVars []EnvVar) map[string]interface{} {
+	if len(envVars) == 0 {
+		return params
+	}
+	runKeys := make(map[string]bool, len(envVars))
+	for _, ev := range envVars {
+		runKeys[ev.Key] = true
+	}
+	merged := make([]interface{}, 0)
+	if existing, ok := params[workflowParamEnvironmentVariables].([]interface{}); ok {
+		for _, item := range existing {
+			if m, ok := item.(map[string]interface{}); ok {
+				if name, _ := m["name"].(string); runKeys[name] {
+					continue
+				}
+			}
+			merged = append(merged, item)
+		}
+	}
+	for _, env := range buildEnvironmentVariables(CreateComponentRequest{Configurations: &Configurations{Env: envVars}}) {
+		merged = append(merged, env)
+	}
+
+	out := make(map[string]interface{}, len(params)+1)
+	for k, v := range params {
+		out[k] = v
+	}
+	out[workflowParamEnvironmentVariables] = merged
+	return out
+}
+
 // workflowRunWorkloadAnnotationKey is set by AMP's generate-workload workflow on successful runs
 // to the JSON workload object (including spec.container.image).
 const workflowRunWorkloadAnnotationKey = "openchoreo.dev/workload"
 
-func (c *openChoreoClient) TriggerBuild(ctx context.Context, ouID, projectName, componentName, commitID, workflowRunName string) (*models.BuildResponse, error) {
+func (c *openChoreoClient) TriggerBuild(ctx context.Context, ouID, projectName, componentName, commitID, workflowRunName string, runEnvVars []EnvVar) (*models.BuildResponse, error) {
 	namespaceName := c.NamespaceFor(ouID)
 	// Get the component to find its workflow configuration
 	compResp, err := c.ocClient.GetComponentWithResponse(ctx, namespaceName, componentName)
@@ -89,6 +123,7 @@ func (c *openChoreoClient) TriggerBuild(ctx context.Context, ouID, projectName, 
 			}
 		}
 	}
+	params = withRunEnvVars(params, runEnvVars)
 
 	// Preserve the open-source behavior when no deployment-specific name is supplied.
 	if workflowRunName == "" {
@@ -133,8 +168,34 @@ func (c *openChoreoClient) TriggerBuild(ctx context.Context, ouID, projectName, 
 }
 
 func (c *openChoreoClient) GetBuild(ctx context.Context, ouID, projectName, componentName, buildName string) (*models.BuildDetailsResponse, error) {
-	namespaceName := c.NamespaceFor(ouID)
-	resp, err := c.ocClient.GetWorkflowRunWithResponse(ctx, namespaceName, buildName)
+	run, err := c.getWorkflowRun(ctx, ouID, buildName)
+	if err != nil {
+		return nil, err
+	}
+	// Workflow runs are looked up by name across the whole namespace, so a
+	// build of another agent must not pass as one of this agent's.
+	labels := run.Metadata.Labels
+	if getLabel(labels, string(LabelKeyComponentName)) != componentName || getLabel(labels, string(LabelKeyProjectName)) != projectName {
+		return nil, fmt.Errorf("%w: build %q does not belong to agent %q", utils.ErrNotFound, buildName, componentName)
+	}
+
+	return toBuildDetailsResponse(run, componentName, projectName)
+}
+
+// GetBuildByName looks a build up by name alone. Use it only when the caller
+// does not know which agent ran the build, as with a kind version, which
+// records just the build name.
+func (c *openChoreoClient) GetBuildByName(ctx context.Context, ouID, buildName string) (*models.BuildDetailsResponse, error) {
+	run, err := c.getWorkflowRun(ctx, ouID, buildName)
+	if err != nil {
+		return nil, err
+	}
+	labels := run.Metadata.Labels
+	return toBuildDetailsResponse(run, getLabel(labels, string(LabelKeyComponentName)), getLabel(labels, string(LabelKeyProjectName)))
+}
+
+func (c *openChoreoClient) getWorkflowRun(ctx context.Context, ouID, buildName string) (*gen.WorkflowRun, error) {
+	resp, err := c.ocClient.GetWorkflowRunWithResponse(ctx, c.NamespaceFor(ouID), buildName)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get build: %w", err)
 	}
@@ -151,8 +212,7 @@ func (c *openChoreoClient) GetBuild(ctx context.Context, ouID, projectName, comp
 	if resp.JSON200 == nil {
 		return nil, fmt.Errorf("empty response from get build")
 	}
-
-	return toBuildDetailsResponse(resp.JSON200, componentName, projectName)
+	return resp.JSON200, nil
 }
 
 func (c *openChoreoClient) ListBuilds(ctx context.Context, ouID, projectName, componentName string) ([]*models.BuildResponse, error) {

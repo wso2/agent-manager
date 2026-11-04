@@ -18,6 +18,9 @@ package repositories
 
 import (
 	"context"
+	"time"
+
+	"github.com/google/uuid"
 
 	"github.com/wso2/agent-manager/agent-manager-service/models"
 	"gorm.io/gorm"
@@ -32,18 +35,20 @@ type APIKeyRepository interface {
 	Delete(artifactUUID, name string) error
 	ListByArtifact(ctx context.Context, artifactUUID string) ([]models.StoredAPIKey, error)
 	ListByArtifactKind(ouID, kind string) ([]models.StoredAPIKey, error)
-	// ListByArtifactKindAndEnvs returns all active API keys for artifacts of a given kind
+	// ListByArtifactKindAndEnvs returns all active API keys for artifacts of any of the given kinds
 	// whose handle encodes one of the supplied environment UUIDs (handle format: "project/agent/<envUUID>").
 	// Used by the gateway bulk-sync path to scope agent keys to the gateway's own environments.
-	ListByArtifactKindAndEnvs(ouID, kind string, envUUIDs []string) ([]models.StoredAPIKey, error)
-	// ListPermanentByArtifactKind returns only user-managed (permanent) keys.
+	ListByArtifactKindAndEnvs(ouID string, kinds []string, envUUIDs []string) ([]models.StoredAPIKey, error)
+	// ListPermanentByArtifactKinds returns only user-managed (permanent) keys.
 	// Used by the Credentials list so console-managed test keys stay hidden.
-	ListPermanentByArtifactKind(ouID, kind string) ([]models.StoredAPIKey, error)
+	ListPermanentByArtifactKinds(ouID string, kinds []string) ([]models.StoredAPIKey, error)
 	// GetByArtifactAndName returns gorm.ErrRecordNotFound when no row matches.
 	GetByArtifactAndName(artifactUUID, name string) (*models.StoredAPIKey, error)
 	// ListByApplicationUUID returns all API keys whose artifact_uuid matches the given AI application UUID.
 	// Used by the gateway bulk-sync path to populate per-application key bindings.
 	ListByApplicationUUID(applicationUUID string) ([]models.StoredAPIKey, error)
+	// ListActiveByArtifactTx returns the artifact's keys a gateway would still accept at now.
+	ListActiveByArtifactTx(ctx context.Context, tx *gorm.DB, artifactUUID uuid.UUID, now time.Time) ([]models.StoredAPIKey, error)
 }
 
 // APIKeyRepo implements APIKeyRepository using GORM
@@ -90,13 +95,13 @@ func (r *APIKeyRepo) ListByArtifactKind(ouID, kind string) ([]models.StoredAPIKe
 
 // ListByArtifactKindAndEnvs returns all active API keys for artifacts whose handle ends with
 // "/<envUUID>" for any of the provided environment UUIDs. Empty envUUIDs returns nil, nil.
-func (r *APIKeyRepo) ListByArtifactKindAndEnvs(ouID, kind string, envUUIDs []string) ([]models.StoredAPIKey, error) {
+func (r *APIKeyRepo) ListByArtifactKindAndEnvs(ouID string, kinds []string, envUUIDs []string) ([]models.StoredAPIKey, error) {
 	if len(envUUIDs) == 0 {
 		return nil, nil
 	}
 	query := r.db.
 		Joins("JOIN artifacts a ON api_keys.artifact_uuid = a.uuid").
-		Where("a.ou_id = ? AND a.kind = ?", ouID, kind)
+		Where("a.ou_id = ? AND a.kind IN ?", ouID, kinds)
 
 	// Build OR conditions matching the environment UUID suffix in the artifact handle.
 	// Artifact handle format: "projectName/agentName/<environmentUUID>"
@@ -110,13 +115,13 @@ func (r *APIKeyRepo) ListByArtifactKindAndEnvs(ouID, kind string, envUUIDs []str
 	return keys, err
 }
 
-// ListPermanentByArtifactKind returns only user-managed permanent keys.
-func (r *APIKeyRepo) ListPermanentByArtifactKind(ouID, kind string) ([]models.StoredAPIKey, error) {
+// ListPermanentByArtifactKinds returns only user-managed permanent keys.
+func (r *APIKeyRepo) ListPermanentByArtifactKinds(ouID string, kinds []string) ([]models.StoredAPIKey, error) {
 	var keys []models.StoredAPIKey
 	err := r.db.
 		Joins("JOIN artifacts a ON api_keys.artifact_uuid = a.uuid").
-		Where("a.ou_id = ? AND a.kind = ? AND api_keys.purpose = ?",
-			ouID, kind, models.APIKeyPurposeUserManaged).
+		Where("a.ou_id = ? AND a.kind IN ? AND api_keys.purpose = ?",
+			ouID, kinds, models.APIKeyPurposeUserManaged).
 		Find(&keys).Error
 	return keys, err
 }
@@ -135,5 +140,19 @@ func (r *APIKeyRepo) GetByArtifactAndName(artifactUUID, name string) (*models.St
 func (r *APIKeyRepo) ListByApplicationUUID(applicationUUID string) ([]models.StoredAPIKey, error) {
 	var keys []models.StoredAPIKey
 	err := r.db.Where("artifact_uuid = ?", applicationUUID).Find(&keys).Error
+	return keys, err
+}
+
+// ListActiveByArtifactTx returns the artifact's active keys that have not expired at now, oldest first. The rows are
+// held FOR SHARE until tx commits, so a concurrent revoke waits for the keys tx publishes instead of racing them.
+func (r *APIKeyRepo) ListActiveByArtifactTx(
+	ctx context.Context, tx *gorm.DB, artifactUUID uuid.UUID, now time.Time,
+) ([]models.StoredAPIKey, error) {
+	var keys []models.StoredAPIKey
+	err := tx.WithContext(ctx).
+		Clauses(clause.Locking{Strength: "SHARE"}).
+		Where("artifact_uuid = ? AND status = 'active' AND (expires_at IS NULL OR expires_at > ?)", artifactUUID, now).
+		Order("created_at, uuid").
+		Find(&keys).Error
 	return keys, err
 }

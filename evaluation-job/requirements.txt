@@ -1,4 +1,5 @@
 requests==2.34.2
+certifi>=2026.10.19
 any-llm-sdk[openai,anthropic,gemini,groq,mistral,bedrock,azureopenai,azure]==1.16.0
 # any-llm's azure (Azure AI Foundry) provider makes async calls but does not pull an async HTTP backend.
 aiohttp>=3.14.1

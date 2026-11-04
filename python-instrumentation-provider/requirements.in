@@ -10,3 +10,4 @@ httpx>=0.25.0
 # traceloop-sdk imports requests without declaring it; it used to arrive via
 # opentelemetry-exporter-otlp-proto-http, which made it optional in 1.45.0.
 requests
+certifi>=2026.10.19

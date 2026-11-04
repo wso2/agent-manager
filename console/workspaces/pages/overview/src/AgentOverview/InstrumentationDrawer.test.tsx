@@ -63,4 +63,35 @@ describe("InstrumentationDrawer", () => {
     expect(text).toContain('OTEL_EXPORTER_OTLP_TRACES_HEADERS="x-amp-api-key=test-key"');
     expect(text).not.toContain("amp-instrument");
   });
+
+  it("shows ballerinax/amp settings for Ballerina 2201.13.x by default", () => {
+    renderDrawer();
+
+    fireEvent.mouseDown(screen.getByRole("combobox"));
+    fireEvent.click(within(screen.getByRole("listbox")).getByText("Ballerina"));
+
+    expect(screen.getAllByRole("combobox")[1]).toHaveTextContent("2201.13.x");
+    const text = document.body.textContent ?? "";
+    expect(text).toContain("import ballerinax/amp as _;");
+    expect(text).toContain('tracingProvider = "amp"');
+    expect(text).toContain(`BAL_CONFIG_VAR_BALLERINAX_AMP_OTELENDPOINT="${ENDPOINT}"`);
+    expect(text).toContain('BAL_CONFIG_VAR_BALLERINAX_AMP_APIKEY="test-key"');
+  });
+
+  it("shows built-in OpenTelemetry settings for Ballerina 2201.14.x", () => {
+    renderDrawer();
+
+    fireEvent.mouseDown(screen.getByRole("combobox"));
+    fireEvent.click(within(screen.getByRole("listbox")).getByText("Ballerina"));
+    fireEvent.mouseDown(screen.getAllByRole("combobox")[1]);
+    fireEvent.click(within(screen.getByRole("listbox")).getByText("2201.14.x"));
+
+    expect(screen.getByTestId("token-step")).toHaveTextContent("3");
+    const text = document.body.textContent ?? "";
+    expect(text).toContain('tracingProvider = "otel"');
+    expect(text).toContain('tracesProtocol = "http/protobuf"');
+    expect(text).toContain(`BAL_CONFIG_VAR_BALLERINA_OTEL_TRACESENDPOINT="${ENDPOINT}/v1/traces"`);
+    expect(text).toContain('BAL_CONFIG_VAR_BALLERINA_OTEL_TRACESEXPORTERHEADERS="x-amp-api-key=test-key"');
+    expect(text).not.toContain("ballerinax/amp");
+  });
 });

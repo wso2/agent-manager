@@ -50,6 +50,13 @@ import (
 	"gorm.io/gorm"
 )
 
+// The migration job usually finishes within a minute of the pod starting; the
+// timeout only stops a wait that can never succeed from hanging forever.
+const (
+	migrationWaitTimeout  = 10 * time.Minute
+	migrationWaitInterval = 2 * time.Second
+)
+
 // Options holds the configuration options for running the application.
 // These are typically parsed from command-line flags in main.
 type Options struct {
@@ -57,6 +64,9 @@ type Options struct {
 	Server bool
 	// Migrate indicates whether to run database migrations before starting
 	Migrate bool
+	// WaitForMigrations blocks until another process has applied this build's
+	// migrations, for an init container that runs ahead of the server
+	WaitForMigrations bool
 	// ExtraAPIRoutes registers additional routes onto the authenticated /api/v1 sub-mux.
 	// Use this to inject deployment-specific routes without modifying the core handler.
 	ExtraAPIRoutes func(mux *http.ServeMux, params *wiring.AppParams)
@@ -69,6 +79,9 @@ type Options struct {
 	// management and OAuth endpoints. nil preserves on-premises behavior. Run
 	// automatically applies it to endpoint-aware provisioning implementations.
 	EnvThunderEndpointResolver thundersvc.EnvThunderEndpointResolver
+	// ProjectAgentIdentityProvider enables project-scoped AgentID creation in
+	// CP_MANAGED mode. nil is the safe default for LEGACY_DIRECT deployments.
+	ProjectAgentIdentityProvider services.ProjectAgentIdentityProvider
 	// BackgroundContextDecorator optionally marks contexts created for trusted
 	// background workers. Request contexts never pass through this hook.
 	BackgroundContextDecorator func(context.Context) context.Context
@@ -138,8 +151,23 @@ func Run(authProvider occlient.AuthProvider, secretProvider secretmanagersvc.Pro
 		}
 	}
 
+	if opts.WaitForMigrations {
+		ctx, cancel := context.WithTimeout(context.Background(), migrationWaitTimeout)
+		err := dbmigrations.WaitForLatest(ctx, migrationWaitInterval)
+		cancel()
+		if err != nil {
+			slog.Error("database migrations did not complete; check that the migration job runs the same image version as this server",
+				"error", err)
+			os.Exit(1)
+		}
+	}
+
 	if !opts.Server {
 		return
+	}
+	if cfg.IdentityManagementMode == string(thundersvc.IdentityManagementCPManaged) && opts.AgentThunderProvisioning == nil {
+		slog.Error("CP_MANAGED identity mode requires an AgentID provisioning implementation")
+		os.Exit(1)
 	}
 
 	// Get the raw DB instance without context - repositories will add context per-operation
@@ -181,6 +209,17 @@ func Run(authProvider occlient.AuthProvider, secretProvider secretmanagersvc.Pro
 			os.Exit(1)
 		}
 		agentThunderProvisioning = opts.AgentThunderProvisioning(database, secretMgmtClientForProvisioning, ocClientForProvisioning, encryptionKey)
+		if setter, ok := agentThunderProvisioning.(services.ProjectAgentIdentityProviderSetter); ok {
+			if err := setter.SetProjectAgentIdentityProvider(
+				thundersvc.IdentityManagementMode(cfg.IdentityManagementMode), opts.ProjectAgentIdentityProvider,
+			); err != nil {
+				slog.Error("failed to configure project AgentID provisioning", "error", err)
+				os.Exit(1)
+			}
+		} else if cfg.IdentityManagementMode == string(thundersvc.IdentityManagementCPManaged) {
+			slog.Error("AgentID provisioning implementation does not support CP_MANAGED mode")
+			os.Exit(1)
+		}
 		if setter, ok := agentThunderProvisioning.(services.EnvThunderEndpointResolverSetter); ok {
 			setter.SetEnvThunderEndpointResolver(opts.EnvThunderEndpointResolver)
 		}
@@ -241,19 +280,22 @@ func Run(authProvider occlient.AuthProvider, secretProvider secretmanagersvc.Pro
 		}
 	}
 
-	// Start the A2A publication reconciler. It runs unconditionally: it is a
-	// no-op for an org with no A2A agents, and gating it on a feature flag would
-	// leave a deploy's queued publication stranded if the flag were ever off.
-	a2aReconcilerCtx, a2aReconcilerCancel := context.WithCancel(backgroundCtx)
-	if err := dependencies.A2APublicationReconciler.Start(a2aReconcilerCtx); err != nil {
-		slog.Error("failed to start A2A publication reconciler", "error", err)
-		os.Exit(1)
-	}
-
-	// Started unconditionally, like the publication reconciler that feeds it.
+	// Started unconditionally: it is a no-op for an org with no A2A agents.
 	a2aCardReconcilerCtx, a2aCardReconcilerCancel := context.WithCancel(backgroundCtx)
 	if err := dependencies.A2ACardReconciler.Start(a2aCardReconcilerCtx); err != nil {
 		slog.Error("failed to start A2A card reconciler", "error", err)
+		os.Exit(1)
+	}
+
+	deploymentTimeoutSweeperCtx, deploymentTimeoutSweeperCancel := context.WithCancel(backgroundCtx)
+	if err := dependencies.DeploymentTimeoutSweeper.Start(deploymentTimeoutSweeperCtx); err != nil {
+		slog.Error("failed to start deployment timeout sweeper", "error", err)
+		os.Exit(1)
+	}
+
+	reconcileWorkerCtx, reconcileWorkerCancel := context.WithCancel(backgroundCtx)
+	if err := dependencies.ReconcileWorker.Start(reconcileWorkerCtx); err != nil {
+		slog.Error("failed to start reconcile worker", "error", err)
 		os.Exit(1)
 	}
 
@@ -300,7 +342,19 @@ func Run(authProvider occlient.AuthProvider, secretProvider secretmanagersvc.Pro
 		shutdownCtx, shutdownCancel := context.WithTimeout(context.Background(), 30*time.Second)
 		defer shutdownCancel()
 
-		// Stop scheduler first
+		// Drain both servers before stopping anything an in-flight request
+		// calls into: the reconcile worker (nudges, placement requests), the
+		// EventHub, the audit recorder.
+		// Gateway WebSockets are hijacked connections, which Shutdown neither
+		// waits for nor closes; the WebSocket manager closes them below.
+		if err := mainServer.Shutdown(shutdownCtx); err != nil {
+			slog.Error("Main server forced shutdown after timeout", "error", err)
+		}
+
+		if err := internalServer.Shutdown(shutdownCtx); err != nil {
+			slog.Error("Internal server forced shutdown after timeout", "error", err)
+		}
+
 		schedulerCancel()
 		if err := dependencies.MonitorScheduler.Stop(); err != nil {
 			slog.Error("error stopping monitor scheduler", "error", err)
@@ -313,14 +367,19 @@ func Run(authProvider occlient.AuthProvider, secretProvider secretmanagersvc.Pro
 			}
 		}
 
-		a2aReconcilerCancel()
-		if err := dependencies.A2APublicationReconciler.Stop(); err != nil {
-			slog.Error("error stopping A2A publication reconciler", "error", err)
-		}
-
 		a2aCardReconcilerCancel()
 		if err := dependencies.A2ACardReconciler.Stop(); err != nil {
 			slog.Error("error stopping A2A card reconciler", "error", err)
+		}
+
+		deploymentTimeoutSweeperCancel()
+		if err := dependencies.DeploymentTimeoutSweeper.Stop(); err != nil {
+			slog.Error("error stopping deployment timeout sweeper", "error", err)
+		}
+
+		reconcileWorkerCancel()
+		if err := dependencies.ReconcileWorker.Stop(); err != nil {
+			slog.Error("error stopping reconcile worker", "error", err)
 		}
 
 		// Shutdown WebSocket manager in a goroutine since it blocks
@@ -343,27 +402,21 @@ func Run(authProvider occlient.AuthProvider, secretProvider secretmanagersvc.Pro
 			slog.Warn("WebSocket manager shutdown timed out")
 		}
 
-		// Close EventHub after WebSocket manager so in-flight events are not dropped
+		// Close EventHub after the servers drain, so events published by
+		// draining requests are still polled and delivered and the gateway
+		// registration prepared statement stays open, and after the WebSocket
+		// manager, so in-flight events are not dropped.
 		if dependencies.EventHub != nil {
 			if err := dependencies.EventHub.Close(); err != nil {
 				slog.Error("error closing EventHub", "error", err)
 			}
 		}
 
-		// Shutdown both servers using the same context
-		if err := mainServer.Shutdown(shutdownCtx); err != nil {
-			slog.Error("Main server forced shutdown after timeout", "error", err)
-		}
-
-		if err := internalServer.Shutdown(shutdownCtx); err != nil {
-			slog.Error("Internal server forced shutdown after timeout", "error", err)
-		}
-
-		// Flush the audit buffer last. Both servers have stopped, so no further
-		// events can be produced and every in-flight request has finished
-		// recording. Draining any earlier would discard the audit records of the
-		// requests still being served — note this is deliberately not where
-		// EventHub.Close sits, which runs before the servers stop.
+		// Flush the audit buffer last. The servers have drained and the
+		// background workers have stopped, so no further events can be
+		// produced and every in-flight request has finished recording.
+		// Draining any earlier would discard the audit records of the requests
+		// still being served.
 		if dependencies.AuditRecorder != nil {
 			if err := dependencies.AuditRecorder.Close(shutdownCtx); err != nil {
 				slog.Error("error flushing audit recorder; some events may be lost", "error", err)

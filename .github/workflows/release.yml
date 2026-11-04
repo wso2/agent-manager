@@ -25,6 +25,11 @@ env:
   REGISTRY_ORG: ${{ vars.AMP_REGISTRY_ORG || 'wso2' }}
   HELM_REGISTRY: ${{ vars.AMP_HELM_REGISTRY || 'oci://ghcr.io/wso2' }}
 
+# Default token scope is read-only; jobs that publish, push or deploy
+# request the extra scopes they need at job level.
+permissions:
+  contents: read
+
 jobs:
   prepare-release:
     name: Prepare Release
@@ -180,6 +185,18 @@ jobs:
           bash .github/scripts/update-install-helpers.sh \
             "$TARGET_RELEASE" \
             "./deployments/quick-start/k3d-install-subscription.sh"
+        env:
+          TARGET_RELEASE: ${{ inputs.target_version }}
+        shell: bash
+
+      - name: Update the isolation installers
+        run: |
+          bash .github/scripts/update-install-helpers.sh \
+            "$TARGET_RELEASE" \
+            "./deployments/setup/install-gvisor.sh"
+          bash .github/scripts/update-install-helpers.sh \
+            "$TARGET_RELEASE" \
+            "./deployments/setup/install-kata.sh"
         env:
           TARGET_RELEASE: ${{ inputs.target_version }}
         shell: bash

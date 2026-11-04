@@ -1,0 +1,58 @@
+version: 2
+
+# All sample version updates share one PR, including major, minor, and patch.
+# The group schedule is inherited by every ecosystem entry below.
+multi-ecosystem-groups:
+  sample-dependencies:
+    schedule:
+      interval: "weekly"
+      day: "sunday"
+      time: "09:00"
+      timezone: "Asia/Colombo"
+
+# Security updates are managed separately by GitHub and can raise extra PRs.
+# Keep target-branch unset so security updates use the default branch.
+updates:
+  - package-ecosystem: "pip"
+    directories:
+      - "/samples/a2a-agent"
+      - "/samples/crewai-agent"
+      - "/samples/customer-support-agent"
+      - "/samples/hotel-booking-agent/agent"
+      - "/samples/hotel-booking-agent/services/hotel_api"
+      - "/samples/insurance-support-agent/agent"
+      - "/samples/insurance-support-agent/mcp-server"
+      - "/samples/it-helpdesk-agent"
+      - "/samples/manual-instrumentation-agent"
+    patterns: ["*"]
+    multi-ecosystem-group: "sample-dependencies"
+    groups:
+      sample-pip-security:
+        applies-to: "security-updates"
+        patterns: ["*"]
+
+  - package-ecosystem: "npm"
+    directory: "/samples/insurance-support-agent/web"
+    patterns: ["*"]
+    multi-ecosystem-group: "sample-dependencies"
+    groups:
+      sample-npm-security:
+        applies-to: "security-updates"
+        patterns: ["*"]
+
+  - package-ecosystem: "nuget"
+    directory: "/samples/dotnet-agent"
+    patterns: ["*"]
+    multi-ecosystem-group: "sample-dependencies"
+    groups:
+      sample-nuget-security:
+        applies-to: "security-updates"
+        patterns: ["*"]
+
+  - package-ecosystem: "docker"
+    directories:
+      - "/samples/dotnet-agent"
+      - "/samples/insurance-support-agent/agent"
+      - "/samples/insurance-support-agent/mcp-server"
+    patterns: ["*"]
+    multi-ecosystem-group: "sample-dependencies"

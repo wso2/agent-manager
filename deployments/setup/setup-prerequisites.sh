@@ -14,7 +14,7 @@ source "$SCRIPT_DIR/utils.sh"
 GATEWAY_API_VERSION="v1.4.1"
 CERT_MANAGER_VERSION="v1.19.2"
 EXTERNAL_SECRETS_VERSION="1.3.2"
-KGATEWAY_VERSION="v2.2.1"
+KGATEWAY_VERSION="v2.3.11"
 OPENBAO_VERSION="0.25.6"
 
 echo "=== Installing Pre-requisites for OpenChoreo ==="

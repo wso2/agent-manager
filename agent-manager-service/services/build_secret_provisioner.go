@@ -18,9 +18,13 @@ package services
 
 import (
 	"context"
+	"errors"
 
 	"github.com/wso2/agent-manager/agent-manager-service/spec"
 )
+
+// ErrGitHubAuthRequired means the user must connect GitHub again before the source binding can be checked.
+var ErrGitHubAuthRequired = errors.New("github authorization required")
 
 // BuildSecretProvisioner provisions the per-build git clone secret for a source
 // build, keyed by the WorkflowRun name. It is called after the WorkflowRun name is
@@ -41,7 +45,8 @@ import (
 // leaving the open-source clone paths untouched.
 type BuildSecretProvisioner interface {
 	// PutSource persists the GitHub App repository binding selected as part of
-	// component creation. Implementations must treat this as an idempotent upsert.
+	// component creation. Implementations must treat this as an idempotent upsert, and
+	// wrap ErrGitHubAuthRequired when the user's GitHub authorization is missing or expired.
 	PutSource(ctx context.Context, ouID, projectName, componentName string, source spec.GitHubAppSource) error
 
 	// HasSource reports whether this component has a persisted GitHub App source

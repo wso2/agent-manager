@@ -59,7 +59,7 @@ func TestMCPResourceServerIdentifier_DerivesPublicURI(t *testing.T) {
 			return []*models.EnvironmentResponse{{Name: "dev", UUID: envUUID.String()}}, nil
 		}},
 		deploymentRepo: &repomocks.DeploymentRepositoryMock{
-			GetDeployedGatewaysByProviderFunc: func(providerUUID uuid.UUID, _ string) ([]string, error) {
+			PlacedGatewaysFunc: func(_ context.Context, _ string, providerUUID uuid.UUID) ([]string, error) {
 				require.Equal(t, artifactUUID, providerUUID)
 				return []string{gwUUID.String()}, nil
 			},
@@ -146,7 +146,7 @@ func TestEnsureResourceServersForProxy_RegistersOnlyIdentitySecuredDeployedEnvir
 			}, nil
 		}},
 		deploymentRepo: &repomocks.DeploymentRepositoryMock{
-			GetDeployedGatewaysByProviderFunc: func(_ uuid.UUID, _ string) ([]string, error) {
+			PlacedGatewaysFunc: func(_ context.Context, _ string, _ uuid.UUID) ([]string, error) {
 				return []string{gwUUID.String()}, nil
 			},
 		},

@@ -99,19 +99,15 @@ func runGet(ctx context.Context, o *GetOptions) error {
 		return render.Error(o.IO, o.Scope, err)
 	}
 
-	resp, err := client.GetBuildWithResponse(ctx, o.Org, o.Proj, o.AgentName, o.BuildName)
+	b, err := cmdutil.GetBuild(ctx, client, o.Org, o.Proj, o.AgentName, o.BuildName)
 	if err != nil {
-		return render.Error(o.IO, o.Scope, clierr.Newf(clierr.Transport, "%v", err))
-	}
-	if resp.JSON200 == nil {
-		return render.Error(o.IO, o.Scope, cmdutil.ErrorFromServer(resp.HTTPResponse, cmdutil.FirstNonNil(resp.JSON404, resp.JSON500)))
+		return render.Error(o.IO, o.Scope, err)
 	}
 
 	if o.IO.JSON {
-		return render.JSONSuccess(o.IO, o.Scope, resp.JSON200)
+		return render.JSONSuccess(o.IO, o.Scope, b)
 	}
 
-	b := resp.JSON200
 	cs := o.IO.ColorScheme()
 
 	status := "-"

@@ -1,0 +1,41 @@
+name: .NET Local Smoke Checks
+on:
+  pull_request:
+    paths:
+      - 'samples/dotnet-agent/**'
+      - 'test/sample-smoke/local/**'
+      - '.github/workflows/dotnet-agent-local-smoke.yaml'
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: dotnet-agent-local-smoke-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  smoke:
+    name: .NET local smoke
+    runs-on: ubuntu-24.04
+    timeout-minutes: 35
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          repository: ${{ github.event.pull_request.head.repo.full_name || github.repository }}
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          persist-credentials: false
+      - uses: actions/setup-python@v6
+        with:
+          python-version: '3.11'
+      - uses: actions/setup-dotnet@v5
+        with:
+          dotnet-version: '10.0.x'
+      - name: Test model failure guards
+        run: python -m unittest discover -s test/sample-smoke/local -p 'test_*.py' -v
+      - name: Install or build, start, and test the sample
+        env:
+          SAMPLE: dotnet-agent
+        run: python test/sample-smoke/local/run.py "$SAMPLE" --reports "$RUNNER_TEMP/smoke-reports"
+      - uses: actions/upload-artifact@v7
+        if: always()
+        with:
+          name: local-smoke-dotnet-agent
+          path: ${{ runner.temp }}/smoke-reports/

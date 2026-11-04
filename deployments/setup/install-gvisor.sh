@@ -5,6 +5,10 @@ set -euo pipefail
 # from the sibling k8s/ directory when this script travels with it.
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
+# The release this script ships with. The release workflow stamps the version it
+# tags into this default, so a copy downloaded from a release tag knows its release.
+AMP_RELEASE_REF="${AMP_RELEASE_REF:-amp/v0.0.0-dev}"
+
 # install-gvisor.sh — Install gVisor (runsc) on a Linux Kubernetes node.
 #
 # Run this script directly on each node you want to use for gVisor agents.
@@ -14,9 +18,17 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # Usage:
 #   sudo bash install-gvisor.sh
 #
-# Or pipe directly from the repo:
-#   curl -fsSL https://raw.githubusercontent.com/wso2/agent-manager/main/deployments/setup/install-gvisor.sh \
+# Or pipe directly from the release you are installing (replace <release-tag>, for
+# example amp/v1.0.0):
+#   curl -fsSL https://raw.githubusercontent.com/wso2/agent-manager/<release-tag>/deployments/setup/install-gvisor.sh \
 #     | sudo bash
+#
+# When this script runs on its own (downloaded with curl), it cannot see the repository's
+# gvisor-runtimeclass.yaml, so its printed next steps link to the RuntimeClass of the
+# release it ships with. A copy taken from main has no release: set AMP_RELEASE_REF to
+# the release you want (for example amp/v1.0.0), or AMP_MANIFEST_BASE_URL to a mirror
+# of deployments/k8s:
+#   sudo AMP_RELEASE_REF=amp/v1.0.0 bash install-gvisor.sh
 #
 # Optional: host-network passthrough for runsc (keeps syscall isolation but uses
 # the host network stack inside the pod netns). Use only if the default userspace
@@ -248,7 +260,18 @@ if [ -f "$SCRIPT_DIR/../k8s/gvisor-runtimeclass.yaml" ]; then
     # one invites a version mismatch with the install they just ran.
     echo "     kubectl apply -f \"$SCRIPT_DIR/../k8s/gvisor-runtimeclass.yaml\""
 else
-    echo "     kubectl apply -f ${AMP_MANIFEST_BASE_URL:-https://raw.githubusercontent.com/wso2/agent-manager/${AMP_RELEASE_REF:-main}/deployments/k8s}/gvisor-runtimeclass.yaml"
+    # A copy from main still carries the unstamped ref: print a placeholder rather
+    # than main. The pattern avoids spelling out the placeholder, because the
+    # release workflow rewrites every occurrence of it in this file.
+    case "$AMP_RELEASE_REF" in
+        amp/v0.0.0-de[v]) RELEASE_REF="<release-tag>" ;;
+        *)                RELEASE_REF="$AMP_RELEASE_REF" ;;
+    esac
+    echo "     kubectl apply -f ${AMP_MANIFEST_BASE_URL:-https://raw.githubusercontent.com/wso2/agent-manager/${RELEASE_REF}/deployments/k8s}/gvisor-runtimeclass.yaml"
+    if [ -z "${AMP_MANIFEST_BASE_URL:-}" ] && [ "$RELEASE_REF" = "<release-tag>" ]; then
+        echo "     Replace <release-tag> with the release you downloaded this script from (for example"
+        echo "     amp/v1.0.0), or re-run with AMP_RELEASE_REF set to have it filled in."
+    fi
 fi
 echo ""
 echo "  2. Label and taint this node (replace <node-name> with: kubectl get nodes):"

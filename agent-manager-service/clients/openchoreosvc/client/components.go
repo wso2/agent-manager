@@ -174,10 +174,6 @@ func buildExternalAgentComponentRequestBody(namespaceName, projectName string, r
 	labels := map[string]string{
 		string(LabelKeyProvisioningType): string(req.ProvisioningType),
 	}
-	// Only the subtype AMS acts on is labelled; other external subtypes stay free-form.
-	if utils.IsA2AAgentSubType(req.AgentType.SubType) {
-		labels[string(LabelKeyAgentSubType)] = req.AgentType.SubType
-	}
 	addUserLabels(labels, req.Labels)
 	componentTypeKind := gen.ComponentSpecComponentTypeKindComponentType
 	componentType, err := getOpenChoreoComponentType(string(req.ProvisioningType), req.AgentType.Type)
@@ -2073,6 +2069,52 @@ func (c *openChoreoClient) UpdateReleaseBindingEnvVars(ctx context.Context, ouID
 	return nil
 }
 
+// GetComponentBaseEnvVars reads the saved Component workflow variables without environment overrides.
+func (c *openChoreoClient) GetComponentBaseEnvVars(ctx context.Context, ouID, componentName string) ([]EnvVar, error) {
+	namespaceName := c.NamespaceFor(ouID)
+	resp, err := c.ocClient.GetComponentWithResponse(ctx, namespaceName, componentName)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get component: %w", err)
+	}
+	if resp.StatusCode() != http.StatusOK {
+		return nil, handleErrorResponse(resp.StatusCode(), ErrorResponses{
+			JSON401: resp.JSON401,
+			JSON403: resp.JSON403,
+			JSON404: resp.JSON404,
+			JSON500: resp.JSON500,
+		})
+	}
+	if resp.JSON200 == nil || resp.JSON200.Spec == nil {
+		return nil, fmt.Errorf("invalid component response")
+	}
+
+	result := make([]EnvVar, 0)
+	workflow := resp.JSON200.Spec.Workflow
+	if workflow == nil || workflow.Parameters == nil {
+		return result, nil
+	}
+	raw, ok := (*workflow.Parameters)["environmentVariables"]
+	if !ok {
+		return result, nil
+	}
+	data, err := json.Marshal(raw)
+	if err != nil {
+		return nil, fmt.Errorf("encode Component environment variables: %w", err)
+	}
+	var entries []struct {
+		Name      string
+		Value     string
+		ValueFrom *EnvVarValueFrom
+	}
+	if err := json.Unmarshal(data, &entries); err != nil {
+		return nil, fmt.Errorf("decode Component environment variables: %w", err)
+	}
+	for _, entry := range entries {
+		result = append(result, EnvVar{Key: entry.Name, Value: entry.Value, ValueFrom: entry.ValueFrom})
+	}
+	return result, nil
+}
+
 // RemoveComponentEnvironmentVariables removes the specified env var keys from the component's
 // workflow parameters and updates the component CR.
 func (c *openChoreoClient) RemoveComponentEnvironmentVariables(ctx context.Context, ouID, projectName, componentName string, envVarKeys []string) error {
@@ -3149,7 +3191,10 @@ func convertComponentFromTyped(comp *gen.Component) (*models.AgentResponse, erro
 		Type:     componentTypeName,
 		Language: getLabel(comp.Metadata.Labels, string(LabelKeyAgentLanguage)),
 	}
-	agentType.SubType = getLabel(comp.Metadata.Labels, string(LabelKeyAgentSubType))
+	// An external agent has no subtype; a label left from when A2A was one is ignored.
+	if provisioningType != string(utils.ExternalAgent) {
+		agentType.SubType = getLabel(comp.Metadata.Labels, string(LabelKeyAgentSubType))
+	}
 
 	agent := &models.AgentResponse{
 		Name:        comp.Metadata.Name,

@@ -1,0 +1,8 @@
+# Fluent Bit ships to OpenSearch through the observability-plane gateway's TLS
+# passthrough listener rather than straight to the opensearch Service.
+fluent-bit:
+  openSearchHost: gateway-default.openchoreo-observability-plane.svc.cluster.local
+  openSearchPort: 11443
+  # Sent as SNI; must match gateway.tlsPassthrough.hostname and the
+  # opensearch TLSRoute hostname (values/opensearch-tls-route.yaml).
+  openSearchVHost: opensearch.observability.openchoreo.localhost

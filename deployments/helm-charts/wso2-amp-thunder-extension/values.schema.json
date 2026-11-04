@@ -125,7 +125,7 @@
                   "type": "string"
                 },
                 "tag": {
-                  "default": "1.0.1",
+                  "default": "1.0.2",
                   "description": "Container image tag. Define either tag or digest, not both.",
                   "title": "tag",
                   "type": "string"
@@ -1086,7 +1086,7 @@
             },
             "admin": {
               "additionalProperties": true,
-              "description": "Thunder's own native admin user (created by its built-in bootstrap, backend/cmd/server/bootstrap/01-default-resources.yaml, type \"Person\", fixed id 01900000-0000-7000-8000-000000000030) is deliberately left at its default username \"admin\" here \u2014 67-amp-default-users.yaml below re-targets our own admin bootstrap entry at this SAME fixed id instead of creating a separate user, merging the two into a single account. That account already sits in Thunder's built-in \"Administrators\" group (system permission), so it works for both the AMP console and ThunderID's own native console without needing a second AMP-side role for it. Leave password empty for production: this chart's own admin-credentials.yaml then generates a random 10-character value itself (reused across reinstalls the same way Thunder's own admin-secret.yaml already does), so there is no shipped default for anyone to leave unchanged. Set it explicitly (the local dev, quick-start, and VM installers all set it to a fixed value) only when a memorable password matters more than a generated one \u2014 e.g. a machine only the operator can reach. Either way, retrieve the real value in effect any time with: kubectl get secret amp-admin-credentials -n <thunder-namespace> -o jsonpath='{.data.password}' | base64 -d",
+              "description": "Thunder's own native admin user (created by its built-in bootstrap, backend/cmd/server/bootstrap/01-default-resources.yaml, type \"Person\", fixed id 01900000-0000-7000-8000-000000000030) is deliberately left at its default username \"admin\" here \u2014 67-amp-default-users.yaml below re-targets our own admin bootstrap entry at this SAME fixed id instead of creating a separate user, merging the two into a single account. That account already sits in Thunder's built-in \"Administrators\" group (system permission), so it works for both the AMP console and ThunderID's own native console without needing a second AMP-side role for it. Leave password empty for production: this chart's own admin-credentials.yaml then generates a random 10-character value itself (reused across reinstalls the same way Thunder's own admin-secret.yaml already does), so there is no shipped default for anyone to leave unchanged. Set it explicitly (the local dev, quick-start, and VM installers all set it to a fixed value) only when a memorable password matters more than a generated one \u2014 e.g. a machine only the operator can reach. Either way, retrieve the real value in effect any time with: kubectl get secret amp-admin-credentials -n <thunder-namespace> -o jsonpath='{.data.password}' | base64 -d; echo",
               "properties": {
                 "username": {
                   "default": "admin",

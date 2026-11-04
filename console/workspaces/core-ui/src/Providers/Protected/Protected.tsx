@@ -22,6 +22,7 @@ import { absoluteRouteMap } from "@agent-management-platform/types";
 import { Navigate, useLocation, generatePath, useParams } from "react-router-dom";
 import { useEffect } from "react";
 import {
+    orgRouteId,
     useListOrganizations,
     useListProjects,
     setTelemetryTokenProvider,
@@ -69,9 +70,11 @@ export const Protected = ({ children }: { children: React.ReactNode }) => {
     // When authenticated without an org in the URL, land the user inside their
     // first organization. We only resolve this once organizations have loaded;
     // the project list query stays skipped (empty orgName) until then.
-    const targetOrg = organizations?.organizations?.[0]?.name;
+    const firstOrg = organizations?.organizations?.[0];
+    const targetOrg = firstOrg?.name; // namespace, for API calls
+    const targetOrgId = orgRouteId(firstOrg); // handle (or name), for URLs
     const shouldResolveLanding =
-        isAuthenticated && !isLoadingOrganizations && !!targetOrg && !orgId;
+        isAuthenticated && !isLoadingOrganizations && !!targetOrg && !!targetOrgId && !orgId;
     const { data: projectList, isLoading: isLoadingProjects } = useListProjects({
         orgName: shouldResolveLanding ? targetOrg : "",
     });
@@ -133,10 +136,10 @@ export const Protected = ({ children }: { children: React.ReactNode }) => {
         const landingProject = projects.find((p) => p.name === "default") ?? projects[0];
         const landingPath = landingProject
             ? generatePath(absoluteRouteMap.children.org.children.projects.path, {
-                orgId: targetOrg,
+                orgId: targetOrgId,
                 projectId: landingProject.name,
             })
-            : generatePath(absoluteRouteMap.children.org.path, { orgId: targetOrg });
+            : generatePath(absoluteRouteMap.children.org.path, { orgId: targetOrgId });
         return <Navigate to={landingPath} state={navigationState} />;
     }
 

@@ -44,7 +44,7 @@ import { EnvA2AProxySection } from "./EnvA2AProxySection";
 const params = { orgName: "org", projName: "proj", agentName: "agent", envId: "dev" };
 const cardUrl = "https://agent.example.com/.well-known/agent-card.json";
 const gatewayUrl = "https://gw.example/org/proj/agent";
-const stored = { status: "published" as const, lastError: "", gatewayUrl, upstreamAuthHeader: "X-Key" };
+const stored = { status: "DEPLOYED" as const, statusReason: "", gatewayUrl, upstreamAuthHeader: "X-Key" };
 const save = () => fireEvent.click(screen.getByRole("button", { name: "Save" }));
 
 beforeEach(() => vi.clearAllMocks());
@@ -125,12 +125,37 @@ describe("EnvA2AProxySection", () => {
     expect(screen.getByRole("button", { name: "Save" })).toBeDisabled();
   });
 
-  it("shows a failed publish with its reason and offers a retry", () => {
-    render(<EnvA2AProxySection params={params} cardUrl={cardUrl} proxy={{ ...stored, status: "failed", lastError: "no JSONRPC interface" }} />);
-    expect(screen.getByText("Gateway publish failed")).toBeInTheDocument();
+  it.each([
+    ["DEPLOYING", "Deploying to gateway"],
+    ["DEPLOYED", "Routed through gateway"],
+    ["UNDEPLOYING", "Removing from gateway"],
+    ["UNDEPLOYED", "Not on gateway"],
+    ["FAILED", "Gateway deploy failed"],
+  ] as const)("labels a %s proxy", (status, label) => {
+    render(<EnvA2AProxySection params={params} cardUrl={cardUrl} proxy={{ ...stored, status }} />);
+    expect(screen.getByText(label)).toBeInTheDocument();
+  });
+
+  it("shows a failed deploy with its reason and offers a retry", () => {
+    render(<EnvA2AProxySection params={params} cardUrl={cardUrl} proxy={{ ...stored, status: "FAILED", statusReason: "no JSONRPC interface" }} />);
+    expect(screen.getByText("Gateway deploy failed")).toBeInTheDocument();
     expect(screen.getByText(/no JSONRPC interface/)).toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: "Retry" }));
     expect(republish).toHaveBeenCalledWith(params);
+  });
+
+  it("warns that a DEPLOYED proxy serves the previous configuration when its update failed", () => {
+    render(<EnvA2AProxySection params={params} cardUrl={cardUrl} proxy={{ ...stored, statusReason: "card fetch failed" }} />);
+    expect(screen.getByText(gatewayUrl)).toBeInTheDocument();
+    expect(screen.getByRole("alert")).toHaveTextContent(
+      "serving the previous configuration — last update failed: card fetch failed");
+    fireEvent.click(screen.getByRole("button", { name: "Retry" }));
+    expect(republish).toHaveBeenCalledWith(params);
+  });
+
+  it("shows no warning for a healthy DEPLOYED proxy", () => {
+    render(<EnvA2AProxySection params={params} cardUrl={cardUrl} proxy={stored} />);
+    expect(screen.queryByRole("alert")).not.toBeInTheDocument();
   });
 
   it("opens the gateway security settings only while proxied", async () => {
@@ -141,7 +166,7 @@ describe("EnvA2AProxySection", () => {
     expect(await screen.findByText("security drawer")).toBeInTheDocument();
   });
 
-  it("shows the gateway URL once published and copies it", async () => {
+  it("shows the gateway URL once deployed and copies it", async () => {
     render(<EnvA2AProxySection params={params} cardUrl={cardUrl} proxy={stored} />);
     expect(screen.getByText(gatewayUrl)).toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: "Copy gateway URL" }));
@@ -150,15 +175,18 @@ describe("EnvA2AProxySection", () => {
     expect(await screen.findByText("Copied!")).toBeInTheDocument();
   });
 
-  it("says no ingress gateway is mapped when a published proxy has no gateway URL", () => {
-    render(<EnvA2AProxySection params={params} cardUrl={cardUrl} proxy={{ ...stored, gatewayUrl: "" }} />);
+  it("says no ingress gateway is mapped when the environment has none", () => {
+    render(<EnvA2AProxySection params={params} cardUrl={cardUrl}
+      proxy={{ ...stored, status: "UNDEPLOYED", statusReason: "no gateway in this environment", gatewayUrl: "" }} />);
     expect(screen.getByText(/No ingress gateway is mapped/)).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Copy gateway URL" })).not.toBeInTheDocument();
   });
 
-  it("hides the gateway URL until the proxy is published", () => {
-    render(<EnvA2AProxySection params={params} cardUrl={cardUrl} proxy={{ ...stored, status: "pending" }} />);
+  it("hides the gateway URL until the proxy is deployed and says what a deploy waits for", () => {
+    render(<EnvA2AProxySection params={params} cardUrl={cardUrl}
+      proxy={{ ...stored, status: "DEPLOYING", statusReason: "the origin's card can't be fetched" }} />);
     expect(screen.queryByText(gatewayUrl)).not.toBeInTheDocument();
     expect(screen.queryByText(/No ingress gateway is mapped/)).not.toBeInTheDocument();
+    expect(screen.getByText("the origin's card can't be fetched")).toBeInTheDocument();
   });
 });

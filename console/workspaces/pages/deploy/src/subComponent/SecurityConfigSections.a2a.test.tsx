@@ -34,7 +34,7 @@ const mockAgent = (subType: string) =>
     data: { agentType: { type: "agent-api", subType } },
   } as unknown as ReturnType<typeof useGetAgent>);
 
-const mockAgentOfType = (type: string, subType: string) =>
+const mockAgentOfType = (type: string, subType?: string) =>
   vi.mocked(useGetAgent).mockReturnValue({
     data: { agentType: { type, subType } },
   } as unknown as ReturnType<typeof useGetAgent>);
@@ -112,8 +112,8 @@ describe("SecurityConfigSections for A2A agents", () => {
     expect(ref.current?.buildBody()).toHaveProperty("resilienceTimeoutSeconds", 30);
   });
 
-  it("serves a proxied external A2A agent's inbound auth and CORS", () => {
-    mockAgentOfType("external-agent-api", "a2a-agent");
+  it("serves a proxied external agent's inbound auth and CORS", () => {
+    mockAgentOfType("external-agent-api");
     const ref = renderSections(configurations());
     expect(screen.getByText("CORS Configuration")).toBeInTheDocument();
     expect(ref.current?.buildBody()).toMatchObject({ enableApiKeySecurity: true });
@@ -129,16 +129,16 @@ describe("SecurityConfigSections for A2A agents", () => {
     const forwardTokenSwitch = () =>
       screen.getByRole("switch", { name: /Forward token to upstream/ });
 
-    it("keeps the switch off and disabled for a proxied external A2A agent", () => {
-      mockAgentOfType("external-agent-api", "a2a-agent");
+    it("keeps the switch off and disabled for a proxied external agent", () => {
+      mockAgentOfType("external-agent-api");
       renderSections(oauthConfigurations(true));
       expect(forwardTokenSwitch()).not.toBeChecked();
       expect(forwardTokenSwitch()).toBeDisabled();
       expect(screen.getByText(/never forwarded to an external agent/)).toBeInTheDocument();
     });
 
-    it("never sends a forwarded token for a proxied external A2A agent", () => {
-      mockAgentOfType("external-agent-api", "a2a-agent");
+    it("never sends a forwarded token for a proxied external agent", () => {
+      mockAgentOfType("external-agent-api");
       const ref = renderSections(oauthConfigurations(true));
       expect(ref.current?.buildBody().oauthConfig?.forwardToken).toBe(false);
     });
@@ -157,10 +157,11 @@ describe("SecurityConfigSections for A2A agents", () => {
     });
   });
 
-  it("renders nothing for an external agent that is not A2A", () => {
-    mockAgentOfType("external-agent-api", "custom");
+  it("treats an external agent created with an old subtype like any external agent", () => {
+    mockAgentOfType("external-agent-api", "custom-api");
     const ref = renderSections(configurations());
-    expect(screen.queryByText("CORS Configuration")).not.toBeInTheDocument();
-    expect(ref.current?.buildBody()).toEqual({});
+    expect(screen.getByText("CORS Configuration")).toBeInTheDocument();
+    expect(screen.getByText("Agent Card CORS")).toBeInTheDocument();
+    expect(ref.current?.buildBody()).toMatchObject({ enableApiKeySecurity: true });
   });
 });

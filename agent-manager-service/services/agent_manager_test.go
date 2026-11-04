@@ -31,6 +31,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"gorm.io/gorm"
 
 	"github.com/wso2/agent-manager/agent-manager-service/clients/clientmocks"
 	"github.com/wso2/agent-manager/agent-manager-service/clients/openchoreosvc/client"
@@ -687,6 +688,33 @@ func TestUpdateAgentConfigurations_RejectsUnownedSecretRef(t *testing.T) {
 	assert.False(t, overridesReplaced, "the victim's secretRef must never reach the workload override rewrite for an unrelated agent")
 }
 
+// A system-managed secret env var echoed back with its secretRef must keep the secret
+// property it was issued under. MCP and LLM proxy secrets store the key under "api-key";
+// re-emitting it under the env var's own name points the binding at a property that does
+// not exist and fails rendering (wso2/agent-manager#2164).
+func TestProcessEnvVars_PreservesSystemManagedSecretKey(t *testing.T) {
+	const proxySecretRef = "github-default-github-proxy-secrets"
+
+	ocClient := &clientmocks.OpenChoreoClientMock{
+		GetComponentConfigurationsFunc: func(context.Context, string, string, string, string) ([]models.EnvVars, error) {
+			return []models.EnvVars{{Key: "GITHUB_API_KEY", IsSensitive: true, SecretRef: proxySecretRef, SecretKey: "api-key"}}, nil
+		},
+	}
+	s := &agentManagerService{ocClient: ocClient, logger: discardLogger()}
+
+	echoed := spec.EnvironmentVariable{Key: "GITHUB_API_KEY"}
+	echoed.SetIsSensitive(true)
+	echoed.SetValue("")
+	echoed.SetSecretRef(proxySecretRef)
+
+	written, err := s.processEnvVars(context.Background(), "acme", "proj1", "stage", "it-support",
+		[]spec.EnvironmentVariable{echoed}, nil)
+	require.NoError(t, err)
+	require.Len(t, written, 1)
+	require.NotNil(t, written[0].ValueFrom)
+	assert.Equal(t, client.SecretKeyRef{Name: proxySecretRef, Key: "api-key"}, *written[0].ValueFrom.SecretKeyRef)
+}
+
 // stubAgentConfigurationServiceForPromote implements AgentConfigurationService
 // by embedding the (nil) interface and overriding only the methods PromoteAgent
 // actually calls — any other method call panics on the nil embed, which is fine
@@ -832,6 +860,7 @@ func promoteAgentTestFixture(t *testing.T, tgtIdentityEnvVars []client.EnvVar, t
 		agentConfigurationService: agentConfigSvc,
 		agentIdentityInjection:    identityInjector,
 		agentThunderProvisioning:  provisioningStubWithProvision,
+		gatewayRepo:               gatewayRepoMapping(ingressGateway),
 		logger:                    discardLogger(),
 	}
 	return s, &promoteCalled
@@ -2064,7 +2093,7 @@ func deployAPIAgentMocks(existingConfig *models.AgentConfig) (*agentManagerServi
 			return nil, nil
 		},
 		GetEnvironmentFunc: func(_ context.Context, _, name string) (*models.EnvironmentResponse, error) {
-			return &models.EnvironmentResponse{Name: name, UUID: "env-uuid"}, nil
+			return &models.EnvironmentResponse{Name: name, UUID: uuid.NewString()}, nil
 		},
 		IsDeploymentInProgressFunc: func(context.Context, string, string, string) (bool, error) {
 			return false, nil
@@ -2099,6 +2128,7 @@ func deployAPIAgentMocks(existingConfig *models.AgentConfig) (*agentManagerServi
 			return &models.Artifact{UUID: uuid.Must(uuid.NewV7()), Handle: handle, Kind: models.KindAgent, OUID: orgUUID}, nil
 		},
 	}
+	artifactRepo.WithTxFunc = func(*gorm.DB) repositories.ArtifactRepository { return artifactRepo }
 	agentConfigRepo := &repomocks.AgentConfigRepositoryMock{
 		GetFunc: func(context.Context, string, string, string, string) (*models.AgentConfig, error) {
 			if existingConfig == nil {
@@ -2115,55 +2145,26 @@ func deployAPIAgentMocks(existingConfig *models.AgentConfig) (*agentManagerServi
 		agentIdentityInjection: injector,
 		artifactRepo:           artifactRepo,
 		agentConfigRepo:        agentConfigRepo,
+		gatewayRepo:            gatewayRepoMapping(ingressGateway),
 		logger:                 discardLogger(),
 	}
 	return s, &capturedDeployConfig
 }
 
-// covers the deploy-time wiring of ResilienceTimeoutSeconds into the
-// api-management trait's resilienceTimeout parameter.
-func TestDeployAgent_APIAgent_ResilienceTimeout(t *testing.T) {
-	tests := []struct {
-		name                  string
-		existingConfig        *models.AgentConfig
-		wantResilienceTimeout string
-	}{
-		{"persisted value within bounds produces \"<N>s\"", &models.AgentConfig{ResilienceTimeoutSeconds: int32Ptr(45)}, "45s"},
-		{"no persisted config falls back to \"30s\"", nil, "30s"},
-		{"persisted nil falls back to \"30s\"", &models.AgentConfig{}, "30s"},
-	}
-	for _, tc := range tests {
-		t.Run(tc.name, func(t *testing.T) {
-			s, capturedDeployConfig := deployAPIAgentMocks(tc.existingConfig)
-
-			env, err := s.DeployAgent(tierGrantedCtx(t), "acme", "proj1", "my-agent", &spec.DeployAgentRequest{ImageId: "registry.example.com/my-agent:v1"})
-
-			require.NoError(t, err)
-			assert.Equal(t, "dev", env)
-			apiTrait := findTraitRequest(capturedDeployConfig.TraitsToAttach, client.TraitAPIManagement)
-			require.NotNil(t, apiTrait, "expected an api-management trait to be attached for an API agent deploy")
-			params := applyTraitOpts(apiTrait.Opts)
-			assert.Equal(t, tc.wantResilienceTimeout, params["resilienceTimeout"])
-		})
-	}
-}
-
 // covers the "editable immediately without redeploy" path:
 func TestUpdateAgentDeploySettings_ResilienceTimeout(t *testing.T) {
 	tests := []struct {
-		name                string
-		existingConfig      *models.AgentConfig
-		requested           *int32
-		wantPersisted       *int32
-		wantEnvOverridePush string
+		name           string
+		existingConfig *models.AgentConfig
+		requested      *int32
+		wantPersisted  *int32
 	}{
-		{"request sets a new value", nil, int32Ptr(90), int32Ptr(90), "90s"},
-		{"omitted request keeps existing DB value", &models.AgentConfig{ResilienceTimeoutSeconds: int32Ptr(60)}, nil, int32Ptr(60), "60s"},
-		{"nothing set omits the override, no key pushed", nil, nil, nil, ""},
+		{"request sets a new value", nil, int32Ptr(90), int32Ptr(90)},
+		{"omitted request keeps existing DB value", &models.AgentConfig{ResilienceTimeoutSeconds: int32Ptr(60)}, nil, int32Ptr(60)},
+		{"nothing set persists no override", nil, nil, nil},
 	}
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			var pushedTraitEnvConfigs map[string]interface{}
 			var persisted *models.AgentConfig
 			ocClient := &clientmocks.OpenChoreoClientMock{
 				GetOrganizationFunc: func(_ context.Context, name string) (*models.OrganizationResponse, error) {
@@ -2175,14 +2176,8 @@ func TestUpdateAgentDeploySettings_ResilienceTimeout(t *testing.T) {
 				GetEnvironmentFunc: func(_ context.Context, _, name string) (*models.EnvironmentResponse, error) {
 					return &models.EnvironmentResponse{Name: name, UUID: "env-uuid"}, nil
 				},
-				UpdateReleaseBindingTraitConfigsFunc: func(_ context.Context, _, _, _ string, traitConfigs map[string]interface{}, _ map[string]interface{}) error {
-					pushedTraitEnvConfigs = traitConfigs
+				UpdateReleaseBindingTraitConfigsFunc: func(context.Context, string, string, string, map[string]interface{}, map[string]interface{}) error {
 					return nil
-				},
-			}
-			artifactRepo := &repomocks.ArtifactRepositoryMock{
-				GetByHandleFunc: func(handle, orgUUID string) (*models.Artifact, error) {
-					return &models.Artifact{UUID: uuid.Must(uuid.NewV7()), Handle: handle, Kind: models.KindAgent, OUID: orgUUID}, nil
 				},
 			}
 			agentConfigRepo := &repomocks.AgentConfigRepositoryMock{
@@ -2199,7 +2194,6 @@ func TestUpdateAgentDeploySettings_ResilienceTimeout(t *testing.T) {
 			}
 			s := &agentManagerService{
 				ocClient:        ocClient,
-				artifactRepo:    artifactRepo,
 				agentConfigRepo: agentConfigRepo,
 				logger:          discardLogger(),
 			}
@@ -2215,13 +2209,6 @@ func TestUpdateAgentDeploySettings_ResilienceTimeout(t *testing.T) {
 			} else {
 				require.NotNil(t, persisted.ResilienceTimeoutSeconds)
 				assert.Equal(t, *tc.wantPersisted, *persisted.ResilienceTimeoutSeconds)
-			}
-			apiTraitCfg, _ := pushedTraitEnvConfigs["my-agent-api-configuration"].(map[string]interface{})
-			if tc.wantEnvOverridePush == "" {
-				_, present := apiTraitCfg["resilienceTimeout"]
-				assert.False(t, present, "expected no resilienceTimeout override to be pushed")
-			} else {
-				assert.Equal(t, tc.wantEnvOverridePush, apiTraitCfg["resilienceTimeout"])
 			}
 		})
 	}

@@ -35,10 +35,12 @@ import {
 import { generatePath, useNavigate, useParams } from "react-router-dom";
 import {
   useDeleteGateway,
+  useDeleteSelfHostedGateway,
   useListEnvironments,
   useListGateways,
 } from "@agent-management-platform/api-client";
 import {
+  GatewayHostingChip,
   GatewayTypeChip,
   ResourceListShell,
   formatRelativeTime,
@@ -47,11 +49,15 @@ import {
 } from "@agent-management-platform/shared-component";
 import {
   absoluteRouteMap,
+  globalConfig,
+  isSelfHostedGateway,
+  showGatewayHosting,
   type GatewayResponse,
 } from "@agent-management-platform/types";
 
 interface AIGatewaysTableProps {
   onEditGateway?: (gateway: GatewayResponse) => void;
+  onAddGateway?: () => void;
 }
 
 interface EnvironmentSection {
@@ -77,7 +83,11 @@ const matchesQuery = (gateway: GatewayResponse, query: string) => {
   return haystack.toLowerCase().includes(query);
 };
 
-export function AIGatewaysTable({ onEditGateway }: AIGatewaysTableProps) {
+export function AIGatewaysTable({
+  onEditGateway,
+  onAddGateway,
+}: AIGatewaysTableProps) {
+  const selfHostedEnabled = globalConfig.featureFlags?.enableSelfHostedGateways === true;
   const navigate = useNavigate();
   const { orgId } = useParams<{ orgId: string }>();
   const [searchQuery, setSearchQuery] = useState("");
@@ -99,9 +109,18 @@ export function AIGatewaysTable({ onEditGateway }: AIGatewaysTableProps) {
   const isLoading = gatewaysLoading || environmentsLoading;
   const error = gatewaysError || environmentsError;
 
-  const { mutateAsync: deleteGateway } = useDeleteGateway();
+  const { mutateAsync: deleteManagedGateway } = useDeleteGateway();
+  const { mutateAsync: deleteSelfHostedGateway } = useDeleteSelfHostedGateway();
+  const deleteGateway = (gateway: GatewayResponse) => {
+    const params = { orgName: orgId ?? "", gatewayId: gateway.uuid };
+    return isSelfHostedGateway(gateway)
+      ? deleteSelfHostedGateway(params)
+      : deleteManagedGateway(params);
+  };
 
   const gateways = useMemo(() => gatewaysData?.gateways ?? [], [gatewaysData]);
+  const showHosting = showGatewayHosting(selfHostedEnabled, gateways);
+  const columnCount = showHosting ? 6 : 5;
 
   const filteredGateways = useMemo(() => {
     const query = searchQuery.trim().toLowerCase();
@@ -214,6 +233,12 @@ export function AIGatewaysTable({ onEditGateway }: AIGatewaysTableProps) {
           <GatewayTypeChip type={gateway.gatewayType} />
         </ListingTable.Cell>
 
+        {showHosting && (
+          <ListingTable.Cell align="left">
+            <GatewayHostingChip gateway={gateway} />
+          </ListingTable.Cell>
+        )}
+
         <ListingTable.Cell align="center">
           <Chip
             label={isActive ? "Active" : "Inactive"}
@@ -256,10 +281,7 @@ export function AIGatewaysTable({ onEditGateway }: AIGatewaysTableProps) {
                     confirmButtonColor: "error",
                     confirmButtonIcon: <Trash size={16} />,
                     onConfirm: async () => {
-                      await deleteGateway({
-                        orgName: orgId ?? "",
-                        gatewayId: gateway.uuid,
-                      });
+                      await deleteGateway(gateway);
                       refetch();
                     },
                   });
@@ -290,6 +312,11 @@ export function AIGatewaysTable({ onEditGateway }: AIGatewaysTableProps) {
             )
           : undefined
       }
+      addButton={
+        selfHostedEnabled && onAddGateway
+          ? { label: "Add Gateway", onClick: onAddGateway }
+          : undefined
+      }
       isLoading={isLoading}
       isEmpty={gateways.length === 0}
       isSearchEmpty={filteredGateways.length === 0}
@@ -312,6 +339,11 @@ export function AIGatewaysTable({ onEditGateway }: AIGatewaysTableProps) {
             <ListingTable.Cell align="left" width="120px">
               Type
             </ListingTable.Cell>
+            {showHosting && (
+              <ListingTable.Cell align="left" width="120px">
+                Hosting
+              </ListingTable.Cell>
+            )}
             <ListingTable.Cell align="center" width="120px">
               Status
             </ListingTable.Cell>
@@ -328,7 +360,7 @@ export function AIGatewaysTable({ onEditGateway }: AIGatewaysTableProps) {
                 {/* "&&" outranks the table's descendant padding rule on
                         .MuiTableCell-root, which beats a plain sx padding. */}
                 <ListingTable.Cell
-                  colSpan={5}
+                  colSpan={columnCount}
                   sx={{ "&&": { border: 0, p: 0 } }}
                 >
                   <Typography variant="overline" color="text.secondary">

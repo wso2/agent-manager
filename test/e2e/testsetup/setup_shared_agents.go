@@ -17,6 +17,7 @@
 package testsetup
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"net/http"
@@ -248,13 +249,13 @@ func deleteProjectBestEffort(client *framework.AMPClient, orgName, projName stri
 // Kind publishing and promotion to the second environment are performed by the
 // consuming tests (the agent domain's promotion suite), not here; this setup
 // only establishes the shared, default-environment baseline.
-func SetupSharedPromotableITHelpdeskAgent(client *framework.AMPClient, cfg *framework.Config) *framework.SharedPromotableITHelpdeskAgent {
+func SetupSharedPromotableITHelpdeskAgent(ctx context.Context, client *framework.AMPClient, cfg *framework.Config) *framework.SharedPromotableITHelpdeskAgent {
 	Expect(cfg.OpenAIAPIKey).NotTo(BeEmpty(), "OPENAI_API_KEY must be set for the promotable IT helpdesk agent")
 
 	agent := &framework.SharedPromotableITHelpdeskAgent{
 		AgentName: framework.SharedPromotableITHelpdeskAgentName,
 	}
-	agent.ProjectName, agent.SecondEnv = EnsurePromotableInfra(client, cfg)
+	agent.ProjectName, agent.SecondEnv = EnsurePromotableInfra(ctx, client, cfg)
 	agent.BuildName = ensureSharedAgentReady(client, cfg, agent.ProjectName, agent.AgentName,
 		"Promotable IT helpdesk agent shared across agent/configuration/llmprovider domains")
 
@@ -355,10 +356,10 @@ func isTerminalDeploymentError(status string) bool {
 // (when that test owns the promotable agent's lifecycle) or from
 // SetupSharedPromotableITHelpdeskAgent (when a reusing domain just needs the
 // agent to exist).
-func EnsurePromotableInfra(client *framework.AMPClient, cfg *framework.Config) (projName, secondEnv string) {
+func EnsurePromotableInfra(ctx context.Context, client *framework.AMPClient, cfg *framework.Config) (projName, secondEnv string) {
 	projName = framework.E2ESharedProjectWithMultiEnvDepPipeline
 	secondEnv = framework.E2ESharedSecondEnv
-	ensureSecondEnvironment(client, cfg, secondEnv)
+	ensureSecondEnvironment(ctx, client, cfg, secondEnv)
 	ensurePromotableProject(client, cfg, projName, secondEnv)
 	return projName, secondEnv
 }
@@ -386,7 +387,7 @@ func EnsureProject(client *framework.AMPClient, cfg *framework.Config, name, dis
 
 // ensureSecondEnvironment provisions the shared promotion-target environment via
 // the add-environment script if it does not already exist.
-func ensureSecondEnvironment(client *framework.AMPClient, cfg *framework.Config, envName string) {
+func ensureSecondEnvironment(ctx context.Context, client *framework.AMPClient, cfg *framework.Config, envName string) {
 	envPath := fmt.Sprintf("/api/v1/orgs/%s/environments/%s", cfg.DefaultOrg, envName)
 	if framework.ResourceExists(client, envPath) {
 		ginkgo.GinkgoWriter.Printf("Shared second environment already exists: %s\n", envName)
@@ -396,7 +397,10 @@ func ensureSecondEnvironment(client *framework.AMPClient, cfg *framework.Config,
 	scriptParams := envops.FromClient(client)
 	scriptParams.EnvName = envName
 	scriptParams.DisplayName = "E2E Shared Staging"
-	envops.AddEnvironment(scriptParams)
+	// Agents are promoted into this env, which needs its own Thunder to mint
+	// their identity — even when the run sets PROVISION_THUNDER=false globally.
+	scriptParams.ProvisionThunder = true
+	envops.AddEnvironmentWithContext(ctx, scriptParams)
 }
 
 // ensurePromotableProject creates the promotable project (with a

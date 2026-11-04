@@ -40,6 +40,9 @@ type AgentEnvConfigVariableRepository interface {
 	// ListByConfig retrieves all variables for a config across all environments
 	ListByConfig(ctx context.Context, configUUID uuid.UUID) ([]models.AgentEnvConfigVariable, error)
 
+	// LockAndListByAgent serializes renames across an agent's configurations until transaction completion.
+	LockAndListByAgent(ctx context.Context, tx *gorm.DB, ouID, projectName, agentID string) ([]models.AgentEnvConfigVariable, error)
+
 	// ListByConfigForUpdate retrieves all variables for a config with a row-level lock (use within transaction)
 	ListByConfigForUpdate(ctx context.Context, tx *gorm.DB, configUUID uuid.UUID) ([]models.AgentEnvConfigVariable, error)
 
@@ -168,4 +171,19 @@ func (r *agentEnvConfigVariableRepository) ListSecretReferencesByAgentAndEnv(ctx
 		refs = append(refs, row.SecretReference)
 	}
 	return refs, nil
+}
+
+// LockAndListByAgent takes the agent lock before any configuration row lock. A
+// separate read after acquisition sees names committed by a competing rename.
+func (r *agentEnvConfigVariableRepository) LockAndListByAgent(ctx context.Context, tx *gorm.DB, ouID, projectName, agentID string) ([]models.AgentEnvConfigVariable, error) {
+	key := fmt.Sprintf("%q/%q/%q", ouID, projectName, agentID)
+	if err := advisoryXactLock(tx.WithContext(ctx), agentVariableLockNamespace, key); err != nil {
+		return nil, fmt.Errorf("lock agent variable names: %w", err)
+	}
+	var variables []models.AgentEnvConfigVariable
+	err := tx.WithContext(ctx).Table("agent_env_config_variables_mapping AS v").Select("v.*").
+		Joins("JOIN agent_configurations AS c ON c.uuid = v.config_uuid").
+		Where("c.ou_id = ? AND c.project_name = ? AND c.agent_id = ?", ouID, projectName, agentID).
+		Find(&variables).Error
+	return variables, err
 }

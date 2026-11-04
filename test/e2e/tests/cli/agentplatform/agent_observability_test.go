@@ -27,7 +27,7 @@ import (
 	"github.com/wso2/agent-manager/test/e2e/operations/deployment"
 )
 
-var _ = Describe("amctl agent (CLI-owned lifecycle)", Label("cli", "agent"), Ordered, func() {
+var _ = Describe("amctl agent (CLI-owned lifecycle)", Label("cli", "agent"), Ordered, Serial, func() {
 	// The CLI-owned agent is provisioned once by the suite's
 	// SynchronizedBeforeSuite (see suite_test.go), so cfg/apiClient/owned are
 	// ready before these specs run — no per-suite BeforeAll setup needed.

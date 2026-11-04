@@ -99,6 +99,7 @@ type OpenChoreoClient interface {
 	DetachTrait(ctx context.Context, ouID, projectName, componentName string, traitType TraitType) error
 	HasTrait(ctx context.Context, ouID, projectName, componentName string, traitType TraitType) (bool, error)
 	UpdateComponentDeploymentConfig(ctx context.Context, ouID, projectName, componentName string, req ComponentDeploymentConfigRequest) error
+	GetComponentBaseEnvVars(ctx context.Context, ouID, componentName string) ([]EnvVar, error)
 	UpdateComponentEnvVars(ctx context.Context, ouID, projectName, componentName string, envVars []EnvVar) error
 	ReplaceComponentEnvVars(ctx context.Context, ouID, projectName, componentName string, envVars []EnvVar) error
 	ReplaceComponentFileMounts(ctx context.Context, ouID, projectName, componentName string, files []FileVar) error
@@ -116,15 +117,21 @@ type OpenChoreoClient interface {
 	GetReleaseBindingServiceURL(ctx context.Context, ouID, componentName, environment string) (string, error)
 	// GetReleaseBindingRollout reports the binding's release and whether its rollout has finished.
 	GetReleaseBindingRollout(ctx context.Context, ouID, componentName, environment string) (ReleaseBindingRollout, error)
+	// GetReleaseBindingTraits names the traits on the release bound in the environment; bound is false when the
+	// environment has no binding.
+	GetReleaseBindingTraits(ctx context.Context, ouID, componentName, environment string) (traits []TraitType, bound bool, err error)
 	GetComponentConfigurations(ctx context.Context, ouID, projectName, componentName, environment string) ([]models.EnvVars, error)
 	GetComponentFileMounts(ctx context.Context, ouID, projectName, componentName, environment string) ([]models.FileMountEntry, error)
 
 	// Build Operations
 	// workflowRunName may be supplied by the service when deployment-specific work must
 	// happen before the run is created. An empty value preserves the default behavior and
-	// lets the client generate the name.
-	TriggerBuild(ctx context.Context, ouID, projectName, componentName, commitID, workflowRunName string) (*models.BuildResponse, error)
+	// lets the client generate the name. runEnvVars are added to this run's environment
+	// variables only, never to the component; the build applies them only if it creates the
+	// first environment's ReleaseBinding, so they don't change a binding that already exists.
+	TriggerBuild(ctx context.Context, ouID, projectName, componentName, commitID, workflowRunName string, runEnvVars []EnvVar) (*models.BuildResponse, error)
 	GetBuild(ctx context.Context, ouID, projectName, componentName, buildName string) (*models.BuildDetailsResponse, error)
+	GetBuildByName(ctx context.Context, ouID, buildName string) (*models.BuildDetailsResponse, error)
 	ListBuilds(ctx context.Context, ouID, projectName, componentName string) ([]*models.BuildResponse, error)
 	UpdateComponentBuildParameters(ctx context.Context, ouID, projectName, componentName string, req UpdateComponentBuildParametersRequest) error
 

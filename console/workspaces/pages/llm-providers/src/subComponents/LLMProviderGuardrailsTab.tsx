@@ -94,21 +94,6 @@ function pathMatchesResource(
   );
 }
 
-function pathsIncludeEquivalent(
-  paths: LLMPolicyPath[],
-  newPath: LLMPolicyPath,
-): boolean {
-  const newMethods = [...(newPath.methods ?? [])].sort();
-  return paths.some((p) => {
-    if (p.path !== newPath.path) return false;
-    const methods = [...(p.methods ?? [])].sort();
-    return (
-      methods.length === newMethods.length &&
-      methods.every((m, i) => m === newMethods[i])
-    );
-  });
-}
-
 type DrawerContext =
   | { type: "global" }
   | { type: "resource"; method: string; path: string };
@@ -300,30 +285,28 @@ export function LLMProviderGuardrailsTab({
               params,
             };
 
-      const existing = policies.find(
+      const existingIndex = policies.findIndex(
         (p) => p.name === guardrail.name && p.version === guardrail.version,
       );
+      const existing = existingIndex >= 0 ? policies[existingIndex] : undefined;
+      const newPolicy: LLMPolicy = {
+        name: guardrail.name,
+        version: guardrail.version,
+        paths: [newPath],
+      };
 
       let nextPolicies: LLMPolicy[];
-      if (existing) {
-        const currentPaths = existing.paths ?? [];
-        const dedupedPaths = pathsIncludeEquivalent(currentPaths, newPath)
-          ? currentPaths
-          : [...currentPaths, newPath];
-        nextPolicies = policies.map((p) =>
-          p.name === guardrail.name && p.version === guardrail.version
-            ? { ...p, paths: dedupedPaths }
+      if (!existing) {
+        // First use of this guardrail: add it as a new policy.
+        nextPolicies = [...policies, newPolicy];
+      } else {
+        // Already added: add this scope to the existing policy, even if the
+        // policy already has a path for the same scope.
+        nextPolicies = policies.map((p, i) =>
+          i === existingIndex
+            ? { ...p, paths: [...(p.paths ?? []), newPath] }
             : p,
         );
-      } else {
-        nextPolicies = [
-          ...policies,
-          {
-            name: guardrail.name,
-            version: guardrail.version,
-            paths: [newPath],
-          },
-        ];
       }
 
       setLocalPolicies(nextPolicies);
@@ -699,25 +682,6 @@ export function LLMProviderGuardrailsTab({
         emptySearchTitle="No guardrails match your search"
         emptyCatalogTitle="No guardrails available"
         emptyCatalogDescription="No guardrail policies are available in the catalog."
-        disabledPolicyKeys={
-          editingContext
-            ? []
-            : policies
-                .filter((p) =>
-                  drawerContext?.type === "global"
-                    ? (p.paths ?? []).some(isGlobalPath)
-                    : drawerContext?.type === "resource"
-                      ? (p.paths ?? []).some((path) =>
-                          pathMatchesResource(
-                            path,
-                            drawerContext.path,
-                            drawerContext.method,
-                          ),
-                        )
-                      : false,
-                )
-                .map((p) => `${p.name}@${p.version}`)
-        }
         existingSettings={editingContext?.params}
         editPolicyKey={
           editingContext

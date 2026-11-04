@@ -31,3 +31,14 @@ gateway:
   httpsPort: 11085
   tls:
     enabled: false
+  # Fluent Bit reaches OpenSearch through this listener (SNI-routed by the
+  # opensearch TLSRoute in values/opensearch-tls-route.yaml), not directly.
+  tlsPassthrough:
+    enabled: true
+    hostname: "opensearch.observability.openchoreo.localhost"
+    port: 11443
+networkPolicy:
+  unrestrictedIngressAppNames:
+    - gateway-default
+    - opentelemetry-collector
+    - wso2-amp-observability-extension

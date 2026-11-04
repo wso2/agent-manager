@@ -18,6 +18,8 @@ package controllers
 
 import (
 	"context"
+	"errors"
+	"sync"
 	"testing"
 	"time"
 
@@ -31,9 +33,18 @@ import (
 type fakeObservabilityClient struct {
 	logsResp    *observer.LogsQueryResponse
 	metricsResp *observer.ResourceMetricsTimeSeries
+	// tipMetricsResp and tipMetricsErr answer the single-instant tip query
+	// GetMetrics issues alongside the grid query.
+	tipMetricsResp *observer.ResourceMetricsTimeSeries
+	tipMetricsErr  error
+	// nilMetrics makes every QueryMetrics call return (nil, nil).
+	nilMetrics bool
 
-	lastLogsReq    observer.LogsQueryRequest
-	lastMetricsReq observer.MetricsQueryRequest
+	lastLogsReq observer.LogsQueryRequest
+
+	mu              sync.Mutex
+	gridMetricsReqs []observer.MetricsQueryRequest
+	tipMetricsReqs  []observer.MetricsQueryRequest
 
 	defaultNamespace string
 }
@@ -59,7 +70,22 @@ func (f *fakeObservabilityClient) QueryLogs(_ context.Context, req observer.Logs
 }
 
 func (f *fakeObservabilityClient) QueryMetrics(_ context.Context, req observer.MetricsQueryRequest) (*observer.ResourceMetricsTimeSeries, error) {
-	f.lastMetricsReq = req
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	if f.nilMetrics {
+		return nil, nil
+	}
+	if req.StartTime.Equal(req.EndTime) {
+		f.tipMetricsReqs = append(f.tipMetricsReqs, req)
+		if f.tipMetricsErr != nil {
+			return nil, f.tipMetricsErr
+		}
+		if f.tipMetricsResp != nil {
+			return f.tipMetricsResp, nil
+		}
+		return &observer.ResourceMetricsTimeSeries{}, nil
+	}
+	f.gridMetricsReqs = append(f.gridMetricsReqs, req)
 	if f.metricsResp != nil {
 		return f.metricsResp, nil
 	}
@@ -388,15 +414,15 @@ func TestGetMetrics_MapsAllSixSeriesAndNilBecomesEmpty(t *testing.T) {
 		t.Errorf("MemoryLimits = %#v, want non-nil empty slice", resp.MemoryLimits)
 	}
 
-	scope := fake.lastMetricsReq.SearchScope
+	scope := fake.gridMetricsReqs[0].SearchScope
 	if scope.Namespace != "ns-1" {
 		t.Errorf("scope.Namespace = %q, want ns-1", scope.Namespace)
 	}
 	if scope.Project == nil || *scope.Project != "proj-1" {
 		t.Errorf("scope.Project = %v, want proj-1", scope.Project)
 	}
-	if fake.lastMetricsReq.Metric != "resource" {
-		t.Errorf("Metric = %q, want resource", fake.lastMetricsReq.Metric)
+	if fake.gridMetricsReqs[0].Metric != "resource" {
+		t.Errorf("Metric = %q, want resource", fake.gridMetricsReqs[0].Metric)
 	}
 }
 
@@ -438,7 +464,7 @@ func TestGetMetrics_AlignsWindowToStep(t *testing.T) {
 		}); err != nil {
 			t.Fatalf("GetMetrics returned error: %v", err)
 		}
-		got = append(got, fake.lastMetricsReq)
+		got = append(got, fake.gridMetricsReqs[0])
 	}
 
 	wantStart := time.Date(2026, 9, 22, 17, 55, 0, 0, time.UTC)
@@ -450,5 +476,106 @@ func TestGetMetrics_AlignsWindowToStep(t *testing.T) {
 		if req.Step != "5m0s" {
 			t.Errorf("refresh %d Step = %q, want 5m0s", i, req.Step)
 		}
+	}
+}
+
+// (g) A window ending between grid points gets a live tip point at the
+// requested end, so an agent younger than one step still shows its newest data.
+func TestGetMetrics_AppendsLiveTipAfterGrid(t *testing.T) {
+	end := time.Date(2026, 10, 27, 12, 29, 0, 0, time.UTC)
+	gridPoint := time.Date(2026, 10, 27, 12, 20, 0, 0, time.UTC)
+	fake := &fakeObservabilityClient{
+		metricsResp: &observer.ResourceMetricsTimeSeries{
+			MemoryUsage: &[]observer.MetricsTimeSeriesItem{{Timestamp: timePtr(gridPoint), Value: floatPtr(1)}},
+		},
+		tipMetricsResp: &observer.ResourceMetricsTimeSeries{
+			CpuUsage:    &[]observer.MetricsTimeSeriesItem{{Timestamp: timePtr(end), Value: floatPtr(0.5)}},
+			MemoryUsage: &[]observer.MetricsTimeSeriesItem{{Timestamp: timePtr(end), Value: floatPtr(2)}},
+		},
+	}
+	c := NewObservabilityController(fake)
+
+	resp, err := c.GetMetrics(context.Background(), MetricsQueryParams{
+		StartTime: end.Add(-24 * time.Hour),
+		EndTime:   end,
+	})
+	if err != nil {
+		t.Fatalf("GetMetrics returned error: %v", err)
+	}
+
+	if len(fake.gridMetricsReqs) != 1 || len(fake.tipMetricsReqs) != 1 {
+		t.Fatalf("got %d grid and %d tip queries, want one of each", len(fake.gridMetricsReqs), len(fake.tipMetricsReqs))
+	}
+	if grid := fake.gridMetricsReqs[0]; !grid.EndTime.Equal(gridPoint) || grid.Step != "10m0s" {
+		t.Errorf("grid query end = %v step = %q, want %v, 10m0s", grid.EndTime, grid.Step, gridPoint)
+	}
+	if tip := fake.tipMetricsReqs[0]; !tip.StartTime.Equal(end) || !tip.EndTime.Equal(end) {
+		t.Errorf("tip query window = [%v, %v], want the instant %v", tip.StartTime, tip.EndTime, end)
+	}
+	if len(resp.CpuUsage) != 1 || resp.CpuUsage[0].Value != 0.5 {
+		t.Errorf("CpuUsage = %+v, want the tip point alone", resp.CpuUsage)
+	}
+	if len(resp.Memory) != 2 || resp.Memory[0].Value != 1 || resp.Memory[1].Value != 2 {
+		t.Errorf("Memory = %+v, want the grid point then the tip point", resp.Memory)
+	}
+}
+
+// (h) A window already ending on a grid point needs no tip query.
+func TestGetMetrics_SkipsTipWhenEndIsOnGrid(t *testing.T) {
+	end := time.Date(2026, 10, 27, 12, 30, 0, 0, time.UTC)
+	fake := &fakeObservabilityClient{}
+	c := NewObservabilityController(fake)
+
+	if _, err := c.GetMetrics(context.Background(), MetricsQueryParams{
+		StartTime: end.Add(-24 * time.Hour),
+		EndTime:   end,
+	}); err != nil {
+		t.Fatalf("GetMetrics returned error: %v", err)
+	}
+	if len(fake.tipMetricsReqs) != 0 {
+		t.Errorf("got %d tip queries, want none", len(fake.tipMetricsReqs))
+	}
+}
+
+// (i) A failed tip query still returns the grid, which holds nearly all the
+// data; only the newest point is lost.
+func TestGetMetrics_TipQueryErrorReturnsGrid(t *testing.T) {
+	end := time.Date(2026, 10, 27, 12, 29, 0, 0, time.UTC)
+	gridPoint := time.Date(2026, 10, 27, 12, 20, 0, 0, time.UTC)
+	fake := &fakeObservabilityClient{
+		metricsResp: &observer.ResourceMetricsTimeSeries{
+			MemoryUsage: &[]observer.MetricsTimeSeriesItem{{Timestamp: timePtr(gridPoint), Value: floatPtr(1)}},
+		},
+		tipMetricsErr: errors.New("upstream unavailable"),
+	}
+	c := NewObservabilityController(fake)
+
+	resp, err := c.GetMetrics(context.Background(), MetricsQueryParams{
+		StartTime: end.Add(-24 * time.Hour),
+		EndTime:   end,
+	})
+	if err != nil {
+		t.Fatalf("GetMetrics returned error: %v", err)
+	}
+	if len(resp.Memory) != 1 || resp.Memory[0].Value != 1 {
+		t.Errorf("Memory = %+v, want the grid point alone", resp.Memory)
+	}
+}
+
+// (j) An upstream that answers without a series or an error yields empty
+// series rather than a nil dereference when the grid and tip are merged.
+func TestGetMetrics_NilUpstreamResponseYieldsEmptySeries(t *testing.T) {
+	end := time.Date(2026, 10, 27, 12, 29, 0, 0, time.UTC)
+	c := NewObservabilityController(&fakeObservabilityClient{nilMetrics: true})
+
+	resp, err := c.GetMetrics(context.Background(), MetricsQueryParams{
+		StartTime: end.Add(-24 * time.Hour),
+		EndTime:   end,
+	})
+	if err != nil {
+		t.Fatalf("GetMetrics returned error: %v", err)
+	}
+	if resp.CpuUsage == nil || len(resp.CpuUsage) != 0 {
+		t.Errorf("CpuUsage = %#v, want non-nil empty slice", resp.CpuUsage)
 	}
 }

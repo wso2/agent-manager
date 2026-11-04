@@ -25,6 +25,7 @@ import (
 	"fmt"
 	"log/slog"
 	"regexp"
+	"sort"
 	"strings"
 	"time"
 
@@ -36,6 +37,7 @@ import (
 	"github.com/wso2/agent-manager/agent-manager-service/clients/secretmanagersvc"
 	"github.com/wso2/agent-manager/agent-manager-service/config"
 	"github.com/wso2/agent-manager/agent-manager-service/models"
+	"github.com/wso2/agent-manager/agent-manager-service/reconcile"
 	"github.com/wso2/agent-manager/agent-manager-service/repositories"
 	"github.com/wso2/agent-manager/agent-manager-service/utils"
 )
@@ -194,13 +196,13 @@ type rollbackResource struct {
 	// before this operation, so a later failure must restore its prior
 	// configuration instead of deleting it outright.
 	priorProxyConfig *models.LLMProxy
-	// restoreDeploymentID is the OLD deployment that was still Deployed before
-	// a new one superseded it (Scenario B only). Deploying the new "current"
-	// deployment atomically overwrites the shared deployment_status row, so the
-	// old deployment is left ARCHIVED even though it was never explicitly
-	// undeployed — on rollback it must be explicitly reactivated, not just left
-	// alone, or the proxy ends up with no live deployment on this gateway.
+	// restoreDeploymentID is the deployment the proxy was on before a Scenario-B
+	// redeploy (Scenario B only). The redeploy pointed the deployment_status row
+	// at the new deployment, and the rollback points it back.
 	restoreDeploymentID uuid.UUID
+	// supersededDeploymentID is the deployment a Scenario-B redeploy created; the
+	// rollback deletes it once restoreDeploymentID is current again.
+	supersededDeploymentID uuid.UUID
 }
 
 // pendingAppBinding captures the arguments for a deferred AIApplication
@@ -288,15 +290,7 @@ func agentAppIdentifier(projectName, agentID, envName string) string {
 // Format: "<configPrefix>-<16-hex-chars>" where configPrefix is the first 10 chars
 // of the sanitized config name.
 func scopedProxyIdentifier(projectName, agentName, configName, envName string) string {
-	raw := fmt.Sprintf("%s/%s/%s/%s", projectName, agentName, configName, envName)
-	hash := sha256.Sum256([]byte(raw))
-	hashSuffix := hex.EncodeToString(hash[:8])
-
-	prefix := sanitizeForK8sName(configName)
-	if len(prefix) > proxyNamePrefixMaxLen {
-		prefix = strings.TrimRight(prefix[:proxyNamePrefixMaxLen], "-")
-	}
-	return fmt.Sprintf("%s-%s", prefix, hashSuffix)
+	return hashSuffixedName(configName, fmt.Sprintf("%s/%s/%s/%s", projectName, agentName, configName, envName))
 }
 
 // mcpMappingProxyName builds the artifact handle/name and deployed proxy name for an
@@ -307,20 +301,9 @@ func mcpMappingProxyName(projectName, agentID, configName, envName string) strin
 	return fmt.Sprintf("%s-proxy", scopedProxyIdentifier(projectName, agentID, configName, envName))
 }
 
-// agentProxyAPIKeyPurpose returns the purpose for the API key auto-generated for
-// an agent's LLM proxy. External agents manage this key themselves (view the
-// masked key, regenerate or delete it from the console), so it is user-managed.
-// Managed agents have the platform inject the key, so it stays console-managed.
-func agentProxyAPIKeyPurpose(isExternalAgent bool) int {
-	if isExternalAgent {
-		return models.APIKeyPurposeUserManaged
-	}
-	return models.APIKeyPurposeConsoleManaged
-}
-
 // ensureExternalAgentForAPIKey gates the user-managed API key flows
 // (create/rotate/revoke) for a config-scoped proxy. These keys are only
-// user-managed for external agents (see agentProxyAPIKeyPurpose); managed/internal
+// user-managed for external agents (see placementPolicy.apiKeyPurpose); managed/internal
 // agents have the platform inject console-managed keys, so user-driven actions must
 // not proceed. When the agent backing the config is not external it returns
 // utils.ErrAgentConfigNotExternal, which the controller maps to a 403. The check
@@ -1084,8 +1067,7 @@ func (s *agentConfigurationService) Create(ctx context.Context, ouID, projectNam
 		return nil, fmt.Errorf("failed to validate agent: %w", err)
 	}
 
-	// Determine if this is an external agent
-	isExternalAgent := agent.Provisioning.Type == string(utils.ExternalAgent)
+	policy := placementPolicyFor(agent)
 
 	if err := s.rejectIfBuildInProgress(ctx, ouID, projectName, agentID, agent.KindName); err != nil {
 		return nil, err
@@ -1093,9 +1075,9 @@ func (s *agentConfigurationService) Create(ctx context.Context, ouID, projectNam
 
 	switch req.Type {
 	case models.AgentConfigTypeMCP:
-		return s.createMCPConfig(ctx, ouID, projectName, agentID, req, createdBy, isExternalAgent)
+		return s.createMCPConfig(ctx, ouID, projectName, agentID, req, createdBy, policy)
 	default:
-		return s.createLLMConfig(ctx, ouID, projectName, agentID, req, createdBy, isExternalAgent)
+		return s.createLLMConfig(ctx, ouID, projectName, agentID, req, createdBy, policy)
 	}
 }
 
@@ -1124,7 +1106,7 @@ func (s *agentConfigurationService) rejectIfBuildInProgress(ctx context.Context,
 }
 
 func (s *agentConfigurationService) createLLMConfig(ctx context.Context, ouID, projectName, agentID string,
-	req models.CreateAgentModelConfigRequest, createdBy string, isExternalAgent bool,
+	req models.CreateAgentModelConfigRequest, createdBy string, policy placementPolicy,
 ) (*models.AgentModelConfigResponse, error) {
 	// Validate that at least one environment mapping is provided (CRIT-5).
 	// The binding:"required,min=1" tag on the DTO is ignored by net/http + json.NewDecoder,
@@ -1169,6 +1151,10 @@ func (s *agentConfigurationService) createLLMConfig(ctx context.Context, ouID, p
 		}
 	}
 
+	if err := s.requireProviderPlacements(ctx, ouID, req.EnvMappings, envMap, nil, policy); err != nil {
+		return nil, err
+	}
+
 	// Build config struct (UUID assigned on Create)
 	config := &models.AgentConfiguration{
 		Name:        req.Name,
@@ -1204,13 +1190,13 @@ func (s *agentConfigurationService) createLLMConfig(ctx context.Context, ouID, p
 
 	// Track credentials for external agents.
 	var envCredentials map[string]envCredentialData
-	if isExternalAgent {
+	if policy.external() {
 		envCredentials = make(map[string]envCredentialData)
 	}
 
 	// Resolve first/dev environment name for ReleaseBinding patch (internal agents only).
 	firstEnvName := ""
-	if !isExternalAgent {
+	if !policy.external() {
 		pipeline, pipelineErr := s.ocClient.GetProjectDeploymentPipeline(ctx, ouID, projectName)
 		if pipelineErr != nil {
 			s.logger.Warn("failed to get deployment pipeline; ReleaseBinding patch will be skipped", "err", pipelineErr)
@@ -1253,7 +1239,7 @@ func (s *agentConfigurationService) createLLMConfig(ctx context.Context, ouID, p
 		}
 
 		// Resolve gateway where the provider is deployed (ensures proxy uses the same gateway)
-		gateway, err := s.resolveGatewayForProvider(ctx, providerUUID, ouID, envUUID)
+		gateway, err := s.resolveGatewayForProvider(ctx, providerUUID, ouID, envUUID, policy)
 		if err != nil {
 			s.processRollBack(ctx, rollbackResources, ouID, config.UUID)
 			return nil, fmt.Errorf("failed to resolve gateway for environment %s: %w", envName, err)
@@ -1275,11 +1261,7 @@ func (s *agentConfigurationService) createLLMConfig(ctx context.Context, ouID, p
 		// Update the rollback entry with the proxy handle now that it was created.
 		rollbackResources[rbIdx].proxyHandle = proxy.Handle
 
-		deployment, err := s.llmProxyDeploymentService.DeployLLMProxy(proxy.Handle, &models.DeployAPIRequest{
-			Name:      fmt.Sprintf("%s-deployment", scopedID),
-			Base:      "current",
-			GatewayID: gateway.UUID.String(),
-		}, ouID)
+		deployment, err := s.llmProxyDeploymentService.DeployForEnvironment(ctx, proxy, ouID, envUUID, gateway.UUID)
 		if err != nil {
 			s.processRollBack(ctx, rollbackResources, ouID, config.UUID)
 			return nil, fmt.Errorf("failed to deploy proxy for environment %s: %w", envName, err)
@@ -1289,7 +1271,7 @@ func (s *agentConfigurationService) createLLMConfig(ctx context.Context, ouID, p
 
 		proxyAPIKey, err := s.llmProxyAPIKeyService.CreateAPIKey(ctx, ouID, proxy.Handle, &models.CreateAPIKeyRequest{
 			Name:    fmt.Sprintf("%s-key", scopedID),
-			Purpose: agentProxyAPIKeyPurpose(isExternalAgent),
+			Purpose: policy.apiKeyPurpose(),
 		})
 		if err != nil {
 			s.rollbackProxies(ctx, rollbackResources, ouID)
@@ -1337,7 +1319,7 @@ func (s *agentConfigurationService) createLLMConfig(ctx context.Context, ouID, p
 		proxyURL := buildPublicProxyURL(gateway, proxyContext)
 
 		// Capture credentials for external agents.
-		if isExternalAgent {
+		if policy.external() {
 			envCredentials[envUUID.String()] = envCredentialData{
 				apiKey:   proxyAPIKey.APIKey,
 				proxyURL: proxyURL,
@@ -1391,7 +1373,7 @@ func (s *agentConfigurationService) createLLMConfig(ctx context.Context, ouID, p
 		// SecretReference is already created by secretClient.CreateSecret above.
 		// The Component CR (global, shared across envs) is updated once after the loop using the
 		// first-environment's vars to avoid last-write-wins clobbering (HIGH-3).
-		if !isExternalAgent {
+		if !policy.external() {
 			// Build the two env vars (URL plain, API key via secretKeyRef).
 			envVarsToInject, urlErr := internalLLMEnvVars(envConfigTemplates, gateway, proxyContext, secretRefName)
 			if urlErr != nil {
@@ -1448,14 +1430,14 @@ func (s *agentConfigurationService) createLLMConfig(ctx context.Context, ouID, p
 	)
 
 	// Return created configuration with credentials for external agents
-	if isExternalAgent {
+	if policy.external() {
 		return s.buildExternalAgentConfigResponse(ctx, config, envCredentials)
 	}
 	return s.Get(ctx, config.UUID, ouID, projectName, agentID)
 }
 
 func (s *agentConfigurationService) createMCPConfig(ctx context.Context, ouID, projectName, agentID string,
-	req models.CreateAgentModelConfigRequest, createdBy string, isExternalAgent bool,
+	req models.CreateAgentModelConfigRequest, createdBy string, policy placementPolicy,
 ) (*models.AgentModelConfigResponse, error) {
 	if s.mcpProxyRepo == nil || s.envMCPMappingRepo == nil || s.mcpProxyService == nil {
 		return nil, fmt.Errorf("MCP configuration service is not fully configured")
@@ -1500,6 +1482,11 @@ func (s *agentConfigurationService) createMCPConfig(ctx context.Context, ouID, p
 		}
 	}
 
+	gateways, err := s.resolveMCPEnvGateways(ctx, ouID, proxiesByEnv, envMap, policy)
+	if err != nil {
+		return nil, err
+	}
+
 	config := &models.AgentConfiguration{
 		Name:        req.Name,
 		Description: req.Description,
@@ -1536,14 +1523,14 @@ func (s *agentConfigurationService) createMCPConfig(ctx context.Context, ouID, p
 	}
 
 	firstEnvName := ""
-	if !isExternalAgent {
+	if !policy.external() {
 		if pipeline, pipelineErr := s.ocClient.GetProjectDeploymentPipeline(ctx, ouID, projectName); pipelineErr == nil && pipeline != nil {
 			firstEnvName = client.FindFirstEnvironment(pipeline.PromotionPaths)
 		}
 	}
 
 	var envCredentials map[string]envCredentialData
-	if isExternalAgent {
+	if policy.external() {
 		envCredentials = make(map[string]envCredentialData)
 	}
 
@@ -1569,7 +1556,7 @@ func (s *agentConfigurationService) createMCPConfig(ctx context.Context, ouID, p
 		// The proxy is selected for the agent regardless of environment, but it is only
 		// deployable in some of them. Elsewhere, create no mapping/deployment and inject empty
 		// env vars.
-		gateway, gwErr := s.resolveDeployableMCPGateway(ctx, sourceProxy, ouID, envUUID)
+		gateway, gwErr := gateways[envName].gateway, gateways[envName].err
 		if gwErr != nil {
 			// A connection now spans the whole pipeline at creation, so a misconfigured or
 			// flaky higher environment (no egress-designated gateway, an ambiguous one, a
@@ -1594,7 +1581,7 @@ func (s *agentConfigurationService) createMCPConfig(ctx context.Context, ouID, p
 					"configName", config.Name, "agentName", agentID, "environment", envName, "error", gwErr)
 			}
 			if err := s.provisionUnconfiguredMCPEnv(ctx, config, envUUID, envName, ouID, projectName, agentID,
-				envTemplates, isExternalAgent, firstEnvName, envCredentials); err != nil {
+				envTemplates, policy, firstEnvName, envCredentials); err != nil {
 				s.cleanupMCPConfig(ctx, config.UUID, ouID)
 				return nil, err
 			}
@@ -1699,7 +1686,7 @@ func (s *agentConfigurationService) createMCPConfig(ctx context.Context, ouID, p
 		}
 
 		proxyURL := buildMCPProxyURL(gateway, deployedProxy.Configuration)
-		if isExternalAgent {
+		if policy.external() {
 			apiKey := ""
 			if proxyAPIKey != nil {
 				apiKey = proxyAPIKey.APIKey
@@ -1709,7 +1696,7 @@ func (s *agentConfigurationService) createMCPConfig(ctx context.Context, ouID, p
 				proxyURL: proxyURL,
 			}
 		}
-		if !isExternalAgent {
+		if !policy.external() {
 			envVarsToInject := buildMCPEnvVars(envTemplates, proxyURL, secretRefName)
 			if err := s.ocClient.UpdateReleaseBindingEnvVars(ctx, ouID, projectName, agentID, envName, envVarsToInject); err != nil {
 				s.logger.Warn("failed to patch ReleaseBinding for MCP env var injection", "environment", envName, "err", err)
@@ -1740,7 +1727,7 @@ func (s *agentConfigurationService) createMCPConfig(ctx context.Context, ouID, p
 	// already-running pod picks up the new scopes right away instead of waiting
 	// for its next deploy/promote/rotation. refreshTouchedMCPEnvironments already
 	// no-ops safely for external/unprovisioned agents, so this is safe to call
-	// unconditionally rather than duplicating the isExternalAgent branch here.
+	// unconditionally rather than duplicating the external-agent branch here.
 	touchedEnvNames := make(map[string]struct{}, len(req.EnvMappings))
 	for envName := range req.EnvMappings {
 		touchedEnvNames[envName] = struct{}{}
@@ -1751,7 +1738,7 @@ func (s *agentConfigurationService) createMCPConfig(ctx context.Context, ouID, p
 		s.refreshTouchedMCPEnvironments(refreshCtx, ouID, projectName, agentID, touchedEnvNames)
 	}()
 
-	if isExternalAgent {
+	if policy.external() {
 		return s.buildExternalAgentConfigResponse(ctx, config, envCredentials)
 	}
 	return s.GetMCP(ctx, config.UUID, ouID, projectName, agentID)
@@ -1777,11 +1764,11 @@ func (s *agentConfigurationService) Get(ctx context.Context, configUUID uuid.UUI
 	if err != nil {
 		// If we can't determine agent type, assume internal (safer default)
 		s.logger.Warn("Failed to get agent type, assuming internal", "error", err)
-		return s.buildConfigResponse(ctx, config, false)
+		return s.buildConfigResponse(ctx, config, platformAgentPolicy)
 	}
-	isExternal := agent.Provisioning.Type == string(utils.ExternalAgent)
+	policy := placementPolicyFor(agent)
 
-	return s.buildConfigResponse(ctx, config, isExternal)
+	return s.buildConfigResponse(ctx, config, policy)
 }
 
 // GetMCP retrieves an MCP proxy mapping by UUID with project and agent scoping validation.
@@ -1800,10 +1787,10 @@ func (s *agentConfigurationService) GetMCP(ctx context.Context, configUUID uuid.
 	agent, err := s.ocClient.GetComponent(ctx, ouID, projectName, agentName)
 	if err != nil {
 		s.logger.Warn("Failed to get agent type, assuming internal", "error", err)
-		return s.buildConfigResponse(ctx, config, false)
+		return s.buildConfigResponse(ctx, config, platformAgentPolicy)
 	}
-	isExternal := agent.Provisioning.Type == string(utils.ExternalAgent)
-	return s.buildConfigResponse(ctx, config, isExternal)
+	policy := placementPolicyFor(agent)
+	return s.buildConfigResponse(ctx, config, policy)
 }
 
 // GetByAgent retrieves configuration by agent ID
@@ -1821,11 +1808,11 @@ func (s *agentConfigurationService) GetByAgent(ctx context.Context, agentID, ouI
 	if err != nil {
 		// If we can't determine agent type, assume internal (safer default)
 		s.logger.Warn("Failed to get agent type, assuming internal", "error", err)
-		return s.buildConfigResponse(ctx, config, false)
+		return s.buildConfigResponse(ctx, config, platformAgentPolicy)
 	}
-	isExternal := agent.Provisioning.Type == string(utils.ExternalAgent)
+	policy := placementPolicyFor(agent)
 
-	return s.buildConfigResponse(ctx, config, isExternal)
+	return s.buildConfigResponse(ctx, config, policy)
 }
 
 // List lists all configurations for an organization, project, and agent
@@ -1919,7 +1906,7 @@ func (s *agentConfigurationService) processEnvProviderChange(
 	existingMapping *models.EnvAgentModelMapping,
 	ouID string,
 	existingVarNames map[string]string,
-	isExternalAgent bool,
+	policy placementPolicy,
 	firstEnvName string,
 ) (oldProxyHandle string, rbRes rollbackResource, pendingBind pendingAppBinding, err error) {
 	s.logger.Info("Provider changed for environment, recreating proxy",
@@ -1933,7 +1920,7 @@ func (s *agentConfigurationService) processEnvProviderChange(
 	}
 
 	// Resolve gateway where the new provider is deployed
-	gateway, err := s.resolveGatewayForProvider(ctx, providerUUID, ouID, envUUID)
+	gateway, err := s.resolveGatewayForProvider(ctx, providerUUID, ouID, envUUID, policy)
 	if err != nil {
 		return "", rollbackResource{}, pendingAppBinding{}, fmt.Errorf("failed to resolve gateway for environment %s: %w", envName, err)
 	}
@@ -1953,11 +1940,7 @@ func (s *agentConfigurationService) processEnvProviderChange(
 	}
 	rbRes.proxyHandle = proxy.Handle
 
-	deployment, err := s.llmProxyDeploymentService.DeployLLMProxy(proxy.Handle, &models.DeployAPIRequest{
-		Name:      fmt.Sprintf("%s-deployment", scopedID),
-		Base:      "current",
-		GatewayID: gateway.UUID.String(),
-	}, ouID)
+	deployment, err := s.llmProxyDeploymentService.DeployForEnvironment(ctx, proxy, ouID, envUUID, gateway.UUID)
 	if err != nil {
 		return "", rbRes, pendingAppBinding{}, fmt.Errorf("failed to deploy proxy for environment %s: %w", envName, err)
 	}
@@ -1966,7 +1949,7 @@ func (s *agentConfigurationService) processEnvProviderChange(
 
 	proxyAPIKey, err := s.llmProxyAPIKeyService.CreateAPIKey(ctx, ouID, proxy.Handle, &models.CreateAPIKeyRequest{
 		Name:    fmt.Sprintf("%s-key", scopedID),
-		Purpose: agentProxyAPIKeyPurpose(isExternalAgent),
+		Purpose: policy.apiKeyPurpose(),
 	})
 	if err != nil {
 		return "", rbRes, pendingAppBinding{}, fmt.Errorf("failed to generate API key for environment %s: %w", envName, err)
@@ -2060,7 +2043,7 @@ func (s *agentConfigurationService) processEnvProviderChange(
 	// per-environment, and the Component CR is component-wide, so writing them there for anything
 	// but a bootstrap default is last-write-wins across environments. The Component CR write is
 	// therefore scoped to the first environment, matching every other injection site in this file.
-	if !isExternalAgent {
+	if !policy.external() {
 		envVarsToInject, urlErr := internalLLMEnvVars(envConfigTemplates, gateway, proxy.Configuration.Context, secretRefName)
 		if urlErr != nil {
 			return "", rbRes, pendingAppBinding{}, fmt.Errorf("failed to resolve internal proxy URL for environment %s: %w", envName, urlErr)
@@ -2092,6 +2075,7 @@ func (s *agentConfigurationService) processEnvProxyUpdate(
 	envMapping models.EnvModelConfigRequest,
 	existingMapping *models.EnvAgentModelMapping,
 	ouID string,
+	policy placementPolicy,
 ) (rollbackResource, error) {
 	s.logger.Info("Updating proxy configuration for environment",
 		"environment", envName,
@@ -2101,7 +2085,7 @@ func (s *agentConfigurationService) processEnvProxyUpdate(
 		return rollbackResource{}, fmt.Errorf("existing proxy not found for environment %s", envName)
 	}
 
-	gateway, err := s.resolveGatewayForProxy(ctx, existingMapping.LLMProxy.Handle, ouID, envUUID)
+	gateway, err := s.llmProxyGateway(ctx, policy, existingMapping.LLMProxy.Handle, ouID, envUUID)
 	if err != nil {
 		return rollbackResource{}, fmt.Errorf("failed to resolve gateway for environment %s: %w", envName, err)
 	}
@@ -2130,31 +2114,19 @@ func (s *agentConfigurationService) processEnvProxyUpdate(
 	// pre-update snapshot) back to the caller — otherwise rollbackProxies has
 	// no way to restore it and the proxy is left holding the new config with
 	// no matching deployment.
-	gatewayID := gateway.UUID.String()
-	deployments, err := s.llmProxyDeploymentService.GetLLMProxyDeployments(updatedProxy.Handle, ouID, &gatewayID, nil)
+	// The deployment the gateway serves now: a failed save restores it.
+	existingDeployment, err := s.llmProxyDeploymentService.CurrentDeployment(ctx, updatedProxy, ouID, gateway.UUID)
 	if err != nil {
 		return rollbackResource{
 			proxyHandle:      proxyHandle,
 			priorProxyConfig: existingMapping.LLMProxy,
 			providerUUID:     providerUUID,
-		}, fmt.Errorf("failed to get deployments for environment %s: %w", envName, err)
+		}, fmt.Errorf("failed to get the current deployment for environment %s: %w", envName, err)
 	}
 
-	var existingDeployment *models.Deployment
-	for _, dep := range deployments {
-		if dep.Status != nil && *dep.Status == models.DeploymentStatusDeployed {
-			existingDeployment = dep
-			break
-		}
-	}
-
-	deployBase := "current"
-	scopedID := scopedProxyIdentifier(config.ProjectName, config.AgentID, config.Name, env.Name)
-	newDeployment, err := s.llmProxyDeploymentService.DeployLLMProxy(updatedProxy.Handle, &models.DeployAPIRequest{
-		Name:      fmt.Sprintf("%s-deployment", scopedID),
-		Base:      deployBase,
-		GatewayID: gateway.UUID.String(),
-	}, ouID)
+	// A nil deployment means nothing is placed on the gateway to refresh, e.g. after a public-route undeploy.
+	newDeployment, err := s.llmProxyDeploymentService.Redeploy(ctx, updatedProxy, ouID, gateway.UUID,
+		"the agent's model configuration changed")
 	if err != nil {
 		return rollbackResource{
 			proxyHandle:      proxyHandle,
@@ -2163,37 +2135,40 @@ func (s *agentConfigurationService) processEnvProxyUpdate(
 		}, fmt.Errorf("failed to redeploy proxy for environment %s: %w", envName, err)
 	}
 
+	var newDeploymentID uuid.UUID
+	if newDeployment != nil {
+		newDeploymentID = newDeployment.DeploymentID
+	}
 	s.logger.Info("Proxy configuration updated and redeployed",
 		"environment", envName,
 		"proxyHandle", updatedProxy.Handle,
-		"newDeploymentID", newDeployment.DeploymentID)
+		"newDeploymentID", newDeploymentID)
 
 	// Persist updated PolicyConfiguration to DB.
 	existingMapping.PolicyConfiguration = models.LLMPolicies(envMapping.Configuration.Policies)
 	if err := s.db.Transaction(func(tx *gorm.DB) error {
 		return s.envMappingRepo.Update(ctx, tx, existingMapping)
 	}); err != nil {
-		// Carry the new deployment's identity and the pre-update proxy snapshot
-		// back to the caller so rollbackProxies can remove the deployment that
-		// was just created and restore the proxy's prior configuration. Deploying
-		// newDeployment already superseded existingDeployment's Deployed status
-		// (see restoreDeploymentID doc comment), so its ID must travel too or the
-		// proxy is left with no live deployment after rollback.
+		// Carry the new deployment as superseded and the pre-update proxy snapshot
+		// back to the caller. rollbackProxies restores the prior config, restores
+		// the old deployment over the new one (deploying newDeployment already
+		// superseded existingDeployment's Deployed status, see restoreDeploymentID
+		// doc comment), then deletes the new one without undeploying the proxy.
 		var restoreDeploymentID uuid.UUID
 		if existingDeployment != nil {
 			restoreDeploymentID = existingDeployment.DeploymentID
 		}
 		return rollbackResource{
-			proxyHandle:         proxyHandle,
-			deploymentID:        newDeployment.DeploymentID,
-			gatewayID:           gateway.UUID.String(),
-			priorProxyConfig:    existingMapping.LLMProxy,
-			providerUUID:        providerUUID,
-			restoreDeploymentID: restoreDeploymentID,
+			proxyHandle:            proxyHandle,
+			supersededDeploymentID: newDeploymentID,
+			gatewayID:              gateway.UUID.String(),
+			priorProxyConfig:       existingMapping.LLMProxy,
+			providerUUID:           providerUUID,
+			restoreDeploymentID:    restoreDeploymentID,
 		}, fmt.Errorf("failed to update policy configuration for environment %s: %w", envName, err)
 	}
 
-	if existingDeployment != nil && existingDeployment.DeploymentID != newDeployment.DeploymentID {
+	if existingDeployment != nil && newDeployment != nil && existingDeployment.DeploymentID != newDeploymentID {
 		if err := s.llmProxyDeploymentService.DeleteLLMProxyDeployment(updatedProxy.Handle, existingDeployment.DeploymentID.String(), ouID); err != nil {
 			s.logger.Warn("Failed to clean up old deployment after redeployment",
 				"environment", envName,
@@ -2221,7 +2196,7 @@ func (s *agentConfigurationService) processNewEnv(
 	envMapping models.EnvModelConfigRequest,
 	ouID string,
 	existingVarNames map[string]string,
-	isExternalAgent bool,
+	policy placementPolicy,
 	firstEnvName string,
 ) (rollbackResource, pendingAppBinding, error) {
 	s.logger.Info("Adding new environment to configuration",
@@ -2234,7 +2209,7 @@ func (s *agentConfigurationService) processNewEnv(
 	}
 
 	// Resolve gateway where the provider is deployed
-	gateway, err := s.resolveGatewayForProvider(ctx, providerUUID, ouID, envUUID)
+	gateway, err := s.resolveGatewayForProvider(ctx, providerUUID, ouID, envUUID, policy)
 	if err != nil {
 		return rollbackResource{}, pendingAppBinding{}, fmt.Errorf("failed to resolve gateway for environment %s: %w", envName, err)
 	}
@@ -2248,11 +2223,7 @@ func (s *agentConfigurationService) processNewEnv(
 	}
 	rbRes.proxyHandle = proxy.Handle
 
-	deployment, err := s.llmProxyDeploymentService.DeployLLMProxy(proxy.Handle, &models.DeployAPIRequest{
-		Name:      fmt.Sprintf("%s-deployment", scopedID),
-		Base:      "current",
-		GatewayID: gateway.UUID.String(),
-	}, ouID)
+	deployment, err := s.llmProxyDeploymentService.DeployForEnvironment(ctx, proxy, ouID, envUUID, gateway.UUID)
 	if err != nil {
 		return rbRes, pendingAppBinding{}, fmt.Errorf("failed to deploy proxy for environment %s: %w", envName, err)
 	}
@@ -2261,7 +2232,7 @@ func (s *agentConfigurationService) processNewEnv(
 
 	proxyAPIKey, err := s.llmProxyAPIKeyService.CreateAPIKey(ctx, ouID, proxy.Handle, &models.CreateAPIKeyRequest{
 		Name:    fmt.Sprintf("%s-key", scopedID),
-		Purpose: agentProxyAPIKeyPurpose(isExternalAgent),
+		Purpose: policy.apiKeyPurpose(),
 	})
 	if err != nil {
 		return rbRes, pendingAppBinding{}, fmt.Errorf("failed to generate API key for environment %s: %w", envName, err)
@@ -2339,7 +2310,7 @@ func (s *agentConfigurationService) processNewEnv(
 	// SecretReference is already created by secretClient.CreateSecret above.
 	// The Component CR (global) is updated only for the first/dev environment to avoid
 	// last-write-wins clobbering across multiple environments (HIGH-3).
-	if !isExternalAgent {
+	if !policy.external() {
 		// Reuse the gateway already resolved for deployment (resolveGatewayForProvider)
 		envVarsToInject, urlErr := internalLLMEnvVars(envConfigTemplates, gateway, proxy.Configuration.Context, secretRefName)
 		if urlErr != nil {
@@ -2374,7 +2345,7 @@ func (s *agentConfigurationService) processEnvRemoval(
 	ouID string,
 	projectName string,
 	agentName string,
-	isExternalAgent bool,
+	policy placementPolicy,
 	existingVarNames map[string]string,
 	isLastEnv bool,
 ) error {
@@ -2392,7 +2363,7 @@ func (s *agentConfigurationService) processEnvRemoval(
 	}
 
 	// Internal-agent only: remove env vars from Component CR and the removed environment's ReleaseBinding.
-	if !isExternalAgent && envName != "" {
+	if !policy.external() && envName != "" {
 		// Build the list of env var keys from DB-persisted names so user-overridden names are respected.
 		envConfigTemplates, buildErr := s.buildEnvironmentVariables(configName, varNamesToOverrides(existingVarNames))
 		if buildErr != nil {
@@ -2468,7 +2439,7 @@ func (s *agentConfigurationService) updateMCPConfig(ctx context.Context, existin
 
 	// Resolved before anything is persisted: a failure here aborts the update, and the name
 	// and description must not already be written when it does.
-	isExternalAgent, firstEnvName, agentErr := s.agentDeploymentShape(ctx, ouID, projectName, agentName)
+	policy, firstEnvName, agentErr := s.agentDeploymentShape(ctx, ouID, projectName, agentName)
 	if agentErr != nil {
 		return nil, agentErr
 	}
@@ -2489,7 +2460,7 @@ func (s *agentConfigurationService) updateMCPConfig(ctx context.Context, existin
 	}
 
 	if len(req.EnvironmentVariables) > 0 {
-		if err := s.updateMCPConfigEnvironmentVariableNames(ctx, existingConfig, ouID, projectName, agentName, uuidToEnvName, isExternalAgent, firstEnvName, req.EnvironmentVariables); err != nil {
+		if err := s.updateMCPConfigEnvironmentVariableNames(ctx, existingConfig, ouID, projectName, agentName, uuidToEnvName, policy, firstEnvName, req.EnvironmentVariables); err != nil {
 			return nil, err
 		}
 	}
@@ -2501,7 +2472,7 @@ func (s *agentConfigurationService) updateMCPConfig(ctx context.Context, existin
 
 	if req.EnvMappings == nil {
 		if nameChanged {
-			if err := s.refreshAllMCPMappings(ctx, existingConfig, ouID, uuidToEnvName, envTemplates, isExternalAgent, firstEnvName); err != nil {
+			if err := s.refreshAllMCPMappings(ctx, existingConfig, ouID, uuidToEnvName, envTemplates, policy, firstEnvName); err != nil {
 				return nil, err
 			}
 		}
@@ -2554,6 +2525,14 @@ func (s *agentConfigurationService) updateMCPConfig(ctx context.Context, existin
 		touchedEnvNames[envName] = struct{}{}
 	}
 
+	// Every environment's gateway is resolved once, before anything is recorded or applied: the
+	// steps below commit one by one, so a self-hosted refusal must come first, and the loop
+	// reuses these resolutions rather than racing a second lookup.
+	gateways, err := s.resolveMCPEnvGateways(ctx, ouID, proxiesByEnv, envMap, policy)
+	if err != nil {
+		return nil, err
+	}
+
 	// Record the scope the request expresses before any environment is applied or torn
 	// down — see recordMCPRequestScope. The per-environment steps below commit one by one,
 	// so recording intent last let a mid-update failure (a teardown that errored after an
@@ -2578,7 +2557,7 @@ func (s *agentConfigurationService) updateMCPConfig(ctx context.Context, existin
 		sourceVersion := mcpProxyArtifactVersion(sourceProxy)
 		// A non-deployable environment gets its mapping torn down / never created and its env
 		// vars injected empty.
-		_, gwErr := s.resolveDeployableMCPGateway(ctx, sourceProxy, ouID, envUUID)
+		gwErr := gateways[envName].err
 		if gwErr != nil && !errors.Is(gwErr, errMCPEnvNotDeployable) {
 			return nil, fmt.Errorf("failed to resolve gateway for MCP environment %s: %w", envName, gwErr)
 		}
@@ -2591,12 +2570,12 @@ func (s *agentConfigurationService) updateMCPConfig(ctx context.Context, existin
 				if err := s.updateExistingMCPMapping(ctx, existingConfig, mapping, sourceProxy, envName, ouID, handle, artifactName, sourceVersion, false); err != nil {
 					return nil, err
 				}
-				if err := s.reconcileMCPMappingCredentials(ctx, existingConfig, mapping, sourceProxy, envName, ouID, envTemplates, isExternalAgent, firstEnvName); err != nil {
+				if err := s.reconcileMCPMappingCredentials(ctx, existingConfig, mapping, sourceProxy, envName, ouID, envTemplates, policy, firstEnvName); err != nil {
 					return nil, err
 				}
 				// No per-agent deployment; refresh the injected env vars when the proxy or
 				// its name changed so the URL / api key reference stays correct.
-				if shouldRefresh && !isExternalAgent {
+				if shouldRefresh && !policy.external() {
 					if err := s.injectMCPMappingEnvVars(ctx, existingConfig, mapping, sourceProxy, envName, ouID, envTemplates, firstEnvName); err != nil {
 						s.logger.Warn("failed to inject updated MCP mapping env vars", "environment", envName, "err", err)
 					}
@@ -2608,7 +2587,7 @@ func (s *agentConfigurationService) updateMCPConfig(ctx context.Context, existin
 				if err := s.teardownMCPMappingKeepEnvVars(ctx, existingConfig, mapping, envName, ouID); err != nil {
 					return nil, err
 				}
-				if !isExternalAgent {
+				if !policy.external() {
 					if err := s.updateMCPMappingSecretReference(ctx, existingConfig.UUID, mapping.EnvironmentUUID, ""); err != nil {
 						s.logger.Warn("failed to clear MCP secret reference after teardown", "environment", envName, "err", err)
 					}
@@ -2629,7 +2608,7 @@ func (s *agentConfigurationService) updateMCPConfig(ctx context.Context, existin
 
 		if !deployable {
 			if err := s.provisionUnconfiguredMCPEnv(ctx, existingConfig, envUUID, envName, ouID, projectName, agentName,
-				envTemplates, isExternalAgent, firstEnvName, nil); err != nil {
+				envTemplates, policy, firstEnvName, nil); err != nil {
 				return nil, err
 			}
 			continue
@@ -2637,9 +2616,9 @@ func (s *agentConfigurationService) updateMCPConfig(ctx context.Context, existin
 
 		if err := s.activateMCPMappingForEnv(ctx, existingConfig, sourceProxy, envUUID, envName, ouID,
 			mcpActivationInputs{
-				envTemplates:    envTemplates,
-				isExternalAgent: isExternalAgent,
-				firstEnvName:    firstEnvName,
+				envTemplates: envTemplates,
+				policy:       policy,
+				firstEnvName: firstEnvName,
 			}); err != nil {
 			return nil, fmt.Errorf("failed to bind MCP proxy for environment %s: %w", envName, err)
 		}
@@ -2648,7 +2627,7 @@ func (s *agentConfigurationService) updateMCPConfig(ctx context.Context, existin
 	survivingEnvCount := len(req.EnvMappings)
 	for envName, mapping := range existingEnvMap {
 		isLastEnv := survivingEnvCount == 0
-		if err := s.removeMCPMappingEnvironment(ctx, existingConfig, mapping, envName, ouID, projectName, agentName, envTemplates, isExternalAgent, isLastEnv); err != nil {
+		if err := s.removeMCPMappingEnvironment(ctx, existingConfig, mapping, envName, ouID, projectName, agentName, envTemplates, policy, isLastEnv); err != nil {
 			return nil, err
 		}
 	}
@@ -2720,29 +2699,44 @@ func (s *agentConfigurationService) refreshTouchedMCPEnvironments(ctx context.Co
 	}
 }
 
+// updateMCPConfigEnvironmentVariableNames renames the env vars an MCP configuration injects
+// and carries the rename to every place the agent reads them from: the Component CR (the
+// first environment's base) and each environment's ReleaseBinding.
+//
+// The live rewrite runs inside the same transaction as the DB rename, so a failure rolls the
+// rename back instead of leaving the DB on the new names and the bindings on the old ones.
+// That matters for retries: the diff below is computed against the persisted names, so a
+// committed-but-unapplied rename would make every retry a no-op and strand the old names in
+// the bindings for good. The OpenChoreo calls are idempotent (remove-then-upsert), so
+// re-applying after a rollback is safe.
 func (s *agentConfigurationService) updateMCPConfigEnvironmentVariableNames(
 	ctx context.Context,
 	config *models.AgentConfiguration,
 	ouID, projectName, agentName string,
 	uuidToEnvName map[string]string,
-	isExternalAgent bool,
+	policy placementPolicy,
 	firstEnvName string,
 	overrides []models.EnvironmentVariableConfig,
 ) error {
-	var oldVarNames map[string]string
+	var recovery *mcpRenameRecovery
+	var originalVars []models.AgentEnvConfigVariable
+	var attemptedTemplates []EnvConfigTemplate
 	if err := s.db.Transaction(func(tx *gorm.DB) error {
+		agentVars, err := s.envVariableRepo.LockAndListByAgent(ctx, tx, ouID, projectName, agentName)
+		if err != nil {
+			return fmt.Errorf("failed to lock agent variable names: %w", err)
+		}
 		vars, err := s.envVariableRepo.ListByConfigForUpdate(ctx, tx, config.UUID)
 		if err != nil {
 			return fmt.Errorf("failed to load existing variable names: %w", err)
 		}
-		persisted := make(map[string]string)
+		oldVarNames := make(map[string]string)
 		for _, v := range vars {
-			if _, ok := persisted[v.VariableKey]; !ok {
-				persisted[v.VariableKey] = v.VariableName
+			if _, ok := oldVarNames[v.VariableKey]; !ok {
+				oldVarNames[v.VariableKey] = v.VariableName
 			}
 		}
-		oldVarNames = persisted
-		merged := varNamesToOverrides(persisted)
+		merged := varNamesToOverrides(oldVarNames)
 		for _, ev := range overrides {
 			found := false
 			for i := range merged {
@@ -2756,81 +2750,491 @@ func (s *agentConfigurationService) updateMCPConfigEnvironmentVariableNames(
 				merged = append(merged, ev)
 			}
 		}
-		if _, err := s.buildMCPMappingEnvironmentVariables(config.Name, merged); err != nil {
+		newTemplates, err := s.buildMCPMappingEnvironmentVariables(config.Name, merged)
+		if err != nil {
 			return errors.Join(utils.ErrInvalidInput, err)
 		}
+
+		changedOldKeys := make([]string, 0, len(overrides))
+		for _, ev := range overrides {
+			if old, ok := oldVarNames[ev.Key]; ok && old != ev.Name {
+				changedOldKeys = append(changedOldKeys, old)
+			}
+		}
+		if len(changedOldKeys) == 0 {
+			return nil
+		}
+
+		for _, template := range newTemplates {
+			for _, v := range agentVars {
+				if v.ConfigUUID != config.UUID && v.VariableName == template.Name {
+					return fmt.Errorf("%w: environment variable name %q belongs to another configuration", utils.ErrInvalidInput, template.Name)
+				}
+			}
+		}
+
+		originalVars = vars
+		attemptedTemplates = newTemplates
 		keyNameMap := make(map[string]string, len(overrides))
 		for _, ev := range overrides {
 			keyNameMap[ev.Key] = ev.Name
 		}
-		return s.envVariableRepo.UpdateVariableNames(ctx, tx, config.UUID, keyNameMap)
-	}); err != nil {
-		return fmt.Errorf("failed to update MCP environment variable names: %w", err)
-	}
-	if isExternalAgent || len(oldVarNames) == 0 {
-		return nil
-	}
+		if err := s.envVariableRepo.UpdateVariableNames(ctx, tx, config.UUID, keyNameMap); err != nil {
+			return err
+		}
+		if err := tx.WithContext(ctx).Model(&models.AgentConfiguration{}).
+			Where("uuid = ?", config.UUID).
+			Update("updated_at", time.Now()).Error; err != nil {
+			return fmt.Errorf("failed to bump MCP configuration updatedAt: %w", err)
+		}
 
-	changedOldKeys := make([]string, 0, len(overrides))
-	mergedNames := varNamesToOverrides(oldVarNames)
-	for _, ev := range overrides {
-		if old, ok := oldVarNames[ev.Key]; ok && old != ev.Name {
-			changedOldKeys = append(changedOldKeys, old)
+		if policy.external() {
+			return nil
 		}
-		for i := range mergedNames {
-			if mergedNames[i].Key == ev.Key {
-				mergedNames[i].Name = ev.Name
-			}
+		var applyErr error
+		recovery, applyErr = s.applyRenamedMCPEnvVars(ctx, config, ouID, projectName, agentName, uuidToEnvName, firstEnvName,
+			vars, newTemplates, changedOldKeys)
+		return applyErr
+	}); err != nil {
+		// The callback can succeed while COMMIT fails. Keep the undo plan until
+		// transaction completion; apply failures already compensate inside the callback.
+		if recovery != nil {
+			recoveryCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), mcpRenameApplyTimeout)
+			defer cancel()
+			recoveryErr := s.db.WithContext(recoveryCtx).Transaction(func(tx *gorm.DB) error {
+				agentVars, lockErr := s.envVariableRepo.LockAndListByAgent(recoveryCtx, tx, ouID, projectName, agentName)
+				if lockErr != nil {
+					return lockErr
+				}
+				currentVars, lockErr := s.envVariableRepo.ListByConfigForUpdate(recoveryCtx, tx, config.UUID)
+				if lockErr != nil {
+					return lockErr
+				}
+				recovery.protectedNames = make(map[string]bool)
+				for _, v := range agentVars {
+					if v.ConfigUUID != config.UUID {
+						recovery.protectedNames[v.VariableName] = true
+					}
+				}
+				// Only undo while the persisted mapping still matches the pre-rename state.
+				// A later rename or an ambiguously successful COMMIT owns its live values.
+				if len(currentVars) != len(originalVars) {
+					return s.removeOrphanedMCPRenameKeys(recoveryCtx, ouID, projectName, agentName, uuidToEnvName, originalVars, agentVars, attemptedTemplates, recovery)
+				}
+				for _, old := range originalVars {
+					matched := false
+					for _, current := range currentVars {
+						if old.EnvironmentUUID == current.EnvironmentUUID && old.VariableKey == current.VariableKey && old.VariableName == current.VariableName && old.SecretReference == current.SecretReference {
+							matched = true
+							break
+						}
+					}
+					if !matched {
+						return s.removeOrphanedMCPRenameKeys(recoveryCtx, ouID, projectName, agentName, uuidToEnvName, originalVars, agentVars, attemptedTemplates, recovery)
+					}
+				}
+				return recovery.undo()
+			})
+			err = errors.Join(err, recoveryErr)
 		}
-	}
-	if len(changedOldKeys) == 0 {
-		return nil
-	}
-	if err := s.ocClient.RemoveComponentEnvironmentVariables(ctx, ouID, projectName, agentName, changedOldKeys); err != nil {
-		s.logger.Warn("failed to remove old MCP env vars from Component CR", "err", err)
-	}
-	newTemplates, err := s.buildMCPMappingEnvironmentVariables(config.Name, mergedNames)
-	if err != nil {
-		return err
-	}
-	for i := range config.EnvMCPMappings {
-		mapping := &config.EnvMCPMappings[i]
-		envName := uuidToEnvName[mapping.EnvironmentUUID.String()]
-		if envName == "" || mapping.MCPProxy == nil {
-			continue
-		}
-		sharedArtifactUUID := mcpProxyEnvArtifactUUID(mapping.MCPProxy, mapping.EnvironmentUUID.String())
-		if sharedArtifactUUID == uuid.Nil {
-			s.logger.Warn("failed to resolve MCP gateway for env var rename; missing shared artifact", "environment", envName)
-			continue
-		}
-		gateway, gwErr := s.resolveGatewayForMCPArtifact(ctx, sharedArtifactUUID, ouID, mapping.EnvironmentUUID)
-		if gwErr != nil {
-			s.logger.Warn("failed to resolve MCP gateway for env var rename", "environment", envName, "err", gwErr)
-			continue
-		}
-		handle := mcpMappingProxyName(config.ProjectName, config.AgentID, config.Name, envName)
-		deployedProxy := buildAgentMCPConfigProxy(config, mapping, mapping.MCPProxy, envName, ouID, handle)
-		secretRefName, refErr := s.loadSecretRefForConfigEnv(ctx, config.UUID, mapping.EnvironmentUUID)
-		if refErr != nil {
-			s.logger.Warn("failed to load MCP SecretReference for env var rename", "environment", envName, "err", refErr)
-			continue
-		}
-		envVarsToInject := buildMCPEnvVars(newTemplates, buildMCPProxyURL(gateway, deployedProxy.Configuration), secretRefName)
-		if err := s.ocClient.ReplaceReleaseBindingEnvVars(ctx, ouID, projectName, agentName, envName, changedOldKeys, envVarsToInject); err != nil {
-			s.logger.Warn("failed to replace MCP env vars in ReleaseBinding", "environment", envName, "err", err)
-		}
-		if firstEnvName != "" && envName == firstEnvName {
-			if err := s.ocClient.UpdateComponentEnvVars(ctx, ouID, projectName, agentName, envVarsToInject); err != nil {
-				s.logger.Warn("failed to update Component CR with renamed MCP env vars", "environment", envName, "err", err)
-			}
-		}
+		return fmt.Errorf("failed to update MCP environment variable names: %w", err)
 	}
 	return nil
 }
 
+// removeOrphanedMCPRenameKeys runs under the recovery row locks. Later renames own
+// current values; remove only this attempt's keys that are no longer persisted.
+func (s *agentConfigurationService) removeOrphanedMCPRenameKeys(ctx context.Context, ouID, projectName, agentName string,
+	envNames map[string]string, original, current []models.AgentEnvConfigVariable, templates []EnvConfigTemplate, recovery *mcpRenameRecovery,
+) error {
+	used := make(map[string]bool)
+	for _, v := range current {
+		used[v.VariableName] = true
+	}
+	keys := make([]string, 0, len(templates))
+	for _, t := range templates {
+		if !used[t.Name] {
+			keys = append(keys, t.Name)
+		}
+	}
+	if len(keys) == 0 {
+		return nil
+	}
+	// Restore only abandoned targets; persisted names belong to the winning rename.
+	filterSaved := func(saved []client.EnvVar) []client.EnvVar {
+		result := make([]client.EnvVar, 0, len(saved))
+		for _, v := range saved {
+			if !used[v.Key] {
+				result = append(result, v)
+			}
+		}
+		return result
+	}
+	steps := []func(context.Context) error{func(stepCtx context.Context) error {
+		if err := s.ocClient.RemoveComponentEnvironmentVariables(stepCtx, ouID, projectName, agentName, keys); err != nil {
+			return fmt.Errorf("failed to remove orphaned MCP Component keys: %w", err)
+		}
+		return nil
+	}, func(stepCtx context.Context) error {
+		if saved := filterSaved(recovery.componentTargets); len(saved) > 0 {
+			return s.ocClient.UpdateComponentEnvVars(stepCtx, ouID, projectName, agentName, saved)
+		}
+		return nil
+	}}
+	seen := make(map[string]bool)
+	for _, v := range original {
+		env := envNames[v.EnvironmentUUID.String()]
+		if env == "" || seen[env] {
+			continue
+		}
+		seen[env] = true
+		steps = append(steps, func(stepCtx context.Context) error {
+			if err := s.ocClient.ReplaceReleaseBindingEnvVars(stepCtx, ouID, projectName, agentName, env, keys, filterSaved(recovery.bindingTargets[env])); err != nil {
+				return fmt.Errorf("failed to remove orphaned MCP keys in environment %s: %w", env, err)
+			}
+			return nil
+		})
+	}
+	return s.rollbackMCPEnvVarRename(ctx, steps)
+}
+
+// mcpRenameRecovery retains the undo plan and pre-existing rename targets through COMMIT.
+type mcpRenameRecovery struct {
+	undo             func() error
+	componentTargets []client.EnvVar
+	bindingTargets   map[string][]client.EnvVar
+	protectedNames   map[string]bool
+}
+
+// mcpRenameApplyTimeout bounds the whole live-rewrite phase of an MCP env var rename. That
+// phase runs while the caller's transaction holds the configuration's variable rows locked
+// (the lock is what serialises concurrent renames), so it must not inherit the OpenChoreo
+// client's per-attempt timeout times its retries times the number of environments. On
+// expiry the rename compensates attempted writes with a separate bounded deadline, then
+// rolls back the DB and releases the lock. Apply and compensation each have this
+// budget: together they may hold the agent lock and DB connection for about 60s
+// at the default 30s timeout, excluding database work. A var so tests can shorten it.
+var mcpRenameApplyTimeout = mcpRefreshTimeout
+
+// applyRenamedMCPEnvVars rewrites the agent's live MCP env vars under their new names. Every
+// environment the configuration has variable rows for is rebuilt from that environment's own
+// mapping — its own gateway URL and its own SecretReference — never copied from another
+// environment. Every value is resolved before the first write, so a resolution failure leaves
+// the Component CR and all ReleaseBindings untouched. If a write fails, attempted live
+// rewrites are compensated with the persisted names before the caller rolls the DB back.
+// On success the returned undo function remains available until the DB commit succeeds.
+func (s *agentConfigurationService) applyRenamedMCPEnvVars(
+	ctx context.Context,
+	config *models.AgentConfiguration,
+	ouID, projectName, agentName string,
+	uuidToEnvName map[string]string,
+	firstEnvName string,
+	vars []models.AgentEnvConfigVariable,
+	newTemplates []EnvConfigTemplate,
+	changedOldKeys []string,
+) (recovery *mcpRenameRecovery, applyErr error) {
+	ctx, cancel := context.WithTimeout(ctx, mcpRenameApplyTimeout)
+	defer cancel()
+
+	// Loaded through the mapping repository rather than read off config.EnvMCPMappings:
+	// its preloads include the proxy's endpoint → environment bindings, which is where
+	// each environment's gateway artifact is resolved from.
+	mappings, err := s.envMCPMappingRepo.ListByConfig(ctx, config.UUID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to list MCP env mappings: %w", err)
+	}
+	mappingByEnv := make(map[uuid.UUID]*models.EnvAgentMCPMapping, len(mappings))
+	for i := range mappings {
+		mappingByEnv[mappings[i].EnvironmentUUID] = &mappings[i]
+	}
+	secretRefByEnv := make(map[uuid.UUID]string)
+	oldTemplatesByEnv := make(map[uuid.UUID][]EnvConfigTemplate)
+	envUUIDs := make([]uuid.UUID, 0)
+	for _, v := range vars {
+		oldTemplatesByEnv[v.EnvironmentUUID] = append(oldTemplatesByEnv[v.EnvironmentUUID], EnvConfigTemplate{
+			Key: v.VariableKey, Name: v.VariableName, IsSecret: v.VariableKey == "apikey",
+			Value: "", SecretReference: "",
+		})
+		if _, seen := secretRefByEnv[v.EnvironmentUUID]; !seen {
+			envUUIDs = append(envUUIDs, v.EnvironmentUUID)
+			secretRefByEnv[v.EnvironmentUUID] = ""
+		}
+		if v.SecretReference != "" {
+			secretRefByEnv[v.EnvironmentUUID] = v.SecretReference
+		}
+	}
+
+	type envRewrite struct {
+		envName string
+		envVars []client.EnvVar
+		oldVars []client.EnvVar
+	}
+	rewrites := make([]envRewrite, 0, len(envUUIDs))
+	for _, envUUID := range envUUIDs {
+		envName := uuidToEnvName[envUUID.String()]
+		if envName == "" {
+			continue
+		}
+		proxyURL := ""
+		if mapping, ok := mappingByEnv[envUUID]; ok {
+			proxyURL, err = s.renamedMCPProxyURL(ctx, config, mapping, envName, ouID)
+			if err != nil {
+				return nil, err
+			}
+		}
+		rewrites = append(rewrites, envRewrite{
+			envName: envName,
+			envVars: buildRenamedMCPEnvVars(newTemplates, proxyURL, secretRefByEnv[envUUID]),
+			oldVars: buildRenamedMCPEnvVars(oldTemplatesByEnv[envUUID], proxyURL, secretRefByEnv[envUUID]),
+		})
+	}
+
+	newKeys := make([]string, 0, len(newTemplates))
+	for _, template := range newTemplates {
+		newKeys = append(newKeys, template.Name)
+	}
+	firstRewrite := -1
+	for i, rw := range rewrites {
+		if firstEnvName != "" && rw.envName == firstEnvName {
+			firstRewrite = i
+			break
+		}
+	}
+	// Reject occupied rename targets before any writes. Only names already owned
+	// by this configuration may be reused; agent-defined variables must survive
+	// both a rename and subsequent configuration deletion.
+	baseVars, err := s.ocClient.GetComponentBaseEnvVars(ctx, ouID, agentName)
+	if err != nil {
+		return nil, fmt.Errorf("failed to read Component MCP variables: %w", err)
+	}
+	ownedNames := make(map[string]bool, len(vars))
+	for _, v := range vars {
+		ownedNames[v.VariableName] = true
+	}
+	targetNames := make(map[string]bool, len(newTemplates))
+	for _, template := range newTemplates {
+		if !ownedNames[template.Name] {
+			targetNames[template.Name] = true
+		}
+	}
+	for _, v := range baseVars {
+		if targetNames[v.Key] {
+			return nil, fmt.Errorf("%w: environment variable %q already exists on the agent", utils.ErrInvalidInput, v.Key)
+		}
+	}
+	targets := &mcpRenameRecovery{undo: nil, componentTargets: nil, bindingTargets: make(map[string][]client.EnvVar), protectedNames: nil}
+	for i := range rewrites {
+		rw := &rewrites[i]
+		liveVars, err := s.ocClient.GetComponentConfigurations(ctx, ouID, projectName, agentName, rw.envName)
+		if err != nil {
+			return nil, fmt.Errorf("failed to snapshot MCP rename targets in environment %s: %w", rw.envName, err)
+		}
+		for _, v := range liveVars {
+			if !targetNames[v.Key] {
+				continue
+			}
+			return nil, fmt.Errorf("%w: environment variable %q already exists in environment %s", utils.ErrInvalidInput, v.Key, rw.envName)
+		}
+	}
+	var componentOldVars, componentNewVars []client.EnvVar
+	if firstRewrite >= 0 {
+		componentNewVars = rewrites[firstRewrite].envVars
+		for _, v := range rewrites[firstRewrite].oldVars {
+			if !targetNames[v.Key] {
+				componentOldVars = append(componentOldVars, v)
+			}
+		}
+	} else {
+		renames := make(map[string]string)
+		for _, v := range vars {
+			for _, template := range newTemplates {
+				if v.VariableKey == template.Key && v.VariableName != template.Name {
+					renames[v.VariableName] = template.Name
+				}
+			}
+		}
+		for _, v := range baseVars {
+			if name, ok := renames[v.Key]; ok {
+				componentOldVars = append(componentOldVars, v)
+				v.Key = name
+				componentNewVars = append(componentNewVars, v)
+			}
+		}
+	}
+	for _, v := range baseVars {
+		if targetNames[v.Key] {
+			componentOldVars = append(componentOldVars, v)
+			targets.componentTargets = append(targets.componentTargets, v)
+		}
+	}
+	componentNewKeys := make([]string, 0, len(componentNewVars))
+	for _, v := range componentNewVars {
+		componentNewKeys = append(componentNewKeys, v.Key)
+	}
+	attemptedBindings := 0
+	componentTouched := false
+	rollbackLive := func() error {
+		// A different configuration may claim an abandoned target after a failed
+		// COMMIT. Recovery must preserve that winner even when our rows are unchanged.
+		filterKeys := func(keys []string) []string {
+			result := make([]string, 0, len(keys))
+			for _, key := range keys {
+				if !targets.protectedNames[key] {
+					result = append(result, key)
+				}
+			}
+			return result
+		}
+		filterVars := func(values []client.EnvVar) []client.EnvVar {
+			result := make([]client.EnvVar, 0, len(values))
+			for _, v := range values {
+				if !targets.protectedNames[v.Key] {
+					result = append(result, v)
+				}
+			}
+			return result
+		}
+		// A failed request may already have reached OpenChoreo. Include the failed
+		// write in compensation, and retain this plan through database COMMIT.
+		steps := make([]func(context.Context) error, 0, attemptedBindings+2)
+		for i := attemptedBindings - 1; i >= 0; i-- {
+			rw := rewrites[i]
+			steps = append(steps, func(rollbackCtx context.Context) error {
+				if err := s.ocClient.ReplaceReleaseBindingEnvVars(rollbackCtx, ouID, projectName, agentName, rw.envName, filterKeys(newKeys), filterVars(rw.oldVars)); err != nil {
+					return fmt.Errorf("failed to restore MCP env vars in ReleaseBinding for environment %s: %w", rw.envName, err)
+				}
+				return nil
+			})
+		}
+		if componentTouched {
+			steps = append(steps, func(rollbackCtx context.Context) error {
+				if err := s.ocClient.RemoveComponentEnvironmentVariables(rollbackCtx, ouID, projectName, agentName, filterKeys(componentNewKeys)); err != nil {
+					return fmt.Errorf("failed to remove renamed MCP env vars from Component during rollback: %w", err)
+				}
+				return nil
+			}, func(rollbackCtx context.Context) error {
+				if err := s.ocClient.UpdateComponentEnvVars(rollbackCtx, ouID, projectName, agentName, filterVars(componentOldVars)); err != nil {
+					return fmt.Errorf("failed to restore MCP env vars in Component: %w", err)
+				}
+				return nil
+			})
+		}
+		return s.rollbackMCPEnvVarRename(ctx, steps)
+	}
+	defer func() {
+		if applyErr != nil {
+			applyErr = errors.Join(applyErr, rollbackLive())
+		}
+	}()
+
+	// Preserve the saved base values when the first environment has been removed.
+	if len(componentNewVars) > 0 {
+		componentTouched = true
+		if err := s.ocClient.RemoveComponentEnvironmentVariables(ctx, ouID, projectName, agentName, changedOldKeys); err != nil {
+			return nil, fmt.Errorf("failed to remove old MCP env vars from Component: %w", err)
+		}
+	}
+	if firstRewrite < 0 && componentTouched {
+		if err := s.ocClient.UpdateComponentEnvVars(ctx, ouID, projectName, agentName, componentNewVars); err != nil {
+			return nil, fmt.Errorf("failed to rename saved Component MCP variables: %w", err)
+		}
+	}
+	for _, rw := range rewrites {
+		attemptedBindings++
+		if err := s.ocClient.ReplaceReleaseBindingEnvVars(ctx, ouID, projectName, agentName, rw.envName, changedOldKeys, rw.envVars); err != nil {
+			return nil, fmt.Errorf("failed to replace MCP env vars in ReleaseBinding for environment %s: %w", rw.envName, err)
+		}
+		if firstEnvName != "" && rw.envName == firstEnvName {
+			if err := s.ocClient.UpdateComponentEnvVars(ctx, ouID, projectName, agentName, rw.envVars); err != nil {
+				return nil, fmt.Errorf("failed to update Component with renamed MCP env vars: %w", err)
+			}
+		}
+	}
+	targets.undo = rollbackLive
+	return targets, nil
+}
+
+// rollbackMCPEnvVarRename gives each remaining restoration attempt a share of a
+// fixed total budget. A hung environment cannot consume the time reserved for
+// healthy bindings or the Component. Cancellation of the original request does
+// not cancel recovery.
+func (s *agentConfigurationService) rollbackMCPEnvVarRename(ctx context.Context, steps []func(context.Context) error) error {
+	rollbackCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), mcpRenameApplyTimeout)
+	defer cancel()
+	deadline, _ := rollbackCtx.Deadline()
+	var restoreErr error
+	for i, step := range steps {
+		stepCtx, stepCancel := context.WithTimeout(rollbackCtx, time.Until(deadline)/time.Duration(len(steps)-i))
+		err := step(stepCtx)
+		stepCancel()
+		restoreErr = errors.Join(restoreErr, err)
+	}
+	return restoreErr
+}
+
+// renamedMCPProxyURL resolves the gateway URL a mapping's environment serves the proxy on.
+// A mapping whose proxy no longer has an endpoint bound to that environment resolves to an
+// empty URL, the same value the environment would get on deploy or promotion; a failure to
+// look up the gateway itself is returned so the rename rolls back rather than blanking a
+// working URL.
+func (s *agentConfigurationService) renamedMCPProxyURL(
+	ctx context.Context, config *models.AgentConfiguration, mapping *models.EnvAgentMCPMapping, envName, ouID string,
+) (string, error) {
+	if mapping.MCPProxy == nil {
+		return "", fmt.Errorf("MCP proxy not found for mapping in environment %s", envName)
+	}
+	proxy := mapping.MCPProxy
+	sharedArtifactUUID := mcpProxyEnvArtifactUUID(proxy, mapping.EnvironmentUUID.String())
+	if sharedArtifactUUID == uuid.Nil && s.mcpProxyRepo != nil && mapping.MCPProxyUUID != uuid.Nil {
+		var err error
+		proxy, err = s.mcpProxyRepo.GetByUUID(ctx, mapping.MCPProxyUUID.String(), ouID)
+		if err != nil {
+			return "", fmt.Errorf("failed to resolve MCP proxy for environment %s: %w", envName, err)
+		}
+		sharedArtifactUUID = mcpProxyEnvArtifactUUID(proxy, mapping.EnvironmentUUID.String())
+	}
+	if sharedArtifactUUID == uuid.Nil {
+		s.logger.Warn("MCP proxy has no endpoint bound to environment; renamed URL env var will be empty", "environment", envName)
+		return "", nil
+	}
+	gateway, err := s.mcpArtifactGateway(ctx, platformAgentPolicy, proxy, sharedArtifactUUID, ouID, mapping.EnvironmentUUID)
+	if errors.Is(err, errMCPGatewayNotManaged) {
+		return "", nil
+	}
+	if err != nil {
+		return "", fmt.Errorf("failed to resolve MCP gateway for environment %s: %w", envName, err)
+	}
+	handle := mcpMappingProxyName(config.ProjectName, config.AgentID, config.Name, envName)
+	deployedProxy := buildAgentMCPConfigProxy(config, mapping, proxy, envName, ouID, handle)
+	return buildMCPProxyURL(gateway, deployedProxy.Configuration), nil
+}
+
+// buildRenamedMCPEnvVars emits every template, matching BuildSystemManagedEnvVarsFromConfig
+// (what deploy and promotion inject): the API key references the environment's own
+// SecretReference under the fixed api-key property, and a variable with nothing to point at
+// is emitted empty rather than dropped, so no old-named copy is left to stand in for it.
+func buildRenamedMCPEnvVars(templates []EnvConfigTemplate, proxyURL, secretRefName string) []client.EnvVar {
+	envVars := make([]client.EnvVar, 0, len(templates))
+	for _, t := range templates {
+		envVar := client.EnvVar{Key: t.Name}
+		switch {
+		case t.Key == "apikey" && secretRefName != "":
+			envVar.ValueFrom = &client.EnvVarValueFrom{
+				SecretKeyRef: &client.SecretKeyRef{
+					Name: secretRefName,
+					Key:  secretmanagersvc.SecretKeyAPIKey,
+				},
+			}
+		case t.Key == "url":
+			envVar.Value = proxyURL
+		}
+		envVars = append(envVars, envVar)
+	}
+	return envVars
+}
+
 func (s *agentConfigurationService) refreshAllMCPMappings(ctx context.Context, config *models.AgentConfiguration, ouID string, uuidToEnvName map[string]string,
-	envTemplates []EnvConfigTemplate, isExternalAgent bool, firstEnvName string,
+	envTemplates []EnvConfigTemplate, policy placementPolicy, firstEnvName string,
 ) error {
 	for i := range config.EnvMCPMappings {
 		mapping := &config.EnvMCPMappings[i]
@@ -2848,12 +3252,12 @@ func (s *agentConfigurationService) refreshAllMCPMappings(ctx context.Context, c
 		if err := s.updateExistingMCPMapping(ctx, config, mapping, mapping.MCPProxy, envName, ouID, handle, artifactName, version, false); err != nil {
 			return err
 		}
-		if err := s.reconcileMCPMappingCredentials(ctx, config, mapping, mapping.MCPProxy, envName, ouID, envTemplates, isExternalAgent, firstEnvName); err != nil {
+		if err := s.reconcileMCPMappingCredentials(ctx, config, mapping, mapping.MCPProxy, envName, ouID, envTemplates, policy, firstEnvName); err != nil {
 			return err
 		}
 		// No per-agent gateway deployment: the proxy owns the single per-environment
 		// artifact. We only refresh the injected env vars (URL / api key reference).
-		if !isExternalAgent {
+		if !policy.external() {
 			if err := s.injectMCPMappingEnvVars(ctx, config, mapping, mapping.MCPProxy, envName, ouID, envTemplates, firstEnvName); err != nil {
 				s.logger.Warn("failed to inject refreshed MCP mapping env vars", "environment", envName, "err", err)
 			}
@@ -2916,17 +3320,20 @@ func (s *agentConfigurationService) injectMCPMappingEnvVars(ctx context.Context,
 	if sharedArtifactUUID == uuid.Nil {
 		return fmt.Errorf("MCP proxy shared artifact not found for environment %s", envName)
 	}
-	gateway, err := s.resolveGatewayForMCPArtifact(ctx, sharedArtifactUUID, ouID, mapping.EnvironmentUUID)
-	if err != nil {
+	gateway, err := s.mcpArtifactGateway(ctx, platformAgentPolicy, sourceProxy, sharedArtifactUUID, ouID, mapping.EnvironmentUUID)
+	if err != nil && !errors.Is(err, errMCPGatewayNotManaged) {
 		return err
 	}
-	handle := mcpMappingProxyName(config.ProjectName, config.AgentID, config.Name, envName)
-	deployedProxy := buildAgentMCPConfigProxy(config, mapping, sourceProxy, envName, ouID, handle)
-	secretRefName, err := s.loadSecretRefForConfigEnv(ctx, config.UUID, mapping.EnvironmentUUID)
-	if err != nil {
-		return err
+	envVarsToInject := buildEmptyMCPEnvVars(envTemplates)
+	if gateway != nil {
+		handle := mcpMappingProxyName(config.ProjectName, config.AgentID, config.Name, envName)
+		deployedProxy := buildAgentMCPConfigProxy(config, mapping, sourceProxy, envName, ouID, handle)
+		secretRefName, err := s.loadSecretRefForConfigEnv(ctx, config.UUID, mapping.EnvironmentUUID)
+		if err != nil {
+			return err
+		}
+		envVarsToInject = buildMCPEnvVars(envTemplates, buildMCPProxyURL(gateway, deployedProxy.Configuration), secretRefName)
 	}
-	envVarsToInject := buildMCPEnvVars(envTemplates, buildMCPProxyURL(gateway, deployedProxy.Configuration), secretRefName)
 	if err := s.ocClient.UpdateReleaseBindingEnvVars(ctx, ouID, config.ProjectName, config.AgentID, envName, envVarsToInject); err != nil {
 		return err
 	}
@@ -2946,7 +3353,7 @@ func (s *agentConfigurationService) injectMCPMappingEnvVars(ctx context.Context,
 // mirroring the configured path.
 func (s *agentConfigurationService) provisionUnconfiguredMCPEnv(ctx context.Context,
 	config *models.AgentConfiguration, envUUID uuid.UUID, envName, ouID, projectName, agentID string,
-	envTemplates []EnvConfigTemplate, isExternalAgent bool, firstEnvName string,
+	envTemplates []EnvConfigTemplate, policy placementPolicy, firstEnvName string,
 	envCredentials map[string]envCredentialData,
 ) error {
 	// Reuse the idempotent row-creation helper so repeated updateMCPConfig calls for an
@@ -2956,7 +3363,7 @@ func (s *agentConfigurationService) provisionUnconfiguredMCPEnv(ctx context.Cont
 		return fmt.Errorf("failed to create MCP environment variables for %s: %w", envName, err)
 	}
 
-	if isExternalAgent {
+	if policy.external() {
 		if envCredentials != nil {
 			envCredentials[envUUID.String()] = envCredentialData{apiKey: "", proxyURL: ""}
 		}
@@ -3009,9 +3416,9 @@ func (s *agentConfigurationService) cleanupMCPMappingCredentials(ctx context.Con
 }
 
 func (s *agentConfigurationService) removeMCPMappingEnvironment(ctx context.Context, config *models.AgentConfiguration, mapping *models.EnvAgentMCPMapping,
-	envName, ouID, projectName, agentName string, envTemplates []EnvConfigTemplate, isExternalAgent, isLastEnv bool,
+	envName, ouID, projectName, agentName string, envTemplates []EnvConfigTemplate, policy placementPolicy, isLastEnv bool,
 ) error {
-	if !isExternalAgent && envName != "" {
+	if !policy.external() && envName != "" {
 		keysToRemove := make([]string, 0, len(envTemplates))
 		for _, t := range envTemplates {
 			keysToRemove = append(keysToRemove, t.Name)
@@ -3028,9 +3435,6 @@ func (s *agentConfigurationService) removeMCPMappingEnvironment(ctx context.Cont
 		}
 	}
 
-	if s.mcpProxyService != nil {
-		s.mcpProxyService.BroadcastMCPArtifactDeletion(ctx, mapping.ArtifactUUID, ouID)
-	}
 	s.cleanupMCPMappingCredentials(ctx, config, mapping, envName, ouID)
 	return s.db.Transaction(func(tx *gorm.DB) error {
 		if err := s.envVariableRepo.DeleteByConfigAndEnv(ctx, tx, config.UUID, mapping.EnvironmentUUID); err != nil {
@@ -3039,16 +3443,34 @@ func (s *agentConfigurationService) removeMCPMappingEnvironment(ctx context.Cont
 		if err := s.envMCPMappingRepo.Delete(ctx, tx, mapping.ID); err != nil {
 			return err
 		}
-		if err := tx.Where("artifact_uuid = ? AND ou_id = ?", mapping.ArtifactUUID, ouID).
-			Delete(&models.DeploymentStatusRecord{}).Error; err != nil {
-			return err
-		}
-		if err := tx.Where("artifact_uuid = ? AND ou_id = ?", mapping.ArtifactUUID, ouID).
-			Delete(&models.Deployment{}).Error; err != nil {
-			return err
-		}
-		return tx.Where("uuid = ?", mapping.ArtifactUUID).Delete(&models.Artifact{}).Error
+		return s.deleteMCPMappingArtifacts(ctx, tx, ouID, mapping.ArtifactUUID)
 	})
+}
+
+// deleteMCPMappingArtifacts deletes the mappings' gateway artifacts with their deployments and status rows in tx, the
+// deleting transaction, and writes their delete events last in it.
+func (s *agentConfigurationService) deleteMCPMappingArtifacts(ctx context.Context, tx *gorm.DB, ouID string, artifactUUIDs ...uuid.UUID) error {
+	var events []reconcile.DeleteEvents
+	if s.mcpProxyService != nil {
+		var err error
+		if events, err = s.mcpProxyService.prepareMCPArtifactDeletes(ctx, tx, ouID, artifactUUIDs); err != nil {
+			return err
+		}
+	}
+	for _, artifactUUID := range artifactUUIDs {
+		if err := deleteMCPArtifactRows(tx, artifactUUID, ouID); err != nil {
+			return err
+		}
+	}
+	return reconcile.MergeDeleteEvents(events...).Publish(ctx, tx)
+}
+
+func mcpMappingArtifacts(mappings []models.EnvAgentMCPMapping) []uuid.UUID {
+	artifactUUIDs := make([]uuid.UUID, 0, len(mappings))
+	for _, mapping := range mappings {
+		artifactUUIDs = append(artifactUUIDs, mapping.ArtifactUUID)
+	}
+	return artifactUUIDs
 }
 
 // teardownMCPMappingKeepEnvVars removes an MCP mapping's gateway deployment and
@@ -3059,23 +3481,12 @@ func (s *agentConfigurationService) removeMCPMappingEnvironment(ctx context.Cont
 func (s *agentConfigurationService) teardownMCPMappingKeepEnvVars(ctx context.Context, config *models.AgentConfiguration,
 	mapping *models.EnvAgentMCPMapping, envName, ouID string,
 ) error {
-	if s.mcpProxyService != nil {
-		s.mcpProxyService.BroadcastMCPArtifactDeletion(ctx, mapping.ArtifactUUID, ouID)
-	}
 	s.cleanupMCPMappingCredentials(ctx, config, mapping, envName, ouID)
 	return s.db.Transaction(func(tx *gorm.DB) error {
 		if err := s.envMCPMappingRepo.Delete(ctx, tx, mapping.ID); err != nil {
 			return err
 		}
-		if err := tx.Where("artifact_uuid = ? AND ou_id = ?", mapping.ArtifactUUID, ouID).
-			Delete(&models.DeploymentStatusRecord{}).Error; err != nil {
-			return err
-		}
-		if err := tx.Where("artifact_uuid = ? AND ou_id = ?", mapping.ArtifactUUID, ouID).
-			Delete(&models.Deployment{}).Error; err != nil {
-			return err
-		}
-		return tx.Where("uuid = ?", mapping.ArtifactUUID).Delete(&models.Artifact{}).Error
+		return s.deleteMCPMappingArtifacts(ctx, tx, ouID, mapping.ArtifactUUID)
 	})
 }
 
@@ -3151,6 +3562,8 @@ func (s *agentConfigurationService) Update(ctx context.Context, configUUID uuid.
 	if err := s.rejectIfBuildInProgress(ctx, ouID, projectName, agentName, agent.KindName); err != nil {
 		return nil, err
 	}
+	// Fail-closed: a GetComponent error above returns rather than defaulting to internal, which could corrupt CRs.
+	policy := placementPolicyFor(agent)
 
 	if existingConfig.TypeID == models.AgentConfigTypeIDMCP {
 		return s.updateMCPConfig(ctx, existingConfig, ouID, projectName, agentName, req)
@@ -3198,6 +3611,10 @@ func (s *agentConfigurationService) Update(ctx context.Context, configUUID uuid.
 				return nil, fmt.Errorf("%w: provider %s must be in catalog for environment %s", utils.ErrInvalidInput, envMapping.ProviderName, envName)
 			}
 		}
+	}
+
+	if err := s.requireProviderPlacements(ctx, ouID, req.EnvMappings, envMap, existingEnvMap, policy); err != nil {
+		return nil, err
 	}
 
 	// Phase 1 — Short TX: update name/description only.
@@ -3347,7 +3764,7 @@ func (s *agentConfigurationService) Update(ctx context.Context, configUUID uuid.
 								s.logger.Warn("Phase 1b: missing MCP shared artifact for re-injection", "environment", envName)
 								continue
 							}
-							gateway, gwErr := s.resolveGatewayForMCPArtifact(ctx, sharedArtifactUUID, ouID, envEnvUUID)
+							gateway, gwErr := s.mcpArtifactGateway(ctx, platformAgentPolicy, mapping.MCPProxy, sharedArtifactUUID, ouID, envEnvUUID)
 							if gwErr != nil {
 								s.logger.Warn("Phase 1b: failed to resolve MCP gateway for re-injection", "environment", envName, "err", gwErr)
 								continue
@@ -3383,7 +3800,7 @@ func (s *agentConfigurationService) Update(ctx context.Context, configUUID uuid.
 							if parseErr != nil {
 								continue
 							}
-							gateway, gwErr := s.resolveGatewayForProxy(ctx, mapping.LLMProxy.Handle, ouID, envEnvUUID)
+							gateway, gwErr := s.llmProxyGateway(ctx, platformAgentPolicy, mapping.LLMProxy.Handle, ouID, envEnvUUID)
 							if gwErr != nil {
 								s.logger.Warn("Phase 1b: failed to resolve gateway for re-injection", "environment", envName, "err", gwErr)
 								continue
@@ -3442,13 +3859,9 @@ func (s *agentConfigurationService) Update(ctx context.Context, configUUID uuid.
 		return nil, err
 	}
 
-	// Determine agent type and first env for internal-agent env var injection.
-	// agent was already loaded above (fail-closed: that earlier GetComponent
-	// error already returns rather than defaulting to internal, which could
-	// corrupt CRs), so reuse it instead of re-fetching the same component.
-	isExternalAgent := agent.Provisioning.Type == string(utils.ExternalAgent)
+	// First env for internal-agent env var injection.
 	firstEnvName := ""
-	if !isExternalAgent {
+	if !policy.external() {
 		if pipeline, pipelineErr := s.ocClient.GetProjectDeploymentPipeline(ctx, ouID, projectName); pipelineErr == nil && pipeline != nil {
 			firstEnvName = client.FindFirstEnvironment(pipeline.PromotionPaths)
 		}
@@ -3503,7 +3916,7 @@ func (s *agentConfigurationService) Update(ctx context.Context, configUUID uuid.
 			if providerChanged {
 				// Scenario A: provider changed — create new proxy, update mapping, schedule old proxy for cleanup.
 				oldHandle, rbRes, pendingBind, err := s.processEnvProviderChange(
-					ctx, configUUID, existingConfig, env, envUUID, envName, envMapping, existingMapping, ouID, existingVarNames, isExternalAgent, firstEnvName,
+					ctx, configUUID, existingConfig, env, envUUID, envName, envMapping, existingMapping, ouID, existingVarNames, policy, firstEnvName,
 				)
 				if err != nil {
 					// rbRes may already hold resources created before the failure (e.g. a
@@ -3520,7 +3933,7 @@ func (s *agentConfigurationService) Update(ctx context.Context, configUUID uuid.
 			} else {
 				// Scenario B: same provider — update proxy config and redeploy. No DB TX needed.
 				rbRes, err := s.processEnvProxyUpdate(
-					ctx, existingConfig, env, envUUID, envName, envMapping, existingMapping, ouID,
+					ctx, existingConfig, env, envUUID, envName, envMapping, existingMapping, ouID, policy,
 				)
 				if err != nil {
 					s.rollbackProxies(ctx, append(rollbackResources, rbRes), ouID)
@@ -3534,7 +3947,7 @@ func (s *agentConfigurationService) Update(ctx context.Context, configUUID uuid.
 		} else {
 			// Scenario C: new environment — create proxy and mapping.
 			rbRes, pendingBind, err := s.processNewEnv(
-				ctx, configUUID, existingConfig, env, envUUID, envName, envMapping, ouID, existingVarNames, isExternalAgent, firstEnvName,
+				ctx, configUUID, existingConfig, env, envUUID, envName, envMapping, ouID, existingVarNames, policy, firstEnvName,
 			)
 			if err != nil {
 				s.rollbackProxies(ctx, append(rollbackResources, rbRes), ouID)
@@ -3563,7 +3976,7 @@ func (s *agentConfigurationService) Update(ctx context.Context, configUUID uuid.
 		}
 		removedEnvName := uuidToEnvName[mapping.EnvironmentUUID.String()]
 		isLastEnv := survivingEnvCount == 0
-		if err := s.processEnvRemoval(ctx, configUUID, mapping.EnvironmentUUID.String(), mapping, existingConfig.Name, removedEnvName, ouID, projectName, agentName, isExternalAgent, existingVarNames, isLastEnv); err != nil {
+		if err := s.processEnvRemoval(ctx, configUUID, mapping.EnvironmentUUID.String(), mapping, existingConfig.Name, removedEnvName, ouID, projectName, agentName, policy, existingVarNames, isLastEnv); err != nil {
 			// HIGH-6: Phase 2-3 DB changes are already committed. Log enough information for manual reconciliation.
 			s.logger.Error(
 				"Partial update failure — manual reconciliation required",
@@ -3582,32 +3995,15 @@ func (s *agentConfigurationService) Update(ctx context.Context, configUUID uuid.
 	for _, proxyHandle := range proxiesToDelete {
 		s.logger.Info("Cleaning up replaced proxy", "proxyHandle", proxyHandle)
 
-		deployments, err := s.llmProxyDeploymentService.GetLLMProxyDeployments(proxyHandle, ouID, nil, nil)
-		if err != nil {
+		// The replaced proxy is still placed; undeploy it first, same as the whole-config
+		// deletion path (deleteLLMConfig) does.
+		if err := s.llmProxyDeploymentService.UndeployEverywhere(ctx, proxyHandle, ouID); err != nil {
 			s.logger.Error(
-				"Failed to get deployments for proxy cleanup",
+				"Failed to undeploy proxy during cleanup",
 				"proxyHandle", proxyHandle,
 				"error", err,
 			)
 			cleanupErrors++
-		} else {
-			for _, dep := range deployments {
-				// The replaced proxy's deployment is still DEPLOYED — DeleteLLMProxyDeployment
-				// rejects that (ErrDeploymentIsDeployed). It must be undeployed first, same as
-				// the whole-config deletion path (deleteLLMConfig) already does.
-				if dep.Status == nil || *dep.Status != models.DeploymentStatusDeployed {
-					continue
-				}
-				if _, err := s.llmProxyDeploymentService.UndeployLLMProxyDeployment(ctx, proxyHandle, dep.DeploymentID.String(), dep.GatewayUUID.String(), ouID); err != nil {
-					s.logger.Error(
-						"Failed to undeploy deployment during cleanup",
-						"proxyHandle", proxyHandle,
-						"deploymentID", dep.DeploymentID,
-						"error", err,
-					)
-					cleanupErrors++
-				}
-			}
 		}
 
 		if err := s.llmProxyService.Delete(ctx, proxyHandle, ouID, s.llmProxyDeploymentService); err != nil {
@@ -3733,7 +4129,7 @@ func (s *agentConfigurationService) deleteLLMConfig(ctx context.Context, existin
 	if agentErr != nil {
 		return fmt.Errorf("failed to determine agent type: %w", agentErr)
 	}
-	isExternalAgent := agentComp.Provisioning.Type == string(utils.ExternalAgent)
+	policy := placementPolicyFor(agentComp)
 
 	s.logger.Info("Deleting agent configuration", "configUUID", existingConfig.UUID, "name", existingConfig.Name)
 
@@ -3829,7 +4225,7 @@ func (s *agentConfigurationService) deleteLLMConfig(ctx context.Context, existin
 		}
 
 		// Step 1b: Delete SecretReference CR (internal agents only, best-effort).
-		if !isExternalAgent && persistedSecretRefName != "" {
+		if !policy.external() && persistedSecretRefName != "" {
 			s.logger.Info("Delete: using persisted SecretReference for deletion",
 				"secretRef", persistedSecretRefName,
 				"configUUID", configUUID, "environment", env)
@@ -3846,8 +4242,7 @@ func (s *agentConfigurationService) deleteLLMConfig(ctx context.Context, existin
 			"proxyHandle", proxyHandle,
 		)
 
-		deployments, err := s.llmProxyDeploymentService.GetLLMProxyDeployments(proxyHandle, ouID, nil, nil)
-		if err != nil {
+		if err := s.llmProxyDeploymentService.UndeployEverywhere(ctx, proxyHandle, ouID); err != nil {
 			if errors.Is(err, utils.ErrLLMProxyNotFound) {
 				// Proxy already gone — skip deployment cleanup for this mapping.
 				s.logger.Info(
@@ -3855,19 +4250,11 @@ func (s *agentConfigurationService) deleteLLMConfig(ctx context.Context, existin
 					"proxyHandle", proxyHandle,
 				)
 			} else {
-				return fmt.Errorf("failed to get deployments for proxy %q: %w", proxyHandle, err)
-			}
-		} else {
-			for _, dep := range deployments {
-				if _, err := s.llmProxyDeploymentService.UndeployLLMProxyDeployment(ctx, proxyHandle, dep.DeploymentID.String(), dep.GatewayUUID.String(), ouID); err != nil {
-					s.logger.Error(
-						"Failed to undeploy deployment during cleanup",
-						"proxyHandle", proxyHandle,
-						"deploymentID", dep.DeploymentID,
-						"gatewayID", dep.GatewayUUID,
-						"error", err,
-					)
-				}
+				s.logger.Error(
+					"Failed to undeploy proxy during cleanup",
+					"proxyHandle", proxyHandle,
+					"error", err,
+				)
 			}
 		}
 
@@ -3909,7 +4296,7 @@ func (s *agentConfigurationService) deleteLLMConfig(ctx context.Context, existin
 
 	// Step 4b: Remove env vars from Component CR and all ReleaseBindings (internal agents only, best-effort).
 	// Must use names from DB (not auto-generated) to handle user-overridden names correctly.
-	if !isExternalAgent {
+	if !policy.external() {
 		existingVarNames, varErr := s.loadExistingVarNames(ctx, configUUID)
 		if varErr != nil {
 			s.logger.Warn("failed to load var names for cleanup, skipping env var removal", "err", varErr)
@@ -4053,21 +4440,11 @@ func (s *agentConfigurationService) DeleteForAgentDeletion(ctx context.Context, 
 		}
 
 		// Step 3: Undeploy proxy deployments.
-		deployments, err := s.llmProxyDeploymentService.GetLLMProxyDeployments(proxyHandle, ouID, nil, nil)
-		if err != nil {
-			if !errors.Is(err, utils.ErrLLMProxyNotFound) {
-				s.logger.Warn("Failed to get proxy deployments during agent deletion",
-					"proxyHandle", proxyHandle, "error", err)
-				cleanupErrs = append(cleanupErrs, fmt.Sprintf("get deployments for proxy %s: %v", proxyHandle, err))
-			}
-		} else {
-			for _, dep := range deployments {
-				if _, err := s.llmProxyDeploymentService.UndeployLLMProxyDeployment(ctx, proxyHandle, dep.DeploymentID.String(), dep.GatewayUUID.String(), ouID); err != nil {
-					s.logger.Warn("Failed to undeploy proxy deployment during agent deletion",
-						"proxyHandle", proxyHandle, "deploymentID", dep.DeploymentID, "error", err)
-					cleanupErrs = append(cleanupErrs, fmt.Sprintf("undeploy %s deployment %s: %v", proxyHandle, dep.DeploymentID, err))
-				}
-			}
+		if err := s.llmProxyDeploymentService.UndeployEverywhere(ctx, proxyHandle, ouID); err != nil &&
+			!errors.Is(err, utils.ErrLLMProxyNotFound) {
+			s.logger.Warn("Failed to undeploy proxy during agent deletion",
+				"proxyHandle", proxyHandle, "error", err)
+			cleanupErrs = append(cleanupErrs, fmt.Sprintf("undeploy proxy %s: %v", proxyHandle, err))
 		}
 
 		// Step 4: Delete proxy record.
@@ -4157,8 +4534,8 @@ func (s *agentConfigurationService) deleteMCPConfig(ctx context.Context, existin
 	if agentErr != nil {
 		return fmt.Errorf("failed to determine agent type: %w", agentErr)
 	}
-	isExternalAgent := agentComp.Provisioning.Type == string(utils.ExternalAgent)
-	if !isExternalAgent {
+	policy := placementPolicyFor(agentComp)
+	if !policy.external() {
 		existingVars, varErr := s.envVariableRepo.ListByConfig(ctx, existingConfig.UUID)
 		if varErr != nil {
 			s.logger.Warn("failed to load MCP var names for cleanup, skipping env var removal", "err", varErr)
@@ -4190,9 +4567,6 @@ func (s *agentConfigurationService) deleteMCPConfig(ctx context.Context, existin
 	}
 
 	for _, mapping := range mappings {
-		if s.mcpProxyService != nil {
-			s.mcpProxyService.BroadcastMCPArtifactDeletion(ctx, mapping.ArtifactUUID, ouID)
-		}
 		envName := envIDNameMap[mapping.EnvironmentUUID.String()]
 		s.cleanupMCPMappingCredentials(ctx, existingConfig, &mapping, envName, ouID)
 	}
@@ -4201,20 +4575,7 @@ func (s *agentConfigurationService) deleteMCPConfig(ctx context.Context, existin
 		if err := s.agentConfigRepo.Delete(ctx, tx, existingConfig.UUID, ouID); err != nil {
 			return err
 		}
-		for _, mapping := range mappings {
-			if err := tx.Where("artifact_uuid = ? AND ou_id = ?", mapping.ArtifactUUID, ouID).
-				Delete(&models.DeploymentStatusRecord{}).Error; err != nil {
-				return err
-			}
-			if err := tx.Where("artifact_uuid = ? AND ou_id = ?", mapping.ArtifactUUID, ouID).
-				Delete(&models.Deployment{}).Error; err != nil {
-				return err
-			}
-			if err := tx.Where("uuid = ?", mapping.ArtifactUUID).Delete(&models.Artifact{}).Error; err != nil {
-				return err
-			}
-		}
-		return nil
+		return s.deleteMCPMappingArtifacts(ctx, tx, ouID, mcpMappingArtifacts(mappings)...)
 	}); err != nil {
 		return fmt.Errorf("failed to delete MCP configuration: %w", err)
 	}
@@ -4257,9 +4618,6 @@ func (s *agentConfigurationService) deleteMCPConfigForAgentDeletion(ctx context.
 	}
 
 	for _, mapping := range mappings {
-		if s.mcpProxyService != nil {
-			s.mcpProxyService.BroadcastMCPArtifactDeletion(ctx, mapping.ArtifactUUID, ouID)
-		}
 		envName := envIDNameMap[mapping.EnvironmentUUID.String()]
 		s.cleanupMCPMappingCredentials(ctx, existingConfig, &mapping, envName, ouID)
 	}
@@ -4268,20 +4626,7 @@ func (s *agentConfigurationService) deleteMCPConfigForAgentDeletion(ctx context.
 		if err := s.agentConfigRepo.Delete(ctx, tx, existingConfig.UUID, ouID); err != nil {
 			return err
 		}
-		for _, mapping := range mappings {
-			if err := tx.Where("artifact_uuid = ? AND ou_id = ?", mapping.ArtifactUUID, ouID).
-				Delete(&models.DeploymentStatusRecord{}).Error; err != nil {
-				return err
-			}
-			if err := tx.Where("artifact_uuid = ? AND ou_id = ?", mapping.ArtifactUUID, ouID).
-				Delete(&models.Deployment{}).Error; err != nil {
-				return err
-			}
-			if err := tx.Where("uuid = ?", mapping.ArtifactUUID).Delete(&models.Artifact{}).Error; err != nil {
-				return err
-			}
-		}
-		return nil
+		return s.deleteMCPMappingArtifacts(ctx, tx, ouID, mcpMappingArtifacts(mappings)...)
 	}); err != nil {
 		return fmt.Errorf("failed to delete MCP configuration for agent deletion: %w", err)
 	}
@@ -4293,38 +4638,71 @@ func (s *agentConfigurationService) deleteMCPConfigForAgentDeletion(ctx context.
 
 // Helper methods
 
-// resolveGatewayForProvider returns the gateway hosting this LLM provider in the given
-// environment, or the environment's single egress gateway when it has no deployment there.
+// resolveGatewayForProvider is the gateway the agent's LLM proxy for this provider lands on in the environment
+// (placementPolicy.providerGateway).
 func (s *agentConfigurationService) resolveGatewayForProvider(
-	ctx context.Context, providerUUIDStr, ouID string, envUUID uuid.UUID,
+	ctx context.Context, providerUUIDStr, ouID string, envUUID uuid.UUID, policy placementPolicy,
 ) (*models.Gateway, error) {
-	_ = ctx
-	var deployed []string
-	if providerUUID, err := uuid.Parse(providerUUIDStr); err == nil {
-		ids, gwErr := s.llmProxyDeploymentService.GetDeployedGatewaysByProvider(providerUUID, ouID)
-		if gwErr != nil {
-			return nil, fmt.Errorf("failed to list deployed gateways for provider %s: %w", providerUUIDStr, gwErr)
-		}
-		deployed = ids
-	}
-	return resolveEgressGatewayForArtifact(s.gatewayRepo, ouID, envUUID, deployed, nil)
+	return policy.providerGateway(ctx, s.llmProxyDeploymentService, s.gatewayRepo, ouID, providerUUIDStr, envUUID)
 }
 
-// resolveGatewayForProxy returns the gateway the LLM proxy is actually deployed to.
-func (s *agentConfigurationService) resolveGatewayForProxy(
-	ctx context.Context, proxyHandle, ouID string, envUUID uuid.UUID,
+// requireProviderPlacements checks, before anything is created or changed, every requested
+// environment that would get a new or re-pointed LLM proxy. existing is the config's current mappings
+// by environment name (nil on create); an environment keeping its provider is not re-checked.
+func (s *agentConfigurationService) requireProviderPlacements(
+	ctx context.Context, ouID string, requested map[string]models.EnvModelConfigRequest,
+	envMap map[string]*models.EnvironmentResponse, existing map[string]*models.EnvAgentModelMapping,
+	policy placementPolicy,
+) error {
+	envNames := make([]string, 0, len(requested))
+	for envName := range requested {
+		envNames = append(envNames, envName)
+	}
+	sort.Strings(envNames)
+	for _, envName := range envNames {
+		env, ok := envMap[envName]
+		if !ok {
+			continue
+		}
+		envUUID, err := uuid.Parse(env.UUID)
+		if err != nil {
+			return fmt.Errorf("invalid environment id %q: %w", envName, err)
+		}
+		provider, err := s.llmProviderRepo.GetByHandle(requested[envName].ProviderName, ouID)
+		if err != nil {
+			return fmt.Errorf("failed to get provider: %w", err)
+		}
+		if current := existing[envName]; current != nil && current.LLMProxy != nil &&
+			current.LLMProxy.Configuration.Provider == provider.UUID.String() {
+			continue
+		}
+		if err := policy.requireProvider(ctx, s.llmProxyDeploymentService, s.gatewayRepo,
+			ouID, provider.UUID, envUUID); err != nil {
+			return fmt.Errorf("environment %s: %w", envName, err)
+		}
+	}
+	return nil
+}
+
+// llmProxyGateway is the gateway the agent's LLM proxy is placed on in the environment, whatever the placement's
+// status (placementPolicy.ownGateway).
+func (s *agentConfigurationService) llmProxyGateway(
+	ctx context.Context, policy placementPolicy, proxyHandle, ouID string, envUUID uuid.UUID,
 ) (*models.Gateway, error) {
-	_ = ctx
-	deployedStatus := string(models.DeploymentStatusDeployed)
-	var deployed []string
-	deployments, err := s.llmProxyDeploymentService.GetLLMProxyDeployments(proxyHandle, ouID, nil, &deployedStatus)
+	placed, err := s.placedGatewaysOfProxy(ctx, proxyHandle, ouID)
+	if err != nil {
+		return nil, err
+	}
+	return policy.ownGateway(s.gatewayRepo, ouID, envUUID, placed)
+}
+
+// placedGatewaysOfProxy is the gateways the LLM proxy is placed on; none when the proxy is gone.
+func (s *agentConfigurationService) placedGatewaysOfProxy(ctx context.Context, proxyHandle, ouID string) ([]string, error) {
+	placed, err := s.llmProxyDeploymentService.PlacedGatewaysOfProxy(ctx, proxyHandle, ouID)
 	if err != nil && !errors.Is(err, utils.ErrLLMProxyNotFound) {
-		return nil, fmt.Errorf("failed to list deployments for proxy %s: %w", proxyHandle, err)
+		return nil, fmt.Errorf("failed to list the gateways proxy %s is placed on: %w", proxyHandle, err)
 	}
-	for _, dep := range deployments {
-		deployed = append(deployed, dep.GatewayUUID.String())
-	}
-	return resolveEgressGatewayForArtifact(s.gatewayRepo, ouID, envUUID, deployed, nil)
+	return placed, nil
 }
 
 // errMCPEnvNotDeployable reports that an MCP proxy cannot back an agent binding in an
@@ -4350,7 +4728,7 @@ func (s *agentConfigurationService) resolveDeployableMCPGateway(
 			"environmentUUID", envUUID, "mcpProxyUUID", proxy.UUID)
 		return nil, errMCPEnvNotDeployable
 	}
-	gateway, err := s.resolveGatewayForMCPArtifact(ctx, sharedArtifactUUID, ouID, envUUID)
+	gateway, err := s.placedGatewayForMCPArtifact(ctx, sharedArtifactUUID, ouID, envUUID)
 	if err != nil {
 		if errors.Is(err, errNoGatewayForEnvironment) {
 			return nil, errMCPEnvNotDeployable
@@ -4360,15 +4738,89 @@ func (s *agentConfigurationService) resolveDeployableMCPGateway(
 	return gateway, nil
 }
 
-// resolveGatewayForMCPArtifact returns the gateway the MCP proxy's shared per-environment
-// artifact is deployed to.
-func (s *agentConfigurationService) resolveGatewayForMCPArtifact(
+// mcpEnvGateway is one environment's resolution of the gateway an MCP proxy binding would use.
+type mcpEnvGateway struct {
+	gateway *models.Gateway
+	err     error
+}
+
+// resolveMCPEnvGateways resolves every requested environment's gateway exactly once and refuses, before
+// the caller changes anything, a binding the agent cannot use. A platform-hosted agent is refused any
+// self-hosted gateway; an external agent is refused one only where the proxy uses Agent Identity, which
+// self-hosted gateways cannot validate. A resolution that fails is kept in the result for the caller's
+// per-environment handling (deferred, strict or not deployable).
+func (s *agentConfigurationService) resolveMCPEnvGateways(
+	ctx context.Context, ouID string, proxiesByEnv map[string]*models.MCPProxy, envMap map[string]*models.EnvironmentResponse,
+	policy placementPolicy,
+) (map[string]mcpEnvGateway, error) {
+	resolved := make(map[string]mcpEnvGateway, len(proxiesByEnv))
+	for envName, proxy := range proxiesByEnv {
+		envUUID, err := uuid.Parse(envMap[envName].UUID)
+		if err != nil {
+			return nil, fmt.Errorf("invalid environment id %q: %w", envName, err)
+		}
+		gateway, err := s.resolveDeployableMCPGateway(ctx, proxy, ouID, envUUID)
+		if err == nil {
+			refused := policy.refusedBy(gateway, mcpProxySecurityForEnv(proxy, envUUID.String()))
+			switch {
+			case refused.has(ruleManagedConsumer):
+				return nil, errMCPProxyOnSelfHostedGateway(proxy, envName)
+			case refused.has(ruleAgentIdentity):
+				return nil, fmt.Errorf("%w: MCP proxy %s is on self-hosted gateway %s in environment %s; use API key security",
+					errMCPIdentityOnSelfHostedGateway, mcpProxyHandle(proxy), gateway.Name, envName)
+			}
+		}
+		resolved[envName] = mcpEnvGateway{gateway: gateway, err: err}
+	}
+	return resolved, nil
+}
+
+// errMCPProxyOnSelfHostedGateway refuses a platform-hosted agent's binding to an MCP proxy whose
+// gateway in the environment is self-hosted (see placementPolicy).
+func errMCPProxyOnSelfHostedGateway(proxy *models.MCPProxy, envName string) error {
+	return fmt.Errorf("%w: MCP proxy %s is on a self-hosted gateway in environment %s; platform-hosted agents can only use MCP proxies on managed gateways; use a separate MCP proxy for self-hosted gateways",
+		utils.ErrInvalidInput, mcpProxyHandle(proxy), envName)
+}
+
+// errMCPGatewayNotManaged reports that an MCP proxy resolves to a self-hosted gateway in an environment
+// where the agent may not use it: the agent may only use managed gateways, or the proxy uses Agent
+// Identity there, which a self-hosted gateway cannot validate. The proxy-side and binding checks keep
+// this from happening; if it does anyway, the agent gets no URL there rather than one that points its
+// traffic at a gateway it cannot use.
+var errMCPGatewayNotManaged = errors.New("MCP proxy is on a self-hosted gateway in this environment")
+
+// mcpArtifactGateway is the gateway the agent reaches the MCP proxy's shared per-environment artifact
+// through, or errMCPGatewayNotManaged (logged) when the policy refuses that gateway for the proxy's
+// security in the environment.
+func (s *agentConfigurationService) mcpArtifactGateway(
+	ctx context.Context, policy placementPolicy, proxy *models.MCPProxy, artifactUUID uuid.UUID, ouID string, envUUID uuid.UUID,
+) (*models.Gateway, error) {
+	gateway, err := s.placedGatewayForMCPArtifact(ctx, artifactUUID, ouID, envUUID)
+	if err != nil {
+		return nil, err
+	}
+	refused := policy.refusedBy(gateway, mcpProxySecurityForEnv(proxy, envUUID.String()))
+	switch {
+	case refused.has(ruleManagedConsumer):
+		s.logger.Warn("Leaving the agent's MCP URL empty; the proxy is on a self-hosted gateway in this environment",
+			"ouID", ouID, "environmentUUID", envUUID, "artifactUUID", artifactUUID, "gatewayUUID", gateway.UUID)
+		return nil, errMCPGatewayNotManaged
+	case refused.has(ruleAgentIdentity):
+		s.logger.Warn("Leaving the agent's MCP URL empty; the proxy uses Agent Identity on a self-hosted gateway in this environment",
+			"ouID", ouID, "environmentUUID", envUUID, "artifactUUID", artifactUUID, "gatewayUUID", gateway.UUID)
+		return nil, errMCPGatewayNotManaged
+	}
+	return gateway, nil
+}
+
+// placedGatewayForMCPArtifact returns the gateway the MCP proxy's shared per-environment
+// artifact is placed on, whatever the placement's status and hosting.
+func (s *agentConfigurationService) placedGatewayForMCPArtifact(
 	ctx context.Context, artifactUUID uuid.UUID, ouID string, envUUID uuid.UUID,
 ) (*models.Gateway, error) {
-	_ = ctx
 	var deployed []string
 	if s.mcpProxyService != nil && s.mcpProxyService.deploymentRepo != nil {
-		ids, err := s.mcpProxyService.deploymentRepo.GetDeployedGatewaysByProvider(artifactUUID, ouID)
+		ids, err := s.mcpProxyService.deploymentRepo.PlacedGateways(ctx, ouID, artifactUUID)
 		if err != nil {
 			return nil, fmt.Errorf("failed to list deployed gateways for MCP artifact %s: %w", artifactUUID, err)
 		}
@@ -4811,11 +5263,11 @@ func (s *agentConfigurationService) CleanupEnvironmentMCPArtifacts(ctx context.C
 			continue
 		}
 
-		isExternalAgent := false
+		policy := platformAgentPolicy
 		if agentComp, agentErr := s.ocClient.GetComponent(ctx, ouID, config.ProjectName, config.AgentID); agentErr != nil {
 			s.logger.Warn("failed to determine agent type during MCP env cleanup, assuming internal", "configUUID", config.UUID, "err", agentErr)
 		} else {
-			isExternalAgent = agentComp.Provisioning.Type == string(utils.ExternalAgent)
+			policy = placementPolicyFor(agentComp)
 		}
 
 		existingVarNames, err := s.loadExistingVarNames(ctx, config.UUID)
@@ -4843,7 +5295,7 @@ func (s *agentConfigurationService) CleanupEnvironmentMCPArtifacts(ctx context.C
 			}
 		}
 
-		if err := s.removeMCPMappingEnvironment(ctx, config, mapping, envName, ouID, config.ProjectName, config.AgentID, envTemplates, isExternalAgent, isLastEnv); err != nil {
+		if err := s.removeMCPMappingEnvironment(ctx, config, mapping, envName, ouID, config.ProjectName, config.AgentID, envTemplates, policy, isLastEnv); err != nil {
 			errs = append(errs, fmt.Errorf("mapping %s: teardown: %w", mapping.ArtifactUUID, err))
 		}
 	}
@@ -5084,7 +5536,7 @@ func (s *agentConfigurationService) ensureMCPMappingCredentials(ctx context.Cont
 	return newSecretRefName, nil
 }
 
-func (s *agentConfigurationService) reconcileMCPMappingCredentials(ctx context.Context, config *models.AgentConfiguration, mapping *models.EnvAgentMCPMapping, sourceProxy *models.MCPProxy, envName, ouID string, envTemplates []EnvConfigTemplate, isExternalAgent bool, firstEnvName string) error {
+func (s *agentConfigurationService) reconcileMCPMappingCredentials(ctx context.Context, config *models.AgentConfiguration, mapping *models.EnvAgentMCPMapping, sourceProxy *models.MCPProxy, envName, ouID string, envTemplates []EnvConfigTemplate, policy placementPolicy, firstEnvName string) error {
 	if mcpProxyAPIKeySecurityEnabled(sourceProxy, mapping.EnvironmentUUID.String()) {
 		if _, err := s.ensureMCPMappingCredentials(ctx, config, mapping, envName, ouID); err != nil {
 			return err
@@ -5096,7 +5548,7 @@ func (s *agentConfigurationService) reconcileMCPMappingCredentials(ctx context.C
 	if err := s.updateMCPMappingSecretReference(ctx, config.UUID, mapping.EnvironmentUUID, ""); err != nil {
 		return fmt.Errorf("failed to clear MCP API key env reference for %s: %w", envName, err)
 	}
-	if !isExternalAgent {
+	if !policy.external() {
 		s.removeMCPMappingAPIKeyEnvVar(ctx, config, envName, envTemplates, firstEnvName)
 	}
 	return nil
@@ -5107,9 +5559,6 @@ func (s *agentConfigurationService) reconcileMCPMappingCredentials(ctx context.C
 // environment that was already promoted, and dropping its variable rows would strip the
 // agent's MCP variable names entirely, leaving it worse off than the failed binding.
 func (s *agentConfigurationService) cleanupNewMCPMapping(ctx context.Context, config *models.AgentConfiguration, mapping *models.EnvAgentMCPMapping, envName, ouID string, deleteEnvVars bool) {
-	if s.mcpProxyService != nil {
-		s.mcpProxyService.BroadcastMCPArtifactDeletion(ctx, mapping.ArtifactUUID, ouID)
-	}
 	s.cleanupMCPMappingCredentials(ctx, config, mapping, envName, ouID)
 	if err := s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		if deleteEnvVars {
@@ -5122,15 +5571,7 @@ func (s *agentConfigurationService) cleanupNewMCPMapping(ctx context.Context, co
 				return err
 			}
 		}
-		if err := tx.Where("artifact_uuid = ? AND ou_id = ?", mapping.ArtifactUUID, ouID).
-			Delete(&models.DeploymentStatusRecord{}).Error; err != nil {
-			return err
-		}
-		if err := tx.Where("artifact_uuid = ? AND ou_id = ?", mapping.ArtifactUUID, ouID).
-			Delete(&models.Deployment{}).Error; err != nil {
-			return err
-		}
-		return tx.Where("uuid = ?", mapping.ArtifactUUID).Delete(&models.Artifact{}).Error
+		return s.deleteMCPMappingArtifacts(ctx, tx, ouID, mapping.ArtifactUUID)
 	}); err != nil {
 		s.logger.Warn("failed to clean up new MCP mapping after partial failure", "environment", envName, "artifactUUID", mapping.ArtifactUUID, "err", err)
 	}
@@ -5217,6 +5658,36 @@ func (s *agentConfigurationService) undeployAndDeleteDeployment(ctx context.Cont
 	}
 }
 
+// restorePriorDeployment points the gateway back at res.restoreDeploymentID and deletes the deployment it
+// replaced. The replaced one is kept when the restore fails, so the proxy is never left with nothing.
+func (s *agentConfigurationService) restorePriorDeployment(res rollbackResource, ouID string) {
+	if res.restoreDeploymentID == uuid.Nil {
+		return
+	}
+	_, err := s.llmProxyDeploymentService.RestoreLLMProxyDeployment(
+		res.proxyHandle, res.restoreDeploymentID.String(), res.gatewayID, ouID)
+	if err != nil && !errors.Is(err, utils.ErrDeploymentAlreadyDeployed) {
+		s.logger.Error("Failed to restore prior deployment during rollback",
+			"proxyHandle", res.proxyHandle, "deploymentID", res.restoreDeploymentID,
+			"supersededDeploymentID", res.supersededDeploymentID, "error", err)
+		return
+	}
+	outcome := "Restored prior deployment during rollback"
+	if err != nil {
+		outcome = "Prior deployment was already deployed during rollback"
+	}
+	s.logger.Info(outcome, "proxyHandle", res.proxyHandle, "deploymentID", res.restoreDeploymentID)
+
+	if res.supersededDeploymentID == uuid.Nil || res.supersededDeploymentID == res.restoreDeploymentID {
+		return
+	}
+	if err := s.llmProxyDeploymentService.DeleteLLMProxyDeployment(
+		res.proxyHandle, res.supersededDeploymentID.String(), ouID); err != nil {
+		s.logger.Error("Failed to delete superseded deployment during rollback",
+			"proxyHandle", res.proxyHandle, "deploymentID", res.supersededDeploymentID, "error", err)
+	}
+}
+
 // rollbackProxies cleans up created proxies, deployments, and API keys on failure
 func (s *agentConfigurationService) rollbackProxies(ctx context.Context, resources []rollbackResource, ouID string) {
 	s.logger.Warn("Rolling back created proxies and API keys", "count", len(resources))
@@ -5293,8 +5764,9 @@ func (s *agentConfigurationService) rollbackProxies(ctx context.Context, resourc
 		}
 
 		// Scenario B (in-place proxy update) rollback: the proxy pre-existed this
-		// operation, so restore its prior configuration instead of deleting it —
-		// the generic full-proxy teardown below assumes the proxy was newly created.
+		// operation, so restore its prior configuration, then point the gateway back at
+		// the old deployment without undeploying — the generic full-proxy teardown below
+		// assumes the proxy was newly created.
 		if res.priorProxyConfig != nil {
 			if _, err := s.llmProxyService.Update(res.proxyHandle, ouID, res.priorProxyConfig); err != nil {
 				s.logger.Error("Failed to restore prior proxy configuration during rollback",
@@ -5303,20 +5775,7 @@ func (s *agentConfigurationService) rollbackProxies(ctx context.Context, resourc
 				s.logger.Info("Restored prior proxy configuration during rollback",
 					"proxyHandle", res.proxyHandle)
 			}
-			// The old deployment was silently superseded (ARCHIVED) the instant
-			// the new deployment was created above — it was never explicitly
-			// undeployed, so it must be explicitly reactivated here.
-			if res.restoreDeploymentID != uuid.Nil {
-				if _, err := s.llmProxyDeploymentService.RestoreLLMProxyDeployment(
-					res.proxyHandle, res.restoreDeploymentID.String(), res.gatewayID, ouID,
-				); err != nil {
-					s.logger.Error("Failed to restore prior deployment during rollback",
-						"proxyHandle", res.proxyHandle, "deploymentID", res.restoreDeploymentID, "error", err)
-				} else {
-					s.logger.Info("Restored prior deployment during rollback",
-						"proxyHandle", res.proxyHandle, "deploymentID", res.restoreDeploymentID)
-				}
-			}
+			s.restorePriorDeployment(res, ouID)
 			continue
 		}
 
@@ -5371,7 +5830,7 @@ func (s *agentConfigurationService) rollbackProxies(ctx context.Context, resourc
 }
 
 // buildConfigResponse builds the full configuration response
-func (s *agentConfigurationService) buildConfigResponse(ctx context.Context, config *models.AgentConfiguration, includeProxyURL bool) (*models.AgentModelConfigResponse, error) {
+func (s *agentConfigurationService) buildConfigResponse(ctx context.Context, config *models.AgentConfiguration, policy placementPolicy) (*models.AgentModelConfigResponse, error) {
 	// Get environment names from OpenChoreo
 	envs, err := s.infraResourceManager.ListOrgEnvironments(ctx, config.OUID)
 	if err != nil {
@@ -5414,14 +5873,10 @@ func (s *agentConfigurationService) buildConfigResponse(ctx context.Context, con
 			}
 
 			// Add proxy URL for external agents (subsequent GET calls)
-			if includeProxyURL {
-				gateway, err := s.resolveGatewayForProxy(ctx, mapping.LLMProxy.Handle, config.OUID, mapping.EnvironmentUUID)
-				if err == nil && mapping.LLMProxy.Configuration.Context != nil {
-					url := fmt.Sprintf("%s%s", gateway.Vhost, *mapping.LLMProxy.Configuration.Context)
-					proxyInfo.URL = &url
-				} else if err == nil {
-					// If no context, just use gateway vhost
-					url := gateway.Vhost
+			if policy.external() {
+				gateway, err := s.llmProxyGateway(ctx, policy, mapping.LLMProxy.Handle, config.OUID, mapping.EnvironmentUUID)
+				if err == nil {
+					url := buildPublicProxyURL(gateway, mapping.LLMProxy.Configuration.Context)
 					proxyInfo.URL = &url
 				}
 			}
@@ -5452,7 +5907,7 @@ func (s *agentConfigurationService) buildConfigResponse(ctx context.Context, con
 				AuthHeaderName: utils.StrAsStrPointer(mcpProxyAPIKeyHeaderName(mapping.MCPProxy, mapping.EnvironmentUUID.String())),
 			}
 			sharedArtifactUUID := s.resolveMCPMappingAPIID(ctx, &mapping, config.OUID)
-			if gateway, err := s.resolveGatewayForMCPArtifact(ctx, sharedArtifactUUID, config.OUID, mapping.EnvironmentUUID); err == nil && sharedArtifactUUID != uuid.Nil {
+			if gateway, err := s.mcpArtifactGateway(ctx, policy, mapping.MCPProxy, sharedArtifactUUID, config.OUID, mapping.EnvironmentUUID); err == nil && sharedArtifactUUID != uuid.Nil {
 				deployedProxy := buildAgentMCPConfigProxy(config, &mapping, mapping.MCPProxy, envName, config.OUID,
 					mcpMappingProxyName(config.ProjectName, config.AgentID, config.Name, envName))
 				// User-facing invoke URL in the config response: externally-reachable vhost.
@@ -5600,7 +6055,7 @@ func (s *agentConfigurationService) buildExternalAgentConfigResponse(
 			var gateway *models.Gateway
 			var gwErr error
 			if sharedArtifactUUID != uuid.Nil {
-				gateway, gwErr = s.resolveGatewayForMCPArtifact(ctx, sharedArtifactUUID, config.OUID, mapping.EnvironmentUUID)
+				gateway, gwErr = s.mcpArtifactGateway(ctx, externalAgentPolicy, mapping.MCPProxy, sharedArtifactUUID, config.OUID, mapping.EnvironmentUUID)
 			} else {
 				gwErr = errNoGatewayForEnvironment
 			}
@@ -5661,13 +6116,6 @@ func (s *agentConfigurationService) processRollBack(ctx context.Context, rollbac
 }
 
 func (s *agentConfigurationService) cleanupMCPConfig(ctx context.Context, configUUID uuid.UUID, ouID string) {
-	if s.envMCPMappingRepo != nil && s.mcpProxyService != nil {
-		if mappings, err := s.envMCPMappingRepo.ListByConfig(ctx, configUUID); err == nil {
-			for _, mapping := range mappings {
-				s.mcpProxyService.BroadcastMCPArtifactDeletion(ctx, mapping.ArtifactUUID, ouID)
-			}
-		}
-	}
 	if err := s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		var mappings []models.EnvAgentMCPMapping
 		if s.envMCPMappingRepo != nil {
@@ -5680,20 +6128,7 @@ func (s *agentConfigurationService) cleanupMCPConfig(ctx context.Context, config
 		if err := s.agentConfigRepo.Delete(ctx, tx, configUUID, ouID); err != nil {
 			return err
 		}
-		for _, mapping := range mappings {
-			if err := tx.Where("artifact_uuid = ? AND ou_id = ?", mapping.ArtifactUUID, ouID).
-				Delete(&models.DeploymentStatusRecord{}).Error; err != nil {
-				return err
-			}
-			if err := tx.Where("artifact_uuid = ? AND ou_id = ?", mapping.ArtifactUUID, ouID).
-				Delete(&models.Deployment{}).Error; err != nil {
-				return err
-			}
-			if err := tx.Where("uuid = ?", mapping.ArtifactUUID).Delete(&models.Artifact{}).Error; err != nil {
-				return err
-			}
-		}
-		return nil
+		return s.deleteMCPMappingArtifacts(ctx, tx, ouID, mcpMappingArtifacts(mappings)...)
 	}); err != nil {
 		s.logger.Warn("failed to clean up MCP configuration", "configUUID", configUUID, "error", err)
 	}
@@ -5880,7 +6315,7 @@ func (s *agentConfigurationService) systemManagedLLMURL(
 		return "", fmt.Errorf("LLM proxy handle not found for mapping in environment %s", environmentName)
 	}
 
-	gateway, err := s.resolveGatewayForProxy(ctx, proxyHandle, ouID, envUUID)
+	gateway, err := s.llmProxyGateway(ctx, platformAgentPolicy, proxyHandle, ouID, envUUID)
 	if err != nil {
 		return "", fmt.Errorf("failed to resolve gateway for LLM proxy in %s: %w", environmentName, err)
 	}
@@ -5909,7 +6344,10 @@ func (s *agentConfigurationService) systemManagedMCPURL(
 		if sharedArtifactUUID == uuid.Nil {
 			return "", fmt.Errorf("MCP proxy shared artifact not found for mapping in environment %s", environmentName)
 		}
-		gateway, err := s.resolveGatewayForMCPArtifact(ctx, sharedArtifactUUID, ouID, envUUID)
+		gateway, err := s.mcpArtifactGateway(ctx, platformAgentPolicy, mapping.MCPProxy, sharedArtifactUUID, ouID, envUUID)
+		if errors.Is(err, errMCPGatewayNotManaged) {
+			return "", nil
+		}
 		if err != nil {
 			return "", fmt.Errorf("failed to resolve gateway for MCP proxy in %s: %w", environmentName, err)
 		}

@@ -33,6 +33,9 @@ import (
 //			DeleteCtxFunc: func(ctx context.Context, providerID string, orgUUID string) error {
 //				panic("mock out the DeleteCtx method")
 //			},
+//			DeleteTxFunc: func(ctx context.Context, tx *gorm.DB, providerID string, orgUUID string) error {
+//				panic("mock out the DeleteTx method")
+//			},
 //			ExistsFunc: func(providerID string, orgUUID string) (bool, error) {
 //				panic("mock out the Exists method")
 //			},
@@ -78,6 +81,9 @@ type LLMProviderRepositoryMock struct {
 
 	// DeleteCtxFunc mocks the DeleteCtx method.
 	DeleteCtxFunc func(ctx context.Context, providerID string, orgUUID string) error
+
+	// DeleteTxFunc mocks the DeleteTx method.
+	DeleteTxFunc func(ctx context.Context, tx *gorm.DB, providerID string, orgUUID string) error
 
 	// ExistsFunc mocks the Exists method.
 	ExistsFunc func(providerID string, orgUUID string) (bool, error)
@@ -141,6 +147,17 @@ type LLMProviderRepositoryMock struct {
 		DeleteCtx []struct {
 			// Ctx is the ctx argument value.
 			Ctx context.Context
+			// ProviderID is the providerID argument value.
+			ProviderID string
+			// OrgUUID is the orgUUID argument value.
+			OrgUUID string
+		}
+		// DeleteTx holds details about calls to the DeleteTx method.
+		DeleteTx []struct {
+			// Ctx is the ctx argument value.
+			Ctx context.Context
+			// Tx is the tx argument value.
+			Tx *gorm.DB
 			// ProviderID is the providerID argument value.
 			ProviderID string
 			// OrgUUID is the orgUUID argument value.
@@ -214,6 +231,7 @@ type LLMProviderRepositoryMock struct {
 	lockCreate               sync.RWMutex
 	lockDelete               sync.RWMutex
 	lockDeleteCtx            sync.RWMutex
+	lockDeleteTx             sync.RWMutex
 	lockExists               sync.RWMutex
 	lockGetByHandle          sync.RWMutex
 	lockGetByUUID            sync.RWMutex
@@ -413,6 +431,50 @@ func (mock *LLMProviderRepositoryMock) DeleteCtxCalls() []struct {
 	mock.lockDeleteCtx.RLock()
 	calls = mock.calls.DeleteCtx
 	mock.lockDeleteCtx.RUnlock()
+	return calls
+}
+
+// DeleteTx calls DeleteTxFunc.
+func (mock *LLMProviderRepositoryMock) DeleteTx(ctx context.Context, tx *gorm.DB, providerID string, orgUUID string) error {
+	if mock.DeleteTxFunc == nil {
+		panic("LLMProviderRepositoryMock.DeleteTxFunc: method is nil but LLMProviderRepository.DeleteTx was just called")
+	}
+	callInfo := struct {
+		Ctx        context.Context
+		Tx         *gorm.DB
+		ProviderID string
+		OrgUUID    string
+	}{
+		Ctx:        ctx,
+		Tx:         tx,
+		ProviderID: providerID,
+		OrgUUID:    orgUUID,
+	}
+	mock.lockDeleteTx.Lock()
+	mock.calls.DeleteTx = append(mock.calls.DeleteTx, callInfo)
+	mock.lockDeleteTx.Unlock()
+	return mock.DeleteTxFunc(ctx, tx, providerID, orgUUID)
+}
+
+// DeleteTxCalls gets all the calls that were made to DeleteTx.
+// Check the length with:
+//
+//	len(mockedLLMProviderRepository.DeleteTxCalls())
+func (mock *LLMProviderRepositoryMock) DeleteTxCalls() []struct {
+	Ctx        context.Context
+	Tx         *gorm.DB
+	ProviderID string
+	OrgUUID    string
+} {
+	var calls []struct {
+		Ctx        context.Context
+		Tx         *gorm.DB
+		ProviderID string
+		OrgUUID    string
+	}
+	mock.lockDeleteTx.RLock()
+	calls = mock.calls.DeleteTx
+	mock.lockDeleteTx.RUnlock()
 	return calls
 }
 

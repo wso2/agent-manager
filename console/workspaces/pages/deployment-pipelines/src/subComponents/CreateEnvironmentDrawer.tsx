@@ -46,9 +46,13 @@ import {
 } from "@agent-management-platform/api-client";
 import { globalConfig, type DataPlane } from "@agent-management-platform/types";
 import {
+  buildScriptCommand,
+  deriveResourceName,
   getAgentManagerUrl,
-  getAmpVersionHelm,
+  getAmpRegistry,
+  getInstalledChartVersion,
   getIsolationTierMeta,
+  getPrivateRegistryEnv,
   getRawScriptUrl,
   useConfirmIfUnsaved,
   useUnsavedChangesGuard,
@@ -126,20 +130,8 @@ const DEFAULT_FORM: CreateEnvironmentFormValues = {
   thunderHandle: "",
 };
 
-// Capped at the schema's name limit: the display name allows more characters
-// than the name, and the name input's maxLength does not constrain this derived
-// state, so an uncapped result would fail validation and land in the copied
-// script. The trailing hyphen is stripped again in case the cut lands on one.
-function deriveNameFromDisplayName(displayName: string): string {
-  return displayName
-    .toLowerCase()
-    .replace(/\s+/g, "-")
-    .replace(/[^a-z0-9-]/g, "")
-    .replace(/-+/g, "-")
-    .replace(/^-|-$/g, "")
-    .slice(0, ENVIRONMENT_NAME_MAX_LENGTH)
-    .replace(/-$/, "");
-}
+const deriveNameFromDisplayName = (displayName: string) =>
+  deriveResourceName(displayName, ENVIRONMENT_NAME_MAX_LENGTH);
 
 // Suggests "<name>-idp" as a starting point for the Thunder handle — truncated
 // so the result never exceeds the backend's 63-char limit. Purely a default;
@@ -175,16 +167,22 @@ function buildScript(
   const thunderHostBaseDomain = globalConfig.idpHostBaseDomain?.trim();
   const tlsEnabled = globalConfig.tlsEnabled;
   // Required by add-environment.sh: the gateway chart version, pinned to the
-  // platform release version so an added environment runs the same gateway chart.
+  // installed chart so an added environment runs the same gateway chart.
 
-  const chartVersion = getAmpVersionHelm();
+  const chartVersion = getInstalledChartVersion();
+  // A private install points the script at its registry, and runs it from the
+  // release bundle (see buildScriptCommand).
+  const fromBundle = !!getAmpRegistry();
+  const registryLines = Object.entries(getPrivateRegistryEnv()).map(
+    ([key, value]) => `    ${key}=${value} \\`,
+  );
 
   // The env-creation script chains into the Thunder provisioning script to also
   // stand up this environment's identity (Thunder) instance. Pass the version-matched
   // URL so the chained call fetches the script from the same git ref as this one.
+  // From the bundle, it is read from the bundle along with its helpers.
   const lines = [
-    `curl -fsSL ${getRawScriptUrl("add-environment.sh")} \\`,
-    `  | ENV_NAME=${name || "<env-name>"} \\`,
+    `    ENV_NAME=${name || "<env-name>"} \\`,
     `    DISPLAY_NAME="${displayName || "<display-name>"}" \\`,
     ...(isolationTier !== "runc"
       ? [`    ISOLATION_TIER=${isolationTier} \\`]
@@ -201,15 +199,17 @@ function buildScript(
       ? [`    THUNDER_HOST_BASE_DOMAIN=${thunderHostBaseDomain} \\`]
       : []),
     ...(tlsEnabled !== undefined ? [`    TLS_ENABLED=${tlsEnabled} \\`] : []),
-    `    THUNDER_SCRIPT_URL=${getRawScriptUrl("add-environment-thunder.sh")} \\`,
+    ...(fromBundle
+      ? []
+      : [`    THUNDER_SCRIPT_URL=${getRawScriptUrl("add-environment-thunder.sh")} \\`]),
     // THUNDER_HANDLE replaces the guessable <org>-<env> segment of this
     // environment's env-Thunder URL with an unguessable, user-chosen label —
     // omitted entirely (not an empty string) when unset, so
     // add-environment-thunder.sh's own "unset" default behavior applies.
     ...(thunderHandle ? [`    THUNDER_HANDLE=${thunderHandle} \\`] : []),
-    "    bash",
+    ...registryLines,
   ];
-  return lines.join("\n");
+  return buildScriptCommand("add-environment.sh", lines, { fromBundle });
 }
 
 // amp.localhost is the local-dev default base domain (config.ThunderHostBaseDomain /

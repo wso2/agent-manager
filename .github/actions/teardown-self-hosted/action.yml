@@ -1,0 +1,29 @@
+name: Teardown self-hosted runner state
+description: >
+  Cleans up after a run so the next run starts clean. Use with
+  `if: always()`. It never fails the job.
+
+inputs:
+  prune-images:
+    description: Also remove all unused images.
+    required: false
+    default: 'true'
+  registry:
+    description: Registry to log out of. Empty to skip.
+    required: false
+    default: ''
+  keep-containers:
+    description: Regex of container names to keep.
+    required: false
+    default: ''
+
+runs:
+  using: composite
+  steps:
+    - name: Tear down runner state
+      shell: bash
+      env:
+        PRUNE_IMAGES: ${{ inputs.prune-images }}
+        REGISTRY: ${{ inputs.registry }}
+        KEEP_CONTAINERS: ${{ inputs.keep-containers }}
+      run: bash "${GITHUB_ACTION_PATH}/teardown.sh"

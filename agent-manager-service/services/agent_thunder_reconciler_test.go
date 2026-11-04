@@ -357,7 +357,7 @@ type fakeProvisioningService struct {
 	attemptFunc func(ctx context.Context, binding models.AgentThunderClient)
 }
 
-func (f *fakeProvisioningService) ProvisionForAgent(context.Context, string, string, string, models.AgentProvisioningType, []string, string) {
+func (f *fakeProvisioningService) ProvisionForAgent(context.Context, string, string, string, models.AgentProvisioningType, []string, string, string) {
 }
 
 func (f *fakeProvisioningService) ProvisionForEnvironmentIfMissing(context.Context, string, string, string, string, models.AgentProvisioningType, string) (bool, error) {

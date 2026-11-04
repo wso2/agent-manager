@@ -47,6 +47,7 @@ var _ = Describe("LLM provider configured for an external agent:", Label("llm-pr
 		providerUUID  string
 		proxyUUID     string
 		proxyAPIKey   string
+		proxyAuthName string
 		proxyURL      string
 		modelConfigID string
 
@@ -170,6 +171,9 @@ var _ = Describe("LLM provider configured for an external agent:", Label("llm-pr
 		Expect(envMapping.Configuration.AuthInfo).NotTo(BeNil(), "expected authInfo with API key")
 		Expect(envMapping.Configuration.AuthInfo.Value).NotTo(BeNil(), "expected API key value")
 		proxyAPIKey = *envMapping.Configuration.AuthInfo.Value
+		Expect(envMapping.Configuration.AuthInfo.In).To(Equal("header"), "expected the proxy API key in a header")
+		Expect(envMapping.Configuration.AuthInfo.Name).NotTo(BeEmpty(), "expected the proxy API key header name")
+		proxyAuthName = envMapping.Configuration.AuthInfo.Name
 
 		GinkgoWriter.Printf("Model config: %s\n  Proxy UUID: %s\n  URL: %s\n  Auth: %s in %s header %s\n",
 			config.UUID, proxyUUID, proxyURL,
@@ -201,7 +205,7 @@ var _ = Describe("LLM provider configured for an external agent:", Label("llm-pr
 			req, err := http.NewRequest("POST", endpoint, bytes.NewBuffer(data))
 			g.Expect(err).NotTo(HaveOccurred())
 			req.Header.Set("Content-Type", "application/json")
-			req.Header["api-key"] = []string{proxyAPIKey}
+			req.Header.Set(proxyAuthName, proxyAPIKey)
 
 			resp, err := httpClient.Do(req)
 			g.Expect(err).NotTo(HaveOccurred(), "proxy invocation request to %s failed: %v", endpoint, err)
@@ -272,7 +276,7 @@ var _ = Describe("LLM provider configured for an external agent:", Label("llm-pr
 			req, err := http.NewRequest("POST", endpoint, bytes.NewBuffer(data))
 			g.Expect(err).NotTo(HaveOccurred())
 			req.Header.Set("Content-Type", "application/json")
-			req.Header["api-key"] = []string{proxyAPIKey}
+			req.Header.Set(proxyAuthName, proxyAPIKey)
 
 			resp, err := httpClient.Do(req)
 			g.Expect(err).NotTo(HaveOccurred(), "proxy invocation request to %s failed: %v", endpoint, err)

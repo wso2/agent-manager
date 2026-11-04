@@ -267,7 +267,7 @@ func TestGetMetricsAllowsFutureStartTime(t *testing.T) {
 	if result.IsError {
 		t.Fatalf("expected success for a future start_time on get_metrics, got tool error: %+v", result.Content)
 	}
-	if calls := fake.calls["QueryMetrics"]; len(calls) != 1 {
-		t.Errorf("expected exactly one QueryMetrics call, got %d", len(calls))
+	if len(fake.calls["QueryMetrics"]) == 0 {
+		t.Error("expected the future window to reach upstream QueryMetrics")
 	}
 }

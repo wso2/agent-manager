@@ -72,13 +72,12 @@ func (s *MCPProxyService) EnvironmentUUIDByName(ctx context.Context, ouID, envNa
 // invoked at in the given environment — the value the env-Thunder resource
 // server's identifier must carry.
 func (s *MCPProxyService) MCPResourceServerIdentifier(ctx context.Context, ouID string, envID uuid.UUID, proxy *models.MCPProxy) (string, error) {
-	_ = ctx
 	_, ee := resolveMCPEndpointForEnv(proxy, envID.String())
 	if ee == nil || ee.ArtifactUUID == uuid.Nil {
 		return "", fmt.Errorf("%w: proxy %q, environment %s", ErrMCPProxyNotDeployedToEnvironment, proxyHandleOf(proxy), envID)
 	}
 
-	deployed, err := s.deploymentRepo.GetDeployedGatewaysByProvider(ee.ArtifactUUID, ouID)
+	deployed, err := s.deploymentRepo.PlacedGateways(ctx, ouID, ee.ArtifactUUID)
 	if err != nil {
 		return "", fmt.Errorf("failed to list deployed gateways for MCP artifact %s: %w", ee.ArtifactUUID, err)
 	}

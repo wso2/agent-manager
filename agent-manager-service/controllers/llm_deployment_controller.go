@@ -75,19 +75,8 @@ func (c *llmDeploymentController) DeployLLMProvider(w http.ResponseWriter, r *ht
 	}
 
 	log.Info("DeployLLMProvider: request decoded", "ouID", ouID, "providerID", providerID,
-		"deploymentName", req.Name, "base", req.Base, "gatewayID", req.GatewayID)
+		"base", req.Base, "gatewayID", req.GatewayID)
 
-	// Validate required fields
-	if req.Name == "" {
-		log.Error("DeployLLMProvider: deployment name is required", "ouID", ouID, "providerID", providerID)
-		utils.WriteErrorResponse(w, http.StatusBadRequest, "name is required")
-		return
-	}
-	if req.Base == "" {
-		log.Error("DeployLLMProvider: base is required", "ouID", ouID, "providerID", providerID)
-		utils.WriteErrorResponse(w, http.StatusBadRequest, "base is required (use 'current' or a deploymentId)")
-		return
-	}
 	if req.GatewayID == "" {
 		log.Error("DeployLLMProvider: gateway ID is required", "ouID", ouID, "providerID", providerID)
 		utils.WriteErrorResponse(w, http.StatusBadRequest, "gatewayId is required")
@@ -95,7 +84,7 @@ func (c *llmDeploymentController) DeployLLMProvider(w http.ResponseWriter, r *ht
 	}
 
 	log.Info("DeployLLMProvider: calling service layer", "ouID", ouID, "providerID", providerID,
-		"deploymentName", req.Name, "gatewayID", req.GatewayID)
+		"gatewayID", req.GatewayID)
 
 	deployment, err := c.deploymentService.DeployLLMProvider(providerID, &req, ouID)
 	if err != nil {
@@ -108,17 +97,9 @@ func (c *llmDeploymentController) DeployLLMProvider(w http.ResponseWriter, r *ht
 			log.Warn("DeployLLMProvider: gateway not found", "ouID", ouID, "providerID", providerID, "gatewayID", req.GatewayID)
 			utils.WriteErrorResponse(w, http.StatusNotFound, "Gateway not found")
 			return
-		case errors.Is(err, utils.ErrBaseDeploymentNotFound):
-			log.Warn("DeployLLMProvider: base deployment not found", "ouID", ouID, "providerID", providerID, "base", req.Base)
-			utils.WriteErrorResponse(w, http.StatusNotFound, "Base deployment not found")
-			return
-		case errors.Is(err, utils.ErrDeploymentNameRequired):
-			log.Error("DeployLLMProvider: deployment name required", "ouID", ouID, "providerID", providerID)
-			utils.WriteErrorResponse(w, http.StatusBadRequest, "Deployment name is required")
-			return
-		case errors.Is(err, utils.ErrDeploymentBaseRequired):
-			log.Error("DeployLLMProvider: base required", "ouID", ouID, "providerID", providerID)
-			utils.WriteErrorResponse(w, http.StatusBadRequest, "Base is required (use 'current' or a deploymentId)")
+		case errors.Is(err, utils.ErrDeploymentBaseNotCurrent):
+			log.Warn("DeployLLMProvider: base is not current", "ouID", ouID, "providerID", providerID, "base", req.Base)
+			utils.WriteErrorResponse(w, http.StatusBadRequest, utils.ErrDeploymentBaseNotCurrent.Error())
 			return
 		case errors.Is(err, utils.ErrDeploymentGatewayIDRequired):
 			log.Error("DeployLLMProvider: gateway ID required", "ouID", ouID, "providerID", providerID)
@@ -142,7 +123,7 @@ func (c *llmDeploymentController) DeployLLMProvider(w http.ResponseWriter, r *ht
 	log.Info("DeployLLMProvider: deployment created successfully", "ouID", ouID, "providerID", providerID,
 		"deploymentID", deployment.DeploymentID, "gatewayID", req.GatewayID)
 
-	utils.WriteSuccessResponse(w, http.StatusCreated, deployment)
+	utils.WriteSuccessResponse(w, http.StatusCreated, utils.ConvertModelToSpecLLMDeploymentResponse(deployment))
 }
 
 func (c *llmDeploymentController) UndeployLLMProviderDeployment(w http.ResponseWriter, r *http.Request) {
@@ -196,7 +177,7 @@ func (c *llmDeploymentController) UndeployLLMProviderDeployment(w http.ResponseW
 			return
 		case errors.Is(err, utils.ErrDeploymentNotActive):
 			log.Warn("UndeployLLMProviderDeployment: deployment not active", "ouID", ouID, "providerID", providerID, "deploymentID", deploymentID)
-			utils.WriteErrorResponse(w, http.StatusConflict, "No active deployment found for this LLM provider on the gateway")
+			utils.WriteErrorResponse(w, http.StatusConflict, "The deployment isn't the gateway's current deployment, or it is already undeployed or being undeployed")
 			return
 		case errors.Is(err, utils.ErrGatewayIDMismatch):
 			log.Error("UndeployLLMProviderDeployment: gateway ID mismatch", "ouID", ouID, "providerID", providerID, "deploymentID", deploymentID, "gatewayID", gatewayID)
@@ -266,7 +247,7 @@ func (c *llmDeploymentController) RestoreLLMProviderDeployment(w http.ResponseWr
 			return
 		case errors.Is(err, utils.ErrDeploymentAlreadyDeployed):
 			log.Warn("RestoreLLMProviderDeployment: deployment already deployed", "ouID", ouID, "providerID", providerID, "deploymentID", deploymentID)
-			utils.WriteErrorResponse(w, http.StatusConflict, "Cannot restore currently deployed deployment")
+			utils.WriteErrorResponse(w, http.StatusConflict, "Cannot restore the deployment the gateway is already deploying or serving")
 			return
 		case errors.Is(err, utils.ErrGatewayIDMismatch):
 			log.Error("RestoreLLMProviderDeployment: gateway ID mismatch", "ouID", ouID, "providerID", providerID, "deploymentID", deploymentID, "gatewayID", gatewayID)
@@ -281,7 +262,7 @@ func (c *llmDeploymentController) RestoreLLMProviderDeployment(w http.ResponseWr
 
 	log.Info("RestoreLLMProviderDeployment: restored successfully", "ouID", ouID, "providerID", providerID, "deploymentID", deploymentID)
 
-	utils.WriteSuccessResponse(w, http.StatusOK, deployment)
+	utils.WriteSuccessResponse(w, http.StatusOK, utils.ConvertModelToSpecLLMDeploymentResponse(deployment))
 }
 
 func (c *llmDeploymentController) DeleteLLMProviderDeployment(w http.ResponseWriter, r *http.Request) {
@@ -321,7 +302,7 @@ func (c *llmDeploymentController) DeleteLLMProviderDeployment(w http.ResponseWri
 			return
 		case errors.Is(err, utils.ErrDeploymentIsDeployed):
 			log.Warn("DeleteLLMProviderDeployment: deployment is active", "ouID", ouID, "providerID", providerID, "deploymentID", deploymentID)
-			utils.WriteErrorResponse(w, http.StatusConflict, "Cannot delete an active deployment - undeploy it first")
+			utils.WriteErrorResponse(w, http.StatusConflict, "Cannot delete the gateway's current deployment - undeploy it and wait until it is UNDEPLOYED")
 			return
 		default:
 			log.Error("DeleteLLMProviderDeployment: failed to delete", "ouID", ouID, "providerID", providerID, "deploymentID", deploymentID, "error", err)
@@ -379,7 +360,7 @@ func (c *llmDeploymentController) GetLLMProviderDeployment(w http.ResponseWriter
 
 	log.Info("GetLLMProviderDeployment: retrieved successfully", "ouID", ouID, "providerID", providerID, "deploymentID", deploymentID)
 
-	utils.WriteSuccessResponse(w, http.StatusOK, deployment)
+	utils.WriteSuccessResponse(w, http.StatusOK, utils.ConvertModelToSpecLLMDeploymentResponse(deployment))
 }
 
 func (c *llmDeploymentController) GetLLMProviderDeployments(w http.ResponseWriter, r *http.Request) {
@@ -435,5 +416,5 @@ func (c *llmDeploymentController) GetLLMProviderDeployments(w http.ResponseWrite
 
 	log.Info("GetLLMProviderDeployments: retrieved successfully", "ouID", ouID, "providerID", providerID, "count", len(deployments))
 
-	utils.WriteSuccessResponse(w, http.StatusOK, deployments)
+	utils.WriteSuccessResponse(w, http.StatusOK, utils.ConvertModelToSpecLLMDeploymentResponses(deployments))
 }

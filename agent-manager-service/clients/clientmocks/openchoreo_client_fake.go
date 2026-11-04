@@ -99,8 +99,14 @@ import (
 //			GetBuildFunc: func(ctx context.Context, ouID string, projectName string, componentName string, buildName string) (*models.BuildDetailsResponse, error) {
 //				panic("mock out the GetBuild method")
 //			},
+//			GetBuildByNameFunc: func(ctx context.Context, ouID string, buildName string) (*models.BuildDetailsResponse, error) {
+//				panic("mock out the GetBuildByName method")
+//			},
 //			GetComponentFunc: func(ctx context.Context, ouID string, projectName string, componentName string) (*models.AgentResponse, error) {
 //				panic("mock out the GetComponent method")
+//			},
+//			GetComponentBaseEnvVarsFunc: func(ctx context.Context, ouID string, componentName string) ([]client.EnvVar, error) {
+//				panic("mock out the GetComponentBaseEnvVars method")
 //			},
 //			GetComponentConfigurationsFunc: func(ctx context.Context, ouID string, projectName string, componentName string, environment string) ([]models.EnvVars, error) {
 //				panic("mock out the GetComponentConfigurations method")
@@ -137,6 +143,9 @@ import (
 //			},
 //			GetReleaseBindingServiceURLFunc: func(ctx context.Context, ouID string, componentName string, environment string) (string, error) {
 //				panic("mock out the GetReleaseBindingServiceURL method")
+//			},
+//			GetReleaseBindingTraitsFunc: func(ctx context.Context, ouID string, componentName string, environment string) ([]client.TraitType, bool, error) {
+//				panic("mock out the GetReleaseBindingTraits method")
 //			},
 //			GetSecretFunc: func(ctx context.Context, ouID string, secretName string) (*client.SecretInfo, error) {
 //				panic("mock out the GetSecret method")
@@ -219,7 +228,7 @@ import (
 //			ReplaceReleaseBindingWorkloadOverridesFunc: func(ctx context.Context, ouID string, componentName string, environment string, envOverrides []client.EnvVar, fileOverrides []client.FileVar) error {
 //				panic("mock out the ReplaceReleaseBindingWorkloadOverrides method")
 //			},
-//			TriggerBuildFunc: func(ctx context.Context, ouID string, projectName string, componentName string, commitID string, workflowRunName string) (*models.BuildResponse, error) {
+//			TriggerBuildFunc: func(ctx context.Context, ouID string, projectName string, componentName string, commitID string, workflowRunName string, runEnvVars []client.EnvVar) (*models.BuildResponse, error) {
 //				panic("mock out the TriggerBuild method")
 //			},
 //			UpdateComponentBasicInfoFunc: func(ctx context.Context, ouID string, projectName string, componentName string, req client.UpdateComponentBasicInfoRequest) error {
@@ -346,8 +355,14 @@ type OpenChoreoClientMock struct {
 	// GetBuildFunc mocks the GetBuild method.
 	GetBuildFunc func(ctx context.Context, ouID string, projectName string, componentName string, buildName string) (*models.BuildDetailsResponse, error)
 
+	// GetBuildByNameFunc mocks the GetBuildByName method.
+	GetBuildByNameFunc func(ctx context.Context, ouID string, buildName string) (*models.BuildDetailsResponse, error)
+
 	// GetComponentFunc mocks the GetComponent method.
 	GetComponentFunc func(ctx context.Context, ouID string, projectName string, componentName string) (*models.AgentResponse, error)
+
+	// GetComponentBaseEnvVarsFunc mocks the GetComponentBaseEnvVars method.
+	GetComponentBaseEnvVarsFunc func(ctx context.Context, ouID string, componentName string) ([]client.EnvVar, error)
 
 	// GetComponentConfigurationsFunc mocks the GetComponentConfigurations method.
 	GetComponentConfigurationsFunc func(ctx context.Context, ouID string, projectName string, componentName string, environment string) ([]models.EnvVars, error)
@@ -384,6 +399,9 @@ type OpenChoreoClientMock struct {
 
 	// GetReleaseBindingServiceURLFunc mocks the GetReleaseBindingServiceURL method.
 	GetReleaseBindingServiceURLFunc func(ctx context.Context, ouID string, componentName string, environment string) (string, error)
+
+	// GetReleaseBindingTraitsFunc mocks the GetReleaseBindingTraits method.
+	GetReleaseBindingTraitsFunc func(ctx context.Context, ouID string, componentName string, environment string) ([]client.TraitType, bool, error)
 
 	// GetSecretFunc mocks the GetSecret method.
 	GetSecretFunc func(ctx context.Context, ouID string, secretName string) (*client.SecretInfo, error)
@@ -467,7 +485,7 @@ type OpenChoreoClientMock struct {
 	ReplaceReleaseBindingWorkloadOverridesFunc func(ctx context.Context, ouID string, componentName string, environment string, envOverrides []client.EnvVar, fileOverrides []client.FileVar) error
 
 	// TriggerBuildFunc mocks the TriggerBuild method.
-	TriggerBuildFunc func(ctx context.Context, ouID string, projectName string, componentName string, commitID string, workflowRunName string) (*models.BuildResponse, error)
+	TriggerBuildFunc func(ctx context.Context, ouID string, projectName string, componentName string, commitID string, workflowRunName string, runEnvVars []client.EnvVar) (*models.BuildResponse, error)
 
 	// UpdateComponentBasicInfoFunc mocks the UpdateComponentBasicInfo method.
 	UpdateComponentBasicInfoFunc func(ctx context.Context, ouID string, projectName string, componentName string, req client.UpdateComponentBasicInfoRequest) error
@@ -800,6 +818,15 @@ type OpenChoreoClientMock struct {
 			// BuildName is the buildName argument value.
 			BuildName string
 		}
+		// GetBuildByName holds details about calls to the GetBuildByName method.
+		GetBuildByName []struct {
+			// Ctx is the ctx argument value.
+			Ctx context.Context
+			// OuID is the ouID argument value.
+			OuID string
+			// BuildName is the buildName argument value.
+			BuildName string
+		}
 		// GetComponent holds details about calls to the GetComponent method.
 		GetComponent []struct {
 			// Ctx is the ctx argument value.
@@ -808,6 +835,15 @@ type OpenChoreoClientMock struct {
 			OuID string
 			// ProjectName is the projectName argument value.
 			ProjectName string
+			// ComponentName is the componentName argument value.
+			ComponentName string
+		}
+		// GetComponentBaseEnvVars holds details about calls to the GetComponentBaseEnvVars method.
+		GetComponentBaseEnvVars []struct {
+			// Ctx is the ctx argument value.
+			Ctx context.Context
+			// OuID is the ouID argument value.
+			OuID string
 			// ComponentName is the componentName argument value.
 			ComponentName string
 		}
@@ -932,6 +968,17 @@ type OpenChoreoClientMock struct {
 		}
 		// GetReleaseBindingServiceURL holds details about calls to the GetReleaseBindingServiceURL method.
 		GetReleaseBindingServiceURL []struct {
+			// Ctx is the ctx argument value.
+			Ctx context.Context
+			// OuID is the ouID argument value.
+			OuID string
+			// ComponentName is the componentName argument value.
+			ComponentName string
+			// Environment is the environment argument value.
+			Environment string
+		}
+		// GetReleaseBindingTraits holds details about calls to the GetReleaseBindingTraits method.
+		GetReleaseBindingTraits []struct {
 			// Ctx is the ctx argument value.
 			Ctx context.Context
 			// OuID is the ouID argument value.
@@ -1242,6 +1289,8 @@ type OpenChoreoClientMock struct {
 			CommitID string
 			// WorkflowRunName is the workflowRunName argument value.
 			WorkflowRunName string
+			// RunEnvVars is the runEnvVars argument value.
+			RunEnvVars []client.EnvVar
 		}
 		// UpdateComponentBasicInfo holds details about calls to the UpdateComponentBasicInfo method.
 		UpdateComponentBasicInfo []struct {
@@ -1431,7 +1480,9 @@ type OpenChoreoClientMock struct {
 	lockEnsureReleaseBindingRuntimeClass       sync.RWMutex
 	lockExpireWorkflowRun                      sync.RWMutex
 	lockGetBuild                               sync.RWMutex
+	lockGetBuildByName                         sync.RWMutex
 	lockGetComponent                           sync.RWMutex
+	lockGetComponentBaseEnvVars                sync.RWMutex
 	lockGetComponentConfigurations             sync.RWMutex
 	lockGetComponentEndpoints                  sync.RWMutex
 	lockGetComponentFileMounts                 sync.RWMutex
@@ -1444,6 +1495,7 @@ type OpenChoreoClientMock struct {
 	lockGetProjectDeploymentPipeline           sync.RWMutex
 	lockGetReleaseBindingRollout               sync.RWMutex
 	lockGetReleaseBindingServiceURL            sync.RWMutex
+	lockGetReleaseBindingTraits                sync.RWMutex
 	lockGetSecret                              sync.RWMutex
 	lockGetSecretReference                     sync.RWMutex
 	lockGetSourceEnvWorkloadOverrides          sync.RWMutex
@@ -2666,6 +2718,46 @@ func (mock *OpenChoreoClientMock) GetBuildCalls() []struct {
 	return calls
 }
 
+// GetBuildByName calls GetBuildByNameFunc.
+func (mock *OpenChoreoClientMock) GetBuildByName(ctx context.Context, ouID string, buildName string) (*models.BuildDetailsResponse, error) {
+	if mock.GetBuildByNameFunc == nil {
+		panic("OpenChoreoClientMock.GetBuildByNameFunc: method is nil but OpenChoreoClient.GetBuildByName was just called")
+	}
+	callInfo := struct {
+		Ctx       context.Context
+		OuID      string
+		BuildName string
+	}{
+		Ctx:       ctx,
+		OuID:      ouID,
+		BuildName: buildName,
+	}
+	mock.lockGetBuildByName.Lock()
+	mock.calls.GetBuildByName = append(mock.calls.GetBuildByName, callInfo)
+	mock.lockGetBuildByName.Unlock()
+	return mock.GetBuildByNameFunc(ctx, ouID, buildName)
+}
+
+// GetBuildByNameCalls gets all the calls that were made to GetBuildByName.
+// Check the length with:
+//
+//	len(mockedOpenChoreoClient.GetBuildByNameCalls())
+func (mock *OpenChoreoClientMock) GetBuildByNameCalls() []struct {
+	Ctx       context.Context
+	OuID      string
+	BuildName string
+} {
+	var calls []struct {
+		Ctx       context.Context
+		OuID      string
+		BuildName string
+	}
+	mock.lockGetBuildByName.RLock()
+	calls = mock.calls.GetBuildByName
+	mock.lockGetBuildByName.RUnlock()
+	return calls
+}
+
 // GetComponent calls GetComponentFunc.
 func (mock *OpenChoreoClientMock) GetComponent(ctx context.Context, ouID string, projectName string, componentName string) (*models.AgentResponse, error) {
 	if mock.GetComponentFunc == nil {
@@ -2707,6 +2799,46 @@ func (mock *OpenChoreoClientMock) GetComponentCalls() []struct {
 	mock.lockGetComponent.RLock()
 	calls = mock.calls.GetComponent
 	mock.lockGetComponent.RUnlock()
+	return calls
+}
+
+// GetComponentBaseEnvVars calls GetComponentBaseEnvVarsFunc.
+func (mock *OpenChoreoClientMock) GetComponentBaseEnvVars(ctx context.Context, ouID string, componentName string) ([]client.EnvVar, error) {
+	if mock.GetComponentBaseEnvVarsFunc == nil {
+		panic("OpenChoreoClientMock.GetComponentBaseEnvVarsFunc: method is nil but OpenChoreoClient.GetComponentBaseEnvVars was just called")
+	}
+	callInfo := struct {
+		Ctx           context.Context
+		OuID          string
+		ComponentName string
+	}{
+		Ctx:           ctx,
+		OuID:          ouID,
+		ComponentName: componentName,
+	}
+	mock.lockGetComponentBaseEnvVars.Lock()
+	mock.calls.GetComponentBaseEnvVars = append(mock.calls.GetComponentBaseEnvVars, callInfo)
+	mock.lockGetComponentBaseEnvVars.Unlock()
+	return mock.GetComponentBaseEnvVarsFunc(ctx, ouID, componentName)
+}
+
+// GetComponentBaseEnvVarsCalls gets all the calls that were made to GetComponentBaseEnvVars.
+// Check the length with:
+//
+//	len(mockedOpenChoreoClient.GetComponentBaseEnvVarsCalls())
+func (mock *OpenChoreoClientMock) GetComponentBaseEnvVarsCalls() []struct {
+	Ctx           context.Context
+	OuID          string
+	ComponentName string
+} {
+	var calls []struct {
+		Ctx           context.Context
+		OuID          string
+		ComponentName string
+	}
+	mock.lockGetComponentBaseEnvVars.RLock()
+	calls = mock.calls.GetComponentBaseEnvVars
+	mock.lockGetComponentBaseEnvVars.RUnlock()
 	return calls
 }
 
@@ -3231,6 +3363,50 @@ func (mock *OpenChoreoClientMock) GetReleaseBindingServiceURLCalls() []struct {
 	mock.lockGetReleaseBindingServiceURL.RLock()
 	calls = mock.calls.GetReleaseBindingServiceURL
 	mock.lockGetReleaseBindingServiceURL.RUnlock()
+	return calls
+}
+
+// GetReleaseBindingTraits calls GetReleaseBindingTraitsFunc.
+func (mock *OpenChoreoClientMock) GetReleaseBindingTraits(ctx context.Context, ouID string, componentName string, environment string) ([]client.TraitType, bool, error) {
+	if mock.GetReleaseBindingTraitsFunc == nil {
+		panic("OpenChoreoClientMock.GetReleaseBindingTraitsFunc: method is nil but OpenChoreoClient.GetReleaseBindingTraits was just called")
+	}
+	callInfo := struct {
+		Ctx           context.Context
+		OuID          string
+		ComponentName string
+		Environment   string
+	}{
+		Ctx:           ctx,
+		OuID:          ouID,
+		ComponentName: componentName,
+		Environment:   environment,
+	}
+	mock.lockGetReleaseBindingTraits.Lock()
+	mock.calls.GetReleaseBindingTraits = append(mock.calls.GetReleaseBindingTraits, callInfo)
+	mock.lockGetReleaseBindingTraits.Unlock()
+	return mock.GetReleaseBindingTraitsFunc(ctx, ouID, componentName, environment)
+}
+
+// GetReleaseBindingTraitsCalls gets all the calls that were made to GetReleaseBindingTraits.
+// Check the length with:
+//
+//	len(mockedOpenChoreoClient.GetReleaseBindingTraitsCalls())
+func (mock *OpenChoreoClientMock) GetReleaseBindingTraitsCalls() []struct {
+	Ctx           context.Context
+	OuID          string
+	ComponentName string
+	Environment   string
+} {
+	var calls []struct {
+		Ctx           context.Context
+		OuID          string
+		ComponentName string
+		Environment   string
+	}
+	mock.lockGetReleaseBindingTraits.RLock()
+	calls = mock.calls.GetReleaseBindingTraits
+	mock.lockGetReleaseBindingTraits.RUnlock()
 	return calls
 }
 
@@ -4403,7 +4579,7 @@ func (mock *OpenChoreoClientMock) ReplaceReleaseBindingWorkloadOverridesCalls() 
 }
 
 // TriggerBuild calls TriggerBuildFunc.
-func (mock *OpenChoreoClientMock) TriggerBuild(ctx context.Context, ouID string, projectName string, componentName string, commitID string, workflowRunName string) (*models.BuildResponse, error) {
+func (mock *OpenChoreoClientMock) TriggerBuild(ctx context.Context, ouID string, projectName string, componentName string, commitID string, workflowRunName string, runEnvVars []client.EnvVar) (*models.BuildResponse, error) {
 	if mock.TriggerBuildFunc == nil {
 		panic("OpenChoreoClientMock.TriggerBuildFunc: method is nil but OpenChoreoClient.TriggerBuild was just called")
 	}
@@ -4414,6 +4590,7 @@ func (mock *OpenChoreoClientMock) TriggerBuild(ctx context.Context, ouID string,
 		ComponentName   string
 		CommitID        string
 		WorkflowRunName string
+		RunEnvVars      []client.EnvVar
 	}{
 		Ctx:             ctx,
 		OuID:            ouID,
@@ -4421,11 +4598,12 @@ func (mock *OpenChoreoClientMock) TriggerBuild(ctx context.Context, ouID string,
 		ComponentName:   componentName,
 		CommitID:        commitID,
 		WorkflowRunName: workflowRunName,
+		RunEnvVars:      runEnvVars,
 	}
 	mock.lockTriggerBuild.Lock()
 	mock.calls.TriggerBuild = append(mock.calls.TriggerBuild, callInfo)
 	mock.lockTriggerBuild.Unlock()
-	return mock.TriggerBuildFunc(ctx, ouID, projectName, componentName, commitID, workflowRunName)
+	return mock.TriggerBuildFunc(ctx, ouID, projectName, componentName, commitID, workflowRunName, runEnvVars)
 }
 
 // TriggerBuildCalls gets all the calls that were made to TriggerBuild.
@@ -4439,6 +4617,7 @@ func (mock *OpenChoreoClientMock) TriggerBuildCalls() []struct {
 	ComponentName   string
 	CommitID        string
 	WorkflowRunName string
+	RunEnvVars      []client.EnvVar
 } {
 	var calls []struct {
 		Ctx             context.Context
@@ -4447,6 +4626,7 @@ func (mock *OpenChoreoClientMock) TriggerBuildCalls() []struct {
 		ComponentName   string
 		CommitID        string
 		WorkflowRunName string
+		RunEnvVars      []client.EnvVar
 	}
 	mock.lockTriggerBuild.RLock()
 	calls = mock.calls.TriggerBuild

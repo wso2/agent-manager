@@ -70,7 +70,6 @@ export const AddLLMProvidersOrganization: React.FC = () => {
   const {
     mutate: createLLMProvider,
     isPending: isCreating,
-    error: createError,
   } = useCreateLLMProvider();
 
   const templates = useMemo(
@@ -92,11 +91,8 @@ export const AddLLMProvidersOrganization: React.FC = () => {
     if (gatewaysError) {
       return getErrorMessage(gatewaysError);
     }
-    if (createError) {
-      return (createError as Error)?.message || "Failed to create LLM provider";
-    }
     return null;
-  }, [createError, gatewaysError, templatesError]);
+  }, [gatewaysError, templatesError]);
 
   const handleSubmit = useCallback(
     (values: AddLLMProviderFormValues, guardrails: GuardrailSelection[]) => {

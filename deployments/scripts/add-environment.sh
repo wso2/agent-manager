@@ -28,7 +28,7 @@ set -euo pipefail
 #     release so an added env runs the same chart. Injected by the console.
 # Optional:
 #   - CHART_VERSION: gateway-extension chart version (e.g. 0.15.0). Injected by the console.
-#   - THUNDER_CHART_VERSION: ThunderID chart version for the per-env instance (default: 1.0.1).
+#   - THUNDER_CHART_VERSION: ThunderID chart version for the per-env instance (default: 1.0.2).
 #   - GATEWAY_CHART: path to a local chart directory or tarball (e.g. ./deployments/helm-charts/wso2-amp-api-platform-gateway-extension).
 #     When set, CHART_VERSION is ignored and the local chart is used directly.
 #   - IS_PRODUCTION (default: false)
@@ -56,6 +56,14 @@ set -euo pipefail
 #   - AMS_CONFIGMAP_NAME / AMS_CONFIGMAP_NAMESPACE (default: amp-api / wso2-amp):
 #     where the recorded values above are read from on a non-default release.
 #   - IDP_SKIP_TLS_VERIFY (default: true): skipTlsVerify for the seeded env-Thunder identity provider.
+#   - THUNDER_DB_TYPE, THUNDER_DB_*, THUNDER_CACHE_TYPE, THUNDER_REDIS_*, THUNDER_REPLICAS,
+#     THUNDER_STATE_ACCESS_MODE, THUNDER_FORCE_STORAGE_CHANGE: database, cache and replica
+#     settings for this environment's Thunder (default: SQLite, in-memory cache, 1 replica).
+#     Set them on the same command as this script, on `bash` (the last stage of a
+#     curl | bash pipeline), not on `curl`; they are inherited by the chained
+#     add-environment-thunder.sh, which documents them. When any of them is set, a
+#     failed Thunder step stops this script instead of falling back to the shared
+#     platform Thunder.
 
 # --- Required inputs ---
 : "${ENV_NAME:?ENV_NAME is required (e.g. ENV_NAME=staging)}"
@@ -64,12 +72,13 @@ set -euo pipefail
 # CHART_VERSION is required when pulling from OCI but ignored when GATEWAY_CHART is set.
 CHART_VERSION="${CHART_VERSION:-}"
 
-# CHART_VERSION carries the Agent Manager release version here (console sets
-# it from ampVersion, see getAmpVersionHelm()), so pin script fetches (below,
-# and the chained add-environment-thunder.sh) to that release tag instead of
-# `main` — same convention as getScriptRef(). Falls back to main when
-# unset/dev (no matching tag). Computed early so both this script's own
-# thunder-naming.sh fetch and the later Thunder-provisioning fetch agree.
+# CHART_VERSION carries the Agent Manager release version here, so pin script
+# fetches (below, and the chained add-environment-thunder.sh) to that release
+# tag instead of `main` — same convention as getScriptRef(). Falls back to main
+# when unset/dev (no matching tag). Computed early so both this script's own
+# thunder-naming.sh fetch and the later Thunder-provisioning fetch agree. An
+# update's chart version (2.0.0-u1) has no tag of its own, so the console passes
+# SCRIPT_BASE_URL whenever it runs the script from a release bundle.
 script_ref="main"
 if [ -n "$CHART_VERSION" ] && [[ "$CHART_VERSION" != *dev* ]]; then
     script_ref="amp/v${CHART_VERSION#v}"
@@ -89,6 +98,56 @@ if ! printf '%s' "$ENV_NAME" | grep -Eq '^[a-z0-9]([a-z0-9-]*[a-z0-9])?$'; then
     echo "❌ Invalid ENV_NAME '${ENV_NAME}'"
     echo "   Must be lowercase alphanumeric with hyphens (no leading/trailing hyphen)."
     exit 1
+fi
+
+# storage_settings_requested: 0 if any of the env-Thunder database/cache/replica settings
+# (see the THUNDER_DB_* block in the header) was given. Thunder provisioning failures are
+# otherwise tolerated below, falling back to the shared platform Thunder; that fallback is
+# wrong when the caller asked for specific storage, so a failure must stop the run.
+storage_settings_requested() {
+    local v
+    for v in $(compgen -v | grep -E '^THUNDER_(DB_|CACHE_|REDIS_|REPLICAS$|STATE_ACCESS_MODE$|FORCE_STORAGE_CHANGE$)'); do
+        [ -n "${!v:-}" ] && return 0
+    done
+    return 1
+}
+
+# Pure environment checks belong before anything is created: storage settings need a
+# per-environment Thunder to apply to.
+if [ "${PROVISION_THUNDER:-true}" != "true" ] && storage_settings_requested; then
+    echo "❌ THUNDER_* storage settings were given but PROVISION_THUNDER=false, so they would be ignored." >&2
+    echo "   Unset one or the other." >&2
+    exit 1
+fi
+
+# Wrong storage settings are rejected here as well, before the environment is created:
+# the Thunder step that would reject them runs after Step 1, and a rejected run would
+# leave a new environment behind with no Thunder. The rules are the ones
+# add-environment-thunder.sh applies (deployments/scripts/thunder-storage.sh, same
+# prefer-sibling, fall-back-to-fetch loading as thunder-naming.sh below). Nothing is
+# loaded or fetched when no storage setting was given, so the default flow is unchanged.
+if storage_settings_requested; then
+    if [ -n "${BASH_SOURCE[0]:-}" ] && [ -f "$(dirname "${BASH_SOURCE[0]}")/thunder-storage.sh" ]; then
+        # shellcheck source=thunder-storage.sh
+        source "$(dirname "${BASH_SOURCE[0]}")/thunder-storage.sh"
+    else
+        _storage_lib_url="${THUNDER_STORAGE_LIB_URL:-${SCRIPT_BASE_URL}/thunder-storage.sh}"
+        _storage_lib_tmp="$(mktemp)"
+        if ! curl -fsSL "${_storage_lib_url}" -o "${_storage_lib_tmp}"; then
+            echo "❌ Failed to fetch the Thunder storage validation helpers from ${_storage_lib_url}" >&2
+            echo "   THUNDER_* storage settings were given, so they cannot be checked; nothing was created." >&2
+            rm -f "${_storage_lib_tmp}"
+            exit 1
+        fi
+        # shellcheck source=/dev/null
+        source "${_storage_lib_tmp}"
+        rm -f "${_storage_lib_tmp}"
+        unset _storage_lib_url _storage_lib_tmp
+    fi
+    if ! validate_storage_config; then
+        echo "   Fix the THUNDER_* settings above and re-run; nothing was created." >&2
+        exit 1
+    fi
 fi
 
 # --- Configuration (can be overridden via env vars) ---
@@ -148,24 +207,13 @@ CHART_REF="${CHART_REF:-oci://ghcr.io/wso2/wso2-amp-api-platform-gateway-extensi
 # or a tarball). When unset, the published OCI chart at CHART_REF is used.
 GATEWAY_CHART="${GATEWAY_CHART:-}"
 
-# --- Resolve chart reference and version ---
-# When GATEWAY_CHART is set, use it directly (no --version flag).
-# Otherwise resolve the latest OCI version or use the pinned CHART_VERSION.
+# --- Resolve chart reference ---
+# When GATEWAY_CHART is set, use it directly (no --version flag). The version of
+# an OCI chart is resolved further down, once helm is signed in to its registry.
 if [ -n "$GATEWAY_CHART" ]; then
     echo "📦 Using gateway chart: ${GATEWAY_CHART}"
     CHART_REF="${GATEWAY_CHART}"
     CHART_VERSION=""
-elif [ -z "$CHART_VERSION" ]; then
-    echo "🔎 Resolving latest gateway chart version from ${CHART_REF}..."
-    CHART_VERSION=$(helm show chart "${CHART_REF}" 2>/dev/null | awk '/^version:/ {print $2; exit}')
-    if [ -z "$CHART_VERSION" ]; then
-        echo "❌ Could not resolve the latest chart version from ${CHART_REF}"
-        echo "   Pin a version explicitly and retry (e.g. CHART_VERSION=0.15.0)."
-        exit 1
-    fi
-    echo "✅ Using latest chart version: ${CHART_VERSION}"
-else
-    echo "📌 Using pinned chart version: ${CHART_VERSION}"
 fi
 
 # GATEWAY_VHOST_PORT is resolved further down, together with the other values the
@@ -282,6 +330,49 @@ if declare -F amp_registry_is_private >/dev/null 2>&1 && amp_registry_is_private
     else
         echo "❌ Failed to create the image pull secret in workflows-${ENV_NAME}" >&2
         exit 1
+    fi
+fi
+
+# A gateway extension chart in the private registry is pulled by helm on this
+# machine, which neither the pull secret nor a node's registry config covers, so
+# sign helm in with the same credentials. amp_registry_helm_login only acts when
+# the chart is on the image registry's host.
+case "$CHART_REF" in
+    oci://*)
+        if declare -F amp_registry_helm_login >/dev/null 2>&1 && amp_registry_is_private; then
+            HELM_CHART_REGISTRY="${HELM_CHART_REGISTRY:-${CHART_REF#oci://}}"
+            _chart_host="${CHART_REF#oci://}"
+            _chart_host="${_chart_host%%/*}"
+            if [ "$_chart_host" != "$(amp_registry_host)" ]; then
+                # Different credentials from the image registry's; say so rather
+                # than fail later with a bare 401 from helm.
+                echo "ℹ️  The gateway extension chart is on ${_chart_host}, not the image registry."
+                echo "   If that registry is private, helm must already be signed in to it"
+                echo "   (helm registry login ${_chart_host})."
+            elif ! amp_registry_helm_login; then
+                echo "❌ Failed to sign helm in to the chart registry for ${CHART_REF}" >&2
+                exit 1
+            fi
+            unset _chart_host
+        fi
+        ;;
+esac
+
+# --- Resolve chart version ---
+# Resolve the latest OCI version or use the pinned CHART_VERSION. After the
+# sign-in above, which a private chart needs before helm can read it.
+if [ -z "$GATEWAY_CHART" ]; then
+    if [ -z "$CHART_VERSION" ]; then
+        echo "🔎 Resolving latest gateway chart version from ${CHART_REF}..."
+        CHART_VERSION=$(helm show chart "${CHART_REF}" 2>/dev/null | awk '/^version:/ {print $2; exit}')
+        if [ -z "$CHART_VERSION" ]; then
+            echo "❌ Could not resolve the latest chart version from ${CHART_REF}"
+            echo "   Pin a version explicitly and retry (e.g. CHART_VERSION=0.15.0)."
+            exit 1
+        fi
+        echo "✅ Using latest chart version: ${CHART_VERSION}"
+    else
+        echo "📌 Using pinned chart version: ${CHART_VERSION}"
     fi
 fi
 
@@ -536,6 +627,16 @@ if [ "${PROVISION_THUNDER:-true}" = "true" ]; then
         echo "✅ Thunder ID instance provisioned"
         THUNDER_PROVISIONED=true
       else
+        if storage_settings_requested; then
+          echo "❌ Thunder ID provisioning failed, and THUNDER_* storage settings were given, so this run" >&2
+          echo "   will not fall back to the shared platform Thunder or an existing instance." >&2
+          echo "   Fix the error above, then re-run this script with the same ENV_NAME and THUNDER_* settings." >&2
+          echo "   If the error says the Thunder install failed on its first run, remove it first, because a" >&2
+          echo "   plain re-run is refused until you do:" >&2
+          echo "     curl -fsSL ${SCRIPT_BASE_URL}/remove-environment-thunder.sh | ENV_NAME=${ENV_NAME} ORG_NAME=${ORG_NAME} bash" >&2
+          rm -f "$script_tmp"
+          exit 1
+        fi
         echo "⚠️  Thunder ID provisioning failed."
         if [ "$THUNDER_PROVISIONED" = "true" ]; then
           echo "    Existing Thunder instance retained — gateway wiring will use it."
@@ -547,6 +648,12 @@ if [ "${PROVISION_THUNDER:-true}" = "true" ]; then
         fi
       fi
     else
+      if storage_settings_requested; then
+        echo "❌ Failed to fetch the Thunder ID provisioning script from ${THUNDER_SCRIPT_URL}, and THUNDER_*" >&2
+        echo "   storage settings were given, so this run will not continue without it." >&2
+        rm -f "$script_tmp"
+        exit 1
+      fi
       echo "⚠️  Failed to fetch Thunder ID provisioning script from ${THUNDER_SCRIPT_URL}"
       if [ "$THUNDER_PROVISIONED" = "true" ]; then
         echo "    Existing Thunder instance retained — gateway wiring will use it."

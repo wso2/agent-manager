@@ -35,13 +35,17 @@ import {
   DrawerContent,
   useFormValidation,
 } from "@agent-management-platform/views";
-import { useUpdateGateway } from "@agent-management-platform/api-client";
+import {
+  useUpdateGateway,
+  useUpdateSelfHostedGateway,
+} from "@agent-management-platform/api-client";
 import {
   useConfirmIfUnsaved,
   useUnsavedChangesGuard,
 } from "@agent-management-platform/shared-component";
 import {
   type GatewayResponse,
+  isSelfHostedGateway,
   type UpdateGatewayRequest,
 } from "@agent-management-platform/types";
 import { editGatewaySchema, type EditGatewayFormValues, GATEWAY_DISPLAY_NAME_MAX_LENGTH } from "../form/schema";
@@ -73,12 +77,16 @@ export function EditGatewayDrawer({
   const [lastSubmittedValidationErrors, setLastSubmittedValidationErrors] =
     useState<Partial<Record<keyof EditGatewayFormValues, string>>>({});
 
+  const isSelfHosted = isSelfHostedGateway(gateway);
+
+  const managedUpdate = useUpdateGateway();
+  const selfHostedUpdate = useUpdateSelfHostedGateway();
   const {
     mutateAsync: updateGateway,
     isPending: isUpdating,
     error: updateError,
     reset: resetMutation,
-  } = useUpdateGateway();
+  } = isSelfHosted ? selfHostedUpdate : managedUpdate;
 
   const isPending = isUpdating;
 
@@ -152,7 +160,15 @@ export function EditGatewayDrawer({
         // Error is handled by updateError from useUpdateGateway
       }
     },
-    [formData, validateForm, updateGateway, orgId, gateway.uuid, onClose, onSuccess],
+    [
+      formData,
+      validateForm,
+      updateGateway,
+      orgId,
+      gateway.uuid,
+      onClose,
+      onSuccess,
+    ],
   );
 
   const errorMessage = useMemo(() => {

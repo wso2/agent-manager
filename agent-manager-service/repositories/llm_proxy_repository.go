@@ -49,7 +49,10 @@ type LLMProxyRepository interface {
 	Update(p *models.LLMProxy, handle string, ouID string) error
 	Delete(proxyID, ouID string) error
 	DeleteInProject(ctx context.Context, proxyID, ouID, projectUUID string) error
+	DeleteInProjectTx(ctx context.Context, tx *gorm.DB, proxyID, ouID, projectUUID string) error
 	Exists(proxyID, ouID string) (bool, error)
+	// IsAgentOrMonitorProxy reports whether AMS created the proxy for an agent's LLM configuration or a monitor.
+	IsAgentOrMonitorProxy(ctx context.Context, proxyHandle, ouID string) (bool, error)
 }
 
 // LLMProxyRepo implements LLMProxyRepository using GORM
@@ -351,9 +354,27 @@ func (r *LLMProxyRepo) Exists(proxyID, ouID string) (bool, error) {
 	return r.artifactRepo.Exists(models.KindLLMProxy, proxyID, ouID)
 }
 
+// IsAgentOrMonitorProxy reports whether an agent LLM configuration or a monitor references the proxy.
+func (r *LLMProxyRepo) IsAgentOrMonitorProxy(ctx context.Context, proxyHandle, ouID string) (bool, error) {
+	var owned bool
+	err := r.db.WithContext(ctx).Raw(`SELECT EXISTS (SELECT 1 FROM artifacts a WHERE a.handle = ? AND a.ou_id = ? AND a.kind = ?
+		AND (EXISTS (SELECT 1 FROM env_agent_model_mapping m WHERE m.llm_proxy_uuid = a.uuid)
+			OR EXISTS (SELECT 1 FROM monitor_llm_mapping m WHERE m.llm_proxy_uuid = a.uuid)))`,
+		proxyHandle, ouID, models.KindLLMProxy).Scan(&owned).Error
+	if err != nil {
+		return false, fmt.Errorf("check whether LLM proxy %q is an agent or monitor proxy: %w", proxyHandle, err)
+	}
+	return owned, nil
+}
+
 // DeleteInProject removes a proxy only within the resolved organization and project.
 func (r *LLMProxyRepo) DeleteInProject(ctx context.Context, proxyID, ouID, projectUUID string) error {
-	return r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+	return r.DeleteInProjectTx(ctx, r.db, proxyID, ouID, projectUUID)
+}
+
+// DeleteInProjectTx is DeleteInProject in the caller's transaction.
+func (r *LLMProxyRepo) DeleteInProjectTx(ctx context.Context, tx *gorm.DB, proxyID, ouID, projectUUID string) error {
+	return tx.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		var proxy models.LLMProxy
 		err := tx.Table("llm_proxies").Select("llm_proxies.*").
 			Joins("JOIN artifacts a ON llm_proxies.uuid = a.uuid").

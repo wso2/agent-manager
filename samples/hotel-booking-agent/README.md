@@ -171,7 +171,13 @@ How the Hotel API picks its policy store:
 
 ## Smoke test
 
-`scripts/smoke_test.sh` installs both services, starts them without API keys, and checks they respond. CI runs it on pull requests that touch this sample.
+`scripts/smoke_test.sh` installs both services, runs the Hotel API logging regression tests, starts the services without API keys, and checks they respond. CI runs it on pull requests that touch this sample.
+
+The Hotel API writes application logs as single-line JSON events, including escaped exception tracebacks. To run the logging tests separately after installing the Hotel API requirements, run this from the sample directory:
+
+```bash
+PYTHONPATH=services/hotel_api python -m unittest discover -s services/hotel_api/tests -v
+```
 
 ## Files
 

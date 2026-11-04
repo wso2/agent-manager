@@ -557,6 +557,8 @@ Register a new AI gateway with the platform.
 - Credentials are never returned in API responses
 - Use a strong encryption key configured in GATEWAY_ENCRYPTION_KEY
 
+A gateway serves exactly one environment: `environmentIds` takes at most one environment.
+
 	@param ctx context.Context - for authentication, logging, cancellation, deadlines, tracing, etc. Passed from http.Request or context.Background().
 	@param orgName Organization name/handle
 	@return ApiRegisterGatewayRequest

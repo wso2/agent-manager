@@ -44,4 +44,5 @@ type OrganizationResponse struct {
 	Namespace   string    `json:"namespace,omitempty"`
 	CreatedAt   time.Time `json:"createdAt"`
 	Status      string    `json:"status,omitempty"`
+	Handle      string    `json:"handle,omitempty"` // caller's OU handle, for console URLs; set from the token
 }

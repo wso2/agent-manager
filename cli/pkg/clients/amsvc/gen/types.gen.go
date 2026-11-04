@@ -12,21 +12,31 @@ import (
 	openapi_types "github.com/oapi-codegen/runtime/types"
 )
 
+const (
+	BearerAuthScopes = "bearerAuth.Scopes"
+)
+
 // Defines values for A2AProxyResponseStatus.
 const (
-	A2AProxyResponseStatusFailed    A2AProxyResponseStatus = "failed"
-	A2AProxyResponseStatusPending   A2AProxyResponseStatus = "pending"
-	A2AProxyResponseStatusPublished A2AProxyResponseStatus = "published"
+	A2AProxyResponseStatusDEPLOYED    A2AProxyResponseStatus = "DEPLOYED"
+	A2AProxyResponseStatusDEPLOYING   A2AProxyResponseStatus = "DEPLOYING"
+	A2AProxyResponseStatusFAILED      A2AProxyResponseStatus = "FAILED"
+	A2AProxyResponseStatusUNDEPLOYED  A2AProxyResponseStatus = "UNDEPLOYED"
+	A2AProxyResponseStatusUNDEPLOYING A2AProxyResponseStatus = "UNDEPLOYING"
 )
 
 // Valid indicates whether the value is a known member of the A2AProxyResponseStatus enum.
 func (e A2AProxyResponseStatus) Valid() bool {
 	switch e {
-	case A2AProxyResponseStatusFailed:
+	case A2AProxyResponseStatusDEPLOYED:
 		return true
-	case A2AProxyResponseStatusPending:
+	case A2AProxyResponseStatusDEPLOYING:
 		return true
-	case A2AProxyResponseStatusPublished:
+	case A2AProxyResponseStatusFAILED:
+		return true
+	case A2AProxyResponseStatusUNDEPLOYED:
+		return true
+	case A2AProxyResponseStatusUNDEPLOYING:
 		return true
 	default:
 		return false
@@ -462,6 +472,33 @@ func (e CreateMonitorRequestType) Valid() bool {
 	}
 }
 
+// Defines values for DeploymentDetailsResponseGatewayStatus.
+const (
+	DeploymentDetailsResponseGatewayStatusDEPLOYED    DeploymentDetailsResponseGatewayStatus = "DEPLOYED"
+	DeploymentDetailsResponseGatewayStatusDEPLOYING   DeploymentDetailsResponseGatewayStatus = "DEPLOYING"
+	DeploymentDetailsResponseGatewayStatusFAILED      DeploymentDetailsResponseGatewayStatus = "FAILED"
+	DeploymentDetailsResponseGatewayStatusUNDEPLOYED  DeploymentDetailsResponseGatewayStatus = "UNDEPLOYED"
+	DeploymentDetailsResponseGatewayStatusUNDEPLOYING DeploymentDetailsResponseGatewayStatus = "UNDEPLOYING"
+)
+
+// Valid indicates whether the value is a known member of the DeploymentDetailsResponseGatewayStatus enum.
+func (e DeploymentDetailsResponseGatewayStatus) Valid() bool {
+	switch e {
+	case DeploymentDetailsResponseGatewayStatusDEPLOYED:
+		return true
+	case DeploymentDetailsResponseGatewayStatusDEPLOYING:
+		return true
+	case DeploymentDetailsResponseGatewayStatusFAILED:
+		return true
+	case DeploymentDetailsResponseGatewayStatusUNDEPLOYED:
+		return true
+	case DeploymentDetailsResponseGatewayStatusUNDEPLOYING:
+		return true
+	default:
+		return false
+	}
+}
+
 // Defines values for DeploymentEndpointVisibility.
 const (
 	DeploymentEndpointVisibilityInternal DeploymentEndpointVisibility = "Internal"
@@ -485,19 +522,25 @@ func (e DeploymentEndpointVisibility) Valid() bool {
 
 // Defines values for DeploymentSummaryStatus.
 const (
-	DeploymentSummaryStatusARCHIVED   DeploymentSummaryStatus = "ARCHIVED"
-	DeploymentSummaryStatusDEPLOYED   DeploymentSummaryStatus = "DEPLOYED"
-	DeploymentSummaryStatusUNDEPLOYED DeploymentSummaryStatus = "UNDEPLOYED"
+	DeploymentSummaryStatusDEPLOYED    DeploymentSummaryStatus = "DEPLOYED"
+	DeploymentSummaryStatusDEPLOYING   DeploymentSummaryStatus = "DEPLOYING"
+	DeploymentSummaryStatusFAILED      DeploymentSummaryStatus = "FAILED"
+	DeploymentSummaryStatusUNDEPLOYED  DeploymentSummaryStatus = "UNDEPLOYED"
+	DeploymentSummaryStatusUNDEPLOYING DeploymentSummaryStatus = "UNDEPLOYING"
 )
 
 // Valid indicates whether the value is a known member of the DeploymentSummaryStatus enum.
 func (e DeploymentSummaryStatus) Valid() bool {
 	switch e {
-	case DeploymentSummaryStatusARCHIVED:
-		return true
 	case DeploymentSummaryStatusDEPLOYED:
 		return true
+	case DeploymentSummaryStatusDEPLOYING:
+		return true
+	case DeploymentSummaryStatusFAILED:
+		return true
 	case DeploymentSummaryStatusUNDEPLOYED:
+		return true
+	case DeploymentSummaryStatusUNDEPLOYING:
 		return true
 	default:
 		return false
@@ -648,6 +691,24 @@ func (e GatewayEnvironmentResponseIsolationTier) Valid() bool {
 	case GatewayEnvironmentResponseIsolationTierGvisor:
 		return true
 	case GatewayEnvironmentResponseIsolationTierKata:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for GatewayHosting.
+const (
+	MANAGED    GatewayHosting = "MANAGED"
+	SELFHOSTED GatewayHosting = "SELF_HOSTED"
+)
+
+// Valid indicates whether the value is a known member of the GatewayHosting enum.
+func (e GatewayHosting) Valid() bool {
+	switch e {
+	case MANAGED:
+		return true
+	case SELFHOSTED:
 		return true
 	default:
 		return false
@@ -819,6 +880,69 @@ func (e LLMAccessControlMode) Valid() bool {
 	}
 }
 
+// Defines values for LLMDeployRequestBase.
+const (
+	Current LLMDeployRequestBase = "current"
+)
+
+// Valid indicates whether the value is a known member of the LLMDeployRequestBase enum.
+func (e LLMDeployRequestBase) Valid() bool {
+	switch e {
+	case Current:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for LLMDeploymentResponseStatus.
+const (
+	LLMDeploymentResponseStatusARCHIVED    LLMDeploymentResponseStatus = "ARCHIVED"
+	LLMDeploymentResponseStatusDEPLOYED    LLMDeploymentResponseStatus = "DEPLOYED"
+	LLMDeploymentResponseStatusDEPLOYING   LLMDeploymentResponseStatus = "DEPLOYING"
+	LLMDeploymentResponseStatusFAILED      LLMDeploymentResponseStatus = "FAILED"
+	LLMDeploymentResponseStatusUNDEPLOYED  LLMDeploymentResponseStatus = "UNDEPLOYED"
+	LLMDeploymentResponseStatusUNDEPLOYING LLMDeploymentResponseStatus = "UNDEPLOYING"
+)
+
+// Valid indicates whether the value is a known member of the LLMDeploymentResponseStatus enum.
+func (e LLMDeploymentResponseStatus) Valid() bool {
+	switch e {
+	case LLMDeploymentResponseStatusARCHIVED:
+		return true
+	case LLMDeploymentResponseStatusDEPLOYED:
+		return true
+	case LLMDeploymentResponseStatusDEPLOYING:
+		return true
+	case LLMDeploymentResponseStatusFAILED:
+		return true
+	case LLMDeploymentResponseStatusUNDEPLOYED:
+		return true
+	case LLMDeploymentResponseStatusUNDEPLOYING:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for LLMDeploymentResponseStatusDesired.
+const (
+	LLMDeploymentResponseStatusDesiredDEPLOYED   LLMDeploymentResponseStatusDesired = "DEPLOYED"
+	LLMDeploymentResponseStatusDesiredUNDEPLOYED LLMDeploymentResponseStatusDesired = "UNDEPLOYED"
+)
+
+// Valid indicates whether the value is a known member of the LLMDeploymentResponseStatusDesired enum.
+func (e LLMDeploymentResponseStatusDesired) Valid() bool {
+	switch e {
+	case LLMDeploymentResponseStatusDesiredDEPLOYED:
+		return true
+	case LLMDeploymentResponseStatusDesiredUNDEPLOYED:
+		return true
+	default:
+		return false
+	}
+}
+
 // Defines values for LLMProviderConsumerItemConsumerType.
 const (
 	LLMProviderConsumerItemConsumerTypeAgent   LLMProviderConsumerItemConsumerType = "agent"
@@ -905,16 +1029,25 @@ func (e LogEntryLogLevel) Valid() bool {
 
 // Defines values for MCPEndpointEnvironmentDeploymentStatus.
 const (
-	Deployed   MCPEndpointEnvironmentDeploymentStatus = "Deployed"
-	Undeployed MCPEndpointEnvironmentDeploymentStatus = "Undeployed"
+	MCPEndpointEnvironmentDeploymentStatusDeployed    MCPEndpointEnvironmentDeploymentStatus = "Deployed"
+	MCPEndpointEnvironmentDeploymentStatusDeploying   MCPEndpointEnvironmentDeploymentStatus = "Deploying"
+	MCPEndpointEnvironmentDeploymentStatusFailed      MCPEndpointEnvironmentDeploymentStatus = "Failed"
+	MCPEndpointEnvironmentDeploymentStatusUndeployed  MCPEndpointEnvironmentDeploymentStatus = "Undeployed"
+	MCPEndpointEnvironmentDeploymentStatusUndeploying MCPEndpointEnvironmentDeploymentStatus = "Undeploying"
 )
 
 // Valid indicates whether the value is a known member of the MCPEndpointEnvironmentDeploymentStatus enum.
 func (e MCPEndpointEnvironmentDeploymentStatus) Valid() bool {
 	switch e {
-	case Deployed:
+	case MCPEndpointEnvironmentDeploymentStatusDeployed:
 		return true
-	case Undeployed:
+	case MCPEndpointEnvironmentDeploymentStatusDeploying:
+		return true
+	case MCPEndpointEnvironmentDeploymentStatusFailed:
+		return true
+	case MCPEndpointEnvironmentDeploymentStatusUndeployed:
+		return true
+	case MCPEndpointEnvironmentDeploymentStatusUndeploying:
 		return true
 	default:
 		return false
@@ -1050,6 +1183,21 @@ func (e RateLimitResetWindowUnit) Valid() bool {
 	}
 }
 
+// Defines values for SelfHostedGatewayRequestFunctionalityType.
+const (
+	Ai SelfHostedGatewayRequestFunctionalityType = "ai"
+)
+
+// Valid indicates whether the value is a known member of the SelfHostedGatewayRequestFunctionalityType enum.
+func (e SelfHostedGatewayRequestFunctionalityType) Valid() bool {
+	switch e {
+	case Ai:
+		return true
+	default:
+		return false
+	}
+}
+
 // Defines values for UpdateDeploymentStateRequestState.
 const (
 	UpdateDeploymentStateRequestStateActive   UpdateDeploymentStateRequestState = "Active"
@@ -1154,19 +1302,28 @@ func (e ListGatewaysParamsStatus) Valid() bool {
 
 // Defines values for GetLLMProviderDeploymentsParamsStatus.
 const (
-	GetLLMProviderDeploymentsParamsStatusDEPLOYED   GetLLMProviderDeploymentsParamsStatus = "DEPLOYED"
-	GetLLMProviderDeploymentsParamsStatusFAILED     GetLLMProviderDeploymentsParamsStatus = "FAILED"
-	GetLLMProviderDeploymentsParamsStatusUNDEPLOYED GetLLMProviderDeploymentsParamsStatus = "UNDEPLOYED"
+	GetLLMProviderDeploymentsParamsStatusARCHIVED    GetLLMProviderDeploymentsParamsStatus = "ARCHIVED"
+	GetLLMProviderDeploymentsParamsStatusDEPLOYED    GetLLMProviderDeploymentsParamsStatus = "DEPLOYED"
+	GetLLMProviderDeploymentsParamsStatusDEPLOYING   GetLLMProviderDeploymentsParamsStatus = "DEPLOYING"
+	GetLLMProviderDeploymentsParamsStatusFAILED      GetLLMProviderDeploymentsParamsStatus = "FAILED"
+	GetLLMProviderDeploymentsParamsStatusUNDEPLOYED  GetLLMProviderDeploymentsParamsStatus = "UNDEPLOYED"
+	GetLLMProviderDeploymentsParamsStatusUNDEPLOYING GetLLMProviderDeploymentsParamsStatus = "UNDEPLOYING"
 )
 
 // Valid indicates whether the value is a known member of the GetLLMProviderDeploymentsParamsStatus enum.
 func (e GetLLMProviderDeploymentsParamsStatus) Valid() bool {
 	switch e {
+	case GetLLMProviderDeploymentsParamsStatusARCHIVED:
+		return true
 	case GetLLMProviderDeploymentsParamsStatusDEPLOYED:
+		return true
+	case GetLLMProviderDeploymentsParamsStatusDEPLOYING:
 		return true
 	case GetLLMProviderDeploymentsParamsStatusFAILED:
 		return true
 	case GetLLMProviderDeploymentsParamsStatusUNDEPLOYED:
+		return true
+	case GetLLMProviderDeploymentsParamsStatusUNDEPLOYING:
 		return true
 	default:
 		return false
@@ -1230,22 +1387,52 @@ func (e GetAgentTraceScoresParamsSortOrder) Valid() bool {
 	}
 }
 
-// A2AProxyResponse How an external A2A agent is published through the environment's ingress gateway.
+// Defines values for GetLLMProxyDeploymentsParamsStatus.
+const (
+	ARCHIVED    GetLLMProxyDeploymentsParamsStatus = "ARCHIVED"
+	DEPLOYED    GetLLMProxyDeploymentsParamsStatus = "DEPLOYED"
+	DEPLOYING   GetLLMProxyDeploymentsParamsStatus = "DEPLOYING"
+	FAILED      GetLLMProxyDeploymentsParamsStatus = "FAILED"
+	UNDEPLOYED  GetLLMProxyDeploymentsParamsStatus = "UNDEPLOYED"
+	UNDEPLOYING GetLLMProxyDeploymentsParamsStatus = "UNDEPLOYING"
+)
+
+// Valid indicates whether the value is a known member of the GetLLMProxyDeploymentsParamsStatus enum.
+func (e GetLLMProxyDeploymentsParamsStatus) Valid() bool {
+	switch e {
+	case ARCHIVED:
+		return true
+	case DEPLOYED:
+		return true
+	case DEPLOYING:
+		return true
+	case FAILED:
+		return true
+	case UNDEPLOYED:
+		return true
+	case UNDEPLOYING:
+		return true
+	default:
+		return false
+	}
+}
+
+// A2AProxyResponse How an external agent is published through the environment's ingress gateway.
 type A2AProxyResponse struct {
-	// GatewayUrl The agent's base URL on the environment's ingress gateway, where its card is served at /.well-known/agent-card.json once published. Empty while no ingress gateway is mapped to the environment.
+	// GatewayUrl The agent's base URL on the environment's ingress gateway, where its card is served at /.well-known/agent-card.json once DEPLOYED. Empty while no ingress gateway is mapped to the environment.
 	GatewayUrl string `json:"gatewayUrl"`
 
-	// LastError Why the last publish attempt failed; empty after a success.
-	LastError string `json:"lastError"`
-
-	// Status The gateway publication's state.
+	// Status The agent's deployment status on the environment's ingress gateway. DEPLOYING until the gateway acknowledges the deployment, including while it waits for an input (see statusReason). An environment with no ingress gateway is UNDEPLOYED with statusReason "no gateway in this environment".
 	Status A2AProxyResponseStatus `json:"status"`
+
+	// StatusReason Why the status is what it is: the gateway's error code, DEPLOYMENT_TIMEOUT, what a deploy is waiting for, or "no gateway in this environment". Empty when there is nothing to say.
+	StatusReason string `json:"statusReason"`
 
 	// UpstreamAuthHeader The header the gateway adds upstream; empty when none. A non-empty header means a secret is stored. The secret itself is never returned.
 	UpstreamAuthHeader string `json:"upstreamAuthHeader"`
 }
 
-// A2AProxyResponseStatus The gateway publication's state.
+// A2AProxyResponseStatus The agent's deployment status on the environment's ingress gateway. DEPLOYING until the gateway acknowledges the deployment, including while it waits for an input (see statusReason). An environment with no ingress gateway is UNDEPLOYED with statusReason "no gateway in this environment".
 type A2AProxyResponseStatus string
 
 // A2AProxyUpstreamAuth A static header the gateway adds to every call to the agent, card fetch included.
@@ -2057,7 +2244,7 @@ type CatalogLLMProviderEntry struct {
 	// CreatedBy User who created the provider
 	CreatedBy *string `json:"createdBy,omitempty"`
 
-	// Deployments List of deployments for this provider
+	// Deployments The provider's live deployments, one per gateway currently serving it. Gateways it is only owed a deploy to are not listed.
 	Deployments *[]DeploymentSummary `json:"deployments,omitempty"`
 
 	// Description Provider description
@@ -2457,7 +2644,7 @@ type CreateGatewayRequest struct {
 	// DisplayName Human-readable display name
 	DisplayName string `json:"displayName"`
 
-	// EnvironmentIds List of environment UUIDs to assign the gateway to during creation
+	// EnvironmentIds The environment UUID to assign the gateway to during creation. A gateway serves exactly one environment, so at most one is allowed.
 	EnvironmentIds *[]string `json:"environmentIds,omitempty"`
 
 	// GatewayType Gateway placement role accepted on input. `REGULAR` and `AI` are deprecated
@@ -2746,6 +2933,12 @@ type DeploymentDetailsResponse struct {
 	// EnvironmentDisplayName Environment display name
 	EnvironmentDisplayName *string `json:"environmentDisplayName,omitempty"`
 
+	// GatewayStatus The agent's deployment status on the environment's ingress gateway, the only place an API agent is served. DEPLOYING until the gateway acknowledges the deployment, including while it waits for an input (see gatewayStatusReason). An environment with no ingress gateway is UNDEPLOYED with gatewayStatusReason "no gateway in this environment". Absent for an agent the gateway does not serve, and when the gateway status could not be read.
+	GatewayStatus *DeploymentDetailsResponseGatewayStatus `json:"gatewayStatus,omitempty"`
+
+	// GatewayStatusReason Why gatewayStatus is what it is: the gateway's error code, DEPLOYMENT_TIMEOUT, what a deploy is waiting for, or "no gateway in this environment". Empty when there is nothing to say.
+	GatewayStatusReason *string `json:"gatewayStatusReason,omitempty"`
+
 	// ImageId Container image ID
 	ImageId string `json:"imageId"`
 
@@ -2767,6 +2960,9 @@ type DeploymentDetailsResponse struct {
 	// Status Deployment status
 	Status string `json:"status"`
 }
+
+// DeploymentDetailsResponseGatewayStatus The agent's deployment status on the environment's ingress gateway, the only place an API agent is served. DEPLOYING until the gateway acknowledges the deployment, including while it waits for an input (see gatewayStatusReason). An environment with no ingress gateway is UNDEPLOYED with gatewayStatusReason "no gateway in this environment". Absent for an agent the gateway does not serve, and when the gateway status could not be read.
+type DeploymentDetailsResponseGatewayStatus string
 
 // DeploymentEndpoint defines model for DeploymentEndpoint.
 type DeploymentEndpoint struct {
@@ -2836,14 +3032,14 @@ type DeploymentSummary struct {
 	// GatewayName Gateway name/identifier
 	GatewayName string `json:"gatewayName"`
 
-	// Status Deployment status
+	// Status The status a user is shown for the provider on the gateway. In the catalog, which lists live deployments only, DEPLOYING means the provider is live and a redeploy is queued.
 	Status DeploymentSummaryStatus `json:"status"`
 
 	// Vhost Gateway virtual host
 	Vhost *string `json:"vhost,omitempty"`
 }
 
-// DeploymentSummaryStatus Deployment status
+// DeploymentSummaryStatus The status a user is shown for the provider on the gateway. In the catalog, which lists live deployments only, DEPLOYING means the provider is live and a redeploy is queued.
 type DeploymentSummaryStatus string
 
 // DockerBuild defines model for DockerBuild.
@@ -3178,6 +3374,11 @@ type GatewayEnvironmentResponse struct {
 // GatewayEnvironmentResponseIsolationTier Pod runtime isolation tier for agents. Use "gvisor" for runsc kernel isolation or "kata" for Kata Containers VM isolation (rendered as the kata-qemu RuntimeClass); omit for the default runc runtime.
 type GatewayEnvironmentResponseIsolationTier string
 
+// GatewayHosting Who runs the gateway runtime.
+// - MANAGED: the platform provisions and runs it.
+// - SELF_HOSTED: the customer runs it and connects it to the platform.
+type GatewayHosting string
+
 // GatewayListResponse defines model for GatewayListResponse.
 type GatewayListResponse struct {
 	Gateways []GatewayResponse `json:"gateways"`
@@ -3231,6 +3432,11 @@ type GatewayResponse struct {
 	// deprecated aliases (REGULAR -> BOTH, AI -> EGRESS) so gateway charts pinned to
 	// an older version keep registering; responses always emit canonical values.
 	GatewayType GatewayType `json:"gatewayType"`
+
+	// Hosting Who runs the gateway runtime.
+	// - MANAGED: the platform provisions and runs it.
+	// - SELF_HOSTED: the customer runs it and connects it to the platform.
+	Hosting GatewayHosting `json:"hosting"`
 
 	// IsCritical Flag indicating if this is a critical production gateway
 	IsCritical bool `json:"isCritical"`
@@ -3584,6 +3790,47 @@ type LLMAccessControl struct {
 
 // LLMAccessControlMode Access control mode
 type LLMAccessControlMode string
+
+// LLMDeployRequest Deploys the artifact's current configuration to a gateway. The deployment is named by the server; a client's name or metadata is ignored.
+type LLMDeployRequest struct {
+	// Base Omit, or "current", to deploy the current configuration. Any other value is rejected with 400: to redeploy an earlier deployment, restore it.
+	Base *LLMDeployRequestBase `json:"base,omitempty"`
+
+	// GatewayId Gateway UUID to deploy to
+	GatewayId openapi_types.UUID `json:"gatewayId"`
+}
+
+// LLMDeployRequestBase Omit, or "current", to deploy the current configuration. Any other value is rejected with 400: to redeploy an earlier deployment, restore it.
+type LLMDeployRequestBase string
+
+// LLMDeploymentResponse One deployment of an LLM provider or proxy to a gateway, with the status a user is shown for it on that gateway.
+type LLMDeploymentResponse struct {
+	// ArtifactId The provider's or proxy's UUID
+	ArtifactId       openapi_types.UUID      `json:"artifactId"`
+	BaseDeploymentId *openapi_types.UUID     `json:"baseDeploymentId,omitempty"`
+	CreatedAt        time.Time               `json:"createdAt"`
+	DeploymentId     openapi_types.UUID      `json:"deploymentId"`
+	GatewayId        openapi_types.UUID      `json:"gatewayId"`
+	Metadata         *map[string]interface{} `json:"metadata,omitempty"`
+	Name             string                  `json:"name"`
+	OrganizationId   *string                 `json:"organizationId,omitempty"`
+
+	// Status What the user is shown: ARCHIVED when the gateway's current deployment is another one. DEPLOYING also covers a redeploy that is owed; FAILED also covers a deploy that was given up.
+	Status LLMDeploymentResponseStatus `json:"status"`
+
+	// StatusDesired Where the deployment's current transition is heading. Tells a failed deploy (DEPLOYED) from a failed undeploy (UNDEPLOYED). Absent for an ARCHIVED deployment.
+	StatusDesired *LLMDeploymentResponseStatusDesired `json:"statusDesired,omitempty"`
+
+	// StatusReason Why the status is what it is: the gateway's error code, DEPLOYMENT_TIMEOUT, or why a redeploy is waiting or was given up. Absent when there is nothing to say.
+	StatusReason *string    `json:"statusReason,omitempty"`
+	UpdatedAt    *time.Time `json:"updatedAt,omitempty"`
+}
+
+// LLMDeploymentResponseStatus What the user is shown: ARCHIVED when the gateway's current deployment is another one. DEPLOYING also covers a redeploy that is owed; FAILED also covers a deploy that was given up.
+type LLMDeploymentResponseStatus string
+
+// LLMDeploymentResponseStatusDesired Where the deployment's current transition is heading. Tells a failed deploy (DEPLOYED) from a failed undeploy (UNDEPLOYED). Absent for an ARCHIVED deployment.
+type LLMDeploymentResponseStatusDesired string
 
 // LLMModel defines model for LLMModel.
 type LLMModel struct {
@@ -4049,7 +4296,7 @@ type MCPConfigRequest struct {
 
 // MCPEndpointEnvironment One endpoint→environment binding.
 type MCPEndpointEnvironment struct {
-	// DeploymentStatus Per-environment deployment status.
+	// DeploymentStatus Per-environment deployment status. Deploying until the environment's gateway acknowledges the deployment, and while a redeploy is owed; Failed when the gateway rejected it or it couldn't be rendered.
 	DeploymentStatus *MCPEndpointEnvironmentDeploymentStatus `json:"deploymentStatus,omitempty"`
 
 	// EnvironmentUuid Target environment UUID.
@@ -4063,7 +4310,7 @@ type MCPEndpointEnvironment struct {
 	GatewayId *openapi_types.UUID `json:"gatewayId,omitempty"`
 }
 
-// MCPEndpointEnvironmentDeploymentStatus Per-environment deployment status.
+// MCPEndpointEnvironmentDeploymentStatus Per-environment deployment status. Deploying until the environment's gateway acknowledges the deployment, and while a redeploy is owed; Failed when the gateway rejected it or it couldn't be rendered.
 type MCPEndpointEnvironmentDeploymentStatus string
 
 // MCPPolicy defines model for MCPPolicy.
@@ -4527,6 +4774,9 @@ type OrganizationListItem struct {
 	// DisplayName Display name of the organization
 	DisplayName string `json:"displayName"`
 
+	// Handle Human-readable handle of the organization (the caller's OU handle), used in console URLs. Omitted when it cannot be determined.
+	Handle *string `json:"handle,omitempty"`
+
 	// Name Name of the organization
 	Name string `json:"name"`
 }
@@ -4551,6 +4801,9 @@ type OrganizationResponse struct {
 
 	// DisplayName Display name of the organization
 	DisplayName string `json:"displayName"`
+
+	// Handle Human-readable handle of the organization (the caller's OU handle), used in console URLs. Omitted when it cannot be determined.
+	Handle *string `json:"handle,omitempty"`
 
 	// Name Name of the organization
 	Name string `json:"name"`
@@ -5051,6 +5304,40 @@ type SecuritySummary struct {
 
 	// Enabled Whether security is enabled
 	Enabled *bool `json:"enabled,omitempty"`
+}
+
+// SelfHostedGatewayRequest defines model for SelfHostedGatewayRequest.
+type SelfHostedGatewayRequest struct {
+	Description *string `json:"description,omitempty"`
+
+	// DisplayName Human-readable display name
+	DisplayName string `json:"displayName"`
+
+	// Endpoints At least one http(s) endpoint URL. The first is the gateway's address.
+	Endpoints []string `json:"endpoints"`
+
+	// Environment Name of the environment to bind the gateway to. Must exist.
+	Environment       string                                     `json:"environment"`
+	FunctionalityType *SelfHostedGatewayRequestFunctionalityType `json:"functionalityType,omitempty"`
+
+	// Handle The gateway's name, unique in the organization and fixed once created. Lowercase letters, numbers and hyphens, not starting or ending with a hyphen.
+	Handle     string                  `json:"handle"`
+	IsCritical *bool                   `json:"isCritical,omitempty"`
+	Properties *map[string]interface{} `json:"properties,omitempty"`
+
+	// Version Gateway version, `major.minor` or CalVer `YYYY.MM.DD`.
+	Version *string `json:"version,omitempty"`
+}
+
+// SelfHostedGatewayRequestFunctionalityType defines model for SelfHostedGatewayRequest.FunctionalityType.
+type SelfHostedGatewayRequestFunctionalityType string
+
+// SelfHostedGatewayUpdateRequest defines model for SelfHostedGatewayUpdateRequest.
+type SelfHostedGatewayUpdateRequest struct {
+	Description *string                 `json:"description,omitempty"`
+	DisplayName *string                 `json:"displayName,omitempty"`
+	IsCritical  *bool                   `json:"isCritical,omitempty"`
+	Properties  *map[string]interface{} `json:"properties,omitempty"`
 }
 
 // SetA2AProxyRequest defines model for SetA2AProxyRequest.
@@ -5890,7 +6177,7 @@ type GetLLMProviderDeploymentsParams struct {
 	// GatewayId Filter by gateway ID
 	GatewayId *string `form:"gatewayId,omitempty" json:"gatewayId,omitempty"`
 
-	// Status Filter by deployment status
+	// Status Filter by the gateway's stored deployment status. A deployment whose redeploy is owed is shown DEPLOYING but filtered by the status the gateway holds.
 	Status *GetLLMProviderDeploymentsParamsStatus `form:"status,omitempty" json:"status,omitempty"`
 }
 
@@ -6139,6 +6426,36 @@ type ListLLMProxiesParams struct {
 	Offset *int32 `form:"offset,omitempty" json:"offset,omitempty"`
 }
 
+// GetLLMProxyDeploymentsParams defines parameters for GetLLMProxyDeployments.
+type GetLLMProxyDeploymentsParams struct {
+	// GatewayId Filter by gateway ID
+	GatewayId *string `form:"gatewayId,omitempty" json:"gatewayId,omitempty"`
+
+	// Status Filter by the gateway's stored deployment status. A deployment whose redeploy is owed is shown DEPLOYING but filtered by the status the gateway holds.
+	Status *GetLLMProxyDeploymentsParamsStatus `form:"status,omitempty" json:"status,omitempty"`
+}
+
+// GetLLMProxyDeploymentsParamsStatus defines parameters for GetLLMProxyDeployments.
+type GetLLMProxyDeploymentsParamsStatus string
+
+// RestoreLLMProxyDeploymentParams defines parameters for RestoreLLMProxyDeployment.
+type RestoreLLMProxyDeploymentParams struct {
+	// DeploymentId Deployment UUID to restore
+	DeploymentId string `form:"deploymentId" json:"deploymentId"`
+
+	// GatewayId Gateway UUID
+	GatewayId string `form:"gatewayId" json:"gatewayId"`
+}
+
+// UndeployLLMProxyDeploymentParams defines parameters for UndeployLLMProxyDeployment.
+type UndeployLLMProxyDeploymentParams struct {
+	// DeploymentId Deployment UUID to undeploy
+	DeploymentId string `form:"deploymentId" json:"deploymentId"`
+
+	// GatewayId Gateway UUID
+	GatewayId string `form:"gatewayId" json:"gatewayId"`
+}
+
 // ListRepositoryBranchesParams defines parameters for ListRepositoryBranches.
 type ListRepositoryBranchesParams struct {
 	// Limit Maximum number of results to return (default 30, max 100)
@@ -6155,6 +6472,15 @@ type ListRepositoryCommitsParams struct {
 
 	// Offset Number of results to skip for pagination (default 0)
 	Offset *int `form:"offset,omitempty" json:"offset,omitempty"`
+}
+
+// ListSelfHostedGatewaysParams defines parameters for ListSelfHostedGateways.
+type ListSelfHostedGatewaysParams struct {
+	// Limit Maximum number of results to return
+	Limit *int32 `form:"limit,omitempty" json:"limit,omitempty"`
+
+	// Offset Number of results to skip
+	Offset *int32 `form:"offset,omitempty" json:"offset,omitempty"`
 }
 
 // CheckThunderUrlAvailabilityParams defines parameters for CheckThunderUrlAvailability.
@@ -6278,7 +6604,7 @@ type UpdateLLMProviderJSONRequestBody = UpdateLLMProviderRequest
 type UpdateLLMProviderCatalogStatusJSONRequestBody = UpdateLLMProviderCatalogRequest
 
 // DeployLLMProviderJSONRequestBody defines body for DeployLLMProvider for application/json ContentType.
-type DeployLLMProviderJSONRequestBody = DeployAgentRequest
+type DeployLLMProviderJSONRequestBody = LLMDeployRequest
 
 // CreateMCPProxyJSONRequestBody defines body for CreateMCPProxy for application/json ContentType.
 type CreateMCPProxyJSONRequestBody = MCPProxyRequest
@@ -6397,11 +6723,20 @@ type CreateLLMProxyAPIKeyJSONRequestBody = CreateLLMAPIKeyRequest
 // RotateLLMProxyAPIKeyJSONRequestBody defines body for RotateLLMProxyAPIKey for application/json ContentType.
 type RotateLLMProxyAPIKeyJSONRequestBody = RotateLLMAPIKeyRequest
 
+// DeployLLMProxyJSONRequestBody defines body for DeployLLMProxy for application/json ContentType.
+type DeployLLMProxyJSONRequestBody = LLMDeployRequest
+
 // ListRepositoryBranchesJSONRequestBody defines body for ListRepositoryBranches for application/json ContentType.
 type ListRepositoryBranchesJSONRequestBody = ListBranchesRequest
 
 // ListRepositoryCommitsJSONRequestBody defines body for ListRepositoryCommits for application/json ContentType.
 type ListRepositoryCommitsJSONRequestBody = ListCommitsRequest
+
+// RegisterSelfHostedGatewayJSONRequestBody defines body for RegisterSelfHostedGateway for application/json ContentType.
+type RegisterSelfHostedGatewayJSONRequestBody = SelfHostedGatewayRequest
+
+// UpdateSelfHostedGatewayJSONRequestBody defines body for UpdateSelfHostedGateway for application/json ContentType.
+type UpdateSelfHostedGatewayJSONRequestBody = SelfHostedGatewayUpdateRequest
 
 // GetNameByDisplayNameJSONRequestBody defines body for GetNameByDisplayName for application/json ContentType.
 type GetNameByDisplayNameJSONRequestBody = ResourceNameRequest
