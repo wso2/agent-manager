@@ -56,6 +56,11 @@ on:
 
 run-name: Publish core-ui ${{ inputs.target_version || inputs.source_ref }}
 
+# Default token scope is read-only; jobs that publish, push or deploy
+# request the extra scopes they need at job level.
+permissions:
+  contents: read
+
 jobs:
   publish-core-ui-npm:
     name: Publish core-ui to npm

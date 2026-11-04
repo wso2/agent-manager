@@ -19,6 +19,9 @@ on:
 
 run-name: amctl Release ${{ inputs.target_version }}
 
+permissions:
+  contents: read
+
 jobs:
   release:
     name: Release amctl
