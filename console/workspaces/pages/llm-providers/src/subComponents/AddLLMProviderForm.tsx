@@ -47,7 +47,6 @@ import {
   type PolicySelection as GuardrailSelection,
 } from "@agent-management-platform/shared-component";
 import { useListGateways } from "@agent-management-platform/api-client";
-import { AddSelfHostedGatewayAction } from "@agent-management-platform/gateways";
 import { INPUT_LIMITS } from "@agent-management-platform/types";
 
 export type TemplateCard = {
@@ -689,16 +688,13 @@ export const AddLLMProviderForm: React.FC<AddLLMProviderFormProps> = ({
       )}
       <Collapse in={!!formData.templateId}>
         {isSingleGatewayChoice ? (
-          <>
-            <EnvironmentGatewaySelector
-              orgId={orgId}
-              value={formData.gatewayIds ?? []}
-              onChange={(ids) => handleFieldChange("gatewayIds", ids)}
-              onValidityChange={setIsGatewaySelectionValid}
-              onSingleChoiceChange={setIsSingleGatewayChoice}
-            />
-            <AddSelfHostedGatewayAction orgId={orgId} />
-          </>
+          <EnvironmentGatewaySelector
+            orgId={orgId}
+            value={formData.gatewayIds ?? []}
+            onChange={(ids) => handleFieldChange("gatewayIds", ids)}
+            onValidityChange={setIsGatewaySelectionValid}
+            onSingleChoiceChange={setIsSingleGatewayChoice}
+          />
         ) : (
           <Form.Section>
             <Form.Subheader>Deployment Configuration</Form.Subheader>
@@ -724,7 +720,6 @@ export const AddLLMProviderForm: React.FC<AddLLMProviderFormProps> = ({
                 onValidityChange={setIsGatewaySelectionValid}
                 onSingleChoiceChange={setIsSingleGatewayChoice}
               />
-              <AddSelfHostedGatewayAction orgId={orgId} />
             </Form.Stack>
           </Form.Section>
         )}

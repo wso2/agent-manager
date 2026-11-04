@@ -22,7 +22,6 @@ import type {
   UpdateLLMProviderRequest,
 } from "@agent-management-platform/types";
 import { useListLLMDeployments } from "@agent-management-platform/api-client";
-import { AddSelfHostedGatewayAction } from "@agent-management-platform/gateways";
 import {
   EnvironmentGatewaySelector,
   useConfirmationDialog,
@@ -194,10 +193,6 @@ export function LLMProviderDeploymentTab({
         lockedGatewayIds={lockedGatewayIds}
         gatewayStatuses={gatewayStatuses}
         onValidityChange={setIsSelectionValid}
-        disabled={isUpdating}
-      />
-      <AddSelfHostedGatewayAction
-        orgId={orgName ?? ""}
         disabled={isUpdating}
       />
       <Stack spacing={1.5} width="100%">

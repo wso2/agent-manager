@@ -17,11 +17,10 @@
  */
 
 import { render, screen, fireEvent, waitFor } from "@testing-library/react";
-import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
+import { describe, it, expect, vi, beforeEach } from "vitest";
 import { MemoryRouter } from "react-router-dom";
 import { ThemeProvider, createTheme } from "@wso2/oxygen-ui";
 import {
-  globalConfig,
   type Environment,
   type GatewayResponse,
   type LLMDeploymentResponse,
@@ -37,17 +36,6 @@ vi.mock("@agent-management-platform/api-client", () => ({
   useListLLMDeployments: vi.fn(),
   ConsoleAction: {},
   useTrack: () => ({ track: vi.fn() }),
-}));
-
-// The gateways package pulls in auth and its own api-client at import time;
-// the tab only needs the button that opens its drawer. The stub mirrors the
-// real action's flag check (covered in the gateways package) to confirm the
-// tab renders it as a child.
-vi.mock("@agent-management-platform/gateways", () => ({
-  AddSelfHostedGatewayAction: () =>
-    globalConfig.selfHostedGatewaysEnabled === true ? (
-      <button>Add self-hosted gateway</button>
-    ) : null,
 }));
 
 import {
@@ -182,22 +170,6 @@ describe("LLMProviderDeploymentTab", () => {
     vi.clearAllMocks();
     seedSelectorData();
     seedDeployments([]);
-  });
-
-  afterEach(() => {
-    delete globalConfig.selfHostedGatewaysEnabled;
-  });
-
-  it("no add-self-hosted action when selfHostedGatewaysEnabled is false", () => {
-    globalConfig.selfHostedGatewaysEnabled = false;
-    renderTab({ providerData: makeProvider([]) });
-    expect(screen.queryByRole("button", { name: /add self-hosted gateway/i })).toBeNull();
-  });
-
-  it("offers an add-self-hosted action when selfHostedGatewaysEnabled is true", () => {
-    globalConfig.selfHostedGatewaysEnabled = true;
-    renderTab({ providerData: makeProvider([]) });
-    expect(screen.getByRole("button", { name: /add self-hosted gateway/i })).toBeEnabled();
   });
 
   it("seeds from providerData.gateways and keeps Save disabled while clean", () => {

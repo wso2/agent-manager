@@ -46,7 +46,6 @@ import {
   Tooltip,
   Typography,
 } from "@wso2/oxygen-ui";
-import { AddSelfHostedGatewayAction } from "@agent-management-platform/gateways";
 import { ChevronDown, HelpCircle } from "@wso2/oxygen-ui-icons-react";
 import { useSnackBar } from "@agent-management-platform/views";
 import {
@@ -593,21 +592,15 @@ export function EndpointFormFields({
       />
 
       {isSingleGatewayChoice ? (
-        <>
-          <EnvironmentGatewaySelectorView
-            environments={availableEnvironments}
-            gateways={gateways}
-            value={gatewayIds}
-            onChange={setGatewayIds}
-            lockedGatewayIds={lockedGatewayIds}
-            onValidityChange={setIsGatewaySelectionValid}
-            onSingleChoiceChange={setIsSingleGatewayChoice}
-          />
-          <AddSelfHostedGatewayAction
-            orgId={orgId}
-            presetEnvironment={availableEnvironments[0]?.name}
-          />
-        </>
+        <EnvironmentGatewaySelectorView
+          environments={availableEnvironments}
+          gateways={gateways}
+          value={gatewayIds}
+          onChange={setGatewayIds}
+          lockedGatewayIds={lockedGatewayIds}
+          onValidityChange={setIsGatewaySelectionValid}
+          onSingleChoiceChange={setIsSingleGatewayChoice}
+        />
       ) : (
         <FormControl fullWidth>
           <Form.Subheader>Deployment Configuration</Form.Subheader>
@@ -628,11 +621,6 @@ export function EndpointFormFields({
                   onSingleChoiceChange={setIsSingleGatewayChoice}
                 />
               </Box>
-              <AddSelfHostedGatewayAction
-                orgId={orgId}
-                presetEnvironment={availableEnvironments[0]?.name}
-                sx={{ mt: 0.5 }}
-              />
               <Typography
                 variant="caption"
                 color="text.secondary"

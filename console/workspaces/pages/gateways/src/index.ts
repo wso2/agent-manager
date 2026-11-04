@@ -35,8 +35,6 @@ export const gatewaysMetadata = {
   icon: metaData.icon,
 };
 
-export { AddSelfHostedGatewayAction } from "./subComponents/AddSelfHostedGatewayAction";
-
 export { GatewaysOrganization };
 
 export default GatewaysOrganization;

@@ -2818,9 +2818,6 @@ importers:
       '@agent-management-platform/build':
         specifier: workspace:*
         version: link:../build
-      '@agent-management-platform/gateways':
-        specifier: workspace:*
-        version: link:../gateways
       '@agent-management-platform/shared-component':
         specifier: workspace:*
         version: link:../../libs/shared-component
@@ -3186,9 +3183,6 @@ importers:
       '@agent-management-platform/auth':
         specifier: workspace:*
         version: link:../../libs/auth
-      '@agent-management-platform/gateways':
-        specifier: workspace:*
-        version: link:../gateways
       '@agent-management-platform/shared-component':
         specifier: workspace:*
         version: link:../../libs/shared-component

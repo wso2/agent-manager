@@ -54,11 +54,14 @@ interface AddSelfHostedGatewayDrawerProps {
   open: boolean;
   onClose: () => void;
   orgId: string;
-  /** Pre-fills the form; used when the drawer is opened from another page. */
-  presetEnvironment?: string;
-  presetDisplayName?: string;
-  presetDescription?: string;
 }
+
+const EMPTY_FORM: AddSelfHostedGatewayFormValues = {
+  displayName: "",
+  environment: "",
+  publicUrl: "",
+  description: "",
+};
 
 interface CreatedGateway {
   gateway: GatewayResponse;
@@ -71,16 +74,8 @@ export function AddSelfHostedGatewayDrawer({
   open,
   onClose,
   orgId,
-  presetEnvironment = "",
-  presetDisplayName = "",
-  presetDescription = "",
 }: AddSelfHostedGatewayDrawerProps) {
-  const [values, setValues] = useState<AddSelfHostedGatewayFormValues>({
-    displayName: presetDisplayName,
-    environment: presetEnvironment,
-    publicUrl: "",
-    description: presetDescription,
-  });
+  const [values, setValues] = useState<AddSelfHostedGatewayFormValues>(EMPTY_FORM);
   const { errors, validateForm, clearErrors } =
     useFormValidation<AddSelfHostedGatewayFormValues>(addSelfHostedGatewaySchema);
   // Errors show from the first submit on, then follow every edit.
@@ -98,17 +93,12 @@ export function AddSelfHostedGatewayDrawer({
       setCreated(null);
       return;
     }
-    setValues({
-      displayName: presetDisplayName,
-      environment: presetEnvironment,
-      publicUrl: "",
-      description: presetDescription,
-    });
+    setValues(EMPTY_FORM);
     setSubmitted(false);
     clearErrors();
     setSubmitError(null);
     setCreated(null);
-  }, [open, presetDisplayName, presetEnvironment, presetDescription, clearErrors]);
+  }, [open, clearErrors]);
 
   const setField = (field: keyof AddSelfHostedGatewayFormValues, value: string) => {
     const next = { ...values, [field]: value };
