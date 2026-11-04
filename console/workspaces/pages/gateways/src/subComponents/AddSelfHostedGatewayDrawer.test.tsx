@@ -31,9 +31,15 @@ vi.mock("@agent-management-platform/api-client", () => ({
   useCreateSelfHostedGatewayToken: () => ({ mutateAsync: hoisted.createToken, isPending: false }),
 }));
 
-vi.mock("@agent-management-platform/shared-component", () => ({
-  getErrorMessage: (err: unknown) => (err instanceof Error ? err.message : ""),
-}));
+vi.mock("@agent-management-platform/shared-component", async () => {
+  const { deriveResourceName } = await vi.importActual<
+    typeof import("@agent-management-platform/shared-component")
+  >("@agent-management-platform/shared-component");
+  return {
+    deriveResourceName,
+    getErrorMessage: (err: unknown) => (err instanceof Error ? err.message : ""),
+  };
+});
 
 vi.mock("./SelfHostedSetupSteps", () => ({ SelfHostedSetupSteps: () => null }));
 

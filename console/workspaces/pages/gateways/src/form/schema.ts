@@ -16,6 +16,7 @@
  */
 
 import { z } from "zod";
+import { deriveResourceName } from "@agent-management-platform/shared-component";
 import { isGatewayBaseUrl } from "../subComponents/selfHostedSetup";
 
 // Exported so the drawers cap their input at exactly what these schemas accept.
@@ -25,17 +26,8 @@ const GATEWAY_DISPLAY_NAME_MIN_LENGTH = 3;
 export const GATEWAY_NAME_MAX_LENGTH = 64;
 const GATEWAY_NAME_MIN_LENGTH = 3;
 
-/** The default name for a display name: lowercase letters, numbers and single hyphens. */
-export function deriveGatewayName(displayName: string): string {
-  return displayName
-    .toLowerCase()
-    .replace(/\s+/g, "-")
-    .replace(/[^a-z0-9-]/g, "")
-    .replace(/-+/g, "-")
-    .replace(/^-|-$/g, "")
-    .slice(0, GATEWAY_NAME_MAX_LENGTH)
-    .replace(/-$/, "");
-}
+export const deriveGatewayName = (displayName: string) =>
+  deriveResourceName(displayName, GATEWAY_NAME_MAX_LENGTH);
 
 const displayName = (minMessage: string) =>
   z
