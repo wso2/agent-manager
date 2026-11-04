@@ -1665,6 +1665,18 @@ func toDeploymentDetailsResponse(binding *gen.ReleaseBinding, componentRelease *
 		lastDeployedAt = &t
 	}
 
+	// The health checks this environment runs: those of the build it runs, written onto the
+	// binding with its release. A value that can't be read is left out rather than failing the
+	// whole deployment list, as when reading an agent.
+	var healthChecks *models.HealthChecks
+	if binding.Spec.ComponentTypeEnvironmentConfigs != nil {
+		var err error
+		healthChecks, err = healthChecksFromMap(*binding.Spec.ComponentTypeEnvironmentConfigs)
+		if err != nil {
+			slog.Warn("failed to read an environment's health checks", "binding", binding.Metadata.Name, "error", err)
+		}
+	}
+
 	return &models.DeploymentResponse{
 		ImageId:                    deployedImage,
 		Status:                     status,
@@ -1674,6 +1686,7 @@ func toDeploymentDetailsResponse(binding *gen.ReleaseBinding, componentRelease *
 		PromotionTargetEnvironment: promotionTargetEnv,
 		LastDeployedAt:             lastDeployedAt,
 		Endpoints:                  endpoints,
+		HealthChecks:               healthChecks,
 	}, nil
 }
 

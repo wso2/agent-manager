@@ -537,7 +537,14 @@ func healthCheckToWorkflowParameter(healthCheck *HealthCheckConfig) map[string]a
 // healthChecksFromWorkflowParameters reads the saved health checks from the build parameters.
 // Returns nil when none are saved.
 func healthChecksFromWorkflowParameters(params map[string]any) (*models.HealthChecks, error) {
-	value, ok := params[workflowParamHealthChecks]
+	return healthChecksFromMap(params)
+}
+
+// healthChecksFromMap reads the "healthChecks" entry of a map that holds them under the API's
+// field names: an agent's build parameters, or a binding's component-type configs. Returns nil
+// when there is none.
+func healthChecksFromMap(values map[string]any) (*models.HealthChecks, error) {
+	value, ok := values[workflowParamHealthChecks]
 	if !ok || value == nil {
 		return nil, nil //nolint:nilnil // documented contract: nil means "none saved", not an error
 	}

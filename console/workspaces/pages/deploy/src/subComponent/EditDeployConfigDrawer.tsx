@@ -57,9 +57,11 @@ import {
   useUpdateAgentConfigurations,
   useUpdateAgentDeploySettings,
 } from "@agent-management-platform/api-client";
-import type {
-  EnvironmentVariable,
-  UpdateAgentDeploySettingsRequest,
+import {
+  healthChecksInEffect,
+  type EnvironmentVariable,
+  type HealthChecks,
+  type UpdateAgentDeploySettingsRequest,
 } from "@agent-management-platform/types";
 import { compatibleInstrumentationVersions, pickInstrumentationVersion } from "../utils/instrumentation";
 import { isStoredSecret, sortSystemLast, toSubmittableEnv } from "../utils/envVars";
@@ -98,6 +100,9 @@ export interface EditDeployConfigDrawerProps {
   // When true (API agents, update mode), the CORS + Endpoint Authentication sections render at the
   // top of the drawer. Omitted by BuildCard (initial deploy) and non-API agents.
   isApiAgent?: boolean;
+  // The health checks this environment runs (those of the build it runs), shown read-only in
+  // update mode; undefined means the defaults. Health checks are set in Configure Build.
+  healthChecks?: HealthChecks;
 }
 
 export function EditDeployConfigDrawer({
@@ -114,6 +119,7 @@ export function EditDeployConfigDrawer({
   isBallerinaBuildpack,
   agentPythonVersion,
   isApiAgent,
+  healthChecks,
 }: EditDeployConfigDrawerProps) {
   const { pushSnackBar } = useSnackBar();
   const { addConfirmation } = useConfirmationDialog();
@@ -121,6 +127,9 @@ export function EditDeployConfigDrawer({
   // CORS + Endpoint Authentication live in a child component that owns its own state; we collect
   // its payload on Apply via the imperative handle.
   const showSecurity = mode === "update" && !!isApiAgent;
+  // Only in update mode: a deploy applies the deployed build's health checks, so showing the
+  // environment's current ones there would mislead.
+  const showHealthChecks = mode === "update" && !!isApiAgent;
 
   // In deploy mode this drawer's Apply calls the deploy route, which is gated on
   // the target environment's tier. The buttons that open it are gated too, but
@@ -468,6 +477,33 @@ export function EditDeployConfigDrawer({
                     </Button>
                   </Stack>
                 </Stack>
+              </Stack>
+            </Form.Section>
+          )}
+
+          {showHealthChecks && (
+            <Form.Section>
+              <Form.Header>Health Checks</Form.Header>
+              <Typography variant="body2" color="text.secondary">
+                The checks of the build this environment runs. Set them in Configure Build on the
+                Build page; changes apply from the next build.
+              </Typography>
+              <Stack spacing={1.5} sx={{ mt: 1 }}>
+                {healthChecksInEffect(healthChecks).map((check) => (
+                  <Stack key={check.checkName} spacing={0.25}>
+                    <Typography variant="body2" fontWeight={600}>
+                      {check.title}: {check.enabled ? "On" : "Off"}
+                    </Typography>
+                    {check.enabled && (
+                      <Typography variant="caption" color="text.secondary">
+                        {check.type === "HTTP" ? `HTTP GET ${check.path}` : "TCP"} on{" "}
+                        {check.port ? `port ${check.port}` : "the agent's port"} · initial delay{" "}
+                        {check.initialDelaySeconds}s · every {check.periodSeconds}s · timeout{" "}
+                        {check.timeoutSeconds}s · {check.failureThreshold} failures allowed
+                      </Typography>
+                    )}
+                  </Stack>
+                ))}
               </Stack>
             </Form.Section>
           )}

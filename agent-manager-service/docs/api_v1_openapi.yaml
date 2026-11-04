@@ -13692,6 +13692,8 @@ components:
           description: >-
             Why gatewayStatus is what it is: the gateway's error code, DEPLOYMENT_TIMEOUT, what a deploy is waiting
             for, or "no gateway in this environment". Empty when there is nothing to say.
+        healthChecks:
+          $ref: "#/components/schemas/HealthChecks"
       required:
         - imageId
         - status

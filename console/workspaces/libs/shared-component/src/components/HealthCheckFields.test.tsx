@@ -20,7 +20,9 @@ import { describe, it, expect } from "vitest";
 import {
   READINESS_CHECK_DEFAULTS,
   STARTUP_CHECK_DEFAULTS,
+  describeHealthChecksInEffect,
   healthCheckFieldErrors,
+  healthChecksInEffect,
   healthChecksAreValid,
   healthChecksToSend,
   suggestedHealthCheckPath,
@@ -128,5 +130,38 @@ describe("healthCheckFieldErrors", () => {
   it("finds any invalid check in a set", () => {
     expect(healthChecksAreValid({ startup: { failureThreshold: 720 } })).toBe(false);
     expect(healthChecksAreValid({ readiness: { type: "HTTP", path: "/health" } })).toBe(true);
+  });
+});
+
+describe("healthChecksInEffect", () => {
+  // An environment with no health checks runs today's defaults: 2 of 3 on.
+  it("fills in the defaults when nothing is set", () => {
+    const checks = healthChecksInEffect(undefined);
+    expect(checks.map((check) => [check.checkName, check.enabled, check.type])).toEqual([
+      ["startup", true, "TCP"],
+      ["readiness", true, "TCP"],
+      ["liveness", false, "TCP"],
+    ]);
+    expect(checks[0]).toMatchObject({
+      initialDelaySeconds: 10,
+      periodSeconds: 5,
+      failureThreshold: 60,
+    });
+    expect(describeHealthChecksInEffect(checks)).toBe(
+      "Startup: on, TCP · Readiness: on, TCP · Liveness: off",
+    );
+  });
+
+  // A liveness check that is set is on unless switched off, as the template treats it.
+  it("shows the set checks, with an HTTP check without a path at /", () => {
+    const checks = healthChecksInEffect({
+      startup: { enabled: false },
+      readiness: { type: "HTTP", periodSeconds: 3 },
+      liveness: { type: "TCP" },
+    });
+    expect(describeHealthChecksInEffect(checks)).toBe(
+      "Startup: off · Readiness: on, HTTP GET / · Liveness: on, TCP",
+    );
+    expect(checks[1]).toMatchObject({ periodSeconds: 3, timeoutSeconds: 1, failureThreshold: 6 });
   });
 });

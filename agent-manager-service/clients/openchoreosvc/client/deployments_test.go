@@ -821,3 +821,43 @@ func TestPromoteComponent_CarriesTheSourcesHealthChecks(t *testing.T) {
 		assert.Equal(t, sourceChecks, writtenConfigs["healthChecks"])
 	})
 }
+
+// A deployment reports the health checks its environment runs, read from the binding where
+// the build's checks were written, so the deploy page can show them per environment.
+func TestToDeploymentDetailsResponse_ReportsTheEnvironmentsHealthChecks(t *testing.T) {
+	bindingWith := func(componentTypeConfigs map[string]interface{}) *gen.ReleaseBinding {
+		binding := &gen.ReleaseBinding{
+			Metadata: gen.ObjectMeta{Name: "myagent-default"},
+			Spec:     &gen.ReleaseBindingSpec{Environment: "default"},
+		}
+		if componentTypeConfigs != nil {
+			binding.Spec.ComponentTypeEnvironmentConfigs = &componentTypeConfigs
+		}
+		return binding
+	}
+	deploymentOf := func(t *testing.T, binding *gen.ReleaseBinding) *models.DeploymentResponse {
+		t.Helper()
+		deployment, err := toDeploymentDetailsResponse(binding, nil, nil, nil, nil, "", runtimeReplicaState{})
+		require.NoError(t, err)
+		return deployment
+	}
+
+	t.Run("the binding's health checks are reported", func(t *testing.T) {
+		deployment := deploymentOf(t, bindingWith(map[string]interface{}{
+			"replicas":     float64(1),
+			"healthChecks": map[string]interface{}{"readiness": map[string]interface{}{"type": "HTTP", "path": "/health"}},
+		}))
+		require.NotNil(t, deployment.HealthChecks)
+		require.NotNil(t, deployment.HealthChecks.Readiness)
+		assert.Equal(t, "/health", *deployment.HealthChecks.Readiness.Path)
+	})
+
+	t.Run("a binding without health checks reports none, so the defaults apply", func(t *testing.T) {
+		assert.Nil(t, deploymentOf(t, bindingWith(nil)).HealthChecks)
+		assert.Nil(t, deploymentOf(t, bindingWith(map[string]interface{}{"replicas": float64(1)})).HealthChecks)
+	})
+
+	t.Run("an unreadable value is left out instead of failing the deployment", func(t *testing.T) {
+		assert.Nil(t, deploymentOf(t, bindingWith(map[string]interface{}{"healthChecks": "not an object"})).HealthChecks)
+	})
+}

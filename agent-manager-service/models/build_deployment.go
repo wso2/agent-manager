@@ -42,6 +42,9 @@ type DeploymentResponse struct {
 	// for an agent the gateway does not serve.
 	GatewayStatus       string `json:"gatewayStatus,omitempty"`
 	GatewayStatusReason string `json:"gatewayStatusReason,omitempty"`
+	// HealthChecks are the health checks the environment runs: those of the build it runs.
+	// Nil when the build has none, so the defaults apply.
+	HealthChecks *HealthChecks `json:"healthChecks,omitempty"`
 }
 
 // PromotionTargetEnvironment represents environment promotion targets

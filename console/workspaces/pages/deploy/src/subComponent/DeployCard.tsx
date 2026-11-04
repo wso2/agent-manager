@@ -45,6 +45,7 @@ import {
   SquareStack,
   MemoryStick,
   SlidersVertical,
+  HeartPulse,
 } from "@wso2/oxygen-ui-icons-react";
 import { generatePath, Link, useParams, useSearchParams } from "react-router-dom";
 import {
@@ -85,6 +86,8 @@ import {
   MetricsResponse,
   Environment,
   TraceListTimeRange,
+  describeHealthChecksInEffect,
+  healthChecksInEffect,
 } from "@agent-management-platform/types";
 import { extractBuildIdFromImageId } from "../utils/extractBuildIdFromImageId";
 import {
@@ -451,6 +454,7 @@ export function DeployCard(props: DeployCardProps) {
         ? "API key"
         : "None";
 
+  const environmentHealthChecks = healthChecksInEffect(currentDeployment?.healthChecks);
   const corsEnabled = envConfig?.corsConfig?.enabled ?? false;
   const corsOrigins = envConfig?.corsConfig?.allowOrigin ?? [];
   const corsDetail = corsEnabled
@@ -700,6 +704,22 @@ export function DeployCard(props: DeployCardProps) {
                     </Box>
                   )}
 
+                  {/* Health checks overview: those of the build this environment runs */}
+                  {isApiAgent && (
+                    <Box display="flex" alignItems="center" gap={1}>
+                      <HeartPulse size={14} style={{ opacity: 0.6 }} />
+                      <Typography variant="body2">Health checks</Typography>
+                      <Tooltip title={describeHealthChecksInEffect(environmentHealthChecks)}>
+                        <Chip
+                          size="small"
+                          label={`${environmentHealthChecks.filter((check) => check.enabled).length} of 3 on`}
+                          variant="outlined"
+                          sx={{ height: 18, fontSize: "0.65rem", cursor: "default" }}
+                        />
+                      </Tooltip>
+                    </Box>
+                  )}
+
                   {/* Endpoint Authentication overview */}
                   {isApiAgent && (
                     <Box display="flex" alignItems="center" gap={1}>
@@ -770,6 +790,7 @@ export function DeployCard(props: DeployCardProps) {
               environment={currentEnvironment.name}
               title="Configurations and Secrets"
               isApiAgent={isApiAgent}
+              healthChecks={currentDeployment?.healthChecks}
               isPythonBuildpack={isPythonBuildpack}
               isBallerinaBuildpack={isBallerinaBuildpack}
               agentPythonVersion={agentPythonVersion}

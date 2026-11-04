@@ -455,6 +455,7 @@ func ConvertToDeploymentDetailsResponse(deploymentDetails []*models.DeploymentRe
 			KindVersion:            stringToPtr(deployment.KindVersion),
 			GatewayStatus:          stringToPtr(deployment.GatewayStatus),
 			GatewayStatusReason:    stringToPtr(deployment.GatewayStatusReason),
+			HealthChecks:           convertToHealthChecks(deployment.HealthChecks),
 		}
 
 		// Add to result map with environment name as key

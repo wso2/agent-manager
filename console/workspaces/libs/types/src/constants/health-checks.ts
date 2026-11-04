@@ -190,3 +190,71 @@ export function healthChecksToSend(healthChecks: HealthChecks | undefined): Heal
   if (liveness) toSend.liveness = liveness;
   return toSend;
 }
+
+/** One health check as it runs: each field set or filled from its default. */
+export interface HealthCheckInEffect {
+  checkName: HealthCheckName;
+  title: string;
+  enabled: boolean;
+  type: HealthCheckType;
+  /** The path of an HTTP check; "/" when an HTTP check has none set, as the template does. */
+  path?: string;
+  /** Undefined when the check uses the agent's own port. */
+  port?: number;
+  initialDelaySeconds: number;
+  periodSeconds: number;
+  timeoutSeconds: number;
+  failureThreshold: number;
+}
+
+/**
+ * The three checks as an environment runs them, in startup, readiness, liveness order:
+ * a check that is not set uses its defaults, and liveness is off unless set and enabled.
+ */
+export function healthChecksInEffect(
+  healthChecks: HealthChecks | undefined,
+): HealthCheckInEffect[] {
+  const inEffect = (
+    check: HealthCheck | undefined,
+    checkName: HealthCheckName,
+    title: string,
+    defaults: HealthCheckDefaults,
+  ): HealthCheckInEffect => {
+    const type = check?.type ?? defaults.type;
+    return {
+      checkName,
+      title,
+      // A check that is set is on unless switched off; one that is not set uses its default.
+      enabled: check ? check.enabled ?? true : defaults.enabled,
+      type,
+      path: type === "HTTP" ? check?.path ?? "/" : undefined,
+      port: check?.port,
+      initialDelaySeconds: check?.initialDelaySeconds ?? defaults.initialDelaySeconds,
+      periodSeconds: check?.periodSeconds ?? defaults.periodSeconds,
+      timeoutSeconds: check?.timeoutSeconds ?? defaults.timeoutSeconds,
+      failureThreshold: check?.failureThreshold ?? defaults.failureThreshold,
+    };
+  };
+  return [
+    inEffect(healthChecks?.startup, "startup", "Startup", STARTUP_CHECK_DEFAULTS),
+    inEffect(healthChecks?.readiness, "readiness", "Readiness", READINESS_CHECK_DEFAULTS),
+    inEffect(healthChecks?.liveness, "liveness", "Liveness", LIVENESS_CHECK_DEFAULTS),
+  ];
+}
+
+/**
+ * A one-line summary of the checks in effect, e.g.
+ * "Startup: on, TCP · Readiness: on, HTTP GET /health · Liveness: off".
+ */
+export function describeHealthChecksInEffect(checks: HealthCheckInEffect[]): string {
+  return checks
+    .map((check) => {
+      if (!check.enabled) {
+        return `${check.title}: off`;
+      }
+      return check.type === "HTTP"
+        ? `${check.title}: on, HTTP GET ${check.path}`
+        : `${check.title}: on, TCP`;
+    })
+    .join(" · ");
+}
