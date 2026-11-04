@@ -116,7 +116,7 @@ func TestLLMConfig_AcceptsManagedProvider(t *testing.T) {
 	f := newLLMPlacementFixture(t, "dev")
 	p := f.provider("managed-p", models.GatewayHostingManaged)
 
-	require.NoError(t, f.svc.requireManagedProviderPlacement(context.Background(), llmPlacementOU, p.UUID, f.env("dev"), false))
+	require.NoError(t, requireProviderPlacement(context.Background(), f.svc.llmProxyDeploymentService, f.svc.gatewayRepo, llmPlacementOU, p.UUID, f.env("dev"), false))
 }
 
 func TestLLMConfig_RefusesSelfHostedOnlyProvider(t *testing.T) {
@@ -126,7 +126,7 @@ func TestLLMConfig_RefusesSelfHostedOnlyProvider(t *testing.T) {
 
 	for name, p := range map[string]*models.LLMProvider{"self-hosted only": selfHosted, "not deployed": unplaced} {
 		t.Run(name, func(t *testing.T) {
-			err := f.svc.requireManagedProviderPlacement(context.Background(), llmPlacementOU, p.UUID, f.env("dev"), false)
+			err := requireProviderPlacement(context.Background(), f.svc.llmProxyDeploymentService, f.svc.gatewayRepo, llmPlacementOU, p.UUID, f.env("dev"), false)
 			require.ErrorIs(t, err, utils.ErrInvalidInput)
 			assert.ErrorContains(t, err, "has no deployment on a managed gateway in environment "+f.envs["dev"].UUID)
 		})
@@ -229,8 +229,8 @@ func TestRequireManagedProviderPlacements_SkipsUnchangedProvider(t *testing.T) {
 	}
 	requested := map[string]models.EnvModelConfigRequest{"dev": {ProviderName: "self-p"}}
 
-	require.NoError(t, f.svc.requireManagedProviderPlacements(context.Background(), llmPlacementOU, requested, f.envs, existing, false))
-	require.Error(t, f.svc.requireManagedProviderPlacements(context.Background(), llmPlacementOU, requested, f.envs, nil, false))
+	require.NoError(t, f.svc.requireProviderPlacements(context.Background(), llmPlacementOU, requested, f.envs, existing, false))
+	require.Error(t, f.svc.requireProviderPlacements(context.Background(), llmPlacementOU, requested, f.envs, nil, false))
 }
 
 func TestResolveGatewayForProvider_PrefersManagedAnchor(t *testing.T) {
@@ -310,7 +310,7 @@ func TestLLMConfig_ExternalAgentBindsToSelfHostedOnlyProvider(t *testing.T) {
 	p := f.provider("self-p", models.GatewayHostingSelfHosted)
 	requested := map[string]models.EnvModelConfigRequest{"dev": {ProviderName: "self-p"}}
 
-	require.NoError(t, f.svc.requireManagedProviderPlacements(context.Background(), llmPlacementOU, requested, f.envs, nil, true))
+	require.NoError(t, f.svc.requireProviderPlacements(context.Background(), llmPlacementOU, requested, f.envs, nil, true))
 
 	deployments, _ := selfHostedOnlyProviderAnchor(f)
 	f.svc.llmProxyDeploymentService = deployments
@@ -355,7 +355,7 @@ func TestLLMConfig_ExternalAgentRefusedWhenProviderNotInEnv(t *testing.T) {
 
 	for name, p := range map[string]*models.LLMProvider{"not deployed": unplaced, "deployed to another environment": elsewhere} {
 		t.Run(name, func(t *testing.T) {
-			err := f.svc.requireManagedProviderPlacement(context.Background(), llmPlacementOU, p.UUID, f.env("dev"), true)
+			err := requireProviderPlacement(context.Background(), f.svc.llmProxyDeploymentService, f.svc.gatewayRepo, llmPlacementOU, p.UUID, f.env("dev"), true)
 			require.ErrorIs(t, err, utils.ErrInvalidInput)
 			assert.ErrorContains(t, err, notInEnv)
 			assert.NotContains(t, err.Error(), "managed")

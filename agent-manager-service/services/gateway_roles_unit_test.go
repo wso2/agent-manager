@@ -341,24 +341,7 @@ func TestValidateEgressPlacement(t *testing.T) {
 	})
 }
 
-func TestManagedAnchorsOnly(t *testing.T) {
-	env := uuid.New()
-	selfHosted := newGateway(t, models.GatewayRoleBoth, true)
-	selfHosted.Hosting = models.GatewayHostingSelfHosted
-	managedA := newGateway(t, models.GatewayRoleBoth, true)
-	managedB := newGateway(t, models.GatewayRoleBoth, true)
-	repo := gatewayFixtureRepo(t, env.String(), []*models.Gateway{selfHosted, managedA, managedB})
-	deleted := uuid.NewString()
-
-	got, err := managedAnchorsOnly(repo, []string{selfHosted.UUID.String(), managedA.UUID.String(), deleted, managedB.UUID.String()})
-
-	require.NoError(t, err)
-	assert.Equal(t, []string{managedA.UUID.String(), deleted, managedB.UUID.String()}, got)
-}
-
-// External agents may use a self-hosted placement, but a managed one in the same environment wins: the first
-// anchor mapped to the environment is the one used.
-func TestManagedAnchorsFirst(t *testing.T) {
+func TestPlacedAnchor(t *testing.T) {
 	env := uuid.New()
 	selfHosted := func() *models.Gateway {
 		gw := newGateway(t, models.GatewayRoleBoth, true)
@@ -367,18 +350,48 @@ func TestManagedAnchorsFirst(t *testing.T) {
 	}
 	s1, s2 := selfHosted(), selfHosted()
 	m1 := newGateway(t, models.GatewayRoleBoth, true)
-	m2 := newGateway(t, models.GatewayRoleBoth, true)
-	repo := gatewayFixtureRepo(t, env.String(), []*models.Gateway{s1, m1, s2, m2})
+	repo := gatewayFixtureRepo(t, env.String(), []*models.Gateway{s1, m1, s2})
 	deleted := uuid.NewString()
+	ids := func(gws ...*models.Gateway) []string {
+		out := []string{deleted}
+		for _, gw := range gws {
+			out = append(out, gw.UUID.String())
+		}
+		return out
+	}
 
-	got, err := managedAnchorsFirst(repo, []string{
-		s1.UUID.String(), m1.UUID.String(), s2.UUID.String(), deleted, m2.UUID.String(),
+	t.Run("any hosting takes the first mapped gateway", func(t *testing.T) {
+		got, err := placedAnchor(repo, env, ids(s1, m1), anyHosting)
+		require.NoError(t, err)
+		assert.Equal(t, s1.UUID, got.UUID)
 	})
 
-	require.NoError(t, err)
-	assert.Equal(t, []string{
-		m1.UUID.String(), deleted, m2.UUID.String(), s1.UUID.String(), s2.UUID.String(),
-	}, got)
+	t.Run("managed only skips self-hosted gateways", func(t *testing.T) {
+		got, err := placedAnchor(repo, env, ids(s1, m1), managedOnly)
+		require.NoError(t, err)
+		assert.Equal(t, m1.UUID, got.UUID)
+
+		got, err = placedAnchor(repo, env, ids(s1, s2), managedOnly)
+		require.NoError(t, err)
+		assert.Nil(t, got)
+	})
+
+	// External agents may use a self-hosted placement, but a managed one in the same environment wins.
+	t.Run("managed first prefers a managed gateway, else the first self-hosted one", func(t *testing.T) {
+		got, err := placedAnchor(repo, env, ids(s1, s2, m1), managedFirst)
+		require.NoError(t, err)
+		assert.Equal(t, m1.UUID, got.UUID)
+
+		got, err = placedAnchor(repo, env, ids(s2, s1), managedFirst)
+		require.NoError(t, err)
+		assert.Equal(t, s2.UUID, got.UUID)
+	})
+
+	t.Run("gateways not mapped to the environment are skipped", func(t *testing.T) {
+		got, err := placedAnchor(repo, uuid.New(), ids(s1, m1), anyHosting)
+		require.NoError(t, err)
+		assert.Nil(t, got)
+	})
 }
 
 // An agent's or monitor's proxy runs in OpenChoreo, so its URL may never point at a self-hosted gateway, and a

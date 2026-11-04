@@ -863,16 +863,6 @@ func TestMCPPrivateUpstream_UnresolvedTargetsFailClosed(t *testing.T) {
 	})
 }
 
-func TestMCPUpstreamNeedsSSRFGuard(t *testing.T) {
-	selfHosted := &models.Gateway{Hosting: models.GatewayHostingSelfHosted}
-	managed := &models.Gateway{}
-	assert.False(t, mcpUpstreamNeedsSSRFGuard([]*models.Gateway{selfHosted, selfHosted}, false))
-	assert.True(t, mcpUpstreamNeedsSSRFGuard([]*models.Gateway{selfHosted, managed}, false))
-	assert.True(t, mcpUpstreamNeedsSSRFGuard([]*models.Gateway{selfHosted}, true))
-	assert.True(t, mcpUpstreamNeedsSSRFGuard(nil, true))
-	assert.True(t, mcpUpstreamNeedsSSRFGuard(nil, false), "no targets must not skip the guard")
-}
-
 func TestValidateMCPEndpointPlacement_ReturnsExemptGateways(t *testing.T) {
 	selfHosted := selfHostedGateway(t)
 	managed := newGateway(t, models.GatewayRoleBoth, true)

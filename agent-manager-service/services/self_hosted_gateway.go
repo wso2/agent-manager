@@ -73,8 +73,7 @@ func (s *PlatformGatewayService) RegisterSelfHostedGateway(ouID, envName string,
 
 // ListSelfHostedGateways lists the organization's self-hosted gateways.
 func (s *PlatformGatewayService) ListSelfHostedGateways(ouID string, limit, offset int) (*GatewayListResponse, error) {
-	hosting := models.GatewayHostingSelfHosted
-	return s.ListGateways(&ouID, &GatewayListFilters{Hosting: &hosting}, limit, offset)
+	return s.ListGateways(&ouID, &GatewayListFilters{Hosting: models.GatewayHostingSelfHosted}, limit, offset)
 }
 
 // RequireSelfHosted returns the gateway when it belongs to the organization and is
@@ -95,14 +94,22 @@ func (s *PlatformGatewayService) RequireSelfHosted(gatewayID, ouID string) (*mod
 	return gateway, nil
 }
 
-func requireSelfHostedFunctionalityType(functionalityType string) error {
-	switch strings.ToLower(strings.TrimSpace(functionalityType)) {
-	case "", "ai":
-		return nil
-	default:
-		return utils.NewInvalidInputError("Self-hosted gateways support only the AI functionality type",
-			"unsupported self-hosted gateway functionality type: "+functionalityType)
+// SelfHostedFunctionalityType is the requested functionality type as registration reads it: case and surrounding
+// space ignored, and empty meaning "ai", the one kind a self-hosted gateway has.
+func SelfHostedFunctionalityType(requested string) string {
+	kind := strings.ToLower(strings.TrimSpace(requested))
+	if kind == "" {
+		return "ai"
 	}
+	return kind
+}
+
+func requireSelfHostedFunctionalityType(functionalityType string) error {
+	if SelfHostedFunctionalityType(functionalityType) == "ai" {
+		return nil
+	}
+	return utils.NewInvalidInputError("Self-hosted gateways support only the AI functionality type",
+		"unsupported self-hosted gateway functionality type: "+functionalityType)
 }
 
 // selfHostedHandle returns "<envName>-<handle>", deriving the handle from the display

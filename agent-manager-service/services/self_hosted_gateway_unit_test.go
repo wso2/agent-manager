@@ -157,8 +157,7 @@ func TestListSelfHostedGatewaysFiltersByHostingAndOrg(t *testing.T) {
 
 	require.NoError(t, err)
 	for _, f := range []repositories.GatewayFilterOptions{counted, listed} {
-		require.NotNil(t, f.Hosting)
-		require.Equal(t, models.GatewayHostingSelfHosted, *f.Hosting)
+		require.Equal(t, models.GatewayHostingSelfHosted, f.Hosting)
 		require.Equal(t, "org-1", f.OrganizationID)
 	}
 	require.Equal(t, 10, listed.Limit)

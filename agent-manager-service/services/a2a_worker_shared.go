@@ -134,11 +134,9 @@ func a2aAttemptContexts(ctx context.Context, timeout time.Duration) (attempt, re
 // mapped; egress gateways host outbound LLM/MCP artifacts.
 func findIngressGateway(gatewayRepo repositories.GatewayRepository, ouID string, envUUID uuid.UUID) (*models.Gateway, error) {
 	envID := envUUID.String()
-	hosting := models.GatewayHostingManaged
 	gateways, err := gatewayRepo.ListWithFilters(repositories.GatewayFilterOptions{
 		OrganizationID:      ouID,
 		FunctionalityTypeIn: models.IngressGatewayRoles,
-		Hosting:             &hosting,
 		EnvironmentID:       &envID,
 	})
 	if err != nil {

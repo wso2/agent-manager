@@ -901,22 +901,27 @@ func (c *gatewayController) matchGatewayEnvironments(
 	for _, mapping := range mappings {
 		envUUIDStr := mapping.EnvironmentUUID.String()
 		if ocEnv, found := envMap[envUUIDStr]; found {
-			environments = append(environments, models.GatewayEnvironmentResponse{
-				UUID:             ocEnv.UUID,
-				OrganizationName: ouID,
-				Name:             ocEnv.Name,
-				DisplayName:      ocEnv.DisplayName,
-				Description:      "",
-				DataplaneRef:     ocEnv.DataplaneRef,
-				DNSPrefix:        ocEnv.DNSPrefix,
-				IsProduction:     ocEnv.IsProduction,
-				CreatedAt:        ocEnv.CreatedAt,
-				UpdatedAt:        ocEnv.CreatedAt,
-			})
+			environments = append(environments, gatewayEnvironmentResponse(ocEnv, ouID))
 		}
 	}
 
 	return environments
+}
+
+// gatewayEnvironmentResponse is an OpenChoreo environment as a gateway response lists it.
+func gatewayEnvironmentResponse(env *models.EnvironmentResponse, ouID string) models.GatewayEnvironmentResponse {
+	return models.GatewayEnvironmentResponse{
+		UUID:             env.UUID,
+		OrganizationName: ouID,
+		Name:             env.Name,
+		DisplayName:      env.DisplayName,
+		Description:      "",
+		DataplaneRef:     env.DataplaneRef,
+		DNSPrefix:        env.DNSPrefix,
+		IsProduction:     env.IsProduction,
+		CreatedAt:        env.CreatedAt,
+		UpdatedAt:        env.CreatedAt,
+	}
 }
 
 // Helper conversion functions

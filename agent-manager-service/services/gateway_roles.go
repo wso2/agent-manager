@@ -61,10 +61,10 @@ var (
 	errPlacementFixed = errors.New("placement is fixed for this environment; delete and recreate the binding to change it")
 
 	// errSelfHostedAnchor means a platform-hosted agent's or monitor's LLM proxy, which AMS owns and serves to
-	// workloads in OpenChoreo, is placed on a self-hosted gateway. Platform-hosted agents and monitors only use
-	// managed gateways and no path places their proxies elsewhere, so this is a backstop only. External agents may
-	// use self-hosted gateways, chosen when the binding is saved (resolveGatewayForProvider); only the placement
-	// pass (LLMProxyKind.Targets) still checks their proxies against it.
+	// workloads in OpenChoreo, is placed on a self-hosted gateway (see anchorHosting). No path places their
+	// proxies there, so this is a backstop only. An external agent's self-hosted placement is chosen when the
+	// binding is saved (resolveGatewayForProvider); only the placement pass (LLMProxyKind.Targets) still checks
+	// its proxies against it.
 	errSelfHostedAnchor = errors.New("the agent's or monitor's LLM proxy is placed on a self-hosted gateway")
 )
 
@@ -143,18 +143,76 @@ func resolveEgressGatewayForEnvironment(
 // The anchor's role is deliberately NOT re-validated: the role is immutable after
 // registration, so an artifact's existing gateway is always still egress-capable. Role is
 // checked only when selecting a new placement.
-//
-// Lookup failures are returned rather than skipped. The anchor is load-bearing: swallowing
-// them would fall through to environment-only selection as if the artifact had no
-// deployment, and a caller naming a different gateway would then dual-home the binding that
-// errPlacementFixed exists to prevent. Only a genuinely absent anchor — no mapping to this
-// environment, or a deleted gateway — continues to the next candidate.
 func resolveEgressGatewayForArtifact(
 	repo repositories.GatewayRepository, ouID string, envUUID uuid.UUID,
 	deployedGatewayIDs []string, requested *string,
 ) (*models.Gateway, error) {
+	anchor, err := placedAnchor(repo, envUUID, deployedGatewayIDs, anyHosting)
+	if err != nil {
+		return nil, err
+	}
+	return resolveEgressGatewayFromAnchor(repo, ouID, envUUID, anchor, requested)
+}
+
+// resolveEgressGatewayForHosting is resolveEgressGatewayForArtifact with no requested gateway, anchored only on the
+// placements hosting accepts.
+func resolveEgressGatewayForHosting(
+	repo repositories.GatewayRepository, ouID string, envUUID uuid.UUID, placed []string, hosting anchorHosting,
+) (*models.Gateway, error) {
+	anchor, err := placedAnchor(repo, envUUID, placed, hosting)
+	if err != nil {
+		return nil, err
+	}
+	return resolveEgressGatewayFromAnchor(repo, ouID, envUUID, anchor, nil)
+}
+
+// resolveEgressGatewayFromAnchor is anchor, or the environment's egress gateway when anchor is nil.
+func resolveEgressGatewayFromAnchor(
+	repo repositories.GatewayRepository, ouID string, envUUID uuid.UUID, anchor *models.Gateway, requested *string,
+) (*models.Gateway, error) {
+	if anchor == nil {
+		return resolveEgressGatewayForEnvironment(repo, ouID, envUUID, requested)
+	}
+	if requested != nil && *requested != "" && *requested != anchor.UUID.String() {
+		return nil, fmt.Errorf("%w: artifact is deployed to gateway %s in environment %s",
+			errPlacementFixed, anchor.UUID, envUUID)
+	}
+	return anchor, nil
+}
+
+// anchorHosting is which gateways placedAnchor may return.
+//
+// Platform-hosted agents and monitors run in OpenChoreo and only use managed gateways (managedOnly). External
+// agents may also use self-hosted ones, managed preferred (managedFirst).
+type anchorHosting int
+
+const (
+	anyHosting anchorHosting = iota
+	managedOnly
+	managedFirst
+)
+
+// providerAnchorHosting is the hosting an agent's LLM provider placement may have.
+func providerAnchorHosting(isExternalAgent bool) anchorHosting {
+	if isExternalAgent {
+		return managedFirst
+	}
+	return managedOnly
+}
+
+// placedAnchor is the first gateway in gatewayIDs mapped to envUUID that hosting accepts, or nil. With
+// managedFirst, a self-hosted gateway is returned only when no managed one is mapped there.
+//
+// Lookup failures are returned rather than skipped. The anchor is load-bearing: swallowing them would fall through
+// to environment-only selection as if the artifact had no deployment, and a caller naming a different gateway would
+// then dual-home the binding that errPlacementFixed exists to prevent. Only a genuinely absent anchor — no mapping
+// to this environment, or a deleted gateway — continues to the next candidate.
+func placedAnchor(
+	repo repositories.GatewayRepository, envUUID uuid.UUID, gatewayIDs []string, hosting anchorHosting,
+) (*models.Gateway, error) {
 	envIDStr := envUUID.String()
-	for _, gwID := range deployedGatewayIDs {
+	var selfHosted *models.Gateway
+	for _, gwID := range gatewayIDs {
 		exists, err := repo.EnvironmentMappingExists(gwID, envIDStr)
 		if err != nil {
 			return nil, fmt.Errorf("failed to check gateway %s mapping to environment %s: %w", gwID, envIDStr, err)
@@ -172,54 +230,14 @@ func resolveEgressGatewayForArtifact(
 		if gw == nil {
 			continue
 		}
-		if requested != nil && *requested != "" && *requested != gwID {
-			return nil, fmt.Errorf("%w: artifact is deployed to gateway %s in environment %s",
-				errPlacementFixed, gwID, envIDStr)
+		if hosting == anyHosting || gw.IsManaged() {
+			return gw, nil
 		}
-		return gw, nil
-	}
-	return resolveEgressGatewayForEnvironment(repo, ouID, envUUID, requested)
-}
-
-// managedAnchorsOnly is gatewayIDs without the self-hosted gateways, original order kept. Unknown or deleted
-// ids stay: they are stale rows the placement lookup skips. Used for platform-hosted agents' and monitors' LLM
-// proxies: platform-hosted agents and monitors only use managed gateways. External agents may use self-hosted
-// ones, so their proxies use managedAnchorsFirst.
-func managedAnchorsOnly(repo repositories.GatewayRepository, gatewayIDs []string) ([]string, error) {
-	kept := make([]string, 0, len(gatewayIDs))
-	for _, id := range gatewayIDs {
-		gw, err := repo.GetByUUID(id)
-		if err != nil && !errors.Is(err, gorm.ErrRecordNotFound) {
-			return nil, fmt.Errorf("failed to load anchor gateway %s: %w", id, err)
-		}
-		if err == nil && gw != nil && !gw.IsManaged() {
-			continue
-		}
-		kept = append(kept, id)
-	}
-	return kept, nil
-}
-
-// managedAnchorsFirst is gatewayIDs with the self-hosted gateways moved to the end, order within each group kept.
-// Unknown or deleted ids stay with the managed ones, as in managedAnchorsOnly. Used for external agents' LLM
-// proxies: the first anchor mapped to the environment wins, so a provider on both a managed and a self-hosted
-// gateway there serves the agent from the managed one.
-func managedAnchorsFirst(repo repositories.GatewayRepository, gatewayIDs []string) ([]string, error) {
-	managed, err := managedAnchorsOnly(repo, gatewayIDs)
-	if err != nil {
-		return nil, err
-	}
-	kept := make(map[string]struct{}, len(managed))
-	for _, id := range managed {
-		kept[id] = struct{}{}
-	}
-	ordered := managed
-	for _, id := range gatewayIDs {
-		if _, ok := kept[id]; !ok {
-			ordered = append(ordered, id)
+		if hosting == managedFirst && selfHosted == nil {
+			selfHosted = gw
 		}
 	}
-	return ordered, nil
+	return selfHosted, nil
 }
 
 // resolveManagedPlacement is resolveEgressGatewayForArtifact for an AMS-owned proxy, refusing a self-hosted

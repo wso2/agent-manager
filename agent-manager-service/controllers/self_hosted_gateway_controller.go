@@ -25,6 +25,7 @@ import (
 	"github.com/wso2/agent-manager/agent-manager-service/audit"
 	"github.com/wso2/agent-manager/agent-manager-service/middleware"
 	"github.com/wso2/agent-manager/agent-manager-service/middleware/logger"
+	"github.com/wso2/agent-manager/agent-manager-service/models"
 	"github.com/wso2/agent-manager/agent-manager-service/services"
 	"github.com/wso2/agent-manager/agent-manager-service/spec"
 	"github.com/wso2/agent-manager/agent-manager-service/utils"
@@ -46,16 +47,6 @@ func (c *gatewayController) requireSelfHostedThen(next http.HandlerFunc) http.Ha
 		r.SetPathValue("gatewayID", gateway.UUID.String())
 		next(w, r)
 	}
-}
-
-// selfHostedAuditKind is the requested functionality type as registration reads it: case and
-// surrounding space ignored, and empty meaning "ai", the one kind a self-hosted gateway has.
-func selfHostedAuditKind(requested string) string {
-	kind := strings.ToLower(strings.TrimSpace(requested))
-	if kind == "" {
-		return "ai"
-	}
-	return kind
 }
 
 // logSelfHostedLookupFailure logs a failed self-hosted gateway lookup: a 404 is an expected outcome
@@ -148,7 +139,7 @@ func (c *gatewayController) RegisterSelfHostedGateway(w http.ResponseWriter, r *
 		audit.ResourceNamed(audit.ResourceGateway, gatewayResponseID(gateway), req.DisplayName),
 		audit.Environment(env.UUID),
 		audit.Detail("gatewayName", req.DisplayName),
-		audit.Detail("gatewayType", selfHostedAuditKind(input.FunctionalityType)),
+		audit.Detail("gatewayType", services.SelfHostedFunctionalityType(input.FunctionalityType)),
 		audit.Detail("vhost", vhost),
 		audit.Result(err),
 	)
@@ -158,7 +149,8 @@ func (c *gatewayController) RegisterSelfHostedGateway(w http.ResponseWriter, r *
 		return
 	}
 
-	environments := c.getGatewayEnvironmentsFromDB(ctx, ouID, gateway.ID)
+	// A self-hosted gateway is mapped to exactly the environment it was registered in.
+	environments := []models.GatewayEnvironmentResponse{gatewayEnvironmentResponse(env, ouID)}
 	utils.WriteSuccessResponse(w, http.StatusCreated, convertGatewayToSpecResponse(gateway, ouID, environments))
 }
 

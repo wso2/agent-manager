@@ -1163,7 +1163,7 @@ func (s *agentConfigurationService) createLLMConfig(ctx context.Context, ouID, p
 		}
 	}
 
-	if err := s.requireManagedProviderPlacements(ctx, ouID, req.EnvMappings, envMap, nil, isExternalAgent); err != nil {
+	if err := s.requireProviderPlacements(ctx, ouID, req.EnvMappings, envMap, nil, isExternalAgent); err != nil {
 		return nil, err
 	}
 
@@ -3630,7 +3630,7 @@ func (s *agentConfigurationService) Update(ctx context.Context, configUUID uuid.
 		}
 	}
 
-	if err := s.requireManagedProviderPlacements(ctx, ouID, req.EnvMappings, envMap, existingEnvMap, isExternalAgent); err != nil {
+	if err := s.requireProviderPlacements(ctx, ouID, req.EnvMappings, envMap, existingEnvMap, isExternalAgent); err != nil {
 		return nil, err
 	}
 
@@ -4656,79 +4656,39 @@ func (s *agentConfigurationService) deleteMCPConfigForAgentDeletion(ctx context.
 // Helper methods
 
 // resolveGatewayForProvider returns the gateway this LLM provider is placed on in the given environment, or
-// the environment's single managed egress gateway when it isn't placed on one. A platform-hosted agent only
-// uses the provider's managed placements; an external agent may use a self-hosted one, managed preferred.
-// requireManagedProviderPlacement must accept the same placements, or a refused anchor falls through to
-// inference and the proxy lands where the provider isn't.
+// the environment's single managed egress gateway when it isn't placed on one. requireProviderPlacement must accept
+// the same placements, or a refused anchor falls through to inference and the proxy lands where the provider isn't.
 func (s *agentConfigurationService) resolveGatewayForProvider(
 	ctx context.Context, providerUUIDStr, ouID string, envUUID uuid.UUID, isExternalAgent bool,
 ) (*models.Gateway, error) {
-	orderAnchors := managedAnchorsOnly
-	if isExternalAgent {
-		orderAnchors = managedAnchorsFirst
-	}
 	var deployed []string
 	if providerUUID, err := uuid.Parse(providerUUIDStr); err == nil {
-		ids, gwErr := s.llmProxyDeploymentService.PlacedGateways(ctx, ouID, providerUUID)
-		if gwErr != nil {
-			return nil, fmt.Errorf("failed to list deployed gateways for provider %s: %w", providerUUIDStr, gwErr)
-		}
-		deployed, err = orderAnchors(s.gatewayRepo, ids)
+		deployed, err = s.llmProxyDeploymentService.PlacedGateways(ctx, ouID, providerUUID)
 		if err != nil {
-			return nil, err
+			return nil, fmt.Errorf("failed to list deployed gateways for provider %s: %w", providerUUIDStr, err)
 		}
 	}
-	return resolveEgressGatewayForArtifact(s.gatewayRepo, ouID, envUUID, deployed, nil)
+	return resolveEgressGatewayForHosting(s.gatewayRepo, ouID, envUUID, deployed, providerAnchorHosting(isExternalAgent))
 }
 
-// requireManagedProviderPlacement refuses an agent LLM binding unless the provider is placed on a gateway
-// mapped to the environment: a managed one for a platform-hosted agent, one of any hosting for an external agent.
-// Platform-hosted agents only use managed gateways. External agents may use self-hosted ones.
-func (s *agentConfigurationService) requireManagedProviderPlacement(
-	ctx context.Context, ouID string, providerUUID, envUUID uuid.UUID, isExternalAgent bool,
-) error {
-	return requireProviderPlacement(ctx, s.llmProxyDeploymentService, s.gatewayRepo,
-		ouID, providerUUID, envUUID, isExternalAgent)
-}
-
-// requireManagedPlacement is nil when the provider is placed on a managed gateway mapped to the environment.
-func requireManagedPlacement(
-	ctx context.Context, deployments *LLMProxyDeploymentService, gateways repositories.GatewayRepository,
-	ouID string, providerUUID, envUUID uuid.UUID,
-) error {
-	return requireProviderPlacement(ctx, deployments, gateways, ouID, providerUUID, envUUID, false)
-}
-
-// requireProviderPlacement is nil when the provider is placed on a gateway mapped to the environment that is
-// managed, or of any hosting when allowSelfHosted.
+// requireProviderPlacement is nil when the provider is placed on a gateway mapped to the environment whose hosting
+// an agent of this kind may use.
 func requireProviderPlacement(
 	ctx context.Context, deployments *LLMProxyDeploymentService, gateways repositories.GatewayRepository,
-	ouID string, providerUUID, envUUID uuid.UUID, allowSelfHosted bool,
+	ouID string, providerUUID, envUUID uuid.UUID, isExternalAgent bool,
 ) error {
 	placed, err := deployments.PlacedGateways(ctx, ouID, providerUUID)
 	if err != nil {
 		return fmt.Errorf("failed to list deployed gateways for provider %s: %w", providerUUID, err)
 	}
-	for _, gatewayID := range placed {
-		mapped, err := gateways.EnvironmentMappingExists(gatewayID, envUUID.String())
-		if err != nil {
-			return fmt.Errorf("failed to check gateway %s mapping to environment %s: %w", gatewayID, envUUID, err)
-		}
-		if !mapped {
-			continue
-		}
-		gateway, err := gateways.GetByUUID(gatewayID)
-		if errors.Is(err, gorm.ErrRecordNotFound) {
-			continue
-		}
-		if err != nil {
-			return fmt.Errorf("failed to load gateway %s: %w", gatewayID, err)
-		}
-		if gateway != nil && (allowSelfHosted || gateway.IsManaged()) {
-			return nil
-		}
+	anchor, err := placedAnchor(gateways, envUUID, placed, providerAnchorHosting(isExternalAgent))
+	if err != nil {
+		return err
 	}
-	if allowSelfHosted {
+	if anchor != nil {
+		return nil
+	}
+	if isExternalAgent {
 		return fmt.Errorf("%w: LLM provider %s has no deployment on a gateway in environment %s",
 			utils.ErrInvalidInput, providerUUID, envUUID)
 	}
@@ -4736,10 +4696,10 @@ func requireProviderPlacement(
 		utils.ErrInvalidInput, providerUUID, envUUID)
 }
 
-// requireManagedProviderPlacements checks, before anything is created or changed, every requested
+// requireProviderPlacements checks, before anything is created or changed, every requested
 // environment that would get a new or re-pointed LLM proxy. existing is the config's current mappings
 // by environment name (nil on create); an environment keeping its provider is not re-checked.
-func (s *agentConfigurationService) requireManagedProviderPlacements(
+func (s *agentConfigurationService) requireProviderPlacements(
 	ctx context.Context, ouID string, requested map[string]models.EnvModelConfigRequest,
 	envMap map[string]*models.EnvironmentResponse, existing map[string]*models.EnvAgentModelMapping,
 	isExternalAgent bool,
@@ -4766,7 +4726,8 @@ func (s *agentConfigurationService) requireManagedProviderPlacements(
 			current.LLMProxy.Configuration.Provider == provider.UUID.String() {
 			continue
 		}
-		if err := s.requireManagedProviderPlacement(ctx, ouID, provider.UUID, envUUID, isExternalAgent); err != nil {
+		if err := requireProviderPlacement(ctx, s.llmProxyDeploymentService, s.gatewayRepo,
+			ouID, provider.UUID, envUUID, isExternalAgent); err != nil {
 			return fmt.Errorf("environment %s: %w", envName, err)
 		}
 	}
@@ -4877,18 +4838,16 @@ func (s *agentConfigurationService) resolveMCPEnvGateways(
 }
 
 // errMCPProxyOnSelfHostedGateway refuses a platform-hosted agent's binding to an MCP proxy whose
-// gateway in the environment is self-hosted. Platform-hosted agents only use managed gateways.
-// External agents may use self-hosted ones and are not refused with it.
+// gateway in the environment is self-hosted (see anchorHosting).
 func errMCPProxyOnSelfHostedGateway(proxy *models.MCPProxy, envName string) error {
 	return fmt.Errorf("%w: MCP proxy %s is on a self-hosted gateway in environment %s; platform-hosted agents can only use MCP proxies on managed gateways; use a separate MCP proxy for self-hosted gateways",
 		utils.ErrInvalidInput, mcpProxyHandle(proxy), envName)
 }
 
 // errMCPGatewayNotManaged reports that a platform-hosted agent's MCP proxy resolves to a
-// self-hosted gateway in an environment. Platform-hosted agents only use managed gateways, and
-// the proxy-side checks keep this from happening; if it does anyway, the agent gets no URL there
-// rather than one that points its traffic at the customer's gateway. External agents may use
-// self-hosted ones and resolve through placedGatewayForMCPArtifact instead.
+// self-hosted gateway in an environment. The proxy-side checks keep this from happening; if it does
+// anyway, the agent gets no URL there rather than one that points its traffic at the customer's
+// gateway. External agents resolve through placedGatewayForMCPArtifact instead.
 var errMCPGatewayNotManaged = errors.New("MCP proxy is on a self-hosted gateway in this environment")
 
 // resolveGatewayForMCPArtifact is the gateway an agent reaches the MCP proxy's shared

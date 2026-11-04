@@ -93,8 +93,9 @@ func TestDrainWithinLeaseStartsNoRowOnceTheLeaseIsSpent(t *testing.T) {
 	assert.Zero(t, ran.Load())
 }
 
-// Inbound A2A traffic is routed through the platform's gateway, never a customer's self-hosted one.
-func TestFindIngressGateway_ManagedOnly(t *testing.T) {
+// Inbound A2A traffic is routed through the platform's gateway, never a customer's self-hosted one: self-hosted
+// gateways are egress-only (chk_gateways_self_hosted_egress), so the ingress role filter excludes them.
+func TestFindIngressGateway_IngressRolesOnly(t *testing.T) {
 	env := uuid.New()
 	managed := newGateway(t, models.GatewayRoleIngress, true)
 	var got repositories.GatewayFilterOptions
@@ -109,7 +110,5 @@ func TestFindIngressGateway_ManagedOnly(t *testing.T) {
 
 	require.NoError(t, err)
 	assert.Equal(t, managed, gateway)
-	require.NotNil(t, got.Hosting)
-	assert.Equal(t, models.GatewayHostingManaged, *got.Hosting)
 	assert.Equal(t, models.IngressGatewayRoles, got.FunctionalityTypeIn)
 }

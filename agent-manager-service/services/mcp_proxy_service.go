@@ -26,11 +26,9 @@ import (
 	"log/slog"
 	"maps"
 	"net/http"
-	"net/url"
 	"regexp"
 	"slices"
 	"sort"
-	"strconv"
 	"strings"
 	"time"
 
@@ -165,7 +163,7 @@ func externalAgentLookupFrom(ocClient client.OpenChoreoClient) externalAgentLook
 		if err != nil {
 			return false, err
 		}
-		return component.Provisioning.Type == string(utils.ExternalAgent), nil
+		return isExternalProvisioned(component), nil
 	}
 }
 
@@ -1214,11 +1212,6 @@ func convertModelMCPProxyToListItem(proxy *models.MCPProxy) models.MCPProxyListI
 	}
 }
 
-// validateMCPEndpoints enforces the endpoint request structure: at least one endpoint,
-// each with a non-empty handle (unique within the proxy), a well-formed upstream URL, and
-// at least one valid target environment UUID. It also enforces the hard rule that an
-// environment maps to at most one endpoint within the proxy. The private-address check on
-// the upstream depends on where the proxy is placed, so it lives in validateMCPEndpointPlacement.
 // validateMCPProxyDeploymentHandleLengths rejects a proxy whose deployed gateway artifact
 // name/displayName would exceed the gateway's length limit. The console derives short endpoint
 // handles, but a blank-name endpoint whose handle falls back to a long upstream hostname, or a
@@ -1242,45 +1235,11 @@ func validateMCPProxyDeploymentHandleLengths(proxyHandle string, endpoints []mod
 	return nil
 }
 
-// validateMCPUpstreamShape rejects an upstream that is not an http(s) URL with a host and no
-// userinfo. It does no network I/O and applies whatever the proxy's placement.
-func validateMCPUpstreamShape(rawURL string) error {
-	parsed, err := url.ParseRequestURI(rawURL)
-	if err != nil {
-		return err
-	}
-	if parsed.Scheme != "http" && parsed.Scheme != "https" {
-		return errors.New("url must use http or https")
-	}
-	if parsed.User != nil {
-		return errors.New("url must not include user information")
-	}
-	if parsed.Hostname() == "" {
-		return errors.New("url host is required")
-	}
-	if port := parsed.Port(); port != "" {
-		if n, err := strconv.Atoi(port); err != nil || n < 1 || n > 65535 {
-			return errors.New("url port is invalid")
-		}
-	}
-	return nil
-}
-
-// mcpUpstreamNeedsSSRFGuard reports whether AMS must refuse a private upstream. Only a proxy
-// whose every environment resolves to a self-hosted gateway may reach a private address; a
-// managed target, or any environment whose target could not be resolved, keeps the guard on.
-func mcpUpstreamNeedsSSRFGuard(resolved []*models.Gateway, anyUnresolved bool) bool {
-	if anyUnresolved || len(resolved) == 0 {
-		return true
-	}
-	for _, gateway := range resolved {
-		if gateway.IsManaged() {
-			return true
-		}
-	}
-	return false
-}
-
+// validateMCPEndpoints enforces the endpoint request structure: at least one endpoint,
+// each with a non-empty handle (unique within the proxy), a well-formed upstream URL, and
+// at least one valid target environment UUID. It also enforces the hard rule that an
+// environment maps to at most one endpoint within the proxy. The private-address check on
+// the upstream depends on where the proxy is placed, so it lives in validateMCPEndpointPlacement.
 func validateMCPEndpoints(endpoints []models.MCPProxyEndpointDTO) error {
 	if len(endpoints) == 0 {
 		return fmt.Errorf("%w: at least one endpoint is required", utils.ErrInvalidInput)
@@ -1312,7 +1271,7 @@ func validateMCPEndpoints(endpoints []models.MCPProxyEndpointDTO) error {
 		if endpoint.Upstream.Main == nil || strings.TrimSpace(endpoint.Upstream.Main.URL) == "" {
 			return fmt.Errorf("%w: endpoint %q is missing an upstream url", utils.ErrInvalidInput, handle)
 		}
-		if err := validateMCPUpstreamShape(strings.TrimSpace(endpoint.Upstream.Main.URL)); err != nil {
+		if _, err := ssrf.ValidateURLShape(strings.TrimSpace(endpoint.Upstream.Main.URL)); err != nil {
 			return fmt.Errorf("%w: endpoint %q upstream url: %w", utils.ErrInvalidURL, handle, err)
 		}
 		if err := endpoint.Resilience.Validate(); err != nil {
@@ -1439,8 +1398,7 @@ var errMCPIdentityOnSelfHostedGateway = fmt.Errorf("%w: Agent Identity isn't ava
 // errPlacementFixed also surfaces before the write rather than after it.
 //
 // proxyUUID is the proxy being updated, uuid.Nil on create. A proxy platform-hosted agents use
-// may not move onto a self-hosted gateway (requireNoAgentsForSelfHostedPlacement). External
-// agents may use self-hosted gateways, so their use doesn't block the move.
+// may not move onto a self-hosted gateway (requireNoAgentsForSelfHostedPlacement).
 //
 // An identity-mode endpoint may not resolve to a self-hosted gateway in any environment
 // (errMCPIdentityOnSelfHostedGateway). Known gap: an environment whose anchor lookup fails is
@@ -1462,14 +1420,14 @@ func (s *MCPProxyService) validateMCPEndpointPlacement(
 	exempt := map[string]uuid.UUID{}
 	for _, endpoint := range endpoints {
 		handle := strings.TrimSpace(endpoint.ID)
-		resolved := make([]*models.Gateway, 0, len(endpoint.Environments))
+		// Only an endpoint whose every environment resolves to a self-hosted gateway may reach a private upstream.
 		resolvedByEnv := make(map[string]uuid.UUID, len(endpoint.Environments))
-		anyUnresolved := false
+		needsSSRFGuard := false
 		for _, env := range endpoint.Environments {
 			envIDStr := strings.TrimSpace(env.EnvironmentUUID)
 			envUUID, err := uuid.Parse(envIDStr)
 			if err != nil {
-				anyUnresolved = true // already rejected by validateMCPEndpoints
+				needsSSRFGuard = true // already rejected by validateMCPEndpoints
 				continue
 			}
 
@@ -1477,7 +1435,7 @@ func (s *MCPProxyService) validateMCPEndpointPlacement(
 			if !ok {
 				// Anchor unknown: skip rather than resolve without it, since environment-only
 				// selection could reject a binding the anchor would have resolved cleanly.
-				anyUnresolved = true
+				needsSSRFGuard = true
 				continue
 			}
 
@@ -1486,7 +1444,7 @@ func (s *MCPProxyService) validateMCPEndpointPlacement(
 				return nil, fmt.Errorf("%w: endpoint %q environment %q: %w", utils.ErrInvalidInput, handle, envIDStr, err)
 			}
 			if err != nil || gateway == nil {
-				anyUnresolved = true
+				needsSSRFGuard = true
 				continue
 			}
 			if !gateway.IsManaged() && mcpIdentityEnabled(endpoint.Security) {
@@ -1498,11 +1456,11 @@ func (s *MCPProxyService) validateMCPEndpointPlacement(
 					return nil, err
 				}
 			}
-			resolved = append(resolved, gateway)
+			needsSSRFGuard = needsSSRFGuard || gateway.IsManaged()
 			resolvedByEnv[envUUID.String()] = gateway.UUID
 		}
 
-		if !mcpUpstreamNeedsSSRFGuard(resolved, anyUnresolved) {
+		if !needsSSRFGuard && len(resolvedByEnv) > 0 {
 			maps.Copy(exempt, resolvedByEnv)
 			continue
 		}
@@ -1528,8 +1486,7 @@ type mcpProxyAgentUse struct {
 // self-hosted gateway while platform-hosted agents use the proxy: bound in that environment (a
 // mapping row, which survives the environment being removed from the proxy and re-added), or
 // recording the proxy at all (the binding reconcile or a promotion could bind it there later).
-// Platform-hosted agents only use managed gateways. External agents may use self-hosted ones, so
-// their use doesn't block a self-hosted placement.
+// External agents' use doesn't block it (see anchorHosting).
 //
 // Agent use is read from ListMCPConfigsByProxy (the agent_mcp_config_proxy reference rows). A
 // mapping row whose configuration is not in that list counts as platform-hosted (fail closed),

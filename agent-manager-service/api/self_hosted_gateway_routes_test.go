@@ -117,8 +117,7 @@ func newSelfHostedFixture(t *testing.T) *selfHostedFixture {
 		},
 		CountWithFiltersFunc: func(repositories.GatewayFilterOptions) (int64, error) { return 1, nil },
 		ListWithFiltersFunc: func(opts repositories.GatewayFilterOptions) ([]*models.Gateway, error) {
-			require.NotNil(t, opts.Hosting)
-			require.Equal(t, models.GatewayHostingSelfHosted, *opts.Hosting)
+			require.Equal(t, models.GatewayHostingSelfHosted, opts.Hosting)
 			return []*models.Gateway{f.selfHosted}, nil
 		},
 		GetActiveTokensByGatewayUUIDFunc: func(string) ([]*models.GatewayToken, error) {

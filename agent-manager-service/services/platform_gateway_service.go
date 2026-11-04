@@ -39,6 +39,7 @@ import (
 
 	"github.com/wso2/agent-manager/agent-manager-service/models"
 	"github.com/wso2/agent-manager/agent-manager-service/repositories"
+	"github.com/wso2/agent-manager/agent-manager-service/spec"
 	"github.com/wso2/agent-manager/agent-manager-service/utils"
 )
 
@@ -134,13 +135,16 @@ type GatewayResponse struct {
 	UpdatedAt         time.Time              `json:"updatedAt"`
 }
 
-// toGatewayResponse maps a stored gateway to its DTO. Hosting is emitted uppercase,
-// like roles; the one-time token is never part of it.
-func toGatewayResponse(gw *models.Gateway) *GatewayResponse {
-	hosting := "MANAGED"
-	if !gw.IsManaged() {
-		hosting = "SELF_HOSTED"
+// gatewayHostingWire is the gateway's hosting as the API emits it: uppercase, like roles.
+func gatewayHostingWire(gw *models.Gateway) string {
+	if gw.IsManaged() {
+		return string(spec.GATEWAYHOSTING_MANAGED)
 	}
+	return string(spec.GATEWAYHOSTING_SELF_HOSTED)
+}
+
+// toGatewayResponse maps a stored gateway to its DTO; the one-time token is never part of it.
+func toGatewayResponse(gw *models.Gateway) *GatewayResponse {
 	return &GatewayResponse{
 		ID:                gw.UUID.String(),
 		OrganizationID:    gw.OUID,
@@ -153,7 +157,7 @@ func toGatewayResponse(gw *models.Gateway) *GatewayResponse {
 		IsCritical:        gw.IsCritical,
 		FunctionalityType: gw.GatewayFunctionalityType,
 		IsActive:          gw.IsActive,
-		Hosting:           hosting,
+		Hosting:           gatewayHostingWire(gw),
 		CreatedAt:         gw.CreatedAt,
 		UpdatedAt:         gw.UpdatedAt,
 	}
@@ -318,9 +322,7 @@ func (s *PlatformGatewayService) RegisterGateway(
 	}
 	s.placeEnvironments(gateway.OUID, uniqueEnvIDs)
 
-	response := toGatewayResponse(gateway)
-
-	return response, nil
+	return toGatewayResponse(gateway), nil
 }
 
 // GatewayListFilters contains optional filters for listing gateways
@@ -328,7 +330,7 @@ type GatewayListFilters struct {
 	FunctionalityType *string // Filter by gateway role (ingress, egress, both)
 	Status            *bool   // Filter by is_active status
 	EnvironmentID     *string // Filter by environment UUID
-	Hosting           *string // Filter by hosting (managed, self_hosted)
+	Hosting           string  // Filter by hosting (managed, self_hosted); empty for any
 }
 
 // ListGateways retrieves gateways with constitution-compliant envelope structure and DB-level pagination
@@ -432,9 +434,7 @@ func (s *PlatformGatewayService) GetGateway(gatewayID, ouID string) (*GatewayRes
 		return nil, utils.ErrGatewayNotFound
 	}
 
-	response := toGatewayResponse(gateway)
-
-	return response, nil
+	return toGatewayResponse(gateway), nil
 }
 
 // SaveGatewayPolicyManifest stores the policy manifest a gateway pushed in the manifest

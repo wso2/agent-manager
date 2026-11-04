@@ -212,34 +212,33 @@ func (k *LLMProxyKind) Targets(ctx context.Context, record reconcile.Record) (uu
 		return uuid.Nil, false, err
 	}
 	deployments, gateways := placementReposIn(ctx, k.deploymentRepo, k.gatewayRepo)
-	anchors, err := deployments.PlacedGateways(ctx, record.OUID, record.ArtifactUUID)
+	placed, err := deployments.PlacedGateways(ctx, record.OUID, record.ArtifactUUID)
 	if err != nil {
 		return uuid.Nil, false, err
 	}
-	if providerUUID, err := uuid.Parse(proxy.Configuration.Provider); err == nil {
+	anchor, err := placedAnchor(gateways, record.EnvironmentUUID, placed, anyHosting)
+	if err != nil {
+		return uuid.Nil, false, err
+	}
+	if providerUUID, parseErr := uuid.Parse(proxy.Configuration.Provider); anchor == nil && parseErr == nil {
 		providerGateways, err := deployments.PlacedGateways(ctx, record.OUID, providerUUID)
 		if err != nil {
 			return uuid.Nil, false, err
 		}
-		providerGateways, err = managedAnchorsOnly(gateways, providerGateways)
-		if err != nil {
+		if anchor, err = placedAnchor(gateways, record.EnvironmentUUID, providerGateways, managedOnly); err != nil {
 			return uuid.Nil, false, err
 		}
-		anchors = append(anchors, providerGateways...)
 	}
-	gateway, err := resolveEgressGatewayForArtifact(gateways, record.OUID, record.EnvironmentUUID, anchors, nil)
+	gateway, err := resolveEgressGatewayFromAnchor(gateways, record.OUID, record.EnvironmentUUID, anchor, nil)
 	if errors.Is(err, errNoGatewayForEnvironment) || errors.Is(err, errNoEgressGatewayForEnvironment) {
 		return uuid.Nil, false, nil
 	}
 	if err != nil {
 		return uuid.Nil, false, err
 	}
-	// The public deploy paths (DeployLLMProxy, DeployForEnvironment) always name their gateway, so Core.target never
-	// asks Targets for them; only placement-pass records from UnplacedRecords (the agent and monitor mappings) reach
-	// here, and Targets keeps them on managed gateways: provider anchors are filtered to managed ones above, and a
-	// self-hosted result is refused. Platform-hosted agents and monitors only use managed gateways. External agents
-	// may use self-hosted ones, but that placement is chosen when the binding is saved (resolveGatewayForProvider),
-	// not here. The placement pass logs a refusal and retries the record on every pass.
+	// Only placement-pass records from UnplacedRecords (agent and monitor mappings) reach here: the public deploy
+	// paths always name their gateway. An external agent's self-hosted placement is chosen when its binding is saved
+	// (resolveGatewayForProvider), so a self-hosted result here is refused and retried on every pass.
 	if !gateway.IsManaged() {
 		return uuid.Nil, false, errSelfHostedAnchor
 	}

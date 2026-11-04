@@ -317,8 +317,9 @@ func TestResolveEnvGateways_IngressOnly(t *testing.T) {
 	})
 }
 
-// Agent keys go only to the platform's ingress gateways, never to a customer's self-hosted one.
-func TestResolveEnvGateways_IngressManagedOnly(t *testing.T) {
+// Agent keys go only to the platform's ingress gateways, never to a customer's self-hosted one: self-hosted
+// gateways are egress-only (chk_gateways_self_hosted_egress), so the ingress role filter excludes them.
+func TestResolveEnvGateways_IngressRolesOnly(t *testing.T) {
 	env := uuid.New().String()
 	managed := newGateway(t, models.GatewayRoleIngress, true)
 	var got repositories.GatewayFilterOptions
@@ -333,8 +334,6 @@ func TestResolveEnvGateways_IngressManagedOnly(t *testing.T) {
 
 	require.NoError(t, err)
 	assert.Equal(t, []*models.Gateway{managed}, gateways)
-	require.NotNil(t, got.Hosting)
-	assert.Equal(t, models.GatewayHostingManaged, *got.Hosting)
 	assert.Equal(t, models.IngressGatewayRoles, got.FunctionalityTypeIn)
 }
 
