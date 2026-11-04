@@ -38,6 +38,7 @@ import (
 	"github.com/jackc/pgx/v5/pgconn"
 	"gorm.io/gorm"
 
+	"github.com/wso2/agent-manager/agent-manager-service/clients/openchoreosvc/client"
 	"github.com/wso2/agent-manager/agent-manager-service/clients/thundersvc"
 	"github.com/wso2/agent-manager/agent-manager-service/models"
 	"github.com/wso2/agent-manager/agent-manager-service/reconcile"
@@ -96,7 +97,12 @@ type MCPProxyService struct {
 	resolver               thundersvc.EnvThunderResolver
 	core                   *reconcile.Core
 	kind                   *MCPProxyKind
+	isExternalAgent        externalAgentLookup
 }
+
+// externalAgentLookup reports whether the named agent of an organization is an external agent
+// (one that does not run on the platform). An unknown agent fails with utils.ErrNotFound.
+type externalAgentLookup func(ctx context.Context, ouID, agentName string) (bool, error)
 
 // NewMCPProxyService creates a new MCP proxy service.
 func NewMCPProxyService(
@@ -117,8 +123,10 @@ func NewMCPProxyService(
 	resolver thundersvc.EnvThunderResolver,
 	core *reconcile.Core,
 	kind *MCPProxyKind,
+	ocClient client.OpenChoreoClient,
 ) *MCPProxyService {
 	return &MCPProxyService{
+		isExternalAgent:      externalAgentLookupFrom(ocClient),
 		core:                 core,
 		kind:                 kind,
 		db:                   db,
@@ -143,6 +151,21 @@ func NewMCPProxyService(
 		logger:                 logger,
 		encryptionKey:          encryptionKey,
 		resolver:               resolver,
+	}
+}
+
+// externalAgentLookupFrom reads an agent's provisioning type from its OpenChoreo component. The
+// component is looked up by organization and name only, so no project is passed.
+func externalAgentLookupFrom(ocClient client.OpenChoreoClient) externalAgentLookup {
+	if ocClient == nil {
+		return nil
+	}
+	return func(ctx context.Context, ouID, agentName string) (bool, error) {
+		component, err := ocClient.GetComponent(ctx, ouID, "", agentName)
+		if err != nil {
+			return false, err
+		}
+		return component.Provisioning.Type == string(utils.ExternalAgent), nil
 	}
 }
 
@@ -1493,18 +1516,19 @@ func (s *MCPProxyService) validateMCPEndpointPlacement(
 	return exempt, nil
 }
 
-// mcpProxyAgentUse caches, for one validation, which agents use the proxy.
+// mcpProxyAgentUse caches, for one validation, which platform-hosted agents use the proxy.
 type mcpProxyAgentUse struct {
-	loaded     bool
-	referenced bool
-	boundInEnv map[uuid.UUID]bool
+	loaded             bool
+	internalReferenced bool
+	internalBoundInEnv map[uuid.UUID]bool
 }
 
 // requireNoAgentsForSelfHostedPlacement refuses placing the proxy's binding for envUUID on a
-// self-hosted gateway while agents use the proxy: bound in that environment (a mapping row,
-// which survives the environment being removed from the proxy and re-added), or recording the
-// proxy at all (the binding reconcile or a promotion could bind it there later). Agents only use
-// managed gateways. This covers external agents too, for now, although they don't run in OpenChoreo.
+// self-hosted gateway while platform-hosted agents use the proxy: bound in that environment (a
+// mapping row, which survives the environment being removed from the proxy and re-added), or
+// recording the proxy at all (the binding reconcile or a promotion could bind it there later).
+// Platform-hosted agents only use managed gateways. External agents don't run on the platform, so
+// their use doesn't block a self-hosted placement.
 func (s *MCPProxyService) requireNoAgentsForSelfHostedPlacement(
 	ctx context.Context, orgUUID string, proxyUUID, envUUID uuid.UUID, gateway *models.Gateway, use *mcpProxyAgentUse,
 ) error {
@@ -1516,33 +1540,78 @@ func (s *MCPProxyService) requireNoAgentsForSelfHostedPlacement(
 			return err
 		}
 	}
-	if !use.referenced && !use.boundInEnv[envUUID] {
+	if !use.internalReferenced && !use.internalBoundInEnv[envUUID] {
 		return nil
 	}
-	return fmt.Errorf("%w: environment %q: agents use this MCP proxy, so it cannot be placed on self-hosted gateway %q; agents can only use MCP proxies on managed gateways",
+	return fmt.Errorf("%w: environment %q: agents use this MCP proxy, so it cannot be placed on self-hosted gateway %q; agents can only use MCP proxies on managed gateways; use a separate MCP proxy for self-hosted gateways",
 		utils.ErrInvalidInput, envUUID, gateway.Name)
 }
 
+// loadMCPProxyAgentUse finds the platform-hosted agents among those using the proxy, failing
+// closed: a mapping row whose configuration no longer references the proxy names no agent, so
+// it counts as platform-hosted. Once any referencing agent is platform-hosted every environment
+// is refused, so the remaining agents are not looked up.
 func (s *MCPProxyService) loadMCPProxyAgentUse(ctx context.Context, orgUUID string, proxyUUID uuid.UUID, use *mcpProxyAgentUse) error {
-	use.boundInEnv = map[uuid.UUID]bool{}
-	if s.envMCPMappingRepo != nil {
+	use.internalBoundInEnv = map[uuid.UUID]bool{}
+	var configs []models.AgentConfiguration
+	if s.agentConfigRepo != nil {
+		var err error
+		configs, err = s.agentConfigRepo.ListMCPConfigsByProxy(ctx, orgUUID, proxyUUID)
+		if err != nil {
+			return fmt.Errorf("failed to list agent configurations of proxy %s: %w", proxyUUID, err)
+		}
+	}
+	internal, err := s.anyInternalAgent(ctx, configs)
+	if err != nil {
+		return err
+	}
+	use.internalReferenced = internal
+	if !internal && s.envMCPMappingRepo != nil {
 		mappings, err := s.envMCPMappingRepo.ListByMCPProxy(ctx, proxyUUID)
 		if err != nil {
 			return fmt.Errorf("failed to list agent MCP mappings of proxy %s: %w", proxyUUID, err)
 		}
+		referencing := make(map[uuid.UUID]bool, len(configs))
+		for _, config := range configs {
+			referencing[config.UUID] = true
+		}
 		for _, m := range mappings {
-			use.boundInEnv[m.EnvironmentUUID] = true
+			if !referencing[m.ConfigUUID] {
+				use.internalBoundInEnv[m.EnvironmentUUID] = true
+			}
 		}
-	}
-	if s.agentConfigRepo != nil {
-		configs, err := s.agentConfigRepo.ListMCPConfigsByProxy(ctx, orgUUID, proxyUUID)
-		if err != nil {
-			return fmt.Errorf("failed to list agent configurations of proxy %s: %w", proxyUUID, err)
-		}
-		use.referenced = len(configs) > 0
 	}
 	use.loaded = true
 	return nil
+}
+
+// anyInternalAgent reports whether any configuration belongs to a platform-hosted agent, asking
+// once per agent. An agent OpenChoreo doesn't know is skipped: its configuration is an orphan.
+// Any other lookup failure is returned, refusing the placement.
+func (s *MCPProxyService) anyInternalAgent(ctx context.Context, configs []models.AgentConfiguration) (bool, error) {
+	type agentKey struct{ ouID, name string }
+	seen := map[agentKey]bool{}
+	for _, config := range configs {
+		key := agentKey{config.OUID, config.AgentID}
+		if seen[key] {
+			continue
+		}
+		seen[key] = true
+		if s.isExternalAgent == nil {
+			return true, nil
+		}
+		external, err := s.isExternalAgent(ctx, config.OUID, config.AgentID)
+		if errors.Is(err, utils.ErrNotFound) {
+			continue
+		}
+		if err != nil {
+			return false, fmt.Errorf("failed to determine the type of agent %s using the MCP proxy: %w", config.AgentID, err)
+		}
+		if !external {
+			return true, nil
+		}
+	}
+	return false, nil
 }
 
 // anchorGatewaysForEnvironment returns the gateways artifactUUID is placed on, and whether
