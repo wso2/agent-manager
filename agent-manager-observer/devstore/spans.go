@@ -259,7 +259,7 @@ FROM spans WHERE %s ORDER BY start_ns %s, span_id LIMIT ?`, where.sql, sortDirec
 		}
 		sp.StartTime, sp.EndTime = time.Unix(0, startNs).UTC(), time.Unix(0, endNs).UTC()
 		sp.DurationNs = endNs - startNs
-		sp.Status = spanStatus(statusCode, statusMessage)
+		sp.Status = storedStatus(statusCode, statusMessage)
 		if withAttrs {
 			if sp.Attributes, sp.ResourceAttributes, err = decodeAttributes(attrs, resAttrs); err != nil {
 				return nil, 0, err
@@ -290,14 +290,14 @@ FROM spans WHERE trace_id = ? AND span_id = ?`, traceID, spanID).
 	d.SpanID = spanID
 	d.StartTime, d.EndTime = time.Unix(0, startNs).UTC(), time.Unix(0, endNs).UTC()
 	d.DurationNs = endNs - startNs
-	d.Status = spanStatus(statusCode, statusMessage)
+	d.Status = storedStatus(statusCode, statusMessage)
 	if d.Attributes, d.ResourceAttributes, err = decodeAttributes(attrs, resAttrs); err != nil {
 		return nil, err
 	}
 	return &d, nil
 }
 
-func spanStatus(code, message string) *observer.SpanStatus {
+func storedStatus(code, message string) *observer.SpanStatus {
 	if code == "" {
 		code = "unset"
 	}
