@@ -69,7 +69,7 @@ func RequirePlatformAdminOU() func(http.HandlerFunc) http.HandlerFunc {
 				slog.Warn("RequirePlatformAdminOU rejected",
 					"reason", "PLATFORM_ADMIN_OU_ID not configured",
 					"correlationId", correlationID, "path", r.URL.Path)
-				recordAuthzDeny(r, "platform-admin-ou-not-configured")
+				RecordAuthzDeny(r, "platform-admin-ou-not-configured")
 				utils.WriteErrorResponse(w, http.StatusForbidden, "forbidden")
 				return
 			}
@@ -80,7 +80,7 @@ func RequirePlatformAdminOU() func(http.HandlerFunc) http.HandlerFunc {
 				slog.Warn("RequirePlatformAdminOU rejected",
 					"reason", "missing ou identity in token",
 					"correlationId", correlationID, "path", r.URL.Path)
-				recordAuthzDeny(r, "missing-ou-identity")
+				RecordAuthzDeny(r, "missing-ou-identity")
 				utils.WriteErrorResponse(w, http.StatusForbidden, "forbidden")
 				return
 			}
@@ -94,7 +94,7 @@ func RequirePlatformAdminOU() func(http.HandlerFunc) http.HandlerFunc {
 					"reason", "caller is not the platform admin organization",
 					"correlationId", correlationID,
 					"sub", claims.Sub, "ouId", claims.OuId, "path", r.URL.Path)
-				recordAuthzDeny(r, "not-platform-admin-ou", audit.Detail("callerOuId", claims.OuId))
+				RecordAuthzDeny(r, "not-platform-admin-ou", audit.Detail("callerOuId", claims.OuId))
 				utils.WriteErrorResponse(w, http.StatusForbidden, "forbidden")
 				return
 			}

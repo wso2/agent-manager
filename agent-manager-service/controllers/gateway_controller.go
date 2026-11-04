@@ -201,14 +201,18 @@ func handleGatewayErrors(w http.ResponseWriter, err error, fallbackMsg string) {
 	}
 }
 
-// refusedForeignBodyOrg writes a 403 and reports true when a request body's
-// optional orgId names an org other than the caller's. The org always comes
-// from the token; the body field is accepted only so that existing clients
-// that send it keep working.
-func refusedForeignBodyOrg(w http.ResponseWriter, bodyOrg *string, callerOUID string) bool {
+// refusedForeignBodyOrg records an authorization denial, writes a 403 and
+// reports true when a request body's optional orgId names an org other than
+// the caller's. The org always comes from the token; the body field is
+// accepted only so that existing clients that send it keep working.
+func refusedForeignBodyOrg(w http.ResponseWriter, r *http.Request, bodyOrg *string, callerOUID string) bool {
 	if bodyOrg == nil || *bodyOrg == "" || strings.EqualFold(*bodyOrg, callerOUID) {
 		return false
 	}
+	middleware.RecordAuthzDeny(r, "body-org-mismatch",
+		audit.Org(callerOUID),
+		audit.Detail("requestedOrgId", *bodyOrg),
+	)
 	utils.WriteErrorResponse(w, http.StatusForbidden, "orgId does not match the caller's organization")
 	return true
 }
@@ -224,7 +228,7 @@ func (c *gatewayController) RegisterGateway(w http.ResponseWriter, r *http.Reque
 	}
 
 	ouID := middleware.OUIDFromRequest(r)
-	if refusedForeignBodyOrg(w, req.OrgId, ouID) {
+	if refusedForeignBodyOrg(w, r, req.OrgId, ouID) {
 		return
 	}
 
@@ -740,7 +744,7 @@ func (c *gatewayController) rotateGatewayToken(w http.ResponseWriter, r *http.Re
 			utils.WriteErrorResponse(w, http.StatusBadRequest, "Invalid request body")
 			return
 		}
-		if refusedForeignBodyOrg(w, req.OrgId, ouID) {
+		if refusedForeignBodyOrg(w, r, req.OrgId, ouID) {
 			return
 		}
 	}

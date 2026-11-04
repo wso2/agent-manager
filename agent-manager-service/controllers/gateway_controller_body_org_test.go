@@ -33,7 +33,7 @@ import (
 )
 
 const (
-	bodyOrgTestCallerOUID = "11111111-1111-1111-1111-111111111111"
+	bodyOrgTestCallerOUID = "aaaaaaaa-1111-1111-1111-11111111111a"
 	bodyOrgTestOtherOUID  = "22222222-2222-2222-2222-222222222222"
 )
 
@@ -59,10 +59,23 @@ func withBodyOrg(fields, orgID string) string {
 	return "{" + fields + `"orgId":"` + orgID + `"}`
 }
 
-func bodyOrgTestRequest(method, target, body string) *http.Request {
+func bodyOrgTestRequest(method, target, body string) (*http.Request, *capturingRecorder) {
 	req := httptest.NewRequest(method, target, strings.NewReader(body))
+	recorder := &capturingRecorder{}
 	ctx := middleware.WithResolvedOrg(req.Context(), middleware.ResolvedOrg{OUID: bodyOrgTestCallerOUID})
-	return req.WithContext(audit.WithRecorder(ctx, audit.NewNoopRecorder()))
+	return req.WithContext(audit.WithRecorder(ctx, recorder)), recorder
+}
+
+// assertBodyOrgDenied checks the refusal and its single audit record, which
+// names the org the body asked for.
+func assertBodyOrgDenied(t *testing.T, w *httptest.ResponseRecorder, recorder *capturingRecorder, requestedOrg string) {
+	t.Helper()
+	assert.Equal(t, http.StatusForbidden, w.Code, "response body: %s", w.Body.String())
+	require.Len(t, recorder.events, 1)
+	denial := recorder.events[0]
+	assert.Equal(t, audit.ActionAuthzDeny, denial.Action)
+	assert.Equal(t, "body-org-mismatch", denial.Details["reason"])
+	assert.Equal(t, requestedOrg, denial.Details["requestedOrgId"])
 }
 
 func TestRegisterGateway_BodyOrgID(t *testing.T) {
@@ -70,11 +83,12 @@ func TestRegisterGateway_BodyOrgID(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			h := newRegisterHarness()
 			body := withBodyOrg(`"name":"gw-1","displayName":"Gateway","gatewayType":"BOTH","vhost":"gw.example.com"`, tt.orgID)
+			req, recorder := bodyOrgTestRequest(http.MethodPost, "/orgs/o1/gateways", body)
 			w := httptest.NewRecorder()
-			h.ctrl.RegisterGateway(w, bodyOrgTestRequest(http.MethodPost, "/orgs/o1/gateways", body))
+			h.ctrl.RegisterGateway(w, req)
 
 			if tt.wantForbidden {
-				assert.Equal(t, http.StatusForbidden, w.Code, "response body: %s", w.Body.String())
+				assertBodyOrgDenied(t, w, recorder, tt.orgID)
 				assert.Nil(t, h.created, "no gateway may be stored")
 				return
 			}
@@ -98,13 +112,13 @@ func TestRotateGatewayToken_BodyOrgID(t *testing.T) {
 			}
 			ctrl := NewGatewayController(services.NewPlatformGatewayService(gatewayRepo, nil), nil, nil)
 
-			req := bodyOrgTestRequest(http.MethodPost, "/orgs/o1/gateways/gw-uuid/tokens", withBodyOrg("", tt.orgID))
+			req, recorder := bodyOrgTestRequest(http.MethodPost, "/orgs/o1/gateways/gw-uuid/tokens", withBodyOrg("", tt.orgID))
 			req.SetPathValue("gatewayID", "gw-uuid")
 			w := httptest.NewRecorder()
 			ctrl.RotateGatewayToken(w, req)
 
 			if tt.wantForbidden {
-				assert.Equal(t, http.StatusForbidden, w.Code, "response body: %s", w.Body.String())
+				assertBodyOrgDenied(t, w, recorder, tt.orgID)
 				assert.Empty(t, gatewayRepo.GetByUUIDCalls(), "no gateway may be looked up")
 				return
 			}

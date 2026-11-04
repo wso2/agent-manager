@@ -2477,6 +2477,14 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
+        "403":
+          description: >-
+            Forbidden - insufficient permissions, or `orgId` names an organization other than the
+            caller's
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
         "409":
           description: >-
             Conflict - the gateway already exists, or `environmentIds` names more than one environment
@@ -2989,6 +2997,14 @@ paths:
                 $ref: "#/components/schemas/ErrorResponse"
         "401":
           description: Unauthorized - invalid or missing authentication
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "403":
+          description: >-
+            Forbidden - insufficient permissions, or `orgId` names an organization other than the
+            caller's
           content:
             application/json:
               schema:
