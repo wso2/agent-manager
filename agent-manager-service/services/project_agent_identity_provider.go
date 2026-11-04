@@ -124,12 +124,35 @@ type ProjectAgentIdentitySecretRequest struct {
 // ProjectAgentIdentitySecretProvider is an optional capability of a
 // ProjectAgentIdentityProvider: it replaces the client secret of an existing
 // AgentID in one environment. AMS owns the secret value (like Promote), so
-// the identity platform never generates it.
+// the identity control plane never generates it.
 type ProjectAgentIdentitySecretProvider interface {
 	// SetSecret makes ClientSecret the only valid secret of the AgentID in request.Environment.
 	// MUST set the value unconditionally (overwrite, idempotent) and return only after the
 	// environment's identity service accepts it; a retry with the same request must succeed.
 	SetSecret(ctx context.Context, request ProjectAgentIdentitySecretRequest) error
+}
+
+// ProjectAgentIdentityDeleteRequest names one AgentID to remove from one environment.
+type ProjectAgentIdentityDeleteRequest struct {
+	OrganizationID string
+	ProjectID      string
+	ProjectName    string
+	Environment    string
+	AgentName      string
+	AgentID        string
+	ClientID       string
+	// Source reports that Environment is the project's pipeline source, where the control plane holds the AgentID.
+	Source bool
+}
+
+// ProjectAgentIdentityDeletionProvider is an optional capability of a
+// ProjectAgentIdentityProvider: it removes an AgentID from one environment.
+type ProjectAgentIdentityDeletionProvider interface {
+	// DeleteAgentIdentity removes request.AgentID from request.Environment. It is called for the
+	// source environment first (the AgentID leaves the control plane configuration), then for each
+	// promoted environment. MUST be idempotent: an AgentID that is already gone is success. It
+	// returns only after the environment's identity service has accepted the removal.
+	DeleteAgentIdentity(ctx context.Context, request ProjectAgentIdentityDeleteRequest) error
 }
 
 // errProjectAgentIdentitySecretUnavailable is returned by secret rotation and
@@ -158,6 +181,7 @@ func (s *agentThunderProvisioningService) SetProjectAgentIdentityProvider(
 		s.identityManagementMode = thundersvc.IdentityManagementLegacyDirect
 		s.projectIdentityProvider = nil
 		s.projectIdentitySecretProvider = nil
+		s.projectIdentityDeletionProvider = nil
 		return nil
 	case thundersvc.IdentityManagementCPManaged:
 		if provider == nil {
@@ -168,6 +192,9 @@ func (s *agentThunderProvisioningService) SetProjectAgentIdentityProvider(
 		// Optional capability: rotation and revocation fail closed without it.
 		secretProvider, _ := provider.(ProjectAgentIdentitySecretProvider)
 		s.projectIdentitySecretProvider = secretProvider
+		// Optional capability: AgentID deletion fails closed without it.
+		deletionProvider, _ := provider.(ProjectAgentIdentityDeletionProvider)
+		s.projectIdentityDeletionProvider = deletionProvider
 		return nil
 	default:
 		return errors.New("project AgentID provisioning supports only LEGACY_DIRECT or CP_MANAGED mode")

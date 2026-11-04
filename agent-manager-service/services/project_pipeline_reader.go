@@ -28,7 +28,7 @@ import (
 // ProjectPipelineReader reports a project's environment order: its source
 // (first) environment and every environment with its outgoing promotion edges.
 // Today the order comes from the OpenChoreo project deployment pipeline, the
-// same source PromoteAgent uses. A deployment whose identity platform maps
+// same source PromoteAgent uses. A deployment whose identity control plane maps
 // projects itself can supply another implementation without any other change.
 type ProjectPipelineReader interface {
 	ProjectPipeline(ctx context.Context, organizationID, projectName string) (source string, environments []ProjectIdentityEnvironment, err error)

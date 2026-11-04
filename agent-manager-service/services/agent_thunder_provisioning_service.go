@@ -242,6 +242,10 @@ type agentThunderProvisioningService struct {
 	// implements ProjectAgentIdentitySecretProvider, else nil. Secret rotation
 	// and revocation in CP_MANAGED mode require it.
 	projectIdentitySecretProvider ProjectAgentIdentitySecretProvider
+	// projectIdentityDeletionProvider is projectIdentityProvider when it also
+	// implements ProjectAgentIdentityDeletionProvider, else nil. Deleting an
+	// agent's AgentIDs in CP_MANAGED mode requires it.
+	projectIdentityDeletionProvider ProjectAgentIdentityDeletionProvider
 	// pipelineReader supplies the project's environment order in CP_MANAGED
 	// mode (see ProjectPipelineReader). Set once at startup.
 	pipelineReader ProjectPipelineReader
@@ -1181,11 +1185,11 @@ func (s *agentThunderProvisioningService) RegenerateSecret(ctx context.Context, 
 
 	var newSecret string
 	if s.identityManagementMode == thundersvc.IdentityManagementCPManaged {
-		// CP_MANAGED: AMS owns the secret value and the identity platform is
+		// CP_MANAGED: AMS owns the secret value and the identity control plane is
 		// authoritative, so it must accept the secret BEFORE anything is stored
 		// or returned. If it succeeded but the store below fails, the call errors
 		// and a retry simply regenerates and sets a new secret; a secret the
-		// identity platform did not accept is never stored or returned.
+		// identity control plane did not accept is never stored or returned.
 		newSecret, err = s.setProjectAgentIdentitySecret(ctx, ouID, projectName, agentName, envName, binding, "")
 		if err != nil {
 			return "", "", "", err
@@ -1295,7 +1299,7 @@ func (s *agentThunderProvisioningService) RevokeSecret(ctx context.Context, ouID
 	// Rotating without storing the result is deliberate: revoke is a kill
 	// switch, not "give me a fresh usable one" — that is what regenerate is for.
 	if s.identityManagementMode == thundersvc.IdentityManagementCPManaged {
-		// CP_MANAGED: the identity platform is told a freshly generated secret
+		// CP_MANAGED: the identity control plane is told a freshly generated secret
 		// that is discarded here (never logged, stored or returned), so the old
 		// secret stops working there. The stored copy is removed below.
 		if _, err := s.setProjectAgentIdentitySecret(ctx, ouID, projectName, agentName, envName, binding, "revoke (rotate) secret"); err != nil {
@@ -1464,7 +1468,17 @@ func (s *agentThunderProvisioningService) DeleteAllBindings(ctx context.Context,
 	// however long its siblings' Thunder/OpenBao calls take, even though
 	// nothing about it depends on them.
 	injector := s.getWorkloadInjector()
-	for i, b := range bindings {
+	// CP_MANAGED removes the source environment's AgentID first (it leaves the
+	// control plane configuration) and only then the promoted ones. A source
+	// deletion failure skips the promoted deletions: removing them while the
+	// control plane still holds the AgentID is not valid. Secret cleanup below
+	// still runs for every binding either way.
+	cpManaged := s.identityManagementMode == thundersvc.IdentityManagementCPManaged
+	order := deletionOrder(bindings, cpManaged)
+	sourceDeleteFailed := false
+	warnedNoDeletionProvider := false
+	for _, i := range order {
+		b := bindings[i]
 		func() {
 			defer releases[i]()
 
@@ -1495,6 +1509,36 @@ func (s *agentThunderProvisioningService) DeleteAllBindings(ctx context.Context,
 			if b.ThunderAgentID == "" {
 				return // never made it to Thunder — nothing to delete there
 			}
+			if cpManaged {
+				// Never the legacy per-environment client: the control plane owns this AgentID.
+				isSource := b.PromotionSource == ""
+				if !isSource && sourceDeleteFailed {
+					s.logger.Warn("Skipping promoted AgentID deletion: the source environment's AgentID was not deleted",
+						"ouID", ouID, "bindingID", b.ID, "agentName", agentName, "env", b.EnvironmentName)
+					return
+				}
+				if s.projectIdentityDeletionProvider == nil {
+					if !warnedNoDeletionProvider {
+						warnedNoDeletionProvider = true
+						s.logger.Warn("AgentIDs left in the identity control plane: no project AgentID deletion provider is configured",
+							"ouID", ouID, "projectName", projectName, "agentName", agentName)
+					}
+					return
+				}
+				if err := s.projectIdentityDeletionProvider.DeleteAgentIdentity(ctx, ProjectAgentIdentityDeleteRequest{
+					OrganizationID: ouID, ProjectID: projectName, ProjectName: projectName,
+					Environment: b.EnvironmentName, AgentName: agentName,
+					AgentID: b.ThunderAgentID, ClientID: b.ThunderClientID, Source: isSource,
+				}); err != nil {
+					if isSource {
+						sourceDeleteFailed = true
+					}
+					s.logger.Warn("Failed to delete project AgentID from the identity control plane",
+						"ouID", ouID, "projectName", projectName, "agentName", agentName, "env", b.EnvironmentName,
+						"source", isSource, "error", err)
+				}
+				return
+			}
 			thunderClient, err := ResolveEnvThunderClient(ctx, s.envResolver, ouID, b.EnvironmentName)
 			if err != nil {
 				s.logger.Warn("Env-thunder resolver error during agent binding cleanup", "ouID", ouID, "bindingID", b.ID, "agentName", agentName, "env", b.EnvironmentName, "error", err)
@@ -1505,6 +1549,31 @@ func (s *agentThunderProvisioningService) DeleteAllBindings(ctx context.Context,
 			}
 		}()
 	}
+}
+
+// deletionOrder returns the order in which DeleteAllBindings cleans up
+// bindings: as given, except in CP_MANAGED mode where the source binding (empty
+// PromotionSource) comes first so its AgentID leaves the control plane before
+// any promoted environment's AgentID is removed.
+func deletionOrder(bindings []models.AgentThunderClient, sourceFirst bool) []int {
+	order := make([]int, 0, len(bindings))
+	if sourceFirst {
+		for i, b := range bindings {
+			if b.PromotionSource == "" {
+				order = append(order, i)
+			}
+		}
+		for i, b := range bindings {
+			if b.PromotionSource != "" {
+				order = append(order, i)
+			}
+		}
+		return order
+	}
+	for i := range bindings {
+		order = append(order, i)
+	}
+	return order
 }
 
 // systemActorAgentThunderReconciler identifies the AgentID provisioning
