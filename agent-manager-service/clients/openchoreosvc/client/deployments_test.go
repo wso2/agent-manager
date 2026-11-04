@@ -28,6 +28,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/wso2/agent-manager/agent-manager-service/clients/openchoreosvc/gen"
+	"github.com/wso2/agent-manager/agent-manager-service/models"
 )
 
 func TestMergeAgentAPIKeySecretRef(t *testing.T) {
@@ -629,4 +630,95 @@ func TestGetReleaseBindingServiceURL(t *testing.T) {
 		_, err := serve(t, http.StatusInternalServerError).GetReleaseBindingServiceURL(context.Background(), "acme", "myagent", "dev")
 		require.Error(t, err)
 	})
+}
+
+// Deploy writes the deployed build's health checks onto the binding in the same update as
+// the release: its checks replace the earlier build's, an explicit nil (the build has none)
+// removes them, and leaving the key out (the build couldn't be looked up) keeps them. Other
+// component-type settings (here replicas) are kept as before.
+func TestEnsureReleaseAndBinding_ReplacesOrRemovesTheBuildsHealthChecks(t *testing.T) {
+	const componentName = "myagent"
+	const environment = "dev"
+	const bindingName = componentName + "-" + environment
+
+	// The binding as an earlier build left it: its readiness check plus an environment setting.
+	bindingFromEarlierBuild := func() gen.ReleaseBinding {
+		return gen.ReleaseBinding{
+			Metadata: gen.ObjectMeta{Name: bindingName},
+			Spec: &gen.ReleaseBindingSpec{
+				Environment: environment,
+				Owner: struct {
+					ComponentName string `json:"componentName"`
+					ProjectName   string `json:"projectName"`
+				}{ComponentName: componentName, ProjectName: "myproject"},
+				ComponentTypeEnvironmentConfigs: &map[string]interface{}{
+					"replicas":     float64(2),
+					"healthChecks": map[string]interface{}{"readiness": map[string]interface{}{"type": "TCP"}},
+				},
+			},
+		}
+	}
+
+	// deployWith runs EnsureReleaseAndBinding against a fake OpenChoreo whose binding exists
+	// (existingBinding) or loses a create race (adoption), and returns the component-type
+	// settings written back.
+	deployWith := func(t *testing.T, adoption bool, componentTypeConfigs map[string]interface{}) map[string]interface{} {
+		t.Helper()
+		var written gen.ReleaseBinding
+		srv := newTestClient(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			switch {
+			case r.Method == http.MethodPost && strings.HasSuffix(r.URL.Path, "/generate-release"):
+				w.WriteHeader(http.StatusCreated)
+				require.NoError(t, json.NewEncoder(w).Encode(gen.ComponentRelease{Metadata: gen.ObjectMeta{Name: "release-2"}}))
+			case r.Method == http.MethodGet && strings.HasSuffix(r.URL.Path, "/releasebindings"):
+				items := []gen.ReleaseBinding{bindingFromEarlierBuild()}
+				if adoption {
+					items = []gen.ReleaseBinding{}
+				}
+				w.WriteHeader(http.StatusOK)
+				require.NoError(t, json.NewEncoder(w).Encode(gen.ReleaseBindingList{Items: items}))
+			case r.Method == http.MethodPost && strings.HasSuffix(r.URL.Path, "/releasebindings"):
+				w.WriteHeader(http.StatusConflict)
+				require.NoError(t, json.NewEncoder(w).Encode(gen.Conflict{Error: "already exists"}))
+			case r.Method == http.MethodGet && strings.HasSuffix(r.URL.Path, "/releasebindings/"+bindingName):
+				w.WriteHeader(http.StatusOK)
+				require.NoError(t, json.NewEncoder(w).Encode(bindingFromEarlierBuild()))
+			case r.Method == http.MethodPut && strings.HasSuffix(r.URL.Path, "/releasebindings/"+bindingName):
+				require.NoError(t, json.NewDecoder(r.Body).Decode(&written))
+				w.WriteHeader(http.StatusOK)
+				require.NoError(t, json.NewEncoder(w).Encode(written))
+			default:
+				t.Fatalf("unexpected request: %s %s", r.Method, r.URL.Path)
+			}
+		}))
+		require.NoError(t, srv.EnsureReleaseAndBinding(context.Background(), "acme", "myproject", componentName, environment,
+			nil, nil, nil, componentTypeConfigs))
+		require.NotNil(t, written.Spec, "expected the binding to be written")
+		require.NotNil(t, written.Spec.ComponentTypeEnvironmentConfigs)
+		return *written.Spec.ComponentTypeEnvironmentConfigs
+	}
+
+	httpCheck := "HTTP"
+	deployedBuildsChecks := &models.HealthChecks{Readiness: &models.HealthCheck{Type: &httpCheck}}
+
+	for _, path := range []struct {
+		name     string
+		adoption bool
+	}{{"existing-binding update path", false}, {"409-conflict-adoption path", true}} {
+		t.Run(path.name+": the deployed build's checks replace the earlier build's", func(t *testing.T) {
+			settings := deployWith(t, path.adoption, map[string]interface{}{"healthChecks": deployedBuildsChecks})
+			assert.Equal(t, map[string]interface{}{"readiness": map[string]interface{}{"type": "HTTP"}}, settings["healthChecks"])
+			assert.Equal(t, float64(2), settings["replicas"], "other settings are kept")
+		})
+		t.Run(path.name+": a build without checks removes the earlier build's", func(t *testing.T) {
+			settings := deployWith(t, path.adoption, map[string]interface{}{"healthChecks": nil})
+			assert.NotContains(t, settings, "healthChecks")
+			assert.Equal(t, float64(2), settings["replicas"], "other settings are kept")
+		})
+		t.Run(path.name+": no healthChecks key keeps the current ones", func(t *testing.T) {
+			settings := deployWith(t, path.adoption, map[string]interface{}{})
+			assert.Equal(t, map[string]interface{}{"readiness": map[string]interface{}{"type": "TCP"}}, settings["healthChecks"])
+			assert.Equal(t, float64(2), settings["replicas"], "other settings are kept")
+		})
+	}
 }

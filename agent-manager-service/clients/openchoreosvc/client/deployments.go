@@ -644,6 +644,13 @@ func (c *openChoreoClient) EnsureReleaseAndBinding(
 				if _, ok := (*ctConfigs)["runtimeClassName"]; !ok {
 					delete(*rb.Spec.ComponentTypeEnvironmentConfigs, "runtimeClassName")
 				}
+				// healthChecks belong to the build this binding now runs. The caller sends the
+				// build's checks to replace the old ones (copied above), an explicit nil to clear
+				// an earlier build's (the build has none), or nothing to keep them unchanged
+				// (the build couldn't be looked up).
+				if value, ok := (*ctConfigs)["healthChecks"]; ok && value == nil {
+					delete(*rb.Spec.ComponentTypeEnvironmentConfigs, "healthChecks")
+				}
 			}
 			// Must run after the ComponentTypeEnvironmentConfigs merge above, which would
 			// otherwise leave a stale restartedAt untouched rather than bumping it.
@@ -711,6 +718,10 @@ func (c *openChoreoClient) EnsureReleaseAndBinding(
 				}
 				if _, ok := (*ctConfigs)["runtimeClassName"]; !ok {
 					delete(*rb.Spec.ComponentTypeEnvironmentConfigs, "runtimeClassName")
+				}
+				// As above: an explicit nil clears an earlier build's health checks.
+				if value, ok := (*ctConfigs)["healthChecks"]; ok && value == nil {
+					delete(*rb.Spec.ComponentTypeEnvironmentConfigs, "healthChecks")
 				}
 			}
 			bumpRestartedAt(rb)

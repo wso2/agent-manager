@@ -506,3 +506,23 @@ func TestSetHealthChecksWorkflowParameter_SavesEveryFieldUnderTheTemplateName(t 
 		"initialDelaySeconds": int32(0), "periodSeconds": int32(5), "timeoutSeconds": int32(2), "failureThreshold": int32(6),
 	}}, params["healthChecks"])
 }
+
+// A build read from OpenChoreo carries the health checks its WorkflowRun recorded, which
+// deploy uses to give an environment that build's own checks.
+func TestToWorkflowRunBuild_ReturnsTheBuildsHealthChecks(t *testing.T) {
+	var run gen.WorkflowRun
+	require.NoError(t, json.Unmarshal([]byte(`{
+	  "metadata": {"name": "support-bot-1"},
+	  "spec": {"workflow": {"name": "amp-docker", "parameters": {
+	    "healthChecks": {"readiness": {"type": "HTTP", "path": "/health", "periodSeconds": 3}}
+	  }}}
+	}`), &run))
+
+	build, err := toWorkflowRunBuild(&run, "support-bot", "proj")
+
+	require.NoError(t, err)
+	require.NotNil(t, build.HealthChecks)
+	require.NotNil(t, build.HealthChecks.Readiness)
+	assert.Equal(t, "/health", *build.HealthChecks.Readiness.Path)
+	assert.Equal(t, int32(3), *build.HealthChecks.Readiness.PeriodSeconds)
+}

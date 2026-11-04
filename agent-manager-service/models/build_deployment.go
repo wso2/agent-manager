@@ -98,6 +98,9 @@ type BuildResponse struct {
 	ImageId         string          `json:"imageId,omitempty"`
 	EndedAt         *time.Time      `json:"endedAt,omitempty"`
 	BuildParameters BuildParameters `json:"buildParameters"`
+	// HealthChecks are the health checks this build recorded when it started. Nil when it
+	// has none, so an environment running this build uses the defaults.
+	HealthChecks *HealthChecks `json:"healthChecks,omitempty"`
 }
 
 // BuildParameters represents parameters for a build

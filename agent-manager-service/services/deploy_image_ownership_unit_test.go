@@ -330,3 +330,68 @@ func TestDeployAgent_RejectionHintNamesTheKind(t *testing.T) {
 		assert.Contains(t, verr.Message, "one of the agent's builds")
 	})
 }
+
+// healthChecksForImage finds the build behind the image being deployed and returns the
+// health checks it recorded, so an environment runs each build with its own checks.
+func TestHealthChecksForImage(t *testing.T) {
+	httpCheck, tcpCheck := "HTTP", "TCP"
+	ownBuildChecks := &models.HealthChecks{Readiness: &models.HealthCheck{Type: &httpCheck}}
+	kindBuildChecks := &models.HealthChecks{Liveness: &models.HealthCheck{Type: &tcpCheck}}
+	const kindBuildName = "kind-src-build-7"
+	const goneKindBuildImage = "registry.example.com/acme/kind-src:v3"
+
+	newService := func(listBuildsErr error) *agentManagerService {
+		oc := &clientmocks.OpenChoreoClientMock{
+			ListBuildsFunc: func(context.Context, string, string, string) ([]*models.BuildResponse, error) {
+				if listBuildsErr != nil {
+					return nil, listBuildsErr
+				}
+				return []*models.BuildResponse{{ImageId: ownBuildImage, HealthChecks: ownBuildChecks}}, nil
+			},
+			GetBuildByNameFunc: func(_ context.Context, _, buildName string) (*models.BuildDetailsResponse, error) {
+				if buildName != kindBuildName {
+					return nil, utils.ErrNotFound
+				}
+				return &models.BuildDetailsResponse{BuildResponse: models.BuildResponse{HealthChecks: kindBuildChecks}}, nil
+			},
+		}
+		kindRepo := &repomocks.AgentKindRepositoryMock{
+			GetKindFunc: func(_ context.Context, _, name string) (*models.AgentKind, error) {
+				k := &models.AgentKind{ID: uuid.New(), Name: name}
+				k.Versions = []models.AgentKindVersion{
+					{Version: "2.0.0", ImageId: kindVersionImage, BuildName: kindBuildName, Kind: k},
+					{Version: "3.0.0", ImageId: goneKindBuildImage, BuildName: "deleted-build", Kind: k},
+				}
+				return k, nil
+			},
+		}
+		return &agentManagerService{ocClient: oc, agentKindService: newKindService(kindRepo, oc), logger: discardLogger()}
+	}
+
+	tests := []struct {
+		name     string
+		kindName string
+		image    string
+		want     *models.HealthChecks
+	}{
+		{"the image of one of the agent's builds gets that build's checks", "", ownBuildImage, ownBuildChecks},
+		{"a catalog version's image gets the checks of the build it was published from", "my-kind", kindVersionImage, kindBuildChecks},
+		{"a catalog version whose build record is gone gets the defaults", "my-kind", goneKindBuildImage, nil},
+		{"an image with no build gets the defaults", "", deployedImage, nil},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got, err := newService(nil).healthChecksForImage(context.Background(), "acme", "proj1", "my-agent", tt.kindName, tt.image)
+			require.NoError(t, err)
+			assert.Equal(t, tt.want, got)
+		})
+	}
+
+	// A failed lookup is an error, not "no build": treating it as no build would quietly
+	// switch the environment to the default checks.
+	t.Run("a failed build list fails the lookup", func(t *testing.T) {
+		_, err := newService(errors.New("openchoreo unavailable")).healthChecksForImage(
+			context.Background(), "acme", "proj1", "my-agent", "", ownBuildImage)
+		require.Error(t, err)
+	})
+}

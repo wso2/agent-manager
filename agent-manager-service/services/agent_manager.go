@@ -670,6 +670,62 @@ func (s *agentManagerService) requireImageOwnedByAgent(ctx context.Context, ouID
 		fmt.Sprintf("imageId %q is not a build, kind version or current deployment of agent %q", imageID, agentName))
 }
 
+// healthChecksForImage returns the health checks recorded by the build that produced the
+// image being deployed, so an environment runs each build with that build's own checks.
+// A deploy names only the image, so the build is found from it:
+//
+//  1. one of the agent's own builds produced the image: that build's checks;
+//  2. the agent was created from a catalog version with this image: the checks of the
+//     build the version was published from;
+//  3. no build is found (e.g. its record was deleted): nil, so the environment uses the
+//     default checks rather than keeping another build's.
+//
+// Nil also means the build itself recorded no health checks. A lookup failure is returned
+// rather than treated as "no build", which would quietly switch the environment to the
+// defaults; the caller decides what a failed lookup means.
+func (s *agentManagerService) healthChecksForImage(ctx context.Context, ouID, projectName, agentName, kindName, imageID string) (*models.HealthChecks, error) {
+	// Step 1: the agent's own builds.
+	builds, err := s.ocClient.ListBuilds(ctx, ouID, projectName, agentName)
+	if err != nil {
+		return nil, fmt.Errorf("failed to list builds to find the deployed image's health checks: %w", err)
+	}
+	for _, build := range builds {
+		if build != nil && build.ImageId == imageID {
+			return build.HealthChecks, nil
+		}
+	}
+
+	// Step 2: the catalog version the agent was created from.
+	if kindName != "" {
+		kind, err := s.agentKindService.GetKind(ctx, ouID, kindName)
+		// The kind was deleted: none of its versions can name the build, so no build is found.
+		if errors.Is(err, utils.ErrAgentKindNotFound) {
+			kind = &models.AgentKindResponse{}
+		} else if err != nil {
+			return nil, fmt.Errorf("failed to read agent kind %q to find the deployed image's health checks: %w", kindName, err)
+		}
+		for _, version := range kind.Versions {
+			if version.ImageId != imageID || version.BuildName == "" {
+				continue
+			}
+			build, err := s.ocClient.GetBuildByName(ctx, ouID, version.BuildName)
+			// The version's build record is gone (e.g. its source agent was deleted): no build found.
+			if errors.Is(err, utils.ErrNotFound) {
+				break
+			}
+			if err != nil {
+				return nil, fmt.Errorf("failed to read build %q of kind version %q: %w", version.BuildName, version.Version, err)
+			}
+			return build.HealthChecks, nil
+		}
+	}
+
+	// Step 3: no build found.
+	s.logger.Warn("No build found for the deployed image; the environment uses the default health checks",
+		"agentName", agentName, "ouID", ouID, "projectName", projectName, "imageId", imageID)
+	return nil, nil //nolint:nilnil // documented contract: nil means the default health checks
+}
+
 // kindBuildInputInterface reads the input interface off the build that produced a
 // kind version's image. Returns nil when the version has no build, or the build can
 // no longer be read, so callers fall back rather than failing over it.
@@ -3378,6 +3434,18 @@ func (s *agentManagerService) DeployAgent(ctx context.Context, ouID string, proj
 		return "", err
 	}
 
+	// The health checks of the build being deployed, written onto the environment in the same
+	// update as its release. Nil means the default health checks. If the build can't be looked
+	// up (e.g. OpenChoreo's build list is unavailable), the environment keeps the health checks
+	// it already has: a redeploy of what it runs must still work then, as the ownership check
+	// above allows, and those are most likely that build's checks already.
+	deployHealthChecks, healthChecksErr := s.healthChecksForImage(ctx, ouID, projectName, agentName, agent.KindName, req.ImageId)
+	keepCurrentHealthChecks := healthChecksErr != nil
+	if keepCurrentHealthChecks {
+		s.logger.Warn("Could not find the deployed build's health checks; the environment keeps its current ones",
+			"agentName", agentName, "imageId", req.ImageId, "error", healthChecksErr)
+	}
+
 	// The cell namespace for (project, environment) is owned by a
 	// ProjectReleaseBinding. Without one the release binding this deploy creates
 	// fails to apply with `namespaces "dp-..." not found`. Ensure it here rather
@@ -3667,6 +3735,15 @@ func (s *agentManagerService) DeployAgent(ctx context.Context, ouID string, proj
 	var deployCTConfigs map[string]interface{}
 	if isAPIAgent {
 		deployCTConfigs = buildComponentTypeEnvConfigs(targetEnv)
+		// The build's checks replace the environment's; an explicit nil (the build has none)
+		// removes them; leaving the key out keeps them (the build couldn't be looked up).
+		switch {
+		case keepCurrentHealthChecks:
+		case deployHealthChecks == nil:
+			deployCTConfigs["healthChecks"] = nil
+		default:
+			deployCTConfigs["healthChecks"] = deployHealthChecks
+		}
 	}
 
 	// Cut the release this deploy actually runs and pin the environment's binding to it, carrying
