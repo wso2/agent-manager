@@ -382,9 +382,11 @@ func AgentThunderAppName(org, env, project, agent string) string {
 	return fmt.Sprintf("%s-%s", prefix, hash)
 }
 
-// ProjectAgentThunderAppName returns the stable name of a project-scoped
-// AgentID that is promoted across the project's environments. Cloud adapters
-// use it outside this module so every environment resolves the same name.
+// ProjectAgentThunderAppName returns the stable, environment independent name
+// of a project-scoped AgentID that is promoted across the project's
+// environments. A project AgentID provider should use it as the AgentID name in
+// every environment of a project, so the same agent resolves to the same name
+// everywhere. The Cloud provider outside this module uses it for that.
 func ProjectAgentThunderAppName(org, project, agent string) string {
 	org = slugify(org)
 	project = slugify(project)

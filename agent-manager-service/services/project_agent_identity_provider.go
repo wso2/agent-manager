@@ -39,7 +39,14 @@ type ProjectAgentIdentityRequest struct {
 	ExistingAgentID  string
 	ExistingClientID string
 	ClientSecret     string
-	NeedsSecret      bool
+	// NeedsSecret asks Provision to return a client secret. It is set for
+	// internal agents, whose secret Agent Manager stores, and also for external
+	// agents: in CP_MANAGED mode the control plane needs a secret value on the
+	// environment to apply the AgentID, so the provider returns one for them
+	// too. For an external agent Agent Manager only hands it to Activate and then
+	// discards it; it is never stored or logged. An external agent obtains a
+	// usable secret only by regenerating it.
+	NeedsSecret bool
 }
 
 type ProjectAgentIdentityResult struct {
@@ -145,8 +152,9 @@ type ProjectAgentIdentityDeleteRequest struct {
 	Source bool
 }
 
-// ProjectAgentIdentityDeletionProvider is an optional capability of a
-// ProjectAgentIdentityProvider: it removes an AgentID from one environment.
+// ProjectAgentIdentityDeletionProvider is a capability a ProjectAgentIdentityProvider
+// must have in CP_MANAGED mode (SetProjectAgentIdentityProvider rejects one without
+// it): it removes an AgentID from one environment.
 type ProjectAgentIdentityDeletionProvider interface {
 	// DeleteAgentIdentity removes request.AgentID from request.Environment. It is called for the
 	// source environment first (the AgentID leaves the control plane configuration), then for each
@@ -165,6 +173,13 @@ var errProjectAgentIdentitySecretUnavailable = errors.New("project AgentID secre
 // identity directly in a non-source environment.
 var ErrProjectAgentIdentityRequiresPromotion = fmt.Errorf(
 	"%w: project AgentID must be promoted to this environment", utils.ErrConflict,
+)
+
+// ErrProjectAgentIdentitySourceUnavailable marks a promotion target whose source
+// environment binding is missing or FAILED, so waiting for it cannot succeed
+// until someone fixes the source.
+var ErrProjectAgentIdentitySourceUnavailable = errors.New(
+	"project AgentID source environment identity is missing or failed",
 )
 
 // ProjectAgentIdentityProviderSetter is an optional deployment hook. The
@@ -187,14 +202,18 @@ func (s *agentThunderProvisioningService) SetProjectAgentIdentityProvider(
 		if provider == nil {
 			return errors.New("CP_MANAGED identity mode requires a project AgentID provider")
 		}
+		// Required capability: without it deleting an agent would leave its
+		// AgentIDs in the identity control plane, so refuse to start half managed.
+		deletionProvider, ok := provider.(ProjectAgentIdentityDeletionProvider)
+		if !ok {
+			return errors.New("CP_MANAGED identity mode requires a project AgentID provider that implements ProjectAgentIdentityDeletionProvider")
+		}
 		s.identityManagementMode = mode
 		s.projectIdentityProvider = provider
+		s.projectIdentityDeletionProvider = deletionProvider
 		// Optional capability: rotation and revocation fail closed without it.
 		secretProvider, _ := provider.(ProjectAgentIdentitySecretProvider)
 		s.projectIdentitySecretProvider = secretProvider
-		// Optional capability: AgentID deletion fails closed without it.
-		deletionProvider, _ := provider.(ProjectAgentIdentityDeletionProvider)
-		s.projectIdentityDeletionProvider = deletionProvider
 		return nil
 	default:
 		return errors.New("project AgentID provisioning supports only LEGACY_DIRECT or CP_MANAGED mode")

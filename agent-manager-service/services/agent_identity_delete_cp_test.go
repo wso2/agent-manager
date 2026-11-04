@@ -17,8 +17,11 @@
 package services
 
 import (
+	"bytes"
 	"context"
 	"errors"
+	"log/slog"
+	"strings"
 	"testing"
 
 	"github.com/google/uuid"
@@ -53,6 +56,8 @@ type cpDeleteFixture struct {
 	// legacyDeleted records AgentIDs deleted through the legacy client.
 	legacyDeleted []string
 	seed          []models.AgentThunderClient
+	// logs receives the service's log output.
+	logs bytes.Buffer
 }
 
 func newCPDeleteFixture(t *testing.T, ownership models.AgentProvisioningType) *cpDeleteFixture {
@@ -143,7 +148,7 @@ func (f *cpDeleteFixture) service(
 	resolver *clientmocks.EnvThunderResolverMock, mode thundersvc.IdentityManagementMode, provider ProjectAgentIdentityProvider,
 ) AgentThunderProvisioningService {
 	f.t.Helper()
-	svc := NewAgentThunderProvisioningService(f.repo(), resolver, f.store(), nil, discardLogger())
+	svc := NewAgentThunderProvisioningService(f.repo(), resolver, f.store(), nil, slog.New(slog.NewTextHandler(&f.logs, nil)))
 	require.NoError(f.t, svc.(ProjectAgentIdentityProviderSetter).SetProjectAgentIdentityProvider(mode, provider))
 	return svc
 }
@@ -185,6 +190,24 @@ func TestDeleteAllBindingsCPManagedSourceFailureSkipsPromotedDeletions(t *testin
 	assert.Equal(t, []string{"development"}, f.providerEnvs(), "no promoted AgentID is removed while the source one remains")
 	assert.Contains(t, f.events, "secret-delete:stage", "secret cleanup still runs for the skipped environments")
 	assert.Contains(t, f.events, "secret-delete:production")
+
+	// One line names every AgentID left behind: the source and both skipped ones.
+	logs := f.logs.String()
+	assert.Equal(t, 1, strings.Count(logs, "need manual cleanup"), "exactly one leftover line per agent")
+	assert.Contains(t, logs, "level=ERROR")
+	for _, leftover := range []string{"development=agent-id-development", "stage=agent-id-stage", "production=agent-id-production"} {
+		assert.Contains(t, logs, leftover)
+	}
+}
+
+func TestDeleteAllBindingsCPManagedDoesNotLogLeftoversWhenEverythingIsDeleted(t *testing.T) {
+	f := newCPDeleteFixture(t, models.AgentProvisioningTypeInternal)
+	f.deleteErr["stage"] = errors.New("stage unavailable")
+	svc := f.service(f.failIfUsedResolver(), thundersvc.IdentityManagementCPManaged, f.deletionProvider())
+
+	svc.DeleteAllBindings(context.Background(), "org-a", "project-a", "agent-a")
+
+	assert.NotContains(t, f.logs.String(), "need manual cleanup", "a promoted failure alone is not the skipped-deletions case")
 }
 
 func TestDeleteAllBindingsCPManagedPromotedFailureDoesNotStopTheRest(t *testing.T) {
@@ -199,8 +222,10 @@ func TestDeleteAllBindingsCPManagedPromotedFailureDoesNotStopTheRest(t *testing.
 
 func TestDeleteAllBindingsCPManagedWithoutDeletionProviderFailsClosedButCleansSecrets(t *testing.T) {
 	f := newCPDeleteFixture(t, models.AgentProvisioningTypeInternal)
-	// A provider that cannot delete AgentIDs.
-	svc := f.service(f.failIfUsedResolver(), thundersvc.IdentityManagementCPManaged, projectAgentIdentityProviderStub{})
+	svc := f.service(f.failIfUsedResolver(), thundersvc.IdentityManagementCPManaged, f.deletionProvider())
+	// SetProjectAgentIdentityProvider rejects a provider that cannot delete, so
+	// this exercises the defensive branch by clearing the capability afterwards.
+	svc.(*agentThunderProvisioningService).projectIdentityDeletionProvider = nil
 
 	svc.DeleteAllBindings(context.Background(), "org-a", "project-a", "agent-a")
 
@@ -209,6 +234,8 @@ func TestDeleteAllBindingsCPManagedWithoutDeletionProviderFailsClosedButCleansSe
 	assert.ElementsMatch(t,
 		[]string{"db-delete", "secret-delete:development", "secret-delete:stage", "secret-delete:production"}, f.events,
 		"stored credentials are still deleted even though the AgentIDs are left behind")
+	assert.Equal(t, 1, strings.Count(f.logs.String(), "no project AgentID deletion provider is configured"))
+	assert.Contains(t, f.logs.String(), "level=ERROR")
 }
 
 func TestDeleteAllBindingsCPManagedSkipsBindingsWithoutAnAgentID(t *testing.T) {

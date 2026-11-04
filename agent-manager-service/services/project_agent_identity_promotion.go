@@ -115,10 +115,19 @@ func (s *agentThunderProvisioningService) ensureProjectPromotionBindings(
 
 // writePromotionBindings creates the missing rows for steps in order, source
 // first, and returns only the rows this call inserted.
+//
+// An agent never gets a second source: if the pipeline source row is missing
+// but the agent already has a source row in another environment, nothing is
+// written. Re-homing an agent to a different source environment is not
+// supported.
+//
+// When requestedBy is empty it is taken from the existing source row of the
+// chain, so rows created later still carry the user the agent was created for.
 func (s *agentThunderProvisioningService) writePromotionBindings(
 	ctx context.Context, ref repositories.AgentRef, steps []promotionStep, requestedBy string,
 ) ([]models.AgentThunderClient, error) {
 	created := make([]models.AgentThunderClient, 0, len(steps))
+	requestedByResolved := requestedBy != ""
 	for _, step := range steps {
 		_, err := s.repo.Get(ctx, ref.OUID, ref.ProjectName, ref.AgentName, step.Environment)
 		if err == nil {
@@ -126,6 +135,23 @@ func (s *agentThunderProvisioningService) writePromotionBindings(
 		}
 		if !errors.Is(err, repositories.ErrAgentThunderClientNotFound) {
 			return created, fmt.Errorf("read project AgentID binding for %s: %w", step.Environment, err)
+		}
+		if step.Source == "" {
+			existingHome, homeErr := s.existingHomeEnvironment(ctx, ref, step.Environment)
+			if homeErr != nil {
+				return created, homeErr
+			}
+			if existingHome != "" {
+				s.logger.Warn("Project AgentID source changed; not creating a second source binding, re-homing is not supported",
+					"ouID", ref.OUID, "projectName", ref.ProjectName, "agentName", ref.AgentName,
+					"currentSource", existingHome, "pipelineSource", step.Environment)
+				return created, nil
+			}
+		} else if !requestedByResolved {
+			requestedByResolved = true
+			if home, getErr := s.repo.Get(ctx, ref.OUID, ref.ProjectName, ref.AgentName, steps[0].Environment); getErr == nil {
+				requestedBy = home.RequestedBy
+			}
 		}
 		binding := models.AgentThunderClient{
 			OUID: ref.OUID, ProjectName: ref.ProjectName, AgentName: ref.AgentName,
@@ -143,6 +169,24 @@ func (s *agentThunderProvisioningService) writePromotionBindings(
 		}
 	}
 	return created, nil
+}
+
+// existingHomeEnvironment returns the environment of the agent's existing
+// source binding (empty PromotionSource) other than pipelineSource, or "" when
+// there is none.
+func (s *agentThunderProvisioningService) existingHomeEnvironment(
+	ctx context.Context, ref repositories.AgentRef, pipelineSource string,
+) (string, error) {
+	existing, err := s.repo.FindByAgent(ctx, ref.OUID, ref.ProjectName, ref.AgentName)
+	if err != nil {
+		return "", fmt.Errorf("read project AgentID bindings: %w", err)
+	}
+	for _, binding := range existing {
+		if binding.PromotionSource == "" && binding.EnvironmentName != pipelineSource {
+			return binding.EnvironmentName, nil
+		}
+	}
+	return "", nil
 }
 
 type projectKey struct{ organizationID, projectName string }

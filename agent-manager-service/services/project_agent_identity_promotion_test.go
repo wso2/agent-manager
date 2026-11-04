@@ -17,8 +17,12 @@
 package services
 
 import (
+	"bytes"
 	"context"
 	"errors"
+	"fmt"
+	"log/slog"
+	"strings"
 	"sync"
 	"testing"
 	"time"
@@ -111,6 +115,10 @@ func newPromotionService(
 		svc.(ProjectPipelineReaderSetter).SetProjectPipelineReader(reader)
 	}
 	return svc
+}
+
+func noExistingBindings(context.Context, string, string, string) ([]models.AgentThunderClient, error) {
+	return []models.AgentThunderClient{}, nil
 }
 
 // linearTopology is development -> stage -> production.
@@ -255,6 +263,7 @@ func TestEnsureProjectPromotionBindingsWritesSourceFirstAndIsIdempotent(t *testi
 	existing := map[string]bool{}
 	var order []string
 	repo := &repomocks.AgentThunderClientRepositoryMock{
+		FindByAgentFunc: noExistingBindings,
 		GetFunc: func(_ context.Context, _, _, _, env string) (*models.AgentThunderClient, error) {
 			if existing[env] {
 				return &models.AgentThunderClient{EnvironmentName: env}, nil
@@ -293,6 +302,7 @@ func TestEnsureProjectPromotionBindingsWritesSourceFirstAndIsIdempotent(t *testi
 
 func TestEnsureProjectPromotionBindingsTreatsInsertConflictAsSuccess(t *testing.T) {
 	repo := &repomocks.AgentThunderClientRepositoryMock{
+		FindByAgentFunc: noExistingBindings,
 		GetFunc: func(context.Context, string, string, string, string) (*models.AgentThunderClient, error) {
 			return nil, repositories.ErrAgentThunderClientNotFound
 		},
@@ -379,7 +389,7 @@ func TestReconcileRefusesToCreateASecondSourceAfterPipelineSourceChanges(t *test
 		},
 		GetFunc: func(context.Context, string, string, string, string) (*models.AgentThunderClient, error) {
 			t.Fatal("source drift must stop before writing bindings")
-			return nil, nil
+			return nil, errors.New("unreachable")
 		},
 		UpsertFunc: func(context.Context, *models.AgentThunderClient) error {
 			t.Fatal("source drift must not create a second source")
@@ -408,6 +418,7 @@ func provisionRepo(upserted *[]models.AgentThunderClient) *repomocks.AgentThunde
 	return &repomocks.AgentThunderClientRepositoryMock{
 		// Never claimed, so no background attempt does real work.
 		ClaimForAttemptFunc: func(context.Context, uuid.UUID) (bool, error) { return false, nil },
+		FindByAgentFunc:     noExistingBindings,
 		GetFunc: func(context.Context, string, string, string, string) (*models.AgentThunderClient, error) {
 			return nil, repositories.ErrAgentThunderClientNotFound
 		},
@@ -782,14 +793,17 @@ func TestExternalSourceUsesTemporarySecretForActivationWithoutStoringIt(t *testi
 			return nil
 		},
 	}
+	activated := false
 	provider := projectAgentIdentityProviderStub{
 		provision: func(_ context.Context, request ProjectAgentIdentityRequest) (ProjectAgentIdentityResult, error) {
 			require.True(t, request.NeedsSecret)
 			return ProjectAgentIdentityResult{AgentID: "agent-id", ClientID: "client-id", ClientSecret: "temporary-secret"}, nil
 		},
 		activate: func(_ context.Context, request ProjectAgentIdentityRequest, agentID string) error {
+			activated = true
 			require.Equal(t, "agent-id", agentID)
 			require.Equal(t, "temporary-secret", request.ClientSecret)
+			require.False(t, request.NeedsSecret, "Activate for an external agent is not asked to store a secret")
 			return nil
 		},
 	}
@@ -802,9 +816,50 @@ func TestExternalSourceUsesTemporarySecretForActivationWithoutStoringIt(t *testi
 	svc := newPromotionService(t, repo, store, provider, sourceOnlyReader("development", nil))
 	svc.AttemptProvision(context.Background(), binding)
 
+	require.True(t, activated, "the temporary secret reaches Activate")
+	require.Empty(t, store.CreateSecretCalls(), "an external agent's secret is never stored")
 	require.Equal(t, models.AgentThunderStatusCompleted, update.Status)
 	require.NotNil(t, update.SecretRefPath)
 	require.Empty(t, *update.SecretRefPath)
+}
+
+func TestExternalSourceFailsWhenTheProviderReturnsNoSecret(t *testing.T) {
+	binding := models.AgentThunderClient{
+		ID: uuid.New(), OUID: "org-a", ProjectName: "project-a", AgentName: "agent-a",
+		EnvironmentName: "development", ProvisioningType: models.AgentProvisioningTypeExternal,
+	}
+	var update repositories.AgentThunderAttemptUpdate
+	repo := &repomocks.AgentThunderClientRepositoryMock{
+		ClaimForAttemptFunc: func(context.Context, uuid.UUID) (bool, error) { return true, nil },
+		UpdateAfterAttemptFunc: func(_ context.Context, _ uuid.UUID, value repositories.AgentThunderAttemptUpdate) error {
+			update = value
+			return nil
+		},
+	}
+	provider := projectAgentIdentityProviderStub{
+		provision: func(_ context.Context, request ProjectAgentIdentityRequest) (ProjectAgentIdentityResult, error) {
+			require.True(t, request.NeedsSecret)
+			return ProjectAgentIdentityResult{AgentID: "agent-id", ClientID: "client-id"}, nil
+		},
+		activate: func(context.Context, ProjectAgentIdentityRequest, string) error {
+			t.Fatal("an environment without a secret value must not be activated")
+			return nil
+		},
+	}
+	store := &clientmocks.SecretManagementClientMock{
+		CreateSecretFunc: func(context.Context, secretmanagersvc.SecretLocation, map[string]string) (string, error) {
+			t.Fatal("nothing is stored for an external agent")
+			return "", nil
+		},
+	}
+	svc := newPromotionService(t, repo, store, provider, sourceOnlyReader("development", nil))
+
+	svc.AttemptProvision(context.Background(), binding)
+
+	require.Equal(t, models.AgentThunderStatusPending, update.Status, "the attempt fails and is retried")
+	require.NotEmpty(t, update.LastError)
+	require.Nil(t, update.SecretRefPath, "nothing is stored")
+	require.Empty(t, store.CreateSecretCalls())
 }
 
 func TestPromotionIsNeverCalledBeforeTheSourceBindingIsCompleted(t *testing.T) {
@@ -814,8 +869,6 @@ func TestPromotionIsNeverCalledBeforeTheSourceBindingIsCompleted(t *testing.T) {
 	}{
 		"pending":     {source: &models.AgentThunderClient{Status: models.AgentThunderStatusPending}},
 		"in progress": {source: &models.AgentThunderClient{Status: models.AgentThunderStatusInProgress}},
-		"failed":      {source: &models.AgentThunderClient{Status: models.AgentThunderStatusFailed}},
-		"missing":     {err: repositories.ErrAgentThunderClientNotFound},
 		"read error":  {err: errors.New("database unavailable")},
 	}
 	for name, tc := range notCompleted {
@@ -850,4 +903,412 @@ func TestPromotionIsNeverCalledBeforeTheSourceBindingIsCompleted(t *testing.T) {
 			require.NotEmpty(t, releasedNote)
 		})
 	}
+}
+
+func TestPromotionTargetFailsWhenItsSourceIsMissingOrFailed(t *testing.T) {
+	sources := map[string]struct {
+		source *models.AgentThunderClient
+		err    error
+	}{
+		"failed":  {source: &models.AgentThunderClient{Status: models.AgentThunderStatusFailed}},
+		"missing": {err: repositories.ErrAgentThunderClientNotFound},
+	}
+	for name, tc := range sources {
+		t.Run(name, func(t *testing.T) {
+			var update repositories.AgentThunderAttemptUpdate
+			var logs bytes.Buffer
+			repo := &repomocks.AgentThunderClientRepositoryMock{
+				ClaimForAttemptFunc: func(context.Context, uuid.UUID) (bool, error) { return true, nil },
+				GetFunc: func(context.Context, string, string, string, string) (*models.AgentThunderClient, error) {
+					return tc.source, tc.err
+				},
+				UpdateAfterAttemptFunc: func(_ context.Context, _ uuid.UUID, value repositories.AgentThunderAttemptUpdate) error {
+					update = value
+					return nil
+				},
+				ReleaseClaimFunc: func(context.Context, uuid.UUID, time.Time, string) error {
+					t.Fatal("a target whose source is gone or failed must not wait")
+					return nil
+				},
+			}
+			provider := projectAgentIdentityPromotionProviderStub{
+				promote: func(context.Context, ProjectAgentIdentityPromotionRequest) (ProjectAgentIdentityResult, error) {
+					t.Fatal("Promote must not run without a completed source")
+					return ProjectAgentIdentityResult{}, nil
+				},
+			}
+			svc := NewAgentThunderProvisioningService(repo, &clientmocks.EnvThunderResolverMock{},
+				&clientmocks.SecretManagementClientMock{}, nil, slog.New(slog.NewTextHandler(&logs, nil)))
+			require.NoError(t, svc.(ProjectAgentIdentityProviderSetter).SetProjectAgentIdentityProvider(
+				thundersvc.IdentityManagementCPManaged, provider))
+
+			svc.AttemptProvision(context.Background(), promotedBinding(models.AgentProvisioningTypeInternal))
+
+			require.Len(t, repo.UpdateAfterAttemptCalls(), 1, "the failure goes through the normal attempt accounting")
+			require.Equal(t, models.AgentThunderStatusPending, update.Status)
+			require.Equal(t, "The source environment's identity is missing or failed. Fix it first, then retry.", update.LastError)
+			require.Contains(t, logs.String(), ErrProjectAgentIdentitySourceUnavailable.Error())
+		})
+	}
+
+	t.Run("exhausted budget marks the target FAILED", func(t *testing.T) {
+		var update repositories.AgentThunderAttemptUpdate
+		repo := &repomocks.AgentThunderClientRepositoryMock{
+			ClaimForAttemptFunc: func(context.Context, uuid.UUID) (bool, error) { return true, nil },
+			GetFunc: func(context.Context, string, string, string, string) (*models.AgentThunderClient, error) {
+				return nil, repositories.ErrAgentThunderClientNotFound
+			},
+			UpdateAfterAttemptFunc: func(_ context.Context, _ uuid.UUID, value repositories.AgentThunderAttemptUpdate) error {
+				update = value
+				return nil
+			},
+		}
+		svc := newPromotionService(t, repo, &clientmocks.SecretManagementClientMock{},
+			(&fakeTargetPlatform{}).provider(t), nil)
+		binding := promotedBinding(models.AgentProvisioningTypeInternal)
+		binding.AttemptCount = maxProvisionAttempts - 1
+
+		svc.AttemptProvision(context.Background(), binding)
+
+		require.Equal(t, models.AgentThunderStatusFailed, update.Status)
+	})
+}
+
+func TestUserFacingProvisioningErrorForAnUnavailableSource(t *testing.T) {
+	cause := fmt.Errorf("%w: development", ErrProjectAgentIdentitySourceUnavailable)
+	require.Equal(t, "The source environment's identity is missing or failed. Fix it first, then retry.",
+		userFacingProvisioningError(cause))
+}
+
+func TestPromotionSourceReadErrorIsLoggedAndDefersWithoutConsumingAnAttempt(t *testing.T) {
+	var logs bytes.Buffer
+	repo := &repomocks.AgentThunderClientRepositoryMock{
+		ClaimForAttemptFunc: func(context.Context, uuid.UUID) (bool, error) { return true, nil },
+		GetFunc: func(context.Context, string, string, string, string) (*models.AgentThunderClient, error) {
+			return nil, errors.New("database unavailable")
+		},
+		ReleaseClaimFunc: func(context.Context, uuid.UUID, time.Time, string) error { return nil },
+		UpdateAfterAttemptFunc: func(context.Context, uuid.UUID, repositories.AgentThunderAttemptUpdate) error {
+			t.Fatal("a read error must not consume an attempt")
+			return nil
+		},
+	}
+	provider := projectAgentIdentityPromotionProviderStub{
+		promote: func(context.Context, ProjectAgentIdentityPromotionRequest) (ProjectAgentIdentityResult, error) {
+			t.Fatal("Promote must not run when the source cannot be read")
+			return ProjectAgentIdentityResult{}, nil
+		},
+	}
+	svc := NewAgentThunderProvisioningService(repo, &clientmocks.EnvThunderResolverMock{},
+		&clientmocks.SecretManagementClientMock{}, nil, slog.New(slog.NewTextHandler(&logs, nil)))
+	require.NoError(t, svc.(ProjectAgentIdentityProviderSetter).SetProjectAgentIdentityProvider(
+		thundersvc.IdentityManagementCPManaged, provider))
+
+	svc.AttemptProvision(context.Background(), promotedBinding(models.AgentProvisioningTypeInternal))
+
+	require.Len(t, repo.ReleaseClaimCalls(), 1)
+	require.Contains(t, logs.String(), "level=ERROR")
+	require.Contains(t, logs.String(), "database unavailable")
+	require.Contains(t, logs.String(), "agentName=agent-a")
+	require.Contains(t, logs.String(), "envName=stage")
+}
+
+func TestPromotionRetryReusesTheTargetClientIDAfterEveryFailure(t *testing.T) {
+	failures := map[string]func(ProjectAgentIdentityPromotionRequest) (ProjectAgentIdentityResult, error){
+		"promote error": func(ProjectAgentIdentityPromotionRequest) (ProjectAgentIdentityResult, error) {
+			return ProjectAgentIdentityResult{}, errors.New("response lost after apply")
+		},
+		"incomplete identity": func(ProjectAgentIdentityPromotionRequest) (ProjectAgentIdentityResult, error) {
+			return ProjectAgentIdentityResult{}, nil
+		},
+		"missing secret": func(r ProjectAgentIdentityPromotionRequest) (ProjectAgentIdentityResult, error) {
+			return ProjectAgentIdentityResult{AgentID: r.ExistingAgentID, ClientID: r.TargetClientID}, nil
+		},
+		"mismatched credential": func(r ProjectAgentIdentityPromotionRequest) (ProjectAgentIdentityResult, error) {
+			return ProjectAgentIdentityResult{AgentID: r.ExistingAgentID, ClientID: "other-client", ClientSecret: "other"}, nil
+		},
+	}
+	for name, fail := range failures {
+		t.Run(name, func(t *testing.T) {
+			var updates []repositories.AgentThunderAttemptUpdate
+			repo := &repomocks.AgentThunderClientRepositoryMock{
+				ClaimForAttemptFunc: func(context.Context, uuid.UUID) (bool, error) { return true, nil },
+				GetFunc: func(context.Context, string, string, string, string) (*models.AgentThunderClient, error) {
+					return completedSource(), nil
+				},
+				UpdateAfterAttemptFunc: func(_ context.Context, _ uuid.UUID, value repositories.AgentThunderAttemptUpdate) error {
+					updates = append(updates, value)
+					return nil
+				},
+			}
+			var requests []ProjectAgentIdentityPromotionRequest
+			provider := projectAgentIdentityPromotionProviderStub{
+				promote: func(_ context.Context, request ProjectAgentIdentityPromotionRequest) (ProjectAgentIdentityResult, error) {
+					requests = append(requests, request)
+					if len(requests) == 1 {
+						return fail(request)
+					}
+					return ProjectAgentIdentityResult{
+						AgentID: request.ExistingAgentID, ClientID: request.TargetClientID, ClientSecret: request.TargetClientSecret,
+					}, nil
+				},
+			}
+			store := &clientmocks.SecretManagementClientMock{
+				CreateSecretFunc: func(context.Context, secretmanagersvc.SecretLocation, map[string]string) (string, error) {
+					return "secret-reference", nil
+				},
+			}
+			svc := newPromotionService(t, repo, store, provider, nil)
+			binding := promotedBinding(models.AgentProvisioningTypeInternal)
+
+			svc.AttemptProvision(context.Background(), binding)
+
+			require.Len(t, updates, 1)
+			require.Equal(t, models.AgentThunderStatusPending, updates[0].Status)
+			require.NotNil(t, updates[0].ThunderClientID, "the generated client ID is persisted by the failure")
+			require.Equal(t, requests[0].TargetClientID, *updates[0].ThunderClientID)
+
+			retry := binding
+			retry.ThunderClientID = *updates[0].ThunderClientID
+			retry.AttemptCount = 1
+			svc.AttemptProvision(context.Background(), retry)
+
+			require.Len(t, requests, 2)
+			require.Equal(t, requests[0].TargetClientID, requests[1].TargetClientID, "the retry reuses the client ID")
+			require.Equal(t, models.AgentThunderStatusCompleted, updates[len(updates)-1].Status)
+			require.Equal(t, requests[0].TargetClientID, *updates[len(updates)-1].ThunderClientID)
+		})
+	}
+}
+
+// claimSignals returns a repository claim func that reports every claimed
+// binding on a channel, so a test can wait for background attempts to start.
+func claimSignals(n int) (func(context.Context, uuid.UUID) (bool, error), chan uuid.UUID) {
+	started := make(chan uuid.UUID, n)
+	return func(_ context.Context, id uuid.UUID) (bool, error) {
+		started <- id
+		return false, nil
+	}, started
+}
+
+func waitForClaims(t *testing.T, started chan uuid.UUID, want int) {
+	t.Helper()
+	for i := 0; i < want; i++ {
+		select {
+		case <-started:
+		case <-time.After(5 * time.Second):
+			t.Fatalf("only %d of %d background attempts started", i, want)
+		}
+	}
+}
+
+func TestProvisionForEnvironmentIfMissingPromotesIntoANewEnvironment(t *testing.T) {
+	var upserted []models.AgentThunderClient
+	repo := provisionRepo(&upserted)
+	claim, started := claimSignals(4)
+	repo.ClaimForAttemptFunc = claim
+	// The agent already lives in development; stage and production are new.
+	repo.GetFunc = func(_ context.Context, _, _, _, env string) (*models.AgentThunderClient, error) {
+		if env == "development" {
+			return &models.AgentThunderClient{EnvironmentName: env, RequestedBy: "user-1"}, nil
+		}
+		return nil, repositories.ErrAgentThunderClientNotFound
+	}
+	svc := newPromotionService(t, repo, &clientmocks.SecretManagementClientMock{}, (&fakeTargetPlatform{}).provider(t),
+		projectPipelineReaderFunc(func(context.Context, string, string) (string, []ProjectIdentityEnvironment, error) {
+			return "development", linearTopology(), nil
+		}))
+
+	alreadyExisted, err := svc.ProvisionForEnvironmentIfMissing(context.Background(),
+		"org-a", "project-a", "agent-a", "stage", models.AgentProvisioningTypeInternal, "user-2")
+
+	require.NoError(t, err, "a new environment is promoted into instead of rejected")
+	require.False(t, alreadyExisted)
+	require.Len(t, upserted, 2)
+	require.Equal(t, "stage", upserted[0].EnvironmentName)
+	require.Equal(t, "development", upserted[0].PromotionSource)
+	require.Equal(t, "production", upserted[1].EnvironmentName)
+	require.Equal(t, "stage", upserted[1].PromotionSource)
+	require.Equal(t, models.AgentProvisioningTypeInternal, upserted[0].ProvisioningType)
+	require.Equal(t, "user-2", upserted[0].RequestedBy)
+	waitForClaims(t, started, 2)
+}
+
+func TestProvisionForEnvironmentIfMissingStillRejectsANonSourceEnvironmentWithoutPromotion(t *testing.T) {
+	cases := map[string]struct {
+		provider     ProjectAgentIdentityProvider
+		reader       ProjectPipelineReader
+		wantConflict bool
+	}{
+		"provider cannot promote": {
+			provider:     projectAgentIdentityProviderStub{},
+			reader:       sourceOnlyReader("development", nil),
+			wantConflict: true,
+		},
+		"topology cannot be resolved": {
+			provider: (&fakeTargetPlatform{}).provider(t),
+			reader:   sourceOnlyReader("", errors.New("pipeline unavailable")),
+		},
+	}
+	for name, tc := range cases {
+		t.Run(name, func(t *testing.T) {
+			var upserted []models.AgentThunderClient
+			svc := newPromotionService(t, provisionRepo(&upserted), &clientmocks.SecretManagementClientMock{}, tc.provider, tc.reader)
+
+			_, err := svc.ProvisionForEnvironmentIfMissing(context.Background(),
+				"org-a", "project-a", "agent-a", "stage", models.AgentProvisioningTypeInternal, "user-1")
+
+			require.Error(t, err)
+			require.Equal(t, tc.wantConflict, errors.Is(err, ErrProjectAgentIdentityRequiresPromotion))
+			require.Empty(t, upserted)
+		})
+	}
+}
+
+func TestProvisionForEnvironmentIfMissingStillProvisionsTheSourceEnvironmentDirectly(t *testing.T) {
+	var upserted []models.AgentThunderClient
+	repo := provisionRepo(&upserted)
+	claim, started := claimSignals(2)
+	repo.ClaimForAttemptFunc = claim
+	svc := newPromotionService(t, repo, &clientmocks.SecretManagementClientMock{}, (&fakeTargetPlatform{}).provider(t),
+		projectPipelineReaderFunc(func(context.Context, string, string) (string, []ProjectIdentityEnvironment, error) {
+			return "development", linearTopology(), nil
+		}))
+
+	_, err := svc.ProvisionForEnvironmentIfMissing(context.Background(),
+		"org-a", "project-a", "agent-a", "development", models.AgentProvisioningTypeInternal, "user-1")
+
+	require.NoError(t, err)
+	require.Len(t, upserted, 3, "unchanged: the source environment goes through ProvisionForAgent")
+	waitForClaims(t, started, 3)
+}
+
+func TestWritePromotionBindingsNeverCreatesASecondSource(t *testing.T) {
+	ref := repositories.AgentRef{OUID: "org-a", ProjectName: "project-a", AgentName: "agent-a", ProvisioningType: models.AgentProvisioningTypeInternal}
+	steps := []promotionStep{{Environment: "sandbox"}, {Environment: "development", Source: "sandbox"}}
+
+	cases := map[string]struct {
+		existing    []models.AgentThunderClient
+		wantUpserts int
+	}{
+		"existing home elsewhere": {
+			existing: []models.AgentThunderClient{
+				{EnvironmentName: "development"},
+				{EnvironmentName: "stage", PromotionSource: "development"},
+			},
+			wantUpserts: 0,
+		},
+		"only promoted rows exist": {
+			existing:    []models.AgentThunderClient{{EnvironmentName: "stage", PromotionSource: "development"}},
+			wantUpserts: 2,
+		},
+		"no rows exist": {wantUpserts: 2},
+	}
+	for name, tc := range cases {
+		t.Run(name, func(t *testing.T) {
+			var logs bytes.Buffer
+			repo := &repomocks.AgentThunderClientRepositoryMock{
+				FindByAgentFunc: func(context.Context, string, string, string) ([]models.AgentThunderClient, error) {
+					return tc.existing, nil
+				},
+				GetFunc: func(context.Context, string, string, string, string) (*models.AgentThunderClient, error) {
+					return nil, repositories.ErrAgentThunderClientNotFound
+				},
+				UpsertFunc: func(_ context.Context, binding *models.AgentThunderClient) error {
+					binding.ID = uuid.New()
+					return nil
+				},
+			}
+			svc := NewAgentThunderProvisioningService(repo, &clientmocks.EnvThunderResolverMock{},
+				&clientmocks.SecretManagementClientMock{}, nil, slog.New(slog.NewTextHandler(&logs, nil)))
+			impl := svc.(*agentThunderProvisioningService)
+
+			created, err := impl.writePromotionBindings(context.Background(), ref, steps, "user-1")
+
+			require.NoError(t, err)
+			require.Len(t, created, tc.wantUpserts)
+			require.Len(t, repo.UpsertCalls(), tc.wantUpserts)
+			if tc.wantUpserts == 0 {
+				require.Equal(t, 1, strings.Count(logs.String(), "level=WARN"), "one warning, not one per step")
+				require.Contains(t, logs.String(), "currentSource=development")
+				require.Contains(t, logs.String(), "pipelineSource=sandbox")
+				require.Contains(t, logs.String(), "agentName=agent-a")
+			} else {
+				require.NotContains(t, logs.String(), "level=WARN")
+			}
+		})
+	}
+}
+
+func TestWritePromotionBindingsTakesRequestedByFromTheSourceBinding(t *testing.T) {
+	ref := repositories.AgentRef{OUID: "org-a", ProjectName: "project-a", AgentName: "agent-a", ProvisioningType: models.AgentProvisioningTypeInternal}
+	steps := []promotionStep{
+		{Environment: "development"},
+		{Environment: "stage", Source: "development"},
+		{Environment: "production", Source: "stage"},
+	}
+	newService := func(sourceRead func(call int) (*models.AgentThunderClient, error)) (*agentThunderProvisioningService, *repomocks.AgentThunderClientRepositoryMock) {
+		sourceReads := 0
+		repo := &repomocks.AgentThunderClientRepositoryMock{
+			FindByAgentFunc: noExistingBindings,
+			GetFunc: func(_ context.Context, _, _, _, env string) (*models.AgentThunderClient, error) {
+				if env == "development" {
+					sourceReads++
+					return sourceRead(sourceReads)
+				}
+				return nil, repositories.ErrAgentThunderClientNotFound
+			},
+			UpsertFunc: func(_ context.Context, binding *models.AgentThunderClient) error {
+				binding.ID = uuid.New()
+				return nil
+			},
+		}
+		svc := newPromotionService(t, repo, &clientmocks.SecretManagementClientMock{}, (&fakeTargetPlatform{}).provider(t), nil)
+		return svc.(*agentThunderProvisioningService), repo
+	}
+
+	t.Run("empty requestedBy is read once from the source", func(t *testing.T) {
+		impl, repo := newService(func(call int) (*models.AgentThunderClient, error) {
+			if call == 1 {
+				return &models.AgentThunderClient{EnvironmentName: "development"}, nil // the existence check
+			}
+			return &models.AgentThunderClient{EnvironmentName: "development", RequestedBy: "user-1"}, nil
+		})
+
+		created, err := impl.writePromotionBindings(context.Background(), ref, steps, "")
+
+		require.NoError(t, err)
+		require.Len(t, created, 2)
+		for _, call := range repo.UpsertCalls() {
+			require.Equal(t, "user-1", call.Client.RequestedBy)
+		}
+		require.Len(t, repo.GetCalls(), 4, "development (existence), stage, development (requestedBy lookup), production")
+	})
+
+	t.Run("a given requestedBy is kept and nothing extra is read", func(t *testing.T) {
+		impl, repo := newService(func(call int) (*models.AgentThunderClient, error) {
+			return &models.AgentThunderClient{EnvironmentName: "development", RequestedBy: "user-1"}, nil
+		})
+		_, err := impl.writePromotionBindings(context.Background(), ref, steps, "user-2")
+		require.NoError(t, err)
+		for _, call := range repo.UpsertCalls() {
+			require.Equal(t, "user-2", call.Client.RequestedBy)
+		}
+		require.Len(t, repo.GetCalls(), 3)
+	})
+
+	t.Run("an unreadable source still writes the rows", func(t *testing.T) {
+		impl, repo := newService(func(call int) (*models.AgentThunderClient, error) {
+			if call == 1 {
+				return &models.AgentThunderClient{EnvironmentName: "development"}, nil
+			}
+			return nil, errors.New("database unavailable")
+		})
+		created, err := impl.writePromotionBindings(context.Background(), ref, steps, "")
+		require.NoError(t, err)
+		require.Len(t, created, 2)
+		for _, call := range repo.UpsertCalls() {
+			require.Empty(t, call.Client.RequestedBy)
+		}
+	})
 }

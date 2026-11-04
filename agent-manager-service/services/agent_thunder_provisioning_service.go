@@ -242,9 +242,9 @@ type agentThunderProvisioningService struct {
 	// implements ProjectAgentIdentitySecretProvider, else nil. Secret rotation
 	// and revocation in CP_MANAGED mode require it.
 	projectIdentitySecretProvider ProjectAgentIdentitySecretProvider
-	// projectIdentityDeletionProvider is projectIdentityProvider when it also
-	// implements ProjectAgentIdentityDeletionProvider, else nil. Deleting an
-	// agent's AgentIDs in CP_MANAGED mode requires it.
+	// projectIdentityDeletionProvider is projectIdentityProvider as a
+	// ProjectAgentIdentityDeletionProvider. SetProjectAgentIdentityProvider
+	// requires it in CP_MANAGED mode and leaves it nil in LEGACY_DIRECT mode.
 	projectIdentityDeletionProvider ProjectAgentIdentityDeletionProvider
 	// pipelineReader supplies the project's environment order in CP_MANAGED
 	// mode (see ProjectPipelineReader). Set once at startup.
@@ -680,7 +680,24 @@ func (s *agentThunderProvisioningService) ProvisionForEnvironmentIfMissing(
 			return false, resolveErr
 		}
 		if envName != source {
-			return false, fmt.Errorf("%w: %s", ErrProjectAgentIdentityRequiresPromotion, envName)
+			if _, ok := s.projectIdentityProvider.(ProjectAgentIdentityPromotionProvider); !ok {
+				return false, fmt.Errorf("%w: %s", ErrProjectAgentIdentityRequiresPromotion, envName)
+			}
+			// An environment added after the agent exists: write the missing
+			// promotion rows now and start them, instead of leaving the agent
+			// without an identity there until the next topology pass.
+			created, ensureErr := s.ensureProjectPromotionBindings(ctx, repositories.AgentRef{
+				OUID: ouID, ProjectName: projectName, AgentName: agentName, ProvisioningType: ownership,
+			}, requestedBy)
+			// Rows written before a failure are still started; the reconciler
+			// picks up the rest.
+			if len(created) > 0 {
+				go s.attemptAll(context.WithoutCancel(ctx), created)
+			}
+			if ensureErr != nil {
+				return false, ensureErr
+			}
+			return false, nil
 		}
 	}
 
@@ -796,11 +813,25 @@ func (s *agentThunderProvisioningService) AttemptProvision(ctx context.Context, 
 				return
 			}
 			source, sourceErr := s.repo.Get(ctx, binding.OUID, binding.ProjectName, binding.AgentName, binding.PromotionSource)
-			if sourceErr != nil || source.Status != models.AgentThunderStatusCompleted {
-				next := time.Now().Add(reconcilerTickInterval)
-				if releaseErr := s.repo.ReleaseClaim(ctx, binding.ID, next, "Waiting for the source environment identity."); releaseErr != nil {
-					s.logger.Error("Failed to defer project AgentID promotion", "bindingID", binding.ID, "error", releaseErr)
-				}
+			switch {
+			case errors.Is(sourceErr, repositories.ErrAgentThunderClientNotFound),
+				sourceErr == nil && source.Status == models.AgentThunderStatusFailed:
+				// Waiting cannot help: the source identity is gone or exhausted its
+				// retries. Fail this target so it surfaces instead of waiting forever.
+				s.recordFailure(ctx, binding, thunderAgentID, clientID, binding.SecretRefPath,
+					fmt.Errorf("%w: %s", ErrProjectAgentIdentitySourceUnavailable, binding.PromotionSource))
+				return
+			case sourceErr != nil:
+				// A read error says nothing about the source: defer without consuming
+				// an attempt, but make it visible.
+				s.logger.Error("Failed to read the source environment binding for project AgentID promotion",
+					"ouID", binding.OUID, "projectName", binding.ProjectName, "agentName", binding.AgentName,
+					"envName", binding.EnvironmentName, "error", sourceErr)
+				s.deferPromotion(ctx, binding)
+				return
+			case source.Status != models.AgentThunderStatusCompleted:
+				// PENDING or IN_PROGRESS: the source is still being provisioned.
+				s.deferPromotion(ctx, binding)
 				return
 			}
 			targetClientID := binding.ThunderClientID
@@ -818,7 +849,7 @@ func (s *agentThunderProvisioningService) AttemptProvision(ctx context.Context, 
 			// ends with the target and the stored credential holding one value.
 			targetClientSecret, secretErr := thundersvc.GenerateClientSecret()
 			if secretErr != nil {
-				s.recordFailure(ctx, binding, thunderAgentID, clientID, binding.SecretRefPath,
+				s.recordFailure(ctx, binding, thunderAgentID, targetClientID, binding.SecretRefPath,
 					fmt.Errorf("generate target client secret: %w", secretErr))
 				return
 			}
@@ -842,8 +873,10 @@ func (s *agentThunderProvisioningService) AttemptProvision(ctx context.Context, 
 				return
 			}
 			thunderAgentID, clientID, clientSecret = result.AgentID, result.ClientID, result.ClientSecret
+			// From here every failure keeps the generated target client ID, so the
+			// retry reuses it instead of generating a second one.
 			if thunderAgentID == "" || clientID == "" {
-				s.recordFailure(ctx, binding, thunderAgentID, clientID, binding.SecretRefPath,
+				s.recordFailure(ctx, binding, thunderAgentID, targetClientID, binding.SecretRefPath,
 					errors.New("project AgentID promotion returned an incomplete identity"))
 				return
 			}
@@ -851,14 +884,14 @@ func (s *agentThunderProvisioningService) AttemptProvision(ctx context.Context, 
 				// Never stored: an external agent obtains a secret only by regenerating it.
 				clientSecret = ""
 			} else if clientSecret == "" {
-				s.recordFailure(ctx, binding, thunderAgentID, clientID, binding.SecretRefPath,
+				s.recordFailure(ctx, binding, thunderAgentID, targetClientID, binding.SecretRefPath,
 					errors.New("project AgentID promotion did not return the required client secret"))
 				return
 			}
 			if clientID != targetClientID || (!isExternal && clientSecret != targetClientSecret) {
 				// The provider did not set the credential it was handed, so the
 				// target and what would be stored could differ.
-				s.recordFailure(ctx, binding, thunderAgentID, binding.ThunderClientID, binding.SecretRefPath,
+				s.recordFailure(ctx, binding, thunderAgentID, targetClientID, binding.SecretRefPath,
 					errors.New("project AgentID promotion did not apply the requested target credential"))
 				return
 			}
@@ -905,7 +938,12 @@ func (s *agentThunderProvisioningService) AttemptProvision(ctx context.Context, 
 				OrganizationID: binding.OUID, ProjectID: binding.ProjectName, ProjectName: binding.ProjectName,
 				Environment: binding.EnvironmentName, AgentName: binding.AgentName,
 				ProvisioningType: binding.ProvisioningType, ExistingAgentID: thunderAgentID,
-				ExistingClientID: clientID, NeedsSecret: isExternal || binding.SecretRefPath == "",
+				ExistingClientID: clientID,
+				// An external agent also asks for a secret: in CP mode the control
+				// plane needs a secret value on the environment to apply the AgentID,
+				// so the provider returns one. It is passed to Activate below and
+				// never stored or logged.
+				NeedsSecret: isExternal || binding.SecretRefPath == "",
 			}
 			result, provisionErr := s.projectIdentityProvider.Provision(ctx, request)
 			if provisionErr != nil {
@@ -1053,6 +1091,16 @@ func (s *agentThunderProvisioningService) AttemptProvision(ctx context.Context, 
 	reconcileWorkloadInjection(ctx, s.getWorkloadInjector(), binding, s.logger)
 }
 
+// deferPromotion puts a promotion target back to pending until the reconciler's
+// next tick, without consuming an attempt, while its source environment
+// identity is still being provisioned or cannot be read right now.
+func (s *agentThunderProvisioningService) deferPromotion(ctx context.Context, binding models.AgentThunderClient) {
+	next := time.Now().Add(reconcilerTickInterval)
+	if releaseErr := s.repo.ReleaseClaim(ctx, binding.ID, next, "Waiting for the source environment identity."); releaseErr != nil {
+		s.logger.Error("Failed to defer project AgentID promotion", "bindingID", binding.ID, "error", releaseErr)
+	}
+}
+
 // recordFailure retries cause up to maxProvisionAttempts times before marking
 // the binding FAILED. ErrThunderNotProvisioned is treated the same as any
 // other failure, not as an immediate permanent one — the environment may just
@@ -1130,6 +1178,8 @@ func userFacingProvisioningError(cause error) string {
 		return "Identity provider is not set up for this environment yet."
 	case errors.Is(cause, thundersvc.ErrThunderUnreachable):
 		return "Identity provider is temporarily unreachable. Please retry."
+	case errors.Is(cause, ErrProjectAgentIdentitySourceUnavailable):
+		return "The source environment's identity is missing or failed. Fix it first, then retry."
 	default:
 		return "Identity provisioning failed. Please retry."
 	}
@@ -1480,6 +1530,10 @@ func (s *agentThunderProvisioningService) DeleteAllBindings(ctx context.Context,
 	order := deletionOrder(bindings, cpManaged)
 	sourceDeleteFailed := false
 	warnedNoDeletionProvider := false
+	// leftovers collects the AgentIDs that stay in the identity control plane
+	// because the source deletion failed: the source itself and every promoted
+	// one that was skipped as a result.
+	var leftovers []string
 	for _, i := range order {
 		b := bindings[i]
 		func() {
@@ -1518,12 +1572,15 @@ func (s *agentThunderProvisioningService) DeleteAllBindings(ctx context.Context,
 				if !isSource && sourceDeleteFailed {
 					s.logger.Warn("Skipping promoted AgentID deletion: the source environment's AgentID was not deleted",
 						"ouID", ouID, "bindingID", b.ID, "agentName", agentName, "env", b.EnvironmentName)
+					leftovers = append(leftovers, b.EnvironmentName+"="+b.ThunderAgentID)
 					return
 				}
 				if s.projectIdentityDeletionProvider == nil {
+					// SetProjectAgentIdentityProvider requires a deletion provider in
+					// CP_MANAGED mode, so this is only a guard against a half wired service.
 					if !warnedNoDeletionProvider {
 						warnedNoDeletionProvider = true
-						s.logger.Warn("AgentIDs left in the identity control plane: no project AgentID deletion provider is configured",
+						s.logger.Error("AgentIDs left in the identity control plane: no project AgentID deletion provider is configured",
 							"ouID", ouID, "projectName", projectName, "agentName", agentName)
 					}
 					return
@@ -1535,6 +1592,7 @@ func (s *agentThunderProvisioningService) DeleteAllBindings(ctx context.Context,
 				}); err != nil {
 					if isSource {
 						sourceDeleteFailed = true
+						leftovers = append(leftovers, b.EnvironmentName+"="+b.ThunderAgentID)
 					}
 					s.logger.Warn("Failed to delete project AgentID from the identity control plane",
 						"ouID", ouID, "projectName", projectName, "agentName", agentName, "env", b.EnvironmentName,
@@ -1551,6 +1609,12 @@ func (s *agentThunderProvisioningService) DeleteAllBindings(ctx context.Context,
 				s.logger.Warn("Failed to delete Thunder agent identity", "ouID", ouID, "bindingID", b.ID, "agentName", agentName, "env", b.EnvironmentName, "error", err)
 			}
 		}()
+	}
+	if len(leftovers) > 0 {
+		// The binding rows are already deleted, so nothing else records these.
+		// Environment=AgentID pairs only; never a secret.
+		s.logger.Error("AgentIDs remain in the identity control plane and need manual cleanup: the source environment's AgentID could not be deleted",
+			"ouID", ouID, "projectName", projectName, "agentName", agentName, "leftoverAgentIDs", leftovers)
 	}
 }
 

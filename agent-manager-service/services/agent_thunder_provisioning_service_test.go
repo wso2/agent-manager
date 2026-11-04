@@ -96,11 +96,46 @@ func (s projectAgentIdentityProviderStub) Activate(ctx context.Context, request 
 	return s.activate(ctx, request, agentID)
 }
 
+// DeleteAgentIdentity makes the stub a valid CP_MANAGED provider, which must be
+// able to delete AgentIDs. It accepts every deletion.
+func (s projectAgentIdentityProviderStub) DeleteAgentIdentity(context.Context, ProjectAgentIdentityDeleteRequest) error {
+	return nil
+}
+
+// providerWithoutDeletionStub implements only the required provider methods, so
+// it must be rejected in CP_MANAGED mode.
+type providerWithoutDeletionStub struct{}
+
+func (providerWithoutDeletionStub) Provision(context.Context, ProjectAgentIdentityRequest) (ProjectAgentIdentityResult, error) {
+	return ProjectAgentIdentityResult{}, nil
+}
+
+func (providerWithoutDeletionStub) Activate(context.Context, ProjectAgentIdentityRequest, string) error {
+	return nil
+}
+
 func TestProjectAgentIdentityProviderConfiguration(t *testing.T) {
 	svc := &agentThunderProvisioningService{}
 	require.NoError(t, svc.SetProjectAgentIdentityProvider(thundersvc.IdentityManagementLegacyDirect, nil))
 	require.Error(t, svc.SetProjectAgentIdentityProvider(thundersvc.IdentityManagementCPManaged, nil))
 	require.Error(t, svc.SetProjectAgentIdentityProvider(thundersvc.IdentityManagementMixed, projectAgentIdentityProviderStub{}))
+}
+
+func TestSetProjectAgentIdentityProviderRequiresDeletionInCPManaged(t *testing.T) {
+	svc := &agentThunderProvisioningService{}
+
+	err := svc.SetProjectAgentIdentityProvider(thundersvc.IdentityManagementCPManaged, providerWithoutDeletionStub{})
+	require.ErrorContains(t, err, "ProjectAgentIdentityDeletionProvider")
+	assert.Empty(t, svc.identityManagementMode, "a rejected provider must leave the service untouched")
+	assert.Nil(t, svc.projectIdentityProvider)
+
+	require.NoError(t, svc.SetProjectAgentIdentityProvider(thundersvc.IdentityManagementCPManaged, projectAgentIdentityProviderStub{}))
+	assert.Equal(t, thundersvc.IdentityManagementCPManaged, svc.identityManagementMode)
+	assert.NotNil(t, svc.projectIdentityDeletionProvider)
+
+	// LEGACY_DIRECT never needs a deletion provider.
+	require.NoError(t, svc.SetProjectAgentIdentityProvider(thundersvc.IdentityManagementLegacyDirect, providerWithoutDeletionStub{}))
+	assert.Nil(t, svc.projectIdentityDeletionProvider)
 }
 
 func TestAttemptProvision_CPManagedUsesProjectProvider(t *testing.T) {
