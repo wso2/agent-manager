@@ -395,3 +395,55 @@ func TestHealthChecksOfImageBuild(t *testing.T) {
 		require.Error(t, err)
 	})
 }
+
+// An agent created from a kind version starts with the health checks of the build the version
+// was published from; with none, or when that build can't be read, its first binding gets no
+// component-type configs, as before health checks existed, so it uses the defaults.
+func TestKindAgentFirstBindingComponentTypeConfigs(t *testing.T) {
+	tcpCheck := "TCP"
+	versionBuildChecks := &models.HealthChecks{Liveness: &models.HealthCheck{Type: &tcpCheck}}
+
+	newService := func(versionBuild func() (*models.BuildDetailsResponse, error)) *agentManagerService {
+		oc := &clientmocks.OpenChoreoClientMock{
+			// A new agent has no builds of its own yet.
+			ListBuildsFunc: func(context.Context, string, string, string) ([]*models.BuildResponse, error) {
+				return nil, nil
+			},
+			GetBuildByNameFunc: func(context.Context, string, string) (*models.BuildDetailsResponse, error) {
+				return versionBuild()
+			},
+		}
+		kindRepo := &repomocks.AgentKindRepositoryMock{
+			GetKindFunc: func(_ context.Context, _, name string) (*models.AgentKind, error) {
+				k := &models.AgentKind{ID: uuid.New(), Name: name}
+				k.Versions = []models.AgentKindVersion{{Version: "2.0.0", ImageId: kindVersionImage, BuildName: "kind-src-build-7", Kind: k}}
+				return k, nil
+			},
+		}
+		return &agentManagerService{ocClient: oc, agentKindService: newKindService(kindRepo, oc), logger: discardLogger()}
+	}
+	configsFor := func(svc *agentManagerService) map[string]interface{} {
+		return svc.kindAgentFirstBindingComponentTypeConfigs(context.Background(), "acme", "proj1", "my-copy", "my-kind", kindVersionImage)
+	}
+
+	t.Run("the version's build has health checks: the first binding gets them", func(t *testing.T) {
+		svc := newService(func() (*models.BuildDetailsResponse, error) {
+			return &models.BuildDetailsResponse{BuildResponse: models.BuildResponse{HealthChecks: versionBuildChecks}}, nil
+		})
+		assert.Equal(t, map[string]interface{}{"healthChecks": versionBuildChecks}, configsFor(svc))
+	})
+
+	t.Run("the version's build has none: no component-type configs, as before", func(t *testing.T) {
+		svc := newService(func() (*models.BuildDetailsResponse, error) {
+			return &models.BuildDetailsResponse{}, nil
+		})
+		assert.Nil(t, configsFor(svc))
+	})
+
+	t.Run("the version's build can't be read: created anyway, with the defaults", func(t *testing.T) {
+		svc := newService(func() (*models.BuildDetailsResponse, error) {
+			return nil, errors.New("openchoreo unavailable")
+		})
+		assert.Nil(t, configsFor(svc))
+	})
+}

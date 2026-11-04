@@ -726,6 +726,25 @@ func (s *agentManagerService) healthChecksOfImageBuild(ctx context.Context, ouID
 	return nil, nil //nolint:nilnil // documented contract: nil means the default health checks
 }
 
+// kindAgentFirstBindingComponentTypeConfigs returns the component-type configs for the first
+// binding of an agent created from a kind version: the health checks of the build the version
+// was published from, as deploy writes them. Nil when that build has none, which writes no
+// component-type configs, exactly as before health checks existed. If the build can't be looked
+// up the agent is still created, with the default health checks; a later deploy of the version
+// writes the right ones.
+func (s *agentManagerService) kindAgentFirstBindingComponentTypeConfigs(ctx context.Context, ouID, projectName, agentName, kindName, imageID string) map[string]interface{} {
+	healthChecks, err := s.healthChecksOfImageBuild(ctx, ouID, projectName, agentName, kindName, imageID)
+	if err != nil {
+		s.logger.Warn("Could not find the kind version build's health checks; the agent starts with the default ones",
+			"agentName", agentName, "imageId", imageID, "error", err)
+		return nil
+	}
+	if healthChecks == nil {
+		return nil
+	}
+	return map[string]interface{}{"healthChecks": healthChecks}
+}
+
 // kindBuildInputInterface reads the input interface off the build that produced a
 // kind version's image. Returns nil when the version has no build, or the build can
 // no longer be read, so callers fall back rather than failing over it.
@@ -1900,8 +1919,9 @@ func (s *agentManagerService) createComponentAgent(ctx context.Context, ouID, pr
 			// amp-generate-workload does for source-built agents; kind components are
 			// created with autoDeploy off so nothing else deploys them. Deploy goes through
 			// the same call, which is how a later kind-version switch reaches the pod.
+			kindComponentTypeConfigs := s.kindAgentFirstBindingComponentTypeConfigs(ctx, ouID, projectName, req.Name, req.Provisioning.AgentKind.Name, imageID)
 			if err := s.ocClient.EnsureReleaseAndBinding(
-				ctx, ouID, projectName, req.Name, firstEnv, kindEnvVars, kindFileVars, nil, nil,
+				ctx, ouID, projectName, req.Name, firstEnv, kindEnvVars, kindFileVars, nil, kindComponentTypeConfigs,
 			); err != nil {
 				s.logger.Error("Failed to create release binding for kind-sourced agent",
 					"agentName", req.Name, "ouID", ouID, "projectName", projectName,
