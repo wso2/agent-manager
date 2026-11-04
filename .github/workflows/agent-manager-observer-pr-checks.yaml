@@ -73,7 +73,7 @@ jobs:
         working-directory: ./agent-manager-observer
         run: |
           deps=$(go list -deps .)
-          if grep -E '^(modernc\.org/sqlite|k8s\.io/client-go|go\.opentelemetry\.io)' <<<"$deps"; then
+          if grep -E '^(modernc\.org|k8s\.io|sigs\.k8s\.io|go\.opentelemetry\.io)' <<<"$deps"; then
             echo "devstore-only packages leaked into the untagged build"; exit 1
           fi
 
