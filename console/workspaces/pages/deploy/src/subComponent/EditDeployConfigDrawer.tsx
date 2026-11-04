@@ -43,6 +43,7 @@ import {
 } from "@agent-management-platform/views";
 import {
   ALLOWED,
+  ConfigSection,
   RestrictedAction,
   useAgentEnvironmentAccess,
   useConfirmationDialog,
@@ -387,11 +388,113 @@ export function EditDeployConfigDrawer({
     setFiles((prev) => prev.filter((_, i) => i !== index));
   }, []);
 
+  // What each closed section shows on the right of its heading.
+  const plural = (count: number, word: string) => `${count} ${word}${count === 1 ? "" : "s"}`;
+  const secretCount = env.filter((item) => item.isSensitive || isStoredSecret(item)).length;
+  const envSummary = env.length === 0
+    ? "None"
+    : secretCount > 0
+      ? `${plural(env.length, "variable")} · ${plural(secretCount, "secret")}`
+      : plural(env.length, "variable");
+  const filesSummary = files.length === 0 ? "None" : plural(files.length, "file");
+  const tracingSummary = !tracingEnabled
+    ? "Off"
+    : isPythonBuildpack && instrumentationVersion
+      ? `On · ${instrumentationVersion}`
+      : "On";
+  const healthChecksSummary = `${
+    healthChecksInEffect(healthChecks).filter((check) => check.enabled).length
+  } of 3 on`;
+
   return (
     <DrawerWrapper open={open} onClose={onClose}>
       <DrawerHeader icon={<SlidersVertical size={24} />} title={title} onClose={onClose} />
       <DrawerContent>
-        <Form.Stack spacing={3}>
+        <Form.Stack spacing={2}>
+          <ConfigSection
+            title="Environment Variables"
+            summary={envSummary}
+            defaultExpanded
+            actions={
+              <>
+                <EnvFileUploadButton
+                  onParsed={handleEnvFileParsed}
+                  disabled={isPending || !seededRef.current}
+                />
+                <Button
+                  size="small"
+                  variant="outlined"
+                  startIcon={<Plus size={14} />}
+                  onClick={handleAddEnv}
+                  disabled={isPending || !seededRef.current}
+                >
+                  Add
+                </Button>
+              </>
+            }
+          >
+            {env.length === 0 ? (
+              <Typography variant="body2" color="text.secondary">
+                No environment variables. Click Add to define them.
+              </Typography>
+            ) : (
+              <Stack spacing={1}>
+                {env.map((item, index) => (
+                  <EnvVariableEditor
+                    key={index}
+                    index={index}
+                    keyValue={item.key}
+                    valueValue={item.value}
+                    isSensitive={item.isSensitive ?? false}
+                    isExistingSecret={isStoredSecret(item)}
+                    isSystem={item.isSystem}
+                    onKeyChange={(v) => handleEnvChange(index, "key", v)}
+                    onValueChange={(v) => handleEnvChange(index, "value", v)}
+                    onSensitiveChange={(v) => handleEnvChange(index, "isSensitive", v)}
+                    onRemove={() => handleRemoveEnv(index)}
+                  />
+                ))}
+              </Stack>
+            )}
+          </ConfigSection>
+
+          <ConfigSection
+            title="File Mounts"
+            summary={filesSummary}
+            actions={
+              <Button
+                size="small"
+                variant="outlined"
+                startIcon={<Plus size={14} />}
+                onClick={handleAddFile}
+                disabled={isPending || !seededRef.current}
+              >
+                Add
+              </Button>
+            }
+          >
+            {files.length === 0 ? (
+              <Typography variant="body2" color="text.secondary">
+                No file mounts. Click Add to define them.
+              </Typography>
+            ) : (
+              <Stack spacing={1} divider={<Divider />}>
+                {files.map((file, index) => (
+                  <FileMountEditor
+                    key={file.id}
+                    keyValue={file.key}
+                    mountPathValue={file.mountPath}
+                    contentValue={file.value}
+                    onKeyChange={(v) => handleFileChange(index, "key", v)}
+                    onMountPathChange={(v) => handleFileChange(index, "mountPath", v)}
+                    onContentChange={(v) => handleFileChange(index, "value", v)}
+                    onRemove={() => handleRemoveFile(index)}
+                  />
+                ))}
+              </Stack>
+            )}
+          </ConfigSection>
+
           {showSecurity && (
             <SecurityConfigSections
               ref={securityRef}
@@ -407,8 +510,7 @@ export function EditDeployConfigDrawer({
           )}
 
           {showTracing && (
-            <Form.Section>
-              <Form.Header>Tracing - Instrumentation</Form.Header>
+            <ConfigSection title="Tracing - Instrumentation" summary={tracingSummary}>
               <Stack spacing={2}>
                 <Stack direction="row" justifyContent="space-between" alignItems="center">
                   <Typography variant="body2">Auto-Instrumentation</Typography>
@@ -478,12 +580,11 @@ export function EditDeployConfigDrawer({
                   </Stack>
                 </Stack>
               </Stack>
-            </Form.Section>
+            </ConfigSection>
           )}
 
           {showHealthChecks && (
-            <Form.Section>
-              <Form.Header>Health Checks</Form.Header>
+            <ConfigSection title="Health Checks" summary={healthChecksSummary}>
               <Typography variant="body2" color="text.secondary">
                 The checks of the build this environment runs. Set them in Configure Build on the
                 Build page; changes apply from the next build.
@@ -505,89 +606,24 @@ export function EditDeployConfigDrawer({
                   </Stack>
                 ))}
               </Stack>
-            </Form.Section>
+            </ConfigSection>
           )}
 
-          <Form.Section>
-            <Stack direction="row" justifyContent="space-between" alignItems="center">
-              <Form.Header>Environment Variables</Form.Header>
-              <Stack direction="row" gap={1}>
-                <EnvFileUploadButton
-                  onParsed={handleEnvFileParsed}
-                  disabled={isPending || !seededRef.current}
-                />
-                <Button
-                  size="small"
-                  variant="outlined"
-                  startIcon={<Plus size={14} />}
-                  onClick={handleAddEnv}
-                  disabled={isPending || !seededRef.current}
-                >
-                  Add
-                </Button>
-              </Stack>
-            </Stack>
-            {env.length === 0 ? (
-              <Typography variant="body2" color="text.secondary">
-                No environment variables. Click Add to define them.
-              </Typography>
-            ) : (
-              <Stack spacing={1}>
-                {env.map((item, index) => (
-                  <EnvVariableEditor
-                    key={index}
-                    index={index}
-                    keyValue={item.key}
-                    valueValue={item.value}
-                    isSensitive={item.isSensitive ?? false}
-                    isExistingSecret={isStoredSecret(item)}
-                    isSystem={item.isSystem}
-                    onKeyChange={(v) => handleEnvChange(index, "key", v)}
-                    onValueChange={(v) => handleEnvChange(index, "value", v)}
-                    onSensitiveChange={(v) => handleEnvChange(index, "isSensitive", v)}
-                    onRemove={() => handleRemoveEnv(index)}
-                  />
-                ))}
-              </Stack>
-            )}
-          </Form.Section>
-
-          <Form.Section>
-            <Stack direction="row" justifyContent="space-between" alignItems="center">
-              <Form.Header>File Mounts</Form.Header>
-              <Button
-                size="small"
-                variant="outlined"
-                startIcon={<Plus size={14} />}
-                onClick={handleAddFile}
-                disabled={isPending || !seededRef.current}
-              >
-                Add
-              </Button>
-            </Stack>
-            {files.length === 0 ? (
-              <Typography variant="body2" color="text.secondary">
-                No file mounts. Click Add to define them.
-              </Typography>
-            ) : (
-              <Stack spacing={1} divider={<Divider />}>
-                {files.map((file, index) => (
-                  <FileMountEditor
-                    key={file.id}
-                    keyValue={file.key}
-                    mountPathValue={file.mountPath}
-                    contentValue={file.value}
-                    onKeyChange={(v) => handleFileChange(index, "key", v)}
-                    onMountPathChange={(v) => handleFileChange(index, "mountPath", v)}
-                    onContentChange={(v) => handleFileChange(index, "value", v)}
-                    onRemove={() => handleRemoveFile(index)}
-                  />
-                ))}
-              </Stack>
-            )}
-          </Form.Section>
-
-          <Box display="flex" justifyContent="flex-end" gap={1}>
+          {/* Kept in view at the bottom of the drawer, so saving never needs scrolling. */}
+          <Box
+            display="flex"
+            justifyContent="flex-end"
+            gap={1}
+            sx={{
+              position: "sticky",
+              bottom: 0,
+              zIndex: 1,
+              py: 2,
+              bgcolor: "background.paper",
+              borderTop: 1,
+              borderColor: "divider",
+            }}
+          >
             <Button variant="outlined" onClick={onClose} disabled={isPending}>
               Cancel
             </Button>

@@ -52,6 +52,7 @@ import {
 } from "@wso2/oxygen-ui";
 import { ChevronDown, Info } from "@wso2/oxygen-ui-icons-react";
 import { isExternalAgent, servesA2A } from "@agent-management-platform/views";
+import { ConfigSection } from "@agent-management-platform/shared-component";
 import {
   forwardRef,
   useEffect,
@@ -61,6 +62,7 @@ import {
 } from "react";
 import {
   AgentCardCorsSection,
+  agentCardCorsSummary,
   cardDraftFromConfig,
   cardDraftToPayload,
   isCardDraftInvalid,
@@ -300,181 +302,21 @@ export const SecurityConfigSections = forwardRef<SecurityConfigHandle, SecurityC
       ],
     );
 
+    // What each closed section shows on the right of its heading.
+    const authSummary = authMode === "oauth" ? "OAuth" : authMode === "apikey" ? "API key" : "None";
+    const corsSummary = !corsEnabled
+      ? "Off"
+      : corsAllowAll
+        ? "On · all origins"
+        : `On · ${corsOrigins.length} origin${corsOrigins.length === 1 ? "" : "s"}`;
+    const timeoutSummary = `${timeoutDuration} ${timeoutUnit}`;
+
     if (!hasGatewayPolicies) return null;
 
     return (
       <>
-        {/* ── CORS ─────────────────────────────────────────────────── */}
-        <Form.Section>
-          <Form.Header>CORS Configuration</Form.Header>
-          <Form.Subheader>
-            Control which origins, methods, and headers may access this endpoint.
-          </Form.Subheader>
-          <Form.Stack spacing={1}>
-            <FormControlLabel
-              control={
-                <Switch
-                  checked={corsEnabled}
-                  onChange={(_, checked) => setCorsEnabled(checked)}
-                  disabled={disabled}
-                />
-              }
-              label="Enable CORS"
-            />
-            {isA2AAgent && (
-              <Box display="flex" alignItems="center" gap={1}>
-                <Tooltip title="Required by A2A clients; always sent.">
-                  <Chip label={A2A_VERSION_HEADER} size="small" />
-                </Tooltip>
-                <Typography variant="caption" color="text.secondary">
-                  Always an allowed header for A2A agents.
-                </Typography>
-              </Box>
-            )}
-            <Collapse in={corsEnabled}>
-              <Accordion
-                disableGutters
-                elevation={0}
-                sx={{
-                  mt: 1,
-                  border: "1px solid",
-                  borderColor: "divider",
-                  borderRadius: 1,
-                  "&:before": { display: "none" },
-                }}
-              >
-                <AccordionSummary expandIcon={<ChevronDown size={16} />}>
-                  <Typography variant="body2">Advanced</Typography>
-                </AccordionSummary>
-                <AccordionDetails>
-                  <Form.Stack spacing={2}>
-                    <Box display="flex" gap={2} alignItems="center">
-                      <FormControlLabel
-                        control={
-                          <Checkbox
-                            checked={corsAllowAll}
-                            onChange={(_, checked) => {
-                              setCorsAllowAll(checked);
-                              if (checked) {
-                                setCorsAllowCredentials(false);
-                                setCorsOrigins(["*"]);
-                              } else {
-                                setCorsOrigins((prev) => prev.filter((o) => o !== "*"));
-                              }
-                            }}
-                            disabled={disabled}
-                          />
-                        }
-                        label="Allow all origins"
-                      />
-                      <FormControlLabel
-                        control={
-                          <Checkbox
-                            checked={corsAllowCredentials}
-                            onChange={(_, checked) => setCorsAllowCredentials(checked)}
-                            disabled={disabled || hasWildcardOrigin}
-                          />
-                        }
-                        label="Allow credentials"
-                      />
-                    </Box>
-                    {!corsAllowAll && (
-                      <FormControl fullWidth>
-                        <FormLabel>Allowed origins</FormLabel>
-                        <Autocomplete
-                          multiple
-                          freeSolo
-                          options={[]}
-                          value={corsOrigins}
-                          onChange={(_, v) => setCorsOrigins(v as string[])}
-                          renderTags={(vals, getTagProps) =>
-                            vals.map((opt, i) => (
-                              <Chip
-                                label={opt as string}
-                                size="small"
-                                {...getTagProps({ index: i })}
-                                key={opt as string}
-                              />
-                            ))
-                          }
-                          renderInput={(params) => (
-                            <TextField {...params} size="small" placeholder="Add origin and press Enter"
-                              slotProps={{
-                                htmlInput: { ...params.inputProps, maxLength: INPUT_LIMITS.URL },
-                              }}
-                            />
-                          )}
-                        />
-                      </FormControl>
-                    )}
-                    <FormControl fullWidth>
-                      <FormLabel>Allowed methods</FormLabel>
-                      <Autocomplete
-                        multiple
-                        freeSolo
-                        options={[]}
-                        value={corsMethods}
-                        onChange={(_, v) => setCorsMethods(v as string[])}
-                        renderTags={(vals, getTagProps) =>
-                          vals.map((opt, i) => (
-                            <Chip
-                              label={opt as string}
-                              size="small"
-                              {...getTagProps({ index: i })}
-                              key={opt as string}
-                            />
-                          ))
-                        }
-                        renderInput={(params) => (
-                          <TextField {...params} size="small" placeholder="Add method and press Enter"
-                            slotProps={{
-                              htmlInput: { ...params.inputProps, maxLength: INPUT_LIMITS.KEY },
-                            }}
-                          />
-                        )}
-                      />
-                    </FormControl>
-                    <FormControl fullWidth>
-                      <FormLabel>Allowed headers</FormLabel>
-                      <Autocomplete
-                        multiple
-                        freeSolo
-                        options={[]}
-                        value={editableCorsHeaders}
-                        onChange={(_, v) => setCorsHeaders(v as string[])}
-                        renderTags={(vals, getTagProps) =>
-                          vals.map((opt, i) => (
-                            <Chip
-                              label={opt as string}
-                              size="small"
-                              {...getTagProps({ index: i })}
-                              key={opt as string}
-                            />
-                          ))
-                        }
-                        renderInput={(params) => (
-                          <TextField {...params} size="small" placeholder="Add header and press Enter"
-                            slotProps={{
-                              htmlInput: { ...params.inputProps, maxLength: INPUT_LIMITS.KEY },
-                            }}
-                          />
-                        )}
-                      />
-                    </FormControl>
-                  </Form.Stack>
-                </AccordionDetails>
-              </Accordion>
-            </Collapse>
-          </Form.Stack>
-        </Form.Section>
-
-        {isA2AAgent && (
-          <AgentCardCorsSection draft={cardDraft} onChange={setCardDraft} disabled={disabled} />
-        )}
-
         {/* ── Endpoint Authentication ──────────────────────────────── */}
-        <Form.Section>
-          <Form.Header>Endpoint Authentication</Form.Header>
+        <ConfigSection title="Endpoint Authentication" summary={authSummary} hasError={oauthInvalid}>
           <Form.Subheader>
             Choose how callers authenticate against this agent endpoint.
           </Form.Subheader>
@@ -661,10 +503,183 @@ export const SecurityConfigSections = forwardRef<SecurityConfigHandle, SecurityC
               </Form.Stack>
             </Collapse>
           </Form.Stack>
-        </Form.Section>
+        </ConfigSection>
+
+        {/* ── CORS ─────────────────────────────────────────────────── */}
+        <ConfigSection title="CORS Configuration" summary={corsSummary}>
+          <Form.Subheader>
+            Control which origins, methods, and headers may access this endpoint.
+          </Form.Subheader>
+          <Form.Stack spacing={1}>
+            <FormControlLabel
+              control={
+                <Switch
+                  checked={corsEnabled}
+                  onChange={(_, checked) => setCorsEnabled(checked)}
+                  disabled={disabled}
+                />
+              }
+              label="Enable CORS"
+            />
+            {isA2AAgent && (
+              <Box display="flex" alignItems="center" gap={1}>
+                <Tooltip title="Required by A2A clients; always sent.">
+                  <Chip label={A2A_VERSION_HEADER} size="small" />
+                </Tooltip>
+                <Typography variant="caption" color="text.secondary">
+                  Always an allowed header for A2A agents.
+                </Typography>
+              </Box>
+            )}
+            <Collapse in={corsEnabled}>
+              <Accordion
+                disableGutters
+                elevation={0}
+                sx={{
+                  mt: 1,
+                  border: "1px solid",
+                  borderColor: "divider",
+                  borderRadius: 1,
+                  "&:before": { display: "none" },
+                }}
+              >
+                <AccordionSummary expandIcon={<ChevronDown size={16} />}>
+                  <Typography variant="body2">Advanced</Typography>
+                </AccordionSummary>
+                <AccordionDetails>
+                  <Form.Stack spacing={2}>
+                    <Box display="flex" gap={2} alignItems="center">
+                      <FormControlLabel
+                        control={
+                          <Checkbox
+                            checked={corsAllowAll}
+                            onChange={(_, checked) => {
+                              setCorsAllowAll(checked);
+                              if (checked) {
+                                setCorsAllowCredentials(false);
+                                setCorsOrigins(["*"]);
+                              } else {
+                                setCorsOrigins((prev) => prev.filter((o) => o !== "*"));
+                              }
+                            }}
+                            disabled={disabled}
+                          />
+                        }
+                        label="Allow all origins"
+                      />
+                      <FormControlLabel
+                        control={
+                          <Checkbox
+                            checked={corsAllowCredentials}
+                            onChange={(_, checked) => setCorsAllowCredentials(checked)}
+                            disabled={disabled || hasWildcardOrigin}
+                          />
+                        }
+                        label="Allow credentials"
+                      />
+                    </Box>
+                    {!corsAllowAll && (
+                      <FormControl fullWidth>
+                        <FormLabel>Allowed origins</FormLabel>
+                        <Autocomplete
+                          multiple
+                          freeSolo
+                          options={[]}
+                          value={corsOrigins}
+                          onChange={(_, v) => setCorsOrigins(v as string[])}
+                          renderTags={(vals, getTagProps) =>
+                            vals.map((opt, i) => (
+                              <Chip
+                                label={opt as string}
+                                size="small"
+                                {...getTagProps({ index: i })}
+                                key={opt as string}
+                              />
+                            ))
+                          }
+                          renderInput={(params) => (
+                            <TextField {...params} size="small" placeholder="Add origin and press Enter"
+                              slotProps={{
+                                htmlInput: { ...params.inputProps, maxLength: INPUT_LIMITS.URL },
+                              }}
+                            />
+                          )}
+                        />
+                      </FormControl>
+                    )}
+                    <FormControl fullWidth>
+                      <FormLabel>Allowed methods</FormLabel>
+                      <Autocomplete
+                        multiple
+                        freeSolo
+                        options={[]}
+                        value={corsMethods}
+                        onChange={(_, v) => setCorsMethods(v as string[])}
+                        renderTags={(vals, getTagProps) =>
+                          vals.map((opt, i) => (
+                            <Chip
+                              label={opt as string}
+                              size="small"
+                              {...getTagProps({ index: i })}
+                              key={opt as string}
+                            />
+                          ))
+                        }
+                        renderInput={(params) => (
+                          <TextField {...params} size="small" placeholder="Add method and press Enter"
+                            slotProps={{
+                              htmlInput: { ...params.inputProps, maxLength: INPUT_LIMITS.KEY },
+                            }}
+                          />
+                        )}
+                      />
+                    </FormControl>
+                    <FormControl fullWidth>
+                      <FormLabel>Allowed headers</FormLabel>
+                      <Autocomplete
+                        multiple
+                        freeSolo
+                        options={[]}
+                        value={editableCorsHeaders}
+                        onChange={(_, v) => setCorsHeaders(v as string[])}
+                        renderTags={(vals, getTagProps) =>
+                          vals.map((opt, i) => (
+                            <Chip
+                              label={opt as string}
+                              size="small"
+                              {...getTagProps({ index: i })}
+                              key={opt as string}
+                            />
+                          ))
+                        }
+                        renderInput={(params) => (
+                          <TextField {...params} size="small" placeholder="Add header and press Enter"
+                            slotProps={{
+                              htmlInput: { ...params.inputProps, maxLength: INPUT_LIMITS.KEY },
+                            }}
+                          />
+                        )}
+                      />
+                    </FormControl>
+                  </Form.Stack>
+                </AccordionDetails>
+              </Accordion>
+            </Collapse>
+          </Form.Stack>
+        </ConfigSection>
+
+        {isA2AAgent && (
+          <ConfigSection
+            title="Agent Card CORS"
+            summary={agentCardCorsSummary(cardDraft)}
+            hasError={cardInvalid}
+          >
+            <AgentCardCorsSection draft={cardDraft} onChange={setCardDraft} disabled={disabled} />
+          </ConfigSection>
+        )}
+
         {!isA2AAgent && (
-          <Form.Section>
-            <Form.Header>Request Timeout</Form.Header>
+          <ConfigSection title="Request Timeout" summary={timeoutSummary} hasError={timeoutInvalid}>
             <Form.Subheader>
               Maximum duration an active connection can stay open between the agent and client
             </Form.Subheader>
@@ -706,7 +721,7 @@ export const SecurityConfigSections = forwardRef<SecurityConfigHandle, SecurityC
                 </FormControl>
               </Grid>
             </Grid>
-          </Form.Section>
+          </ConfigSection>
         )}
       </>
     );
