@@ -40,8 +40,8 @@ const (
 	// maxLogRangeDays is the maximum startTime..endTime span accepted by
 	// /api/v1/logs, ported from agent-manager-service/utils/constants.go.
 	maxLogRangeDays = 14
-	// maxIncludeItems caps the include param of /api/v1/traces at its enum
-	// size, matching maxItems in docs/openapi.yaml.
+	// maxIncludeItems caps distinct include values at the enum size documented
+	// in docs/openapi.yaml.
 	maxIncludeItems = 3
 	// maxMissingItems matches the missing parameter enum size in docs/openapi.yaml.
 	maxMissingItems = 1

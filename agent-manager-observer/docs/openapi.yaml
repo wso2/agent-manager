@@ -112,8 +112,8 @@ paths:
           explode: false
           description: |
             Opt-in span-derived fields to fill on every trace, as a comma-separated
-            list. The parameter may be repeated. Repeated values are deduplicated
-            before applying the item limit. Unknown values return 400.
+            list. The parameter may be repeated. At most three distinct values are
+            accepted; repeated values are ignored. Unknown values return 400.
 
             - `models`: read model names from the trace's span list, requested with
               inline attributes. It adds one span-list call for traces that otherwise
@@ -133,7 +133,6 @@ paths:
               spans return no `mcpServers`, at no extra cost.
           schema:
             type: array
-            maxItems: 3
             items:
               type: string
               enum: [models, tools, mcpServers]
@@ -674,8 +673,8 @@ components:
       explode: false
       description: |
         Keep traces without the named fields, as a comma-separated list. The parameter
-        may be repeated. Repeated values are deduplicated before applying the item
-        limit. Unknown values return 400.
+        may be repeated. At most one distinct value is accepted; repeated values
+        are ignored. Unknown values return 400.
 
         - `conversationId`: keep traces with no conversation ID on the root, its first
           child or its LLM spans. A trace with an ID on its root is ruled out at the root;
@@ -686,7 +685,6 @@ components:
           (400).
       schema:
         type: array
-        maxItems: 1
         items:
           type: string
           enum: [conversationId]
