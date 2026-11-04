@@ -98,6 +98,16 @@ type GatewayController interface {
 	RevokeGatewayToken(w http.ResponseWriter, r *http.Request)
 	GetGatewayStatus(w http.ResponseWriter, r *http.Request)
 
+	// Self-hosted gateway handlers
+	ListSelfHostedGateways(w http.ResponseWriter, r *http.Request)
+	RegisterSelfHostedGateway(w http.ResponseWriter, r *http.Request)
+	GetSelfHostedGateway(w http.ResponseWriter, r *http.Request)
+	UpdateSelfHostedGateway(w http.ResponseWriter, r *http.Request)
+	DeleteSelfHostedGateway(w http.ResponseWriter, r *http.Request)
+	ListSelfHostedGatewayTokens(w http.ResponseWriter, r *http.Request)
+	RotateSelfHostedGatewayToken(w http.ResponseWriter, r *http.Request)
+	RevokeSelfHostedGatewayToken(w http.ResponseWriter, r *http.Request)
+
 	// Cross-organization, platform-admin only. Not org-scoped like everything
 	// else on this interface — see the handler.
 	GetPlatformGatewayFailureSummary(w http.ResponseWriter, r *http.Request)
@@ -136,18 +146,28 @@ func NewGatewayController(
 // unknown to this caller as a typo, and returning it unchecked let a cross-org
 // value through as a list filter and as the target of an environment assignment.
 func (c *gatewayController) resolveEnvironmentUUID(ctx context.Context, ouID, envIdentifier string) (string, error) {
+	env, err := c.resolveEnvironment(ctx, ouID, envIdentifier)
+	if err != nil {
+		return "", err
+	}
+	return env.UUID, nil
+}
+
+// resolveEnvironment is resolveEnvironmentUUID returning the whole environment, for
+// callers that also need its name.
+func (c *gatewayController) resolveEnvironment(ctx context.Context, ouID, envIdentifier string) (*models.EnvironmentResponse, error) {
 	environments, err := c.ocClient.ListEnvironments(ctx, ouID)
 	if err != nil {
-		return "", fmt.Errorf("failed to list environments: %w", err)
+		return nil, fmt.Errorf("failed to list environments: %w", err)
 	}
 
 	for _, env := range environments {
 		if env.Name == envIdentifier || strings.EqualFold(env.UUID, envIdentifier) {
-			return env.UUID, nil
+			return env, nil
 		}
 	}
 
-	return "", fmt.Errorf("%w: %s", utils.ErrEnvironmentNotFound, envIdentifier)
+	return nil, fmt.Errorf("%w: %s", utils.ErrEnvironmentNotFound, envIdentifier)
 }
 
 func handleGatewayErrors(w http.ResponseWriter, err error, fallbackMsg string) {
@@ -155,17 +175,23 @@ func handleGatewayErrors(w http.ResponseWriter, err error, fallbackMsg string) {
 	case errors.Is(err, utils.ErrGatewayNotFound):
 		utils.WriteErrorResponse(w, http.StatusNotFound, "Gateway not found")
 	case errors.Is(err, utils.ErrGatewayAlreadyExists):
-		utils.WriteErrorResponse(w, http.StatusConflict, "Gateway already exists")
+		utils.WriteErrorResponse(w, http.StatusConflict, "A gateway with this name already exists")
 	case errors.Is(err, utils.ErrGatewayHasDeployments):
 		utils.WriteErrorResponse(w, http.StatusConflict, err.Error())
 	case errors.Is(err, utils.ErrGatewayIngressCapExceeded):
 		utils.WriteErrorResponse(w, http.StatusConflict, err.Error())
 	case errors.Is(err, utils.ErrGatewayEnvironmentFixed):
 		utils.WriteErrorResponseWithReason(w, http.StatusConflict, err.Error(), "", utils.ErrCodeGatewayEnvironmentFixed)
+	case errors.Is(err, utils.ErrGatewayTokenLimitReached):
+		utils.WriteErrorResponse(w, http.StatusConflict, err.Error())
+	case errors.Is(err, utils.ErrGatewayTokenNotFound):
+		utils.WriteErrorResponse(w, http.StatusNotFound, "Token not found")
 	case errors.Is(err, utils.ErrBadRequest):
 		utils.WriteErrorResponse(w, http.StatusBadRequest, err.Error())
 	case errors.Is(err, utils.ErrEnvironmentNotFound):
 		utils.WriteErrorResponse(w, http.StatusNotFound, "Environment not found")
+	case utils.IsValidationError(err) != nil:
+		utils.WriteValidationErrorResponse(w, err)
 	case errors.Is(err, utils.ErrInvalidInput):
 		utils.WriteErrorResponse(w, http.StatusBadRequest, "Invalid input")
 	case errors.Is(err, gorm.ErrRecordNotFound):
@@ -247,6 +273,7 @@ func (c *gatewayController) RegisterGateway(w http.ResponseWriter, r *http.Reque
 		functionalityType,
 		properties,
 		req.EnvironmentIds,
+		models.GatewayHostingManaged,
 	)
 	audit.Record(
 		ctx, audit.ActionGatewayCreate,
@@ -319,20 +346,7 @@ func (c *gatewayController) ListGateways(w http.ResponseWriter, r *http.Request)
 		ctx = middleware.WithResolvedOrg(ctx, org)
 	}
 
-	// Parse and validate pagination parameters
-	limit := getIntQueryParam(r, "limit", defaultLimit)
-	offset := getIntQueryParam(r, "offset", defaultOffset)
-
-	// Validate pagination params to prevent panic
-	if limit < 0 {
-		limit = defaultLimit
-	}
-	if offset < 0 {
-		offset = 0
-	}
-	if limit > 1000 {
-		limit = 1000 // Cap maximum page size
-	}
+	limit, offset := gatewayPagination(r)
 
 	// Parse filter parameters
 	filters := &services.GatewayListFilters{}
@@ -378,10 +392,34 @@ func (c *gatewayController) ListGateways(w http.ResponseWriter, r *http.Request)
 		return
 	}
 
+	utils.WriteSuccessResponse(w, http.StatusOK, c.toSpecGatewayList(ctx, ouID, gatewaysResp, limit, offset))
+}
+
+// gatewayPagination reads limit and offset, falling back to the defaults for negative
+// values and capping the page size.
+func gatewayPagination(r *http.Request) (limit, offset int) {
+	limit = getIntQueryParam(r, "limit", defaultLimit)
+	offset = getIntQueryParam(r, "offset", defaultOffset)
+	if limit < 0 {
+		limit = defaultLimit
+	}
+	if offset < 0 {
+		offset = 0
+	}
+	if limit > 1000 {
+		limit = 1000
+	}
+	return limit, offset
+}
+
+// toSpecGatewayList converts a service gateway page to its wire form. Environments are
+// fetched once for the whole page rather than per gateway.
+func (c *gatewayController) toSpecGatewayList(ctx context.Context, ouID string, gatewaysResp *services.GatewayListResponse, limit, offset int) spec.GatewayListResponse {
+	log := logger.GetLogger(ctx)
 	// Fetch OpenChoreo environments ONCE for the entire organization (not per-gateway)
 	ocEnvironments, err := c.ocClient.ListEnvironments(ctx, ouID)
 	if err != nil {
-		log.Warn("ListGateways: failed to list environments from OpenChoreo", "error", err)
+		log.Warn("failed to list environments from OpenChoreo", "error", err)
 		ocEnvironments = nil // Continue with empty environments
 	}
 
@@ -400,14 +438,12 @@ func (c *gatewayController) ListGateways(w http.ResponseWriter, r *http.Request)
 		specGateways = append(specGateways, convertGatewayToSpecResponse(&gw, ouID, environments))
 	}
 
-	response := spec.GatewayListResponse{
+	return spec.GatewayListResponse{
 		Gateways: specGateways,
 		Total:    int32(gatewaysResp.Pagination.Total),
 		Limit:    int32(limit),
 		Offset:   int32(offset),
 	}
-
-	utils.WriteSuccessResponse(w, http.StatusOK, response)
 }
 
 func (c *gatewayController) UpdateGateway(w http.ResponseWriter, r *http.Request) {
@@ -580,6 +616,10 @@ func (c *gatewayController) RemoveGatewayFromEnvironment(w http.ResponseWriter, 
 				"The gateway still serves this environment's agents or proxies; undeploy them from this gateway, or remove the LLM configuration from the agents and monitors in this environment, first")
 			return
 		}
+		if errors.Is(err, utils.ErrGatewayEnvironmentFixed) {
+			handleGatewayErrors(w, err, "Failed to remove gateway from environment")
+			return
+		}
 		if errors.Is(err, gorm.ErrRecordNotFound) || strings.Contains(err.Error(), "mapping not found") {
 			utils.WriteErrorResponse(w, http.StatusNotFound, "Gateway-environment mapping not found")
 			return
@@ -677,6 +717,10 @@ func (c *gatewayController) ListGatewayTokens(w http.ResponseWriter, r *http.Req
 }
 
 func (c *gatewayController) RotateGatewayToken(w http.ResponseWriter, r *http.Request) {
+	c.rotateGatewayToken(w, r, http.StatusOK)
+}
+
+func (c *gatewayController) rotateGatewayToken(w http.ResponseWriter, r *http.Request, successStatus int) {
 	ctx := r.Context()
 	log := logger.GetLogger(ctx)
 	ouID := middleware.OUIDFromRequest(r)
@@ -730,7 +774,7 @@ func (c *gatewayController) RotateGatewayToken(w http.ResponseWriter, r *http.Re
 		ExpiresAt: nil, // Token doesn't have expiry in current implementation
 	}
 
-	utils.WriteSuccessResponse(w, http.StatusOK, response)
+	utils.WriteSuccessResponse(w, successStatus, response)
 }
 
 func (c *gatewayController) RevokeGatewayToken(w http.ResponseWriter, r *http.Request) {
@@ -755,17 +799,7 @@ func (c *gatewayController) RevokeGatewayToken(w http.ResponseWriter, r *http.Re
 	if err := c.gatewayService.RevokeTokenByID(tokenID, gatewayID, ouID); err != nil {
 		attempt.Complete(ctx, err)
 		log.Error("RevokeGatewayToken: failed to revoke token", "error", err)
-		switch {
-		case errors.Is(err, utils.ErrGatewayNotFound):
-			utils.WriteErrorResponse(w, http.StatusNotFound, "Gateway not found")
-		default:
-			errMsg := err.Error()
-			if strings.Contains(errMsg, "token not found") || strings.Contains(errMsg, "does not belong") {
-				utils.WriteErrorResponse(w, http.StatusNotFound, "Token not found")
-				return
-			}
-			utils.WriteErrorResponse(w, http.StatusInternalServerError, "Failed to revoke token")
-		}
+		handleGatewayErrors(w, err, "Failed to revoke token")
 		return
 	}
 	attempt.Complete(ctx, nil)
@@ -867,22 +901,27 @@ func (c *gatewayController) matchGatewayEnvironments(
 	for _, mapping := range mappings {
 		envUUIDStr := mapping.EnvironmentUUID.String()
 		if ocEnv, found := envMap[envUUIDStr]; found {
-			environments = append(environments, models.GatewayEnvironmentResponse{
-				UUID:             ocEnv.UUID,
-				OrganizationName: ouID,
-				Name:             ocEnv.Name,
-				DisplayName:      ocEnv.DisplayName,
-				Description:      "",
-				DataplaneRef:     ocEnv.DataplaneRef,
-				DNSPrefix:        ocEnv.DNSPrefix,
-				IsProduction:     ocEnv.IsProduction,
-				CreatedAt:        ocEnv.CreatedAt,
-				UpdatedAt:        ocEnv.CreatedAt,
-			})
+			environments = append(environments, gatewayEnvironmentResponse(ocEnv, ouID))
 		}
 	}
 
 	return environments
+}
+
+// gatewayEnvironmentResponse is an OpenChoreo environment as a gateway response lists it.
+func gatewayEnvironmentResponse(env *models.EnvironmentResponse, ouID string) models.GatewayEnvironmentResponse {
+	return models.GatewayEnvironmentResponse{
+		UUID:             env.UUID,
+		OrganizationName: ouID,
+		Name:             env.Name,
+		DisplayName:      env.DisplayName,
+		Description:      "",
+		DataplaneRef:     env.DataplaneRef,
+		DNSPrefix:        env.DNSPrefix,
+		IsProduction:     env.IsProduction,
+		CreatedAt:        env.CreatedAt,
+		UpdatedAt:        env.CreatedAt,
+	}
 }
 
 // Helper conversion functions
@@ -898,6 +937,7 @@ func convertGatewayToSpecResponse(gw *services.GatewayResponse, ouID string, env
 		Name:        gw.Name,
 		DisplayName: gw.DisplayName,
 		GatewayType: canonicalGatewayType(gw.FunctionalityType),
+		Hosting:     spec.GatewayHosting(gw.Hosting),
 		Vhost:       gw.Vhost,
 		RuntimeUrl:  runtimeURLPtr(gw.RuntimeURL),
 		IsCritical:  gw.IsCritical,

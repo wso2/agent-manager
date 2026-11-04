@@ -161,6 +161,8 @@ var (
 
 	// Gateway-related errors
 	ErrGatewayNotFound          = errors.New("gateway not found")
+	ErrGatewayTokenLimitReached = errors.New("maximum 2 active tokens allowed. Revoke old tokens before rotating") // 409: rotating would exceed two active tokens
+	ErrGatewayTokenNotFound     = errors.New("gateway token not found")                                            // 404: an unknown token, or a token of another gateway
 	ErrGatewayAlreadyExists     = errors.New("gateway already exists")
 	ErrInvalidAdapterType       = errors.New("invalid adapter type")
 	ErrGatewayUnreachable       = errors.New("gateway unreachable")
@@ -239,6 +241,7 @@ var (
 	ErrLLMProviderBeingDeleted     = errors.New("cannot create LLM proxy: the LLM provider is being deleted")
 	ErrLLMProxyNotFound            = errors.New("LLM proxy not found")
 	ErrLLMProxyExists              = errors.New("LLM proxy already exists")
+	ErrLLMProxyManagedByAMS        = errors.New("this LLM proxy is managed by an agent or monitor; change the agent's or monitor's LLM configuration instead")
 	ErrMCPProxyNotFound            = errors.New("MCP proxy not found")
 	// ErrAgentArtifactNotFound means no active Agent deployment exists for this
 	// artifact on this gateway.

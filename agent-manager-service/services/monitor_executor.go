@@ -273,7 +273,7 @@ func (e *monitorExecutor) resolveProxyURL(ctx context.Context, ouID, environment
 		}
 		deployed = ids
 	}
-	gateway, err := resolveEgressGatewayForArtifact(e.gatewayRepo, ouID, envUUID, deployed, nil)
+	gateway, err := monitorPolicy.ownGateway(e.gatewayRepo, ouID, envUUID, deployed)
 	if err != nil {
 		return "", fmt.Errorf("failed to resolve gateway for environment %s: %w", environmentID, err)
 	}

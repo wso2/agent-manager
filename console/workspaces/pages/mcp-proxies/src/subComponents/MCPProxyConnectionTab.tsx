@@ -74,6 +74,7 @@ export function MCPProxyConnectionTab({
   const [authEnabled, setAuthEnabled] = useState(true);
   const [credentialValue, setCredentialValue] = useState("");
   const [isCredentialMasked, setIsCredentialMasked] = useState(false);
+  const [isCredentialEdited, setIsCredentialEdited] = useState(false);
   const [showCredential, setShowCredential] = useState(false);
   const [resilienceTimeout, setResilienceTimeout] = useState("");
   const [resilienceIdleTimeout, setResilienceIdleTimeout] = useState("");
@@ -103,6 +104,7 @@ export function MCPProxyConnectionTab({
     const hasCredential = Boolean(config?.upstream?.main?.auth?.header);
     setCredentialValue(hasCredential ? MASKED_CREDENTIAL_VALUE : "");
     setIsCredentialMasked(hasCredential);
+    setIsCredentialEdited(false);
     setShowCredential(false);
     setResilienceTimeout(config?.resilience?.timeout ?? "");
     setResilienceIdleTimeout(config?.resilience?.idleTimeout ?? "");
@@ -146,10 +148,13 @@ export function MCPProxyConnectionTab({
     return err;
   }, []);
 
+  // An empty field only differs from what's saved when a credential is stored.
+  const typedCredential = credentialValue.trim();
   const credentialChanged =
     authEnabled &&
-    !isCredentialMasked &&
-    credentialValue.trim() !== MASKED_CREDENTIAL_VALUE;
+    isCredentialEdited &&
+    typedCredential !== MASKED_CREDENTIAL_VALUE &&
+    (typedCredential !== "" || hasStoredCredential);
   const effectiveAuthHeader = authEnabled ? authHeader.trim() : "";
 
   const isDirty = useMemo(() => {
@@ -209,7 +214,7 @@ export function MCPProxyConnectionTab({
           type: "api-key" as const,
           ...existingAuth,
           header: effectiveAuthHeader,
-          ...(credentialChanged ? { value: credentialValue.trim() } : {}),
+          ...(credentialChanged ? { value: typedCredential } : {}),
         }
       : undefined;
 
@@ -241,6 +246,7 @@ export function MCPProxyConnectionTab({
       if (credentialChanged) {
         setCredentialValue(MASKED_CREDENTIAL_VALUE);
         setIsCredentialMasked(true);
+        setIsCredentialEdited(false);
       }
     } catch {
       setStatus({ message: "Failed to update connection.", severity: "error" });
@@ -252,7 +258,7 @@ export function MCPProxyConnectionTab({
     resilienceTimeout,
     resilienceIdleTimeout,
     credentialChanged,
-    credentialValue,
+    typedCredential,
     onUpdate,
     validateEndpoint,
     validateResilienceTimeout,
@@ -329,7 +335,10 @@ export function MCPProxyConnectionTab({
                     setIsCredentialMasked(false);
                   }
                 }}
-                onValueChange={setCredentialValue}
+                onValueChange={(value) => {
+                  setCredentialValue(value);
+                  setIsCredentialEdited(true);
+                }}
                 showValue={showCredential}
                 onToggleShowValue={() => setShowCredential((p) => !p)}
                 caption={

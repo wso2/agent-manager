@@ -29,6 +29,7 @@ export * from "./LabelChips";
 export * from "./FileMountSection";
 export * from "./ResourceMetricChip";
 export * from "./GatewayTypeChip";
+export * from "./GatewayHostingChip";
 export * from "./InfoCard";
 export * from "./EnvironmentCard";
 export * from "./OverviewSectionCard";

@@ -919,6 +919,26 @@ func TestUnplacedRecordsNeedAGatewayOfTheKindsRole(t *testing.T) {
 	}
 }
 
+func TestUnplacedConditionIgnoresSelfHosted(t *testing.T) {
+	kind := newFakeEnvKind(true)
+	ouID, env := testOU(), uuid.New()
+	ref := seedArtifact(t, ouID, fakeEnvKindName)
+	seedRecord(t, nil, ref, env)
+	selfHosted := seedGatewayWithRole(t, ouID, models.GatewayRoleEgress, env)
+	require.NoError(t, db.GetDB().Exec(`UPDATE gateways SET hosting = ? WHERE uuid = ?`,
+		models.GatewayHostingSelfHosted, selfHosted).Error)
+
+	records, err := kind.UnplacedRecords(context.Background(), ouID, &env, "", 10)
+	require.NoError(t, err)
+	assert.Empty(t, records, "an environment with only a self-hosted gateway has no default to place on")
+
+	seedGatewayWithRole(t, ouID, models.GatewayRoleEgress, env)
+
+	records, err = kind.UnplacedRecords(context.Background(), ouID, &env, "", 10)
+	require.NoError(t, err)
+	assert.Len(t, records, 1, "a managed gateway in the environment makes the record unplaced")
+}
+
 func TestGatewayDeleteKeepsAUserUndeploy(t *testing.T) {
 	for name, sent := range map[string]bool{"undeployed after a deploy": true, "undeployed from PENDING": false} {
 		t.Run(name, func(t *testing.T) {

@@ -39,6 +39,7 @@ import (
 
 	"github.com/wso2/agent-manager/agent-manager-service/models"
 	"github.com/wso2/agent-manager/agent-manager-service/repositories"
+	"github.com/wso2/agent-manager/agent-manager-service/spec"
 	"github.com/wso2/agent-manager/agent-manager-service/utils"
 )
 
@@ -129,8 +130,37 @@ type GatewayResponse struct {
 	IsCritical        bool                   `json:"isCritical"`
 	FunctionalityType string                 `json:"functionalityType"`
 	IsActive          bool                   `json:"isActive"`
+	Hosting           string                 `json:"hosting"`
 	CreatedAt         time.Time              `json:"createdAt"`
 	UpdatedAt         time.Time              `json:"updatedAt"`
+}
+
+// gatewayHostingWire is the gateway's hosting as the API emits it: uppercase, like roles.
+func gatewayHostingWire(gw *models.Gateway) string {
+	if gw.IsManaged() {
+		return string(spec.GATEWAYHOSTING_MANAGED)
+	}
+	return string(spec.GATEWAYHOSTING_SELF_HOSTED)
+}
+
+// toGatewayResponse maps a stored gateway to its DTO; the one-time token is never part of it.
+func toGatewayResponse(gw *models.Gateway) *GatewayResponse {
+	return &GatewayResponse{
+		ID:                gw.UUID.String(),
+		OrganizationID:    gw.OUID,
+		Name:              gw.Name,
+		DisplayName:       gw.DisplayName,
+		Description:       gw.Description,
+		Properties:        gw.Properties,
+		Vhost:             gw.Vhost,
+		RuntimeURL:        gw.RuntimeURL,
+		IsCritical:        gw.IsCritical,
+		FunctionalityType: gw.GatewayFunctionalityType,
+		IsActive:          gw.IsActive,
+		Hosting:           gatewayHostingWire(gw),
+		CreatedAt:         gw.CreatedAt,
+		UpdatedAt:         gw.UpdatedAt,
+	}
 }
 
 // GatewayListResponse represents a list of gateways
@@ -206,8 +236,10 @@ func (s *PlatformGatewayService) RegisterGateway(
 	isCritical bool, functionalityType string,
 	properties map[string]interface{},
 	environmentIDs []string,
+	hosting string,
 ) (*GatewayResponse, error) {
-	// 1. Validate inputs
+	// 1. Validate inputs. The trimmed values are the ones checked for uniqueness and stored.
+	name, displayName = strings.TrimSpace(name), strings.TrimSpace(displayName)
 	if err := s.validateGatewayInput(ouID, name, displayName, vhost); err != nil {
 		return nil, err
 	}
@@ -254,6 +286,7 @@ func (s *PlatformGatewayService) RegisterGateway(
 		RuntimeURL:               strings.TrimSpace(runtimeURL),
 		IsCritical:               isCritical,
 		GatewayFunctionalityType: role,
+		Hosting:                  hosting,
 		CreatedAt:                time.Now(),
 		UpdatedAt:                time.Now(),
 	}
@@ -290,23 +323,7 @@ func (s *PlatformGatewayService) RegisterGateway(
 	}
 	s.placeEnvironments(gateway.OUID, uniqueEnvIDs)
 
-	response := &GatewayResponse{
-		ID:                gateway.UUID.String(),
-		OrganizationID:    gateway.OUID,
-		Name:              gateway.Name,
-		DisplayName:       gateway.DisplayName,
-		Description:       gateway.Description,
-		Properties:        gateway.Properties,
-		Vhost:             gateway.Vhost,
-		RuntimeURL:        gateway.RuntimeURL,
-		IsCritical:        gateway.IsCritical,
-		FunctionalityType: gateway.GatewayFunctionalityType,
-		IsActive:          gateway.IsActive,
-		CreatedAt:         gateway.CreatedAt,
-		UpdatedAt:         gateway.UpdatedAt,
-	}
-
-	return response, nil
+	return toGatewayResponse(gateway), nil
 }
 
 // GatewayListFilters contains optional filters for listing gateways
@@ -314,6 +331,7 @@ type GatewayListFilters struct {
 	FunctionalityType *string // Filter by gateway role (ingress, egress, both)
 	Status            *bool   // Filter by is_active status
 	EnvironmentID     *string // Filter by environment UUID
+	Hosting           string  // Filter by hosting (managed, self_hosted); empty for any
 }
 
 // ListGateways retrieves gateways with constitution-compliant envelope structure and DB-level pagination
@@ -341,6 +359,7 @@ func (s *PlatformGatewayService) ListGateways(ouID *string, filters *GatewayList
 		}
 		filterOpts.Status = filters.Status
 		filterOpts.EnvironmentID = filters.EnvironmentID
+		filterOpts.Hosting = filters.Hosting
 	}
 
 	// Get total count (without pagination)
@@ -358,21 +377,7 @@ func (s *PlatformGatewayService) ListGateways(ouID *string, filters *GatewayList
 	// Convert to DTOs
 	responses := make([]GatewayResponse, 0, len(gateways))
 	for _, gw := range gateways {
-		responses = append(responses, GatewayResponse{
-			ID:                gw.UUID.String(),
-			OrganizationID:    gw.OUID,
-			Name:              gw.Name,
-			DisplayName:       gw.DisplayName,
-			Description:       gw.Description,
-			Properties:        gw.Properties,
-			Vhost:             gw.Vhost,
-			RuntimeURL:        gw.RuntimeURL,
-			IsCritical:        gw.IsCritical,
-			FunctionalityType: gw.GatewayFunctionalityType,
-			IsActive:          gw.IsActive,
-			CreatedAt:         gw.CreatedAt,
-			UpdatedAt:         gw.UpdatedAt,
-		})
+		responses = append(responses, *toGatewayResponse(gw))
 	}
 
 	// Build constitution-compliant list response with pagination metadata
@@ -430,30 +435,14 @@ func (s *PlatformGatewayService) GetGateway(gatewayID, ouID string) (*GatewayRes
 		return nil, utils.ErrGatewayNotFound
 	}
 
-	response := &GatewayResponse{
-		ID:                gateway.UUID.String(),
-		OrganizationID:    gateway.OUID,
-		Name:              gateway.Name,
-		DisplayName:       gateway.DisplayName,
-		Description:       gateway.Description,
-		Properties:        gateway.Properties,
-		Vhost:             gateway.Vhost,
-		RuntimeURL:        gateway.RuntimeURL,
-		IsCritical:        gateway.IsCritical,
-		FunctionalityType: gateway.GatewayFunctionalityType,
-		IsActive:          gateway.IsActive,
-		CreatedAt:         gateway.CreatedAt,
-		UpdatedAt:         gateway.UpdatedAt,
-	}
-
-	return response, nil
+	return toGatewayResponse(gateway), nil
 }
 
-// SaveGatewayPolicyManifest stores the latest gateway-reported policy manifest in the
-// in-process cache. Gateways re-push their full manifest on every heartbeat, so writing
-// it to the jsonb column cost a large row update per push for data that is regenerated
-// on the next push anyway. Every gateway runs the same policy bundle, so the cache keeps
-// a single newest copy shared by all of them.
+// SaveGatewayPolicyManifest stores the policy manifest a gateway pushed in the manifest
+// cache. A gateway pushes its full manifest each time its control-plane WebSocket
+// (re)connects; the manifest is large and replaced by the next connect, so it is not
+// written to the jsonb column. The cache keeps the newest copy per gateway: a push
+// describes only the gateway that sent it.
 func (s *PlatformGatewayService) SaveGatewayPolicyManifest(ctx context.Context, gatewayID string, manifest map[string]interface{}) error {
 	gateway, err := s.gatewayRepo.GetByUUID(gatewayID)
 	if err != nil {
@@ -464,7 +453,7 @@ func (s *PlatformGatewayService) SaveGatewayPolicyManifest(ctx context.Context, 
 	}
 	slog.Info("Saving gateway policy manifest for gateway", "gatewayID", gatewayID)
 
-	return gatewayManifestCache.Set(ctx, manifest)
+	return gatewayManifestCache.Set(ctx, gateway.UUID.String(), manifest)
 }
 
 // UpdateGateway updates gateway details
@@ -491,6 +480,9 @@ func (s *PlatformGatewayService) UpdateGateway(
 		gateway.Description = *description
 	}
 	if displayName != nil {
+		if err := validateGatewayDisplayName(*displayName); err != nil {
+			return nil, err
+		}
 		gateway.DisplayName = *displayName
 	}
 	if isCritical != nil {
@@ -502,6 +494,10 @@ func (s *PlatformGatewayService) UpdateGateway(
 	// The address is mutable — unlike the role it is a fact about placement, so a stale
 	// one is simply wrong. Validated on every write for the same reason as at registration.
 	if runtimeURL != nil {
+		if !gateway.IsManaged() && strings.TrimSpace(*runtimeURL) != "" {
+			return nil, utils.NewInvalidInputError("A self-hosted gateway has no runtime URL",
+				"runtimeURL set on self-hosted gateway "+gateway.UUID.String())
+		}
 		if err := validateGatewayRuntimeURL(*runtimeURL); err != nil {
 			return nil, err
 		}
@@ -514,22 +510,7 @@ func (s *PlatformGatewayService) UpdateGateway(
 		return nil, err
 	}
 
-	updatedGateway := &GatewayResponse{
-		ID:                gateway.UUID.String(),
-		OrganizationID:    gateway.OUID,
-		Name:              gateway.Name,
-		DisplayName:       gateway.DisplayName,
-		Description:       gateway.Description,
-		Properties:        gateway.Properties,
-		Vhost:             gateway.Vhost,
-		RuntimeURL:        gateway.RuntimeURL,
-		IsCritical:        gateway.IsCritical,
-		FunctionalityType: gateway.GatewayFunctionalityType,
-		IsActive:          gateway.IsActive,
-		CreatedAt:         gateway.CreatedAt,
-		UpdatedAt:         gateway.UpdatedAt,
-	}
-	return updatedGateway, nil
+	return toGatewayResponse(gateway), nil
 }
 
 // DeleteGateway deletes a gateway after verifying no active deployments exist
@@ -565,10 +546,12 @@ func (s *PlatformGatewayService) DeleteGateway(gatewayID, ouID string) error {
 		return err
 	}
 
-	// Invalidate all cached tokens for this gateway. The cached policy manifest is not
-	// touched: it is one shared copy describing every gateway's policy bundle, so the
-	// gateways that remain still need it.
+	// Invalidate all cached tokens for this gateway and drop its cached policy manifest.
+	// The manifest is advisory, so failing to drop it doesn't fail a committed delete.
 	s.tokenCache.InvalidateGateway(gateway.UUID)
+	if err := gatewayManifestCache.Delete(context.Background(), gateway.UUID.String()); err != nil {
+		slog.Warn("failed to drop deleted gateway's cached policy manifest", "gatewayID", gatewayID, "error", err)
+	}
 	slog.Info("gateway deleted and cache invalidated", "gatewayID", gatewayID)
 
 	return nil
@@ -726,7 +709,7 @@ func (s *PlatformGatewayService) RotateToken(gatewayID, ouID string) (*TokenRota
 
 	// 3. Check max 2 active tokens limit
 	if activeCount >= 2 {
-		return nil, errors.New("maximum 2 active tokens allowed. Revoke old tokens before rotating")
+		return nil, utils.ErrGatewayTokenLimitReached
 	}
 
 	// 4. Generate new plain-text token with unique prefix and salt
@@ -828,20 +811,20 @@ func (s *PlatformGatewayService) RevokeTokenByID(tokenID, gatewayID, ouID string
 	token, err := s.gatewayRepo.GetTokenByUUID(tokenID)
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
-			return errors.New("token not found")
+			return utils.ErrGatewayTokenNotFound
 		}
 		return fmt.Errorf("failed to get token: %w", err)
 	}
 
 	// Verify token belongs to the specified gateway
 	if token.GatewayUUID.String() != gatewayID {
-		return errors.New("token does not belong to this gateway")
+		return utils.ErrGatewayTokenNotFound
 	}
 
 	// 3. Revoke the token in database
 	if err := s.gatewayRepo.RevokeToken(tokenID); err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
-			return errors.New("token not found")
+			return utils.ErrGatewayTokenNotFound
 		}
 		return fmt.Errorf("failed to revoke token: %w", err)
 	}
@@ -924,17 +907,38 @@ func (s *PlatformGatewayService) UpdateGatewayActiveStatus(gatewayID string, isA
 // resolveGatewayUUID resolves a gateway identifier (UUID or name) to its UUID,
 // scoped to the organization.
 func (s *PlatformGatewayService) resolveGatewayUUID(gatewayID, ouID string) (string, error) {
-	if gw, err := s.gatewayRepo.GetByNameAndOrgID(gatewayID, ouID); err == nil {
-		return gw.UUID.String(), nil
-	}
-	gw, err := s.gatewayRepo.GetByUUID(gatewayID)
+	gw, err := s.lookupGatewayInOrg(gatewayID, ouID)
 	if err != nil {
-		return "", utils.ErrGatewayNotFound
+		return "", err
 	}
-	if gw.OUID != ouID {
+	return gw.UUID.String(), nil
+}
+
+// resolveManagedGatewayUUID is resolveGatewayUUID for operations a self-hosted gateway does
+// not support: a self-hosted gateway is reported as not found.
+func (s *PlatformGatewayService) resolveManagedGatewayUUID(gatewayID, ouID string) (string, error) {
+	gw, err := s.lookupGatewayInOrg(gatewayID, ouID)
+	if err != nil {
+		return "", err
+	}
+	if !gw.IsManaged() {
 		return "", utils.ErrGatewayNotFound
 	}
 	return gw.UUID.String(), nil
+}
+
+func (s *PlatformGatewayService) lookupGatewayInOrg(gatewayID, ouID string) (*models.Gateway, error) {
+	if gw, err := s.gatewayRepo.GetByNameAndOrgID(gatewayID, ouID); err == nil {
+		return gw, nil
+	}
+	gw, err := s.gatewayRepo.GetByUUID(gatewayID)
+	if err != nil {
+		return nil, utils.ErrGatewayNotFound
+	}
+	if gw.OUID != ouID {
+		return nil, utils.ErrGatewayNotFound
+	}
+	return gw, nil
 }
 
 // UpsertIdentityProvider creates or updates an identity provider mirror row for a
@@ -949,7 +953,7 @@ func (s *PlatformGatewayService) UpsertIdentityProvider(ctx context.Context, gat
 	if name == models.ReservedIdentityProviderName {
 		return nil, utils.ErrInvalidInput
 	}
-	gwUUIDStr, err := s.resolveGatewayUUID(gatewayID, ouID)
+	gwUUIDStr, err := s.resolveManagedGatewayUUID(gatewayID, ouID)
 	if err != nil {
 		return nil, err
 	}
@@ -1003,7 +1007,7 @@ func (s *PlatformGatewayService) UpsertIdentityProvider(ctx context.Context, gat
 // sync; if the apply fails the mirror is left untouched. System providers are skipped
 // (the repository rejects their deletion), so only custom providers are applied here.
 func (s *PlatformGatewayService) DeleteIdentityProvider(ctx context.Context, gatewayID, ouID, name string) error {
-	gwUUIDStr, err := s.resolveGatewayUUID(gatewayID, ouID)
+	gwUUIDStr, err := s.resolveManagedGatewayUUID(gatewayID, ouID)
 	if err != nil {
 		return err
 	}
@@ -1061,12 +1065,34 @@ func (s *PlatformGatewayService) AssignGatewayToEnvironment(gatewayID, environme
 	if gateway == nil {
 		return utils.ErrGatewayNotFound
 	}
+	if !gateway.IsManaged() {
+		if err := s.refuseSelfHostedNewEnvironment(gateway, environmentID); err != nil {
+			return err
+		}
+	}
 	if err := s.gatewayRepo.Transaction(func(tx *gorm.DB) error {
 		return s.assignGatewayToEnvironmentTx(tx, gateway, environmentID)
 	}); err != nil {
 		return err
 	}
 	s.placeEnvironments(gateway.OUID, []string{environmentID})
+	return nil
+}
+
+// refuseSelfHostedNewEnvironment refuses to map a self-hosted gateway to an environment it is not already mapped
+// to. Registration maps it through assignGatewayToEnvironmentTx, so the check lives only on the public route.
+func (s *PlatformGatewayService) refuseSelfHostedNewEnvironment(gateway *models.Gateway, environmentID string) error {
+	envUUID, err := uuid.Parse(environmentID)
+	if err != nil {
+		return fmt.Errorf("%w: invalid environment UUID %q", utils.ErrBadRequest, environmentID)
+	}
+	exists, err := s.gatewayRepo.EnvironmentMappingExists(gateway.UUID.String(), envUUID.String())
+	if err != nil {
+		return fmt.Errorf("failed to check existing mapping: %w", err)
+	}
+	if !exists {
+		return errSelfHostedEnvironmentFixed
+	}
 	return nil
 }
 
@@ -1149,6 +1175,9 @@ func (s *PlatformGatewayService) RemoveGatewayFromEnvironment(ctx context.Contex
 	if err != nil {
 		return fmt.Errorf("invalid environment UUID: %w", err)
 	}
+	if err := s.refuseSelfHostedEnvironmentChange(gatewayID); err != nil {
+		return err
+	}
 
 	return s.gatewayRepo.Transaction(func(tx *gorm.DB) error {
 		// The delete comes before the check: it waits for a placement holding the mapping FOR SHARE to commit, so
@@ -1161,6 +1190,21 @@ func (s *PlatformGatewayService) RemoveGatewayFromEnvironment(ctx context.Contex
 		}
 		return s.refuseWhileServing(ctx, tx, env, gateway)
 	})
+}
+
+var errSelfHostedEnvironmentFixed = fmt.Errorf("%w: a self-hosted gateway stays in the environment it was registered for",
+	utils.ErrGatewayEnvironmentFixed)
+
+// refuseSelfHostedEnvironmentChange keeps a self-hosted gateway in the one environment it was registered for.
+func (s *PlatformGatewayService) refuseSelfHostedEnvironmentChange(gatewayID string) error {
+	gw, err := s.gatewayRepo.GetByUUID(gatewayID)
+	if err != nil && !errors.Is(err, gorm.ErrRecordNotFound) && !errors.Is(err, utils.ErrGatewayNotFound) {
+		return fmt.Errorf("failed to get gateway: %w", err)
+	}
+	if gw != nil && !gw.IsManaged() {
+		return errSelfHostedEnvironmentFixed
+	}
+	return nil
 }
 
 func (s *PlatformGatewayService) refuseWhileServing(ctx context.Context, tx *gorm.DB, env, gateway uuid.UUID) error {
@@ -1239,47 +1283,53 @@ func (s *PlatformGatewayService) DeleteGatewayEnvironmentMappings(gatewayID stri
 func (s *PlatformGatewayService) validateGatewayInput(ouID, name, displayName, vhost string) error {
 	// Organization ID validation
 	if strings.TrimSpace(ouID) == "" {
-		return errors.New("organization name is required")
+		return utils.NewInvalidInputError("Organization is required", "organization name is required")
 	}
 
 	// Gateway name validation
 	name = strings.TrimSpace(name)
 	if name == "" {
-		return errors.New("gateway name is required")
+		return utils.NewInvalidInputError("Gateway name is required", "gateway name is required")
 	}
 	if len(name) < 3 {
-		return errors.New("gateway name must be at least 3 characters")
+		return utils.NewInvalidInputError("Gateway name must be 3 to 64 characters", "gateway name must be at least 3 characters")
 	}
 	if len(name) > 64 {
-		return errors.New("gateway name must not exceed 64 characters")
+		return utils.NewInvalidInputError("Gateway name must be 3 to 64 characters", "gateway name must not exceed 64 characters")
 	}
 
 	// Check pattern: ^[a-z0-9-]+$
 	namePattern := regexp.MustCompile(`^[a-z0-9-]+$`)
 	if !namePattern.MatchString(name) {
-		return errors.New("gateway name must contain only lowercase letters, numbers, and hyphens")
+		return utils.NewInvalidInputError("Gateway name may contain only lowercase letters, numbers and hyphens", "gateway name must contain only lowercase letters, numbers, and hyphens")
 	}
 
 	// No leading/trailing hyphens
 	if strings.HasPrefix(name, "-") || strings.HasSuffix(name, "-") {
-		return errors.New("gateway name cannot start or end with a hyphen")
+		return utils.NewInvalidInputError("Gateway name cannot start or end with a hyphen", "gateway name cannot start or end with a hyphen")
 	}
 
-	// Display name validation
-	displayName = strings.TrimSpace(displayName)
-	if displayName == "" {
-		return errors.New("display name is required")
-	}
-	if len(displayName) > 128 {
-		return errors.New("display name must not exceed 128 characters")
+	if err := validateGatewayDisplayName(displayName); err != nil {
+		return err
 	}
 
 	// VHost validation
 	vhost = strings.TrimSpace(vhost)
 	if vhost == "" {
-		return errors.New("vhost is required")
+		return utils.NewInvalidInputError("Host is required", "vhost is required")
 	}
 
+	return nil
+}
+
+func validateGatewayDisplayName(displayName string) error {
+	displayName = strings.TrimSpace(displayName)
+	if displayName == "" {
+		return utils.NewInvalidInputError("Display name is required", "display name is required")
+	}
+	if len(displayName) > 128 {
+		return utils.NewInvalidInputError("Display name must not exceed 128 characters", "display name must not exceed 128 characters")
+	}
 	return nil
 }
 

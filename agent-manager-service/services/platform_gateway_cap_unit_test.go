@@ -176,7 +176,7 @@ func TestRegisterGateway_CapRejectionRollsBackGatewayRow(t *testing.T) {
 	svc := NewPlatformGatewayService(repo, nil)
 
 	_, err := svc.RegisterGateway("org", "gw1", "GW", "", "http://x", "", false, "BOTH", nil,
-		[]string{uuid.New().String()})
+		[]string{uuid.New().String()}, models.GatewayHostingManaged)
 
 	require.ErrorIs(t, err, utils.ErrGatewayIngressCapExceeded)
 	require.False(t, createdInTx, "gateway row must not survive a cap rejection")

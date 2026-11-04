@@ -503,6 +503,26 @@ func (c *gatewayInternalController) GetApplications(w http.ResponseWriter, r *ht
 	utils.WriteSuccessResponse(w, http.StatusOK, result)
 }
 
+// maxGatewayManifestBytes bounds a pushed policy manifest, which is cached until the gateway's next connect.
+const maxGatewayManifestBytes = 8 << 20
+
+// decodeGatewayManifest reads a pushed policy manifest, answering 413 for a body over maxGatewayManifestBytes and 400
+// for one it can't read.
+func decodeGatewayManifest(w http.ResponseWriter, r *http.Request) (map[string]interface{}, bool) {
+	var manifest map[string]interface{}
+	err := json.NewDecoder(http.MaxBytesReader(w, r.Body, maxGatewayManifestBytes)).Decode(&manifest)
+	if err == nil {
+		return manifest, true
+	}
+	var tooLarge *http.MaxBytesError
+	if errors.As(err, &tooLarge) {
+		http.Error(w, "Gateway manifest is too large", http.StatusRequestEntityTooLarge)
+	} else {
+		http.Error(w, "Invalid gateway manifest", http.StatusBadRequest)
+	}
+	return nil, false
+}
+
 // PushGatewayManifest handles POST /api/internal/v1/gateways/{gatewayId}/manifest
 // Receives the gateway's installed policy manifest.
 func (c *gatewayInternalController) PushGatewayManifest(w http.ResponseWriter, r *http.Request) {
@@ -527,10 +547,9 @@ func (c *gatewayInternalController) PushGatewayManifest(w http.ResponseWriter, r
 		return
 	}
 
-	var manifest map[string]interface{}
-	if err := json.NewDecoder(r.Body).Decode(&manifest); err != nil {
-		log.Error("Failed to decode gateway manifest", "gatewayId", gatewayID, "error", err)
-		http.Error(w, "Invalid gateway manifest", http.StatusBadRequest)
+	manifest, ok := decodeGatewayManifest(w, r)
+	if !ok {
+		log.Warn("Refused gateway manifest", "gatewayId", gatewayID)
 		return
 	}
 
