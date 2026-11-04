@@ -116,7 +116,7 @@ func TestLLMConfig_AcceptsManagedProvider(t *testing.T) {
 	f := newLLMPlacementFixture(t, "dev")
 	p := f.provider("managed-p", models.GatewayHostingManaged)
 
-	require.NoError(t, requireProviderPlacement(context.Background(), f.svc.llmProxyDeploymentService, f.svc.gatewayRepo, llmPlacementOU, p.UUID, f.env("dev"), platformAgentPolicy))
+	require.NoError(t, platformAgentPolicy.requireProvider(context.Background(), f.svc.llmProxyDeploymentService, f.svc.gatewayRepo, llmPlacementOU, p.UUID, f.env("dev")))
 }
 
 func TestLLMConfig_RefusesSelfHostedOnlyProvider(t *testing.T) {
@@ -126,7 +126,7 @@ func TestLLMConfig_RefusesSelfHostedOnlyProvider(t *testing.T) {
 
 	for name, p := range map[string]*models.LLMProvider{"self-hosted only": selfHosted, "not deployed": unplaced} {
 		t.Run(name, func(t *testing.T) {
-			err := requireProviderPlacement(context.Background(), f.svc.llmProxyDeploymentService, f.svc.gatewayRepo, llmPlacementOU, p.UUID, f.env("dev"), platformAgentPolicy)
+			err := platformAgentPolicy.requireProvider(context.Background(), f.svc.llmProxyDeploymentService, f.svc.gatewayRepo, llmPlacementOU, p.UUID, f.env("dev"))
 			require.ErrorIs(t, err, utils.ErrInvalidInput)
 			assert.ErrorContains(t, err, "has no deployment on a managed gateway in environment "+f.envs["dev"].UUID)
 		})
@@ -355,7 +355,7 @@ func TestLLMConfig_ExternalAgentRefusedWhenProviderNotInEnv(t *testing.T) {
 
 	for name, p := range map[string]*models.LLMProvider{"not deployed": unplaced, "deployed to another environment": elsewhere} {
 		t.Run(name, func(t *testing.T) {
-			err := requireProviderPlacement(context.Background(), f.svc.llmProxyDeploymentService, f.svc.gatewayRepo, llmPlacementOU, p.UUID, f.env("dev"), externalAgentPolicy)
+			err := externalAgentPolicy.requireProvider(context.Background(), f.svc.llmProxyDeploymentService, f.svc.gatewayRepo, llmPlacementOU, p.UUID, f.env("dev"))
 			require.ErrorIs(t, err, utils.ErrInvalidInput)
 			assert.ErrorContains(t, err, notInEnv)
 			assert.NotContains(t, err.Error(), "managed")

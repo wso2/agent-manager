@@ -1550,28 +1550,21 @@ func (s *monitorManagerService) monitorLLMProvider(ouID, providerName string) (*
 func (s *monitorManagerService) requireManagedMonitorProvider(
 	ctx context.Context, ouID, providerName string, provider *models.LLMProvider, envName string, envUUID uuid.UUID,
 ) error {
-	if err := requireProviderPlacement(ctx, s.llmProvisioner.ProxyDeploymentService(), s.llmProvisioner.gatewayRepo,
-		ouID, provider.UUID, envUUID, monitorPolicy); err != nil {
+	if err := monitorPolicy.requireProvider(ctx, s.llmProvisioner.ProxyDeploymentService(), s.llmProvisioner.gatewayRepo,
+		ouID, provider.UUID, envUUID); err != nil {
 		return fmt.Errorf("LLM provider %q in environment %s: %w", providerName, envName, err)
 	}
 	return nil
 }
 
-// resolveMonitorGateway anchors on the LLM provider's existing managed deployment, exactly as
-// resolveGatewayForProvider does, so a second egress gateway in the environment never
-// makes monitor create/update impossible. CreateMonitorRequest and UpdateMonitorRequest
+// resolveMonitorGateway anchors on the LLM provider's existing managed deployment, so a second egress gateway in
+// the environment never makes monitor create/update impossible. CreateMonitorRequest and UpdateMonitorRequest
 // carry no gateway field, so inference is the only path available here.
 func (s *monitorManagerService) resolveMonitorGateway(
 	ctx context.Context, ouID string, envUUID uuid.UUID, providerUUIDStr string,
 ) (*models.Gateway, error) {
-	var deployed []string
-	if providerUUID, err := uuid.Parse(providerUUIDStr); err == nil {
-		deployed, err = s.llmProvisioner.ProxyDeploymentService().PlacedGateways(ctx, ouID, providerUUID)
-		if err != nil {
-			return nil, fmt.Errorf("failed to list deployed gateways for provider %s: %w", providerUUIDStr, err)
-		}
-	}
-	return resolveEgressGatewayForHosting(s.llmProvisioner.gatewayRepo, ouID, envUUID, deployed, managedOnly)
+	return monitorPolicy.providerGateway(ctx, s.llmProvisioner.ProxyDeploymentService(), s.llmProvisioner.gatewayRepo,
+		ouID, providerUUIDStr, envUUID)
 }
 
 // monitorEnvironmentOf is the monitor's environment id, an OpenChoreo UUID stored as text; nil when it isn't one.

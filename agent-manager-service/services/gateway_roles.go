@@ -154,18 +154,6 @@ func resolveEgressGatewayForArtifact(
 	return resolveEgressGatewayFromAnchor(repo, ouID, envUUID, anchor, requested)
 }
 
-// resolveEgressGatewayForHosting is resolveEgressGatewayForArtifact with no requested gateway, anchored only on the
-// placements hosting accepts.
-func resolveEgressGatewayForHosting(
-	repo repositories.GatewayRepository, ouID string, envUUID uuid.UUID, placed []string, hosting anchorHosting,
-) (*models.Gateway, error) {
-	anchor, err := placedAnchor(repo, envUUID, placed, hosting)
-	if err != nil {
-		return nil, err
-	}
-	return resolveEgressGatewayFromAnchor(repo, ouID, envUUID, anchor, nil)
-}
-
 // resolveEgressGatewayFromAnchor is anchor, or the environment's egress gateway when anchor is nil.
 func resolveEgressGatewayFromAnchor(
 	repo repositories.GatewayRepository, ouID string, envUUID uuid.UUID, anchor *models.Gateway, requested *string,
@@ -191,14 +179,6 @@ const (
 	managedOnly
 	managedFirst
 )
-
-// providerAnchorHosting is the hosting an agent's LLM provider placement may have.
-func providerAnchorHosting(isExternalAgent bool) anchorHosting {
-	if isExternalAgent {
-		return managedFirst
-	}
-	return managedOnly
-}
 
 // placedAnchor is the first gateway in gatewayIDs mapped to envUUID that hosting accepts, or nil. With
 // managedFirst, a self-hosted gateway is returned only when no managed one is mapped there.

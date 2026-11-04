@@ -301,20 +301,9 @@ func mcpMappingProxyName(projectName, agentID, configName, envName string) strin
 	return fmt.Sprintf("%s-proxy", scopedProxyIdentifier(projectName, agentID, configName, envName))
 }
 
-// agentProxyAPIKeyPurpose returns the purpose for the API key auto-generated for
-// an agent's LLM proxy. External agents manage this key themselves (view the
-// masked key, regenerate or delete it from the console), so it is user-managed.
-// Managed agents have the platform inject the key, so it stays console-managed.
-func agentProxyAPIKeyPurpose(isExternalAgent bool) int {
-	if isExternalAgent {
-		return models.APIKeyPurposeUserManaged
-	}
-	return models.APIKeyPurposeConsoleManaged
-}
-
 // ensureExternalAgentForAPIKey gates the user-managed API key flows
 // (create/rotate/revoke) for a config-scoped proxy. These keys are only
-// user-managed for external agents (see agentProxyAPIKeyPurpose); managed/internal
+// user-managed for external agents (see placementPolicy.apiKeyPurpose); managed/internal
 // agents have the platform inject console-managed keys, so user-driven actions must
 // not proceed. When the agent backing the config is not external it returns
 // utils.ErrAgentConfigNotExternal, which the controller maps to a 403. The check
@@ -1282,7 +1271,7 @@ func (s *agentConfigurationService) createLLMConfig(ctx context.Context, ouID, p
 
 		proxyAPIKey, err := s.llmProxyAPIKeyService.CreateAPIKey(ctx, ouID, proxy.Handle, &models.CreateAPIKeyRequest{
 			Name:    fmt.Sprintf("%s-key", scopedID),
-			Purpose: agentProxyAPIKeyPurpose(policy.external()),
+			Purpose: policy.apiKeyPurpose(),
 		})
 		if err != nil {
 			s.rollbackProxies(ctx, rollbackResources, ouID)
@@ -1960,7 +1949,7 @@ func (s *agentConfigurationService) processEnvProviderChange(
 
 	proxyAPIKey, err := s.llmProxyAPIKeyService.CreateAPIKey(ctx, ouID, proxy.Handle, &models.CreateAPIKeyRequest{
 		Name:    fmt.Sprintf("%s-key", scopedID),
-		Purpose: agentProxyAPIKeyPurpose(policy.external()),
+		Purpose: policy.apiKeyPurpose(),
 	})
 	if err != nil {
 		return "", rbRes, pendingAppBinding{}, fmt.Errorf("failed to generate API key for environment %s: %w", envName, err)
@@ -2248,7 +2237,7 @@ func (s *agentConfigurationService) processNewEnv(
 
 	proxyAPIKey, err := s.llmProxyAPIKeyService.CreateAPIKey(ctx, ouID, proxy.Handle, &models.CreateAPIKeyRequest{
 		Name:    fmt.Sprintf("%s-key", scopedID),
-		Purpose: agentProxyAPIKeyPurpose(policy.external()),
+		Purpose: policy.apiKeyPurpose(),
 	})
 	if err != nil {
 		return rbRes, pendingAppBinding{}, fmt.Errorf("failed to generate API key for environment %s: %w", envName, err)
@@ -4654,45 +4643,12 @@ func (s *agentConfigurationService) deleteMCPConfigForAgentDeletion(ctx context.
 
 // Helper methods
 
-// resolveGatewayForProvider returns the gateway this LLM provider is placed on in the given environment, or
-// the environment's single managed egress gateway when it isn't placed on one. requireProviderPlacement must accept
-// the same placements, or a refused anchor falls through to inference and the proxy lands where the provider isn't.
+// resolveGatewayForProvider is the gateway the agent's LLM proxy for this provider lands on in the environment
+// (placementPolicy.providerGateway).
 func (s *agentConfigurationService) resolveGatewayForProvider(
 	ctx context.Context, providerUUIDStr, ouID string, envUUID uuid.UUID, policy placementPolicy,
 ) (*models.Gateway, error) {
-	var deployed []string
-	if providerUUID, err := uuid.Parse(providerUUIDStr); err == nil {
-		deployed, err = s.llmProxyDeploymentService.PlacedGateways(ctx, ouID, providerUUID)
-		if err != nil {
-			return nil, fmt.Errorf("failed to list deployed gateways for provider %s: %w", providerUUIDStr, err)
-		}
-	}
-	return resolveEgressGatewayForHosting(s.gatewayRepo, ouID, envUUID, deployed, providerAnchorHosting(policy.external()))
-}
-
-// requireProviderPlacement is nil when the provider is placed on a gateway mapped to the environment whose hosting
-// an agent of this kind may use.
-func requireProviderPlacement(
-	ctx context.Context, deployments *LLMProxyDeploymentService, gateways repositories.GatewayRepository,
-	ouID string, providerUUID, envUUID uuid.UUID, policy placementPolicy,
-) error {
-	placed, err := deployments.PlacedGateways(ctx, ouID, providerUUID)
-	if err != nil {
-		return fmt.Errorf("failed to list deployed gateways for provider %s: %w", providerUUID, err)
-	}
-	anchor, err := placedAnchor(gateways, envUUID, placed, providerAnchorHosting(policy.external()))
-	if err != nil {
-		return err
-	}
-	if anchor != nil {
-		return nil
-	}
-	if policy.external() {
-		return fmt.Errorf("%w: LLM provider %s has no deployment on a gateway in environment %s",
-			utils.ErrInvalidInput, providerUUID, envUUID)
-	}
-	return fmt.Errorf("%w: LLM provider %s has no deployment on a managed gateway in environment %s; platform-hosted agents can only use LLM providers deployed to managed gateways",
-		utils.ErrInvalidInput, providerUUID, envUUID)
+	return policy.providerGateway(ctx, s.llmProxyDeploymentService, s.gatewayRepo, ouID, providerUUIDStr, envUUID)
 }
 
 // requireProviderPlacements checks, before anything is created or changed, every requested
@@ -4725,8 +4681,8 @@ func (s *agentConfigurationService) requireProviderPlacements(
 			current.LLMProxy.Configuration.Provider == provider.UUID.String() {
 			continue
 		}
-		if err := requireProviderPlacement(ctx, s.llmProxyDeploymentService, s.gatewayRepo,
-			ouID, provider.UUID, envUUID, policy); err != nil {
+		if err := policy.requireProvider(ctx, s.llmProxyDeploymentService, s.gatewayRepo,
+			ouID, provider.UUID, envUUID); err != nil {
 			return fmt.Errorf("environment %s: %w", envName, err)
 		}
 	}
