@@ -355,6 +355,7 @@ func TestIntersectActiveGatewayLLMPolicies_OnlyActiveGatewaysQueried(t *testing.
 	assert.Equal(t, "org-uuid", capturedFilters.OrganizationID)
 	require.NotNil(t, capturedFilters.Status)
 	assert.True(t, *capturedFilters.Status)
+	assert.Equal(t, models.GatewayHostingManaged, capturedFilters.Hosting)
 }
 
 func TestIntersectActiveGatewayLLMPolicies_RepoErrorIsWrapped(t *testing.T) {

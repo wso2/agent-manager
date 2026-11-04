@@ -204,6 +204,22 @@ func TestListAvailableMCPPolicies_SkipsGatewayThatHasNotReported(t *testing.T) {
 	}
 }
 
+// A self-hosted gateway runs its operator's bundle; it must not narrow the org's MCP policy list.
+func TestListAvailableMCPPolicies_ListsOnlyManagedGateways(t *testing.T) {
+	var captured repositories.GatewayFilterOptions
+	gwRepo := &repomocks.GatewayRepositoryMock{
+		ListWithFiltersFunc: func(filters repositories.GatewayFilterOptions) ([]*models.Gateway, error) {
+			captured = filters
+			return nil, nil
+		},
+	}
+
+	_, err := (&MCPProxyService{gatewayRepo: gwRepo}).ListAvailableMCPPolicies(context.Background(), "org1")
+
+	assert.NoError(t, err)
+	assert.Equal(t, models.GatewayHostingManaged, captured.Hosting)
+}
+
 func TestValidateMCPEndpointSecurity_IdentityAllowedWhenNoGatewayYet(t *testing.T) {
 	// No active gateway for the environment yet: identity mode is allowed; policies
 	// are re-checked once a gateway exists.

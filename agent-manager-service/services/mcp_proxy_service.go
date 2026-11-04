@@ -328,8 +328,8 @@ func (s *MCPProxyService) List(ctx context.Context, orgUUID string, limit, offse
 	return resp, nil
 }
 
-// ListAvailableMCPPolicies returns the policy versions every active gateway in the
-// organization reports. Gateways that have not reported a manifest yet are left out
+// ListAvailableMCPPolicies returns the policy versions every catalog gateway in the organization
+// (listCatalogGateways) reports. Gateways that have not reported a manifest yet are left out
 // (see gatewayManifest).
 func (s *MCPProxyService) ListAvailableMCPPolicies(ctx context.Context, orgUUID string) (*models.MCPPolicyAvailabilityResponse, error) {
 	_ = ctx
@@ -337,13 +337,9 @@ func (s *MCPProxyService) ListAvailableMCPPolicies(ctx context.Context, orgUUID 
 		return &models.MCPPolicyAvailabilityResponse{List: []models.MCPPolicyAvailableItem{}}, nil
 	}
 
-	active := true
-	gateways, err := s.gatewayRepo.ListWithFilters(repositories.GatewayFilterOptions{
-		OrganizationID: orgUUID,
-		Status:         &active,
-	})
+	gateways, err := listCatalogGateways(s.gatewayRepo, orgUUID)
 	if err != nil {
-		return nil, fmt.Errorf("failed to list active gateways: %w", err)
+		return nil, err
 	}
 
 	var available map[string]models.MCPPolicyAvailableItem
