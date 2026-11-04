@@ -315,6 +315,18 @@ spec:
             fi
 
             echo "${WF_RUN_BODY}" > /mnt/vol/workflowrun-get.json
+
+            # This build's health checks, read from its own WorkflowRun: when a build starts it
+            # copies the agent's build parameters, healthChecks included. Step 7 writes them onto
+            # the environment together with this build's release. Unset or empty means this build
+            # has none.
+            BUILD_HEALTH_CHECKS=$(jq -c '.spec.workflow.parameters.healthChecks // null | if . == {} then null else . end' \
+              /mnt/vol/workflowrun-get.json)
+            if ! printf '%s' "$BUILD_HEALTH_CHECKS" | jq -e 'type == "object" or . == null' >/dev/null; then
+              echo "Error: this build's healthChecks is not an object: ${BUILD_HEALTH_CHECKS}"
+              exit 1
+            fi
+
             jq --rawfile wl "$OUT_JSON" \
               '.metadata.annotations["openchoreo.dev/workload"] = ($wl | rtrimstr("\n"))' \
               /mnt/vol/workflowrun-get.json > /mnt/vol/workflowrun-updated.json
@@ -454,7 +466,8 @@ spec:
                   --arg componentName "$COMPONENT_NAME" \
                   --arg environment "$FIRST_ENV" \
                   --arg releaseName "$RELEASE_NAME" \
-                  --slurpfile overrides "$OUT_OVERRIDES_JSON" '
+                  --slurpfile overrides "$OUT_OVERRIDES_JSON" \
+                  --argjson healthChecks "$BUILD_HEALTH_CHECKS" '
                     {
                       metadata: { name: $name, namespace: $namespace },
                       spec: (
@@ -464,6 +477,9 @@ spec:
                           releaseName: $releaseName
                         }
                         + (if $overrides[0] != null then { workloadOverrides: $overrides[0] } else {} end)
+                        + (if $healthChecks != null
+                           then { componentTypeEnvironmentConfigs: { healthChecks: $healthChecks } }
+                           else {} end)
                       )
                     }
                   ' > /mnt/vol/releasebinding.json
@@ -475,14 +491,26 @@ spec:
                   -H "Authorization: Bearer ${ACCESS_TOKEN}" \
                   -d @/mnt/vol/releasebinding.json)
               elif [ "${BINDING_GET_HTTP_CODE}" -ge 200 ] && [ "${BINDING_GET_HTTP_CODE}" -lt 300 ]; then
-                # Only the release pin is advanced. Once the binding exists it owns the
-                # environment's configuration, which the backend edits directly; a
-                # rebuild must not roll that back to whatever the component-level
-                # parameters happened to hold.
+                # Only the release pin and this build's health checks change. Once the
+                # binding exists it owns the environment's configuration, which the
+                # backend edits directly; a rebuild must not roll that back to whatever
+                # the component-level parameters happened to hold.
+                #
+                # Health checks are the exception because they belong to the build, not
+                # the environment. They are set in the same update as the pin, so the
+                # environment never runs one build's release with another build's
+                # checks; a build without health checks removes the key, so the
+                # environment goes back to the default probes rather than keeping an
+                # earlier build's.
                 echo "Updating ReleaseBinding ${BINDING_NAME} to release ${RELEASE_NAME}..."
                 printf '%s' "${BINDING_GET_BODY}" > /mnt/vol/releasebinding-get.json
-                jq -c --arg releaseName "$RELEASE_NAME" '.spec.releaseName = $releaseName' \
-                  /mnt/vol/releasebinding-get.json > /mnt/vol/releasebinding.json
+                jq -c --arg releaseName "$RELEASE_NAME" --argjson healthChecks "$BUILD_HEALTH_CHECKS" '
+                    .spec.releaseName = $releaseName
+                    | if $healthChecks != null
+                      then .spec.componentTypeEnvironmentConfigs.healthChecks = $healthChecks
+                      else del(.spec.componentTypeEnvironmentConfigs.healthChecks)
+                      end
+                  ' /mnt/vol/releasebinding-get.json > /mnt/vol/releasebinding.json
 
                 BINDING_RESPONSE=$(curl -s -w "\n%{http_code}" \
                   -X PUT "${API_URL}/api/v1/namespaces/${NAMESPACE}/releasebindings/${BINDING_NAME}" \
