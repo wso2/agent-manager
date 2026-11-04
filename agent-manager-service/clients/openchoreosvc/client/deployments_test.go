@@ -721,6 +721,39 @@ func TestEnsureReleaseAndBinding_ReplacesOrRemovesTheBuildsHealthChecks(t *testi
 			assert.Equal(t, float64(2), writtenConfigs["replicas"], "other configs are kept")
 		})
 	}
+
+	// The environment has no binding yet, so it is created. A build without checks sends an
+	// explicit nil, which must be left out of the create rather than written as null.
+	t.Run("new binding: a build without checks writes no healthChecks key", func(t *testing.T) {
+		var created map[string]interface{}
+		srv := newTestClient(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			switch {
+			case r.Method == http.MethodPost && strings.HasSuffix(r.URL.Path, "/generate-release"):
+				w.WriteHeader(http.StatusCreated)
+				require.NoError(t, json.NewEncoder(w).Encode(gen.ComponentRelease{Metadata: gen.ObjectMeta{Name: "release-2"}}))
+			case r.Method == http.MethodGet && strings.HasSuffix(r.URL.Path, "/releasebindings"):
+				w.WriteHeader(http.StatusOK)
+				require.NoError(t, json.NewEncoder(w).Encode(gen.ReleaseBindingList{Items: []gen.ReleaseBinding{}}))
+			case r.Method == http.MethodPost && strings.HasSuffix(r.URL.Path, "/releasebindings"):
+				require.NoError(t, json.NewDecoder(r.Body).Decode(&created))
+				w.WriteHeader(http.StatusCreated)
+				require.NoError(t, json.NewEncoder(w).Encode(gen.ReleaseBinding{Metadata: gen.ObjectMeta{Name: bindingName}}))
+			default:
+				t.Fatalf("unexpected request: %s %s", r.Method, r.URL.Path)
+			}
+		}))
+		componentTypeConfigs := map[string]interface{}{"healthChecks": nil, "runtimeClassName": "gvisor"}
+		require.NoError(t, srv.EnsureReleaseAndBinding(context.Background(), "acme", "myproject", componentName, environment,
+			nil, nil, nil, componentTypeConfigs))
+
+		spec, ok := created["spec"].(map[string]interface{})
+		require.True(t, ok, "expected the binding to be created")
+		writtenConfigs, ok := spec["componentTypeEnvironmentConfigs"].(map[string]interface{})
+		require.True(t, ok)
+		assert.NotContains(t, writtenConfigs, "healthChecks")
+		assert.Equal(t, "gvisor", writtenConfigs["runtimeClassName"], "other configs are kept")
+		assert.Contains(t, componentTypeConfigs, "healthChecks", "the caller's map is not changed")
+	})
 }
 
 // Promote moves the source environment's build to the target, and the build's health checks

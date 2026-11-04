@@ -16,7 +16,8 @@
  * under the License.
  */
 
-import { describe, it, expect } from "vitest";
+import { fireEvent, render, screen } from "@testing-library/react";
+import { describe, it, expect, vi } from "vitest";
 import {
   READINESS_CHECK_DEFAULTS,
   STARTUP_CHECK_DEFAULTS,
@@ -27,6 +28,7 @@ import {
   healthChecksToSend,
   suggestedHealthCheckPath,
 } from "@agent-management-platform/types";
+import { HealthCheckFields } from "./HealthCheckFields";
 
 describe("healthChecksToSend", () => {
   // Nothing set, or everything left at its default, means "use the defaults".
@@ -99,6 +101,14 @@ describe("healthCheckFieldErrors", () => {
     expect(healthCheckFieldErrors(goodCheck, "readiness", READINESS_CHECK_DEFAULTS)).toEqual({});
   });
 
+  // The backend rejects ".." in a path, so the form must too.
+  it("rejects a path with ..", () => {
+    const check = { type: "HTTP" as const, path: "/a/../health" };
+    expect(healthCheckFieldErrors(check, "readiness", READINESS_CHECK_DEFAULTS).path).toEqual(
+      expect.stringContaining('".."'),
+    );
+  });
+
   // Startup may take at most an hour: initial delay + interval × failures allowed, with
   // unset fields at their defaults (10s delay, 5s interval for startup).
   it("caps the total startup time at an hour", () => {
@@ -163,5 +173,40 @@ describe("healthChecksInEffect", () => {
       "Startup: off · Readiness: on, HTTP GET / · Liveness: on, TCP",
     );
     expect(checks[1]).toMatchObject({ periodSeconds: 3, timeoutSeconds: 1, failureThreshold: 6 });
+  });
+});
+
+describe("HealthCheckFields", () => {
+  // A lone "-" would otherwise be stored as NaN.
+  it("ignores anything but digits in a number field", () => {
+    const onChange = vi.fn();
+    render(
+      <HealthCheckFields
+        checkName="readiness"
+        title="Readiness"
+        value={undefined}
+        onChange={onChange}
+        defaults={READINESS_CHECK_DEFAULTS}
+      />,
+    );
+    fireEvent.change(screen.getByLabelText("Readiness interval (s)"), { target: { value: "-" } });
+    expect(onChange).not.toHaveBeenCalled();
+    fireEvent.change(screen.getByLabelText("Readiness interval (s)"), { target: { value: "10" } });
+    expect(onChange).toHaveBeenLastCalledWith({ periodSeconds: 10 });
+  });
+
+  // A check that is off is still validated, so an error must stay in view.
+  it("keeps a switched-off check open while it has an error", () => {
+    render(
+      <HealthCheckFields
+        checkName="readiness"
+        title="Readiness"
+        value={{ enabled: false, periodSeconds: 0 }}
+        onChange={() => undefined}
+        defaults={READINESS_CHECK_DEFAULTS}
+      />,
+    );
+    expect(screen.getByLabelText("Readiness interval (s)")).toBeVisible();
+    expect(screen.getByText("Must be 1 or more")).toBeVisible();
   });
 });

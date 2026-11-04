@@ -304,9 +304,10 @@ export const SecurityConfigSections = forwardRef<SecurityConfigHandle, SecurityC
 
     // What each closed section shows on the right of its heading.
     const authSummary = authMode === "oauth" ? "OAuth" : authMode === "apikey" ? "API key" : "None";
+    // A "*" in the origins list allows all origins too, as the saved policy does.
     const corsSummary = !corsEnabled
       ? "Off"
-      : corsAllowAll
+      : hasWildcardOrigin
         ? "On · all origins"
         : `On · ${corsOrigins.length} origin${corsOrigins.length === 1 ? "" : "s"}`;
     const timeoutSummary = `${timeoutDuration} ${timeoutUnit}`;

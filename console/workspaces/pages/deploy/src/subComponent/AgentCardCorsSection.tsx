@@ -84,7 +84,8 @@ export function agentCardCorsSummary(d: AgentCardCorsDraft): string {
   if (!d.enabled) {
     return "Off";
   }
-  return d.allowAll
+  // A "*" in the origins list allows all origins too (see cardDraftToPayload).
+  return hasWildcardOrigin(d)
     ? "On · all origins"
     : `On · ${d.origins.length} origin${d.origins.length === 1 ? "" : "s"}`;
 }

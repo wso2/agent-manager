@@ -104,9 +104,10 @@ export function HealthCheckFields({
     }
     onChange(next);
   };
-  // Number fields: empty means "use the default"; anything else must be a whole number.
+  // Number fields: empty means "use the default"; anything else must be digits only, so a
+  // lone "-" can never be stored as NaN.
   const setNumberField = (field: keyof HealthCheck, text: string) => {
-    if (!/^-?\d*$/.test(text)) {
+    if (!/^\d*$/.test(text)) {
       return;
     }
     setField(field, text === "" ? undefined : Number(text));
@@ -140,7 +141,9 @@ export function HealthCheckFields({
           />
         )}
       </Stack>
-      <Collapse in={enabled}>
+      {/* A check that is off is still validated (and saved with its values), so its fields
+          stay open while any of them has an error. */}
+      <Collapse in={enabled || Object.keys(errors).length > 0}>
         <Stack spacing={2} sx={{ mt: 2 }}>
           <Stack direction={{ xs: "column", md: "row" }} spacing={2} useFlexGap>
             <FormControl sx={{ minWidth: 140 }}>

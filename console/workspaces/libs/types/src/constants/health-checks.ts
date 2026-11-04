@@ -85,9 +85,14 @@ export function healthCheckFieldErrors(
   if (!check) {
     return errors;
   }
-  // A path is sent only for an HTTP check and must start with /.
-  if (check.type === "HTTP" && check.path !== undefined && !/^\/[A-Za-z0-9._\-/]*$/.test(check.path)) {
-    errors.path = "Path must start with / and contain only letters, numbers, ., _, - and /";
+  // A path is sent only for an HTTP check, must start with / and must not contain "..",
+  // the same rules the backend applies.
+  if (
+    check.type === "HTTP" &&
+    check.path !== undefined &&
+    (!/^\/[A-Za-z0-9._\-/]*$/.test(check.path) || check.path.includes(".."))
+  ) {
+    errors.path = 'Path must start with /, contain only letters, numbers, ., _, - and /, and not contain ".."';
   }
   // The port, when set, must be a real port; when not set the agent's port is used.
   if (check.port !== undefined && (check.port < 1 || check.port > 65535)) {

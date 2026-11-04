@@ -500,6 +500,10 @@ export function ConfigureBuildDrawer({
 
   const handleHealthChecksChange = (healthChecks: HealthChecks) => {
     setFormData((prevData) => ({ ...prevData, healthChecks }));
+    // The card's error from the last save attempt goes once every field is fixed.
+    if (healthChecksAreValid(healthChecks)) {
+      setFieldError("healthChecks", undefined);
+    }
   };
   // A chat agent always listens on 8000; the others on the port set above.
   const healthCheckAgentPort = formData.interfaceType === "DEFAULT" ? 8000 : formData.port;
@@ -848,6 +852,9 @@ export function ConfigureBuildDrawer({
                   How Kubernetes checks the agent. Changes apply from the next build.
                   Empty fields use the defaults shown.
                 </Typography>
+                {errors.healthChecks && (
+                  <Alert severity="error">{errors.healthChecks}</Alert>
+                )}
                 <Box display="flex" flexDirection="column" gap={2}>
                   <HealthCheckFields
                     checkName="startup"

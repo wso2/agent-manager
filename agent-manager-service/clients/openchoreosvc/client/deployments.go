@@ -679,6 +679,16 @@ func (c *openChoreoClient) EnsureReleaseAndBinding(
 		})
 	}
 
+	// A new binding has no earlier build's health checks to clear, so an explicit nil (the
+	// build has none) is left out of the create rather than sent as null. ctConfigs itself is
+	// kept as is for the 409 adoption below, where the nil still clears the existing binding's.
+	createCTConfigs := ctConfigs
+	if ctConfigs != nil {
+		if value, ok := (*ctConfigs)["healthChecks"]; ok && value == nil {
+			createCTConfigs = replaceHealthChecksInComponentTypeConfigs(ctConfigs, nil)
+		}
+	}
+
 	createBody := gen.CreateReleaseBindingJSONRequestBody{
 		Metadata: gen.ObjectMeta{
 			Name:      bindingName,
@@ -694,7 +704,7 @@ func (c *openChoreoClient) EnsureReleaseAndBinding(
 			// whose state round-trips through the read.
 			WorkloadOverrides:               workloadOverrides,
 			TraitEnvironmentConfigs:         traitConfigs,
-			ComponentTypeEnvironmentConfigs: ctConfigs,
+			ComponentTypeEnvironmentConfigs: createCTConfigs,
 			Owner: struct {
 				ComponentName string `json:"componentName"`
 				ProjectName   string `json:"projectName"`
