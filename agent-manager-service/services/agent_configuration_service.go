@@ -4776,7 +4776,7 @@ func (s *agentConfigurationService) resolveMCPEnvGateways(
 }
 
 // errMCPProxyOnSelfHostedGateway refuses a platform-hosted agent's binding to an MCP proxy whose
-// gateway in the environment is self-hosted (see anchorHosting).
+// gateway in the environment is self-hosted (see placementPolicy).
 func errMCPProxyOnSelfHostedGateway(proxy *models.MCPProxy, envName string) error {
 	return fmt.Errorf("%w: MCP proxy %s is on a self-hosted gateway in environment %s; platform-hosted agents can only use MCP proxies on managed gateways; use a separate MCP proxy for self-hosted gateways",
 		utils.ErrInvalidInput, mcpProxyHandle(proxy), envName)

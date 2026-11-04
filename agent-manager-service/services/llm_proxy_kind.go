@@ -242,7 +242,7 @@ func (k *LLMProxyKind) Targets(ctx context.Context, record reconcile.Record) (uu
 	}
 	// Only placement-pass records from UnplacedRecords (agent and monitor mappings) reach here: the public deploy
 	// paths always name their gateway. An external agent's self-hosted placement is chosen when its binding is saved
-	// (resolveGatewayForProvider), so a self-hosted result here is refused and retried on every pass.
+	// (placementPolicy.providerGateway), so a self-hosted result here is refused and retried on every pass.
 	if placementPassPolicy.consumerRefuses(gateway) {
 		return uuid.Nil, false, errSelfHostedAnchor
 	}
