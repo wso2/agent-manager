@@ -3197,7 +3197,7 @@ func (s *agentConfigurationService) renamedMCPProxyURL(
 		s.logger.Warn("MCP proxy has no endpoint bound to environment; renamed URL env var will be empty", "environment", envName)
 		return "", nil
 	}
-	gateway, err := s.mcpArtifactGateway(ctx, platformAgentPolicy, sharedArtifactUUID, ouID, mapping.EnvironmentUUID)
+	gateway, err := s.mcpArtifactGateway(ctx, platformAgentPolicy, proxy, sharedArtifactUUID, ouID, mapping.EnvironmentUUID)
 	if errors.Is(err, errMCPGatewayNotManaged) {
 		return "", nil
 	}
@@ -3320,7 +3320,7 @@ func (s *agentConfigurationService) injectMCPMappingEnvVars(ctx context.Context,
 	if sharedArtifactUUID == uuid.Nil {
 		return fmt.Errorf("MCP proxy shared artifact not found for environment %s", envName)
 	}
-	gateway, err := s.mcpArtifactGateway(ctx, platformAgentPolicy, sharedArtifactUUID, ouID, mapping.EnvironmentUUID)
+	gateway, err := s.mcpArtifactGateway(ctx, platformAgentPolicy, sourceProxy, sharedArtifactUUID, ouID, mapping.EnvironmentUUID)
 	if err != nil && !errors.Is(err, errMCPGatewayNotManaged) {
 		return err
 	}
@@ -3764,7 +3764,7 @@ func (s *agentConfigurationService) Update(ctx context.Context, configUUID uuid.
 								s.logger.Warn("Phase 1b: missing MCP shared artifact for re-injection", "environment", envName)
 								continue
 							}
-							gateway, gwErr := s.mcpArtifactGateway(ctx, platformAgentPolicy, sharedArtifactUUID, ouID, envEnvUUID)
+							gateway, gwErr := s.mcpArtifactGateway(ctx, platformAgentPolicy, mapping.MCPProxy, sharedArtifactUUID, ouID, envEnvUUID)
 							if gwErr != nil {
 								s.logger.Warn("Phase 1b: failed to resolve MCP gateway for re-injection", "environment", envName, "err", gwErr)
 								continue
@@ -4783,22 +4783,30 @@ func errMCPProxyOnSelfHostedGateway(proxy *models.MCPProxy, envName string) erro
 }
 
 // errMCPGatewayNotManaged reports that an MCP proxy resolves to a self-hosted gateway in an environment
-// where the agent may only use managed ones. The proxy-side checks keep this from happening; if it does
-// anyway, the agent gets no URL there rather than one that points its traffic at the customer's gateway.
+// where the agent may not use it: the agent may only use managed gateways, or the proxy uses Agent
+// Identity there, which a self-hosted gateway cannot validate. The proxy-side and binding checks keep
+// this from happening; if it does anyway, the agent gets no URL there rather than one that points its
+// traffic at a gateway it cannot use.
 var errMCPGatewayNotManaged = errors.New("MCP proxy is on a self-hosted gateway in this environment")
 
 // mcpArtifactGateway is the gateway the agent reaches the MCP proxy's shared per-environment artifact
-// through, or errMCPGatewayNotManaged (logged) when the policy refuses that gateway. Only the gateway's
-// hosting is checked here, not the proxy's Agent Identity rule, which binding enforces.
+// through, or errMCPGatewayNotManaged (logged) when the policy refuses that gateway for the proxy's
+// security in the environment.
 func (s *agentConfigurationService) mcpArtifactGateway(
-	ctx context.Context, policy placementPolicy, artifactUUID uuid.UUID, ouID string, envUUID uuid.UUID,
+	ctx context.Context, policy placementPolicy, proxy *models.MCPProxy, artifactUUID uuid.UUID, ouID string, envUUID uuid.UUID,
 ) (*models.Gateway, error) {
 	gateway, err := s.placedGatewayForMCPArtifact(ctx, artifactUUID, ouID, envUUID)
 	if err != nil {
 		return nil, err
 	}
-	if policy.consumerRefuses(gateway) {
+	refused := policy.refusedBy(gateway, mcpProxySecurityForEnv(proxy, envUUID.String()))
+	switch {
+	case refused.has(ruleManagedConsumer):
 		s.logger.Warn("Leaving the agent's MCP URL empty; the proxy is on a self-hosted gateway in this environment",
+			"ouID", ouID, "environmentUUID", envUUID, "artifactUUID", artifactUUID, "gatewayUUID", gateway.UUID)
+		return nil, errMCPGatewayNotManaged
+	case refused.has(ruleAgentIdentity):
+		s.logger.Warn("Leaving the agent's MCP URL empty; the proxy uses Agent Identity on a self-hosted gateway in this environment",
 			"ouID", ouID, "environmentUUID", envUUID, "artifactUUID", artifactUUID, "gatewayUUID", gateway.UUID)
 		return nil, errMCPGatewayNotManaged
 	}
@@ -5898,7 +5906,7 @@ func (s *agentConfigurationService) buildConfigResponse(ctx context.Context, con
 				AuthHeaderName: utils.StrAsStrPointer(mcpProxyAPIKeyHeaderName(mapping.MCPProxy, mapping.EnvironmentUUID.String())),
 			}
 			sharedArtifactUUID := s.resolveMCPMappingAPIID(ctx, &mapping, config.OUID)
-			if gateway, err := s.mcpArtifactGateway(ctx, policy, sharedArtifactUUID, config.OUID, mapping.EnvironmentUUID); err == nil && sharedArtifactUUID != uuid.Nil {
+			if gateway, err := s.mcpArtifactGateway(ctx, policy, mapping.MCPProxy, sharedArtifactUUID, config.OUID, mapping.EnvironmentUUID); err == nil && sharedArtifactUUID != uuid.Nil {
 				deployedProxy := buildAgentMCPConfigProxy(config, &mapping, mapping.MCPProxy, envName, config.OUID,
 					mcpMappingProxyName(config.ProjectName, config.AgentID, config.Name, envName))
 				// User-facing invoke URL in the config response: externally-reachable vhost.
@@ -6046,7 +6054,7 @@ func (s *agentConfigurationService) buildExternalAgentConfigResponse(
 			var gateway *models.Gateway
 			var gwErr error
 			if sharedArtifactUUID != uuid.Nil {
-				gateway, gwErr = s.mcpArtifactGateway(ctx, externalAgentPolicy, sharedArtifactUUID, config.OUID, mapping.EnvironmentUUID)
+				gateway, gwErr = s.mcpArtifactGateway(ctx, externalAgentPolicy, mapping.MCPProxy, sharedArtifactUUID, config.OUID, mapping.EnvironmentUUID)
 			} else {
 				gwErr = errNoGatewayForEnvironment
 			}
@@ -6335,7 +6343,7 @@ func (s *agentConfigurationService) systemManagedMCPURL(
 		if sharedArtifactUUID == uuid.Nil {
 			return "", fmt.Errorf("MCP proxy shared artifact not found for mapping in environment %s", environmentName)
 		}
-		gateway, err := s.mcpArtifactGateway(ctx, platformAgentPolicy, sharedArtifactUUID, ouID, envUUID)
+		gateway, err := s.mcpArtifactGateway(ctx, platformAgentPolicy, mapping.MCPProxy, sharedArtifactUUID, ouID, envUUID)
 		if errors.Is(err, errMCPGatewayNotManaged) {
 			return "", nil
 		}

@@ -540,7 +540,7 @@ func TestAnchoring_AgentMCPConfigCreateWithExistingMapping(t *testing.T) {
 				},
 			},
 		}
-		gw, err := svc.mcpArtifactGateway(context.Background(), platformAgentPolicy, sharedArtifactUUID, "org", env)
+		gw, err := svc.mcpArtifactGateway(context.Background(), platformAgentPolicy, nil, sharedArtifactUUID, "org", env)
 		require.NoError(t, err)
 		require.Equal(t, both.UUID, gw.UUID)
 	})
@@ -556,7 +556,7 @@ func TestAnchoring_AgentMCPConfigCreateWithExistingMapping(t *testing.T) {
 				},
 			},
 		}
-		_, err := svc.mcpArtifactGateway(context.Background(), platformAgentPolicy, sharedArtifactUUID, "org", env)
+		_, err := svc.mcpArtifactGateway(context.Background(), platformAgentPolicy, nil, sharedArtifactUUID, "org", env)
 		require.ErrorIs(t, err, errAmbiguousEgressGateway)
 	})
 }
@@ -582,7 +582,7 @@ func TestAnchoring_AgentMCPConfigUpdateWithExistingMapping(t *testing.T) {
 				},
 			},
 		}
-		gw, err := svc.mcpArtifactGateway(context.Background(), platformAgentPolicy, sharedArtifactUUID, "org", env)
+		gw, err := svc.mcpArtifactGateway(context.Background(), platformAgentPolicy, nil, sharedArtifactUUID, "org", env)
 		require.NoError(t, err)
 		require.Equal(t, egress.UUID, gw.UUID)
 	})
@@ -598,7 +598,7 @@ func TestAnchoring_AgentMCPConfigUpdateWithExistingMapping(t *testing.T) {
 				},
 			},
 		}
-		_, err := svc.mcpArtifactGateway(context.Background(), platformAgentPolicy, sharedArtifactUUID, "org", env)
+		_, err := svc.mcpArtifactGateway(context.Background(), platformAgentPolicy, nil, sharedArtifactUUID, "org", env)
 		require.ErrorIs(t, err, errAmbiguousEgressGateway)
 	})
 }

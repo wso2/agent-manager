@@ -207,7 +207,7 @@ func TestPhase1bReinjection_MCPURLUsesSharedArtifact(t *testing.T) {
 	sharedArtifactUUID := svc.resolveMCPMappingAPIID(context.Background(), &f.mapping, f.ouID)
 	require.Equal(t, f.sharedArtifactUUID, sharedArtifactUUID, "resolveMCPMappingAPIID must resolve the proxy's shared artifact, not the key-holder artifact")
 
-	gateway, err := svc.mcpArtifactGateway(context.Background(), platformAgentPolicy, sharedArtifactUUID, f.ouID, f.envUUID)
+	gateway, err := svc.mcpArtifactGateway(context.Background(), platformAgentPolicy, f.mapping.MCPProxy, sharedArtifactUUID, f.ouID, f.envUUID)
 	require.NoError(t, err)
 	require.NotNil(t, gateway)
 	require.Equal(t, f.gatewayUUID, gateway.UUID)
@@ -507,6 +507,52 @@ func TestExternalAgentMCPURL_UsesSelfHostedGateway(t *testing.T) {
 		require.NotNil(t, resp.EnvModelConfig["dev"].LLMProxy.URL)
 		assert.Equal(t, wantURL, *resp.EnvModelConfig["dev"].LLMProxy.URL)
 	})
+}
+
+// A self-hosted gateway cannot validate Agent Identity tokens, so an external agent gets no MCP URL where its
+// proxy uses identity on a self-hosted gateway, as binding refuses it there. An API key proxy keeps its URL.
+func TestExternalAgentMCPURL_SelfHostedGatewayBySecurity(t *testing.T) {
+	on := true
+	cases := []struct {
+		name     string
+		security *models.SecurityConfig
+		wantURL  bool
+	}{
+		{"agent identity gets no URL", &models.SecurityConfig{Enabled: &on, Identity: &models.IdentitySecurity{Enabled: &on}}, false},
+		{"API key keeps the URL", &models.SecurityConfig{Enabled: &on, APIKey: &models.APIKeySecurity{Enabled: &on, Key: "X-API-Key"}}, true},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			f := newMCPURLTestFixture()
+			f.gatewayRepo.GetByUUIDFunc = func(string) (*models.Gateway, error) {
+				return &models.Gateway{UUID: f.gatewayUUID, Vhost: "https://customer.example.com", Hosting: models.GatewayHostingSelfHosted}, nil
+			}
+			f.mapping.MCPProxy.Endpoints[0].Configuration.Security = tc.security
+			config := &models.AgentConfiguration{
+				UUID: uuid.New(), OUID: f.ouID, ProjectName: "proj1", AgentID: "agent1", Name: "cfg1",
+				EnvMCPMappings: []models.EnvAgentMCPMapping{f.mapping},
+			}
+			svc := f.newService()
+			svc.infraResourceManager = stubInfraManager{
+				listOrgEnvs: func(context.Context, string) ([]*models.EnvironmentResponse, error) {
+					return []*models.EnvironmentResponse{{UUID: f.envUUID.String(), Name: "dev"}}, nil
+				},
+			}
+			svc.agentConfigRepo = &repomocks.AgentConfigurationRepositoryMock{
+				GetByUUIDFunc: func(context.Context, uuid.UUID, string) (*models.AgentConfiguration, error) { return config, nil },
+			}
+
+			resp, err := svc.buildConfigResponse(context.Background(), config, externalAgentPolicy)
+			require.NoError(t, err)
+			require.NotNil(t, resp.EnvModelConfig["dev"].LLMProxy)
+			assert.Equal(t, tc.wantURL, resp.EnvModelConfig["dev"].LLMProxy.URL != nil, "config response")
+
+			resp, err = svc.buildExternalAgentConfigResponse(context.Background(), config, map[string]envCredentialData{})
+			require.NoError(t, err)
+			require.NotNil(t, resp.EnvModelConfig["dev"].LLMProxy)
+			assert.Equal(t, tc.wantURL, resp.EnvModelConfig["dev"].LLMProxy.URL != nil, "external agent config response")
+		})
+	}
 }
 
 // An agent bound to a proxy whose artifact ended up on a self-hosted gateway anyway (the proxy-side
