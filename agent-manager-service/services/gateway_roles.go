@@ -47,6 +47,13 @@ var (
 	// designated for egress.
 	errNoEgressGatewayForEnvironment = errors.New("no gateway in this environment is designated for egress")
 
+	// errOnlySelfHostedEgress is errNoEgressGatewayForEnvironment for an environment whose only egress
+	// gateways are self-hosted: there is one, but it is never inferred, so the caller must name it.
+	errOnlySelfHostedEgress error = refinedError{
+		msg:  "this environment's only egress gateways are self-hosted, which are never chosen automatically; specify the gateway to use",
+		kind: errNoEgressGatewayForEnvironment,
+	}
+
 	// errAmbiguousEgressGateway means the environment has 2+ egress gateways and the
 	// caller named none.
 	errAmbiguousEgressGateway = errors.New("this environment has more than one egress gateway; specify which one to use")
@@ -123,7 +130,7 @@ func resolveEgressGatewayForEnvironment(
 		}
 	}
 	if len(managed) == 0 {
-		return nil, fmt.Errorf("%w (environment %s)", errNoEgressGatewayForEnvironment, envIDStr)
+		return nil, fmt.Errorf("%w (environment %s)", errOnlySelfHostedEgress, envIDStr)
 	}
 	if len(managed) > 1 {
 		return nil, fmt.Errorf("%w (environment %s, candidates: %s)",
@@ -325,3 +332,12 @@ func describeGateways(gateways []*models.Gateway) string {
 	}
 	return strings.Join(parts, ", ")
 }
+
+// refinedError is a more specific case of kind: it matches kind under errors.Is but carries its own message.
+type refinedError struct {
+	msg  string
+	kind error
+}
+
+func (e refinedError) Error() string { return e.msg }
+func (e refinedError) Unwrap() error { return e.kind }

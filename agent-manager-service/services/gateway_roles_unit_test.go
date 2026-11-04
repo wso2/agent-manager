@@ -122,10 +122,11 @@ func TestResolveEgressGatewayForEnvironment(t *testing.T) {
 		require.Equal(t, both.UUID, got.UUID)
 	})
 
-	t.Run("only self-hosted, none named, has no egress target", func(t *testing.T) {
+	t.Run("only self-hosted, none named, has no egress target and says to name one", func(t *testing.T) {
 		repo := gatewayFixtureRepo(t, env.String(), []*models.Gateway{selfHosted})
 		_, err := resolveEgressGatewayForEnvironment(repo, "org", env, nil)
 		require.ErrorIs(t, err, errNoEgressGatewayForEnvironment)
+		require.ErrorIs(t, err, errOnlySelfHostedEgress)
 	})
 
 	t.Run("naming a self-hosted gateway selects it", func(t *testing.T) {
