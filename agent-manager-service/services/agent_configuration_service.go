@@ -1163,7 +1163,7 @@ func (s *agentConfigurationService) createLLMConfig(ctx context.Context, ouID, p
 		}
 	}
 
-	if err := s.requireManagedProviderPlacements(ctx, ouID, req.EnvMappings, envMap, nil); err != nil {
+	if err := s.requireManagedProviderPlacements(ctx, ouID, req.EnvMappings, envMap, nil, isExternalAgent); err != nil {
 		return nil, err
 	}
 
@@ -1251,7 +1251,7 @@ func (s *agentConfigurationService) createLLMConfig(ctx context.Context, ouID, p
 		}
 
 		// Resolve gateway where the provider is deployed (ensures proxy uses the same gateway)
-		gateway, err := s.resolveGatewayForProvider(ctx, providerUUID, ouID, envUUID)
+		gateway, err := s.resolveGatewayForProvider(ctx, providerUUID, ouID, envUUID, isExternalAgent)
 		if err != nil {
 			s.processRollBack(ctx, rollbackResources, ouID, config.UUID)
 			return nil, fmt.Errorf("failed to resolve gateway for environment %s: %w", envName, err)
@@ -1932,7 +1932,7 @@ func (s *agentConfigurationService) processEnvProviderChange(
 	}
 
 	// Resolve gateway where the new provider is deployed
-	gateway, err := s.resolveGatewayForProvider(ctx, providerUUID, ouID, envUUID)
+	gateway, err := s.resolveGatewayForProvider(ctx, providerUUID, ouID, envUUID, isExternalAgent)
 	if err != nil {
 		return "", rollbackResource{}, pendingAppBinding{}, fmt.Errorf("failed to resolve gateway for environment %s: %w", envName, err)
 	}
@@ -2087,6 +2087,7 @@ func (s *agentConfigurationService) processEnvProxyUpdate(
 	envMapping models.EnvModelConfigRequest,
 	existingMapping *models.EnvAgentModelMapping,
 	ouID string,
+	isExternalAgent bool,
 ) (rollbackResource, error) {
 	s.logger.Info("Updating proxy configuration for environment",
 		"environment", envName,
@@ -2096,7 +2097,12 @@ func (s *agentConfigurationService) processEnvProxyUpdate(
 		return rollbackResource{}, fmt.Errorf("existing proxy not found for environment %s", envName)
 	}
 
-	gateway, err := s.resolveGatewayForProxy(ctx, existingMapping.LLMProxy.Handle, ouID, envUUID)
+	// An external agent's proxy may sit on a self-hosted gateway; a platform-hosted one's may not.
+	resolveGateway := s.resolveGatewayForProxy
+	if isExternalAgent {
+		resolveGateway = s.resolveGatewayForExternalProxy
+	}
+	gateway, err := resolveGateway(ctx, existingMapping.LLMProxy.Handle, ouID, envUUID)
 	if err != nil {
 		return rollbackResource{}, fmt.Errorf("failed to resolve gateway for environment %s: %w", envName, err)
 	}
@@ -2220,7 +2226,7 @@ func (s *agentConfigurationService) processNewEnv(
 	}
 
 	// Resolve gateway where the provider is deployed
-	gateway, err := s.resolveGatewayForProvider(ctx, providerUUID, ouID, envUUID)
+	gateway, err := s.resolveGatewayForProvider(ctx, providerUUID, ouID, envUUID, isExternalAgent)
 	if err != nil {
 		return rollbackResource{}, pendingAppBinding{}, fmt.Errorf("failed to resolve gateway for environment %s: %w", envName, err)
 	}
@@ -3573,6 +3579,8 @@ func (s *agentConfigurationService) Update(ctx context.Context, configUUID uuid.
 	if err := s.rejectIfBuildInProgress(ctx, ouID, projectName, agentName, agent.KindName); err != nil {
 		return nil, err
 	}
+	// Fail-closed: a GetComponent error above returns rather than defaulting to internal, which could corrupt CRs.
+	isExternalAgent := agent.Provisioning.Type == string(utils.ExternalAgent)
 
 	if existingConfig.TypeID == models.AgentConfigTypeIDMCP {
 		return s.updateMCPConfig(ctx, existingConfig, ouID, projectName, agentName, req)
@@ -3622,7 +3630,7 @@ func (s *agentConfigurationService) Update(ctx context.Context, configUUID uuid.
 		}
 	}
 
-	if err := s.requireManagedProviderPlacements(ctx, ouID, req.EnvMappings, envMap, existingEnvMap); err != nil {
+	if err := s.requireManagedProviderPlacements(ctx, ouID, req.EnvMappings, envMap, existingEnvMap, isExternalAgent); err != nil {
 		return nil, err
 	}
 
@@ -3868,11 +3876,7 @@ func (s *agentConfigurationService) Update(ctx context.Context, configUUID uuid.
 		return nil, err
 	}
 
-	// Determine agent type and first env for internal-agent env var injection.
-	// agent was already loaded above (fail-closed: that earlier GetComponent
-	// error already returns rather than defaulting to internal, which could
-	// corrupt CRs), so reuse it instead of re-fetching the same component.
-	isExternalAgent := agent.Provisioning.Type == string(utils.ExternalAgent)
+	// First env for internal-agent env var injection.
 	firstEnvName := ""
 	if !isExternalAgent {
 		if pipeline, pipelineErr := s.ocClient.GetProjectDeploymentPipeline(ctx, ouID, projectName); pipelineErr == nil && pipeline != nil {
@@ -3946,7 +3950,7 @@ func (s *agentConfigurationService) Update(ctx context.Context, configUUID uuid.
 			} else {
 				// Scenario B: same provider — update proxy config and redeploy. No DB TX needed.
 				rbRes, err := s.processEnvProxyUpdate(
-					ctx, existingConfig, env, envUUID, envName, envMapping, existingMapping, ouID,
+					ctx, existingConfig, env, envUUID, envName, envMapping, existingMapping, ouID, isExternalAgent,
 				)
 				if err != nil {
 					s.rollbackProxies(ctx, append(rollbackResources, rbRes), ouID)
@@ -4651,18 +4655,25 @@ func (s *agentConfigurationService) deleteMCPConfigForAgentDeletion(ctx context.
 
 // Helper methods
 
-// resolveGatewayForProvider returns the managed gateway this LLM provider is placed on in the given
-// environment, or the environment's single managed egress gateway when it isn't placed on one.
+// resolveGatewayForProvider returns the gateway this LLM provider is placed on in the given environment, or
+// the environment's single managed egress gateway when it isn't placed on one. A platform-hosted agent only
+// uses the provider's managed placements; an external agent may use a self-hosted one, managed preferred.
+// requireManagedProviderPlacement must accept the same placements, or a refused anchor falls through to
+// inference and the proxy lands where the provider isn't.
 func (s *agentConfigurationService) resolveGatewayForProvider(
-	ctx context.Context, providerUUIDStr, ouID string, envUUID uuid.UUID,
+	ctx context.Context, providerUUIDStr, ouID string, envUUID uuid.UUID, isExternalAgent bool,
 ) (*models.Gateway, error) {
+	orderAnchors := managedAnchorsOnly
+	if isExternalAgent {
+		orderAnchors = managedAnchorsFirst
+	}
 	var deployed []string
 	if providerUUID, err := uuid.Parse(providerUUIDStr); err == nil {
 		ids, gwErr := s.llmProxyDeploymentService.PlacedGateways(ctx, ouID, providerUUID)
 		if gwErr != nil {
 			return nil, fmt.Errorf("failed to list deployed gateways for provider %s: %w", providerUUIDStr, gwErr)
 		}
-		deployed, err = managedAnchorsOnly(s.gatewayRepo, ids)
+		deployed, err = orderAnchors(s.gatewayRepo, ids)
 		if err != nil {
 			return nil, err
 		}
@@ -4670,18 +4681,28 @@ func (s *agentConfigurationService) resolveGatewayForProvider(
 	return resolveEgressGatewayForArtifact(s.gatewayRepo, ouID, envUUID, deployed, nil)
 }
 
-// requireManagedProviderPlacement refuses an agent LLM binding unless the provider is placed on a managed
-// gateway mapped to the environment. Agents, external ones included, only use managed gateways.
+// requireManagedProviderPlacement refuses an agent LLM binding unless the provider is placed on a gateway
+// mapped to the environment: a managed one for a platform-hosted agent, one of any hosting for an external agent.
 func (s *agentConfigurationService) requireManagedProviderPlacement(
-	ctx context.Context, ouID string, providerUUID, envUUID uuid.UUID,
+	ctx context.Context, ouID string, providerUUID, envUUID uuid.UUID, isExternalAgent bool,
 ) error {
-	return requireManagedPlacement(ctx, s.llmProxyDeploymentService, s.gatewayRepo, ouID, providerUUID, envUUID)
+	return requireProviderPlacement(ctx, s.llmProxyDeploymentService, s.gatewayRepo,
+		ouID, providerUUID, envUUID, isExternalAgent)
 }
 
 // requireManagedPlacement is nil when the provider is placed on a managed gateway mapped to the environment.
 func requireManagedPlacement(
 	ctx context.Context, deployments *LLMProxyDeploymentService, gateways repositories.GatewayRepository,
 	ouID string, providerUUID, envUUID uuid.UUID,
+) error {
+	return requireProviderPlacement(ctx, deployments, gateways, ouID, providerUUID, envUUID, false)
+}
+
+// requireProviderPlacement is nil when the provider is placed on a gateway mapped to the environment that is
+// managed, or of any hosting when allowSelfHosted.
+func requireProviderPlacement(
+	ctx context.Context, deployments *LLMProxyDeploymentService, gateways repositories.GatewayRepository,
+	ouID string, providerUUID, envUUID uuid.UUID, allowSelfHosted bool,
 ) error {
 	placed, err := deployments.PlacedGateways(ctx, ouID, providerUUID)
 	if err != nil {
@@ -4702,9 +4723,13 @@ func requireManagedPlacement(
 		if err != nil {
 			return fmt.Errorf("failed to load gateway %s: %w", gatewayID, err)
 		}
-		if gateway != nil && gateway.IsManaged() {
+		if gateway != nil && (allowSelfHosted || gateway.IsManaged()) {
 			return nil
 		}
+	}
+	if allowSelfHosted {
+		return fmt.Errorf("%w: LLM provider %s has no deployment on a gateway in environment %s",
+			utils.ErrInvalidInput, providerUUID, envUUID)
 	}
 	return fmt.Errorf("%w: LLM provider %s has no deployment on a managed gateway in environment %s; agents can only use LLM providers deployed to managed gateways",
 		utils.ErrInvalidInput, providerUUID, envUUID)
@@ -4716,6 +4741,7 @@ func requireManagedPlacement(
 func (s *agentConfigurationService) requireManagedProviderPlacements(
 	ctx context.Context, ouID string, requested map[string]models.EnvModelConfigRequest,
 	envMap map[string]*models.EnvironmentResponse, existing map[string]*models.EnvAgentModelMapping,
+	isExternalAgent bool,
 ) error {
 	envNames := make([]string, 0, len(requested))
 	for envName := range requested {
@@ -4739,22 +4765,45 @@ func (s *agentConfigurationService) requireManagedProviderPlacements(
 			current.LLMProxy.Configuration.Provider == provider.UUID.String() {
 			continue
 		}
-		if err := s.requireManagedProviderPlacement(ctx, ouID, provider.UUID, envUUID); err != nil {
+		if err := s.requireManagedProviderPlacement(ctx, ouID, provider.UUID, envUUID, isExternalAgent); err != nil {
 			return fmt.Errorf("environment %s: %w", envName, err)
 		}
 	}
 	return nil
 }
 
-// resolveGatewayForProxy returns the gateway the LLM proxy is placed on, whatever the placement's status.
+// resolveGatewayForProxy returns the managed gateway a platform-hosted agent's LLM proxy is placed on, whatever
+// the placement's status, refusing a self-hosted one.
 func (s *agentConfigurationService) resolveGatewayForProxy(
 	ctx context.Context, proxyHandle, ouID string, envUUID uuid.UUID,
 ) (*models.Gateway, error) {
+	placed, err := s.placedGatewaysOfProxy(ctx, proxyHandle, ouID)
+	if err != nil {
+		return nil, err
+	}
+	return resolveManagedPlacement(s.gatewayRepo, ouID, envUUID, placed)
+}
+
+// resolveGatewayForExternalProxy returns the gateway an external agent's LLM proxy is placed on, whatever the
+// placement's status or the gateway's hosting. It infers one only when the proxy is placed nowhere in the
+// environment.
+func (s *agentConfigurationService) resolveGatewayForExternalProxy(
+	ctx context.Context, proxyHandle, ouID string, envUUID uuid.UUID,
+) (*models.Gateway, error) {
+	placed, err := s.placedGatewaysOfProxy(ctx, proxyHandle, ouID)
+	if err != nil {
+		return nil, err
+	}
+	return resolveEgressGatewayForArtifact(s.gatewayRepo, ouID, envUUID, placed, nil)
+}
+
+// placedGatewaysOfProxy is the gateways the LLM proxy is placed on; none when the proxy is gone.
+func (s *agentConfigurationService) placedGatewaysOfProxy(ctx context.Context, proxyHandle, ouID string) ([]string, error) {
 	placed, err := s.llmProxyDeploymentService.PlacedGatewaysOfProxy(ctx, proxyHandle, ouID)
 	if err != nil && !errors.Is(err, utils.ErrLLMProxyNotFound) {
 		return nil, fmt.Errorf("failed to list the gateways proxy %s is placed on: %w", proxyHandle, err)
 	}
-	return resolveManagedPlacement(s.gatewayRepo, ouID, envUUID, placed)
+	return placed, nil
 }
 
 // errMCPEnvNotDeployable reports that an MCP proxy cannot back an agent binding in an
@@ -5916,7 +5965,7 @@ func (s *agentConfigurationService) buildConfigResponse(ctx context.Context, con
 
 			// Add proxy URL for external agents (subsequent GET calls)
 			if includeProxyURL {
-				gateway, err := s.resolveGatewayForProxy(ctx, mapping.LLMProxy.Handle, config.OUID, mapping.EnvironmentUUID)
+				gateway, err := s.resolveGatewayForExternalProxy(ctx, mapping.LLMProxy.Handle, config.OUID, mapping.EnvironmentUUID)
 				if err == nil && mapping.LLMProxy.Configuration.Context != nil {
 					url := fmt.Sprintf("%s%s", gateway.Vhost, *mapping.LLMProxy.Configuration.Context)
 					proxyInfo.URL = &url

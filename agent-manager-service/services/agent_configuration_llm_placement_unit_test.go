@@ -18,6 +18,8 @@ package services
 
 import (
 	"context"
+	"errors"
+	"log/slog"
 	"testing"
 
 	"github.com/google/uuid"
@@ -114,7 +116,7 @@ func TestLLMConfig_AcceptsManagedProvider(t *testing.T) {
 	f := newLLMPlacementFixture(t, "dev")
 	p := f.provider("managed-p", models.GatewayHostingManaged)
 
-	require.NoError(t, f.svc.requireManagedProviderPlacement(context.Background(), llmPlacementOU, p.UUID, f.env("dev")))
+	require.NoError(t, f.svc.requireManagedProviderPlacement(context.Background(), llmPlacementOU, p.UUID, f.env("dev"), false))
 }
 
 func TestLLMConfig_RefusesSelfHostedOnlyProvider(t *testing.T) {
@@ -124,7 +126,7 @@ func TestLLMConfig_RefusesSelfHostedOnlyProvider(t *testing.T) {
 
 	for name, p := range map[string]*models.LLMProvider{"self-hosted only": selfHosted, "not deployed": unplaced} {
 		t.Run(name, func(t *testing.T) {
-			err := f.svc.requireManagedProviderPlacement(context.Background(), llmPlacementOU, p.UUID, f.env("dev"))
+			err := f.svc.requireManagedProviderPlacement(context.Background(), llmPlacementOU, p.UUID, f.env("dev"), false)
 			require.ErrorIs(t, err, utils.ErrInvalidInput)
 			assert.ErrorContains(t, err, "has no deployment on a managed gateway in environment "+f.envs["dev"].UUID)
 		})
@@ -134,7 +136,7 @@ func TestLLMConfig_RefusesSelfHostedOnlyProvider(t *testing.T) {
 		_, err := f.svc.createLLMConfig(context.Background(), llmPlacementOU, "proj", "agent",
 			models.CreateAgentModelConfigRequest{Name: "cfg", Type: "llm", EnvMappings: map[string]models.EnvModelConfigRequest{
 				"dev": {ProviderName: "self-p"},
-			}}, "user", true)
+			}}, "user", false)
 		require.ErrorIs(t, err, utils.ErrInvalidInput)
 		assert.ErrorContains(t, err, "managed gateway")
 	})
@@ -155,7 +157,7 @@ func TestLLMConfig_RefusalAppliesNothing(t *testing.T) {
 		_, err := f.svc.createLLMConfig(context.Background(), llmPlacementOU, "proj", "agent",
 			models.CreateAgentModelConfigRequest{Name: "cfg", Type: "llm", EnvMappings: map[string]models.EnvModelConfigRequest{
 				"ok": {ProviderName: "managed-p"}, "bad": {ProviderName: "self-p"},
-			}}, "user", true)
+			}}, "user", false)
 		require.ErrorIs(t, err, utils.ErrInvalidInput)
 		assert.ErrorContains(t, err, f.envs["bad"].UUID)
 	})
@@ -227,8 +229,8 @@ func TestRequireManagedProviderPlacements_SkipsUnchangedProvider(t *testing.T) {
 	}
 	requested := map[string]models.EnvModelConfigRequest{"dev": {ProviderName: "self-p"}}
 
-	require.NoError(t, f.svc.requireManagedProviderPlacements(context.Background(), llmPlacementOU, requested, f.envs, existing))
-	require.Error(t, f.svc.requireManagedProviderPlacements(context.Background(), llmPlacementOU, requested, f.envs, nil))
+	require.NoError(t, f.svc.requireManagedProviderPlacements(context.Background(), llmPlacementOU, requested, f.envs, existing, false))
+	require.Error(t, f.svc.requireManagedProviderPlacements(context.Background(), llmPlacementOU, requested, f.envs, nil, false))
 }
 
 func TestResolveGatewayForProvider_PrefersManagedAnchor(t *testing.T) {
@@ -248,7 +250,7 @@ func TestResolveGatewayForProvider_PrefersManagedAnchor(t *testing.T) {
 		return selfHosted, nil
 	}
 
-	got, err := f.svc.resolveGatewayForProvider(context.Background(), providerUUID.String(), llmPlacementOU, f.env("dev"))
+	got, err := f.svc.resolveGatewayForProvider(context.Background(), providerUUID.String(), llmPlacementOU, f.env("dev"), false)
 
 	require.NoError(t, err)
 	assert.Equal(t, managed.UUID, got.UUID)
@@ -283,8 +285,187 @@ func TestResolveGatewayForProvider_IgnoresSelfHostedOnlyAnchor(t *testing.T) {
 	deployments, managed := selfHostedOnlyProviderAnchor(f)
 	f.svc.llmProxyDeploymentService = deployments
 
-	got, err := f.svc.resolveGatewayForProvider(context.Background(), uuid.NewString(), llmPlacementOU, f.env("dev"))
+	got, err := f.svc.resolveGatewayForProvider(context.Background(), uuid.NewString(), llmPlacementOU, f.env("dev"), false)
 
 	require.NoError(t, err)
 	assert.Equal(t, managed.UUID, got.UUID)
+}
+
+// externalAgentComponent is an OpenChoreo client whose agent is externally provisioned.
+func externalAgentComponent() *clientmocks.OpenChoreoClientMock {
+	return &clientmocks.OpenChoreoClientMock{
+		GetComponentFunc: func(context.Context, string, string, string) (*models.AgentResponse, error) {
+			return &models.AgentResponse{
+				KindName:     "agent-api",
+				Provisioning: models.Provisioning{Type: string(utils.ExternalAgent)},
+			}, nil
+		},
+	}
+}
+
+// An external agent runs outside OpenChoreo, so a provider placed only on a self-hosted gateway serves it, even
+// in an environment that also has a managed egress gateway.
+func TestLLMConfig_ExternalAgentBindsToSelfHostedOnlyProvider(t *testing.T) {
+	f := newLLMPlacementFixture(t, "dev")
+	p := f.provider("self-p", models.GatewayHostingSelfHosted)
+	requested := map[string]models.EnvModelConfigRequest{"dev": {ProviderName: "self-p"}}
+
+	require.NoError(t, f.svc.requireManagedProviderPlacements(context.Background(), llmPlacementOU, requested, f.envs, nil, true))
+
+	deployments, _ := selfHostedOnlyProviderAnchor(f)
+	f.svc.llmProxyDeploymentService = deployments
+	got, err := f.svc.resolveGatewayForProvider(context.Background(), p.UUID.String(), llmPlacementOU, f.env("dev"), true)
+
+	require.NoError(t, err)
+	assert.False(t, got.IsManaged(), "an external agent's proxy goes where its provider is: the self-hosted gateway")
+}
+
+// A provider on both a managed and a self-hosted gateway in one environment serves an external agent from the
+// managed one, whatever order the placements come in.
+func TestLLMConfig_ExternalAgentPrefersManagedInMixedEnv(t *testing.T) {
+	f := newLLMPlacementFixture(t, "dev")
+	selfHosted := &models.Gateway{UUID: uuid.MustParse("00000000-0000-0000-0000-000000000001"), Hosting: models.GatewayHostingSelfHosted}
+	managed := &models.Gateway{UUID: uuid.MustParse("ffffffff-0000-0000-0000-000000000002")}
+	f.svc.llmProxyDeploymentService = &LLMProxyDeploymentService{deploymentRepo: &repomocks.DeploymentRepositoryMock{
+		PlacedGatewaysFunc: func(context.Context, string, uuid.UUID) ([]string, error) {
+			return []string{selfHosted.UUID.String(), managed.UUID.String()}, nil
+		},
+	}}
+	f.gatewayRepo.GetByUUIDFunc = func(id string) (*models.Gateway, error) {
+		if id == managed.UUID.String() {
+			return managed, nil
+		}
+		return selfHosted, nil
+	}
+
+	got, err := f.svc.resolveGatewayForProvider(context.Background(), uuid.NewString(), llmPlacementOU, f.env("dev"), true)
+
+	require.NoError(t, err)
+	assert.Equal(t, managed.UUID, got.UUID)
+}
+
+func TestLLMConfig_ExternalAgentRefusedWhenProviderNotInEnv(t *testing.T) {
+	f := newLLMPlacementFixture(t, "dev")
+	unplaced := f.provider("unplaced-p", "")
+	elsewhere := f.provider("elsewhere-p", models.GatewayHostingSelfHosted)
+	f.gatewayRepo.EnvironmentMappingExistsFunc = func(gatewayID, _ string) (bool, error) {
+		return gatewayID != f.placedOn[elsewhere.UUID].UUID.String(), nil
+	}
+	notInEnv := "has no deployment on a gateway in environment " + f.envs["dev"].UUID
+
+	for name, p := range map[string]*models.LLMProvider{"not deployed": unplaced, "deployed to another environment": elsewhere} {
+		t.Run(name, func(t *testing.T) {
+			err := f.svc.requireManagedProviderPlacement(context.Background(), llmPlacementOU, p.UUID, f.env("dev"), true)
+			require.ErrorIs(t, err, utils.ErrInvalidInput)
+			assert.ErrorContains(t, err, notInEnv)
+			assert.NotContains(t, err.Error(), "managed")
+		})
+	}
+
+	t.Run("create", func(t *testing.T) {
+		_, err := f.svc.createLLMConfig(context.Background(), llmPlacementOU, "proj", "agent",
+			models.CreateAgentModelConfigRequest{Name: "cfg", Type: "llm", EnvMappings: map[string]models.EnvModelConfigRequest{
+				"dev": {ProviderName: "unplaced-p"},
+			}}, "user", true)
+		require.ErrorIs(t, err, utils.ErrInvalidInput)
+		assert.ErrorContains(t, err, notInEnv)
+	})
+
+	t.Run("update", func(t *testing.T) {
+		managed := f.provider("managed-p", models.GatewayHostingManaged)
+		f.svc.agentConfigRepo = &repomocks.AgentConfigurationRepositoryMock{
+			GetByUUIDFunc: func(_ context.Context, id uuid.UUID, ouID string) (*models.AgentConfiguration, error) {
+				return &models.AgentConfiguration{
+					UUID: id, OUID: ouID, ProjectName: "proj", AgentID: "agent", Name: "cfg",
+					EnvMappings: []models.EnvAgentModelMapping{{
+						EnvironmentUUID: f.env("dev"),
+						LLMProxy:        &models.LLMProxy{Configuration: models.LLMProxyConfig{Provider: managed.UUID.String()}},
+					}},
+				}, nil
+			},
+		}
+		f.svc.ocClient = externalAgentComponent()
+
+		_, err := f.svc.Update(context.Background(), uuid.New(), llmPlacementOU, "proj", "agent",
+			models.UpdateAgentModelConfigRequest{Name: "renamed", EnvMappings: map[string]models.EnvModelConfigRequest{
+				"dev": {ProviderName: "unplaced-p"},
+			}})
+		require.ErrorIs(t, err, utils.ErrInvalidInput)
+		assert.ErrorContains(t, err, "environment dev: ")
+		assert.ErrorContains(t, err, notInEnv)
+	})
+}
+
+// errReachedProxyWrite stands in for the proxy store: a call that reaches it got past gateway selection.
+var errReachedProxyWrite = errors.New("reached the proxy write")
+
+// A new environment on an external agent's config places its proxy on the provider's self-hosted gateway; an
+// internal agent's still finds no managed gateway to place it on.
+func TestLLMConfig_ExternalAgentNewEnvOnSelfHostedProvider(t *testing.T) {
+	newFixture := func(t *testing.T) *llmPlacementFixture {
+		f := newLLMPlacementFixture(t, "dev")
+		p := f.provider("self-p", models.GatewayHostingSelfHosted)
+		selfHosted := f.placedOn[p.UUID]
+		selfHosted.GatewayFunctionalityType = models.GatewayRoleBoth
+		f.gatewayRepo.ListWithFiltersFunc = func(repositories.GatewayFilterOptions) ([]*models.Gateway, error) {
+			return []*models.Gateway{selfHosted}, nil
+		}
+		f.svc.logger = slog.Default()
+		f.svc.ocClient = &clientmocks.OpenChoreoClientMock{
+			GetProjectFunc: func(context.Context, string, string) (*models.ProjectResponse, error) {
+				return &models.ProjectResponse{UUID: uuid.NewString()}, nil
+			},
+		}
+		f.svc.llmProxyService = &LLMProxyService{providerRepo: &repomocks.LLMProviderRepositoryMock{
+			GetByUUIDFunc: func(string, string) (*models.LLMProvider, error) { return nil, errReachedProxyWrite },
+		}}
+		return f
+	}
+	processNewEnv := func(f *llmPlacementFixture, isExternalAgent bool) error {
+		config := &models.AgentConfiguration{UUID: uuid.New(), OUID: llmPlacementOU, ProjectName: "proj", AgentID: "agent", Name: "cfg"}
+		_, _, err := f.svc.processNewEnv(context.Background(), config.UUID, config, f.envs["dev"], f.env("dev"), "dev",
+			models.EnvModelConfigRequest{ProviderName: "self-p"}, llmPlacementOU, nil, isExternalAgent, "")
+		return err
+	}
+
+	t.Run("external", func(t *testing.T) {
+		require.ErrorIs(t, processNewEnv(newFixture(t), true), errReachedProxyWrite)
+	})
+	t.Run("internal", func(t *testing.T) {
+		require.ErrorIs(t, processNewEnv(newFixture(t), false), errNoEgressGatewayForEnvironment)
+	})
+}
+
+// Redeploying an external agent's proxy after a config change keeps it on its self-hosted gateway; an internal
+// agent's proxy there is refused as before.
+func TestLLMConfig_ExternalAgentProxyUpdateOnSelfHostedPlacement(t *testing.T) {
+	newFixture := func(t *testing.T) (*llmPlacementFixture, *models.EnvAgentModelMapping) {
+		f := newLLMPlacementFixture(t, "dev")
+		f.provider("self-p", models.GatewayHostingSelfHosted)
+		proxy := &models.LLMProxy{UUID: uuid.New(), Handle: "cfg-proxy"}
+		f.placedOn[proxy.UUID] = &models.Gateway{UUID: uuid.New(), Hosting: models.GatewayHostingSelfHosted}
+		f.svc.llmProxyDeploymentService.proxyRepo = &repomocks.LLMProxyRepositoryMock{
+			GetByIDFunc: func(string, string) (*models.LLMProxy, error) { return proxy, nil },
+		}
+		f.svc.logger = slog.Default()
+		f.svc.llmProxyService = &LLMProxyService{proxyRepo: &repomocks.LLMProxyRepositoryMock{
+			GetByIDFunc: func(string, string) (*models.LLMProxy, error) { return nil, errReachedProxyWrite },
+		}}
+		return f, &models.EnvAgentModelMapping{EnvironmentUUID: f.env("dev"), LLMProxy: proxy}
+	}
+	processEnvProxyUpdate := func(f *llmPlacementFixture, mapping *models.EnvAgentModelMapping, isExternalAgent bool) error {
+		config := &models.AgentConfiguration{UUID: uuid.New(), OUID: llmPlacementOU, ProjectName: "proj", AgentID: "agent", Name: "cfg"}
+		_, err := f.svc.processEnvProxyUpdate(context.Background(), config, f.envs["dev"], f.env("dev"), "dev",
+			models.EnvModelConfigRequest{ProviderName: "self-p"}, mapping, llmPlacementOU, isExternalAgent)
+		return err
+	}
+
+	t.Run("external", func(t *testing.T) {
+		f, mapping := newFixture(t)
+		require.ErrorIs(t, processEnvProxyUpdate(f, mapping, true), errReachedProxyWrite)
+	})
+	t.Run("internal", func(t *testing.T) {
+		f, mapping := newFixture(t)
+		require.ErrorIs(t, processEnvProxyUpdate(f, mapping, false), errSelfHostedAnchor)
+	})
 }

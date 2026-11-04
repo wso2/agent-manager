@@ -60,8 +60,8 @@ var (
 	// refused rather than silently ignored.
 	errPlacementFixed = errors.New("placement is fixed for this environment; delete and recreate the binding to change it")
 
-	// errSelfHostedAnchor means an agent's or monitor's LLM proxy, which AMS owns and serves to workloads in
-	// OpenChoreo, is placed on a self-hosted gateway. No path places one there, so this is a backstop only.
+	// errSelfHostedAnchor means a platform-hosted agent's or monitor's LLM proxy, which AMS owns and serves to
+	// workloads in OpenChoreo, is placed on a self-hosted gateway. No path places one there, so this is a backstop only.
 	errSelfHostedAnchor = errors.New("the agent's or monitor's LLM proxy is placed on a self-hosted gateway")
 )
 
@@ -179,8 +179,8 @@ func resolveEgressGatewayForArtifact(
 }
 
 // managedAnchorsOnly is gatewayIDs without the self-hosted gateways, original order kept. Unknown or deleted
-// ids stay: they are stale rows the placement lookup skips. Used for agent and monitor LLM proxies, which
-// must never be placed next to a self-hosted anchor.
+// ids stay: they are stale rows the placement lookup skips. Used for platform-hosted agents' and monitors' LLM
+// proxies, which must never be placed next to a self-hosted anchor.
 func managedAnchorsOnly(repo repositories.GatewayRepository, gatewayIDs []string) ([]string, error) {
 	kept := make([]string, 0, len(gatewayIDs))
 	for _, id := range gatewayIDs {
@@ -194,6 +194,28 @@ func managedAnchorsOnly(repo repositories.GatewayRepository, gatewayIDs []string
 		kept = append(kept, id)
 	}
 	return kept, nil
+}
+
+// managedAnchorsFirst is gatewayIDs with the self-hosted gateways moved to the end, order within each group kept.
+// Unknown or deleted ids stay with the managed ones, as in managedAnchorsOnly. Used for external agents' LLM
+// proxies: the first anchor mapped to the environment wins, so a provider on both a managed and a self-hosted
+// gateway there serves the agent from the managed one.
+func managedAnchorsFirst(repo repositories.GatewayRepository, gatewayIDs []string) ([]string, error) {
+	managed, err := managedAnchorsOnly(repo, gatewayIDs)
+	if err != nil {
+		return nil, err
+	}
+	kept := make(map[string]struct{}, len(managed))
+	for _, id := range managed {
+		kept[id] = struct{}{}
+	}
+	ordered := managed
+	for _, id := range gatewayIDs {
+		if _, ok := kept[id]; !ok {
+			ordered = append(ordered, id)
+		}
+	}
+	return ordered, nil
 }
 
 // resolveManagedPlacement is resolveEgressGatewayForArtifact for an AMS-owned proxy, refusing a self-hosted

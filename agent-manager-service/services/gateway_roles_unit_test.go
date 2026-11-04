@@ -356,6 +356,31 @@ func TestManagedAnchorsOnly(t *testing.T) {
 	assert.Equal(t, []string{managedA.UUID.String(), deleted, managedB.UUID.String()}, got)
 }
 
+// External agents may use a self-hosted placement, but a managed one in the same environment wins: the first
+// anchor mapped to the environment is the one used.
+func TestManagedAnchorsFirst(t *testing.T) {
+	env := uuid.New()
+	selfHosted := func() *models.Gateway {
+		gw := newGateway(t, models.GatewayRoleBoth, true)
+		gw.Hosting = models.GatewayHostingSelfHosted
+		return gw
+	}
+	s1, s2 := selfHosted(), selfHosted()
+	m1 := newGateway(t, models.GatewayRoleBoth, true)
+	m2 := newGateway(t, models.GatewayRoleBoth, true)
+	repo := gatewayFixtureRepo(t, env.String(), []*models.Gateway{s1, m1, s2, m2})
+	deleted := uuid.NewString()
+
+	got, err := managedAnchorsFirst(repo, []string{
+		s1.UUID.String(), m1.UUID.String(), s2.UUID.String(), deleted, m2.UUID.String(),
+	})
+
+	require.NoError(t, err)
+	assert.Equal(t, []string{
+		m1.UUID.String(), deleted, m2.UUID.String(), s1.UUID.String(), s2.UUID.String(),
+	}, got)
+}
+
 // An agent's or monitor's proxy runs in OpenChoreo, so its URL may never point at a self-hosted gateway, and a
 // self-hosted placement must not be swapped for another gateway it isn't on.
 func TestResolveManagedPlacement_RefusesSelfHostedPlacement(t *testing.T) {

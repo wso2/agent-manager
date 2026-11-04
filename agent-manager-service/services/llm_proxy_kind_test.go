@@ -290,7 +290,7 @@ func TestAgentConfigProxyUpdateAfterAPublicUndeploySaves(t *testing.T) {
 	config := &models.AgentConfiguration{OUID: f.sync.ouID, AgentID: "a"}
 	request := models.EnvModelConfigRequest{ProviderName: f.provider.Configuration.Handle}
 
-	rollback, err := svc.processEnvProxyUpdate(context.Background(), config, nil, env, "dev", request, &mapping, f.sync.ouID)
+	rollback, err := svc.processEnvProxyUpdate(context.Background(), config, nil, env, "dev", request, &mapping, f.sync.ouID, false)
 
 	require.NoError(t, err)
 	assert.Equal(t, uuid.Nil, rollback.deploymentID)
@@ -530,7 +530,7 @@ func TestScenarioBPolicyWriteFailureRollsBackWithoutUndeploying(t *testing.T) {
 	config := &models.AgentConfiguration{OUID: f.sync.ouID, AgentID: "a"}
 	request := models.EnvModelConfigRequest{ProviderName: f.provider.Configuration.Handle}
 
-	rollback, err := svc.processEnvProxyUpdate(context.Background(), config, nil, env, "dev", request, &mapping, f.sync.ouID)
+	rollback, err := svc.processEnvProxyUpdate(context.Background(), config, nil, env, "dev", request, &mapping, f.sync.ouID, false)
 
 	require.ErrorContains(t, err, "failed to update policy configuration")
 	assert.Equal(t, uuid.Nil, rollback.deploymentID)
