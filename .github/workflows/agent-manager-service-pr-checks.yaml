@@ -72,6 +72,8 @@ jobs:
     name: Integration Tests
     runs-on:
       - codebuild-wso2_agent-manager-${{ github.run_id }}-${{ github.run_attempt }}
+    env:
+      POSTGRES_CONTAINER: postgres-${{ github.run_id }}-${{ github.run_attempt }}-integration
 
     steps:
       - name: Checkout code
@@ -84,16 +86,15 @@ jobs:
 
       - name: Start PostgreSQL
         run: |
-          docker run -d --name postgres \
+          docker run -d --name "$POSTGRES_CONTAINER" \
             -e POSTGRES_USER=agentmanager \
             -e POSTGRES_PASSWORD=agentmanager \
             -e POSTGRES_DB=agentmanager \
-            -p 5432:5432 \
             public.ecr.aws/docker/library/postgres:15-alpine
 
       - name: Wait for PostgreSQL
         run: |
-          until docker exec postgres pg_isready -U agentmanager; do
+          until docker exec "$POSTGRES_CONTAINER" pg_isready -U agentmanager; do
             echo "Waiting for postgres..."
             sleep 1
           done
@@ -102,7 +103,7 @@ jobs:
       - name: Get PostgreSQL host
         id: postgres
         run: |
-          POSTGRES_IP=$(docker inspect -f '{{range.NetworkSettings.Networks}}{{.IPAddress}}{{end}}' postgres)
+          POSTGRES_IP=$(docker inspect -f '{{range.NetworkSettings.Networks}}{{.IPAddress}}{{end}}' "$POSTGRES_CONTAINER")
           echo "host=${POSTGRES_IP}" >> "$GITHUB_OUTPUT"
           echo "PostgreSQL IP: ${POSTGRES_IP}"
 
@@ -147,6 +148,10 @@ jobs:
           name: integration-test-logs
           path: agent-manager-service/localdata/test_output_isolated.log
           retention-days: 7
+
+      - name: Remove PostgreSQL container
+        if: always()
+        run: docker rm -f "$POSTGRES_CONTAINER" >/dev/null 2>&1 || true
 
   build:
     name: Build
