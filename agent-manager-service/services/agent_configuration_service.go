@@ -1494,7 +1494,7 @@ func (s *agentConfigurationService) createMCPConfig(ctx context.Context, ouID, p
 		}
 	}
 
-	gateways, err := s.resolveMCPEnvGateways(ctx, ouID, proxiesByEnv, envMap)
+	gateways, err := s.resolveMCPEnvGateways(ctx, ouID, proxiesByEnv, envMap, isExternalAgent)
 	if err != nil {
 		return nil, err
 	}
@@ -2539,7 +2539,7 @@ func (s *agentConfigurationService) updateMCPConfig(ctx context.Context, existin
 	// Every environment's gateway is resolved once, before anything is recorded or applied: the
 	// steps below commit one by one, so a self-hosted refusal must come first, and the loop
 	// reuses these resolutions rather than racing a second lookup.
-	gateways, err := s.resolveMCPEnvGateways(ctx, ouID, proxiesByEnv, envMap)
+	gateways, err := s.resolveMCPEnvGateways(ctx, ouID, proxiesByEnv, envMap, isExternalAgent)
 	if err != nil {
 		return nil, err
 	}
@@ -4797,10 +4797,13 @@ type mcpEnvGateway struct {
 }
 
 // resolveMCPEnvGateways resolves every requested environment's gateway exactly once and refuses, before
-// the caller changes anything, if any resolves to a self-hosted gateway. A resolution that fails is kept
-// in the result for the caller's per-environment handling (deferred, strict or not deployable).
+// the caller changes anything, a binding the agent cannot use. A platform-hosted agent is refused any
+// self-hosted gateway; an external agent is refused one only where the proxy uses Agent Identity, which
+// self-hosted gateways cannot validate. A resolution that fails is kept in the result for the caller's
+// per-environment handling (deferred, strict or not deployable).
 func (s *agentConfigurationService) resolveMCPEnvGateways(
 	ctx context.Context, ouID string, proxiesByEnv map[string]*models.MCPProxy, envMap map[string]*models.EnvironmentResponse,
+	isExternalAgent bool,
 ) (map[string]mcpEnvGateway, error) {
 	resolved := make(map[string]mcpEnvGateway, len(proxiesByEnv))
 	for envName, proxy := range proxiesByEnv {
@@ -4810,7 +4813,13 @@ func (s *agentConfigurationService) resolveMCPEnvGateways(
 		}
 		gateway, err := s.resolveDeployableMCPGateway(ctx, proxy, ouID, envUUID)
 		if err == nil && !gateway.IsManaged() {
-			return nil, errMCPProxyOnSelfHostedGateway(proxy, envName)
+			if !isExternalAgent {
+				return nil, errMCPProxyOnSelfHostedGateway(proxy, envName)
+			}
+			if mcpIdentityEnabled(mcpProxySecurityForEnv(proxy, envUUID.String())) {
+				return nil, fmt.Errorf("%w: MCP proxy %s is on self-hosted gateway %s in environment %s; use API key security",
+					errMCPIdentityOnSelfHostedGateway, mcpProxyHandle(proxy), gateway.Name, envName)
+			}
 		}
 		resolved[envName] = mcpEnvGateway{gateway: gateway, err: err}
 	}
@@ -4818,7 +4827,7 @@ func (s *agentConfigurationService) resolveMCPEnvGateways(
 }
 
 // errMCPProxyOnSelfHostedGateway refuses an agent binding to an MCP proxy whose gateway in the
-// environment is self-hosted. Agents, external ones included, only use managed gateways.
+// environment is self-hosted. Platform-hosted agents only use managed gateways.
 func errMCPProxyOnSelfHostedGateway(proxy *models.MCPProxy, envName string) error {
 	return fmt.Errorf("%w: MCP proxy %s is on a self-hosted gateway in environment %s; agents can only use MCP proxies on managed gateways",
 		utils.ErrInvalidInput, mcpProxyHandle(proxy), envName)
@@ -5944,7 +5953,12 @@ func (s *agentConfigurationService) buildConfigResponse(ctx context.Context, con
 				AuthHeaderName: utils.StrAsStrPointer(mcpProxyAPIKeyHeaderName(mapping.MCPProxy, mapping.EnvironmentUUID.String())),
 			}
 			sharedArtifactUUID := s.resolveMCPMappingAPIID(ctx, &mapping, config.OUID)
-			if gateway, err := s.resolveGatewayForMCPArtifact(ctx, sharedArtifactUUID, config.OUID, mapping.EnvironmentUUID); err == nil && sharedArtifactUUID != uuid.Nil {
+			// An external agent may use a self-hosted gateway; a platform-hosted one gets no URL there.
+			resolveGateway := s.resolveGatewayForMCPArtifact
+			if includeProxyURL {
+				resolveGateway = s.placedGatewayForMCPArtifact
+			}
+			if gateway, err := resolveGateway(ctx, sharedArtifactUUID, config.OUID, mapping.EnvironmentUUID); err == nil && sharedArtifactUUID != uuid.Nil {
 				deployedProxy := buildAgentMCPConfigProxy(config, &mapping, mapping.MCPProxy, envName, config.OUID,
 					mcpMappingProxyName(config.ProjectName, config.AgentID, config.Name, envName))
 				// User-facing invoke URL in the config response: externally-reachable vhost.
@@ -6092,7 +6106,7 @@ func (s *agentConfigurationService) buildExternalAgentConfigResponse(
 			var gateway *models.Gateway
 			var gwErr error
 			if sharedArtifactUUID != uuid.Nil {
-				gateway, gwErr = s.resolveGatewayForMCPArtifact(ctx, sharedArtifactUUID, config.OUID, mapping.EnvironmentUUID)
+				gateway, gwErr = s.placedGatewayForMCPArtifact(ctx, sharedArtifactUUID, config.OUID, mapping.EnvironmentUUID)
 			} else {
 				gwErr = errNoGatewayForEnvironment
 			}

@@ -772,16 +772,28 @@ func (s *agentConfigurationService) reconcileConfigMCPBindings(
 		return nil
 	}
 
-	bindable := s.deployableMCPEnvs(ctx, proxy, scope.ouID, candidates)
+	bindable, selfHosted := s.deployableMCPEnvs(ctx, proxy, scope.ouID, candidates)
+	if len(bindable) == 0 && len(selfHosted) == 0 {
+		return nil
+	}
+
+	inputs, err := s.mcpActivationInputsForConfig(ctx, scope.ouID, config)
+	if err != nil {
+		return err
+	}
+	if inputs.isExternalAgent {
+		bindable = append(bindable, selfHosted...)
+	} else {
+		for _, envUUID := range selfHosted {
+			s.logger.Warn("Skipping MCP binding backfill; the proxy is on a self-hosted gateway in this environment",
+				"ouID", scope.ouID, "environmentUUID", envUUID, "mcpProxyUUID", proxy.UUID)
+		}
+	}
 	if len(bindable) == 0 {
 		return nil
 	}
 
 	index, err := scope.envs()
-	if err != nil {
-		return err
-	}
-	inputs, err := s.mcpActivationInputsForConfig(ctx, scope.ouID, config)
 	if err != nil {
 		return err
 	}
@@ -841,15 +853,16 @@ func retainEnvs(envUUIDs []uuid.UUID, keep map[uuid.UUID]struct{}) []uuid.UUID {
 }
 
 // deployableMCPEnvs narrows candidates to the environments proxy can actually back a
-// binding in.
+// binding in, split by the gateway's hosting: only an external agent may bind where it is
+// self-hosted, so the caller decides (and logs) whether to skip those.
 //
-// Every skip is logged. A silently dropped environment is indistinguishable from "nothing
+// Every other skip is logged here. A silently dropped environment is indistinguishable from "nothing
 // to do", which is how this class of breakage reached users: the binding never appeared,
 // the logs said nothing, and the agent failed at promotion instead.
 func (s *agentConfigurationService) deployableMCPEnvs(
 	ctx context.Context, proxy *models.MCPProxy, ouID string, candidates []uuid.UUID,
-) []uuid.UUID {
-	bindable := make([]uuid.UUID, 0, len(candidates))
+) (bindable, selfHosted []uuid.UUID) {
+	bindable = make([]uuid.UUID, 0, len(candidates))
 	for _, envUUID := range candidates {
 		gateway, err := s.resolveDeployableMCPGateway(ctx, proxy, ouID, envUUID)
 		if err != nil {
@@ -863,13 +876,12 @@ func (s *agentConfigurationService) deployableMCPEnvs(
 			continue
 		}
 		if !gateway.IsManaged() {
-			s.logger.Warn("Skipping MCP binding backfill; the proxy is on a self-hosted gateway in this environment",
-				"ouID", ouID, "environmentUUID", envUUID, "mcpProxyUUID", proxy.UUID, "gatewayUUID", gateway.UUID)
+			selfHosted = append(selfHosted, envUUID)
 			continue
 		}
 		bindable = append(bindable, envUUID)
 	}
-	return bindable
+	return bindable, selfHosted
 }
 
 func (s *agentConfigurationService) mcpActivationInputsForConfig(

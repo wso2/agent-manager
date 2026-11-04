@@ -18,6 +18,7 @@ package services
 
 import (
 	"context"
+	"errors"
 	"testing"
 
 	"github.com/google/uuid"
@@ -249,9 +250,8 @@ func selfHostedMCPConfigService(t *testing.T) (*agentConfigurationService, *mcpU
 		GetProjectDeploymentPipelineFunc: func(context.Context, string, string) (*models.DeploymentPipelineResponse, error) {
 			return nil, utils.ErrDeploymentPipelineNotFound
 		},
-		// An external agent: the self-hosted refusal applies to every agent, not only those in OpenChoreo.
 		GetComponentFunc: func(context.Context, string, string, string) (*models.AgentResponse, error) {
-			return &models.AgentResponse{Provisioning: models.Provisioning{Type: "external"}}, nil
+			return &models.AgentResponse{Provisioning: models.Provisioning{Type: string(utils.InternalAgent)}}, nil
 		},
 	}
 	return svc, f
@@ -312,7 +312,7 @@ func TestMCPConfig_RefusesSelfHostedProxy(t *testing.T) {
 	t.Run("create", func(t *testing.T) {
 		svc, f := selfHostedMCPConfigService(t)
 		_, err := svc.createMCPConfig(context.Background(), f.ouID, "proj1", "agent1",
-			models.CreateAgentModelConfigRequest{Name: "cfg1", Type: "mcp", EnvMappings: mappings}, "user", true)
+			models.CreateAgentModelConfigRequest{Name: "cfg1", Type: "mcp", EnvMappings: mappings}, "user", false)
 		require.ErrorIs(t, err, utils.ErrInvalidInput)
 		require.ErrorContains(t, err, "self-hosted gateway in environment dev")
 	})
@@ -320,7 +320,7 @@ func TestMCPConfig_RefusesSelfHostedProxy(t *testing.T) {
 	t.Run("create with unbindable environments deferred still refuses", func(t *testing.T) {
 		svc, f := selfHostedMCPConfigService(t)
 		_, err := svc.createMCPConfig(context.Background(), f.ouID, "proj1", "agent1",
-			models.CreateAgentModelConfigRequest{Name: "cfg1", Type: "mcp", EnvMappings: mappings, DeferUnbindableMCPEnvs: true}, "user", true)
+			models.CreateAgentModelConfigRequest{Name: "cfg1", Type: "mcp", EnvMappings: mappings, DeferUnbindableMCPEnvs: true}, "user", false)
 		require.ErrorIs(t, err, utils.ErrInvalidInput)
 	})
 
@@ -344,14 +344,153 @@ func TestDeployableMCPEnvs_SkipsSelfHostedGateway(t *testing.T) {
 		f.gatewayRepo.GetByUUIDFunc = func(string) (*models.Gateway, error) {
 			return &models.Gateway{UUID: f.gatewayUUID, Hosting: models.GatewayHostingSelfHosted}, nil
 		}
-		assert.Empty(t, f.newService().deployableMCPEnvs(context.Background(), proxy, f.ouID, []uuid.UUID{f.envUUID}))
+		bindable, selfHosted := f.newService().deployableMCPEnvs(context.Background(), proxy, f.ouID, []uuid.UUID{f.envUUID})
+		assert.Empty(t, bindable)
+		assert.Equal(t, []uuid.UUID{f.envUUID}, selfHosted)
 	})
 
 	t.Run("managed gateway is bindable", func(t *testing.T) {
 		f.gatewayRepo.GetByUUIDFunc = func(string) (*models.Gateway, error) {
 			return &models.Gateway{UUID: f.gatewayUUID}, nil
 		}
-		assert.Equal(t, []uuid.UUID{f.envUUID}, f.newService().deployableMCPEnvs(context.Background(), proxy, f.ouID, []uuid.UUID{f.envUUID}))
+		bindable, selfHosted := f.newService().deployableMCPEnvs(context.Background(), proxy, f.ouID, []uuid.UUID{f.envUUID})
+		assert.Equal(t, []uuid.UUID{f.envUUID}, bindable)
+		assert.Empty(t, selfHosted)
+	})
+
+	t.Run("the reconcile does not bind an internal agent there", func(t *testing.T) {
+		svc, proxy, configUUID, activated := selfHostedBackfillService(t, utils.InternalAgent)
+		require.NoError(t, svc.reconcileConfigMCPBindings(context.Background(), svc.newMCPReconcileScope(context.Background(), "org1"), proxy, configUUID, nil))
+		assert.Empty(t, *activated)
+	})
+}
+
+// selfHostedBackfillService wires reconcileConfigMCPBindings for one MCP connection whose proxy has become
+// deployable on a self-hosted gateway in an environment the connection is configured for. It records each
+// environment an activation starts in, and stops that activation at its first read.
+func selfHostedBackfillService(
+	t *testing.T, provisioning utils.AgentProvisioningType,
+) (svc *agentConfigurationService, proxy *models.MCPProxy, configUUID uuid.UUID, activated *[]uuid.UUID) {
+	t.Helper()
+	f := newMCPURLTestFixture()
+	f.gatewayRepo.GetByUUIDFunc = func(string) (*models.Gateway, error) {
+		return &models.Gateway{UUID: f.gatewayUUID, Hosting: models.GatewayHostingSelfHosted}, nil
+	}
+	proxy = f.mapping.MCPProxy
+	configUUID = uuid.New()
+	config := &models.AgentConfiguration{
+		UUID: configUUID, OUID: f.ouID, ProjectName: "proj1", AgentID: "agent1", Name: "cfg1",
+		TypeID:       models.AgentConfigTypeIDMCP,
+		MCPProxyRef:  mcpProxyRef(configUUID, proxy.UUID),
+		EnvVariables: mcpVarRows(configUUID, f.envUUID),
+	}
+	svc = f.newService()
+	svc.agentConfigRepo = &repomocks.AgentConfigurationRepositoryMock{
+		GetByUUIDFunc: func(context.Context, uuid.UUID, string) (*models.AgentConfiguration, error) { return config, nil },
+	}
+	svc.ocClient = &clientmocks.OpenChoreoClientMock{
+		GetProjectDeploymentPipelineFunc: func(context.Context, string, string) (*models.DeploymentPipelineResponse, error) {
+			return nil, utils.ErrDeploymentPipelineNotFound
+		},
+		GetComponentFunc: func(context.Context, string, string, string) (*models.AgentResponse, error) {
+			return &models.AgentResponse{Provisioning: models.Provisioning{Type: string(provisioning)}}, nil
+		},
+	}
+	svc.infraResourceManager = stubInfraManager{
+		listOrgEnvs: func(context.Context, string) ([]*models.EnvironmentResponse, error) {
+			return []*models.EnvironmentResponse{{UUID: f.envUUID.String(), Name: "dev"}}, nil
+		},
+	}
+	activated = &[]uuid.UUID{}
+	svc.envVariableRepo = &repomocks.AgentEnvConfigVariableRepositoryMock{
+		ListByConfigAndEnvFunc: func(_ context.Context, _ uuid.UUID, envUUID uuid.UUID) ([]models.AgentEnvConfigVariable, error) {
+			*activated = append(*activated, envUUID)
+			return nil, errors.New("activation stopped by the test")
+		},
+	}
+	return svc, proxy, configUUID, activated
+}
+
+// An external agent runs outside the platform, so a proxy that became deployable on a self-hosted gateway is
+// one it can use: the reconcile binds it there.
+func TestDeployableMCPEnvs_IncludesSelfHostedForExternalAgent(t *testing.T) {
+	svc, proxy, configUUID, activated := selfHostedBackfillService(t, utils.ExternalAgent)
+	err := svc.reconcileConfigMCPBindings(context.Background(), svc.newMCPReconcileScope(context.Background(), "org1"), proxy, configUUID, nil)
+	require.ErrorContains(t, err, "activation stopped by the test")
+	require.Len(t, *activated, 1)
+	assert.Equal(t, proxy.Endpoints[0].Environments[0].EnvironmentUUID, (*activated)[0])
+}
+
+// An external agent may bind to an MCP proxy on a self-hosted gateway: create and update both resolve the
+// requested environments through resolveMCPEnvGateways, which accepts the gateway for it.
+func TestMCPConfig_ExternalAgentBindsToSelfHostedProxy(t *testing.T) {
+	svc, f := selfHostedMCPConfigService(t)
+	envMap := map[string]*models.EnvironmentResponse{"dev": {UUID: f.envUUID.String(), Name: "dev"}}
+	proxiesByEnv := map[string]*models.MCPProxy{"dev": f.mapping.MCPProxy}
+
+	resolved, err := svc.resolveMCPEnvGateways(context.Background(), f.ouID, proxiesByEnv, envMap, true)
+
+	require.NoError(t, err)
+	require.NoError(t, resolved["dev"].err)
+	require.NotNil(t, resolved["dev"].gateway)
+	assert.Equal(t, f.gatewayUUID, resolved["dev"].gateway.UUID)
+	assert.False(t, resolved["dev"].gateway.IsManaged())
+}
+
+// A self-hosted gateway has no ThunderKeyManager, so an Agent Identity proxy there would reject every token
+// the external agent sends. The binding is refused rather than made unusable.
+func TestMCPConfig_ExternalAgentRefusedForIdentityProxyOnSelfHosted(t *testing.T) {
+	svc, f := selfHostedMCPConfigService(t)
+	on := true
+	proxy := f.mapping.MCPProxy
+	proxy.Endpoints[0].Configuration.Security = &models.SecurityConfig{Enabled: &on, Identity: &models.IdentitySecurity{Enabled: &on}}
+	envMap := map[string]*models.EnvironmentResponse{"dev": {UUID: f.envUUID.String(), Name: "dev"}}
+
+	_, err := svc.resolveMCPEnvGateways(context.Background(), f.ouID, map[string]*models.MCPProxy{"dev": proxy}, envMap, true)
+
+	require.ErrorIs(t, err, errMCPIdentityOnSelfHostedGateway)
+	require.ErrorIs(t, err, utils.ErrInvalidInput)
+	require.ErrorContains(t, err, "environment dev")
+}
+
+// An external agent reaches its MCP proxy from outside the platform, so its URL points at the self-hosted
+// gateway the proxy is placed on.
+func TestExternalAgentMCPURL_UsesSelfHostedGateway(t *testing.T) {
+	f := newMCPURLTestFixture()
+	f.gatewayRepo.GetByUUIDFunc = func(string) (*models.Gateway, error) {
+		return &models.Gateway{UUID: f.gatewayUUID, Vhost: "https://customer.example.com", Hosting: models.GatewayHostingSelfHosted}, nil
+	}
+	ctx := context.Background()
+	config := &models.AgentConfiguration{
+		UUID: uuid.New(), OUID: f.ouID, ProjectName: "proj1", AgentID: "agent1", Name: "cfg1",
+		EnvMCPMappings: []models.EnvAgentMCPMapping{f.mapping},
+	}
+	newService := func() *agentConfigurationService {
+		svc := f.newService()
+		svc.infraResourceManager = stubInfraManager{
+			listOrgEnvs: func(context.Context, string) ([]*models.EnvironmentResponse, error) {
+				return []*models.EnvironmentResponse{{UUID: f.envUUID.String(), Name: "dev"}}, nil
+			},
+		}
+		svc.agentConfigRepo = &repomocks.AgentConfigurationRepositoryMock{
+			GetByUUIDFunc: func(context.Context, uuid.UUID, string) (*models.AgentConfiguration, error) { return config, nil },
+		}
+		return svc
+	}
+	const wantURL = "https://customer.example.com/proxy-ctx/mcp"
+
+	t.Run("config response", func(t *testing.T) {
+		resp, err := newService().buildConfigResponse(ctx, config, true)
+		require.NoError(t, err)
+		require.NotNil(t, resp.EnvModelConfig["dev"].LLMProxy.URL)
+		assert.Equal(t, wantURL, *resp.EnvModelConfig["dev"].LLMProxy.URL)
+	})
+
+	t.Run("external agent config response", func(t *testing.T) {
+		resp, err := newService().buildExternalAgentConfigResponse(ctx, config, map[string]envCredentialData{})
+		require.NoError(t, err)
+		require.NotNil(t, resp.EnvModelConfig["dev"].LLMProxy.URL)
+		assert.Equal(t, wantURL, *resp.EnvModelConfig["dev"].LLMProxy.URL)
 	})
 }
 
@@ -376,7 +515,7 @@ func TestAgentMCPURLs_EmptyOnSelfHostedGateway(t *testing.T) {
 				return []*models.EnvironmentResponse{{UUID: f.envUUID.String(), Name: "dev"}}, nil
 			},
 		}
-		resp, err := svc.buildConfigResponse(ctx, config, true)
+		resp, err := svc.buildConfigResponse(ctx, config, false)
 		require.NoError(t, err)
 		require.NotNil(t, resp.EnvModelConfig["dev"].LLMProxy)
 		assert.Nil(t, resp.EnvModelConfig["dev"].LLMProxy.URL)
