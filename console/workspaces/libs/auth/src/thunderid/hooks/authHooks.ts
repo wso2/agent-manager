@@ -112,14 +112,17 @@ export const useAuthHooks = (): AuthHooks => {
     let cancelled = false;
     // On the backend the same claims come from the session: the id_token's,
     // with the granted permissions standing in for the access token's scope.
+    // No id_token claims means no payload, as with no token below.
     const payloadPromise = isBackendAuth
       ? Promise.all([
-          getDecodedIdTokenRef.current?.(),
-          getGrantedPermissionsRef.current?.(),
-        ]).then(([idToken, permissions]) => ({
-          ...((idToken as Record<string, unknown> | undefined) ?? {}),
-          scope: (permissions ?? []).join(" "),
-        }))
+          getDecodedIdTokenRef.current(),
+          getGrantedPermissionsRef.current(),
+        ]).then(([idToken, permissions]) => {
+          const claims = idToken as Record<string, unknown> | undefined;
+          return claims && Object.keys(claims).length > 0
+            ? { ...claims, scope: (permissions ?? []).join(" ") }
+            : null;
+        })
       : getAccessTokenRef.current?.()?.then((token) =>
           token ? (decodeJWT(token)?.payload ?? null) : null,
         );
