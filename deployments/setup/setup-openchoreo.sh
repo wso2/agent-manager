@@ -20,6 +20,27 @@ fi
 echo "🔧 Setting kubectl context to $CLUSTER_CONTEXT..."
 kubectl config use-context $CLUSTER_CONTEXT
 
+case "$AMP_OBSERVABILITY" in
+    full|lite) ;;
+    *)
+        echo "❌ AMP_OBSERVABILITY must be 'full' or 'lite', got '$AMP_OBSERVABILITY'."
+        exit 1
+        ;;
+esac
+existing_observability=$(observability_mode)
+case "$existing_observability" in
+    full|lite)
+        if [ "$existing_observability" != "$AMP_OBSERVABILITY" ]; then
+            echo "❌ This cluster was set up with $existing_observability observability; run 'make teardown' before switching to $AMP_OBSERVABILITY."
+            exit 1
+        fi
+        ;;
+esac
+# Recorded before anything installs, so a half-failed install still reads back
+# as the mode it was started in.
+kubectl create ns openchoreo-observability-plane --dry-run=client -o yaml | kubectl apply -f -
+kubectl label ns openchoreo-observability-plane "amp.wso2.com/observability=$AMP_OBSERVABILITY" --overwrite
+
 echo ""
 echo "📦 Installing OpenChoreo core components..."
 echo "   This may take several minutes..."
@@ -355,12 +376,8 @@ install_metrics_module() {
     echo "✅ Prometheus based metrics module installed"
 }
 
-build_observer_image() {
-    make -C "${PROJECT_ROOT}/agent-manager-observer" docker-load-k3d
-}
-
 # Function to install Observability Plane
-install_observability_plane() {
+install_observability_full() {
     echo "📦 Installing OpenChoreo Observability Plane..."
     echo "Setting up OC Observability plane namespace and certificates..."
     create_plane_cert_resources openchoreo-observability-plane
@@ -451,6 +468,38 @@ install_observability_plane() {
     echo "✅ OpenChoreo Observability Plane ready"
 }
 
+# The kgateway controller is already Available (prerequisites and step 1), so the
+# lite Gateway comes up while the workflow plane installs.
+install_observability_lite() {
+    echo "📦 Applying the lite observability resources (no OpenChoreo observability plane)..."
+    kubectl apply -f "${PROJECT_ROOT}/deployments/values/observer-lite.k8s.yaml"
+}
+
+# Requires all planes to be registered.
+integrate_observability_full() {
+    if kubectl get clusterdataplane default -n default &>/dev/null; then
+        kubectl patch clusterdataplane default -n default --type merge -p '{"spec":{"observabilityPlaneRef":{"kind":"ClusterObservabilityPlane","name":"default"}}}' \
+            && echo "   ✅ DataPlane observer configured" \
+            || echo "   ⚠️  DataPlane observer configuration failed (non-fatal)"
+    else
+        echo "   ⚠️  DataPlane resource not found yet "
+    fi
+
+    if kubectl get clusterworkflowplane default -n default &>/dev/null; then
+        kubectl patch clusterworkflowplane default -n default --type merge -p '{"spec":{"observabilityPlaneRef":{"kind":"ClusterObservabilityPlane","name":"default"}}}' \
+            && echo "   ✅ WorkflowPlane observer configured" \
+            || echo "   ⚠️  WorkflowPlane observer configuration failed (non-fatal)"
+    else
+        echo "   ⚠️  WorkflowPlane resource not found yet"
+    fi
+}
+
+# Fails fast if the Gateway never came up; it is normally Programmed by now.
+integrate_observability_lite() {
+    kubectl wait --for=condition=Programmed gateway/gateway-default \
+        -n openchoreo-observability-plane --timeout=180s
+}
+
 # ============================================================================
 # Step 1: Install Control Plane (must complete before Data Plane)
 # ============================================================================
@@ -478,7 +527,7 @@ echo ""
 echo "3️⃣  Workflow Plane (Observability Plane installing in the background)"
 echo ""
 
-start_task "Observability Plane" install_observability_plane
+start_task "Observability Plane" "install_observability_$AMP_OBSERVABILITY"
 start_task "Observer image" build_observer_image
 install_workflow_plane
 echo "✅ Workflow Plane installed successfully"
@@ -547,23 +596,7 @@ echo ""
 # Step 8: Configure observability integration (requires all planes to be registered)
 # ============================================================================
 echo "8️⃣  Configuring observability integration..."
-# Configure DataPlane observer
-if kubectl get clusterdataplane default -n default &>/dev/null; then
-    kubectl patch clusterdataplane default -n default --type merge -p '{"spec":{"observabilityPlaneRef":{"kind":"ClusterObservabilityPlane","name":"default"}}}' \
-        && echo "   ✅ DataPlane observer configured" \
-        || echo "   ⚠️  DataPlane observer configuration failed (non-fatal)"
-else
-    echo "   ⚠️  DataPlane resource not found yet "
-fi
-
-# Configure WorkflowPlane observer
-if kubectl get clusterworkflowplane default -n default &>/dev/null; then
-    kubectl patch clusterworkflowplane default -n default --type merge -p '{"spec":{"observabilityPlaneRef":{"kind":"ClusterObservabilityPlane","name":"default"}}}' \
-        && echo "   ✅ WorkflowPlane observer configured" \
-        || echo "   ⚠️  WorkflowPlane observer configuration failed (non-fatal)"
-else
-    echo "   ⚠️  WorkflowPlane resource not found yet"
-fi
+"integrate_observability_$AMP_OBSERVABILITY"
 echo ""
 
 echo "All core OpenChoreo planes are installed and registered!"

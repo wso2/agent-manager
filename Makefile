@@ -1,4 +1,4 @@
-.PHONY: help tools setup setup-colima setup-k3d setup-openchoreo setup-default-env-thunder setup-sandbox setup-gvisor setup-kata setup-platform setup-gateway setup-console-local setup-console-local-force setup-amp teardown-amp reset-amp dev-up dev-down dev-restart dev-rebuild dev-logs dev-migrate openchoreo-up openchoreo-down openchoreo-status thunder-up thunder-down thunder-restart thunder-reset teardown db-connect db-logs service-logs service-shell console-logs console stop-console port-forward stop-port-forward gen-eval-artifacts gen-instrumentation-contract check-contract-drift check-matrix-manifest e2e-test security-test security-test-static security-test-live
+.PHONY: help tools setup setup-lite setup-colima setup-k3d setup-openchoreo setup-default-env-thunder setup-sandbox setup-gvisor setup-kata setup-platform setup-gateway setup-console-local setup-console-local-force setup-amp teardown-amp reset-amp dev-up dev-down dev-restart dev-rebuild dev-logs dev-migrate openchoreo-up openchoreo-down openchoreo-status thunder-up thunder-down thunder-restart thunder-reset teardown db-connect db-logs service-logs service-shell console-logs console stop-console port-forward stop-port-forward gen-eval-artifacts gen-instrumentation-contract check-contract-drift check-matrix-manifest e2e-test security-test security-test-static security-test-live
 
 # Default target
 help:
@@ -7,6 +7,7 @@ help:
 	@echo "🚀 Setup (run once):"
 	@echo "  make tools                   - Install pinned Go dev tools into .tools/bin (see tools.mk)"
 	@echo "  make setup                   - Complete setup (tools + Colima + k3d + OpenChoreo + Platform)"
+	@echo "  make setup-lite              - Complete setup without the OpenChoreo observability plane (see AGENTS.md)"
 	@echo "  make setup-colima            - Start Colima VM"
 	@echo "  make setup-k3d              - Create k3d cluster"
 	@echo "  make setup-openchoreo        - Install OpenChoreo on k3d"
@@ -97,6 +98,9 @@ setup: tools setup-colima setup-k3d setup-openchoreo setup-platform setup-sandbo
 	@echo "Run 'make port-forward' to restart in a dedicated terminal"
 	@echo "Run 'make stop-console' to stop the console"
 
+setup-lite:
+	@$(MAKE) setup AMP_OBSERVABILITY=lite
+
 # AMP-layer lifecycle: rebuild everything above the OpenChoreo base (colima,
 # k3d, prerequisites, planes, gateway-operator, agent-sandbox stay untouched).
 # Mirrors the tail of `make setup` exactly, minus the base steps.
@@ -109,7 +113,7 @@ teardown-amp:
 
 setup-amp:
 	@cd deployments/setup && ./setup-amp-extensions.sh $(CURDIR)
-	@$(MAKE) -C agent-manager-observer docker-load-k3d
+	@cd deployments/setup && bash -c 'source ./env.sh && source ./utils.sh && PROJECT_ROOT=$(CURDIR) build_observer_image'
 	@cd deployments/setup && ./setup-amp-observability-extension.sh $(CURDIR)
 	@$(MAKE) setup-platform
 	@$(MAKE) dev-migrate

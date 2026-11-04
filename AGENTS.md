@@ -68,6 +68,19 @@ make e2e-test     # run the e2e suite against the local stack
 
 Run `make help` at the root for the full target list (gateway setup, port-forwarding, DB access, codegen helpers, etc.).
 
+### Lite setup
+
+`make setup-lite` is `make setup` without the OpenChoreo observability plane: no OpenSearch, Fluent Bit, OpenTelemetry collector, Prometheus stack or OpenChoreo observer. amp-observer is built with the `devstore` tag, keeps traces in SQLite and reads logs from the Kubernetes API. Its limits:
+
+- CPU and memory charts are empty; there is no metrics backend.
+- Build logs cover the last 24 hours.
+- Runtime logs cover only a pod's current and previous container.
+- Traces are lost when amp-observer restarts.
+- Traces reach only the in-cluster amp-observer, never one started out of cluster with `make run`.
+- There is no span-count metric.
+- The mode is fixed when the cluster is set up. Switching between `make setup` and `make setup-lite` needs `make teardown` first.
+- `make port-forward` still starts every forward. The OpenSearch (9200) and OpenChoreo observer (8085) forwards fail silently. `localhost:21893` reaches amp-observer's trace ingest, which trusts the scope headers it is sent, so don't expose that port beyond your machine.
+
 ## Cross-cutting engineering rules
 
 These apply everywhere; each aspect guide restates the specifics for its stack.

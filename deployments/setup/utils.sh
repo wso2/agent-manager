@@ -709,3 +709,30 @@ wait_for_deployments_restarting_crashloops() {
         fi
     done
 }
+
+# Prints the cluster's observability mode: none, full or lite. setup-openchoreo.sh
+# labels the namespace before installing anything; clusters set up before the
+# label existed are full.
+observability_mode() {
+    local namespace mode
+    namespace=$(kubectl get namespace openchoreo-observability-plane --context "$CLUSTER_CONTEXT" \
+        --ignore-not-found -o name) || return 1
+    if [ -z "$namespace" ]; then
+        echo "none"
+        return 0
+    fi
+    mode=$(kubectl get namespace openchoreo-observability-plane --context "$CLUSTER_CONTEXT" \
+        -o jsonpath='{.metadata.labels.amp\.wso2\.com/observability}') || return 1
+    echo "${mode:-full}"
+}
+
+# The only place the observability mode maps to Go build tags: the lite
+# cluster's amp-observer needs the devstore store compiled in.
+build_observer_image() {
+    local mode tags=""
+    mode=$(observability_mode) || return 1
+    if [ "$mode" = "lite" ]; then
+        tags="devstore"
+    fi
+    make -C "$PROJECT_ROOT/agent-manager-observer" docker-load-k3d GO_TAGS="$tags"
+}

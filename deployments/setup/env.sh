@@ -4,6 +4,10 @@ OPENCHOREO_VERSION="1.2.8"
 CLUSTER_NAME="${CLUSTER_NAME:-openchoreo-local-setup}"
 CLUSTER_CONTEXT="k3d-${CLUSTER_NAME}"
 
+# Observability backend: "full" installs the OpenChoreo observability plane,
+# "lite" (make setup-lite) runs amp-observer on its dev SQLite store instead.
+AMP_OBSERVABILITY="${AMP_OBSERVABILITY:-full}"
+
 # WSO2 API Platform / Gateway Operator versions
 GATEWAY_OPERATOR_VERSION="0.11.3"
 GATEWAY_CHART_VERSION="2026.09.24"
