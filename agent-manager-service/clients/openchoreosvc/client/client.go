@@ -138,7 +138,19 @@ type OpenChoreoClient interface {
 	// lets the client generate the name. runEnvVars are added to this run's environment
 	// variables only, never to the component; the build applies them only if it creates the
 	// first environment's ReleaseBinding, so they don't change a binding that already exists.
-	TriggerBuild(ctx context.Context, ouID, projectName, componentName, commitID, workflowRunName string, runEnvVars []EnvVar) (*models.BuildResponse, error)
+	// buildClient, when non-nil, names the organization's build client; it is attached to
+	// this run as the ampBuild parameter only when the component's build workflow is listed
+	// in config.BuildClient.Workflows (see withBuildClient).
+	TriggerBuild(ctx context.Context, ouID, projectName, componentName, commitID, workflowRunName string, runEnvVars []EnvVar, buildClient *BuildClientParams) (*models.BuildResponse, error)
+	// GetBuildRun returns what the build publisher endpoint needs to know about a
+	// WorkflowRun: its owner labels, the workflow it runs and its status. A run that
+	// does not exist in the organization's namespace is utils.ErrNotFound.
+	GetBuildRun(ctx context.Context, ouID, runName string) (*BuildRunInfo, error)
+	// PublishBuildWorkload performs what a build's workload step does once it has
+	// generated the Workload: write it, record it on the WorkflowRun, cut a
+	// ComponentRelease named after the run and bind the project's first environment
+	// to it. See publishBuildWorkload for the exact contract.
+	PublishBuildWorkload(ctx context.Context, ouID string, req PublishBuildWorkloadRequest) error
 	GetBuild(ctx context.Context, ouID, projectName, componentName, buildName string) (*models.BuildDetailsResponse, error)
 	GetBuildByName(ctx context.Context, ouID, buildName string) (*models.BuildDetailsResponse, error)
 	ListBuilds(ctx context.Context, ouID, projectName, componentName string) ([]*models.BuildResponse, error)

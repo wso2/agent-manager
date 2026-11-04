@@ -75,7 +75,7 @@ func withRunEnvVars(params map[string]interface{}, envVars []EnvVar) map[string]
 // to the JSON workload object (including spec.container.image).
 const workflowRunWorkloadAnnotationKey = "openchoreo.dev/workload"
 
-func (c *openChoreoClient) TriggerBuild(ctx context.Context, ouID, projectName, componentName, commitID, workflowRunName string, runEnvVars []EnvVar) (*models.BuildResponse, error) {
+func (c *openChoreoClient) TriggerBuild(ctx context.Context, ouID, projectName, componentName, commitID, workflowRunName string, runEnvVars []EnvVar, buildClient *BuildClientParams) (*models.BuildResponse, error) {
 	if err := workloadpolicy.Check(ctx, ouID); err != nil {
 		return nil, err
 	}
@@ -128,6 +128,9 @@ func (c *openChoreoClient) TriggerBuild(ctx context.Context, ouID, projectName, 
 		}
 	}
 	params = withRunEnvVars(params, runEnvVars)
+	if c.attachBuildClient(ctx, namespaceName, workflowKind, workflowName, buildClient) {
+		params = withBuildClient(params, buildClient)
+	}
 
 	// Preserve the open-source behavior when no deployment-specific name is supplied.
 	if workflowRunName == "" {

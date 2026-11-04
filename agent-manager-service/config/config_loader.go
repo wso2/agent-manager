@@ -299,6 +299,13 @@ func loadEnvs() {
 	}
 	validateThunderConfig(config, r)
 
+	config.BuildClient = BuildClientConfig{
+		Enabled: r.readOptionalBool("AMP_BUILD_CLIENT_ENABLED", false),
+		Workflows: r.readOptionalStringList("AMP_BUILD_CLIENT_WORKFLOWS",
+			"amp-docker,amp-ballerina-buildpack,amp-google-cloud-buildpacks"),
+	}
+	validateBuildClientConfig(config, r)
+
 	config.TLSConfig = TLSConfig{
 		EnableTLS: r.readOptionalBool("TLS_ENABLED", false),
 	}
@@ -616,6 +623,22 @@ func validateThunderConfig(cfg *Config, r *configReader) {
 		r.errors = append(r.errors, fmt.Errorf(
 			"AMP_THUNDER_SYSTEM_RESOURCE_IDENTIFIER %q must have a non-empty host", thunder.SystemResourceIdentifier,
 		))
+	}
+}
+
+// validateBuildClientConfig checks the build-client settings together. The build
+// client is a Thunder OAuth2 app, so enabling it without Thunder would make every
+// build fail at provisioning rather than the service fail at startup; and an empty
+// workflow list would leave the flag on with nothing it could ever apply to.
+func validateBuildClientConfig(cfg *Config, r *configReader) {
+	if !cfg.BuildClient.Enabled {
+		return
+	}
+	if cfg.Thunder.BaseURL == "" {
+		r.errors = append(r.errors, fmt.Errorf("AMP_BUILD_CLIENT_ENABLED requires THUNDER_BASE_URL"))
+	}
+	if len(cfg.BuildClient.Workflows) == 0 {
+		r.errors = append(r.errors, fmt.Errorf("AMP_BUILD_CLIENT_ENABLED requires at least one AMP_BUILD_CLIENT_WORKFLOWS entry"))
 	}
 }
 

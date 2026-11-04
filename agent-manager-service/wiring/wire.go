@@ -61,6 +61,7 @@ var clientProviderSet = wire.NewSet(
 	ProvideOCClient,
 	ProvideSecretManagementClient,
 	ProvidePublisherProvisioner,
+	ProvideBuildCredentialProvisioner,
 	ProvideIdentityClient,
 	ProvideOrgResolver,
 	ProvideOUHandleLookup,
@@ -118,6 +119,7 @@ var serviceProviderSet = wire.NewSet(
 	wire.Bind(new(controllers.MCPResourceServerIdentifierResolver), new(*services.MCPProxyService)),
 	services.NewGatewayInternalAPIService,
 	services.NewMonitorScoresService,
+	services.NewBuildPublisherService,
 	services.NewCatalogService,
 	services.NewLLMProxyProvisioner,
 	services.NewAgentConfigurationService,
@@ -167,6 +169,7 @@ var controllerProviderSet = wire.NewSet(
 	controllers.NewMonitorController,
 	controllers.NewMonitorScoresController,
 	controllers.NewMonitorScoresPublisherController,
+	controllers.NewBuildPublisherController,
 	controllers.NewEvaluatorController,
 	controllers.NewCatalogController,
 	ProvideAgentBuildOptionsController,
@@ -184,6 +187,7 @@ var testClientProviderSet = wire.NewSet(
 	ProvideTestObserverClient,
 	ProvideTestSecretManagementClient,
 	ProvidePublisherProvisioner,
+	ProvideBuildCredentialProvisioner,
 	ProvideIdentityClient,
 	ProvideOrgResolver,
 	ProvideTestOUHandleLookup,
@@ -393,6 +397,13 @@ func ProvidePublisherProvisioner(cfg config.Config, encryptionKey []byte, logger
 	return services.NewPublisherCredentialProvisioner(cfg, encryptionKey, logger, secretClient, ocClient, credRepo, schedulerCredRepo)
 }
 
+// ProvideBuildCredentialProvisioner creates the per-organization build client
+// provisioner, or nil when the build client is disabled (see
+// config.BuildClientConfig).
+func ProvideBuildCredentialProvisioner(cfg config.Config, logger *slog.Logger, secretClient secretmanagersvc.SecretManagementClient, ocClient occlient.OpenChoreoClient, credRepo repositories.OrgBuildCredentialRepository) services.BuildCredentialProvisioner {
+	return services.NewBuildCredentialProvisioner(cfg, logger, secretClient, ocClient, credRepo)
+}
+
 var loggerProviderSet = wire.NewSet(
 	ProvideLogger,
 	ProvideAuditRecorder,
@@ -424,6 +435,7 @@ var repositoryProviderSet = wire.NewSet(
 	repositories.NewMonitorLLMMappingRepository,
 	ProvideOrgPublisherCredentialRepository,
 	ProvideOrgSchedulerCredentialRepository,
+	ProvideOrgBuildCredentialRepository,
 	ProvideAIApplicationRepository,
 	ProvideAgentThunderClientRepository,
 	ProvideEnvThunderSystemClientRepository,
@@ -626,6 +638,10 @@ func ProvideOrgPublisherCredentialRepository(db *gorm.DB) repositories.OrgPublis
 
 func ProvideOrgSchedulerCredentialRepository(db *gorm.DB) repositories.OrgSchedulerCredentialRepository {
 	return repositories.NewOrgSchedulerCredentialRepo(db)
+}
+
+func ProvideOrgBuildCredentialRepository(db *gorm.DB) repositories.OrgBuildCredentialRepository {
+	return repositories.NewOrgBuildCredentialRepo(db)
 }
 
 func ProvideAgentKindRepository(db *gorm.DB) repositories.AgentKindRepository {

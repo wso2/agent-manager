@@ -373,6 +373,9 @@ var actionOverrides = map[string]Action{
 	// The score-publish route carries no rbac.Permission at all — it is gated
 	// only by an audience check — so there is nothing to derive from.
 	"POST /publisher/monitors/{monitorId}/runs/{runId}/scores": "monitor-score:publish",
+	// Likewise the build publisher route: a per-organization build client's
+	// audience is its only gate, so the action is named here.
+	"POST /build-publisher/builds/{buildName}/workload": "build-workload:publish",
 
 	"POST /orgs/{orgName}/repositories/branches":         "repository:list-branches",
 	"POST /orgs/{orgName}/repositories/commits":          "repository:list-commits",

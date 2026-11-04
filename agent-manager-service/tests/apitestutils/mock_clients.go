@@ -103,7 +103,7 @@ func CreateMockOpenChoreoClient() *clientmocks.OpenChoreoClientMock {
 		UpdateComponentDeploymentConfigFunc: func(ctx context.Context, namespaceName string, projectName string, componentName string, req client.ComponentDeploymentConfigRequest) error {
 			return nil
 		},
-		TriggerBuildFunc: func(_ context.Context, namespaceName string, projectName string, componentName string, commitID string, workflowRunName string, _ []client.EnvVar) (*models.BuildResponse, error) {
+		TriggerBuildFunc: func(_ context.Context, namespaceName string, projectName string, componentName string, commitID string, workflowRunName string, _ []client.EnvVar, _ *client.BuildClientParams) (*models.BuildResponse, error) {
 			if workflowRunName == "" {
 				workflowRunName = fmt.Sprintf("%s-build-1", componentName)
 			}

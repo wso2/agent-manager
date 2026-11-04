@@ -633,11 +633,12 @@ func (r *GatewayRepo) ListIdentityProvidersByOrg(ouID string) ([]IdentityProvide
 
 // Advisory lock namespaces, one per advisory lock user, so their keys cannot collide.
 const (
-	gatewayEnvLockNamespace    = 4711
-	a2aProxyLockNamespace      = 4712
-	agentVariableLockNamespace = 4713
-	DriftScanLockNamespace     = 4714
-	gatewayLockNamespace       = 4715
+	gatewayEnvLockNamespace      = 4711
+	a2aProxyLockNamespace        = 4712
+	agentVariableLockNamespace   = 4713
+	DriftScanLockNamespace       = 4714
+	gatewayLockNamespace         = 4715
+	buildCredentialLockNamespace = 4716
 )
 
 // advisoryXactLock takes a transaction-scoped advisory lock on key within namespace, released on

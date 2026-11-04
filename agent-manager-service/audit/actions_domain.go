@@ -130,6 +130,12 @@ const (
 	// Score publishing by the evaluation job.
 	ActionMonitorScorePublish Action = "monitor-score:publish"
 
+	// A source build's workload step publishing the Workload it generated, through
+	// the build publisher endpoint, and the per-organization build client that
+	// authorizes it.
+	ActionBuildWorkloadPublish Action = "build-workload:publish"
+	ActionBuildClientProvision Action = "build-client:provision"
+
 	// Monitors: scheduled evaluations that read agent traces and call an LLM
 	// judge, so starting or rerunning one spends money and reads data.
 	ActionMonitorCreate  Action = "monitor:create"
@@ -173,6 +179,7 @@ const (
 	ResourceThunderURL        = "thunder-url"
 	ResourceEventDestination  = "event-destination"
 	ResourceEventSubscription = "event-subscription"
+	ResourceBuildClient       = "build-client"
 )
 
 // class, severity and permitted detail keys next to the action itself keeps the
@@ -531,6 +538,22 @@ func init() {
 		"monitorId":  KindIdentifier,
 		"runId":      KindIdentifier,
 		"scoreCount": KindCount,
+	})
+
+	// A build's workload step publishing what it built. Like the score route, this
+	// one carries no RBAC permission: a per-organization build client authorizes
+	// it, so its record is the only account of which build changed the agent's
+	// first environment, and to which image.
+	Register(ActionBuildWorkloadPublish, ClassDeployment, SeverityNotice)
+	RegisterDetailSchema(ActionBuildWorkloadPublish, map[string]FieldKind{
+		"agentName": KindName,
+		"buildName": KindName,
+		"imageId":   KindIdentifier,
+	})
+	// Provisioning an organization's build client issues a live OAuth2 client
+	// secret, so it is recorded fail-closed like any other credential.
+	registerCredential(ActionBuildClientProvision, map[string]FieldKind{
+		"clientId": KindIdentifier,
 	})
 
 	// The provisioning reconciler issues real credentials with no request

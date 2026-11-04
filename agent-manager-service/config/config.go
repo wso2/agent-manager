@@ -127,6 +127,10 @@ type Config struct {
 
 	// Thunder admin API configuration for provisioning OAuth apps
 	Thunder ThunderConfig
+	// BuildClient configures the per-organization build client a source build's
+	// workload step uses to call this service's build publisher endpoint instead
+	// of the OpenChoreo API. See BuildClientConfig.
+	BuildClient BuildClientConfig
 	// IdentityManagementMode controls project AgentID creation. Existing
 	// installations remain on direct environment-Thunder management.
 	IdentityManagementMode string
@@ -615,6 +619,29 @@ type InternalServerConfig struct {
 	WriteTimeoutSeconds int
 	IdleTimeoutSeconds  int
 	MaxHeaderBytes      int
+}
+
+// BuildClientConfig controls the per-organization build client.
+//
+// When Enabled, every source build of an agent whose build workflow is listed in
+// Workflows carries the organization's own build client (an OAuth2 client
+// provisioned in Thunder, its secret held in the secret store) as the run's
+// ampBuild parameter. The build's workload step exchanges it for an org-scoped
+// token and hands the generated Workload to this service's build publisher
+// endpoint, which performs the OpenChoreo writes for that organization only.
+// The step then needs no OpenChoreo credential of its own.
+//
+// Off by default: the build workflows and their workload step must declare the
+// ampBuild parameter before it is enabled, or the parameter is ignored and the
+// build keeps its previous path.
+type BuildClientConfig struct {
+	// Enabled turns on build-client provisioning and the build publisher endpoint
+	// (AMP_BUILD_CLIENT_ENABLED). Requires THUNDER_BASE_URL.
+	Enabled bool
+	// Workflows names the build workflows (Workflow or ClusterWorkflow names)
+	// whose runs receive the build client (AMP_BUILD_CLIENT_WORKFLOWS). Only list
+	// workflows that wire parameters.ampBuild through to their workload step.
+	Workflows []string
 }
 
 // ThunderConfig holds Thunder admin API configuration for provisioning OAuth apps
