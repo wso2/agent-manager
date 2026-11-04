@@ -278,8 +278,11 @@ spec:
             echo "${HC_RUN_RESPONSE}" | sed '$d' > /mnt/vol/workflowrun-health-checks.json
             BUILD_HEALTH_CHECKS=$(jq -c '.spec.workflow.parameters.healthChecks // null | if . == {} then null else . end' \
               /mnt/vol/workflowrun-health-checks.json)
-            if ! printf '%s' "$BUILD_HEALTH_CHECKS" | jq -e 'type == "object" or . == null' >/dev/null; then
-              echo "Error: this build's healthChecks is not an object: ${BUILD_HEALTH_CHECKS}"
+            # None, or an object whose startup, readiness and liveness are each unset or an object.
+            if ! printf '%s' "$BUILD_HEALTH_CHECKS" | jq -e \
+                '. == null or (type == "object" and ([.startup, .readiness, .liveness] | all(. == null or type == "object")))' \
+                >/dev/null; then
+              echo "Error: this build's healthChecks is not an object of startup, readiness and liveness objects: ${BUILD_HEALTH_CHECKS}"
               exit 1
             fi
 

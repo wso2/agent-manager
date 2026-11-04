@@ -340,6 +340,16 @@ else
   FAILURES=$((FAILURES + 1))
 fi
 
+# A check that is not an object is refused the same way, before the Workload.
+WRITTEN_BINDING="$(run_generate_workload '{"readiness":"x"}' "")"
+if [[ -z "$WRITTEN_BINDING" ]] && grep -q "healthChecks is not an object" "$BINDING_TEST_DIR/out.log" \
+    && [[ ! -e "$BINDING_TEST_DIR/workload-written" ]]; then
+  printf 'ok   - refuses a build whose readiness check is not an object, before writing the Workload\n'
+else
+  printf 'FAIL - a build whose readiness check is not an object was accepted, or wrote the Workload first\n'
+  FAILURES=$((FAILURES + 1))
+fi
+
 # --- checkout-source ---------------------------------------------------------
 # The repository URL, branch and commit are user input on the same path, and this
 # step holds the git credential secret, so a spliced value runs next to it.
