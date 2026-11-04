@@ -77,6 +77,11 @@ type bindingFixture struct {
 
 	endpointWrites int
 	hub            *stubEventHub
+
+	// gatewayLocks are the gateways the binding transaction locked, in order; onGatewayLock runs while the lock
+	// is taken, standing in for another binding that committed just before it.
+	gatewayLocks  []string
+	onGatewayLock func()
 }
 
 func newBindingFixture(t *testing.T) *bindingFixture {
@@ -240,6 +245,13 @@ func newBindingFixture(t *testing.T) *bindingFixture {
 	gatewayRepo.EnvironmentMappingExistsFunc = func(gatewayID, environmentID string) (bool, error) {
 		return f.gateway != nil && f.gateway.UUID.String() == gatewayID && environmentID == f.envUUID.String(), nil
 	}
+	gatewayRepo.AcquireGatewayLockFunc = func(_ *gorm.DB, gatewayID string) error {
+		f.gatewayLocks = append(f.gatewayLocks, gatewayID)
+		if f.onGatewayLock != nil {
+			f.onGatewayLock()
+		}
+		return nil
+	}
 
 	base := &MCPProxyService{
 		repo:           repo,
@@ -393,6 +405,27 @@ func TestPutEnv_ContextClash_409ContextInUse(t *testing.T) {
 		_, _, err := f.put(t, models.MCPProxyEnvironmentRequest{})
 		require.NoError(t, err)
 	})
+}
+
+func TestPutEnv_ContextClashCommittedBeforeGatewayLock_409ContextInUse(t *testing.T) {
+	f := newBindingFixture(t)
+	// Another binding with an overlapping context commits after this PUT's first check, while it waits for the
+	// gateway lock.
+	f.onGatewayLock = func() {
+		f.others[uuid.New()] = []byte("spec:\n  context: /p1/weather\n")
+	}
+	_, _, err := f.put(t, models.MCPProxyEnvironmentRequest{})
+	require.ErrorIs(t, err, utils.ErrMCPContextInUse)
+	assert.Equal(t, []string{f.gateway.UUID.String()}, f.gatewayLocks, "the binding transaction locks its gateway")
+	assert.Empty(t, f.deployed, "nothing is sent")
+}
+
+func TestPutEnv_NoGateway_TakesNoGatewayLock(t *testing.T) {
+	f := newBindingFixture(t)
+	f.gateway = nil
+	_, _, err := f.put(t, models.MCPProxyEnvironmentRequest{})
+	require.NoError(t, err)
+	assert.Empty(t, f.gatewayLocks)
 }
 
 func TestPutEnv_ContextPrefixedOnGatewayReadBackUnprefixed(t *testing.T) {

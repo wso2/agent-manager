@@ -1072,6 +1072,63 @@ func (e MCPEndpointEnvironmentDeploymentStatus) Valid() bool {
 	}
 }
 
+// Defines values for MCPProjectDeploymentStatus.
+const (
+	MCPProjectDeploymentStatusDeployed  MCPProjectDeploymentStatus = "Deployed"
+	MCPProjectDeploymentStatusDeploying MCPProjectDeploymentStatus = "Deploying"
+	MCPProjectDeploymentStatusFailed    MCPProjectDeploymentStatus = "Failed"
+)
+
+// Valid indicates whether the value is a known member of the MCPProjectDeploymentStatus enum.
+func (e MCPProjectDeploymentStatus) Valid() bool {
+	switch e {
+	case MCPProjectDeploymentStatusDeployed:
+		return true
+	case MCPProjectDeploymentStatusDeploying:
+		return true
+	case MCPProjectDeploymentStatusFailed:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for MCPProxyEnvironmentUpstreamAuthType.
+const (
+	MCPProxyEnvironmentUpstreamAuthTypeApiKey MCPProxyEnvironmentUpstreamAuthType = "api-key"
+	MCPProxyEnvironmentUpstreamAuthTypeNone   MCPProxyEnvironmentUpstreamAuthType = "none"
+)
+
+// Valid indicates whether the value is a known member of the MCPProxyEnvironmentUpstreamAuthType enum.
+func (e MCPProxyEnvironmentUpstreamAuthType) Valid() bool {
+	switch e {
+	case MCPProxyEnvironmentUpstreamAuthTypeApiKey:
+		return true
+	case MCPProxyEnvironmentUpstreamAuthTypeNone:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for MCPProxyEnvironmentUpstreamAuthRedactedType.
+const (
+	MCPProxyEnvironmentUpstreamAuthRedactedTypeApiKey MCPProxyEnvironmentUpstreamAuthRedactedType = "api-key"
+	MCPProxyEnvironmentUpstreamAuthRedactedTypeNone   MCPProxyEnvironmentUpstreamAuthRedactedType = "none"
+)
+
+// Valid indicates whether the value is a known member of the MCPProxyEnvironmentUpstreamAuthRedactedType enum.
+func (e MCPProxyEnvironmentUpstreamAuthRedactedType) Valid() bool {
+	switch e {
+	case MCPProxyEnvironmentUpstreamAuthRedactedTypeApiKey:
+		return true
+	case MCPProxyEnvironmentUpstreamAuthRedactedTypeNone:
+		return true
+	default:
+		return false
+	}
+}
+
 // Defines values for MonitorResponseStatus.
 const (
 	MonitorResponseStatusActive    MonitorResponseStatus = "Active"
@@ -1116,22 +1173,22 @@ func (e MonitorResponseType) Valid() bool {
 
 // Defines values for MonitorRunResponseStatus.
 const (
-	Failed  MonitorRunResponseStatus = "failed"
-	Pending MonitorRunResponseStatus = "pending"
-	Running MonitorRunResponseStatus = "running"
-	Success MonitorRunResponseStatus = "success"
+	MonitorRunResponseStatusFailed  MonitorRunResponseStatus = "failed"
+	MonitorRunResponseStatusPending MonitorRunResponseStatus = "pending"
+	MonitorRunResponseStatusRunning MonitorRunResponseStatus = "running"
+	MonitorRunResponseStatusSuccess MonitorRunResponseStatus = "success"
 )
 
 // Valid indicates whether the value is a known member of the MonitorRunResponseStatus enum.
 func (e MonitorRunResponseStatus) Valid() bool {
 	switch e {
-	case Failed:
+	case MonitorRunResponseStatusFailed:
 		return true
-	case Pending:
+	case MonitorRunResponseStatusPending:
 		return true
-	case Running:
+	case MonitorRunResponseStatusRunning:
 		return true
-	case Success:
+	case MonitorRunResponseStatusSuccess:
 		return true
 	default:
 		return false
@@ -4421,6 +4478,9 @@ type MCPPolicyAvailableItem struct {
 	Version string `json:"version"`
 }
 
+// MCPProjectDeploymentStatus Deployment status of a project proxy binding. A pending deployment, or a redeploy still waiting, shows as Deploying. Absent when the environment has no gateway (see deploymentStatusReason). Undeploying and Undeployed do not occur: bindings are deleted, never undeployed.
+type MCPProjectDeploymentStatus string
+
 // MCPProxyCapabilities defines model for MCPProxyCapabilities.
 type MCPProxyCapabilities struct {
 	Prompts   *[]map[string]interface{} `json:"prompts,omitempty"`
@@ -4450,6 +4510,87 @@ type MCPProxyEndpoint struct {
 	Upstream UpstreamConfig  `json:"upstream"`
 }
 
+// MCPProxyEnvironmentRequest Replaces the binding's configuration. Every field is optional; an omitted field resets to its default.
+type MCPProxyEnvironmentRequest struct {
+	// GatewayId Required only when the environment has more than one egress-capable gateway. Cannot change once placed.
+	GatewayId *openapi_types.UUID `json:"gatewayId,omitempty"`
+
+	// Policies Gateway policies, e.g. CORS and basic-ratelimit. Each needs a name and a version.
+	Policies *[]MCPPolicy `json:"policies,omitempty"`
+
+	// Security A binding's security. Phase 1 accepts apiKey, which is also the default when the field is omitted (an api key in the X-API-Key header), and no security (enabled false, or no variant enabled). jwt is rejected with 400 "jwt security is not available yet", and identity with 400.
+	Security *MCPProxyEnvironmentSecurity `json:"security,omitempty"`
+
+	// UpstreamAuth Credentials the gateway adds when it calls the upstream.
+	UpstreamAuth *MCPProxyEnvironmentUpstreamAuth `json:"upstreamAuth,omitempty"`
+}
+
+// MCPProxyEnvironmentResponse defines model for MCPProxyEnvironmentResponse.
+type MCPProxyEnvironmentResponse struct {
+	// Context The proxy's context, as given, without the project prefix.
+	Context string `json:"context"`
+
+	// DeploymentStatus Deployment status of a project proxy binding. A pending deployment, or a redeploy still waiting, shows as Deploying. Absent when the environment has no gateway (see deploymentStatusReason). Undeploying and Undeployed do not occur: bindings are deleted, never undeployed.
+	DeploymentStatus *MCPProjectDeploymentStatus `json:"deploymentStatus,omitempty"`
+
+	// DeploymentStatusReason The ack's error code (or DEPLOYMENT_TIMEOUT) for Failed, the render reason for a waiting Deploying (CONTEXT_IN_USE when a clash was found at placement), and NO_GATEWAY when deploymentStatus is absent.
+	DeploymentStatusReason *string            `json:"deploymentStatusReason,omitempty"`
+	EnvironmentName        string             `json:"environmentName"`
+	EnvironmentUuid        openapi_types.UUID `json:"environmentUuid"`
+
+	// GatewayId Absent while the environment has no gateway.
+	GatewayId *openapi_types.UUID `json:"gatewayId,omitempty"`
+	Policies  *[]MCPPolicy        `json:"policies,omitempty"`
+
+	// PublicUrl Gateway URL of the MCP endpoint: the gateway vhost plus /<projName><context>/mcp. Absent if the gateway has no vhost.
+	PublicUrl *string `json:"publicUrl,omitempty"`
+
+	// Security A binding's security. Phase 1 accepts apiKey, which is also the default when the field is omitted (an api key in the X-API-Key header), and no security (enabled false, or no variant enabled). jwt is rejected with 400 "jwt security is not available yet", and identity with 400.
+	Security     *MCPProxyEnvironmentSecurity             `json:"security,omitempty"`
+	UpdatedAt    *time.Time                               `json:"updatedAt,omitempty"`
+	UpstreamAuth *MCPProxyEnvironmentUpstreamAuthRedacted `json:"upstreamAuth,omitempty"`
+}
+
+// MCPProxyEnvironmentSecurity A binding's security. Phase 1 accepts apiKey, which is also the default when the field is omitted (an api key in the X-API-Key header), and no security (enabled false, or no variant enabled). jwt is rejected with 400 "jwt security is not available yet", and identity with 400.
+type MCPProxyEnvironmentSecurity struct {
+	ApiKey  *APIKeySecurity `json:"apiKey,omitempty"`
+	Enabled *bool           `json:"enabled,omitempty"`
+
+	// Identity Agent Identity security — callers present a JWT issued by the environment's IdP. v1 pins the issuer to the ThunderKeyManager key manager.
+	Identity *IdentitySecurity `json:"identity,omitempty"`
+
+	// Jwt Reserved. Not available yet; a request that enables it is rejected with 400.
+	Jwt *MCPProxyJWTSecurity `json:"jwt,omitempty"`
+}
+
+// MCPProxyEnvironmentUpstreamAuth Credentials the gateway adds when it calls the upstream.
+type MCPProxyEnvironmentUpstreamAuth struct {
+	Header *string                             `json:"header,omitempty"`
+	Type   MCPProxyEnvironmentUpstreamAuthType `json:"type"`
+
+	// Value Required with api-key. Stored encrypted; never returned.
+	Value *string `json:"value,omitempty"`
+}
+
+// MCPProxyEnvironmentUpstreamAuthType defines model for MCPProxyEnvironmentUpstreamAuth.Type.
+type MCPProxyEnvironmentUpstreamAuthType string
+
+// MCPProxyEnvironmentUpstreamAuthRedacted defines model for MCPProxyEnvironmentUpstreamAuthRedacted.
+type MCPProxyEnvironmentUpstreamAuthRedacted struct {
+	Header *string                                     `json:"header,omitempty"`
+	Type   MCPProxyEnvironmentUpstreamAuthRedactedType `json:"type"`
+}
+
+// MCPProxyEnvironmentUpstreamAuthRedactedType defines model for MCPProxyEnvironmentUpstreamAuthRedacted.Type.
+type MCPProxyEnvironmentUpstreamAuthRedactedType string
+
+// MCPProxyJWTSecurity Reserved. Not available yet; a request that enables it is rejected with 400.
+type MCPProxyJWTSecurity struct {
+	Audiences *[]string `json:"audiences,omitempty"`
+	Enabled   *bool     `json:"enabled,omitempty"`
+	Issuers   *[]string `json:"issuers,omitempty"`
+}
+
 // MCPProxyListItem defines model for MCPProxyListItem.
 type MCPProxyListItem struct {
 	// Context MCP proxy context path
@@ -4472,6 +4613,9 @@ type MCPProxyListItem struct {
 
 	// Name Human-readable name of the MCP proxy
 	Name *string `json:"name,omitempty"`
+
+	// ProjectName Set for a project-owned proxy; absent for an org-level one
+	ProjectName *string `json:"projectName,omitempty"`
 
 	// Status MCP proxy status
 	Status *string `json:"status,omitempty"`
@@ -4558,6 +4702,9 @@ type MCPProxyResponse struct {
 	// Name Human-readable name of the MCP proxy
 	Name string `json:"name"`
 
+	// ProjectName Set for a project-owned proxy; absent for an org-level one
+	ProjectName *string `json:"projectName,omitempty"`
+
 	// UpdatedAt Timestamp when the resource was last updated
 	UpdatedAt *time.Time `json:"updatedAt,omitempty"`
 
@@ -4601,6 +4748,12 @@ type MCPProxyScopeUpdateRequest struct {
 
 	// Tools Replaces the scope's tool list. Omit to leave it unchanged; send an empty array to unbind the scope from every tool.
 	Tools *[]string `json:"tools,omitempty"`
+}
+
+// MCPProxySource The OpenChoreo component endpoint a project MCP proxy fronts. Fixed after create.
+type MCPProxySource struct {
+	ComponentName string `json:"componentName"`
+	EndpointName  string `json:"endpointName"`
 }
 
 // MCPServerInfoFetchRequest defines model for MCPServerInfoFetchRequest.
@@ -4911,6 +5064,79 @@ type ProjectListResponse struct {
 
 	// Total Total number of projects matching the query
 	Total int `json:"total"`
+}
+
+// ProjectMCPProxyEnvironmentSummary defines model for ProjectMCPProxyEnvironmentSummary.
+type ProjectMCPProxyEnvironmentSummary struct {
+	// DeploymentStatus Deployment status of a project proxy binding. A pending deployment, or a redeploy still waiting, shows as Deploying. Absent when the environment has no gateway (see deploymentStatusReason). Undeploying and Undeployed do not occur: bindings are deleted, never undeployed.
+	DeploymentStatus       *MCPProjectDeploymentStatus `json:"deploymentStatus,omitempty"`
+	DeploymentStatusReason *string                     `json:"deploymentStatusReason,omitempty"`
+	EnvironmentName        string                      `json:"environmentName"`
+	PublicUrl              *string                     `json:"publicUrl,omitempty"`
+}
+
+// ProjectMCPProxyListItem defines model for ProjectMCPProxyListItem.
+type ProjectMCPProxyListItem struct {
+	Context     string     `json:"context"`
+	CreatedAt   *time.Time `json:"createdAt,omitempty"`
+	Description *string    `json:"description,omitempty"`
+
+	// Environments A summary per binding. GET the binding for its security and policies.
+	Environments []ProjectMCPProxyEnvironmentSummary `json:"environments"`
+	Id           string                              `json:"id"`
+	Name         string                              `json:"name"`
+
+	// Source The OpenChoreo component endpoint a project MCP proxy fronts. Fixed after create.
+	Source    MCPProxySource `json:"source"`
+	UpdatedAt *time.Time     `json:"updatedAt,omitempty"`
+	Version   string         `json:"version"`
+}
+
+// ProjectMCPProxyListResponse defines model for ProjectMCPProxyListResponse.
+type ProjectMCPProxyListResponse struct {
+	// Count Items in this page
+	Count      int32                     `json:"count"`
+	List       []ProjectMCPProxyListItem `json:"list"`
+	Pagination PaginationInfo            `json:"pagination"`
+}
+
+// ProjectMCPProxyRequest defines model for ProjectMCPProxyRequest.
+type ProjectMCPProxyRequest struct {
+	// Context Context path relative to the project. Defaults to /<proxyId>. The gateway serves it at /<projName><context>; reads return it as sent.
+	Context     *string `json:"context,omitempty"`
+	Description *string `json:"description,omitempty"`
+
+	// McpSpecVersion MCP protocol version of the upstream server, if known
+	McpSpecVersion *string `json:"mcpSpecVersion,omitempty"`
+
+	// Name Display name
+	Name string `json:"name"`
+
+	// Source The OpenChoreo component endpoint a project MCP proxy fronts. Fixed after create.
+	Source MCPProxySource `json:"source"`
+
+	// Version Defaults to v1
+	Version *string `json:"version,omitempty"`
+}
+
+// ProjectMCPProxyResponse defines model for ProjectMCPProxyResponse.
+type ProjectMCPProxyResponse struct {
+	Context      string                        `json:"context"`
+	CreatedAt    *time.Time                    `json:"createdAt,omitempty"`
+	CreatedBy    *string                       `json:"createdBy,omitempty"`
+	Description  *string                       `json:"description,omitempty"`
+	Environments []MCPProxyEnvironmentResponse `json:"environments"`
+
+	// Id Handle
+	Id             string  `json:"id"`
+	McpSpecVersion *string `json:"mcpSpecVersion,omitempty"`
+	Name           string  `json:"name"`
+	ProjectName    string  `json:"projectName"`
+
+	// Source The OpenChoreo component endpoint a project MCP proxy fronts. Fixed after create.
+	Source    MCPProxySource `json:"source"`
+	UpdatedAt *time.Time     `json:"updatedAt,omitempty"`
+	Version   string         `json:"version"`
 }
 
 // ProjectResponse defines model for ProjectResponse.
@@ -6276,6 +6502,9 @@ type ListLLMProxiesByProviderParams struct {
 
 // ListMCPProxiesParams defines parameters for ListMCPProxies.
 type ListMCPProxiesParams struct {
+	// Project Also include this project's proxies, read only. Without it only org-level proxies are returned. Unknown project returns 404 PROJECT_NOT_FOUND. The agent Tools picker passes the agent's project.
+	Project *string `form:"project,omitempty" json:"project,omitempty"`
+
 	// Limit Maximum number of results to return
 	Limit *int32 `form:"limit,omitempty" json:"limit,omitempty"`
 
@@ -6517,6 +6746,60 @@ type UndeployLLMProxyDeploymentParams struct {
 
 	// GatewayId Gateway UUID
 	GatewayId string `form:"gatewayId" json:"gatewayId"`
+}
+
+// ListProjectMCPProxiesParams defines parameters for ListProjectMCPProxies.
+type ListProjectMCPProxiesParams struct {
+	// Component Only proxies whose source.componentName matches
+	Component *string `form:"component,omitempty" json:"component,omitempty"`
+
+	// Endpoint Only proxies whose source.endpointName matches
+	Endpoint *string `form:"endpoint,omitempty" json:"endpoint,omitempty"`
+
+	// Limit Maximum number of results to return. Values outside 1..100 fall back to 50.
+	Limit *int32 `form:"limit,omitempty" json:"limit,omitempty"`
+
+	// Offset Number of results to skip. A negative value falls back to 0.
+	Offset *int32 `form:"offset,omitempty" json:"offset,omitempty"`
+
+	// XImpersonateOrg Tenant org UUID for trusted service callers. Honoured only for clients that the deployment's org override resolver allow-lists; otherwise the request is refused with 403. Replaces both the org UUID and the handle for the request.
+	XImpersonateOrg *openapi_types.UUID `json:"X-Impersonate-Org,omitempty"`
+}
+
+// DeleteProjectMCPProxyParams defines parameters for DeleteProjectMCPProxy.
+type DeleteProjectMCPProxyParams struct {
+	// XImpersonateOrg Tenant org UUID for trusted service callers. Honoured only for clients that the deployment's org override resolver allow-lists; otherwise the request is refused with 403. Replaces both the org UUID and the handle for the request.
+	XImpersonateOrg *openapi_types.UUID `json:"X-Impersonate-Org,omitempty"`
+}
+
+// GetProjectMCPProxyParams defines parameters for GetProjectMCPProxy.
+type GetProjectMCPProxyParams struct {
+	// XImpersonateOrg Tenant org UUID for trusted service callers. Honoured only for clients that the deployment's org override resolver allow-lists; otherwise the request is refused with 403. Replaces both the org UUID and the handle for the request.
+	XImpersonateOrg *openapi_types.UUID `json:"X-Impersonate-Org,omitempty"`
+}
+
+// UpsertProjectMCPProxyParams defines parameters for UpsertProjectMCPProxy.
+type UpsertProjectMCPProxyParams struct {
+	// XImpersonateOrg Tenant org UUID for trusted service callers. Honoured only for clients that the deployment's org override resolver allow-lists; otherwise the request is refused with 403. Replaces both the org UUID and the handle for the request.
+	XImpersonateOrg *openapi_types.UUID `json:"X-Impersonate-Org,omitempty"`
+}
+
+// DeleteProjectMCPProxyEnvironmentParams defines parameters for DeleteProjectMCPProxyEnvironment.
+type DeleteProjectMCPProxyEnvironmentParams struct {
+	// XImpersonateOrg Tenant org UUID for trusted service callers. Honoured only for clients that the deployment's org override resolver allow-lists; otherwise the request is refused with 403. Replaces both the org UUID and the handle for the request.
+	XImpersonateOrg *openapi_types.UUID `json:"X-Impersonate-Org,omitempty"`
+}
+
+// GetProjectMCPProxyEnvironmentParams defines parameters for GetProjectMCPProxyEnvironment.
+type GetProjectMCPProxyEnvironmentParams struct {
+	// XImpersonateOrg Tenant org UUID for trusted service callers. Honoured only for clients that the deployment's org override resolver allow-lists; otherwise the request is refused with 403. Replaces both the org UUID and the handle for the request.
+	XImpersonateOrg *openapi_types.UUID `json:"X-Impersonate-Org,omitempty"`
+}
+
+// PutProjectMCPProxyEnvironmentParams defines parameters for PutProjectMCPProxyEnvironment.
+type PutProjectMCPProxyEnvironmentParams struct {
+	// XImpersonateOrg Tenant org UUID for trusted service callers. Honoured only for clients that the deployment's org override resolver allow-lists; otherwise the request is refused with 403. Replaces both the org UUID and the handle for the request.
+	XImpersonateOrg *openapi_types.UUID `json:"X-Impersonate-Org,omitempty"`
 }
 
 // ListRepositoryBranchesParams defines parameters for ListRepositoryBranches.
@@ -6788,6 +7071,12 @@ type RotateLLMProxyAPIKeyJSONRequestBody = RotateLLMAPIKeyRequest
 
 // DeployLLMProxyJSONRequestBody defines body for DeployLLMProxy for application/json ContentType.
 type DeployLLMProxyJSONRequestBody = LLMDeployRequest
+
+// UpsertProjectMCPProxyJSONRequestBody defines body for UpsertProjectMCPProxy for application/json ContentType.
+type UpsertProjectMCPProxyJSONRequestBody = ProjectMCPProxyRequest
+
+// PutProjectMCPProxyEnvironmentJSONRequestBody defines body for PutProjectMCPProxyEnvironment for application/json ContentType.
+type PutProjectMCPProxyEnvironmentJSONRequestBody = MCPProxyEnvironmentRequest
 
 // ListRepositoryBranchesJSONRequestBody defines body for ListRepositoryBranches for application/json ContentType.
 type ListRepositoryBranchesJSONRequestBody = ListBranchesRequest

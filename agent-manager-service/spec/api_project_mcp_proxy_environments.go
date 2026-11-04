@@ -32,7 +32,7 @@ type ApiDeleteProjectMCPProxyEnvironmentRequest struct {
 	xImpersonateOrg *string
 }
 
-// Tenant org UUID. Used by Integration Platform&#39;s machine-to-machine calls. Honoured only for clients that the deployment&#39;s org override resolver allow-lists; otherwise the request is refused with 403. Replaces both the org UUID and the handle for the request.
+// Tenant org UUID for trusted service callers. Honoured only for clients that the deployment&#39;s org override resolver allow-lists; otherwise the request is refused with 403. Replaces both the org UUID and the handle for the request.
 func (r ApiDeleteProjectMCPProxyEnvironmentRequest) XImpersonateOrg(xImpersonateOrg string) ApiDeleteProjectMCPProxyEnvironmentRequest {
 	r.xImpersonateOrg = &xImpersonateOrg
 	return r
@@ -203,7 +203,7 @@ type ApiGetProjectMCPProxyEnvironmentRequest struct {
 	xImpersonateOrg *string
 }
 
-// Tenant org UUID. Used by Integration Platform&#39;s machine-to-machine calls. Honoured only for clients that the deployment&#39;s org override resolver allow-lists; otherwise the request is refused with 403. Replaces both the org UUID and the handle for the request.
+// Tenant org UUID for trusted service callers. Honoured only for clients that the deployment&#39;s org override resolver allow-lists; otherwise the request is refused with 403. Replaces both the org UUID and the handle for the request.
 func (r ApiGetProjectMCPProxyEnvironmentRequest) XImpersonateOrg(xImpersonateOrg string) ApiGetProjectMCPProxyEnvironmentRequest {
 	r.xImpersonateOrg = &xImpersonateOrg
 	return r
@@ -381,7 +381,7 @@ func (r ApiPutProjectMCPProxyEnvironmentRequest) MCPProxyEnvironmentRequest(mCPP
 	return r
 }
 
-// Tenant org UUID. Used by Integration Platform&#39;s machine-to-machine calls. Honoured only for clients that the deployment&#39;s org override resolver allow-lists; otherwise the request is refused with 403. Replaces both the org UUID and the handle for the request.
+// Tenant org UUID for trusted service callers. Honoured only for clients that the deployment&#39;s org override resolver allow-lists; otherwise the request is refused with 403. Replaces both the org UUID and the handle for the request.
 func (r ApiPutProjectMCPProxyEnvironmentRequest) XImpersonateOrg(xImpersonateOrg string) ApiPutProjectMCPProxyEnvironmentRequest {
 	r.xImpersonateOrg = &xImpersonateOrg
 	return r

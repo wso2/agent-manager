@@ -7211,7 +7211,7 @@ paths:
         in: header
         required: false
         description: >-
-          Tenant org UUID. Used by Integration Platform's machine-to-machine calls. Honoured only for
+          Tenant org UUID for trusted service callers. Honoured only for
           clients that the deployment's org override resolver allow-lists; otherwise the request is
           refused with 403. Replaces both the org UUID and the handle for the request.
         schema:
@@ -7309,7 +7309,7 @@ paths:
         in: header
         required: false
         description: >-
-          Tenant org UUID. Used by Integration Platform's machine-to-machine calls. Honoured only for
+          Tenant org UUID for trusted service callers. Honoured only for
           clients that the deployment's org override resolver allow-lists; otherwise the request is
           refused with 403. Replaces both the org UUID and the handle for the request.
         schema:
@@ -7498,7 +7498,7 @@ paths:
         in: header
         required: false
         description: >-
-          Tenant org UUID. Used by Integration Platform's machine-to-machine calls. Honoured only for
+          Tenant org UUID for trusted service callers. Honoured only for
           clients that the deployment's org override resolver allow-lists; otherwise the request is
           refused with 403. Replaces both the org UUID and the handle for the request.
         schema:

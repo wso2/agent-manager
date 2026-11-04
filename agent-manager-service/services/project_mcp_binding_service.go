@@ -190,6 +190,13 @@ func (s *ProjectMCPProxyService) saveAndDeployBinding(
 	ctx context.Context, tx *gorm.DB, ouID, proxyHandle, envName string, envUUID uuid.UUID, gateway *uuid.UUID,
 	desired, stored models.MCPEndpointConfig,
 ) error {
+	// Serialize binding writes on one gateway, taken first as the gateway mapping path does, so two bindings
+	// with overlapping contexts can't both pass the context check before either deploys.
+	if gateway != nil && s.base.gatewayRepo != nil {
+		if err := s.base.gatewayRepo.AcquireGatewayLock(tx, gateway.String()); err != nil {
+			return fmt.Errorf("failed to lock the gateway: %w", err)
+		}
+	}
 	locked, err := s.base.repo.GetByHandleForUpdate(ctx, tx, proxyHandle, ouID)
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
@@ -222,6 +229,18 @@ func (s *ProjectMCPProxyService) saveAndDeployBinding(
 	if s.base.deploymentRepo != nil {
 		if err := s.base.deploymentRepo.LockStatusRows(ctx, tx, ouID, []uuid.UUID{artifactUUID}); err != nil {
 			return err
+		}
+		// Re-check under the gateway lock: the earlier check ran outside it, and a new binding has no placement
+		// yet, so the render-time check in the MCP kind would not see it.
+		if gateway != nil {
+			gatewayContext := mcpGatewayContext(locked, "")
+			other, err := gatewayContextClash(ctx, s.base.deploymentRepo, ouID, *gateway, artifactUUID, gatewayContext)
+			if err != nil {
+				return err
+			}
+			if other != "" {
+				return fmt.Errorf("%w: %s overlaps %s", utils.ErrMCPContextInUse, gatewayContext, other)
+			}
 		}
 	}
 	return s.base.deployMCPArtifact(ctx, tx, &models.MCPProxy{UUID: artifactUUID, Handle: artifactHandle}, ouID, envUUID, gateway)
