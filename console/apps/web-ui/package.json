@@ -24,7 +24,7 @@
     "@wso2/oxygen-ui-icons-react": "0.13.1",
     "@wso2/oxygen-ui-charts-react": "0.13.1",
     "@tanstack/react-query": "5.90.5",
-    "@thunderid/react": "1.11.3",
+    "@thunderid/react": "1.12.0",
     "swagger-ui-react": "5.34.0"
   },
   "devDependencies": {

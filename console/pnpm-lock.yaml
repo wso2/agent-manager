@@ -42,8 +42,8 @@ importers:
         specifier: 5.90.5
         version: 5.90.5(react@19.2.3)
       '@thunderid/react':
-        specifier: 1.11.3
-        version: 1.11.3(@types/react@19.2.14)(react-dom@19.2.3(react@19.2.3))(react@19.2.3)
+        specifier: 1.12.0
+        version: 1.12.0(@types/react@19.2.14)(react-dom@19.2.3(react@19.2.3))(react@19.2.3)
       '@wso2/oxygen-ui':
         specifier: 0.15.0
         version: 0.15.0(@mui/system@7.3.11(@emotion/react@11.13.5(@types/react@19.2.14)(react@19.2.3))(@emotion/styled@11.13.5(@emotion/react@11.13.5(@types/react@19.2.14)(react@19.2.3))(@types/react@19.2.14)(react@19.2.3))(@types/react@19.2.14)(react@19.2.3))(@types/react@19.2.14)(@wso2/oxygen-ui-icons-react@0.13.1(react@19.2.3))(react-dom@19.2.3(react@19.2.3))(react@19.2.3)
@@ -224,8 +224,8 @@ importers:
         specifier: 5.90.5
         version: 5.90.5(react@19.2.3)
       '@thunderid/react':
-        specifier: 1.11.3
-        version: 1.11.3(@types/react@19.2.14)(react-dom@19.2.3(react@19.2.3))(react@19.2.3)
+        specifier: 1.12.0
+        version: 1.12.0(@types/react@19.2.14)(react-dom@19.2.3(react@19.2.3))(react@19.2.3)
       '@types/lodash':
         specifier: 4.17.17
         version: 4.17.17
@@ -311,8 +311,8 @@ importers:
         specifier: 5.90.5
         version: 5.90.5(react@19.2.3)
       '@thunderid/react':
-        specifier: 1.11.3
-        version: 1.11.3(@types/react@19.2.14)(react-dom@19.2.3(react@19.2.3))(react@19.2.3)
+        specifier: 1.12.0
+        version: 1.12.0(@types/react@19.2.14)(react-dom@19.2.3(react@19.2.3))(react@19.2.3)
       clsx:
         specifier: 2.1.1
         version: 2.1.1
@@ -378,8 +378,8 @@ importers:
         specifier: 5.90.5
         version: 5.90.5(react@19.2.3)
       '@thunderid/react':
-        specifier: 1.11.3
-        version: 1.11.3(@types/react@19.2.14)(react-dom@19.2.3(react@19.2.3))(react@19.2.3)
+        specifier: 1.12.0
+        version: 1.12.0(@types/react@19.2.14)(react-dom@19.2.3(react@19.2.3))(react@19.2.3)
       clsx:
         specifier: 2.1.1
         version: 2.1.1
@@ -645,8 +645,8 @@ importers:
         specifier: workspace:*
         version: link:../eslint-config
       '@thunderid/react':
-        specifier: 1.11.3
-        version: 1.11.3(@types/react@19.2.14)(react-dom@19.2.4(react@19.2.3))(react@19.2.3)
+        specifier: 1.12.0
+        version: 1.12.0(@types/react@19.2.14)(react-dom@19.2.4(react@19.2.3))(react@19.2.3)
       date-fns:
         specifier: 4.1.0
         version: 4.1.0
@@ -5902,8 +5902,8 @@ packages:
   '@thunderid/javascript@1.11.0':
     resolution: {integrity: sha512-wuVuJu391ykuAEQMp1VEJ24H//Jdp5mwz8UNKrmoIRfan9iYdvdw/xa7uqGL+YtkRbtWUfBZWVk6nZEKvjc3qw==}
 
-  '@thunderid/react@1.11.3':
-    resolution: {integrity: sha512-gj16oE2oRxrOnG6Lo4lz2mRHcjkPwk2KiB5RFi/7JQuEWJb8xFN/nHQau0YE283C0Ffiyen2kzVamXZJiyLoPw==}
+  '@thunderid/react@1.12.0':
+    resolution: {integrity: sha512-zDrQixOe4KXXymA22k+oM6WS/uGMjNguJoZcVaYMUhgW0Zkb6qNv/rrVoqJ+3NRutdo1nkuMFG/K6Fs89DyI9g==}
     peerDependencies:
       '@types/react': '>=16.8.0'
       react: '>=16.8.0'
@@ -11910,7 +11910,7 @@ snapshots:
       jose: 6.2.3
       tslib: 2.8.1
 
-  '@thunderid/react@1.11.3(@types/react@19.2.14)(react-dom@19.2.3(react@19.2.3))(react@19.2.3)':
+  '@thunderid/react@1.12.0(@types/react@19.2.14)(react-dom@19.2.3(react@19.2.3))(react@19.2.3)':
     dependencies:
       '@emotion/css': 11.13.5
       '@floating-ui/react': 0.27.12(react-dom@19.2.3(react@19.2.3))(react@19.2.3)
@@ -11923,7 +11923,7 @@ snapshots:
     transitivePeerDependencies:
       - supports-color
 
-  '@thunderid/react@1.11.3(@types/react@19.2.14)(react-dom@19.2.4(react@19.2.3))(react@19.2.3)':
+  '@thunderid/react@1.12.0(@types/react@19.2.14)(react-dom@19.2.4(react@19.2.3))(react@19.2.3)':
     dependencies:
       '@emotion/css': 11.13.5
       '@floating-ui/react': 0.27.12(react-dom@19.2.4(react@19.2.3))(react@19.2.3)
