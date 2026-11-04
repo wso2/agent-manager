@@ -263,7 +263,8 @@ func (k *MCPProxyKind) Targets(ctx context.Context, record reconcile.Record) (uu
 }
 
 // upstreamIsPublic re-runs the private-address check on the artifact's upstreams for a managed target. An
-// artifact that is gone passes: Render reports it.
+// artifact that is gone passes: Render reports it. A project proxy's binding passes too: its upstream is the
+// in-cluster address AMS resolved from the project's own release binding, never a caller-supplied URL.
 func (k *MCPProxyKind) upstreamIsPublic(ctx context.Context, record reconcile.Record, gateway *models.Gateway) (bool, error) {
 	a, err := k.load(ctx, record.ArtifactRef)
 	if errors.Is(err, gorm.ErrRecordNotFound) {
@@ -271,6 +272,9 @@ func (k *MCPProxyKind) upstreamIsPublic(ctx context.Context, record reconcile.Re
 	}
 	if err != nil {
 		return false, err
+	}
+	if a.projectScoped {
+		return true, nil
 	}
 	upstream := a.deployable.Configuration.Upstream
 	for _, endpoint := range []*models.UpstreamEndpoint{upstream.Main, upstream.Sandbox} {
