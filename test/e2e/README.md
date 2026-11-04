@@ -7,7 +7,7 @@ HTTP API. Written in Go with [Ginkgo](https://onsi.github.io/ginkgo/) /
 ## Quick start
 
 ```bash
-cp .env.example .env          # set OPENAI_API_KEY; other defaults match quick-start install (for `make setup`, see below)
+cp test/e2e/.env.example test/e2e/.env   # set OPENAI_API_KEY; other defaults match quick-start install (for `make setup`, see below)
 make e2e-test                          # run all suites (from repo root)
 make e2e-test SUITE=monitors           # one suite
 make e2e-test FOCUS="Project Deletion Conflict"   # one spec by description
@@ -33,7 +33,7 @@ install (see `.env.example`).
 ## Running against `make setup`
 
 `make setup` runs agent-manager-service in docker-compose on `:9000` rather than
-in the cluster, so the quick-start defaults point at the wrong places. In `.env`,
+in the cluster, so the quick-start defaults point at the wrong places. In `test/e2e/.env`,
 uncomment the four values in the "Local `make setup` cluster" block:
 
 | Variable | Value | Without it |
