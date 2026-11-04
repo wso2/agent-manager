@@ -16,7 +16,7 @@
  */
 
 import { z } from "zod";
-import { isPublicUrl } from "../subComponents/selfHostedSetup";
+import { isGatewayBaseUrl } from "../subComponents/selfHostedSetup";
 
 // Exported so the drawers cap their input at exactly what these schemas accept.
 export const GATEWAY_DISPLAY_NAME_MAX_LENGTH = 128;
@@ -41,7 +41,12 @@ export const addSelfHostedGatewaySchema = z.object({
     `Display name must be at least ${GATEWAY_DISPLAY_NAME_MIN_LENGTH} characters`,
   ),
   environment: z.string().min(1, "Select an environment"),
-  publicUrl: z.string().refine(isPublicUrl, "Enter a URL such as https://gateway.example.com"),
+  publicUrl: z
+    .string()
+    .refine(
+      isGatewayBaseUrl,
+      "Enter the gateway's base URL, such as https://gateway.example.com (no path, query or fragment)",
+    ),
   description: z.string(),
 });
 

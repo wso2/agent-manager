@@ -57,12 +57,20 @@ func TestSelfHostedHandle(t *testing.T) {
 }
 
 func TestSelfHostedVhost(t *testing.T) {
-	got, err := selfHostedVhost([]string{"  https://gw.example.com\n"})
-	require.NoError(t, err)
-	require.Equal(t, "https://gw.example.com", got, "the stored vhost is the trimmed endpoint")
+	for endpoint, want := range map[string]string{
+		"  https://gw.example.com\n": "https://gw.example.com",
+		"https://gw.example.com/":    "https://gw.example.com",
+		"http://gw.example.com:8443": "http://gw.example.com:8443",
+	} {
+		got, err := selfHostedVhost([]string{endpoint})
+		require.NoError(t, err, endpoint)
+		require.Equal(t, want, got, "the stored vhost is the endpoint's scheme and host")
+	}
 
 	for _, endpoints := range [][]string{
 		{"pending://awaiting-connection"}, {}, {"gw.example.com"}, {"http://:80"}, {"https://user:pw@gw.example.com"},
+		{"https://gw.example.com/base"}, {"https://gw.example.com?x=1"}, {"https://gw.example.com/#frag"},
+		{"https://gw.example.com?"}, {"https://gw.example.com#"}, {"https://gw.example.com:99999"},
 	} {
 		_, err := selfHostedVhost(endpoints)
 		require.ErrorIs(t, err, utils.ErrInvalidInput, "endpoints %v", endpoints)

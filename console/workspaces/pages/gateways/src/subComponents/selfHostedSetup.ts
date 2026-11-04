@@ -87,13 +87,16 @@ export async function reconfigureToken(
 }
 
 /**
- * An http(s) URL with a host name and no user information: what the backend accepts as a
- * gateway endpoint.
+ * An http(s) URL with a host name, no user information and nothing after the authority
+ * but an optional "/": what the backend accepts as a gateway endpoint.
  */
-export const isPublicUrl = (value: string): boolean => {
+export const isGatewayBaseUrl = (value: string): boolean => {
+  const trimmed = value.trim();
+  // URL parsing drops an empty "?" or "#", so look for them in the input itself.
+  if (trimmed.includes("?") || trimmed.includes("#")) return false;
   let url: URL;
   try {
-    url = new URL(value.trim());
+    url = new URL(trimmed);
   } catch {
     return false;
   }
@@ -101,6 +104,8 @@ export const isPublicUrl = (value: string): boolean => {
     (url.protocol === "http:" || url.protocol === "https:") &&
     url.hostname !== "" &&
     url.username === "" &&
-    url.password === ""
+    url.password === "" &&
+    url.pathname === "/"
   );
 };
+

@@ -21,7 +21,7 @@ import {
   cpHostFromUrl,
   dockerCommands,
   helmCommands,
-  isPublicUrl,
+  isGatewayBaseUrl,
   reconfigureToken,
 } from "./selfHostedSetup";
 
@@ -125,20 +125,34 @@ describe("reconfigureToken", () => {
   });
 });
 
-describe("isPublicUrl", () => {
-  it.each(["https://gateway.example.com", " http://gw.example.com:8443/base ", "https://10.0.0.5"])(
-    "accepts %s",
-    (value) => {
-      expect(isPublicUrl(value)).toBe(true);
-    },
-  );
+describe("isGatewayBaseUrl", () => {
+  it.each([
+    "https://gateway.example.com",
+    "https://gateway.example.com/",
+    " http://gw.example.com:8443 ",
+    "https://10.0.0.5",
+  ])("accepts %s", (value) => {
+    expect(isGatewayBaseUrl(value)).toBe(true);
+  });
 
-  it.each(["http://:80", "ftp://gw.example.com", "gw.example.com", "https://", "https://user:pw@gw.example.com", "https://user@gw.example.com", ""])(
-    "rejects %s",
-    (value) => {
-      expect(isPublicUrl(value)).toBe(false);
-    },
-  );
+  it.each([
+    "http://:80",
+    "ftp://gw.example.com",
+    "gw.example.com",
+    "https://",
+    "https://user:pw@gw.example.com",
+    "https://user@gw.example.com",
+    "https://gw.example.com/base",
+    "https://gw.example.com//",
+    "https://gw.example.com?a=1",
+    "https://gw.example.com?",
+    "https://gw.example.com/?",
+    "https://gw.example.com#top",
+    "https://gw.example.com#",
+    "",
+  ])("rejects %s", (value) => {
+    expect(isGatewayBaseUrl(value)).toBe(false);
+  });
 });
 
 describe("activeTokens", () => {

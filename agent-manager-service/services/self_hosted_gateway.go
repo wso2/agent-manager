@@ -25,6 +25,7 @@ import (
 
 	"github.com/wso2/agent-manager/agent-manager-service/models"
 	"github.com/wso2/agent-manager/agent-manager-service/utils"
+	"github.com/wso2/agent-manager/agent-manager-service/utils/ssrf"
 )
 
 const (
@@ -137,17 +138,19 @@ func gatewaySlug(text string) string {
 	return strings.Trim(slug, "-")
 }
 
-// selfHostedVhost returns the first endpoint, trimmed, when it is an http(s) URL with a host name
-// and no user information.
+// selfHostedVhost returns the first endpoint as a base URL, scheme and host only. Proxy context paths, which start with
+// "/", are appended to it, so it may end in a "/" but carry no other path, and no query or fragment.
 func selfHostedVhost(endpoints []string) (string, error) {
-	invalid := utils.NewInvalidInputError("The gateway needs an http or https endpoint URL", "invalid self-hosted gateway endpoint")
+	invalid := utils.NewInvalidInputError(
+		"The gateway needs a base http or https URL, such as https://gateway.example.com, with no path, query or fragment",
+		"invalid self-hosted gateway endpoint")
 	if len(endpoints) == 0 {
 		return "", invalid
 	}
 	endpoint := strings.TrimSpace(endpoints[0])
-	parsed, err := url.Parse(endpoint)
-	if err != nil || (parsed.Scheme != "http" && parsed.Scheme != "https") || parsed.Hostname() == "" || parsed.User != nil {
+	parsed, err := ssrf.ValidateURLShape(endpoint)
+	if err != nil || (parsed.Path != "" && parsed.Path != "/") || strings.ContainsAny(endpoint, "?#") {
 		return "", invalid
 	}
-	return endpoint, nil
+	return (&url.URL{Scheme: parsed.Scheme, Host: parsed.Host}).String(), nil
 }
