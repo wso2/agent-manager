@@ -135,7 +135,10 @@ describe("AIGatewaysTable self-hosted gating", () => {
 
   describe.each([true, false])("row actions with enableSelfHostedGateways=%s", (enabled) => {
     it("lets managed rows edit and delete through the managed hooks", async () => {
-      globalConfig.featureFlags = { ...globalConfig.featureFlags, enableSelfHostedGateways: enabled };
+      globalConfig.featureFlags = {
+        ...globalConfig.featureFlags,
+        enableSelfHostedGateways: enabled,
+      };
       renderTable();
 
       const [managedEdit] = screen.getAllByLabelText("Edit");
