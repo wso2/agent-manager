@@ -25,6 +25,10 @@ import (
 	"github.com/wso2/agent-manager/agent-manager-observer/observer"
 )
 
+// buildStoreOptions is a variable so the untagged stub, which always fails,
+// does not make the error check below statically constant.
+var buildStoreOptions = newStoreOptions
+
 func main() {
 	cfg, err := config.Load()
 	if err != nil {
@@ -43,7 +47,7 @@ func main() {
 	)
 	opts := app.Options{}
 	if cfg.Observer.Store == "sqlite" {
-		opts, err = newStoreOptions(cfg)
+		opts, err = buildStoreOptions(cfg)
 		if err != nil {
 			slog.Error("Failed to open observer store", "error", err)
 			os.Exit(1)
