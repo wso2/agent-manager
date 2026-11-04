@@ -33,7 +33,7 @@ import (
 	clillmprovider "github.com/wso2/agent-manager/test/e2e/operations/cli/llmprovider"
 )
 
-var _ = Describe("amctl agent llm (CLI-owned agent)", Label("cli", "agent", "llm"), Ordered, func() {
+var _ = Describe("amctl agent llm (CLI-owned agent)", Label("cli", "agent", "llm"), Ordered, Serial, func() {
 	const (
 		// Distinct from the mcp spec: config names are unique per agent across types and both specs share this agent.
 		configName = "llm-primary"
