@@ -7,6 +7,7 @@ on:
       - ".github/actions/setup-helm-chart/**"
       - ".github/actions/setup-cluster-clis/**"
       - "deployments/setup/cluster-tools.env"
+      - "deployments/values/observer-lite.yaml"
       - ".github/workflows/helm-charts-pr-check.yml"
 
 # These jobs render and lint PR-authored charts, so the token they run with is
