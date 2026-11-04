@@ -409,8 +409,8 @@ func TestGetTraceOverviews_IncludeQueryParam(t *testing.T) {
 		{name: "Models is rejected", query: "&include=Models", wantStatus: http.StatusBadRequest},
 		{name: "one bad item rejects the list", query: "&include=models,spans", wantStatus: http.StatusBadRequest},
 		{name: "all three values are accepted", query: "&include=models,tools,mcpServers", wantModels: true, wantStatus: http.StatusOK},
-		{name: "more than three items are rejected", query: "&include=models,tools,mcpServers,models", wantStatus: http.StatusBadRequest},
-		{name: "items across repeated parameters count toward the limit", query: "&include=models,tools&include=models,tools", wantStatus: http.StatusBadRequest},
+		{name: "duplicates beyond three items are accepted", query: "&include=models,tools,mcpServers,models", wantModels: true, wantStatus: http.StatusOK},
+		{name: "duplicates across repeated parameters are accepted", query: "&include=models,tools&include=models,tools", wantModels: true, wantStatus: http.StatusOK},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -463,8 +463,6 @@ func TestTraceEndpoints_InvalidFilters(t *testing.T) {
 		{name: "fractional minDurationMs", query: "&minDurationMs=1.5"},
 		{name: "negative minSpanCount", query: "&minSpanCount=-2"},
 		{name: "unknown missing value", query: "&missing=model"},
-		{name: "too many missing values", query: "&missing=conversationId,conversationId"},
-		{name: "repeated missing parameters", query: "&missing=conversationId&missing=conversationId"},
 		{name: "conversationId with missing=conversationId", query: "&conversationId=conv-42&missing=conversationId"},
 	}
 	endpoints := map[string]func(*Handler) http.HandlerFunc{
@@ -760,4 +758,20 @@ func TestGetMetrics_MethodNotAllowed(t *testing.T) {
 	rec := httptest.NewRecorder()
 	h.GetMetrics(rec, r)
 	assertStatus(t, rec, http.StatusMethodNotAllowed)
+}
+
+func TestParseMissingRepeatedValues(t *testing.T) {
+	for _, raw := range [][]string{
+		{"conversationId,conversationId"},
+		{"conversationId", "conversationId"},
+		{" conversationId, ", "conversationId"},
+	} {
+		got, err := parseMissing(raw)
+		if err != nil || !got.ConversationID {
+			t.Errorf("parseMissing(%q) = %+v, %v; want conversationId without error", raw, got, err)
+		}
+	}
+	if _, err := parseMissing([]string{"conversationId,conversationId,unknown"}); err == nil {
+		t.Error("unknown fields must still be rejected after duplicates")
+	}
 }

@@ -43,6 +43,8 @@ const (
 	// maxIncludeItems caps the include param of /api/v1/traces at its enum
 	// size, matching maxItems in docs/openapi.yaml.
 	maxIncludeItems = 3
+	// maxMissingItems matches the missing parameter enum size in docs/openapi.yaml.
+	maxMissingItems = 1
 )
 
 // validLogLevels are the log levels accepted (case-insensitively) by the
@@ -606,17 +608,16 @@ func parseSortOrder(s, defaultVal string) (string, error) {
 
 // parseInclude parses the comma-separated include query parameter of
 // GET /api/v1/traces; unknown values are an error. At most maxIncludeItems
-// non-empty items are accepted (the spec's maxItems); duplicates count toward
-// the limit.
+// distinct non-empty items are accepted; repeated values are ignored.
 func parseInclude(raw []string) (controllers.Include, error) {
 	var include controllers.Include
-	items := 0
+	seen := make(map[string]struct{}, maxIncludeItems)
 	for _, list := range raw {
 		for _, item := range strings.Split(list, ",") {
 			v := strings.TrimSpace(item)
 			if v != "" {
-				items++
-				if items > maxIncludeItems {
+				seen[v] = struct{}{}
+				if len(seen) > maxIncludeItems {
 					return controllers.Include{}, fmt.Errorf("too many include values: at most %d are allowed", maxIncludeItems)
 				}
 			}
@@ -682,20 +683,22 @@ func parseTraceFilters(query url.Values) (controllers.TraceFilters, error) {
 	return f, nil
 }
 
-// parseMissing parses the comma-separated missing query parameter; unknown values are an error.
+// parseMissing accepts at most maxMissingItems distinct non-empty fields.
+// Repeated values are ignored; unknown values are an error.
 func parseMissing(raw []string) (controllers.MissingFields, error) {
 	var missing controllers.MissingFields
-	items := 0
+	seen := make(map[string]struct{}, maxMissingItems)
 	for _, list := range raw {
 		for _, item := range strings.Split(list, ",") {
-			if strings.TrimSpace(item) != "" {
-				items++
-				if items > 1 {
-					return controllers.MissingFields{}, fmt.Errorf("at most one missing value is allowed")
-				}
-			}
+			item = strings.TrimSpace(item)
 			if err := controllers.ParseMissingField(&missing, item, "conversationId"); err != nil {
 				return controllers.MissingFields{}, err
+			}
+			if item != "" {
+				seen[item] = struct{}{}
+				if len(seen) > maxMissingItems {
+					return controllers.MissingFields{}, fmt.Errorf("too many missing values: at most %d are allowed", maxMissingItems)
+				}
 			}
 		}
 	}
