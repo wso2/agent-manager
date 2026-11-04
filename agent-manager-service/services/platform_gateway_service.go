@@ -238,7 +238,8 @@ func (s *PlatformGatewayService) RegisterGateway(
 	environmentIDs []string,
 	hosting string,
 ) (*GatewayResponse, error) {
-	// 1. Validate inputs
+	// 1. Validate inputs. The trimmed values are the ones checked for uniqueness and stored.
+	name, displayName = strings.TrimSpace(name), strings.TrimSpace(displayName)
 	if err := s.validateGatewayInput(ouID, name, displayName, vhost); err != nil {
 		return nil, err
 	}

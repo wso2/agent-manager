@@ -3135,7 +3135,7 @@ paths:
         when its own controller connects with a registration token
         (`POST /orgs/{orgName}/self-hosted-gateways/{gatewayID}/tokens`).
 
-        The gateway handle is `<environment>-<handle or sanitized displayName>`.
+        The gateway's name is the `handle` given, unique in the organization.
       operationId: registerSelfHostedGateway
       requestBody:
         required: true

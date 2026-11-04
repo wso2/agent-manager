@@ -28,7 +28,7 @@ import (
 )
 
 // SelfHostedGatewayInput is the registration request for a self-hosted gateway.
-// Environment is the environment UUID; the caller resolves its name.
+// Environment is the environment UUID, which the caller resolves from the requested name.
 type SelfHostedGatewayInput struct {
 	DisplayName       string
 	Handle            string
@@ -51,7 +51,7 @@ func (s *PlatformGatewayService) RegisterSelfHostedGateway(ouID string, in SelfH
 	if err != nil {
 		return nil, err
 	}
-	return s.RegisterGateway(ouID, strings.TrimSpace(in.Handle), in.DisplayName, in.Description, vhost, "", in.IsCritical,
+	return s.RegisterGateway(ouID, in.Handle, in.DisplayName, in.Description, vhost, "", in.IsCritical,
 		models.GatewayRoleEgress, in.Properties, []string{in.Environment}, models.GatewayHostingSelfHosted)
 }
 

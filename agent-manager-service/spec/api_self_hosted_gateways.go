@@ -792,7 +792,7 @@ No cloud infrastructure is created and no token is returned: the gateway becomes
 when its own controller connects with a registration token
 (`POST /orgs/{orgName}/self-hosted-gateways/{gatewayID}/tokens`).
 
-The gateway handle is `<environment>-<handle or sanitized displayName>`.
+The gateway's name is the `handle` given, unique in the organization.
 
 	@param ctx context.Context - for authentication, logging, cancellation, deadlines, tracing, etc. Passed from http.Request or context.Background().
 	@param orgName Organization name/handle
