@@ -74,6 +74,7 @@ export function MCPProxyConnectionTab({
   const [authEnabled, setAuthEnabled] = useState(true);
   const [credentialValue, setCredentialValue] = useState("");
   const [isCredentialMasked, setIsCredentialMasked] = useState(false);
+  const [isCredentialEdited, setIsCredentialEdited] = useState(false);
   const [showCredential, setShowCredential] = useState(false);
   const [resilienceTimeout, setResilienceTimeout] = useState("");
   const [resilienceIdleTimeout, setResilienceIdleTimeout] = useState("");
@@ -103,6 +104,7 @@ export function MCPProxyConnectionTab({
     const hasCredential = Boolean(config?.upstream?.main?.auth?.header);
     setCredentialValue(hasCredential ? MASKED_CREDENTIAL_VALUE : "");
     setIsCredentialMasked(hasCredential);
+    setIsCredentialEdited(false);
     setShowCredential(false);
     setResilienceTimeout(config?.resilience?.timeout ?? "");
     setResilienceIdleTimeout(config?.resilience?.idleTimeout ?? "");
@@ -150,7 +152,7 @@ export function MCPProxyConnectionTab({
   const typedCredential = credentialValue.trim();
   const credentialChanged =
     authEnabled &&
-    !isCredentialMasked &&
+    isCredentialEdited &&
     typedCredential !== MASKED_CREDENTIAL_VALUE &&
     (typedCredential !== "" || hasStoredCredential);
   const effectiveAuthHeader = authEnabled ? authHeader.trim() : "";
@@ -244,6 +246,7 @@ export function MCPProxyConnectionTab({
       if (credentialChanged) {
         setCredentialValue(MASKED_CREDENTIAL_VALUE);
         setIsCredentialMasked(true);
+        setIsCredentialEdited(false);
       }
     } catch {
       setStatus({ message: "Failed to update connection.", severity: "error" });
@@ -332,7 +335,10 @@ export function MCPProxyConnectionTab({
                     setIsCredentialMasked(false);
                   }
                 }}
-                onValueChange={setCredentialValue}
+                onValueChange={(value) => {
+                  setCredentialValue(value);
+                  setIsCredentialEdited(true);
+                }}
                 showValue={showCredential}
                 onToggleShowValue={() => setShowCredential((p) => !p)}
                 caption={
