@@ -503,8 +503,7 @@ func (c *gatewayInternalController) GetApplications(w http.ResponseWriter, r *ht
 	utils.WriteSuccessResponse(w, http.StatusOK, result)
 }
 
-// maxGatewayManifestBytes bounds a pushed policy manifest. Self-hosted gateways are run by customers, and the manifest
-// is held in the cache until the gateway's next connect, so its size is capped well above a full policy set.
+// maxGatewayManifestBytes bounds a pushed policy manifest, which is cached until the gateway's next connect.
 const maxGatewayManifestBytes = 8 << 20
 
 // decodeGatewayManifest reads a pushed policy manifest, answering 413 for a body over maxGatewayManifestBytes and 400

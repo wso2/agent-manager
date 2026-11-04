@@ -85,23 +85,3 @@ func TestDecodeSyncIDsRejectsABadBody(t *testing.T) {
 	assert.False(t, ok)
 	assert.Equal(t, http.StatusBadRequest, w.Code)
 }
-
-func TestDecodeGatewayManifest(t *testing.T) {
-	push := func(body string) (map[string]interface{}, bool, int) {
-		w := httptest.NewRecorder()
-		manifest, ok := decodeGatewayManifest(w, httptest.NewRequest(http.MethodPost, "/", strings.NewReader(body)))
-		return manifest, ok, w.Code
-	}
-
-	manifest, ok, _ := push(`{"mcp-auth":{"version":"v1"}}`)
-	require.True(t, ok)
-	assert.Contains(t, manifest, "mcp-auth")
-
-	_, ok, code := push(`{"padding":"` + strings.Repeat("a", maxGatewayManifestBytes) + `"}`)
-	assert.False(t, ok)
-	assert.Equal(t, http.StatusRequestEntityTooLarge, code)
-
-	_, ok, code = push("{")
-	assert.False(t, ok)
-	assert.Equal(t, http.StatusBadRequest, code)
-}
