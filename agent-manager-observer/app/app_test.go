@@ -237,6 +237,11 @@ func TestRun_CallsCloseWhenServerFails(t *testing.T) {
 	if got := closed.Load(); got != 1 {
 		t.Fatalf("expected Close called once, got %d", got)
 	}
+	apiAddr := fmt.Sprintf("127.0.0.1:%d", cfg.Server.Port)
+	if conn, err := net.DialTimeout("tcp", apiAddr, time.Second); err == nil {
+		_ = conn.Close()
+		t.Fatal("API server still accepts connections after Run returned")
+	}
 }
 
 func freePort(t *testing.T) int {

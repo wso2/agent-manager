@@ -76,6 +76,10 @@ func Run(cfg *config.Config, tokenProvider observer.TokenProvider, opts Options)
 		WriteTimeout: 30 * time.Second,
 	}
 
+	quit := make(chan os.Signal, 1)
+	signal.Notify(quit, syscall.SIGINT, syscall.SIGTERM)
+	defer signal.Stop(quit)
+
 	// Start server in a goroutine
 	serveErr := make(chan error, 2)
 	serve := func(s *http.Server) {
@@ -97,30 +101,32 @@ func Run(cfg *config.Config, tokenProvider observer.TokenProvider, opts Options)
 		go serve(ingestServer)
 	}
 
-	// Wait for interrupt signal
-	quit := make(chan os.Signal, 1)
-	signal.Notify(quit, syscall.SIGINT, syscall.SIGTERM)
-	defer signal.Stop(quit)
+	var runErr error
 	select {
 	case err := <-serveErr:
-		return fmt.Errorf("server failed: %w", err)
+		runErr = fmt.Errorf("server failed: %w", err)
 	case <-quit:
 	}
 
 	slog.Info("Shutting down server...")
+	if err := shutdownAll(servers); err != nil {
+		runErr = errors.Join(runErr, fmt.Errorf("server forced to shutdown: %w", err))
+	}
+	if runErr == nil {
+		slog.Info("Server exited")
+	}
+	return runErr
+}
 
-	// Graceful shutdown
+func shutdownAll(servers []*http.Server) error {
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 
+	var errs []error
 	for _, s := range servers {
-		if err := s.Shutdown(ctx); err != nil {
-			return fmt.Errorf("server forced to shutdown: %w", err)
-		}
+		errs = append(errs, s.Shutdown(ctx))
 	}
-
-	slog.Info("Server exited")
-	return nil
+	return errors.Join(errs...)
 }
 
 func newHandler(cfg *config.Config, observerClient observer.Client) http.Handler {
