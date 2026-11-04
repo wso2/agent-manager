@@ -18,7 +18,10 @@
 
 import { describe, it, expect } from "vitest";
 import {
+  READINESS_CHECK_DEFAULTS,
+  STARTUP_CHECK_DEFAULTS,
   healthCheckFieldErrors,
+  healthChecksAreValid,
   healthChecksToSend,
   suggestedHealthCheckPath,
 } from "@agent-management-platform/types";
@@ -81,7 +84,7 @@ describe("healthCheckFieldErrors", () => {
         periodSeconds: 0,
         timeoutSeconds: 0,
         failureThreshold: 0,
-      }),
+      }, "readiness", READINESS_CHECK_DEFAULTS),
     ).toEqual({
       path: expect.any(String),
       port: expect.any(String),
@@ -90,6 +93,40 @@ describe("healthCheckFieldErrors", () => {
       timeoutSeconds: expect.any(String),
       failureThreshold: expect.any(String),
     });
-    expect(healthCheckFieldErrors({ type: "HTTP", path: "/health", port: 8000 })).toEqual({});
+    const goodCheck = { type: "HTTP" as const, path: "/health", port: 8000 };
+    expect(healthCheckFieldErrors(goodCheck, "readiness", READINESS_CHECK_DEFAULTS)).toEqual({});
+  });
+
+  // Startup may take at most an hour: initial delay + interval × failures allowed, with
+  // unset fields at their defaults (10s delay, 5s interval for startup).
+  it("caps the total startup time at an hour", () => {
+    const startup = (failureThreshold: number, initialDelaySeconds?: number) =>
+      healthCheckFieldErrors(
+        { failureThreshold, initialDelaySeconds },
+        "startup",
+        STARTUP_CHECK_DEFAULTS,
+      );
+    expect(startup(720, 0)).toEqual({});
+    expect(startup(720).failureThreshold).toContain("3610s");
+  });
+
+  // Readiness and liveness run as long as the agent does, so they have no total.
+  it("puts no total on readiness", () => {
+    const manyFailures = { failureThreshold: 100000 };
+    expect(healthCheckFieldErrors(manyFailures, "readiness", READINESS_CHECK_DEFAULTS)).toEqual({});
+  });
+
+  it("caps each delay, interval and timeout, and keeps the timeout within the interval", () => {
+    const readiness = (check: Parameters<typeof healthCheckFieldErrors>[0]) =>
+      healthCheckFieldErrors(check, "readiness", READINESS_CHECK_DEFAULTS);
+    expect(readiness({ periodSeconds: 3601 }).periodSeconds).toBeDefined();
+    expect(readiness({ initialDelaySeconds: 3601 }).initialDelaySeconds).toBeDefined();
+    expect(readiness({ timeoutSeconds: 10 }).timeoutSeconds).toContain("interval");
+    expect(readiness({ timeoutSeconds: 5, periodSeconds: 5 })).toEqual({});
+  });
+
+  it("finds any invalid check in a set", () => {
+    expect(healthChecksAreValid({ startup: { failureThreshold: 720 } })).toBe(false);
+    expect(healthChecksAreValid({ readiness: { type: "HTTP", path: "/health" } })).toBe(true);
   });
 });

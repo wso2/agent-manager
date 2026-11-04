@@ -314,6 +314,7 @@ export const InputInterface = ({
         {/* Only readiness is set here, with today's wait times; Configure Build has the
             startup and liveness checks and the wait times. */}
         <HealthCheckFields
+          checkName="readiness"
           title="Readiness check"
           description="How Kubernetes decides the agent is ready for traffic. TCP checks the port is open."
           value={formData.healthChecks?.readiness}

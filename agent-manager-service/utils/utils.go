@@ -843,6 +843,27 @@ func validateInputInterfacePort(port *int32) error {
 	return nil
 }
 
+// healthCheckDefaults are the values a check uses for a field that is not set. They must match
+// the fallbacks in the agent-api ComponentType (agent-api.yaml).
+type healthCheckDefaults struct {
+	initialDelaySeconds int32
+	periodSeconds       int32
+	timeoutSeconds      int32
+	failureThreshold    int32
+}
+
+var (
+	startupCheckDefaults   = healthCheckDefaults{initialDelaySeconds: 10, periodSeconds: 5, timeoutSeconds: 1, failureThreshold: 60}
+	readinessCheckDefaults = healthCheckDefaults{initialDelaySeconds: 0, periodSeconds: 5, timeoutSeconds: 1, failureThreshold: 6}
+	livenessCheckDefaults  = healthCheckDefaults{initialDelaySeconds: 0, periodSeconds: 10, timeoutSeconds: 1, failureThreshold: 3}
+)
+
+// maxHealthCheckSeconds caps a health check's initial delay, interval and timeout, and the
+// total time the startup check may take (initial delay + interval × failures allowed). A
+// longer interval means a broken agent goes unnoticed for longer; a longer startup lets a
+// broken agent sit in "starting" without being restarted.
+const maxHealthCheckSeconds = 3600
+
 // validateHealthChecks checks the startup, readiness and liveness checks when sent.
 // OpenChoreo checks the same rules only when it renders the pod, so a bad value
 // saved here would fail every later deploy instead of this request.
@@ -851,16 +872,16 @@ func validateHealthChecks(healthChecks *spec.HealthChecks) error {
 	if healthChecks == nil {
 		return nil
 	}
-	if err := validateHealthCheck("startup", healthChecks.Startup); err != nil {
+	if err := validateHealthCheck("startup", healthChecks.Startup, startupCheckDefaults); err != nil {
 		return err
 	}
-	if err := validateHealthCheck("readiness", healthChecks.Readiness); err != nil {
+	if err := validateHealthCheck("readiness", healthChecks.Readiness, readinessCheckDefaults); err != nil {
 		return err
 	}
-	return validateHealthCheck("liveness", healthChecks.Liveness)
+	return validateHealthCheck("liveness", healthChecks.Liveness, livenessCheckDefaults)
 }
 
-func validateHealthCheck(checkName string, check *spec.HealthCheck) error {
+func validateHealthCheck(checkName string, check *spec.HealthCheck, defaults healthCheckDefaults) error {
 	// Not set: the default check is used.
 	if check == nil {
 		return nil
@@ -909,6 +930,34 @@ func validateHealthCheck(checkName string, check *spec.HealthCheck) error {
 	}
 	if check.FailureThreshold != nil && *check.FailureThreshold < 1 {
 		return NewValidationErrorf("Health check failures allowed must be at least 1", "%s.failureThreshold must be 1 or more", field)
+	}
+	// The rules below combine fields, so a field that is not set counts as its default.
+	// int64, so interval × failures allowed can't overflow and slip under the cap.
+	initialDelay := int64(IntPointerAsInt(check.InitialDelaySeconds, defaults.initialDelaySeconds))
+	period := int64(IntPointerAsInt(check.PeriodSeconds, defaults.periodSeconds))
+	timeout := int64(IntPointerAsInt(check.TimeoutSeconds, defaults.timeoutSeconds))
+	failures := int64(IntPointerAsInt(check.FailureThreshold, defaults.failureThreshold))
+	// The initial delay, interval and timeout are each capped.
+	if initialDelay > maxHealthCheckSeconds || period > maxHealthCheckSeconds || timeout > maxHealthCheckSeconds {
+		return NewValidationErrorf(
+			fmt.Sprintf("Health check initial delay, interval and timeout can each be at most %d seconds", maxHealthCheckSeconds),
+			"%s initial delay, interval and timeout must each be %d or less", field, maxHealthCheckSeconds,
+		)
+	}
+	// A check still waiting when the next one is due makes no sense.
+	if timeout > period {
+		return NewValidationErrorf(
+			"Health check timeout cannot be longer than its interval",
+			"%s.timeoutSeconds (%d) must not exceed %s.periodSeconds (%d)", field, timeout, field, period,
+		)
+	}
+	// Startup may take at most maxHealthCheckSeconds in total before the agent is restarted.
+	if checkName == "startup" && initialDelay+period*failures > maxHealthCheckSeconds {
+		return NewValidationErrorf(
+			fmt.Sprintf("Startup can take at most %d seconds: initial delay + interval × failures allowed", maxHealthCheckSeconds),
+			"%s allows %d seconds (%d + %d × %d), more than %d", field, initialDelay+period*failures,
+			initialDelay, period, failures, maxHealthCheckSeconds,
+		)
 	}
 	return nil
 }

@@ -62,11 +62,25 @@ export function suggestedHealthCheckPath(interfaceType: string, basePath?: strin
 
 type HealthCheckFieldErrors = Partial<Record<keyof HealthCheck, string>>;
 
+/** Which of the three checks a set of fields belongs to. */
+export type HealthCheckName = "startup" | "readiness" | "liveness";
+
+/**
+ * The most a check's initial delay, interval or timeout may be, and the most the startup check
+ * may take in total (initial delay + interval × failures allowed). Must match the backend's
+ * maxHealthCheckSeconds.
+ */
+export const MAX_HEALTH_CHECK_SECONDS = 3600;
+
 /**
  * Checks one health check against the rules the backend enforces, so the form can show
  * the problem next to the field before saving.
  */
-export function healthCheckFieldErrors(check: HealthCheck | undefined): HealthCheckFieldErrors {
+export function healthCheckFieldErrors(
+  check: HealthCheck | undefined,
+  checkName: HealthCheckName,
+  defaults: HealthCheckDefaults,
+): HealthCheckFieldErrors {
   const errors: HealthCheckFieldErrors = {};
   if (!check) {
     return errors;
@@ -93,13 +107,46 @@ export function healthCheckFieldErrors(check: HealthCheck | undefined): HealthCh
   if (check.failureThreshold !== undefined && check.failureThreshold < 1) {
     errors.failureThreshold = "Must be 1 or more";
   }
+  // The rules below combine fields, so a field that is not set counts as its default.
+  const initialDelay = check.initialDelaySeconds ?? defaults.initialDelaySeconds;
+  const period = check.periodSeconds ?? defaults.periodSeconds;
+  const timeout = check.timeoutSeconds ?? defaults.timeoutSeconds;
+  const failures = check.failureThreshold ?? defaults.failureThreshold;
+  const overMax = `Must be ${MAX_HEALTH_CHECK_SECONDS} or less`;
+  // The initial delay, interval and timeout are each capped.
+  if (initialDelay > MAX_HEALTH_CHECK_SECONDS) {
+    errors.initialDelaySeconds ??= overMax;
+  }
+  if (period > MAX_HEALTH_CHECK_SECONDS) {
+    errors.periodSeconds ??= overMax;
+  }
+  if (timeout > MAX_HEALTH_CHECK_SECONDS) {
+    errors.timeoutSeconds ??= overMax;
+  }
+  // A check still waiting when the next one is due makes no sense.
+  if (timeout > period) {
+    errors.timeoutSeconds ??= `Cannot be longer than the interval (${period}s)`;
+  }
+  // Startup may take at most an hour in total before the agent is restarted.
+  const startupTotal = initialDelay + period * failures;
+  if (checkName === "startup" && startupTotal > MAX_HEALTH_CHECK_SECONDS) {
+    errors.failureThreshold ??=
+      `Startup could take ${startupTotal}s (delay + interval × failures); ` +
+      `the most is ${MAX_HEALTH_CHECK_SECONDS}s`;
+  }
   return errors;
 }
 
 /** True when every check in the set passes healthCheckFieldErrors. */
 export function healthChecksAreValid(healthChecks: HealthChecks | undefined): boolean {
-  return [healthChecks?.startup, healthChecks?.readiness, healthChecks?.liveness].every(
-    (check) => Object.keys(healthCheckFieldErrors(check)).length === 0,
+  const checks: Array<[HealthCheck | undefined, HealthCheckName, HealthCheckDefaults]> = [
+    [healthChecks?.startup, "startup", STARTUP_CHECK_DEFAULTS],
+    [healthChecks?.readiness, "readiness", READINESS_CHECK_DEFAULTS],
+    [healthChecks?.liveness, "liveness", LIVENESS_CHECK_DEFAULTS],
+  ];
+  return checks.every(
+    ([check, checkName, defaults]) =>
+      Object.keys(healthCheckFieldErrors(check, checkName, defaults)).length === 0,
   );
 }
 

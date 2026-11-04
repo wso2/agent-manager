@@ -81,6 +81,35 @@ func TestValidateHealthChecks(t *testing.T) {
 		{name: "failures allowed 0", wantErr: true, healthChecks: &spec.HealthChecks{
 			Liveness: &spec.HealthCheck{FailureThreshold: numberOf(0)},
 		}},
+		// Startup may take at most an hour: initial delay + interval × failures allowed.
+		{name: "startup taking exactly an hour", healthChecks: &spec.HealthChecks{
+			Startup: &spec.HealthCheck{InitialDelaySeconds: numberOf(0), FailureThreshold: numberOf(720)},
+		}},
+		{name: "startup over an hour with the default delay and interval", wantErr: true, healthChecks: &spec.HealthChecks{
+			Startup: &spec.HealthCheck{FailureThreshold: numberOf(720)},
+		}},
+		{name: "startup failures allowed large enough to overflow", wantErr: true, healthChecks: &spec.HealthChecks{
+			Startup: &spec.HealthCheck{FailureThreshold: numberOf(2147483647)},
+		}},
+		// Readiness and liveness run as long as the agent does, so they have no total.
+		{name: "readiness with many failures allowed", healthChecks: &spec.HealthChecks{
+			Readiness: &spec.HealthCheck{FailureThreshold: numberOf(100000)},
+		}},
+		{name: "interval over an hour", wantErr: true, healthChecks: &spec.HealthChecks{
+			Readiness: &spec.HealthCheck{PeriodSeconds: numberOf(3601)},
+		}},
+		{name: "initial delay over an hour", wantErr: true, healthChecks: &spec.HealthChecks{
+			Liveness: &spec.HealthCheck{InitialDelaySeconds: numberOf(3601)},
+		}},
+		{name: "timeout over an hour", wantErr: true, healthChecks: &spec.HealthChecks{
+			Liveness: &spec.HealthCheck{PeriodSeconds: numberOf(3600), TimeoutSeconds: numberOf(3601)},
+		}},
+		{name: "timeout longer than the default interval", wantErr: true, healthChecks: &spec.HealthChecks{
+			Readiness: &spec.HealthCheck{TimeoutSeconds: numberOf(10)},
+		}},
+		{name: "timeout equal to the interval", healthChecks: &spec.HealthChecks{
+			Readiness: &spec.HealthCheck{TimeoutSeconds: numberOf(5), PeriodSeconds: numberOf(5)},
+		}},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {

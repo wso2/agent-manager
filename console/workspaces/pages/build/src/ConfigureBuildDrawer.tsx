@@ -850,6 +850,7 @@ export function ConfigureBuildDrawer({
                 </Typography>
                 <Box display="flex" flexDirection="column" gap={2}>
                   <HealthCheckFields
+                    checkName="startup"
                     title="Startup"
                     description="Waits for the agent to start; runs until it first passes."
                     value={formData.healthChecks.startup}
@@ -862,6 +863,7 @@ export function ConfigureBuildDrawer({
                     disabled={isPending}
                   />
                   <HealthCheckFields
+                    checkName="readiness"
                     title="Readiness"
                     description="Decides whether the agent receives traffic; runs for as long as it runs."
                     value={formData.healthChecks.readiness}
@@ -874,6 +876,7 @@ export function ConfigureBuildDrawer({
                     disabled={isPending}
                   />
                   <HealthCheckFields
+                    checkName="liveness"
                     title="Liveness"
                     description="Restarts the agent when it stops responding. Off by default."
                     value={formData.healthChecks.liveness}

@@ -34,10 +34,13 @@ import {
   healthCheckFieldErrors,
   type HealthCheck,
   type HealthCheckDefaults,
+  type HealthCheckName,
   type HealthCheckType,
 } from "@agent-management-platform/types";
 
 export interface HealthCheckFieldsProps {
+  /** Which check these fields are for; decides the rules that apply. */
+  checkName: HealthCheckName;
   /** Shown as the check's heading, e.g. "Readiness". */
   title: string;
   /** What this check is for, shown under the heading. */
@@ -60,6 +63,7 @@ export interface HealthCheckFieldsProps {
 
 /** The fields for one health check (startup, readiness or liveness). */
 export function HealthCheckFields({
+  checkName,
   title,
   description,
   value,
@@ -71,7 +75,7 @@ export function HealthCheckFields({
   showWaitTimes = true,
   disabled = false,
 }: HealthCheckFieldsProps) {
-  const errors = healthCheckFieldErrors(value);
+  const errors = healthCheckFieldErrors(value, checkName, defaults);
   const enabled = value?.enabled ?? (value ? true : defaults.enabled);
   const checkType = value?.type ?? defaults.type;
 
