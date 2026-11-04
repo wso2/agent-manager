@@ -79,24 +79,25 @@ func repoScriptsDir() string {
 	return filepath.Join(repoRoot(), "deployments", "scripts")
 }
 
-// gatewayChart returns GATEWAY_CHART with a repo-relative chart directory made
-// absolute. The script runs from the test package's directory, where a path like
-// deployments/helm-charts/... resolves nowhere. Anything that isn't a directory in
-// the checkout (an oci:// ref, a helm repo alias) passes through unchanged.
+// gatewayChart returns GATEWAY_CHART with a repo-relative chart path (a directory or
+// a .tgz) made absolute. The script runs from the test package's directory, where a
+// path like deployments/helm-charts/... resolves nowhere. Anything that doesn't exist
+// in the checkout (an oci:// ref, a helm repo alias) passes through unchanged, which
+// matches helm's own rule of preferring an existing local path.
 func gatewayChart() string {
 	chart := strings.TrimSpace(os.Getenv("GATEWAY_CHART"))
 	if chart == "" || filepath.IsAbs(chart) {
 		return chart
 	}
-	if local := filepath.Join(repoRoot(), chart); isDir(local) {
+	if local := filepath.Join(repoRoot(), chart); exists(local) {
 		return local
 	}
 	return chart
 }
 
-func isDir(path string) bool {
-	info, err := os.Stat(path)
-	return err == nil && info.IsDir()
+func exists(path string) bool {
+	_, err := os.Stat(path)
+	return err == nil
 }
 
 // fileURL returns a percent-escaped file:// URL for an absolute path, so a
