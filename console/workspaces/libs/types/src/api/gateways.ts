@@ -30,6 +30,17 @@ export const isSelfHostedGateway = (gateway: {
 export const isManagedGateway = (gateway: { hosting?: GatewayHosting }): boolean =>
   !isSelfHostedGateway(gateway);
 
+/**
+ * The egress gateway the server picks in an environment when the request names none:
+ * the only managed candidate. A self-hosted gateway is never picked, even a lone one.
+ */
+export const inferredEgressGateway = <G extends { hosting?: GatewayHosting }>(
+  candidates: G[],
+): G | undefined => {
+  const managed = candidates.filter(isManagedGateway);
+  return managed.length === 1 ? managed[0] : undefined;
+};
+
 export const gatewayHostingLabel = (gateway: { hosting?: GatewayHosting }): string =>
   isSelfHostedGateway(gateway) ? "Self-hosted" : "Managed";
 

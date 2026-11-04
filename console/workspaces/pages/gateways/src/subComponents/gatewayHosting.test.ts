@@ -18,6 +18,7 @@
 import { describe, expect, it } from "vitest";
 import {
   gatewayHostingLabel,
+  inferredEgressGateway,
   isManagedGateway,
   isSelfHostedGateway,
   showGatewayHosting,
@@ -67,5 +68,21 @@ describe("showGatewayHosting", () => {
 
   it("shows hosting with the flag on and no gateways", () => {
     expect(showGatewayHosting(true, [])).toBe(true);
+  });
+});
+
+describe("inferredEgressGateway", () => {
+  const otherManaged = { hosting: "MANAGED" as const };
+
+  it("picks the only managed candidate, even beside self-hosted ones", () => {
+    expect(inferredEgressGateway([selfHosted, managed])).toBe(managed);
+  });
+
+  it.each([
+    ["a lone self-hosted gateway", [selfHosted]],
+    ["two managed gateways", [managed, otherManaged]],
+    ["no gateways", []],
+  ])("picks nothing for %s", (_, candidates) => {
+    expect(inferredEgressGateway(candidates)).toBeUndefined();
   });
 });

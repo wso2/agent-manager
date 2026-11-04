@@ -31,7 +31,7 @@ import {
 } from "@wso2/oxygen-ui";
 import {
   globalConfig,
-  isManagedGateway,
+  inferredEgressGateway,
   showGatewayHosting,
   type Environment,
   type GatewayDeploymentStatus,
@@ -83,15 +83,6 @@ const environmentIdOf = (gateway: GatewayResponse): string | undefined =>
 
 const gatewayLabel = (gateway: GatewayResponse): string =>
   gateway.displayName || gateway.name;
-
-// The gateway used without asking: the only managed candidate. A self-hosted
-// gateway is never a default, even a lone one: it stays an explicit pick.
-const defaultGatewayOf = (
-  candidates: GatewayResponse[],
-): GatewayResponse | undefined => {
-  const managed = candidates.filter(isManagedGateway);
-  return managed.length === 1 ? managed[0] : undefined;
-};
 
 const soleCandidateOf = (
   candidates: GatewayResponse[],
@@ -203,7 +194,7 @@ export const EnvironmentGatewaySelectorView: React.FC<
       environments.flatMap((env) => {
         if (!env.id) return [];
         const candidates = gatewaysByEnv[env.id] ?? [];
-        const defaultGateway = defaultGatewayOf(candidates);
+        const defaultGateway = inferredEgressGateway(candidates);
         const lockedGateway = candidates.find((candidate) =>
           lockedSet.has(candidate.uuid),
         );
