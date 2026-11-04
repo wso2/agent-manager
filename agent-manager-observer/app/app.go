@@ -51,8 +51,15 @@ type Options struct {
 }
 
 // Run serves the observer API until SIGINT or SIGTERM, then shuts down gracefully.
-func Run(cfg *config.Config, tokenProvider observer.TokenProvider, opts Options) error {
+func Run(cfg *config.Config, tokenProvider observer.TokenProvider, opts Options) (err error) {
 	setupLogger(cfg)
+	if opts.Close != nil {
+		defer func() {
+			if closeErr := opts.Close(); closeErr != nil {
+				err = errors.Join(err, fmt.Errorf("closing observer store: %w", closeErr))
+			}
+		}()
+	}
 
 	client := opts.Client
 	if client == nil {
@@ -109,11 +116,6 @@ func Run(cfg *config.Config, tokenProvider observer.TokenProvider, opts Options)
 	for _, s := range servers {
 		if err := s.Shutdown(ctx); err != nil {
 			return fmt.Errorf("server forced to shutdown: %w", err)
-		}
-	}
-	if opts.Close != nil {
-		if err := opts.Close(); err != nil {
-			return fmt.Errorf("closing observer store: %w", err)
 		}
 	}
 

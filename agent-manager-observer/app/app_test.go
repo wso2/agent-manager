@@ -205,6 +205,40 @@ func TestRun_CallsCloseOnShutdown(t *testing.T) {
 	}
 }
 
+func TestRun_CallsCloseWhenServerFails(t *testing.T) {
+	held, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		t.Fatalf("listen: %v", err)
+	}
+	defer func() { _ = held.Close() }()
+
+	cfg := &config.Config{
+		Server:   config.ServerConfig{Port: freePort(t)},
+		Observer: config.ObserverConfig{BaseURL: "http://unused"},
+		Auth:     config.AuthConfig{IsLocalDevEnv: true},
+	}
+	var closed atomic.Int32
+	opts := Options{
+		Ingest:     http.NotFoundHandler(),
+		IngestAddr: held.Addr().String(),
+		Close:      func() error { closed.Add(1); return nil },
+	}
+	done := make(chan error, 1)
+	go func() { done <- Run(cfg, requestTokenProvider{}, opts) }()
+
+	select {
+	case err := <-done:
+		if err == nil {
+			t.Fatal("expected a server failure, got nil")
+		}
+	case <-time.After(5 * time.Second):
+		t.Fatal("Run did not return after a server failed")
+	}
+	if got := closed.Load(); got != 1 {
+		t.Fatalf("expected Close called once, got %d", got)
+	}
+}
+
 func freePort(t *testing.T) int {
 	t.Helper()
 	ln, err := net.Listen("tcp", "127.0.0.1:0")
