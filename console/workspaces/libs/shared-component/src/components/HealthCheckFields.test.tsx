@@ -50,6 +50,15 @@ describe("healthChecksToSend", () => {
     ).toEqual({ readiness: { type: "HTTP", path: "/health", periodSeconds: 3 } });
   });
 
+  // A check saved as {} (through the API or amctl) is on. Liveness is off by default, so
+  // dropping it would turn liveness off when the saved checks are replaced.
+  it("keeps an empty liveness check, which means on", () => {
+    expect(healthChecksToSend({ liveness: {}, readiness: { periodSeconds: 10 } })).toEqual({
+      liveness: {},
+      readiness: { periodSeconds: 10 },
+    });
+  });
+
   // A path left over from switching HTTP back to TCP must not be sent.
   it("drops the path of a check that is not HTTP", () => {
     expect(healthChecksToSend({ readiness: { type: "TCP", path: "/health" } })).toEqual({
@@ -131,9 +140,13 @@ describe("healthCheckFieldErrors", () => {
   });
 
   // Readiness and liveness run as long as the agent does, so they have no total.
-  it("puts no total on readiness", () => {
-    const manyFailures = { failureThreshold: 100000 };
-    expect(healthCheckFieldErrors(manyFailures, "readiness", READINESS_CHECK_DEFAULTS)).toEqual({});
+  // Readiness and liveness act after interval × failures allowed (5s × 720 = an hour here);
+  // the initial delay does not count.
+  it("caps readiness at an hour of interval × failures", () => {
+    const readiness = (check: Parameters<typeof healthCheckFieldErrors>[0]) =>
+      healthCheckFieldErrors(check, "readiness", READINESS_CHECK_DEFAULTS);
+    expect(readiness({ initialDelaySeconds: 600, failureThreshold: 720 })).toEqual({});
+    expect(readiness({ failureThreshold: 721 }).failureThreshold).toContain("3600");
   });
 
   it("caps each delay, interval and timeout, and keeps the timeout within the interval", () => {

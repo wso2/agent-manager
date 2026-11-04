@@ -260,6 +260,29 @@ spec:
 
             echo "Successfully obtained access token"
 
+            # --- Step 3b: Read this build's health checks ---
+            # Read from its own WorkflowRun: when a build starts it copies the agent's build
+            # parameters, healthChecks included. Step 7 writes them onto the environment together
+            # with this build's release. Unset or empty means this build has none. Read and checked
+            # here, before Step 4 writes the Workload, so a malformed value fails the build before
+            # anything changes.
+            HC_RUN_RESPONSE=$(curl -s -w "\n%{http_code}" \
+              -X GET "${API_URL}/api/v1/namespaces/${NAMESPACE}/workflowruns/${RUN_NAME}" \
+              -H "Host: ${API_HOST}" \
+              -H "Authorization: Bearer ${ACCESS_TOKEN}")
+            HC_RUN_HTTP_CODE=$(echo "${HC_RUN_RESPONSE}" | tail -1)
+            if [ "${HC_RUN_HTTP_CODE}" -lt 200 ] || [ "${HC_RUN_HTTP_CODE}" -ge 300 ]; then
+              echo "Failed to get WorkflowRun for its health checks (HTTP ${HC_RUN_HTTP_CODE}): $(echo "${HC_RUN_RESPONSE}" | sed '$d')"
+              exit 1
+            fi
+            echo "${HC_RUN_RESPONSE}" | sed '$d' > /mnt/vol/workflowrun-health-checks.json
+            BUILD_HEALTH_CHECKS=$(jq -c '.spec.workflow.parameters.healthChecks // null | if . == {} then null else . end' \
+              /mnt/vol/workflowrun-health-checks.json)
+            if ! printf '%s' "$BUILD_HEALTH_CHECKS" | jq -e 'type == "object" or . == null' >/dev/null; then
+              echo "Error: this build's healthChecks is not an object: ${BUILD_HEALTH_CHECKS}"
+              exit 1
+            fi
+
             # --- Step 4: Create or update workload via API server ---
             WORKLOAD_NAME=$(jq -r '.metadata.name' "$OUT_JSON")
 
@@ -315,17 +338,6 @@ spec:
             fi
 
             echo "${WF_RUN_BODY}" > /mnt/vol/workflowrun-get.json
-
-            # This build's health checks, read from its own WorkflowRun: when a build starts it
-            # copies the agent's build parameters, healthChecks included. Step 7 writes them onto
-            # the environment together with this build's release. Unset or empty means this build
-            # has none.
-            BUILD_HEALTH_CHECKS=$(jq -c '.spec.workflow.parameters.healthChecks // null | if . == {} then null else . end' \
-              /mnt/vol/workflowrun-get.json)
-            if ! printf '%s' "$BUILD_HEALTH_CHECKS" | jq -e 'type == "object" or . == null' >/dev/null; then
-              echo "Error: this build's healthChecks is not an object: ${BUILD_HEALTH_CHECKS}"
-              exit 1
-            fi
 
             jq --rawfile wl "$OUT_JSON" \
               '.metadata.annotations["openchoreo.dev/workload"] = ($wl | rtrimstr("\n"))' \

@@ -245,7 +245,7 @@ case "$method $url" in
   "POST http://token"*) reply 200 '{"access_token":"t"}' ;;
   "GET "*"/workflowruns/"*) reply 200 "$(cat "$BUILD_RECORD")" ;;
   "PUT "*"/workflowruns/"*) reply 200 '{}' ;;
-  "POST "*"/workloads") reply 201 '{}' ;;
+  "POST "*"/workloads") touch "$WORKLOAD_WRITTEN"; reply 201 '{}' ;;
   "POST "*"/generate-release") reply 201 '{}' ;;
   "GET "*"/projects/"*) reply 200 '{"spec":{"deploymentPipelineRef":{"name":"pipeline"}}}' ;;
   "GET "*"/deploymentpipelines/"*)
@@ -266,7 +266,7 @@ chmod +x "$BINDING_TEST_DIR/bin/"*
 # run failed (the script's output is then in $BINDING_TEST_DIR/out.log).
 run_generate_workload() {
   local existing=""
-  rm -f "$BINDING_TEST_DIR/recorded.json"
+  rm -f "$BINDING_TEST_DIR/recorded.json" "$BINDING_TEST_DIR/workload-written"
   if [[ -n "$1" ]]; then
     printf '{"metadata":{"name":"run-2"},"spec":{"workflow":{"parameters":{"healthChecks":%s}}}}' "$1" >"$BINDING_TEST_DIR/record.json"
   else
@@ -278,6 +278,7 @@ run_generate_workload() {
   fi
   if ! env PATH="$BINDING_TEST_DIR/bin:$PATH" \
       BUILD_RECORD="$BINDING_TEST_DIR/record.json" EXISTING_BINDING="$existing" RECORDED_BINDING="$BINDING_TEST_DIR/recorded.json" \
+      WORKLOAD_WRITTEN="$BINDING_TEST_DIR/workload-written" \
       IMAGE=registry/agent:v2 PROJECT_NAME=proj COMPONENT_NAME=agent NAMESPACE=ns APP_PATH=. \
       ENDPOINTS='[{"name":"agent-endpoint","port":8000}]' ENV_VARS='[]' FILE_MOUNTS='[]' \
       RUN_NAME=run-2 OAUTH_URL=http://token OAUTH_HOST=h CLIENT_ID=c OAUTH_CLIENT_SECRET=s \
@@ -329,11 +330,13 @@ assert_written_binding "removes an earlier build's health checks when this build
    and (.spec.componentTypeEnvironmentConfigs | has("healthChecks") | not)
    and .spec.componentTypeEnvironmentConfigs.runtimeClassName == "gvisor"' "$WRITTEN_BINDING"
 
+# A malformed value fails the build before Step 4 writes the Workload, so nothing changes.
 WRITTEN_BINDING="$(run_generate_workload '[1,2]' "")"
-if [[ -z "$WRITTEN_BINDING" ]] && grep -q "healthChecks is not an object" "$BINDING_TEST_DIR/out.log"; then
-  printf 'ok   - step 7 refuses a build whose health checks are not an object\n'
+if [[ -z "$WRITTEN_BINDING" ]] && grep -q "healthChecks is not an object" "$BINDING_TEST_DIR/out.log" \
+    && [[ ! -e "$BINDING_TEST_DIR/workload-written" ]]; then
+  printf 'ok   - refuses a build whose health checks are not an object, before writing the Workload\n'
 else
-  printf 'FAIL - step 7 accepted a build whose health checks are not an object\n'
+  printf 'FAIL - a build whose health checks are not an object was accepted, or wrote the Workload first\n'
   FAILURES=$((FAILURES + 1))
 fi
 

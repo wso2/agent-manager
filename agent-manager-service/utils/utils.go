@@ -977,6 +977,15 @@ func validateHealthCheck(checkName string, check *spec.HealthCheck, defaults hea
 			initialDelay, period, failures, maxHealthCheckSeconds,
 		)
 	}
+	// Readiness and liveness act after interval × failures allowed; capping that also caps
+	// failures allowed, which otherwise has no upper limit.
+	if checkName != "startup" && period*failures > maxHealthCheckSeconds {
+		return NewValidationErrorf(
+			fmt.Sprintf("Health check interval × failures allowed can be at most %d seconds", maxHealthCheckSeconds),
+			"%s allows %d seconds (%d × %d), more than %d", field, period*failures,
+			period, failures, maxHealthCheckSeconds,
+		)
+	}
 	return nil
 }
 

@@ -141,6 +141,12 @@ export function healthCheckFieldErrors(
       `Startup could take ${startupTotal}s (delay + interval × failures); ` +
       `the most is ${MAX_HEALTH_CHECK_SECONDS}s`;
   }
+  // Readiness and liveness act after interval × failures allowed; capping that also caps
+  // failures allowed, which otherwise has no upper limit.
+  if (checkName !== "startup" && period * failures > MAX_HEALTH_CHECK_SECONDS) {
+    errors.failureThreshold ??=
+      `Interval × failures would be ${period * failures}s; the most is ${MAX_HEALTH_CHECK_SECONDS}s`;
+  }
   return errors;
 }
 
@@ -159,9 +165,11 @@ export function healthChecksAreValid(healthChecks: HealthChecks | undefined): bo
 
 /**
  * Returns the health checks as they should be sent: fields that are not set removed, a
- * path removed from a check that is not HTTP, and a check left out when nothing in it
- * differs from its defaults. Returns {} when no check differs, which means "use the
- * defaults".
+ * path removed from a check that is not HTTP, and a check left out when it is not set or
+ * holds only its switch at the default. Values equal to the defaults are still sent.
+ * A check that is set but empty ({}) means "on", as the backend and template read it, so it
+ * counts as its switch: left out where on is the default (startup, readiness), kept where
+ * it is not (liveness). Returns {} when no check is left, which means "use the defaults".
  */
 export function healthChecksToSend(healthChecks: HealthChecks | undefined): HealthChecks {
   const toSend: HealthChecks = {};
@@ -171,6 +179,12 @@ export function healthChecksToSend(healthChecks: HealthChecks | undefined): Heal
   ): HealthCheck | undefined => {
     if (!check) {
       return undefined;
+    }
+    // Set but empty: the check is on with its defaults (e.g. saved through the API). Where on
+    // is not the default (liveness), dropping it would replace the saved checks without it and
+    // turn the check off, so it is kept.
+    if (Object.keys(check).length === 0) {
+      return defaults.enabled ? undefined : {};
     }
     const tidied: HealthCheck = {};
     (Object.keys(check) as Array<keyof HealthCheck>).forEach((field) => {

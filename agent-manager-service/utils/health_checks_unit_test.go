@@ -95,9 +95,16 @@ func TestValidateHealthChecks(t *testing.T) {
 		{name: "startup failures allowed large enough to overflow", wantErr: true, healthChecks: &spec.HealthChecks{
 			Startup: &spec.HealthCheck{FailureThreshold: numberOf(2147483647)},
 		}},
-		// Readiness and liveness run as long as the agent does, so they have no total.
-		{name: "readiness with many failures allowed", healthChecks: &spec.HealthChecks{
-			Readiness: &spec.HealthCheck{FailureThreshold: numberOf(100000)},
+		// Readiness and liveness act after interval × failures allowed, at most an hour; the
+		// initial delay does not count, as they keep running after it.
+		{name: "readiness acting after exactly an hour", healthChecks: &spec.HealthChecks{
+			Readiness: &spec.HealthCheck{InitialDelaySeconds: numberOf(600), FailureThreshold: numberOf(720)},
+		}},
+		{name: "readiness acting after more than an hour", wantErr: true, healthChecks: &spec.HealthChecks{
+			Readiness: &spec.HealthCheck{FailureThreshold: numberOf(721)},
+		}},
+		{name: "liveness failures allowed large enough to overflow", wantErr: true, healthChecks: &spec.HealthChecks{
+			Liveness: &spec.HealthCheck{FailureThreshold: numberOf(2147483647)},
 		}},
 		{name: "interval over an hour", wantErr: true, healthChecks: &spec.HealthChecks{
 			Readiness: &spec.HealthCheck{PeriodSeconds: numberOf(3601)},

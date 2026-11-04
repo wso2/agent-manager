@@ -222,28 +222,6 @@ func TestDeployAgent_OwnershipLookupFailureRejects(t *testing.T) {
 		assert.True(t, *f.bindingReached)
 	})
 
-	// During the same outage, an image another environment runs is still owned, but its
-	// health checks can't be read, and keeping the target environment's would run it with
-	// another build's checks. So that deploy fails before anything is written.
-	t.Run("builds, and the image runs only in another environment", func(t *testing.T) {
-		const stagingImage = "registry.example.com/acme/my-agent:build-staging"
-		f := newOwnershipFixture("")
-		f.oc.ListBuildsFunc = func(context.Context, string, string, string) ([]*models.BuildResponse, error) {
-			return nil, boom
-		}
-		f.oc.GetDeploymentsFunc = func(context.Context, string, string, string, string) ([]*models.DeploymentResponse, error) {
-			return []*models.DeploymentResponse{
-				{Environment: "dev", ImageId: deployedImage},
-				{Environment: "staging", ImageId: stagingImage},
-			}, nil
-		}
-		err := f.deploy(t, stagingImage)
-		require.ErrorIs(t, err, boom)
-		assert.Contains(t, err.Error(), "health checks of image "+stagingImage)
-		assert.False(t, *f.bindingReached)
-		assert.Empty(t, f.oc.DeployCalls())
-	})
-
 	t.Run("deployments", func(t *testing.T) {
 		f := newOwnershipFixture("")
 		f.oc.GetDeploymentsFunc = func(context.Context, string, string, string, string) ([]*models.DeploymentResponse, error) {
@@ -361,6 +339,8 @@ func TestHealthChecksOfImageBuild(t *testing.T) {
 	kindBuildChecks := &models.HealthChecks{Liveness: &models.HealthCheck{Type: &tcpCheck}}
 	const kindBuildName = "kind-src-build-7"
 	const goneKindBuildImage = "registry.example.com/acme/kind-src:v3"
+	// Published twice: first from a build whose record is gone, then from one that still exists.
+	const republishedImage = "registry.example.com/acme/kind-src:v4"
 
 	newService := func(listBuildsErr error) *agentManagerService {
 		oc := &clientmocks.OpenChoreoClientMock{
@@ -383,6 +363,8 @@ func TestHealthChecksOfImageBuild(t *testing.T) {
 				k.Versions = []models.AgentKindVersion{
 					{Version: "2.0.0", ImageId: kindVersionImage, BuildName: kindBuildName, Kind: k},
 					{Version: "3.0.0", ImageId: goneKindBuildImage, BuildName: "deleted-build", Kind: k},
+					{Version: "4.0.0", ImageId: republishedImage, BuildName: "deleted-build", Kind: k},
+					{Version: "4.0.1", ImageId: republishedImage, BuildName: kindBuildName, Kind: k},
 				}
 				return k, nil
 			},
@@ -399,6 +381,7 @@ func TestHealthChecksOfImageBuild(t *testing.T) {
 		{"the image of one of the agent's builds gets that build's checks", "", ownBuildImage, ownBuildChecks},
 		{"a catalog version's image gets the checks of the build it was published from", "my-kind", kindVersionImage, kindBuildChecks},
 		{"a catalog version whose build record is gone gets the defaults", "my-kind", goneKindBuildImage, nil},
+		{"a later version of the same image whose build still exists is used", "my-kind", republishedImage, kindBuildChecks},
 		{"an image with no build gets the defaults", "", deployedImage, nil},
 	}
 	for _, tt := range tests {
@@ -445,7 +428,7 @@ func TestKindAgentFirstBindingComponentTypeConfigs(t *testing.T) {
 		return &agentManagerService{ocClient: oc, agentKindService: newKindService(kindRepo, oc), logger: discardLogger()}
 	}
 	configsFor := func(svc *agentManagerService) map[string]interface{} {
-		return svc.kindAgentFirstBindingComponentTypeConfigs(context.Background(), "acme", "proj1", "my-copy", "my-kind", kindVersionImage)
+		return svc.kindAgentFirstBindingComponentTypeConfigs(context.Background(), "acme", "proj1", "my-copy", "my-kind", kindVersionImage, nil)
 	}
 
 	t.Run("the version's build has health checks: the first binding gets them", func(t *testing.T) {
@@ -453,6 +436,18 @@ func TestKindAgentFirstBindingComponentTypeConfigs(t *testing.T) {
 			return &models.BuildDetailsResponse{BuildResponse: models.BuildResponse{HealthChecks: versionBuildChecks}}, nil
 		})
 		assert.Equal(t, map[string]interface{}{"healthChecks": versionBuildChecks}, configsFor(svc))
+	})
+
+	// The map replaces runtimeClassName on an existing binding, so it must carry the
+	// environment's, or a gVisor environment's binding would move to runc.
+	t.Run("the first environment's runtime class is kept alongside the checks", func(t *testing.T) {
+		svc := newService(func() (*models.BuildDetailsResponse, error) {
+			return &models.BuildDetailsResponse{BuildResponse: models.BuildResponse{HealthChecks: versionBuildChecks}}, nil
+		})
+		gvisorEnv := &models.EnvironmentResponse{Name: "dev", IsolationTier: utils.IsolationTierGvisor}
+		configs := svc.kindAgentFirstBindingComponentTypeConfigs(context.Background(), "acme", "proj1", "my-copy", "my-kind", kindVersionImage, gvisorEnv)
+		assert.Equal(t, versionBuildChecks, configs["healthChecks"])
+		assert.Equal(t, utils.RuntimeClassGvisor, configs["runtimeClassName"])
 	})
 
 	t.Run("the version's build has none: no component-type configs, as before", func(t *testing.T) {
@@ -467,5 +462,53 @@ func TestKindAgentFirstBindingComponentTypeConfigs(t *testing.T) {
 			return nil, errors.New("openchoreo unavailable")
 		})
 		assert.Nil(t, configsFor(svc))
+	})
+}
+
+// When a deploy can't look up the image's build, the environment may keep its current health
+// checks only if it already runs that image (so they are that image's). Any other image would
+// run with another build's checks, so the deploy fails instead.
+func TestHealthChecksForDeploy_BuildLookupFails(t *testing.T) {
+	const stagingImage = "registry.example.com/acme/my-agent:build-staging"
+	boom := errors.New("openchoreo unavailable")
+	newService := func(deploymentsErr error) *agentManagerService {
+		oc := &clientmocks.OpenChoreoClientMock{
+			ListBuildsFunc: func(context.Context, string, string, string) ([]*models.BuildResponse, error) {
+				return nil, boom
+			},
+			GetDeploymentsFunc: func(context.Context, string, string, string, string) ([]*models.DeploymentResponse, error) {
+				if deploymentsErr != nil {
+					return nil, deploymentsErr
+				}
+				return []*models.DeploymentResponse{
+					{Environment: "dev", ImageId: deployedImage},
+					{Environment: "staging", ImageId: stagingImage},
+				}, nil
+			},
+		}
+		return &agentManagerService{ocClient: oc, logger: discardLogger()}
+	}
+	healthChecksForDeploy := func(svc *agentManagerService, imageID string) (*models.HealthChecks, bool, error) {
+		return svc.healthChecksForDeploy(context.Background(), "acme", "proj1", "default", "my-agent", "", "dev", imageID)
+	}
+
+	t.Run("redeploying the image the environment runs keeps its checks", func(t *testing.T) {
+		healthChecks, keepCurrent, err := healthChecksForDeploy(newService(nil), deployedImage)
+		require.NoError(t, err)
+		assert.True(t, keepCurrent)
+		assert.Nil(t, healthChecks)
+	})
+
+	t.Run("an image only another environment runs fails the deploy", func(t *testing.T) {
+		_, keepCurrent, err := healthChecksForDeploy(newService(nil), stagingImage)
+		require.ErrorIs(t, err, boom)
+		assert.Contains(t, err.Error(), "health checks of image "+stagingImage)
+		assert.False(t, keepCurrent)
+	})
+
+	t.Run("deployments that can't be read count as a different image", func(t *testing.T) {
+		_, keepCurrent, err := healthChecksForDeploy(newService(errors.New("deployments unavailable")), deployedImage)
+		require.ErrorIs(t, err, boom)
+		assert.False(t, keepCurrent)
 	})
 }
