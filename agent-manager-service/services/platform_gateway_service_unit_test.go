@@ -369,6 +369,19 @@ func TestUpdateGateway_RejectsRuntimeURLOnSelfHostedGateway(t *testing.T) {
 	assert.Empty(t, repo.UpdateGatewayCalls())
 }
 
+func TestUpdateGateway_RejectsInvalidDisplayName(t *testing.T) {
+	for _, displayName := range []string{"", "   ", strings.Repeat("a", 129)} {
+		gw := gatewayFixture("dev-edge")
+		repo := updateRepo(gw)
+		svc := NewPlatformGatewayService(repo, nil)
+
+		_, err := svc.UpdateGateway(gw.UUID.String(), gatewayTestOUID, nil, &displayName, nil, nil, nil)
+
+		require.ErrorIs(t, err, utils.ErrInvalidInput, "displayName %q", displayName)
+		assert.Empty(t, repo.UpdateGatewayCalls())
+	}
+}
+
 func TestUpdateGateway_AllowsEmptyRuntimeURLOnSelfHostedGateway(t *testing.T) {
 	gw := gatewayFixture("dev-edge")
 	gw.Hosting = models.GatewayHostingSelfHosted

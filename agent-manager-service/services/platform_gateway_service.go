@@ -479,6 +479,9 @@ func (s *PlatformGatewayService) UpdateGateway(
 		gateway.Description = *description
 	}
 	if displayName != nil {
+		if err := validateGatewayDisplayName(*displayName); err != nil {
+			return nil, err
+		}
 		gateway.DisplayName = *displayName
 	}
 	if isCritical != nil {
@@ -1305,13 +1308,8 @@ func (s *PlatformGatewayService) validateGatewayInput(ouID, name, displayName, v
 		return utils.NewInvalidInputError("Gateway name cannot start or end with a hyphen", "gateway name cannot start or end with a hyphen")
 	}
 
-	// Display name validation
-	displayName = strings.TrimSpace(displayName)
-	if displayName == "" {
-		return utils.NewInvalidInputError("Display name is required", "display name is required")
-	}
-	if len(displayName) > 128 {
-		return utils.NewInvalidInputError("Display name must not exceed 128 characters", "display name must not exceed 128 characters")
+	if err := validateGatewayDisplayName(displayName); err != nil {
+		return err
 	}
 
 	// VHost validation
@@ -1320,6 +1318,17 @@ func (s *PlatformGatewayService) validateGatewayInput(ouID, name, displayName, v
 		return utils.NewInvalidInputError("Host is required", "vhost is required")
 	}
 
+	return nil
+}
+
+func validateGatewayDisplayName(displayName string) error {
+	displayName = strings.TrimSpace(displayName)
+	if displayName == "" {
+		return utils.NewInvalidInputError("Display name is required", "display name is required")
+	}
+	if len(displayName) > 128 {
+		return utils.NewInvalidInputError("Display name must not exceed 128 characters", "display name must not exceed 128 characters")
+	}
 	return nil
 }
 
