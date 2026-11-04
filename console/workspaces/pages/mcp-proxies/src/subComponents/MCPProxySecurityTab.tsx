@@ -562,22 +562,21 @@ export function MCPProxySecurityTab({
                 ? "OAuth isn't available on self-hosted gateways yet. Use API key security."
                 : undefined
             }
-              size="small"
-              displayEmpty
-              value={authenticationType || ""}
-              onChange={(e) =>
-                handleAuthTypeChange((e.target.value as AuthenticationType) || "")
-              }
+            size="small"
+            value={authenticationType || ""}
+            onChange={(e) =>
+              handleAuthTypeChange((e.target.value as AuthenticationType) || "")
+            }
           >
-              {AUTHENTICATION_TYPE_OPTIONS.map((type) => (
-                <MenuItem
-                  key={type || "none"}
-                  value={type}
-                  disabled={type === "identity" && isOnSelfHostedGateway}
-                >
-                  {getAuthenticationTypeLabel(type)}
-                </MenuItem>
-              ))}
+            {AUTHENTICATION_TYPE_OPTIONS.map((type) => (
+              <MenuItem
+                key={type || "none"}
+                value={type}
+                disabled={type === "identity" && isOnSelfHostedGateway}
+              >
+                {getAuthenticationTypeLabel(type)}
+              </MenuItem>
+            ))}
           </TextInput>
         </Grid>
       </Grid>
