@@ -722,3 +722,102 @@ func TestEnsureReleaseAndBinding_ReplacesOrRemovesTheBuildsHealthChecks(t *testi
 		})
 	}
 }
+
+// Promote moves the source environment's build to the target, and the build's health checks
+// travel with it, whatever the caller passed for the target's own configuration. Health checks
+// sit in the binding's component-type configs, which promote otherwise leaves alone (normal
+// target) or replaces wholesale (gVisor target); either way the target ends up with the
+// source's health checks, or none when the source has none.
+func TestPromoteComponent_CarriesTheSourcesHealthChecks(t *testing.T) {
+	const componentName = "myagent"
+	sourceChecks := map[string]interface{}{"readiness": map[string]interface{}{"type": "HTTP", "path": "/health"}}
+	olderBuildChecks := map[string]interface{}{"readiness": map[string]interface{}{"type": "TCP"}}
+
+	binding := func(environment string, componentTypeConfigs map[string]interface{}) gen.ReleaseBinding {
+		b := gen.ReleaseBinding{
+			Metadata: gen.ObjectMeta{Name: componentName + "-" + environment},
+			Spec: &gen.ReleaseBindingSpec{
+				Environment: environment,
+				Owner: struct {
+					ComponentName string `json:"componentName"`
+					ProjectName   string `json:"projectName"`
+				}{ComponentName: componentName, ProjectName: "myproject"},
+			},
+		}
+		if environment == "default" {
+			release := "release-from-build-1"
+			b.Spec.ReleaseName = &release
+		}
+		if componentTypeConfigs != nil {
+			b.Spec.ComponentTypeEnvironmentConfigs = &componentTypeConfigs
+		}
+		return b
+	}
+
+	// configsWrittenByPromote promotes default -> sandbox against a fake OpenChoreo and returns
+	// the component-type configs written to sandbox's binding. target is nil when sandbox has
+	// no binding yet (first promote, so one is created).
+	configsWrittenByPromote := func(t *testing.T, source gen.ReleaseBinding, target *gen.ReleaseBinding, componentTypeConfigs map[string]interface{}) map[string]interface{} {
+		t.Helper()
+		var written gen.ReleaseBinding
+		srv := newTestClient(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			switch {
+			case r.Method == http.MethodGet && strings.HasSuffix(r.URL.Path, "/releasebindings"):
+				items := []gen.ReleaseBinding{source}
+				if target != nil {
+					items = append(items, *target)
+				}
+				w.WriteHeader(http.StatusOK)
+				require.NoError(t, json.NewEncoder(w).Encode(gen.ReleaseBindingList{Items: items}))
+			case r.Method == http.MethodGet && strings.HasSuffix(r.URL.Path, "/releasebindings/"+componentName+"-sandbox"):
+				if target == nil {
+					w.WriteHeader(http.StatusNotFound)
+					require.NoError(t, json.NewEncoder(w).Encode(gen.NotFound{Error: "not found"}))
+					return
+				}
+				w.WriteHeader(http.StatusOK)
+				require.NoError(t, json.NewEncoder(w).Encode(*target))
+			case (r.Method == http.MethodPut && strings.HasSuffix(r.URL.Path, "/releasebindings/"+componentName+"-sandbox")) ||
+				(r.Method == http.MethodPost && strings.HasSuffix(r.URL.Path, "/releasebindings")):
+				require.NoError(t, json.NewDecoder(r.Body).Decode(&written))
+				w.WriteHeader(map[string]int{http.MethodPut: http.StatusOK, http.MethodPost: http.StatusCreated}[r.Method])
+				require.NoError(t, json.NewEncoder(w).Encode(written))
+			default:
+				t.Fatalf("unexpected request: %s %s", r.Method, r.URL.Path)
+			}
+		}))
+		require.NoError(t, srv.PromoteComponent(context.Background(), "acme", "myproject", componentName,
+			"default", "sandbox", nil, nil, nil, componentTypeConfigs))
+		require.NotNil(t, written.Spec, "expected sandbox's binding to be written")
+		require.NotNil(t, written.Spec.ComponentTypeEnvironmentConfigs)
+		return *written.Spec.ComponentTypeEnvironmentConfigs
+	}
+
+	t.Run("normal target: the source's checks replace an older build's, other configs kept", func(t *testing.T) {
+		target := binding("sandbox", map[string]interface{}{"replicas": float64(2), "healthChecks": olderBuildChecks})
+		writtenConfigs := configsWrittenByPromote(t, binding("default", map[string]interface{}{"healthChecks": sourceChecks}), &target, nil)
+		assert.Equal(t, sourceChecks, writtenConfigs["healthChecks"])
+		assert.Equal(t, float64(2), writtenConfigs["replicas"], "other configs are kept")
+	})
+
+	t.Run("normal target: a source without checks removes an older build's", func(t *testing.T) {
+		target := binding("sandbox", map[string]interface{}{"replicas": float64(2), "healthChecks": olderBuildChecks})
+		writtenConfigs := configsWrittenByPromote(t, binding("default", nil), &target, nil)
+		assert.NotContains(t, writtenConfigs, "healthChecks")
+		assert.Equal(t, float64(2), writtenConfigs["replicas"], "other configs are kept")
+	})
+
+	t.Run("gVisor target: configs replaced as before, plus the source's checks", func(t *testing.T) {
+		target := binding("sandbox", map[string]interface{}{"healthChecks": olderBuildChecks})
+		passed := map[string]interface{}{"runtimeClassName": "gvisor"}
+		writtenConfigs := configsWrittenByPromote(t, binding("default", map[string]interface{}{"healthChecks": sourceChecks}), &target, passed)
+		assert.Equal(t, "gvisor", writtenConfigs["runtimeClassName"])
+		assert.Equal(t, sourceChecks, writtenConfigs["healthChecks"])
+		assert.NotContains(t, passed, "healthChecks", "the caller's map is not changed")
+	})
+
+	t.Run("first promote: the new binding gets the source's checks", func(t *testing.T) {
+		writtenConfigs := configsWrittenByPromote(t, binding("default", map[string]interface{}{"healthChecks": sourceChecks}), nil, nil)
+		assert.Equal(t, sourceChecks, writtenConfigs["healthChecks"])
+	})
+}
