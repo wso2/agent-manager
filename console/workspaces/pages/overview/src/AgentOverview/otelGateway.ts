@@ -16,12 +16,7 @@
  * under the License.
  */
 
-import {
-  isSelfHostedGateway,
-  type GatewayResponse,
-} from "@agent-management-platform/types";
-
-const isManaged = (gateway: GatewayResponse): boolean => !isSelfHostedGateway(gateway);
+import { isManagedGateway, type GatewayResponse } from "@agent-management-platform/types";
 
 const isIngressCapable = (gateway: GatewayResponse): boolean =>
   gateway.gatewayType === "INGRESS" || gateway.gatewayType === "BOTH";
@@ -32,6 +27,6 @@ const isIngressCapable = (gateway: GatewayResponse): boolean =>
  * customer's, never where an agent's telemetry goes.
  */
 export function otelGatewayVhost(gateways: GatewayResponse[] | undefined): string | undefined {
-  const managed = (gateways ?? []).filter(isManaged);
+  const managed = (gateways ?? []).filter(isManagedGateway);
   return (managed.find(isIngressCapable) ?? managed[0])?.vhost;
 }

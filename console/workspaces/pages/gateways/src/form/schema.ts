@@ -16,18 +16,33 @@
  */
 
 import { z } from "zod";
+import { isPublicUrl } from "../subComponents/selfHostedSetup";
 
-// Exported so the edit drawer caps its input at exactly what this schema accepts.
+// Exported so the drawers cap their input at exactly what these schemas accept.
 export const GATEWAY_DISPLAY_NAME_MAX_LENGTH = 128;
+const GATEWAY_DISPLAY_NAME_MIN_LENGTH = 3;
 
-
-export const editGatewaySchema = z.object({
-  displayName: z
+const displayName = (minMessage: string) =>
+  z
     .string()
     .trim()
-    .min(3, "Display name is required")
-    .max(GATEWAY_DISPLAY_NAME_MAX_LENGTH, `Display name must be at most ${GATEWAY_DISPLAY_NAME_MAX_LENGTH} characters`),
+    .min(GATEWAY_DISPLAY_NAME_MIN_LENGTH, minMessage)
+    .max(GATEWAY_DISPLAY_NAME_MAX_LENGTH, `Display name must be at most ${GATEWAY_DISPLAY_NAME_MAX_LENGTH} characters`);
+
+export const editGatewaySchema = z.object({
+  displayName: displayName("Display name is required"),
   isCritical: z.boolean(),
 });
 
 export type EditGatewayFormValues = z.infer<typeof editGatewaySchema>;
+
+export const addSelfHostedGatewaySchema = z.object({
+  displayName: displayName(
+    `Display name must be at least ${GATEWAY_DISPLAY_NAME_MIN_LENGTH} characters`,
+  ),
+  environment: z.string().min(1, "Select an environment"),
+  publicUrl: z.string().refine(isPublicUrl, "Enter a URL such as https://gateway.example.com"),
+  description: z.string(),
+});
+
+export type AddSelfHostedGatewayFormValues = z.infer<typeof addSelfHostedGatewaySchema>;

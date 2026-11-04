@@ -35,9 +35,11 @@ import {
   useSelfHostedGatewayTokens,
 } from "@agent-management-platform/api-client";
 import {
+  copyToClipboard,
   getErrorMessage,
   useConfirmationDialog,
 } from "@agent-management-platform/shared-component";
+import { activeTokens } from "./selfHostedSetup";
 
 const MAX_ACTIVE_TOKENS = 2;
 
@@ -60,7 +62,7 @@ export function SelfHostedGatewayTokensCard({
   const [actionError, setActionError] = useState<string | null>(null);
 
   const tokens = data?.list ?? [];
-  const activeCount = tokens.filter((t) => t.status === "active").length;
+  const activeCount = activeTokens(tokens).length;
 
   const handleCreate = async () => {
     setActionError(null);
@@ -120,7 +122,7 @@ export function SelfHostedGatewayTokensCard({
               <Button
                 size="small"
                 startIcon={<Copy size={14} />}
-                onClick={() => void navigator.clipboard.writeText(newToken)}
+                onClick={() => void copyToClipboard(newToken)}
               >
                 Copy
               </Button>

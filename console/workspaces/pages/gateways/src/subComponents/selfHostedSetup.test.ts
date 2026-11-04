@@ -16,13 +16,12 @@
  */
 
 import { describe, expect, it, vi } from "vitest";
-import type { GatewayResponse } from "@agent-management-platform/types";
 import {
+  activeTokens,
   cpHostFromUrl,
   dockerCommands,
   helmCommands,
   isPublicUrl,
-  managedGateways,
   reconfigureToken,
 } from "./selfHostedSetup";
 
@@ -58,27 +57,28 @@ describe("dockerCommands", () => {
 });
 
 describe("helmCommands", () => {
-  it.each(["2026.09.24", "v2026.09.24"])("builds the install for version %s", (version) => {
-    const joined = helmCommands(version, HOST, TOKEN).join("\n");
-    expect(joined).toContain("openssl rand 32 > default-aesgcm256-v1.bin");
-    expect(joined).toContain(
-      "kubectl create secret generic gateway-encryption-keys --from-file=default-aesgcm256-v1.bin=default-aesgcm256-v1.bin",
+  it("creates the encryption key secret from a generated key", () => {
+    expect(helmCommands("2026.09.24", HOST, TOKEN).createEncryptionKeySecret).toBe(
+      "openssl rand 32 > default-aesgcm256-v1.bin\n" +
+        "kubectl create secret generic gateway-encryption-keys --from-file=default-aesgcm256-v1.bin=default-aesgcm256-v1.bin",
     );
-    expect(joined).toContain(
+  });
+
+  it.each(["2026.09.24", "v2026.09.24"])("builds the install for version %s", (version) => {
+    const { install } = helmCommands(version, HOST, TOKEN);
+    expect(install).toContain(
       "oci://ghcr.io/wso2/api-platform/helm-charts/gateway --version 2026.09.24",
     );
-    expect(joined).toContain(`--set gateway.controller.controlPlane.host=${HOST}`);
-    expect(joined).toContain(`--set gateway.controller.controlPlane.token.value=${TOKEN}`);
-    expect(joined).toContain("--set gateway.controller.encryptionKeys.enabled=true");
-    expect(joined).toContain(
+    expect(install).toContain(`--set gateway.controller.controlPlane.host=${HOST}`);
+    expect(install).toContain(`--set gateway.controller.controlPlane.token.value=${TOKEN}`);
+    expect(install).toContain("--set gateway.controller.encryptionKeys.enabled=true");
+    expect(install).toContain(
       "--set gateway.controller.encryptionKeys.secretName=gateway-encryption-keys",
     );
   });
 
   it("does not set a control plane port", () => {
-    expect(helmCommands("2026.09.24", HOST, TOKEN).join("\n")).not.toContain(
-      "controlPlane.port",
-    );
+    expect(helmCommands("2026.09.24", HOST, TOKEN).install).not.toContain("controlPlane.port");
   });
 });
 
@@ -141,12 +141,10 @@ describe("isPublicUrl", () => {
   );
 });
 
-describe("managedGateways", () => {
-  it("drops self-hosted gateways and keeps managed and pre-hosting ones", () => {
-    const managed = { uuid: "m", hosting: "MANAGED" } as GatewayResponse;
-    const legacy = { uuid: "l" } as GatewayResponse;
-    const selfHosted = { uuid: "s", hosting: "SELF_HOSTED" } as GatewayResponse;
-
-    expect(managedGateways([managed, selfHosted, legacy])).toEqual([managed, legacy]);
+describe("activeTokens", () => {
+  it("keeps only active tokens", () => {
+    const active = { id: "a", status: "active" as const, createdAt: "" };
+    const revoked = { id: "r", status: "revoked" as const, createdAt: "" };
+    expect(activeTokens([active, revoked])).toEqual([active]);
   });
 });

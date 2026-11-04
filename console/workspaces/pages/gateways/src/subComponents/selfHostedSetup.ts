@@ -15,10 +15,7 @@
  * under the License.
  */
 
-import {
-  isSelfHostedGateway,
-  type GatewayResponse,
-} from "@agent-management-platform/types";
+import type { GatewayTokenInfo } from "@agent-management-platform/types";
 
 const RELEASE_BASE_URL = "https://github.com/wso2/api-platform/releases/download/ai-gateway";
 const HELM_CHART_REF = "oci://ghcr.io/wso2/api-platform/helm-charts/gateway";
@@ -50,22 +47,30 @@ ENVFILE`,
   };
 }
 
-export function helmCommands(version: string, cpHost: string, token: string): string[] {
-  return [
-    `openssl rand 32 > ${ENCRYPTION_KEY_FILE}`,
-    `kubectl create secret generic ${ENCRYPTION_KEYS_SECRET} --from-file=${ENCRYPTION_KEY_FILE}=${ENCRYPTION_KEY_FILE}`,
-    `helm install gateway ${HELM_CHART_REF} --version ${bareVersion(version)} \\
+export interface HelmCommands {
+  createEncryptionKeySecret: string;
+  install: string;
+}
+
+export function helmCommands(version: string, cpHost: string, token: string): HelmCommands {
+  return {
+    createEncryptionKeySecret: `openssl rand 32 > ${ENCRYPTION_KEY_FILE}
+kubectl create secret generic ${ENCRYPTION_KEYS_SECRET} --from-file=${ENCRYPTION_KEY_FILE}=${ENCRYPTION_KEY_FILE}`,
+    install: `helm install gateway ${HELM_CHART_REF} --version ${bareVersion(version)} \\
   --set gateway.controller.controlPlane.host=${cpHost} \\
   --set gateway.controller.controlPlane.token.value=${token} \\
   --set gateway.controller.encryptionKeys.enabled=true \\
   --set gateway.controller.encryptionKeys.secretName=${ENCRYPTION_KEYS_SECRET}`,
-  ];
+  };
 }
 
 /** The gateway dials `host[:port][/path]`, not a URL. */
 export function cpHostFromUrl(url: string): string {
   return url.trim().replace(/^https?:\/\//, "");
 }
+
+export const activeTokens = (tokens: GatewayTokenInfo[]): GatewayTokenInfo[] =>
+  tokens.filter((token) => token.status === "active");
 
 /**
  * Revokes every active token, then mints one. A gateway holds at most two
@@ -76,9 +81,8 @@ export async function reconfigureToken(
   revoke: (tokenId: string) => Promise<unknown>,
   create: () => Promise<string>,
 ): Promise<string> {
-  for (const tokenId of await listActiveTokenIds()) {
-    await revoke(tokenId);
-  }
+  const tokenIds = await listActiveTokenIds();
+  await Promise.all(tokenIds.map((tokenId) => revoke(tokenId)));
   return create();
 }
 
@@ -100,7 +104,3 @@ export const isPublicUrl = (value: string): boolean => {
     url.password === ""
   );
 };
-
-/** The gateways the platform runs. */
-export const managedGateways = (gateways: GatewayResponse[]): GatewayResponse[] =>
-  gateways.filter((gateway) => !isSelfHostedGateway(gateway));

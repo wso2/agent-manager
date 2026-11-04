@@ -23,8 +23,10 @@ import {
   useRevokeSelfHostedGatewayToken,
   useSelfHostedGatewayTokens,
 } from "@agent-management-platform/api-client";
+import { copyToClipboard } from "@agent-management-platform/shared-component";
 import { globalConfig } from "@agent-management-platform/types";
 import {
+  activeTokens,
   cpHostFromUrl,
   dockerCommands,
   helmCommands,
@@ -48,7 +50,8 @@ function CommandField({ display, copyValue, copyLabel }: CommandFieldProps) {
   const [copied, setCopied] = useState(false);
 
   const handleCopy = () => {
-    void navigator.clipboard.writeText(copyValue ?? display).then(() => {
+    void copyToClipboard(copyValue ?? display).then((succeeded) => {
+      if (!succeeded) return;
       setCopied(true);
       setTimeout(() => setCopied(false), COPY_FEEDBACK_MS);
     });
@@ -137,7 +140,8 @@ export function SelfHostedSetupSteps({
   const [reconfigureError, setReconfigureError] = useState<string | null>(null);
 
   const params = { orgName, gatewayId };
-  const { refetch: refetchTokens } = useSelfHostedGatewayTokens(params);
+  // Read only when reconfiguring, so nothing loads on mount.
+  const { refetch: refetchTokens } = useSelfHostedGatewayTokens(params, { enabled: false });
   const { mutateAsync: createToken } = useCreateSelfHostedGatewayToken();
   const { mutateAsync: revokeToken } = useRevokeSelfHostedGatewayToken();
 
@@ -151,7 +155,7 @@ export function SelfHostedSetupSteps({
       const minted = await reconfigureToken(
         async () => {
           const { data } = await refetchTokens();
-          return (data?.list ?? []).filter((t) => t.status === "active").map((t) => t.id);
+          return activeTokens(data?.list ?? []).map((t) => t.id);
         },
         (tokenId) => revokeToken({ ...params, tokenId }),
         async () => (await createToken(params)).token,
@@ -240,7 +244,7 @@ export function SelfHostedSetupSteps({
         <Stack spacing={3}>
           <Step number={1} title="Create the encryption key secret">
             <CommandField
-              display={helmDisplay.slice(0, 2).join("\n")}
+              display={helmDisplay.createEncryptionKeySecret}
               copyLabel="encryption key commands"
             />
           </Step>
@@ -249,8 +253,8 @@ export function SelfHostedSetupSteps({
               <>
                 {tokenNote}
                 <CommandField
-                  display={helmDisplay[2]}
-                  copyValue={helm[2]}
+                  display={helmDisplay.install}
+                  copyValue={helm.install}
                   copyLabel="helm install command"
                 />
               </>

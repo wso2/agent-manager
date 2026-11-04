@@ -17,6 +17,8 @@
 
 import { describe, expect, it } from "vitest";
 import {
+  gatewayHostingLabel,
+  isManagedGateway,
   isSelfHostedGateway,
   showGatewayHosting,
 } from "@agent-management-platform/types";
@@ -31,6 +33,26 @@ describe("isSelfHostedGateway", () => {
     ["no hosting", {}, false],
   ])("%s", (_, gateway, expected) => {
     expect(isSelfHostedGateway(gateway)).toBe(expected);
+  });
+});
+
+describe("isManagedGateway", () => {
+  it.each([
+    ["SELF_HOSTED", selfHosted, false],
+    ["MANAGED", managed, true],
+    ["no hosting", {}, true],
+  ])("%s", (_, gateway, expected) => {
+    expect(isManagedGateway(gateway)).toBe(expected);
+  });
+});
+
+describe("gatewayHostingLabel", () => {
+  it.each([
+    ["SELF_HOSTED", selfHosted, "Self-hosted"],
+    ["MANAGED", managed, "Managed"],
+    ["no hosting", {}, "Managed"],
+  ])("%s", (_, gateway, expected) => {
+    expect(gatewayHostingLabel(gateway)).toBe(expected);
   });
 });
 

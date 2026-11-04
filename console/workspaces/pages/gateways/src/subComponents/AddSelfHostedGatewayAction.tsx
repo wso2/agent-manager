@@ -19,10 +19,7 @@ import React, { useState } from "react";
 import { Box, Button, type SxProps, type Theme } from "@wso2/oxygen-ui";
 import { Plus } from "@wso2/oxygen-ui-icons-react";
 import { useListEnvironments } from "@agent-management-platform/api-client";
-import {
-  globalConfig,
-  type GatewayResponse,
-} from "@agent-management-platform/types";
+import { globalConfig } from "@agent-management-platform/types";
 import { AddSelfHostedGatewayDrawer } from "./AddSelfHostedGatewayDrawer";
 
 const DEFAULT_DISPLAY_NAME = "AI Self-Hosted";
@@ -32,14 +29,13 @@ interface AddSelfHostedGatewayActionProps {
   orgId: string;
   /** Environment name to pre-fill; defaults to the organization's first. */
   presetEnvironment?: string;
-  onCreated?: (gateway: GatewayResponse) => void;
   disabled?: boolean;
   sx?: SxProps<Theme>;
 }
 
 const EnabledAddSelfHostedGatewayAction: React.FC<
   AddSelfHostedGatewayActionProps
-> = ({ orgId, presetEnvironment, onCreated, disabled, sx }) => {
+> = ({ orgId, presetEnvironment, disabled, sx }) => {
   const [open, setOpen] = useState(false);
   const { data: environments } = useListEnvironments({ orgName: orgId });
 
@@ -61,7 +57,6 @@ const EnabledAddSelfHostedGatewayAction: React.FC<
         presetEnvironment={presetEnvironment ?? environments?.[0]?.name}
         presetDisplayName={DEFAULT_DISPLAY_NAME}
         presetDescription={DEFAULT_DESCRIPTION}
-        onCreated={onCreated}
       />
     </Box>
   );

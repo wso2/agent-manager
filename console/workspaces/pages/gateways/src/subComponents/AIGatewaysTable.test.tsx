@@ -57,8 +57,11 @@ vi.mock("@agent-management-platform/api-client", () => {
 
 vi.mock("@agent-management-platform/shared-component", async () => {
   const React = await import("react");
+  const { gatewayHostingLabel } = await import("@agent-management-platform/types");
   return {
     GatewayTypeChip: () => React.createElement("span", null, "type"),
+    GatewayHostingChip: (props: { gateway: Parameters<typeof gatewayHostingLabel>[0] }) =>
+      React.createElement("span", null, gatewayHostingLabel(props.gateway)),
     ResourceListShell: ({
       addButton,
       children,

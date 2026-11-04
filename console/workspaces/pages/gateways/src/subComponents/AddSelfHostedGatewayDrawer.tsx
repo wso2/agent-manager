@@ -34,6 +34,7 @@ import {
   DrawerContent,
   DrawerHeader,
   DrawerWrapper,
+  useFormValidation,
 } from "@agent-management-platform/views";
 import {
   useCreateSelfHostedGateway,
@@ -42,11 +43,12 @@ import {
 } from "@agent-management-platform/api-client";
 import { getErrorMessage } from "@agent-management-platform/shared-component";
 import type { GatewayResponse } from "@agent-management-platform/types";
-import { GATEWAY_DISPLAY_NAME_MAX_LENGTH } from "../form/schema";
-import { isPublicUrl } from "./selfHostedSetup";
+import {
+  addSelfHostedGatewaySchema,
+  GATEWAY_DISPLAY_NAME_MAX_LENGTH,
+  type AddSelfHostedGatewayFormValues,
+} from "../form/schema";
 import { SelfHostedSetupSteps } from "./SelfHostedSetupSteps";
-
-const MIN_DISPLAY_NAME_LENGTH = 3;
 
 interface AddSelfHostedGatewayDrawerProps {
   open: boolean;
@@ -56,7 +58,6 @@ interface AddSelfHostedGatewayDrawerProps {
   presetEnvironment?: string;
   presetDisplayName?: string;
   presetDescription?: string;
-  onCreated?: (gateway: GatewayResponse) => void;
 }
 
 interface CreatedGateway {
@@ -73,12 +74,16 @@ export function AddSelfHostedGatewayDrawer({
   presetEnvironment = "",
   presetDisplayName = "",
   presetDescription = "",
-  onCreated,
 }: AddSelfHostedGatewayDrawerProps) {
-  const [displayName, setDisplayName] = useState(presetDisplayName);
-  const [environment, setEnvironment] = useState(presetEnvironment);
-  const [publicUrl, setPublicUrl] = useState("");
-  const [description, setDescription] = useState(presetDescription);
+  const [values, setValues] = useState<AddSelfHostedGatewayFormValues>({
+    displayName: presetDisplayName,
+    environment: presetEnvironment,
+    publicUrl: "",
+    description: presetDescription,
+  });
+  const { errors, validateForm, clearErrors } =
+    useFormValidation<AddSelfHostedGatewayFormValues>(addSelfHostedGatewaySchema);
+  // Errors show from the first submit on, then follow every edit.
   const [submitted, setSubmitted] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
   const [created, setCreated] = useState<CreatedGateway | null>(null);
@@ -93,31 +98,30 @@ export function AddSelfHostedGatewayDrawer({
       setCreated(null);
       return;
     }
-    setDisplayName(presetDisplayName);
-    setEnvironment(presetEnvironment);
-    setDescription(presetDescription);
-    setPublicUrl("");
+    setValues({
+      displayName: presetDisplayName,
+      environment: presetEnvironment,
+      publicUrl: "",
+      description: presetDescription,
+    });
     setSubmitted(false);
+    clearErrors();
     setSubmitError(null);
     setCreated(null);
-  }, [open, presetDisplayName, presetEnvironment, presetDescription]);
+  }, [open, presetDisplayName, presetEnvironment, presetDescription, clearErrors]);
 
-  const errors = {
-    displayName:
-      displayName.trim().length < MIN_DISPLAY_NAME_LENGTH
-        ? `Display name must be at least ${MIN_DISPLAY_NAME_LENGTH} characters`
-        : undefined,
-    environment: environment ? undefined : "Select an environment",
-    publicUrl: isPublicUrl(publicUrl) ? undefined : "Enter a URL such as https://gateway.example.com",
+  const setField = (field: keyof AddSelfHostedGatewayFormValues, value: string) => {
+    const next = { ...values, [field]: value };
+    setValues(next);
+    if (submitted) validateForm(next);
   };
-  const showError = (field: keyof typeof errors) => (submitted ? errors[field] : undefined);
-  const isValid = !Object.values(errors).some(Boolean);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setSubmitted(true);
-    if (!isValid) return;
+    if (!validateForm(values)) return;
     setSubmitError(null);
+    const { displayName, environment, publicUrl, description } = values;
 
     let gateway: GatewayResponse;
     try {
@@ -144,7 +148,6 @@ export function AddSelfHostedGatewayDrawer({
       tokenError = getErrorMessage(err) || undefined;
     }
     setCreated({ gateway, token, tokenError });
-    onCreated?.(gateway);
   };
 
   return (
@@ -189,26 +192,26 @@ export function AddSelfHostedGatewayDrawer({
               <Form.Section>
                 <Form.Header>Gateway Details</Form.Header>
                 <Form.Stack spacing={2}>
-                  <FormControl fullWidth error={Boolean(showError("displayName"))}>
+                  <FormControl fullWidth error={Boolean(errors.displayName)}>
                     <FormLabel required>Display Name</FormLabel>
                     <TextField
                       slotProps={{ htmlInput: { maxLength: GATEWAY_DISPLAY_NAME_MAX_LENGTH } }}
                       fullWidth
                       size="small"
-                      value={displayName}
-                      onChange={(e) => setDisplayName(e.target.value)}
+                      value={values.displayName}
+                      onChange={(e) => setField("displayName", e.target.value)}
                       placeholder="e.g., Production Gateway"
-                      error={Boolean(showError("displayName"))}
-                      helperText={showError("displayName")}
+                      error={Boolean(errors.displayName)}
+                      helperText={errors.displayName}
                       disabled={isPending}
                     />
                   </FormControl>
-                  <FormControl fullWidth error={Boolean(showError("environment"))}>
+                  <FormControl fullWidth error={Boolean(errors.environment)}>
                     <FormLabel required>Environment</FormLabel>
                     <Select
                       size="small"
-                      value={environment}
-                      onChange={(e) => setEnvironment(String(e.target.value))}
+                      value={values.environment}
+                      onChange={(e) => setField("environment", String(e.target.value))}
                       displayEmpty
                       disabled={isPending}
                       inputProps={{ "aria-label": "Environment" }}
@@ -219,23 +222,23 @@ export function AddSelfHostedGatewayDrawer({
                         </MenuItem>
                       ))}
                     </Select>
-                    {showError("environment") && (
+                    {errors.environment && (
                       <Typography variant="caption" color="error">
-                        {showError("environment")}
+                        {errors.environment}
                       </Typography>
                     )}
                   </FormControl>
-                  <FormControl fullWidth error={Boolean(showError("publicUrl"))}>
+                  <FormControl fullWidth error={Boolean(errors.publicUrl)}>
                     <FormLabel required>Public URL</FormLabel>
                     <TextField
                       fullWidth
                       size="small"
-                      value={publicUrl}
-                      onChange={(e) => setPublicUrl(e.target.value)}
+                      value={values.publicUrl}
+                      onChange={(e) => setField("publicUrl", e.target.value)}
                       placeholder="https://gateway.example.com"
-                      error={Boolean(showError("publicUrl"))}
+                      error={Boolean(errors.publicUrl)}
                       helperText={
-                        showError("publicUrl") ??
+                        errors.publicUrl ??
                         "The address clients use to reach this gateway."
                       }
                       disabled={isPending}
@@ -248,8 +251,8 @@ export function AddSelfHostedGatewayDrawer({
                       size="small"
                       multiline
                       minRows={2}
-                      value={description}
-                      onChange={(e) => setDescription(e.target.value)}
+                      value={values.description}
+                      onChange={(e) => setField("description", e.target.value)}
                       disabled={isPending}
                     />
                   </FormControl>

@@ -48,6 +48,7 @@ import {
 } from "@agent-management-platform/api-client";
 import {
   globalConfig,
+  isManagedGateway,
   type GatewayEnvironmentResponse,
   type IdentityProvider,
   INPUT_LIMITS,
@@ -61,7 +62,6 @@ import {
   type ManageIdentityProviderMode,
   type ScriptInputs,
 } from "./manageIdentityProviderScript";
-import { managedGateways } from "./selfHostedSetup";
 
 export type { ManageIdentityProviderMode };
 
@@ -165,7 +165,10 @@ export function ManageIdentityProviderDialog({
     { orgName: orgId },
     envName ? { environment: envName } : undefined,
   );
-  const gateways = useMemo(() => managedGateways(gatewaysResp?.gateways ?? []), [gatewaysResp]);
+  const gateways = useMemo(
+    () => (gatewaysResp?.gateways ?? []).filter(isManagedGateway),
+    [gatewaysResp],
+  );
 
   // Environment choices: scoped to the locked gateway when present, otherwise
   // every environment in the org.

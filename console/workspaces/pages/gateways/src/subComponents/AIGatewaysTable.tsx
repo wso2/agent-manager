@@ -40,6 +40,7 @@ import {
   useListGateways,
 } from "@agent-management-platform/api-client";
 import {
+  GatewayHostingChip,
   GatewayTypeChip,
   ResourceListShell,
   formatRelativeTime,
@@ -234,11 +235,7 @@ export function AIGatewaysTable({
 
         {showHosting && (
           <ListingTable.Cell align="left">
-            <Chip
-              label={isSelfHostedGateway(gateway) ? "Self-hosted" : "Managed"}
-              size="small"
-              variant="outlined"
-            />
+            <GatewayHostingChip gateway={gateway} />
           </ListingTable.Cell>
         )}
 

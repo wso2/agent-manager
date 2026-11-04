@@ -41,8 +41,6 @@ import type {
   UpdateGatewayRequest,
   CreateSelfHostedGatewayPathParams,
   DeleteSelfHostedGatewayPathParams,
-  ListSelfHostedGatewaysPathParams,
-  ListSelfHostedGatewaysQuery,
   RevokeSelfHostedGatewayTokenPathParams,
   SelfHostedGatewayRequest,
   SelfHostedGatewayTokensPathParams,
@@ -342,30 +340,6 @@ export async function deleteIdentityProvider(
     { token },
   );
   if (!res.ok && res.status !== 204) throw await res.json();
-}
-
-export async function listSelfHostedGateways(
-  params: ListSelfHostedGatewaysPathParams,
-  query?: ListSelfHostedGatewaysQuery,
-  getToken?: () => Promise<string>,
-): Promise<GatewayListResponse> {
-  const org = encodeRequired(params.orgName, "orgName");
-  const token = getToken ? await getToken() : undefined;
-
-  const searchParams: Record<string, string> = {};
-  if (query?.limit !== undefined) {
-    searchParams.limit = String(query.limit);
-  }
-  if (query?.offset !== undefined) {
-    searchParams.offset = String(query.offset);
-  }
-
-  const res = await httpGET(`${SERVICE_BASE}/orgs/${org}/self-hosted-gateways`, {
-    token,
-    searchParams: Object.keys(searchParams).length ? searchParams : undefined,
-  });
-  if (!res.ok) throw await res.json();
-  return res.json();
 }
 
 export async function createSelfHostedGateway(

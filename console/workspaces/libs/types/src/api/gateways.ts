@@ -27,6 +27,12 @@ export const isSelfHostedGateway = (gateway: {
   hosting?: GatewayHosting;
 }): boolean => gateway.hosting === "SELF_HOSTED";
 
+export const isManagedGateway = (gateway: { hosting?: GatewayHosting }): boolean =>
+  !isSelfHostedGateway(gateway);
+
+export const gatewayHostingLabel = (gateway: { hosting?: GatewayHosting }): string =>
+  isSelfHostedGateway(gateway) ? "Self-hosted" : "Managed";
+
 /**
  * Whether to show which gateways are managed and which self-hosted. The flag
  * only gates adding self-hosted gateways: one that already exists is always
@@ -142,9 +148,7 @@ export interface SelfHostedGatewayUpdateRequest {
   properties?: Record<string, unknown>;
 }
 
-export type ListSelfHostedGatewaysPathParams = OrgPathParams;
 export type CreateSelfHostedGatewayPathParams = OrgPathParams;
-export type ListSelfHostedGatewaysQuery = ListQuery;
 export type UpdateSelfHostedGatewayPathParams = GatewayPathParams;
 export type DeleteSelfHostedGatewayPathParams = GatewayPathParams;
 export type SelfHostedGatewayTokensPathParams = GatewayPathParams;

@@ -31,7 +31,7 @@ import {
 } from "@wso2/oxygen-ui";
 import {
   globalConfig,
-  isSelfHostedGateway,
+  isManagedGateway,
   showGatewayHosting,
   type Environment,
   type GatewayDeploymentStatus,
@@ -42,6 +42,7 @@ import {
   useListEnvironments,
   useListGateways,
 } from "@agent-management-platform/api-client";
+import { GatewayHostingChip } from "../GatewayHostingChip";
 
 export interface EnvironmentGatewaySelectorProps {
   orgId: string;
@@ -83,18 +84,12 @@ const environmentIdOf = (gateway: GatewayResponse): string | undefined =>
 const gatewayLabel = (gateway: GatewayResponse): string =>
   gateway.displayName || gateway.name;
 
-const isManaged = (gateway: GatewayResponse): boolean =>
-  !isSelfHostedGateway(gateway);
-
-const hostingLabel = (gateway: GatewayResponse): string =>
-  isManaged(gateway) ? "Managed" : "Self-hosted";
-
 // The gateway used without asking: the only managed candidate. A self-hosted
 // gateway is never a default, even a lone one: it stays an explicit pick.
 const defaultGatewayOf = (
   candidates: GatewayResponse[],
 ): GatewayResponse | undefined => {
-  const managed = candidates.filter(isManaged);
+  const managed = candidates.filter(isManagedGateway);
   return managed.length === 1 ? managed[0] : undefined;
 };
 
@@ -385,14 +380,7 @@ export const EnvironmentGatewaySelectorView: React.FC<
   };
 
   const renderHostingChip = (gateway: GatewayResponse) =>
-    showHosting && (
-      <Chip
-        label={hostingLabel(gateway)}
-        size="small"
-        variant="outlined"
-        color={isManaged(gateway) ? "default" : "info"}
-      />
-    );
+    showHosting && <GatewayHostingChip gateway={gateway} />;
 
   const renderRowContent = (row: EnvironmentRow) => {
     if (row.candidates.length === 0) {

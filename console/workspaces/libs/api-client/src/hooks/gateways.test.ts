@@ -44,8 +44,14 @@ import {
 
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 
-const KEYS = ["gateways", "self-hosted-gateways", "gateway", "gateway-tokens"];
 const params = { orgName: "o", gatewayId: "g", tokenId: "t" };
+
+const SEEDED = {
+  gateways: ["gateways", {}],
+  gateway: ["gateway", {}],
+  tokens: ["self-hosted-gateway-tokens", { orgName: "o", gatewayId: "g" }],
+  otherTokens: ["self-hosted-gateway-tokens", { orgName: "o", gatewayId: "other" }],
+} as const;
 
 async function invalidatedAfter(
   useHook: () => { mutateAsync: (v: never) => Promise<unknown> },
@@ -57,31 +63,33 @@ async function invalidatedAfter(
     return null;
   };
   const qc = new QueryClient();
-  KEYS.forEach((k) => qc.setQueryData([k, {}], {}));
+  Object.values(SEEDED).forEach((key) => qc.setQueryData(key, {}));
   const root = createRoot(document.createElement("div"));
   await act(async () =>
     root.render(createElement(QueryClientProvider, { client: qc }, createElement(Probe))),
   );
   await act(async () => { await result.current.mutateAsync(variables as never); });
-  return KEYS.filter((k) => qc.getQueryState([k, {}])?.isInvalidated);
+  return Object.entries(SEEDED)
+    .filter(([, key]) => qc.getQueryState(key)?.isInvalidated)
+    .map(([name]) => name);
 }
 
 describe("self-hosted gateway mutations", () => {
-  it("update invalidates the list and detail views", async () => {
+  it("update invalidates the list and detail views, not tokens", async () => {
     expect(await invalidatedAfter(useUpdateSelfHostedGateway, { params, body: {} }))
-      .toEqual(["gateways", "self-hosted-gateways", "gateway"]);
+      .toEqual(["gateways", "gateway"]);
   });
 
-  it("delete invalidates the list and detail views", async () => {
+  it("delete invalidates the list and detail views, not tokens", async () => {
     expect(await invalidatedAfter(useDeleteSelfHostedGateway, params))
-      .toEqual(["gateways", "self-hosted-gateways", "gateway"]);
+      .toEqual(["gateways", "gateway"]);
   });
 
-  it("token create also invalidates the token list", async () => {
-    expect(await invalidatedAfter(useCreateSelfHostedGatewayToken, params)).toEqual(KEYS);
+  it("token create invalidates only that gateway's tokens", async () => {
+    expect(await invalidatedAfter(useCreateSelfHostedGatewayToken, params)).toEqual(["tokens"]);
   });
 
-  it("token revoke also invalidates the token list", async () => {
-    expect(await invalidatedAfter(useRevokeSelfHostedGatewayToken, params)).toEqual(KEYS);
+  it("token revoke invalidates only that gateway's tokens", async () => {
+    expect(await invalidatedAfter(useRevokeSelfHostedGatewayToken, params)).toEqual(["tokens"]);
   });
 });

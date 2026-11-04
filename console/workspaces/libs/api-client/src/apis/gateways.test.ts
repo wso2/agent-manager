@@ -23,7 +23,6 @@ import {
   createSelfHostedGatewayToken,
   deleteSelfHostedGateway,
   listSelfHostedGatewayTokens,
-  listSelfHostedGateways,
   revokeSelfHostedGatewayToken,
   updateSelfHostedGateway,
 } from "./gateways";
@@ -52,19 +51,6 @@ beforeEach(() => {
 });
 
 describe("self-hosted gateway API", () => {
-  it("lists with pagination", async () => {
-    await listSelfHostedGateways({ orgName: "acme" }, { limit: 5, offset: 10 }, getToken);
-    expect(httpGET).toHaveBeenCalledWith(GW, {
-      token: "jwt",
-      searchParams: { limit: "5", offset: "10" },
-    });
-  });
-
-  it("lists without a query string by default", async () => {
-    await listSelfHostedGateways({ orgName: "acme" });
-    expect(httpGET).toHaveBeenCalledWith(GW, { token: undefined, searchParams: undefined });
-  });
-
   it("registers a gateway with POST", async () => {
     const body = { displayName: "Edge", environment: "dev", endpoints: ["https://gw.example.com"] };
     await createSelfHostedGateway({ orgName: "acme" }, body, getToken);

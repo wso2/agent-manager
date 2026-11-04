@@ -82,6 +82,7 @@ export function EditGatewayDrawer({
   const managedUpdate = useUpdateGateway();
   const selfHostedUpdate = useUpdateSelfHostedGateway();
   const {
+    mutateAsync: updateGateway,
     isPending: isUpdating,
     error: updateError,
     reset: resetMutation,
@@ -149,12 +150,10 @@ export function EditGatewayDrawer({
       };
 
       try {
-        const params = { orgName: orgId, gatewayId: gateway.uuid };
-        if (isSelfHosted) {
-          await selfHostedUpdate.mutateAsync({ params, body: payload });
-        } else {
-          await managedUpdate.mutateAsync({ params, body: payload });
-        }
+        await updateGateway({
+          params: { orgName: orgId, gatewayId: gateway.uuid },
+          body: payload,
+        });
         onClose();
         onSuccess?.();
       } catch {
@@ -164,9 +163,7 @@ export function EditGatewayDrawer({
     [
       formData,
       validateForm,
-      isSelfHosted,
-      selfHostedUpdate,
-      managedUpdate,
+      updateGateway,
       orgId,
       gateway.uuid,
       onClose,
