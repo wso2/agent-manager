@@ -222,6 +222,28 @@ func TestDeployAgent_OwnershipLookupFailureRejects(t *testing.T) {
 		assert.True(t, *f.bindingReached)
 	})
 
+	// During the same outage, an image another environment runs is still owned, but its
+	// health checks can't be read, and keeping the target environment's would run it with
+	// another build's checks. So that deploy fails before anything is written.
+	t.Run("builds, and the image runs only in another environment", func(t *testing.T) {
+		const stagingImage = "registry.example.com/acme/my-agent:build-staging"
+		f := newOwnershipFixture("")
+		f.oc.ListBuildsFunc = func(context.Context, string, string, string) ([]*models.BuildResponse, error) {
+			return nil, boom
+		}
+		f.oc.GetDeploymentsFunc = func(context.Context, string, string, string, string) ([]*models.DeploymentResponse, error) {
+			return []*models.DeploymentResponse{
+				{Environment: "dev", ImageId: deployedImage},
+				{Environment: "staging", ImageId: stagingImage},
+			}, nil
+		}
+		err := f.deploy(t, stagingImage)
+		require.ErrorIs(t, err, boom)
+		assert.Contains(t, err.Error(), "health checks of image "+stagingImage)
+		assert.False(t, *f.bindingReached)
+		assert.Empty(t, f.oc.DeployCalls())
+	})
+
 	t.Run("deployments", func(t *testing.T) {
 		f := newOwnershipFixture("")
 		f.oc.GetDeploymentsFunc = func(context.Context, string, string, string, string) ([]*models.DeploymentResponse, error) {

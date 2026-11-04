@@ -670,6 +670,23 @@ func (s *agentManagerService) requireImageOwnedByAgent(ctx context.Context, ouID
 		fmt.Sprintf("imageId %q is not a build, kind version or current deployment of agent %q", imageID, agentName))
 }
 
+// environmentRunsImage reports whether the environment's current deployment of the agent runs
+// the image. A failed read counts as no: the caller only uses a yes to let a deploy through.
+func (s *agentManagerService) environmentRunsImage(ctx context.Context, ouID, projectName, pipelineName, agentName, environment, imageID string) bool {
+	deployments, err := s.ocClient.GetDeployments(ctx, ouID, pipelineName, projectName, agentName)
+	if err != nil {
+		s.logger.Warn("Could not read the agent's deployments to compare images",
+			"agentName", agentName, "environment", environment, "error", err)
+		return false
+	}
+	for _, deployment := range deployments {
+		if deployment != nil && deployment.Environment == environment && deployment.ImageId == imageID {
+			return true
+		}
+	}
+	return false
+}
+
 // healthChecksOfImageBuild returns the health checks recorded by the build that produced the
 // image being deployed, so an environment runs each build with that build's own checks.
 // A deploy names only the image, so the build is found from it:
@@ -3455,14 +3472,19 @@ func (s *agentManagerService) DeployAgent(ctx context.Context, ouID string, proj
 	}
 
 	// The health checks of the build being deployed, written onto the environment in the same
-	// update as its release. Nil means the default health checks. If the build can't be looked
-	// up (e.g. OpenChoreo's build list is unavailable), the environment keeps the health checks
-	// it already has: a redeploy of what it runs must still work then, as the ownership check
-	// above allows, and those are most likely that build's checks already.
+	// update as its release. Nil means the default health checks.
 	deployHealthChecks, healthChecksErr := s.healthChecksOfImageBuild(ctx, ouID, projectName, agentName, agent.KindName, req.ImageId)
-	keepCurrentHealthChecks := healthChecksErr != nil
-	if keepCurrentHealthChecks {
-		s.logger.Warn("Could not find the deployed build's health checks; the environment keeps its current ones",
+	keepCurrentHealthChecks := false
+	if healthChecksErr != nil {
+		// The build can't be looked up (e.g. OpenChoreo's build list is unavailable). A redeploy
+		// of the image the environment already runs must still work then, as the ownership check
+		// above allows, and the environment's current health checks are that image's: keep them.
+		// Any other image would run with another build's checks, so the deploy fails instead.
+		if !s.environmentRunsImage(ctx, ouID, projectName, pipeline.Name, agentName, lowestEnv, req.ImageId) {
+			return "", fmt.Errorf("failed to read the health checks of image %s: %w", req.ImageId, healthChecksErr)
+		}
+		keepCurrentHealthChecks = true
+		s.logger.Warn("Could not find the deployed build's health checks; the environment keeps its current ones, as it already runs this image",
 			"agentName", agentName, "imageId", req.ImageId, "error", healthChecksErr)
 	}
 
