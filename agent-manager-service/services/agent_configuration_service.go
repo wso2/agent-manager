@@ -4732,7 +4732,7 @@ func requireProviderPlacement(
 		return fmt.Errorf("%w: LLM provider %s has no deployment on a gateway in environment %s",
 			utils.ErrInvalidInput, providerUUID, envUUID)
 	}
-	return fmt.Errorf("%w: LLM provider %s has no deployment on a managed gateway in environment %s; agents can only use LLM providers deployed to managed gateways",
+	return fmt.Errorf("%w: LLM provider %s has no deployment on a managed gateway in environment %s; platform-hosted agents can only use LLM providers deployed to managed gateways",
 		utils.ErrInvalidInput, providerUUID, envUUID)
 }
 
@@ -4880,7 +4880,7 @@ func (s *agentConfigurationService) resolveMCPEnvGateways(
 // gateway in the environment is self-hosted. Platform-hosted agents only use managed gateways.
 // External agents may use self-hosted ones and are not refused with it.
 func errMCPProxyOnSelfHostedGateway(proxy *models.MCPProxy, envName string) error {
-	return fmt.Errorf("%w: MCP proxy %s is on a self-hosted gateway in environment %s; agents can only use MCP proxies on managed gateways",
+	return fmt.Errorf("%w: MCP proxy %s is on a self-hosted gateway in environment %s; platform-hosted agents can only use MCP proxies on managed gateways; use a separate MCP proxy for self-hosted gateways",
 		utils.ErrInvalidInput, mcpProxyHandle(proxy), envName)
 }
 
@@ -5970,12 +5970,8 @@ func (s *agentConfigurationService) buildConfigResponse(ctx context.Context, con
 			// Add proxy URL for external agents (subsequent GET calls)
 			if includeProxyURL {
 				gateway, err := s.resolveGatewayForExternalProxy(ctx, mapping.LLMProxy.Handle, config.OUID, mapping.EnvironmentUUID)
-				if err == nil && mapping.LLMProxy.Configuration.Context != nil {
-					url := fmt.Sprintf("%s%s", gateway.Vhost, *mapping.LLMProxy.Configuration.Context)
-					proxyInfo.URL = &url
-				} else if err == nil {
-					// If no context, just use gateway vhost
-					url := gateway.Vhost
+				if err == nil {
+					url := buildPublicProxyURL(gateway, mapping.LLMProxy.Configuration.Context)
 					proxyInfo.URL = &url
 				}
 			}

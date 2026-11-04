@@ -781,12 +781,16 @@ func (s *agentConfigurationService) reconcileConfigMCPBindings(
 	if err != nil {
 		return err
 	}
-	if inputs.isExternalAgent {
-		bindable = append(bindable, selfHosted...)
-	} else {
-		for _, envUUID := range selfHosted {
+	for _, envUUID := range selfHosted {
+		switch {
+		case !inputs.isExternalAgent:
 			s.logger.Warn("Skipping MCP binding backfill; the proxy is on a self-hosted gateway in this environment",
 				"ouID", scope.ouID, "environmentUUID", envUUID, "mcpProxyUUID", proxy.UUID)
+		case mcpIdentityEnabled(mcpProxySecurityForEnv(proxy, envUUID.String())):
+			s.logger.Warn("Skipping MCP binding backfill; the proxy uses Agent Identity on a self-hosted gateway in this environment",
+				"ouID", scope.ouID, "environmentUUID", envUUID, "mcpProxyUUID", proxy.UUID)
+		default:
+			bindable = append(bindable, envUUID)
 		}
 	}
 	if len(bindable) == 0 {

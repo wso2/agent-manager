@@ -421,6 +421,19 @@ func TestDeployableMCPEnvs_IncludesSelfHostedForExternalAgent(t *testing.T) {
 	assert.Equal(t, proxy.Endpoints[0].Environments[0].EnvironmentUUID, (*activated)[0])
 }
 
+// A self-hosted gateway cannot validate Agent Identity tokens, so the reconcile leaves an external agent
+// unbound where its proxy uses identity on a self-hosted gateway, as create and update refuse it there.
+func TestReconcileMCPBindings_SkipsIdentityProxyOnSelfHostedForExternalAgent(t *testing.T) {
+	svc, proxy, configUUID, activated := selfHostedBackfillService(t, utils.ExternalAgent)
+	on := true
+	proxy.Endpoints[0].Configuration.Security = &models.SecurityConfig{Enabled: &on, Identity: &models.IdentitySecurity{Enabled: &on}}
+
+	err := svc.reconcileConfigMCPBindings(context.Background(), svc.newMCPReconcileScope(context.Background(), "org1"), proxy, configUUID, nil)
+
+	require.NoError(t, err)
+	assert.Empty(t, *activated)
+}
+
 // An external agent may bind to an MCP proxy on a self-hosted gateway: create and update both resolve the
 // requested environments through resolveMCPEnvGateways, which accepts the gateway for it.
 func TestMCPConfig_ExternalAgentBindsToSelfHostedProxy(t *testing.T) {

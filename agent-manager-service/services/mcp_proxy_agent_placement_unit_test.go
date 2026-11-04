@@ -141,7 +141,7 @@ func TestMCPProxyUpdate_ReAddingAnAgentBoundEnvironmentOnSelfHostedIsRefused(t *
 
 	require.ErrorIs(t, err, utils.ErrInvalidInput)
 	assert.ErrorContains(t, err, testMCPEnvUUID)
-	assert.ErrorContains(t, err, "managed gateway")
+	assert.ErrorContains(t, err, "platform-hosted agents use this MCP proxy")
 }
 
 // An agent connection that records the proxy but has no mapping row yet would be bound by the binding

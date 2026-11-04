@@ -1530,6 +1530,10 @@ type mcpProxyAgentUse struct {
 // recording the proxy at all (the binding reconcile or a promotion could bind it there later).
 // Platform-hosted agents only use managed gateways. External agents may use self-hosted ones, so
 // their use doesn't block a self-hosted placement.
+//
+// Agent use is read from ListMCPConfigsByProxy (the agent_mcp_config_proxy reference rows). A
+// mapping row whose configuration is not in that list counts as platform-hosted (fail closed),
+// so a stale mapping row of an external agent can refuse a placement that is in fact safe.
 func (s *MCPProxyService) requireNoAgentsForSelfHostedPlacement(
 	ctx context.Context, orgUUID string, proxyUUID, envUUID uuid.UUID, gateway *models.Gateway, use *mcpProxyAgentUse,
 ) error {
@@ -1544,7 +1548,7 @@ func (s *MCPProxyService) requireNoAgentsForSelfHostedPlacement(
 	if !use.internalReferenced && !use.internalBoundInEnv[envUUID] {
 		return nil
 	}
-	return fmt.Errorf("%w: environment %q: agents use this MCP proxy, so it cannot be placed on self-hosted gateway %q; agents can only use MCP proxies on managed gateways; use a separate MCP proxy for self-hosted gateways",
+	return fmt.Errorf("%w: environment %q: platform-hosted agents use this MCP proxy, so it cannot be placed on self-hosted gateway %q; use a separate MCP proxy for self-hosted gateways",
 		utils.ErrInvalidInput, envUUID, gateway.Name)
 }
 

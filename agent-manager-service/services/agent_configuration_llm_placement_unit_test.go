@@ -469,3 +469,29 @@ func TestLLMConfig_ExternalAgentProxyUpdateOnSelfHostedPlacement(t *testing.T) {
 		require.ErrorIs(t, processEnvProxyUpdate(f, mapping, false), errSelfHostedAnchor)
 	})
 }
+
+// An external agent's LLM proxy URL on GET is the public one create returns: the gateway's vhost gets a
+// scheme when it was registered without one.
+func TestExternalAgentLLMURL_AddsSchemeToBareVhost(t *testing.T) {
+	f := newLLMPlacementFixture(t, "dev")
+	contextPath := "/llm/proxy"
+	proxy := &models.LLMProxy{UUID: uuid.New(), Handle: "cfg-proxy", Configuration: models.LLMProxyConfig{Context: &contextPath}}
+	f.placedOn[proxy.UUID] = &models.Gateway{UUID: uuid.New(), Vhost: "gw.example.com", Hosting: models.GatewayHostingSelfHosted}
+	f.svc.llmProxyDeploymentService.proxyRepo = &repomocks.LLMProxyRepositoryMock{
+		GetByIDFunc: func(string, string) (*models.LLMProxy, error) { return proxy, nil },
+	}
+	f.svc.llmProviderRepo = &repomocks.LLMProviderRepositoryMock{
+		GetByUUIDFunc: func(string, string) (*models.LLMProvider, error) { return nil, gorm.ErrRecordNotFound },
+	}
+	f.svc.logger = slog.Default()
+	config := &models.AgentConfiguration{
+		UUID: uuid.New(), OUID: llmPlacementOU, ProjectName: "proj", AgentID: "agent", Name: "cfg",
+		EnvMappings: []models.EnvAgentModelMapping{{EnvironmentUUID: f.env("dev"), LLMProxy: proxy}},
+	}
+
+	resp, err := f.svc.buildConfigResponse(context.Background(), config, true)
+
+	require.NoError(t, err)
+	require.NotNil(t, resp.EnvModelConfig["dev"].LLMProxy.URL)
+	assert.Equal(t, "https://gw.example.com/llm/proxy", *resp.EnvModelConfig["dev"].LLMProxy.URL)
+}
