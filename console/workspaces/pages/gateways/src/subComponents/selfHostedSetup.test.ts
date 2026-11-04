@@ -110,6 +110,22 @@ describe("reconfigureToken", () => {
     expect(calls).toEqual(["revoke:a", "revoke:b", "create"]);
   });
 
+  it("neither revokes nor creates when listing the tokens fails", async () => {
+    const revoke = vi.fn(async () => undefined);
+    const create = vi.fn(async () => "new-token");
+    await expect(
+      reconfigureToken(
+        async () => {
+          throw new Error("list failed");
+        },
+        revoke,
+        create,
+      ),
+    ).rejects.toThrow("list failed");
+    expect(revoke).not.toHaveBeenCalled();
+    expect(create).not.toHaveBeenCalled();
+  });
+
   it("does not create a token when a revoke fails", async () => {
     const create = vi.fn(async () => "new-token");
     await expect(

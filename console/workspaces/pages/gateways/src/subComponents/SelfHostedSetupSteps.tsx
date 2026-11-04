@@ -154,7 +154,8 @@ export function SelfHostedSetupSteps({
     try {
       const minted = await reconfigureToken(
         async () => {
-          const { data } = await refetchTokens();
+          // A failed list must abort before anything is revoked or minted.
+          const { data } = await refetchTokens({ throwOnError: true });
           return activeTokens(data?.list ?? []).map((t) => t.id);
         },
         (tokenId) => revokeToken({ ...params, tokenId }),
