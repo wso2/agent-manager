@@ -627,6 +627,9 @@ console:
       # When false, the Add User, Invite User, Create Role, and Create Group
       # buttons on the Settings page are disabled.
       enableUserManagement: true
+      # When true, the console offers self-hosted gateways: adding a gateway
+      # the customer runs and issuing its registration tokens.
+      enableSelfHostedGateways: false
 
   # Pod-level configurations
   podAnnotations: {}

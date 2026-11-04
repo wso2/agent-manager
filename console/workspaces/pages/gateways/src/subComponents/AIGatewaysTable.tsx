@@ -87,7 +87,7 @@ export function AIGatewaysTable({
   onEditGateway,
   onAddGateway,
 }: AIGatewaysTableProps) {
-  const selfHostedEnabled = globalConfig.selfHostedGatewaysEnabled === true;
+  const selfHostedEnabled = globalConfig.featureFlags?.enableSelfHostedGateways === true;
   const navigate = useNavigate();
   const { orgId } = useParams<{ orgId: string }>();
   const [searchQuery, setSearchQuery] = useState("");

@@ -1779,6 +1779,12 @@
                   "description": "When false, the Add User, Invite User, Create Role, and Create Group buttons on the Settings page are disabled.",
                   "title": "enableUserManagement",
                   "type": "boolean"
+                },
+                "enableSelfHostedGateways": {
+                  "default": false,
+                  "description": "When true, the console offers self-hosted gateways: adding a gateway the customer runs and issuing its registration tokens.",
+                  "title": "enableSelfHostedGateways",
+                  "type": "boolean"
                 }
               },
               "required": [],

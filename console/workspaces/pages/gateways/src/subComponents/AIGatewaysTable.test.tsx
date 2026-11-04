@@ -99,12 +99,12 @@ beforeEach(() => {
 });
 
 afterEach(() => {
-  delete globalConfig.selfHostedGatewaysEnabled;
+  delete globalConfig.featureFlags?.enableSelfHostedGateways;
 });
 
 describe("AIGatewaysTable self-hosted gating", () => {
   it("shows an existing self-hosted gateway's hosting but hides Add Gateway when disabled", () => {
-    globalConfig.selfHostedGatewaysEnabled = false;
+    globalConfig.featureFlags = { ...globalConfig.featureFlags, enableSelfHostedGateways: false };
     renderTable();
 
     expect(screen.queryByText("Add Gateway")).not.toBeInTheDocument();
@@ -114,7 +114,7 @@ describe("AIGatewaysTable self-hosted gating", () => {
   });
 
   it("shows no hosting with only managed gateways when disabled", () => {
-    globalConfig.selfHostedGatewaysEnabled = false;
+    globalConfig.featureFlags = { ...globalConfig.featureFlags, enableSelfHostedGateways: false };
     hoisted.gateways = [gateway("managed-1", "MANAGED"), gateway("managed-2", "MANAGED")];
     renderTable();
 
@@ -125,7 +125,7 @@ describe("AIGatewaysTable self-hosted gating", () => {
   });
 
   it("offers Add Gateway and hosting chips when enabled", () => {
-    globalConfig.selfHostedGatewaysEnabled = true;
+    globalConfig.featureFlags = { ...globalConfig.featureFlags, enableSelfHostedGateways: true };
     renderTable();
 
     expect(screen.getByText("Add Gateway")).toBeInTheDocument();
@@ -133,9 +133,9 @@ describe("AIGatewaysTable self-hosted gating", () => {
     expect(screen.getByText("Managed")).toBeInTheDocument();
   });
 
-  describe.each([true, false])("row actions with selfHostedGatewaysEnabled=%s", (enabled) => {
+  describe.each([true, false])("row actions with enableSelfHostedGateways=%s", (enabled) => {
     it("lets managed rows edit and delete through the managed hooks", async () => {
-      globalConfig.selfHostedGatewaysEnabled = enabled;
+      globalConfig.featureFlags = { ...globalConfig.featureFlags, enableSelfHostedGateways: enabled };
       renderTable();
 
       const [managedEdit] = screen.getAllByLabelText("Edit");
@@ -150,7 +150,7 @@ describe("AIGatewaysTable self-hosted gating", () => {
   });
 
   it("lets self-hosted rows edit and delete through the self-hosted hooks", async () => {
-    globalConfig.selfHostedGatewaysEnabled = true;
+    globalConfig.featureFlags = { ...globalConfig.featureFlags, enableSelfHostedGateways: true };
     renderTable();
 
     expect(screen.getAllByLabelText("Edit")).toHaveLength(2);
@@ -166,7 +166,7 @@ describe("AIGatewaysTable self-hosted gating", () => {
   });
 
   it("shows Edit and Delete on every row when disabled", () => {
-    globalConfig.selfHostedGatewaysEnabled = false;
+    globalConfig.featureFlags = { ...globalConfig.featureFlags, enableSelfHostedGateways: false };
     renderTable();
     expect(screen.getAllByLabelText("Edit")).toHaveLength(2);
     expect(screen.getAllByLabelText("Delete")).toHaveLength(2);

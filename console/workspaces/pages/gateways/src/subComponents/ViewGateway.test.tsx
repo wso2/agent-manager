@@ -78,12 +78,12 @@ const renderGateway = (hosting: "MANAGED" | "SELF_HOSTED") => {
 };
 
 afterEach(() => {
-  delete globalConfig.selfHostedGatewaysEnabled;
+  delete globalConfig.featureFlags?.enableSelfHostedGateways;
 });
 
-describe("ViewGateway with selfHostedGatewaysEnabled off", () => {
+describe("ViewGateway with enableSelfHostedGateways off", () => {
   it("shows a self-hosted gateway's setup steps and tokens", () => {
-    globalConfig.selfHostedGatewaysEnabled = false;
+    globalConfig.featureFlags = { ...globalConfig.featureFlags, enableSelfHostedGateways: false };
     renderGateway("SELF_HOSTED");
 
     expect(screen.getByText("setup steps")).toBeInTheDocument();
@@ -92,7 +92,7 @@ describe("ViewGateway with selfHostedGatewaysEnabled off", () => {
   });
 
   it("shows a managed gateway's identity providers", () => {
-    globalConfig.selfHostedGatewaysEnabled = false;
+    globalConfig.featureFlags = { ...globalConfig.featureFlags, enableSelfHostedGateways: false };
     renderGateway("MANAGED");
 
     expect(screen.getByText("identity providers card")).toBeInTheDocument();

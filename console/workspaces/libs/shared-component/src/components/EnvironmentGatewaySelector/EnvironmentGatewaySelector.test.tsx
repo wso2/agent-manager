@@ -652,7 +652,7 @@ describe("EnvironmentGatewaySelectorView hosting", () => {
   const environments = [makeEnvironment("env-a", "Alpha"), makeEnvironment("env-b", "Beta")];
 
   afterEach(() => {
-    delete globalConfig.selfHostedGatewaysEnabled;
+    delete globalConfig.featureFlags?.enableSelfHostedGateways;
   });
 
   it("preselects the managed gateway when a self-hosted one is also mapped", () => {
@@ -746,7 +746,7 @@ describe("EnvironmentGatewaySelectorView hosting", () => {
   });
 
   it("shows a hosting chip per option when self-hosted gateways are enabled", () => {
-    globalConfig.selfHostedGatewaysEnabled = true;
+    globalConfig.featureFlags = { ...globalConfig.featureFlags, enableSelfHostedGateways: true };
     renderWithTheme(
       <ControlledSelector
         environments={environments}
@@ -767,7 +767,7 @@ describe("EnvironmentGatewaySelectorView hosting", () => {
   });
 
   it("shows the hosting chip on a deployed row with several candidates", () => {
-    globalConfig.selfHostedGatewaysEnabled = true;
+    globalConfig.featureFlags = { ...globalConfig.featureFlags, enableSelfHostedGateways: true };
     renderWithTheme(
       <ControlledSelector
         environments={environments}
@@ -784,7 +784,7 @@ describe("EnvironmentGatewaySelectorView hosting", () => {
   });
 
   it("shows an existing self-hosted gateway's chip when self-hosted gateways are disabled", () => {
-    globalConfig.selfHostedGatewaysEnabled = false;
+    globalConfig.featureFlags = { ...globalConfig.featureFlags, enableSelfHostedGateways: false };
     renderWithTheme(
       <ControlledSelector
         environments={environments}
@@ -805,7 +805,7 @@ describe("EnvironmentGatewaySelectorView hosting", () => {
   });
 
   it("shows the hosting chip on a deployed self-hosted row when self-hosted gateways are disabled", () => {
-    globalConfig.selfHostedGatewaysEnabled = false;
+    globalConfig.featureFlags = { ...globalConfig.featureFlags, enableSelfHostedGateways: false };
     renderWithTheme(
       <ControlledSelector
         environments={environments}
@@ -822,7 +822,7 @@ describe("EnvironmentGatewaySelectorView hosting", () => {
   });
 
   it("shows no hosting chip with only managed gateways when self-hosted gateways are disabled", () => {
-    globalConfig.selfHostedGatewaysEnabled = false;
+    globalConfig.featureFlags = { ...globalConfig.featureFlags, enableSelfHostedGateways: false };
     renderWithTheme(
       <ControlledSelector
         environments={environments}

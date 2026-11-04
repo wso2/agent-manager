@@ -71,12 +71,12 @@ beforeEach(() => {
 });
 
 afterEach(() => {
-  delete globalConfig.selfHostedGatewaysEnabled;
+  delete globalConfig.featureFlags?.enableSelfHostedGateways;
 });
 
-describe("EditGatewayDrawer with selfHostedGatewaysEnabled off", () => {
+describe("EditGatewayDrawer with enableSelfHostedGateways off", () => {
   it("submits a self-hosted gateway to the self-hosted update API", async () => {
-    globalConfig.selfHostedGatewaysEnabled = false;
+    globalConfig.featureFlags = { ...globalConfig.featureFlags, enableSelfHostedGateways: false };
     submit("SELF_HOSTED");
 
     await waitFor(() => expect(hoisted.updateSelfHosted).toHaveBeenCalledWith(expectedCall));
@@ -84,7 +84,7 @@ describe("EditGatewayDrawer with selfHostedGatewaysEnabled off", () => {
   });
 
   it("submits a managed gateway to the managed update API", async () => {
-    globalConfig.selfHostedGatewaysEnabled = false;
+    globalConfig.featureFlags = { ...globalConfig.featureFlags, enableSelfHostedGateways: false };
     submit("MANAGED");
 
     await waitFor(() => expect(hoisted.updateManaged).toHaveBeenCalledWith(expectedCall));

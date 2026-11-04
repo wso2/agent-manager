@@ -148,7 +148,7 @@ export const EnvironmentGatewaySelectorView: React.FC<
   disabled,
 }) => {
   const showHosting = showGatewayHosting(
-    globalConfig.selfHostedGatewaysEnabled === true,
+    globalConfig.featureFlags?.enableSelfHostedGateways === true,
     gateways,
   );
   const [pendingEnvIds, setPendingEnvIds] = useState<Set<string>>(new Set());
