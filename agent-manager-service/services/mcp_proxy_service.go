@@ -1398,7 +1398,7 @@ var errMCPIdentityOnSelfHostedGateway = fmt.Errorf("%w: Agent Identity isn't ava
 // errPlacementFixed also surfaces before the write rather than after it.
 //
 // proxyUUID is the proxy being updated, uuid.Nil on create. A proxy platform-hosted agents use
-// may not move onto a self-hosted gateway (requireNoAgentsForSelfHostedPlacement).
+// may not move onto a self-hosted gateway (proxyUsersPolicy).
 //
 // An identity-mode endpoint may not resolve to a self-hosted gateway in any environment
 // (errMCPIdentityOnSelfHostedGateway). Known gap: an environment whose anchor lookup fails is
@@ -1447,16 +1447,21 @@ func (s *MCPProxyService) validateMCPEndpointPlacement(
 				needsSSRFGuard = true
 				continue
 			}
-			if !gateway.IsManaged() && mcpIdentityEnabled(endpoint.Security) {
+			if identityRefuses(gateway, endpoint.Security) {
 				return nil, fmt.Errorf("%w: environment %s resolves to self-hosted gateway %s; use API key security",
 					errMCPIdentityOnSelfHostedGateway, envIDStr, gateway.Name)
 			}
 			if !gateway.IsManaged() && !slices.Contains(deployed, gateway.UUID.String()) {
-				if err := s.requireNoAgentsForSelfHostedPlacement(ctx, orgUUID, proxyUUID, envUUID, gateway, agentUse); err != nil {
+				users, err := s.proxyUsersPolicy(ctx, orgUUID, proxyUUID, envUUID, agentUse)
+				if err != nil {
 					return nil, err
 				}
+				if users.consumerRefuses(gateway) {
+					return nil, fmt.Errorf("%w: environment %q: platform-hosted agents use this MCP proxy, so it cannot be placed on self-hosted gateway %q; use a separate MCP proxy for self-hosted gateways",
+						utils.ErrInvalidInput, envUUID, gateway.Name)
+				}
 			}
-			needsSSRFGuard = needsSSRFGuard || gateway.IsManaged()
+			needsSSRFGuard = needsSSRFGuard || gatewayNeedsPublicUpstream(gateway)
 			resolvedByEnv[envUUID.String()] = gateway.UUID
 		}
 
@@ -1482,31 +1487,30 @@ type mcpProxyAgentUse struct {
 	internalBoundInEnv map[uuid.UUID]bool
 }
 
-// requireNoAgentsForSelfHostedPlacement refuses placing the proxy's binding for envUUID on a
-// self-hosted gateway while platform-hosted agents use the proxy: bound in that environment (a
-// mapping row, which survives the environment being removed from the proxy and re-added), or
-// recording the proxy at all (the binding reconcile or a promotion could bind it there later).
-// External agents' use doesn't block it (see anchorHosting).
+// proxyUsersPolicy is the placement policy of the agents that use the proxy's binding for envUUID:
+// platformAgentPolicy while platform-hosted agents use the proxy, bound in that environment (a mapping
+// row, which survives the environment being removed from the proxy and re-added) or recording the proxy
+// at all (the binding reconcile or a promotion could bind it there later); externalAgentPolicy otherwise,
+// including on create (proxyUUID is uuid.Nil).
 //
 // Agent use is read from ListMCPConfigsByProxy (the agent_mcp_config_proxy reference rows). A
 // mapping row whose configuration is not in that list counts as platform-hosted (fail closed),
 // so a stale mapping row of an external agent can refuse a placement that is in fact safe.
-func (s *MCPProxyService) requireNoAgentsForSelfHostedPlacement(
-	ctx context.Context, orgUUID string, proxyUUID, envUUID uuid.UUID, gateway *models.Gateway, use *mcpProxyAgentUse,
-) error {
+func (s *MCPProxyService) proxyUsersPolicy(
+	ctx context.Context, orgUUID string, proxyUUID, envUUID uuid.UUID, use *mcpProxyAgentUse,
+) (placementPolicy, error) {
 	if proxyUUID == uuid.Nil {
-		return nil
+		return externalAgentPolicy, nil
 	}
 	if !use.loaded {
 		if err := s.loadMCPProxyAgentUse(ctx, orgUUID, proxyUUID, use); err != nil {
-			return err
+			return platformAgentPolicy, err
 		}
 	}
-	if !use.internalReferenced && !use.internalBoundInEnv[envUUID] {
-		return nil
+	if use.internalReferenced || use.internalBoundInEnv[envUUID] {
+		return platformAgentPolicy, nil
 	}
-	return fmt.Errorf("%w: environment %q: platform-hosted agents use this MCP proxy, so it cannot be placed on self-hosted gateway %q; use a separate MCP proxy for self-hosted gateways",
-		utils.ErrInvalidInput, envUUID, gateway.Name)
+	return externalAgentPolicy, nil
 }
 
 // loadMCPProxyAgentUse finds the platform-hosted agents among those using the proxy, failing

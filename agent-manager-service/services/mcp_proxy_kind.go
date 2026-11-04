@@ -197,7 +197,7 @@ func (k *MCPProxyKind) Targets(ctx context.Context, record reconcile.Record) (uu
 	if err != nil {
 		return uuid.Nil, false, err
 	}
-	if gateway.IsManaged() {
+	if gatewayNeedsPublicUpstream(gateway) {
 		public, err := k.upstreamIsPublic(ctx, record, gateway)
 		if err != nil || !public {
 			return uuid.Nil, false, err
