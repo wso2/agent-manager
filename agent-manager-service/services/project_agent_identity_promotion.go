@@ -189,7 +189,18 @@ func (s *agentThunderProvisioningService) ReconcileProjectAgentIdentityPromotion
 			if resolved.err != nil {
 				continue
 			}
-			if _, err := s.writePromotionBindings(ctx, ref, resolved.steps, ""); err != nil {
+			if len(resolved.steps) == 0 {
+				s.logger.Warn("Project AgentID promotion topology has no source",
+					"ouID", ref.OUID, "projectName", ref.ProjectName, "agentName", ref.AgentName)
+				continue
+			}
+			if resolved.steps[0].Environment != ref.EnvironmentName {
+				s.logger.Warn("Project AgentID source changed; automatic home migration is not supported",
+					"ouID", ref.OUID, "projectName", ref.ProjectName, "agentName", ref.AgentName,
+					"currentSource", ref.EnvironmentName, "pipelineSource", resolved.steps[0].Environment)
+				continue
+			}
+			if _, err := s.writePromotionBindings(ctx, ref, resolved.steps, ref.RequestedBy); err != nil {
 				s.logger.Warn("Failed to reconcile project AgentID promotion bindings",
 					"ouID", ref.OUID, "projectName", ref.ProjectName, "agentName", ref.AgentName, "error", err)
 			}

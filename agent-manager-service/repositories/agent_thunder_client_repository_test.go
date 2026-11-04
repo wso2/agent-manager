@@ -408,6 +408,7 @@ func TestAgentThunderClientRepo_ListHomeAgentsPagesDistinctAgentsWithACompletedD
 		cleanupAgentThunderClients(t, repo, org, project, name)
 		direct := newTestAgentThunderClient(org, project, name, "dev")
 		direct.Status = models.AgentThunderStatusCompleted
+		direct.RequestedBy = "user-1"
 		promoted := newTestAgentThunderClient(org, project, name, "stage")
 		promoted.Status = models.AgentThunderStatusCompleted
 		promoted.PromotionSource = "dev"
@@ -423,6 +424,8 @@ func TestAgentThunderClientRepo_ListHomeAgentsPagesDistinctAgentsWithACompletedD
 	require.NoError(t, err)
 	require.Len(t, first, 2)
 	assert.Equal(t, "atc-home-a", first[0].AgentName)
+	assert.Equal(t, "dev", first[0].EnvironmentName)
+	assert.Equal(t, "user-1", first[0].RequestedBy)
 	second, err := repo.ListHomeAgents(ctx, &first[1], 2)
 	require.NoError(t, err)
 	require.NotEmpty(t, second)

@@ -777,8 +777,9 @@ func (s *agentThunderProvisioningService) AttemptProvision(ctx context.Context, 
 		return
 	}
 
-	// External agents only need a client ID at provisioning time.
-	// Secrets are minted on demand via RegenerateSecret and never persisted.
+	// External agents do not persist a secret, but CP source activation still
+	// needs the provider to return one temporarily so the DP receives a usable
+	// credential. It is passed to Activate below and then discarded.
 	isExternal := binding.ProvisioningType == models.AgentProvisioningTypeExternal
 
 	thunderAgentID := binding.ThunderAgentID
@@ -834,7 +835,9 @@ func (s *agentThunderProvisioningService) AttemptProvision(ctx context.Context, 
 			}
 			result, promotionErr := promoter.Promote(ctx, request)
 			if promotionErr != nil {
-				s.recordFailure(ctx, binding, thunderAgentID, clientID, binding.SecretRefPath,
+				// Promote may have applied the credential before its response was
+				// lost. Keep the generated ID so a retry is idempotent.
+				s.recordFailure(ctx, binding, source.ThunderAgentID, targetClientID, binding.SecretRefPath,
 					fmt.Errorf("promote project AgentID: %w", promotionErr))
 				return
 			}

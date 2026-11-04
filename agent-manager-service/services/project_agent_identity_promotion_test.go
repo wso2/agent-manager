@@ -317,6 +317,10 @@ func TestReconcileReadsEachProjectPipelineOncePerPass(t *testing.T) {
 		{OUID: "org-a", ProjectName: "project-bad", AgentName: "agent-2"},
 		{OUID: "org-b", ProjectName: "project-a", AgentName: "agent-1"},
 	}
+	for i := range refs {
+		refs[i].EnvironmentName = "development"
+		refs[i].RequestedBy = "user-1"
+	}
 	repo := &repomocks.AgentThunderClientRepositoryMock{
 		ListHomeAgentsFunc: func(_ context.Context, after *repositories.AgentRef, _ int) ([]repositories.AgentRef, error) {
 			if after != nil {
@@ -355,11 +359,38 @@ func TestReconcileReadsEachProjectPipelineOncePerPass(t *testing.T) {
 		"org-a/project-a": 1, "org-a/project-b": 1, "org-a/project-bad": 1, "org-b/project-a": 1,
 	}, calls, "one pipeline read per project per pass, failures included")
 	require.Len(t, repo.UpsertCalls(), 2*5, "stage and production rows for each of the 5 agents of healthy projects")
+	for _, call := range repo.UpsertCalls() {
+		require.Equal(t, "user-1", call.Client.RequestedBy)
+	}
 
 	reconciler.ReconcileProjectAgentIdentityPromotions(context.Background())
 	for key, count := range calls {
 		require.Equal(t, 2, count, "the cache must not outlive a pass: %s", key)
 	}
+}
+
+func TestReconcileRefusesToCreateASecondSourceAfterPipelineSourceChanges(t *testing.T) {
+	repo := &repomocks.AgentThunderClientRepositoryMock{
+		ListHomeAgentsFunc: func(context.Context, *repositories.AgentRef, int) ([]repositories.AgentRef, error) {
+			return []repositories.AgentRef{{
+				OUID: "org-a", ProjectName: "project-a", AgentName: "agent-a",
+				EnvironmentName: "development", ProvisioningType: models.AgentProvisioningTypeInternal,
+			}}, nil
+		},
+		GetFunc: func(context.Context, string, string, string, string) (*models.AgentThunderClient, error) {
+			t.Fatal("source drift must stop before writing bindings")
+			return nil, nil
+		},
+		UpsertFunc: func(context.Context, *models.AgentThunderClient) error {
+			t.Fatal("source drift must not create a second source")
+			return nil
+		},
+	}
+	svc := newPromotionService(t, repo, &clientmocks.SecretManagementClientMock{}, (&fakeTargetPlatform{}).provider(t),
+		projectPipelineReaderFunc(func(context.Context, string, string) (string, []ProjectIdentityEnvironment, error) {
+			return "sandbox", []ProjectIdentityEnvironment{{Name: "sandbox", PromotesTo: []string{"development"}}, {Name: "development"}}, nil
+		}))
+	svc.(ProjectAgentIdentityPromotionReconciler).ReconcileProjectAgentIdentityPromotions(context.Background())
 }
 
 func TestReconcileDoesNothingWithoutPromotionProvider(t *testing.T) {
@@ -679,6 +710,33 @@ func TestPromotionRejectsAProviderThatDoesNotApplyTheRequestedCredential(t *test
 	require.Nil(t, update.SecretRefPath)
 }
 
+func TestPromotionFailurePersistsGeneratedTargetClientID(t *testing.T) {
+	binding := promotedBinding(models.AgentProvisioningTypeInternal)
+	var update repositories.AgentThunderAttemptUpdate
+	repo := &repomocks.AgentThunderClientRepositoryMock{
+		ClaimForAttemptFunc: func(context.Context, uuid.UUID) (bool, error) { return true, nil },
+		GetFunc: func(context.Context, string, string, string, string) (*models.AgentThunderClient, error) {
+			return completedSource(), nil
+		},
+		UpdateAfterAttemptFunc: func(_ context.Context, _ uuid.UUID, value repositories.AgentThunderAttemptUpdate) error {
+			update = value
+			return nil
+		},
+	}
+	provider := projectAgentIdentityPromotionProviderStub{
+		promote: func(context.Context, ProjectAgentIdentityPromotionRequest) (ProjectAgentIdentityResult, error) {
+			return ProjectAgentIdentityResult{}, errors.New("response lost after apply")
+		},
+	}
+	svc := newPromotionService(t, repo, &clientmocks.SecretManagementClientMock{}, provider, nil)
+	svc.AttemptProvision(context.Background(), binding)
+
+	require.NotNil(t, update.ThunderAgentID)
+	require.Equal(t, "agent-id", *update.ThunderAgentID)
+	require.NotNil(t, update.ThunderClientID)
+	require.NotEmpty(t, *update.ThunderClientID)
+}
+
 func TestPromotionNeverStoresAnExternalAgentSecret(t *testing.T) {
 	binding := promotedBinding(models.AgentProvisioningTypeExternal)
 	var update repositories.AgentThunderAttemptUpdate
@@ -709,6 +767,44 @@ func TestPromotionNeverStoresAnExternalAgentSecret(t *testing.T) {
 	require.NotNil(t, update.SecretRefPath)
 	require.Empty(t, *update.SecretRefPath)
 	require.Empty(t, store.CreateSecretCalls())
+}
+
+func TestExternalSourceUsesTemporarySecretForActivationWithoutStoringIt(t *testing.T) {
+	binding := models.AgentThunderClient{
+		ID: uuid.New(), OUID: "org-a", ProjectName: "project-a", AgentName: "agent-a",
+		EnvironmentName: "development", ProvisioningType: models.AgentProvisioningTypeExternal,
+	}
+	var update repositories.AgentThunderAttemptUpdate
+	repo := &repomocks.AgentThunderClientRepositoryMock{
+		ClaimForAttemptFunc: func(context.Context, uuid.UUID) (bool, error) { return true, nil },
+		UpdateAfterAttemptFunc: func(_ context.Context, _ uuid.UUID, value repositories.AgentThunderAttemptUpdate) error {
+			update = value
+			return nil
+		},
+	}
+	provider := projectAgentIdentityProviderStub{
+		provision: func(_ context.Context, request ProjectAgentIdentityRequest) (ProjectAgentIdentityResult, error) {
+			require.True(t, request.NeedsSecret)
+			return ProjectAgentIdentityResult{AgentID: "agent-id", ClientID: "client-id", ClientSecret: "temporary-secret"}, nil
+		},
+		activate: func(_ context.Context, request ProjectAgentIdentityRequest, agentID string) error {
+			require.Equal(t, "agent-id", agentID)
+			require.Equal(t, "temporary-secret", request.ClientSecret)
+			return nil
+		},
+	}
+	store := &clientmocks.SecretManagementClientMock{
+		CreateSecretFunc: func(context.Context, secretmanagersvc.SecretLocation, map[string]string) (string, error) {
+			t.Fatal("external source secret must not be stored")
+			return "", nil
+		},
+	}
+	svc := newPromotionService(t, repo, store, provider, sourceOnlyReader("development", nil))
+	svc.AttemptProvision(context.Background(), binding)
+
+	require.Equal(t, models.AgentThunderStatusCompleted, update.Status)
+	require.NotNil(t, update.SecretRefPath)
+	require.Empty(t, *update.SecretRefPath)
 }
 
 func TestPromotionIsNeverCalledBeforeTheSourceBindingIsCompleted(t *testing.T) {
