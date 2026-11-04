@@ -39,9 +39,9 @@ const mcpActivationCleanupTimeout = 30 * time.Second
 // Assembling them costs two remote calls and a template rebuild, so they are gathered once
 // per config rather than per environment.
 type mcpActivationInputs struct {
-	envTemplates    []EnvConfigTemplate
-	isExternalAgent bool
-	firstEnvName    string
+	envTemplates []EnvConfigTemplate
+	policy       placementPolicy
+	firstEnvName string
 }
 
 // soleMCPProxyUUID returns the one proxy every requested environment maps to, or nil when
@@ -783,7 +783,7 @@ func (s *agentConfigurationService) reconcileConfigMCPBindings(
 	}
 	for _, envUUID := range selfHosted {
 		switch {
-		case !inputs.isExternalAgent:
+		case !inputs.policy.external():
 			s.logger.Warn("Skipping MCP binding backfill; the proxy is on a self-hosted gateway in this environment",
 				"ouID", scope.ouID, "environmentUUID", envUUID, "mcpProxyUUID", proxy.UUID)
 		case mcpIdentityEnabled(mcpProxySecurityForEnv(proxy, envUUID.String())):
@@ -898,39 +898,39 @@ func (s *agentConfigurationService) mcpActivationInputsForConfig(
 	if err != nil {
 		return mcpActivationInputs{}, err
 	}
-	isExternalAgent, firstEnvName, err := s.agentDeploymentShape(ctx, ouID, config.ProjectName, config.AgentID)
+	policy, firstEnvName, err := s.agentDeploymentShape(ctx, ouID, config.ProjectName, config.AgentID)
 	if err != nil {
 		return mcpActivationInputs{}, err
 	}
 	return mcpActivationInputs{
-		envTemplates:    envTemplates,
-		isExternalAgent: isExternalAgent,
-		firstEnvName:    firstEnvName,
+		envTemplates: envTemplates,
+		policy:       policy,
+		firstEnvName: firstEnvName,
 	}, nil
 }
 
-func (s *agentConfigurationService) agentDeploymentShape(ctx context.Context, ouID, projectName, agentName string) (isExternal bool, firstEnvName string, err error) {
+func (s *agentConfigurationService) agentDeploymentShape(ctx context.Context, ouID, projectName, agentName string) (policy placementPolicy, firstEnvName string, err error) {
 	agentComp, err := s.ocClient.GetComponent(ctx, ouID, projectName, agentName)
 	if err != nil {
-		return false, "", fmt.Errorf("failed to determine agent type for %s: %w", agentName, err)
+		return platformAgentPolicy, "", fmt.Errorf("failed to determine agent type for %s: %w", agentName, err)
 	}
-	isExternal = agentComp.Provisioning.Type == string(utils.ExternalAgent)
-	if isExternal {
-		return true, "", nil
+	policy = placementPolicyFor(agentComp)
+	if policy.external() {
+		return policy, "", nil
 	}
 	pipeline, err := s.ocClient.GetProjectDeploymentPipeline(ctx, ouID, projectName)
 	if err != nil {
 		// A project with no pipeline simply has no first environment; anything else is a
 		// real lookup failure and must not masquerade as one.
 		if errors.Is(err, utils.ErrProjectNotFound) || errors.Is(err, utils.ErrDeploymentPipelineNotFound) {
-			return false, "", nil
+			return platformAgentPolicy, "", nil
 		}
-		return false, "", fmt.Errorf("failed to get deployment pipeline for project %s: %w", projectName, err)
+		return platformAgentPolicy, "", fmt.Errorf("failed to get deployment pipeline for project %s: %w", projectName, err)
 	}
 	if pipeline == nil {
-		return false, "", nil
+		return platformAgentPolicy, "", nil
 	}
-	return false, client.FindFirstEnvironment(pipeline.PromotionPaths), nil
+	return platformAgentPolicy, client.FindFirstEnvironment(pipeline.PromotionPaths), nil
 }
 
 // ListUnresolvedMCPBindings returns the names of the agent's MCP connections that are
@@ -1044,7 +1044,7 @@ func (s *agentConfigurationService) activateMCPMappingForEnv(
 		return fmt.Errorf("failed to clear MCP API key secret reference: %w", err)
 	}
 
-	if inputs.isExternalAgent {
+	if inputs.policy.external() {
 		return nil
 	}
 	// Warn-only, and deliberately not assigned to err: a failed injection leaves a valid

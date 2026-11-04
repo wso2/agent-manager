@@ -146,7 +146,7 @@ func TestBuildConfigResponse_MCPURLUsesSharedArtifact(t *testing.T) {
 		EnvMCPMappings: []models.EnvAgentMCPMapping{f.mapping},
 	}
 
-	resp, err := svc.buildConfigResponse(context.Background(), config, true)
+	resp, err := svc.buildConfigResponse(context.Background(), config, externalAgentPolicy)
 
 	require.NoError(t, err)
 	got := resp.EnvModelConfig["dev"].LLMProxy
@@ -312,7 +312,7 @@ func TestMCPConfig_RefusesSelfHostedProxy(t *testing.T) {
 	t.Run("create", func(t *testing.T) {
 		svc, f := selfHostedMCPConfigService(t)
 		_, err := svc.createMCPConfig(context.Background(), f.ouID, "proj1", "agent1",
-			models.CreateAgentModelConfigRequest{Name: "cfg1", Type: "mcp", EnvMappings: mappings}, "user", false)
+			models.CreateAgentModelConfigRequest{Name: "cfg1", Type: "mcp", EnvMappings: mappings}, "user", platformAgentPolicy)
 		require.ErrorIs(t, err, utils.ErrInvalidInput)
 		require.ErrorContains(t, err, "self-hosted gateway in environment dev")
 	})
@@ -320,7 +320,7 @@ func TestMCPConfig_RefusesSelfHostedProxy(t *testing.T) {
 	t.Run("create with unbindable environments deferred still refuses", func(t *testing.T) {
 		svc, f := selfHostedMCPConfigService(t)
 		_, err := svc.createMCPConfig(context.Background(), f.ouID, "proj1", "agent1",
-			models.CreateAgentModelConfigRequest{Name: "cfg1", Type: "mcp", EnvMappings: mappings, DeferUnbindableMCPEnvs: true}, "user", false)
+			models.CreateAgentModelConfigRequest{Name: "cfg1", Type: "mcp", EnvMappings: mappings, DeferUnbindableMCPEnvs: true}, "user", platformAgentPolicy)
 		require.ErrorIs(t, err, utils.ErrInvalidInput)
 	})
 
@@ -441,7 +441,7 @@ func TestMCPConfig_ExternalAgentBindsToSelfHostedProxy(t *testing.T) {
 	envMap := map[string]*models.EnvironmentResponse{"dev": {UUID: f.envUUID.String(), Name: "dev"}}
 	proxiesByEnv := map[string]*models.MCPProxy{"dev": f.mapping.MCPProxy}
 
-	resolved, err := svc.resolveMCPEnvGateways(context.Background(), f.ouID, proxiesByEnv, envMap, true)
+	resolved, err := svc.resolveMCPEnvGateways(context.Background(), f.ouID, proxiesByEnv, envMap, externalAgentPolicy)
 
 	require.NoError(t, err)
 	require.NoError(t, resolved["dev"].err)
@@ -459,7 +459,7 @@ func TestMCPConfig_ExternalAgentRefusedForIdentityProxyOnSelfHosted(t *testing.T
 	proxy.Endpoints[0].Configuration.Security = &models.SecurityConfig{Enabled: &on, Identity: &models.IdentitySecurity{Enabled: &on}}
 	envMap := map[string]*models.EnvironmentResponse{"dev": {UUID: f.envUUID.String(), Name: "dev"}}
 
-	_, err := svc.resolveMCPEnvGateways(context.Background(), f.ouID, map[string]*models.MCPProxy{"dev": proxy}, envMap, true)
+	_, err := svc.resolveMCPEnvGateways(context.Background(), f.ouID, map[string]*models.MCPProxy{"dev": proxy}, envMap, externalAgentPolicy)
 
 	require.ErrorIs(t, err, errMCPIdentityOnSelfHostedGateway)
 	require.ErrorIs(t, err, utils.ErrInvalidInput)
@@ -493,7 +493,7 @@ func TestExternalAgentMCPURL_UsesSelfHostedGateway(t *testing.T) {
 	const wantURL = "https://customer.example.com/proxy-ctx/mcp"
 
 	t.Run("config response", func(t *testing.T) {
-		resp, err := newService().buildConfigResponse(ctx, config, true)
+		resp, err := newService().buildConfigResponse(ctx, config, externalAgentPolicy)
 		require.NoError(t, err)
 		require.NotNil(t, resp.EnvModelConfig["dev"].LLMProxy.URL)
 		assert.Equal(t, wantURL, *resp.EnvModelConfig["dev"].LLMProxy.URL)
@@ -528,7 +528,7 @@ func TestAgentMCPURLs_EmptyOnSelfHostedGateway(t *testing.T) {
 				return []*models.EnvironmentResponse{{UUID: f.envUUID.String(), Name: "dev"}}, nil
 			},
 		}
-		resp, err := svc.buildConfigResponse(ctx, config, false)
+		resp, err := svc.buildConfigResponse(ctx, config, platformAgentPolicy)
 		require.NoError(t, err)
 		require.NotNil(t, resp.EnvModelConfig["dev"].LLMProxy)
 		assert.Nil(t, resp.EnvModelConfig["dev"].LLMProxy.URL)

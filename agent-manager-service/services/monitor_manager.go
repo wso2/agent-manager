@@ -1551,7 +1551,7 @@ func (s *monitorManagerService) requireManagedMonitorProvider(
 	ctx context.Context, ouID, providerName string, provider *models.LLMProvider, envName string, envUUID uuid.UUID,
 ) error {
 	if err := requireProviderPlacement(ctx, s.llmProvisioner.ProxyDeploymentService(), s.llmProvisioner.gatewayRepo,
-		ouID, provider.UUID, envUUID, false); err != nil {
+		ouID, provider.UUID, envUUID, monitorPolicy); err != nil {
 		return fmt.Errorf("LLM provider %q in environment %s: %w", providerName, envName, err)
 	}
 	return nil
