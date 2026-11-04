@@ -50,7 +50,7 @@ export const OAuthNotice: React.FC<OAuthNoticeProps> = ({ endpoint }) => (
         fontFamily: "monospace",
       }}
     >
-      {`curl -X POST ${endpoint || "<agent-url>/chat"} \\
+      {`curl -X POST ${endpoint ? `'${endpoint}'` : "<agent-url>/chat"} \\
   -H "Authorization: Bearer <token>" \\
   -H "Content-Type: application/json" \\
   -d '{"message": "Hello", "session_id": "test", "context": {}}'`}

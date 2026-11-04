@@ -115,7 +115,7 @@ function EditEnvironmentForm({ environment, orgId, listHref }: EditEnvironmentFo
           params: { orgName: orgId, envName: environment.name },
           body: {
             displayName: result.data.displayName.trim(),
-            description: result.data.description ?? undefined,
+            description: result.data.description?.trim() || undefined,
             isProduction: result.data.isProduction,
           },
         });

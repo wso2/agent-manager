@@ -16,12 +16,12 @@
  * under the License.
  */
 
-import { PageLayout } from "@agent-management-platform/views";
+import { PageLayout, returnToState } from "@agent-management-platform/views";
 import {
   useDeleteProject,
   useListProjects,
 } from "@agent-management-platform/api-client";
-import { generatePath, Link, useParams } from "react-router-dom";
+import { generatePath, Link, useLocation, useNavigate, useParams } from "react-router-dom";
 import {
   absoluteRouteMap,
   type ProjectResponse,
@@ -65,6 +65,7 @@ function ProjectCard(props: {
 }) {
   const { project, handleDeleteProject } = props;
   const { orgId } = useParams();
+  const navigate = useNavigate();
 
   const projectPath = generatePath(
     absoluteRouteMap.children.org.children.projects.path,
@@ -81,20 +82,18 @@ function ProjectCard(props: {
   );
 
   return (
-    // ListingCard's own `href` renders a plain anchor, which would reload the
-    // app; the router Link keeps navigation client-side.
-    <Link to={projectPath} style={{ textDecoration: "none" }}>
-      <ListingCard
-        title={project.displayName}
-        description={project.description}
-        icon={<Package size={20} />}
-        updatedLabel="Created"
-        updatedTime={formatRelativeTime(project.createdAt)}
-        updatedDateTime={project.createdAt}
-        onDelete={handleDeleteClick}
-        deleteLabel="Delete project"
-      />
-    </Link>
+    // `onClick` keeps navigation client-side and avoids nesting the delete button in an anchor.
+    <ListingCard
+      title={project.displayName}
+      description={project.description}
+      icon={<Package size={20} />}
+      updatedLabel="Created"
+      updatedTime={formatRelativeTime(project.createdAt)}
+      updatedDateTime={project.createdAt}
+      onClick={() => navigate(projectPath)}
+      onDelete={handleDeleteClick}
+      deleteLabel="Delete project"
+    />
   );
 }
 
@@ -104,6 +103,7 @@ function SkeletonCard() {
 
 export function ProjectListing() {
   const { orgId } = useParams();
+  const location = useLocation();
 
   const {
     data: projects,
@@ -147,6 +147,7 @@ export function ProjectListing() {
       startIcon={<Plus size={16} />}
       component={Link}
       to={generatePath(absoluteRouteMap.children.org.children.newProject.path, { orgId })}
+      state={returnToState(location)}
     >
       Add Project
     </Button>

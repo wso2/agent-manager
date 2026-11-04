@@ -198,7 +198,7 @@ export const OrganizationOverview: React.FC = () => {
               ))}
         </Box>
 
-        <Card variant="outlined">
+        <Card variant="outlined" sx={{ display: "flex", flexDirection: "column", minHeight: { xs: 0, md: 360 } }}>
           <Stack
             direction="row"
             alignItems="center"
@@ -224,7 +224,7 @@ export const OrganizationOverview: React.FC = () => {
               ))}
             </Stack>
           ) : projectList.length === 0 ? (
-            <Stack alignItems="center" spacing={2} sx={{ py: 6, px: 2 }}>
+            <Stack alignItems="center" justifyContent="center" spacing={2} sx={{ py: 6, px: 2, flex: 1 }}>
               <Typography variant="body2" color="text.secondary">
                 Create a project to group your agents and their configuration.
               </Typography>
@@ -235,21 +235,24 @@ export const OrganizationOverview: React.FC = () => {
               {projectList.slice(0, PROJECTS_SHOWN).map((project) => (
                 <ProjectRow key={project.name} project={project} orgId={orgId} />
               ))}
-              <Divider />
-              <Stack
-                component={RouterLink}
-                to={generatePath(orgRoutes.children.projectListing.path, { orgId })}
-                direction="row"
-                spacing={1}
-                alignItems="center"
-                justifyContent="flex-end"
-                sx={{ px: 2.5, py: 1.5, color: "primary.main", textDecoration: "none" }}
-              >
-                <Typography variant="subtitle2" color="inherit">
-                  More Projects
-                </Typography>
-                <ArrowRight size={16} />
-              </Stack>
+              {/* Pinned to the card's bottom edge however few projects there are. */}
+              <Box sx={{ mt: "auto" }}>
+                <Divider />
+                <Stack
+                  component={RouterLink}
+                  to={generatePath(orgRoutes.children.projectListing.path, { orgId })}
+                  direction="row"
+                  spacing={1}
+                  alignItems="center"
+                  justifyContent="flex-end"
+                  sx={{ px: 2.5, py: 1.5, color: "primary.main", textDecoration: "none" }}
+                >
+                  <Typography variant="subtitle2" color="inherit">
+                    More Projects
+                  </Typography>
+                  <ArrowRight size={16} />
+                </Stack>
+              </Box>
             </>
           )}
         </Card>

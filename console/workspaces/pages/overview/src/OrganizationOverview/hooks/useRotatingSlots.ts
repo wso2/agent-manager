@@ -16,10 +16,11 @@
  * under the License.
  */
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { prefersReducedMotion, SWAP_INTERVAL_MS, SWAP_OUT_MS } from "../motion";
 
 export const CARD_SLOTS = 3;
+const PAUSE_RECHECK_MS = 250;
 
 /**
  * Which resource each slot shows. With more resources than slots, one slot at a time (in
@@ -38,13 +39,21 @@ export function useRotatingSlots(total: number) {
     setTurn(0);
   }, [total]);
 
+  // Read inside the timers so pausing never cancels a swap that is already under way.
+  const pausedRef = useRef(paused);
+  pausedRef.current = paused;
+
   useEffect(() => {
-    if (total <= slotCount || paused || prefersReducedMotion()) return undefined;
+    if (total <= slotCount || prefersReducedMotion()) return undefined;
     const slot = turn % slotCount;
-    let swap: ReturnType<typeof setTimeout>;
-    const lift = setTimeout(() => {
+    let timer: ReturnType<typeof setTimeout>;
+    const startSwap = () => {
+      if (pausedRef.current) {
+        timer = setTimeout(startSwap, PAUSE_RECHECK_MS);
+        return;
+      }
       setLeavingSlot(slot);
-      swap = setTimeout(() => {
+      timer = setTimeout(() => {
         setOrder((current) => {
           const next = [...current];
           [next[slot], next[slotCount]] = [next[slotCount], next[slot]];
@@ -54,13 +63,13 @@ export function useRotatingSlots(total: number) {
         setLeavingSlot(null);
         setTurn((value) => value + 1);
       }, SWAP_OUT_MS);
-    }, SWAP_INTERVAL_MS / 2);
+    };
+    timer = setTimeout(startSwap, SWAP_INTERVAL_MS / 2);
     return () => {
-      clearTimeout(lift);
-      clearTimeout(swap);
+      clearTimeout(timer);
       setLeavingSlot(null);
     };
-  }, [total, slotCount, paused, turn]);
+  }, [total, slotCount, turn]);
 
   // Hover and focus each add a pause, so one ending does not resume while the other holds.
   const setPaused = useCallback(

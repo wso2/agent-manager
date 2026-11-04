@@ -58,7 +58,7 @@ export const AddNewProject: React.FC = () => {
   }), [orgId]);
 
   const { mutate: createProject, isPending, error } = useCreateProject(params);
-  const { data: pipelinesData, isLoading: isPipelinesLoading } =
+  const { data: pipelinesData, isLoading: isPipelinesLoading, error: pipelinesError } =
     useListDeploymentPipelines({ orgName: orgId });
 
   // Projects start on the "default" pipeline (else the first one); it can be changed later.
@@ -90,7 +90,9 @@ export const AddNewProject: React.FC = () => {
 
     if (!defaultPipeline) {
       setLastSubmittedValidationErrors({
-        deploymentPipeline: 'No deployment pipeline is available. Create one in the organization first.',
+        deploymentPipeline: pipelinesError
+          ? 'Could not load deployment pipelines. Try again.'
+          : 'No deployment pipeline is available. Create one in the organization first.',
       });
       return;
     }
@@ -118,7 +120,8 @@ export const AddNewProject: React.FC = () => {
       }
     });
   }, [formData, validateForm, createProject,
-    navigate, allowNavigation, params.orgName, defaultPipeline, resetDirty, clearErrors, errors]);
+    navigate, allowNavigation, params.orgName, defaultPipeline, pipelinesError,
+    resetDirty, clearErrors, errors]);
 
   return (
     <PageLayout

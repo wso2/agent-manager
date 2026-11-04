@@ -35,7 +35,9 @@ export const useReturnTo = (fallback: string): string => {
     const location = useLocation();
     const from = (location.state as ReturnToState | null)?.from;
     // Only same-app absolute paths; ignore anything that could leave the console.
-    return typeof from === "string" && from.startsWith("/") && !from.startsWith("//")
+    const isSafe = typeof from === "string" && from.startsWith("/")
+        && !from.startsWith("//") && !from.includes("\\");
+    return isSafe
         ? from
         : fallback;
 };

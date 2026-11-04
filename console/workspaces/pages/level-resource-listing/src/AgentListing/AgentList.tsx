@@ -96,7 +96,7 @@ export const AgentList: React.FC<AgentListProps> = ({ showCreateAction = false }
   }>();
   const navigate = useNavigate();
   const location = useLocation();
-  const { data, isLoading, error, isRefetching } = useListAgents({
+  const { data, isLoading, error } = useListAgents({
     orgName: orgId,
     projName: projectId,
   });
@@ -164,6 +164,7 @@ export const AgentList: React.FC<AgentListProps> = ({ showCreateAction = false }
           {getErrorMessage(error)}
         </Alert>
       ) : null}
+      {error && !data ? null : (
 
       <ResourceListShell
         resourceName="agents"
@@ -196,7 +197,6 @@ export const AgentList: React.FC<AgentListProps> = ({ showCreateAction = false }
             )}
           </Stack>
         }
-        isLoading={isRefetching && !data?.agents?.length}
         isEmpty={!data?.agents?.length}
         isSearchEmpty={filteredAgents.length === 0}
         loadingPlaceholder={<AgentListSkeleton />}
@@ -222,7 +222,7 @@ export const AgentList: React.FC<AgentListProps> = ({ showCreateAction = false }
               <ListingTable.Row>
                 <ListingTable.Cell>Name</ListingTable.Cell>
                 <ListingTable.Cell>Type</ListingTable.Cell>
-                <ListingTable.Cell align="right">Last Updated</ListingTable.Cell>
+                <ListingTable.Cell align="right">Created</ListingTable.Cell>
               </ListingTable.Row>
             </ListingTable.Head>
             <ListingTable.Body>
@@ -323,6 +323,7 @@ export const AgentList: React.FC<AgentListProps> = ({ showCreateAction = false }
           )}
         </Box>
       </ResourceListShell>
+      )}
     </Stack>
   );
 };

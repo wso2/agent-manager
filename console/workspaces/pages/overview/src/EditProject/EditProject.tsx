@@ -129,17 +129,11 @@ function EditProjectForm({ project, orgId, projectHref }: EditProjectFormProps) 
   const { allowNavigation } = useUnsavedChangesGuard(formChanged);
 
   const handleFieldChange = useCallback((field: keyof EditProjectFormValues, value: string) => {
-    setFormData(prevData => {
-      const newData = { ...prevData, [field]: value };
-      checkDirty(newData);
-
-      // Validate and update error
-      const error = validateField(field, value);
-      setFieldError(field, error);
-
-      return newData;
-    });
-  }, [checkDirty, validateField, setFieldError]);
+    const newData = { ...formData, [field]: value };
+    setFormData(newData);
+    checkDirty(newData);
+    setFieldError(field, validateField(field, value));
+  }, [formData, checkDirty, validateField, setFieldError]);
 
   const { mutate: updateProject, isPending } = useUpdateProject({
     orgName: orgId,
@@ -164,9 +158,11 @@ function EditProjectForm({ project, orgId, projectHref }: EditProjectFormProps) 
   // Auto-select the first pipeline if the project has none configured.
   useEffect(() => {
     if (!formData.deploymentPipeline && pipelines.length > 0) {
-      setFormData((prev) => ({ ...prev, deploymentPipeline: pipelines[0].name }));
+      const next = { ...formData, deploymentPipeline: pipelines[0].name };
+      setFormData(next);
+      checkDirty(next);
     }
-  }, [pipelines, formData.deploymentPipeline]);
+  }, [pipelines, formData, checkDirty]);
 
   const handleCancel = useCallback(() => {
     allowNavigation(() => navigate(projectHref));
