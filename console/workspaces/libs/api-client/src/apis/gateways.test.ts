@@ -52,7 +52,7 @@ beforeEach(() => {
 
 describe("self-hosted gateway API", () => {
   it("registers a gateway with POST", async () => {
-    const body = { displayName: "Edge", environment: "dev", endpoints: ["https://gw.example.com"] };
+    const body = { displayName: "Edge", handle: "edge", environment: "dev", endpoints: ["https://gw.example.com"] };
     await createSelfHostedGateway({ orgName: "acme" }, body, getToken);
     expect(httpPOST).toHaveBeenCalledWith(GW, body, { token: "jwt" });
   });

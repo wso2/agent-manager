@@ -175,7 +175,7 @@ func handleGatewayErrors(w http.ResponseWriter, err error, fallbackMsg string) {
 	case errors.Is(err, utils.ErrGatewayNotFound):
 		utils.WriteErrorResponse(w, http.StatusNotFound, "Gateway not found")
 	case errors.Is(err, utils.ErrGatewayAlreadyExists):
-		utils.WriteErrorResponse(w, http.StatusConflict, "Gateway already exists")
+		utils.WriteErrorResponse(w, http.StatusConflict, "A gateway with this name already exists")
 	case errors.Is(err, utils.ErrGatewayHasDeployments):
 		utils.WriteErrorResponse(w, http.StatusConflict, err.Error())
 	case errors.Is(err, utils.ErrGatewayIngressCapExceeded):

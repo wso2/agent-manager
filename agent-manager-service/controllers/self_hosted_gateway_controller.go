@@ -119,7 +119,7 @@ func (c *gatewayController) RegisterSelfHostedGateway(w http.ResponseWriter, r *
 
 	input := services.SelfHostedGatewayInput{
 		DisplayName:       req.DisplayName,
-		Handle:            derefString(req.Handle),
+		Handle:            req.Handle,
 		Description:       derefString(req.Description),
 		Environment:       env.UUID,
 		FunctionalityType: derefString(req.FunctionalityType),
@@ -128,7 +128,7 @@ func (c *gatewayController) RegisterSelfHostedGateway(w http.ResponseWriter, r *
 		IsCritical:        req.IsCritical != nil && *req.IsCritical,
 		Properties:        req.Properties,
 	}
-	gateway, err := c.gatewayService.RegisterSelfHostedGateway(ouID, env.Name, input)
+	gateway, err := c.gatewayService.RegisterSelfHostedGateway(ouID, input)
 	vhost := ""
 	if gateway != nil {
 		vhost = gateway.Vhost

@@ -150,7 +150,7 @@ func TestRegisterSelfHostedGateway_AuditsTheNormalisedKindAndVhost(t *testing.T)
 		},
 	}
 	ctrl := NewGatewayController(services.NewPlatformGatewayService(repo, nil), envs, nil)
-	body := `{"displayName":"Edge","environment":"dev","functionalityType":"AI","endpoints":["  https://edge.example.com "]}`
+	body := `{"displayName":"Edge","handle":"edge","environment":"dev","functionalityType":"AI","endpoints":["  https://edge.example.com "]}`
 	req := httptest.NewRequest(http.MethodPost, "/orgs/acme/self-hosted-gateways", strings.NewReader(body))
 	req = req.WithContext(middleware.WithResolvedOrg(req.Context(), middleware.ResolvedOrg{OUID: "ou-1"}))
 	recorder := &capturingRecorder{}

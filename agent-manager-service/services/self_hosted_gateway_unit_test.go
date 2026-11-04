@@ -31,31 +31,6 @@ import (
 	"github.com/wso2/agent-manager/agent-manager-service/utils"
 )
 
-func TestSelfHostedHandle(t *testing.T) {
-	tests := []struct {
-		name, env, handle, display string
-		want                       string
-		wantErr                    bool
-	}{
-		{name: "slug from display name", env: "dev", display: "Default AI Self-Hosted Gateway", want: "dev-default-ai-self-hosted-gateway"},
-		{name: "explicit handle", env: "dev", handle: "edge-1", display: "x", want: "dev-edge-1"},
-		{name: "underscores and punctuation", env: "dev", display: "My_Edge  GW!", want: "dev-my-edge-gw"},
-		{name: "nothing left of the slug", env: "dev", display: "!!", wantErr: true},
-		{name: "too long", env: "dev", display: strings.Repeat("a", 70), wantErr: true},
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			got, err := selfHostedHandle(tt.env, tt.handle, tt.display)
-			if tt.wantErr {
-				require.ErrorIs(t, err, utils.ErrInvalidInput)
-				return
-			}
-			require.NoError(t, err)
-			require.Equal(t, tt.want, got)
-		})
-	}
-}
-
 func TestSelfHostedVhost(t *testing.T) {
 	for endpoint, want := range map[string]string{
 		"  https://gw.example.com\n": "https://gw.example.com",
@@ -105,7 +80,7 @@ func TestRegisterSelfHostedGateway(t *testing.T) {
 	env := uuid.NewString()
 	input := func(functionalityType string) SelfHostedGatewayInput {
 		return SelfHostedGatewayInput{
-			DisplayName: "Edge One", Environment: env, FunctionalityType: functionalityType,
+			DisplayName: "Edge One", Handle: " edge-one ", Environment: env, FunctionalityType: functionalityType,
 			Endpoints: []string{"https://edge.example.com"}, Version: "2026.09.24",
 		}
 	}
@@ -121,14 +96,14 @@ func TestRegisterSelfHostedGateway(t *testing.T) {
 			}
 			svc := NewPlatformGatewayService(repo, nil)
 
-			resp, err := svc.RegisterSelfHostedGateway("org", "dev", input(functionalityType))
+			resp, err := svc.RegisterSelfHostedGateway("org", input(functionalityType))
 
 			require.NoError(t, err)
 			require.NotNil(t, created)
 			require.Equal(t, models.GatewayHostingSelfHosted, created.Hosting)
 			require.Equal(t, models.GatewayRoleEgress, created.GatewayFunctionalityType)
 			require.Equal(t, "https://edge.example.com", created.Vhost)
-			require.Equal(t, "dev-edge-one", created.Name)
+			require.Equal(t, "edge-one", created.Name, "the handle is stored as given, trimmed, with no environment prefix")
 			require.Equal(t, []string{env}, mapped)
 			require.Equal(t, "SELF_HOSTED", string(resp.Hosting))
 		})
@@ -138,17 +113,31 @@ func TestRegisterSelfHostedGateway(t *testing.T) {
 		var created *models.Gateway
 		svc := NewPlatformGatewayService(registerRepo(&created, false), nil)
 
-		_, err := svc.RegisterSelfHostedGateway("org", "dev", input("regular"))
+		_, err := svc.RegisterSelfHostedGateway("org", input("regular"))
 
 		require.ErrorIs(t, err, utils.ErrInvalidInput)
 		require.Nil(t, created)
+	})
+
+	t.Run("a missing or invalid handle is refused", func(t *testing.T) {
+		for _, handle := range []string{"", "  ", "Edge One", "-edge", "edge-", "ab", strings.Repeat("a", 65)} {
+			var created *models.Gateway
+			svc := NewPlatformGatewayService(registerRepo(&created, false), nil)
+			in := input("ai")
+			in.Handle = handle
+
+			_, err := svc.RegisterSelfHostedGateway("org", in)
+
+			require.ErrorIs(t, err, utils.ErrInvalidInput, "handle %q", handle)
+			require.Nil(t, created)
+		}
 	})
 
 	t.Run("a taken handle is a conflict", func(t *testing.T) {
 		var created *models.Gateway
 		svc := NewPlatformGatewayService(registerRepo(&created, true), nil)
 
-		_, err := svc.RegisterSelfHostedGateway("org", "dev", input("ai"))
+		_, err := svc.RegisterSelfHostedGateway("org", input("ai"))
 
 		require.ErrorIs(t, err, utils.ErrGatewayAlreadyExists)
 		require.Nil(t, created)

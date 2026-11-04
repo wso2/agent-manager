@@ -136,10 +136,10 @@ export interface CreateGatewayRequest {
 export interface SelfHostedGatewayRequest {
   displayName: string;
   /**
-   * DNS-1123 label; the gateway handle becomes `<environment>-<handle>`.
-   * Derived from displayName when omitted.
+   * The gateway's name: unique in the organization and fixed once created.
+   * 3-64 lowercase letters, numbers and hyphens, not starting or ending with a hyphen.
    */
-  handle?: string;
+  handle: string;
   description?: string;
   environment: string;
   /** At least one http(s) endpoint URL; the first is the gateway's address. */

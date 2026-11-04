@@ -5301,8 +5301,8 @@ type SelfHostedGatewayRequest struct {
 	Environment       string                                     `json:"environment"`
 	FunctionalityType *SelfHostedGatewayRequestFunctionalityType `json:"functionalityType,omitempty"`
 
-	// Handle Optional DNS-1123 label; the gateway's handle becomes `<environment>-<handle>`. Derived from displayName when omitted.
-	Handle     *string                 `json:"handle,omitempty"`
+	// Handle The gateway's name, unique in the organization and fixed once created. Lowercase letters, numbers and hyphens, not starting or ending with a hyphen.
+	Handle     string                  `json:"handle"`
 	IsCritical *bool                   `json:"isCritical,omitempty"`
 	Properties *map[string]interface{} `json:"properties,omitempty"`
 

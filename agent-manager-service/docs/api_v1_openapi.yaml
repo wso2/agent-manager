@@ -16674,6 +16674,7 @@ components:
       type: object
       required:
         - displayName
+        - handle
         - environment
         - endpoints
       properties:
@@ -16685,8 +16686,12 @@ components:
         handle:
           type: string
           description: >-
-            Optional DNS-1123 label; the gateway's handle becomes `<environment>-<handle>`.
-            Derived from displayName when omitted.
+            The gateway's name, unique in the organization and fixed once created. Lowercase
+            letters, numbers and hyphens, not starting or ending with a hyphen.
+          pattern: "^[a-z0-9]([a-z0-9-]*[a-z0-9])?$"
+          minLength: 3
+          maxLength: 64
+          example: edge-gateway
         description:
           type: string
         environment:

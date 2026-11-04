@@ -21,8 +21,8 @@ var _ MappedNullable = &SelfHostedGatewayRequest{}
 type SelfHostedGatewayRequest struct {
 	// Human-readable display name
 	DisplayName string `json:"displayName"`
-	// Optional DNS-1123 label; the gateway's handle becomes `<environment>-<handle>`. Derived from displayName when omitted.
-	Handle      *string `json:"handle,omitempty"`
+	// The gateway's name, unique in the organization and fixed once created. Lowercase letters, numbers and hyphens, not starting or ending with a hyphen.
+	Handle      string  `json:"handle"`
 	Description *string `json:"description,omitempty"`
 	// Name of the environment to bind the gateway to. Must exist.
 	Environment       string  `json:"environment"`
@@ -39,9 +39,10 @@ type SelfHostedGatewayRequest struct {
 // This constructor will assign default values to properties that have it defined,
 // and makes sure properties required by API are set, but the set of arguments
 // will change when the set of required properties is changed
-func NewSelfHostedGatewayRequest(displayName string, environment string, endpoints []string) *SelfHostedGatewayRequest {
+func NewSelfHostedGatewayRequest(displayName string, handle string, environment string, endpoints []string) *SelfHostedGatewayRequest {
 	this := SelfHostedGatewayRequest{}
 	this.DisplayName = displayName
+	this.Handle = handle
 	this.Environment = environment
 	var functionalityType string = "ai"
 	this.FunctionalityType = &functionalityType
@@ -83,36 +84,28 @@ func (o *SelfHostedGatewayRequest) SetDisplayName(v string) {
 	o.DisplayName = v
 }
 
-// GetHandle returns the Handle field value if set, zero value otherwise.
+// GetHandle returns the Handle field value
 func (o *SelfHostedGatewayRequest) GetHandle() string {
-	if o == nil || IsNil(o.Handle) {
+	if o == nil {
 		var ret string
 		return ret
 	}
-	return *o.Handle
+
+	return o.Handle
 }
 
-// GetHandleOk returns a tuple with the Handle field value if set, nil otherwise
+// GetHandleOk returns a tuple with the Handle field value
 // and a boolean to check if the value has been set.
 func (o *SelfHostedGatewayRequest) GetHandleOk() (*string, bool) {
-	if o == nil || IsNil(o.Handle) {
+	if o == nil {
 		return nil, false
 	}
-	return o.Handle, true
+	return &o.Handle, true
 }
 
-// HasHandle returns a boolean if a field has been set.
-func (o *SelfHostedGatewayRequest) HasHandle() bool {
-	if o != nil && !IsNil(o.Handle) {
-		return true
-	}
-
-	return false
-}
-
-// SetHandle gets a reference to the given string and assigns it to the Handle field.
+// SetHandle sets field value
 func (o *SelfHostedGatewayRequest) SetHandle(v string) {
-	o.Handle = &v
+	o.Handle = v
 }
 
 // GetDescription returns the Description field value if set, zero value otherwise.
@@ -334,9 +327,7 @@ func (o SelfHostedGatewayRequest) MarshalJSON() ([]byte, error) {
 func (o SelfHostedGatewayRequest) ToMap() (map[string]interface{}, error) {
 	toSerialize := map[string]interface{}{}
 	toSerialize["displayName"] = o.DisplayName
-	if !IsNil(o.Handle) {
-		toSerialize["handle"] = o.Handle
-	}
+	toSerialize["handle"] = o.Handle
 	if !IsNil(o.Description) {
 		toSerialize["description"] = o.Description
 	}

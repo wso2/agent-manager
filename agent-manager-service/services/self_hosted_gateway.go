@@ -18,7 +18,6 @@ package services
 
 import (
 	"net/url"
-	"regexp"
 	"strings"
 
 	"github.com/google/uuid"
@@ -26,18 +25,6 @@ import (
 	"github.com/wso2/agent-manager/agent-manager-service/models"
 	"github.com/wso2/agent-manager/agent-manager-service/utils"
 	"github.com/wso2/agent-manager/agent-manager-service/utils/ssrf"
-)
-
-const (
-	selfHostedHandleMinLength = 3
-	selfHostedHandleMaxLength = 64
-)
-
-var (
-	selfHostedHandlePattern   = regexp.MustCompile(`^[a-z0-9-]+$`)
-	slugSeparatorPattern      = regexp.MustCompile(`[\s_]+`)
-	slugDisallowedPattern     = regexp.MustCompile(`[^a-z0-9-]`)
-	slugRepeatedHyphenPattern = regexp.MustCompile(`-{2,}`)
 )
 
 // SelfHostedGatewayInput is the registration request for a self-hosted gateway.
@@ -56,19 +43,15 @@ type SelfHostedGatewayInput struct {
 
 // RegisterSelfHostedGateway registers an egress gateway the customer runs themselves,
 // bound to the single environment named in the input. Version is accepted and ignored.
-func (s *PlatformGatewayService) RegisterSelfHostedGateway(ouID, envName string, in SelfHostedGatewayInput) (*GatewayResponse, error) {
+func (s *PlatformGatewayService) RegisterSelfHostedGateway(ouID string, in SelfHostedGatewayInput) (*GatewayResponse, error) {
 	if err := requireSelfHostedFunctionalityType(in.FunctionalityType); err != nil {
-		return nil, err
-	}
-	handle, err := selfHostedHandle(envName, in.Handle, in.DisplayName)
-	if err != nil {
 		return nil, err
 	}
 	vhost, err := selfHostedVhost(in.Endpoints)
 	if err != nil {
 		return nil, err
 	}
-	return s.RegisterGateway(ouID, handle, in.DisplayName, in.Description, vhost, "", in.IsCritical,
+	return s.RegisterGateway(ouID, strings.TrimSpace(in.Handle), in.DisplayName, in.Description, vhost, "", in.IsCritical,
 		models.GatewayRoleEgress, in.Properties, []string{in.Environment}, models.GatewayHostingSelfHosted)
 }
 
@@ -111,31 +94,6 @@ func requireSelfHostedFunctionalityType(functionalityType string) error {
 	}
 	return utils.NewInvalidInputError("Self-hosted gateways support only the AI functionality type",
 		"unsupported self-hosted gateway functionality type: "+functionalityType)
-}
-
-// selfHostedHandle returns "<envName>-<handle>", deriving the handle from the display
-// name when none is given.
-func selfHostedHandle(envName, handle, displayName string) (string, error) {
-	suffix := strings.TrimSpace(handle)
-	if suffix == "" {
-		suffix = gatewaySlug(displayName)
-	}
-	full := envName + "-" + suffix
-	if len(full) < selfHostedHandleMinLength || len(full) > selfHostedHandleMaxLength ||
-		!selfHostedHandlePattern.MatchString(full) || strings.HasSuffix(full, "-") {
-		return "", utils.NewInvalidInputError(
-			"Gateway handle must be 3 to 64 lowercase letters, numbers and hyphens",
-			"derived gateway handle is invalid: "+full)
-	}
-	return full, nil
-}
-
-func gatewaySlug(text string) string {
-	slug := strings.ToLower(strings.TrimSpace(text))
-	slug = slugSeparatorPattern.ReplaceAllString(slug, "-")
-	slug = slugDisallowedPattern.ReplaceAllString(slug, "")
-	slug = slugRepeatedHyphenPattern.ReplaceAllString(slug, "-")
-	return strings.Trim(slug, "-")
 }
 
 // selfHostedVhost returns the first endpoint as a base URL, scheme and host only. Proxy context paths, which start with

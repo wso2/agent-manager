@@ -185,7 +185,7 @@ func TestSelfHostedGatewayRoutes_SelfHostedGatewaySucceeds(t *testing.T) {
 		audit  audit.Action
 	}{
 		{"list", http.MethodGet, "", "", rbac.GatewayRead, http.StatusOK, ""},
-		{"create", http.MethodPost, "", `{"displayName":"Edge","environment":"dev","endpoints":["https://edge.example.com"]}`, rbac.GatewayCreate, http.StatusCreated, audit.ActionGatewayCreate},
+		{"create", http.MethodPost, "", `{"displayName":"Edge","handle":"edge","environment":"dev","endpoints":["https://edge.example.com"]}`, rbac.GatewayCreate, http.StatusCreated, audit.ActionGatewayCreate},
 		{"get", http.MethodGet, "/" + id, "", rbac.GatewayRead, http.StatusOK, ""},
 		{"update", http.MethodPut, "/" + id, `{"description":"edge site"}`, rbac.GatewayUpdate, http.StatusOK, audit.ActionGatewayUpdate},
 		{"list tokens", http.MethodGet, tokenPath, "", rbac.GatewayTokenManage, http.StatusOK, ""},
@@ -218,7 +218,7 @@ func TestSelfHostedGatewayRoutes_SelfHostedGatewaySucceeds(t *testing.T) {
 func TestSelfHostedGatewayRoutes_CreateReturnsNoToken(t *testing.T) {
 	f := newSelfHostedFixture(t)
 
-	rec := f.call(http.MethodPost, "", `{"displayName":"Edge","environment":"dev","endpoints":["https://edge.example.com"]}`, rbac.GatewayCreate)
+	rec := f.call(http.MethodPost, "", `{"displayName":"Edge","handle":"edge","environment":"dev","endpoints":["https://edge.example.com"]}`, rbac.GatewayCreate)
 
 	require.Equal(t, http.StatusCreated, rec.Code, rec.Body.String())
 	assert.NotContains(t, rec.Body.String(), `"token"`)
@@ -263,8 +263,9 @@ func TestSelfHostedGatewayRoutes_CreateRejectsBadInput(t *testing.T) {
 		body string
 		want int
 	}{
-		{"placeholder endpoint", `{"displayName":"Edge","environment":"dev","endpoints":["pending://awaiting-connection"]}`, http.StatusBadRequest},
-		{"unknown environment", `{"displayName":"Edge","environment":"nowhere","endpoints":["https://edge.example.com"]}`, http.StatusNotFound},
+		{"placeholder endpoint", `{"displayName":"Edge","handle":"edge","environment":"dev","endpoints":["pending://awaiting-connection"]}`, http.StatusBadRequest},
+		{"unknown environment", `{"displayName":"Edge","handle":"edge","environment":"nowhere","endpoints":["https://edge.example.com"]}`, http.StatusNotFound},
+		{"missing handle", `{"displayName":"Edge","environment":"dev","endpoints":["https://edge.example.com"]}`, http.StatusBadRequest},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
