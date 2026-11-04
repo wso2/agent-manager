@@ -31,7 +31,7 @@ existing_observability=$(observability_mode)
 case "$existing_observability" in
     full|lite)
         if [ "$existing_observability" != "$AMP_OBSERVABILITY" ]; then
-            echo "❌ This cluster was set up with $existing_observability observability; run 'make teardown' before switching to $AMP_OBSERVABILITY."
+            echo "❌ This cluster was set up with $existing_observability observability; run 'make teardown' before switching to $AMP_OBSERVABILITY, or re-run in the existing mode with AMP_OBSERVABILITY=$existing_observability (make setup-lite for lite, make setup for full)."
             exit 1
         fi
         ;;
