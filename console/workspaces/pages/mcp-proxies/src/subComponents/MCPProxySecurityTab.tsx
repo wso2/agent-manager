@@ -160,6 +160,8 @@ export type MCPProxySecurityTabProps = {
    * panel's role picker.
    */
   environments: Environment[];
+  /** OAuth (Agent Identity) is unavailable while the endpoint is on a self-hosted gateway. */
+  isOnSelfHostedGateway?: boolean;
   isLoading?: boolean;
   onUpdate: (fields: Partial<MCPEndpointConfig>) => Promise<MCPProxy>;
   isUpdating: boolean;
@@ -173,6 +175,7 @@ export function MCPProxySecurityTab({
   orgName,
   proxyId,
   environments,
+  isOnSelfHostedGateway = false,
   isLoading = false,
   onUpdate,
   isUpdating,
@@ -563,14 +566,20 @@ export function MCPProxySecurityTab({
               }
             >
               {AUTHENTICATION_TYPE_OPTIONS.map((type) => (
-                <MenuItem key={type || "none"} value={type}>
+                <MenuItem
+                  key={type || "none"}
+                  value={type}
+                  disabled={type === "identity" && isOnSelfHostedGateway}
+                >
                   {getAuthenticationTypeLabel(type)}
                 </MenuItem>
               ))}
             </Select>
-            <Typography variant="caption" color="text.secondary" sx={{ mt: 0.5 }}>
-              Use API key security on self-hosted gateways.
-            </Typography>
+            {isOnSelfHostedGateway && (
+              <Typography variant="caption" color="text.secondary" sx={{ mt: 0.5 }}>
+                OAuth isn&apos;t available on self-hosted gateways yet. Use API key security.
+              </Typography>
+            )}
           </FormControl>
         </Grid>
       </Grid>
