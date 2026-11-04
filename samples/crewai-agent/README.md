@@ -10,8 +10,9 @@ Because the request flows through two agents and the underlying model, a single 
 
 ### Python runtime
 
-Use Python 3.11, 3.12, or 3.13 for new deployments. CrewAI requires Python below
-3.14, and its `pdfplumber` dependency installs Pillow. Pillow 13.0.0 includes
+Use Python 3.11, 3.12, or 3.13 for new deployments. The sample pins
+`crewai==1.15.34`, which requires Python below 3.14. Its `pdfplumber` dependency
+installs Pillow. Pillow 13.0.0 includes
 image-parser fixes and requires Python 3.11 or later. Python 3.10 instead resolves
 Pillow 12.3.0, which remains affected by the reported vulnerabilities.
 
