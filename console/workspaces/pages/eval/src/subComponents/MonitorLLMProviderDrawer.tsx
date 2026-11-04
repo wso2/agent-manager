@@ -35,7 +35,6 @@ import {
   DrawerWrapper,
 } from "@agent-management-platform/views";
 import {
-  getErrorMessage,
   useConfirmIfUnsaved,
   useUnsavedChangesGuard,
 } from "@agent-management-platform/shared-component";
@@ -348,7 +347,6 @@ export function MonitorLLMProviderDrawer({
   const {
     mutate: createLLMProvider,
     isPending: isCreatingProvider,
-    error: createProviderError,
   } = useCreateLLMProvider();
 
   const debouncedSetSearch = useMemo(
@@ -548,11 +546,6 @@ export function MonitorLLMProviderDrawer({
               templates={templateCards}
               isLoadingTemplates={isLoadingTemplates}
               isSubmitting={isCreatingProvider}
-              errorMessage={
-                createProviderError
-                  ? getErrorMessage(createProviderError)
-                  : null
-              }
               submitLabel="Create & use provider"
               showAdvancedBasicDetails={false}
               showGuardrails={false}
