@@ -63,7 +63,8 @@ var (
 	// errSelfHostedAnchor means a platform-hosted agent's or monitor's LLM proxy, which AMS owns and serves to
 	// workloads in OpenChoreo, is placed on a self-hosted gateway. Platform-hosted agents and monitors only use
 	// managed gateways and no path places their proxies elsewhere, so this is a backstop only. External agents may
-	// use self-hosted ones; their proxies are not checked against it.
+	// use self-hosted gateways, chosen when the binding is saved (resolveGatewayForProvider); only the placement
+	// pass (LLMProxyKind.Targets) still checks their proxies against it.
 	errSelfHostedAnchor = errors.New("the agent's or monitor's LLM proxy is placed on a self-hosted gateway")
 )
 
