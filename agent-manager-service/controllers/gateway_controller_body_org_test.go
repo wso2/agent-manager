@@ -24,99 +24,91 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"gorm.io/gorm"
 
 	"github.com/wso2/agent-manager/agent-manager-service/audit"
 	"github.com/wso2/agent-manager/agent-manager-service/middleware"
 	"github.com/wso2/agent-manager/agent-manager-service/models"
 	"github.com/wso2/agent-manager/agent-manager-service/repositories/repomocks"
 	"github.com/wso2/agent-manager/agent-manager-service/services"
-	"github.com/wso2/agent-manager/agent-manager-service/utils"
 )
 
 const (
-	callerOUID = "11111111-1111-1111-1111-111111111111"
-	otherOUID  = "22222222-2222-2222-2222-222222222222"
+	bodyOrgTestCallerOUID = "11111111-1111-1111-1111-111111111111"
+	bodyOrgTestOtherOUID  = "22222222-2222-2222-2222-222222222222"
 )
 
-func requestAsCaller(method, target, body string) *http.Request {
+var bodyOrgCases = []struct {
+	name          string
+	orgID         string
+	wantForbidden bool
+}{
+	{name: "absent"},
+	{name: "the caller's own org", orgID: bodyOrgTestCallerOUID},
+	{name: "the caller's own org in upper case", orgID: strings.ToUpper(bodyOrgTestCallerOUID)},
+	{name: "another org", orgID: bodyOrgTestOtherOUID, wantForbidden: true},
+}
+
+// withBodyOrg closes a JSON object body, adding orgId when one is given.
+func withBodyOrg(fields, orgID string) string {
+	if orgID == "" {
+		return "{" + fields + "}"
+	}
+	if fields != "" {
+		fields += ","
+	}
+	return "{" + fields + `"orgId":"` + orgID + `"}`
+}
+
+func bodyOrgTestRequest(method, target, body string) *http.Request {
 	req := httptest.NewRequest(method, target, strings.NewReader(body))
-	ctx := middleware.WithResolvedOrg(req.Context(), middleware.ResolvedOrg{OUID: callerOUID})
+	ctx := middleware.WithResolvedOrg(req.Context(), middleware.ResolvedOrg{OUID: bodyOrgTestCallerOUID})
 	return req.WithContext(audit.WithRecorder(ctx, audit.NewNoopRecorder()))
 }
 
 func TestRegisterGateway_BodyOrgID(t *testing.T) {
-	tests := []struct {
-		name     string
-		orgField string
-		wantCode int
-		wantOUID string
-	}{
-		{name: "absent uses the caller's org", orgField: "", wantCode: http.StatusCreated, wantOUID: callerOUID},
-		{name: "caller's own org is accepted", orgField: `,"orgId":"` + callerOUID + `"`, wantCode: http.StatusCreated, wantOUID: callerOUID},
-		{name: "caller's own org in upper case is accepted", orgField: `,"orgId":"` + strings.ToUpper(callerOUID) + `"`, wantCode: http.StatusCreated, wantOUID: callerOUID},
-		{name: "another org is refused", orgField: `,"orgId":"` + otherOUID + `"`, wantCode: http.StatusForbidden},
-	}
-
-	for _, tt := range tests {
+	for _, tt := range bodyOrgCases {
 		t.Run(tt.name, func(t *testing.T) {
-			var created *models.Gateway
-			gatewayRepo := &repomocks.GatewayRepositoryMock{
-				GetByNameAndOrgIDFunc: func(_ string, _ string) (*models.Gateway, error) {
-					return nil, utils.ErrGatewayNotFound
-				},
-				TransactionFunc: func(fn func(tx *gorm.DB) error) error { return fn(nil) },
-				CreateTxFunc: func(_ *gorm.DB, gateway *models.Gateway) error {
-					created = gateway
-					return nil
-				},
-				GetEnvironmentMappingsByGatewayIDFunc: func(_ string) ([]models.GatewayEnvironmentMapping, error) {
-					return []models.GatewayEnvironmentMapping{}, nil
-				},
-			}
-			ctrl := NewGatewayController(services.NewPlatformGatewayService(gatewayRepo, nil), nil, nil)
-
-			body := `{"name":"gw-1","displayName":"Gateway","gatewayType":"BOTH","vhost":"gw.example.com"` + tt.orgField + `}`
+			h := newRegisterHarness()
+			body := withBodyOrg(`"name":"gw-1","displayName":"Gateway","gatewayType":"BOTH","vhost":"gw.example.com"`, tt.orgID)
 			w := httptest.NewRecorder()
-			ctrl.RegisterGateway(w, requestAsCaller(http.MethodPost, "/orgs/o1/gateways", body))
+			h.ctrl.RegisterGateway(w, bodyOrgTestRequest(http.MethodPost, "/orgs/o1/gateways", body))
 
-			require.Equal(t, tt.wantCode, w.Code, "response body: %s", w.Body.String())
-			if tt.wantCode != http.StatusCreated {
-				assert.Nil(t, created, "no gateway may be stored")
+			if tt.wantForbidden {
+				assert.Equal(t, http.StatusForbidden, w.Code, "response body: %s", w.Body.String())
+				assert.Nil(t, h.created, "no gateway may be stored")
 				return
 			}
-			require.NotNil(t, created)
-			assert.Equal(t, tt.wantOUID, created.OUID)
+			require.Equal(t, http.StatusCreated, w.Code, "response body: %s", w.Body.String())
+			require.NotNil(t, h.created)
+			assert.Equal(t, bodyOrgTestCallerOUID, h.created.OUID)
 		})
 	}
 }
 
-func TestRotateGatewayToken_AnotherOrgInBodyRefused(t *testing.T) {
-	gatewayRepo := &repomocks.GatewayRepositoryMock{} // any repository call panics
-	ctrl := NewGatewayController(services.NewPlatformGatewayService(gatewayRepo, nil), nil, nil)
+func TestRotateGatewayToken_BodyOrgID(t *testing.T) {
+	for _, tt := range bodyOrgCases {
+		t.Run(tt.name, func(t *testing.T) {
+			// At the two-token limit the rotation stops with a conflict right
+			// after finding the caller's gateway.
+			gatewayRepo := &repomocks.GatewayRepositoryMock{
+				GetByUUIDFunc: func(_ string) (*models.Gateway, error) {
+					return &models.Gateway{OUID: bodyOrgTestCallerOUID}, nil
+				},
+				CountActiveTokensFunc: func(_ string) (int, error) { return 2, nil },
+			}
+			ctrl := NewGatewayController(services.NewPlatformGatewayService(gatewayRepo, nil), nil, nil)
 
-	req := requestAsCaller(http.MethodPost, "/orgs/o1/gateways/gw-uuid/tokens", `{"orgId":"`+otherOUID+`"}`)
-	req.SetPathValue("gatewayID", "gw-uuid")
-	w := httptest.NewRecorder()
-	ctrl.RotateGatewayToken(w, req)
+			req := bodyOrgTestRequest(http.MethodPost, "/orgs/o1/gateways/gw-uuid/tokens", withBodyOrg("", tt.orgID))
+			req.SetPathValue("gatewayID", "gw-uuid")
+			w := httptest.NewRecorder()
+			ctrl.RotateGatewayToken(w, req)
 
-	assert.Equal(t, http.StatusForbidden, w.Code, "response body: %s", w.Body.String())
-}
-
-func TestRotateGatewayToken_CallerOrgInBodyLooksUpCallerOrg(t *testing.T) {
-	gatewayRepo := &repomocks.GatewayRepositoryMock{
-		GetByUUIDFunc: func(_ string) (*models.Gateway, error) {
-			return &models.Gateway{OUID: callerOUID}, nil
-		},
-		CountActiveTokensFunc: func(_ string) (int, error) { return 2, nil },
+			if tt.wantForbidden {
+				assert.Equal(t, http.StatusForbidden, w.Code, "response body: %s", w.Body.String())
+				assert.Empty(t, gatewayRepo.GetByUUIDCalls(), "no gateway may be looked up")
+				return
+			}
+			assert.Equal(t, http.StatusConflict, w.Code, "response body: %s", w.Body.String())
+		})
 	}
-	ctrl := NewGatewayController(services.NewPlatformGatewayService(gatewayRepo, nil), nil, nil)
-
-	req := requestAsCaller(http.MethodPost, "/orgs/o1/gateways/gw-uuid/tokens", `{"orgId":"`+callerOUID+`"}`)
-	req.SetPathValue("gatewayID", "gw-uuid")
-	w := httptest.NewRecorder()
-	ctrl.RotateGatewayToken(w, req)
-
-	assert.NotEqual(t, http.StatusForbidden, w.Code, "response body: %s", w.Body.String())
-	assert.Len(t, gatewayRepo.CountActiveTokensCalls(), 1, "the caller's gateway must be found")
 }

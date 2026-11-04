@@ -201,16 +201,16 @@ func handleGatewayErrors(w http.ResponseWriter, err error, fallbackMsg string) {
 	}
 }
 
-const errBodyOrgMismatch = "orgId does not match the caller's organization"
-
-// bodyOrgIsCallerOrg reports whether an optional orgId in a request body names
-// the caller's own org. The org always comes from the token; the body field is
-// accepted only so that existing clients that send it keep working.
-func bodyOrgIsCallerOrg(bodyOrg *string, callerOUID string) bool {
-	if bodyOrg == nil || *bodyOrg == "" {
-		return true
+// refusedForeignBodyOrg writes a 403 and reports true when a request body's
+// optional orgId names an org other than the caller's. The org always comes
+// from the token; the body field is accepted only so that existing clients
+// that send it keep working.
+func refusedForeignBodyOrg(w http.ResponseWriter, bodyOrg *string, callerOUID string) bool {
+	if bodyOrg == nil || *bodyOrg == "" || strings.EqualFold(*bodyOrg, callerOUID) {
+		return false
 	}
-	return strings.EqualFold(*bodyOrg, callerOUID)
+	utils.WriteErrorResponse(w, http.StatusForbidden, "orgId does not match the caller's organization")
+	return true
 }
 
 func (c *gatewayController) RegisterGateway(w http.ResponseWriter, r *http.Request) {
@@ -224,8 +224,7 @@ func (c *gatewayController) RegisterGateway(w http.ResponseWriter, r *http.Reque
 	}
 
 	ouID := middleware.OUIDFromRequest(r)
-	if !bodyOrgIsCallerOrg(req.OrgId, ouID) {
-		utils.WriteErrorResponse(w, http.StatusForbidden, errBodyOrgMismatch)
+	if refusedForeignBodyOrg(w, req.OrgId, ouID) {
 		return
 	}
 
@@ -732,8 +731,8 @@ func (c *gatewayController) rotateGatewayToken(w http.ResponseWriter, r *http.Re
 	ouID := middleware.OUIDFromRequest(r)
 	gatewayID := strings.TrimSpace(r.PathValue("gatewayID"))
 
-	// The request body is optional; decode it only if one was sent so that
-	// callers can still rotate without providing an explicit org.
+	// The request body is optional; its only field, orgId, may name only the
+	// caller's own org.
 	if r.Body != nil && r.ContentLength != 0 {
 		var req spec.RotateGatewayTokenRequest
 		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
@@ -741,8 +740,7 @@ func (c *gatewayController) rotateGatewayToken(w http.ResponseWriter, r *http.Re
 			utils.WriteErrorResponse(w, http.StatusBadRequest, "Invalid request body")
 			return
 		}
-		if !bodyOrgIsCallerOrg(req.OrgId, ouID) {
-			utils.WriteErrorResponse(w, http.StatusForbidden, errBodyOrgMismatch)
+		if refusedForeignBodyOrg(w, req.OrgId, ouID) {
 			return
 		}
 	}
