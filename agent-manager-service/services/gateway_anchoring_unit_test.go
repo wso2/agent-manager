@@ -53,7 +53,7 @@ import (
 //   - site 5 (resolveMonitorGateway, monitor_manager.go): the unexported method on a bare
 //     &monitorManagerService{} literal. The same helper backs both the monitor-create and
 //     monitor-update call sites, so one test covers both.
-//   - sites 4 and 6 (resolveGatewayForMCPArtifact, agent_configuration_service.go): the
+//   - sites 4 and 6 (mcpArtifactGateway, agent_configuration_service.go): the
 //     unexported wrapper method, driven once per call site (update at :2288, create at
 //     :1342) since both are the identical resolver reached from different callers.
 
@@ -521,7 +521,7 @@ func TestAnchoring_MonitorCreateAgainstDeployedProvider(t *testing.T) {
 }
 
 func TestAnchoring_AgentMCPConfigCreateWithExistingMapping(t *testing.T) {
-	// Drives resolveGatewayForMCPArtifact as reached from the agent MCP config create
+	// Drives mcpArtifactGateway as reached from the agent MCP config create
 	// path (agent_configuration_service.go:1342), which resolves the environment's gateway
 	// for the MCP proxy's already-deployed shared artifact without placing anything itself.
 	env := uuid.New()
@@ -540,7 +540,7 @@ func TestAnchoring_AgentMCPConfigCreateWithExistingMapping(t *testing.T) {
 				},
 			},
 		}
-		gw, err := svc.resolveGatewayForMCPArtifact(context.Background(), sharedArtifactUUID, "org", env)
+		gw, err := svc.mcpArtifactGateway(context.Background(), platformAgentPolicy, sharedArtifactUUID, "org", env)
 		require.NoError(t, err)
 		require.Equal(t, both.UUID, gw.UUID)
 	})
@@ -556,13 +556,13 @@ func TestAnchoring_AgentMCPConfigCreateWithExistingMapping(t *testing.T) {
 				},
 			},
 		}
-		_, err := svc.resolveGatewayForMCPArtifact(context.Background(), sharedArtifactUUID, "org", env)
+		_, err := svc.mcpArtifactGateway(context.Background(), platformAgentPolicy, sharedArtifactUUID, "org", env)
 		require.ErrorIs(t, err, errAmbiguousEgressGateway)
 	})
 }
 
 func TestAnchoring_AgentMCPConfigUpdateWithExistingMapping(t *testing.T) {
-	// Same resolveGatewayForMCPArtifact seam as the create test above, but exercised as
+	// Same mcpArtifactGateway seam as the create test above, but exercised as
 	// reached from updateMCPConfig's deployability probe (agent_configuration_service.go:2288).
 	// It's the identical resolver at a second call site, not a distinct code path — kept as
 	// its own test to mirror the brief's naming for both anchored sites (4 and 6).
@@ -582,7 +582,7 @@ func TestAnchoring_AgentMCPConfigUpdateWithExistingMapping(t *testing.T) {
 				},
 			},
 		}
-		gw, err := svc.resolveGatewayForMCPArtifact(context.Background(), sharedArtifactUUID, "org", env)
+		gw, err := svc.mcpArtifactGateway(context.Background(), platformAgentPolicy, sharedArtifactUUID, "org", env)
 		require.NoError(t, err)
 		require.Equal(t, egress.UUID, gw.UUID)
 	})
@@ -598,7 +598,7 @@ func TestAnchoring_AgentMCPConfigUpdateWithExistingMapping(t *testing.T) {
 				},
 			},
 		}
-		_, err := svc.resolveGatewayForMCPArtifact(context.Background(), sharedArtifactUUID, "org", env)
+		_, err := svc.mcpArtifactGateway(context.Background(), platformAgentPolicy, sharedArtifactUUID, "org", env)
 		require.ErrorIs(t, err, errAmbiguousEgressGateway)
 	})
 }

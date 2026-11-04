@@ -772,8 +772,8 @@ func (s *agentConfigurationService) reconcileConfigMCPBindings(
 		return nil
 	}
 
-	bindable, selfHosted := s.deployableMCPEnvs(ctx, proxy, scope.ouID, candidates)
-	if len(bindable) == 0 && len(selfHosted) == 0 {
+	targets := s.deployableMCPEnvs(ctx, proxy, scope.ouID, candidates)
+	if len(targets) == 0 {
 		return nil
 	}
 
@@ -781,18 +781,7 @@ func (s *agentConfigurationService) reconcileConfigMCPBindings(
 	if err != nil {
 		return err
 	}
-	for _, envUUID := range selfHosted {
-		switch {
-		case !inputs.policy.external():
-			s.logger.Warn("Skipping MCP binding backfill; the proxy is on a self-hosted gateway in this environment",
-				"ouID", scope.ouID, "environmentUUID", envUUID, "mcpProxyUUID", proxy.UUID)
-		case mcpIdentityEnabled(mcpProxySecurityForEnv(proxy, envUUID.String())):
-			s.logger.Warn("Skipping MCP binding backfill; the proxy uses Agent Identity on a self-hosted gateway in this environment",
-				"ouID", scope.ouID, "environmentUUID", envUUID, "mcpProxyUUID", proxy.UUID)
-		default:
-			bindable = append(bindable, envUUID)
-		}
-	}
+	bindable := s.admitMCPBackfillTargets(proxy, scope.ouID, inputs.policy, targets)
 	if len(bindable) == 0 {
 		return nil
 	}
@@ -856,17 +845,22 @@ func retainEnvs(envUUIDs []uuid.UUID, keep map[uuid.UUID]struct{}) []uuid.UUID {
 	return retained
 }
 
+// mcpEnvTarget is an environment an MCP proxy can back a binding in, and the gateway it is on there.
+type mcpEnvTarget struct {
+	envUUID uuid.UUID
+	gateway *models.Gateway
+}
+
 // deployableMCPEnvs narrows candidates to the environments proxy can actually back a
-// binding in, split by the gateway's hosting: only an external agent may bind where it is
-// self-hosted, so the caller decides (and logs) whether to skip those.
+// binding in. Whether the agent may use each one's gateway is the caller's decision.
 //
-// Every other skip is logged here. A silently dropped environment is indistinguishable from "nothing
+// Every skip is logged here. A silently dropped environment is indistinguishable from "nothing
 // to do", which is how this class of breakage reached users: the binding never appeared,
 // the logs said nothing, and the agent failed at promotion instead.
 func (s *agentConfigurationService) deployableMCPEnvs(
 	ctx context.Context, proxy *models.MCPProxy, ouID string, candidates []uuid.UUID,
-) (bindable, selfHosted []uuid.UUID) {
-	bindable = make([]uuid.UUID, 0, len(candidates))
+) []mcpEnvTarget {
+	targets := make([]mcpEnvTarget, 0, len(candidates))
 	for _, envUUID := range candidates {
 		gateway, err := s.resolveDeployableMCPGateway(ctx, proxy, ouID, envUUID)
 		if err != nil {
@@ -879,13 +873,39 @@ func (s *agentConfigurationService) deployableMCPEnvs(
 			}
 			continue
 		}
-		if !gateway.IsManaged() {
-			selfHosted = append(selfHosted, envUUID)
+		targets = append(targets, mcpEnvTarget{envUUID: envUUID, gateway: gateway})
+	}
+	return targets
+}
+
+// admitMCPBackfillTargets is the environments among targets the agent may bind in, managed gateways first, logging
+// each one the policy refuses.
+func (s *agentConfigurationService) admitMCPBackfillTargets(
+	proxy *models.MCPProxy, ouID string, policy placementPolicy, targets []mcpEnvTarget,
+) []uuid.UUID {
+	bindable := make([]uuid.UUID, 0, len(targets))
+	for _, t := range targets {
+		if t.gateway.IsManaged() {
+			bindable = append(bindable, t.envUUID)
+		}
+	}
+	for _, t := range targets {
+		if t.gateway.IsManaged() {
 			continue
 		}
-		bindable = append(bindable, envUUID)
+		refused := policy.refusedBy(t.gateway, mcpProxySecurityForEnv(proxy, t.envUUID.String()))
+		switch {
+		case refused.has(ruleManagedConsumer):
+			s.logger.Warn("Skipping MCP binding backfill; the proxy is on a self-hosted gateway in this environment",
+				"ouID", ouID, "environmentUUID", t.envUUID, "mcpProxyUUID", proxy.UUID)
+		case refused.has(ruleAgentIdentity):
+			s.logger.Warn("Skipping MCP binding backfill; the proxy uses Agent Identity on a self-hosted gateway in this environment",
+				"ouID", ouID, "environmentUUID", t.envUUID, "mcpProxyUUID", proxy.UUID)
+		default:
+			bindable = append(bindable, t.envUUID)
+		}
 	}
-	return bindable, selfHosted
+	return bindable
 }
 
 func (s *agentConfigurationService) mcpActivationInputsForConfig(

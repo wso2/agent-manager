@@ -198,7 +198,7 @@ func TestExternalAgentConfig_MCPURLUsesSharedArtifact(t *testing.T) {
 // re-injection branch performs at agent_configuration_service.go:3086. That branch lives
 // inside Update(), which returns early to updateMCPConfig for TypeID == MCP before ever
 // reaching it — so it cannot be driven end-to-end through any public entry point. This test
-// exercises the same resolveMCPMappingAPIID + resolveGatewayForMCPArtifact composition used
+// exercises the same resolveMCPMappingAPIID + mcpArtifactGateway composition used
 // at that line directly, at the closest available seam.
 func TestPhase1bReinjection_MCPURLUsesSharedArtifact(t *testing.T) {
 	f := newMCPURLTestFixture()
@@ -207,7 +207,7 @@ func TestPhase1bReinjection_MCPURLUsesSharedArtifact(t *testing.T) {
 	sharedArtifactUUID := svc.resolveMCPMappingAPIID(context.Background(), &f.mapping, f.ouID)
 	require.Equal(t, f.sharedArtifactUUID, sharedArtifactUUID, "resolveMCPMappingAPIID must resolve the proxy's shared artifact, not the key-holder artifact")
 
-	gateway, err := svc.resolveGatewayForMCPArtifact(context.Background(), sharedArtifactUUID, f.ouID, f.envUUID)
+	gateway, err := svc.mcpArtifactGateway(context.Background(), platformAgentPolicy, sharedArtifactUUID, f.ouID, f.envUUID)
 	require.NoError(t, err)
 	require.NotNil(t, gateway)
 	require.Equal(t, f.gatewayUUID, gateway.UUID)
@@ -344,18 +344,20 @@ func TestDeployableMCPEnvs_SkipsSelfHostedGateway(t *testing.T) {
 		f.gatewayRepo.GetByUUIDFunc = func(string) (*models.Gateway, error) {
 			return &models.Gateway{UUID: f.gatewayUUID, Hosting: models.GatewayHostingSelfHosted}, nil
 		}
-		bindable, selfHosted := f.newService().deployableMCPEnvs(context.Background(), proxy, f.ouID, []uuid.UUID{f.envUUID})
-		assert.Empty(t, bindable)
-		assert.Equal(t, []uuid.UUID{f.envUUID}, selfHosted)
+		targets := f.newService().deployableMCPEnvs(context.Background(), proxy, f.ouID, []uuid.UUID{f.envUUID})
+		require.Len(t, targets, 1)
+		assert.Equal(t, f.envUUID, targets[0].envUUID)
+		assert.False(t, targets[0].gateway.IsManaged())
 	})
 
 	t.Run("managed gateway is bindable", func(t *testing.T) {
 		f.gatewayRepo.GetByUUIDFunc = func(string) (*models.Gateway, error) {
 			return &models.Gateway{UUID: f.gatewayUUID}, nil
 		}
-		bindable, selfHosted := f.newService().deployableMCPEnvs(context.Background(), proxy, f.ouID, []uuid.UUID{f.envUUID})
-		assert.Equal(t, []uuid.UUID{f.envUUID}, bindable)
-		assert.Empty(t, selfHosted)
+		targets := f.newService().deployableMCPEnvs(context.Background(), proxy, f.ouID, []uuid.UUID{f.envUUID})
+		require.Len(t, targets, 1)
+		assert.Equal(t, f.envUUID, targets[0].envUUID)
+		assert.True(t, targets[0].gateway.IsManaged())
 	})
 
 	t.Run("the reconcile does not bind an internal agent there", func(t *testing.T) {
