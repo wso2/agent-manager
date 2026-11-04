@@ -1396,6 +1396,11 @@ func (s *MCPProxyService) validateMCPEndpointSecurity(
 	return nil
 }
 
+// errMCPIdentityOnSelfHostedGateway refuses Agent Identity security where the binding's gateway
+// is self-hosted. Such a gateway takes its key managers from its own static config, and AMS
+// pushes it no ThunderKeyManager, so mcp-auth would reject every identity token with a 401.
+var errMCPIdentityOnSelfHostedGateway = fmt.Errorf("%w: Agent Identity isn't available on self-hosted gateways", utils.ErrInvalidInput)
+
 // validateMCPEndpointPlacement resolves the egress gateway for every (endpoint, environment)
 // binding before the save's transaction opens, so a caller-supplied gatewayId that cannot host
 // the binding fails the request before any row is locked. The deploy step in the transaction
@@ -1412,6 +1417,10 @@ func (s *MCPProxyService) validateMCPEndpointSecurity(
 //
 // proxyUUID is the proxy being updated, uuid.Nil on create. A proxy agents use may not move
 // into a self-hosted gateway (requireNoAgentsForSelfHostedPlacement).
+//
+// An identity-mode endpoint may not resolve to a self-hosted gateway in any environment
+// (errMCPIdentityOnSelfHostedGateway). Known gap: an environment whose anchor lookup fails is
+// skipped below, so this check does not run for it.
 //
 // An endpoint whose environments all resolve to self-hosted gateways skips the upstream's
 // private-address check. That exemption holds only for the gateways it was decided for, so
@@ -1455,6 +1464,10 @@ func (s *MCPProxyService) validateMCPEndpointPlacement(
 			if err != nil || gateway == nil {
 				anyUnresolved = true
 				continue
+			}
+			if !gateway.IsManaged() && mcpIdentityEnabled(endpoint.Security) {
+				return nil, fmt.Errorf("%w: environment %s resolves to self-hosted gateway %s; use API key security",
+					errMCPIdentityOnSelfHostedGateway, envIDStr, gateway.Name)
 			}
 			if !gateway.IsManaged() && !slices.Contains(deployed, gateway.UUID.String()) {
 				if err := s.requireNoAgentsForSelfHostedPlacement(ctx, orgUUID, proxyUUID, envUUID, gateway, agentUse); err != nil {

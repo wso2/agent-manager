@@ -568,6 +568,9 @@ export function MCPProxySecurityTab({
                 </MenuItem>
               ))}
             </Select>
+            <Typography variant="caption" color="text.secondary" sx={{ mt: 0.5 }}>
+              Use API key security on self-hosted gateways.
+            </Typography>
           </FormControl>
         </Grid>
       </Grid>

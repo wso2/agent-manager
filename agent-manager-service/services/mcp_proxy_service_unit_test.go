@@ -1002,3 +1002,74 @@ func TestMCPCreate_PrivateUpstreamOnManagedGatewayStillRejected(t *testing.T) {
 
 	assert.ErrorIs(t, err, utils.ErrInvalidURL)
 }
+
+// A stock self-hosted gateway has no ThunderKeyManager, so an identity-mode proxy there would
+// mint tokens that every call 401s on. The save refuses it; apiKey and security off stay allowed.
+func TestValidateMCPEndpointPlacement_RefusesIdentityOnSelfHosted(t *testing.T) {
+	selfHosted := selfHostedGateway(t)
+	managed := newGateway(t, models.GatewayRoleBoth, true)
+	apiKeySecurity := &models.SecurityConfig{Enabled: boolPtr(true), APIKey: &models.APIKeySecurity{Enabled: boolPtr(true)}}
+	securityOff := &models.SecurityConfig{Enabled: boolPtr(false)}
+	existingProxy := uuid.New()
+
+	tests := []struct {
+		name        string
+		gateways    []*models.Gateway
+		gatewayID   string
+		security    *models.SecurityConfig
+		proxyUUID   uuid.UUID
+		existing    map[string]uuid.UUID
+		deployRepo  *repomocks.DeploymentRepositoryMock
+		wantRefusal bool
+	}{
+		{
+			name: "identity on create naming a self-hosted gateway", gateways: []*models.Gateway{selfHosted, managed},
+			gatewayID: selfHosted.UUID.String(), security: identityEnabledSecurity(), proxyUUID: uuid.Nil, wantRefusal: true,
+		},
+		{
+			name: "identity on update adding an environment on a self-hosted gateway", gateways: []*models.Gateway{selfHosted, managed},
+			gatewayID: selfHosted.UUID.String(), security: identityEnabledSecurity(), proxyUUID: existingProxy,
+			existing: map[string]uuid.UUID{}, wantRefusal: true,
+		},
+		{
+			name: "existing environment anchored on a self-hosted gateway switching to identity", gateways: []*models.Gateway{selfHosted, managed},
+			security: identityEnabledSecurity(), proxyUUID: existingProxy,
+			existing: map[string]uuid.UUID{testMCPEnvUUID: uuid.New()}, deployRepo: deployedTo(selfHosted.UUID.String()), wantRefusal: true,
+		},
+		{
+			name: "identity on a managed gateway", gateways: []*models.Gateway{selfHosted, managed},
+			gatewayID: managed.UUID.String(), security: identityEnabledSecurity(), proxyUUID: uuid.Nil,
+		},
+		{
+			name: "apiKey on a self-hosted gateway", gateways: []*models.Gateway{selfHosted},
+			gatewayID: selfHosted.UUID.String(), security: apiKeySecurity, proxyUUID: uuid.Nil,
+		},
+		{
+			name: "security off on a self-hosted gateway", gateways: []*models.Gateway{selfHosted},
+			gatewayID: selfHosted.UUID.String(), security: securityOff, proxyUUID: uuid.Nil,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			endpoint := endpointBoundToGateway(tt.gatewayID)
+			endpoint.Security = tt.security
+			var depRepo repositories.DeploymentRepository
+			if tt.deployRepo != nil {
+				depRepo = tt.deployRepo
+			}
+			svc := placementService(gatewayFixtureRepo(t, testMCPEnvUUID, tt.gateways), depRepo)
+
+			_, err := svc.validateMCPEndpointPlacement(context.Background(), "org1", tt.proxyUUID,
+				[]models.MCPProxyEndpointDTO{endpoint}, tt.existing)
+
+			if !tt.wantRefusal {
+				assert.NoError(t, err)
+				return
+			}
+			assert.ErrorIs(t, err, utils.ErrInvalidInput)
+			assert.ErrorIs(t, err, errMCPIdentityOnSelfHostedGateway)
+			assert.ErrorContains(t, err, "Agent Identity")
+			assert.ErrorContains(t, err, selfHosted.Name)
+		})
+	}
+}
