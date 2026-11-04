@@ -487,13 +487,13 @@ func setHealthChecksWorkflowParameter(params map[string]any, healthChecks *Healt
 	}
 	healthChecksParam := map[string]any{}
 	if healthChecks.Startup != nil {
-		healthChecksParam["startup"] = buildHealthCheckParameter(healthChecks.Startup)
+		healthChecksParam["startup"] = healthCheckToWorkflowParameter(healthChecks.Startup)
 	}
 	if healthChecks.Readiness != nil {
-		healthChecksParam["readiness"] = buildHealthCheckParameter(healthChecks.Readiness)
+		healthChecksParam["readiness"] = healthCheckToWorkflowParameter(healthChecks.Readiness)
 	}
 	if healthChecks.Liveness != nil {
-		healthChecksParam["liveness"] = buildHealthCheckParameter(healthChecks.Liveness)
+		healthChecksParam["liveness"] = healthCheckToWorkflowParameter(healthChecks.Liveness)
 	}
 	if len(healthChecksParam) == 0 {
 		delete(params, workflowParamHealthChecks)
@@ -502,9 +502,10 @@ func setHealthChecksWorkflowParameter(params map[string]any, healthChecks *Healt
 	params[workflowParamHealthChecks] = healthChecksParam
 }
 
-// buildHealthCheckParameter builds one saved health check, keeping only the fields that are
-// set. Its field names are the ones the agent-api ComponentType reads.
-func buildHealthCheckParameter(healthCheck *HealthCheckConfig) map[string]any {
+// healthCheckToWorkflowParameter turns one health check into the value saved in the build
+// parameters, keeping only the fields that are set. Its field names are the ones the
+// agent-api ComponentType reads.
+func healthCheckToWorkflowParameter(healthCheck *HealthCheckConfig) map[string]any {
 	healthCheckParam := map[string]any{}
 	if healthCheck.Enabled != nil {
 		healthCheckParam["enabled"] = *healthCheck.Enabled

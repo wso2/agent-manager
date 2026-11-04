@@ -670,7 +670,7 @@ func (s *agentManagerService) requireImageOwnedByAgent(ctx context.Context, ouID
 		fmt.Sprintf("imageId %q is not a build, kind version or current deployment of agent %q", imageID, agentName))
 }
 
-// healthChecksForImage returns the health checks recorded by the build that produced the
+// healthChecksOfImageBuild returns the health checks recorded by the build that produced the
 // image being deployed, so an environment runs each build with that build's own checks.
 // A deploy names only the image, so the build is found from it:
 //
@@ -683,7 +683,7 @@ func (s *agentManagerService) requireImageOwnedByAgent(ctx context.Context, ouID
 // Nil also means the build itself recorded no health checks. A lookup failure is returned
 // rather than treated as "no build", which would quietly switch the environment to the
 // defaults; the caller decides what a failed lookup means.
-func (s *agentManagerService) healthChecksForImage(ctx context.Context, ouID, projectName, agentName, kindName, imageID string) (*models.HealthChecks, error) {
+func (s *agentManagerService) healthChecksOfImageBuild(ctx context.Context, ouID, projectName, agentName, kindName, imageID string) (*models.HealthChecks, error) {
 	// Step 1: the agent's own builds.
 	builds, err := s.ocClient.ListBuilds(ctx, ouID, projectName, agentName)
 	if err != nil {
@@ -3439,7 +3439,7 @@ func (s *agentManagerService) DeployAgent(ctx context.Context, ouID string, proj
 	// up (e.g. OpenChoreo's build list is unavailable), the environment keeps the health checks
 	// it already has: a redeploy of what it runs must still work then, as the ownership check
 	// above allows, and those are most likely that build's checks already.
-	deployHealthChecks, healthChecksErr := s.healthChecksForImage(ctx, ouID, projectName, agentName, agent.KindName, req.ImageId)
+	deployHealthChecks, healthChecksErr := s.healthChecksOfImageBuild(ctx, ouID, projectName, agentName, agent.KindName, req.ImageId)
 	keepCurrentHealthChecks := healthChecksErr != nil
 	if keepCurrentHealthChecks {
 		s.logger.Warn("Could not find the deployed build's health checks; the environment keeps its current ones",

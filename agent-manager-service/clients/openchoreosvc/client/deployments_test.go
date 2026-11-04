@@ -659,10 +659,10 @@ func TestEnsureReleaseAndBinding_ReplacesOrRemovesTheBuildsHealthChecks(t *testi
 		}
 	}
 
-	// deployWith runs EnsureReleaseAndBinding against a fake OpenChoreo whose binding exists
-	// (existingBinding) or loses a create race (adoption), and returns the component-type
-	// settings written back.
-	deployWith := func(t *testing.T, adoption bool, componentTypeConfigs map[string]interface{}) map[string]interface{} {
+	// configsWrittenByEnsureReleaseAndBinding runs EnsureReleaseAndBinding against a fake OpenChoreo,
+	// sending the given component-type configs, and returns the configs written to the binding.
+	// The binding already exists, or, with adoption, the create loses a race and it is adopted.
+	configsWrittenByEnsureReleaseAndBinding := func(t *testing.T, adoption bool, componentTypeConfigs map[string]interface{}) map[string]interface{} {
 		t.Helper()
 		var written gen.ReleaseBinding
 		srv := newTestClient(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -706,19 +706,19 @@ func TestEnsureReleaseAndBinding_ReplacesOrRemovesTheBuildsHealthChecks(t *testi
 		adoption bool
 	}{{"existing-binding update path", false}, {"409-conflict-adoption path", true}} {
 		t.Run(path.name+": the deployed build's checks replace the earlier build's", func(t *testing.T) {
-			settings := deployWith(t, path.adoption, map[string]interface{}{"healthChecks": deployedBuildsChecks})
-			assert.Equal(t, map[string]interface{}{"readiness": map[string]interface{}{"type": "HTTP"}}, settings["healthChecks"])
-			assert.Equal(t, float64(2), settings["replicas"], "other settings are kept")
+			writtenConfigs := configsWrittenByEnsureReleaseAndBinding(t, path.adoption, map[string]interface{}{"healthChecks": deployedBuildsChecks})
+			assert.Equal(t, map[string]interface{}{"readiness": map[string]interface{}{"type": "HTTP"}}, writtenConfigs["healthChecks"])
+			assert.Equal(t, float64(2), writtenConfigs["replicas"], "other configs are kept")
 		})
 		t.Run(path.name+": a build without checks removes the earlier build's", func(t *testing.T) {
-			settings := deployWith(t, path.adoption, map[string]interface{}{"healthChecks": nil})
-			assert.NotContains(t, settings, "healthChecks")
-			assert.Equal(t, float64(2), settings["replicas"], "other settings are kept")
+			writtenConfigs := configsWrittenByEnsureReleaseAndBinding(t, path.adoption, map[string]interface{}{"healthChecks": nil})
+			assert.NotContains(t, writtenConfigs, "healthChecks")
+			assert.Equal(t, float64(2), writtenConfigs["replicas"], "other configs are kept")
 		})
 		t.Run(path.name+": no healthChecks key keeps the current ones", func(t *testing.T) {
-			settings := deployWith(t, path.adoption, map[string]interface{}{})
-			assert.Equal(t, map[string]interface{}{"readiness": map[string]interface{}{"type": "TCP"}}, settings["healthChecks"])
-			assert.Equal(t, float64(2), settings["replicas"], "other settings are kept")
+			writtenConfigs := configsWrittenByEnsureReleaseAndBinding(t, path.adoption, map[string]interface{}{})
+			assert.Equal(t, map[string]interface{}{"readiness": map[string]interface{}{"type": "TCP"}}, writtenConfigs["healthChecks"])
+			assert.Equal(t, float64(2), writtenConfigs["replicas"], "other configs are kept")
 		})
 	}
 }

@@ -331,9 +331,9 @@ func TestDeployAgent_RejectionHintNamesTheKind(t *testing.T) {
 	})
 }
 
-// healthChecksForImage finds the build behind the image being deployed and returns the
+// healthChecksOfImageBuild finds the build behind the image being deployed and returns the
 // health checks it recorded, so an environment runs each build with its own checks.
-func TestHealthChecksForImage(t *testing.T) {
+func TestHealthChecksOfImageBuild(t *testing.T) {
 	httpCheck, tcpCheck := "HTTP", "TCP"
 	ownBuildChecks := &models.HealthChecks{Readiness: &models.HealthCheck{Type: &httpCheck}}
 	kindBuildChecks := &models.HealthChecks{Liveness: &models.HealthCheck{Type: &tcpCheck}}
@@ -381,7 +381,7 @@ func TestHealthChecksForImage(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got, err := newService(nil).healthChecksForImage(context.Background(), "acme", "proj1", "my-agent", tt.kindName, tt.image)
+			got, err := newService(nil).healthChecksOfImageBuild(context.Background(), "acme", "proj1", "my-agent", tt.kindName, tt.image)
 			require.NoError(t, err)
 			assert.Equal(t, tt.want, got)
 		})
@@ -390,7 +390,7 @@ func TestHealthChecksForImage(t *testing.T) {
 	// A failed lookup is an error, not "no build": treating it as no build would quietly
 	// switch the environment to the default checks.
 	t.Run("a failed build list fails the lookup", func(t *testing.T) {
-		_, err := newService(errors.New("openchoreo unavailable")).healthChecksForImage(
+		_, err := newService(errors.New("openchoreo unavailable")).healthChecksOfImageBuild(
 			context.Background(), "acme", "proj1", "my-agent", "", ownBuildImage)
 		require.Error(t, err)
 	})

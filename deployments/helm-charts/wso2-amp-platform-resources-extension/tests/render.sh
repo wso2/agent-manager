@@ -214,20 +214,20 @@ fi
 # has none. Everything else an existing binding holds (env vars, runtime class)
 # belongs to the environment and must come through untouched. These run the real
 # script under sh against a stubbed API server and check the binding body it sends.
-STEP7_DIR="$(mktemp -d)"
-trap 'rm -rf "$STEP7_DIR"' EXIT
-mkdir -p "$STEP7_DIR/bin" "$STEP7_DIR/vol/source"
+BINDING_TEST_DIR="$(mktemp -d)"
+trap 'rm -rf "$BINDING_TEST_DIR"' EXIT
+mkdir -p "$BINDING_TEST_DIR/bin" "$BINDING_TEST_DIR/vol/source"
 
 # The script hardcodes its scratch volume; point it at the temp dir instead.
-sed "s#/mnt/vol#$STEP7_DIR/vol#g" <<<"$SCRIPT" >"$STEP7_DIR/script.sh"
+sed "s#/mnt/vol#$BINDING_TEST_DIR/vol#g" <<<"$SCRIPT" >"$BINDING_TEST_DIR/script.sh"
 
-printf '#!/bin/sh\nexit 0\n' >"$STEP7_DIR/bin/apk"
-printf '#!/bin/sh\nexit 0\n' >"$STEP7_DIR/bin/podman"
+printf '#!/bin/sh\nexit 0\n' >"$BINDING_TEST_DIR/bin/apk"
+printf '#!/bin/sh\nexit 0\n' >"$BINDING_TEST_DIR/bin/podman"
 # curl stub: answers each API route the script calls and records the body of the
 # ReleaseBinding write. BUILD_RECORD names the file holding this build's
 # WorkflowRun; EXISTING_BINDING names the file holding the binding the GET
 # returns, or is empty when the binding does not exist yet.
-cat >"$STEP7_DIR/bin/curl" <<'STUB'
+cat >"$BINDING_TEST_DIR/bin/curl" <<'STUB'
 #!/bin/sh
 method=GET url="" data="" code_fmt=""
 while [ $# -gt 0 ]; do
@@ -259,37 +259,37 @@ case "$method $url" in
 esac
 reply 500 "unexpected $method $url"
 STUB
-chmod +x "$STEP7_DIR/bin/"*
+chmod +x "$BINDING_TEST_DIR/bin/"*
 
-# run_step7 <build's healthChecks JSON, or "" for none> <existing binding JSON, or ""
+# run_generate_workload <build's healthChecks JSON, or "" for none> <existing binding JSON, or ""
 # for none> — runs the script and prints the binding body it wrote, or nothing if the
-# run failed (the script's output is then in $STEP7_DIR/out.log).
-run_step7() {
+# run failed (the script's output is then in $BINDING_TEST_DIR/out.log).
+run_generate_workload() {
   local existing=""
-  rm -f "$STEP7_DIR/recorded.json"
+  rm -f "$BINDING_TEST_DIR/recorded.json"
   if [[ -n "$1" ]]; then
-    printf '{"metadata":{"name":"run-2"},"spec":{"workflow":{"parameters":{"healthChecks":%s}}}}' "$1" >"$STEP7_DIR/record.json"
+    printf '{"metadata":{"name":"run-2"},"spec":{"workflow":{"parameters":{"healthChecks":%s}}}}' "$1" >"$BINDING_TEST_DIR/record.json"
   else
-    printf '{"metadata":{"name":"run-2"},"spec":{"workflow":{"parameters":{}}}}' >"$STEP7_DIR/record.json"
+    printf '{"metadata":{"name":"run-2"},"spec":{"workflow":{"parameters":{}}}}' >"$BINDING_TEST_DIR/record.json"
   fi
   if [[ -n "$2" ]]; then
-    existing="$STEP7_DIR/existing.json"
+    existing="$BINDING_TEST_DIR/existing.json"
     printf '%s' "$2" >"$existing"
   fi
-  if ! env PATH="$STEP7_DIR/bin:$PATH" \
-      BUILD_RECORD="$STEP7_DIR/record.json" EXISTING_BINDING="$existing" RECORDED_BINDING="$STEP7_DIR/recorded.json" \
+  if ! env PATH="$BINDING_TEST_DIR/bin:$PATH" \
+      BUILD_RECORD="$BINDING_TEST_DIR/record.json" EXISTING_BINDING="$existing" RECORDED_BINDING="$BINDING_TEST_DIR/recorded.json" \
       IMAGE=registry/agent:v2 PROJECT_NAME=proj COMPONENT_NAME=agent NAMESPACE=ns APP_PATH=. \
       ENDPOINTS='[{"name":"agent-endpoint","port":8000}]' ENV_VARS='[]' FILE_MOUNTS='[]' \
       RUN_NAME=run-2 OAUTH_URL=http://token OAUTH_HOST=h CLIENT_ID=c OAUTH_CLIENT_SECRET=s \
       API_URL=http://api API_HOST=h \
-      sh "$STEP7_DIR/script.sh" >"$STEP7_DIR/out.log" 2>&1; then
+      sh "$BINDING_TEST_DIR/script.sh" >"$BINDING_TEST_DIR/out.log" 2>&1; then
     return
   fi
-  cat "$STEP7_DIR/recorded.json"
+  cat "$BINDING_TEST_DIR/recorded.json"
 }
 
-# assert_binding <label> <jq expression that must be true of the written body> <body>
-assert_binding() {
+# assert_written_binding <label> <jq expression that must be true of the written body> <body>
+assert_written_binding() {
   if [[ -n "$3" ]] && jq -e "$2" <<<"$3" >/dev/null 2>&1; then
     printf 'ok   - step 7 %s\n' "$1"
   else
@@ -298,39 +298,39 @@ assert_binding() {
   fi
 }
 
-BUILD_CHECKS='{"readiness":{"type":"HTTP","path":"/health","periodSeconds":3}}'
-EXISTING='{"metadata":{"name":"agent-dev"},"spec":{"environment":"dev","releaseName":"run-1",
+BUILD_HEALTH_CHECKS_JSON='{"readiness":{"type":"HTTP","path":"/health","periodSeconds":3}}'
+EXISTING_BINDING_JSON='{"metadata":{"name":"agent-dev"},"spec":{"environment":"dev","releaseName":"run-1",
   "workloadOverrides":{"container":{"env":[{"key":"LOG_LEVEL","value":"debug"}]}},
   "componentTypeEnvironmentConfigs":{"runtimeClassName":"gvisor",
     "healthChecks":{"readiness":{"type":"TCP"}}}}}'
 
-BODY="$(run_step7 "$BUILD_CHECKS" "")"
-assert_binding "writes the build's health checks on a new binding" \
-  ".spec.releaseName == \"run-2\" and .spec.componentTypeEnvironmentConfigs.healthChecks == $BUILD_CHECKS" "$BODY"
+WRITTEN_BINDING="$(run_generate_workload "$BUILD_HEALTH_CHECKS_JSON" "")"
+assert_written_binding "writes the build's health checks on a new binding" \
+  ".spec.releaseName == \"run-2\" and .spec.componentTypeEnvironmentConfigs.healthChecks == $BUILD_HEALTH_CHECKS_JSON" "$WRITTEN_BINDING"
 
-BODY="$(run_step7 "" "")"
-assert_binding "leaves health checks off a new binding when the build has none" \
-  '.spec.releaseName == "run-2" and (.spec | has("componentTypeEnvironmentConfigs") | not)' "$BODY"
+WRITTEN_BINDING="$(run_generate_workload "" "")"
+assert_written_binding "leaves health checks off a new binding when the build has none" \
+  '.spec.releaseName == "run-2" and (.spec | has("componentTypeEnvironmentConfigs") | not)' "$WRITTEN_BINDING"
 
-BODY="$(run_step7 '{}' "")"
-assert_binding "treats the build's empty health checks as none" \
-  '.spec.releaseName == "run-2" and (.spec | has("componentTypeEnvironmentConfigs") | not)' "$BODY"
+WRITTEN_BINDING="$(run_generate_workload '{}' "")"
+assert_written_binding "treats the build's empty health checks as none" \
+  '.spec.releaseName == "run-2" and (.spec | has("componentTypeEnvironmentConfigs") | not)' "$WRITTEN_BINDING"
 
-BODY="$(run_step7 "$BUILD_CHECKS" "$EXISTING")"
-assert_binding "replaces an existing binding's health checks with the build's, with the pin" \
-  ".spec.releaseName == \"run-2\" and .spec.componentTypeEnvironmentConfigs.healthChecks == $BUILD_CHECKS" "$BODY"
-assert_binding "keeps an existing binding's environment settings" \
+WRITTEN_BINDING="$(run_generate_workload "$BUILD_HEALTH_CHECKS_JSON" "$EXISTING_BINDING_JSON")"
+assert_written_binding "replaces an existing binding's health checks with the build's, with the pin" \
+  ".spec.releaseName == \"run-2\" and .spec.componentTypeEnvironmentConfigs.healthChecks == $BUILD_HEALTH_CHECKS_JSON" "$WRITTEN_BINDING"
+assert_written_binding "keeps an existing binding's environment settings" \
   '.spec.workloadOverrides.container.env == [{"key":"LOG_LEVEL","value":"debug"}]
-   and .spec.componentTypeEnvironmentConfigs.runtimeClassName == "gvisor"' "$BODY"
+   and .spec.componentTypeEnvironmentConfigs.runtimeClassName == "gvisor"' "$WRITTEN_BINDING"
 
-BODY="$(run_step7 "" "$EXISTING")"
-assert_binding "removes an earlier build's health checks when this build has none" \
+WRITTEN_BINDING="$(run_generate_workload "" "$EXISTING_BINDING_JSON")"
+assert_written_binding "removes an earlier build's health checks when this build has none" \
   '.spec.releaseName == "run-2"
    and (.spec.componentTypeEnvironmentConfigs | has("healthChecks") | not)
-   and .spec.componentTypeEnvironmentConfigs.runtimeClassName == "gvisor"' "$BODY"
+   and .spec.componentTypeEnvironmentConfigs.runtimeClassName == "gvisor"' "$WRITTEN_BINDING"
 
-BODY="$(run_step7 '[1,2]' "")"
-if [[ -z "$BODY" ]] && grep -q "healthChecks is not an object" "$STEP7_DIR/out.log"; then
+WRITTEN_BINDING="$(run_generate_workload '[1,2]' "")"
+if [[ -z "$WRITTEN_BINDING" ]] && grep -q "healthChecks is not an object" "$BINDING_TEST_DIR/out.log"; then
   printf 'ok   - step 7 refuses a build whose health checks are not an object\n'
 else
   printf 'FAIL - step 7 accepted a build whose health checks are not an object\n'
