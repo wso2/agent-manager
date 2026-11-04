@@ -18,8 +18,10 @@
 
 import { z } from 'zod';
 import {
+  type HealthChecks,
   type InputInterfaceType,
   INPUT_LIMITS,
+  healthChecksAreValid,
   formatBytes,
   getFileMountMaxFileBytes,
   utf8ByteLength,
@@ -189,6 +191,13 @@ export const createAgentSchema = z.object({
     })
     .optional(),
   interfaceType: z.enum(['DEFAULT', 'CUSTOM', 'A2A']),
+  // Only readiness is set on the create page; the rest use the defaults.
+  healthChecks: z
+    .custom<HealthChecks>(
+      (value) => healthChecksAreValid(value as HealthChecks | undefined),
+      'Fix the highlighted readiness check fields',
+    )
+    .optional(),
   port: z
     .union([z.number(), z.string(), z.undefined()])
     .transform((val) => {

@@ -45,8 +45,18 @@ import {
   InputInterfaceType,
   globalConfig,
   INPUT_LIMITS,
+  LIVENESS_CHECK_DEFAULTS,
+  READINESS_CHECK_DEFAULTS,
+  STARTUP_CHECK_DEFAULTS,
+  healthChecksAreValid,
+  healthChecksToSend,
+  suggestedHealthCheckPath,
+  type HealthChecks,
 } from "@agent-management-platform/types";
-import { useUnsavedChangesGuard } from "@agent-management-platform/shared-component";
+import {
+  HealthCheckFields,
+  useUnsavedChangesGuard,
+} from "@agent-management-platform/shared-component";
 import { useEffect, useCallback, useMemo, useState } from "react";
 import { GitSecretSelect } from "./components/GitSecretSelect";
 
@@ -71,6 +81,7 @@ interface ConfigureBuildFormValues {
   port?: number;
   basePath?: string;
   openApiPath?: string;
+  healthChecks: HealthChecks;
 }
 
 // An A2A agent listens on its own port like a custom API, but serves its own
@@ -132,6 +143,10 @@ const configureBuildSchema = z.object({
     .optional(),
   basePath: z.string().trim().optional(),
   openApiPath: z.string().trim().optional(),
+  healthChecks: z.custom<HealthChecks>(
+    (value) => healthChecksAreValid(value as HealthChecks),
+    "Fix the highlighted health check fields",
+  ),
 }).refine(
   (data) => {
     if (interfacesNeedingPort.has(data.interfaceType) && !data.port) {
@@ -278,6 +293,7 @@ export function ConfigureBuildDrawer({
       port: inputInterface?.port,
       basePath: inputInterface?.basePath ?? "",
       openApiPath: inputInterface?.schema?.path ?? "",
+      healthChecks: agent.healthChecks ?? {},
     }),
     [
       repo?.url,
@@ -293,6 +309,7 @@ export function ConfigureBuildDrawer({
       inputInterface?.basePath,
       inputInterface?.schema?.path,
       resolvedInterfaceType,
+      agent.healthChecks,
     ],
   );
   
@@ -402,6 +419,12 @@ export function ConfigureBuildDrawer({
       return;
     }
 
+    // Health checks are sent only when they changed: leaving them out keeps the saved ones,
+    // and {} (everything back at the defaults) clears them.
+    const healthChecksChanged =
+      JSON.stringify(healthChecksToSend(formData.healthChecks)) !==
+      JSON.stringify(healthChecksToSend(buildDefaults.healthChecks));
+
     const nextSubType = subTypeByInterface[formData.interfaceType];
     const nextAgentType = agent.agentType
       ? { ...agent.agentType, subType: nextSubType }
@@ -452,6 +475,9 @@ export function ConfigureBuildDrawer({
             ? { port: Number(formData.port) }
             : {}),
       },
+      ...(healthChecksChanged
+        ? { healthChecks: healthChecksToSend(formData.healthChecks) }
+        : {}),
     };
 
     updateBuildParameters(
@@ -471,6 +497,16 @@ export function ConfigureBuildDrawer({
       },
     );
   };
+
+  const handleHealthChecksChange = (healthChecks: HealthChecks) => {
+    setFormData((prevData) => ({ ...prevData, healthChecks }));
+  };
+  // A chat agent always listens on 8000; the others on the port set above.
+  const healthCheckAgentPort = formData.interfaceType === "DEFAULT" ? 8000 : formData.port;
+  const healthCheckSuggestedPath = suggestedHealthCheckPath(
+    formData.interfaceType,
+    formData.basePath,
+  );
 
   return (
     <DrawerWrapper open={open} onClose={onClose}>
@@ -799,6 +835,56 @@ export function ConfigureBuildDrawer({
                       </Box>
                     </Box>
                   </Collapse>
+                </Box>
+              </CardContent>
+            </Card>
+
+            <Card variant="outlined">
+              <CardContent
+                sx={{ gap: 1, display: "flex", flexDirection: "column" }}
+              >
+                <Typography variant="h5">Health Checks</Typography>
+                <Typography variant="body2" color="text.secondary">
+                  How Kubernetes checks the agent. Changes apply from the next build.
+                  Empty fields use the defaults shown.
+                </Typography>
+                <Box display="flex" flexDirection="column" gap={2}>
+                  <HealthCheckFields
+                    title="Startup"
+                    description="Waits for the agent to start; runs until it first passes."
+                    value={formData.healthChecks.startup}
+                    onChange={(startup) =>
+                      handleHealthChecksChange({ ...formData.healthChecks, startup })
+                    }
+                    defaults={STARTUP_CHECK_DEFAULTS}
+                    suggestedPath={healthCheckSuggestedPath}
+                    agentPort={healthCheckAgentPort}
+                    disabled={isPending}
+                  />
+                  <HealthCheckFields
+                    title="Readiness"
+                    description="Decides whether the agent receives traffic; runs for as long as it runs."
+                    value={formData.healthChecks.readiness}
+                    onChange={(readiness) =>
+                      handleHealthChecksChange({ ...formData.healthChecks, readiness })
+                    }
+                    defaults={READINESS_CHECK_DEFAULTS}
+                    suggestedPath={healthCheckSuggestedPath}
+                    agentPort={healthCheckAgentPort}
+                    disabled={isPending}
+                  />
+                  <HealthCheckFields
+                    title="Liveness"
+                    description="Restarts the agent when it stops responding. Off by default."
+                    value={formData.healthChecks.liveness}
+                    onChange={(liveness) =>
+                      handleHealthChecksChange({ ...formData.healthChecks, liveness })
+                    }
+                    defaults={LIVENESS_CHECK_DEFAULTS}
+                    suggestedPath={healthCheckSuggestedPath}
+                    agentPort={healthCheckAgentPort}
+                    disabled={isPending}
+                  />
                 </Box>
               </CardContent>
             </Card>

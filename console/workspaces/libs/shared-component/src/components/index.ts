@@ -23,6 +23,7 @@ export * from "./BuildSteps";
 export * from "./CodeBlock";
 export * from "./CollapsibleSection";
 export * from "./EnvironmentVariable";
+export * from "./HealthCheckFields";
 export * from "./LabelsEditor";
 export * from "./MarkdownEditor";
 export * from "./LabelChips";
