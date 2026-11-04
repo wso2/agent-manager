@@ -117,7 +117,7 @@ func (s *SpanStore) Insert(ctx context.Context, spans []Span) (err error) {
 	if err != nil {
 		return fmt.Errorf("prepare insert: %w", err)
 	}
-	defer stmt.Close()
+	defer func() { _ = stmt.Close() }()
 	for _, sp := range spans {
 		attrs, err := json.Marshal(orEmpty(sp.Attributes))
 		if err != nil {
@@ -211,7 +211,7 @@ FROM rooted ORDER BY first_start %s, trace_id LIMIT ?`, where.sql, dir)
 	if err != nil {
 		return nil, 0, fmt.Errorf("query traces: %w", err)
 	}
-	defer rows.Close()
+	defer func() { _ = rows.Close() }()
 
 	traces := []observer.TraceInfo{}
 	total := 0
@@ -245,7 +245,7 @@ FROM spans WHERE %s ORDER BY start_ns %s, span_id LIMIT ?`, where.sql, sortDirec
 	if err != nil {
 		return nil, 0, fmt.Errorf("query spans: %w", err)
 	}
-	defer rows.Close()
+	defer func() { _ = rows.Close() }()
 
 	spans := []observer.SpanInfo{}
 	total := 0
