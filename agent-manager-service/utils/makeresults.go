@@ -121,6 +121,7 @@ func convertToInternalAgentResponse(component *models.AgentResponse) spec.AgentR
 			SubType: &component.Type.SubType,
 		},
 		InputInterface: convertToInputInterface(component.InputInterface),
+		HealthChecks:   convertToHealthChecks(component.HealthChecks),
 		Build:          convertToBuild(component.Build),
 		Configurations: convertToConfigurations(component.Configurations),
 		KindName: func() *string {
@@ -334,6 +335,35 @@ func ConvertToBuildDetailsResponse(buildDetails *models.BuildDetailsResponse) sp
 	}
 
 	return response
+}
+
+// convertToHealthChecks converts the saved health checks to the API response. Nil stays nil,
+// meaning none are saved.
+func convertToHealthChecks(healthChecks *models.HealthChecks) *spec.HealthChecks {
+	if healthChecks == nil {
+		return nil
+	}
+	return &spec.HealthChecks{
+		Startup:   convertToHealthCheck(healthChecks.Startup),
+		Readiness: convertToHealthCheck(healthChecks.Readiness),
+		Liveness:  convertToHealthCheck(healthChecks.Liveness),
+	}
+}
+
+func convertToHealthCheck(healthCheck *models.HealthCheck) *spec.HealthCheck {
+	if healthCheck == nil {
+		return nil
+	}
+	return &spec.HealthCheck{
+		Enabled:             healthCheck.Enabled,
+		Type:                healthCheck.Type,
+		Path:                healthCheck.Path,
+		Port:                healthCheck.Port,
+		InitialDelaySeconds: healthCheck.InitialDelaySeconds,
+		PeriodSeconds:       healthCheck.PeriodSeconds,
+		TimeoutSeconds:      healthCheck.TimeoutSeconds,
+		FailureThreshold:    healthCheck.FailureThreshold,
+	}
 }
 
 func convertToInputInterface(input *models.InputInterface) *spec.InputInterface {

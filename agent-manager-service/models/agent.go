@@ -36,6 +36,9 @@ type AgentResponse struct {
 	Type           AgentType       `json:"type,omitempty"`
 	Build          *Build          `json:"build,omitempty"`
 	InputInterface *InputInterface `json:"inputInterface,omitempty"`
+	// HealthChecks are the health checks saved in the build settings, which the
+	// next build records. Nil when none are saved.
+	HealthChecks   *HealthChecks   `json:"healthChecks,omitempty"`
 	Configurations *Configurations `json:"configurations,omitempty"`
 	KindName       string          `json:"kindName,omitempty"`
 	// KindVersion is empty for agents created before the version was recorded.

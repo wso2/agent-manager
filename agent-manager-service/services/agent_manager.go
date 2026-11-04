@@ -405,6 +405,35 @@ func mapInputInterface(specInterface *spec.InputInterface) *client.InputInterfac
 	return config
 }
 
+// mapHealthChecks converts the request's health checks for the client, which saves them in
+// the build parameters. Nil stays nil, meaning "not sent".
+func mapHealthChecks(specHealthChecks *spec.HealthChecks) *client.HealthChecksConfig {
+	if specHealthChecks == nil {
+		return nil
+	}
+	return &client.HealthChecksConfig{
+		Startup:   mapHealthCheck(specHealthChecks.Startup),
+		Readiness: mapHealthCheck(specHealthChecks.Readiness),
+		Liveness:  mapHealthCheck(specHealthChecks.Liveness),
+	}
+}
+
+func mapHealthCheck(specHealthCheck *spec.HealthCheck) *client.HealthCheckConfig {
+	if specHealthCheck == nil {
+		return nil
+	}
+	return &client.HealthCheckConfig{
+		Enabled:             specHealthCheck.Enabled,
+		Type:                specHealthCheck.Type,
+		Path:                specHealthCheck.Path,
+		Port:                specHealthCheck.Port,
+		InitialDelaySeconds: specHealthCheck.InitialDelaySeconds,
+		PeriodSeconds:       specHealthCheck.PeriodSeconds,
+		TimeoutSeconds:      specHealthCheck.TimeoutSeconds,
+		FailureThreshold:    specHealthCheck.FailureThreshold,
+	}
+}
+
 // resolveResilienceTimeoutSeconds resolves the effective resilience timeout from
 // (in precedence order) an explicit request value, the persisted config, and the
 // default. An explicitly requested value outside [MinResilienceTimeoutSeconds,
@@ -2144,6 +2173,7 @@ func (s *agentManagerService) toCreateAgentRequestWithSecrets(req *spec.CreateAg
 		AgentKind:        agentKindRef,
 		Build:            mapBuildConfig(req.Build),
 		InputInterface:   mapInputInterface(req.InputInterface),
+		HealthChecks:     mapHealthChecks(req.HealthChecks),
 		Labels:           labels,
 	}
 
@@ -2611,6 +2641,7 @@ func buildUpdateBuildParametersRequest(req *spec.UpdateAgentBuildParametersReque
 		Repository:     mapRepository(req.Provisioning.Repository),
 		Build:          mapBuildConfig(&req.Build),
 		InputInterface: mapInputInterface(&req.InputInterface),
+		HealthChecks:   mapHealthChecks(req.HealthChecks),
 		AgentType: client.AgentTypeConfig{
 			Type:    req.AgentType.Type,
 			SubType: subType,

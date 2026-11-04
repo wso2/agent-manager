@@ -130,6 +130,27 @@ type InputInterface struct {
 	Schema     *InputInterfaceSchema `json:"schema,omitempty"`
 }
 
+// HealthChecks are an agent's startup, readiness and liveness checks. They are
+// saved in the agent's build settings under the same field names, so each build
+// records its own copy. A check that is nil uses the default.
+type HealthChecks struct {
+	Startup   *HealthCheck `json:"startup,omitempty"`
+	Readiness *HealthCheck `json:"readiness,omitempty"`
+	Liveness  *HealthCheck `json:"liveness,omitempty"`
+}
+
+// HealthCheck is one health check. A field that is nil uses its default.
+type HealthCheck struct {
+	Enabled             *bool   `json:"enabled,omitempty"`
+	Type                *string `json:"type,omitempty"`
+	Path                *string `json:"path,omitempty"`
+	Port                *int32  `json:"port,omitempty"`
+	InitialDelaySeconds *int32  `json:"initialDelaySeconds,omitempty"`
+	PeriodSeconds       *int32  `json:"periodSeconds,omitempty"`
+	TimeoutSeconds      *int32  `json:"timeoutSeconds,omitempty"`
+	FailureThreshold    *int32  `json:"failureThreshold,omitempty"`
+}
+
 // InputInterfaceSchema represents schema configuration
 type InputInterfaceSchema struct {
 	Path    string `json:"path,omitempty"`

@@ -376,3 +376,133 @@ func TestGetBuildByName_ReportsOwnerFromLabels(t *testing.T) {
 	assert.Equal(t, "proj", build.ProjectName)
 	assert.Equal(t, "agent", build.AgentName)
 }
+
+// An agent whose build settings already hold health checks: readiness HTTP /health.
+const componentWithHealthChecksJSON = `{
+  "metadata": {"name": "support-bot"},
+  "spec": {
+    "componentType": {"name": "proxy/agent-api"},
+    "owner": {"projectName": "proj"},
+    "workflow": {"parameters": {
+      "endpoints": [],
+      "healthChecks": {"readiness": {"type": "HTTP", "path": "/health"}}
+    }}
+  }
+}`
+
+// savedBuildParameters runs UpdateComponentBuildParameters against a fake OpenChoreo
+// holding componentWithHealthChecksJSON and returns the build settings it writes back.
+func savedBuildParameters(t *testing.T, req UpdateComponentBuildParametersRequest) map[string]any {
+	t.Helper()
+	var putWorkflowParameters map[string]any
+	client := newTestClient(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodGet {
+			var sent struct {
+				Spec struct {
+					Workflow struct {
+						Parameters map[string]any `json:"parameters"`
+					} `json:"workflow"`
+				} `json:"spec"`
+			}
+			require.NoError(t, json.NewDecoder(r.Body).Decode(&sent))
+			putWorkflowParameters = sent.Spec.Workflow.Parameters
+		}
+		w.WriteHeader(http.StatusOK)
+		_, err := w.Write([]byte(componentWithHealthChecksJSON))
+		require.NoError(t, err)
+	}))
+	req.AgentType = AgentTypeConfig{Type: "agent-api", SubType: "chat-api"}
+	require.NoError(t, client.UpdateComponentBuildParameters(context.Background(), "acme", "proj", "support-bot", req))
+	require.NotNil(t, putWorkflowParameters, "expected the update to PUT the component back")
+	return putWorkflowParameters
+}
+
+// Configure Build without health checks must keep the saved ones, so a caller that
+// doesn't know about health checks can't wipe them.
+func TestUpdateComponentBuildParameters_KeepsHealthChecksWhenNotSent(t *testing.T) {
+	saved := savedBuildParameters(t, UpdateComponentBuildParametersRequest{})
+	assert.Equal(t, map[string]any{"readiness": map[string]any{"type": "HTTP", "path": "/health"}}, saved["healthChecks"])
+}
+
+// Sent health checks replace the saved ones entirely: readiness is not merged in.
+func TestUpdateComponentBuildParameters_ReplacesHealthChecksWhenSent(t *testing.T) {
+	tcp := "TCP"
+	saved := savedBuildParameters(t, UpdateComponentBuildParametersRequest{
+		HealthChecks: &HealthChecksConfig{Liveness: &HealthCheckConfig{Type: &tcp}},
+	})
+	assert.Equal(t, map[string]any{"liveness": map[string]any{"type": "TCP"}}, saved["healthChecks"])
+}
+
+// Empty health checks remove the saved ones, so the next build uses the defaults.
+func TestUpdateComponentBuildParameters_EmptyHealthChecksRemovesSavedOnes(t *testing.T) {
+	saved := savedBuildParameters(t, UpdateComponentBuildParametersRequest{HealthChecks: &HealthChecksConfig{}})
+	assert.NotContains(t, saved, "healthChecks")
+}
+
+// Creating an agent saves the health checks next to the endpoints, so the first build records them.
+func TestBuildWorkflowParameters_SavesHealthChecksOnCreate(t *testing.T) {
+	disabled := false
+	params, err := buildWorkflowParameters(CreateComponentRequest{
+		Name:           "support-bot",
+		AgentType:      AgentTypeConfig{Type: "agent-api", SubType: "chat-api"},
+		InputInterface: &InputInterfaceConfig{Type: "HTTP"},
+		HealthChecks:   &HealthChecksConfig{Startup: &HealthCheckConfig{Enabled: &disabled}},
+	})
+	require.NoError(t, err)
+	assert.Equal(t, map[string]any{"startup": map[string]any{"enabled": false}}, params["healthChecks"])
+
+	params, err = buildWorkflowParameters(CreateComponentRequest{
+		Name:           "support-bot",
+		AgentType:      AgentTypeConfig{Type: "agent-api", SubType: "chat-api"},
+		InputInterface: &InputInterfaceConfig{Type: "HTTP"},
+	})
+	require.NoError(t, err)
+	assert.NotContains(t, params, "healthChecks", "nothing sent, so nothing saved")
+}
+
+// Reading the agent returns the saved health checks, so Configure Build can show them.
+func TestConvertComponentFromTyped_ReturnsSavedHealthChecks(t *testing.T) {
+	var component gen.Component
+	require.NoError(t, json.Unmarshal([]byte(componentWithHealthChecksJSON), &component))
+
+	agent, err := convertComponentFromTyped(&component)
+
+	require.NoError(t, err)
+	require.NotNil(t, agent.HealthChecks)
+	require.NotNil(t, agent.HealthChecks.Readiness)
+	assert.Equal(t, "HTTP", *agent.HealthChecks.Readiness.Type)
+	assert.Equal(t, "/health", *agent.HealthChecks.Readiness.Path)
+	assert.Nil(t, agent.HealthChecks.Startup)
+}
+
+// A saved value that can't be read is left out of the agent rather than failing, because
+// callers drop an agent that fails to convert from the agent list.
+func TestConvertComponentFromTyped_UnreadableHealthChecksAreLeftOut(t *testing.T) {
+	var component gen.Component
+	require.NoError(t, json.Unmarshal([]byte(componentWithHealthChecksJSON), &component))
+	(*component.Spec.Workflow.Parameters)["healthChecks"] = "not an object"
+
+	agent, err := convertComponentFromTyped(&component)
+
+	require.NoError(t, err)
+	assert.Nil(t, agent.HealthChecks)
+}
+
+// Every field is saved under the name the agent-api ComponentType reads
+// (environmentConfigs.healthChecks.<check>.<field>); a misspelt name would be
+// saved without error and silently ignored when the pod is rendered.
+func TestSetHealthChecksWorkflowParameter_SavesEveryFieldUnderTheTemplateName(t *testing.T) {
+	enabled, checkType, path := true, "HTTP", "/health"
+	port, initialDelay, period, timeout, failures := int32(9000), int32(0), int32(5), int32(2), int32(6)
+	params := map[string]any{}
+
+	setHealthChecksWorkflowParameter(params, &HealthChecksConfig{Readiness: &HealthCheckConfig{
+		Enabled: &enabled, Type: &checkType, Path: &path, Port: &port,
+		InitialDelaySeconds: &initialDelay, PeriodSeconds: &period, TimeoutSeconds: &timeout, FailureThreshold: &failures,
+	}})
+
+	assert.Equal(t, map[string]any{"readiness": map[string]any{
+		"enabled": true, "type": "HTTP", "path": "/health", "port": int32(9000),
+		"initialDelaySeconds": int32(0), "periodSeconds": int32(5), "timeoutSeconds": int32(2), "failureThreshold": int32(6),
+	}}, params["healthChecks"])
+}

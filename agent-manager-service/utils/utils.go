@@ -88,6 +88,9 @@ func ValidateAgentBuildParametersUpdatePayload(payload spec.UpdateAgentBuildPara
 	); err != nil {
 		return err
 	}
+	if err := validateHealthChecks(payload.HealthChecks); err != nil {
+		return err
+	}
 
 	return nil
 }
@@ -347,6 +350,9 @@ func ValidateAgentCreatePayload(payload spec.CreateAgentRequest) error {
 		if err := ValidateLabels(*payload.Labels); err != nil {
 			return err
 		}
+	}
+	if err := validateHealthChecks(payload.HealthChecks); err != nil {
+		return err
 	}
 	return validateAgentPayload(agentPayload{
 		name:           payload.Name,
@@ -833,6 +839,76 @@ func validateInputInterfacePort(port *int32) error {
 			"Please provide a valid port number between 1 and 65535",
 			"inputInterface.port must be a valid port number (1-65535)",
 		)
+	}
+	return nil
+}
+
+// validateHealthChecks checks the startup, readiness and liveness checks when sent.
+// OpenChoreo checks the same rules only when it renders the pod, so a bad value
+// saved here would fail every later deploy instead of this request.
+func validateHealthChecks(healthChecks *spec.HealthChecks) error {
+	// Not sent: nothing to check.
+	if healthChecks == nil {
+		return nil
+	}
+	if err := validateHealthCheck("startup", healthChecks.Startup); err != nil {
+		return err
+	}
+	if err := validateHealthCheck("readiness", healthChecks.Readiness); err != nil {
+		return err
+	}
+	return validateHealthCheck("liveness", healthChecks.Liveness)
+}
+
+func validateHealthCheck(checkName string, check *spec.HealthCheck) error {
+	// Not set: the default check is used.
+	if check == nil {
+		return nil
+	}
+	field := "healthChecks." + checkName
+	// The type is TCP or HTTP; when not set it defaults to TCP.
+	checkType := StrPointerAsStr(check.Type, string(HealthCheckTypeTCP))
+	if checkType != string(HealthCheckTypeTCP) && checkType != string(HealthCheckTypeHTTP) {
+		return NewValidationErrorf(
+			"Health check type must be TCP or HTTP",
+			"%s.type must be TCP or HTTP, got %q", field, checkType,
+		)
+	}
+	// A path is only meaningful for an HTTP check; it becomes the GET request's path.
+	if check.Path != nil {
+		if checkType != string(HealthCheckTypeHTTP) {
+			return NewValidationErrorf(
+				"A health check path can only be set for an HTTP check",
+				"%s.path is set but %s.type is %s", field, field, checkType,
+			)
+		}
+		if err := validateSafePath(*check.Path, field+".path", "Please provide a valid health check path starting with /"); err != nil {
+			return err
+		}
+	}
+	// The port, when set, must be a real port; when not set the agent's port is used.
+	if check.Port != nil && (*check.Port < 1 || *check.Port > 65535) {
+		return NewValidationErrorf(
+			"Please provide a valid health check port between 1 and 65535",
+			"%s.port must be between 1 and 65535", field,
+		)
+	}
+	// The first check may run immediately, so the initial delay can be 0.
+	if check.InitialDelaySeconds != nil && *check.InitialDelaySeconds < 0 {
+		return NewValidationErrorf(
+			"Health check initial delay cannot be negative",
+			"%s.initialDelaySeconds must be 0 or more", field,
+		)
+	}
+	// The interval, timeout and failures allowed must each be at least 1.
+	if check.PeriodSeconds != nil && *check.PeriodSeconds < 1 {
+		return NewValidationErrorf("Health check interval must be at least 1 second", "%s.periodSeconds must be 1 or more", field)
+	}
+	if check.TimeoutSeconds != nil && *check.TimeoutSeconds < 1 {
+		return NewValidationErrorf("Health check timeout must be at least 1 second", "%s.timeoutSeconds must be 1 or more", field)
+	}
+	if check.FailureThreshold != nil && *check.FailureThreshold < 1 {
+		return NewValidationErrorf("Health check failures allowed must be at least 1", "%s.failureThreshold must be 1 or more", field)
 	}
 	return nil
 }
