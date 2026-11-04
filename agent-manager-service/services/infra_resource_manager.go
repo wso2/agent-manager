@@ -120,6 +120,9 @@ func (s *infraResourceManager) CreateProject(ctx context.Context, ouID string, p
 
 	if err := s.ocClient.CreateProject(ctx, ouID, req); err != nil {
 		s.logger.Error("Failed to create project in OpenChoreo", "ouID", ouID, "projectName", payload.Name, "error", err)
+		if errors.Is(err, utils.ErrConflict) {
+			return nil, fmt.Errorf("%w: %w", utils.ErrProjectAlreadyExists, err)
+		}
 		return nil, err
 	}
 	s.logger.Info("Project created successfully", "ouID", ouID, "projectName", payload.Name)
@@ -428,6 +431,9 @@ func (s *infraResourceManager) CreateOrgDeploymentPipeline(ctx context.Context, 
 	created, err := s.ocClient.CreateDeploymentPipeline(ctx, ouID, pipelineName, &displayName, description, promotionPaths)
 	if err != nil {
 		s.logger.Error("Failed to create deployment pipeline", "ouID", ouID, "error", err)
+		if errors.Is(err, utils.ErrConflict) {
+			return nil, fmt.Errorf("%w: %w", utils.ErrDeploymentPipelineAlreadyExists, err)
+		}
 		return nil, err
 	}
 
