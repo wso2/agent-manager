@@ -61,7 +61,9 @@ var (
 	errPlacementFixed = errors.New("placement is fixed for this environment; delete and recreate the binding to change it")
 
 	// errSelfHostedAnchor means a platform-hosted agent's or monitor's LLM proxy, which AMS owns and serves to
-	// workloads in OpenChoreo, is placed on a self-hosted gateway. No path places one there, so this is a backstop only.
+	// workloads in OpenChoreo, is placed on a self-hosted gateway. Platform-hosted agents and monitors only use
+	// managed gateways and no path places their proxies elsewhere, so this is a backstop only. External agents may
+	// use self-hosted ones; their proxies are not checked against it.
 	errSelfHostedAnchor = errors.New("the agent's or monitor's LLM proxy is placed on a self-hosted gateway")
 )
 
@@ -180,7 +182,8 @@ func resolveEgressGatewayForArtifact(
 
 // managedAnchorsOnly is gatewayIDs without the self-hosted gateways, original order kept. Unknown or deleted
 // ids stay: they are stale rows the placement lookup skips. Used for platform-hosted agents' and monitors' LLM
-// proxies, which must never be placed next to a self-hosted anchor.
+// proxies: platform-hosted agents and monitors only use managed gateways. External agents may use self-hosted
+// ones, so their proxies use managedAnchorsFirst.
 func managedAnchorsOnly(repo repositories.GatewayRepository, gatewayIDs []string) ([]string, error) {
 	kept := make([]string, 0, len(gatewayIDs))
 	for _, id := range gatewayIDs {

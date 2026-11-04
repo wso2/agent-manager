@@ -4683,6 +4683,7 @@ func (s *agentConfigurationService) resolveGatewayForProvider(
 
 // requireManagedProviderPlacement refuses an agent LLM binding unless the provider is placed on a gateway
 // mapped to the environment: a managed one for a platform-hosted agent, one of any hosting for an external agent.
+// Platform-hosted agents only use managed gateways. External agents may use self-hosted ones.
 func (s *agentConfigurationService) requireManagedProviderPlacement(
 	ctx context.Context, ouID string, providerUUID, envUUID uuid.UUID, isExternalAgent bool,
 ) error {
@@ -4875,16 +4876,19 @@ func (s *agentConfigurationService) resolveMCPEnvGateways(
 	return resolved, nil
 }
 
-// errMCPProxyOnSelfHostedGateway refuses an agent binding to an MCP proxy whose gateway in the
-// environment is self-hosted. Platform-hosted agents only use managed gateways.
+// errMCPProxyOnSelfHostedGateway refuses a platform-hosted agent's binding to an MCP proxy whose
+// gateway in the environment is self-hosted. Platform-hosted agents only use managed gateways.
+// External agents may use self-hosted ones and are not refused with it.
 func errMCPProxyOnSelfHostedGateway(proxy *models.MCPProxy, envName string) error {
 	return fmt.Errorf("%w: MCP proxy %s is on a self-hosted gateway in environment %s; agents can only use MCP proxies on managed gateways",
 		utils.ErrInvalidInput, mcpProxyHandle(proxy), envName)
 }
 
-// errMCPGatewayNotManaged reports that an agent's MCP proxy resolves to a self-hosted gateway in
-// an environment. The proxy-side checks keep this from happening; if it does anyway, the agent
-// gets no URL there rather than one that points its traffic at the customer's gateway.
+// errMCPGatewayNotManaged reports that a platform-hosted agent's MCP proxy resolves to a
+// self-hosted gateway in an environment. Platform-hosted agents only use managed gateways, and
+// the proxy-side checks keep this from happening; if it does anyway, the agent gets no URL there
+// rather than one that points its traffic at the customer's gateway. External agents may use
+// self-hosted ones and resolve through placedGatewayForMCPArtifact instead.
 var errMCPGatewayNotManaged = errors.New("MCP proxy is on a self-hosted gateway in this environment")
 
 // resolveGatewayForMCPArtifact is the gateway an agent reaches the MCP proxy's shared

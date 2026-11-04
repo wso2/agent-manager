@@ -1438,8 +1438,9 @@ var errMCPIdentityOnSelfHostedGateway = fmt.Errorf("%w: Agent Identity isn't ava
 // create. An environment with a deployed artifact anchors on that artifact's gateway, so
 // errPlacementFixed also surfaces before the write rather than after it.
 //
-// proxyUUID is the proxy being updated, uuid.Nil on create. A proxy agents use may not move
-// into a self-hosted gateway (requireNoAgentsForSelfHostedPlacement).
+// proxyUUID is the proxy being updated, uuid.Nil on create. A proxy platform-hosted agents use
+// may not move onto a self-hosted gateway (requireNoAgentsForSelfHostedPlacement). External
+// agents may use self-hosted gateways, so their use doesn't block the move.
 //
 // An identity-mode endpoint may not resolve to a self-hosted gateway in any environment
 // (errMCPIdentityOnSelfHostedGateway). Known gap: an environment whose anchor lookup fails is
@@ -1527,7 +1528,7 @@ type mcpProxyAgentUse struct {
 // self-hosted gateway while platform-hosted agents use the proxy: bound in that environment (a
 // mapping row, which survives the environment being removed from the proxy and re-added), or
 // recording the proxy at all (the binding reconcile or a promotion could bind it there later).
-// Platform-hosted agents only use managed gateways. External agents don't run on the platform, so
+// Platform-hosted agents only use managed gateways. External agents may use self-hosted ones, so
 // their use doesn't block a self-hosted placement.
 func (s *MCPProxyService) requireNoAgentsForSelfHostedPlacement(
 	ctx context.Context, orgUUID string, proxyUUID, envUUID uuid.UUID, gateway *models.Gateway, use *mcpProxyAgentUse,
